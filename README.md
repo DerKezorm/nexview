@@ -132,11 +132,18 @@ Beim nächsten Start erscheint wieder der Einrichtungsassistent.
 Nexview läuft als **ein** Container: FastAPI liefert die API und die gebaute Oberfläche
 gemeinsam aus. Es wird kein zusätzlicher Webserver gebraucht.
 
+Das fertige Abbild liegt in der GitHub Container Registry und wird für Intel/AMD **und**
+ARM gebaut — es muss also nichts selbst kompiliert werden:
+
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 Danach ist Nexview unter **`http://<adresse-des-servers>:5173`** erreichbar.
+
+Wer stattdessen aus dem Quelltext bauen möchte, ersetzt in der `docker-compose.yml` die
+Zeile `image: ghcr.io/derkezorm/nexview:latest` durch `build: .` und hängt beim Start
+`--build` an.
 
 ### Was gesichert werden muss
 
@@ -170,8 +177,8 @@ Ein fester Pfad statt `./data` macht das Sichern über Hyper Backup einfacher.
 ### Aktualisieren
 
 ```bash
-docker compose pull        # oder: git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 Die Datenbank bleibt erhalten. Fehlende Spalten ergänzt Nexview beim Start selbst — ein

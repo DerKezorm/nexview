@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from itertools import zip_longest
 from datetime import datetime
 
 from fastapi import APIRouter
@@ -16,7 +17,6 @@ from ..models import Favorite, MediaRequest, MediaType, RequestStatus
 from ..schemas_media import MediaItem
 from ..services import library, media, requests_service
 from ..services.settings_service import for_user, load_settings
-from ..services.tmdb import image_url
 
 router = APIRouter(prefix="/api/home", tags=["home"])
 
@@ -68,9 +68,23 @@ async def recent_downloads(user: CurrentUser, db: DbSession) -> list[RecentItem]
 
     settings = for_user(load_settings(db), user)
 
+    # Zwei verschiedene Arten von "keine Details":
+    #
+    # * **Altersbeschraenkung.** Der Eintrag muss ganz verschwinden. Genau hier
+    #   waere sonst ein Leck: unten greift die Anzeige auf Titel und Poster aus
+    #   Nexviews eigener Anfragetabelle zurueck, und der gesperrte Titel stuende
+    #   trotzdem auf der Startseite.
+    # * **Etwas ging schief** - TMDB langsam, Schluessel abgelaufen, Titel dort
+    #   geloescht. Dann ist der gespeicherte Titel besser als eine leere
+    #   Startseite. Am Statuscode allein laesst sich das nicht unterscheiden:
+    #   beides ist ein 404.
+    VERBERGEN = object()
+
     async def hole(request: MediaRequest):
         try:
             return await media.detail(db, settings, request.media_type.value, request.tmdb_id)
+        except media.AgeRestricted:
+            return VERBERGEN
         except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
             logger.warning("Could not load details for %r: %s", request.title, fehler)
             return None
@@ -79,6 +93,8 @@ async def recent_downloads(user: CurrentUser, db: DbSession) -> list[RecentItem]
 
     eintraege: list[RecentItem] = []
     for request, item in zip(anfragen, details, strict=True):
+        if item is VERBERGEN:
+            continue
         eintraege.append(
             RecentItem(
                 request_id=request.id,
@@ -86,7 +102,7 @@ async def recent_downloads(user: CurrentUser, db: DbSession) -> list[RecentItem]
                 tmdb_id=request.tmdb_id,
                 title=item.title if item else request.title,
                 overview=item.overview if item else "",
-                poster_url=(item.poster_url if item else None) or image_url(request.poster_path),
+                poster_url=(item.poster_url if item else None) or request.poster_path,
                 backdrop_url=item.backdrop_url if item else None,
                 release_date=(item.release_date if item else None) or request.release_date,
                 vote_average=item.vote_average if item else 0.0,
@@ -196,39 +212,71 @@ class CuratedResult(BaseModel):
     items: list[MediaItem]
 
 
-@router.get("/curated", response_model=CuratedResult)
-async def curated(user: CurrentUser, db: DbSession) -> CuratedResult:
-    """Empfehlungen auf Basis der eigenen Favoriten - nur, was noch fehlt."""
-    settings = for_user(load_settings(db), user)
-
-    favoriten = list(
-        db.scalars(
-            select(Favorite.tmdb_id)
-            .where(Favorite.user_id == user.id, Favorite.media_type == MediaType.movie)
-            .order_by(Favorite.created_at.desc())
-        )
-    )
+async def _kuratiert_fuer(
+    db: DbSession, settings, media_type: MediaType, favoriten: list[int]
+) -> list[MediaItem]:
+    """Empfehlungen einer Medienart - schon gefiltert auf das, was noch fehlt."""
     if not favoriten:
-        return CuratedResult(has_favorites=False, items=[])
+        return []
 
     try:
-        vorschlaege = await media.curated(db, settings, "movie", favoriten)
+        vorschlaege = await media.curated(db, settings, media_type.value, favoriten)
     except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
-        logger.warning("Kuratierte Empfehlungen nicht abrufbar: %s", fehler)
-        return CuratedResult(has_favorites=True, items=[])
+        logger.warning("Kuratierte Empfehlungen (%s) nicht abrufbar: %s", media_type.value, fehler)
+        return []
 
     try:
-        vorschlaege = (await library.apply_status(settings, "movie", vorschlaege)).items
+        vorschlaege = (await library.apply_status(settings, media_type.value, vorschlaege)).items
     except Exception as fehler:  # noqa: BLE001
         logger.info("Kuratiert ohne Bibliotheksabgleich: %s", fehler)
 
     eigene = requests_service.badges_for(
-        db, MediaType.movie, [eintrag.tmdb_id for eintrag in vorschlaege]
+        db, media_type, [eintrag.tmdb_id for eintrag in vorschlaege]
     )
-
-    fehlend = [
+    return [
         eintrag
         for eintrag in vorschlaege
         if eintrag.status == "not_requested" and eintrag.tmdb_id not in eigene
     ]
-    return CuratedResult(has_favorites=True, items=fehlend[:CURATED_LIMIT])
+
+
+@router.get("/curated", response_model=CuratedResult)
+async def curated(user: CurrentUser, db: DbSession) -> CuratedResult:
+    """Empfehlungen auf Basis der eigenen Favoriten - nur, was noch fehlt.
+
+    **Filme und Serien.** Zuerst sah diese Auskunft nur Filme an: wer
+    ausschliesslich Serien markiert hatte, bekam "noch nichts markiert" zu
+    lesen, obwohl sein Herz an mehreren Serien hing. Das Herz gibt es an beidem,
+    also muss auch beides zaehlen.
+    """
+    settings = for_user(load_settings(db), user)
+
+    favoriten: dict[MediaType, list[int]] = {}
+    for art in (MediaType.movie, MediaType.tv):
+        favoriten[art] = list(
+            db.scalars(
+                select(Favorite.tmdb_id)
+                .where(Favorite.user_id == user.id, Favorite.media_type == art)
+                .order_by(Favorite.created_at.desc())
+            )
+        )
+
+    if not any(favoriten.values()):
+        return CuratedResult(has_favorites=False, items=[])
+
+    filme, serien = await asyncio.gather(
+        _kuratiert_fuer(db, settings, MediaType.movie, favoriten[MediaType.movie]),
+        _kuratiert_fuer(db, settings, MediaType.tv, favoriten[MediaType.tv]),
+    )
+
+    # Abwechselnd zusammenlegen statt erst alle Filme, dann alle Serien: sonst
+    # sieht jemand mit vielen Filmfavoriten nie eine Serie, weil die Liste
+    # vorher voll ist.
+    gemischt: list[MediaItem] = []
+    for film, serie in zip_longest(filme, serien):
+        if film is not None:
+            gemischt.append(film)
+        if serie is not None:
+            gemischt.append(serie)
+
+    return CuratedResult(has_favorites=True, items=gemischt[:CURATED_LIMIT])

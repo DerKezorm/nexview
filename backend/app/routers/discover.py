@@ -10,7 +10,7 @@ from ..deps import CurrentUser, DbSession
 from ..mocks import demo_data
 from ..models import MediaType
 from ..schemas_media import ArrOptions, Genre, MediaItem, MediaPage
-from ..services import library, media, requests_service
+from ..services import blocklist, library, media, requests_service
 from ..services.arr import ArrError
 from ..services.filters import (
     KNOWN_TITLES_MIN_VOTES,
@@ -49,20 +49,31 @@ async def _status_for(
 ) -> tuple[list[MediaItem], str | None]:
     """Titeln ihren Zustand geben.
 
-    Zwei Quellen: was in Radarr/Sonarr liegt, und was bei uns angefragt wurde.
-    Eine vorhandene Datei sticht immer - alles andere kommt aus der Anfrage.
+    Drei Quellen: was in Radarr/Sonarr liegt, was bei uns angefragt wurde, und
+    die Sperrliste. Eine vorhandene Datei sticht die Anfrage - aber die Sperre
+    sticht alles.
+
+    Dass die Sperre ganz oben steht, ist Absicht: sie ist die Auskunft, auf die
+    es ankommt. Stuende dort "noch nicht angefragt", waere der einzige Weg zur
+    Wahrheit ein Klick auf den Einkaufswagen und eine Fehlermeldung. Und liegt
+    der Titel schon in der Bibliothek, ist "gesperrt" fuer den Administrator
+    die wichtigere Information - die Sperre entfernt ihn ja nicht, sie
+    verhindert nur, dass er erneut angefragt wird.
     """
     result = await library.apply_status(settings, media_type, items)
+    kennungen = [item.tmdb_id for item in result.items]
 
-    own = requests_service.badges_for(
-        db, MediaType(media_type), [item.tmdb_id for item in result.items]
-    )
-    merged = [
-        item.model_copy(update={"status": own[item.tmdb_id]})
-        if item.tmdb_id in own and item.status != "downloaded"
-        else item
-        for item in result.items
-    ]
+    own = requests_service.badges_for(db, MediaType(media_type), kennungen)
+    gesperrt = blocklist.gesperrte_kennungen(db, MediaType(media_type), kennungen)
+
+    merged = []
+    for item in result.items:
+        if item.tmdb_id in gesperrt:
+            merged.append(item.model_copy(update={"status": blocklist.BADGE}))
+        elif item.tmdb_id in own and item.status != "downloaded":
+            merged.append(item.model_copy(update={"status": own[item.tmdb_id]}))
+        else:
+            merged.append(item)
     return merged, result.warning
 
 

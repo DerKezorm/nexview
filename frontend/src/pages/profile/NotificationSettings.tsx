@@ -12,6 +12,7 @@ type MailFeld =
   | 'mail_request_decided'
   | 'mail_request_pending'
   | 'mail_feedback'
+  | 'mail_ticket'
 
 type Schalter = {
   feld: MailFeld
@@ -45,6 +46,13 @@ const SCHALTER: Schalter[] = [
     hintKey: 'profile.mailFeedbackHint',
     nurEntscheider: true,
   },
+  {
+    // Für alle sichtbar: Benutzer bekommen Antworten auf ihre Tickets,
+    // Administratoren die neuen Anliegen. Ein Schalter für beides.
+    feld: 'mail_ticket',
+    labelKey: 'profile.mailTicket',
+    hintKey: 'profile.mailTicketHint',
+  },
 ]
 
 type Entwurf = Record<MailFeld, boolean>
@@ -55,6 +63,7 @@ function ausUser(user: User): Entwurf {
     mail_request_decided: user.mail_request_decided,
     mail_request_pending: user.mail_request_pending,
     mail_feedback: user.mail_feedback,
+    mail_ticket: user.mail_ticket,
   }
 }
 

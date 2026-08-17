@@ -29,14 +29,21 @@ was bereits in deiner Bibliothek liegt, und stößt Downloads über **Radarr** (
 | | |
 |---|---|
 | 🎬 **Getrennte Bereiche** | Filme und Serien mit jeweils eigener Logik (Radarr bzw. Sonarr) |
-| 🔎 **Filtern & suchen** | Nach Zeitraum, Sprache, Region und Genre; Kachel- oder Listenansicht |
-| ⬇️ **Anfragen** | Qualitätsprofil und Zielordner wählen, dann direkt an Radarr/Sonarr |
-| 🏷️ **Status auf einen Blick** | „Nicht angefragt", „Angefragt", „Wird gesucht", „Bereits geladen" |
-| 👥 **Benutzer & Rollen** | Admin legt Konten an; jeder sieht seine eigenen Anfragen |
+| 🔎 **Filtern & suchen** | Nach Zeitraum, Sprache, Region, Genre, Bewertung und Studio; Kachel- oder Listenansicht |
+| 📄 **Detailseiten** | Besetzung mit Fotos, Regie, Studios, Schlagworte, Empfehlungen, Trailer — bei Serien alle Staffeln zum Aufklappen |
+| ⬇️ **Anfragen** | Qualitätsprofil und Zielordner wählen, dann direkt an Radarr/Sonarr — bei Serien auch einzelne Staffeln |
+| 🏷️ **Status auf einen Blick** | „Nicht angefragt", „Angefragt", „Wird gesucht", „Bereits geladen", „Gesperrt" |
+| ⭐ **Bewertungen** | IMDb, Rotten Tomatoes und Metacritic bei Filmen, anklickbar — ohne weiteren Dienst |
+| ❤️ **Favoriten** | Titel mit dem Herz markieren; daraus entsteht „Für dich kuratiert" auf der Startseite |
+| 👥 **Benutzer & Rollen** | Administrator, Entscheider und Benutzer; jeder sieht nur seine eigenen Anfragen |
 | ✅ **Freigaben & Kontingente** | Pro Benutzer: automatisch freigeben oder manuell, Limits pro Tag/Woche/Monat |
-| 🔔 **Benachrichtigungen** | In-App-Hinweis, sobald ein angefragter Download fertig ist |
+| 🔞 **Altersbeschränkung** | Je Benutzer ein Alter; gezeigt wird nur, was höchstens ab diesem Alter freigegeben ist |
+| 🚫 **Sperrliste** | Titel, die nicht in die Bibliothek sollen — sichtbar, aber nicht anfragbar |
+| 🎫 **Ticketcenter** | Benutzer melden Anliegen, der Administrator antwortet; mit Zustand und Verlauf |
+| 🔔 **Benachrichtigungen** | Glocke in der App, auf Wunsch zusätzlich per E-Mail — jedes Ereignis einzeln schaltbar |
+| 📊 **Statistik & Protokoll** | Auswertung der Anfragen und ein Fehlerprotokoll für den Administrator |
 | 🌓 **Dunkles Theme** | Cineastische Optik mit rotem Akzent, auch auf dem Smartphone |
-| 🇩🇪 🇬🇧 **Zweisprachig** | Oberfläche umschaltbar zwischen Deutsch und Englisch |
+| 🇩🇪 🇬🇧 **Zweisprachig** | Oberfläche, Filmtitel und Beschreibungen umschaltbar zwischen Deutsch und Englisch |
 
 ## Technik
 
@@ -197,7 +204,7 @@ Nexview folgt der üblichen Zählung `HAUPT.NEBEN.KORREKTUR`:
 | Abbild | Inhalt |
 |---|---|
 | `ghcr.io/derkezorm/nexview:latest` | die jeweils neueste **veröffentlichte** Version — das ist die Empfehlung |
-| `ghcr.io/derkezorm/nexview:0.1.0` | genau diese eine Version, ändert sich nie |
+| `ghcr.io/derkezorm/nexview:0.4.0` | genau diese eine Version, ändert sich nie |
 | `ghcr.io/derkezorm/nexview:main` | der aktuelle Entwicklungsstand, kann kaputt sein |
 
 Welche Version läuft, steht in der Fußzeile und ausführlich unter **Über Nexview**. Dort

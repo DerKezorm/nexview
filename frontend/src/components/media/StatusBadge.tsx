@@ -13,6 +13,9 @@ const TONES: Record<MediaStatus, string> = {
   rejected: 'bg-ink-900/85 text-mist-500 ring-ink-600',
   failed: 'bg-bad-500/20 text-bad-500 ring-bad-500/40',
   cancelled: 'bg-ink-900/85 text-mist-500 ring-ink-600',
+  // Deutlich, aber nicht alarmierend: gesperrt ist eine Entscheidung,
+  // kein Fehler.
+  blocked: 'bg-bad-500/20 text-bad-500 ring-bad-500/40',
 }
 
 type StatusBadgeProps = {

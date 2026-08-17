@@ -37,9 +37,25 @@ export type User = {
   mail_request_pending: boolean
   mail_request_decided: boolean
   mail_feedback: boolean
+  /** Neue Tickets (für Admins) und Antworten darauf (für den Eigentümer). */
+  mail_ticket: boolean
 
   /** Vorbelegung der Filterleiste; null = Vorgabe des Admins. */
   discover_region: string | null
+
+  /**
+   * Altersbeschränkung. `null` heißt "nicht beschränkt" – der Normalfall.
+   * Sonst das Alter des Benutzers: gezeigt wird, was höchstens ab diesem
+   * Alter freigegeben ist.
+   *
+   * Nur der Administrator darf beides ändern; über das eigene Profil geht es
+   * bewusst nicht, sonst höbe der Betroffene die Sperre selbst auf.
+   */
+  age: number | null
+  /** Land, nach dessen Einstufung geurteilt wird; null = Vorgabe des Admins. */
+  rating_region: string | null
+  /** Titel ganz ohne Einstufung verbergen? Standard ja. */
+  hide_unrated: boolean
 }
 
 /** Offene Einladung – ein Konto gibt es dazu noch nicht. */
@@ -76,6 +92,8 @@ export type MediaStatus =
   | 'rejected'
   | 'failed'
   | 'cancelled'
+  /** Vom Administrator gesperrt: sichtbar, aber nicht anfragbar. */
+  | 'blocked'
 
 export type LogEntry = {
   time: string
@@ -448,10 +466,13 @@ export type AppNotification = {
     | 'feedback'
     | 'feedback_poor'
     | 'feedback_reply'
+    | 'ticket_new'
+    | 'ticket_reply'
   /** Übersetzungsschlüssel – der Text kommt aus der Oberfläche. */
   message_key: string
   message_title: string | null
   request_id: number | null
+  ticket_id: number | null
   is_read: boolean
   created_at: string
 }

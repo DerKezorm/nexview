@@ -8,26 +8,38 @@ import { useAuth } from '../../auth/useAuth'
 import { REGION_OPTIONS } from '../../components/media/FilterBar'
 import { Button, Card } from '../../components/ui'
 import { useConfig } from '../../hooks/useConfig'
+import { changeLanguage as spracheAnwenden, SUPPORTED_LANGUAGES } from '../../i18n'
+import type { Language } from '../../i18n'
 
 /**
- * Womit die Filterleiste beim Entdecken startet.
+ * Sprache und Region des Benutzers.
  *
- * Bewusst nur eine *Vorbelegung*: beim Entdecken lässt sich weiterhin alles
- * umstellen. Wer immer dasselbe sucht, muss es nur nicht jedes Mal neu
- * einstellen.
+ * Zwei Einstellungen, die oft verwechselt werden:
  *
- * Und bewusst nur die Region. Eine Vorbelegung der Originalsprache gab es hier
- * kurz auch - sie ist wieder raus: "Deutsch" heißt dort "auf Deutsch gedreht",
- * und solche Titel sind so selten, dass die Entdecken-Seite leer blieb
- * (gemessen 23 Titel gegen 0). Als Dauereinstellung war das eine Falle; in der
- * Filterleiste steht der Filter weiterhin zur Verfügung.
+ * - Die **Sprache** gilt für die Oberfläche *und* für Titel und Handlungen von
+ *   TMDB. Beides hängt bewusst zusammen - genau wie in Overseerr, das die
+ *   Anzeigesprache ebenfalls als Sprache der Metadaten verwendet. Wer die
+ *   Oberfläche auf Englisch stellt, liest "Days of Thunder" statt "Tage des
+ *   Donners".
+ * - Die **Region** sagt, wo jemand sitzt: Kinostarts, Verfügbarkeit, später
+ *   die Altersfreigabe. Sie stellt die Sprache absichtlich *nicht* um - sonst
+ *   bekäme ein Österreicher (Region AT) keine deutschen Texte mehr.
+ *
+ * Die Region ist beim Entdecken zusätzlich schon vorausgewählt, lässt sich
+ * dort aber jederzeit ändern.
+ *
+ * Bewusst *nicht* hier: die Originalsprache. Eine Vorbelegung gab es kurz -
+ * sie ist wieder raus, weil "Deutsch" dort "auf Deutsch gedreht" heißt und
+ * solche Titel so selten sind, dass die Entdecken-Seite leer blieb (gemessen
+ * 23 Titel gegen 0). In der Filterleiste steht sie weiterhin zur Verfügung.
  */
 export function DiscoverDefaults() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user, updateUser } = useAuth()
   const { data: config } = useConfig()
 
   const [region, setRegion] = useState('')
+  const [sprache, setSprache] = useState<Language>(i18n.language as Language)
   const [gespeichert, setGespeichert] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
 
@@ -38,10 +50,12 @@ export function DiscoverDefaults() {
     if (!user || vorbelegt.current) return
     vorbelegt.current = true
     setRegion(user.discover_region ?? '')
-  }, [user])
+    setSprache((user.language as Language) ?? (i18n.language as Language))
+  }, [user, i18n.language])
 
   const speichern = useMutation({
-    mutationFn: () => api.patch<User>('/api/auth/me', { discover_region: region }),
+    mutationFn: () =>
+      api.patch<User>('/api/auth/me', { discover_region: region, language: sprache }),
     onMutate: () => {
       setGespeichert(false)
       setFehler(null)
@@ -49,6 +63,10 @@ export function DiscoverDefaults() {
     onSuccess: (aktualisiert) => {
       updateUser(aktualisiert)
       setRegion(aktualisiert.discover_region ?? '')
+      // Erst jetzt umschalten: die Auswahl oben ist nur ein Vorschlag, bis
+      // gespeichert wird. Sonst spränge die Oberfläche schon beim Aufklappen
+      // der Liste um, und der Knopf daneben wäre sinnlos.
+      spracheAnwenden(aktualisiert.language as Language)
       setGespeichert(true)
     },
     onError: (caught) =>
@@ -58,14 +76,43 @@ export function DiscoverDefaults() {
   if (!user) return null
 
   const vorgabe = config?.default_region ?? 'DE'
-  const geaendert = region !== (user.discover_region ?? '')
+  const geaendert = region !== (user.discover_region ?? '') || sprache !== user.language
 
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold">{t('profile.discoverDefaults')}</h2>
-        <p className="mt-1 text-sm text-mist-500">{t('profile.discoverDefaultsIntro')}</p>
+        <h2 className="text-lg font-semibold">{t('profile.langRegion')}</h2>
+        <p className="mt-1 text-sm text-mist-500">{t('profile.langRegionIntro')}</p>
       </div>
+
+      {/* Wer beschränkt ist, soll das wissen. Ohne diesen Hinweis wirkte
+          Nexview für ihn einfach lückenhaft, und er würde Titel suchen, die er
+          nie zu Gesicht bekommt. Nur Anzeige - ändern darf es der Admin. */}
+      {user.age !== null && (
+        <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
+          {t('profile.ageRestricted', { age: user.age })}
+        </p>
+      )}
+
+      <label className="flex max-w-xs flex-col gap-1.5">
+        <span className="text-sm font-medium text-mist-300">{t('language.label')}</span>
+        <select
+          value={sprache}
+          onChange={(event) => {
+            setSprache(event.target.value as Language)
+            setGespeichert(false)
+          }}
+          disabled={speichern.isPending}
+          className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none disabled:opacity-50"
+        >
+          {SUPPORTED_LANGUAGES.map((kuerzel) => (
+            <option key={kuerzel} value={kuerzel}>
+              {t(`language.name.${kuerzel}`)}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs leading-relaxed text-mist-600">{t('profile.languageHint')}</span>
+      </label>
 
       <label className="flex max-w-xs flex-col gap-1.5">
         <span className="text-sm font-medium text-mist-300">{t('filters.region')}</span>

@@ -16,7 +16,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import MediaRequest, Notification, NotificationType, Role, User
+from ..models import MediaRequest, Notification, NotificationType, Role, Ticket, User
 
 logger = logging.getLogger("nexview.notify")
 
@@ -34,6 +34,10 @@ MAIL_SWITCH: dict[NotificationType, str] = {
     NotificationType.feedback: "mail_feedback",
     NotificationType.feedback_poor: "mail_feedback",
     NotificationType.feedback_reply: "mail_feedback",
+    # Neues Ticket und Antwort darauf teilen sich einen Schalter - siehe
+    # die Begruendung oben.
+    NotificationType.ticket_new: "mail_ticket",
+    NotificationType.ticket_reply: "mail_ticket",
 }
 
 
@@ -57,14 +61,25 @@ def create(
     kind: NotificationType,
     message_key: str,
     request: MediaRequest | None = None,
+    ticket: Ticket | None = None,
 ) -> Notification:
-    """Eine Benachrichtigung anlegen. Kein ``commit`` - das macht der Aufrufer."""
+    """Eine Benachrichtigung anlegen. Kein ``commit`` - das macht der Aufrufer.
+
+    ``request`` und ``ticket`` sind zwei moegliche Bezuege; die Glocke
+    springt anhand davon an die richtige Stelle. Der ``message_title``
+    kommt aus dem, was gesetzt ist - beim Ticket der Betreff.
+    """
     eintrag = Notification(
         user_id=user.id,
         request_id=request.id if request is not None else None,
+        ticket_id=ticket.id if ticket is not None else None,
         type=kind,
         message_key=message_key,
-        message_title=request.title if request is not None else None,
+        message_title=(
+            request.title
+            if request is not None
+            else (ticket.subject if ticket is not None else None)
+        ),
         mail_pending=wants_mail(user, kind),
     )
     db.add(eintrag)
@@ -77,6 +92,7 @@ def create_for_approvers(
     kind: NotificationType,
     message_key: str,
     request: MediaRequest | None = None,
+    ticket: Ticket | None = None,
     ausser: int | None = None,
 ) -> list[Notification]:
     """Dasselbe fuer alle, die freigeben duerfen (Admins und Entscheider).
@@ -88,7 +104,7 @@ def create_for_approvers(
         select(User).where(User.role.in_((Role.admin, Role.approver)), User.is_active.is_(True))
     )
     return [
-        create(db, user=user, kind=kind, message_key=message_key, request=request)
+        create(db, user=user, kind=kind, message_key=message_key, request=request, ticket=ticket)
         for user in empfaenger
         if user.id != ausser
     ]
@@ -100,6 +116,7 @@ def create_for_admins(
     kind: NotificationType,
     message_key: str,
     request: MediaRequest | None = None,
+    ticket: Ticket | None = None,
     ausser: int | None = None,
 ) -> list[Notification]:
     """Nur Administratoren - fuer alles, was auch nur sie beantworten koennen."""
@@ -107,7 +124,7 @@ def create_for_admins(
         select(User).where(User.role == Role.admin, User.is_active.is_(True))
     )
     return [
-        create(db, user=user, kind=kind, message_key=message_key, request=request)
+        create(db, user=user, kind=kind, message_key=message_key, request=request, ticket=ticket)
         for user in empfaenger
         if user.id != ausser
     ]

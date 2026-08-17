@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { ApiError, api } from '../api/client'
@@ -19,6 +19,7 @@ import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
 import { browsePath, personPath } from '../lib/routes'
+import { useAuth } from '../auth/useAuth'
 
 /** Ein Eckdatum: Beschriftung oben, Wert darunter. */
 function Fact({ label, value }: { label: string; value: string }) {
@@ -40,13 +41,7 @@ function Chip({ children }: { children: React.ReactNode }) {
 }
 
 /** Dasselbe, aber anklickbar: führt zur Liste aller Titel damit. */
-function ChipLink({
-  to,
-  children,
-}: {
-  to: string
-  children: React.ReactNode
-}) {
+function ChipLink({ to, children }: { to: string; children: React.ReactNode }) {
   return (
     <Link
       to={to}
@@ -75,10 +70,7 @@ function ChipRow({
       <p className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">{label}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {eintraege.map((eintrag) => (
-          <ChipLink
-            key={eintrag.id}
-            to={browsePath(mediaType, art, eintrag.id, eintrag.name)}
-          >
+          <ChipLink key={eintrag.id} to={browsePath(mediaType, art, eintrag.id, eintrag.name)}>
             {eintrag.name}
           </ChipLink>
         ))}
@@ -105,6 +97,8 @@ function Geld(betrag: number | null, sprache: string): string | null {
  */
 export function TitlePage() {
   const { t, i18n } = useTranslation()
+  const { user } = useAuth()
+  const navigate = useNavigate()
   const { mediaType, tmdbId } = useParams<{ mediaType: MediaType; tmdbId: string }>()
   const { data: config } = useConfig()
 
@@ -148,7 +142,9 @@ export function TitlePage() {
 
   const laufzeit = formatRuntime(item.runtime_minutes, i18n.language)
   const regie = item.crew.filter((person) => person.job === 'Director' || person.job === 'Creator')
-  const drehbuch = item.crew.filter((person) => person.job !== 'Director' && person.job !== 'Creator')
+  const drehbuch = item.crew.filter(
+    (person) => person.job !== 'Director' && person.job !== 'Creator',
+  )
 
   /**
    * Staffeln, von denen noch Folgen fehlen.
@@ -164,7 +160,13 @@ export function TitlePage() {
     !istFilm &&
     fehlendeStaffeln.length > 0 &&
     (item.status === 'downloaded' || item.status === 'in_library')
-  const kannAnfragen = item.status === 'not_requested' || nurWeitereStaffel
+  // Gesperrt heißt gesperrt - außer für den Administrator. Die Liste ist
+  // seine Entscheidung und soll die anderen bremsen, nicht ihn. Das
+  // Backend sieht es genauso, der Knopf ist nur die Bequemlichkeit dazu.
+  const istAdmin = user?.role === 'admin'
+  const gesperrt = item.status === 'blocked'
+  const kannAnfragen =
+    item.status === 'not_requested' || nurWeitereStaffel || (gesperrt && istAdmin)
 
   return (
     <div className="flex flex-col gap-8">
@@ -238,6 +240,23 @@ export function TitlePage() {
                   </Button>
                 )}
 
+                {/* Etwas stimmt nicht mit diesem Titel? Führt ins
+                    Ticketcenter, mit vorbelegtem Bezug - so muss niemand den
+                    Namen abtippen und der Administrator weiß sofort, worum es
+                    geht. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() =>
+                    navigate(
+                      `/tickets?media_type=${item.media_type}&tmdb_id=${item.tmdb_id}` +
+                        `&title=${encodeURIComponent(item.title)}`,
+                    )
+                  }
+                >
+                  {t('tickets.report')}
+                </Button>
+
                 {kannAnfragen ? (
                   adding ? (
                     <Card className="max-w-xl">
@@ -264,7 +283,13 @@ export function TitlePage() {
                     </Button>
                   )
                 ) : (
-                  <p className="text-sm text-mist-500">{t(`request.state.${item.status}`)}</p>
+                  <p className="text-sm text-mist-500">
+                    {t(
+                      gesperrt && istAdmin
+                        ? 'request.state.blockedAdmin'
+                        : `request.state.${item.status}`,
+                    )}
+                  </p>
                 )}
               </div>
             </div>
@@ -276,10 +301,7 @@ export function TitlePage() {
         <dl className="grid grid-cols-2 gap-5 sm:grid-cols-4">
           <Fact label={t('media.released')} value={formatDate(item.release_date, i18n.language)} />
           {laufzeit && (
-            <Fact
-              label={t(istFilm ? 'media.runtime' : 'media.episodeLength')}
-              value={laufzeit}
-            />
+            <Fact label={t(istFilm ? 'media.runtime' : 'media.episodeLength')} value={laufzeit} />
           )}
           {item.certification && (
             <Fact label={t('media.certification')} value={item.certification} />
@@ -358,11 +380,7 @@ export function TitlePage() {
           <h2 className="mb-3 text-lg font-semibold">{t('detail.recommendations')}</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {item.recommendations.map((vorschlag) => (
-              <MediaCard
-                key={vorschlag.tmdb_id}
-                item={vorschlag}
-                onQuickAdd={setSchnellAnfrage}
-              />
+              <MediaCard key={vorschlag.tmdb_id} item={vorschlag} onQuickAdd={setSchnellAnfrage} />
             ))}
           </div>
         </section>

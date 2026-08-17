@@ -24,6 +24,8 @@ class NotificationPublic(BaseModel):
     message_key: str
     message_title: str | None
     request_id: int | None
+    # Damit die Glocke direkt in den Ticketverlauf springt.
+    ticket_id: int | None
     is_read: bool
     created_at: datetime
 

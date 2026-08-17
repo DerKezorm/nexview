@@ -5,9 +5,10 @@ import { AdminAddressSettings } from './settings/AdminAddressSettings'
 import { AdminLogsSettings } from './settings/AdminLogsSettings'
 import { AdminMailSettings } from './settings/AdminMailSettings'
 import { AdminServicesSettings } from './settings/AdminServicesSettings'
+import { AdminBlocklistSettings } from './settings/AdminBlocklistSettings'
 import { AdminUsersSettings } from './settings/AdminUsersSettings'
 
-type Tab = 'services' | 'address' | 'mail' | 'users' | 'logs'
+type Tab = 'services' | 'address' | 'mail' | 'users' | 'blocklist' | 'logs'
 
 /**
  * Einstellungen des Administrators - Dienste und Benutzer auf einer Seite.
@@ -24,6 +25,7 @@ export function SettingsPage() {
     { value: 'address', labelKey: 'settings.tabAddress' },
     { value: 'mail', labelKey: 'settings.tabMail' },
     { value: 'users', labelKey: 'settings.tabUsers' },
+    { value: 'blocklist', labelKey: 'settings.tabBlocklist' },
     { value: 'logs', labelKey: 'settings.tabLogs' },
   ]
 
@@ -60,6 +62,7 @@ export function SettingsPage() {
       {tab === 'address' && <AdminAddressSettings />}
       {tab === 'mail' && <AdminMailSettings />}
       {tab === 'users' && <AdminUsersSettings />}
+      {tab === 'blocklist' && <AdminBlocklistSettings />}
       {tab === 'logs' && <AdminLogsSettings />}
     </div>
   )

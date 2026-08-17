@@ -26,15 +26,7 @@ from sqlalchemy import delete  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services import library  # noqa: E402
-from app.models import (  # noqa: E402
-    ArrLibraryCache,
-    AuthToken,
-    MediaRequest,
-    Notification,
-    Setting,
-    TmdbCache,
-    User,
-)
+from app.models import Base, MediaRequest, Role, User  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
 ADMIN = {
@@ -46,16 +38,22 @@ ADMIN = {
 
 @pytest.fixture(autouse=True)
 def clean_db() -> Iterator[None]:
-    """Vor jedem Test mit leeren Tabellen starten."""
+    """Vor jedem Test mit leeren Tabellen starten.
+
+    Bewusst aus den Metadaten abgeleitet statt als Aufzaehlung: eine feste
+    Liste muss man bei jeder neuen Tabelle nachziehen, und wer das vergisst,
+    bekommt Tests, die einzeln laufen, aber gemeinsam scheitern - weil Reste
+    des vorherigen Tests stehen bleiben. Genau das ist mit der Sperrliste
+    passiert, deren Eintraege ein Loeschen der Benutzer absichtlich
+    ueberleben.
+
+    ``sorted_tables`` steht in Abhaengigkeitsreihenfolge; rueckwaerts geloescht
+    verletzt kein Fremdschluessel.
+    """
     init_db()
     with SessionLocal() as session:
-        session.execute(delete(Notification))
-        session.execute(delete(MediaRequest))
-        session.execute(delete(AuthToken))
-        session.execute(delete(User))
-        session.execute(delete(Setting))
-        session.execute(delete(TmdbCache))
-        session.execute(delete(ArrLibraryCache))
+        for tabelle in reversed(Base.metadata.sorted_tables):
+            session.execute(delete(tabelle))
         session.commit()
     yield
 

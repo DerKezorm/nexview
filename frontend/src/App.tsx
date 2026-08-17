@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { useAuth } from './auth/useAuth'
 import { AppShell } from './components/AppShell'
@@ -20,6 +22,8 @@ import {
 } from './pages/OnboardingPage'
 import { MyRequestsPage } from './pages/MyRequestsPage'
 import { PersonPage } from './pages/PersonPage'
+import { TicketPage } from './pages/TicketPage'
+import { TicketsPage } from './pages/TicketsPage'
 import { TitlePage } from './pages/TitlePage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SearchPage } from './pages/SearchPage'
@@ -60,8 +64,31 @@ function PublicRoutes() {
 
 const PUBLIC_PREFIXES = ['/einladung/', '/passwort/', '/bestaetigen/', '/passwort-vergessen']
 
+/**
+ * Beim Sprachwechsel alles neu holen.
+ *
+ * Titel und Handlungen kommen von TMDB in der eingestellten Sprache. Die
+ * Abfragen im Frontend merken sich ihr Ergebnis aber unter einem Schlüssel
+ * ohne Sprache - nach dem Umschalten blieb deshalb der alte Text stehen, bis
+ * man die Seite neu lud. Statt die Sprache in jeden einzelnen Schlüssel zu
+ * schreiben (und sie bei der nächsten neuen Seite zu vergessen), wird hier
+ * einmal zentral alles für ungültig erklärt.
+ */
+function useNeuLadenBeiSprachwechsel() {
+  const { i18n } = useTranslation()
+  const queryClient = useQueryClient()
+  const zuletzt = useRef(i18n.language)
+
+  useEffect(() => {
+    if (zuletzt.current === i18n.language) return
+    zuletzt.current = i18n.language
+    void queryClient.invalidateQueries()
+  }, [i18n.language, queryClient])
+}
+
 export default function App() {
   const { status, user, needsSetup } = useAuth()
+  useNeuLadenBeiSprachwechsel()
   // useLocation statt window.location: nur so erfährt diese Komponente von
   // einem Seitenwechsel. Mit window.location blieb der Wert vom ersten
   // Rendern stehen - der Link "Passwort vergessen" führte ins Leere.
@@ -90,6 +117,8 @@ export default function App() {
         <Route path="suche" element={<SearchPage />} />
         <Route path="profil" element={<ProfilePage />} />
         <Route path="mag-ich" element={<FavoritesPage />} />
+        <Route path="tickets" element={<TicketsPage />} />
+        <Route path="tickets/:ticketId" element={<TicketPage />} />
         <Route path="ueber" element={<AboutPage />} />
         {/* Vollbildseite je Titel und je Person - der Klick auf eine
             Kachel landet hier, nicht mehr im Popup. */}

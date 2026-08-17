@@ -89,6 +89,11 @@ class NotificationType(str, enum.Enum):
     feedback_poor = "feedback_poor"
     # Antwort des Administrators auf eine Rueckmeldung.
     feedback_reply = "feedback_reply"
+    # --- Ticketcenter ------------------------------------------------------
+    # Neues Ticket bzw. neue Nachricht des Benutzers - geht an die Admins.
+    ticket_new = "ticket_new"
+    # Antwort des Admins oder Zustandswechsel - geht an den Eigentuemer.
+    ticket_reply = "ticket_reply"
 
 
 class User(Base):
@@ -137,6 +142,10 @@ class User(Base):
     mail_request_pending: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mail_request_decided: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mail_feedback: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Tickets: neue Anliegen (fuer Admins) und Antworten darauf (fuer den
+    # Eigentuemer) haengen bewusst am selben Schalter - vier Schalter sind
+    # ueberschaubar, sechs waeren eine Zumutung.
+    mail_ticket: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # --- Vorbelegung der Filterleiste beim Entdecken ----------------------
     # NULL heisst "nichts Eigenes eingestellt", dann gilt die Vorgabe des
@@ -149,6 +158,39 @@ class User(Base):
     # Filterleiste bietet den Filter weiterhin an; dort sieht man ihn und hat
     # ihn gerade selbst gesetzt.
     discover_region: Mapped[str | None] = mapped_column(String(2))
+
+    # --- Altersbeschraenkung ----------------------------------------------
+    # Das Alter des Benutzers in Jahren. NULL heisst "nicht altersbeschraenkt"
+    # und ist der Normalfall - erwachsene Mitbenutzer bekommen hier nie etwas
+    # eingetragen.
+    #
+    # Gezeigt wird, was hoechstens ab diesem Alter freigegeben ist: bei 12 also
+    # FSK 0, 6 und 12; alles darueber verschwindet vollstaendig. Ein freies
+    # Alter statt einer Auswahl der FSK-Stufen, weil "wie alt ist das Kind" die
+    # Frage ist, die der Admin beantworten kann - ein 14-Jaehriger sieht damit
+    # bis FSK 12 und nicht bis 16.
+    #
+    # Beide Felder darf **nur der Administrator** setzen. Sie stehen deshalb
+    # ausschliesslich in ``UserUpdate``, nie in ``ProfileUpdate``: haetten sie
+    # in der eigenen Profilaenderung Platz, koennte der Beschraenkte die Sperre
+    # mit einem einzigen Aufruf von PATCH /api/auth/me selbst aufheben.
+    age: Mapped[int | None] = mapped_column(Integer)
+
+    # Was mit Titeln geschieht, die nirgends eingestuft sind. Standard ist
+    # verbergen - "kein Nachweis, kein Zutritt". Abschaltbar, weil neue Titel
+    # meist noch keine Einstufung haben: gemessen schrumpfte die
+    # Entdecken-Seite dadurch von 20 auf 2 Eintraege. Wirkt nur zusammen mit
+    # einer gesetzten Altersbeschraenkung.
+    hide_unrated: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Nach welchem Land geurteilt wird. NULL = die Vorgabe des Admins.
+    #
+    # Bewusst getrennt von ``discover_region``: die darf der Benutzer selbst
+    # aendern. Wer die Sperre an ihr messen wuerde, muesste nur sein Land auf
+    # eines umstellen, in dem der Titel nicht eingestuft ist - und waere
+    # vorbei. Pro Benutzer und nicht global, weil ein geteilter Zugang
+    # (Plex-Runde) durchaus ueber Laender verteilt sein kann.
+    rating_region: Mapped[str | None] = mapped_column(String(2))
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     password_changed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
@@ -291,6 +333,10 @@ class MediaRequest(Base):
     season: Mapped[int | None] = mapped_column(Integer)
 
     title: Mapped[str] = mapped_column(String(300), nullable=False)
+    # Trotz des Namens die **fertige Adresse**, nicht der Pfad-Teil von
+    # TMDB: gespeichert wird ``item.poster_url``. Wer hier noch ein
+    # ``image_url()`` herumlegt, bekommt das Praefix zweimal - genau das
+    # ist zweimal passiert.
     poster_path: Mapped[str | None] = mapped_column(String(255))
     release_date: Mapped[str | None] = mapped_column(String(10))
 
@@ -337,6 +383,10 @@ class Notification(Base):
     request_id: Mapped[int | None] = mapped_column(
         ForeignKey("media_requests.id", ondelete="CASCADE")
     )
+    # Damit die Glocke direkt ins Ticket fuehrt statt nur auf die Liste.
+    ticket_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tickets.id", ondelete="CASCADE")
+    )
     type: Mapped[NotificationType] = mapped_column(enum_column(NotificationType), nullable=False)
     # Uebersetzungsschluessel + Titel, damit die Meldung in DE/EN dargestellt werden kann
     message_key: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -355,6 +405,93 @@ class Notification(Base):
     mail_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     user: Mapped[User] = relationship(back_populates="notifications")
+
+
+class TicketStatus(str, enum.Enum):
+    open = "open"
+    in_progress = "in_progress"
+    closed = "closed"
+
+
+class Ticket(Base):
+    """Ein Anliegen eines Benutzers an den Administrator.
+
+    Abgrenzung zur **Rueckmeldung** an einer Anfrage (``MediaRequest.rating`` /
+    ``feedback`` / ``feedback_reply``): die klebt an einem heruntergeladenen
+    Titel und endet nach einer Antwort. Ein Ticket ist ein Gespraech mit
+    beliebig vielen Beitraegen und einem Zustand - fuer alles, was keinen
+    fertigen Download betrifft ("ich komme nicht rein", "warum ist X
+    gesperrt"). Beide bleiben nebeneinander bestehen; so bewusst entschieden.
+
+    Sehen darf ein Ticket nur, wem es gehoert - und der Administrator. Ein
+    Entscheider ist hier ausdruecklich **kein** Administrator: er entscheidet
+    ueber Anfragen, liest aber nicht die Post der anderen.
+    """
+
+    __tablename__ = "tickets"
+    __table_args__ = (Index("ix_tickets_user_status", "user_id", "status"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    subject: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[TicketStatus] = mapped_column(
+        enum_column(TicketStatus), default=TicketStatus.open, nullable=False
+    )
+
+    # --- Optionaler Bezug zu einem Titel ----------------------------------
+    # Aus "Problem melden" auf der Detailseite. Der Name wird mitgespeichert -
+    # wie bei ``Blocked`` -, damit die Uebersicht ohne eine TMDB-Abfrage je
+    # Ticket auskommt.
+    media_type: Mapped[MediaType | None] = mapped_column(enum_column(MediaType))
+    tmdb_id: Mapped[int | None] = mapped_column(Integer)
+    media_title: Mapped[str | None] = mapped_column(String(300))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Wer zuletzt geschrieben hat. Steht hier, damit die Uebersicht nicht fuer
+    # jede Zeile den ganzen Verlauf nachladen muss, nur um "wartet auf dich"
+    # anzuzeigen.
+    last_reply_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_reply_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    messages: Mapped[list["TicketMessage"]] = relationship(
+        back_populates="ticket",
+        cascade="all, delete-orphan",
+        order_by="TicketMessage.created_at",
+    )
+
+
+class TicketMessage(Base):
+    """Ein Beitrag in einem Ticket."""
+
+    __tablename__ = "ticket_messages"
+    __table_args__ = (Index("ix_ticket_messages_ticket", "ticket_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(
+        ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False
+    )
+    # SET NULL wie bei ``Blocked.blocked_by``: der Verlauf ueberlebt ein
+    # geloeschtes Konto. Ein Gespraech mit Luecken waere unlesbar.
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    # Ein Feld statt eines Kennzeichens: es beantwortet "wurde bearbeitet?"
+    # *und* "wann?". NULL heisst unveraendert.
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    ticket: Mapped[Ticket] = relationship(back_populates="messages")
+    author: Mapped[User | None] = relationship(foreign_keys=[user_id])
 
 
 class Favorite(Base):
@@ -383,6 +520,53 @@ class Favorite(Base):
     # pro Eintrag, nur um den Namen zu kennen.
     title: Mapped[str] = mapped_column(String(300), default="", nullable=False)
     poster_url: Mapped[str | None] = mapped_column(String(500))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class Blocked(Base):
+    """Ein Titel, den der Administrator gesperrt hat.
+
+    Bewusst etwas ganz anderes als die Altersbeschraenkung am ``User``:
+
+    * Die Altersbeschraenkung gilt **je Benutzer** und macht Titel
+      **unsichtbar** - wer beschraenkt ist, soll gar nicht erst wissen, dass es
+      sie gibt.
+    * Die Sperrliste gilt **fuer alle** und laesst Titel **sichtbar**. Sie
+      tragen ein Abzeichen "Gesperrt" und lassen sich nicht anfragen. Wer
+      danach sucht, soll die Antwort bekommen - naemlich dass es diesen Titel
+      hier nicht geben wird. Sonst fragt derselbe Mensch dreimal nach und
+      wundert sich jedes Mal.
+
+    Pflegen darf sie **nur der Administrator**, nicht der Entscheider: der
+    entscheidet ueber einzelne Anfragen, trifft aber keine Grundsatzentscheidung
+    fuer die ganze Bibliothek.
+    """
+
+    __tablename__ = "blocked_titles"
+    __table_args__ = (
+        UniqueConstraint("media_type", "tmdb_id", name="uq_blocked_title"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Wie bei den Favoriten: erspart eine TMDB-Abfrage je Eintrag, nur um die
+    # Uebersicht beschriften zu koennen.
+    title: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    poster_url: Mapped[str | None] = mapped_column(String(500))
+
+    # Warum gesperrt wurde. Beim Ablehnen einer Anfrage wandert die Begruendung
+    # hierher, damit spaeter nachvollziehbar ist, was den Ausschlag gab.
+    reason: Mapped[str | None] = mapped_column(String(500))
+
+    # Wer gesperrt hat. SET NULL statt CASCADE: wird das Konto geloescht, soll
+    # die Sperre bleiben - sie war eine Entscheidung ueber den Titel, nicht
+    # ueber die Person.
+    blocked_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 

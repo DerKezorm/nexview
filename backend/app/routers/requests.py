@@ -77,10 +77,17 @@ async def create_request(
     # anderer Name als eben noch beim Entdecken.
     settings = for_user(load_settings(db), user)
 
+    # Diese Abfrage ist zugleich die Sperre: ``media.detail`` verweigert die
+    # Auskunft ueber alles, was die Altersbeschraenkung des Anfragenden
+    # ueberschreitet. Damit ist auch der Weg an der Oberflaeche vorbei zu -
+    # eine Kachel aus einem alten Zwischenspeicher oder ein von Hand
+    # abgeschickter Aufruf kommt hier trotzdem nicht durch.
     try:
         item = await media.detail(db, settings, payload.media_type.value, payload.tmdb_id)
     except TmdbError as error:
-        raise HTTPException(status_code=502, detail=error.message) from error
+        # "Gibt es nicht" bleibt 404; nur echte Stoerungen sind ein 502.
+        code = 404 if error.status_code == 404 else 502
+        raise HTTPException(status_code=code, detail=error.message) from error
 
     try:
         return await requests_service.create_request(

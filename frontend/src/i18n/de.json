@@ -10,11 +10,13 @@
     "retry": "Erneut versuchen",
     "optional": "optional",
     "movies": "Filme",
-    "series": "Serien",
+    "series": "Serie",
     "saving": "Wird gespeichert …",
     "unsaved": "Nicht gespeicherte Änderungen",
     "scrollLeft": "Nach links",
-    "scrollRight": "Nach rechts"
+    "scrollRight": "Nach rechts",
+    "movie": "Film",
+    "edit": "Bearbeiten"
   },
   "nav": {
     "home": "Startseite",
@@ -30,7 +32,8 @@
     "settings": "Einstellungen",
     "logout": "Abmelden",
     "openMenu": "Menü öffnen",
-    "favorites": "Mag ich"
+    "favorites": "Mag ich",
+    "tickets": "Tickets"
   },
   "setup": {
     "title": "Willkommen bei Nexview",
@@ -188,7 +191,10 @@
       "downloaded": "Liegt bereits in deiner Bibliothek.",
       "in_library": "Liegt bereits in deiner Bibliothek.",
       "rejected": "Diese Anfrage wurde abgelehnt.",
-      "failed": "Beim Hinzufügen ist ein Fehler aufgetreten."
+      "failed": "Beim Hinzufügen ist ein Fehler aufgetreten.",
+      "blocked": "Dieser Titel steht auf der Sperrliste und kann nicht angefragt werden.",
+      "blockedAdmin": "Dieser Titel steht auf der Sperrliste. Für andere ist er gesperrt — du kannst ihn trotzdem hinzufügen.",
+      "cancelled": "Diese Anfrage wurde abgebrochen."
     },
     "season": "Staffel",
     "wholeSeries": "Ganze Serie (alle Staffeln)",
@@ -371,7 +377,9 @@
     "countForUser_other": "{{count}} Anfragen",
     "approveAll": "Alle {{count}} freigeben",
     "filterFeedback": "Rückmeldungen",
-    "emptyFeedback": "Es liegen keine unbeantworteten Rückmeldungen vor."
+    "emptyFeedback": "Es liegen keine unbeantworteten Rückmeldungen vor.",
+    "alsoBlock": "Titel auf die Sperrliste setzen",
+    "alsoBlockHint": "Niemand kann ihn dann mehr anfragen. Sichtbar bleibt er, aber mit dem Abzeichen „Gesperrt“. Zurücknehmen kannst du das jederzeit unter Einstellungen → Sperrliste."
   },
   "requests": {
     "cancel": "Abbrechen",
@@ -439,10 +447,16 @@
     "regionDefault": "Vorgabe des Administrators ({{region}})",
     "tabAccount": "Konto",
     "tabNotifications": "Benachrichtigungen",
-    "tabDiscover": "Entdecken",
+    "tabDiscover": "Sprache & Region",
     "tabSecurity": "Sicherheit",
     "notificationsSaved": "Gespeichert.",
-    "discoverSaved": "Gespeichert."
+    "discoverSaved": "Gespeichert.",
+    "langRegion": "Sprache & Region",
+    "langRegionIntro": "Gilt fuer dich allein - jeder Benutzer stellt das selbst ein.",
+    "languageHint": "Gilt fuer die Oberflaeche und fuer Titel und Handlungen. Auf Englisch heisst „Tage des Donners“ dann „Days of Thunder“.",
+    "ageRestricted": "Für dieses Konto gilt eine Altersbeschränkung ({{age}} Jahre). Titel mit höherer Freigabe werden dir nicht angezeigt. Ändern kann das nur der Administrator.",
+    "mailTicket": "Tickets",
+    "mailTicketHint": "Antworten auf deine Tickets — als Administrator zusätzlich jedes neue Anliegen."
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -512,7 +526,15 @@
     "openInvites": "Offene Einladungen ({{count}})",
     "inviteExpires": "gültig bis {{date}}",
     "withdrawInvite": "Zurückziehen",
-    "inviteBlocked": "Einladungen sind noch nicht möglich. Dafür braucht Nexview die öffentliche Adresse (Einstellungen → Adresse) und einen Mailserver (Einstellungen → E-Mail)."
+    "inviteBlocked": "Einladungen sind noch nicht möglich. Dafür braucht Nexview die öffentliche Adresse (Einstellungen → Adresse) und einen Mailserver (Einstellungen → E-Mail).",
+    "ageRestricted": "Altersbeschränkt",
+    "age": "Alter",
+    "ageRegion": "Maßgebliches Land",
+    "ageRegionDefault": "Vorgabe des Administrators",
+    "ageInvalid": "Bitte ein Alter zwischen 0 und 21 angeben.",
+    "ageHint": "Gezeigt wird nur, was höchstens ab diesem Alter freigegeben ist. Maßgeblich ist die Einstufung des gewählten Landes; fehlt sie, gilt die strengste aller Länder. Titel ganz ohne Einstufung werden ausgeblendet — das betrifft rund ein Drittel der Filme und gut vier Zehntel der Serien. Wirkt nur in Nexview: über Plex, Jellyfin oder direkt auf der Freigabe bleibt alles erreichbar.",
+    "hideUnrated": "Titel ohne Altersfreigabe verbergen",
+    "hideUnratedHint": "Empfohlen. Ausgeschaltet sind auch Titel sichtbar, über deren Inhalt nichts bekannt ist. Eingeschaltet ist „Entdecken“ allerdings fast leer, weil neue Titel meist noch keine Einstufung haben."
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -526,7 +548,10 @@
     "downloadComplete": "Download abgeschlossen",
     "feedback": "Neue Rückmeldung zur Qualität",
     "feedbackPoor": "Beschwerde über die Qualität",
-    "feedbackReply": "Antwort auf deine Rückmeldung"
+    "feedbackReply": "Antwort auf deine Rückmeldung",
+    "ticketNew": "Neues Ticket",
+    "ticketReply": "Neue Antwort auf ein Ticket",
+    "ticketStatus": "Zustand eines Tickets geändert"
   },
   "status": {
     "not_requested": "Nicht angefragt",
@@ -537,7 +562,8 @@
     "in_library": "In der Bibliothek",
     "rejected": "Abgelehnt",
     "failed": "Fehlgeschlagen",
-    "cancelled": "Abgebrochen"
+    "cancelled": "Abgebrochen",
+    "blocked": "Gesperrt"
   },
   "settings": {
     "title": "Einstellungen",
@@ -581,7 +607,8 @@
     "rootFolderChoiceHint": "Ist das abgeschaltet, sehen Benutzer beim Anfragen kein Ordner-Feld mehr - dann gilt für alle der unten eingestellte Standardordner. Administratoren wählen weiterhin frei.",
     "defaultRoot": "Standard-Zielordner",
     "defaultRootFirst": "Erster Ordner aus Radarr/Sonarr",
-    "defaultRootHint": "Dorthin landet alles, solange die Auswahl abgeschaltet ist."
+    "defaultRootHint": "Dorthin landet alles, solange die Auswahl abgeschaltet ist.",
+    "tabBlocklist": "Sperrliste"
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -591,7 +618,11 @@
   "language": {
     "label": "Sprache",
     "de": "Deutsch",
-    "en": "Englisch"
+    "en": "Englisch",
+    "name": {
+      "de": "Deutsch",
+      "en": "English"
+    }
   },
   "about": {
     "title": "Über Nexview",
@@ -664,5 +695,55 @@
     "remove": "Markierung entfernen",
     "intro": "Alles, was du mit dem Herz markiert hast. Daraus entstehen deine Empfehlungen auf der Startseite.",
     "since": "seit {{date}}"
+  },
+  "blocklist": {
+    "title": "Sperrliste",
+    "intro": "Titel, die in dieser Bibliothek nicht landen sollen. Sie bleiben für alle auffindbar und sichtbar, tragen aber das Abzeichen „Gesperrt“ und lassen sich nicht anfragen — auch nicht über einen Umweg.",
+    "empty": "Nichts gesperrt. Beim Ablehnen einer Anfrage kannst du den Titel direkt hierher setzen.",
+    "since": "gesperrt am {{date}}",
+    "unblock": "Freigeben"
+  },
+  "ticketStatus": {
+    "open": "Offen",
+    "in_progress": "In Bearbeitung",
+    "closed": "Geschlossen"
+  },
+  "tickets": {
+    "title": "Tickets",
+    "intro": "Deine Anliegen an den Administrator — und seine Antworten darauf.",
+    "introAdmin": "Alle Anliegen aus deinem Kreis. Antworten und Zustand setzen kannst nur du.",
+    "new": "Neues Ticket",
+    "subject": "Betreff",
+    "subjectPlaceholder": "Worum geht es?",
+    "subjectAbout": "Problem mit „{{title}}“",
+    "message": "Nachricht",
+    "messagePlaceholder": "Beschreib es so genau, wie du kannst.",
+    "send": "Abschicken",
+    "empty": "Noch keine Tickets.",
+    "messages_one": "{{count}} Nachricht",
+    "messages_other": "{{count}} Nachrichten",
+    "waitingForYou": "Wartet auf dich",
+    "status": "Zustand",
+    "about": "Es geht um „{{title}}“",
+    "openedBy": "Eröffnet von {{name}} am {{date}}",
+    "edited": "bearbeitet am {{date}}",
+    "deletedAccount": "Gelöschtes Konto",
+    "replyPlaceholder": "Antwort schreiben …",
+    "backToList": "Zurück zur Übersicht",
+    "notFound": "Dieses Ticket gibt es nicht — oder es gehört jemand anderem.",
+    "closedHint": "Dieses Ticket ist geschlossen. Schreibst du noch einmal, wird es wieder geöffnet.",
+    "closedHintAdmin": "Dieses Ticket ist geschlossen. Deine Antwort öffnet es nicht wieder — die des Benutzers schon.",
+    "report": "Problem melden",
+    "closedNoReply": "Dieses Ticket ist geschlossen. Für ein neues Anliegen eröffne bitte ein neues Ticket.",
+    "select": "„{{subject}}“ auswählen",
+    "selectAllClosed_one": "{{count}} geschlossenes Ticket auswählen",
+    "selectAllClosed_other": "Alle {{count}} geschlossenen auswählen",
+    "deleteSelected_one": "{{count}} Ticket löschen",
+    "deleteSelected_other": "{{count}} Tickets löschen",
+    "deleteTitle": "Tickets löschen?",
+    "deleteConfirm_one": "Ein geschlossenes Ticket wird endgültig entfernt.",
+    "deleteConfirm_other": "{{count}} geschlossene Tickets werden endgültig entfernt.",
+    "deleteWarning": "Der gesamte Verlauf verschwindet mit — auch für den Benutzer. Das lässt sich nicht rückgängig machen.",
+    "deleteAction": "Endgültig löschen"
   }
 }

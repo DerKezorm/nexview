@@ -52,6 +52,15 @@ export function UserMenu() {
     refetchInterval: 60_000,
   })
 
+  // Anders als das Kontingent unten *nicht* erst beim Aufklappen: die Zahl
+  // steht am zugeklappten Menü und ist genau dann interessant, wenn man noch
+  // gar nicht hingesehen hat.
+  const ticketsQuery = useQuery({
+    queryKey: ['tickets-open'],
+    queryFn: () => api.get<{ count: number }>('/api/tickets/open-count'),
+    refetchInterval: 60_000,
+  })
+
   // Erst laden, wenn das Menü aufgeklappt wird - vorher sieht es ja niemand.
   const quotaQuery = useQuery({
     queryKey: ['quota'],
@@ -90,6 +99,9 @@ export function UserMenu() {
       // Erscheint erst, wenn es etwas zu sehen gibt - ein leerer Punkt
       // waere nur ein Versprechen ohne Inhalt.
       { to: '/mag-ich', labelKey: 'nav.favorites', wenn: favorites.length > 0 },
+      // Der Zähler zeigt, was auf einen wartet: beim Administrator jedes
+      // offene Ticket, bei allen anderen nur die eigenen mit einer Antwort.
+      { to: '/tickets', labelKey: 'nav.tickets', badge: ticketsQuery.data?.count },
       {
         to: '/admin/requests',
         labelKey: 'nav.allRequests',
@@ -124,7 +136,14 @@ export function UserMenu() {
           )}
         </span>
         <span className="hidden max-w-32 truncate text-sm text-mist-300 sm:inline">{name}</span>
-        <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 text-mist-500" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <svg
+          viewBox="0 0 20 20"
+          className="h-3.5 w-3.5 text-mist-500"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
           <path d="m6 8 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>

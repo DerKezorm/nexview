@@ -90,6 +90,14 @@ class AppSettings:
     public_url: str
     update_check: bool
 
+    # --- Nur aus Sicht eines Benutzers gefuellt (siehe ``for_user``) --------
+    # Alter des Benutzers; None heisst "nicht altersbeschraenkt".
+    age_limit: int | None = None
+    # Land, nach dessen Einstufung die Altersbeschraenkung urteilt.
+    rating_region: str = ""
+    # Verbergen, was nirgends eingestuft ist?
+    hide_unrated: bool = True
+
     @property
     def mail_configured(self) -> bool:
         return bool(self.smtp_host and self.smtp_from_address)
@@ -214,13 +222,27 @@ def for_user(settings: AppSettings, user: "User") -> AppSettings:
     * **Region.** Sie beeinflusst Kinostarts und Verfuegbarkeit. Wer nichts
       Eigenes eingestellt hat, bekommt die Vorgabe des Administrators.
 
+    Dazu kommt die **Altersbeschraenkung**. Ihre Pruef-Region wird hier
+    ausgerechnet, und zwar aus ``settings.default_region`` - der Vorgabe des
+    Administrators -, ausdruecklich **nicht** aus ``user.discover_region``.
+    Das ist der ganze Punkt: die persoenliche Region darf jeder selbst
+    umstellen, und wer die Sperre daran messen wuerde, muesste nur ein Land
+    waehlen, in dem der Titel nicht eingestuft ist. Reihenfolge beachten - das
+    ``default_region`` unten wird im selben Aufruf ueberschrieben, deshalb muss
+    die Pruef-Region vorher feststehen.
+
     Der Rest - API-Schluessel, Mailserver, Abfrageintervall - bleibt
     unveraendert; das sind Sache des Servers, nicht des Benutzers.
     """
+    pruef_region = (user.rating_region or "").upper() or settings.default_region
+
     return replace(
         settings,
         default_language=user.language or settings.default_language,
         default_region=user.discover_region or settings.default_region,
+        age_limit=user.age,
+        rating_region=pruef_region,
+        hide_unrated=user.hide_unrated,
     )
 
 

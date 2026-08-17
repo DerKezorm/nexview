@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from ..deps import CurrentUser, DbSession
 from ..models import MediaType
 from ..schemas_media import MediaDetail, MediaPage, PersonDetail, SeasonDetail
-from ..services import library, media, ratings, requests_service
+from ..services import blocklist, library, media, ratings, requests_service
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
 
@@ -46,13 +46,20 @@ async def _mit_status(db, settings, media_type: str, eintraege: list) -> None:
     except Exception:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung
         pass
 
-    eigene = requests_service.badges_for(
-        db, MediaType(media_type), [eintrag.tmdb_id for eintrag in eintraege]
-    )
+    kennungen = [eintrag.tmdb_id for eintrag in eintraege]
+    eigene = requests_service.badges_for(db, MediaType(media_type), kennungen)
+    gesperrt = blocklist.gesperrte_kennungen(db, MediaType(media_type), kennungen)
+
     for eintrag in eintraege:
         # Eine vorhandene Datei gewinnt immer gegen den eigenen Anfragezustand.
         if eintrag.status == "not_requested" and eintrag.tmdb_id in eigene:
             eintrag.status = eigene[eintrag.tmdb_id]
+        # Die Sperre gewinnt gegen alles - wie in den Listen. Diese Funktion
+        # bedient die Detailseite, ihre Empfehlungen, die Schlagwortlisten und
+        # die Filmografien; ohne sie traegen ausgerechnet dort gesperrte Titel
+        # weiterhin einen Einkaufswagen.
+        if eintrag.tmdb_id in gesperrt:
+            eintrag.status = blocklist.BADGE
 
 
 @router.get("/detail/{media_type}/{tmdb_id}", response_model=MediaDetail)

@@ -47,6 +47,11 @@ export function NotificationBell() {
       return '/admin/requests?filter=feedback'
     }
     if (item.type === 'request_pending') return '/admin/requests'
+    // Tickets führen direkt in den Verlauf - die Liste allein hülfe nicht
+    // weiter, wenn mehrere offen sind.
+    if (item.type === 'ticket_new' || item.type === 'ticket_reply') {
+      return item.ticket_id ? `/tickets/${item.ticket_id}` : '/tickets'
+    }
     // Alles andere betrifft die eigenen Anfragen.
     return '/requests'
   }
@@ -83,8 +88,18 @@ export function NotificationBell() {
         aria-expanded={open}
         className="relative rounded-full border border-ink-700 p-2 text-mist-300 transition-colors hover:border-accent-600 hover:text-accent-400"
       >
-        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-          <path d="M6 8a4 4 0 1 1 8 0c0 3 1 4.5 1.5 5H4.5C5 12.5 6 11 6 8Z" strokeLinejoin="round" />
+        <svg
+          viewBox="0 0 20 20"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          aria-hidden="true"
+        >
+          <path
+            d="M6 8a4 4 0 1 1 8 0c0 3 1 4.5 1.5 5H4.5C5 12.5 6 11 6 8Z"
+            strokeLinejoin="round"
+          />
           <path d="M8.5 16a1.5 1.5 0 0 0 3 0" strokeLinecap="round" />
         </svg>
         {unread > 0 && (

@@ -143,11 +143,20 @@ export function AdminRequestsPage() {
 
   function setFilter(wert: Filter) {
     setFilterState(wert)
+    // Einen offenen Ablehnen-Bereich mitschließen. Er hängt an einer
+    // Anfragenummer, und die kommt in der nächsten Liste womöglich wieder vor -
+    // dann klappte er ausgerechnet bei einer längst abgelehnten Anfrage auf,
+    // samt Knopf "Ablehnen bestätigen".
+    setRejecting(null)
+    setReason('')
+    setSperren(false)
     // Der Parameter hat seinen Zweck erfüllt - sonst spränge ein Neuladen
     // wieder zurück.
     if (suche.has('filter')) setSuche({}, { replace: true })
   }
   const [rejecting, setRejecting] = useState<number | null>(null)
+  /** Beim Ablehnen zusätzlich sperren? Nur für Administratoren. */
+  const [sperren, setSperren] = useState(false)
   const [reason, setReason] = useState('')
   const [cancelling, setCancelling] = useState<MediaRequestWithUser | null>(null)
 
@@ -174,12 +183,18 @@ export function AdminRequestsPage() {
   })
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, text }: { id: number; text: string }) =>
-      api.post(`/api/admin/requests/${id}/reject`, { reason: text || undefined }),
+    mutationFn: ({ id, text, block }: { id: number; text: string; block: boolean }) =>
+      api.post(`/api/admin/requests/${id}/reject`, {
+        reason: text || undefined,
+        block,
+      }),
     onSuccess: () => {
       setRejecting(null)
       setReason('')
+      setSperren(false)
       refresh()
+      // Die Sperrliste und alle Kacheln zeigen den Titel jetzt anders.
+      void queryClient.invalidateQueries({ queryKey: ['blocklist'] })
     },
   })
 
@@ -191,7 +206,10 @@ export function AdminRequestsPage() {
 
   const requests = requestsQuery.data ?? []
   const failure =
-    approveMutation.error ?? rejectMutation.error ?? cancelMutation.error ?? approveAllMutation.error
+    approveMutation.error ??
+    rejectMutation.error ??
+    cancelMutation.error ??
+    approveAllMutation.error
 
   // Nach Benutzer gruppieren, damit man nicht jeden Titel einzeln freigeben muss.
   const gruppen: Gruppe[] = []
@@ -359,6 +377,7 @@ export function AdminRequestsPage() {
                       <Button
                         variant="ghost"
                         onClick={() => {
+                          setSperren(false)
                           setRejecting(rejecting === request.id ? null : request.id)
                           setReason('')
                         }}
@@ -380,32 +399,57 @@ export function AdminRequestsPage() {
                 </div>
 
                 {rejecting === request.id && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-700 pt-3">
-                    <input
-                      value={reason}
-                      onChange={(event) => setReason(event.target.value)}
-                      placeholder={t('adminRequests.reasonPlaceholder')}
-                      aria-label={t('adminRequests.reasonPlaceholder')}
-                      className="min-w-0 flex-1 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none"
-                    />
-                    <Button
-                      onClick={() => rejectMutation.mutate({ id: request.id, text: reason })}
-                      loading={rejectMutation.isPending}
-                    >
-                      {t('adminRequests.confirmReject')}
-                    </Button>
-                    <Button variant="ghost" onClick={() => setRejecting(null)}>
-                      {t('common.cancel')}
-                    </Button>
+                  <div className="mt-3 flex flex-col gap-2 border-t border-ink-700 pt-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={reason}
+                        onChange={(event) => setReason(event.target.value)}
+                        placeholder={t('adminRequests.reasonPlaceholder')}
+                        aria-label={t('adminRequests.reasonPlaceholder')}
+                        className="min-w-0 flex-1 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none"
+                      />
+                      <Button
+                        onClick={() =>
+                          rejectMutation.mutate({
+                            id: request.id,
+                            text: reason,
+                            block: istAdmin && sperren,
+                          })
+                        }
+                        loading={rejectMutation.isPending}
+                      >
+                        {t('adminRequests.confirmReject')}
+                      </Button>
+                      <Button variant="ghost" onClick={() => setRejecting(null)}>
+                        {t('common.cancel')}
+                      </Button>
+                    </div>
+
+                    {/* Nur der Administrator. Ein Entscheider entscheidet über
+                        diese eine Anfrage; ob ein Titel grundsätzlich nicht in
+                        die Bibliothek soll, ist Sache des Betreibers. Das
+                        Backend weist es zusätzlich ab. */}
+                    {istAdmin && (
+                      <label className="flex cursor-pointer items-start gap-2 text-sm text-mist-300">
+                        <input
+                          type="checkbox"
+                          checked={sperren}
+                          onChange={(event) => setSperren(event.target.checked)}
+                          className="mt-0.5 h-4 w-4 accent-accent-500"
+                        />
+                        <span>
+                          {t('adminRequests.alsoBlock')}
+                          <span className="mt-0.5 block text-xs text-mist-600">
+                            {t('adminRequests.alsoBlockHint')}
+                          </span>
+                        </span>
+                      </label>
+                    )}
                   </div>
                 )}
 
                 {request.rating !== null && (
-                  <FeedbackReview
-                    request={request}
-                    darfAntworten={istAdmin}
-                    onSaved={refresh}
-                  />
+                  <FeedbackReview request={request} darfAntworten={istAdmin} onSaved={refresh} />
                 )}
               </div>
             ))}

@@ -18,7 +18,7 @@ from ..models import (
     utcnow,
 )
 from ..schemas_media import MediaItem
-from . import library, notify, quota
+from . import blocklist, library, notify, quota
 from .arr import ArrError
 from .sonarr import normalize_title
 from .settings_service import AppSettings
@@ -302,6 +302,30 @@ async def create_request(
     # verworfen statt mit einem Fehler abgelehnt.
     if media_type != MediaType.tv:
         season = None
+
+    # Die Sperrliste zuerst - und mit klarer Ansage. Anders als bei der
+    # Altersbeschraenkung wird hier nichts versteckt: der Titel ist ja
+    # sichtbar, also waere ein "gibt es nicht" schlicht gelogen. Wer anfragt,
+    # soll erfahren, dass daraus nichts wird, statt es weiter zu versuchen.
+    #
+    # Die Pruefung steht bewusst auch hier im Dienst und nicht nur in der
+    # Oberflaeche: der fehlende Knopf ist Bequemlichkeit, das hier ist die
+    # Sperre.
+    #
+    # **Der Administrator ist ausgenommen.** Die Liste ist seine eigene
+    # Entscheidung - sie soll die anderen bremsen, nicht ihn. Erst gab es die
+    # Ausnahme nicht, und er musste den Titel zum Hinzufuegen freigeben; das
+    # war ein Umweg ohne Gewinn. Der Eintrag bleibt dabei bestehen: fuer alle
+    # anderen gilt die Sperre weiter.
+    if user.role != Role.admin:
+        gesperrt = blocklist.eintrag(db, media_type, item.tmdb_id)
+        if gesperrt is not None:
+            grund = f" Begründung: {gesperrt.reason}" if gesperrt.reason else ""
+            raise RequestError(
+                f"„{item.title}“ steht auf der Sperrliste und kann nicht angefragt "
+                f"werden.{grund}",
+                403,
+            )
 
     # Ohne Radarr/Sonarr koennte aus der Anfrage nie etwas werden. Lieber
     # gleich sagen als eine Anfrage anlegen, die spaeter ins Leere laeuft.

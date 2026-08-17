@@ -25,6 +25,7 @@ from .routers import (
     about as about_router,
     admin_requests,
     auth,
+    blocklist as blocklist_router,
     details as details_router,
     discover,
     favorites as favorites_router,
@@ -36,6 +37,7 @@ from .routers import (
     settings as settings_router,
     setup,
     stats as stats_router,
+    tickets as tickets_router,
     users,
 )
 from .services import logs, status_poller
@@ -107,6 +109,8 @@ app.include_router(logs_router.router)
 app.include_router(about_router.router)
 app.include_router(details_router.router)
 app.include_router(favorites_router.router)
+app.include_router(blocklist_router.router)
+app.include_router(tickets_router.router)
 
 
 @app.get("/api/health", tags=["system"])

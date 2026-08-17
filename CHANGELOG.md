@@ -12,6 +12,102 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.4.0 – 18.08.2026
+
+### Neu
+
+- **Ticketcenter.** Benutzer eröffnen Tickets mit Betreff und Text; jeder sieht
+  nur die eigenen. Der Administrator sieht alle, wird über die Glocke
+  informiert, antwortet, kann seine Antworten nachbessern und den Zustand auf
+  *Offen*, *In Bearbeitung* oder *Geschlossen* setzen.
+
+  Ein **Entscheider ist hier ausdrücklich kein Administrator**: er entscheidet
+  über Anfragen, sieht aber keine fremden Tickets. Wer ein fremdes Ticket
+  aufruft, bekommt „gibt es nicht" statt „verboten" – ein „verboten" wäre
+  bereits die Auskunft, dass es diese Nummer gibt.
+
+  **Geschlossen heißt für den Benutzer zu.** Er sieht den Verlauf weiterhin,
+  das Antwortfeld verschwindet aber; wer noch etwas hat, eröffnet ein neues
+  Ticket. Der Administrator darf auch danach noch einen Nachtrag hinterlassen,
+  ohne das Ticket dafür wieder aufmachen zu müssen.
+
+  **Aufräumen:** Der Administrator kann geschlossene Tickets löschen, einzeln
+  oder als Stapel. Offene lassen sich nicht löschen – wer eines loswerden will,
+  schließt es zuerst. So ist die Entscheidung eine bewusste und in zwei
+  Schritten getroffen.
+
+  Bearbeiten darf jeder seine **eigenen** Nachrichten; dass etwas geändert
+  wurde, steht danach sichtbar dabei. Gelöscht wird nichts – ein Verlauf mit
+  Lücken ist nicht mehr lesbar.
+
+  Auf jeder Titelseite gibt es *Problem melden*: das Ticket trägt den Bezug
+  dann von selbst, niemand muss den Namen abtippen.
+
+  Die Bewertung mit Kommentar an fertigen Downloads bleibt davon unberührt –
+  sie klebt am Titel, das Ticket ist für alles andere.
+
+
+- **Sperrliste.** Der Administrator kann Titel sperren: sie lassen sich dann
+  von niemandem mehr anfragen und gehen nicht an Radarr bzw. Sonarr. Anders als
+  bei der Altersbeschränkung bleiben sie **sichtbar** – auffindbar über Suche
+  und Entdecken, mit dem Abzeichen *Gesperrt* und ohne Einkaufswagen. Wer
+  danach sucht, soll die Antwort bekommen, statt dreimal vergeblich anzufragen.
+
+  Beim Ablehnen einer Anfrage fragt Nexview, ob der Titel gleich mit auf die
+  Liste soll – **nur beim Administrator**. Ein Entscheider entscheidet über die
+  einzelne Anfrage; ob ein Titel grundsätzlich nicht in die Bibliothek gehört,
+  ist Sache des Betreibers. Der Server weist es zusätzlich ab, nicht nur die
+  Oberfläche.
+
+  Die Übersicht steht unter *Einstellungen → Sperrliste*, samt Begründung und
+  einem Knopf zum Freigeben. Gesperrt ist auch für den Administrator selbst
+  gesperrt: wer den Titel doch will, gibt ihn frei – ein bewusster Schritt, der
+  hinterher nachvollziehbar ist.
+
+- **Altersbeschränkung je Benutzer.** Der Administrator legt fest, ob ein Konto
+  beschränkt ist und wie alt die Person ist; gezeigt wird dann nur, was
+  höchstens ab diesem Alter freigegeben ist. Gesperrte Titel verschwinden
+  vollständig – aus dem Entdecken, der Suche, den Empfehlungen, den
+  Filmografien, der Startseite und den eigenen Favoriten. Auch das Anfragen
+  wird serverseitig abgewiesen, nicht nur der Knopf ausgeblendet.
+
+  Maßgeblich ist die Einstufung eines Landes, das **nur der Administrator**
+  setzt – getrennt von der Region, die jeder für sich selbst wählen darf.
+  Sonst könnte der Beschränkte einfach ein Land einstellen, in dem der Titel
+  nicht eingestuft ist, und wäre an der Sperre vorbei. Fehlt für das gewählte
+  Land eine Einstufung, gilt die strengste aller Länder.
+
+  Titel **ganz ohne** Einstufung bleiben standardmäßig verborgen – „kein
+  Nachweis, kein Zutritt". Das lässt sich je Benutzer abschalten, denn neue
+  Titel sind meist noch nirgends eingestuft: gemessen schrumpfte die
+  Entdecken-Seite dadurch von 20 auf 2 Einträge, mit erlaubten Unbewerteten
+  waren es 10. Bei einem 16-Jährigen mag das vertretbar sein, bei einem
+  6-Jährigen nicht – deshalb die Wahl statt einer festen Regel.
+
+  Freigaben aus über 30 Ländern werden dafür in ein Mindestalter übersetzt –
+  „FSK 12", „PG-13", „MA15+", „K-16" und „M/12" meinen dasselbe. Die Zuordnung
+  deckt 97 % der in der Praxis vorkommenden Bezeichnungen ab; wo sie unsicher
+  wäre, rät sie bewusst nicht.
+
+  Die Sperre wirkt nur in Nexview. Über Plex, Jellyfin oder direkt auf der
+  Dateifreigabe bleibt alles erreichbar.
+- **Sprache im Profil wählbar**, zusammen mit der Region im Reiter *Sprache &
+  Region* (hieß vorher *Entdecken*). Der Schalter oben in der Kopfzeile bleibt
+  fürs schnelle Umschalten; im Profil gilt die Wahl erst beim Speichern, wie
+  bei jeder anderen Einstellung.
+
+### Behoben
+
+- **Ein Sprachwechsel änderte die Texte nicht.** Titel und Handlungen blieben
+  in der zuerst geladenen Sprache stehen, bis man die Seite neu lud – die
+  Abfragen im Browser merkten sich ihr Ergebnis ohne die Sprache. Sie werden
+  jetzt zentral neu geholt.
+- **Die Genres blieben in der alten Sprache**, auch wenn Titel und Handlung
+  schon umgeschaltet hatten: der Zwischenspeicher für die Detaildaten, aus
+  denen die Genrenamen stammen, hatte die Sprache nicht im Schlüssel.
+
+---
+
 ## 0.2.0 – 17.08.2026
 
 ### Neu

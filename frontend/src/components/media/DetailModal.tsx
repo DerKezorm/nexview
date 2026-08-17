@@ -9,6 +9,7 @@ import { Button } from '../ui'
 import { AddRequestForm } from './AddRequestForm'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
+import { useAuth } from '../../auth/useAuth'
 
 type DetailModalProps = {
   item: MediaItem | null
@@ -29,6 +30,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 /** Großes Detailfenster mit Hintergrundbild, Handlung und Eckdaten. */
 export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) {
   const { t, i18n } = useTranslation()
+  const { user } = useAuth()
   const closeRef = useRef<HTMLButtonElement>(null)
   const [adding, setAdding] = useState(false)
 
@@ -62,7 +64,11 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
     seasons.length > 1 &&
     (item.status === 'downloaded' || item.status === 'in_library')
 
-  const kannAnfragen = item?.status === 'not_requested' || nurWeitereStaffel
+  // Siehe TitlePage: die Sperrliste bremst alle außer den Administrator.
+  const istAdmin = user?.role === 'admin'
+  const gesperrt = item?.status === 'blocked'
+  const kannAnfragen =
+    item?.status === 'not_requested' || nurWeitereStaffel || (gesperrt && istAdmin)
 
   /**
    * Steht eine Staffelauswahl bevor, muss der Knopf das ankündigen.
@@ -148,7 +154,10 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
             </p>
 
             <dl className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Fact label={t('media.released')} value={formatDate(item.release_date, i18n.language)} />
+              <Fact
+                label={t('media.released')}
+                value={formatDate(item.release_date, i18n.language)}
+              />
               {runtime && <Fact label={runtimeLabel} value={runtime} />}
               {item.certification && (
                 <Fact label={t('media.certification')} value={item.certification} />
@@ -171,9 +180,7 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
                     {/* Bei einer laufenden Serie steht hier zusätzlich, warum
                         der Knopf trotz "bereits geladen" angeboten wird. */}
                     {nurWeitereStaffel && (
-                      <p className="mb-3 text-sm text-mist-500">
-                        {t('request.moreSeasonsHint')}
-                      </p>
+                      <p className="mb-3 text-sm text-mist-500">{t('request.moreSeasonsHint')}</p>
                     )}
                     <Button
                       type="button"
@@ -194,7 +201,13 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
                   </>
                 )
               ) : (
-                <p className="text-sm text-mist-500">{t(`request.state.${item.status}`)}</p>
+                <p className="text-sm text-mist-500">
+                  {t(
+                    gesperrt && istAdmin
+                      ? 'request.state.blockedAdmin'
+                      : `request.state.${item.status}`,
+                  )}
+                </p>
               )}
             </div>
           </div>

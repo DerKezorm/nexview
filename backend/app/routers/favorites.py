@@ -17,6 +17,8 @@ from sqlalchemy import delete, select
 
 from ..deps import CurrentUser, DbSession
 from ..models import Favorite, MediaType
+from ..services import media
+from ..services.settings_service import for_user, load_settings
 
 router = APIRouter(prefix="/api/favorites", tags=["favorites"])
 
@@ -39,14 +41,36 @@ class FavoriteIn(BaseModel):
 
 
 @router.get("", response_model=list[FavoriteOut])
-def my_favorites(user: CurrentUser, db: DbSession) -> list[Favorite]:
-    return list(
+async def my_favorites(user: CurrentUser, db: DbSession) -> list[Favorite]:
+    """Eigene Markierungen, gefiltert nach der Altersbeschraenkung.
+
+    Die Filterung ist noetig, weil Titel und Bild hier aus Nexviews eigener
+    Tabelle kommen und nicht von TMDB - eine Sperre an den TMDB-Abfragen
+    allein wuerde sie nicht erfassen. Der Fall tritt ein, sobald ein Konto
+    *nachtraeglich* beschraenkt wird: was vorher markiert wurde, stuende sonst
+    weiterhin unter "Mag ich".
+    """
+    eintraege = list(
         db.scalars(
             select(Favorite)
             .where(Favorite.user_id == user.id)
             .order_by(Favorite.created_at.desc())
         )
     )
+    if user.age is None or not eintraege:
+        return eintraege
+
+    settings = for_user(load_settings(db), user)
+    erlaubt: list[Favorite] = []
+    for art in (MediaType.movie, MediaType.tv):
+        kennungen = [e.tmdb_id for e in eintraege if e.media_type == art]
+        if not kennungen:
+            continue
+        frei = await media.erlaubte_kennungen(db, settings, art.value, kennungen)
+        erlaubt.extend(e for e in eintraege if e.media_type == art and e.tmdb_id in frei)
+
+    # Die Sortierung der Abfrage wiederherstellen - oben wurde nach Art gruppiert.
+    return sorted(erlaubt, key=lambda e: e.created_at, reverse=True)
 
 
 @router.post("", response_model=FavoriteOut, status_code=status.HTTP_201_CREATED)

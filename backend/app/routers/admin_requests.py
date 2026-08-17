@@ -11,10 +11,19 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..deps import AdminUser, ApproverUser, DbSession
-from ..models import MediaRequest, Notification, NotificationType, RequestStatus, User, utcnow
+from ..models import (
+    MediaRequest,
+    Notification,
+    NotificationType,
+    RequestStatus,
+    Role,
+    User,
+    utcnow,
+)
 from ..schemas_requests import FeedbackReply, RequestWithUser
-from ..services import notify, requests_service
+from ..services import blocklist, notify, requests_service
 from ..services.settings_service import load_settings
+from ..services.tmdb import image_url
 
 router = APIRouter(prefix="/api/admin/requests", tags=["admin"])
 
@@ -23,6 +32,9 @@ logger = logging.getLogger("nexview.admin")
 
 class RejectPayload(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
+    # Den Titel gleich mit auf die Sperrliste setzen. Darf nur ein
+    # Administrator - siehe die Pruefung in ``reject``.
+    block: bool = False
 
 
 def _with_user(request: MediaRequest) -> RequestWithUser:
@@ -153,10 +165,36 @@ def reject(
             detail="Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
         )
 
+    # Sperren ist eine Grundsatzentscheidung fuer die ganze Bibliothek und
+    # steht deshalb nur dem Administrator zu - ein Entscheider lehnt die
+    # einzelne Anfrage ab, mehr nicht. Deutlich abweisen statt still zu
+    # ignorieren: sonst klickt jemand den Haken und glaubt, es sei passiert.
+    if payload.block and entscheider.role != Role.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nur ein Administrator darf Titel auf die Sperrliste setzen.",
+        )
+
     request.status = RequestStatus.rejected
     request.approved_by = entscheider.id
     request.approved_at = utcnow()
     request.rejection_reason = (payload.reason or "").strip() or None
+
+    if payload.block:
+        blocklist.sperren(
+            db,
+            media_type=request.media_type,
+            tmdb_id=request.tmdb_id,
+            title=request.title,
+            # ``poster_path`` heisst so, enthaelt aber laengst die fertige
+            # Adresse (siehe models.MediaRequest). Ein ``image_url`` darum
+            # herum setzt das Praefix ein zweites Mal davor.
+            poster_url=request.poster_path,
+            # Die Begruendung der Ablehnung ist zugleich die der Sperre - man
+            # sagt denselben Satz nicht zweimal.
+            reason=request.rejection_reason,
+            admin=entscheider,
+        )
 
     requests_service.clear_pending_notice(db, request)
     _notify_requester(db, request, NotificationType.rejected, "notifications.rejected")

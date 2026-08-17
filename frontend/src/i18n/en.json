@@ -10,11 +10,13 @@
     "retry": "Try again",
     "optional": "optional",
     "movies": "Movies",
-    "series": "Shows",
+    "series": "Show",
     "saving": "Saving …",
     "unsaved": "Unsaved changes",
     "scrollLeft": "Scroll left",
-    "scrollRight": "Scroll right"
+    "scrollRight": "Scroll right",
+    "movie": "Movie",
+    "edit": "Edit"
   },
   "nav": {
     "home": "Home",
@@ -30,7 +32,8 @@
     "settings": "Settings",
     "logout": "Sign out",
     "openMenu": "Open menu",
-    "favorites": "Liked"
+    "favorites": "Liked",
+    "tickets": "Tickets"
   },
   "setup": {
     "title": "Welcome to Nexview",
@@ -188,7 +191,10 @@
       "downloaded": "Already in your library.",
       "in_library": "Already in your library.",
       "rejected": "This request was rejected.",
-      "failed": "Something went wrong while adding this title."
+      "failed": "Something went wrong while adding this title.",
+      "blocked": "This title is on the blocklist and cannot be requested.",
+      "blockedAdmin": "This title is on the blocklist. It is blocked for everyone else — you can still add it.",
+      "cancelled": "This request was cancelled."
     },
     "season": "Season",
     "wholeSeries": "Whole series (all seasons)",
@@ -371,7 +377,9 @@
     "countForUser_other": "{{count}} requests",
     "approveAll": "Approve all {{count}}",
     "filterFeedback": "Feedback",
-    "emptyFeedback": "There is no unanswered feedback."
+    "emptyFeedback": "There is no unanswered feedback.",
+    "alsoBlock": "Add title to the blocklist",
+    "alsoBlockHint": "Nobody can request it afterwards. It stays visible, but carries a “Blocked” badge. You can undo this any time under Settings → Blocklist."
   },
   "requests": {
     "cancel": "Cancel",
@@ -439,10 +447,16 @@
     "regionDefault": "Administrator's default ({{region}})",
     "tabAccount": "Account",
     "tabNotifications": "Notifications",
-    "tabDiscover": "Discover",
+    "tabDiscover": "Language & region",
     "tabSecurity": "Security",
     "notificationsSaved": "Saved.",
-    "discoverSaved": "Saved."
+    "discoverSaved": "Saved.",
+    "langRegion": "Language & region",
+    "langRegionIntro": "Applies to you alone - every user sets this themselves.",
+    "languageHint": "Applies to the interface as well as to titles and overviews. In German „Days of Thunder“ becomes „Tage des Donners“.",
+    "ageRestricted": "This account is age-restricted ({{age}} years). Titles rated above that are hidden from you. Only the administrator can change this.",
+    "mailTicket": "Tickets",
+    "mailTicketHint": "Replies to your tickets — as an administrator also every new request."
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -512,7 +526,15 @@
     "openInvites": "Open invitations ({{count}})",
     "inviteExpires": "valid until {{date}}",
     "withdrawInvite": "Withdraw",
-    "inviteBlocked": "Invitations are not possible yet. Nexview needs the public address (Settings → Address) and a mail server (Settings → E-mail)."
+    "inviteBlocked": "Invitations are not possible yet. Nexview needs the public address (Settings → Address) and a mail server (Settings → E-mail).",
+    "ageRestricted": "Age-restricted",
+    "age": "Age",
+    "ageRegion": "Governing country",
+    "ageRegionDefault": "Administrator's default",
+    "ageInvalid": "Please enter an age between 0 and 21.",
+    "ageHint": "Only titles rated for this age or below are shown. The chosen country's rating decides; where it has none, the strictest rating of any country applies. Titles without any rating are hidden — that is roughly a third of movies and over four in ten shows. This only applies within Nexview: via Plex, Jellyfin or the file share everything remains reachable.",
+    "hideUnrated": "Hide titles without an age rating",
+    "hideUnratedHint": "Recommended. Switched off, titles nobody knows anything about become visible too. Switched on, “Discover” is nearly empty, because new titles usually carry no rating yet."
   },
   "notifications": {
     "title": "Notifications",
@@ -526,7 +548,10 @@
     "downloadComplete": "Download finished",
     "feedback": "New quality feedback",
     "feedbackPoor": "Complaint about the quality",
-    "feedbackReply": "Reply to your feedback"
+    "feedbackReply": "Reply to your feedback",
+    "ticketNew": "New ticket",
+    "ticketReply": "New reply on a ticket",
+    "ticketStatus": "Ticket status changed"
   },
   "status": {
     "not_requested": "Not requested",
@@ -537,7 +562,8 @@
     "in_library": "In library",
     "rejected": "Rejected",
     "failed": "Failed",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "blocked": "Blocked"
   },
   "settings": {
     "title": "Settings",
@@ -581,7 +607,8 @@
     "rootFolderChoiceHint": "When off, users no longer see a folder field when requesting - the default folder set below applies to everyone. Administrators keep the free choice.",
     "defaultRoot": "Default root folder",
     "defaultRootFirst": "First folder from Radarr/Sonarr",
-    "defaultRootHint": "Everything goes there while the choice is switched off."
+    "defaultRootHint": "Everything goes there while the choice is switched off.",
+    "tabBlocklist": "Blocklist"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -591,7 +618,11 @@
   "language": {
     "label": "Language",
     "de": "German",
-    "en": "English"
+    "en": "English",
+    "name": {
+      "de": "Deutsch",
+      "en": "English"
+    }
   },
   "about": {
     "title": "About Nexview",
@@ -664,5 +695,55 @@
     "remove": "Remove mark",
     "intro": "Everything you marked with a heart. Your recommendations on the home page are built from this.",
     "since": "since {{date}}"
+  },
+  "blocklist": {
+    "title": "Blocklist",
+    "intro": "Titles that should not end up in this library. They stay findable and visible to everyone but carry a “Blocked” badge and cannot be requested — not by any route.",
+    "empty": "Nothing blocked. When rejecting a request you can add the title straight to this list.",
+    "since": "blocked on {{date}}",
+    "unblock": "Unblock"
+  },
+  "ticketStatus": {
+    "open": "Open",
+    "in_progress": "In progress",
+    "closed": "Closed"
+  },
+  "tickets": {
+    "title": "Tickets",
+    "intro": "Your requests to the administrator — and the replies.",
+    "introAdmin": "Every request from your circle. Only you can reply and set the status.",
+    "new": "New ticket",
+    "subject": "Subject",
+    "subjectPlaceholder": "What is this about?",
+    "subjectAbout": "Problem with “{{title}}”",
+    "message": "Message",
+    "messagePlaceholder": "Describe it as precisely as you can.",
+    "send": "Send",
+    "empty": "No tickets yet.",
+    "messages_one": "{{count}} message",
+    "messages_other": "{{count}} messages",
+    "waitingForYou": "Waiting for you",
+    "status": "Status",
+    "about": "This is about “{{title}}”",
+    "openedBy": "Opened by {{name}} on {{date}}",
+    "edited": "edited on {{date}}",
+    "deletedAccount": "Deleted account",
+    "replyPlaceholder": "Write a reply …",
+    "backToList": "Back to the list",
+    "notFound": "This ticket does not exist — or it belongs to someone else.",
+    "closedHint": "This ticket is closed. If you write again, it reopens.",
+    "closedHintAdmin": "This ticket is closed. Your reply will not reopen it — the user's will.",
+    "report": "Report a problem",
+    "closedNoReply": "This ticket is closed. Please open a new one for anything further.",
+    "select": "Select “{{subject}}”",
+    "selectAllClosed_one": "Select {{count}} closed ticket",
+    "selectAllClosed_other": "Select all {{count}} closed",
+    "deleteSelected_one": "Delete {{count}} ticket",
+    "deleteSelected_other": "Delete {{count}} tickets",
+    "deleteTitle": "Delete tickets?",
+    "deleteConfirm_one": "One closed ticket will be removed for good.",
+    "deleteConfirm_other": "{{count}} closed tickets will be removed for good.",
+    "deleteWarning": "The whole conversation goes with it — for the user too. This cannot be undone.",
+    "deleteAction": "Delete for good"
   }
 }

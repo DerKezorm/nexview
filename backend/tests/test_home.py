@@ -137,3 +137,50 @@ def test_startseite_bleibt_stehen_wenn_tmdb_streikt(
 
 def test_ohne_anmeldung_keine_startseite(client: TestClient) -> None:
     assert client.get("/api/home/recent").status_code == 401
+
+
+# --- Kuratierte Empfehlungen -------------------------------------------------
+
+
+def _favorit(client: TestClient, media_type: str, tmdb_id: int, headers: dict):
+    return client.post(
+        "/api/favorites",
+        json={"media_type": media_type, "tmdb_id": tmdb_id, "title": f"Test {tmdb_id}"},
+        headers=headers,
+    )
+
+
+def test_ohne_favoriten_sagt_die_startseite_das_auch(arr_client: TestClient) -> None:
+    daten = arr_client.get("/api/home/curated").json()
+    assert daten["has_favorites"] is False
+    assert daten["items"] == []
+
+
+def test_serien_favoriten_zaehlen_genauso_wie_filme(
+    client: TestClient, arr_client: TestClient
+) -> None:
+    """Der eigentliche Fehler: die Auskunft sah nur Filme an.
+
+    Wer ausschliesslich Serien markiert hatte, bekam "noch nichts markiert" zu
+    lesen - obwohl sein Herz an mehreren Serien hing. Das Herz gibt es an
+    beidem, also muss auch beides zaehlen.
+    """
+    create_user(arr_client, "serienfan")
+    headers = auth_headers(client, "serienfan", "passwort-1234")
+
+    assert client.get("/api/home/curated", headers=headers).json()["has_favorites"] is False
+
+    # Nur Serien markieren - kein einziger Film.
+    assert _favorit(client, "tv", 1396, headers).status_code == 201
+    assert _favorit(client, "tv", 1399, headers).status_code == 201
+
+    daten = client.get("/api/home/curated", headers=headers).json()
+    assert daten["has_favorites"] is True, "Serien-Favoriten müssen zählen"
+
+
+def test_film_favoriten_zaehlen_weiterhin(client: TestClient, arr_client: TestClient) -> None:
+    create_user(arr_client, "filmfan")
+    headers = auth_headers(client, "filmfan", "passwort-1234")
+
+    _favorit(client, "movie", 9800, headers)
+    assert client.get("/api/home/curated", headers=headers).json()["has_favorites"] is True

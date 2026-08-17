@@ -6,12 +6,19 @@ import { changeLanguage, SUPPORTED_LANGUAGES } from '../i18n'
 import type { Language } from '../i18n'
 import type { User } from '../api/types'
 
-/** Umschalter Deutsch/Englisch. Für angemeldete Nutzer wird die Wahl im Profil gespeichert. */
-export function LanguageSwitcher() {
-  const { t, i18n } = useTranslation()
+/**
+ * Sprache sofort umstellen und im Profil merken.
+ *
+ * Für den Schalter in der Kopfzeile: der ist zum schnellen Umschalten da und
+ * wirkt sofort. Im Profil steht dieselbe Auswahl noch einmal, dort aber mit
+ * Speichern-Knopf wie jede andere Einstellung auch - deshalb greift das Profil
+ * nicht auf diesen Haken zu.
+ */
+export function useSpracheWaehlen() {
+  const { i18n } = useTranslation()
   const { user, updateUser } = useAuth()
 
-  async function select(language: Language) {
+  return async function waehlen(language: Language) {
     if (language === i18n.language) return
     changeLanguage(language)
     if (user) {
@@ -22,6 +29,12 @@ export function LanguageSwitcher() {
       }
     }
   }
+}
+
+/** Umschalter Deutsch/Englisch. Für angemeldete Nutzer wird die Wahl im Profil gespeichert. */
+export function LanguageSwitcher() {
+  const { t, i18n } = useTranslation()
+  const select = useSpracheWaehlen()
 
   return (
     <div

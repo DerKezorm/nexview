@@ -143,6 +143,7 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, db: DbSession) -> User:
         "mail_request_pending",
         "mail_request_decided",
         "mail_feedback",
+        "mail_ticket",
     ):
         wert = getattr(payload, schalter)
         if wert is not None:

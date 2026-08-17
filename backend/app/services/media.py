@@ -24,7 +24,7 @@ from ..schemas_media import (
     SeasonInfo,
     Trailer,
 )
-from . import cache
+from . import age_rating, cache
 from .filters import DiscoverFilters
 from .settings_service import AppSettings
 from .tmdb import (
@@ -160,23 +160,36 @@ async def _to_items(
     TMDB liefert in Listen weder Laufzeit noch Altersfreigabe. Die Details
     werden deshalb parallel nachgeladen - und einzeln lange zwischengespeichert,
     weil sie sich praktisch nicht mehr aendern.
+
+    Die Sprache gehoert zwingend in den Schluessel: aus diesen Detaildaten
+    kommen die Genrenamen. Ohne sie stand auf einer englischen Karte
+    "Abenteuer" statt "Adventure" - Titel und Handlung waren englisch, die
+    Genres aber die zuerst geholte Fassung. Der Schluessel ist derselbe wie in
+    `detail()`, damit sich beide Wege einen Eintrag teilen.
+
+    Hier faellt auch die **Altersbeschraenkung**: die Detaildaten enthalten die
+    Einstufungen aller Laender, und diese eine Stelle bedient jede Liste -
+    Entdecken, Suche, Schlagworte, Empfehlungen, Filmografien. Gesperrte Titel
+    verschwinden vollstaendig, statt ausgegraut dazustehen; ein sichtbares
+    Schloss waere eine Einladung, danach zu suchen.
     """
     genres = await _genre_map(db, settings, media_type)
     items = [_base_item(raw, media_type, genres) for raw in results if raw.get("id")]
 
-    missing = [
-        item.tmdb_id
-        for item in items
-        if cache.read(db, f"detail:{media_type}:{item.tmdb_id}:{region}") is None
-    ]
+    def schluessel(tmdb_id: int) -> str:
+        return f"detail:{media_type}:{tmdb_id}:{region}:{settings.default_language}"
+
+    missing = [item.tmdb_id for item in items if cache.read(db, schluessel(item.tmdb_id)) is None]
     if missing:
         fetched = await _client(settings, region).details(media_type, missing)
         for tmdb_id, detail in fetched.items():
-            cache.write(db, f"detail:{media_type}:{tmdb_id}:{region}", detail, cache.DETAIL_TTL)
+            cache.write(db, schluessel(tmdb_id), detail, cache.DETAIL_TTL)
 
     enriched: list[MediaItem] = []
     for item in items:
-        detail = cache.read(db, f"detail:{media_type}:{item.tmdb_id}:{region}")
+        detail = cache.read(db, schluessel(item.tmdb_id))
+        if not _darf_sehen(detail, media_type, settings):
+            continue
         enriched.append(_enrich(item, detail, media_type, region) if detail else item)
     return enriched
 
@@ -289,6 +302,74 @@ async def search(
     )
 
 
+class AgeRestricted(TmdbError):
+    """Der Titel liegt ueber der Altersgrenze dieses Benutzers.
+
+    Nach aussen ununterscheidbar von "gibt es nicht": gleiche Meldung, gleicher
+    404. Eine eigene Meldung ("fuer dich gesperrt") wuerde bestaetigen, dass es
+    den Titel gibt, und man koennte sich die Sperrliste Stueck fuer Stueck
+    zusammensuchen.
+
+    Eine *eigene Klasse* ist es trotzdem, weil intern sehr wohl ein Unterschied
+    besteht: die Startseite faellt bei einem gewoehnlichen Fehler auf den
+    gespeicherten Titel zurueck - bei diesem hier darf sie das gerade nicht.
+    Ohne die Unterscheidung verschwanden im Demo-Modus alle Eintraege, weil ein
+    nicht vorhandener Demo-Titel denselben 404 liefert.
+    """
+
+
+def _darf_sehen(
+    detail: dict[str, Any] | None, media_type: str, settings: AppSettings
+) -> bool:
+    """Die Altersfrage an genau einer Stelle stellen.
+
+    Alle Einstellungen dazu stecken in ``settings``; wer kuenftig eine weitere
+    hinzufuegt, muss nicht jede Aufrufstelle einzeln nachziehen.
+    """
+    return age_rating.erlaubt(
+        detail,
+        media_type,
+        settings.age_limit,
+        settings.rating_region,
+        unbewertet_verbergen=settings.hide_unrated,
+    )
+
+
+def _pruefe_alter(detail: dict[str, Any], media_type: str, settings: AppSettings) -> None:
+    if not _darf_sehen(detail, media_type, settings):
+        raise AgeRestricted("Dieser Titel ist nicht vorhanden.", 404)
+
+
+async def erlaubte_kennungen(
+    db: Session, settings: AppSettings, media_type: str, tmdb_ids: list[int]
+) -> set[int]:
+    """Welche dieser Titel darf der Benutzer sehen?
+
+    Fuer Listen, die ihre Eintraege nicht ueber ``_to_items`` bauen - die
+    Filmografie einer Person etwa. Ohne Altersbeschraenkung kostet der Aufruf
+    nichts: dann faellt er sofort durch, ohne eine einzige Abfrage.
+    """
+    if settings.age_limit is None:
+        return set(tmdb_ids)
+
+    region = settings.default_region
+
+    def schluessel(tmdb_id: int) -> str:
+        return f"detail:{media_type}:{tmdb_id}:{region}:{settings.default_language}"
+
+    fehlend = [tmdb_id for tmdb_id in tmdb_ids if cache.read(db, schluessel(tmdb_id)) is None]
+    if fehlend:
+        geholt = await _client(settings, region).details(media_type, fehlend)
+        for tmdb_id, roh in geholt.items():
+            cache.write(db, schluessel(tmdb_id), roh, cache.DETAIL_TTL)
+
+    return {
+        tmdb_id
+        for tmdb_id in tmdb_ids
+        if _darf_sehen(cache.read(db, schluessel(tmdb_id)), media_type, settings)
+    }
+
+
 async def detail(
     db: Session, settings: AppSettings, media_type: str, tmdb_id: int
 ) -> MediaItem:
@@ -309,6 +390,7 @@ async def detail(
         cache.DETAIL_TTL,
         fetch,
     )
+    _pruefe_alter(raw, media_type, settings)
 
     genres = await _genre_map(db, settings, media_type)
     item = _base_item(raw, media_type, genres)
@@ -458,14 +540,27 @@ async def full_detail(
         fetch,
     )
 
+    _pruefe_alter(raw, media_type, settings)
+
     genres = await _genre_map(db, settings, media_type)
     basis = _enrich(_base_item(raw, media_type, genres), raw, media_type, region, mit_staffeln=True)
 
-    empfehlungen = [
-        _base_item(eintrag, media_type, genres)
-        for eintrag in (raw.get("recommendations") or {}).get("results") or []
-        if eintrag.get("id")
-    ][:MAX_RECOMMENDATIONS]
+    # Die Empfehlungen laufen bewusst durch ``_to_items`` statt durch
+    # ``_base_item``: nur dort greift die Altersbeschraenkung. Sonst waere
+    # ausgerechnet die Zeile "Das koennte dir auch gefallen" das Schlupfloch,
+    # durch das gesperrte Titel wieder sichtbar werden - mitsamt Link auf ihre
+    # Detailseite. Nebenbei bekommen sie so auch Laufzeit und Freigabe.
+    empfehlungen = await _to_items(
+        db,
+        settings,
+        media_type,
+        [
+            eintrag
+            for eintrag in (raw.get("recommendations") or {}).get("results") or []
+            if eintrag.get("id")
+        ][:MAX_RECOMMENDATIONS],
+        region,
+    )
 
     ist_film = media_type == "movie"
     return MediaDetail(
@@ -497,6 +592,12 @@ async def season_detail(
     """Eine einzelne Staffel mit allen Folgen."""
     if settings.use_demo_data:
         return SeasonDetail(season_number=season_number, name=f"Staffel {season_number}")
+
+    # Die Staffelabfrage von TMDB enthaelt selbst keine Einstufung - die haengt
+    # an der Serie. Ohne diese Pruefung waere die Staffel eines gesperrten
+    # Titels weiterhin abrufbar, samt Folgentiteln und Handlungen.
+    if not await erlaubte_kennungen(db, settings, "tv", [tmdb_id]):
+        raise AgeRestricted("Dieser Titel ist nicht vorhanden.", 404)
 
     async def fetch() -> dict[str, Any]:
         return await _client(settings).season(tmdb_id, season_number)
@@ -547,7 +648,17 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
     eintraege = (raw.get("combined_credits") or {}).get("cast") or []
     beste = sorted(eintraege, key=lambda e: float(e.get("popularity") or 0), reverse=True)
 
-    credits: list[PersonCredit] = []
+    # Erst die Kandidaten sammeln, dann pruefen, dann kuerzen - in dieser
+    # Reihenfolge. Wuerde erst gekuerzt, bliebe von der Filmografie eines
+    # Erwachsenendarstellers fuer ein Kind womoeglich nichts uebrig, obwohl es
+    # weiter unten harmlose Titel gibt.
+    #
+    # Der Vorrat ist auf das Doppelte begrenzt: bei vielbeschaeftigten
+    # Schauspielern haengen an "combined_credits" mehrere hundert Titel, und
+    # fuer jeden davon die Detaildaten zu holen waere unverhaeltnismaessig.
+    vorrat = MAX_PERSON_CREDITS * 2 if settings.age_limit is not None else MAX_PERSON_CREDITS
+
+    kandidaten: list[dict[str, Any]] = []
     gesehen: set[tuple[str, int]] = set()
     for eintrag in beste:
         art = eintrag.get("media_type")
@@ -555,6 +666,22 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
         if art not in ("movie", "tv") or not kennung or (art, kennung) in gesehen:
             continue
         gesehen.add((art, kennung))
+        kandidaten.append(eintrag)
+        if len(kandidaten) >= vorrat:
+            break
+
+    erlaubte: dict[str, set[int]] = {}
+    for art in ("movie", "tv"):
+        erlaubte[art] = await erlaubte_kennungen(
+            db, settings, art, [e["id"] for e in kandidaten if e.get("media_type") == art]
+        )
+
+    credits: list[PersonCredit] = []
+    for eintrag in kandidaten:
+        art = eintrag["media_type"]
+        kennung = eintrag["id"]
+        if kennung not in erlaubte[art]:
+            continue
         credits.append(
             PersonCredit(
                 media_type=MediaType(art),

@@ -111,9 +111,17 @@ class UserPublic(BaseModel):
     mail_request_pending: bool
     mail_request_decided: bool
     mail_feedback: bool
+    mail_ticket: bool
 
     # Vorbelegung der Filterleiste; NULL = nichts Eigenes eingestellt.
     discover_region: str | None
+
+    # Altersbeschraenkung. Wird mit ausgegeben, damit der Betroffene in seinem
+    # Profil sieht, dass eine Grenze gilt - sonst wirkte die Anwendung fuer ihn
+    # einfach luecken- und grundlos leerer als fuer andere. NULL = keine.
+    age: int | None
+    rating_region: str | None
+    hide_unrated: bool
 
     @field_validator("blocked_movie_profiles", "blocked_series_profiles", mode="before")
     @classmethod
@@ -179,6 +187,13 @@ class UserUpdate(BaseModel):
     blocked_movie_profiles: list[int] | None = None
     blocked_series_profiles: list[int] | None = None
 
+    # Altersbeschraenkung - ausschliesslich hier, nie in ``ProfileUpdate``.
+    # -1 hebt die Beschraenkung wieder auf; ``None`` hiesse ja nur "nicht
+    # mitgeschickt", damit liesse sie sich nie mehr entfernen.
+    age: int | None = Field(default=None, ge=-1, le=21)
+    rating_region: str | None = Field(default=None, max_length=2)
+    hide_unrated: bool | None = None
+
 
 class PasswordReset(BaseModel):
     """Admin setzt das Passwort eines Benutzers neu."""
@@ -199,6 +214,7 @@ class ProfileUpdate(BaseModel):
     mail_request_pending: bool | None = None
     mail_request_decided: bool | None = None
     mail_feedback: bool | None = None
+    mail_ticket: bool | None = None
 
     # Vorbelegung der Filterleiste. Der leere String bedeutet "nichts
     # Eigenes" - anders liesse sich eine einmal gesetzte Wahl nie wieder

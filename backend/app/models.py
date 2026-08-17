@@ -1,0 +1,342 @@
+"""Datenbank-Tabellen von Nexview."""
+
+from __future__ import annotations
+
+import enum
+from datetime import datetime, timezone
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+def enum_column(enum_class: type[enum.Enum]) -> Enum:
+    """Aufzaehlung als Text speichern - und beim Lesen zurueckverwandeln.
+
+    Ohne das liefert SQLAlchemy beim Laden eine reine Zeichenkette. Vergleiche
+    funktionieren dann zwar noch (die Klassen erben von ``str``), aber ``.value``
+    schlaegt fehl - ein Fehler, der erst spaet auffaellt.
+    """
+    return Enum(
+        enum_class,
+        native_enum=False,
+        values_callable=lambda members: [member.value for member in members],
+        validate_strings=True,
+    )
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Role(str, enum.Enum):
+    admin = "admin"
+    # Darf Anfragen freigeben, ablehnen und abbrechen - sonst nichts.
+    approver = "approver"
+    user = "user"
+
+
+class MediaType(str, enum.Enum):
+    movie = "movie"
+    tv = "tv"
+
+
+class RequestStatus(str, enum.Enum):
+    """Lebenslauf einer Anfrage.
+
+    pending_approval -> approved -> searching -> downloaded
+    Seitenwege: rejected (Admin lehnt ab), failed (Radarr/Sonarr-Fehler).
+    """
+
+    pending_approval = "pending_approval"
+    approved = "approved"
+    searching = "searching"
+    downloaded = "downloaded"
+    rejected = "rejected"
+    failed = "failed"
+    # Vom Anfragenden oder einem Entscheider abgebrochen - zaehlt nicht
+    # mehr gegen das Kontingent.
+    cancelled = "cancelled"
+
+
+class QuotaPeriod(str, enum.Enum):
+    day = "day"
+    week = "week"
+    month = "month"
+
+
+class NotificationType(str, enum.Enum):
+    download_complete = "download_complete"
+    approved = "approved"
+    rejected = "rejected"
+    cancelled = "cancelled"
+    request_pending = "request_pending"
+    # Rueckmeldung zur Qualitaet - geht an die Entscheider.
+    feedback = "feedback"
+    feedback_poor = "feedback_poor"
+    # Antwort des Administrators auf eine Rueckmeldung.
+    feedback_reply = "feedback_reply"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Immer klein geschrieben gespeichert - so ist die Eindeutigkeit unabhaengig
+    # davon, wie jemand seine Adresse tippt. NULL nur bei Konten aus der Zeit
+    # vor der Mailpflicht; die tragen sie beim naechsten Anmelden nach.
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    role: Mapped[Role] = mapped_column(enum_column(Role), default=Role.user, nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(120))
+    language: Mapped[str] = mapped_column(String(5), default="de", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Freigabe- und Kontingent-Regeln (vom Admin pro Benutzer einstellbar)
+    auto_approve: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    quota_movies_limit: Mapped[int | None] = mapped_column(Integer)  # NULL = unbegrenzt
+    quota_series_limit: Mapped[int | None] = mapped_column(Integer)  # NULL = unbegrenzt
+    quota_period: Mapped[QuotaPeriod] = mapped_column(
+        enum_column(QuotaPeriod), default=QuotaPeriod.week, nullable=False
+    )
+    # Setzt der Admin das Kontingent zurueck, zaehlt ab diesem Zeitpunkt neu.
+    # Die Anfragen selbst bleiben erhalten - nur der Verbrauch beginnt von vorn.
+    quota_reset_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Erlaubte Qualitaetsprofile als Komma-Liste von Radarr-/Sonarr-Kennungen.
+    # Leer bedeutet: keine Einschraenkung.
+    blocked_movie_profiles: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    blocked_series_profiles: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+
+    avatar_path: Mapped[str | None] = mapped_column(String(255))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    password_changed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    def blocked_profiles(self, media_type: "MediaType") -> list[int]:
+        """Gesperrte Profil-Kennungen; leere Liste = nichts gesperrt.
+
+        Bewusst als Sperrliste: so bedeutet jeder Haken genau eine Sperre.
+        Als Erlaubnisliste haette der erste Haken alle anderen Profile auf
+        einen Schlag verboten - ein ueberraschender Nebeneffekt.
+        """
+        raw = (
+            self.blocked_movie_profiles
+            if media_type == MediaType.movie
+            else self.blocked_series_profiles
+        )
+        return [int(part) for part in raw.split(",") if part.strip().isdigit()]
+
+    requests: Mapped[list["MediaRequest"]] = relationship(
+        back_populates="user",
+        foreign_keys="MediaRequest.user_id",
+        cascade="all, delete-orphan",
+    )
+    notifications: Mapped[list["Notification"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == Role.admin
+
+    @property
+    def can_approve(self) -> bool:
+        """Darf ueber fremde Anfragen entscheiden."""
+        return self.role in (Role.admin, Role.approver)
+
+    @property
+    def effective_auto_approve(self) -> bool:
+        """Gilt die Anfrage sofort als freigegeben?
+
+        Wer selbst freigeben darf - Administratoren und Entscheider -, gibt
+        sich nicht erst selbst frei. Das waere eine sinnlose Zwischenstufe, und
+        der Haken laesst sich fuer sie deshalb gar nicht abschalten.
+        """
+        return self.can_approve or self.auto_approve
+
+    @property
+    def avatar_url(self) -> str | None:
+        """Adresse des Profilbilds fuer die Oberflaeche."""
+        return f"/api/users/avatar/{self.avatar_path}" if self.avatar_path else None
+
+
+class TokenPurpose(str, enum.Enum):
+    """Wofuer ein Einmal-Link gilt."""
+
+    invitation = "invitation"
+    email_verification = "email_verification"
+    password_reset = "password_reset"
+
+
+class AuthToken(Base):
+    """Einmal-Links fuer Einladung, Adressbestaetigung und Passwort-Reset.
+
+    Gespeichert wird nur die Pruefsumme des Links, nie der Link selbst: wer die
+    Datenbank in die Haende bekommt, kann damit kein Konto uebernehmen.
+    """
+
+    __tablename__ = "auth_tokens"
+    __table_args__ = (Index("ix_auth_tokens_purpose_email", "purpose", "email"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    purpose: Mapped[TokenPurpose] = mapped_column(enum_column(TokenPurpose), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+
+    # Bei Einladungen gibt es noch kein Konto - dann bleibt user_id leer.
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+    # Nur bei Einladungen: was fuer das neue Konto voreingestellt sein soll.
+    # Den Benutzernamen waehlt der Eingeladene selbst.
+    invite_role: Mapped[Role | None] = mapped_column(enum_column(Role))
+    invite_quota_movies: Mapped[int | None] = mapped_column(Integer)
+    invite_quota_series: Mapped[int | None] = mapped_column(Integer)
+    invite_quota_period: Mapped[QuotaPeriod | None] = mapped_column(enum_column(QuotaPeriod))
+    invite_blocked_movie_profiles: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False
+    )
+    invite_blocked_series_profiles: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False
+    )
+
+    user: Mapped[User | None] = relationship(foreign_keys=[user_id])
+
+    @property
+    def expired(self) -> bool:
+        return utcnow().replace(tzinfo=None) > self.expires_at
+
+    @property
+    def open(self) -> bool:
+        """Noch einloesbar - weder verbraucht noch abgelaufen."""
+        return self.used_at is None and not self.expired
+
+
+class Setting(Base):
+    """Konfiguration als Schluessel/Wert-Paare (TMDB-, Radarr-, Sonarr-Zugang)."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str | None] = mapped_column(Text)
+    is_secret: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class MediaRequest(Base):
+    __tablename__ = "media_requests"
+    __table_args__ = (
+        Index("ix_media_requests_user", "user_id"),
+        Index("ix_media_requests_lookup", "media_type", "tmdb_id"),
+        Index("ix_media_requests_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    tvdb_id: Mapped[int | None] = mapped_column(Integer)  # nur Serien, fuer Sonarr
+
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    poster_path: Mapped[str | None] = mapped_column(String(255))
+    release_date: Mapped[str | None] = mapped_column(String(10))
+
+    status: Mapped[RequestStatus] = mapped_column(
+        enum_column(RequestStatus), default=RequestStatus.pending_approval, nullable=False
+    )
+
+    quality_profile_id: Mapped[int | None] = mapped_column(Integer)
+    quality_profile_name: Mapped[str | None] = mapped_column(String(120))
+    root_folder_path: Mapped[str | None] = mapped_column(String(500))
+    arr_id: Mapped[int | None] = mapped_column(Integer)  # ID in Radarr/Sonarr
+
+    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+    # Rueckmeldung des Anfragenden zur Qualitaet des Downloads (0-5 Sterne).
+    # Administratoren bewerten nicht - sie antworten nur darauf.
+    rating: Mapped[int | None] = mapped_column(Integer)
+    feedback: Mapped[str | None] = mapped_column(Text)
+    rated_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    feedback_reply: Mapped[str | None] = mapped_column(Text)
+    replied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    replied_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+    user: Mapped[User] = relationship(back_populates="requests", foreign_keys=[user_id])
+    approver: Mapped[User | None] = relationship(foreign_keys=[approved_by])
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    __table_args__ = (Index("ix_notifications_user_unread", "user_id", "is_read"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_requests.id", ondelete="CASCADE")
+    )
+    type: Mapped[NotificationType] = mapped_column(enum_column(NotificationType), nullable=False)
+    # Uebersetzungsschluessel + Titel, damit die Meldung in DE/EN dargestellt werden kann
+    message_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    message_title: Mapped[str | None] = mapped_column(String(300))
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="notifications")
+
+
+class TmdbCache(Base):
+    """Zwischenspeicher fuer TMDB-Antworten, damit nicht jeder Klick neu abfragt."""
+
+    __tablename__ = "tmdb_cache"
+
+    cache_key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    payload: Mapped[str] = mapped_column(Text, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+
+
+class ArrLibraryCache(Base):
+    """Abbild der Radarr-/Sonarr-Bibliothek fuer die Status-Badges."""
+
+    __tablename__ = "arr_library_cache"
+    __table_args__ = (UniqueConstraint("media_type", "external_id", name="uq_arr_library_item"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    external_id: Mapped[int] = mapped_column(Integer, nullable=False)  # tmdbId bzw. tvdbId
+    arr_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    has_file: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

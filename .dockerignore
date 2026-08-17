@@ -1,0 +1,38 @@
+# Was Docker beim Bauen gar nicht erst einlesen soll.
+#
+# Ohne diese Datei schickt Docker den kompletten Projektordner an den
+# Bauprozess - inklusive node_modules, .venv und der Datenbank. Das sind
+# schnell ein paar hundert Megabyte, und die Datenbank hat im Abbild
+# ausdruecklich nichts verloren.
+
+# --- Daten und Geheimnisse ---
+data/
+data-sicherung*/
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+
+# --- Abhaengigkeiten (werden im Container frisch installiert) ---
+**/node_modules/
+**/.venv/
+**/venv/
+
+# --- Bauergebnisse und Zwischenstaende ---
+frontend/dist/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.vite/
+
+# --- Nicht Teil der laufenden Anwendung ---
+backend/tests/
+.git/
+.github/
+.gitignore
+.dockerignore
+README.md
+*.md

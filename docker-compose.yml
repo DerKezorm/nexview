@@ -1,0 +1,45 @@
+# Nexview starten:  docker compose up -d --build
+#
+# Auf der Synology laeuft das ueber Container Manager -> Projekt -> aus
+# docker-compose.yml. Wichtig ist nur das Verzeichnis unter "volumes": dort
+# liegen Datenbank, Verschluesselungsschluessel und Profilbilder. Ohne das
+# waeren nach einem Update alle Konten und Einstellungen weg.
+
+services:
+  nexview:
+    build: .
+    # Alternativ das fertige Abbild aus der GitHub-Registry verwenden:
+    # image: ghcr.io/<konto>/nexview:latest
+    container_name: nexview
+    restart: unless-stopped
+
+    ports:
+      # Links der Port auf dem NAS, rechts der im Container. Ist 8080 belegt,
+      # einfach die linke Zahl aendern.
+      - "8080:8000"
+
+    volumes:
+      # Relativ zum Projektordner. Auf der Synology gern ein fester Pfad,
+      # z. B. /volume1/docker/nexview/data:/data
+      - ./data:/data
+
+    environment:
+      # Schluessel fuer Login-Token und die Verschluesselung der API-Keys.
+      # Leer lassen ist in Ordnung: Nexview legt beim ersten Start selbst einen
+      # an und speichert ihn unter /data/secret.key. Wer ihn hier setzt, sollte
+      # ihn NICHT ins Repo schreiben - dafuer gibt es die .env-Datei daneben.
+      NEXVIEW_SECRET_KEY: ${NEXVIEW_SECRET_KEY:-}
+
+      # Wie lange eine Anmeldung gilt.
+      NEXVIEW_ACCESS_TOKEN_MINUTES: 30
+      NEXVIEW_REFRESH_TOKEN_DAYS: 30
+
+      # Zeitzone fuer Protokoll und Datumsangaben.
+      TZ: Europe/Berlin
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3

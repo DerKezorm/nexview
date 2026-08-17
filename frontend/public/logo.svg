@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Nexview">
+  <defs>
+    <linearGradient id="nv" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff3b4e"/>
+      <stop offset="55%" stop-color="#e11d2f"/>
+      <stop offset="100%" stop-color="#8f0f1c"/>
+    </linearGradient>
+  </defs>
+  <!-- Abgerundete Kachel als Traeger -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#141019"/>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="url(#nv)" stroke-width="2.5" stroke-opacity=".55"/>
+  <!-- Blende / Auge: zwei Boegen bilden eine Linse -->
+  <path d="M12 32c6.5-9 13.5-13.5 20-13.5S45.5 23 52 32c-6.5 9-13.5 13.5-20 13.5S18.5 41 12 32Z"
+        fill="none" stroke="url(#nv)" stroke-width="3.2" stroke-linejoin="round"/>
+  <!-- Play-Dreieck als Pupille -->
+  <path d="M28 25.5 40 32l-12 6.5Z" fill="url(#nv)"/>
+</svg>

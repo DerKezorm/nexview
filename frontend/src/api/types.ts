@@ -155,6 +155,22 @@ export type AppSettings = {
   mail_configured: boolean
   /** Adresse, unter der Nexview von außen erreichbar ist – steckt in jedem Link. */
   public_url: string
+  update_check: boolean
+}
+
+export type AboutInfo = {
+  version: string
+  repo_url: string
+  release_url: string
+  license: string
+  /**
+   * Ob überhaupt bei GitHub nachgesehen wurde. Für alle außer Administratoren
+   * bleibt das aus - sie können ohnehin nicht aktualisieren.
+   */
+  update_checked: boolean
+  latest_version: string | null
+  update_available: boolean
+  checked_at: string | null
 }
 
 export type MailSecurity = 'none' | 'starttls' | 'ssl'

@@ -22,6 +22,7 @@ from . import __version__
 from .config import get_settings
 from .db import init_db
 from .routers import (
+    about as about_router,
     admin_requests,
     auth,
     discover,
@@ -101,6 +102,7 @@ app.include_router(home_router.router)
 app.include_router(onboarding.router)
 app.include_router(notifications.router)
 app.include_router(logs_router.router)
+app.include_router(about_router.router)
 
 
 @app.get("/api/health", tags=["system"])

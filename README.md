@@ -185,8 +185,25 @@ docker compose pull
 docker compose up -d
 ```
 
-Die Datenbank bleibt erhalten. Fehlende Spalten ergänzt Nexview beim Start selbst — ein
-Update braucht keine Handgriffe an der Datenbank.
+Die Datenbank bleibt erhalten. Beim Start bringt Nexview sie selbst auf den neuen Stand:
+fehlende Tabellen, Spalten und Indizes werden ergänzt. **Bevor** daran etwas geändert wird,
+legt Nexview eine Kopie unter `/data/sicherungen/` ab (die fünf jüngsten bleiben liegen) —
+falls doch einmal etwas schiefgeht, ist der alte Stand also noch da.
+
+### Versionen
+
+Nexview folgt der üblichen Zählung `HAUPT.NEBEN.KORREKTUR`:
+
+| Abbild | Inhalt |
+|---|---|
+| `ghcr.io/derkezorm/nexview:latest` | die jeweils neueste **veröffentlichte** Version — das ist die Empfehlung |
+| `ghcr.io/derkezorm/nexview:0.1.0` | genau diese eine Version, ändert sich nie |
+| `ghcr.io/derkezorm/nexview:main` | der aktuelle Entwicklungsstand, kann kaputt sein |
+
+Welche Version läuft, steht in der Fußzeile und ausführlich unter **Über Nexview**. Dort
+meldet Nexview auch, wenn eine neuere vorliegt — dafür fragt es höchstens einmal am Tag bei
+GitHub nach. Diese Nachfrage überträgt nichts aus Nexview und lässt sich auf derselben Seite
+abschalten.
 
 ---
 

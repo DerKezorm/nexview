@@ -32,3 +32,6 @@ Thumbs.db
 
 # Sicherungskopien des Datenverzeichnisses (enthalten secret.key!)
 data-sicherung*/
+
+# Zwischenstand der TypeScript-Pruefung - reines Bauartefakt.
+*.tsbuildinfo

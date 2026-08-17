@@ -37,6 +37,22 @@ jobs:
         working-directory: backend
         run: python -m pytest -q
 
+      # Bei einer Veroeffentlichung muss die Nummer im Code zum Tag passen.
+      # Sonst zeigt die Ueber-Seite spaeter eine andere Version an als die,
+      # die tatsaechlich installiert ist - und die Update-Pruefung meldet
+      # entweder dauerhaft ein Update oder gar keins mehr.
+      - name: Version gegen Tag prüfen
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: backend
+        run: |
+          IM_CODE=$(python -c "import app; print(app.__version__)")
+          AM_TAG="${GITHUB_REF_NAME#v}"
+          echo "Code: $IM_CODE / Tag: $AM_TAG"
+          if [ "$IM_CODE" != "$AM_TAG" ]; then
+            echo "::error::app/__init__.py sagt $IM_CODE, der Tag sagt $AM_TAG."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -80,11 +96,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # "latest" haengt bewusst am Tag, nicht am Branch: wer in seiner
+          # compose-Datei "latest" stehen hat, bekommt beim naechsten "pull"
+          # eine veroeffentlichte Version - und nicht den Zwischenstand von
+          # gerade eben. Der aktuelle Entwicklungsstand liegt unter "main".
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Bauen und veröffentlichen
         uses: docker/build-push-action@v6

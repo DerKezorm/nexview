@@ -7,6 +7,19 @@ export function formatDate(value: string | null, locale: string): string {
   return parsed.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+/** Wie formatDate, aber mit Uhrzeit - für Angaben wie "zuletzt geprüft". */
+export function formatDateTime(value: string | null, locale: string): string {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString(locale, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export function formatYear(value: string | null): string {
   return value ? value.slice(0, 4) : '—'
 }

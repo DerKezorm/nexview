@@ -46,6 +46,9 @@ DEFAULTS: dict[str, str] = {
     # Link, den Nexview verschickt - der Server selbst kann sie nicht kennen,
     # weil er hinter einem Reverse Proxy steht.
     "public_url": "",
+    # Einmal taeglich bei GitHub nachsehen, ob es eine neuere Version gibt.
+    # Uebertragen wird dabei nichts ausser der Anfrage selbst.
+    "update_check": "on",  # "on" | "off"
 }
 
 
@@ -72,6 +75,7 @@ class AppSettings:
     smtp_from_address: str
     smtp_from_name: str
     public_url: str
+    update_check: bool
 
     @property
     def mail_configured(self) -> bool:
@@ -109,6 +113,20 @@ class AppSettings:
         if self.demo_mode == "off":
             return False
         return not self.tmdb_configured
+
+
+def _flag(wert: str, *, standard: bool) -> bool:
+    """Ja/Nein-Einstellung aus dem gespeicherten Text lesen.
+
+    Bewusst grosszuegig: aeltere Nexview-Fassungen und von Hand bearbeitete
+    Datenbanken koennen hier auch "true" oder "1" stehen haben.
+    """
+    text = (wert or "").strip().lower()
+    if text in {"on", "true", "1", "yes", "ja"}:
+        return True
+    if text in {"off", "false", "0", "no", "nein"}:
+        return False
+    return standard
 
 
 def _raw_values(db: Session) -> dict[str, str]:
@@ -158,6 +176,7 @@ def load_settings(db: Session) -> AppSettings:
         smtp_from_address=values["smtp_from_address"].strip(),
         smtp_from_name=values["smtp_from_name"].strip() or "Nexview",
         public_url=values["public_url"].strip().rstrip("/"),
+        update_check=_flag(values["update_check"], standard=True),
     )
 
 
@@ -190,6 +209,7 @@ def public_settings(db: Session) -> dict[str, object]:
         "smtp_from_name": settings.smtp_from_name,
         "mail_configured": settings.mail_configured,
         "public_url": settings.public_url,
+        "update_check": settings.update_check,
     }
 
 
@@ -205,7 +225,10 @@ def save_settings(db: Session, changes: dict[str, object]) -> None:
         if key not in DEFAULTS or value is None:
             continue
 
-        text = str(value).strip()
+        # Ja/Nein-Schalter kommen aus der Oberflaeche als echter Wahrheitswert.
+        # Ohne diese Umwandlung landete "False" als Text in der Datenbank - und
+        # "False" ist beim Auslesen nun einmal nicht "off".
+        text = ("on" if value else "off") if isinstance(value, bool) else str(value).strip()
         is_secret = key in SECRET_KEYS
 
         if is_secret:

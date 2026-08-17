@@ -54,6 +54,8 @@ class SettingsUpdate(BaseModel):
     smtp_from_name: str | None = Field(default=None, max_length=120)
     # Adresse, unter der Nexview von aussen erreichbar ist.
     public_url: str | None = Field(default=None, max_length=255)
+    # Taegliche Nachfrage bei GitHub nach einer neueren Version.
+    update_check: bool | None = None
 
 
 class ConnectionTest(BaseModel):

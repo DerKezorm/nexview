@@ -5,6 +5,7 @@ import { useAuth } from './auth/useAuth'
 import { AppShell } from './components/AppShell'
 import { Logo } from './components/Logo'
 import { Spinner } from './components/ui'
+import { AboutPage } from './pages/AboutPage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { HomePage } from './pages/HomePage'
@@ -84,6 +85,7 @@ export default function App() {
         <Route path="serien" element={<DiscoverPage mediaType="tv" />} />
         <Route path="suche" element={<SearchPage />} />
         <Route path="profil" element={<ProfilePage />} />
+        <Route path="ueber" element={<AboutPage />} />
         <Route path="requests" element={<MyRequestsPage />} />
         <Route path="admin/requests" element={approverOnly(<AdminRequestsPage />)} />
         <Route path="admin/stats" element={approverOnly(<StatsPage />)} />

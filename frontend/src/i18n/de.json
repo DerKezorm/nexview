@@ -523,7 +523,10 @@
     "keyRemoved": "Der API-Key wurde entfernt.",
     "saved": "Einstellungen gespeichert.",
     "saveFailed": "Speichern fehlgeschlagen.",
-    "tabAddress": "Adresse"
+    "tabAddress": "Adresse",
+    "updateCheckTitle": "Auf Updates prüfen",
+    "updateCheckHint": "Nexview sieht höchstens einmal am Tag bei GitHub nach, ob eine neuere Version vorliegt. Dabei werden keine Daten aus Nexview übertragen.",
+    "updateCheckLabel": "Täglich nach neuen Versionen sehen"
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -534,5 +537,22 @@
     "label": "Sprache",
     "de": "Deutsch",
     "en": "Englisch"
+  },
+  "about": {
+    "title": "Über Nexview",
+    "tagline": "Neuerscheinungen entdecken, anfragen und automatisch von Radarr und Sonarr laden lassen.",
+    "version": "Installierte Version",
+    "source": "Quelltext",
+    "onGithub": "auf GitHub ansehen",
+    "releases": "Veröffentlichungen",
+    "allVersions": "alle Versionen",
+    "license": "Lizenz",
+    "updateAvailable": "Version {{version}} ist verfügbar",
+    "updateShort": "Update verfügbar",
+    "showRelease": "Was ist neu?",
+    "upToDate": "Nexview ist auf dem neuesten Stand.",
+    "checkNow": "Jetzt prüfen",
+    "lastChecked": "zuletzt geprüft: {{when}}",
+    "updateHint": "Zum Aktualisieren auf dem Server »docker compose pull« und danach »docker compose up -d« ausführen. Die Datenbank bleibt dabei erhalten; vor Änderungen an ihr legt Nexview automatisch eine Sicherung an."
   }
 }

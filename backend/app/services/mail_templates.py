@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from html import escape
 
 HINTERGRUND = "#0b0b0f"
 KARTE = "#16161d"
@@ -257,3 +258,296 @@ def address_changed_mail(neue_adresse: str, sprache: str = "de") -> Mail:
     html = _rahmen(englisch, ueberschrift=kopf, unterzeile=unter, inhalt=_kasten(rumpf))
     text = f"{kopf}\n\n{unter}\n\n{rumpf}\n\n{_fuss_text(englisch)}"
     return Mail(betreff, html, text)
+
+
+# --- Benachrichtigungen zu Anfragen und Downloads ----------------------------
+#
+# Diese Nachrichten verschickt Nexview nur, wenn der Empfaenger sie im Profil
+# ausdruecklich eingeschaltet hat. Deshalb steht in jeder ein Hinweis darauf,
+# wo man sie wieder abstellt - sonst sucht man sich zu Recht einen Wolf.
+
+
+def _abbestellen(englisch: bool, profil_link: str | None) -> str:
+    if not profil_link:
+        return ""
+    text = (
+        "You switched this notification on yourself. You can turn it off in your profile."
+        if englisch
+        else "Diese Benachrichtigung hast du selbst eingeschaltet. Im Profil kannst du sie "
+        "wieder abstellen."
+    )
+    return f"""\
+      <tr><td style="padding:20px 32px 0 32px;font-family:{SCHRIFT};font-size:12px;
+                     line-height:19px;color:{LEISE};">
+        {text} <a href="{profil_link}" style="color:{LEISE};">{profil_link}</a>
+      </td></tr>"""
+
+
+def _abbestellen_text(englisch: bool, profil_link: str | None) -> str:
+    if not profil_link:
+        return ""
+    text = (
+        "You switched this notification on yourself. Turn it off in your profile:"
+        if englisch
+        else "Diese Benachrichtigung hast du selbst eingeschaltet. Abstellen im Profil:"
+    )
+    return f"\n\n{text}\n{profil_link}"
+
+
+def _sicher(wert: str) -> str:
+    """Fremden Text fuer die Verwendung in HTML entschaerfen.
+
+    Titel kommen von TMDB, Anzeigenamen und Kommentare von den Nutzern selbst.
+    Ein "<" darin wuerde die Nachricht sonst ab dieser Stelle zerlegen - und
+    ein absichtlich gesetztes Stueck HTML koennte die Mail umschreiben.
+    Der Betreff und die Textfassung brauchen das nicht, dort ist "<" harmlos.
+    """
+    return escape(wert, quote=False)
+
+
+def _benachrichtigung(
+    *,
+    englisch: bool,
+    betreff: str,
+    kopf: str,
+    unter: str,
+    rumpf: str,
+    rumpf_html: str | None = None,
+    knopf: str | None = None,
+    link: str | None = None,
+    profil_link: str | None = None,
+) -> Mail:
+    """Gemeinsames Geruest der Benachrichtigungen.
+
+    ``rumpf`` ist **Klartext** und wird fuer die HTML-Fassung selbsttaetig
+    entschaerft. Das ist Absicht: in diesen Nachrichten stecken Filmtitel,
+    Anzeigenamen und Kommentare, also durchweg Text, den jemand anderes
+    bestimmt hat. Waere HTML die Voreinstellung, muesste man an jeder einzelnen
+    Vorlage daran denken - und beim naechsten Zusatz wieder.
+
+    Nur wer wirklich Auszeichnung braucht, gibt zusaetzlich ``rumpf_html`` an
+    und ist dann selbst fuers Entschaerfen zustaendig.
+    """
+    inhalt = _kasten(rumpf_html if rumpf_html is not None else _sicher(rumpf))
+    if knopf and link:
+        inhalt += _knopf(knopf, link)
+    inhalt += _abbestellen(englisch, profil_link)
+
+    html = _rahmen(englisch, ueberschrift=_sicher(kopf), unterzeile=_sicher(unter), inhalt=inhalt)
+    text = f"{kopf}\n\n{unter}\n\n{rumpf}"
+    if link:
+        text += f"\n\n{link}"
+    text += _abbestellen_text(englisch, profil_link)
+    text += f"\n\n{_fuss_text(englisch)}"
+    return Mail(betreff, html, text)
+
+
+def download_ready_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An den Anfragenden: sein Titel ist fertig geladen."""
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff=f"Ready to watch: {titel}",
+            kopf="It is ready.",
+            unter=f"“{titel}” has finished downloading.",
+            rumpf=(
+                f"“{titel}” is now in your library and ready to play. If the quality is off, "
+                "you can rate it in Nexview – that is how your administrator finds out."
+            ),
+            knopf="Open in Nexview",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff=f"Fertig geladen: {titel}",
+        kopf="Es ist da.",
+        unter=f"„{titel}“ wurde fertig geladen.",
+        rumpf=(
+            f"„{titel}“ liegt jetzt in der Bibliothek und lässt sich abspielen. Stimmt die "
+            "Qualität nicht, kannst du das in Nexview bewerten – nur so erfährt es dein "
+            "Administrator."
+        ),
+        knopf="In Nexview ansehen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
+def request_pending_mail(
+    titel: str,
+    anfragender: str,
+    sprache: str = "de",
+    *,
+    link: str | None = None,
+    profil_link: str | None = None,
+) -> Mail:
+    """An Admins und Entscheider: eine Anfrage wartet auf Freigabe."""
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff=f"Waiting for approval: {titel}",
+            kopf="Someone is waiting.",
+            unter=f"{anfragender} requested “{titel}”.",
+            rumpf=(
+                f"{anfragender} would like “{titel}”. Nothing is downloaded until you approve "
+                "it – until then the request just sits there."
+            ),
+            knopf="Review request",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff=f"Wartet auf Freigabe: {titel}",
+        kopf="Jemand wartet.",
+        unter=f"{anfragender} hat „{titel}“ angefragt.",
+        rumpf=(
+            f"{anfragender} hätte gern „{titel}“. Geladen wird nichts, solange du nicht "
+            "freigibst – bis dahin bleibt die Anfrage einfach liegen."
+        ),
+        knopf="Anfrage ansehen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
+def request_decided_mail(
+    titel: str,
+    freigegeben: bool,
+    sprache: str = "de",
+    *,
+    link: str | None = None,
+    profil_link: str | None = None,
+) -> Mail:
+    """An den Anfragenden: über seine Anfrage wurde entschieden."""
+    englisch = _ist_englisch(sprache)
+
+    if freigegeben and englisch:
+        betreff, kopf = f"Approved: {titel}", "Approved."
+        unter = f"“{titel}” is on its way."
+        rumpf = (
+            f"“{titel}” was approved and handed over to the download. That can take a while – "
+            "you will hear from Nexview again once it is ready."
+        )
+        knopf = "View my requests"
+    elif freigegeben:
+        betreff, kopf = f"Freigegeben: {titel}", "Freigegeben."
+        unter = f"„{titel}“ ist unterwegs."
+        rumpf = (
+            f"„{titel}“ wurde freigegeben und an den Download übergeben. Das kann etwas dauern "
+            "– sobald der Titel fertig ist, meldet sich Nexview wieder."
+        )
+        knopf = "Meine Anfragen ansehen"
+    elif englisch:
+        betreff, kopf = f"Declined: {titel}", "Not this time."
+        unter = f"“{titel}” was declined."
+        rumpf = f"Your request for “{titel}” was declined."
+        knopf = "View my requests"
+    else:
+        betreff, kopf = f"Abgelehnt: {titel}", "Diesmal nicht."
+        unter = f"„{titel}“ wurde abgelehnt."
+        rumpf = f"Deine Anfrage zu „{titel}“ wurde abgelehnt."
+        knopf = "Meine Anfragen ansehen"
+
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff=betreff,
+        kopf=kopf,
+        unter=unter,
+        rumpf=rumpf,
+        knopf=knopf,
+        link=link,
+        profil_link=profil_link,
+    )
+
+
+def feedback_mail(
+    titel: str,
+    sterne: int,
+    kommentar: str | None,
+    sprache: str = "de",
+    *,
+    link: str | None = None,
+    profil_link: str | None = None,
+) -> Mail:
+    """An die Administratoren: jemand hat eine Downloadqualität bewertet."""
+    englisch = _ist_englisch(sprache)
+    bewertung = "★" * sterne + "☆" * (5 - sterne)
+
+    kopfzeile = (
+        f"Rating: {bewertung} ({sterne}/5)" if englisch else f"Bewertung: {bewertung} ({sterne}/5)"
+    )
+
+    # Der Kommentar bekommt eine eigene Zeile. Nur deshalb braucht diese
+    # Vorlage ueberhaupt HTML - entschaerft wird der fremde Text hier von Hand.
+    rumpf = kopfzeile
+    rumpf_html = kopfzeile
+    if kommentar:
+        anfuehrung = f"“{kommentar}”" if englisch else f"„{kommentar}“"
+        sicher = f"“{_sicher(kommentar)}”" if englisch else f"„{_sicher(kommentar)}“"
+        rumpf += f"\n\n{anfuehrung}"
+        rumpf_html += f"<br><br>{sicher}"
+
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff=f"Rated {sterne}/5: {titel}",
+            kopf="New rating.",
+            unter=f"“{titel}” was rated.",
+            rumpf=rumpf,
+            rumpf_html=rumpf_html,
+            knopf="Read and reply",
+            link=link,
+            profil_link=profil_link,
+        )
+
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff=f"{sterne}/5 für {titel}",
+        kopf="Neue Bewertung.",
+        unter=f"„{titel}“ wurde bewertet.",
+        rumpf=rumpf,
+        rumpf_html=rumpf_html,
+        knopf="Ansehen und antworten",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
+def feedback_reply_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An den Bewertenden: der Administrator hat geantwortet."""
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff=f"Reply to your rating: {titel}",
+            kopf="You got an answer.",
+            unter=f"Your rating of “{titel}” was answered.",
+            rumpf=(
+                "Your administrator replied to your comment. You can read the answer in "
+                "Nexview under „My requests“."
+            ),
+            knopf="Read the answer",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff=f"Antwort auf deine Rückmeldung: {titel}",
+        kopf="Du hast Antwort.",
+        unter=f"Deine Bewertung zu „{titel}“ wurde beantwortet.",
+        rumpf=(
+            "Dein Administrator hat auf deinen Kommentar geantwortet. Die Antwort steht in "
+            "Nexview unter „Meine Anfragen“."
+        ),
+        knopf="Antwort lesen",
+        link=link,
+        profil_link=profil_link,
+    )

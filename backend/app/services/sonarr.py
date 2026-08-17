@@ -77,8 +77,14 @@ class SonarrClient(ArrClient):
         root_folder_path: str,
         search_now: bool = True,
         tag_ids: list[int] | None = None,
+        season: int | None = None,
     ) -> dict[str, Any]:
-        """Serie komplett zu Sonarr hinzufuegen (alle Staffeln ueberwacht)."""
+        """Serie zu Sonarr hinzufuegen.
+
+        Ohne ``season`` wird die komplette Serie ueberwacht. Mit ``season``
+        wird ausschliesslich diese eine Staffel ueberwacht - alle anderen
+        bleiben aus, damit Sonarr nicht doch die ganze Serie herunterlaedt.
+        """
         found = await self.lookup(tvdb_id)
         if found is None:
             raise ArrError("Sonarr kennt diese Serie nicht.", 404)
@@ -95,7 +101,91 @@ class SonarrClient(ArrClient):
                 "searchForMissingEpisodes": search_now,
             },
         }
-        return await self.post("/series", payload)
+
+        if season is not None:
+            # "monitor: none" allein genuegt nicht - Sonarr richtet sich beim
+            # Anlegen nach der mitgeschickten Staffelliste. Beides zu setzen ist
+            # der sichere Weg ueber verschiedene Sonarr-Fassungen hinweg.
+            payload["seasons"] = [
+                {**eintrag, "monitored": eintrag.get("seasonNumber") == season}
+                for eintrag in (found.get("seasons") or [])
+            ]
+            payload["addOptions"] = {
+                "monitor": "none",
+                "searchForMissingEpisodes": False,
+            }
+
+        angelegt = await self.post("/series", payload)
+
+        # Die Suche erst nach dem Anlegen anstossen, und dann gezielt fuer diese
+        # eine Staffel.
+        if season is not None and search_now and isinstance(angelegt, dict):
+            await self.search_season(angelegt.get("id"), season)
+
+        return angelegt
+
+    async def monitor_season(self, arr_id: int, season: int, search_now: bool = True) -> None:
+        """Eine weitere Staffel einer bereits vorhandenen Serie aktivieren.
+
+        Der haeufigste Fall ueberhaupt: die Serie laeuft schon mit, nur die
+        neue Staffel fehlt. Die Serie neu anzulegen waere hier falsch - Sonarr
+        wuerde die vorhandenen Folgen durcheinanderbringen.
+        """
+        serie = await self.get(f"/series/{arr_id}")
+        if not isinstance(serie, dict):
+            raise ArrError("Sonarr liefert diese Serie nicht.", 404)
+
+        staffeln = serie.get("seasons") or []
+        if not any(eintrag.get("seasonNumber") == season for eintrag in staffeln):
+            raise ArrError(f"Sonarr kennt Staffel {season} dieser Serie nicht.", 404)
+
+        serie["seasons"] = [
+            {**eintrag, "monitored": True}
+            if eintrag.get("seasonNumber") == season
+            else eintrag
+            for eintrag in staffeln
+        ]
+        # Eine Serie, die als Ganzes nicht ueberwacht wird, laedt auch einzelne
+        # Staffeln nicht - deshalb hier mit aktivieren.
+        serie["monitored"] = True
+
+        await self.put(f"/series/{arr_id}", serie)
+
+        if search_now:
+            await self.search_season(arr_id, season)
+
+    async def search_season(self, arr_id: int | None, season: int) -> None:
+        """Sonarr anweisen, genau diese Staffel zu suchen.
+
+        Schlaegt das fehl, ist das kein Beinbruch: die Staffel ist ueberwacht,
+        Sonarr findet sie beim naechsten regulaeren Durchlauf von selbst.
+        """
+        if not arr_id:
+            return
+        try:
+            await self.post(
+                "/command", {"name": "SeasonSearch", "seriesId": arr_id, "seasonNumber": season}
+            )
+        except ArrError:
+            pass
+
+    async def episode_status(self, arr_id: int) -> dict[int, set[int]]:
+        """Welche Folgen liegen bereits vor? Nach Staffelnummer gebuendelt.
+
+        Sonarr liefert alle Folgen einer Serie in einem Aufruf; feiner
+        aufzuteilen waere eine Abfrage pro Staffel, und davon haette niemand
+        etwas.
+        """
+        folgen = await self.get("/episode", {"seriesId": arr_id}) or []
+        vorhanden: dict[int, set[int]] = {}
+        for folge in folgen:
+            if not folge.get("hasFile"):
+                continue
+            staffel = folge.get("seasonNumber")
+            nummer = folge.get("episodeNumber")
+            if isinstance(staffel, int) and isinstance(nummer, int):
+                vorhanden.setdefault(staffel, set()).add(nummer)
+        return vorhanden
 
     async def remove(self, arr_id: int, delete_files: bool = True) -> None:
         """Serie aus Sonarr entfernen - samt bereits geladener Folgen."""

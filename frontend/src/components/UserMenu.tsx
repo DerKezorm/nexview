@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation } from 'react-router-dom'
+
+import { useFavorites } from './media/FavoriteButton'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../api/client'
@@ -21,6 +23,8 @@ type MenuEntry = {
   adminOnly?: boolean
   /** Administratoren und Entscheider (Freigaben). */
   approverOnly?: boolean
+  /** Nur zeigen, wenn diese Bedingung zutrifft. */
+  wenn?: boolean
   badge?: number
 }
 
@@ -74,6 +78,8 @@ export function UserMenu() {
     }
   }, [open])
 
+  const { favorites } = useFavorites()
+
   if (!user) return null
 
   const name = user.display_name ?? user.username
@@ -81,6 +87,9 @@ export function UserMenu() {
     [
       { to: '/profil', labelKey: 'nav.profile' },
       { to: '/requests', labelKey: 'nav.myRequests' },
+      // Erscheint erst, wenn es etwas zu sehen gibt - ein leerer Punkt
+      // waere nur ein Versprechen ohne Inhalt.
+      { to: '/mag-ich', labelKey: 'nav.favorites', wenn: favorites.length > 0 },
       {
         to: '/admin/requests',
         labelKey: 'nav.allRequests',
@@ -93,6 +102,7 @@ export function UserMenu() {
   ).filter((entry) => {
     if (entry.adminOnly) return isAdmin
     if (entry.approverOnly) return canApprove
+    if (entry.wenn !== undefined) return entry.wenn
     return true
   })
 

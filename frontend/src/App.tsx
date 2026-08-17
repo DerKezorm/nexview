@@ -6,8 +6,10 @@ import { AppShell } from './components/AppShell'
 import { Logo } from './components/Logo'
 import { Spinner } from './components/ui'
 import { AboutPage } from './pages/AboutPage'
+import { BrowsePage } from './pages/BrowsePage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { DiscoverPage } from './pages/DiscoverPage'
+import { FavoritesPage } from './pages/FavoritesPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import {
@@ -17,6 +19,8 @@ import {
   VerifyEmailPage,
 } from './pages/OnboardingPage'
 import { MyRequestsPage } from './pages/MyRequestsPage'
+import { PersonPage } from './pages/PersonPage'
+import { TitlePage } from './pages/TitlePage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SearchPage } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -85,7 +89,14 @@ export default function App() {
         <Route path="serien" element={<DiscoverPage mediaType="tv" />} />
         <Route path="suche" element={<SearchPage />} />
         <Route path="profil" element={<ProfilePage />} />
+        <Route path="mag-ich" element={<FavoritesPage />} />
         <Route path="ueber" element={<AboutPage />} />
+        {/* Vollbildseite je Titel und je Person - der Klick auf eine
+            Kachel landet hier, nicht mehr im Popup. */}
+        <Route path="titel/:mediaType/:tmdbId" element={<TitlePage />} />
+        <Route path="person/:personId" element={<PersonPage />} />
+        {/* Ergebnisliste zu einem Schlagwort bzw. Studio. */}
+        <Route path="liste/:mediaType/:art/:id" element={<BrowsePage />} />
         <Route path="requests" element={<MyRequestsPage />} />
         <Route path="admin/requests" element={approverOnly(<AdminRequestsPage />)} />
         <Route path="admin/stats" element={approverOnly(<StatsPage />)} />

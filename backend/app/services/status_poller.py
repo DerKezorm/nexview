@@ -17,12 +17,12 @@ from ..db import SessionLocal
 from ..models import (
     MediaRequest,
     MediaType,
-    Notification,
     NotificationType,
     RequestStatus,
+    User,
     utcnow,
 )
-from . import library
+from . import library, mail_outbox, notify
 from .arr import ArrError
 from .settings_service import AppSettings, load_settings
 from .sonarr import normalize_title
@@ -77,15 +77,15 @@ async def check_once(db: Session, settings: AppSettings) -> int:
         if getattr(eintrag, "has_file", False):
             request.status = RequestStatus.downloaded
             request.completed_at = utcnow()
-            db.add(
-                Notification(
-                    user_id=request.user_id,
-                    request_id=request.id,
-                    type=NotificationType.download_complete,
+            anfragender = db.get(User, request.user_id)
+            if anfragender is not None:
+                notify.create(
+                    db,
+                    user=anfragender,
+                    kind=NotificationType.download_complete,
                     message_key="notifications.downloadComplete",
-                    message_title=request.title,
+                    request=request,
                 )
-            )
             fertig += 1
         elif request.status == RequestStatus.approved:
             # In Radarr/Sonarr angelegt, Datei fehlt noch.
@@ -107,6 +107,11 @@ async def run_forever(stop: asyncio.Event) -> None:
                 wartezeit = settings.poll_interval_seconds
                 if settings.radarr_configured or settings.sonarr_configured:
                     await check_once(db, settings)
+
+                # Erst danach: so gehen die Mails zu gerade fertig gewordenen
+                # Downloads schon in diesem Durchgang raus statt erst im
+                # naechsten.
+                await mail_outbox.process(db, settings)
         except ArrError as error:
             # Radarr/Sonarr gerade nicht erreichbar - kein Grund zur Aufregung.
             logger.info("Status-Abgleich übersprungen: %s", error.message)

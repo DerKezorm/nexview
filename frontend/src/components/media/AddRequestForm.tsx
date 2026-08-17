@@ -9,6 +9,11 @@ import { Button, ErrorBanner, Spinner } from '../ui'
 type AddRequestFormProps = {
   item: MediaItem
   onDone: () => void
+  /**
+   * Serie läuft schon - dann kann nur noch eine einzelne Staffel dazu.
+   * "Ganze Serie" steht dann nicht zur Wahl, das wäre ohnehin abgelehnt.
+   */
+  seasonOnly?: boolean
 }
 
 type CreatedRequest = { id: number; status: string; title: string }
@@ -19,12 +24,20 @@ type CreatedRequest = { id: number; status: string; title: string }
  * Die Auswahlmöglichkeiten kommen direkt aus Radarr bzw. Sonarr - es gibt
  * also nichts zu tippen und nichts, was dort nicht existiert.
  */
-export function AddRequestForm({ item, onDone }: AddRequestFormProps) {
+export function AddRequestForm({ item, onDone, seasonOnly = false }: AddRequestFormProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
   const [profileId, setProfileId] = useState<number | null>(null)
   const [folder, setFolder] = useState('')
+  // Leerer String = ganze Serie. Bei Filmen bleibt das Feld ungenutzt.
+  // Geht es nur noch um eine Nachlieferung, ist die neueste Staffel
+  // vorausgewählt - die ist praktisch immer gemeint.
+  const [season, setSeason] = useState(() =>
+    seasonOnly && item.seasons.length > 0
+      ? String(item.seasons[item.seasons.length - 1].season_number)
+      : '',
+  )
 
   const optionsQuery = useQuery({
     queryKey: ['arr-options', item.media_type],
@@ -44,7 +57,7 @@ export function AddRequestForm({ item, onDone }: AddRequestFormProps) {
       (current) =>
         current ?? data.default_quality_profile_id ?? data.quality_profiles[0]?.id ?? null,
     )
-    setFolder((current) => current || (data.root_folders[0]?.path ?? ''))
+    setFolder((current) => current || data.default_root_folder || data.root_folders[0]?.path || '')
   }, [optionsQuery.data])
 
   const createMutation = useMutation({
@@ -53,7 +66,10 @@ export function AddRequestForm({ item, onDone }: AddRequestFormProps) {
         media_type: item.media_type,
         tmdb_id: item.tmdb_id,
         quality_profile_id: profileId,
-        root_folder_path: folder,
+        // Ohne Auswahlrecht bewusst nichts mitschicken: welcher Ordner gilt,
+        // entscheidet dann allein der Server.
+        root_folder_path: options.root_folder_choice ? folder : null,
+        season: season === '' ? null : Number(season),
       }),
     onSuccess: () => {
       // Badges und Kontingent neu laden.
@@ -85,13 +101,37 @@ export function AddRequestForm({ item, onDone }: AddRequestFormProps) {
   }
 
   const options = optionsQuery.data
-  const ready = profileId !== null && folder !== ''
+  const ready = profileId !== null && (!options.root_folder_choice || folder !== '')
 
   return (
     <div className="rounded-xl border border-ink-700 bg-ink-900/60 p-4">
       <h3 className="text-sm font-semibold">{t('request.chooseOptions')}</h3>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {/* Nur bei Serien. Beim Nachfordern immer zeigen - auch wenn nur eine
+            Staffel fehlt: sonst sähe man nicht, was da eigentlich bestellt
+            wird. Sonst erst ab zwei Staffeln, darunter gäbe es keine Wahl. */}
+        {item.media_type === 'tv' && (item.seasons.length > 1 || seasonOnly) && (
+          <label className="flex flex-col gap-1.5 sm:col-span-2">
+            <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+              {t('request.season')}
+            </span>
+            <select
+              value={season}
+              onChange={(event) => setSeason(event.target.value)}
+              className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
+            >
+              {!seasonOnly && <option value="">{t('request.wholeSeries')}</option>}
+              {item.seasons.map((staffel) => (
+                <option key={staffel.season_number} value={staffel.season_number}>
+                  {staffel.name} · {t('request.episodes', { count: staffel.episode_count })}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-mist-600">{t('request.seasonHint')}</span>
+          </label>
+        )}
+
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
             {t('request.qualityProfile')}
@@ -109,23 +149,28 @@ export function AddRequestForm({ item, onDone }: AddRequestFormProps) {
           </select>
         </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-            {t('request.rootFolder')}
-          </span>
-          <select
-            value={folder}
-            onChange={(event) => setFolder(event.target.value)}
-            className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
-          >
-            {options.root_folders.map((root) => (
-              <option key={root.path} value={root.path}>
-                {root.path}
-                {root.free_space ? ` (${formatSpace(root.free_space)})` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* Hat der Administrator die Auswahl abgeschaltet, gibt es hier nichts
+            zu entscheiden - dann wird das Feld gar nicht erst gezeigt. Welcher
+            Ordner gilt, setzt der Server ohnehin selbst. */}
+        {options.root_folder_choice && (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+              {t('request.rootFolder')}
+            </span>
+            <select
+              value={folder}
+              onChange={(event) => setFolder(event.target.value)}
+              className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
+            >
+              {options.root_folders.map((root) => (
+                <option key={root.path} value={root.path}>
+                  {root.path}
+                  {root.free_space ? ` (${formatSpace(root.free_space)})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       {createMutation.isError && (

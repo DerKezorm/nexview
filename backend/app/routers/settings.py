@@ -44,6 +44,11 @@ class SettingsUpdate(BaseModel):
     # Vorausgewaehltes Qualitaetsprofil; leerer String hebt die Vorauswahl auf.
     default_movie_profile_id: str | None = Field(default=None, max_length=12)
     default_series_profile_id: str | None = Field(default=None, max_length=12)
+    # Duerfen Benutzer den Zielordner selbst waehlen? Wenn nicht, gilt der hier
+    # hinterlegte fuer alle.
+    root_folder_choice: bool | None = None
+    default_movie_root: str | None = Field(default=None, max_length=500)
+    default_series_root: str | None = Field(default=None, max_length=500)
     # Mailversand
     smtp_host: str | None = Field(default=None, max_length=255)
     smtp_port: int | None = Field(default=None, ge=1, le=65535)

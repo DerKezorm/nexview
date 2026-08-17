@@ -11,6 +11,8 @@ import { FilterBar } from './FilterBar'
 import type { Filters, ViewMode } from './FilterBar'
 import { MediaCard } from './MediaCard'
 import { MediaListRow } from './MediaListRow'
+import { useFavorites } from './FavoriteButton'
+import { useMovieRatings } from './RatingBadges'
 
 const DEFAULT_FILTERS: Filters = {
   period: '30',
@@ -106,7 +108,16 @@ export function MediaSection({
   arrConfigured,
 }: MediaSectionProps) {
   const { t } = useTranslation()
-  const [filters, setFilters] = useState<Filters>({ ...DEFAULT_FILTERS, region: defaultRegion })
+  // Vorbelegung nur für die Region - danach bestimmt der Benutzer die Filter
+  // selbst, und ein Nachladen im Hintergrund darf ihm die Auswahl nicht
+  // wieder umstellen. Deshalb nur der Startwert.
+  //
+  // Die Originalsprache startet immer auf "alle": eine vorbelegte Sprache
+  // bedeutet "nur in dieser Sprache gedreht" und lieferte praktisch nichts.
+  const [filters, setFilters] = useState<Filters>({
+    ...DEFAULT_FILTERS,
+    region: defaultRegion,
+  })
   const [view, setView] = useState<ViewMode>('grid')
   const [selected, setSelected] = useState<MediaItem | null>(null)
 
@@ -152,6 +163,18 @@ export function MediaSection({
       !(filters.hideWithoutOverview && !item.overview.trim()),
   )
   const hiddenCount = loaded.length - items.length
+
+  // Nachgelagert: die Liste steht sofort, die Wertungen kommen kurz darauf.
+  const ratings = useMovieRatings(items)
+  const { markiert } = useFavorites()
+
+  // Welche Filter schränken so stark ein, dass eine leere Liste daran liegen
+  // kann? Genau die werden im leeren Zustand benannt.
+  const einschraenkendeFilter = [
+    filters.language && t('filters.language'),
+    filters.genreId !== null && t('filters.genre'),
+    filters.minRating > 0 && t('filters.minRating'),
+  ].filter(Boolean) as string[]
 
   // Schlägt eine Aktualisierung fehl, behält React Query die zuletzt geladenen
   // Daten. Ohne diesen Hinweis sähe die Seite aus, als sei alles in Ordnung,
@@ -210,23 +233,59 @@ export function MediaSection({
       )}
 
       {!query.isPending && !failure && items.length === 0 && (
-        <p className="rounded-xl border border-dashed border-ink-700 px-4 py-12 text-center text-sm text-mist-500">
-          {/* Unterscheiden: gar nichts gefunden, oder alles lokal weggefiltert? */}
-          {hiddenCount > 0 ? t('filters.allFiltered') : t('discover.empty')}
-        </p>
+        <div className="rounded-xl border border-dashed border-ink-700 px-4 py-12 text-center">
+          <p className="text-sm text-mist-500">
+            {/* Unterscheiden: gar nichts gefunden, oder alles lokal weggefiltert? */}
+            {hiddenCount > 0 ? t('filters.allFiltered') : t('discover.empty')}
+          </p>
+
+          {/* Eine leere Liste ohne Erklärung sieht aus wie ein Defekt. Der
+              häufigste Grund ist ein Filter, den man selbst gesetzt hat -
+              besonders die Originalsprache: auf Deutsch gedrehte Filme sind
+              die Ausnahme, also bleibt fast nichts übrig. */}
+          {einschraenkendeFilter.length > 0 && (
+            <>
+              <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed text-mist-600">
+                {t('filters.emptyBecause', { filter: einschraenkendeFilter.join(', ') })}
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() =>
+                  setFilters({ ...filters, language: '', genreId: null, minRating: 0 })
+                }
+                className="mt-4 !px-4 !py-2"
+              >
+                {t('filters.resetNarrow')}
+              </Button>
+            </>
+          )}
+        </div>
       )}
 
       {items.length > 0 &&
         (view === 'grid' ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {items.map((item) => (
-              <MediaCard key={item.tmdb_id} item={item} onOpen={setSelected} />
+              <MediaCard
+                key={item.tmdb_id}
+                item={item}
+                onQuickAdd={setSelected}
+                ratings={ratings[item.tmdb_id]}
+                favorit={markiert.has(`${item.media_type}-${item.tmdb_id}`)}
+              />
             ))}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
             {items.map((item) => (
-              <MediaListRow key={item.tmdb_id} item={item} onOpen={setSelected} />
+              <MediaListRow
+                key={item.tmdb_id}
+                item={item}
+                onQuickAdd={setSelected}
+                ratings={ratings[item.tmdb_id]}
+                favorit={markiert.has(`${item.media_type}-${item.tmdb_id}`)}
+              />
             ))}
           </div>
         ))}

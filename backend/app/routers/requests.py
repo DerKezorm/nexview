@@ -11,11 +11,8 @@ from sqlalchemy import select
 from ..deps import CurrentUser, DbSession
 from ..models import (
     MediaRequest,
-    Notification,
     NotificationType,
     RequestStatus,
-    Role,
-    User,
     utcnow,
 )
 from ..schemas_requests import (
@@ -25,9 +22,9 @@ from ..schemas_requests import (
     RequestCreate,
     RequestPublic,
 )
-from ..services import media, quota, requests_service
+from ..services import media, notify, quota, requests_service
 from ..services.quota import QuotaState
-from ..services.settings_service import load_settings
+from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
@@ -75,7 +72,10 @@ def my_requests(user: CurrentUser, db: DbSession) -> list[MediaRequest]:
 async def create_request(
     payload: RequestCreate, user: CurrentUser, db: DbSession
 ) -> MediaRequest:
-    settings = load_settings(db)
+    # Aus Sicht des Anfragenden: der Titel wird so gespeichert, wie er ihn beim
+    # Anklicken gesehen hat. Sonst steht in "Meine Anfragen" ploetzlich ein
+    # anderer Name als eben noch beim Entdecken.
+    settings = for_user(load_settings(db), user)
 
     try:
         item = await media.detail(db, settings, payload.media_type.value, payload.tmdb_id)
@@ -90,6 +90,7 @@ async def create_request(
             item,
             payload.quality_profile_id,
             payload.root_folder_path,
+            payload.season,
         )
     except requests_service.RequestError as error:
         raise HTTPException(status_code=error.status_code, detail=error.message) from error
@@ -132,22 +133,16 @@ def give_feedback(
 
     if not war_bewertet:
         schwach = payload.rating <= POOR_RATING
-        for entscheider in db.scalars(
-            select(User).where(
-                User.role.in_((Role.admin, Role.approver)), User.is_active.is_(True)
-            )
-        ):
-            db.add(
-                Notification(
-                    user_id=entscheider.id,
-                    request_id=request.id,
-                    type=NotificationType.feedback_poor if schwach else NotificationType.feedback,
-                    message_key=(
-                        "notifications.feedbackPoor" if schwach else "notifications.feedback"
-                    ),
-                    message_title=request.title,
-                )
-            )
+        # Geht an Admins *und* Entscheider: antworten darf zwar nur der Admin,
+        # aber Entscheider sehen die Bewertungen auch in der Statistik - sie
+        # von der Meldung auszuschliessen waere ein Bruch.
+        notify.create_for_approvers(
+            db,
+            kind=NotificationType.feedback_poor if schwach else NotificationType.feedback,
+            message_key="notifications.feedbackPoor" if schwach else "notifications.feedback",
+            request=request,
+            ausser=user.id,
+        )
         db.commit()
 
     logger.info(

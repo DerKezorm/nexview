@@ -19,7 +19,14 @@ class RequestCreate(BaseModel):
     media_type: MediaType
     tmdb_id: int = Field(ge=1)
     quality_profile_id: int = Field(ge=1)
-    root_folder_path: str = Field(min_length=1, max_length=500)
+    # Darf fehlen: welcher Ordner tatsaechlich gilt, entscheidet der Server.
+    # Hat der Administrator die Auswahl abgeschaltet, wird ein hier
+    # mitgeschickter Wert bewusst ignoriert - sonst waere die Einstellung
+    # blosse Kosmetik, die sich mit einem selbstgebauten Aufruf umgehen liesse.
+    root_folder_path: str | None = Field(default=None, max_length=500)
+    # Nur bei Serien: welche Staffel? Fehlt sie, ist die ganze Serie gemeint.
+    # Staffel 0 sind bei TMDB die Specials - die schliessen wir nicht aus.
+    season: int | None = Field(default=None, ge=0, le=200)
 
 
 class FeedbackCreate(BaseModel):
@@ -47,6 +54,7 @@ class RequestPublic(BaseModel):
     status: RequestStatus
     quality_profile_id: int | None
     root_folder_path: str | None
+    season: int | None
     requested_at: datetime
     approved_at: datetime | None
     completed_at: datetime | None

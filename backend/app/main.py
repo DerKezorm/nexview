@@ -25,7 +25,9 @@ from .routers import (
     about as about_router,
     admin_requests,
     auth,
+    details as details_router,
     discover,
+    favorites as favorites_router,
     home as home_router,
     logs as logs_router,
     notifications,
@@ -103,6 +105,8 @@ app.include_router(onboarding.router)
 app.include_router(notifications.router)
 app.include_router(logs_router.router)
 app.include_router(about_router.router)
+app.include_router(details_router.router)
+app.include_router(favorites_router.router)
 
 
 @app.get("/api/health", tags=["system"])

@@ -28,6 +28,18 @@ export type User = {
   quota_series_used: number
   email: string | null
   email_verified: boolean
+
+  /**
+   * E-Mail-Benachrichtigungen – jede einzeln, Standard überall aus.
+   * Die Glocke in der App ist davon nicht betroffen.
+   */
+  mail_download_complete: boolean
+  mail_request_pending: boolean
+  mail_request_decided: boolean
+  mail_feedback: boolean
+
+  /** Vorbelegung der Filterleiste; null = Vorgabe des Admins. */
+  discover_region: string | null
 }
 
 /** Offene Einladung – ein Konto gibt es dazu noch nicht. */
@@ -72,6 +84,87 @@ export type LogEntry = {
   message: string
 }
 
+/** Eine Staffel, wie TMDB sie kennt. */
+export type SeasonInfo = {
+  season_number: number
+  name: string
+  episode_count: number
+  air_date: string | null
+  overview: string
+  poster_url: string | null
+  /** Wie viele Folgen davon schon in der Bibliothek liegen (aus Sonarr). */
+  episodes_available: number
+}
+
+export type EpisodeInfo = {
+  episode_number: number
+  name: string
+  overview: string
+  air_date: string | null
+  runtime_minutes: number | null
+  still_url: string | null
+  vote_average: number
+  /** Liegt diese Folge schon vor? */
+  available: boolean
+}
+
+export type SeasonDetail = {
+  season_number: number
+  name: string
+  overview: string
+  air_date: string | null
+  episodes: EpisodeInfo[]
+}
+
+/** Etwas mit Kennung und Namen - Schlagwort oder Studio. */
+export type NamedRef = {
+  id: number
+  name: string
+}
+
+export type Trailer = {
+  key: string
+  name: string
+  site: string
+  language: string
+}
+
+export type CastMember = {
+  person_id: number
+  name: string
+  character: string
+  photo_url: string | null
+}
+
+export type CrewMember = {
+  person_id: number
+  name: string
+  job: string
+}
+
+export type PersonCredit = {
+  media_type: MediaType
+  tmdb_id: number
+  title: string
+  character: string
+  poster_url: string | null
+  release_date: string | null
+  vote_average: number
+  status: MediaStatus
+}
+
+export type PersonDetail = {
+  person_id: number
+  name: string
+  biography: string
+  photo_url: string | null
+  birthday: string | null
+  deathday: string | null
+  place_of_birth: string | null
+  known_for_department: string
+  credits: PersonCredit[]
+}
+
 export type MediaItem = {
   media_type: MediaType
   tmdb_id: number
@@ -88,7 +181,31 @@ export type MediaItem = {
   runtime_minutes: number | null
   certification: string | null
   original_language: string | null
+  /** Nur in der Detailansicht einer Serie gefüllt. */
+  seasons: SeasonInfo[]
   status: MediaStatus
+}
+
+/** Alles zu einem Titel - nur die Detailseite bekommt das. */
+export type MediaDetail = MediaItem & {
+  tagline: string
+  homepage: string | null
+  status_text: string
+  original_country: string[]
+  spoken_languages: string[]
+  budget: number | null
+  revenue: number | null
+  studios: NamedRef[]
+  keywords: NamedRef[]
+  trailer: Trailer | null
+  cast: CastMember[]
+  crew: CrewMember[]
+  recommendations: MediaItem[]
+  /** Nur bei Serien. */
+  seasons_total: number | null
+  episodes_total: number | null
+  series_status: string
+  networks: NamedRef[]
 }
 
 export type MediaPage = {
@@ -104,8 +221,30 @@ export type MediaPage = {
 export type ArrOptions = {
   quality_profiles: { id: number; name: string }[]
   root_folders: { path: string; free_space: number | null }[]
+  /** Welcher Zielordner gilt - und darf der Benutzer ihn ändern? */
+  default_root_folder: string | null
+  root_folder_choice: boolean
   /** Vorauswahl für diesen Benutzer – vom Server bestimmt. */
   default_quality_profile_id: number | null
+}
+
+/** Ein mit dem Herz markierter Titel. */
+export type Favorite = {
+  media_type: MediaType
+  tmdb_id: number
+  title: string
+  poster_url: string | null
+  created_at: string
+}
+
+/** Wertungen der großen Portale - nur bei Filmen, aus Radarr. */
+export type MovieRatings = {
+  /** Für den Link auf die IMDb-Seite. */
+  imdb_id: string | null
+  imdb: number | null
+  imdb_votes: number | null
+  rotten_tomatoes: number | null
+  metacritic: number | null
 }
 
 export type Genre = {
@@ -156,6 +295,9 @@ export type AppSettings = {
   /** Adresse, unter der Nexview von außen erreichbar ist – steckt in jedem Link. */
   public_url: string
   update_check: boolean
+  root_folder_choice: boolean
+  default_movie_root: string
+  default_series_root: string
 }
 
 export type AboutInfo = {
@@ -190,6 +332,8 @@ export type MediaRequest = {
   status: MediaStatus
   quality_profile_id: number | null
   root_folder_path: string | null
+  /** Nur bei Serien; null = ganze Serie. */
+  season: number | null
   requested_at: string
   approved_at: string | null
   completed_at: string | null

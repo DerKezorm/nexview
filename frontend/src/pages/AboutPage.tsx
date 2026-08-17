@@ -129,6 +129,100 @@ function UpdateCheckToggle() {
 }
 
 /**
+ * Woher die Daten kommen und worauf Nexview aufbaut.
+ *
+ * Die TMDB-Nennung ist keine Höflichkeit, sondern Bedingung ihrer
+ * Nutzungsbedingungen: Wer die API verwendet, muss sie nennen und zugleich
+ * klarstellen, dass TMDB nichts damit zu tun hat.
+ *
+ * Die Liste wird von Hand gepflegt. Sie automatisch aus den
+ * Abhängigkeitsdateien zu erzeugen wäre verlockend, brächte aber Dutzende
+ * Einträge, die niemand liest - hier stehen die, auf denen Nexview wirklich
+ * steht.
+ */
+function Credits() {
+  const { t } = useTranslation()
+
+  const bausteine = [
+    { name: 'FastAPI', url: 'https://fastapi.tiangolo.com', lizenz: 'MIT' },
+    { name: 'SQLAlchemy', url: 'https://www.sqlalchemy.org', lizenz: 'MIT' },
+    { name: 'Pydantic', url: 'https://docs.pydantic.dev', lizenz: 'MIT' },
+    { name: 'Uvicorn', url: 'https://www.uvicorn.org', lizenz: 'BSD' },
+    { name: 'HTTPX', url: 'https://www.python-httpx.org', lizenz: 'BSD' },
+    { name: 'PyJWT', url: 'https://pyjwt.readthedocs.io', lizenz: 'MIT' },
+    { name: 'bcrypt', url: 'https://github.com/pyca/bcrypt', lizenz: 'Apache 2.0' },
+    { name: 'cryptography', url: 'https://cryptography.io', lizenz: 'Apache 2.0 / BSD' },
+    { name: 'React', url: 'https://react.dev', lizenz: 'MIT' },
+    { name: 'Vite', url: 'https://vite.dev', lizenz: 'MIT' },
+    { name: 'Tailwind CSS', url: 'https://tailwindcss.com', lizenz: 'MIT' },
+    { name: 'TanStack Query', url: 'https://tanstack.com/query', lizenz: 'MIT' },
+    { name: 'React Router', url: 'https://reactrouter.com', lizenz: 'MIT' },
+    { name: 'i18next', url: 'https://www.i18next.com', lizenz: 'MIT' },
+  ]
+
+  return (
+    <Card className="mt-4 flex flex-col gap-5">
+      <div>
+        <h2 className="text-lg font-semibold">{t('about.credits')}</h2>
+        <p className="mt-1 text-sm leading-relaxed text-mist-500">{t('about.creditsIntro')}</p>
+      </div>
+
+      <div>
+        <p className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
+          {t('about.dataSources')}
+        </p>
+        <ul className="mt-2 flex flex-col gap-2 text-sm">
+          <li>
+            <ExternalLink href="https://www.themoviedb.org">The Movie Database (TMDB)</ExternalLink>
+            <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.tmdbNotice')}
+            </span>
+          </li>
+          <li>
+            <ExternalLink href="https://radarr.video">Radarr</ExternalLink>
+            {' · '}
+            <ExternalLink href="https://sonarr.tv">Sonarr</ExternalLink>
+            <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.arrNotice')}
+            </span>
+          </li>
+          <li>
+            <ExternalLink href="https://www.imdb.com">IMDb</ExternalLink>
+            {' · '}
+            <ExternalLink href="https://www.rottentomatoes.com">Rotten Tomatoes</ExternalLink>
+            {' · '}
+            <ExternalLink href="https://www.metacritic.com">Metacritic</ExternalLink>
+            <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.ratingsNotice')}
+            </span>
+          </li>
+          <li>
+            <ExternalLink href="https://www.youtube.com">YouTube</ExternalLink>
+            <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.youtubeNotice')}
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <p className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
+          {t('about.builtWith')}
+        </p>
+        <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 text-sm">
+          {bausteine.map((baustein) => (
+            <li key={baustein.name}>
+              <ExternalLink href={baustein.url}>{baustein.name}</ExternalLink>
+              <span className="ml-1 text-xs text-mist-600">({baustein.lizenz})</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Card>
+  )
+}
+
+/**
  * Über Nexview: Version, Herkunft, Update-Stand.
  *
  * Bewusst schlicht gehalten und über die Fußzeile erreichbar - sie ist die
@@ -185,6 +279,8 @@ export function AboutPage() {
       <UpdateNotice info={info} />
 
       {user?.role === 'admin' && <UpdateCheckToggle />}
+
+      <Credits />
     </div>
   )
 }

@@ -18,8 +18,9 @@ from ..models import (
     utcnow,
 )
 from ..schemas_media import MediaItem
-from . import library, quota
+from . import library, notify, quota
 from .arr import ArrError
+from .sonarr import normalize_title
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.requests")
@@ -32,6 +33,7 @@ __all__ = [
     "create_request",
     "find_active",
     "push_to_arr",
+    "resolve_root_folder",
     "requester_tag",
     "withdraw",
 ]
@@ -54,14 +56,28 @@ class RequestError(Exception):
         self.status_code = status_code
 
 
-def find_active(db: Session, media_type: MediaType, tmdb_id: int) -> MediaRequest | None:
-    return db.scalar(
-        select(MediaRequest).where(
-            MediaRequest.media_type == media_type,
-            MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.status.in_(ACTIVE_STATUSES),
+def find_active(
+    db: Session, media_type: MediaType, tmdb_id: int, season: int | None = None
+) -> MediaRequest | None:
+    """Laeuft zu diesem Titel schon eine Anfrage?
+
+    Bei Serien zaehlt die Staffel mit: Staffel 3 anzufragen muss moeglich
+    bleiben, obwohl Staffel 2 schon laeuft. Eine Anfrage ueber die **ganze**
+    Serie deckt dagegen jede einzelne Staffel mit ab - sonst liesse sich
+    dasselbe zweimal bestellen.
+    """
+    bedingungen = [
+        MediaRequest.media_type == media_type,
+        MediaRequest.tmdb_id == tmdb_id,
+        MediaRequest.status.in_(ACTIVE_STATUSES),
+    ]
+
+    if media_type == MediaType.tv and season is not None:
+        bedingungen.append(
+            (MediaRequest.season == season) | (MediaRequest.season.is_(None))
         )
-    )
+
+    return db.scalar(select(MediaRequest).where(*bedingungen))
 
 
 # Wie ein Anfrage-Zustand auf dem Badge heisst.
@@ -96,22 +112,19 @@ def badges_for(
 
 
 def _notify_admins(db: Session, request: MediaRequest) -> None:
-    """Alle, die freigeben duerfen, ueber eine wartende Anfrage informieren."""
-    entscheider = db.scalars(
-        select(User).where(
-            User.role.in_((Role.admin, Role.approver)), User.is_active.is_(True)
-        )
+    """Alle, die freigeben duerfen, ueber eine wartende Anfrage informieren.
+
+    Der Anfragende selbst bleibt aussen vor: waer er Entscheider, waere seine
+    Anfrage ohnehin sofort freigegeben - und eine Meldung von sich an sich
+    braucht niemand.
+    """
+    notify.create_for_approvers(
+        db,
+        kind=NotificationType.request_pending,
+        message_key="notifications.requestPending",
+        request=request,
+        ausser=request.user_id,
     )
-    for admin in entscheider:
-        db.add(
-            Notification(
-                user_id=admin.id,
-                request_id=request.id,
-                type=NotificationType.request_pending,
-                message_key="notifications.requestPending",
-                message_title=request.title,
-            )
-        )
 
 
 def clear_pending_notice(db: Session, request: MediaRequest) -> None:
@@ -129,6 +142,20 @@ def clear_pending_notice(db: Session, request: MediaRequest) -> None:
 def requester_tag(username: str) -> str:
     """Etikett, das in Radarr/Sonarr zeigt, wer den Titel angefordert hat."""
     return f"nexview-{username.lower()}"
+
+
+async def _sonarr_eintrag(settings: AppSettings, request: MediaRequest):
+    """Kennt Sonarr diese Serie bereits? Sonst ``None``.
+
+    Erst ueber die TVDB-Kennung, ersatzweise ueber den normalisierten Titel -
+    fuer viele neue Serien kennt TMDB noch keine TVDB-Kennung.
+    """
+    nach_tvdb, nach_titel = await library.series_library(settings)
+    if request.tvdb_id:
+        treffer = nach_tvdb.get(request.tvdb_id)
+        if treffer is not None:
+            return treffer
+    return nach_titel.get(normalize_title(request.title))
 
 
 async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest) -> MediaRequest:
@@ -154,13 +181,23 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
                     "Für diese Serie kennt TMDB noch keine TVDB-Kennung - "
                     "Sonarr kann sie deshalb nicht anlegen."
                 )
-            tag_id = await client.ensure_tag(requester_tag(request.user.username))
-            created = await client.add(
-                request.tvdb_id,
-                request.quality_profile_id or 0,
-                request.root_folder_path or "",
-                tag_ids=[tag_id] if tag_id else None,
-            )
+
+            # Liegt die Serie schon in Sonarr, wird sie nicht neu angelegt -
+            # das brächte die vorhandenen Folgen durcheinander. Stattdessen
+            # wird nur die gewünschte Staffel aktiviert und gesucht.
+            vorhanden = await _sonarr_eintrag(settings, request)
+            if vorhanden is not None and request.season is not None:
+                await client.monitor_season(vorhanden.arr_id, request.season)
+                created = {"id": vorhanden.arr_id}
+            else:
+                tag_id = await client.ensure_tag(requester_tag(request.user.username))
+                created = await client.add(
+                    request.tvdb_id,
+                    request.quality_profile_id or 0,
+                    request.root_folder_path or "",
+                    tag_ids=[tag_id] if tag_id else None,
+                    season=request.season,
+                )
     except ArrError as error:
         request.status = RequestStatus.failed
         request.error_message = error.message
@@ -194,16 +231,77 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
     return request
 
 
+async def resolve_root_folder(
+    settings: AppSettings, media_type: str, gewuenscht: str | None
+) -> str:
+    """Welcher Zielordner gilt fuer diese Anfrage?
+
+    Drei Faelle:
+
+    * Der Administrator hat die Auswahl **abgeschaltet** - dann gilt sein
+      Ordner, egal was mitgeschickt wurde. Ein Aufruf am Formular vorbei darf
+      sich keinen anderen Ordner aussuchen koennen.
+    * Die Auswahl ist erlaubt und ein Ordner wurde mitgeschickt - dann wird
+      geprueft, ob es ihn in Radarr/Sonarr ueberhaupt gibt. Sonst koennte ein
+      selbstgebauter Aufruf einen beliebigen Pfad auf dem Server erzeugen.
+    * Nichts mitgeschickt - dann der Standard des Administrators, ersatzweise
+      der erste vorhandene Ordner.
+    """
+    try:
+        vorhanden = [
+            eintrag["path"]
+            for eintrag in (await library.options(settings, media_type)).get("root_folders", [])
+            if eintrag.get("path")
+        ]
+    except ArrError as fehler:
+        raise RequestError(fehler.message, 502) from fehler
+
+    if not vorhanden:
+        raise RequestError(
+            "In Radarr bzw. Sonarr ist kein Zielordner eingerichtet."
+            if media_type == "movie"
+            else "In Sonarr ist kein Zielordner eingerichtet.",
+            409,
+        )
+
+    standard = settings.default_root(media_type)
+
+    if not settings.root_folder_choice:
+        # Der eingestellte Ordner kann inzwischen aus Radarr/Sonarr verschwunden
+        # sein - dann lieber der erste vorhandene als ein Fehlschlag beim
+        # Hinzufuegen.
+        return standard if standard in vorhanden else vorhanden[0]
+
+    if gewuenscht:
+        if gewuenscht not in vorhanden:
+            raise RequestError("Diesen Zielordner gibt es nicht.", 422)
+        return gewuenscht
+
+    return standard if standard in vorhanden else vorhanden[0]
+
+
 async def create_request(
     db: Session,
     settings: AppSettings,
     user: User,
     item: MediaItem,
     quality_profile_id: int,
-    root_folder_path: str,
+    root_folder_path: str | None = None,
+    season: int | None = None,
 ) -> MediaRequest:
-    """Neue Anfrage anlegen - inklusive aller Vorpruefungen."""
+    """Neue Anfrage anlegen - inklusive aller Vorpruefungen.
+
+    ``root_folder_path`` ist nur ein *Wunsch*. Welcher Ordner tatsaechlich
+    gilt, entscheidet ``resolve_root_folder`` weiter unten - und zwar erst,
+    nachdem feststeht, dass Radarr bzw. Sonarr ueberhaupt eingerichtet sind.
+    Sonst bekaeme jemand ohne eingerichteten Dienst einen Verbindungsfehler
+    statt der verstaendlichen Meldung, dass noch nichts eingerichtet ist.
+    """
     media_type = MediaType(item.media_type)
+    # Eine Staffel ergibt nur bei Serien Sinn - bei Filmen wird sie still
+    # verworfen statt mit einem Fehler abgelehnt.
+    if media_type != MediaType.tv:
+        season = None
 
     # Ohne Radarr/Sonarr koennte aus der Anfrage nie etwas werden. Lieber
     # gleich sagen als eine Anfrage anlegen, die spaeter ins Leere laeuft.
@@ -222,27 +320,39 @@ async def create_request(
             409,
         )
 
-    existing = find_active(db, media_type, item.tmdb_id)
+    existing = find_active(db, media_type, item.tmdb_id, season)
     if existing is not None:
+        if season is not None and existing.season is None:
+            raise RequestError(
+                f"„{item.title}“ ist bereits komplett angefragt - Staffel {season} ist damit abgedeckt.",
+                409,
+            )
         raise RequestError(
-            f"„{item.title}“ wurde bereits angefragt.",
+            f"„{item.title}“ wurde bereits angefragt."
+            if season is None
+            else f"Staffel {season} von „{item.title}“ wurde bereits angefragt.",
             409,
         )
 
     # Schon in der Bibliothek? Dann waere die Anfrage sinnlos.
-    matched = await library.apply_status(settings, item.media_type, [item])
-    current = matched.items[0]
-    if current.status in ("downloaded", "searching"):
-        raise RequestError(
-            f"„{item.title}“ ist bereits in deiner Bibliothek.",
-            409,
-        )
+    # Bei einer einzelnen Staffel ist das kein Ausschluss: die Serie liegt
+    # ja gerade deshalb schon da, weil die vorherigen Staffeln geladen sind.
+    if season is None:
+        matched = await library.apply_status(settings, item.media_type, [item])
+        current = matched.items[0]
+        if current.status in ("downloaded", "searching"):
+            raise RequestError(
+                f"„{item.title}“ ist bereits in deiner Bibliothek.",
+                409,
+            )
 
     if quality_profile_id in user.blocked_profiles(media_type):
         raise RequestError(
             "Dieses Qualitätsprofil ist für dich gesperrt. Bitte wähle ein anderes.",
             403,
         )
+
+    zielordner = await resolve_root_folder(settings, item.media_type, root_folder_path)
 
     state = quota.state_for(db, user, media_type)
     if state.exhausted:
@@ -263,7 +373,8 @@ async def create_request(
         poster_path=item.poster_url,
         release_date=item.release_date,
         quality_profile_id=quality_profile_id,
-        root_folder_path=root_folder_path,
+        root_folder_path=zielordner,
+        season=season,
         status=RequestStatus.approved if sofort else RequestStatus.pending_approval,
     )
     if sofort:

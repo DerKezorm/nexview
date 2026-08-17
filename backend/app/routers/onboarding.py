@@ -234,6 +234,9 @@ def accept_invitation(raw: str, payload: AcceptInvitation, db: DbSession) -> dic
         email_verified=True,
         role=token.invite_role or Role.user,
         display_name=(payload.display_name or "").strip() or name,
+        # Neue Konten starten in der Standardsprache der Installation. Umstellen
+        # kann sie jeder danach jederzeit oben rechts.
+        language=load_settings(db).default_language,
         quota_movies_limit=token.invite_quota_movies,
         quota_series_limit=token.invite_quota_series,
         quota_period=token.invite_quota_period or QuotaPeriod.week,

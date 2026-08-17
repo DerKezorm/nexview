@@ -137,6 +137,22 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, db: DbSession) -> User:
                 detail="Sprache muss 'de' oder 'en' sein.",
             )
         user.language = payload.language
+
+    for schalter in (
+        "mail_download_complete",
+        "mail_request_pending",
+        "mail_request_decided",
+        "mail_feedback",
+    ):
+        wert = getattr(payload, schalter)
+        if wert is not None:
+            setattr(user, schalter, wert)
+
+    # Leerer String heisst "nichts Eigenes": dann gilt wieder die Vorgabe des
+    # Admins.
+    if payload.discover_region is not None:
+        user.discover_region = payload.discover_region.strip().upper() or None
+
     db.commit()
     db.refresh(user)
     return user

@@ -6,13 +6,17 @@ an die Oberflaeche gegeben - sie verlassen den Server nie im Klartext.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..crypto import decrypt, encrypt, mask
 from ..models import Setting
+
+if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
+    from ..models import User
 
 # Schluessel, die als Geheimnis behandelt werden.
 SECRET_KEYS = frozenset(
@@ -31,6 +35,12 @@ DEFAULTS: dict[str, str] = {
     # Vorausgewaehltes Qualitaetsprofil beim Hinzufuegen ("" = keines).
     "default_movie_profile_id": "",
     "default_series_profile_id": "",
+    # Duerfen Benutzer den Zielordner selbst waehlen? Wenn nicht, gilt fuer
+    # alle der hier hinterlegte Ordner. Auf "on", damit sich fuer bestehende
+    # Installationen nichts aendert.
+    "root_folder_choice": "on",  # "on" | "off"
+    "default_movie_root": "",
+    "default_series_root": "",
     # Demo-Modus: zeigt Beispieldaten statt echter TMDB-Abfragen. Praktisch,
     # um die Oberflaeche ohne API-Key auszuprobieren.
     "demo_mode": "auto",  # "auto" | "on" | "off"
@@ -67,6 +77,9 @@ class AppSettings:
     demo_mode: str
     default_movie_profile_id: int | None
     default_series_profile_id: int | None
+    root_folder_choice: bool
+    default_movie_root: str
+    default_series_root: str
     smtp_host: str
     smtp_port: int
     smtp_security: str
@@ -84,6 +97,12 @@ class AppSettings:
     def link(self, pfad: str) -> str:
         """Vollstaendige Adresse fuer einen Link in einer E-Mail."""
         return f"{self.public_url.rstrip('/')}/{pfad.lstrip('/')}"
+
+    def default_root(self, media_type: str) -> str:
+        """Vom Administrator gesetzter Zielordner - leer, wenn keiner gesetzt ist."""
+        return (
+            self.default_movie_root if media_type == "movie" else self.default_series_root
+        )
 
     def default_profile_id(self, media_type: str) -> int | None:
         return (
@@ -168,6 +187,9 @@ def load_settings(db: Session) -> AppSettings:
         demo_mode=values["demo_mode"] if values["demo_mode"] in {"auto", "on", "off"} else "auto",
         default_movie_profile_id=profil("default_movie_profile_id"),
         default_series_profile_id=profil("default_series_profile_id"),
+        root_folder_choice=_flag(values["root_folder_choice"], standard=True),
+        default_movie_root=values["default_movie_root"].strip(),
+        default_series_root=values["default_series_root"].strip(),
         smtp_host=values["smtp_host"].strip(),
         smtp_port=smtp_port,
         smtp_security=sicherheit if sicherheit in ("none", "starttls", "ssl") else "starttls",
@@ -177,6 +199,28 @@ def load_settings(db: Session) -> AppSettings:
         smtp_from_name=values["smtp_from_name"].strip() or "Nexview",
         public_url=values["public_url"].strip().rstrip("/"),
         update_check=_flag(values["update_check"], standard=True),
+    )
+
+
+def for_user(settings: AppSettings, user: "User") -> AppSettings:
+    """Dieselben Einstellungen, aber aus Sicht eines bestimmten Benutzers.
+
+    Zwei Dinge sind persoenlich:
+
+    * **Textsprache.** In welcher Sprache TMDB Titel und Beschreibungen
+      liefert, richtet sich nach der Oberflaechensprache. Wer die Oberflaeche
+      auf Englisch stellt, will keine deutschen Inhaltsangaben - alles andere
+      waere schlicht inkonsequent.
+    * **Region.** Sie beeinflusst Kinostarts und Verfuegbarkeit. Wer nichts
+      Eigenes eingestellt hat, bekommt die Vorgabe des Administrators.
+
+    Der Rest - API-Schluessel, Mailserver, Abfrageintervall - bleibt
+    unveraendert; das sind Sache des Servers, nicht des Benutzers.
+    """
+    return replace(
+        settings,
+        default_language=user.language or settings.default_language,
+        default_region=user.discover_region or settings.default_region,
     )
 
 
@@ -199,6 +243,9 @@ def public_settings(db: Session) -> dict[str, object]:
         "using_demo_data": settings.use_demo_data,
         "default_movie_profile_id": settings.default_movie_profile_id,
         "default_series_profile_id": settings.default_series_profile_id,
+        "root_folder_choice": settings.root_folder_choice,
+        "default_movie_root": settings.default_movie_root,
+        "default_series_root": settings.default_series_root,
         "smtp_host": settings.smtp_host,
         "smtp_port": settings.smtp_port,
         "smtp_security": settings.smtp_security,

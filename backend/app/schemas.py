@@ -106,6 +106,15 @@ class UserPublic(BaseModel):
     created_at: datetime
     last_login_at: datetime | None
 
+    # Benachrichtigungen per Mail - Standard ist ueberall "aus".
+    mail_download_complete: bool
+    mail_request_pending: bool
+    mail_request_decided: bool
+    mail_feedback: bool
+
+    # Vorbelegung der Filterleiste; NULL = nichts Eigenes eingestellt.
+    discover_region: str | None
+
     @field_validator("blocked_movie_profiles", "blocked_series_profiles", mode="before")
     @classmethod
     def _split_profiles(cls, value: object) -> object:
@@ -184,6 +193,17 @@ class ProfileUpdate(BaseModel):
 
     display_name: str | None = None
     language: str | None = None
+
+    # Benachrichtigungen per Mail - jede einzeln.
+    mail_download_complete: bool | None = None
+    mail_request_pending: bool | None = None
+    mail_request_decided: bool | None = None
+    mail_feedback: bool | None = None
+
+    # Vorbelegung der Filterleiste. Der leere String bedeutet "nichts
+    # Eigenes" - anders liesse sich eine einmal gesetzte Wahl nie wieder
+    # aufheben, weil ``None`` ja schon "Feld nicht mitgeschickt" heisst.
+    discover_region: str | None = Field(default=None, max_length=2)
 
 
 class PasswordChange(BaseModel):

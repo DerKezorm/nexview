@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { DemoBanner } from '../components/DemoBanner'
 import { MediaSection } from '../components/media/MediaSection'
+import { useAuth } from '../auth/useAuth'
 import { SearchInput } from '../components/SearchInput'
 import { useConfig } from '../hooks/useConfig'
 
@@ -15,11 +16,12 @@ import { useConfig } from '../hooks/useConfig'
 export function SearchPage() {
   const { t } = useTranslation()
   const { data: config } = useConfig()
+  const { user } = useAuth()
   const [search, setSearch] = useState('')
 
   const query = search.trim()
   const searching = query.length >= 2
-  const region = config?.default_region ?? 'DE'
+  const region = user?.discover_region || config?.default_region || 'DE'
 
   return (
     <div className="flex flex-col gap-6">

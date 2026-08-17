@@ -73,9 +73,18 @@ class DiscoverFilters:
     # Produktionsfirma (nur Filme)
     studio_id: int | None = None
 
-    def cache_key(self, media_type: str) -> str:
+    def cache_key(self, media_type: str, textsprache: str = "") -> str:
+        """Schluessel fuer den Zwischenspeicher.
+
+        ``textsprache`` gehoert zwingend hinein - sie bestimmt, in welcher
+        Sprache TMDB Titel und Beschreibungen liefert. Ohne sie bekaeme der
+        naechste Benutzer die Fassung des vorherigen aus dem Speicher, obwohl
+        er die Oberflaeche auf eine andere Sprache gestellt hat. Nicht zu
+        verwechseln mit ``self.language``: das ist die *Originalsprache* als
+        Filter, also in welcher Sprache gedreht wurde.
+        """
         return (
-            f"discover:{media_type}:{self.date_from}:{self.date_to}:{self.language}:"
+            f"discover:{media_type}:{textsprache}:{self.date_from}:{self.date_to}:{self.language}:"
             f"{self.region}:{self.genre_id}:{self.sort}:{self.page}:{self.min_runtime}:"
             f"{self.min_rating}:{self.hide_unrated}:{self.released_in_region}:{self.studio_id}:"
             f"{self.min_votes}"

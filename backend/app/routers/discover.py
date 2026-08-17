@@ -19,7 +19,7 @@ from ..services.filters import (
     STUDIOS,
     DiscoverFilters,
 )
-from ..services.settings_service import load_settings
+from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
 
 router = APIRouter(prefix="/api", tags=["discover"])
@@ -99,7 +99,7 @@ async def discover(
     if studio_id is not None and studio_id not in STUDIO_IDS:
         raise HTTPException(status_code=422, detail="Unbekanntes Studio.")
 
-    settings = load_settings(db)
+    settings = for_user(load_settings(db), user)
     filters = DiscoverFilters(
         date_from=date_from,
         date_to=date_to,
@@ -136,7 +136,7 @@ async def search(
     q: Annotated[str, Query(min_length=2, max_length=120)],
     page: Annotated[int, Query(ge=1, le=500)] = 1,
 ) -> MediaPage:
-    settings = load_settings(db)
+    settings = for_user(load_settings(db), user)
     try:
         result = await media.search(db, settings, media_type, q.strip(), page)
     except TmdbError as error:
@@ -151,7 +151,7 @@ async def media_detail(
     user: CurrentUser,
     db: DbSession,
 ) -> MediaItem:
-    settings = load_settings(db)
+    settings = for_user(load_settings(db), user)
     try:
         item = await media.detail(db, settings, media_type, tmdb_id)
     except TmdbError as error:
@@ -163,7 +163,7 @@ async def media_detail(
 
 @router.get("/genres/{media_type}", response_model=list[Genre])
 async def genres(media_type: MediaTypePath, user: CurrentUser, db: DbSession) -> list[Genre]:
-    settings = load_settings(db)
+    settings = for_user(load_settings(db), user)
     try:
         return await media.genre_list(db, settings, media_type)
     except TmdbError as error:
@@ -202,6 +202,20 @@ async def arr_options(media_type: MediaTypePath, user: CurrentUser, db: DbSessio
         if standard in erlaubt
         else (options.quality_profiles[0].id if options.quality_profiles else None)
     )
+
+    # Zielordner: welcher gilt, und darf der Benutzer ihn aendern?
+    # Administratoren stellen den Ordner hier ein und muessen ihn deshalb immer
+    # auswaehlen koennen - sonst kaeme man an die eigene Vorgabe nicht heran.
+    pfade = [ordner.path for ordner in options.root_folders]
+    vorgabe = settings.default_root(media_type)
+    options.default_root_folder = vorgabe if vorgabe in pfade else (pfade[0] if pfade else None)
+    options.root_folder_choice = settings.root_folder_choice or user.is_admin
+
+    if not options.root_folder_choice:
+        # Gar nicht erst mitliefern, was nicht zur Wahl steht.
+        options.root_folders = [
+            ordner for ordner in options.root_folders if ordner.path == options.default_root_folder
+        ]
     return options
 
 

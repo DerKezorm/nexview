@@ -22,6 +22,10 @@ type Draft = {
   /** Leerer String = kein Standardprofil. */
   default_movie_profile_id: string
   default_series_profile_id: string
+  /** Dürfen Benutzer den Zielordner selbst wählen? */
+  root_folder_choice: boolean
+  default_movie_root: string
+  default_series_root: string
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -35,6 +39,9 @@ const EMPTY_DRAFT: Draft = {
   demo_mode: 'auto',
   default_movie_profile_id: '',
   default_series_profile_id: '',
+  root_folder_choice: true,
+  default_movie_root: '',
+  default_series_root: '',
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -100,6 +107,62 @@ function DefaultProfileField({
   )
 }
 
+/**
+ * Standard-Zielordner - nur sichtbar, wenn die Auswahl abgeschaltet ist.
+ *
+ * Denn nur dann muss überhaupt jemand entscheiden, wohin geladen wird. Dürfen
+ * die Benutzer selbst wählen, wäre das Feld nur eine Vorauswahl mehr, die man
+ * erklären müsste.
+ */
+function DefaultRootField({
+  mediaType,
+  value,
+  onChange,
+  configured,
+}: {
+  mediaType: 'movie' | 'tv'
+  value: string
+  onChange: (value: string) => void
+  configured: boolean
+}) {
+  const { t } = useTranslation()
+
+  const optionsQuery = useQuery({
+    queryKey: ['arr-options', mediaType],
+    queryFn: () => api.get<ArrOptions>(`/api/arr/${mediaType}/options`),
+    enabled: configured,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  const ordner = optionsQuery.data?.root_folders ?? []
+
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+        {t('settings.defaultRoot')}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={!configured || optionsQuery.isPending || ordner.length === 0}
+        className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none disabled:opacity-60"
+      >
+        {/* Leer heißt: der erste Ordner aus Radarr/Sonarr. */}
+        <option value="">{t('settings.defaultRootFirst')}</option>
+        {ordner.map((eintrag) => (
+          <option key={eintrag.path} value={eintrag.path}>
+            {eintrag.path}
+          </option>
+        ))}
+      </select>
+      <span className="text-xs text-mist-600">
+        {configured ? t('settings.defaultRootHint') : t('settings.defaultProfileMissing')}
+      </span>
+    </label>
+  )
+}
+
 export function AdminServicesSettings() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -135,6 +198,9 @@ export function AdminServicesSettings() {
       demo_mode: data.demo_mode,
       default_movie_profile_id: data.default_movie_profile_id?.toString() ?? '',
       default_series_profile_id: data.default_series_profile_id?.toString() ?? '',
+      root_folder_choice: data.root_folder_choice,
+      default_movie_root: data.default_movie_root,
+      default_series_root: data.default_series_root,
     })
   }, [settingsQuery.data])
 
@@ -288,6 +354,9 @@ export function AdminServicesSettings() {
                 <option value="de">Deutsch</option>
                 <option value="en">English</option>
               </select>
+              <span className="text-xs leading-relaxed text-mist-600">
+                {t('settings.languageHint')}
+              </span>
             </label>
           </div>
 
@@ -302,6 +371,27 @@ export function AdminServicesSettings() {
               <option value="on">{t('settings.demoOn')}</option>
               <option value="off">{t('settings.demoOff')}</option>
             </select>
+          </label>
+
+          {/* Der Zielordner ist die einzige Auswahl beim Anfragen, die etwas
+              über die Ablage auf dem Server verrät. Wer das nicht jedem
+              zumuten will, schaltet sie hier ab - der Standardordner steht
+              dann bei Radarr bzw. Sonarr weiter unten. */}
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={draft.root_folder_choice}
+              onChange={(event) => update({ root_folder_choice: event.target.checked })}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
+            />
+            <span>
+              <span className="text-sm font-medium text-mist-300">
+                {t('settings.rootFolderChoice')}
+              </span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+                {t('settings.rootFolderChoiceHint')}
+              </span>
+            </span>
           </label>
         </Section>
 
@@ -328,6 +418,14 @@ export function AdminServicesSettings() {
             onChange={(value) => update({ default_movie_profile_id: value })}
             configured={settings?.radarr_api_key_set ?? false}
           />
+          {!draft.root_folder_choice && (
+            <DefaultRootField
+              mediaType="movie"
+              value={draft.default_movie_root}
+              onChange={(value) => update({ default_movie_root: value })}
+              configured={settings?.radarr_api_key_set ?? false}
+            />
+          )}
           {testRow('radarr')}
         </Section>
 
@@ -354,6 +452,14 @@ export function AdminServicesSettings() {
             onChange={(value) => update({ default_series_profile_id: value })}
             configured={settings?.sonarr_api_key_set ?? false}
           />
+          {!draft.root_folder_choice && (
+            <DefaultRootField
+              mediaType="tv"
+              value={draft.default_series_root}
+              onChange={(value) => update({ default_series_root: value })}
+              configured={settings?.sonarr_api_key_set ?? false}
+            />
+          )}
           {testRow('sonarr')}
         </Section>
 

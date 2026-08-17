@@ -262,7 +262,14 @@ export function MyRequestsPage() {
               className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-700 bg-ink-900/50 p-3"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{request.title}</p>
+                <p className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-semibold">{request.title}</span>
+                  {request.season !== null && (
+                    <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
+                      {t('request.seasonShort', { number: request.season })}
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-mist-600">
                   {t(request.media_type === 'movie' ? 'common.movies' : 'common.series')} ·{' '}
                   {t('myRequests.requestedAt')}{' '}

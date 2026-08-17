@@ -12,9 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUser, DbSession
-from ..models import MediaRequest, MediaType, RequestStatus
-from ..services import media
-from ..services.settings_service import load_settings
+from ..models import Favorite, MediaRequest, MediaType, RequestStatus
+from ..schemas_media import MediaItem
+from ..services import library, media, requests_service
+from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import image_url
 
 router = APIRouter(prefix="/api/home", tags=["home"])
@@ -65,7 +66,7 @@ async def recent_downloads(user: CurrentUser, db: DbSession) -> list[RecentItem]
     if not anfragen:
         return []
 
-    settings = load_settings(db)
+    settings = for_user(load_settings(db), user)
 
     async def hole(request: MediaRequest):
         try:
@@ -97,3 +98,137 @@ async def recent_downloads(user: CurrentUser, db: DbSession) -> list[RecentItem]
             )
         )
     return eintraege
+
+
+# So viele Vorschlaege zeigt der Bereich "Aktuell beliebt" hoechstens.
+TRENDING_LIMIT = 18
+# So viele TMDB-Seiten werden dafuer hoechstens durchgesehen.
+#
+# Klingt viel, ist aber noetig: bei einer gut gefuellten Bibliothek faellt der
+# grosse Teil der beliebten Titel weg, weil er laengst vorhanden ist - gemessen
+# etwa ein brauchbarer Vorschlag pro Seite. Die Seiten werden nur geholt,
+# solange noch etwas fehlt, und liegen danach im Zwischenspeicher.
+TRENDING_PAGES = 12
+# So viele kuratierte Empfehlungen zeigt die Startseite hoechstens.
+CURATED_LIMIT = 12
+# Ab wie vielen Stimmen ein *erschienener* Titel als bekannt genug gilt.
+SUGGESTION_MIN_VOTES = 200
+
+
+
+@router.get("/trending", response_model=list[MediaItem])
+async def trending(user: CurrentUser, db: DbSession) -> list[MediaItem]:
+    """Was gerade gefragt ist - ohne das, was ohnehin schon da ist.
+
+    Bewusst gefiltert: ein Vorschlag, den man weder anfragen kann noch will,
+    weil er längst in der Bibliothek liegt, ist kein Vorschlag. Übrig bleiben
+    nur Titel, die sich mit einem Klick bestellen lassen.
+
+    Fällt TMDB oder der Abgleich mit Radarr/Sonarr aus, kommt eine leere Liste
+    zurück - der Bereich verschwindet dann einfach, statt die ganze Startseite
+    scheitern zu lassen.
+    """
+    settings = for_user(load_settings(db), user)
+
+    gesammelt: list[MediaItem] = []
+    gesehen: set[int] = set()
+
+    # Seitenweise nachladen, bis genug uebrig bleibt. Bei einer gut gefuellten
+    # Bibliothek fallen fast alle Vorschlaege durch den Filter - mit nur einer
+    # Seite stuenden dann zwei Titel da und der Bereich saehe kaputt aus.
+    for seite in range(1, TRENDING_PAGES + 1):
+        try:
+            kandidaten = await media.suggestions(db, settings, "movie", page=seite)
+        except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
+            logger.warning("Trending nicht abrufbar: %s", fehler)
+            break
+
+        if not kandidaten:
+            break
+
+        try:
+            kandidaten = (await library.apply_status(settings, "movie", kandidaten)).items
+        except Exception as fehler:  # noqa: BLE001
+            logger.info("Trending ohne Bibliotheksabgleich: %s", fehler)
+
+        # Auch die eigenen offenen Anfragen zaehlen als "schon erledigt".
+        eigene = requests_service.badges_for(
+            db, MediaType.movie, [eintrag.tmdb_id for eintrag in kandidaten]
+        )
+
+        heute = datetime.now().strftime("%Y-%m-%d")
+
+        for eintrag in kandidaten:
+            if eintrag.status != "not_requested" or eintrag.tmdb_id in eigene:
+                continue
+            if eintrag.tmdb_id in gesehen:
+                continue
+            # Zwei Regeln, je nachdem ob der Titel schon draussen ist:
+            #
+            # * Erschienen: nur, wenn ihn genug Leute bewertet haben. Sonst
+            #   stuenden hier regionale Kleinstproduktionen, die niemand kennt.
+            # * Kommend: immer willkommen - Stimmen kann so ein Film noch gar
+            #   nicht haben, und in die Beliebtheitsliste kommt er nur, wenn
+            #   viele auf ihn warten. Wann er anlaeuft, steht dann gross dabei.
+            kommt_noch = bool(eintrag.release_date) and eintrag.release_date > heute
+            if not eintrag.release_date:
+                continue
+            if not kommt_noch and eintrag.vote_count < SUGGESTION_MIN_VOTES:
+                continue
+            gesehen.add(eintrag.tmdb_id)
+            gesammelt.append(eintrag)
+
+        if len(gesammelt) >= TRENDING_LIMIT:
+            break
+
+    return gesammelt[:TRENDING_LIMIT]
+
+
+class CuratedResult(BaseModel):
+    """Empfehlungen samt der Frage, ob es ueberhaupt Favoriten gibt.
+
+    Ohne diese Unterscheidung koennte die Oberflaeche nicht zwischen "noch
+    nichts markiert" und "markiert, aber nichts Passendes gefunden" trennen -
+    und beides braucht einen anderen Hinweis.
+    """
+
+    has_favorites: bool
+    items: list[MediaItem]
+
+
+@router.get("/curated", response_model=CuratedResult)
+async def curated(user: CurrentUser, db: DbSession) -> CuratedResult:
+    """Empfehlungen auf Basis der eigenen Favoriten - nur, was noch fehlt."""
+    settings = for_user(load_settings(db), user)
+
+    favoriten = list(
+        db.scalars(
+            select(Favorite.tmdb_id)
+            .where(Favorite.user_id == user.id, Favorite.media_type == MediaType.movie)
+            .order_by(Favorite.created_at.desc())
+        )
+    )
+    if not favoriten:
+        return CuratedResult(has_favorites=False, items=[])
+
+    try:
+        vorschlaege = await media.curated(db, settings, "movie", favoriten)
+    except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
+        logger.warning("Kuratierte Empfehlungen nicht abrufbar: %s", fehler)
+        return CuratedResult(has_favorites=True, items=[])
+
+    try:
+        vorschlaege = (await library.apply_status(settings, "movie", vorschlaege)).items
+    except Exception as fehler:  # noqa: BLE001
+        logger.info("Kuratiert ohne Bibliotheksabgleich: %s", fehler)
+
+    eigene = requests_service.badges_for(
+        db, MediaType.movie, [eintrag.tmdb_id for eintrag in vorschlaege]
+    )
+
+    fehlend = [
+        eintrag
+        for eintrag in vorschlaege
+        if eintrag.status == "not_requested" and eintrag.tmdb_id not in eigene
+    ]
+    return CuratedResult(has_favorites=True, items=fehlend[:CURATED_LIMIT])

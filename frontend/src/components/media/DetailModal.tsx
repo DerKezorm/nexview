@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 
+import { api } from '../../api/client'
 import type { MediaItem } from '../../api/types'
 import { formatDate, formatRuntime } from '../../lib/format'
 import { Button } from '../ui'
@@ -32,6 +34,43 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
 
   // Beim Wechsel auf einen anderen Titel das Formular wieder einklappen.
   useEffect(() => setAdding(false), [item?.tmdb_id])
+
+  /**
+   * Die Staffelliste steckt nur in der Detailabfrage, nicht in den
+   * Listeneinträgen - sie in jede Kachel zu packen wäre reiner Ballast.
+   * Deshalb hier nachladen, sobald das Fenster offen ist. Der Server hält
+   * die Antwort tagelang vor, das kostet also praktisch nichts.
+   */
+  const detail = useQuery({
+    queryKey: ['media-detail', item?.media_type, item?.tmdb_id],
+    queryFn: () => api.get<MediaItem>(`/api/media/${item!.media_type}/${item!.tmdb_id}`),
+    enabled: item?.media_type === 'tv',
+    staleTime: 60 * 60 * 1000,
+  })
+
+  const seasons = detail.data?.seasons ?? item?.seasons ?? []
+
+  /**
+   * Eine laufende Serie, von der noch Staffeln fehlen.
+   *
+   * Ohne diesen Fall wäre die staffelweise Anfrage praktisch nutzlos: gerade
+   * bei einer Serie, die schon mitläuft, will man die neue Staffel nachholen -
+   * und genau dort stand vorher nur "bereits geladen" ohne jeden Knopf.
+   */
+  const nurWeitereStaffel =
+    item?.media_type === 'tv' &&
+    seasons.length > 1 &&
+    (item.status === 'downloaded' || item.status === 'in_library')
+
+  const kannAnfragen = item?.status === 'not_requested' || nurWeitereStaffel
+
+  /**
+   * Steht eine Staffelauswahl bevor, muss der Knopf das ankündigen.
+   *
+   * "Zu Sonarr hinzufügen" liest sich, als lande die komplette Serie sofort
+   * dort - dass danach noch eine Auswahl kommt, ahnt sonst niemand.
+   */
+  const mitStaffelwahl = item?.media_type === 'tv' && seasons.length > 1
 
   // Escape schließt, und solange offen wird die Seite dahinter nicht gescrollt.
   useEffect(() => {
@@ -120,18 +159,39 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
             </dl>
 
             <div className="mt-5">
-              {item.status === 'not_requested' ? (
+              {kannAnfragen ? (
                 adding ? (
-                  <AddRequestForm item={item} onDone={onClose} />
+                  <AddRequestForm
+                    item={{ ...item, seasons }}
+                    onDone={onClose}
+                    seasonOnly={nurWeitereStaffel}
+                  />
                 ) : (
-                  <Button
-                    type="button"
-                    onClick={() => setAdding(true)}
-                    disabled={!arrConfigured}
-                    title={arrConfigured ? undefined : t('request.arrMissing')}
-                  >
-                    {t(item.media_type === 'movie' ? 'request.addMovie' : 'request.addSeries')}
-                  </Button>
+                  <>
+                    {/* Bei einer laufenden Serie steht hier zusätzlich, warum
+                        der Knopf trotz "bereits geladen" angeboten wird. */}
+                    {nurWeitereStaffel && (
+                      <p className="mb-3 text-sm text-mist-500">
+                        {t('request.moreSeasonsHint')}
+                      </p>
+                    )}
+                    <Button
+                      type="button"
+                      onClick={() => setAdding(true)}
+                      disabled={!arrConfigured}
+                      title={arrConfigured ? undefined : t('request.arrMissing')}
+                    >
+                      {nurWeitereStaffel
+                        ? t('request.addSeason')
+                        : mitStaffelwahl
+                          ? t('request.chooseSeason')
+                          : t(
+                              item.media_type === 'movie'
+                                ? 'request.addMovie'
+                                : 'request.addSeries',
+                            )}
+                    </Button>
+                  </>
                 )
               ) : (
                 <p className="text-sm text-mist-500">{t(`request.state.${item.status}`)}</p>

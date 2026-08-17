@@ -112,6 +112,9 @@ class ArrClient:
     async def post(self, path: str, payload: dict[str, Any]) -> Any:
         return await self._request("POST", path, json=payload)
 
+    async def put(self, path: str, payload: dict[str, Any]) -> Any:
+        return await self._request("PUT", path, json=payload)
+
     async def delete(self, path: str, params: dict[str, Any] | None = None) -> Any:
         return await self._request("DELETE", path, params=params)
 

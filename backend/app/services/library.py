@@ -19,6 +19,10 @@ from .settings_service import AppSettings
 from .sonarr import LibraryEntry as SeriesEntry
 from .sonarr import SonarrClient, normalize_title
 
+import logging
+
+logger = logging.getLogger("nexview.library")
+
 LIBRARY_TTL_SECONDS = 60
 OPTIONS_TTL_SECONDS = 300
 
@@ -177,3 +181,42 @@ async def options(settings: AppSettings, media_type: str) -> dict[str, Any]:
     }
     _write(key, result)
     return result
+
+
+async def episode_availability(
+    settings: AppSettings, tvdb_id: int | None, title: str
+) -> dict[int, set[int]]:
+    """Welche Folgen dieser Serie liegen schon vor?
+
+    Ergebnis: Staffelnummer -> Menge der vorhandenen Folgennummern. Ist Sonarr
+    nicht eingerichtet, kennt es die Serie nicht oder antwortet es nicht, kommt
+    eine leere Antwort zurueck - die Staffelliste zeigt dann eben nichts als
+    vorhanden an, statt gar nicht zu erscheinen.
+    """
+    client = sonarr_client(settings)
+    if client is None:
+        return {}
+
+    schluessel = f"episodes:{tvdb_id or title}"
+    zwischengespeichert = _read(schluessel, LIBRARY_TTL_SECONDS)
+    if zwischengespeichert is not None:
+        return {int(staffel): set(folgen) for staffel, folgen in zwischengespeichert.items()}
+
+    try:
+        nach_tvdb, nach_titel = await series_library(settings)
+        eintrag = nach_tvdb.get(tvdb_id) if tvdb_id else None
+        if eintrag is None:
+            eintrag = nach_titel.get(normalize_title(title))
+        if eintrag is None:
+            _write(schluessel, {})
+            return {}
+
+        vorhanden = await client.episode_status(eintrag.arr_id)
+    except ArrError as fehler:
+        logger.info("Folgenzustand nicht abrufbar: %s", fehler.message)
+        return {}
+
+    # Mengen lassen sich nicht als JSON ablegen - fuer den Zwischenspeicher
+    # werden daraus Listen.
+    _write(schluessel, {str(s): sorted(f) for s, f in vorhanden.items()})
+    return vorhanden

@@ -16,6 +16,17 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+# Immer nur ein Lauf gleichzeitig.
+#
+# Beim ersten Versuch scheiterte der Bau daran, dass ein Push auf main und ein
+# Tag in derselben Sekunde starteten: beide holten dieselben Bausteine, und
+# GitHub wehrte den zweiten mit "429 Too Many Requests" ab. Laufende Laeufe
+# werden bewusst *nicht* abgebrochen - ein halb veroeffentlichtes Abbild waere
+# schlimmer als ein paar Minuten Wartezeit.
+concurrency:
+  group: docker-image
+  cancel-in-progress: false
+
 jobs:
   tests:
     name: Tests

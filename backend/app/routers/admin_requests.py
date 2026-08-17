@@ -11,9 +11,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..deps import AdminUser, ApproverUser, DbSession
-from ..models import MediaRequest, Notification, NotificationType, RequestStatus, utcnow
+from ..models import MediaRequest, Notification, NotificationType, RequestStatus, User, utcnow
 from ..schemas_requests import FeedbackReply, RequestWithUser
-from ..services import requests_service
+from ..services import notify, requests_service
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/admin/requests", tags=["admin"])
@@ -49,14 +49,17 @@ def _get_or_404(db: Session, request_id: int) -> MediaRequest:
 def _notify_requester(
     db: Session, request: MediaRequest, kind: NotificationType, message_key: str
 ) -> None:
-    db.add(
-        Notification(
-            user_id=request.user_id,
-            request_id=request.id,
-            type=kind,
-            message_key=message_key,
-            message_title=request.title,
-        )
+    """Den Anfragenden ueber die Entscheidung informieren.
+
+    Wer ueber die eigene Anfrage entscheidet - Admins und Entscheider tun das
+    dauernd, ihre Anfragen laufen automatisch durch - bekommt keine Meldung
+    ueber sich selbst.
+    """
+    anfragender = db.get(User, request.user_id)
+    if anfragender is None:
+        return
+    notify.create(
+        db, user=anfragender, kind=kind, message_key=message_key, request=request
     )
 
 

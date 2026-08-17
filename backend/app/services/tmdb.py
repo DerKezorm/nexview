@@ -19,6 +19,10 @@ BASE_URL = "https://api.themoviedb.org/3"
 IMAGE_BASE = "https://image.tmdb.org/t/p"
 POSTER_SIZE = "w500"
 BACKDROP_SIZE = "w1280"
+# Portraits der Besetzung und Standbilder der Folgen - deutlich kleiner als
+# Poster, weil sie nur als Streifen bzw. Vorschau erscheinen.
+PROFILE_SIZE = "w185"
+STILL_SIZE = "w300"
 
 TIMEOUT = httpx.Timeout(12.0, connect=6.0)
 
@@ -177,23 +181,98 @@ class TmdbClient:
             {"query": query, "page": page, "include_adult": "false"},
         )
 
+    async def trending(
+        self, media_type: str, zeitraum: str = "week", page: int = 1
+    ) -> dict[str, Any]:
+        """Was gerade oft angesehen wird.
+
+        Bewusst "trending" statt "popular": beliebt ist bei TMDB eine ueber
+        Jahre gewachsene Groesse, in der immer dieselben Klassiker oben stehen.
+        Trending zeigt, was diese Woche tatsaechlich gefragt ist - genau das,
+        was eine Startseite interessant macht.
+        """
+        return await self._get(f"/trending/{media_type}/{zeitraum}", {"page": page})
+
     async def genres(self, media_type: str) -> dict[int, str]:
         data = await self._get(f"/genre/{media_type}/list")
         return {item["id"]: item["name"] for item in data.get("genres", [])}
 
     # --- Einzeltitel -------------------------------------------------------
 
-    async def detail(self, media_type: str, tmdb_id: int) -> dict[str, Any]:
+    async def detail(
+        self, media_type: str, tmdb_id: int, *, ausfuehrlich: bool = False
+    ) -> dict[str, Any]:
         """Details inklusive Altersfreigabe - und bei Serien der TVDB-Id.
 
         ``append_to_response`` buendelt mehrere Abfragen in einem Aufruf.
         Die TVDB-Id wird spaeter fuer Sonarr gebraucht.
+
+        ``ausfuehrlich`` holt zusaetzlich Besetzung, Schlagworte und
+        Empfehlungen - alles, was die Detailseite braucht. Bewusst nicht immer:
+        die Antwort wird dadurch um ein Vielfaches groesser, und fuer die
+        Kacheln in den Listen ist davon nichts noetig.
         """
         if media_type == "movie":
             extras = "release_dates,watch/providers"
         else:
             extras = "content_ratings,external_ids,watch/providers"
-        return await self._get(f"/{media_type}/{tmdb_id}", {"append_to_response": extras})
+
+        params: dict[str, Any] = {"append_to_response": extras}
+
+        if ausfuehrlich:
+            extras += ",credits,keywords,recommendations,videos"
+            params["append_to_response"] = extras
+            # Ohne diese Zeile liefert TMDB nur Videos in der angefragten
+            # Sprache - und deutsche Trailer fehlen bei den meisten Titeln.
+            # "null" holt zusaetzlich die sprachneutralen Eintraege.
+            params["include_video_language"] = f"{self.language.split('-')[0]},en,null"
+
+        return await self._get(f"/{media_type}/{tmdb_id}", params)
+
+    async def keyword(self, keyword_id: int) -> dict[str, Any]:
+        """Name eines Schlagworts - fuer die Ueberschrift der Ergebnisseite."""
+        return await self._get(f"/keyword/{keyword_id}")
+
+    async def company(self, company_id: int) -> dict[str, Any]:
+        """Name eines Studios - fuer die Ueberschrift der Ergebnisseite."""
+        return await self._get(f"/company/{company_id}")
+
+    async def browse(self, media_type: str, params: dict[str, Any], page: int = 1) -> dict[str, Any]:
+        """Freie Discover-Abfrage - fuer Schlagwort- und Studio-Listen.
+
+        Bewusst neben ``discover``: dort steckt die ganze Filterleiste mit
+        Zeitraum und Mindestbewertung. Hier zaehlt nur ein einziges Merkmal,
+        und ein voreingestellter Zeitraum wuerde die meisten Treffer
+        wegschneiden.
+        """
+        return await self._get(
+            f"/discover/{media_type}",
+            {
+                **params,
+                "page": page,
+                "include_adult": "false",
+                "sort_by": "popularity.desc",
+            },
+        )
+
+    async def recommendations(self, media_type: str, tmdb_id: int) -> dict[str, Any]:
+        """Was TMDB Leuten empfiehlt, denen dieser Titel gefaellt.
+
+        Eigene, schlanke Abfrage - die ausfuehrliche Detailabfrage haette die
+        Empfehlungen zwar auch dabei, braeuchte aber Besetzung, Schlagworte und
+        Videos gleich mit.
+        """
+        return await self._get(f"/{media_type}/{tmdb_id}/recommendations")
+
+    async def person(self, person_id: int) -> dict[str, Any]:
+        """Eine Person samt ihrer Filme und Serien."""
+        return await self._get(
+            f"/person/{person_id}", {"append_to_response": "combined_credits"}
+        )
+
+    async def season(self, tmdb_id: int, season_number: int) -> dict[str, Any]:
+        """Eine einzelne Staffel mit ihren Folgen."""
+        return await self._get(f"/tv/{tmdb_id}/season/{season_number}")
 
     async def details(self, media_type: str, tmdb_ids: list[int]) -> dict[int, dict[str, Any]]:
         """Mehrere Titel parallel abrufen.

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { MediaType } from '../api/types'
 import { DemoBanner } from '../components/DemoBanner'
 import { MediaSection } from '../components/media/MediaSection'
+import { useAuth } from '../auth/useAuth'
 import { useConfig } from '../hooks/useConfig'
 
 type DiscoverPageProps = {
@@ -18,6 +19,7 @@ type DiscoverPageProps = {
 export function DiscoverPage({ mediaType }: DiscoverPageProps) {
   const { t } = useTranslation()
   const { data: config } = useConfig()
+  const { user } = useAuth()
 
   const titleKey = mediaType === 'movie' ? 'nav.discoverMovies' : 'nav.discoverSeries'
   const introKey = mediaType === 'movie' ? 'discover.introMovies' : 'discover.introSeries'
@@ -38,7 +40,7 @@ export function DiscoverPage({ mediaType }: DiscoverPageProps) {
         mediaType={mediaType}
         titleKey={mediaType === 'movie' ? 'common.movies' : 'common.series'}
         searchQuery=""
-        defaultRegion={config?.default_region ?? 'DE'}
+        defaultRegion={user?.discover_region || config?.default_region || 'DE'}
         arrConfigured={
           mediaType === 'movie'
             ? (config?.radarr_configured ?? false)

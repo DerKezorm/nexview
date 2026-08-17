@@ -109,8 +109,24 @@ def arr_client(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> Tes
     async def keine_serien(_settings: object) -> tuple[dict, dict]:
         return {}, {}
 
+    async def optionen(_settings: object, _media_type: str) -> dict:
+        """Qualitaetsprofile und Zielordner, wie Radarr/Sonarr sie liefern wuerden.
+
+        Wird beim Anlegen einer Anfrage gebraucht: der Server prueft dort, ob es
+        den gewuenschten Zielordner ueberhaupt gibt. Ohne diese Antwort scheitert
+        jede Anfrage schon an der Verbindung.
+        """
+        return {
+            "quality_profiles": [{"id": 1, "name": "HD-1080p"}],
+            "root_folders": [
+                {"path": "/data/Movies", "free_space": 1_000_000_000},
+                {"path": "/data/TV-Shows", "free_space": 1_000_000_000},
+            ],
+        }
+
     monkeypatch.setattr(library, "movie_library", keine_filme)
     monkeypatch.setattr(library, "series_library", keine_serien)
+    monkeypatch.setattr(library, "options", optionen)
     return admin_client
 
 

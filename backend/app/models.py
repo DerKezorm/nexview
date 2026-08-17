@@ -125,6 +125,31 @@ class User(Base):
 
     avatar_path: Mapped[str | None] = mapped_column(String(255))
 
+    # --- Benachrichtigungen per Mail --------------------------------------
+    # Bewusst alle auf "aus": ungefragt Mails zu verschicken ist der sicherste
+    # Weg, jemandem die Anwendung zu verleiden. Die Glocke in der App ist davon
+    # unberuehrt und bleibt immer an.
+    mail_download_complete: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    # Nur fuer Admins und Entscheider von Belang - alle anderen sehen den
+    # Schalter gar nicht erst.
+    mail_request_pending: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mail_request_decided: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mail_feedback: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # --- Vorbelegung der Filterleiste beim Entdecken ----------------------
+    # NULL heisst "nichts Eigenes eingestellt", dann gilt die Vorgabe des
+    # Admins.
+    #
+    # Eine Vorbelegung der *Originalsprache* gab es hier kurzzeitig auch. Sie
+    # ist wieder entfallen: als Dauereinstellung war sie eine Falle. "Deutsch"
+    # bedeutet "auf Deutsch gedreht", und solche Titel sind so selten, dass die
+    # Entdecken-Seite praktisch leer blieb - gemessen 23 Titel gegen 0. Die
+    # Filterleiste bietet den Filter weiterhin an; dort sieht man ihn und hat
+    # ihn gerade selbst gesetzt.
+    discover_region: Mapped[str | None] = mapped_column(String(2))
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     password_changed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -261,6 +286,10 @@ class MediaRequest(Base):
     tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
     tvdb_id: Mapped[int | None] = mapped_column(Integer)  # nur Serien, fuer Sonarr
 
+    # Nur bei Serien: die angefragte Staffel. NULL bedeutet "ganze Serie" - so
+    # bleiben alle bisherigen Anfragen unveraendert gueltig.
+    season: Mapped[int | None] = mapped_column(Integer)
+
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     poster_path: Mapped[str | None] = mapped_column(String(255))
     release_date: Mapped[str | None] = mapped_column(String(10))
@@ -315,7 +344,47 @@ class Notification(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
+    # --- Postausgang -------------------------------------------------------
+    # Ob eine Mail rausgehen soll, entscheidet sich beim Anlegen; verschickt
+    # wird sie erst danach im Hintergrund. Zwei Gruende: ein Mailserver kann
+    # Sekunden brauchen oder gar nicht antworten - daran darf kein Klick
+    # haengen. Und ein Neustart mitten im Versand verliert nichts, weil der
+    # Auftrag in der Datenbank steht.
+    mail_pending: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mail_sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    mail_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     user: Mapped[User] = relationship(back_populates="notifications")
+
+
+class Favorite(Base):
+    """Ein Titel, den ein Benutzer mit dem Herz markiert hat.
+
+    Grundlage fuer die kuratierten Empfehlungen: was jemand mag, sagt mehr
+    ueber seinen Geschmack als das, was er zufaellig angefragt hat.
+    """
+
+    __tablename__ = "favorites"
+    __table_args__ = (
+        # Zweimal dasselbe zu markieren ergibt keinen Sinn - und wuerde die
+        # Empfehlungen doppelt gewichten.
+        UniqueConstraint("user_id", "media_type", "tmdb_id", name="uq_favorite"),
+        Index("ix_favorites_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Nur zur Anzeige der eigenen Favoritenliste - erspart eine TMDB-Abfrage
+    # pro Eintrag, nur um den Namen zu kennen.
+    title: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    poster_url: Mapped[str | None] = mapped_column(String(500))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
 class TmdbCache(Base):

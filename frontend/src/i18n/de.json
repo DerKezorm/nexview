@@ -10,7 +10,11 @@
     "retry": "Erneut versuchen",
     "optional": "optional",
     "movies": "Filme",
-    "series": "Serien"
+    "series": "Serien",
+    "saving": "Wird gespeichert …",
+    "unsaved": "Nicht gespeicherte Änderungen",
+    "scrollLeft": "Nach links",
+    "scrollRight": "Nach rechts"
   },
   "nav": {
     "home": "Startseite",
@@ -25,7 +29,8 @@
     "users": "Benutzer",
     "settings": "Einstellungen",
     "logout": "Abmelden",
-    "openMenu": "Menü öffnen"
+    "openMenu": "Menü öffnen",
+    "favorites": "Mag ich"
   },
   "setup": {
     "title": "Willkommen bei Nexview",
@@ -118,7 +123,7 @@
     "period90": "Letzte 3 Monate",
     "period365": "Letztes Jahr",
     "periodUpcoming": "Demnächst",
-    "language": "Sprache",
+    "language": "Originalsprache",
     "languageAll": "Alle Sprachen",
     "region": "Region",
     "genre": "Genre",
@@ -148,7 +153,9 @@
     "featureLengthHint": "Blendet Kurzfilme unter 40 Minuten aus.",
     "hiddenCount_one": "{{count}} Titel durch Filter ausgeblendet",
     "hiddenCount_other": "{{count}} Titel durch Filter ausgeblendet",
-    "allFiltered": "Alle geladenen Titel wurden durch deine Filter ausgeblendet. Nimm einen Haken weg oder lade mehr."
+    "allFiltered": "Alle geladenen Titel wurden durch deine Filter ausgeblendet. Nimm einen Haken weg oder lade mehr.",
+    "emptyBecause": "Das liegt vermutlich an einem gesetzten Filter: {{filter}}.",
+    "resetNarrow": "Einschränkende Filter zurücksetzen"
   },
   "media": {
     "rating": "Bewertung",
@@ -162,7 +169,8 @@
     "noPoster": "Kein Poster",
     "openDetails": "Details anzeigen",
     "close": "Schließen",
-    "episodeLength": "Folgenlänge"
+    "episodeLength": "Folgenlänge",
+    "quickAdd": "Schnell anfragen"
   },
   "request": {
     "addMovie": "Zu Radarr hinzufügen",
@@ -181,18 +189,36 @@
       "in_library": "Liegt bereits in deiner Bibliothek.",
       "rejected": "Diese Anfrage wurde abgelehnt.",
       "failed": "Beim Hinzufügen ist ein Fehler aufgetreten."
-    }
+    },
+    "season": "Staffel",
+    "wholeSeries": "Ganze Serie (alle Staffeln)",
+    "episodes": "{{count}} Folge",
+    "episodes_other": "{{count}} Folgen",
+    "seasonHint": "Nur diese eine Staffel laden. Läuft die Serie schon mit, wird sie nicht neu angelegt - es kommt nur die Staffel dazu.",
+    "seasonShort": "St. {{number}}",
+    "addSeason": "Staffel nachfordern",
+    "moreSeasonsHint": "Die Serie läuft bereits mit. Du kannst eine einzelne Staffel nachfordern - sie wird in Sonarr nur zusätzlich aktiviert.",
+    "chooseSeason": "Staffel wählen und anfragen"
   },
   "home": {
     "greeting": "Willkommen zurück, {{name}}",
-    "intro": "Das ist zuletzt in der Bibliothek gelandet.",
+    "intro": "Was gerade gefragt ist - und was zuletzt bei euch gelandet ist.",
     "justArrived": "Frisch geladen",
     "requestedBy": "Angefragt von {{name}}",
     "alsoNew": "Ebenfalls neu dabei",
     "discoverMore": "Mehr entdecken",
     "emptyTitle": "Noch nichts geladen",
     "emptyText": "Sobald der erste Titel fertig ist, steht er hier ganz groß.",
-    "openDetails": "Einzelheiten anzeigen"
+    "openDetails": "Einzelheiten anzeigen",
+    "trending": "Aktuell beliebt",
+    "trendingBadge": "Gerade gefragt",
+    "trendingIntro": "Was diese Woche viele sehen wollen - und bei euch noch fehlt.",
+    "comingOn": "Ab {{date}}",
+    "curated": "Für dich kuratiert",
+    "curatedIntro": "Vorschläge auf Basis der Filme, die du mit dem Herz markiert hast.",
+    "curatedEmptyTitle": "Noch nichts markiert",
+    "curatedEmptyText": "Markiere Filme mit dem Herz – je mehr, desto besser passen die Vorschläge. Aus deinen Favoriten stellt Nexview dann eine Liste zusammen, die es in eurer Bibliothek noch nicht gibt.",
+    "curatedNothingLeft": "Zu deinen Favoriten gibt es gerade nichts, was euch noch fehlt. Markiere weitere Filme für neue Vorschläge."
   },
   "onboarding": {
     "inviteTitle": "Willkommen bei Nexview",
@@ -394,7 +420,29 @@
     "resendVerification": "Bestätigungsmail erneut senden",
     "verificationSent": "Bestätigungsmail ist unterwegs.",
     "username": "Benutzername",
-    "usernameHint": "Damit meldest du dich an – zusammen mit deiner E-Mail-Adresse. Er lässt sich nicht ändern."
+    "usernameHint": "Damit meldest du dich an – zusammen mit deiner E-Mail-Adresse. Er lässt sich nicht ändern.",
+    "notifications": "Benachrichtigungen per E-Mail",
+    "notificationsIntro": "Standardmäßig ist alles aus. Schalte nur ein, worüber du wirklich per Mail informiert werden willst.",
+    "notificationsBellHint": "Die Glocke oben in der App zeigt weiterhin alles an – unabhängig von diesen Schaltern.",
+    "notificationsNeedEmail": "Solange deine Adresse nicht bestätigt ist, verschickt Nexview keine Mails an dich.",
+    "mailDownloadComplete": "Ein Titel ist fertig geladen",
+    "mailDownloadCompleteHint": "Sobald ein von dir angefragter Film oder eine Serie in der Bibliothek liegt.",
+    "mailRequestDecided": "Über meine Anfrage wurde entschieden",
+    "mailRequestDecidedHint": "Wenn deine Anfrage freigegeben oder abgelehnt wurde.",
+    "mailRequestPending": "Eine Anfrage wartet auf Freigabe",
+    "mailRequestPendingHint": "Wenn jemand etwas anfragt, das du freigeben musst.",
+    "mailFeedback": "Neue Bewertung oder Antwort",
+    "mailFeedbackHint": "Wenn jemand eine Downloadqualität bewertet – und wenn auf deine eigene Rückmeldung geantwortet wurde.",
+    "discoverDefaults": "Voreinstellung beim Entdecken",
+    "discoverDefaultsIntro": "Womit die Filterleiste startet. Ändern kannst du sie beim Entdecken jederzeit.",
+    "regionHint": "Beeinflusst Kinostarts und Verfügbarkeit.",
+    "regionDefault": "Vorgabe des Administrators ({{region}})",
+    "tabAccount": "Konto",
+    "tabNotifications": "Benachrichtigungen",
+    "tabDiscover": "Entdecken",
+    "tabSecurity": "Sicherheit",
+    "notificationsSaved": "Gespeichert.",
+    "discoverSaved": "Gespeichert."
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -513,7 +561,7 @@
     "arrHint": "Den API-Key findest du in Radarr bzw. Sonarr unter Settings → General → Security.",
     "generalSection": "Allgemein",
     "region": "Region",
-    "language": "Sprache der Inhalte",
+    "language": "Standardsprache",
     "demoMode": "Beispieldaten",
     "demoAuto": "Automatisch (nur ohne TMDB-Key)",
     "demoOn": "Immer Beispieldaten",
@@ -526,7 +574,14 @@
     "tabAddress": "Adresse",
     "updateCheckTitle": "Auf Updates prüfen",
     "updateCheckHint": "Nexview sieht höchstens einmal am Tag bei GitHub nach, ob eine neuere Version vorliegt. Dabei werden keine Daten aus Nexview übertragen.",
-    "updateCheckLabel": "Täglich nach neuen Versionen sehen"
+    "updateCheckLabel": "Täglich nach neuen Versionen sehen",
+    "languageHint": "Gilt für neu eingeladene Konten und für Mails an Personen, die noch kein Konto haben. Wer angemeldet ist, stellt seine Sprache oben rechts selbst um - Filmtitel und Beschreibungen folgen dann automatisch.",
+    "regionHint": "Vorgabe für alle, die im Profil nichts Eigenes eingestellt haben.",
+    "rootFolderChoice": "Benutzer dürfen den Zielordner wählen",
+    "rootFolderChoiceHint": "Ist das abgeschaltet, sehen Benutzer beim Anfragen kein Ordner-Feld mehr - dann gilt für alle der unten eingestellte Standardordner. Administratoren wählen weiterhin frei.",
+    "defaultRoot": "Standard-Zielordner",
+    "defaultRootFirst": "Erster Ordner aus Radarr/Sonarr",
+    "defaultRootHint": "Dorthin landet alles, solange die Auswahl abgeschaltet ist."
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -553,6 +608,61 @@
     "upToDate": "Nexview ist auf dem neuesten Stand.",
     "checkNow": "Jetzt prüfen",
     "lastChecked": "zuletzt geprüft: {{when}}",
-    "updateHint": "Zum Aktualisieren auf dem Server »docker compose pull« und danach »docker compose up -d« ausführen. Die Datenbank bleibt dabei erhalten; vor Änderungen an ihr legt Nexview automatisch eine Sicherung an."
+    "updateHint": "Zum Aktualisieren auf dem Server »docker compose pull« und danach »docker compose up -d« ausführen. Die Datenbank bleibt dabei erhalten; vor Änderungen an ihr legt Nexview automatisch eine Sicherung an.",
+    "credits": "Danksagung",
+    "creditsIntro": "Nexview steht auf fremden Schultern. Diese Dienste und Bausteine machen es möglich.",
+    "dataSources": "Datenquellen",
+    "tmdbNotice": "Alle Angaben zu Filmen, Serien, Besetzung und Bildern stammen von TMDB. Nexview nutzt die TMDB-Schnittstelle, ist aber weder von TMDB unterstützt noch zertifiziert.",
+    "arrNotice": "Übernehmen das eigentliche Herunterladen. Nexview reicht Anfragen nur weiter.",
+    "youtubeNotice": "Trailer werden von dort abgespielt. TMDB liefert nur den Verweis.",
+    "builtWith": "Gebaut mit",
+    "ratingsNotice": "Ihre Wertungen erscheinen bei Filmen. Nexview holt sie nicht selbst dort ab, sondern übernimmt sie aus Radarr, das sie zu jedem Film mitliefert. Die Marken gehören den jeweiligen Anbietern."
+  },
+  "detail": {
+    "cast": "Besetzung",
+    "seasons": "Staffeln",
+    "episodes": "Folgen",
+    "seasonCount": "{{count}} Staffel",
+    "seasonCount_other": "{{count}} Staffeln",
+    "episodeCount": "{{count}} Folge",
+    "episodeCount_other": "{{count}} Folgen",
+    "seasonComplete": "vollständig",
+    "seasonPartial": "{{have}} von {{total}}",
+    "episodeHere": "liegt vor",
+    "episodeMissing": "fehlt noch",
+    "noEpisodes": "Zu dieser Staffel sind noch keine Folgen bekannt.",
+    "recommendations": "Das könnte dir auch gefallen",
+    "studios": "Studio",
+    "keywords": "Schlagworte",
+    "status": "Status",
+    "director": "Regie",
+    "creator": "Erfunden von",
+    "writing": "Drehbuch",
+    "languages": "Sprachen",
+    "budget": "Budget",
+    "revenue": "Einspielergebnis",
+    "network": "Sender",
+    "homepage": "Offizielle Seite",
+    "born": "Geboren",
+    "died": "Gestorben",
+    "birthplace": "Geburtsort",
+    "knownFor": "Bekannt für",
+    "showMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen",
+    "trailer": "Trailer"
+  },
+  "browse": {
+    "byKeyword": "Schlagwort",
+    "byStudio": "Studio",
+    "movieResults": "{{count}} Film",
+    "movieResults_other": "{{count}} Filme",
+    "seriesResults": "{{count}} Serie",
+    "seriesResults_other": "{{count}} Serien"
+  },
+  "favorites": {
+    "add": "Als Favorit markieren – Grundlage für deine Empfehlungen",
+    "remove": "Markierung entfernen",
+    "intro": "Alles, was du mit dem Herz markiert hast. Daraus entstehen deine Empfehlungen auf der Startseite.",
+    "since": "seit {{date}}"
   }
 }

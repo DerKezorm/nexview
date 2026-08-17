@@ -27,6 +27,14 @@ services:
       - ./data:/data
 
     environment:
+      # Wem die Dateien im Datenverzeichnis gehoeren sollen. Der Container legt
+      # die Rechte beim Start selbst richtig - es muss auf dem NAS also nichts
+      # von Hand eingestellt werden. Nur wenn die Dateien einem bestimmten
+      # Synology-Benutzer gehoeren sollen, hier dessen Nummern eintragen
+      # (zu finden per SSH mit "id benutzername").
+      PUID: 1000
+      PGID: 1000
+
       # Schluessel fuer Login-Token und die Verschluesselung der API-Keys.
       # Leer lassen ist in Ordnung: Nexview legt beim ersten Start selbst einen
       # an und speichert ihn unter /data/secret.key. Wer ihn hier setzt, sollte

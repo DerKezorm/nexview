@@ -31,9 +31,10 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# curl fuer den Healthcheck. --no-install-recommends haelt das Abbild klein.
+# curl fuer den Healthcheck, gosu zum Ablegen der Administratorrechte beim
+# Start. --no-install-recommends haelt das Abbild klein.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl gosu \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt ./
@@ -42,12 +43,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 COPY --from=frontend /build/dist ./static
 
-# Nicht als root laufen. Das Datenverzeichnis gehoert diesem Benutzer, damit
-# die Datenbank auch in einem frisch angelegten Volume beschreibbar ist.
+# Der Benutzer, unter dem Nexview spaeter laeuft. Der Container startet zwar als
+# Administrator, gibt die Rechte im Startskript aber sofort wieder ab - das ist
+# noetig, um ein von aussen eingehaengtes Datenverzeichnis nutzbar zu machen.
 RUN useradd --system --create-home --uid 1000 nexview \
     && mkdir -p /data \
     && chown -R nexview:nexview /data /app
-USER nexview
+
+COPY docker/entrypoint.sh /entrypoint.sh
+# Das sed entfernt Windows-Zeilenenden: wer unter Windows auscheckt und baut,
+# bekaeme sonst ein Skript, das Linux gar nicht erst startet.
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 VOLUME ["/data"]
 EXPOSE 8000
@@ -58,4 +64,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 # Ein Arbeitsprozess reicht: die Datenbank ist SQLite, und die
 # Hintergrund-Abfrage von Radarr/Sonarr soll nicht mehrfach laufen.
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

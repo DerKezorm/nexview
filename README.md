@@ -174,6 +174,10 @@ Im **Container Manager** unter *Projekt → Erstellen* den Projektordner wählen
 
 Ein fester Pfad statt `./data` macht das Sichern über Hyper Backup einfacher.
 
+Um die Rechte an diesem Ordner muss man sich **nicht** kümmern: der Container setzt sie beim
+Start selbst. Wer möchte, dass die Dateien einem bestimmten Benutzer gehören, trägt dessen
+Nummern als `PUID`/`PGID` ein (per SSH mit `id benutzername` herauszufinden).
+
 ### Aktualisieren
 
 ```bash

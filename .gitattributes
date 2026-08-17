@@ -1,0 +1,5 @@
+# Dateien, die im Linux-Container ausgefuehrt werden, brauchen zwingend
+# Unix-Zeilenenden - auch wenn sie unter Windows bearbeitet werden.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf

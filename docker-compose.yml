@@ -14,9 +14,10 @@ services:
     restart: unless-stopped
 
     ports:
-      # Links der Port auf dem NAS, rechts der im Container. Ist 8080 belegt,
-      # einfach die linke Zahl aendern.
-      - "8080:8000"
+      # Links der Port auf dem NAS, rechts der im Container. Ist 5173 belegt,
+      # einfach die linke Zahl aendern - und die oeffentliche Adresse in den
+      # Einstellungen mit anpassen.
+      - "5173:8000"
 
     volumes:
       # Relativ zum Projektordner. Auf der Synology gern ein fester Pfad,

@@ -136,7 +136,7 @@ gemeinsam aus. Es wird kein zusätzlicher Webserver gebraucht.
 docker compose up -d --build
 ```
 
-Danach ist Nexview unter **`http://<adresse-des-servers>:8080`** erreichbar.
+Danach ist Nexview unter **`http://<adresse-des-servers>:5173`** erreichbar.
 
 ### Was gesichert werden muss
 
@@ -160,7 +160,7 @@ Im **Container Manager** unter *Projekt → Erstellen* den Projektordner wählen
 
 ```yaml
     ports:
-      - "8080:8000"        # linke Zahl ändern, falls 8080 belegt ist
+      - "5173:8000"        # linke Zahl ändern, falls 5173 belegt ist
     volumes:
       - /volume1/docker/nexview/data:/data
 ```

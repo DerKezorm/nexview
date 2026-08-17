@@ -1,4 +1,5 @@
-# Nexview starten:  docker compose up -d --build
+# Nexview starten:  docker compose up -d
+# Auf eine neue Version aktualisieren:  docker compose pull && docker compose up -d
 #
 # Auf der Synology laeuft das ueber Container Manager -> Projekt -> aus
 # docker-compose.yml. Wichtig ist nur das Verzeichnis unter "volumes": dort
@@ -7,9 +8,10 @@
 
 services:
   nexview:
-    build: .
-    # Alternativ das fertige Abbild aus der GitHub-Registry verwenden:
-    # image: ghcr.io/<konto>/nexview:latest
+    # Das fertige Abbild wird automatisch heruntergeladen - nichts zu bauen.
+    image: ghcr.io/derkezorm/nexview:latest
+    # Wer stattdessen selbst bauen will (z. B. nach eigenen Aenderungen),
+    # ersetzt die Zeile darueber durch:  build: .
     container_name: nexview
     restart: unless-stopped
 

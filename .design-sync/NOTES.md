@@ -1,9 +1,16 @@
 # Nexview → Claude Design — Notizen zum Abgleich
 
-Ziel: Claude-Design-Projekt **nexapps**
-`https://claude.ai/design/p/c03da0f0-33ba-4836-934f-6e0dce6c4a58`
+Ziel: Claude-Design-Projekt **nexapps**.
 
-Stand: 18.08.2026, Nexview 0.4.2 — 20 Bausteine, 108 Dateien.
+Die Kennung des Projekts steht bewusst **nicht** hier, sondern in
+`.design-sync/projekt-kennung.txt` — diese Datei bleibt lokal und wird nicht
+mitgeliefert. Der Repo ist öffentlich, und die Kennung zeigt auf ein privates
+Projekt; sie gibt zwar niemandem Zugriff, hat in einem öffentlichen
+Verzeichnis aber nichts verloren. Vor dem nächsten Abgleich die Kennung aus
+dieser Datei wieder als `"projectId"` oben in `config.json` eintragen — sonst
+legt der Abgleich ein zweites, leeres Projekt an.
+
+Stand: 18.08.2026, Nexview 0.4.3 — 20 Bausteine, 108 Dateien.
 
 ## Wie das hier aufgebaut ist
 

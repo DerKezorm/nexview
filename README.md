@@ -236,3 +236,21 @@ Für den Produktivbetrieb kopiere `.env.example` nach `.env`:
 
 Die Metadaten stammen von **TMDB**. Dieses Projekt ist weder von TMDB unterstützt noch
 zertifiziert.
+
+---
+
+## Lizenz
+
+Nexview steht unter der **MIT-Lizenz** — siehe [LICENSE](LICENSE). Damit darf der
+Quelltext genutzt, verändert und weitergegeben werden, auch geschäftlich, solange
+der Urheberrechtshinweis erhalten bleibt. Eine Gewährleistung gibt es nicht.
+
+Die Lizenz gilt für den Quelltext dieses Projekts. Nicht davon erfasst sind:
+
+- **Metadaten, Poster und Bilder von TMDB.** Sie unterliegen den
+  [Nutzungsbedingungen von TMDB](https://www.themoviedb.org/terms-of-use); für den
+  Betrieb brauchst du einen eigenen API-Key.
+- **Radarr, Sonarr, Docker, Synology, IMDb, Rotten Tomatoes und Metacritic.**
+  Marken der jeweiligen Rechteinhaber, hier nur beschreibend genannt.
+- Die Abhängigkeiten in `frontend/package.json` und `backend/requirements.txt`,
+  die unter ihren eigenen Lizenzen stehen.

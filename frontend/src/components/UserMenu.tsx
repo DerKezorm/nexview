@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation } from 'react-router-dom'
 
-import { useFavorites } from './media/FavoriteButton'
+import { useFavorites, usePersonFavorites } from './media/FavoriteButton'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../api/client'
@@ -88,6 +88,7 @@ export function UserMenu() {
   }, [open])
 
   const { favorites } = useFavorites()
+  const { people: gemerktePersonen } = usePersonFavorites()
 
   if (!user) return null
 
@@ -98,7 +99,11 @@ export function UserMenu() {
       { to: '/requests', labelKey: 'nav.myRequests' },
       // Erscheint erst, wenn es etwas zu sehen gibt - ein leerer Punkt
       // waere nur ein Versprechen ohne Inhalt.
-      { to: '/mag-ich', labelKey: 'nav.favorites', wenn: favorites.length > 0 },
+      {
+        to: '/mag-ich',
+        labelKey: 'nav.favorites',
+        wenn: favorites.length > 0 || gemerktePersonen.length > 0,
+      },
       // Der Zähler zeigt, was auf einen wartet: beim Administrator jedes
       // offene Ticket, bei allen anderen nur die eigenen mit einer Antwort.
       { to: '/tickets', labelKey: 'nav.tickets', badge: ticketsQuery.data?.count },

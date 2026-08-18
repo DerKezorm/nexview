@@ -54,6 +54,7 @@ const SEITEN = [
   ['Filme entdecken', '/filme', 'mira'],
   ['Serien entdecken', '/serien', 'mira'],
   ['Suche', '/suche', 'mira'],
+  ['Personen', '/personen', 'mira'],
   ['Detailseite Film', '/titel/movie/950765', 'mira'],
   ['Detailseite Serie', '/titel/tv/1399', 'mira'],
   ['Meine Anfragen', '/requests', 'mira'],

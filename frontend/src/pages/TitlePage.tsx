@@ -4,7 +4,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { ApiError, api } from '../api/client'
-import type { MediaDetail, MediaItem, MediaType, NamedRef, Trailer } from '../api/types'
+import type {
+  MediaDetail,
+  MediaItem,
+  MediaType,
+  NamedRef,
+  Trailer,
+  WatchProvider,
+  WatchProviders,
+} from '../api/types'
 import { AddRequestForm } from '../components/media/AddRequestForm'
 import { CastStrip } from '../components/media/CastStrip'
 import { FavoriteButton, useFavorites } from '../components/media/FavoriteButton'
@@ -83,6 +91,75 @@ function ChipRow({
           </ChipLink>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** Eine Gruppe Anbieter (Abo, Kostenlos, Leihen, Kaufen) als Logo-Reihe. */
+function AnbieterGruppe({ label, anbieter }: { label: string; anbieter: WatchProvider[] }) {
+  if (anbieter.length === 0) return null
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="w-20 shrink-0 text-[11px] font-medium tracking-wide text-mist-600 uppercase">
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {anbieter.map((a) =>
+          a.logo_url ? (
+            <img
+              key={a.id}
+              src={a.logo_url}
+              alt={a.name}
+              title={a.name}
+              loading="lazy"
+              className="h-9 w-9 rounded-lg border border-ink-700 object-cover"
+            />
+          ) : (
+            <span
+              key={a.id}
+              className="rounded-full border border-ink-700 bg-ink-850 px-2.5 py-1 text-xs text-mist-400"
+            >
+              {a.name}
+            </span>
+          ),
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * „Wo streambar" - die Streaming-Anbieter zur Region des Nutzers.
+ *
+ * Die Daten stammen von JustWatch (über TMDB); die Verlinkung auf deren
+ * Übersicht ist als Quellenangabe Pflicht - deshalb steht sie fest dabei und
+ * ist nicht wegzulassen.
+ */
+function WoStreambar({ watch }: { watch: WatchProviders }) {
+  const { t } = useTranslation()
+  return (
+    <div className="mt-6 border-t border-ink-700/60 pt-5">
+      <p className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
+        {t('watch.title', { region: watch.region })}
+      </p>
+      <AnbieterGruppe label={t('watch.flatrate')} anbieter={watch.flatrate} />
+      <AnbieterGruppe label={t('watch.free')} anbieter={watch.free} />
+      <AnbieterGruppe label={t('watch.rent')} anbieter={watch.rent} />
+      <AnbieterGruppe label={t('watch.buy')} anbieter={watch.buy} />
+
+      {/* Pflicht-Quellenangabe. TMDB reicht die Daten von JustWatch durch und
+          liefert nur einen Link auf die eigene Seite - der wäre hier
+          irreführend, also verweisen wir direkt auf JustWatch. */}
+      <p className="mt-3 text-xs text-mist-600">
+        <a
+          href="https://www.justwatch.com"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="hover:text-mist-300 hover:underline"
+        >
+          {t('watch.justwatch')}
+        </a>
+      </p>
     </div>
   )
 }
@@ -378,6 +455,8 @@ export function TitlePage() {
             <Fact label={t('detail.revenue')} value={Geld(item.revenue, i18n.language)!} />
           )}
         </dl>
+
+        {item.watch && <WoStreambar watch={item.watch} />}
 
         <ChipRow
           label={t('detail.studios')}

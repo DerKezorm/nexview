@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../../api/client'
-import type { Favorite, MediaItem } from '../../api/types'
+import type { Favorite, FavoritePerson, MediaItem } from '../../api/types'
 
 /**
  * Die eigenen Favoriten - einmal geladen und überall verfügbar.
@@ -97,6 +97,89 @@ export function FavoriteButton({
         (markiert
           ? 'border-accent-500 bg-accent-500/15 text-accent-400 hover:bg-accent-500/25'
           : 'border-ink-700 bg-ink-900 text-mist-400 hover:border-accent-500 hover:text-accent-400') +
+        ' ' +
+        className
+      }
+    >
+      <HeartIcon gefuellt={markiert} className={gross ? 'h-5 w-5' : 'h-4 w-4'} />
+    </button>
+  )
+}
+
+// --- Personen --------------------------------------------------------------
+
+/** Ein für den Herz-Knopf ausreichendes Personen-Objekt. */
+type PersonLike = {
+  person_id: number
+  name: string
+  photo_url: string | null
+  department: string
+}
+
+/** Die gemerkten Personen - einmal geladen, überall verfügbar (siehe useFavorites). */
+export function usePersonFavorites() {
+  const query = useQuery({
+    queryKey: ['person-favorites'],
+    queryFn: () => api.get<FavoritePerson[]>('/api/favorites/people'),
+    staleTime: 5 * 60 * 1000,
+  })
+  const markiert = new Set((query.data ?? []).map((p) => p.person_id))
+  return { people: query.data ?? [], markiert }
+}
+
+/** Herz zum Merken einer Person - gebaut wie das Herz an einem Titel. */
+export function FavoritePersonButton({
+  person,
+  markiert,
+  className = '',
+  gross = false,
+}: {
+  person: PersonLike
+  markiert: boolean
+  className?: string
+  gross?: boolean
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+
+  const umschalten = useMutation({
+    mutationFn: async () => {
+      if (markiert) {
+        await api.delete(`/api/favorites/people/${person.person_id}`)
+        return
+      }
+      await api.post('/api/favorites/people', {
+        person_id: person.person_id,
+        name: person.name,
+        photo_url: person.photo_url,
+        department: person.department,
+      })
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['person-favorites'] })
+      // Die kuratierte Liste bezieht auch gemerkte Personen ein.
+      void queryClient.invalidateQueries({ queryKey: ['home-curated'] })
+    },
+  })
+
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        umschalten.mutate()
+      }}
+      disabled={umschalten.isPending}
+      title={t(markiert ? 'favorites.removePerson' : 'favorites.addPerson')}
+      aria-label={`${person.name} – ${t(markiert ? 'favorites.removePerson' : 'favorites.addPerson')}`}
+      aria-pressed={markiert}
+      className={
+        'shrink-0 rounded-full border transition-colors ' +
+        (gross ? 'p-2.5 ' : 'p-1.5 ') +
+        (markiert
+          ? 'border-accent-500 bg-accent-500/15 text-accent-400 hover:bg-accent-500/25'
+          : 'border-ink-700 bg-ink-900/80 text-mist-300 hover:border-accent-500 hover:text-accent-400') +
         ' ' +
         className
       }

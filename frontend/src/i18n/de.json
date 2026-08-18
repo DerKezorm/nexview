@@ -24,6 +24,7 @@
     "discoverMovies": "Filme entdecken",
     "discoverSeries": "Serien entdecken",
     "search": "Suchen",
+    "people": "Personen entdecken",
     "profile": "Profil",
     "myRequests": "Meine Anfragen",
     "allRequests": "Alle Anfragen",
@@ -653,9 +654,38 @@
     "dataSources": "Datenquellen",
     "tmdbNotice": "Alle Angaben zu Filmen, Serien, Besetzung und Bildern stammen von TMDB. Nexview nutzt die TMDB-Schnittstelle, ist aber weder von TMDB unterstützt noch zertifiziert.",
     "arrNotice": "Übernehmen das eigentliche Herunterladen. Nexview reicht Anfragen nur weiter.",
+    "justwatchNotice": "Quelle der Streaming-Verfügbarkeit auf den Detailseiten („Wo streambar“). TMDB reicht diese Daten von JustWatch durch.",
     "youtubeNotice": "Trailer werden von dort abgespielt. TMDB liefert nur den Verweis.",
     "builtWith": "Gebaut mit",
     "ratingsNotice": "Ihre Wertungen erscheinen bei Filmen. Nexview holt sie nicht selbst dort ab, sondern übernimmt sie aus Radarr, das sie zu jedem Film mitliefert. Die Marken gehören den jeweiligen Anbietern."
+  },
+  "watch": {
+    "title": "Wo streambar ({{region}})",
+    "flatrate": "Im Abo",
+    "free": "Kostenlos",
+    "rent": "Leihen",
+    "buy": "Kaufen",
+    "justwatch": "Streaming-Daten von JustWatch"
+  },
+  "people": {
+    "title": "Personen",
+    "intro": "Beliebte Schauspieler zum Stöbern. Für Regie und Drehbuch oben das Fach wählen und den Namen suchen.",
+    "department": "Fach",
+    "dept": {
+      "acting": "Schauspieler",
+      "directing": "Regie",
+      "writing": "Drehbuch"
+    },
+    "searchHint": "Für Regie und Drehbuch gibt es keine Bestenliste – gib einen Namen ein, um zu suchen.",
+    "noResults": "Niemanden in diesem Fach gefunden. Vielleicht ein anderes Fach oben wählen?",
+    "empty": "Keine Personen gefunden."
+  },
+  "person": {
+    "works": {
+      "movie": "Filme",
+      "series": "Serien",
+      "appearance": "TV-Auftritte"
+    }
   },
   "detail": {
     "cast": "Besetzung",
@@ -703,8 +733,16 @@
   "favorites": {
     "add": "Als Favorit markieren – Grundlage für deine Empfehlungen",
     "remove": "Markierung entfernen",
+    "addPerson": "Person merken – fließt in deine Empfehlungen ein",
+    "removePerson": "Aus den gemerkten Personen nehmen",
     "intro": "Alles, was du mit dem Herz markiert hast. Daraus entstehen deine Empfehlungen auf der Startseite.",
-    "since": "seit {{date}}"
+    "since": "seit {{date}}",
+    "sectionTitles": "Filme & Serien",
+    "sectionPeople": "Personen",
+    "emptyTitles": "Noch keine Filme oder Serien markiert.",
+    "emptyPeople": "Noch keine Personen gemerkt. Auf „Personen“ findest du welche.",
+    "filterMovies": "Filme",
+    "filterSeries": "Serien"
   },
   "blocklist": {
     "title": "Sperrliste",

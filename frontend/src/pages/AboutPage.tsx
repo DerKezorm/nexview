@@ -197,6 +197,12 @@ function Credits() {
             </span>
           </li>
           <li>
+            <ExternalLink href="https://www.justwatch.com">JustWatch</ExternalLink>
+            <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.justwatchNotice')}
+            </span>
+          </li>
+          <li>
             <ExternalLink href="https://www.youtube.com">YouTube</ExternalLink>
             <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
               {t('about.youtubeNotice')}

@@ -20,9 +20,12 @@ from ..schemas_media import (
     NamedRef,
     PersonCredit,
     PersonDetail,
+    PersonSummary,
     SeasonDetail,
     SeasonInfo,
     Trailer,
+    WatchProvider,
+    WatchProviders,
 )
 from . import age_rating, cache
 from .filters import DiscoverFilters
@@ -512,6 +515,67 @@ def _trailer(detail: dict[str, Any], sprache: str) -> Trailer | None:
     )
 
 
+# Anbieterlogos: klein genug fuer eine Reihe von Kacheln, gross genug, dass man
+# sie erkennt. TMDB haelt Logos in w45 bis original vor.
+PROVIDER_LOGO_SIZE = "w92"
+
+
+def _anbieter(eintraege: list[dict[str, Any]] | None) -> list[WatchProvider]:
+    """Eine Anbietergruppe (Abo/Leihen/Kaufen) in Kacheln umwandeln.
+
+    TMDB liefert sie schon nach ``display_priority`` sortiert; doppelte
+    Anbieter kommen vor (derselbe steckt manchmal in mehreren Gruppen), deshalb
+    innerhalb der Gruppe entdoppeln.
+    """
+    kacheln: list[WatchProvider] = []
+    gesehen: set[int] = set()
+    for eintrag in eintraege or []:
+        kennung = eintrag.get("provider_id")
+        name = eintrag.get("provider_name")
+        if not kennung or not name or kennung in gesehen:
+            continue
+        gesehen.add(kennung)
+        kacheln.append(
+            WatchProvider(
+                id=kennung,
+                name=name,
+                logo_url=image_url(eintrag.get("logo_path"), PROVIDER_LOGO_SIZE),
+            )
+        )
+    return kacheln
+
+
+def _watch_providers(raw: dict[str, Any], region: str) -> WatchProviders | None:
+    """Wo der Titel in der Region des Nutzers laeuft.
+
+    TMDB bezieht diese Daten von JustWatch und liefert je Land eine
+    ``link``-Adresse - die wird als Quellenangabe verlinkt. Kennt TMDB fuer die
+    Region nichts oder ist gar nichts zu holen, gibt es ``None``.
+    """
+    laender = (raw.get("watch/providers") or {}).get("results") or {}
+    eintrag = laender.get(region.upper())
+    if not eintrag:
+        return None
+
+    # "ads" (mit Werbung) faellt mit "free" zusammen - fuer den Zuschauer ist
+    # beides "kostenlos anschauen".
+    kostenlos = _anbieter((eintrag.get("free") or []) + (eintrag.get("ads") or []))
+    im_abo = _anbieter(eintrag.get("flatrate"))
+    leihen = _anbieter(eintrag.get("rent"))
+    kaufen = _anbieter(eintrag.get("buy"))
+
+    if not (im_abo or kostenlos or leihen or kaufen):
+        return None
+
+    return WatchProviders(
+        region=region.upper(),
+        flatrate=im_abo,
+        free=kostenlos,
+        rent=leihen,
+        buy=kaufen,
+    )
+
+
 async def full_detail(
     db: Session, settings: AppSettings, media_type: str, tmdb_id: int
 ) -> MediaDetail:
@@ -576,6 +640,7 @@ async def full_detail(
         studios=_referenzen(raw.get("production_companies")),
         keywords=_schlagworte(raw),
         trailer=_trailer(raw, settings.default_language),
+        watch=_watch_providers(raw, region),
         cast=_cast(raw),
         crew=_crew(raw) + ([] if ist_film else _serien_schoepfer(raw)),
         recommendations=empfehlungen,
@@ -629,11 +694,111 @@ async def season_detail(
     )
 
 
+# Fach-Kürzel der Oberflaeche -> das, was TMDB im Feld known_for_department
+# fuehrt. Ein eng begrenzter Satz, damit niemand beliebige Werte durchreicht.
+DEPARTMENTS = {"acting": "Acting", "directing": "Directing", "writing": "Writing"}
+
+
+def _person_summary(eintrag: dict[str, Any]) -> PersonSummary:
+    """Ein TMDB-Personeneintrag (aus Suche oder Beliebtheit) als Kachel.
+
+    ``known_for`` bündelt ein paar bekannte Titel als Wiedererkennung - bei
+    einem Namen allein weiß man oft nicht, wer gemeint ist.
+    """
+    bekannt = []
+    for werk in eintrag.get("known_for") or []:
+        titel = werk.get("title") or werk.get("name")
+        if titel:
+            bekannt.append(titel)
+    return PersonSummary(
+        person_id=eintrag["id"],
+        name=eintrag.get("name") or "",
+        photo_url=image_url(eintrag.get("profile_path"), PROFILE_SIZE),
+        department=eintrag.get("known_for_department") or "",
+        known_for=", ".join(bekannt[:3]),
+    )
+
+
+async def people(
+    db: Session, settings: AppSettings, *, query: str, department: str, page: int = 1
+) -> tuple[list[PersonSummary], bool]:
+    """Personen zum Stöbern und Suchen, nach Fach gefiltert - seitenweise.
+
+    Ohne Suchbegriff die gefragtesten Personen des Fachs - das trägt praktisch
+    nur die Schauspielerei, für Regie und Drehbuch hat TMDB keine solche Liste
+    (gemessen: 1 Regie unter 100). Deshalb ist die Übersicht für die beiden
+    dünn und der eigentliche Weg dorthin die Suche.
+
+    Mit Suchbegriff die Treffer, gefiltert auf das gewählte Fach - genau das
+    unterscheiden die drei Knöpfe oben.
+
+    Rückgabe: die Personen dieser Seite und ob es eine weitere gibt (für den
+    Knopf „Mehr laden"). Der Fachfilter wirkt je TMDB-Seite: bei Regie/Drehbuch
+    kann eine Seite leer bleiben, obwohl es weitere gibt - deshalb richtet sich
+    „mehr" nach TMDBs Seitenzahl, nicht nach der Zahl der Treffer.
+    """
+    if settings.use_demo_data:
+        return [], False
+
+    fach = DEPARTMENTS.get(department, "Acting")
+    client = _client(settings)
+
+    if query.strip():
+        roh = await client.search_person(query.strip(), page)
+    else:
+        roh = await client.popular_people(page)
+
+    treffer = roh.get("results") or []
+    gesamt_seiten = int(roh.get("total_pages") or 1)
+
+    ergebnis: list[PersonSummary] = []
+    gesehen: set[int] = set()
+    for eintrag in treffer:
+        kennung = eintrag.get("id")
+        if not kennung or kennung in gesehen:
+            continue
+        if (eintrag.get("known_for_department") or "") != fach:
+            continue
+        gesehen.add(kennung)
+        ergebnis.append(_person_summary(eintrag))
+
+    return ergebnis, page < gesamt_seiten
+
+
+# TMDB-Genres, an denen ein "Auftritt" zu erkennen ist: Talk, Nachrichten,
+# Reality. Dazu Rollen, die mit "Self" beginnen - so nennt TMDB jemanden, der
+# als er selbst auftritt (Talkshow, Interview, Preisverleihung), nicht in einer
+# Rolle. Genau der Kram, den man in der Filmografie nicht sucht.
+AUFTRITT_GENRES = {10763, 10764, 10767}
+
+# Wie viele Auftritte hoechstens mitkommen - sie sollen die echten Rollen nicht
+# verdraengen, aber auf Wunsch trotzdem sichtbar sein.
+MAX_APPEARANCES = 16
+
+
+def _credit_kind(eintrag: dict[str, Any]) -> str:
+    """Einen Filmografie-Eintrag einordnen: ``movie`` / ``series`` / ``appearance``.
+
+    Kinofilme bleiben Filme, auch wenn jemand als er selbst auftritt (eine
+    Doku ist ein Film). Bei Serien trennt sich die echte Rolle vom Auftritt:
+    Talk, Nachrichten, Reality oder eine Rolle, die mit "Self" beginnt.
+    """
+    if eintrag.get("media_type") == "movie":
+        return "movie"
+    rolle = (eintrag.get("character") or "").strip().lower()
+    genres = set(eintrag.get("genre_ids") or [])
+    if rolle.startswith("self") or (genres & AUFTRITT_GENRES):
+        return "appearance"
+    return "series"
+
+
 async def person_detail(db: Session, settings: AppSettings, person_id: int) -> PersonDetail:
-    """Eine Person samt Filmografie.
+    """Eine Person samt Filmografie, eingeteilt in Filme, Serien und Auftritte.
 
     Sortiert nach Bekanntheit: chronologisch stuenden oben lauter
-    Kleinstauftritte, die niemand zuordnen kann.
+    Kleinstauftritte, die niemand zuordnen kann. Talkshow- und Interview-
+    Auftritte ("Self") sind eigens ausgewiesen und begrenzt, damit sie die
+    echten Rollen nicht ueberdecken - die Oberflaeche filtert danach.
     """
     if settings.use_demo_data:
         raise TmdbError("Im Demo-Modus gibt es keine Personendaten.", 404)
@@ -656,9 +821,12 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
     # Der Vorrat ist auf das Doppelte begrenzt: bei vielbeschaeftigten
     # Schauspielern haengen an "combined_credits" mehrere hundert Titel, und
     # fuer jeden davon die Detaildaten zu holen waere unverhaeltnismaessig.
-    vorrat = MAX_PERSON_CREDITS * 2 if settings.age_limit is not None else MAX_PERSON_CREDITS
-
-    kandidaten: list[dict[str, Any]] = []
+    # Auftritte getrennt sammeln und begrenzen: sonst fuellen die (oft sehr
+    # "beliebten") Talkshows den Vorrat, und die echten Filme faenden weiter
+    # unten keinen Platz mehr. So kommen die Rollen vollzaehlig mit, die
+    # Auftritte nur in Auswahl - beide bleiben aber filterbar.
+    rollen: list[dict[str, Any]] = []
+    auftritte: list[dict[str, Any]] = []
     gesehen: set[tuple[str, int]] = set()
     for eintrag in beste:
         art = eintrag.get("media_type")
@@ -666,9 +834,15 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
         if art not in ("movie", "tv") or not kennung or (art, kennung) in gesehen:
             continue
         gesehen.add((art, kennung))
-        kandidaten.append(eintrag)
-        if len(kandidaten) >= vorrat:
+        if _credit_kind(eintrag) == "appearance":
+            if len(auftritte) < MAX_APPEARANCES:
+                auftritte.append(eintrag)
+        elif len(rollen) < MAX_PERSON_CREDITS:
+            rollen.append(eintrag)
+        if len(rollen) >= MAX_PERSON_CREDITS and len(auftritte) >= MAX_APPEARANCES:
             break
+
+    kandidaten = rollen + auftritte
 
     erlaubte: dict[str, set[int]] = {}
     for art in ("movie", "tv"):
@@ -686,6 +860,7 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
             PersonCredit(
                 media_type=MediaType(art),
                 tmdb_id=kennung,
+                kind=_credit_kind(eintrag),
                 title=(eintrag.get("title") if art == "movie" else eintrag.get("name")) or "",
                 character=eintrag.get("character") or "",
                 poster_url=image_url(eintrag.get("poster_path")),
@@ -698,8 +873,6 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
                 vote_average=round(float(eintrag.get("vote_average") or 0), 1),
             )
         )
-        if len(credits) >= MAX_PERSON_CREDITS:
-            break
 
     return PersonDetail(
         person_id=raw.get("id", person_id),
@@ -908,19 +1081,36 @@ async def empfehlungs_vorrat(
 MAX_FAVORITES_USED = 12
 
 
+# Je gemerkter Person nur die bekanntesten Titel einbeziehen. Ein
+# vielbeschaeftigter Schauspieler haengt an Hunderten von Credits, die meisten
+# davon Kleinstauftritte - ohne diese Grenze wuerde die kuratierte Reihe damit
+# geflutet.
+MAX_PERSON_PICKS = 10
+
+
 async def curated(
-    db: Session, settings: AppSettings, media_type: str, favoriten: list[int]
+    db: Session,
+    settings: AppSettings,
+    media_type: str,
+    favoriten: list[int],
+    personen: list[int] | None = None,
 ) -> list[MediaItem]:
-    """Empfehlungen auf Basis markierter Titel.
+    """Empfehlungen auf Basis markierter Titel *und* gemerkter Personen.
 
-    Für jeden Favoriten holt TMDB seine Empfehlungsliste. Was in mehreren
-    Listen auftaucht, passt am ehesten zum Geschmack - danach wird sortiert.
-    Ein Titel, der nur einmal vorkommt, ist ein Zufallstreffer; einer, der bei
-    vier Favoriten auftaucht, ist eine Aussage.
+    Zwei Quellen, ein Topf:
 
-    Die Favoriten selbst fallen heraus - sie zu empfehlen waere sinnlos.
+    * **Titel-Favoriten.** Für jeden holt TMDB seine Empfehlungsliste. Was in
+      mehreren Listen auftaucht, passt am ehesten zum Geschmack.
+    * **Personen-Favoriten.** Aus jeder gemerkten Person deren bekannteste
+      Filme bzw. Serien - ein Titel, in dem ein gemochter Schauspieler
+      mitspielt, ist ein starkes Signal.
+
+    Beides zaehlt in dieselbe Punktzahl: ein Titel, der in mehreren
+    Empfehlungslisten steht *oder* mehrere gemochte Gesichter zeigt, steht
+    oben. Die Favoriten selbst fallen heraus - sie zu empfehlen waere sinnlos.
     """
-    if not favoriten or settings.use_demo_data:
+    personen = personen or []
+    if (not favoriten and not personen) or settings.use_demo_data:
         return []
 
     ausgewaehlt = favoriten[:MAX_FAVORITES_USED]
@@ -940,9 +1130,33 @@ async def curated(
             return []
         return roh.get("results") or []
 
-    listen = await asyncio.gather(*(hole(tmdb_id) for tmdb_id in ausgewaehlt))
+    async def hole_person(person_id: int) -> list[dict[str, Any]]:
+        """Die bekanntesten Titel dieser Art aus der Filmografie einer Person."""
 
-    # Wie oft empfohlen, und wie beliebt - in dieser Reihenfolge.
+        async def fetch() -> dict[str, Any]:
+            return await _client(settings).person(person_id)
+
+        try:
+            roh = await cache.cached(
+                db,
+                f"person:{person_id}:{settings.default_language}",
+                cache.DETAIL_TTL,
+                fetch,
+            )
+        except TmdbError:
+            return []
+        credits = (roh.get("combined_credits") or {}).get("cast") or []
+        passend = [c for c in credits if c.get("media_type") == media_type and c.get("id")]
+        passend.sort(key=lambda c: float(c.get("popularity") or 0), reverse=True)
+        return passend[:MAX_PERSON_PICKS]
+
+    listen = await asyncio.gather(
+        *(hole(tmdb_id) for tmdb_id in ausgewaehlt),
+        *(hole_person(pid) for pid in personen[:MAX_FAVORITES_USED]),
+    )
+
+    # Wie oft empfohlen bzw. in wie vielen Lieblings-Filmografien - und wie
+    # beliebt, in dieser Reihenfolge.
     punkte: dict[int, int] = {}
     roh_nach_id: dict[int, dict[str, Any]] = {}
     for liste in listen:

@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUser, DbSession
-from ..models import Favorite, MediaRequest, MediaType, RequestStatus
+from ..models import Favorite, FavoritePerson, MediaRequest, MediaType, RequestStatus
 from ..schemas_media import MediaItem
 from ..services import library, media, requests_service
 from ..services.settings_service import for_user, load_settings
@@ -213,14 +213,20 @@ class CuratedResult(BaseModel):
 
 
 async def _kuratiert_fuer(
-    db: DbSession, settings, media_type: MediaType, favoriten: list[int]
+    db: DbSession,
+    settings,
+    media_type: MediaType,
+    favoriten: list[int],
+    personen: list[int],
 ) -> list[MediaItem]:
     """Empfehlungen einer Medienart - schon gefiltert auf das, was noch fehlt."""
-    if not favoriten:
+    if not favoriten and not personen:
         return []
 
     try:
-        vorschlaege = await media.curated(db, settings, media_type.value, favoriten)
+        vorschlaege = await media.curated(
+            db, settings, media_type.value, favoriten, personen
+        )
     except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
         logger.warning("Kuratierte Empfehlungen (%s) nicht abrufbar: %s", media_type.value, fehler)
         return []
@@ -261,12 +267,22 @@ async def curated(user: CurrentUser, db: DbSession) -> CuratedResult:
             )
         )
 
-    if not any(favoriten.values()):
+    # Gemerkte Personen speisen beide Medienarten - ein Schauspieler spielt in
+    # Filmen wie in Serien.
+    personen = list(
+        db.scalars(
+            select(FavoritePerson.person_id)
+            .where(FavoritePerson.user_id == user.id)
+            .order_by(FavoritePerson.created_at.desc())
+        )
+    )
+
+    if not any(favoriten.values()) and not personen:
         return CuratedResult(has_favorites=False, items=[])
 
     filme, serien = await asyncio.gather(
-        _kuratiert_fuer(db, settings, MediaType.movie, favoriten[MediaType.movie]),
-        _kuratiert_fuer(db, settings, MediaType.tv, favoriten[MediaType.tv]),
+        _kuratiert_fuer(db, settings, MediaType.movie, favoriten[MediaType.movie], personen),
+        _kuratiert_fuer(db, settings, MediaType.tv, favoriten[MediaType.tv], personen),
     )
 
     # Abwechselnd zusammenlegen statt erst alle Filme, dann alle Serien: sonst

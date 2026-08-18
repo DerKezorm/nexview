@@ -24,6 +24,7 @@
     "discoverMovies": "Discover movies",
     "discoverSeries": "Discover shows",
     "search": "Search",
+    "people": "Discover people",
     "profile": "Profile",
     "myRequests": "My requests",
     "allRequests": "All requests",
@@ -653,9 +654,38 @@
     "dataSources": "Data sources",
     "tmdbNotice": "All information about films, series, cast and images comes from TMDB. Nexview uses the TMDB API but is not endorsed or certified by TMDB.",
     "arrNotice": "They do the actual downloading. Nexview only passes requests along.",
+    "justwatchNotice": "Source of the streaming availability on title pages (“Where to stream”). TMDB passes this data through from JustWatch.",
     "youtubeNotice": "Trailers play from there. TMDB only supplies the reference.",
     "builtWith": "Built with",
     "ratingsNotice": "Their scores appear on films. Nexview does not fetch them directly; it takes them from Radarr, which supplies them with every movie. The trademarks belong to their respective owners."
+  },
+  "watch": {
+    "title": "Where to stream ({{region}})",
+    "flatrate": "Subscription",
+    "free": "Free",
+    "rent": "Rent",
+    "buy": "Buy",
+    "justwatch": "Streaming data by JustWatch"
+  },
+  "people": {
+    "title": "People",
+    "intro": "Popular actors to browse. For directing and writing, pick the craft above and search by name.",
+    "department": "Craft",
+    "dept": {
+      "acting": "Actors",
+      "directing": "Directing",
+      "writing": "Writing"
+    },
+    "searchHint": "There is no popularity list for directing or writing – type a name to search.",
+    "noResults": "No one found in this craft. Maybe pick a different craft above?",
+    "empty": "No people found."
+  },
+  "person": {
+    "works": {
+      "movie": "Movies",
+      "series": "Shows",
+      "appearance": "TV appearances"
+    }
   },
   "detail": {
     "cast": "Cast",
@@ -703,8 +733,16 @@
   "favorites": {
     "add": "Mark as favourite – the basis for your recommendations",
     "remove": "Remove mark",
-    "intro": "Everything you marked with a heart. Your recommendations on the home page are built from this.",
-    "since": "since {{date}}"
+    "addPerson": "Save person – feeds into your recommendations",
+    "removePerson": "Remove from saved people",
+    "intro": "Everything you marked with the heart. Your home-page recommendations grow from it.",
+    "since": "since {{date}}",
+    "sectionTitles": "Movies & shows",
+    "sectionPeople": "People",
+    "emptyTitles": "No movies or shows marked yet.",
+    "emptyPeople": "No people saved yet. Find some under “People”.",
+    "filterMovies": "Movies",
+    "filterSeries": "Shows"
   },
   "blocklist": {
     "title": "Blocklist",

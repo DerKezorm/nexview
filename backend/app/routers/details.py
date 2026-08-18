@@ -14,7 +14,14 @@ from pydantic import BaseModel
 
 from ..deps import CurrentUser, DbSession
 from ..models import MediaType
-from ..schemas_media import MediaDetail, MediaItem, MediaPage, PersonDetail, SeasonDetail
+from ..schemas_media import (
+    MediaDetail,
+    MediaItem,
+    MediaPage,
+    PersonDetail,
+    PersonSummary,
+    SeasonDetail,
+)
 from ..services import blocklist, library, media, ratings, requests_service
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
@@ -203,6 +210,36 @@ async def browse(
 
     await _mit_status(db, settings, media_type, ergebnis.items)
     return BrowseResult(label=label, page=ergebnis)
+
+
+class PeopleResult(BaseModel):
+    """Eine Seite Personen - und ob es noch mehr gibt (für „Mehr laden")."""
+
+    items: list[PersonSummary]
+    has_more: bool
+
+
+@router.get("/people", response_model=PeopleResult)
+async def people(
+    user: CurrentUser,
+    db: DbSession,
+    q: Annotated[str, Query(max_length=100)] = "",
+    department: Annotated[Literal["acting", "directing", "writing"], Query()] = "acting",
+    page: Annotated[int, Query(ge=1, le=500)] = 1,
+) -> PeopleResult:
+    """Personen zum Stöbern und Suchen, nach Fach gefiltert - seitenweise.
+
+    Ohne ``q`` die gefragtesten Personen des Fachs (praktisch nur Schauspiel);
+    mit ``q`` die Treffer, gefiltert auf Schauspiel, Regie oder Drehbuch.
+    """
+    settings = for_user(load_settings(db), user)
+    try:
+        items, mehr = await media.people(
+            db, settings, query=q, department=department, page=page
+        )
+    except TmdbError as error:
+        raise _fehler(error) from error
+    return PeopleResult(items=items, has_more=mehr)
 
 
 @router.get("/person/{person_id}", response_model=PersonDetail)

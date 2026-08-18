@@ -21,6 +21,7 @@ type NavItem = { to: string; labelKey: string }
 const NAV_ITEMS: NavItem[] = [
   { to: '/filme', labelKey: 'nav.discoverMovies' },
   { to: '/serien', labelKey: 'nav.discoverSeries' },
+  { to: '/personen', labelKey: 'nav.people' },
   { to: '/suche', labelKey: 'nav.search' },
 ]
 

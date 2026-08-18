@@ -21,6 +21,7 @@ import {
   VerifyEmailPage,
 } from './pages/OnboardingPage'
 import { MyRequestsPage } from './pages/MyRequestsPage'
+import { PeoplePage } from './pages/PeoplePage'
 import { PersonPage } from './pages/PersonPage'
 import { TicketPage } from './pages/TicketPage'
 import { TicketsPage } from './pages/TicketsPage'
@@ -115,6 +116,7 @@ export default function App() {
         <Route path="filme" element={<DiscoverPage mediaType="movie" />} />
         <Route path="serien" element={<DiscoverPage mediaType="tv" />} />
         <Route path="suche" element={<SearchPage />} />
+        <Route path="personen" element={<PeoplePage />} />
         <Route path="profil" element={<ProfilePage />} />
         <Route path="mag-ich" element={<FavoritesPage />} />
         <Route path="tickets" element={<TicketsPage />} />

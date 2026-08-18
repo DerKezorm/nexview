@@ -16,11 +16,89 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 
 from ..deps import CurrentUser, DbSession
-from ..models import Favorite, MediaType
+from ..models import Favorite, FavoritePerson, MediaType
 from ..services import media
 from ..services.settings_service import for_user, load_settings
 
 router = APIRouter(prefix="/api/favorites", tags=["favorites"])
+
+
+# --- Personen --------------------------------------------------------------
+#
+# Bewusst vor den Titel-Endpunkten definiert: "/people" und
+# "/people/{id}" wuerden sonst gegen "/{media_type}/{tmdb_id}" laufen, und die
+# zuerst passende Route gewinnt. Personen haben keine Altersfreigabe, deshalb
+# entfaellt hier die Filterung, die es bei den Titeln gibt.
+
+
+class FavoritePersonOut(BaseModel):
+    person_id: int
+    name: str
+    photo_url: str | None
+    department: str
+    created_at: datetime
+
+
+class FavoritePersonIn(BaseModel):
+    person_id: int = Field(ge=1)
+    name: str = Field(default="", max_length=200)
+    photo_url: str | None = Field(default=None, max_length=500)
+    department: str = Field(default="", max_length=40)
+
+
+@router.get("/people", response_model=list[FavoritePersonOut])
+def my_favorite_people(user: CurrentUser, db: DbSession) -> list[FavoritePerson]:
+    """Eigene gemerkte Personen, neueste zuerst."""
+    return list(
+        db.scalars(
+            select(FavoritePerson)
+            .where(FavoritePerson.user_id == user.id)
+            .order_by(FavoritePerson.created_at.desc())
+        )
+    )
+
+
+@router.post("/people", response_model=FavoritePersonOut, status_code=status.HTTP_201_CREATED)
+def add_favorite_person(
+    payload: FavoritePersonIn, user: CurrentUser, db: DbSession
+) -> FavoritePerson:
+    """Person merken. Ein zweites Mal ist kein Fehler."""
+    vorhanden = db.scalar(
+        select(FavoritePerson).where(
+            FavoritePerson.user_id == user.id,
+            FavoritePerson.person_id == payload.person_id,
+        )
+    )
+    if vorhanden is not None:
+        return vorhanden
+
+    eintrag = FavoritePerson(
+        user_id=user.id,
+        person_id=payload.person_id,
+        name=payload.name.strip(),
+        photo_url=payload.photo_url,
+        department=payload.department.strip(),
+    )
+    db.add(eintrag)
+    db.commit()
+    db.refresh(eintrag)
+    return eintrag
+
+
+@router.delete("/people/{person_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_favorite_person(
+    person_id: Annotated[int, Path(ge=1)], user: CurrentUser, db: DbSession
+) -> None:
+    """Person aus den Favoriten nehmen."""
+    ergebnis = db.execute(
+        delete(FavoritePerson).where(
+            FavoritePerson.user_id == user.id,
+            FavoritePerson.person_id == person_id,
+        )
+    )
+    db.commit()
+    if ergebnis.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Diese Person war nicht markiert.")
 
 
 class FavoriteOut(BaseModel):

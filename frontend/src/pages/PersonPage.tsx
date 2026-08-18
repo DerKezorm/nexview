@@ -4,9 +4,14 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { ApiError, api } from '../api/client'
-import type { MediaItem, PersonCredit, PersonDetail } from '../api/types'
+import type { CreditKind, MediaItem, PersonCredit, PersonDetail } from '../api/types'
 import { DetailModal } from '../components/media/DetailModal'
+import {
+  FavoritePersonButton,
+  usePersonFavorites,
+} from '../components/media/FavoriteButton'
 import { CartIcon } from '../components/media/MediaCard'
+import { PersonPhoto } from '../components/media/PersonPhoto'
 import { Poster } from '../components/media/Poster'
 import { StatusBadge } from '../components/media/StatusBadge'
 import { Card, ErrorBanner, Spinner } from '../components/ui'
@@ -15,6 +20,8 @@ import { formatDate, formatYear } from '../lib/format'
 import { titlePath } from '../lib/routes'
 
 /** Ein Titel aus der Filmografie - Poster, Rolle, Status, Schnell-Wagen. */
+const CREDIT_KINDS = ['movie', 'series', 'appearance'] as const
+
 function CreditCard({
   credit,
   onQuickAdd,
@@ -95,6 +102,8 @@ export function PersonPage() {
 
   const [schnellAnfrage, setSchnellAnfrage] = useState<MediaItem | null>(null)
   const [ganzeBio, setGanzeBio] = useState(false)
+  const [werk, setWerk] = useState<CreditKind>('movie')
+  const { markiert: personMarkiert } = usePersonFavorites()
 
   const query = useQuery({
     queryKey: ['person', personId],
@@ -122,21 +131,39 @@ export function PersonPage() {
   const person = query.data
   const lang = person.biography.length > 600
 
+  // Filmografie nach Art aufteilen: Filme, Serien, TV-Auftritte ("Self").
+  const credits: Record<CreditKind, PersonCredit[]> = {
+    movie: person.credits.filter((c) => c.kind === 'movie'),
+    series: person.credits.filter((c) => c.kind === 'series'),
+    appearance: person.credits.filter((c) => c.kind === 'appearance'),
+  }
+  // Hat die Person keine Filme (reine TV-Person), aufs erste gefüllte Fach.
+  const werkEffektiv: CreditKind =
+    credits[werk].length > 0
+      ? werk
+      : (CREDIT_KINDS.find((art) => credits[art].length > 0) ?? 'movie')
+
   return (
     <div className="flex flex-col gap-8">
       <Card className="flex flex-col gap-6 sm:flex-row">
         <div className="aspect-2/3 w-36 shrink-0 self-start overflow-hidden rounded-xl border border-ink-700 bg-ink-900 sm:w-44">
-          {person.photo_url ? (
-            <img src={person.photo_url} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-3xl font-semibold text-mist-600">
-              {person.name.slice(0, 1)}
-            </span>
-          )}
+          <PersonPhoto url={person.photo_url} name={person.name} />
         </div>
 
         <div className="min-w-0 flex-1">
-          <h1 className="text-3xl font-bold tracking-tight">{person.name}</h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">{person.name}</h1>
+            <FavoritePersonButton
+              person={{
+                person_id: person.person_id,
+                name: person.name,
+                photo_url: person.photo_url,
+                department: person.known_for_department,
+              }}
+              markiert={personMarkiert.has(person.person_id)}
+              gross
+            />
+          </div>
           {person.known_for_department && (
             <p className="mt-1 text-sm text-mist-500">{person.known_for_department}</p>
           )}
@@ -194,9 +221,35 @@ export function PersonPage() {
 
       {person.credits.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-semibold">{t('detail.knownFor')}</h2>
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <h2 className="text-lg font-semibold">{t('detail.knownFor')}</h2>
+            {/* Nur die Fächer zeigen, zu denen es auch etwas gibt - ein leerer
+                Knopf verspricht sonst mehr, als da ist. */}
+            <div className="flex flex-wrap gap-2" role="group" aria-label={t('people.department')}>
+              {CREDIT_KINDS.filter((art) => credits[art].length > 0).map((art) => {
+                const aktiv = werkEffektiv === art
+                return (
+                  <button
+                    key={art}
+                    type="button"
+                    onClick={() => setWerk(art)}
+                    aria-pressed={aktiv}
+                    className={
+                      'rounded-full border px-3 py-1 text-xs font-semibold transition-colors ' +
+                      (aktiv
+                        ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
+                        : 'border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100')
+                    }
+                  >
+                    {t(`person.works.${art}`)}
+                    <span className="ml-1.5 tabular-nums opacity-70">{credits[art].length}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-            {person.credits.map((credit) => (
+            {credits[werkEffektiv].map((credit) => (
               <CreditCard
                 key={`${credit.media_type}-${credit.tmdb_id}`}
                 credit={credit}

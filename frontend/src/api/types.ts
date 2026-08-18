@@ -162,15 +162,40 @@ export type CrewMember = {
   job: string
 }
 
+/** Art eines Filmografie-Eintrags: Film, Serie oder TV-Auftritt ("Self"). */
+export type CreditKind = 'movie' | 'series' | 'appearance'
+
 export type PersonCredit = {
   media_type: MediaType
   tmdb_id: number
+  kind: CreditKind
   title: string
   character: string
   poster_url: string | null
   release_date: string | null
   vote_average: number
   status: MediaStatus
+}
+
+/** Ein Fach für die Personenseite. */
+export type PersonDepartment = 'acting' | 'directing' | 'writing'
+
+/** Eine mit dem Herz gemerkte Person. */
+export type FavoritePerson = {
+  person_id: number
+  name: string
+  photo_url: string | null
+  department: string
+  created_at: string
+}
+
+/** Eine Person in der Übersicht oder in Suchergebnissen. */
+export type PersonSummary = {
+  person_id: number
+  name: string
+  photo_url: string | null
+  department: string
+  known_for: string
 }
 
 export type PersonDetail = {
@@ -206,6 +231,21 @@ export type MediaItem = {
   status: MediaStatus
 }
 
+export type WatchProvider = {
+  id: number
+  name: string
+  logo_url: string | null
+}
+
+/** Wo ein Titel in der Region des Nutzers läuft. Quelle: JustWatch über TMDB. */
+export type WatchProviders = {
+  region: string
+  flatrate: WatchProvider[]
+  free: WatchProvider[]
+  rent: WatchProvider[]
+  buy: WatchProvider[]
+}
+
 /** Alles zu einem Titel - nur die Detailseite bekommt das. */
 export type MediaDetail = MediaItem & {
   tagline: string
@@ -218,6 +258,7 @@ export type MediaDetail = MediaItem & {
   studios: NamedRef[]
   keywords: NamedRef[]
   trailer: Trailer | null
+  watch: WatchProviders | null
   cast: CastMember[]
   crew: CrewMember[]
   recommendations: MediaItem[]

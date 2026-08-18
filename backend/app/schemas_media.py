@@ -64,6 +64,29 @@ class Trailer(BaseModel):
     language: str = ""
 
 
+class WatchProvider(BaseModel):
+    """Ein Streaming-Anbieter, bei dem der Titel laeuft - mit Logo."""
+
+    id: int
+    name: str
+    logo_url: str | None = None
+
+
+class WatchProviders(BaseModel):
+    """Wo ein Titel in der Region des Nutzers zu sehen ist.
+
+    Nach Art gruppiert: im Abo, kostenlos, leihen, kaufen. Die Daten stammen
+    von JustWatch (ueber TMDB) und verlangen eine Quellenangabe - die steht auf
+    der Detailseite und verweist auf justwatch.com.
+    """
+
+    region: str
+    flatrate: list[WatchProvider] = []
+    free: list[WatchProvider] = []
+    rent: list[WatchProvider] = []
+    buy: list[WatchProvider] = []
+
+
 class CastMember(BaseModel):
     """Ein Eintrag der Besetzung."""
 
@@ -86,12 +109,29 @@ class PersonCredit(BaseModel):
 
     media_type: MediaType
     tmdb_id: int
+    # "movie" / "series" / "appearance" - Letzteres sind Talkshow-, Interview-
+    # und Award-Auftritte ("Self"), damit die Oberflaeche danach filtern kann.
+    kind: str = "movie"
     title: str
     character: str = ""
     poster_url: str | None = None
     release_date: str | None = None
     vote_average: float = 0.0
     status: str = "not_requested"
+
+
+class PersonSummary(BaseModel):
+    """Eine Person in der Übersicht bzw. in Suchergebnissen.
+
+    ``department`` ist das Hauptfach laut TMDB (Acting/Directing/Writing …),
+    ``known_for`` nennt ein, zwei bekannte Titel als Wiedererkennung.
+    """
+
+    person_id: int
+    name: str
+    photo_url: str | None = None
+    department: str = ""
+    known_for: str = ""
 
 
 class PersonDetail(BaseModel):
@@ -160,6 +200,9 @@ class MediaDetail(MediaItem):
     studios: list[NamedRef] = []
     keywords: list[NamedRef] = []
     trailer: Trailer | None = None
+    # Wo der Titel in der Region des Nutzers streambar ist. None, wenn TMDB
+    # fuer diese Region nichts kennt.
+    watch: WatchProviders | None = None
 
     cast: list[CastMember] = []
     crew: list[CrewMember] = []

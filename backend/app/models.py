@@ -527,6 +527,39 @@ class Favorite(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
+class FavoritePerson(Base):
+    """Eine Person, die ein Benutzer mit dem Herz markiert hat.
+
+    Bewusst eine eigene Tabelle statt einer Erweiterung von ``Favorite``:
+    Personen haben keine Altersfreigabe und keinen Bibliothekszustand, und die
+    ganze Logik dort (Alterspruefung, Radarr/Sonarr-Abgleich) traefe auf sie
+    nicht zu. Getrennt bleibt beides klar.
+
+    Grundlage - wie bei den Titel-Favoriten - fuer die kuratierten
+    Empfehlungen: aus gemerkten Schauspielern kommen deren bekannteste Filme.
+    """
+
+    __tablename__ = "favorite_people"
+    __table_args__ = (
+        UniqueConstraint("user_id", "person_id", name="uq_favorite_person"),
+        Index("ix_favorite_people_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    person_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Nur zur Anzeige der eigenen Liste - erspart eine TMDB-Abfrage je Eintrag.
+    name: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    photo_url: Mapped[str | None] = mapped_column(String(500))
+    # Hauptfach laut TMDB (Acting/Directing/Writing) - fuer die Anzeige.
+    department: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
 class Blocked(Base):
     """Ein Titel, den der Administrator gesperrt hat.
 

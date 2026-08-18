@@ -12,6 +12,32 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.6.0 – 18.08.2026
+
+### New
+
+- **People section.** A new "People" entry in the main menu opens a page to
+  browse popular actors and search anyone by name, with "Load more" to page
+  through. Three buttons — Actors, Directing, Writing — filter the search by
+  craft, since TMDB has no "popular directors" list to browse (measured: 1 in
+  100). Clicking a person opens the existing page with their photo, bio and
+  full filmography.
+
+- **Favourite people.** People can be hearted like titles — on the People
+  page, in search results and on a person's page. "Favourites" now has two
+  sections, one for movies & shows and one for people. And the curated home
+  row now blends in the best films and shows of your hearted actors, alongside
+  the recommendations from your favourite titles.
+
+- **Where to stream.** Title pages now show which providers carry a title in
+  the viewer's own region — grouped into subscription, free, rent and buy,
+  with the provider logos. Each user sees their own region: a US account gets
+  the US list, a DE account the German one, from the same TMDB response. The
+  data was already being fetched from TMDB and simply not shown. As required,
+  it is attributed to JustWatch with a link to their overview.
+
+---
+
 ## 0.5.0 – 18.08.2026
 
 ### New

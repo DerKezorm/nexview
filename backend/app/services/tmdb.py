@@ -285,6 +285,23 @@ class TmdbClient:
             f"/person/{person_id}", {"append_to_response": "combined_credits"}
         )
 
+    async def search_person(self, query: str, page: int = 1) -> dict[str, Any]:
+        """Personen nach Namen suchen - Schauspieler, Regie, Drehbuch."""
+        return await self._get(
+            "/search/person",
+            {"query": query, "page": page, "include_adult": "false"},
+        )
+
+    async def popular_people(self, page: int = 1) -> dict[str, Any]:
+        """Die zurzeit gefragtesten Personen.
+
+        In der Praxis fast ausschliesslich Schauspieler - fuer Regie und
+        Drehbuch gibt es bei TMDB keine vergleichbare Liste. Deshalb dient das
+        nur der Uebersicht zum Stoebern; Regie und Drehbuch erreicht man ueber
+        die Suche.
+        """
+        return await self._get("/person/popular", {"page": page})
+
     async def season(self, tmdb_id: int, season_number: int) -> dict[str, Any]:
         """Eine einzelne Staffel mit ihren Folgen."""
         return await self._get(f"/tv/{tmdb_id}/season/{season_number}")

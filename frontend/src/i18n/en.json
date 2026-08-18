@@ -454,6 +454,7 @@
     "discoverSaved": "Saved.",
     "langRegion": "Language & region",
     "langRegionIntro": "Applies to you alone - every user sets this themselves.",
+    "themeHint": "Applies to you on every device – everyone in the household can set it differently.",
     "languageHint": "Applies to the interface as well as to titles and overviews. In German „Days of Thunder“ becomes „Tage des Donners“.",
     "ageRestricted": "This account is age-restricted ({{age}} years). Titles rated above that are hidden from you. Only the administrator can change this.",
     "mailTicket": "Tickets",
@@ -553,6 +554,11 @@
     "ticketNew": "New ticket",
     "ticketReply": "New reply on a ticket",
     "ticketStatus": "Ticket status changed"
+  },
+  "theme": {
+    "label": "Appearance",
+    "dark": "Dark",
+    "light": "Light"
   },
   "status": {
     "not_requested": "Not requested",

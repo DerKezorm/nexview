@@ -104,7 +104,7 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/80 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-scrim p-4 backdrop-blur-sm sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-label={item.title}
@@ -115,7 +115,7 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
       <div className="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-ink-700 bg-ink-850 shadow-2xl shadow-black/60">
         {item.backdrop_url && (
           <div className="relative h-40 sm:h-56">
-            <img src={item.backdrop_url} alt="" className="h-full w-full object-cover" />
+            <img src={item.backdrop_url} alt="" className="nv-backdrop h-full w-full object-cover" />
             <div className="absolute inset-0 bg-linear-to-t from-ink-850 via-ink-850/50 to-transparent" />
           </div>
         )}

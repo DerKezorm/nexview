@@ -42,7 +42,9 @@ export function Logo({ className = 'h-8 w-8', withWordmark = false }: LogoProps)
   return (
     <span className="flex items-center gap-2.5">
       {mark}
-      <span className="text-lg font-bold tracking-tight">
+      {/* Auf dem Telefon nur das Zeichen - der Schriftzug wuerde die
+          Kopfzeile mit Glocke, beiden Schaltern und Menue ueberfuellen. */}
+      <span className="hidden text-lg font-bold tracking-tight sm:inline">
         NEX<span className="text-accent-500">VIEW</span>
       </span>
     </span>

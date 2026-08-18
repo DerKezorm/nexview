@@ -12,6 +12,30 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.5.0 – 18.08.2026
+
+### New
+
+- **Light mode.** A moon/sun toggle in the header (also on the sign-in page)
+  switches the whole interface between dark and light. The choice belongs to
+  the account, not the browser: it is stored in the profile, so everyone in
+  the household has their own default and finds it again on every device. It
+  can also be set in the profile next to language and region. Not a single one
+  of the ~980 colour usages was touched — only the ~25 colour values behind the
+  `ink`/`mist`/`accent` roles are swapped, plus a darker red for text on white.
+  Backdrop images are dimmed rather than washed out in light mode.
+
+### Fixed
+
+- Three colour steps (`mist-200`, `mist-400`, `accent-300`) were used in ~20
+  places but never defined, so Tailwind emitted no rule and the text silently
+  inherited its parent's colour. Invisible in dark mode; it made a detail
+  page's tagline unreadable. Now defined in both palettes.
+- On phones the header wordmark now collapses to the logo mark alone, leaving
+  room for the extra toggle without crowding bell, language switch and menu.
+
+---
+
 ## 0.4.3 – 18.08.2026
 
 ### Neu

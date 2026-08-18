@@ -137,6 +137,13 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, db: DbSession) -> User:
                 detail="Sprache muss 'de' oder 'en' sein.",
             )
         user.language = payload.language
+    if payload.theme is not None:
+        if payload.theme not in {"dark", "light"}:
+            raise HTTPException(
+                status_code=422,
+                detail="Darstellung muss 'dark' oder 'light' sein.",
+            )
+        user.theme = payload.theme
 
     for schalter in (
         "mail_download_complete",

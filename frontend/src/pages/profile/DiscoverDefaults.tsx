@@ -10,6 +10,8 @@ import { Button, Card } from '../../components/ui'
 import { useConfig } from '../../hooks/useConfig'
 import { changeLanguage as spracheAnwenden, SUPPORTED_LANGUAGES } from '../../i18n'
 import type { Language } from '../../i18n'
+import { istTheme, themeAnwenden } from '../../lib/theme'
+import type { Theme } from '../../lib/theme'
 
 /**
  * Sprache und Region des Benutzers.
@@ -40,6 +42,7 @@ export function DiscoverDefaults() {
 
   const [region, setRegion] = useState('')
   const [sprache, setSprache] = useState<Language>(i18n.language as Language)
+  const [darstellung, setDarstellung] = useState<Theme>('dark')
   const [gespeichert, setGespeichert] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
 
@@ -51,11 +54,16 @@ export function DiscoverDefaults() {
     vorbelegt.current = true
     setRegion(user.discover_region ?? '')
     setSprache((user.language as Language) ?? (i18n.language as Language))
+    setDarstellung(istTheme(user.theme) ? user.theme : 'dark')
   }, [user, i18n.language])
 
   const speichern = useMutation({
     mutationFn: () =>
-      api.patch<User>('/api/auth/me', { discover_region: region, language: sprache }),
+      api.patch<User>('/api/auth/me', {
+        discover_region: region,
+        language: sprache,
+        theme: darstellung,
+      }),
     onMutate: () => {
       setGespeichert(false)
       setFehler(null)
@@ -67,6 +75,7 @@ export function DiscoverDefaults() {
       // gespeichert wird. Sonst spränge die Oberfläche schon beim Aufklappen
       // der Liste um, und der Knopf daneben wäre sinnlos.
       spracheAnwenden(aktualisiert.language as Language)
+      if (istTheme(aktualisiert.theme)) themeAnwenden(aktualisiert.theme)
       setGespeichert(true)
     },
     onError: (caught) =>
@@ -76,7 +85,10 @@ export function DiscoverDefaults() {
   if (!user) return null
 
   const vorgabe = config?.default_region ?? 'DE'
-  const geaendert = region !== (user.discover_region ?? '') || sprache !== user.language
+  const geaendert =
+    region !== (user.discover_region ?? '') ||
+    sprache !== user.language ||
+    darstellung !== user.theme
 
   return (
     <Card className="flex flex-col gap-4">
@@ -112,6 +124,27 @@ export function DiscoverDefaults() {
           ))}
         </select>
         <span className="text-xs leading-relaxed text-mist-600">{t('profile.languageHint')}</span>
+      </label>
+
+      {/* Dieselbe Wahl wie der Schalter oben in der Kopfzeile. Dort wirkt
+          sie sofort, hier erst mit dem Speichern-Knopf - wie Sprache und
+          Region auch. Gespeichert wird sie am Konto, nicht am Browser:
+          jeder im Haushalt hat so seine eigene Voreinstellung. */}
+      <label className="flex max-w-xs flex-col gap-1.5">
+        <span className="text-sm font-medium text-mist-300">{t('theme.label')}</span>
+        <select
+          value={darstellung}
+          onChange={(event) => {
+            setDarstellung(event.target.value as Theme)
+            setGespeichert(false)
+          }}
+          disabled={speichern.isPending}
+          className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none disabled:opacity-50"
+        >
+          <option value="dark">{t('theme.dark')}</option>
+          <option value="light">{t('theme.light')}</option>
+        </select>
+        <span className="text-xs leading-relaxed text-mist-600">{t('profile.themeHint')}</span>
       </label>
 
       <label className="flex max-w-xs flex-col gap-1.5">

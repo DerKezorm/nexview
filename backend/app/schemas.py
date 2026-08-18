@@ -90,6 +90,7 @@ class UserPublic(BaseModel):
     email: str | None
     email_verified: bool
     language: str
+    theme: str
     is_active: bool
     auto_approve: bool
     # Was tatsaechlich gilt - bei Administratoren immer true.
@@ -208,6 +209,7 @@ class ProfileUpdate(BaseModel):
 
     display_name: str | None = None
     language: str | None = None
+    theme: str | None = None
 
     # Benachrichtigungen per Mail - jede einzeln.
     mail_download_complete: bool | None = None

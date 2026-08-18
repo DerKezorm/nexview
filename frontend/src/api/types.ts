@@ -7,6 +7,8 @@ export type User = {
   role: Role
   display_name: string | null
   language: string
+  /** 'dark' oder 'light' - siehe lib/theme.ts. */
+  theme: string
   is_active: boolean
   auto_approve: boolean
   /** Was tatsächlich gilt – bei Administratoren immer true. */

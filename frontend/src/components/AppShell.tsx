@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { AboutInfo } from '../api/types'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { ThemeSwitcher } from './ThemeSwitcher'
 import { LoadingBar } from './LoadingBar'
 import { Logo } from './Logo'
 import { NotificationBell } from './NotificationBell'
@@ -101,6 +102,7 @@ export function AppShell() {
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <NotificationBell />
+            <ThemeSwitcher />
             <LanguageSwitcher />
             <UserMenu />
           </div>

@@ -204,7 +204,7 @@ export function TitlePage() {
       <div className="relative -mx-4 -mt-8 sm:-mx-6">
         {item.backdrop_url && (
           <div className="absolute inset-0 h-72 overflow-hidden sm:h-96">
-            <img src={item.backdrop_url} alt="" className="h-full w-full object-cover" />
+            <img src={item.backdrop_url} alt="" className="nv-backdrop h-full w-full object-cover" />
             <div className="absolute inset-0 bg-linear-to-t from-ink-950 via-ink-950/70 to-ink-950/30" />
           </div>
         )}

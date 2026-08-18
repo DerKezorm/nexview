@@ -9,6 +9,7 @@ import { ApiError, api } from '../api/client'
 import { useAuth } from '../auth/useAuth'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
+import { ThemeSwitcher } from '../components/ThemeSwitcher'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
 
 export function LoginPage() {
@@ -65,7 +66,12 @@ export function LoginPage() {
       <div className="relative z-10 w-full max-w-sm">
         <div className="mb-6 flex items-center justify-between">
           <Logo withWordmark />
-          <LanguageSwitcher />
+          {/* Hell/Dunkel schon vor dem Anmelden - wer es zu dunkel findet,
+              soll nicht erst hineinkommen muessen, um das zu aendern. */}
+          <div className="flex items-center gap-2">
+            <ThemeSwitcher />
+            <LanguageSwitcher />
+          </div>
         </div>
 
         {pending ? (

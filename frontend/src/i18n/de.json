@@ -454,6 +454,7 @@
     "discoverSaved": "Gespeichert.",
     "langRegion": "Sprache & Region",
     "langRegionIntro": "Gilt fuer dich allein - jeder Benutzer stellt das selbst ein.",
+    "themeHint": "Gilt für dich auf jedem Gerät – jeder im Haushalt kann es anders einstellen.",
     "languageHint": "Gilt fuer die Oberflaeche und fuer Titel und Handlungen. Auf Englisch heisst „Tage des Donners“ dann „Days of Thunder“.",
     "ageRestricted": "Für dieses Konto gilt eine Altersbeschränkung ({{age}} Jahre). Titel mit höherer Freigabe werden dir nicht angezeigt. Ändern kann das nur der Administrator.",
     "mailTicket": "Tickets",
@@ -553,6 +554,11 @@
     "ticketNew": "Neues Ticket",
     "ticketReply": "Neue Antwort auf ein Ticket",
     "ticketStatus": "Zustand eines Tickets geändert"
+  },
+  "theme": {
+    "label": "Darstellung",
+    "dark": "Dunkel",
+    "light": "Hell"
   },
   "status": {
     "not_requested": "Nicht angefragt",

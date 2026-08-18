@@ -110,7 +110,7 @@ function Spotlight({
             <img
               src={item.backdrop_url}
               alt=""
-              className="h-full w-full object-cover transition-transform duration-[1.2s] group-hover:scale-[1.04]"
+              className="nv-backdrop h-full w-full object-cover transition-transform duration-[1.2s] group-hover:scale-[1.04]"
             />
           ) : (
             <div className="h-full w-full bg-ink-850" />

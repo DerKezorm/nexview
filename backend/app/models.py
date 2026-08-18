@@ -110,6 +110,9 @@ class User(Base):
     role: Mapped[Role] = mapped_column(enum_column(Role), default=Role.user, nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(120))
     language: Mapped[str] = mapped_column(String(5), default="de", nullable=False)
+    # Helle oder dunkle Darstellung. Gehoert zum Konto, nicht zum Browser:
+    # so findet jeder seine Einstellung auf jedem Geraet wieder.
+    theme: Mapped[str] = mapped_column(String(5), default="dark", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Freigabe- und Kontingent-Regeln (vom Admin pro Benutzer einstellbar)

@@ -9,6 +9,7 @@ import type { TokenPair } from '../api/client'
 import type { SetupStatus, User } from '../api/types'
 import { changeLanguage } from '../i18n'
 import type { Language } from '../i18n'
+import { istTheme, themeAnwenden } from '../lib/theme'
 import { AuthContext } from './context'
 import type { AuthState, SetupPayload } from './context'
 
@@ -23,6 +24,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (loaded.language === 'de' || loaded.language === 'en') {
       changeLanguage(loaded.language as Language)
     }
+    // Die Darstellung haengt am Konto: wer sich an einem anderen Geraet
+    // anmeldet, findet seine Einstellung wieder. Der Browser merkt sie sich
+    // nur zusaetzlich, damit beim Laden nichts aufblitzt (siehe index.html).
+    themeAnwenden(istTheme(loaded.theme) ? loaded.theme : 'dark')
   }, [])
 
   /**

@@ -74,6 +74,27 @@ def test_eigenes_profil_aendern(admin_client: TestClient) -> None:
     assert response.json()["display_name"] == "Chef"
 
 
+def test_darstellung_standard_ist_dunkel(admin_client: TestClient) -> None:
+    """Ohne eigene Wahl bleibt es dunkel - das war Nexview schon immer."""
+    assert admin_client.get("/api/auth/me").json()["theme"] == "dark"
+
+
+def test_darstellung_wird_am_konto_gespeichert(admin_client: TestClient) -> None:
+    """Die Wahl gehoert zum Konto, nicht zum Browser - sonst haette nicht jeder
+    seine eigene Voreinstellung."""
+    response = admin_client.patch("/api/auth/me", json={"theme": "light"})
+    assert response.status_code == 200
+    assert response.json()["theme"] == "light"
+    # Und sie ueberdauert - beim naechsten Abruf steht sie noch da.
+    assert admin_client.get("/api/auth/me").json()["theme"] == "light"
+
+
+def test_unsinnige_darstellung_wird_abgelehnt(admin_client: TestClient) -> None:
+    response = admin_client.patch("/api/auth/me", json={"theme": "lila"})
+    assert response.status_code == 422
+    assert admin_client.get("/api/auth/me").json()["theme"] == "dark"
+
+
 def test_eigenes_passwort_aendern(admin_client: TestClient) -> None:
     response = admin_client.post(
         "/api/auth/me/password",

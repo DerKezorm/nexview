@@ -732,7 +732,7 @@
     "backToList": "Back to the list",
     "notFound": "This ticket does not exist — or it belongs to someone else.",
     "closedHint": "This ticket is closed. If you write again, it reopens.",
-    "closedHintAdmin": "This ticket is closed. Your reply will not reopen it — the user's will.",
+    "closedHintAdmin": "This ticket is closed. You can still add a note — the user can no longer reply.",
     "report": "Report a problem",
     "closedNoReply": "This ticket is closed. Please open a new one for anything further.",
     "select": "Select “{{subject}}”",
@@ -746,8 +746,8 @@
     "deleteWarning": "The whole conversation goes with it — for the user too. This cannot be undone.",
     "deleteAction": "Delete for good",
     "recipient": "Recipient",
-    "recipientSelf": "Your own request (to yourself)",
-    "recipientHint": "Pick a user to write to them. They will find the ticket among their own and can reply.",
-    "withUser": "with {{name}}"
+    "recipientHint": "Who is this ticket for? They will find it among their own and can reply.",
+    "withUser": "with {{name}}",
+    "recipientNone": "Please choose …"
   }
 }

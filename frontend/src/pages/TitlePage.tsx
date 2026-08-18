@@ -243,19 +243,24 @@ export function TitlePage() {
                 {/* Etwas stimmt nicht mit diesem Titel? Führt ins
                     Ticketcenter, mit vorbelegtem Bezug - so muss niemand den
                     Namen abtippen und der Administrator weiß sofort, worum es
-                    geht. */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() =>
-                    navigate(
-                      `/tickets?media_type=${item.media_type}&tmdb_id=${item.tmdb_id}` +
-                        `&title=${encodeURIComponent(item.title)}`,
-                    )
-                  }
-                >
-                  {t('tickets.report')}
-                </Button>
+                    geht.
+
+                    Für den Administrator selbst ausgeblendet: er ist ja der,
+                    bei dem man sich meldet. */}
+                {!istAdmin && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() =>
+                      navigate(
+                        `/tickets?media_type=${item.media_type}&tmdb_id=${item.tmdb_id}` +
+                          `&title=${encodeURIComponent(item.title)}`,
+                      )
+                    }
+                  >
+                    {t('tickets.report')}
+                  </Button>
+                )}
 
                 {kannAnfragen ? (
                   adding ? (

@@ -184,6 +184,58 @@ def test_angeschriebener_benutzer_wird_benachrichtigt(
         assert meldungen[0].type == NotificationType.ticket_new
 
 
+def test_zwei_administratoren_koennen_sich_gegenseitig_schreiben(
+    client: TestClient, admin_client: TestClient
+) -> None:
+    """Haelt die Logik auch, wenn beide Seiten Administrator sind?
+
+    Sie haelt, weil sie nirgends "ist Admin" gegen "ist Benutzer" stellt,
+    sondern immer nur "gehoert mir" gegen "gehoert einem anderen". Der Zweite
+    ist Eigentuemer des Tickets - unabhaengig von seiner Rolle.
+    """
+    zweiter = create_user(admin_client, "admin2", role=Role.admin)
+    headers = _als(client, "admin2")
+
+    ticket = _anlegen(
+        admin_client, subject="Unter uns", body="Kurze Absprache.", user_id=zweiter["id"]
+    ).json()
+    assert ticket["user_id"] == zweiter["id"]
+    assert ticket["opened_by_name"] == "admin"
+
+    # Beide sehen es - der eine als Eigentuemer, der andere als Administrator.
+    assert ticket["id"] in [t["id"] for t in admin_client.get("/api/tickets").json()]
+    assert ticket["id"] in [
+        t["id"] for t in client.get("/api/tickets", headers=headers).json()
+    ]
+
+    # Der Angeschriebene wurde benachrichtigt, der Absender nicht.
+    with SessionLocal() as session:
+        empfaenger = [
+            m.user_id
+            for m in session.query(Notification)
+            .filter(Notification.type == NotificationType.ticket_new)
+            .all()
+        ]
+        assert empfaenger == [zweiter["id"]]
+
+    # Antwort des Zweiten geht an die uebrigen Administratoren zurueck.
+    client.post(
+        f"/api/tickets/{ticket['id']}/messages", json={"body": "Passt."}, headers=headers
+    )
+    with SessionLocal() as session:
+        erster = session.query(User).filter(User.username == "admin").one()
+        antworten = (
+            session.query(Notification)
+            .filter(Notification.type == NotificationType.ticket_reply)
+            .all()
+        )
+        assert [m.user_id for m in antworten] == [erster.id]
+
+    # Und "von drueben" stimmt aus Sicht des Eigentuemers.
+    verlauf = admin_client.get(f"/api/tickets/{ticket['id']}").json()
+    assert [m["from_staff"] for m in verlauf["messages"]] == [True, False]
+
+
 def test_benutzer_darf_niemanden_anschreiben(client: TestClient, admin_client: TestClient) -> None:
     """Sonst koennte jeder jedem schreiben - und die Sichtbarkeitsregel waere
     nur noch eine Empfehlung."""

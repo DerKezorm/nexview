@@ -732,7 +732,7 @@
     "backToList": "Zurück zur Übersicht",
     "notFound": "Dieses Ticket gibt es nicht — oder es gehört jemand anderem.",
     "closedHint": "Dieses Ticket ist geschlossen. Schreibst du noch einmal, wird es wieder geöffnet.",
-    "closedHintAdmin": "Dieses Ticket ist geschlossen. Deine Antwort öffnet es nicht wieder — die des Benutzers schon.",
+    "closedHintAdmin": "Dieses Ticket ist geschlossen. Du kannst noch einen Nachtrag hinterlassen — der Benutzer kann nicht mehr antworten.",
     "report": "Problem melden",
     "closedNoReply": "Dieses Ticket ist geschlossen. Für ein neues Anliegen eröffne bitte ein neues Ticket.",
     "select": "„{{subject}}“ auswählen",
@@ -746,8 +746,8 @@
     "deleteWarning": "Der gesamte Verlauf verschwindet mit — auch für den Benutzer. Das lässt sich nicht rückgängig machen.",
     "deleteAction": "Endgültig löschen",
     "recipient": "Empfänger",
-    "recipientSelf": "Eigenes Anliegen (an dich selbst)",
-    "recipientHint": "Wähle einen Benutzer, um ihn anzuschreiben. Er sieht das Ticket unter seinen eigenen und kann antworten.",
-    "withUser": "mit {{name}}"
+    "recipientHint": "An wen geht das Ticket? Der Empfänger sieht es unter seinen eigenen und kann antworten.",
+    "withUser": "mit {{name}}",
+    "recipientNone": "Bitte wählen …"
   }
 }

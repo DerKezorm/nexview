@@ -12,6 +12,20 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.4.2 – 18.08.2026
+
+### Behoben
+
+- Am geschlossenen Ticket stand beim Administrator noch der Satz, die
+  Antwort des Benutzers öffne es wieder — das galt seit der Regeländerung
+  nicht mehr.
+- Der Administrator konnte ein Ticket an sich selbst schreiben. Der
+  Empfänger ist jetzt Pflicht.
+- *Problem melden* erschien auch beim Administrator, obwohl er derjenige
+  ist, bei dem man sich meldet. Für ihn ausgeblendet.
+
+---
+
 ## 0.4.1 – 18.08.2026
 
 ### Neu

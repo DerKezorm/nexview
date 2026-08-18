@@ -113,7 +113,10 @@ export function TicketsPage() {
       jetzt.includes(id) ? jetzt.filter((eintrag) => eintrag !== id) : [...jetzt, id],
     )
   }
-  const kannAbschicken = betreff.trim().length > 0 && text.trim().length > 0
+  // Für den Administrator ist der Empfänger Pflicht - er schreibt immer
+  // jemanden an, nie sich selbst.
+  const kannAbschicken =
+    betreff.trim().length > 0 && text.trim().length > 0 && (!istAdmin || empfaenger !== '')
 
   function absenden(event: FormEvent) {
     event.preventDefault()
@@ -158,7 +161,10 @@ export function TicketsPage() {
                   onChange={(event) => setEmpfaenger(event.target.value)}
                   className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
                 >
-                  <option value="">{t('tickets.recipientSelf')}</option>
+                  {/* Kein "an mich selbst": ein Ticket an sich zu schreiben
+                      ergibt keinen Sinn. Der Administrator muss jemanden
+                      wählen. */}
+                  <option value="">{t('tickets.recipientNone')}</option>
                   {(benutzer.data ?? [])
                     .filter((eintrag) => eintrag.id !== user?.id && eintrag.is_active)
                     .map((eintrag) => (

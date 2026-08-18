@@ -1,0 +1,8 @@
+/* Die Farbwelt von Nexview, unveraendert aus der Anwendung uebernommen. */
+@import '../../../src/styles/index.css';
+
+/* Tailwind 4 muss wissen, wo die Klassen stehen, die es erzeugen soll. Die
+   Komponenten liegen ausserhalb dieses Pakets - ohne diese Zeilen bliebe das
+   Stylesheet praktisch leer. */
+@source '../../../src/components';
+@source './NexviewProvider.tsx';

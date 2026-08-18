@@ -1,0 +1,28 @@
+{
+  "projectId": "c03da0f0-33ba-4836-934f-6e0dce6c4a58",
+  "shape": "package",
+  "pkg": "nexview-ui",
+  "globalName": "NexviewUI",
+  "buildCmd": "cd frontend && npx vite build --config packages/nexview-ui/vite.config.ts && cd packages/nexview-ui && npx tsc -p tsconfig.build.json",
+  "cssEntry": "dist/nexview-ui.css",
+  "componentSrcMap": {
+    "LANGUAGE": null,
+    "REGION": null,
+    "RATING": null,
+    "NexviewProvider": null
+  },
+  "provider": {
+    "component": "NexviewProvider"
+  },
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "TrailerModal": {
+      "cardMode": "single",
+      "viewport": "900x560"
+    },
+    "ConfirmDialog": {
+      "cardMode": "single",
+      "viewport": "820x460"
+    }
+  }
+}

@@ -47,7 +47,7 @@ export function MediaCard({ item, onQuickAdd, ratings, favorit = false }: MediaC
 
           {/* Oben teilen sich nur zwei Dinge die Zeile. Vorher drängte sich
               der Wagen dazwischen, und "Nicht angefragt" brach um. */}
-          <div className="absolute inset-x-2 top-2 flex items-start justify-between gap-2">
+          <div className="absolute inset-x-2 top-2 flex flex-wrap items-start justify-between gap-1.5">
             <StatusBadge status={item.status} />
             <RatingBadge vote={item.vote_average} count={item.vote_count} />
           </div>

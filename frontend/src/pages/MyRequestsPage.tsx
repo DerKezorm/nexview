@@ -10,6 +10,7 @@ import { StarRating } from '../components/StarRating'
 import { StatusBadge } from '../components/media/StatusBadge'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
 import { formatDate } from '../lib/format'
+import { anfragenStandNeuLaden } from '../lib/refresh'
 
 function QuotaCard({ label, quota }: { label: string; quota: QuotaInfo }) {
   const { t, i18n } = useTranslation()
@@ -157,9 +158,7 @@ export function MyRequestsPage() {
   })
 
   function refresh() {
-    void queryClient.invalidateQueries({ queryKey: ['my-requests'] })
-    void queryClient.invalidateQueries({ queryKey: ['quota'] })
-    void queryClient.invalidateQueries({ queryKey: ['discover'] })
+    anfragenStandNeuLaden(queryClient)
   }
 
   const withdrawMutation = useMutation({
@@ -194,7 +193,7 @@ export function MyRequestsPage() {
       {quotaQuery.data && (
         <section>
           <h2 className="mb-2 text-sm font-semibold text-mist-300">{t('myRequests.quota')}</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <QuotaCard label={t('common.movies')} quota={quotaQuery.data.movie} />
             <QuotaCard label={t('common.series')} quota={quotaQuery.data.tv} />
           </div>
@@ -261,9 +260,15 @@ export function MyRequestsPage() {
               key={request.id}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-700 bg-ink-900/50 p-3"
             >
-              <div className="min-w-0 flex-1">
-                <p className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-semibold">{request.title}</span>
+              {/* Auf dem Telefon nimmt der Titel die ganze Zeile ein, Etikett
+                  und Knopf rutschen darunter. Ohne das w-full teilen sich alle
+                  drei eine Zeile: flex-1 hat die Grundbreite 0, wehrt sich also
+                  nicht gegen das Schrumpfen - der Titel schnurrt dann auf "P."
+                  zusammen, waehrend Etikett und Knopf ihre volle Breite
+                  behalten. Lieber umbrechen als kuerzen. */}
+              <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+                <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="min-w-0 font-semibold break-words">{request.title}</span>
                   {request.season !== null && (
                     <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
                       {t('request.seasonShort', { number: request.season })}

@@ -12,6 +12,7 @@ import { StarRating } from '../components/StarRating'
 import { StatusBadge } from '../components/media/StatusBadge'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
 import { formatDate } from '../lib/format'
+import { anfragenStandNeuLaden } from '../lib/refresh'
 
 type Filter = 'pending_approval' | 'all' | 'feedback' | MediaStatus
 
@@ -166,9 +167,9 @@ export function AdminRequestsPage() {
   })
 
   function refresh() {
+    anfragenStandNeuLaden(queryClient)
     void queryClient.invalidateQueries({ queryKey: ['admin-requests'] })
     void queryClient.invalidateQueries({ queryKey: ['pending-count'] })
-    void queryClient.invalidateQueries({ queryKey: ['discover'] })
     void queryClient.invalidateQueries({ queryKey: ['notifications'] })
   }
 
@@ -323,9 +324,11 @@ export function AdminRequestsPage() {
             {gruppe.requests.map((request) => (
               <div key={request.id} className="rounded-xl border border-ink-700 bg-ink-900/50 p-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-semibold">{request.title}</span>
+                  {/* Siehe MyRequestsPage: auf dem Telefon eigene Zeile fuer
+                      den Titel, damit er nicht auf ein Zeichen schrumpft. */}
+                  <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+                    <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="min-w-0 font-semibold break-words">{request.title}</span>
                       {request.season !== null && (
                         <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
                           {t('request.seasonShort', { number: request.season })}

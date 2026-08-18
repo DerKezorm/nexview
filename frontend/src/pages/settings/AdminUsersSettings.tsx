@@ -356,7 +356,7 @@ export function AdminUsersSettings() {
           </p>
         )}
 
-        <form onSubmit={handleInvite} className="mt-4 grid gap-4 sm:grid-cols-2">
+        <form onSubmit={handleInvite} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
             label={t('adminUsers.email')}
             type="email"
@@ -525,7 +525,7 @@ export function AdminUsersSettings() {
                     </label>
                   </div>
 
-                  <div className="grid gap-3 border-t border-ink-700 pt-4 sm:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-3 border-t border-ink-700 pt-4 sm:grid-cols-4">
                     {/* Wer selbst freigeben darf, gibt sich nicht erst selbst frei -
                     der Haken hat für ihn keine Wirkung und ist deshalb gesperrt. */}
                     <label
@@ -679,7 +679,7 @@ export function AdminUsersSettings() {
                     </label>
 
                     {user.age !== null && (
-                      <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
                         <label className="flex flex-col gap-1.5">
                           <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
                             {t('adminUsers.age')}

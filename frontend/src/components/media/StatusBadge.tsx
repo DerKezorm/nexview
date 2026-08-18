@@ -29,8 +29,8 @@ export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
   return (
     <span
       className={
-        'inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ' +
-        'ring-1 backdrop-blur-sm ' +
+        'inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] ' +
+        'font-semibold whitespace-nowrap ring-1 backdrop-blur-sm ' +
         TONES[status] +
         ' ' +
         className

@@ -328,7 +328,7 @@ export function AdminServicesSettings() {
         </Section>
 
         <Section title={t('settings.generalSection')}>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-mist-300">{t('settings.region')}</span>
               <select

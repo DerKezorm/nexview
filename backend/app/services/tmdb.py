@@ -255,14 +255,29 @@ class TmdbClient:
             },
         )
 
-    async def recommendations(self, media_type: str, tmdb_id: int) -> dict[str, Any]:
+    async def recommendations(
+        self, media_type: str, tmdb_id: int, page: int = 1
+    ) -> dict[str, Any]:
         """Was TMDB Leuten empfiehlt, denen dieser Titel gefaellt.
 
         Eigene, schlanke Abfrage - die ausfuehrliche Detailabfrage haette die
         Empfehlungen zwar auch dabei, braeuchte aber Besetzung, Schlagworte und
         Videos gleich mit.
         """
-        return await self._get(f"/{media_type}/{tmdb_id}/recommendations")
+        return await self._get(
+            f"/{media_type}/{tmdb_id}/recommendations", {"page": page}
+        )
+
+    async def similar(self, media_type: str, tmdb_id: int, page: int = 1) -> dict[str, Any]:
+        """Titel mit denselben Schlagworten und Genres.
+
+        Eine andere Liste als ``recommendations``: die beruht auf dem
+        Verhalten anderer Leute, diese auf den Eigenschaften des Titels.
+        Gebraucht wird sie fuer "Neue Auswahl" - viele Titel haben nur eine
+        Handvoll Empfehlungen, und ohne zweite Quelle waere nach einem
+        Druck auf den Knopf Schluss.
+        """
+        return await self._get(f"/{media_type}/{tmdb_id}/similar", {"page": page})
 
     async def person(self, person_id: int) -> dict[str, Any]:
         """Eine Person samt ihrer Filme und Serien."""

@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from ..deps import CurrentUser, DbSession
 from ..models import MediaType
-from ..schemas_media import MediaDetail, MediaPage, PersonDetail, SeasonDetail
+from ..schemas_media import MediaDetail, MediaItem, MediaPage, PersonDetail, SeasonDetail
 from ..services import blocklist, library, media, ratings, requests_service
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
@@ -87,6 +87,50 @@ async def title_detail(
             staffel.episodes_available = len(vorhanden.get(staffel.season_number, ()))
 
     return detail
+
+
+class Auswahl(BaseModel):
+    """Eine Runde Vorschlaege - und wie viele es insgesamt gibt."""
+
+    items: list[MediaItem]
+    runde: int
+    # Steht sie auf 1, gibt es nichts zu wechseln: die Oberflaeche blendet den
+    # Knopf dann aus, statt einen anzubieten, der nichts tut.
+    runden: int
+
+
+@router.get("/detail/{media_type}/{tmdb_id}/recommendations", response_model=Auswahl)
+async def recommendations(
+    media_type: MediaTypePath,
+    tmdb_id: Annotated[int, Path(ge=1)],
+    user: CurrentUser,
+    db: DbSession,
+    runde: Annotated[int, Query(ge=0)] = 0,
+) -> Auswahl:
+    """Eine andere Auswahl passender Titel - fuer "Neue Auswahl".
+
+    Der Vorrat steht fest und ist immer gleich sortiert; ``runde`` schneidet
+    nur ein anderes Stueck heraus. Ist er durch, geht es wieder von vorn los -
+    ein Knopf, der irgendwann nichts mehr tut, waere aergerlicher als eine
+    Wiederholung.
+    """
+    settings = for_user(load_settings(db), user)
+
+    try:
+        vorrat = await media.empfehlungs_vorrat(db, settings, media_type, tmdb_id)
+    except TmdbError as error:
+        raise _fehler(error) from error
+
+    if not vorrat:
+        return Auswahl(items=[], runde=0, runden=0)
+
+    groesse = media.MAX_RECOMMENDATIONS
+    runden = -(-len(vorrat) // groesse)  # aufrunden
+    aktuell = runde % runden
+    ausschnitt = vorrat[aktuell * groesse : (aktuell + 1) * groesse]
+
+    await _mit_status(db, settings, media_type, ausschnitt)
+    return Auswahl(items=ausschnitt, runde=aktuell, runden=runden)
 
 
 @router.get("/detail/tv/{tmdb_id}/season/{season_number}", response_model=SeasonDetail)

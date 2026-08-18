@@ -12,6 +12,50 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.4.3 – 18.08.2026
+
+### Neu
+
+- **„Andere zeigen" bei den Vorschlägen.** Ist unter *Das könnte dir auch
+  gefallen* nichts dabei, holt ein Knopf die nächsten zwölf Titel. Der Vorrat
+  kommt aus zwei TMDB-Listen: den Empfehlungen (was Leuten gefiel, denen
+  dieser Titel gefiel) und den ähnlichen Titeln (gleiche Genres und
+  Schlagworte). Gemessen an echten Daten ergibt das vier bis sieben Runden
+  je Titel — auch bei völlig unbekannten Filmen, wo TMDB nur eine Handvoll
+  Empfehlungen kennt. Ist der Vorrat durch, geht es wieder von vorn los.
+
+### Behoben
+
+- **Die Ansicht auf dem Telefon durchgesehen** (360/390/430 px, alle 20
+  Ansichten). Gekürzt wurde bisher an Stellen, an denen umbrechen richtig
+  gewesen wäre:
+  - In *Meine Anfragen* und *Alle Anfragen* schrumpfte der Titel auf ein
+    Zeichen („S."), weil Zustand und Knopf dieselbe Zeile beanspruchten.
+    Auf schmalen Bildschirmen steht der Titel jetzt allein in der ersten
+    Zeile, Etikett und Knopf darunter.
+  - Fünfzehn Raster hatten keine ausdrückliche Grundspalte. Die
+    stillschweigende Spur ist so breit wie ihr breitester Inhalt, nicht wie
+    der Bildschirm — die Startseite ließ sich dadurch seitlich schieben.
+  - Kacheltitel auf der Startseite, in der Listenansicht und unter *Mag ich*
+    laufen jetzt über zwei Zeilen, statt nach der Hälfte abzubrechen.
+  - Das Zustands-Etikett auf dem Poster wird nicht mehr zusammengedrückt.
+    Passt es nicht neben die Bewertung, rutscht die Bewertung eine Zeile
+    tiefer — vorher brach „Bereits geladen" mitten über das Bild um.
+  - Fehlt ein Poster, stand der Titel als Ersatz im Kasten — aber so breit
+    wie sein längstes Wort, also links und rechts abgeschnitten. Jetzt bricht
+    er um.
+- Zwei fehlende Übersetzungen: der Zustand *Freigegeben* (`status.approved`)
+  zwischen Freigabe und Übergabe an Radarr/Sonarr, und der Hinweis unter der
+  öffentlichen Adresse im Einrichtungsassistenten.
+- Nach dem Abschicken einer Anfrage stand auf der Titelseite weiterhin
+  *Zu Radarr hinzufügen*, obwohl die Anfrage längst lief. Dasselbe galt für
+  Filmografien, Kategorielisten und die Startseite: neu geladen wurden bisher
+  nur die Kachellisten. Welche Ansichten den Zustand einer Anfrage zeigen,
+  steht jetzt an einer einzigen Stelle (`lib/refresh.ts`) — und dort wird
+  nach jeder Änderung alles davon aufgefrischt.
+
+---
+
 ## 0.4.2 – 18.08.2026
 
 ### Behoben

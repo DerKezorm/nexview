@@ -34,14 +34,18 @@ function Zeile({ eintrag }: { eintrag: Favorite }) {
             <img src={eintrag.poster_url} alt="" loading="lazy" className="h-full w-full object-cover" />
           ) : (
             <span className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-mist-600">
-              {eintrag.title}
+              <span className="w-full break-words">{eintrag.title}</span>
             </span>
           )}
         </div>
 
         <div className="min-w-0">
-          <p className="truncate font-semibold">{eintrag.title || `#${eintrag.tmdb_id}`}</p>
-          <p className="truncate text-xs text-mist-600">
+          {/* line-clamp statt truncate: zwei Zeilen Titel sind lesbar,
+              eine abgeschnittene Silbe nicht. */}
+          <p className="line-clamp-2 font-semibold break-words">
+            {eintrag.title || `#${eintrag.tmdb_id}`}
+          </p>
+          <p className="text-xs text-mist-600">
             {t(eintrag.media_type === 'movie' ? 'common.movies' : 'common.series')}
             {` · ${t('favorites.since', {
               date: formatDate(eintrag.created_at.slice(0, 10), i18n.language),

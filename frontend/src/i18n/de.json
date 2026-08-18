@@ -83,6 +83,7 @@
     "verifyImpossible": "Deine E-Mail-Adresse ist noch nicht bestätigt. Dafür fehlt der Mailserver – trag ihn unter Einstellungen → E-Mail nach und stoß die Bestätigung dann in deinem Profil an.",
     "addressRequired": "Erst nach einem erfolgreichen Test geht es weiter. Ohne gültige Adresse führen die Links in den Mails ins Leere – und du kommst nach dem Assistenten nicht mehr hinein.",
     "addressReady": "Adresse erreichbar. Du kannst weitermachen.",
+    "addressSkipHint": "Die Adresse lässt sich später in den Einstellungen ändern – etwa wenn eine eigene Domain dazukommt.",
     "mailRequired": "Erst nach einem erfolgreichen Test geht es weiter. Ohne Mailserver kann Nexview dir die Bestätigung nicht schicken – und ohne die kommst du nach dem Assistenten nicht mehr hinein.",
     "mailReady": "Mailserver erreichbar. Du kannst weitermachen."
   },
@@ -556,6 +557,7 @@
   "status": {
     "not_requested": "Nicht angefragt",
     "pending_approval": "Wartet auf Freigabe",
+    "approved": "Freigegeben",
     "requested": "Angefragt",
     "searching": "Wird gesucht",
     "downloaded": "Bereits geladen",
@@ -663,6 +665,8 @@
     "episodeMissing": "fehlt noch",
     "noEpisodes": "Zu dieser Staffel sind noch keine Folgen bekannt.",
     "recommendations": "Das könnte dir auch gefallen",
+    "reroll": "Andere zeigen",
+    "rerollFailed": "Neue Vorschläge lassen sich gerade nicht laden.",
     "studios": "Studio",
     "keywords": "Schlagworte",
     "status": "Status",

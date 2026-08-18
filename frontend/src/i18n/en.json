@@ -83,6 +83,7 @@
     "verifyImpossible": "Your e-mail address is not confirmed yet. The mail server is missing for that – add it under Settings → E-mail and start the confirmation from your profile.",
     "addressRequired": "You can continue only after a successful test. Without a valid address the links in mails lead nowhere – and you would not get back in after the wizard.",
     "addressReady": "Address reachable. You can continue.",
+    "addressSkipHint": "You can change this address later in the settings – for instance once you move to a domain of your own.",
     "mailRequired": "You can continue only after a successful test. Without a mail server Nexview cannot send you the confirmation – and without that you would not get back in after the wizard.",
     "mailReady": "Mail server reachable. You can continue."
   },
@@ -556,6 +557,7 @@
   "status": {
     "not_requested": "Not requested",
     "pending_approval": "Awaiting approval",
+    "approved": "Approved",
     "requested": "Requested",
     "searching": "Searching",
     "downloaded": "Already downloaded",
@@ -663,6 +665,8 @@
     "episodeMissing": "still missing",
     "noEpisodes": "No episodes are known for this season yet.",
     "recommendations": "You might also like",
+    "reroll": "Show others",
+    "rerollFailed": "New suggestions cannot be loaded right now.",
     "studios": "Studio",
     "keywords": "Keywords",
     "status": "Status",

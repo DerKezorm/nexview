@@ -828,6 +828,78 @@ async def suggestions(
     return await _to_items(db, settings, media_type, raw.get("results", []), region)
 
 
+# --- Neue Auswahl zu einem Titel ---------------------------------------------
+
+# Wie viele Seiten je Quelle geholt werden. Zwei reichen: TMDB liefert 20
+# Eintraege je Seite, das sind bis zu 80 Kandidaten und damit rund sechs
+# Runden. Wer sechsmal weitergeklickt hat, sucht nicht mehr nach einem Film.
+VORRAT_SEITEN = 2
+
+
+async def empfehlungs_vorrat(
+    db: Session, settings: AppSettings, media_type: str, tmdb_id: int
+) -> list[MediaItem]:
+    """Alle Titel, die zu diesem einen passen - in fester Reihenfolge.
+
+    Zwei Quellen, hintereinandergehaengt: erst ``recommendations`` (was Leuten
+    gefiel, denen dieser Titel gefiel), dann ``similar`` (gleiche Genres und
+    Schlagworte). Die Empfehlungen sind die besseren Treffer und stehen
+    deshalb vorn; ohne die zweite Quelle waere aber bei vielen Titeln nach
+    einem Druck auf "Neue Auswahl" Schluss - TMDB kennt zu manchen Filmen nur
+    eine Handvoll Empfehlungen.
+
+    Die Reihenfolge ist fest, nicht zufaellig. Nur so ist die zweite Runde
+    wirklich eine andere als die erste, und nur so bleibt sie es auch beim
+    Zurueckblaettern.
+    """
+    if settings.use_demo_data:
+        return []
+
+    region = settings.default_region
+
+    async def hole(art: str, seite: int) -> list[dict[str, Any]]:
+        async def fetch() -> dict[str, Any]:
+            client = _client(settings)
+            if art == "recs":
+                return await client.recommendations(media_type, tmdb_id, seite)
+            return await client.similar(media_type, tmdb_id, seite)
+
+        try:
+            roh = await cache.cached(
+                db,
+                f"{art}:{media_type}:{tmdb_id}:{seite}:{settings.default_language}",
+                cache.DETAIL_TTL,
+                fetch,
+            )
+        except TmdbError:
+            # Eine fehlende Seite ist kein Grund, die ganze Auswahl
+            # scheitern zu lassen - der Rest reicht meistens.
+            return []
+        return roh.get("results") or []
+
+    seiten = await asyncio.gather(
+        *(
+            hole(art, seite)
+            for art in ("recs", "aehnlich")
+            for seite in range(1, VORRAT_SEITEN + 1)
+        )
+    )
+
+    gesehen: set[int] = {tmdb_id}
+    roh: list[dict[str, Any]] = []
+    for liste in seiten:
+        for eintrag in liste:
+            kennung = eintrag.get("id")
+            if not kennung or kennung in gesehen:
+                continue
+            gesehen.add(kennung)
+            roh.append(eintrag)
+
+    # ``_to_items`` ist auch hier der Filter fuer die Altersbeschraenkung -
+    # aus demselben Grund wie in ``full_detail``.
+    return await _to_items(db, settings, media_type, roh, region)
+
+
 # --- Kuratiert: Empfehlungen aus den Favoriten -------------------------------
 
 # So viele Favoriten fliessen ein. Mehr braeuchte pro Aufruf mehr Abfragen,

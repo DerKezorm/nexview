@@ -39,7 +39,7 @@ function RecentCard({ item, index }: { item: RecentItem; index: number }) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-3 text-center text-sm text-mist-600">
-            {item.title}
+            <span className="w-full break-words">{item.title}</span>
           </div>
         )}
 
@@ -52,7 +52,7 @@ function RecentCard({ item, index }: { item: RecentItem; index: number }) {
         </div>
       </div>
 
-      <p className="mt-2 truncate text-sm font-semibold">{item.title}</p>
+      <p className="mt-2 line-clamp-2 text-sm leading-snug font-semibold">{item.title}</p>
       <p className="truncate text-xs text-mist-600">
         {t(item.media_type === 'movie' ? 'common.movies' : 'common.series')}
         {item.completed_at && ` · ${formatDate(item.completed_at.slice(0, 10), i18n.language)}`}
@@ -199,7 +199,7 @@ function TrendingTile({
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center px-3 text-center text-sm text-mist-600">
-              {item.title}
+              <span className="w-full break-words">{item.title}</span>
             </div>
           )}
 
@@ -224,7 +224,7 @@ function TrendingTile({
           </div>
         </div>
 
-        <p className="mt-2 truncate text-sm font-semibold">{item.title}</p>
+        <p className="mt-2 line-clamp-2 text-sm leading-snug font-semibold">{item.title}</p>
         <p className="truncate text-xs text-mist-600">
           {item.release_date?.slice(0, 4)}
           {item.genres.length > 0 && ` · ${item.genres.slice(0, 2).join(', ')}`}
@@ -281,14 +281,14 @@ function CuratedCard({
           />
         ) : (
           <span className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-mist-600">
-            {item.title}
+            <span className="w-full break-words">{item.title}</span>
           </span>
         )}
       </Link>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Link to={titlePath(item.media_type, item.tmdb_id)} className="min-w-0">
-          <p className="truncate font-semibold">{item.title}</p>
+          <p className="line-clamp-2 font-semibold">{item.title}</p>
           <p className="mt-0.5 text-xs text-mist-600">
             {[
               item.release_date?.slice(0, 4),
@@ -437,7 +437,7 @@ export function HomePage() {
               {t('home.curatedNothingLeft')}
             </p>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {kuratiert.map((item, index) => (
                 <CuratedCard
                   key={item.tmdb_id}

@@ -229,7 +229,7 @@ export function StatsPage() {
         </Link>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KeyFigure
           label={t('stats.totalRequests')}
           value={String(totals.requests)}
@@ -267,7 +267,7 @@ export function StatsPage() {
       </section>
 
       {(totals.unanswered_feedback > 0 || totals.poor_ratings > 0) && (
-        <section className="grid gap-3 sm:grid-cols-2">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <KeyFigure
             label={t('stats.poorRatings')}
             value={String(totals.poor_ratings)}
@@ -283,7 +283,7 @@ export function StatsPage() {
         </section>
       )}
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="p-5">
           <h2 className="text-sm font-semibold text-mist-300">{t('stats.history')}</h2>
           <p className="mb-4 text-xs text-mist-600">

@@ -185,7 +185,7 @@ export function AdminMailSettings() {
           <p className="mt-1 text-sm text-mist-500">{t('mail.intro')}</p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <Field
               label={t('mail.host')}
@@ -222,7 +222,7 @@ export function AdminMailSettings() {
           <span className="text-xs text-mist-500">{t('mail.securityHint')}</span>
         </label>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
             label={t('mail.username')}
             value={draft.smtp_username}
@@ -243,7 +243,7 @@ export function AdminMailSettings() {
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
             label={t('mail.fromAddress')}
             type="email"

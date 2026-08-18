@@ -21,6 +21,14 @@ import { formatDate, formatRuntime } from '../lib/format'
 import { browsePath, personPath } from '../lib/routes'
 import { useAuth } from '../auth/useAuth'
 
+/** Eine Runde Vorschlaege vom Server. */
+type Auswahl = {
+  items: MediaItem[]
+  runde: number
+  /** 1 heisst: es gibt nichts zu wechseln. Dann fehlt der Knopf. */
+  runden: number
+}
+
 /** Ein Eckdatum: Beschriftung oben, Wert darunter. */
 function Fact({ label, value }: { label: string; value: string }) {
   return (
@@ -105,6 +113,9 @@ export function TitlePage() {
   const [adding, setAdding] = useState(false)
   const [schnellAnfrage, setSchnellAnfrage] = useState<MediaItem | null>(null)
   const [trailer, setTrailer] = useState<Trailer | null>(null)
+  /* Welche Runde Vorschlaege ist zu sehen? 0 ist die, die schon in der
+     Detailantwort steckt - dafuer wird nichts nachgeladen. */
+  const [runde, setRunde] = useState(0)
 
   // Der Hook muss vor jedem bedingten Rückgabewert stehen: React verlangt,
   // dass bei jedem Durchlauf dieselben Hooks in derselben Reihenfolge laufen.
@@ -112,6 +123,16 @@ export function TitlePage() {
     queryKey: ['title-detail', mediaType, tmdbId],
     queryFn: () => api.get<MediaDetail>(`/api/detail/${mediaType}/${tmdbId}`),
     enabled: Boolean(mediaType && tmdbId),
+    staleTime: 30 * 60 * 1000,
+  })
+
+  /* Erst beim Druck auf "Neue Auswahl" geholt: der Vorrat kostet vier
+     Abfragen bei TMDB, und die meisten sehen sich nur die erste Runde an. */
+  const auswahl = useQuery({
+    queryKey: ['recommendations', mediaType, tmdbId, runde],
+    queryFn: () =>
+      api.get<Auswahl>(`/api/detail/${mediaType}/${tmdbId}/recommendations?runde=${runde}`),
+    enabled: runde > 0,
     staleTime: 30 * 60 * 1000,
   })
 
@@ -167,6 +188,15 @@ export function TitlePage() {
   const gesperrt = item.status === 'blocked'
   const kannAnfragen =
     item.status === 'not_requested' || nurWeitereStaffel || (gesperrt && istAdmin)
+
+  /* Runde 0 steckt schon in der Detailantwort. Solange die neue Auswahl laedt,
+     bleibt die alte stehen - sonst blitzt eine leere Flaeche auf. */
+  const vorschlaege =
+    runde > 0 && auswahl.data ? auswahl.data.items : item.recommendations
+  /* Der Knopf erscheint, sobald es etwas zu holen gibt. Vor der ersten
+     Abfrage weiss das niemand - dann zaehlt, ob TMDB ueberhaupt Vorschlaege
+     kennt, denn der Vorrat ist nie kleiner als das, was hier schon steht. */
+  const mehrMoeglich = auswahl.data ? auswahl.data.runden > 1 : item.recommendations.length > 0
 
   return (
     <div className="flex flex-col gap-8">
@@ -380,14 +410,37 @@ export function TitlePage() {
 
       <CastStrip cast={item.cast} />
 
-      {item.recommendations.length > 0 && (
+      {vorschlaege.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-semibold">{t('detail.recommendations')}</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">{t('detail.recommendations')}</h2>
+
+            {/* Ist unter den zwoelf nichts dabei, holt der Knopf die naechsten
+                zwoelf. Er fehlt, solange nicht feststeht, dass es welche gibt -
+                ein Knopf, der nichts tut, ist schlimmer als keiner. */}
+            {mehrMoeglich && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setRunde((bisher) => bisher + 1)}
+                loading={auswahl.isFetching}
+              >
+                {t('detail.reroll')}
+              </Button>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-            {item.recommendations.map((vorschlag) => (
+            {vorschlaege.map((vorschlag) => (
               <MediaCard key={vorschlag.tmdb_id} item={vorschlag} onQuickAdd={setSchnellAnfrage} />
             ))}
           </div>
+
+          {auswahl.error && (
+            <div className="mt-3">
+              <ErrorBanner message={t('detail.rerollFailed')} />
+            </div>
+          )}
         </section>
       )}
 

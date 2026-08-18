@@ -23,7 +23,9 @@ export function Poster({ url, title, className = '' }: PosterProps) {
           className
         }
       >
-        <span className="line-clamp-3 text-xs font-semibold text-mist-500">{title}</span>
+        <span className="line-clamp-3 w-full text-xs font-semibold break-words text-mist-500">
+          {title}
+        </span>
         <span className="text-[10px] text-mist-600">{t('media.noPoster')}</span>
       </div>
     )
@@ -61,7 +63,7 @@ export function RatingBadge({ vote, count }: { vote: number; count?: number }) {
     return (
       <span
         title={t('media.unrated')}
-        className="inline-flex items-center gap-1 rounded-full bg-ink-950/80 px-2 py-1 text-xs font-semibold text-mist-600 ring-1 ring-ink-700 backdrop-blur-sm"
+        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-ink-950/80 px-2 py-1 text-xs font-semibold text-mist-600 ring-1 ring-ink-700 backdrop-blur-sm"
       >
         <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
           <path d="M10 1.6l2.6 5.2 5.8.8-4.2 4.1 1 5.7-5.2-2.7-5.2 2.7 1-5.7L1.6 7.6l5.8-.8L10 1.6Z" />
@@ -74,8 +76,8 @@ export function RatingBadge({ vote, count }: { vote: number; count?: number }) {
   return (
     <span
       className={
-        'inline-flex items-center gap-1 rounded-full bg-ink-950/80 px-2 py-1 text-xs ' +
-        'font-semibold ring-1 ring-ink-700 backdrop-blur-sm ' +
+        'inline-flex shrink-0 items-center gap-1 rounded-full bg-ink-950/80 px-2 py-1 ' +
+        'text-xs font-semibold ring-1 ring-ink-700 backdrop-blur-sm ' +
         RATING_TONES[ratingTone(vote)]
       }
       title={count ? `${vote.toFixed(1)} (${count})` : undefined}

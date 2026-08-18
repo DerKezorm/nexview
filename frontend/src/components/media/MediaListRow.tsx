@@ -47,7 +47,7 @@ export function MediaListRow({
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate font-semibold">{item.title}</h3>
+            <h3 className="line-clamp-2 font-semibold">{item.title}</h3>
             <RatingBadge vote={item.vote_average} count={item.vote_count} />
             <RatingBadges ratings={ratings} title={item.title} />
           </div>

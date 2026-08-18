@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
 import type { ArrOptions, MediaItem } from '../../api/types'
+import { anfragenStandNeuLaden } from '../../lib/refresh'
 import { Button, ErrorBanner, Spinner } from '../ui'
 
 type AddRequestFormProps = {
@@ -72,10 +73,9 @@ export function AddRequestForm({ item, onDone, seasonOnly = false }: AddRequestF
         season: season === '' ? null : Number(season),
       }),
     onSuccess: () => {
-      // Badges und Kontingent neu laden.
-      void queryClient.invalidateQueries({ queryKey: ['discover'] })
-      void queryClient.invalidateQueries({ queryKey: ['my-requests'] })
-      void queryClient.invalidateQueries({ queryKey: ['quota'] })
+      // Badges und Kontingent neu laden - auch auf der Seite, die hinter
+      // diesem Fenster liegt und gleich wieder sichtbar wird.
+      anfragenStandNeuLaden(queryClient)
       onDone()
     },
   })
@@ -107,7 +107,7 @@ export function AddRequestForm({ item, onDone, seasonOnly = false }: AddRequestF
     <div className="rounded-xl border border-ink-700 bg-ink-900/60 p-4">
       <h3 className="text-sm font-semibold">{t('request.chooseOptions')}</h3>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {/* Nur bei Serien. Beim Nachfordern immer zeigen - auch wenn nur eine
             Staffel fehlt: sonst sähe man nicht, was da eigentlich bestellt
             wird. Sonst erst ab zwei Staffeln, darunter gäbe es keine Wahl. */}

@@ -39,6 +39,12 @@ export type Ticket = {
   display_name: string | null
   avatar_url: string | null
   message_count: number
+  /**
+   * Wer das Ticket eröffnet hat. Schreibt der Administrator jemanden an,
+   * ist das *nicht* der Eigentümer.
+   */
+  opened_by: number | null
+  opened_by_name: string | null
 }
 
 export type TicketDetail = Ticket & {

@@ -744,6 +744,10 @@
     "deleteConfirm_one": "Ein geschlossenes Ticket wird endgültig entfernt.",
     "deleteConfirm_other": "{{count}} geschlossene Tickets werden endgültig entfernt.",
     "deleteWarning": "Der gesamte Verlauf verschwindet mit — auch für den Benutzer. Das lässt sich nicht rückgängig machen.",
-    "deleteAction": "Endgültig löschen"
+    "deleteAction": "Endgültig löschen",
+    "recipient": "Empfänger",
+    "recipientSelf": "Eigenes Anliegen (an dich selbst)",
+    "recipientHint": "Wähle einen Benutzer, um ihn anzuschreiben. Er sieht das Ticket unter seinen eigenen und kann antworten.",
+    "withUser": "mit {{name}}"
   }
 }

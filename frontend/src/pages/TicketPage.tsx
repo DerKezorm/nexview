@@ -100,11 +100,23 @@ export function TicketPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{ticket.subject}</h1>
+            {/* Wer eröffnet hat, steht an der ersten Nachricht - nicht am
+                Ticket. Schreibt der Administrator jemanden an, gehört das
+                Ticket dem Empfänger, verfasst hat es aber der Administrator.
+                Deshalb wird zusätzlich gesagt, mit wem es geht. */}
             <p className="mt-1 text-sm text-mist-600">
               {t('tickets.openedBy', {
-                name: ticket.display_name ?? ticket.username,
+                name: ticket.opened_by_name ?? ticket.display_name ?? ticket.username,
                 date: formatDateTime(ticket.created_at, i18n.language),
               })}
+              {ticket.opened_by !== null && ticket.opened_by !== ticket.user_id && (
+                <>
+                  {' · '}
+                  {t('tickets.withUser', {
+                    name: ticket.display_name ?? ticket.username,
+                  })}
+                </>
+              )}
             </p>
             {ticket.media_title && ticket.tmdb_id && (
               <Link

@@ -128,6 +128,97 @@ def test_hin_und_her(client: TestClient, admin_client: TestClient) -> None:
     assert [m["from_staff"] for m in nachher["messages"]] == [False, True, False]
 
 
+# --- Der Administrator schreibt jemanden an ----------------------------------
+
+
+def test_admin_eroeffnet_ein_ticket_fuer_einen_benutzer(
+    client: TestClient, admin_client: TestClient
+) -> None:
+    """Die umgekehrte Richtung: nicht angeschrieben werden, sondern schreiben.
+
+    Das Ticket gehoert dem Empfaenger - er findet es unter seinen Tickets und
+    kann antworten. Die erste Nachricht traegt aber den Administrator als
+    Verfasser.
+    """
+    ziel = create_user(admin_client, "norbert")
+
+    ticket = _anlegen(
+        admin_client,
+        subject="Bitte Passwort ändern",
+        body="Deins ist zu kurz.",
+        user_id=ziel["id"],
+    ).json()
+
+    # Es gehoert dem Empfaenger ...
+    assert ticket["user_id"] == ziel["id"]
+    assert ticket["username"] == "norbert"
+    # ... geschrieben hat es der Administrator.
+    assert ticket["opened_by_name"] == "admin"
+    assert ticket["messages"][0]["username"] == "admin"
+
+    # Der Benutzer sieht es und kann antworten.
+    headers = _als(client, "norbert")
+    seine = client.get("/api/tickets", headers=headers).json()
+    assert [t["id"] for t in seine] == [ticket["id"]]
+
+    antwort = client.post(
+        f"/api/tickets/{ticket['id']}/messages", json={"body": "Mach ich."}, headers=headers
+    )
+    assert antwort.status_code == 201
+
+
+def test_angeschriebener_benutzer_wird_benachrichtigt(
+    client: TestClient, admin_client: TestClient
+) -> None:
+    """Nicht die uebrigen Administratoren - der Empfaenger."""
+    ziel = create_user(admin_client, "olivia")
+    _anlegen(admin_client, subject="Kurze Frage", body="Läuft alles?", user_id=ziel["id"])
+
+    with SessionLocal() as session:
+        meldungen = session.query(Notification).filter(Notification.ticket_id.is_not(None)).all()
+        assert [m.user_id for m in meldungen] == [ziel["id"]]
+        assert meldungen[0].message_key == "notifications.ticketNew"
+        # Auch die Einstufung muss stimmen, nicht nur der Text - eine als
+        # "Antwort" abgelegte Eroeffnung waere eine Zeitbombe fuer jede spaetere
+        # Auswertung.
+        assert meldungen[0].type == NotificationType.ticket_new
+
+
+def test_benutzer_darf_niemanden_anschreiben(client: TestClient, admin_client: TestClient) -> None:
+    """Sonst koennte jeder jedem schreiben - und die Sichtbarkeitsregel waere
+    nur noch eine Empfehlung."""
+    opfer = create_user(admin_client, "paul")
+    create_user(admin_client, "quirin")
+    create_user(admin_client, "pruefer4", role=Role.approver)
+
+    for name in ("quirin", "pruefer4"):
+        antwort = _anlegen(
+            client, _als(client, name), subject="Hallo", body="Text", user_id=opfer["id"]
+        )
+        assert antwort.status_code == 403
+
+    with SessionLocal() as session:
+        assert session.query(Ticket).count() == 0
+
+
+def test_unbekannter_empfaenger_wird_abgewiesen(admin_client: TestClient) -> None:
+    assert _anlegen(admin_client, user_id=999999).status_code == 404
+
+
+def test_eigene_kennung_bleibt_ein_normales_ticket(admin_client: TestClient) -> None:
+    """Sich selbst anzuschreiben ist kein Sonderfall."""
+    with SessionLocal() as session:
+        admin = session.query(User).filter(User.username == "admin").one()
+        kennung = admin.id
+
+    ticket = _anlegen(admin_client, user_id=kennung).json()
+    assert ticket["user_id"] == kennung
+    assert ticket["opened_by"] == kennung
+    # Und keine Meldung von sich an sich.
+    with SessionLocal() as session:
+        assert session.query(Notification).filter(Notification.ticket_id.is_not(None)).count() == 0
+
+
 # --- Bearbeiten --------------------------------------------------------------
 
 

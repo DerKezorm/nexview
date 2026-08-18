@@ -12,6 +12,18 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.4.1 – 18.08.2026
+
+### Neu
+
+- **Der Administrator kann einen Benutzer anschreiben.** Beim Eröffnen eines
+  Tickets wählt er den Empfänger aus einer Liste; das Ticket gehört dann dem
+  Angeschriebenen, er findet es unter seinen eigenen und kann antworten. Wer
+  es verfasst hat, steht in der Kopfzeile. Bisher ging die Post nur in eine
+  Richtung.
+
+---
+
 ## 0.4.0 – 18.08.2026
 
 ### Neu

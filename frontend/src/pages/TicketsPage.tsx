@@ -6,6 +6,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { ApiError, api } from '../api/client'
 import type { Ticket, TicketDetail, TicketStatus } from '../api/tickets'
+import type { User } from '../api/types'
 import type { MediaType } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { Avatar } from '../components/Avatar'
@@ -45,9 +46,19 @@ export function TicketsPage() {
     bezug.media_title ? t('tickets.subjectAbout', { title: bezug.media_title }) : '',
   )
   const [text, setText] = useState('')
+  /** Wen der Administrator anschreibt. Leer = eigenes Anliegen. */
+  const [empfaenger, setEmpfaenger] = useState('')
   /** Ausgewählte geschlossene Tickets - nur der Administrator sieht das. */
   const [ausgewaehlt, setAusgewaehlt] = useState<number[]>([])
   const [loeschAbfrage, setLoeschAbfrage] = useState(false)
+
+  // Für die Empfängerauswahl. Nur Administratoren dürfen die Liste sehen -
+  // deshalb wird sie für alle anderen gar nicht erst geholt.
+  const benutzer = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.get<User[]>('/api/users'),
+    enabled: istAdmin,
+  })
 
   const liste = useQuery({
     queryKey: ['tickets', filter],
@@ -63,10 +74,12 @@ export function TicketsPage() {
         media_type: bezug.media_type ?? undefined,
         tmdb_id: bezug.tmdb_id ? Number(bezug.tmdb_id) : undefined,
         media_title: bezug.media_title ?? undefined,
+        user_id: empfaenger ? Number(empfaenger) : undefined,
       }),
     onSuccess: (angelegt) => {
       setBetreff('')
       setText('')
+      setEmpfaenger('')
       setFormularOffen(false)
       // Der Titelbezug hat seinen Zweck erfüllt - sonst hinge er beim nächsten
       // Ticket noch daran.
@@ -133,6 +146,31 @@ export function TicketsPage() {
               <p className="rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2 text-sm text-mist-300">
                 {t('tickets.about', { title: bezug.media_title })}
               </p>
+            )}
+
+            {/* Nur der Administrator kann jemanden anschreiben. Für alle
+                anderen gibt es nur die eine Richtung - zu ihm. */}
+            {istAdmin && (
+              <label className="flex max-w-md flex-col gap-1.5">
+                <span className="text-sm font-medium text-mist-300">{t('tickets.recipient')}</span>
+                <select
+                  value={empfaenger}
+                  onChange={(event) => setEmpfaenger(event.target.value)}
+                  className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
+                >
+                  <option value="">{t('tickets.recipientSelf')}</option>
+                  {(benutzer.data ?? [])
+                    .filter((eintrag) => eintrag.id !== user?.id && eintrag.is_active)
+                    .map((eintrag) => (
+                      <option key={eintrag.id} value={eintrag.id}>
+                        {eintrag.display_name ?? eintrag.username}
+                      </option>
+                    ))}
+                </select>
+                <span className="text-xs leading-relaxed text-mist-600">
+                  {t('tickets.recipientHint')}
+                </span>
+              </label>
             )}
 
             <Field

@@ -119,14 +119,37 @@ def erstellen(
     media_type: MediaType | None = None,
     tmdb_id: int | None = None,
     media_title: str | None = None,
+    fuer_benutzer: int | None = None,
 ) -> Ticket:
-    """Neues Ticket samt erster Nachricht."""
+    """Neues Ticket samt erster Nachricht.
+
+    ``fuer_benutzer`` kehrt die Richtung um: Der **Administrator** schreibt
+    jemanden an, statt angeschrieben zu werden. Das Ticket gehoert dann dem
+    Empfaenger - er sieht es unter seinen Tickets und kann antworten -, waehrend
+    die erste Nachricht den Administrator als Verfasser traegt.
+
+    Genau diese Trennung macht den Rest der Datei unveraendert richtig:
+    ``Ticket.user_id`` beantwortet "mit wem", die Nachricht "von wem". Die
+    Sichtbarkeit, der Zaehler am Menuepunkt und die Erkennung "kommt von
+    drueben" haengen alle an der ersten Frage - und die stimmt weiterhin.
+    """
     betreff = subject.strip()
     if not betreff:
         raise TicketError("Das Ticket braucht einen Betreff.", 422)
 
+    empfaenger = user
+    if fuer_benutzer is not None and fuer_benutzer != user.id:
+        if not darf_alles_sehen(user):
+            raise TicketError(
+                "Nur ein Administrator darf ein Ticket für jemand anderen eröffnen.", 403
+            )
+        ziel = db.get(User, fuer_benutzer)
+        if ziel is None or not ziel.is_active:
+            raise TicketError("Diesen Benutzer gibt es nicht.", 404)
+        empfaenger = ziel
+
     ticket = Ticket(
-        user_id=user.id,
+        user_id=empfaenger.id,
         subject=betreff[:200],
         status=TicketStatus.open,
         media_type=media_type,
@@ -138,7 +161,19 @@ def erstellen(
     db.flush()
 
     _nachricht_anhaengen(db, ticket, user, body)
-    _melde_den_admins(db, ticket, verfasser=user, neu=True)
+
+    if empfaenger.id == user.id:
+        _melde_den_admins(db, ticket, verfasser=user, neu=True)
+    else:
+        # Umgekehrte Richtung: der Angeschriebene soll es erfahren, nicht die
+        # uebrigen Administratoren.
+        _melde_dem_eigentuemer(
+            db,
+            ticket,
+            ausser=user.id,
+            message_key="notifications.ticketNew",
+            kind=NotificationType.ticket_new,
+        )
     return ticket
 
 
@@ -290,7 +325,12 @@ def _melde_den_admins(db: Session, ticket: Ticket, *, verfasser: User, neu: bool
 
 
 def _melde_dem_eigentuemer(
-    db: Session, ticket: Ticket, *, ausser: int | None, message_key: str
+    db: Session,
+    ticket: Ticket,
+    *,
+    ausser: int | None,
+    message_key: str,
+    kind: NotificationType = NotificationType.ticket_reply,
 ) -> None:
     """Den Eigentuemer ueber eine Bewegung an seinem Ticket informieren.
 
@@ -306,7 +346,7 @@ def _melde_dem_eigentuemer(
     notify.create(
         db,
         user=eigentuemer,
-        kind=NotificationType.ticket_reply,
+        kind=kind,
         message_key=message_key,
         ticket=ticket,
     )

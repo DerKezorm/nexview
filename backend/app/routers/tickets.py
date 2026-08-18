@@ -55,6 +55,11 @@ class TicketOut(BaseModel):
     display_name: str | None
     avatar_url: str | None
     message_count: int
+    # Wer das Ticket eroeffnet hat. Bei einem Anschreiben des Administrators
+    # ist das *nicht* der Eigentuemer - sonst stuende in der Kopfzeile
+    # "Eroeffnet von" der Name des Empfaengers.
+    opened_by: int | None
+    opened_by_name: str | None
 
 
 class TicketDetail(TicketOut):
@@ -64,6 +69,9 @@ class TicketDetail(TicketOut):
 class TicketCreate(BaseModel):
     subject: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=5000)
+    # Nur fuer Administratoren: jemanden anschreiben, statt selbst ein
+    # Anliegen zu haben. Das Ticket gehoert dann dem Empfaenger.
+    user_id: int | None = Field(default=None, ge=1)
     media_type: MediaType | None = None
     tmdb_id: int | None = Field(default=None, ge=1)
     media_title: str | None = Field(default=None, max_length=300)
@@ -98,6 +106,7 @@ def _nachricht(eintrag: TicketMessage, besitzer_id: int) -> MessageOut:
 
 
 def _uebersicht(ticket: Ticket) -> TicketOut:
+    erste = ticket.messages[0] if ticket.messages else None
     return TicketOut(
         id=ticket.id,
         subject=ticket.subject,
@@ -115,6 +124,12 @@ def _uebersicht(ticket: Ticket) -> TicketOut:
         display_name=ticket.user.display_name,
         avatar_url=ticket.user.avatar_url,
         message_count=len(ticket.messages),
+        opened_by=erste.user_id if erste else None,
+        opened_by_name=(
+            (erste.author.display_name or erste.author.username)
+            if erste and erste.author
+            else None
+        ),
     )
 
 
@@ -164,6 +179,7 @@ def anlegen(payload: TicketCreate, user: CurrentUser, db: DbSession) -> TicketDe
             media_type=payload.media_type,
             tmdb_id=payload.tmdb_id,
             media_title=payload.media_title,
+            fuer_benutzer=payload.user_id,
         )
     except tickets.TicketError as error:
         raise _fehler(error) from error

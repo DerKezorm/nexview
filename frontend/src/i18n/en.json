@@ -744,6 +744,10 @@
     "deleteConfirm_one": "One closed ticket will be removed for good.",
     "deleteConfirm_other": "{{count}} closed tickets will be removed for good.",
     "deleteWarning": "The whole conversation goes with it — for the user too. This cannot be undone.",
-    "deleteAction": "Delete for good"
+    "deleteAction": "Delete for good",
+    "recipient": "Recipient",
+    "recipientSelf": "Your own request (to yourself)",
+    "recipientHint": "Pick a user to write to them. They will find the ticket among their own and can reply.",
+    "withUser": "with {{name}}"
   }
 }

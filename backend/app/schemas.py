@@ -42,6 +42,10 @@ class SetupStatus(BaseModel):
     # Assistent laeuft aber davor. Sonst koennten Hinweistext und Pruefung
     # auseinanderlaufen, und genau das ist hier schon einmal passiert.
     min_password_length: int = MIN_PASSWORD_LENGTH
+    # Ist ein Media-Server verbunden? Nur dann zeigt die Anmeldeseite den
+    # zusaetzlichen Knopf - ohne Verbindung soll davon nichts zu sehen sein.
+    mediaserver_login: bool = False
+    mediaserver_provider: str | None = None
 
 
 class SetupAdminCreate(BaseModel):
@@ -113,6 +117,18 @@ class UserPublic(BaseModel):
     mail_request_decided: bool
     mail_feedback: bool
     mail_ticket: bool
+    mail_user_imported: bool
+
+    # --- Verknuepfung mit dem Media-Server ---------------------------------
+    # Die Kennung selbst wird bewusst nicht ausgeliefert; fuer die Oberflaeche
+    # zaehlt nur, *ob* verknuepft ist und mit welchem Namen.
+    mediaserver_provider: str | None
+    mediaserver_username: str | None
+    mediaserver_linked: bool
+    # Wer sich nur ueber den Media-Server anmeldet, hat kein Passwort. Das
+    # Profil braucht die Auskunft, um "Passwort festlegen" anzubieten - und um
+    # das Trennen zu verhindern, das aussperren wuerde.
+    has_password: bool
 
     # Vorbelegung der Filterleiste; NULL = nichts Eigenes eingestellt.
     discover_region: str | None
@@ -217,6 +233,7 @@ class ProfileUpdate(BaseModel):
     mail_request_decided: bool | None = None
     mail_feedback: bool | None = None
     mail_ticket: bool | None = None
+    mail_user_imported: bool | None = None
 
     # Vorbelegung der Filterleiste. Der leere String bedeutet "nichts
     # Eigenes" - anders liesse sich eine einmal gesetzte Wahl nie wieder

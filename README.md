@@ -36,6 +36,7 @@ was bereits in deiner Bibliothek liegt, und stößt Downloads über **Radarr** (
 | ⭐ **Bewertungen** | IMDb, Rotten Tomatoes und Metacritic bei Filmen, anklickbar — ohne weiteren Dienst |
 | ❤️ **Favoriten** | Titel mit dem Herz markieren; daraus entsteht „Für dich kuratiert" auf der Startseite |
 | 👥 **Benutzer & Rollen** | Administrator, Entscheider und Benutzer; jeder sieht nur seine eigenen Anfragen |
+| 🎞️ **Anmeldung mit Plex** | Wer Zugriff auf deine Plex-Bibliothek hat, meldet sich mit seinem Plex-Konto an — wahlweise zusätzlich zum Passwort |
 | ✅ **Freigaben & Kontingente** | Pro Benutzer: automatisch freigeben oder manuell, Limits pro Tag/Woche/Monat |
 | 🔞 **Altersbeschränkung** | Je Benutzer ein Alter; gezeigt wird nur, was höchstens ab diesem Alter freigegeben ist |
 | 🚫 **Sperrliste** | Titel, die nicht in die Bibliothek sollen — sichtbar, aber nicht anfragbar |
@@ -112,9 +113,33 @@ Kommt die Bestätigungsmail nicht an, hilft die Anmeldeseite weiter: mit richtig
 erscheint dort ein Hinweis mit **„Bestätigungsmail erneut senden"** und **„Adresse
 korrigieren"**. Ein Tippfehler in der Adresse ist damit kein Beinbruch.
 
-**Weitere Konten entstehen ausschließlich über Einladungen.** Der Administrator gibt nur
-Adresse und Rolle vor; Benutzername, Anzeigename und Passwort wählt der Eingeladene selbst
-über den Link aus der Mail. So kennt niemand sonst das Passwort — auch der Admin nicht.
+**Weitere Konten entstehen über Einladungen** — oder über den Media-Server, siehe unten. Der
+Administrator gibt nur Adresse und Rolle vor; Benutzername, Anzeigename und Passwort wählt der
+Eingeladene selbst über den Link aus der Mail. So kennt niemand sonst das Passwort — auch der
+Admin nicht.
+
+### Anmeldung mit Plex (optional)
+
+Unter **Einstellungen → Media-Server** verbindest du deinen Plex-Server: einmal mit Plex
+anmelden, Server aus der Liste wählen, fertig. Ein Token musst du nirgends heraussuchen, und
+dein eigenes Konto wird dabei gleich verknüpft.
+
+Danach kann sich anmelden, wer **Zugriff auf deine Bibliothek** hat. Das ist die einzige Hürde
+und wird beim Verbinden geprüft — ein fremdes Plex-Konto kommt nicht hinein, auch wenn die
+Anmeldung bei Plex selbst funktioniert.
+
+| | |
+|---|---|
+| **Neue Leute** | bekommen beim ersten Anmelden selbst ein Konto, mit der Rolle, dem Kontingent und dem Alter, die du vorgibst. Abschaltbar — dann bleiben Einladungen Pflicht. |
+| **Bereits eingeladene** | verbinden ihr Plex-Konto im Profil unter *Sicherheit* und melden sich danach wahlweise mit Plex **oder** Passwort an. |
+| **Freigaben** | bleiben nötig: Zugriff auf die Bibliothek heißt nicht, ungefragt herunterladen zu dürfen. |
+| **Gelöschte Konten** | können sich nicht neu anlegen. Die Sperre steht in den Einstellungen und lässt sich dort aufheben. |
+
+> Verwaltete Plex-Profile (etwa für Kinder) haben oft keinen eigenen Plex-Login. Sie nutzen
+> weiterhin ein normales Nexview-Konto per Einladung. Die Altersbeschränkung wirkt ohnehin nur,
+> wenn **jede Person ein eigenes Konto** hat — unabhängig von Plex.
+
+Ohne verbundenen Server ist von alldem nichts zu sehen; niemand muss Plex betreiben.
 
 > ⚠️ Wenn du Nexview von außen erreichbar machst (Reverse Proxy), vergib ein **langes
 > Passwort**. Die technische Mindestlänge ist absichtlich niedrig, damit auch kurze

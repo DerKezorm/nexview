@@ -26,6 +26,10 @@ LIFETIME = {
     TokenPurpose.invitation: timedelta(days=7),
     TokenPurpose.email_verification: timedelta(hours=24),
     TokenPurpose.password_reset: timedelta(hours=1),
+    # Ein angefangener Anmeldevorgang. Plex laesst seine PIN nach etwa einer
+    # Viertelstunde verfallen; laenger festzuhalten hiesse nur, abgebrochene
+    # Versuche unnoetig lange aufzubewahren.
+    TokenPurpose.mediaserver_login: timedelta(minutes=15),
 }
 
 # 32 Byte Zufall ergeben rund 43 Zeichen - nicht zu erraten.
@@ -68,6 +72,8 @@ def create(
     invite_blocked_movie_profiles: str = "",
     invite_blocked_series_profiles: str = "",
     lifetime_days: int | None = None,
+    mediaserver_ref: str | None = None,
+    invalidate_previous: bool = True,
 ) -> tuple[str, AuthToken]:
     """Neuen Einmal-Link anlegen. Gibt den Klartext zurueck - nur dieses Mal.
 
@@ -75,9 +81,16 @@ def create(
     fuer die Willkommensnachricht: dort ist der Link zwar technisch ein
     Passwort-Reset, aber eine Stunde waere fuer jemanden, der gerade erst
     angelegt wurde, viel zu knapp.
+
+    ``invalidate_previous=False`` laesst aeltere Vorgaenge stehen. Das ist bei
+    der Anmeldung ueber den Media-Server noetig: dort gibt es noch keine
+    Adresse, ueber die sich Vorgaenge unterscheiden liessen - zwei Personen,
+    die sich gleichzeitig anmelden, wuerden einander sonst gegenseitig
+    hinauswerfen.
     """
     adresse = normalize_email(email)
-    invalidate(db, purpose, adresse)
+    if invalidate_previous:
+        invalidate(db, purpose, adresse)
 
     gueltigkeit = timedelta(days=lifetime_days) if lifetime_days else LIFETIME[purpose]
     roh = secrets.token_urlsafe(TOKEN_BYTES)
@@ -94,6 +107,7 @@ def create(
         invite_quota_period=invite_quota_period,
         invite_blocked_movie_profiles=invite_blocked_movie_profiles,
         invite_blocked_series_profiles=invite_blocked_series_profiles,
+        mediaserver_ref=mediaserver_ref,
     )
     db.add(token)
     db.commit()

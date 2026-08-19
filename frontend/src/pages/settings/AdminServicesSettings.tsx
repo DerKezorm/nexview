@@ -7,8 +7,26 @@ import { ApiError, api } from '../../api/client'
 import type { AppSettings, ArrOptions, TestResult } from '../../api/types'
 import { REGION_OPTIONS } from '../../components/media/FilterBar'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../../components/ui'
+import { AdminMediaServerSettings } from './AdminMediaServerSettings'
 
 type TestService = 'tmdb' | 'radarr' | 'sonarr'
+
+/**
+ * Ein Knopf je Dienst statt einer langen Liste.
+ *
+ * Untereinander waren das fünf Blöcke, in denen man das Gesuchte nur noch
+ * durch Scrollen fand. "Allgemein" steht voran: Region, Sprache und
+ * Beispieldaten gehören zu keinem einzelnen Dienst.
+ */
+type UnterTab = 'general' | 'tmdb' | 'radarr' | 'sonarr' | 'plex'
+
+const UNTER_TABS: { value: UnterTab; labelKey: string }[] = [
+  { value: 'general', labelKey: 'settings.generalSection' },
+  { value: 'tmdb', labelKey: 'settings.tmdbSection' },
+  { value: 'radarr', labelKey: 'settings.radarrSection' },
+  { value: 'sonarr', labelKey: 'settings.sonarrSection' },
+  { value: 'plex', labelKey: 'mediaserver.adminTitle' },
+]
 
 type Draft = {
   tmdb_api_key: string
@@ -22,8 +40,13 @@ type Draft = {
   /** Leerer String = kein Standardprofil. */
   default_movie_profile_id: string
   default_series_profile_id: string
-  /** Dürfen Benutzer den Zielordner selbst wählen? */
-  root_folder_choice: boolean
+  /**
+   * Dürfen Benutzer den Zielordner selbst wählen? Je Dienst getrennt – Filme
+   * und Serien haben unterschiedliche Ordnerstrukturen, und wer bei Serien
+   * feste Pfade will, muss das nicht auch bei Filmen wollen.
+   */
+  movie_root_folder_choice: boolean
+  series_root_folder_choice: boolean
   default_movie_root: string
   default_series_root: string
 }
@@ -39,7 +62,8 @@ const EMPTY_DRAFT: Draft = {
   demo_mode: 'auto',
   default_movie_profile_id: '',
   default_series_profile_id: '',
-  root_folder_choice: true,
+  movie_root_folder_choice: true,
+  series_root_folder_choice: true,
   default_movie_root: '',
   default_series_root: '',
 }
@@ -50,6 +74,45 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="text-lg font-semibold">{title}</h2>
       {children}
     </Card>
+  )
+}
+
+/**
+ * Darf der Benutzer den Zielordner selbst wählen?
+ *
+ * Der Zielordner ist die einzige Auswahl beim Anfragen, die etwas über die
+ * Ablage auf dem Server verrät. Wer das nicht jedem zumuten will, schaltet sie
+ * ab; dann erscheint direkt darunter der feste Ordner.
+ *
+ * Steht bewusst bei Radarr bzw. Sonarr und nicht mehr im Allgemein-Block:
+ * Filme und Serien haben unterschiedliche Ordnerstrukturen.
+ */
+function RootFolderChoice({
+  checked,
+  onChange,
+}: {
+  checked: boolean
+  onChange: (value: boolean) => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
+      />
+      <span>
+        <span className="text-sm font-medium text-mist-300">
+          {t('settings.rootFolderChoice')}
+        </span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+          {t('settings.rootFolderChoiceHint')}
+        </span>
+      </span>
+    </label>
   )
 }
 
@@ -167,6 +230,7 @@ export function AdminServicesSettings() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
+  const [unterTab, setUnterTab] = useState<UnterTab>('general')
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [testResults, setTestResults] = useState<Partial<Record<TestService, TestResult>>>({})
@@ -198,7 +262,8 @@ export function AdminServicesSettings() {
       demo_mode: data.demo_mode,
       default_movie_profile_id: data.default_movie_profile_id?.toString() ?? '',
       default_series_profile_id: data.default_series_profile_id?.toString() ?? '',
-      root_folder_choice: data.root_folder_choice,
+      movie_root_folder_choice: data.movie_root_folder_choice,
+      series_root_folder_choice: data.series_root_folder_choice,
       default_movie_root: data.default_movie_root,
       default_series_root: data.default_series_root,
     })
@@ -312,7 +377,41 @@ export function AdminServicesSettings() {
     <div className="max-w-3xl">
       <p className="text-sm text-mist-500">{t('settings.intro')}</p>
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-5">
+      {/* Zweite Reihe: ein Knopf je Dienst. Bewusst optisch leichter als die
+          Reiter darüber, damit die Ebenen unterscheidbar bleiben. */}
+      <div className="mt-5 flex flex-wrap gap-2" role="tablist">
+        {UNTER_TABS.map((eintrag) => (
+          <button
+            key={eintrag.value}
+            type="button"
+            role="tab"
+            aria-selected={unterTab === eintrag.value}
+            onClick={() => setUnterTab(eintrag.value)}
+            className={
+              'rounded-lg border px-3 py-1.5 text-sm transition ' +
+              (unterTab === eintrag.value
+                ? 'border-accent-500 bg-accent-500/10 text-accent-400'
+                : 'border-ink-700 text-mist-500 hover:border-ink-600 hover:text-mist-300')
+            }
+          >
+            {t(eintrag.labelKey)}
+          </button>
+        ))}
+      </div>
+
+      {/* Der Media-Server bringt eigenes Speichern und eigene Abläufe mit -
+          er steht deshalb außerhalb dieses Formulars. */}
+      {unterTab === 'plex' && (
+        <div className="mt-6">
+          <AdminMediaServerSettings />
+        </div>
+      )}
+
+      <form
+        onSubmit={handleSubmit}
+        className={'mt-6 flex-col gap-5 ' + (unterTab === 'plex' ? 'hidden' : 'flex')}
+      >
+        {unterTab === 'tmdb' && (
         <Section title={t('settings.tmdbSection')}>
           <Field
             label={t('settings.tmdbKey')}
@@ -326,7 +425,9 @@ export function AdminServicesSettings() {
 
           {testRow('tmdb')}
         </Section>
+        )}
 
+        {unterTab === 'general' && (
         <Section title={t('settings.generalSection')}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
@@ -373,28 +474,10 @@ export function AdminServicesSettings() {
             </select>
           </label>
 
-          {/* Der Zielordner ist die einzige Auswahl beim Anfragen, die etwas
-              über die Ablage auf dem Server verrät. Wer das nicht jedem
-              zumuten will, schaltet sie hier ab - der Standardordner steht
-              dann bei Radarr bzw. Sonarr weiter unten. */}
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              checked={draft.root_folder_choice}
-              onChange={(event) => update({ root_folder_choice: event.target.checked })}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
-            />
-            <span>
-              <span className="text-sm font-medium text-mist-300">
-                {t('settings.rootFolderChoice')}
-              </span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
-                {t('settings.rootFolderChoiceHint')}
-              </span>
-            </span>
-          </label>
         </Section>
+        )}
 
+        {unterTab === 'radarr' && (
         <Section title={t('settings.radarrSection')}>
           <Field
             label={t('settings.url')}
@@ -418,7 +501,11 @@ export function AdminServicesSettings() {
             onChange={(value) => update({ default_movie_profile_id: value })}
             configured={settings?.radarr_api_key_set ?? false}
           />
-          {!draft.root_folder_choice && (
+          <RootFolderChoice
+            checked={draft.movie_root_folder_choice}
+            onChange={(value) => update({ movie_root_folder_choice: value })}
+          />
+          {!draft.movie_root_folder_choice && (
             <DefaultRootField
               mediaType="movie"
               value={draft.default_movie_root}
@@ -428,7 +515,9 @@ export function AdminServicesSettings() {
           )}
           {testRow('radarr')}
         </Section>
+        )}
 
+        {unterTab === 'sonarr' && (
         <Section title={t('settings.sonarrSection')}>
           <Field
             label={t('settings.url')}
@@ -452,7 +541,11 @@ export function AdminServicesSettings() {
             onChange={(value) => update({ default_series_profile_id: value })}
             configured={settings?.sonarr_api_key_set ?? false}
           />
-          {!draft.root_folder_choice && (
+          <RootFolderChoice
+            checked={draft.series_root_folder_choice}
+            onChange={(value) => update({ series_root_folder_choice: value })}
+          />
+          {!draft.series_root_folder_choice && (
             <DefaultRootField
               mediaType="tv"
               value={draft.default_series_root}
@@ -462,6 +555,7 @@ export function AdminServicesSettings() {
           )}
           {testRow('sonarr')}
         </Section>
+        )}
 
         {message && !message.ok && <ErrorBanner message={message.text} />}
         {message?.ok && (

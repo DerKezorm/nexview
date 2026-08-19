@@ -8,6 +8,7 @@
 
 import { createContext } from 'react'
 
+import type { TokenPair } from '../api/client'
 import type { User } from '../api/types'
 
 export type SetupPayload = {
@@ -23,7 +24,16 @@ export type AuthState = {
   status: 'loading' | 'ready'
   user: User | null
   needsSetup: boolean
+  /** Ist ein Media-Server verbunden? Steuert den Knopf auf der Anmeldeseite. */
+  mediaServerLogin: boolean
   login: (username: string, password: string) => Promise<void>
+  /**
+   * Aus fertigen Token eine Sitzung machen.
+   *
+   * Für Anmeldewege, bei denen nicht die App das Passwort prüft, sondern der
+   * Media-Server für die Identität bürgt.
+   */
+  loginWithTokens: (tokens: TokenPair) => Promise<void>
   /**
    * Legt den ersten Administrator an und meldet ihn gleich an.
    *

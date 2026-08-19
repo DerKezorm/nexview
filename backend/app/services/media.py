@@ -782,14 +782,39 @@ def _credit_kind(eintrag: dict[str, Any]) -> str:
     Kinofilme bleiben Filme, auch wenn jemand als er selbst auftritt (eine
     Doku ist ein Film). Bei Serien trennt sich die echte Rolle vom Auftritt:
     Talk, Nachrichten, Reality oder eine Rolle, die mit "Self" beginnt.
+
+    Eine Regie- oder Drehbuch-Arbeit (Crew, kein "character") ist nie ein
+    blosser Auftritt - sie zaehlt immer als Film bzw. Serie.
     """
     if eintrag.get("media_type") == "movie":
         return "movie"
+    if eintrag.get("_job"):
+        return "series"
     rolle = (eintrag.get("character") or "").strip().lower()
     genres = set(eintrag.get("genre_ids") or [])
     if rolle.startswith("self") or (genres & AUFTRITT_GENRES):
         return "appearance"
     return "series"
+
+
+# Crew-Funktionen, die als eigenstaendiges Werk einer Person gelten - also auf
+# der Personenseite als Filmografie erscheinen. Produktion, Kamera, Schnitt und
+# der ganze Rest bleiben aussen vor. Je Funktion die Beschriftung nach Sprache.
+REGIE_DREHBUCH: dict[str, dict[str, str]] = {
+    "Director": {"de": "Regie", "en": "Director"},
+    "Writer": {"de": "Drehbuch", "en": "Writer"},
+    "Screenplay": {"de": "Drehbuch", "en": "Screenplay"},
+    "Story": {"de": "Story", "en": "Story"},
+}
+
+
+def _werk_rolle(eintrag: dict[str, Any], sprache: str) -> str:
+    """Die anzuzeigende Funktion: bei Crew die Regie/Drehbuch-Rolle, sonst die
+    Schauspielrolle (der Rollenname)."""
+    job = eintrag.get("_job")
+    if job:
+        return REGIE_DREHBUCH.get(job, {}).get(sprache[:2], job)
+    return eintrag.get("character") or ""
 
 
 async def person_detail(db: Session, settings: AppSettings, person_id: int) -> PersonDetail:
@@ -810,8 +835,41 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
         db, f"person:{person_id}:{settings.default_language}", cache.DETAIL_TTL, fetch
     )
 
-    eintraege = (raw.get("combined_credits") or {}).get("cast") or []
-    beste = sorted(eintraege, key=lambda e: float(e.get("popularity") or 0), reverse=True)
+    cast = (raw.get("combined_credits") or {}).get("cast") or []
+    crew = (raw.get("combined_credits") or {}).get("crew") or []
+
+    # Je Titel genau ein Eintrag. Regie und Drehbuch (Crew) sind das eigentliche
+    # Werk und haben Vorrang vor einer Schauspielrolle am selben Titel - sonst
+    # zeigte die Seite eines Regisseurs nur seine Gastauftritte statt der von
+    # ihm inszenierten Filme. Die Funktion merken wir uns unter "_job".
+    zusammen: dict[tuple[str, int], dict[str, Any]] = {}
+    for eintrag in crew:
+        if eintrag.get("job") not in REGIE_DREHBUCH:
+            continue
+        art = eintrag.get("media_type")
+        kennung = eintrag.get("id")
+        if art not in ("movie", "tv") or not kennung:
+            continue
+        vorhanden = zusammen.get((art, kennung))
+        # Regie schlaegt Drehbuch, wenn jemand an einem Titel beides war.
+        if vorhanden is None or (
+            eintrag.get("job") == "Director" and vorhanden.get("_job") != "Director"
+        ):
+            e = dict(eintrag)
+            e["_job"] = eintrag.get("job")
+            zusammen[(art, kennung)] = e
+    for eintrag in cast:
+        art = eintrag.get("media_type")
+        kennung = eintrag.get("id")
+        if art not in ("movie", "tv") or not kennung or (art, kennung) in zusammen:
+            continue
+        e = dict(eintrag)
+        e["_job"] = None
+        zusammen[(art, kennung)] = e
+
+    beste = sorted(
+        zusammen.values(), key=lambda e: float(e.get("popularity") or 0), reverse=True
+    )
 
     # Erst die Kandidaten sammeln, dann pruefen, dann kuerzen - in dieser
     # Reihenfolge. Wuerde erst gekuerzt, bliebe von der Filmografie eines
@@ -827,13 +885,7 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
     # Auftritte nur in Auswahl - beide bleiben aber filterbar.
     rollen: list[dict[str, Any]] = []
     auftritte: list[dict[str, Any]] = []
-    gesehen: set[tuple[str, int]] = set()
     for eintrag in beste:
-        art = eintrag.get("media_type")
-        kennung = eintrag.get("id")
-        if art not in ("movie", "tv") or not kennung or (art, kennung) in gesehen:
-            continue
-        gesehen.add((art, kennung))
         if _credit_kind(eintrag) == "appearance":
             if len(auftritte) < MAX_APPEARANCES:
                 auftritte.append(eintrag)
@@ -862,7 +914,7 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
                 tmdb_id=kennung,
                 kind=_credit_kind(eintrag),
                 title=(eintrag.get("title") if art == "movie" else eintrag.get("name")) or "",
-                character=eintrag.get("character") or "",
+                character=_werk_rolle(eintrag, settings.default_language),
                 poster_url=image_url(eintrag.get("poster_path")),
                 release_date=(
                     eintrag.get("release_date")

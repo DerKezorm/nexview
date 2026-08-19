@@ -19,7 +19,7 @@ from ..schemas import (
     UserWithUsage,
 )
 from ..security import hash_password
-from ..services import accounts, avatars, mail, quota, tokens
+from ..services import accounts, avatars, mail, mediaserver_accounts, quota, tokens
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -305,5 +305,10 @@ def delete_user(user_id: int, admin: AdminUser, db: DbSession) -> None:
 
     # Sonst bliebe das Profilbild als verwaiste Datei liegen.
     avatars.remove(user.avatar_path)
+    # Ohne diese Sperre waere das Loeschen wirkungslos: Wer Zugriff auf die
+    # Bibliothek hat, meldet sich ueber den Media-Server einfach neu an und
+    # bekommt sofort wieder ein Konto. Der Administrator kann die Sperre in den
+    # Einstellungen jederzeit aufheben.
+    mediaserver_accounts.block(db, user, by=admin.id)
     db.delete(user)
     db.commit()

@@ -19,13 +19,22 @@ from ..security import (
     hash_password,
 )
 from ..services import mail, tokens
+from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
 
 
 @router.get("/status", response_model=SetupStatus)
 def setup_status(db: DbSession) -> SetupStatus:
-    return SetupStatus(needs_setup=not has_any_user(db))
+    # Die Anmeldeseite fragt das ohnehin beim Start ab. Sie muss vor dem
+    # Anmelden wissen, ob es den Weg ueber den Media-Server gibt - und genau
+    # dort ist noch niemand angemeldet, der die Einstellungen lesen duerfte.
+    settings = load_settings(db)
+    return SetupStatus(
+        needs_setup=not has_any_user(db),
+        mediaserver_login=settings.mediaserver_configured,
+        mediaserver_provider=settings.mediaserver_provider or None,
+    )
 
 
 @router.post("/admin", response_model=TokenPair, status_code=status.HTTP_201_CREATED)

@@ -38,6 +38,7 @@ MAIL_SWITCH: dict[NotificationType, str] = {
     # die Begruendung oben.
     NotificationType.ticket_new: "mail_ticket",
     NotificationType.ticket_reply: "mail_ticket",
+    NotificationType.user_imported: "mail_user_imported",
 }
 
 
@@ -62,12 +63,18 @@ def create(
     message_key: str,
     request: MediaRequest | None = None,
     ticket: Ticket | None = None,
+    title: str | None = None,
 ) -> Notification:
     """Eine Benachrichtigung anlegen. Kein ``commit`` - das macht der Aufrufer.
 
     ``request`` und ``ticket`` sind zwei moegliche Bezuege; die Glocke
     springt anhand davon an die richtige Stelle. Der ``message_title``
     kommt aus dem, was gesetzt ist - beim Ticket der Betreff.
+
+    ``title`` ist fuer Meldungen ohne solchen Bezug. Ein neues Konto ueber den
+    Media-Server haengt an nichts, was einen Titel mitbraechte - der Name muss
+    trotzdem in der Glocke stehen, weil die Textbausteine bewusst keine
+    Platzhalter enthalten.
     """
     eintrag = Notification(
         user_id=user.id,
@@ -76,9 +83,13 @@ def create(
         type=kind,
         message_key=message_key,
         message_title=(
-            request.title
-            if request is not None
-            else (ticket.subject if ticket is not None else None)
+            title
+            if title is not None
+            else (
+                request.title
+                if request is not None
+                else (ticket.subject if ticket is not None else None)
+            )
         ),
         mail_pending=wants_mail(user, kind),
     )
@@ -118,13 +129,22 @@ def create_for_admins(
     request: MediaRequest | None = None,
     ticket: Ticket | None = None,
     ausser: int | None = None,
+    title: str | None = None,
 ) -> list[Notification]:
     """Nur Administratoren - fuer alles, was auch nur sie beantworten koennen."""
     empfaenger = db.scalars(
         select(User).where(User.role == Role.admin, User.is_active.is_(True))
     )
     return [
-        create(db, user=user, kind=kind, message_key=message_key, request=request, ticket=ticket)
+        create(
+            db,
+            user=user,
+            kind=kind,
+            message_key=message_key,
+            request=request,
+            ticket=ticket,
+            title=title,
+        )
         for user in empfaenger
         if user.id != ausser
     ]

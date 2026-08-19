@@ -12,6 +12,76 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.7.0 – 19.08.2026
+
+### New
+
+- **Directing and writing show up in a filmography.** A person's page used to
+  list only what they acted in, so a director's page showed their cameos
+  instead of the films they made. Directing, writing, screenplay and story
+  credits now appear alongside the acting roles, labelled as such. One entry
+  per title: the work itself wins over a cameo in the same film, and directing
+  wins over writing when someone did both.
+
+- **Sign in with Plex.** Connect your Plex server once and your household can
+  sign in with their Plex account instead of a Nexview password. Only people
+  who actually have access to your library get in — that is checked against
+  the server's own identifier, so a stranger's Plex account is turned away
+  even though it authenticates fine.
+
+- **Connect by picking your server.** Setting it up needs no token hunting:
+  the administrator signs in with Plex and chooses a server from a list. His
+  own account is linked in the same step — otherwise his first Plex sign-in
+  would have created a *second*, ordinary account whenever his Plex address
+  differs from his Nexview one.
+
+- **Link an existing account.** Everyone already invited can connect their
+  Plex account under Profile → Security, and keeps signing in with a password
+  as well. Both ways lead into the same account. Accounts created through Plex
+  have no password at first; the profile offers to set one and refuses to
+  unlink while that would lock you out.
+
+- **New accounts on your terms.** Anyone with library access can get an
+  account on first sign-in, with the role, quota and age limit you set in
+  advance — or you turn that off and keep invitations mandatory. New accounts
+  never get automatic approval, and "administrator" cannot be a default role.
+  You are notified in the bell, optionally by mail, whenever an account
+  appears.
+
+- **Deleting a user now sticks.** Removing someone who signed in through Plex
+  blocks that Plex account from creating a new one. Without it, deleting was
+  pointless — they would simply sign in again. The block outlives the account
+  and can be lifted in the settings.
+
+### Changed
+
+- **Settings are sorted by service.** "Services" now has a second row of
+  buttons — General, TMDB, Radarr, Sonarr, Plex — instead of five blocks you
+  had to scroll past. Region, language and demo data live under "General",
+  since they belong to no single service.
+
+- **"Users may choose the folder" is now set per service.** Movies and shows
+  have different folder layouts, so wanting fixed paths for shows no longer
+  forces them on movies. The switch sits with Radarr and Sonarr respectively,
+  right above the folder it governs. Existing installations keep whatever the
+  old shared switch was set to.
+
+### Under the hood
+
+- The media-server connection sits behind one interface with Plex as the first
+  adapter, so Jellyfin and Emby can be added later without rework. Nothing
+  outside that package knows which provider is in use — the database columns
+  and settings are provider-neutral too.
+- Only servers you own are offered when connecting. Ones merely shared with
+  you are hidden and counted, because picking one would tie sign-in to the
+  wrong circle of people and break watched-state later. The chosen address is
+  probed before it is stored; if nothing answers you are told, and sign-in
+  still works, because that runs through Plex rather than the server.
+- Prepared but not built: detecting titles added to the server outside
+  Radarr/Sonarr, and a per-user "already watched" marker.
+
+---
+
 ## 0.6.0 – 18.08.2026
 
 ### New

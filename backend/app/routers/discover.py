@@ -220,7 +220,7 @@ async def arr_options(media_type: MediaTypePath, user: CurrentUser, db: DbSessio
     pfade = [ordner.path for ordner in options.root_folders]
     vorgabe = settings.default_root(media_type)
     options.default_root_folder = vorgabe if vorgabe in pfade else (pfade[0] if pfade else None)
-    options.root_folder_choice = settings.root_folder_choice or user.is_admin
+    options.root_folder_choice = settings.root_folder_choice(media_type) or user.is_admin
 
     if not options.root_folder_choice:
         # Gar nicht erst mitliefern, was nicht zur Wahl steht.

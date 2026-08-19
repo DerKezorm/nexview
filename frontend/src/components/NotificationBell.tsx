@@ -52,6 +52,8 @@ export function NotificationBell() {
     if (item.type === 'ticket_new' || item.type === 'ticket_reply') {
       return item.ticket_id ? `/tickets/${item.ticket_id}` : '/tickets'
     }
+    // Ein neues Konto will man ansehen, nicht suchen.
+    if (item.type === 'user_imported') return '/admin/settings'
     // Alles andere betrifft die eigenen Anfragen.
     return '/requests'
   }

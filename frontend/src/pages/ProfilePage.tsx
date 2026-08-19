@@ -10,6 +10,7 @@ import { Avatar } from '../components/Avatar'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { DiscoverDefaults } from './profile/DiscoverDefaults'
+import { MediaServerLink } from './profile/MediaServerLink'
 import { NotificationSettings } from './profile/NotificationSettings'
 
 /**
@@ -352,6 +353,9 @@ export function ProfilePage() {
           </form>
         </Card>
       )}
+
+      {/* Die Verknüpfung gehört zur Anmeldung und damit neben das Passwort. */}
+      {tab === 'security' && <MediaServerLink />}
     </div>
   )
 }

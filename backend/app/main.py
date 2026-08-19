@@ -31,6 +31,7 @@ from .routers import (
     favorites as favorites_router,
     home as home_router,
     logs as logs_router,
+    mediaserver as mediaserver_router,
     notifications,
     onboarding,
     requests as requests_router,
@@ -42,6 +43,7 @@ from .routers import (
 )
 from .services import logs, status_poller
 from .services.arr import close_http_client as close_arr_client
+from .services.mediaserver import close_http_client as close_mediaserver_client
 from .services.tmdb import close_http_client
 
 settings = get_settings()
@@ -76,6 +78,7 @@ async def lifespan(app: FastAPI):
 
     await close_http_client()
     await close_arr_client()
+    await close_mediaserver_client()
 
 
 app = FastAPI(
@@ -111,6 +114,8 @@ app.include_router(details_router.router)
 app.include_router(favorites_router.router)
 app.include_router(blocklist_router.router)
 app.include_router(tickets_router.router)
+app.include_router(mediaserver_router.router)
+app.include_router(mediaserver_router.admin_router)
 
 
 @app.get("/api/health", tags=["system"])

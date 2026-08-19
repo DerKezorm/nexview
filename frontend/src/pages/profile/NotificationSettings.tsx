@@ -13,6 +13,7 @@ type MailFeld =
   | 'mail_request_pending'
   | 'mail_feedback'
   | 'mail_ticket'
+  | 'mail_user_imported'
 
 type Schalter = {
   feld: MailFeld
@@ -20,6 +21,7 @@ type Schalter = {
   hintKey: string
   /** Wer die Meldung gar nicht bekommen kann, sieht den Schalter nicht. */
   nurEntscheider?: boolean
+  nurAdmin?: boolean
 }
 
 /** Reihenfolge nach Häufigkeit, nicht alphabetisch. */
@@ -53,6 +55,14 @@ const SCHALTER: Schalter[] = [
     labelKey: 'profile.mailTicket',
     hintKey: 'profile.mailTicketHint',
   },
+  {
+    // Nur Administratoren: neue Konten über den Media-Server entstehen sonst
+    // lautlos, und niemand merkt, wer dazugekommen ist.
+    feld: 'mail_user_imported',
+    labelKey: 'profile.mailUserImported',
+    hintKey: 'profile.mailUserImportedHint',
+    nurAdmin: true,
+  },
 ]
 
 type Entwurf = Record<MailFeld, boolean>
@@ -64,6 +74,7 @@ function ausUser(user: User): Entwurf {
     mail_request_pending: user.mail_request_pending,
     mail_feedback: user.mail_feedback,
     mail_ticket: user.mail_ticket,
+    mail_user_imported: user.mail_user_imported,
   }
 }
 
@@ -110,7 +121,10 @@ export function NotificationSettings() {
 
   if (!user || !entwurf) return null
 
-  const sichtbar = SCHALTER.filter((s) => !s.nurEntscheider || user.can_approve)
+  const sichtbar = SCHALTER.filter(
+    (s) =>
+      (!s.nurEntscheider || user.can_approve) && (!s.nurAdmin || user.role === 'admin'),
+  )
   // Ohne bestätigte Adresse geht ohnehin nichts raus - das gehört gesagt,
   // statt die Haken wirkungslos setzen zu lassen.
   const zustellbar = Boolean(user.email && user.email_verified)

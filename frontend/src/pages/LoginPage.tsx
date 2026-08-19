@@ -6,15 +6,18 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 
 import { ApiError, api } from '../api/client'
+import type { TokenPair } from '../api/client'
 import { useAuth } from '../auth/useAuth'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
+import { MediaServerPrompt } from '../components/MediaServerPrompt'
 import { ThemeSwitcher } from '../components/ThemeSwitcher'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
+import { useMediaServerChallenge } from '../lib/useMediaServerChallenge'
 
 export function LoginPage() {
   const { t } = useTranslation()
-  const { login } = useAuth()
+  const { login, loginWithTokens, mediaServerLogin } = useAuth()
   const navigate = useNavigate()
 
   const [username, setUsername] = useState('')
@@ -47,6 +50,18 @@ export function LoginPage() {
       setBusy(false)
     }
   }
+
+  const plex = useMediaServerChallenge<{ status: string; tokens: TokenPair | null }>({
+    startPfad: '/api/auth/mediaserver/login/start',
+    abfragePfad: '/api/auth/mediaserver/login/poll',
+    // Vor dem Anmelden gibt es keine Sitzung, die mitgeschickt werden könnte.
+    auth: false,
+    onFertig: async (ergebnis) => {
+      if (!ergebnis.tokens) return
+      await loginWithTokens(ergebnis.tokens)
+      navigate('/', { replace: true })
+    },
+  })
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -120,6 +135,30 @@ export function LoginPage() {
               {t('login.forgot')}
             </button>
           </form>
+
+          {/* Nur wenn ein Media-Server verbunden ist - sonst soll davon nichts
+              zu sehen sein. */}
+          {mediaServerLogin && (
+            <div className="mt-6 border-t border-ink-700 pt-5">
+              {plex.start ? (
+                <MediaServerPrompt start={plex.start} onAbbrechen={plex.abbrechen} />
+              ) : (
+                <Button
+                  variant="ghost"
+                  onClick={() => void plex.starten()}
+                  loading={plex.laeuft}
+                  className="w-full"
+                >
+                  {t('mediaserver.loginWithPlex')}
+                </Button>
+              )}
+              {plex.fehler && (
+                <div className="mt-3">
+                  <ErrorBanner message={plex.fehler} />
+                </div>
+              )}
+            </div>
+          )}
         </Card>
         )}
       </div>

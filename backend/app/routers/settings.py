@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException, Path, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..deps import AdminUser, CurrentUser, DbSession
 from ..schemas import MIN_PASSWORD_LENGTH
@@ -46,7 +46,8 @@ class SettingsUpdate(BaseModel):
     default_series_profile_id: str | None = Field(default=None, max_length=12)
     # Duerfen Benutzer den Zielordner selbst waehlen? Wenn nicht, gilt der hier
     # hinterlegte fuer alle.
-    root_folder_choice: bool | None = None
+    movie_root_folder_choice: bool | None = None
+    series_root_folder_choice: bool | None = None
     default_movie_root: str | None = Field(default=None, max_length=500)
     default_series_root: str | None = Field(default=None, max_length=500)
     # Mailversand
@@ -61,6 +62,30 @@ class SettingsUpdate(BaseModel):
     public_url: str | None = Field(default=None, max_length=255)
     # Taegliche Nachfrage bei GitHub nach einer neueren Version.
     update_check: bool | None = None
+    # --- Media-Server ------------------------------------------------------
+    # Server, Adresse und Token stehen hier bewusst *nicht*: Die setzt allein
+    # der Verbindungsvorgang (`/api/admin/mediaserver/connect/...`), damit die
+    # Maschinenkennung immer zu einem tatsaechlich geprueften Server gehoert.
+    mediaserver_auto_import: bool | None = None
+    mediaserver_default_role: str | None = None
+    # Leerer String bedeutet "unbegrenzt" bzw. "keine Altersgrenze".
+    mediaserver_default_quota_movies: str | None = Field(default=None, max_length=6)
+    mediaserver_default_quota_series: str | None = Field(default=None, max_length=6)
+    mediaserver_default_quota_period: str | None = None
+    mediaserver_default_age: str | None = Field(default=None, max_length=3)
+
+    @field_validator("mediaserver_default_role")
+    @classmethod
+    def _keine_admin_vorgabe(cls, wert: str | None) -> str | None:
+        """"Administrator" als Vorgabe waere eine Rechte-Falle.
+
+        Ein automatisch angelegtes Konto darf niemals volle Rechte bekommen -
+        wer Zugriff auf die Bibliothek hat, ist damit noch lange nicht
+        berechtigt, andere Konten zu verwalten.
+        """
+        if wert is not None and wert not in ("user", "approver"):
+            raise ValueError("Als Vorgabe sind nur 'user' und 'approver' erlaubt.")
+        return wert
 
 
 class ConnectionTest(BaseModel):
@@ -146,7 +171,14 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
 @router.delete("/settings/secret/{name}")
 def delete_secret(
     name: Annotated[
-        Literal["tmdb_api_key", "radarr_api_key", "sonarr_api_key", "smtp_password"], Path()
+        Literal[
+            "tmdb_api_key",
+            "radarr_api_key",
+            "sonarr_api_key",
+            "smtp_password",
+            "mediaserver_token",
+        ],
+        Path(),
     ],
     admin: AdminUser,
     db: DbSession,

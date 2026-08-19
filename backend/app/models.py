@@ -94,10 +94,34 @@ class NotificationType(str, enum.Enum):
     ticket_new = "ticket_new"
     # Antwort des Admins oder Zustandswechsel - geht an den Eigentuemer.
     ticket_reply = "ticket_reply"
+    # --- Media-Server ------------------------------------------------------
+    # Jemand hat sich zum ersten Mal ueber den Media-Server angemeldet und
+    # dabei ein Konto bekommen - geht an die Admins. Ohne diesen Hinweis
+    # taeten neue Konten das lautlos.
+    user_imported = "user_imported"
 
 
 class User(Base):
     __tablename__ = "users"
+    # Ein Media-Server-Konto gehoert zu genau einem Nexview-Konto.
+    #
+    # Bewusst ein eindeutiger **Index** und kein ``UniqueConstraint``: SQLite
+    # kann einer bestehenden Tabelle keine Constraints nachtragen, einen Index
+    # dagegen schon. Auf einer aktualisierten Datenbank waere die Regel sonst
+    # stillschweigend wirkungslos - und genau das faellt niemandem auf, weil
+    # die Tests immer auf frischen Tabellen laufen.
+    #
+    # Der Index faengt nebenbei ab, dass jemand zweimal gleichzeitig auf
+    # "Anmelden" drueckt: der zweite Versuch laeuft in einen IntegrityError und
+    # verknuepft, statt ein zweites Konto anzulegen.
+    __table_args__ = (
+        Index(
+            "ix_users_mediaserver_konto",
+            "mediaserver_provider",
+            "mediaserver_account_id",
+            unique=True,
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
@@ -133,6 +157,24 @@ class User(Base):
 
     avatar_path: Mapped[str | None] = mapped_column(String(255))
 
+    # --- Verknuepfung mit dem Media-Server ---------------------------------
+    # Wer sein Konto verbunden hat, meldet sich wahlweise damit oder weiter
+    # mit Passwort an - es bleibt dasselbe Nexview-Konto.
+    #
+    # Bewusst **nicht** ``plex_...`` benannt: Jellyfin und Emby sollen spaeter
+    # dieselben Spalten benutzen. Anbieter sind Alternativen, keine parallelen
+    # Identitaeten - eine Person hat genau eine davon, deshalb reicht ein Satz
+    # Spalten statt einer eigenen Tabelle.
+    #
+    # Verglichen wird immer die Kennung, nie Name oder Adresse - beide kann man
+    # beim Anbieter jederzeit aendern.
+    mediaserver_provider: Mapped[str | None] = mapped_column(String(20))
+    mediaserver_account_id: Mapped[str | None] = mapped_column(String(64))
+    mediaserver_username: Mapped[str | None] = mapped_column(String(120))
+    mediaserver_email: Mapped[str | None] = mapped_column(String(255))
+    mediaserver_thumb: Mapped[str | None] = mapped_column(String(500))
+    mediaserver_linked_at: Mapped[datetime | None] = mapped_column(DateTime)
+
     # --- Benachrichtigungen per Mail --------------------------------------
     # Bewusst alle auf "aus": ungefragt Mails zu verschicken ist der sicherste
     # Weg, jemandem die Anwendung zu verleiden. Die Glocke in der App ist davon
@@ -149,6 +191,8 @@ class User(Base):
     # Eigentuemer) haengen bewusst am selben Schalter - vier Schalter sind
     # ueberschaubar, sechs waeren eine Zumutung.
     mail_ticket: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Neues Konto ueber den Media-Server - nur fuer Admins von Belang.
+    mail_user_imported: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # --- Vorbelegung der Filterleiste beim Entdecken ----------------------
     # NULL heisst "nichts Eigenes eingestellt", dann gilt die Vorgabe des
@@ -246,6 +290,24 @@ class User(Base):
         """Adresse des Profilbilds fuer die Oberflaeche."""
         return f"/api/users/avatar/{self.avatar_path}" if self.avatar_path else None
 
+    @property
+    def mediaserver_linked(self) -> bool:
+        return bool(self.mediaserver_provider and self.mediaserver_account_id)
+
+    @property
+    def has_password(self) -> bool:
+        """Kann sich dieses Konto auch mit Passwort anmelden?
+
+        Wer ueber den Media-Server angelegt wurde, hat zunaechst keines. Ohne
+        diese Auskunft wuerde das Profil ihm anbieten, die Verknuepfung zu
+        loesen - und er kaeme nicht mehr herein.
+        """
+        # Der Import steht hier, weil ``security`` seinerseits die Modelle
+        # nicht braucht - oben waere es ein Ringschluss.
+        from .security import has_usable_password
+
+        return has_usable_password(self.password_hash)
+
 
 class TokenPurpose(str, enum.Enum):
     """Wofuer ein Einmal-Link gilt."""
@@ -253,6 +315,12 @@ class TokenPurpose(str, enum.Enum):
     invitation = "invitation"
     email_verification = "email_verification"
     password_reset = "password_reset"
+    # Ein angefangener Anmeldevorgang beim Media-Server. Kein Link zum
+    # Anklicken, sondern der Merkzettel dazu: Der Browser bekommt nur diese
+    # Kennung und schickt sie beim Nachfragen zurueck. Die PIN von Plex bleibt
+    # dadurch im Backend - sonst koennte jemand, der sie mitliest, eine fremde
+    # Anmeldung zu Ende fuehren.
+    mediaserver_login = "mediaserver_login"
 
 
 class AuthToken(Base):
@@ -291,6 +359,12 @@ class AuthToken(Base):
         String(255), default="", nullable=False
     )
 
+    # Nur bei ``mediaserver_login``: Anbieter, PIN-Nummer und Code als JSON -
+    # bei der Ersteinrichtung zusaetzlich das bereits geholte Token des
+    # Anbieters, damit es fuer die Server-Auswahl nicht durch den Browser
+    # laufen muss. Es liegt dort verschluesselt und nur fuer wenige Minuten.
+    mediaserver_ref: Mapped[str | None] = mapped_column(Text)
+
     user: Mapped[User | None] = relationship(foreign_keys=[user_id])
 
     @property
@@ -301,6 +375,33 @@ class AuthToken(Base):
     def open(self) -> bool:
         """Noch einloesbar - weder verbraucht noch abgelaufen."""
         return self.used_at is None and not self.expired
+
+
+class MediaServerBlock(Base):
+    """Media-Server-Konten, die sich nicht mehr selbst anlegen duerfen.
+
+    Ohne diese Liste waere das Loeschen eines Benutzers wirkungslos: Wer
+    Zugriff auf die Bibliothek hat, meldet sich einfach neu an und bekommt
+    sofort wieder ein Konto. Der Eintrag ueberlebt den Benutzer deshalb
+    absichtlich - der Administrator kann ihn jederzeit wieder aufheben.
+
+    ``provider`` haelt die Liste offen fuer Jellyfin und Emby; die Kennung
+    allein waere nicht eindeutig, wenn zwei Anbieter im Spiel sind.
+    """
+
+    __tablename__ = "media_server_blocks"
+    __table_args__ = (
+        UniqueConstraint("provider", "account_id", name="uq_media_server_blocks_konto"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    account_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Nur zur Anzeige - damit in der Liste nicht bloss Nummern stehen.
+    username: Mapped[str | None] = mapped_column(String(120))
+    blocked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    # Die Sperre ueberlebt das Konto, das sie gesetzt hat.
+    blocked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
 
 class Setting(Base):

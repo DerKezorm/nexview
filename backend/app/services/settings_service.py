@@ -20,7 +20,13 @@ if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
 
 # Schluessel, die als Geheimnis behandelt werden.
 SECRET_KEYS = frozenset(
-    {"tmdb_api_key", "radarr_api_key", "sonarr_api_key", "smtp_password"}
+    {
+        "tmdb_api_key",
+        "radarr_api_key",
+        "sonarr_api_key",
+        "smtp_password",
+        "mediaserver_token",
+    }
 )
 
 DEFAULTS: dict[str, str] = {
@@ -38,7 +44,17 @@ DEFAULTS: dict[str, str] = {
     # Duerfen Benutzer den Zielordner selbst waehlen? Wenn nicht, gilt fuer
     # alle der hier hinterlegte Ordner. Auf "on", damit sich fuer bestehende
     # Installationen nichts aendert.
-    "root_folder_choice": "on",  # "on" | "off"
+    # Duerfen Benutzer den Zielordner selbst waehlen? Je Dienst getrennt -
+    # Filme und Serien haben unterschiedliche Ordnerstrukturen, und wer bei
+    # Serien feste Pfade will, muss das nicht auch bei Filmen wollen.
+    #
+    # Der alte gemeinsame Schluessel bleibt als Rueckfallwert stehen: Die
+    # beiden neuen sind absichtlich **leer** vorbelegt, und ein leerer Wert
+    # laesst ``_flag`` den uebergebenen Standard nehmen. So behaelt eine
+    # aktualisierte Installation genau die Einstellung, die sie vorher hatte.
+    "root_folder_choice": "on",  # "on" | "off" - nur noch Rueckfallwert
+    "movie_root_folder_choice": "",
+    "series_root_folder_choice": "",
     "default_movie_root": "",
     "default_series_root": "",
     # Demo-Modus: zeigt Beispieldaten statt echter TMDB-Abfragen. Praktisch,
@@ -59,6 +75,32 @@ DEFAULTS: dict[str, str] = {
     # Einmal taeglich bei GitHub nachsehen, ob es eine neuere Version gibt.
     # Uebertragen wird dabei nichts ausser der Anfrage selbst.
     "update_check": "on",  # "on" | "off"
+    # --- Media-Server ------------------------------------------------------
+    # Bewusst anbieter-neutral benannt: heute Plex, spaeter ebenso Jellyfin
+    # oder Emby. Es ist immer genau einer verbunden - ein Haushalt hat eine
+    # Bibliothek. Ohne Verbindung bleibt davon in der Oberflaeche nichts
+    # sichtbar; niemand muss einen Media-Server betreiben.
+    "mediaserver_provider": "",  # "" | "plex"
+    # Die dauerhafte Kennung des ausgewaehlten Servers. Nach ihr wird der
+    # Zugriff geprueft - nicht nach der Adresse, denn dieselbe Installation ist
+    # mal lokal und mal ueber eine Fremdadresse erreichbar.
+    "mediaserver_machine_id": "",
+    "mediaserver_name": "",
+    "mediaserver_url": "",
+    "mediaserver_token": "",
+    # Einmal je Installation erzeugt; Plex fuehrt angemeldete Geraete darueber.
+    "mediaserver_client_identifier": "",
+    # Legt ein Media-Server-Konto beim ersten Anmelden selbst ein Nexview-Konto
+    # an, oder darf es sich nur mit einem bestehenden verbinden?
+    "mediaserver_auto_import": "on",
+    # Vorgaben fuer so entstandene Konten. Freigaben bleiben absichtlich
+    # noetig - wer neu dazukommt, soll nicht ungefragt herunterladen duerfen.
+    "mediaserver_default_role": "user",  # "user" | "approver", niemals "admin"
+    "mediaserver_default_quota_movies": "",
+    "mediaserver_default_quota_series": "",
+    "mediaserver_default_quota_period": "week",
+    # Altersbeschraenkung fuer neue Konten; leer heisst unbeschraenkt.
+    "mediaserver_default_age": "",
 }
 
 
@@ -77,7 +119,8 @@ class AppSettings:
     demo_mode: str
     default_movie_profile_id: int | None
     default_series_profile_id: int | None
-    root_folder_choice: bool
+    movie_root_folder_choice: bool
+    series_root_folder_choice: bool
     default_movie_root: str
     default_series_root: str
     smtp_host: str
@@ -89,6 +132,18 @@ class AppSettings:
     smtp_from_name: str
     public_url: str
     update_check: bool
+    mediaserver_provider: str
+    mediaserver_machine_id: str
+    mediaserver_name: str
+    mediaserver_url: str
+    mediaserver_token: str
+    mediaserver_client_identifier: str
+    mediaserver_auto_import: bool
+    mediaserver_default_role: str
+    mediaserver_default_quota_movies: int | None
+    mediaserver_default_quota_series: int | None
+    mediaserver_default_quota_period: str
+    mediaserver_default_age: int | None
 
     # --- Nur aus Sicht eines Benutzers gefuellt (siehe ``for_user``) --------
     # Alter des Benutzers; None heisst "nicht altersbeschraenkt".
@@ -112,6 +167,14 @@ class AppSettings:
             self.default_movie_root if media_type == "movie" else self.default_series_root
         )
 
+    def root_folder_choice(self, media_type: str) -> bool:
+        """Darf der Benutzer den Zielordner fuer diese Art selbst waehlen?"""
+        return (
+            self.movie_root_folder_choice
+            if media_type == "movie"
+            else self.series_root_folder_choice
+        )
+
     def default_profile_id(self, media_type: str) -> int | None:
         return (
             self.default_movie_profile_id
@@ -130,6 +193,20 @@ class AppSettings:
     @property
     def sonarr_configured(self) -> bool:
         return bool(self.sonarr_url and self.sonarr_api_key)
+
+    @property
+    def mediaserver_configured(self) -> bool:
+        """Ist ein Server ausgewaehlt und ein Token hinterlegt?
+
+        Die Adresse gehoert bewusst nicht dazu: Der Zugriff wird ueber die
+        Server-Kennung beim Anbieter geprueft, und die Anmeldung funktioniert
+        auch dann noch, wenn der Server daheim gerade aus ist.
+        """
+        return bool(
+            self.mediaserver_provider
+            and self.mediaserver_machine_id
+            and self.mediaserver_token
+        )
 
     @property
     def use_demo_data(self) -> bool:
@@ -154,6 +231,16 @@ def _flag(wert: str, *, standard: bool) -> bool:
     if text in {"off", "false", "0", "no", "nein"}:
         return False
     return standard
+
+
+def _zahl(wert: str | None) -> int | None:
+    """Ganze Zahl aus einer Einstellung lesen; leer heisst "nicht gesetzt".
+
+    Bei Kontingenten bedeutet das "unbegrenzt", beim Alter "unbeschraenkt" -
+    in beiden Faellen ist das Fehlen die Aussage, nicht eine Null.
+    """
+    text = (wert or "").strip()
+    return int(text) if text.isdigit() else None
 
 
 def _raw_values(db: Session) -> dict[str, str]:
@@ -195,7 +282,16 @@ def load_settings(db: Session) -> AppSettings:
         demo_mode=values["demo_mode"] if values["demo_mode"] in {"auto", "on", "off"} else "auto",
         default_movie_profile_id=profil("default_movie_profile_id"),
         default_series_profile_id=profil("default_series_profile_id"),
-        root_folder_choice=_flag(values["root_folder_choice"], standard=True),
+        # Leer heisst "nichts Eigenes gesetzt" - dann gilt der alte gemeinsame
+        # Schalter, damit ein Update nichts stillschweigend umstellt.
+        movie_root_folder_choice=_flag(
+            values["movie_root_folder_choice"],
+            standard=_flag(values["root_folder_choice"], standard=True),
+        ),
+        series_root_folder_choice=_flag(
+            values["series_root_folder_choice"],
+            standard=_flag(values["root_folder_choice"], standard=True),
+        ),
         default_movie_root=values["default_movie_root"].strip(),
         default_series_root=values["default_series_root"].strip(),
         smtp_host=values["smtp_host"].strip(),
@@ -207,6 +303,32 @@ def load_settings(db: Session) -> AppSettings:
         smtp_from_name=values["smtp_from_name"].strip() or "Nexview",
         public_url=values["public_url"].strip().rstrip("/"),
         update_check=_flag(values["update_check"], standard=True),
+        mediaserver_provider=(
+            values["mediaserver_provider"].strip()
+            if values["mediaserver_provider"].strip() in ("plex",)
+            else ""
+        ),
+        mediaserver_machine_id=values["mediaserver_machine_id"].strip(),
+        mediaserver_name=values["mediaserver_name"].strip(),
+        mediaserver_url=values["mediaserver_url"].strip().rstrip("/"),
+        mediaserver_token=values["mediaserver_token"],
+        mediaserver_client_identifier=values["mediaserver_client_identifier"].strip(),
+        mediaserver_auto_import=_flag(values["mediaserver_auto_import"], standard=True),
+        # "admin" wird hier abgefangen und nicht erst beim Speichern: eine von
+        # Hand verbogene Datenbank soll keine Administratoren erzeugen koennen.
+        mediaserver_default_role=(
+            values["mediaserver_default_role"]
+            if values["mediaserver_default_role"] in ("user", "approver")
+            else "user"
+        ),
+        mediaserver_default_quota_movies=_zahl(values.get("mediaserver_default_quota_movies")),
+        mediaserver_default_quota_series=_zahl(values.get("mediaserver_default_quota_series")),
+        mediaserver_default_quota_period=(
+            values["mediaserver_default_quota_period"]
+            if values["mediaserver_default_quota_period"] in ("day", "week", "month")
+            else "week"
+        ),
+        mediaserver_default_age=_zahl(values.get("mediaserver_default_age")),
     )
 
 
@@ -265,7 +387,8 @@ def public_settings(db: Session) -> dict[str, object]:
         "using_demo_data": settings.use_demo_data,
         "default_movie_profile_id": settings.default_movie_profile_id,
         "default_series_profile_id": settings.default_series_profile_id,
-        "root_folder_choice": settings.root_folder_choice,
+        "movie_root_folder_choice": settings.movie_root_folder_choice,
+        "series_root_folder_choice": settings.series_root_folder_choice,
         "default_movie_root": settings.default_movie_root,
         "default_series_root": settings.default_series_root,
         "smtp_host": settings.smtp_host,
@@ -279,6 +402,21 @@ def public_settings(db: Session) -> dict[str, object]:
         "mail_configured": settings.mail_configured,
         "public_url": settings.public_url,
         "update_check": settings.update_check,
+        "mediaserver_provider": settings.mediaserver_provider,
+        "mediaserver_machine_id": settings.mediaserver_machine_id,
+        "mediaserver_name": settings.mediaserver_name,
+        "mediaserver_url": settings.mediaserver_url,
+        # Das Token selbst verlaesst den Server nie - nur die Auskunft, ob eines
+        # hinterlegt ist. Es wird ohnehin nicht von Hand eingetragen, sondern
+        # beim Verbinden vom Anbieter geholt.
+        "mediaserver_token_set": bool(settings.mediaserver_token),
+        "mediaserver_configured": settings.mediaserver_configured,
+        "mediaserver_auto_import": settings.mediaserver_auto_import,
+        "mediaserver_default_role": settings.mediaserver_default_role,
+        "mediaserver_default_quota_movies": settings.mediaserver_default_quota_movies,
+        "mediaserver_default_quota_series": settings.mediaserver_default_quota_series,
+        "mediaserver_default_quota_period": settings.mediaserver_default_quota_period,
+        "mediaserver_default_age": settings.mediaserver_default_age,
     }
 
 

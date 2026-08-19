@@ -107,7 +107,8 @@ def ohne_auswahl(arr_client: TestClient) -> TestClient:
     arr_client.put(
         "/api/settings",
         json={
-            "root_folder_choice": False,
+            "movie_root_folder_choice": False,
+            "series_root_folder_choice": False,
             "default_movie_root": SERIEN,
             "default_series_root": SERIEN,
         },
@@ -135,6 +136,48 @@ def test_mitgeschickter_ordner_wird_ignoriert(
 
     # Trotz mitgeschicktem /data/Movies gilt die Vorgabe des Admins.
     assert _gespeicherter_ordner(titel["tmdb_id"]) == SERIEN
+
+
+def test_getrennt_je_dienst(arr_client: TestClient, nutzer: dict[str, str]) -> None:
+    """Filme und Serien sind unabhaengig voneinander einstellbar.
+
+    Wer bei Serien feste Pfade will, muss das nicht auch bei Filmen wollen -
+    die Ordnerstrukturen unterscheiden sich nun einmal.
+    """
+    arr_client.put(
+        "/api/settings",
+        json={
+            "movie_root_folder_choice": True,
+            "series_root_folder_choice": False,
+            "default_series_root": SERIEN,
+        },
+    )
+
+    filme = arr_client.get("/api/arr/movie/options", headers=nutzer).json()
+    serien = arr_client.get("/api/arr/tv/options", headers=nutzer).json()
+
+    assert filme["root_folder_choice"] is True
+    assert serien["root_folder_choice"] is False
+    assert serien["default_root_folder"] == SERIEN
+
+
+def test_alte_installation_behaelt_ihre_einstellung(arr_client: TestClient, nutzer: dict[str, str]) -> None:
+    """Ein Update darf die Einstellung nicht stillschweigend umstellen.
+
+    Vor der Trennung gab es einen gemeinsamen Schalter. Steht der auf "aus" und
+    wurden die neuen Schluessel noch nie gespeichert, muss "aus" fuer beide
+    Dienste weitergelten - sonst duerften Benutzer nach einem Update ploetzlich
+    Ordner waehlen, die der Administrator ihnen bewusst entzogen hatte.
+    """
+    from app.models import Setting
+
+    with SessionLocal() as db:
+        db.add(Setting(key="root_folder_choice", value="off"))
+        db.commit()
+        settings = load_settings(db)
+
+    assert settings.movie_root_folder_choice is False
+    assert settings.series_root_folder_choice is False
 
 
 def test_admin_darf_weiterhin_waehlen(ohne_auswahl: TestClient) -> None:
@@ -172,7 +215,7 @@ def test_ohne_radarr_kommt_die_verstaendliche_meldung(admin_client: TestClient) 
 async def test_aufloesung_ohne_auswahl_erzwingt_den_standard(arr_client: TestClient) -> None:
     arr_client.put(
         "/api/settings",
-        json={"root_folder_choice": False, "default_movie_root": SERIEN},
+        json={"movie_root_folder_choice": False, "default_movie_root": SERIEN},
     )
     with SessionLocal() as db:
         settings = load_settings(db)

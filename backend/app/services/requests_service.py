@@ -266,7 +266,7 @@ async def resolve_root_folder(
 
     standard = settings.default_root(media_type)
 
-    if not settings.root_folder_choice:
+    if not settings.root_folder_choice(media_type):
         # Der eingestellte Ordner kann inzwischen aus Radarr/Sonarr verschwunden
         # sein - dann lieber der erste vorhandene als ein Fehlschlag beim
         # Hinzufuegen.

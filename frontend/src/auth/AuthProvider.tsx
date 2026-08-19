@@ -18,6 +18,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthState['status']>('loading')
   const [user, setUser] = useState<User | null>(null)
   const [needsSetup, setNeedsSetup] = useState(false)
+  // Ob es die Anmeldung über den Media-Server gibt, muss vor dem Anmelden
+  // feststehen - und dort darf noch niemand die Einstellungen lesen.
+  const [mediaServerLogin, setMediaServerLogin] = useState(false)
 
   const applyUser = useCallback((loaded: User) => {
     setUser(loaded)
@@ -54,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const setup = await api.get<SetupStatus>('/api/setup/status', { auth: false })
         if (cancelled) return
         setNeedsSetup(setup.needs_setup)
+        setMediaServerLogin(setup.mediaserver_login)
 
         if (!setup.needs_setup && (await restoreSession())) {
           const me = await api.get<User>('/api/auth/me')
@@ -78,6 +82,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setSessionLostHandler(null)
   }, [])
 
+  /**
+   * Aus fertigen Token eine Sitzung machen.
+   *
+   * Der gemeinsame Abschluss aller Anmeldewege. Ob das Passwort geprüft wurde
+   * oder der Media-Server für die Identität gebürgt hat, spielt ab hier keine
+   * Rolle mehr - und genau deshalb steht es an einer Stelle.
+   */
+  const loginWithTokens = useCallback(
+    async (tokens: TokenPair) => {
+      // Erst aufräumen, dann den neuen Benutzer setzen.
+      forgetCachedData()
+      setTokens(tokens)
+      applyUser(await api.get<User>('/api/auth/me'))
+    },
+    [applyUser, forgetCachedData],
+  )
+
   const login = useCallback(
     async (username: string, password: string) => {
       const tokens = await api.post<TokenPair>(
@@ -85,12 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         { username, password },
         { auth: false },
       )
-      // Erst aufräumen, dann den neuen Benutzer setzen.
-      forgetCachedData()
-      setTokens(tokens)
-      applyUser(await api.get<User>('/api/auth/me'))
+      await loginWithTokens(tokens)
     },
-    [applyUser, forgetCachedData],
+    [loginWithTokens],
   )
 
   const completeSetup = useCallback(
@@ -110,13 +128,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status,
       user,
       needsSetup,
+      mediaServerLogin,
       login,
+      loginWithTokens,
       completeSetup,
       finishSetup,
       logout,
       updateUser: applyUser,
     }),
-    [status, user, needsSetup, login, completeSetup, finishSetup, logout, applyUser],
+    [
+      status,
+      user,
+      needsSetup,
+      mediaServerLogin,
+      login,
+      loginWithTokens,
+      completeSetup,
+      finishSetup,
+      logout,
+      applyUser,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

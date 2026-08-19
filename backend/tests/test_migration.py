@@ -113,6 +113,47 @@ def test_update_ergaenzt_fehlende_spalten_und_tabellen(alte_installation: Path) 
     assert not fehlend, f"Nach dem Update fehlen noch Tabellen: {sorted(fehlend)}"
 
 
+def test_update_ergaenzt_die_media_server_verknuepfung(alte_installation: Path) -> None:
+    """Spalten *und* der eindeutige Index muessen nachgezogen werden.
+
+    Der Index ist die heikle Haelfte: SQLite kann einer bestehenden Tabelle
+    keine Constraints nachtragen, einen Index dagegen schon. Genau deshalb ist
+    die Regel "ein Media-Server-Konto gehoert zu genau einem Nexview-Konto" als
+    Index formuliert - waere sie ein ``UniqueConstraint``, gaelte sie auf jeder
+    aktualisierten Installation stillschweigend nicht. Auffallen wuerde das
+    nie, weil die uebrigen Tests immer auf frischen Tabellen laufen.
+    """
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        spalten = db_modul._existing_columns(connection, "users")
+        indizes = db_modul._existing_indexes(connection, "users")
+
+    assert {"mediaserver_provider", "mediaserver_account_id", "mediaserver_linked_at"} <= spalten
+    assert "ix_users_mediaserver_konto" in indizes
+
+    # Und er muss auch wirklich greifen.
+    with db_modul.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "UPDATE users SET mediaserver_provider='plex', mediaserver_account_id='4711'"
+        )
+        connection.exec_driver_sql(
+            """
+            INSERT INTO users (username, password_hash, role, language, is_active,
+                               auto_approve, created_at, mediaserver_provider,
+                               mediaserver_account_id)
+            VALUES ('zweiter', 'egal', 'user', 'de', 1, 0, '2026-01-01 12:00:00',
+                    'plex', 'anderes')
+            """
+        )
+
+    with pytest.raises(Exception):  # noqa: B017 - SQLite meldet IntegrityError
+        with db_modul.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "UPDATE users SET mediaserver_account_id='4711' WHERE username='zweiter'"
+            )
+
+
 def test_update_behaelt_vorhandene_daten(alte_installation: Path) -> None:
     """Der Bestand darf beim Update nicht verlorengehen."""
     db_modul.init_db()

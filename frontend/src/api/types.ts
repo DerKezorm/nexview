@@ -41,6 +41,22 @@ export type User = {
   mail_feedback: boolean
   /** Neue Tickets (für Admins) und Antworten darauf (für den Eigentümer). */
   mail_ticket: boolean
+  /** Neues Konto über den Media-Server – nur für Admins von Belang. */
+  mail_user_imported: boolean
+
+  /**
+   * Verknüpfung mit dem Media-Server. Die Kennung selbst liefert der Server
+   * bewusst nicht aus – für die Oberfläche zählt nur, ob und mit welchem Namen.
+   */
+  mediaserver_provider: string | null
+  mediaserver_username: string | null
+  mediaserver_linked: boolean
+  /**
+   * Kann sich dieses Konto auch mit Passwort anmelden? Wer über den
+   * Media-Server angelegt wurde, hat zunächst keines – und darf die
+   * Verknüpfung dann nicht lösen, ohne sich auszusperren.
+   */
+  has_password: boolean
 
   /** Vorbelegung der Filterleiste; null = Vorgabe des Admins. */
   discover_region: string | null
@@ -80,6 +96,9 @@ export type SetupStatus = {
   needs_setup: boolean
   /** Vom Server – der Assistent läuft vor der Anmeldung, /api/config ist noch zu. */
   min_password_length: number
+  /** Ist ein Media-Server verbunden? Nur dann gibt es den zusätzlichen Knopf. */
+  mediaserver_login: boolean
+  mediaserver_provider: string | null
 }
 
 export type MediaType = 'movie' | 'tv'
@@ -356,9 +375,46 @@ export type AppSettings = {
   /** Adresse, unter der Nexview von außen erreichbar ist – steckt in jedem Link. */
   public_url: string
   update_check: boolean
-  root_folder_choice: boolean
+  /** Je Dienst getrennt – Filme und Serien haben andere Ordnerstrukturen. */
+  movie_root_folder_choice: boolean
+  series_root_folder_choice: boolean
   default_movie_root: string
   default_series_root: string
+
+  /**
+   * Media-Server. Anbieter-neutral gehalten – heute Plex, später ebenso
+   * Jellyfin oder Emby. Das Token liefert der Server nie aus, nur die Auskunft,
+   * ob eines hinterlegt ist.
+   */
+  mediaserver_provider: string
+  mediaserver_machine_id: string
+  mediaserver_name: string
+  mediaserver_url: string
+  mediaserver_token_set: boolean
+  mediaserver_configured: boolean
+  mediaserver_auto_import: boolean
+  mediaserver_default_role: 'user' | 'approver'
+  mediaserver_default_quota_movies: number | null
+  mediaserver_default_quota_series: number | null
+  mediaserver_default_quota_period: QuotaPeriod
+  /** Leer = keine Altersbeschränkung für neu angelegte Konten. */
+  mediaserver_default_age: number | null
+}
+
+/** Ein gesperrtes Media-Server-Konto – entsteht beim Löschen eines Benutzers. */
+export type MediaServerBlock = {
+  id: number
+  provider: string
+  account_id: string
+  username: string | null
+}
+
+/** Ein Server zur Auswahl bei der Einrichtung. */
+export type MediaServerOption = {
+  machine_id: string
+  name: string
+  url: string
+  owned: boolean
 }
 
 export type AboutInfo = {
@@ -511,6 +567,7 @@ export type AppNotification = {
     | 'feedback_reply'
     | 'ticket_new'
     | 'ticket_reply'
+    | 'user_imported'
   /** Übersetzungsschlüssel – der Text kommt aus der Oberfläche. */
   message_key: string
   message_title: string | null

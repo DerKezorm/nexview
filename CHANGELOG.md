@@ -12,6 +12,10 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.10.0 – in Arbeit
+
+---
+
 ## 0.9.0 – 19.08.2026
 
 ### New

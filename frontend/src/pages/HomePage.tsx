@@ -9,7 +9,9 @@ import { useAuth } from '../auth/useAuth'
 import { Avatar } from '../components/Avatar'
 import { DetailModal } from '../components/media/DetailModal'
 import { FavoriteButton, useFavorites } from '../components/media/FavoriteButton'
-import { CartIcon } from '../components/media/MediaCard'
+import { CartIcon, MediaItemCard } from '../components/media/MediaCard'
+import { useCardData } from '../components/media/useCardData'
+import { WatchedBadge } from '../components/media/WatchedBadge'
 import { Slider } from '../components/Slider'
 import { Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
@@ -169,81 +171,6 @@ function Spotlight({
   )
 }
 
-/** Ein weiterer Vorschlag als kleine Kachel unter dem Slider. */
-function TrendingTile({
-  item,
-  index,
-  onQuickAdd,
-}: {
-  item: MediaItem
-  index: number
-  onQuickAdd: () => void
-}) {
-  const { t, i18n } = useTranslation()
-  const kommtNoch =
-    Boolean(item.release_date) && item.release_date! > new Date().toISOString().slice(0, 10)
-
-  return (
-    <div
-      style={{ animationDelay: `${index * STAGGER_MS}ms` }}
-      className="animate-nv-rise group relative"
-    >
-      <Link to={titlePath(item.media_type, item.tmdb_id)} className="block">
-        <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-ink-700 bg-ink-850 transition-colors group-hover:border-accent-600">
-          {item.poster_url ? (
-            <img
-              src={item.poster_url}
-              alt=""
-              loading="lazy"
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center px-3 text-center text-sm text-mist-600">
-              <span className="w-full break-words">{item.title}</span>
-            </div>
-          )}
-
-          {kommtNoch ? (
-            <span className="absolute top-2 right-2 rounded-full bg-warn-500 px-2 py-0.5 text-xs font-semibold text-ink-950">
-              {formatDate(item.release_date, i18n.language)}
-            </span>
-          ) : (
-            item.vote_average > 0 && (
-              <span className="absolute top-2 right-2 rounded-full bg-ink-950/85 px-2 py-0.5 text-xs font-semibold text-mist-200 ring-1 ring-ink-700">
-                ★ {item.vote_average.toFixed(1)}
-              </span>
-            )
-          )}
-
-          {/* Der Anriss liegt auf dem Poster und erscheint beim Überfahren -
-              so bleibt das Raster ruhig und die Handlung trotzdem erreichbar. */}
-          <div className="pointer-events-none absolute inset-0 flex items-end bg-gradient-to-t from-ink-950 via-ink-950/70 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <p className="line-clamp-5 text-xs leading-relaxed text-mist-300">
-              {item.overview || t('media.noOverview')}
-            </p>
-          </div>
-        </div>
-
-        <p className="mt-2 line-clamp-2 text-sm leading-snug font-semibold">{item.title}</p>
-        <p className="truncate text-xs text-mist-600">
-          {item.release_date?.slice(0, 4)}
-          {item.genres.length > 0 && ` · ${item.genres.slice(0, 2).join(', ')}`}
-        </p>
-      </Link>
-
-      <button
-        type="button"
-        onClick={onQuickAdd}
-        title={t('media.quickAdd')}
-        aria-label={`${item.title} – ${t('media.quickAdd')}`}
-        className="absolute top-2 left-2 rounded-full border border-ink-700 bg-ink-950/85 p-1.5 text-mist-200 backdrop-blur transition-colors hover:border-accent-500 hover:bg-accent-500 hover:text-white"
-      >
-        <CartIcon />
-      </button>
-    </div>
-  )
-}
-
 /**
  * Ein kuratierter Vorschlag: Cover links, Handlung rechts.
  *
@@ -304,6 +231,10 @@ function CuratedCard({
         </Link>
 
         <div className="mt-2 flex items-center gap-2">
+          {/* Der Aufbau dieser Kachel bleibt bewusst wie er ist - sie ist
+              breit statt hoch und damit ohnehin ein anderes Format. Nur das
+              Auge kommt dazu, weil "gesehen" ueberall zu sehen sein soll. */}
+          {item.watched && <WatchedBadge />}
           <FavoriteButton item={item} markiert={favorit} />
           <button
             type="button"
@@ -362,6 +293,9 @@ export function HomePage() {
   // Die ersten paar gross im Slider, der Rest als Kachelreihe darunter.
   const vorschlaege = alleVorschlaege.slice(0, 5)
   const weitere = alleVorschlaege.slice(5)
+  // Die Kachelreihe zeigt jetzt dieselbe Kachel wie ueberall sonst - dazu
+  // gehoeren die IMDb-Wertungen und der Favoritenstand.
+  const kachelDaten = useCardData(weitere)
 
   return (
     <div className="flex flex-col gap-10">
@@ -402,12 +336,19 @@ export function HomePage() {
           {weitere.length > 0 && (
             <div className="mt-2 grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
               {weitere.map((item, index) => (
-                <TrendingTile
+                <div
                   key={item.tmdb_id}
-                  item={item}
-                  index={index}
-                  onQuickAdd={() => setSchnellAnfrage(item)}
-                />
+                  style={{ animationDelay: `${index * STAGGER_MS}ms` }}
+                  className="animate-nv-rise h-full"
+                >
+                  <MediaItemCard
+                    item={item}
+                    variant="kompakt"
+                    onQuickAdd={setSchnellAnfrage}
+                    ratings={kachelDaten.ratingsFor(item)}
+                    favorit={kachelDaten.istFavorit(item)}
+                  />
+                </div>
               ))}
             </div>
           )}

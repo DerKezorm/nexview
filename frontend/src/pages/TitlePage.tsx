@@ -16,12 +16,14 @@ import type {
 import { AddRequestForm } from '../components/media/AddRequestForm'
 import { CastStrip } from '../components/media/CastStrip'
 import { FavoriteButton, useFavorites } from '../components/media/FavoriteButton'
-import { MediaCard } from '../components/media/MediaCard'
+import { MediaItemCard } from '../components/media/MediaCard'
+import { useCardData } from '../components/media/useCardData'
 import { DetailModal } from '../components/media/DetailModal'
 import { Poster, RatingBadge } from '../components/media/Poster'
 import { RatingBadges, useMovieRatings } from '../components/media/RatingBadges'
 import { SeasonList } from '../components/media/SeasonList'
 import { StatusBadge } from '../components/media/StatusBadge'
+import { WatchedBadge } from '../components/media/WatchedBadge'
 import { PlayIcon, TrailerModal } from '../components/media/TrailerModal'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
@@ -216,6 +218,18 @@ export function TitlePage() {
   const wertungen = useMovieRatings(query.data ? [query.data] : [])
   const { markiert } = useFavorites()
 
+  /* Runde 0 steckt schon in der Detailantwort. Solange die neue Auswahl laedt,
+     bleibt die alte stehen - sonst blitzt eine leere Flaeche auf.
+
+     Steht hier oben und nicht erst weiter unten, weil der Haken darunter vor
+     jedem bedingten Rueckgabewert laufen muss - React verlangt bei jedem
+     Durchlauf dieselben Haken in derselben Reihenfolge. */
+  const vorschlaege =
+    runde > 0 && auswahl.data ? auswahl.data.items : (query.data?.recommendations ?? [])
+  // Die Empfehlungen sind eigene Titel und brauchen ihre eigenen Wertungen -
+  // sonst blieben dort die IMDb-Abzeichen leer und jedes Herz ungefuellt.
+  const kachelDaten = useCardData(vorschlaege)
+
   if (query.isPending) {
     return (
       <p className="flex items-center gap-2 py-16 text-sm text-mist-500">
@@ -266,10 +280,6 @@ export function TitlePage() {
   const kannAnfragen =
     item.status === 'not_requested' || nurWeitereStaffel || (gesperrt && istAdmin)
 
-  /* Runde 0 steckt schon in der Detailantwort. Solange die neue Auswahl laedt,
-     bleibt die alte stehen - sonst blitzt eine leere Flaeche auf. */
-  const vorschlaege =
-    runde > 0 && auswahl.data ? auswahl.data.items : item.recommendations
   /* Der Knopf erscheint, sobald es etwas zu holen gibt. Vor der ersten
      Abfrage weiss das niemand - dann zaehlt, ob TMDB ueberhaupt Vorschlaege
      kennt, denn der Vorrat ist nie kleiner als das, was hier schon steht. */
@@ -302,6 +312,7 @@ export function TitlePage() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={item.status} />
+                {item.watched && <WatchedBadge />}
                 <RatingBadge vote={item.vote_average} count={item.vote_count} />
                 {/* IMDb, Rotten Tomatoes, Metacritic - nur bei Filmen, und nur
                     was Radarr auch kennt. */}
@@ -511,7 +522,13 @@ export function TitlePage() {
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {vorschlaege.map((vorschlag) => (
-              <MediaCard key={vorschlag.tmdb_id} item={vorschlag} onQuickAdd={setSchnellAnfrage} />
+              <MediaItemCard
+                key={vorschlag.tmdb_id}
+                item={vorschlag}
+                onQuickAdd={setSchnellAnfrage}
+                ratings={kachelDaten.ratingsFor(vorschlag)}
+                favorit={kachelDaten.istFavorit(vorschlag)}
+              />
             ))}
           </div>
 

@@ -587,6 +587,12 @@
     "quotaHint": "Leer = unbegrenzt.",
     "defaultAge": "Alter",
     "defaultAgeHint": "Leer = keine Altersbeschränkung. Nur wichtig, wenn Kinder mitlesen.",
+    "library": "Bibliotheks-Abgleich",
+    "libraryIntro": "Nexview liest, was in deiner Plex-Bibliothek liegt — und erkennt so Titel, die nie über Radarr/Sonarr kamen. Sie erscheinen als „In der Bibliothek\" und lassen sich nicht doppelt anfragen. Läuft stündlich im Hintergrund.",
+    "libraryCount_one": "{{count}} Titel erfasst",
+    "libraryCount_other": "{{count}} Titel erfasst",
+    "libraryNever": "Noch nicht abgeglichen.",
+    "syncNow": "Jetzt abgleichen",
     "blocks": "Gesperrte Konten",
     "blocksIntro": "Diese Plex-Konten bekommen kein neues Nexview-Konto mehr. Einträge entstehen beim Löschen eines Benutzers.",
     "blocksEmpty": "Keine gesperrten Konten.",
@@ -610,7 +616,8 @@
     "rejected": "Abgelehnt",
     "failed": "Fehlgeschlagen",
     "cancelled": "Abgebrochen",
-    "blocked": "Gesperrt"
+    "blocked": "Gesperrt",
+    "watched": "Gesehen"
   },
   "settings": {
     "title": "Einstellungen",
@@ -692,6 +699,7 @@
     "dataSources": "Datenquellen",
     "tmdbNotice": "Alle Angaben zu Filmen, Serien, Besetzung und Bildern stammen von TMDB. Nexview nutzt die TMDB-Schnittstelle, ist aber weder von TMDB unterstützt noch zertifiziert.",
     "arrNotice": "Übernehmen das eigentliche Herunterladen. Nexview reicht Anfragen nur weiter.",
+    "plexNotice": "Anmeldung, Bibliotheks-Abgleich und „schon gesehen“ – sofern ein Plex-Server verbunden ist. Nexview ist weder von Plex unterstützt noch damit verbunden.",
     "justwatchNotice": "Quelle der Streaming-Verfügbarkeit auf den Detailseiten („Wo streambar“). TMDB reicht diese Daten von JustWatch durch.",
     "youtubeNotice": "Trailer werden von dort abgespielt. TMDB liefert nur den Verweis.",
     "builtWith": "Gebaut mit",

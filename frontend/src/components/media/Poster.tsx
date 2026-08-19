@@ -59,7 +59,11 @@ const RATING_TONES = {
 export function RatingBadge({ vote, count }: { vote: number; count?: number }) {
   const { t } = useTranslation()
 
-  if (!vote || !count) {
+  // ``count === undefined`` heisst "Stimmenzahl unbekannt" - etwa in einer
+  // Filmografie, wo TMDB sie gar nicht mitliefert. Das ist etwas anderes als
+  // ``count === 0`` ("noch niemand hat bewertet"). Beides gleich zu behandeln
+  // liess auf der Personenseite jede Wertung zu einem Strich werden.
+  if (!vote || count === 0) {
     return (
       <span
         title={t('media.unrated')}

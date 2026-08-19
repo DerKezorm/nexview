@@ -9,6 +9,7 @@ import { Button } from '../ui'
 import { AddRequestForm } from './AddRequestForm'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
+import { WatchedBadge } from './WatchedBadge'
 import { useAuth } from '../../auth/useAuth'
 
 type DetailModalProps = {
@@ -141,6 +142,7 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={item.status} />
+                {item.watched && <WatchedBadge />}
               <RatingBadge vote={item.vote_average} count={item.vote_count} />
             </div>
 

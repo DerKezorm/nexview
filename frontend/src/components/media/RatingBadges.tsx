@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../../api/client'
-import type { MediaItem, MovieRatings } from '../../api/types'
+import type { MovieRatings } from '../../api/types'
 
 /**
  * Bewertungen zu einer Liste von Filmen nachladen.
@@ -13,7 +13,9 @@ import type { MediaItem, MovieRatings } from '../../api/types'
  * Serien bleiben außen vor - Sonarr liefert keine Aufschlüsselung nach
  * Portalen, sondern nur eine Sammelwertung.
  */
-export function useMovieRatings(items: MediaItem[]): Record<number, MovieRatings> {
+export function useMovieRatings(
+  items: { media_type: string; tmdb_id: number }[],
+): Record<number, MovieRatings> {
   const ids = items
     .filter((item) => item.media_type === 'movie')
     .map((item) => item.tmdb_id)
@@ -83,16 +85,27 @@ export function RatingBadges({
   title,
   className = '',
   gross = false,
+  nurImdb = false,
 }: {
   ratings: MovieRatings | undefined
   /** Für die Suche bei Rotten Tomatoes und Metacritic. */
   title: string
   className?: string
   gross?: boolean
+  /**
+   * Nur IMDb zeigen – für die Kacheln.
+   *
+   * Drei Wertungen nebeneinander sprengen die schmale Leiste unter dem Poster,
+   * und IMDb ist die, die jeder kennt. Auf der Detailseite ist Platz; dort
+   * bleiben Rotten Tomatoes und Metacritic erhalten.
+   */
+  nurImdb?: boolean
 }) {
   if (!ratings) return null
 
-  const { imdb, rotten_tomatoes: tomaten, metacritic } = ratings
+  const { imdb, rotten_tomatoes: roheTomaten, metacritic: rohMetacritic } = ratings
+  const tomaten = nurImdb ? null : roheTomaten
+  const metacritic = nurImdb ? null : rohMetacritic
   if (imdb === null && tomaten === null && metacritic === null) return null
 
   const groesse = gross ? 'text-sm px-2.5 py-1' : 'text-[11px] px-1.5 py-0.5'

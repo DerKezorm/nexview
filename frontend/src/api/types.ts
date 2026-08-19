@@ -194,6 +194,12 @@ export type PersonCredit = {
   release_date: string | null
   vote_average: number
   status: MediaStatus
+  /**
+   * Hat *der angemeldete* Benutzer das schon gesehen? Kommt vom Media-Server.
+   * Bewusst neben dem Zustand und nicht als Zustandswert: "gesehen" ist eine
+   * andere Achse und gilt je Person, nicht für alle.
+   */
+  watched?: boolean
 }
 
 /** Ein Fach für die Personenseite. */
@@ -248,6 +254,12 @@ export type MediaItem = {
   /** Nur in der Detailansicht einer Serie gefüllt. */
   seasons: SeasonInfo[]
   status: MediaStatus
+  /**
+   * Hat *der angemeldete* Benutzer das schon gesehen? Kommt vom Media-Server.
+   * Bewusst neben dem Zustand und nicht als Zustandswert: "gesehen" ist eine
+   * andere Achse und gilt je Person, nicht für alle.
+   */
+  watched?: boolean
 }
 
 export type WatchProvider = {
@@ -409,6 +421,12 @@ export type MediaServerBlock = {
   username: string | null
 }
 
+/** Stand des Bibliotheks-Abgleichs mit dem Media-Server. */
+export type MediaServerLibraryState = {
+  count: number
+  updated_at: string | null
+}
+
 /** Ein Server zur Auswahl bei der Einrichtung. */
 export type MediaServerOption = {
   machine_id: string
@@ -447,6 +465,12 @@ export type MediaRequest = {
   poster_path: string | null
   release_date: string | null
   status: MediaStatus
+  /**
+   * Hat *der angemeldete* Benutzer das schon gesehen? Kommt vom Media-Server.
+   * Bewusst neben dem Zustand und nicht als Zustandswert: "gesehen" ist eine
+   * andere Achse und gilt je Person, nicht für alle.
+   */
+  watched?: boolean
   quality_profile_id: number | null
   root_folder_path: string | null
   /** Nur bei Serien; null = ganze Serie. */

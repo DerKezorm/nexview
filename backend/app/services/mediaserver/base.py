@@ -153,17 +153,30 @@ class LibraryItem:
     tvdb_id: int | None = None
     imdb_id: str | None = None
     year: int | None = None
+    # Die interne Nummer beim Anbieter. Wird gebraucht, weil der
+    # Wiedergabe-Verlauf ausschliesslich damit auf Titel verweist.
+    rating_key: str | None = None
+    # Hat der **Eigentuemer** des hinterlegten Zugangs das gesehen? Der Anbieter
+    # liefert das am Titel mit, also faellt es beim Einlesen der Bibliothek
+    # kostenlos ab. Und es ist die weit bessere Quelle als der Verlauf: der ist
+    # gedeckelt (gemessen 499 Eintraege, davon 38 Filme), der Zaehler am Titel
+    # dagegen vollstaendig (gemessen 354 gesehene Filme).
+    owner_watched: bool = False
 
 
 @dataclass(frozen=True)
 class WatchedRecord:
     """Ein gesehener Titel je Konto.
 
-    Vorbereitet fuer Meilenstein 3 ("schon gesehen"), noch nicht befuellt.
+    ``account_id`` ist die Kennung, unter der der Anbieter die Wiedergabe
+    fuehrt - die muss nicht dieselbe sein, unter der sich jemand anmeldet.
+    ``item_key`` verweist auf den Titel in der Bibliothek; bei einer Folge auf
+    die **Serie**, denn fuer ein Abzeichen an der Kachel zaehlt die Serie.
     """
 
     account_id: str
-    guid: str
+    item_key: str
+    media_type: str
     watched_at: datetime | None = None
 
 
@@ -227,12 +240,13 @@ class MediaServer(ABC):
     # --- Vorbereitet, noch nicht gebaut ------------------------------------
 
     async def list_server_users(self) -> list[ServerUser]:
-        """Alle, die Zugriff auf die Bibliothek haben.
+        """Alle Konten, unter denen der Server Wiedergabe fuehrt.
 
-        Erst fuer Meilenstein 3 noetig. Bewusst noch offen: Plex fuehrt je
-        Server eigene Konto-Nummern, die **nicht** mit denen von plex.tv
-        uebereinstimmen - welche hier die richtige ist, entscheidet sich erst
-        an der Wiedergabe-Auswertung.
+        Wichtig und leicht zu uebersehen: Diese Kennungen sind **nicht** die,
+        mit denen sich jemand anmeldet. Plex fuehrt den Eigentuemer unter der 1,
+        geteilte Nutzer dagegen unter ihrer plex.tv-Nummer. Deshalb kommt hier
+        auch der Anzeigename mit - ueber ihn laesst sich der Eigentuemer
+        zuordnen, wenn die Nummer nicht passt.
         """
         raise NotImplementedError
 

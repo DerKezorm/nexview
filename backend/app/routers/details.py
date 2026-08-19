@@ -22,7 +22,15 @@ from ..schemas_media import (
     PersonSummary,
     SeasonDetail,
 )
-from ..services import blocklist, library, media, ratings, requests_service
+from ..services import (
+    blocklist,
+    library,
+    media,
+    mediaserver_library,
+    mediaserver_watched,
+    ratings,
+    requests_service,
+)
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
 
@@ -37,7 +45,7 @@ def _fehler(error: TmdbError) -> HTTPException:
     )
 
 
-async def _mit_status(db, settings, media_type: str, eintraege: list) -> None:
+async def _mit_status(db, settings, media_type: str, eintraege: list, user=None) -> None:
     """Badges fuer eine Liste von Titeln setzen - an Ort und Stelle.
 
     Dieselbe Logik wie in den Listen: was in Radarr/Sonarr liegt, ueberlagert
@@ -56,17 +64,34 @@ async def _mit_status(db, settings, media_type: str, eintraege: list) -> None:
     kennungen = [eintrag.tmdb_id for eintrag in eintraege]
     eigene = requests_service.badges_for(db, MediaType(media_type), kennungen)
     gesperrt = blocklist.gesperrte_kennungen(db, MediaType(media_type), kennungen)
+    # Nur fuer Titel ohne genaueren Zustand: was im Media-Server liegt, aber
+    # Radarr/Sonarr nicht kennt.
+    im_server = mediaserver_library.vorhandene_kennungen(
+        db, MediaType(media_type), [e for e in eintraege if e.status == "not_requested"]
+    )
 
     for eintrag in eintraege:
         # Eine vorhandene Datei gewinnt immer gegen den eigenen Anfragezustand.
         if eintrag.status == "not_requested" and eintrag.tmdb_id in eigene:
             eintrag.status = eigene[eintrag.tmdb_id]
+        elif eintrag.status == "not_requested" and eintrag.tmdb_id in im_server:
+            eintrag.status = "in_library"
         # Die Sperre gewinnt gegen alles - wie in den Listen. Diese Funktion
         # bedient die Detailseite, ihre Empfehlungen, die Schlagwortlisten und
         # die Filmografien; ohne sie traegen ausgerechnet dort gesperrte Titel
         # weiterhin einen Einkaufswagen.
         if eintrag.tmdb_id in gesperrt:
             eintrag.status = blocklist.BADGE
+
+    # "Gesehen" kommt zum Zustand hinzu, statt ihn zu ersetzen - und gilt je
+    # Person.
+    if user is not None:
+        gesehen = mediaserver_watched.gesehene_kennungen(
+            db, user.id, MediaType(media_type), kennungen
+        )
+        for eintrag in eintraege:
+            if eintrag.tmdb_id in gesehen:
+                eintrag.watched = True
 
 
 @router.get("/detail/{media_type}/{tmdb_id}", response_model=MediaDetail)
@@ -84,8 +109,8 @@ async def title_detail(
     except TmdbError as error:
         raise _fehler(error) from error
 
-    await _mit_status(db, settings, media_type, [detail])
-    await _mit_status(db, settings, media_type, detail.recommendations)
+    await _mit_status(db, settings, media_type, [detail], user)
+    await _mit_status(db, settings, media_type, detail.recommendations, user)
 
     # Bei Serien: wie viele Folgen jeder Staffel liegen schon vor?
     if media_type == "tv" and detail.seasons:
@@ -136,7 +161,7 @@ async def recommendations(
     aktuell = runde % runden
     ausschnitt = vorrat[aktuell * groesse : (aktuell + 1) * groesse]
 
-    await _mit_status(db, settings, media_type, ausschnitt)
+    await _mit_status(db, settings, media_type, ausschnitt, user)
     return Auswahl(items=ausschnitt, runde=aktuell, runden=runden)
 
 
@@ -208,7 +233,7 @@ async def browse(
     except TmdbError as error:
         raise _fehler(error) from error
 
-    await _mit_status(db, settings, media_type, ergebnis.items)
+    await _mit_status(db, settings, media_type, ergebnis.items, user)
     return BrowseResult(label=label, page=ergebnis)
 
 
@@ -259,7 +284,7 @@ async def person(
     # Filme und Serien getrennt abgleichen - die Bibliotheken sind es auch.
     for art in ("movie", "tv"):
         await _mit_status(
-            db, settings, art, [c for c in detail.credits if c.media_type.value == art]
+            db, settings, art, [c for c in detail.credits if c.media_type.value == art], user
         )
 
     return detail

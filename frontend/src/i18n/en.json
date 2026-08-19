@@ -587,6 +587,12 @@
     "quotaHint": "Empty = unlimited.",
     "defaultAge": "Age",
     "defaultAgeHint": "Empty = no age restriction. Only relevant if children use Nexview.",
+    "library": "Library sync",
+    "libraryIntro": "Nexview reads what sits in your Plex library and spots titles that never came through Radarr/Sonarr. They show as \"In library\" and cannot be requested twice. Runs hourly in the background.",
+    "libraryCount_one": "{{count}} title indexed",
+    "libraryCount_other": "{{count}} titles indexed",
+    "libraryNever": "Not synced yet.",
+    "syncNow": "Sync now",
     "blocks": "Blocked accounts",
     "blocksIntro": "These Plex accounts no longer get a new Nexview account. Entries appear when you delete a user.",
     "blocksEmpty": "No blocked accounts.",
@@ -610,7 +616,8 @@
     "rejected": "Rejected",
     "failed": "Failed",
     "cancelled": "Cancelled",
-    "blocked": "Blocked"
+    "blocked": "Blocked",
+    "watched": "Watched"
   },
   "settings": {
     "title": "Settings",
@@ -692,6 +699,7 @@
     "dataSources": "Data sources",
     "tmdbNotice": "All information about films, series, cast and images comes from TMDB. Nexview uses the TMDB API but is not endorsed or certified by TMDB.",
     "arrNotice": "They do the actual downloading. Nexview only passes requests along.",
+    "plexNotice": "Sign-in, library sync and “already watched” – when a Plex server is connected. Nexview is neither endorsed by nor affiliated with Plex.",
     "justwatchNotice": "Source of the streaming availability on title pages (“Where to stream”). TMDB passes this data through from JustWatch.",
     "youtubeNotice": "Trailers play from there. TMDB only supplies the reference.",
     "builtWith": "Built with",

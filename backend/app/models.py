@@ -404,6 +404,80 @@ class MediaServerBlock(Base):
     blocked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
 
+class MediaServerLibraryItem(Base):
+    """Abbild der Media-Server-Bibliothek.
+
+    Dient dem einen Zweck, Titel zu erkennen, die **nicht** ueber Radarr/Sonarr
+    kamen - von Hand kopierte Dateien, oder alles aus der Zeit vor dem
+    *arr-Aufbau. Ohne diese Liste zeigt Nexview sie als anfragbar an, und
+    jemand laedt sie ein zweites Mal herunter.
+
+    Warum drei Kennungen und dazu der Titel: Welche davon Plex liefert, haengt
+    am verwendeten Agenten. Der neue Film-Agent gibt alle drei heraus, aeltere
+    Sammlungen oft nur eine einzige - und manche gar keine. Der normalisierte
+    Titel ist der letzte Ausweg, genauso wie beim Sonarr-Abgleich.
+    """
+
+    __tablename__ = "media_server_library"
+    __table_args__ = (
+        UniqueConstraint("provider", "guid", name="uq_media_server_library_werk"),
+        Index("ix_media_server_library_tmdb", "media_type", "tmdb_id"),
+        Index("ix_media_server_library_tvdb", "media_type", "tvdb_id"),
+        Index("ix_media_server_library_titel", "media_type", "title_key"),
+        Index("ix_media_server_library_ratingkey", "provider", "rating_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    # Dauerhafte Kennung des Titels beim Anbieter - macht den Eintrag eindeutig.
+    guid: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Die *interne* Nummer beim Anbieter. Sieht ueberfluessig neben ``guid`` aus,
+    # ist es aber nicht: Der Wiedergabe-Verlauf von Plex nennt ausschliesslich
+    # diese Nummer - ohne sie liesse sich "schon gesehen" keinem Titel zuordnen.
+    rating_key: Mapped[str | None] = mapped_column(String(40))
+    # Hat der Eigentuemer des hinterlegten Zugangs den Titel gesehen? Faellt
+    # beim Einlesen der Bibliothek kostenlos ab und ist die weit vollstaendigere
+    # Quelle als der Wiedergabe-Verlauf, den Plex nur begrenzt aufbewahrt.
+    owner_watched: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tmdb_id: Mapped[int | None] = mapped_column(Integer)
+    tvdb_id: Mapped[int | None] = mapped_column(Integer)
+    imdb_id: Mapped[str | None] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    # Kleingeschrieben und ohne Sonderzeichen - siehe sonarr.normalize_title.
+    title_key: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    year: Mapped[int | None] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class UserWatched(Base):
+    """Was hat wer schon gesehen - laut Media-Server.
+
+    Eine eigene Tabelle und **kein** weiterer Zustand am Titel: "gesehen" ist
+    eine andere Achse als "vorhanden" oder "angefragt". Als Zustandswert wuerde
+    es "bereits geladen" oder "gesperrt" verdecken, und es gilt ja auch nicht
+    fuer alle gleich, sondern je Person.
+
+    Bei Serien zaehlt die Serie, nicht die Folge: Fuer ein Abzeichen an der
+    Kachel ist "davon schon etwas gesehen" die brauchbare Auskunft.
+    """
+
+    __tablename__ = "user_watched"
+    __table_args__ = (
+        UniqueConstraint("user_id", "media_type", "tmdb_id", name="uq_user_watched"),
+        Index("ix_user_watched_lookup", "user_id", "media_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Wann zuletzt gesehen - fuer "zuletzt geschaut" und den fortlaufenden Abgleich.
+    watched_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class Setting(Base):
     """Konfiguration als Schluessel/Wert-Paare (TMDB-, Radarr-, Sonarr-Zugang)."""
 

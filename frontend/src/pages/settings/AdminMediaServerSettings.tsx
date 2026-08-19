@@ -17,6 +17,7 @@ import { ApiError, api } from '../../api/client'
 import type {
   AppSettings,
   MediaServerBlock,
+  MediaServerLibraryState,
   MediaServerOption,
   QuotaPeriod,
   User,
@@ -64,6 +65,28 @@ export function AdminMediaServerSettings() {
   const blocksQuery = useQuery({
     queryKey: ['mediaserver-blocks'],
     queryFn: () => api.get<MediaServerBlock[]>('/api/admin/mediaserver/blocks'),
+  })
+
+  const bibliothek = useQuery({
+    queryKey: ['mediaserver-library'],
+    queryFn: () => api.get<MediaServerLibraryState>('/api/admin/mediaserver/library'),
+  })
+
+  const abgleichen = useMutation({
+    mutationFn: () =>
+      api.post<MediaServerLibraryState>('/api/admin/mediaserver/library/refresh', {}),
+    onSuccess: (stand) => {
+      queryClient.setQueryData(['mediaserver-library'], stand)
+      // Die Abzeichen hängen daran - ohne das bliebe die Entdecken-Seite auf
+      // dem alten Stand, bis der Zwischenspeicher von selbst abläuft.
+      void queryClient.invalidateQueries({ queryKey: ['discover'] })
+      setMeldung({ ok: true, text: t('mediaserver.libraryCount', { count: stand.count }) })
+    },
+    onError: (caught) =>
+      setMeldung({
+        ok: false,
+        text: caught instanceof ApiError ? caught.message : t('errors.generic'),
+      }),
   })
 
   useEffect(() => {
@@ -372,6 +395,40 @@ export function AdminMediaServerSettings() {
               </Button>
             </div>
           </form>
+        </Card>
+      )}
+
+      {verbunden && (
+        <Card className="flex flex-col gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">{t('mediaserver.library')}</h2>
+            <p className="mt-1.5 text-sm text-mist-500">{t('mediaserver.libraryIntro')}</p>
+          </div>
+
+          <p className="rounded-xl border border-ink-700 bg-ink-900 px-4 py-3 text-sm">
+            {bibliothek.data?.updated_at ? (
+              <>
+                <span className="font-medium text-mist-200">
+                  {t('mediaserver.libraryCount', { count: bibliothek.data.count })}
+                </span>
+                <span className="ml-2 text-xs text-mist-600">
+                  {new Date(bibliothek.data.updated_at).toLocaleString()}
+                </span>
+              </>
+            ) : (
+              <span className="text-mist-500">{t('mediaserver.libraryNever')}</span>
+            )}
+          </p>
+
+          <div>
+            <Button
+              variant="ghost"
+              onClick={() => abgleichen.mutate()}
+              loading={abgleichen.isPending}
+            >
+              {t('mediaserver.syncNow')}
+            </Button>
+          </div>
         </Card>
       )}
 

@@ -4,35 +4,74 @@ import { Link } from 'react-router-dom'
 import type { MediaItem, MovieRatings } from '../../api/types'
 import { formatRuntime, formatYear } from '../../lib/format'
 import { titlePath } from '../../lib/routes'
+import type { CardItem } from './cardItem'
+import { fromMediaItem } from './cardItem'
 import { FavoriteButton } from './FavoriteButton'
 import { RatingBadges } from './RatingBadges'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
+import { WatchedBadge } from './WatchedBadge'
+
+/**
+ * Wie gedrängt die Kachel sein darf.
+ *
+ * `voll`    – Raster auf Entdecken, Suche, Stöbern, Filmografie.
+ * `kompakt` – enge Reihen auf der Startseite: kleinere Schrift, keine Genres.
+ */
+export type CardVariant = 'voll' | 'kompakt'
 
 type MediaCardProps = {
-  item: MediaItem
-  /** Öffnet das Schnell-Popup zum Anfragen. */
-  onQuickAdd: (item: MediaItem) => void
-  /** Wertungen von IMDb & Co., sobald sie da sind. */
+  item: CardItem
+  /** Öffnet das Schnell-Popup zum Anfragen. Fehlt er, gibt es keinen Wagen. */
+  onQuickAdd?: (item: MediaItem) => void
+  /** Wertungen von IMDb, sobald sie da sind. */
   ratings?: MovieRatings
   /** Ist dieser Titel als Favorit markiert? */
   favorit?: boolean
+  variant?: CardVariant
+  /**
+   * Ersetzt Herz und Wagen – für Listen, in denen etwas anderes zu tun ist
+   * (auf der Favoriten-Seite etwa das Entfernen).
+   */
+  actions?: React.ReactNode
 }
 
 /**
- * Kachel im Netflix-Stil: großes Poster, Status ohne Klick sichtbar.
+ * Die eine Kachel für alles.
  *
- * Ein Klick führt auf die Detailseite - stöbern ist der häufigere Fall. Wer
- * nur schnell anfragen will, nimmt den Wagen oben rechts; der öffnet dasselbe
- * kleine Fenster wie früher, ohne die Seite zu verlassen.
+ * Vorher rendered jede Seite ihre eigene: Entdecken mit Leiste unten, die
+ * Filmografie mit Warenkorb oben und ohne Wertungen, die Startseite gleich in
+ * drei weiteren Varianten – teils ganz ohne Zustand, sodass ein längst
+ * vorhandener Titel aussah wie einer, den man noch anfragen kann.
+ *
+ * Der Aufbau ist überall gleich und deshalb überall wiederzuerkennen:
+ *
+ *   Poster · Zustand oben links · TMDB-Stern oben rechts
+ *   Titel, Jahr, Laufzeit
+ *   Leiste: IMDb · Auge (gesehen) · Herz · Wagen
+ *
+ * Die Leiste ist immer da, auch wenn nichts anzufragen ist – mögen kann man
+ * einen Titel schließlich auch dann, und eine Kachel, der die Leiste fehlt,
+ * wäre um genau diese Höhe kürzer als ihre Nachbarn.
  */
-export function MediaCard({ item, onQuickAdd, ratings, favorit = false }: MediaCardProps) {
+export function MediaCard({
+  item,
+  onQuickAdd,
+  ratings,
+  favorit = false,
+  variant = 'voll',
+  actions,
+}: MediaCardProps) {
   const { t, i18n } = useTranslation()
   const runtime = formatRuntime(item.runtime_minutes, i18n.language)
   const anfragbar = item.status === 'not_requested'
+  const kompakt = variant === 'kompakt'
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-xl border border-ink-700 bg-ink-850 transition-all hover:-translate-y-1 hover:border-accent-600/60 hover:shadow-2xl hover:shadow-accent-700/20">
+    /* h-full: Im Raster wird das Feld auf die Zeilenhoehe gezogen, die Kachel
+       darin aber nicht - dann sitzen die Leisten benachbarter Kacheln auf
+       verschiedenen Hoehen, sobald ein Titel zweizeilig umbricht. */
+    <div className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-ink-700 bg-ink-850 transition-all hover:-translate-y-1 hover:border-accent-600/60 hover:shadow-2xl hover:shadow-accent-700/20">
       <Link
         to={titlePath(item.media_type, item.tmdb_id)}
         aria-label={`${item.title} – ${t('media.openDetails')}`}
@@ -59,55 +98,114 @@ export function MediaCard({ item, onQuickAdd, ratings, favorit = false }: MediaC
           )}
 
           {/* Beschreibung erscheint erst beim Überfahren - hält das Raster ruhig. */}
-          <div className="pointer-events-none absolute inset-0 flex items-end bg-linear-to-t from-ink-950 via-ink-950/60 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <p className="line-clamp-5 text-xs leading-relaxed text-mist-300">
-              {item.overview || t('media.noOverview')}
-            </p>
-          </div>
+          {item.overview && (
+            <div className="pointer-events-none absolute inset-0 flex items-end bg-linear-to-t from-ink-950 via-ink-950/60 to-transparent p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <p className="line-clamp-5 text-xs leading-relaxed text-mist-300">
+                {item.overview}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-1 flex-col gap-1 p-3">
-          <h3 className="line-clamp-2 text-sm leading-snug font-semibold">{item.title}</h3>
+          <h3
+            className={
+              'line-clamp-2 leading-snug font-semibold ' + (kompakt ? 'text-xs' : 'text-sm')
+            }
+          >
+            {item.title}
+          </h3>
+
+          {/* In einer Filmografie ist die Rolle die eigentliche Auskunft. */}
+          {item.character && (
+            <p className="line-clamp-1 text-xs text-mist-500">{item.character}</p>
+          )}
+
           <p className="mt-auto text-xs text-mist-500">
             {formatYear(item.release_date)}
-            {runtime && <span> · {runtime}</span>}
+            {runtime && !kompakt && <span> · {runtime}</span>}
           </p>
-          {item.genres.length > 0 && (
+
+          {!kompakt && item.genres.length > 0 && (
             <p className="line-clamp-1 text-xs text-mist-600">{item.genres.join(', ')}</p>
           )}
         </div>
       </Link>
 
-      {/* Ein Balken unter der Kachel: links die Wertungen, rechts der Wagen.
+      {/* Ein Balken unter der Kachel: links die Wertung, rechts die Knöpfe.
           Auf dem Poster wurde es zu eng - "Nicht angefragt" brach um, und die
           Abzeichen standen gequetscht in der Ecke. Hier ist Platz, und die
           verlinkten Abzeichen liegen außerhalb des Kachel-Links, wo sie
           hingehören: ein Link im Link ist nicht erlaubt. */}
-      {/* Der Balken ist immer da: das Herz soll an jedem Titel stehen,
-          auch an einem, der längst in der Bibliothek liegt - mögen kann man
-          ihn ja trotzdem. */}
       <div className="flex items-center justify-between gap-2 border-t border-ink-700/60 px-3 py-2">
-        <RatingBadges ratings={ratings} title={item.title} />
+        {/* Auf der Kachel nur IMDb - drei Wertungen sprengen die Leiste. */}
+        <RatingBadges ratings={ratings} title={item.title} nurImdb />
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <FavoriteButton item={item} markiert={favorit} />
+          {/* Das Auge sitzt hier und nicht auf dem Poster: als zweites Schild
+              neben "Bereits geladen" verdeckte es das halbe Bild. */}
+          {item.watched && <WatchedBadge />}
 
-          {anfragbar && (
-            <button
-              type="button"
-              onClick={() => onQuickAdd(item)}
-              title={t('media.quickAdd')}
-              aria-label={`${item.title} – ${t('media.quickAdd')}`}
-              className="rounded-full border border-ink-700 bg-ink-900 p-1.5 text-mist-300 transition-colors hover:border-accent-500 hover:bg-accent-500 hover:text-white"
-            >
-              <CartIcon />
-            </button>
+          {actions ?? (
+            <>
+              <FavoriteButton item={item} markiert={favorit} />
+
+              {anfragbar && onQuickAdd && (
+                <button
+                  type="button"
+                  onClick={() => onQuickAdd(toMediaItem(item))}
+                  title={t('media.quickAdd')}
+                  aria-label={`${item.title} – ${t('media.quickAdd')}`}
+                  className="rounded-full border border-ink-700 bg-ink-900 p-1.5 text-mist-300 transition-colors hover:border-accent-500 hover:bg-accent-500 hover:text-white"
+                >
+                  <CartIcon />
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
-
     </div>
   )
+}
+
+/**
+ * Zurück in die Form, die das Anfrage-Popup erwartet.
+ *
+ * Die Kachel arbeitet mit dem gemeinsamen Nenner; das Popup braucht einen
+ * vollständigen `MediaItem`. Die fehlenden Felder sind für das Anfragen
+ * bedeutungslos - es zählen Art, Kennung und Titel.
+ */
+function toMediaItem(item: CardItem): MediaItem {
+  return {
+    media_type: item.media_type,
+    tmdb_id: item.tmdb_id,
+    tvdb_id: null,
+    title: item.title,
+    original_title: null,
+    overview: item.overview,
+    poster_url: item.poster_url,
+    backdrop_url: null,
+    release_date: item.release_date,
+    vote_average: item.vote_average,
+    // Das Popup braucht eine Zahl; "unbekannt" ist dort bedeutungslos.
+    vote_count: item.vote_count ?? 0,
+    genres: item.genres,
+    runtime_minutes: item.runtime_minutes,
+    certification: item.certification,
+    original_language: null,
+    seasons: [],
+    status: item.status,
+    watched: item.watched,
+  }
+}
+
+/** Bequemlichkeit für die vielen Stellen, die einen echten `MediaItem` haben. */
+export function MediaItemCard({
+  item,
+  ...rest
+}: Omit<MediaCardProps, 'item'> & { item: MediaItem }) {
+  return <MediaCard item={fromMediaItem(item)} {...rest} />
 }
 
 /** Einkaufswagen - steht für "schnell anfragen". */

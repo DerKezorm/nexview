@@ -37,6 +37,8 @@ was bereits in deiner Bibliothek liegt, und stößt Downloads über **Radarr** (
 | ❤️ **Favoriten** | Titel mit dem Herz markieren; daraus entsteht „Für dich kuratiert" auf der Startseite |
 | 👥 **Benutzer & Rollen** | Administrator, Entscheider und Benutzer; jeder sieht nur seine eigenen Anfragen |
 | 🎞️ **Anmeldung mit Plex** | Wer Zugriff auf deine Plex-Bibliothek hat, meldet sich mit seinem Plex-Konto an — wahlweise zusätzlich zum Passwort |
+| 📚 **Bibliothek erkennen** | Titel, die schon in Plex liegen, aber nie über Radarr/Sonarr kamen, sind als „In der Bibliothek" markiert und nicht doppelt anfragbar |
+| 👁️ **Schon gesehen** | Was du auf deinem Media-Server angesehen hast, trägt ein kleines Auge — jeder sieht dabei nur seine eigenen |
 | ✅ **Freigaben & Kontingente** | Pro Benutzer: automatisch freigeben oder manuell, Limits pro Tag/Woche/Monat |
 | 🔞 **Altersbeschränkung** | Je Benutzer ein Alter; gezeigt wird nur, was höchstens ab diesem Alter freigegeben ist |
 | 🚫 **Sperrliste** | Titel, die nicht in die Bibliothek sollen — sichtbar, aber nicht anfragbar |
@@ -138,6 +140,29 @@ Anmeldung bei Plex selbst funktioniert.
 > Verwaltete Plex-Profile (etwa für Kinder) haben oft keinen eigenen Plex-Login. Sie nutzen
 > weiterhin ein normales Nexview-Konto per Einladung. Die Altersbeschränkung wirkt ohnehin nur,
 > wenn **jede Person ein eigenes Konto** hat — unabhängig von Plex.
+
+### Bibliothek und Gesehenes
+
+Ist ein Server verbunden, liest Nexview stündlich mit, was dort liegt. Das hat zwei Zwecke:
+
+| | |
+|---|---|
+| **Doppelte Anfragen verhindern** | Titel, die in Plex liegen, aber nie über Radarr/Sonarr kamen — von Hand kopierte Dateien etwa —, erscheinen als *„In der Bibliothek"* und lassen sich nicht anfragen. |
+| **„Schon gesehen"** | Was du angesehen hast, trägt ein kleines Auge in der Leiste unter dem Poster. **Jeder sieht nur seine eigenen Marker**, auch der Administrator. |
+
+Unter *Einstellungen → Dienste → Plex* steht, wie viele Titel erfasst sind und wann zuletzt;
+dort gibt es auch **„Jetzt abgleichen"**.
+
+Zwei Dinge, die man wissen sollte:
+
+- Zugeordnet wird über die TMDB-, sonst die TVDB-Kennung, sonst über Titel **und Jahr**.
+  Das Jahr ist kein Beiwerk: In einer echten Bibliothek mit 3509 Filmen trug genau einer eine
+  falsche TMDB-Nummer, die auf einen ganz anderen Film zeigte. Lieber einen vorhandenen Titel
+  übersehen als einen falschen behaupten — ein übersehener kostet einen doppelten Download,
+  ein falscher nimmt einen Titel dauerhaft aus dem Angebot.
+- Der Gesehen-Stand ist **für das Konto vollständig, dessen Zugang hinterlegt ist**. Für alle
+  anderen zählt nur, was im Wiedergabe-Verlauf des Servers steht — und den bewahrt Plex nur
+  begrenzt auf. Das liegt an Plex, nicht an Nexview.
 
 Ohne verbundenen Server ist von alldem nichts zu sehen; niemand muss Plex betreiben.
 
@@ -262,6 +287,12 @@ Für den Produktivbetrieb kopiere `.env.example` nach `.env`:
 Die Metadaten stammen von **TMDB**. Dieses Projekt ist weder von TMDB unterstützt noch
 zertifiziert.
 
+Die Anmeldung, der Bibliotheks-Abgleich und „schon gesehen“ laufen über **Plex** — sofern ein
+Server verbunden ist. Nexview ist weder von Plex unterstützt noch mit Plex verbunden.
+
+Die Downloads besorgen **Radarr** und **Sonarr**; die Wertungen kommen von **IMDb**,
+**Rotten Tomatoes** und **Metacritic**, die Streaming-Verfügbarkeit von **JustWatch**.
+
 ---
 
 ## Lizenz
@@ -275,7 +306,7 @@ Die Lizenz gilt für den Quelltext dieses Projekts. Nicht davon erfasst sind:
 - **Metadaten, Poster und Bilder von TMDB.** Sie unterliegen den
   [Nutzungsbedingungen von TMDB](https://www.themoviedb.org/terms-of-use); für den
   Betrieb brauchst du einen eigenen API-Key.
-- **Radarr, Sonarr, Docker, Synology, IMDb, Rotten Tomatoes und Metacritic.**
-  Marken der jeweiligen Rechteinhaber, hier nur beschreibend genannt.
+- **Plex, Radarr, Sonarr, Docker, Synology, IMDb, Rotten Tomatoes, Metacritic und
+  JustWatch.** Marken der jeweiligen Rechteinhaber, hier nur beschreibend genannt.
 - Die Abhängigkeiten in `frontend/package.json` und `backend/requirements.txt`,
   die unter ihren eigenen Lizenzen stehen.

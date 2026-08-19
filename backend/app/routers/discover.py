@@ -10,7 +10,14 @@ from ..deps import CurrentUser, DbSession
 from ..mocks import demo_data
 from ..models import MediaType
 from ..schemas_media import ArrOptions, Genre, MediaItem, MediaPage
-from ..services import blocklist, library, media, requests_service
+from ..services import (
+    blocklist,
+    library,
+    media,
+    mediaserver_library,
+    mediaserver_watched,
+    requests_service,
+)
 from ..services.arr import ArrError
 from ..services.filters import (
     KNOWN_TITLES_MIN_VOTES,
@@ -45,13 +52,13 @@ def _http_error(error: TmdbError) -> HTTPException:
 
 
 async def _status_for(
-    db, settings, media_type: str, items: list[MediaItem]
+    db, settings, media_type: str, items: list[MediaItem], user=None
 ) -> tuple[list[MediaItem], str | None]:
     """Titeln ihren Zustand geben.
 
-    Drei Quellen: was in Radarr/Sonarr liegt, was bei uns angefragt wurde, und
-    die Sperrliste. Eine vorhandene Datei sticht die Anfrage - aber die Sperre
-    sticht alles.
+    Vier Quellen: was in Radarr/Sonarr liegt, was im Media-Server liegt (aber
+    Radarr/Sonarr nicht kennt), was bei uns angefragt wurde, und die Sperrliste.
+    Eine vorhandene Datei sticht die Anfrage - aber die Sperre sticht alles.
 
     Dass die Sperre ganz oben steht, ist Absicht: sie ist die Auskunft, auf die
     es ankommt. Stuende dort "noch nicht angefragt", waere der einzige Weg zur
@@ -65,20 +72,37 @@ async def _status_for(
 
     own = requests_service.badges_for(db, MediaType(media_type), kennungen)
     gesperrt = blocklist.gesperrte_kennungen(db, MediaType(media_type), kennungen)
+    # Nur fuer Titel, die Radarr/Sonarr *nicht* kennt - alles andere hat schon
+    # einen genaueren Zustand als "liegt irgendwo herum".
+    im_server = mediaserver_library.vorhandene_kennungen(
+        db, MediaType(media_type), [i for i in result.items if i.status == "not_requested"]
+    )
+
+    # "Gesehen" ist eine eigene Achse und ueberschreibt deshalb nichts - es
+    # kommt zum Zustand hinzu. Und es gilt je Person, nicht fuer alle.
+    gesehen = (
+        mediaserver_watched.gesehene_kennungen(db, user.id, MediaType(media_type), kennungen)
+        if user is not None
+        else set()
+    )
 
     merged = []
     for item in result.items:
+        neu: dict[str, object] = {}
         if item.tmdb_id in gesperrt:
-            merged.append(item.model_copy(update={"status": blocklist.BADGE}))
+            neu["status"] = blocklist.BADGE
         elif item.tmdb_id in own and item.status != "downloaded":
-            merged.append(item.model_copy(update={"status": own[item.tmdb_id]}))
-        else:
-            merged.append(item)
+            neu["status"] = own[item.tmdb_id]
+        elif item.tmdb_id in im_server and item.status == "not_requested":
+            neu["status"] = "in_library"
+        if item.tmdb_id in gesehen:
+            neu["watched"] = True
+        merged.append(item.model_copy(update=neu) if neu else item)
     return merged, result.warning
 
 
-async def _with_status(db, settings, media_type: str, page: MediaPage) -> MediaPage:
-    items, warning = await _status_for(db, settings, media_type, page.items)
+async def _with_status(db, settings, media_type: str, page: MediaPage, user=None) -> MediaPage:
+    items, warning = await _status_for(db, settings, media_type, page.items, user)
     return page.model_copy(update={"items": items, "arr_warning": warning})
 
 
@@ -136,7 +160,7 @@ async def discover(
         result = await media.discover(db, settings, media_type, filters)
     except TmdbError as error:
         raise _http_error(error) from error
-    return await _with_status(db, settings, media_type, result)
+    return await _with_status(db, settings, media_type, result, user)
 
 
 @router.get("/search/{media_type}", response_model=MediaPage)
@@ -152,7 +176,7 @@ async def search(
         result = await media.search(db, settings, media_type, q.strip(), page)
     except TmdbError as error:
         raise _http_error(error) from error
-    return await _with_status(db, settings, media_type, result)
+    return await _with_status(db, settings, media_type, result, user)
 
 
 @router.get("/media/{media_type}/{tmdb_id}", response_model=MediaItem)
@@ -168,7 +192,7 @@ async def media_detail(
     except TmdbError as error:
         raise _http_error(error) from error
 
-    items, _ = await _status_for(db, settings, media_type, [item])
+    items, _ = await _status_for(db, settings, media_type, [item], user)
     return items[0]
 
 

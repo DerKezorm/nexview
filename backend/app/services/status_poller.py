@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ from ..models import (
     User,
     utcnow,
 )
-from . import library, mail_outbox, notify
+from . import library, mail_outbox, mediaserver_library, mediaserver_watched, notify
 from .arr import ArrError
 from .settings_service import AppSettings, load_settings
 from .sonarr import normalize_title
@@ -97,6 +98,35 @@ async def check_once(db: Session, settings: AppSettings) -> int:
     return fertig
 
 
+# Wie oft die Bibliothek des Media-Servers neu gelesen wird. Von Hand
+# hineinkopierte Dateien sind die Ausnahme, nicht der Normalfall - stuendlich
+# ist reichlich schnell und belastet den Server kaum.
+BIBLIOTHEK_INTERVALL_SEKUNDEN = 3600
+_bibliothek_zuletzt: float = 0.0
+
+
+async def _bibliothek_vielleicht(db, settings) -> None:
+    """Die Bibliothek des Media-Servers einlesen, wenn es an der Zeit ist.
+
+    Faellt der Server aus, ist das kein Grund, den ganzen Durchgang scheitern
+    zu lassen - der Rest des Abgleichs haengt nicht daran.
+    """
+    global _bibliothek_zuletzt
+    if not settings.mediaserver_configured:
+        return
+    jetzt = time.monotonic()
+    if jetzt - _bibliothek_zuletzt < BIBLIOTHEK_INTERVALL_SEKUNDEN:
+        return
+    _bibliothek_zuletzt = jetzt
+    try:
+        await mediaserver_library.refresh(db, settings)
+        # Erst danach: Der Verlauf verweist auf Titel aus der Bibliothek und
+        # laeuft ins Leere, solange die nicht eingelesen ist.
+        await mediaserver_watched.refresh(db, settings)
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        logger.exception("Media-Server konnte nicht abgeglichen werden")
+
+
 async def run_forever(stop: asyncio.Event) -> None:
     """Hintergrundschleife - laeuft, bis die Anwendung beendet wird."""
     while not stop.is_set():
@@ -107,6 +137,11 @@ async def run_forever(stop: asyncio.Event) -> None:
                 wartezeit = settings.poll_interval_seconds
                 if settings.radarr_configured or settings.sonarr_configured:
                     await check_once(db, settings)
+
+                # Die Bibliothek des Media-Servers seltener - sie aendert sich
+                # kaum, und ein voller Durchlauf kostet bei ein paar tausend
+                # Titeln spuerbar mehr als eine Statusabfrage.
+                await _bibliothek_vielleicht(db, settings)
 
                 # Erst danach: so gehen die Mails zu gerade fertig gewordenen
                 # Downloads schon in diesem Durchgang raus statt erst im

@@ -6,7 +6,8 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { ApiError, api } from '../api/client'
 import type { MediaItem, MediaPage, MediaType } from '../api/types'
 import { DetailModal } from '../components/media/DetailModal'
-import { MediaCard } from '../components/media/MediaCard'
+import { MediaItemCard } from '../components/media/MediaCard'
+import { useCardData } from '../components/media/useCardData'
 import { Button, ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 
@@ -44,6 +45,7 @@ export function BrowsePage() {
   })
 
   const items = query.data?.pages.flatMap((seite) => seite.page.items) ?? []
+  const kachelDaten = useCardData(items)
   const gesamt = query.data?.pages[0]?.page.total_results ?? 0
   // Der Name aus der Antwort; beim ersten Rendern hilft der aus der Adresse
   // mitgegebene weiter, damit die Überschrift nicht springt.
@@ -90,7 +92,13 @@ export function BrowsePage() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
           {items.map((item) => (
-            <MediaCard key={item.tmdb_id} item={item} onQuickAdd={setSchnellAnfrage} />
+            <MediaItemCard
+              key={item.tmdb_id}
+              item={item}
+              onQuickAdd={setSchnellAnfrage}
+              ratings={kachelDaten.ratingsFor(item)}
+              favorit={kachelDaten.istFavorit(item)}
+            />
           ))}
         </div>
       )}

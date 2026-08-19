@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { ApiError, api } from '../api/client'
@@ -10,84 +10,15 @@ import {
   FavoritePersonButton,
   usePersonFavorites,
 } from '../components/media/FavoriteButton'
-import { CartIcon } from '../components/media/MediaCard'
+import { fromPersonCredit } from '../components/media/cardItem'
+import { MediaCard } from '../components/media/MediaCard'
 import { PersonPhoto } from '../components/media/PersonPhoto'
-import { Poster } from '../components/media/Poster'
-import { StatusBadge } from '../components/media/StatusBadge'
+import { useCardData } from '../components/media/useCardData'
 import { Card, ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
-import { formatDate, formatYear } from '../lib/format'
-import { titlePath } from '../lib/routes'
+import { formatDate } from '../lib/format'
 
-/** Ein Titel aus der Filmografie - Poster, Rolle, Status, Schnell-Wagen. */
 const CREDIT_KINDS = ['movie', 'series', 'appearance'] as const
-
-function CreditCard({
-  credit,
-  onQuickAdd,
-}: {
-  credit: PersonCredit
-  onQuickAdd: (item: MediaItem) => void
-}) {
-  const { t } = useTranslation()
-  const anfragbar = credit.status === 'not_requested'
-
-  return (
-    <div className="group relative flex flex-col overflow-hidden rounded-xl border border-ink-700 bg-ink-850 transition-all hover:-translate-y-1 hover:border-accent-600/60">
-      <Link to={titlePath(credit.media_type, credit.tmdb_id)} className="flex flex-1 flex-col">
-        <div className="relative aspect-2/3 overflow-hidden bg-ink-900">
-          <Poster
-            url={credit.poster_url}
-            title={credit.title}
-            className="h-full w-full transition-transform duration-300 group-hover:scale-105"
-          />
-          <div className="absolute inset-x-2 top-2">
-            <StatusBadge status={credit.status} />
-          </div>
-        </div>
-        <div className="flex flex-1 flex-col gap-0.5 p-3">
-          <h3 className="line-clamp-2 text-sm leading-snug font-semibold">{credit.title}</h3>
-          {credit.character && (
-            <p className="line-clamp-1 text-xs text-mist-600">{credit.character}</p>
-          )}
-          <p className="mt-auto text-xs text-mist-500">{formatYear(credit.release_date)}</p>
-        </div>
-      </Link>
-
-      {anfragbar && (
-        <button
-          type="button"
-          onClick={() =>
-            onQuickAdd({
-              media_type: credit.media_type,
-              tmdb_id: credit.tmdb_id,
-              tvdb_id: null,
-              title: credit.title,
-              original_title: null,
-              overview: '',
-              poster_url: credit.poster_url,
-              backdrop_url: null,
-              release_date: credit.release_date,
-              vote_average: credit.vote_average,
-              vote_count: 0,
-              genres: [],
-              runtime_minutes: null,
-              certification: null,
-              original_language: null,
-              seasons: [],
-              status: credit.status,
-            })
-          }
-          title={t('media.quickAdd')}
-          aria-label={`${credit.title} – ${t('media.quickAdd')}`}
-          className="absolute top-2 right-2 z-10 rounded-full border border-ink-700 bg-ink-950/85 p-1.5 text-mist-300 backdrop-blur transition-colors hover:border-accent-500 hover:bg-accent-500 hover:text-white"
-        >
-          <CartIcon />
-        </button>
-      )}
-    </div>
-  )
-}
 
 /**
  * Seite zu einer Person: Foto, Biografie und die bekanntesten Titel.
@@ -111,6 +42,10 @@ export function PersonPage() {
     enabled: Boolean(personId),
     staleTime: 60 * 60 * 1000,
   })
+
+  // Ohne das blieben in der Filmografie die IMDb-Abzeichen leer und jedes Herz
+  // ungefuellt - genau der Unterschied, der wie Absicht aussah statt wie Fehler.
+  const kachelDaten = useCardData(query.data?.credits ?? [])
 
   if (query.isPending) {
     return (
@@ -250,10 +185,12 @@ export function PersonPage() {
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {credits[werkEffektiv].map((credit) => (
-              <CreditCard
+              <MediaCard
                 key={`${credit.media_type}-${credit.tmdb_id}`}
-                credit={credit}
+                item={fromPersonCredit(credit)}
                 onQuickAdd={setSchnellAnfrage}
+                ratings={kachelDaten.ratingsFor(credit)}
+                favorit={kachelDaten.istFavorit(credit)}
               />
             ))}
           </div>

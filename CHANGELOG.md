@@ -12,6 +12,39 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.8.0 – 19.08.2026
+
+### New
+
+- **Titles already on your media server are recognised.** Nexview now reads
+  what sits in your Plex library and spots what never came through
+  Radarr/Sonarr — a file copied by hand, or a collection that predates the
+  *arr setup. Those titles show as "In library" and cannot be requested a
+  second time. The sync runs hourly in the background; the settings show how
+  many titles are indexed, when it last ran, and offer a "Sync now" button.
+
+  Matching goes by TMDB id, then TVDB id, then title — and always checks the
+  year as well. That is not caution for its own sake: in a real library of
+  3509 films, exactly one carried a **wrong** TMDB id, pointing at an entirely
+  different film. Without the year check, anyone searching for that other film
+  would have been told they already own it. A missed title costs a duplicate
+  download; a false one takes a title out of the catalogue for good, with no
+  visible reason.
+
+- **You can see what you already watched.** Titles you have seen on your media
+  server carry a small "Watched" marker next to their status. Everyone sees
+  only their own — what one person watched is nobody else's business — and the
+  marker sits beside the status rather than replacing it, so "already
+  downloaded" stays visible.
+
+  Two sources feed it, and both are needed: for the account whose access is
+  stored, the counter Plex keeps on each title, which is complete; for
+  everyone else the playback history, which Plex only keeps for a while.
+  Measured on a real server: the history held 38 films, the counters 354. For
+  shows, one watched episode marks the show.
+
+---
+
 ## 0.7.0 – 19.08.2026
 
 ### New

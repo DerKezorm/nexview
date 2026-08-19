@@ -9,6 +9,7 @@ import { FavoriteButton } from './FavoriteButton'
 import { RatingBadges } from './RatingBadges'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
+import { WatchedBadge } from './WatchedBadge'
 
 type MediaListRowProps = {
   item: MediaItem
@@ -49,7 +50,7 @@ export function MediaListRow({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="line-clamp-2 font-semibold">{item.title}</h3>
             <RatingBadge vote={item.vote_average} count={item.vote_count} />
-            <RatingBadges ratings={ratings} title={item.title} />
+            <RatingBadges ratings={ratings} title={item.title} nurImdb />
           </div>
 
           <p className="text-xs text-mist-500">
@@ -76,6 +77,7 @@ export function MediaListRow({
         <StatusBadge status={item.status} />
 
         <div className="flex items-center gap-2">
+          {item.watched && <WatchedBadge />}
           <FavoriteButton item={item} markiert={favorit} />
 
           {anfragbar && (

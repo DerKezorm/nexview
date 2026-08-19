@@ -187,6 +187,12 @@ function Credits() {
             </span>
           </li>
           <li>
+            <ExternalLink href="https://www.plex.tv">Plex</ExternalLink>
+            <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.plexNotice')}
+            </span>
+          </li>
+          <li>
             <ExternalLink href="https://www.imdb.com">IMDb</ExternalLink>
             {' · '}
             <ExternalLink href="https://www.rottentomatoes.com">Rotten Tomatoes</ExternalLink>

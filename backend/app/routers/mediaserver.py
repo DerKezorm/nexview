@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -29,7 +30,7 @@ from ..models import AuthToken, MediaServerBlock, User, utcnow
 from ..schemas import TokenPair, UserPublic
 from ..security import access_token_expires_in, create_access_token, create_refresh_token
 from ..services import mediaserver_accounts as konten
-from ..services import settings_service
+from ..services import mediaserver_library, settings_service
 from ..services.mediaserver import (
     MediaServer,
     MediaServerError,
@@ -118,6 +119,13 @@ class ConnectResult(BaseModel):
 class SelectServer(BaseModel):
     poll_token: str = Field(min_length=1, max_length=200)
     machine_id: str = Field(min_length=1, max_length=64)
+
+
+class LibraryState(BaseModel):
+    """Stand des Bibliotheks-Abgleichs - fuer die Einstellungsseite."""
+
+    count: int
+    updated_at: datetime | None = None
 
 
 class BlockEntry(BaseModel):
@@ -478,6 +486,15 @@ async def connect_select(payload: SelectServer, db: DbSession, admin: AdminUser)
     db.commit()
     db.refresh(admin)
 
+    # Gleich einmal die Bibliothek lesen. Sonst passierte bis zum naechsten
+    # Hintergrunddurchlauf eine Stunde lang nichts, und der Administrator
+    # koennte nicht erkennen, ob es ueberhaupt funktioniert. Ein Fehlschlag
+    # ist hier kein Grund, das Verbinden scheitern zu lassen.
+    try:
+        await mediaserver_library.refresh(db, settings_service.load_settings(db))
+    except MediaServerError as exc:
+        logger.info("Bibliothek nach dem Verbinden nicht lesbar: %s", exc.message)
+
     return ConnectResult(
         user=UserPublic.model_validate(admin),
         server_name=gewaehlt.name,
@@ -517,6 +534,40 @@ def connect_delete(db: DbSession, admin: AdminUser) -> None:
 # --------------------------------------------------------------------------
 # Sperrliste
 # --------------------------------------------------------------------------
+
+
+# --------------------------------------------------------------------------
+# Bibliotheks-Abgleich
+# --------------------------------------------------------------------------
+
+
+@admin_router.get("/library", response_model=LibraryState)
+def library_state(db: DbSession, admin: AdminUser) -> LibraryState:
+    return LibraryState(**mediaserver_library.stand(db))  # type: ignore[arg-type]
+
+
+@admin_router.post("/library/refresh", response_model=LibraryState)
+async def library_refresh(db: DbSession, admin: AdminUser) -> LibraryState:
+    """Von Hand abgleichen.
+
+    Im Betrieb passiert das im Hintergrund. Der Knopf ist fuer den Moment
+    direkt nach dem Verbinden - und um ueberhaupt sehen zu koennen, dass es
+    funktioniert.
+    """
+    settings = settings_service.load_settings(db)
+    if not settings.mediaserver_configured:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "mediaserver_not_configured",
+                "message": "Es ist kein Media-Server verbunden.",
+            },
+        )
+    try:
+        await mediaserver_library.refresh(db, settings)
+    except MediaServerError as exc:
+        raise _anbieter_fehler(exc) from exc
+    return LibraryState(**mediaserver_library.stand(db))  # type: ignore[arg-type]
 
 
 @admin_router.get("/blocks", response_model=list[BlockEntry])

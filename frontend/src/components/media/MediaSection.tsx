@@ -9,7 +9,7 @@ import { Button, ErrorBanner, Spinner } from '../ui'
 import { DetailModal } from './DetailModal'
 import { FilterBar } from './FilterBar'
 import type { Filters, ViewMode } from './FilterBar'
-import { MediaCard } from './MediaCard'
+import { MediaItemCard } from './MediaCard'
 import { MediaListRow } from './MediaListRow'
 import { useFavorites } from './FavoriteButton'
 import { useMovieRatings } from './RatingBadges'
@@ -267,7 +267,7 @@ export function MediaSection({
         (view === 'grid' ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {items.map((item) => (
-              <MediaCard
+              <MediaItemCard
                 key={item.tmdb_id}
                 item={item}
                 onQuickAdd={setSelected}

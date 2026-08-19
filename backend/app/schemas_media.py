@@ -118,6 +118,13 @@ class PersonCredit(BaseModel):
     release_date: str | None = None
     vote_average: float = 0.0
     status: str = "not_requested"
+    # Muss hier genauso stehen wie bei ``MediaItem``: Die Badges beider Typen
+    # werden von derselben Funktion gesetzt (``details._mit_status``), und
+    # Pydantic laesst kein Feld zu, das im Modell nicht deklariert ist. Fehlt
+    # es, scheitert die Personenseite mit 500 - aber nur bei Leuten, in deren
+    # Filmografie ueberhaupt ein gesehener Titel vorkommt. Genau deshalb ist es
+    # beim Testen erst nicht aufgefallen.
+    watched: bool = False
 
 
 class PersonSummary(BaseModel):
@@ -176,9 +183,14 @@ class MediaItem(BaseModel):
     # Ballast - dort wird sie gar nicht erst mitgeliefert.
     seasons: list[SeasonInfo] = []
 
-    # Zustand fuer das Badge auf der Kachel. Ab Meilenstein 3 wird hier der
-    # echte Abgleich mit Radarr/Sonarr eingetragen.
+    # Zustand fuer das Badge auf der Kachel.
     status: str = "not_requested"
+
+    # Hat *der anfragende* Benutzer das schon gesehen? Bewusst ein eigenes Feld
+    # und kein weiterer ``status``-Wert: "gesehen" ist eine andere Achse als
+    # "vorhanden" oder "angefragt" und wuerde die verdecken. Ausserdem gilt es
+    # je Person, waehrend der Zustand fuer alle derselbe ist.
+    watched: bool = False
 
 
 class MediaDetail(MediaItem):

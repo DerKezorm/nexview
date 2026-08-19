@@ -244,20 +244,21 @@ def test_gesperrte_titel_verschwinden_aus_einer_liste(admin_client: TestClient) 
         benutzer = session.query(User).filter(User.username == "kind5").one()
         settings = for_user(load_settings(session), benutzer)
 
+        # Den Schluessel nicht von Hand bauen: Er traegt eine Fassungsnummer,
+        # und ein selbst getippter Schluessel wuerde beim naechsten Hochzaehlen
+        # still danebenliegen - der Test schluege dann fehl, ohne dass etwas
+        # kaputt waere.
+        def schluessel(tmdb_id: int) -> str:
+            return media._schlanker_schluessel(
+                settings, "movie", tmdb_id, settings.default_region
+            )
+
         for tmdb_id, freigabe in ((1, "6"), (2, "18"), (3, "12")):
             cache.write(
-                session,
-                f"detail:movie:{tmdb_id}:{settings.default_region}:{settings.default_language}",
-                film({"DE": freigabe}),
-                cache.DETAIL_TTL,
+                session, schluessel(tmdb_id), film({"DE": freigabe}), cache.DETAIL_TTL
             )
         # Ein vierter ganz ohne Einstufung.
-        cache.write(
-            session,
-            f"detail:movie:4:{settings.default_region}:{settings.default_language}",
-            film({}),
-            cache.DETAIL_TTL,
-        )
+        cache.write(session, schluessel(4), film({}), cache.DETAIL_TTL)
         session.commit()
 
         erlaubt = asyncio.run(

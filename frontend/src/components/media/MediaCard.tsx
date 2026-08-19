@@ -20,6 +20,38 @@ import { WatchedBadge } from './WatchedBadge'
  */
 export type CardVariant = 'voll' | 'kompakt'
 
+/**
+ * Der klickbare Teil der Kachel – oder nur die Hülle, wenn es nichts zu öffnen
+ * gibt.
+ *
+ * Ohne TMDB-Kennung existiert keine Detailseite. Das kommt bei Sonarr-Folgen
+ * vor, deren Serie sich keiner Kennung zuordnen ließ; ein Link auf
+ * `/titel/tv/0` wäre eine Sackgasse.
+ *
+ * Bewusst hier außen und nicht innerhalb von `MediaCard`: Eine dort definierte
+ * Komponente wäre bei jedem Rendern eine neue, React würde den ganzen Inhalt
+ * verwerfen und neu aufbauen – das Poster lüde sichtbar noch einmal.
+ */
+function Rahmen({
+  verlinkbar,
+  to,
+  label,
+  children,
+}: {
+  verlinkbar: boolean
+  to: string
+  label: string
+  children: React.ReactNode
+}) {
+  const klassen = 'flex flex-1 flex-col text-left'
+  if (!verlinkbar) return <div className={klassen}>{children}</div>
+  return (
+    <Link to={to} aria-label={label} className={klassen}>
+      {children}
+    </Link>
+  )
+}
+
 type MediaCardProps = {
   item: CardItem
   /** Öffnet das Schnell-Popup zum Anfragen. Fehlt er, gibt es keinen Wagen. */
@@ -34,6 +66,14 @@ type MediaCardProps = {
    * (auf der Favoriten-Seite etwa das Entfernen).
    */
   actions?: React.ReactNode
+  /**
+   * Zusätzliches Schild neben dem Zustand – im Kalender das „fehlt noch“.
+   *
+   * Bewusst kein weiterer Wert für `status`: Der ist eine geschlossene Liste
+   * mit fester Farbtabelle, und „fehlt noch“ ist eine andere Achse als
+   * „vorhanden“ oder „angefragt“ – es würde sie verdecken statt ergänzen.
+   */
+  badge?: React.ReactNode
 }
 
 /**
@@ -61,21 +101,27 @@ export function MediaCard({
   favorit = false,
   variant = 'voll',
   actions,
+  badge,
 }: MediaCardProps) {
   const { t, i18n } = useTranslation()
   const runtime = formatRuntime(item.runtime_minutes, i18n.language)
   const anfragbar = item.status === 'not_requested'
   const kompakt = variant === 'kompakt'
 
+  /* Ohne TMDB-Kennung gibt es keine Detailseite. Das kommt bei Sonarr-Folgen
+     vor, deren Serie sich keiner Kennung zuordnen ließ. Dann bleibt die Kachel
+     stehen, aber ohne Link – ein Link auf /titel/tv/0 wäre eine Sackgasse. */
+  const verlinkbar = item.tmdb_id > 0
+
   return (
     /* h-full: Im Raster wird das Feld auf die Zeilenhoehe gezogen, die Kachel
        darin aber nicht - dann sitzen die Leisten benachbarter Kacheln auf
        verschiedenen Hoehen, sobald ein Titel zweizeilig umbricht. */
     <div className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-ink-700 bg-ink-850 transition-all hover:-translate-y-1 hover:border-accent-600/60 hover:shadow-2xl hover:shadow-accent-700/20">
-      <Link
+      <Rahmen
+        verlinkbar={verlinkbar}
         to={titlePath(item.media_type, item.tmdb_id)}
-        aria-label={`${item.title} – ${t('media.openDetails')}`}
-        className="flex flex-1 flex-col text-left"
+        label={`${item.title} – ${t('media.openDetails')}`}
       >
         <div className="relative aspect-2/3 overflow-hidden bg-ink-900">
           <Poster
@@ -87,7 +133,10 @@ export function MediaCard({
           {/* Oben teilen sich nur zwei Dinge die Zeile. Vorher drängte sich
               der Wagen dazwischen, und "Nicht angefragt" brach um. */}
           <div className="absolute inset-x-2 top-2 flex flex-wrap items-start justify-between gap-1.5">
-            <StatusBadge status={item.status} />
+            <span className="flex flex-wrap items-start gap-1.5">
+              <StatusBadge status={item.status} />
+              {badge}
+            </span>
             <RatingBadge vote={item.vote_average} count={item.vote_count} />
           </div>
 
@@ -130,7 +179,7 @@ export function MediaCard({
             <p className="line-clamp-1 text-xs text-mist-600">{item.genres.join(', ')}</p>
           )}
         </div>
-      </Link>
+      </Rahmen>
 
       {/* Ein Balken unter der Kachel: links die Wertung, rechts die Knöpfe.
           Auf dem Poster wurde es zu eng - "Nicht angefragt" brach um, und die

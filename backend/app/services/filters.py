@@ -49,6 +49,74 @@ STUDIOS: list[tuple[int, str]] = [
 
 STUDIO_IDS = frozenset(studio_id for studio_id, _ in STUDIOS)
 
+# Streamingdienste mit ihrer TMDB-Kennung ("networks", nicht zu verwechseln mit
+# den Produktionsfirmen oben - das sind zwei getrennte Namensraeume bei TMDB).
+#
+# Bewusst KEINE klassischen Fernsehsender: Streamingdienste sind weltweit
+# dieselben, waehrend ARD, ZDF oder RTL fuer jemanden ausserhalb Deutschlands
+# wertlos waeren. So braucht die Liste keine Laender-Logik.
+#
+# Wie bei STUDIOS gilt: Kennungen pruefen, nicht raten. Eine falsche Kennung
+# liefert keinen Fehler, sondern schlicht nichts - eine leere Rubrik sieht aus
+# wie "diese Woche kommt nichts".
+# Alle Kennungen am 19.08.2026 gegen themoviedb.org/network/<id> geprueft.
+NETWORKS: list[tuple[int, str]] = [
+    (213, "Netflix"),
+    (1024, "Prime Video"),
+    (2739, "Disney+"),
+    # TMDB fuehrt den Dienst seit der Umbenennung als "Apple TV" ohne Plus.
+    # Die Kennung blieb dieselbe - deshalb nie ueber den Namen vergleichen.
+    (2552, "Apple TV+"),
+    # HBO braucht BEIDE Kennungen. Sie sind nicht alt gegen neu, sondern
+    # aufgeteilt: TMDB ordnet jede Serie dem Haus zu, das sie beauftragt hat.
+    # "The Last of Us" steht unter 49, "Hacks" und "Peacemaker" unter 3186.
+    # Mit nur einer Kennung fehlte still ein grosser Teil des Katalogs.
+    (49, "HBO"),
+    (3186, "HBO Max"),
+    (4330, "Paramount+"),
+    (453, "Hulu"),
+    (3353, "Peacock"),
+]
+
+NETWORK_IDS = frozenset(network_id for network_id, _ in NETWORKS)
+
+# Wie TMDB die Art einer Veroeffentlichung nummeriert:
+# 1 Premiere, 2 Kino (begrenzt), 3 Kino, 4 Digital, 5 Datentraeger, 6 TV.
+KINO_ARTEN = (3, 2, 1)
+DIGITAL_ARTEN = (4, 5)
+
+# Die Werte fuer "with_release_type". Das Trennzeichen "|" bedeutet bei TMDB
+# ODER - ein Komma waere UND und lieferte nichts.
+RELEASE_TYPES = {
+    "kino": "3|2|1",
+    "digital": "4|5",
+}
+
+# Wie TMDB Sendungen einteilt:
+# 0 Dokumentation, 1 Nachrichten, 2 Mehrteiler, 3 Reality, 4 Erzaehlend,
+# 5 Talkshow, 6 Video.
+#
+# Ohne diese Einschraenkung ist die Rubrik "grosse Studios" bei Serien
+# unbrauchbar: Netflix und Hulu fuehren bei TMDB auch ihre Begleit-Podcasts,
+# Talkshows und Spielshows als Serien. Gemessen war rund die Haelfte der
+# Treffer so etwas - "Outer Banks: The Official Podcast" neben "ESPN Jeopardy!".
+# Uebrig bleiben Dokumentationen, Mehrteiler und erzaehlende Serien.
+ERZAEHLENDE_SERIEN = "0|2|4"
+
+# Aus welchen Laendern Neuerscheinungen ueberhaupt gezeigt werden.
+#
+# Netflix und die anderen Dienste produzieren weltweit, und TMDB fuehrt jede
+# koreanische, thailaendische oder japanische Produktion unter demselben
+# Sender. Fuer den Kalender ist das Rauschen: Titel, die hier niemand sucht.
+#
+# Bewusst nach Herkunftsland und nicht nach Sprache - so bleiben franzoesische
+# und spanische Produktionen drin, die man hier durchaus sieht.
+#
+# Geprueft wird im eigenen Code, nicht ueber TMDB: Deren "with_origin_country"
+# nimmt offiziell nur ein einziges Land, und ein stillschweigend ignorierter
+# Parameter saehe aus wie "diese Woche kommt nichts".
+HERKUNFTSLAENDER = frozenset({"DE", "AT", "CH", "US", "GB", "CA", "AU", "FR", "IT", "ES"})
+
 
 @dataclass(frozen=True)
 class DiscoverFilters:
@@ -73,6 +141,17 @@ class DiscoverFilters:
     # Produktionsfirma (nur Filme)
     studio_id: int | None = None
 
+    # Welche Art von Veroeffentlichung zaehlt (nur Filme). Die Vorbelegung ist
+    # genau das, was frueher fest im TMDB-Client stand - so aendert sich fuer
+    # die Entdecken-Seite nichts.
+    release_types: str = "2|3"
+    # Mehrere Produktionsfirmen bzw. Streamingdienste auf einmal, ODER-verknuepft
+    # ("|"). Leer heisst: kein Filter. Haben Vorrang vor studio_id.
+    company_ids: str = ""
+    network_ids: str = ""
+    # Art der Sendung (nur Serien), siehe SERIENARTEN. Leer = alles.
+    series_types: str = ""
+
     def cache_key(self, media_type: str, textsprache: str = "") -> str:
         """Schluessel fuer den Zwischenspeicher.
 
@@ -82,10 +161,18 @@ class DiscoverFilters:
         er die Oberflaeche auf eine andere Sprache gestellt hat. Nicht zu
         verwechseln mit ``self.language``: das ist die *Originalsprache* als
         Filter, also in welcher Sprache gedreht wurde.
+
+        Wichtig: Jedes Feld, das die Anfrage an TMDB veraendert, muss hier
+        auftauchen. Sonst teilen sich zwei verschiedene Abfragen dieselbe Zeile
+        im Zwischenspeicher, und wer zuerst kommt, liefert dem anderen sein
+        Ergebnis - stundenlang und ohne Fehlermeldung. Die Kennung "v2" gehoert
+        dazu, weil aeltere Eintraege nach dem gleichen Muster gebaut waren, aber
+        eine andere Bedeutung hatten.
         """
         return (
-            f"discover:{media_type}:{textsprache}:{self.date_from}:{self.date_to}:{self.language}:"
-            f"{self.region}:{self.genre_id}:{self.sort}:{self.page}:{self.min_runtime}:"
-            f"{self.min_rating}:{self.hide_unrated}:{self.released_in_region}:{self.studio_id}:"
-            f"{self.min_votes}"
+            f"discover:v2:{media_type}:{textsprache}:{self.date_from}:{self.date_to}:"
+            f"{self.language}:{self.region}:{self.genre_id}:{self.sort}:{self.page}:"
+            f"{self.min_runtime}:{self.min_rating}:{self.hide_unrated}:"
+            f"{self.released_in_region}:{self.studio_id}:{self.min_votes}:"
+            f"{self.release_types}:{self.company_ids}:{self.network_ids}:{self.series_types}"
         )

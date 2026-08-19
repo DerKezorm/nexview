@@ -32,6 +32,10 @@ if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
 # hundert Abfragen zerfallen, klein genug fuer eine handliche Antwort.
 SEITENGROESSE = 500
 
+# Unter dieser Nummer fuehrt Plex den Eigentuemer des Servers. Geteilte Nutzer
+# erscheinen dagegen unter ihrer plex.tv-Nummer.
+EIGENTUEMER_KONTO = "1"
+
 
 def _nummer(schluessel: str | None) -> str:
     """Aus "/library/metadata/21339" die 21339 herausloesen."""
@@ -260,18 +264,37 @@ class PlexServer(MediaServer):
         denn fuer ein Abzeichen an der Kachel ist "davon schon etwas gesehen"
         die brauchbare Auskunft.
 
+        **Je Konto einzeln abfragen.** Ohne ``accountID`` liefert Plex nur den
+        Verlauf des Zugangs, mit dem gefragt wird - der Eigentuemer saehe also
+        nur sich selbst. Gemessen an einer echten Installation: 497 Eintraege,
+        alle unter der 1. Dazu kommt, dass Plex je Abfrage bei rund 500
+        Eintraegen abschneidet; ohne Aufteilung verdraengt ein vielsehender
+        Eigentuemer den Verlauf aller anderen vollstaendig.
+
         ``since`` wird bewusst **hier** ausgewertet und nicht an Plex
         weitergereicht: Der Server nimmt den entsprechenden Parameter zwar an,
         beachtet ihn aber nicht - gemessen an einer echten Installation kam
         gefiltert genau dieselbe Menge zurueck wie ungefiltert.
         """
-        container = await self._server(
-            "/status/sessions/history/all", {"sort": "viewedAt:desc"}
-        )
+        try:
+            konten = [konto.account_id for konto in await self.list_server_users()]
+        except MediaServerError:
+            konten = []
+        # Ohne Kontenliste bleibt wenigstens der Eigentuemer.
+        konten = konten or [EIGENTUEMER_KONTO]
+
+        roh: list[dict[str, Any]] = []
+        for konto in konten:
+            container = await self._server(
+                "/status/sessions/history/all",
+                {"sort": "viewedAt:desc", "accountID": konto},
+            )
+            roh.extend(container.get("Metadata") or [])
+
         grenze = int(since.timestamp()) if since else None
 
         gesehen: list[WatchedRecord] = []
-        for eintrag in container.get("Metadata") or []:
+        for eintrag in roh:
             wann = eintrag.get("viewedAt")
             if grenze is not None and isinstance(wann, int) and wann <= grenze:
                 continue

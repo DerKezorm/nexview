@@ -7,6 +7,7 @@ Service, damit der API-Key den Server nicht verlaesst.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from typing import Any
 
 import httpx
@@ -149,11 +150,13 @@ class TmdbClient:
 
         if is_movie:
             params["region"] = filters.region
-            # Kino- und digitale Veroeffentlichung
-            params["with_release_type"] = "2|3"
-            params["with_companies"] = filters.studio_id
+            params["with_release_type"] = filters.release_types
+            # Mehrere Firmen ODER-verknuepft schlagen die einzelne Auswahl.
+            params["with_companies"] = filters.company_ids or filters.studio_id
         else:
             params["watch_region"] = filters.region
+            params["with_networks"] = filters.network_ids or None
+            params["with_type"] = filters.series_types or None
 
         return await self._get(f"/discover/{media_type}", params)
 
@@ -192,6 +195,21 @@ class TmdbClient:
         was eine Startseite interessant macht.
         """
         return await self._get(f"/trending/{media_type}/{zeitraum}", {"page": page})
+
+    async def find_by_tvdb(self, tvdb_id: int) -> int | None:
+        """TMDB-Kennung einer Serie ueber ihre TVDB-Kennung finden.
+
+        Letzter Ausweg fuer den Kalender: Sonarr denkt in TVDB-Kennungen, der
+        Rest von Nexview in TMDB-Kennungen. Die billigeren Wege (Sonarr 4
+        liefert die TMDB-Id gleich mit, sonst frueher gestellte Anfragen)
+        stehen im Kalender-Dienst davor.
+        """
+        data = await self._get(f"/find/{tvdb_id}", {"external_source": "tvdb_id"})
+        for treffer in data.get("tv_results") or []:
+            kennung = treffer.get("id")
+            if isinstance(kennung, int):
+                return kennung
+        return None
 
     async def genres(self, media_type: str) -> dict[int, str]:
         data = await self._get(f"/genre/{media_type}/list")
@@ -355,6 +373,36 @@ def extract_certification(detail: dict[str, Any], media_type: str, region: str) 
             if value:
                 return value
     return None
+
+
+def release_date_for(
+    detail: dict[str, Any], region: str, arten: Sequence[int]
+) -> tuple[str, int] | None:
+    """Frueheste Veroeffentlichung einer der gewuenschten Arten in dieser Region.
+
+    Warum das noetig ist: ``/discover/movie`` filtert zwar nach dem regionalen
+    Datum, liefert in der Liste aber immer das *primaere* (meist weltweite
+    Kino-)Datum. Ein Film mit Kinostart im Maerz und digitaler Veroeffentlichung
+    im Juni landet dadurch zwar im Juni-Fenster, traegt aber das Maerz-Datum -
+    im Kalender stuende er am falschen Tag.
+
+    Liefert Datum (ISO) und Art, damit die Oberflaeche "Digital" von
+    "Datentraeger" unterscheiden kann, ohne noch einmal nachzufragen.
+    """
+    treffer: list[tuple[str, int]] = []
+    for entry in detail.get("release_dates", {}).get("results", []):
+        if entry.get("iso_3166_1") != region:
+            continue
+        for release in entry.get("release_dates", []):
+            art = release.get("type")
+            if art not in arten:
+                continue
+            # TMDB liefert "2026-08-19T00:00:00.000Z" - nur der Tag zaehlt.
+            datum = (release.get("release_date") or "")[:10]
+            if len(datum) == 10:
+                treffer.append((datum, art))
+
+    return min(treffer) if treffer else None
 
 
 def extract_runtime(detail: dict[str, Any], media_type: str) -> int | None:

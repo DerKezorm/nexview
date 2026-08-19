@@ -10,6 +10,7 @@ import { Spinner } from './components/ui'
 import { AboutPage } from './pages/AboutPage'
 import { BrowsePage } from './pages/BrowsePage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
+import { CalendarPage } from './pages/CalendarPage'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { HomePage } from './pages/HomePage'
@@ -115,6 +116,7 @@ export default function App() {
         <Route index element={<HomePage />} />
         <Route path="filme" element={<DiscoverPage mediaType="movie" />} />
         <Route path="serien" element={<DiscoverPage mediaType="tv" />} />
+        <Route path="kalender" element={<CalendarPage />} />
         <Route path="suche" element={<SearchPage />} />
         <Route path="personen" element={<PeoplePage />} />
         <Route path="profil" element={<ProfilePage />} />

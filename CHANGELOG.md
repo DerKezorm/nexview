@@ -12,7 +12,40 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
-## 0.9.0 – in Arbeit
+## 0.9.0 – 19.08.2026
+
+### New
+
+- **A release calendar.** A new "Calendar" entry shows one calendar week at a
+  time, grouped by day, with a year and week picker to jump anywhere. Each day
+  separates two things: **your titles** — the episodes and movies already in
+  your Radarr and Sonarr, marked "still missing" when they aired but the file
+  never arrived — and **new releases** you do not have yet. Request and
+  favourite straight from the calendar.
+
+  Movie dates switch between **cinema** and **digital & disc**, and both are
+  read for *your* region. That distinction matters more than it sounds: a film
+  can open in cinemas in March and land digitally in June, and for a media
+  server only the second date is actionable. TMDB filters on the regional date
+  but reports the worldwide one, so the calendar reads the regional date back
+  out of the detail response — which Nexview already fetches for every title,
+  so this costs no extra requests.
+
+  New releases are limited to the major studios by default (switchable to
+  "known titles" or everything). For shows that means the big streaming
+  services, restricted to scripted series, mini-series and documentaries: TMDB
+  files every companion podcast, talk show and game show under the same
+  network, and they made up roughly half the results. Productions from outside
+  a handful of countries are left out as well — the streamers commission
+  worldwide, and a Thai original is noise in a German calendar.
+
+### Fixed
+
+- **Watch history is now read per account.** Plex only returns the history of
+  the account you ask with, and caps each answer at around 500 entries. A
+  household with one heavy viewer therefore pushed everyone else out of the
+  result entirely. Note that Plex records *playback* only — a title ticked off
+  by hand leaves no trace there.
 
 ---
 

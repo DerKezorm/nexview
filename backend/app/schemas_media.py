@@ -177,6 +177,11 @@ class MediaItem(BaseModel):
     runtime_minutes: int | None = None
     certification: str | None = None
     original_language: str | None = None
+    # Herkunftslaender, wie TMDB sie bei Serien mitliefert. Der Kalender siebt
+    # damit aus, was er nicht zeigen will; sonst bliebe nur die Sprache, und
+    # die trennt schlechter (eine spanische Produktion aus Spanien ist etwas
+    # anderes als eine aus Mexiko).
+    origin_country: list[str] = []
 
     # Nur bei Serien und nur in der Detailansicht gefuellt: die Staffelliste
     # fuer die Auswahl beim Anfragen. In Listenansichten waere sie unnoetiger

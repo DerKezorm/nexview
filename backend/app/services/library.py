@@ -99,6 +99,44 @@ async def series_library(
     return library
 
 
+async def movie_calendar(settings: AppSettings, start: str, end: str) -> list[dict[str, Any]]:
+    """Radarr-Kalender fuer einen Zeitraum.
+
+    Bewusst dieselbe kurze Haltezeit wie bei der Bibliothek: Der Kalender lebt
+    von ``hasFile``, und genau das kippt im Minutentakt, sobald ein Download
+    fertig wird. Ein laengerer Zwischenspeicher wuerde "fehlt noch" anzeigen,
+    obwohl die Datei laengst da ist.
+    """
+    schluessel = f"radarr:calendar:{start}:{end}"
+    zwischengespeichert = _read(schluessel, LIBRARY_TTL_SECONDS)
+    if zwischengespeichert is not None:
+        return zwischengespeichert
+
+    client = radarr_client(settings)
+    if client is None:
+        return []
+
+    entries = await client.calendar(start, end)
+    _write(schluessel, entries)
+    return entries
+
+
+async def series_calendar(settings: AppSettings, start: str, end: str) -> list[dict[str, Any]]:
+    """Sonarr-Kalender fuer einen Zeitraum (siehe movie_calendar zur Haltezeit)."""
+    schluessel = f"sonarr:calendar:{start}:{end}"
+    zwischengespeichert = _read(schluessel, LIBRARY_TTL_SECONDS)
+    if zwischengespeichert is not None:
+        return zwischengespeichert
+
+    client = sonarr_client(settings)
+    if client is None:
+        return []
+
+    entries = await client.calendar(start, end)
+    _write(schluessel, entries)
+    return entries
+
+
 def _status_for(entry: MovieEntry | SeriesEntry) -> str:
     """"Liegt schon da" oder "eingetragen, aber noch nicht geladen"."""
     return "downloaded" if entry.has_file else "searching"

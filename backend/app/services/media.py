@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -40,6 +41,7 @@ from .tmdb import (
     extract_runtime,
     extract_tvdb_id,
     image_url,
+    release_date_for,
 )
 
 PAGE_SIZE = 20
@@ -52,11 +54,37 @@ PAGE_SIZE = 20
 # das neue Feld bliebe leer, ohne dass man den Grund saehe.
 DETAIL_SHAPE = "v2"
 
+# Dasselbe fuer die *schlanke* Detailabfrage, die hinter jeder Kachel steckt.
+#
+# Lange gab es die nicht, weil daraus nur die Altersfreigabe gelesen wurde.
+# Inzwischen haengt auch der Kalender daran: er liest die regionalen
+# Erscheinungstermine aus derselben Antwort. Wuerde jemand spaeter kuerzen, was
+# bei TMDB mitgeholt wird, zeigte der Kalender sieben Tage lang falsche Tage -
+# ohne erkennbaren Grund.
+SLIM_SHAPE = "v1"
+
 SORT_OPTIONS = {
     "newest": {"movie": "primary_release_date.desc", "tv": "first_air_date.desc"},
     "rating": {"movie": "vote_average.desc", "tv": "vote_average.desc"},
     "popular": {"movie": "popularity.desc", "tv": "popularity.desc"},
+    # Nur fuer den Kalender, nicht ueber die Entdecken-Seite waehlbar: dort
+    # zaehlt "das Naechste zuerst". Absteigend sortiert stuenden bei einem
+    # Fenster von zwei Monaten die entferntesten Termine auf Seite 1 und
+    # ausgerechnet das, was diese Woche kommt, faele hinten heraus.
+    "soonest": {"movie": "primary_release_date.asc", "tv": "first_air_date.asc"},
 }
+
+
+def _schlanker_schluessel(
+    settings: AppSettings, media_type: str, tmdb_id: int, region: str
+) -> str:
+    """Schluessel der schlanken Detailantwort - an drei Stellen gebraucht.
+
+    Bewusst eine Funktion statt dreimal derselbe f-String: Genau diese drei
+    Stellen muessen sich denselben Eintrag teilen, sonst holt jede ihre eigene
+    Fassung von TMDB.
+    """
+    return f"detail:{SLIM_SHAPE}:{media_type}:{tmdb_id}:{region}:{settings.default_language}"
 
 
 def _client(settings: AppSettings, region: str | None = None) -> TmdbClient:
@@ -106,6 +134,9 @@ def _base_item(raw: dict[str, Any], media_type: str, genres: dict[int, str]) -> 
         vote_count=int(raw.get("vote_count") or 0),
         genres=[genres[gid] for gid in raw.get("genre_ids", []) if gid in genres],
         original_language=raw.get("original_language"),
+        origin_country=[
+            land for land in (raw.get("origin_country") or []) if isinstance(land, str)
+        ],
     )
 
 
@@ -180,7 +211,7 @@ async def _to_items(
     items = [_base_item(raw, media_type, genres) for raw in results if raw.get("id")]
 
     def schluessel(tmdb_id: int) -> str:
-        return f"detail:{media_type}:{tmdb_id}:{region}:{settings.default_language}"
+        return _schlanker_schluessel(settings, media_type, tmdb_id, region)
 
     missing = [item.tmdb_id for item in items if cache.read(db, schluessel(item.tmdb_id)) is None]
     if missing:
@@ -358,7 +389,7 @@ async def erlaubte_kennungen(
     region = settings.default_region
 
     def schluessel(tmdb_id: int) -> str:
-        return f"detail:{media_type}:{tmdb_id}:{region}:{settings.default_language}"
+        return _schlanker_schluessel(settings, media_type, tmdb_id, region)
 
     fehlend = [tmdb_id for tmdb_id in tmdb_ids if cache.read(db, schluessel(tmdb_id)) is None]
     if fehlend:
@@ -371,6 +402,46 @@ async def erlaubte_kennungen(
         for tmdb_id in tmdb_ids
         if _darf_sehen(cache.read(db, schluessel(tmdb_id)), media_type, settings)
     }
+
+
+async def regionale_daten(
+    db: Session,
+    settings: AppSettings,
+    tmdb_ids: list[int],
+    region: str,
+    arten: Sequence[int],
+) -> dict[int, tuple[str, int]]:
+    """Regionale Erscheinungstermine mehrerer Filme auf einen Schlag.
+
+    Kostet in der Regel keine einzige zusaetzliche Abfrage: Die Termine stecken
+    schon in der schlanken Detailantwort, die ``_to_items`` fuer jede Kachel
+    ohnehin holt und sieben Tage aufhebt. Bisher wurde daraus nur die
+    Altersfreigabe gelesen, der Rest lag ungenutzt daneben.
+
+    Titel ohne Termin dieser Art in dieser Region fehlen im Ergebnis - das ist
+    kein Fehler, sondern die Auskunft "dazu weiss TMDB hier nichts".
+    """
+    if not tmdb_ids:
+        return {}
+
+    def schluessel(tmdb_id: int) -> str:
+        return _schlanker_schluessel(settings, "movie", tmdb_id, region)
+
+    fehlend = [tmdb_id for tmdb_id in tmdb_ids if cache.read(db, schluessel(tmdb_id)) is None]
+    if fehlend:
+        geholt = await _client(settings, region).details("movie", fehlend)
+        for tmdb_id, roh in geholt.items():
+            cache.write(db, schluessel(tmdb_id), roh, cache.DETAIL_TTL)
+
+    ergebnis: dict[int, tuple[str, int]] = {}
+    for tmdb_id in tmdb_ids:
+        roh = cache.read(db, schluessel(tmdb_id))
+        if not roh:
+            continue
+        treffer = release_date_for(roh, region, arten)
+        if treffer is not None:
+            ergebnis[tmdb_id] = treffer
+    return ergebnis
 
 
 async def detail(
@@ -389,7 +460,7 @@ async def detail(
 
     raw = await cache.cached(
         db,
-        f"detail:{media_type}:{tmdb_id}:{region}:{settings.default_language}",
+        _schlanker_schluessel(settings, media_type, tmdb_id, region),
         cache.DETAIL_TTL,
         fetch,
     )

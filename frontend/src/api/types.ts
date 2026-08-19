@@ -116,6 +116,61 @@ export type MediaStatus =
   /** Vom Administrator gesperrt: sichtbar, aber nicht anfragbar. */
   | 'blocked'
 
+/** Woher ein Kalendereintrag stammt – der eigene Bestand oder der Markt. */
+export type CalendarSource = 'meine' | 'neu'
+export type CalendarOrigin = 'sonarr' | 'radarr' | 'tmdb'
+export type CalendarDateType = 'kino' | 'digital' | 'physisch' | 'premiere' | 'tv'
+
+/**
+ * Ein Ereignis an einem Tag.
+ *
+ * Absichtlich kein `MediaItem`: Dort ist die TMDB-Kennung Pflicht, eine
+ * Sonarr-Folge kann aber zu Recht keine haben.
+ */
+export type CalendarEntry = {
+  key: string
+  date: string
+  source: CalendarSource
+  origin: CalendarOrigin
+  media_type: MediaType
+  tmdb_id: number | null
+  tvdb_id: number | null
+  title: string
+  poster_url: string | null
+  overview: string
+  vote_average: number
+  vote_count: number
+  genres: string[]
+  runtime_minutes: number | null
+  certification: string | null
+  status: MediaStatus
+  watched: boolean
+  season: number | null
+  /** Schon fertig formatiert: „S03E05“ oder „S03E05–06“. */
+  episode_label: string | null
+  /** Nur gesetzt, wenn an dem Tag genau eine Folge läuft. */
+  episode_title: string | null
+  missing_episodes: number[]
+  date_type: CalendarDateType | null
+  aired: boolean
+  /** Erschienen, aber die Datei fehlt – nur bei eigenen Titeln. */
+  missing: boolean
+}
+
+export type CalendarDay = {
+  date: string
+  entries: CalendarEntry[]
+}
+
+export type CalendarResult = {
+  date_from: string
+  date_to: string
+  days: CalendarDay[]
+  arr_warning: string | null
+  tmdb_warning: string | null
+  demo: boolean
+}
+
 export type LogEntry = {
   time: string
   level: 'INFO' | 'WARNING' | 'ERROR'

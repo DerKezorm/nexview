@@ -11,7 +11,14 @@
  * Kachel muss dafür nur einmal existieren.
  */
 
-import type { Favorite, MediaItem, MediaStatus, MediaType, PersonCredit } from '../../api/types'
+import type {
+  CalendarEntry,
+  Favorite,
+  MediaItem,
+  MediaStatus,
+  MediaType,
+  PersonCredit,
+} from '../../api/types'
 
 export type CardItem = {
   media_type: MediaType
@@ -78,6 +85,36 @@ export function fromPersonCredit(credit: PersonCredit): CardItem {
     certification: null,
     overview: '',
     character: credit.character,
+  }
+}
+
+/**
+ * Ein Eintrag aus dem Kalender.
+ *
+ * Die Folgennummer geht in `character` – das Feld ist der freie Untertitel der
+ * Kachel und trägt in einer Filmografie die Rolle. Genau dafür ist es da, und
+ * so braucht der Kalender keine eigene Kachel.
+ *
+ * `tmdb_id` darf im Kalender `null` sein; die Kachel zeigt einen solchen
+ * Eintrag dann ohne Link. Die 0 hier ist bewusst kein gültiger Wert, sondern
+ * das Signal dafür.
+ */
+export function fromCalendarEntry(eintrag: CalendarEntry): CardItem {
+  return {
+    media_type: eintrag.media_type,
+    tmdb_id: eintrag.tmdb_id ?? 0,
+    title: eintrag.title,
+    poster_url: eintrag.poster_url,
+    release_date: eintrag.date,
+    vote_average: eintrag.vote_average,
+    vote_count: eintrag.vote_count,
+    status: eintrag.status,
+    watched: eintrag.watched,
+    genres: eintrag.genres,
+    runtime_minutes: eintrag.runtime_minutes,
+    certification: eintrag.certification,
+    overview: eintrag.overview,
+    character: eintrag.episode_label ?? undefined,
   }
 }
 

@@ -26,6 +26,7 @@ from .routers import (
     admin_requests,
     auth,
     blocklist as blocklist_router,
+    calendar as calendar_router,
     details as details_router,
     discover,
     favorites as favorites_router,
@@ -111,6 +112,7 @@ app.include_router(notifications.router)
 app.include_router(logs_router.router)
 app.include_router(about_router.router)
 app.include_router(details_router.router)
+app.include_router(calendar_router.router)
 app.include_router(favorites_router.router)
 app.include_router(blocklist_router.router)
 app.include_router(tickets_router.router)

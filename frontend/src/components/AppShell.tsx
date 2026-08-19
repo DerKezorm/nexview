@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/filme', labelKey: 'nav.discoverMovies' },
   { to: '/serien', labelKey: 'nav.discoverSeries' },
   { to: '/personen', labelKey: 'nav.people' },
+  { to: '/kalender', labelKey: 'nav.calendar' },
   { to: '/suche', labelKey: 'nav.search' },
 ]
 

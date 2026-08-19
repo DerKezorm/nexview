@@ -40,6 +40,19 @@ class RadarrClient(ArrClient):
             )
         return result
 
+    async def calendar(self, start: str, end: str) -> list[dict[str, Any]]:
+        """Was in diesem Zeitraum erscheint - von Filmen, die Radarr kennt.
+
+        Die Eintraege tragen ``inCinemas``, ``digitalRelease`` und
+        ``physicalRelease``; welches davon zaehlt, entscheidet der Kalender.
+        ``unmonitored=true``, damit auch stillgelegte Filme auftauchen - der
+        Kalender zeigt schliesslich, was erscheint, nicht was gesucht wird.
+        """
+        entries = await self.get(
+            "/calendar", {"start": start, "end": end, "unmonitored": "true"}
+        )
+        return entries if isinstance(entries, list) else []
+
     async def lookup(self, tmdb_id: int) -> dict[str, Any] | None:
         """Film bei Radarr nachschlagen - noetig vor dem Hinzufuegen."""
         result = await self.get("/movie/lookup/tmdb", {"tmdbId": tmdb_id})

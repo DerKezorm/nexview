@@ -64,6 +64,19 @@ class SonarrClient(ArrClient):
 
         return by_tvdb, by_title
 
+    async def calendar(self, start: str, end: str) -> list[dict[str, Any]]:
+        """Welche Folgen in diesem Zeitraum laufen.
+
+        ``includeSeries=true`` haengt an jede Folge die zugehoerige Serie an -
+        das spart einen zweiten Aufruf je Serie und liefert Titel, TVDB-Id und
+        (ab Sonarr 4) sogar die TMDB-Id gleich mit.
+        """
+        entries = await self.get(
+            "/calendar",
+            {"start": start, "end": end, "unmonitored": "true", "includeSeries": "true"},
+        )
+        return entries if isinstance(entries, list) else []
+
     async def lookup(self, tvdb_id: int) -> dict[str, Any] | None:
         result = await self.get("/series/lookup", {"term": f"tvdb:{tvdb_id}"})
         if isinstance(result, list):

@@ -16,13 +16,6 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ### New
 
-- **Directing and writing show up in a filmography.** A person's page used to
-  list only what they acted in, so a director's page showed their cameos
-  instead of the films they made. Directing, writing, screenplay and story
-  credits now appear alongside the acting roles, labelled as such. One entry
-  per title: the work itself wins over a cameo in the same film, and directing
-  wins over writing when someone did both.
-
 - **Sign in with Plex.** Connect your Plex server once and your household can
   sign in with their Plex account instead of a Nexview password. Only people
   who actually have access to your library get in — that is checked against
@@ -52,6 +45,13 @@ veröffentlicht, solange kein Tag dazu existiert.
   blocks that Plex account from creating a new one. Without it, deleting was
   pointless — they would simply sign in again. The block outlives the account
   and can be lifted in the settings.
+
+- **Directing and writing show up in a filmography.** A person's page used to
+  list only what they acted in, so a director's page showed their cameos
+  instead of the films they made. Directing, writing, screenplay and story
+  credits now appear alongside the acting roles, labelled as such. One entry
+  per title: the work itself wins over a cameo in the same film, and directing
+  wins over writing when someone did both.
 
 ### Changed
 

@@ -17,7 +17,9 @@
     "scrollRight": "Nach rechts",
     "movie": "Film",
     "edit": "Bearbeiten",
-    "seriesPlural": "Serien"
+    "seriesPlural": "Serien",
+    "delete": "Löschen",
+    "close": "Schließen"
   },
   "nav": {
     "home": "Startseite",
@@ -643,7 +645,7 @@
   "settings": {
     "title": "Einstellungen",
     "tabServices": "Dienste",
-    "tabMail": "E-Mail",
+    "tabMail": "SMTP-Einstellungen",
     "tabUsers": "Benutzer",
     "tabLogs": "Protokoll",
     "intro": "Diese Zugangsdaten liegen verschlüsselt in der Datenbank und verlassen den Server nicht.",
@@ -709,7 +711,8 @@
     "rootFolderModeHint_approver": "Für Mediatheken, die in mehrere Ordner sortiert sind – etwa nach Genre. Anfragen kommen ohne Ordner und ohne Profil herein und warten immer auf eine Freigabe; erst dort wird beides gewählt. Wer selbst freigeben darf, wählt weiterhin gleich beim Anfragen.",
     "targetPairCoupled": "Zielordner und Qualitätsprofil hängen zusammen: Sobald eines davon der Entscheider setzt, wartet die Anfrage ohnehin auf ihn – dann setzt er auch das andere. Deshalb wurde es mitumgestellt.",
     "tabWatchlist": "Merklisten",
-    "secretsUnreadable": "Gespeicherte Zugangsdaten (API-Schlüssel, Plex-Zugang) lassen sich mit dem aktuellen Geheimschlüssel nicht mehr lesen. Häufigste Ursache: NEXVIEW_SECRET_KEY wurde geändert, oder data/secret.key ging beim Neu-Erstellen des Containers verloren (Datei liegt nicht im gemounteten Volume). Die betroffenen Zugangsdaten müssen einmal neu eingetragen bzw. Plex neu verbunden werden – und der Schlüssel sollte dauerhaft gesichert sein, sonst passiert es beim nächsten Update wieder."
+    "secretsUnreadable": "Gespeicherte Zugangsdaten (API-Schlüssel, Plex-Zugang) lassen sich mit dem aktuellen Geheimschlüssel nicht mehr lesen. Häufigste Ursache: NEXVIEW_SECRET_KEY wurde geändert, oder data/secret.key ging beim Neu-Erstellen des Containers verloren (Datei liegt nicht im gemounteten Volume). Die betroffenen Zugangsdaten müssen einmal neu eingetragen bzw. Plex neu verbunden werden – und der Schlüssel sollte dauerhaft gesichert sein, sonst passiert es beim nächsten Update wieder.",
+    "tabChannels": "Benachrichtigungen"
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -962,5 +965,158 @@
     "previous": "Zurück",
     "next": "Weiter",
     "position": "Seite {{page}} von {{pages}}"
+  },
+  "channels": {
+    "add": "Ziel hinzufügen",
+    "addAddress": "E-Mail-Adresse hinzufügen",
+    "addChat": "Chat hinzufügen",
+    "addInstance": "{{label}}-Instanz anlegen",
+    "addTopic": "Topic anlegen",
+    "address": "E-Mail-Adresse",
+    "addressHint": "Wird nicht geprüft. Ob sie stimmt, zeigt die Testmail.",
+    "appName": "App-Name",
+    "appNameHint": "So heißt die Application in Gotify – und so steht sie hier auf der Kachel.",
+    "auth": "Anmeldung",
+    "authHint": "Eine öffentlich erreichbare Instanz braucht eine Anmeldung; im eigenen Netz meist nicht.",
+    "auth_basic": "Benutzername und Passwort",
+    "auth_none": "Keine",
+    "auth_token": "Zugangstoken",
+    "botName": "Bezeichnung",
+    "botNameHint": "Steht auf der Kachel – frei wählbar, unabhängig vom Namen des Bots.",
+    "botToken": "Bot-Token",
+    "botTokenHint": "Von @BotFather, in der Form 123456789:AA… Wird verschlüsselt gespeichert.",
+    "botUsername": "Benutzername des Bots",
+    "botUsernameHint": "Liest die Prüfung bei Telegram aus – hier gibt es nichts einzutragen.",
+    "botUsernamePlaceholder": "Erscheint nach „Token prüfen“",
+    "chatId": "Chat-ID",
+    "chatIdHint": "Die Nummer des Chats. Über „Chats vom Bot holen“ musst du sie nicht abtippen: Dort steht dein eigener Name für den Einzelchat und der Gruppenname für eine Gruppe.",
+    "chatIntro": "Ein Chat ist der Ort, an dem die Meldungen ankommen – entweder dein eigener Chat mit dem Bot, oder eine Gruppe, in der mehrere mitlesen. Welcher es ist, entscheidet die Nummer unten.",
+    "chatsBlocked": "Erst den Bot speichern, dann lassen sich Chats anlegen.",
+    "chatsIntro": "Jeder Chat ist ein eigenes Postfach mit eigenen Meldungen.",
+    "chatsSection": "Chats",
+    "checkCode": "Prüfen",
+    "checkReach": "Erreichbarkeit prüfen",
+    "checkToken": "Token prüfen",
+    "code": "Code",
+    "codeAccepted": "Stimmt.",
+    "codeIntro": "In der Nachricht steht ein vierstelliger Code. Trage ihn hier ein – damit ist bewiesen, dass sie wirklich angekommen ist und nicht nur angenommen wurde.",
+    "confirmDelete": "„{{name}}“ wirklich entfernen? Es gehen dann keine Meldungen mehr dorthin.",
+    "connection": "Verbindung",
+    "connectionOk": "Verbindung bestätigt.",
+    "disable": "Stilllegen",
+    "editTitle": "{{name}} bearbeiten",
+    "emailIntro": "Eine allgemeine Adresse ohne Konto – ein Postfach, an dem mehrere arbeiten, ein Verteiler, oder eine Adresse, die auf der anderen Seite etwas auslöst. Mailserver und Absender kommen aus den E-Mail-Einstellungen. Persönliche Benachrichtigungen stellt jeder in seinem Profil ein.",
+    "emptyHint": "Noch kein Ziel eingerichtet. Über das Plus legst du eines an.",
+    "enable": "In Betrieb nehmen",
+    "eventsIntro": "Nur Angehaktes geht raus. Hier speicherst du die ganze Kachel – Verbindung und Meldungen.",
+    "eventsSection": "Worüber soll dieser Kanal informieren?",
+    "findChats": "Chats vom Bot holen",
+    "gotifyIntro": "Gotify liefert an das Postfach einer Application. Das Token bekommst du in deiner Gotify-Instanz unter „Apps“, wenn du dort eine neue Anwendung anlegst.",
+    "gotifyTokenHint": "Das Token einer Application, nicht dein Anmeldekennwort.",
+    "gotifyUrl": "Adresse der Instanz",
+    "gotifyUrlHint": "Ohne Pfad – Nexview hängt /message selbst an.",
+    "guide": {
+      "telegram": {
+        "title": "Telegram einrichten",
+        "intro": "Telegram braucht mehr Vorarbeit als die anderen Dienste: ein Konto, einen Bot und eine Chat-Kennung. Alles davon passiert in Telegram selbst, nicht hier. Am Rechner dauert es etwa fünf Minuten.",
+        "account": {
+          "title": "Telegram-Konto anlegen",
+          "body": "Ohne Konto geht nichts. Zur Anmeldung braucht Telegram zwingend eine Telefonnummer; den Bestätigungscode schickt es per SMS. Am Rechner geht beides – das Programm für Windows oder die Fassung im Browser. Wenn du schon Telegram auf dem Handy hast, überspring diesen Schritt."
+        },
+        "botfather": {
+          "title": "BotFather öffnen",
+          "body": "Bots legt man bei einem Bot an: @BotFather ist der offizielle Weg dafür. Öffne den Chat und schicke ihm /start."
+        },
+        "newbot": {
+          "title": "Bot erzeugen",
+          "body": "Schicke /newbot. BotFather fragt zuerst nach einem Anzeigenamen – der ist frei wählbar, etwa „Nexview“. Danach nach einem Benutzernamen; der muss eindeutig sein und auf „bot“ enden, etwa „nexview_zuhause_bot“."
+        },
+        "token": {
+          "title": "Token kopieren",
+          "body": "BotFather antwortet mit einem Token in der Form 123456789:AAG… Das ist der Schlüssel zu deinem Bot – wer ihn hat, kann in seinem Namen schreiben. Behandle ihn wie ein Passwort."
+        },
+        "instance": {
+          "title": "Zurück in Nexview: den Bot eintragen",
+          "body": "Ab hier arbeitest du wieder hier, in der linken Spalte. Bei „Bezeichnung“ trägst du einen frei gewählten Namen ein – er steht später nur auf der Kachel und hat mit Telegram nichts zu tun, etwa „Zuhause“. Darunter fügst du bei „Bot-Token“ das Token aus Schritt 4 ein."
+        },
+        "startchat": {
+          "title": "Dem Bot einmal schreiben",
+          "body": "Nach dem Speichern zeigt Nexview dir diesen Schritt selbst an, mit Link und einem Knopf zum Abhaken. Der Grund dahinter: Ein Bot darf niemanden von sich aus anschreiben. Erst wenn du ihm /start geschickt hast, darf er dir schreiben – eine Antwort kommt dabei nicht, hinter dem Bot steckt kein Programm."
+        },
+        "group": {
+          "title": "Einzelchat oder Gruppe?",
+          "body": "Sollen die Meldungen nur zu dir, überspring das hier – dein eigener Chat mit dem Bot reicht. Sollen mehrere mitlesen, leg in Telegram eine Gruppe an, füge deinen Bot als Mitglied hinzu und schreibe dort irgendetwas. Im nächsten Schritt erscheinen beide zur Auswahl: dein Name für den Einzelchat, der Gruppenname für die Gruppe."
+        },
+        "finish": {
+          "title": "Den Chat anlegen und bestätigen",
+          "body": "Auf „Chat hinzufügen“ drücken und „Chats vom Bot holen“ – ein Klick auf den Eintrag übernimmt Nummer und Bezeichnung. Dann „Testnachricht senden“: In Telegram kommt eine Nachricht mit einem vierstelligen Code an. Den eintragen und auf „Prüfen“ drücken. Erst danach erscheinen die Häkchen, mit denen du auswählst, worüber dieser Chat informieren soll – und dann speichern."
+        },
+        "checktoken": {
+          "title": "Auf „Token prüfen“ drücken, dann speichern",
+          "body": "Nexview fragt damit bei Telegram nach, ob das Token stimmt. Klappt es, füllt sich das Feld „Benutzername des Bots“ von selbst und darunter erscheint ein Link zu deinem Bot. Jetzt rechts auf „Speichern“ drücken – ohne das geht es nicht weiter, denn erst danach gibt es überhaupt Chats zum Anlegen."
+        }
+      }
+    },
+    "guideClose": "Anleitung schließen",
+    "guideHeading": "Anleitung",
+    "guideOpen": "Anleitung öffnen",
+    "guideTitle": "Anleitung",
+    "instanceName": "Name der Instanz",
+    "instanceNameHint": "Steht auf der Kachel – „Zuhause“ sagt mehr als eine Adresse.",
+    "language": "Sprache des Kanals",
+    "languageHint": "In welcher Sprache soll dieser Kanal Nachrichten erhalten?",
+    "lastFailure": "Zuletzt gescheitert am {{zeit}}:",
+    "level": "Dringlichkeit",
+    "level_high": "Hoch",
+    "level_low": "Leise",
+    "level_normal": "Normal",
+    "level_urgent": "Dringend (weckt auch nachts)",
+    "mailboxName": "Bezeichnung",
+    "mailboxNameHint": "Steht auf der Kachel – etwa „Team“ oder „Archiv-Automatik“.",
+    "name": "Name",
+    "nameHint": "Steht auf der Kachel – „Familie“ sagt mehr als eine Adresse.",
+    "newChat": "Neuer Chat",
+    "newInstance": "Neue Instanz",
+    "newTitle": "Neues Ziel",
+    "newTopic": "Neues Topic",
+    "noChats": "Nichts gefunden – hat dem Bot schon jemand geschrieben?",
+    "ntfyInstanceIntro": "Adresse und Anmeldung deines ntfy-Servers. Die eigentlichen Postfächer sind die Topics rechts – eine Instanz kann beliebig viele davon haben.",
+    "ntfyIntro": "ntfy schickt Push-Nachrichten an ein Topic – wer es abonniert hat, bekommt sie. Das Topic ist kein Geheimnis: Wer den Namen kennt, liest mit. Auf einer öffentlichen Instanz gehört deshalb etwas Ungerätselbares hinein.",
+    "ntfyTokenHint": "Zugangstoken aus deiner ntfy-Instanz, beginnt üblicherweise mit tk_.",
+    "ntfyTopic": "Topic",
+    "ntfyTopicHint": "Frei wählbar. Auf einer öffentlichen Instanz besser mit Zufallsanhang.",
+    "ntfyUrl": "Adresse der Instanz",
+    "ntfyUrlHint": "Die Basisadresse, nicht der Link zum Topic. Öffentlich: https://ntfy.sh",
+    "onRequestPending": "Über neue Freigabeanfragen informieren",
+    "onRequestPendingHint": "Sobald jemand einen Titel anfragt, der noch freigegeben werden muss.",
+    "openBot": "@{{name}} in Telegram öffnen",
+    "openBotFather": "@BotFather in Telegram öffnen",
+    "openService": "{{label}} öffnen",
+    "password": "Passwort",
+    "sendTest": "Testnachricht senden",
+    "sendTestAgain": "Erneut senden",
+    "sharedHint": "Dieser Kanal ist ein gemeinsames Postfach: Was hier landet, sieht jeder, der ihn abonniert hat. Persönliche Benachrichtigungen stellt jeder in seinem Profil ein.",
+    "silent": "Ohne Ton zustellen",
+    "silentHint": "Die Nachricht kommt an, das Gerät bleibt still.",
+    "subject": "Betreff",
+    "subjectHint": "Leer lassen für den üblichen Betreff. Mit {titel} wird die Meldung eingesetzt; ohne Platzhalter bleibt er bei jeder Nachricht gleich, was Automatisierungen entgegenkommt.",
+    "telegramBotIntro": "Ein Bot, den du dir bei @BotFather anlegst. Er trägt das Token; die eigentlichen Postfächer sind die Chats rechts – ein Bot kann in beliebig vielen Chats und Gruppen sitzen.",
+    "threadId": "Thema-ID",
+    "threadIdHint": "Nur bei Gruppen, in denen „Themen“ eingeschaltet sind – dann landet die Meldung in genau diesem Thema. Im Zweifel leer lassen.",
+    "tileFailing": "Zustellung scheitert",
+    "token": "Token",
+    "topicCount_one": "{{count}} Topic",
+    "topicCount_other": "{{count}} Topics",
+    "topicIntro": "Ein Topic ist kein Geheimnis: Wer den Namen kennt, liest mit. Auf einer öffentlichen Instanz gehört deshalb etwas Ungerätselbares hinein.",
+    "topicName": "Name",
+    "topicNameHint": "Steht auf der Kachel – etwa „Familie“ oder „Nur ich“.",
+    "topicsBlocked": "Erst die Erreichbarkeit prüfen – dann lässt sich rechts das erste Topic anlegen.",
+    "topicsIntro": "Jedes Topic ist ein eigenes Postfach mit eigenen Meldungen.",
+    "topicsSection": "Topics",
+    "username": "Benutzername",
+    "verifyFirst": "Erst die Verbindung mit dem Code bestätigen.",
+    "writeBotBody": "Klick oben auf „@{{name}} in Telegram öffnen“ und drücke dort unten auf „Starten“ (oder tippe /start). Es kommt keine Antwort – das ist richtig so. Ohne diesen Schritt darf der Bot dir nichts schicken, und die Chat-Liste bleibt leer.",
+    "writeBotDone": "Habe ich erledigt",
+    "writeBotTitle": "Noch ein Schritt: dem Bot einmal schreiben"
   }
 }

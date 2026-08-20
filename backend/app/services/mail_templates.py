@@ -342,6 +342,36 @@ def _benachrichtigung(
     return Mail(betreff, html, text)
 
 
+def system_notice_mail(
+    *,
+    titel: str,
+    rumpf: str,
+    link: str | None = None,
+    sprache: str = "de",
+    betreff: str | None = None,
+) -> Mail:
+    """Meldung an eine allgemeine Adresse aus den Systembenachrichtigungen.
+
+    Bewusst **ohne** Abbestellen-Hinweis: Hinter so einer Adresse steckt kein
+    Konto, das sich irgendwo austragen koennte - ein Team-Postfach, ein
+    Verteiler, eine Automatisierung. Wer sie loswerden will, wendet sich an den
+    Administrator, nicht an ein Profil, das es nicht gibt.
+    """
+    englisch = _ist_englisch(sprache)
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff=betreff or f"Nexview: {titel}",
+        kopf=titel,
+        unter=_zeitpunkt(englisch),
+        # Die Meldungen kommen in Markdown, damit sie auf den Push-Diensten
+        # Hervorhebungen haben. Fuer eine Mail zaehlt der Text; die Sternchen
+        # wuerden sonst als Sternchen dastehen.
+        rumpf=rumpf.replace("**", ""),
+        knopf="Open Nexview" if englisch else "In Nexview öffnen",
+        link=link,
+    )
+
+
 def download_ready_mail(
     titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
 ) -> Mail:

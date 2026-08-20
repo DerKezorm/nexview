@@ -12,6 +12,63 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.12.0 – 20.08.2026
+
+### New
+
+- **Notifications: ntfy, Gotify, Telegram and e-mail as system channels.**
+  Under Settings → Notifications an administrator points Nexview at the
+  services that should hear about what happens – starting with requests
+  waiting for approval, on the phone within seconds, poster attached and a
+  link straight to the approval list. These are shared inboxes for the whole
+  installation, deliberately separate from the personal ways (bell and
+  personal e-mail) that everybody configures in their own profile.
+
+  **As many targets as you like, on tiles.** One tile per inbox, plus a "+"
+  tile to add another. Services with two levels get both of them: an ntfy
+  server carries any number of topics, a Telegram bot any number of chats –
+  the connection is stored once, the inboxes underneath choose their own
+  language, urgency and events. Every tile has a power button to take a
+  target out of service without deleting it; a disabled instance silences
+  its inboxes with it.
+
+  **A four-digit code decides whether a push target counts.** HTTP 200 from
+  a push service only means "accepted", never "arrived" – a wrong topic, an
+  app with no subscription, a muted notification are all answered politely,
+  and nobody notices until the first real message fails to show up weeks
+  later. So the test message carries a code, and only somebody who can type
+  it back gets to save; setting up ntfy or Telegram creates instance and
+  first inbox in one confirmed step. E-mail targets skip the code on
+  purpose: behind a shared mailbox or an automation there may be nobody to
+  read one.
+
+  **Telegram sets itself up.** A built-in step-by-step guide covers the way
+  from creating a bot at @BotFather to the first message; the token check
+  fills in the bot's username, and "fetch chats from the bot" lists everyone
+  who has written to it – no third-party ID bot, nothing to copy by hand.
+
+  Underneath sits an outbox of its own with its own loop. Push notifications
+  get the same reliability the e-mails have – three attempts, then the last
+  error stays visible on the tile – but on a ten-second beat instead of the
+  status poller's two minutes. And one message per *event* and inbox, not
+  per recipient: a request waiting for three administrators appears once,
+  not three times.
+
+### Fixed
+
+- **A Radarr/Sonarr timeout no longer counts as failure.** A timeout means
+  the answer went missing, not the request: Sonarr had long created the
+  series and started searching while Nexview recorded "failed" and refused a
+  new request. Such requests now stay at "approved" and the status poller
+  resolves the uncertainty on its own within minutes.
+- **Failed, cancelled and deleted titles can be requested again.** The
+  server accepted a new request all along – the interface just no longer
+  offered a button for it, locking a title away forever after one mishap.
+- **One failed media-server sync no longer swallows the mails of that
+  round.** The database session was left mid-rollback, so the very next step
+  in the same pass – sending mail – died of an error it had nothing to do
+  with.
+
 ## 0.11.3 – 20.08.2026
 
 ### Fixed

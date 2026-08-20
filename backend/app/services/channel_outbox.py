@@ -1,0 +1,280 @@
+"""Postausgang der serverseitigen Kanaele.
+
+Getrennt vom Anlegen aus demselben Grund wie beim Mailversand: ein Push-Dienst
+kann Sekunden brauchen oder gar nicht antworten, und daran darf kein Klick auf
+"Anfragen" haengen. Der Auftrag steht in der Datenbank und wird abgearbeitet,
+wenn es passt.
+
+Eigene Schleife statt der Status-Abfrage: die laeuft standardmaessig alle zwei
+Minuten. Fuer eine E-Mail ist das in Ordnung, fuer eine Push-Nachricht nicht -
+zwei Minuten nach dem Klick zu klingeln fuehlt sich kaputt an, auch wenn es
+funktioniert.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from ..db import SessionLocal
+from ..models import (
+    ChannelMessage,
+    ChannelTarget,
+    MediaRequest,
+    NotificationType,
+    Ticket,
+    User,
+    utcnow,
+)
+from . import channels
+from .settings_service import AppSettings, load_settings
+
+logger = logging.getLogger("nexview.channels")
+
+# Wie oft nachgesehen wird, ob etwas rausgehen soll.
+INTERVAL_SECONDS = 10
+
+# Wie viele Nachrichten pro Durchgang.
+BATCH = 20
+
+# Nach so vielen erfolglosen Anlaeufen wird aufgegeben. Der letzte Fehler
+# bleibt stehen und steht in den Einstellungen auf der Kachel.
+MAX_ATTEMPTS = 3
+
+# Welche Meldungen kann ein serverseitiges Ziel ueberhaupt berichten?
+#
+# Bewusst eine ausdrueckliche Aufzaehlung und kein "alles, was es gibt": ein
+# serverseitiges Ziel ist ein geteiltes Postfach. Was dort landet, sieht jeder,
+# der es abonniert hat - das gehoert angehakt, nicht vorausgesetzt.
+EVENTS: tuple[NotificationType, ...] = (NotificationType.request_pending,)
+
+# Textbausteine. Ein serverseitiges Ziel hat keinen Empfaenger und damit auch
+# keine Empfaengersprache; welche gilt, steht deshalb beim Ziel.
+TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
+    "de": {
+        NotificationType.request_pending: {
+            "title": "Neue Freigabeanfrage",
+            "by": "Angefragt von",
+        },
+    },
+    "en": {
+        NotificationType.request_pending: {
+            "title": "New request awaiting approval",
+            "by": "Requested by",
+        },
+    },
+}
+
+
+def aktiv(target: ChannelTarget) -> bool:
+    """Ist dieses Ziel in Betrieb - und seine Instanz auch?
+
+    Ein stillgelegtes Topic schweigt; eine stillgelegte Instanz legt alle ihre
+    Topics mit still, denn ohne Adresse und Anmeldung koennten sie ohnehin
+    nichts ausrichten.
+    """
+    if not target.enabled:
+        return False
+    return target.parent is None or target.parent.enabled
+
+
+def level_of(target: ChannelTarget, typ: NotificationType) -> str | None:
+    """Wie dringend meldet dieses Ziel diesen Vorgang? ``None`` heisst: gar nicht."""
+    if typ not in EVENTS or not target.verified or not aktiv(target):
+        return None
+    stufe = (target.events or {}).get(typ.value)
+    return stufe if stufe in channels.LEVELS else None
+
+
+def enqueue(
+    db: Session,
+    *,
+    kind: NotificationType,
+    request: MediaRequest | None = None,
+    ticket: Ticket | None = None,
+    title: str | None = None,
+) -> list[ChannelMessage]:
+    """Ein Ereignis fuer alle interessierten Ziele vormerken. Kein ``commit``.
+
+    Genau **einmal je Ereignis und Ziel**, nicht je Empfaenger - siehe die
+    Begruendung an ``ChannelMessage``.
+    """
+    if kind not in EVENTS:
+        return []
+
+    eintraege = []
+    for target in db.scalars(select(ChannelTarget).where(ChannelTarget.verified.is_(True))):
+        if level_of(target, kind) is None:
+            continue
+        eintrag = ChannelMessage(
+            channel=target.channel,
+            target_id=target.id,
+            type=kind,
+            title=(
+                title
+                if title is not None
+                else (
+                    request.title
+                    if request is not None
+                    else (ticket.subject if ticket is not None else None)
+                )
+            ),
+            request_id=request.id if request is not None else None,
+            ticket_id=ticket.id if ticket is not None else None,
+        )
+        db.add(eintrag)
+        eintraege.append(eintrag)
+    return eintraege
+
+
+def _notice(
+    db: Session,
+    eintrag: ChannelMessage,
+    target: ChannelTarget,
+    settings: AppSettings,
+) -> channels.Notice | None:
+    """Aus dem Auftrag die fertige Nachricht bauen."""
+    sprache = target.language if target.language in TEXTS else "de"
+    bausteine = TEXTS[sprache].get(eintrag.type)
+    stufe = level_of(target, eintrag.type)
+    if bausteine is None or stufe is None:
+        return None
+
+    request = db.get(MediaRequest, eintrag.request_id) if eintrag.request_id else None
+    titel = eintrag.title or (request.title if request else "")
+
+    zeilen = [f"**{titel}**"] if titel else []
+    if request is not None:
+        anfragender = db.get(User, request.user_id)
+        if anfragender is not None:
+            name = anfragender.display_name or anfragender.username
+            zeilen.append(f"{bausteine['by']}: {name}")
+
+    # Ohne hinterlegte oeffentliche Adresse waere der Link ein Verweis auf
+    # "localhost" - fuer den, der aufs Handy schaut, wertlos.
+    ziel = settings.link("/admin/requests") if settings.public_url else None
+
+    return channels.Notice(
+        title=bausteine["title"],
+        body="\n".join(zeilen),
+        level=stufe,
+        poster_url=request.poster_path if request else None,
+        click_url=ziel,
+    )
+
+
+def _offen(db: Session) -> list[ChannelMessage]:
+    return list(
+        db.scalars(
+            select(ChannelMessage)
+            .where(
+                ChannelMessage.sent_at.is_(None),
+                ChannelMessage.attempts < MAX_ATTEMPTS,
+            )
+            .order_by(ChannelMessage.created_at)
+            .limit(BATCH)
+        )
+    )
+
+
+def _aufgeben(eintrag: ChannelMessage, grund: str) -> None:
+    """Endgueltig abhaken. Der Grund bleibt sichtbar."""
+    eintrag.attempts = MAX_ATTEMPTS
+    eintrag.last_error = grund
+
+
+async def process(db: Session, settings: AppSettings) -> int:
+    """Offene Nachrichten verschicken. Liefert die Anzahl der zugestellten."""
+    from . import channel_targets
+
+    offen = _offen(db)
+    if not offen:
+        return 0
+
+    zugestellt = 0
+    for eintrag in offen:
+        target = db.get(ChannelTarget, eintrag.target_id)
+        config = channel_targets.config(target, settings) if target is not None else None
+        if target is None or config is None:
+            # Zwischenzeitlich abgeraeumt - der Auftrag ist hinfaellig.
+            _aufgeben(eintrag, "Das Ziel ist nicht mehr eingerichtet.")
+            continue
+
+        nachricht = _notice(db, eintrag, target, settings)
+        if nachricht is None:
+            _aufgeben(eintrag, "Dieses Ziel meldet diesen Vorgang nicht mehr.")
+            continue
+
+        eintrag.attempts += 1
+        try:
+            await channels.send(target.channel, config, nachricht)
+        except channels.ChannelError as fehler:
+            eintrag.last_error = fehler.message
+            if eintrag.attempts >= MAX_ATTEMPTS:
+                logger.warning(
+                    "%s/%s: Nachricht endgültig nicht zustellbar (%s): %s",
+                    channels.label(target.channel),
+                    target.name,
+                    eintrag.type.value,
+                    fehler.message,
+                )
+            else:
+                logger.info(
+                    "%s/%s: Versuch %d von %d fehlgeschlagen: %s",
+                    channels.label(target.channel),
+                    target.name,
+                    eintrag.attempts,
+                    MAX_ATTEMPTS,
+                    fehler.message,
+                )
+            continue
+
+        eintrag.sent_at = utcnow()
+        eintrag.last_error = None
+        zugestellt += 1
+
+    db.commit()
+    if zugestellt:
+        logger.info("%d Benachrichtigung(en) über serverseitige Kanäle verschickt", zugestellt)
+    return zugestellt
+
+
+def last_failure(db: Session, target: ChannelTarget) -> ChannelMessage | None:
+    """Der letzte endgueltig gescheiterte Versand an dieses Ziel.
+
+    Steht auf der Kachel in den Einstellungen. Ohne diese Anzeige merkt niemand,
+    dass seit Wochen nichts mehr durchgeht - ein Ziel, das schweigt, sieht
+    genauso aus wie eines, ueber das es nichts zu berichten gibt.
+    """
+    return db.scalars(
+        select(ChannelMessage)
+        .where(
+            ChannelMessage.target_id == target.id,
+            ChannelMessage.sent_at.is_(None),
+            ChannelMessage.attempts >= MAX_ATTEMPTS,
+        )
+        .order_by(ChannelMessage.created_at.desc())
+        .limit(1)
+    ).first()
+
+
+async def run_forever(stop: asyncio.Event) -> None:
+    """Eigene Hintergrundschleife - kurzer Takt, damit Push sich nach Push anfuehlt."""
+    while not stop.is_set():
+        try:
+            with SessionLocal() as db:
+                # Erst die billige Frage: liegt ueberhaupt etwas an? Die
+                # Einstellungen zu laden heisst, Geheimnisse zu entschluesseln -
+                # das alle zehn Sekunden fuer nichts zu tun waere Verschwendung.
+                if _offen(db):
+                    await process(db, load_settings(db))
+        except Exception:  # noqa: BLE001 - die Schleife darf nie sterben
+            logger.exception("Versand über serverseitige Kanäle fehlgeschlagen")
+
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=INTERVAL_SECONDS)
+        except TimeoutError:
+            continue

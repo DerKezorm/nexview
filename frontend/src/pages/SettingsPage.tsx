@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AdminAddressSettings } from './settings/AdminAddressSettings'
+import { AdminChannelSettings } from './settings/AdminChannelSettings'
 import { AdminLogsSettings } from './settings/AdminLogsSettings'
 import { AdminMailSettings } from './settings/AdminMailSettings'
 import { AdminServicesSettings } from './settings/AdminServicesSettings'
@@ -10,7 +11,15 @@ import { AdminUsersSettings } from './settings/AdminUsersSettings'
 import { AdminWatchlistSettings } from './settings/AdminWatchlistSettings'
 import { useConfig } from '../hooks/useConfig'
 
-type Tab = 'services' | 'address' | 'mail' | 'users' | 'watchlist' | 'blocklist' | 'logs'
+type Tab =
+  | 'services'
+  | 'address'
+  | 'mail'
+  | 'channels'
+  | 'users'
+  | 'watchlist'
+  | 'blocklist'
+  | 'logs'
 
 /**
  * Einstellungen des Administrators - Dienste und Benutzer auf einer Seite.
@@ -29,6 +38,7 @@ export function SettingsPage() {
     { value: 'services', labelKey: 'settings.tabServices' },
     { value: 'address', labelKey: 'settings.tabAddress' },
     { value: 'mail', labelKey: 'settings.tabMail' },
+    { value: 'channels', labelKey: 'settings.tabChannels' },
     { value: 'users', labelKey: 'settings.tabUsers' },
     ...(config?.mediaserver_configured
       ? [{ value: 'watchlist' as Tab, labelKey: 'settings.tabWatchlist' }]
@@ -69,6 +79,11 @@ export function SettingsPage() {
       {tab === 'services' && <AdminServicesSettings />}
       {tab === 'address' && <AdminAddressSettings />}
       {tab === 'mail' && <AdminMailSettings />}
+
+      {/* Serverseitige Kanäle - vom Administrator eingerichtet, ein Ziel für
+          die ganze Installation. Die persönlichen Wege stellt jeder im
+          eigenen Profil ein. */}
+      {tab === 'channels' && <AdminChannelSettings />}
       {tab === 'users' && <AdminUsersSettings />}
 
       {/* Untermenü mit genau einem Eintrag - Plex ist der einzige Anbieter

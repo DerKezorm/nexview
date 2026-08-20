@@ -27,6 +27,7 @@ from .routers import (
     auth,
     blocklist as blocklist_router,
     calendar as calendar_router,
+    channels as channels_router,
     details as details_router,
     discover,
     favorites as favorites_router,
@@ -43,7 +44,7 @@ from .routers import (
     users,
     watchlist as watchlist_router,
 )
-from .services import logs, status_poller
+from .services import channel_outbox, logs, status_poller
 from .services.arr import close_http_client as close_arr_client
 from .services.mediaserver import close_http_client as close_mediaserver_client
 from .services.tmdb import close_http_client
@@ -73,17 +74,31 @@ async def lifespan(app: FastAPI):
     verbindungsbericht()
 
     stop = asyncio.Event()
-    task = asyncio.create_task(status_poller.run_forever(stop)) if POLLER_ENABLED else None
+    # Zwei Schleifen mit unterschiedlichem Takt. Die Status-Abfrage fragt
+    # standardmaessig alle zwei Minuten bei Radarr/Sonarr nach; der Versand
+    # ueber die serverseitigen Kanaele alle zehn Sekunden, weil eine
+    # Push-Nachricht sonst zwei Minuten nach dem Klick eintrudelt.
+    tasks = (
+        [
+            asyncio.create_task(status_poller.run_forever(stop)),
+            asyncio.create_task(channel_outbox.run_forever(stop)),
+        ]
+        if POLLER_ENABLED
+        else []
+    )
 
     yield
 
-    if task is not None:
+    if tasks:
         stop.set()
-        task.cancel()
+        for task in tasks:
+            task.cancel()
         try:
-            # Mit Zeitgrenze: das Herunterfahren darf nie an der
+            # Mit Zeitgrenze: das Herunterfahren darf nie an einer
             # Hintergrundschleife haengenbleiben (Container-Stopp, Neustart).
-            await asyncio.wait_for(task, timeout=5)
+            await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True), timeout=5
+            )
         except (asyncio.CancelledError, TimeoutError):
             pass
 
@@ -112,6 +127,7 @@ app.include_router(setup.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(settings_router.router)
+app.include_router(channels_router.router)
 app.include_router(discover.router)
 app.include_router(requests_router.router)
 app.include_router(admin_requests.router)

@@ -17,7 +17,9 @@
     "scrollRight": "Scroll right",
     "movie": "Movie",
     "edit": "Edit",
-    "seriesPlural": "Shows"
+    "seriesPlural": "Shows",
+    "delete": "Delete",
+    "close": "Close"
   },
   "nav": {
     "home": "Home",
@@ -643,7 +645,7 @@
   "settings": {
     "title": "Settings",
     "tabServices": "Services",
-    "tabMail": "E-mail",
+    "tabMail": "SMTP settings",
     "tabUsers": "Users",
     "tabLogs": "Log",
     "intro": "These credentials are stored encrypted in the database and never leave the server.",
@@ -709,7 +711,8 @@
     "rootFolderModeHint_approver": "For libraries split across several folders — by genre, for example. Requests arrive without a folder or profile and always wait for approval; both are picked there. Anyone who may approve still picks when requesting.",
     "targetPairCoupled": "Root folder and quality profile belong together: once the approver picks one of them, the request waits for them anyway – so they set the other one too. That is why it moved along.",
     "tabWatchlist": "Watchlists",
-    "secretsUnreadable": "Stored credentials (API keys, Plex access) can no longer be read with the current secret key. Most common cause: NEXVIEW_SECRET_KEY was changed, or data/secret.key was lost when the container was recreated (file not inside the mounted volume). Re-enter the affected credentials or reconnect Plex once – and make sure the key is kept permanently, or this will happen again on the next update."
+    "secretsUnreadable": "Stored credentials (API keys, Plex access) can no longer be read with the current secret key. Most common cause: NEXVIEW_SECRET_KEY was changed, or data/secret.key was lost when the container was recreated (file not inside the mounted volume). Re-enter the affected credentials or reconnect Plex once – and make sure the key is kept permanently, or this will happen again on the next update.",
+    "tabChannels": "Notifications"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -962,5 +965,158 @@
     "previous": "Back",
     "next": "Next",
     "position": "Page {{page}} of {{pages}}"
+  },
+  "channels": {
+    "add": "Add target",
+    "addAddress": "Add e-mail address",
+    "addChat": "Add chat",
+    "addInstance": "Add {{label}} instance",
+    "addTopic": "Add topic",
+    "address": "E-mail address",
+    "addressHint": "Not verified. Whether it is correct is shown by the test mail.",
+    "appName": "App name",
+    "appNameHint": "The name of the application in Gotify – and the name on this tile.",
+    "auth": "Authentication",
+    "authHint": "A publicly reachable instance needs authentication; one on your own network usually does not.",
+    "auth_basic": "Username and password",
+    "auth_none": "None",
+    "auth_token": "Access token",
+    "botName": "Label",
+    "botNameHint": "Shown on the tile – freely chosen, independent of the bot's own name.",
+    "botToken": "Bot token",
+    "botTokenHint": "From @BotFather, in the form 123456789:AA… Stored encrypted.",
+    "botUsername": "Bot username",
+    "botUsernameHint": "Read from Telegram by the check – nothing to enter here.",
+    "botUsernamePlaceholder": "Appears after “Check token”",
+    "chatId": "Chat ID",
+    "chatIdHint": "The chat's number. “Fetch chats from the bot” saves you typing it: your own name appears there for the direct chat, the group's name for a group.",
+    "chatIntro": "A chat is where the messages arrive – either your own chat with the bot, or a group where several people read along. Which one it is depends on the number below.",
+    "chatsBlocked": "Save the bot first, then you can add chats.",
+    "chatsIntro": "Each chat is its own inbox with its own events.",
+    "chatsSection": "Chats",
+    "checkCode": "Check",
+    "checkReach": "Check reachability",
+    "checkToken": "Check token",
+    "code": "Code",
+    "codeAccepted": "Correct.",
+    "codeIntro": "The message contains a four-digit code. Enter it here – that proves it actually arrived, rather than merely being accepted.",
+    "confirmDelete": "Really remove “{{name}}”? No notifications will go there any more.",
+    "connection": "Connection",
+    "connectionOk": "Connection confirmed.",
+    "disable": "Take out of service",
+    "editTitle": "Edit {{name}}",
+    "emailIntro": "A general address without an account – a shared mailbox, a distribution list, or an address that triggers something on the other side. Mail server and sender come from the e-mail settings. Personal notifications are configured by each person in their own profile.",
+    "emptyHint": "No target set up yet. Use the plus to add one.",
+    "enable": "Put into service",
+    "eventsIntro": "Only what is ticked goes out. Saving here saves the whole tile – connection and events.",
+    "eventsSection": "What should this channel report?",
+    "findChats": "Fetch chats from the bot",
+    "gotifyIntro": "Gotify delivers to an application's inbox. You get the token from your Gotify instance under “Apps” when you create a new application there.",
+    "gotifyTokenHint": "An application's token, not your login password.",
+    "gotifyUrl": "Instance address",
+    "gotifyUrlHint": "Without a path – Nexview appends /message itself.",
+    "guide": {
+      "telegram": {
+        "title": "Setting up Telegram",
+        "intro": "Telegram takes more preparation than the other services: an account, a bot and a chat ID. All of it happens inside Telegram, not here. On a computer it takes about five minutes.",
+        "account": {
+          "title": "Create a Telegram account",
+          "body": "Nothing works without one. Telegram requires a phone number to sign up and sends the confirmation code by SMS. Either the Windows program or the browser version will do. If you already use Telegram on your phone, skip this step."
+        },
+        "botfather": {
+          "title": "Open BotFather",
+          "body": "Bots are created by a bot: @BotFather is the official way. Open the chat and send /start."
+        },
+        "newbot": {
+          "title": "Create the bot",
+          "body": "Send /newbot. BotFather first asks for a display name – freely chosen, for example “Nexview”. Then for a username; it must be unique and end in “bot”, for example “nexview_home_bot”."
+        },
+        "token": {
+          "title": "Copy the token",
+          "body": "BotFather replies with a token in the form 123456789:AAG… That is the key to your bot – whoever holds it can post in its name. Treat it like a password."
+        },
+        "instance": {
+          "title": "Back in Nexview: enter the bot",
+          "body": "From here on you work in the left column again. Under “Label”, enter a name of your choosing – it only appears on the tile later and has nothing to do with Telegram, for example “Home”. Below that, paste the token from step 4 into “Bot token”."
+        },
+        "startchat": {
+          "title": "Message the bot once",
+          "body": "After saving, Nexview shows you this step itself, with a link and a button to tick it off. The reason behind it: a bot may never message anyone first. Only once you have sent it /start may it write to you – no answer comes back, there is no program behind the bot."
+        },
+        "group": {
+          "title": "Direct chat or group?",
+          "body": "If the messages are only for you, skip this – your own chat with the bot is enough. If several people should read along, create a group in Telegram, add your bot as a member and post something there. In the next step both appear to choose from: your name for the direct chat, the group's name for the group."
+        },
+        "finish": {
+          "title": "Add the chat and confirm it",
+          "body": "Press “Add chat” and “Fetch chats from the bot” – clicking an entry takes over both number and label. Then “Send test message”: a message with a four-digit code arrives in Telegram. Enter it and press “Check”. Only then do the tick boxes appear with which you choose what this chat should report – and then save."
+        },
+        "checktoken": {
+          "title": "Press “Check token”, then save",
+          "body": "Nexview asks Telegram whether the token is valid. If it is, the “Bot username” field fills itself and a link to your bot appears below it. Now press “Save” on the right – there is no way past this, because only afterwards are there any chats to add."
+        }
+      }
+    },
+    "guideClose": "Close guide",
+    "guideHeading": "Guide",
+    "guideOpen": "Open guide",
+    "guideTitle": "Guide",
+    "instanceName": "Instance name",
+    "instanceNameHint": "Shown on the tile – “Home” says more than an address.",
+    "language": "Channel language",
+    "languageHint": "Which language should this channel receive messages in?",
+    "lastFailure": "Last failed on {{zeit}}:",
+    "level": "Urgency",
+    "level_high": "High",
+    "level_low": "Quiet",
+    "level_normal": "Normal",
+    "level_urgent": "Urgent (rings at night too)",
+    "mailboxName": "Label",
+    "mailboxNameHint": "Shown on the tile – for example “Team” or “Archive automation”.",
+    "name": "Name",
+    "nameHint": "Shown on the tile – “Family” says more than an address.",
+    "newChat": "New chat",
+    "newInstance": "New instance",
+    "newTitle": "New target",
+    "newTopic": "New topic",
+    "noChats": "Nothing found – has anybody messaged the bot yet?",
+    "ntfyInstanceIntro": "Address and authentication of your ntfy server. The actual inboxes are the topics on the right – one instance can hold any number of them.",
+    "ntfyIntro": "ntfy pushes messages to a topic – whoever subscribes receives them. A topic is not a secret: anyone who knows the name can read along. On a public instance, pick something unguessable.",
+    "ntfyTokenHint": "Access token from your ntfy instance, usually starting with tk_.",
+    "ntfyTopic": "Topic",
+    "ntfyTopicHint": "Freely chosen. On a public instance, better with a random suffix.",
+    "ntfyUrl": "Instance address",
+    "ntfyUrlHint": "The base address, not the link to the topic. Public: https://ntfy.sh",
+    "onRequestPending": "Notify about new requests awaiting approval",
+    "onRequestPendingHint": "As soon as somebody requests a title that still needs approval.",
+    "openBot": "Open @{{name}} in Telegram",
+    "openBotFather": "Open @BotFather in Telegram",
+    "openService": "Open {{label}}",
+    "password": "Password",
+    "sendTest": "Send test message",
+    "sendTestAgain": "Send again",
+    "sharedHint": "This channel is a shared inbox: whatever lands here is visible to everyone subscribed to it. Personal notifications are configured by each person in their own profile.",
+    "silent": "Deliver silently",
+    "silentHint": "The message arrives, the device stays quiet.",
+    "subject": "Subject",
+    "subjectHint": "Leave empty for the usual subject. {titel} inserts the message; without a placeholder it stays the same every time, which suits automations.",
+    "telegramBotIntro": "A bot you create with @BotFather. It carries the token; the actual inboxes are the chats on the right – one bot can sit in any number of chats and groups.",
+    "threadId": "Topic ID",
+    "threadIdHint": "Only for groups with “topics” enabled – the message then lands in that one topic. When in doubt, leave it empty.",
+    "tileFailing": "Delivery failing",
+    "token": "Token",
+    "topicCount_one": "{{count}} topic",
+    "topicCount_other": "{{count}} topics",
+    "topicIntro": "A topic is not a secret: anyone who knows the name can read along. On a public instance, pick something unguessable.",
+    "topicName": "Name",
+    "topicNameHint": "Shown on the tile – for example “Family” or “Just me”.",
+    "topicsBlocked": "Check reachability first – then the first topic can be added on the right.",
+    "topicsIntro": "Each topic is its own inbox with its own events.",
+    "topicsSection": "Topics",
+    "username": "Username",
+    "verifyFirst": "Confirm the connection with the code first.",
+    "writeBotBody": "Click “Open @{{name}} in Telegram” above and press “Start” at the bottom there (or type /start). No answer comes back – that is correct. Without this step the bot may not send you anything, and the chat list stays empty.",
+    "writeBotDone": "Done that",
+    "writeBotTitle": "One more step: message the bot once"
   }
 }

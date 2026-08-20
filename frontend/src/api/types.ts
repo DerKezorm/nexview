@@ -487,6 +487,7 @@ export type AppSettings = {
   smtp_from_address: string;
   smtp_from_name: string;
   mail_configured: boolean;
+
   /** Adresse, unter der Nexview von außen erreichbar ist – steckt in jedem Link. */
   public_url: string;
   update_check: boolean;
@@ -577,9 +578,78 @@ export type AboutInfo = {
 
 export type MailSecurity = "none" | "starttls" | "ssl";
 
+/** Wie sich Nexview bei einer ntfy-Instanz anmeldet. */
+export type NtfyAuth = "none" | "basic" | "token";
+
+/** Sprache eines serverseitigen Kanals – der hat keinen Empfänger. */
+export type ChannelLanguage = "de" | "en";
+
+/** Dringlichkeit einer einzelnen Meldung – jeder Kanal rechnet sie selbst um. */
+export type ChannelLevel = "low" | "normal" | "high" | "urgent";
+
+/** Serverseitige Kanäle, die es heute gibt. */
+export type ChannelKind = "ntfy" | "gotify" | "telegram" | "email";
+
+/**
+ * Ein eingerichtetes Ziel – eine Kachel in den Systembenachrichtigungen.
+ *
+ * Je Dienst darf es mehrere geben: ein Gotify-Postfach für die Entscheider,
+ * eines für den Betreiber, ein ntfy-Topic für die Familie. Nicht jeder Dienst
+ * nutzt jedes Feld; Geheimnisse kommen nur maskiert heraus, dazu die Auskunft,
+ * ob überhaupt eines hinterlegt ist.
+ */
+export type ChannelTarget = {
+  id: number;
+  channel: ChannelKind;
+  /** Frei gewählt, steht auf der Kachel. */
+  name: string;
+  /**
+   * Zu welcher Instanz dieses Ziel gehört – `null` bei der oberen Ebene.
+   *
+   * Manche Dienste haben zwei Ebenen: Bei ntfy trägt die Instanz Adresse und
+   * Anmeldung, das Topic darunter ist das Postfach. Bei Gotify ist die
+   * Application schon beides.
+   */
+  parent_id: number | null;
+  /** Die Topics einer ntfy-Instanz. Nur auf der oberen Ebene gefüllt. */
+  children?: ChannelTarget[];
+  /** In Betrieb? Stillgelegte Ziele bekommen nichts, bleiben aber erhalten. */
+  enabled: boolean;
+  /** Testnachricht verschickt **und** der Code daraus eingetippt? */
+  verified: boolean;
+  /** Meldung auf Dringlichkeit. Was fehlt, ist aus. */
+  events: Record<string, ChannelLevel>;
+  created_at: string;
+  url: string;
+  language: ChannelLanguage;
+  topic?: string;
+  address?: string;
+  /** Fester Betreff; leer heisst: die uebliche Vorlage. */
+  subject?: string;
+  /** Telegram: der Chat und – bei Gruppen mit Themen – das Thema darin. */
+  chat_id?: string;
+  thread_id?: string;
+  /** „on“ = ohne Ton zustellen. */
+  silent?: string;
+  auth?: NtfyAuth;
+  username?: string;
+  password?: string;
+  password_set?: boolean;
+  token?: string;
+  token_set?: boolean;
+  /** Letzter endgültig gescheiterter Versand – sonst fällt ein Ausfall niemandem auf. */
+  last_error: string | null;
+  last_error_at: string | null;
+};
+
 export type TestResult = {
   ok: boolean;
   message: string;
+  /**
+   * Was die Prüfung nebenbei herausgefunden hat – etwa der Benutzername eines
+   * Telegram-Bots. Die Oberfläche trägt es ins passende Feld ein.
+   */
+  values?: Record<string, string> | null;
 };
 
 export type MediaRequest = {

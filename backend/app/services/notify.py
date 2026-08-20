@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import MediaRequest, Notification, NotificationType, Role, Ticket, User
+from . import channel_outbox
 
 logger = logging.getLogger("nexview.notify")
 
@@ -64,6 +65,7 @@ def create(
     request: MediaRequest | None = None,
     ticket: Ticket | None = None,
     title: str | None = None,
+    broadcast: bool = True,
 ) -> Notification:
     """Eine Benachrichtigung anlegen. Kein ``commit`` - das macht der Aufrufer.
 
@@ -75,6 +77,12 @@ def create(
     Media-Server haengt an nichts, was einen Titel mitbraechte - der Name muss
     trotzdem in der Glocke stehen, weil die Textbausteine bewusst keine
     Platzhalter enthalten.
+
+    ``broadcast`` steuert die serverseitigen Kanaele. Die haengen an einem
+    *Ereignis*, nicht an einem Empfaenger - deshalb schalten die Sammelrufe
+    weiter unten es hier ab und melden das Ereignis selbst genau einmal.
+    Stuende es an, meldete eine wartende Anfrage bei drei Administratoren
+    dreimal dasselbe im selben Topic.
     """
     eintrag = Notification(
         user_id=user.id,
@@ -94,6 +102,8 @@ def create(
         mail_pending=wants_mail(user, kind),
     )
     db.add(eintrag)
+    if broadcast:
+        channel_outbox.enqueue(db, kind=kind, request=request, ticket=ticket, title=title)
     return eintrag
 
 
@@ -118,7 +128,7 @@ def create_for_approvers(
     empfaenger = db.scalars(
         select(User).where(User.role.in_((Role.admin, Role.approver)), User.is_active.is_(True))
     )
-    return [
+    meldungen = [
         create(
             db,
             user=user,
@@ -127,10 +137,16 @@ def create_for_approvers(
             request=request,
             ticket=ticket,
             title=title,
+            broadcast=False,
         )
         for user in empfaenger
         if user.id != ausser
     ]
+    # Einmal je Ereignis - auch dann, wenn gerade niemand in der Glocke
+    # steht. Ein serverseitiger Kanal berichtet ueber das Geschehen, nicht
+    # ueber die Empfaengerliste.
+    channel_outbox.enqueue(db, kind=kind, request=request, ticket=ticket, title=title)
+    return meldungen
 
 
 def create_for_admins(
@@ -147,7 +163,7 @@ def create_for_admins(
     empfaenger = db.scalars(
         select(User).where(User.role == Role.admin, User.is_active.is_(True))
     )
-    return [
+    meldungen = [
         create(
             db,
             user=user,
@@ -156,7 +172,10 @@ def create_for_admins(
             request=request,
             ticket=ticket,
             title=title,
+            broadcast=False,
         )
         for user in empfaenger
         if user.id != ausser
     ]
+    channel_outbox.enqueue(db, kind=kind, request=request, ticket=ticket, title=title)
+    return meldungen

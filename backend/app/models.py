@@ -6,6 +6,7 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Enum,
@@ -788,6 +789,162 @@ class Notification(Base):
     mail_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     user: Mapped[User] = relationship(back_populates="notifications")
+
+
+class ChannelKind(str, enum.Enum):
+    """Serverseitige Benachrichtigungskanaele.
+
+    Serverseitig heisst: vom Administrator eingerichtet, mit genau einem Ziel
+    fuer die ganze Installation. Sie haben keinen Empfaenger im Sinne eines
+    Benutzers - deshalb haengen sie an einem *Ereignis*, nicht an einer
+    ``Notification``. Die persoenlichen Wege (Glocke, E-Mail) bleiben davon
+    unberuehrt.
+    """
+
+    ntfy = "ntfy"
+    gotify = "gotify"
+    email = "email"
+    telegram = "telegram"
+
+
+class ChannelTarget(Base):
+    """Ein eingerichtetes Ziel eines serverseitigen Kanals.
+
+    Eine eigene Tabelle statt flacher Einstellungsschluessel, weil es je Dienst
+    **mehrere** davon geben soll: ein Gotify-Postfach fuer die Entscheider,
+    eines fuer den Betreiber, ein ntfy-Topic fuer die Familie.
+
+    ``name`` ist frei gewaehlt und steht auf der Kachel in den Einstellungen -
+    "Handy Markus" sagt mehr als eine Serveradresse.
+
+    Nicht jeder Dienst nutzt jedes Feld: Gotify kennt kein Topic, ntfy kein
+    Anwendungs-Token. Eine Tabelle je Dienst waere sauberer und kostete fuer
+    jeden neuen Dienst eine weitere Tabelle samt Migration - bei einer Handvoll
+    Feldern ueberwiegt das Gemeinsame.
+
+    ``token`` und ``password`` liegen verschluesselt wie die uebrigen
+    Geheimnisse und verlassen den Server nie im Klartext.
+    """
+
+    __tablename__ = "channel_targets"
+    __table_args__ = (Index("ix_channel_targets_kanal", "channel"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    channel: Mapped[ChannelKind] = mapped_column(enum_column(ChannelKind), nullable=False)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+
+    # Manche Dienste haben zwei Ebenen. Bei ntfy ist die Instanz der Server
+    # (Adresse und Anmeldung) und das Topic das eigentliche Postfach - eine
+    # Instanz traegt beliebig viele davon. Bei Gotify ist die Application
+    # schon das Postfach; dort bleibt es bei einer Ebene und ``parent_id``
+    # leer.
+    #
+    # Bewusst dieselbe Tabelle mit Selbstbezug statt zweier: Beide Ebenen
+    # haben dieselben Felder, nur an unterschiedlichen Stellen gefuellt, und
+    # der Postausgang verweist so weiterhin auf genau eine Tabelle.
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("channel_targets.id", ondelete="CASCADE")
+    )
+
+    url: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    topic: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    address: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    subject: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    # Telegram: der Chat und - bei Gruppen mit Themen - das Thema darin.
+    chat_id: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    thread_id: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    # Ja/Nein als Text, weil die Zielverwaltung alle Felder als Text
+    # durchreicht. Ein eigener Wahrheitswert waere hier die Ausnahme, die
+    # jede Schleife darueber gesondert behandeln muesste.
+    silent: Mapped[str] = mapped_column(String(8), default="", nullable=False)
+    auth: Mapped[str] = mapped_column(String(16), default="none", nullable=False)
+    username: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    password: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    token: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    language: Mapped[str] = mapped_column(String(5), default="de", nullable=False)
+
+    # Voruebergehend stillgelegt? Ein Ziel abzuschalten muss moeglich sein,
+    # ohne es wegzuwerfen - im Urlaub, waehrend eines Umbaus, zum Eingrenzen
+    # eines Fehlers. Wer stattdessen loescht, tippt hinterher alles neu ein.
+    #
+    # Bei ntfy zieht eine stillgelegte Instanz ihre Topics mit: Ohne Adresse
+    # und Anmeldung koennten sie ohnehin nichts ausrichten.
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Wurde eine Testnachricht verschickt **und** der Code daraus eingetippt?
+    # Erst dann darf hier etwas herausgehen. Ein HTTP 200 vom Push-Dienst
+    # heisst nur "angenommen", nicht "angekommen".
+    verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Worueber soll dieses Ziel informieren, und wie dringend?
+    #
+    # ``{"request_pending": "high"}`` - was nicht drinsteht, ist aus. Bewusst
+    # eine Spalte statt zweier je Meldung: die Liste der Meldungen waechst,
+    # die Tabelle soll es nicht.
+    events: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    parent: Mapped["ChannelTarget | None"] = relationship(
+        remote_side=[id], back_populates="children"
+    )
+    children: Mapped[list["ChannelTarget"]] = relationship(
+        back_populates="parent", cascade="all, delete-orphan"
+    )
+
+
+class ChannelMessage(Base):
+    """Postausgang der serverseitigen Kanaele - eine Zeile je Ereignis und Ziel.
+
+    Warum ueberhaupt eine Warteschlange? Aus demselben Grund wie beim
+    Mailversand: ein Push-Dienst kann Sekunden brauchen oder gar nicht
+    antworten, und daran darf kein Klick auf "Freigeben" haengen. Steht der
+    Auftrag in der Datenbank, ueberlebt er auch einen Neustart mitten im
+    Versand.
+
+    Bewusst **eine Zeile je Ereignis**, nicht je Empfaenger: ``notify`` legt
+    fuer eine wartende Anfrage eine Meldung pro Entscheider an. Haengte der
+    Kanal daran, stuende dieselbe Nachricht bei drei Administratoren dreimal
+    im selben Topic.
+
+    Der Inhalt wird nicht gespeichert, sondern beim Versand aus ``request``
+    bzw. ``ticket`` erzeugt - so wie es ``mail_outbox`` auch macht. Sonst
+    haette man denselben Text zweimal in der Datenbank, einmal davon veraltet.
+    """
+
+    # Benannt wie das Modul, das ihn abarbeitet. Der frueher hier stehende
+    # Name "channel_messages" stammt aus der Fassung ohne mehrere Ziele; da
+    # 0.12.0 nie veroeffentlicht wurde, gibt es ihn nur auf
+    # Entwicklungsrechnern - dort bleibt die alte Tabelle ungenutzt liegen und
+    # kann bei Gelegenheit von Hand weg.
+    __tablename__ = "channel_outbox"
+    # Der Postausgang fragt immer dasselbe: was ist noch nicht raus?
+    __table_args__ = (Index("ix_channel_outbox_offen", "sent_at", "attempts"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    channel: Mapped[ChannelKind] = mapped_column(enum_column(ChannelKind), nullable=False)
+    # An welches der eingerichteten Ziele. Verschwindet das Ziel, verschwinden
+    # auch seine offenen Auftraege - sie haetten kein Gegenueber mehr.
+    target_id: Mapped[int] = mapped_column(
+        ForeignKey("channel_targets.id", ondelete="CASCADE"), nullable=False
+    )
+    type: Mapped[NotificationType] = mapped_column(enum_column(NotificationType), nullable=False)
+    # Titel des Mediums bzw. Betreff des Tickets - fuer den Fall, dass der
+    # Bezug zwischenzeitlich geloescht wurde.
+    title: Mapped[str | None] = mapped_column(String(300))
+    request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_requests.id", ondelete="CASCADE")
+    )
+    ticket_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tickets.id", ondelete="CASCADE")
+    )
+
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Der letzte Fehlschlag im Klartext. Steht in den Einstellungen neben dem
+    # Test-Knopf - ohne ihn merkt niemand, dass seit Wochen nichts durchgeht.
+    last_error: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
 class TicketStatus(str, enum.Enum):

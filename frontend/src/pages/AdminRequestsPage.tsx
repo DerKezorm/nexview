@@ -1,52 +1,59 @@
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router-dom";
 
-import { ApiError, api } from '../api/client'
-import type { MediaRequestWithUser, MediaStatus } from '../api/types'
-import { useAuth } from '../auth/useAuth'
-import { Avatar } from '../components/Avatar'
-import { ConfirmDialog } from '../components/ConfirmDialog'
-import { StarRating } from '../components/StarRating'
-import { StatusBadge } from '../components/media/StatusBadge'
-import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
-import { formatDate } from '../lib/format'
-import { anfragenStandNeuLaden } from '../lib/refresh'
+import { ApiError, api } from "../api/client";
+import type {
+  MediaRequestWithUser,
+  MediaStatus,
+  MediaType,
+} from "../api/types";
+import { useAuth } from "../auth/useAuth";
+import { Avatar } from "../components/Avatar";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { StarRating } from "../components/StarRating";
+import { StatusBadge } from "../components/media/StatusBadge";
+import { Button, Card, ErrorBanner, Spinner } from "../components/ui";
+import { formatDate } from "../lib/format";
+import { TargetPicker, type Target } from "../components/TargetPicker";
+import { useConfig } from "../hooks/useConfig";
+import { anfragenStandNeuLaden } from "../lib/refresh";
 
-type Filter = 'pending_approval' | 'all' | 'feedback' | MediaStatus
+type Filter = "pending_approval" | "all" | "feedback" | MediaStatus;
 
 const FILTERS: Filter[] = [
-  'pending_approval',
-  'feedback',
-  'all',
-  'searching',
-  'downloaded',
-  'rejected',
-  'cancelled',
-  'failed',
-]
+  "pending_approval",
+  "feedback",
+  "all",
+  "searching",
+  "downloaded",
+  "rejected",
+  "cancelled",
+  "deleted",
+  "failed",
+];
 
 /** Adresse für den gewählten Filter. */
 function urlFuer(filter: Filter): string {
-  if (filter === 'all') return '/api/admin/requests'
-  if (filter === 'feedback') return '/api/admin/requests?feedback=true'
-  return `/api/admin/requests?status=${filter}`
+  if (filter === "all") return "/api/admin/requests";
+  if (filter === "feedback") return "/api/admin/requests?feedback=true";
+  return `/api/admin/requests?status=${filter}`;
 }
 
 /** Zustände, in denen ein Abbruch möglich ist (Titel liegt in Radarr/Sonarr). */
-const CANCELLABLE: ReadonlySet<string> = new Set(['approved', 'searching'])
+const CANCELLABLE: ReadonlySet<string> = new Set(["approved", "searching"]);
 
 type Gruppe = {
-  userId: number
-  username: string
-  displayName: string | null
-  avatar: string | null
-  requests: MediaRequestWithUser[]
-}
+  userId: number;
+  username: string;
+  displayName: string | null;
+  avatar: string | null;
+  requests: MediaRequestWithUser[];
+};
 
 /** Ab hier (und darunter) gilt eine Rückmeldung als Beschwerde. */
-const POOR_RATING = 2
+const POOR_RATING = 2;
 
 /** Rückmeldung des Anfragenden lesen und beantworten. */
 function FeedbackReview({
@@ -54,37 +61,48 @@ function FeedbackReview({
   darfAntworten,
   onSaved,
 }: {
-  request: MediaRequestWithUser
+  request: MediaRequestWithUser;
   /** Antworten ist dem Administrator vorbehalten. */
-  darfAntworten: boolean
-  onSaved: () => void
+  darfAntworten: boolean;
+  onSaved: () => void;
 }) {
-  const { t } = useTranslation()
-  const [text, setText] = useState(request.feedback_reply ?? '')
-  const [offen, setOffen] = useState(false)
+  const { t } = useTranslation();
+  const [text, setText] = useState(request.feedback_reply ?? "");
+  const [offen, setOffen] = useState(false);
 
   const antworten = useMutation({
-    mutationFn: () => api.post(`/api/admin/requests/${request.id}/reply`, { reply: text.trim() }),
+    mutationFn: () =>
+      api.post(`/api/admin/requests/${request.id}/reply`, {
+        reply: text.trim(),
+      }),
     onSuccess: () => {
-      setOffen(false)
-      onSaved()
+      setOffen(false);
+      onSaved();
     },
-  })
+  });
 
   return (
     <div className="mt-3 border-t border-ink-700 pt-3">
       <div className="flex flex-wrap items-center gap-2">
         <StarRating value={request.rating ?? 0} size="sm" />
         <span className="text-xs text-mist-600">
-          {t('feedback.from', { name: request.display_name ?? request.username })}
+          {t("feedback.from", {
+            name: request.display_name ?? request.username,
+          })}
         </span>
       </div>
-      {request.feedback && <p className="mt-1 text-sm text-mist-300">{request.feedback}</p>}
+      {request.feedback && (
+        <p className="mt-1 text-sm text-mist-300">{request.feedback}</p>
+      )}
 
       {request.feedback_reply && !offen && (
         <div className="mt-2 rounded-xl border border-ink-700 bg-ink-850/60 px-3 py-2">
-          <p className="text-xs font-medium text-accent-500">{t('feedback.replyTitle')}</p>
-          <p className="mt-0.5 text-sm text-mist-300">{request.feedback_reply}</p>
+          <p className="text-xs font-medium text-accent-500">
+            {t("feedback.replyTitle")}
+          </p>
+          <p className="mt-0.5 text-sm text-mist-300">
+            {request.feedback_reply}
+          </p>
         </div>
       )}
 
@@ -94,8 +112,8 @@ function FeedbackReview({
             value={text}
             onChange={(event) => setText(event.target.value)}
             maxLength={1000}
-            placeholder={t('feedback.replyPlaceholder')}
-            aria-label={t('feedback.replyPlaceholder')}
+            placeholder={t("feedback.replyPlaceholder")}
+            aria-label={t("feedback.replyPlaceholder")}
             className="min-w-0 flex-1 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none"
           />
           <Button
@@ -103,10 +121,10 @@ function FeedbackReview({
             loading={antworten.isPending}
             disabled={!text.trim()}
           >
-            {t('feedback.sendReply')}
+            {t("feedback.sendReply")}
           </Button>
           <Button variant="ghost" onClick={() => setOffen(false)}>
-            {t('common.cancel')}
+            {t("common.cancel")}
           </Button>
         </div>
       ) : (
@@ -115,107 +133,169 @@ function FeedbackReview({
           onClick={() => setOffen(true)}
           className="mt-2 text-xs text-mist-600 underline-offset-2 hover:text-mist-300 hover:underline"
         >
-          {request.feedback_reply ? t('feedback.changeReply') : t('feedback.reply')}
+          {request.feedback_reply
+            ? t("feedback.changeReply")
+            : t("feedback.reply")}
         </button>
       )}
 
       {antworten.isError && (
         <p className="mt-1 text-xs text-bad-500">
-          {antworten.error instanceof ApiError ? antworten.error.message : t('feedback.failed')}
+          {antworten.error instanceof ApiError
+            ? antworten.error.message
+            : t("feedback.failed")}
         </p>
       )}
     </div>
-  )
+  );
 }
 
 export function AdminRequestsPage() {
-  const { t, i18n } = useTranslation()
-  const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   // Antworten auf Rückmeldungen ist dem Administrator vorbehalten.
-  const istAdmin = user?.role === 'admin'
+  const istAdmin = user?.role === "admin";
 
   // Aus der Adresse vorbelegen, damit ein Klick in der Glocke direkt in der
   // richtigen Ansicht landet.
-  const [suche, setSuche] = useSearchParams()
+  const [suche, setSuche] = useSearchParams();
   const [filter, setFilterState] = useState<Filter>(() =>
-    suche.get('filter') === 'feedback' ? 'feedback' : 'pending_approval',
-  )
+    suche.get("filter") === "feedback" ? "feedback" : "pending_approval",
+  );
 
   function setFilter(wert: Filter) {
-    setFilterState(wert)
+    setFilterState(wert);
     // Einen offenen Ablehnen-Bereich mitschließen. Er hängt an einer
     // Anfragenummer, und die kommt in der nächsten Liste womöglich wieder vor -
     // dann klappte er ausgerechnet bei einer längst abgelehnten Anfrage auf,
     // samt Knopf "Ablehnen bestätigen".
-    setRejecting(null)
-    setReason('')
-    setSperren(false)
+    setRejecting(null);
+    setReason("");
+    setSperren(false);
     // Der Parameter hat seinen Zweck erfüllt - sonst spränge ein Neuladen
     // wieder zurück.
-    if (suche.has('filter')) setSuche({}, { replace: true })
+    if (suche.has("filter")) setSuche({}, { replace: true });
   }
-  const [rejecting, setRejecting] = useState<number | null>(null)
+  const [rejecting, setRejecting] = useState<number | null>(null);
   /** Beim Ablehnen zusätzlich sperren? Nur für Administratoren. */
-  const [sperren, setSperren] = useState(false)
-  const [reason, setReason] = useState('')
-  const [cancelling, setCancelling] = useState<MediaRequestWithUser | null>(null)
+  const [sperren, setSperren] = useState(false);
+  const [reason, setReason] = useState("");
+  const [cancelling, setCancelling] = useState<MediaRequestWithUser | null>(
+    null,
+  );
 
   const requestsQuery = useQuery({
-    queryKey: ['admin-requests', filter],
+    queryKey: ["admin-requests", filter],
     queryFn: () => api.get<MediaRequestWithUser[]>(urlFuer(filter)),
-  })
+  });
+
+  const { data: config } = useConfig();
+  // Welche Freigabe wartet gerade auf die Ordnerwahl? Kennung der Anfrage
+  // bzw. des Benutzers bei der Sammelfreigabe.
+  const [zielFuer, setZielFuer] = useState<number | null>(null);
+  const [sammelZielFuer, setSammelZielFuer] = useState<number | null>(null);
+  const [ziel, setZiel] = useState<Target | null>(null);
+  // Je Kombination aus Medienart und Stufe ein eigenes Ziel: Das sind bis zu
+  // vier verschiedene Instanzen mit vollkommen verschiedenen Ordnern.
+  const [stapelZiele, setStapelZiele] = useState<Record<string, Target | null>>(
+    {},
+  );
+
+  /**
+   * Muss vor der Freigabe noch ein Ordner gewählt werden?
+   *
+   * Nur wenn der Betreiber das so eingestellt hat *und* die Anfrage wirklich
+   * ohne Ordner hereinkam - Altbestand hat seinen längst.
+   */
+  function brauchtZiel(request: {
+    root_folder_path: string | null;
+    media_type: MediaType;
+  }): boolean {
+    const regel =
+      request.media_type === "movie"
+        ? config?.approver_picks_target_movie
+        : config?.approver_picks_target_tv;
+    return Boolean(regel) && request.root_folder_path === null;
+  }
 
   function refresh() {
-    anfragenStandNeuLaden(queryClient)
-    void queryClient.invalidateQueries({ queryKey: ['admin-requests'] })
-    void queryClient.invalidateQueries({ queryKey: ['pending-count'] })
-    void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    anfragenStandNeuLaden(queryClient);
+    void queryClient.invalidateQueries({ queryKey: ["admin-requests"] });
+    void queryClient.invalidateQueries({ queryKey: ["pending-count"] });
+    void queryClient.invalidateQueries({ queryKey: ["notifications"] });
   }
 
   const approveMutation = useMutation({
-    mutationFn: (id: number) => api.post(`/api/admin/requests/${id}/approve`),
+    mutationFn: ({ id, target }: { id: number; target: Target | null }) =>
+      api.post(`/api/admin/requests/${id}/approve`, target ?? undefined),
+    onSuccess: () => {
+      setZielFuer(null);
+      setZiel(null);
+    },
     onSettled: refresh,
-  })
+  });
 
   const approveAllMutation = useMutation({
-    mutationFn: (userId: number) => api.post(`/api/admin/requests/approve-all/${userId}`),
+    mutationFn: ({
+      userId,
+      ziele,
+    }: {
+      userId: number;
+      ziele: Record<string, Target | null>;
+    }) =>
+      api.post(
+        `/api/admin/requests/approve-all/${userId}`,
+        Object.values(ziele).some(Boolean) ? ziele : undefined,
+      ),
+    onSuccess: () => {
+      setSammelZielFuer(null);
+      setStapelZiele({});
+    },
     onSettled: refresh,
-  })
+  });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, text, block }: { id: number; text: string; block: boolean }) =>
+    mutationFn: ({
+      id,
+      text,
+      block,
+    }: {
+      id: number;
+      text: string;
+      block: boolean;
+    }) =>
       api.post(`/api/admin/requests/${id}/reject`, {
         reason: text || undefined,
         block,
       }),
     onSuccess: () => {
-      setRejecting(null)
-      setReason('')
-      setSperren(false)
-      refresh()
+      setRejecting(null);
+      setReason("");
+      setSperren(false);
+      refresh();
       // Die Sperrliste und alle Kacheln zeigen den Titel jetzt anders.
-      void queryClient.invalidateQueries({ queryKey: ['blocklist'] })
+      void queryClient.invalidateQueries({ queryKey: ["blocklist"] });
     },
-  })
+  });
 
   const cancelMutation = useMutation({
     mutationFn: (id: number) => api.post(`/api/admin/requests/${id}/cancel`),
     onSuccess: () => setCancelling(null),
     onSettled: refresh,
-  })
+  });
 
-  const requests = requestsQuery.data ?? []
+  const requests = requestsQuery.data ?? [];
   const failure =
     approveMutation.error ??
     rejectMutation.error ??
     cancelMutation.error ??
-    approveAllMutation.error
+    approveAllMutation.error;
 
   // Nach Benutzer gruppieren, damit man nicht jeden Titel einzeln freigeben muss.
-  const gruppen: Gruppe[] = []
+  const gruppen: Gruppe[] = [];
   for (const request of requests) {
-    let gruppe = gruppen.find((eintrag) => eintrag.userId === request.user_id)
+    let gruppe = gruppen.find((eintrag) => eintrag.userId === request.user_id);
     if (!gruppe) {
       gruppe = {
         userId: request.user_id,
@@ -223,10 +303,10 @@ export function AdminRequestsPage() {
         displayName: request.display_name,
         avatar: request.avatar_url,
         requests: [],
-      }
-      gruppen.push(gruppe)
+      };
+      gruppen.push(gruppe);
     }
-    gruppe.requests.push(request)
+    gruppe.requests.push(request);
   }
 
   return (
@@ -234,16 +314,16 @@ export function AdminRequestsPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            {t('nav.allRequests')}
+            {t("nav.allRequests")}
             <span className="text-accent-500">.</span>
           </h1>
-          <p className="mt-1.5 text-mist-500">{t('adminRequests.intro')}</p>
+          <p className="mt-1.5 text-mist-500">{t("adminRequests.intro")}</p>
         </div>
         <Link
           to="/admin/stats"
           className="rounded-full border border-ink-700 px-4 py-2 text-sm text-mist-300 transition-colors hover:border-accent-600 hover:text-mist-100"
         >
-          {t('nav.stats')}
+          {t("nav.stats")}
         </Link>
       </header>
 
@@ -255,16 +335,16 @@ export function AdminRequestsPage() {
             onClick={() => setFilter(value)}
             aria-pressed={filter === value}
             className={
-              'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ' +
+              "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors " +
               (filter === value
-                ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
-                : 'border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100')
+                ? "border-accent-500/60 bg-accent-500/15 text-accent-400"
+                : "border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100")
             }
           >
-            {value === 'all'
-              ? t('adminRequests.filterAll')
-              : value === 'feedback'
-                ? t('adminRequests.filterFeedback')
+            {value === "all"
+              ? t("adminRequests.filterAll")
+              : value === "feedback"
+                ? t("adminRequests.filterFeedback")
                 : t(`status.${value}`)}
           </button>
         ))}
@@ -272,28 +352,32 @@ export function AdminRequestsPage() {
 
       {failure && (
         <ErrorBanner
-          message={failure instanceof ApiError ? failure.message : t('errors.generic')}
+          message={
+            failure instanceof ApiError ? failure.message : t("errors.generic")
+          }
         />
       )}
 
       {requestsQuery.isPending && (
         <p className="flex items-center gap-2 text-sm text-mist-500">
-          <Spinner /> {t('common.loading')}
+          <Spinner /> {t("common.loading")}
         </p>
       )}
 
       {!requestsQuery.isPending && requests.length === 0 && (
         <p className="rounded-2xl border border-dashed border-ink-700 px-6 py-16 text-center text-sm text-mist-500">
-          {filter === 'pending_approval'
-            ? t('adminRequests.noPending')
-            : filter === 'feedback'
-              ? t('adminRequests.emptyFeedback')
-              : t('adminRequests.empty')}
+          {filter === "pending_approval"
+            ? t("adminRequests.noPending")
+            : filter === "feedback"
+              ? t("adminRequests.emptyFeedback")
+              : t("adminRequests.empty")}
         </p>
       )}
 
       {gruppen.map((gruppe) => {
-        const offene = gruppe.requests.filter((r) => r.status === 'pending_approval')
+        const offene = gruppe.requests.filter(
+          (r) => r.status === "pending_approval",
+        );
         return (
           <Card key={gruppe.username} className="flex flex-col gap-3 p-4">
             <div className="flex flex-wrap items-center gap-3 border-b border-ink-700 pb-3">
@@ -303,49 +387,153 @@ export function AdminRequestsPage() {
                 className="h-10 w-10"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{gruppe.displayName ?? gruppe.username}</p>
+                <p className="truncate font-semibold">
+                  {gruppe.displayName ?? gruppe.username}
+                </p>
                 <p className="text-xs text-mist-600">
-                  {t('adminRequests.countForUser', { count: gruppe.requests.length })}
+                  {t("adminRequests.countForUser", {
+                    count: gruppe.requests.length,
+                  })}
                 </p>
               </div>
 
               {offene.length > 1 && (
                 <Button
-                  onClick={() => approveAllMutation.mutate(gruppe.userId)}
+                  onClick={() => {
+                    // Offene Einzel-Freigaben zuklappen: Sonst stehen deren
+                    // Auswahlfelder unter dem Stapel-Dialog weiter offen und
+                    // man sieht nicht mehr, welche Auswahl wofür gilt.
+                    setZielFuer(null);
+                    setZiel(null);
+                    setRejecting(null);
+                    if (offene.some(brauchtZiel)) {
+                      setStapelZiele({});
+                      setSammelZielFuer(
+                        sammelZielFuer === gruppe.userId ? null : gruppe.userId,
+                      );
+                      return;
+                    }
+                    approveAllMutation.mutate({
+                      userId: gruppe.userId,
+                      ziele: {},
+                    });
+                  }}
                   loading={
-                    approveAllMutation.isPending && approveAllMutation.variables === gruppe.userId
+                    approveAllMutation.isPending &&
+                    approveAllMutation.variables?.userId === gruppe.userId
                   }
                 >
-                  {t('adminRequests.approveAll', { count: offene.length })}
+                  {t("adminRequests.approveAll", { count: offene.length })}
                 </Button>
               )}
             </div>
 
+            {/* Je Kombination aus Medienart und Stufe eine eigene Wahl: Das
+                sind bis zu vier Instanzen mit vollkommen verschiedenen Ordnern
+                und Profilen. Gezeigt wird nur, was im Stapel vorkommt. */}
+            {sammelZielFuer === gruppe.userId && (
+              <div className="flex flex-col gap-3 rounded-xl border border-ink-700 bg-ink-900/50 p-3">
+                {(
+                  [
+                    ["movie", "standard", "common.movies"],
+                    ["movie", "uhd", "common.movies"],
+                    ["tv", "standard", "common.seriesPlural"],
+                    ["tv", "uhd", "common.seriesPlural"],
+                  ] as const
+                ).map(([art, stufe, labelKey]) => {
+                  const vorhanden = offene.some(
+                    (r) =>
+                      brauchtZiel(r) &&
+                      r.media_type === art &&
+                      r.tier === stufe,
+                  );
+                  if (!vorhanden) return null;
+                  const schluessel = stufe === "uhd" ? `${art}_uhd` : art;
+                  return (
+                    <TargetPicker
+                      key={schluessel}
+                      mediaType={art}
+                      tier={stufe}
+                      label={t(labelKey) + (stufe === "uhd" ? " · 4K" : "")}
+                      onChange={(ziel) =>
+                        setStapelZiele((bisher) => ({
+                          ...bisher,
+                          [schluessel]: ziel,
+                        }))
+                      }
+                    />
+                  );
+                })}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() =>
+                      approveAllMutation.mutate({
+                        userId: gruppe.userId,
+                        ziele: stapelZiele,
+                      })
+                    }
+                    loading={approveAllMutation.isPending}
+                    disabled={!Object.values(stapelZiele).some(Boolean)}
+                  >
+                    {t("adminRequests.confirmApprove")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setSammelZielFuer(null)}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {gruppe.requests.map((request) => (
-              <div key={request.id} className="rounded-xl border border-ink-700 bg-ink-900/50 p-3">
+              <div
+                key={request.id}
+                className="rounded-xl border border-ink-700 bg-ink-900/50 p-3"
+              >
                 <div className="flex flex-wrap items-center gap-3">
                   {/* Siehe MyRequestsPage: auf dem Telefon eigene Zeile fuer
                       den Titel, damit er nicht auf ein Zeichen schrumpft. */}
                   <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                     <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="min-w-0 font-semibold break-words">{request.title}</span>
+                      <span className="min-w-0 font-semibold break-words">
+                        {request.title}
+                      </span>
                       {request.season !== null && (
                         <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
-                          {t('request.seasonShort', { number: request.season })}
+                          {t("request.seasonShort", { number: request.season })}
+                        </span>
+                      )}
+                      {/* Haengt an der Anfrage selbst, nicht an der Einstellung:
+                          Nimmt der Admin die 4K-Instanz heraus, waere eine laufende
+                          4K-Anfrage sonst nicht mehr als solche zu erkennen. */}
+                      {request.tier === "uhd" && (
+                        <span className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400">
+                          4K
                         </span>
                       )}
                     </p>
                     <p className="text-xs text-mist-600">
-                      {t(request.media_type === 'movie' ? 'common.movies' : 'common.series')} ·{' '}
-                      {t('myRequests.requestedAt')}{' '}
-                      {formatDate(request.requested_at.slice(0, 10), i18n.language)}
+                      {t(
+                        request.media_type === "movie"
+                          ? "common.movies"
+                          : "common.series",
+                      )}{" "}
+                      · {t("myRequests.requestedAt")}{" "}
+                      {formatDate(
+                        request.requested_at.slice(0, 10),
+                        i18n.language,
+                      )}
                     </p>
                     {request.error_message && (
-                      <p className="mt-1 text-xs text-bad-500">{request.error_message}</p>
+                      <p className="mt-1 text-xs text-bad-500">
+                        {request.error_message}
+                      </p>
                     )}
                     {request.rejection_reason && (
                       <p className="mt-1 text-xs text-mist-500">
-                        {t('adminRequests.reason')}: {request.rejection_reason}
+                        {t("adminRequests.reason")}: {request.rejection_reason}
                       </p>
                     )}
                   </div>
@@ -353,12 +541,12 @@ export function AdminRequestsPage() {
                   {/* Schwache Bewertungen sollen ohne Aufklappen auffallen. */}
                   {request.rating !== null && (
                     <span
-                      title={t('feedback.stars', { count: request.rating })}
+                      title={t("feedback.stars", { count: request.rating })}
                       className={
-                        'rounded-full border px-2 py-1 leading-none ' +
+                        "rounded-full border px-2 py-1 leading-none " +
                         (request.rating <= POOR_RATING
-                          ? 'border-bad-500/50 bg-bad-500/10'
-                          : 'border-ink-700 bg-ink-850')
+                          ? "border-bad-500/50 bg-bad-500/10"
+                          : "border-ink-700 bg-ink-850")
                       }
                     >
                       <StarRating value={request.rating} size="sm" />
@@ -367,25 +555,42 @@ export function AdminRequestsPage() {
 
                   <StatusBadge status={request.status} />
 
-                  {request.status === 'pending_approval' && (
+                  {request.status === "pending_approval" && (
                     <div className="flex gap-2">
                       <Button
-                        onClick={() => approveMutation.mutate(request.id)}
+                        onClick={() => {
+                          // Fehlt der Ordner, erst danach fragen - sonst
+                          // sofort freigeben wie bisher.
+                          if (brauchtZiel(request)) {
+                            setZiel(null);
+                            setZielFuer(
+                              zielFuer === request.id ? null : request.id,
+                            );
+                            return;
+                          }
+                          approveMutation.mutate({
+                            id: request.id,
+                            target: null,
+                          });
+                        }}
                         loading={
-                          approveMutation.isPending && approveMutation.variables === request.id
+                          approveMutation.isPending &&
+                          approveMutation.variables?.id === request.id
                         }
                       >
-                        {t('adminRequests.approve')}
+                        {t("adminRequests.approve")}
                       </Button>
                       <Button
                         variant="ghost"
                         onClick={() => {
-                          setSperren(false)
-                          setRejecting(rejecting === request.id ? null : request.id)
-                          setReason('')
+                          setSperren(false);
+                          setRejecting(
+                            rejecting === request.id ? null : request.id,
+                          );
+                          setReason("");
                         }}
                       >
-                        {t('adminRequests.reject')}
+                        {t("adminRequests.reject")}
                       </Button>
                     </div>
                   )}
@@ -394,12 +599,42 @@ export function AdminRequestsPage() {
                     <Button
                       variant="ghost"
                       onClick={() => setCancelling(request)}
-                      loading={cancelMutation.isPending && cancelMutation.variables === request.id}
+                      loading={
+                        cancelMutation.isPending &&
+                        cancelMutation.variables === request.id
+                      }
                     >
-                      {t('requests.cancel')}
+                      {t("requests.cancel")}
                     </Button>
                   )}
                 </div>
+
+                {zielFuer === request.id && (
+                  <div className="mt-3 flex flex-col gap-3 border-t border-ink-700 pt-3">
+                    <TargetPicker
+                      mediaType={request.media_type}
+                      tier={request.tier}
+                      onChange={setZiel}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        onClick={() =>
+                          approveMutation.mutate({
+                            id: request.id,
+                            target: ziel,
+                          })
+                        }
+                        loading={approveMutation.isPending}
+                        disabled={ziel === null}
+                      >
+                        {t("adminRequests.confirmApprove")}
+                      </Button>
+                      <Button variant="ghost" onClick={() => setZielFuer(null)}>
+                        {t("common.cancel")}
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {rejecting === request.id && (
                   <div className="mt-3 flex flex-col gap-2 border-t border-ink-700 pt-3">
@@ -407,8 +642,8 @@ export function AdminRequestsPage() {
                       <input
                         value={reason}
                         onChange={(event) => setReason(event.target.value)}
-                        placeholder={t('adminRequests.reasonPlaceholder')}
-                        aria-label={t('adminRequests.reasonPlaceholder')}
+                        placeholder={t("adminRequests.reasonPlaceholder")}
+                        aria-label={t("adminRequests.reasonPlaceholder")}
                         className="min-w-0 flex-1 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none"
                       />
                       <Button
@@ -421,10 +656,13 @@ export function AdminRequestsPage() {
                         }
                         loading={rejectMutation.isPending}
                       >
-                        {t('adminRequests.confirmReject')}
+                        {t("adminRequests.confirmReject")}
                       </Button>
-                      <Button variant="ghost" onClick={() => setRejecting(null)}>
-                        {t('common.cancel')}
+                      <Button
+                        variant="ghost"
+                        onClick={() => setRejecting(null)}
+                      >
+                        {t("common.cancel")}
                       </Button>
                     </div>
 
@@ -441,9 +679,9 @@ export function AdminRequestsPage() {
                           className="mt-0.5 h-4 w-4 accent-accent-500"
                         />
                         <span>
-                          {t('adminRequests.alsoBlock')}
+                          {t("adminRequests.alsoBlock")}
                           <span className="mt-0.5 block text-xs text-mist-600">
-                            {t('adminRequests.alsoBlockHint')}
+                            {t("adminRequests.alsoBlockHint")}
                           </span>
                         </span>
                       </label>
@@ -452,27 +690,31 @@ export function AdminRequestsPage() {
                 )}
 
                 {request.rating !== null && (
-                  <FeedbackReview request={request} darfAntworten={istAdmin} onSaved={refresh} />
+                  <FeedbackReview
+                    request={request}
+                    darfAntworten={istAdmin}
+                    onSaved={refresh}
+                  />
                 )}
               </div>
             ))}
           </Card>
-        )
+        );
       })}
 
       <ConfirmDialog
         open={cancelling !== null}
-        title={t('requests.cancelTitle')}
-        description={t('requests.cancelTextAdmin', {
-          title: cancelling?.title ?? '',
-          name: cancelling?.display_name ?? cancelling?.username ?? '',
+        title={t("requests.cancelTitle")}
+        description={t("requests.cancelTextAdmin", {
+          title: cancelling?.title ?? "",
+          name: cancelling?.display_name ?? cancelling?.username ?? "",
         })}
-        warning={t('requests.cancelWarning')}
-        confirmLabel={t('requests.cancelConfirm')}
+        warning={t("requests.cancelWarning")}
+        confirmLabel={t("requests.cancelConfirm")}
         loading={cancelMutation.isPending}
         onCancel={() => setCancelling(null)}
         onConfirm={() => cancelling && cancelMutation.mutate(cancelling.id)}
       />
     </div>
-  )
+  );
 }

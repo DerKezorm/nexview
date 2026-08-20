@@ -72,6 +72,15 @@ def period_end(period: QuotaPeriod, start: datetime) -> datetime:
 
 
 def _limit_for(user: User, media_type: MediaType) -> int | None:
+    """Wie viele Anfragen darf dieser Benutzer? ``None`` heisst unbegrenzt.
+
+    Administratoren immer unbegrenzt - wie bei der Sperrliste, der Freigabe
+    und 4K: Sie setzen die Grenzen und koennten die eigene jederzeit
+    heraufsetzen. Bliebe sie bestehen, waere es eine Huerde, die genau eine
+    Person aufhaelt: die, die sie gerade wegklicken kann.
+    """
+    if user.is_admin:
+        return None
     return (
         user.quota_movies_limit if media_type == MediaType.movie else user.quota_series_limit
     )

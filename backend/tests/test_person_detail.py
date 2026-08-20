@@ -106,3 +106,25 @@ def test_talkshow_bleibt_auftritt(
     talk = _nach_id(credits, 300)
     assert talk is not None
     assert talk["kind"] == "appearance"
+
+
+def test_personenseite_kennt_jedes_status_feld() -> None:
+    """Was ``_mit_status`` setzt, muss es auf *beiden* Modellen geben.
+
+    Der Fehler dahinter ist zweimal passiert - erst mit ``watched``, dann mit
+    ``status_uhd``. Beide Male setzt ``details._mit_status`` ein Feld auf
+    jedem Eintrag, und beide Male kannte ``PersonCredit`` es nicht: Pydantic
+    laesst kein undeklariertes Feld zu, die Personenseite antwortete mit 500.
+
+    Auffallen konnte das jeweils nur unter einer Zusatzbedingung (ein
+    gesehener Titel bzw. eine eingerichtete 4K-Instanz) - deshalb hier ein
+    Abgleich der Felder statt eines weiteren Einzelfalls.
+    """
+    from app.schemas_media import MediaItem, PersonCredit
+
+    # Die Felder, die ``_mit_status`` und die von dort gerufenen Dienste auf
+    # den Eintraegen setzen.
+    gesetzt = {"status", "watched", "status_uhd"}
+    fehlt = gesetzt - set(PersonCredit.model_fields)
+    assert not fehlt, f"PersonCredit fehlen Felder aus _mit_status: {sorted(fehlt)}"
+    assert gesetzt <= set(MediaItem.model_fields)

@@ -23,6 +23,7 @@ import { Poster, RatingBadge } from '../components/media/Poster'
 import { RatingBadges, useMovieRatings } from '../components/media/RatingBadges'
 import { SeasonList } from '../components/media/SeasonList'
 import { StatusBadge } from '../components/media/StatusBadge'
+import { UhdBadge } from '../components/media/UhdBadge'
 import { WatchedBadge } from '../components/media/WatchedBadge'
 import { PlayIcon, TrailerModal } from '../components/media/TrailerModal'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
@@ -277,8 +278,17 @@ export function TitlePage() {
   // Backend sieht es genauso, der Knopf ist nur die Bequemlichkeit dazu.
   const istAdmin = user?.role === 'admin'
   const gesperrt = item.status === 'blocked'
+  /**
+   * Die 4K-Fassung ist noch offen - dann muss der Knopf erscheinen, auch wenn
+   * die Standard-Fassung längst geladen ist. Genau darum geht es bei zwei
+   * Instanzen: derselbe Film einmal in 1080p und einmal in 4K.
+   *
+   * `status_uhd` liefert der Server nur, wenn es eine 4K-Instanz gibt **und**
+   * dieser Benutzer sie nutzen darf - die Prüfung steckt also schon darin.
+   */
+  const uhdOffen = item.status_uhd === 'not_requested'
   const kannAnfragen =
-    item.status === 'not_requested' || nurWeitereStaffel || (gesperrt && istAdmin)
+    item.status === 'not_requested' || uhdOffen || nurWeitereStaffel || (gesperrt && istAdmin)
 
   /* Der Knopf erscheint, sobald es etwas zu holen gibt. Vor der ersten
      Abfrage weiss das niemand - dann zaehlt, ob TMDB ueberhaupt Vorschlaege
@@ -312,6 +322,7 @@ export function TitlePage() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={item.status} />
+                {item.status_uhd && <UhdBadge status={item.status_uhd} />}
                 {item.watched && <WatchedBadge />}
                 <RatingBadge vote={item.vote_average} count={item.vote_count} />
                 {/* IMDb, Rotten Tomatoes, Metacritic - nur bei Filmen, und nur

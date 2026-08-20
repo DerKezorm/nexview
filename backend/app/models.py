@@ -54,6 +54,22 @@ class MediaType(str, enum.Enum):
     tv = "tv"
 
 
+class QualityTier(str, enum.Enum):
+    """Welche der beiden Radarr-/Sonarr-Instanzen gemeint ist.
+
+    Bewusst genau zwei feste Stufen statt einer Instanz-Tabelle: „derselbe Film
+    in 1080p *und* in 4K" ist der Fall, den es gibt. Eine Verwaltung fuer
+    beliebig viele Instanzen waere ein zweites Einstellungssystem fuer einen
+    Fall, den niemand hat.
+
+    ``standard`` ist ueberall der Vorgabewert. Wer keine zweite Instanz
+    eintraegt, bekommt davon nichts zu sehen.
+    """
+
+    standard = "standard"
+    uhd = "uhd"
+
+
 class RequestStatus(str, enum.Enum):
     """Lebenslauf einer Anfrage.
 
@@ -70,6 +86,11 @@ class RequestStatus(str, enum.Enum):
     # Vom Anfragenden oder einem Entscheider abgebrochen - zaehlt nicht
     # mehr gegen das Kontingent.
     cancelled = "cancelled"
+    # War fertig geladen, aber die Datei ist inzwischen aus der Bibliothek
+    # verschwunden - aus Radarr/Sonarr entfernt und auch im Media-Server nicht
+    # mehr zu finden. "downloaded" waere ab da eine falsche Behauptung, und der
+    # Titel liesse sich nie wieder anfragen. Gesetzt vom Status-Abgleich.
+    deleted = "deleted"
 
 
 class QuotaPeriod(str, enum.Enum):
@@ -140,6 +161,19 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Freigabe- und Kontingent-Regeln (vom Admin pro Benutzer einstellbar)
+    # Auto-Freigabe je Medienart - wie die Kontingente, die schon lange
+    # getrennt sind. Noetig, seit die Zielordner-Regel je Dienst gilt: Steht
+    # sie bei Filmen auf "der Entscheider waehlt", kann es dort keine
+    # Auto-Freigabe geben, bei Serien aber sehr wohl.
+    #
+    # ``None`` heisst "nicht eigens gesetzt" - dann gilt der alte gemeinsame
+    # Haken darunter. Nur so behaelt ein bestehendes Konto sein Verhalten:
+    # Eine neue Spalte bekaeme sonst ``false``, und alle bisher automatisch
+    # freigegebenen Benutzer muessten ploetzlich warten, ohne dass es jemand
+    # angeordnet haette.
+    auto_approve_movies: Mapped[bool | None] = mapped_column(Boolean)
+    auto_approve_series: Mapped[bool | None] = mapped_column(Boolean)
+    # Der alte gemeinsame Haken - bleibt als Rueckfallwert stehen.
     auto_approve: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     quota_movies_limit: Mapped[int | None] = mapped_column(Integer)  # NULL = unbegrenzt
     quota_series_limit: Mapped[int | None] = mapped_column(Integer)  # NULL = unbegrenzt
@@ -154,6 +188,27 @@ class User(Base):
     # Leer bedeutet: keine Einschraenkung.
     blocked_movie_profiles: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     blocked_series_profiles: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+
+    # --- 4K ---------------------------------------------------------------
+    # Alles standardmaessig aus: 4K ist immer eine bewusste Einzelentscheidung
+    # des Administrators - eine 4K-Datei ist vier- bis achtmal so gross.
+    #
+    # Getrennt nach Medienart, weil sich beides sehr verschieden anfuehlt: eine
+    # 4K-Serie frisst ein Vielfaches eines 4K-Films.
+    can_request_uhd_movies: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    can_request_uhd_series: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Eigene Auto-Freigabe je Stufe: wer 1080p ohne Rueckfrage bekommt, soll
+    # nicht automatisch auch 4K ohne Rueckfrage bekommen.
+    auto_approve_uhd: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Eigene Sperrlisten, weil die Profil-Kennungen der beiden Instanzen
+    # kollidieren: Profil 1 in der 1080p-Instanz ist ein voellig anderes als
+    # Profil 1 in der 4K-Instanz.
+    blocked_movie_uhd_profiles: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False
+    )
+    blocked_series_uhd_profiles: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False
+    )
 
     avatar_path: Mapped[str | None] = mapped_column(String(255))
 
@@ -243,19 +298,71 @@ class User(Base):
     password_changed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    def blocked_profiles(self, media_type: "MediaType") -> list[int]:
+    def blocked_profiles(
+        self, media_type: "MediaType", tier: "QualityTier" = QualityTier.standard
+    ) -> list[int]:
         """Gesperrte Profil-Kennungen; leere Liste = nichts gesperrt.
 
         Bewusst als Sperrliste: so bedeutet jeder Haken genau eine Sperre.
         Als Erlaubnisliste haette der erste Haken alle anderen Profile auf
         einen Schlag verboten - ein ueberraschender Nebeneffekt.
+
+        Je Stufe getrennt, weil die Kennungen der beiden Instanzen kollidieren.
+        Bestandswerte gehoeren zur Standard-Stufe - genau richtig, sie wurden
+        ja fuer die einzige bisher vorhandene Instanz vergeben.
         """
-        raw = (
-            self.blocked_movie_profiles
-            if media_type == MediaType.movie
-            else self.blocked_series_profiles
-        )
+        if tier == QualityTier.uhd:
+            raw = (
+                self.blocked_movie_uhd_profiles
+                if media_type == MediaType.movie
+                else self.blocked_series_uhd_profiles
+            )
+        else:
+            raw = (
+                self.blocked_movie_profiles
+                if media_type == MediaType.movie
+                else self.blocked_series_profiles
+            )
         return [int(part) for part in raw.split(",") if part.strip().isdigit()]
+
+    def may_request_uhd(self, media_type: "MediaType") -> bool:
+        """Darf dieser Benutzer diese Medienart in 4K anfragen?
+
+        Wer freigeben darf - Administratoren und Entscheider - immer: Sie
+        koennten sich das Haekchen ohnehin selbst setzen bzw. jede Anfrage
+        selbst freigeben. Es erst zu verlangen waere ein Umweg, der nichts
+        schuetzt. Dasselbe Muster wie bei der Auto-Freigabe.
+        """
+        if self.can_approve:
+            return True
+        return (
+            self.can_request_uhd_movies
+            if media_type == MediaType.movie
+            else self.can_request_uhd_series
+        )
+
+    def auto_approve_for(
+        self, media_type: "MediaType", tier: "QualityTier" = QualityTier.standard
+    ) -> bool:
+        """Gilt eine Anfrage sofort als freigegeben?
+
+        Wer selbst freigeben darf, gibt sich nicht erst selbst frei - sonst
+        waere die Trennung eine Zwischenstufe ohne Entscheider.
+
+        Fuer 4K gibt es bewusst **einen** Haken statt zweier: vier Kaestchen
+        (Filme/Serien x Standard/4K) waeren mehr Verwaltung als Nutzen, und 4K
+        ist ohnehin die Ausnahme.
+        """
+        if self.can_approve:
+            return True
+        if tier == QualityTier.uhd:
+            return self.auto_approve_uhd
+        eigen = (
+            self.auto_approve_movies
+            if media_type == MediaType.movie
+            else self.auto_approve_series
+        )
+        return self.auto_approve if eigen is None else eigen
 
     requests: Mapped[list["MediaRequest"]] = relationship(
         back_populates="user",
@@ -284,6 +391,24 @@ class User(Base):
         der Haken laesst sich fuer sie deshalb gar nicht abschalten.
         """
         return self.can_approve or self.auto_approve
+
+    @property
+    def effective_auto_approve_movies(self) -> bool:
+        return self.auto_approve_for(MediaType.movie)
+
+    @property
+    def effective_auto_approve_series(self) -> bool:
+        return self.auto_approve_for(MediaType.tv)
+
+    @property
+    def effective_auto_approve_uhd(self) -> bool:
+        """Dasselbe fuer 4K-Anfragen.
+
+        ``effective_auto_approve`` bleibt bewusst unveraendert und meint weiter
+        die Standard-Stufe: es steckt in der Benutzerliste und im Kontingent,
+        eine Bedeutungsaenderung dort waere eine stille Verhaltensaenderung.
+        """
+        return self.auto_approve_for(MediaType.movie, QualityTier.uhd)
 
     @property
     def avatar_url(self) -> str | None:
@@ -440,6 +565,17 @@ class MediaServerLibraryItem(Base):
     # beim Einlesen der Bibliothek kostenlos ab und ist die weit vollstaendigere
     # Quelle als der Wiedergabe-Verlauf, den Plex nur begrenzt aufbewahrt.
     owner_watched: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # In welcher Stufe liegt der Titel hier?
+    #
+    # Ohne diese beiden Angaben laesst sich eine Kopie im Media-Server keiner
+    # Instanz zuordnen: Wer einen Film nach Erreichen der Wunschqualitaet aus
+    # Radarr entfernt, hat ihn weiterhin in Plex - und Nexview konnte bisher
+    # nicht sagen, ob das die 1080p- oder die 4K-Fassung ist.
+    #
+    # ``has_standard`` ist voreingestellt **wahr**, damit Bestandszeilen und
+    # Anbieter ohne Aufloesungs-Angabe sich verhalten wie bisher.
+    has_standard: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    has_uhd: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     tmdb_id: Mapped[int | None] = mapped_column(Integer)
     tvdb_id: Mapped[int | None] = mapped_column(Integer)
     imdb_id: Mapped[str | None] = mapped_column(String(20))
@@ -503,6 +639,11 @@ class MediaRequest(Base):
     )
 
     media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    # An welche Instanz geht diese Anfrage? Bestandsanfragen bekommen beim
+    # Update "standard" - richtig, denn es gab nur eine.
+    tier: Mapped[QualityTier] = mapped_column(
+        enum_column(QualityTier), default=QualityTier.standard, nullable=False
+    )
     tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
     tvdb_id: Mapped[int | None] = mapped_column(Integer)  # nur Serien, fuer Sonarr
 

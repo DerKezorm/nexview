@@ -9,6 +9,7 @@ import { FavoriteButton } from './FavoriteButton'
 import { RatingBadges } from './RatingBadges'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
+import { UhdBadge } from './UhdBadge'
 import { WatchedBadge } from './WatchedBadge'
 
 type MediaListRowProps = {
@@ -74,7 +75,10 @@ export function MediaListRow({
           Zeile dasselbe, und ein "Schnell anfragen" daneben macht die Zeile nur
           unruhig. */}
       <div className="flex shrink-0 flex-col items-end justify-between gap-3">
-        <StatusBadge status={item.status} />
+        <span className="flex flex-wrap items-center justify-end gap-1.5">
+          <StatusBadge status={item.status} />
+          {item.status_uhd && <UhdBadge status={item.status_uhd} kompakt />}
+        </span>
 
         <div className="flex items-center gap-2">
           {item.watched && <WatchedBadge />}

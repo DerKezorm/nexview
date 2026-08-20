@@ -23,8 +23,11 @@ POOR_RATING = 2
 # So weit reicht der Verlauf zurueck.
 HISTORY_MONTHS = 6
 
-# Zustaende, die einen erledigten Download bedeuten.
-DONE = (RequestStatus.downloaded,)
+# Zustaende, die einen erledigten Download bedeuten. "deleted" gehoert dazu:
+# Der Download hat geklappt, nur wurde die Datei spaeter wieder entfernt. Ihn
+# hier auszunehmen wuerde die Erfolgsquote ruckwirkend druecken, obwohl an der
+# Anfrage nichts scheiterte.
+DONE = (RequestStatus.downloaded, RequestStatus.deleted)
 
 
 @dataclass

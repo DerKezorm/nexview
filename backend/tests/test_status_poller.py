@@ -46,7 +46,7 @@ async def test_fertiger_film_wird_als_geladen_markiert(
 ) -> None:
     request = _laufende_anfrage(arr_client, RequestStatus.searching)
 
-    async def bibliothek(_settings: object) -> dict[int, MovieEntry]:
+    async def bibliothek(_settings: object, _tier: str = "standard") -> dict[int, MovieEntry]:
         return {request.tmdb_id: MovieEntry(arr_id=4242, has_file=True, monitored=True)}
 
     monkeypatch.setattr(library, "movie_library", bibliothek)
@@ -67,7 +67,7 @@ async def test_noch_nicht_fertig_bleibt_stehen(
 ) -> None:
     request = _laufende_anfrage(arr_client, RequestStatus.searching)
 
-    async def bibliothek(_settings: object) -> dict[int, MovieEntry]:
+    async def bibliothek(_settings: object, _tier: str = "standard") -> dict[int, MovieEntry]:
         return {request.tmdb_id: MovieEntry(arr_id=4242, has_file=False, monitored=True)}
 
     monkeypatch.setattr(library, "movie_library", bibliothek)
@@ -86,7 +86,7 @@ async def test_freigegebene_anfrage_wird_zu_wird_gesucht(
     """Sobald der Titel in Radarr auftaucht, aber noch keine Datei hat."""
     request = _laufende_anfrage(arr_client, RequestStatus.approved)
 
-    async def bibliothek(_settings: object) -> dict[int, MovieEntry]:
+    async def bibliothek(_settings: object, _tier: str = "standard") -> dict[int, MovieEntry]:
         return {request.tmdb_id: MovieEntry(arr_id=4242, has_file=False, monitored=True)}
 
     monkeypatch.setattr(library, "movie_library", bibliothek)
@@ -104,7 +104,7 @@ async def test_benachrichtigung_geht_an_den_anfragenden(
 ) -> None:
     request = _laufende_anfrage(arr_client, RequestStatus.searching)
 
-    async def bibliothek(_settings: object) -> dict[int, MovieEntry]:
+    async def bibliothek(_settings: object, _tier: str = "standard") -> dict[int, MovieEntry]:
         return {request.tmdb_id: MovieEntry(arr_id=4242, has_file=True, monitored=True)}
 
     monkeypatch.setattr(library, "movie_library", bibliothek)
@@ -131,7 +131,7 @@ async def test_zweiter_durchlauf_meldet_nicht_erneut(
     """Sonst käme bei jedem Durchlauf eine neue Benachrichtigung."""
     request = _laufende_anfrage(arr_client, RequestStatus.searching)
 
-    async def bibliothek(_settings: object) -> dict[int, MovieEntry]:
+    async def bibliothek(_settings: object, _tier: str = "standard") -> dict[int, MovieEntry]:
         return {request.tmdb_id: MovieEntry(arr_id=4242, has_file=True, monitored=True)}
 
     monkeypatch.setattr(library, "movie_library", bibliothek)
@@ -172,6 +172,7 @@ async def test_serie_wird_ueber_den_titel_gefunden(
         request.tvdb_id = None  # keine TVDB-Kennung vorhanden
         session.commit()
         titel = request.title
+        jahr = int((request.release_date or "2020")[:4])
 
     eintrag = SeriesEntry(
         arr_id=7,
@@ -180,9 +181,12 @@ async def test_serie_wird_ueber_den_titel_gefunden(
         episode_file_count=10,
         episode_count=10,
         title_key="".join(c for c in titel.casefold() if c.isalnum()),
+        # Sonarr liefert das Jahr immer mit. Ohne es greift der Titelabgleich
+        # bewusst nicht mehr - siehe test_serien_matching.py (Issue #1).
+        year=jahr,
     )
 
-    async def bibliothek(_settings: object) -> tuple[dict, dict]:
+    async def bibliothek(_settings: object, _tier: str = "standard") -> tuple[dict, dict]:
         return {}, {eintrag.title_key: eintrag}
 
     monkeypatch.setattr(library, "series_library", bibliothek)
@@ -198,3 +202,82 @@ async def test_serie_wird_ueber_den_titel_gefunden(
 async def test_ohne_offene_anfragen_passiert_nichts(arr_client: TestClient) -> None:
     with SessionLocal() as db:
         assert await status_poller.check_once(db, load_settings(db)) == 0
+
+
+@pytest.mark.asyncio
+async def test_verschwundene_datei_setzt_auf_geloescht(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Aus "geladen" wird "wieder gelöscht", wenn die Datei nirgends mehr liegt.
+
+    Der Fall aus der Praxis: Ein Film wird nach dem Test wieder aus Radarr
+    entfernt - samt Datei. Vorher blieb die Anfrage fuer immer auf "Bereits
+    geladen" stehen; das war ab da eine falsche Behauptung, und der Titel
+    liess sich nie wieder anfragen.
+    """
+    request = _laufende_anfrage(arr_client, RequestStatus.downloaded)
+
+    async def leere_bibliothek(_settings: object, _tier: str = "standard") -> dict:
+        return {}
+
+    monkeypatch.setattr(library, "movie_library", leere_bibliothek)
+
+    with SessionLocal() as db:
+        await status_poller.check_once(db, load_settings(db))
+
+    with SessionLocal() as session:
+        aktualisiert = session.query(MediaRequest).one()
+        assert aktualisiert.status == RequestStatus.deleted
+
+    # Und der Titel ist wieder anfragbar - "deleted" blockiert keine neue
+    # Anfrage.
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+    antwort = arr_client.post(
+        "/api/requests",
+        json={
+            "media_type": "movie",
+            "tmdb_id": request.tmdb_id,
+            "quality_profile_id": 1,
+            "root_folder_path": "/data/Movies",
+        },
+        headers=headers,
+    )
+    assert antwort.status_code == 201, antwort.json()
+
+
+@pytest.mark.asyncio
+async def test_plex_kopie_haelt_den_titel_auf_geladen(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nur aus Radarr entfernt, aber noch in Plex - dann bleibt "geladen" wahr."""
+    from app.models import MediaServerLibraryItem, MediaType
+
+    request = _laufende_anfrage(arr_client, RequestStatus.downloaded)
+
+    async def leere_bibliothek(_settings: object, _tier: str = "standard") -> dict:
+        return {}
+
+    monkeypatch.setattr(library, "movie_library", leere_bibliothek)
+
+    with SessionLocal() as session:
+        session.add(
+            MediaServerLibraryItem(
+                provider="plex",
+                media_type=MediaType.movie,
+                guid=f"plex://film/{request.tmdb_id}",
+                title=request.title,
+                title_key=request.title.lower(),
+                tmdb_id=request.tmdb_id,
+                year=int((request.release_date or "2000")[:4]),
+            )
+        )
+        session.commit()
+
+    with SessionLocal() as db:
+        await status_poller.check_once(db, load_settings(db))
+
+    with SessionLocal() as session:
+        aktualisiert = session.query(MediaRequest).one()
+        assert aktualisiert.status == RequestStatus.downloaded
+        session.query(MediaServerLibraryItem).delete()
+        session.commit()

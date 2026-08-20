@@ -17,7 +17,7 @@ from .radarr import LibraryEntry as MovieEntry
 from .radarr import RadarrClient
 from .settings_service import AppSettings
 from .sonarr import LibraryEntry as SeriesEntry
-from .sonarr import SonarrClient, normalize_title
+from .sonarr import SonarrClient, jahre_passen, normalize_title
 
 import logging
 
@@ -44,21 +44,63 @@ def _write(key: str, value: Any) -> None:
     _cache[key] = (time.monotonic(), value)
 
 
+# Wie lange eine Instanz, die gerade nicht antwortet, in Ruhe gelassen wird.
+# Kuerzer als die Haltezeit der Bibliothek: Kommt sie zurueck, soll es schnell
+# wieder gehen.
+FEHLER_SPERRE_SEKUNDEN = 30
+
+
 def invalidate() -> None:
     """Nach dem Hinzufuegen eines Titels oder geaenderten Einstellungen."""
     _cache.clear()
 
 
-def radarr_client(settings: AppSettings) -> RadarrClient | None:
-    if not settings.radarr_configured:
-        return None
-    return RadarrClient(settings.radarr_url, settings.radarr_api_key)
+async def _mit_fehlersperre(schluessel: str, holen):
+    """Eine Instanz, die eben nicht antwortete, kurz nicht erneut fragen.
+
+    Ohne das kostet eine haengende Instanz **jeden** Seitenaufruf das volle
+    Zeitlimit von 15 Sekunden: Bei einem Fehlschlag wird nichts
+    zwischengespeichert, also faengt der naechste Aufruf von vorn an. Mit zwei
+    Stufen (Standard und 4K) auf derselben Maschine summiert sich das, und der
+    Benutzer sieht "Radarr antwortet nicht", obwohl Radarr laeuft - es kam nur
+    unter der Last nicht hinterher.
+
+    Der gemerkte Fehler wird unveraendert weitergereicht, damit der Hinweis
+    derselbe bleibt wie beim ersten Versuch.
+    """
+    sperre = _read(f"{schluessel}:fehler", FEHLER_SPERRE_SEKUNDEN)
+    if sperre is not None:
+        raise sperre
+
+    try:
+        return await holen()
+    except ArrError as fehler:
+        _write(f"{schluessel}:fehler", fehler)
+        raise
 
 
-def sonarr_client(settings: AppSettings) -> SonarrClient | None:
-    if not settings.sonarr_configured:
+def _stufen_suffix(tier: str) -> str:
+    """Zusatz fuer Zwischenspeicher-Schluessel.
+
+    Die Standard-Stufe bekommt bewusst **keinen** Zusatz: So bleiben ihre
+    Schluessel zeichengleich zu vorher, und am Diff ist ablesbar, dass sich
+    fuer bestehende Installationen nichts aendert.
+    """
+    return ":uhd" if tier == "uhd" else ""
+
+
+def radarr_client(settings: AppSettings, tier: str = "standard") -> RadarrClient | None:
+    url, key = settings.arr_endpoint("movie", tier)
+    if not (url and key):
         return None
-    return SonarrClient(settings.sonarr_url, settings.sonarr_api_key)
+    return RadarrClient(url, key)
+
+
+def sonarr_client(settings: AppSettings, tier: str = "standard") -> SonarrClient | None:
+    url, key = settings.arr_endpoint("tv", tier)
+    if not (url and key):
+        return None
+    return SonarrClient(url, key)
 
 
 @dataclass
@@ -69,33 +111,35 @@ class MatchResult:
     warning: str | None = None
 
 
-async def movie_library(settings: AppSettings) -> dict[int, MovieEntry]:
-    cached = _read("radarr:library", LIBRARY_TTL_SECONDS)
+async def movie_library(settings: AppSettings, tier: str = "standard") -> dict[int, MovieEntry]:
+    schluessel = f"radarr:library{_stufen_suffix(tier)}"
+    cached = _read(schluessel, LIBRARY_TTL_SECONDS)
     if cached is not None:
         return cached
 
-    client = radarr_client(settings)
+    client = radarr_client(settings, tier)
     if client is None:
         return {}
 
-    library = await client.library()
-    _write("radarr:library", library)
+    library = await _mit_fehlersperre(schluessel, client.library)
+    _write(schluessel, library)
     return library
 
 
 async def series_library(
-    settings: AppSettings,
+    settings: AppSettings, tier: str = "standard"
 ) -> tuple[dict[int, SeriesEntry], dict[str, SeriesEntry]]:
-    cached = _read("sonarr:library", LIBRARY_TTL_SECONDS)
+    schluessel = f"sonarr:library{_stufen_suffix(tier)}"
+    cached = _read(schluessel, LIBRARY_TTL_SECONDS)
     if cached is not None:
         return cached
 
-    client = sonarr_client(settings)
+    client = sonarr_client(settings, tier)
     if client is None:
         return {}, {}
 
-    library = await client.library()
-    _write("sonarr:library", library)
+    library = await _mit_fehlersperre(schluessel, client.library)
+    _write(schluessel, library)
     return library
 
 
@@ -143,7 +187,7 @@ def _status_for(entry: MovieEntry | SeriesEntry) -> str:
 
 
 async def apply_status(
-    settings: AppSettings, media_type: str, items: list[MediaItem]
+    settings: AppSettings, media_type: str, items: list[MediaItem], tier: str = "standard"
 ) -> MatchResult:
     """Jeder Kachel ihren Zustand geben.
 
@@ -154,13 +198,12 @@ async def apply_status(
     if not items:
         return MatchResult(items=items)
 
-    configured = settings.radarr_configured if media_type == "movie" else settings.sonarr_configured
-    if not configured:
+    if not settings.arr_configured(media_type, tier):
         return MatchResult(items=items)
 
     try:
         if media_type == "movie":
-            library = await movie_library(settings)
+            library = await movie_library(settings, tier)
             updated = [
                 item.model_copy(update={"status": _status_for(library[item.tmdb_id])})
                 if item.tmdb_id in library
@@ -168,13 +211,15 @@ async def apply_status(
                 for item in items
             ]
         else:
-            by_tvdb, by_title = await series_library(settings)
+            by_tvdb, by_title = await series_library(settings, tier)
             updated = []
             for item in items:
                 # Erst ueber die TVDB-Id, sonst ueber den normalisierten Titel.
                 entry = by_tvdb.get(item.tvdb_id) if item.tvdb_id else None
                 if entry is None:
-                    entry = by_title.get(normalize_title(item.title))
+                    entry = treffer_nach_titel(
+                        by_title, item.title, jahr_aus(item.release_date)
+                    )
                 updated.append(
                     item.model_copy(update={"status": _status_for(entry)}) if entry else item
                 )
@@ -184,14 +229,18 @@ async def apply_status(
     return MatchResult(items=updated)
 
 
-async def options(settings: AppSettings, media_type: str) -> dict[str, Any]:
+async def options(
+    settings: AppSettings, media_type: str, tier: str = "standard"
+) -> dict[str, Any]:
     """Qualitaetsprofile und Zielordner fuer die Auswahl beim Hinzufuegen."""
-    key = f"options:{media_type}"
+    key = f"options:{media_type}{_stufen_suffix(tier)}"
     cached = _read(key, OPTIONS_TTL_SECONDS)
     if cached is not None:
         return cached
 
-    client = radarr_client(settings) if media_type == "movie" else sonarr_client(settings)
+    client = (
+        radarr_client(settings, tier) if media_type == "movie" else sonarr_client(settings, tier)
+    )
     if client is None:
         raise ArrError(
             "Radarr ist noch nicht eingerichtet."
@@ -221,8 +270,34 @@ async def options(settings: AppSettings, media_type: str) -> dict[str, Any]:
     return result
 
 
+def treffer_nach_titel(
+    nach_titel: dict[str, SeriesEntry], titel: str, jahr: int | None
+) -> SeriesEntry | None:
+    """Serie ueber den Titel finden - aber nur bei passendem Jahr.
+
+    Der einzige erlaubte Weg zum Titel-Index. Frueher griff jede Fundstelle
+    direkt darauf zu, und Namensgleichheit genuegte; gemeldet wurde eine Serie
+    "Countdown" (1982), die dadurch die Folgen einer voellig anderen Serie
+    gleichen Namens erbte. Die Regel steht in ``sonarr.jahre_passen``.
+    """
+    eintrag = nach_titel.get(normalize_title(titel))
+    if eintrag is None:
+        return None
+    return eintrag if jahre_passen(jahr, eintrag.year) else None
+
+
+def jahr_aus(datum: str | None) -> int | None:
+    """Jahr aus einem Datum wie "1982-05-03"."""
+    vorn = (datum or "")[:4]
+    return int(vorn) if vorn.isdigit() else None
+
+
 async def episode_availability(
-    settings: AppSettings, tvdb_id: int | None, title: str
+    settings: AppSettings,
+    tvdb_id: int | None,
+    title: str,
+    tier: str = "standard",
+    jahr: int | None = None,
 ) -> dict[int, set[int]]:
     """Welche Folgen dieser Serie liegen schon vor?
 
@@ -231,20 +306,20 @@ async def episode_availability(
     eine leere Antwort zurueck - die Staffelliste zeigt dann eben nichts als
     vorhanden an, statt gar nicht zu erscheinen.
     """
-    client = sonarr_client(settings)
+    client = sonarr_client(settings, tier)
     if client is None:
         return {}
 
-    schluessel = f"episodes:{tvdb_id or title}"
+    schluessel = f"episodes:{tvdb_id or title}{_stufen_suffix(tier)}"
     zwischengespeichert = _read(schluessel, LIBRARY_TTL_SECONDS)
     if zwischengespeichert is not None:
         return {int(staffel): set(folgen) for staffel, folgen in zwischengespeichert.items()}
 
     try:
-        nach_tvdb, nach_titel = await series_library(settings)
+        nach_tvdb, nach_titel = await series_library(settings, tier)
         eintrag = nach_tvdb.get(tvdb_id) if tvdb_id else None
         if eintrag is None:
-            eintrag = nach_titel.get(normalize_title(title))
+            eintrag = treffer_nach_titel(nach_titel, title, jahr)
         if eintrag is None:
             _write(schluessel, {})
             return {}

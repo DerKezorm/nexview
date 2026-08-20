@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import MediaType, QuotaPeriod, RequestStatus
+from .models import MediaType, QualityTier, QuotaPeriod, RequestStatus
 
 
 class RequestCreate(BaseModel):
@@ -17,8 +17,14 @@ class RequestCreate(BaseModel):
     """
 
     media_type: MediaType
+    # Welche Instanz? Fehlt die Angabe, ist die Standard-Stufe gemeint - so
+    # bleiben aeltere Aufrufe und die Oberflaeche ohne 4K unveraendert gueltig.
+    tier: QualityTier = QualityTier.standard
     tmdb_id: int = Field(ge=1)
-    quality_profile_id: int = Field(ge=1)
+    # Darf nur fehlen, wenn der Entscheider das Ziel erst bei der Freigabe
+    # waehlt (``approver_picks_target``). Sonst lehnt der Dienst die Anfrage
+    # ab - ohne Profil koennte Radarr nichts damit anfangen.
+    quality_profile_id: int | None = Field(default=None, ge=1)
     # Darf fehlen: welcher Ordner tatsaechlich gilt, entscheidet der Server.
     # Hat der Administrator die Auswahl abgeschaltet, wird ein hier
     # mitgeschickter Wert bewusst ignoriert - sonst waere die Einstellung
@@ -47,6 +53,10 @@ class RequestPublic(BaseModel):
 
     id: int
     media_type: MediaType
+    # Welche Instanz? Steht an der Anfrage selbst, damit eine laufende
+    # 4K-Anfrage auch dann noch als solche erkennbar bleibt, wenn der
+    # Administrator die zweite Instanz wieder herausnimmt.
+    tier: QualityTier
     tmdb_id: int
     title: str
     poster_path: str | None

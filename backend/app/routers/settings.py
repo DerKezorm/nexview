@@ -46,10 +46,22 @@ class SettingsUpdate(BaseModel):
     default_series_profile_id: str | None = Field(default=None, max_length=12)
     # Duerfen Benutzer den Zielordner selbst waehlen? Wenn nicht, gilt der hier
     # hinterlegte fuer alle.
-    movie_root_folder_choice: bool | None = None
-    series_root_folder_choice: bool | None = None
+    # "user" | "fixed" | "approver" - wer waehlt den Zielordner?
+    movie_root_folder_mode: str | None = None
+    series_root_folder_mode: str | None = None
+    movie_profile_mode: str | None = None
+    series_profile_mode: str | None = None
     default_movie_root: str | None = Field(default=None, max_length=500)
     default_series_root: str | None = Field(default=None, max_length=500)
+    # --- Zweite Instanz fuer 4K ---------------------------------------------
+    radarr_uhd_url: str | None = Field(default=None, max_length=255)
+    radarr_uhd_api_key: str | None = Field(default=None, max_length=255)
+    sonarr_uhd_url: str | None = Field(default=None, max_length=255)
+    sonarr_uhd_api_key: str | None = Field(default=None, max_length=255)
+    default_movie_uhd_profile_id: str | None = Field(default=None, max_length=12)
+    default_series_uhd_profile_id: str | None = Field(default=None, max_length=12)
+    default_movie_uhd_root: str | None = Field(default=None, max_length=500)
+    default_series_uhd_root: str | None = Field(default=None, max_length=500)
     # Mailversand
     smtp_host: str | None = Field(default=None, max_length=255)
     smtp_port: int | None = Field(default=None, ge=1, le=65535)
@@ -116,6 +128,16 @@ class AppConfig(BaseModel):
     # Mail kommt nicht an. Die Oberflaeche sperrt den Knopf entsprechend.
     mail_configured: bool
     public_url_set: bool
+    # Entscheidet der Entscheider erst bei der Freigabe ueber Zielordner und
+    # Profil? Je Dienst, weil es je Dienst eingestellt wird. Gehoert hierher
+    # und nicht in die Admin-Einstellungen: auch ein gewoehnlicher Benutzer
+    # muss es wissen, um sein Formular richtig zu zeichnen.
+    approver_picks_target_movie: bool
+    approver_picks_target_tv: bool
+    # Gibt es eine zweite Instanz fuer 4K? Ohne sie bleibt die ganze Funktion
+    # in der Oberflaeche unsichtbar.
+    radarr_uhd_configured: bool
+    sonarr_uhd_configured: bool
 
 
 @router.get("/config", response_model=AppConfig)
@@ -131,12 +153,38 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         min_password_length=MIN_PASSWORD_LENGTH,
         mail_configured=settings.mail_configured,
         public_url_set=bool(settings.public_url),
+        approver_picks_target_movie=settings.approver_picks_target("movie"),
+        approver_picks_target_tv=settings.approver_picks_target("tv"),
+        radarr_uhd_configured=settings.radarr_uhd_configured,
+        sonarr_uhd_configured=settings.sonarr_uhd_configured,
     )
 
 
 @router.get("/settings")
 def read_settings(admin: AdminUser, db: DbSession) -> dict[str, object]:
     return public_settings(db)
+
+
+def _gleiche_adresse_ablehnen(db: DbSession, payload: SettingsUpdate) -> None:
+    """Standard- und 4K-Instanz duerfen nicht auf denselben Server zeigen."""
+    gespeichert = load_settings(db)
+    paare = (
+        ("Radarr", payload.radarr_url, gespeichert.radarr_url,
+         payload.radarr_uhd_url, gespeichert.radarr_uhd_url),
+        ("Sonarr", payload.sonarr_url, gespeichert.sonarr_url,
+         payload.sonarr_uhd_url, gespeichert.sonarr_uhd_url),
+    )
+    for name, neu_standard, alt_standard, neu_uhd, alt_uhd in paare:
+        standard = (neu_standard if neu_standard is not None else alt_standard).strip().rstrip("/")
+        uhd = (neu_uhd if neu_uhd is not None else alt_uhd).strip().rstrip("/")
+        if standard and uhd and standard.lower() == uhd.lower():
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Die 4K-Instanz von {name} hat dieselbe Adresse wie die normale. "
+                    "Es müssen zwei getrennte Server sein."
+                ),
+            )
 
 
 @router.put("/settings")
@@ -146,11 +194,76 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
             status_code=422,
             detail="Demo-Modus muss 'auto', 'on' oder 'off' sein.",
         )
+    for feld in (
+        "movie_root_folder_mode",
+        "series_root_folder_mode",
+        "movie_profile_mode",
+        "series_profile_mode",
+    ):
+        wert = getattr(payload, feld)
+        if wert is not None and wert not in ("user", "fixed", "approver"):
+            raise HTTPException(
+                status_code=422,
+                detail="Regel muss 'user', 'fixed' oder 'approver' sein.",
+            )
+
+    # Zielordner und Qualitaetsprofil haengen zusammen: Sobald **eines** von
+    # beiden der Entscheider setzt, wartet die ganze Anfrage auf ihn - sie
+    # waere sonst unvollstaendig bei Radarr gelandet (siehe
+    # ``AppSettings.approver_picks_target``). Das andere auf "der Benutzer
+    # waehlt" stehen zu lassen waere eine Einstellung ohne Wirkung: Der
+    # Betreiber setzt sie, und nichts passiert.
+    #
+    # Beide ziehen deshalb gemeinsam um - und zwar in beide Richtungen, sonst
+    # kaeme man aus "Entscheider" nie wieder heraus. Das steht hier und nicht
+    # nur in der Oberflaeche, damit die Datenbank keine Kombination enthaelt,
+    # die es in Wirklichkeit gar nicht gibt.
+    aktuell = load_settings(db)
+    for ordner_feld, profil_feld, art in (
+        ("movie_root_folder_mode", "movie_profile_mode", "movie"),
+        ("series_root_folder_mode", "series_profile_mode", "tv"),
+    ):
+        neu_ordner = getattr(payload, ordner_feld)
+        neu_profil = getattr(payload, profil_feld)
+        if neu_ordner is None and neu_profil is None:
+            continue
+
+        # Schickt der Aufrufer beide mit, muss er sie auch stimmig schicken.
+        # Stillschweigend etwas anderes zu speichern, als verlangt wurde, ist
+        # genau der Fehler, den diese Regel beheben soll.
+        if neu_ordner is not None and neu_profil is not None:
+            if (neu_ordner == "approver") != (neu_profil == "approver"):
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "Zielordner und Qualitätsprofil gehören zusammen: „Der "
+                        "Entscheider wählt“ gilt entweder für beide oder für keines."
+                    ),
+                )
+            continue
+
+        # Nur eines mitgeschickt: Der Aufrufer hat zum anderen keine Meinung -
+        # dann wird es nachgezogen.
+        gesetzt, offen = (
+            (neu_ordner, profil_feld) if neu_ordner is not None else (neu_profil, ordner_feld)
+        )
+        vorher = aktuell.profile_mode(art) if offen.endswith("profile_mode") else             aktuell.root_folder_mode(art)
+        if gesetzt == "approver":
+            setattr(payload, offen, "approver")
+        elif vorher == "approver":
+            # Weg von "Entscheider": Das Gegenstueck darf nicht dort haengen
+            # bleiben, sonst waere die neue Einstellung wieder wirkungslos.
+            setattr(payload, offen, gesetzt)
+
     if payload.smtp_security is not None and payload.smtp_security not in mail.SECURITY_MODES:
         raise HTTPException(
             status_code=422,
             detail="Verschlüsselung muss 'none', 'starttls' oder 'ssl' sein.",
         )
+    # Dieselbe Adresse fuer beide Stufen ist immer ein Versehen: Man traegt die
+    # 4K-Instanz ein, schreibt in Wahrheit weiter in die alte, und wundert sich,
+    # warum 4K nie ankommt. Lieber jetzt widersprechen als still danebengehen.
+    _gleiche_adresse_ablehnen(db, payload)
     if payload.smtp_from_address:
         if not mail.valid_address(payload.smtp_from_address):
             raise HTTPException(status_code=422, detail="Die Absenderadresse ist ungültig.")
@@ -174,7 +287,9 @@ def delete_secret(
         Literal[
             "tmdb_api_key",
             "radarr_api_key",
+            "radarr_uhd_api_key",
             "sonarr_api_key",
+            "sonarr_uhd_api_key",
             "smtp_password",
             "mediaserver_token",
         ],
@@ -355,26 +470,30 @@ async def send_test_mail(payload: TestMail, admin: AdminUser, db: DbSession) -> 
 
 @router.post("/settings/test/{service}", response_model=TestResult)
 async def test_arr(
-    service: Annotated[Literal["radarr", "sonarr"], Path()],
+    service: Annotated[
+        Literal["radarr", "sonarr", "radarr_uhd", "sonarr_uhd"], Path()
+    ],
     payload: ConnectionTest,
     admin: AdminUser,
     db: DbSession,
 ) -> TestResult:
-    """Verbindung zu Radarr bzw. Sonarr pruefen.
+    """Verbindung zu Radarr bzw. Sonarr pruefen - Standard- oder 4K-Instanz.
 
     Nutzt die uebergebenen Daten, falls sie noch nicht gespeichert sind -
     so kann man testen, bevor man speichert.
     """
     settings = load_settings(db)
-    is_radarr = service == "radarr"
-    label = "Radarr" if is_radarr else "Sonarr"
+    is_radarr = service.startswith("radarr")
+    tier = "uhd" if service.endswith("_uhd") else "standard"
+    label = ("Radarr" if is_radarr else "Sonarr") + (" 4K" if tier == "uhd" else "")
 
-    url = (payload.url or "").strip() or (
-        settings.radarr_url if is_radarr else settings.sonarr_url
+    gespeicherte_url, gespeicherter_key = settings.arr_endpoint(
+        "movie" if is_radarr else "tv", tier
     )
+    url = (payload.url or "").strip() or gespeicherte_url
     api_key = (payload.api_key or "").strip()
     if not api_key or api_key.startswith("•"):
-        api_key = settings.radarr_api_key if is_radarr else settings.sonarr_api_key
+        api_key = gespeicherter_key
 
     if not url or not api_key:
         return TestResult(ok=False, message=f"Adresse und API-Key für {label} fehlen noch.")
@@ -387,7 +506,8 @@ async def test_arr(
 
     # Verwechslung der beiden Adressen ist der haeufigste Einrichtungsfehler.
     reported = str(info.get("appName") or "").lower()
-    if reported and reported != service:
+    erwartet = "radarr" if is_radarr else "sonarr"
+    if reported and reported != erwartet:
         return TestResult(
             ok=False,
             message=f"Unter dieser Adresse antwortet {info.get('appName')}, nicht {label}.",

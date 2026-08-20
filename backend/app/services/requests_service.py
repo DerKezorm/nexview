@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..models import (
     MediaRequest,
     MediaType,
+    QualityTier,
     Notification,
     NotificationType,
     RequestStatus,
@@ -20,7 +21,6 @@ from ..models import (
 from ..schemas_media import MediaItem
 from . import blocklist, library, notify, quota
 from .arr import ArrError
-from .sonarr import normalize_title
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.requests")
@@ -57,18 +57,27 @@ class RequestError(Exception):
 
 
 def find_active(
-    db: Session, media_type: MediaType, tmdb_id: int, season: int | None = None
+    db: Session,
+    media_type: MediaType,
+    tmdb_id: int,
+    season: int | None = None,
+    tier: QualityTier = QualityTier.standard,
 ) -> MediaRequest | None:
-    """Laeuft zu diesem Titel schon eine Anfrage?
+    """Laeuft zu diesem Titel schon eine Anfrage *dieser Stufe*?
 
     Bei Serien zaehlt die Staffel mit: Staffel 3 anzufragen muss moeglich
     bleiben, obwohl Staffel 2 schon laeuft. Eine Anfrage ueber die **ganze**
     Serie deckt dagegen jede einzelne Staffel mit ab - sonst liesse sich
     dasselbe zweimal bestellen.
+
+    Die Stufe gehoert zwingend dazu: Derselbe Film in 1080p **und** in 4K ist
+    genau der Fall, um den es geht - das sind zwei Dateien in zwei Ordnern,
+    also zwei Anfragen. Zweimal dieselbe Stufe bleibt gesperrt.
     """
     bedingungen = [
         MediaRequest.media_type == media_type,
         MediaRequest.tmdb_id == tmdb_id,
+        MediaRequest.tier == tier,
         MediaRequest.status.in_(ACTIVE_STATUSES),
     ]
 
@@ -91,12 +100,19 @@ BADGE_FOR_STATUS = {
 
 
 def badges_for(
-    db: Session, media_type: MediaType, tmdb_ids: list[int]
+    db: Session,
+    media_type: MediaType,
+    tmdb_ids: list[int],
+    tier: QualityTier = QualityTier.standard,
 ) -> dict[int, str]:
     """Eigene Anfragen zu diesen Titeln - fuer die Badges auf den Kacheln.
 
     Ohne das saehe ein Titel, den jemand angefragt hat und der auf Freigabe
     wartet, fuer alle weiterhin wie "nicht angefragt" aus.
+
+    Je Stufe getrennt abgefragt: Eine laufende 4K-Anfrage darf das Abzeichen
+    der Standard-Fassung nicht ueberschreiben - sonst saehe ein Film, den nur
+    jemand in 4K angefragt hat, in 1080p faelschlich als angefragt aus.
     """
     if not tmdb_ids:
         return {}
@@ -105,6 +121,7 @@ def badges_for(
         select(MediaRequest).where(
             MediaRequest.media_type == media_type,
             MediaRequest.tmdb_id.in_(tmdb_ids),
+            MediaRequest.tier == tier,
             MediaRequest.status.in_(ACTIVE_STATUSES + (RequestStatus.failed,)),
         )
     )
@@ -139,6 +156,17 @@ def clear_pending_notice(db: Session, request: MediaRequest) -> None:
     ).delete(synchronize_session=False)
 
 
+def _nicht_eingerichtet(dienst: str, tier: QualityTier) -> str:
+    """Fehlertext, der die Stufe mitnennt.
+
+    Ohne den Zusatz stuende bei einer 4K-Anfrage "Radarr ist nicht
+    eingerichtet", obwohl das normale Radarr laeuft - und niemand kaeme darauf,
+    dass die *zweite* Instanz gemeint ist.
+    """
+    zusatz = " für 4K" if tier == QualityTier.uhd else ""
+    return f"{dienst}{zusatz} ist nicht eingerichtet."
+
+
 def requester_tag(username: str) -> str:
     """Etikett, das in Radarr/Sonarr zeigt, wer den Titel angefordert hat."""
     return f"nexview-{username.lower()}"
@@ -150,21 +178,23 @@ async def _sonarr_eintrag(settings: AppSettings, request: MediaRequest):
     Erst ueber die TVDB-Kennung, ersatzweise ueber den normalisierten Titel -
     fuer viele neue Serien kennt TMDB noch keine TVDB-Kennung.
     """
-    nach_tvdb, nach_titel = await library.series_library(settings)
+    nach_tvdb, nach_titel = await library.series_library(settings, request.tier.value)
     if request.tvdb_id:
         treffer = nach_tvdb.get(request.tvdb_id)
         if treffer is not None:
             return treffer
-    return nach_titel.get(normalize_title(request.title))
+    return library.treffer_nach_titel(
+        nach_titel, request.title, library.jahr_aus(request.release_date)
+    )
 
 
 async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest) -> MediaRequest:
     """Freigegebene Anfrage tatsaechlich an Radarr bzw. Sonarr uebergeben."""
     try:
         if request.media_type == MediaType.movie:
-            client = library.radarr_client(settings)
+            client = library.radarr_client(settings, request.tier.value)
             if client is None:
-                raise ArrError("Radarr ist nicht eingerichtet.")
+                raise ArrError(_nicht_eingerichtet("Radarr", request.tier))
             tag_id = await client.ensure_tag(requester_tag(request.user.username))
             created = await client.add(
                 request.tmdb_id,
@@ -173,9 +203,9 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
                 tag_ids=[tag_id] if tag_id else None,
             )
         else:
-            client = library.sonarr_client(settings)
+            client = library.sonarr_client(settings, request.tier.value)
             if client is None:
-                raise ArrError("Sonarr ist nicht eingerichtet.")
+                raise ArrError(_nicht_eingerichtet("Sonarr", request.tier))
             if not request.tvdb_id:
                 raise ArrError(
                     "Für diese Serie kennt TMDB noch keine TVDB-Kennung - "
@@ -231,8 +261,113 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
     return request
 
 
+async def _ziel_auswahl(
+    settings: AppSettings, media_type: str, tier: str = "standard"
+) -> tuple[list[str], list[int]]:
+    """Welche Zielordner und Qualitaetsprofile kennt Radarr bzw. Sonarr?
+
+    Eine Funktion fuer beide Listen, weil sie aus derselben Antwort stammen -
+    getrennt geholt waeren es zwei Abfragen fuer dieselben Daten.
+    """
+    try:
+        optionen = await library.options(settings, media_type, tier)
+    except ArrError as fehler:
+        raise RequestError(fehler.message, 502) from fehler
+
+    ordner = [
+        eintrag["path"] for eintrag in optionen.get("root_folders", []) if eintrag.get("path")
+    ]
+    profile = [
+        eintrag["id"] for eintrag in optionen.get("quality_profiles", []) if eintrag.get("id")
+    ]
+    return ordner, profile
+
+
+async def apply_target(
+    settings: AppSettings,
+    request: MediaRequest,
+    *,
+    root_folder_path: str | None = None,
+    quality_profile_id: int | None = None,
+) -> None:
+    """Zielordner und Qualitaetsprofil einer wartenden Anfrage nachtragen.
+
+    Gebraucht, wenn ``approver_picks_target`` gesetzt ist: Der Anfragende
+    laesst beides offen, erst der Entscheider fuellt es aus.
+
+    Was ankommt, wird gegen Radarr/Sonarr geprueft - ein selbstgebauter Aufruf
+    darf sich weder einen beliebigen Pfad auf dem Server noch ein unbekanntes
+    Profil aussuchen. Fehlt eine Angabe, wird **abgebrochen statt geraten**:
+    Auf den Standardordner auszuweichen waere genau der Fehler, den diese
+    Einstellung verhindern soll - der Titel laege dann im falschen Ordner,
+    ohne dass jemand es merkt.
+
+    Anders als ``resolve_root_folder`` fragt das hier **nicht** nach
+    ``root_folder_choice``: Der Schalter regelt, ob der *Anfragende* waehlen
+    darf. Der Entscheider darf immer.
+    """
+    art = request.media_type.value
+    ordner, profile = await _ziel_auswahl(settings, art, request.tier.value)
+
+    gewuenschter_ordner = root_folder_path or request.root_folder_path
+    if not gewuenschter_ordner:
+        raise RequestError("Bitte einen Zielordner für diese Anfrage wählen.", 422)
+    if gewuenschter_ordner not in ordner:
+        raise RequestError("Diesen Zielordner gibt es nicht.", 422)
+
+    gewuenschtes_profil = quality_profile_id or request.quality_profile_id
+    if not gewuenschtes_profil:
+        raise RequestError("Bitte ein Qualitätsprofil für diese Anfrage wählen.", 422)
+    # Leere Profilliste heisst "Radarr hat gerade nichts geliefert" - dann
+    # nicht auch noch das mitgeschickte Profil verwerfen.
+    if profile and gewuenschtes_profil not in profile:
+        raise RequestError("Dieses Qualitätsprofil gibt es nicht.", 422)
+
+    request.root_folder_path = gewuenschter_ordner
+    request.quality_profile_id = gewuenschtes_profil
+
+
+async def resolve_profile(
+    settings: AppSettings,
+    media_type: str,
+    gewuenscht: int | None,
+    tier: str = "standard",
+    darf_frei_waehlen: bool = False,
+) -> int:
+    """Welches Qualitaetsprofil gilt fuer diese Anfrage?
+
+    Spiegelbild zu ``resolve_root_folder``: Darf der Benutzer nicht waehlen,
+    gilt das vom Administrator gesetzte Profil - egal was mitgeschickt wurde.
+    Ein Aufruf am Formular vorbei soll sich keines aussuchen koennen.
+
+    Administratoren waehlen immer frei; sie stellen die Vorgabe hier ein und
+    muessten sonst an die eigene Einstellung nicht mehr heran.
+    """
+    _, bekannte = await _ziel_auswahl(settings, media_type, tier)
+
+    if not (settings.profile_choice(media_type) or darf_frei_waehlen):
+        vorgabe = settings.default_profile_id(media_type, tier)
+        if vorgabe and (not bekannte or vorgabe in bekannte):
+            return vorgabe
+        if bekannte:
+            return bekannte[0]
+        raise RequestError(
+            "Es ist noch kein Qualitätsprofil eingerichtet.", 409
+        )
+
+    if gewuenscht is None:
+        raise RequestError("Bitte ein Qualitätsprofil wählen.", 422)
+    if bekannte and gewuenscht not in bekannte:
+        raise RequestError("Dieses Qualitätsprofil gibt es nicht.", 422)
+    return gewuenscht
+
+
 async def resolve_root_folder(
-    settings: AppSettings, media_type: str, gewuenscht: str | None
+    settings: AppSettings,
+    media_type: str,
+    gewuenscht: str | None,
+    tier: str = "standard",
+    darf_frei_waehlen: bool = False,
 ) -> str:
     """Welcher Zielordner gilt fuer diese Anfrage?
 
@@ -247,14 +382,7 @@ async def resolve_root_folder(
     * Nichts mitgeschickt - dann der Standard des Administrators, ersatzweise
       der erste vorhandene Ordner.
     """
-    try:
-        vorhanden = [
-            eintrag["path"]
-            for eintrag in (await library.options(settings, media_type)).get("root_folders", [])
-            if eintrag.get("path")
-        ]
-    except ArrError as fehler:
-        raise RequestError(fehler.message, 502) from fehler
+    vorhanden, _ = await _ziel_auswahl(settings, media_type, tier)
 
     if not vorhanden:
         raise RequestError(
@@ -264,9 +392,14 @@ async def resolve_root_folder(
             409,
         )
 
-    standard = settings.default_root(media_type)
+    standard = settings.default_root(media_type, tier)
 
-    if not settings.root_folder_choice(media_type):
+    # ``darf_frei_waehlen`` ist fuer Administratoren gesetzt. Vorher wurde ihre
+    # Wahl hier stillschweigend verworfen, obwohl die Oberflaeche ihnen sehr
+    # wohl eine Auswahl anbot und der Hinweistext "Administratoren waehlen
+    # weiterhin frei" versprach - ein Widerspruch, der niemandem auffiel, weil
+    # am Ende einfach der Standardordner benutzt wurde.
+    if not (settings.root_folder_choice(media_type, tier) or darf_frei_waehlen):
         # Der eingestellte Ordner kann inzwischen aus Radarr/Sonarr verschwunden
         # sein - dann lieber der erste vorhandene als ein Fehlschlag beim
         # Hinzufuegen.
@@ -285,9 +418,10 @@ async def create_request(
     settings: AppSettings,
     user: User,
     item: MediaItem,
-    quality_profile_id: int,
+    quality_profile_id: int | None,
     root_folder_path: str | None = None,
     season: int | None = None,
+    tier: QualityTier = QualityTier.standard,
 ) -> MediaRequest:
     """Neue Anfrage anlegen - inklusive aller Vorpruefungen.
 
@@ -296,12 +430,49 @@ async def create_request(
     nachdem feststeht, dass Radarr bzw. Sonarr ueberhaupt eingerichtet sind.
     Sonst bekaeme jemand ohne eingerichteten Dienst einen Verbindungsfehler
     statt der verstaendlichen Meldung, dass noch nichts eingerichtet ist.
+
+    Ist ``approver_picks_target`` gesetzt, bleiben Ordner und Profil fuer
+    gewoehnliche Benutzer offen und werden erst bei der Freigabe gesetzt
+    (siehe ``apply_target``).
+
+    ``tier`` waehlt die Instanz. Das Recht dafuer wird **hier** geprueft, nicht
+    nur in der Oberflaeche: der fehlende Umschalter ist Bequemlichkeit, das
+    hier ist die Sperre.
     """
     media_type = MediaType(item.media_type)
     # Eine Staffel ergibt nur bei Serien Sinn - bei Filmen wird sie still
     # verworfen statt mit einem Fehler abgelehnt.
     if media_type != MediaType.tv:
         season = None
+
+    # 4K nur, wenn es dafuer auch eine Instanz gibt - und der Benutzer sie
+    # nutzen darf. Beides serverseitig, sonst waere das Recht Dekoration.
+    if tier == QualityTier.uhd:
+        if not user.may_request_uhd(media_type):
+            raise RequestError(
+                "Für 4K-Anfragen fehlt dir die Berechtigung. "
+                "Der Administrator kann sie freischalten.",
+                403,
+            )
+        if not settings.arr_configured(item.media_type, "uhd"):
+            raise RequestError(
+                _nicht_eingerichtet(
+                    "Radarr" if media_type == MediaType.movie else "Sonarr", tier
+                ),
+                409,
+            )
+
+    # Wer seine Mediathek in mehrere Ordner sortiert - etwa nach Genre - kann
+    # die Wahl nicht dem Anfragenden ueberlassen: der kennt die Struktur nicht.
+    # Dann faellt die Entscheidung erst bei der Freigabe.
+    #
+    # Entscheider und Administratoren sind ausgenommen: Sie waeren es, die bei
+    # der Freigabe waehlen wuerden - sie waehlen also gleich jetzt. Der Umweg
+    # ueber die eigene Warteschlange waere ein Klick, der nichts entscheidet,
+    # und er widerspraeche der Regel "wer freigeben darf, gibt sich selbst frei".
+    ziel_erst_bei_freigabe = (
+        settings.approver_picks_target(item.media_type) and not user.can_approve
+    )
 
     # Die Sperrliste zuerst - und mit klarer Ansage. Anders als bei der
     # Altersbeschraenkung wird hier nichts versteckt: der Titel ist ja
@@ -329,14 +500,14 @@ async def create_request(
 
     # Ohne Radarr/Sonarr koennte aus der Anfrage nie etwas werden. Lieber
     # gleich sagen als eine Anfrage anlegen, die spaeter ins Leere laeuft.
-    if media_type == MediaType.movie and not settings.radarr_configured:
+    if tier == QualityTier.standard and media_type == MediaType.movie and not settings.radarr_configured:
         raise RequestError(
             "Radarr ist noch nicht eingerichtet - Filme können deshalb nicht "
             "angefragt werden. Der Administrator trägt die Zugangsdaten unter "
             "Einstellungen ein.",
             409,
         )
-    if media_type == MediaType.tv and not settings.sonarr_configured:
+    if tier == QualityTier.standard and media_type == MediaType.tv and not settings.sonarr_configured:
         raise RequestError(
             "Sonarr ist noch nicht eingerichtet - Serien können deshalb nicht "
             "angefragt werden. Der Administrator trägt die Zugangsdaten unter "
@@ -344,7 +515,7 @@ async def create_request(
             409,
         )
 
-    existing = find_active(db, media_type, item.tmdb_id, season)
+    existing = find_active(db, media_type, item.tmdb_id, season, tier)
     if existing is not None:
         if season is not None and existing.season is None:
             raise RequestError(
@@ -362,7 +533,7 @@ async def create_request(
     # Bei einer einzelnen Staffel ist das kein Ausschluss: die Serie liegt
     # ja gerade deshalb schon da, weil die vorherigen Staffeln geladen sind.
     if season is None:
-        matched = await library.apply_status(settings, item.media_type, [item])
+        matched = await library.apply_status(settings, item.media_type, [item], tier.value)
         current = matched.items[0]
         if current.status in ("downloaded", "searching"):
             raise RequestError(
@@ -370,13 +541,49 @@ async def create_request(
                 409,
             )
 
-    if quality_profile_id in user.blocked_profiles(media_type):
-        raise RequestError(
-            "Dieses Qualitätsprofil ist für dich gesperrt. Bitte wähle ein anderes.",
-            403,
+    # Beide Pruefungen entfallen, wenn erst der Entscheider waehlt: Es gibt
+    # dann noch kein Profil zu sperren und keinen Ordner aufzuloesen. Die
+    # Pruefung holt das ``apply_target`` bei der Freigabe nach.
+    if not ziel_erst_bei_freigabe:
+        # Das Profil erst aufloesen, dann die Sperrliste pruefen: Waehlt der
+        # Benutzer gar nicht, kann ihm die Vorgabe des Administrators auch
+        # nicht "gesperrt" sein.
+        profil = await resolve_profile(
+            settings,
+            item.media_type,
+            quality_profile_id,
+            tier.value,
+            darf_frei_waehlen=user.is_admin,
         )
-
-    zielordner = await resolve_root_folder(settings, item.media_type, root_folder_path)
+        gesperrt = set(user.blocked_profiles(media_type, tier))
+        # Sind *alle* Profile gesperrt, bliebe dem Benutzer keines uebrig und
+        # er koennte gar nichts mehr anfragen - eine Sackgasse, aus der er
+        # selbst nicht herausfindet. Eine Sperrliste, die alles sperrt, ist
+        # offensichtlich nicht gemeint; sie wird dann ignoriert.
+        #
+        # Die Liste aller Profile wird nur geholt, wenn ueberhaupt etwas
+        # gesperrt ist. Ohne diese Bedingung stellte *jede* Anfrage eine
+        # zusaetzliche Abfrage an Radarr/Sonarr - fuer den Normalfall "nichts
+        # gesperrt", in dem die Antwort gar nicht gebraucht wird.
+        if gesperrt:
+            _, alle_profile = await _ziel_auswahl(settings, item.media_type, tier.value)
+            if alle_profile and gesperrt >= set(alle_profile):
+                gesperrt = set()
+        if settings.profile_choice(item.media_type) and profil in gesperrt:
+            raise RequestError(
+                "Dieses Qualitätsprofil ist für dich gesperrt. Bitte wähle ein anderes.",
+                403,
+            )
+        quality_profile_id = profil
+        zielordner = await resolve_root_folder(
+            settings,
+            item.media_type,
+            root_folder_path,
+            tier.value,
+            darf_frei_waehlen=user.is_admin,
+        )
+    else:
+        zielordner = None
 
     state = quota.state_for(db, user, media_type)
     if state.exhausted:
@@ -387,16 +594,19 @@ async def create_request(
             429,
         )
 
-    sofort = user.effective_auto_approve
+    # Ohne Ordner darf nichts durchrutschen: eine automatisch freigegebene
+    # Anfrage kaeme an keinem Entscheider vorbei, und genau der soll ja waehlen.
+    sofort = user.auto_approve_for(media_type, tier) and not ziel_erst_bei_freigabe
     request = MediaRequest(
         user_id=user.id,
         media_type=media_type,
+        tier=tier,
         tmdb_id=item.tmdb_id,
         tvdb_id=item.tvdb_id,
         title=item.title,
         poster_path=item.poster_url,
         release_date=item.release_date,
-        quality_profile_id=quality_profile_id,
+        quality_profile_id=None if ziel_erst_bei_freigabe else quality_profile_id,
         root_folder_path=zielordner,
         season=season,
         status=RequestStatus.approved if sofort else RequestStatus.pending_approval,
@@ -437,10 +647,12 @@ async def cancel(
         )
 
     if request.arr_id:
+        # Die Stufe der Anfrage entscheidet, aus welcher Instanz geloescht wird -
+        # sonst bliebe die 4K-Datei liegen, waehrend Nexview "abgebrochen" meldet.
         client = (
-            library.radarr_client(settings)
+            library.radarr_client(settings, request.tier.value)
             if request.media_type == MediaType.movie
-            else library.sonarr_client(settings)
+            else library.sonarr_client(settings, request.tier.value)
         )
         if client is not None:
             try:

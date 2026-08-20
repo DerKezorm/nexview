@@ -144,9 +144,9 @@ class SonarrAttrappe:
 async def _uebergeben(monkeypatch, serie_in_sonarr: LibraryEntry | None, season: int | None):
     """Eine Anfrage bis zur Uebergabe an Sonarr durchspielen."""
     attrappe = SonarrAttrappe()
-    monkeypatch.setattr(library, "sonarr_client", lambda _settings: attrappe)
+    monkeypatch.setattr(library, "sonarr_client", lambda _settings, _tier="standard": attrappe)
 
-    async def bibliothek(_settings):  # noqa: ANN001
+    async def bibliothek(_settings, _tier: str = "standard"):  # noqa: ANN001
         if serie_in_sonarr is None:
             return {}, {}
         return {555: serie_in_sonarr}, {}

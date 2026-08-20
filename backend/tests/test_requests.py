@@ -154,6 +154,25 @@ def test_gesperrtes_qualitaetsprofil_wird_abgelehnt(arr_client: TestClient) -> N
     assert "Qualitätsprofil" in antwort.json()["detail"]
 
 
+def test_alle_profile_gesperrt_wird_ignoriert(arr_client: TestClient) -> None:
+    """Wer alles sperrt, hat es nicht so gemeint.
+
+    Waeren wirklich alle Profile gesperrt, koennte dieser Benutzer gar nichts
+    mehr anfragen - und zwar ohne zu erfahren, warum. Eine Sperrliste, die
+    alles sperrt, wird deshalb ignoriert; mindestens ein Profil bleibt immer
+    waehlbar.
+    """
+    created = create_user(arr_client, "kim")
+    arr_client.patch(f"/api/users/{created['id']}", json={"blocked_movie_profiles": [1, 2]})
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+
+    # Die Auswahl liefert weiterhin Profile aus.
+    optionen = arr_client.get("/api/arr/movie/options", headers=headers).json()
+    assert len(optionen["quality_profiles"]) >= 1
+
+    assert _anfrage(arr_client, _first_demo(arr_client), headers).status_code == 201
+
+
 def test_nicht_gesperrtes_profil_geht_durch(arr_client: TestClient) -> None:
     """Ein Haken sperrt nur genau dieses Profil - alle anderen bleiben frei."""
     created = create_user(arr_client, "kim")

@@ -21,7 +21,7 @@ os.environ["NEXVIEW_SECRET_KEY"] = "test-secret-key-nur-fuer-tests"
 os.environ["NEXVIEW_DISABLE_POLLER"] = "true"
 
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import delete  # noqa: E402
+from sqlalchemy import delete, select  # noqa: E402
 
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.main import app  # noqa: E402
@@ -101,13 +101,34 @@ def arr_client(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> Tes
         },
     )
 
-    async def keine_filme(_settings: object) -> dict:
-        return {}
+    async def bibliothek(_settings: object, _tier: str = "standard") -> dict:
+        """Was in "Radarr" liegt: alles, was eine erledigte Anfrage hat.
 
-    async def keine_serien(_settings: object) -> tuple[dict, dict]:
+        Frueher war die Antwort einfach leer. Seit "Frisch geladen" den
+        Bestand nachprueft, waere das aber ein Zustand, den es echt nicht
+        gibt: ein fertig geladener Film, den die Bibliothek nie gesehen hat.
+        Die Attrappe spiegelt deshalb die Anfrage-Tabelle - geloescht wird in
+        Tests ueber ein monkeypatch auf ``library.movie_library``.
+        """
+        from app.models import MediaType, RequestStatus
+        from app.services.radarr import LibraryEntry
+
+        with SessionLocal() as sitzung:
+            kennungen = sitzung.scalars(
+                select(MediaRequest.tmdb_id).where(
+                    MediaRequest.media_type == MediaType.movie,
+                    MediaRequest.status == RequestStatus.downloaded,
+                )
+            ).all()
+        return {
+            kennung: LibraryEntry(arr_id=kennung, has_file=True, monitored=True)
+            for kennung in kennungen
+        }
+
+    async def keine_serien(_settings: object, _tier: str = "standard") -> tuple[dict, dict]:
         return {}, {}
 
-    async def optionen(_settings: object, _media_type: str) -> dict:
+    async def optionen(_settings: object, _media_type: str, _tier: str = "standard") -> dict:
         """Qualitaetsprofile und Zielordner, wie Radarr/Sonarr sie liefern wuerden.
 
         Wird beim Anlegen einer Anfrage gebraucht: der Server prueft dort, ob es
@@ -115,14 +136,20 @@ def arr_client(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> Tes
         jede Anfrage schon an der Verbindung.
         """
         return {
-            "quality_profiles": [{"id": 1, "name": "HD-1080p"}],
+            # Bewusst **zwei** Profile: Mit nur einem waere "dieses Profil sperren"
+            # dasselbe wie "alle sperren", und das ignoriert der Dienst - sonst
+            # koennte der Benutzer gar nichts mehr anfragen.
+            "quality_profiles": [
+                {"id": 1, "name": "HD-1080p"},
+                {"id": 2, "name": "SD-576p"},
+            ],
             "root_folders": [
                 {"path": "/data/Movies", "free_space": 1_000_000_000},
                 {"path": "/data/TV-Shows", "free_space": 1_000_000_000},
             ],
         }
 
-    monkeypatch.setattr(library, "movie_library", keine_filme)
+    monkeypatch.setattr(library, "movie_library", bibliothek)
     monkeypatch.setattr(library, "series_library", keine_serien)
     monkeypatch.setattr(library, "options", optionen)
     return admin_client

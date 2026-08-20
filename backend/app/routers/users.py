@@ -260,6 +260,10 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
     kuenftige_rolle = data.get("role", user.role)
     if kuenftige_rolle in (Role.admin, Role.approver):
         data.pop("auto_approve", None)
+        data.pop("auto_approve_movies", None)
+        data.pop("auto_approve_series", None)
+        # Dasselbe fuer 4K: wer freigeben darf, gibt sich auch dort selbst frei.
+        data.pop("auto_approve_uhd", None)
 
     # Die Altersbeschraenkung aufheben heisst NULL schreiben. ``None`` kann das
     # nicht ausdruecken - das bedeutet in ``exclude_unset`` bereits "nicht
@@ -269,7 +273,12 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
 
     for field, value in data.items():
         # Profil-Sperren liegen als Komma-Liste in der Datenbank.
-        if field in ("blocked_movie_profiles", "blocked_series_profiles"):
+        if field in (
+            "blocked_movie_profiles",
+            "blocked_series_profiles",
+            "blocked_movie_uhd_profiles",
+            "blocked_series_uhd_profiles",
+        ):
             value = ",".join(str(int(entry)) for entry in value or [])
         # Der leere String heisst "kein eigenes Land", dann gilt die Vorgabe.
         if field == "rating_region":

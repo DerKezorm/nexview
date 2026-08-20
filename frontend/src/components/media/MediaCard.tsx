@@ -10,6 +10,7 @@ import { FavoriteButton } from './FavoriteButton'
 import { RatingBadges } from './RatingBadges'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
+import { UhdBadge } from './UhdBadge'
 import { WatchedBadge } from './WatchedBadge'
 
 /**
@@ -135,6 +136,7 @@ export function MediaCard({
           <div className="absolute inset-x-2 top-2 flex flex-wrap items-start justify-between gap-1.5">
             <span className="flex flex-wrap items-start gap-1.5">
               <StatusBadge status={item.status} />
+              {item.status_uhd && <UhdBadge status={item.status_uhd} kompakt />}
               {badge}
             </span>
             <RatingBadge vote={item.vote_average} count={item.vote_count} />

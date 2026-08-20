@@ -23,7 +23,9 @@ SECRET_KEYS = frozenset(
     {
         "tmdb_api_key",
         "radarr_api_key",
+        "radarr_uhd_api_key",
         "sonarr_api_key",
+        "sonarr_uhd_api_key",
         "smtp_password",
         "mediaserver_token",
     }
@@ -41,9 +43,6 @@ DEFAULTS: dict[str, str] = {
     # Vorausgewaehltes Qualitaetsprofil beim Hinzufuegen ("" = keines).
     "default_movie_profile_id": "",
     "default_series_profile_id": "",
-    # Duerfen Benutzer den Zielordner selbst waehlen? Wenn nicht, gilt fuer
-    # alle der hier hinterlegte Ordner. Auf "on", damit sich fuer bestehende
-    # Installationen nichts aendert.
     # Duerfen Benutzer den Zielordner selbst waehlen? Je Dienst getrennt -
     # Filme und Serien haben unterschiedliche Ordnerstrukturen, und wer bei
     # Serien feste Pfade will, muss das nicht auch bei Filmen wollen.
@@ -52,11 +51,44 @@ DEFAULTS: dict[str, str] = {
     # beiden neuen sind absichtlich **leer** vorbelegt, und ein leerer Wert
     # laesst ``_flag`` den uebergebenen Standard nehmen. So behaelt eine
     # aktualisierte Installation genau die Einstellung, die sie vorher hatte.
+    # Wer waehlt den Zielordner? Eine Frage, drei Antworten, je Dienst:
+    #
+    #   "user"     - der Anfragende waehlt selbst
+    #   "fixed"    - fester Standardordner fuer alle
+    #   "approver" - erst der Entscheider waehlt, bei der Freigabe
+    #
+    # Vorher waren das zwei Ja/Nein-Schalter an zwei Stellen, die einander
+    # widersprechen konnten: "Benutzer duerfen waehlen" und "der Entscheider
+    # waehlt". Beide steuerten dasselbe Feld.
+    #
+    # Leer heisst "noch nicht gesetzt" - dann gilt der alte Ja/Nein-Schalter,
+    # damit eine aktualisierte Installation genau ihr bisheriges Verhalten
+    # behaelt.
+    "movie_root_folder_mode": "",  # "" | "user" | "fixed" | "approver"
+    "series_root_folder_mode": "",
+    # Dieselbe Frage fuer das Qualitaetsprofil. Bisher waehlte immer der
+    # Anfragende (eingeschraenkt durch die Sperrliste je Benutzer) - deshalb
+    # ist "user" hier der Rueckfallwert.
+    "movie_profile_mode": "",
+    "series_profile_mode": "",
+    # Die beiden alten Schluessel bleiben als Rueckfallwert stehen.
     "root_folder_choice": "on",  # "on" | "off" - nur noch Rueckfallwert
     "movie_root_folder_choice": "",
     "series_root_folder_choice": "",
     "default_movie_root": "",
     "default_series_root": "",
+    # --- Zweite Instanz fuer 4K/UHD ----------------------------------------
+    # Optional und vollstaendig unsichtbar, solange keine Adresse eingetragen
+    # ist. Bewusst flache Schluessel mit Suffix statt einer Instanz-Tabelle: es
+    # gibt genau zwei Stufen, und die zweite ist eine Kopie der ersten.
+    "radarr_uhd_url": "",
+    "radarr_uhd_api_key": "",
+    "sonarr_uhd_url": "",
+    "sonarr_uhd_api_key": "",
+    "default_movie_uhd_profile_id": "",
+    "default_series_uhd_profile_id": "",
+    "default_movie_uhd_root": "",
+    "default_series_uhd_root": "",
     # Demo-Modus: zeigt Beispieldaten statt echter TMDB-Abfragen. Praktisch,
     # um die Oberflaeche ohne API-Key auszuprobieren.
     "demo_mode": "auto",  # "auto" | "on" | "off"
@@ -119,10 +151,21 @@ class AppSettings:
     demo_mode: str
     default_movie_profile_id: int | None
     default_series_profile_id: int | None
-    movie_root_folder_choice: bool
-    series_root_folder_choice: bool
     default_movie_root: str
     default_series_root: str
+    # "user" | "fixed" | "approver" - siehe DEFAULTS.
+    movie_root_folder_mode: str
+    series_root_folder_mode: str
+    movie_profile_mode: str
+    series_profile_mode: str
+    radarr_uhd_url: str
+    radarr_uhd_api_key: str
+    sonarr_uhd_url: str
+    sonarr_uhd_api_key: str
+    default_movie_uhd_profile_id: int | None
+    default_series_uhd_profile_id: int | None
+    default_movie_uhd_root: str
+    default_series_uhd_root: str
     smtp_host: str
     smtp_port: int
     smtp_security: str
@@ -161,21 +204,66 @@ class AppSettings:
         """Vollstaendige Adresse fuer einen Link in einer E-Mail."""
         return f"{self.public_url.rstrip('/')}/{pfad.lstrip('/')}"
 
-    def default_root(self, media_type: str) -> str:
+    def default_root(self, media_type: str, tier: str = "standard") -> str:
         """Vom Administrator gesetzter Zielordner - leer, wenn keiner gesetzt ist."""
+        if tier == "uhd":
+            return (
+                self.default_movie_uhd_root
+                if media_type == "movie"
+                else self.default_series_uhd_root
+            )
         return (
             self.default_movie_root if media_type == "movie" else self.default_series_root
         )
 
-    def root_folder_choice(self, media_type: str) -> bool:
-        """Darf der Benutzer den Zielordner fuer diese Art selbst waehlen?"""
+    def root_folder_mode(self, media_type: str) -> str:
+        """Wer waehlt den Zielordner? ``user`` / ``fixed`` / ``approver``.
+
+        Bewusst **nicht** je Stufe: Wer den Ordner waehlen darf, ist eine Regel
+        des Hauses und keine Eigenschaft der Instanz. Die Ordner selbst sind je
+        Stufe verschieden - die Zustaendigkeit ist es nicht.
+        """
         return (
-            self.movie_root_folder_choice
+            self.movie_root_folder_mode
             if media_type == "movie"
-            else self.series_root_folder_choice
+            else self.series_root_folder_mode
         )
 
-    def default_profile_id(self, media_type: str) -> int | None:
+    def root_folder_choice(self, media_type: str, tier: str = "standard") -> bool:
+        """Darf der Benutzer den Zielordner fuer diese Art selbst waehlen?
+
+        ``tier`` bleibt in der Signatur, damit die Aufrufer unveraendert
+        bleiben - die Zustaendigkeit haengt aber nicht an der Stufe.
+        """
+        return self.root_folder_mode(media_type) == "user"
+
+    def profile_mode(self, media_type: str) -> str:
+        """Wer waehlt das Qualitaetsprofil? ``user`` / ``fixed`` / ``approver``."""
+        return (
+            self.movie_profile_mode if media_type == "movie" else self.series_profile_mode
+        )
+
+    def profile_choice(self, media_type: str) -> bool:
+        """Darf der Benutzer das Profil selbst waehlen?"""
+        return self.profile_mode(media_type) == "user"
+
+    def approver_picks_target(self, media_type: str) -> bool:
+        """Entscheidet erst der Entscheider - ueber Ordner **oder** Profil?
+
+        Sobald eines von beidem beim Entscheider liegt, muss die Anfrage warten:
+        Sie waere sonst unvollstaendig bei Radarr gelandet. Die Auto-Freigabe
+        ist damit fuer diesen Dienst hinfaellig - und genau das steht auch in
+        der Oberflaeche.
+        """
+        return "approver" in (self.root_folder_mode(media_type), self.profile_mode(media_type))
+
+    def default_profile_id(self, media_type: str, tier: str = "standard") -> int | None:
+        if tier == "uhd":
+            return (
+                self.default_movie_uhd_profile_id
+                if media_type == "movie"
+                else self.default_series_uhd_profile_id
+            )
         return (
             self.default_movie_profile_id
             if media_type == "movie"
@@ -193,6 +281,47 @@ class AppSettings:
     @property
     def sonarr_configured(self) -> bool:
         return bool(self.sonarr_url and self.sonarr_api_key)
+
+    @property
+    def radarr_uhd_configured(self) -> bool:
+        return bool(self.radarr_uhd_url and self.radarr_uhd_api_key)
+
+    @property
+    def sonarr_uhd_configured(self) -> bool:
+        return bool(self.sonarr_uhd_url and self.sonarr_uhd_api_key)
+
+    def arr_endpoint(self, media_type: str, tier: str = "standard") -> tuple[str, str]:
+        """Adresse und API-Key der zustaendigen Instanz.
+
+        **Die einzige Stelle im Code, die entscheidet, welche Instanz gilt.**
+        Alles andere reicht nur ``media_type`` und ``tier`` durch - so kann
+        keine Abzweigung vergessen werden.
+        """
+        if media_type == "movie":
+            return (
+                (self.radarr_uhd_url, self.radarr_uhd_api_key)
+                if tier == "uhd"
+                else (self.radarr_url, self.radarr_api_key)
+            )
+        return (
+            (self.sonarr_uhd_url, self.sonarr_uhd_api_key)
+            if tier == "uhd"
+            else (self.sonarr_url, self.sonarr_api_key)
+        )
+
+    def arr_configured(self, media_type: str, tier: str = "standard") -> bool:
+        """Ist die Instanz fuer diese Art und Stufe vollstaendig eingetragen?"""
+        url, key = self.arr_endpoint(media_type, tier)
+        return bool(url and key)
+
+    @property
+    def uhd_available(self) -> bool:
+        """Gibt es ueberhaupt eine 4K-Instanz?
+
+        Ist das False, bleibt die gesamte 4K-Funktion unsichtbar - kein Feld,
+        kein Abzeichen, keine zusaetzliche Abfrage.
+        """
+        return self.radarr_uhd_configured or self.sonarr_uhd_configured
 
     @property
     def mediaserver_configured(self) -> bool:
@@ -231,6 +360,35 @@ def _flag(wert: str, *, standard: bool) -> bool:
     if text in {"off", "false", "0", "no", "nein"}:
         return False
     return standard
+
+
+def _ordner_modus(values: dict[str, str], dienst: str) -> str:
+    """Wer waehlt den Zielordner - aus neuem Schluessel, sonst aus dem alten.
+
+    Bestandsinstallationen kennen nur das Ja/Nein "Benutzer duerfen waehlen".
+    Daraus wird ``user`` bzw. ``fixed``; ``approver`` gab es dort nicht. So
+    behaelt jede vorhandene Installation genau ihr bisheriges Verhalten, ohne
+    dass jemand etwas nachstellen muss.
+    """
+    roh = (values.get(f"{dienst}_root_folder_mode") or "").strip().lower()
+    if roh in ("user", "fixed", "approver"):
+        return roh
+
+    alt = _flag(
+        values.get(f"{dienst}_root_folder_choice", ""),
+        standard=_flag(values.get("root_folder_choice", "on"), standard=True),
+    )
+    return "user" if alt else "fixed"
+
+
+def _profil_modus(values: dict[str, str], dienst: str) -> str:
+    """Wer waehlt das Qualitaetsprofil?
+
+    Ohne gesetzten Wert gilt "user": So war es immer, und ein Update darf
+    niemandem stillschweigend die Auswahl entziehen.
+    """
+    roh = (values.get(f"{dienst}_profile_mode") or "").strip().lower()
+    return roh if roh in ("user", "fixed", "approver") else "user"
 
 
 def _zahl(wert: str | None) -> int | None:
@@ -284,16 +442,20 @@ def load_settings(db: Session) -> AppSettings:
         default_series_profile_id=profil("default_series_profile_id"),
         # Leer heisst "nichts Eigenes gesetzt" - dann gilt der alte gemeinsame
         # Schalter, damit ein Update nichts stillschweigend umstellt.
-        movie_root_folder_choice=_flag(
-            values["movie_root_folder_choice"],
-            standard=_flag(values["root_folder_choice"], standard=True),
-        ),
-        series_root_folder_choice=_flag(
-            values["series_root_folder_choice"],
-            standard=_flag(values["root_folder_choice"], standard=True),
-        ),
         default_movie_root=values["default_movie_root"].strip(),
         default_series_root=values["default_series_root"].strip(),
+        movie_root_folder_mode=_ordner_modus(values, "movie"),
+        series_root_folder_mode=_ordner_modus(values, "series"),
+        movie_profile_mode=_profil_modus(values, "movie"),
+        series_profile_mode=_profil_modus(values, "series"),
+        radarr_uhd_url=values["radarr_uhd_url"].strip().rstrip("/"),
+        radarr_uhd_api_key=values["radarr_uhd_api_key"],
+        sonarr_uhd_url=values["sonarr_uhd_url"].strip().rstrip("/"),
+        sonarr_uhd_api_key=values["sonarr_uhd_api_key"],
+        default_movie_uhd_profile_id=_zahl(values["default_movie_uhd_profile_id"]),
+        default_series_uhd_profile_id=_zahl(values["default_series_uhd_profile_id"]),
+        default_movie_uhd_root=values["default_movie_uhd_root"].strip(),
+        default_series_uhd_root=values["default_series_uhd_root"].strip(),
         smtp_host=values["smtp_host"].strip(),
         smtp_port=smtp_port,
         smtp_security=sicherheit if sicherheit in ("none", "starttls", "ssl") else "starttls",
@@ -387,10 +549,22 @@ def public_settings(db: Session) -> dict[str, object]:
         "using_demo_data": settings.use_demo_data,
         "default_movie_profile_id": settings.default_movie_profile_id,
         "default_series_profile_id": settings.default_series_profile_id,
-        "movie_root_folder_choice": settings.movie_root_folder_choice,
-        "series_root_folder_choice": settings.series_root_folder_choice,
+        "movie_root_folder_mode": settings.movie_root_folder_mode,
+        "series_root_folder_mode": settings.series_root_folder_mode,
+        "movie_profile_mode": settings.movie_profile_mode,
+        "series_profile_mode": settings.series_profile_mode,
         "default_movie_root": settings.default_movie_root,
         "default_series_root": settings.default_series_root,
+        "radarr_uhd_url": settings.radarr_uhd_url,
+        "radarr_uhd_api_key": mask(settings.radarr_uhd_api_key),
+        "radarr_uhd_api_key_set": bool(settings.radarr_uhd_api_key),
+        "sonarr_uhd_url": settings.sonarr_uhd_url,
+        "sonarr_uhd_api_key": mask(settings.sonarr_uhd_api_key),
+        "sonarr_uhd_api_key_set": bool(settings.sonarr_uhd_api_key),
+        "default_movie_uhd_profile_id": settings.default_movie_uhd_profile_id,
+        "default_series_uhd_profile_id": settings.default_series_uhd_profile_id,
+        "default_movie_uhd_root": settings.default_movie_uhd_root,
+        "default_series_uhd_root": settings.default_series_uhd_root,
         "smtp_host": settings.smtp_host,
         "smtp_port": settings.smtp_port,
         "smtp_security": settings.smtp_security,

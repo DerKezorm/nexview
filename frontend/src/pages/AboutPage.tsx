@@ -169,6 +169,22 @@ function Credits() {
 
       <div>
         <p className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
+          {t('about.inspiration')}
+        </p>
+        <ul className="mt-2 flex flex-col gap-2 text-sm">
+          <li>
+            <ExternalLink href="https://overseerr.dev">Overseerr</ExternalLink>
+            {' · '}
+            <ExternalLink href="https://github.com/Fallenbagel/jellyseerr">Jellyseerr</ExternalLink>
+            <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.overseerrNotice')}
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <p className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
           {t('about.dataSources')}
         </p>
         <ul className="mt-2 flex flex-col gap-2 text-sm">

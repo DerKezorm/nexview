@@ -9,6 +9,7 @@ import { Button } from '../ui'
 import { AddRequestForm } from './AddRequestForm'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
+import { UhdBadge } from './UhdBadge'
 import { WatchedBadge } from './WatchedBadge'
 import { useAuth } from '../../auth/useAuth'
 
@@ -68,8 +69,17 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
   // Siehe TitlePage: die Sperrliste bremst alle außer den Administrator.
   const istAdmin = user?.role === 'admin'
   const gesperrt = item?.status === 'blocked'
+  /**
+   * Die 4K-Fassung ist noch offen - dann muss der Knopf erscheinen, auch wenn
+   * die Standard-Fassung längst geladen ist. Genau darum geht es bei zwei
+   * Instanzen: derselbe Film einmal in 1080p und einmal in 4K.
+   *
+   * `status_uhd` liefert der Server nur, wenn es eine 4K-Instanz gibt **und**
+   * dieser Benutzer sie nutzen darf - die Prüfung steckt also schon darin.
+   */
+  const uhdOffen = item?.status_uhd === 'not_requested'
   const kannAnfragen =
-    item?.status === 'not_requested' || nurWeitereStaffel || (gesperrt && istAdmin)
+    item?.status === 'not_requested' || uhdOffen || nurWeitereStaffel || (gesperrt && istAdmin)
 
   /**
    * Steht eine Staffelauswahl bevor, muss der Knopf das ankündigen.
@@ -142,7 +152,8 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={item.status} />
-                {item.watched && <WatchedBadge />}
+              {item.status_uhd && <UhdBadge status={item.status_uhd} />}
+              {item.watched && <WatchedBadge />}
               <RatingBadge vote={item.vote_average} count={item.vote_count} />
             </div>
 

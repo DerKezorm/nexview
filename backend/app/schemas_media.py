@@ -125,6 +125,11 @@ class PersonCredit(BaseModel):
     # Filmografie ueberhaupt ein gesehener Titel vorkommt. Genau deshalb ist es
     # beim Testen erst nicht aufgefallen.
     watched: bool = False
+    # Und aus demselben Grund auch die zweite Achse: ``uhd.anreichern`` laeuft
+    # ueber dieselbe Funktion und setzt sie auf jedem Eintrag. Der Fall trat
+    # sofort auf, sobald eine 4K-Instanz eingerichtet war - dann scheitert
+    # *jede* Personenseite.
+    status_uhd: str | None = None
 
 
 class PersonSummary(BaseModel):
@@ -190,6 +195,13 @@ class MediaItem(BaseModel):
 
     # Zustand fuer das Badge auf der Kachel.
     status: str = "not_requested"
+
+    # Zweite Achse: derselbe Titel in der 4K-Instanz. Aus demselben Grund ein
+    # eigenes Feld wie bei ``watched`` weiter unten - "in 4K vorhanden" ist eine
+    # andere Frage als "vorhanden" und wuerde die Hauptachse sonst verdecken.
+    # ``None`` heisst "diese Achse gibt es hier nicht": kein zweites Radarr, oder
+    # der Benutzer darf kein 4K. Das ist der Normalfall.
+    status_uhd: str | None = None
 
     # Hat *der anfragende* Benutzer das schon gesehen? Bewusst ein eigenes Feld
     # und kein weiterer ``status``-Wert: "gesehen" ist eine andere Achse als
@@ -267,6 +279,10 @@ class ArrOptions(BaseModel):
     # der Server setzt den Ordner ohnehin selbst.
     default_root_folder: str | None = None
     root_folder_choice: bool = True
+    # Darf der Benutzer das Qualitaetsprofil waehlen? Wie beim Zielordner:
+    # ist es abgeschaltet, blendet die Oberflaeche das Feld aus und der Server
+    # setzt die Vorgabe selbst.
+    quality_profile_choice: bool = True
 
 
 class Genre(BaseModel):

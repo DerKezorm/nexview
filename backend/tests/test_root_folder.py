@@ -107,8 +107,8 @@ def ohne_auswahl(arr_client: TestClient) -> TestClient:
     arr_client.put(
         "/api/settings",
         json={
-            "movie_root_folder_choice": False,
-            "series_root_folder_choice": False,
+            "movie_root_folder_mode": "fixed",
+            "series_root_folder_mode": "fixed",
             "default_movie_root": SERIEN,
             "default_series_root": SERIEN,
         },
@@ -147,8 +147,8 @@ def test_getrennt_je_dienst(arr_client: TestClient, nutzer: dict[str, str]) -> N
     arr_client.put(
         "/api/settings",
         json={
-            "movie_root_folder_choice": True,
-            "series_root_folder_choice": False,
+            "movie_root_folder_mode": "user",
+            "series_root_folder_mode": "fixed",
             "default_series_root": SERIEN,
         },
     )
@@ -176,8 +176,8 @@ def test_alte_installation_behaelt_ihre_einstellung(arr_client: TestClient, nutz
         db.commit()
         settings = load_settings(db)
 
-    assert settings.movie_root_folder_choice is False
-    assert settings.series_root_folder_choice is False
+    assert settings.root_folder_mode("movie") == "fixed"
+    assert settings.root_folder_mode("tv") == "fixed"
 
 
 def test_admin_darf_weiterhin_waehlen(ohne_auswahl: TestClient) -> None:
@@ -215,7 +215,7 @@ def test_ohne_radarr_kommt_die_verstaendliche_meldung(admin_client: TestClient) 
 async def test_aufloesung_ohne_auswahl_erzwingt_den_standard(arr_client: TestClient) -> None:
     arr_client.put(
         "/api/settings",
-        json={"movie_root_folder_choice": False, "default_movie_root": SERIEN},
+        json={"movie_root_folder_mode": "fixed", "default_movie_root": SERIEN},
     )
     with SessionLocal() as db:
         settings = load_settings(db)

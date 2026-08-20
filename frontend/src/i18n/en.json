@@ -16,7 +16,8 @@
     "scrollLeft": "Scroll left",
     "scrollRight": "Scroll right",
     "movie": "Movie",
-    "edit": "Edit"
+    "edit": "Edit",
+    "seriesPlural": "Shows"
   },
   "nav": {
     "home": "Home",
@@ -207,7 +208,8 @@
     "seasonShort": "S{{number}}",
     "addSeason": "Request a season",
     "moreSeasonsHint": "This series is already tracked. You can request a single season - it is simply enabled in Sonarr on top.",
-    "chooseSeason": "Choose a season and request"
+    "chooseSeason": "Choose a season and request",
+    "targetLater": "Where the title goes and in which quality is decided by the approver when they approve it."
   },
   "home": {
     "greeting": "Welcome back, {{name}}",
@@ -382,7 +384,8 @@
     "filterFeedback": "Feedback",
     "emptyFeedback": "There is no unanswered feedback.",
     "alsoBlock": "Add title to the blocklist",
-    "alsoBlockHint": "Nobody can request it afterwards. It stays visible, but carries a “Blocked” badge. You can undo this any time under Settings → Blocklist."
+    "alsoBlockHint": "Nobody can request it afterwards. It stays visible, but carries a “Blocked” badge. You can undo this any time under Settings → Blocklist.",
+    "confirmApprove": "Approve and send"
   },
   "requests": {
     "cancel": "Cancel",
@@ -540,7 +543,20 @@
     "ageInvalid": "Please enter an age between 0 and 21.",
     "ageHint": "Only titles rated for this age or below are shown. The chosen country's rating decides; where it has none, the strictest rating of any country applies. Titles without any rating are hidden — that is roughly a third of movies and over four in ten shows. This only applies within Nexview: via Plex, Jellyfin or the file share everything remains reachable.",
     "hideUnrated": "Hide titles without an age rating",
-    "hideUnratedHint": "Recommended. Switched off, titles nobody knows anything about become visible too. Switched on, “Discover” is nearly empty, because new titles usually carry no rating yet."
+    "hideUnratedHint": "Recommended. Switched off, titles nobody knows anything about become visible too. Switched on, “Discover” is nearly empty, because new titles usually carry no rating yet.",
+    "autoApproveMovies": "Approve movies automatically",
+    "autoApproveSeries": "Approve shows automatically",
+    "autoApproveTargetLater": "the approver picks the folder – no effect",
+    "autoApproveTargetLaterMovies": "does not apply to movies – the approver picks there",
+    "autoApproveTargetLaterSeries": "does not apply to shows – the approver picks there",
+    "quotaAdmin": "always, for administrators",
+    "profilesByApprover": "The approver sets the quality profile on approval – a block list would have no effect here.",
+    "groupAdmins": "Administrators",
+    "groupApprovers": "Approvers",
+    "groupUsers": "Users",
+    "autoApproveTargetLaterFolder": "the approver picks the root folder – no effect",
+    "autoApproveTargetLaterProfile": "the approver picks the quality profile – no effect",
+    "autoApproveTargetLaterBoth": "the approver picks root folder and quality profile – no effect"
   },
   "notifications": {
     "title": "Notifications",
@@ -618,7 +634,8 @@
     "failed": "Failed",
     "cancelled": "Cancelled",
     "blocked": "Blocked",
-    "watched": "Watched"
+    "watched": "Watched",
+    "deleted": "Deleted again"
   },
   "settings": {
     "title": "Settings",
@@ -663,7 +680,31 @@
     "defaultRoot": "Default root folder",
     "defaultRootFirst": "First folder from Radarr/Sonarr",
     "defaultRootHint": "Everything goes there while the choice is switched off.",
-    "tabBlocklist": "Blocklist"
+    "tabBlocklist": "Blocklist",
+    "testRequired": "Test the connection first: {{dienste}}",
+    "nothingChanged": "Nothing changed.",
+    "instanceStandard": "Standard instance",
+    "rootFolderSection": "Root folder",
+    "rootFolderSectionHint": "Applies to the standard and the 4K instance alike – who may pick is a house rule, not a property of the instance.",
+    "instanceStandardHint": "The regular instance – everything not explicitly requested in 4K ends up here.",
+    "targetSection": "Quality profile and root folder",
+    "targetSectionHint": "Applies to the standard and the 4K instance alike – who may pick is a house rule, not a property of the instance.",
+    "profileMode": "Who picks the quality profile?",
+    "profileMode_user": "The requester picks",
+    "profileModeHint_user": "A list of profiles appears when requesting. Individual ones can be blocked per user.",
+    "profileMode_fixed": "One fixed profile",
+    "profileModeHint_fixed": "Users see no profile field; the one set below applies to everyone. Administrators still pick freely.",
+    "profileMode_approver": "The approver picks on approval",
+    "profileModeHint_approver": "The request arrives without a profile and waits for approval; it is picked there.",
+    "approverEndsAutoApprove": "Note: as soon as the profile or the root folder is left to the approver, no request for this service can go through automatically – it would be incomplete. Users’ auto-approval has no effect for this service; the stored setting is kept and applies again once you switch back. Anyone who may approve still picks when requesting.",
+    "rootFolderMode": "Who picks the root folder?",
+    "rootFolderMode_user": "The requester picks",
+    "rootFolderModeHint_user": "A list of the folders from Radarr or Sonarr appears when requesting.",
+    "rootFolderMode_fixed": "One fixed folder",
+    "rootFolderModeHint_fixed": "Users see no folder field; the folder set below applies to everyone. Administrators still pick freely.",
+    "rootFolderMode_approver": "The approver picks on approval",
+    "rootFolderModeHint_approver": "For libraries split across several folders — by genre, for example. Requests arrive without a folder or profile and always wait for approval; both are picked there. Anyone who may approve still picks when requesting.",
+    "targetPairCoupled": "Root folder and quality profile belong together: once the approver picks one of them, the request waits for them anyway – so they set the other one too. That is why it moved along."
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -704,7 +745,9 @@
     "justwatchNotice": "Source of the streaming availability on title pages (“Where to stream”). TMDB passes this data through from JustWatch.",
     "youtubeNotice": "Trailers play from there. TMDB only supplies the reference.",
     "builtWith": "Built with",
-    "ratingsNotice": "Their scores appear on films. Nexview does not fetch them directly; it takes them from Radarr, which supplies them with every movie. The trademarks belong to their respective owners."
+    "ratingsNotice": "Their scores appear on films. Nexview does not fetch them directly; it takes them from Radarr, which supplies them with every movie. The trademarks belong to their respective owners.",
+    "inspiration": "Inspiration",
+    "overseerrNotice": "Overseerr showed what a request interface for Radarr and Sonarr can look like – from the second 4K instance to matching against the media server. Nexview is an independent implementation and shares no source code, but owes Overseerr and Jellyseerr many of its ideas."
   },
   "watch": {
     "title": "Where to stream ({{region}})",
@@ -876,5 +919,19 @@
     "recipientHint": "Who is this ticket for? They will find it among their own and can reply.",
     "withUser": "with {{name}}",
     "recipientNone": "Please choose …"
+  },
+  "uhd": {
+    "open": "not requested yet",
+    "tier": "Quality tier",
+    "tierStandard": "Standard",
+    "tierUhd": "4K",
+    "tierBelegt": "This tier already has the title, or it is already requested.",
+    "section": "4K instance",
+    "sectionHint": "A second Radarr or Sonarr for 4K versions – with its own root folders and its own quality profiles. Leave it empty and none of this shows up anywhere.",
+    "canRequestMovies": "May request 4K movies",
+    "canRequestSeries": "May request 4K shows",
+    "autoApprove": "4K without approval",
+    "blockedProfiles": "Blocked 4K profiles",
+    "notConfigured": "No second instance is set up for 4K yet."
   }
 }

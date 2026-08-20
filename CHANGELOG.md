@@ -12,7 +12,84 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
-## 0.10.0 – in Arbeit
+## 0.10.0 – 20.08.2026
+
+### New
+
+- **A second Radarr/Sonarr for 4K.** Optional: enter a second instance under
+  Settings → Services → Radarr (or Sonarr) and the same title can be requested
+  once in 1080p and once in 4K — two files, two folders, two requests. Each
+  instance keeps its own root folders and quality profiles, and Nexview refuses
+  a profile or folder that does not belong to the chosen instance: the ids of
+  the two instances collide, and Radarr accepts an unknown one without
+  complaint. Per user there are three switches — request 4K movies, request 4K
+  shows, 4K without approval — all off by default, and the blocked-profile list
+  exists per instance. Cards gain a compact "4K" badge next to the usual one,
+  the request dialog a Standard/4K switch. Enter no second address and none of
+  this is visible anywhere.
+
+- **The approver can pick the root folder.** A new setting hands the choice of
+  root folder and quality profile to whoever approves a request, instead of the
+  person making it. Meant for libraries split across several folders — sorted by
+  genre, say — where the requester cannot know where a title belongs. Their
+  request then arrives without a folder and always waits for approval, even if
+  they normally have auto-approval; the approver picks both when approving, and
+  a bulk approval asks once per media type. Anyone who may approve still picks
+  when requesting: they would be the one deciding later anyway. Off by default —
+  with it off, nothing about requesting or approving changes.
+
+### Fixed
+
+- **A show could inherit another show's episodes.** Matching against Sonarr
+  fell back to the title alone whenever TMDB had no TVDB id — and a title is
+  not unique. Reported for "Countdown" (1982), which picked up a completely
+  different show of the same name in Sonarr and appeared as already downloaded,
+  green ticks on thirteen episodes included, although the server had never held
+  it. The fallback now also requires the year to match, with one year of
+  tolerance for first-broadcast dates that differ between databases; without a
+  year on either side the match is dropped. A missed title costs a duplicate
+  download, a wrong one removes a title from the catalogue for good and nobody
+  ever learns why.
+
+- **A file deleted from Radarr stayed "already downloaded" forever.** The state
+  of a request outranked the library, so a title removed from Radarr (or from
+  Radarr *and* the media server) kept its badge and could never be requested
+  again. Requests whose file has vanished now move to a state of their own,
+  "deleted again", and the title becomes requestable. Delete it only from
+  Radarr while keeping it in Plex and the badge stays — because it is still
+  true.
+
+- **A copy in the media server can now be told apart by resolution.** Plex
+  reports the resolution of every file it holds; Nexview did not record it and
+  therefore could not tell whether a copy outside Radarr was the 1080p or the
+  4K version. It is recorded now, which gives the 4K axis the media-server
+  fallback it never had. Where no second instance is configured, any copy still
+  counts — there is only one axis to answer for.
+
+- **The same film in two Plex libraries broke the whole sync.** Splitting 1080p
+  and 4K into separate libraries is a common setup, and Plex gives the same
+  film the same guid in both. The unique key rejected the second row and the
+  import aborted — leaving Nexview with *no* media-server titles at all and
+  showing a well-stocked library as entirely requestable. Both rows are now
+  merged into one title carrying both resolutions.
+
+- **A slow Radarr cost every page load fifteen seconds.** Nothing was recorded
+  on failure, so each request started the timeout over; with two instances on
+  one machine it added up and looked like "Radarr is not responding" although
+  Radarr was merely busy. A failed instance is now left alone for 30 seconds.
+
+- **"Recently downloaded" listed titles that were gone**, and the person page
+  answered with an error whenever a 4K instance existed.
+
+- **Root folder and quality profile now move together.** Setting one of them to
+  "the approver decides" always deferred *both* — a request waits for the
+  approver either way, and they then set both. The other setting was therefore
+  doing nothing at all, silently: found on a real installation where "root
+  folder: the requester picks" had no effect whatsoever for movies. Picking
+  "the approver decides" now switches the other one along, with a note saying
+  why, and switching back releases both. The server enforces the same pairing,
+  so the stored configuration can no longer describe a state that does not
+  exist.
 
 ---
 

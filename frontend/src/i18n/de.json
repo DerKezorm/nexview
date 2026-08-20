@@ -16,7 +16,8 @@
     "scrollLeft": "Nach links",
     "scrollRight": "Nach rechts",
     "movie": "Film",
-    "edit": "Bearbeiten"
+    "edit": "Bearbeiten",
+    "seriesPlural": "Serien"
   },
   "nav": {
     "home": "Startseite",
@@ -207,7 +208,8 @@
     "seasonShort": "St. {{number}}",
     "addSeason": "Staffel nachfordern",
     "moreSeasonsHint": "Die Serie läuft bereits mit. Du kannst eine einzelne Staffel nachfordern - sie wird in Sonarr nur zusätzlich aktiviert.",
-    "chooseSeason": "Staffel wählen und anfragen"
+    "chooseSeason": "Staffel wählen und anfragen",
+    "targetLater": "Wohin der Titel kommt und in welcher Qualität, legt der Entscheider bei der Freigabe fest."
   },
   "home": {
     "greeting": "Willkommen zurück, {{name}}",
@@ -382,7 +384,8 @@
     "filterFeedback": "Rückmeldungen",
     "emptyFeedback": "Es liegen keine unbeantworteten Rückmeldungen vor.",
     "alsoBlock": "Titel auf die Sperrliste setzen",
-    "alsoBlockHint": "Niemand kann ihn dann mehr anfragen. Sichtbar bleibt er, aber mit dem Abzeichen „Gesperrt“. Zurücknehmen kannst du das jederzeit unter Einstellungen → Sperrliste."
+    "alsoBlockHint": "Niemand kann ihn dann mehr anfragen. Sichtbar bleibt er, aber mit dem Abzeichen „Gesperrt“. Zurücknehmen kannst du das jederzeit unter Einstellungen → Sperrliste.",
+    "confirmApprove": "Freigeben und übergeben"
   },
   "requests": {
     "cancel": "Abbrechen",
@@ -540,7 +543,20 @@
     "ageInvalid": "Bitte ein Alter zwischen 0 und 21 angeben.",
     "ageHint": "Gezeigt wird nur, was höchstens ab diesem Alter freigegeben ist. Maßgeblich ist die Einstufung des gewählten Landes; fehlt sie, gilt die strengste aller Länder. Titel ganz ohne Einstufung werden ausgeblendet — das betrifft rund ein Drittel der Filme und gut vier Zehntel der Serien. Wirkt nur in Nexview: über Plex, Jellyfin oder direkt auf der Freigabe bleibt alles erreichbar.",
     "hideUnrated": "Titel ohne Altersfreigabe verbergen",
-    "hideUnratedHint": "Empfohlen. Ausgeschaltet sind auch Titel sichtbar, über deren Inhalt nichts bekannt ist. Eingeschaltet ist „Entdecken“ allerdings fast leer, weil neue Titel meist noch keine Einstufung haben."
+    "hideUnratedHint": "Empfohlen. Ausgeschaltet sind auch Titel sichtbar, über deren Inhalt nichts bekannt ist. Eingeschaltet ist „Entdecken“ allerdings fast leer, weil neue Titel meist noch keine Einstufung haben.",
+    "autoApproveMovies": "Filme automatisch freigeben",
+    "autoApproveSeries": "Serien automatisch freigeben",
+    "autoApproveTargetLater": "Zielordner wählt der Entscheider – wirkungslos",
+    "autoApproveTargetLaterMovies": "gilt nicht für Filme – dort wählt der Entscheider",
+    "autoApproveTargetLaterSeries": "gilt nicht für Serien – dort wählt der Entscheider",
+    "quotaAdmin": "Administratoren immer",
+    "profilesByApprover": "Das Qualitätsprofil legt der Entscheider bei der Freigabe fest – eine Sperrliste bliebe hier wirkungslos.",
+    "groupAdmins": "Administratoren",
+    "groupApprovers": "Entscheider",
+    "groupUsers": "Benutzer",
+    "autoApproveTargetLaterFolder": "Zielordner wählt der Entscheider – wirkungslos",
+    "autoApproveTargetLaterProfile": "Qualitätsprofil wählt der Entscheider – wirkungslos",
+    "autoApproveTargetLaterBoth": "Zielordner und Qualitätsprofil wählt der Entscheider – wirkungslos"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -618,7 +634,8 @@
     "failed": "Fehlgeschlagen",
     "cancelled": "Abgebrochen",
     "blocked": "Gesperrt",
-    "watched": "Gesehen"
+    "watched": "Gesehen",
+    "deleted": "Wieder gelöscht"
   },
   "settings": {
     "title": "Einstellungen",
@@ -663,7 +680,31 @@
     "defaultRoot": "Standard-Zielordner",
     "defaultRootFirst": "Erster Ordner aus Radarr/Sonarr",
     "defaultRootHint": "Dorthin landet alles, solange die Auswahl abgeschaltet ist.",
-    "tabBlocklist": "Sperrliste"
+    "tabBlocklist": "Sperrliste",
+    "testRequired": "Bitte zuerst die Verbindung prüfen: {{dienste}}",
+    "nothingChanged": "Nichts geändert.",
+    "instanceStandard": "Standard-Instanz",
+    "rootFolderSection": "Zielordner",
+    "rootFolderSectionHint": "Gilt für die Standard- und die 4K-Instanz gleichermaßen – wer wählen darf, ist eine Regel des Hauses und keine Eigenschaft der Instanz.",
+    "instanceStandardHint": "Die normale Instanz – hier landet alles, was nicht ausdrücklich in 4K angefragt wird.",
+    "targetSection": "Qualitätsprofil und Zielordner",
+    "targetSectionHint": "Gilt für die Standard- und die 4K-Instanz gleichermaßen – wer wählen darf, ist eine Regel des Hauses und keine Eigenschaft der Instanz.",
+    "profileMode": "Wer wählt das Qualitätsprofil?",
+    "profileMode_user": "Der Anfragende wählt selbst",
+    "profileModeHint_user": "Beim Anfragen erscheint eine Liste der Profile. Einzelne davon lassen sich je Benutzer sperren.",
+    "profileMode_fixed": "Festes Standardprofil",
+    "profileModeHint_fixed": "Benutzer sehen kein Profil-Feld; für alle gilt das unten eingestellte. Administratoren wählen weiterhin frei.",
+    "profileMode_approver": "Der Entscheider wählt bei der Freigabe",
+    "profileModeHint_approver": "Die Anfrage kommt ohne Profil herein und wartet auf eine Freigabe; erst dort wird es gewählt.",
+    "approverEndsAutoApprove": "Achtung: Sobald Profil oder Zielordner beim Entscheider liegen, kann für diesen Dienst keine Anfrage mehr automatisch durchgehen – sie wäre ja unvollständig. Die Auto-Freigabe der Benutzer ist damit für diesen Dienst wirkungslos; der gespeicherte Haken bleibt aber erhalten und gilt wieder, sobald du hier zurückstellst. Wer selbst freigeben darf, wählt weiterhin gleich beim Anfragen.",
+    "rootFolderMode": "Wer wählt den Zielordner?",
+    "rootFolderMode_user": "Der Anfragende wählt selbst",
+    "rootFolderModeHint_user": "Beim Anfragen erscheint eine Liste der Ordner aus Radarr bzw. Sonarr.",
+    "rootFolderMode_fixed": "Fester Standardordner",
+    "rootFolderModeHint_fixed": "Benutzer sehen kein Ordner-Feld; für alle gilt der unten eingestellte Ordner. Administratoren wählen weiterhin frei.",
+    "rootFolderMode_approver": "Der Entscheider wählt bei der Freigabe",
+    "rootFolderModeHint_approver": "Für Mediatheken, die in mehrere Ordner sortiert sind – etwa nach Genre. Anfragen kommen ohne Ordner und ohne Profil herein und warten immer auf eine Freigabe; erst dort wird beides gewählt. Wer selbst freigeben darf, wählt weiterhin gleich beim Anfragen.",
+    "targetPairCoupled": "Zielordner und Qualitätsprofil hängen zusammen: Sobald eines davon der Entscheider setzt, wartet die Anfrage ohnehin auf ihn – dann setzt er auch das andere. Deshalb wurde es mitumgestellt."
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -704,7 +745,9 @@
     "justwatchNotice": "Quelle der Streaming-Verfügbarkeit auf den Detailseiten („Wo streambar“). TMDB reicht diese Daten von JustWatch durch.",
     "youtubeNotice": "Trailer werden von dort abgespielt. TMDB liefert nur den Verweis.",
     "builtWith": "Gebaut mit",
-    "ratingsNotice": "Ihre Wertungen erscheinen bei Filmen. Nexview holt sie nicht selbst dort ab, sondern übernimmt sie aus Radarr, das sie zu jedem Film mitliefert. Die Marken gehören den jeweiligen Anbietern."
+    "ratingsNotice": "Ihre Wertungen erscheinen bei Filmen. Nexview holt sie nicht selbst dort ab, sondern übernimmt sie aus Radarr, das sie zu jedem Film mitliefert. Die Marken gehören den jeweiligen Anbietern.",
+    "inspiration": "Vorbild",
+    "overseerrNotice": "Overseerr hat gezeigt, wie eine Anfrage-Oberfläche für Radarr und Sonarr aussehen kann – von der zweiten 4K-Instanz bis zum Abgleich mit dem Media-Server. Nexview ist eine eigenständige Neuentwicklung und übernimmt keinen Quelltext, verdankt Overseerr und Jellyseerr aber viele Ideen."
   },
   "watch": {
     "title": "Wo streambar ({{region}})",
@@ -876,5 +919,19 @@
     "recipientHint": "An wen geht das Ticket? Der Empfänger sieht es unter seinen eigenen und kann antworten.",
     "withUser": "mit {{name}}",
     "recipientNone": "Bitte wählen …"
+  },
+  "uhd": {
+    "open": "noch nicht angefragt",
+    "tier": "Qualitätsstufe",
+    "tierStandard": "Standard",
+    "tierUhd": "4K",
+    "tierBelegt": "In dieser Stufe liegt der Titel schon vor oder ist bereits angefragt.",
+    "section": "4K-Instanz",
+    "sectionHint": "Ein zweites Radarr bzw. Sonarr für 4K-Fassungen – mit eigenen Zielordnern und eigenen Qualitätsprofilen. Bleibt das Feld leer, ist von der ganzen Funktion nichts zu sehen.",
+    "canRequestMovies": "Darf 4K-Filme anfragen",
+    "canRequestSeries": "Darf 4K-Serien anfragen",
+    "autoApprove": "4K ohne Freigabe",
+    "blockedProfiles": "Gesperrte 4K-Profile",
+    "notConfigured": "Für 4K ist noch keine zweite Instanz eingerichtet."
   }
 }

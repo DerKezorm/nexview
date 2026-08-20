@@ -32,6 +32,8 @@ was bereits in deiner Bibliothek liegt, und stößt Downloads über **Radarr** (
 | 🔎 **Filtern & suchen** | Nach Zeitraum, Sprache, Region, Genre, Bewertung und Studio; Kachel- oder Listenansicht |
 | 📄 **Detailseiten** | Besetzung mit Fotos, Regie, Studios, Schlagworte, Empfehlungen, Trailer — bei Serien alle Staffeln zum Aufklappen |
 | ⬇️ **Anfragen** | Qualitätsprofil und Zielordner wählen, dann direkt an Radarr/Sonarr — bei Serien auch einzelne Staffeln |
+| 📁 **Ordner erst bei der Freigabe** | Für Mediatheken, die in mehrere Ordner sortiert sind: Auf Wunsch wählt nicht der Anfragende, sondern der Entscheider Zielordner und Profil |
+| 🎞️ **Zweite Instanz für 4K** | Optional ein zweites Radarr/Sonarr: derselbe Titel einmal in 1080p und einmal in 4K, mit eigenen Ordnern, eigenen Profilen und eigenen Rechten je Benutzer |
 | 🏷️ **Status auf einen Blick** | „Nicht angefragt", „Angefragt", „Wird gesucht", „Bereits geladen", „Gesperrt" |
 | ⭐ **Bewertungen** | IMDb, Rotten Tomatoes und Metacritic bei Filmen, anklickbar — ohne weiteren Dienst |
 | ❤️ **Favoriten** | Titel mit dem Herz markieren; daraus entsteht „Für dich kuratiert" auf der Startseite |
@@ -292,6 +294,11 @@ Server verbunden ist. Nexview ist weder von Plex unterstützt noch mit Plex verb
 
 Die Downloads besorgen **Radarr** und **Sonarr**; die Wertungen kommen von **IMDb**,
 **Rotten Tomatoes** und **Metacritic**, die Streaming-Verfügbarkeit von **JustWatch**.
+
+Als Vorbild diente **[Overseerr](https://overseerr.dev)** (und **[Jellyseerr](https://github.com/Fallenbagel/jellyseerr)**):
+Von dort stammt die Idee, wie eine Anfrage-Oberfläche für Radarr und Sonarr aussehen kann — von der
+zweiten Instanz für 4K bis zum Abgleich mit dem Media-Server. Nexview ist eine eigenständige
+Neuentwicklung und übernimmt keinen Quelltext, verdankt beiden Projekten aber viele Ideen.
 
 ---
 

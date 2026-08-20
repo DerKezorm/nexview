@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus
 from app.routers import home
-from app.services import media
+from app.services import library, media
 
 from .conftest import auth_headers, create_user
 
@@ -184,3 +184,63 @@ def test_film_favoriten_zaehlen_weiterhin(client: TestClient, arr_client: TestCl
 
     _favorit(client, "movie", 9800, headers)
     assert client.get("/api/home/curated", headers=headers).json()["has_favorites"] is True
+
+
+@pytest.mark.asyncio
+async def test_serien_verschwinden_nicht_aus_frisch_geladen(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Eine fertige Serie muss in "Frisch geladen" stehen bleiben.
+
+    Der Bereich prueft neuerdings nach, ob die Datei ueberhaupt noch da ist.
+    Dafuer baut er Kacheln aus den Anfragen - und beim ersten Anlauf ohne
+    TVDB-Kennung und ohne Jahr. Serien werden aber genau darueber abgeglichen
+    (TVDB, sonst Titel **und** Jahr): Ohne beides fand der Abgleich keine
+    einzige Serie, und der Bereich liess sie alle stillschweigend weg.
+    """
+    from app.services.sonarr import LibraryEntry as SeriesEntry
+
+    create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+    item = arr_client.get("/api/discover/tv").json()["items"][0]
+    antwort = arr_client.post(
+        "/api/requests",
+        json={
+            "media_type": "tv",
+            "tmdb_id": item["tmdb_id"],
+            "quality_profile_id": 1,
+            "root_folder_path": "/data/TV-Shows",
+        },
+        headers=headers,
+    )
+    assert antwort.status_code == 201, antwort.json()
+    _fertig(antwort.json()["id"])
+
+    with SessionLocal() as sitzung:
+        anfrage = sitzung.query(MediaRequest).filter(MediaRequest.media_type == MediaType.tv).one()
+        titel = anfrage.title
+        jahr = int((anfrage.release_date or "2020")[:4])
+
+    schluessel = "".join(c for c in titel.casefold() if c.isalnum())
+    eintrag = SeriesEntry(
+        arr_id=99,
+        has_file=True,
+        monitored=True,
+        episode_file_count=5,
+        episode_count=5,
+        title_key=schluessel,
+        year=jahr,
+    )
+
+    async def bibliothek(_settings: object, _tier: str = "standard") -> tuple[dict, dict]:
+        # Nur ueber den Titel auffindbar - so wie bei einer Serie, fuer die
+        # TMDB keine TVDB-Kennung kennt.
+        return {}, {schluessel: eintrag}
+
+    monkeypatch.setattr(library, "series_library", bibliothek)
+
+    eintraege = arr_client.get("/api/home/recent").json()
+    titel_liste = [e["title"] for e in eintraege]
+    assert titel in titel_liste, (
+        f"Die Serie {titel!r} fehlt in 'Frisch geladen' - gefunden: {titel_liste}"
+    )

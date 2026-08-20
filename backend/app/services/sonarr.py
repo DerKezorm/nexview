@@ -23,11 +23,35 @@ class LibraryEntry:
     episode_file_count: int
     episode_count: int
     title_key: str  # normalisierter Titel als Rueckfallweg
+    # Nur fuer den Titel-Rueckfall: Ohne Jahr trifft "Countdown" (1982) jede
+    # andere Serie desselben Namens - samt deren Folgen. Siehe jahre_passen.
+    year: int | None = None
 
 
 def normalize_title(title: str) -> str:
     """Titel auf einen vergleichbaren Kern reduzieren."""
     return "".join(character for character in title.casefold() if character.isalnum())
+
+
+def jahre_passen(gesucht: int | None, gefunden: int | None) -> bool:
+    """Gehoeren die beiden Jahresangaben plausibel zusammen?
+
+    Gebraucht ueberall dort, wo ueber den **Titel** abgeglichen wird - und das
+    ist bei Serien der Regelfall, weil TMDB fuer viele Serien keine TVDB-Id
+    kennt. Ohne diese Pruefung reicht Namensgleichheit: Gemeldet wurde
+    "Countdown" (1982), das in Sonarr eine voellig andere Serie traf und samt
+    deren Folgenliste als "bereits geladen" erschien.
+
+    Ein Jahr Abweichung ist erlaubt: Erstausstrahlung und Serienstart nach
+    Zaehlweise der jeweiligen Datenbank fallen oft auseinander. Fehlt eine der
+    beiden Angaben, wird der Treffer verworfen - lieber einen vorhandenen Titel
+    uebersehen als einen falschen behaupten. Ein uebersehener kostet einen
+    doppelten Download, ein falscher nimmt einen Titel dauerhaft aus dem
+    Angebot, ohne dass jemand den Grund sieht.
+    """
+    if gesucht is None or gefunden is None:
+        return False
+    return abs(gesucht - gefunden) <= 1
 
 
 class SonarrClient(ArrClient):
@@ -54,6 +78,7 @@ class SonarrClient(ArrClient):
                 episode_file_count=file_count,
                 episode_count=int(statistics.get("episodeCount") or 0),
                 title_key=normalize_title(show.get("title") or ""),
+                year=show.get("year") if isinstance(show.get("year"), int) else None,
             )
 
             tvdb_id = show.get("tvdbId")

@@ -97,8 +97,13 @@ class UserPublic(BaseModel):
     theme: str
     is_active: bool
     auto_approve: bool
+    # Je Medienart gesetzt; None heisst "es gilt der alte gemeinsame Haken".
+    auto_approve_movies: bool | None
+    auto_approve_series: bool | None
     # Was tatsaechlich gilt - bei Administratoren immer true.
     effective_auto_approve: bool
+    effective_auto_approve_movies: bool
+    effective_auto_approve_series: bool
     can_approve: bool
     quota_movies_limit: int | None
     quota_series_limit: int | None
@@ -107,6 +112,13 @@ class UserPublic(BaseModel):
     quota_reset_at: datetime | None
     blocked_movie_profiles: list[int]
     blocked_series_profiles: list[int]
+    # --- 4K -----------------------------------------------------------------
+    can_request_uhd_movies: bool
+    can_request_uhd_series: bool
+    auto_approve_uhd: bool
+    effective_auto_approve_uhd: bool
+    blocked_movie_uhd_profiles: list[int]
+    blocked_series_uhd_profiles: list[int]
     avatar_url: str | None
     created_at: datetime
     last_login_at: datetime | None
@@ -140,7 +152,13 @@ class UserPublic(BaseModel):
     rating_region: str | None
     hide_unrated: bool
 
-    @field_validator("blocked_movie_profiles", "blocked_series_profiles", mode="before")
+    @field_validator(
+        "blocked_movie_profiles",
+        "blocked_series_profiles",
+        "blocked_movie_uhd_profiles",
+        "blocked_series_uhd_profiles",
+        mode="before",
+    )
     @classmethod
     def _split_profiles(cls, value: object) -> object:
         """In der Datenbank steht eine Komma-Liste, nach aussen eine echte Liste."""
@@ -197,12 +215,20 @@ class UserUpdate(BaseModel):
     language: str | None = None
     is_active: bool | None = None
     auto_approve: bool | None = None
+    auto_approve_movies: bool | None = None
+    auto_approve_series: bool | None = None
     quota_movies_limit: int | None = Field(default=None, ge=0)
     quota_series_limit: int | None = Field(default=None, ge=0)
     quota_period: QuotaPeriod | None = None
     # Leere Liste bedeutet: alle Qualitaetsprofile erlaubt.
     blocked_movie_profiles: list[int] | None = None
     blocked_series_profiles: list[int] | None = None
+    # --- 4K -----------------------------------------------------------------
+    can_request_uhd_movies: bool | None = None
+    can_request_uhd_series: bool | None = None
+    auto_approve_uhd: bool | None = None
+    blocked_movie_uhd_profiles: list[int] | None = None
+    blocked_series_uhd_profiles: list[int] | None = None
 
     # Altersbeschraenkung - ausschliesslich hier, nie in ``ProfileUpdate``.
     # -1 hebt die Beschraenkung wieder auf; ``None`` hiesse ja nur "nicht

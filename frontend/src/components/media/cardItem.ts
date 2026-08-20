@@ -18,32 +18,34 @@ import type {
   MediaStatus,
   MediaType,
   PersonCredit,
-} from '../../api/types'
+} from "../../api/types";
 
 export type CardItem = {
-  media_type: MediaType
-  tmdb_id: number
-  title: string
-  poster_url: string | null
-  release_date: string | null
+  media_type: MediaType;
+  tmdb_id: number;
+  title: string;
+  poster_url: string | null;
+  release_date: string | null;
   /** TMDB-Wertung; 0 heißt "noch keine". */
-  vote_average: number
+  vote_average: number;
   /**
    * Wie viele Stimmen dahinterstehen – oder `undefined`, wenn die Quelle das
    * nicht mitliefert (Filmografien etwa). Eine 0 bedeutet dagegen wirklich
    * "noch niemand hat bewertet", und nur dann zeigt die Kachel einen Strich.
    */
-  vote_count?: number
-  status: MediaStatus
+  vote_count?: number;
+  status: MediaStatus;
+  /** Zustand in der 4K-Instanz; `null`/fehlt = keine zweite Instanz. */
+  status_uhd?: MediaStatus | null;
   /** Hat der angemeldete Benutzer das schon gesehen? */
-  watched: boolean
-  genres: string[]
-  runtime_minutes: number | null
-  certification: string | null
-  overview: string
+  watched: boolean;
+  genres: string[];
+  runtime_minutes: number | null;
+  certification: string | null;
+  overview: string;
   /** Nur bei Filmografien: die Rolle bzw. "Regie"/"Drehbuch". */
-  character?: string
-}
+  character?: string;
+};
 
 export function fromMediaItem(item: MediaItem): CardItem {
   return {
@@ -55,12 +57,13 @@ export function fromMediaItem(item: MediaItem): CardItem {
     vote_average: item.vote_average,
     vote_count: item.vote_count,
     status: item.status,
+    status_uhd: item.status_uhd,
     watched: item.watched ?? false,
     genres: item.genres,
     runtime_minutes: item.runtime_minutes,
     certification: item.certification,
     overview: item.overview,
-  }
+  };
 }
 
 /**
@@ -79,13 +82,17 @@ export function fromPersonCredit(credit: PersonCredit): CardItem {
     release_date: credit.release_date,
     vote_average: credit.vote_average,
     status: credit.status,
+    // Wie `watched`: Der Server liefert die zweite Achse auch auf einem
+    // Filmografie-Eintrag. Wird sie hier nicht weitergereicht, steht auf der
+    // Personenseite "Nicht angefragt" an einem Film, den es in 4K gibt.
+    status_uhd: credit.status_uhd,
     watched: credit.watched ?? false,
     genres: [],
     runtime_minutes: null,
     certification: null,
-    overview: '',
+    overview: "",
     character: credit.character,
-  }
+  };
 }
 
 /**
@@ -115,7 +122,7 @@ export function fromCalendarEntry(eintrag: CalendarEntry): CardItem {
     certification: eintrag.certification,
     overview: eintrag.overview,
     character: eintrag.episode_label ?? undefined,
-  }
+  };
 }
 
 /**
@@ -134,11 +141,11 @@ export function fromFavorite(eintrag: Favorite): CardItem {
     release_date: null,
     vote_average: 0,
     vote_count: 0,
-    status: 'not_requested',
+    status: "not_requested",
     watched: false,
     genres: [],
     runtime_minutes: null,
     certification: null,
-    overview: '',
-  }
+    overview: "",
+  };
 }

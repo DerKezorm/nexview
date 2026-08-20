@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 
 from ..deps import CurrentUser, DbSession
 from ..mocks import demo_data
-from ..models import MediaType
+from ..models import MediaType, QualityTier
 from ..schemas_media import ArrOptions, Genre, MediaItem, MediaPage
 from ..services import (
     blocklist,
@@ -18,6 +18,7 @@ from ..services import (
     mediaserver_watched,
     requests_service,
 )
+from ..services import uhd
 from ..services.arr import ArrError
 from ..services.filters import (
     KNOWN_TITLES_MIN_VOTES,
@@ -75,7 +76,18 @@ async def _status_for(
     # Nur fuer Titel, die Radarr/Sonarr *nicht* kennt - alles andere hat schon
     # einen genaueren Zustand als "liegt irgendwo herum".
     im_server = mediaserver_library.vorhandene_kennungen(
-        db, MediaType(media_type), [i for i in result.items if i.status == "not_requested"]
+        db,
+        MediaType(media_type),
+        [i for i in result.items if i.status == "not_requested"],
+        # Welche Stufe zaehlt hier?
+        #
+        # Ohne zweite Instanz gibt es nur eine Achse, und die Frage lautet
+        # schlicht "habe ich den Titel?" - dann zaehlt jede Kopie. Gibt es sie,
+        # sind es zwei getrennte Achsen: Eine reine 4K-Kopie darf dann nicht
+        # als 1080p durchgehen, sonst laesst sich die 1080p-Fassung nie
+        # anfragen. Dieselbe Unterscheidung trifft Overseerr ueber
+        # ``enable4kMovie``.
+        "standard" if settings.arr_configured(media_type, "uhd") else None,
     )
 
     # "Gesehen" ist eine eigene Achse und ueberschreibt deshalb nichts - es
@@ -89,15 +101,28 @@ async def _status_for(
     merged = []
     for item in result.items:
         neu: dict[str, object] = {}
+        eigen = own.get(item.tmdb_id)
+        # "Geladen" ist eine Aussage ueber die Bibliothek - und nur die
+        # Bibliothek kann sie bestaetigen. Wurde der Titel dort inzwischen
+        # geloescht (etwa weil die Wunschqualitaet erreicht war und der Eintrag
+        # aus Radarr flog), behauptete das Abzeichen weiterhin "schon da" und
+        # verhinderte obendrein, dass ihn jemand neu anfragt. Der Media-Server
+        # kommt gleich danach als zweite Quelle zum Zug.
+        if eigen == "downloaded" and item.status == "not_requested":
+            eigen = None
         if item.tmdb_id in gesperrt:
             neu["status"] = blocklist.BADGE
-        elif item.tmdb_id in own and item.status != "downloaded":
-            neu["status"] = own[item.tmdb_id]
+        elif eigen and item.status != "downloaded":
+            neu["status"] = eigen
         elif item.tmdb_id in im_server and item.status == "not_requested":
             neu["status"] = "in_library"
         if item.tmdb_id in gesehen:
             neu["watched"] = True
         merged.append(item.model_copy(update=neu) if neu else item)
+
+    # Zweite Achse zuletzt: Sie ergaenzt nur und aendert nichts an ``status``.
+    if user is not None:
+        await uhd.anreichern(db, settings, media_type, merged, user)
     return merged, result.warning
 
 
@@ -206,17 +231,38 @@ async def genres(media_type: MediaTypePath, user: CurrentUser, db: DbSession) ->
 
 
 @router.get("/arr/{media_type}/options", response_model=ArrOptions)
-async def arr_options(media_type: MediaTypePath, user: CurrentUser, db: DbSession) -> ArrOptions:
+async def arr_options(
+    media_type: MediaTypePath,
+    user: CurrentUser,
+    db: DbSession,
+    tier: Annotated[Literal["standard", "uhd"], Query()] = "standard",
+) -> ArrOptions:
     """Qualitaetsprofile und Zielordner - fuer die Auswahl vor dem Hinzufuegen.
 
     Fuer diesen Benutzer gesperrte Profile werden gar nicht erst
     ausgeliefert - er kann sie also nicht auswaehlen. Mitgeliefert wird auch
     die Vorauswahl: das vom Admin gesetzte Standardprofil, oder das erste
     erlaubte, falls der Standard fuer ihn gesperrt ist.
+
+    ``tier`` waehlt die Instanz. Die Profil-Kennungen der beiden Instanzen
+    kollidieren, deshalb muessen auch die Sperren je Stufe gelesen werden.
     """
     settings = load_settings(db)
+    if tier == "uhd":
+        # Ohne Recht gar nichts ausliefern - die Profilnamen der 4K-Instanz
+        # gehen niemanden etwas an, der sie nicht nutzen darf.
+        if not user.may_request_uhd(MediaType(media_type)):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Für 4K-Anfragen fehlt dir die Berechtigung.",
+            )
+        if not settings.arr_configured(media_type, "uhd"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Für 4K ist noch keine zweite Instanz eingerichtet.",
+            )
     try:
-        options = ArrOptions(**await library.options(settings, media_type))
+        options = ArrOptions(**await library.options(settings, media_type, tier))
     except ArrError as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST if error.status_code is None else 502,
@@ -226,12 +272,21 @@ async def arr_options(media_type: MediaTypePath, user: CurrentUser, db: DbSessio
     # Administratoren vergeben die Sperren selbst - fuer sie gelten sie nicht.
     # Sonst koennten sie ein Profil, das sie sich versehentlich gesperrt haben,
     # auch nicht mehr als Standard auswaehlen.
-    gesperrt = [] if user.is_admin else user.blocked_profiles(MediaType(media_type))
+    gesperrt = (
+        []
+        if user.is_admin
+        else user.blocked_profiles(MediaType(media_type), QualityTier(tier))
+    )
     if gesperrt:
-        options.quality_profiles = [p for p in options.quality_profiles if p.id not in gesperrt]
+        uebrig = [p for p in options.quality_profiles if p.id not in gesperrt]
+        # Nie alles wegfiltern: Ohne ein einziges Profil koennte dieser Benutzer
+        # gar nichts mehr anfragen, ohne zu verstehen warum. Eine Sperrliste,
+        # die alles sperrt, ist nicht gemeint - siehe create_request.
+        if uebrig:
+            options.quality_profiles = uebrig
 
     erlaubt = {profil.id for profil in options.quality_profiles}
-    standard = settings.default_profile_id(media_type)
+    standard = settings.default_profile_id(media_type, tier)
     options.default_quality_profile_id = (
         standard
         if standard in erlaubt
@@ -242,9 +297,17 @@ async def arr_options(media_type: MediaTypePath, user: CurrentUser, db: DbSessio
     # Administratoren stellen den Ordner hier ein und muessen ihn deshalb immer
     # auswaehlen koennen - sonst kaeme man an die eigene Vorgabe nicht heran.
     pfade = [ordner.path for ordner in options.root_folders]
-    vorgabe = settings.default_root(media_type)
+    vorgabe = settings.default_root(media_type, tier)
     options.default_root_folder = vorgabe if vorgabe in pfade else (pfade[0] if pfade else None)
-    options.root_folder_choice = settings.root_folder_choice(media_type) or user.is_admin
+    options.root_folder_choice = settings.root_folder_choice(media_type, tier) or user.is_admin
+    options.quality_profile_choice = settings.profile_choice(media_type) or user.is_admin
+    if not options.quality_profile_choice:
+        # Nur die geltende Vorgabe ausliefern - es gibt ja nichts zu waehlen.
+        options.quality_profiles = [
+            profil
+            for profil in options.quality_profiles
+            if profil.id == options.default_quality_profile_id
+        ]
 
     if not options.root_folder_choice:
         # Gar nicht erst mitliefern, was nicht zur Wahl steht.

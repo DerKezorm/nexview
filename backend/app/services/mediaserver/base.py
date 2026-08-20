@@ -162,6 +162,16 @@ class LibraryItem:
     # gedeckelt (gemessen 499 Eintraege, davon 38 Filme), der Zaehler am Titel
     # dagegen vollstaendig (gemessen 354 gesehene Filme).
     owner_watched: bool = False
+    # In welcher Stufe liegt der Titel hier? Zwei Merkmale, weil beides
+    # gleichzeitig zutreffen kann: Plex fuehrt mehrere Dateien unter einem
+    # Titel, etwa 1080p und 4K nebeneinander.
+    #
+    # ``has_standard`` ist bewusst standardmaessig **wahr**: Wo die Auflösung
+    # unbekannt ist - bei Serien liefert Plex am Titel gar keine Datei-Angaben -
+    # bleibt es beim bisherigen Verhalten "vorhanden". Eine 4K-Behauptung
+    # dagegen wird nie geraten; ``has_uhd`` ist nur wahr, wenn es dasteht.
+    has_standard: bool = True
+    has_uhd: bool = False
 
 
 @dataclass(frozen=True)

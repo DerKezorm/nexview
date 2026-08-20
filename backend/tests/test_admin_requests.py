@@ -149,3 +149,23 @@ def test_normaler_benutzer_kommt_nicht_an_die_freigaben(arr_client: TestClient) 
         ).status_code
         == 403
     )
+
+
+def test_jeder_zustand_ist_als_filter_erlaubt(admin_client: TestClient) -> None:
+    """Was es als Zustand gibt, muss sich auch filtern lassen.
+
+    Der Fehler dahinter: Die erlaubten Werte des Filters standen als
+    abgeschriebene Liste im Endpunkt. Als "deleted" dazukam, war der
+    Filterknopf in der Oberflaeche da, die Abfrage lieferte aber 422 - und die
+    Seite blieb fuer immer in "Wird geladen ..." haengen, ohne Fehlermeldung.
+
+    Der Test geht deshalb ueber das Enum und nicht ueber eine zweite Liste.
+    """
+    from app.models import RequestStatus
+
+    for zustand in RequestStatus:
+        antwort = admin_client.get(f"/api/admin/requests?status={zustand.value}")
+        assert antwort.status_code == 200, (
+            f"Zustand {zustand.value!r} wird vom Filter nicht angenommen "
+            f"(HTTP {antwort.status_code})"
+        )

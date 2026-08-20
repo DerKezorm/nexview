@@ -14,16 +14,54 @@ beim Oeffnen der Entdecken-Seite abwarten.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models import MediaServerLibraryItem, MediaType
 from .mediaserver import MediaServerError, get_media_server
+from .mediaserver.base import LibraryItem
 from .settings_service import AppSettings
 from .sonarr import normalize_title
 
 logger = logging.getLogger("nexview.mediaserver")
+
+
+def _zusammengefasst(werke: list[LibraryItem]) -> list[LibraryItem]:
+    """Denselben Titel aus mehreren Bibliotheken zu einer Zeile machen.
+
+    Wer 1080p und 4K in getrennte Plex-Bibliotheken legt - eine verbreitete
+    Einrichtung - hat denselben Film zweimal. Plex vergibt dafuer **dieselbe**
+    GUID, und die Tabelle laesst sie nur einmal zu. Ohne diese Zusammenfassung
+    bricht der Abgleich mit einem UNIQUE-Fehler ab, und zwar vollstaendig:
+    Danach kennt Nexview *keinen einzigen* Titel des Media-Servers mehr und
+    zeigt alles als "nicht angefragt" an. Nachgemessen an einer echten
+    Bibliothek mit den Abschnitten "Filme" und "Filme4K".
+
+    Fachlich ist das Zusammenfassen ohnehin das Richtige: Es ist ein Film, der
+    in zwei Fassungen vorliegt. Die Merkmale werden deshalb verodert - was in
+    *einer* der Bibliotheken zutrifft, gilt fuer den Titel.
+    """
+    nach_guid: dict[str, LibraryItem] = {}
+    for werk in werke:
+        vorhanden = nach_guid.get(werk.guid)
+        if vorhanden is None:
+            nach_guid[werk.guid] = werk
+            continue
+        nach_guid[werk.guid] = replace(
+            vorhanden,
+            has_standard=vorhanden.has_standard or werk.has_standard,
+            has_uhd=vorhanden.has_uhd or werk.has_uhd,
+            owner_watched=vorhanden.owner_watched or werk.owner_watched,
+            # Fehlende Kennungen aus dem zweiten Eintrag uebernehmen: Welche
+            # Plex liefert, haengt am Agenten der jeweiligen Bibliothek.
+            tmdb_id=vorhanden.tmdb_id or werk.tmdb_id,
+            tvdb_id=vorhanden.tvdb_id or werk.tvdb_id,
+            imdb_id=vorhanden.imdb_id or werk.imdb_id,
+            year=vorhanden.year or werk.year,
+        )
+    return list(nach_guid.values())
 
 
 async def refresh(db: Session, settings: AppSettings) -> int:
@@ -51,7 +89,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
             MediaServerLibraryItem.provider == server.provider
         )
     )
-    for werk in werke:
+    for werk in _zusammengefasst(werke):
         db.add(
             MediaServerLibraryItem(
                 provider=server.provider,
@@ -59,6 +97,8 @@ async def refresh(db: Session, settings: AppSettings) -> int:
                 guid=werk.guid[:255],
                 rating_key=werk.rating_key,
                 owner_watched=werk.owner_watched,
+                has_standard=werk.has_standard,
+                has_uhd=werk.has_uhd,
                 tmdb_id=werk.tmdb_id,
                 tvdb_id=werk.tvdb_id,
                 imdb_id=werk.imdb_id,
@@ -115,8 +155,15 @@ def vorhandene_kennungen(
     db: Session,
     media_type: MediaType,
     items: list,
+    tier: str | None = None,
 ) -> set[int]:
     """Welche dieser Titel liegen im Media-Server?
+
+    ``tier`` schraenkt auf eine Stufe ein: ``"uhd"`` zaehlt nur Titel, bei
+    denen der Media-Server eine 4K-Datei meldet, ``"standard"`` nur die
+    uebrigen. ``None`` (die Vorgabe) fragt "ueberhaupt vorhanden" und
+    entspricht dem Verhalten von vorher - richtig fuer alle, die gar keine
+    zweite Instanz betreiben.
 
     Geprueft wird in derselben Reihenfolge, in der die Kennungen verlaesslich
     sind: TMDB, dann TVDB, dann Titel **und Jahr**.
@@ -148,10 +195,17 @@ def vorhandene_kennungen(
     if not bedingungen:
         return set()
 
+    stufe = []
+    if tier == "uhd":
+        stufe.append(MediaServerLibraryItem.has_uhd.is_(True))
+    elif tier == "standard":
+        stufe.append(MediaServerLibraryItem.has_standard.is_(True))
+
     zeilen = db.scalars(
         select(MediaServerLibraryItem).where(
             MediaServerLibraryItem.media_type == media_type,
             or_(*bedingungen),
+            *stufe,
         )
     ).all()
 

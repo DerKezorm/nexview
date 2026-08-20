@@ -98,6 +98,7 @@ async def create_request(
             payload.quality_profile_id,
             payload.root_folder_path,
             payload.season,
+            payload.tier,
         )
     except requests_service.RequestError as error:
         raise HTTPException(status_code=error.status_code, detail=error.message) from error

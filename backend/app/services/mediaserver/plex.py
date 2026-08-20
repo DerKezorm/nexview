@@ -75,7 +75,25 @@ def _als_werk(eintrag: dict[str, Any], media_type: str) -> LibraryItem | None:
 
     gesehen = zaehler("viewCount") > 0 or zaehler("viewedLeafCount") > 0
 
+    # Aufloesung je hinterlegter Datei. Plex nennt sie "4k", "1080", "720" …
+    #
+    # Nur bei Filmen: Bei Serien haengen die Dateien an den Folgen, der
+    # Serien-Eintrag selbst hat gar keine ``Media``-Liste (nachgemessen an
+    # einer echten Bibliothek). Fehlt sie, bleibt es bei "Standard vorhanden" -
+    # dem Verhalten von vorher.
+    aufloesungen = {
+        str(medium.get("videoResolution") or "").lower()
+        for medium in (eintrag.get("Media") or [])
+    }
+    aufloesungen.discard("")
+    hat_uhd = "4k" in aufloesungen
+    # Ohne Angabe gilt "Standard" - siehe LibraryItem. Sonst verschwaende ein
+    # Titel ohne Datei-Angaben aus dem Bestand.
+    hat_standard = not aufloesungen or bool(aufloesungen - {"4k"})
+
     return LibraryItem(
+        has_standard=hat_standard,
+        has_uhd=hat_uhd,
         media_type=media_type,
         guid=str(eintrag.get("guid") or eintrag.get("ratingKey") or titel),
         rating_key=str(eintrag["ratingKey"]) if eintrag.get("ratingKey") else None,

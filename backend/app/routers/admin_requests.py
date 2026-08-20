@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session, selectinload
 from ..deps import AdminUser, ApproverUser, DbSession
 from ..models import (
     MediaRequest,
+    MediaType,
+    QualityTier,
     Notification,
     NotificationType,
     RequestStatus,
@@ -35,6 +37,47 @@ class RejectPayload(BaseModel):
     # Den Titel gleich mit auf die Sperrliste setzen. Darf nur ein
     # Administrator - siehe die Pruefung in ``reject``.
     block: bool = False
+
+
+class TargetChoice(BaseModel):
+    """Wohin und in welcher Qualitaet - die Wahl des Entscheiders.
+
+    Nur noetig, wenn ``approver_picks_target`` gesetzt ist: dann laesst der
+    Anfragende beides offen. Sonst traegt die Anfrage die Werte schon.
+    """
+
+    root_folder_path: str | None = Field(default=None, max_length=500)
+    quality_profile_id: int | None = None
+
+
+class ApproveAllPayload(BaseModel):
+    """Ziele fuer die Sammelfreigabe - je Medienart **und** Stufe eines.
+
+    Im selben Stapel koennen Filme und Serien liegen, und jeweils in Standard
+    und 4K. Das sind bis zu vier verschiedene Instanzen mit vollkommen
+    verschiedenen Ordnern und Profilen; eine einzige Wahl waere fuer drei
+    davon zwangslaeufig falsch.
+    """
+
+    movie: TargetChoice | None = None
+    tv: TargetChoice | None = None
+    movie_uhd: TargetChoice | None = None
+    tv_uhd: TargetChoice | None = None
+
+    def fuer(self, media_type: MediaType, tier: QualityTier) -> TargetChoice | None:
+        art = "movie" if media_type == MediaType.movie else "tv"
+        return getattr(self, f"{art}_uhd" if tier == QualityTier.uhd else art)
+
+
+def _braucht_ziel(request: MediaRequest, wahl: TargetChoice | None) -> bool:
+    """Muss vor der Freigabe noch ein Ziel gesetzt werden?
+
+    Zwei Faelle: Der Anfrage fehlt eines (dann *muss* der Entscheider waehlen),
+    oder er hat ausdruecklich etwas mitgeschickt (dann *will* er es aendern).
+    """
+    if request.root_folder_path is None or request.quality_profile_id is None:
+        return True
+    return bool(wahl and (wahl.root_folder_path or wahl.quality_profile_id))
 
 
 def _with_user(request: MediaRequest) -> RequestWithUser:
@@ -79,17 +122,12 @@ def _notify_requester(
 def list_all(
     entscheider: ApproverUser,
     db: DbSession,
+    # Die Liste wird aus dem Enum abgeleitet statt abgeschrieben: Ein neuer
+    # Zustand war sonst zwar in der Oberflaeche als Filterknopf da, lieferte
+    # aber 422 - und die Seite blieb im Ladezustand haengen. Genau das ist mit
+    # "deleted" passiert.
     request_status: Annotated[
-        Literal[
-            "pending_approval",
-            "approved",
-            "searching",
-            "downloaded",
-            "rejected",
-            "failed",
-            "cancelled",
-        ]
-        | None,
+        RequestStatus | None,
         Query(alias="status"),
     ] = None,
     user_id: Annotated[int | None, Query(ge=1)] = None,
@@ -123,7 +161,10 @@ def list_all(
 
 @router.post("/{request_id}/approve", response_model=RequestWithUser)
 async def approve(
-    request_id: Annotated[int, Path(ge=1)], entscheider: ApproverUser, db: DbSession
+    request_id: Annotated[int, Path(ge=1)],
+    entscheider: ApproverUser,
+    db: DbSession,
+    payload: TargetChoice | None = None,
 ) -> RequestWithUser:
     request = _get_or_404(db, request_id)
     if request.status != RequestStatus.pending_approval:
@@ -132,6 +173,22 @@ async def approve(
             detail="Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
         )
 
+    settings = load_settings(db)
+
+    # Ziel nachtragen, solange die Anfrage noch wartet: Schlaegt die Pruefung
+    # fehl, bleibt sie unveraendert in der Warteschlange stehen, statt als
+    # "freigegeben" mit leerem Ordner liegenzubleiben.
+    if _braucht_ziel(request, payload):
+        try:
+            await requests_service.apply_target(
+                settings,
+                request,
+                root_folder_path=payload.root_folder_path if payload else None,
+                quality_profile_id=payload.quality_profile_id if payload else None,
+            )
+        except requests_service.RequestError as error:
+            raise HTTPException(status_code=error.status_code, detail=error.message) from error
+
     request.status = RequestStatus.approved
     request.approved_by = entscheider.id
     request.approved_at = utcnow()
@@ -139,7 +196,7 @@ async def approve(
     db.commit()
 
     try:
-        await requests_service.push_to_arr(db, load_settings(db), request)
+        await requests_service.push_to_arr(db, settings, request)
     except requests_service.RequestError as error:
         # Der Zustand steht jetzt auf "fehlgeschlagen" - der Admin sieht warum.
         db.refresh(request)
@@ -237,13 +294,20 @@ def reply_to_feedback(
 
 @router.post("/approve-all/{user_id}", response_model=list[RequestWithUser])
 async def approve_all(
-    user_id: Annotated[int, Path(ge=1)], entscheider: ApproverUser, db: DbSession
+    user_id: Annotated[int, Path(ge=1)],
+    entscheider: ApproverUser,
+    db: DbSession,
+    payload: ApproveAllPayload | None = None,
 ) -> list[RequestWithUser]:
     """Alle offenen Anfragen eines Benutzers auf einmal freigeben.
 
     Schlaegt eine Uebergabe an Radarr/Sonarr fehl, laufen die uebrigen
     trotzdem weiter - die fehlgeschlagene steht danach auf "fehlgeschlagen"
     und ist in der Liste sichtbar.
+
+    Fehlt einer Anfrage das Ziel und wurde auch keines mitgeschickt, wird sie
+    **uebersprungen** statt den ganzen Stapel scheitern zu lassen: Sie bleibt
+    in der Warteschlange und kann einzeln freigegeben werden.
     """
     offen = list(
         db.scalars(
@@ -260,7 +324,23 @@ async def approve_all(
         raise HTTPException(status_code=404, detail="Keine offenen Anfragen für diesen Benutzer.")
 
     settings = load_settings(db)
+    uebersprungen: list[MediaRequest] = []
     for request in offen:
+        wahl = payload.fuer(request.media_type, request.tier) if payload is not None else None
+        if _braucht_ziel(request, wahl):
+            try:
+                await requests_service.apply_target(
+                    settings,
+                    request,
+                    root_folder_path=wahl.root_folder_path if wahl else None,
+                    quality_profile_id=wahl.quality_profile_id if wahl else None,
+                )
+            except requests_service.RequestError:
+                # Bleibt wartend - lieber eine Anfrage stehen lassen als den
+                # ganzen Stapel abbrechen.
+                uebersprungen.append(request)
+                continue
+
         request.status = RequestStatus.approved
         request.approved_by = entscheider.id
         request.approved_at = utcnow()
@@ -276,9 +356,12 @@ async def approve_all(
         _notify_requester(db, request, NotificationType.approved, "notifications.approved")
         db.commit()
 
-    for request in offen:
+    # Uebersprungene wurden nie angefasst; sie gehoeren nicht ins Ergebnis,
+    # sonst saehe es aus, als waeren sie freigegeben worden.
+    erledigt = [request for request in offen if request not in uebersprungen]
+    for request in erledigt:
         db.refresh(request)
-    return [_with_user(request) for request in offen]
+    return [_with_user(request) for request in erledigt]
 
 
 @router.post("/{request_id}/cancel", response_model=RequestWithUser)

@@ -24,7 +24,7 @@ PROFILE = [
 def arr_options(monkeypatch: pytest.MonkeyPatch) -> None:
     """Qualitaetsprofile und Zielordner ohne echtes Radarr/Sonarr."""
 
-    async def optionen(_settings: object, _media_type: str) -> dict:
+    async def optionen(_settings: object, _media_type: str, _tier: str = "standard") -> dict:
         return {
             "quality_profiles": PROFILE,
             "root_folders": [{"path": "/data/Movies", "free_space": None}],

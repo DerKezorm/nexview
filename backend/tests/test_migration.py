@@ -58,6 +58,33 @@ def _alte_datenbank(pfad: Path) -> None:
                 """
             )
         )
+        # Eine Anfrage im alten Stand: ohne Stufe, denn es gab nur eine
+        # Radarr-Instanz. Genau daran haengt der Test weiter unten.
+        connection.execute(
+            text(
+                """
+                CREATE TABLE media_requests (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    media_type VARCHAR(10) NOT NULL,
+                    tmdb_id INTEGER NOT NULL,
+                    title VARCHAR(300) NOT NULL,
+                    status VARCHAR(20) NOT NULL,
+                    requested_at DATETIME NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO media_requests
+                    (user_id, media_type, tmdb_id, title, status, requested_at)
+                VALUES (1, 'movie', 4711, 'Alter Film', 'downloaded',
+                        '2026-01-02 12:00:00')
+                """
+            )
+        )
     engine.dispose()
 
 
@@ -234,3 +261,132 @@ def test_alte_sicherungen_werden_aufgeraeumt(tmp_path: Path) -> None:
     assert len(uebrig) == 3
     # Die drei juengsten muessen es sein.
     assert all("0.5.0" in n or "0.6.0" in n or "0.7.0" in n for n in uebrig), uebrig
+
+
+def test_update_ordnet_bestandsanfragen_der_standard_stufe_zu(alte_installation: Path) -> None:
+    """Was vor der 4K-Instanz angefragt wurde, gehoert zur Standard-Stufe.
+
+    Bliebe die Spalte leer, wuerde der Poller diese Anfragen gegen die falsche
+    Bibliothek pruefen - und eine 1080p-Datei koennte eine 4K-Anfrage
+    abschliessen. Deshalb ist der Standardwert hier keine Kosmetik.
+    """
+    db_modul.init_db()
+
+    engine = create_engine(f"sqlite:///{alte_installation}")
+    with engine.begin() as connection:
+        stufen = [
+            zeile[0] for zeile in connection.execute(text("SELECT tier FROM media_requests"))
+        ]
+        spalten = {
+            zeile[1] for zeile in connection.execute(text("PRAGMA table_info(users)"))
+        }
+    engine.dispose()
+
+    assert stufen == ["standard"]
+    assert {
+        "can_request_uhd_movies",
+        "can_request_uhd_series",
+        "auto_approve_uhd",
+        "blocked_movie_uhd_profiles",
+        "blocked_series_uhd_profiles",
+    } <= spalten
+
+
+def test_update_behaelt_die_automatische_freigabe(alte_installation: Path) -> None:
+    """Ein Konto mit Auto-Freigabe behaelt sie nach dem Update.
+
+    Die Freigabe ist jetzt je Medienart getrennt. Bekaemen die neuen Spalten
+    schlicht ``false``, muessten alle bisher automatisch freigegebenen
+    Benutzer ploetzlich warten - eine Verhaltensaenderung, die niemand
+    angeordnet hat und die erst auffiele, wenn sich jemand beschwert.
+    """
+    from app.models import MediaType, User
+
+    engine = create_engine(f"sqlite:///{alte_installation}")
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE users SET auto_approve = 1"))
+    engine.dispose()
+
+    db_modul.init_db()
+
+    engine = create_engine(f"sqlite:///{alte_installation}")
+    with engine.begin() as connection:
+        zeile = connection.execute(
+            text(
+                "SELECT auto_approve, auto_approve_movies, auto_approve_series "
+                "FROM users WHERE username = 'altbenutzer'"
+            )
+        ).one()
+    engine.dispose()
+
+    gemeinsam, filme, serien = zeile
+    assert gemeinsam == 1
+    # Nicht eigens gesetzt - genau das laesst den alten Wert weitergelten.
+    assert filme is None
+    assert serien is None
+
+    # Und die Ableitung macht daraus wieder "ja".
+    benutzer = User(auto_approve=True, auto_approve_movies=None, auto_approve_series=None)
+    assert benutzer.auto_approve_for(MediaType.movie) is True
+    assert benutzer.auto_approve_for(MediaType.tv) is True
+
+
+def test_update_haelt_bestehende_plex_titel_fuer_vorhanden(alte_installation: Path) -> None:
+    """Beim Update gilt jeder bekannte Media-Server-Titel weiter als vorhanden.
+
+    Neu ist, dass Nexview die Aufloesung mitfuehrt (``has_standard`` /
+    ``has_uhd``), um eine Plex-Kopie einer Instanz zuordnen zu koennen. Fuer
+    Bestandszeilen ist sie unbekannt: Sie stammen aus einem Abgleich, der noch
+    gar nicht danach gefragt hat.
+
+    ``has_standard`` muss deshalb auf ``1`` landen. Stuende dort ``0``, waeren
+    nach einem Update auf einen Schlag alle Titel wieder "anfragbar" - und die
+    Leute wuerden herunterladen, was sie laengst haben. Bis zum naechsten
+    Abgleich mit dem Media-Server bleibt es beim Verhalten von vorher.
+    """
+    # Eine Installation, die die Tabelle schon hat - aber noch ohne die
+    # beiden Spalten. Nur so wird wirklich ein ALTER TABLE geprueft und nicht
+    # ein frisches CREATE TABLE.
+    engine = create_engine(f"sqlite:///{alte_installation}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE media_server_library (
+                    id INTEGER PRIMARY KEY,
+                    provider VARCHAR(20) NOT NULL,
+                    media_type VARCHAR(5) NOT NULL,
+                    guid VARCHAR(255) NOT NULL,
+                    rating_key VARCHAR(40),
+                    owner_watched BOOLEAN NOT NULL DEFAULT 0,
+                    tmdb_id INTEGER,
+                    tvdb_id INTEGER,
+                    imdb_id VARCHAR(20),
+                    title VARCHAR(500) NOT NULL,
+                    title_key VARCHAR(500) NOT NULL DEFAULT '',
+                    year INTEGER,
+                    updated_at DATETIME
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO media_server_library "
+                "(provider, media_type, guid, tmdb_id, title, title_key, year) "
+                "VALUES ('plex', 'movie', 'plex://film/1', 603, 'Matrix', 'matrix', 1999)"
+            )
+        )
+    engine.dispose()
+
+    db_modul.init_db()
+
+    engine = create_engine(f"sqlite:///{alte_installation}")
+    with engine.begin() as connection:
+        zeile = connection.execute(
+            text("SELECT has_standard, has_uhd FROM media_server_library WHERE tmdb_id = 603")
+        ).one()
+    engine.dispose()
+
+    assert zeile[0] == 1, "Bestandstitel gelten sonst schlagartig als verschwunden"
+    assert zeile[1] == 0, "4K darf nie geraten werden"

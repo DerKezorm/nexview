@@ -23,6 +23,7 @@ from ..schemas_media import (
     SeasonDetail,
 )
 from ..services import (
+    uhd,
     blocklist,
     library,
     media,
@@ -67,13 +68,30 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
     # Nur fuer Titel ohne genaueren Zustand: was im Media-Server liegt, aber
     # Radarr/Sonarr nicht kennt.
     im_server = mediaserver_library.vorhandene_kennungen(
-        db, MediaType(media_type), [e for e in eintraege if e.status == "not_requested"]
+        db,
+        MediaType(media_type),
+        [e for e in eintraege if e.status == "not_requested"],
+        # Welche Stufe zaehlt hier?
+        #
+        # Ohne zweite Instanz gibt es nur eine Achse, und die Frage lautet
+        # schlicht "habe ich den Titel?" - dann zaehlt jede Kopie. Gibt es sie,
+        # sind es zwei getrennte Achsen: Eine reine 4K-Kopie darf dann nicht
+        # als 1080p durchgehen, sonst laesst sich die 1080p-Fassung nie
+        # anfragen. Dieselbe Unterscheidung trifft Overseerr ueber
+        # ``enable4kMovie``.
+        "standard" if settings.arr_configured(media_type, "uhd") else None,
     )
 
     for eintrag in eintraege:
         # Eine vorhandene Datei gewinnt immer gegen den eigenen Anfragezustand.
-        if eintrag.status == "not_requested" and eintrag.tmdb_id in eigene:
-            eintrag.status = eigene[eintrag.tmdb_id]
+        eigen = eigene.get(eintrag.tmdb_id)
+        # Siehe discover.py: "geladen" behauptet etwas ueber die Bibliothek.
+        # Sagt die Bibliothek inzwischen etwas anderes, gilt die Behauptung
+        # nicht mehr - sonst laesst sich der Titel nie wieder anfragen.
+        if eigen == "downloaded" and eintrag.status == "not_requested":
+            eigen = None
+        if eintrag.status == "not_requested" and eigen:
+            eintrag.status = eigen
         elif eintrag.status == "not_requested" and eintrag.tmdb_id in im_server:
             eintrag.status = "in_library"
         # Die Sperre gewinnt gegen alles - wie in den Listen. Diese Funktion
@@ -92,6 +110,9 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
         for eintrag in eintraege:
             if eintrag.tmdb_id in gesehen:
                 eintrag.watched = True
+
+        # Zweite Achse zuletzt - sie ergaenzt nur, sie ersetzt nichts.
+        await uhd.anreichern(db, settings, media_type, list(eintraege), user)
 
 
 @router.get("/detail/{media_type}/{tmdb_id}", response_model=MediaDetail)
@@ -114,7 +135,9 @@ async def title_detail(
 
     # Bei Serien: wie viele Folgen jeder Staffel liegen schon vor?
     if media_type == "tv" and detail.seasons:
-        vorhanden = await library.episode_availability(settings, detail.tvdb_id, detail.title)
+        vorhanden = await library.episode_availability(
+            settings, detail.tvdb_id, detail.title, jahr=library.jahr_aus(detail.release_date)
+        )
         for staffel in detail.seasons:
             staffel.episodes_available = len(vorhanden.get(staffel.season_number, ()))
 
@@ -187,7 +210,9 @@ async def season(
     except TmdbError:
         return staffel
 
-    vorhanden = await library.episode_availability(settings, serie.tvdb_id, serie.title)
+    vorhanden = await library.episode_availability(
+        settings, serie.tvdb_id, serie.title, jahr=library.jahr_aus(serie.release_date)
+    )
     in_dieser_staffel = vorhanden.get(season_number, set())
     for folge in staffel.episodes:
         folge.available = folge.episode_number in in_dieser_staffel

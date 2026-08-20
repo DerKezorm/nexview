@@ -26,7 +26,6 @@ from ..models import (
 from . import library, mail_outbox, mediaserver_library, mediaserver_watched, notify
 from .arr import ArrError
 from .settings_service import AppSettings, load_settings
-from .sonarr import normalize_title
 
 logger = logging.getLogger("nexview.poller")
 
@@ -46,29 +45,41 @@ def _open_requests(db: Session) -> list[MediaRequest]:
 async def check_once(db: Session, settings: AppSettings) -> int:
     """Einmal nachsehen. Gibt zurueck, wie viele Titel fertig geworden sind."""
     offen = _open_requests(db)
-    if not offen:
-        return 0
+    # Kein fruehes Ende mehr: Auch ohne offene Anfragen gibt es unten noch die
+    # Gegenrichtung zu pruefen - gilt ein fertig geladener Titel noch?
 
-    braucht_filme = any(r.media_type == MediaType.movie for r in offen)
-    braucht_serien = any(r.media_type == MediaType.tv for r in offen)
+    # Bibliotheken **je Stufe**. Das ist die wichtigste Stelle des ganzen
+    # 4K-Umbaus: Wuerde eine 4K-Anfrage gegen die 1080p-Bibliothek geprueft,
+    # setzte die dort liegende Datei sie auf "fertig" und Nexview verschickte
+    # "Dein Film ist da" - fuer eine Datei, die es in 4K gar nicht gibt. In der
+    # Oberflaeche saehe alles richtig aus; auffallen wuerde es erst beim
+    # Abspielen.
+    #
+    # Geladen wird nur, was auch gebraucht wird: Ohne offene 4K-Anfragen gibt
+    # es keine einzige zusaetzliche Abfrage.
+    filme: dict[str, dict[int, object]] = {}
+    serien: dict[str, tuple[dict[int, object], dict[str, object]]] = {}
 
-    filme: dict[int, object] = {}
-    serien_nach_tvdb: dict[int, object] = {}
-    serien_nach_titel: dict[str, object] = {}
-
-    if braucht_filme and settings.radarr_configured:
-        filme = await library.movie_library(settings)
-    if braucht_serien and settings.sonarr_configured:
-        serien_nach_tvdb, serien_nach_titel = await library.series_library(settings)
+    for stufe in {r.tier.value for r in offen}:
+        if any(r.media_type == MediaType.movie and r.tier.value == stufe for r in offen):
+            if settings.arr_configured("movie", stufe):
+                filme[stufe] = await library.movie_library(settings, stufe)
+        if any(r.media_type == MediaType.tv and r.tier.value == stufe for r in offen):
+            if settings.arr_configured("tv", stufe):
+                serien[stufe] = await library.series_library(settings, stufe)
 
     fertig = 0
     for request in offen:
+        stufe = request.tier.value
         if request.media_type == MediaType.movie:
-            eintrag = filme.get(request.tmdb_id)
+            eintrag = filme.get(stufe, {}).get(request.tmdb_id)
         else:
-            eintrag = serien_nach_tvdb.get(request.tvdb_id) if request.tvdb_id else None
+            nach_tvdb, nach_titel = serien.get(stufe, ({}, {}))
+            eintrag = nach_tvdb.get(request.tvdb_id) if request.tvdb_id else None
             if eintrag is None:
-                eintrag = serien_nach_titel.get(normalize_title(request.title))
+                eintrag = library.treffer_nach_titel(
+                    nach_titel, request.title, library.jahr_aus(request.release_date)
+                )
 
         request.last_checked_at = utcnow()
         if eintrag is None:
@@ -92,9 +103,55 @@ async def check_once(db: Session, settings: AppSettings) -> int:
             # In Radarr/Sonarr angelegt, Datei fehlt noch.
             request.status = RequestStatus.searching
 
+    # Und die Gegenrichtung: Gilt ein fertig geladener Titel noch?
+    #
+    # Wer eine Datei aus Radarr entfernt (etwa weil die Wunschqualitaet
+    # erreicht war und der Eintrag dort nur noch stoerte), hatte in Nexview
+    # weiter "Bereits geladen" stehen - und der Titel liess sich nie wieder
+    # anfragen. Overseerr loest das mit einem eigenen Abgleichdienst
+    # (availabilitySync); hier reicht derselbe Durchgang, der auch das
+    # Fertigwerden erkennt.
+    geloescht = 0
+    fertige = list(
+        db.scalars(
+            select(MediaRequest).where(MediaRequest.status == RequestStatus.downloaded)
+        )
+    )
+    for request in fertige:
+        stufe = request.tier.value
+        if not settings.arr_configured(request.media_type.value, stufe):
+            # Ohne Instanz gibt es keine Quelle, die "weg" sagen koennte.
+            continue
+        if request.media_type == MediaType.movie:
+            if stufe not in filme:
+                filme[stufe] = await library.movie_library(settings, stufe)
+            eintrag = filme[stufe].get(request.tmdb_id)
+        else:
+            if stufe not in serien:
+                serien[stufe] = await library.series_library(settings, stufe)
+            nach_tvdb, nach_titel = serien[stufe]
+            eintrag = nach_tvdb.get(request.tvdb_id) if request.tvdb_id else None
+            if eintrag is None:
+                eintrag = library.treffer_nach_titel(
+                    nach_titel, request.title, library.jahr_aus(request.release_date)
+                )
+
+        if eintrag is not None and getattr(eintrag, "has_file", False):
+            continue
+        # Zweite Quelle: der Media-Server. Wer den Titel nur aus Radarr
+        # entfernt hat, hat ihn dort weiterhin - dann bleibt "geladen" wahr.
+        if mediaserver_library.vorhandene_kennungen(
+            db, request.media_type, [request], stufe
+        ):
+            continue
+        request.status = RequestStatus.deleted
+        geloescht += 1
+
     db.commit()
     if fertig:
         logger.info("Status-Abgleich: %d Titel fertig geladen", fertig)
+    if geloescht:
+        logger.info("Status-Abgleich: %d geladene Titel sind verschwunden", geloescht)
     return fertig
 
 

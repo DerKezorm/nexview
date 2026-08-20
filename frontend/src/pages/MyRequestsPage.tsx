@@ -135,6 +135,7 @@ const FILTERS: Filter[] = [
   'downloaded',
   'rejected',
   'cancelled',
+  'deleted',
   'failed',
 ]
 
@@ -272,6 +273,14 @@ export function MyRequestsPage() {
                   {request.season !== null && (
                     <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
                       {t('request.seasonShort', { number: request.season })}
+                    </span>
+                  )}
+                  {/* Haengt an der Anfrage selbst, nicht an der Einstellung:
+                      Nimmt der Admin die 4K-Instanz heraus, waere eine laufende
+                      4K-Anfrage sonst nicht mehr als solche zu erkennen. */}
+                  {request.tier === 'uhd' && (
+                    <span className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400">
+                      4K
                     </span>
                   )}
                 </p>

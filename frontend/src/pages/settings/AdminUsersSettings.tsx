@@ -1,199 +1,294 @@
-import { useState } from 'react'
-import type { FormEvent } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ApiError, api } from '../../api/client'
+import { ApiError, api } from "../../api/client";
 import type {
+  AppSettings,
   ArrOptions,
   Invitation,
   InvitationCreated,
   QuotaPeriod,
   Role,
   User,
-} from '../../api/types'
-import { useAuth } from '../../auth/useAuth'
-import { Avatar } from '../../components/Avatar'
-import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { REGION_OPTIONS } from '../../components/media/FilterBar'
-import { Button, Card, ErrorBanner, Field, Spinner } from '../../components/ui'
-import { useConfig } from '../../hooks/useConfig'
-import { formatDate } from '../../lib/format'
+} from "../../api/types";
+import { useAuth } from "../../auth/useAuth";
+import { Avatar } from "../../components/Avatar";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { REGION_OPTIONS } from "../../components/media/FilterBar";
+import { Button, Card, ErrorBanner, Field, Spinner } from "../../components/ui";
+import { useConfig } from "../../hooks/useConfig";
+import { formatDate } from "../../lib/format";
 
-const PERIODS: QuotaPeriod[] = ['day', 'week', 'month']
+const PERIODS: QuotaPeriod[] = ["day", "week", "month"];
+
+/**
+ * Die Liste nach Rolle gegliedert - die mit den meisten Rechten zuerst.
+ *
+ * In einer flachen Liste steht die Rolle nur klein in der Zusammenfassung;
+ * wer wissen will, wer alles freigeben darf, muss jede Zeile einzeln lesen.
+ */
+const GRUPPEN = [
+  { rolle: "admin" as const, titel: "adminUsers.groupAdmins" },
+  { rolle: "approver" as const, titel: "adminUsers.groupApprovers" },
+  { rolle: "user" as const, titel: "adminUsers.groupUsers" },
+];
 
 /** Leeres Feld bedeutet "unbegrenzt" - deshalb Text statt Zahl im Zustand. */
-type QuotaDraft = { movies: string; series: string }
+type QuotaDraft = { movies: string; series: string };
 
 function periodLabel(period: QuotaPeriod): string {
-  return `adminUsers.period${period.charAt(0).toUpperCase()}${period.slice(1)}`
+  return `adminUsers.period${period.charAt(0).toUpperCase()}${period.slice(1)}`;
 }
 
 /** "2/3" bei begrenztem Kontingent, sonst nur die verbrauchte Anzahl. */
 function verbrauchText(used: number, limit: number | null): string {
-  return limit === null ? String(used) : `${used}/${limit}`
+  return limit === null ? String(used) : `${used}/${limit}`;
 }
 
 export function AdminUsersSettings() {
-  const { t, i18n } = useTranslation()
-  const queryClient = useQueryClient()
-  const { user: me } = useAuth()
-  const { data: config } = useConfig()
-  const minPassword = config?.min_password_length ?? 4
+  const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
+  const { user: me } = useAuth();
+  const { data: config } = useConfig();
+  const minPassword = config?.min_password_length ?? 4;
   /**
    * Einladen geht nur mit beidem: ohne öffentliche Adresse zeigt der Link ins
    * Leere, ohne Mailserver kommt er nicht an. Das Backend weist es ebenfalls
    * ab - hier wird es nur früh und verständlich sichtbar.
    */
-  const kannEinladen = (config?.mail_configured ?? false) && (config?.public_url_set ?? false)
+  const kannEinladen =
+    (config?.mail_configured ?? false) && (config?.public_url_set ?? false);
 
-  const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [resetting, setResetting] = useState<number | null>(null)
-  const [newPassword, setNewPassword] = useState('')
-  const [quotaDrafts, setQuotaDrafts] = useState<Record<number, QuotaDraft>>({})
-  const [ageDrafts, setAgeDrafts] = useState<Record<number, string>>({})
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [resetting, setResetting] = useState<number | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [quotaDrafts, setQuotaDrafts] = useState<Record<number, QuotaDraft>>(
+    {},
+  );
+  const [ageDrafts, setAgeDrafts] = useState<Record<number, string>>({});
   /** Welcher Benutzer ist gerade aufgeklappt? Nur einer zur Zeit. */
-  const [editing, setEditing] = useState<number | null>(null)
-  const [deleting, setDeleting] = useState<User | null>(null)
+  const [editing, setEditing] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<User | null>(null);
   /** Wessen Kontingent soll zurückgesetzt werden? Steuert die Rückfrage. */
-  const [quotaReset, setQuotaReset] = useState<User | null>(null)
+  const [quotaReset, setQuotaReset] = useState<User | null>(null);
+  /**
+   * Ungespeicherte Änderungen je Benutzer.
+   *
+   * Vorher schrieb jedes Häkchen sofort in die Datenbank. Ein Fehlklick war
+   * damit nicht zurücknehmbar, und es passte zu keiner anderen Seite -
+   * überall sonst sammelt Nexview erst und speichert auf Knopfdruck.
+   */
+  const [drafts, setDrafts] = useState<Record<number, Partial<User>>>({});
 
-  const [invite, setInvite] = useState({ email: '', role: 'user' as Role })
+  const [invite, setInvite] = useState({ email: "", role: "user" as Role });
   /** Link zum Weitergeben, falls der Mailversand nicht geklappt hat. */
-  const [manualLink, setManualLink] = useState<{ link: string; grund: string } | null>(null)
+  const [manualLink, setManualLink] = useState<{
+    link: string;
+    grund: string;
+  } | null>(null);
 
   const usersQuery = useQuery({
-    queryKey: ['users'],
-    queryFn: () => api.get<User[]>('/api/users'),
-  })
+    queryKey: ["users"],
+    queryFn: () => api.get<User[]>("/api/users"),
+  });
 
   const invitationsQuery = useQuery({
-    queryKey: ['invitations'],
-    queryFn: () => api.get<Invitation[]>('/api/users/invitations'),
-  })
+    queryKey: ["invitations"],
+    queryFn: () => api.get<Invitation[]>("/api/users/invitations"),
+  });
+
+  // Nur wegen der Frage, wer das Qualitätsprofil wählt. Die öffentliche
+  // Konfiguration fasst Ordner und Profil zu einem Kennzeichen zusammen; hier
+  // wird beides getrennt gebraucht.
+  const settingsQuery = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.get<AppSettings>("/api/settings"),
+  });
+  /**
+   * Warum greift die Auto-Freigabe hier nicht?
+   *
+   * Vorher stand dort immer „Zielordner“ - auch wenn der Ordner frei wählbar
+   * war und nur das Profil beim Entscheider lag. Der Hinweis muss benennen,
+   * was tatsächlich zutrifft, sonst sucht man an der falschen Stelle.
+   */
+  function grundText(media: "movie" | "tv"): string {
+    const daten = settingsQuery.data;
+    const ordner =
+      (media === "movie"
+        ? daten?.movie_root_folder_mode
+        : daten?.series_root_folder_mode) === "approver";
+    const profil =
+      (media === "movie"
+        ? daten?.movie_profile_mode
+        : daten?.series_profile_mode) === "approver";
+    if (ordner && profil) return t("adminUsers.autoApproveTargetLaterBoth");
+    if (profil) return t("adminUsers.autoApproveTargetLaterProfile");
+    return t("adminUsers.autoApproveTargetLaterFolder");
+  }
+
+  /** Darf der Benutzer das Profil selbst wählen? Sonst ist eine Sperrliste sinnlos. */
+  function profilFreiWaehlbar(media: "movie" | "tv"): boolean {
+    const modus =
+      media === "movie"
+        ? settingsQuery.data?.movie_profile_mode
+        : settingsQuery.data?.series_profile_mode;
+    return (modus ?? "user") === "user";
+  }
 
   // Profile aus Radarr/Sonarr - nur verfügbar, wenn die Dienste eingerichtet sind.
   const movieProfiles = useQuery({
-    queryKey: ['arr-options', 'movie'],
-    queryFn: () => api.get<ArrOptions>('/api/arr/movie/options'),
+    queryKey: ["arr-options", "movie"],
+    queryFn: () => api.get<ArrOptions>("/api/arr/movie/options"),
     enabled: config?.radarr_configured ?? false,
     retry: false,
-  })
+  });
   const seriesProfiles = useQuery({
-    queryKey: ['arr-options', 'tv'],
-    queryFn: () => api.get<ArrOptions>('/api/arr/tv/options'),
+    queryKey: ["arr-options", "tv"],
+    queryFn: () => api.get<ArrOptions>("/api/arr/tv/options"),
     enabled: config?.sonarr_configured ?? false,
     retry: false,
-  })
+  });
 
-  function toggleProfile(user: User, media: 'movie' | 'tv', id: number, checked: boolean) {
-    const field = media === 'movie' ? 'blocked_movie_profiles' : 'blocked_series_profiles'
-    const current = user[field]
-    const next = checked ? [...current, id] : current.filter((entry) => entry !== id)
-    updateMutation.mutate({ id: user.id, patch: { [field]: next } as Partial<User> })
+  // Die Profile der 4K-Instanz sind andere - eigene Abfrage, eigener Schluessel.
+  const movieUhdProfiles = useQuery({
+    queryKey: ["arr-options", "movie", "uhd"],
+    queryFn: () => api.get<ArrOptions>("/api/arr/movie/options?tier=uhd"),
+    enabled: config?.radarr_uhd_configured ?? false,
+    retry: false,
+  });
+  const seriesUhdProfiles = useQuery({
+    queryKey: ["arr-options", "tv", "uhd"],
+    queryFn: () => api.get<ArrOptions>("/api/arr/tv/options?tier=uhd"),
+    enabled: config?.sonarr_uhd_configured ?? false,
+    retry: false,
+  });
+
+  function toggleProfile(
+    user: User,
+    media: "movie" | "tv",
+    tier: "standard" | "uhd",
+    id: number,
+    checked: boolean,
+  ) {
+    const field =
+      tier === "uhd"
+        ? media === "movie"
+          ? "blocked_movie_uhd_profiles"
+          : "blocked_series_uhd_profiles"
+        : media === "movie"
+          ? "blocked_movie_profiles"
+          : "blocked_series_profiles";
+    const current = feld(user, field);
+    const next = checked
+      ? [...current, id]
+      : current.filter((entry) => entry !== id);
+    setzen(user, field, next);
   }
 
   function refresh() {
-    void queryClient.invalidateQueries({ queryKey: ['users'] })
-    void queryClient.invalidateQueries({ queryKey: ['invitations'] })
-    void queryClient.invalidateQueries({ queryKey: ['quota'] })
+    void queryClient.invalidateQueries({ queryKey: ["users"] });
+    void queryClient.invalidateQueries({ queryKey: ["invitations"] });
+    void queryClient.invalidateQueries({ queryKey: ["quota"] });
   }
 
   function fail(caught: unknown, fallback: string) {
-    setMessage(null)
-    setError(caught instanceof ApiError ? caught.message : fallback)
+    setMessage(null);
+    setError(caught instanceof ApiError ? caught.message : fallback);
   }
 
   const inviteMutation = useMutation({
     mutationFn: () =>
-      api.post<InvitationCreated>('/api/users/invitations', {
+      api.post<InvitationCreated>("/api/users/invitations", {
         email: invite.email.trim(),
         role: invite.role,
       }),
     onSuccess: (angelegt) => {
-      setInvite({ email: '', role: 'user' })
-      setError(null)
+      setInvite({ email: "", role: "user" });
+      setError(null);
       // Klappt der Versand nicht, bekommt der Admin den Link zum Weitergeben -
       // sonst blockiert ein kaputter Mailserver die ganze Verwaltung.
       if (angelegt.mail_sent) {
-        setMessage(t('adminUsers.inviteSent', { email: angelegt.email }))
+        setMessage(t("adminUsers.inviteSent", { email: angelegt.email }));
       } else if (angelegt.manual_link) {
         setManualLink({
           link: angelegt.manual_link,
-          grund: angelegt.mail_error ?? t('adminUsers.mailFailed'),
-        })
+          grund: angelegt.mail_error ?? t("adminUsers.mailFailed"),
+        });
       }
-      refresh()
+      refresh();
     },
     onMutate: () => {
-      resetMessages()
-      setManualLink(null)
+      resetMessages();
+      setManualLink(null);
     },
-    onError: (caught) => fail(caught, t('errors.generic')),
-  })
+    onError: (caught) => fail(caught, t("errors.generic")),
+  });
 
   const withdrawMutation = useMutation({
-    mutationFn: (id: number) => api.delete<void>(`/api/users/invitations/${id}`),
+    mutationFn: (id: number) =>
+      api.delete<void>(`/api/users/invitations/${id}`),
     onSuccess: () => {
-      setError(null)
-      setMessage(t('adminUsers.inviteWithdrawn'))
-      refresh()
+      setError(null);
+      setMessage(t("adminUsers.inviteWithdrawn"));
+      refresh();
     },
     onMutate: resetMessages,
-    onError: (caught) => fail(caught, t('errors.generic')),
-  })
+    onError: (caught) => fail(caught, t("errors.generic")),
+  });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, patch }: { id: number; patch: Partial<User> }) =>
       api.patch<User>(`/api/users/${id}`, patch),
     onSuccess: () => {
-      setError(null)
-      setMessage(t('adminUsers.saved'))
-      refresh()
+      setError(null);
+      setMessage(t("adminUsers.saved"));
+      refresh();
     },
     onMutate: resetMessages,
-    onError: (caught) => fail(caught, t('errors.generic')),
-  })
+    onError: (caught) => fail(caught, t("errors.generic")),
+  });
 
   const passwordMutation = useMutation({
     mutationFn: ({ id, password }: { id: number; password: string }) =>
       api.post<void>(`/api/users/${id}/password`, { password }),
     onSuccess: () => {
-      setResetting(null)
-      setNewPassword('')
-      setError(null)
-      setMessage(t('adminUsers.passwordReset'))
+      setResetting(null);
+      setNewPassword("");
+      setError(null);
+      setMessage(t("adminUsers.passwordReset"));
     },
     onMutate: resetMessages,
-    onError: (caught) => fail(caught, t('errors.generic')),
-  })
+    onError: (caught) => fail(caught, t("errors.generic")),
+  });
 
   const resetQuotaMutation = useMutation({
     mutationFn: (id: number) => api.post<User>(`/api/users/${id}/quota/reset`),
     onSuccess: () => {
-      setQuotaReset(null)
-      setError(null)
-      setMessage(t('adminUsers.quotaResetDone'))
-      refresh()
+      setQuotaReset(null);
+      setError(null);
+      setMessage(t("adminUsers.quotaResetDone"));
+      refresh();
       // Der Betroffene sieht sein Kontingent sofort neu, wenn er die Seite hat.
-      void queryClient.invalidateQueries({ queryKey: ['quota'] })
+      void queryClient.invalidateQueries({ queryKey: ["quota"] });
     },
     onMutate: resetMessages,
-    onError: (caught) => fail(caught, t('errors.generic')),
-  })
+    onError: (caught) => fail(caught, t("errors.generic")),
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete<void>(`/api/users/${id}`),
     onSuccess: () => {
-      setDeleting(null)
-      setError(null)
-      setMessage(t('adminUsers.saved'))
-      refresh()
+      setDeleting(null);
+      setError(null);
+      setMessage(t("adminUsers.saved"));
+      refresh();
     },
     onMutate: resetMessages,
-    onError: (caught) => fail(caught, t('errors.generic')),
-  })
+    onError: (caught) => fail(caught, t("errors.generic")),
+  });
 
   /**
    * Vor jeder Aktion beide Meldungen leeren.
@@ -202,139 +297,222 @@ export function AdminUsersSettings() {
    * etwas fehlschlägt - und behauptet das Gegenteil.
    */
   function resetMessages() {
-    setError(null)
-    setMessage(null)
+    setError(null);
+    setMessage(null);
   }
 
   function handleInvite(event: FormEvent) {
-    event.preventDefault()
-    resetMessages()
-    inviteMutation.mutate()
+    event.preventDefault();
+    resetMessages();
+    inviteMutation.mutate();
+  }
+
+  /** Kontingent-Eingabe: leer = unbegrenzt (null ans Backend). */
+  /** Der anzuzeigende Wert: Entwurf, sonst das Gespeicherte. */
+  function feld<K extends keyof User>(user: User, key: K): User[K] {
+    const entwurf = drafts[user.id];
+    return entwurf && key in entwurf ? (entwurf[key] as User[K]) : user[key];
+  }
+
+  /**
+   * Wie `feld`, aber für die drei Freigabe-Haken.
+   *
+   * Deren Wirkung errechnet der Server (`effective_*`) - ein leeres Feld erbt
+   * von der alten Sammel-Einstellung. Solange nichts geändert wurde, gilt
+   * genau dieser errechnete Wert; danach das, was gerade angeklickt wurde.
+   */
+  function entwurfOder(
+    user: User,
+    key: "auto_approve_movies" | "auto_approve_series" | "auto_approve_uhd",
+    errechnet: boolean,
+  ): boolean {
+    const entwurf = drafts[user.id];
+    return entwurf && key in entwurf ? Boolean(entwurf[key]) : errechnet;
+  }
+
+  /** Eine Änderung vormerken - geschrieben wird erst beim Speichern. */
+  function setzen<K extends keyof User>(user: User, key: K, wert: User[K]) {
+    resetMessages();
+    setDrafts((alt) => ({
+      ...alt,
+      [user.id]: { ...alt[user.id], [key]: wert },
+    }));
   }
 
   /** Kontingent-Eingabe: leer = unbegrenzt (null ans Backend). */
   function quotaValue(user: User, kind: keyof QuotaDraft): string {
-    const draft = quotaDrafts[user.id]?.[kind]
-    if (draft !== undefined) return draft
-    const stored = kind === 'movies' ? user.quota_movies_limit : user.quota_series_limit
-    return stored === null ? '' : String(stored)
+    const draft = quotaDrafts[user.id]?.[kind];
+    if (draft !== undefined) return draft;
+    const stored =
+      kind === "movies"
+        ? feld(user, "quota_movies_limit")
+        : feld(user, "quota_series_limit");
+    return stored === null ? "" : String(stored);
   }
 
   function setQuotaDraft(user: User, kind: keyof QuotaDraft, value: string) {
-    setQuotaDrafts((current) => ({
-      ...current,
+    resetMessages();
+    setQuotaDrafts((prev) => ({
+      ...prev,
       [user.id]: {
-        movies: kind === 'movies' ? value : quotaValue(user, 'movies'),
-        series: kind === 'series' ? value : quotaValue(user, 'series'),
+        movies: kind === "movies" ? value : quotaValue(user, "movies"),
+        series: kind === "series" ? value : quotaValue(user, "series"),
       },
-    }))
+    }));
   }
 
+  /** `undefined` heisst "keine gültige Zahl" - dann wird nicht gespeichert. */
   function parseQuota(raw: string): number | null | undefined {
-    const text = raw.trim()
-    if (text === '') return null
-    const parsed = Number(text)
-    return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined
+    if (raw.trim() === "") return null;
+    const zahl = Number(raw);
+    if (!Number.isInteger(zahl) || zahl < 0) return undefined;
+    return zahl;
   }
 
-  /** Gibt es ungespeicherte Kontingent-Änderungen für diesen Benutzer? */
-  function quotaChanged(user: User): boolean {
-    const draft = quotaDrafts[user.id]
-    if (!draft) return false
-    return (
-      parseQuota(draft.movies) !== user.quota_movies_limit ||
-      parseQuota(draft.series) !== user.quota_series_limit
-    )
-  }
-
-  function saveQuota(user: User) {
-    const movies = parseQuota(quotaValue(user, 'movies'))
-    const series = parseQuota(quotaValue(user, 'series'))
-    if (movies === undefined || series === undefined) {
-      setError(t('adminUsers.quotaInvalid'))
-      return
-    }
-
-    setQuotaDrafts((current) => {
-      const next = { ...current }
-      delete next[user.id]
-      return next
-    })
-    updateMutation.mutate({
-      id: user.id,
-      patch: { quota_movies_limit: movies, quota_series_limit: series },
-    })
-  }
-
-  /** Alterseingabe - wie beim Kontingent erst auf Knopfdruck gespeichert. */
+  /** Alterseingabe - eigener Textzustand, damit Tippen nicht springt. */
   function ageValue(user: User): string {
-    const draft = ageDrafts[user.id]
-    if (draft !== undefined) return draft
-    return user.age === null ? '' : String(user.age)
+    const draft = ageDrafts[user.id];
+    if (draft !== undefined) return draft;
+    const alter = feld(user, "age");
+    return alter === null ? "" : String(alter);
   }
 
   function setAgeDraft(user: User, value: string) {
-    setAgeDrafts((current) => ({ ...current, [user.id]: value }))
+    resetMessages();
+    setAgeDrafts((prev) => ({ ...prev, [user.id]: value }));
   }
 
   function parseAge(raw: string): number | undefined {
-    const parsed = Number(raw.trim())
-    return Number.isInteger(parsed) && parsed >= 0 && parsed <= 21 ? parsed : undefined
+    const zahl = Number(raw);
+    if (!Number.isInteger(zahl) || zahl < 0 || zahl > 21) return undefined;
+    return zahl;
   }
 
-  function ageChanged(user: User): boolean {
-    const draft = ageDrafts[user.id]
-    return draft !== undefined && parseAge(draft) !== user.age
-  }
-
-  function saveAge(user: User) {
-    const alter = parseAge(ageValue(user))
-    if (alter === undefined) {
-      setError(t('adminUsers.ageInvalid'))
-      return
+  /** Gibt es für diesen Benutzer ungespeicherte Änderungen? */
+  function geaendert(user: User): boolean {
+    const entwurf = drafts[user.id];
+    if (
+      entwurf &&
+      Object.keys(entwurf).some((key) => {
+        const links = entwurf[key as keyof User];
+        const rechts = user[key as keyof User];
+        return Array.isArray(links) && Array.isArray(rechts)
+          ? links.length !== rechts.length ||
+              links.some((wert, i) => wert !== rechts[i])
+          : links !== rechts;
+      })
+    ) {
+      return true;
     }
-    setAgeDrafts((current) => {
-      const next = { ...current }
-      delete next[user.id]
-      return next
-    })
-    updateMutation.mutate({ id: user.id, patch: { age: alter } })
+    const quote = quotaDrafts[user.id];
+    if (
+      quote &&
+      (parseQuota(quote.movies) !== feld(user, "quota_movies_limit") ||
+        parseQuota(quote.series) !== feld(user, "quota_series_limit"))
+    ) {
+      return true;
+    }
+    const alter = ageDrafts[user.id];
+    return alter !== undefined && parseAge(alter) !== feld(user, "age");
   }
 
-  /** Kurzfassung der Rechte für die zugeklappte Zeile. */
+  /**
+   * Alles auf einmal speichern.
+   *
+   * Ein Knopf für die ganze Karte - wie auf jeder anderen Einstellungsseite.
+   * Ungültige Zahlen brechen ab, *bevor* etwas gesendet wird; sonst ginge die
+   * halbe Karte durch und die andere Hälfte nicht.
+   */
+  function speichern(user: User) {
+    const patch: Partial<User> = { ...drafts[user.id] };
+
+    const quote = quotaDrafts[user.id];
+    if (quote) {
+      const movies = parseQuota(quote.movies);
+      const series = parseQuota(quote.series);
+      if (movies === undefined || series === undefined) {
+        setError(t("adminUsers.quotaInvalid"));
+        return;
+      }
+      patch.quota_movies_limit = movies;
+      patch.quota_series_limit = series;
+    }
+
+    const alter = ageDrafts[user.id];
+    if (alter !== undefined && feld(user, "age") !== null) {
+      const zahl = parseAge(alter);
+      if (zahl === undefined) {
+        setError(t("adminUsers.ageInvalid"));
+        return;
+      }
+      patch.age = zahl;
+    }
+    // null hiesse für das Backend nur "nicht mitgeschickt" und änderte gar
+    // nichts - -1 hebt die Beschränkung tatsächlich auf.
+    if (patch.age === null) patch.age = -1;
+
+    updateMutation.mutate(
+      { id: user.id, patch },
+      {
+        onSuccess: () => {
+          setDrafts(({ [user.id]: _weg, ...rest }) => rest);
+          setQuotaDrafts(({ [user.id]: _auch, ...rest }) => rest);
+          setAgeDrafts(({ [user.id]: _ebenso, ...rest }) => rest);
+        },
+      },
+    );
+  }
+
+  /** Beim Zuklappen verwerfen - sonst hängt eine unsichtbare Änderung fest. */
+  function verwerfen(user: User) {
+    setDrafts(({ [user.id]: _weg, ...rest }) => rest);
+    setQuotaDrafts(({ [user.id]: _auch, ...rest }) => rest);
+    setAgeDrafts(({ [user.id]: _ebenso, ...rest }) => rest);
+  }
+
   function summary(user: User): string {
     const rollen: Record<Role, string> = {
-      admin: 'adminUsers.roleAdmin',
-      approver: 'adminUsers.roleApprover',
-      user: 'adminUsers.roleUser',
-    }
-    const teile = [t(rollen[user.role])]
+      admin: "adminUsers.roleAdmin",
+      approver: "adminUsers.roleApprover",
+      user: "adminUsers.roleUser",
+    };
+    const teile = [t(rollen[user.role])];
 
     teile.push(
-      t(user.effective_auto_approve ? 'adminUsers.summaryAuto' : 'adminUsers.summaryApproval'),
-    )
+      t(
+        user.effective_auto_approve
+          ? "adminUsers.summaryAuto"
+          : "adminUsers.summaryApproval",
+      ),
+    );
 
-    const zeitraum = t(periodLabel(user.quota_period))
+    const zeitraum = t(periodLabel(user.quota_period));
     const grenze = (limit: number | null, key: string) =>
-      limit === null ? null : `${t(key)} ${limit} ${zeitraum}`
+      limit === null ? null : `${t(key)} ${limit} ${zeitraum}`;
     const grenzen = [
-      grenze(user.quota_movies_limit, 'common.movies'),
-      grenze(user.quota_series_limit, 'common.series'),
-    ].filter(Boolean)
-    teile.push(grenzen.length > 0 ? grenzen.join(', ') : t('adminUsers.summaryUnlimited'))
+      grenze(user.quota_movies_limit, "common.movies"),
+      grenze(user.quota_series_limit, "common.series"),
+    ].filter(Boolean);
+    teile.push(
+      grenzen.length > 0
+        ? grenzen.join(", ")
+        : t("adminUsers.summaryUnlimited"),
+    );
 
-    const gesperrt = user.blocked_movie_profiles.length + user.blocked_series_profiles.length
-    if (gesperrt > 0) teile.push(t('adminUsers.summaryBlocked', { count: gesperrt }))
+    const gesperrt =
+      user.blocked_movie_profiles.length + user.blocked_series_profiles.length;
+    if (gesperrt > 0)
+      teile.push(t("adminUsers.summaryBlocked", { count: gesperrt }));
 
-    return teile.join(' · ')
+    return teile.join(" · ");
   }
 
-  const users = usersQuery.data ?? []
-  const invitations = invitationsQuery.data ?? []
+  const users = usersQuery.data ?? [];
+  const invitations = invitationsQuery.data ?? [];
 
   return (
     <div className="flex max-w-5xl flex-col gap-6">
-      <p className="text-sm text-mist-500">{t('adminUsers.intro')}</p>
+      <p className="text-sm text-mist-500">{t("adminUsers.intro")}</p>
 
       {error && <ErrorBanner message={error} />}
       {message && !error && (
@@ -347,59 +525,82 @@ export function AdminUsersSettings() {
           Benutzername, Namen und Passwort selbst. So kennt niemand sonst sein
           Passwort - und der Administrator muss keines weitergeben. */}
       <Card>
-        <h2 className="text-lg font-semibold">{t('adminUsers.inviteTitle')}</h2>
-        <p className="mt-1 text-sm text-mist-500">{t('adminUsers.inviteIntro')}</p>
+        <h2 className="text-lg font-semibold">{t("adminUsers.inviteTitle")}</h2>
+        <p className="mt-1 text-sm text-mist-500">
+          {t("adminUsers.inviteIntro")}
+        </p>
 
         {!kannEinladen && (
           <p className="mt-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
-            {t('adminUsers.inviteBlocked')}
+            {t("adminUsers.inviteBlocked")}
           </p>
         )}
 
-        <form onSubmit={handleInvite} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <form
+          onSubmit={handleInvite}
+          className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2"
+        >
           <Field
-            label={t('adminUsers.email')}
+            label={t("adminUsers.email")}
             type="email"
             value={invite.email}
-            onChange={(event) => setInvite({ ...invite, email: event.target.value })}
+            onChange={(event) =>
+              setInvite({ ...invite, email: event.target.value })
+            }
             placeholder="name@beispiel.de"
             autoComplete="off"
             required
           />
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-mist-300">{t('adminUsers.role')}</span>
+            <span className="text-sm font-medium text-mist-300">
+              {t("adminUsers.role")}
+            </span>
             <select
               value={invite.role}
-              onChange={(event) => setInvite({ ...invite, role: event.target.value as Role })}
+              onChange={(event) =>
+                setInvite({ ...invite, role: event.target.value as Role })
+              }
               className="rounded-xl border border-ink-700 bg-ink-900 px-4 py-2.5 text-mist-100 focus:border-accent-500 focus:outline-none"
             >
-              <option value="user">{t('adminUsers.roleUser')}</option>
-              <option value="approver">{t('adminUsers.roleApprover')}</option>
-              <option value="admin">{t('adminUsers.roleAdmin')}</option>
+              <option value="user">{t("adminUsers.roleUser")}</option>
+              <option value="approver">{t("adminUsers.roleApprover")}</option>
+              <option value="admin">{t("adminUsers.roleAdmin")}</option>
             </select>
           </label>
 
           <div className="sm:col-span-2">
-            <Button type="submit" loading={inviteMutation.isPending} disabled={!kannEinladen}>
-              {t('adminUsers.sendInvite')}
+            <Button
+              type="submit"
+              loading={inviteMutation.isPending}
+              disabled={!kannEinladen}
+            >
+              {t("adminUsers.sendInvite")}
             </Button>
-            <p className="mt-2 text-xs text-mist-600">{t('adminUsers.inviteHint')}</p>
+            <p className="mt-2 text-xs text-mist-600">
+              {t("adminUsers.inviteHint")}
+            </p>
           </div>
 
           {manualLink && (
             <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 sm:col-span-2">
-              <p className="text-sm font-medium text-warn-500">{t('adminUsers.mailFailedTitle')}</p>
+              <p className="text-sm font-medium text-warn-500">
+                {t("adminUsers.mailFailedTitle")}
+              </p>
               <p className="mt-1 text-xs text-mist-400">{manualLink.grund}</p>
-              <p className="mt-2 text-xs text-mist-500">{t('adminUsers.manualLinkHint')}</p>
+              <p className="mt-2 text-xs text-mist-500">
+                {t("adminUsers.manualLinkHint")}
+              </p>
               <code className="mt-1 block break-all rounded-lg bg-ink-900 px-3 py-2 text-xs text-mist-300">
                 {manualLink.link}
               </code>
               <Button
                 variant="ghost"
                 className="mt-2"
-                onClick={() => void navigator.clipboard?.writeText(manualLink.link)}
+                onClick={() =>
+                  void navigator.clipboard?.writeText(manualLink.link)
+                }
               >
-                {t('adminUsers.copyLink')}
+                {t("adminUsers.copyLink")}
               </Button>
             </div>
           )}
@@ -409,7 +610,7 @@ export function AdminUsersSettings() {
       {invitations.length > 0 && (
         <Card className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">
-            {t('adminUsers.openInvites', { count: invitations.length })}
+            {t("adminUsers.openInvites", { count: invitations.length })}
           </h2>
           {invitations.map((eintrag) => (
             <div
@@ -420,20 +621,26 @@ export function AdminUsersSettings() {
                 <p className="truncate text-sm font-medium">{eintrag.email}</p>
                 <p className="text-xs text-mist-600">
                   {t(
-                    `adminUsers.role${eintrag.role === 'admin' ? 'Admin' : eintrag.role === 'approver' ? 'Approver' : 'User'}`,
+                    `adminUsers.role${eintrag.role === "admin" ? "Admin" : eintrag.role === "approver" ? "Approver" : "User"}`,
                   )}
-                  {' · '}
-                  {t('adminUsers.inviteExpires', {
-                    date: formatDate(eintrag.expires_at.slice(0, 10), i18n.language),
+                  {" · "}
+                  {t("adminUsers.inviteExpires", {
+                    date: formatDate(
+                      eintrag.expires_at.slice(0, 10),
+                      i18n.language,
+                    ),
                   })}
                 </p>
               </div>
               <Button
                 variant="ghost"
                 onClick={() => withdrawMutation.mutate(eintrag.id)}
-                loading={withdrawMutation.isPending && withdrawMutation.variables === eintrag.id}
+                loading={
+                  withdrawMutation.isPending &&
+                  withdrawMutation.variables === eintrag.id
+                }
               >
-                {t('adminUsers.withdrawInvite')}
+                {t("adminUsers.withdrawInvite")}
               </Button>
             </div>
           ))}
@@ -442,432 +649,758 @@ export function AdminUsersSettings() {
 
       {usersQuery.isPending && (
         <p className="flex items-center gap-2 text-sm text-mist-500">
-          <Spinner /> {t('common.loading')}
+          <Spinner /> {t("common.loading")}
         </p>
       )}
 
-      <div className="flex flex-col gap-3">
-        {users.map((user) => {
-          const isMe = user.id === me?.id
-          const offen = editing === user.id
-          return (
-            <Card key={user.id} className="flex flex-col gap-4">
-              {/* Zusammenfassung in einer Zeile - Details erst auf Klick. */}
-              <div className="flex flex-wrap items-center gap-3">
-                <Avatar
-                  url={user.avatar_url}
-                  name={user.display_name ?? user.username}
-                  className="h-10 w-10"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">
-                    {user.display_name ?? user.username}
-                    <span className="ml-2 text-sm font-normal text-mist-600">@{user.username}</span>
-                  </p>
-                  <p className="text-xs text-mist-600">{summary(user)}</p>
-                </div>
-
-                {!user.is_active && (
-                  <span className="rounded-full bg-ink-900 px-2.5 py-1 text-xs text-mist-500 ring-1 ring-ink-700">
-                    {t('adminUsers.inactive')}
-                  </span>
-                )}
-
-                <Button
-                  variant="ghost"
-                  onClick={() => setEditing(offen ? null : user.id)}
-                  aria-expanded={offen}
-                >
-                  {t(offen ? 'adminUsers.close' : 'adminUsers.edit')}
-                </Button>
-              </div>
-
-              {offen && (
-                <>
-                  <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
-                    <p className="flex-1 text-xs text-mist-600">
-                      {t('adminUsers.lastLogin')}:{' '}
-                      {user.last_login_at
-                        ? formatDate(user.last_login_at.slice(0, 10), i18n.language)
-                        : t('adminUsers.never')}
-                    </p>
-
-                    <select
-                      value={user.role}
-                      disabled={isMe}
-                      onChange={(event) =>
-                        updateMutation.mutate({
-                          id: user.id,
-                          patch: { role: event.target.value as Role },
-                        })
-                      }
-                      className="rounded-full border border-ink-700 bg-ink-900 px-3 py-1.5 text-sm text-mist-100 disabled:opacity-50"
-                    >
-                      <option value="user">{t('adminUsers.roleUser')}</option>
-                      <option value="approver">{t('adminUsers.roleApprover')}</option>
-                      <option value="admin">{t('adminUsers.roleAdmin')}</option>
-                    </select>
-
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-mist-300">
-                      <input
-                        type="checkbox"
-                        checked={user.is_active}
-                        disabled={isMe}
-                        onChange={(event) =>
-                          updateMutation.mutate({
-                            id: user.id,
-                            patch: { is_active: event.target.checked },
-                          })
-                        }
-                        className="h-4 w-4 accent-accent-500"
-                      />
-                      {user.is_active ? t('adminUsers.active') : t('adminUsers.inactive')}
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 border-t border-ink-700 pt-4 sm:grid-cols-4">
-                    {/* Wer selbst freigeben darf, gibt sich nicht erst selbst frei -
-                    der Haken hat für ihn keine Wirkung und ist deshalb gesperrt. */}
-                    <label
-                      className={
-                        'flex items-center gap-2 text-sm sm:col-span-4 ' +
-                        (user.can_approve ? 'text-mist-600' : 'text-mist-300')
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        checked={user.effective_auto_approve}
-                        disabled={user.can_approve}
-                        onChange={(event) =>
-                          updateMutation.mutate({
-                            id: user.id,
-                            patch: { auto_approve: event.target.checked },
-                          })
-                        }
-                        className="h-4 w-4 accent-accent-500 disabled:opacity-60"
-                      />
-                      {t('adminUsers.autoApprove')}
-                      {user.can_approve && (
-                        <span className="text-xs text-mist-600">
-                          ({t('adminUsers.autoApproveAdmin')})
+      {GRUPPEN.map(({ rolle, titel }) => {
+        const gruppe = users.filter((user) => user.role === rolle);
+        // Leere Überschriften wären nur Lärm - eine Rolle ohne Konten
+        // erscheint gar nicht.
+        if (gruppe.length === 0) return null;
+        return (
+          <div key={rolle} className="flex flex-col gap-3">
+            <h3 className="flex items-center gap-2 text-xs font-medium tracking-wide text-mist-600 uppercase">
+              {t(titel)}
+              <span className="rounded-full bg-ink-900 px-2 py-0.5 text-[11px] ring-1 ring-ink-700">
+                {gruppe.length}
+              </span>
+            </h3>
+            {gruppe.map((user) => {
+              const isMe = user.id === me?.id;
+              const offen = editing === user.id;
+              return (
+                <Card key={user.id} className="flex flex-col gap-4">
+                  {/* Zusammenfassung in einer Zeile - Details erst auf Klick. */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Avatar
+                      url={user.avatar_url}
+                      name={user.display_name ?? user.username}
+                      className="h-10 w-10"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold">
+                        {user.display_name ?? user.username}
+                        <span className="ml-2 text-sm font-normal text-mist-600">
+                          @{user.username}
                         </span>
-                      )}
-                    </label>
+                      </p>
+                      <p className="text-xs text-mist-600">{summary(user)}</p>
+                    </div>
 
-                    {/* "Unbegrenzt" steht als eigener Haken da. Vorher war es das
-                    leere Feld - man sah nie, wie man wieder dorthin kommt. */}
-                    {(['movies', 'series'] as const).map((kind) => {
-                      const unbegrenzt = quotaValue(user, kind) === ''
-                      return (
-                        <div key={kind} className="flex flex-col gap-1.5">
-                          <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                            {t(
-                              kind === 'movies'
-                                ? 'adminUsers.quotaMovies'
-                                : 'adminUsers.quotaSeries',
-                            )}
-                          </span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={quotaValue(user, kind)}
-                            disabled={unbegrenzt}
-                            placeholder={t('adminUsers.quotaUnlimited')}
-                            aria-label={t(
-                              kind === 'movies'
-                                ? 'adminUsers.quotaMovies'
-                                : 'adminUsers.quotaSeries',
-                            )}
-                            onChange={(event) => setQuotaDraft(user, kind, event.target.value)}
-                            className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none disabled:opacity-50"
-                          />
-                          <label className="flex items-center gap-2 text-xs text-mist-500">
-                            <input
-                              type="checkbox"
-                              checked={unbegrenzt}
-                              onChange={(event) =>
-                                setQuotaDraft(user, kind, event.target.checked ? '' : '1')
-                              }
-                              className="h-3.5 w-3.5 accent-accent-500"
-                            />
-                            {t('adminUsers.quotaUnlimited')}
-                          </label>
-                        </div>
-                      )
-                    })}
-
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                        {t('adminUsers.quotaPeriod')}
+                    {!user.is_active && (
+                      <span className="rounded-full bg-ink-900 px-2.5 py-1 text-xs text-mist-500 ring-1 ring-ink-700">
+                        {t("adminUsers.inactive")}
                       </span>
-                      <select
-                        value={user.quota_period}
-                        onChange={(event) =>
-                          updateMutation.mutate({
-                            id: user.id,
-                            patch: { quota_period: event.target.value as QuotaPeriod },
-                          })
-                        }
-                        className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
-                      >
-                        {PERIODS.map((period) => (
-                          <option key={period} value={period}>
-                            {t(periodLabel(period))}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    {/* Kontingente werden bewusst erst auf Knopfdruck gespeichert -
-                    beim Tippen zu speichern wäre unvorhersehbar. */}
-                    {quotaChanged(user) && (
-                      <div className="flex items-end gap-2 sm:col-span-4">
-                        <Button onClick={() => saveQuota(user)} loading={updateMutation.isPending}>
-                          {t('adminUsers.saveQuota')}
-                        </Button>
-                        <span className="pb-2 text-xs text-warn-500">
-                          {t('adminUsers.unsaved')}
-                        </span>
-                      </div>
                     )}
 
-                    {/* Verbrauch im laufenden Zeitraum - und der Weg, ihn wieder
-                    freizugeben, ohne die Anfragen zu löschen. */}
-                    <div className="flex flex-wrap items-center gap-3 sm:col-span-4">
-                      <span className="text-sm text-mist-500">
-                        {t('adminUsers.usedNow', {
-                          movies: verbrauchText(user.quota_movies_used, user.quota_movies_limit),
-                          series: verbrauchText(user.quota_series_used, user.quota_series_limit),
-                        })}
+                    {geaendert(user) && (
+                      <span className="text-xs text-warn-500">
+                        {t("adminUsers.unsaved")}
                       </span>
-                      <Button
-                        variant="ghost"
-                        onClick={() => setQuotaReset(user)}
-                        disabled={user.quota_movies_used === 0 && user.quota_series_used === 0}
-                      >
-                        {t('adminUsers.resetQuota')}
-                      </Button>
-                      {user.quota_reset_at && (
-                        <span className="text-xs text-mist-600">
-                          {t('adminUsers.lastReset', {
-                            date: formatDate(user.quota_reset_at.slice(0, 10), i18n.language),
-                          })}
-                        </span>
-                      )}
-                    </div>
+                    )}
+
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        // Zuklappen wirft den Entwurf weg. Ihn im Verborgenen
+                        // liegen zu lassen wäre schlimmer: Beim nächsten Öffnen
+                        // stünden dort Werte, an die sich niemand erinnert.
+                        if (offen) verwerfen(user);
+                        setEditing(offen ? null : user.id);
+                      }}
+                      aria-expanded={offen}
+                    >
+                      {t(offen ? "adminUsers.close" : "adminUsers.edit")}
+                    </Button>
                   </div>
 
-                  {/* Altersbeschränkung. Ein Schalter dafür, *ob* überhaupt, und
-                  dann das Alter - "wie alt ist das Kind" ist die Frage, die
-                  sich beantworten lässt, nicht "bis zu welcher FSK-Stufe". */}
-                  <div className="border-t border-ink-700 pt-4">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-mist-300">
-                      <input
-                        type="checkbox"
-                        checked={user.age !== null}
-                        onChange={(event) =>
-                          updateMutation.mutate({
-                            id: user.id,
-                            // -1 hebt die Beschränkung auf; null hieße nur
-                            // "nicht mitgeschickt" und änderte gar nichts.
-                            patch: { age: event.target.checked ? 12 : -1 },
-                          })
-                        }
-                        className="h-4 w-4 accent-accent-500"
-                      />
-                      {t('adminUsers.ageRestricted')}
-                    </label>
+                  {offen && (
+                    <>
+                      <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
+                        <p className="flex-1 text-xs text-mist-600">
+                          {t("adminUsers.lastLogin")}:{" "}
+                          {user.last_login_at
+                            ? formatDate(
+                                user.last_login_at.slice(0, 10),
+                                i18n.language,
+                              )
+                            : t("adminUsers.never")}
+                        </p>
 
-                    {user.age !== null && (
-                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
-                        <label className="flex flex-col gap-1.5">
-                          <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                            {t('adminUsers.age')}
-                          </span>
+                        <select
+                          value={feld(user, "role")}
+                          disabled={isMe}
+                          onChange={(event) =>
+                            setzen(user, "role", event.target.value as Role)
+                          }
+                          className="rounded-full border border-ink-700 bg-ink-900 px-3 py-1.5 text-sm text-mist-100 disabled:opacity-50"
+                        >
+                          <option value="user">
+                            {t("adminUsers.roleUser")}
+                          </option>
+                          <option value="approver">
+                            {t("adminUsers.roleApprover")}
+                          </option>
+                          <option value="admin">
+                            {t("adminUsers.roleAdmin")}
+                          </option>
+                        </select>
+
+                        <label className="flex cursor-pointer items-center gap-2 text-sm text-mist-300">
                           <input
-                            type="number"
-                            min={0}
-                            max={21}
-                            value={ageValue(user)}
-                            onChange={(event) => setAgeDraft(user, event.target.value)}
-                            className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
+                            type="checkbox"
+                            checked={feld(user, "is_active")}
+                            disabled={isMe}
+                            onChange={(event) =>
+                              setzen(user, "is_active", event.target.checked)
+                            }
+                            className="h-4 w-4 accent-accent-500"
                           />
+                          {user.is_active
+                            ? t("adminUsers.active")
+                            : t("adminUsers.inactive")}
                         </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 border-t border-ink-700 pt-4 sm:grid-cols-4">
+                        {/* Auto-Freigabe je Medienart - wie die Kontingente.
+                        Liegt der Zielordner oder das Profil eines Dienstes beim
+                        Entscheider, kann es dort keine Auto-Freigabe geben: Die
+                        Anfrage waere unvollstaendig. Der Haken wird dann
+                        gesperrt und sagt auch, warum. */}
+                        {(() => {
+                          const filmeSpaeter = Boolean(
+                            config?.approver_picks_target_movie,
+                          );
+                          const serienSpaeter = Boolean(
+                            config?.approver_picks_target_tv,
+                          );
+                          const zeilen = [
+                            {
+                              schluessel: "auto_approve_movies" as const,
+                              gilt: entwurfOder(
+                                user,
+                                "auto_approve_movies",
+                                user.effective_auto_approve_movies,
+                              ),
+                              label: "adminUsers.autoApproveMovies",
+                              gesperrt: user.can_approve || filmeSpaeter,
+                              grund: filmeSpaeter,
+                              grundWort: "movie" as const,
+                            },
+                            {
+                              schluessel: "auto_approve_series" as const,
+                              gilt: entwurfOder(
+                                user,
+                                "auto_approve_series",
+                                user.effective_auto_approve_series,
+                              ),
+                              label: "adminUsers.autoApproveSeries",
+                              gesperrt: user.can_approve || serienSpaeter,
+                              grund: serienSpaeter,
+                              grundWort: "tv" as const,
+                            },
+                          ];
+                          return (
+                            <div className="flex flex-wrap gap-x-6 gap-y-2 sm:col-span-4">
+                              {zeilen.map(
+                                ({
+                                  schluessel,
+                                  gilt,
+                                  label,
+                                  gesperrt,
+                                  grund,
+                                  grundWort,
+                                }) => (
+                                  <label
+                                    key={schluessel}
+                                    className={
+                                      "flex items-center gap-2 text-sm " +
+                                      (gesperrt
+                                        ? "text-mist-600"
+                                        : "text-mist-300")
+                                    }
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={
+                                        gilt && (user.can_approve || !grund)
+                                      }
+                                      disabled={gesperrt}
+                                      onChange={(event) =>
+                                        setzen(
+                                          user,
+                                          schluessel,
+                                          event.target.checked,
+                                        )
+                                      }
+                                      className="h-4 w-4 accent-accent-500 disabled:opacity-60"
+                                    />
+                                    {t(label)}
+                                    {user.can_approve && (
+                                      <span className="text-xs text-mist-600">
+                                        ({t("adminUsers.autoApproveAdmin")})
+                                      </span>
+                                    )}
+                                    {!user.can_approve && grund && (
+                                      <span className="text-xs text-mist-600">
+                                        ({grundText(grundWort)})
+                                      </span>
+                                    )}
+                                  </label>
+                                ),
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* 4K - nur wenn es ueberhaupt eine zweite Instanz gibt.
+                        Ohne sie waeren das drei Haken ohne jede Wirkung. */}
+                        {(config?.radarr_uhd_configured ||
+                          config?.sonarr_uhd_configured) && (
+                          <div className="flex flex-wrap gap-4 sm:col-span-4">
+                            {(
+                              [
+                                [
+                                  "can_request_uhd_movies",
+                                  "uhd.canRequestMovies",
+                                  config?.radarr_uhd_configured,
+                                ],
+                                [
+                                  "can_request_uhd_series",
+                                  "uhd.canRequestSeries",
+                                  config?.sonarr_uhd_configured,
+                                ],
+                                ["auto_approve_uhd", "uhd.autoApprove", true],
+                              ] as const
+                            ).map(([schluessel, labelKey, sichtbar]) => {
+                              if (!sichtbar) return null;
+                              // Die 4K-Freigabe ist nur sinnvoll, solange fuer
+                              // mindestens eine Medienart, die dieser Benutzer in
+                              // 4K anfragen darf, nicht ohnehin der Entscheider
+                              // waehlt. Sonst wartet dort jede Anfrage.
+                              const nochSinnvoll =
+                                (Boolean(
+                                  feld(user, "can_request_uhd_movies"),
+                                ) &&
+                                  Boolean(config?.radarr_uhd_configured) &&
+                                  !config?.approver_picks_target_movie) ||
+                                (Boolean(
+                                  feld(user, "can_request_uhd_series"),
+                                ) &&
+                                  Boolean(config?.sonarr_uhd_configured) &&
+                                  !config?.approver_picks_target_tv);
+                              const istFreigabe =
+                                schluessel === "auto_approve_uhd";
+                              // Wer freigeben darf, darf 4K anfragen *und* gibt es
+                              // sich selbst frei - beides ist keine Einstellung,
+                              // sondern folgt aus der Rolle. Ein anklickbares
+                              // Kaestchen daneben waere eine Einladung zu einer
+                              // Aenderung, die gar nichts bewirkt.
+                              const gesperrt =
+                                user.can_approve ||
+                                (istFreigabe && !nochSinnvoll);
+                              return (
+                                <label
+                                  key={schluessel}
+                                  className={
+                                    "flex items-center gap-2 text-sm " +
+                                    (gesperrt
+                                      ? "text-mist-600"
+                                      : "text-mist-300")
+                                  }
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      user.can_approve
+                                        ? true
+                                        : istFreigabe
+                                          ? entwurfOder(
+                                              user,
+                                              "auto_approve_uhd",
+                                              user.effective_auto_approve_uhd,
+                                            ) && nochSinnvoll
+                                          : Boolean(feld(user, schluessel))
+                                    }
+                                    disabled={gesperrt}
+                                    onChange={(event) =>
+                                      setzen(
+                                        user,
+                                        schluessel,
+                                        event.target.checked,
+                                      )
+                                    }
+                                    className="h-4 w-4 accent-accent-500 disabled:opacity-60"
+                                  />
+                                  {t(labelKey)}
+                                  {user.can_approve && (
+                                    <span className="text-xs text-mist-600">
+                                      ({t("adminUsers.autoApproveAdmin")})
+                                    </span>
+                                  )}
+                                  {istFreigabe &&
+                                    !user.can_approve &&
+                                    !nochSinnvoll && (
+                                      <span className="text-xs text-mist-600">
+                                        (
+                                        {grundText(
+                                          feld(user, "can_request_uhd_movies")
+                                            ? "movie"
+                                            : "tv",
+                                        )}
+                                        )
+                                      </span>
+                                    )}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* "Unbegrenzt" steht als eigener Haken da. Vorher war es das
+                    leere Feld - man sah nie, wie man wieder dorthin kommt. */}
+                        {(["movies", "series"] as const).map((kind) => {
+                          const unbegrenzt = quotaValue(user, kind) === "";
+                          // Admins haben immer unbegrenzt - genau wie bei Sperrliste,
+                          // Freigabe und 4K. Sie setzen die Grenzen und könnten die
+                          // eigene jederzeit heraufsetzen; ein Feld dafür wäre nur
+                          // eine Einladung zu einer Eingabe ohne Wirkung.
+                          const immerFrei = feld(user, "role") === "admin";
+                          return (
+                            <div key={kind} className="flex flex-col gap-1.5">
+                              <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+                                {t(
+                                  kind === "movies"
+                                    ? "adminUsers.quotaMovies"
+                                    : "adminUsers.quotaSeries",
+                                )}
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={immerFrei ? "" : quotaValue(user, kind)}
+                                disabled={unbegrenzt || immerFrei}
+                                placeholder={t("adminUsers.quotaUnlimited")}
+                                aria-label={t(
+                                  kind === "movies"
+                                    ? "adminUsers.quotaMovies"
+                                    : "adminUsers.quotaSeries",
+                                )}
+                                onChange={(event) =>
+                                  setQuotaDraft(user, kind, event.target.value)
+                                }
+                                className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none disabled:opacity-50"
+                              />
+                              <label className="flex items-center gap-2 text-xs text-mist-500">
+                                <input
+                                  type="checkbox"
+                                  checked={unbegrenzt || immerFrei}
+                                  disabled={immerFrei}
+                                  onChange={(event) =>
+                                    setQuotaDraft(
+                                      user,
+                                      kind,
+                                      event.target.checked ? "" : "1",
+                                    )
+                                  }
+                                  className="h-3.5 w-3.5 accent-accent-500 disabled:opacity-60"
+                                />
+                                {t("adminUsers.quotaUnlimited")}
+                                {immerFrei && (
+                                  <span className="text-mist-600">
+                                    ({t("adminUsers.quotaAdmin")})
+                                  </span>
+                                )}
+                              </label>
+                            </div>
+                          );
+                        })}
 
                         <label className="flex flex-col gap-1.5">
                           <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                            {t('adminUsers.ageRegion')}
+                            {t("adminUsers.quotaPeriod")}
                           </span>
                           <select
-                            value={user.rating_region ?? ''}
+                            value={feld(user, "quota_period")}
+                            disabled={feld(user, "role") === "admin"}
                             onChange={(event) =>
-                              updateMutation.mutate({
-                                id: user.id,
-                                patch: { rating_region: event.target.value },
-                              })
+                              setzen(
+                                user,
+                                "quota_period",
+                                event.target.value as QuotaPeriod,
+                              )
                             }
-                            className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
+                            className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none disabled:opacity-50"
                           >
-                            <option value="">{t('adminUsers.ageRegionDefault')}</option>
-                            {REGION_OPTIONS.map((eintrag) => (
-                              <option key={eintrag} value={eintrag}>
-                                {eintrag}
+                            {PERIODS.map((period) => (
+                              <option key={period} value={period}>
+                                {t(periodLabel(period))}
                               </option>
                             ))}
                           </select>
                         </label>
 
-                        {ageChanged(user) && (
-                          <div className="flex items-end gap-2 sm:col-span-2">
+                        {/* Verbrauch im laufenden Zeitraum - und der Weg, ihn wieder
+                    freizugeben, ohne die Anfragen zu löschen. */}
+                        <div className="flex flex-wrap items-center gap-3 sm:col-span-4">
+                          <span className="text-sm text-mist-500">
+                            {t("adminUsers.usedNow", {
+                              movies: verbrauchText(
+                                user.quota_movies_used,
+                                user.quota_movies_limit,
+                              ),
+                              series: verbrauchText(
+                                user.quota_series_used,
+                                user.quota_series_limit,
+                              ),
+                            })}
+                          </span>
+                          {/* Ohne jede Grenze läuft der Zähler zwar mit, hält aber
+                      niemanden auf - ihn zurückzusetzen bewirkt dann nichts. */}
+                          {(user.quota_movies_limit !== null ||
+                            user.quota_series_limit !== null) && (
                             <Button
-                              onClick={() => saveAge(user)}
-                              loading={updateMutation.isPending}
+                              variant="ghost"
+                              onClick={() => setQuotaReset(user)}
+                              disabled={
+                                user.quota_movies_used === 0 &&
+                                user.quota_series_used === 0
+                              }
                             >
-                              {t('common.save')}
+                              {t("adminUsers.resetQuota")}
                             </Button>
-                            <span className="pb-2 text-xs text-warn-500">
-                              {t('adminUsers.unsaved')}
+                          )}
+                          {user.quota_reset_at && (
+                            <span className="text-xs text-mist-600">
+                              {t("adminUsers.lastReset", {
+                                date: formatDate(
+                                  user.quota_reset_at.slice(0, 10),
+                                  i18n.language,
+                                ),
+                              })}
                             </span>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                      </div>
 
-                        {/* Ohne diesen Schalter ist "Entdecken" für ein
-                        beschränktes Konto fast leer: neue Titel sind meist
-                        noch nirgends eingestuft (gemessen 20 → 2). */}
-                        <label className="flex cursor-pointer items-start gap-2 text-sm text-mist-300 sm:col-span-4">
+                      {/* Altersbeschränkung. Ein Schalter dafür, *ob* überhaupt, und
+                  dann das Alter - "wie alt ist das Kind" ist die Frage, die
+                  sich beantworten lässt, nicht "bis zu welcher FSK-Stufe". */}
+                      <div className="border-t border-ink-700 pt-4">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm text-mist-300">
                           <input
                             type="checkbox"
-                            checked={user.hide_unrated}
+                            checked={feld(user, "age") !== null}
                             onChange={(event) =>
-                              updateMutation.mutate({
-                                id: user.id,
-                                patch: { hide_unrated: event.target.checked },
-                              })
+                              setzen(
+                                user,
+                                "age",
+                                event.target.checked ? 12 : null,
+                              )
                             }
-                            className="mt-0.5 h-4 w-4 accent-accent-500"
+                            className="h-4 w-4 accent-accent-500"
                           />
-                          <span>
-                            {t('adminUsers.hideUnrated')}
-                            <span className="mt-0.5 block text-xs text-mist-600">
-                              {t('adminUsers.hideUnratedHint')}
-                            </span>
-                          </span>
+                          {t("adminUsers.ageRestricted")}
                         </label>
 
-                        <p className="text-xs leading-relaxed text-mist-600 sm:col-span-4">
-                          {t('adminUsers.ageHint')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Kein Haken = alle Profile erlaubt. So muss man nur dort etwas
-                  einstellen, wo wirklich begrenzt werden soll. */}
-                  {(
-                    [
-                      ['movie', movieProfiles.data, 'adminUsers.allowedMovieProfiles'],
-                      ['tv', seriesProfiles.data, 'adminUsers.allowedSeriesProfiles'],
-                    ] as const
-                  ).map(([media, daten, labelKey]) =>
-                    daten && daten.quality_profiles.length > 0 ? (
-                      <div key={media} className="border-t border-ink-700 pt-4">
-                        <p className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                          {t(labelKey)}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {daten.quality_profiles.map((profil) => {
-                            const gewaehlt = (
-                              media === 'movie'
-                                ? user.blocked_movie_profiles
-                                : user.blocked_series_profiles
-                            ).includes(profil.id)
-                            return (
-                              <label
-                                key={profil.id}
-                                className={
-                                  'flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ' +
-                                  (gewaehlt
-                                    ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
-                                    : 'border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100')
+                        {feld(user, "age") !== null && (
+                          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                            <label className="flex flex-col gap-1.5">
+                              <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+                                {t("adminUsers.age")}
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={21}
+                                value={ageValue(user)}
+                                onChange={(event) =>
+                                  setAgeDraft(user, event.target.value)
                                 }
+                                className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
+                              />
+                            </label>
+
+                            <label className="flex flex-col gap-1.5">
+                              <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+                                {t("adminUsers.ageRegion")}
+                              </span>
+                              <select
+                                value={feld(user, "rating_region") ?? ""}
+                                onChange={(event) =>
+                                  setzen(
+                                    user,
+                                    "rating_region",
+                                    event.target.value,
+                                  )
+                                }
+                                className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={gewaehlt}
-                                  onChange={(event) =>
-                                    toggleProfile(user, media, profil.id, event.target.checked)
-                                  }
-                                  className="h-3.5 w-3.5 accent-accent-500"
-                                />
-                                {profil.name}
-                              </label>
-                            )
-                          })}
-                        </div>
-                        <p className="mt-1.5 text-xs text-mist-600">
-                          {(media === 'movie'
-                            ? user.blocked_movie_profiles
-                            : user.blocked_series_profiles
-                          ).length === 0
-                            ? t('adminUsers.noProfilesBlocked')
-                            : t('adminUsers.someProfilesBlocked')}
-                        </p>
+                                <option value="">
+                                  {t("adminUsers.ageRegionDefault")}
+                                </option>
+                                {REGION_OPTIONS.map((eintrag) => (
+                                  <option key={eintrag} value={eintrag}>
+                                    {eintrag}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            {/* Ohne diesen Schalter ist "Entdecken" für ein
+                        beschränktes Konto fast leer: neue Titel sind meist
+                        noch nirgends eingestuft (gemessen 20 → 2). */}
+                            <label className="flex cursor-pointer items-start gap-2 text-sm text-mist-300 sm:col-span-4">
+                              <input
+                                type="checkbox"
+                                checked={feld(user, "hide_unrated")}
+                                onChange={(event) =>
+                                  setzen(
+                                    user,
+                                    "hide_unrated",
+                                    event.target.checked,
+                                  )
+                                }
+                                className="mt-0.5 h-4 w-4 accent-accent-500"
+                              />
+                              <span>
+                                {t("adminUsers.hideUnrated")}
+                                <span className="mt-0.5 block text-xs text-mist-600">
+                                  {t("adminUsers.hideUnratedHint")}
+                                </span>
+                              </span>
+                            </label>
+
+                            <p className="text-xs leading-relaxed text-mist-600 sm:col-span-4">
+                              {t("adminUsers.ageHint")}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    ) : null,
-                  )}
 
-                  <div className="flex flex-wrap items-center gap-2 border-t border-ink-700 pt-4">
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setResetting(resetting === user.id ? null : user.id)
-                        setNewPassword('')
-                      }}
-                    >
-                      {t('adminUsers.resetPassword')}
-                    </Button>
-                    {!isMe && (
-                      <Button variant="ghost" onClick={() => setDeleting(user)}>
-                        {t('adminUsers.delete')}
-                      </Button>
-                    )}
+                      {/* Kein Haken = alle Profile erlaubt. So muss man nur dort etwas
+                  einstellen, wo wirklich begrenzt werden soll.
 
-                    {resetting === user.id && (
-                      <div className="flex w-full flex-wrap items-center gap-2 pt-2">
-                        <input
-                          type="password"
-                          value={newPassword}
-                          onChange={(event) => setNewPassword(event.target.value)}
-                          placeholder={t('adminUsers.newPassword')}
-                          aria-label={t('adminUsers.newPassword')}
-                          minLength={minPassword}
-                          className="min-w-0 flex-1 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none"
-                        />
+                  Für Admins und Entscheider entfällt der Block ganz: Sie geben
+                  sich selbst frei, könnten die Sperre also jederzeit aufheben -
+                  sie einzustellen sähe nach einer Grenze aus, die keine ist.
+
+                  Wählt der Entscheider das Profil erst bei der Freigabe, sucht
+                  der Benutzer gar keines aus. Dann bleibt die Liste sichtbar,
+                  aber gesperrt - mit Begründung, statt kommentarlos zu
+                  verschwinden. */}
+                      {!user.can_approve &&
+                        (
+                          [
+                            [
+                              "movie",
+                              "standard",
+                              movieProfiles.data,
+                              "adminUsers.allowedMovieProfiles",
+                            ],
+                            [
+                              "tv",
+                              "standard",
+                              seriesProfiles.data,
+                              "adminUsers.allowedSeriesProfiles",
+                            ],
+                            [
+                              "movie",
+                              "uhd",
+                              movieUhdProfiles.data,
+                              "uhd.blockedProfiles",
+                            ],
+                            [
+                              "tv",
+                              "uhd",
+                              seriesUhdProfiles.data,
+                              "uhd.blockedProfiles",
+                            ],
+                          ] as const
+                        ).map(([media, tier, daten, labelKey]) => {
+                          const frei = profilFreiWaehlbar(media);
+                          return daten && daten.quality_profiles.length > 0 ? (
+                            <div
+                              key={`${media}-${tier}`}
+                              className="border-t border-ink-700 pt-4"
+                            >
+                              <p className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+                                {t(labelKey)}
+                                {tier === "uhd" &&
+                                  ` · ${t(media === "movie" ? "common.movies" : "common.seriesPlural")}`}
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {daten.quality_profiles.map((profil) => {
+                                  const gesperrteListe =
+                                    tier === "uhd"
+                                      ? media === "movie"
+                                        ? feld(
+                                            user,
+                                            "blocked_movie_uhd_profiles",
+                                          )
+                                        : feld(
+                                            user,
+                                            "blocked_series_uhd_profiles",
+                                          )
+                                      : media === "movie"
+                                        ? feld(user, "blocked_movie_profiles")
+                                        : feld(user, "blocked_series_profiles");
+                                  const gewaehlt = gesperrteListe.includes(
+                                    profil.id,
+                                  );
+                                  return (
+                                    <label
+                                      key={profil.id}
+                                      className={
+                                        "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors " +
+                                        (frei
+                                          ? "cursor-pointer "
+                                          : "cursor-not-allowed opacity-50 ") +
+                                        (gewaehlt
+                                          ? "border-accent-500/60 bg-accent-500/15 text-accent-400"
+                                          : "border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100")
+                                      }
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={gewaehlt}
+                                        disabled={!frei}
+                                        onChange={(event) =>
+                                          toggleProfile(
+                                            user,
+                                            media,
+                                            tier,
+                                            profil.id,
+                                            event.target.checked,
+                                          )
+                                        }
+                                        className="h-3.5 w-3.5 accent-accent-500"
+                                      />
+                                      {profil.name}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              <p className="mt-1.5 text-xs text-mist-600">
+                                {!frei
+                                  ? t("adminUsers.profilesByApprover")
+                                  : (tier === "uhd"
+                                        ? media === "movie"
+                                          ? feld(
+                                              user,
+                                              "blocked_movie_uhd_profiles",
+                                            )
+                                          : feld(
+                                              user,
+                                              "blocked_series_uhd_profiles",
+                                            )
+                                        : media === "movie"
+                                          ? feld(user, "blocked_movie_profiles")
+                                          : feld(
+                                              user,
+                                              "blocked_series_profiles",
+                                            )
+                                      ).length === 0
+                                    ? t("adminUsers.noProfilesBlocked")
+                                    : t("adminUsers.someProfilesBlocked")}
+                              </p>
+                            </div>
+                          ) : null;
+                        })}
+
+                      {/* Ein Knopf für die ganze Karte - wie auf jeder anderen
+                  Einstellungsseite. Vorher schrieb jedes Häkchen sofort. */}
+                      <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
                         <Button
-                          onClick={() =>
-                            passwordMutation.mutate({ id: user.id, password: newPassword })
-                          }
-                          loading={passwordMutation.isPending}
-                          disabled={newPassword.length < minPassword}
+                          onClick={() => speichern(user)}
+                          loading={updateMutation.isPending}
+                          disabled={!geaendert(user)}
                         >
-                          {t('common.save')}
+                          {t("common.save")}
                         </Button>
+                        {geaendert(user) && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              onClick={() => verwerfen(user)}
+                            >
+                              {t("common.cancel")}
+                            </Button>
+                            <span className="text-xs text-warn-500">
+                              {t("adminUsers.unsaved")}
+                            </span>
+                          </>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </Card>
-          )
-        })}
-      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 border-t border-ink-700 pt-4">
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setResetting(
+                              resetting === user.id ? null : user.id,
+                            );
+                            setNewPassword("");
+                          }}
+                        >
+                          {t("adminUsers.resetPassword")}
+                        </Button>
+                        {!isMe && (
+                          <Button
+                            variant="ghost"
+                            onClick={() => setDeleting(user)}
+                          >
+                            {t("adminUsers.delete")}
+                          </Button>
+                        )}
+
+                        {resetting === user.id && (
+                          <div className="flex w-full flex-wrap items-center gap-2 pt-2">
+                            <input
+                              type="password"
+                              value={newPassword}
+                              onChange={(event) =>
+                                setNewPassword(event.target.value)
+                              }
+                              placeholder={t("adminUsers.newPassword")}
+                              aria-label={t("adminUsers.newPassword")}
+                              minLength={minPassword}
+                              className="min-w-0 flex-1 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none"
+                            />
+                            <Button
+                              onClick={() =>
+                                passwordMutation.mutate({
+                                  id: user.id,
+                                  password: newPassword,
+                                })
+                              }
+                              loading={passwordMutation.isPending}
+                              disabled={newPassword.length < minPassword}
+                            >
+                              {t("common.save")}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        );
+      })}
 
       <ConfirmDialog
         open={deleting !== null}
-        title={t('adminUsers.deleteTitle')}
-        description={t('adminUsers.deleteText', { name: deleting?.username ?? '' })}
-        warning={t('adminUsers.deleteWarning')}
-        confirmLabel={t('adminUsers.deleteConfirm')}
+        title={t("adminUsers.deleteTitle")}
+        description={t("adminUsers.deleteText", {
+          name: deleting?.username ?? "",
+        })}
+        warning={t("adminUsers.deleteWarning")}
+        confirmLabel={t("adminUsers.deleteConfirm")}
         loading={deleteMutation.isPending}
         onCancel={() => setDeleting(null)}
         onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
@@ -875,14 +1408,16 @@ export function AdminUsersSettings() {
 
       <ConfirmDialog
         open={quotaReset !== null}
-        title={t('adminUsers.resetQuotaTitle')}
-        description={t('adminUsers.resetQuotaText', { name: quotaReset?.username ?? '' })}
-        warning={t('adminUsers.resetQuotaHint')}
-        confirmLabel={t('adminUsers.resetQuota')}
+        title={t("adminUsers.resetQuotaTitle")}
+        description={t("adminUsers.resetQuotaText", {
+          name: quotaReset?.username ?? "",
+        })}
+        warning={t("adminUsers.resetQuotaHint")}
+        confirmLabel={t("adminUsers.resetQuota")}
         loading={resetQuotaMutation.isPending}
         onCancel={() => setQuotaReset(null)}
         onConfirm={() => quotaReset && resetQuotaMutation.mutate(quotaReset.id)}
       />
     </div>
-  )
+  );
 }

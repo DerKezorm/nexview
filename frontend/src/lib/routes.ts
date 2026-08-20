@@ -8,8 +8,21 @@
 
 import type { MediaType } from '../api/types'
 
-export function titlePath(mediaType: MediaType, tmdbId: number): string {
-  return `/titel/${mediaType}/${tmdbId}`
+/**
+ * Adresse der Detailseite.
+ *
+ * `fromWatchlist` haengt eine Herkunftsangabe an. Sie ist keine Kosmetik:
+ * Wer von der Merklisten-Seite auf ein Poster klickt, landet auf der ganz
+ * gewoehnlichen Detailseite - ohne diese Angabe ginge unterwegs verloren,
+ * woher der Klick kam, und die Anfrage waere spaeter nicht mehr zuordenbar.
+ */
+export function titlePath(
+  mediaType: MediaType,
+  tmdbId: number,
+  fromWatchlist = false,
+): string {
+  const pfad = `/titel/${mediaType}/${tmdbId}`
+  return fromWatchlist ? `${pfad}?von=merkliste` : pfad
 }
 
 export function personPath(personId: number): string {

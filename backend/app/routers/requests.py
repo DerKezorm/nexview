@@ -99,6 +99,7 @@ async def create_request(
             payload.root_folder_path,
             payload.season,
             payload.tier,
+            payload.from_watchlist,
         )
     except requests_service.RequestError as error:
         raise HTTPException(status_code=error.status_code, detail=error.message) from error

@@ -181,6 +181,23 @@ def test_update_ergaenzt_die_media_server_verknuepfung(alte_installation: Path) 
             )
 
 
+def test_update_ergaenzt_den_merklisten_zwischenspeicher(alte_installation: Path) -> None:
+    """Die Tabelle fuer die Zuordnung und ihr eindeutiger Index kommen mit.
+
+    Derselbe Grund wie eine Ebene hoeher: Der Schluessel (Anbieter, Kennung)
+    ist bewusst ein **Index** und kein ``UniqueConstraint`` - nur so gilt er
+    auch auf einer aktualisierten Installation.
+    """
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        indizes = db_modul._existing_indexes(connection, "watchlist_lookup")
+        spalten = db_modul._existing_columns(connection, "users")
+
+    assert "ix_watchlist_lookup_guid" in indizes
+    assert "watchlist_token" in spalten
+
+
 def test_update_behaelt_vorhandene_daten(alte_installation: Path) -> None:
     """Der Bestand darf beim Update nicht verlorengehen."""
     db_modul.init_db()

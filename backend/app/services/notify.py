@@ -105,17 +105,29 @@ def create_for_approvers(
     request: MediaRequest | None = None,
     ticket: Ticket | None = None,
     ausser: int | None = None,
+    title: str | None = None,
 ) -> list[Notification]:
     """Dasselbe fuer alle, die freigeben duerfen (Admins und Entscheider).
 
     ``ausser`` laesst eine Benutzerkennung aus - wer selbst etwas ausgeloest
     hat, braucht darueber keine Meldung von sich an sich.
+
+    ``title`` ist fuer Meldungen ohne Bezug auf eine einzelne Anfrage - die
+    Sammelmeldung der Merkliste etwa nennt darin Person und Anzahl.
     """
     empfaenger = db.scalars(
         select(User).where(User.role.in_((Role.admin, Role.approver)), User.is_active.is_(True))
     )
     return [
-        create(db, user=user, kind=kind, message_key=message_key, request=request, ticket=ticket)
+        create(
+            db,
+            user=user,
+            kind=kind,
+            message_key=message_key,
+            request=request,
+            ticket=ticket,
+            title=title,
+        )
         for user in empfaenger
         if user.id != ausser
     ]

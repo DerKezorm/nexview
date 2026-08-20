@@ -7,8 +7,10 @@ import { AdminMailSettings } from './settings/AdminMailSettings'
 import { AdminServicesSettings } from './settings/AdminServicesSettings'
 import { AdminBlocklistSettings } from './settings/AdminBlocklistSettings'
 import { AdminUsersSettings } from './settings/AdminUsersSettings'
+import { AdminWatchlistSettings } from './settings/AdminWatchlistSettings'
+import { useConfig } from '../hooks/useConfig'
 
-type Tab = 'services' | 'address' | 'mail' | 'users' | 'blocklist' | 'logs'
+type Tab = 'services' | 'address' | 'mail' | 'users' | 'watchlist' | 'blocklist' | 'logs'
 
 /**
  * Einstellungen des Administrators - Dienste und Benutzer auf einer Seite.
@@ -19,12 +21,18 @@ type Tab = 'services' | 'address' | 'mail' | 'users' | 'blocklist' | 'logs'
 export function SettingsPage() {
   const { t } = useTranslation()
   const [tab, setTab] = useState<Tab>('services')
+  // Merklisten gibt es nur mit verbundenem Media-Server - ohne ihn wäre der
+  // Reiter eine Einstellung ohne Gegenstand.
+  const { data: config } = useConfig()
 
   const tabs: { value: Tab; labelKey: string }[] = [
     { value: 'services', labelKey: 'settings.tabServices' },
     { value: 'address', labelKey: 'settings.tabAddress' },
     { value: 'mail', labelKey: 'settings.tabMail' },
     { value: 'users', labelKey: 'settings.tabUsers' },
+    ...(config?.mediaserver_configured
+      ? [{ value: 'watchlist' as Tab, labelKey: 'settings.tabWatchlist' }]
+      : []),
     { value: 'blocklist', labelKey: 'settings.tabBlocklist' },
     { value: 'logs', labelKey: 'settings.tabLogs' },
   ]
@@ -62,6 +70,20 @@ export function SettingsPage() {
       {tab === 'address' && <AdminAddressSettings />}
       {tab === 'mail' && <AdminMailSettings />}
       {tab === 'users' && <AdminUsersSettings />}
+
+      {/* Untermenü mit genau einem Eintrag - Plex ist der einzige Anbieter
+          mit Merkliste. Die Reihe steht trotzdem da, damit ein zweiter
+          Anbieter später kein Umbau der Navigation wird. */}
+      {tab === 'watchlist' && (
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-accent-500/60 bg-accent-500/15 px-3.5 py-1.5 text-sm font-medium text-accent-400">
+              Plex
+            </span>
+          </div>
+          <AdminWatchlistSettings />
+        </div>
+      )}
       {tab === 'blocklist' && <AdminBlocklistSettings />}
       {tab === 'logs' && <AdminLogsSettings />}
     </div>

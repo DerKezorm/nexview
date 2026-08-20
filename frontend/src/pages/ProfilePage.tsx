@@ -11,6 +11,7 @@ import { Button, Card, ErrorBanner, Field } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { DiscoverDefaults } from './profile/DiscoverDefaults'
 import { MediaServerLink } from './profile/MediaServerLink'
+import { WatchlistPlex } from './profile/WatchlistPlex'
 import { NotificationSettings } from './profile/NotificationSettings'
 
 /**
@@ -20,7 +21,7 @@ import { NotificationSettings } from './profile/NotificationSettings'
  * nur noch durch Scrollen findet. Aufgeteilt wie die Einstellungen des
  * Administrators, damit beide Seiten sich gleich anfühlen.
  */
-type Tab = 'account' | 'notifications' | 'discover' | 'security'
+type Tab = 'account' | 'notifications' | 'discover' | 'security' | 'watchlist'
 
 export function ProfilePage() {
   const { t } = useTranslation()
@@ -145,9 +146,18 @@ export function ProfilePage() {
     { value: 'discover', labelKey: 'profile.tabDiscover' },
     { value: 'security', labelKey: 'profile.tabSecurity' },
   ]
+  // Nur wenn der Administrator die Merkliste freigeschaltet hat - sonst
+  // stünde dort ein Reiter, hinter dem es nichts geben kann.
+  if (config?.watchlist_enabled) {
+    tabs.push({ value: 'watchlist', labelKey: 'profile.tabWatchlist' })
+  }
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
+    <div
+      className={
+        'flex flex-col gap-6 ' + (tab === 'watchlist' ? 'max-w-6xl' : 'max-w-2xl')
+      }
+    >
       <header>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           {t('nav.profile')}
@@ -356,6 +366,21 @@ export function ProfilePage() {
 
       {/* Die Verknüpfung gehört zur Anmeldung und damit neben das Passwort. */}
       {tab === 'security' && <MediaServerLink />}
+
+      {/* Untermenü mit genau einem Eintrag - noch. Plex ist der einzige
+          Anbieter mit Merkliste; Jellyfin und Emby haben keine. Die Reihe
+          steht trotzdem da, damit ein zweiter Anbieter später kein Umbau
+          der Navigation wird. */}
+      {tab === 'watchlist' && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-accent-500/60 bg-accent-500/15 px-3.5 py-1.5 text-sm font-medium text-accent-400">
+              Plex
+            </span>
+          </div>
+          <WatchlistPlex />
+        </>
+      )}
     </div>
   )
 }

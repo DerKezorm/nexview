@@ -57,6 +57,8 @@ type MediaCardProps = {
   item: CardItem
   /** Öffnet das Schnell-Popup zum Anfragen. Fehlt er, gibt es keinen Wagen. */
   onQuickAdd?: (item: MediaItem) => void
+  /** Steht diese Kachel auf der Merklisten-Seite? Wandert in den Link. */
+  fromWatchlist?: boolean
   /** Wertungen von IMDb, sobald sie da sind. */
   ratings?: MovieRatings
   /** Ist dieser Titel als Favorit markiert? */
@@ -103,6 +105,7 @@ export function MediaCard({
   variant = 'voll',
   actions,
   badge,
+  fromWatchlist = false,
 }: MediaCardProps) {
   const { t, i18n } = useTranslation()
   const runtime = formatRuntime(item.runtime_minutes, i18n.language)
@@ -121,7 +124,7 @@ export function MediaCard({
     <div className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-ink-700 bg-ink-850 transition-all hover:-translate-y-1 hover:border-accent-600/60 hover:shadow-2xl hover:shadow-accent-700/20">
       <Rahmen
         verlinkbar={verlinkbar}
-        to={titlePath(item.media_type, item.tmdb_id)}
+        to={titlePath(item.media_type, item.tmdb_id, fromWatchlist)}
         label={`${item.title} – ${t('media.openDetails')}`}
       >
         <div className="relative aspect-2/3 overflow-hidden bg-ink-900">

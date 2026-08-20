@@ -6,6 +6,7 @@ import { ApiError, api } from '../api/client'
 import type { MediaRequest, QuotaInfo, QuotaOverview } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { Pagination, useSeiten } from '../components/Pagination'
 import { StarRating } from '../components/StarRating'
 import { StatusBadge } from '../components/media/StatusBadge'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
@@ -125,11 +126,15 @@ function FeedbackBlock({ request, onSaved }: { request: MediaRequest; onSaved: (
   )
 }
 
-type Filter = 'all' | MediaRequest['status']
+// "watchlist" ist kein Zustand, sondern eine Herkunft - deshalb steht es
+// neben den Zuständen und nicht in ihrer Reihe. Der Knopf erscheint nur, wenn
+// es überhaupt automatische Anfragen gibt.
+type Filter = 'all' | 'watchlist' | MediaRequest['status']
 
 /** Reihenfolge der Filterknöpfe. Zustände ohne Einträge werden ausgeblendet. */
 const FILTERS: Filter[] = [
   'all',
+  'watchlist',
   'pending_approval',
   'searching',
   'downloaded',
@@ -138,6 +143,13 @@ const FILTERS: Filter[] = [
   'deleted',
   'failed',
 ]
+
+/** Wie viele Einträge fallen unter diesen Knopf? */
+function zaehle(alle: MediaRequest[], wert: Filter): number {
+  if (wert === 'all') return alle.length
+  if (wert === 'watchlist') return alle.filter((e) => e.from_watchlist).length
+  return alle.filter((e) => e.status === wert).length
+}
 
 export function MyRequestsPage() {
   const { t, i18n } = useTranslation()
@@ -176,10 +188,16 @@ export function MyRequestsPage() {
   const alle = requestsQuery.data ?? []
   // Nur Filter anbieten, zu denen es auch Einträge gibt - sonst führt eine
   // lange Reihe von Knöpfen ins Leere.
-  const vorhanden = FILTERS.filter(
-    (wert) => wert === 'all' || alle.some((eintrag) => eintrag.status === wert),
-  )
-  const requests = filter === 'all' ? alle : alle.filter((e) => e.status === filter)
+  const vorhanden = FILTERS.filter((wert) => wert === 'all' || zaehle(alle, wert) > 0)
+  const requests =
+    filter === 'all'
+      ? alle
+      : filter === 'watchlist'
+        ? alle.filter((e) => e.from_watchlist)
+        : alle.filter((e) => e.status === filter)
+  // Die Zahlen an den Filterknöpfen zählen weiter über *alles* - geblättert
+  // wird nur, was man gerade sieht.
+  const blaettern = useSeiten(requests, filter)
 
   return (
     <div className="flex flex-col gap-6">
@@ -239,9 +257,13 @@ export function MyRequestsPage() {
                   : 'border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100')
               }
             >
-              {wert === 'all' ? t('adminRequests.filterAll') : t(`status.${wert}`)}
+              {wert === 'all'
+                ? t('adminRequests.filterAll')
+                : wert === 'watchlist'
+                  ? t('myRequests.fromWatchlistTab')
+                  : t(`status.${wert}`)}
               <span className="ml-1.5 text-xs tabular-nums opacity-70">
-                {wert === 'all' ? alle.length : alle.filter((e) => e.status === wert).length}
+                {zaehle(alle, wert)}
               </span>
             </button>
           ))}
@@ -256,7 +278,7 @@ export function MyRequestsPage() {
 
       {requests.length > 0 && (
         <Card className="flex flex-col gap-3 p-4">
-          {requests.map((request) => (
+          {blaettern.sichtbar.map((request) => (
             <div
               key={request.id}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-700 bg-ink-900/50 p-3"
@@ -281,6 +303,14 @@ export function MyRequestsPage() {
                   {request.tier === 'uhd' && (
                     <span className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400">
                       4K
+                    </span>
+                  )}
+                  {/* Von der Merkliste statt von einem Klick. Fuer den
+                      Entscheider ist das der Unterschied zwischen "jemand
+                      wollte genau das" und "es stand auf einer Liste". */}
+                  {request.from_watchlist && (
+                    <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
+                      {t('myRequests.fromWatchlist')}
                     </span>
                   )}
                 </p>
@@ -330,6 +360,12 @@ export function MyRequestsPage() {
           ))}
         </Card>
       )}
+
+      <Pagination
+        seite={blaettern.seite}
+        seiten={blaettern.seiten}
+        onSeite={blaettern.setSeite}
+      />
 
       <ConfirmDialog
         open={cancelling !== null}

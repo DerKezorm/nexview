@@ -190,3 +190,141 @@ def test_verschiedene_guids_bleiben_getrennt() -> None:
     b = LibraryItem(media_type="movie", guid="plex://movie/b", title="Matrix Reloaded", tmdb_id=604)
 
     assert len(_zusammengefasst([a, b])) == 2
+
+
+# --------------------------------------------------------------------------
+# Die Sperre beim Anfragen
+#
+# Der Fall dahinter: Ein Film wird geladen, dann loescht jemand den *Eintrag*
+# in Radarr - die Datei bleibt, Plex fuehrt sie weiter. Radarr weiss dann
+# nichts mehr von dem Titel; die einzige Quelle ist der Media-Server. Die
+# Anzeige beruecksichtigt ihn laengst, aber der fehlende Knopf ist
+# Bequemlichkeit - erst die Pruefung im Dienst verhindert den doppelten
+# Download wirklich.
+# --------------------------------------------------------------------------
+
+
+def _film_kachel(tmdb_id: int, titel: str, jahr: int):
+    from app.schemas_media import MediaItem
+
+    return MediaItem(
+        media_type=MediaType.movie,
+        tmdb_id=tmdb_id,
+        title=titel,
+        release_date=f"{jahr}-03-01",
+    )
+
+
+async def _anfrage_stellen(db, settings, tmdb_id: int, titel: str, jahr: int, tier):
+    """Als Benutzer **ohne** Auto-Freigabe anfragen.
+
+    Absichtlich kein Administrator: Dessen Anfrage ginge sofort an ein
+    Radarr, das es im Test nicht gibt. So bleibt sie vor der Uebergabe
+    stehen - fuer die Frage "greift die Sperre?" genau richtig.
+    """
+    from app.models import User
+    from app.security import hash_password
+    from app.services import requests_service
+
+    user = db.query(User).filter(User.username == "plex-tester").one_or_none()
+    if user is None:
+        user = User(
+            username="plex-tester",
+            password_hash=hash_password("passwort-1234"),
+            email="plex-tester@beispiel.de",
+            email_verified=True,
+            can_request_uhd_movies=True,
+        )
+        db.add(user)
+        db.commit()
+    return await requests_service.create_request(
+        db,
+        settings,
+        user,
+        _film_kachel(tmdb_id, titel, jahr),
+        quality_profile_id=1,
+        tier=tier,
+    )
+
+
+def test_nur_in_plex_vorhandener_film_ist_gesperrt(arr_client) -> None:
+    """Aus Radarr geloescht, in Plex noch da - die Anfrage muss scheitern."""
+    import asyncio
+
+    import pytest as _pytest
+
+    from app.db import SessionLocal
+    from app.models import QualityTier
+    from app.services import requests_service
+    from app.services.settings_service import load_settings
+
+    with SessionLocal() as db:
+        _eintragen(db, tmdb_id=603, titel="the matrix", jahr=1999, standard=True, uhd=False)
+        settings = load_settings(db)
+        with _pytest.raises(requests_service.RequestError) as fehler:
+            asyncio.run(
+                _anfrage_stellen(db, settings, 603, "The Matrix", 1999, QualityTier.standard)
+            )
+        assert fehler.value.status_code == 409
+        assert "Media-Server" in fehler.value.message
+
+
+def test_reine_4k_kopie_sperrt_die_standard_anfrage_nicht(arr_client) -> None:
+    """Mit zweiter Instanz sind es zwei Achsen.
+
+    Wer nur die 4K-Fassung in Plex hat, darf die 1080p-Fassung anfragen -
+    sonst liesse sie sich nie holen. Umgekehrt sperrt dieselbe Kopie die
+    4K-Anfrage sehr wohl.
+    """
+    import asyncio
+
+    import pytest as _pytest
+
+    from app.db import SessionLocal
+    from app.models import QualityTier
+    from app.services import requests_service, settings_service
+    from app.services.settings_service import load_settings
+
+    with SessionLocal() as db:
+        settings_service.save_settings(
+            db,
+            {"radarr_uhd_url": "http://127.0.0.1:9", "radarr_uhd_api_key": "uhd-key"},
+        )
+        _eintragen(db, tmdb_id=604, titel="reloaded", jahr=2003, standard=False, uhd=True)
+        settings = load_settings(db)
+
+        # Standard geht durch (bleibt mangels Auto-Freigabe-Ziel egal - hier
+        # zaehlt nur, dass die Sperre NICHT greift).
+        anfrage = asyncio.run(
+            _anfrage_stellen(db, settings, 604, "Reloaded", 2003, QualityTier.standard)
+        )
+        assert anfrage.id is not None
+
+        # 4K dagegen ist gesperrt: Genau diese Kopie liegt ja schon da.
+        with _pytest.raises(requests_service.RequestError) as fehler:
+            asyncio.run(
+                _anfrage_stellen(db, settings, 604, "Reloaded", 2003, QualityTier.uhd)
+            )
+        assert fehler.value.status_code == 409
+        assert "Media-Server" in fehler.value.message
+
+
+def test_ohne_zweite_instanz_zaehlt_jede_kopie(arr_client) -> None:
+    """Ohne 4K-Instanz gibt es nur eine Achse - dann sperrt auch die 4K-Kopie."""
+    import asyncio
+
+    import pytest as _pytest
+
+    from app.db import SessionLocal
+    from app.models import QualityTier
+    from app.services import requests_service
+    from app.services.settings_service import load_settings
+
+    with SessionLocal() as db:
+        _eintragen(db, tmdb_id=606, titel="john wick", jahr=2014, standard=False, uhd=True)
+        settings = load_settings(db)
+        with _pytest.raises(requests_service.RequestError) as fehler:
+            asyncio.run(
+                _anfrage_stellen(db, settings, 606, "John Wick", 2014, QualityTier.standard)
+            )
+        assert fehler.value.status_code == 409

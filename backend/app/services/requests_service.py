@@ -19,7 +19,7 @@ from ..models import (
     utcnow,
 )
 from ..schemas_media import MediaItem
-from . import blocklist, library, notify, quota
+from . import blocklist, library, mediaserver_library, notify, quota
 from .arr import ArrError
 from .settings_service import AppSettings
 
@@ -422,8 +422,13 @@ async def create_request(
     root_folder_path: str | None = None,
     season: int | None = None,
     tier: QualityTier = QualityTier.standard,
+    from_watchlist: bool = False,
 ) -> MediaRequest:
     """Neue Anfrage anlegen - inklusive aller Vorpruefungen.
+
+    ``from_watchlist`` haelt nur fest, **woher** der Klick kam: von der
+    Merklisten-Seite statt aus dem Katalog. Am Ablauf aendert das nichts -
+    es ist dieselbe Anfrage mit denselben Regeln.
 
     ``root_folder_path`` ist nur ein *Wunsch*. Welcher Ordner tatsaechlich
     gilt, entscheidet ``resolve_root_folder`` weiter unten - und zwar erst,
@@ -541,6 +546,31 @@ async def create_request(
                 409,
             )
 
+        # Zweite Quelle: der Media-Server. Wer einen Titel nach dem Laden aus
+        # Radarr/Sonarr entfernt, hat ihn weiterhin in Plex - die Anzeige
+        # weiss das laengst (Abzeichen "In der Bibliothek"), aber der fehlende
+        # Knopf ist Bequemlichkeit, das hier ist die Sperre. Ohne sie liesse
+        # ein veralteter Zwischenspeicher oder ein direkter Aufruf den Titel
+        # ein zweites Mal herunterladen.
+        #
+        # Die Stufen-Frage ist dieselbe wie auf der Entdecken-Seite: Ohne
+        # zweite Instanz zaehlt jede Kopie; mit ihr zaehlt nur die Kopie der
+        # angefragten Stufe - eine reine 4K-Kopie darf die 1080p-Anfrage
+        # nicht blockieren, sonst laesst sich die Standard-Fassung nie holen.
+        if tier == QualityTier.uhd:
+            stufen_filter: str | None = "uhd"
+        else:
+            stufen_filter = (
+                "standard" if settings.arr_configured(item.media_type, "uhd") else None
+            )
+        if mediaserver_library.vorhandene_kennungen(
+            db, media_type, [item], stufen_filter
+        ):
+            raise RequestError(
+                f"„{item.title}“ liegt bereits auf dem Media-Server.",
+                409,
+            )
+
     # Beide Pruefungen entfallen, wenn erst der Entscheider waehlt: Es gibt
     # dann noch kein Profil zu sperren und keinen Ordner aufzuloesen. Die
     # Pruefung holt das ``apply_target`` bei der Freigabe nach.
@@ -610,6 +640,7 @@ async def create_request(
         root_folder_path=zielordner,
         season=season,
         status=RequestStatus.approved if sofort else RequestStatus.pending_approval,
+        from_watchlist=from_watchlist,
     )
     if sofort:
         request.approved_by = user.id

@@ -20,6 +20,7 @@ from .base import (
     ServerCandidate,
     ServerUser,
     WatchedRecord,
+    WatchlistItem,
     close_http_client,
 )
 from .plex import PlexServer
@@ -37,6 +38,7 @@ __all__ = [
     "ServerCandidate",
     "ServerUser",
     "WatchedRecord",
+    "WatchlistItem",
     "close_http_client",
     "get_media_server",
     "media_server_for_setup",

@@ -18,6 +18,8 @@ type MediaListRowProps = {
   onQuickAdd: (item: MediaItem) => void
   ratings?: MovieRatings
   favorit?: boolean
+  /** Steht diese Zeile auf der Merklisten-Seite? Wandert in den Link. */
+  fromWatchlist?: boolean
 }
 
 /**
@@ -31,6 +33,7 @@ export function MediaListRow({
   onQuickAdd,
   ratings,
   favorit = false,
+  fromWatchlist = false,
 }: MediaListRowProps) {
   const { t, i18n } = useTranslation()
   const runtime = formatRuntime(item.runtime_minutes, i18n.language)
@@ -39,7 +42,7 @@ export function MediaListRow({
   return (
     <div className="group flex w-full items-stretch gap-4 rounded-xl border border-ink-700 bg-ink-850 p-3 transition-colors hover:border-accent-600/60 hover:bg-ink-800">
       <Link
-        to={titlePath(item.media_type, item.tmdb_id)}
+        to={titlePath(item.media_type, item.tmdb_id, fromWatchlist)}
         aria-label={`${item.title} – ${t('media.openDetails')}`}
         className="flex min-w-0 flex-1 gap-4 text-left"
       >

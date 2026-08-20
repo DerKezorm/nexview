@@ -54,6 +54,11 @@ export type User = {
   mail_ticket: boolean;
   /** Neues Konto über den Media-Server – nur für Admins von Belang. */
   mail_user_imported: boolean;
+  /**
+   * Liegt ein persönlicher Plex-Zugang vor? Nur diese Auskunft – nie das
+   * Token selbst. Ohne ihn lässt sich die eigene Merkliste nicht lesen.
+   */
+  watchlist_connected: boolean;
 
   /**
    * Verknüpfung mit dem Media-Server. Die Kennung selbst liefert der Server
@@ -450,6 +455,10 @@ export type AppConfig = {
   /** Gibt es eine zweite Radarr-/Sonarr-Instanz für 4K? */
   radarr_uhd_configured: boolean;
   sonarr_uhd_configured: boolean;
+  /** Ist ein Media-Server verbunden? Daran hängt der Merklisten-Bereich. */
+  mediaserver_configured: boolean;
+  /** Ist die Merklisten-Automatik eingeschaltet? Blendet den Herkunfts-Filter ein. */
+  watchlist_enabled: boolean;
 };
 
 export type AppSettings = {
@@ -518,6 +527,9 @@ export type AppSettings = {
   mediaserver_default_quota_period: QuotaPeriod;
   /** Leer = keine Altersbeschränkung für neu angelegte Konten. */
   mediaserver_default_age: number | null;
+
+  /** Dürfen Benutzer ihre Merkliste sehen und daraus anfragen? */
+  watchlist_enabled: boolean;
 };
 
 /** Ein gesperrtes Media-Server-Konto – entsteht beim Löschen eines Benutzers. */
@@ -584,6 +596,8 @@ export type MediaRequest = {
   root_folder_path: string | null;
   /** Nur bei Serien; null = ganze Serie. */
   season: number | null;
+  /** Kam die Anfrage von der Merkliste statt von einem Klick? */
+  from_watchlist: boolean;
   requested_at: string;
   approved_at: string | null;
   completed_at: string | null;

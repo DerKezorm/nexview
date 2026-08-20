@@ -244,7 +244,7 @@ async def login_start(db: DbSession) -> ChallengeStarted:
 async def login_poll(payload: PollRequest, db: DbSession) -> LoginResult:
     server, settings = _verbundener_server(db)
     try:
-        eintrag, _, konto = await _identitaet(
+        eintrag, daten, konto = await _identitaet(
             db, server, payload.poll_token, erwarteter_benutzer=None
         )
     except KontoFehler as exc:
@@ -258,6 +258,11 @@ async def login_poll(payload: PollRequest, db: DbSession) -> LoginResult:
     except KontoFehler as exc:
         raise _fehler(exc) from exc
 
+    # Das Token gehoert zur Verknuepfung, nicht zu einer einzelnen Funktion:
+    # Wer sich hier anmeldet, hat gerade zugestimmt - eine zweite Anmeldung
+    # spaeter fuer die Merkliste waere reine Schikane. Nebenbei erneuert sich
+    # ein abgelaufenes Token damit von selbst.
+    konten.merke_token(benutzer, daten.get("token"))
     eintrag.used_at = utcnow().replace(tzinfo=None)
     benutzer.last_login_at = utcnow()
     db.commit()
@@ -297,7 +302,7 @@ async def link_start(db: DbSession, user: CurrentUser) -> ChallengeStarted:
 async def link_poll(payload: PollRequest, db: DbSession, user: CurrentUser) -> LinkResult:
     server, _ = _verbundener_server(db)
     try:
-        eintrag, _, konto = await _identitaet(
+        eintrag, daten, konto = await _identitaet(
             db, server, payload.poll_token, erwarteter_benutzer=user.id
         )
     except KontoFehler as exc:
@@ -323,6 +328,7 @@ async def link_poll(payload: PollRequest, db: DbSession, user: CurrentUser) -> L
         )
 
     konten.link(user, konto)
+    konten.merke_token(user, daten.get("token"))
     eintrag.used_at = utcnow().replace(tzinfo=None)
     db.commit()
     db.refresh(user)
@@ -481,6 +487,11 @@ async def connect_select(payload: SelectServer, db: DbSession, admin: AdminUser)
     fremd = konten.find_linked(db, konto)
     if fremd is None or fremd.id == admin.id:
         konten.link(admin, konto)
+        # Auch hier: eine Anmeldung genuegt fuer alles Weitere. Das Token in
+        # den Einstellungen ist der Zugang **des Servers**, dieses hier der
+        # persoenliche des Administrators - zwei Dinge, die zufaellig
+        # denselben Ursprung haben.
+        konten.merke_token(admin, encrypt(anbieter_token))
 
     eintrag.used_at = utcnow().replace(tzinfo=None)
     db.commit()

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { ApiError, api } from '../api/client'
@@ -188,6 +188,10 @@ export function TitlePage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const { mediaType, tmdbId } = useParams<{ mediaType: MediaType; tmdbId: string }>()
+  // Kam der Klick von der Merklisten-Seite? Die Detailseite ist dieselbe wie
+  // ueberall, nur die Herkunft der Anfrage soll erhalten bleiben.
+  const [suchParameter] = useSearchParams()
+  const vonMerkliste = suchParameter.get('von') === 'merkliste'
   const { data: config } = useConfig()
 
   const [adding, setAdding] = useState(false)
@@ -400,6 +404,7 @@ export function TitlePage() {
                         item={nurWeitereStaffel ? { ...item, seasons: fehlendeStaffeln } : item}
                         onDone={() => setAdding(false)}
                         seasonOnly={nurWeitereStaffel}
+                        fromWatchlist={vonMerkliste}
                       />
                     </Card>
                   ) : (

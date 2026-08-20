@@ -181,6 +181,24 @@ def link(user: User, account: ExternalAccount) -> None:
         user.email_verified = True
 
 
+def merke_token(user: User, verschluesselt: str | None) -> None:
+    """Das persoenliche Anbieter-Token am Konto hinterlegen.
+
+    Wird bei **jeder** Anmeldung und jeder Verknuepfung aufgerufen: Das Token
+    gehoert zur Verknuepfung, nicht zu einer einzelnen Funktion. Nur damit
+    laesst sich spaeter die persoenliche Merkliste lesen - der Zugang des
+    Administrators sieht sie nicht. Und ein abgelaufenes Token erneuert sich
+    so beim naechsten Anmelden von selbst.
+
+    Ein leerer Wert wird ignoriert - ein vorhandenes Token soll nicht durch
+    nichts ersetzt werden, bloss weil ein Aufrufer keines zur Hand hat.
+    """
+    if not verschluesselt:
+        return
+    user.watchlist_token = verschluesselt
+    user.watchlist_connected_at = utcnow()
+
+
 def unlink(user: User) -> None:
     """Die Verknuepfung loesen.
 
@@ -201,6 +219,11 @@ def unlink(user: User) -> None:
     user.mediaserver_email = None
     user.mediaserver_thumb = None
     user.mediaserver_linked_at = None
+    # Die Merkliste haengt an genau diesem Konto - ohne Verknuepfung gibt es
+    # nichts mehr, wozu das Token gehoerte. Es stehen zu lassen hiesse, ein
+    # fremdes Zugangstoken ohne Anlass aufzubewahren.
+    user.watchlist_token = None
+    user.watchlist_connected_at = None
 
 
 def find_linked(db: Session, account: ExternalAccount) -> User | None:

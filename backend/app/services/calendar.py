@@ -167,6 +167,16 @@ def _status_fuer(alle_da: bool) -> str:
 # --- Sonarr ----------------------------------------------------------------
 
 
+def _kennung(wert: Any) -> int | None:
+    """Eine fremde Kennung aus Radarr/Sonarr - oder ``None``, wenn keine da ist.
+
+    Beide melden **0** statt ``null``, wenn sie keine kennen. Diese Null muss
+    hier sterben: Weiter unten steht ueberall ``is None`` fuer "unbekannt",
+    und eine 0 wuerde als echte Kennung durchgehen.
+    """
+    return wert if isinstance(wert, int) and wert > 0 else None
+
+
 def _falte_folgen(rohe: list[dict[str, Any]], stichtag: str) -> list[CalendarEntry]:
     """Eine Zeile je Serie, Staffel und Tag.
 
@@ -207,8 +217,15 @@ def _falte_folgen(rohe: list[dict[str, Any]], stichtag: str) -> list[CalendarEnt
                 source="meine",
                 origin="sonarr",
                 media_type=MediaType.tv,
-                tmdb_id=serie.get("tmdbId") if isinstance(serie.get("tmdbId"), int) else None,
-                tvdb_id=serie.get("tvdbId") if isinstance(serie.get("tvdbId"), int) else None,
+                # **Sonarr schickt 0, wenn es keine TMDB-Kennung kennt** - nicht
+                # ``null``. Eine 0 durchzulassen ist schlimmer als gar keine
+                # Kennung: ``_tvdb_nach_tmdb`` prueft auf ``None`` und
+                # ueberspringt den Eintrag, die Entdopplung haelt ihn fuer
+                # eigenstaendig, die Detailseite waere ``/titel/tv/0``, und der
+                # Altersfilter wirft ihn weg, weil sich zu 0 nichts pruefen
+                # laesst. Gemessen: 2 von 175 Serien einer echten Bibliothek.
+                tmdb_id=_kennung(serie.get("tmdbId")),
+                tvdb_id=_kennung(serie.get("tvdbId")),
                 title=serie.get("title") or "",
                 poster_url=_poster(serie.get("images")),
                 overview=(folgen[0].get("overview") or "") if len(folgen) == 1 else "",
@@ -281,7 +298,8 @@ def _meine_filme(
                 source="meine",
                 origin="radarr",
                 media_type=MediaType.movie,
-                tmdb_id=kennung if isinstance(kennung, int) else None,
+                # Auch Radarr meldet 0 statt null - siehe ``_kennung``.
+                tmdb_id=_kennung(kennung),
                 title=film.get("title") or "",
                 poster_url=_poster(film.get("images")),
                 overview=film.get("overview") or "",

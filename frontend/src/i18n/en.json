@@ -180,8 +180,8 @@
     "quickAdd": "Quick request"
   },
   "request": {
-    "addMovie": "Add to Radarr",
-    "addSeries": "Add to Sonarr",
+    "addMovie": "Request",
+    "addSeries": "Request",
     "arrMissing": "Your administrator needs to set up Radarr or Sonarr first.",
     "chooseOptions": "Before adding",
     "qualityProfile": "Quality profile",
@@ -364,7 +364,9 @@
     "quotaUsed": "{{used}} of {{limit}} used",
     "quotaResets": "resets on {{date}}",
     "autoApprove": "Your requests are approved automatically.",
-    "needsApproval": "Your requests need administrator approval."
+    "needsApproval": "Your requests need administrator approval.",
+    "fromWatchlist": "Watchlist",
+    "fromWatchlistTab": "Requested from watchlist"
   },
   "adminRequests": {
     "intro": "Every request from every user – approve or reject them here.",
@@ -465,7 +467,8 @@
     "languageHint": "Applies to the interface as well as to titles and overviews. In German „Days of Thunder“ becomes „Tage des Donners“.",
     "ageRestricted": "This account is age-restricted ({{age}} years). Titles rated above that are hidden from you. Only the administrator can change this.",
     "mailTicket": "Tickets",
-    "mailTicketHint": "Replies to your tickets — as an administrator also every new request."
+    "mailTicketHint": "Replies to your tickets — as an administrator also every new request.",
+    "tabWatchlist": "Manage watchlist"
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -704,7 +707,8 @@
     "rootFolderModeHint_fixed": "Users see no folder field; the folder set below applies to everyone. Administrators still pick freely.",
     "rootFolderMode_approver": "The approver picks on approval",
     "rootFolderModeHint_approver": "For libraries split across several folders — by genre, for example. Requests arrive without a folder or profile and always wait for approval; both are picked there. Anyone who may approve still picks when requesting.",
-    "targetPairCoupled": "Root folder and quality profile belong together: once the approver picks one of them, the request waits for them anyway – so they set the other one too. That is why it moved along."
+    "targetPairCoupled": "Root folder and quality profile belong together: once the approver picks one of them, the request waits for them anyway – so they set the other one too. That is why it moved along.",
+    "tabWatchlist": "Watchlists"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -933,5 +937,28 @@
     "autoApprove": "4K without approval",
     "blockedProfiles": "Blocked 4K profiles",
     "notConfigured": "No second instance is set up for 4K yet."
+  },
+  "watchlist": {
+    "title": "Plex watchlist",
+    "intro": "What you put on your watchlist in Plex. Requesting works just like in the catalogue – with quota and approval as always.",
+    "needsLink": "Link your Plex account under “Security” first. Nexview may only read the watchlist of the account that belongs to your profile.",
+    "needsSignIn": "Your personal Plex access is still missing – your account was linked before this feature existed. One sign-in is enough.",
+    "tokenInvalid": "Plex no longer accepts the stored access – usually because the device was signed out. Please sign in once more.",
+    "connect": "Sign in with Plex",
+    "reload": "Reload",
+    "empty": "There is nothing on your watchlist right now.",
+    "filterAll": "All",
+    "filterMissing": "Not here yet",
+    "unmatched": "{{count}} titles cannot be matched to a TMDB id and are missing here. That comes from the data in Plex, not from Nexview.",
+    "adminTitle": "Watchlists",
+    "adminIntro": "With this on, users see their Plex watchlist in their profile and can request titles from it – through the usual route, so with quota and approval.",
+    "adminEnable": "Enable watchlists",
+    "adminEnableHint": "Without this switch the section does not exist. Nothing is requested automatically: every title needs a click."
+  },
+  "paging": {
+    "label": "Pagination",
+    "previous": "Back",
+    "next": "Next",
+    "position": "Page {{page}} of {{pages}}"
   }
 }

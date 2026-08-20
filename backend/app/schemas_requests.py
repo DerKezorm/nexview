@@ -33,6 +33,9 @@ class RequestCreate(BaseModel):
     # Nur bei Serien: welche Staffel? Fehlt sie, ist die ganze Serie gemeint.
     # Staffel 0 sind bei TMDB die Specials - die schliessen wir nicht aus.
     season: int | None = Field(default=None, ge=0, le=200)
+    # Kam der Klick von der Merklisten-Seite? Reine Herkunftsangabe: Am Ablauf
+    # aendert sie nichts, sie macht die Anfrage nur nachtraeglich zuordenbar.
+    from_watchlist: bool = False
 
 
 class FeedbackCreate(BaseModel):
@@ -65,6 +68,9 @@ class RequestPublic(BaseModel):
     quality_profile_id: int | None
     root_folder_path: str | None
     season: int | None
+    # Kam die Anfrage von der Merkliste? Der Entscheider soll sehen, dass
+    # niemand diesen Titel im Einzelnen ausgesucht hat.
+    from_watchlist: bool
     requested_at: datetime
     approved_at: datetime | None
     completed_at: datetime | None

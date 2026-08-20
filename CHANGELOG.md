@@ -12,6 +12,72 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.11.0 – 20.08.2026
+
+### New
+
+- **Your Plex watchlist, inside Nexview.** Under *Profile → Watchlist → Plex*
+  everything you put on your Plex watchlist shows up as the same tiles you
+  know from the catalogue, with the same badges – already downloaded,
+  requested, 4K, watched. Clicking one opens the ordinary request dialog, so
+  quota, approval, blocklist and age limit apply exactly as they do
+  everywhere else.
+
+  Nothing happens on its own: there is no background sync and no automatic
+  requesting, every title takes a click. A filter narrows the list down to
+  what is not there yet.
+
+  An administrator switches the whole thing on under *Settings → Watchlists
+  → Plex*; the tab only exists while a media server is connected, and it is
+  off by default. Reading a watchlist requires the personal Plex token of the
+  person it belongs to – the administrator's own access cannot see it – so
+  Nexview now keeps that token (encrypted) whenever somebody links their Plex
+  account or signs in with Plex. Installations updating from an earlier
+  version have none yet, because it used to be discarded after the access
+  check: there the page offers one Plex sign-in, and never asks again. The
+  same path repairs a token Plex stops accepting.
+
+  Only the account already linked to the profile may be used, so nobody can
+  point Nexview at a stranger's watchlist and spend their quota on it. Plex
+  does not name TMDB ids in the watchlist itself; Nexview looks each title up
+  once and remembers the result, and says how many titles it could not match
+  rather than dropping them silently. Requests started this way carry a
+  "watchlist" badge and have their own tab in *My requests* and *All
+  requests*.
+
+- **Long request lists now come in pages.** *My requests* and *All requests*
+  show twenty entries at a time, with back/next buttons underneath. The
+  counts on the filter buttons still cover the whole list, not just the
+  visible page, and switching a filter jumps back to page one. Approving all
+  of a user's requests at once still covers every waiting request, not just
+  the ones on the current page.
+
+- **The watchlist page can switch between tiles and a list**, the same way
+  the discover pages do.
+
+- **The request button simply says "Request" now** instead of "Add to
+  Radarr"/"Add to Sonarr" – what happens behind it is not the requester's
+  concern.
+
+### Fixed
+
+- **A title kept only on the media server could be requested a second
+  time.** The pages already showed such titles – files whose entry was
+  removed from Radarr/Sonarr but which still live in Plex – as "in your
+  library", but the server itself only asked Radarr/Sonarr before accepting
+  a request. A stale browser cache was enough to start a duplicate download.
+  The server now refuses, with the same per-instance logic the pages use: a
+  4K-only copy does not block requesting the 1080p version, and vice versa.
+
+- **Series without a TMDB id confused the calendar.** Sonarr and Radarr
+  report `0` when they do not know a TMDB id, not an empty value – and that
+  zero slipped through as if it were a real id. Affected entries could not be
+  deduplicated against new releases, linked to a dead detail page, and
+  disappeared entirely for age-restricted accounts. Measured on a real
+  library: two out of 175 series. A zero now counts as "unknown".
+
+---
+
 ## 0.10.0 – 20.08.2026
 
 ### New

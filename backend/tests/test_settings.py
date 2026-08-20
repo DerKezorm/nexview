@@ -102,3 +102,42 @@ def test_normaler_benutzer_kommt_nicht_an_die_einstellungen(admin_client: TestCl
     assert admin_client.put("/api/settings", json={}, headers=headers).status_code == 403
     # Die allgemeine Konfiguration darf er sehen (für Hinweise in der Oberfläche).
     assert admin_client.get("/api/config", headers=headers).status_code == 200
+
+
+def test_jede_einstellung_kommt_auch_zurueck(admin_client: TestClient) -> None:
+    """Was sich speichern laesst, muss sich auch wieder lesen lassen.
+
+    ``public_settings`` zaehlt jeden Schluessel einzeln auf - wer einen neuen
+    ergaenzt und diese Liste vergisst, baut eine besonders gemeine Falle: Die
+    Oberflaeche bekommt ``undefined``, zeigt deshalb immer den Vorgabewert an
+    und meldet "nicht geaendert". Gespeichert wird trotzdem richtig, nur sieht
+    es niemand - es wirkt, als griffe die Einstellung nicht.
+
+    Genau das ist mit den drei Merklisten-Schluesseln passiert: In der
+    Datenbank stand "an" und "4K", die Seite zeigte "aus" und "Standard", und
+    der Abgleich richtete sich nach dem Gespeicherten.
+    """
+    from app.routers.settings import SettingsUpdate
+
+    antwort = admin_client.get("/api/settings")
+    assert antwort.status_code == 200
+    sichtbar = set(antwort.json())
+
+    fehlend = [
+        name
+        for name in SettingsUpdate.model_fields
+        # Geheimnisse erscheinen maskiert plus einem "_set"-Merker.
+        if name not in sichtbar and f"{name}_set" not in sichtbar
+    ]
+    assert not fehlend, (
+        "Diese Einstellungen lassen sich speichern, aber nicht zurücklesen: "
+        f"{sorted(fehlend)}"
+    )
+
+
+def test_merklisten_einstellung_ueberlebt_das_speichern(admin_client: TestClient) -> None:
+    """Der konkrete Fall, damit er nicht ein zweites Mal zurueckkommt."""
+    antwort = admin_client.put("/api/settings", json={"watchlist_enabled": True})
+    assert antwort.status_code == 200, antwort.text
+
+    assert admin_client.get("/api/settings").json()["watchlist_enabled"] is True

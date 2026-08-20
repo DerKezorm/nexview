@@ -131,6 +131,10 @@ class UserPublic(BaseModel):
     mail_ticket: bool
     mail_user_imported: bool
 
+    # *Ob* ein Plex-Zugang hinterlegt ist - das Token selbst verlaesst den
+    # Server nie. Ohne ihn laesst sich die Merkliste nicht lesen.
+    watchlist_connected: bool
+
     # --- Verknuepfung mit dem Media-Server ---------------------------------
     # Die Kennung selbst wird bewusst nicht ausgeliefert; fuer die Oberflaeche
     # zaehlt nur, *ob* verknuepft ist und mit welchem Namen.

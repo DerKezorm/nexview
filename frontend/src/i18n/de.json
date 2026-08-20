@@ -180,8 +180,8 @@
     "quickAdd": "Schnell anfragen"
   },
   "request": {
-    "addMovie": "Zu Radarr hinzufügen",
-    "addSeries": "Zu Sonarr hinzufügen",
+    "addMovie": "Anfragen",
+    "addSeries": "Anfragen",
     "arrMissing": "Dafür muss der Administrator zuerst Radarr bzw. Sonarr einrichten.",
     "chooseOptions": "Vor dem Hinzufügen",
     "qualityProfile": "Qualitätsprofil",
@@ -364,7 +364,9 @@
     "quotaUsed": "{{used}} von {{limit}} verbraucht",
     "quotaResets": "wird zurückgesetzt am {{date}}",
     "autoApprove": "Deine Anfragen werden sofort freigegeben.",
-    "needsApproval": "Deine Anfragen müssen vom Administrator freigegeben werden."
+    "needsApproval": "Deine Anfragen müssen vom Administrator freigegeben werden.",
+    "fromWatchlist": "Merkliste",
+    "fromWatchlistTab": "Über Merkliste angefragt"
   },
   "adminRequests": {
     "intro": "Alle Anfragen aller Benutzer – hier gibst du frei oder lehnst ab.",
@@ -465,7 +467,8 @@
     "languageHint": "Gilt fuer die Oberflaeche und fuer Titel und Handlungen. Auf Englisch heisst „Tage des Donners“ dann „Days of Thunder“.",
     "ageRestricted": "Für dieses Konto gilt eine Altersbeschränkung ({{age}} Jahre). Titel mit höherer Freigabe werden dir nicht angezeigt. Ändern kann das nur der Administrator.",
     "mailTicket": "Tickets",
-    "mailTicketHint": "Antworten auf deine Tickets — als Administrator zusätzlich jedes neue Anliegen."
+    "mailTicketHint": "Antworten auf deine Tickets — als Administrator zusätzlich jedes neue Anliegen.",
+    "tabWatchlist": "Merkliste verwalten"
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -704,7 +707,8 @@
     "rootFolderModeHint_fixed": "Benutzer sehen kein Ordner-Feld; für alle gilt der unten eingestellte Ordner. Administratoren wählen weiterhin frei.",
     "rootFolderMode_approver": "Der Entscheider wählt bei der Freigabe",
     "rootFolderModeHint_approver": "Für Mediatheken, die in mehrere Ordner sortiert sind – etwa nach Genre. Anfragen kommen ohne Ordner und ohne Profil herein und warten immer auf eine Freigabe; erst dort wird beides gewählt. Wer selbst freigeben darf, wählt weiterhin gleich beim Anfragen.",
-    "targetPairCoupled": "Zielordner und Qualitätsprofil hängen zusammen: Sobald eines davon der Entscheider setzt, wartet die Anfrage ohnehin auf ihn – dann setzt er auch das andere. Deshalb wurde es mitumgestellt."
+    "targetPairCoupled": "Zielordner und Qualitätsprofil hängen zusammen: Sobald eines davon der Entscheider setzt, wartet die Anfrage ohnehin auf ihn – dann setzt er auch das andere. Deshalb wurde es mitumgestellt.",
+    "tabWatchlist": "Merklisten"
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -933,5 +937,28 @@
     "autoApprove": "4K ohne Freigabe",
     "blockedProfiles": "Gesperrte 4K-Profile",
     "notConfigured": "Für 4K ist noch keine zweite Instanz eingerichtet."
+  },
+  "watchlist": {
+    "title": "Plex-Merkliste",
+    "intro": "Was du in Plex auf deine Merkliste gesetzt hast. Anfragen geht hier genauso wie im Katalog – mit Kontingent und Freigabe wie sonst auch.",
+    "needsLink": "Verknüpfe zuerst dein Plex-Konto unter „Sicherheit\". Nexview darf nur die Merkliste des Kontos lesen, das zu deinem Profil gehört.",
+    "needsSignIn": "Für die Merkliste fehlt noch dein persönlicher Plex-Zugang – dein Konto wurde verknüpft, bevor es diese Funktion gab. Einmal anmelden genügt.",
+    "tokenInvalid": "Plex nimmt den hinterlegten Zugang nicht mehr an – meist, weil das Gerät abgemeldet wurde. Bitte einmal neu anmelden.",
+    "connect": "Mit Plex anmelden",
+    "reload": "Neu laden",
+    "empty": "Auf deiner Merkliste steht gerade nichts.",
+    "filterAll": "Alle",
+    "filterMissing": "Noch nicht da",
+    "unmatched": "{{count}} Titel lassen sich keiner TMDB-Nummer zuordnen und fehlen deshalb hier. Das liegt an den Angaben in Plex, nicht an Nexview.",
+    "adminTitle": "Merklisten",
+    "adminIntro": "Ist das eingeschaltet, sehen Benutzer ihre Plex-Merkliste in ihrem Profil und können Titel daraus anfragen – über den gewohnten Weg, also mit Kontingent und Freigabe.",
+    "adminEnable": "Merkliste freischalten",
+    "adminEnableHint": "Ohne diesen Schalter gibt es den Bereich nicht. Es wird nichts automatisch angefragt: Jeder Titel braucht einen Klick."
+  },
+  "paging": {
+    "label": "Blättern",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "position": "Seite {{page}} von {{pages}}"
   }
 }

@@ -17,6 +17,12 @@ type AddRequestFormProps = {
    * "Ganze Serie" steht dann nicht zur Wahl, das wäre ohnehin abgelehnt.
    */
   seasonOnly?: boolean
+  /**
+   * Kam der Klick von der Merklisten-Seite? Reine Herkunftsangabe – am
+   * Ablauf ändert sie nichts, sie macht die Anfrage nur nachträglich
+   * zuordenbar (Abzeichen und Filter „Über Merkliste angefragt").
+   */
+  fromWatchlist?: boolean
 }
 
 type CreatedRequest = { id: number; status: string; title: string }
@@ -27,7 +33,12 @@ type CreatedRequest = { id: number; status: string; title: string }
  * Die Auswahlmöglichkeiten kommen direkt aus Radarr bzw. Sonarr - es gibt
  * also nichts zu tippen und nichts, was dort nicht existiert.
  */
-export function AddRequestForm({ item, onDone, seasonOnly = false }: AddRequestFormProps) {
+export function AddRequestForm({
+  item,
+  onDone,
+  seasonOnly = false,
+  fromWatchlist = false,
+}: AddRequestFormProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { user } = useAuth()
@@ -126,6 +137,7 @@ export function AddRequestForm({ item, onDone, seasonOnly = false }: AddRequestF
         // entscheidet dann allein der Server.
         root_folder_path: !zielSpaeter && options?.root_folder_choice ? folder : null,
         season: season === '' ? null : Number(season),
+        from_watchlist: fromWatchlist,
       }),
     onSuccess: () => {
       // Badges und Kontingent neu laden - auch auf der Seite, die hinter

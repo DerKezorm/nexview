@@ -41,6 +41,7 @@ from .routers import (
     stats as stats_router,
     tickets as tickets_router,
     users,
+    watchlist as watchlist_router,
 )
 from .services import logs, status_poller
 from .services.arr import close_http_client as close_arr_client
@@ -118,6 +119,7 @@ app.include_router(blocklist_router.router)
 app.include_router(tickets_router.router)
 app.include_router(mediaserver_router.router)
 app.include_router(mediaserver_router.admin_router)
+app.include_router(watchlist_router.router)
 
 
 @app.get("/api/health", tags=["system"])

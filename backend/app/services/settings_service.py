@@ -133,6 +133,11 @@ DEFAULTS: dict[str, str] = {
     "mediaserver_default_quota_period": "week",
     # Altersbeschraenkung fuer neue Konten; leer heisst unbeschraenkt.
     "mediaserver_default_age": "",
+    # --- Merkliste ----------------------------------------------------------
+    # Ein Schalter, mehr nicht: Er entscheidet, ob Benutzer ihre Merkliste in
+    # Nexview sehen und daraus anfragen koennen. Angefragt wird ueber den ganz
+    # normalen Weg - deshalb braucht es hier weder Rechte noch ein Ziel.
+    "watchlist_enabled": "off",
 }
 
 
@@ -187,6 +192,7 @@ class AppSettings:
     mediaserver_default_quota_series: int | None
     mediaserver_default_quota_period: str
     mediaserver_default_age: int | None
+    watchlist_enabled: bool
 
     # --- Nur aus Sicht eines Benutzers gefuellt (siehe ``for_user``) --------
     # Alter des Benutzers; None heisst "nicht altersbeschraenkt".
@@ -491,6 +497,7 @@ def load_settings(db: Session) -> AppSettings:
             else "week"
         ),
         mediaserver_default_age=_zahl(values.get("mediaserver_default_age")),
+        watchlist_enabled=_flag(values["watchlist_enabled"], standard=False),
     )
 
 
@@ -591,6 +598,7 @@ def public_settings(db: Session) -> dict[str, object]:
         "mediaserver_default_quota_series": settings.mediaserver_default_quota_series,
         "mediaserver_default_quota_period": settings.mediaserver_default_quota_period,
         "mediaserver_default_age": settings.mediaserver_default_age,
+        "watchlist_enabled": settings.watchlist_enabled,
     }
 
 

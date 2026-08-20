@@ -22,6 +22,7 @@ from .base import (
     ServerCandidate,
     ServerUser,
     WatchedRecord,
+    WatchlistItem,
     http_client,
 )
 
@@ -200,6 +201,21 @@ class PlexServer(MediaServer):
         return await plextv.has_server_access(
             self.client_identifier, provider_token, self.machine_id
         )
+
+    # --- Merkliste ----------------------------------------------------------
+    #
+    # Beide Wege gehen ueber plex.tv und **nicht** ueber den Server daheim: Die
+    # Merkliste liegt bei Plex in der Cloud und gehoert dem Konto, nicht der
+    # Bibliothek. Deshalb auch das fremde Token als Parameter - der hinterlegte
+    # Zugang des Administrators taugt hier nicht.
+
+    async def watchlist(self, provider_token: str) -> list[WatchlistItem]:
+        return await plextv.watchlist(self.client_identifier, provider_token)
+
+    async def watchlist_ids(
+        self, provider_token: str, items: list[WatchlistItem]
+    ) -> list[WatchlistItem]:
+        return await plextv.watchlist_ids(self.client_identifier, provider_token, items)
 
     # --- Bibliothek ---------------------------------------------------------
 

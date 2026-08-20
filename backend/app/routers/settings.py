@@ -85,6 +85,8 @@ class SettingsUpdate(BaseModel):
     mediaserver_default_quota_series: str | None = Field(default=None, max_length=6)
     mediaserver_default_quota_period: str | None = None
     mediaserver_default_age: str | None = Field(default=None, max_length=3)
+    # --- Merkliste ----------------------------------------------------------
+    watchlist_enabled: bool | None = None
 
     @field_validator("mediaserver_default_role")
     @classmethod
@@ -138,6 +140,13 @@ class AppConfig(BaseModel):
     # in der Oberflaeche unsichtbar.
     radarr_uhd_configured: bool
     sonarr_uhd_configured: bool
+    # Ist ueberhaupt ein Media-Server verbunden? Daran haengt, ob es den
+    # Merklisten-Bereich geben kann.
+    mediaserver_configured: bool
+    # Duerfen Benutzer ihre Merkliste sehen und daraus anfragen? Die
+    # Oberflaeche blendet daran den Menuepunkt und den Filter "Über Merkliste
+    # angefragt" ein.
+    watchlist_enabled: bool
 
 
 @router.get("/config", response_model=AppConfig)
@@ -157,6 +166,8 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         approver_picks_target_tv=settings.approver_picks_target("tv"),
         radarr_uhd_configured=settings.radarr_uhd_configured,
         sonarr_uhd_configured=settings.sonarr_uhd_configured,
+        mediaserver_configured=settings.mediaserver_configured,
+        watchlist_enabled=settings.watchlist_enabled,
     )
 
 

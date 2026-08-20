@@ -41,6 +41,7 @@ was bereits in deiner Bibliothek liegt, und stößt Downloads über **Radarr** (
 | 🎞️ **Anmeldung mit Plex** | Wer Zugriff auf deine Plex-Bibliothek hat, meldet sich mit seinem Plex-Konto an — wahlweise zusätzlich zum Passwort |
 | 📚 **Bibliothek erkennen** | Titel, die schon in Plex liegen, aber nie über Radarr/Sonarr kamen, sind als „In der Bibliothek" markiert und nicht doppelt anfragbar |
 | 👁️ **Schon gesehen** | Was du auf deinem Media-Server angesehen hast, trägt ein kleines Auge — jeder sieht dabei nur seine eigenen |
+| 🔖 **Plex-Merkliste** | Was auf der eigenen Plex-Merkliste steht, erscheint im Profil — mit einem Klick angefragt, ganz wie im Katalog |
 | ✅ **Freigaben & Kontingente** | Pro Benutzer: automatisch freigeben oder manuell, Limits pro Tag/Woche/Monat |
 | 🔞 **Altersbeschränkung** | Je Benutzer ein Alter; gezeigt wird nur, was höchstens ab diesem Alter freigegeben ist |
 | 🚫 **Sperrliste** | Titel, die nicht in die Bibliothek sollen — sichtbar, aber nicht anfragbar |
@@ -167,6 +168,39 @@ Zwei Dinge, die man wissen sollte:
   begrenzt auf. Das liegt an Plex, nicht an Nexview.
 
 Ohne verbundenen Server ist von alldem nichts zu sehen; niemand muss Plex betreiben.
+
+### Die Plex-Merkliste
+
+Unter **Profil → Merkliste → Plex** steht, was jemand in Plex auf seine Merkliste gesetzt hat —
+als dieselben Kacheln wie im Katalog, mit denselben Abzeichen (*bereits geladen*, *angefragt*,
+*4K*, *gesehen*). Ein Klick auf den Einkaufswagen oder auf das Poster führt in den **gewohnten
+Anfrage-Dialog**; es gelten Kontingent, Freigabe, Sperrliste und Altersgrenze wie überall sonst.
+
+**Es passiert nichts von selbst.** Kein Hintergrundabgleich, keine automatischen Anfragen — jeder
+Titel braucht einen Klick. Wer nur sehen will, was noch fehlt, schaltet auf *Noch nicht da*.
+
+| | |
+|---|---|
+| **Freischalten** | *Einstellungen → Merklisten → Plex*. Standardmäßig aus; der Reiter erscheint nur mit verbundenem Media-Server. |
+| **Voraussetzung** | Ein **verknüpftes Plex-Konto**. Nexview liest ausschließlich die Merkliste des Kontos, das zum Profil gehört. |
+| **Zugang** | Eine Merkliste lässt sich nur mit dem Token **ihres Eigentümers** lesen — der Zugang des Administrators sieht sie nicht. Er entsteht beim Verknüpfen bzw. bei jeder Anmeldung mit Plex. |
+
+**Bestehende Installationen** haben diesen Zugang noch nicht — früher wurde das Token nach der
+Prüfung verworfen. Dort steht auf der Seite ein Knopf „Mit Plex anmelden“; einmal genügt.
+Dasselbe gilt, wenn Plex einen Zugang nicht mehr annimmt (Gerät abgemeldet).
+
+Zwei Dinge, die man wissen sollte:
+
+- **Plex nennt in der Merkliste keine TMDB-Nummern.** Die schlägt Nexview je Titel einmal nach
+  und merkt sich das Ergebnis; beim zweiten Öffnen ist die Seite sofort da. Titel, die sich
+  nicht zuordnen lassen, können nicht angezeigt werden — ihre Anzahl steht als Hinweis dabei,
+  statt dass sie stillschweigend fehlen.
+- **Verwaltete Plex-Profile (etwa für Kinder) haben keine eigene Merkliste**, weil ihnen der
+  plex.tv-Login fehlt. Kein Fehler, sondern eine Eigenheit von Plex.
+
+Anfragen, die von der Merkliste kommen, tragen ein kleines Abzeichen *Merkliste* und lassen sich
+in *Meine Anfragen* und *Alle Anfragen* über einen eigenen Reiter herausfiltern.
+
 
 > ⚠️ Wenn du Nexview von außen erreichbar machst (Reverse Proxy), vergib ein **langes
 > Passwort**. Die technische Mindestlänge ist absichtlich niedrig, damit auch kurze

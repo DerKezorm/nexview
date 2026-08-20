@@ -190,6 +190,29 @@ class WatchedRecord:
     watched_at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class WatchlistItem:
+    """Ein Titel auf der persoenlichen Merkliste eines Kontos.
+
+    Die Merkliste gehoert der Person, nicht dem Server: Sie laesst sich nur
+    mit **ihrem** Token lesen, der Zugang des Administrators sieht sie nicht.
+
+    ``tmdb_id`` ist beim Auflisten noch leer. Der Anbieter nennt die fremden
+    Kennungen erst, wenn man den einzelnen Titel abruft - eine Abfrage je
+    Titel. Deshalb sind Auflisten und Zuordnen zwei Schritte: aufgelistet wird
+    alles, nachgeschlagen nur, was Nexview noch nie gesehen hat.
+    """
+
+    guid: str
+    media_type: str  # "movie" | "tv"
+    title: str
+    year: int | None = None
+    tmdb_id: int | None = None
+    # Die interne Nummer beim Anbieter - nur mit ihr laesst sich der einzelne
+    # Titel nachschlagen.
+    rating_key: str | None = None
+
+
 class MediaServer(ABC):
     """Was Nexview von einem Media-Server erwartet."""
 
@@ -246,6 +269,37 @@ class MediaServer(ABC):
         Das ist die einzige Huerde gegen Fremde und wird deshalb immer
         geprueft, **bevor** ein Konto entsteht oder veraendert wird.
         """
+
+    # --- Merkliste ---------------------------------------------------------
+
+    async def watchlist(self, provider_token: str) -> list[WatchlistItem]:
+        """Die vollstaendige Merkliste zu diesem Token.
+
+        Ohne fremde Kennungen - die kostet der Anbieter einzeln, siehe
+        ``watchlist_ids``. Ein Anbieter ohne Merkliste laesst diese Methode
+        weg; ``supports_watchlist`` sagt es vorher.
+        """
+        raise NotImplementedError
+
+    async def watchlist_ids(
+        self, provider_token: str, items: list[WatchlistItem]
+    ) -> list[WatchlistItem]:
+        """Dieselben Titel, um die TMDB-Nummer ergaenzt (soweit auffindbar).
+
+        Absichtlich als Liste und nicht je Titel: So darf ein Anbieter die
+        Abfragen buendeln oder begrenzt nebenlaeufig stellen, ohne dass der
+        Aufrufer davon etwas wissen muss.
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def supports_watchlist(cls) -> bool:
+        """Kennt dieser Anbieter ueberhaupt eine Merkliste?
+
+        Jellyfin und Emby haben keine. Die Oberflaeche fragt hier nach, statt
+        einen Haken anzubieten, der nichts tun kann.
+        """
+        return cls.watchlist is not MediaServer.watchlist
 
     # --- Vorbereitet, noch nicht gebaut ------------------------------------
 

@@ -563,3 +563,23 @@ def test_altersgrenze_verbirgt_eigene_titel_ohne_zuordnung(
     ).json()
 
     assert daten["days"] == []
+
+
+def test_sonarr_null_kennung_wird_nicht_zur_null(admin_client: TestClient) -> None:
+    """Sonarr und Radarr melden **0**, wenn sie keine TMDB-Kennung kennen.
+
+    Eine durchgelassene 0 ist schlimmer als gar keine Kennung: Die
+    Nachaufloesung ueber die TVDB-Kennung prueft auf ``None`` und
+    uebergeht den Eintrag, die Entdopplung hielte ihn fuer eigenstaendig,
+    die Detailseite waere ``/titel/tv/0``, und der Altersfilter wuerfe ihn
+    weg, weil sich zu einer 0 nichts pruefen laesst.
+
+    Gemessen an einer echten Bibliothek: 2 von 175 Serien haben ``tmdbId: 0``.
+    """
+    from app.services.calendar import _kennung
+
+    assert _kennung(0) is None
+    assert _kennung(None) is None
+    assert _kennung(-1) is None
+    assert _kennung("3863") is None
+    assert _kennung(3863) == 3863

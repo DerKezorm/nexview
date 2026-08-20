@@ -15,16 +15,21 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { StarRating } from "../components/StarRating";
 import { StatusBadge } from "../components/media/StatusBadge";
 import { Button, Card, ErrorBanner, Spinner } from "../components/ui";
+import { Pagination, useSeiten } from "../components/Pagination";
 import { formatDate } from "../lib/format";
 import { TargetPicker, type Target } from "../components/TargetPicker";
 import { useConfig } from "../hooks/useConfig";
 import { anfragenStandNeuLaden } from "../lib/refresh";
 
-type Filter = "pending_approval" | "all" | "feedback" | MediaStatus;
+// "watchlist" ist kein Zustand, sondern eine Herkunft - deshalb ein eigener
+// Wert neben den Zustaenden. Der Knopf erscheint nur, wenn die Automatik
+// ueberhaupt eingeschaltet ist; sonst gaebe es dort nie etwas zu sehen.
+type Filter = "pending_approval" | "all" | "feedback" | "watchlist" | MediaStatus;
 
 const FILTERS: Filter[] = [
   "pending_approval",
   "feedback",
+  "watchlist",
   "all",
   "searching",
   "downloaded",
@@ -38,6 +43,7 @@ const FILTERS: Filter[] = [
 function urlFuer(filter: Filter): string {
   if (filter === "all") return "/api/admin/requests";
   if (filter === "feedback") return "/api/admin/requests?feedback=true";
+  if (filter === "watchlist") return "/api/admin/requests?from_watchlist=true";
   return `/api/admin/requests?status=${filter}`;
 }
 
@@ -292,9 +298,15 @@ export function AdminRequestsPage() {
     cancelMutation.error ??
     approveAllMutation.error;
 
+  // Erst blättern, dann gruppieren: Die Gruppen entstehen aus dem, was auf
+  // dieser Seite steht. Andersherum wäre eine "Seite" mal drei und mal
+  // dreißig Zeilen lang, je nachdem wie viele Titel auf einen Benutzer
+  // entfallen.
+  const blaettern = useSeiten(requests, filter);
+
   // Nach Benutzer gruppieren, damit man nicht jeden Titel einzeln freigeben muss.
   const gruppen: Gruppe[] = [];
-  for (const request of requests) {
+  for (const request of blaettern.sichtbar) {
     let gruppe = gruppen.find((eintrag) => eintrag.userId === request.user_id);
     if (!gruppe) {
       gruppe = {
@@ -328,7 +340,9 @@ export function AdminRequestsPage() {
       </header>
 
       <div className="flex flex-wrap gap-2">
-        {FILTERS.map((value) => (
+        {FILTERS.filter(
+          (value) => value !== "watchlist" || Boolean(config?.watchlist_enabled),
+        ).map((value) => (
           <button
             key={value}
             type="button"
@@ -345,7 +359,9 @@ export function AdminRequestsPage() {
               ? t("adminRequests.filterAll")
               : value === "feedback"
                 ? t("adminRequests.filterFeedback")
-                : t(`status.${value}`)}
+                : value === "watchlist"
+                  ? t("myRequests.fromWatchlistTab")
+                  : t(`status.${value}`)}
           </button>
         ))}
       </div>
@@ -375,8 +391,14 @@ export function AdminRequestsPage() {
       )}
 
       {gruppen.map((gruppe) => {
-        const offene = gruppe.requests.filter(
-          (r) => r.status === "pending_approval",
+        // **Über die ganze Liste**, nicht über die sichtbare Seite: Der
+        // Sammel-Knopf gibt serverseitig *alle* wartenden Anfragen dieses
+        // Benutzers frei. Zählte er nur die Seite, stünde "3 freigeben" auf
+        // einem Knopf, der fünfundzwanzig freigibt - und die Prüfung, ob
+        // eine davon noch ein Ziel braucht, übersähe die übrigen Seiten.
+        const offene = requests.filter(
+          (r) =>
+            r.user_id === gruppe.userId && r.status === "pending_approval",
         );
         return (
           <Card key={gruppe.username} className="flex flex-col gap-3 p-4">
@@ -511,6 +533,13 @@ export function AdminRequestsPage() {
                       {request.tier === "uhd" && (
                         <span className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400">
                           4K
+                        </span>
+                      )}
+                      {/* Von der Merkliste statt von einem Klick - siehe
+                          MyRequestsPage. */}
+                      {request.from_watchlist && (
+                        <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
+                          {t("myRequests.fromWatchlist")}
                         </span>
                       )}
                     </p>
@@ -701,6 +730,12 @@ export function AdminRequestsPage() {
           </Card>
         );
       })}
+
+      <Pagination
+        seite={blaettern.seite}
+        seiten={blaettern.seiten}
+        onSeite={blaettern.setSeite}
+      />
 
       <ConfirmDialog
         open={cancelling !== null}

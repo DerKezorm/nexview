@@ -132,6 +132,9 @@ def list_all(
     ] = None,
     user_id: Annotated[int | None, Query(ge=1)] = None,
     feedback: Annotated[bool, Query()] = False,
+    # Keine Zustandsfrage, sondern eine Herkunftsfrage - deshalb ein eigener
+    # Schalter neben ``status`` und nicht ein weiterer Wert darin.
+    from_watchlist: Annotated[bool, Query()] = False,
 ) -> list[RequestWithUser]:
     """Alle Anfragen aller Benutzer, optional gefiltert."""
     query = (
@@ -151,6 +154,8 @@ def list_all(
             .order_by(None)
             .order_by(MediaRequest.rated_at.desc())
         )
+    elif from_watchlist:
+        query = query.where(MediaRequest.from_watchlist.is_(True))
     elif request_status is not None:
         query = query.where(MediaRequest.status == RequestStatus(request_status))
     if user_id is not None:

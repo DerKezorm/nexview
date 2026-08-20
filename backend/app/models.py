@@ -230,6 +230,22 @@ class User(Base):
     mediaserver_thumb: Mapped[str | None] = mapped_column(String(500))
     mediaserver_linked_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    # --- Merkliste ---------------------------------------------------------
+    # Das persoenliche Token beim Anbieter - **verschluesselt**, wie jedes
+    # andere Geheimnis auch.
+    #
+    # Es ist die einzige Stelle, an der Nexview dauerhaft ein fremdes
+    # Anbieter-Token haelt. Bei der Anmeldung und beim Verknuepfen wird das
+    # Token bewusst weggeworfen; hier geht das nicht, denn eine Merkliste
+    # laesst sich ausschliesslich mit dem Token ihres Eigentuemers lesen - der
+    # Zugang des Administrators sieht sie nicht. Entsteht nur, wenn jemand den
+    # Haken setzt.
+    #
+    # Geloescht wird es beim Trennen des Media-Server-Kontos und mit dem
+    # Konto selbst.
+    watchlist_token: Mapped[str | None] = mapped_column(Text)
+    watchlist_connected_at: Mapped[datetime | None] = mapped_column(DateTime)
+
     # --- Benachrichtigungen per Mail --------------------------------------
     # Bewusst alle auf "aus": ungefragt Mails zu verschicken ist der sicherste
     # Weg, jemandem die Anwendung zu verleiden. Die Glocke in der App ist davon
@@ -418,6 +434,15 @@ class User(Base):
     @property
     def mediaserver_linked(self) -> bool:
         return bool(self.mediaserver_provider and self.mediaserver_account_id)
+
+    @property
+    def watchlist_connected(self) -> bool:
+        """Liegt ein Token fuer die Merkliste vor?
+
+        Nach aussen gibt es nur diese Ja/Nein-Auskunft - das Token selbst
+        verlaesst den Server nie.
+        """
+        return bool(self.watchlist_token)
 
     @property
     def has_password(self) -> bool:
@@ -614,6 +639,40 @@ class UserWatched(Base):
     watched_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class WatchlistLookup(Base):
+    """Zwischenspeicher: welche TMDB-Nummer steckt hinter einer Plex-Kennung?
+
+    **Kein Gedaechtnis, sondern eine Abkuerzung.** Hier steht nichts darueber,
+    was jemand entschieden hat - nur, was ein Titel *ist*. Deshalb gilt die
+    Zeile fuer alle Benutzer gemeinsam: Dieselbe Plex-Kennung meint fuer jeden
+    denselben Film.
+
+    Ohne diesen Zwischenspeicher kostet jedes Oeffnen der Merklisten-Seite eine
+    Abfrage **je Titel** - Plex nennt in der Liste selbst keine fremden
+    Kennungen. Bei hundert Eintraegen ist das der Unterschied zwischen "sofort
+    da" und "spuerbar warten", und zwar jedes Mal.
+    """
+
+    __tablename__ = "watchlist_lookup"
+    __table_args__ = (
+        Index("ix_watchlist_lookup_guid", "provider", "guid", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    guid: Mapped[str] = mapped_column(String(255), nullable=False)
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    # Leer heisst "nachgeschlagen, aber der Anbieter kennt keine" - auch das
+    # ist eine Auskunft und wird gemerkt, damit sie nicht staendig neu
+    # eingeholt wird.
+    tmdb_id: Mapped[int | None] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    year: Mapped[int | None] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+
 class Setting(Base):
     """Konfiguration als Schluessel/Wert-Paare (TMDB-, Radarr-, Sonarr-Zugang)."""
 
@@ -671,6 +730,11 @@ class MediaRequest(Base):
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime)
     rejection_reason: Mapped[str | None] = mapped_column(Text)
+
+    # Kam diese Anfrage von der Merkliste statt von einem Klick? Der
+    # Entscheider soll das sehen: Niemand hat sich diesen Titel im Einzelnen
+    # ueberlegt, und das aendert, wie genau man hinschaut.
+    from_watchlist: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     requested_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)

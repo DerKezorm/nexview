@@ -18,6 +18,8 @@ type DetailModalProps = {
   onClose: () => void
   /** Ist Radarr (Filme) bzw. Sonarr (Serien) eingerichtet? */
   arrConfigured: boolean
+  /** Wurde das Fenster von der Merklisten-Seite geöffnet? */
+  fromWatchlist?: boolean
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
@@ -30,7 +32,12 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 /** Großes Detailfenster mit Hintergrundbild, Handlung und Eckdaten. */
-export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) {
+export function DetailModal({
+  item,
+  onClose,
+  arrConfigured,
+  fromWatchlist = false,
+}: DetailModalProps) {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -187,6 +194,7 @@ export function DetailModal({ item, onClose, arrConfigured }: DetailModalProps) 
                     item={{ ...item, seasons }}
                     onDone={onClose}
                     seasonOnly={nurWeitereStaffel}
+                    fromWatchlist={fromWatchlist}
                   />
                 ) : (
                   <>

@@ -244,3 +244,119 @@ async def test_serien_verschwinden_nicht_aus_frisch_geladen(
     assert titel in titel_liste, (
         f"Die Serie {titel!r} fehlt in 'Frisch geladen' - gefunden: {titel_liste}"
     )
+
+
+# --------------------------------------------------------------------------
+# Vorschlaege und der Media-Server
+# --------------------------------------------------------------------------
+
+
+async def test_nur_in_plex_vorhandene_titel_werden_nicht_vorgeschlagen(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Startseite muss dieselbe Wahrheit kennen wie die Suche.
+
+    Der gemeldete Fall ("Backrooms"): Eintrag aus Radarr entfernt, Datei
+    weiter in Plex. Suche und Detailseite zeigten "vorhanden", die Startseite
+    bot denselben Film als Vorschlag an - sie fragte als einzige Stelle den
+    Media-Server nicht. Zwei Seiten, zwei Wahrheiten; das faellt genau dem
+    auf, der beides direkt nacheinander sieht.
+    """
+    from app.models import MediaServerLibraryItem
+    from app.schemas_media import MediaItem
+    from app.services.sonarr import normalize_title
+
+    plex_nur = MediaItem(
+        media_type=MediaType.movie,
+        tmdb_id=1083381,
+        title="Backrooms",
+        release_date="2026-01-01",
+        vote_average=7.0,
+        vote_count=500,
+    )
+    frisch = MediaItem(
+        media_type=MediaType.movie,
+        tmdb_id=777001,
+        title="Wirklich neu",
+        release_date="2026-01-01",
+        vote_average=7.0,
+        vote_count=500,
+    )
+
+    with SessionLocal() as session:
+        session.add(
+            MediaServerLibraryItem(
+                provider="plex",
+                media_type=MediaType.movie,
+                guid="plex://movie/backrooms",
+                title="Backrooms",
+                title_key=normalize_title("Backrooms"),
+                tmdb_id=1083381,
+                year=2026,
+            )
+        )
+        session.commit()
+
+    async def vorschlaege(_db, _settings, _art, page=1):  # noqa: ANN001
+        return [plex_nur, frisch] if page == 1 else []
+
+    monkeypatch.setattr(media, "suggestions", vorschlaege)
+
+    daten = arr_client.get("/api/home/trending").json()
+    kennungen = [eintrag["tmdb_id"] for eintrag in daten]
+    assert 777001 in kennungen
+    # Der Film liegt in Plex - er hat auf der Vorschlagsliste nichts verloren.
+    assert 1083381 not in kennungen
+
+
+async def test_kuratierte_vorschlaege_kennen_den_media_server(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dieselbe Luecke gab es bei den Empfehlungen aus Favoriten."""
+    from app.models import MediaServerLibraryItem
+    from app.schemas_media import MediaItem
+    from app.services.sonarr import normalize_title
+
+    with SessionLocal() as session:
+        session.add(
+            MediaServerLibraryItem(
+                provider="plex",
+                media_type=MediaType.movie,
+                guid="plex://movie/backrooms",
+                title="Backrooms",
+                title_key=normalize_title("Backrooms"),
+                tmdb_id=1083381,
+                year=2026,
+            )
+        )
+        session.commit()
+
+    async def kuratiert(_db, _settings, _art, _favoriten, _personen):  # noqa: ANN001
+        return [
+            MediaItem(
+                media_type=MediaType.movie,
+                tmdb_id=1083381,
+                title="Backrooms",
+                release_date="2026-01-01",
+            ),
+            MediaItem(
+                media_type=MediaType.movie,
+                tmdb_id=777001,
+                title="Wirklich neu",
+                release_date="2026-01-01",
+            ),
+        ]
+
+    monkeypatch.setattr(media, "curated", kuratiert)
+    # Ein Favorit, damit der Bereich ueberhaupt rechnet.
+    item = arr_client.get("/api/discover/movie").json()["items"][0]
+    antwort = arr_client.post(
+        "/api/favorites",
+        json={"media_type": "movie", "tmdb_id": item["tmdb_id"]},
+    )
+    assert antwort.status_code == 201, antwort.text
+
+    daten = arr_client.get("/api/home/curated").json()
+    kennungen = [eintrag["tmdb_id"] for eintrag in daten["items"]]
+    assert 1083381 not in kennungen
+    assert 777001 in kennungen

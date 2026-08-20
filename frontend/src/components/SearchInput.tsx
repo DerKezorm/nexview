@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next'
 type SearchInputProps = {
   value: string
   onChange: (value: string) => void
+  /** Ersetzt „Titel suchen …" – die Personen-Seite sucht eben keine Titel. */
+  placeholder?: string
 }
 
 /** Suchfeld mit kurzer Verzögerung, damit nicht bei jedem Tastendruck geladen wird. */
-export function SearchInput({ value, onChange }: SearchInputProps) {
+export function SearchInput({ value, onChange, placeholder }: SearchInputProps) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState(value)
 
@@ -37,8 +39,8 @@ export function SearchInput({ value, onChange }: SearchInputProps) {
         type="search"
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
-        placeholder={t('discover.searchPlaceholder')}
-        aria-label={t('discover.searchPlaceholder')}
+        placeholder={placeholder ?? t('discover.searchPlaceholder')}
+        aria-label={placeholder ?? t('discover.searchPlaceholder')}
         className="w-full rounded-full border border-ink-700 bg-ink-900 py-2.5 pr-10 pl-10 text-sm text-mist-100 placeholder:text-mist-600 transition-colors focus:border-accent-500 focus:outline-none"
       />
 

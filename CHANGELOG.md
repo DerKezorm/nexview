@@ -12,6 +12,47 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.11.3
+
+### Fixed
+
+- **The home page finally asks Plex.** Its two suggestion sections
+  ("trending" and the curated picks) filtered "already there" using only
+  Radarr/Sonarr and your own requests – the media server was never
+  consulted. A film whose Radarr entry was removed but which still lives in
+  Plex was offered as a suggestion, while search and detail pages correctly
+  showed it as in the library. Two pages, two truths – reported for
+  "Backrooms".
+
+- **A namesake from the same year no longer inherits the library badge.**
+  The title fallback of the media-server match treated "same name + same
+  year" as "same film" – which made a four-minute short called "Backrooms"
+  (2026) appear as in the library next to the real feature film. The fallback
+  now only applies to Plex entries that carry no id at all (old agents);
+  where the entry knows its TMDB id, a mere name match no longer counts.
+
+- **A wrong secret key no longer fails silently.** All stored credentials
+  are encrypted with NEXVIEW_SECRET_KEY (or the auto-generated
+  data/secret.key). If that key changes – typically because the file was
+  not inside the mounted volume when the container was recreated –
+  decryption used to quietly return nothing: the Plex connection looked
+  "gone", TMDB fell back to demo data, and nothing anywhere said why. There
+  is now a plain-words warning in the log and a banner on the services page
+  naming the cause and the fix.
+
+- **The library sync log names both numbers.** "443 titles" next to 446
+  entries in Plex looked like a loss; the log now says how many entries were
+  folded because the same film lies in several libraries (1080p and 4K).
+
+- **The mail switch "my request was decided" is hidden for approvers and
+  admins** – whoever may approve never waits for a decision, so the switch
+  could never do anything for them.
+
+- **The people page now says "Search for a person"** instead of "Search for
+  a title".
+
+---
+
 ## 0.11.1 – 20.08.2026
 
 ### Fixed

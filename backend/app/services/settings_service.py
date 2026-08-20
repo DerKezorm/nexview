@@ -540,7 +540,20 @@ def for_user(settings: AppSettings, user: "User") -> AppSettings:
 def public_settings(db: Session) -> dict[str, object]:
     """Darstellung fuer die Einstellungsseite - Geheimnisse nur maskiert."""
     settings = load_settings(db)
+
+    # Gibt es gespeicherte Geheimnisse, die sich mit dem aktuellen Schluessel
+    # nicht mehr lesen lassen? Das passiert, wenn NEXVIEW_SECRET_KEY geaendert
+    # wurde oder data/secret.key beim Container-Neubau verlorenging. Ohne
+    # diese Auskunft sieht der Administrator nur die Folgen - "Verbindung
+    # weg", Demo-Daten - und nie die Ursache.
+    roh = _raw_values(db)
+    unlesbar = any(
+        roh.get(name, "").startswith("enc:") and not decrypt(roh[name])
+        for name in SECRET_KEYS
+    )
+
     return {
+        "secrets_unreadable": unlesbar,
         "tmdb_api_key": mask(settings.tmdb_api_key),
         "tmdb_api_key_set": bool(settings.tmdb_api_key),
         "radarr_url": settings.radarr_url,

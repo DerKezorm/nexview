@@ -363,3 +363,31 @@ async def test_handknopf_zeigt_den_fehler(
     antwort = admin_client.post("/api/admin/mediaserver/library/refresh")
     assert antwort.status_code == 502
     assert "antwortet nicht" in antwort.json()["detail"]["message"]
+
+
+def test_namensvetter_mit_bekannter_kennung_trifft_nicht() -> None:
+    """Gleicher Titel, gleiches Jahr, anderer Film - kein Treffer.
+
+    Der gemeldete Fall: "Backrooms" (2026, Spielfilm) lag mit bekannter
+    TMDB-Kennung in Plex. Ein gleichnamiger 4-Minuten-Kurzfilm aus demselben
+    Jahr erschien darueber als "In der Bibliothek" - die Jahres-Pruefung kann
+    Doppelgaenger nicht trennen. Traegt die Plex-Zeile eine Kennung, ist ihre
+    Identitaet geklaert; der Titel-Rueckfall bleibt Eintraegen ohne jede
+    Kennung vorbehalten.
+    """
+    eintragen(title="Backrooms", title_key="backrooms", tmdb_id=1083381, year=2026)
+
+    kurzfilm = Werk(tmdb_id=999999, title="Backrooms", release_date="2026-01-01")
+    assert suchen([kurzfilm]) == set()
+
+    # Der echte Film trifft weiterhin - ueber seine Kennung.
+    spielfilm = Werk(tmdb_id=1083381, title="Backrooms", release_date="2026-01-01")
+    assert suchen([spielfilm]) == {1083381}
+
+
+def test_eintrag_ohne_kennung_trifft_weiter_ueber_den_titel() -> None:
+    """Alte Plex-Agenten liefern gar keine Kennungen - dort bleibt der Rueckfall."""
+    eintragen(title="Alter Schinken", title_key="alterschinken", tmdb_id=None, year=1965)
+
+    kachel = Werk(tmdb_id=424242, title="Alter Schinken", release_date="1965-05-01")
+    assert suchen([kachel]) == {424242}

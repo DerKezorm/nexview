@@ -708,7 +708,8 @@
     "rootFolderMode_approver": "Der Entscheider wählt bei der Freigabe",
     "rootFolderModeHint_approver": "Für Mediatheken, die in mehrere Ordner sortiert sind – etwa nach Genre. Anfragen kommen ohne Ordner und ohne Profil herein und warten immer auf eine Freigabe; erst dort wird beides gewählt. Wer selbst freigeben darf, wählt weiterhin gleich beim Anfragen.",
     "targetPairCoupled": "Zielordner und Qualitätsprofil hängen zusammen: Sobald eines davon der Entscheider setzt, wartet die Anfrage ohnehin auf ihn – dann setzt er auch das andere. Deshalb wurde es mitumgestellt.",
-    "tabWatchlist": "Merklisten"
+    "tabWatchlist": "Merklisten",
+    "secretsUnreadable": "Gespeicherte Zugangsdaten (API-Schlüssel, Plex-Zugang) lassen sich mit dem aktuellen Geheimschlüssel nicht mehr lesen. Häufigste Ursache: NEXVIEW_SECRET_KEY wurde geändert, oder data/secret.key ging beim Neu-Erstellen des Containers verloren (Datei liegt nicht im gemounteten Volume). Die betroffenen Zugangsdaten müssen einmal neu eingetragen bzw. Plex neu verbunden werden – und der Schlüssel sollte dauerhaft gesichert sein, sonst passiert es beim nächsten Update wieder."
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -804,7 +805,8 @@
     },
     "searchHint": "Für Regie und Drehbuch gibt es keine Bestenliste – gib einen Namen ein, um zu suchen.",
     "noResults": "Niemanden in diesem Fach gefunden. Vielleicht ein anderes Fach oben wählen?",
-    "empty": "Keine Personen gefunden."
+    "empty": "Keine Personen gefunden.",
+    "searchPlaceholder": "Person suchen …"
   },
   "person": {
     "works": {

@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 
 from cryptography.fernet import Fernet, InvalidToken
 
 from .config import get_settings
+
+logger = logging.getLogger("nexview.crypto")
 
 _PREFIX = "enc:"
 
@@ -36,7 +39,19 @@ def decrypt(value: str) -> str:
     try:
         return _fernet().decrypt(value[len(_PREFIX) :].encode("utf-8")).decode("utf-8")
     except InvalidToken:
-        # Passiert, wenn NEXVIEW_SECRET_KEY nachtraeglich geaendert wurde.
+        # Der Schluessel passt nicht mehr zu den gespeicherten Werten - etwa
+        # weil ``NEXVIEW_SECRET_KEY`` geaendert wurde oder ``data/secret.key``
+        # beim Neu-Erstellen des Containers verlorenging (Datei nicht im
+        # gemounteten Volume). Frueher wurde hier stumm "" geliefert: Die
+        # Plex-Verbindung war dann einfach "weg", TMDB lief als Demo, und
+        # nirgends stand, warum. Zwei Betreiber haben genau das als Raetsel
+        # gemeldet - deshalb laermt es jetzt.
+        logger.warning(
+            "Ein gespeicherter Zugangsschlüssel lässt sich mit dem aktuellen "
+            "Geheimschlüssel nicht entschlüsseln. Wurde NEXVIEW_SECRET_KEY "
+            "geändert oder data/secret.key beim Container-Neubau verloren? "
+            "Betroffene Zugangsdaten müssen neu eingetragen werden."
+        )
         return ""
 
 

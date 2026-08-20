@@ -87,7 +87,7 @@ export function PeoplePage() {
         <p className="mt-1.5 text-mist-500">{t('people.intro')}</p>
       </header>
 
-      <SearchInput value={suche} onChange={setSuche} />
+      <SearchInput value={suche} onChange={setSuche} placeholder={t('people.searchPlaceholder')} />
 
       <div className="flex flex-wrap gap-2" role="group" aria-label={t('people.department')}>
         {FAECHER.map((wert) => {

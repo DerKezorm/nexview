@@ -22,6 +22,12 @@ type Schalter = {
   /** Wer die Meldung gar nicht bekommen kann, sieht den Schalter nicht. */
   nurEntscheider?: boolean
   nurAdmin?: boolean
+  /**
+   * Nur für Leute ohne Freigaberecht: Wer selbst freigeben darf, wartet nie
+   * auf eine Entscheidung – „freigegeben/abgelehnt" kann ihn nicht erreichen,
+   * und ein Schalter ohne mögliche Meldung ist eine Einladung zur Verwirrung.
+   */
+  nieEntscheider?: boolean
 }
 
 /** Reihenfolge nach Häufigkeit, nicht alphabetisch. */
@@ -35,6 +41,7 @@ const SCHALTER: Schalter[] = [
     feld: 'mail_request_decided',
     labelKey: 'profile.mailRequestDecided',
     hintKey: 'profile.mailRequestDecidedHint',
+    nieEntscheider: true,
   },
   {
     feld: 'mail_request_pending',
@@ -123,7 +130,9 @@ export function NotificationSettings() {
 
   const sichtbar = SCHALTER.filter(
     (s) =>
-      (!s.nurEntscheider || user.can_approve) && (!s.nurAdmin || user.role === 'admin'),
+      (!s.nurEntscheider || user.can_approve) &&
+      (!s.nurAdmin || user.role === 'admin') &&
+      (!s.nieEntscheider || !user.can_approve),
   )
   // Ohne bestätigte Adresse geht ohnehin nichts raus - das gehört gesagt,
   // statt die Haken wirkungslos setzen zu lassen.

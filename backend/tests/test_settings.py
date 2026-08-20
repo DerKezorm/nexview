@@ -141,3 +141,33 @@ def test_merklisten_einstellung_ueberlebt_das_speichern(admin_client: TestClient
     assert antwort.status_code == 200, antwort.text
 
     assert admin_client.get("/api/settings").json()["watchlist_enabled"] is True
+
+
+def test_unlesbare_geheimnisse_werden_gemeldet(admin_client: TestClient) -> None:
+    """Ein Schluesselwechsel darf nicht wie "Verbindung weg" aussehen.
+
+    ``decrypt`` liefert bei nicht mehr passendem Geheimschluessel ein leeres
+    Ergebnis - frueher voellig stumm. Die Folgen sahen aus wie drei
+    verschiedene Fehler (Plex-Verbindung verschwunden, TMDB im Demo-Modus,
+    Radarr "nicht eingerichtet"), und zwei Betreiber haben genau das als
+    Raetsel gemeldet. Die Einstellungsseite bekommt deshalb eine ehrliche
+    Auskunft: Es gibt gespeicherte Werte, die sich nicht lesen lassen.
+    """
+    from app.db import SessionLocal
+    from app.models import Setting
+
+    assert admin_client.get("/api/settings").json()["secrets_unreadable"] is False
+
+    # Ein Geheimnis, das mit einem *anderen* Schluessel verschluesselt wurde -
+    # nachgestellt durch einen Wert, den der aktuelle Schluessel nicht oeffnet.
+    with SessionLocal() as session:
+        session.merge(
+            Setting(key="mediaserver_token", value="enc:kaputt", is_secret=True)
+        )
+        session.commit()
+
+    daten = admin_client.get("/api/settings").json()
+    assert daten["secrets_unreadable"] is True
+    # Und die Verbindung gilt folgerichtig als nicht eingerichtet - aber eben
+    # mit sichtbarer Ursache statt stillschweigend.
+    assert daten["mediaserver_token_set"] is False

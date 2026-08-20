@@ -530,6 +530,12 @@ export type AppSettings = {
 
   /** Dürfen Benutzer ihre Merkliste sehen und daraus anfragen? */
   watchlist_enabled: boolean;
+  /**
+   * Gespeicherte Zugangsdaten, die sich mit dem aktuellen Schlüssel nicht
+   * mehr entschlüsseln lassen – NEXVIEW_SECRET_KEY geändert oder
+   * data/secret.key beim Container-Neubau verloren.
+   */
+  secrets_unreadable: boolean;
 };
 
 /** Ein gesperrtes Media-Server-Konto – entsteht beim Löschen eines Benutzers. */

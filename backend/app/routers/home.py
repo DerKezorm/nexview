@@ -247,10 +247,25 @@ async def trending(user: CurrentUser, db: DbSession) -> list[MediaItem]:
             db, MediaType.movie, [eintrag.tmdb_id for eintrag in kandidaten]
         )
 
+        # Und die dritte Quelle: der Media-Server. Ohne sie stand ein Film,
+        # dessen Eintrag aus Radarr entfernt wurde, der aber weiter in Plex
+        # liegt, hier als Vorschlag - waehrend die Suche ihn laengst als
+        # vorhanden zeigte. Zwei Seiten, zwei Wahrheiten; gemeldet an
+        # "Backrooms". Dieselbe Stufen-Regel wie ueberall: Mit 4K-Instanz
+        # zaehlt nur die Standard-Kopie, die 4K-Achse haengt am Ende dran.
+        im_server = mediaserver_library.vorhandene_kennungen(
+            db,
+            MediaType.movie,
+            [e for e in kandidaten if e.status == "not_requested"],
+            "standard" if settings.arr_configured("movie", "uhd") else None,
+        )
+
         heute = datetime.now().strftime("%Y-%m-%d")
 
         for eintrag in kandidaten:
             if eintrag.status != "not_requested" or eintrag.tmdb_id in eigene:
+                continue
+            if eintrag.tmdb_id in im_server:
                 continue
             if eintrag.tmdb_id in gesehen:
                 continue
@@ -320,10 +335,20 @@ async def _kuratiert_fuer(
     eigene = requests_service.badges_for(
         db, media_type, [eintrag.tmdb_id for eintrag in vorschlaege]
     )
+    # Dritte Quelle Media-Server - siehe die Begruendung bei den Trending-
+    # Vorschlaegen; hier fehlte sie genauso.
+    im_server = mediaserver_library.vorhandene_kennungen(
+        db,
+        media_type,
+        [e for e in vorschlaege if e.status == "not_requested"],
+        "standard" if settings.arr_configured(media_type.value, "uhd") else None,
+    )
     uebrig = [
         eintrag
         for eintrag in vorschlaege
-        if eintrag.status == "not_requested" and eintrag.tmdb_id not in eigene
+        if eintrag.status == "not_requested"
+        and eintrag.tmdb_id not in eigene
+        and eintrag.tmdb_id not in im_server
     ]
     # Ohne diese Zeile stand auf der Startseite "Nicht angefragt" an einem
     # Film, den es in 4K laengst gibt - die zweite Achse fehlte hier ganz.

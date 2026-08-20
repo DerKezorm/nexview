@@ -657,6 +657,15 @@ export function AdminServicesSettings() {
 
       {/* Zweite Reihe: ein Knopf je Dienst. Bewusst optisch leichter als die
           Reiter darüber, damit die Ebenen unterscheidbar bleiben. */}
+      {/* Der Schlüssel passt nicht mehr zu den gespeicherten Zugangsdaten -
+          die Folgen ("Verbindung weg", Demo-Daten) sehen aus wie viele andere
+          Fehler, deshalb steht die Ursache hier deutlich und ganz oben. */}
+      {settings?.secrets_unreadable && (
+        <p className="mt-5 rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
+          {t('settings.secretsUnreadable')}
+        </p>
+      )}
+
       <div className="mt-5 flex flex-wrap gap-2" role="tablist">
         {UNTER_TABS.map((eintrag) => (
           <button

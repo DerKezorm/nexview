@@ -708,7 +708,8 @@
     "rootFolderMode_approver": "The approver picks on approval",
     "rootFolderModeHint_approver": "For libraries split across several folders — by genre, for example. Requests arrive without a folder or profile and always wait for approval; both are picked there. Anyone who may approve still picks when requesting.",
     "targetPairCoupled": "Root folder and quality profile belong together: once the approver picks one of them, the request waits for them anyway – so they set the other one too. That is why it moved along.",
-    "tabWatchlist": "Watchlists"
+    "tabWatchlist": "Watchlists",
+    "secretsUnreadable": "Stored credentials (API keys, Plex access) can no longer be read with the current secret key. Most common cause: NEXVIEW_SECRET_KEY was changed, or data/secret.key was lost when the container was recreated (file not inside the mounted volume). Re-enter the affected credentials or reconnect Plex once – and make sure the key is kept permanently, or this will happen again on the next update."
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -804,7 +805,8 @@
     },
     "searchHint": "There is no popularity list for directing or writing – type a name to search.",
     "noResults": "No one found in this craft. Maybe pick a different craft above?",
-    "empty": "No people found."
+    "empty": "No people found.",
+    "searchPlaceholder": "Search for a person …"
   },
   "person": {
     "works": {

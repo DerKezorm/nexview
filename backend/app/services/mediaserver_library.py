@@ -99,7 +99,8 @@ async def refresh(db: Session, settings: AppSettings, streng: bool = False) -> i
             MediaServerLibraryItem.provider == server.provider
         )
     )
-    for werk in _zusammengefasst(werke):
+    eindeutig = _zusammengefasst(werke)
+    for werk in eindeutig:
         db.add(
             MediaServerLibraryItem(
                 provider=server.provider,
@@ -118,8 +119,22 @@ async def refresh(db: Session, settings: AppSettings, streng: bool = False) -> i
             )
         )
     db.commit()
-    logger.info("Media-Server-Bibliothek gelesen: %d Titel", len(werke))
-    return len(werke)
+    # Beide Zahlen nennen: Plex zaehlt Bibliothekseintraege, Nexview Titel.
+    # Ein Film, der in zwei Bibliotheken liegt (1080p und 4K), ist bei Plex
+    # zwei Eintraege und hier bewusst einer - ohne diese Zeile im Protokoll
+    # sieht die Differenz wie ein Verlust aus und wird als Fehler gemeldet.
+    zusammengefasst = len(werke) - len(eindeutig)
+    if zusammengefasst:
+        logger.info(
+            "Media-Server-Bibliothek gelesen: %d Titel (%d Eintraege, %d in "
+            "mehreren Bibliotheken zusammengefasst)",
+            len(eindeutig),
+            len(werke),
+            zusammengefasst,
+        )
+    else:
+        logger.info("Media-Server-Bibliothek gelesen: %d Titel", len(eindeutig))
+    return len(eindeutig)
 
 
 def stand(db: Session) -> dict[str, object]:
@@ -221,7 +236,19 @@ def vorhandene_kennungen(
 
     nach_tmdb = {z.tmdb_id: z.year for z in zeilen if z.tmdb_id}
     nach_tvdb = {z.tvdb_id: z.year for z in zeilen if z.tvdb_id}
-    nach_titel = {(z.title_key, z.year) for z in zeilen if z.title_key and z.year}
+    # Der Titel-Rueckfall gilt **nur** fuer Eintraege, deren Identitaet
+    # unbekannt ist - also ohne jede fremde Kennung (alte Agenten). Traegt die
+    # Plex-Zeile eine TMDB- oder TVDB-Nummer, ist geklaert, *welcher* Film das
+    # ist; ein Namens-Treffer auf eine andere Nummer waere eine Falschaussage.
+    # Der gemeldete Fall: "Backrooms" (2026, Spielfilm, Kennung bekannt) liess
+    # ueber den Titel auch "Backrooms" (2026, 4-Minuten-Kurzfilm, andere
+    # Kennung) als "In der Bibliothek" erscheinen - gleicher Name, gleiches
+    # Jahr, die Jahres-Pruefung kann solche Doppelgaenger nicht trennen.
+    nach_titel = {
+        (z.title_key, z.year)
+        for z in zeilen
+        if z.title_key and z.year and not z.tmdb_id and not z.tvdb_id
+    }
 
     treffer: set[int] = set()
     for item in items:

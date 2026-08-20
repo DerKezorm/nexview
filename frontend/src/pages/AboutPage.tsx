@@ -235,6 +235,24 @@ function Credits() {
 
       <div>
         <p className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
+          {t('about.notifyServices')}
+        </p>
+        <ul className="mt-2 flex flex-col gap-2 text-sm">
+          <li>
+            <ExternalLink href="https://ntfy.sh">ntfy</ExternalLink>
+            {' · '}
+            <ExternalLink href="https://gotify.net">Gotify</ExternalLink>
+            {' · '}
+            <ExternalLink href="https://telegram.org">Telegram</ExternalLink>
+            <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.notifyNotice')}
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <p className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
           {t('about.builtWith')}
         </p>
         <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 text-sm">

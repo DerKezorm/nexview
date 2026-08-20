@@ -471,6 +471,14 @@ async def connect_select(payload: SelectServer, db: DbSession, admin: AdminUser)
     except KontoFehler as exc:
         raise _fehler(exc) from exc
 
+    logger.info(
+        "Plex-Verbindung wird gespeichert: Server %r (machine_id %s…), "
+        "Adresse %r, erreichbar=%s",
+        gewaehlt.name,
+        gewaehlt.machine_id[:12],
+        erreichbar or gewaehlt.url,
+        bool(erreichbar),
+    )
     settings_service.save_settings(
         db,
         {
@@ -481,6 +489,23 @@ async def connect_select(payload: SelectServer, db: DbSession, admin: AdminUser)
             "mediaserver_token": anbieter_token,
         },
     )
+
+    # Kontrolllesen mit frischer Sitzung: Steht die Verbindung wirklich in der
+    # Datenbank, und ist das Token mit dem aktuellen Schluessel lesbar? Ein
+    # "Verbunden!"-Haekchen, hinter dem nichts gespeichert wurde, war exakt
+    # das gemeldete Raetsel - ab jetzt stuende die Diskrepanz hier im Log.
+    kontrolle = settings_service.load_settings(db)
+    if kontrolle.mediaserver_configured:
+        logger.info("Plex-Verbindung gespeichert und nachgelesen: in Ordnung")
+    else:
+        logger.error(
+            "Plex-Verbindung wurde gespeichert, ist beim Nachlesen aber "
+            "unvollständig: provider=%r machine_id=%s token=%s - das ist der "
+            "Moment, in dem die Verbindung 'verschwindet'.",
+            kontrolle.mediaserver_provider,
+            "da" if kontrolle.mediaserver_machine_id else "FEHLT",
+            "lesbar" if kontrolle.mediaserver_token else "FEHLT/UNLESBAR",
+        )
 
     # Das eigene Konto gleich mitverknuepfen - sofern die Identitaet nicht
     # schon an einem anderen Konto haengt.
@@ -540,6 +565,9 @@ def connect_delete(db: DbSession, admin: AdminUser) -> None:
         },
     )
     settings_service.clear_secret(db, "mediaserver_token")
+    # Mit Namen: Sollte eine Verbindung je "von selbst" verschwinden, zeigt
+    # diese Zeile, ob doch jemand den Trennen-Knopf gedrueckt hat.
+    logger.info("Media-Server-Verbindung getrennt von %r", admin.username)
 
 
 # --------------------------------------------------------------------------

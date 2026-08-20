@@ -6,6 +6,7 @@ an die Oberflaeche gegeben - sie verlassen den Server nie im Klartext.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
@@ -14,6 +15,13 @@ from sqlalchemy.orm import Session
 
 from ..crypto import decrypt, encrypt, mask
 from ..models import Setting
+
+logger = logging.getLogger("nexview.settings")
+
+# Schon gemeldete unlesbare Felder - eine Warnung je Feld und Prozesslauf
+# genuegt; ``load_settings`` laeuft bei jeder Anfrage, und tausendfach
+# dieselbe Zeile wuerde das Protokoll unbrauchbar machen.
+_unlesbar_gemeldet: set[str] = set()
 
 if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
     from ..models import User
@@ -416,6 +424,22 @@ def load_settings(db: Session) -> AppSettings:
     raw = _raw_values(db)
     values = {key: (decrypt(value) if key in SECRET_KEYS else value) for key, value in raw.items()}
 
+    # Benennen, *welches* Geheimnis unlesbar ist - die allgemeine Warnung aus
+    # crypto.py sagt nur "irgendeines". Fuer die Fehlersuche zaehlt der Name:
+    # "mediaserver_token" erklaert eine verschwundene Plex-Verbindung,
+    # "tmdb_api_key" den ploetzlichen Demo-Modus.
+    for name in SECRET_KEYS:
+        if raw.get(name, "").startswith("enc:") and not values.get(name):
+            if name not in _unlesbar_gemeldet:
+                _unlesbar_gemeldet.add(name)
+                logger.warning(
+                    "Gespeichertes Geheimnis %r ist mit dem aktuellen "
+                    "Geheimschlüssel nicht lesbar - der Wert wird wie leer "
+                    "behandelt. Wurde NEXVIEW_SECRET_KEY geändert oder "
+                    "data/secret.key beim Container-Neubau verloren?",
+                    name,
+                )
+
     try:
         poll_interval = max(30, int(values["poll_interval_seconds"]))
     except (TypeError, ValueError):
@@ -654,3 +678,64 @@ def clear_secret(db: Session, key: str) -> None:
     if row is not None:
         row.value = ""
         db.commit()
+
+
+def verbindungsbericht() -> None:
+    """Beim Start einmal hinschreiben, woran man sonst tagelang raetselt.
+
+    Drei Fragen, deren Antworten bisher nirgends standen:
+
+    * Woher kommt der Geheimschluessel - Umgebungsvariable oder Datei?
+      (Die Datei ausserhalb des gemounteten Volumes ist der klassische Weg,
+      wie beim Container-Neubau alle Zugangsdaten unlesbar werden.)
+    * Ist ein Media-Server eingetragen, und laesst sich sein Token mit dem
+      aktuellen Schluessel lesen?
+    * Welche weiteren Geheimnisse sind eingetragen, und sind sie lesbar?
+    """
+    import os
+
+    from ..config import get_settings
+    from ..db import SessionLocal
+
+    einstellungen = get_settings()
+    if einstellungen.secret_key:
+        quelle = "NEXVIEW_SECRET_KEY (Umgebungsvariable)"
+    else:
+        quelle = f"Datei {einstellungen.key_file}"
+    logger.info("Geheimschlüssel: %s", quelle)
+    if not einstellungen.secret_key:
+        logger.info(
+            "secret.key vorhanden: %s - liegt die Datei NICHT im gemounteten "
+            "Volume, gehen beim Container-Neubau alle Zugangsdaten verloren.",
+            os.path.exists(einstellungen.key_file),
+        )
+
+    with SessionLocal() as db:
+        raw = _raw_values(db)
+        stand: list[str] = []
+        for name in sorted(SECRET_KEYS):
+            wert = raw.get(name, "")
+            if not wert:
+                stand.append(f"{name}=leer")
+            elif decrypt(wert):
+                stand.append(f"{name}=lesbar")
+            else:
+                stand.append(f"{name}=UNLESBAR")
+        logger.info("Geheimnisse: %s", ", ".join(stand))
+
+        settings = load_settings(db)
+        if settings.mediaserver_provider or raw.get("mediaserver_machine_id"):
+            logger.info(
+                "Media-Server: provider=%r name=%r machine_id=%s url=%r "
+                "token=%s -> verbunden=%s",
+                settings.mediaserver_provider,
+                settings.mediaserver_name,
+                (settings.mediaserver_machine_id[:12] + "…")
+                if settings.mediaserver_machine_id
+                else "fehlt",
+                settings.mediaserver_url,
+                "lesbar" if settings.mediaserver_token else "FEHLT/UNLESBAR",
+                settings.mediaserver_configured,
+            )
+        else:
+            logger.info("Media-Server: nicht eingerichtet")

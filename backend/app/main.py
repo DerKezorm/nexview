@@ -63,6 +63,15 @@ async def lifespan(app: FastAPI):
     # NEXVIEW_SECRET_KEY gesetzt ist.
     settings.resolved_secret_key()
 
+    # Startbericht: Woher kommt der Geheimschluessel, und ist die
+    # Media-Server-Verbindung mit ihm lesbar? Das Raetsel "Verbindung weg"
+    # liess sich aus der Ferne nie entscheiden, weil genau diese drei Zeilen
+    # fehlten - mit ihnen steht die Antwort im ersten Log nach dem Start.
+    # Der Schluessel selbst wird selbstverstaendlich nie geloggt.
+    from .services.settings_service import verbindungsbericht
+
+    verbindungsbericht()
+
     stop = asyncio.Event()
     task = asyncio.create_task(status_poller.run_forever(stop)) if POLLER_ENABLED else None
 

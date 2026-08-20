@@ -54,6 +54,7 @@ export type User = {
   mail_ticket: boolean;
   /** Neues Konto über den Media-Server – nur für Admins von Belang. */
   mail_user_imported: boolean;
+  mail_mediaserver_reconnect: boolean;
   /**
    * Liegt ein persönlicher Plex-Zugang vor? Nur diese Auskunft – nie das
    * Token selbst. Ohne ihn lässt sich die eigene Merkliste nicht lesen.
@@ -790,7 +791,8 @@ export type AppNotification = {
     | "feedback_reply"
     | "ticket_new"
     | "ticket_reply"
-    | "user_imported";
+    | "user_imported"
+    | "mediaserver_reconnect";
   /** Übersetzungsschlüssel – der Text kommt aus der Oberfläche. */
   message_key: string;
   message_title: string | null;

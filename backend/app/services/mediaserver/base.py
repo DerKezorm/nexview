@@ -156,12 +156,17 @@ class LibraryItem:
     # Die interne Nummer beim Anbieter. Wird gebraucht, weil der
     # Wiedergabe-Verlauf ausschliesslich damit auf Titel verweist.
     rating_key: str | None = None
-    # Hat der **Eigentuemer** des hinterlegten Zugangs das gesehen? Der Anbieter
+    # Hat das Konto, mit dessen Zugang gelesen wurde, das gesehen? Der Anbieter
     # liefert das am Titel mit, also faellt es beim Einlesen der Bibliothek
     # kostenlos ab. Und es ist die weit bessere Quelle als der Verlauf: der ist
     # gedeckelt (gemessen 499 Eintraege, davon 38 Filme), der Zaehler am Titel
-    # dagegen vollstaendig (gemessen 354 gesehene Filme).
+    # dagegen vollstaendig (gemessen 354 gesehene Filme). Beim Einlesen mit dem
+    # hinterlegten Zugang ist das der Eigentuemer; ``watched_index`` liest mit
+    # dem persoenlichen Token, dann gilt es fuer dessen Konto.
     owner_watched: bool = False
+    # Wann zuletzt gesehen - aus Sicht desselben Kontos. Fehlt bei Anbietern,
+    # die nur den Zaehler kennen.
+    watched_at: datetime | None = None
     # In welcher Stufe liegt der Titel hier? Zwei Merkmale, weil beides
     # gleichzeitig zutreffen kann: Plex fuehrt mehrere Dateien unter einem
     # Titel, etwa 1080p und 4K nebeneinander.
@@ -319,5 +324,21 @@ class MediaServer(ABC):
         raise NotImplementedError
 
     async def watched_since(self, since: datetime | None = None) -> list[WatchedRecord]:
-        """Meilenstein 3 - wer hat was gesehen."""
+        """Meilenstein 3 - wer hat was gesehen (Wiedergabe-Verlauf des Servers).
+
+        Nur eine Notloesung fuer Konten ohne eigenes Token: Der Verlauf ist
+        gedeckelt und kennt manuell Abgehaktes nicht. Wo ein persoenliches
+        Token vorliegt, ist ``watched_index`` die richtige Quelle.
+        """
+        raise NotImplementedError
+
+    async def watched_index(self, provider_token: str) -> list[WatchedRecord]:
+        """Der vollstaendige Gesehen-Stand des Kontos hinter diesem Token.
+
+        Liest die Bibliothek mit dem **persoenlichen** Token der Person - der
+        Zaehler am Titel gilt dann fuer ihr Konto und ist vollstaendig,
+        einschliesslich allem, was sie von Hand als gesehen markiert hat.
+        ``account_id`` bleibt in den Eintraegen leer: Wessen Stand das ist,
+        weiss der Aufrufer bereits, denn ihm gehoert das Token.
+        """
         raise NotImplementedError

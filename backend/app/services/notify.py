@@ -40,6 +40,7 @@ MAIL_SWITCH: dict[NotificationType, str] = {
     NotificationType.ticket_new: "mail_ticket",
     NotificationType.ticket_reply: "mail_ticket",
     NotificationType.user_imported: "mail_user_imported",
+    NotificationType.mediaserver_reconnect: "mail_mediaserver_reconnect",
 }
 
 

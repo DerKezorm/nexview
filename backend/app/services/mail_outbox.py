@@ -97,6 +97,31 @@ def _nachricht(
                 titel, sprache, link=_link(settings, "/requests"), profil_link=profil
             )
 
+        case NotificationType.ticket_new | NotificationType.ticket_reply:
+            # Direkt in den Verlauf - die Liste allein huelfe nicht weiter,
+            # wenn mehrere Tickets offen sind.
+            ziel = f"/tickets/{eintrag.ticket_id}" if eintrag.ticket_id else "/tickets"
+            return mail_templates.ticket_mail(
+                titel,
+                neu=eintrag.type == NotificationType.ticket_new,
+                sprache=sprache,
+                link=_link(settings, ziel),
+                profil_link=profil,
+            )
+
+        case NotificationType.user_imported:
+            # ``message_title`` traegt den Namen des neuen Kontos.
+            return mail_templates.user_imported_mail(
+                titel, sprache, link=_link(settings, "/admin/settings"), profil_link=profil
+            )
+
+        case NotificationType.mediaserver_reconnect:
+            # ``message_title`` traegt hier den Anbieter-Namen ("Plex") - einen
+            # Titel im Wortsinn gibt es bei dieser Meldung nicht.
+            return mail_templates.mediaserver_reconnect_mail(
+                titel or "Plex", sprache, link=profil, profil_link=profil
+            )
+
     return None
 
 

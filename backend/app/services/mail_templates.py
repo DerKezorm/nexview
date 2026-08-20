@@ -582,3 +582,149 @@ def feedback_reply_mail(
         profil_link=profil_link,
     )
 
+
+def ticket_mail(
+    titel: str,
+    neu: bool,
+    sprache: str = "de",
+    *,
+    link: str | None = None,
+    profil_link: str | None = None,
+) -> Mail:
+    """Bewegung an einem Ticket - an den, der die Gegenseite ist.
+
+    ``neu`` trennt das eroeffnete Ticket von allem Weiteren. Die zweite Form
+    ist bewusst weit gefasst ("es gibt Neuigkeiten"): Sie deckt Antworten in
+    beide Richtungen **und** Zustandswechsel ab - eine Mail, die "neue
+    Antwort" behauptet, wenn nur geschlossen wurde, waere irrefuehrend.
+    """
+    englisch = _ist_englisch(sprache)
+    if neu:
+        if englisch:
+            return _benachrichtigung(
+                englisch=englisch,
+                betreff=f"New ticket: {titel}",
+                kopf="A new ticket.",
+                unter=f"“{titel}” was opened.",
+                rumpf=(
+                    "A new ticket is waiting in Nexview. The full conversation and the "
+                    "reply box are in the ticket centre."
+                ),
+                knopf="Open ticket",
+                link=link,
+                profil_link=profil_link,
+            )
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff=f"Neues Ticket: {titel}",
+            kopf="Ein neues Anliegen.",
+            unter=f"„{titel}“ wurde eröffnet.",
+            rumpf=(
+                "In Nexview wartet ein neues Ticket. Der ganze Verlauf und das "
+                "Antwortfeld stehen im Ticketcenter."
+            ),
+            knopf="Ticket öffnen",
+            link=link,
+            profil_link=profil_link,
+        )
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff=f"Ticket update: {titel}",
+            kopf="There is news.",
+            unter=f"Something happened in “{titel}”.",
+            rumpf=(
+                "Someone replied or the ticket's status changed. The details are in "
+                "the conversation in Nexview."
+            ),
+            knopf="Open ticket",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff=f"Neuigkeiten zum Ticket: {titel}",
+        kopf="Es gibt Neuigkeiten.",
+        unter=f"Im Ticket „{titel}“ hat sich etwas getan.",
+        rumpf=(
+            "Jemand hat geantwortet oder der Zustand des Tickets hat sich geändert. "
+            "Die Einzelheiten stehen im Verlauf in Nexview."
+        ),
+        knopf="Ticket öffnen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
+def user_imported_mail(
+    name: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An die Administratoren: ueber den Media-Server ist ein Konto entstanden."""
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff=f"New account via the media server: {name}",
+            kopf="Someone joined.",
+            unter=f"“{name}” now has a Nexview account.",
+            rumpf=(
+                "This person signed in via the media server for the first time and "
+                "automatically got an account. Role and quota come from the defaults – "
+                "you can review and adjust both in the settings."
+            ),
+            knopf="Open settings",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff=f"Neues Konto über den Media-Server: {name}",
+        kopf="Jemand ist dazugekommen.",
+        unter=f"„{name}“ hat jetzt ein Nexview-Konto.",
+        rumpf=(
+            "Die Person hat sich zum ersten Mal über den Media-Server angemeldet und "
+            "dabei automatisch ein Konto bekommen. Rolle und Kontingent kommen aus den "
+            "Vorgaben – prüfen und anpassen kannst du beides in den Einstellungen."
+        ),
+        knopf="Einstellungen öffnen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
+def mediaserver_reconnect_mail(
+    anbieter: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An die betroffene Person: ihr Media-Server-Zugang wird nicht mehr angenommen."""
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff=f"Your {anbieter} connection needs to be renewed",
+            kopf="Please sign in again.",
+            unter=f"{anbieter} no longer accepts your stored access.",
+            rumpf=(
+                f"Nexview can no longer read your watchlist or your watched titles from {anbieter}. "
+                f"This happens when a password changes or sessions are signed out. Sign in with "
+                f"{anbieter} once on your profile page and everything will continue as before."
+            ),
+            knopf="Open profile",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff=f"Deine {anbieter}-Verbindung muss erneuert werden",
+        kopf="Bitte einmal neu anmelden.",
+        unter=f"{anbieter} nimmt deinen hinterlegten Zugang nicht mehr an.",
+        rumpf=(
+            f"Nexview kann deine Merkliste und deine gesehenen Titel nicht mehr von {anbieter} "
+            f"lesen. Das passiert etwa nach einem Passwortwechsel oder einer Abmeldung aller "
+            f"Sitzungen. Melde dich auf deiner Profilseite einmal neu mit {anbieter} an, dann "
+            f"läuft alles weiter wie bisher."
+        ),
+        knopf="Profil öffnen",
+        link=link,
+        profil_link=profil_link,
+    )
+

@@ -121,6 +121,11 @@ class NotificationType(str, enum.Enum):
     # dabei ein Konto bekommen - geht an die Admins. Ohne diesen Hinweis
     # taeten neue Konten das lautlos.
     user_imported = "user_imported"
+    # Der hinterlegte persoenliche Zugang wird vom Media-Server nicht mehr
+    # angenommen - geht an die betroffene Person, denn nur sie kann sich neu
+    # anmelden. Ohne den Hinweis blieben Merkliste und Gesehen-Stand einfach
+    # stehen, und niemand wuesste warum.
+    mediaserver_reconnect = "mediaserver_reconnect"
 
 
 class User(Base):
@@ -265,6 +270,11 @@ class User(Base):
     mail_ticket: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Neues Konto ueber den Media-Server - nur fuer Admins von Belang.
     mail_user_imported: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Der eigene Media-Server-Zugang ist abgelaufen und braucht eine neue
+    # Anmeldung - nur fuer verknuepfte Konten von Belang.
+    mail_mediaserver_reconnect: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     # --- Vorbelegung der Filterleiste beim Entdecken ----------------------
     # NULL heisst "nichts Eigenes eingestellt", dann gilt die Vorgabe des

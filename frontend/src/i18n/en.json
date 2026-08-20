@@ -427,6 +427,8 @@
     "nameSaved": "Display name saved.",
     "mailUserImported": "New account via the media server",
     "mailUserImportedHint": "When someone signs in with their Plex account for the first time and gets a Nexview account.",
+    "mailMediaserverReconnect": "Expired Plex access",
+    "mailMediaserverReconnectHint": "When Plex no longer accepts your stored access and you need to sign in again – otherwise your watchlist and watched titles stop updating.",
     "password": "Change password",
     "currentPassword": "Current password",
     "newPassword": "New password",
@@ -579,7 +581,8 @@
     "ticketNew": "New ticket",
     "ticketReply": "New reply on a ticket",
     "ticketStatus": "Ticket status changed",
-    "userImported": "New account via the media server"
+    "userImported": "New account via the media server",
+    "mediaserverReconnect": "Your Plex connection needs to be renewed"
   },
   "mediaserver": {
     "loginWithPlex": "Sign in with Plex",
@@ -1017,6 +1020,8 @@
     "gotifyTokenHint": "An application's token, not your login password.",
     "gotifyUrl": "Instance address",
     "gotifyUrlHint": "Without a path – Nexview appends /message itself.",
+    "gruppe_anfragen": "Requests",
+    "gruppe_betrieb": "Operations",
     "guide": {
       "telegram": {
         "title": "Setting up Telegram",
@@ -1089,8 +1094,20 @@
     "ntfyTopicHint": "Freely chosen. On a public instance, better with a random suffix.",
     "ntfyUrl": "Instance address",
     "ntfyUrlHint": "The base address, not the link to the topic. Public: https://ntfy.sh",
+    "onDownloadComplete": "Now available",
+    "onDownloadCompleteHint": "As soon as a requested title has finished downloading – the “what's new” feed.",
+    "onFeedback": "Quality feedback",
+    "onFeedbackHint": "Ratings for delivered titles – poor ones and good ones.",
+    "onRequestCancelled": "Request cancelled",
+    "onRequestCancelledHint": "Cancelling also deletes the files in Radarr/Sonarr – worth knowing when it happens.",
+    "onRequestDecided": "Request decided",
+    "onRequestDecidedHint": "Approved or declined – keeps all approvers on the same page.",
     "onRequestPending": "Notify about new requests awaiting approval",
     "onRequestPendingHint": "As soon as somebody requests a title that still needs approval.",
+    "onTicketNew": "New ticket",
+    "onTicketNewHint": "As soon as somebody files a concern or adds to one.",
+    "onUserImported": "New media-server account",
+    "onUserImportedHint": "Somebody signed in via Plex for the first time and got an account.",
     "openBot": "Open @{{name}} in Telegram",
     "openBotFather": "Open @BotFather in Telegram",
     "openService": "Open {{label}}",

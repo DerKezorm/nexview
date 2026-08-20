@@ -21,6 +21,7 @@ from app.models import (
     Notification,
     NotificationType,
     RequestStatus,
+    Ticket,
     User,
 )
 from app.services import mail_outbox, notify
@@ -448,3 +449,89 @@ def test_niemand_stellt_fremde_schalter_um(admin_client: TestClient) -> None:
     # Das Feld gibt es in der Benutzerverwaltung gar nicht - es wird ignoriert.
     assert antwort.status_code == 200
     assert antwort.json()["mail_download_complete"] is False
+
+
+# --- Tickets und neue Konten -------------------------------------------------
+#
+# Diese Tests verfolgen den Versand bis zur fertigen Mail. Genau das fehlte
+# lange: Schalter und Vermerk existierten, aber der Postausgang kannte fuer
+# diese Meldungsarten keine Vorlage und hakte die Auftraege still ab. Ein
+# Haken ohne Vorlage darf nie wieder stumm bleiben.
+
+
+def _ticket(db, benutzer: User, subject: str = "Anmeldung klemmt") -> Ticket:
+    ticket = Ticket(user_id=benutzer.id, subject=subject)
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+    return ticket
+
+
+def test_neues_ticket_kommt_als_mail(
+    admin_client: TestClient, mailserver: None, postfach: Postfach
+) -> None:
+    create_user(admin_client, "lena", mail_ticket=True)
+
+    with SessionLocal() as db:
+        lena = db.query(User).filter(User.username == "lena").one()
+        ticket = _ticket(db, lena)
+        notify.create(
+            db,
+            user=lena,
+            kind=NotificationType.ticket_new,
+            message_key="notifications.ticketNew",
+            ticket=ticket,
+        )
+        db.commit()
+        assert db.query(Notification).one().mail_pending is True
+        kennung = ticket.id
+
+    assert _abarbeiten() == 1
+    assert postfach.empfaenger == ["lena@beispiel.de"]
+    assert "Anmeldung klemmt" in postfach.nachrichten[0]["subject"]
+    # Der Link muss in den Verlauf fuehren, nicht bloss auf die Liste.
+    assert f"/tickets/{kennung}" in postfach.nachrichten[0]["text"]
+
+
+def test_ticket_antwort_kommt_als_mail(
+    admin_client: TestClient, mailserver: None, postfach: Postfach
+) -> None:
+    create_user(admin_client, "lena", mail_ticket=True)
+
+    with SessionLocal() as db:
+        lena = db.query(User).filter(User.username == "lena").one()
+        ticket = _ticket(db, lena)
+        notify.create(
+            db,
+            user=lena,
+            kind=NotificationType.ticket_reply,
+            message_key="notifications.ticketReply",
+            ticket=ticket,
+        )
+        db.commit()
+
+    assert _abarbeiten() == 1
+    assert "Anmeldung klemmt" in postfach.nachrichten[0]["subject"]
+    # Antwort und neues Ticket muessen unterscheidbar sein.
+    assert postfach.nachrichten[0]["subject"] != "Neues Ticket: Anmeldung klemmt"
+
+
+def test_neues_konto_kommt_als_mail(
+    admin_client: TestClient, mailserver: None, postfach: Postfach
+) -> None:
+    create_user(admin_client, "lena", mail_user_imported=True)
+
+    with SessionLocal() as db:
+        lena = db.query(User).filter(User.username == "lena").one()
+        notify.create(
+            db,
+            user=lena,
+            kind=NotificationType.user_imported,
+            message_key="notifications.userImported",
+            title="DilaraUygunMrozek",
+        )
+        db.commit()
+
+    assert _abarbeiten() == 1
+    assert "DilaraUygunMrozek" in postfach.nachrichten[0]["subject"]
+    assert "/admin/settings" in postfach.nachrichten[0]["text"]

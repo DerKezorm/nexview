@@ -138,7 +138,7 @@ def _pruefe_entwurf(payload: TargetDraft) -> None:
 
 
 def _pruefe_meldungen(events: dict[str, str]) -> None:
-    erlaubt = {typ.value for typ in channel_outbox.EVENTS}
+    erlaubt = channel_outbox.GROUPS
     for name, stufe in events.items():
         if name not in erlaubt:
             raise HTTPException(status_code=422, detail=f"Unbekannte Meldung: {name}")

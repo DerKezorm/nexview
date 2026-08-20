@@ -49,22 +49,69 @@ MAX_ATTEMPTS = 3
 # Bewusst eine ausdrueckliche Aufzaehlung und kein "alles, was es gibt": ein
 # serverseitiges Ziel ist ein geteiltes Postfach. Was dort landet, sieht jeder,
 # der es abonniert hat - das gehoert angehakt, nicht vorausgesetzt.
-EVENTS: tuple[NotificationType, ...] = (NotificationType.request_pending,)
+#
+# Der Wert ist der **Haken**, zu dem die Meldung gehoert. Mehrere Typen
+# teilen sich einen: "freigegeben" und "abgelehnt" sind fuer den Kanal
+# dieselbe Auskunft ("es wurde entschieden"), und wer gute Rueckmeldungen
+# sehen will, will die schlechten erst recht. Sieben Haken sind ueberschaubar,
+# elf waeren eine Zumutung - dieselbe Abwaegung wie bei den Mail-Schaltern.
+#
+# Persoenliches (Antwort auf *dein* Ticket, Antwort auf *deine* Rueckmeldung)
+# steht absichtlich nicht hier: Das gehoert in die Glocke des Betroffenen,
+# nicht in ein geteiltes Postfach.
+EVENTS: dict[NotificationType, str] = {
+    NotificationType.request_pending: "request_pending",
+    NotificationType.approved: "request_decided",
+    NotificationType.rejected: "request_decided",
+    NotificationType.cancelled: "request_cancelled",
+    NotificationType.download_complete: "download_complete",
+    NotificationType.ticket_new: "ticket_new",
+    NotificationType.feedback: "feedback",
+    NotificationType.feedback_poor: "feedback",
+    NotificationType.user_imported: "user_imported",
+}
+
+# Die Haken, die es damit gibt - fuer die Pruefung im Router.
+GROUPS = frozenset(EVENTS.values())
+
+# Wohin der Klick auf die Meldung fuehrt. Was hier nicht steht, zeigt auf die
+# Freigabeliste - dort landet ohnehin fast alles Anfragenbezogene.
+LINKS: dict[NotificationType, str] = {
+    NotificationType.ticket_new: "/tickets",
+    NotificationType.user_imported: "/admin/settings",
+}
 
 # Textbausteine. Ein serverseitiges Ziel hat keinen Empfaenger und damit auch
-# keine Empfaengersprache; welche gilt, steht deshalb beim Ziel.
+# keine Empfaengersprache; welche gilt, steht deshalb beim Ziel. ``by`` ist
+# die Beschriftung der Personenzeile - fehlt sie, entfaellt die Zeile.
 TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
     "de": {
         NotificationType.request_pending: {
             "title": "Neue Freigabeanfrage",
             "by": "Angefragt von",
         },
+        NotificationType.approved: {"title": "Anfrage freigegeben", "by": "Angefragt von"},
+        NotificationType.rejected: {"title": "Anfrage abgelehnt", "by": "Angefragt von"},
+        NotificationType.cancelled: {"title": "Anfrage storniert", "by": "Angefragt von"},
+        NotificationType.download_complete: {"title": "Neu verfügbar", "by": "Angefragt von"},
+        NotificationType.ticket_new: {"title": "Neues Ticket"},
+        NotificationType.feedback: {"title": "Neue Rückmeldung", "by": "Von"},
+        NotificationType.feedback_poor: {"title": "Schlechte Bewertung", "by": "Von"},
+        NotificationType.user_imported: {"title": "Neues Konto über den Media-Server"},
     },
     "en": {
         NotificationType.request_pending: {
             "title": "New request awaiting approval",
             "by": "Requested by",
         },
+        NotificationType.approved: {"title": "Request approved", "by": "Requested by"},
+        NotificationType.rejected: {"title": "Request declined", "by": "Requested by"},
+        NotificationType.cancelled: {"title": "Request cancelled", "by": "Requested by"},
+        NotificationType.download_complete: {"title": "Now available", "by": "Requested by"},
+        NotificationType.ticket_new: {"title": "New ticket"},
+        NotificationType.feedback: {"title": "New feedback", "by": "From"},
+        NotificationType.feedback_poor: {"title": "Poor rating", "by": "From"},
+        NotificationType.user_imported: {"title": "New media-server account"},
     },
 }
 
@@ -83,9 +130,10 @@ def aktiv(target: ChannelTarget) -> bool:
 
 def level_of(target: ChannelTarget, typ: NotificationType) -> str | None:
     """Wie dringend meldet dieses Ziel diesen Vorgang? ``None`` heisst: gar nicht."""
-    if typ not in EVENTS or not target.verified or not aktiv(target):
+    name = EVENTS.get(typ)
+    if name is None or not target.verified or not aktiv(target):
         return None
-    stufe = (target.events or {}).get(typ.value)
+    stufe = (target.events or {}).get(name)
     return stufe if stufe in channels.LEVELS else None
 
 
@@ -147,7 +195,7 @@ def _notice(
     titel = eintrag.title or (request.title if request else "")
 
     zeilen = [f"**{titel}**"] if titel else []
-    if request is not None:
+    if request is not None and "by" in bausteine:
         anfragender = db.get(User, request.user_id)
         if anfragender is not None:
             name = anfragender.display_name or anfragender.username
@@ -155,7 +203,8 @@ def _notice(
 
     # Ohne hinterlegte oeffentliche Adresse waere der Link ein Verweis auf
     # "localhost" - fuer den, der aufs Handy schaut, wertlos.
-    ziel = settings.link("/admin/requests") if settings.public_url else None
+    pfad = LINKS.get(eintrag.type, "/admin/requests")
+    ziel = settings.link(pfad) if settings.public_url else None
 
     return channels.Notice(
         title=bausteine["title"],

@@ -1000,3 +1000,52 @@ def test_stillgelegte_instanz_legt_ihre_topics_mit_still(admin_client: TestClien
     with SessionLocal() as db:
         _freigabe_anfragen(db)
         assert db.query(ChannelMessage).count() == 0
+
+
+# --- Meldungsgruppen --------------------------------------------------------
+
+
+def test_entschieden_deckt_freigabe_und_ablehnung_ab() -> None:
+    """Ein Haken fuer beides - fuer den Kanal ist es dieselbe Auskunft."""
+    _ziel(events={"request_decided": "low"})
+    with SessionLocal() as db:
+        empfaenger = _benutzer(db, "nutzer", Role.user)
+        request = _anfrage(db, empfaenger)
+        for art in (NotificationType.approved, NotificationType.rejected):
+            notify.create(
+                db, user=empfaenger, kind=art, message_key="notifications.x", request=request
+            )
+        db.commit()
+        assert db.query(ChannelMessage).count() == 2
+
+
+@pytest.mark.asyncio
+async def test_neu_verfuegbar_mit_eigenem_titel(monkeypatch: pytest.MonkeyPatch) -> None:
+    gesehen: list[httpx.Request] = []
+    _mit_attrappe(monkeypatch, lambda request: (gesehen.append(request), httpx.Response(200))[1])
+    _ziel(kanal=ChannelKind.ntfy, events={"download_complete": "normal"})
+
+    with SessionLocal() as db:
+        empfaenger = _benutzer(db, "nutzer", Role.user)
+        request = _anfrage(db, empfaenger)
+        notify.create(
+            db,
+            user=empfaenger,
+            kind=NotificationType.download_complete,
+            message_key="notifications.downloadComplete",
+            request=request,
+        )
+        db.commit()
+        assert await channel_outbox.process(db, load_settings(db)) == 1
+
+    daten = json.loads(gesehen[0].content)
+    assert daten["title"] == "Neu verfügbar"
+    assert "The Dark Knight" in daten["message"]
+
+
+def test_ticket_fuehrt_zum_ticketbereich(admin_client: TestClient) -> None:
+    """Der Klick soll dorthin, wo man antworten kann - nicht auf die Freigabeliste."""
+    from app.models import NotificationType as NT
+    from app.services.channel_outbox import LINKS
+
+    assert LINKS[NT.ticket_new] == "/tickets"

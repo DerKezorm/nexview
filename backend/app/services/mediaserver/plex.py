@@ -75,6 +75,12 @@ def _als_werk(eintrag: dict[str, Any], media_type: str) -> LibraryItem | None:
         return wert if isinstance(wert, int) else 0
 
     gesehen = zaehler("viewCount") > 0 or zaehler("viewedLeafCount") > 0
+    zuletzt = eintrag.get("lastViewedAt")
+    gesehen_am = (
+        datetime.fromtimestamp(zuletzt, tz=UTC).replace(tzinfo=None)
+        if isinstance(zuletzt, int)
+        else None
+    )
 
     # Aufloesung je hinterlegter Datei. Plex nennt sie "4k", "1080", "720" …
     #
@@ -99,6 +105,7 @@ def _als_werk(eintrag: dict[str, Any], media_type: str) -> LibraryItem | None:
         guid=str(eintrag.get("guid") or eintrag.get("ratingKey") or titel),
         rating_key=str(eintrag["ratingKey"]) if eintrag.get("ratingKey") else None,
         owner_watched=gesehen,
+        watched_at=gesehen_am,
         title=titel,
         tmdb_id=zahl("tmdb"),
         tvdb_id=zahl("tvdb"),
@@ -219,8 +226,15 @@ class PlexServer(MediaServer):
 
     # --- Bibliothek ---------------------------------------------------------
 
-    async def _server(self, pfad: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Eine Abfrage an den Server selbst (nicht an plex.tv)."""
+    async def _server(
+        self, pfad: str, params: dict[str, Any] | None = None, token: str | None = None
+    ) -> dict[str, Any]:
+        """Eine Abfrage an den Server selbst (nicht an plex.tv).
+
+        ``token`` erlaubt, mit einem **fremden** Zugang zu fragen - der Zaehler
+        am Titel gilt naemlich immer fuer das Konto, dessen Token die Frage
+        stellt. Ohne Angabe gilt der hinterlegte Zugang des Administrators.
+        """
         if not self.base_url:
             raise MediaServerError("Es ist kein Plex-Server ausgewählt.")
 
@@ -228,7 +242,7 @@ class PlexServer(MediaServer):
         try:
             antwort = await client.get(
                 f"{self.base_url}{pfad}",
-                headers={"Accept": "application/json", "X-Plex-Token": self.token},
+                headers={"Accept": "application/json", "X-Plex-Token": token or self.token},
                 params=params,
                 timeout=30.0,
             )
@@ -262,7 +276,16 @@ class PlexServer(MediaServer):
         Musik- und Fotosammlungen bleiben aussen vor; nach ihnen fragt hier
         niemand.
         """
-        abschnitte = (await self._server("/library/sections")).get("Directory") or []
+        return await self._alle_werke()
+
+    async def _alle_werke(self, token: str | None = None) -> list[LibraryItem]:
+        """Film- und Serien-Bibliotheken vollstaendig auslesen.
+
+        Mit ``token`` laeuft die Abfrage unter einem fremden Zugang - dann
+        gelten ``owner_watched``/``watched_at`` fuer **dessen** Konto. Genau
+        darauf baut ``watched_index``.
+        """
+        abschnitte = (await self._server("/library/sections", token=token)).get("Directory") or []
 
         werke: list[LibraryItem] = []
         for abschnitt in abschnitte:
@@ -272,8 +295,31 @@ class PlexServer(MediaServer):
             schluessel = abschnitt.get("key")
             if not schluessel:
                 continue
-            werke.extend(await self._abschnitt_lesen(str(schluessel), "movie" if art == "movie" else "tv"))
+            werke.extend(
+                await self._abschnitt_lesen(
+                    str(schluessel), "movie" if art == "movie" else "tv", token=token
+                )
+            )
         return werke
+
+    async def watched_index(self, provider_token: str) -> list[WatchedRecord]:
+        """Der vollstaendige Gesehen-Stand des Kontos hinter diesem Token.
+
+        Der Zaehler am Titel (``viewCount`` bzw. ``viewedLeafCount``) gilt
+        immer fuer das Konto, dessen Token die Bibliothek liest - fuer geteilte
+        Nutzer also fuer sie selbst. Anders als der Verlauf ist er nicht
+        gedeckelt und erfasst auch von Hand als gesehen Markiertes.
+        """
+        return [
+            WatchedRecord(
+                account_id="",
+                item_key=werk.rating_key or "",
+                media_type=werk.media_type,
+                watched_at=werk.watched_at,
+            )
+            for werk in await self._alle_werke(provider_token)
+            if werk.owner_watched and werk.rating_key
+        ]
 
     async def list_server_users(self) -> list[ServerUser]:
         konten = (await self._server("/accounts")).get("Account") or []
@@ -363,7 +409,9 @@ class PlexServer(MediaServer):
             )
         return gesehen
 
-    async def _abschnitt_lesen(self, schluessel: str, media_type: str) -> list[LibraryItem]:
+    async def _abschnitt_lesen(
+        self, schluessel: str, media_type: str, token: str | None = None
+    ) -> list[LibraryItem]:
         """Eine Bibliothek seitenweise auslesen.
 
         Plex liefert auf einen Schlag alles, was drinsteht - bei ein paar
@@ -380,6 +428,7 @@ class PlexServer(MediaServer):
                     "X-Plex-Container-Start": start,
                     "X-Plex-Container-Size": SEITENGROESSE,
                 },
+                token=token,
             )
             eintraege = container.get("Metadata") or []
             for eintrag in eintraege:

@@ -54,6 +54,9 @@ export function NotificationBell() {
     }
     // Ein neues Konto will man ansehen, nicht suchen.
     if (item.type === 'user_imported') return '/admin/settings'
+    // Der abgelaufene Zugang wird auf der Profilseite erneuert - dort sitzt
+    // die einmalige Plex-Anmeldung.
+    if (item.type === 'mediaserver_reconnect') return '/profil'
     // Alles andere betrifft die eigenen Anfragen.
     return '/requests'
   }

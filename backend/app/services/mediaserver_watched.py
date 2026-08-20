@@ -4,6 +4,26 @@ Der Media-Server weiss es, Nexview zeigt es als kleines Abzeichen an der
 Kachel. Mehr nicht - kein Filter, keine "Weiterschauen"-Reihe; das waere ein
 eigenes Thema.
 
+**Drei Quellen, in dieser Rangfolge:**
+
+1. Das **persoenliche Token** der Person (liegt seit der Merkliste ohnehin
+   verschluesselt am Konto): Die Bibliothek wird mit ihrem Zugang gelesen, der
+   Zaehler am Titel gilt dann fuer ihr Konto. Vollstaendig, erfasst auch von
+   Hand Abgehaktes - und gilt in **beide** Richtungen: Ein in Plex entfernter
+   Haken nimmt auch hier das Auge weg.
+2. Der Zaehler am Titel aus dem Bibliotheks-Abgleich (``owner_watched``) - er
+   gilt fuer den **Eigentuemer** des hinterlegten Zugangs und ist ebenso
+   vollstaendig. Nur noch noetig, wenn der Eigentuemer kein eigenes Token hat.
+3. Der **Wiedergabe-Verlauf** des Servers - die Notloesung fuer Konten ohne
+   Token. Gedeckelt (gemessen 499 Eintraege, davon 38 Filme, waehrend am Titel
+   354 gesehene Filme standen) und blind fuer manuell Markiertes. Deshalb nur
+   **hinzufuegend**: Aus einer unvollstaendigen Quelle etwas zu loeschen hiesse
+   raten.
+
+Wichtig: Konten mit vollstaendiger Quelle (1 oder 2) werden vom Verlauf **nicht
+mehr angefasst** - sonst setzte ein alter Verlaufseintrag den gerade entfernten
+Haken sofort wieder.
+
 Zwei Dinge machen das kniffliger, als es klingt, und beide sind hier geloest:
 
 * **Plex fuehrt zwei Nummernraeume in einem Feld.** Der Eigentuemer des Servers
@@ -17,11 +37,21 @@ Zwei Dinge machen das kniffliger, als es klingt, und beide sind hier geloest:
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import MediaServerLibraryItem, MediaType, User, UserWatched
+from ..crypto import decrypt
+from ..models import (
+    MediaServerLibraryItem,
+    MediaType,
+    Notification,
+    NotificationType,
+    User,
+    UserWatched,
+)
+from . import notify
 from .mediaserver import MediaServerError, WatchedRecord, get_media_server
 from .settings_service import AppSettings
 
@@ -42,7 +72,18 @@ def _vergleichbar(name: str) -> str:
     return "".join(zeichen for zeichen in name.lower() if zeichen.isalnum())
 
 
-async def _konto_zuordnung(db: Session, server) -> dict[str, int]:
+def _token(user: User) -> str:
+    """Das persoenliche Token entschluesseln - leer, wenn keines taugt."""
+    if not user.watchlist_token:
+        return ""
+    try:
+        return decrypt(user.watchlist_token)
+    except Exception:  # noqa: BLE001 - Schluesselwechsel, beschaedigter Wert
+        logger.warning("Media-Server-Token von %s ist nicht lesbar", user.username)
+        return ""
+
+
+async def _konto_zuordnung(db: Session, server, benutzer: list[User]) -> dict[str, int]:
     """Welche Konto-Kennung des Servers gehoert zu welchem Nexview-Benutzer?
 
     Zwei Wege, und beide werden gebraucht: Geteilte Nutzer erscheinen im
@@ -50,7 +91,6 @@ async def _konto_zuordnung(db: Session, server) -> dict[str, int]:
     Der **Eigentuemer** dagegen laeuft unter der 1 - fuer ihn hilft nur der
     Name aus der Kontenliste des Servers.
     """
-    benutzer = list(db.scalars(select(User).where(User.mediaserver_account_id.isnot(None))))
     nach_kennung = {u.mediaserver_account_id: u.id for u in benutzer}
     nach_name = {
         _vergleichbar(u.mediaserver_username or ""): u.id
@@ -73,26 +113,104 @@ async def _konto_zuordnung(db: Session, server) -> dict[str, int]:
     return zuordnung
 
 
-async def refresh(db: Session, settings: AppSettings) -> int:
-    """Gesehenes einlesen. Gibt die Zahl der neuen Zuordnungen zurueck.
+def _neu_verbinden_hinweis(db: Session, user: User, anbieter: str) -> None:
+    """Der Person sagen, dass ihr Zugang eine neue Anmeldung braucht.
 
-    **Zwei Quellen, und das ist noetig:**
+    Nur sie selbst kann das beheben - der Weg dorthin ist die einmalige
+    Anmeldung auf der Profilseite, dieselbe wie bei der Merkliste.
 
-    * Der Zaehler **am Titel** (``owner_watched``) gilt fuer den Eigentuemer des
-      hinterlegten Zugangs. Er ist vollstaendig und faellt beim Einlesen der
-      Bibliothek ohnehin ab.
-    * Der **Verlauf** ist die einzige Quelle fuer alle anderen - aber nur eine
-      Notloesung: Plex bewahrt ihn begrenzt auf. Gemessen an einer echten
-      Installation kamen 499 Eintraege zurueck, davon 38 Filme, waehrend am
-      Titel 354 gesehene Filme vermerkt waren. Wer sich allein auf den Verlauf
-      verlaesst, meldet dem Eigentuemer ein Zehntel der Wahrheit.
+    **Genau ein Hinweis je hinterlegtem Token.** Der Abgleich laeuft stuendlich;
+    eine Glocke, die jede Stunde dasselbe meldet, wird abgestellt statt
+    beachtet. Nach einer neuen Anmeldung (``watchlist_connected_at`` rueckt
+    vor) darf ein spaeterer Ausfall wieder melden.
     """
+    logger.warning("%s nimmt das Token von %s nicht mehr an", anbieter, user.username)
+    stichtag = user.watchlist_connected_at or datetime.min
+    schon = db.scalar(
+        select(Notification.id).where(
+            Notification.user_id == user.id,
+            Notification.type == NotificationType.mediaserver_reconnect,
+            Notification.created_at > stichtag,
+        )
+    )
+    if schon is not None:
+        return
+    notify.create(
+        db,
+        user=user,
+        kind=NotificationType.mediaserver_reconnect,
+        message_key="notifications.mediaserverReconnect",
+        title=anbieter,
+        # Eine persoenliche Zugangsfrage gehoert nicht in die serverseitigen
+        # Sammelkanaele.
+        broadcast=False,
+    )
+
+
+def _vollstaendig_uebernehmen(
+    db: Session,
+    benutzer_id: int,
+    stand: list[WatchedRecord],
+    werke: dict[str | None, MediaServerLibraryItem],
+    im_bestand: set[tuple[MediaType, int]],
+    vorhanden: dict[tuple[int, MediaType, int], UserWatched],
+) -> int:
+    """Einen vollstaendigen Gesehen-Stand uebernehmen - in beide Richtungen.
+
+    Neues kommt dazu, und was der Server nicht (mehr) als gesehen fuehrt, wird
+    entfernt - der Stand des Servers gilt. Entfernt wird aber **nur innerhalb
+    des aktuellen Bestands**: Verschwindet ein Titel ganz aus der Bibliothek,
+    kann der Abgleich ihn nicht mehr sehen - das macht die Wiedergabe nicht
+    ungeschehen, also bleibt das Auge.
+    """
+    gesehen: dict[tuple[MediaType, int], datetime | None] = {}
+    for eintrag in stand:
+        werk = werke.get(eintrag.item_key)
+        if werk is None or werk.tmdb_id is None:
+            continue
+        schluessel = (werk.media_type, werk.tmdb_id)
+        bisher = gesehen.get(schluessel)
+        if schluessel not in gesehen or (
+            eintrag.watched_at and (bisher is None or eintrag.watched_at > bisher)
+        ):
+            gesehen[schluessel] = eintrag.watched_at
+
+    geschrieben = 0
+    for schluessel, wann in gesehen.items():
+        art, tmdb_id = schluessel
+        alt = vorhanden.get((benutzer_id, art, tmdb_id))
+        if alt is None:
+            neu = UserWatched(
+                user_id=benutzer_id, media_type=art, tmdb_id=tmdb_id, watched_at=wann
+            )
+            db.add(neu)
+            vorhanden[(benutzer_id, art, tmdb_id)] = neu
+            geschrieben += 1
+        elif wann and (alt.watched_at is None or wann > alt.watched_at):
+            alt.watched_at = wann
+
+    entfernt = 0
+    for (user_id, art, tmdb_id), zeile in list(vorhanden.items()):
+        if user_id != benutzer_id:
+            continue
+        if (art, tmdb_id) in gesehen or (art, tmdb_id) not in im_bestand:
+            continue
+        db.delete(zeile)
+        del vorhanden[(user_id, art, tmdb_id)]
+        entfernt += 1
+    if entfernt:
+        logger.info("Gesehenes: %d Marker fuer Benutzer %d entfernt", entfernt, benutzer_id)
+    return geschrieben
+
+
+async def refresh(db: Session, settings: AppSettings) -> int:
+    """Gesehenes einlesen. Gibt die Zahl der neuen Zuordnungen zurueck."""
     server = get_media_server(settings)
     if server is None:
         return 0
 
-    zuordnung = await _konto_zuordnung(db, server)
-    if not zuordnung:
+    benutzer = list(db.scalars(select(User).where(User.mediaserver_account_id.isnot(None))))
+    if not benutzer:
         # Niemand hat sein Konto verknuepft - dann gibt es nichts zuzuordnen.
         return 0
 
@@ -111,59 +229,102 @@ async def refresh(db: Session, settings: AppSettings) -> int:
     if not werke:
         logger.info("Gesehenes: Bibliothek noch nicht eingelesen")
         return 0
+    im_bestand = {(z.media_type, z.tmdb_id) for z in zeilen if z.tmdb_id is not None}
 
     vorhanden = {
         (w.user_id, w.media_type, w.tmdb_id): w
         for w in db.scalars(select(UserWatched))
     }
 
-    # Quelle 1: der Zaehler am Titel - gilt fuer den Eigentuemer des Zugangs.
-    # Plex fuehrt ihn auf dem Server unter der Konto-Nummer 1.
-    eintraege: list[WatchedRecord] = [
-        WatchedRecord(
-            account_id=EIGENTUEMER_KONTO,
-            item_key=z.rating_key or "",
-            media_type=z.media_type.value,
-        )
-        for z in zeilen
-        if z.owner_watched
-    ]
-
-    # Quelle 2: der Verlauf - fuer alle anderen die einzige Moeglichkeit.
-    try:
-        eintraege.extend(await server.watched_since(None))
-    except NotImplementedError:
-        pass
-    except MediaServerError as fehler:
-        logger.warning("Wiedergabe-Verlauf nicht lesbar: %s", fehler.message)
-
     geschrieben = 0
-    for eintrag in eintraege:
-        benutzer_id = zuordnung.get(eintrag.account_id)
-        if benutzer_id is None:
-            continue
-        werk = werke.get(eintrag.item_key)
-        if werk is None or werk.tmdb_id is None:
-            continue
+    vollstaendig: set[int] = set()
 
-        schluessel = (benutzer_id, werk.media_type, werk.tmdb_id)
-        alt = vorhanden.get(schluessel)
-        if alt is None:
-            neu = UserWatched(
-                user_id=benutzer_id,
-                media_type=werk.media_type,
-                tmdb_id=werk.tmdb_id,
-                watched_at=eintrag.watched_at,
+    # Quelle 1: das persoenliche Token - vollstaendig, gilt in beide Richtungen.
+    for user in benutzer:
+        token = _token(user)
+        if not token:
+            continue
+        try:
+            stand = await server.watched_index(token)
+        except NotImplementedError:
+            # Dieser Anbieter kennt den Weg nicht - alle laufen ueber den
+            # Verlauf.
+            break
+        except MediaServerError as fehler:
+            if fehler.status_code == 401:
+                _neu_verbinden_hinweis(db, user, server.label)
+            else:
+                logger.warning(
+                    "Gesehen-Stand von %s nicht lesbar: %s", user.username, fehler.message
+                )
+            continue
+        geschrieben += _vollstaendig_uebernehmen(
+            db, user.id, stand, werke, im_bestand, vorhanden
+        )
+        vollstaendig.add(user.id)
+
+    # Quelle 2: der Zaehler am Titel - fuer den Eigentuemer des hinterlegten
+    # Zugangs, falls er kein eigenes Token hat. Ebenfalls vollstaendig.
+    zuordnung: dict[str, int] = {}
+    rest = [u for u in benutzer if u.id not in vollstaendig]
+    if rest:
+        zuordnung = await _konto_zuordnung(db, server, rest)
+        eigentuemer_id = zuordnung.get(EIGENTUEMER_KONTO)
+        if eigentuemer_id is not None:
+            stand = [
+                WatchedRecord(
+                    account_id=EIGENTUEMER_KONTO,
+                    item_key=z.rating_key or "",
+                    media_type=z.media_type.value,
+                )
+                for z in zeilen
+                if z.owner_watched
+            ]
+            geschrieben += _vollstaendig_uebernehmen(
+                db, eigentuemer_id, stand, werke, im_bestand, vorhanden
             )
-            db.add(neu)
-            vorhanden[schluessel] = neu
-            geschrieben += 1
-        elif eintrag.watched_at and (alt.watched_at is None or eintrag.watched_at > alt.watched_at):
-            alt.watched_at = eintrag.watched_at
+            vollstaendig.add(eigentuemer_id)
+
+    # Quelle 3: der Verlauf - die Notloesung fuer alle uebrigen. Nur
+    # hinzufuegend, und nie fuer Konten mit vollstaendiger Quelle.
+    rest_ids = {u.id for u in benutzer} - vollstaendig
+    if rest_ids:
+        try:
+            verlauf = await server.watched_since(None)
+        except NotImplementedError:
+            verlauf = []
+        except MediaServerError as fehler:
+            verlauf = []
+            logger.warning("Wiedergabe-Verlauf nicht lesbar: %s", fehler.message)
+
+        for eintrag in verlauf:
+            benutzer_id = zuordnung.get(eintrag.account_id)
+            if benutzer_id is None or benutzer_id not in rest_ids:
+                continue
+            werk = werke.get(eintrag.item_key)
+            if werk is None or werk.tmdb_id is None:
+                continue
+
+            schluessel = (benutzer_id, werk.media_type, werk.tmdb_id)
+            alt = vorhanden.get(schluessel)
+            if alt is None:
+                neu = UserWatched(
+                    user_id=benutzer_id,
+                    media_type=werk.media_type,
+                    tmdb_id=werk.tmdb_id,
+                    watched_at=eintrag.watched_at,
+                )
+                db.add(neu)
+                vorhanden[schluessel] = neu
+                geschrieben += 1
+            elif eintrag.watched_at and (
+                alt.watched_at is None or eintrag.watched_at > alt.watched_at
+            ):
+                alt.watched_at = eintrag.watched_at
 
     db.commit()
     if geschrieben:
-        logger.info("Wiedergabe-Verlauf: %d neue Zuordnungen", geschrieben)
+        logger.info("Gesehenes: %d neue Zuordnungen", geschrieben)
     return geschrieben
 
 

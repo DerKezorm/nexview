@@ -14,6 +14,7 @@ type MailFeld =
   | 'mail_feedback'
   | 'mail_ticket'
   | 'mail_user_imported'
+  | 'mail_mediaserver_reconnect'
 
 type Schalter = {
   feld: MailFeld
@@ -22,6 +23,8 @@ type Schalter = {
   /** Wer die Meldung gar nicht bekommen kann, sieht den Schalter nicht. */
   nurEntscheider?: boolean
   nurAdmin?: boolean
+  /** Nur für Konten mit verknüpftem Media-Server-Konto von Belang. */
+  nurVerknuepft?: boolean
   /**
    * Nur für Leute ohne Freigaberecht: Wer selbst freigeben darf, wartet nie
    * auf eine Entscheidung – „freigegeben/abgelehnt" kann ihn nicht erreichen,
@@ -70,6 +73,14 @@ const SCHALTER: Schalter[] = [
     hintKey: 'profile.mailUserImportedHint',
     nurAdmin: true,
   },
+  {
+    // Nur wer ein Plex-Konto verknüpft hat, kann einen abgelaufenen Zugang
+    // haben - für alle anderen wäre der Schalter eine Meldung, die nie kommt.
+    feld: 'mail_mediaserver_reconnect',
+    labelKey: 'profile.mailMediaserverReconnect',
+    hintKey: 'profile.mailMediaserverReconnectHint',
+    nurVerknuepft: true,
+  },
 ]
 
 type Entwurf = Record<MailFeld, boolean>
@@ -82,6 +93,7 @@ function ausUser(user: User): Entwurf {
     mail_feedback: user.mail_feedback,
     mail_ticket: user.mail_ticket,
     mail_user_imported: user.mail_user_imported,
+    mail_mediaserver_reconnect: user.mail_mediaserver_reconnect,
   }
 }
 
@@ -132,7 +144,8 @@ export function NotificationSettings() {
     (s) =>
       (!s.nurEntscheider || user.can_approve) &&
       (!s.nurAdmin || user.role === 'admin') &&
-      (!s.nieEntscheider || !user.can_approve),
+      (!s.nieEntscheider || !user.can_approve) &&
+      (!s.nurVerknuepft || user.mediaserver_linked),
   )
   // Ohne bestätigte Adresse geht ohnehin nichts raus - das gehört gesagt,
   // statt die Haken wirkungslos setzen zu lassen.

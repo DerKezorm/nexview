@@ -12,11 +12,19 @@ from datetime import datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from app.crypto import encrypt
 from app.db import SessionLocal
-from app.models import MediaServerLibraryItem, MediaType, User, UserWatched
+from app.models import (
+    MediaServerLibraryItem,
+    MediaType,
+    Notification,
+    NotificationType,
+    User,
+    UserWatched,
+)
 from app.routers import details
 from app.services import mediaserver_watched
-from app.services.mediaserver import ServerUser, WatchedRecord
+from app.services.mediaserver import MediaServerError, ServerUser, WatchedRecord
 from app.services.settings_service import load_settings, save_settings
 
 from .conftest import ADMIN, auth_headers, create_user
@@ -24,17 +32,28 @@ from .test_mediaserver_login import FakeMediaServer, verbinde
 
 
 class VerlaufsServer(FakeMediaServer):
-    """Ein Media-Server mit Wiedergabe-Verlauf und Kontenliste."""
+    """Ein Media-Server mit Wiedergabe-Verlauf und Kontenliste.
+
+    ``stand`` ist der vollstaendige Gesehen-Stand fuer ein persoenliches
+    Token; ohne Angabe kennt der Server den Weg nicht (``NotImplementedError``,
+    wie die Basisklasse). ``token_kaputt`` laesst jede Token-Abfrage mit 401
+    scheitern - der Fall "Passwort geaendert, Zugang abgelaufen".
+    """
 
     def __init__(
         self,
         verlauf: list[WatchedRecord],
         konten: list[ServerUser] | None = None,
+        stand: list[WatchedRecord] | None = None,
+        token_kaputt: bool = False,
         **rest: object,
     ) -> None:
         super().__init__(**rest)  # type: ignore[arg-type]
         self.verlauf = verlauf
         self.konten = konten or []
+        self.stand = stand
+        self.token_kaputt = token_kaputt
+        self.gefragte_tokens: list[str] = []
 
     async def watched_since(self, since: datetime | None = None) -> list[WatchedRecord]:
         return self.verlauf
@@ -42,8 +61,16 @@ class VerlaufsServer(FakeMediaServer):
     async def list_server_users(self) -> list[ServerUser]:
         return self.konten
 
+    async def watched_index(self, provider_token: str) -> list[WatchedRecord]:
+        self.gefragte_tokens.append(provider_token)
+        if self.token_kaputt:
+            raise MediaServerError("Der Plex-Server hat den Zugang nicht akzeptiert.", 401)
+        if self.stand is None:
+            raise NotImplementedError
+        return self.stand
 
-def bibliothek(*werke: tuple[str, int, MediaType]) -> None:
+
+def bibliothek(*werke: tuple[str, int, MediaType], owner_watched: bool = False) -> None:
     """Titel in den Bibliotheks-Abgleich legen - der Verlauf haengt daran."""
     with SessionLocal() as db:
         for rating_key, tmdb_id, art in werke:
@@ -57,19 +84,28 @@ def bibliothek(*werke: tuple[str, int, MediaType]) -> None:
                     title=f"Titel {tmdb_id}",
                     title_key=f"titel{tmdb_id}",
                     year=2020,
+                    owner_watched=owner_watched,
                 )
             )
         db.commit()
 
 
-def verknuepfen(username: str, konto: str, plexname: str) -> int:
+def verknuepfen(username: str, konto: str, plexname: str, token: str | None = None) -> int:
     with SessionLocal() as db:
         u = db.query(User).filter(User.username == username).one()
         u.mediaserver_provider = "plex"
         u.mediaserver_account_id = konto
         u.mediaserver_username = plexname
+        if token is not None:
+            u.watchlist_token = encrypt(token)
         db.commit()
         return u.id
+
+
+def gesehen_eintragen(user_id: int, tmdb_id: int, art: MediaType = MediaType.movie) -> None:
+    with SessionLocal() as db:
+        db.add(UserWatched(user_id=user_id, media_type=art, tmdb_id=tmdb_id))
+        db.commit()
 
 
 async def abgleichen(server: VerlaufsServer, monkeypatch: pytest.MonkeyPatch) -> int:
@@ -103,22 +139,46 @@ async def test_eigentuemer_ueber_den_namen(
 ) -> None:
     """Der wichtigste Fall.
 
-    Plex fuehrt den Eigentuemer des Servers im Verlauf als ``1`` - nicht unter
+    Plex fuehrt den Eigentuemer des Servers unter der ``1`` - nicht unter
     seiner plex.tv-Nummer. Ohne den Umweg ueber den Namen aus der Kontenliste
-    bliebe ausgerechnet der Administrator ohne jede Zuordnung.
+    bliebe ausgerechnet der Administrator ohne jede Zuordnung. Sein Stand
+    kommt aus dem Zaehler am Titel (``owner_watched``), nicht aus dem Verlauf.
     """
     verbinde(admin_client)
     admin_id = verknuepfen(ADMIN["username"], "490145397", "DerKezorm")
-    bibliothek(("54860", 12345, MediaType.movie))
+    bibliothek(("54860", 12345, MediaType.movie), owner_watched=True)
 
     server = VerlaufsServer(
-        [WatchedRecord(account_id="1", item_key="54860", media_type="movie")],
+        [],
         konten=[ServerUser(account_id="1", username="DerKezorm")],
     )
     assert await abgleichen(server, monkeypatch) == 1
 
     with SessionLocal() as db:
         assert db.query(UserWatched).one().user_id == admin_id
+
+
+async def test_alter_verlauf_setzt_entfernten_haken_nicht_zurueck(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Der Eigentuemer hat einen Haken entfernt - der Zaehler sagt "ungesehen".
+
+    Der Verlauf kennt die Wiedergabe von damals trotzdem noch. Wuerde er fuer
+    den Eigentuemer weiter angewendet, staende das Auge sofort wieder da.
+    """
+    verbinde(admin_client)
+    admin_id = verknuepfen(ADMIN["username"], "490145397", "DerKezorm")
+    bibliothek(("54860", 12345, MediaType.movie), owner_watched=False)
+    gesehen_eintragen(admin_id, 12345)
+
+    server = VerlaufsServer(
+        [WatchedRecord(account_id="1", item_key="54860", media_type="movie")],
+        konten=[ServerUser(account_id="1", username="DerKezorm")],
+    )
+    await abgleichen(server, monkeypatch)
+
+    with SessionLocal() as db:
+        assert db.query(UserWatched).count() == 0
 
 
 async def test_namensvergleich_ignoriert_schreibweise(
@@ -223,6 +283,129 @@ async def test_serie_zaehlt_als_ganzes(
         ]
     )
     assert await abgleichen(server, monkeypatch) == 1
+
+
+# --------------------------------------------------------------------------
+# Das persoenliche Token - die vollstaendige Quelle
+# --------------------------------------------------------------------------
+
+
+async def test_eigenes_token_liest_vollstaendig(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mit eigenem Token kommt der Stand vom Zaehler - nicht aus dem Verlauf."""
+    verbinde(admin_client)
+    create_user(admin_client, "gast", email="gast@beispiel.de")
+    gast_id = verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    bibliothek(("54860", 12345, MediaType.movie))
+
+    server = VerlaufsServer(
+        [],
+        stand=[WatchedRecord(account_id="", item_key="54860", media_type="movie")],
+    )
+    assert await abgleichen(server, monkeypatch) == 1
+
+    # Gefragt wurde mit dem entschluesselten Token der Person.
+    assert server.gefragte_tokens == ["gast-token"]
+    with SessionLocal() as db:
+        eintrag = db.query(UserWatched).one()
+        assert eintrag.user_id == gast_id
+        assert eintrag.tmdb_id == 12345
+
+
+async def test_eigenes_token_entfernt_haken(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Haken in Plex entfernt -> Auge in Nexview weg. Der Plex-Stand gilt."""
+    verbinde(admin_client)
+    create_user(admin_client, "gast", email="gast@beispiel.de")
+    gast_id = verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    bibliothek(("54860", 12345, MediaType.movie))
+    gesehen_eintragen(gast_id, 12345)
+
+    server = VerlaufsServer([], stand=[])
+    await abgleichen(server, monkeypatch)
+
+    with SessionLocal() as db:
+        assert db.query(UserWatched).count() == 0
+
+
+async def test_entfernte_titel_behalten_ihr_auge(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ein Titel, der aus der Bibliothek verschwunden ist, bleibt gesehen.
+
+    Der Abgleich kann ihn nicht mehr sehen - das macht die Wiedergabe nicht
+    ungeschehen. Entfernt wird nur innerhalb des aktuellen Bestands.
+    """
+    verbinde(admin_client)
+    create_user(admin_client, "gast", email="gast@beispiel.de")
+    gast_id = verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    bibliothek(("54860", 12345, MediaType.movie))
+    gesehen_eintragen(gast_id, 99999)  # nicht (mehr) in der Bibliothek
+
+    server = VerlaufsServer([], stand=[])
+    await abgleichen(server, monkeypatch)
+
+    with SessionLocal() as db:
+        assert db.query(UserWatched).one().tmdb_id == 99999
+
+
+async def test_verlauf_gilt_nicht_fuer_token_nutzer(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Wer eine vollstaendige Quelle hat, wird vom Verlauf nicht mehr angefasst.
+
+    Sonst setzte ein alter Verlaufseintrag den gerade entfernten Haken beim
+    naechsten Abgleich sofort wieder.
+    """
+    verbinde(admin_client)
+    create_user(admin_client, "gast", email="gast@beispiel.de")
+    verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    bibliothek(("54860", 12345, MediaType.movie))
+
+    server = VerlaufsServer(
+        [WatchedRecord(account_id="838679208", item_key="54860", media_type="movie")],
+        stand=[],
+    )
+    assert await abgleichen(server, monkeypatch) == 0
+
+    with SessionLocal() as db:
+        assert db.query(UserWatched).count() == 0
+
+
+async def test_defektes_token_meldet_sich_genau_einmal(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """401 vom Server -> Person wird uebersprungen und einmal benachrichtigt.
+
+    Der Abgleich laeuft stuendlich; ohne die Bremse staende jede Stunde
+    dieselbe Meldung in der Glocke.
+    """
+    verbinde(admin_client)
+    create_user(admin_client, "gast", email="gast@beispiel.de")
+    gast_id = verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    bibliothek(("54860", 12345, MediaType.movie))
+
+    server = VerlaufsServer([], token_kaputt=True)
+    assert await abgleichen(server, monkeypatch) == 0
+    # Gleich noch einmal - wie beim naechsten Stundenlauf.
+    assert await abgleichen(server, monkeypatch) == 0
+
+    with SessionLocal() as db:
+        meldungen = (
+            db.query(Notification)
+            .filter(
+                Notification.user_id == gast_id,
+                Notification.type == NotificationType.mediaserver_reconnect,
+            )
+            .all()
+        )
+        assert len(meldungen) == 1
+        assert meldungen[0].message_key == "notifications.mediaserverReconnect"
+        # Vorhandene Marker bleiben unangetastet - aus einem Fehler wird
+        # nichts geloescht.
+        assert db.query(UserWatched).count() == 0
 
 
 # --------------------------------------------------------------------------

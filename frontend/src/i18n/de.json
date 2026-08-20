@@ -427,6 +427,8 @@
     "nameSaved": "Anzeigename gespeichert.",
     "mailUserImported": "Neues Konto über den Media-Server",
     "mailUserImportedHint": "Wenn sich jemand zum ersten Mal mit seinem Plex-Konto anmeldet und dabei ein Nexview-Konto bekommt.",
+    "mailMediaserverReconnect": "Abgelaufener Plex-Zugang",
+    "mailMediaserverReconnectHint": "Wenn Plex deinen hinterlegten Zugang nicht mehr annimmt und du dich einmal neu anmelden musst – sonst bleiben Merkliste und Gesehen-Stand stehen.",
     "password": "Passwort ändern",
     "currentPassword": "Aktuelles Passwort",
     "newPassword": "Neues Passwort",
@@ -579,7 +581,8 @@
     "ticketNew": "Neues Ticket",
     "ticketReply": "Neue Antwort auf ein Ticket",
     "ticketStatus": "Zustand eines Tickets geändert",
-    "userImported": "Neues Konto über den Media-Server"
+    "userImported": "Neues Konto über den Media-Server",
+    "mediaserverReconnect": "Deine Plex-Verbindung muss erneuert werden"
   },
   "mediaserver": {
     "loginWithPlex": "Mit Plex anmelden",
@@ -1017,6 +1020,8 @@
     "gotifyTokenHint": "Das Token einer Application, nicht dein Anmeldekennwort.",
     "gotifyUrl": "Adresse der Instanz",
     "gotifyUrlHint": "Ohne Pfad – Nexview hängt /message selbst an.",
+    "gruppe_anfragen": "Anfragen",
+    "gruppe_betrieb": "Betrieb",
     "guide": {
       "telegram": {
         "title": "Telegram einrichten",
@@ -1089,8 +1094,20 @@
     "ntfyTopicHint": "Frei wählbar. Auf einer öffentlichen Instanz besser mit Zufallsanhang.",
     "ntfyUrl": "Adresse der Instanz",
     "ntfyUrlHint": "Die Basisadresse, nicht der Link zum Topic. Öffentlich: https://ntfy.sh",
+    "onDownloadComplete": "Neu verfügbar",
+    "onDownloadCompleteHint": "Sobald ein angefragter Titel fertig geladen ist – der „Was gibt's Neues“-Feed.",
+    "onFeedback": "Qualitäts-Rückmeldung",
+    "onFeedbackHint": "Bewertungen zu gelieferten Titeln – schlechte wie gute.",
+    "onRequestCancelled": "Anfrage storniert",
+    "onRequestCancelledHint": "Ein Storno löscht auch die Dateien in Radarr/Sonarr – gut zu wissen, wenn es passiert.",
+    "onRequestDecided": "Anfrage entschieden",
+    "onRequestDecidedHint": "Freigegeben oder abgelehnt – hält alle Entscheider auf demselben Stand.",
     "onRequestPending": "Über neue Freigabeanfragen informieren",
     "onRequestPendingHint": "Sobald jemand einen Titel anfragt, der noch freigegeben werden muss.",
+    "onTicketNew": "Neues Ticket",
+    "onTicketNewHint": "Sobald jemand ein Anliegen einreicht oder darin nachlegt.",
+    "onUserImported": "Neues Konto über den Media-Server",
+    "onUserImportedHint": "Jemand hat sich zum ersten Mal über Plex angemeldet und dabei ein Konto bekommen.",
     "openBot": "@{{name}} in Telegram öffnen",
     "openBotFather": "@BotFather in Telegram öffnen",
     "openService": "{{label}} öffnen",

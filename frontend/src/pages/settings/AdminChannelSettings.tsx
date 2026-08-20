@@ -74,13 +74,66 @@ function brauchtCode(kanal: ChannelKind): boolean {
 }
 
 /** Die Meldungen, die ein serverseitiges Postfach berichten kann. */
+/**
+ * Die Meldungen, die ein serverseitiges Postfach berichten kann.
+ *
+ * `key` muss zu den Gruppen im Postausgang passen (`channel_outbox.EVENTS`).
+ * `standard` ist die Dringlichkeit beim Anhaken – eine wartende Freigabe darf
+ * das Handy wecken, eine entschiedene Anfrage nicht.
+ */
 const EREIGNISSE = [
   {
     key: 'request_pending',
+    gruppe: 'anfragen',
+    standard: 'high',
     labelKey: 'channels.onRequestPending',
     hintKey: 'channels.onRequestPendingHint',
   },
+  {
+    key: 'download_complete',
+    gruppe: 'anfragen',
+    standard: 'normal',
+    labelKey: 'channels.onDownloadComplete',
+    hintKey: 'channels.onDownloadCompleteHint',
+  },
+  {
+    key: 'request_decided',
+    gruppe: 'anfragen',
+    standard: 'low',
+    labelKey: 'channels.onRequestDecided',
+    hintKey: 'channels.onRequestDecidedHint',
+  },
+  {
+    key: 'request_cancelled',
+    gruppe: 'anfragen',
+    standard: 'normal',
+    labelKey: 'channels.onRequestCancelled',
+    hintKey: 'channels.onRequestCancelledHint',
+  },
+  {
+    key: 'ticket_new',
+    gruppe: 'betrieb',
+    standard: 'normal',
+    labelKey: 'channels.onTicketNew',
+    hintKey: 'channels.onTicketNewHint',
+  },
+  {
+    key: 'feedback',
+    gruppe: 'betrieb',
+    standard: 'low',
+    labelKey: 'channels.onFeedback',
+    hintKey: 'channels.onFeedbackHint',
+  },
+  {
+    key: 'user_imported',
+    gruppe: 'betrieb',
+    standard: 'normal',
+    labelKey: 'channels.onUserImported',
+    hintKey: 'channels.onUserImportedHint',
+  },
 ] as const
+
+const GRUPPEN = ['anfragen', 'betrieb'] as const
 
 const STUFEN: ChannelLevel[] = ['low', 'normal', 'high', 'urgent']
 
@@ -1751,51 +1804,62 @@ function Meldungen({
         <p className="mt-1 text-sm text-mist-500">{t('channels.eventsIntro')}</p>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {EREIGNISSE.map((ereignis) => {
-          const stufe = auswahl[ereignis.key]
-          const an = stufe !== undefined
+      <div className="flex flex-col gap-4">
+        {GRUPPEN.map((gruppe) => (
+          <div key={gruppe} className="flex flex-col gap-3">
+            <p className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
+              {t(`channels.gruppe_${gruppe}`)}
+            </p>
+            {EREIGNISSE.filter((ereignis) => ereignis.gruppe === gruppe).map((ereignis) => {
+              const stufe = auswahl[ereignis.key]
+              const an = stufe !== undefined
 
-          return (
-            <div
-              key={ereignis.key}
-              className="flex flex-col gap-3 rounded-xl border border-ink-700 bg-ink-900/60 px-4 py-3"
-            >
-              <label className="flex cursor-pointer items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={an}
-                  onChange={(event) =>
-                    onUmstellen({ [ereignis.key]: event.target.checked ? 'high' : undefined })
-                  }
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
-                />
-                <span>
-                  <span className="text-sm font-medium text-mist-100">{t(ereignis.labelKey)}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
-                    {t(ereignis.hintKey)}
-                  </span>
-                </span>
-              </label>
+              return (
+                <div
+                  key={ereignis.key}
+                  className="flex flex-col gap-3 rounded-xl border border-ink-700 bg-ink-900/60 px-4 py-3"
+                >
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={an}
+                      onChange={(event) =>
+                        onUmstellen({
+                          [ereignis.key]: event.target.checked ? ereignis.standard : undefined,
+                        })
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
+                    />
+                    <span>
+                      <span className="text-sm font-medium text-mist-100">
+                        {t(ereignis.labelKey)}
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+                        {t(ereignis.hintKey)}
+                      </span>
+                    </span>
+                  </label>
 
-              {/* Die Dringlichkeit gehört zur Meldung, nicht zum Postfach: eine
+                  {/* Die Dringlichkeit gehört zur Meldung, nicht zum Postfach: eine
                   wartende Freigabe darf das Handy wecken, eine Rückmeldung zur
                   Bildqualität nicht. */}
-              <div className="pl-7">
-                <Auswahl
-                  label={t('channels.level')}
-                  value={stufe ?? 'high'}
-                  disabled={!an}
-                  onChange={(wert) => onUmstellen({ [ereignis.key]: wert as ChannelLevel })}
-                  optionen={STUFEN.map((wert) => ({
-                    value: wert,
-                    label: t(`channels.level_${wert}`),
-                  }))}
-                />
-              </div>
-            </div>
-          )
-        })}
+                  <div className="pl-7">
+                    <Auswahl
+                      label={t('channels.level')}
+                      value={stufe ?? ereignis.standard}
+                      disabled={!an}
+                      onChange={(wert) => onUmstellen({ [ereignis.key]: wert as ChannelLevel })}
+                      optionen={STUFEN.map((wert) => ({
+                        value: wert,
+                        label: t(`channels.level_${wert}`),
+                      }))}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

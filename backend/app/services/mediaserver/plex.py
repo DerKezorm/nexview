@@ -98,6 +98,8 @@ def _als_werk(eintrag: dict[str, Any], media_type: str) -> LibraryItem | None:
     # Titel ohne Datei-Angaben aus dem Bestand.
     hat_standard = not aufloesungen or bool(aufloesungen - {"4k"})
 
+    groesse_standard, groesse_uhd = _dateigroessen(eintrag)
+
     return LibraryItem(
         has_standard=hat_standard,
         has_uhd=hat_uhd,
@@ -111,7 +113,41 @@ def _als_werk(eintrag: dict[str, Any], media_type: str) -> LibraryItem | None:
         tvdb_id=zahl("tvdb"),
         imdb_id=kennungen.get("imdb") or None,
         year=int(eintrag["year"]) if str(eintrag.get("year") or "").isdigit() else None,
+        size_standard=groesse_standard,
+        size_uhd=groesse_uhd,
     )
+
+
+def _dateigroessen(eintrag: dict[str, Any]) -> tuple[int, int]:
+    """Belegter Platz in Bytes, getrennt nach Standard und 4K.
+
+    Plex haengt an jede ``Media``-Fassung eine oder mehrere ``Part``-Dateien,
+    und erst dort steht die Groesse. Die Schleife laeuft ohnehin schon ueber
+    ``Media`` (fuer die Aufloesung) - es kostet also keine einzige zusaetzliche
+    Abfrage, eine Ebene tiefer zu schauen.
+
+    Warum getrennt: 1080p und 4K sind zwei Dateien und werden getrennt
+    verbucht. Wer beide haelt, belegt beides.
+
+    Bei **Serien** kommt hier null heraus: Der Serien-Eintrag traegt gar keine
+    ``Media``-Liste, die Dateien haengen an den Folgen. Das ist bekannt und
+    bewusst nicht behoben - es braeuchte eine Abfrage je Serie.
+    """
+    standard = 0
+    uhd = 0
+    for medium in eintrag.get("Media") or []:
+        summe = 0
+        for teil in medium.get("Part") or []:
+            groesse = teil.get("size")
+            if isinstance(groesse, (int, float)) and groesse > 0:
+                summe += int(groesse)
+        if summe == 0:
+            continue
+        if str(medium.get("videoResolution") or "").lower() == "4k":
+            uhd += summe
+        else:
+            standard += summe
+    return standard, uhd
 
 
 class PlexServer(MediaServer):

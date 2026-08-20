@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     DateTime,
     Enum,
@@ -612,6 +613,15 @@ class MediaServerLibraryItem(Base):
     # Anbieter ohne Aufloesungs-Angabe sich verhalten wie bisher.
     has_standard: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     has_uhd: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Belegter Platz in Bytes, je Stufe getrennt. Null heisst "unbekannt":
+    # Bei Serien haengen die Dateien an den Folgen, der Serien-Eintrag traegt
+    # keine Groesse.
+    #
+    # Gebraucht fuer den Fall, dass ein Titel Radarr/Sonarr verlaesst und nur
+    # noch hier liegt - dann ist das die einzige Stelle, die seine Groesse
+    # ueberhaupt noch kennt.
+    size_standard: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    size_uhd: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     tmdb_id: Mapped[int | None] = mapped_column(Integer)
     tvdb_id: Mapped[int | None] = mapped_column(Integer)
     imdb_id: Mapped[str | None] = mapped_column(String(20))
@@ -620,6 +630,91 @@ class MediaServerLibraryItem(Base):
     title_key: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     year: Mapped[int | None] = mapped_column(Integer)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class StorageState(str, enum.Enum):
+    """Wem gehoert ein belegter Posten gerade?"""
+
+    owned = "owned"  # einem Nutzer zugerechnet
+    pending = "pending"  # abgegeben, wartet auf die Entscheidung des Admins
+    house = "house"  # Hausbestand - zaehlt bei niemandem
+
+
+class StorageEntry(Base):
+    """Ein belegter Posten: ein Titel, eine Stufe, eine Staffel.
+
+    **Warum eine eigene Tabelle und keine Spalten an der Anfrage:**
+
+    1. Eine Serie mit zehn Staffeln braucht zehn Zeilen. Als Spalte geht das nicht.
+    2. Der Hausbestand hat oft **gar keine** Anfrage - alles, was schon vor
+       Nexview da war oder von Hand kopiert wurde.
+    3. Abgeben wechselt den Eigentuemer. Die Anfrage ist ein *historischer*
+       Beleg und darf ihren Nutzer nie aendern.
+    4. Wird eine Anfrage zurueckgezogen, darf der Posten nicht mitgehen,
+       solange die Datei liegt.
+
+    **Der Kontostand** ist die Summe der Posten mit ``owned`` und ``pending``.
+    Abgegebenes zaehlt weiter, bis entschieden ist - sonst waere Abgeben ein
+    Freifahrtschein.
+    """
+
+    __tablename__ = "storage_entries"
+    __table_args__ = (
+        # Ein Posten je Datei-Gruppe, siehe ``key``.
+        #
+        # Bewusst als Index und nicht als UniqueConstraint: SQLite kann einer
+        # bestehenden Tabelle keine Constraints nachtragen, Indizes dagegen
+        # schon. Als Constraint waere die Regel auf jeder *aktualisierten*
+        # Installation stillschweigend wirkungslos - und kein Test faende das,
+        # weil Tests immer auf frischen Tabellen laufen.
+        Index("ix_storage_schluessel", "key", unique=True),
+        Index("ix_storage_nutzer", "user_id", "state"),
+        Index("ix_storage_tmdb", "media_type", "tmdb_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Was diesen Posten eindeutig macht - eine Zeichenkette statt mehrerer
+    # Spalten, und zwar aus einem konkreten Grund:
+    #
+    # Radarr kennt Filme ueber die TMDB-Nummer, Sonarr Serien **nur** ueber die
+    # TVDB-Nummer. Ein zusammengesetzter Index ueber beide Nummern haette bei
+    # Serien ein NULL in der TMDB-Spalte - und SQLite haelt zwei NULL fuer
+    # verschieden. Die Eindeutigkeit waere damit genau dort wirkungslos, wo sie
+    # gebraucht wird.
+    #
+    # Aufbau (siehe services/storage.schluessel):
+    #   Film    "movie:standard:tmdb:603"
+    #   Staffel "tv:uhd:tvdb:81189:s3"
+    key: Mapped[str] = mapped_column(String(80), nullable=False)
+    # NULL = Hausbestand. Wird ein Nutzer geloescht, faellt sein Posten
+    # automatisch ans Haus - die Datei bleibt ja liegen.
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    # 4K und 1080p sind zwei Dateien und werden getrennt verbucht.
+    tier: Mapped[QualityTier] = mapped_column(
+        enum_column(QualityTier), default=QualityTier.standard, nullable=False
+    )
+    # Beide nur zur Anzeige und zum Verknuepfen mit einer Anfrage - eindeutig
+    # macht den Posten allein ``key``. Bei Serien fehlt die TMDB-Nummer oft.
+    tmdb_id: Mapped[int | None] = mapped_column(Integer)
+    tvdb_id: Mapped[int | None] = mapped_column(Integer)
+    # NULL = ein Film. Sonst die Staffel: Das ist die feinste Koernung, die
+    # Sonarr ohne zusaetzliche Abfrage hergibt (siehe sonarr._staffel_groessen).
+    season: Mapped[int | None] = mapped_column(Integer)
+    # Mitgefuehrt, damit ein Posten anzeigbar bleibt, wenn der Titel aus
+    # Radarr/Sonarr verschwindet und nur noch im Media-Server liegt.
+    title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    size_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    measured_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    state: Mapped[StorageState] = mapped_column(
+        enum_column(StorageState), default=StorageState.house, nullable=False
+    )
+    # Woher der Posten kam. NULL beim Altbestand, der nie angefragt wurde.
+    request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_requests.id", ondelete="SET NULL")
+    )
 
 
 class UserWatched(Base):

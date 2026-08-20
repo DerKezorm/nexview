@@ -16,6 +16,23 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ### New
 
+- **Nexview now records how much space each person occupies.** Nothing is
+  limited yet and nothing is deleted - this first step only measures and will
+  only become visible in the interface with the next one. Sizes come from
+  Radarr and Sonarr, which report them in answers Nexview already asks for, so
+  it costs no extra requests. Shows are counted **per season**, which is the
+  finest grain available without asking Sonarr once per series.
+
+  Everything already in the library when measuring starts belongs to the
+  house and counts against nobody, so no account begins in the red. From then
+  on whoever requested a title carries it.
+
+  A title removed from Radarr but kept in Plex keeps counting, because the
+  space is still occupied - a common way of working is to download until the
+  quality is right and then drop the entry from Radarr. For that case the
+  file size is read from Plex as well, from a structure the library sync
+  already walks through.
+
 - **"Already watched" is now complete for everyone, not just the owner.**
   So far the eye badge was reliable only for the account whose Plex access
   is stored in the settings; everybody else was read from the server's

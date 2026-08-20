@@ -23,7 +23,14 @@ from ..models import (
     User,
     utcnow,
 )
-from . import library, mail_outbox, mediaserver_library, mediaserver_watched, notify
+from . import (
+    library,
+    mail_outbox,
+    mediaserver_library,
+    mediaserver_watched,
+    notify,
+    storage,
+)
 from .arr import ArrError
 from .settings_service import AppSettings, load_settings
 
@@ -193,6 +200,52 @@ async def _bibliothek_vielleicht(db, settings) -> None:
         db.rollback()
 
 
+# Wie oft die Speicher-Belegung neu erfasst wird. Dateigroessen aendern sich
+# langsam: Ein Film waechst nur bei einer Aufwertung, eine Serie um eine Folge
+# je Woche. Stuendlich ist reichlich.
+SPEICHER_INTERVALL_SEKUNDEN = 3600
+_speicher_zuletzt: float = 0.0
+
+
+async def _speicher_vielleicht(db, settings) -> None:
+    """Die Speicher-Belegung erfassen, wenn es an der Zeit ist.
+
+    Laeuft **unabhaengig davon**, ob Kontingente nach Speicher eingestellt
+    sind: Gemessen wird immer, begrenzt nur auf Wunsch. Sonst staende beim
+    Umschalten nirgends eine Zahl, auf deren Grundlage sich eine Grenze
+    festlegen liesse.
+    """
+    global _speicher_zuletzt
+    if not (settings.radarr_configured or settings.sonarr_configured):
+        return
+    jetzt = time.monotonic()
+    if jetzt - _speicher_zuletzt < SPEICHER_INTERVALL_SEKUNDEN:
+        return
+    _speicher_zuletzt = jetzt
+    try:
+        ergebnis = await storage.abgleichen(db, settings)
+        if ergebnis.erster_lauf:
+            logger.info(
+                "Speicher-Belegung zum ersten Mal erfasst: %s Posten, alle im "
+                "Hausbestand - jedes Konto startet bei null",
+                ergebnis.neu,
+            )
+        elif ergebnis.neu or ergebnis.aktualisiert or ergebnis.entfernt:
+            logger.info(
+                "Speicher-Belegung: %s neu, %s geaendert (davon %s gewachsen), "
+                "%s entfallen",
+                ergebnis.neu,
+                ergebnis.aktualisiert,
+                ergebnis.gewachsen,
+                ergebnis.entfernt,
+            )
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        logger.exception("Speicher-Belegung konnte nicht erfasst werden")
+        # Siehe _bibliothek_vielleicht: Ohne das Zuruecksetzen stirbt der
+        # naechste Schritt im selben Durchgang an einem fremden Fehler.
+        db.rollback()
+
+
 async def run_forever(stop: asyncio.Event) -> None:
     """Hintergrundschleife - laeuft, bis die Anwendung beendet wird."""
     while not stop.is_set():
@@ -208,6 +261,11 @@ async def run_forever(stop: asyncio.Event) -> None:
                 # kaum, und ein voller Durchlauf kostet bei ein paar tausend
                 # Titeln spuerbar mehr als eine Statusabfrage.
                 await _bibliothek_vielleicht(db, settings)
+
+                # Danach die Speicher-Belegung: Sie greift auf den gerade
+                # aufgefrischten Bestand des Media-Servers zu, um Titel zu
+                # erfassen, die Radarr/Sonarr nicht mehr kennen.
+                await _speicher_vielleicht(db, settings)
 
                 # Erst danach: so gehen die Mails zu gerade fertig gewordenen
                 # Downloads schon in diesem Durchgang raus statt erst im

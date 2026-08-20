@@ -177,6 +177,18 @@ class LibraryItem:
     # dagegen wird nie geraten; ``has_uhd`` ist nur wahr, wenn es dasteht.
     has_standard: bool = True
     has_uhd: bool = False
+    # Belegter Platz in Bytes, **getrennt nach Stufe** - aus demselben Grund
+    # wie oben: 1080p und 4K sind zwei Dateien und werden getrennt verbucht.
+    #
+    # Gebraucht wird das fuer einen verbreiteten Arbeitsablauf: laden, bis die
+    # Qualitaet stimmt, dann den Eintrag aus Radarr/Sonarr werfen und die Datei
+    # behalten. Danach ist der Media-Server die einzige Stelle, die die Groesse
+    # noch kennt.
+    #
+    # Null heisst "unbekannt", nicht "leer": Bei Serien haengen die Dateien an
+    # den Folgen, der Serien-Eintrag traegt keine Groesse.
+    size_standard: int = 0
+    size_uhd: int = 0
 
 
 @dataclass(frozen=True)

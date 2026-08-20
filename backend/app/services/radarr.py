@@ -15,6 +15,31 @@ class LibraryEntry:
     arr_id: int
     has_file: bool
     monitored: bool
+    # Belegter Platz in Bytes. Radarr liefert die Zahl bei jedem Film gratis
+    # mit; gebraucht wird sie fuer die Speicher-Belegung (services/storage.py).
+    size_bytes: int = 0
+    # Fuer die Anzeige eines Postens, auch wenn der Film spaeter aus Radarr
+    # verschwindet - dann steht hier der letzte bekannte Titel.
+    title: str = ""
+
+
+def _groesse(movie: dict[str, Any]) -> int:
+    """Belegter Platz eines Films in Bytes.
+
+    ``sizeOnDisk`` ist die Angabe, die Radarr fuehrt. Sie steht auch dann auf
+    einem Wert, wenn gerade keine Datei da ist (dann null), deshalb wird sie
+    ohne Ruecksicht auf ``hasFile`` gelesen - der Aufrufer entscheidet, was
+    eine Null bedeutet.
+
+    Der Rueckfall auf ``movieFile.size`` deckt Radarr-Fassungen ab, die
+    ``sizeOnDisk`` nicht auf oberster Ebene mitschicken.
+    """
+    roh = movie.get("sizeOnDisk")
+    if isinstance(roh, (int, float)) and roh > 0:
+        return int(roh)
+    datei = movie.get("movieFile") or {}
+    groesse = datei.get("size")
+    return int(groesse) if isinstance(groesse, (int, float)) and groesse > 0 else 0
 
 
 class RadarrClient(ArrClient):
@@ -37,6 +62,8 @@ class RadarrClient(ArrClient):
                 arr_id=movie.get("id", 0),
                 has_file=bool(movie.get("hasFile")),
                 monitored=bool(movie.get("monitored")),
+                size_bytes=_groesse(movie),
+                title=str(movie.get("title") or ""),
             )
         return result
 

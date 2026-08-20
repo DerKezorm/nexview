@@ -407,3 +407,71 @@ def test_update_haelt_bestehende_plex_titel_fuer_vorhanden(alte_installation: Pa
 
     assert zeile[0] == 1, "Bestandstitel gelten sonst schlagartig als verschwunden"
     assert zeile[1] == 0, "4K darf nie geraten werden"
+
+
+def test_update_ergaenzt_die_speicher_belegung(alte_installation: Path) -> None:
+    """Ein Update bringt die Posten-Tabelle mit - samt der Groessen in Plex.
+
+    Zwei verschiedene Wege, und beide muessen sitzen: ``storage_entries`` ist
+    eine **neue Tabelle** (``create_all``), die beiden Groessen an
+    ``media_server_library`` sind **neue Spalten** an einer vorhandenen Tabelle
+    (``_add_missing_columns``). Nur der zweite Weg kann stillschweigend
+    scheitern, deshalb wird die Tabelle hier vorher von Hand angelegt - sonst
+    prueft der Test ein CREATE TABLE statt eines ALTER TABLE.
+    """
+    engine = create_engine(f"sqlite:///{alte_installation}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE media_server_library (
+                    id INTEGER PRIMARY KEY,
+                    provider VARCHAR(20) NOT NULL,
+                    media_type VARCHAR(5) NOT NULL,
+                    guid VARCHAR(255) NOT NULL,
+                    title VARCHAR(500) NOT NULL,
+                    title_key VARCHAR(500) NOT NULL DEFAULT ''
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO media_server_library "
+                "(provider, media_type, guid, title, title_key) "
+                "VALUES ('plex', 'movie', 'plex://movie/1', 'Alt', 'alt')"
+            )
+        )
+    engine.dispose()
+
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        tabellen = {
+            row[0]
+            for row in connection.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        indizes = {
+            row[0]
+            for row in connection.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            )
+        }
+        spalten = db_modul._existing_columns(connection, "media_server_library")
+        groesse = connection.exec_driver_sql(
+            "SELECT size_standard, size_uhd FROM media_server_library"
+        ).one()
+
+    assert "storage_entries" in tabellen
+    assert {"size_standard", "size_uhd"} <= spalten
+
+    # Der eindeutige Index muss mitkommen, sonst koennte derselbe Titel
+    # doppelt verbucht werden - und niemand saehe es.
+    assert "ix_storage_schluessel" in indizes
+
+    # Bestandszeilen bekommen 0 = "unbekannt", nicht etwa NULL: Die Spalte ist
+    # NOT NULL, und ohne brauchbaren Standardwert waere die Migration
+    # gescheitert.
+    assert groesse == (0, 0)

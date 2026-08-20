@@ -7,7 +7,7 @@ Laden der Details von TMDB mitgeholt.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .arr import ArrClient, ArrError
@@ -26,6 +26,16 @@ class LibraryEntry:
     # Nur fuer den Titel-Rueckfall: Ohne Jahr trifft "Countdown" (1982) jede
     # andere Serie desselben Namens - samt deren Folgen. Siehe jahre_passen.
     year: int | None = None
+    # Belegter Platz der ganzen Serie in Bytes.
+    size_bytes: int = 0
+    # Belegter Platz **je Staffel**: {Staffelnummer: Bytes}. Sonarr haengt die
+    # Staffel-Statistik an dieselbe Antwort - eine eigene Abfrage waere nur
+    # noetig, wollte man bis auf die einzelne Folge hinunter. Die
+    # Speicher-Belegung rechnet deshalb staffelweise.
+    seasons: dict[int, int] = field(default_factory=dict)
+    # Letzter bekannter Titel, damit ein Posten anzeigbar bleibt, wenn die
+    # Serie spaeter aus Sonarr verschwindet.
+    title: str = ""
 
 
 def normalize_title(title: str) -> str:
@@ -54,6 +64,34 @@ def jahre_passen(gesucht: int | None, gefunden: int | None) -> bool:
     return abs(gesucht - gefunden) <= 1
 
 
+def _zahl(wert: Any) -> int:
+    """Bytes-Angabe aus Sonarr, robust gegen Nichts und Unsinn."""
+    return int(wert) if isinstance(wert, (int, float)) and wert > 0 else 0
+
+
+def _staffel_groessen(show: dict[str, Any]) -> dict[int, int]:
+    """Belegter Platz je Staffel, aus derselben Antwort wie alles andere.
+
+    Sonarr haengt an jede Staffel in ``/series`` eine eigene Statistik. Damit
+    ist die Staffel die feinste Koernung, die **ohne** zusaetzliche Abfrage zu
+    haben ist; bis auf die einzelne Folge hinunter braeuchte es
+    ``/episode?includeEpisodeFile=true`` je Serie.
+
+    Staffeln ohne Dateien werden weggelassen - ein Posten ueber null Bytes
+    waere nur Zeile ohne Aussage. Staffel 0 (Extras) bleibt drin: Sie belegt
+    echten Platz, anders als bei der Staffelauswahl, wo sie bewusst fehlt.
+    """
+    groessen: dict[int, int] = {}
+    for staffel in show.get("seasons") or []:
+        nummer = staffel.get("seasonNumber")
+        if not isinstance(nummer, int):
+            continue
+        bytes_ = _zahl((staffel.get("statistics") or {}).get("sizeOnDisk"))
+        if bytes_ > 0:
+            groessen[nummer] = bytes_
+    return groessen
+
+
 class SonarrClient(ArrClient):
     def __init__(self, base_url: str, api_key: str) -> None:
         super().__init__(base_url, api_key, "Sonarr")
@@ -79,6 +117,9 @@ class SonarrClient(ArrClient):
                 episode_count=int(statistics.get("episodeCount") or 0),
                 title_key=normalize_title(show.get("title") or ""),
                 year=show.get("year") if isinstance(show.get("year"), int) else None,
+                size_bytes=_zahl(statistics.get("sizeOnDisk")),
+                seasons=_staffel_groessen(show),
+                title=str(show.get("title") or ""),
             )
 
             tvdb_id = show.get("tvdbId")

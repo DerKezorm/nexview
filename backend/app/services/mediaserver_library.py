@@ -64,12 +64,20 @@ def _zusammengefasst(werke: list[LibraryItem]) -> list[LibraryItem]:
     return list(nach_guid.values())
 
 
-async def refresh(db: Session, settings: AppSettings) -> int:
+async def refresh(db: Session, settings: AppSettings, streng: bool = False) -> int:
     """Die Bibliothek neu einlesen. Gibt die Anzahl der Titel zurueck.
 
     Ersetzt den bisherigen Bestand vollstaendig - und zwar nur dann, wenn das
     Lesen geklappt hat. Ein halb gefuellter Abgleich waere schlimmer als ein
     veralteter: Titel wuerden faelschlich wieder als anfragbar erscheinen.
+
+    ``streng`` unterscheidet die beiden Aufrufer. Der Hintergrund-Abgleich
+    schluckt Fehler (ein Aussetzer des Servers darf den Durchgang nicht
+    beenden). Der **Handknopf** des Administrators dagegen muss sie zeigen:
+    Vorher meldete er bei einem unerreichbaren Server kommentarlos den alten
+    Zaehler samt Zeitstempel - scheinbarer Erfolg, und niemand konnte je
+    herausfinden, warum kein einziger Plex-Titel ein Abzeichen bekam. Genau
+    so gemeldet (Issue #2).
     """
     server = get_media_server(settings)
     if server is None:
@@ -82,6 +90,8 @@ async def refresh(db: Session, settings: AppSettings) -> int:
         return 0
     except MediaServerError as fehler:
         logger.warning("Bibliothek des Media-Servers nicht lesbar: %s", fehler.message)
+        if streng:
+            raise
         return 0
 
     db.execute(

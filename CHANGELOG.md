@@ -12,6 +12,26 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.11.1 – 20.08.2026
+
+### Fixed
+
+- **Times were shown two hours off.** The server stores timestamps in UTC but
+  sent them without a timezone marker – and a date *with* a time but *without*
+  a zone is read as local time by the browser, so the UTC number ended up on
+  screen unchanged ("last checked 12:01" at 14:01). Timestamps from the server
+  are now read as what they are and converted to the viewer's local time.
+
+- **"Check now" for the media server library could disguise a failure as
+  success.** If reading the Plex library failed – server unreachable from the
+  container, token rejected – the button silently kept showing the old count
+  and timestamp. There was no place where the cause could ever become
+  visible. The button now reports the actual error in plain words; the hourly
+  background sync still swallows failures so one outage cannot stop the rest
+  of the run.
+
+---
+
 ## 0.11.0 – 20.08.2026
 
 ### New

@@ -332,3 +332,34 @@ def test_nur_film_und_serien_bibliotheken() -> None:
 
     # Ohne Titel ist der Eintrag wertlos.
     assert _als_werk({"ratingKey": "2"}, "movie") is None
+
+
+async def test_handknopf_zeigt_den_fehler(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """"Jetzt abgleichen" darf einen Ausfall nicht als Erfolg tarnen.
+
+    Vorher schluckte ``refresh`` jeden Fehler, und der Knopf meldete
+    kommentarlos den alten Zaehler samt Zeitstempel - scheinbarer Erfolg.
+    Genau daran ist ein Nutzer verzweifelt, bei dem kein einziger Plex-Titel
+    ein Abzeichen bekam (Issue #2): Es gab schlicht keine Stelle, an der die
+    Ursache je sichtbar geworden waere. Der Hintergrund-Abgleich schluckt
+    weiterhin - ein Aussetzer darf den Durchgang nicht beenden.
+    """
+    verbinde(admin_client)
+
+    class Kaputt(BibliotheksServer):
+        async def library_index(self) -> list[LibraryItem]:
+            from app.services.mediaserver import MediaServerError
+
+            raise MediaServerError("Der Plex-Server antwortet nicht (Zeitüberschreitung).")
+
+    # Beide Stellen ueberschreiben: Der Router prueft die Verbindung selbst.
+    from app.routers import mediaserver as mediaserver_router
+
+    monkeypatch.setattr(mediaserver_library, "get_media_server", lambda _s: Kaputt([]))
+    monkeypatch.setattr(mediaserver_router, "get_media_server", lambda _s: Kaputt([]))
+
+    antwort = admin_client.post("/api/admin/mediaserver/library/refresh")
+    assert antwort.status_code == 502
+    assert "antwortet nicht" in antwort.json()["detail"]["message"]

@@ -575,7 +575,9 @@ async def library_refresh(db: DbSession, admin: AdminUser) -> LibraryState:
             },
         )
     try:
-        await mediaserver_library.refresh(db, settings)
+        # streng: Wer den Knopf drueckt, will die Wahrheit - auch die
+        # unangenehme. Der stille Rueckzug ist nur fuer den Hintergrund.
+        await mediaserver_library.refresh(db, settings, streng=True)
     except MediaServerError as exc:
         raise _anbieter_fehler(exc) from exc
     return LibraryState(**mediaserver_library.stand(db))  # type: ignore[arg-type]

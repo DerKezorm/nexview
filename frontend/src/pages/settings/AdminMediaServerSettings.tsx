@@ -25,6 +25,7 @@ import type {
 import { useAuth } from '../../auth/useAuth'
 import { MediaServerPrompt } from '../../components/MediaServerPrompt'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../../components/ui'
+import { formatDateTime } from '../../lib/format'
 import { useMediaServerChallenge } from '../../lib/useMediaServerChallenge'
 
 type Draft = {
@@ -46,7 +47,7 @@ const EMPTY_DRAFT: Draft = {
 }
 
 export function AdminMediaServerSettings() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const { updateUser } = useAuth()
 
@@ -412,7 +413,7 @@ export function AdminMediaServerSettings() {
                   {t('mediaserver.libraryCount', { count: bibliothek.data.count })}
                 </span>
                 <span className="ml-2 text-xs text-mist-600">
-                  {new Date(bibliothek.data.updated_at).toLocaleString()}
+                  {formatDateTime(bibliothek.data.updated_at, i18n.language)}
                 </span>
               </>
             ) : (

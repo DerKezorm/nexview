@@ -20,12 +20,22 @@ _client_lock = asyncio.Lock()
 
 
 class ArrError(Exception):
-    """Fehler beim Zugriff auf Radarr/Sonarr - mit lesbarer Meldung."""
+    """Fehler beim Zugriff auf Radarr/Sonarr - mit lesbarer Meldung.
 
-    def __init__(self, message: str, status_code: int | None = None) -> None:
+    ``ungewiss`` trennt "hat nicht geklappt" von "wir wissen es nicht".
+    Eine Zeitueberschreitung heisst **nicht**, dass nichts passiert ist: Der
+    Auftrag kann angekommen und ausgefuehrt worden sein, nur die Antwort kam
+    nicht mehr an. Genau so gesehen - Nexview vermerkte "fehlgeschlagen",
+    waehrend Sonarr die Serie laengst angelegt hatte und suchte.
+    """
+
+    def __init__(
+        self, message: str, status_code: int | None = None, ungewiss: bool = False
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+        self.ungewiss = ungewiss
 
 
 async def _http() -> httpx.AsyncClient:
@@ -74,7 +84,9 @@ class ArrClient:
                 **kwargs,
             )
         except httpx.TimeoutException as exc:
-            raise ArrError(f"{self.label} antwortet nicht (Zeitüberschreitung).") from exc
+            raise ArrError(
+                f"{self.label} antwortet nicht (Zeitüberschreitung).", ungewiss=True
+            ) from exc
         except httpx.HTTPError as exc:
             raise ArrError(
                 f"{self.label} ist unter {self.base_url} nicht erreichbar. "

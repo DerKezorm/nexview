@@ -369,3 +369,66 @@ def test_zurueckgezogene_anfrage_verschwindet_vom_badge(arr_client: TestClient) 
     neu = arr_client.get("/api/discover/movie").json()["items"]
     treffer = next(i for i in neu if i["tmdb_id"] == item["tmdb_id"])
     assert treffer["status"] == "not_requested"
+
+
+async def test_zeitueberschreitung_gilt_nicht_als_fehlschlag(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Eine Zeitueberschreitung heisst "unbekannt", nicht "hat nicht geklappt".
+
+    Der gemeldete Fall: Nexview vermerkte "fehlgeschlagen", waehrend Sonarr
+    die Serie laengst angelegt hatte und suchte - die Antwort war nur nicht
+    mehr rechtzeitig angekommen. Die Anfrage bleibt deshalb auf "freigegeben"
+    stehen, damit der Status-Abgleich sie nachprueft; ein *echter* Fehler
+    (etwa eine abgelehnte Anfrage) faellt weiter auf "fehlgeschlagen".
+    """
+    from app.db import SessionLocal
+    from app.models import MediaRequest, RequestStatus
+    from app.services import library
+    from app.services.arr import ArrError
+
+    item = _first_demo(arr_client)
+
+    class Zeitueberschreitung:
+        async def ensure_tag(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            return None
+
+        async def add(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            raise ArrError("Radarr antwortet nicht (Zeitüberschreitung).", ungewiss=True)
+
+    monkeypatch.setattr(library, "radarr_client", lambda *a, **k: Zeitueberschreitung())
+
+    # Als Administrator: Nur mit Auto-Freigabe laeuft die Uebergabe sofort.
+    assert _anfrage(arr_client, item).status_code == 502
+
+    with SessionLocal() as db:
+        anfrage = db.query(MediaRequest).filter(MediaRequest.tmdb_id == item["tmdb_id"]).one()
+        # Nicht "failed": Der Status-Abgleich soll nachsehen duerfen.
+        assert anfrage.status == RequestStatus.approved
+        assert "Zeitüberschreitung" in (anfrage.error_message or "")
+
+
+async def test_echter_fehler_bleibt_fehlgeschlagen(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Ausnahme gilt nur fuer Ungewissheit - sonst bleibt es beim Fehlschlag."""
+    from app.db import SessionLocal
+    from app.models import MediaRequest, RequestStatus
+    from app.services import library
+    from app.services.arr import ArrError
+
+    item = _first_demo(arr_client, index=1)
+
+    class Abgelehnt:
+        async def ensure_tag(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            return None
+
+        async def add(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            raise ArrError("Radarr meldet einen Fehler (HTTP 400).", status_code=400)
+
+    monkeypatch.setattr(library, "radarr_client", lambda *a, **k: Abgelehnt())
+
+    assert _anfrage(arr_client, item).status_code == 502
+    with SessionLocal() as db:
+        anfrage = db.query(MediaRequest).filter(MediaRequest.tmdb_id == item["tmdb_id"]).one()
+        assert anfrage.status == RequestStatus.failed

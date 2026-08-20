@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import type { MediaItem, MovieRatings } from '../../api/types'
 import { formatRuntime, formatYear } from '../../lib/format'
 import { titlePath } from '../../lib/routes'
+import { darfAnfragen } from '../../lib/status'
 import type { CardItem } from './cardItem'
 import { fromMediaItem } from './cardItem'
 import { FavoriteButton } from './FavoriteButton'
@@ -109,7 +110,7 @@ export function MediaCard({
 }: MediaCardProps) {
   const { t, i18n } = useTranslation()
   const runtime = formatRuntime(item.runtime_minutes, i18n.language)
-  const anfragbar = item.status === 'not_requested'
+  const anfragbar = darfAnfragen(item.status)
   const kompakt = variant === 'kompakt'
 
   /* Ohne TMDB-Kennung gibt es keine Detailseite. Das kommt bei Sonarr-Folgen

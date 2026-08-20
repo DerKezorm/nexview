@@ -182,6 +182,15 @@ async def _bibliothek_vielleicht(db, settings) -> None:
         await mediaserver_watched.refresh(db, settings)
     except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
         logger.exception("Media-Server konnte nicht abgeglichen werden")
+        # **Die Sitzung zuruecksetzen, nicht nur den Fehler schlucken.**
+        # Scheitert der Abgleich mitten im Schreiben, bleibt die Sitzung im
+        # Zustand "muss zurueckgerollt werden" - und der naechste Schritt im
+        # selben Durchgang (der Mailversand) stirbt an einem Fehler, mit dem
+        # er nichts zu tun hat. Genau so gesehen: Auf jeden
+        # "Media-Server konnte nicht abgeglichen werden" folgte prompt ein
+        # "Status-Abgleich fehlgeschlagen: PendingRollbackError", und damit
+        # ging in dem Durchgang keine einzige Mail raus.
+        db.rollback()
 
 
 async def run_forever(stop: asyncio.Event) -> None:

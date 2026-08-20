@@ -142,6 +142,12 @@ export function AdminMediaServerSettings() {
       setAuswahl(null)
       setPollToken(null)
       void queryClient.invalidateQueries({ queryKey: ['settings'] })
+      // **Auch die Konfiguration**: An ihr hängt, ob es den Merklisten-Reiter
+      // und den Plex-Anmeldeknopf überhaupt gibt. Sie liegt fünf Minuten im
+      // Zwischenspeicher - ohne diese Zeile ist Plex verbunden, die
+      // Oberfläche weiß es nur noch nicht, und es sieht aus, als fehle die
+      // Funktion.
+      void queryClient.invalidateQueries({ queryKey: ['config'] })
       // Ein unerreichbarer Server ist kein Fehler, aber eine Warnung wert.
       setMeldung(
         ergebnis.warning
@@ -160,6 +166,8 @@ export function AdminMediaServerSettings() {
     mutationFn: () => api.delete<void>('/api/admin/mediaserver/connection'),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['settings'] })
+      // Beim Trennen genauso - sonst bliebe der Merklisten-Reiter stehen.
+      void queryClient.invalidateQueries({ queryKey: ['config'] })
       setMeldung({ ok: true, text: t('mediaserver.disconnected') })
     },
   })

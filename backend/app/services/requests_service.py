@@ -229,15 +229,31 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
                     season=request.season,
                 )
     except ArrError as error:
-        request.status = RequestStatus.failed
+        # **Zeitueberschreitung ist kein Fehlschlag, sondern Ungewissheit.**
+        # Der Auftrag kann angekommen und ausgefuehrt worden sein - nur die
+        # Antwort kam nicht mehr an. "Fehlgeschlagen" zu schreiben war dann
+        # schlicht falsch: In Sonarr lief die Suche, in Nexview stand ein
+        # Fehler, und der Titel liess sich nicht einmal neu anfragen.
+        #
+        # Deshalb bleibt die Anfrage in diesem Fall auf "freigegeben" stehen.
+        # Der Status-Abgleich sieht ohnehin alle 2 Minuten in der Bibliothek
+        # nach und setzt sie auf "wird gesucht" bzw. "geladen", sobald der
+        # Titel dort auftaucht - er klaert die Ungewissheit von selbst.
+        request.status = (
+            RequestStatus.approved if error.ungewiss else RequestStatus.failed
+        )
         request.error_message = error.message
+        request.last_checked_at = utcnow()
         db.commit()
         logger.error(
-            "Could not add %r (tmdb=%s) for user %r: %s",
+            "Could not add %r (tmdb=%s) for user %r: %s%s",
             request.title,
             request.tmdb_id,
             request.user.username,
             error.message,
+            " - Ausgang ungewiss, der Status-Abgleich prüft nach"
+            if error.ungewiss
+            else "",
         )
         raise RequestError(error.message, 502) from error
 

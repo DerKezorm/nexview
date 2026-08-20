@@ -281,3 +281,42 @@ async def test_plex_kopie_haelt_den_titel_auf_geladen(
         assert aktualisiert.status == RequestStatus.downloaded
         session.query(MediaServerLibraryItem).delete()
         session.commit()
+
+
+async def test_gescheiterter_abgleich_vergiftet_die_sitzung_nicht(
+    arr_client, monkeypatch
+) -> None:
+    """Ein Fehler beim Bibliotheks-Abgleich darf den Mailversand nicht mitreissen.
+
+    Im Protokoll einer echten Installation stand hinter jedem
+    "Media-Server konnte nicht abgeglichen werden" prompt ein
+    "Status-Abgleich fehlgeschlagen: PendingRollbackError" - die Sitzung
+    blieb nach dem gescheiterten Schreibvorgang im Rollback-Zustand, und der
+    Mailversand im selben Durchgang starb an einem fremden Fehler. In der
+    Folge ging stundenlang keine Benachrichtigung mehr raus.
+    """
+    from app.db import SessionLocal
+    from app.models import Setting
+    from app.services import mediaserver_library, status_poller
+    from app.services.settings_service import load_settings
+
+    async def kaputt(db, settings):  # noqa: ANN001
+        # So sieht ein Abbruch mitten im Schreiben aus.
+        db.add(Setting(key="kaputt-test", value="x"))
+        db.flush()
+        raise RuntimeError("Abgleich abgebrochen")
+
+    monkeypatch.setattr(mediaserver_library, "refresh", kaputt)
+    monkeypatch.setattr(status_poller, "_bibliothek_zuletzt", 0.0)
+
+    with SessionLocal() as db:
+        db.add(Setting(key="mediaserver_provider", value="plex"))
+        db.add(Setting(key="mediaserver_machine_id", value="m1"))
+        db.add(Setting(key="mediaserver_token", value="t"))
+        db.commit()
+        settings = load_settings(db)
+
+        await status_poller._bibliothek_vielleicht(db, settings)
+
+        # Entscheidend: Die Sitzung ist danach wieder benutzbar.
+        assert db.query(Setting).count() >= 0

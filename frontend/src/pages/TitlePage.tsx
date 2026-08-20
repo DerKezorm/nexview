@@ -27,6 +27,7 @@ import { UhdBadge } from '../components/media/UhdBadge'
 import { WatchedBadge } from '../components/media/WatchedBadge'
 import { PlayIcon, TrailerModal } from '../components/media/TrailerModal'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
+import { darfAnfragen } from '../lib/status'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
 import { browsePath, personPath } from '../lib/routes'
@@ -292,7 +293,7 @@ export function TitlePage() {
    */
   const uhdOffen = item.status_uhd === 'not_requested'
   const kannAnfragen =
-    item.status === 'not_requested' || uhdOffen || nurWeitereStaffel || (gesperrt && istAdmin)
+    darfAnfragen(item.status) || uhdOffen || nurWeitereStaffel || (gesperrt && istAdmin)
 
   /* Der Knopf erscheint, sobald es etwas zu holen gibt. Vor der ersten
      Abfrage weiss das niemand - dann zaehlt, ob TMDB ueberhaupt Vorschlaege

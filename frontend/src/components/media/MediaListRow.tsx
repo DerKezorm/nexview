@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import type { MediaItem, MovieRatings } from '../../api/types'
 import { formatDate, formatRuntime } from '../../lib/format'
 import { titlePath } from '../../lib/routes'
+import { darfAnfragen } from '../../lib/status'
 import { CartIcon } from './MediaCard'
 import { FavoriteButton } from './FavoriteButton'
 import { RatingBadges } from './RatingBadges'
@@ -37,7 +38,7 @@ export function MediaListRow({
 }: MediaListRowProps) {
   const { t, i18n } = useTranslation()
   const runtime = formatRuntime(item.runtime_minutes, i18n.language)
-  const anfragbar = item.status === 'not_requested'
+  const anfragbar = darfAnfragen(item.status)
 
   return (
     <div className="group flex w-full items-stretch gap-4 rounded-xl border border-ink-700 bg-ink-850 p-3 transition-colors hover:border-accent-600/60 hover:bg-ink-800">

@@ -12,6 +12,43 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.13.0 – in Arbeit
+
+### New
+
+- **"Already watched" is now complete for everyone, not just the owner.**
+  So far the eye badge was reliable only for the account whose Plex access
+  is stored in the settings; everybody else was read from the server's
+  playback history, which Plex caps at roughly 500 entries and which never
+  hears about titles marked as watched by hand. Since the watchlist arrived,
+  every Plex sign-in stores the person's own access – the sync now uses it
+  to read their complete watched state straight from the library counters.
+  The history remains only as a fallback for accounts that have never
+  signed in with Plex. And what Plex says now counts in both directions:
+  removing a watched checkmark in Plex removes the eye in Nexview too –
+  except for titles that have left the library entirely, which keep it.
+
+- **A bell notice (and, if you opt in, an e-mail) when Plex no longer
+  accepts your stored access.** That happens after a password change or a
+  "sign out everywhere" – and previously the watchlist and the watched sync
+  just silently stopped. The notice arrives once per incident, links to the
+  profile page where one new Plex sign-in fixes it, and the e-mail has its
+  own opt-in switch under profile → notifications, visible only to linked
+  accounts.
+
+### Fixed
+
+- **The ticket and new-account mail switches finally send mail.** Both
+  profile switches existed and were saved, and the outbox even recorded
+  "mail wanted" – but no template was ever written for these two kinds of
+  message, and the outbox silently discarded jobs it had no template for.
+  Ticket mails (new ticket, replies, status changes – linking straight into
+  the conversation) and the new-account notice for administrators now
+  actually arrive; tests follow the delivery all the way to the finished
+  mail so a switch without a template can never stay silent again.
+
+---
+
 ## 0.12.0 – 20.08.2026
 
 ### New
@@ -54,36 +91,7 @@ veröffentlicht, solange kein Tag dazu existiert.
   per recipient: a request waiting for three administrators appears once,
   not three times.
 
-- **"Already watched" is now complete for everyone, not just the owner.**
-  So far the eye badge was reliable only for the account whose Plex access
-  is stored in the settings; everybody else was read from the server's
-  playback history, which Plex caps at roughly 500 entries and which never
-  hears about titles marked as watched by hand. Since the watchlist arrived,
-  every Plex sign-in stores the person's own access – the sync now uses it
-  to read their complete watched state straight from the library counters.
-  The history remains only as a fallback for accounts that have never
-  signed in with Plex. And what Plex says now counts in both directions:
-  removing a watched checkmark in Plex removes the eye in Nexview too –
-  except for titles that have left the library entirely, which keep it.
-
-- **A bell notice (and, if you opt in, an e-mail) when Plex no longer
-  accepts your stored access.** That happens after a password change or a
-  "sign out everywhere" – and previously the watchlist and the watched sync
-  just silently stopped. The notice arrives once per incident, links to the
-  profile page where one new Plex sign-in fixes it, and the e-mail has its
-  own opt-in switch under profile → notifications, visible only to linked
-  accounts.
-
 ### Fixed
-
-- **The ticket and new-account mail switches finally send mail.** Both
-  profile switches existed and were saved, and the outbox even recorded
-  "mail wanted" – but no template was ever written for these two kinds of
-  message, and the outbox silently discarded jobs it had no template for.
-  Ticket mails (new ticket, replies, status changes – linking straight into
-  the conversation) and the new-account notice for administrators now
-  actually arrive; tests follow the delivery all the way to the finished
-  mail so a switch without a template can never stay silent again.
 
 - **A Radarr/Sonarr timeout no longer counts as failure.** A timeout means
   the answer went missing, not the request: Sonarr had long created the

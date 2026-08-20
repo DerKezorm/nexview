@@ -12,7 +12,7 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
-## 0.11.3
+## 0.11.3 – 20.08.2026
 
 ### Fixed
 
@@ -50,6 +50,13 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 - **The people page now says "Search for a person"** instead of "Search for
   a title".
+
+- **The log now answers the questions debugging kept asking.** A startup
+  report states where the secret key comes from, whether data/secret.key
+  exists, which stored secrets are readable, and the media-server connection
+  state. Unreadable secrets are warned about by name, connecting logs each
+  milestone and re-reads the saved settings to catch a save that did not
+  stick, and disconnecting names who pressed the button.
 
 ---
 

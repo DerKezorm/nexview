@@ -18,6 +18,8 @@ from app.models import (
     MediaRequest,
     MediaServerLibraryItem,
     MediaType,
+    Notification,
+    NotificationType,
     QualityTier,
     RequestStatus,
     StorageEntry,
@@ -118,7 +120,11 @@ async def messen(db: Session, settings: AppSettings, *, filme=None, serien=None)
     ganze Rechen- und Zuordnungslogik echt durch, ohne dass ein Radarr
     antworten muesste.
     """
-    return storage._schreiben(db, _erfasst(db, filme or {}, serien or {}))
+    ergebnis = storage._schreiben(db, _erfasst(db, filme or {}, serien or {}))
+    # Wie in ``storage.abgleichen``: Erst schreiben, dann melden. Stuende das
+    # hier nicht, liefe jeder Test an der Benachrichtigung vorbei.
+    storage._wachstum_melden(db, ergebnis)
+    return ergebnis
 
 
 def _erfasst(db, filme, serien):
@@ -994,3 +1000,92 @@ def test_pfad_geht_nur_an_admins(arr_client, monkeypatch) -> None:
 
     assert ohne.items[0].path is None
     assert mit.items[0].path == "/data/Movies/Matrix/Matrix.mkv"
+
+
+# ------------------------------------------------- Aufwertung meldet sich
+
+
+async def test_aufwertung_meldet_sich_beim_betroffenen(
+    db: Session, settings: AppSettings, nutzer: User
+) -> None:
+    """Aus 5 GB werden 50 - und niemand hat etwas getan.
+
+    Radarr schiebt ein besseres Release nach, das Konto steigt von selbst.
+    Ohne Hinweis faende der Betroffene eine still gestiegene Zahl vor und
+    suchte den Fehler bei sich.
+    """
+    await messen(db, settings, filme={QualityTier.standard: {1: film(2)}})
+    anfrage(db, nutzer, tmdb_id=603)
+    await messen(
+        db,
+        settings,
+        filme={QualityTier.standard: {1: film(2), 603: film(5, titel="Matrix")}},
+    )
+    vorher = set(db.scalars(select(Notification.id)).all())
+
+    ergebnis = await messen(
+        db,
+        settings,
+        filme={QualityTier.standard: {1: film(2), 603: film(50, titel="Matrix")}},
+    )
+
+    assert ergebnis.gewachsen == 1
+    neue = [
+        zeile
+        for zeile in db.scalars(select(Notification)).all()
+        if zeile.id not in vorher
+    ]
+    assert [zeile.type for zeile in neue] == [NotificationType.storage_grew]
+    assert neue[0].message_title == "Matrix"
+    # ⚠️ Keine geschweiften Klammern im Baustein - sonst stehen sie woertlich
+    # in der Glocke.
+    assert "{{" not in neue[0].message_key
+
+
+async def test_geringfuegiges_wachstum_meldet_sich_nicht(
+    db: Session, settings: AppSettings, nutzer: User
+) -> None:
+    """Laerm wird weggeklickt - danach auch die Meldung, auf die es ankommt.
+
+    Radarr schiebt staendig geringfuegig groessere Releases derselben Stufe
+    nach. Meldete sich jede davon, waere die Glocke unbrauchbar.
+    """
+    await messen(db, settings, filme={QualityTier.standard: {1: film(2)}})
+    anfrage(db, nutzer, tmdb_id=603)
+    await messen(
+        db, settings, filme={QualityTier.standard: {1: film(2), 603: film(5)}}
+    )
+    vorher = len(db.scalars(select(Notification)).all())
+
+    ergebnis = await messen(
+        db, settings, filme={QualityTier.standard: {1: film(2), 603: film(5.3)}}
+    )
+
+    assert ergebnis.gewachsen == 1  # gezaehlt wird es sehr wohl
+    assert len(db.scalars(select(Notification)).all()) == vorher
+
+
+async def test_hausbestand_meldet_kein_wachstum(
+    db: Session, settings: AppSettings
+) -> None:
+    """Ohne Besitzer gibt es niemanden, den es betraefe."""
+    await messen(db, settings, filme={QualityTier.standard: {603: film(5)}})
+    await messen(db, settings, filme={QualityTier.standard: {603: film(50)}})
+
+    assert db.scalars(select(Notification)).all() == []
+
+
+async def test_der_erste_lauf_meldet_nichts(
+    db: Session, settings: AppSettings, nutzer: User
+) -> None:
+    """Eine Ladung Meldungen am Tag der Einfuehrung waere der schlechteste
+    denkbare Einstieg - und es gaebe ohnehin keinen Betroffenen, weil beim
+    ersten Lauf alles dem Haus gehoert."""
+    anfrage(db, nutzer, tmdb_id=603)
+
+    ergebnis = await messen(
+        db, settings, filme={QualityTier.standard: {603: film(50)}}
+    )
+
+    assert ergebnis.erster_lauf
+    assert db.scalars(select(Notification)).all() == []

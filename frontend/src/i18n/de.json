@@ -598,7 +598,8 @@
     "mediaserverReconnect": "Deine Plex-Verbindung muss erneuert werden",
     "storageReleased": "Ein Titel zählt jetzt zum Hausbestand",
     "deferred": "Deine Anfrage wurde zurückgestellt",
-    "requestFulfilled": "Ein zurückgestellter Titel ist jetzt da"
+    "requestFulfilled": "Ein zurückgestellter Titel ist jetzt da",
+    "storageGrew": "Ein Titel belegt jetzt mehr Platz"
   },
   "mediaserver": {
     "loginWithPlex": "Mit Plex anmelden",

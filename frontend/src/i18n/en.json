@@ -598,7 +598,8 @@
     "mediaserverReconnect": "Your Plex connection needs to be renewed",
     "storageReleased": "A title now counts as house stock",
     "deferred": "Your request has been put on hold",
-    "requestFulfilled": "A title you were waiting for has arrived"
+    "requestFulfilled": "A title you were waiting for has arrived",
+    "storageGrew": "A title now takes up more space"
   },
   "mediaserver": {
     "loginWithPlex": "Sign in with Plex",

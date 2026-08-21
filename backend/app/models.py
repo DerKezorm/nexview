@@ -147,6 +147,11 @@ class NotificationType(str, enum.Enum):
     # geht an denjenigen, dessen Kontingent dadurch frei wird. Ohne den
     # Hinweis saenke die Zahl grundlos, und niemand wuesste warum.
     storage_released = "storage_released"
+    # Eine bereits geladene Datei ist gewachsen - Radarr oder Sonarr haben ein
+    # besseres Release nachgeschoben. Der belegte Platz steigt dadurch, **ohne
+    # dass jemand etwas getan hat**. Ohne Hinweis faende der Betroffene eine
+    # still gestiegene Zahl vor und suchte den Fehler bei sich.
+    storage_grew = "storage_grew"
     # Die eigene Anfrage wurde zurueckgestellt: nicht abgelehnt, nur vertagt.
     # Ohne Hinweis wechselte sie stillschweigend den Zustand, und das sieht wie
     # ein Fehler aus.

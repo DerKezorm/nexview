@@ -12,7 +12,7 @@ beansprucht**. Alles andere ist Hausbestand und zaehlt bei niemandem.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from sqlalchemy import func, select
@@ -22,6 +22,7 @@ from ..models import (
     MediaRequest,
     MediaServerLibraryItem,
     MediaType,
+    NotificationType,
     QualityTier,
     RequestStatus,
     StorageEntry,
@@ -34,13 +35,21 @@ from .arr import ArrError
 from .radarr import LibraryEntry as MovieEntry
 from .settings_service import AppSettings
 from .sonarr import LibraryEntry as SeriesEntry
-from . import library
+from . import library, notify
 
 logger = logging.getLogger("nexview.storage")
 
 # Welche Anfragen einen Posten ueberhaupt zugerechnet bekommen koennen.
 # Bewusst dieselbe Auswahl wie beim Stueck-Kontingent minus der Zustaende, in
 # denen noch gar keine Datei existieren kann.
+# Ab wieviel Zuwachs sich eine Aufwertung meldet.
+#
+# Radarr schiebt staendig geringfuegig groessere Releases nach; eine Meldung
+# ueber 80 MB waere Laerm - und Laerm wird weggeklickt, danach auch die
+# Meldung, auf die es ankommt. Ein Gigabyte ist zugleich die Einheit, in der
+# das ganze Kontingent gerechnet wird.
+MELDESCHWELLE = 1024**3
+
 ZURECHENBAR = (
     RequestStatus.approved,
     RequestStatus.searching,
@@ -452,6 +461,10 @@ class Ergebnis:
     entfernt: int = 0
     gewachsen: int = 0
     erster_lauf: bool = False
+    # Posten, die einem Nutzer gehoeren und **spuerbar** gewachsen sind - je
+    # Eintrag ``(user_id, titel, zuwachs_bytes)``. Der Aufrufer benachrichtigt;
+    # dieses Modul kennt keine Benachrichtigungen.
+    zugelegt: list[tuple[int, str, int]] = field(default_factory=list)
 
 
 async def abgleichen(db: Session, settings: AppSettings) -> Ergebnis:
@@ -464,7 +477,43 @@ async def abgleichen(db: Session, settings: AppSettings) -> Ergebnis:
     angefasst - dasselbe Vorgehen wie im Status-Abgleich.
     """
     gemessen = await _erfassen(db, settings)
-    return _schreiben(db, gemessen)
+    ergebnis = _schreiben(db, gemessen)
+    _wachstum_melden(db, ergebnis)
+    return ergebnis
+
+
+def _wachstum_melden(db: Session, ergebnis: Ergebnis) -> None:
+    """Wer belastet wird, ohne etwas getan zu haben, erfaehrt davon.
+
+    Der Fall: Radarr oder Sonarr schieben ein besseres Release nach, aus 5 GB
+    werden 50 - und das Konto steht ploetzlich anders da, obwohl niemand etwas
+    angefragt hat. Ohne Hinweis sucht der Betroffene den Fehler bei sich.
+
+    **Beim allerersten Lauf wird nichts gemeldet.** Dort gehoert ohnehin alles
+    dem Haus, es gibt also gar keinen Betroffenen - und selbst wenn: Eine
+    Ladung Meldungen am Tag der Einfuehrung waere der denkbar schlechteste
+    Einstieg.
+
+    Der Zuwachs steht **nicht** im Textbaustein: Nachrichten-Schluessel duerfen
+    keine Platzhalter tragen, sonst stehen die geschweiften Klammern woertlich
+    in der Glocke. Der Titel geht als ``message_title`` mit, die Zahl sieht man
+    im eigenen Speicher-Reiter.
+    """
+    if ergebnis.erster_lauf or not ergebnis.zugelegt:
+        return
+
+    for user_id, titel, _zuwachs in ergebnis.zugelegt:
+        person = db.get(User, user_id)
+        if person is None:
+            continue
+        notify.create(
+            db,
+            user=person,
+            kind=NotificationType.storage_grew,
+            message_key="notifications.storageGrew",
+            title=titel,
+        )
+    db.commit()
 
 
 async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
@@ -651,6 +700,7 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
             wert.tmdb_id = nach_tmdb.get(wert.tvdb_id)
 
     neu = aktualisiert = gewachsen = 0
+    zugelegt: list[tuple[int, str, int]] = []
     jetzt = utcnow()
 
     for kennung, wert in gemessen.items():
@@ -681,6 +731,15 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
         if zeile.size_bytes != wert.size_bytes:
             if wert.size_bytes > zeile.size_bytes:
                 gewachsen += 1
+                # **Nur spuerbares Wachstum meldet sich.** Radarr schiebt
+                # staendig geringfuegig groessere Releases nach; eine Meldung
+                # ueber 80 MB waere Laerm, und Laerm wird weggeklickt - danach
+                # auch die Meldung, auf die es ankommt. Der Fall, um den es
+                # geht, ist die Aufwertung von 1080p auf 2160p: aus 5 GB
+                # werden 50.
+                zuwachs = wert.size_bytes - zeile.size_bytes
+                if zeile.user_id is not None and zuwachs >= MELDESCHWELLE:
+                    zugelegt.append((zeile.user_id, zeile.title, zuwachs))
             zeile.size_bytes = wert.size_bytes
             aktualisiert += 1
         # Der Titel kann sich aendern (Umbenennung in Radarr), und er ist das
@@ -722,6 +781,7 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
         entfernt=len(vorhanden),
         gewachsen=gewachsen,
         erster_lauf=erster_lauf,
+        zugelegt=zugelegt,
     )
 
 

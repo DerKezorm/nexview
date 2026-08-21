@@ -22,6 +22,12 @@ export type User = {
   quota_movies_limit: number | null;
   quota_series_limit: number | null;
   quota_period: QuotaPeriod;
+  /**
+   * Speicher-Grenze in GB. **null heißt „Standardgrenze gilt"**, nicht
+   * unbegrenzt – anders als bei den Stückzahlen darüber. Unbegrenzt für
+   * dieses eine Konto ist die 0.
+   */
+  storage_limit_gb: number | null;
   /** Leere Liste = alle Qualitätsprofile erlaubt. */
   blocked_movie_profiles: number[];
   blocked_series_profiles: number[];
@@ -147,6 +153,14 @@ export type MediaStatus =
   | "cancelled"
   /** War geladen, aber die Datei ist wieder aus der Bibliothek verschwunden. */
   | "deleted"
+  /**
+   * Zurückgestellt: „Ja im Prinzip, nur nicht jetzt."
+   *
+   * Entsteht, wenn ein Konto beim Freigeben schon überzogen ist. **Blockiert
+   * den Titel ausdrücklich nicht** – der Grund liegt an der Person, nicht am
+   * Titel, also darf ihn jemand anders holen.
+   */
+  | "deferred"
   /** Vom Administrator gesperrt: sichtbar, aber nicht anfragbar. */
   | "blocked";
 
@@ -179,6 +193,8 @@ export type CalendarEntry = {
   runtime_minutes: number | null;
   certification: string | null;
   status: MediaStatus;
+  /** Zustand in der 4K-Instanz; `null`/fehlt = keine zweite Instanz. */
+  status_uhd?: MediaStatus | null;
   watched: boolean;
   season: number | null;
   /** Schon fertig formatiert: „S03E05“ oder „S03E05–06“. */
@@ -357,6 +373,27 @@ export type MediaItem = {
    * andere Achse und gilt je Person, nicht für alle.
    */
   watched?: boolean;
+  /**
+   * Wo die Datei liegt – bei Filmen samt Dateiname, bei Serien der Ordner.
+   *
+   * **Kommt nur bei Administratoren mit.** Das entscheidet der Server, nicht
+   * die Oberfläche – Ausblenden hieße, ihn trotzdem ausgeliefert zu haben.
+   */
+  path?: string | null;
+  /**
+   * Wo die **4K-Fassung** liegt, falls es sie als eigene Datei gibt.
+   *
+   * Zwei Felder und kein gemeinsames: 1080p und 4K sind zwei Dateien in zwei
+   * Instanzen. Ebenfalls nur für Administratoren.
+   */
+  path_uhd?: string | null;
+  /**
+   * Liegt in der **Standard**-Instanz bereits eine 4K-Datei dieses Titels?
+   *
+   * Kein Hinderungsgrund, nur ein Hinweis vor dem Klick: Eine 4K-Anfrage
+   * erzeugt dann eine *zweite* 4K-Datei.
+   */
+  uhd_in_standard?: boolean;
 };
 
 export type WatchProvider = {
@@ -727,13 +764,60 @@ export type StorageEntry = {
   size_bytes: number
   state: 'owned' | 'pending' | 'house'
   measured_at: string
+  /** Nur im Hausbestand gefüllt – und nur für Administratoren. */
+  path?: string
+}
+
+export type StorageUserPage = {
+  user_id: number
+  username: string
+  display_name: string | null
+  used_bytes: number
+  items: number
+  /** null heißt unbegrenzt. */
+  limit_bytes: number | null
+  pending_bytes: number
+  /** Wie viele Zeilen die Suche trifft – für die Seitenzahl. */
+  matches: number
+  /**
+   * Wie viele Zeilen eine Seite fasst. Kommt vom Server – **nicht** hier
+   * nachbauen: Eine zweite Konstante ginge beim nächsten Ändern auseinander,
+   * und dann stimmt die Seitenzahl nicht mehr.
+   */
+  per_page: number
+  entries: StorageEntry[]
 }
 
 export type StorageMine = {
   used_bytes: number
   items: number
+  /** Wie viele Zeilen die Suche trifft – für die Seitenzahl. */
+  matches: number
+  /** Wie viele Zeilen eine Seite fasst – vom Server, nicht nachbauen. */
+  per_page: number
+  /** null heißt unbegrenzt. */
+  limit_bytes: number | null
   /** Abgegeben, aber noch nicht entschieden – zählt weiter mit. */
   pending_bytes: number
+  entries: StorageEntry[]
+}
+
+export type StorageHouse = {
+  used_bytes: number
+  items: number
+  /** Wie viele Zeilen die **Suche** trifft – nicht wie viele das Haus hält. */
+  matches: number
+  /**
+   * Freier Platz auf den Zielordnern – und auf wie vielen Trägern.
+   *
+   * **Keine Gesamtkapazität.** Die kennt Radarr nicht, und „belegt + frei"
+   * wäre erfunden: Liegt anderes auf demselben Träger, ist die Platte größer,
+   * ohne dass es jemand sähe.
+   */
+  free_bytes: number
+  free_volumes: number
+  /** Wie viele Zeilen eine Seite fasst – vom Server, nicht nachbauen. */
+  per_page: number
   entries: StorageEntry[]
 }
 
@@ -744,6 +828,11 @@ export type StorageShare = {
   display_name: string | null
   used_bytes: number
   items: number
+  /**
+   * Wie viel diese Person **darf**. `null` heißt unbegrenzt – und beim
+   * Hausbestand heißt es „die Frage stellt sich nicht".
+   */
+  limit_bytes: number | null
 }
 
 export type StorageOverview = {
@@ -753,11 +842,26 @@ export type StorageOverview = {
   shares: StorageShare[]
 }
 
+/**
+ * Wo der Anfragende beim Speicher steht – für die Freigabe-Entscheidung.
+ *
+ * Kommt nur mit, wenn Speicher-Kontingente eingeschaltet sind. `null` heißt
+ * „diese Währung gilt hier nicht" – es gilt immer nur eine.
+ */
+export type AnfragerSpeicher = {
+  used_bytes: number;
+  /** null heißt unbegrenzt. */
+  limit_bytes: number | null;
+  /** Liegt das Konto **schon jetzt** auf oder über der Grenze? */
+  exhausted: boolean;
+};
+
 export type MediaRequestWithUser = MediaRequest & {
   user_id: number;
   username: string;
   display_name: string | null;
   avatar_url: string | null;
+  storage?: AnfragerSpeicher | null;
 };
 
 /** Ein zuletzt fertig geladener Titel für die Startseite. */

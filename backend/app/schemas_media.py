@@ -208,6 +208,31 @@ class MediaItem(BaseModel):
     # "vorhanden" oder "angefragt" und wuerde die verdecken. Ausserdem gilt es
     # je Person, waehrend der Zustand fuer alle derselbe ist.
     watched: bool = False
+    # Wo die Datei liegt - bei Filmen samt Dateiname, bei Serien der Ordner.
+    #
+    # ⚠️ **Wird nur an Administratoren ausgeliefert** (siehe
+    # ``library.apply_status``). Ein gewoehnlicher Benutzer hat mit
+    # Serverpfaden nichts zu schaffen, und die Ordnerstruktur ist nichts, was
+    # er wissen muss.
+    path: str | None = None
+    # Der Ablageort der **4K-Fassung**, wenn es sie als eigene Datei gibt.
+    #
+    # Zwei Felder und kein gemeinsames: 1080p und 4K sind zwei Dateien in zwei
+    # Instanzen, und wer als Administrator nachsehen will, wo etwas liegt, will
+    # beide sehen - nicht die eine, die zufaellig zuerst gefunden wurde.
+    # Gesetzt wird es in ``services/uhd.py``, ebenfalls nur fuer
+    # Administratoren.
+    path_uhd: str | None = None
+    # Liegt in der **Standard**-Instanz bereits eine 4K-Datei dieses Titels?
+    #
+    # Kein Hinderungsgrund, sondern ein Hinweis: Wer 4K anfragt, obwohl das
+    # normale Radarr schon ein 2160p-Remux fuehrt, bekommt eine **zweite**
+    # 4K-Datei. Das kann gewollt sein - die 4K-Instanz soll den Titel ja
+    # womoeglich uebernehmen -, aber gesagt gehoert es.
+    #
+    # Bei Serien immer ``False``: Der Media-Server haengt die Dateiangaben an
+    # die Folgen, der Serieneintrag selbst traegt keine Aufloesung.
+    uhd_in_standard: bool = False
 
 
 class MediaDetail(MediaItem):

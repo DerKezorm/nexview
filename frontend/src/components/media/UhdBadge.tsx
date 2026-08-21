@@ -37,6 +37,7 @@ const TONES: Record<MediaStatus, string> = {
   failed: "text-bad-500 ring-bad-500/40",
   cancelled: "text-mist-500 ring-ink-600",
   deleted: "text-mist-500 ring-ink-600",
+  deferred: "text-warn-500 ring-warn-500/40",
   blocked: "text-bad-500 ring-bad-500/40",
 };
 

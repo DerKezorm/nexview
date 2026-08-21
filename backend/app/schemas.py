@@ -108,6 +108,10 @@ class UserPublic(BaseModel):
     quota_movies_limit: int | None
     quota_series_limit: int | None
     quota_period: QuotaPeriod
+    # Speicher-Grenze in GB. **NULL heisst "Standardgrenze gilt"**, nicht
+    # unbegrenzt - anders als bei den Stueckzahlen darueber. Unbegrenzt fuer
+    # dieses eine Konto ist die 0.
+    storage_limit_gb: int | None = None
     # Wann der Admin das Kontingent zuletzt von Hand zurueckgesetzt hat.
     quota_reset_at: datetime | None
     blocked_movie_profiles: list[int]
@@ -229,6 +233,10 @@ class UserUpdate(BaseModel):
     quota_movies_limit: int | None = Field(default=None, ge=0)
     quota_series_limit: int | None = Field(default=None, ge=0)
     quota_period: QuotaPeriod | None = None
+    # -1 setzt zurueck auf die Standardgrenze - genau wie bei ``age``.
+    # Ohne Sentinel liesse sich "wieder die Vorgabe" nicht ausdruecken:
+    # ``None`` heisst in diesem Schema "nicht mitgeschickt".
+    storage_limit_gb: int | None = Field(default=None, ge=-1)
     # Leere Liste bedeutet: alle Qualitaetsprofile erlaubt.
     blocked_movie_profiles: list[int] | None = None
     blocked_series_profiles: list[int] | None = None

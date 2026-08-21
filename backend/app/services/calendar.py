@@ -230,6 +230,8 @@ def _falte_folgen(rohe: list[dict[str, Any]], stichtag: str) -> list[CalendarEnt
                 poster_url=_poster(serie.get("images")),
                 overview=(folgen[0].get("overview") or "") if len(folgen) == 1 else "",
                 vote_average=round(float((serie.get("ratings") or {}).get("value") or 0), 1),
+                vote_count=_stimmen(serie.get("ratings")),
+                release_date=_erschienen(serie, "firstAired"),
                 genres=[g for g in (serie.get("genres") or []) if isinstance(g, str)][:3],
                 certification=serie.get("certification"),
                 status=_status_fuer(alle_da),
@@ -306,6 +308,8 @@ def _meine_filme(
                 vote_average=round(
                     float(((film.get("ratings") or {}).get("tmdb") or {}).get("value") or 0), 1
                 ),
+                vote_count=_stimmen((film.get("ratings") or {}).get("tmdb")),
+                release_date=_erschienen(film, "inCinemas"),
                 genres=[g for g in (film.get("genres") or []) if isinstance(g, str)][:3],
                 runtime_minutes=film.get("runtime") or None,
                 certification=film.get("certification"),
@@ -473,6 +477,34 @@ def _aus_bekanntem_land(serie: Any) -> bool:
     return bool(HERKUNFTSLAENDER.intersection(serie.origin_country or []))
 
 
+def _erschienen(quelle: dict[str, Any], feld: str) -> str | None:
+    """Erscheinungsdatum des Titels aus einer Radarr-/Sonarr-Antwort.
+
+    Gebraucht fuer den Abgleich, nicht fuer die Anzeige: Ohne Jahr trifft der
+    Media-Server-Vergleich nie (``_jahre_passen`` verwirft eine fehlende
+    Angabe grundsaetzlich), und der Titel-Rueckfall bei Serien ebenso wenig.
+
+    Zuerst das genaue Datum (``inCinemas`` bzw. ``firstAired``), sonst das
+    blosse Jahr - fuer die Jahres-Pruefung reicht das voellig.
+    """
+    datum = str(quelle.get(feld) or "")[:10]
+    if len(datum) == 10:
+        return datum
+    jahr = quelle.get("year")
+    return f"{jahr}-01-01" if isinstance(jahr, int) and jahr > 1800 else None
+
+
+def _stimmen(bewertung: Any) -> int:
+    """Wie viele Stimmen hinter einer Wertung stehen.
+
+    Ohne diese Zahl zeigt die Kachel einen Strich statt der Wertung - eine 0
+    heisst dort ausdruecklich "noch niemand hat bewertet". Radarr und Sonarr
+    liefern sie mit; sie wurde bisher nur nicht ausgelesen.
+    """
+    wert = (bewertung or {}).get("votes")
+    return int(wert) if isinstance(wert, (int, float)) and wert > 0 else 0
+
+
 def _art_name(art: int) -> str | None:
     return {3: "kino", 2: "kino", 1: "premiere", 4: "digital", 5: "physisch", 6: "tv"}.get(art)
 
@@ -493,6 +525,7 @@ def _aus_medienobjekt(
         overview=item.overview,
         vote_average=item.vote_average,
         vote_count=item.vote_count,
+        release_date=item.release_date,
         genres=item.genres,
         runtime_minutes=item.runtime_minutes,
         certification=item.certification,

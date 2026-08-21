@@ -83,6 +83,29 @@ class RequestPublic(BaseModel):
     replied_at: datetime | None
 
 
+class AnfragerSpeicher(BaseModel):
+    """Wo der Anfragende beim Speicher steht - fuer die Freigabe-Entscheidung.
+
+    **Warum ein Entscheider das sehen darf, obwohl ``/storage/overview``
+    admin-only ist:** Die Uebersicht ist eine *Rangliste ueber alle* - eine
+    Vergleichsauskunft ueber Personen, die niemanden etwas angeht, der sie
+    nicht braucht. Hier steht **eine** Zahl ueber **die eine** Person, deren
+    Anfrage gerade vor dem Entscheider liegt, im Augenblick der Entscheidung.
+    Dieselbe Kategorie wie "3 von 5 Anfragen verbraucht".
+
+    Ohne sie gaebe es die Warnung dort nicht, wo entschieden wird - und
+    Sammelfreigaben sind genau der Weg, auf dem ein Konto unbemerkt weit ins
+    Minus rutscht.
+    """
+
+    used_bytes: int
+    # None heisst unbegrenzt.
+    limit_bytes: int | None
+    # Liegt das Konto **schon jetzt** auf oder ueber der Grenze? Dieselbe
+    # Bedeutung wie bei ``QuotaInfo.exhausted``.
+    exhausted: bool
+
+
 class RequestWithUser(RequestPublic):
     """Fuer die Freigabe-Uebersicht: wer hat was angefragt.
 
@@ -94,6 +117,9 @@ class RequestWithUser(RequestPublic):
     username: str
     display_name: str | None
     avatar_url: str | None
+    # Nur gesetzt, wenn Speicher-Kontingente eingeschaltet sind. ``None`` heisst
+    # "diese Waehrung gilt hier nicht" - es gilt immer nur eine.
+    storage: AnfragerSpeicher | None = None
 
 
 class QuotaInfo(BaseModel):

@@ -271,6 +271,12 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
     if data.get("age") == -1:
         data["age"] = None
 
+    # Dasselbe fuer die Speicher-Grenze - nur bedeutet NULL hier "es gilt die
+    # Standardgrenze", nicht "unbegrenzt". Unbegrenzt fuer dieses Konto ist
+    # die 0, und die geht ohne Umweg durch.
+    if data.get("storage_limit_gb") == -1:
+        data["storage_limit_gb"] = None
+
     for field, value in data.items():
         # Profil-Sperren liegen als Komma-Liste in der Datenbank.
         if field in (

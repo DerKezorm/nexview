@@ -74,7 +74,14 @@ export function AddRequestForm({
   // liegt, laesst sich nur noch in 4K holen - und umgekehrt. Genau dafuer gibt
   // es die zweite Instanz.
   const standardOffen = item.status === 'not_requested'
-  const uhdOffen = uhdMoeglich && item.status_uhd === 'not_requested'
+  // ⚠️ Ein **fehlendes** `status_uhd` heißt „unbekannt", nicht „belegt". Nicht
+  // jede Kachel trägt die zweite Achse mit – aus dem Kalender und von der
+  // Merkliste kommt sie gar nicht mit. Als „liegt schon in 4K vor" gelesen,
+  // sperrte das eine Anfrage, die es geben darf, und behauptete im
+  // Sprechblasentext obendrein etwas Falsches. Großzügig zu sein ist hier
+  // gefahrlos: Eine echte Doppelanfrage weist der Server ohnehin ab.
+  const uhdOffen =
+    uhdMoeglich && (item.status_uhd == null || item.status_uhd === 'not_requested')
   const [tier, setTier] = useState<QualityTier>(
     standardOffen || !uhdOffen ? 'standard' : 'uhd',
   )
@@ -215,6 +222,17 @@ export function AddRequestForm({
             )
           })}
         </div>
+      )}
+
+      {/* Warnen, nicht sperren. Der Titel darf in die 4K-Instanz - vielleicht
+          soll sie ihn ja übernehmen. Nur soll niemand versehentlich eine
+          zweite 4K-Datei anlegen, ohne von der ersten zu wissen. Steht direkt
+          unter dem Umschalter, weil dort die Entscheidung fällt, und in Gelb
+          statt Rot: Es ist kein Fehler. */}
+      {tier === 'uhd' && item.uhd_in_standard && (
+        <p className="mt-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
+          {t('uhd.alreadyStandardUhd')}
+        </p>
       )}
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">

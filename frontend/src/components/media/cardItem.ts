@@ -116,6 +116,11 @@ export function fromCalendarEntry(eintrag: CalendarEntry): CardItem {
     vote_average: eintrag.vote_average,
     vote_count: eintrag.vote_count,
     status: eintrag.status,
+    // Wie bei den Filmografie-Einträgen: Der Server liefert die zweite Achse
+    // inzwischen auch für Kalender-Einträge. Sie hier nicht weiterzureichen
+    // wäre genau die Lücke, die den Kalender vorher als einzige Liste ohne
+    // 4K-Abzeichen dastehen ließ.
+    status_uhd: eintrag.status_uhd,
     watched: eintrag.watched,
     genres: eintrag.genres,
     runtime_minutes: eintrag.runtime_minutes,

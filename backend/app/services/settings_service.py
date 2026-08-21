@@ -151,6 +151,10 @@ DEFAULTS: dict[str, str] = {
     # findet vor, was er kennt. Solange der Schalter aus ist, wird nicht
     # einmal gemessen - die Funktion existiert dann schlicht nicht.
     "storage_enabled": "off",
+    # Gilt fuer jeden, der nichts Eigenes eingetragen hat. **Leer heisst
+    # unbegrenzt** - so aendert das blosse Einschalten fuer sich genommen
+    # nichts, und "nur messen, nicht begrenzen" bleibt ausdrueckbar.
+    "storage_default_limit_gb": "",
 }
 
 
@@ -207,6 +211,7 @@ class AppSettings:
     mediaserver_default_age: int | None
     watchlist_enabled: bool
     storage_enabled: bool
+    storage_default_limit_gb: int | None
 
     # --- Nur aus Sicht eines Benutzers gefuellt (siehe ``for_user``) --------
     # Alter des Benutzers; None heisst "nicht altersbeschraenkt".
@@ -529,6 +534,7 @@ def load_settings(db: Session) -> AppSettings:
         mediaserver_default_age=_zahl(values.get("mediaserver_default_age")),
         watchlist_enabled=_flag(values["watchlist_enabled"], standard=False),
         storage_enabled=_flag(values["storage_enabled"], standard=False),
+        storage_default_limit_gb=profil("storage_default_limit_gb"),
     )
 
 
@@ -644,6 +650,7 @@ def public_settings(db: Session) -> dict[str, object]:
         "mediaserver_default_age": settings.mediaserver_default_age,
         "watchlist_enabled": settings.watchlist_enabled,
         "storage_enabled": settings.storage_enabled,
+        "storage_default_limit_gb": settings.storage_default_limit_gb,
     }
 
 

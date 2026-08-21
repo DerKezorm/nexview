@@ -4,9 +4,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { ApiError, api } from '../api/client'
-import type { MediaRequest, QuotaInfo, QuotaOverview, StorageMine } from '../api/types'
+import type { MediaRequest, QuotaInfo, QuotaOverview } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { useConfig } from '../hooks/useConfig'
+import { useStorageStand, type SpeicherStand } from '../hooks/useStorageStand'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Pagination, useSeiten } from '../components/Pagination'
 import { StarRating } from '../components/StarRating'
@@ -22,19 +23,31 @@ import { anfragenStandNeuLaden } from '../lib/refresh'
  * Art Auskunft. Nur steht hier keine Grenze, weil es noch keine gibt - und
  * genau das sagt die Karte auch, statt eine zu suggerieren.
  */
-function StorageCard({ daten }: { daten: StorageMine }) {
+function StorageCard({ stand }: { stand: SpeicherStand }) {
   const { t, i18n } = useTranslation()
 
   return (
     <div className="rounded-xl border border-ink-700 bg-ink-850/60 px-4 py-3">
       <p className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-        {t('storage.usedLabel')}
+        {t(stand.gesamtsicht ? 'storage.totalLabel' : 'storage.usedLabel')}
       </p>
-      <p className="mt-1 text-sm text-mist-300 tabular-nums">
-        {formatSize(daten.used_bytes, i18n.language)}
+      <p
+        className={
+          'mt-1 text-sm tabular-nums ' +
+          (stand.ueberzogen ? 'text-bad-500' : 'text-mist-300')
+        }
+      >
+        {/* Ohne Grenze steht nur die Zahl - „91 GB von unbegrenzt" wäre eine
+            Formulierung ohne Aussage. */}
+        {stand.limitBytes === null
+          ? formatSize(stand.bytes, i18n.language)
+          : t('storage.usedOfLimit', {
+              used: formatSize(stand.bytes, i18n.language),
+              limit: formatSize(stand.limitBytes, i18n.language),
+            })}
       </p>
       <Link to="/profil" className="mt-0.5 block text-xs text-mist-600 hover:text-accent-500">
-        {t('storage.itemCount', { count: daten.items })}
+        {t(stand.gesamtsicht ? 'storage.houseHint' : 'storage.showDetail')}
       </Link>
     </div>
   )
@@ -196,17 +209,14 @@ export function MyRequestsPage() {
   // Die Belegung laeuft unabhaengig vom Kontingent - gemessen wird immer,
   // begrenzt (spaeter) nur auf Wunsch.
   const { data: config } = useConfig()
-  const storageQuery = useQuery({
-    queryKey: ['storage-mine'],
-    queryFn: () => api.get<StorageMine>('/api/storage/me'),
-    // Ist der Schalter aus, gibt es den Endpunkt nicht - dann gar nicht erst
-    // fragen, statt einen 404 zu erzeugen und zu verstecken.
-    enabled: !!config?.storage_enabled,
-  })
+  const speicherGilt = Boolean(config?.storage_enabled)
+  const speicher = useStorageStand()
 
   const quotaQuery = useQuery({
     queryKey: ['quota'],
     queryFn: () => api.get<QuotaOverview>('/api/requests/quota'),
+    // Im Speicher-Betrieb gibt es dazu nichts zu zeigen.
+    enabled: !speicherGilt,
   })
 
   function refresh() {
@@ -248,16 +258,35 @@ export function MyRequestsPage() {
         <p className="mt-1.5 text-mist-500">{t('myRequests.intro')}</p>
       </header>
 
-      {quotaQuery.data && (
+      {(quotaQuery.data || speicher) && (
         <section>
           <h2 className="mb-2 text-sm font-semibold text-mist-300">{t('myRequests.quota')}</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <QuotaCard label={t('common.movies')} quota={quotaQuery.data.movie} />
-            <QuotaCard label={t('common.series')} quota={quotaQuery.data.tv} />
-            {storageQuery.data && <StorageCard daten={storageQuery.data} />}
+          {/* **Nur die Währung, die auch gilt.** Zählt der belegte Platz, wäre
+              „Filme: unbegrenzt" daneben keine Auskunft, sondern eine
+              Nebelkerze - es gilt immer nur eine der beiden. */}
+          <div
+            className={
+              'grid grid-cols-1 gap-3 ' +
+              (speicherGilt ? 'sm:grid-cols-2' : 'sm:grid-cols-2')
+            }
+          >
+            {!speicherGilt && quotaQuery.data && (
+              <>
+                <QuotaCard label={t('common.movies')} quota={quotaQuery.data.movie} />
+                <QuotaCard
+                  label={t('common.seriesPlural')}
+                  quota={quotaQuery.data.tv}
+                />
+              </>
+            )}
+            {speicher && <StorageCard stand={speicher} />}
           </div>
+          {/* Kommt vom angemeldeten Konto und nicht aus der Kontingent-
+              Abfrage: Ob eine Anfrage freigegeben werden muss, hat mit der
+              Währung nichts zu tun - und im Speicher-Betrieb wird die Abfrage
+              gar nicht mehr geladen. */}
           <p className="mt-2 text-xs text-mist-600">
-            {quotaQuery.data.auto_approve
+            {user?.effective_auto_approve
               ? t('myRequests.autoApprove')
               : t('myRequests.needsApproval')}
           </p>

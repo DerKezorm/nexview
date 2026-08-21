@@ -19,7 +19,7 @@ from ..models import (
     utcnow,
 )
 from ..schemas_media import MediaItem
-from . import blocklist, library, mediaserver_library, notify, quota
+from . import blocklist, library, mediaserver_library, notify, quota, storage
 from .arr import ArrError
 from .settings_service import AppSettings
 
@@ -97,6 +97,48 @@ BADGE_FOR_STATUS = {
     RequestStatus.downloaded: "downloaded",
     RequestStatus.failed: "failed",
 }
+
+
+def zurueckgestellte_schliessen(
+    db: Session, anfrage: MediaRequest
+) -> list[MediaRequest]:
+    """Andere zurueckgestellte Anfragen zu **demselben** Titel abschliessen.
+
+    ⚠️ **Ohne diese Regel wird die Speicher-Rechnung mehrdeutig.** Da eine
+    zurueckgestellte Anfrage niemanden blockiert, koennen zwei Personen
+    denselben Titel anfragen. Wuerden beide freigegeben, gaebe es **zwei**
+    zurechenbare Anfragen fuer **eine** Datei - und ``storage._zuordnung``
+    nimmt per ``setdefault`` die erste, die die Datenbank zufaellig liefert.
+    Wem der Platz dann angerechnet wird, waere Glueckssache.
+
+    Deshalb: Sobald **eine** Anfrage freigegeben wird, sind die anderen
+    erledigt. Sie bekommen den Titel ja trotzdem - es ist dieselbe Datei.
+
+    ``cancelled`` ist dabei die beste vorhandene Ablage: Sie zaehlt gegen
+    nichts und blockiert nichts. Dass das Wort "abgebrochen" den Sachverhalt
+    nicht ganz trifft, faengt die Benachrichtigung auf - sie sagt, dass der
+    Titel jetzt da ist.
+
+    Gibt die geschlossenen Anfragen zurueck, damit der Aufrufer benachrichtigen
+    kann; ein ``commit`` macht er ebenfalls.
+    """
+    bedingungen = [
+        MediaRequest.id != anfrage.id,
+        MediaRequest.media_type == anfrage.media_type,
+        MediaRequest.tmdb_id == anfrage.tmdb_id,
+        MediaRequest.tier == anfrage.tier,
+        MediaRequest.status == RequestStatus.deferred,
+    ]
+    # Bei Serien zaehlt die Staffel mit - dieselbe Regel wie in ``find_active``.
+    if anfrage.media_type == MediaType.tv and anfrage.season is not None:
+        bedingungen.append(
+            (MediaRequest.season == anfrage.season) | (MediaRequest.season.is_(None))
+        )
+
+    andere = list(db.scalars(select(MediaRequest).where(*bedingungen)))
+    for zeile in andere:
+        zeile.status = RequestStatus.cancelled
+    return andere
 
 
 def badges_for(
@@ -432,6 +474,68 @@ async def resolve_root_folder(
     return standard if standard in vorhanden else vorhanden[0]
 
 
+def _kontingent_pruefen(
+    db: Session, settings: AppSettings, user: User, media_type: MediaType
+) -> None:
+    """Darf dieser Nutzer noch anfragen?
+
+    **Es gilt immer nur eine Waehrung.** Sind Speicher-Kontingente
+    eingeschaltet, zaehlt der belegte Platz - und die Stueckzahl gar nicht
+    mehr. Sonst umgekehrt.
+
+    Beides gleichzeitig gaebe es zwei Gruende zu scheitern, die sich vollkommen
+    unterschiedlich verhalten: Die Stueckzahl erneuert sich jeden Montag, der
+    Platz nie; gegen das eine hilft warten, gegen das andere nur aufraeumen.
+    Wer dann "ich kann nichts anfragen" meldet, zwingt den Administrator zum
+    Raten, welche der beiden Grenzen gegriffen hat.
+    """
+    if settings.storage_enabled:
+        stand = storage.stand_fuer(db, user, settings)
+        if stand.exhausted:
+            fehlt = -(stand.remaining_bytes or 0)
+            raise RequestError(
+                "Dein Speicher-Kontingent ist aufgebraucht. "
+                f"Du belegst {_gb(stand.used_bytes)} von {_gb(stand.limit_bytes or 0)}"
+                + (f" und liegst {_gb(fehlt)} darüber" if fehlt > 0 else "")
+                + ". Gib etwas ab, dann geht es weiter.",
+                429,
+            )
+        return
+
+    state = quota.state_for(db, user, media_type)
+    if state.exhausted:
+        art = "Filme" if media_type == MediaType.movie else "Serien"
+        raise RequestError(
+            f"Dein Kontingent für {art} ist aufgebraucht ({state.limit} pro "
+            f"{_period_label(state.period.value)}).",
+            429,
+        )
+
+
+def _gb(bytes_: int) -> str:
+    """Bytes als lesbare GB-Angabe fuer eine Fehlermeldung."""
+    gb = bytes_ / 1024**3
+    return f"{gb:.1f} GB".replace(".", ",") if gb < 10 else f"{gb:.0f} GB"
+
+
+async def _mit_datei_in_standard(settings: AppSettings, item: MediaItem) -> set[int]:
+    """Fuehrt die **Standard**-Instanz diesen Titel mit Datei?
+
+    Die eine Angabe, die ``mediaserver_library.echte_uhd_kennungen`` von aussen
+    braucht - dort steht auch, wozu. Kurz: Nur so laesst sich eine 4K-Datei, die
+    im normalen Radarr liegt, von einer echten Zweitfassung unterscheiden.
+
+    Der Zustand wird vorher zurueckgesetzt: ``apply_status`` laesst ihn bei
+    einem Fehlschlag stehen, und ein von anderswoher mitgebrachtes "downloaded"
+    wuerde hier sonst als Treffer der Standard-Instanz gelesen.
+    """
+    kopie = item.model_copy(update={"status": "not_requested"})
+    ergebnis = await library.apply_status(settings, item.media_type, [kopie], "standard")
+    return {
+        eintrag.tmdb_id for eintrag in ergebnis.items if eintrag.status == "downloaded"
+    }
+
+
 async def create_request(
     db: Session,
     settings: AppSettings,
@@ -539,6 +643,27 @@ async def create_request(
             409,
         )
 
+    # Eine eigene zurueckgestellte Anfrage zaehlt zwar nicht als "aktiv" - sie
+    # blockiert ja bewusst niemanden -, aber **zweimal dasselbe** soll auch
+    # niemand von sich selbst haben. Sonst stuenden nach dem dritten Versuch
+    # drei zurueckgestellte Anfragen desselben Titels in derselben Liste.
+    eigene_zurueckgestellte = db.scalar(
+        select(MediaRequest).where(
+            MediaRequest.user_id == user.id,
+            MediaRequest.media_type == media_type,
+            MediaRequest.tmdb_id == item.tmdb_id,
+            MediaRequest.tier == tier,
+            MediaRequest.season == season,
+            MediaRequest.status == RequestStatus.deferred,
+        )
+    )
+    if eigene_zurueckgestellte is not None:
+        raise RequestError(
+            f"„{item.title}“ steht bereits zurück – sobald du wieder Platz "
+            "hast, kann die Anfrage freigegeben werden.",
+            409,
+        )
+
     existing = find_active(db, media_type, item.tmdb_id, season, tier)
     if existing is not None:
         if season is not None and existing.season is None:
@@ -576,15 +701,26 @@ async def create_request(
         # zweite Instanz zaehlt jede Kopie; mit ihr zaehlt nur die Kopie der
         # angefragten Stufe - eine reine 4K-Kopie darf die 1080p-Anfrage
         # nicht blockieren, sonst laesst sich die Standard-Fassung nie holen.
+        #
+        # ⚠️ Auf der 4K-Achse gilt dieselbe Regel wie beim Abzeichen, und zwar
+        # **zwingend dieselbe**: Liefen Anzeige und Sperre auseinander, stuende
+        # am Titel "4K noch nicht angefragt" und die Anfrage schluege trotzdem
+        # fehl. Genau so ist es gemeldet worden.
         if tier == QualityTier.uhd:
-            stufen_filter: str | None = "uhd"
-        else:
-            stufen_filter = (
-                "standard" if settings.arr_configured(item.media_type, "uhd") else None
+            belegt = mediaserver_library.echte_uhd_kennungen(
+                db,
+                media_type,
+                [item],
+                in_standard_instanz=await _mit_datei_in_standard(settings, item),
             )
-        if mediaserver_library.vorhandene_kennungen(
-            db, media_type, [item], stufen_filter
-        ):
+        else:
+            belegt = mediaserver_library.vorhandene_kennungen(
+                db,
+                media_type,
+                [item],
+                "standard" if settings.arr_configured(item.media_type, "uhd") else None,
+            )
+        if belegt:
             raise RequestError(
                 f"„{item.title}“ liegt bereits auf dem Media-Server.",
                 409,
@@ -634,14 +770,7 @@ async def create_request(
     else:
         zielordner = None
 
-    state = quota.state_for(db, user, media_type)
-    if state.exhausted:
-        art = "Filme" if media_type == MediaType.movie else "Serien"
-        raise RequestError(
-            f"Dein Kontingent für {art} ist aufgebraucht ({state.limit} pro "
-            f"{_period_label(state.period.value)}).",
-            429,
-        )
+    _kontingent_pruefen(db, settings, user, media_type)
 
     # Ohne Ordner darf nichts durchrutschen: eine automatisch freigegebene
     # Anfrage kaeme an keinem Entscheider vorbei, und genau der soll ja waehlen.

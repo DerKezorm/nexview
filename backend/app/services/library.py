@@ -181,19 +181,37 @@ async def series_calendar(settings: AppSettings, start: str, end: str) -> list[d
     return entries
 
 
+def _aenderung(entry: MovieEntry | SeriesEntry, mit_pfad: bool) -> dict[str, object]:
+    """Was an einem Titel geaendert wird - Zustand, und auf Wunsch der Pfad."""
+    aenderung: dict[str, object] = {"status": _status_for(entry)}
+    if mit_pfad and getattr(entry, "path", ""):
+        aenderung["path"] = entry.path
+    return aenderung
+
+
 def _status_for(entry: MovieEntry | SeriesEntry) -> str:
     """"Liegt schon da" oder "eingetragen, aber noch nicht geladen"."""
     return "downloaded" if entry.has_file else "searching"
 
 
 async def apply_status(
-    settings: AppSettings, media_type: str, items: list[MediaItem], tier: str = "standard"
+    settings: AppSettings,
+    media_type: str,
+    items: list[MediaItem],
+    tier: str = "standard",
+    *,
+    mit_pfad: bool = False,
 ) -> MatchResult:
     """Jeder Kachel ihren Zustand geben.
 
     Ist Radarr/Sonarr nicht eingerichtet oder nicht erreichbar, bleiben die
     Titel auf "nicht angefragt" - mit einem Hinweis, damit niemand denkt,
     die Bibliothek sei leer.
+
+    ``mit_pfad`` traegt zusaetzlich den Ablageort ein. **Nur fuer
+    Administratoren**, und die Voreinstellung ist bewusst "nein": So kann eine
+    neue Aufrufstelle den Pfad nicht versehentlich mitliefern - sie muesste ihn
+    ausdruecklich verlangen.
     """
     if not items:
         return MatchResult(items=items)
@@ -205,7 +223,7 @@ async def apply_status(
         if media_type == "movie":
             library = await movie_library(settings, tier)
             updated = [
-                item.model_copy(update={"status": _status_for(library[item.tmdb_id])})
+                item.model_copy(update=_aenderung(library[item.tmdb_id], mit_pfad))
                 if item.tmdb_id in library
                 else item
                 for item in items
@@ -221,7 +239,7 @@ async def apply_status(
                         by_title, item.title, jahr_aus(item.release_date)
                     )
                 updated.append(
-                    item.model_copy(update={"status": _status_for(entry)}) if entry else item
+                    item.model_copy(update=_aenderung(entry, mit_pfad)) if entry else item
                 )
     except ArrError as error:
         return MatchResult(items=items, warning=error.message)
@@ -268,6 +286,47 @@ async def options(
     }
     _write(key, result)
     return result
+
+
+async def datentraeger(
+    settings: AppSettings, media_type: str, tier: str = "standard"
+) -> list[dict[str, Any]]:
+    """Die Datentraeger einer Instanz - Einhaengepunkt, frei und **gesamt**.
+
+    ``/diskspace`` ist die einzige Stelle, an der Radarr und Sonarr die
+    Gesamtgroesse eines Traegers herausgeben; ``/rootfolder`` kennt nur den
+    freien Platz. Genau diese Gesamtgroesse wird gebraucht, um zwei Ordner
+    **derselben** Platte auseinanderzuhalten - siehe ``storage.freier_platz``.
+
+    Beachte: Die Liste enthaelt alle Einhaengepunkte des Dienstes, auch
+    ``/config`` und ``/`` - und bei einem Container zeigen die oft auf
+    dasselbe Dateisystem. Wer sie ungefiltert summiert, zaehlt dieselbe Platte
+    dreimal. Der Aufrufer muss den Punkt heraussuchen, der zu seinem Ordner
+    gehoert.
+    """
+    schluessel = f"diskspace:{media_type}{_stufen_suffix(tier)}"
+    zwischengespeichert = _read(schluessel, OPTIONS_TTL_SECONDS)
+    if zwischengespeichert is not None:
+        return zwischengespeichert
+
+    client = (
+        radarr_client(settings, tier) if media_type == "movie" else sonarr_client(settings, tier)
+    )
+    if client is None:
+        return []
+
+    antwort = await client.get("/diskspace")
+    punkte = [
+        {
+            "path": str(eintrag.get("path") or ""),
+            "free_space": eintrag.get("freeSpace"),
+            "total_space": eintrag.get("totalSpace"),
+        }
+        for eintrag in (antwort or [])
+        if eintrag.get("path")
+    ]
+    _write(schluessel, punkte)
+    return punkte
 
 
 def treffer_nach_titel(

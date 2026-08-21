@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError, api } from "../api/client";
 import type {
+  AnfragerSpeicher,
   MediaRequestWithUser,
   MediaStatus,
   MediaType,
@@ -16,7 +17,7 @@ import { StarRating } from "../components/StarRating";
 import { StatusBadge } from "../components/media/StatusBadge";
 import { Button, Card, ErrorBanner, Spinner } from "../components/ui";
 import { Pagination, useSeiten } from "../components/Pagination";
-import { formatDate } from "../lib/format";
+import { formatDate, formatSize } from "../lib/format";
 import { TargetPicker, type Target } from "../components/TargetPicker";
 import { useConfig } from "../hooks/useConfig";
 import { anfragenStandNeuLaden } from "../lib/refresh";
@@ -28,6 +29,11 @@ type Filter = "pending_approval" | "all" | "feedback" | "watchlist" | MediaStatu
 
 const FILTERS: Filter[] = [
   "pending_approval",
+  // Direkt hinter den wartenden, und aus einem Grund: Zurückgestellte sind
+  // **nicht erledigt**. Sie warten auf freien Speicher, und wer sie nicht
+  // wiederfindet, kann sie auch nicht freigeben, wenn wieder Platz ist – dann
+  // wäre das Versprechen „niemand muss neu fragen" leer.
+  "deferred",
   "feedback",
   "watchlist",
   "all",
@@ -55,6 +61,14 @@ type Gruppe = {
   username: string;
   displayName: string | null;
   avatar: string | null;
+  /**
+   * Speicherstand des Anfragenden – vom Server, einmal je Person.
+   *
+   * `null`/fehlt heißt, dass Speicher-Kontingente aus sind. Dann zählt die
+   * Stückzahl, und eine Speicher-Zahl daneben wäre eine zweite Währung in
+   * derselben Karte.
+   */
+  storage: AnfragerSpeicher | null;
   requests: MediaRequestWithUser[];
 };
 
@@ -269,6 +283,61 @@ export function AdminRequestsPage() {
     onSettled: refresh,
   });
 
+  /**
+   * Die Rückfrage, wenn ein überzogenes Konto freigegeben werden soll.
+   *
+   * Drei Ausgänge, und der dritte ist der eigentliche Gewinn: **Abbrechen
+   * lässt die Anfragen stehen.** Sie warten dann weiter, und sobald der
+   * Anfragende Platz geschaffen hat, lassen sie sich freigeben – ohne dass er
+   * sie neu stellen muss. Ein reines ja/nein hätte diesen Weg nicht.
+   */
+  const [speicherFrage, setSpeicherFrage] = useState<{
+    gruppe: Gruppe;
+    betroffen: number[];
+    ausfuehren: () => void;
+  } | null>(null);
+
+  const deferManyMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      // Nacheinander, nicht parallel: SQLite lässt genau einen Schreiber zu.
+      for (const id of ids) {
+        await api.post(`/api/admin/requests/${id}/defer`, {});
+      }
+    },
+    onSuccess: () => setSpeicherFrage(null),
+    onSettled: refresh,
+  });
+
+  const rejectManyMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      // Nacheinander, nicht parallel: SQLite lässt genau einen Schreiber zu,
+      // und bei zwei Anfragen ist der Unterschied ohnehin nicht messbar.
+      for (const id of ids) {
+        await api.post(`/api/admin/requests/${id}/reject`, {
+          reason: t("adminRequests.storageRejectReason"),
+          block: false,
+        });
+      }
+    },
+    onSuccess: () => setSpeicherFrage(null),
+    onSettled: refresh,
+  });
+
+  /**
+   * Freigeben – aber erst fragen, wenn das Konto **schon** überzogen ist.
+   *
+   * Steht bewusst an allen vier Freigabe-Knöpfen und nicht nur an der
+   * Sammelfreigabe: Zehnmal einzeln freigeben hat dieselbe Wirkung wie einmal
+   * sammeln, und eine Warnung, die man durch Einzelklicks umgeht, ist keine.
+   */
+  function freigeben(gruppe: Gruppe, betroffen: number[], ausfuehren: () => void) {
+    if (!gruppe.storage?.exhausted) {
+      ausfuehren();
+      return;
+    }
+    setSpeicherFrage({ gruppe, betroffen, ausfuehren });
+  }
+
   const rejectMutation = useMutation({
     mutationFn: ({
       id,
@@ -322,6 +391,7 @@ export function AdminRequestsPage() {
         username: request.username,
         displayName: request.display_name,
         avatar: request.avatar_url,
+        storage: request.storage ?? null,
         requests: [],
       };
       gruppen.push(gruppe);
@@ -424,6 +494,32 @@ export function AdminRequestsPage() {
                   {t("adminRequests.countForUser", {
                     count: gruppe.requests.length,
                   })}
+                  {/* Der Speicherstand steht dort, wo entschieden wird.
+                      Vorher prüfte die Freigabe **gar nichts**: Wer fünf
+                      Anfragen anlegt, solange noch Platz ist, dann über seine
+                      Grenze rutscht und danach sammelfreigegeben wird, landet
+                      beliebig weit im Minus – und niemand sieht es dabei. */}
+                  {gruppe.storage && (
+                    <span
+                      className={
+                        "ml-2 " + (gruppe.storage.exhausted ? "text-bad-500" : "")
+                      }
+                    >
+                      ·{" "}
+                      {gruppe.storage.limit_bytes === null
+                        ? formatSize(gruppe.storage.used_bytes, i18n.language)
+                        : t("storage.usedOfLimit", {
+                            used: formatSize(
+                              gruppe.storage.used_bytes,
+                              i18n.language,
+                            ),
+                            limit: formatSize(
+                              gruppe.storage.limit_bytes,
+                              i18n.language,
+                            ),
+                          })}
+                    </span>
+                  )}
                 </p>
               </div>
 
@@ -443,10 +539,15 @@ export function AdminRequestsPage() {
                       );
                       return;
                     }
-                    approveAllMutation.mutate({
-                      userId: gruppe.userId,
-                      ziele: {},
-                    });
+                    freigeben(
+                      gruppe,
+                      offene.map((eintrag) => eintrag.id),
+                      () =>
+                        approveAllMutation.mutate({
+                          userId: gruppe.userId,
+                          ziele: {},
+                        }),
+                    );
                   }}
                   loading={
                     approveAllMutation.isPending &&
@@ -497,10 +598,15 @@ export function AdminRequestsPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() =>
-                      approveAllMutation.mutate({
-                        userId: gruppe.userId,
-                        ziele: stapelZiele,
-                      })
+                      freigeben(
+                        gruppe,
+                        offene.map((eintrag) => eintrag.id),
+                        () =>
+                          approveAllMutation.mutate({
+                            userId: gruppe.userId,
+                            ziele: stapelZiele,
+                          }),
+                      )
                     }
                     loading={approveAllMutation.isPending}
                     disabled={!Object.values(stapelZiele).some(Boolean)}
@@ -605,10 +711,12 @@ export function AdminRequestsPage() {
                             );
                             return;
                           }
-                          approveMutation.mutate({
-                            id: request.id,
-                            target: null,
-                          });
+                          freigeben(gruppe, [request.id], () =>
+                            approveMutation.mutate({
+                              id: request.id,
+                              target: null,
+                            }),
+                          );
                         }}
                         loading={
                           approveMutation.isPending &&
@@ -656,10 +764,12 @@ export function AdminRequestsPage() {
                     <div className="flex flex-wrap gap-2">
                       <Button
                         onClick={() =>
-                          approveMutation.mutate({
-                            id: request.id,
-                            target: ziel,
-                          })
+                          freigeben(gruppe, [request.id], () =>
+                            approveMutation.mutate({
+                              id: request.id,
+                              target: ziel,
+                            }),
+                          )
                         }
                         loading={approveMutation.isPending}
                         disabled={ziel === null}
@@ -757,6 +867,62 @@ export function AdminRequestsPage() {
         loading={cancelMutation.isPending}
         onCancel={() => setCancelling(null)}
         onConfirm={() => cancelling && cancelMutation.mutate(cancelling.id)}
+      />
+
+      {/* Überzogenes Konto: drei Ausgänge, nicht zwei.
+          „Abbrechen" ist hier kein Rückzieher, sondern eine eigene
+          Entscheidung – die Anfragen bleiben stehen und lassen sich freigeben,
+          sobald wieder Platz ist. Ohne diesen Weg müsste der Entscheider
+          zwischen „jetzt trotzdem" und „endgültig nein" wählen, und die
+          ehrlichste Antwort – „später" – gäbe es gar nicht. */}
+      <ConfirmDialog
+        open={speicherFrage !== null}
+        title={t("adminRequests.storageWarnTitle")}
+        description={
+          speicherFrage?.gruppe.storage
+            ? t("adminRequests.storageWarnText", {
+                name:
+                  speicherFrage.gruppe.displayName ??
+                  speicherFrage.gruppe.username,
+                used: formatSize(
+                  speicherFrage.gruppe.storage.used_bytes,
+                  i18n.language,
+                ),
+                limit: formatSize(
+                  speicherFrage.gruppe.storage.limit_bytes ?? 0,
+                  i18n.language,
+                ),
+                over: formatSize(
+                  speicherFrage.gruppe.storage.used_bytes -
+                    (speicherFrage.gruppe.storage.limit_bytes ?? 0),
+                  i18n.language,
+                ),
+                count: speicherFrage.betroffen.length,
+              })
+            : ""
+        }
+        warning={t("adminRequests.storageWarnHint")}
+        confirmLabel={t("adminRequests.storageWarnApprove")}
+        weitere={[
+          {
+            // Der eigentlich richtige Ausgang - und deshalb der erste.
+            label: t("adminRequests.storageWarnDefer"),
+            onClick: () =>
+              speicherFrage && deferManyMutation.mutate(speicherFrage.betroffen),
+          },
+          {
+            label: t("adminRequests.storageWarnReject"),
+            onClick: () =>
+              speicherFrage && rejectManyMutation.mutate(speicherFrage.betroffen),
+            gefahr: true,
+          },
+        ]}
+        loading={rejectManyMutation.isPending || deferManyMutation.isPending}
+        onCancel={() => setSpeicherFrage(null)}
+        onConfirm={() => {
+          speicherFrage?.ausfuehren();
+          setSpeicherFrage(null);
+        }}
       />
     </div>
   );

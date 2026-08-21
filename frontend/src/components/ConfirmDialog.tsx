@@ -14,6 +14,19 @@ type ConfirmDialogProps = {
   confirmLabel: string
   onConfirm: () => void
   onCancel: () => void
+  /**
+   * Weitere Ausgänge, wenn die Frage nicht mit ja/nein zu beantworten ist.
+   *
+   * Beispiel aus der Freigabe: „Zurückstellen" · „Ablehnen" · „Trotzdem
+   * freigeben" – drei verschiedene Entscheidungen. „Abbrechen" bleibt daneben
+   * der **Notausgang**: Er tut nichts, und dasselbe passiert bei Escape oder
+   * einem Klick daneben. Ein Ausgang, der etwas bewirkt, darf deshalb nie
+   * „Abbrechen" heißen.
+   *
+   * Stehen zwischen Abbrechen und dem Bestätigen-Knopf. `gefahr` färbt einen
+   * davon rot – für die ablehnende Wahl.
+   */
+  weitere?: { label: string; onClick: () => void; gefahr?: boolean }[]
   loading?: boolean
 }
 
@@ -31,6 +44,7 @@ export function ConfirmDialog({
   confirmLabel,
   onConfirm,
   onCancel,
+  weitere,
   loading = false,
 }: ConfirmDialogProps) {
   const { t } = useTranslation()
@@ -80,6 +94,21 @@ export function ConfirmDialog({
           <Button variant="ghost" onClick={onCancel} disabled={loading}>
             {t('common.cancel')}
           </Button>
+          {(weitere ?? []).map((ausgang) => (
+            <Button
+              key={ausgang.label}
+              variant="ghost"
+              onClick={ausgang.onClick}
+              disabled={loading}
+              className={
+                ausgang.gefahr
+                  ? 'border-bad-500/40 text-bad-500 hover:bg-bad-500/10 hover:text-bad-500'
+                  : ''
+              }
+            >
+              {ausgang.label}
+            </Button>
+          ))}
           <Button ref={confirmRef} onClick={onConfirm} loading={loading}>
             {confirmLabel}
           </Button>

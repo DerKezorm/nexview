@@ -417,8 +417,9 @@ async def test_posten_kommen_gross_zuerst(
         },
     )
 
-    titel = [posten.title for posten in storage.posten_fuer(db, nutzer.id)]
-    assert titel == ["Gross", "Mittel", "Klein"]
+    zeilen, gesamt = storage.posten_fuer(db, nutzer.id)
+    assert [posten.title for posten in zeilen] == ["Gross", "Mittel", "Klein"]
+    assert gesamt == 3
 
 
 async def test_abgegebenes_zaehlt_weiter(
@@ -478,6 +479,12 @@ def test_eigener_speicher_ist_leer_ohne_messung(admin_client) -> None:
         "used_bytes": 0,
         "items": 0,
         "pending_bytes": 0,
+        # Der Admin ist immer unbegrenzt - null steht hier fuer genau das.
+        "limit_bytes": None,
+        "matches": 0,
+        # Die Seitengroesse reist mit, damit die Oberflaeche sie nicht
+        # spiegeln muss - zwei Konstanten gingen beim Aendern auseinander.
+        "per_page": 20,
         "entries": [],
     }
 
@@ -655,3 +662,335 @@ def test_verteilung_zeigt_auch_leere_konten(admin_client, db: Session) -> None:
 
     assert "leer" in namen
     assert all(a["used_bytes"] == 0 for a in daten["shares"])
+
+
+# ------------------------------------------------- Stufe 2: die Grenze
+
+
+def grenze(db: Session, nutzer: User, settings: AppSettings):
+    return storage.stand_fuer(db, nutzer, settings)
+
+
+def test_admins_sind_immer_unbegrenzt(db: Session) -> None:
+    """Dieselbe Regel wie beim Stueck-Kontingent - zwei waeren eine Falle."""
+
+    class Haus:
+        storage_default_limit_gb = 100
+
+    chef = User(username="chef", password_hash=hash_password("t"), role=Role.admin)
+    assert storage.grenze_in_bytes(chef, Haus()) is None
+
+
+def test_eigene_zahl_schlaegt_die_hausvorgabe(db: Session) -> None:
+    class Haus:
+        storage_default_limit_gb = 100
+
+    person = User(username="p", role=Role.user, storage_limit_gb=500)
+    assert storage.grenze_in_bytes(person, Haus()) == 500 * GB
+
+
+def test_null_am_konto_bedeutet_unbegrenzt(db: Session) -> None:
+    """Nicht "keine Grenze eingetragen" - das ist NULL. Die 0 ist Absicht."""
+
+    class Haus:
+        storage_default_limit_gb = 100
+
+    person = User(username="p", role=Role.user, storage_limit_gb=0)
+    assert storage.grenze_in_bytes(person, Haus()) is None
+
+
+def test_ohne_hausvorgabe_ist_niemand_begrenzt(db: Session) -> None:
+    """So aendert das blosse Einschalten fuer sich genommen nichts."""
+
+    class Haus:
+        storage_default_limit_gb = None
+
+    person = User(username="p", role=Role.user)
+    assert storage.grenze_in_bytes(person, Haus()) is None
+
+
+def test_gesperrt_erst_wenn_schon_ueberzogen() -> None:
+    """Die Groesse steht beim Anfragen noch gar nicht fest.
+
+    Eine Schaetzung ist keine Grundlage fuer eine Ablehnung: Wer noch Luft
+    hat, darf anfragen - auch wenn es danach ins Minus geht. Erst die
+    **naechste** Anfrage ist gesperrt.
+    """
+    knapp = storage.Grenze(used_bytes=99 * GB, limit_bytes=100 * GB)
+    assert knapp.exhausted is False
+    assert knapp.remaining_bytes == 1 * GB
+
+    genau = storage.Grenze(used_bytes=100 * GB, limit_bytes=100 * GB)
+    assert genau.exhausted is True
+
+    minus = storage.Grenze(used_bytes=140 * GB, limit_bytes=100 * GB)
+    assert minus.exhausted is True
+    assert minus.remaining_bytes == -40 * GB
+
+
+def test_unbegrenzt_ist_nie_aufgebraucht() -> None:
+    offen = storage.Grenze(used_bytes=9999 * GB, limit_bytes=None)
+    assert offen.unlimited is True
+    assert offen.exhausted is False
+    assert offen.remaining_bytes is None
+
+
+def test_nur_eine_waehrung_gilt(db: Session, nutzer: User) -> None:
+    """Ist der Speicher eingeschaltet, zaehlt die Stueckzahl gar nicht mehr.
+
+    Beides gleichzeitig gaebe zwei Gruende zu scheitern, die sich vollkommen
+    unterschiedlich verhalten: Die Stueckzahl erneuert sich jeden Montag, der
+    Platz nie; gegen das eine hilft warten, gegen das andere nur aufraeumen.
+    Wer dann "ich kann nichts anfragen" meldet, zwingt den Administrator zum
+    Raten, welche Grenze gegriffen hat.
+    """
+    from app.services import requests_service
+    from app.services.requests_service import RequestError
+
+    # Ein Stueckzahl-Kontingent, das sofort aufgebraucht ist.
+    nutzer.quota_movies_limit = 0
+    db.commit()
+
+    class Aus:
+        storage_enabled = False
+        storage_default_limit_gb = None
+
+    class An:
+        storage_enabled = True
+        # Grosszuegig - der Speicher soll gerade *nicht* bremsen.
+        storage_default_limit_gb = 10_000
+
+    # Ohne Speicher-Kontingent bremst die Stueckzahl.
+    with pytest.raises(RequestError) as fehler:
+        requests_service._kontingent_pruefen(db, Aus(), nutzer, MediaType.movie)
+    assert fehler.value.status_code == 429
+
+    # Mit Speicher-Kontingent nicht mehr - obwohl die Stueckzahl unveraendert
+    # auf null steht.
+    requests_service._kontingent_pruefen(db, An(), nutzer, MediaType.movie)
+
+
+def test_speichergrenze_bremst_erst_im_minus(db: Session, nutzer: User) -> None:
+    from app.services import requests_service
+    from app.services.requests_service import RequestError
+
+    class Haus:
+        storage_enabled = True
+        storage_default_limit_gb = 10
+
+    db.add(
+        StorageEntry(
+            key="movie:standard:tmdb:1",
+            user_id=nutzer.id,
+            media_type=MediaType.movie,
+            tier=QualityTier.standard,
+            tmdb_id=1,
+            title="Gross",
+            size_bytes=9 * GB,
+            state=StorageState.owned,
+        )
+    )
+    db.commit()
+    # Noch Luft: geht durch.
+    requests_service._kontingent_pruefen(db, Haus(), nutzer, MediaType.movie)
+
+    db.add(
+        StorageEntry(
+            key="movie:standard:tmdb:2",
+            user_id=nutzer.id,
+            media_type=MediaType.movie,
+            tier=QualityTier.standard,
+            tmdb_id=2,
+            title="Noch groesser",
+            size_bytes=5 * GB,
+            state=StorageState.owned,
+        )
+    )
+    db.commit()
+    # Jetzt im Minus: die naechste Anfrage ist gesperrt.
+    with pytest.raises(RequestError) as fehler:
+        requests_service._kontingent_pruefen(db, Haus(), nutzer, MediaType.movie)
+    assert fehler.value.status_code == 429
+    assert "Speicher" in fehler.value.message
+
+
+# ------------------------------------- Was Admins holen, gehoert dem Haus
+
+
+async def test_admin_bekommt_nichts_zugerechnet(
+    db: Session, settings: AppSettings
+) -> None:
+    chef = User(username="chef", password_hash=hash_password("t"), role=Role.admin)
+    db.add(chef)
+    db.commit()
+
+    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    anfrage(db, chef, tmdb_id=603)
+
+    await messen(
+        db, settings, filme={QualityTier.standard: {1: film(1), 603: film(8)}}
+    )
+
+    assert storage.kontostand(db, chef.id).used_bytes == 0
+    assert storage.hausbestand(db).used_bytes == 9 * GB
+
+
+async def test_sofort_verbuchen_ueberspringt_admins(
+    db: Session, settings: AppSettings
+) -> None:
+    chef = User(username="chef", password_hash=hash_password("t"), role=Role.admin)
+    db.add(chef)
+    db.commit()
+    gesuch = anfrage(db, chef, tmdb_id=603)
+
+    assert storage.verbuchen(db, gesuch, film(8)) == 0
+    db.commit()
+    assert storage.kontostand(db, chef.id).used_bytes == 0
+
+
+async def test_befoerderung_gibt_die_posten_ans_haus(
+    db: Session, settings: AppSettings, nutzer: User
+) -> None:
+    """Die Regel gilt durchgehend, nicht erst ab dem naechsten neuen Titel."""
+    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    anfrage(db, nutzer, tmdb_id=603)
+    await messen(
+        db, settings, filme={QualityTier.standard: {1: film(1), 603: film(8)}}
+    )
+    assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
+
+    nutzer.role = Role.admin
+    db.commit()
+
+    await messen(
+        db, settings, filme={QualityTier.standard: {1: film(1), 603: film(8)}}
+    )
+
+    assert storage.kontostand(db, nutzer.id).used_bytes == 0
+    assert storage.hausbestand(db).used_bytes == 9 * GB
+
+
+def test_ins_haus_nimmt_niemandem_eine_datei(db: Session, nutzer: User) -> None:
+    """Der Titel bleibt liegen - es wechselt nur, wem er zugerechnet wird."""
+    db.add(
+        StorageEntry(
+            key="movie:standard:tmdb:603",
+            user_id=nutzer.id,
+            media_type=MediaType.movie,
+            tier=QualityTier.standard,
+            tmdb_id=603,
+            title="Ein Klassiker",
+            size_bytes=8 * GB,
+            state=StorageState.owned,
+        )
+    )
+    db.commit()
+
+    posten = storage.ins_haus(db, db.scalar(select(StorageEntry.id)))
+    db.commit()
+
+    assert posten is not None
+    assert storage.kontostand(db, nutzer.id).used_bytes == 0
+    assert storage.hausbestand(db).used_bytes == 8 * GB
+    # Der Posten existiert weiter - nur eben beim Haus.
+    assert len(db.scalars(select(StorageEntry)).all()) == 1
+
+
+def test_ins_haus_zweimal_aendert_nichts(db: Session, nutzer: User) -> None:
+    db.add(
+        StorageEntry(
+            key="movie:standard:tmdb:603",
+            media_type=MediaType.movie,
+            tier=QualityTier.standard,
+            tmdb_id=603,
+            title="Schon im Haus",
+            size_bytes=8 * GB,
+            state=StorageState.house,
+        )
+    )
+    db.commit()
+
+    assert storage.ins_haus(db, db.scalar(select(StorageEntry.id))) is None
+
+
+def test_pfad_kommt_bei_film_und_staffel_an(db: Session, settings: AppSettings) -> None:
+    """Beim Film samt Dateiname, bei der Staffel der Ordner der Serie.
+
+    Der Serien-Pfad war beim ersten Anlauf schlicht vergessen - die Zeilen
+    sahen richtig aus, nur stand dort nichts.
+    """
+    ziel: dict[str, storage._Gemessen] = {}
+    storage._film_aufnehmen(
+        ziel,
+        QualityTier.standard,
+        603,
+        MovieEntry(
+            arr_id=1,
+            has_file=True,
+            monitored=True,
+            size_bytes=8 * GB,
+            title="Matrix",
+            path="/data/Movies/Matrix (1999)/Matrix.mkv",
+        ),
+    )
+    storage._serie_aufnehmen(
+        ziel,
+        QualityTier.standard,
+        121361,
+        SeriesEntry(
+            arr_id=2,
+            has_file=True,
+            monitored=True,
+            episode_file_count=10,
+            episode_count=10,
+            title_key="got",
+            year=2011,
+            size_bytes=20 * GB,
+            seasons={1: 20 * GB},
+            title="Game of Thrones",
+            path="/data/TV-Shows/Game of Thrones",
+        ),
+    )
+
+    pfade = {w.media_type: w.path for w in ziel.values()}
+    assert pfade[MediaType.movie].endswith("Matrix.mkv")
+    assert pfade[MediaType.tv] == "/data/TV-Shows/Game of Thrones"
+
+
+def test_pfad_geht_nur_an_admins(arr_client, monkeypatch) -> None:
+    """Der Ablageort verlaesst den Server nur fuer Administratoren.
+
+    Entschieden wird das **im Server**, nicht in der Oberflaeche: Ausblenden
+    hiesse, ihn trotzdem ausgeliefert zu haben - ein Blick in die
+    Netzwerkanzeige des Browsers genuegte.
+    """
+    from app.schemas_media import MediaItem
+    from app.services import library
+
+    async def filme(_settings, _stufe="standard"):
+        return {
+            603: MovieEntry(
+                arr_id=1,
+                has_file=True,
+                monitored=True,
+                size_bytes=8 * GB,
+                title="Matrix",
+                path="/data/Movies/Matrix/Matrix.mkv",
+            )
+        }
+
+    monkeypatch.setattr(library, "movie_library", filme)
+
+    werk = MediaItem(tmdb_id=603, media_type="movie", title="Matrix")
+    from app.services.settings_service import load_settings
+
+    with SessionLocal() as db:
+        settings = load_settings(db)
+
+    import asyncio
+
+    ohne = asyncio.run(library.apply_status(settings, "movie", [werk]))
+    mit = asyncio.run(library.apply_status(settings, "movie", [werk], mit_pfad=True))
+
+    assert ohne.items[0].path is None
+    assert mit.items[0].path == "/data/Movies/Matrix/Matrix.mkv"

@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 
 from ..deps import CurrentUser, DbSession
 from ..mocks import demo_data
-from ..models import MediaType, QualityTier
+from ..models import MediaType, QualityTier, Role
 from ..schemas_media import ArrOptions, Genre, MediaItem, MediaPage
 from ..services import (
     blocklist,
@@ -68,7 +68,15 @@ async def _status_for(
     die wichtigere Information - die Sperre entfernt ihn ja nicht, sie
     verhindert nur, dass er erneut angefragt wird.
     """
-    result = await library.apply_status(settings, media_type, items)
+    # Der Ablageort geht **nur** an Administratoren. Die Entscheidung faellt
+    # hier und nicht in der Oberflaeche: Ausblenden hiesse, ihn trotzdem
+    # ausgeliefert zu haben.
+    result = await library.apply_status(
+        settings,
+        media_type,
+        items,
+        mit_pfad=bool(user is not None and user.role == Role.admin),
+    )
     kennungen = [item.tmdb_id for item in result.items]
 
     own = requests_service.badges_for(db, MediaType(media_type), kennungen)

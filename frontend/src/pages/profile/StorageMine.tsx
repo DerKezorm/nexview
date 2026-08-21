@@ -1,46 +1,155 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { api, ApiError } from '../../api/client'
-import type { StorageEntry, StorageMine as StorageMineData } from '../../api/types'
+import type {
+  StorageEntry,
+  StorageHouse,
+  StorageMine as StorageMineData,
+} from '../../api/types'
+import { useAuth } from '../../auth/useAuth'
+import { Pagination } from '../../components/Pagination'
 import { Card, ErrorBanner, Spinner } from '../../components/ui'
 import { formatDateTime, formatSize } from '../../lib/format'
 
 /**
- * Was belege ich - das Groesste zuerst.
+ * Was belege ich – das Größte zuerst.
  *
  * Die Sortierung ist der eigentliche Zweck der Seite. Eine Liste nach Titel
- * oder Datum beantwortet die Frage nicht, die jemand hier stellt: "Wo steckt
+ * oder Datum beantwortet die Frage nicht, die jemand hier stellt: „Wo steckt
  * mein Platz?" Eine einzige Serie kann so viel wiegen wie zweihundert Filme.
+ *
+ * **Für Administratoren steht hier etwas anderes.** Ihr persönliches Konto ist
+ * per Definition null: Was sie holen, gehört dem Haus, und eine Grenze haben
+ * sie ohnehin nicht. Ihnen „du belegst nichts" zu zeigen wäre richtig und
+ * trotzdem wertlos – sie sehen deshalb den Hausbestand.
+ *
+ * Zwei getrennte Komponenten und keine Verzweigung in einer: Die Ansichten
+ * unterscheiden sich in Inhalt, Abfrage *und* Funktionsumfang – nur die
+ * Admin-Sicht hat Suche und Seiten.
  */
 export function StorageMine() {
+  const { user } = useAuth()
+  return user?.role === 'admin' ? <Hausbestand /> : <EigenerSpeicher />
+}
+
+function EigenerSpeicher() {
   const { t, i18n } = useTranslation()
+  const [suche, setSuche] = useState('')
+  const [seite, setSeite] = useState(1)
 
   const abfrage = useQuery({
-    queryKey: ['storage-mine'],
-    queryFn: () => api.get<StorageMineData>('/api/storage/me'),
+    // ⚠️ Der Schlüssel muss mit `useStorageStand` beginnen (`['storage-mine']`),
+    // damit ein Zuschlagen an das Haus beide Stellen erneuert.
+    queryKey: ['storage-mine', suche, seite],
+    queryFn: () =>
+      api.get<StorageMineData>(
+        '/api/storage/me?page=' + seite + '&q=' + encodeURIComponent(suche),
+      ),
+    placeholderData: (vorher?: StorageMineData) => vorher,
   })
 
-  // TanStack Query behaelt alte Daten, wenn ein Nachladen scheitert - ohne
+  // TanStack Query behält alte Daten, wenn ein Nachladen scheitert – ohne
   // failureReason bliebe ein Fehler unsichtbar.
   const fehler = abfrage.error ?? abfrage.failureReason
+  if (abfrage.isLoading) return <Laden />
+  if (fehler) return <Fehler fehler={fehler} />
 
-  if (abfrage.isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Spinner />
-      </div>
-    )
-  }
+  const daten = abfrage.data
+  if (!daten) return null
 
-  if (fehler) {
-    return (
-      <ErrorBanner
-        message={fehler instanceof ApiError ? fehler.message : t('errors.generic')}
-      />
-    )
-  }
+  const ueberzogen =
+    daten.limit_bytes !== null && daten.used_bytes >= daten.limit_bytes
+
+  return (
+    <div className="flex flex-col gap-5">
+      <Card className="flex flex-col gap-1 p-5">
+        <p className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+          {t('storage.usedLabel')}
+        </p>
+        <p
+          className={
+            'text-3xl font-semibold tabular-nums ' + (ueberzogen ? 'text-bad-500' : '')
+          }
+        >
+          {/* Ohne Grenze steht nur die Zahl – „91 GB von unbegrenzt" wäre eine
+              Formulierung ohne Aussage. */}
+          {daten.limit_bytes === null
+            ? formatSize(daten.used_bytes, i18n.language)
+            : t('storage.usedOfLimit', {
+                used: formatSize(daten.used_bytes, i18n.language),
+                limit: formatSize(daten.limit_bytes, i18n.language),
+              })}
+        </p>
+        <p className="text-sm text-mist-500">
+          {t('storage.itemCount', { count: daten.items })}
+        </p>
+        {daten.limit_bytes === null ? (
+          <p className="mt-2 text-sm text-mist-500">{t('storage.noLimitHint')}</p>
+        ) : (
+          ueberzogen && (
+            <p className="mt-2 text-sm text-bad-500">{t('storage.overHint')}</p>
+          )
+        )}
+      </Card>
+
+      {/* Die Suche erst, wenn es überhaupt etwas zu suchen gibt. Bei fünf
+          Titeln wäre ein Suchfeld nur ein Bedienelement ohne Anlass. */}
+      {daten.items > daten.per_page && (
+        <input
+          type="search"
+          value={suche}
+          onChange={(e) => {
+            setSuche(e.target.value)
+            setSeite(1)
+          }}
+          placeholder={t('storage.searchPlaceholder')}
+          className="w-full rounded-xl border border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none sm:max-w-md"
+        />
+      )}
+
+      {daten.items === 0 ? (
+        <Leer titel={t('storage.empty')} hinweis={t('storage.emptyHint')} />
+      ) : daten.entries.length === 0 ? (
+        <Leer titel={t('storage.noMatch')} hinweis={t('storage.noMatchHint')} />
+      ) : (
+        <Card className="flex flex-col gap-3 p-4">
+          <Kopf titel={t('storage.listTitle')} />
+          <Liste eintraege={daten.entries} />
+          {daten.matches > daten.per_page && (
+            <Pagination
+              seite={seite}
+              seiten={Math.ceil(daten.matches / daten.per_page)}
+              onSeite={setSeite}
+            />
+          )}
+        </Card>
+      )}
+    </div>
+  )
+}
+
+function Hausbestand() {
+  const { t, i18n } = useTranslation()
+  const [suche, setSuche] = useState('')
+  const [seite, setSeite] = useState(1)
+
+  const abfrage = useQuery({
+    queryKey: ['storage-house', suche, seite],
+    queryFn: () =>
+      api.get<StorageHouse>(
+        `/api/storage/house?page=${seite}&q=${encodeURIComponent(suche)}`,
+      ),
+    // Beim Blättern und Tippen die alte Seite stehen lassen – sonst blitzt bei
+    // jedem Buchstaben der Ladekreis auf.
+    placeholderData: (vorher?: StorageHouse) => vorher,
+  })
+
+  const fehler = abfrage.error ?? abfrage.failureReason
+  if (abfrage.isLoading) return <Laden />
+  if (fehler) return <Fehler fehler={fehler} />
 
   const daten = abfrage.data
   if (!daten) return null
@@ -49,47 +158,128 @@ export function StorageMine() {
     <div className="flex flex-col gap-5">
       <Card className="flex flex-col gap-1 p-5">
         <p className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-          {t('storage.usedLabel')}
+          {t('storage.houseLabel')}
         </p>
         <p className="text-3xl font-semibold tabular-nums">
           {formatSize(daten.used_bytes, i18n.language)}
         </p>
         <p className="text-sm text-mist-500">
           {t('storage.itemCount', { count: daten.items })}
+          {/* **Kein „von X TB".** Nexview kennt die Plattengröße nicht: Radarr
+              meldet nur den freien Platz, und was sonst noch auf demselben
+              Träger liegt, sieht es nicht. Eine Gesamtzahl wäre geraten.
+              Deshalb zwei gemessene Zahlen nebeneinander – und wenn mehrere
+              Träger im Spiel sind, steht auch das da. */}
+          {daten.free_bytes > 0 && (
+            <span className="ml-2">
+              ·{' '}
+              {t(
+                daten.free_volumes > 1 ? 'storage.freeSpaceVolumes' : 'storage.freeSpace',
+                {
+                  free: formatSize(daten.free_bytes, i18n.language),
+                  count: daten.free_volumes,
+                },
+              )}
+            </span>
+          )}
         </p>
-        <p className="mt-2 text-sm text-mist-500">{t('storage.measureOnlyHint')}</p>
+        <p className="mt-2 text-sm text-mist-500">{t('storage.adminHint')}</p>
       </Card>
 
+      <input
+        type="search"
+        value={suche}
+        onChange={(e) => {
+          setSuche(e.target.value)
+          // Nach einer neuen Suche wieder vorn anfangen – sonst steht man auf
+          // Seite 7 einer Liste, die nur noch drei Zeilen hat.
+          setSeite(1)
+        }}
+        placeholder={t('storage.searchPlaceholder')}
+        className="w-full rounded-xl border border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none sm:max-w-md"
+      />
+
       {daten.entries.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-ink-700 px-6 py-16 text-center">
-          <p className="text-mist-400">{t('storage.empty')}</p>
-          <p className="mt-1 text-sm text-mist-600">{t('storage.emptyHint')}</p>
-        </div>
+        <Leer
+          titel={t(suche ? 'storage.noMatch' : 'storage.houseEmpty')}
+          hinweis={t(suche ? 'storage.noMatchHint' : 'storage.houseEmptyHint')}
+        />
       ) : (
         <Card className="flex flex-col gap-3 p-4">
-          <div className="flex flex-wrap items-center gap-3 border-b border-ink-700 pb-3">
-            <h3 className="font-medium">{t('storage.listTitle')}</h3>
-            <span className="text-sm text-mist-600">{t('storage.listHint')}</span>
-          </div>
-          <ul className="flex flex-col">
-            {daten.entries.map((eintrag) => (
-              <PostenZeile key={eintrag.id} eintrag={eintrag} />
-            ))}
-          </ul>
+          <Kopf
+            titel={t('storage.houseListTitle')}
+            rechts={t('storage.houseCount', { count: daten.matches })}
+          />
+          <Liste eintraege={daten.entries} />
+          {daten.matches > daten.per_page && (
+            <Pagination
+              seite={seite}
+              seiten={Math.ceil(daten.matches / daten.per_page)}
+              onSeite={setSeite}
+            />
+          )}
         </Card>
       )}
     </div>
   )
 }
 
+function Laden() {
+  return (
+    <div className="flex justify-center py-12">
+      <Spinner />
+    </div>
+  )
+}
+
+function Fehler({ fehler }: { fehler: unknown }) {
+  const { t } = useTranslation()
+  return (
+    <ErrorBanner
+      message={fehler instanceof ApiError ? fehler.message : t('errors.generic')}
+    />
+  )
+}
+
+function Leer({ titel, hinweis }: { titel: string; hinweis: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-ink-700 px-6 py-16 text-center">
+      <p className="text-mist-400">{titel}</p>
+      <p className="mt-1 text-sm text-mist-600">{hinweis}</p>
+    </div>
+  )
+}
+
+function Kopf({ titel, rechts }: { titel: string; rechts?: string }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-b border-ink-700 pb-3">
+      <h3 className="font-medium">{titel}</h3>
+      <span className="text-sm text-mist-600">{t('storage.listHint')}</span>
+      {rechts && (
+        <span className="ml-auto text-sm tabular-nums text-mist-600">{rechts}</span>
+      )}
+    </div>
+  )
+}
+
+function Liste({ eintraege }: { eintraege: StorageEntry[] }) {
+  return (
+    <ul className="flex flex-col">
+      {eintraege.map((eintrag) => (
+        <PostenZeile key={eintrag.id} eintrag={eintrag} />
+      ))}
+    </ul>
+  )
+}
+
 function PostenZeile({ eintrag }: { eintrag: StorageEntry }) {
   const { t, i18n } = useTranslation()
 
-  // Ohne TMDB-Nummer gibt es keine Detailseite - das ist bei Serien der
-  // Normalfall, weil Sonarr nur TVDB-Nummern kennt.
-  const ziel = eintrag.tmdb_id
-    ? `/titel/${eintrag.media_type}/${eintrag.tmdb_id}`
-    : null
+  // Serien kommen aus Sonarr und tragen dort nur eine TVDB-Nummer. Die
+  // TMDB-Nummer wird beim Abgleich nachgeschlagen, wo sie bekannt ist – wo
+  // nicht, bleibt es bei reinem Text statt eines Links ins Leere.
+  const ziel = eintrag.tmdb_id ? `/titel/${eintrag.media_type}/${eintrag.tmdb_id}` : null
 
   const untertitel =
     eintrag.season !== null
@@ -106,11 +296,19 @@ function PostenZeile({ eintrag }: { eintrag: StorageEntry }) {
         ) : (
           <p className="line-clamp-1 font-medium">{eintrag.title}</p>
         )}
+        {/* Der Pfad kommt nur beim Hausbestand mit – der Endpunkt liefert ihn
+            ausschließlich an Administratoren. */}
+        {eintrag.path && (
+          <p className="mt-0.5 truncate font-mono text-[11px] text-mist-600">
+            {eintrag.path}
+          </p>
+        )}
         <p className="text-xs text-mist-600">
           {untertitel}
           {eintrag.tier === 'uhd' && <span className="ml-1.5 text-accent-500">4K</span>}
           <span className="ml-1.5">
-            · {t('storage.measuredAt', {
+            ·{' '}
+            {t('storage.measuredAt', {
               date: formatDateTime(eintrag.measured_at, i18n.language),
             })}
           </span>

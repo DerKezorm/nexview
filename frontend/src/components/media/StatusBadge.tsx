@@ -14,6 +14,9 @@ const TONES: Record<MediaStatus, string> = {
   failed: 'bg-bad-500/20 text-bad-500 ring-bad-500/40',
   cancelled: 'bg-ink-900/85 text-mist-500 ring-ink-600',
   deleted: 'bg-ink-900/85 text-mist-500 ring-ink-600',
+  // Warnfarbe statt Grau: Zurückgestellt ist kein erledigter Zustand,
+  // sondern einer, der auf eine Entscheidung wartet.
+  deferred: 'bg-ink-950/85 text-warn-500 ring-warn-500/40',
   // Deutlich, aber nicht alarmierend: gesperrt ist eine Entscheidung,
   // kein Fehler.
   blocked: 'bg-bad-500/20 text-bad-500 ring-bad-500/40',

@@ -48,9 +48,23 @@ class CalendarEntry(BaseModel):
     runtime_minutes: int | None = None
     certification: str | None = None
 
+    # Erscheinungsdatum des **Titels** - nicht zu verwechseln mit ``date``, dem
+    # Tag, an dem dieser Eintrag laeuft. Bei einer Serienfolge sind das zwei
+    # voellig verschiedene Jahre.
+    #
+    # Der Name ist mit Absicht derselbe wie bei ``MediaItem``: Der Abgleich
+    # gegen den Media-Server liest ihn ueber ``getattr(item, "release_date")``,
+    # und ohne ihn scheiterte dort **jede** Pruefung stillschweigend -
+    # ``_jahre_passen(None, ...)`` ist immer falsch. Der Kalender zeigte
+    # deshalb "nicht angefragt" an Titeln, die laengst im Media-Server lagen.
+    release_date: str | None = None
+
     # Dieselbe Sprache wie MediaItem.status - kein neuer Wert, sonst muessten
     # die geschlossene Typ-Union und die Farbtabelle im Frontend mitwachsen.
     status: str = "not_requested"
+    # Zustand in der 4K-Instanz. ``None`` heisst "diese Achse gibt es hier
+    # nicht" - genau wie bei ``MediaItem``.
+    status_uhd: str | None = None
     watched: bool = False
 
     # --- nur Serien ---

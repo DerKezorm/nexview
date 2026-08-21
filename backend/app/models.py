@@ -93,6 +93,21 @@ class RequestStatus(str, enum.Enum):
     # mehr zu finden. "downloaded" waere ab da eine falsche Behauptung, und der
     # Titel liesse sich nie wieder anfragen. Gesetzt vom Status-Abgleich.
     deleted = "deleted"
+    # Zurueckgestellt: "Ja im Prinzip, nur nicht jetzt."
+    #
+    # Entsteht, wenn ein Konto beim Freigeben schon ueberzogen ist und der
+    # Entscheider die Anfrage weder durchwinken noch ablehnen will.
+    #
+    # ⚠️ **Ausdruecklich kein aktiver Zustand.** Genau darin liegt der Sinn:
+    # Eine wartende Anfrage reserviert den Titel fuer alle anderen mit
+    # (``find_active``), und der Grund fuers Zurueckstellen liegt **an der
+    # Person**, nicht am Titel. Jemand anders darf ihn also holen - dann ist er
+    # da, und die zurueckgestellte Anfrage hat sich erledigt.
+    #
+    # Zaehlt aus demselben Grund weder gegen das Stueck-Kontingent
+    # (``quota.COUNTED_STATUSES``) noch bekommt sie einen Speicher-Posten
+    # zugerechnet (``storage.ZURECHENBAR``) - es liegt ja keine Datei.
+    deferred = "deferred"
 
 
 class QuotaPeriod(str, enum.Enum):
@@ -127,6 +142,20 @@ class NotificationType(str, enum.Enum):
     # anmelden. Ohne den Hinweis blieben Merkliste und Gesehen-Stand einfach
     # stehen, und niemand wuesste warum.
     mediaserver_reconnect = "mediaserver_reconnect"
+    # --- Speicher ----------------------------------------------------------
+    # Ein Administrator hat einen Titel in den Hausbestand uebernommen -
+    # geht an denjenigen, dessen Kontingent dadurch frei wird. Ohne den
+    # Hinweis saenke die Zahl grundlos, und niemand wuesste warum.
+    storage_released = "storage_released"
+    # Die eigene Anfrage wurde zurueckgestellt: nicht abgelehnt, nur vertagt.
+    # Ohne Hinweis wechselte sie stillschweigend den Zustand, und das sieht wie
+    # ein Fehler aus.
+    request_deferred = "request_deferred"
+    # Ein zurueckgestellter Titel ist jetzt da - jemand anders hat ihn geholt.
+    # Bewusst ein eigener Typ und nicht ``cancelled``: Der wuerde eine Mail
+    # "Deine Anfrage wurde abgelehnt" ausloesen, und das waere das Gegenteil
+    # der Wahrheit.
+    request_fulfilled = "request_fulfilled"
 
 
 class User(Base):
@@ -190,6 +219,19 @@ class User(Base):
     # Setzt der Admin das Kontingent zurueck, zaehlt ab diesem Zeitpunkt neu.
     # Die Anfragen selbst bleiben erhalten - nur der Verbrauch beginnt von vorn.
     quota_reset_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Speicher-Kontingent in GB.
+    #
+    # ⚠️ **NULL heisst hier "Vorgabe des Hauses", nicht "unbegrenzt".** Das
+    # weicht bewusst von den beiden Zeilen darueber ab, wo NULL = unbegrenzt
+    # bedeutet - und genau deshalb muss die Oberflaeche es beschriften.
+    # Unbegrenzt fuer einen einzelnen Nutzer ist die **0**.
+    #
+    # Der Grund fuer den Unterschied: Beim Speicher gibt es eine sinnvolle
+    # Hausvorgabe ("jeder darf 300 GB"), bei Stueckzahlen nicht. Ohne diese
+    # Bedeutung muesste der Admin die Zahl an jedem Konto einzeln eintragen -
+    # und wer sie vergisst, haette einen unbegrenzten Nutzer.
+    storage_limit_gb: Mapped[int | None] = mapped_column(Integer)
 
     # Erlaubte Qualitaetsprofile als Komma-Liste von Radarr-/Sonarr-Kennungen.
     # Leer bedeutet: keine Einschraenkung.
@@ -728,6 +770,13 @@ class StorageEntry(Base):
     # Radarr/Sonarr verschwindet und nur noch im Media-Server liegt.
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     size_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    # Wo es liegt. Bei Filmen samt Dateiname, bei Staffeln nur der Ordner der
+    # Serie - eine Staffel ist keine Datei, sondern zwanzig.
+    #
+    # ⚠️ **Wird nur an Administratoren ausgeliefert.** Ein gewoehnlicher
+    # Benutzer hat mit Serverpfaden nichts zu schaffen, und die Ordnerstruktur
+    # ist nichts, was er wissen muss.
+    path: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     measured_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     state: Mapped[StorageState] = mapped_column(
         enum_column(StorageState), default=StorageState.house, nullable=False

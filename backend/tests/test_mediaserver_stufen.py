@@ -328,3 +328,52 @@ def test_ohne_zweite_instanz_zaehlt_jede_kopie(arr_client) -> None:
                 _anfrage_stellen(db, settings, 606, "John Wick", 2014, QualityTier.standard)
             )
         assert fehler.value.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_dateigroessen_landen_in_der_tabelle(monkeypatch):
+    """Die gemessenen Groessen muessen den Abgleich auch ueberleben.
+
+    Sie wurden vom Media-Server geholt, richtig nach Stufe getrennt - und beim
+    Speichern verworfen, weil ``refresh`` die beiden Felder nicht mitschrieb.
+    Aufgefallen ist es erst an einer echten Bibliothek: 3692 Zeilen, alle mit
+    Groesse null.
+
+    Fuer die Speicher-Belegung ist das entscheidend: Ein Titel, den jemand nach
+    dem Laden aus Radarr entfernt hat, ist danach nur noch hier mit einer
+    Groesse zu finden. Ohne sie zaehlte er als 0 GB, obwohl er echten Platz
+    belegt.
+    """
+    from app.services import mediaserver_library
+    from app.services.mediaserver.base import LibraryItem
+
+    werke = [
+        LibraryItem(
+            has_standard=True,
+            has_uhd=False,
+            media_type="movie",
+            guid="plex://film/603",
+            title="Matrix",
+            tmdb_id=603,
+            year=1999,
+            size_standard=9_000_000_000,
+            size_uhd=0,
+        ),
+        # Derselbe Film aus der 4K-Bibliothek: gleiche GUID, andere Groesse.
+        LibraryItem(
+            has_standard=False,
+            has_uhd=True,
+            media_type="movie",
+            guid="plex://film/603",
+            title="Matrix",
+            tmdb_id=603,
+            year=1999,
+            size_standard=0,
+            size_uhd=51_000_000_000,
+        ),
+    ]
+
+    eindeutig = mediaserver_library._zusammengefasst(werke)
+    assert len(eindeutig) == 1
+    assert eindeutig[0].size_standard == 9_000_000_000
+    assert eindeutig[0].size_uhd == 51_000_000_000

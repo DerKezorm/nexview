@@ -53,6 +53,11 @@ def _zusammengefasst(werke: list[LibraryItem]) -> list[LibraryItem]:
             vorhanden,
             has_standard=vorhanden.has_standard or werk.has_standard,
             has_uhd=vorhanden.has_uhd or werk.has_uhd,
+            # Die Groessen ebenso: Der Eintrag aus der 1080p-Bibliothek traegt
+            # ``size_standard``, der aus der 4K-Bibliothek ``size_uhd`` - beim
+            # Zusammenfassen kommen beide an einer Zeile zusammen.
+            size_standard=max(vorhanden.size_standard, werk.size_standard),
+            size_uhd=max(vorhanden.size_uhd, werk.size_uhd),
             owner_watched=vorhanden.owner_watched or werk.owner_watched,
             # Fehlende Kennungen aus dem zweiten Eintrag uebernehmen: Welche
             # Plex liefert, haengt am Agenten der jeweiligen Bibliothek.
@@ -110,6 +115,14 @@ async def refresh(db: Session, settings: AppSettings, streng: bool = False) -> i
                 owner_watched=werk.owner_watched,
                 has_standard=werk.has_standard,
                 has_uhd=werk.has_uhd,
+                # ⚠️ Ohne diese beiden Zeilen bleibt jede Groesse auf null -
+                # der Media-Server liefert sie, ``_dateigroessen`` rechnet sie
+                # aus, und hier gingen sie verloren. Fuer die Speicher-Belegung
+                # ist das der Unterschied zwischen "gemessen" und "unbekannt":
+                # Ein Titel, den jemand nach dem Laden aus Radarr entfernt hat,
+                # ist danach **nur** hier noch mit einer Groesse zu finden.
+                size_standard=werk.size_standard,
+                size_uhd=werk.size_uhd,
                 tmdb_id=werk.tmdb_id,
                 tvdb_id=werk.tvdb_id,
                 imdb_id=werk.imdb_id,
@@ -264,3 +277,60 @@ def vorhandene_kennungen(
         elif jahr and item.title and (normalize_title(item.title), jahr) in nach_titel:
             treffer.add(item.tmdb_id)
     return treffer
+
+
+def echte_uhd_kennungen(
+    db: Session,
+    media_type: MediaType,
+    items: list,
+    *,
+    in_standard_instanz: set[int],
+) -> set[int]:
+    """4K-Meldungen des Media-Servers, die wirklich eine **eigene** Fassung sind.
+
+    **Ein 4K-Film in der Standard-Instanz ist keine zweite Fassung.** Der
+    Media-Server misst die Aufloesung der *Datei*, nicht die Instanz, die sie
+    verwaltet. Wer ein 2160p-Remux in das normale Radarr laedt - ein voellig
+    gewoehnlicher Fall, sobald ein Qualitaetsprofil 4K zulaesst - hat damit
+    **eine** Datei, und Plex meldet sie als 4K.
+
+    Ohne diese Unterscheidung stand ein solcher Titel als "in 4K vorhanden" da,
+    obwohl die 4K-Instanz leer war; er liess sich dort nicht mehr anfragen, und
+    die Anfrage wurde zusaetzlich serverseitig abgewiesen. Nachgemessen an einer
+    echten Bibliothek betraf das **33 von 33** Filmen, bei denen der Rueckfall
+    ansprang - kein einziger war der Fall, fuer den er gebaut wurde.
+
+    Als eigene Fassung zaehlt eine 4K-Datei deshalb nur, wenn
+
+    * der Media-Server **daneben** noch eine Standard-Datei fuehrt - dann sind
+      es wirklich zwei -, oder
+    * die Standard-Instanz den Titel gar nicht hat. Dann ist der Media-Server
+      der einzige Zeuge, und genau dafuer ist der Rueckfall da.
+
+    ``in_standard_instanz`` sind die TMDB-Kennungen, die Radarr/Sonarr in der
+    **Standard**-Instanz mit Datei fuehren. Bewusst ein Parameter und keine
+    eigene Abfrage: Dieses Modul kennt den Media-Server, nicht die *arr-Dienste,
+    und die Aufrufer haben die Antwort ohnehin schon vorliegen.
+
+    Ist die Standard-Instanz nicht eingetragen oder nicht erreichbar, ist die
+    Menge leer und das Ergebnis damit **grosszuegig**: Ohne Antwort laesst sich
+    nicht belegen, dass die Datei dort verwaltet wird, und ein Ausfall soll
+    keinen Titel aus dem Bestand nehmen.
+
+    ⚠️ Diese Regel gehoert an **jede** Stelle, die den 4K-Rueckfall benutzt -
+    Abzeichen und Sperre duerfen nicht auseinanderlaufen. Genau daran ist es
+    aufgefallen: Das Abzeichen sagte "noch nicht angefragt", die Anfrage wurde
+    trotzdem mit "liegt bereits auf dem Media-Server" abgewiesen.
+    """
+    treffer = vorhandene_kennungen(db, media_type, items, tier="uhd")
+    if not treffer:
+        return treffer
+
+    betroffen = [eintrag for eintrag in items if eintrag.tmdb_id in treffer]
+    auch_standard = vorhandene_kennungen(db, media_type, betroffen, tier="standard")
+
+    return {
+        tmdb_id
+        for tmdb_id in treffer
+        if tmdb_id in auch_standard or tmdb_id not in in_standard_instanz
+    }

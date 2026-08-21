@@ -36,6 +36,9 @@ class LibraryEntry:
     # Letzter bekannter Titel, damit ein Posten anzeigbar bleibt, wenn die
     # Serie spaeter aus Sonarr verschwindet.
     title: str = ""
+    # Der **Ordner** der Serie - kein Dateiname. Eine Staffel ist keine Datei,
+    # sondern zwanzig; echte Dateinamen braeuchten eine Abfrage je Serie.
+    path: str = ""
 
 
 def normalize_title(title: str) -> str:
@@ -120,6 +123,7 @@ class SonarrClient(ArrClient):
                 size_bytes=_zahl(statistics.get("sizeOnDisk")),
                 seasons=_staffel_groessen(show),
                 title=str(show.get("title") or ""),
+                path=str(show.get("path") or "").rstrip("/"),
             )
 
             tvdb_id = show.get("tvdbId")

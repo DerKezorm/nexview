@@ -389,7 +389,15 @@
     "emptyFeedback": "There is no unanswered feedback.",
     "alsoBlock": "Add title to the blocklist",
     "alsoBlockHint": "Nobody can request it afterwards. It stays visible, but carries a “Blocked” badge. You can undo this any time under Settings → Blocklist.",
-    "confirmApprove": "Approve and send"
+    "confirmApprove": "Approve and send",
+    "storageWarnTitle": "This account is already full",
+    "storageWarnText_one": "{{name}} uses {{used}} against a limit of {{limit}} – that is {{over}} over. Approving this takes up more space.",
+    "storageWarnText_other": "{{name}} uses {{used}} against a limit of {{limit}} – that is {{over}} over. Approving these {{count}} takes up more space.",
+    "storageWarnHint": "Putting it on hold is usually right: the request stays visible for both of you, nobody has to ask twice – and the title is still free for others.",
+    "storageWarnApprove": "Approve anyway",
+    "storageWarnReject": "Reject",
+    "storageRejectReason": "Storage quota exceeded.",
+    "storageWarnDefer": "Put on hold"
   },
   "requests": {
     "cancel": "Cancel",
@@ -473,7 +481,7 @@
     "mailTicket": "Tickets",
     "mailTicketHint": "Replies to your tickets — as an administrator also every new request.",
     "tabWatchlist": "Manage watchlist",
-    "tabStorage": "Storage"
+    "tabStorage": "Storage quota"
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -564,7 +572,11 @@
     "groupUsers": "Users",
     "autoApproveTargetLaterFolder": "the approver picks the root folder – no effect",
     "autoApproveTargetLaterProfile": "the approver picks the quality profile – no effect",
-    "autoApproveTargetLaterBoth": "the approver picks root folder and quality profile – no effect"
+    "autoApproveTargetLaterBoth": "the approver picks root folder and quality profile – no effect",
+    "storageLimit": "Storage limit",
+    "storageDefault": "Default limit",
+    "storageLimitHint": "Empty = the default limit applies. 0 = unlimited for this account.",
+    "storageInvalid": "The storage limit must be a whole number from 0 upwards."
   },
   "notifications": {
     "title": "Notifications",
@@ -583,7 +595,10 @@
     "ticketReply": "New reply on a ticket",
     "ticketStatus": "Ticket status changed",
     "userImported": "New account via the media server",
-    "mediaserverReconnect": "Your Plex connection needs to be renewed"
+    "mediaserverReconnect": "Your Plex connection needs to be renewed",
+    "storageReleased": "A title now counts as house stock",
+    "deferred": "Your request has been put on hold",
+    "requestFulfilled": "A title you were waiting for has arrived"
   },
   "mediaserver": {
     "loginWithPlex": "Sign in with Plex",
@@ -644,7 +659,8 @@
     "cancelled": "Cancelled",
     "blocked": "Blocked",
     "watched": "Watched",
-    "deleted": "Deleted again"
+    "deleted": "Deleted again",
+    "deferred": "On hold"
   },
   "settings": {
     "title": "Settings",
@@ -858,7 +874,8 @@
     "knownFor": "Known for",
     "showMore": "Show more",
     "showLess": "Show less",
-    "trailer": "Trailer"
+    "trailer": "Trailer",
+    "path": "Location on disk"
   },
   "browse": {
     "byKeyword": "Keyword",
@@ -948,7 +965,8 @@
     "canRequestSeries": "May request 4K shows",
     "autoApprove": "4K without approval",
     "blockedProfiles": "Blocked 4K profiles",
-    "notConfigured": "No second instance is set up for 4K yet."
+    "notConfigured": "No second instance is set up for 4K yet.",
+    "alreadyStandardUhd": "The standard instance already holds this title as a 4K file. A 4K request will add a second one."
   },
   "watchlist": {
     "title": "Plex watchlist",
@@ -1179,7 +1197,27 @@
     "others_one": "1 more",
     "others_other": "{{count}} more",
     "pieTitle": "How the occupied space is split between users",
-    "pieCenter": "assigned"
+    "pieCenter": "assigned",
+    "usedOfLimit": "{{used}} of {{limit}}",
+    "noLimitHint": "No limit applies to you.",
+    "overHint": "You are over your limit. Until you free up space you cannot request anything new.",
+    "showDetail": "See individual titles",
+    "adminHint": "As an administrator you occupy nothing personally — whatever you fetch belongs to the house. This shows what the house holds.",
+    "houseListTitle": "What the house holds",
+    "houseEmpty": "The house holds nothing yet.",
+    "houseEmptyHint": "Titles appear here once the first sync has run.",
+    "searchPlaceholder": "Search title or path …",
+    "houseCount_one": "{{count}} title in the house",
+    "houseCount_other": "{{count}} titles in the house",
+    "noMatch": "Nothing found.",
+    "noMatchHint": "Try a different spelling – title and path are both searched.",
+    "freeSpace": "{{free}} free",
+    "freeSpaceVolumes": "{{free}} free across {{count}} volumes",
+    "toHouse": "To house",
+    "userEmpty": "This account uses no space.",
+    "toHouseYes": "Yes, to house",
+    "toHouseTitle": "Move to house stock?",
+    "toHouseText": "“{{title}}” will no longer count against anyone's account. The file stays where it is – nothing is deleted."
   },
   "storageAdmin": {
     "title": "Storage quotas",
@@ -1194,7 +1232,14 @@
     "stateTitle": "Current state",
     "assigned": "Assigned",
     "people_one": "1 person",
-    "people_other": "{{count}} people"
+    "people_other": "{{count}} people",
+    "switchWarning": "From then on the space occupied is what counts. Limits by number no longer apply — only ever one of the two does.",
+    "defaultLimit": "Default limit",
+    "defaultLimitHint": "Applies to everybody without a number of their own. Empty means nobody is limited. Individual accounts are set under Users.",
+    "unlimited": "unlimited",
+    "usersTitle": "Usage by account",
+    "usersHint": "Click an account to see its individual titles.",
+    "usersEmpty": "Everything is house stock so far – nothing assigned to a person."
   },
   "watchlistExpired": {
     "text": "Your Plex access has expired. Until you sign in again, your watchlist and watched state stay as they are.",

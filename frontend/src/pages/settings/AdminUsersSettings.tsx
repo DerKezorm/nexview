@@ -53,6 +53,9 @@ export function AdminUsersSettings() {
   const { user: me } = useAuth();
   const { data: config } = useConfig();
   const minPassword = config?.min_password_length ?? 4;
+  // Zählt der belegte Platz? Dann stehen hier keine Stückzahlen – es gilt
+  // immer nur eine Währung, und zwei Felder wären zwei Wahrheiten.
+  const speicherGilt = Boolean(config?.storage_enabled);
   /**
    * Einladen geht nur mit beidem: ohne öffentliche Adresse zeigt der Link ins
    * Leere, ohne Mailserver kommt er nicht an. Das Backend weist es ebenfalls
@@ -68,6 +71,9 @@ export function AdminUsersSettings() {
   const [quotaDrafts, setQuotaDrafts] = useState<Record<number, QuotaDraft>>(
     {},
   );
+  // Als Text: „leer" heißt hier **Standardgrenze**, nicht unbegrenzt –
+  // dasselbe Problem wie bei den Stückzahlen, dieselbe Lösung.
+  const [speicherDrafts, setSpeicherDrafts] = useState<Record<number, string>>({});
   const [ageDrafts, setAgeDrafts] = useState<Record<number, string>>({});
   /** Welcher Benutzer ist gerade aufgeklappt? Nur einer zur Zeit. */
   const [editing, setEditing] = useState<number | null>(null);
@@ -369,6 +375,33 @@ export function AdminUsersSettings() {
     return zahl;
   }
 
+  /**
+   * Speichergrenze als Text.
+   *
+   * Leer bedeutet hier **„es gilt die Standardgrenze"**, nicht unbegrenzt –
+   * anders als bei den Stückzahlen daneben. Unbegrenzt für dieses eine Konto
+   * ist die 0. Deshalb steht die Bedeutung auch als Hinweis unter dem Feld.
+   */
+  function speicherWert(user: User): string {
+    const draft = speicherDrafts[user.id];
+    if (draft !== undefined) return draft;
+    const wert = feld(user, "storage_limit_gb");
+    return wert === null ? "" : String(wert);
+  }
+
+  function setSpeicherDraft(user: User, value: string) {
+    resetMessages();
+    setSpeicherDrafts((prev) => ({ ...prev, [user.id]: value }));
+  }
+
+  /** `undefined` = ungültig, `-1` = zurück auf die Standardgrenze. */
+  function parseSpeicher(raw: string): number | undefined {
+    if (raw.trim() === "") return -1;
+    const zahl = Number(raw);
+    if (!Number.isInteger(zahl) || zahl < 0) return undefined;
+    return zahl;
+  }
+
   /** Alterseingabe - eigener Textzustand, damit Tippen nicht springt. */
   function ageValue(user: User): string {
     const draft = ageDrafts[user.id];
@@ -412,6 +445,12 @@ export function AdminUsersSettings() {
     ) {
       return true;
     }
+    const speicher = speicherDrafts[user.id];
+    if (speicher !== undefined) {
+      const gesetzt = parseSpeicher(speicher);
+      const bisher = feld(user, "storage_limit_gb") ?? -1;
+      if (gesetzt !== bisher) return true;
+    }
     const alter = ageDrafts[user.id];
     return alter !== undefined && parseAge(alter) !== feld(user, "age");
   }
@@ -438,6 +477,18 @@ export function AdminUsersSettings() {
       patch.quota_series_limit = series;
     }
 
+    const speicher = speicherDrafts[user.id];
+    if (speicher !== undefined) {
+      const zahl = parseSpeicher(speicher);
+      if (zahl === undefined) {
+        setError(t("adminUsers.storageInvalid"));
+        return;
+      }
+      // -1 heißt „zurück auf die Standardgrenze" - null wäre für das Backend
+      // nur „nicht mitgeschickt" und änderte gar nichts.
+      patch.storage_limit_gb = zahl;
+    }
+
     const alter = ageDrafts[user.id];
     if (alter !== undefined && feld(user, "age") !== null) {
       const zahl = parseAge(alter);
@@ -458,6 +509,7 @@ export function AdminUsersSettings() {
           setDrafts(({ [user.id]: _weg, ...rest }) => rest);
           setQuotaDrafts(({ [user.id]: _auch, ...rest }) => rest);
           setAgeDrafts(({ [user.id]: _ebenso, ...rest }) => rest);
+          setSpeicherDrafts(({ [user.id]: _dito, ...rest }) => rest);
         },
       },
     );
@@ -468,6 +520,7 @@ export function AdminUsersSettings() {
     setDrafts(({ [user.id]: _weg, ...rest }) => rest);
     setQuotaDrafts(({ [user.id]: _auch, ...rest }) => rest);
     setAgeDrafts(({ [user.id]: _ebenso, ...rest }) => rest);
+    setSpeicherDrafts(({ [user.id]: _dito, ...rest }) => rest);
   }
 
   function summary(user: User): string {
@@ -959,9 +1012,45 @@ export function AdminUsersSettings() {
                           </div>
                         )}
 
+                        {/* Zählt der belegte Platz, wären Stückzahl-Felder daneben
+                    Eingaben ohne Wirkung. Es gilt immer nur eine Währung –
+                    also steht auch nur eine hier. */}
+                        {speicherGilt && (
+                          <div className="flex flex-col gap-1.5 sm:col-span-2">
+                            <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+                              {t("adminUsers.storageLimit")}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={0}
+                                value={
+                                  feld(user, "role") === "admin"
+                                    ? ""
+                                    : (speicherWert(user) ?? "")
+                                }
+                                disabled={feld(user, "role") === "admin"}
+                                placeholder={t("adminUsers.storageDefault")}
+                                aria-label={t("adminUsers.storageLimit")}
+                                onChange={(event) =>
+                                  setSpeicherDraft(user, event.target.value)
+                                }
+                                className="w-32 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none disabled:opacity-50"
+                              />
+                              <span className="text-sm text-mist-500">GB</span>
+                            </div>
+                            <span className="text-xs text-mist-600">
+                              {feld(user, "role") === "admin"
+                                ? t("adminUsers.quotaAdmin")
+                                : t("adminUsers.storageLimitHint")}
+                            </span>
+                          </div>
+                        )}
+
                         {/* "Unbegrenzt" steht als eigener Haken da. Vorher war es das
                     leere Feld - man sah nie, wie man wieder dorthin kommt. */}
-                        {(["movies", "series"] as const).map((kind) => {
+                        {!speicherGilt &&
+                          (["movies", "series"] as const).map((kind) => {
                           const unbegrenzt = quotaValue(user, kind) === "";
                           // Admins haben immer unbegrenzt - genau wie bei Sperrliste,
                           // Freigabe und 4K. Sie setzen die Grenzen und könnten die
@@ -1018,6 +1107,7 @@ export function AdminUsersSettings() {
                           );
                         })}
 
+                        {!speicherGilt && (
                         <label className="flex flex-col gap-1.5">
                           <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
                             {t("adminUsers.quotaPeriod")}
@@ -1041,6 +1131,7 @@ export function AdminUsersSettings() {
                             ))}
                           </select>
                         </label>
+                        )}
 
                         {/* Verbrauch im laufenden Zeitraum - und der Weg, ihn wieder
                     freizugeben, ohne die Anfragen zu löschen. */}

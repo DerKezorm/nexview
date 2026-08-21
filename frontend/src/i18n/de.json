@@ -389,7 +389,15 @@
     "emptyFeedback": "Es liegen keine unbeantworteten Rückmeldungen vor.",
     "alsoBlock": "Titel auf die Sperrliste setzen",
     "alsoBlockHint": "Niemand kann ihn dann mehr anfragen. Sichtbar bleibt er, aber mit dem Abzeichen „Gesperrt“. Zurücknehmen kannst du das jederzeit unter Einstellungen → Sperrliste.",
-    "confirmApprove": "Freigeben und übergeben"
+    "confirmApprove": "Freigeben und übergeben",
+    "storageWarnTitle": "Das Konto ist schon voll",
+    "storageWarnText_one": "{{name}} belegt {{used}} bei einer Grenze von {{limit}} – also {{over}} darüber. Diese Freigabe belegt zusätzlichen Platz.",
+    "storageWarnText_other": "{{name}} belegt {{used}} bei einer Grenze von {{limit}} – also {{over}} darüber. Diese {{count}} Freigaben belegen zusätzlichen Platz.",
+    "storageWarnHint": "Zurückstellen ist meist das Richtige: Die Anfrage bleibt für beide sichtbar, niemand muss neu fragen – und der Titel ist trotzdem für andere frei.",
+    "storageWarnApprove": "Trotzdem freigeben",
+    "storageWarnReject": "Ablehnen",
+    "storageRejectReason": "Speicher-Kontingent überschritten.",
+    "storageWarnDefer": "Zurückstellen"
   },
   "requests": {
     "cancel": "Abbrechen",
@@ -473,7 +481,7 @@
     "mailTicket": "Tickets",
     "mailTicketHint": "Antworten auf deine Tickets — als Administrator zusätzlich jedes neue Anliegen.",
     "tabWatchlist": "Merkliste verwalten",
-    "tabStorage": "Speicher"
+    "tabStorage": "Speicherkontingent"
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -564,7 +572,11 @@
     "groupUsers": "Benutzer",
     "autoApproveTargetLaterFolder": "Zielordner wählt der Entscheider – wirkungslos",
     "autoApproveTargetLaterProfile": "Qualitätsprofil wählt der Entscheider – wirkungslos",
-    "autoApproveTargetLaterBoth": "Zielordner und Qualitätsprofil wählt der Entscheider – wirkungslos"
+    "autoApproveTargetLaterBoth": "Zielordner und Qualitätsprofil wählt der Entscheider – wirkungslos",
+    "storageLimit": "Speichergrenze",
+    "storageDefault": "Standardgrenze",
+    "storageLimitHint": "Leer = es gilt die Standardgrenze. 0 = für dieses Konto unbegrenzt.",
+    "storageInvalid": "Die Speichergrenze muss eine ganze Zahl ab 0 sein."
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -583,7 +595,10 @@
     "ticketReply": "Neue Antwort auf ein Ticket",
     "ticketStatus": "Zustand eines Tickets geändert",
     "userImported": "Neues Konto über den Media-Server",
-    "mediaserverReconnect": "Deine Plex-Verbindung muss erneuert werden"
+    "mediaserverReconnect": "Deine Plex-Verbindung muss erneuert werden",
+    "storageReleased": "Ein Titel zählt jetzt zum Hausbestand",
+    "deferred": "Deine Anfrage wurde zurückgestellt",
+    "requestFulfilled": "Ein zurückgestellter Titel ist jetzt da"
   },
   "mediaserver": {
     "loginWithPlex": "Mit Plex anmelden",
@@ -644,7 +659,8 @@
     "cancelled": "Abgebrochen",
     "blocked": "Gesperrt",
     "watched": "Gesehen",
-    "deleted": "Wieder gelöscht"
+    "deleted": "Wieder gelöscht",
+    "deferred": "Zurückgestellt"
   },
   "settings": {
     "title": "Einstellungen",
@@ -858,7 +874,8 @@
     "knownFor": "Bekannt für",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
-    "trailer": "Trailer"
+    "trailer": "Trailer",
+    "path": "Ablageort"
   },
   "browse": {
     "byKeyword": "Schlagwort",
@@ -948,7 +965,8 @@
     "canRequestSeries": "Darf 4K-Serien anfragen",
     "autoApprove": "4K ohne Freigabe",
     "blockedProfiles": "Gesperrte 4K-Profile",
-    "notConfigured": "Für 4K ist noch keine zweite Instanz eingerichtet."
+    "notConfigured": "Für 4K ist noch keine zweite Instanz eingerichtet.",
+    "alreadyStandardUhd": "In der Standard-Instanz liegt dieser Titel bereits als 4K-Datei. Eine 4K-Anfrage legt eine zweite an."
   },
   "watchlist": {
     "title": "Plex-Merkliste",
@@ -1179,7 +1197,27 @@
     "others_one": "1 weiterer",
     "others_other": "{{count}} weitere",
     "pieTitle": "Verteilung des belegten Platzes auf die Nutzer",
-    "pieCenter": "zugeordnet"
+    "pieCenter": "zugeordnet",
+    "usedOfLimit": "{{used}} von {{limit}}",
+    "noLimitHint": "Für dich gilt keine Grenze.",
+    "overHint": "Du liegst über deiner Grenze. Bis du Platz schaffst, kannst du nichts Neues anfragen.",
+    "showDetail": "Einzelne Titel ansehen",
+    "adminHint": "Als Administrator belegst du nichts persönlich — was du holst, gehört dem Haus. Hier steht deshalb, was das Haus hält.",
+    "houseListTitle": "Was das Haus hält",
+    "houseEmpty": "Das Haus hält noch nichts.",
+    "houseEmptyHint": "Sobald der erste Abgleich durch ist, erscheinen die Titel hier.",
+    "searchPlaceholder": "Titel oder Pfad suchen …",
+    "houseCount_one": "{{count}} Titel im Haus",
+    "houseCount_other": "{{count}} Titel im Haus",
+    "noMatch": "Nichts gefunden.",
+    "noMatchHint": "Andere Schreibweise probieren – gesucht wird in Titel und Pfad.",
+    "freeSpace": "{{free}} frei",
+    "freeSpaceVolumes": "{{free}} frei auf {{count}} Datenträgern",
+    "toHouse": "Ins Haus",
+    "userEmpty": "Dieses Konto belegt nichts.",
+    "toHouseYes": "Ja, ins Haus",
+    "toHouseTitle": "In den Hausbestand übernehmen?",
+    "toHouseText": "„{{title}}“ zählt danach auf niemandes Konto mehr. Die Datei bleibt liegen – gelöscht wird nichts."
   },
   "storageAdmin": {
     "title": "Speicher-Kontingente",
@@ -1194,7 +1232,14 @@
     "stateTitle": "Aktueller Stand",
     "assigned": "Zugeordnet",
     "people_one": "1 Person",
-    "people_other": "{{count}} Personen"
+    "people_other": "{{count}} Personen",
+    "switchWarning": "Ab dann zählt der belegte Platz. Grenzen nach Anzahl gelten dann nicht mehr — es gilt immer nur eine der beiden.",
+    "defaultLimit": "Standardgrenze",
+    "defaultLimitHint": "Gilt für jeden, der keine eigene Zahl hat. Leer heißt: niemand ist begrenzt. Einzelne Konten stellst du in der Nutzerverwaltung ein.",
+    "unlimited": "unbegrenzt",
+    "usersTitle": "Belegung nach Konto",
+    "usersHint": "Anklicken, um die einzelnen Titel zu sehen.",
+    "usersEmpty": "Noch ist alles Hausbestand – niemandem persönlich zugeordnet."
   },
   "watchlistExpired": {
     "text": "Dein Plex-Zugang ist abgelaufen. Bis du dich neu anmeldest, bleiben deine Merkliste und der Gesehen-Stand stehen.",

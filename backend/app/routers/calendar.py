@@ -16,6 +16,7 @@ from ..models import MediaType
 from ..schemas_calendar import CalendarEntry, CalendarResult
 from ..services import blocklist, calendar as calendar_service
 from ..services import library, mediaserver_library, mediaserver_watched, requests_service
+from ..services import uhd
 from ..services.settings_service import for_user, load_settings
 
 router = APIRouter(prefix="/api", tags=["calendar"])
@@ -105,6 +106,15 @@ async def _zustaende(db, settings, user, eintraege: list[CalendarEntry]) -> None
                 eintrag.missing = False
             if eintrag.tmdb_id in gesehen:
                 eintrag.watched = True
+
+        # Zweite Achse zuletzt - sie ergaenzt nur, sie ersetzt nichts. Genau
+        # wie in allen anderen Listen; dass sie hier gefehlt hat, war eine
+        # Luecke und keine Entscheidung: Der Kalender zeigte als einzige Liste
+        # kein 4K-Abzeichen.
+        try:
+            await uhd.anreichern(db, settings, art.value, betroffen, user)
+        except Exception:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung
+            pass
 
 
 @router.get("/calendar", response_model=CalendarResult)

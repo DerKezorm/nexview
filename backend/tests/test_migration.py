@@ -489,3 +489,23 @@ def test_update_ergaenzt_den_abgelaufen_zeitpunkt(alte_installation: Path) -> No
         spalten = db_modul._existing_columns(connection, "users")
 
     assert "watchlist_token_invalid_at" in spalten
+
+
+def test_update_ergaenzt_die_speicher_grenze(alte_installation: Path) -> None:
+    """Die Grenze je Konto kommt beim Update mit - und bleibt leer.
+
+    Leer heisst hier **"Vorgabe des Hauses"**, nicht "unbegrenzt" wie bei den
+    Stueckzahl-Spalten daneben. Bestandskonten sollen die Hausvorgabe
+    bekommen, sobald der Betreiber eine setzt - nicht stillschweigend
+    unbegrenzt bleiben.
+    """
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        spalten = db_modul._existing_columns(connection, "users")
+        werte = connection.exec_driver_sql(
+            "SELECT storage_limit_gb FROM users"
+        ).fetchall()
+
+    assert "storage_limit_gb" in spalten
+    assert all(zeile[0] is None for zeile in werte)

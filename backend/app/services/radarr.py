@@ -21,6 +21,9 @@ class LibraryEntry:
     # Fuer die Anzeige eines Postens, auch wenn der Film spaeter aus Radarr
     # verschwindet - dann steht hier der letzte bekannte Titel.
     title: str = ""
+    # Wo die Datei liegt, samt Dateiname. Nur fuer den Administrator gedacht -
+    # ein gewoehnlicher Benutzer hat mit Serverpfaden nichts zu schaffen.
+    path: str = ""
 
 
 def _groesse(movie: dict[str, Any]) -> int:
@@ -40,6 +43,20 @@ def _groesse(movie: dict[str, Any]) -> int:
     datei = movie.get("movieFile") or {}
     groesse = datei.get("size")
     return int(groesse) if isinstance(groesse, (int, float)) and groesse > 0 else 0
+
+
+def _pfad(movie: dict[str, Any]) -> str:
+    """Voller Pfad der Datei - Ordner des Films plus Dateiname.
+
+    Beides steht in derselben Antwort, die ``library()`` ohnehin holt; eine
+    zusaetzliche Abfrage waere dafuer nicht noetig. Fehlt die Datei, bleibt es
+    beim Ordner - der sagt immer noch, wohin der Film gehoert.
+    """
+    ordner = str(movie.get("path") or "").rstrip("/")
+    datei = str((movie.get("movieFile") or {}).get("relativePath") or "")
+    if ordner and datei:
+        return f"{ordner}/{datei}"
+    return ordner or datei
 
 
 class RadarrClient(ArrClient):
@@ -64,6 +81,7 @@ class RadarrClient(ArrClient):
                 monitored=bool(movie.get("monitored")),
                 size_bytes=_groesse(movie),
                 title=str(movie.get("title") or ""),
+                path=_pfad(movie),
             )
         return result
 

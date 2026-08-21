@@ -88,6 +88,8 @@ class SettingsUpdate(BaseModel):
     # --- Merkliste ----------------------------------------------------------
     watchlist_enabled: bool | None = None
     storage_enabled: bool | None = None
+    # -1 setzt auf "unbegrenzt" zurueck; siehe UserUpdate.
+    storage_default_limit_gb: int | None = Field(default=None, ge=-1)
 
     @field_validator("mediaserver_default_role")
     @classmethod

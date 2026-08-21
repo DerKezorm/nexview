@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import BaseModel
 
 from ..deps import CurrentUser, DbSession
-from ..models import MediaType
+from ..models import MediaType, Role
 from ..schemas_media import (
     MediaDetail,
     MediaItem,
@@ -56,9 +56,21 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
     if not eintraege:
         return
     try:
-        abgeglichen = await library.apply_status(settings, media_type, list(eintraege))
+        # Der Ablageort geht **nur** an Administratoren - hier entschieden
+        # und nicht in der Oberflaeche: Ausblenden hiesse, ihn trotzdem
+        # ausgeliefert zu haben.
+        fuer_admin = bool(user is not None and user.role == Role.admin)
+        abgeglichen = await library.apply_status(
+            settings, media_type, list(eintraege), mit_pfad=fuer_admin
+        )
         for ziel, quelle in zip(eintraege, abgeglichen.items, strict=True):
             ziel.status = quelle.status
+            # Nur setzen, wo das Ziel das Feld ueberhaupt kennt: Durch diese
+            # Funktion laufen auch Filmografie-Eintraege, und Pydantic laesst
+            # kein undeklariertes Feld zu - genau daran ist die Personenseite
+            # schon einmal mit 500 gescheitert.
+            if fuer_admin and quelle.path and hasattr(ziel, "path"):
+                ziel.path = quelle.path
     except Exception:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung
         pass
 

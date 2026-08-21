@@ -448,6 +448,37 @@ export function TitlePage() {
           )}
           {item.status_text && <Fact label={t('detail.status')} value={item.status_text} />}
 
+          {/* Der Ablageort. Kommt nur bei Administratoren mit – der Server
+              liefert ihn sonst gar nicht erst aus. Über die volle Breite und
+              in Schreibmaschinenschrift, weil ein Pfad lang ist und man ihn
+              zeichenweise liest.
+
+              Liegt der Titel in beiden Instanzen, stehen **beide** Pfade da –
+              es sind zwei Dateien, und welche wo liegt, ist genau die Frage,
+              die man sich hier stellt. Markiert wird nur die 4K-Zeile: Die
+              andere ist der Normalfall, und ein „1080p" an jedem Film wäre
+              Beschriftung ohne Aussage. */}
+          {(item.path || item.path_uhd) && (
+            <div className="col-span-2 sm:col-span-4">
+              <dt className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
+                {t('detail.path')}
+              </dt>
+              {item.path && (
+                <dd className="mt-0.5 break-all font-mono text-xs text-mist-400">
+                  {item.path}
+                </dd>
+              )}
+              {item.path_uhd && (
+                <dd className="mt-0.5 break-all font-mono text-xs text-mist-400">
+                  <span className="mr-1.5 font-sans font-medium text-accent-500">
+                    4K
+                  </span>
+                  {item.path_uhd}
+                </dd>
+              )}
+            </div>
+          )}
+
           {!istFilm && item.seasons_total !== null && (
             <Fact
               label={t('detail.seasons')}

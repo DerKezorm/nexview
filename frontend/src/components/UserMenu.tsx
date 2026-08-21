@@ -8,6 +8,9 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { QuotaOverview, Role } from '../api/types'
 import { useAuth } from '../auth/useAuth'
+import { useConfig } from '../hooks/useConfig'
+import { useStorageStand } from '../hooks/useStorageStand'
+import { formatSize } from '../lib/format'
 import { Avatar } from './Avatar'
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -35,7 +38,8 @@ type MenuEntry = {
  * das Hauptmenü bleibt dadurch auf das Entdecken beschränkt.
  */
 export function UserMenu() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const { data: config } = useConfig()
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -62,11 +66,19 @@ export function UserMenu() {
   })
 
   // Erst laden, wenn das Menü aufgeklappt wird - vorher sieht es ja niemand.
+  //
+  // **Nur die Währung, die auch gilt.** Zählt der belegte Platz, wäre eine
+  // Stückzahl daneben eine Zahl ohne Wirkung - und im Menü fiele das noch
+  // weniger auf als in den Einstellungen.
+  const speicherGilt = Boolean(config?.storage_enabled)
+
   const quotaQuery = useQuery({
     queryKey: ['quota'],
     queryFn: () => api.get<QuotaOverview>('/api/requests/quota'),
-    enabled: open,
+    enabled: open && !speicherGilt,
   })
+
+  const speicher = useStorageStand(open)
 
   // Nach einem Seitenwechsel schließen.
   useEffect(() => setOpen(false), [location.pathname])
@@ -167,9 +179,30 @@ export function UserMenu() {
               </div>
             </div>
 
-            {/* Eigener Kontingent-Stand - so muss man dafür nicht erst auf
+            {/* Eigener Stand - so muss man dafür nicht erst auf
                 "Meine Anfragen" wechseln. */}
-            {quotaQuery.data && (
+            {speicher && (
+              <dl className="mt-3 border-t border-ink-700/60 pt-3">
+                <dt className="text-[10px] font-medium tracking-wide text-mist-600 uppercase">
+                  {t(speicher.gesamtsicht ? 'storage.totalLabel' : 'storage.usedLabel')}
+                </dt>
+                <dd
+                  className={
+                    'text-sm tabular-nums ' +
+                    (speicher.ueberzogen ? 'text-bad-500' : 'text-mist-300')
+                  }
+                >
+                  {speicher.limitBytes === null
+                    ? formatSize(speicher.bytes, i18n.language)
+                    : t('storage.usedOfLimit', {
+                        used: formatSize(speicher.bytes, i18n.language),
+                        limit: formatSize(speicher.limitBytes, i18n.language),
+                      })}
+                </dd>
+              </dl>
+            )}
+
+            {!speicherGilt && quotaQuery.data && (
               <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-ink-700/60 pt-3">
                 {(['movie', 'tv'] as const).map((art) => {
                   const stand = quotaQuery.data[art]

@@ -22,8 +22,8 @@ from ..models import (
     User,
     utcnow,
 )
-from ..schemas_requests import FeedbackReply, RequestWithUser
-from ..services import blocklist, notify, requests_service
+from ..schemas_requests import AnfragerSpeicher, FeedbackReply, RequestWithUser
+from ..services import blocklist, notify, requests_service, storage
 from ..services.settings_service import load_settings
 from ..services.tmdb import image_url
 
@@ -80,8 +80,38 @@ def _braucht_ziel(request: MediaRequest, wahl: TargetChoice | None) -> bool:
     return bool(wahl and (wahl.root_folder_path or wahl.quality_profile_id))
 
 
-def _with_user(request: MediaRequest) -> RequestWithUser:
-    vom_benutzer = ("username", "display_name", "avatar_url")
+def _speicher_staende(
+    db: Session, anfragen: list[MediaRequest]
+) -> dict[int, AnfragerSpeicher]:
+    """Speicherstand je Anfragendem - **einmal je Person, nicht je Zeile.**
+
+    In der Freigabeliste stehen von einer Person oft zehn Anfragen; ihren Stand
+    zehnmal zu berechnen waere zehnmal dieselbe Summe ueber dieselbe Tabelle.
+
+    Sind Speicher-Kontingente aus, kommt ein leerer Dictionary zurueck und die
+    Zeilen tragen nichts - es gilt immer nur eine Waehrung.
+    """
+    einstellungen = load_settings(db)
+    if not einstellungen.storage_enabled:
+        return {}
+
+    staende: dict[int, AnfragerSpeicher] = {}
+    for anfrage in anfragen:
+        if anfrage.user_id in staende or anfrage.user is None:
+            continue
+        grenze = storage.stand_fuer(db, anfrage.user, einstellungen)
+        staende[anfrage.user_id] = AnfragerSpeicher(
+            used_bytes=grenze.used_bytes,
+            limit_bytes=grenze.limit_bytes,
+            exhausted=grenze.exhausted,
+        )
+    return staende
+
+
+def _with_user(
+    request: MediaRequest, speicher: AnfragerSpeicher | None = None
+) -> RequestWithUser:
+    vom_benutzer = ("username", "display_name", "avatar_url", "storage")
     return RequestWithUser(
         **{
             field: getattr(request, field)
@@ -91,7 +121,39 @@ def _with_user(request: MediaRequest) -> RequestWithUser:
         username=request.user.username,
         display_name=request.user.display_name,
         avatar_url=request.user.avatar_url,
+        storage=speicher,
     )
+
+
+def _zurueckgestellte_abschliessen(db: Session, request: MediaRequest) -> None:
+    """Andere zurueckgestellte Anfragen zu diesem Titel erledigen.
+
+    Warum das sein **muss**, steht in ``requests_service.zurueckgestellte_
+    schliessen``: Zwei zurechenbare Anfragen fuer eine Datei machen die
+    Speicher-Rechnung mehrdeutig.
+
+    Die Betroffenen bekommen Bescheid - sonst verschwaende ihre Anfrage
+    kommentarlos aus der Liste, waehrend der Titel auftaucht.
+    """
+    for andere in requests_service.zurueckgestellte_schliessen(db, request):
+        if andere.user is not None:
+            notify.create(
+                db,
+                user=andere.user,
+                kind=NotificationType.request_fulfilled,
+                message_key="notifications.requestFulfilled",
+                request=andere,
+            )
+
+
+def _antwort(db: Session, request: MediaRequest) -> RequestWithUser:
+    """Eine einzelne Anfrage nach aussen - samt Stand des Anfragenden.
+
+    Auch nach dem Freigeben: Dann zeigt die Antwort den Stand, der **danach**
+    gilt. Das ist die Warnung an der Stelle, an der sie ankommt - der
+    Entscheider sieht sofort, was seine Entscheidung bewirkt hat.
+    """
+    return _with_user(request, _speicher_staende(db, [request]).get(request.user_id))
 
 
 def _get_or_404(db: Session, request_id: int) -> MediaRequest:
@@ -161,7 +223,9 @@ def list_all(
     if user_id is not None:
         query = query.where(MediaRequest.user_id == user_id)
 
-    return [_with_user(row) for row in db.scalars(query)]
+    zeilen = list(db.scalars(query))
+    staende = _speicher_staende(db, zeilen)
+    return [_with_user(row, staende.get(row.user_id)) for row in zeilen]
 
 
 @router.post("/{request_id}/approve", response_model=RequestWithUser)
@@ -208,9 +272,10 @@ async def approve(
         raise HTTPException(status_code=error.status_code, detail=error.message) from error
 
     _notify_requester(db, request, NotificationType.approved, "notifications.approved")
+    _zurueckgestellte_abschliessen(db, request)
     db.commit()
     db.refresh(request)
-    return _with_user(request)
+    return _antwort(db, request)
 
 
 @router.post("/{request_id}/reject", response_model=RequestWithUser)
@@ -262,7 +327,7 @@ def reject(
     _notify_requester(db, request, NotificationType.rejected, "notifications.rejected")
     db.commit()
     db.refresh(request)
-    return _with_user(request)
+    return _antwort(db, request)
 
 
 @router.post("/{request_id}/reply", response_model=RequestWithUser)
@@ -294,7 +359,7 @@ def reply_to_feedback(
     db.refresh(request)
 
     logger.info("%r replied to the feedback on %r", admin.username, request.title)
-    return _with_user(request)
+    return _antwort(db, request)
 
 
 @router.post("/approve-all/{user_id}", response_model=list[RequestWithUser])
@@ -359,6 +424,7 @@ async def approve_all(
             continue
 
         _notify_requester(db, request, NotificationType.approved, "notifications.approved")
+        _zurueckgestellte_abschliessen(db, request)
         db.commit()
 
     # Uebersprungene wurden nie angefasst; sie gehoeren nicht ins Ergebnis,
@@ -366,7 +432,46 @@ async def approve_all(
     erledigt = [request for request in offen if request not in uebersprungen]
     for request in erledigt:
         db.refresh(request)
-    return [_with_user(request) for request in erledigt]
+    staende = _speicher_staende(db, erledigt)
+    return [_with_user(request, staende.get(request.user_id)) for request in erledigt]
+
+
+@router.post("/{request_id}/defer", response_model=RequestWithUser)
+def zuruecksetzen(
+    request_id: Annotated[int, Path(ge=1)],
+    entscheider: ApproverUser,
+    db: DbSession,
+) -> RequestWithUser:
+    """Eine wartende Anfrage zurueckstellen: "Ja im Prinzip, nur nicht jetzt."
+
+    Gedacht fuer das ueberzogene Konto: Der Entscheider will weder durchwinken
+    noch ablehnen. Die Anfrage bleibt fuer beide Seiten sichtbar, und sobald
+    wieder Platz ist, laesst sie sich freigeben - **niemand muss neu fragen.**
+
+    ⚠️ **Und sie gibt den Titel frei.** Das ist der eigentliche Gewinn
+    gegenueber "einfach stehen lassen": Eine wartende Anfrage reserviert den
+    Titel fuer alle anderen mit. Der Grund fuers Zurueckstellen liegt aber an
+    der **Person**, nicht am Titel - also darf ihn jemand anders holen. Dann
+    ist er da, und die zurueckgestellte Anfrage hat sich erledigt.
+
+    Der Anfragende bekommt Bescheid: Eine Anfrage, die stillschweigend den
+    Zustand wechselt, sieht aus wie ein Fehler.
+    """
+    request = _get_or_404(db, request_id)
+    if request.status != RequestStatus.pending_approval:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
+        )
+
+    request.status = RequestStatus.deferred
+    requests_service.clear_pending_notice(db, request)
+    _notify_requester(
+        db, request, NotificationType.request_deferred, "notifications.deferred"
+    )
+    db.commit()
+    db.refresh(request)
+    return _antwort(db, request)
 
 
 @router.post("/{request_id}/cancel", response_model=RequestWithUser)
@@ -383,7 +488,7 @@ async def cancel_request(
     _notify_requester(db, request, NotificationType.cancelled, "notifications.cancelled")
     db.commit()
     db.refresh(request)
-    return _with_user(request)
+    return _antwort(db, request)
 
 
 @router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT)

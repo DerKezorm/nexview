@@ -716,7 +716,8 @@
     "targetPairCoupled": "Root folder and quality profile belong together: once the approver picks one of them, the request waits for them anyway – so they set the other one too. That is why it moved along.",
     "tabWatchlist": "Watchlists",
     "secretsUnreadable": "Stored credentials (API keys, Plex access) can no longer be read with the current secret key. Most common cause: NEXVIEW_SECRET_KEY was changed, or data/secret.key was lost when the container was recreated (file not inside the mounted volume). Re-enter the affected credentials or reconnect Plex once – and make sure the key is kept permanently, or this will happen again on the next update.",
-    "tabChannels": "Notifications"
+    "tabChannels": "Notifications",
+    "tabStorage": "Storage quotas"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -1153,6 +1154,25 @@
     "houseLabel": "House library",
     "houseHint": "belongs to nobody in particular",
     "totalLabel": "Total occupied",
-    "colStorage": "Storage"
+    "colStorage": "Storage",
+    "others_one": "1 more",
+    "others_other": "{{count}} more",
+    "pieTitle": "How the occupied space is split between users",
+    "pieCenter": "assigned"
+  },
+  "storageAdmin": {
+    "title": "Storage quotas",
+    "intro": "Records how much space each person occupies. Still being built – nothing is limited.",
+    "enable": "Enable",
+    "enableHint": "With this off, Nexview behaves as it did before: no tab in the profile, no card under requests, no distribution on the statistics page. Nothing is measured either.",
+    "pointMeasure": "Sizes come from Radarr, Sonarr and the media server – with no extra requests.",
+    "pointHouse": "Whatever is already in the library when you switch this on belongs to the house. Every account starts at zero.",
+    "pointNoLimit": "There is no limit yet. Nobody is blocked and nothing is deleted.",
+    "saved": "Saved.",
+    "pending": "The first measurement is running. Numbers appear here once it is done.",
+    "stateTitle": "Current state",
+    "assigned": "Assigned",
+    "people_one": "1 person",
+    "people_other": "{{count}} people"
   }
 }

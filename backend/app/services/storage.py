@@ -26,6 +26,7 @@ from ..models import (
     RequestStatus,
     StorageEntry,
     StorageState,
+    User,
     utcnow,
 )
 from .arr import ArrError
@@ -157,18 +158,31 @@ def verteilung(db: Session) -> list[tuple[int | None, Kontostand]]:
     """Wer belegt wieviel - fuer die Admin-Uebersicht, das Groesste zuerst.
 
     ``None`` als Nutzer steht fuer den Hausbestand.
+
+    **Jedes aktive Konto steht in der Liste, auch mit null Bytes.** Wer nur
+    die Belegten zeigt, laesst den Betrachter raetseln, warum jemand fehlt -
+    "hat nichts" und "wird nicht erfasst" saehen gleich aus.
     """
-    zeilen = db.execute(
-        select(
-            StorageEntry.user_id,
-            func.coalesce(func.sum(StorageEntry.size_bytes), 0),
-            func.count(StorageEntry.id),
-        ).group_by(StorageEntry.user_id)
-    ).all()
-    ergebnis = [
-        (zeile[0], Kontostand(used_bytes=int(zeile[1]), items=int(zeile[2])))
-        for zeile in zeilen
-    ]
+    gemessen = {
+        zeile[0]: Kontostand(used_bytes=int(zeile[1]), items=int(zeile[2]))
+        for zeile in db.execute(
+            select(
+                StorageEntry.user_id,
+                func.coalesce(func.sum(StorageEntry.size_bytes), 0),
+                func.count(StorageEntry.id),
+            ).group_by(StorageEntry.user_id)
+        ).all()
+    }
+
+    ergebnis: list[tuple[int | None, Kontostand]] = []
+    for user_id in db.scalars(select(User.id).where(User.is_active.is_(True))).all():
+        ergebnis.append((user_id, gemessen.pop(user_id, Kontostand(0, 0))))
+
+    # Was uebrig bleibt: der Hausbestand (None) und Posten geloeschter Konten,
+    # deren Nutzer-Id per ON DELETE SET NULL ohnehin schon auf None steht.
+    for user_id, stand in gemessen.items():
+        ergebnis.append((user_id, stand))
+
     ergebnis.sort(key=lambda paar: paar[1].used_bytes, reverse=True)
     return ergebnis
 

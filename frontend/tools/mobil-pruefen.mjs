@@ -71,6 +71,7 @@ const SEITEN = [
   ['Einstellungen - Adresse', '/admin/settings', 'admin', 'Adresse'],
   ['Einstellungen - E-Mail', '/admin/settings', 'admin', 'E-Mail'],
   ['Einstellungen - Benutzer', '/admin/settings', 'admin', 'Benutzer'],
+  ['Einstellungen - Speicher', '/admin/settings', 'admin', 'Speicherkontingente'],
   ['Einstellungen - Sperrliste', '/admin/settings', 'admin', 'Sperrliste'],
   ['Einstellungen - Protokoll', '/admin/settings', 'admin', 'Protokoll'],
 ];

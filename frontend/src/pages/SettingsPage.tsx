@@ -6,6 +6,7 @@ import { AdminChannelSettings } from './settings/AdminChannelSettings'
 import { AdminLogsSettings } from './settings/AdminLogsSettings'
 import { AdminMailSettings } from './settings/AdminMailSettings'
 import { AdminServicesSettings } from './settings/AdminServicesSettings'
+import { AdminStorageSettings } from './settings/AdminStorageSettings'
 import { AdminBlocklistSettings } from './settings/AdminBlocklistSettings'
 import { AdminUsersSettings } from './settings/AdminUsersSettings'
 import { AdminWatchlistSettings } from './settings/AdminWatchlistSettings'
@@ -18,6 +19,7 @@ type Tab =
   | 'channels'
   | 'users'
   | 'watchlist'
+  | 'storage'
   | 'blocklist'
   | 'logs'
 
@@ -34,7 +36,7 @@ export function SettingsPage() {
   // Reiter eine Einstellung ohne Gegenstand.
   const { data: config } = useConfig()
 
-  const tabs: { value: Tab; labelKey: string }[] = [
+  const tabs: { value: Tab; labelKey: string; badge?: string }[] = [
     { value: 'services', labelKey: 'settings.tabServices' },
     { value: 'address', labelKey: 'settings.tabAddress' },
     { value: 'mail', labelKey: 'settings.tabMail' },
@@ -43,6 +45,9 @@ export function SettingsPage() {
     ...(config?.mediaserver_configured
       ? [{ value: 'watchlist' as Tab, labelKey: 'settings.tabWatchlist' }]
       : []),
+    // Noch im Bau: Gemessen und angezeigt wird schon, begrenzt noch nicht.
+    // Das Abzeichen sagt das, statt es jemanden herausfinden zu lassen.
+    { value: 'storage', labelKey: 'settings.tabStorage', badge: 'In Dev' },
     { value: 'blocklist', labelKey: 'settings.tabBlocklist' },
     { value: 'logs', labelKey: 'settings.tabLogs' },
   ]
@@ -72,6 +77,11 @@ export function SettingsPage() {
             }
           >
             {t(entry.labelKey)}
+            {entry.badge && (
+              <span className="ml-2 rounded-full border border-warn-500/50 bg-warn-500/10 px-1.5 py-0.5 text-[0.65rem] font-semibold tracking-wide text-warn-500 uppercase">
+                {entry.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -85,6 +95,7 @@ export function SettingsPage() {
           eigenen Profil ein. */}
       {tab === 'channels' && <AdminChannelSettings />}
       {tab === 'users' && <AdminUsersSettings />}
+      {tab === 'storage' && <AdminStorageSettings />}
 
       {/* Untermenü mit genau einem Eintrag - Plex ist der einzige Anbieter
           mit Merkliste. Die Reihe steht trotzdem da, damit ein zweiter

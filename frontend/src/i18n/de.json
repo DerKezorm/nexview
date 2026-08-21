@@ -716,7 +716,8 @@
     "targetPairCoupled": "Zielordner und Qualitätsprofil hängen zusammen: Sobald eines davon der Entscheider setzt, wartet die Anfrage ohnehin auf ihn – dann setzt er auch das andere. Deshalb wurde es mitumgestellt.",
     "tabWatchlist": "Merklisten",
     "secretsUnreadable": "Gespeicherte Zugangsdaten (API-Schlüssel, Plex-Zugang) lassen sich mit dem aktuellen Geheimschlüssel nicht mehr lesen. Häufigste Ursache: NEXVIEW_SECRET_KEY wurde geändert, oder data/secret.key ging beim Neu-Erstellen des Containers verloren (Datei liegt nicht im gemounteten Volume). Die betroffenen Zugangsdaten müssen einmal neu eingetragen bzw. Plex neu verbunden werden – und der Schlüssel sollte dauerhaft gesichert sein, sonst passiert es beim nächsten Update wieder.",
-    "tabChannels": "Benachrichtigungen"
+    "tabChannels": "Benachrichtigungen",
+    "tabStorage": "Speicherkontingente"
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -1153,6 +1154,25 @@
     "houseLabel": "Hausbestand",
     "houseHint": "gehört niemandem persönlich",
     "totalLabel": "Insgesamt belegt",
-    "colStorage": "Speicher"
+    "colStorage": "Speicher",
+    "others_one": "1 weiterer",
+    "others_other": "{{count}} weitere",
+    "pieTitle": "Verteilung des belegten Platzes auf die Nutzer",
+    "pieCenter": "zugeordnet"
+  },
+  "storageAdmin": {
+    "title": "Speicher-Kontingente",
+    "intro": "Erfasst, wie viel Platz jeder Einzelne belegt. Noch im Aufbau – begrenzt wird nichts.",
+    "enable": "Aktivieren",
+    "enableHint": "Ist der Haken aus, verhält sich Nexview wie vorher: kein Reiter im Profil, keine Karte bei den Anfragen, keine Verteilung in der Statistik. Es wird dann auch nicht gemessen.",
+    "pointMeasure": "Die Größen kommen aus Radarr, Sonarr und dem Media-Server – ohne zusätzliche Abfragen.",
+    "pointHouse": "Was beim Einschalten schon in der Bibliothek liegt, gehört dem Haus. Jedes Konto startet bei null.",
+    "pointNoLimit": "Es gibt noch keine Grenze. Niemand wird gesperrt, nichts wird gelöscht.",
+    "saved": "Gespeichert.",
+    "pending": "Die erste Messung läuft. Sobald sie durch ist, stehen hier Zahlen.",
+    "stateTitle": "Aktueller Stand",
+    "assigned": "Zugeordnet",
+    "people_one": "1 Person",
+    "people_other": "{{count}} Personen"
   }
 }

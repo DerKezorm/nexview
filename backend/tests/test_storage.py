@@ -461,6 +461,7 @@ def test_uebersicht_ist_nur_fuer_admins(admin_client) -> None:
     """
     from .conftest import auth_headers, create_user
 
+    admin_client.put("/api/settings", json={"storage_enabled": True})
     create_user(admin_client, "entscheider2", "test1234", role=Role.approver)
     kopf = auth_headers(admin_client, "entscheider2", "test1234")
     assert admin_client.get("/api/storage/overview", headers=kopf).status_code == 403
@@ -470,6 +471,7 @@ def test_uebersicht_ist_nur_fuer_admins(admin_client) -> None:
 
 def test_eigener_speicher_ist_leer_ohne_messung(admin_client) -> None:
     """Ohne Abgleich steht ueberall null - und kein Fehler."""
+    admin_client.put("/api/settings", json={"storage_enabled": True})
     antwort = admin_client.get("/api/storage/me")
     assert antwort.status_code == 200
     assert antwort.json() == {
@@ -482,6 +484,7 @@ def test_eigener_speicher_ist_leer_ohne_messung(admin_client) -> None:
 
 def test_uebersicht_weist_den_hausbestand_aus(admin_client, db: Session) -> None:
     """Der Hausbestand steht als eigene Zeile - er gehoert niemandem."""
+    admin_client.put("/api/settings", json={"storage_enabled": True})
     db.add(
         StorageEntry(
             key="movie:standard:tmdb:1",
@@ -608,3 +611,47 @@ def test_serien_anfrage_ohne_staffel_belastet_alle(db: Session, nutzer: User) ->
 
     assert verbucht == 2
     assert storage.kontostand(db, nutzer.id).used_bytes == 45 * GB
+
+
+# --------------------------------------------------- Der Hauptschalter
+
+
+def test_endpunkte_gibt_es_ohne_schalter_nicht(admin_client) -> None:
+    """Ausgeschaltet heisst: die Funktion existiert nicht.
+
+    404 und nicht 403 - es ist kein Rechteproblem, sondern es gibt hier
+    nichts. Der Standard ist "aus", deshalb reicht ein frischer Client.
+    """
+    assert admin_client.get("/api/storage/me").status_code == 404
+    assert admin_client.get("/api/storage/overview").status_code == 404
+
+
+def test_konfiguration_nennt_den_schalter(admin_client) -> None:
+    """Die Oberflaeche muss wissen, ob es die Funktion gibt.
+
+    Ohne diese Angabe koennte sie den Reiter nicht ausblenden - und wuerde
+    stattdessen einen 404 erzeugen und verstecken.
+    """
+    daten = admin_client.get("/api/config").json()
+    assert daten["storage_enabled"] is False
+
+    admin_client.put("/api/settings", json={"storage_enabled": True})
+    assert admin_client.get("/api/config").json()["storage_enabled"] is True
+
+
+def test_verteilung_zeigt_auch_leere_konten(admin_client, db: Session) -> None:
+    """Jedes aktive Konto steht in der Liste, auch mit null Bytes.
+
+    Wer nur die Belegten zeigt, laesst den Betrachter raetseln, warum jemand
+    fehlt: "hat nichts" und "wird nicht erfasst" saehen gleich aus.
+    """
+    from .conftest import create_user
+
+    create_user(admin_client, "leer", "test1234")
+    admin_client.put("/api/settings", json={"storage_enabled": True})
+
+    daten = admin_client.get("/api/storage/overview").json()
+    namen = {a["username"] for a in daten["shares"] if a["user_id"] is not None}
+
+    assert "leer" in namen
+    assert all(a["used_bytes"] == 0 for a in daten["shares"])

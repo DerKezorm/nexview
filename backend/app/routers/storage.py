@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..deps import AdminUser, CurrentUser, DbSession
 from ..models import User
 from ..services import storage
+from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
 
@@ -69,6 +70,18 @@ def _als_posten(posten: storage.Posten) -> StoragePosten:
     return StoragePosten(**vars(posten))
 
 
+def _muss_eingeschaltet_sein(db) -> None:
+    """Ist der Schalter aus, gibt es diese Funktion nicht.
+
+    Bewusst 404 und nicht 403: "Ausgeschaltet" ist kein Rechteproblem,
+    sondern heisst, dass es hier nichts gibt. Und die Oberflaeche blendet
+    ohnehin alles aus - wer hier ankommt, hat eine Adresse von Hand
+    eingetippt oder einen alten Reiter offen.
+    """
+    if not load_settings(db).storage_enabled:
+        raise HTTPException(404, "Speicher-Kontingente sind nicht eingeschaltet.")
+
+
 @router.get("/me", response_model=StorageMine)
 def eigener_speicher(user: CurrentUser, db: DbSession) -> StorageMine:
     """Der eigene Stand samt Einzelposten, das Groesste zuerst.
@@ -76,6 +89,7 @@ def eigener_speicher(user: CurrentUser, db: DbSession) -> StorageMine:
     Die Reihenfolge ist der Zweck der Liste: Wer Platz schaffen soll, muss
     zuerst sehen, wo der Platz steckt.
     """
+    _muss_eingeschaltet_sein(db)
     stand = storage.kontostand(db, user.id)
     return StorageMine(
         used_bytes=stand.used_bytes,
@@ -93,6 +107,7 @@ def uebersicht(admin: AdminUser, db: DbSession) -> StorageUebersicht:
     eine Person. Entscheider sehen sie nicht, aus demselben Grund, aus dem sie
     das Ticketcenter anderer nicht sehen.
     """
+    _muss_eingeschaltet_sein(db)
     haus = storage.hausbestand(db)
     anteile: list[StorageAnteil] = []
     gesamt = 0

@@ -23,10 +23,15 @@ veröffentlicht, solange kein Tag dazu existiert.
   it costs no extra requests. Shows are counted **per season**, which is the
   finest grain available without asking Sonarr once per series.
 
-  Everybody sees their own figure under *Profile → Storage*, largest item
-  first, because the question anyone asks here is "where is my space?" - and
-  a single show can weigh as much as two hundred films. Administrators see
-  the distribution across everyone on the statistics page.
+  The whole thing is off by default and switched on under *Settings → Storage
+  quotas*. With it off, Nexview behaves as it did before: no tab, no card, no
+  distribution, and nothing is measured either.
+
+  Once on, everybody sees their own figure under *Profile → Storage*, largest
+  item first, because the question anyone asks here is "where is my space?" -
+  and a single show can weigh as much as two hundred films. Administrators
+  see the distribution across everyone on the statistics page, every account
+  listed even at zero, so nobody wonders why a name is missing.
 
   Everything already in the library when measuring starts belongs to the
   house and counts against nobody, so no account begins in the red. From then

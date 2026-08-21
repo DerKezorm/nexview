@@ -146,21 +146,26 @@ export function ProfilePage() {
     { value: 'notifications', labelKey: 'profile.tabNotifications' },
     { value: 'discover', labelKey: 'profile.tabDiscover' },
     { value: 'security', labelKey: 'profile.tabSecurity' },
-    { value: 'storage', labelKey: 'profile.tabStorage' },
   ]
   // Nur wenn der Administrator die Merkliste freigeschaltet hat - sonst
   // stünde dort ein Reiter, hinter dem es nichts geben kann.
   if (config?.watchlist_enabled) {
     tabs.push({ value: 'watchlist', labelKey: 'profile.tabWatchlist' })
   }
+  // Ohne eingeschaltete Speicher-Kontingente gibt es hier nichts zu sehen.
+  if (config?.storage_enabled) {
+    tabs.push({ value: 'storage', labelKey: 'profile.tabStorage' })
+  }
+
+  // Ueberschrift und Reiterreihe bekommen **immer** die volle Breite, nur der
+  // Inhalt darunter wird eingeschnuert. Vorher hing beides an derselben
+  // Breite - und weil breite Reiter (Merkliste, Speicher) einen breiteren
+  // Inhalt haben, brach die Reiterreihe je nach gewaehltem Reiter um und bei
+  // anderen nicht. Ein Menue darf sich nicht danach richten, was darunter steht.
+  const schmal = tab !== 'watchlist' && tab !== 'storage'
 
   return (
-    <div
-      className={
-        'flex flex-col gap-6 ' +
-        (tab === 'watchlist' || tab === 'storage' ? 'max-w-6xl' : 'max-w-2xl')
-      }
-    >
+    <div className="flex max-w-6xl flex-col gap-6">
       <header>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           {t('nav.profile')}
@@ -194,6 +199,7 @@ export function ProfilePage() {
         ))}
       </div>
 
+      <div className={'flex flex-col gap-6 ' + (schmal ? 'max-w-2xl' : '')}>
       {error && <ErrorBanner message={error} />}
       {message && !error && (
         <p className="rounded-xl border border-ok-500/40 bg-ok-500/10 px-4 py-3 text-sm text-ok-500">
@@ -385,6 +391,7 @@ export function ProfilePage() {
           <WatchlistPlex />
         </>
       )}
+      </div>
     </div>
   )
 }

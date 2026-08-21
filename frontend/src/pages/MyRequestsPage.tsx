@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { ApiError, api } from '../api/client'
 import type { MediaRequest, QuotaInfo, QuotaOverview, StorageMine } from '../api/types'
 import { useAuth } from '../auth/useAuth'
+import { useConfig } from '../hooks/useConfig'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Pagination, useSeiten } from '../components/Pagination'
 import { StarRating } from '../components/StarRating'
@@ -194,9 +195,13 @@ export function MyRequestsPage() {
 
   // Die Belegung laeuft unabhaengig vom Kontingent - gemessen wird immer,
   // begrenzt (spaeter) nur auf Wunsch.
+  const { data: config } = useConfig()
   const storageQuery = useQuery({
     queryKey: ['storage-mine'],
     queryFn: () => api.get<StorageMine>('/api/storage/me'),
+    // Ist der Schalter aus, gibt es den Endpunkt nicht - dann gar nicht erst
+    // fragen, statt einen 404 zu erzeugen und zu verstecken.
+    enabled: !!config?.storage_enabled,
   })
 
   const quotaQuery = useQuery({

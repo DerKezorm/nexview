@@ -458,6 +458,12 @@ export type AppConfig = {
   sonarr_uhd_configured: boolean;
   /** Ist ein Media-Server verbunden? Daran hängt der Merklisten-Bereich. */
   mediaserver_configured: boolean;
+  /**
+   * Speicher-Kontingente eingeschaltet? Ist der Schalter aus, verhält sich
+   * Nexview wie vor deren Einbau – kein Reiter, keine Karte, keine
+   * Verteilung, und gemessen wird auch nicht.
+   */
+  storage_enabled: boolean;
   /** Ist die Merklisten-Automatik eingeschaltet? Blendet den Herkunfts-Filter ein. */
   watchlist_enabled: boolean;
 };

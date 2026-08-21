@@ -6,8 +6,10 @@ import { api } from '../api/client'
 import type { Role, Stats, StorageOverview, UserStats } from '../api/types'
 import { Avatar } from '../components/Avatar'
 import { StarRating } from '../components/StarRating'
+import { StorageDistribution } from '../components/StorageDistribution'
 import { Card, ErrorBanner, Spinner } from '../components/ui'
-import { formatDate, formatSize } from '../lib/format'
+import { formatDate } from '../lib/format'
+import { useConfig } from '../hooks/useConfig'
 
 const POOR_RATING = 2
 
@@ -140,11 +142,13 @@ function QuotaCell({ used, limit }: { used: number; limit: number | null }) {
  * anderen Takt, und der Statistik-Dienst bleibt so unberuehrt.
  */
 function SpeicherAbschnitt() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
+  const { data: config } = useConfig()
 
   const abfrage = useQuery({
     queryKey: ['storage-overview'],
     queryFn: () => api.get<StorageOverview>('/api/storage/overview'),
+    enabled: !!config?.storage_enabled,
   })
 
   const daten = abfrage.data
@@ -152,44 +156,11 @@ function SpeicherAbschnitt() {
   // der Abschnitt ganz weg, statt eine Reihe von Nullen zu zeigen.
   if (!daten || daten.total_bytes === 0) return null
 
-  const groesster = daten.shares[0]?.used_bytes || 1
-
   return (
     <section>
       <h2 className="mb-2 text-sm font-semibold text-mist-300">{t('storage.usedLabel')}</h2>
-      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <KeyFigure
-          label={t('storage.totalLabel')}
-          value={formatSize(daten.total_bytes, i18n.language)}
-        />
-        <KeyFigure
-          label={t('storage.houseLabel')}
-          value={formatSize(daten.house_bytes, i18n.language)}
-          hint={t('storage.houseHint')}
-        />
-      </div>
-      <Card className="flex flex-col gap-2 p-4">
-        {daten.shares.map((anteil) => (
-          <div key={anteil.user_id ?? 'haus'} className="flex items-center gap-3">
-            <span className="w-40 shrink-0 truncate text-sm">
-              {anteil.user_id === null
-                ? t('storage.houseLabel')
-                : (anteil.display_name ?? anteil.username)}
-            </span>
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-ink-800">
-              <div
-                className={
-                  'h-full rounded-full ' +
-                  (anteil.user_id === null ? 'bg-ink-600' : 'bg-accent-600')
-                }
-                style={{ width: `${Math.max(2, (anteil.used_bytes / groesster) * 100)}%` }}
-              />
-            </div>
-            <span className="w-24 shrink-0 text-right text-sm tabular-nums text-mist-400">
-              {formatSize(anteil.used_bytes, i18n.language)}
-            </span>
-          </div>
-        ))}
+      <Card className="p-4">
+        <StorageDistribution shares={daten.shares} houseBytes={daten.house_bytes} />
       </Card>
     </section>
   )

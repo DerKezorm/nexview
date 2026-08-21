@@ -87,6 +87,7 @@ class SettingsUpdate(BaseModel):
     mediaserver_default_age: str | None = Field(default=None, max_length=3)
     # --- Merkliste ----------------------------------------------------------
     watchlist_enabled: bool | None = None
+    storage_enabled: bool | None = None
 
     @field_validator("mediaserver_default_role")
     @classmethod
@@ -147,6 +148,9 @@ class AppConfig(BaseModel):
     # Oberflaeche blendet daran den Menuepunkt und den Filter "Über Merkliste
     # angefragt" ein.
     watchlist_enabled: bool
+    # Ist der Schalter aus, verhaelt sich Nexview wie vor dem Einbau der
+    # Speicher-Kontingente: keine Reiter, keine Karten, keine Statistik.
+    storage_enabled: bool
 
 
 @router.get("/config", response_model=AppConfig)
@@ -168,6 +172,7 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         sonarr_uhd_configured=settings.sonarr_uhd_configured,
         mediaserver_configured=settings.mediaserver_configured,
         watchlist_enabled=settings.watchlist_enabled,
+        storage_enabled=settings.storage_enabled,
     )
 
 

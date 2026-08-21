@@ -26,6 +26,20 @@
   --color-warn-500: #eab308;
   --color-bad-500: #f87171;
 
+  /* Diagramm-Farben - die EINZIGE Ausnahme von der Regel "nur ink, mist und
+     accent". Ein Kuchendiagramm muss Personen auseinanderhalten, und dafuer
+     reicht eine Rot-Abstufung nachweislich nicht: zwei benachbarte Rotstufen
+     liegen bei einem Farbabstand von 7,6 und sind selbst mit vollem
+     Farbsehen kaum zu trennen.
+     Genau drei Toene, und das ist keine Willkuer: Bei vier faellt jede
+     Kombination durch die Pruefung auf Farbfehlsichtigkeit, sobald man - wie
+     im Kuchen noetig - *alle* Paare vergleicht und nicht nur benachbarte.
+     Mehr Personen wandern in "Andere". Geprueft mit dem Validator des
+     dataviz-Leitfadens, hell wie dunkel, gegen die Kartenfarbe. */
+  --color-viz-1: #3987e5;
+  --color-viz-2: #d95926;
+  --color-viz-3: #199e70;
+
   /* Der Schleier hinter Dialogen und hinter den Abzeichen auf einem Poster.
      Bewusst KEIN ink-Ton: er liegt auf einem Bild und muss deshalb in jedem
      Modus dunkel bleiben, sonst verschwindet die weisse Schrift darauf. */
@@ -70,6 +84,12 @@
   --color-ok-500: #15803d;
   --color-warn-500: #a16207;
   --color-bad-500: #dc2626;
+
+  /* Dieselben drei Toene, fuer den hellen Untergrund neu abgestuft - kein
+     automatisches Umdrehen. */
+  --color-viz-1: #2a78d6;
+  --color-viz-2: #eb6834;
+  --color-viz-3: #1baf7a;
 }
 
 @layer base {

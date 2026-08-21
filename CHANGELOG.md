@@ -12,7 +12,36 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
-## 0.14.0 – in Arbeit
+## 0.14.0 – 21.08.2026
+
+### New
+
+- **Discord as a notification channel.** A webhook posts straight into one
+  channel of your Discord server - no bot, no extra account, just the webhook
+  URL from the channel's settings (Edit → Integrations → Webhooks). Messages
+  arrive as embeds: the color carries the meaning (orange waiting, green
+  available, red rejected), the poster shows as a thumbnail, the title links
+  back into Nexview, and the sender wears the Nexview logo as its avatar. The
+  URL is the secret here, so it is stored encrypted and only ever shown
+  masked. Verification works like every push channel: a four-digit code in
+  the test message proves that things really arrive before anything is saved.
+
+- **A universal webhook channel.** Nexview sends every notification as a POST
+  with a fixed JSON body - event type, urgency, title, text, poster and link -
+  to any address you choose, with an optional Authorization header (stored
+  encrypted). Built for Home Assistant, n8n, Node-RED and hand-rolled
+  scripts: the receiver picks out whatever fields it needs. The confirmation
+  code travels in the JSON's title field, readable wherever your requests
+  land.
+
+- **Apprise support - a channel Overseerr and Jellyseerr don't have.** Point
+  Nexview at a self-hosted Apprise API and it forwards every notification to
+  the services stored there: Signal, Matrix, SMS gateways and over a hundred
+  more. Nexview only knows the server's address and a configuration key; the
+  credentials of the target services never leave the Apprise server. Nexview's
+  urgencies map onto Apprise's message types, and a mistyped or empty key is
+  reported as the error it is - Apprise itself would happily answer "OK" to a
+  key that delivers to nobody.
 
 ---
 

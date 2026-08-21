@@ -1049,3 +1049,289 @@ def test_ticket_fuehrt_zum_ticketbereich(admin_client: TestClient) -> None:
     from app.services.channel_outbox import LINKS
 
     assert LINKS[NT.ticket_new] == "/tickets"
+
+
+# --- Discord ----------------------------------------------------------------
+
+
+DISCORD_ENTWURF = {
+    "name": "Familie",
+    "url": "https://discord.test/api/webhooks/1/geheim",
+    "language": "de",
+}
+
+
+def test_discord_ablauf_testen_bestaetigen_speichern(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Derselbe Weg wie bei Gotify - die Webhook-URL ist dabei das Geheimnis."""
+    gesendet = _mitschnitt(monkeypatch)
+
+    assert admin_client.post(
+        "/api/settings/channels/discord/test", json=DISCORD_ENTWURF
+    ).json()["ok"]
+    assert admin_client.post(
+        "/api/settings/channels/discord/confirm", json={"code": _code_aus_embed(gesendet)}
+    ).json()["ok"]
+
+    antwort = admin_client.post("/api/settings/channels/discord/targets", json=DISCORD_ENTWURF)
+    assert antwort.status_code == 201, antwort.text
+    ziel = antwort.json()
+    assert ziel["verified"] is True
+    # Die URL ist ein Geheimnis: maskiert raus, nie im Klartext.
+    assert "geheim" not in ziel["url"]
+    assert ziel["url_set"] is True
+
+
+@pytest.mark.asyncio
+async def test_discord_embed_mit_farbe_und_poster(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.channels import discord
+
+    gesehen: list[httpx.Request] = []
+    _mit_attrappe(monkeypatch, lambda request: (gesehen.append(request), httpx.Response(204))[1])
+
+    config = discord.DiscordConfig(
+        url="https://discord.test/api/webhooks/1/x", username="Nexview", language="de"
+    )
+    await discord.send(
+        config,
+        Notice(
+            title="Neue Freigabeanfrage",
+            body="**Dune**",
+            event="request_pending",
+            poster_url="https://bild.test/p.jpg",
+            click_url="https://nexview.test/admin/requests",
+        ),
+    )
+
+    daten = json.loads(gesehen[0].content)
+    assert daten["username"] == "Nexview"
+    # Der Absender traegt immer das Nexview-Logo von der Projektseite.
+    assert daten["avatar_url"] == discord.AVATAR_URL
+    embed = daten["embeds"][0]
+    assert embed["color"] == discord.COLORS["request_pending"]
+    assert embed["thumbnail"] == {"url": "https://bild.test/p.jpg"}
+    assert embed["url"] == "https://nexview.test/admin/requests"
+    assert embed["description"] == "**Dune**"
+
+
+def test_discord_erreichbarkeit_prueft_den_webhook(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ein GET auf die URL beantwortet Discord mit der Webhook-Beschreibung."""
+
+    # Eine Attrappe, deren Antwort unterwegs getauscht wird - zweimal
+    # `_mit_attrappe` geht nicht, die zweite Klasse erbte sonst die erste.
+    antwort_json: dict[str, object] = {"channel_id": "123", "name": "nexview"}
+    _mit_attrappe(monkeypatch, lambda _r: httpx.Response(200, json=antwort_json))
+
+    antwort = admin_client.post("/api/settings/channels/discord/check", json=DISCORD_ENTWURF)
+    assert antwort.json()["ok"] is True, antwort.text
+
+    antwort_json = {"etwas": "anderes"}
+    daten = admin_client.post(
+        "/api/settings/channels/discord/check", json=DISCORD_ENTWURF
+    ).json()
+    assert daten["ok"] is False
+    assert "Discord" in daten["message"]
+
+
+def _code_aus_embed(gesendet: list[dict]) -> str:
+    """Bei Discord steckt der Code im Embed-Titel, nicht in einer flachen Zeile."""
+    import re as _re
+
+    rumpf = gesendet[-1]
+    titel = (rumpf.get("embeds") or [{}])[0].get("title") or rumpf.get("title", "")
+    treffer = _re.search(r"\d{4}", titel)
+    assert treffer, f"kein Code im Titel: {rumpf!r}"
+    return treffer.group()
+
+
+# --- Webhook ----------------------------------------------------------------
+
+
+WEBHOOK_ENTWURF = {
+    "name": "Home Assistant",
+    "url": "https://hooks.test/nexview",
+    "token": "Bearer geheim123",
+    "language": "de",
+}
+
+
+def test_webhook_ablauf_testen_bestaetigen_speichern(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Auch der Universalanschluss beweist erst, dass etwas ankommt."""
+    gesendet = _mitschnitt(monkeypatch)
+
+    assert admin_client.post(
+        "/api/settings/channels/webhook/test", json=WEBHOOK_ENTWURF
+    ).json()["ok"]
+    # Der Code steht im title-Feld des JSON - dort liest ihn ab, wer den
+    # Empfaenger eingerichtet hat.
+    import re as _re
+
+    treffer = _re.search(r"\d{4}", gesendet[-1]["title"])
+    assert treffer, f"kein Code im title: {gesendet[-1]!r}"
+    assert admin_client.post(
+        "/api/settings/channels/webhook/confirm", json={"code": treffer.group()}
+    ).json()["ok"]
+
+    antwort = admin_client.post("/api/settings/channels/webhook/targets", json=WEBHOOK_ENTWURF)
+    assert antwort.status_code == 201, antwort.text
+    ziel = antwort.json()
+    assert ziel["verified"] is True
+    # Der Authorization-Header ist das Geheimnis: maskiert raus.
+    assert "geheim123" not in ziel["token"]
+    assert ziel["token_set"] is True
+    # Die Adresse dagegen ist keins.
+    assert ziel["url"] == "https://hooks.test/nexview"
+
+
+@pytest.mark.asyncio
+async def test_webhook_rumpf_und_kopfzeile(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.channels import webhook
+
+    gesehen: list[httpx.Request] = []
+    _mit_attrappe(monkeypatch, lambda request: (gesehen.append(request), httpx.Response(200))[1])
+
+    config = webhook.WebhookConfig(
+        url="https://hooks.test/nexview", token="Bearer abc", language="de"
+    )
+    await webhook.send(
+        config,
+        Notice(
+            title="Neue Freigabeanfrage",
+            body="**Dune** wartet",
+            level="high",
+            event="request_pending",
+            poster_url="https://bild.test/p.jpg",
+            click_url="https://nexview.test/admin/requests",
+        ),
+    )
+
+    anfrage = gesehen[0]
+    assert anfrage.headers["Authorization"] == "Bearer abc"
+    daten = json.loads(anfrage.content)
+    assert daten["source"] == "nexview"
+    assert daten["event"] == "request_pending"
+    assert daten["level"] == "high"
+    # Maschinen lesen keine Hervorhebungen - die Sternchen sind draussen.
+    assert daten["body"] == "Dune wartet"
+    assert daten["image"] == "https://bild.test/p.jpg"
+    assert daten["url"] == "https://nexview.test/admin/requests"
+
+
+@pytest.mark.asyncio
+async def test_webhook_ohne_header_und_testnachricht(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ohne Token keine Authorization-Zeile; ohne Ereignis heisst es "test"."""
+    from app.services.channels import webhook
+
+    gesehen: list[httpx.Request] = []
+    _mit_attrappe(monkeypatch, lambda request: (gesehen.append(request), httpx.Response(200))[1])
+
+    config = webhook.WebhookConfig(url="https://hooks.test/nexview", token="", language="de")
+    await webhook.send(config, Notice(title="Probe 1234", body="b"))
+
+    anfrage = gesehen[0]
+    assert "authorization" not in {k.lower() for k in anfrage.headers}
+    assert json.loads(anfrage.content)["event"] == "test"
+
+
+# --- Apprise ----------------------------------------------------------------
+
+
+APPRISE_ENTWURF = {
+    "name": "Signal-Verteiler",
+    "url": "http://apprise.test:8000",
+    "topic": "nexview",
+    "language": "de",
+}
+
+
+def test_apprise_ablauf_testen_bestaetigen_speichern(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gesendet = _mitschnitt(monkeypatch)
+
+    assert admin_client.post(
+        "/api/settings/channels/apprise/test", json=APPRISE_ENTWURF
+    ).json()["ok"]
+    import re as _re
+
+    treffer = _re.search(r"\d{4}", gesendet[-1]["title"])
+    assert treffer, f"kein Code im title: {gesendet[-1]!r}"
+    assert admin_client.post(
+        "/api/settings/channels/apprise/confirm", json={"code": treffer.group()}
+    ).json()["ok"]
+
+    antwort = admin_client.post("/api/settings/channels/apprise/targets", json=APPRISE_ENTWURF)
+    assert antwort.status_code == 201, antwort.text
+    ziel = antwort.json()
+    assert ziel["verified"] is True
+    # Adresse und Schluessel sind keine Geheimnisse - beide unmaskiert.
+    assert ziel["url"] == "http://apprise.test:8000"
+    assert ziel["topic"] == "nexview"
+
+
+@pytest.mark.asyncio
+async def test_apprise_rumpf_und_stufen(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.channels import apprise
+
+    gesehen: list[httpx.Request] = []
+    _mit_attrappe(
+        monkeypatch,
+        lambda request: (gesehen.append(request), httpx.Response(200, json={"error": None}))[1],
+    )
+
+    config = apprise.AppriseConfig(url="http://apprise.test:8000", topic="nexview", language="de")
+    await apprise.send(
+        config,
+        Notice(
+            title="Neue Freigabeanfrage",
+            body="**Dune** wartet",
+            level="urgent",
+            click_url="https://nexview.test/admin/requests",
+        ),
+    )
+
+    anfrage = gesehen[0]
+    assert str(anfrage.url) == "http://apprise.test:8000/notify/nexview"
+    daten = json.loads(anfrage.content)
+    assert daten["type"] == "failure"  # dringend -> Apprises lauteste Stufe
+    assert daten["format"] == "markdown"
+    # Apprise kennt kein Link-Feld - der Verweis steht im Text.
+    assert "https://nexview.test/admin/requests" in daten["body"]
+
+
+@pytest.mark.asyncio
+async def test_apprise_leerer_schluessel_ist_ein_fehler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """204 heisst bei Apprise "kein Ziel hinterlegt" - kein stiller Erfolg."""
+    from app.services.channels import apprise
+
+    # Eine Attrappe mit tauschbarem Status - zweimal `_mit_attrappe` erbte
+    # sonst die erste Antwort (siehe Discord-Erreichbarkeitstest).
+    status = 204
+    _mit_attrappe(monkeypatch, lambda _r: httpx.Response(status))
+    config = apprise.AppriseConfig(url="http://apprise.test:8000", topic="tippfehler", language="de")
+    with pytest.raises(ChannelError, match="Schlüssel"):
+        await apprise.send(config, Notice(title="t", body="b"))
+
+    status = 424
+    with pytest.raises(ChannelError, match="zustellen"):
+        await apprise.send(config, Notice(title="t", body="b"))
+
+
+def test_apprise_erreichbarkeit(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    antwort_json: dict[str, object] = {"status": {"details": ["OK"]}, "config_lock": False}
+    _mit_attrappe(monkeypatch, lambda _r: httpx.Response(200, json=antwort_json))
+
+    daten = admin_client.post("/api/settings/channels/apprise/check", json=APPRISE_ENTWURF).json()
+    assert daten["ok"] is True, daten
+
+    antwort_json = {"etwas": "anderes"}
+    daten = admin_client.post("/api/settings/channels/apprise/check", json=APPRISE_ENTWURF).json()
+    assert daten["ok"] is False
+    assert "Apprise" in daten["message"]

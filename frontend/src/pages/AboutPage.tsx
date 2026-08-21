@@ -244,6 +244,10 @@ function Credits() {
             <ExternalLink href="https://gotify.net">Gotify</ExternalLink>
             {' · '}
             <ExternalLink href="https://telegram.org">Telegram</ExternalLink>
+            {' · '}
+            <ExternalLink href="https://discord.com">Discord</ExternalLink>
+            {' · '}
+            <ExternalLink href="https://github.com/caronc/apprise-api">Apprise</ExternalLink>
             <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
               {t('about.notifyNotice')}
             </span>

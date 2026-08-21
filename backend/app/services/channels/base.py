@@ -38,13 +38,19 @@ class ChannelError(Exception):
 
 @dataclass(frozen=True)
 class Notice:
-    """Was verschickt werden soll - noch ohne Kenntnis des Kanals."""
+    """Was verschickt werden soll - noch ohne Kenntnis des Kanals.
+
+    ``event`` ist der Meldungstyp (``NotificationType``-Wert). Die meisten
+    Kanaele brauchen ihn nicht - Discord waehlt danach die Farbe des Embeds.
+    ``None`` heisst: keine besondere Bedeutung, etwa bei der Testnachricht.
+    """
 
     title: str
     body: str
     level: str = DEFAULT_LEVEL
     poster_url: str | None = None
     click_url: str | None = None
+    event: str | None = None
 
 
 def _lesbar(fehler: Exception, ziel: str) -> str:

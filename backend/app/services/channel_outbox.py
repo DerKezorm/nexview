@@ -212,6 +212,7 @@ def _notice(
         level=stufe,
         poster_url=request.poster_path if request else None,
         click_url=ziel,
+        event=eintrag.type.value,
     )
 
 

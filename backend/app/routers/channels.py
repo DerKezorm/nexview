@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/settings/channels", tags=["channels"])
 
 logger = logging.getLogger("nexview.channels")
 
-Kanal = Annotated[Literal["ntfy", "gotify", "email", "telegram"], Path()]
+Kanal = Annotated[Literal["ntfy", "gotify", "email", "telegram", "discord", "webhook", "apprise"], Path()]
 
 
 class TargetDraft(BaseModel):
@@ -131,7 +131,10 @@ def _pruefe_entwurf(payload: TargetDraft) -> None:
         )
     if payload.language is not None and payload.language not in ("de", "en"):
         raise HTTPException(status_code=422, detail="Sprache muss 'de' oder 'en' sein.")
-    if payload.url and not payload.url.strip().startswith(("http://", "https://")):
+    # Bei Discord ist die URL ein Geheimnis und kommt maskiert zurueck -
+    # ein Punkte-Wert heisst "unveraendert" und wird nicht geprueft.
+    url = (payload.url or "").strip()
+    if url and not url.startswith("•") and not url.startswith(("http://", "https://")):
         raise HTTPException(
             status_code=422, detail="Die Adresse muss mit http:// oder https:// beginnen."
         )

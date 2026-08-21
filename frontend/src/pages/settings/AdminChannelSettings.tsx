@@ -18,6 +18,9 @@ import { Anleitung, HilfeKnopf, hatAnleitung } from './ChannelHelp'
 import emailLogo from '../../assets/email.svg'
 import gotifyLogo from '../../assets/gotify.svg'
 import ntfyLogo from '../../assets/ntfy.svg'
+import discordLogo from '../../assets/discord.svg'
+import webhookLogo from '../../assets/webhook.svg'
+import appriseLogo from '../../assets/apprise.svg'
 import telegramLogo from '../../assets/telegram.svg'
 
 /**
@@ -40,13 +43,16 @@ import telegramLogo from '../../assets/telegram.svg'
 
 type Entwurf = Record<string, string>
 
-const KANAELE: ChannelKind[] = ['ntfy', 'gotify', 'telegram', 'email']
+const KANAELE: ChannelKind[] = ['ntfy', 'gotify', 'telegram', 'discord', 'webhook', 'apprise', 'email']
 
 /** Wie der Dienst sich selbst schreibt. */
 const LABELS: Record<ChannelKind, string> = {
   ntfy: 'ntfy',
   gotify: 'Gotify',
   telegram: 'Telegram',
+  discord: 'Discord',
+  webhook: 'Webhook',
+  apprise: 'Apprise',
   email: 'E-Mail',
 }
 
@@ -54,6 +60,9 @@ const LOGOS: Record<ChannelKind, string> = {
   ntfy: ntfyLogo,
   gotify: gotifyLogo,
   telegram: telegramLogo,
+  discord: discordLogo,
+  webhook: webhookLogo,
+  apprise: appriseLogo,
   email: emailLogo,
 }
 
@@ -144,6 +153,9 @@ const LEER: Record<string, Entwurf> = {
   'gotify-instanz': { name: '', url: '', token: '', language: 'de' },
   'email-instanz': { name: '', address: '', subject: '', language: 'de' },
   'telegram-instanz': { name: '', token: '', username: '' },
+  'discord-instanz': { name: '', url: '', username: '', language: 'de' },
+  'webhook-instanz': { name: '', url: '', token: '', language: 'de' },
+  'apprise-instanz': { name: '', url: '', topic: '', language: 'de' },
   'telegram-topic': { name: '', chat_id: '', thread_id: '', silent: '', language: 'de' },
 }
 
@@ -470,6 +482,9 @@ function instanzAdresse(ziel: {
   url?: string | null
   topic?: string | null
 }): string | null {
+  // Hinter einem Webhook steckt keine Oberflaeche - ein Klick koennte dort
+  // sogar etwas ausloesen.
+  if (ziel.channel === 'webhook') return null
   const basis = (ziel.url ?? '').trim().replace(/\/$/, '')
   if (!basis.startsWith('http')) return null
   // Bei ntfy führt das Topic direkt zum Nachrichtenverlauf; Gotify zeigt nach
@@ -610,6 +625,8 @@ function ZweistufigesFeld({ kanal, ziel, onFertig, onAbbrechen }: FeldProps) {
             if (feld === 'name') return ['name', ziel.name]
             // Geheimnisse bleiben leer: leer heißt „unverändert“.
             if (feld === 'password' || feld === 'token') return [feld, '']
+            // Bei Discord ist die URL selbst das Geheimnis und kommt maskiert an.
+            if (kanal === 'discord' && feld === 'url') return [feld, '']
             return [feld, (ziel as unknown as Record<string, string>)[feld] ?? vorlage[feld]]
           }),
         )
@@ -1227,6 +1244,8 @@ function PostfachFeld({
             if (feld === 'name') return ['name', ziel.name]
             // Geheimnisse bleiben leer: leer heißt „unverändert“.
             if (feld === 'password' || feld === 'token') return [feld, '']
+            // Bei Discord ist die URL selbst das Geheimnis und kommt maskiert an.
+            if (kanal === 'discord' && feld === 'url') return [feld, '']
             return [feld, (ziel as unknown as Record<string, string>)[feld] ?? vorlage[feld]]
           }),
         )
@@ -1346,7 +1365,9 @@ function PostfachFeld({
         : entwurf.topic.trim() !== ''
       : kanal === 'email'
         ? entwurf.address.trim() !== ''
-        : entwurf.url.trim() !== '')
+        : kanal === 'apprise'
+          ? entwurf.url.trim() !== '' && entwurf.topic.trim() !== ''
+          : entwurf.url.trim() !== '' || Boolean(ziel?.url_set))
 
   // Meldet dem Rahmen, ob der Code bestätigt ist - erst dann räumt er rechts
   // die Anleitung weg und gibt der Liste den Platz.
@@ -1407,7 +1428,13 @@ function PostfachFeld({
                 ? 'channels.topicName'
                 : kanal === 'email'
                   ? 'channels.mailboxName'
-                  : 'channels.appName',
+                  : kanal === 'discord'
+                    ? 'channels.discordName'
+                    : kanal === 'webhook'
+                      ? 'channels.webhookName'
+                      : kanal === 'apprise'
+                        ? 'channels.appriseName'
+                        : 'channels.appName',
             )}
             value={entwurf.name}
             onChange={(event) => updateVerbindung({ name: event.target.value })}
@@ -1417,7 +1444,13 @@ function PostfachFeld({
                 ? 'channels.topicNameHint'
                 : kanal === 'email'
                   ? 'channels.mailboxNameHint'
-                  : 'channels.appNameHint',
+                  : kanal === 'discord'
+                    ? 'channels.discordNameHint'
+                    : kanal === 'webhook'
+                      ? 'channels.webhookNameHint'
+                      : kanal === 'apprise'
+                        ? 'channels.appriseNameHint'
+                        : 'channels.appNameHint',
             )}
             autoComplete="off"
           />
@@ -1501,6 +1534,67 @@ function PostfachFeld({
                 autoComplete="off"
               />
             </>
+          ) : kanal === 'discord' ? (
+            <>
+              {/* Die URL ist bei Discord selbst das Geheimnis - es gibt kein
+                  getrenntes Token. Deshalb maskiert wie ein Passwort. */}
+              <Field
+                label={t('channels.webhookUrl')}
+                type="password"
+                value={entwurf.url}
+                onChange={(event) => updateVerbindung({ url: event.target.value })}
+                placeholder={ziel?.url_set ? ziel.url : 'https://discord.com/api/webhooks/…'}
+                hint={ziel?.url_set ? t('settings.keySetHint') : t('channels.webhookUrlHint')}
+                autoComplete="new-password"
+              />
+              <Field
+                label={t('channels.senderName')}
+                value={entwurf.username}
+                onChange={(event) => updateVerbindung({ username: event.target.value })}
+                placeholder="Nexview"
+                hint={t('channels.senderNameHint')}
+                autoComplete="off"
+              />
+            </>
+          ) : kanal === 'apprise' ? (
+            <>
+              <Field
+                label={t('channels.appriseUrl')}
+                value={entwurf.url}
+                onChange={(event) => updateVerbindung({ url: event.target.value })}
+                placeholder="http://apprise.zuhause:8000"
+                hint={t('channels.appriseUrlHint')}
+                autoComplete="off"
+              />
+              <Field
+                label={t('channels.appriseKey')}
+                value={entwurf.topic}
+                onChange={(event) => updateVerbindung({ topic: event.target.value })}
+                placeholder="nexview"
+                hint={t('channels.appriseKeyHint')}
+                autoComplete="off"
+              />
+            </>
+          ) : kanal === 'webhook' ? (
+            <>
+              <Field
+                label={t('channels.webhookTargetUrl')}
+                value={entwurf.url}
+                onChange={(event) => updateVerbindung({ url: event.target.value })}
+                placeholder="https://n8n.zuhause/webhook/nexview"
+                hint={t('channels.webhookTargetUrlHint')}
+                autoComplete="off"
+              />
+              <Field
+                label={t('channels.authHeader')}
+                type="password"
+                value={entwurf.token}
+                onChange={(event) => updateVerbindung({ token: event.target.value })}
+                placeholder={ziel?.token_set ? ziel.token : 'Bearer …'}
+                hint={ziel?.token_set ? t('settings.keySetHint') : t('channels.authHeaderHint')}
+                autoComplete="new-password"
+              />
+            </>
           ) : (
             <>
               <Field
@@ -1580,7 +1674,7 @@ function PostfachFeld({
                 >
                   {t('channels.checkCode')}
                 </Button>
-                {kanal !== 'telegram' && kanal !== 'email' && (
+                {kanal !== 'telegram' && kanal !== 'email' && kanal !== 'discord' && kanal !== 'webhook' && kanal !== 'apprise' && (
                   <DienstLink
                     kanal={kanal}
                     url={

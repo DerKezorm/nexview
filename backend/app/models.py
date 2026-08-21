@@ -931,6 +931,9 @@ class ChannelKind(str, enum.Enum):
     gotify = "gotify"
     email = "email"
     telegram = "telegram"
+    discord = "discord"
+    webhook = "webhook"
+    apprise = "apprise"
 
 
 class ChannelTarget(Base):

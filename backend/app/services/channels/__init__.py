@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...models import ChannelKind
-from . import email, gotify, ntfy, telegram
+from . import apprise, discord, email, gotify, ntfy, telegram, webhook
 from .base import DEFAULT_LEVEL, LEVELS, ChannelError, Notice
 
 __all__ = [
@@ -41,6 +41,9 @@ _MODULES = {
     ChannelKind.gotify: gotify,
     ChannelKind.email: email,
     ChannelKind.telegram: telegram,
+    ChannelKind.discord: discord,
+    ChannelKind.webhook: webhook,
+    ChannelKind.apprise: apprise,
 }
 
 

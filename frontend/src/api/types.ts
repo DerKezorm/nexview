@@ -604,7 +604,7 @@ export type ChannelLanguage = "de" | "en";
 export type ChannelLevel = "low" | "normal" | "high" | "urgent";
 
 /** Serverseitige Kanäle, die es heute gibt. */
-export type ChannelKind = "ntfy" | "gotify" | "telegram" | "email";
+export type ChannelKind = "ntfy" | "gotify" | "telegram" | "discord" | "webhook" | "apprise" | "email";
 
 /**
  * Ein eingerichtetes Ziel – eine Kachel in den Systembenachrichtigungen.
@@ -653,6 +653,8 @@ export type ChannelTarget = {
   password_set?: boolean;
   token?: string;
   token_set?: boolean;
+  /** Discord: die Webhook-URL ist selbst das Geheimnis. */
+  url_set?: boolean;
   /** Letzter endgültig gescheiterter Versand – sonst fällt ein Ausfall niemandem auf. */
   last_error: string | null;
   last_error_at: string | null;

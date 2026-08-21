@@ -320,7 +320,10 @@ async def apply_target(
 
     Anders als ``resolve_root_folder`` fragt das hier **nicht** nach
     ``root_folder_choice``: Der Schalter regelt, ob der *Anfragende* waehlen
-    darf. Der Entscheider darf immer.
+    darf. **Der Entscheider darf immer** - auch dann, wenn der Betreiber die
+    Regel inzwischen umgestellt hat. Genau daran haengt, dass eine Anfrage
+    ohne Ordner nie unfreigebbar wird; die Oberflaeche bietet ihm die Wahl
+    deshalb an, sobald der Ordner fehlt, und nicht nur solange die Regel gilt.
     """
     art = request.media_type.value
     ordner, profile = await _ziel_auswahl(settings, art, request.tier.value)

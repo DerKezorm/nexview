@@ -73,7 +73,16 @@ export type User = {
    * Media-Server angelegt wurde, hat zunächst keines – und darf die
    * Verknüpfung dann nicht lösen, ohne sich auszusperren.
    */
-  has_password: boolean;
+  has_password: boolean
+
+  /**
+   * Hat Plex den persönlichen Merklisten-Zugang abgelehnt?
+   *
+   * Nicht zu verwechseln mit dem Server-Zugang des Administrators. Nur
+   * wer schon einmal verbunden war, kann hier true stehen haben – wer nie
+   * verbunden hat, soll keinen Hinweis auf ein abgelaufenes Token sehen.
+   */
+  watchlist_token_invalid: boolean;
 
   /** Vorbelegung der Filterleiste; null = Vorgabe des Admins. */
   discover_region: string | null;

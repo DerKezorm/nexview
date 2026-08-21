@@ -197,6 +197,52 @@ def merke_token(user: User, verschluesselt: str | None) -> None:
         return
     user.watchlist_token = verschluesselt
     user.watchlist_connected_at = utcnow()
+    # Ein frisches Token ist per Definition gueltig - der rote Hinweis muss
+    # damit sofort verschwinden, nicht erst nach dem naechsten stuendlichen
+    # Durchlauf.
+    #
+    # Bewusst **hier** und nicht im Merklisten-Endpunkt: Durch diese Funktion
+    # laufen alle vier Wege, auf denen ein Token entsteht - Anmeldung mit
+    # Plex, Verknuepfen im Profil, Server-Anbindung des Administrators und die
+    # Merklisten-Anmeldung. An nur einem davon zurueckzusetzen liesse den
+    # Hinweis nach den anderen dreien stehen.
+    user.watchlist_token_invalid_at = None
+
+
+def token_abgelehnt(user: User) -> bool:
+    """Merken, dass der Anbieter das persoenliche Token abgelehnt hat.
+
+    **Das Token wird bewusst nicht geloescht.** Geloescht saehe der Zustand aus
+    wie "nie verbunden", und die Oberflaeche koennte nicht zwischen "muss sich
+    neu anmelden" und "will die Merkliste gar nicht" unterscheiden.
+
+    Zwei Stellen erkennen den Fall: der stuendliche Gesehen-Abgleich und der
+    Merklisten-Abruf, wenn jemand die Seite oeffnet. Die Regel steht deshalb
+    hier und nicht in einer davon.
+
+    Gibt zurueck, ob sich etwas geaendert hat - der Aufrufer entscheidet, ob er
+    dafuer eigens speichert.
+    """
+    if user.watchlist_token_invalid_at is not None:
+        return False
+    user.watchlist_token_invalid_at = utcnow()
+    return True
+
+
+def token_geht_wieder(user: User) -> bool:
+    """Die Markierung "abgelehnt" wieder wegnehmen.
+
+    Gegenstueck zu ``token_abgelehnt``. Ohne das bliebe der rote Hinweis
+    stehen, sobald er einmal gesetzt wurde - auch wenn die Ursache laengst
+    behoben ist und der Abgleich wieder laeuft. Der Betroffene wuerde sich
+    dann grundlos neu anmelden.
+
+    Gibt zurueck, ob sich etwas geaendert hat.
+    """
+    if user.watchlist_token_invalid_at is None:
+        return False
+    user.watchlist_token_invalid_at = None
+    return True
 
 
 def unlink(user: User) -> None:
@@ -224,6 +270,7 @@ def unlink(user: User) -> None:
     # fremdes Zugangstoken ohne Anlass aufzubewahren.
     user.watchlist_token = None
     user.watchlist_connected_at = None
+    user.watchlist_token_invalid_at = None
 
 
 def find_linked(db: Session, account: ExternalAccount) -> User | None:

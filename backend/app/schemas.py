@@ -135,6 +135,10 @@ class UserPublic(BaseModel):
     # *Ob* ein Plex-Zugang hinterlegt ist - das Token selbst verlaesst den
     # Server nie. Ohne ihn laesst sich die Merkliste nicht lesen.
     watchlist_connected: bool
+    # Hat Plex den hinterlegten Zugang abgelehnt? Dann hilft nur eine neue
+    # Anmeldung - und nur die betroffene Person kann sie machen. Deshalb steht
+    # es hier und nicht in einer Admin-Auskunft.
+    watchlist_token_invalid: bool = False
 
     # --- Verknuepfung mit dem Media-Server ---------------------------------
     # Die Kennung selbst wird bewusst nicht ausgeliefert; fuer die Oberflaeche

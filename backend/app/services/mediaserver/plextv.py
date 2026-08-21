@@ -38,6 +38,10 @@ AUTH_URL = "https://app.plex.tv/auth"
 # kennt zu einem Titel die fremden Kennungen (TMDB, IMDb, TVDB).
 DISCOVER_URL = "https://discover.provider.plex.tv"
 METADATA_URL = "https://metadata.provider.plex.tv"
+# Der kontoweite Seh-Verlauf - was Plex ueber alle Server und Discover hinweg
+# als gesehen fuehrt, auch fuer Titel, die in keiner Bibliothek liegen. Eine
+# GraphQL-Schnittstelle, nicht die uebliche REST-Form von plex.tv.
+COMMUNITY_URL = "https://community.plex.tv/api"
 PRODUCT = "Nexview"
 
 # Wie viele Eintraege je Seite geholt werden. Plex deckelt selbst; 100 haelt
@@ -166,6 +170,45 @@ def _urls(connections: list[dict[str, Any]]) -> tuple[str, ...]:
     lokal = [str(v["uri"]) for v in connections if v.get("local") and v.get("uri")]
     fern = [str(v["uri"]) for v in connections if not v.get("local") and v.get("uri")]
     return tuple(lokal + fern)
+
+
+async def server_access_token(
+    client_identifier: str, token: str, machine_id: str
+) -> str | None:
+    """Das **server-eigene** Zugriffs-Token dieses Kontos fuer diesen Server.
+
+    Plex fuehrt zwei verschiedene Dinge, die beide "Token" heissen:
+
+    * das **Konto-Token** von der Anmeldung - gilt bei plex.tv (Merkliste,
+      Server-Liste),
+    * je Server ein **Zugriffs-Token** aus ``/resources`` - nur damit nimmt ein
+      Server die Anfrage eines *geteilten* Kontos an.
+
+    Beim Eigentuemer sind beide gleich; deshalb faellt der Unterschied mit dem
+    Zugang des Administrators nie auf. Ein geteiltes Konto weist der Server
+    dagegen mit **401** ab, wenn man ihm das Konto-Token vorlegt - obwohl es
+    gueltig ist und die Bibliotheks-Freigabe besteht. Gemeldet wurde das als
+    "Plex nimmt das Token nicht mehr an"; eine Neuanmeldung half nicht, weil
+    das frische Konto-Token dieselbe falsche Sorte ist.
+
+    Gibt ``None`` zurueck, wenn dieser Server fuer das Konto nicht dabei ist -
+    dann fehlt wirklich die Freigabe.
+    """
+    data = await _request(
+        "GET",
+        "/resources",
+        client_identifier=client_identifier,
+        token=token,
+        params={"includeHttps": "1"},
+    )
+    for eintrag in data or []:
+        if (eintrag.get("clientIdentifier") or "").strip() != machine_id:
+            continue
+        eigenes = (eintrag.get("accessToken") or "").strip()
+        # Faellt es weg, gilt das Konto-Token - so macht es Plex beim
+        # Eigentuemer.
+        return eigenes or token
+    return None
 
 
 async def list_servers(client_identifier: str, token: str) -> list[ServerCandidate]:

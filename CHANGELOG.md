@@ -16,6 +16,22 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ### New
 
+- **The watched state finally works for shared accounts.** Plex keeps two
+  different things that both go by the name "token": the account token from
+  signing in, which plex.tv accepts, and a separate access token per server,
+  which is the only one a server accepts from a *shared* account. Both are the
+  same for the owner, so this went unnoticed - and for everybody else the
+  watched sync had never worked at all. It was reported as "Plex no longer
+  accepts your token", and signing in again did not help, because a fresh
+  account token is the same wrong kind.
+
+- **A red banner for whoever's Plex access really has expired**, under the menu
+  on every page, with the sign-in happening right there - code and link
+  included, because browsers block the popup often and on a phone almost
+  always. Only the person affected sees it; nobody else can fix it. It clears
+  the moment the sync succeeds again, not only after signing in, so a banner
+  never outlives its cause.
+
 - **Nexview now records how much space each person occupies.** Nothing is
   limited yet and nothing is deleted - this first step only measures and will
   only become visible in the interface with the next one. Sizes come from
@@ -65,6 +81,20 @@ veröffentlicht, solange kein Tag dazu existiert.
   accounts.
 
 ### Fixed
+
+- **A request could become impossible to approve.** If the target folder was
+  the approver's to choose, and the operator then switched to a fixed folder
+  while a request was already waiting, the interface stopped offering the
+  choice while the server kept demanding one. The request could then neither
+  be approved nor repaired. Whether a folder is needed now depends solely on
+  whether the request has one - the approver may always choose, whatever the
+  rule says at the time.
+
+- **The log names people, not placeholders.** "Plex no longer accepts the token
+  of user" reads like a template; it now says "user (Dilara)" where a display
+  name exists. And a rejection from Plex records the actual HTTP status, so it
+  is possible to tell "who are you" from "you may not" - that distinction had
+  been thrown away, which made this whole class of problem undiagnosable.
 
 - **The ticket and new-account mail switches finally send mail.** Both
   profile switches existed and were saved, and the outbox even recorded

@@ -211,18 +211,26 @@ export function AdminRequestsPage() {
   /**
    * Muss vor der Freigabe noch ein Ordner gewählt werden?
    *
-   * Nur wenn der Betreiber das so eingestellt hat *und* die Anfrage wirklich
-   * ohne Ordner hereinkam - Altbestand hat seinen längst.
+   * **Allein daran, ob der Anfrage einer fehlt** – nicht daran, ob die Regel
+   * "der Entscheider wählt" gerade gilt. Altbestand hat seinen Ordner längst,
+   * ist also nie betroffen.
+   *
+   * Die Regel mitzuprüfen war ein Fehler, und ein tückischer: Kommt eine
+   * Anfrage ohne Ordner herein, weil der Entscheider wählen soll, und stellt
+   * der Betreiber danach auf einen festen Ordner um, verschwand hier das
+   * Auswahlfeld – während der Server weiterhin eine Wahl verlangte. Die
+   * Anfrage ließ sich dann weder freigeben noch reparieren.
+   *
+   * Der Entscheider darf ohnehin immer wählen (siehe
+   * ``requests_service.apply_target``). Fehlt der Ordner, fragen wir ihn also
+   * – statt still den Standardordner zu nehmen, was genau der Fehler wäre,
+   * den die Einstellung verhindern soll.
    */
   function brauchtZiel(request: {
     root_folder_path: string | null;
     media_type: MediaType;
   }): boolean {
-    const regel =
-      request.media_type === "movie"
-        ? config?.approver_picks_target_movie
-        : config?.approver_picks_target_tv;
-    return Boolean(regel) && request.root_folder_path === null;
+    return request.root_folder_path === null;
   }
 
   function refresh() {

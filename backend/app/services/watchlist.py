@@ -34,6 +34,7 @@ from ..models import MediaType, User, WatchlistLookup, utcnow
 from ..schemas_media import MediaItem
 from . import media
 from .media import AgeRestricted, TmdbError
+from . import mediaserver_accounts as konten
 from .mediaserver import MediaServerError, get_media_server
 from .mediaserver.base import WatchlistItem
 from .settings_service import AppSettings, for_user
@@ -201,6 +202,12 @@ async def lesen(
         if fehler.status_code == 401:
             # Nicht bloss ein Fehler, sondern eine Handlungsanweisung: Das
             # Token taugt nicht mehr, es hilft nur eine neue Anmeldung.
+            #
+            # Hier faellt es frueher auf als im stuendlichen Abgleich - wer die
+            # Seite oeffnet, merkt es sofort. Deshalb auch hier vermerken,
+            # damit der Hinweis unter dem Menue erscheint.
+            if konten.token_abgelehnt(user):
+                db.commit()
             raise WatchlistFehler(
                 "watchlist_token_invalid",
                 "Plex nimmt den hinterlegten Zugang nicht mehr an. Bitte die "

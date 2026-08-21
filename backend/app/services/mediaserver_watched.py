@@ -51,7 +51,7 @@ from ..models import (
     User,
     UserWatched,
 )
-from . import notify
+from . import mediaserver_accounts as konten, notify
 from .mediaserver import MediaServerError, WatchedRecord, get_media_server
 from .settings_service import AppSettings
 
@@ -113,6 +113,18 @@ async def _konto_zuordnung(db: Session, server, benutzer: list[User]) -> dict[st
     return zuordnung
 
 
+def _wer(user: User) -> str:
+    """Wie eine Person im Protokoll heissen soll.
+
+    Der Anzeigename dazu, wenn es einen gibt: Ein Konto namens "user" liest
+    sich sonst wie ein Platzhalter statt wie eine Person - und genau das ist
+    beim Lesen des Protokolls passiert.
+    """
+    if user.display_name and user.display_name != user.username:
+        return f"{user.username} ({user.display_name})"
+    return user.username
+
+
 def _neu_verbinden_hinweis(db: Session, user: User, anbieter: str) -> None:
     """Der Person sagen, dass ihr Zugang eine neue Anmeldung braucht.
 
@@ -124,7 +136,12 @@ def _neu_verbinden_hinweis(db: Session, user: User, anbieter: str) -> None:
     beachtet. Nach einer neuen Anmeldung (``watchlist_connected_at`` rueckt
     vor) darf ein spaeterer Ausfall wieder melden.
     """
-    logger.warning("%s nimmt das Token von %s nicht mehr an", anbieter, user.username)
+    logger.warning("%s nimmt das Token von %s nicht mehr an", anbieter, _wer(user))
+
+    # Merken, dass das Token abgelehnt wurde - **ohne es zu loeschen**.
+    # Geloescht saehe es aus wie "nie verbunden"; so kann die Oberflaeche
+    # gezielt der betroffenen Person sagen, dass sie sich neu anmelden muss.
+    konten.token_abgelehnt(user)
     stichtag = user.watchlist_connected_at or datetime.min
     schon = db.scalar(
         select(Notification.id).where(
@@ -258,6 +275,10 @@ async def refresh(db: Session, settings: AppSettings) -> int:
                     "Gesehen-Stand von %s nicht lesbar: %s", user.username, fehler.message
                 )
             continue
+        # Es geht wieder - einen frueheren Hinweis wegnehmen. Sonst bliebe der
+        # rote Balken stehen, obwohl die Ursache behoben ist.
+        konten.token_geht_wieder(user)
+
         geschrieben += _vollstaendig_uebernehmen(
             db, user.id, stand, werke, im_bestand, vorhanden
         )

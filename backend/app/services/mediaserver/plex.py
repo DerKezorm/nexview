@@ -7,6 +7,7 @@ anbieter-neutralen Formen aus ``base.py``.
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -28,6 +29,8 @@ from .base import (
 
 if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
     from ..settings_service import AppSettings
+
+logger = logging.getLogger("nexview.mediaserver")
 
 # Wie viele Titel je Abfrage. Gross genug, dass grosse Bibliotheken nicht in
 # hundert Abfragen zerfallen, klein genug fuer eine handliche Antwort.
@@ -175,7 +178,7 @@ class PlexServer(MediaServer):
         try:
             response = await client.get(
                 f"{self.base_url}/identity",
-                headers={"Accept": "application/json", "X-Plex-Token": self.token},
+                headers=self._kopfzeilen(self.token),
             )
         except httpx.TimeoutException as exc:
             raise MediaServerError("Der Plex-Server antwortet nicht (Zeitüberschreitung).") from exc
@@ -222,7 +225,7 @@ class PlexServer(MediaServer):
         try:
             antwort = await client.get(
                 f"{url.rstrip('/')}/identity",
-                headers={"Accept": "application/json", "X-Plex-Token": provider_token},
+                headers=self._kopfzeilen(provider_token),
                 timeout=5.0,
             )
         except httpx.HTTPError:
@@ -262,6 +265,26 @@ class PlexServer(MediaServer):
 
     # --- Bibliothek ---------------------------------------------------------
 
+    def _kopfzeilen(self, token: str) -> dict[str, str]:
+        """Kopfzeilen fuer eine Abfrage an den Server selbst.
+
+        **Dieselben wie fuer plex.tv**, und das ist der Punkt: Vorher gingen
+        hier nur ``Accept`` und ``X-Plex-Token`` raus. Mit dem Zugang des
+        Eigentuemers faellt das nicht auf - der darf ohnehin alles. Ein
+        **geteiltes** Konto weist der Server ohne Client-Kennung dagegen mit
+        401 ab, obwohl das Token gueltig ist und die Bibliotheks-Freigabe
+        besteht.
+
+        Gemeldet wurde das als "Plex nimmt das Token nicht mehr an", und eine
+        Neuanmeldung half nicht: Das frische Token wurde genauso abgewiesen.
+        Nicht das Token war das Problem, sondern dass sich der Aufrufer nicht
+        zu erkennen gab.
+
+        ``plextv._headers`` baut dieselbe Liste - bewusst wiederverwendet,
+        damit nicht zwei Stellen dasselbe unterschiedlich beantworten.
+        """
+        return plextv._headers(self.client_identifier, token)
+
     async def _server(
         self, pfad: str, params: dict[str, Any] | None = None, token: str | None = None
     ) -> dict[str, Any]:
@@ -278,7 +301,7 @@ class PlexServer(MediaServer):
         try:
             antwort = await client.get(
                 f"{self.base_url}{pfad}",
-                headers={"Accept": "application/json", "X-Plex-Token": token or self.token},
+                headers=self._kopfzeilen(token or self.token),
                 params=params,
                 timeout=30.0,
             )
@@ -290,6 +313,22 @@ class PlexServer(MediaServer):
             ) from exc
 
         if antwort.status_code in (401, 403):
+            # **Den echten Kode ins Protokoll**, nicht nur die Ersetzung unten.
+            #
+            # Ohne diese Zeile war eine Fehlersuche kaum moeglich: Gemeldet
+            # wurde "Token abgelaufen", und ob der Server in Wahrheit 401
+            # ("wer bist du") oder 403 ("du darfst hier nicht") gesagt hatte,
+            # stand nirgends. Das sind zwei verschiedene Probleme mit zwei
+            # verschiedenen Loesungen.
+            logger.warning(
+                "Plex-Server antwortet auf %s mit HTTP %s (Antwort: %s)",
+                pfad,
+                antwort.status_code,
+                " ".join(antwort.text[:200].split()),
+            )
+            # Beide werden bewusst als 401 weitergereicht: Fuer den Aufrufer
+            # ist die Handlung dieselbe. **Bekannte Ungenauigkeit** - taucht im
+            # Protokoll je ein 403 auf, gehoert das hier auseinandergezogen.
             raise MediaServerError("Der Plex-Server hat den Zugang nicht akzeptiert.", 401)
         if antwort.status_code >= 400:
             raise MediaServerError(
@@ -353,9 +392,49 @@ class PlexServer(MediaServer):
                 media_type=werk.media_type,
                 watched_at=werk.watched_at,
             )
-            for werk in await self._alle_werke(provider_token)
+            for werk in await self._alle_werke(await self._server_token(provider_token))
             if werk.owner_watched and werk.rating_key
         ]
+
+    async def _server_token(self, konto_token: str) -> str:
+        """Vom Konto-Token auf das Zugriffs-Token **fuer diesen Server**.
+
+        Der Server nimmt von einem *geteilten* Konto nur sein eigenes Token an,
+        nicht das Konto-Token von der Anmeldung. Beim Eigentuemer sind beide
+        gleich - deshalb ist der Unterschied nie aufgefallen, solange nur mit
+        dem Zugang des Administrators gelesen wurde.
+
+        Kostet eine Abfrage bei plex.tv je Konto und Durchlauf. Der
+        Gesehen-Abgleich laeuft stuendlich; das faellt nicht ins Gewicht.
+
+        Schlaegt die Abfrage fehl, bleibt es beim Konto-Token: Dann scheitert
+        der Aufruf danach mit derselben Meldung wie zuvor, statt hier schon mit
+        einer anderen - eine Verschlechterung waere das nicht.
+        """
+        if not self.machine_id:
+            return konto_token
+        try:
+            eigenes = await plextv.server_access_token(
+                self.client_identifier, konto_token, self.machine_id
+            )
+        except MediaServerError:
+            return konto_token
+        if eigenes is None:
+            # Der Server steht nicht in der Liste des Kontos - dann fehlt
+            # wirklich die Bibliotheks-Freigabe, und das ist etwas anderes als
+            # ein abgelaufenes Token.
+            logger.warning(
+                "Konto hat keinen Zugriff auf den Server %s - "
+                "die Bibliotheks-Freigabe fehlt",
+                self.machine_id,
+            )
+            return konto_token
+        if eigenes != konto_token:
+            logger.info(
+                "Fuer diesen Server gilt ein eigenes Zugriffs-Token "
+                "(geteiltes Konto) - es wird verwendet"
+            )
+        return eigenes
 
     async def list_server_users(self) -> list[ServerUser]:
         konten = (await self._server("/accounts")).get("Account") or []

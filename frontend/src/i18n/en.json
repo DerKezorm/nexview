@@ -1174,5 +1174,10 @@
     "assigned": "Assigned",
     "people_one": "1 person",
     "people_other": "{{count}} people"
+  },
+  "watchlistExpired": {
+    "text": "Your Plex access has expired. Until you sign in again, your watchlist and watched state stay as they are.",
+    "action": "Sign in again",
+    "running": "Signing in …"
   }
 }

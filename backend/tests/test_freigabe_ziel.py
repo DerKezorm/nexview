@@ -302,3 +302,57 @@ def test_regel_gilt_je_dienst(arr_client: TestClient) -> None:
         }
     assert zustaende["movie"] == RequestStatus.pending_approval
     assert zustaende["tv"] != RequestStatus.pending_approval
+
+
+# --------------------------------------------------------------------------
+# Regelwechsel, waehrend eine Anfrage schon wartet
+# --------------------------------------------------------------------------
+
+
+def test_umgestellte_regel_macht_die_anfrage_nicht_unfreigebbar(
+    arr_client: TestClient,
+) -> None:
+    """Der Ablauf, der im Betrieb in eine Sackgasse fuehrte.
+
+    Eine Anfrage kommt **ohne** Ordner herein, weil der Entscheider waehlen
+    soll. Danach stellt der Betreiber auf einen festen Ordner um. Die
+    Oberflaeche pruefte damals die *Regel* mit und blendete das Auswahlfeld
+    aus - der Server verlangte aber weiterhin eine Wahl. Die Anfrage liess
+    sich weder freigeben noch reparieren.
+
+    Der Entscheider darf immer waehlen. Genau das wird hier festgehalten:
+    Auch nach dem Wechsel nimmt der Server seine Wahl an.
+    """
+    kennung = _wartende_anfrage(arr_client)
+    _schalter(arr_client, False)
+
+    antwort = arr_client.post(
+        f"/api/admin/requests/{kennung}/approve",
+        json={"root_folder_path": "/data/TV-Shows", "quality_profile_id": 1},
+    )
+
+    # 422 hiesse "waehle einen Ordner" - und genau das war die Sackgasse.
+    # Der 502 kommt vom unerreichbaren Radarr und liegt hinter der Pruefung.
+    assert antwort.status_code != 422, antwort.text
+    gespeichert = _anfrage_aus_db(kennung)
+    assert gespeichert.root_folder_path == "/data/TV-Shows"
+    assert gespeichert.quality_profile_id == 1
+
+
+def test_ohne_wahl_bleibt_es_auch_nach_dem_wechsel_beim_abbruch(
+    arr_client: TestClient,
+) -> None:
+    """Still den Standardordner zu nehmen waere der Fehler, den die
+    Einstellung verhindern soll - nur spaeter und unsichtbar.
+
+    Die Anfrage wurde bewusst ohne Ordner angelegt, damit ein Mensch
+    entscheidet. Dass die Regel inzwischen anders lautet, aendert daran
+    nichts: Sie wartet weiter, bis jemand waehlt.
+    """
+    kennung = _wartende_anfrage(arr_client)
+    _schalter(arr_client, False)
+
+    antwort = arr_client.post(f"/api/admin/requests/{kennung}/approve")
+
+    assert antwort.status_code == 422
+    assert _anfrage_aus_db(kennung).status == RequestStatus.pending_approval

@@ -475,3 +475,17 @@ def test_update_ergaenzt_die_speicher_belegung(alte_installation: Path) -> None:
     # NOT NULL, und ohne brauchbaren Standardwert waere die Migration
     # gescheitert.
     assert groesse == (0, 0)
+
+
+def test_update_ergaenzt_den_abgelaufen_zeitpunkt(alte_installation: Path) -> None:
+    """Die Spalte fuer das abgelehnte Merklisten-Token kommt beim Update mit.
+
+    Sie ist nullable und braucht keinen Standardwert - "noch nie abgelehnt"
+    ist genau das, was NULL hier bedeutet.
+    """
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        spalten = db_modul._existing_columns(connection, "users")
+
+    assert "watchlist_token_invalid_at" in spalten

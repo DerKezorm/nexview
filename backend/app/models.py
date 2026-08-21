@@ -252,6 +252,18 @@ class User(Base):
     # Konto selbst.
     watchlist_token: Mapped[str | None] = mapped_column(Text)
     watchlist_connected_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Wann der Anbieter das Token zuletzt abgelehnt hat (401).
+    #
+    # **Warum eine eigene Spalte und nicht einfach das Token loeschen:**
+    # Geloescht saehe der Zustand aus wie "nie verbunden", und die Oberflaeche
+    # koennte nicht zwischen "muss sich neu anmelden" und "will die Merkliste
+    # gar nicht" unterscheiden. Nur wer schon einmal verbunden war, soll den
+    # roten Hinweis sehen.
+    #
+    # Und **nicht** aus der ungelesenen Benachrichtigung abgeleitet: Der
+    # Hinweis verschwaende, sobald jemand die Glocke leert - ohne dass das
+    # Problem behoben waere.
+    watchlist_token_invalid_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # --- Benachrichtigungen per Mail --------------------------------------
     # Bewusst alle auf "aus": ungefragt Mails zu verschicken ist der sicherste
@@ -455,6 +467,15 @@ class User(Base):
         verlaesst den Server nie.
         """
         return bool(self.watchlist_token)
+
+    @property
+    def watchlist_token_invalid(self) -> bool:
+        """Hat der Anbieter das persoenliche Token abgelehnt?
+
+        Nur wahr, wenn es ueberhaupt eines gibt: Wer nie verbunden war, soll
+        keinen Hinweis auf ein abgelaufenes Token bekommen.
+        """
+        return bool(self.watchlist_token) and self.watchlist_token_invalid_at is not None
 
     @property
     def has_password(self) -> bool:

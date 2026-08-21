@@ -1174,5 +1174,10 @@
     "assigned": "Zugeordnet",
     "people_one": "1 Person",
     "people_other": "{{count}} Personen"
+  },
+  "watchlistExpired": {
+    "text": "Dein Plex-Zugang ist abgelaufen. Bis du dich neu anmeldest, bleiben deine Merkliste und der Gesehen-Stand stehen.",
+    "action": "Erneut authentifizieren",
+    "running": "Anmeldung läuft …"
   }
 }

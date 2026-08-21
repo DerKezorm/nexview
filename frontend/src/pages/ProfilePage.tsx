@@ -13,6 +13,7 @@ import { DiscoverDefaults } from './profile/DiscoverDefaults'
 import { MediaServerLink } from './profile/MediaServerLink'
 import { WatchlistPlex } from './profile/WatchlistPlex'
 import { NotificationSettings } from './profile/NotificationSettings'
+import { StorageMine } from './profile/StorageMine'
 
 /**
  * Reiter des eigenen Profils.
@@ -21,7 +22,7 @@ import { NotificationSettings } from './profile/NotificationSettings'
  * nur noch durch Scrollen findet. Aufgeteilt wie die Einstellungen des
  * Administrators, damit beide Seiten sich gleich anfühlen.
  */
-type Tab = 'account' | 'notifications' | 'discover' | 'security' | 'watchlist'
+type Tab = 'account' | 'notifications' | 'discover' | 'security' | 'watchlist' | 'storage'
 
 export function ProfilePage() {
   const { t } = useTranslation()
@@ -145,6 +146,7 @@ export function ProfilePage() {
     { value: 'notifications', labelKey: 'profile.tabNotifications' },
     { value: 'discover', labelKey: 'profile.tabDiscover' },
     { value: 'security', labelKey: 'profile.tabSecurity' },
+    { value: 'storage', labelKey: 'profile.tabStorage' },
   ]
   // Nur wenn der Administrator die Merkliste freigeschaltet hat - sonst
   // stünde dort ein Reiter, hinter dem es nichts geben kann.
@@ -155,7 +157,8 @@ export function ProfilePage() {
   return (
     <div
       className={
-        'flex flex-col gap-6 ' + (tab === 'watchlist' ? 'max-w-6xl' : 'max-w-2xl')
+        'flex flex-col gap-6 ' +
+        (tab === 'watchlist' || tab === 'storage' ? 'max-w-6xl' : 'max-w-2xl')
       }
     >
       <header>
@@ -322,6 +325,7 @@ export function ProfilePage() {
         </>
       )}
 
+      {tab === 'storage' && <StorageMine />}
       {tab === 'notifications' && <NotificationSettings />}
       {tab === 'discover' && <DiscoverDefaults />}
 

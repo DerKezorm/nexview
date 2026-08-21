@@ -63,6 +63,7 @@ const SEITEN = [
   ['Tickets', '/tickets', 'mira'],
   ['Ticket-Verlauf', '/tickets/1', 'mira'],
   ['Profil', '/profil', 'mira'],
+  ['Profil - Speicher', '/profil', 'mira', 'Speicher'],
   ['Ueber', '/ueber', 'mira'],
   ['Alle Anfragen', '/admin/requests', 'admin'],
   ['Statistik', '/admin/stats', 'admin'],

@@ -96,6 +96,11 @@ async def check_once(db: Session, settings: AppSettings) -> int:
         if getattr(eintrag, "has_file", False):
             request.status = RequestStatus.downloaded
             request.completed_at = utcnow()
+            # Belegten Platz sofort zurechnen, nicht erst beim stuendlichen
+            # Abgleich: Wer gerade etwas angefragt hat und nachsieht, was es
+            # ihn kostet, faende dort sonst bis zu eine Stunde lang eine Null
+            # und hielte die Anzeige fuer kaputt.
+            storage.verbuchen(db, request, eintrag)
             anfragender = db.get(User, request.user_id)
             if anfragender is not None:
                 notify.create(

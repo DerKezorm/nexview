@@ -472,7 +472,8 @@
     "ageRestricted": "Für dieses Konto gilt eine Altersbeschränkung ({{age}} Jahre). Titel mit höherer Freigabe werden dir nicht angezeigt. Ändern kann das nur der Administrator.",
     "mailTicket": "Tickets",
     "mailTicketHint": "Antworten auf deine Tickets — als Administrator zusätzlich jedes neue Anliegen.",
-    "tabWatchlist": "Merkliste verwalten"
+    "tabWatchlist": "Merkliste verwalten",
+    "tabStorage": "Speicher"
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -1137,5 +1138,21 @@
     "writeBotBody": "Klick oben auf „@{{name}} in Telegram öffnen“ und drücke dort unten auf „Starten“ (oder tippe /start). Es kommt keine Antwort – das ist richtig so. Ohne diesen Schritt darf der Bot dir nichts schicken, und die Chat-Liste bleibt leer.",
     "writeBotDone": "Habe ich erledigt",
     "writeBotTitle": "Noch ein Schritt: dem Bot einmal schreiben"
+  },
+  "storage": {
+    "usedLabel": "Belegter Platz",
+    "itemCount_one": "{{count}} Titel",
+    "itemCount_other": "{{count}} Titel",
+    "measureOnlyHint": "Es wird zurzeit nur gemessen – eine Grenze gibt es noch nicht.",
+    "listTitle": "Was du belegst",
+    "listHint": "das Größte zuerst",
+    "empty": "Du belegst noch keinen Platz.",
+    "emptyHint": "Sobald ein angefragter Titel geladen ist, erscheint er hier.",
+    "season": "Staffel {{number}}",
+    "measuredAt": "gemessen {{date}}",
+    "houseLabel": "Hausbestand",
+    "houseHint": "gehört niemandem persönlich",
+    "totalLabel": "Insgesamt belegt",
+    "colStorage": "Speicher"
   }
 }

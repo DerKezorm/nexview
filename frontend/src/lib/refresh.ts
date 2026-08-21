@@ -26,6 +26,9 @@ const ABFRAGEN = [
   'favorites',
   'my-requests',
   'quota',
+  // Die Belegung ändert sich zwar erst, wenn die Datei wirklich da ist –
+  // aber wer einen Titel zurückzieht, erwartet die Zahl sofort ohne ihn.
+  'storage-mine',
 ]
 
 /**

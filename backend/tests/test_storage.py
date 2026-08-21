@@ -442,3 +442,169 @@ async def test_abgegebenes_zaehlt_weiter(
     stand = storage.kontostand(db, nutzer.id)
     assert stand.used_bytes == 8 * GB
     assert stand.pending_bytes == 8 * GB
+
+
+# ------------------------------------------------------------- Endpunkte
+
+
+def test_eigener_speicher_braucht_anmeldung(client) -> None:
+    assert client.get("/api/storage/me").status_code == 401
+
+
+def test_uebersicht_ist_nur_fuer_admins(admin_client) -> None:
+    """Wieviel jemand belegt, ist eine Angabe ueber eine Person.
+
+    Entscheider sehen sie nicht - aus demselben Grund, aus dem sie fremde
+    Tickets nicht sehen. Wichtig, weil hier leicht die Gewohnheit greift,
+    Entscheider mit Admins gleichzusetzen: Bei Freigaben duerfen sie alles
+    sehen, hier ausdruecklich nicht.
+    """
+    from .conftest import auth_headers, create_user
+
+    create_user(admin_client, "entscheider2", "test1234", role=Role.approver)
+    kopf = auth_headers(admin_client, "entscheider2", "test1234")
+    assert admin_client.get("/api/storage/overview", headers=kopf).status_code == 403
+    # Den eigenen Stand darf er sehr wohl sehen.
+    assert admin_client.get("/api/storage/me", headers=kopf).status_code == 200
+
+
+def test_eigener_speicher_ist_leer_ohne_messung(admin_client) -> None:
+    """Ohne Abgleich steht ueberall null - und kein Fehler."""
+    antwort = admin_client.get("/api/storage/me")
+    assert antwort.status_code == 200
+    assert antwort.json() == {
+        "used_bytes": 0,
+        "items": 0,
+        "pending_bytes": 0,
+        "entries": [],
+    }
+
+
+def test_uebersicht_weist_den_hausbestand_aus(admin_client, db: Session) -> None:
+    """Der Hausbestand steht als eigene Zeile - er gehoert niemandem."""
+    db.add(
+        StorageEntry(
+            key="movie:standard:tmdb:1",
+            media_type=MediaType.movie,
+            tier=QualityTier.standard,
+            tmdb_id=1,
+            title="Hausfilm",
+            size_bytes=10 * GB,
+            state=StorageState.house,
+        )
+    )
+    db.commit()
+
+    daten = admin_client.get("/api/storage/overview").json()
+
+    assert daten["house_bytes"] == 10 * GB
+    assert daten["house_items"] == 1
+    assert daten["total_bytes"] == 10 * GB
+    assert daten["shares"][0]["user_id"] is None
+
+# ------------------------------------------- Sofort bei Fertigstellung
+
+
+def test_verbuchen_rechnet_sofort_zu(db: Session, nutzer: User) -> None:
+    """Der Kontostand darf nicht bis zum stuendlichen Abgleich warten.
+
+    Wer gerade etwas angefragt hat und nachsieht, was es ihn kostet, faende
+    dort sonst bis zu eine Stunde lang eine Null - und hielte die Anzeige
+    fuer kaputt. Genau das ist beim ersten Testlauf passiert.
+    """
+    gesuch = anfrage(db, nutzer, tmdb_id=603)
+
+    verbucht = storage.verbuchen(db, gesuch, film(8))
+    db.commit()
+
+    assert verbucht == 1
+    assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
+
+
+def test_verbuchen_nimmt_niemandem_etwas_weg(
+    db: Session, nutzer: User, settings: AppSettings
+) -> None:
+    """Ein Posten, der schon jemandem gehoert, wechselt nie den Besitzer."""
+    anderer = User(username="zweiter", password_hash=hash_password("test"), role=Role.user)
+    db.add(anderer)
+    db.commit()
+
+    db.add(
+        StorageEntry(
+            key="movie:standard:tmdb:603",
+            user_id=anderer.id,
+            media_type=MediaType.movie,
+            tier=QualityTier.standard,
+            tmdb_id=603,
+            title="Ein Film",
+            size_bytes=8 * GB,
+            state=StorageState.owned,
+        )
+    )
+    db.commit()
+
+    gesuch = anfrage(db, nutzer, tmdb_id=603)
+    storage.verbuchen(db, gesuch, film(8))
+    db.commit()
+
+    assert storage.kontostand(db, nutzer.id).used_bytes == 0
+    assert storage.kontostand(db, anderer.id).used_bytes == 8 * GB
+
+
+def test_verbuchen_uebernimmt_aus_dem_hausbestand(db: Session, nutzer: User) -> None:
+    """Was niemandem gehoert, darf uebernommen werden - er holt es ja gerade."""
+    db.add(
+        StorageEntry(
+            key="movie:standard:tmdb:603",
+            media_type=MediaType.movie,
+            tier=QualityTier.standard,
+            tmdb_id=603,
+            title="Ein Film",
+            size_bytes=8 * GB,
+            state=StorageState.house,
+        )
+    )
+    db.commit()
+
+    gesuch = anfrage(db, nutzer, tmdb_id=603)
+    storage.verbuchen(db, gesuch, film(8))
+    db.commit()
+
+    assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
+    assert storage.hausbestand(db).used_bytes == 0
+
+
+def test_staffel_anfrage_belastet_nur_diese_staffel(db: Session, nutzer: User) -> None:
+    """Wer Staffel 3 anfragt, zahlt Staffel 3 - nicht die ganze Serie.
+
+    Sonarr meldet die Groessen **aller** Staffeln in einer Antwort. Ohne diese
+    Einschraenkung bekaeme jemand, der eine einzelne Staffel anfragt, die
+    gesamte Serie aufs Konto.
+    """
+    gesuch = anfrage(
+        db,
+        nutzer,
+        tmdb_id=1399,
+        tvdb_id=121361,
+        media_type=MediaType.tv,
+        season=3,
+    )
+
+    verbucht = storage.verbuchen(db, gesuch, serie({1: 20, 2: 25, 3: 30}))
+    db.commit()
+
+    assert verbucht == 1
+    assert storage.kontostand(db, nutzer.id).used_bytes == 30 * GB
+
+
+def test_serien_anfrage_ohne_staffel_belastet_alle(db: Session, nutzer: User) -> None:
+    """Eine Anfrage auf die ganze Serie traegt auch die ganze Serie."""
+    gesuch = anfrage(
+        db, nutzer, tmdb_id=1399, tvdb_id=121361, media_type=MediaType.tv
+    )
+
+    verbucht = storage.verbuchen(db, gesuch, serie({1: 20, 2: 25}))
+    db.commit()
+
+    assert verbucht == 2
+    assert storage.kontostand(db, nutzer.id).used_bytes == 45 * GB

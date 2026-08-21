@@ -78,3 +78,21 @@ export function daysAhead(days: number): string {
   date.setDate(date.getDate() + days)
   return date.toISOString().slice(0, 10)
 }
+
+/**
+ * Bytes als lesbare Groesse - „12,4 GB".
+ *
+ * Bewusst nur GB und TB: Alles darunter ist bei Filmen und Serien nie die
+ * Frage, und eine Einheit, die zwischen MB und TB springt, macht Zahlen
+ * untereinander unvergleichbar. Erst ab einem Terabyte lohnt der Wechsel.
+ */
+export function formatSize(bytes: number, locale: string): string {
+  const gb = bytes / 1024 ** 3
+  if (gb >= 1024) {
+    return `${(gb / 1024).toLocaleString(locale, { maximumFractionDigits: 2 })} TB`
+  }
+  // Unter 10 GB eine Nachkommastelle, darueber keine: „4,2 GB" ist eine
+  // Aussage, „1.312,5 GB" nur eine lange Zahl.
+  const stellen = gb < 10 ? 1 : 0
+  return `${gb.toLocaleString(locale, { maximumFractionDigits: stellen })} GB`
+}

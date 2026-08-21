@@ -23,9 +23,15 @@ veröffentlicht, solange kein Tag dazu existiert.
   it costs no extra requests. Shows are counted **per season**, which is the
   finest grain available without asking Sonarr once per series.
 
+  Everybody sees their own figure under *Profile → Storage*, largest item
+  first, because the question anyone asks here is "where is my space?" - and
+  a single show can weigh as much as two hundred films. Administrators see
+  the distribution across everyone on the statistics page.
+
   Everything already in the library when measuring starts belongs to the
   house and counts against nobody, so no account begins in the red. From then
-  on whoever requested a title carries it.
+  on whoever requested a title carries it, and a finished download is charged
+  within the same minute rather than at the next hourly pass.
 
   A title removed from Radarr but kept in Plex keeps counting, because the
   space is still occupied - a common way of working is to download until the

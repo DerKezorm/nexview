@@ -1,17 +1,44 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 
 import { ApiError, api } from '../api/client'
-import type { MediaRequest, QuotaInfo, QuotaOverview } from '../api/types'
+import type { MediaRequest, QuotaInfo, QuotaOverview, StorageMine } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Pagination, useSeiten } from '../components/Pagination'
 import { StarRating } from '../components/StarRating'
 import { StatusBadge } from '../components/media/StatusBadge'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
-import { formatDate } from '../lib/format'
+import { formatDate, formatSize } from '../lib/format'
 import { anfragenStandNeuLaden } from '../lib/refresh'
+
+/**
+ * Belegter Platz - noch ohne Grenze.
+ *
+ * Bewusst neben den Kontingent-Karten und in derselben Form: Es ist dieselbe
+ * Art Auskunft. Nur steht hier keine Grenze, weil es noch keine gibt - und
+ * genau das sagt die Karte auch, statt eine zu suggerieren.
+ */
+function StorageCard({ daten }: { daten: StorageMine }) {
+  const { t, i18n } = useTranslation()
+
+  return (
+    <div className="rounded-xl border border-ink-700 bg-ink-850/60 px-4 py-3">
+      <p className="text-xs font-medium tracking-wide text-mist-600 uppercase">
+        {t('storage.usedLabel')}
+      </p>
+      <p className="mt-1 text-sm text-mist-300 tabular-nums">
+        {formatSize(daten.used_bytes, i18n.language)}
+      </p>
+      <Link to="/profil" className="mt-0.5 block text-xs text-mist-600 hover:text-accent-500">
+        {t('storage.itemCount', { count: daten.items })}
+      </Link>
+    </div>
+  )
+}
+
 
 function QuotaCard({ label, quota }: { label: string; quota: QuotaInfo }) {
   const { t, i18n } = useTranslation()
@@ -165,6 +192,13 @@ export function MyRequestsPage() {
     queryFn: () => api.get<MediaRequest[]>('/api/requests/mine'),
   })
 
+  // Die Belegung laeuft unabhaengig vom Kontingent - gemessen wird immer,
+  // begrenzt (spaeter) nur auf Wunsch.
+  const storageQuery = useQuery({
+    queryKey: ['storage-mine'],
+    queryFn: () => api.get<StorageMine>('/api/storage/me'),
+  })
+
   const quotaQuery = useQuery({
     queryKey: ['quota'],
     queryFn: () => api.get<QuotaOverview>('/api/requests/quota'),
@@ -212,9 +246,10 @@ export function MyRequestsPage() {
       {quotaQuery.data && (
         <section>
           <h2 className="mb-2 text-sm font-semibold text-mist-300">{t('myRequests.quota')}</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <QuotaCard label={t('common.movies')} quota={quotaQuery.data.movie} />
             <QuotaCard label={t('common.series')} quota={quotaQuery.data.tv} />
+            {storageQuery.data && <StorageCard daten={storageQuery.data} />}
           </div>
           <p className="mt-2 text-xs text-mist-600">
             {quotaQuery.data.auto_approve

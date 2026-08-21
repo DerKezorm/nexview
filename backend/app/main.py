@@ -40,6 +40,7 @@ from .routers import (
     settings as settings_router,
     setup,
     stats as stats_router,
+    storage as storage_router,
     tickets as tickets_router,
     users,
     watchlist as watchlist_router,
@@ -143,6 +144,7 @@ app.include_router(favorites_router.router)
 app.include_router(blocklist_router.router)
 app.include_router(tickets_router.router)
 app.include_router(mediaserver_router.router)
+app.include_router(storage_router.router)
 app.include_router(mediaserver_router.admin_router)
 app.include_router(watchlist_router.router)
 

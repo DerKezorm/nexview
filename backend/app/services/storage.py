@@ -468,6 +468,84 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
     return ergebnis
 
 
+def verbuchen(db: Session, request: MediaRequest, eintrag: object) -> int:
+    """Einen gerade fertig gewordenen Titel sofort zurechnen.
+
+    Der stuendliche Abgleich wuerde das auch erledigen - aber bis zu eine
+    Stunde spaeter. Wer gerade etwas angefragt hat und nachsieht, was es ihn
+    kostet, findet dann eine Null vor und haelt die Anzeige fuer kaputt.
+
+    Aufgerufen aus ``status_poller.check_once``, genau in dem Moment, in dem
+    ``has_file`` wahr wird: Dort liegen Anfrage, Nutzer und der frisch geholte
+    Bibliothekseintrag samt Groesse gleichzeitig vor.
+
+    Gibt zurueck, wie viele Posten dabei zugerechnet wurden.
+    """
+    gemessen: dict[str, _Gemessen] = {}
+    stufe = request.tier or QualityTier.standard
+
+    if request.media_type == MediaType.movie:
+        _film_aufnehmen(gemessen, stufe, request.tmdb_id, eintrag)  # type: ignore[arg-type]
+    elif request.tvdb_id:
+        _serie_aufnehmen(gemessen, stufe, request.tvdb_id, eintrag)  # type: ignore[arg-type]
+        # Eine Anfrage auf **eine** Staffel darf auch nur diese eine belasten.
+        if request.season is not None:
+            nur = schluessel(
+                MediaType.tv, stufe, tvdb_id=request.tvdb_id, season=request.season
+            )
+            gemessen = {k: v for k, v in gemessen.items() if k == nur}
+
+    if not gemessen:
+        return 0
+
+    vorhanden = {
+        zeile.key: zeile
+        for zeile in db.scalars(
+            select(StorageEntry).where(StorageEntry.key.in_(gemessen))
+        ).all()
+    }
+
+    jetzt = utcnow()
+    verbucht = 0
+    for kennung, wert in gemessen.items():
+        zeile = vorhanden.get(kennung)
+        if zeile is None:
+            db.add(
+                StorageEntry(
+                    key=kennung,
+                    user_id=request.user_id,
+                    media_type=wert.media_type,
+                    tier=wert.tier,
+                    tmdb_id=wert.tmdb_id or request.tmdb_id,
+                    tvdb_id=wert.tvdb_id or request.tvdb_id,
+                    season=wert.season,
+                    title=wert.title or request.title,
+                    size_bytes=wert.size_bytes,
+                    measured_at=jetzt,
+                    state=StorageState.owned,
+                    request_id=request.id,
+                )
+            )
+            verbucht += 1
+            continue
+
+        # Vorhandenes nur uebernehmen, wenn es **niemandem** gehoert.
+        #
+        # Einem anderen Nutzer etwas wegzunehmen waere in jedem Fall falsch;
+        # und beim Hausbestand ist die Uebernahme richtig, weil derjenige den
+        # Titel ja gerade selbst ins Haus geholt hat.
+        if zeile.state == StorageState.house and zeile.user_id is None:
+            zeile.user_id = request.user_id
+            zeile.state = StorageState.owned
+            zeile.request_id = request.id
+            verbucht += 1
+        if wert.size_bytes > 0:
+            zeile.size_bytes = wert.size_bytes
+            zeile.measured_at = jetzt
+
+    return verbucht
+
+
 def zuruecksetzen(db: Session) -> int:
     """Alles ins Haus, alle Konten auf null.
 

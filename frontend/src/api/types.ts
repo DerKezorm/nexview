@@ -697,6 +697,45 @@ export type QuotaInfo = {
   resets_at: string | null;
 };
 
+/** Ein belegter Titel oder eine belegte Staffel. */
+export type StorageEntry = {
+  id: number
+  media_type: MediaType
+  tier: QualityTier
+  tmdb_id: number | null
+  tvdb_id: number | null
+  /** null = ein Film. Sonst die Staffel – feiner wird nie gerechnet. */
+  season: number | null
+  title: string
+  size_bytes: number
+  state: 'owned' | 'pending' | 'house'
+  measured_at: string
+}
+
+export type StorageMine = {
+  used_bytes: number
+  items: number
+  /** Abgegeben, aber noch nicht entschieden – zählt weiter mit. */
+  pending_bytes: number
+  entries: StorageEntry[]
+}
+
+export type StorageShare = {
+  /** null steht für den Hausbestand – der gehört niemandem. */
+  user_id: number | null
+  username: string | null
+  display_name: string | null
+  used_bytes: number
+  items: number
+}
+
+export type StorageOverview = {
+  total_bytes: number
+  house_bytes: number
+  house_items: number
+  shares: StorageShare[]
+}
+
 export type MediaRequestWithUser = MediaRequest & {
   user_id: number;
   username: string;

@@ -472,7 +472,8 @@
     "ageRestricted": "This account is age-restricted ({{age}} years). Titles rated above that are hidden from you. Only the administrator can change this.",
     "mailTicket": "Tickets",
     "mailTicketHint": "Replies to your tickets — as an administrator also every new request.",
-    "tabWatchlist": "Manage watchlist"
+    "tabWatchlist": "Manage watchlist",
+    "tabStorage": "Storage"
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -1137,5 +1138,21 @@
     "writeBotBody": "Click “Open @{{name}} in Telegram” above and press “Start” at the bottom there (or type /start). No answer comes back – that is correct. Without this step the bot may not send you anything, and the chat list stays empty.",
     "writeBotDone": "Done that",
     "writeBotTitle": "One more step: message the bot once"
+  },
+  "storage": {
+    "usedLabel": "Space used",
+    "itemCount_one": "{{count}} title",
+    "itemCount_other": "{{count}} titles",
+    "measureOnlyHint": "This is measured only for now – there is no limit yet.",
+    "listTitle": "What you occupy",
+    "listHint": "largest first",
+    "empty": "You do not occupy any space yet.",
+    "emptyHint": "A title shows up here once it has been downloaded.",
+    "season": "Season {{number}}",
+    "measuredAt": "measured {{date}}",
+    "houseLabel": "House library",
+    "houseHint": "belongs to nobody in particular",
+    "totalLabel": "Total occupied",
+    "colStorage": "Storage"
   }
 }

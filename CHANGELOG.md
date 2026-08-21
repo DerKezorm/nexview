@@ -12,18 +12,32 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
-## 0.13.0 – in Arbeit
+## 0.13.0 – 21.08.2026
 
 ### New
 
-- **The watched state finally works for shared accounts.** Plex keeps two
-  different things that both go by the name "token": the account token from
-  signing in, which plex.tv accepts, and a separate access token per server,
-  which is the only one a server accepts from a *shared* account. Both are the
-  same for the owner, so this went unnoticed - and for everybody else the
-  watched sync had never worked at all. It was reported as "Plex no longer
-  accepts your token", and signing in again did not help, because a fresh
-  account token is the same wrong kind.
+- **"Already watched" now works for everybody, not just the server owner.**
+  So far the eye badge was reliable only for the account whose Plex access is
+  stored in the settings. Everybody else was read from the server's playback
+  history, which Plex caps at roughly 500 entries and which never hears about
+  titles marked as watched by hand.
+
+  Since the watchlist arrived, every Plex sign-in stores the person's own
+  access, and the sync now reads their complete watched state straight from
+  the library counters. The history remains only as a fallback for accounts
+  that have never signed in with Plex. And what Plex says counts in both
+  directions: removing a checkmark there removes the eye here too - except for
+  titles that have left the library entirely, which keep it, because deleting
+  a file does not undo having watched it.
+
+  Getting there needed one more thing. Plex keeps two different things that
+  both go by the name "token": the account token from signing in, which
+  plex.tv accepts, and a separate access token per server, which is the only
+  one a server accepts from a *shared* account. Both are the same for the
+  owner, so nothing ever looked wrong while only the administrator's access
+  was used - and for everybody else this had never worked at all. It was
+  reported as "Plex no longer accepts your token", and signing in again did
+  not help, because a fresh account token is the same wrong kind.
 
 - **A red banner for whoever's Plex access really has expired**, under the menu
   on every page, with the sign-in happening right there - code and link
@@ -59,18 +73,6 @@ veröffentlicht, solange kein Tag dazu existiert.
   quality is right and then drop the entry from Radarr. For that case the
   file size is read from Plex as well, from a structure the library sync
   already walks through.
-
-- **"Already watched" is now complete for everyone, not just the owner.**
-  So far the eye badge was reliable only for the account whose Plex access
-  is stored in the settings; everybody else was read from the server's
-  playback history, which Plex caps at roughly 500 entries and which never
-  hears about titles marked as watched by hand. Since the watchlist arrived,
-  every Plex sign-in stores the person's own access – the sync now uses it
-  to read their complete watched state straight from the library counters.
-  The history remains only as a fallback for accounts that have never
-  signed in with Plex. And what Plex says now counts in both directions:
-  removing a watched checkmark in Plex removes the eye in Nexview too –
-  except for titles that have left the library entirely, which keep it.
 
 - **A bell notice (and, if you opt in, an e-mail) when Plex no longer
   accepts your stored access.** That happens after a password change or a

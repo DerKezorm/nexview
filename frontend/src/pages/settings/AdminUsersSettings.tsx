@@ -16,6 +16,7 @@ import type {
 import { useAuth } from "../../auth/useAuth";
 import { Avatar } from "../../components/Avatar";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { AdminKontoAufloesung } from "./AdminKontoAufloesung";
 import { REGION_OPTIONS } from "../../components/media/FilterBar";
 import { Button, Card, ErrorBanner, Field, Spinner } from "../../components/ui";
 import { useConfig } from "../../hooks/useConfig";
@@ -284,17 +285,8 @@ export function AdminUsersSettings() {
     onError: (caught) => fail(caught, t("errors.generic")),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.delete<void>(`/api/users/${id}`),
-    onSuccess: () => {
-      setDeleting(null);
-      setError(null);
-      setMessage(t("adminUsers.saved"));
-      refresh();
-    },
-    onMutate: resetMessages,
-    onError: (caught) => fail(caught, t("errors.generic")),
-  });
+  // Das Loeschen selbst wohnt im Aufloesungs-Dialog - er entscheidet vorher
+  // ueber den hinterlassenen Bestand und storniert laufende Bestellungen.
 
   /**
    * Vor jeder Aktion beide Meldungen leeren.
@@ -1484,18 +1476,18 @@ export function AdminUsersSettings() {
         );
       })}
 
-      <ConfirmDialog
-        open={deleting !== null}
-        title={t("adminUsers.deleteTitle")}
-        description={t("adminUsers.deleteText", {
-          name: deleting?.username ?? "",
-        })}
-        warning={t("adminUsers.deleteWarning")}
-        confirmLabel={t("adminUsers.deleteConfirm")}
-        loading={deleteMutation.isPending}
-        onCancel={() => setDeleting(null)}
-        onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
-      />
+      {deleting && (
+        <AdminKontoAufloesung
+          benutzer={deleting}
+          onSchliessen={() => setDeleting(null)}
+          onGeloescht={() => {
+            setDeleting(null);
+            setError(null);
+            setMessage(t("adminUsers.saved"));
+            refresh();
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={quotaReset !== null}

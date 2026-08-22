@@ -9,6 +9,8 @@ from sqlalchemy import func, select
 
 from ..deps import AdminUser, DbSession
 from ..models import AuthToken, Role, TokenPurpose, User, utcnow
+from pydantic import BaseModel
+
 from ..schemas import (
     InvitationCreate,
     InvitationCreated,
@@ -19,7 +21,17 @@ from ..schemas import (
     UserWithUsage,
 )
 from ..security import hash_password
-from ..services import accounts, avatars, mail, mediaserver_accounts, quota, tokens
+from ..services import (
+    accounts,
+    avatars,
+    kontoaufloesung,
+    mail,
+    mediaserver_accounts,
+    quota,
+    tokens,
+)
+from ..services import storage as storage_dienst
+from ..services.arr import ArrError
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -304,8 +316,99 @@ def reset_password(user_id: int, payload: PasswordReset, admin: AdminUser, db: D
     db.commit()
 
 
+class AufloesungsPosten(BaseModel):
+    id: int
+    title: str
+    tier: str
+    season: int | None
+    media_type: str
+    size_bytes: int
+
+
+class LaufendeZeile(BaseModel):
+    request_id: int
+    title: str
+    tier: str
+    # ``None`` heisst: die ganze Serie wurde bestellt.
+    season: int | None
+    dateien: int
+    folgen: int
+
+
+class AufloesungsVorschau(BaseModel):
+    """Was das Konto hinterlaesst - Grundlage fuer den Loesch-Dialog."""
+
+    posten: list[AufloesungsPosten]
+    laufende: list[LaufendeZeile]
+    # Titel offener Bestellungen ohne eine einzige Datei - werden storniert.
+    storniert: list[str]
+
+
+class Staffelwahl(BaseModel):
+    request_id: int
+    behalten: bool
+    weiter: bool = False
+
+
+class Aufloesung(BaseModel):
+    """Die Entscheidungen zum hinterlassenen Bestand - Teil des Loeschens."""
+
+    haus: list[int] = []
+    loeschen: list[int] = []
+    staffeln: list[Staffelwahl] = []
+
+
+@router.get("/{user_id}/aufloesung", response_model=AufloesungsVorschau)
+async def aufloesung_vorschau(
+    user_id: int, admin: AdminUser, db: DbSession
+) -> AufloesungsVorschau:
+    """Was dieses Konto hinterlassen wuerde - **ohne dass etwas passiert**.
+
+    Der Administrator entscheidet mit dieser Liste vor Augen: je Posten Haus
+    oder Loeschen, je angefangener Staffel behalten/loeschen und ob weiter
+    geladen wird. Scheitert die Sonarr-Abfrage, scheitert die Vorschau -
+    eine Aufloesung auf Basis geratener Zahlen waere schlimmer als eine
+    vertagte.
+    """
+    user = _get_user_or_404(db, user_id)
+    try:
+        stand = await kontoaufloesung.vorschau(db, load_settings(db), user)
+    except ArrError as fehler:
+        raise HTTPException(502, fehler.message) from fehler
+    return AufloesungsVorschau(
+        posten=[
+            AufloesungsPosten(
+                id=z.id,
+                title=z.title,
+                tier=z.tier,
+                season=z.season,
+                media_type=z.media_type,
+                size_bytes=z.size_bytes,
+            )
+            for z in stand.posten
+        ],
+        laufende=[
+            LaufendeZeile(
+                request_id=z.request_id,
+                title=z.title,
+                tier=z.tier,
+                season=z.season,
+                dateien=z.dateien,
+                folgen=z.folgen,
+            )
+            for z in stand.laufende
+        ],
+        storniert=stand.storniert,
+    )
+
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, admin: AdminUser, db: DbSession) -> None:
+async def delete_user(
+    user_id: int,
+    admin: AdminUser,
+    db: DbSession,
+    entscheidungen: Aufloesung | None = None,
+) -> None:
     user = _get_user_or_404(db, user_id)
     if user.id == admin.id:
         raise HTTPException(
@@ -317,6 +420,32 @@ def delete_user(user_id: int, admin: AdminUser, db: DbSession) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Der letzte aktive Administrator kann nicht geloescht werden.",
         )
+
+    # Erst der hinterlassene Bestand, dann das Konto: Jeder Posten braucht
+    # eine Entscheidung, laufende Bestellungen werden storniert - sonst laedt
+    # eine ueberwachte Staffel herrenlos weiter (siehe kontoaufloesung).
+    wahl = entscheidungen or Aufloesung()
+    try:
+        await kontoaufloesung.aufloesen(
+            db,
+            load_settings(db),
+            user,
+            haus=set(wahl.haus),
+            loeschen=set(wahl.loeschen),
+            staffeln=[
+                kontoaufloesung.Staffelentscheidung(
+                    request_id=z.request_id, behalten=z.behalten, weiter=z.weiter
+                )
+                for z in wahl.staffeln
+            ],
+            wer=admin.username,
+        )
+    except kontoaufloesung.Aufloesungsfehler as fehler:
+        raise HTTPException(fehler.status_code, fehler.message) from fehler
+    except storage_dienst.Loeschfehler as fehler:
+        raise HTTPException(fehler.status_code, fehler.message) from fehler
+    except ArrError as fehler:
+        raise HTTPException(502, fehler.message) from fehler
 
     # Sonst bliebe das Profilbild als verwaiste Datei liegen.
     avatars.remove(user.avatar_path)

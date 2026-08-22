@@ -189,6 +189,23 @@ def anlegen(payload: TicketCreate, user: CurrentUser, db: DbSession) -> TicketDe
     return _detail(ticket)
 
 
+@router.post("/kontoaufloesung", response_model=TicketDetail, status_code=201)
+def kontoaufloesung(user: CurrentUser, db: DbSession) -> TicketDetail:
+    """Den Antrag "Konto löschen" stellen - fuer Benutzer und Entscheider.
+
+    Landet als gewoehnliches Ticket bei den Administratoren (Entscheider
+    sehen fremde Tickets ohnehin nicht). Geloescht wird spaeter von Hand in
+    der Benutzerverwaltung - samt der Entscheidung ueber den Bestand.
+    """
+    try:
+        ticket = tickets.aufloesung_beantragen(db, user)
+    except tickets.TicketError as error:
+        raise _fehler(error) from error
+    db.commit()
+    db.refresh(ticket)
+    return _detail(ticket)
+
+
 @router.get("/{ticket_id}", response_model=TicketDetail)
 def einzeln(
     ticket_id: Annotated[int, Path(ge=1)], user: CurrentUser, db: DbSession

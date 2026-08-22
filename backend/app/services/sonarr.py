@@ -386,6 +386,24 @@ class SonarrClient(ArrClient):
             if isinstance(datei, dict) and datei.get("seasonNumber") == season
         ]
 
+    async def serie_stilllegen(self, arr_id: int) -> None:
+        """Die ganze Serie stilllegen: nichts mehr laden, auch kuenftig nicht.
+
+        Gebraucht bei der Konto-Aufloesung fuer Anfragen ueber die **ganze**
+        Serie: Deren Ueberwachung gehoert niemandem mehr, und ohne diesen
+        Schritt laedt sie herrenlos weiter. Vorhandene Dateien bleiben liegen -
+        stillgelegt heisst "es kommt nichts mehr dazu", nicht "weg damit".
+        """
+        serie = await self.get(f"/series/{arr_id}")
+        if not isinstance(serie, dict):
+            return
+        serie["monitored"] = False
+        serie["monitorNewItems"] = "none"
+        serie["seasons"] = [
+            {**eintrag, "monitored": False} for eintrag in (serie.get("seasons") or [])
+        ]
+        await self.put(f"/series/{arr_id}", serie)
+
     async def unmonitor_season(self, arr_id: int, season: int) -> None:
         """Eine Staffel stilllegen - **nach** dem Loeschen ihrer Dateien.
 

@@ -165,8 +165,10 @@ export const api = {
     send<T>(path, { ...options, method: 'PUT', body }, true),
   patch: <T>(path: string, body?: unknown, options: Omit<RequestOptions, 'method'> = {}) =>
     send<T>(path, { ...options, method: 'PATCH', body }, true),
-  delete: <T>(path: string, options: Omit<RequestOptions, 'method' | 'body'> = {}) =>
-    send<T>(path, { ...options, method: 'DELETE' }, true),
+  // Ein optionaler Rumpf, weil eine Löschung Beipack tragen kann - die
+  // Konto-Auflösung schickt die Entscheidungen über den Bestand mit.
+  delete: <T>(path: string, body?: unknown, options: Omit<RequestOptions, 'method'> = {}) =>
+    send<T>(path, { ...options, method: 'DELETE', body }, true),
   /** Datei-Upload (FormData statt JSON). */
   upload: <T>(path: string, body: FormData) => send<T>(path, { method: 'POST', body }, true),
 }

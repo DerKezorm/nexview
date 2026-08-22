@@ -10,6 +10,7 @@ import { Avatar } from '../components/Avatar'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { DiscoverDefaults } from './profile/DiscoverDefaults'
+import { KontoLoeschen } from './profile/KontoLoeschen'
 import { MediaServerLink } from './profile/MediaServerLink'
 import { WatchlistPlex } from './profile/WatchlistPlex'
 import { NotificationSettings } from './profile/NotificationSettings'
@@ -376,6 +377,10 @@ export function ProfilePage() {
 
       {/* Die Verknüpfung gehört zur Anmeldung und damit neben das Passwort. */}
       {tab === 'security' && <MediaServerLink />}
+
+      {/* Der Antrag, das eigene Konto zu löschen - nicht für Administratoren:
+          die löschen direkt in der Benutzerverwaltung. */}
+      {tab === 'security' && user?.role !== 'admin' && <KontoLoeschen />}
 
       {/* Untermenü mit genau einem Eintrag - noch. Plex ist der einzige
           Anbieter mit Merkliste; Jellyfin und Emby haben keine. Die Reihe

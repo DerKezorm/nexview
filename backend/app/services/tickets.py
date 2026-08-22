@@ -110,6 +110,51 @@ def _nachricht_anhaengen(db: Session, ticket: Ticket, user: User, body: str) -> 
     return nachricht
 
 
+# Betreff des Aufloesungs-Antrags - fest, damit Doppelte erkennbar sind und
+# der Administrator die Antraege auf einen Blick von normalen Tickets trennt.
+AUFLOESUNG_BETREFF = "Konto löschen"
+
+
+def aufloesung_beantragen(db: Session, user: User) -> Ticket:
+    """"Ich moechte mein Konto loeschen" - als Ticket an die Administratoren.
+
+    Ein Antrag, keine Selbstbedienung: Loeschen kann nur ein Administrator,
+    und der entscheidet dabei ueber den hinterlassenen Bestand. Das Ticket
+    ueberlebt die Loeschung (der Verweis wird nur geleert) und bleibt damit
+    der Beleg, dass sie gewollt war.
+
+    Administratoren stellen keinen Antrag - sie loeschen direkt in der
+    Benutzerverwaltung. Und ein zweiter Antrag waere nur Laerm in der
+    Warteschlange, solange der erste offen ist.
+    """
+    if darf_alles_sehen(user):
+        raise TicketError(
+            "Administratoren löschen Konten direkt in der Benutzerverwaltung.", 403
+        )
+    offen = db.scalar(
+        select(Ticket).where(
+            Ticket.user_id == user.id,
+            Ticket.subject == AUFLOESUNG_BETREFF,
+            Ticket.status != TicketStatus.closed,
+        )
+    )
+    if offen is not None:
+        raise TicketError(
+            "Dein Antrag liegt bereits vor und wartet auf den Betreiber.", 409
+        )
+    return erstellen(
+        db,
+        user,
+        subject=AUFLOESUNG_BETREFF,
+        body=(
+            f"{user.display_name or user.username} möchte das eigene Konto "
+            "löschen lassen. Die Löschung selbst erfolgt in der "
+            "Benutzerverwaltung – dort wird auch über die hinterlassenen "
+            "Titel entschieden."
+        ),
+    )
+
+
 def erstellen(
     db: Session,
     user: User,

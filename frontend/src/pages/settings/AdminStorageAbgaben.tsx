@@ -35,6 +35,23 @@ export function AdminStorageAbgaben() {
     queryFn: () => api.get<StorageAbgabe[]>('/api/storage/releases'),
   })
 
+  /**
+   * Der dritte Ausgang: „Nicht mehr folgen" – für Abgaben mit Behalten-Wunsch.
+   *
+   * Die Folgen bleiben liegen, Sonarr lädt nur keine neuen mehr. Der Posten
+   * zählt **weiter** beim Abgebenden – die Dateien sind ja noch da. Nicht
+   * zerstörend und in Sonarr jederzeit umkehrbar, deshalb ohne Rückfrage.
+   */
+  const entfolgen = useMutation({
+    mutationFn: (posten: number) =>
+      api.post(`/api/storage/entries/${posten}/entfolgen`, {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['storage-releases'] })
+      void queryClient.invalidateQueries({ queryKey: ['storage-user'] })
+      void queryClient.invalidateQueries({ queryKey: ['storage-mine'] })
+    },
+  })
+
   const insHaus = useMutation({
     mutationFn: (posten: number) => api.post(`/api/storage/entries/${posten}/haus`, {}),
     onSuccess: () => {
@@ -68,11 +85,12 @@ export function AdminStorageAbgaben() {
 
       <p className="text-sm text-mist-500">{t('storageReleases.intro')}</p>
 
-      {insHaus.error ? (
+      {insHaus.error || entfolgen.error ? (
         <ErrorBanner
-          message={
-            insHaus.error instanceof ApiError ? insHaus.error.message : t('errors.generic')
-          }
+          message={(() => {
+            const fehler = insHaus.error ?? entfolgen.error
+            return fehler instanceof ApiError ? fehler.message : t('errors.generic')
+          })()}
         />
       ) : null}
 
@@ -99,6 +117,17 @@ export function AdminStorageAbgaben() {
                 {zeile.entry.tier === 'uhd' && (
                   <span className="ml-1.5 text-accent-500">4K</span>
                 )}
+                {/* Der Wunsch gehört sichtbar an die Zeile: Er ist der halbe
+                    Inhalt der Abgabe – ohne ihn entscheidet der Admin an dem
+                    vorbei, was sich die Person vorgestellt hat. */}
+                <span className="ml-1.5 text-mist-500">
+                  ·{' '}
+                  {t(
+                    zeile.entry.release_wish === 'keep'
+                      ? 'storageReleases.wishKeep'
+                      : 'storageReleases.wishDelete',
+                  )}
+                </span>
                 {/* Seit wann – ohne das lässt sich nicht erkennen, ob die
                     Warteschlange stockt. */}
                 {zeile.released_at && (
@@ -123,15 +152,28 @@ export function AdminStorageAbgaben() {
             >
               {t('storage.toHouse')}
             </Button>
-            {/* Löschen ist der einzige Schritt ohne Rückweg – deshalb Rot, und
-                deshalb erst eine Vorschau mit der tatsächlichen Dateiliste. */}
-            <Button
-              variant="ghost"
-              onClick={() => setLoescht(zeile)}
-              className="shrink-0 border-bad-500/40 px-3 py-1 text-xs text-bad-500 hover:bg-bad-500/10 hover:text-bad-500"
-            >
-              {t('storageReleases.delete')}
-            </Button>
+            {/* Der zweite Knopf führt den **Wunsch** aus. Löschen ist der
+                einzige Schritt ohne Rückweg – deshalb Rot, und deshalb erst
+                eine Vorschau mit der tatsächlichen Dateiliste. „Nicht mehr
+                folgen" ist umkehrbar und geht direkt. */}
+            {zeile.entry.release_wish === 'keep' ? (
+              <Button
+                variant="ghost"
+                onClick={() => entfolgen.mutate(zeile.entry.id)}
+                disabled={entfolgen.isPending}
+                className="shrink-0 border-warn-500/40 px-3 py-1 text-xs text-warn-500 hover:bg-warn-500/10 hover:text-warn-500"
+              >
+                {t('storageReleases.unfollow')}
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                onClick={() => setLoescht(zeile)}
+                className="shrink-0 border-bad-500/40 px-3 py-1 text-xs text-bad-500 hover:bg-bad-500/10 hover:text-bad-500"
+              >
+                {t('storageReleases.delete')}
+              </Button>
+            )}
           </li>
         ))}
       </ul>

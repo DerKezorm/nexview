@@ -1360,7 +1360,7 @@
     "count_other": "{{count}} releases",
     "intro": "Someone handed these titles back. Nothing has happened yet: they are still on the disk and still count against their account until you decide.",
     "since": "handed back {{date}}",
-    "hint": "“To house” reassigns the title – it then counts against nobody, and the file is left untouched. There is no delete here yet; that comes later and is the one step with no way back.",
+    "hint": "“To the house” rebooks the title – it no longer counts against anyone, and the file stays untouched. The second button carries out the owner's wish: deleting shows the actual file list first and is the only step with no way back; “stop following” leaves the episodes in place and only ends the downloading.",
     "delete": "Delete",
     "deleteTitle": "Really delete?",
     "deleteFiles": "This file will be removed:",

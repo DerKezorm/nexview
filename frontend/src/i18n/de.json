@@ -1360,7 +1360,7 @@
     "count_other": "{{count}} Abgaben",
     "intro": "Diese Titel hat jemand abgegeben. Passiert ist dabei nichts: Sie liegen weiter auf der Platte und zählen weiter auf seinem Konto, bis du entscheidest.",
     "since": "abgegeben {{date}}",
-    "hint": "„Ins Haus“ bucht den Titel um – er zählt danach bei niemandem mehr, und die Datei bleibt unangetastet. Löschen gibt es hier noch nicht; das kommt später und ist der einzige Schritt ohne Rückweg.",
+    "hint": "„Ins Haus“ bucht den Titel um – er zählt danach bei niemandem mehr, und die Datei bleibt unangetastet. Der zweite Knopf führt den Wunsch des Abgebenden aus: Löschen zeigt vorher die tatsächliche Dateiliste und ist der einzige Schritt ohne Rückweg; „Nicht mehr folgen“ lässt die Folgen liegen und beendet nur das Nachladen.",
     "delete": "Löschen",
     "deleteTitle": "Wirklich löschen?",
     "deleteFiles": "Diese Datei wird entfernt:",

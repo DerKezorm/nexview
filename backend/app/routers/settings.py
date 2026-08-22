@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..deps import AdminUser, CurrentUser, DbSession
 from ..schemas import MIN_PASSWORD_LENGTH
-from ..services import cache, library, mail, mail_templates
+from ..services import cache, library, mail, mail_templates, storage
 from ..services.arr import ArrError
 from ..services.radarr import RadarrClient
 from ..services.sonarr import SonarrClient
@@ -292,6 +292,22 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
         )
 
     save_settings(db, payload.model_dump(exclude_unset=True))
+
+    # ⚠️ **Der Umschalt-Generalpardon.** Wechselt die Betriebsart der
+    # Kontingente (Anzahl <-> Speicher), starten alle Konten bei null: Jeder
+    # zugerechnete Posten wird Hausbestand. In beide Richtungen - eine Regel
+    # statt einer Ausnahme. Ohne ihn waere jemand nach dem Einschalten
+    # schlagartig ueberzogen, wegen einer Historie, von der er nicht wusste,
+    # dass sie mitzaehlt. Dateien werden dabei nie angefasst, gespeicherte
+    # Grenzen bleiben stehen. Die Oberflaeche kuendigt die Zahlen vorher an
+    # (GET /api/storage/umbuchung).
+    if (
+        payload.storage_enabled is not None
+        and payload.storage_enabled != aktuell.storage_enabled
+    ):
+        storage.konten_zuruecksetzen(db)
+        db.commit()
+
     # Alte Ergebnisse verwerfen: Region, Sprache oder Key koennten sich
     # geaendert haben.
     cache.clear_all(db)

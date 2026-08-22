@@ -358,6 +358,25 @@ class PapierkorbBelegung(BaseModel):
     instances: list[dict]
 
 
+class UmbuchungsVorschau(BaseModel):
+    """Was ein Zuruecksetzen der Konten traefe - Zahlen fuer den Warnhinweis."""
+
+    count: int
+    bytes: int
+
+
+@router.get("/umbuchung", response_model=UmbuchungsVorschau)
+def umbuchung(admin: AdminUser, db: DbSession) -> UmbuchungsVorschau:
+    """Vorschau fuers Umschalten der Betriebsart.
+
+    Der Dialog davor muss die Zahlen nennen ("X Titel mit zusammen Y GB gehen
+    in den Hausbestand ueber") - ein allgemeiner Warnhinweis wird weggeklickt,
+    eine Zahl wird gelesen.
+    """
+    anzahl, bytes_ = storage.umbuchungs_vorschau(db)
+    return UmbuchungsVorschau(count=anzahl, bytes=bytes_)
+
+
 @router.get("/recyclebin", response_model=PapierkorbBelegung)
 async def papierkorb_belegung(admin: AdminUser, db: DbSession) -> PapierkorbBelegung:
     """Was liegt in den Papierkoerben - und belegt damit weiter Platz.

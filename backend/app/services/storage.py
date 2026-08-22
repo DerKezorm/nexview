@@ -1102,6 +1102,61 @@ def zuruecknehmen(db: Session, posten_id: int, user: "User") -> Posten:
     return _als_posten(posten)
 
 
+def konten_zuruecksetzen(db: Session) -> tuple[int, int]:
+    """Alle zugerechneten Posten ins Haus - jedes Konto startet bei null.
+
+    ⚠️ **Der Umschalt-Generalpardon.** Laeuft beim Wechsel der Betriebsart
+    (Anzahl <-> Speicher), und zwar in **beide** Richtungen - eine Regel statt
+    einer Ausnahme. Ohne ihn waere jemand nach dem Einschalten schlagartig
+    ueberzogen, wegen einer Historie, von der er nicht wusste, dass sie
+    mitzaehlt.
+
+    Was dabei passiert - und was ausdruecklich nicht:
+
+    * Posten mit Besitzer (auch abgegebene, noch unentschiedene) werden
+      Hausbestand. Die Abgabe-Warteschlange ist danach leer: Wer abgegeben
+      hat, wollte die Belastung loswerden - genau das erledigt der Pardon.
+    * **Keine Datei wird angefasst.** Es aendert sich nur, wem etwas
+      zugerechnet wird.
+    * Gespeicherte Grenzen (``storage_limit_gb``) bleiben stehen und gelten
+      wieder, wenn zurueckgeschaltet wird.
+    * ``request_id`` bleibt als Herkunftsbeleg erhalten.
+
+    Gibt zurueck, wie viele Posten mit wie vielen Bytes umgebucht wurden -
+    dieselben Zahlen, die die Oberflaeche vor dem Umschalten ankuendigt.
+    """
+    betroffen = list(
+        db.scalars(select(StorageEntry).where(StorageEntry.user_id.is_not(None)))
+    )
+    bytes_ = sum(zeile.size_bytes for zeile in betroffen)
+    for zeile in betroffen:
+        zeile.user_id = None
+        zeile.state = StorageState.house
+        zeile.released_at = None
+    if betroffen:
+        logger.warning(
+            "Speicher-Konten zurueckgesetzt: %s Posten mit %s Bytes ins Haus umgebucht",
+            len(betroffen),
+            bytes_,
+        )
+    return len(betroffen), bytes_
+
+
+def umbuchungs_vorschau(db: Session) -> tuple[int, int]:
+    """Was ein Ruecksetzen traefe - fuer den Warnhinweis **vor** dem Klick.
+
+    Ein allgemeiner Warnhinweis wird weggeklickt; eine Zahl wird gelesen.
+    Deshalb steht im Dialog "X Titel mit zusammen Y GB", nicht "alles".
+    """
+    zeilen = db.execute(
+        select(
+            func.count(StorageEntry.id),
+            func.coalesce(func.sum(StorageEntry.size_bytes), 0),
+        ).where(StorageEntry.user_id.is_not(None))
+    ).one()
+    return int(zeilen[0]), int(zeilen[1])
+
+
 def offene_abgaben(db: Session) -> list[tuple[Posten, "User | None"]]:
     """Was wartet auf die Entscheidung des Administrators?
 

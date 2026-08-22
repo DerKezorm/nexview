@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "../../api/client";
 import type { PapierkorbBelegung, StorageOverview } from "../../api/types";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Button, Card, ErrorBanner, Spinner } from "../../components/ui";
 import { formatSize } from "../../lib/format";
 import { AdminPapierkorb } from "./AdminPapierkorb";
@@ -24,7 +25,7 @@ type Einstellungen = {
  * Funktion existiert dann schlicht nicht.
  */
 export function AdminStorageSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
 
   const abfrage = useQuery({
@@ -54,11 +55,42 @@ export function AdminStorageSettings() {
       storage_enabled: boolean;
       storage_default_limit_gb: number;
     }) => api.put<Einstellungen>("/api/settings", werte),
-    onSuccess: () => {
+    onSuccess: (daten) => {
+      // Entwuerfe auf den gespeicherten Stand ziehen - der Notausgang setzt
+      // die Betriebsart um, ohne dass der Entwurf vorher umgestellt wurde.
+      setAn(daten.storage_enabled);
+      setGrenze(
+        daten.storage_default_limit_gb
+          ? String(daten.storage_default_limit_gb)
+          : "",
+      );
+      setBestaetigung(null);
       // Der Schalter aendert, was auf mehreren Seiten ueberhaupt existiert -
       // deshalb alles neu laden, nicht nur die Einstellungen.
       void queryClient.invalidateQueries();
     },
+  });
+
+  /**
+   * Welcher Wechsel gerade auf Bestätigung wartet – `null` heißt keiner.
+   *
+   * ⚠️ **Jeder Wechsel der Betriebsart setzt die Konten zurück** – in beide
+   * Richtungen, eine Regel statt einer Ausnahme. Ohne den Generalpardon wäre
+   * jemand nach dem Einschalten schlagartig überzogen, wegen einer Historie,
+   * von der er nicht wusste, dass sie mitzählt. Deshalb geht kein Wechsel
+   * ohne diesen Dialog raus – und der nennt die Zahlen, nicht nur eine
+   * Warnung: Ein allgemeiner Hinweis wird weggeklickt, eine Zahl wird
+   * gelesen.
+   */
+  const [bestaetigung, setBestaetigung] = useState<"an" | "aus" | null>(null);
+
+  // Was das Zuruecksetzen traefe - erst geholt, wenn der Dialog es braucht.
+  const vorschau = useQuery({
+    queryKey: ["storage-umbuchung"],
+    queryFn: () =>
+      api.get<{ count: number; bytes: number }>("/api/storage/umbuchung"),
+    enabled: bestaetigung !== null,
+    staleTime: 0,
   });
 
   if (abfrage.isLoading || an === null) {
@@ -80,14 +112,35 @@ export function AdminStorageSettings() {
     an !== gespeichert || grenzeZahl !== (gespeicherteGrenze ?? -1);
 
   return (
-    /* Zweispaltig, sobald es rechts etwas zu zeigen gibt: Das Formular ist von
+    <div className="flex flex-col gap-5">
+      {/* Gross und zuallererst: Das Feature ist in der Testphase. Wer hier
+          Grenzen setzt und loescht, soll das wissen, bevor er es tut - und
+          Fundstuecke sollen den kuerzesten Weg zu uns haben. */}
+      <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3">
+        <p className="text-sm font-semibold text-warn-500">
+          {t("storageAdmin.devTitle")}
+        </p>
+        <p className="mt-1 text-sm leading-relaxed text-warn-500/90">
+          {t("storageAdmin.devText")}{" "}
+          <a
+            href="https://github.com/DerKezorm/nexview/issues/new"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium underline underline-offset-2 hover:text-warn-500"
+          >
+            {t("storageAdmin.devReport")}
+          </a>
+        </p>
+      </div>
+
+    {/* Zweispaltig, sobald es rechts etwas zu zeigen gibt: Das Formular ist von
        Natur aus schmal – ein Eingabefeld und ein Haken werden durch Breite
        nicht besser, und lange Textzeilen lesen sich schlechter. Die
        Auswertungen dagegen leben von Breite; dort stehen Dateipfade.
        Beide Spalten gleich breit: Ungleiche Hälften lesen sich wie ein
        Versehen, und die Karten stehen dann nicht mehr auf einer Kante.
        Solange nichts gespeichert ist, bleibt es bei der schmalen Spalte –
-       eine leere zweite wäre nur eine Lücke. */
+       eine leere zweite wäre nur eine Lücke. */}
     <div
       className={
         "flex flex-col gap-5 " +
@@ -103,29 +156,46 @@ export function AdminStorageSettings() {
             </p>
           </div>
 
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              checked={an}
-              onChange={(e) => setAn(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-accent-500"
-            />
-            <span>
-              <span className="font-medium">{t("storageAdmin.enable")}</span>
-              <span className="mt-0.5 block text-sm text-mist-500">
-                {t("storageAdmin.enableHint")}
-              </span>
-            </span>
-          </label>
-
-          {/* Der Haken schaltet die **Währung** um - wer ihn setzt, verliert
-            seine Grenzen nach Anzahl. Das gehört neben den Haken und nicht in
-            eine Freigabemeldung hinterher. */}
-          {an && !gespeichert && (
-            <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
-              {t("storageAdmin.switchWarning")}
-            </p>
-          )}
+          {/* Bewusst eine Zweifach-Auswahl und kein Häkchen: Ein Haken namens
+              „Speicher-Kontingente" ließe offen, ob die Stückzahl daneben noch
+              gilt. Die Auswahl sagt es – es gilt genau eine Währung. */}
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium">
+              {t("storageAdmin.modeLabel")}
+            </legend>
+            {(
+              [
+                { wert: false, label: "modeCount", hint: "modeCountHint" },
+                { wert: true, label: "modeStorage", hint: "modeStorageHint" },
+              ] as const
+            ).map((wahl) => (
+              <label
+                key={wahl.label}
+                className={
+                  "flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 " +
+                  (an === wahl.wert
+                    ? "border-accent-500/60 bg-accent-500/5"
+                    : "border-ink-700 hover:border-ink-600")
+                }
+              >
+                <input
+                  type="radio"
+                  name="storage-mode"
+                  checked={an === wahl.wert}
+                  onChange={() => setAn(wahl.wert)}
+                  className="mt-0.5 h-4 w-4 accent-accent-500"
+                />
+                <span>
+                  <span className="font-medium">
+                    {t("storageAdmin." + wahl.label)}
+                  </span>
+                  <span className="mt-0.5 block text-sm text-mist-500">
+                    {t("storageAdmin." + wahl.hint)}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
 
           {an && (
             <div className="border-t border-ink-700 pt-4">
@@ -193,14 +263,20 @@ export function AdminStorageSettings() {
             />
           )}
 
-          <div className="flex items-center gap-3 border-t border-ink-700 pt-4">
+          <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
             <Button
-              onClick={() =>
+              onClick={() => {
+                // Ein Wechsel der Betriebsart geht nie direkt raus - erst der
+                // Dialog mit den Zahlen. Nur die Grenze zu ändern ist harmlos.
+                if (an !== gespeichert) {
+                  setBestaetigung(an ? "an" : "aus");
+                  return;
+                }
                 speichern.mutate({
                   storage_enabled: an,
                   storage_default_limit_gb: grenzeZahl,
-                })
-              }
+                });
+              }}
               disabled={!geaendert || !grenzeGueltig}
             >
               {speichern.isPending ? t("common.saving") : t("common.save")}
@@ -216,8 +292,64 @@ export function AdminStorageSettings() {
                 </span>
               )
             )}
+            {/* Der Notausgang aus dem Plan: räumt den Zustand auf, ohne Code,
+                Container oder Datenbank anzufassen. Nur sichtbar, solange es
+                etwas abzuschalten gibt. */}
+            {gespeichert && (
+              <Button
+                variant="ghost"
+                onClick={() => setBestaetigung("aus")}
+                className="ml-auto border-bad-500/40 text-bad-500 hover:bg-bad-500/10 hover:text-bad-500"
+              >
+                {t("storageAdmin.panic")}
+              </Button>
+            )}
           </div>
         </Card>
+
+        <ConfirmDialog
+          open={bestaetigung !== null}
+          title={t(
+            bestaetigung === "aus"
+              ? "storageAdmin.resetTitleOff"
+              : "storageAdmin.resetTitleOn",
+          )}
+          description={
+            vorschau.isLoading || !vorschau.data ? (
+              <div className="flex justify-center py-4">
+                <Spinner />
+              </div>
+            ) : (
+              <>
+                {/* Die Zahlen, nicht nur eine Warnung: "X Titel mit zusammen
+                    Y GB" wird gelesen, "Achtung" wird weggeklickt. */}
+                <p>
+                  {t("storageAdmin.resetText", {
+                    count: vorschau.data.count,
+                    size: formatSize(vorschau.data.bytes, i18n.language),
+                  })}
+                </p>
+                <p className="mt-2 text-mist-500">
+                  {t("storageAdmin.resetKeeps")}
+                </p>
+              </>
+            )
+          }
+          confirmLabel={t(
+            bestaetigung === "aus"
+              ? "storageAdmin.panic"
+              : "storageAdmin.resetConfirmOn",
+          )}
+          loading={speichern.isPending}
+          onCancel={() => setBestaetigung(null)}
+          onConfirm={() =>
+            vorschau.data &&
+            speichern.mutate({
+              storage_enabled: bestaetigung === "an",
+              storage_default_limit_gb: grenzeZahl,
+            })
+          }
+        />
 
         {/* Der Papierkorb steht unter den Einstellungen, weil er dieselbe Frage
             beantwortet wie der Schalter darüber: was passiert, wenn Nexview
@@ -238,6 +370,7 @@ export function AdminStorageSettings() {
           <AdminStorageUsers />
         </div>
       )}
+    </div>
     </div>
   );
 }

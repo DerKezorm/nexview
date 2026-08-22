@@ -32,6 +32,7 @@ from . import (
     mediaserver_watched,
     notify,
     storage,
+    requests_service,
 )
 from .arr import ArrError
 from .settings_service import AppSettings, load_settings
@@ -116,6 +117,9 @@ async def check_once(db: Session, settings: AppSettings) -> int:
     geladen = {("movie", stufe) for stufe in filme} | {("tv", stufe) for stufe in serien}
 
     fertig = 0
+    # Je Durchlauf hoechstens eine Heilung je Serie - mehrere Staffelanfragen
+    # derselben Serie ergeben ohnehin dieselbe Menge.
+    geheilt: set[tuple[str, int]] = set()
     verschwunden = 0
     for request in offen:
         stufe = request.tier.value
@@ -188,6 +192,54 @@ async def check_once(db: Session, settings: AppSettings) -> int:
         elif request.status == RequestStatus.approved:
             # In Radarr/Sonarr angelegt, Datei fehlt noch.
             request.status = RequestStatus.searching
+
+        # ⚠️ **Die Ueberwachungs-Heilung.** Sonarrs ``addOptions.monitor:
+        # "none"`` wirkt asynchron: Bei einer frisch angelegten Serie laedt
+        # Sonarr erst die Metadaten und raeumt **danach** die Ueberwachung ab -
+        # auch die Staffel, die Nexview unmittelbar nach dem Anlegen
+        # eingeschaltet hat. Live nachgemessen: Staffel freigegeben, Antwort
+        # "wird gesucht", und in Sonarr war alles aus - fuer immer, denn die
+        # Heilung bei der naechsten Freigabe derselben Serie setzt eine
+        # naechste Freigabe voraus. Deshalb prueft jeder Durchgang: Ist zu
+        # einer laufenden Staffelanfrage die Ueberwachung aus, wird sie aus
+        # Nexviews eigenen Anfragen wiederhergestellt - und die Suche
+        # angestossen, die sonst nie lief.
+        if (
+            request.media_type == MediaType.tv
+            and request.season is not None
+            and request.status in (RequestStatus.approved, RequestStatus.searching)
+            and eintrag is not None
+        ):
+            stand = (getattr(eintrag, "staffeln", None) or {}).get(request.season)
+            arr_id = getattr(eintrag, "arr_id", None)
+            if (
+                stand is not None
+                and not stand.monitored
+                and arr_id
+                and (stufe, arr_id) not in geheilt
+            ):
+                geheilt.add((stufe, arr_id))
+                client = library.sonarr_client(settings, stufe)
+                if client is not None:
+                    try:
+                        await client.monitor_seasons(
+                            arr_id,
+                            requests_service._gewollte_staffeln(db, request),
+                            such_staffel=request.season,
+                        )
+                        logger.warning(
+                            "Ueberwachung geheilt: %r Staffel %s war in Sonarr "
+                            "abgeschaltet (arr_id=%s)",
+                            request.title,
+                            request.season,
+                            arr_id,
+                        )
+                    except ArrError as fehler:
+                        logger.warning(
+                            "Ueberwachung von %r nicht heilbar: %s",
+                            request.title,
+                            fehler.message,
+                        )
 
     # Und die Gegenrichtung: Gilt ein fertig geladener Titel noch?
     #

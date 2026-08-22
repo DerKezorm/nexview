@@ -27,6 +27,9 @@ class Staffelstand:
 
     dateien: int
     folgen: int
+    # Laeuft die Ueberwachung? ``True`` als Vorgabe heisst "kein Anlass zur
+    # Heilung" - wo die Angabe fehlt, wird nicht an Sonarr herumgestellt.
+    monitored: bool = True
 
     @property
     def vollstaendig(self) -> bool:
@@ -142,6 +145,7 @@ def _staffel_stand(show: dict[str, Any]) -> dict[int, Staffelstand]:
         stand[nummer] = Staffelstand(
             dateien=int(zahlen.get("episodeFileCount") or 0),
             folgen=int(zahlen.get("episodeCount") or 0),
+            monitored=bool(staffel.get("monitored")),
         )
     return stand
 

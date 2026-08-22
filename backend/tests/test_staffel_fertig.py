@@ -354,3 +354,56 @@ async def test_ohne_sonarr_eintrag_zaehlt_der_plex_treffer_weiter(
 
     with SessionLocal() as db:
         assert db.get(MediaRequest, anfrage_id).status == RequestStatus.downloaded
+
+
+# --- Die Ueberwachungs-Heilung ---------------------------------------------
+
+
+class _Heiler:
+    def __init__(self) -> None:
+        self.aufrufe: list[tuple[int, list[int], int | None]] = []
+
+    async def monitor_seasons(self, arr_id, seasons, such_staffel=None):
+        self.aufrufe.append((arr_id, sorted(seasons), such_staffel))
+
+
+@pytest.mark.asyncio
+async def test_abgeschaltete_staffel_wird_geheilt(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ **Live nachgemessen**: Sonarrs ``addOptions.monitor: "none"`` wirkt
+    asynchron und raeumt bei einer frisch angelegten Serie auch die Staffel ab,
+    die Nexview unmittelbar danach eingeschaltet hat. Ohne Heilung stuende die
+    Anfrage fuer immer auf "wird gesucht"."""
+    konto = create_user(arr_client, "kim", "passwort-1234")
+    with SessionLocal() as db:
+        _staffelanfrage(db, konto["id"], 1)
+
+    _serie(monkeypatch, {1: Staffelstand(dateien=0, folgen=6, monitored=False)})
+    heiler = _Heiler()
+    monkeypatch.setattr(library, "sonarr_client", lambda *_a, **_k: heiler)
+
+    with SessionLocal() as db:
+        await status_poller.check_once(db, load_settings(db))
+
+    assert heiler.aufrufe == [(211, [1], 1)]
+
+
+@pytest.mark.asyncio
+async def test_laufende_ueberwachung_bleibt_unangetastet(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Heilung greift nur, wenn wirklich etwas abgeschaltet ist - sonst
+    stiesse jeder Durchgang eine neue Suche an."""
+    konto = create_user(arr_client, "kim", "passwort-1234")
+    with SessionLocal() as db:
+        _staffelanfrage(db, konto["id"], 1)
+
+    _serie(monkeypatch, {1: Staffelstand(dateien=2, folgen=6, monitored=True)})
+    heiler = _Heiler()
+    monkeypatch.setattr(library, "sonarr_client", lambda *_a, **_k: heiler)
+
+    with SessionLocal() as db:
+        await status_poller.check_once(db, load_settings(db))
+
+    assert heiler.aufrufe == []

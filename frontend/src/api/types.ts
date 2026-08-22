@@ -780,6 +780,10 @@ export type StorageEntry = {
   path?: string
   /** Gesetzt, solange der Posten auf eine Entscheidung wartet. */
   released_at?: string | null
+  /** Wunsch des Abgebenden: `delete` oder `keep`. `null` ohne Abgabe. */
+  release_wish?: 'delete' | 'keep' | null
+  /** „Schon gesehen?“ – nur auf der eigenen Seite, nur bei Filmen. `null` = unbekannt. */
+  watched?: boolean | null
 }
 
 /**
@@ -838,6 +842,8 @@ export type StorageMine = {
   /** Abgegeben, aber noch nicht entschieden – zählt weiter mit. */
   pending_bytes: number
   entries: StorageEntry[]
+  /** Gibt es Gesehen-Daten? Daran hängt der Filter „Nur Gesehene“. */
+  watched_available?: boolean
 }
 
 export type StorageHouse = {

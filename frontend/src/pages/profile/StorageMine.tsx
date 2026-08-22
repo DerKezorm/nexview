@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { api, ApiError } from '../../api/client'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import type {
   StorageEntry,
   StorageHouse,
@@ -39,14 +41,21 @@ function EigenerSpeicher() {
   const { t, i18n } = useTranslation()
   const [suche, setSuche] = useState('')
   const [seite, setSeite] = useState(1)
+  // "Nur Gesehene": die Kandidaten fürs Abgeben. Serverseitig gefiltert,
+  // weil die Liste blättert – ein Seitenfilter würde die Seitenzahl belügen.
+  const [nurGesehene, setNurGesehene] = useState(false)
 
   const abfrage = useQuery({
     // ⚠️ Der Schlüssel muss mit `useStorageStand` beginnen (`['storage-mine']`),
     // damit ein Zuschlagen an das Haus beide Stellen erneuert.
-    queryKey: ['storage-mine', suche, seite],
+    queryKey: ['storage-mine', suche, seite, nurGesehene],
     queryFn: () =>
       api.get<StorageMineData>(
-        '/api/storage/me?page=' + seite + '&q=' + encodeURIComponent(suche),
+        '/api/storage/me?page=' +
+          seite +
+          '&q=' +
+          encodeURIComponent(suche) +
+          (nurGesehene ? '&gesehen=true' : ''),
       ),
     placeholderData: (vorher?: StorageMineData) => vorher,
   })
@@ -122,12 +131,56 @@ function EigenerSpeicher() {
 
       {daten.items === 0 ? (
         <Leer titel={t('storage.empty')} hinweis={t('storage.emptyHint')} />
-      ) : daten.entries.length === 0 ? (
-        <Leer titel={t('storage.noMatch')} hinweis={t('storage.noMatchHint')} />
       ) : (
         <Card className="flex flex-col gap-3 p-4">
-          <Kopf titel={t('storage.listTitle')} />
-          <Liste eintraege={daten.entries} abgebbar />
+          {/* Der Filter wohnt in der Kopfzeile der Liste, die er filtert –
+              und nur, wenn es Gesehen-Daten überhaupt gibt: Ohne
+              Media-Server-Verknüpfung fände „Nur Gesehene" nie etwas und
+              sähe aus wie kaputt. */}
+          <Kopf
+            titel={t('storage.listTitle')}
+            werkzeug={
+              daten.watched_available ? (
+                <>
+                  {(
+                    [
+                      { wert: false, key: 'storage.filterAll' },
+                      { wert: true, key: 'storage.filterSeen' },
+                    ] as const
+                  ).map((wahl) => (
+                    <button
+                      key={wahl.key}
+                      type="button"
+                      onClick={() => {
+                        setNurGesehene(wahl.wert)
+                        setSeite(1)
+                      }}
+                      aria-pressed={nurGesehene === wahl.wert}
+                      className={
+                        'rounded-full border px-3 py-1 text-xs font-medium transition-colors ' +
+                        (nurGesehene === wahl.wert
+                          ? 'border-accent-500/60 bg-accent-500/10 text-accent-400'
+                          : 'border-ink-700 text-mist-400 hover:border-ink-600 hover:text-mist-100')
+                      }
+                    >
+                      {t(wahl.key)}
+                    </button>
+                  ))}
+                </>
+              ) : undefined
+            }
+          />
+          {/* ⚠️ Der Leer-Zustand lebt **in** der Karte: Stünde er außerhalb,
+              verschwände mit ihm auch der Filter – und wer bei „Nur Gesehene"
+              nichts findet, käme nie wieder auf „Alle" zurück. */}
+          {daten.entries.length === 0 ? (
+            <Leer
+              titel={t(nurGesehene ? 'storage.noneSeen' : 'storage.noMatch')}
+              hinweis={t(nurGesehene ? 'storage.noneSeenHint' : 'storage.noMatchHint')}
+            />
+          ) : (
+            <Liste eintraege={daten.entries} abgebbar />
+          )}
           {daten.matches > daten.per_page && (
             <Pagination
               seite={seite}
@@ -260,7 +313,16 @@ function Leer({ titel, hinweis }: { titel: string; hinweis: string }) {
   )
 }
 
-function Kopf({ titel, rechts }: { titel: string; rechts?: string }) {
+function Kopf({
+  titel,
+  rechts,
+  werkzeug,
+}: {
+  titel: string
+  rechts?: string
+  /** Bedienelemente rechts in der Kopfzeile – etwa der Gesehen-Filter. */
+  werkzeug?: ReactNode
+}) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-ink-700 pb-3">
@@ -269,6 +331,7 @@ function Kopf({ titel, rechts }: { titel: string; rechts?: string }) {
       {rechts && (
         <span className="ml-auto text-sm tabular-nums text-mist-600">{rechts}</span>
       )}
+      {werkzeug && <span className="ml-auto flex gap-2">{werkzeug}</span>}
     </div>
   )
 }
@@ -310,16 +373,27 @@ function PostenZeile({
    * das sagt der Hinweistext darunter.
    */
   const wechseln = useMutation({
-    mutationFn: () =>
+    mutationFn: (wunsch?: 'delete' | 'keep') =>
       api.post(
         `/api/storage/entries/${eintrag.id}/${wartet ? 'behalten' : 'abgeben'}`,
-        {},
+        wartet || !wunsch ? {} : { wish: wunsch },
       ),
     onSuccess: () => {
+      setFrage(false)
       void queryClient.invalidateQueries({ queryKey: ['storage-mine'] })
       void queryClient.invalidateQueries({ queryKey: ['storage-releases'] })
     },
   })
+
+  /**
+   * Bei Staffeln geht dem Abgeben eine Frage voraus: löschen oder behalten?
+   *
+   * Einstufig, wie im Plan entschieden – der Wunsch reist mit der Abgabe,
+   * damit der Admin **einmal** entscheidet und niemand zweimal gefragt wird.
+   * Bei Filmen gibt es die Frage nicht: Ein Film wächst nicht, dort wäre
+   * „behalten, aber nicht mehr laden" dasselbe wie gar nichts.
+   */
+  const [frage, setFrage] = useState(false)
 
   // Serien kommen aus Sonarr und tragen dort nur eine TVDB-Nummer. Die
   // TMDB-Nummer wird beim Abgleich nachgeschlagen, wo sie bekannt ist – wo
@@ -333,6 +407,59 @@ function PostenZeile({
 
   return (
     <li className="flex items-center gap-3 border-b border-ink-800 py-2.5 last:border-b-0">
+      {/* Das Auge macht die Behalten-Entscheidung leichter: Grün = schon
+          gesehen (kann weg), Rot = noch nicht gesehen. Nur bei Filmen – die
+          Gesehen-Daten sind Titel-genau, bei einer Staffel würde „gesehen“
+          zu viel behaupten. Ohne Media-Server-Verknüpfung gibt es keine
+          Daten – dann steht hier ein Fragezeichen-Auge mit dem Grund, statt
+          dass ein rotes „nie gesehen“ behauptet, wo niemand nachsehen kann. */}
+      {eintrag.media_type === 'movie' && (
+        <span
+          title={t(
+            eintrag.watched === true
+              ? 'storage.seen'
+              : eintrag.watched === false
+                ? 'storage.notSeen'
+                : 'storage.seenUnknown',
+          )}
+          className={
+            'shrink-0 ' +
+            (eintrag.watched === true
+              ? 'text-ok-500'
+              : eintrag.watched === false
+                ? 'text-bad-500'
+                : 'text-mist-600')
+          }
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+            aria-hidden="true"
+          >
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+            {eintrag.watched === null || eintrag.watched === undefined ? (
+              <text
+                x="12"
+                y="15.5"
+                textAnchor="middle"
+                fontSize="10"
+                fill="currentColor"
+                stroke="none"
+                fontWeight="bold"
+              >
+                ?
+              </text>
+            ) : (
+              <circle cx="12" cy="12" r="3" />
+            )}
+          </svg>
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         {ziel ? (
           <Link to={ziel} className="line-clamp-1 font-medium hover:text-accent-500">
@@ -371,7 +498,13 @@ function PostenZeile({
       {abgebbar && (
         <button
           type="button"
-          onClick={() => wechseln.mutate()}
+          onClick={() => {
+            if (!wartet && eintrag.season !== null) {
+              setFrage(true)
+              return
+            }
+            wechseln.mutate(undefined)
+          }}
           disabled={wechseln.isPending}
           className={
             'shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-40 ' +
@@ -383,6 +516,27 @@ function PostenZeile({
           {t(wartet ? 'storage.keepAfterAll' : 'storage.giveUp')}
         </button>
       )}
+
+      <ConfirmDialog
+        open={frage}
+        title={t('storage.wishTitle')}
+        description={
+          <>
+            <p className="font-medium">{eintrag.title}</p>
+            <p className="mt-2">{t('storage.wishText')}</p>
+          </>
+        }
+        confirmLabel={t('storage.wishDelete')}
+        weitere={[
+          {
+            label: t('storage.wishKeep'),
+            onClick: () => wechseln.mutate('keep'),
+          },
+        ]}
+        loading={wechseln.isPending}
+        onCancel={() => setFrage(false)}
+        onConfirm={() => wechseln.mutate('delete')}
+      />
     </li>
   )
 }

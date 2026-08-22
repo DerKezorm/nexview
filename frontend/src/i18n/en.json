@@ -618,7 +618,8 @@
     "requestFulfilled": "A title you were waiting for has arrived",
     "storageGrew": "A title now takes up more space",
     "storageReleaseRequested": "Someone handed a title back",
-    "storageDeleted": "A title has been deleted"
+    "storageDeleted": "A title has been deleted",
+    "storageKept": "A title stays, but stops downloading"
   },
   "mediaserver": {
     "loginWithPlex": "Sign in with Plex",
@@ -1244,7 +1245,18 @@
     "giveUp": "I don't need this",
     "keepAfterAll": "Keep after all",
     "waiting": "waiting for a decision",
-    "pendingHint": "{{size}} are waiting for a decision. They still count until then – the space is only freed once the operator has decided."
+    "pendingHint": "{{size}} are waiting for a decision. They still count until then – the space is only freed once the operator has decided.",
+    "wishTitle": "What should happen to it?",
+    "wishText": "Your wish travels with the hand-back – the operator decides, but only once. “Have it deleted” frees the space. “Keep, stop downloading” leaves the episodes in place; the title keeps counting against your account, it just stops growing.",
+    "wishDelete": "Have it deleted",
+    "wishKeep": "Keep, stop downloading",
+    "seen": "Already watched",
+    "notSeen": "Not watched yet",
+    "seenUnknown": "Status unknown – your account is not linked to the media server",
+    "filterAll": "All",
+    "filterSeen": "Watched only",
+    "noneSeen": "None of this is marked as watched",
+    "noneSeenHint": "As soon as you have watched something from this list, it shows up here."
   },
   "storageAdmin": {
     "title": "Storage quotas",
@@ -1333,6 +1345,9 @@
     "deleteNoBin": "No recycle bin is configured for this instance. The file will be gone immediately and for good.",
     "deleteReasonTier": "Deleting is currently only enabled for the 4K instance. Nothing is removed on the standard instance.",
     "deleteReasonSeries": "Season-by-season deletion is not armed yet.",
-    "deleteReasonUnmanaged": "Radarr or Sonarr no longer knows this title. Nexview only deletes through those services – handing it to the house stock is the only option."
+    "deleteReasonUnmanaged": "Radarr or Sonarr no longer knows this title. Nexview only deletes through those services – handing it to the house stock is the only option.",
+    "wishDelete": "wants it deleted",
+    "wishKeep": "wants to keep it, stop downloading",
+    "unfollow": "Stop following"
   }
 }

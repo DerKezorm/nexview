@@ -44,6 +44,7 @@ MAIL_SWITCH: dict[NotificationType, str] = {
     # Alle drei Speicher-Meldungen an einem Schalter - siehe ``User.mail_storage``.
     NotificationType.storage_release_requested: "mail_storage",
     NotificationType.storage_released: "mail_storage",
+    NotificationType.storage_kept: "mail_storage",
     NotificationType.storage_deleted: "mail_storage",
     NotificationType.storage_grew: "mail_storage",
 }

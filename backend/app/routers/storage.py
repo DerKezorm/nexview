@@ -16,9 +16,12 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..deps import AdminUser, CurrentUser, DbSession
-from ..models import NotificationType, Role, StorageEntry, User
+from dataclasses import replace
+
+from ..models import MediaType, NotificationType, Role, StorageEntry, StorageWish, User
 from sqlalchemy import select
-from ..services import library, notify, storage
+from ..services import library, mediaserver_watched, notify, storage
+from ..services.arr import ArrError
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
@@ -41,6 +44,10 @@ class StoragePosten(BaseModel):
     path: str = ""
     # Gesetzt, solange der Posten auf eine Entscheidung wartet.
     released_at: datetime | None = None
+    # Was sich der Abgebende wuenscht: "delete" oder "keep". NULL ohne Abgabe.
+    release_wish: str | None = None
+    # "Schon gesehen?" - nur auf der eigenen Seite, nur bei Filmen. Sonst NULL.
+    watched: bool | None = None
 
 
 class StorageMine(BaseModel):
@@ -56,6 +63,9 @@ class StorageMine(BaseModel):
     # Abgegeben, aber noch nicht entschieden. Zaehlt weiter mit - deshalb
     # getrennt ausgewiesen und nicht abgezogen.
     pending_bytes: int
+    # Gibt es fuer dieses Konto Gesehen-Daten? Daran haengt der Filter
+    # "Nur Gesehene" - ohne Daten zeigt die Oberflaeche ihn gar nicht.
+    watched_available: bool = False
     # Wieviele Zeilen die Suche trifft, fuer die Seitenzahl.
     matches: int = 0
     # Wieviele Zeilen eine Seite fasst. Kommt mit, damit die Oberflaeche die
@@ -116,12 +126,50 @@ def _muss_eingeschaltet_sein(db) -> None:
         raise HTTPException(404, "Speicher-Kontingente sind nicht eingeschaltet.")
 
 
+def _mit_gesehen(
+    db: DbSession, user: User, settings, zeilen: list[storage.Posten]
+) -> list[storage.Posten]:
+    """"Schon gesehen?" an die eigenen Film-Posten heften.
+
+    Die eine Angabe, die die Behalten-Entscheidung wirklich einfacher macht:
+    Einen gesehenen Film gibt man leichter her als einen, auf den man sich
+    noch freut.
+
+    Drei bewusste Grenzen:
+    * **Nur Filme.** Die Gesehen-Daten sind Titel-genau; bei einer Staffel
+      wuerde "gesehen" zu viel behaupten (Staffel 1 gesehen heisst nicht
+      Staffel 4 gesehen).
+    * **Nur mit Media-Server-Verknuepfung.** Ohne sie gibt es keine Daten,
+      und ein rotes Auge behauptete "nie gesehen", wo in Wahrheit niemand
+      nachsehen kann. ``None`` heisst deshalb ehrlich "unbekannt" - die
+      Oberflaeche zeigt dafuer ein Fragezeichen-Auge samt Begruendung.
+    * **Nur die eigene Seite.** Die Gesehen-Daten anderer sind fuer
+      Administratoren bewusst tabu (siehe ``gesehene_kennungen``) - die
+      Abgabe-Warteschlange bekommt dieses Feld deshalb nie.
+    """
+    if not settings.mediaserver_configured or not user.mediaserver_linked:
+        return zeilen
+    filme = [z.tmdb_id for z in zeilen if z.media_type == "movie" and z.tmdb_id]
+    if not filme:
+        return zeilen
+    gesehen = mediaserver_watched.gesehene_kennungen(
+        db, user.id, MediaType.movie, filme
+    )
+    return [
+        replace(z, watched=z.tmdb_id in gesehen)
+        if z.media_type == "movie" and z.tmdb_id
+        else z
+        for z in zeilen
+    ]
+
+
 @router.get("/me", response_model=StorageMine)
 def eigener_speicher(
     user: CurrentUser,
     db: DbSession,
     q: str = "",
     page: Annotated[int, Query(ge=1)] = 1,
+    gesehen: bool = False,
 ) -> StorageMine:
     """Der eigene Stand samt Einzelposten, das Groesste zuerst.
 
@@ -133,14 +181,28 @@ def eigener_speicher(
     auf ein fremdes Konto.
     """
     _muss_eingeschaltet_sein(db)
+    einstellungen = load_settings(db)
+    # Gibt es fuer dieses Konto ueberhaupt Gesehen-Daten? Daran haengt der
+    # Filter in der Oberflaeche - ohne Daten waere er ein Knopf, der nichts
+    # findet und wie kaputt aussieht.
+    gesehen_moeglich = bool(
+        einstellungen.mediaserver_configured and user.mediaserver_linked
+    )
     stand = storage.kontostand(db, user.id)
     zeilen, treffer = storage.posten_fuer(
-        db, user.id, suche=q, seite=page, je_seite=storage.JE_SEITE
+        db,
+        user.id,
+        suche=q,
+        seite=page,
+        je_seite=storage.JE_SEITE,
+        nur_gesehene=gesehen and gesehen_moeglich,
     )
+    zeilen = _mit_gesehen(db, user, einstellungen, zeilen)
     return StorageMine(
         used_bytes=stand.used_bytes,
         items=stand.items,
-        limit_bytes=storage.grenze_in_bytes(user, load_settings(db)),
+        limit_bytes=storage.grenze_in_bytes(user, einstellungen),
+        watched_available=gesehen_moeglich,
         pending_bytes=stand.pending_bytes,
         matches=treffer,
         per_page=storage.JE_SEITE,
@@ -427,8 +489,20 @@ class StorageAbgabe(BaseModel):
     released_at: datetime | None
 
 
+class AbgabeWunsch(BaseModel):
+    """Was mit dem Posten passieren soll - Teil der Abgabe, keine zweite Frage."""
+
+    # "delete" (Vorgabe) oder "keep" - letzteres nur bei Serien-Staffeln.
+    wish: str | None = None
+
+
 @router.post("/entries/{posten_id}/abgeben", response_model=StoragePosten)
-def abgeben(posten_id: int, user: CurrentUser, db: DbSession) -> StoragePosten:
+def abgeben(
+    posten_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    nutzlast: AbgabeWunsch | None = None,
+) -> StoragePosten:
     """"Brauche ich nicht mehr" - den eigenen Posten zur Entscheidung stellen.
 
     ⚠️ **Es passiert dabei nichts an der Datei**, und der Posten **zaehlt
@@ -441,8 +515,14 @@ def abgeben(posten_id: int, user: CurrentUser, db: DbSession) -> StoragePosten:
     Meldung an sie waere also eine Aufforderung zu etwas, das sie nicht duerfen.
     """
     _muss_eingeschaltet_sein(db)
+    wunsch: StorageWish | None = None
+    if nutzlast is not None and nutzlast.wish is not None:
+        try:
+            wunsch = StorageWish(nutzlast.wish)
+        except ValueError as fehler:
+            raise HTTPException(422, "Der Wunsch muss 'delete' oder 'keep' sein.") from fehler
     try:
-        posten = storage.abgeben(db, posten_id, user)
+        posten = storage.abgeben(db, posten_id, user, wunsch)
     except storage.Abgabefehler as fehler:
         raise HTTPException(fehler.status_code, fehler.message) from fehler
 
@@ -475,6 +555,49 @@ def zuruecknehmen(posten_id: int, user: CurrentUser, db: DbSession) -> StoragePo
         raise HTTPException(fehler.status_code, fehler.message) from fehler
     db.commit()
     return _als_posten(posten)
+
+
+@router.post("/entries/{posten_id}/entfolgen", response_model=StoragePosten)
+async def entfolgen(posten_id: int, admin: AdminUser, db: DbSession) -> StoragePosten:
+    """Den Behalten-Wunsch ausfuehren: Folgen bleiben, Ueberwachung aus.
+
+    Das dritte Ergebnis einer Abgabe - und das einzige, bei dem der Posten
+    **belastet bleibt**: Die Dateien liegen weiter, behalten wollte sie der
+    Abgebende ausdruecklich. Es hoert nur das Nachladen auf.
+
+    **Nur Administratoren** - dieselbe Sicherheitsregel wie bei
+    ``in_den_hausbestand``: Entscheider haben selbst ein Kontingent und
+    duerfen ueber Abgaben nicht befinden.
+
+    Der Betroffene bekommt Bescheid. Ohne den Hinweis saehe seine unveraenderte
+    Zahl nach einer haengengebliebenen Abgabe aus - der Satz, auf den es
+    ankommt, ist "zaehlt weiter, waechst aber nicht mehr".
+    """
+    _muss_eingeschaltet_sein(db)
+    zeile = storage.posten_von(db, posten_id)
+    if zeile is None:
+        raise HTTPException(404, "Diesen Posten gibt es nicht.")
+
+    settings = load_settings(db)
+    try:
+        posten = await storage.entfolgen(db, settings, posten_id)
+    except storage.Abgabefehler as fehler:
+        raise HTTPException(fehler.status_code, fehler.message) from fehler
+    except ArrError as fehler:
+        raise HTTPException(502, fehler.message) from fehler
+
+    zeile = db.get(StorageEntry, posten_id)
+    betroffener = db.get(User, zeile.user_id) if zeile.user_id else None
+    if betroffener is not None:
+        notify.create(
+            db,
+            user=betroffener,
+            kind=NotificationType.storage_kept,
+            message_key="notifications.storageKept",
+            title=posten.title,
+        )
+    db.commit()
+    return posten
 
 
 @router.get("/releases", response_model=list[StorageAbgabe])

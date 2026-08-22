@@ -81,6 +81,7 @@ EVENTS: dict[NotificationType, str] = {
     # einen Empfaenger kennt.
     NotificationType.storage_release_requested: "storage_release",
     NotificationType.storage_released: "storage_release",
+    NotificationType.storage_kept: "storage_release",
     NotificationType.storage_deleted: "storage_release",
 }
 
@@ -95,6 +96,7 @@ LINKS: dict[NotificationType, str] = {
     # Dorthin, wo die Warteschlange steht und entschieden wird.
     NotificationType.storage_release_requested: "/admin/settings",
     NotificationType.storage_released: "/profil",
+    NotificationType.storage_kept: "/profil",
     NotificationType.storage_deleted: "/profil",
 }
 
@@ -121,6 +123,7 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
             "title": "Ein Titel wurde abgegeben"
         },
         NotificationType.storage_released: {"title": "Ein Titel gehört jetzt dem Haus"},
+        NotificationType.storage_kept: {"title": "Ein Titel bleibt, wird aber nicht mehr geladen"},
         NotificationType.storage_deleted: {"title": "Ein Titel wurde gelöscht"},
     },
     "en": {
@@ -138,6 +141,7 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.user_imported: {"title": "New media-server account"},
         NotificationType.storage_release_requested: {"title": "A title was handed back"},
         NotificationType.storage_released: {"title": "A title now belongs to the house"},
+        NotificationType.storage_kept: {"title": "A title stays, but stops downloading"},
         NotificationType.storage_deleted: {"title": "A title has been deleted"},
     },
 }

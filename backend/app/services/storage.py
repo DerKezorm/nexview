@@ -28,7 +28,9 @@ from ..models import (
     StorageEntry,
     Role,
     StorageState,
+    StorageWish,
     User,
+    UserWatched,
     utcnow,
 )
 from .arr import ArrError
@@ -111,6 +113,13 @@ class Posten:
     path: str = ""
     # Wann der Nutzer den Posten abgegeben hat. NULL, solange er ihn behaelt.
     released_at: datetime | None = None
+    # Was er sich dabei wuenscht - "delete" oder "keep", NULL ohne Abgabe.
+    release_wish: str | None = None
+    # Hat der Besitzer den Titel schon gesehen? Nur auf der **eigenen**
+    # Speicherseite gefuellt, und nur bei Filmen - die Gesehen-Daten sind
+    # Titel-genau, bei einer Staffel wuerde "gesehen" zu viel behaupten.
+    # ``None`` heisst "keine Aussage" (Serie, oder kein Media-Server).
+    watched: bool | None = None
 
 
 def kontostand(db: Session, user_id: int) -> Kontostand:
@@ -244,7 +253,13 @@ def _seite(
 
 
 def posten_fuer(
-    db: Session, user_id: int, *, suche: str = "", seite: int = 1, je_seite: int = 20
+    db: Session,
+    user_id: int,
+    *,
+    suche: str = "",
+    seite: int = 1,
+    je_seite: int = 20,
+    nur_gesehene: bool = False,
 ) -> tuple[list[Posten], int]:
     """Alles, was ein Nutzer belegt - das Groesste zuerst, seitenweise.
 
@@ -253,13 +268,30 @@ def posten_fuer(
 
     Geblaettert wie der Hausbestand, und aus demselben Grund: Wer zweihundert
     Titel hat, findet einen bestimmten sonst nicht wieder.
+
+    ``nur_gesehene`` schraenkt auf Filme ein, die der Nutzer laut Media-Server
+    schon gesehen hat - die Kandidaten fuers Abgeben. Serien fallen dabei
+    bewusst heraus: Die Gesehen-Daten sind Titel-genau, und "Staffel gesehen"
+    laesst sich daraus nicht ehrlich beantworten. Der Filter greift in der
+    Datenbank, nicht auf der Seite - sonst stimmte die Seitenzahl nicht.
     """
+    bedingungen = [
+        StorageEntry.user_id == user_id,
+        StorageEntry.state.in_((StorageState.owned, StorageState.pending)),
+    ]
+    if nur_gesehene:
+        bedingungen.append(StorageEntry.media_type == MediaType.movie)
+        bedingungen.append(
+            StorageEntry.tmdb_id.in_(
+                select(UserWatched.tmdb_id).where(
+                    UserWatched.user_id == user_id,
+                    UserWatched.media_type == MediaType.movie,
+                )
+            )
+        )
     return _seite(
         db,
-        [
-            StorageEntry.user_id == user_id,
-            StorageEntry.state.in_((StorageState.owned, StorageState.pending)),
-        ],
+        bedingungen,
         suche=suche,
         seite=seite,
         je_seite=je_seite,
@@ -434,6 +466,7 @@ def _als_posten(zeile: StorageEntry) -> Posten:
         measured_at=zeile.measured_at,
         path=zeile.path or "",
         released_at=zeile.released_at,
+        release_wish=zeile.release_wish.value if zeile.release_wish else None,
     )
 
 
@@ -1031,7 +1064,9 @@ class Abgabefehler(Exception):
         self.status_code = status_code
 
 
-def abgeben(db: Session, posten_id: int, user: "User") -> Posten:
+def abgeben(
+    db: Session, posten_id: int, user: "User", wunsch: StorageWish | None = None
+) -> Posten:
     """"Brauche ich nicht mehr" - der Nutzer gibt einen Posten ab.
 
     ⚠️ **Es passiert dabei genau nichts an der Datei.** Der Posten wechselt auf
@@ -1039,6 +1074,12 @@ def abgeben(db: Session, posten_id: int, user: "User") -> Posten:
     dahin **zaehlt er weiter** gegen das Kontingent - sonst waere Abgeben ein
     Freifahrtschein: Man gaebe alles ab, waere sofort frei und niemand muesste
     je entscheiden.
+
+    ``wunsch`` sagt dem Entscheider, was sich der Abgebende vorstellt -
+    einstufig, damit niemand zweimal gefragt werden muss. ``keep`` ("Folgen
+    behalten, aber keine neuen mehr") gibt es nur bei Serien-Staffeln: Ein
+    Film waechst nicht, dort waere der Wunsch dasselbe wie gar nichts.
+    Ohne Angabe gilt ``delete`` - das war bisher der einzige Weg.
 
     Nur der eigene Posten, und nur ein eigener: Ein fremder ist fuer den
     Aufrufer nicht von einem nicht existierenden zu unterscheiden - deshalb
@@ -1048,6 +1089,12 @@ def abgeben(db: Session, posten_id: int, user: "User") -> Posten:
     posten = db.get(StorageEntry, posten_id)
     if posten is None or posten.user_id != user.id:
         raise Abgabefehler("Diesen Posten gibt es bei dir nicht.", 404)
+
+    if wunsch == StorageWish.keep and posten.season is None:
+        raise Abgabefehler(
+            "„Behalten, aber nicht mehr folgen“ gibt es nur bei Serien-Staffeln.",
+            422,
+        )
 
     if posten.state == StorageState.pending:
         raise Abgabefehler(
@@ -1071,13 +1118,15 @@ def abgeben(db: Session, posten_id: int, user: "User") -> Posten:
 
     posten.state = StorageState.pending
     posten.released_at = utcnow()
+    posten.release_wish = wunsch or StorageWish.delete
     db.flush()
     logger.info(
-        "Abgabe: %s gibt Posten %s %r ab (%s Bytes) - wartet auf Entscheidung",
+        "Abgabe: %s gibt Posten %s %r ab (%s Bytes, Wunsch: %s) - wartet auf Entscheidung",
         user.username,
         posten.id,
         posten.title,
         posten.size_bytes,
+        posten.release_wish.value,
     )
     return _als_posten(posten)
 
@@ -1098,8 +1147,58 @@ def zuruecknehmen(db: Session, posten_id: int, user: "User") -> Posten:
 
     posten.state = StorageState.owned
     posten.released_at = None
+    posten.release_wish = None
     db.flush()
     return _als_posten(posten)
+
+
+async def entfolgen(db: Session, settings: AppSettings, posten_id: int) -> Posten:
+    """Den Behalten-Wunsch ausfuehren: Folgen bleiben, Ueberwachung aus.
+
+    Das dritte Ergebnis einer Abgabe neben "Ins Haus" und "Loeschen" - und das
+    einzige, bei dem der Posten **belastet bleibt**: Die Dateien liegen ja
+    weiter auf der Platte, und behalten wollte sie der Abgebende ausdruecklich.
+    Es aendert sich nur eines: Sonarr laedt keine neuen Folgen dieser Staffel
+    mehr nach, die Zahl waechst also nicht weiter.
+
+    Ist die Serie inzwischen gar nicht mehr in Sonarr, gibt es nichts
+    stillzulegen - dann ist das Ziel schon erreicht, und der Posten geht
+    genauso zurueck auf sein Konto.
+    """
+    zeile = db.get(StorageEntry, posten_id)
+    if zeile is None:
+        raise Abgabefehler("Diesen Posten gibt es nicht.", 404)
+    if zeile.state != StorageState.pending:
+        raise Abgabefehler("Dieser Posten steht gar nicht zur Entscheidung.", 409)
+    if zeile.season is None:
+        raise Abgabefehler(
+            "„Behalten, aber nicht mehr folgen“ gibt es nur bei Serien-Staffeln.",
+            409,
+        )
+
+    client, arr_id = await _arr_eintrag(settings, zeile)
+    if client is not None and arr_id is not None:
+        await client.unmonitor_season(arr_id, zeile.season)
+        logger.info(
+            "Abgabe entschieden: %r Staffel %s stillgelegt (arr_id=%s) - "
+            "bleibt belastet, waechst nicht weiter",
+            zeile.title,
+            zeile.season,
+            arr_id,
+        )
+    else:
+        logger.info(
+            "Abgabe entschieden: %r Staffel %s ist nicht mehr in Sonarr - "
+            "nichts stillzulegen, Posten bleibt belastet",
+            zeile.title,
+            zeile.season,
+        )
+
+    zeile.state = StorageState.owned
+    zeile.released_at = None
+    zeile.release_wish = None
+    db.flush()
+    return _als_posten(zeile)
 
 
 def konten_zuruecksetzen(db: Session) -> tuple[int, int]:
@@ -1133,6 +1232,7 @@ def konten_zuruecksetzen(db: Session) -> tuple[int, int]:
         zeile.user_id = None
         zeile.state = StorageState.house
         zeile.released_at = None
+        zeile.release_wish = None
     if betroffen:
         logger.warning(
             "Speicher-Konten zurueckgesetzt: %s Posten mit %s Bytes ins Haus umgebucht",

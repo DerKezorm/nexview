@@ -618,7 +618,8 @@
     "requestFulfilled": "Ein zurückgestellter Titel ist jetzt da",
     "storageGrew": "Ein Titel belegt jetzt mehr Platz",
     "storageReleaseRequested": "Jemand hat einen Titel abgegeben",
-    "storageDeleted": "Ein Titel wurde gelöscht"
+    "storageDeleted": "Ein Titel wurde gelöscht",
+    "storageKept": "Ein Titel bleibt, wird aber nicht mehr geladen"
   },
   "mediaserver": {
     "loginWithPlex": "Mit Plex anmelden",
@@ -1244,7 +1245,18 @@
     "giveUp": "Brauche ich nicht mehr",
     "keepAfterAll": "Doch behalten",
     "waiting": "wartet auf Entscheidung",
-    "pendingHint": "{{size}} warten auf eine Entscheidung. Bis dahin zählen sie weiter mit – frei wird der Platz erst, wenn der Betreiber entschieden hat."
+    "pendingHint": "{{size}} warten auf eine Entscheidung. Bis dahin zählen sie weiter mit – frei wird der Platz erst, wenn der Betreiber entschieden hat.",
+    "wishTitle": "Was soll damit passieren?",
+    "wishText": "Dein Wunsch reist mit der Abgabe mit – entscheiden tut der Betreiber, aber nur einmal. „Löschen lassen“ gibt den Platz frei. „Behalten, nicht mehr laden“ lässt die Folgen liegen; der Titel zählt dann weiter auf dein Konto, es kommen nur keine neuen Folgen mehr dazu.",
+    "wishDelete": "Löschen lassen",
+    "wishKeep": "Behalten, nicht mehr laden",
+    "seen": "Schon gesehen",
+    "notSeen": "Noch nicht gesehen",
+    "seenUnknown": "Status unbekannt – dein Konto ist nicht mit dem Media-Server verknüpft",
+    "filterAll": "Alle",
+    "filterSeen": "Nur Gesehene",
+    "noneSeen": "Nichts davon ist als gesehen markiert",
+    "noneSeenHint": "Sobald du etwas davon im Media-Server gesehen hast, taucht es hier auf."
   },
   "storageAdmin": {
     "title": "Speicher-Kontingente",
@@ -1333,6 +1345,9 @@
     "deleteNoBin": "Für diese Instanz ist kein Papierkorb eingerichtet. Die Datei ist sofort und endgültig weg.",
     "deleteReasonTier": "Löschen ist zurzeit nur in der 4K-Instanz freigeschaltet. Auf der Standard-Instanz wird nichts entfernt.",
     "deleteReasonSeries": "Staffelweises Löschen ist noch nicht scharf geschaltet.",
-    "deleteReasonUnmanaged": "Radarr bzw. Sonarr kennt diesen Titel nicht mehr. Nexview löscht ausschließlich über diese Dienste – abgeben geht nur an den Hausbestand."
+    "deleteReasonUnmanaged": "Radarr bzw. Sonarr kennt diesen Titel nicht mehr. Nexview löscht ausschließlich über diese Dienste – abgeben geht nur an den Hausbestand.",
+    "wishDelete": "möchte löschen lassen",
+    "wishKeep": "möchte behalten, nicht mehr laden",
+    "unfollow": "Nicht mehr folgen"
   }
 }

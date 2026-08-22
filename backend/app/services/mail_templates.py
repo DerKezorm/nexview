@@ -818,6 +818,47 @@ def storage_released_mail(
     )
 
 
+def storage_kept_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An die betroffene Person: Der Behalten-Wunsch wurde ausgefuehrt.
+
+    Der Punkt, der gesagt werden muss: Der Posten **zaehlt weiter** - die
+    Folgen liegen ja noch da. Ohne diesen Satz saehe die unveraenderte Zahl
+    nach einer haengengebliebenen Abgabe aus.
+    """
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff="A title stays, but stops downloading",
+            kopf="Your hand-back has been decided.",
+            unter=titel,
+            rumpf=(
+                "As you asked, the episodes stay on disk and no new ones will be "
+                "downloaded for this season. Because the files remain, the title still "
+                "counts against your quota - it just will not grow any further."
+            ),
+            knopf="Open storage",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff="Ein Titel bleibt, wird aber nicht mehr geladen",
+        kopf="Über deine Abgabe wurde entschieden.",
+        unter=titel,
+        rumpf=(
+            "Wie gewünscht bleiben die Folgen liegen, und neue werden für diese Staffel "
+            "nicht mehr geladen. Weil die Dateien bleiben, zählt der Titel weiterhin auf "
+            "dein Kontingent – er wächst nur nicht mehr."
+        ),
+        knopf="Speicher öffnen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
 def storage_grew_mail(
     titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
 ) -> Mail:

@@ -135,6 +135,11 @@ def _nachricht(
                 titel, sprache, link=_link(settings, "/profil"), profil_link=profil
             )
 
+        case NotificationType.storage_kept:
+            return mail_templates.storage_kept_mail(
+                titel, sprache, link=_link(settings, "/profil"), profil_link=profil
+            )
+
         case NotificationType.storage_deleted:
             return mail_templates.storage_deleted_mail(
                 titel, sprache, link=_link(settings, "/profil"), profil_link=profil

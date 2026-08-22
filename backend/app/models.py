@@ -147,6 +147,8 @@ class NotificationType(str, enum.Enum):
     # geht an denjenigen, dessen Kontingent dadurch frei wird. Ohne den
     # Hinweis saenke die Zahl grundlos, und niemand wuesste warum.
     storage_released = "storage_released"
+    # Die Entscheidung "behalten, aber nicht mehr folgen" ist gefallen.
+    storage_kept = "storage_kept"
     # Der Administrator hat einen abgegebenen Titel wirklich geloescht.
     # Bewusst getrennt von ``storage_released``: Dort bleibt die Datei liegen,
     # hier ist sie weg. Dieselbe Meldung fuer beides waere die eine
@@ -722,6 +724,20 @@ class StorageState(str, enum.Enum):
     house = "house"  # Hausbestand - zaehlt bei niemandem
 
 
+class StorageWish(str, enum.Enum):
+    """Was sich der Abgebende wuenscht - der Admin entscheidet, ob es passiert.
+
+    Nur bei Serien-Staffeln gibt es eine Wahl: ``keep`` heisst "die Folgen
+    behalten, aber keine neuen mehr laden" - der Posten bleibt dann belastet,
+    er waechst nur nicht weiter. Bei Filmen ist ``delete`` der einzige Wunsch,
+    den es geben kann: Ein Film waechst nicht, "behalten und nicht mehr folgen"
+    waere dort dasselbe wie gar nichts.
+    """
+
+    delete = "delete"  # Datei(en) loeschen, Konto frei
+    keep = "keep"  # behalten, Ueberwachung aus - bleibt belastet
+
+
 class StorageEntry(Base):
     """Ein belegter Posten: ein Titel, eine Stufe, eine Staffel.
 
@@ -806,6 +822,8 @@ class StorageEntry(Base):
     # hat, wartet am laengsten - und fuer die Anzeige "wartet seit". Eine
     # Warteschlange ohne Alter laesst nicht erkennen, ob sie stockt.
     released_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Der Wunsch des Abgebenden - NULL, solange nichts abgegeben ist.
+    release_wish: Mapped[StorageWish | None] = mapped_column(enum_column(StorageWish))
     # Woher der Posten kam. NULL beim Altbestand, der nie angefragt wurde.
     request_id: Mapped[int | None] = mapped_column(
         ForeignKey("media_requests.id", ondelete="SET NULL")

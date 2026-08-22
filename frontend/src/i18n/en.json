@@ -1222,12 +1222,12 @@
   },
   "storageAdmin": {
     "title": "Storage quotas",
-    "intro": "Records how much space each person occupies. Still being built – nothing is limited.",
+    "intro": "Records how much space each person uses – and limits it as soon as you set a limit.",
     "enable": "Enable",
     "enableHint": "With this off, Nexview behaves as it did before: no tab in the profile, no card under requests, no distribution on the statistics page. Nothing is measured either.",
     "pointMeasure": "Sizes come from Radarr, Sonarr and the media server – with no extra requests.",
     "pointHouse": "Whatever is already in the library when you switch this on belongs to the house. Every account starts at zero.",
-    "pointNoLimit": "There is no limit yet. Nobody is blocked and nothing is deleted.",
+    "pointNoLimit": "Anyone at their limit cannot request anything new until they free up space. Still nothing gets deleted.",
     "saved": "Saved.",
     "pending": "The first measurement is running. Numbers appear here once it is done.",
     "stateTitle": "Current state",
@@ -1240,11 +1240,42 @@
     "unlimited": "unlimited",
     "usersTitle": "Usage by account",
     "usersHint": "Click an account to see its individual titles.",
-    "usersEmpty": "Everything is house stock so far – nothing assigned to a person."
+    "usersEmpty": "Everything is house stock so far – nothing assigned to a person.",
+    "mustStayTitle": "Titles have to stay in Radarr and Sonarr",
+    "mustStayText": "Nexview only ever deletes through Radarr and Sonarr – it never sees the filesystem itself. Removing a title there while keeping the file creates something Nexview still counts (the media server knows it) but can no longer remove. The requester is then stuck with a charge they cannot shed – they can only hand it to the house stock.",
+    "recycleBin": "In the recycle bin"
   },
   "watchlistExpired": {
     "text": "Your Plex access has expired. Until you sign in again, your watchlist and watched state stay as they are.",
     "action": "Sign in again",
     "running": "Signing in …"
+  },
+  "papierkorb": {
+    "title": "Recycle bin",
+    "use": "Use a recycle bin",
+    "useHint": "Deleted files go to the recycle bin first instead of being gone at once. Without it, Radarr and Sonarr delete for good – there is no way back.",
+    "days": "Keep for",
+    "daysUnit": "days",
+    "daysHint": "After that the instance empties the bin itself. At least one day.",
+    "edit": "Edit",
+    "noSubfolders": "No subfolders.",
+    "none": "no folder yet",
+    "unreachable": "unreachable – state unknown",
+    "needAll": "Every instance needs a folder.",
+    "incomplete": "At least one instance is not answering right now. Nexview cannot tell what applies there – only what you enter here will be saved.",
+    "offWarning": "Saving removes the recycle bin from every instance. Deletions will be immediate and permanent from then on.",
+    "saveOff": "Turn the recycle bin off",
+    "saved": "Saved.",
+    "managedBy": "The recycle bin is managed by Radarr and Sonarr themselves – that is where files land and where they are cleaned up when the time is up. Nexview only sends the setting over. It applies to everything there, including deletions that have nothing to do with Nexview.",
+    "open": "Open",
+    "up": "Up one level",
+    "chooseFor": "Folder for {{name}}",
+    "contentOf": "Recycle bin of {{name}}",
+    "contentEmpty": "The recycle bin is empty.",
+    "contentMore": "There is more in there – showing the first 200.",
+    "contentHint": "For looking only – folder names as the instance keeps them. Nexview cannot restore anything: that would mean moving files, and Nexview never sees the filesystem.",
+    "apply": "Apply",
+    "contentCount_one": "1 entry",
+    "contentCount_other": "{{count}} entries"
   }
 }

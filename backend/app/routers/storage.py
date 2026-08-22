@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from ..deps import AdminUser, CurrentUser, DbSession
 from ..models import NotificationType, Role, User
-from ..services import notify, storage
+from ..services import library, notify, storage
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
@@ -342,3 +342,52 @@ def in_den_hausbestand(posten_id: int, admin: AdminUser, db: DbSession) -> Stora
         )
     db.commit()
     return _als_posten(uebernahme.posten, mit_pfad=True)
+
+
+class PapierkorbBelegung(BaseModel):
+    """Wieviel Platz die Papierkoerbe belegen - zusammen und je Instanz."""
+
+    total_bytes: int
+    # Musste die Suche abgebrochen werden? Dann ist die Zahl eine Untergrenze,
+    # und das gehoert dazugesagt - eine zu kleine Zahl ohne Hinweis ist
+    # schlimmer als keine.
+    incomplete: bool
+    instances: list[dict]
+
+
+@router.get("/recyclebin", response_model=PapierkorbBelegung)
+async def papierkorb_belegung(admin: AdminUser, db: DbSession) -> PapierkorbBelegung:
+    """Was liegt in den Papierkoerben - und belegt damit weiter Platz.
+
+    **Der Papierkorb ist keine Freigabe.** Was dort liegt, ist von der Platte
+    nicht verschwunden; es wartet nur darauf, nach Ablauf der Frist entfernt zu
+    werden. Wer die Belegung anschaut und den Korb nicht mitzaehlt, sieht zu
+    wenig - und wundert sich, warum trotz Aufraeumens nichts frei wird.
+
+    Bewusst ein eigener Endpunkt und nicht Teil von ``/overview``: Die Summe
+    kostet je Ordner einen Netzwerk-Umlauf. Die Hauptzahlen sollen sofort da
+    sein, diese Nebenangabe darf nachkommen.
+    """
+    _muss_eingeschaltet_sein(db)
+    einstellungen = load_settings(db)
+
+    zeilen: list[dict] = []
+    gesamt = 0
+    unvollstaendig = False
+
+    for art, stufe, name, stand in await library.papierkoerbe(einstellungen):
+        if not stand.geschuetzt:
+            continue
+        bytes_, gekuerzt = await library.papierkorb_groesse(
+            einstellungen, art, stufe, stand.path
+        )
+        unvollstaendig = unvollstaendig or gekuerzt
+        gesamt += bytes_
+        # Leere Koerbe weglassen: Eine Zeile mit null Bytes beantwortet die
+        # Frage nicht, die hier gestellt wird.
+        if bytes_ > 0:
+            zeilen.append({"name": name, "path": stand.path, "bytes": bytes_})
+
+    return PapierkorbBelegung(
+        total_bytes=gesamt, incomplete=unvollstaendig, instances=zeilen
+    )

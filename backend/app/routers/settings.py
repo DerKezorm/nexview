@@ -534,3 +534,240 @@ async def test_arr(
     version = info.get("version")
     suffix = f" (Version {version})" if version else ""
     return TestResult(ok=True, message=f"Verbindung zu {label} erfolgreich{suffix}.")
+
+
+class PapierkorbInstanz(BaseModel):
+    """Wie eine einzelne Instanz beim Loeschen mit Dateien umgeht."""
+
+    media_type: str
+    tier: str
+    # "Radarr", "Radarr 4K", "Sonarr", "Sonarr 4K"
+    name: str
+    # ⚠️ Drei Zustaende, nicht zwei: "nicht erreichbar" ist etwas anderes als
+    # "kein Papierkorb". Wer beides gleich behandelt, meldet einen Fehlalarm,
+    # sobald Radarr gerade neu startet.
+    reachable: bool
+    path: str
+    cleanup_days: int | None
+    protected: bool
+
+
+class PapierkorbStand(BaseModel):
+    """Der Papierkorb aller eingerichteten Instanzen auf einen Blick."""
+
+    # Der abgeleitete Haken: an, wenn **jede** eingerichtete Instanz einen
+    # Papierkorb hat. Bewusst gerechnet und nicht gespeichert - so kann er nicht
+    # von der Wirklichkeit abweichen, und er kippt von selbst, sobald eine neue
+    # Instanz ohne Papierkorb dazukommt.
+    enabled: bool
+    # Konnte ueberhaupt jede Instanz gefragt werden? Ist das falsch, ist
+    # ``enabled`` eine Aussage ueber unvollstaendige Auskunft - die Oberflaeche
+    # sagt dann "unbekannt" statt "aus".
+    complete: bool
+    instances: list[PapierkorbInstanz]
+
+
+@router.get("/settings/recyclebin", response_model=PapierkorbStand)
+async def papierkorb_stand(admin: AdminUser, db: DbSession) -> PapierkorbStand:
+    """Wo landen geloeschte Dateien - in jeder eingerichteten Instanz?
+
+    **Der Stand wird bei jedem Aufruf frisch geholt und nirgends gespeichert.**
+    Er steht in Radarr bzw. Sonarr, und nur dort; wuerde Nexview ihn
+    aufbewahren, liefen die beiden auseinander, sobald jemand ihn drueben
+    aendert - und dann hielte Nexview eine Loeschung fuer umkehrbar, die es
+    nicht ist.
+
+    Damit ueberlebt die Logik auch das **Hinzufuegen** einer Instanz: Wer
+    naechste Woche ein zweites Sonarr eintraegt, findet es hier ohne Zutun, und
+    ohne Papierkorb faellt ``enabled`` von selbst auf falsch. Genau das soll es:
+    Eine neue Instanz ist eine neue Stelle, an der geloescht wird.
+    """
+    staende = await library.papierkoerbe(load_settings(db))
+    instanzen = [
+        PapierkorbInstanz(
+            media_type=art,
+            tier=stufe,
+            name=name,
+            reachable=stand.erreichbar,
+            path=stand.path,
+            cleanup_days=stand.cleanup_days,
+            protected=stand.geschuetzt,
+        )
+        for art, stufe, name, stand in staende
+    ]
+    return PapierkorbStand(
+        # Ohne eine einzige Instanz gibt es nichts zu schuetzen - und "an"
+        # waere dann eine Behauptung ueber das Nichts.
+        enabled=bool(instanzen) and all(zeile.protected for zeile in instanzen),
+        complete=all(zeile.reachable for zeile in instanzen),
+        instances=instanzen,
+    )
+
+
+class PapierkorbWunsch(BaseModel):
+    """Was fuer **eine** Instanz eingestellt werden soll."""
+
+    media_type: Literal["movie", "tv"]
+    tier: Literal["standard", "uhd"]
+    # Leer heisst: Papierkorb abschalten. Das ist die gefaehrliche Richtung -
+    # ab dann loescht die Instanz sofort und endgueltig.
+    path: str = ""
+
+
+class PapierkorbAenderung(BaseModel):
+    """Der ganze Abschnitt auf einmal - alle Instanzen in einem Zug.
+
+    Bewusst nicht je Instanz einzeln: Halb geschuetzt ist kein Zustand, den
+    jemand absichtlich haben will, und wer vier Knoepfe nacheinander drueckt,
+    hat zwischendurch genau das. Ein Speichern-Knopf, ein Ergebnis.
+    """
+
+    instances: list[PapierkorbWunsch]
+    # Global, eine Zahl fuer alle. Mindestens ein Tag: Ob Radarr die Null als
+    # "nie aufraeumen" oder "sofort" versteht, ist nicht dokumentiert - und bei
+    # einem Papierkorb ist diese Verwechslung fatal.
+    cleanup_days: Annotated[int, Field(ge=1, le=365)] = 7
+
+
+class PapierkorbOrdner(BaseModel):
+    """Eine Ebene der Ordner-Auswahl, aus Sicht **einer** Instanz."""
+
+    path: str
+    directories: list[str]
+
+
+@router.get("/settings/recyclebin/folders", response_model=PapierkorbOrdner)
+async def papierkorb_ordner(
+    admin: AdminUser,
+    db: DbSession,
+    media_type: Literal["movie", "tv"],
+    tier: Literal["standard", "uhd"] = "standard",
+    path: str = "/",
+) -> PapierkorbOrdner:
+    """Welche Ordner sieht **diese** Instanz unter diesem Pfad?
+
+    Je Instanz gefragt und nicht einmal fuer alle: Sonarr kann voellig anders
+    eingebunden sein als Radarr. Ein geratener Pfad fuehrt dazu, dass die
+    Instanz spaeter an eine Stelle loescht, die es bei ihr gar nicht gibt.
+    """
+    ordner = await library.ordner(load_settings(db), media_type, tier, path)
+    return PapierkorbOrdner(path=path, directories=ordner)
+
+
+@router.put("/settings/recyclebin", response_model=PapierkorbStand)
+async def papierkorb_setzen(
+    aenderung: PapierkorbAenderung, admin: AdminUser, db: DbSession
+) -> PapierkorbStand:
+    """Papierkorb in allen genannten Instanzen eintragen.
+
+    ⚠️ **Das schreibt in Radarr und Sonarr, nicht in Nexview.** Die Einstellung
+    gilt dort fuer **alles**, auch fuer Loeschungen, die nichts mit Nexview zu
+    tun haben - wer einen Film von Hand in Radarr entfernt, findet ihn ab dann
+    ebenfalls im Korb. Das ist sicherer, aber es ist eine Verhaltensaenderung
+    am fremden Dienst, und die Oberflaeche sagt das dazu.
+
+    Scheitert eine Instanz, bricht der ganze Vorgang ab und meldet **welche**.
+    Die uebrigen bleiben, wie sie waren: Ein halb geschriebener Zustand waere
+    schlimmer als gar keiner, weil danach niemand mehr weiss, was gilt.
+    """
+    settings = load_settings(db)
+
+    for wunsch in aenderung.instances:
+        if not settings.arr_configured(wunsch.media_type, wunsch.tier):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Diese Instanz ist gar nicht eingerichtet.",
+            )
+        try:
+            await library.papierkorb_setzen(
+                settings,
+                wunsch.media_type,
+                wunsch.tier,
+                pfad=wunsch.path.strip(),
+                tage=aenderung.cleanup_days,
+            )
+        except ArrError as fehler:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"{wunsch.media_type}/{wunsch.tier}: {fehler.message}",
+            ) from fehler
+
+    # Den frisch gelesenen Stand zurueckgeben, nicht den gewuenschten: Was
+    # wirklich gilt, steht in Radarr - und nur das soll die Oberflaeche zeigen.
+    return await papierkorb_stand(admin, db)
+
+
+class PapierkorbInhaltInstanz(BaseModel):
+    name: str
+    path: str
+    # Nur die Ordnernamen, so wie die Instanz sie fuehrt.
+    entries: list[str]
+    # Wurde die Liste gekuerzt? Dann steht das dabei, statt so zu tun, als
+    # waere das alles.
+    truncated: bool = False
+
+
+class PapierkorbInhalt(BaseModel):
+    instances: list[PapierkorbInhaltInstanz]
+
+
+# Wieviele Eintraege je Instanz hoechstens gezeigt werden. Ein Papierkorb mit
+# dreihundert Ordnern wird nicht dadurch nuetzlicher, dass man alle auflistet.
+_HOECHSTENS = 200
+
+
+@router.get("/settings/recyclebin/contents", response_model=PapierkorbInhalt)
+async def papierkorb_inhalt(
+    admin: AdminUser,
+    db: DbSession,
+    media_type: Literal["movie", "tv"] | None = None,
+    tier: Literal["standard", "uhd"] | None = None,
+    path: str = "",
+) -> PapierkorbInhalt:
+    """Was liegt gerade im Papierkorb - je Instanz?
+
+    **Nur die Ordnernamen.** Kein Plakat, kein aufgeraeumter Titel.
+
+    ⚠️ Der naheliegende Weg waere, die TMDB-Nummer aus dem Ordnernamen zu lesen
+    (``The Matrix (1999) {tmdb-603}``) und damit ein Plakat zu holen. Das
+    funktioniert - **aber nur, wenn das Benennungsschema die Nummer enthaelt.**
+    Sie steht dort nicht von Natur aus, sondern weil jemand sein Schema so
+    eingerichtet hat. Wer das anders haelt, saehe ueberall "kein Plakat", und
+    eine Ansicht, die bei der Haelfte der Installationen leer aussieht, ist
+    keine Ansicht.
+
+    Der Ordnername steht dagegen immer da und sagt genug: welcher Titel, welche
+    Fassung, wie viele.
+
+    **Nur lesen.** Zurueckholen kann Nexview nicht: Dafuer muessten Dateien
+    verschoben werden, und Nexview sieht das Dateisystem gar nicht - es spricht
+    ausschliesslich ueber die API mit Radarr und Sonarr.
+    """
+    settings = load_settings(db)
+    instanzen: list[PapierkorbInhaltInstanz] = []
+
+    for art, stufe, name, stand in await library.papierkoerbe(settings):
+        # Auf eine Instanz einschraenken, wenn danach gefragt wird.
+        if media_type and (art != media_type or stufe != tier):
+            continue
+
+        # ``path`` erlaubt es, in einen **noch nicht gespeicherten** Ordner zu
+        # schauen. Den gibt es ja bereits - Radarr fuehrt ihn nur noch nicht
+        # als Papierkorb. Wer einen Ordner aussucht, will vorher hineinsehen,
+        # und ihn dafuer erst speichern zu muessen waere die falsche
+        # Reihenfolge.
+        gewaehlt = path.strip() or stand.path
+        if not gewaehlt or not stand.erreichbar:
+            continue
+
+        pfade = await library.ordner(settings, art, stufe, gewaehlt)
+        instanzen.append(
+            PapierkorbInhaltInstanz(
+                name=name,
+                path=gewaehlt,
+                entries=[voll.rstrip("/").rsplit("/", maxsplit=1)[-1] for voll in pfade[:_HOECHSTENS]],
+                truncated=len(pfade) > _HOECHSTENS,
+            )
+        )
+
+    return PapierkorbInhalt(instances=instanzen)

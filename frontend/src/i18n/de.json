@@ -1222,12 +1222,12 @@
   },
   "storageAdmin": {
     "title": "Speicher-Kontingente",
-    "intro": "Erfasst, wie viel Platz jeder Einzelne belegt. Noch im Aufbau – begrenzt wird nichts.",
+    "intro": "Erfasst, wie viel Platz jeder Einzelne belegt – und begrenzt ihn, sobald du eine Grenze setzt.",
     "enable": "Aktivieren",
     "enableHint": "Ist der Haken aus, verhält sich Nexview wie vorher: kein Reiter im Profil, keine Karte bei den Anfragen, keine Verteilung in der Statistik. Es wird dann auch nicht gemessen.",
     "pointMeasure": "Die Größen kommen aus Radarr, Sonarr und dem Media-Server – ohne zusätzliche Abfragen.",
     "pointHouse": "Was beim Einschalten schon in der Bibliothek liegt, gehört dem Haus. Jedes Konto startet bei null.",
-    "pointNoLimit": "Es gibt noch keine Grenze. Niemand wird gesperrt, nichts wird gelöscht.",
+    "pointNoLimit": "Wer seine Grenze erreicht hat, kann nichts Neues anfragen, bis er Platz schafft. Gelöscht wird weiterhin nichts.",
     "saved": "Gespeichert.",
     "pending": "Die erste Messung läuft. Sobald sie durch ist, stehen hier Zahlen.",
     "stateTitle": "Aktueller Stand",
@@ -1240,11 +1240,42 @@
     "unlimited": "unbegrenzt",
     "usersTitle": "Belegung nach Konto",
     "usersHint": "Anklicken, um die einzelnen Titel zu sehen.",
-    "usersEmpty": "Noch ist alles Hausbestand – niemandem persönlich zugeordnet."
+    "usersEmpty": "Noch ist alles Hausbestand – niemandem persönlich zugeordnet.",
+    "mustStayTitle": "Titel müssen in Radarr und Sonarr bleiben",
+    "mustStayText": "Nexview löscht ausschließlich über Radarr und Sonarr – es sieht das Dateisystem selbst nie. Wer einen Titel dort entfernt und die Datei behält, schafft damit etwas, das Nexview zwar weiter mitzählt (der Media-Server führt es ja), aber nicht mehr entfernen kann. Der Anfragende bleibt dann auf einer Belastung sitzen, die er nicht mehr loswird – abgeben kann er sie nur noch an den Hausbestand.",
+    "recycleBin": "Im Papierkorb"
   },
   "watchlistExpired": {
     "text": "Dein Plex-Zugang ist abgelaufen. Bis du dich neu anmeldest, bleiben deine Merkliste und der Gesehen-Stand stehen.",
     "action": "Erneut authentifizieren",
     "running": "Anmeldung läuft …"
+  },
+  "papierkorb": {
+    "title": "Papierkorb",
+    "use": "Papierkorb verwenden",
+    "useHint": "Gelöschte Dateien landen zuerst im Papierkorb, statt sofort weg zu sein. Ohne ihn löschen Radarr und Sonarr endgültig – es gibt keinen Rückweg.",
+    "days": "Aufbewahrung",
+    "daysUnit": "Tage",
+    "daysHint": "Danach räumt die Instanz den Papierkorb selbst auf. Mindestens ein Tag.",
+    "edit": "Bearbeiten",
+    "noSubfolders": "Keine Unterordner.",
+    "none": "noch kein Ordner",
+    "unreachable": "nicht erreichbar – Zustand unbekannt",
+    "needAll": "Jede Instanz braucht einen Ordner.",
+    "incomplete": "Mindestens eine Instanz antwortet gerade nicht. Was dort gilt, weiß Nexview nicht – gespeichert wird trotzdem nur, was du hier einträgst.",
+    "offWarning": "Speichern entfernt den Papierkorb aus allen Instanzen. Ab dann wird sofort und endgültig gelöscht.",
+    "saveOff": "Papierkorb abschalten",
+    "saved": "Gespeichert.",
+    "managedBy": "Verwaltet wird der Papierkorb von Radarr und Sonarr selbst – dort landen die Dateien, dort werden sie nach Ablauf aufgeräumt. Nexview schickt nur die Einstellung hin. Sie gilt drüben für alles, auch für Löschungen, die nichts mit Nexview zu tun haben.",
+    "open": "Öffnen",
+    "up": "Eine Ebene höher",
+    "chooseFor": "Ordner für {{name}}",
+    "contentOf": "Papierkorb von {{name}}",
+    "contentEmpty": "Der Papierkorb ist leer.",
+    "contentMore": "Es liegt noch mehr darin – gezeigt werden die ersten 200.",
+    "contentHint": "Nur zum Ansehen – Ordnernamen, so wie die Instanz sie führt. Zurückholen kann Nexview nicht: Dafür müssten Dateien verschoben werden, und Nexview sieht das Dateisystem gar nicht.",
+    "apply": "Übernehmen",
+    "contentCount_one": "1 Eintrag",
+    "contentCount_other": "{{count}} Einträge"
   }
 }

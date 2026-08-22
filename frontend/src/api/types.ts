@@ -835,6 +835,66 @@ export type StorageShare = {
   limit_bytes: number | null
 }
 
+/** Wie eine Radarr-/Sonarr-Instanz beim Löschen mit Dateien umgeht. */
+export type PapierkorbInstanz = {
+  media_type: string
+  tier: string
+  /** „Radarr", „Radarr 4K", „Sonarr", „Sonarr 4K" */
+  name: string
+  /**
+   * ⚠️ Drei Zustände, nicht zwei: „nicht erreichbar" ist etwas anderes als
+   * „kein Papierkorb". Wer beides gleich behandelt, meldet einen Fehlalarm,
+   * sobald Radarr gerade neu startet.
+   */
+  reachable: boolean
+  path: string
+  cleanup_days: number | null
+  protected: boolean
+}
+
+export type PapierkorbStand = {
+  /**
+   * Der abgeleitete Zustand: an, wenn **jede** eingerichtete Instanz einen
+   * Papierkorb hat. Kommt vom Server und wird dort gerechnet, nicht
+   * gespeichert – so kann er nicht von der Wirklichkeit abweichen.
+   */
+  enabled: boolean
+  /** Konnte jede Instanz gefragt werden? Sonst heißt es „unbekannt", nicht „aus". */
+  complete: boolean
+  instances: PapierkorbInstanz[]
+}
+
+/**
+ * Was im Papierkorb einer Instanz liegt – **nur die Ordnernamen**.
+ *
+ * Kein Plakat: Das ginge nur über die TMDB-Nummer im Ordnernamen, und die
+ * steht dort nicht von Natur aus, sondern nur wenn jemand sein
+ * Benennungsschema so eingerichtet hat. Der Ordnername steht dagegen immer da.
+ */
+export type PapierkorbInhalt = {
+  instances: {
+    name: string
+    path: string
+    entries: string[]
+    /** Wurde die Liste gekürzt? Dann steht das dabei. */
+    truncated: boolean
+  }[]
+}
+
+/**
+ * Wie viel Platz die Papierkörbe belegen.
+ *
+ * **Der Papierkorb ist keine Freigabe** – was dort liegt, ist von der Platte
+ * nicht verschwunden. Wer die Belegung anschaut und ihn nicht mitzählt, sieht
+ * zu wenig und wundert sich, warum trotz Aufräumens nichts frei wird.
+ */
+export type PapierkorbBelegung = {
+  total_bytes: number
+  /** Musste die Suche abgebrochen werden? Dann ist die Zahl eine Untergrenze. */
+  incomplete: boolean
+  instances: { name: string; path: string; bytes: number }[]
+}
+
 export type StorageOverview = {
   total_bytes: number
   house_bytes: number

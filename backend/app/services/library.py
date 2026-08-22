@@ -7,6 +7,8 @@ nicht ueberleben.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -18,8 +20,6 @@ from .radarr import RadarrClient
 from .settings_service import AppSettings
 from .sonarr import LibraryEntry as SeriesEntry
 from .sonarr import SonarrClient, jahre_passen, normalize_title
-
-import logging
 
 logger = logging.getLogger("nexview.library")
 
@@ -327,6 +327,260 @@ async def datentraeger(
     ]
     _write(schluessel, punkte)
     return punkte
+
+
+# --- Papierkorb -------------------------------------------------------------
+#
+# ⚠️ **Nexview fuehrt hier keine eigene Einstellung.** Der Stand steht in
+# Radarr bzw. Sonarr, und nur dort. Wuerde Nexview ihn zusaetzlich speichern,
+# liefen die beiden auseinander, sobald jemand ihn drueben aendert - und dann
+# hielte Nexview eine Loeschung fuer umkehrbar, die es nicht ist. Das ist die
+# eine Sorte Fehler, die man bei einem Sicherheitsnetz nicht haben darf.
+
+
+@dataclass(frozen=True)
+class Papierkorb:
+    """Wie eine Instanz beim Loeschen mit Dateien umgeht.
+
+    ⚠️ **"Nicht erreichbar" ist nicht dasselbe wie "kein Papierkorb".** Wer
+    beides gleich behandelt, meldet einen Fehlalarm, sobald Radarr gerade neu
+    startet - und Fehlalarme bringen genau die Warnung um ihre Wirkung, auf
+    die es spaeter ankommt. Deshalb drei Zustaende und nicht zwei.
+    """
+
+    erreichbar: bool
+    path: str = ""
+    cleanup_days: int | None = None
+
+    @property
+    def geschuetzt(self) -> bool:
+        """Landet hier Geloeschtes im Korb?
+
+        Nur mit Pfad. **Ohne ihn loescht Radarr sofort und endgueltig** - in
+        einem Container gibt es keinen System-Papierkorb, der noch etwas
+        auffinge, und die eingestellte Aufbewahrungsfrist ist bedeutungslos.
+        """
+        return self.erreichbar and bool(self.path)
+
+
+async def papierkorb(
+    settings: AppSettings, media_type: str, tier: str = "standard"
+) -> Papierkorb | None:
+    """Wie ist der Papierkorb dieser Instanz eingestellt?
+
+    ``None`` heisst "diese Instanz gibt es hier gar nicht" - dann ist auch
+    nichts zu pruefen. Eine eingerichtete, aber stumme Instanz kommt dagegen
+    mit ``erreichbar=False`` zurueck: Darueber laesst sich nichts sagen, und
+    das ist etwas anderes als ein fehlender Papierkorb.
+
+    **Bewusst ohne Zwischenspeicher.** Der Stand steht in Radarr bzw. Sonarr,
+    und nur dort; wuerde Nexview ihn aufbewahren, liefen die beiden
+    auseinander, sobald jemand ihn drueben aendert. Bei einem Sicherheitsnetz
+    ist ein veralteter Zwischenspeicher genau das falsche Werkzeug.
+    """
+    client = (
+        radarr_client(settings, tier) if media_type == "movie" else sonarr_client(settings, tier)
+    )
+    if client is None:
+        return None
+    try:
+        antwort = await client.get("/config/mediamanagement") or {}
+    except ArrError:
+        return Papierkorb(erreichbar=False)
+    tage = antwort.get("recycleBinCleanupDays")
+    return Papierkorb(
+        erreichbar=True,
+        path=str(antwort.get("recycleBin") or ""),
+        cleanup_days=tage if isinstance(tage, int) else None,
+    )
+
+
+async def papierkorb_setzen(
+    settings: AppSettings,
+    media_type: str,
+    tier: str,
+    *,
+    pfad: str,
+    tage: int | None = None,
+) -> None:
+    """Papierkorb der Instanz eintragen - oder mit leerem Pfad abschalten.
+
+    ⚠️ **Erst holen, dann zurueckschicken.** ``/config/mediamanagement`` traegt
+    gut zwanzig Felder, und ein PUT verlangt sie alle. Nur die geaenderten zu
+    senden setzt den Rest auf die Vorgabewerte zurueck - unter anderem die
+    Umbenennungsregeln und die Berechtigungen der Mediendateien.
+
+    Der Pfad ist der, den **die Instanz** sieht (``/data/...``), nicht der des
+    Hosts. Und er sollte auf demselben Dateisystem liegen wie die Medien: Sonst
+    wird aus dem Verschieben ein Kopieren ueber Volume-Grenzen, und der Platz
+    ist erst nach dem Aufraeumen wirklich frei.
+    """
+    client = (
+        radarr_client(settings, tier) if media_type == "movie" else sonarr_client(settings, tier)
+    )
+    if client is None:
+        raise ArrError("Diese Instanz ist nicht eingerichtet.", 400)
+
+    aktuell = await client.get("/config/mediamanagement")
+    if not isinstance(aktuell, dict):
+        raise ArrError("Die Instanz liefert ihre Medienverwaltung nicht.", 502)
+
+    geaendert = {**aktuell, "recycleBin": pfad}
+    if tage is not None:
+        geaendert["recycleBinCleanupDays"] = tage
+    await client.put(f"/config/mediamanagement/{aktuell.get('id', 1)}", geaendert)
+    # Nichts zwischenzuspeichern und nichts zu verwerfen: ``papierkorb()``
+    # fragt jedes Mal frisch. Bei einem Sicherheitsnetz ist ein veralteter
+    # Zwischenspeicher genau das falsche Werkzeug.
+
+
+# Alle Stellen, an denen geloescht werden koennte - in Anzeigereihenfolge.
+# ``arr_configured`` entscheidet, welche davon es hier ueberhaupt gibt.
+INSTANZEN: tuple[tuple[str, str, str], ...] = (
+    ("movie", "standard", "Radarr"),
+    ("movie", "uhd", "Radarr 4K"),
+    ("tv", "standard", "Sonarr"),
+    ("tv", "uhd", "Sonarr 4K"),
+)
+
+
+async def papierkoerbe(settings: AppSettings) -> list[tuple[str, str, str, Papierkorb]]:
+    """Der Papierkorb-Stand **aller** eingerichteten Instanzen.
+
+    ⚠️ **Die Liste entsteht bei jedem Aufruf neu aus ``arr_configured``.** Wer
+    naechste Woche eine zweite Instanz eintraegt, findet sie hier ohne
+    Zutun - und ohne Papierkorb faellt der Gesamtzustand dadurch von selbst auf
+    "nicht geschuetzt". Genau das soll er: Eine neue Instanz ist eine neue
+    Stelle, an der geloescht wird.
+
+    Alle Instanzen werden **gleichzeitig** gefragt. Nacheinander waeren es vier
+    Netzwerk-Umlaeufe, bevor die Einstellungsseite ueberhaupt etwas zeigt.
+
+    Zurueck kommen ``(media_type, tier, Anzeigename, Stand)`` - nicht
+    eingerichtete Instanzen fehlen ganz.
+    """
+    vorhanden = [
+        (art, stufe, name)
+        for art, stufe, name in INSTANZEN
+        if settings.arr_configured(art, stufe)
+    ]
+    if not vorhanden:
+        return []
+
+    staende = await asyncio.gather(
+        *(papierkorb(settings, art, stufe) for art, stufe, _ in vorhanden)
+    )
+    return [
+        (art, stufe, name, stand)
+        for (art, stufe, name), stand in zip(vorhanden, staende, strict=True)
+        if stand is not None
+    ]
+
+
+async def ordner(
+    settings: AppSettings, media_type: str, tier: str, pfad: str
+) -> list[str]:
+    """Welche Ordner sieht **diese** Instanz unter diesem Pfad?
+
+    Fuer die Auswahl beim Einrichten. Bewusst je Instanz gefragt und nicht
+    einmal fuer alle: Sonarr kann voellig anders eingebunden sein als Radarr,
+    und geraten wird hier nichts - der Pfad muss stimmen, sonst loescht Radarr
+    spaeter an eine Stelle, die es gar nicht gibt.
+
+    ⚠️ **Der abschliessende Schraegstrich ist Pflicht.** Ohne ihn listet
+    ``/filesystem`` den **Elternordner** und benutzt den Rest als Praefix-Filter:
+    ``/data`` liefert die Wurzel, ``/data/`` liefert den Inhalt von ``/data``.
+    Nachgemessen an einer echten Instanz; ohne diese Zeile zeigt die
+    Ordner-Auswahl durchweg die falsche Ebene.
+    """
+    client = (
+        radarr_client(settings, tier) if media_type == "movie" else sonarr_client(settings, tier)
+    )
+    if client is None:
+        return []
+    try:
+        antwort = await client.get("/filesystem", {"path": pfad.rstrip("/") + "/"}) or {}
+    except ArrError:
+        return []
+    return [
+        str(eintrag.get("path") or "")
+        for eintrag in (antwort.get("directories") or [])
+        if eintrag.get("path")
+    ]
+
+
+# Wieviele Verzeichnis-Abfragen eine Papierkorb-Summe hoechstens kosten darf.
+# Jeder Ordner ist ein Netzwerk-Umlauf; ein Papierkorb mit tausend Titeln
+# wuerde die Einstellungsseite sonst minutenlang blockieren. Wird die Grenze
+# erreicht, sagt die Antwort das - eine zu kleine Zahl ohne Hinweis waere
+# schlimmer als keine.
+_PAPIERKORB_ABFRAGEN = 300
+
+
+async def papierkorb_groesse(
+    settings: AppSettings, media_type: str, tier: str, pfad: str
+) -> tuple[int, bool]:
+    """Wieviel Platz belegt dieser Papierkorb? ``(bytes, unvollstaendig)``.
+
+    ⚠️ **``includeFiles=true`` ist Pflicht.** Ohne den Parameter liefert
+    ``/filesystem`` ausschliesslich Ordner, und der Papierkorb sieht leer aus,
+    obwohl Gigabytes darin liegen. Nachgemessen: derselbe Ordner meldete ohne
+    den Parameter null Dateien und mit ihm eine mit 5,5 GB.
+
+    Gerechnet wird ueber die Datei-Groessen, nicht ueber die der Ordner: Die
+    melden durchweg null.
+
+    Ebenenweise und gleichzeitig, mit hartem Deckel auf die Zahl der Abfragen.
+    Jeder Ordner kostet einen Netzwerk-Umlauf, und niemand wartet Minuten auf
+    eine Nebenangabe.
+    """
+    client = (
+        radarr_client(settings, tier) if media_type == "movie" else sonarr_client(settings, tier)
+    )
+    if client is None or not pfad:
+        return 0, False
+
+    async def ebene(ordner: str) -> tuple[int, list[str]]:
+        try:
+            antwort = await client.get(
+                "/filesystem", {"path": ordner.rstrip("/") + "/", "includeFiles": "true"}
+            ) or {}
+        except ArrError:
+            return 0, []
+        groesse = sum(
+            int(datei.get("size") or 0)
+            for datei in (antwort.get("files") or [])
+            if isinstance(datei.get("size"), (int, float))
+        )
+        weiter = [
+            str(unter.get("path") or "")
+            for unter in (antwort.get("directories") or [])
+            if unter.get("path")
+        ]
+        return groesse, weiter
+
+    gesamt = 0
+    offen = [pfad]
+    verbraucht = 0
+    unvollstaendig = False
+
+    while offen:
+        frei = _PAPIERKORB_ABFRAGEN - verbraucht
+        if frei <= 0:
+            unvollstaendig = True
+            break
+        naechste = offen[:frei]
+        if len(offen) > frei:
+            unvollstaendig = True
+        verbraucht += len(naechste)
+
+        ergebnisse = await asyncio.gather(*(ebene(ordner) for ordner in naechste))
+        offen = []
+        for groesse, weiter in ergebnisse:
+            gesamt += groesse
+            offen.extend(weiter)
+
+    return gesamt, unvollstaendig
 
 
 def treffer_nach_titel(

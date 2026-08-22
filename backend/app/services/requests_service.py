@@ -230,6 +230,39 @@ async def _sonarr_eintrag(settings: AppSettings, request: MediaRequest):
     )
 
 
+def _gewollte_staffeln(db: Session, request: MediaRequest) -> set[int]:
+    """Alle Staffeln dieser Serie, zu denen eine Anfrage laeuft.
+
+    ⚠️ **Warum die ganze Menge und nicht nur die neue Staffel.**
+    ``addOptions.monitor: "none"`` wirkt bei Sonarr **asynchron**: Es raeumt
+    nach dem Anlegen alles ab - auch das, was Nexview unmittelbar danach
+    eingeschaltet hat. Nachgemessen an "Baywatch": Staffel 3 wurde freigegeben,
+    angelegt und geladen; zwei Minuten spaeter kam die Freigabe fuer Staffel 2,
+    las den inzwischen abgeraeumten Stand und schrieb ihn samt abgeschalteter
+    Staffel 3 zurueck. In Nexview stand "wird gesucht", in Sonarr war die
+    Staffel aus - sie waere nie gekommen.
+
+    Deshalb ist **Nexview** die Quelle der Wahrheit und nicht der Zustand, den
+    Sonarr gerade zeigt. Ein abgeraeumter Zustand heilt damit von selbst,
+    sobald die naechste Staffel derselben Serie freigegeben wird.
+    """
+    if request.tvdb_id is None:
+        return {request.season} if request.season is not None else set()
+    laufend = db.scalars(
+        select(MediaRequest).where(
+            MediaRequest.media_type == MediaType.tv,
+            MediaRequest.tvdb_id == request.tvdb_id,
+            MediaRequest.tier == request.tier,
+            MediaRequest.season.is_not(None),
+            MediaRequest.status.in_(ACTIVE_STATUSES),
+        )
+    )
+    staffeln = {zeile.season for zeile in laufend if zeile.season is not None}
+    if request.season is not None:
+        staffeln.add(request.season)
+    return staffeln
+
+
 async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest) -> MediaRequest:
     """Freigegebene Anfrage tatsaechlich an Radarr bzw. Sonarr uebergeben."""
     try:
@@ -259,7 +292,11 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
             # wird nur die gewünschte Staffel aktiviert und gesucht.
             vorhanden = await _sonarr_eintrag(settings, request)
             if vorhanden is not None and request.season is not None:
-                await client.monitor_season(vorhanden.arr_id, request.season)
+                await client.monitor_seasons(
+                    vorhanden.arr_id,
+                    _gewollte_staffeln(db, request),
+                    such_staffel=request.season,
+                )
                 created = {"id": vorhanden.arr_id}
             else:
                 tag_id = await client.ensure_tag(requester_tag(request.user.username))
@@ -269,6 +306,7 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
                     request.root_folder_path or "",
                     tag_ids=[tag_id] if tag_id else None,
                     season=request.season,
+                    monitor_future=request.monitor_future,
                 )
     except ArrError as error:
         # **Zeitueberschreitung ist kein Fehlschlag, sondern Ungewissheit.**
@@ -531,8 +569,12 @@ async def _mit_datei_in_standard(settings: AppSettings, item: MediaItem) -> set[
     """
     kopie = item.model_copy(update={"status": "not_requested"})
     ergebnis = await library.apply_status(settings, item.media_type, [kopie], "standard")
+    # "partial" zaehlt mit: Gefragt ist "fuehrt eine Datei", nicht "ist
+    # vollstaendig" - eine halbe Serie liegt genauso in der Standard-Instanz.
     return {
-        eintrag.tmdb_id for eintrag in ergebnis.items if eintrag.status == "downloaded"
+        eintrag.tmdb_id
+        for eintrag in ergebnis.items
+        if eintrag.status in ("downloaded", "partial")
     }
 
 
@@ -546,6 +588,7 @@ async def create_request(
     season: int | None = None,
     tier: QualityTier = QualityTier.standard,
     from_watchlist: bool = False,
+    monitor_future: bool = False,
 ) -> MediaRequest:
     """Neue Anfrage anlegen - inklusive aller Vorpruefungen.
 
@@ -789,6 +832,8 @@ async def create_request(
         season=season,
         status=RequestStatus.approved if sofort else RequestStatus.pending_approval,
         from_watchlist=from_watchlist,
+        # Nur bei Serien sinnvoll - bei Filmen gibt es keine Folgestaffel.
+        monitor_future=monitor_future and media_type == MediaType.tv,
     )
     if sofort:
         request.approved_by = user.id
@@ -868,3 +913,28 @@ def withdraw(db: Session, user: User, request_id: int) -> None:
         )
     db.delete(request)
     db.commit()
+
+
+def angefragte_staffeln(db: Session, tmdb_id: int) -> set[int | None]:
+    """Zu welchen Staffeln dieser Serie laeuft schon eine Anfrage?
+
+    ``None`` in der Menge heisst: Es gibt eine Anfrage ueber die **ganze**
+    Serie, und die deckt jede Staffel ab.
+
+    Bewusst ueber **alle** Nutzer und nicht nur den anfragenden: ``find_active``
+    sperrt eine laufende Anfrage fuer alle. Wuerde die Oberflaeche nur die
+    eigenen ausblenden, saehe ein zweiter Nutzer eine waehlbare Staffel, die
+    der Server anschliessend mit 409 ablehnt - und verstuende nicht, warum.
+
+    Die Stufe bleibt aussen vor: Dieselbe Staffel in 1080p **und** 4K sind zwei
+    Anfragen, aber die Staffelauswahl gilt fuer die gerade gewaehlte Stufe, und
+    dort ist die Doppelung ohnehin gesperrt.
+    """
+    zeilen = db.scalars(
+        select(MediaRequest.season).where(
+            MediaRequest.media_type == MediaType.tv,
+            MediaRequest.tmdb_id == tmdb_id,
+            MediaRequest.status.in_(ACTIVE_STATUSES),
+        )
+    ).all()
+    return set(zeilen)

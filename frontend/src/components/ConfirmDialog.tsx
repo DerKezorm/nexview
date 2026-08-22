@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -70,7 +71,13 @@ export function ConfirmDialog({
 
   if (!open) return null
 
-  return (
+  // ⚠️ Portal auf document.body – aus demselben Grund wie bei `Fenster`:
+  // Der Dialog wird mitten in einer Karte gerendert, und sobald irgendein
+  // Vorfahr einen Stacking-Context aufmacht, klebt das „fixe" Fenster an der
+  // Karte statt am Bildschirm. Gemeldet aus der Speicherverwaltung: Die
+  // Löschrückfrage hing schief über der Seite, der Bestätigen-Knopf ragte
+  // über den Rand.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-sm"
       role="dialog"
@@ -80,7 +87,10 @@ export function ConfirmDialog({
         if (event.target === event.currentTarget) onCancel()
       }}
     >
-      <div className="w-full max-w-md rounded-2xl border border-ink-700 bg-ink-850 p-6 shadow-2xl shadow-black/60">
+      {/* `max-h` + eigenes Scrollen: Eine lange Dateiliste darf die Knöpfe
+          nicht aus dem Bild schieben – gescrollt wird im Fenster, nicht mit
+          der Seite. */}
+      <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-ink-700 bg-ink-850 p-6 shadow-2xl shadow-black/60">
         <h2 className="text-lg font-bold tracking-tight">{title}</h2>
         <div className="mt-2 text-sm leading-relaxed text-mist-300">{description}</div>
 
@@ -114,6 +124,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -453,6 +453,15 @@ class _Gemessen:
     title: str
     size_bytes: int
     path: str = ""
+    # ⚠️ Laeuft der Download dieser Staffel noch?
+    #
+    # Nur fuer die Wachstums-Meldung gedacht, und nur dort benutzt. Der Posten
+    # wird trotzdem gefuehrt - die Bytes liegen ja auf der Platte. Aber
+    # "gewachsen" waere die falsche Vokabel: Eine Staffel, die ueber Stunden
+    # laedt, haette bei jedem Abgleich eine Meldung ausgeloest, obwohl sie
+    # schlicht ankommt. Gemeint ist mit der Meldung die **Aufwertung** -
+    # aus 5 GB werden 50, weil 1080p durch 2160p ersetzt wurde.
+    unvollstaendig: bool = False
 
 
 @dataclass(frozen=True)
@@ -596,6 +605,7 @@ def _serie_aufnehmen(
         kennung = schluessel(MediaType.tv, stufe, tvdb_id=tvdb_id, season=staffel)
         if kennung is None:
             continue
+        stand = (getattr(eintrag, "staffeln", None) or {}).get(staffel)
         ziel[kennung] = _Gemessen(
             key=kennung,
             media_type=MediaType.tv,
@@ -609,6 +619,7 @@ def _serie_aufnehmen(
             # Datei, sondern zwanzig. Echte Dateinamen braeuchten eine Abfrage
             # je Serie - und die Aussage "wo liegt das" beantwortet der Ordner.
             path=eintrag.path,
+            unvollstaendig=stand is not None and not stand.vollstaendig,
         )
 
 
@@ -741,7 +752,16 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
                 # geht, ist die Aufwertung von 1080p auf 2160p: aus 5 GB
                 # werden 50.
                 zuwachs = wert.size_bytes - zeile.size_bytes
-                if zeile.user_id is not None and zuwachs >= MELDESCHWELLE:
+                if (
+                    zeile.user_id is not None
+                    and zuwachs >= MELDESCHWELLE
+                    # ⚠️ Eine Staffel, deren Download noch laeuft, waechst mit
+                    # jeder Folge. Ohne diese Bedingung kaeme stuendlich eine
+                    # Meldung "ist um X GB gewachsen", bis die Staffel
+                    # vollstaendig ist - und die eine Meldung, auf die es
+                    # ankommt (die Aufwertung), ginge darin unter.
+                    and not wert.unvollstaendig
+                ):
                     zugelegt.append((zeile.user_id, zeile.title, zuwachs))
             zeile.size_bytes = wert.size_bytes
             aktualisiert += 1
@@ -966,6 +986,14 @@ def ins_haus(db: Session, posten_id: int) -> Uebernahme | None:
     posten.user_id = None
     posten.state = StorageState.house
     db.flush()
+    logger.info(
+        "Hausbestand: Posten %s %r (%s Bytes) von Nutzer %s uebernommen - "
+        "keine Datei angefasst",
+        posten.id,
+        posten.title,
+        posten.size_bytes,
+        vorher,
+    )
     return Uebernahme(posten=_als_posten(posten), vorher_user_id=vorher)
 
 
@@ -1044,6 +1072,13 @@ def abgeben(db: Session, posten_id: int, user: "User") -> Posten:
     posten.state = StorageState.pending
     posten.released_at = utcnow()
     db.flush()
+    logger.info(
+        "Abgabe: %s gibt Posten %s %r ab (%s Bytes) - wartet auf Entscheidung",
+        user.username,
+        posten.id,
+        posten.title,
+        posten.size_bytes,
+    )
     return _als_posten(posten)
 
 
@@ -1080,3 +1115,275 @@ def offene_abgaben(db: Session) -> list[tuple[Posten, "User | None"]]:
         .order_by(StorageEntry.released_at)
     ).all()
     return [(_als_posten(zeile), db.get(User, zeile.user_id)) for zeile in zeilen]
+
+
+# ------------------------------------------------------------------ Loeschen
+#
+# ⚠️ **Der einzige Teil von Nexview, der Dateien vernichtet.** Alles andere
+# hier verschiebt nur, wem etwas zugerechnet wird.
+
+
+@dataclass(frozen=True)
+class Datei:
+    """Eine Datei, die beim Loeschen wegfiele."""
+
+    pfad: str
+    size_bytes: int
+
+
+# Welche Stufen geloescht werden duerfen. **Leer heisst: alle.**
+#
+# Stand hier eine Weile auf ``(QualityTier.uhd,)``, solange nur die
+# 4K-Testinstanz drankommen sollte. Aufgehoben, nachdem in **allen** drei
+# Instanzen ein Papierkorb eingerichtet war - damit ist eine falsche Loeschung
+# sieben Tage lang umkehrbar, und das Sicherheitsnetz liegt dort, wo es
+# hingehoert: unter der Datei, nicht in einer Konstanten.
+#
+# Wieder einzuschraenken ist eine Zeile, falls es je noetig wird.
+LOESCHBARE_STUFEN: tuple[QualityTier, ...] = ()
+
+
+class Loeschfehler(Exception):
+    """Fachlicher Fehler beim Loeschen - mit lesbarer Meldung und HTTP-Code."""
+
+    def __init__(self, message: str, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+async def _arr_eintrag(settings: AppSettings, zeile: StorageEntry):
+    """Wie heisst dieser Posten in Radarr bzw. Sonarr? ``(client, arr_id)``.
+
+    Ueber die Bibliothek und nicht ueber die Anfrage: Ein Posten kann ganz ohne
+    Anfrage entstanden sein (Altbestand), und eine zurueckgezogene Anfrage
+    darf das Loeschen nicht unmoeglich machen.
+    """
+    stufe = zeile.tier.value
+    if zeile.media_type == MediaType.movie:
+        client = library.radarr_client(settings, stufe)
+        if client is None or not zeile.tmdb_id:
+            return None, None
+        eintrag = (await library.movie_library(settings, stufe)).get(zeile.tmdb_id)
+        return client, (eintrag.arr_id if eintrag else None)
+
+    client = library.sonarr_client(settings, stufe)
+    if client is None or not zeile.tvdb_id:
+        return None, None
+    nach_tvdb, _ = await library.series_library(settings, stufe)
+    eintrag = nach_tvdb.get(zeile.tvdb_id)
+    return client, (eintrag.arr_id if eintrag else None)
+
+
+async def dateien_fuer(
+    db: Session, settings: AppSettings, posten_id: int
+) -> list[Datei]:
+    """Welche Dateien fielen weg? **Es wird nichts angefasst.**
+
+    Der Probelauf vor dem Loeschen. Der Administrator soll die tatsaechliche
+    Liste sehen und nicht eine Zahl: Ein Fehler beim staffelweisen Loeschen
+    trifft Folgen, die jemand behalten wollte, und eine Zahl verraet nicht,
+    welche.
+
+    Eine **leere** Liste ist eine Aussage: Dann kennt die Instanz den Titel
+    nicht (mehr), und Nexview kann ihn nicht loeschen - genau der Fall, den der
+    rote Hinweis in den Einstellungen meint.
+    """
+    zeile = db.get(StorageEntry, posten_id)
+    if zeile is None:
+        raise Loeschfehler("Diesen Posten gibt es nicht.", 404)
+
+    client, arr_id = await _arr_eintrag(settings, zeile)
+    if client is None or arr_id is None:
+        return []
+
+    try:
+        if zeile.media_type == MediaType.movie:
+            filme = await library.movie_library(settings, zeile.tier.value)
+            eintrag = filme.get(zeile.tmdb_id or 0)
+            if eintrag is None or not eintrag.has_file:
+                return []
+            return [Datei(pfad=eintrag.path, size_bytes=eintrag.size_bytes)]
+
+        if zeile.season is None:
+            raise Loeschfehler(
+                "Fuer eine ganze Serie gibt es hier keinen Loeschweg - "
+                "abgegeben wird staffelweise.",
+                400,
+            )
+        dateien = await client.episode_files(arr_id, zeile.season)
+        return [
+            Datei(
+                pfad=str(datei.get("path") or datei.get("relativePath") or ""),
+                size_bytes=int(datei.get("size") or 0),
+            )
+            for datei in dateien
+        ]
+    except ArrError as fehler:
+        raise Loeschfehler(fehler.message, 502) from fehler
+
+
+async def loeschen(
+    db: Session, settings: AppSettings, posten_id: int, *, wer: str = "?"
+) -> int:
+    """Den Titel wirklich entfernen - **samt Datei**. Gibt die Bytes zurueck.
+
+    ⚠️ **Ab hier gibt es keinen Rueckweg**, ausser dem Papierkorb von Radarr
+    bzw. Sonarr. Ist dort keiner eingerichtet, ist die Datei sofort und
+    endgueltig weg.
+
+    Geloescht wird ueber die Instanz, nicht am Dateisystem: Nexview sieht es
+    gar nicht, und nur so bleiben Bibliothek, Importliste und Papierkorb
+    stimmig. ``remove`` nimmt den Titel gleich mit aus der Instanz - bliebe er
+    stehen und ueberwacht, laedt Radarr ihn sofort wieder herunter.
+
+    **Der Posten wird sofort entfernt**, nicht erst beim naechsten Abgleich.
+    Der raeumt einen Posten erst weg, wenn der Titel weder in Radarr/Sonarr
+    **noch** im Media-Server auftaucht - und Plex weiss davon erst nach seinem
+    naechsten Durchlauf. Bis dahin bliebe jemand fuer eine Datei belastet, die
+    es nicht mehr gibt. Die Regel schuetzt vor *geratener* Loeschung; hier
+    haben wir sie selbst durchgefuehrt.
+    """
+    zeile = db.get(StorageEntry, posten_id)
+    if zeile is None:
+        raise Loeschfehler("Diesen Posten gibt es nicht.", 404)
+
+    if LOESCHBARE_STUFEN and zeile.tier not in LOESCHBARE_STUFEN:
+        raise Loeschfehler(
+            "Loeschen ist zurzeit nur in der 4K-Instanz freigeschaltet. "
+            "Auf der Standard-Instanz wird nichts entfernt.",
+            403,
+        )
+
+    client, arr_id = await _arr_eintrag(settings, zeile)
+    if client is None or arr_id is None:
+        raise Loeschfehler(
+            f"„{zeile.title}“ wird nicht mehr von Radarr bzw. Sonarr verwaltet. "
+            "Nexview loescht ausschliesslich ueber diese Dienste und kann die "
+            "Datei deshalb nicht entfernen - abgeben geht nur an den Hausbestand.",
+            409,
+        )
+
+    bytes_ = zeile.size_bytes
+
+    # ⚠️ **Vor dem Zugriff protokollieren, nicht danach.**
+    #
+    # Schlaegt es fehl oder trifft es das Falsche, ist dieser Eintrag der
+    # einzige Beleg dafuer, worum Nexview ueberhaupt gebeten hat - mit Instanz,
+    # Nummer und der Dateiliste. Ein Protokolleintrag nach getaner Arbeit
+    # erzaehlt nur von den Faellen, die geklappt haben.
+    dateien = await dateien_fuer(db, settings, posten_id)
+    logger.warning(
+        "LOESCHEN angefordert von %s: Posten %s %r (%s/%s, arr_id=%s, %s Bytes) - "
+        "%s Datei(en): %s",
+        wer,
+        posten_id,
+        zeile.title,
+        zeile.media_type.value,
+        zeile.tier.value,
+        arr_id,
+        bytes_,
+        len(dateien),
+        " | ".join(datei.pfad for datei in dateien) or "(keine gemeldet)",
+    )
+
+    try:
+        if zeile.media_type == MediaType.movie:
+            await client.remove(arr_id, delete_files=True)
+        else:
+            # ⚠️ **Erst stilllegen, dann loeschen.** Sonarr sucht fuer jede
+            # ueberwachte Staffel nach fehlenden Folgen; bliebe sie an, waere
+            # die Staffel beim naechsten Durchlauf wieder da - und der Nutzer,
+            # der abgegeben hat, saehe seinen Speicher erneut steigen.
+            #
+            # Die Reihenfolge ist der Punkt: Scheitert das Stilllegen, liegen
+            # die Dateien noch da und nichts ist verloren. Andersherum waeren
+            # sie weg **und** kaemen zurueck.
+            await client.unmonitor_season(arr_id, zeile.season)
+            kennungen = [
+                int(datei["id"])
+                for datei in await client.episode_files(arr_id, zeile.season)
+                if datei.get("id")
+            ]
+            if not kennungen:
+                raise Loeschfehler(
+                    f"Sonarr meldet fuer Staffel {zeile.season} keine Dateien.", 409
+                )
+            entfernt = await client.delete_episode_files(kennungen)
+            logger.warning(
+                "LOESCHEN: %s von %s Dateien der Staffel %s entfernt",
+                entfernt,
+                len(kennungen),
+                zeile.season,
+            )
+    except Loeschfehler:
+        raise
+    except ArrError as fehler:
+        # 404 heisst: dort schon weg - dann ist das Ziel ja erreicht.
+        if fehler.status_code != 404:
+            logger.error(
+                "LOESCHEN fehlgeschlagen: Posten %s %r (arr_id=%s) - %s",
+                posten_id,
+                zeile.title,
+                arr_id,
+                fehler.message,
+            )
+            raise Loeschfehler(fehler.message, 502) from fehler
+        logger.warning(
+            "LOESCHEN: Posten %s %r war in der Instanz schon weg (404) - Ziel erreicht",
+            posten_id,
+            zeile.title,
+        )
+
+    titel = zeile.title
+    # **Die Anfragen zum Posten sofort schliessen**, nicht erst per Abgleich.
+    #
+    # Ohne das stand die Anfrage weiter auf "geladen", die Staffel galt als
+    # belegt und liess sich nie wieder anfragen - der Abgleich haette es zwar
+    # irgendwann gerichtet, aber wer gerade geloescht hat, sieht die Folge
+    # seiner Entscheidung sofort oder haelt sie fuer wirkungslos.
+    geschlossen = _anfragen_schliessen(db, zeile)
+    db.delete(zeile)
+    db.flush()
+    library.invalidate()
+    logger.warning(
+        "LOESCHEN erledigt: %r entfernt, %s Bytes werden frei, %s Anfrage(n) geschlossen",
+        titel,
+        bytes_,
+        geschlossen,
+    )
+    return bytes_
+
+
+# Anfragen in diesen Zustaenden behaupten oder erwarten eine Datei, die es
+# nach dem Loeschen nicht mehr gibt (die Staffel ist zudem stillgelegt).
+# ``pending_approval`` bleibt bewusst draussen: Das ist eine offene
+# Entscheidung, und die trifft weiterhin ein Mensch.
+_ZU_SCHLIESSEN = (
+    RequestStatus.downloaded,
+    RequestStatus.searching,
+    RequestStatus.approved,
+)
+
+
+def _anfragen_schliessen(db: Session, zeile: StorageEntry) -> int:
+    """Alle laufenden Anfragen zum geloeschten Posten auf "geloescht" setzen."""
+    bedingungen = [
+        MediaRequest.media_type == zeile.media_type,
+        MediaRequest.tier == zeile.tier,
+        MediaRequest.status.in_(_ZU_SCHLIESSEN),
+    ]
+    if zeile.media_type == MediaType.movie:
+        bedingungen.append(MediaRequest.tmdb_id == zeile.tmdb_id)
+    else:
+        bedingungen.append(MediaRequest.tvdb_id == zeile.tvdb_id)
+        # Eine Staffel trifft nur ihre eigenen Anfragen; ``season IS NULL``
+        # (ganze Serie) bleibt stehen - von der Serie existiert ja noch mehr.
+        bedingungen.append(MediaRequest.season == zeile.season)
+
+    getroffen = 0
+    for anfrage in db.scalars(select(MediaRequest).where(*bedingungen)):
+        anfrage.status = RequestStatus.deleted
+        anfrage.completed_at = utcnow()
+        getroffen += 1
+    return getroffen

@@ -7,16 +7,12 @@ import type { ArrOptions, MediaItem, QualityTier } from '../../api/types'
 import { useAuth } from '../../auth/useAuth'
 import { useConfig } from '../../hooks/useConfig'
 import { anfragenStandNeuLaden } from '../../lib/refresh'
+import { Fenster } from '../Fenster'
 import { Button, ErrorBanner, Spinner } from '../ui'
 
 type AddRequestFormProps = {
   item: MediaItem
   onDone: () => void
-  /**
-   * Serie läuft schon - dann kann nur noch eine einzelne Staffel dazu.
-   * "Ganze Serie" steht dann nicht zur Wahl, das wäre ohnehin abgelehnt.
-   */
-  seasonOnly?: boolean
   /**
    * Kam der Klick von der Merklisten-Seite? Reine Herkunftsangabe – am
    * Ablauf ändert sie nichts, sie macht die Anfrage nur nachträglich
@@ -36,7 +32,6 @@ type CreatedRequest = { id: number; status: string; title: string }
 export function AddRequestForm({
   item,
   onDone,
-  seasonOnly = false,
   fromWatchlist = false,
 }: AddRequestFormProps) {
   const { t } = useTranslation()
@@ -73,6 +68,19 @@ export function AddRequestForm({
   // Welche Stufen sind ueberhaupt noch offen? Ein Film, der in 1080p schon
   // liegt, laesst sich nur noch in 4K holen - und umgekehrt. Genau dafuer gibt
   // es die zweite Instanz.
+  const istSerie = item.media_type === 'tv'
+
+  /**
+   * Ist diese Staffel schon vergeben – vorhanden oder angefragt?
+   *
+   * Von Liste **und** Sperre gemeinsam benutzt: Was man nicht anhaken kann,
+   * darf auch nicht mitzählen, wenn entschieden wird, ob überhaupt noch etwas
+   * zu holen ist.
+   */
+  const belegt = (staffel: (typeof item.seasons)[number]) =>
+    Boolean(staffel.requested) ||
+    (staffel.episode_count > 0 && staffel.episodes_available >= staffel.episode_count)
+
   const standardOffen = item.status === 'not_requested'
   // ⚠️ Ein **fehlendes** `status_uhd` heißt „unbekannt", nicht „belegt". Nicht
   // jede Kachel trägt die zweite Achse mit – aus dem Kalender und von der
@@ -88,14 +96,33 @@ export function AddRequestForm({
 
   const [profileId, setProfileId] = useState<number | null>(null)
   const [folder, setFolder] = useState('')
-  // Leerer String = ganze Serie. Bei Filmen bleibt das Feld ungenutzt.
-  // Geht es nur noch um eine Nachlieferung, ist die neueste Staffel
-  // vorausgewählt - die ist praktisch immer gemeint.
-  const [season, setSeason] = useState(() =>
-    seasonOnly && item.seasons.length > 0
-      ? String(item.seasons[item.seasons.length - 1].season_number)
-      : '',
-  )
+  /**
+   * Welche Staffeln angefragt werden – **eine Menge, kein einzelner Wert.**
+   *
+   * Wer die Staffeln 1, 4 und 7 will, soll das in einem Zug sagen können;
+   * daraus werden drei Anfragen, eine je Staffel. Das entspricht dem
+   * Datenmodell (`MediaRequest.season` ist eine Zahl) und der Doppel-Prüfung,
+   * die ohnehin je Staffel greift.
+   *
+   * ⚠️ **Nichts ist vorausgewählt.** Hier stand einmal „die neueste Staffel",
+   * gedacht für das Nachfordern bei einer laufenden Serie. Seit weitere
+   * Staffeln immer anfragbar sind, trifft dieser Fall auf **jede** Serie zu –
+   * und dann steht plötzlich Staffel 11 angehakt da, ohne dass jemand sie
+   * gewählt hätte. Eine Vorauswahl, die Speicher kostet, muss von der Person
+   * kommen.
+   */
+  const [staffeln, setStaffeln] = useState<Set<number>>(new Set())
+  // Ob das Auswahlfenster offen ist.
+  const [waehlt, setWaehlt] = useState(false)
+  /**
+   * Sollen künftige Staffeln automatisch mitkommen?
+   *
+   * ⚠️ Standardmäßig **aus**, und das ist der Punkt: Vorher hieß „ganze Serie"
+   * in Sonarr `monitor: "all"` – also auch alles, was es noch gar nicht gibt.
+   * Mit Kontingenten ist das ein Blankoscheck über Speicher, den niemand
+   * beziffern kann.
+   */
+  const [kuenftige, setKuenftige] = useState(false)
 
   const optionsQuery = useQuery({
     queryKey: ['arr-options', item.media_type, tier],
@@ -133,8 +160,8 @@ export function AddRequestForm({
   }
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.post<CreatedRequest>('/api/requests', {
+    mutationFn: async () => {
+      const gemeinsam = {
         media_type: item.media_type,
         tmdb_id: item.tmdb_id,
         tier,
@@ -143,9 +170,46 @@ export function AddRequestForm({
         // Ohne Auswahlrecht bewusst nichts mitschicken: welcher Ordner gilt,
         // entscheidet dann allein der Server.
         root_folder_path: !zielSpaeter && options?.root_folder_choice ? folder : null,
-        season: season === '' ? null : Number(season),
         from_watchlist: fromWatchlist,
-      }),
+        monitor_future: istSerie ? kuenftige : false,
+      }
+
+      // Filme haben keine Staffel; bei Serien ist mindestens eine gewählt -
+      // dafür sorgt ``staffelGewaehlt``.
+      if (!istSerie) {
+        return api.post<CreatedRequest>('/api/requests', {
+          ...gemeinsam,
+          season: null,
+        })
+      }
+
+      // Nacheinander, nicht parallel: SQLite lässt genau einen Schreiber zu,
+      // und bei einer Handvoll Staffeln ist der Unterschied nicht messbar.
+      let letzte: CreatedRequest | null = null
+      let uebersprungen = 0
+      for (const nummer of [...staffeln].sort((a, b) => a - b)) {
+        try {
+          letzte = await api.post<CreatedRequest>('/api/requests', {
+            ...gemeinsam,
+            season: nummer,
+          })
+        } catch (fehler) {
+          // ⚠️ Eine bereits laufende Staffel darf den Stapel nicht abbrechen.
+          // Wer 1, 4 und 7 anhakt und 4 ist schon unterwegs, will 1 und 7
+          // trotzdem haben – und „ist schon angefragt" ist ohnehin das
+          // Ergebnis, das er wollte.
+          if (fehler instanceof ApiError && fehler.status === 409) {
+            uebersprungen += 1
+            continue
+          }
+          throw fehler
+        }
+      }
+      if (letzte === null && uebersprungen > 0) {
+        throw new ApiError(409, t('request.allSeasonsAlready'))
+      }
+      return letzte as CreatedRequest
+    },
     onSuccess: () => {
       // Badges und Kontingent neu laden - auch auf der Seite, die hinter
       // diesem Fenster liegt und gleich wieder sichtbar wird.
@@ -177,8 +241,27 @@ export function AddRequestForm({
   }
 
   const options = optionsQuery.data ?? null
-  const stufeOffen = tier === 'standard' ? standardOffen : uhdOffen
-  const ready = !stufeOffen
+  /**
+   * Gibt es auf dieser Stufe überhaupt noch etwas zu holen?
+   *
+   * ⚠️ **Bei Serien entscheidet die Staffel, nicht der Titel.** Der Titel steht
+   * schon auf „angefragt", sobald *irgendeine* Staffel läuft – und dann war
+   * der Knopf aus, obwohl drei andere Staffeln angehakt waren. Der Server
+   * hätte sie anstandslos angenommen; es war allein die Maske, die zumachte.
+   */
+  const stufeOffen = istSerie
+    ? item.seasons.some((staffel) => !belegt(staffel))
+    : tier === 'standard'
+      ? standardOffen
+      : uhdOffen
+  // ⚠️ Bei Serien **muss** eine Staffel gewählt sein.
+  //
+  // Ohne diese Bedingung fiel das Absenden auf „ganze Serie" zurück – also
+  // auf genau das, was hier abgeschafft werden sollte: eine Anfrage, die auch
+  // alle künftigen Staffeln einschließt, ohne dass jemand das gesagt hat. Wer
+  // alles will, hat dafür „Alle inkl. künftige".
+  const staffelGewaehlt = !istSerie || staffeln.size > 0
+  const ready = !stufeOffen || !staffelGewaehlt
     ? false
     : zielSpaeter
     ? true
@@ -236,28 +319,39 @@ export function AddRequestForm({
       )}
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {/* Nur bei Serien. Beim Nachfordern immer zeigen - auch wenn nur eine
-            Staffel fehlt: sonst sähe man nicht, was da eigentlich bestellt
-            wird. Sonst erst ab zwei Staffeln, darunter gäbe es keine Wahl. */}
-        {item.media_type === 'tv' && (item.seasons.length > 1 || seasonOnly) && (
-          <label className="flex flex-col gap-1.5 sm:col-span-2">
+        {/* Bei **jeder** Serie, auch bei einstaffligen. Vorher erschien die
+            Auswahl erst ab zwei Staffeln – und ohne sie hieß die Anfrage
+            „ganze Serie", was in Sonarr auch alle künftigen einschließt. Wer
+            eine einstaffelige Serie anfragte, unterschrieb damit unbemerkt für
+            Staffel 2, 3 und alles Weitere.
+
+            Als Fenster und nicht als Liste im Formular: Eine Serie mit zwanzig
+            Staffeln macht das Formular sonst unbenutzbar, und die Auswahl ist
+            eine eigene Entscheidung – nicht ein Feld unter vielen. */}
+        {istSerie && item.seasons.length > 0 && (
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
             <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
               {t('request.season')}
             </span>
-            <select
-              value={season}
-              onChange={(event) => setSeason(event.target.value)}
-              className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
+            <button
+              type="button"
+              onClick={() => setWaehlt(true)}
+              className="flex items-center justify-between gap-3 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-left text-sm text-mist-100 hover:border-accent-600"
             >
-              {!seasonOnly && <option value="">{t('request.wholeSeries')}</option>}
-              {item.seasons.map((staffel) => (
-                <option key={staffel.season_number} value={staffel.season_number}>
-                  {staffel.name} · {t('request.episodes', { count: staffel.episode_count })}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-mist-600">{t('request.seasonHint')}</span>
-          </label>
+              <span className="min-w-0 truncate">
+                {staffeln.size === 0
+                  ? t('request.seasonNonePicked')
+                  : t('request.seasonPicked', {
+                      list: [...staffeln].sort((a, b) => a - b).join(', '),
+                      count: staffeln.size,
+                    })}
+                {kuenftige && ` · ${t('request.futureShort')}`}
+              </span>
+              <span className="shrink-0 text-xs text-mist-500">
+                {t('request.seasonChoose')}
+              </span>
+            </button>
+          </div>
         )}
 
         {/* Darf der Benutzer das Profil gar nicht waehlen, gibt es hier nichts
@@ -331,8 +425,112 @@ export function AddRequestForm({
         >
           {t('request.submit')}
         </Button>
-        <p className="text-xs text-mist-600">{t('request.hint')}</p>
+        <p className="text-xs text-mist-600">
+          {stufeOffen && !staffelGewaehlt
+            ? t('request.seasonRequired')
+            : t('request.hint')}
+        </p>
       </div>
+
+      <Fenster
+        offen={waehlt}
+        titel={t('request.seasonChooseFor', { title: item.title })}
+        onSchliessen={() => setWaehlt(false)}
+        fuss={<Button onClick={() => setWaehlt(false)}>{t('common.done')}</Button>}
+      >
+        <div className="flex flex-col gap-3">
+          {item.seasons.length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                // Nur das Wählbare: Eine vorhandene oder laufende Staffel
+                // anzuhaken hieße, sie gleich darauf mit 409 abgelehnt zu
+                // bekommen.
+                const waehlbar = item.seasons
+                  .filter((s) => !belegt(s))
+                  .map((s) => s.season_number)
+                const alleDa = staffeln.size === waehlbar.length && kuenftige
+                setStaffeln(alleDa ? new Set() : new Set(waehlbar))
+                setKuenftige(!alleDa)
+              }}
+              className="self-start text-sm text-mist-400 underline-offset-2 hover:text-accent-500 hover:underline"
+            >
+              {t(
+                staffeln.size > 0 && kuenftige
+                  ? 'request.seasonNone'
+                  : 'request.seasonAll',
+              )}
+            </button>
+          )}
+
+          {/* Einspaltig. Zweispaltig lief die Lesereihenfolge über Kreuz –
+              links 1, rechts 2, darunter 3 – und bei zwanzig Staffeln sucht
+              man die gewünschte, statt sie zu finden. */}
+          <ul className="flex flex-col">
+            {item.seasons.map((staffel) => {
+              /* Ausgegraut statt versteckt: Eine Staffel, die kommentarlos
+                 fehlt, wirft die Frage auf, wo sie geblieben ist. So steht
+                 daneben, warum sie nicht zu haben ist – und dass sie ohnehin
+                 unterwegs oder schon da ist, ist ja eine gute Nachricht. */
+              const vorhanden =
+                staffel.episode_count > 0 &&
+                staffel.episodes_available >= staffel.episode_count
+              const vergeben = belegt(staffel)
+              return (
+                <li key={staffel.season_number}>
+                  <label
+                    className={
+                      'flex items-center gap-3 rounded-lg px-2 py-2 ' +
+                      (vergeben ? 'opacity-50' : 'cursor-pointer hover:bg-ink-800')
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={staffeln.has(staffel.season_number)}
+                      disabled={vergeben}
+                      onChange={() =>
+                        setStaffeln((alt) => {
+                          const neu = new Set(alt)
+                          if (neu.has(staffel.season_number))
+                            neu.delete(staffel.season_number)
+                          else neu.add(staffel.season_number)
+                          return neu
+                        })
+                      }
+                      className="h-4 w-4 shrink-0 accent-accent-500"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm">{staffel.name}</span>
+                    <span className="shrink-0 text-xs text-mist-600">
+                      {vergeben
+                        ? t(vorhanden ? 'request.seasonHere' : 'request.seasonRunning')
+                        : t('request.episodes', { count: staffel.episode_count })}
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+
+          {/* ⚠️ Ein eigener Haken, standardmäßig aus. Früher steckte das
+              stillschweigend in „ganze Serie": Sonarr überwacht dann auch jede
+              künftige Staffel, und mit Kontingenten ist das ein Blankoscheck
+              über Speicher, den niemand beziffern kann. */}
+          <label className="flex cursor-pointer items-start gap-3 border-t border-ink-800 px-2 pt-3">
+            <input
+              type="checkbox"
+              checked={kuenftige}
+              onChange={(event) => setKuenftige(event.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
+            />
+            <span>
+              <span className="text-sm">{t('request.future')}</span>
+              <span className="mt-0.5 block text-xs text-mist-600">
+                {t('request.futureHint')}
+              </span>
+            </span>
+          </label>
+        </div>
+      </Fenster>
     </div>
   )
 }

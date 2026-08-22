@@ -148,6 +148,8 @@ export type MediaStatus =
   | "requested"
   | "searching"
   | "downloaded"
+  // Serie mit Dateien, aber Lücken: einzelne Staffeln fehlen noch.
+  | "partial"
   | "in_library"
   | "rejected"
   | "failed"
@@ -239,7 +241,13 @@ export type SeasonInfo = {
   overview: string;
   poster_url: string | null;
   /** Wie viele Folgen davon schon in der Bibliothek liegen (aus Sonarr). */
-  episodes_available: number;
+  episodes_available: number
+  /**
+   * Läuft zu dieser Staffel schon eine Anfrage – von **irgendwem**?
+   *
+   * Nicht „von mir": `find_active` sperrt eine laufende Anfrage für alle.
+   */
+  requested?: boolean;
 };
 
 export type EpisodeInfo = {
@@ -771,6 +779,21 @@ export type StorageEntry = {
   released_at?: string | null
 }
 
+/**
+ * Was ein Löschen treffen würde – **ohne dass etwas passiert**.
+ *
+ * Der Administrator bestätigt mit dieser Liste vor Augen und nicht mit einer
+ * Zahl: Ein Fehler trifft Dateien, die jemand behalten wollte, und eine Zahl
+ * verrät nicht, welche.
+ */
+export type StorageLoeschvorschau = {
+  files: { path: string; size_bytes: number }[]
+  total_bytes: number
+  deletable: boolean
+  /** `tier` = Sperre, `series` = noch nicht scharf, `unmanaged` = kennt Radarr nicht. */
+  reason: string
+}
+
 /** Eine wartende Abgabe, aus Sicht des Administrators. */
 export type StorageAbgabe = {
   entry: StorageEntry
@@ -1028,6 +1051,8 @@ export type AppNotification = {
   /** Übersetzungsschlüssel – der Text kommt aus der Oberfläche. */
   message_key: string;
   message_title: string | null;
+  /** Bei Staffelanfragen die Staffel – sonst `null`. */
+  season: number | null;
   request_id: number | null;
   ticket_id: number | null;
   is_read: boolean;

@@ -274,10 +274,19 @@ export function TitlePage() {
   const fehlendeStaffeln = item.seasons.filter(
     (staffel) => staffel.episodes_available < staffel.episode_count,
   )
+  /**
+   * ⚠️ Bewusst **ohne** Bedingung an den Zustand.
+   *
+   * Vorher hieß es „nur wenn die Serie fertig geladen ist" – und damit ließ
+   * sich Staffel 2 nicht anfragen, solange Staffel 1 noch lief. Der Server
+   * erlaubt das längst (`find_active` prüft die Staffel mit); es war allein
+   * die Oberfläche, die zumachte. Für andere Nutzer war die ganze Serie damit
+   * blockiert, sobald einer eine einzige Staffel angefragt hatte.
+   *
+   * Gesperrte Titel bleiben außen vor – dort gilt die Sperre für alles.
+   */
   const nurWeitereStaffel =
-    !istFilm &&
-    fehlendeStaffeln.length > 0 &&
-    (item.status === 'downloaded' || item.status === 'in_library')
+    !istFilm && fehlendeStaffeln.length > 0 && item.status !== 'blocked'
   // Gesperrt heißt gesperrt - außer für den Administrator. Die Liste ist
   // seine Entscheidung und soll die anderen bremsen, nicht ihn. Das
   // Backend sieht es genauso, der Knopf ist nur die Bequemlichkeit dazu.
@@ -399,12 +408,16 @@ export function TitlePage() {
                 {kannAnfragen ? (
                   adding ? (
                     <Card className="max-w-xl">
-                      {/* Beim Nachfordern stehen nur die Staffeln zur Wahl,
-                          von denen wirklich etwas fehlt. */}
+                      {/* ⚠️ Immer die **volle** Staffelliste – das Fenster
+                          graut Vorhandenes selbst aus. Vorher wurden fertige
+                          Staffeln hier weggefiltert, und ausgerechnet die
+                          einzige komplett geladene fehlte kommentarlos in der
+                          Auswahl – gemeldet als „Staffel 4 wird gar nicht
+                          angezeigt?". Verstecken beantwortet die Frage nicht,
+                          wo sie geblieben ist; Ausgrauen schon. */}
                       <AddRequestForm
-                        item={nurWeitereStaffel ? { ...item, seasons: fehlendeStaffeln } : item}
+                        item={item}
                         onDone={() => setAdding(false)}
-                        seasonOnly={nurWeitereStaffel}
                         fromWatchlist={vonMerkliste}
                       />
                     </Card>

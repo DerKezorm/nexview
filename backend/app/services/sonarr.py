@@ -14,11 +14,38 @@ from .arr import ArrClient, ArrError
 
 
 @dataclass(frozen=True)
+class Staffelstand:
+    """Wie weit **eine** Staffel geladen ist.
+
+    ⚠️ Gebraucht, weil ``has_file`` eine Aussage ueber die **ganze Serie** ist:
+    "mindestens eine Folge liegt vor". Solange nur ganze Serien angefragt
+    werden konnten, war das dasselbe. Bei Staffelanfragen ist es das nicht -
+    gemeldet wurde eine Serie mit drei Dateien in Staffel 3, worauf **fuenf**
+    Staffelanfragen gleichzeitig als "bereits geladen" galten und fuenf
+    Fertig-Meldungen in derselben Sekunde hinausgingen.
+    """
+
+    dateien: int
+    folgen: int
+
+    @property
+    def vollstaendig(self) -> bool:
+        """Alle Folgen dieser Staffel liegen vor.
+
+        Strenger als ``has_file`` und mit Absicht: Eine Staffel ist eine
+        abgeschlossene, abzaehlbare Menge - "fertig" laesst sich hier wirklich
+        beantworten. Bei einer ganzen Serie waere dieselbe Frage sinnlos, weil
+        eine laufende Serie nie fertig ist.
+        """
+        return self.folgen > 0 and self.dateien >= self.folgen
+
+
+@dataclass(frozen=True)
 class LibraryEntry:
     """Eine Serie, wie sie Sonarr kennt."""
 
     arr_id: int
-    has_file: bool  # mindestens eine Folge liegt vor
+    has_file: bool  # mindestens eine Folge der **ganzen Serie** liegt vor
     monitored: bool
     episode_file_count: int
     episode_count: int
@@ -33,6 +60,10 @@ class LibraryEntry:
     # noetig, wollte man bis auf die einzelne Folge hinunter. Die
     # Speicher-Belegung rechnet deshalb staffelweise.
     seasons: dict[int, int] = field(default_factory=dict)
+    # Ladestand **je Staffel** - aus derselben Statistik wie die Groessen.
+    # Ohne diese Aufschluesselung laesst sich eine Staffelanfrage nicht
+    # beantworten; siehe ``Staffelstand``.
+    staffeln: dict[int, Staffelstand] = field(default_factory=dict)
     # Letzter bekannter Titel, damit ein Posten anzeigbar bleibt, wenn die
     # Serie spaeter aus Sonarr verschwindet.
     title: str = ""
@@ -95,6 +126,26 @@ def _staffel_groessen(show: dict[str, Any]) -> dict[int, int]:
     return groessen
 
 
+def _staffel_stand(show: dict[str, Any]) -> dict[int, Staffelstand]:
+    """Ladestand je Staffel - aus derselben Statistik wie die Groessen.
+
+    Anders als dort bleiben Staffeln **ohne** Dateien hier stehen: Genau die
+    sind die Antwort auf "laeuft noch". Wer sie weglaesst, kann eine leere
+    Staffel nicht von einer unbekannten unterscheiden.
+    """
+    stand: dict[int, Staffelstand] = {}
+    for staffel in show.get("seasons") or []:
+        nummer = staffel.get("seasonNumber")
+        if not isinstance(nummer, int):
+            continue
+        zahlen = staffel.get("statistics") or {}
+        stand[nummer] = Staffelstand(
+            dateien=int(zahlen.get("episodeFileCount") or 0),
+            folgen=int(zahlen.get("episodeCount") or 0),
+        )
+    return stand
+
+
 class SonarrClient(ArrClient):
     def __init__(self, base_url: str, api_key: str) -> None:
         super().__init__(base_url, api_key, "Sonarr")
@@ -122,6 +173,7 @@ class SonarrClient(ArrClient):
                 year=show.get("year") if isinstance(show.get("year"), int) else None,
                 size_bytes=_zahl(statistics.get("sizeOnDisk")),
                 seasons=_staffel_groessen(show),
+                staffeln=_staffel_stand(show),
                 title=str(show.get("title") or ""),
                 path=str(show.get("path") or "").rstrip("/"),
             )
@@ -161,6 +213,7 @@ class SonarrClient(ArrClient):
         search_now: bool = True,
         tag_ids: list[int] | None = None,
         season: int | None = None,
+        monitor_future: bool = False,
     ) -> dict[str, Any]:
         """Serie zu Sonarr hinzufuegen.
 
@@ -178,6 +231,13 @@ class SonarrClient(ArrClient):
             "rootFolderPath": root_folder_path,
             "monitored": True,
             "seasonFolder": True,
+            # ⚠️ Was mit **kuenftigen** Staffeln geschieht, entscheidet allein
+            # dieses Feld - nicht ``monitored`` und nicht die Staffelliste.
+            # Steht es auf "all", laedt Sonarr jede neue Staffel von selbst;
+            # der Anfragende haette dann Speicher zugesagt, den zum Zeitpunkt
+            # der Anfrage niemand beziffern konnte. Deshalb nur, wenn er es
+            # ausdruecklich angehakt hat.
+            "monitorNewItems": "all" if monitor_future else "none",
             "tags": tag_ids or [],
             "addOptions": {
                 "monitor": "all",
@@ -186,13 +246,19 @@ class SonarrClient(ArrClient):
         }
 
         if season is not None:
-            # "monitor: none" allein genuegt nicht - Sonarr richtet sich beim
-            # Anlegen nach der mitgeschickten Staffelliste. Beides zu setzen ist
-            # der sichere Weg ueber verschiedene Sonarr-Fassungen hinweg.
-            payload["seasons"] = [
-                {**eintrag, "monitored": eintrag.get("seasonNumber") == season}
-                for eintrag in (found.get("seasons") or [])
-            ]
+            # ⚠️ **``addOptions.monitor`` gewinnt gegen die Staffelliste.**
+            #
+            # Hier stand zusaetzlich eine ``seasons``-Liste mit genau der
+            # gewuenschten Staffel auf ``monitored``, in der Annahme, Sonarr
+            # richte sich danach. Es tut es nicht: ``monitor: "none"`` legt nach
+            # dem Anlegen **alles** still - die Serie und saemtliche Staffeln.
+            # Ergebnis war eine Serie in Sonarr auf "nicht ueberwacht", die nie
+            # etwas geladen hat, waehrend Nexview die Anfrage als laufend
+            # fuehrte. Nachgemessen an Baywatch: 12 Staffeln, keine ueberwacht.
+            #
+            # Deshalb wird beim Anlegen bewusst nichts ueberwacht - und die
+            # gewuenschte Staffel gleich danach eingeschaltet, ueber denselben
+            # Weg, den auch das Nachfordern nimmt.
             payload["addOptions"] = {
                 "monitor": "none",
                 "searchForMissingEpisodes": False,
@@ -200,31 +266,56 @@ class SonarrClient(ArrClient):
 
         angelegt = await self.post("/series", payload)
 
-        # Die Suche erst nach dem Anlegen anstossen, und dann gezielt fuer diese
-        # eine Staffel.
-        if season is not None and search_now and isinstance(angelegt, dict):
-            await self.search_season(angelegt.get("id"), season)
+        # Erst jetzt die Staffel einschalten - und mit ihr die Serie, denn eine
+        # stillgelegte Serie laedt auch einzelne Staffeln nicht. ``monitor_season``
+        # stoesst die Suche gleich mit an.
+        if season is not None and isinstance(angelegt, dict):
+            await self.monitor_seasons(
+                angelegt.get("id"), {season}, season if search_now else None
+            )
 
         return angelegt
 
-    async def monitor_season(self, arr_id: int, season: int, search_now: bool = True) -> None:
-        """Eine weitere Staffel einer bereits vorhandenen Serie aktivieren.
+    async def monitor_seasons(
+        self, arr_id: int | None, seasons: set[int], such_staffel: int | None = None
+    ) -> None:
+        """**Alle** genannten Staffeln ueberwachen - und nichts abschalten.
 
-        Der haeufigste Fall ueberhaupt: die Serie laeuft schon mit, nur die
-        neue Staffel fehlt. Die Serie neu anzulegen waere hier falsch - Sonarr
-        wuerde die vorhandenen Folgen durcheinanderbringen.
+        ⚠️ **Warum die ganze Menge und nicht die eine neue Staffel:**
+        ``addOptions.monitor: "none"`` wirkt bei Sonarr **asynchron**. Es raeumt
+        nach dem Anlegen alles ab - auch das, was Nexview unmittelbar danach
+        eingeschaltet hat. Nachgemessen: Staffel 3 wurde freigegeben, angelegt
+        und geladen; zwei Minuten spaeter kam die Freigabe fuer Staffel 2, las
+        den inzwischen abgeraeumten Stand und schrieb ihn samt abgeschalteter
+        Staffel 3 zurueck.
+
+        Deshalb ist **Nexview** die Quelle der Wahrheit: Der Aufrufer uebergibt
+        alle Staffeln, zu denen eine Anfrage laeuft, und dieser Aufruf stellt
+        sie her. Ein abgeraeumter Zustand heilt damit von selbst beim naechsten
+        Mal.
+
+        Abgeschaltet wird **nichts**: Wer in Sonarr von Hand eine weitere
+        Staffel ueberwacht, soll sie behalten.
         """
+        if not arr_id:
+            raise ArrError("Sonarr hat keine Kennung fuer diese Serie geliefert.", 502)
+        if not seasons:
+            return
         serie = await self.get(f"/series/{arr_id}")
         if not isinstance(serie, dict):
             raise ArrError("Sonarr liefert diese Serie nicht.", 404)
 
         staffeln = serie.get("seasons") or []
-        if not any(eintrag.get("seasonNumber") == season for eintrag in staffeln):
-            raise ArrError(f"Sonarr kennt Staffel {season} dieser Serie nicht.", 404)
+        bekannt = {eintrag.get("seasonNumber") for eintrag in staffeln}
+        fehlend = seasons - bekannt
+        if fehlend:
+            raise ArrError(
+                f"Sonarr kennt Staffel {sorted(fehlend)[0]} dieser Serie nicht.", 404
+            )
 
         serie["seasons"] = [
             {**eintrag, "monitored": True}
-            if eintrag.get("seasonNumber") == season
+            if eintrag.get("seasonNumber") in seasons
             else eintrag
             for eintrag in staffeln
         ]
@@ -234,8 +325,8 @@ class SonarrClient(ArrClient):
 
         await self.put(f"/series/{arr_id}", serie)
 
-        if search_now:
-            await self.search_season(arr_id, season)
+        if such_staffel is not None:
+            await self.search_season(arr_id, such_staffel)
 
     async def search_season(self, arr_id: int | None, season: int) -> None:
         """Sonarr anweisen, genau diese Staffel zu suchen.
@@ -276,3 +367,77 @@ class SonarrClient(ArrClient):
             f"/series/{arr_id}",
             {"deleteFiles": str(delete_files).lower(), "addImportListExclusion": "false"},
         )
+
+    async def episode_files(self, arr_id: int, season: int) -> list[dict[str, Any]]:
+        """Die Dateien **einer** Staffel - mit Pfad und Groesse.
+
+        Für den Probelauf vor dem Loeschen: Der Administrator soll die
+        tatsaechliche Liste sehen, nicht eine Zahl. Ein Fehler beim
+        staffelweisen Loeschen trifft Folgen, die jemand behalten wollte, und
+        eine Zahl verraet nicht, welche.
+
+        ``/episodefile`` liefert alle Dateien einer Serie in einem Aufruf; die
+        Staffel steht an jeder Datei.
+        """
+        dateien = await self.get("/episodefile", {"seriesId": arr_id}) or []
+        return [
+            datei
+            for datei in dateien
+            if isinstance(datei, dict) and datei.get("seasonNumber") == season
+        ]
+
+    async def unmonitor_season(self, arr_id: int, season: int) -> None:
+        """Eine Staffel stilllegen - **nach** dem Loeschen ihrer Dateien.
+
+        ⚠️ **Ohne das kommt die Staffel sofort zurueck.** Sonarr sucht fuer
+        jede ueberwachte Staffel nach fehlenden Folgen; wer die Dateien
+        loescht und die Ueberwachung anlaesst, hat sie beim naechsten Durchlauf
+        wieder auf der Platte - und der Nutzer, der abgegeben hat, sieht seinen
+        Speicher erneut steigen.
+
+        Die Serie selbst bleibt ueberwacht: Andere Staffeln und kuenftige
+        Folgen sollen weiterlaufen.
+        """
+        serie = await self.get(f"/series/{arr_id}")
+        if not isinstance(serie, dict):
+            raise ArrError("Sonarr liefert diese Serie nicht.", 404)
+
+        serie["seasons"] = [
+            {**eintrag, "monitored": False}
+            if eintrag.get("seasonNumber") == season
+            else eintrag
+            for eintrag in (serie.get("seasons") or [])
+        ]
+        await self.put(f"/series/{arr_id}", serie)
+
+    async def delete_episode_files(self, datei_ids: list[int]) -> int:
+        """Genau diese Dateien entfernen - sonst nichts. Gibt die Anzahl zurueck.
+
+        **Eine Datei je Aufruf, nicht als Sammelbefehl.** Sonarr hat zwar
+        ``/episodefile/bulk``, aber eine Probe mit einer nicht existierenden
+        Kennung beantwortete es mit einem HTTP 500 - daraus laesst sich nicht
+        ablesen, ob die Form stimmt oder nur die Nummer fehlt. Der
+        Einzel-Endpunkt antwortet dagegen sauber mit 404. Bei einem
+        Loeschbefehl ist "geprueft" mehr wert als "vermutlich richtig", und
+        nebenbei kann ein Fehler so hoechstens **eine** Datei treffen.
+
+        ⚠️ **Niemals mit leerer Liste aufrufen.** Der Aufrufer prueft das;
+        hier steht die zweite Sperre.
+
+        Geloescht wird ueber die Kennungen einzelner Dateien, nicht ueber
+        Staffel oder Serie: So kann der Aufruf nur treffen, was vorher
+        aufgelistet und dem Administrator gezeigt wurde.
+        """
+        if not datei_ids:
+            raise ArrError("Ohne Dateien gibt es nichts zu loeschen.", 400)
+
+        entfernt = 0
+        for kennung in datei_ids:
+            try:
+                await self.delete(f"/episodefile/{kennung}")
+                entfernt += 1
+            except ArrError as fehler:
+                # 404 heisst: schon weg - dann ist das Ziel ja erreicht.
+                if fehler.status_code != 404:
+                    raise
+        return entfernt

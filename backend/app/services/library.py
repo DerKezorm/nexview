@@ -190,8 +190,36 @@ def _aenderung(entry: MovieEntry | SeriesEntry, mit_pfad: bool) -> dict[str, obj
 
 
 def _status_for(entry: MovieEntry | SeriesEntry) -> str:
-    """"Liegt schon da" oder "eingetragen, aber noch nicht geladen"."""
-    return "downloaded" if entry.has_file else "searching"
+    """"Liegt schon da", "liegt teilweise da" oder "noch nicht geladen".
+
+    Der Mittelweg existiert nur bei Serien. "Bereits geladen" auf einer Serie,
+    von der eine einzige Staffel da ist, war schlicht gelogen - wer sie
+    anklickte, fand elf Staffeln und eine davon im Regal. Gruen bleibt der
+    Zustand trotzdem: Es **gibt** etwas zu sehen.
+    """
+    if not entry.has_file:
+        return "searching"
+    return "partial" if _liegt_nur_teilweise_vor(entry) else "downloaded"
+
+
+def _liegt_nur_teilweise_vor(entry: MovieEntry | SeriesEntry) -> bool:
+    """Fehlen einer Serie ausgestrahlte Folgen, obwohl sie Dateien hat?
+
+    Gerechnet ueber die Staffel-Statistik, die ohnehin mitreist: Eine Staffel
+    zaehlt als Luecke, wenn ihr ausgestrahlte Folgen fehlen. Staffel 0
+    (Extras) bleibt aussen vor - niemand versteht eine Serie als
+    unvollstaendig, weil das Bonusmaterial fehlt. Noch nicht ausgestrahlte
+    Folgen fehlen in ``folgen`` von vornherein; eine laufende Serie auf
+    aktuellem Stand gilt damit als vollstaendig.
+
+    Filme haben keine Staffeln - fuer sie ist die Antwort immer nein.
+    """
+    staffeln = getattr(entry, "staffeln", None) or {}
+    return any(
+        stand.folgen > 0 and stand.dateien < stand.folgen
+        for nummer, stand in staffeln.items()
+        if nummer != 0
+    )
 
 
 async def apply_status(

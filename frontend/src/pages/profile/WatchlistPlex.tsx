@@ -33,7 +33,7 @@ type WatchlistAntwort = {
 type VerbindungsStand = { status: string; connected: boolean; linked: boolean }
 
 /** Zustände, in denen ein Titel nichts mehr braucht. */
-const ERLEDIGT = new Set(['downloaded', 'in_library'])
+const ERLEDIGT = new Set(['downloaded', 'partial', 'in_library'])
 
 export function WatchlistPlex() {
   const { t } = useTranslation()

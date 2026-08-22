@@ -147,6 +147,11 @@ class NotificationType(str, enum.Enum):
     # geht an denjenigen, dessen Kontingent dadurch frei wird. Ohne den
     # Hinweis saenke die Zahl grundlos, und niemand wuesste warum.
     storage_released = "storage_released"
+    # Der Administrator hat einen abgegebenen Titel wirklich geloescht.
+    # Bewusst getrennt von ``storage_released``: Dort bleibt die Datei liegen,
+    # hier ist sie weg. Dieselbe Meldung fuer beides waere die eine
+    # Verwechslung, die man bei einer Loeschung nicht haben darf.
+    storage_deleted = "storage_deleted"
     # Jemand hat einen Titel abgegeben und wartet auf die Entscheidung.
     # Geht **nur an Administratoren** - Entscheider duerfen hier nicht
     # entscheiden (siehe ``routers/storage.in_den_hausbestand``), also waere
@@ -931,6 +936,17 @@ class MediaRequest(Base):
     # Entscheider soll das sehen: Niemand hat sich diesen Titel im Einzelnen
     # ueberlegt, und das aendert, wie genau man hinschaut.
     from_watchlist: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Sollen kuenftige Staffeln automatisch mitkommen?
+    #
+    # Muss die Freigabe ueberleben: Die Uebergabe an Sonarr passiert erst dort,
+    # unter Umstaenden Tage spaeter. Staende der Wunsch nur in der Maske, waere
+    # er bis dahin verloren.
+    #
+    # ⚠️ Standard **false**. Frueher steckte "auch kuenftige" stillschweigend in
+    # jeder Anfrage ueber die ganze Serie (Sonarr: ``monitor: "all"``) - ein
+    # Blankoscheck ueber Speicher, den zum Zeitpunkt der Anfrage niemand
+    # beziffern kann.
+    monitor_future: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     requested_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -984,6 +1000,17 @@ class Notification(Base):
     mail_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     user: Mapped[User] = relationship(back_populates="notifications")
+    # ⚠️ Nur, damit die **Staffel** mitreist. Ohne sie sind fuenf
+    # Staffelanfragen derselben Serie fuenf Meldungen mit identischem Text -
+    # gemeldet als "ohne die Info, dass das nur eine Folge ist und welche".
+    # ``selectin`` statt Nachladen je Zeile: Die Glocke holt dreissig auf
+    # einmal.
+    request: Mapped[MediaRequest | None] = relationship(lazy="selectin")
+
+    @property
+    def season(self) -> int | None:
+        """Staffel der zugehoerigen Anfrage, sofern es eine ist."""
+        return self.request.season if self.request is not None else None
 
 
 class ChannelKind(str, enum.Enum):

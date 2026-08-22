@@ -320,3 +320,113 @@ async def test_gescheiterter_abgleich_vergiftet_die_sitzung_nicht(
 
         # Entscheidend: Die Sitzung ist danach wieder benutzbar.
         assert db.query(Setting).count() >= 0
+
+# --- Verschwundene Titel ----------------------------------------------------
+
+
+def _alt_genug(request_id: int) -> None:
+    """Die Anfrage aus der Schonfrist herausdatieren."""
+    from datetime import timedelta
+
+    from app.models import utcnow
+
+    with SessionLocal() as session:
+        request = session.get(MediaRequest, request_id)
+        request.approved_at = utcnow() - timedelta(minutes=60)
+        session.commit()
+
+
+@pytest.mark.asyncio
+async def test_aus_radarr_entfernt_bricht_die_anfrage_ab(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ Sonst wartet jemand auf etwas, das nie kommt.
+
+    Wer einen Titel direkt in Radarr oder Sonarr entfernt, hatte in Nexview
+    weiterhin "wird gesucht" stehen - fuer immer. Das Kontingent blieb
+    belastet, und ``find_active`` sperrte den Titel fuer **alle anderen** mit.
+    """
+    from app.models import Notification, NotificationType
+
+    anfrage = _laufende_anfrage(arr_client, RequestStatus.searching)
+    _alt_genug(anfrage.id)
+
+    async def leer(_settings, _tier="standard"):
+        return {}
+
+    monkeypatch.setattr(library, "movie_library", leer)
+
+    with SessionLocal() as session:
+        await status_poller.check_once(session, load_settings(session))
+
+    with SessionLocal() as session:
+        assert session.get(MediaRequest, anfrage.id).status == RequestStatus.cancelled
+        arten = [n.type for n in session.query(Notification).all()]
+        assert NotificationType.cancelled in arten
+
+
+@pytest.mark.asyncio
+async def test_frisch_uebergebenes_wird_geschont(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ **Die Schonfrist ist kein Luxus.**
+
+    Die Bibliothek wird kurz zwischengespeichert. Ohne Frist bricht der
+    naechste Durchgang genau die Anfrage ab, die gerade erst uebergeben wurde -
+    sie steht in der alten Antwort noch nicht drin.
+    """
+    anfrage = _laufende_anfrage(arr_client, RequestStatus.searching)
+
+    async def leer(_settings, _tier="standard"):
+        return {}
+
+    monkeypatch.setattr(library, "movie_library", leer)
+
+    with SessionLocal() as session:
+        await status_poller.check_once(session, load_settings(session))
+
+    with SessionLocal() as session:
+        assert session.get(MediaRequest, anfrage.id).status == RequestStatus.searching
+
+
+@pytest.mark.asyncio
+async def test_ohne_antwort_der_instanz_wird_nichts_abgebrochen(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ein Ausfall darf kein Grund sein, reihenweise Anfragen abzubrechen."""
+    from app.services.settings_service import save_settings
+
+    anfrage = _laufende_anfrage(arr_client, RequestStatus.searching)
+    _alt_genug(anfrage.id)
+
+    with SessionLocal() as session:
+        # Radarr gar nicht eingerichtet - dann gibt es keine Quelle, die "weg"
+        # sagen koennte.
+        save_settings(session, {"radarr_url": "", "radarr_api_key": ""})
+        await status_poller.check_once(session, load_settings(session))
+
+    with SessionLocal() as session:
+        assert session.get(MediaRequest, anfrage.id).status == RequestStatus.searching
+
+
+@pytest.mark.asyncio
+async def test_wartende_freigabe_bleibt_unangetastet(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Eine Anfrage vor der Freigabe steht naturgemaess in keiner Bibliothek."""
+    anfrage = _laufende_anfrage(arr_client, RequestStatus.pending_approval)
+    _alt_genug(anfrage.id)
+
+    async def leer(_settings, _tier="standard"):
+        return {}
+
+    monkeypatch.setattr(library, "movie_library", leer)
+
+    with SessionLocal() as session:
+        await status_poller.check_once(session, load_settings(session))
+
+    with SessionLocal() as session:
+        assert (
+            session.get(MediaRequest, anfrage.id).status
+            == RequestStatus.pending_approval
+        )

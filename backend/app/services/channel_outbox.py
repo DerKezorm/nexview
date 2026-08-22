@@ -81,6 +81,7 @@ EVENTS: dict[NotificationType, str] = {
     # einen Empfaenger kennt.
     NotificationType.storage_release_requested: "storage_release",
     NotificationType.storage_released: "storage_release",
+    NotificationType.storage_deleted: "storage_release",
 }
 
 # Die Haken, die es damit gibt - fuer die Pruefung im Router.
@@ -94,6 +95,7 @@ LINKS: dict[NotificationType, str] = {
     # Dorthin, wo die Warteschlange steht und entschieden wird.
     NotificationType.storage_release_requested: "/admin/settings",
     NotificationType.storage_released: "/profil",
+    NotificationType.storage_deleted: "/profil",
 }
 
 # Textbausteine. Ein serverseitiges Ziel hat keinen Empfaenger und damit auch
@@ -119,6 +121,7 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
             "title": "Ein Titel wurde abgegeben"
         },
         NotificationType.storage_released: {"title": "Ein Titel gehört jetzt dem Haus"},
+        NotificationType.storage_deleted: {"title": "Ein Titel wurde gelöscht"},
     },
     "en": {
         NotificationType.request_pending: {
@@ -135,8 +138,18 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.user_imported: {"title": "New media-server account"},
         NotificationType.storage_release_requested: {"title": "A title was handed back"},
         NotificationType.storage_released: {"title": "A title now belongs to the house"},
+        NotificationType.storage_deleted: {"title": "A title has been deleted"},
     },
 }
+
+
+# Das Wort vor der Staffelnummer, je Sprache des Ziels.
+#
+# ⚠️ Ohne diesen Zusatz sind fuenf freigegebene Staffeln derselben Serie fuenf
+# vollkommen identische Push-Nachrichten - gemeldet als "ohne die Info, dass
+# das nur eine Folge ist und welche". Der Anzeigename der Serie allein
+# beantwortet nicht, worum es geht.
+STAFFEL = {"de": "Staffel", "en": "Season"}
 
 
 def aktiv(target: ChannelTarget) -> bool:
@@ -216,6 +229,8 @@ def _notice(
 
     request = db.get(MediaRequest, eintrag.request_id) if eintrag.request_id else None
     titel = eintrag.title or (request.title if request else "")
+    if request is not None and request.season is not None:
+        titel = f"{titel} · {STAFFEL.get(sprache, STAFFEL['de'])} {request.season}"
 
     zeilen = [f"**{titel}**"] if titel else []
     if request is not None and "by" in bausteine:

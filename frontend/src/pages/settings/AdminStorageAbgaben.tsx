@@ -1,9 +1,16 @@
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { useState } from 'react'
+
 import { ApiError, api } from '../../api/client'
-import type { StorageAbgabe } from '../../api/types'
-import { Button, Card, ErrorBanner } from '../../components/ui'
+import type {
+  PapierkorbStand,
+  StorageAbgabe,
+  StorageLoeschvorschau,
+} from '../../api/types'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { Button, Card, ErrorBanner, Spinner } from '../../components/ui'
 import { formatDateTime, formatSize } from '../../lib/format'
 
 /**
@@ -15,9 +22,9 @@ import { formatDateTime, formatSize } from '../../lib/format'
  * unauffällig sein: Wer sie übersieht, lässt jemanden auf einer Belastung
  * sitzen, die er losgeworden zu sein glaubt.
  *
- * **In dieser Stufe gibt es nur einen Ausgang: Das Haus übernimmt.** Löschen
- * kommt später und ist der einzige Schritt ohne Rückweg – bis dahin wird hier
- * keine Datei angefasst, sondern nur umgebucht.
+ * Zwei Ausgänge: **Ins Haus** bucht nur um und lässt die Datei liegen.
+ * **Löschen** entfernt sie wirklich – der einzige Vorgang in Nexview ohne
+ * Rückweg, und deshalb hinter einer Vorschau mit der tatsächlichen Dateiliste.
  */
 export function AdminStorageAbgaben() {
   const { t, i18n } = useTranslation()
@@ -40,6 +47,9 @@ export function AdminStorageAbgaben() {
       void queryClient.invalidateQueries({ queryKey: ['storage-mine'] })
     },
   })
+
+  // Welche Zeile gerade gelöscht werden soll - höchstens eine.
+  const [loescht, setLoescht] = useState<StorageAbgabe | null>(null)
 
   if (abfrage.isLoading) return null
   const zeilen = abfrage.data ?? []
@@ -113,6 +123,15 @@ export function AdminStorageAbgaben() {
             >
               {t('storage.toHouse')}
             </Button>
+            {/* Löschen ist der einzige Schritt ohne Rückweg – deshalb Rot, und
+                deshalb erst eine Vorschau mit der tatsächlichen Dateiliste. */}
+            <Button
+              variant="ghost"
+              onClick={() => setLoescht(zeile)}
+              className="shrink-0 border-bad-500/40 px-3 py-1 text-xs text-bad-500 hover:bg-bad-500/10 hover:text-bad-500"
+            >
+              {t('storageReleases.delete')}
+            </Button>
           </li>
         ))}
       </ul>
@@ -120,6 +139,144 @@ export function AdminStorageAbgaben() {
       <p className="text-xs leading-relaxed text-mist-600">
         {t('storageReleases.hint')}
       </p>
+
+      <Loeschdialog
+        abgabe={loescht}
+        onSchliessen={() => setLoescht(null)}
+        onFertig={() => {
+          setLoescht(null)
+          void queryClient.invalidateQueries({ queryKey: ['storage-releases'] })
+          void queryClient.invalidateQueries({ queryKey: ['storage-user'] })
+          void queryClient.invalidateQueries({ queryKey: ['storage-overview'] })
+          void queryClient.invalidateQueries({ queryKey: ['storage-mine'] })
+          void queryClient.invalidateQueries({ queryKey: ['papierkorb-belegung'] })
+        }}
+      />
     </Card>
+  )
+}
+
+/**
+ * Die Rückfrage vor dem Löschen – **mit der tatsächlichen Dateiliste**.
+ *
+ * ⚠️ Der Administrator bestätigt mit ihr vor Augen und nicht mit einer Zahl:
+ * Ein Fehler trifft Dateien, die jemand behalten wollte, und eine Zahl verrät
+ * nicht, welche.
+ *
+ * Der Warnhinweis richtet sich danach, ob für **diese** Instanz ein Papierkorb
+ * eingerichtet ist. Ohne ihn ist die Datei sofort weg, und das muss dort
+ * stehen, wo entschieden wird – nicht zwei Karten weiter.
+ */
+function Loeschdialog({
+  abgabe,
+  onSchliessen,
+  onFertig,
+}: {
+  abgabe: StorageAbgabe | null
+  onSchliessen: () => void
+  onFertig: () => void
+}) {
+  const { t, i18n } = useTranslation()
+
+  const vorschau = useQuery({
+    queryKey: ['loeschvorschau', abgabe?.entry.id],
+    queryFn: () =>
+      api.get<StorageLoeschvorschau>(
+        `/api/storage/entries/${abgabe?.entry.id}/dateien`,
+      ),
+    enabled: abgabe !== null,
+  })
+
+  const papierkorb = useQuery({
+    queryKey: ['papierkorb'],
+    queryFn: () => api.get<PapierkorbStand>('/api/settings/recyclebin'),
+    enabled: abgabe !== null,
+  })
+
+  const loeschen = useMutation({
+    mutationFn: () => api.post(`/api/storage/entries/${abgabe?.entry.id}/loeschen`, {}),
+    onSuccess: onFertig,
+  })
+
+  if (abgabe === null) return null
+
+  const daten = vorschau.data
+  const netz = papierkorb.data?.instances.find(
+    (i) => i.media_type === abgabe.entry.media_type && i.tier === abgabe.entry.tier,
+  )
+
+  return (
+    <ConfirmDialog
+      open
+      title={t('storageReleases.deleteTitle')}
+      description={
+        vorschau.isLoading ? (
+          <div className="flex justify-center py-4">
+            <Spinner />
+          </div>
+        ) : /* ⚠️ Kein Ergebnis heißt **nicht** „darf nicht gelöscht werden".
+              Vorher fiel dieser Zweig auf „nur in der 4K-Instanz" zurück,
+              sobald die Abfrage aus irgendeinem Grund nichts lieferte – und
+              behauptete damit einen Grund, den niemand geprüft hatte. */
+        !daten ? (
+          <span className="text-bad-500">
+            {vorschau.error instanceof ApiError
+              ? vorschau.error.message
+              : t('errors.generic')}
+          </span>
+        ) : !daten.deletable ? (
+          <span className="text-bad-500">
+            {t(
+              daten.reason === 'series'
+                ? 'storageReleases.deleteReasonSeries'
+                : daten.reason === 'unmanaged'
+                  ? 'storageReleases.deleteReasonUnmanaged'
+                  : 'storageReleases.deleteReasonTier',
+            )}
+          </span>
+        ) : (
+          <>
+            <p className="font-medium">{abgabe.entry.title}</p>
+            <p className="mt-2">
+              {t(
+                daten.files.length > 1
+                  ? 'storageReleases.deleteFilesMany'
+                  : 'storageReleases.deleteFiles',
+              )}
+            </p>
+            <ul className="mt-1.5 flex max-h-52 flex-col overflow-y-auto">
+              {daten.files.map((datei) => (
+                <li
+                  key={datei.path}
+                  className="flex items-baseline gap-2 border-b border-ink-800 py-1 last:border-b-0"
+                >
+                  <span className="min-w-0 flex-1 font-mono text-xs break-all text-mist-400">
+                    {datei.path}
+                  </span>
+                  <span className="shrink-0 text-xs tabular-nums text-mist-500">
+                    {formatSize(datei.size_bytes, i18n.language)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )
+      }
+      warning={
+        loeschen.error
+          ? loeschen.error instanceof ApiError
+            ? loeschen.error.message
+            : t('errors.generic')
+          : daten?.deletable
+            ? netz?.path
+              ? t('storageReleases.deleteWithBin', { name: netz.name })
+              : t('storageReleases.deleteNoBin')
+            : undefined
+      }
+      confirmLabel={t('storageReleases.deleteConfirm')}
+      loading={loeschen.isPending}
+      onCancel={onSchliessen}
+      onConfirm={() => daten?.deletable && loeschen.mutate()}
+    />
   )
 }

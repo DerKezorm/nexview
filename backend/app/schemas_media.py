@@ -19,6 +19,12 @@ class SeasonInfo(BaseModel):
     # Wie viele Folgen liegen schon in der Bibliothek? Kommt aus Sonarr, nicht
     # von TMDB - ohne eingerichtetes Sonarr bleibt es bei 0.
     episodes_available: int = 0
+    # Laeuft zu dieser Staffel schon eine Anfrage - von **irgendwem**?
+    #
+    # Bewusst nicht "von mir": ``find_active`` sperrt eine laufende Anfrage
+    # fuer alle. Stuende hier nur die eigene, saehe ein zweiter Nutzer eine
+    # waehlbare Staffel, die der Server anschliessend mit 409 ablehnt.
+    requested: bool = False
 
 
 class EpisodeInfo(BaseModel):

@@ -9,6 +9,9 @@ const TONES: Record<MediaStatus, string> = {
   requested: 'bg-accent-500/20 text-accent-400 ring-accent-500/40',
   searching: 'bg-accent-500/25 text-accent-400 ring-accent-500/50',
   downloaded: 'bg-ok-500/20 text-ok-500 ring-ok-500/40',
+  // Bewusst dasselbe Grün wie „geladen": Es gibt etwas zu sehen – nur eben
+  // nicht alles. Der Unterschied steht im Text, nicht in der Farbe.
+  partial: 'bg-ok-500/20 text-ok-500 ring-ok-500/40',
   in_library: 'bg-ok-500/20 text-ok-500 ring-ok-500/40',
   rejected: 'bg-ink-900/85 text-mist-500 ring-ink-600',
   failed: 'bg-bad-500/20 text-bad-500 ring-bad-500/40',

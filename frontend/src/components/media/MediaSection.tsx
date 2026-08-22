@@ -40,6 +40,7 @@ const DEFAULT_FILTERS: Filters = {
  */
 const ALREADY_HANDLED: ReadonlySet<string> = new Set([
   'downloaded',
+  'partial',
   'in_library',
   'searching',
   'requested',

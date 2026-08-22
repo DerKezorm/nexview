@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..deps import AdminUser, CurrentUser, DbSession
-from ..models import NotificationType, Role, User
+from ..models import NotificationType, Role, StorageEntry, User
 from sqlalchemy import select
 from ..services import library, notify, storage
 from ..services.settings_service import load_settings
@@ -479,3 +479,100 @@ def abgaben(admin: AdminUser, db: DbSession) -> list[StorageAbgabe]:
         )
         for posten, person in storage.offene_abgaben(db)
     ]
+
+
+class StorageDatei(BaseModel):
+    """Eine Datei, die beim Loeschen wegfiele."""
+
+    path: str
+    size_bytes: int
+
+
+class StorageLoeschvorschau(BaseModel):
+    """Was ein Loeschen treffen wuerde - **ohne dass etwas passiert**."""
+
+    files: list[StorageDatei]
+    total_bytes: int
+    # Kann Nexview hier ueberhaupt loeschen? Und wenn nicht, warum nicht - die
+    # Oberflaeche soll den Knopf nicht anbieten, ohne den Grund zu nennen.
+    deletable: bool
+    reason: str = ""
+
+
+@router.get("/entries/{posten_id}/dateien", response_model=StorageLoeschvorschau)
+async def loeschvorschau(
+    posten_id: int, admin: AdminUser, db: DbSession
+) -> StorageLoeschvorschau:
+    """Der Probelauf: Welche Dateien fielen weg? **Es wird nichts angefasst.**
+
+    ⚠️ Der Administrator bestaetigt spaeter mit **dieser Liste** vor Augen und
+    nicht mit einer Zahl. Ein Fehler beim staffelweisen Loeschen trifft Folgen,
+    die jemand behalten wollte, und eine Zahl verraet nicht, welche.
+    """
+    _muss_eingeschaltet_sein(db)
+    posten = storage.posten_von(db, posten_id)
+    if posten is None:
+        raise HTTPException(404, "Diesen Posten gibt es nicht.")
+
+    einstellungen = load_settings(db)
+    try:
+        dateien = await storage.dateien_fuer(db, einstellungen, posten_id)
+    except storage.Loeschfehler as fehler:
+        raise HTTPException(fehler.status_code, fehler.message) from fehler
+
+    # Reihenfolge nach Endgueltigkeit: Eine gesperrte Stufe ist eine
+    # Entscheidung, ein unverwalteter Titel ein Zustand. Beides muss benannt
+    # werden - ein grauer Knopf ohne Begruendung laesst nur raten.
+    grund = ""
+    if storage.LOESCHBARE_STUFEN and posten.tier not in {
+        stufe.value for stufe in storage.LOESCHBARE_STUFEN
+    }:
+        grund = "tier"
+    elif not dateien:
+        grund = "unmanaged"
+
+    return StorageLoeschvorschau(
+        files=[StorageDatei(path=d.pfad, size_bytes=d.size_bytes) for d in dateien],
+        total_bytes=sum(d.size_bytes for d in dateien),
+        deletable=not grund,
+        reason=grund,
+    )
+
+
+@router.post("/entries/{posten_id}/loeschen", status_code=204)
+async def loeschen(posten_id: int, admin: AdminUser, db: DbSession) -> None:
+    """Den Titel entfernen - **samt Datei**.
+
+    ⚠️ **Der einzige Vorgang in Nexview ohne Rueckweg**, ausser dem Papierkorb
+    von Radarr bzw. Sonarr. Ist dort keiner eingerichtet, ist die Datei sofort
+    und endgueltig weg - deshalb steht der Papierkorb-Abschnitt gleich
+    daneben in denselben Einstellungen.
+
+    **Nur Administratoren.** Dieselbe Sicherheitsregel wie beim Zuschlagen an
+    das Haus, und hier mit haerteren Folgen.
+    """
+    _muss_eingeschaltet_sein(db)
+    posten = storage.posten_von(db, posten_id)
+    if posten is None:
+        raise HTTPException(404, "Diesen Posten gibt es nicht.")
+
+    # Den Besitzer **vorher** merken - gleich gibt es die Zeile nicht mehr.
+    zeile = db.get(StorageEntry, posten_id)
+    betroffener_id = zeile.user_id if zeile is not None else None
+
+    try:
+        await storage.loeschen(db, load_settings(db), posten_id, wer=admin.username)
+    except storage.Loeschfehler as fehler:
+        db.rollback()
+        raise HTTPException(fehler.status_code, fehler.message) from fehler
+
+    betroffener = db.get(User, betroffener_id) if betroffener_id else None
+    if betroffener is not None:
+        notify.create(
+            db,
+            user=betroffener,
+            kind=NotificationType.storage_deleted,
+            message_key="notifications.storageDeleted",
+            title=posten.title,
+        )
+    db.commit()

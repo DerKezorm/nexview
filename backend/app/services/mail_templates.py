@@ -858,3 +858,45 @@ def storage_grew_mail(
         link=link,
         profil_link=profil_link,
     )
+
+
+def storage_deleted_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An die betroffene Person: Ihr abgegebener Titel ist geloescht.
+
+    **Bewusst getrennt von ``storage_released_mail``.** Dort bleibt die Datei
+    liegen und wechselt nur den Besitzer; hier ist sie weg. Dieselbe Meldung
+    fuer beides waere die eine Verwechslung, die man bei einer Loeschung nicht
+    haben darf - jemand koennte den Titel fuer weiterhin verfuegbar halten.
+    """
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff="A title has been deleted",
+            kopf="Your quota is free again.",
+            unter=titel,
+            rumpf=(
+                "You handed this title back, and the operator has removed it - including "
+                "the file. It is no longer available. If your setup keeps a recycle bin, "
+                "it can still be brought back from there for a while."
+            ),
+            knopf="Open storage",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff="Ein Titel wurde gelöscht",
+        kopf="Dein Kontingent ist wieder frei.",
+        unter=titel,
+        rumpf=(
+            "Du hattest diesen Titel abgegeben, und der Betreiber hat ihn entfernt – samt "
+            "Datei. Er steht nicht mehr zur Verfügung. Falls ein Papierkorb eingerichtet "
+            "ist, lässt er sich von dort noch eine Weile zurückholen."
+        ),
+        knopf="Speicher öffnen",
+        link=link,
+        profil_link=profil_link,
+    )

@@ -30,6 +30,8 @@ class RequestCreate(BaseModel):
     # mitgeschickter Wert bewusst ignoriert - sonst waere die Einstellung
     # blosse Kosmetik, die sich mit einem selbstgebauten Aufruf umgehen liesse.
     root_folder_path: str | None = Field(default=None, max_length=500)
+    # Nur bei Serien von Belang. Standard aus - siehe ``MediaRequest``.
+    monitor_future: bool = False
     # Nur bei Serien: welche Staffel? Fehlt sie, ist die ganze Serie gemeint.
     # Staffel 0 sind bei TMDB die Specials - die schliessen wir nicht aus.
     season: int | None = Field(default=None, ge=0, le=200)

@@ -19,7 +19,8 @@
     "edit": "Bearbeiten",
     "seriesPlural": "Serien",
     "delete": "Löschen",
-    "close": "Schließen"
+    "close": "Schließen",
+    "done": "Fertig"
   },
   "nav": {
     "home": "Startseite",
@@ -211,7 +212,21 @@
     "addSeason": "Staffel nachfordern",
     "moreSeasonsHint": "Die Serie läuft bereits mit. Du kannst eine einzelne Staffel nachfordern - sie wird in Sonarr nur zusätzlich aktiviert.",
     "chooseSeason": "Staffel wählen und anfragen",
-    "targetLater": "Wohin der Titel kommt und in welcher Qualität, legt der Entscheider bei der Freigabe fest."
+    "targetLater": "Wohin der Titel kommt und in welcher Qualität, legt der Entscheider bei der Freigabe fest.",
+    "seasonAll": "Alle inkl. künftige",
+    "seasonNone": "Auswahl aufheben",
+    "future": "Auch künftige Staffeln",
+    "futureHint": "Neue Staffeln werden dann automatisch geladen, sobald es sie gibt. Sie zählen zum Hausbestand, nicht auf dein Kontingent – niemand kann vorher wissen, wie groß sie werden.",
+    "allSeasonsAlready": "Alle gewählten Staffeln sind bereits angefragt oder vorhanden.",
+    "seasonChoose": "Auswählen",
+    "seasonChooseFor": "Staffeln von {{title}}",
+    "seasonNonePicked": "Noch keine Staffel gewählt",
+    "seasonPicked_one": "Staffel {{list}}",
+    "seasonPicked_other": "Staffeln {{list}}",
+    "futureShort": "auch künftige",
+    "seasonRequired": "Wähle mindestens eine Staffel aus.",
+    "seasonHere": "schon da",
+    "seasonRunning": "läuft"
   },
   "home": {
     "greeting": "Willkommen zurück, {{name}}",
@@ -602,7 +617,8 @@
     "deferred": "Deine Anfrage wurde zurückgestellt",
     "requestFulfilled": "Ein zurückgestellter Titel ist jetzt da",
     "storageGrew": "Ein Titel belegt jetzt mehr Platz",
-    "storageReleaseRequested": "Jemand hat einen Titel abgegeben"
+    "storageReleaseRequested": "Jemand hat einen Titel abgegeben",
+    "storageDeleted": "Ein Titel wurde gelöscht"
   },
   "mediaserver": {
     "loginWithPlex": "Mit Plex anmelden",
@@ -664,7 +680,8 @@
     "blocked": "Gesperrt",
     "watched": "Gesehen",
     "deleted": "Wieder gelöscht",
-    "deferred": "Zurückgestellt"
+    "deferred": "Zurückgestellt",
+    "partial": "Teils geladen"
   },
   "settings": {
     "title": "Einstellungen",
@@ -1293,6 +1310,16 @@
     "count_other": "{{count}} Abgaben",
     "intro": "Diese Titel hat jemand abgegeben. Passiert ist dabei nichts: Sie liegen weiter auf der Platte und zählen weiter auf seinem Konto, bis du entscheidest.",
     "since": "abgegeben {{date}}",
-    "hint": "„Ins Haus“ bucht den Titel um – er zählt danach bei niemandem mehr, und die Datei bleibt unangetastet. Löschen gibt es hier noch nicht; das kommt später und ist der einzige Schritt ohne Rückweg."
+    "hint": "„Ins Haus“ bucht den Titel um – er zählt danach bei niemandem mehr, und die Datei bleibt unangetastet. Löschen gibt es hier noch nicht; das kommt später und ist der einzige Schritt ohne Rückweg.",
+    "delete": "Löschen",
+    "deleteTitle": "Wirklich löschen?",
+    "deleteFiles": "Diese Datei wird entfernt:",
+    "deleteFilesMany": "Diese Dateien werden entfernt:",
+    "deleteConfirm": "Endgültig löschen",
+    "deleteWithBin": "Die Datei wandert in den Papierkorb von {{name}} und lässt sich von dort noch zurückholen.",
+    "deleteNoBin": "Für diese Instanz ist kein Papierkorb eingerichtet. Die Datei ist sofort und endgültig weg.",
+    "deleteReasonTier": "Löschen ist zurzeit nur in der 4K-Instanz freigeschaltet. Auf der Standard-Instanz wird nichts entfernt.",
+    "deleteReasonSeries": "Staffelweises Löschen ist noch nicht scharf geschaltet.",
+    "deleteReasonUnmanaged": "Radarr bzw. Sonarr kennt diesen Titel nicht mehr. Nexview löscht ausschließlich über diese Dienste – abgeben geht nur an den Hausbestand."
   }
 }

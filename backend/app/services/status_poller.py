@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -49,6 +51,37 @@ def _open_requests(db: Session) -> list[MediaRequest]:
     )
 
 
+def _fertig(request: MediaRequest, eintrag: Any) -> bool:
+    """Ist **das Angefragte** geladen - die Staffel, nicht die Serie?
+
+    ⚠️ ``has_file`` sagt "irgendeine Folge der ganzen Serie liegt vor". Solange
+    nur ganze Serien angefragt werden konnten, war das dieselbe Aussage. Seit
+    es Staffelanfragen gibt, ist es das nicht mehr: Gemeldet wurde eine Serie
+    mit drei Dateien in einer einzigen Staffel, worauf **fuenf** Staffeln
+    gleichzeitig als "bereits geladen" galten - und fuenf Fertig-Meldungen in
+    derselben Sekunde hinausgingen, obwohl vier davon noch gar nicht gesucht
+    hatten.
+    """
+    if request.season is None:
+        return bool(getattr(eintrag, "has_file", False))
+    stand = (getattr(eintrag, "staffeln", None) or {}).get(request.season)
+    return stand is not None and stand.vollstaendig
+
+
+def _noch_da(request: MediaRequest, eintrag: Any) -> bool:
+    """Liegt vom Angefragten ueberhaupt noch etwas auf der Platte?
+
+    Bewusst schwaecher als :func:`_fertig`: Einer fertigen Staffel, der jemand
+    eine einzelne Folge entfernt, ist nicht "geloescht". Mit derselben
+    Schwelle in beide Richtungen spraenge sie zwischen "geladen" und "weg" hin
+    und her, und jeder Sprung erzeugte eine Meldung.
+    """
+    if request.season is None:
+        return bool(getattr(eintrag, "has_file", False))
+    stand = (getattr(eintrag, "staffeln", None) or {}).get(request.season)
+    return stand is not None and stand.dateien > 0
+
+
 async def check_once(db: Session, settings: AppSettings) -> int:
     """Einmal nachsehen. Gibt zurueck, wie viele Titel fertig geworden sind."""
     offen = _open_requests(db)
@@ -75,7 +108,15 @@ async def check_once(db: Session, settings: AppSettings) -> int:
             if settings.arr_configured("tv", stufe):
                 serien[stufe] = await library.series_library(settings, stufe)
 
+    # Welche Bibliotheken wirklich geantwortet haben. **Entscheidend fuer die
+    # Frage "weg oder nur nicht gefragt":** Eine nicht eingerichtete oder
+    # unerreichbare Instanz liefert ein leeres Ergebnis, und daraus "alles
+    # verschwunden" zu folgern hiesse, bei einem Ausfall reihenweise Anfragen
+    # abzubrechen.
+    geladen = {("movie", stufe) for stufe in filme} | {("tv", stufe) for stufe in serien}
+
     fertig = 0
+    verschwunden = 0
     for request in offen:
         stufe = request.tier.value
         if request.media_type == MediaType.movie:
@@ -90,10 +131,42 @@ async def check_once(db: Session, settings: AppSettings) -> int:
 
         request.last_checked_at = utcnow()
         if eintrag is None:
+            # ⚠️ **Der Titel ist aus Radarr/Sonarr verschwunden.**
+            #
+            # Wer ihn dort von Hand entfernt, hatte in Nexview weiterhin "wird
+            # gesucht" stehen - fuer immer. Der Anfragende wartete auf etwas,
+            # das nie kommt, sein Kontingent blieb belastet, und ``find_active``
+            # sperrte den Titel fuer **alle anderen** gleich mit.
+            #
+            # Anders als beim fertig geladenen Titel weiter unten wird der
+            # Media-Server hier **nicht** befragt: Ueber diese Anfrage wurde nie
+            # etwas geladen, es gibt also keine Datei, die "doch noch da" sein
+            # koennte.
+            if _wirklich_weg(request, settings, geladen):
+                request.status = RequestStatus.cancelled
+                request.completed_at = utcnow()
+                verschwunden += 1
+                logger.warning(
+                    "Anfrage %s %r (%s/%s) abgebrochen: in %s nicht mehr vorhanden",
+                    request.id,
+                    request.title,
+                    request.media_type.value,
+                    request.tier.value,
+                    "Radarr" if request.media_type == MediaType.movie else "Sonarr",
+                )
+                anfragender = db.get(User, request.user_id)
+                if anfragender is not None:
+                    notify.create(
+                        db,
+                        user=anfragender,
+                        kind=NotificationType.cancelled,
+                        message_key="notifications.cancelled",
+                        request=request,
+                    )
             continue
 
         # Ist der Titel inzwischen wirklich heruntergeladen?
-        if getattr(eintrag, "has_file", False):
+        if _fertig(request, eintrag):
             request.status = RequestStatus.downloaded
             request.completed_at = utcnow()
             # Belegten Platz sofort zurechnen, nicht erst beim stuendlichen
@@ -149,11 +222,22 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                     nach_titel, request.title, library.jahr_aus(request.release_date)
                 )
 
-        if eintrag is not None and getattr(eintrag, "has_file", False):
+        if eintrag is not None and _noch_da(request, eintrag):
             continue
         # Zweite Quelle: der Media-Server. Wer den Titel nur aus Radarr
         # entfernt hat, hat ihn dort weiterhin - dann bleibt "geladen" wahr.
-        if mediaserver_library.vorhandene_kennungen(
+        #
+        # ⚠️ **Nicht bei Staffelanfragen, solange die Serie in Sonarr steht.**
+        # Die Media-Server-Tabelle kennt nur Titel, keine Staffeln - ihr
+        # Treffer sagt "irgendetwas von Baywatch liegt in Plex". Damit hielt
+        # ein Serien-Treffer jede geloeschte Staffel fuer immer auf "geladen",
+        # und sie liess sich nie wieder anfragen. Steht die Serie in Sonarr
+        # und meldet dort null Dateien fuer diese Staffel, ist das die
+        # Autoritaet ueber die Platte. Nur wenn die Serie ganz aus Sonarr
+        # verschwunden ist, bleibt der Titel-Treffer das Beste, was es gibt.
+        if request.season is not None and eintrag is not None:
+            pass  # Sonarr hat gesprochen: Staffel leer.
+        elif mediaserver_library.vorhandene_kennungen(
             db, request.media_type, [request], stufe
         ):
             continue
@@ -165,7 +249,54 @@ async def check_once(db: Session, settings: AppSettings) -> int:
         logger.info("Status-Abgleich: %d Titel fertig geladen", fertig)
     if geloescht:
         logger.info("Status-Abgleich: %d geladene Titel sind verschwunden", geloescht)
+    if verschwunden:
+        logger.info(
+            "Status-Abgleich: %d wartende Anfragen abgebrochen - Titel nicht mehr "
+            "in Radarr/Sonarr",
+            verschwunden,
+        )
     return fertig
+
+
+# Wie lange eine frisch uebergebene Anfrage geschont wird, bevor ihr
+# Verschwinden als endgueltig gilt.
+#
+# ⚠️ Ohne diese Frist bricht der naechste Durchgang genau die Anfrage ab, die
+# gerade erst an Radarr uebergeben wurde: Die Bibliothek wird kurz
+# zwischengespeichert, und ein Titel, der vor dreissig Sekunden angelegt wurde,
+# steht in der alten Antwort noch nicht drin.
+SCHONFRIST_MINUTEN = 15
+
+
+def _wirklich_weg(
+    request: MediaRequest, settings: AppSettings, geladen: set[tuple[str, str]]
+) -> bool:
+    """Ist der Titel wirklich aus der Instanz verschwunden?
+
+    Drei Bedingungen, und alle drei sind noetig:
+
+    * Die Instanz **hat geantwortet**. Sonst waere jeder Ausfall ein Grund,
+      reihenweise Anfragen abzubrechen.
+    * Die Anfrage wurde bereits **uebergeben** (``approved`` oder
+      ``searching``). Eine wartende Freigabe steht naturgemaess in keiner
+      Bibliothek.
+    * Sie liegt laenger als die Schonfrist zurueck - siehe dort.
+    """
+    if (request.media_type.value, request.tier.value) not in geladen:
+        return False
+    if request.status not in (RequestStatus.approved, RequestStatus.searching):
+        return False
+    seit = request.approved_at or request.requested_at
+    if seit is None:
+        return False
+    # ⚠️ Aus der Datenbank kommen Zeiten **ohne** Zeitzone zurueck, ``utcnow``
+    # liefert eine **mit** - der direkte Vergleich wirft einen TypeError.
+    # Dasselbe ``.replace(tzinfo=None)`` steht an jeder anderen Stelle, die
+    # gespeicherte Zeiten vergleicht (``cache``, ``tokens``, ``quota``).
+    jetzt = utcnow().replace(tzinfo=None)
+    if seit.tzinfo is not None:
+        seit = seit.replace(tzinfo=None)
+    return (jetzt - seit) > timedelta(minutes=SCHONFRIST_MINUTEN)
 
 
 # Wie oft die Bibliothek des Media-Servers neu gelesen wird. Von Hand

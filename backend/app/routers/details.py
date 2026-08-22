@@ -145,13 +145,20 @@ async def title_detail(
     await _mit_status(db, settings, media_type, [detail], user)
     await _mit_status(db, settings, media_type, detail.recommendations, user)
 
-    # Bei Serien: wie viele Folgen jeder Staffel liegen schon vor?
+    # Bei Serien: wie viele Folgen jeder Staffel liegen schon vor - und zu
+    # welchen laeuft bereits eine Anfrage?
     if media_type == "tv" and detail.seasons:
         vorhanden = await library.episode_availability(
             settings, detail.tvdb_id, detail.title, jahr=library.jahr_aus(detail.release_date)
         )
+        angefragt = requests_service.angefragte_staffeln(db, detail.tmdb_id)
         for staffel in detail.seasons:
             staffel.episodes_available = len(vorhanden.get(staffel.season_number, ()))
+            # ``None`` in der Menge steht fuer eine Anfrage ueber die ganze
+            # Serie - die deckt jede Staffel ab.
+            staffel.requested = (
+                staffel.season_number in angefragt or None in angefragt
+            )
 
     return detail
 

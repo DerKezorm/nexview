@@ -32,6 +32,7 @@ const TONES: Record<MediaStatus, string> = {
   requested: "text-accent-400 ring-accent-500/40",
   searching: "text-accent-400 ring-accent-500/50",
   downloaded: "text-ok-500 ring-ok-500/40",
+  partial: "text-ok-500 ring-ok-500/40",
   in_library: "text-ok-500 ring-ok-500/40",
   rejected: "text-mist-500 ring-ink-600",
   failed: "text-bad-500 ring-bad-500/40",

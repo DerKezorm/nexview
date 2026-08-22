@@ -128,7 +128,8 @@ class SonarrAttrappe:
 
     def __init__(self) -> None:
         self.angelegt: list[dict] = []
-        self.aktivierte_staffeln: list[tuple[int, int]] = []
+        self.aktivierte_staffeln: list[tuple[int, list[int]]] = []
+        self.gesucht: list[int | None] = []
 
     async def ensure_tag(self, _label: str) -> int:
         return 1
@@ -137,8 +138,11 @@ class SonarrAttrappe:
         self.angelegt.append({"tvdb_id": tvdb_id, "season": kwargs.get("season")})
         return {"id": 4242}
 
-    async def monitor_season(self, arr_id: int, season: int, search_now: bool = True) -> None:
-        self.aktivierte_staffeln.append((arr_id, season))
+    async def monitor_seasons(
+        self, arr_id: int, seasons: set[int], such_staffel: int | None = None
+    ) -> None:
+        self.aktivierte_staffeln.append((arr_id, sorted(seasons)))
+        self.gesucht.append(such_staffel)
 
 
 async def _uebergeben(monkeypatch, serie_in_sonarr: LibraryEntry | None, season: int | None):
@@ -200,7 +204,8 @@ async def test_vorhandene_serie_bekommt_nur_die_staffel(
     attrappe = await _uebergeben(monkeypatch, serie_in_sonarr=vorhanden, season=4)
 
     assert attrappe.angelegt == []
-    assert attrappe.aktivierte_staffeln == [(77, 4)]
+    assert attrappe.aktivierte_staffeln == [(77, [4])]
+    assert attrappe.gesucht == [4]
 
 
 async def test_ganze_serie_wird_normal_angelegt(

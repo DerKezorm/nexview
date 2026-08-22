@@ -168,6 +168,13 @@ export function NotificationBell() {
                   {item.message_title && (
                     <p className="truncate text-sm font-semibold text-mist-300">
                       {item.message_title}
+                      {/* ⚠️ Ohne die Staffel sind fünf Meldungen zu einer Serie
+                          fünfmal derselbe Text – und keine sagt, worum es geht. */}
+                      {item.season !== null && item.season !== undefined && (
+                        <span className="ml-1.5 font-normal text-mist-500">
+                          {t('storage.season', { number: item.season })}
+                        </span>
+                      )}
                     </p>
                   )}
                   <p className="mt-0.5 text-xs text-mist-600">

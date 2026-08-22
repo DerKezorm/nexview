@@ -23,6 +23,9 @@ class NotificationPublic(BaseModel):
     # Uebersetzungsschluessel - die Oberflaeche entscheidet ueber die Sprache.
     message_key: str
     message_title: str | None
+    # Bei Staffelanfragen die Staffel - sonst ``None``. Die Oberflaeche haengt
+    # sie an den Titel, damit sich fuenf Meldungen zu einer Serie unterscheiden.
+    season: int | None = None
     request_id: int | None
     # Damit die Glocke direkt in den Ticketverlauf springt.
     ticket_id: int | None

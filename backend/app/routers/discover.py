@@ -120,7 +120,7 @@ async def _status_for(
             eigen = None
         if item.tmdb_id in gesperrt:
             neu["status"] = blocklist.BADGE
-        elif eigen and item.status != "downloaded":
+        elif eigen and item.status not in ("downloaded", "partial"):
             neu["status"] = eigen
         elif item.tmdb_id in im_server and item.status == "not_requested":
             neu["status"] = "in_library"

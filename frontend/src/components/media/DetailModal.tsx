@@ -68,10 +68,17 @@ export function DetailModal({
    * bei einer Serie, die schon mitläuft, will man die neue Staffel nachholen -
    * und genau dort stand vorher nur "bereits geladen" ohne jeden Knopf.
    */
+  /**
+   * ⚠️ Bewusst **ohne** Bedingung an den Zustand – und ohne „mehr als eine
+   * Staffel".
+   *
+   * Vorher ließ sich Staffel 2 nicht anfragen, solange Staffel 1 noch lief:
+   * Der Server erlaubt es (`find_active` prüft die Staffel mit), die
+   * Oberfläche machte zu. Für alle anderen war die Serie damit blockiert,
+   * sobald einer eine einzige Staffel angefragt hatte.
+   */
   const nurWeitereStaffel =
-    item?.media_type === 'tv' &&
-    seasons.length > 1 &&
-    (item.status === 'downloaded' || item.status === 'in_library')
+    item?.media_type === 'tv' && seasons.length > 0 && item.status !== 'blocked'
 
   // Siehe TitlePage: die Sperrliste bremst alle außer den Administrator.
   const istAdmin = user?.role === 'admin'
@@ -193,7 +200,6 @@ export function DetailModal({
                   <AddRequestForm
                     item={{ ...item, seasons }}
                     onDone={onClose}
-                    seasonOnly={nurWeitereStaffel}
                     fromWatchlist={fromWatchlist}
                   />
                 ) : (

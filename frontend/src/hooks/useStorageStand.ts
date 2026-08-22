@@ -34,16 +34,25 @@ export function useStorageStand(aktiv = true): SpeicherStand | null {
   const an = aktiv && Boolean(config?.storage_enabled)
   const istAdmin = user?.role === 'admin'
 
+  // ⚠️ `staleTime: 0` mit Absicht, entgegen der globalen Minute: Diese Zahl
+  // ändert sich **auf dem Server** – ein Download wird fertig, der Abgleich
+  // misst nach –, ohne dass hier irgendeine Mutation läuft, die den Cache
+  // einladen könnte. Gemeldet wurde: die Profilseite zeigte den neuen Stand,
+  // das Menü daneben noch den alten. Beim Öffnen wird deshalb immer frisch
+  // geholt; bis die Antwort da ist, steht der letzte Wert – das flackert
+  // nicht, es aktualisiert.
   const eigener = useQuery({
     queryKey: ['storage-mine'],
     queryFn: () => api.get<StorageMine>('/api/storage/me'),
     enabled: an && !istAdmin,
+    staleTime: 0,
   })
 
   const gesamt = useQuery({
     queryKey: ['storage-overview'],
     queryFn: () => api.get<StorageOverview>('/api/storage/overview'),
     enabled: an && istAdmin,
+    staleTime: 0,
   })
 
   if (!an) return null

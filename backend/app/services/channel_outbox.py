@@ -69,6 +69,18 @@ EVENTS: dict[NotificationType, str] = {
     NotificationType.feedback: "feedback",
     NotificationType.feedback_poor: "feedback",
     NotificationType.user_imported: "user_imported",
+    # --- Speicher ---------------------------------------------------------
+    #
+    # ⚠️ **Ein serverseitiges Ziel hat keinen Empfaenger.** Ein Topic ist ein
+    # Postfach, das jemand eingerichtet hat - Nexview weiss nicht, wer
+    # mitliest. Beides sind hier deshalb **Haus-Durchsagen**, keine
+    # persoenlichen Nachrichten, und die Texte sind entsprechend gehalten: Sie
+    # nennen den Titel, nicht die Person und schon gar keine Kontostaende.
+    #
+    # Die persoenliche Zustellung laeuft weiter ueber die Glocke, die sehr wohl
+    # einen Empfaenger kennt.
+    NotificationType.storage_release_requested: "storage_release",
+    NotificationType.storage_released: "storage_release",
 }
 
 # Die Haken, die es damit gibt - fuer die Pruefung im Router.
@@ -79,6 +91,9 @@ GROUPS = frozenset(EVENTS.values())
 LINKS: dict[NotificationType, str] = {
     NotificationType.ticket_new: "/tickets",
     NotificationType.user_imported: "/admin/settings",
+    # Dorthin, wo die Warteschlange steht und entschieden wird.
+    NotificationType.storage_release_requested: "/admin/settings",
+    NotificationType.storage_released: "/profil",
 }
 
 # Textbausteine. Ein serverseitiges Ziel hat keinen Empfaenger und damit auch
@@ -98,6 +113,12 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.feedback: {"title": "Neue Rückmeldung", "by": "Von"},
         NotificationType.feedback_poor: {"title": "Schlechte Bewertung", "by": "Von"},
         NotificationType.user_imported: {"title": "Neues Konto über den Media-Server"},
+        # Ohne "by": Wer etwas abgegeben hat, geht ein Topic nichts an, das die
+        # halbe Familie liest.
+        NotificationType.storage_release_requested: {
+            "title": "Ein Titel wurde abgegeben"
+        },
+        NotificationType.storage_released: {"title": "Ein Titel gehört jetzt dem Haus"},
     },
     "en": {
         NotificationType.request_pending: {
@@ -112,6 +133,8 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.feedback: {"title": "New feedback", "by": "From"},
         NotificationType.feedback_poor: {"title": "Poor rating", "by": "From"},
         NotificationType.user_imported: {"title": "New media-server account"},
+        NotificationType.storage_release_requested: {"title": "A title was handed back"},
+        NotificationType.storage_released: {"title": "A title now belongs to the house"},
     },
 }
 

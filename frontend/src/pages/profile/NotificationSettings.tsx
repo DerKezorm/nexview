@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query'
 import { ApiError, api } from '../../api/client'
 import type { User } from '../../api/types'
 import { useAuth } from '../../auth/useAuth'
+import { useConfig } from '../../hooks/useConfig'
 import { Button, Card } from '../../components/ui'
 
 type MailFeld =
@@ -15,6 +16,7 @@ type MailFeld =
   | 'mail_ticket'
   | 'mail_user_imported'
   | 'mail_mediaserver_reconnect'
+  | 'mail_storage'
 
 type Schalter = {
   feld: MailFeld
@@ -25,6 +27,8 @@ type Schalter = {
   nurAdmin?: boolean
   /** Nur für Konten mit verknüpftem Media-Server-Konto von Belang. */
   nurVerknuepft?: boolean
+  /** Nur, wenn im Haus überhaupt nach Speicherplatz gerechnet wird. */
+  nurMitSpeicher?: boolean
   /**
    * Nur für Leute ohne Freigaberecht: Wer selbst freigeben darf, wartet nie
    * auf eine Entscheidung – „freigegeben/abgelehnt" kann ihn nicht erreichen,
@@ -81,6 +85,20 @@ const SCHALTER: Schalter[] = [
     hintKey: 'profile.mailMediaserverReconnectHint',
     nurVerknuepft: true,
   },
+  {
+    // Ein Schalter für das ganze Speicher-Thema: abgegeben, entschieden,
+    // gewachsen. Was davon einen erreicht, hängt an der Rolle – der
+    // Administrator bekommt die Abgaben, alle anderen die Entscheidungen über
+    // ihre eigenen. Drei Haken wären drei Zeilen für einen Vorgang.
+    //
+    // Unsichtbar, solange nicht nach Speicherplatz gerechnet wird: Ein
+    // Schalter für eine Meldung, die es nicht geben kann, ist eine Einladung
+    // zur Verwirrung.
+    feld: 'mail_storage',
+    labelKey: 'profile.mailStorage',
+    hintKey: 'profile.mailStorageHint',
+    nurMitSpeicher: true,
+  },
 ]
 
 type Entwurf = Record<MailFeld, boolean>
@@ -94,6 +112,7 @@ function ausUser(user: User): Entwurf {
     mail_ticket: user.mail_ticket,
     mail_user_imported: user.mail_user_imported,
     mail_mediaserver_reconnect: user.mail_mediaserver_reconnect,
+    mail_storage: user.mail_storage,
   }
 }
 
@@ -108,6 +127,7 @@ function ausUser(user: User): Entwurf {
  */
 export function NotificationSettings() {
   const { t } = useTranslation()
+  const { data: config } = useConfig()
   const { user, updateUser } = useAuth()
 
   const [entwurf, setEntwurf] = useState<Entwurf | null>(null)
@@ -145,7 +165,8 @@ export function NotificationSettings() {
       (!s.nurEntscheider || user.can_approve) &&
       (!s.nurAdmin || user.role === 'admin') &&
       (!s.nieEntscheider || !user.can_approve) &&
-      (!s.nurVerknuepft || user.mediaserver_linked),
+      (!s.nurVerknuepft || user.mediaserver_linked) &&
+      (!s.nurMitSpeicher || Boolean(config?.storage_enabled)),
   )
   // Ohne bestätigte Adresse geht ohnehin nichts raus - das gehört gesagt,
   // statt die Haken wirkungslos setzen zu lassen.

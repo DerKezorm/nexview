@@ -535,3 +535,65 @@ def test_neues_konto_kommt_als_mail(
     assert _abarbeiten() == 1
     assert "DilaraUygunMrozek" in postfach.nachrichten[0]["subject"]
     assert "/admin/settings" in postfach.nachrichten[0]["text"]
+
+
+# --- Speicher: ein Schalter, drei Meldungen --------------------------------
+
+
+def test_speicher_meldungen_haengen_alle_am_selben_schalter() -> None:
+    """Drei Haken waeren drei Zeilen fuer einen Vorgang.
+
+    Wer wissen will, dass jemand abgeben moechte, will auch wissen, wie
+    entschieden wurde - und dass eine Datei von selbst gewachsen ist.
+    """
+    from app.models import NotificationType
+    from app.services import notify
+
+    for art in (
+        NotificationType.storage_release_requested,
+        NotificationType.storage_released,
+        NotificationType.storage_grew,
+    ):
+        assert notify.MAIL_SWITCH[art] == "mail_storage"
+
+
+def test_jede_speicher_meldung_hat_eine_mailvorlage() -> None:
+    """⚠️ **Ein Haken ohne Vorlage ist ein Schalter, der nichts tut.**
+
+    ``mail_outbox`` faellt bei einem unbekannten Typ still durch: Der Auftrag
+    wird abgehakt, verschickt wird nichts. Der Nutzer setzt den Haken, wartet
+    auf Post und bekommt nie welche - ohne dass irgendwo ein Fehler steht.
+    """
+    from app.models import Notification, NotificationType, User
+    from app.services import mail_outbox
+    from app.services.settings_service import load_settings
+    from app.db import SessionLocal
+
+    with SessionLocal() as db:
+        einstellungen = load_settings(db)
+
+    arten = (
+        NotificationType.storage_release_requested,
+        NotificationType.storage_released,
+        NotificationType.storage_grew,
+    )
+    # Beide Sprachen: Eine Vorlage, die nur auf Deutsch existiert, faellt bei
+    # einem englischen Konto genauso still durch wie gar keine.
+    for sprache in ("de", "en"):
+        empfaenger = User(
+            username="kim",
+            email="kim@beispiel.de",
+            password_hash="x",
+            language=sprache,
+        )
+        for art in arten:
+            eintrag = Notification(
+                user_id=1, type=art, message_key="x", message_title="Ein Klassiker"
+            )
+            nachricht = mail_outbox._nachricht(
+                eintrag, empfaenger, None, None, einstellungen
+            )
+            assert nachricht is not None, f"Keine Mailvorlage fuer {art.value} ({sprache})"
+            assert nachricht.subject
+            # Der Titel muss vorkommen - sonst weiss niemand, worum es geht.
+            assert "Ein Klassiker" in nachricht.html

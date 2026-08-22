@@ -61,6 +61,7 @@ export type User = {
   /** Neues Konto über den Media-Server – nur für Admins von Belang. */
   mail_user_imported: boolean;
   mail_mediaserver_reconnect: boolean;
+  mail_storage: boolean;
   /**
    * Liegt ein persönlicher Plex-Zugang vor? Nur diese Auskunft – nie das
    * Token selbst. Ohne ihn lässt sich die eigene Merkliste nicht lesen.
@@ -766,6 +767,17 @@ export type StorageEntry = {
   measured_at: string
   /** Nur im Hausbestand gefüllt – und nur für Administratoren. */
   path?: string
+  /** Gesetzt, solange der Posten auf eine Entscheidung wartet. */
+  released_at?: string | null
+}
+
+/** Eine wartende Abgabe, aus Sicht des Administrators. */
+export type StorageAbgabe = {
+  entry: StorageEntry
+  user_id: number | null
+  username: string | null
+  display_name: string | null
+  released_at: string | null
 }
 
 export type StorageUserPage = {

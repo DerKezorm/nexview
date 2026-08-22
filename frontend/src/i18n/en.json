@@ -481,7 +481,9 @@
     "mailTicket": "Tickets",
     "mailTicketHint": "Replies to your tickets — as an administrator also every new request.",
     "tabWatchlist": "Manage watchlist",
-    "tabStorage": "Storage quota"
+    "tabStorage": "Storage quota",
+    "mailStorage": "Storage",
+    "mailStorageHint": "When a hand-back has been decided and when a title starts taking up more space on its own. As an administrator also when someone wants to hand a title back."
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -599,7 +601,8 @@
     "storageReleased": "A title now counts as house stock",
     "deferred": "Your request has been put on hold",
     "requestFulfilled": "A title you were waiting for has arrived",
-    "storageGrew": "A title now takes up more space"
+    "storageGrew": "A title now takes up more space",
+    "storageReleaseRequested": "Someone handed a title back"
   },
   "mediaserver": {
     "loginWithPlex": "Sign in with Plex",
@@ -1178,7 +1181,9 @@
     "webhookUrlHint": "From the Discord channel: Edit → Integrations → Webhooks → copy URL. Stored encrypted.",
     "writeBotBody": "Click “Open @{{name}} in Telegram” above and press “Start” at the bottom there (or type /start). No answer comes back – that is correct. Without this step the bot may not send you anything, and the chat list stays empty.",
     "writeBotDone": "Done that",
-    "writeBotTitle": "One more step: message the bot once"
+    "writeBotTitle": "One more step: message the bot once",
+    "onStorageRelease": "Storage hand-backs",
+    "onStorageReleaseHint": "Reports when someone hands a title back and when it has been decided. Only the title is named – who handed it back stays out of the postbox."
   },
   "storage": {
     "usedLabel": "Space used",
@@ -1218,7 +1223,11 @@
     "userEmpty": "This account uses no space.",
     "toHouseYes": "Yes, to house",
     "toHouseTitle": "Move to house stock?",
-    "toHouseText": "“{{title}}” will no longer count against anyone's account. The file stays where it is – nothing is deleted."
+    "toHouseText": "“{{title}}” will no longer count against anyone's account. The file stays where it is – nothing is deleted.",
+    "giveUp": "I don't need this",
+    "keepAfterAll": "Keep after all",
+    "waiting": "waiting for a decision",
+    "pendingHint": "{{size}} are waiting for a decision. They still count until then – the space is only freed once the operator has decided."
   },
   "storageAdmin": {
     "title": "Storage quotas",
@@ -1277,5 +1286,13 @@
     "apply": "Apply",
     "contentCount_one": "1 entry",
     "contentCount_other": "{{count}} entries"
+  },
+  "storageReleases": {
+    "title": "Waiting for your decision",
+    "count_one": "1 release",
+    "count_other": "{{count}} releases",
+    "intro": "Someone handed these titles back. Nothing has happened yet: they are still on the disk and still count against their account until you decide.",
+    "since": "handed back {{date}}",
+    "hint": "“To house” reassigns the title – it then counts against nobody, and the file is left untouched. There is no delete here yet; that comes later and is the one step with no way back."
   }
 }

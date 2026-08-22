@@ -728,3 +728,133 @@ def mediaserver_reconnect_mail(
         profil_link=profil_link,
     )
 
+
+
+def storage_release_requested_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An die Administratoren: Jemand moechte einen Titel loswerden.
+
+    **Es ist nichts passiert.** Der Titel liegt weiter auf der Platte und
+    zaehlt weiter auf dem Konto des Anfragenden - bis jemand entscheidet. Genau
+    das muss die Mail sagen, sonst wirkt sie wie eine Erfolgsmeldung.
+
+    Wer abgegeben hat, steht bewusst **nicht** darin: Der Name gehoert in die
+    Warteschlange, nicht in eine Mail, die auch im Postfach eines Zweiten
+    landet. Ausserdem klaert der Klick es in zwei Sekunden.
+    """
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff="Someone wants to give a title back",
+            kopf="A decision is waiting.",
+            unter=titel,
+            rumpf=(
+                "Someone no longer needs this title and would like it off their quota. "
+                "Nothing has happened yet: the file is still on the disk and still counts "
+                "against their account until you decide. Handing it to the house stock "
+                "leaves the file untouched."
+            ),
+            knopf="Open the queue",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff="Jemand möchte einen Titel abgeben",
+        kopf="Eine Entscheidung wartet.",
+        unter=titel,
+        rumpf=(
+            "Jemand braucht diesen Titel nicht mehr und möchte ihn aus seinem Kontingent "
+            "haben. Passiert ist dabei nichts: Die Datei liegt weiter auf der Platte und "
+            "zählt weiter auf seinem Konto, bis du entscheidest. Ihn dem Hausbestand "
+            "zuzuschlagen lässt die Datei unangetastet."
+        ),
+        knopf="Warteschlange öffnen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
+def storage_released_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An die betroffene Person: Ihr Titel gehoert jetzt dem Haus.
+
+    Der Punkt ist die **Entlastung**: Das Kontingent ist wieder frei, ohne dass
+    irgendwer etwas geloescht hat. Ohne diesen Hinweis saenke die Zahl
+    kommentarlos, und niemand wuesste warum.
+    """
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff="A title now belongs to the house",
+            kopf="Your quota is free again.",
+            unter=titel,
+            rumpf=(
+                "The operator has taken this title into the house stock. It stays exactly "
+                "where it is and remains available to everyone - it simply no longer counts "
+                "against your quota. Nothing was deleted."
+            ),
+            knopf="Open storage",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff="Ein Titel gehört jetzt dem Haus",
+        kopf="Dein Kontingent ist wieder frei.",
+        unter=titel,
+        rumpf=(
+            "Der Betreiber hat diesen Titel in den Hausbestand übernommen. Er bleibt genau "
+            "dort, wo er ist, und steht weiterhin allen zur Verfügung – er zählt nur nicht "
+            "mehr auf dein Kontingent. Gelöscht wurde nichts."
+        ),
+        knopf="Speicher öffnen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
+def storage_grew_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An die betroffene Person: Eine Datei ist gewachsen.
+
+    Der belegte Platz steigt, **ohne dass jemand etwas getan hat** - Radarr
+    oder Sonarr haben ein besseres Release nachgeschoben. Ohne Hinweis faende
+    der Betroffene eine still gestiegene Zahl vor und suchte den Fehler bei
+    sich.
+    """
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff="A title now takes up more space",
+            kopf="Your storage has grown by itself.",
+            unter=titel,
+            rumpf=(
+                "Radarr or Sonarr replaced this title with a better release, and the new "
+                "file is considerably larger. Nobody requested this - it is how the quality "
+                "profile is set up. Your storage page shows the new figure."
+            ),
+            knopf="Open storage",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff="Ein Titel belegt jetzt mehr Platz",
+        kopf="Dein Speicher ist von selbst gewachsen.",
+        unter=titel,
+        rumpf=(
+            "Radarr oder Sonarr haben diesen Titel gegen ein besseres Release getauscht, und "
+            "die neue Datei ist deutlich größer. Angefragt hat das niemand – so ist das "
+            "Qualitätsprofil eingestellt. Auf deiner Speicher-Seite steht die neue Zahl."
+        ),
+        knopf="Speicher öffnen",
+        link=link,
+        profil_link=profil_link,
+    )

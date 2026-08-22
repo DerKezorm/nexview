@@ -41,6 +41,10 @@ MAIL_SWITCH: dict[NotificationType, str] = {
     NotificationType.ticket_reply: "mail_ticket",
     NotificationType.user_imported: "mail_user_imported",
     NotificationType.mediaserver_reconnect: "mail_mediaserver_reconnect",
+    # Alle drei Speicher-Meldungen an einem Schalter - siehe ``User.mail_storage``.
+    NotificationType.storage_release_requested: "mail_storage",
+    NotificationType.storage_released: "mail_storage",
+    NotificationType.storage_grew: "mail_storage",
 }
 
 

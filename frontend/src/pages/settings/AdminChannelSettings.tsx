@@ -140,6 +140,20 @@ const EREIGNISSE = [
     labelKey: 'channels.onUserImported',
     hintKey: 'channels.onUserImportedHint',
   },
+  {
+    // Abgegeben **und** entschieden unter einem Haken: Beides gehört zum
+    // selben Vorgang, und wer das eine sehen will, will auch das andere.
+    //
+    // ⚠️ Ein Postfach hat keinen Empfänger – ein Topic liest, wer es
+    // eingerichtet hat. Diese Meldungen nennen deshalb nur den Titel, nie die
+    // Person und schon gar keine Kontostände. Wer persönlich Bescheid bekommen
+    // soll, bekommt es über die Glocke.
+    key: 'storage_release',
+    gruppe: 'betrieb',
+    standard: 'normal',
+    labelKey: 'channels.onStorageRelease',
+    hintKey: 'channels.onStorageReleaseHint',
+  },
 ] as const
 
 const GRUPPEN = ['anfragen', 'betrieb'] as const

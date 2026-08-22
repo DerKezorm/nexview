@@ -135,6 +135,7 @@ class UserPublic(BaseModel):
     mail_ticket: bool
     mail_user_imported: bool
     mail_mediaserver_reconnect: bool
+    mail_storage: bool
 
     # *Ob* ein Plex-Zugang hinterlegt ist - das Token selbst verlaesst den
     # Server nie. Ohne ihn laesst sich die Merkliste nicht lesen.
@@ -278,6 +279,7 @@ class ProfileUpdate(BaseModel):
     mail_ticket: bool | None = None
     mail_user_imported: bool | None = None
     mail_mediaserver_reconnect: bool | None = None
+    mail_storage: bool | None = None
 
     # Vorbelegung der Filterleiste. Der leere String bedeutet "nichts
     # Eigenes" - anders liesse sich eine einmal gesetzte Wahl nie wieder

@@ -481,7 +481,9 @@
     "mailTicket": "Tickets",
     "mailTicketHint": "Antworten auf deine Tickets — als Administrator zusätzlich jedes neue Anliegen.",
     "tabWatchlist": "Merkliste verwalten",
-    "tabStorage": "Speicherkontingent"
+    "tabStorage": "Speicherkontingent",
+    "mailStorage": "Speicher",
+    "mailStorageHint": "Wenn über eine Abgabe entschieden wurde und wenn ein Titel von selbst mehr Platz belegt. Als Administrator zusätzlich, wenn jemand einen Titel abgeben möchte."
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -599,7 +601,8 @@
     "storageReleased": "Ein Titel zählt jetzt zum Hausbestand",
     "deferred": "Deine Anfrage wurde zurückgestellt",
     "requestFulfilled": "Ein zurückgestellter Titel ist jetzt da",
-    "storageGrew": "Ein Titel belegt jetzt mehr Platz"
+    "storageGrew": "Ein Titel belegt jetzt mehr Platz",
+    "storageReleaseRequested": "Jemand hat einen Titel abgegeben"
   },
   "mediaserver": {
     "loginWithPlex": "Mit Plex anmelden",
@@ -1178,7 +1181,9 @@
     "webhookUrlHint": "Aus dem Discord-Kanal: Bearbeiten → Integrationen → Webhooks → URL kopieren. Wird verschlüsselt gespeichert.",
     "writeBotBody": "Klick oben auf „@{{name}} in Telegram öffnen“ und drücke dort unten auf „Starten“ (oder tippe /start). Es kommt keine Antwort – das ist richtig so. Ohne diesen Schritt darf der Bot dir nichts schicken, und die Chat-Liste bleibt leer.",
     "writeBotDone": "Habe ich erledigt",
-    "writeBotTitle": "Noch ein Schritt: dem Bot einmal schreiben"
+    "writeBotTitle": "Noch ein Schritt: dem Bot einmal schreiben",
+    "onStorageRelease": "Abgaben beim Speicher",
+    "onStorageReleaseHint": "Meldet, wenn jemand einen Titel abgibt und wenn darüber entschieden wurde. Genannt wird nur der Titel – wer ihn abgegeben hat, bleibt dem Postfach verborgen."
   },
   "storage": {
     "usedLabel": "Belegter Platz",
@@ -1218,7 +1223,11 @@
     "userEmpty": "Dieses Konto belegt nichts.",
     "toHouseYes": "Ja, ins Haus",
     "toHouseTitle": "In den Hausbestand übernehmen?",
-    "toHouseText": "„{{title}}“ zählt danach auf niemandes Konto mehr. Die Datei bleibt liegen – gelöscht wird nichts."
+    "toHouseText": "„{{title}}“ zählt danach auf niemandes Konto mehr. Die Datei bleibt liegen – gelöscht wird nichts.",
+    "giveUp": "Brauche ich nicht mehr",
+    "keepAfterAll": "Doch behalten",
+    "waiting": "wartet auf Entscheidung",
+    "pendingHint": "{{size}} warten auf eine Entscheidung. Bis dahin zählen sie weiter mit – frei wird der Platz erst, wenn der Betreiber entschieden hat."
   },
   "storageAdmin": {
     "title": "Speicher-Kontingente",
@@ -1277,5 +1286,13 @@
     "apply": "Übernehmen",
     "contentCount_one": "1 Eintrag",
     "contentCount_other": "{{count}} Einträge"
+  },
+  "storageReleases": {
+    "title": "Wartet auf deine Entscheidung",
+    "count_one": "1 Abgabe",
+    "count_other": "{{count}} Abgaben",
+    "intro": "Diese Titel hat jemand abgegeben. Passiert ist dabei nichts: Sie liegen weiter auf der Platte und zählen weiter auf seinem Konto, bis du entscheidest.",
+    "since": "abgegeben {{date}}",
+    "hint": "„Ins Haus“ bucht den Titel um – er zählt danach bei niemandem mehr, und die Datei bleibt unangetastet. Löschen gibt es hier noch nicht; das kommt später und ist der einzige Schritt ohne Rückweg."
   }
 }

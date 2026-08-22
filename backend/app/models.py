@@ -147,6 +147,11 @@ class NotificationType(str, enum.Enum):
     # geht an denjenigen, dessen Kontingent dadurch frei wird. Ohne den
     # Hinweis saenke die Zahl grundlos, und niemand wuesste warum.
     storage_released = "storage_released"
+    # Jemand hat einen Titel abgegeben und wartet auf die Entscheidung.
+    # Geht **nur an Administratoren** - Entscheider duerfen hier nicht
+    # entscheiden (siehe ``routers/storage.in_den_hausbestand``), also waere
+    # eine Meldung an sie nur eine Aufforderung zu etwas, das sie nicht duerfen.
+    storage_release_requested = "storage_release_requested"
     # Eine bereits geladene Datei ist gewachsen - Radarr oder Sonarr haben ein
     # besseres Release nachgeschoben. Der belegte Platz steigt dadurch, **ohne
     # dass jemand etwas getan hat**. Ohne Hinweis faende der Betroffene eine
@@ -332,6 +337,10 @@ class User(Base):
     mail_user_imported: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Der eigene Media-Server-Zugang ist abgelaufen und braucht eine neue
     # Anmeldung - nur fuer verknuepfte Konten von Belang.
+    # Ein Schalter fuer das ganze Speicher-Thema: abgegeben, entschieden,
+    # gewachsen. Getrennte Haken waeren drei Zeilen fuer einen Vorgang - und
+    # wer das eine wissen will, will auch das andere.
+    mail_storage: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mail_mediaserver_reconnect: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
@@ -786,6 +795,12 @@ class StorageEntry(Base):
     state: Mapped[StorageState] = mapped_column(
         enum_column(StorageState), default=StorageState.house, nullable=False
     )
+    # Wann der Nutzer den Posten abgegeben hat. NULL, solange er ihn behaelt.
+    #
+    # Gebraucht fuer die Reihenfolge der Warteschlange - wer zuerst abgegeben
+    # hat, wartet am laengsten - und fuer die Anzeige "wartet seit". Eine
+    # Warteschlange ohne Alter laesst nicht erkennen, ob sie stockt.
+    released_at: Mapped[datetime | None] = mapped_column(DateTime)
     # Woher der Posten kam. NULL beim Altbestand, der nie angefragt wurde.
     request_id: Mapped[int | None] = mapped_column(
         ForeignKey("media_requests.id", ondelete="SET NULL")

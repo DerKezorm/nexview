@@ -7,6 +7,7 @@ import type { PapierkorbBelegung, StorageOverview } from "../../api/types";
 import { Button, Card, ErrorBanner, Spinner } from "../../components/ui";
 import { formatSize } from "../../lib/format";
 import { AdminPapierkorb } from "./AdminPapierkorb";
+import { AdminStorageAbgaben } from "./AdminStorageAbgaben";
 import { AdminStorageUsers } from "./AdminStorageUsers";
 
 type Einstellungen = {
@@ -227,6 +228,10 @@ export function AdminStorageSettings() {
 
       {gespeichert && (
         <div className="flex flex-col gap-5">
+          {/* Ganz oben, und das ist Absicht: Hier wartet jemand. Wer die Karte
+              uebersieht, laesst ihn auf einer Belastung sitzen, die er
+              losgeworden zu sein glaubt. */}
+          <AdminStorageAbgaben />
           <Bestand />
           {/* Die Aufschlüsselung je Konto – und der einzige Eingriff, den es
               hier gibt: einen Titel dem Haus zuschlagen. Er löscht nichts. */}

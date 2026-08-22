@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from ..deps import AdminUser, CurrentUser, DbSession
 from ..models import NotificationType, Role, User
+from sqlalchemy import select
 from ..services import library, notify, storage
 from ..services.settings_service import load_settings
 
@@ -38,6 +39,8 @@ class StoragePosten(BaseModel):
     measured_at: datetime
     # Nur im Hausbestand gefuellt - siehe dort.
     path: str = ""
+    # Gesetzt, solange der Posten auf eine Entscheidung wartet.
+    released_at: datetime | None = None
 
 
 class StorageMine(BaseModel):
@@ -391,3 +394,88 @@ async def papierkorb_belegung(admin: AdminUser, db: DbSession) -> PapierkorbBele
     return PapierkorbBelegung(
         total_bytes=gesamt, incomplete=unvollstaendig, instances=zeilen
     )
+
+
+class StorageAbgabe(BaseModel):
+    """Eine wartende Abgabe, aus Sicht des Administrators."""
+
+    entry: StoragePosten
+    user_id: int | None
+    username: str | None
+    display_name: str | None
+    # Seit wann sie wartet - ohne das laesst sich nicht erkennen, ob die
+    # Warteschlange stockt.
+    released_at: datetime | None
+
+
+@router.post("/entries/{posten_id}/abgeben", response_model=StoragePosten)
+def abgeben(posten_id: int, user: CurrentUser, db: DbSession) -> StoragePosten:
+    """"Brauche ich nicht mehr" - den eigenen Posten zur Entscheidung stellen.
+
+    ⚠️ **Es passiert dabei nichts an der Datei**, und der Posten **zaehlt
+    weiter** gegen das eigene Kontingent, bis entschieden ist. Sonst waere
+    Abgeben ein Freifahrtschein: Man gaebe alles ab, waere sofort frei, und
+    niemand muesste je entscheiden.
+
+    Die Administratoren bekommen Bescheid. **Entscheider ausdruecklich nicht** -
+    sie duerfen hier nicht entscheiden (siehe ``in_den_hausbestand``), eine
+    Meldung an sie waere also eine Aufforderung zu etwas, das sie nicht duerfen.
+    """
+    _muss_eingeschaltet_sein(db)
+    try:
+        posten = storage.abgeben(db, posten_id, user)
+    except storage.Abgabefehler as fehler:
+        raise HTTPException(fehler.status_code, fehler.message) from fehler
+
+    # ``create_for_admins`` statt einer eigenen Schleife: Es laesst stillgelegte
+    # Konten aus und meldet das Ereignis an die serverseitigen Kanaele **genau
+    # einmal** - eine Schleife mit ``broadcast=True`` schickte dieselbe
+    # Durchsage einmal je Administrator ins selbe Topic.
+    notify.create_for_admins(
+        db,
+        kind=NotificationType.storage_release_requested,
+        message_key="notifications.storageReleaseRequested",
+        title=posten.title,
+    )
+    db.commit()
+    return _als_posten(posten)
+
+
+@router.post("/entries/{posten_id}/behalten", response_model=StoragePosten)
+def zuruecknehmen(posten_id: int, user: CurrentUser, db: DbSession) -> StoragePosten:
+    """Eine Abgabe zurueckziehen - "doch nicht".
+
+    Verhindert, dass ein versehentlicher Klick bis zur naechsten Entscheidung
+    stehen bleibt. Am Kontingent aendert sich nichts: Der Posten zaehlte die
+    ganze Zeit mit.
+    """
+    _muss_eingeschaltet_sein(db)
+    try:
+        posten = storage.zuruecknehmen(db, posten_id, user)
+    except storage.Abgabefehler as fehler:
+        raise HTTPException(fehler.status_code, fehler.message) from fehler
+    db.commit()
+    return _als_posten(posten)
+
+
+@router.get("/releases", response_model=list[StorageAbgabe])
+def abgaben(admin: AdminUser, db: DbSession) -> list[StorageAbgabe]:
+    """Was wartet auf eine Entscheidung - das Aelteste zuerst.
+
+    **Admin-only, und das ist eine Sicherheitsregel.** Entscheider haben selbst
+    ein Kontingent *und* dauerhafte Auto-Freigabe. Duerften sie Abgaben
+    entscheiden, waere die Kette geschlossen: selbst anfragen, selbst
+    freigeben, selbst ans Haus - unbegrenzter Speicher, ohne dass es jemandem
+    auffiele.
+    """
+    _muss_eingeschaltet_sein(db)
+    return [
+        StorageAbgabe(
+            entry=_als_posten(posten, mit_pfad=True),
+            user_id=person.id if person else None,
+            username=person.username if person else None,
+            display_name=person.display_name if person else None,
+            released_at=posten.released_at,
+        )
+        for posten, person in storage.offene_abgaben(db)
+    ]

@@ -115,6 +115,25 @@ def _nachricht(
                 titel, sprache, link=_link(settings, "/admin/settings"), profil_link=profil
             )
 
+        case NotificationType.storage_release_requested:
+            # An die Administratoren - der Klick fuehrt zur Warteschlange.
+            return mail_templates.storage_release_requested_mail(
+                titel,
+                sprache,
+                link=_link(settings, "/admin/settings"),
+                profil_link=profil,
+            )
+
+        case NotificationType.storage_released:
+            return mail_templates.storage_released_mail(
+                titel, sprache, link=_link(settings, "/profil"), profil_link=profil
+            )
+
+        case NotificationType.storage_grew:
+            return mail_templates.storage_grew_mail(
+                titel, sprache, link=_link(settings, "/profil"), profil_link=profil
+            )
+
         case NotificationType.mediaserver_reconnect:
             # ``message_title`` traegt hier den Anbieter-Namen ("Plex") - einen
             # Titel im Wortsinn gibt es bei dieser Meldung nicht.

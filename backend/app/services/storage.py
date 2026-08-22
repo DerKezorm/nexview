@@ -109,6 +109,8 @@ class Posten:
     state: str
     measured_at: datetime
     path: str = ""
+    # Wann der Nutzer den Posten abgegeben hat. NULL, solange er ihn behaelt.
+    released_at: datetime | None = None
 
 
 def kontostand(db: Session, user_id: int) -> Kontostand:
@@ -431,6 +433,7 @@ def _als_posten(zeile: StorageEntry) -> Posten:
         state=zeile.state.value,
         measured_at=zeile.measured_at,
         path=zeile.path or "",
+        released_at=zeile.released_at,
     )
 
 
@@ -980,3 +983,100 @@ def zuruecksetzen(db: Session) -> int:
         zeile.state = StorageState.house
     db.commit()
     return len(zeilen)
+
+
+# Wieviele Abgaben ein Nutzer gleichzeitig offen haben darf.
+#
+# Ohne Deckel kann jemand alles anfragen und alles ans Haus durchreichen; der
+# Administrator ertrinkt in Entscheidungen, und das Kontingent waere eine
+# Formalitaet. Zehn sind genug, um aufzuraeumen, und wenig genug, dass eine
+# Warteschlange ueberschaubar bleibt.
+HOECHSTENS_OFFEN = 10
+
+
+class Abgabefehler(Exception):
+    """Fachlicher Fehler beim Abgeben - mit lesbarer Meldung und HTTP-Code."""
+
+    def __init__(self, message: str, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+def abgeben(db: Session, posten_id: int, user: "User") -> Posten:
+    """"Brauche ich nicht mehr" - der Nutzer gibt einen Posten ab.
+
+    ⚠️ **Es passiert dabei genau nichts an der Datei.** Der Posten wechselt auf
+    ``pending`` und wartet auf die Entscheidung eines Administrators. Bis
+    dahin **zaehlt er weiter** gegen das Kontingent - sonst waere Abgeben ein
+    Freifahrtschein: Man gaebe alles ab, waere sofort frei und niemand muesste
+    je entscheiden.
+
+    Nur der eigene Posten, und nur ein eigener: Ein fremder ist fuer den
+    Aufrufer nicht von einem nicht existierenden zu unterscheiden - deshalb
+    beide Male 404 statt 403. Wer eine fremde Nummer durchprobiert, soll daraus
+    nicht ablesen koennen, was es gibt.
+    """
+    posten = db.get(StorageEntry, posten_id)
+    if posten is None or posten.user_id != user.id:
+        raise Abgabefehler("Diesen Posten gibt es bei dir nicht.", 404)
+
+    if posten.state == StorageState.pending:
+        raise Abgabefehler(
+            f"„{posten.title}“ wartet bereits auf eine Entscheidung.", 409
+        )
+    if posten.state != StorageState.owned:
+        raise Abgabefehler("Dieser Posten gehoert bereits dem Haus.", 409)
+
+    offen = db.scalar(
+        select(func.count(StorageEntry.id)).where(
+            StorageEntry.user_id == user.id,
+            StorageEntry.state == StorageState.pending,
+        )
+    ) or 0
+    if offen >= HOECHSTENS_OFFEN:
+        raise Abgabefehler(
+            f"Du hast schon {offen} Abgaben offen. Warte, bis darueber "
+            "entschieden ist - sonst geht der Ueberblick verloren.",
+            409,
+        )
+
+    posten.state = StorageState.pending
+    posten.released_at = utcnow()
+    db.flush()
+    return _als_posten(posten)
+
+
+def zuruecknehmen(db: Session, posten_id: int, user: "User") -> Posten:
+    """Eine Abgabe zurueckziehen - "doch nicht".
+
+    Kostet nichts und verhindert, dass ein versehentlicher Klick bis zur
+    naechsten Entscheidung des Administrators stehen bleibt. Der Posten zaehlte
+    ohnehin die ganze Zeit mit; es aendert sich nur, dass er nicht mehr in der
+    Warteschlange steht.
+    """
+    posten = db.get(StorageEntry, posten_id)
+    if posten is None or posten.user_id != user.id:
+        raise Abgabefehler("Diesen Posten gibt es bei dir nicht.", 404)
+    if posten.state != StorageState.pending:
+        raise Abgabefehler("Dieser Posten steht gar nicht zur Entscheidung.", 409)
+
+    posten.state = StorageState.owned
+    posten.released_at = None
+    db.flush()
+    return _als_posten(posten)
+
+
+def offene_abgaben(db: Session) -> list[tuple[Posten, "User | None"]]:
+    """Was wartet auf die Entscheidung des Administrators?
+
+    Das Aelteste zuerst: Wer am laengsten wartet, steht oben. Eine
+    Warteschlange nach Groesse sortiert saehe geschaeftiger aus, verdeckt aber
+    genau das, worauf es hier ankommt - dass etwas liegen bleibt.
+    """
+    zeilen = db.scalars(
+        select(StorageEntry)
+        .where(StorageEntry.state == StorageState.pending)
+        .order_by(StorageEntry.released_at)
+    ).all()
+    return [(_als_posten(zeile), db.get(User, zeile.user_id)) for zeile in zeilen]

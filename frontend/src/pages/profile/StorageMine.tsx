@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { api, ApiError } from '../../api/client'
@@ -93,6 +93,16 @@ function EigenerSpeicher() {
             <p className="mt-2 text-sm text-bad-500">{t('storage.overHint')}</p>
           )
         )}
+        {/* ⚠️ Der wichtigste Satz der Seite: Abgeben macht **nicht** sofort
+            frei. Der Posten zählt weiter, bis jemand entschieden hat - sonst
+            wäre es ein Freifahrtschein, und niemand müsste je entscheiden. */}
+        {daten.pending_bytes > 0 && (
+          <p className="mt-2 text-sm text-warn-500">
+            {t('storage.pendingHint', {
+              size: formatSize(daten.pending_bytes, i18n.language),
+            })}
+          </p>
+        )}
       </Card>
 
       {/* Die Suche erst, wenn es überhaupt etwas zu suchen gibt. Bei fünf
@@ -117,7 +127,7 @@ function EigenerSpeicher() {
       ) : (
         <Card className="flex flex-col gap-3 p-4">
           <Kopf titel={t('storage.listTitle')} />
-          <Liste eintraege={daten.entries} />
+          <Liste eintraege={daten.entries} abgebbar />
           {daten.matches > daten.per_page && (
             <Pagination
               seite={seite}
@@ -263,18 +273,53 @@ function Kopf({ titel, rechts }: { titel: string; rechts?: string }) {
   )
 }
 
-function Liste({ eintraege }: { eintraege: StorageEntry[] }) {
+function Liste({
+  eintraege,
+  abgebbar = false,
+}: {
+  eintraege: StorageEntry[]
+  /** Nur in der eigenen Liste – den Hausbestand gibt niemand ab. */
+  abgebbar?: boolean
+}) {
   return (
     <ul className="flex flex-col">
       {eintraege.map((eintrag) => (
-        <PostenZeile key={eintrag.id} eintrag={eintrag} />
+        <PostenZeile key={eintrag.id} eintrag={eintrag} abgebbar={abgebbar} />
       ))}
     </ul>
   )
 }
 
-function PostenZeile({ eintrag }: { eintrag: StorageEntry }) {
+function PostenZeile({
+  eintrag,
+  abgebbar,
+}: {
+  eintrag: StorageEntry
+  abgebbar: boolean
+}) {
   const { t, i18n } = useTranslation()
+  const queryClient = useQueryClient()
+  const wartet = eintrag.state === 'pending'
+
+  /**
+   * Abgeben und Zurücknehmen – zwei Richtungen, ein Aufruf.
+   *
+   * ⚠️ **Es passiert dabei nichts an der Datei**, und der Posten zählt bis zur
+   * Entscheidung **weiter** mit. Sonst wäre Abgeben ein Freifahrtschein: Man
+   * gäbe alles ab, wäre sofort frei, und niemand müsste je entscheiden. Genau
+   * das sagt der Hinweistext darunter.
+   */
+  const wechseln = useMutation({
+    mutationFn: () =>
+      api.post(
+        `/api/storage/entries/${eintrag.id}/${wartet ? 'behalten' : 'abgeben'}`,
+        {},
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['storage-mine'] })
+      void queryClient.invalidateQueries({ queryKey: ['storage-releases'] })
+    },
+  })
 
   // Serien kommen aus Sonarr und tragen dort nur eine TVDB-Nummer. Die
   // TMDB-Nummer wird beim Abgleich nachgeschlagen, wo sie bekannt ist – wo
@@ -305,6 +350,11 @@ function PostenZeile({ eintrag }: { eintrag: StorageEntry }) {
         )}
         <p className="text-xs text-mist-600">
           {untertitel}
+          {/* „Wartet" gehört an die Zeile, nicht nur in eine Summe: Sonst sieht
+              man nicht, welcher Titel eigentlich schon weg sein sollte. */}
+          {wartet && (
+            <span className="ml-1.5 text-warn-500">{t('storage.waiting')}</span>
+          )}
           {eintrag.tier === 'uhd' && <span className="ml-1.5 text-accent-500">4K</span>}
           <span className="ml-1.5">
             ·{' '}
@@ -317,6 +367,22 @@ function PostenZeile({ eintrag }: { eintrag: StorageEntry }) {
       <span className="shrink-0 tabular-nums">
         {formatSize(eintrag.size_bytes, i18n.language)}
       </span>
+
+      {abgebbar && (
+        <button
+          type="button"
+          onClick={() => wechseln.mutate()}
+          disabled={wechseln.isPending}
+          className={
+            'shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-40 ' +
+            (wartet
+              ? 'border-warn-500/40 text-warn-500 hover:bg-warn-500/10'
+              : 'border-ink-700 text-mist-400 hover:border-accent-600 hover:text-mist-100')
+          }
+        >
+          {t(wartet ? 'storage.keepAfterAll' : 'storage.giveUp')}
+        </button>
+      )}
     </li>
   )
 }

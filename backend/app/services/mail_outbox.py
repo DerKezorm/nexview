@@ -23,7 +23,7 @@ from ..models import (
     User,
     utcnow,
 )
-from . import mail, mail_templates
+from . import channel_outbox, mail, mail_templates
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.mail")
@@ -56,6 +56,12 @@ def _nachricht(
     """Passende Vorlage zur Benachrichtigung waehlen."""
     sprache = empfaenger.language
     titel = eintrag.message_title or (request.title if request else "")
+    # Die Staffel gehoert in den Titel - wie in Glocke und Kanaelen: Fuenf
+    # Mails "Baywatch ist da" zu fuenf Staffelanfragen beantworten sonst
+    # nicht, worum es jeweils geht.
+    if request is not None and request.season is not None:
+        wort = channel_outbox.STAFFEL.get(sprache, channel_outbox.STAFFEL["de"])
+        titel = f"{titel} · {wort} {request.season}"
     profil = _link(settings, "/profil")
 
     match eintrag.type:

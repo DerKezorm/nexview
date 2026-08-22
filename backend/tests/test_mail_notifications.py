@@ -150,6 +150,34 @@ def test_eingeschaltet_wird_verschickt(
     assert "/profil" in postfach.nachrichten[0]["text"]
 
 
+def test_staffelanfrage_nennt_die_staffel(
+    admin_client: TestClient, mailserver: None, postfach: Postfach
+) -> None:
+    """Wie in Glocke und Kanaelen: Fuenf Mails "Baywatch ist da" zu fuenf
+    Staffelanfragen beantworten sonst nicht, worum es jeweils geht."""
+    create_user(admin_client, "lena")
+    kopf = auth_headers(admin_client, "lena", "passwort-1234")
+    admin_client.patch("/api/auth/me", json={"mail_download_complete": True}, headers=kopf)
+
+    with SessionLocal() as db:
+        lena = db.query(User).filter(User.username == "lena").one()
+        request = _anfrage(db, lena, "Baywatch")
+        request.media_type = MediaType.tv
+        request.season = 3
+        db.commit()
+        notify.create(
+            db,
+            user=lena,
+            kind=NotificationType.download_complete,
+            message_key="notifications.downloadComplete",
+            request=request,
+        )
+        db.commit()
+
+    assert _abarbeiten() == 1
+    assert "Baywatch · Staffel 3" in postfach.nachrichten[0]["subject"]
+
+
 def test_ein_schalter_zieht_nicht_die_anderen_mit(
     admin_client: TestClient, mailserver: None, postfach: Postfach
 ) -> None:

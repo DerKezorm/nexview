@@ -613,7 +613,9 @@
     "dissolveNothing": "The account leaves nothing behind – no titles, no open orders.",
     "dissolveSummary": "{{haus}} to the house · {{del}} deleted ({{size}}) – then the account is removed for good.",
     "dissolveDeleteWarning": "Deleted files go through Radarr/Sonarr and land in their recycle bin, if one is set up. Without one they are gone immediately.",
-    "dissolveConfirm": "Delete account for good"
+    "dissolveConfirm": "Delete account for good",
+    "toHouse": "to house",
+    "toDelete": "delete"
   },
   "notifications": {
     "title": "Notifications",

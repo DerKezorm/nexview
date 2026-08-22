@@ -119,9 +119,14 @@ def aufloesung_beantragen(db: Session, user: User) -> Ticket:
     """"Ich moechte mein Konto loeschen" - als Ticket an die Administratoren.
 
     Ein Antrag, keine Selbstbedienung: Loeschen kann nur ein Administrator,
-    und der entscheidet dabei ueber den hinterlassenen Bestand. Das Ticket
-    ueberlebt die Loeschung (der Verweis wird nur geleert) und bleibt damit
-    der Beleg, dass sie gewollt war.
+    und der entscheidet dabei ueber den hinterlassenen Bestand.
+
+    ⚠️ Das Ticket **stirbt mit dem Konto** (``Ticket.user_id`` kaskadiert -
+    live nachgeprueft, nicht angenommen). Der bleibende Beleg der Aufloesung
+    ist das Protokoll: ``kontoaufloesung`` schreibt dort jede Entscheidung
+    mit. Den Fremdschluessel zu aendern hiesse auf SQLite, die Tabelle neu zu
+    bauen - das ist es fuer einen Beleg nicht wert, den das Protokoll schon
+    fuehrt.
 
     Administratoren stellen keinen Antrag - sie loeschen direkt in der
     Benutzerverwaltung. Und ein zweiter Antrag waere nur Laerm in der

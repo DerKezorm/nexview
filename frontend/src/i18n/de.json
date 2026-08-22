@@ -613,7 +613,9 @@
     "dissolveNothing": "Das Konto hinterlässt nichts – keine Titel, keine offenen Bestellungen.",
     "dissolveSummary": "{{haus}} ins Haus · {{del}} löschen ({{size}}) – danach wird das Konto endgültig entfernt.",
     "dissolveDeleteWarning": "Gelöschte Dateien gehen über Radarr/Sonarr und landen – falls eingerichtet – in deren Papierkorb. Ohne Papierkorb sind sie sofort weg.",
-    "dissolveConfirm": "Konto endgültig löschen"
+    "dissolveConfirm": "Konto endgültig löschen",
+    "toHouse": "ins Haus",
+    "toDelete": "löschen"
   },
   "notifications": {
     "title": "Benachrichtigungen",

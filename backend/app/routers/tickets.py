@@ -195,7 +195,8 @@ def kontoaufloesung(user: CurrentUser, db: DbSession) -> TicketDetail:
 
     Landet als gewoehnliches Ticket bei den Administratoren (Entscheider
     sehen fremde Tickets ohnehin nicht). Geloescht wird spaeter von Hand in
-    der Benutzerverwaltung - samt der Entscheidung ueber den Bestand.
+    der Benutzerverwaltung - samt der Entscheidung ueber den Bestand. Das
+    Ticket selbst stirbt mit dem Konto; der bleibende Beleg ist das Protokoll.
     """
     try:
         ticket = tickets.aufloesung_beantragen(db, user)

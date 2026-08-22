@@ -136,9 +136,9 @@ def _mit_gesehen(
     noch freut.
 
     Drei bewusste Grenzen:
-    * **Nur Filme.** Die Gesehen-Daten sind Titel-genau; bei einer Staffel
-      wuerde "gesehen" zu viel behaupten (Staffel 1 gesehen heisst nicht
-      Staffel 4 gesehen).
+    * **Bei Staffeln heisst gruen "alle Folgen gesehen"** - die Staffel-Marker
+      fuehren nur Vollstaendiges, halb Gesehenes zaehlt als nicht gesehen.
+      Fuer die Frage "kann das weg?" zaehlt nur ganz oder gar nicht.
     * **Nur mit Media-Server-Verknuepfung.** Ohne sie gibt es keine Daten,
       und ein rotes Auge behauptete "nie gesehen", wo in Wahrheit niemand
       nachsehen kann. ``None`` heisst deshalb ehrlich "unbekannt" - die
@@ -150,17 +150,26 @@ def _mit_gesehen(
     if not settings.mediaserver_configured or not user.mediaserver_linked:
         return zeilen
     filme = [z.tmdb_id for z in zeilen if z.media_type == "movie" and z.tmdb_id]
-    if not filme:
+    staffeln = [
+        (z.tmdb_id, z.season)
+        for z in zeilen
+        if z.media_type == "tv" and z.tmdb_id and z.season is not None
+    ]
+    if not filme and not staffeln:
         return zeilen
     gesehen = mediaserver_watched.gesehene_kennungen(
         db, user.id, MediaType.movie, filme
     )
-    return [
-        replace(z, watched=z.tmdb_id in gesehen)
-        if z.media_type == "movie" and z.tmdb_id
-        else z
-        for z in zeilen
-    ]
+    ganze = mediaserver_watched.gesehene_staffeln(db, user.id, staffeln)
+
+    def _mit(z: storage.Posten) -> storage.Posten:
+        if z.media_type == "movie" and z.tmdb_id:
+            return replace(z, watched=z.tmdb_id in gesehen)
+        if z.media_type == "tv" and z.tmdb_id and z.season is not None:
+            return replace(z, watched=(z.tmdb_id, z.season) in ganze)
+        return z
+
+    return [_mit(z) for z in zeilen]
 
 
 @router.get("/me", response_model=StorageMine)

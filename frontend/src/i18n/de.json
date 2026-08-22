@@ -1256,7 +1256,10 @@
     "filterAll": "Alle",
     "filterSeen": "Nur Gesehene",
     "noneSeen": "Nichts davon ist als gesehen markiert",
-    "noneSeenHint": "Sobald du etwas davon im Media-Server gesehen hast, taucht es hier auf."
+    "noneSeenHint": "Sobald du etwas davon im Media-Server gesehen hast, taucht es hier auf.",
+    "seenSeason": "Alle Folgen gesehen",
+    "notSeenSeason": "Noch nicht alle Folgen gesehen",
+    "seenNoData": "Status unbekannt – zu diesem Titel liegen keine Gesehen-Daten vor"
   },
   "storageAdmin": {
     "title": "Speicher-Kontingente",

@@ -491,6 +491,9 @@ def test_eigener_speicher_ist_leer_ohne_messung(admin_client) -> None:
         # Die Seitengroesse reist mit, damit die Oberflaeche sie nicht
         # spiegeln muss - zwei Konstanten gingen beim Aendern auseinander.
         "per_page": 20,
+        # Ohne Media-Server gibt es keine Gesehen-Daten - der Filter
+        # "Nur Gesehene" wird dann gar nicht erst angeboten.
+        "watched_available": False,
         "entries": [],
     }
 

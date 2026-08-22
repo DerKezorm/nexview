@@ -1256,7 +1256,10 @@
     "filterAll": "All",
     "filterSeen": "Watched only",
     "noneSeen": "None of this is marked as watched",
-    "noneSeenHint": "As soon as you have watched something from this list, it shows up here."
+    "noneSeenHint": "As soon as you have watched something from this list, it shows up here.",
+    "seenSeason": "All episodes watched",
+    "notSeenSeason": "Not all episodes watched yet",
+    "seenNoData": "Status unknown – no watched data for this title"
   },
   "storageAdmin": {
     "title": "Storage quotas",

@@ -858,6 +858,43 @@ class UserWatched(Base):
     watched_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class UserWatchedSeason(Base):
+    """Vollstaendig gesehene **Staffeln** - je Person, laut Media-Server.
+
+    Eine eigene Tabelle neben ``user_watched``, aus einem SQLite-Grund: Die
+    dortige Eindeutigkeit ist ein echter ``UniqueConstraint``, und den kann
+    SQLite nachtraeglich weder erweitern noch ersetzen. Staffelzeilen in
+    derselben Tabelle wuerden auf jeder bestehenden Installation an ihm
+    zerschellen.
+
+    **Nur vollstaendig gesehene Staffeln stehen hier** - eine Zeile heisst
+    "alle Folgen dieser Staffel gesehen". Halbgesehenes fehlt bewusst: Fuer
+    die Frage "kann das weg?" zaehlt nur ganz oder gar nicht, und der Abgleich
+    kann eine Zeile wieder entfernen, wenn neue Folgen erscheinen und die
+    Staffel damit nicht mehr vollstaendig ist.
+    """
+
+    __tablename__ = "user_watched_seasons"
+    __table_args__ = (
+        # Als Index, nicht als Constraint - siehe die Begruendung oben.
+        Index(
+            "ix_user_watched_season",
+            "user_id",
+            "tmdb_id",
+            "season",
+            unique=True,
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    season: Mapped[int] = mapped_column(Integer, nullable=False)
+    watched_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class WatchlistLookup(Base):
     """Zwischenspeicher: welche TMDB-Nummer steckt hinter einer Plex-Kennung?
 

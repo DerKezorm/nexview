@@ -341,3 +341,30 @@ def test_ohne_verknuepfung_kein_filter_und_kein_auge(admin_client) -> None:
     daten = admin_client.get("/api/storage/me", headers=kopf).json()
     assert daten["watched_available"] is False
     assert daten["entries"][0]["watched"] is None
+
+
+def test_staffel_auge_und_filter(admin_client) -> None:
+    """Gruen heisst bei Staffeln: **alle** Folgen gesehen - und genau die
+    tauchen im Gesehen-Filter auf."""
+    from app.models import UserWatchedSeason
+
+    _mit_speicher(admin_client)
+    konto = create_user(admin_client, "kim", "passwort-1234")
+    _plex_verknuepft(admin_client, konto)
+    kopf = auth_headers(admin_client, "kim", "passwort-1234")
+    with SessionLocal() as db:
+        ganz = _staffel(db, konto["id"], tvdb=7, season=1)
+        halb = _staffel(db, konto["id"], tvdb=7, season=2)
+        # Staffel-Marker haengen an der TMDB-Kennung - nachtragen wie im Betrieb.
+        for posten_id, tmdb in ((ganz, 4386), (halb, 4386)):
+            db.get(StorageEntry, posten_id).tmdb_id = tmdb
+        db.add(UserWatchedSeason(user_id=konto["id"], tmdb_id=4386, season=1))
+        db.commit()
+
+    daten = admin_client.get("/api/storage/me", headers=kopf).json()
+    augen = {z["season"]: z["watched"] for z in daten["entries"]}
+    assert augen[1] is True
+    assert augen[2] is False
+
+    nur = admin_client.get("/api/storage/me?gesehen=true", headers=kopf).json()
+    assert [z["id"] for z in nur["entries"]] == [ganz]

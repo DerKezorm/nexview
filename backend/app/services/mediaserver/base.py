@@ -192,6 +192,20 @@ class LibraryItem:
 
 
 @dataclass(frozen=True)
+class SeasonWatchedRecord:
+    """Eine **vollstaendig** gesehene Staffel des abgefragten Kontos.
+
+    ``item_key`` verweist auf die Serie, ``season`` auf die Staffelnummer.
+    Die Liste ist als Ganzes zu lesen: Was nicht drinsteht, gilt als nicht
+    (mehr) vollstaendig gesehen - erscheinen neue Folgen, verschwindet die
+    Staffel wieder aus ihr.
+    """
+
+    item_key: str
+    season: int
+
+
+@dataclass(frozen=True)
 class WatchedRecord:
     """Ein gesehener Titel je Konto.
 
@@ -352,5 +366,20 @@ class MediaServer(ABC):
         einschliesslich allem, was sie von Hand als gesehen markiert hat.
         ``account_id`` bleibt in den Eintraegen leer: Wessen Stand das ist,
         weiss der Aufrufer bereits, denn ihm gehoert das Token.
+        """
+        raise NotImplementedError
+
+    async def watched_seasons(
+        self, provider_token: str, series_keys: list[str]
+    ) -> list[SeasonWatchedRecord]:
+        """Vollstaendig gesehene Staffeln **der genannten Serien**.
+
+        Gezielt statt flaechendeckend: Die Staffel-Zaehler kosten bei Plex
+        eine Abfrage **je Serie** - gebraucht werden sie aber nur fuer die
+        Serien, die in Speicher-Posten der Person stehen, und das sind eine
+        Handvoll. Fuer die genannten Serien ist die Antwort vollstaendig:
+        Was fehlt, gilt als nicht (mehr) komplett gesehen. Anbieter ohne
+        Staffel-Zaehler lassen die Methode auf ``NotImplementedError`` stehen -
+        dann gibt es schlicht keine Staffel-Augen, statt falscher.
         """
         raise NotImplementedError

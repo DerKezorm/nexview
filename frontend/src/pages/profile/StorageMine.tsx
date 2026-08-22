@@ -179,7 +179,12 @@ function EigenerSpeicher() {
               hinweis={t(nurGesehene ? 'storage.noneSeenHint' : 'storage.noMatchHint')}
             />
           ) : (
-            <Liste eintraege={daten.entries} abgebbar />
+            <Liste
+              eintraege={daten.entries}
+              abgebbar
+              augen
+              verknuepft={daten.watched_available}
+            />
           )}
           {daten.matches > daten.per_page && (
             <Pagination
@@ -339,15 +344,27 @@ function Kopf({
 function Liste({
   eintraege,
   abgebbar = false,
+  augen = false,
+  verknuepft = false,
 }: {
   eintraege: StorageEntry[]
   /** Nur in der eigenen Liste – den Hausbestand gibt niemand ab. */
   abgebbar?: boolean
+  /** Augen nur auf der **eigenen** Seite – im Hausbestand gibt es keine
+      Gesehen-Daten, dort wären Fragezeichen nur Rauschen. */
+  augen?: boolean
+  verknuepft?: boolean
 }) {
   return (
     <ul className="flex flex-col">
       {eintraege.map((eintrag) => (
-        <PostenZeile key={eintrag.id} eintrag={eintrag} abgebbar={abgebbar} />
+        <PostenZeile
+          key={eintrag.id}
+          eintrag={eintrag}
+          abgebbar={abgebbar}
+          augen={augen}
+          verknuepft={verknuepft}
+        />
       ))}
     </ul>
   )
@@ -356,9 +373,13 @@ function Liste({
 function PostenZeile({
   eintrag,
   abgebbar,
+  augen = false,
+  verknuepft = false,
 }: {
   eintrag: StorageEntry
   abgebbar: boolean
+  augen?: boolean
+  verknuepft?: boolean
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -413,14 +434,20 @@ function PostenZeile({
           zu viel behaupten. Ohne Media-Server-Verknüpfung gibt es keine
           Daten – dann steht hier ein Fragezeichen-Auge mit dem Grund, statt
           dass ein rotes „nie gesehen“ behauptet, wo niemand nachsehen kann. */}
-      {eintrag.media_type === 'movie' && (
+      {augen && (eintrag.media_type === 'movie' || eintrag.season !== null) && (
         <span
           title={t(
             eintrag.watched === true
-              ? 'storage.seen'
+              ? eintrag.season !== null
+                ? 'storage.seenSeason'
+                : 'storage.seen'
               : eintrag.watched === false
-                ? 'storage.notSeen'
-                : 'storage.seenUnknown',
+                ? eintrag.season !== null
+                  ? 'storage.notSeenSeason'
+                  : 'storage.notSeen'
+                : verknuepft
+                  ? 'storage.seenNoData'
+                  : 'storage.seenUnknown',
           )}
           className={
             'shrink-0 ' +

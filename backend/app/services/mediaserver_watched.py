@@ -44,6 +44,8 @@ from sqlalchemy.orm import Session
 
 from ..crypto import decrypt
 from ..models import (
+    StorageEntry,
+    UserWatchedSeason,
     MediaServerLibraryItem,
     MediaType,
     Notification,
@@ -52,7 +54,12 @@ from ..models import (
     UserWatched,
 )
 from . import mediaserver_accounts as konten, notify
-from .mediaserver import MediaServerError, WatchedRecord, get_media_server
+from .mediaserver import (
+    MediaServerError,
+    SeasonWatchedRecord,
+    WatchedRecord,
+    get_media_server,
+)
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.mediaserver")
@@ -162,6 +169,77 @@ def _neu_verbinden_hinweis(db: Session, user: User, anbieter: str) -> None:
         # Sammelkanaele.
         broadcast=False,
     )
+
+
+def _staffel_serien(
+    db: Session, benutzer_id: int, werke: dict[str | None, MediaServerLibraryItem]
+) -> dict[int, str]:
+    """Welche Serien brauchen Staffel-Augen? TMDB-Kennung -> Plex-Kennung.
+
+    Nur die Serien aus Speicher-Posten der Person - dort und nirgends sonst
+    wird das Staffel-Auge angezeigt, und jede Serie kostet eine Anfrage.
+    """
+    kennungen = set(
+        db.scalars(
+            select(StorageEntry.tmdb_id).where(
+                StorageEntry.user_id == benutzer_id,
+                StorageEntry.media_type == MediaType.tv,
+                StorageEntry.tmdb_id.is_not(None),
+            )
+        )
+    )
+    if not kennungen:
+        return {}
+    return {
+        werk.tmdb_id: werk.rating_key
+        for werk in werke.values()
+        if werk.media_type == MediaType.tv
+        and werk.tmdb_id in kennungen
+        and werk.rating_key
+    }
+
+
+def _staffeln_uebernehmen(
+    db: Session,
+    benutzer_id: int,
+    stand: list[SeasonWatchedRecord],
+    werke: dict[str | None, MediaServerLibraryItem],
+    gefragte: set[int],
+) -> int:
+    """Die vollstaendig gesehenen Staffeln uebernehmen - in beide Richtungen.
+
+    Wie bei den Titeln gilt der Stand des Servers, aber nur **innerhalb der
+    abgefragten Serien** (``gefragte``, TMDB-Kennungen): Fuer die ist die
+    Antwort vollstaendig - eine Staffel, die dort fehlt, ist nicht (mehr)
+    komplett gesehen und verliert ihren Marker. Nur so bleibt "gruen = alle
+    Folgen gesehen" eine wahre Aussage und keine historische. Serien, nach
+    denen gar nicht gefragt wurde, bleiben unangetastet.
+    """
+    ziel: set[tuple[int, int]] = set()
+    for eintrag in stand:
+        werk = werke.get(eintrag.item_key)
+        if werk is None or werk.tmdb_id is None or werk.media_type != MediaType.tv:
+            continue
+        ziel.add((werk.tmdb_id, eintrag.season))
+
+    vorhanden = {
+        (zeile.tmdb_id, zeile.season): zeile
+        for zeile in db.scalars(
+            select(UserWatchedSeason).where(UserWatchedSeason.user_id == benutzer_id)
+        )
+    }
+
+    geschrieben = 0
+    for tmdb_id, staffel in ziel - set(vorhanden):
+        db.add(
+            UserWatchedSeason(user_id=benutzer_id, tmdb_id=tmdb_id, season=staffel)
+        )
+        geschrieben += 1
+    for schluessel, zeile in vorhanden.items():
+        if schluessel not in ziel and schluessel[0] in gefragte:
+            db.delete(zeile)
+            geschrieben += 1
+    return geschrieben
 
 
 def _vollstaendig_uebernehmen(
@@ -282,6 +360,30 @@ async def refresh(db: Session, settings: AppSettings) -> int:
         geschrieben += _vollstaendig_uebernehmen(
             db, user.id, stand, werke, im_bestand, vorhanden
         )
+        # Die Staffel-Stufe haengt am selben Token - und wird **gezielt**
+        # abgefragt: Sie kostet eine Anfrage je Serie und wird nur fuer die
+        # Serien gebraucht, die in Speicher-Posten dieser Person stehen.
+        # Kann der Anbieter sie nicht liefern, gibt es schlicht keine
+        # Staffel-Augen - keine falschen.
+        gewuenscht = _staffel_serien(db, user.id, werke)
+        staffel_stand = None
+        if gewuenscht:
+            try:
+                staffel_stand = await server.watched_seasons(
+                    token, list(gewuenscht.values())
+                )
+            except NotImplementedError:
+                staffel_stand = None
+            except MediaServerError as fehler:
+                logger.warning(
+                    "Staffel-Stand von %s nicht lesbar: %s",
+                    user.username,
+                    fehler.message,
+                )
+        if staffel_stand is not None:
+            geschrieben += _staffeln_uebernehmen(
+                db, user.id, staffel_stand, werke, set(gewuenscht)
+            )
         vollstaendig.add(user.id)
 
     # Quelle 2: der Zaehler am Titel - fuer den Eigentuemer des hinterlegten
@@ -347,6 +449,27 @@ async def refresh(db: Session, settings: AppSettings) -> int:
     if geschrieben:
         logger.info("Gesehenes: %d neue Zuordnungen", geschrieben)
     return geschrieben
+
+
+def gesehene_staffeln(
+    db: Session, user_id: int, paare: list[tuple[int, int]]
+) -> set[tuple[int, int]]:
+    """Welche dieser Staffeln hat *dieser* Benutzer vollstaendig gesehen?
+
+    ``paare`` sind (TMDB-Kennung, Staffelnummer). Wie bei den Titeln gilt:
+    **immer nur die eigenen** - die Gesehen-Daten anderer sind bewusst tabu.
+    """
+    if not paare:
+        return set()
+    kennungen = {tmdb for tmdb, _ in paare}
+    zeilen = db.scalars(
+        select(UserWatchedSeason).where(
+            UserWatchedSeason.user_id == user_id,
+            UserWatchedSeason.tmdb_id.in_(kennungen),
+        )
+    )
+    gesehen = {(zeile.tmdb_id, zeile.season) for zeile in zeilen}
+    return {paar for paar in paare if paar in gesehen}
 
 
 def gesehene_kennungen(

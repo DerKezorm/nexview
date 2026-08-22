@@ -22,6 +22,7 @@ from .base import (
     MediaServerError,
     ServerCandidate,
     ServerUser,
+    SeasonWatchedRecord,
     WatchedRecord,
     WatchlistItem,
     http_client,
@@ -395,6 +396,42 @@ class PlexServer(MediaServer):
             for werk in await self._alle_werke(await self._server_token(provider_token))
             if werk.owner_watched and werk.rating_key
         ]
+
+    async def watched_seasons(
+        self, provider_token: str, series_keys: list[str]
+    ) -> list[SeasonWatchedRecord]:
+        """Vollstaendig gesehene Staffeln - **eine Abfrage je genannter Serie**.
+
+        Die Staffel-Zaehler (``viewedLeafCount``/``leafCount``) stehen
+        verlaesslich nur unter ``/library/metadata/{serie}/children`` - die
+        flache Staffel-Liste eines Abschnitts fuehrt sie je nach Plex-Fassung
+        nicht (auf dem Server hier: gar nicht). Deshalb gezielt je Serie, und
+        der Aufrufer nennt nur die Serien, um die es geht.
+
+        Vollstaendig heisst: jede Folge gesehen, gemessen am Konto des Tokens.
+        """
+        token = await self._server_token(provider_token)
+        gesehen: list[SeasonWatchedRecord] = []
+        for schluessel in series_keys:
+            try:
+                container = await self._server(
+                    f"/library/metadata/{schluessel}/children", token=token
+                )
+            except MediaServerError as fehler:
+                # Eine einzelne verschwundene Serie (404) reisst nicht den
+                # ganzen Durchlauf um - sie hat dann eben keine Staffel-Augen.
+                if fehler.status_code == 404:
+                    continue
+                raise
+            for eintrag in container.get("Metadata") or []:
+                nummer = eintrag.get("index")
+                folgen = int(eintrag.get("leafCount") or 0)
+                davon = int(eintrag.get("viewedLeafCount") or 0)
+                if isinstance(nummer, int) and folgen > 0 and davon >= folgen:
+                    gesehen.append(
+                        SeasonWatchedRecord(item_key=str(schluessel), season=nummer)
+                    )
+        return gesehen
 
     async def _server_token(self, konto_token: str) -> str:
         """Vom Konto-Token auf das Zugriffs-Token **fuer diesen Server**.

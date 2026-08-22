@@ -15,7 +15,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from ..models import (
@@ -31,6 +31,7 @@ from ..models import (
     StorageWish,
     User,
     UserWatched,
+    UserWatchedSeason,
     utcnow,
 )
 from .arr import ArrError
@@ -269,26 +270,35 @@ def posten_fuer(
     Geblaettert wie der Hausbestand, und aus demselben Grund: Wer zweihundert
     Titel hat, findet einen bestimmten sonst nicht wieder.
 
-    ``nur_gesehene`` schraenkt auf Filme ein, die der Nutzer laut Media-Server
-    schon gesehen hat - die Kandidaten fuers Abgeben. Serien fallen dabei
-    bewusst heraus: Die Gesehen-Daten sind Titel-genau, und "Staffel gesehen"
-    laesst sich daraus nicht ehrlich beantworten. Der Filter greift in der
-    Datenbank, nicht auf der Seite - sonst stimmte die Seitenzahl nicht.
+    ``nur_gesehene`` zeigt die Kandidaten fuers Abgeben: Filme, die der Nutzer
+    laut Media-Server gesehen hat, und Staffeln, deren Folgen er **alle**
+    gesehen hat - halb Gesehenes zaehlt nicht, siehe ``UserWatchedSeason``.
+    Der Filter greift in der Datenbank, nicht auf der Seite - sonst stimmte
+    die Seitenzahl nicht.
     """
     bedingungen = [
         StorageEntry.user_id == user_id,
         StorageEntry.state.in_((StorageState.owned, StorageState.pending)),
     ]
     if nur_gesehene:
-        bedingungen.append(StorageEntry.media_type == MediaType.movie)
-        bedingungen.append(
-            StorageEntry.tmdb_id.in_(
+        film_gesehen = (
+            (StorageEntry.media_type == MediaType.movie)
+            & StorageEntry.tmdb_id.in_(
                 select(UserWatched.tmdb_id).where(
                     UserWatched.user_id == user_id,
                     UserWatched.media_type == MediaType.movie,
                 )
             )
         )
+        staffel_gesehen = (
+            (StorageEntry.media_type == MediaType.tv)
+            & exists().where(
+                UserWatchedSeason.user_id == user_id,
+                UserWatchedSeason.tmdb_id == StorageEntry.tmdb_id,
+                UserWatchedSeason.season == StorageEntry.season,
+            )
+        )
+        bedingungen.append(film_gesehen | staffel_gesehen)
     return _seite(
         db,
         bedingungen,

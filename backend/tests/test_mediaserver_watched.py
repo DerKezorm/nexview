@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy import select
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -24,7 +26,12 @@ from app.models import (
 )
 from app.routers import details
 from app.services import mediaserver_watched
-from app.services.mediaserver import MediaServerError, ServerUser, WatchedRecord
+from app.services.mediaserver import (
+    MediaServerError,
+    SeasonWatchedRecord,
+    ServerUser,
+    WatchedRecord,
+)
 from app.services.settings_service import load_settings, save_settings
 
 from .conftest import ADMIN, auth_headers, create_user
@@ -45,6 +52,7 @@ class VerlaufsServer(FakeMediaServer):
         verlauf: list[WatchedRecord],
         konten: list[ServerUser] | None = None,
         stand: list[WatchedRecord] | None = None,
+        staffel_stand: list[SeasonWatchedRecord] | None = None,
         token_kaputt: bool = False,
         **rest: object,
     ) -> None:
@@ -52,6 +60,7 @@ class VerlaufsServer(FakeMediaServer):
         self.verlauf = verlauf
         self.konten = konten or []
         self.stand = stand
+        self.staffel_stand = staffel_stand
         self.token_kaputt = token_kaputt
         self.gefragte_tokens: list[str] = []
 
@@ -68,6 +77,14 @@ class VerlaufsServer(FakeMediaServer):
         if self.stand is None:
             raise NotImplementedError
         return self.stand
+
+    async def watched_seasons(
+        self, provider_token: str, series_keys: list[str]
+    ) -> list[SeasonWatchedRecord]:
+        self.gefragte_serien = series_keys
+        if self.staffel_stand is None:
+            raise NotImplementedError
+        return self.staffel_stand
 
 
 def bibliothek(*werke: tuple[str, int, MediaType], owner_watched: bool = False) -> None:
@@ -100,6 +117,28 @@ def verknuepfen(username: str, konto: str, plexname: str, token: str | None = No
             u.watchlist_token = encrypt(token)
         db.commit()
         return u.id
+
+
+def speicher_posten(user_id: int, tmdb_id: int) -> None:
+    """Ein Serien-Posten im Speicher - nur dafuer gibt es Staffel-Augen."""
+    from app.models import QualityTier, StorageEntry, StorageState
+
+    with SessionLocal() as db:
+        db.add(
+            StorageEntry(
+                key=f"tv:standard:tvdb:{tmdb_id}:s1",
+                user_id=user_id,
+                media_type=MediaType.tv,
+                tier=QualityTier.standard,
+                tmdb_id=tmdb_id,
+                tvdb_id=tmdb_id,
+                season=1,
+                title=f"Serie {tmdb_id}",
+                size_bytes=1,
+                state=StorageState.owned,
+            )
+        )
+        db.commit()
 
 
 def gesehen_eintragen(user_id: int, tmdb_id: int, art: MediaType = MediaType.movie) -> None:
@@ -524,3 +563,96 @@ def test_gesehen_ueberschreibt_den_zustand_nicht(
     # Beides steht nebeneinander, keines verdraengt das andere.
     assert passend["status"] == "in_library"
     assert passend["watched"] is True
+
+
+# --- Vollstaendig gesehene Staffeln -----------------------------------------
+
+
+async def test_vollstaendige_staffeln_werden_uebernommen(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Was der Server als komplett gesehen fuehrt, landet je Staffel hier."""
+    from app.models import UserWatchedSeason
+
+    verbinde(admin_client)
+    create_user(admin_client, "gast", email="gast@beispiel.de")
+    gast_id = verknuepfen("gast", "8386", "Gast", token="gast-token")
+    bibliothek(("777", 4386, MediaType.tv))
+    speicher_posten(gast_id, 4386)
+
+    server = VerlaufsServer(
+        [],
+        stand=[],
+        staffel_stand=[
+            SeasonWatchedRecord(item_key="777", season=1),
+            SeasonWatchedRecord(item_key="777", season=3),
+        ],
+    )
+    await abgleichen(server, monkeypatch)
+
+    with SessionLocal() as db:
+        zeilen = db.scalars(
+            select(UserWatchedSeason).where(UserWatchedSeason.user_id == gast_id)
+        ).all()
+        assert sorted((z.tmdb_id, z.season) for z in zeilen) == [(4386, 1), (4386, 3)]
+
+
+async def test_nicht_mehr_vollstaendige_staffel_verliert_den_marker(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ Erscheinen neue Folgen, ist die Staffel nicht mehr vollstaendig -
+    "gruen = alle Folgen gesehen" muss eine wahre Aussage bleiben."""
+    from app.models import UserWatchedSeason
+
+    verbinde(admin_client)
+    create_user(admin_client, "gast", email="gast@beispiel.de")
+    gast_id = verknuepfen("gast", "8386", "Gast", token="gast-token")
+    bibliothek(("777", 4386, MediaType.tv))
+    speicher_posten(gast_id, 4386)
+    with SessionLocal() as db:
+        db.add(UserWatchedSeason(user_id=gast_id, tmdb_id=4386, season=2))
+        db.commit()
+
+    # Der Server fuehrt Staffel 2 nicht (mehr) als vollstaendig.
+    server = VerlaufsServer([], stand=[], staffel_stand=[])
+    await abgleichen(server, monkeypatch)
+
+    with SessionLocal() as db:
+        assert (
+            db.scalars(
+                select(UserWatchedSeason).where(UserWatchedSeason.user_id == gast_id)
+            ).all()
+            == []
+        )
+
+
+async def test_ohne_staffel_zaehler_bleibt_alles_beim_alten(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ein Anbieter ohne Staffel-Zaehler liefert keine Staffel-Augen -
+    und wirft vor allem nichts weg, was er nicht beurteilen kann."""
+    from app.models import UserWatchedSeason
+
+    verbinde(admin_client)
+    create_user(admin_client, "gast", email="gast@beispiel.de")
+    gast_id = verknuepfen("gast", "8386", "Gast", token="gast-token")
+    bibliothek(("777", 4386, MediaType.tv))
+    speicher_posten(gast_id, 4386)
+    with SessionLocal() as db:
+        db.add(UserWatchedSeason(user_id=gast_id, tmdb_id=4386, season=2))
+        db.commit()
+
+    server = VerlaufsServer([], stand=[], staffel_stand=None)  # NotImplemented
+    await abgleichen(server, monkeypatch)
+
+    with SessionLocal() as db:
+        assert (
+            len(
+                db.scalars(
+                    select(UserWatchedSeason).where(
+                        UserWatchedSeason.user_id == gast_id
+                    )
+                ).all()
+            )
+            == 1
+        )

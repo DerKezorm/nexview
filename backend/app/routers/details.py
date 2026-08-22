@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import BaseModel
 
 from ..deps import CurrentUser, DbSession
-from ..models import MediaType, Role
+from ..models import MediaType, QualityTier, Role
 from ..schemas_media import (
     MediaDetail,
     MediaItem,
@@ -148,10 +148,21 @@ async def title_detail(
     # Bei Serien: wie viele Folgen jeder Staffel liegen schon vor - und zu
     # welchen laeuft bereits eine Anfrage?
     if media_type == "tv" and detail.seasons:
+        jahr = library.jahr_aus(detail.release_date)
         vorhanden = await library.episode_availability(
-            settings, detail.tvdb_id, detail.title, jahr=library.jahr_aus(detail.release_date)
+            settings, detail.tvdb_id, detail.title, jahr=jahr
         )
         angefragt = requests_service.angefragte_staffeln(db, detail.tmdb_id)
+        # Die zweite Achse nur, wenn es sie gibt - sonst bleiben die Felder
+        # ``None`` und heissen "unbekannt", wie bei ``status_uhd``.
+        mit_uhd = settings.arr_configured("tv", "uhd")
+        if mit_uhd:
+            vorhanden_uhd = await library.episode_availability(
+                settings, detail.tvdb_id, detail.title, tier="uhd", jahr=jahr
+            )
+            angefragt_uhd = requests_service.angefragte_staffeln(
+                db, detail.tmdb_id, QualityTier.uhd
+            )
         for staffel in detail.seasons:
             staffel.episodes_available = len(vorhanden.get(staffel.season_number, ()))
             # ``None`` in der Menge steht fuer eine Anfrage ueber die ganze
@@ -159,6 +170,13 @@ async def title_detail(
             staffel.requested = (
                 staffel.season_number in angefragt or None in angefragt
             )
+            if mit_uhd:
+                staffel.episodes_available_uhd = len(
+                    vorhanden_uhd.get(staffel.season_number, ())
+                )
+                staffel.requested_uhd = (
+                    staffel.season_number in angefragt_uhd or None in angefragt_uhd
+                )
 
     return detail
 

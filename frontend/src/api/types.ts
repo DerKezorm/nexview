@@ -242,6 +242,9 @@ export type SeasonInfo = {
   poster_url: string | null;
   /** Wie viele Folgen davon schon in der Bibliothek liegen (aus Sonarr). */
   episodes_available: number
+  /** Dasselbe für die 4K-Instanz – `null`, solange keine eingerichtet ist. */
+  episodes_available_uhd?: number | null;
+  requested_uhd?: boolean | null;
   /**
    * Läuft zu dieser Staffel schon eine Anfrage – von **irgendwem**?
    *

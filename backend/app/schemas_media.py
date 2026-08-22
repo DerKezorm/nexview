@@ -25,6 +25,13 @@ class SeasonInfo(BaseModel):
     # fuer alle. Stuende hier nur die eigene, saehe ein zweiter Nutzer eine
     # waehlbare Staffel, die der Server anschliessend mit 409 ablehnt.
     requested: bool = False
+    # Dieselben zwei Fragen fuer die **4K-Instanz** - ``None``, solange keine
+    # eingerichtet ist. Wie bei ``status_uhd`` gilt: fehlend heisst
+    # "unbekannt", nicht "belegt". Ohne die zweite Achse graute die Auswahl
+    # eine 4K-Staffel aus, sobald sie in 1080p lief - zwei Instanzen, zwei
+    # Dateien, zwei Anfragen.
+    episodes_available_uhd: int | None = None
+    requested_uhd: bool | None = None
 
 
 class EpisodeInfo(BaseModel):

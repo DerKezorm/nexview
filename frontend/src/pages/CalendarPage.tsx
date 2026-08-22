@@ -44,7 +44,7 @@ function heuteLokal(): string {
 export function CalendarPage() {
   const { t } = useTranslation()
   const { data: config } = useConfig()
-  const heute = useMemo(heuteLokal, [])
+  const heute = useMemo(() => heuteLokal(), [])
 
   const [woche, setWoche] = useState<Woche>(heutigeWoche)
   const [quelle, setQuelle] = useState<CalendarQuelle>('all')

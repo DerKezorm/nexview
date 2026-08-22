@@ -915,8 +915,10 @@ def withdraw(db: Session, user: User, request_id: int) -> None:
     db.commit()
 
 
-def angefragte_staffeln(db: Session, tmdb_id: int) -> set[int | None]:
-    """Zu welchen Staffeln dieser Serie laeuft schon eine Anfrage?
+def angefragte_staffeln(
+    db: Session, tmdb_id: int, tier: QualityTier = QualityTier.standard
+) -> set[int | None]:
+    """Zu welchen Staffeln dieser Serie laeuft schon eine Anfrage *dieser Stufe*?
 
     ``None`` in der Menge heisst: Es gibt eine Anfrage ueber die **ganze**
     Serie, und die deckt jede Staffel ab.
@@ -926,14 +928,17 @@ def angefragte_staffeln(db: Session, tmdb_id: int) -> set[int | None]:
     eigenen ausblenden, saehe ein zweiter Nutzer eine waehlbare Staffel, die
     der Server anschliessend mit 409 ablehnt - und verstuende nicht, warum.
 
-    Die Stufe bleibt aussen vor: Dieselbe Staffel in 1080p **und** 4K sind zwei
-    Anfragen, aber die Staffelauswahl gilt fuer die gerade gewaehlte Stufe, und
-    dort ist die Doppelung ohnehin gesperrt.
+    Die Stufe gehoert dazu - aus demselben Grund wie in ``find_active``:
+    Dieselbe Staffel in 1080p **und** 4K sind zwei Dateien in zwei Instanzen,
+    also zwei Anfragen. Vorher galt die Staffel hier stufenuebergreifend als
+    belegt, und die Auswahl graute eine 4K-Anfrage aus, die der Server
+    laengst erlaubt haette.
     """
     zeilen = db.scalars(
         select(MediaRequest.season).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
+            MediaRequest.tier == tier,
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
     ).all()

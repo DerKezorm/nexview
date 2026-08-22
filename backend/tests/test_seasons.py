@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest, MediaType, RequestStatus, User
+from app.models import MediaRequest, MediaType, QualityTier, RequestStatus, User
 from app.services import library, requests_service
 from app.services.settings_service import load_settings
 from app.services.sonarr import LibraryEntry
@@ -44,6 +44,27 @@ def _anfragen(client: TestClient, serie: dict, season: int | None, **extra):
 
 
 # --- Anlegen -----------------------------------------------------------------
+
+
+def test_staffelsperre_trennt_die_stufen(
+    arr_client: TestClient, nutzer: dict[str, str]
+) -> None:
+    """Eine 1080p-Anfrage darf die Staffel nicht auch in 4K ausgrauen.
+
+    Das Server-Tor (``find_active``) trennt die Stufen seit jeher; nur die
+    Anzeige warf sie in einen Topf. Zwei Instanzen, zwei Dateien, zwei
+    Anfragen - wie bei Filmen.
+    """
+    serie = _serie(arr_client)
+    assert _anfragen(arr_client, serie, 2, headers=nutzer).status_code == 201
+
+    with SessionLocal() as db:
+        standard = requests_service.angefragte_staffeln(db, serie["tmdb_id"])
+        uhd = requests_service.angefragte_staffeln(
+            db, serie["tmdb_id"], QualityTier.uhd
+        )
+    assert 2 in standard
+    assert 2 not in uhd
 
 
 def test_ganze_serie_hat_keine_staffel(arr_client: TestClient, nutzer: dict[str, str]) -> None:

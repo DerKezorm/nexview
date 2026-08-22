@@ -77,9 +77,25 @@ export function AddRequestForm({
    * darf auch nicht mitzählen, wenn entschieden wird, ob überhaupt noch etwas
    * zu holen ist.
    */
-  const belegt = (staffel: (typeof item.seasons)[number]) =>
-    Boolean(staffel.requested) ||
-    (staffel.episode_count > 0 && staffel.episodes_available >= staffel.episode_count)
+  const belegt = (staffel: (typeof item.seasons)[number]) => {
+    // Je Stufe eine eigene Antwort: Staffel 3 in 1080p anzufragen ist etwas
+    // anderes als Staffel 3 in 4K – zwei Instanzen, zwei Dateien. Vorher
+    // graute eine laufende 1080p-Anfrage die Staffel auch in 4K aus, obwohl
+    // der Server sie längst erlaubt hätte. Fehlende 4K-Felder heißen
+    // „unbekannt", nicht „belegt" – wie bei `status_uhd`.
+    if (tier === 'uhd') {
+      return (
+        Boolean(staffel.requested_uhd) ||
+        (staffel.episode_count > 0 &&
+          (staffel.episodes_available_uhd ?? 0) >= staffel.episode_count)
+      )
+    }
+    return (
+      Boolean(staffel.requested) ||
+      (staffel.episode_count > 0 &&
+        staffel.episodes_available >= staffel.episode_count)
+    )
+  }
 
   const standardOffen = item.status === 'not_requested'
   // ⚠️ Ein **fehlendes** `status_uhd` heißt „unbekannt", nicht „belegt". Nicht
@@ -157,6 +173,27 @@ export function AddRequestForm({
     setTier(neu)
     setProfileId(null)
     setFolder('')
+    // Was in der neuen Stufe vergeben ist, darf nicht angehakt bleiben -
+    // sonst geht eine Anfrage raus, die der Server mit 409 ablehnt.
+    setStaffeln((alt) => {
+      const offen = new Set(
+        item.seasons
+          .filter((s) =>
+            neu === 'uhd'
+              ? !(
+                  Boolean(s.requested_uhd) ||
+                  (s.episode_count > 0 &&
+                    (s.episodes_available_uhd ?? 0) >= s.episode_count)
+                )
+              : !(
+                  Boolean(s.requested) ||
+                  (s.episode_count > 0 && s.episodes_available >= s.episode_count)
+                ),
+          )
+          .map((s) => s.season_number),
+      )
+      return new Set([...alt].filter((nummer) => offen.has(nummer)))
+    })
   }
 
   const createMutation = useMutation({
@@ -472,9 +509,12 @@ export function AddRequestForm({
                  fehlt, wirft die Frage auf, wo sie geblieben ist. So steht
                  daneben, warum sie nicht zu haben ist – und dass sie ohnehin
                  unterwegs oder schon da ist, ist ja eine gute Nachricht. */
+              const daZaehler =
+                tier === 'uhd'
+                  ? (staffel.episodes_available_uhd ?? 0)
+                  : staffel.episodes_available
               const vorhanden =
-                staffel.episode_count > 0 &&
-                staffel.episodes_available >= staffel.episode_count
+                staffel.episode_count > 0 && daZaehler >= staffel.episode_count
               const vergeben = belegt(staffel)
               return (
                 <li key={staffel.season_number}>

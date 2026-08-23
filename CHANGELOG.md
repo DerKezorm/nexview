@@ -12,6 +12,123 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.15.0 – 23.08.2026
+
+### New
+
+- **Storage quotas: gigabytes instead of counts.** "Three films a week" sounds
+  fair until one of them is 60 GB. Quotas can now be measured in occupied
+  storage instead, and exactly one of the two currencies applies at a time -
+  the choice sits at the top of Settings → Storage quotas, with a default
+  limit for every account below it, refinable per account in user management
+  (empty = the default, 0 = unlimited). Measuring runs in both modes, so you
+  can watch for a while before you limit anything.
+
+  The hard part of any storage quota is that space is not consumed per person,
+  it is occupied jointly - so a personal GB account is always a convention.
+  Nexview makes that convention explicit: your account covers what you brought
+  into the house yourself and still claim. Everything already in the library
+  at the first measuring run belongs to the **house inventory**, so every
+  account starts at zero, and the operator can move any title there later -
+  it then counts against nobody while the file stays exactly where it is.
+
+  Every switch of the mode, in either direction, rebooks all attributed titles
+  to the house and resets every account, because attribution runs even in
+  count mode and nobody should be overdrawn on day one by a history they never
+  knew was counting. A dialog states the real numbers first. The same
+  mechanism is the emergency exit: "Reset and turn off" cleans up the whole
+  state in one click, without touching code, container or a single file.
+
+  A request is blocked only when the account is **already** overdrawn - if
+  there is anything left, it goes through, because nobody can know in advance
+  how large a file will be. The operator sees the requester's state in the
+  approval list and is warned, not blocked.
+
+  The feature carries an "In Dev" badge on purpose: it is being tried out in
+  real operation. It ships switched off; if you never enable it, nothing of
+  this appears anywhere.
+
+- **My storage, and the watched eyes.** Everyone sees their own occupied space
+  against their limit under Profile → Storage quota, and below it every title,
+  largest first - because whoever is asked to make room must first see where
+  the room went. An eye on each row answers the question behind every
+  clean-up: green means watched, red means not yet, and for seasons green
+  explicitly means *every* episode. Without a media-server link there is a
+  question-mark eye with the reason, because a red eye would claim "never
+  watched" where nobody can check. A "Watched only" filter shows the hand-back
+  candidates at a glance.
+
+- **Handing a title back, instead of being stuck with it.** "I don't need
+  this" puts a title up for a decision - and nothing happens yet: it stays on
+  disk and keeps counting until the operator has decided, otherwise handing
+  back would be a free pass. For seasons the person states their wish right
+  away: have it deleted, or keep the episodes and only stop the downloading.
+  The operator's queue carries that wish on the row and offers three outcomes:
+  to the house (file stays, account freed), delete (with the actual file list
+  in view - the only step with no way back) or stop following. Whoever handed
+  back is told what was decided.
+
+  Because deleting exists now, a recycle bin belongs to it. It can be entered
+  directly in Nexview and Radarr and Sonarr do the work; Nexview says before
+  every deletion whether the files move there or are gone immediately. And the
+  one condition without which none of this adds up: titles must stay in Radarr
+  and Sonarr. Removing a title there while keeping the file creates something
+  Nexview can measure but never delete again - a red box in the settings warns
+  about exactly that.
+
+- **Requesting single seasons.** Instead of only "the whole series", seasons
+  can be picked individually - with checkboxes, several at once, plus a
+  separate option for future seasons rather than that being silently included.
+  Anything already there or requested is greyed out with the reason rather
+  than hidden, and 4K and 1080p are kept apart: a running request in one tier
+  no longer blocks the other.
+
+- **Deleting an account is now a decision, not a side effect.** Users and
+  approvers request deletion in their profile under Security; the request
+  reaches the operator as a ticket. When the account is deleted, the operator
+  decides about the estate with the list in view: a checkbox per title for
+  "to the house" or delete, "mark all" for the common case, keep-or-delete per
+  started season including whether to keep downloading, and open orders
+  without a single file are cancelled. Nothing keeps downloading ownerless
+  afterwards.
+
+- **"Everything that's new" after an update.** Administrators get a strip at
+  the top of the app once a new version is installed, and a window behind it
+  that says in words what the update brought - each feature with the path to
+  where it lives, the small stuff kept small at the bottom. "Got it, don't
+  show again" stores the version rather than a flag, so the next update brings
+  the hint back by itself. Users never see it: they did not install anything.
+
+### Fixed
+
+- **A season counts as downloaded only when all of its episodes are there.**
+  Sonarr's "has file" is a statement about the whole series, which was the
+  same thing while only whole series could be requested. With season requests
+  it meant that three files in one season marked five seasons as finished at
+  once - and sent five completion notices in the same second.
+
+- **Notifications about seasons name the season** - in the bell, in the
+  channels and by mail. Five identical "Baywatch" messages answered nothing.
+
+- **Season monitoring repairs itself.** Sonarr's `addOptions.monitor: "none"`
+  acts asynchronously and swept away the very season Nexview had just switched
+  on, which left a request searching forever. Every poll now checks and
+  rebuilds the monitoring from Nexview's own requests.
+
+- **A 4K file in the regular Radarr is no longer mistaken for a separate 4K
+  copy.** The media server measures the resolution of a file, not which
+  instance manages it.
+
+- **A title that vanished from Radarr or Sonarr no longer stays on
+  "searching" forever** - the request is cancelled after a grace period, and
+  the title becomes requestable again.
+
+- **Free disk space no longer counts the same volume twice.**
+
+- **Windows in the app have exactly one visible way out** instead of two.
+
+---
+
 ## 0.14.0 – 21.08.2026
 
 ### New

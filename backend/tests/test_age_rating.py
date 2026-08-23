@@ -119,6 +119,32 @@ def test_strengster_eintrag_innerhalb_eines_landes_zaehlt() -> None:
     assert age_rating.mindestalter(daten, "movie", "DE") == 16
 
 
+def test_strengster_eintrag_auch_bei_serien() -> None:
+    """Auch ``content_ratings`` kann ein Land mehrfach nennen.
+
+    Gemessen an echten TMDB-Daten: Gravity Falls steht unter DE zweimal drin,
+    erst "12", dann "6". Eine einfache Zuweisung nahm den letzten - aus FSK 12
+    wurde FSK 6, und ein Sechsjaehriger bekam die Serie zu sehen. Der Filter
+    selbst war in Ordnung; nur diese Zusammenfassung nicht.
+
+    Bewusst mit der **strengeren zuerst**: In der umgekehrten Reihenfolge waere
+    der Fehler nie aufgefallen.
+    """
+    daten = {
+        "content_ratings": {
+            "results": [
+                {"iso_3166_1": "DE", "rating": "12"},
+                {"iso_3166_1": "DE", "rating": "6"},
+            ]
+        }
+    }
+    assert age_rating.alle_stufen(daten, "tv")["DE"] == 12
+    assert age_rating.mindestalter(daten, "tv", "DE") == 12
+    # Und damit bleibt die Serie fuer ein sechsjaehriges Kind gesperrt.
+    assert age_rating.erlaubt(daten, "tv", 6, "DE") is False
+    assert age_rating.erlaubt(daten, "tv", 12, "DE") is True
+
+
 # --- Die Sperre selbst -------------------------------------------------------
 
 

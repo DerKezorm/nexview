@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Neuigkeiten } from '../api/types'
 import { useAuth } from '../auth/useAuth'
-import { WasNeuFenster } from './WasNeuFenster'
+import { hatEintrag, WasNeuFenster } from './WasNeuFenster'
 
 /**
  * „Alles, was neu ist" – der Hinweis nach einem Update.
@@ -44,6 +44,17 @@ export function WasNeuBanner() {
   })
 
   if (user?.role !== 'admin' || !stand.data?.offen) return null
+
+  /* Kein redaktioneller Text zu dieser Fassung, kein Balken.
+     Fehlerbehebungen bekommen keinen eigenen Eintrag - sie sammeln sich für
+     die „Außerdem behoben"-Liste des nächsten größeren Releases. Ohne diese
+     Regel poppte nach jedem Hotfix ein Hinweis auf, hinter dem nichts steht,
+     und das Fenster zeigte die Neuerungen der Fassung davor. Vom Nutzer so
+     festgelegt.
+     Nicht quittiert zu werden ist dabei genau richtig: `changelog_gesehen`
+     bleibt auf der letzten Fassung mit Text stehen, also erscheint der Balken
+     beim nächsten Release mit Inhalt von selbst wieder. */
+  if (!hatEintrag(t, stand.data.version)) return null
 
   return (
     <>

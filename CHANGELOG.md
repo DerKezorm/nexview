@@ -12,6 +12,22 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.16.1 – 23.08.2026
+
+### Fixed
+
+- **An age-restricted account could see series rated above its age.** TMDB may
+  list the same country more than once in a series' content ratings - Gravity
+  Falls appears under DE twice, first "12", then "6". The summary per country
+  took the last entry instead of the strictest one, so FSK 12 turned into
+  FSK 6 and a six-year-old was shown the series. The movie branch a few lines
+  above already did this correctly.
+
+  The filter itself was never at fault: The Simpsons (one DE entry, FSK 12) was
+  refused correctly all along. Only the summary was wrong, and only for series.
+  This affects every age restriction, not just the child accounts added in
+  0.16.0 - the setting has existed since 0.3.0.
+
 ## 0.16.0 – 23.08.2026
 
 ### New

@@ -144,8 +144,19 @@ def alle_stufen(detail: dict[str, Any], media_type: str) -> dict[str, int]:
     for eintrag in detail.get("content_ratings", {}).get("results", []):
         land = eintrag.get("iso_3166_1") or ""
         alter = stufe(land, eintrag.get("rating") or "")
-        if alter is not None:
-            gefunden[land] = alter
+        if alter is None:
+            continue
+        # ⚠️ **Auch bei Serien die strengste Einstufung je Land**, genau wie
+        # bei Filmen eine Handvoll Zeilen weiter oben.
+        #
+        # Man erwartet bei ``content_ratings`` einen Eintrag je Land - TMDB
+        # liefert aber durchaus mehrere. Gravity Falls steht unter DE zweimal
+        # drin, erst "12", dann "6". Eine einfache Zuweisung nimmt den
+        # letzten: Aus FSK 12 wurde FSK 6, und ein Sechsjaehriger bekam die
+        # Serie zu sehen. Am Filter lag es nicht - die Simpsons (ein einziger
+        # DE-Eintrag, FSK 12) wurden korrekt gesperrt -, sondern allein an
+        # dieser Zusammenfassung.
+        gefunden[land] = max(gefunden.get(land, alter), alter)
     return gefunden
 
 

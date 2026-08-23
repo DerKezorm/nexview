@@ -1,7 +1,12 @@
 """Wer belegt wie viel Platz - Erfassung und Kontostand.
 
-Stufe 1 von dreien: **nur messen und anzeigen.** Hier wird nichts begrenzt,
-nichts blockiert und nichts geloescht. Das kommt erst in Stufe 2 und 3.
+⚠️ **Dieser Kopf stand einmal auf "Stufe 1 von dreien: nur messen und
+anzeigen".** Das galt genau eine Version lang. Inzwischen begrenzt dieses
+Modul (``stand_fuer`` speist das Tor in ``requests_service.create_request``,
+das eine Anfrage im Minus mit 429 abweist), es nimmt Titel zurueck
+(``abgeben``/``ins_haus``/``entfolgen``) und es **loescht** ueber
+``loeschen`` - der einzige Weg in Nexview, auf dem Dateien wirklich
+verschwinden. Wer hier etwas aendert, aendert also nichts Harmloses.
 
 Die Rechnung ist eine bewusste Fiktion: Speicherplatz wird nicht *pro Person*
 verbraucht, sondern gemeinsam belegt. Damit sie ehrlich bleibt, gilt eine

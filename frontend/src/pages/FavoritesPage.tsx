@@ -76,6 +76,7 @@ function useEntfernen(pfad: string) {
       void queryClient.invalidateQueries({ queryKey: [schluessel] })
       // Die kuratierte Liste auf der Startseite hängt direkt daran.
       void queryClient.invalidateQueries({ queryKey: ['home-curated'] })
+      void queryClient.invalidateQueries({ queryKey: ['regale'] })
     },
   })
 }

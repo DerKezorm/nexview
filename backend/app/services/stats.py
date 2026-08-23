@@ -14,8 +14,9 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import MediaRequest, MediaType, RequestStatus, User
-from . import quota
+from ..models import MediaRequest, MediaType, RequestStatus, Role, User
+from . import quota, storage
+from .settings_service import load_settings
 
 # Ab dieser Bewertung (und darunter) gilt eine Rueckmeldung als Beschwerde.
 POOR_RATING = 2
@@ -48,6 +49,15 @@ class UserStats:
     ratings: int = 0
     rating_sum: int = 0
     poor_ratings: int = 0
+    # Der Speicherstand. Nur im GB-Betrieb gefuellt, sonst ``None``.
+    #
+    # ⚠️ **Anzahl oder Speicher, nie beides** - dieselbe Regel wie ueberall
+    # sonst. Die Statistik zeigte bisher immer die Stueck-Kontingente, auch
+    # wenn das Haus laengst auf GB umgestellt hatte: Darueber stand der
+    # belegte Platz in Gigabyte, darunter "unbegrenzt" Stueck. Zwei
+    # Waehrungen nebeneinander, von denen nur eine gilt.
+    storage_used_bytes: int | None = None
+    storage_limit_bytes: int | None = None
     quota_movie_used: int = 0
     quota_movie_limit: int | None = None
     quota_series_used: int = 0
@@ -105,7 +115,18 @@ def _letzte_monate(anzahl: int) -> list[str]:
 
 def collect(db: Session) -> dict:
     """Alle Zahlen der Statistik-Seite."""
-    benutzer = {user.id: user for user in db.scalars(select(User))}
+    # ⚠️ Kinderkonten gehoeren nicht in die Nutzer-Aufstellung.
+    #
+    # Sie haben **kein eigenes Kontingent**: Gibt ein Elternteil einen
+    # Kinderwunsch frei, laeuft die Anfrage ueber
+    # ``requests_service.create_request`` auf **seinen** Namen - sein
+    # Kontingent, sein Speicher, sein Freigabeweg. Ein Kind kann hier also gar
+    # nichts angesammelt haben und stuende mit 0 GB in der Liste, waehrend es
+    # gleichzeitig die prozentuale Aufteilung im Ring verwaessert.
+    benutzer = {
+        user.id: user
+        for user in db.scalars(select(User).where(User.role != Role.child))
+    }
 
     pro_benutzer: dict[int, UserStats] = {
         user.id: UserStats(
@@ -209,6 +230,21 @@ def collect(db: Session) -> dict:
         eintrag.quota_movie_limit = stand["movie"].limit
         eintrag.quota_series_used = stand["tv"].used
         eintrag.quota_series_limit = stand["tv"].limit
+
+    # Im GB-Betrieb zusaetzlich der Speicherstand. Die Stueck-Zahlen bleiben
+    # berechnet - sie kosten nichts und die Oberflaeche entscheidet, welche
+    # Waehrung sie zeigt.
+    einstellungen = load_settings(db)
+    if einstellungen.storage_enabled:
+        belegt = {
+            user_id: stand.used_bytes
+            for user_id, stand in storage.verteilung(db)
+            if user_id is not None
+        }
+        for eintrag in pro_benutzer.values():
+            person = benutzer[eintrag.user_id]
+            eintrag.storage_used_bytes = belegt.get(eintrag.user_id, 0)
+            eintrag.storage_limit_bytes = storage.grenze_in_bytes(person, einstellungen)
 
     monate = _letzte_monate(HISTORY_MONTHS)
     return {

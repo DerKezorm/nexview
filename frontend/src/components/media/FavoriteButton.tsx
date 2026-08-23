@@ -76,6 +76,8 @@ export function FavoriteButton({
       void queryClient.invalidateQueries({ queryKey: ['favorites'] })
       // Die kuratierte Liste hängt direkt daran.
       void queryClient.invalidateQueries({ queryKey: ['home-curated'] })
+      // Die Stöber-Übersicht führt je Herz eine eigene Reihe.
+      void queryClient.invalidateQueries({ queryKey: ['regale'] })
     },
   })
 
@@ -159,6 +161,8 @@ export function FavoritePersonButton({
       void queryClient.invalidateQueries({ queryKey: ['person-favorites'] })
       // Die kuratierte Liste bezieht auch gemerkte Personen ein.
       void queryClient.invalidateQueries({ queryKey: ['home-curated'] })
+      // Die Stöber-Übersicht führt je Herz eine eigene Reihe.
+      void queryClient.invalidateQueries({ queryKey: ['regale'] })
     },
   })
 

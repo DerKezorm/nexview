@@ -12,7 +12,11 @@ from typing import Any
 
 import httpx
 
-from .filters import MIN_VOTES_FOR_RATING, DiscoverFilters
+from .filters import (
+    MIN_VOTES_FOR_RATING,
+    MIN_VOTES_FOR_RATING_SORT,
+    DiscoverFilters,
+)
 
 BASE_URL = "https://api.themoviedb.org/3"
 # Feste Bild-Basis. TMDB liefert sie zwar unter /configuration, sie ist aber
@@ -143,9 +147,13 @@ class TmdbClient:
             f"{date_field}.lte": filters.date_to,
             "with_original_language": filters.language,
             "with_genres": filters.genres_or or filters.genre_id,
+            "without_genres": filters.without_genres or None,
+            "with_people": filters.people_ids or None,
             "with_runtime.gte": filters.min_runtime,
+            "with_runtime.lte": filters.max_runtime,
             "vote_average.gte": filters.min_rating,
             "vote_count.gte": self._min_votes(filters, sort_by),
+            "vote_count.lte": filters.max_votes,
         }
 
         if is_movie:
@@ -160,7 +168,9 @@ class TmdbClient:
             # Mehrere Firmen ODER-verknuepft schlagen die einzelne Auswahl.
             params["with_companies"] = filters.company_ids or filters.studio_id
         else:
-            params["watch_region"] = filters.region
+            # Kein "watch_region" hier: Ohne "with_watch_providers" daneben
+            # ignoriert TMDB den Parameter vollstaendig. Er stand jahrelang
+            # wirkungslos in jeder Serien-Abfrage.
             params["with_networks"] = filters.network_ids or None
             params["with_type"] = filters.series_types or None
 
@@ -177,9 +187,10 @@ class TmdbClient:
             filters.min_votes,
             MIN_VOTES_FOR_RATING if filters.min_rating is not None else None,
             1 if filters.hide_unrated else None,
-            # Beim Sortieren nach Bewertung stuenden sonst 10/10 aus einer
-            # einzigen Stimme ganz oben.
-            5 if sort_by.startswith("vote_average") else None,
+            # Beim Sortieren nach Bewertung stuenden sonst Titel mit einer
+            # Handvoll begeisterter Stimmen ganz oben. Siehe die Begruendung
+            # an MIN_VOTES_FOR_RATING_SORT - 5 waren viel zu wenig.
+            MIN_VOTES_FOR_RATING_SORT if sort_by.startswith("vote_average") else None,
         ]
         gesetzt = [wert for wert in kandidaten if wert is not None]
         return max(gesetzt) if gesetzt else None

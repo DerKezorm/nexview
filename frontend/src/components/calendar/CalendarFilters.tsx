@@ -1,132 +1,81 @@
 import { useTranslation } from 'react-i18next'
 
-export type CalendarQuelle = 'all' | 'mine'
+import { Umschalter } from '../Umschalter'
+
 export type CalendarDatumsart = 'digital' | 'kino'
-export type CalendarSchaerfe = 'studios' | 'known' | 'none'
+export type CalendarSchaerfe = 'sinnvoll' | 'none'
+/** Filme, Folgen oder beides - die Frage, die man an eine Woche wirklich hat. */
+export type CalendarArt = 'beides' | 'movie' | 'tv'
+
+const ARTEN: readonly CalendarArt[] = ['beides', 'movie', 'tv'] as const
+const DATUMSARTEN: readonly CalendarDatumsart[] = ['digital', 'kino'] as const
+const SCHAERFEN: readonly CalendarSchaerfe[] = ['sinnvoll', 'none'] as const
 
 type Props = {
-  quelle: CalendarQuelle
+  art: CalendarArt
   datumsart: CalendarDatumsart
   schaerfe: CalendarSchaerfe
-  onQuelle: (wert: CalendarQuelle) => void
+  onArt: (wert: CalendarArt) => void
   onDatumsart: (wert: CalendarDatumsart) => void
   onSchaerfe: (wert: CalendarSchaerfe) => void
 }
 
 /**
- * Eine Pille - der Filterknopf, den die Anfragen-Seiten schon benutzen.
+ * Die drei Fragen über der Wochenansicht.
  *
- * Bewusst kein Auswahlfeld: Jede dieser Fragen hat zwei oder drei Antworten,
- * und die stehen alle nebeneinander lesbar da, statt sich hinter einem Klick
- * zu verstecken.
+ * Die Beschriftungen sind **Fragen**, keine Substantive. Vorher stand dort
+ * „AUSWAHL / TERMIN / UMFANG" — drei abstrakte Wörter, aus denen niemand
+ * ableiten kann, was der Regler tut.
+ *
+ * ⚠️ Der erste Regler hieß einmal „Alles / Bereits angefragt". Das war die
+ * falsche Achse: Die eigenen Titel stehen ohnehin in jedem Tag oben in einer
+ * eigenen Gruppe, der Schalter blendete also nur aus, was darunter kam. Die
+ * Frage, die man an eine Woche wirklich hat, ist **Filme oder Folgen** — das
+ * sind zwei verschiedene Anlässe („was läuft weiter?" gegen „was ist neu?").
  */
-function Pille({
-  aktiv,
-  onClick,
-  disabled,
-  title,
-  children,
-}: {
-  aktiv: boolean
-  onClick: () => void
-  disabled?: boolean
-  title?: string
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-pressed={aktiv}
-      className={
-        'rounded-full border px-3.5 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ' +
-        (aktiv
-          ? 'border-accent-500 bg-accent-500/15 text-accent-400'
-          : 'border-ink-700 text-mist-400 hover:border-ink-600 hover:text-mist-200')
-      }
-    >
-      {children}
-    </button>
-  )
-}
-
-function Gruppe({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-medium tracking-wide text-mist-600 uppercase">
-        {label}
-      </span>
-      <div className="flex flex-wrap gap-2">{children}</div>
-    </div>
-  )
-}
-
 export function CalendarFilters({
-  quelle,
+  art,
   datumsart,
   schaerfe,
-  onQuelle,
+  onArt,
   onDatumsart,
   onSchaerfe,
 }: Props) {
   const { t } = useTranslation()
-  // Der Rauschfilter wirkt nur auf die Neuerscheinungen. Wer nur den eigenen
-  // Bestand sehen will, hat nichts zu filtern - dann bleibt er sichtbar, aber
-  // stillgelegt, statt ohne Erklärung zu verschwinden.
-  const rauschenAus = quelle === 'mine'
+  // Serien laufen nicht im Kino - unter dieser Auswahl gibt es keine Folgen.
+  const nurFilme = datumsart === 'kino'
 
   return (
-    <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-      <Gruppe label={t('calendar.filterSource')}>
-        <Pille aktiv={quelle === 'all'} onClick={() => onQuelle('all')}>
-          {t('calendar.sourceAll')}
-        </Pille>
-        <Pille
-          aktiv={quelle === 'mine'}
-          onClick={() => onQuelle('mine')}
-          title={t('calendar.sourceMineHint')}
-        >
-          {t('calendar.sourceOnlyMine')}
-        </Pille>
-      </Gruppe>
+    // Nebeneinander, nicht untereinander: Drei Zeilen für drei kurze Fragen
+    // kosten senkrecht Platz, den die Wochenansicht braucht.
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <Umschalter
+        wert={nurFilme ? 'movie' : art}
+        wahl={ARTEN}
+        onChange={onArt}
+        beschriftung={t('calendar.filterKind')}
+        deaktiviert={nurFilme}
+        titel={nurFilme ? t('calendar.kindCinemaHint') : undefined}
+        label={(wert) => t(`calendar.kind_${wert}`)}
+      />
 
-      <Gruppe label={t('calendar.filterDateType')}>
-        <Pille aktiv={datumsart === 'digital'} onClick={() => onDatumsart('digital')}>
-          {t('calendar.dateDigital')}
-        </Pille>
-        <Pille aktiv={datumsart === 'kino'} onClick={() => onDatumsart('kino')}>
-          {t('calendar.dateCinema')}
-        </Pille>
-      </Gruppe>
+      <Umschalter
+        wert={datumsart}
+        wahl={DATUMSARTEN}
+        onChange={onDatumsart}
+        beschriftung={t('calendar.filterDateType')}
+        label={(wert) => t(wert === 'digital' ? 'calendar.dateDigital' : 'calendar.dateCinema')}
+      />
 
-      <Gruppe label={t('calendar.filterNoise')}>
-        <Pille
-          aktiv={schaerfe === 'studios'}
-          disabled={rauschenAus}
-          title={rauschenAus ? t('calendar.noiseOnlyNew') : undefined}
-          onClick={() => onSchaerfe('studios')}
-        >
-          {t('calendar.noiseStudios')}
-        </Pille>
-        <Pille
-          aktiv={schaerfe === 'known'}
-          disabled={rauschenAus}
-          title={rauschenAus ? t('calendar.noiseOnlyNew') : undefined}
-          onClick={() => onSchaerfe('known')}
-        >
-          {t('calendar.noiseKnown')}
-        </Pille>
-        <Pille
-          aktiv={schaerfe === 'none'}
-          disabled={rauschenAus}
-          title={rauschenAus ? t('calendar.noiseOnlyNew') : undefined}
-          onClick={() => onSchaerfe('none')}
-        >
-          {t('calendar.noiseAll')}
-        </Pille>
-      </Gruppe>
+      <Umschalter
+        wert={schaerfe}
+        wahl={SCHAERFEN}
+        onChange={onSchaerfe}
+        beschriftung={t('calendar.filterNoise')}
+        label={(wert) =>
+          t(wert === 'sinnvoll' ? 'calendar.noiseSensible' : 'calendar.noiseAll')
+        }
+      />
     </div>
   )
 }

@@ -8,6 +8,7 @@ from app.db import SessionLocal
 from app.models import MediaRequest, RequestStatus
 
 from .conftest import auth_headers, create_user
+from sqlalchemy import select
 
 
 def _anfrage(client: TestClient, headers: dict, index: int = 0) -> int:
@@ -120,6 +121,76 @@ def test_kontingent_steht_in_der_statistik(arr_client: TestClient) -> None:
     assert eintrag["quota_movie_limit"] == 2
     # Serien sind unbegrenzt.
     assert eintrag["quota_series_limit"] is None
+
+
+def test_ohne_speicherbetrieb_kein_speicherstand(arr_client: TestClient) -> None:
+    """Voreinstellung ist die Stueckzaehlung - dann bleibt das Feld leer.
+
+    Die Oberflaeche entscheidet daran, welche Spalten sie zeigt: Ist der Wert
+    ``None``, stehen dort die Stueck-Kontingente.
+    """
+    create_user(arr_client, "kim")
+    eintrag = next(
+        e for e in arr_client.get("/api/admin/stats").json()["users"] if e["username"] == "kim"
+    )
+    assert eintrag["storage_used_bytes"] is None
+    assert eintrag["storage_limit_bytes"] is None
+    # Die Stueck-Zahlen sind trotzdem da.
+    assert eintrag["quota_movie_used"] == 0
+
+
+def test_im_speicherbetrieb_steht_der_platz_da(arr_client: TestClient) -> None:
+    """⚠️ Anzahl **oder** Speicher, nie beides.
+
+    Die Statistik zeigte frueher immer die Stueck-Kontingente, auch wenn das
+    Haus laengst auf GB umgestellt hatte: darueber der belegte Platz in
+    Gigabyte, darunter "unbegrenzt" Stueck - zwei Waehrungen nebeneinander,
+    von denen nur eine gilt.
+
+    ⚠️ Und die Felder muessen es bis zum Browser schaffen. Beim ersten Anlauf
+    wurden sie berechnet, standen aber nicht in ``UserStatsPublic`` - Pydantic
+    liess sie ohne Fehler und ohne Log einfach weg.
+    """
+    arr_client.put("/api/settings", json={"storage_enabled": True})
+    created = create_user(arr_client, "kim")
+    arr_client.patch(f"/api/users/{created['id']}", json={"storage_limit_gb": 50})
+
+    eintrag = next(
+        e for e in arr_client.get("/api/admin/stats").json()["users"] if e["username"] == "kim"
+    )
+    assert eintrag["storage_used_bytes"] == 0
+    assert eintrag["storage_limit_bytes"] == 50 * 1024**3
+
+
+def test_kinderkonten_stehen_nicht_in_der_statistik(arr_client: TestClient) -> None:
+    """Sie haben kein eigenes Kontingent.
+
+    Gibt ein Elternteil einen Kinderwunsch frei, laeuft die Anfrage auf
+    **seinen** Namen. Ein Kind kann hier also nie etwas angesammelt haben,
+    stuende aber mit lauter Nullen in der Aufstellung.
+    """
+    from app.db import SessionLocal
+    from app.models import Role, User
+
+    with SessionLocal() as db:
+        elternteil = db.scalars(select(User).where(User.role == Role.admin)).first()
+        assert elternteil is not None
+        db.add(
+            User(
+                username="probekind",
+                display_name="Probekind",
+                email=None,
+                password_hash="x",
+                role=Role.child,
+                parent_id=elternteil.id,
+                age=8,
+                email_verified=True,
+            )
+        )
+        db.commit()
+
+    namen = {e["username"] for e in arr_client.get("/api/admin/stats").json()["users"]}
+    assert "probekind" not in namen
 
 
 def test_mehrfach_angefragte_titel(arr_client: TestClient) -> None:

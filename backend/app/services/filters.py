@@ -23,6 +23,134 @@ MIN_VOTES_FOR_RATING = 10
 # Untergrenze bei den Stimmen holt die echten Veroeffentlichungen nach vorn.
 KNOWN_TITLES_MIN_VOTES = 20
 
+# Untergrenze beim Sortieren nach Bewertung.
+#
+# Frueher standen hier 5 Stimmen. Das machte "Beste Bewertung" wertlos: Ein
+# Film mit 20 Stimmen und 9,4 stand ueber "Der Pate". TMDB kennt keine
+# gewichtete Sortierung (kein bayessches Mittel), deshalb ist eine harte
+# Untergrenze das einzige Mittel. 300 ist die Schwelle, ab der eine
+# Durchschnittsnote nicht mehr von einer Handvoll Fans getragen wird.
+MIN_VOTES_FOR_RATING_SORT = 300
+
+# --- Regale beim Stoebern ------------------------------------------------
+#
+# ⚠️ Alle Zahlen hier sind **gemessen**, nicht geschaetzt: am 23.08.2026 gegen
+# die echte TMDB-API, mit Blick auf die tatsaechlichen Titel und die Zahl der
+# Treffer. Wer sie aendert, sollte genauso nachsehen - ein zu hoher Wert macht
+# ein Regal leer, ein zu niedriger fuellt es mit Rauschen. Beides sieht aus wie
+# ein Defekt.
+#
+# Der wichtigste Fund dabei: **Die Stimmenzahl misst nicht Unbekanntheit,
+# sondern Alter mal Beliebtheit.** Ein Kinofilm von letzter Woche hat nach
+# zwei Wochen ein paar hundert Stimmen - genau wie eine echte Perle von 2015.
+# Ohne Altersgrenze bestand das Perlen-Regal darum aus lauter aktuellen
+# Blockbustern (gemessen: 7 von 8 Treffern aus 2026, darunter Spider-Man und
+# Toy Story 5). Erst die Altersgrenze macht aus "wenige Stimmen" wirklich
+# "kennt kaum jemand".
+PERLEN_MINDESTALTER_JAHRE = 2
+
+# Filme: Fenster 200-2500 Stimmen bei mindestens 7,5.
+#
+# 7,2 war zu niedrig - dabei standen "Paw Patrol: Der Kinofilm" und "Trolls
+# World Tour" im Regal, beide am oberen Rand des Fensters. Mit 7,5 bleiben
+# Titel wie "Lebewohl, meine Konkubine", "The Gangster, The Cop, The Devil"
+# und "Die glorreichen Sieben" - 1104 Treffer, genug Tiefe.
+PERLEN_STIMMEN = (200, 2500)
+PERLEN_WERTUNG = 7.5
+
+# Serien sammeln deutlich weniger Stimmen als Filme; dieselben Grenzen liefern
+# dort nur bekannte Ware (Silo, Outer Banks). Enger und strenger gemessen:
+# 587 Treffer, darunter "Agatha Christie's Poirot" und "The West Wing".
+PERLEN_STIMMEN_TV = (150, 1000)
+PERLEN_WERTUNG_TV = 8.0
+
+# Zeitlose Klassiker: viel gesehen, hoch bewertet, lange genug her.
+# 3000 Stimmen ergeben bei Filmen 298 Treffer (Der Pate, Die Verurteilten,
+# Schindlers Liste) - bei Serien aber nur 48. Deshalb dort 800: 225 Treffer,
+# angefuehrt von Breaking Bad und den Sopranos.
+KLASSIKER_STIMMEN = 3000
+KLASSIKER_STIMMEN_TV = 800
+KLASSIKER_WERTUNG = 7.5
+KLASSIKER_MINDESTALTER_JAHRE = 15
+
+# Jahrzehnte. Bei Filmen tragen 500 Stimmen bis zurueck in die 1970er
+# (244 Treffer, Der Pate / Apocalypse Now / Einer flog ueber das Kuckucksnest).
+JAHRZEHNT_STIMMEN = 500
+JAHRZEHNT_STIMMEN_TV = 200
+
+# Genre-Regale. Nach **Note** sortiert, nicht nach Beliebtheit: Mit
+# "popularity.desc" bestand jedes Genre-Regal nur aus Titeln des laufenden
+# Jahres - fuer eine Seite, die den *Rueckkatalog* zeigen soll, genau falsch.
+# Nach Note kommen Parasite, Pulp Fiction und Zurueck in die Zukunft.
+#
+# 1000 Stimmen tragen bei Filmen jedes Genre (schwaechstes: Animation mit 439)
+# - **ausser Dokumentationen**, die nur 26 Treffer haetten. Dokumentarfilme
+# sammeln kaum Stimmen; sie brauchen eine eigene, viel niedrigere Grenze.
+# Serien liegen generell tiefer (bei 1000 haette Krimi noch 124 Treffer).
+GENRE_STIMMEN = 1000
+GENRE_STIMMEN_TV = 300
+GENRE_STIMMEN_DOKU = 200
+GENRE_STIMMEN_DOKU_TV = 100
+
+# "Wir haben nur anderthalb Stunden" - Obergrenze in Minuten, nach Note
+# sortiert. Ergibt Die zwoelf Geschworenen, Die letzten Gluehwuermchen,
+# Der wilde Roboter, Perfect Blue, Moderne Zeiten.
+KURZER_ABEND_LAUFZEIT = 90
+KURZER_ABEND_STIMMEN = 1000
+
+# Wie weit "Neu erschienen" zurueckreicht.
+#
+# Das Regal ersetzt die frueheren Menuepunkte "Filme/Serien entdecken", die als
+# Erscheinungs-Radar gebaut waren. Neunzig Tage statt dreissig: Ein Monat ist
+# zu kurz, um eine Reihe zu fuellen, sobald man das Vorhandene aussiebt - und
+# wer es taggenau will, nimmt ohnehin den Kalender.
+#
+# Die Stimmen-Untergrenze ist ``KNOWN_TITLES_MIN_VOTES`` (20), gemessen am
+# 23.08.2026: Ohne sie hat das Fenster **3472** Treffer, mit ihr **110** - und
+# die ersten vier sind in beiden Faellen dieselben. Das Weggesiebte ist also
+# vollstaendig Rauschen. Bei Serien: 2181 gegen 61.
+NEU_TAGE = 90
+
+# "Grosser Titel" im Assistenten und im Bekanntheits-Regler.
+BEKANNTE_TITEL_STIMMEN = 1500
+
+# Untergrenze, wenn die Bekanntheit **egal** ist.
+#
+# Nicht null: Ohne jede Grenze besteht der Rueckkatalog aus namenlosen
+# Kleinstproduktionen ohne Beschreibung. Aber deutlich niedriger als die
+# Genre-Regale, damit ein Nischen-Genre nicht leer bleibt.
+EGAL_STIMMEN = 300
+EGAL_STIMMEN_TV = 100
+
+# --- Vokabeln, die Assistent und Filterleiste teilen ---------------------
+#
+# Beide muessen dasselbe unter "hoechstens 90 Minuten" verstehen. Zwei
+# Definitionen liefen beim ersten Feinschliff auseinander, und der Unterschied
+# faellt niemandem auf: Die Leiste verspraeche 90 und lieferte 95.
+#
+# (Mindestlaufzeit, Hoechstlaufzeit) in Minuten; ``None`` = keine Grenze.
+# ⚠️ Die Stufen muessen **lueckenlos** aneinanderstossen. Vorher endete
+# "mittel" bei 125 und "lang" begann bei 130 - jeder Film zwischen 126 und 129
+# Minuten fiel durch **beide** Optionen und war ueber die Laufzeit gar nicht
+# auffindbar. Solche Luecken sieht man nicht, man merkt nur, dass ein Titel
+# "irgendwie nie kommt".
+#
+# ⚠️ Und die Zahlen muessen zur Beschriftung passen. "lang" hiess einmal
+# "Darf lang sein" - das liest sich als *ohne Obergrenze*, gebaut war aber
+# *mindestens zwei Stunden*, also genau das Gegenteil. Wer das Etikett aendert,
+# aendert hier mit; wer die Zahl aendert, aendert das Etikett mit.
+# Die Beschriftungen stehen unter ``stoebern.filter.zeit_*`` und
+# ``stoebern.filmabend.zeit.*``.
+LAUFZEITEN: dict[str, tuple[int | None, int | None]] = {
+    "kurz": (MIN_FEATURE_RUNTIME, 90),
+    "mittel": (MIN_FEATURE_RUNTIME, 120),
+    "lang": (121, None),
+    "egal": (MIN_FEATURE_RUNTIME, None),
+}
+
+# Welche Jahrzehnte die Filterleiste anbietet - dieselben wie die Regale.
+FILTER_JAHRZEHNTE = (2020, 2010, 2000, 1990, 1980, 1970)
+
 # Bekannte Filmstudios mit ihrer TMDB-Kennung.
 # Die Kennungen wurden gegen die TMDB-Suche geprueft - nicht raten, mehrere
 # Studios haben Namensdubletten mit fast leeren Eintraegen (z. B. A24).
@@ -130,12 +258,20 @@ class DiscoverFilters:
 
     # Kurzfilme ausblenden (Mindestlaufzeit in Minuten; None = alles zeigen)
     min_runtime: int | None = None
+    # Hoechstlaufzeit in Minuten; None = keine Obergrenze.
+    #
+    # Beantwortet die einzige Frage, die am Filmabend wirklich bindet: "Wie
+    # viel Zeit haben wir noch?" Die Entdecken-Seite kannte sie nie.
+    max_runtime: int | None = None
     # Mindestbewertung, z. B. 7.0
     min_rating: float | None = None
     # Titel ohne jede Bewertung ausblenden
     hide_unrated: bool = False
     # Mindestanzahl Stimmen ("nur bekannte Titel"); None = keine Untergrenze
     min_votes: int | None = None
+    # Hoechstzahl Stimmen; None = keine Obergrenze. Zusammen mit ``min_votes``
+    # ergibt das ein Fenster - siehe PERLEN_STIMMEN.
+    max_votes: int | None = None
     # Nur Titel, die in der gewaehlten Region veroeffentlicht wurden (nur Filme)
     released_in_region: bool = False
     # Produktionsfirma (nur Filme)
@@ -151,6 +287,15 @@ class DiscoverFilters:
     network_ids: str = ""
     # Art der Sendung (nur Serien), siehe SERIENARTEN. Leer = alles.
     series_types: str = ""
+
+    # --- Stoebern -----------------------------------------------------------
+    # Genres, die ausgeschlossen werden ("27|53" = kein Horror, kein Thriller).
+    # ODER-verknuepft wie ``genres_or``: TMDB wirft jeden Titel raus, der
+    # mindestens eines davon traegt.
+    without_genres: str = ""
+    # Personen, ODER-verknuepft ("mehr von Denis Villeneuve"). Bisher wurden
+    # dafuer die kompletten Filmografien einzeln geholt und im Code sortiert.
+    people_ids: str = ""
 
     # --- Kinderansicht ------------------------------------------------------
     # Mehrere Genres ODER-verknuepft ("16|10751"). Schlaegt ``genre_id``.
@@ -183,15 +328,16 @@ class DiscoverFilters:
         Wichtig: Jedes Feld, das die Anfrage an TMDB veraendert, muss hier
         auftauchen. Sonst teilen sich zwei verschiedene Abfragen dieselbe Zeile
         im Zwischenspeicher, und wer zuerst kommt, liefert dem anderen sein
-        Ergebnis - stundenlang und ohne Fehlermeldung. Die Kennung "v2" gehoert
+        Ergebnis - stundenlang und ohne Fehlermeldung. Die Kennung "v4" gehoert
         dazu, weil aeltere Eintraege nach dem gleichen Muster gebaut waren, aber
         eine andere Bedeutung hatten.
         """
         return (
-            f"discover:v3:{media_type}:{textsprache}:{self.date_from}:{self.date_to}:"
+            f"discover:v4:{media_type}:{textsprache}:{self.date_from}:{self.date_to}:"
             f"{self.language}:{self.region}:{self.genre_id}:{self.sort}:{self.page}:"
-            f"{self.min_runtime}:{self.min_rating}:{self.hide_unrated}:"
-            f"{self.released_in_region}:{self.studio_id}:{self.min_votes}:"
+            f"{self.min_runtime}:{self.max_runtime}:{self.min_rating}:{self.hide_unrated}:"
+            f"{self.released_in_region}:{self.studio_id}:{self.min_votes}:{self.max_votes}:"
             f"{self.release_types}:{self.company_ids}:{self.network_ids}:{self.series_types}:"
-            f"{self.genres_or}:{self.certification_country}:{self.certifications}"
+            f"{self.genres_or}:{self.certification_country}:{self.certifications}:"
+            f"{self.without_genres}:{self.people_ids}"
         )

@@ -13,6 +13,9 @@ import { BrowsePage } from './pages/BrowsePage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { DiscoverPage } from './pages/DiscoverPage'
+import { StoeberPage } from './pages/StoeberPage'
+import { StoeberFilterPage } from './pages/StoeberFilterPage'
+import { StoeberRegalPage } from './pages/StoeberRegalPage'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
@@ -146,8 +149,22 @@ export default function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
+        {/* Nicht mehr im Menue, aber weiter erreichbar - alte Lesezeichen
+            sollen nicht ins Leere laufen. */}
         <Route path="filme" element={<DiscoverPage mediaType="movie" />} />
         <Route path="serien" element={<DiscoverPage mediaType="tv" />} />
+        {/* Alte Adresse aus der Zeit, als der Assistent eine eigene Seite
+            war. Er ist jetzt ein Fenster über der aktuellen Seite (siehe
+            AppShell), deshalb führt der Weg auf den Katalog. */}
+        <Route path="filmabend" element={<Navigate to="/stoebern?filmabend=movie" replace />} />
+        {/* Stoebern liegt bewusst NEBEN "Entdecken", nicht darin: Die eine
+            Seite fragt "was ist neu?", die andere "was schauen wir heute
+            Abend?". Beide bleiben vorerst bestehen, damit sich vergleichen
+            laesst, welche traegt. */}
+        <Route path="stoebern" element={<StoeberPage mediaType="movie" />} />
+        <Route path="stoebern/serien" element={<StoeberPage mediaType="tv" />} />
+        <Route path="stoebern/regal/:mediaType/:kennung" element={<StoeberRegalPage />} />
+        <Route path="stoebern/filter/:mediaType" element={<StoeberFilterPage />} />
         <Route path="kalender" element={<CalendarPage />} />
         <Route path="suche" element={<SearchPage />} />
         <Route path="personen" element={<PeoplePage />} />

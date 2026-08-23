@@ -135,8 +135,22 @@ async def erlaubte_freigaben(
     Ohne Altersangabe oder ohne brauchbare Tabelle kommt (None, "") zurueck;
     dann filtert allein die Pruefung in ``media._to_items``.
     """
-    land = (kind.rating_region or settings.rating_region or "").upper()
-    if not land or kind.age is None:
+    return await freigaben_bis_alter(
+        db, settings, (kind.rating_region or settings.rating_region or ""), kind.age
+    )
+
+
+async def freigaben_bis_alter(
+    db: Session, settings: AppSettings, land: str, hoechstalter: int | None
+) -> tuple[str | None, str]:
+    """Dasselbe fuer ein beliebiges Hoechstalter, ohne Kinderkonto.
+
+    Herausgeloest, damit der Filmabend-Assistent bei "mit Kindern" dieselbe
+    Uebersetzung benutzt, statt kindgerechte Genres zu **raten**. Eine
+    Altersfreigabe ist die ehrliche Auskunft; ein Genre ist es nicht.
+    """
+    land = (land or "").upper()
+    if not land or hoechstalter is None:
         return None, ""
 
     try:
@@ -153,7 +167,7 @@ async def erlaubte_freigaben(
         if not bezeichnung:
             continue
         stufe = age_rating.stufe(land, bezeichnung)
-        if stufe is not None and stufe <= kind.age:
+        if stufe is not None and stufe <= hoechstalter:
             erlaubt.append(bezeichnung)
 
     return (land, "|".join(erlaubt)) if erlaubt else (None, "")

@@ -555,6 +555,86 @@ export type MediaPage = {
   arr_warning: string | null;
 };
 
+/** Ein Regal auf der Stöber-Seite - ohne die Titel darin. */
+export type RegalInfo = {
+  kennung: string;
+  /** "reihe" = geladen anzeigen, "kachel" = nur verweisen. */
+  gruppe: 'reihe' | 'kachel';
+  /** "jahrzehnt" | "genre" | "persoenlich" | "" - womit gruppiert wird. */
+  kategorie: string;
+  persoenlich: boolean;
+  /**
+   * Fertiger Name statt i18n-Schlüssel.
+   *
+   * Die nötige Ausnahme: „Weil dir *Der Pate* gefällt" enthält einen
+   * Filmtitel, und der lässt sich nicht übersetzen. Sonst leer.
+   */
+  titel?: string | null;
+};
+
+/** Nach dem eigenen Bestand sieben - serverseitig, nicht im Browser. */
+export type Bestandsfilter = 'egal' | 'nur_vorhanden' | 'nur_neu';
+
+export type RegalSeite = {
+  kennung: string;
+  items: MediaItem[];
+  page: number;
+  total_pages: number;
+  seiten_durchsucht: number;
+  /**
+   * Es gibt nichts mehr nachzuladen.
+   *
+   * Damit die Seite ehrlich sein kann: Liefert "nur was schon da ist" bei
+   * einer dünnen Bibliothek drei Titel, ist das eine endgültige Auskunft -
+   * kein Grund für einen Knopf, hinter dem nichts mehr kommt.
+   */
+  erschoepft: boolean;
+  demo: boolean;
+  arr_warning: string | null;
+};
+
+export type FilterSeite = {
+  items: MediaItem[];
+  page: number;
+  total_pages: number;
+  seiten_durchsucht: number;
+  erschoepft: boolean;
+  /** Welche Jahrzehnte die Leiste anbieten darf - kommt vom Server. */
+  jahrzehnte: number[];
+  demo: boolean;
+  arr_warning: string | null;
+};
+
+/** Eine Frage des Filmabend-Assistenten. */
+export type FilmabendFrage = {
+  kennung: string;
+  antworten: string[];
+  /**
+   * Wann diese Frage ganz entfällt: {frühere Frage: Antworten}.
+   *
+   * Kommt vom Server, damit Fragebaum und Bedeutung nicht auseinanderlaufen.
+   */
+  entfaellt_wenn: Record<string, string[]>;
+  /** Wann einzelne Antwortmöglichkeiten wegfallen: {Antwort: {Frage: Werte}}. */
+  antworten_entfallen_wenn: Record<string, Record<string, string[]>>;
+};
+
+export type FilmabendStapel = {
+  items: MediaItem[];
+  runde: number;
+  /** Welche Antworten tatsächlich gezählt haben - ohne übersprungene. */
+  antworten: Record<string, string>;
+  /**
+   * Es gab gar nichts, woraus hätte gewählt werden können.
+   *
+   * Bei "lange nicht gesehen" ohne verknüpften Media-Server. Eine andere
+   * Auskunft als "nichts gefunden", und die Oberfläche muss sie sagen können.
+   */
+  quelle_leer: boolean;
+  erschoepft: boolean;
+  demo: boolean;
+};
+
 export type ArrOptions = {
   quality_profiles: { id: number; name: string }[];
   root_folders: { path: string; free_space: number | null }[];
@@ -1104,6 +1184,15 @@ export type UserStats = {
   poor_ratings: number;
   /** Anteil der Anfragen, die als Download ankamen - null ohne Anfragen. */
   success_rate: number | null;
+  /**
+   * Belegter Platz und Grenze in Bytes — **nur im GB-Betrieb** gefüllt.
+   *
+   * „Anzahl oder Speicher, nie beides": Welche der beiden Währungen die
+   * Tabelle zeigt, entscheidet `config.storage_enabled` beim Anzeigen. So
+   * wirkt ein Umschalten sofort, ohne dass Daten nachgeladen werden müssen.
+   */
+  storage_used_bytes: number | null;
+  storage_limit_bytes: number | null;
   quota_movie_used: number;
   quota_movie_limit: number | null;
   quota_series_used: number;

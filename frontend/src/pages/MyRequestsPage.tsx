@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { ApiError, api } from '../api/client'
 import type { MediaRequest, QuotaInfo, QuotaOverview } from '../api/types'
 import { useAuth } from '../auth/useAuth'
+import { TitelVerweis } from '../components/TitelVerweis'
 import { useConfig } from '../hooks/useConfig'
 import { useStorageStand, type SpeicherStand } from '../hooks/useStorageStand'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -360,7 +361,13 @@ export function MyRequestsPage() {
                   behalten. Lieber umbrechen als kuerzen. */}
               <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                 <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="min-w-0 font-semibold break-words">{request.title}</span>
+                  <TitelVerweis
+                    mediaType={request.media_type}
+                    tmdbId={request.tmdb_id}
+                    titel={request.title}
+                    erschienen={request.release_date}
+                    className="min-w-0 font-semibold break-words"
+                  />
                   {request.season !== null && (
                     <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
                       {t('request.seasonShort', { number: request.season })}

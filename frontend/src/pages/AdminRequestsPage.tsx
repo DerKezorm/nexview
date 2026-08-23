@@ -21,6 +21,7 @@ import { formatDate, formatSize } from "../lib/format";
 import { TargetPicker, type Target } from "../components/TargetPicker";
 import { useConfig } from "../hooks/useConfig";
 import { anfragenStandNeuLaden } from "../lib/refresh";
+import { TitelVerweis } from '../components/TitelVerweis'
 
 // "watchlist" ist kein Zustand, sondern eine Herkunft - deshalb ein eigener
 // Wert neben den Zustaenden. Der Knopf erscheint nur, wenn die Automatik
@@ -633,9 +634,13 @@ export function AdminRequestsPage() {
                       den Titel, damit er nicht auf ein Zeichen schrumpft. */}
                   <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                     <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="min-w-0 font-semibold break-words">
-                        {request.title}
-                      </span>
+                      <TitelVerweis
+                        mediaType={request.media_type}
+                        tmdbId={request.tmdb_id}
+                        titel={request.title}
+                        erschienen={request.release_date}
+                        className="min-w-0 font-semibold break-words"
+                      />
                       {request.season !== null && (
                         <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
                           {t("request.seasonShort", { number: request.season })}

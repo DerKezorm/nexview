@@ -368,34 +368,52 @@ async def _neuerscheinungen(
     # suchen - und die drei Abfragen dafuer sparen wir uns gleich mit.
     arten_liste = ("movie",) if datumsart == "kino" else ("movie", "tv")
 
+    # ⚠️ "sinnvoll" fragt **beide** Rauschfilter ab und legt die Ergebnisse
+    # zusammen. Gemessen am 23.08.2026 fuer eine Woche: "grosse Studios" 12
+    # Treffer, "bekannte Titel" 15 - aber **keiner enthaelt den anderen**. Der
+    # Studio-Filter faengt brandneue Streaming-Serien, die noch keine Stimmen
+    # haben; die Stimmen-Untergrenze faengt gute Titel ohne grossen Verleih.
+    # Wer sich fuer einen entscheidet, verliert immer die andere Haelfte.
+    varianten = ("studios", "known") if schaerfe == "sinnvoll" else (schaerfe,)
+
     aufgaben = []
+    # Woher stammt welche Antwort? Wird gebraucht, weil der Laender-Filter
+    # weiter unten nur fuer die Studio-Treffer gilt.
+    herkunft: list[tuple[str, str]] = []
     for art in arten_liste:
-        for seite in range(1, MAX_SEITEN + 1):
-            aufgaben.append(
-                media.discover(
-                    db,
-                    settings,
-                    art,
-                    _filter(
-                        von=von,
-                        bis=bis,
-                        region=region,
-                        datumsart=datumsart,
-                        schaerfe=schaerfe,
-                        seite=seite,
-                        fuer_film=art == "movie",
-                    ),
+        for variante in varianten:
+            for seite in range(1, MAX_SEITEN + 1):
+                aufgaben.append(
+                    media.discover(
+                        db,
+                        settings,
+                        art,
+                        _filter(
+                            von=von,
+                            bis=bis,
+                            region=region,
+                            datumsart=datumsart,
+                            schaerfe=variante,
+                            seite=seite,
+                            fuer_film=art == "movie",
+                        ),
+                    )
                 )
-            )
+                herkunft.append((art, variante))
 
     seiten = await asyncio.gather(*aufgaben, return_exceptions=True)
 
     filme: list[Any] = []
-    serien: list[Any] = []
-    for index, seite in enumerate(seiten):
+    # Serien tragen ihre Herkunft mit - eine Zaehlung ueber den Index waere
+    # bei zwei Varianten falsch und faellt nicht auf.
+    serien: list[tuple[str, Any]] = []
+    for (art, variante), seite in zip(herkunft, seiten, strict=True):
         if isinstance(seite, BaseException):
             continue
-        (filme if index < MAX_SEITEN else serien).extend(seite.items)
+        if art == "movie":
+            filme.extend(seite.items)
+        else:
+            serien.extend((variante, eintrag) for eintrag in seite.items)
 
     # Der wichtige Teil: TMDB filtert zwar nach dem regionalen Datum, liefert
     # in der Liste aber das weltweite. Ohne diesen Schritt stuende ein Film mit
@@ -421,14 +439,19 @@ async def _neuerscheinungen(
             _aus_medienobjekt(film, tag, stichtag, schluessel, _art_name(treffer[1]) if treffer else None)
         )
 
-    for serie in serien:
+    for variante, serie in serien:
         tag = (serie.release_date or "")[:10]
         if not tag or not (von <= tag <= bis):
             continue
-        # Nur bei "grosse Studios": Dort kommt alles ueber Netflix & Co., also
-        # auch jede asiatische Eigenproduktion. Bei "bekannte Titel" sortiert
-        # schon die Stimmenzahl aus, und "alles" heisst alles.
-        if schaerfe == "studios" and not _aus_bekanntem_land(serie):
+        # Nur bei den Studio-Treffern: Dort kommt alles ueber Netflix & Co.,
+        # also auch jede asiatische Eigenproduktion. Bei "bekannte Titel"
+        # sortiert schon die Stimmenzahl aus, und "alles" heisst alles.
+        #
+        # Deshalb haengt die Pruefung an der **Variante** und nicht an der
+        # Einstellung: Bei "sinnvoll" laufen beide nebeneinander, und eine
+        # Serie, die ueber die Stimmenzahl hereinkam, darf nicht am Land
+        # scheitern.
+        if variante == "studios" and not _aus_bekanntem_land(serie):
             continue
         schluessel = f"tmdb:tv:{serie.tmdb_id}"
         if schluessel in gesehen:

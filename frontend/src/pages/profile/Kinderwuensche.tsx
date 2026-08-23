@@ -7,6 +7,7 @@ import type { ArrOptions, ParentWish } from '../../api/types'
 import { useAuth } from '../../auth/useAuth'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../../components/ui'
 import { useConfig } from '../../hooks/useConfig'
+import { TitelVerweis } from '../../components/TitelVerweis'
 
 /**
  * Die offenen Wünsche der eigenen Kinder.
@@ -98,7 +99,14 @@ export function Kinderwuensche() {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-mist-100">{wunsch.title}</p>
+            <p className="font-medium text-mist-100">
+              <TitelVerweis
+                mediaType={wunsch.media_type}
+                tmdbId={wunsch.tmdb_id}
+                titel={wunsch.title}
+                erschienen={wunsch.release_date}
+              />
+            </p>
             <p className="text-xs text-mist-600">
               {t('children.wishFrom', { name: wunsch.child_name })}
               {wunsch.release_date && ` · ${wunsch.release_date.slice(0, 4)}`}
@@ -219,7 +227,14 @@ function Zielwahl({
 
   return (
     <Card className="flex flex-col gap-4">
-      <h3 className="text-base font-semibold">{wunsch.title}</h3>
+      <h3 className="text-base font-semibold">
+        <TitelVerweis
+          mediaType={wunsch.media_type}
+          tmdbId={wunsch.tmdb_id}
+          titel={wunsch.title}
+          erschienen={wunsch.release_date}
+        />
+      </h3>
 
       {zielSpaeter ? (
         <p className="text-sm text-mist-500">{t('children.wishTargetLater')}</p>

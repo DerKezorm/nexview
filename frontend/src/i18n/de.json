@@ -39,7 +39,9 @@
     "logout": "Abmelden",
     "openMenu": "Menü öffnen",
     "favorites": "Mag ich",
-    "tickets": "Tickets"
+    "tickets": "Tickets",
+    "browse": "Stöbern",
+    "whatToWatch": "Was schauen?"
   },
   "setup": {
     "title": "Willkommen bei Nexview",
@@ -352,7 +354,9 @@
     "noRating": "keine",
     "mostRequested": "Mehrfach angefragt",
     "requestedTimes": "{{count}}×",
-    "lastRequest": "Letzte Anfrage am {{date}}."
+    "lastRequest": "Letzte Anfrage am {{date}}.",
+    "colStorage": "Speicher",
+    "storageOf": "{{used}} von {{limit}}"
   },
   "feedback": {
     "question": "Wie war die Qualität?",
@@ -862,20 +866,18 @@
     "previousWeek": "Vorherige Woche",
     "nextWeek": "Nächste Woche",
     "thisWeek": "Diese Woche",
-    "filterSource": "Auswahl",
-    "sourceAll": "Alles",
-    "sourceOnlyMine": "Bereits angefragt",
-    "sourceMineHint": "Zeigt nur Filme und Serien, die bereits angefragt sind – ohne die Neuerscheinungen.",
-    "filterDateType": "Termin",
+    "filterDateType": "Welcher Termin?",
     "dateDigital": "Digital & Disc",
     "dateCinema": "Kino",
-    "filterNoise": "Umfang",
-    "noiseStudios": "Große Studios",
-    "noiseKnown": "Bekannte Titel",
-    "noiseAll": "Alles",
-    "noiseOnlyNew": "Wirkt nur auf die Neuerscheinungen.",
+    "filterNoise": "Wie streng?",
+    "noiseAll": "Wirklich alles",
     "empty": "In dieser Woche ist nichts eingetragen.",
-    "emptyMine": "Von den bereits angefragten Titeln steht diese Woche nichts an."
+    "filterKind": "Was zeigen?",
+    "kind_beides": "Filme & Folgen",
+    "kind_movie": "Nur Filme",
+    "kind_tv": "Nur Folgen",
+    "kindCinemaHint": "Serien laufen nicht im Kino.",
+    "noiseSensible": "Sinnvolle Auswahl"
   },
   "people": {
     "title": "Personen",
@@ -1525,6 +1527,48 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.17.0": {
+        "lead": "Nexview kann jetzt stöbern. Bisher zeigte „Entdecken“ nur ein Zeitfenster von höchstens einem Jahr — alles Ältere war nur über die Suche erreichbar. Der neue Bereich öffnet den ganzen Katalog, und daneben steht ein Assistent, der dir ein paar Fragen stellt und dann etwas für heute Abend vorschlägt.",
+        "sections": [
+          {
+            "title": "Was schauen?",
+            "where": "Hauptmenü → Was schauen?",
+            "body": "Der Assistent fragt: Wer schaut mit, worauf hast du Lust, muss es heute Abend sofort laufen, wie viel Zeit ist, etwas Neues oder etwas Vertrautes. Höchstens sechs Fragen — und der Baum passt sich an: Wer „nur was schon da ist“ wählt, wird nicht mehr nach Geheimtipps gefragt, weil das in der eigenen Bibliothek keinen Sinn ergibt. Am Ende stehen zwölf Vorschläge, und „Nochmal würfeln“ gibt einen anderen Stapel.\n\n„Mit Kindern“ setzt dabei eine echte Altersfreigabe (höchstens FSK 6), keine geratenen Genres. Weggenommen wird trotzdem nichts: Auch Gruseln bleibt wählbar und liefert dann „Das Haus der geheimnisvollen Uhren“ und „Hexen hexen“ statt Horror für Erwachsene."
+          },
+          {
+            "title": "Stöbern",
+            "where": "Hauptmenü → Stöbern",
+            "body": "Regale statt Zeitfenster: „Perlen“ (gut bewertet, aber kaum bekannt), „Zeitlose Klassiker“, „Unter 90 Minuten“, „Neu erschienen“, dazu fünf Jahrzehnte und jedes Genre. Jedes Regal funktioniert auch bei leerer Bibliothek und ohne persönliche Daten.\n\nOben steht die Frage, die am Filmabend zuerst kommt: „Muss es heute Abend sofort laufen?“ Anders als früher wird das auf dem Server gesiebt — bei einer vollen Bibliothek bleiben die Reihen also voll, statt auf zwei Kacheln zusammenzuschrumpfen."
+          },
+          {
+            "title": "Selbst filtern",
+            "where": "Stöbern → Lieber selbst filtern",
+            "body": "Sechs Fragen statt dreizehn Reglern: Wie viel Zeit, wonach ist dir (Genres lassen sich ein- und ausschließen), aus welcher Zeit (echte Jahrzehnte), wie bekannt, schon vorhanden, und die Reihenfolge.\n\nNeu ist vor allem die Laufzeit-Obergrenze — „wir haben nur anderthalb Stunden“ war vorher gar nicht ausdrückbar. Und was du einstellst, steht in der Adresse: Du kannst ein Ergebnis verschicken oder als Lesezeichen ablegen."
+          },
+          {
+            "title": "Deine eigenen Regale",
+            "where": "Stöbern, ganz oben",
+            "body": "„Lang nicht gesehen“ nimmt, was mindestens ein halbes Jahr zurückliegt — gibt es nichts davon, verschwindet das Regal, statt etwas Unpassendes vorzuschlagen. „Weil dir X gefällt“ bekommt je Herz eine eigene Reihe, damit erkennbar bleibt, warum etwas vorgeschlagen wird.\n\nHöchstens drei davon: Ein Platz gehört immer dem zuletzt markierten Titel, die anderen wechseln täglich. So siehst du bei hundert Favoriten über die Zeit alle, statt immer dieselben drei."
+          },
+          {
+            "title": "Das Menü ist kürzer",
+            "where": "oben",
+            "body": "„Filme entdecken“ und „Serien entdecken“ sind aus dem Menü verschwunden. Stöbern beantwortet jede ihrer Fragen besser — bis auf eine, „was kam gerade heraus?“, und das ist jetzt das Regal „Neu erschienen“. Die Adressen funktionieren weiter, alte Lesezeichen laufen also nicht ins Leere."
+          },
+          {
+            "title": "Kalender aufgeräumt",
+            "where": "Hauptmenü → Kalender",
+            "body": "Statt „Alles / Bereits angefragt“ steht dort jetzt „Filme & Folgen / Nur Filme / Nur Folgen“ — deine eigenen Titel stehen ohnehin oben in jedem Tag, die nützliche Trennung ist die zwischen Film und Folge.\n\nUnd der Strenge-Filter fragt nicht mehr entweder nach großen Studios oder nach bekannten Titeln, sondern nach beidem: Gemessen an einer echten Woche findet keiner der beiden, was der andere findet — die Studioliste fängt brandneue Serien ohne Stimmen, die Stimmenzahl fängt gute Titel ohne großen Verleih."
+          }
+        ],
+        "smallTitle": "Außerdem behoben",
+        "small": [
+          "„Beste Bewertung“ lieferte Nischenmüll statt guter Filme: TMDB kennt keine gewichtete Sortierung, und die Untergrenze lag bei fünf Stimmen — ein Film mit zwanzig Stimmen und 9,4 stand damit über „Der Pate“. Jetzt sind es 300. Das repariert auch die Sortierung auf der alten Entdecken-Seite.",
+          "Eine Laufzeit-Grenze wurde nicht eingehalten. TMDBs eigener Filter ist unzuverlässig — „höchstens 95 Minuten“ lieferte einen 97- und einen 99-Minüter. Die Laufzeit wird jetzt auf dem Server nachgeprüft.",
+          "Filme zwischen 126 und 129 Minuten waren über die Laufzeit gar nicht auffindbar: „Bis 2 Stunden“ endete bei 125, die nächste Stufe begann bei 130. Die Stufen stoßen jetzt genau aneinander — und „Darf lang sein“ heißt ehrlich „Über 2 Stunden“, denn gebaut war es als Mindestlänge.",
+          "Bei jeder Serien-Abfrage ging ein wirkungsloser Parameter an TMDB mit (`watch_region` ohne `with_watch_providers`). Entfernt."
+        ]
+      },
       "0.16.0": {
         "lead": "Nexview kann jetzt Kinder. Ein Elternteil legt eigene Zugänge für seine Kinder an, die Kinder bekommen eine völlig eigene, kindgerechte App zu sehen — und was sie sich wünschen, entscheidet zuerst das Elternteil und erst danach du.",
         "sections": [
@@ -1615,5 +1659,221 @@
     "fallback": "Zu dieser Fassung liegt hier noch kein Text – die vollständige Liste steht auf",
     "smallFallback": "Außerdem behoben",
     "unread": "Neu seit deinem letzten Blick"
+  },
+  "stoebern": {
+    "titel": "Stöbern",
+    "intro": "Der ganze Katalog, nicht nur die letzten Wochen. Für den Abend, an dem ihr noch nichts vorhabt.",
+    "alleAnsehen": "Alle ansehen",
+    "jahrzehnte": "Nach Jahrzehnt",
+    "jahrzehnteHinweis": "Etwas, das du lange nicht gesehen hast.",
+    "genres": "Nach Genre",
+    "bestand": {
+      "frage": "Muss es heute Abend sofort laufen?",
+      "egal": "Egal",
+      "nur_vorhanden": "Nur was schon da ist",
+      "nur_neu": "Nur was noch fehlt"
+    },
+    "leer": "In diesem Regal ist gerade nichts.",
+    "leer_nur_vorhanden": "Dazu liegt in eurer Bibliothek nichts. Das ist keine Frage der Geduld - hier gibt es wirklich nichts mehr.",
+    "leer_nur_neu": "Dazu ist schon alles da oder angefragt.",
+    "bestandZuruecksetzen": "Alle Titel zeigen",
+    "regal": {
+      "perlen": {
+        "titel": "Perlen",
+        "hinweis": "Gut bewertet, aber kaum jemand kennt sie. Genau dafür ist Stöbern da."
+      },
+      "klassiker": {
+        "titel": "Zeitlose Klassiker",
+        "hinweis": "Viel gesehen, hoch bewertet, mindestens 15 Jahre alt."
+      },
+      "kurz": {
+        "titel": "Unter 90 Minuten",
+        "hinweis": "Wenn der Abend schon halb rum ist."
+      },
+      "jahrzehnt_1970": {
+        "titel": "Die 70er",
+        "hinweis": "Die besten Titel aus den 1970ern."
+      },
+      "jahrzehnt_1980": {
+        "titel": "Die 80er",
+        "hinweis": "Die besten Titel aus den 1980ern."
+      },
+      "jahrzehnt_1990": {
+        "titel": "Die 90er",
+        "hinweis": "Die besten Titel aus den 1990ern."
+      },
+      "jahrzehnt_2000": {
+        "titel": "Die 2000er",
+        "hinweis": "Die besten Titel aus den 2000ern."
+      },
+      "jahrzehnt_2010": {
+        "titel": "Die 2010er",
+        "hinweis": "Die besten Titel aus den 2010ern."
+      },
+      "genre_komoedie": {
+        "titel": "Komödie",
+        "hinweis": "Zum Lachen."
+      },
+      "genre_drama": {
+        "titel": "Drama",
+        "hinweis": "Zum Mitfuehlen."
+      },
+      "genre_action": {
+        "titel": "Action",
+        "hinweis": "Zum Mitfiebern."
+      },
+      "genre_thriller": {
+        "titel": "Thriller",
+        "hinweis": "Zum Anspannen."
+      },
+      "genre_scifi": {
+        "titel": "Science-Fiction",
+        "hinweis": "Zum Weiterdenken."
+      },
+      "genre_horror": {
+        "titel": "Horror",
+        "hinweis": "Zum Gruseln."
+      },
+      "genre_animation": {
+        "titel": "Animation",
+        "hinweis": "Gezeichnet und gerendert."
+      },
+      "genre_doku": {
+        "titel": "Dokumentation",
+        "hinweis": "Zum Lernen."
+      },
+      "genre_familie": {
+        "titel": "Familie",
+        "hinweis": "Für alle zusammen."
+      },
+      "genre_krimi": {
+        "titel": "Krimi",
+        "hinweis": "Zum Mitraten."
+      },
+      "genre_abenteuer": {
+        "titel": "Abenteuer",
+        "hinweis": "Zum Aufbrechen."
+      },
+      "genre_fantasy": {
+        "titel": "Fantasy",
+        "hinweis": "Zum Abtauchen."
+      },
+      "genre_mystery": {
+        "titel": "Mystery",
+        "hinweis": "Zum Grübeln."
+      },
+      "wieder": {
+        "titel": "Lang nicht gesehen",
+        "hinweis": "Was am längsten her ist — vielleicht ist es wieder Zeit."
+      },
+      "weil_du": {
+        "titel": "Weil dir „{{titel}}“ gefällt",
+        "hinweis": "Titel, die Leuten gefielen, denen dieser gefiel."
+      },
+      "neu": {
+        "titel": "Neu erschienen",
+        "hinweis": "Was in den letzten drei Monaten herauskam."
+      }
+    },
+    "filme": "Filme",
+    "serien": "Serien",
+    "filmabend": {
+      "titel": "Was schauen?",
+      "schritt": "Frage {{nummer}}",
+      "zurueck": "Eine Frage zurück",
+      "suche": "Ich suche etwas Passendes …",
+      "nochmal": "Nochmal würfeln",
+      "vonVorn": "Von vorn",
+      "nichtsGefunden": "Dazu habe ich nichts gefunden. Versucht es mit einer anderen Antwort — oder würfelt nochmal.",
+      "keinVerlauf": "Dafür brauche ich deinen Sehverlauf. Verbinde dein Konto mit einem Media-Server, dann weiß ich, was du lange nicht gesehen hast.",
+      "gesellschaft": {
+        "frage": "Wer schaut mit?",
+        "allein": "Ich allein",
+        "zu_zweit": "Zu zweit",
+        "freunde": "Mit Freunden",
+        "familie": "Die ganze Familie",
+        "kinder": "Mit Kindern"
+      },
+      "stimmung": {
+        "frage": "Worauf habt ihr Lust?",
+        "lachen": "Lachen",
+        "spannung": "Spannung",
+        "nachdenken": "Etwas zum Nachdenken",
+        "mitfiebern": "Mitfiebern",
+        "gruseln": "Gruseln",
+        "herz": "Etwas fürs Herz",
+        "ueberrasch": "Überrasch mich",
+        "frage_allein": "Worauf hast du Lust?"
+      },
+      "verfuegbar": {
+        "frage": "Soll es heute Abend sofort laufen können?",
+        "sofort": "Ja, nur was schon da ist",
+        "laden": "Nein, darf noch geladen werden",
+        "egal": "Egal"
+      },
+      "zeit": {
+        "frage": "Wie viel Zeit habt ihr?",
+        "kurz": "Höchstens 90 Minuten",
+        "mittel": "Bis zwei Stunden",
+        "lang": "Über 2 Stunden",
+        "egal": "Egal",
+        "frage_allein": "Wie viel Zeit hast du?"
+      },
+      "vertraut": {
+        "frage": "Etwas Neues oder etwas Vertrautes?",
+        "neu": "Etwas, das ich noch nicht gesehen habe",
+        "wieder": "Etwas, das ich lange nicht gesehen habe",
+        "egal": "Egal"
+      },
+      "epoche": {
+        "frage": "Aus welcher Zeit?",
+        "aktuell": "Möglichst neu",
+        "modern": "2000er bis 2010er",
+        "alt": "Älter darf es sein",
+        "egal": "Egal"
+      },
+      "bekanntheit": {
+        "frage": "Großer Titel oder Geheimtipp?",
+        "bekannt": "Etwas Bekanntes",
+        "geheimtipp": "Lieber ein Geheimtipp",
+        "egal": "Egal"
+      },
+      "vorschlaege": "Das schlage ich euch vor:",
+      "vorschlaege_allein": "Das schlage ich dir vor:",
+      "nichtsGefunden_allein": "Dazu habe ich nichts gefunden. Versuch es mit einer anderen Antwort — oder würfle nochmal.",
+      "intro": "Ein paar Fragen, und du hast einen Vorschlag für heute Abend."
+    },
+    "filter": {
+      "knopf": "Lieber selbst filtern →",
+      "titel": "Selbst filtern",
+      "intro": "Sechs Fragen statt dreizehn Reglern. Was du einstellst, steht in der Adresse — du kannst das Ergebnis also verschicken.",
+      "zeit": "Wie viel Zeit?",
+      "zeit_egal": "Egal",
+      "zeit_kurz": "Höchstens 90 Min.",
+      "zeit_mittel": "Bis 2 Stunden",
+      "zeit_lang": "Über 2 Stunden",
+      "epoche": "Aus welcher Zeit?",
+      "epoche_egal": "Egal",
+      "epoche_aktuell": "Ganz neu",
+      "epoche_aelter": "Vor 1970",
+      "jahrzehnt": "{{jahr}}er",
+      "genres": "Wonach ist dir?",
+      "genreHinweis": "Einmal klicken heißt „gerne“, nochmal klicken heißt „heute nicht“.",
+      "bekanntheit": "Wie bekannt?",
+      "bekanntheit_egal": "Egal",
+      "bekanntheit_bekannt": "Bekannte Titel",
+      "bekanntheit_geheimtipp": "Geheimtipps",
+      "sortierung": "Reihenfolge",
+      "sortierung_rating": "Beste Bewertung",
+      "sortierung_popular": "Beliebteste",
+      "sortierung_newest": "Neueste",
+      "zuruecksetzen": "Alles zurücksetzen",
+      "leer": "Dazu passt nichts.",
+      "leerHinweis": "Das schränkt gerade ein — tipp an, was weg darf:",
+      "ohne": "ohne „{{was}}“"
+    },
+    "ansicht": "Darstellung",
+    "ansicht_kacheln": "Kacheln",
+    "ansicht_liste": "Liste"
   }
 }

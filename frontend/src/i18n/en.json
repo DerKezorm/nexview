@@ -39,7 +39,9 @@
     "logout": "Sign out",
     "openMenu": "Open menu",
     "favorites": "Liked",
-    "tickets": "Tickets"
+    "tickets": "Tickets",
+    "browse": "Browse",
+    "whatToWatch": "What to watch?"
   },
   "setup": {
     "title": "Welcome to Nexview",
@@ -352,7 +354,9 @@
     "noRating": "none",
     "mostRequested": "Requested more than once",
     "requestedTimes": "{{count}}×",
-    "lastRequest": "Last request on {{date}}."
+    "lastRequest": "Last request on {{date}}.",
+    "colStorage": "Storage",
+    "storageOf": "{{used}} of {{limit}}"
   },
   "feedback": {
     "question": "How was the quality?",
@@ -862,20 +866,18 @@
     "previousWeek": "Previous week",
     "nextWeek": "Next week",
     "thisWeek": "This week",
-    "filterSource": "Show",
-    "sourceAll": "Everything",
-    "sourceOnlyMine": "Already requested",
-    "sourceMineHint": "Shows only movies and shows that have already been requested — without the new releases.",
-    "filterDateType": "Release",
+    "filterDateType": "Which date?",
     "dateDigital": "Digital & disc",
     "dateCinema": "Cinema",
-    "filterNoise": "Scope",
-    "noiseStudios": "Major studios",
-    "noiseKnown": "Known titles",
-    "noiseAll": "Everything",
-    "noiseOnlyNew": "Only affects new releases.",
+    "filterNoise": "How strict?",
+    "noiseAll": "Really everything",
     "empty": "Nothing is scheduled for this week.",
-    "emptyMine": "Nothing you already requested is due this week."
+    "filterKind": "Show what?",
+    "kind_beides": "Films & episodes",
+    "kind_movie": "Films only",
+    "kind_tv": "Episodes only",
+    "kindCinemaHint": "Series do not open in cinemas.",
+    "noiseSensible": "Sensible selection"
   },
   "people": {
     "title": "People",
@@ -1525,6 +1527,48 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.17.0": {
+        "lead": "Nexview can browse now. Until today, Discover only showed a rolling window of at most a year — everything older was reachable by search alone. The new area opens the whole catalogue, and beside it sits a guide that asks you a few questions and then suggests something for tonight.",
+        "sections": [
+          {
+            "title": "What to watch?",
+            "where": "Main menu → What to watch?",
+            "body": "The guide asks: who is watching, what are you in the mood for, does it have to play tonight, how much time is there, something new or something familiar. Six questions at most — and the tree adapts: choosing “only what's already here” drops the hidden-gem question, because in your own library it has no meaning. It ends in twelve suggestions, and “Roll again” gives you a different set.\n\n“With children” sets a real age rating (FSK 6 at most), not guessed genres. Nothing is taken away for it: a scare stays selectable and then returns “The House with a Clock in Its Walls” and “The Witches” instead of grown-up horror."
+          },
+          {
+            "title": "Browse",
+            "where": "Main menu → Browse",
+            "body": "Shelves instead of a time window: “Hidden gems” (well rated, barely known), “Timeless classics”, “Under 90 minutes”, “Newly released”, plus five decades and every genre. Every shelf works on an empty library and without any personal data.\n\nAt the top sits the question that comes first on movie night: “Does it have to play tonight?” Unlike before, this is sieved on the server — with a full library the rows stay full instead of shrinking to two tiles."
+          },
+          {
+            "title": "Filter yourself",
+            "where": "Browse → Rather filter yourself",
+            "body": "Six questions instead of thirteen controls: how much time, what you are after (genres can be included and excluded), which era (real decades), how well known, already here or not, and the order.\n\nThe runtime ceiling is genuinely new — “we only have ninety minutes” could not be expressed at all before. And what you set lives in the address: you can send a result to someone or bookmark it."
+          },
+          {
+            "title": "Your own shelves",
+            "where": "Browse, at the top",
+            "body": "“Not seen in a while” takes what is at least six months back — if there is nothing like that, the shelf disappears instead of suggesting something that does not fit. “Because you like X” gives every favourite its own row, so it stays clear why something is suggested.\n\nAt most three of them: one slot always belongs to your newest favourite, the others change daily. With a hundred favourites you see all of them over time instead of the same three."
+          },
+          {
+            "title": "The menu is shorter",
+            "where": "at the top",
+            "body": "“Discover movies” and “Discover series” have left the menu. Browse answers every one of their questions better — except one, “what came out recently?”, and that is now the “Newly released” shelf. The addresses still work, so old bookmarks do not break."
+          },
+          {
+            "title": "Calendar tidied up",
+            "where": "Main menu → Calendar",
+            "body": "Instead of “Everything / already requested” it now says “Films & episodes / Films only / Episodes only” — your own titles already sit at the top of each day, so the useful split is between film and episode.\n\nAnd the strictness filter no longer asks either for big studios or for known titles, but for both: measured against a real week, neither finds what the other finds — the studio list catches brand-new series with no votes, the vote floor catches good titles without a big distributor."
+          }
+        ],
+        "smallTitle": "Also fixed",
+        "small": [
+          "“Highest rated” returned noise instead of good films: TMDB has no weighted ranking and the floor was five votes, so a film with twenty votes and a 9.4 average outranked “The Godfather”. It is 300 now. This also repairs the sort on the old Discover page.",
+          "A runtime limit was not kept. TMDB's own filter is unreliable — asking for at most 95 minutes returned a 97- and a 99-minute film. The runtime is checked again on the server now.",
+          "Films between 126 and 129 minutes were unfindable by runtime: “Up to 2 hours” ended at 125 and the next step started at 130. The steps now meet exactly — and “May be long” is honestly called “Over 2 hours”, because that is what it was built as.",
+          "Every series query sent an ineffective parameter to TMDB (`watch_region` without `with_watch_providers`). Removed."
+        ]
+      },
       "0.16.0": {
         "lead": "Nexview now does children. A parent creates logins for their own children, the children get a completely separate app built for them — and whatever they wish for is decided first by the parent and only then by you.",
         "sections": [
@@ -1615,5 +1659,221 @@
     "fallback": "There is no text for this version here yet – the full list is on",
     "smallFallback": "Also fixed",
     "unread": "New since you last looked"
+  },
+  "stoebern": {
+    "titel": "Browse",
+    "intro": "The whole catalogue, not just the last few weeks. For the evening you have nothing planned.",
+    "alleAnsehen": "See all",
+    "jahrzehnte": "By decade",
+    "jahrzehnteHinweis": "Something you haven't seen in a long while.",
+    "genres": "By genre",
+    "bestand": {
+      "frage": "Does it have to play tonight?",
+      "egal": "Either way",
+      "nur_vorhanden": "Only what's already here",
+      "nur_neu": "Only what's missing"
+    },
+    "leer": "There is nothing on this shelf right now.",
+    "leer_nur_vorhanden": "Nothing in your library matches. That is not a matter of patience - there really is nothing more here.",
+    "leer_nur_neu": "Everything here is already available or requested.",
+    "bestandZuruecksetzen": "Show all titles",
+    "regal": {
+      "perlen": {
+        "titel": "Hidden gems",
+        "hinweis": "Well rated, barely known. Exactly what browsing is for."
+      },
+      "klassiker": {
+        "titel": "Timeless classics",
+        "hinweis": "Widely seen, highly rated, at least 15 years old."
+      },
+      "kurz": {
+        "titel": "Under 90 minutes",
+        "hinweis": "For when the evening is already half gone."
+      },
+      "jahrzehnt_1970": {
+        "titel": "The 70s",
+        "hinweis": "The best titles from the 1970s."
+      },
+      "jahrzehnt_1980": {
+        "titel": "The 80s",
+        "hinweis": "The best titles from the 1980s."
+      },
+      "jahrzehnt_1990": {
+        "titel": "The 90s",
+        "hinweis": "The best titles from the 1990s."
+      },
+      "jahrzehnt_2000": {
+        "titel": "The 2000s",
+        "hinweis": "The best titles from the 2000s."
+      },
+      "jahrzehnt_2010": {
+        "titel": "The 2010s",
+        "hinweis": "The best titles from the 2010s."
+      },
+      "genre_komoedie": {
+        "titel": "Comedy",
+        "hinweis": "For a laugh."
+      },
+      "genre_drama": {
+        "titel": "Drama",
+        "hinweis": "For feeling along."
+      },
+      "genre_action": {
+        "titel": "Action",
+        "hinweis": "For the adrenaline."
+      },
+      "genre_thriller": {
+        "titel": "Thriller",
+        "hinweis": "For the tension."
+      },
+      "genre_scifi": {
+        "titel": "Science fiction",
+        "hinweis": "For thinking ahead."
+      },
+      "genre_horror": {
+        "titel": "Horror",
+        "hinweis": "For the scares."
+      },
+      "genre_animation": {
+        "titel": "Animation",
+        "hinweis": "Drawn and rendered."
+      },
+      "genre_doku": {
+        "titel": "Documentary",
+        "hinweis": "For learning something."
+      },
+      "genre_familie": {
+        "titel": "Family",
+        "hinweis": "For everyone together."
+      },
+      "genre_krimi": {
+        "titel": "Crime",
+        "hinweis": "For solving along."
+      },
+      "genre_abenteuer": {
+        "titel": "Adventure",
+        "hinweis": "For setting out."
+      },
+      "genre_fantasy": {
+        "titel": "Fantasy",
+        "hinweis": "For getting lost."
+      },
+      "genre_mystery": {
+        "titel": "Mystery",
+        "hinweis": "For puzzling it out."
+      },
+      "wieder": {
+        "titel": "Not seen in a while",
+        "hinweis": "What is longest ago — maybe it's time again."
+      },
+      "weil_du": {
+        "titel": "Because you like “{{titel}}”",
+        "hinweis": "Titles that people who liked this one enjoyed."
+      },
+      "neu": {
+        "titel": "Newly released",
+        "hinweis": "What came out in the last three months."
+      }
+    },
+    "filme": "Movies",
+    "serien": "Series",
+    "filmabend": {
+      "titel": "What to watch?",
+      "schritt": "Question {{nummer}}",
+      "zurueck": "One question back",
+      "suche": "Looking for something that fits …",
+      "nochmal": "Roll again",
+      "vonVorn": "Start over",
+      "nichtsGefunden": "I found nothing for that. Try a different answer — or roll again.",
+      "keinVerlauf": "For that I need your watch history. Connect your account to a media server and I'll know what you haven't seen in a while.",
+      "gesellschaft": {
+        "frage": "Who is watching?",
+        "allein": "Just me",
+        "zu_zweit": "The two of us",
+        "freunde": "With friends",
+        "familie": "The whole family",
+        "kinder": "With children"
+      },
+      "stimmung": {
+        "frage": "What are you in the mood for?",
+        "lachen": "A laugh",
+        "spannung": "Suspense",
+        "nachdenken": "Something to think about",
+        "mitfiebern": "Edge of the seat",
+        "gruseln": "A scare",
+        "herz": "Something heartfelt",
+        "ueberrasch": "Surprise me",
+        "frage_allein": "What are you in the mood for?"
+      },
+      "verfuegbar": {
+        "frage": "Does it have to be ready to play tonight?",
+        "sofort": "Yes, only what's already here",
+        "laden": "No, it may still be downloaded",
+        "egal": "Either way"
+      },
+      "zeit": {
+        "frage": "How much time do you have?",
+        "kurz": "90 minutes at most",
+        "mittel": "Up to two hours",
+        "lang": "Over 2 hours",
+        "egal": "Doesn't matter",
+        "frage_allein": "How much time do you have?"
+      },
+      "vertraut": {
+        "frage": "Something new or something familiar?",
+        "neu": "Something I haven't seen",
+        "wieder": "Something I haven't seen in a long time",
+        "egal": "Either"
+      },
+      "epoche": {
+        "frage": "From which era?",
+        "aktuell": "As recent as possible",
+        "modern": "2000s to 2010s",
+        "alt": "Older is fine",
+        "egal": "Doesn't matter"
+      },
+      "bekanntheit": {
+        "frage": "A big title or a hidden gem?",
+        "bekannt": "Something well known",
+        "geheimtipp": "Rather a hidden gem",
+        "egal": "Either"
+      },
+      "vorschlaege": "Here's what I suggest:",
+      "vorschlaege_allein": "Here's what I suggest:",
+      "nichtsGefunden_allein": "I found nothing for that. Try a different answer — or roll again.",
+      "intro": "A few questions and you have a suggestion for tonight."
+    },
+    "filter": {
+      "knopf": "Rather filter yourself →",
+      "titel": "Filter yourself",
+      "intro": "Six questions instead of thirteen controls. What you set lives in the address, so you can share the result.",
+      "zeit": "How much time?",
+      "zeit_egal": "Doesn't matter",
+      "zeit_kurz": "90 minutes at most",
+      "zeit_mittel": "Up to 2 hours",
+      "zeit_lang": "Over 2 hours",
+      "epoche": "From which era?",
+      "epoche_egal": "Doesn't matter",
+      "epoche_aktuell": "Brand new",
+      "epoche_aelter": "Before 1970",
+      "jahrzehnt": "{{jahr}}s",
+      "genres": "What are you after?",
+      "genreHinweis": "One click means “yes please”, a second click means “not today”.",
+      "bekanntheit": "How well known?",
+      "bekanntheit_egal": "Doesn't matter",
+      "bekanntheit_bekannt": "Well-known titles",
+      "bekanntheit_geheimtipp": "Hidden gems",
+      "sortierung": "Order",
+      "sortierung_rating": "Highest rated",
+      "sortierung_popular": "Most popular",
+      "sortierung_newest": "Newest",
+      "zuruecksetzen": "Reset everything",
+      "leer": "Nothing matches.",
+      "leerHinweis": "These are narrowing it down — tap what may go:",
+      "ohne": "without “{{was}}”"
+    },
+    "ansicht": "View",
+    "ansicht_kacheln": "Tiles",
+    "ansicht_liste": "List"
   }
 }

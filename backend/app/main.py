@@ -43,6 +43,7 @@ from .routers import (
     settings as settings_router,
     setup,
     stats as stats_router,
+    stoebern as stoebern_router,
     storage as storage_router,
     tickets as tickets_router,
     users,
@@ -150,6 +151,7 @@ app.include_router(settings_router.router)
 app.include_router(channels_router.router)
 app.include_router(children_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(discover.router, dependencies=NUR_ERWACHSENE)
+app.include_router(stoebern_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(discover.public_router)
 app.include_router(kids_router.router)
 app.include_router(requests_router.router, dependencies=NUR_ERWACHSENE)

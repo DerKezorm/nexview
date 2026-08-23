@@ -296,6 +296,15 @@ def uebersicht(admin: AdminUser, db: DbSession) -> StorageUebersicht:
         if person is not None and person.role == Role.admin and stand.used_bytes == 0:
             continue
 
+        # **Kinderkonten bleiben immer weg** - anders als bei Administratoren
+        # ohne jede Ausnahme. Sie haben per Konstruktion kein eigenes
+        # Kontingent: Gibt ein Elternteil einen Kinderwunsch frei, laeuft die
+        # Anfrage auf **seinen** Namen (siehe ``child_wishes``). Ein Kind kann
+        # hier also nie etwas halten, stuende aber mit "0 GB" in der Liste und
+        # verwaesserte die prozentuale Aufteilung im Ring.
+        if person is not None and person.role == Role.child:
+            continue
+
         anteile.append(
             StorageAnteil(
                 user_id=user_id,

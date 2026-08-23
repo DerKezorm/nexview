@@ -35,6 +35,14 @@ class UserStatsPublic(BaseModel):
     quota_movie_limit: int | None
     quota_series_used: int
     quota_series_limit: int | None
+    # ⚠️ Neue Felder muessen **auch hier** stehen. Pydantic laesst weg, was es
+    # nicht kennt - ohne Fehler und ohne Log. Genau daran ist der Speicherstand
+    # beim ersten Anlauf gescheitert: berechnet, aber nie ausgeliefert.
+    #
+    # Nur im GB-Betrieb gefuellt; sonst ``None``, und die Oberflaeche zeigt
+    # weiter die Stueck-Kontingente.
+    storage_used_bytes: int | None = None
+    storage_limit_bytes: int | None = None
 
 
 class TotalsPublic(BaseModel):

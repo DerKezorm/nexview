@@ -40,3 +40,18 @@ export function browsePath(
   // nicht erst nach der Antwort vom Server erscheint.
   return `/liste/${mediaType}/${art}/${id}?name=${encodeURIComponent(name)}`
 }
+
+/** Übersicht der Regale. Serien sind ein eigener Pfad, kein Parameter. */
+export function stoeberPath(mediaType: MediaType): string {
+  return mediaType === 'movie' ? '/stoebern' : '/stoebern/serien'
+}
+
+/** Ein einzelnes Regal in voller Länge. */
+export function regalPath(mediaType: MediaType, kennung: string): string {
+  return `/stoebern/regal/${mediaType}/${kennung}`
+}
+
+/** Freie Auswahl im Rückkatalog. */
+export function stoeberFilterPath(mediaType: MediaType): string {
+  return `/stoebern/filter/${mediaType}`
+}

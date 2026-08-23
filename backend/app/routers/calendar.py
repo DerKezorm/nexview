@@ -125,7 +125,11 @@ async def kalender(
     date_to: DateParam = None,
     sources: Annotated[Literal["all", "mine", "new"], Query()] = "all",
     date_type: Annotated[Literal["digital", "kino"], Query()] = "digital",
-    noise: Annotated[Literal["studios", "known", "none"], Query()] = "studios",
+    # "studios" und "known" bleiben gueltig - sie sind die beiden Haelften,
+    # aus denen "sinnvoll" besteht, und alte Lesezeichen sollen weiter gehen.
+    noise: Annotated[
+        Literal["sinnvoll", "studios", "known", "none"], Query()
+    ] = "sinnvoll",
 ) -> CalendarResult:
     """Was im Zeitraum erscheint - eigener Bestand und Neuerscheinungen.
 

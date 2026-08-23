@@ -8,7 +8,7 @@ import { DemoBanner } from '../components/DemoBanner'
 import { CalendarDayGroup } from '../components/calendar/CalendarDayGroup'
 import type {
   CalendarDatumsart,
-  CalendarQuelle,
+  CalendarArt,
   CalendarSchaerfe,
 } from '../components/calendar/CalendarFilters'
 import { CalendarFilters } from '../components/calendar/CalendarFilters'
@@ -47,9 +47,9 @@ export function CalendarPage() {
   const heute = useMemo(() => heuteLokal(), [])
 
   const [woche, setWoche] = useState<Woche>(heutigeWoche)
-  const [quelle, setQuelle] = useState<CalendarQuelle>('all')
+  const [art, setArt] = useState<CalendarArt>('beides')
   const [datumsart, setDatumsart] = useState<CalendarDatumsart>('digital')
-  const [schaerfe, setSchaerfe] = useState<CalendarSchaerfe>('studios')
+  const [schaerfe, setSchaerfe] = useState<CalendarSchaerfe>('sinnvoll')
   const [selected, setSelected] = useState<MediaItem | null>(null)
 
   const { von, bis } = wochenSpanne(woche)
@@ -57,13 +57,16 @@ export function CalendarPage() {
   const parameter = new URLSearchParams({
     date_from: von,
     date_to: bis,
-    sources: quelle,
+    // Die eigenen Titel kommen immer mit - die Trennung Film/Folge passiert
+    // hier vorn, weil jeder Eintrag seine Medienart ohnehin mitbringt und die
+    // Woche eine feste Menge ist (nichts kann dadurch "zu kurz" werden).
+    sources: 'all',
     date_type: datumsart,
     noise: schaerfe,
   })
 
   const query = useQuery({
-    queryKey: ['calendar', von, bis, quelle, datumsart, schaerfe],
+    queryKey: ['calendar', von, bis, datumsart, schaerfe],
     queryFn: () => api.get<CalendarResult>(`/api/calendar?${parameter.toString()}`),
     staleTime: 5 * 60 * 1000,
   })
@@ -71,7 +74,16 @@ export function CalendarPage() {
   // React Query behält bei einem fehlgeschlagenen Nachladen die alten Daten;
   // dann steht der Fehler nur in `failureReason`.
   const fehler = query.error ?? query.failureReason
-  const tage = query.data?.days ?? []
+  const roheTage = query.data?.days ?? []
+  // Filme/Folgen wird hier gesiebt, nicht beim Server: Die Woche ist eine
+  // feste Menge, es kann also nichts "zu kurz" werden - anders als bei einer
+  // blätternden Liste.
+  const tage = useMemo(() => {
+    if (art === 'beides') return roheTage
+    return roheTage
+      .map((tag) => ({ ...tag, entries: tag.entries.filter((e) => e.media_type === art) }))
+      .filter((tag) => tag.entries.length > 0)
+  }, [roheTage, art])
 
   const alleEintraege = useMemo(() => tage.flatMap((tag) => tag.entries), [tage])
   const { ratingsFor, istFavorit } = useCardData(
@@ -95,10 +107,10 @@ export function CalendarPage() {
       <WeekPicker woche={woche} onChange={setWoche} />
 
       <CalendarFilters
-        quelle={quelle}
+        art={art}
         datumsart={datumsart}
         schaerfe={schaerfe}
-        onQuelle={setQuelle}
+        onArt={setArt}
         onDatumsart={setDatumsart}
         onSchaerfe={setSchaerfe}
       />
@@ -137,7 +149,7 @@ export function CalendarPage() {
       {!query.isPending && !fehler && tage.length === 0 && (
         <div className="rounded-2xl border border-dashed border-ink-700 px-6 py-16 text-center">
           <p className="text-sm text-mist-500">
-            {quelle === 'mine' ? t('calendar.emptyMine') : t('calendar.empty')}
+            {t('calendar.empty')}
           </p>
         </div>
       )}

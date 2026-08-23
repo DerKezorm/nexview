@@ -11,6 +11,7 @@ import {
 } from '../components/media/FavoriteButton'
 import { PersonPhoto } from '../components/media/PersonPhoto'
 import { SearchInput } from '../components/SearchInput'
+import { Umschalter } from '../components/Umschalter'
 import { Button, Spinner } from '../components/ui'
 import { personPath } from '../lib/routes'
 
@@ -89,27 +90,12 @@ export function PeoplePage() {
 
       <SearchInput value={suche} onChange={setSuche} placeholder={t('people.searchPlaceholder')} />
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label={t('people.department')}>
-        {FAECHER.map((wert) => {
-          const aktiv = fach === wert
-          return (
-            <button
-              key={wert}
-              type="button"
-              onClick={() => setFach(wert)}
-              aria-pressed={aktiv}
-              className={
-                'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ' +
-                (aktiv
-                  ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
-                  : 'border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100')
-              }
-            >
-              {t(`people.dept.${wert}`)}
-            </button>
-          )
-        })}
-      </div>
+      <Umschalter
+        wert={fach}
+        wahl={FAECHER}
+        onChange={setFach}
+        label={(wert) => t(`people.dept.${wert}`)}
+      />
 
       {query.isPending ? (
         <p className="flex items-center gap-2 text-sm text-mist-500">

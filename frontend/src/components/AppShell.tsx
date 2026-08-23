@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
@@ -12,6 +13,10 @@ import { NotificationBell } from './NotificationBell'
 import { WatchlistExpiredBanner } from './WatchlistExpiredBanner'
 import { WasNeuBanner } from './WasNeuBanner'
 import { UserMenu } from './UserMenu'
+import type { MediaItem, MediaType } from '../api/types'
+import { DetailModal } from './media/DetailModal'
+import { Filmabend } from './stoebern/Filmabend'
+import { useConfig } from '../hooks/useConfig'
 
 type NavItem = { to: string; labelKey: string }
 
@@ -20,13 +25,35 @@ type NavItem = { to: string; labelKey: string }
  *
  * Alles Persönliche und Verwaltende liegt im Benutzermenü oben rechts.
  */
+/**
+ * Adresszusatz, der den Filmabend-Assistenten öffnet.
+ *
+ * ⚠️ Bewusst ein **Parameter** und keine eigene Adresse. Als eigene Route
+ * (`/filmabend`, die dieselbe Stöber-Seite rendert) war es zweifach kaputt:
+ * Von Stöbern aus passierte gar nichts, weil React dieselbe Komponente
+ * wiederverwendet und der Anfangswert von `useState` nicht neu gelesen wird —
+ * und von jeder anderen Seite aus sprang der Hintergrund auf Stöbern.
+ *
+ * Als Parameter legt sich das Fenster über **die Seite, auf der man gerade
+ * ist**, und Schließen lässt einen dort stehen.
+ */
+const FILMABEND = 'filmabend'
+
 const NAV_ITEMS: NavItem[] = [
-  { to: '/filme', labelKey: 'nav.discoverMovies' },
-  { to: '/serien', labelKey: 'nav.discoverSeries' },
+  // Je ein Eintrag fuer Filme UND Serien - die Medienart wird auf der Seite
+  // selbst umgeschaltet. Zwei Eintraege ergaeben ein siebenteiliges
+  // Hauptmenue, und das ist auf dem Handy keine Navigation mehr.
+  { to: '/stoebern', labelKey: 'nav.browse' },
   { to: '/personen', labelKey: 'nav.people' },
   { to: '/kalender', labelKey: 'nav.calendar' },
   { to: '/suche', labelKey: 'nav.search' },
 ]
+
+// "Filme entdecken" und "Serien entdecken" sind hier bewusst **nicht** mehr
+// aufgefuehrt, die Routen aber absichtlich stehengeblieben (siehe App.tsx):
+// Nach dem Umbau beantwortete die Stoeber-Seite jede ihrer Fragen besser, bis
+// auf "was ist gerade erschienen?" - und das ist jetzt ein Regal dort. Alte
+// Lesezeichen laufen weiter, statt auf eine 404 zu treffen.
 
 /**
  * Fußzeile mit Version und Verweis auf die Über-Seite.
@@ -76,6 +103,23 @@ function Footer() {
 export function AppShell() {
   const { t } = useTranslation()
   const items = NAV_ITEMS
+  const [params, setParams] = useSearchParams()
+  const { data: config } = useConfig()
+  const [schnellAnfrage, setSchnellAnfrage] = useState<MediaItem | null>(null)
+
+  const filmabendWert = params.get(FILMABEND)
+  const filmabendOffen = filmabendWert !== null
+  const filmabendArt: MediaType = filmabendWert === 'tv' ? 'tv' : 'movie'
+
+  /** Öffnen, umschalten oder schließen - ohne die Seite darunter zu wechseln. */
+  function setzeFilmabend(art: MediaType | null) {
+    const neu = new URLSearchParams(params)
+    if (art) neu.set(FILMABEND, art)
+    else neu.delete(FILMABEND)
+    setParams(neu, { replace: true })
+  }
+
+  const oeffneFilmabend = () => setzeFilmabend(filmabendOffen ? null : 'movie')
 
   return (
     <div className="nv-glow flex min-h-dvh flex-col">
@@ -88,6 +132,19 @@ export function AppShell() {
           </NavLink>
 
           <nav className="hidden flex-1 items-center gap-1 md:flex" aria-label={t('nav.discover')}>
+            <button
+              type="button"
+              onClick={oeffneFilmabend}
+              aria-pressed={filmabendOffen}
+              className={
+                'rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ' +
+                (filmabendOffen
+                  ? 'bg-accent-500/15 text-accent-400'
+                  : 'text-mist-500 hover:bg-ink-850 hover:text-mist-100')
+              }
+            >
+              {t('nav.whatToWatch')}
+            </button>
             {items.map((item) => (
               <NavLink
                 key={item.to}
@@ -117,6 +174,19 @@ export function AppShell() {
           className="flex gap-1 overflow-x-auto border-t border-ink-700/60 px-4 py-2 md:hidden"
           aria-label={t('nav.discover')}
         >
+          <button
+            type="button"
+            onClick={oeffneFilmabend}
+            aria-pressed={filmabendOffen}
+            className={
+              'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ' +
+              (filmabendOffen
+                ? 'bg-accent-500/15 text-accent-400'
+                : 'text-mist-500 hover:bg-ink-850 hover:text-mist-100')
+            }
+          >
+            {t('nav.whatToWatch')}
+          </button>
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -145,6 +215,26 @@ export function AppShell() {
       <main className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
         <Outlet />
       </main>
+
+      {filmabendOffen && (
+        <Filmabend
+          key={filmabendArt}
+          mediaType={filmabendArt}
+          onMediaTypeChange={(neu) => setzeFilmabend(neu)}
+          onQuickAdd={setSchnellAnfrage}
+          onClose={() => setzeFilmabend(null)}
+        />
+      )}
+
+      <DetailModal
+        item={schnellAnfrage}
+        onClose={() => setSchnellAnfrage(null)}
+        arrConfigured={
+          schnellAnfrage?.media_type === 'tv'
+            ? (config?.sonarr_configured ?? false)
+            : (config?.radarr_configured ?? false)
+        }
+      />
 
       <Footer />
     </div>

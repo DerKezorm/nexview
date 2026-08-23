@@ -35,6 +35,37 @@ def _basis() -> AboutInfo:
     )
 
 
+class Neuigkeiten(BaseModel):
+    """Ob der "Alles, was neu ist"-Hinweis fuer dieses Konto ansteht."""
+
+    version: str
+    # Nur Administratoren bekommen den Balken: Sie haben das Update
+    # eingespielt, sie sollen wissen, was es bringt. Fuer alle anderen ist
+    # ``offen`` immer falsch.
+    offen: bool
+
+
+@router.get("/neuigkeiten", response_model=Neuigkeiten)
+def neuigkeiten(user: CurrentUser) -> Neuigkeiten:
+    from ..models import Role
+
+    offen = user.role == Role.admin and user.changelog_gesehen != __version__
+    return Neuigkeiten(version=__version__, offen=offen)
+
+
+@router.post("/neuigkeiten/gesehen", response_model=Neuigkeiten)
+def neuigkeiten_gesehen(user: CurrentUser, db: DbSession) -> Neuigkeiten:
+    """"Verstanden, nicht mehr anzeigen" - bis zum naechsten Update.
+
+    Gespeichert wird die Fassung, nicht ein Haken: So kommt der Balken nach
+    dem naechsten Update von selbst wieder, ohne dass irgendetwas
+    zurueckgesetzt werden muesste.
+    """
+    user.changelog_gesehen = __version__
+    db.commit()
+    return Neuigkeiten(version=__version__, offen=False)
+
+
 @router.get("", response_model=AboutInfo)
 async def about(user: CurrentUser, db: DbSession) -> AboutInfo:
     info = _basis()

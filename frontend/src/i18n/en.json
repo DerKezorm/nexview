@@ -1374,5 +1374,12 @@
     "wishDelete": "wants it deleted",
     "wishKeep": "wants to keep it, stop downloading",
     "unfollow": "Stop following"
+  },
+  "whatsNew": {
+    "title": "Everything that's new.",
+    "hint": "Nexview has been updated to version {{version}}.",
+    "action": "Take a look",
+    "subtitle": "Version {{version}}",
+    "dismiss": "Got it, don't show again"
   }
 }

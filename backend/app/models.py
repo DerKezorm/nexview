@@ -249,6 +249,10 @@ class User(Base):
     # Bedeutung muesste der Admin die Zahl an jedem Konto einzeln eintragen -
     # und wer sie vergisst, haette einen unbegrenzten Nutzer.
     storage_limit_gb: Mapped[int | None] = mapped_column(Integer)
+    # Bis zu welcher Nexview-Fassung dieser Administrator den "Alles, was
+    # neu ist"-Hinweis quittiert hat. NULL = noch nie - der Balken erscheint
+    # dann, und nach jedem Update wieder, bis er erneut quittiert wird.
+    changelog_gesehen: Mapped[str | None] = mapped_column(String(20))
 
     # Erlaubte Qualitaetsprofile als Komma-Liste von Radarr-/Sonarr-Kennungen.
     # Leer bedeutet: keine Einschraenkung.

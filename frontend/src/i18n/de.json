@@ -1374,5 +1374,12 @@
     "wishDelete": "möchte löschen lassen",
     "wishKeep": "möchte behalten, nicht mehr laden",
     "unfollow": "Nicht mehr folgen"
+  },
+  "whatsNew": {
+    "title": "Alles, was neu ist.",
+    "hint": "Nexview wurde auf Version {{version}} aktualisiert.",
+    "action": "Ansehen",
+    "subtitle": "Version {{version}}",
+    "dismiss": "Verstanden, nicht mehr anzeigen"
   }
 }

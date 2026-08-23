@@ -10,6 +10,7 @@ import { LoadingBar } from './LoadingBar'
 import { Logo } from './Logo'
 import { NotificationBell } from './NotificationBell'
 import { WatchlistExpiredBanner } from './WatchlistExpiredBanner'
+import { WasNeuBanner } from './WasNeuBanner'
 import { UserMenu } from './UserMenu'
 
 type NavItem = { to: string; labelKey: string }
@@ -137,6 +138,7 @@ export function AppShell() {
       {/* Über die volle Breite und außerhalb des Inhalts-Containers: Wessen
           Plex-Zugang abgelaufen ist, soll es auf jeder Seite sehen und nicht
           nur dort, wo er zufällig hinklickt. */}
+      <WasNeuBanner />
       <WatchlistExpiredBanner />
 
       {/* flex-1 schiebt die Fußzeile auch auf kurzen Seiten nach unten. */}

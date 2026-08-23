@@ -4,72 +4,220 @@
 
 # Nexview
 
-**Neue Filme und Serien entdecken — und direkt bei Radarr/Sonarr anfragen.**
+**Find something to watch — and request it straight from Radarr and Sonarr.**
+
+[Project site](https://nexview.nexapps.dev) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/DerKezorm/nexview/issues/new)
 
 </div>
 
-Nexview ist ein persönliches Media-Discovery-Dashboard für Familie und Freundeskreis.
-Es zeigt Neuerscheinungen von [TMDB](https://www.themoviedb.org/), zeigt auf einen Blick,
-was bereits in deiner Bibliothek liegt, und stößt Downloads über **Radarr** (Filme) und
-**Sonarr** (Serien) an — mit Login, Rollen, Freigaben und Kontingenten.
+Nexview is a self-hosted media discovery dashboard for a household — family, flatmates,
+a circle of friends. It shows new releases from [TMDB](https://www.themoviedb.org/),
+marks what is already in your library, and hands requests to **Radarr** (movies) and
+**Sonarr** (shows). Everyone gets their own account, with roles, approvals and quotas.
 
-> **Status:** funktionsfähig und als Docker-Container lauffähig. Anmeldung mit Einladungen
-> und bestätigter E-Mail-Adresse, Benutzer und Kontingente, Einstellungen, TMDB-Anbindung,
-> Radarr-/Sonarr-Abgleich, Anfragen mit Freigabe, Qualitäts-Rückmeldungen, Statistik sowie
-> die automatische Status-Verfolgung mit Benachrichtigungen sind fertig.
-> Offen: Benachrichtigungen per E-Mail (statt nur in der App).
->
-> Ohne TMDB-API-Key startet Nexview mit **Beispieldaten**, sodass sich die Oberfläche
-> sofort ausprobieren lässt.
+It downloads nothing itself and stores no media. It is the front door to a setup you
+already run — it does not replace any part of it.
+
+Without a TMDB key Nexview starts with sample data, so you can look around before
+deciding anything.
 
 ---
 
-## Funktionen
+<div align="center">
 
-| | |
+<img src="docs/screenshots/discover.webp" alt="The Nexview home page: rows of film posters under headings such as trending and curated for you" width="100%">
+
+<sub>The home page. What each person marks as a favourite shapes what they get suggested.</sub>
+
+<br><br>
+
+<img src="docs/screenshots/request.webp" alt="A film's detail page with ratings, cast and an open request panel offering quality profile and target folder" width="49%">
+<img src="docs/screenshots/child-view.webp" alt="The children's view: large colourful category tiles for animation, family, adventure and comedy" width="49%">
+
+<sub>Requesting a title, and the same installation seen by a child.</sub>
+
+</div>
+
+**The full tour is on the [project site](https://nexview.nexapps.dev)** — every area with
+its own page and more screenshots.
+
+---
+
+## What it does
+
+**Finding something**
+
+- Separate areas for movies and shows, each with its own logic
+- Filter by period, language, region, genre, rating and studio; cards or list
+- Detail pages with cast photos, directing and writing credits, studios, keywords,
+  similar titles and the trailer in a window
+- Ratings from IMDb, Rotten Tomatoes and Metacritic on the title itself
+- Where a title is currently streaming in your region, split into subscription, free,
+  rent and buy (data from JustWatch)
+- Browse people — actors, directors, writers — and mark them as favourites; your
+  favourites, titles and people alike, shape what gets suggested on your home page
+- A release calendar, one week at a time: your own titles kept apart from new releases,
+  with cinema and digital dates read for your region
+
+**Requesting**
+
+- Pick quality profile and target folder, or let the approver pick them instead
+- Request whole shows or single seasons, optionally following future ones
+- Optionally a second Radarr and Sonarr instance for 4K: the same title once in 1080p
+  and once in 4K, with separate folders, profiles and per-user permissions
+- The state sits on the poster — not requested, requested, searching, already
+  downloaded, in library, blocked — and updates itself as Radarr and Sonarr work
+
+**Who may do what**
+
+- Three roles: administrator, approver, user. An approver decides on requests without
+  ever getting near your API keys
+- Approve automatically or by hand, set separately for movies, shows and 4K
+- Quotas per day, week or month — or, instead of counting titles, **by disk space in
+  gigabytes**, which is the thing that actually runs out
+- Child accounts: a parent creates a login for their child, with an age, a set of
+  categories and a language. The child gets a separate, simpler app and does not
+  request but *wishes* — nothing happens until the parent approves, and the request
+  then runs in the parent's name
+- A block list for titles that should stay out: visible, but not requestable
+
+**With a media server**
+
+Plex is optional. Connect one and four things arrive:
+
+- Sign in with a Plex account, checked against your server — no second password
+- Titles already in the library are recognised even if they never came through
+  Radarr or Sonarr, and cannot be requested twice
+- Your Plex watchlist appears inside the catalogue, requestable with one click.
+  Nothing happens on its own; every title takes a click
+- What each person has already watched carries a marker, and everyone sees only
+  their own
+
+**Staying informed**
+
+- A bell in the app, and per-event e-mail if you want it
+- Seven notification channels for the installation as a whole: ntfy, Gotify, Telegram,
+  Discord, a plain webhook, [Apprise](https://github.com/caronc/apprise) and e-mail.
+  Each inbox picks its own events, language and urgency
+- A ticket centre where people report problems and get an answer, with state and history
+- Statistics and an error log for the administrator
+
+**And**
+
+- German and English throughout, including titles and descriptions
+- A dark interface that works on a phone
+
+## Built with
+
+- **Frontend:** React 19, Vite, Tailwind CSS 4
+- **Backend:** Python, FastAPI
+- **Database:** SQLite — accounts, settings and requests only, never media files
+- **Sessions:** JWT, passwords hashed with bcrypt
+- **Deployment:** a single Docker container serving both the API and the interface
+
+---
+
+## Running with Docker
+
+Nexview runs as **one** container: FastAPI serves the API and the built interface
+together. No extra web server is needed.
+
+The image is on the GitHub Container Registry and is built for Intel/AMD **and** ARM,
+so nothing has to be compiled:
+
+```bash
+docker compose up -d
+```
+
+Nexview is then reachable at `http://<your-server>:5173`.
+
+To build from source instead, replace `image: ghcr.io/derkezorm/nexview:latest` in
+`docker-compose.yml` with `build: .` and add `--build` when starting.
+
+### What to back up
+
+Everything that matters lives in the directory mapped to `/data`:
+
+| File | Contents |
 |---|---|
-| 🎬 **Getrennte Bereiche** | Filme und Serien mit jeweils eigener Logik (Radarr bzw. Sonarr) |
-| 🔎 **Filtern & suchen** | Nach Zeitraum, Sprache, Region, Genre, Bewertung und Studio; Kachel- oder Listenansicht |
-| 📄 **Detailseiten** | Besetzung mit Fotos, Regie, Studios, Schlagworte, Empfehlungen, Trailer — bei Serien alle Staffeln zum Aufklappen |
-| ⬇️ **Anfragen** | Qualitätsprofil und Zielordner wählen, dann direkt an Radarr/Sonarr — bei Serien auch einzelne Staffeln |
-| 📁 **Ordner erst bei der Freigabe** | Für Mediatheken, die in mehrere Ordner sortiert sind: Auf Wunsch wählt nicht der Anfragende, sondern der Entscheider Zielordner und Profil |
-| 🎞️ **Zweite Instanz für 4K** | Optional ein zweites Radarr/Sonarr: derselbe Titel einmal in 1080p und einmal in 4K, mit eigenen Ordnern, eigenen Profilen und eigenen Rechten je Benutzer |
-| 🏷️ **Status auf einen Blick** | „Nicht angefragt", „Angefragt", „Wird gesucht", „Bereits geladen", „Gesperrt" |
-| ⭐ **Bewertungen** | IMDb, Rotten Tomatoes und Metacritic bei Filmen, anklickbar — ohne weiteren Dienst |
-| ❤️ **Favoriten** | Titel mit dem Herz markieren; daraus entsteht „Für dich kuratiert" auf der Startseite |
-| 👥 **Benutzer & Rollen** | Administrator, Entscheider und Benutzer; jeder sieht nur seine eigenen Anfragen |
-| 🎞️ **Anmeldung mit Plex** | Wer Zugriff auf deine Plex-Bibliothek hat, meldet sich mit seinem Plex-Konto an — wahlweise zusätzlich zum Passwort |
-| 📚 **Bibliothek erkennen** | Titel, die schon in Plex liegen, aber nie über Radarr/Sonarr kamen, sind als „In der Bibliothek" markiert und nicht doppelt anfragbar |
-| 👁️ **Schon gesehen** | Was du auf deinem Media-Server angesehen hast, trägt ein kleines Auge — jeder sieht dabei nur seine eigenen |
-| 🔖 **Plex-Merkliste** | Was auf der eigenen Plex-Merkliste steht, erscheint im Profil — mit einem Klick angefragt, ganz wie im Katalog |
-| ✅ **Freigaben & Kontingente** | Pro Benutzer: automatisch freigeben oder manuell, Limits pro Tag/Woche/Monat |
-| 🔞 **Altersbeschränkung** | Je Benutzer ein Alter; gezeigt wird nur, was höchstens ab diesem Alter freigegeben ist |
-| 🚫 **Sperrliste** | Titel, die nicht in die Bibliothek sollen — sichtbar, aber nicht anfragbar |
-| 🎫 **Ticketcenter** | Benutzer melden Anliegen, der Administrator antwortet; mit Zustand und Verlauf |
-| 🔔 **Benachrichtigungen** | Glocke in der App, auf Wunsch zusätzlich per E-Mail — jedes Ereignis einzeln schaltbar |
-| 📊 **Statistik & Protokoll** | Auswertung der Anfragen und ein Fehlerprotokoll für den Administrator |
-| 🌓 **Dunkles Theme** | Cineastische Optik mit rotem Akzent, auch auf dem Smartphone |
-| 🇩🇪 🇬🇧 **Zweisprachig** | Oberfläche, Filmtitel und Beschreibungen umschaltbar zwischen Deutsch und Englisch |
+| `nexview.db` | accounts, requests, feedback, settings |
+| `secret.key` | the key your stored API keys are encrypted with |
+| `avatars/` | profile pictures |
+| `logs/` | error log |
 
-## Technik
+**`secret.key` belongs with the database.** Without it the stored TMDB, Radarr, Sonarr
+and SMTP credentials cannot be decrypted. Back both up together — and never put that
+backup in a public repository.
 
-- **Frontend:** React 19 + Vite + Tailwind CSS 4
-- **Backend:** Python + FastAPI
-- **Datenbank:** SQLite (nur Benutzer, Einstellungen, Anfragen — keine Mediendateien)
-- **Anmeldung:** JWT-Sitzungen, Passwörter mit bcrypt gehasht
-- **Betrieb:** ein einzelner Docker-Container, der API und Oberfläche zusammen ausliefert
+### On a Synology
 
-Die API-Keys für TMDB, Radarr und Sonarr liegen **verschlüsselt in der Datenbank** und werden
-über die Einstellungsseite gepflegt — nicht in Konfigurationsdateien. Der Browser spricht
-ausschließlich mit dem Nexview-Backend, niemals direkt mit TMDB, Radarr oder Sonarr.
+In **Container Manager** under *Project → Create*, pick the project folder and use the
+`docker-compose.yml`. Two adjustments are worth making:
+
+```yaml
+    ports:
+      - "5173:8000"        # change the left number if 5173 is taken
+    volumes:
+      - /volume1/docker/nexview/data:/data
+```
+
+A fixed path instead of `./data` makes backing up through Hyper Backup easier.
+
+You do **not** need to sort out permissions on that folder — the container sets them on
+start. If you want the files to belong to a particular user, put their numbers in
+`PUID`/`PGID` (find them over SSH with `id username`).
+
+### Updating
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+The database is kept. Nexview brings it up to date itself on start: missing tables,
+columns and indexes are added. **Before** anything is changed it writes a copy to
+`/data/sicherungen/`, keeping the five most recent — so if something does go wrong, the
+previous state is still there.
+
+### Image tags
+
+Nexview follows the usual `MAJOR.MINOR.PATCH` numbering:
+
+| Image | Contents |
+|---|---|
+| `ghcr.io/derkezorm/nexview:latest` | the latest **released** version — the recommendation |
+| `ghcr.io/derkezorm/nexview:0.16.1` | exactly that one version, never changes |
+| `ghcr.io/derkezorm/nexview:main` | the current development state, may be broken |
+
+The running version is in the footer and in detail under **About Nexview**, which also
+reports when a newer one exists. For that it asks GitHub at most once a day. The check
+sends nothing out of Nexview and can be switched off on the same page.
 
 ---
 
-## Entwicklung
+## Configuration
 
-**Voraussetzungen:** Python 3.12+ und Node.js 20+
+Every setting is optional — Nexview runs without a configuration file. For production,
+copy `.env.example` to `.env`:
 
-### 1. Backend starten
+| Variable | Meaning |
+|---|---|
+| `NEXVIEW_SECRET_KEY` | Secret for sessions and for encrypting the API keys. Generated automatically and stored in `data/secret.key` if unset. |
+| `NEXVIEW_DATA_DIR` | Directory for the database and key file (default: `./data`) |
+| `NEXVIEW_ACCESS_TOKEN_MINUTES` | How long a sign-in stays valid (default: 30) |
+| `NEXVIEW_REFRESH_TOKEN_DAYS` | How long you stay signed in (default: 30) |
+| `NEXVIEW_CORS_ORIGINS` | Allowed origins in development |
+| `NEXVIEW_STATIC_DIR` | Folder with the built frontend (the container sets this itself) |
+
+**No TMDB, Radarr or Sonarr keys belong in `.env`** — you enter those in the app.
+
+---
+
+## Development
+
+**Requirements:** Python 3.12+ and Node.js 20+
+
+### Backend
 
 ```bash
 cd backend
@@ -79,12 +227,12 @@ pip install -r requirements-dev.txt
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-Die API läuft dann auf `http://127.0.0.1:8000`, die interaktive
-API-Dokumentation unter `http://127.0.0.1:8000/docs`.
+The API then runs on `http://127.0.0.1:8000`, with interactive documentation at
+`http://127.0.0.1:8000/docs`.
 
-### 2. Frontend starten
+### Frontend
 
-In einem zweiten Terminal:
+In a second terminal:
 
 ```bash
 cd frontend
@@ -92,119 +240,35 @@ npm install
 npm run dev
 ```
 
-Die Oberfläche öffnet sich unter **`http://localhost:5173`**. Anfragen an `/api` werden
-automatisch an das Backend weitergeleitet.
+The interface opens at `http://localhost:5173`. Requests to `/api` are forwarded to the
+backend automatically.
 
-### 3. Ersteinrichtung
+### First run
 
-Beim ersten Aufruf erscheint ein einmaliger Assistent:
+A one-time wizard appears on first launch:
 
-| Schritt | Pflicht? | Wozu |
+| Step | Required | For |
 |---|---|---|
-| **Konto** | ja | Administrator mit Benutzername, E-Mail-Adresse und Passwort |
-| **Bild** | nein | Profilbild – ohne zeigt Nexview die Anfangsbuchstaben |
-| **TMDB** | nein | Titel, Poster, Beschreibungen. Ohne Key laufen Beispieldaten |
-| **Radarr** | nein | Filme. Ohne Radarr lassen sich keine Filme anfragen |
-| **Sonarr** | nein | Serien. Ohne Sonarr keine Serienanfragen |
-| **Adresse** | **ja** | Unter welcher Adresse ist Nexview erreichbar? Steckt in jedem Link |
-| **E-Mail** | **ja** | SMTP-Server für Einladungen und Passwort-Wiederherstellung |
+| Account | yes | administrator with username, e-mail address and password |
+| Picture | no | profile picture — without one, Nexview shows initials |
+| TMDB | no | titles, posters, descriptions. Without a key you get sample data |
+| Radarr | no | movies. Without Radarr, movies cannot be requested |
+| Sonarr | no | shows. Without Sonarr, no show requests |
+| Address | **yes** | the address Nexview is reachable at; it goes into every link |
+| E-mail | **yes** | SMTP server for invitations and password recovery |
 
-Die beiden letzten Schritte lassen sich **nicht** überspringen, und „Weiter" wird erst nach
-einem erfolgreichen Verbindungstest frei. Der Grund: direkt danach schickt Nexview dir eine
-Bestätigungsmail — und **ohne bestätigte Adresse kommst du nicht mehr hinein**. Ein
-Mailserver, der nicht funktioniert, würde die frische Installation unbrauchbar machen.
+The last two cannot be skipped, and *Continue* only unlocks after a successful
+connection test. The reason: straight afterwards Nexview sends you a confirmation
+mail — and **without a confirmed address you cannot get back in**. A mail server that
+does not work would leave a fresh installation unusable.
 
-Kommt die Bestätigungsmail nicht an, hilft die Anmeldeseite weiter: mit richtigem Passwort
-erscheint dort ein Hinweis mit **„Bestätigungsmail erneut senden"** und **„Adresse
-korrigieren"**. Ein Tippfehler in der Adresse ist damit kein Beinbruch.
+If the confirmation never arrives, the sign-in page helps: with the right password it
+offers **Resend confirmation** and **Correct address**, so a typo is not fatal.
 
-**Weitere Konten entstehen über Einladungen** — oder über den Media-Server, siehe unten. Der
-Administrator gibt nur Adresse und Rolle vor; Benutzername, Anzeigename und Passwort wählt der
-Eingeladene selbst über den Link aus der Mail. So kennt niemand sonst das Passwort — auch der
-Admin nicht.
-
-### Anmeldung mit Plex (optional)
-
-Unter **Einstellungen → Media-Server** verbindest du deinen Plex-Server: einmal mit Plex
-anmelden, Server aus der Liste wählen, fertig. Ein Token musst du nirgends heraussuchen, und
-dein eigenes Konto wird dabei gleich verknüpft.
-
-Danach kann sich anmelden, wer **Zugriff auf deine Bibliothek** hat. Das ist die einzige Hürde
-und wird beim Verbinden geprüft — ein fremdes Plex-Konto kommt nicht hinein, auch wenn die
-Anmeldung bei Plex selbst funktioniert.
-
-| | |
-|---|---|
-| **Neue Leute** | bekommen beim ersten Anmelden selbst ein Konto, mit der Rolle, dem Kontingent und dem Alter, die du vorgibst. Abschaltbar — dann bleiben Einladungen Pflicht. |
-| **Bereits eingeladene** | verbinden ihr Plex-Konto im Profil unter *Sicherheit* und melden sich danach wahlweise mit Plex **oder** Passwort an. |
-| **Freigaben** | bleiben nötig: Zugriff auf die Bibliothek heißt nicht, ungefragt herunterladen zu dürfen. |
-| **Gelöschte Konten** | können sich nicht neu anlegen. Die Sperre steht in den Einstellungen und lässt sich dort aufheben. |
-
-> Verwaltete Plex-Profile (etwa für Kinder) haben oft keinen eigenen Plex-Login. Sie nutzen
-> weiterhin ein normales Nexview-Konto per Einladung. Die Altersbeschränkung wirkt ohnehin nur,
-> wenn **jede Person ein eigenes Konto** hat — unabhängig von Plex.
-
-### Bibliothek und Gesehenes
-
-Ist ein Server verbunden, liest Nexview stündlich mit, was dort liegt. Das hat zwei Zwecke:
-
-| | |
-|---|---|
-| **Doppelte Anfragen verhindern** | Titel, die in Plex liegen, aber nie über Radarr/Sonarr kamen — von Hand kopierte Dateien etwa —, erscheinen als *„In der Bibliothek"* und lassen sich nicht anfragen. |
-| **„Schon gesehen"** | Was du angesehen hast, trägt ein kleines Auge in der Leiste unter dem Poster. **Jeder sieht nur seine eigenen Marker**, auch der Administrator. |
-
-Unter *Einstellungen → Dienste → Plex* steht, wie viele Titel erfasst sind und wann zuletzt;
-dort gibt es auch **„Jetzt abgleichen"**.
-
-Zwei Dinge, die man wissen sollte:
-
-- Zugeordnet wird über die TMDB-, sonst die TVDB-Kennung, sonst über Titel **und Jahr**.
-  Das Jahr ist kein Beiwerk: In einer echten Bibliothek mit 3509 Filmen trug genau einer eine
-  falsche TMDB-Nummer, die auf einen ganz anderen Film zeigte. Lieber einen vorhandenen Titel
-  übersehen als einen falschen behaupten — ein übersehener kostet einen doppelten Download,
-  ein falscher nimmt einen Titel dauerhaft aus dem Angebot.
-- Der Gesehen-Stand ist **für das Konto vollständig, dessen Zugang hinterlegt ist**. Für alle
-  anderen zählt nur, was im Wiedergabe-Verlauf des Servers steht — und den bewahrt Plex nur
-  begrenzt auf. Das liegt an Plex, nicht an Nexview.
-
-Ohne verbundenen Server ist von alldem nichts zu sehen; niemand muss Plex betreiben.
-
-### Die Plex-Merkliste
-
-Unter **Profil → Merkliste → Plex** steht, was jemand in Plex auf seine Merkliste gesetzt hat —
-als dieselben Kacheln wie im Katalog, mit denselben Abzeichen (*bereits geladen*, *angefragt*,
-*4K*, *gesehen*). Ein Klick auf den Einkaufswagen oder auf das Poster führt in den **gewohnten
-Anfrage-Dialog**; es gelten Kontingent, Freigabe, Sperrliste und Altersgrenze wie überall sonst.
-
-**Es passiert nichts von selbst.** Kein Hintergrundabgleich, keine automatischen Anfragen — jeder
-Titel braucht einen Klick. Wer nur sehen will, was noch fehlt, schaltet auf *Noch nicht da*.
-
-| | |
-|---|---|
-| **Freischalten** | *Einstellungen → Merklisten → Plex*. Standardmäßig aus; der Reiter erscheint nur mit verbundenem Media-Server. |
-| **Voraussetzung** | Ein **verknüpftes Plex-Konto**. Nexview liest ausschließlich die Merkliste des Kontos, das zum Profil gehört. |
-| **Zugang** | Eine Merkliste lässt sich nur mit dem Token **ihres Eigentümers** lesen — der Zugang des Administrators sieht sie nicht. Er entsteht beim Verknüpfen bzw. bei jeder Anmeldung mit Plex. |
-
-**Bestehende Installationen** haben diesen Zugang noch nicht — früher wurde das Token nach der
-Prüfung verworfen. Dort steht auf der Seite ein Knopf „Mit Plex anmelden“; einmal genügt.
-Dasselbe gilt, wenn Plex einen Zugang nicht mehr annimmt (Gerät abgemeldet).
-
-Zwei Dinge, die man wissen sollte:
-
-- **Plex nennt in der Merkliste keine TMDB-Nummern.** Die schlägt Nexview je Titel einmal nach
-  und merkt sich das Ergebnis; beim zweiten Öffnen ist die Seite sofort da. Titel, die sich
-  nicht zuordnen lassen, können nicht angezeigt werden — ihre Anzahl steht als Hinweis dabei,
-  statt dass sie stillschweigend fehlen.
-- **Verwaltete Plex-Profile (etwa für Kinder) haben keine eigene Merkliste**, weil ihnen der
-  plex.tv-Login fehlt. Kein Fehler, sondern eine Eigenheit von Plex.
-
-Anfragen, die von der Merkliste kommen, tragen ein kleines Abzeichen *Merkliste* und lassen sich
-in *Meine Anfragen* und *Alle Anfragen* über einen eigenen Reiter herausfiltern.
-
-
-> ⚠️ Wenn du Nexview von außen erreichbar machst (Reverse Proxy), vergib ein **langes
-> Passwort**. Die technische Mindestlänge ist absichtlich niedrig, damit auch kurze
-> Testkonten möglich sind — sie ist kein Sicherheitsversprechen.
+**Further accounts come from invitations** — or through the media server. The
+administrator sets only the address and the role; the invitee picks their own username,
+display name and password through the link in the mail. Nobody else learns that
+password, not even the administrator.
 
 ### Tests
 
@@ -213,141 +277,46 @@ cd backend
 .venv/Scripts/python.exe -m pytest
 ```
 
-### Von vorn beginnen
+### Starting over
 
-Um alle Konten und Einstellungen zu verwerfen, lösche das Verzeichnis `data/`.
-Beim nächsten Start erscheint wieder der Einrichtungsassistent.
-
----
-
-## Betrieb mit Docker
-
-Nexview läuft als **ein** Container: FastAPI liefert die API und die gebaute Oberfläche
-gemeinsam aus. Es wird kein zusätzlicher Webserver gebraucht.
-
-Das fertige Abbild liegt in der GitHub Container Registry und wird für Intel/AMD **und**
-ARM gebaut — es muss also nichts selbst kompiliert werden:
-
-```bash
-docker compose up -d
-```
-
-Danach ist Nexview unter **`http://<adresse-des-servers>:5173`** erreichbar.
-
-Wer stattdessen aus dem Quelltext bauen möchte, ersetzt in der `docker-compose.yml` die
-Zeile `image: ghcr.io/derkezorm/nexview:latest` durch `build: .` und hängt beim Start
-`--build` an.
-
-### Was gesichert werden muss
-
-Alles Wichtige liegt im Verzeichnis, das auf `/data` zeigt:
-
-| Datei | Inhalt |
-|---|---|
-| `nexview.db` | Konten, Anfragen, Bewertungen, Einstellungen |
-| `secret.key` | Schlüssel, mit dem die API-Keys verschlüsselt sind |
-| `avatars/` | Profilbilder |
-| `logs/` | Fehlerprotokoll |
-
-> ⚠️ **`secret.key` gehört zur Datenbank.** Ohne diese Datei lassen sich die gespeicherten
-> TMDB-, Radarr-, Sonarr- und SMTP-Zugänge nicht mehr entschlüsseln. Sichere beides
-> zusammen — und lege die Sicherung **niemals** in ein öffentliches Repository.
-
-### Auf einer Synology
-
-Im **Container Manager** unter *Projekt → Erstellen* den Projektordner wählen und die
-`docker-compose.yml` verwenden. Zwei Anpassungen sind sinnvoll:
-
-```yaml
-    ports:
-      - "5173:8000"        # linke Zahl ändern, falls 5173 belegt ist
-    volumes:
-      - /volume1/docker/nexview/data:/data
-```
-
-Ein fester Pfad statt `./data` macht das Sichern über Hyper Backup einfacher.
-
-Um die Rechte an diesem Ordner muss man sich **nicht** kümmern: der Container setzt sie beim
-Start selbst. Wer möchte, dass die Dateien einem bestimmten Benutzer gehören, trägt dessen
-Nummern als `PUID`/`PGID` ein (per SSH mit `id benutzername` herauszufinden).
-
-### Aktualisieren
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-Die Datenbank bleibt erhalten. Beim Start bringt Nexview sie selbst auf den neuen Stand:
-fehlende Tabellen, Spalten und Indizes werden ergänzt. **Bevor** daran etwas geändert wird,
-legt Nexview eine Kopie unter `/data/sicherungen/` ab (die fünf jüngsten bleiben liegen) —
-falls doch einmal etwas schiefgeht, ist der alte Stand also noch da.
-
-### Versionen
-
-Nexview folgt der üblichen Zählung `HAUPT.NEBEN.KORREKTUR`:
-
-| Abbild | Inhalt |
-|---|---|
-| `ghcr.io/derkezorm/nexview:latest` | die jeweils neueste **veröffentlichte** Version — das ist die Empfehlung |
-| `ghcr.io/derkezorm/nexview:0.4.0` | genau diese eine Version, ändert sich nie |
-| `ghcr.io/derkezorm/nexview:main` | der aktuelle Entwicklungsstand, kann kaputt sein |
-
-Welche Version läuft, steht in der Fußzeile und ausführlich unter **Über Nexview**. Dort
-meldet Nexview auch, wenn eine neuere vorliegt — dafür fragt es höchstens einmal am Tag bei
-GitHub nach. Diese Nachfrage überträgt nichts aus Nexview und lässt sich auf derselben Seite
-abschalten.
+To discard all accounts and settings, delete the `data/` directory. The next start runs
+the wizard again.
 
 ---
 
-## Konfiguration
+## Credits
 
-Alle Einstellungen sind optional — Nexview läuft ohne Konfigurationsdatei.
-Für den Produktivbetrieb kopiere `.env.example` nach `.env`:
+Metadata comes from **TMDB**. This project is neither endorsed nor certified by TMDB.
 
-| Variable | Bedeutung |
-|---|---|
-| `NEXVIEW_SECRET_KEY` | Geheimer Schlüssel für Sitzungen und die Verschlüsselung der API-Keys. Wird sonst automatisch erzeugt und in `data/secret.key` abgelegt. |
-| `NEXVIEW_DATA_DIR` | Verzeichnis für Datenbank und Schlüsseldatei (Standard: `./data`) |
-| `NEXVIEW_ACCESS_TOKEN_MINUTES` | Gültigkeit der Anmeldung (Standard: 30) |
-| `NEXVIEW_REFRESH_TOKEN_DAYS` | Wie lange man angemeldet bleibt (Standard: 30) |
-| `NEXVIEW_CORS_ORIGINS` | Erlaubte Herkunft im Entwicklungsmodus |
-| `NEXVIEW_STATIC_DIR` | Ordner mit dem gebauten Frontend (setzt der Container selbst) |
+Sign-in, library matching and the watched state run through **Plex**, when a server is
+connected. Nexview is neither endorsed by nor affiliated with Plex.
 
-**In `.env` gehören keine TMDB-, Radarr- oder Sonarr-Keys** — die trägst du in der App ein.
+Downloads are handled by **Radarr** and **Sonarr**; ratings come from **IMDb**,
+**Rotten Tomatoes** and **Metacritic**, streaming availability from **JustWatch**.
+Notifications can go through **ntfy**, **Gotify**, **Telegram**, **Discord**, a plain
+webhook or **Apprise**.
 
----
-
-## Danksagung
-
-Die Metadaten stammen von **TMDB**. Dieses Projekt ist weder von TMDB unterstützt noch
-zertifiziert.
-
-Die Anmeldung, der Bibliotheks-Abgleich und „schon gesehen“ laufen über **Plex** — sofern ein
-Server verbunden ist. Nexview ist weder von Plex unterstützt noch mit Plex verbunden.
-
-Die Downloads besorgen **Radarr** und **Sonarr**; die Wertungen kommen von **IMDb**,
-**Rotten Tomatoes** und **Metacritic**, die Streaming-Verfügbarkeit von **JustWatch**.
-
-Als Vorbild diente **[Overseerr](https://overseerr.dev)** (und **[Jellyseerr](https://github.com/Fallenbagel/jellyseerr)**):
-Von dort stammt die Idee, wie eine Anfrage-Oberfläche für Radarr und Sonarr aussehen kann — von der
-zweiten Instanz für 4K bis zum Abgleich mit dem Media-Server. Nexview ist eine eigenständige
-Neuentwicklung und übernimmt keinen Quelltext, verdankt beiden Projekten aber viele Ideen.
+**[Overseerr](https://overseerr.dev)** and **[Jellyseerr](https://github.com/Fallenbagel/jellyseerr)**
+were the model: the idea of what a request interface for Radarr and Sonarr can look
+like comes from there, from the second instance for 4K down to matching against the
+media server. Nexview is an independent implementation and takes no source code from
+either, but owes both a great deal.
 
 ---
 
-## Lizenz
+## Licence
 
-Nexview steht unter der **MIT-Lizenz** — siehe [LICENSE](LICENSE). Damit darf der
-Quelltext genutzt, verändert und weitergegeben werden, auch geschäftlich, solange
-der Urheberrechtshinweis erhalten bleibt. Eine Gewährleistung gibt es nicht.
+Nexview is under the **MIT licence** — see [LICENSE](LICENSE). The source may be used,
+modified and passed on, commercially too, as long as the copyright notice stays. There
+is no warranty.
 
-Die Lizenz gilt für den Quelltext dieses Projekts. Nicht davon erfasst sind:
+The licence covers this project's source. It does not cover:
 
-- **Metadaten, Poster und Bilder von TMDB.** Sie unterliegen den
-  [Nutzungsbedingungen von TMDB](https://www.themoviedb.org/terms-of-use); für den
-  Betrieb brauchst du einen eigenen API-Key.
-- **Plex, Radarr, Sonarr, Docker, Synology, IMDb, Rotten Tomatoes, Metacritic und
-  JustWatch.** Marken der jeweiligen Rechteinhaber, hier nur beschreibend genannt.
-- Die Abhängigkeiten in `frontend/package.json` und `backend/requirements.txt`,
-  die unter ihren eigenen Lizenzen stehen.
+- **Metadata, posters and images from TMDB.** Those fall under the
+  [TMDB terms of use](https://www.themoviedb.org/terms-of-use); running Nexview needs
+  your own API key.
+- **Plex, Radarr, Sonarr, Docker, Synology, IMDb, Rotten Tomatoes, Metacritic,
+  JustWatch, ntfy, Gotify, Telegram, Discord and Apprise.** Trademarks of their
+  respective owners, named here descriptively only.
+- The dependencies in `frontend/package.json` and `backend/requirements.txt`, which
+  carry their own licences.

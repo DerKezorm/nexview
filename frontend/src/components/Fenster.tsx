@@ -66,13 +66,19 @@ export function Fenster({
               <p className="mt-0.5 truncate font-mono text-xs text-mist-500">{unterzeile}</p>
             )}
           </div>
-          <Button
-            variant="ghost"
-            onClick={onSchliessen}
-            className="shrink-0 px-3 py-1 text-xs"
-          >
-            {t('common.close')}
-          </Button>
+          {/* ⚠️ Nur **ohne** Fußzeile. Wer unten schon „Abbrechen" oder
+              „Fertig" anbietet, bekommt hier sonst einen zweiten Ausgang mit
+              derselben Wirkung - gemeldet als „zwei Schließen-Knöpfe". Escape
+              und ein Klick daneben schließen ohnehin, in beiden Fällen. */}
+          {!fuss && (
+            <Button
+              variant="ghost"
+              onClick={onSchliessen}
+              className="shrink-0 px-3 py-1 text-xs"
+            >
+              {t('common.close')}
+            </Button>
+          )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
         {fuss && (

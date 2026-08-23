@@ -1380,6 +1380,54 @@
     "hint": "Nexview wurde auf Version {{version}} aktualisiert.",
     "action": "Ansehen",
     "subtitle": "Version {{version}}",
-    "dismiss": "Verstanden, nicht mehr anzeigen"
+    "dismiss": "Verstanden, nicht mehr anzeigen",
+    "entries": {
+      "0.15.0": {
+        "lead": "Dieses Update dreht sich fast vollständig um eine Frage: Wie viel Platz belegt eigentlich wer? Nexview kann Kontingente jetzt in Gigabyte messen statt in Stückzahl — mit allem, was dazugehört.",
+        "sections": [
+          {
+            "title": "Speicher-Kontingente",
+            "where": "Einstellungen → Speicherkontingente",
+            "body": "Kontingente rechnen wahlweise nach Anzahl (wie bisher) oder nach belegtem Speicher. Es gilt immer genau eine der beiden Währungen — die Auswahl steht ganz oben, darunter die Standardgrenze für alle Konten. Gemessen wird in beiden Betriebsarten, du kannst also erst beobachten und später begrenzen. Jeder Wechsel bucht alle Titel in den Hausbestand um und startet jedes Konto bei null; ein Dialog nennt vorher die echten Zahlen. Das Feature trägt bewusst die Marke „In Dev“."
+          },
+          {
+            "title": "Mein Speicher — für jede Person",
+            "where": "Profil → Speicherkontingent",
+            "body": "Jede Person sieht ihren belegten Platz gegen ihre Grenze und darunter jeden Titel, das Größte zuerst. Ein Auge je Zeile sagt, ob sie ihn schon gesehen hat: grün bedeutet gesehen, bei Staffeln ausdrücklich „alle Folgen“. Wer aufräumen will, filtert auf „Nur Gesehene“."
+          },
+          {
+            "title": "Abgeben statt löschen",
+            "where": "Profil → Speicherkontingent, Entscheidung in den Einstellungen",
+            "body": "„Brauche ich nicht mehr“ stellt einen Titel zur Entscheidung, ohne dass sofort etwas passiert — er zählt weiter, bis du entschieden hast. Bei Staffeln nennt die Person gleich ihren Wunsch: löschen lassen oder behalten und nur das Nachladen beenden. In deiner Warteschlange stehen dann drei Ausgänge bereit: ins Haus (Datei bleibt, Konto frei), löschen (mit der tatsächlichen Dateiliste vor Augen) oder nicht mehr folgen."
+          },
+          {
+            "title": "Papierkorb und die eine Bedingung",
+            "where": "Einstellungen → Speicherkontingente, unterer Bereich",
+            "body": "Weil Nexview löschen kann, gehört ein Papierkorb dazu — eintragen kannst du ihn direkt hier, die Arbeit übernehmen Radarr und Sonarr. Und die Bedingung, ohne die das System nicht aufgeht: Titel müssen in Radarr und Sonarr bleiben. Wer sie dort entfernt und die Datei behält, schafft etwas, das Nexview zwar messen, aber nie wieder löschen kann."
+          },
+          {
+            "title": "Staffeln einzeln anfragen",
+            "where": "Detailseite einer Serie",
+            "body": "Statt nur „ganze Serie“ lassen sich einzelne Staffeln auswählen — mit Häkchen, auch mehrere auf einmal, plus einem eigenen Haken für künftige Staffeln. Was schon da oder angefragt ist, ist ausgegraut statt versteckt. Nebenbei behoben: Sonarr schaltete frisch angelegte Serien manchmal wieder unbeobachtet; Nexview merkt das jetzt und stellt es von selbst richtig."
+          },
+          {
+            "title": "Konto löschen — mit Entscheidung über den Bestand",
+            "where": "Einstellungen → Benutzer",
+            "body": "Benutzer und Entscheider beantragen die Löschung im Profil unter „Sicherheit“; der Antrag erreicht dich als Ticket. Beim Löschen entscheidest du je Titel per Häkchen, ob er ins Haus geht oder gelöscht wird, und was mit angefangenen Downloads passiert. Nichts lädt danach herrenlos weiter."
+          }
+        ],
+        "smallTitle": "Außerdem behoben",
+        "small": [
+          "Eine Staffel gilt erst als geladen, wenn wirklich alle Folgen da sind — vorher meldete Nexview mehrere Staffeln gleichzeitig als fertig.",
+          "Meldungen zu Staffeln nennen die Staffel — in der Glocke, in den Kanälen und per Mail.",
+          "4K und 1080p werden sauber getrennt: Eine laufende Anfrage in einer Stufe blockiert die andere nicht mehr.",
+          "Eine 4K-Datei im normalen Radarr wird nicht mehr für eine eigene 4K-Fassung gehalten.",
+          "Ein Titel, der aus Radarr oder Sonarr verschwunden ist, bleibt nicht mehr ewig auf „wird gesucht“ stehen.",
+          "Der freie Plattenplatz zählt denselben Datenträger nicht mehr doppelt."
+        ]
+      }
+    },
+    "fallback": "Zu dieser Fassung liegt hier noch kein Text – die vollständige Liste steht auf",
+    "smallFallback": "Außerdem behoben"
   }
 }

@@ -1380,6 +1380,54 @@
     "hint": "Nexview has been updated to version {{version}}.",
     "action": "Take a look",
     "subtitle": "Version {{version}}",
-    "dismiss": "Got it, don't show again"
+    "dismiss": "Got it, don't show again",
+    "entries": {
+      "0.15.0": {
+        "lead": "This update is almost entirely about one question: who actually occupies how much space? Nexview can now measure quotas in gigabytes instead of counts — with everything that goes with it.",
+        "sections": [
+          {
+            "title": "Storage quotas",
+            "where": "Settings → Storage quotas",
+            "body": "Quotas now work either by count (as before) or by occupied storage. Exactly one of the two currencies applies at a time — the choice sits at the top, with the default limit for all accounts below it. Measuring runs in both modes, so you can watch first and limit later. Every switch rebooks all titles to the house inventory and starts every account at zero; a dialog states the real numbers first. The feature deliberately carries an “In Dev” badge."
+          },
+          {
+            "title": "My storage — for every person",
+            "where": "Profile → Storage quota",
+            "body": "Everyone sees their occupied space against their limit, and below it every title, largest first. An eye on each row says whether they have watched it: green means watched, and for seasons explicitly “every episode”. Anyone tidying up can filter to “Watched only”."
+          },
+          {
+            "title": "Hand back instead of delete",
+            "where": "Profile → Storage quota; you decide in the settings",
+            "body": "“I don't need this” puts a title up for a decision without anything happening yet — it keeps counting until you have decided. For seasons the person states their wish right away: have it deleted, or keep it and only stop the downloading. Your queue then offers three outcomes: to the house (file stays, account freed), delete (with the actual file list in view) or stop following."
+          },
+          {
+            "title": "The recycle bin and the one condition",
+            "where": "Settings → Storage quotas, lower area",
+            "body": "Because Nexview can delete, a recycle bin belongs to it — you can enter it right here, and Radarr and Sonarr do the work. And the condition without which the system does not add up: titles must stay in Radarr and Sonarr. Removing them there while keeping the file creates something Nexview can measure but never delete again."
+          },
+          {
+            "title": "Requesting single seasons",
+            "where": "A show's detail page",
+            "body": "Instead of only “whole series”, individual seasons can be picked — with checkboxes, several at once, plus a separate option for future seasons. Whatever is already there or requested is greyed out rather than hidden. Fixed along the way: Sonarr sometimes unmonitored freshly added shows again; Nexview now notices and repairs that by itself."
+          },
+          {
+            "title": "Deleting an account — with a decision about the estate",
+            "where": "Settings → Users",
+            "body": "Users and approvers request deletion in their profile under “Security”; the request reaches you as a ticket. When deleting you decide per title, by checkbox, whether it moves to the house or gets deleted, and what happens to downloads in progress. Nothing keeps downloading ownerless afterwards."
+          }
+        ],
+        "smallTitle": "Also fixed",
+        "small": [
+          "A season counts as downloaded only once every episode is really there — before, Nexview reported several seasons finished at once.",
+          "Notifications about seasons name the season — in the bell, in the channels and by mail.",
+          "4K and 1080p are kept apart properly: a running request in one tier no longer blocks the other.",
+          "A 4K file in the regular Radarr is no longer mistaken for a separate 4K copy.",
+          "A title that vanished from Radarr or Sonarr no longer stays on “searching” forever.",
+          "Free disk space no longer counts the same volume twice."
+        ]
+      }
+    },
+    "fallback": "There is no text for this version here yet – the full list is on",
+    "smallFallback": "Also fixed"
   }
 }

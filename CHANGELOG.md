@@ -12,6 +12,99 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.17.0 – 23.08.2026
+
+### New
+
+- **Browse: the whole catalogue, not just the last few weeks.** Discover only
+  ever knew a rolling window of at most a year, so everything older was
+  reachable by free-text search alone. The new *Browse* area opens the back
+  catalogue in shelves — *Hidden gems*, *Timeless classics*, *Under 90
+  minutes*, five decades and every genre. Every shelf works on an empty
+  library and without any personal data.
+
+- **"What to watch?" — a few questions instead of a search.** The first menu
+  entry opens a guided pick: who is watching, what are you in the mood for,
+  does it have to play tonight, how much time is there, something new or
+  something familiar. Six questions at most, and the tree adapts — answering
+  "only what's already here" drops the "hidden gem?" question, because in your
+  own library it has no meaning. It ends in twelve suggestions with a re-roll.
+
+- **"With children" sets an age rating, not a genre.** It means demonstrably
+  "FSK 6 at most", using the same translation the child accounts use. No mood
+  is taken away for it: with that limit, horror still returns *The House with
+  a Clock in Its Walls* and *The Witches* — children like a scare, they need a
+  limit, not a nanny.
+
+- **Filtering by six human questions instead of thirteen controls.** How much
+  time, what are you after (genres, includable *and* excludable), which era
+  (real decades), how well known, does it have to be here already, and the
+  order. What is gone was never a question anyone asks: original language,
+  region, "released in DE only", "hide unrated", "hide without description",
+  "feature films only", "known titles only" — all of them workarounds for
+  noisy data, and all of them now silently the default.
+
+- **What you set lives in the address.** A filtered result can be sent to
+  someone or bookmarked. The old Discover page forgot every setting the moment
+  you left it.
+
+- **Personal shelves, on top and never as a gatekeeper.** *Not seen in a
+  while* uses your watch history; *Because you like X* gives every favourite
+  its own row instead of blending them into one. At most three of those, one
+  slot always held by the newest favourite and the others rotating daily, so
+  a hundred favourites do not mean a hundred shelves — and none of them stays
+  invisible forever.
+
+- **A list view** on every Browse page, showing runtime, age rating and two
+  lines of plot side by side.
+
+### Changed
+
+- **"Discover movies" and "Discover series" have left the menu.** After the
+  rebuild, Browse answered every one of their questions better except one —
+  "what came out recently?" — and that is now the *Newly released* shelf. The
+  addresses `/filme` and `/serien` still work, so old bookmarks do not break.
+  The menu is now *What to watch? · Browse · People · Calendar · Search*.
+
+- **The calendar asks both noise questions at once.** "Big studios" and "known
+  titles" were offered as alternatives, but measured against a real week
+  neither contains the other: the studio list catches brand-new streaming
+  series that have no votes yet, the vote floor catches good titles without a
+  big distributor. Choosing one always lost the other half. *Sensible
+  selection* now asks both — 18 real entries for that week instead of 12 or
+  15, with 68 noise entries still filtered out.
+
+- **The calendar separates films from episodes** instead of "everything /
+  already requested". Your own titles already sit in their own group at the
+  top of each day, so that switch only hid what came below it. "Which episodes
+  air this week?" and "which films are released?" are two different questions.
+
+- **The filter labels are questions.** "Selection / Release / Scope" became
+  "Show what? / Which date? / How strict?" — three abstract nouns told nobody
+  what the control does.
+
+### Fixed
+
+- **"Highest rated" returned noise.** TMDB has no weighted ranking, and the
+  floor was five votes: a film with twenty votes and a 9.4 average outranked
+  *The Godfather*. The floor is 300 now. This also repairs the sort on the old
+  Discover page.
+
+- **A runtime limit was not kept.** TMDB's own `with_runtime` filter is
+  unreliable — asking for at most 95 minutes returned a 97-minute and a
+  99-minute film. The runtime is checked again on the server, where the real
+  value has been fetched anyway.
+
+- **Films between 126 and 129 minutes were unfindable by runtime.** "Up to 2
+  hours" ended at 125, "may be long" started at 130. The steps now meet
+  exactly. "May be long" was also a lie — it read as "no upper limit" but was
+  built as "at least two hours"; it is called *Over 2 hours* now.
+
+- **`watch_region` was sent on every series query and did nothing.** Without
+  `with_watch_providers` beside it, TMDB ignores the parameter. Removed.
+
+---
+
 ## 0.16.1 – 23.08.2026
 
 ### Fixed

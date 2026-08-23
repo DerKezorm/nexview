@@ -64,6 +64,10 @@ class TicketOut(BaseModel):
 
 class TicketDetail(TicketOut):
     messages: list[MessageOut]
+    # Ist das der Antrag "bitte Kinderkonten freischalten", und steht die
+    # Freigabe noch aus? Dann bekommt der Administrator im Ticket einen Knopf,
+    # statt in die Benutzerverwaltung wechseln zu muessen.
+    kinderkonten_offen: bool = False
 
 
 class TicketCreate(BaseModel):
@@ -137,6 +141,11 @@ def _detail(ticket: Ticket) -> TicketDetail:
     return TicketDetail(
         **_uebersicht(ticket).model_dump(),
         messages=[_nachricht(m, ticket.user_id) for m in ticket.messages],
+        kinderkonten_offen=(
+            tickets.ist_kinderkonten_antrag(ticket)
+            and ticket.user is not None
+            and not ticket.user.can_manage_children
+        ),
     )
 
 
@@ -200,6 +209,21 @@ def kontoaufloesung(user: CurrentUser, db: DbSession) -> TicketDetail:
     """
     try:
         ticket = tickets.aufloesung_beantragen(db, user)
+    except tickets.TicketError as error:
+        raise _fehler(error) from error
+    db.commit()
+    db.refresh(ticket)
+    return _detail(ticket)
+
+
+@router.post("/{ticket_id}/kinderkonten-freischalten", response_model=TicketDetail)
+def kinderkonten_freischalten(
+    ticket_id: Annotated[int, Path(ge=1)], admin: AdminUser, db: DbSession
+) -> TicketDetail:
+    """Den Antrag mit einem Klick erledigen - Recht setzen, antworten, schliessen."""
+    try:
+        ticket = tickets.sichtbares_ticket(db, admin, ticket_id)
+        tickets.kinderkonten_freischalten(db, admin, ticket)
     except tickets.TicketError as error:
         raise _fehler(error) from error
     db.commit()

@@ -505,7 +505,10 @@
     "deleteConfirmTitle": "Request account deletion?",
     "deleteConfirmText": "The operator receives your request as a ticket and will follow up. Until then you can keep using Nexview as usual.",
     "deleteConfirm": "File request",
-    "deleteRequested": "Your request has been filed – the operator will take care of it."
+    "deleteRequested": "Your request has been filed – the operator will take care of it.",
+    "tabChildren": "Children",
+    "mailChildWish": "Your children’s wishes",
+    "mailChildWishHint": "As soon as one of your children wishes for something and is waiting for your decision."
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -615,7 +618,14 @@
     "dissolveDeleteWarning": "Deleted files go through Radarr/Sonarr and land in their recycle bin, if one is set up. Without one they are gone immediately.",
     "dissolveConfirm": "Delete account for good",
     "toHouse": "to house",
-    "toDelete": "delete"
+    "toDelete": "delete",
+    "groupChildren": "Child accounts",
+    "childOf": "Child of {{name}}",
+    "childOfUnknown": "Child account",
+    "childAge": "{{age}} years old",
+    "roleChild": "Child",
+    "mayManageChildren": "May create child accounts",
+    "mayManageChildrenHint": "Creates logins for their own children – in their profile under “Children”."
   },
   "notifications": {
     "title": "Notifications",
@@ -641,7 +651,8 @@
     "storageGrew": "A title now takes up more space",
     "storageReleaseRequested": "Someone handed a title back",
     "storageDeleted": "A title has been deleted",
-    "storageKept": "A title stays, but stops downloading"
+    "storageKept": "A title stays, but stops downloading",
+    "childWish": "Your child wished for something"
   },
   "mediaserver": {
     "loginWithPlex": "Sign in with Plex",
@@ -822,7 +833,9 @@
     "inspiration": "Inspiration",
     "overseerrNotice": "Overseerr showed what a request interface for Radarr and Sonarr can look like – from the second 4K instance to matching against the media server. Nexview is an independent implementation and shares no source code, but owes Overseerr and Jellyseerr many of its ideas.",
     "notifyServices": "Notifications",
-    "notifyNotice": "Deliver the system notifications, where set up. Nexview is not affiliated with any of these services."
+    "notifyNotice": "Deliver the system notifications, where set up. Nexview is not affiliated with any of these services.",
+    "whatsNew": "What’s new",
+    "whatsNewOpen": "Everything that is new"
   },
   "watch": {
     "title": "Where to stream ({{region}})",
@@ -995,7 +1008,9 @@
     "recipient": "Recipient",
     "recipientHint": "Who is this ticket for? They will find it among their own and can reply.",
     "withUser": "with {{name}}",
-    "recipientNone": "Please choose …"
+    "recipientNone": "Please choose …",
+    "childUnlock": "Enable child accounts",
+    "childUnlockHint": "Grants the permission, posts a short reply and closes the ticket."
   },
   "uhd": {
     "open": "not requested yet",
@@ -1225,6 +1240,134 @@
     "onStorageRelease": "Storage hand-backs",
     "onStorageReleaseHint": "Reports when someone hands a title back and when it has been decided. Only the title is named – who handed it back stays out of the postbox."
   },
+  "children": {
+    "add": "Add child account",
+    "age": "Age",
+    "ageHint": "From 0 to 16. Only titles rated up to this age are shown. Titles without any age rating always stay hidden for children.",
+    "ageInvalid": "Please enter an age between 0 and 16.",
+    "ageLine": "{{age}} years old",
+    "create": "Create",
+    "deleteText": "“{{name}}” will no longer be able to sign in. Requested titles are unaffected – they belong to your account.",
+    "deleteTitle": "Delete child account?",
+    "disable": "Disable",
+    "disabled": "Disabled",
+    "displayName": "Display name",
+    "displayNameHint": "Optional. How the account appears in the overview.",
+    "emptyHint": "You have not created a child account yet.",
+    "enable": "Enable again",
+    "formEdit": "Edit {{name}}",
+    "formNew": "New child account",
+    "genre": {
+      "animation": "Animation",
+      "family": "Family",
+      "kids": "Kids shows",
+      "adventure": "Adventure",
+      "fantasy": "Fantasy",
+      "comedy": "Comedy",
+      "music": "Music",
+      "documentary": "Documentary"
+    },
+    "genres": "Categories",
+    "genresEmpty": "Please pick at least one category – otherwise your child’s app would be empty.",
+    "genresHint": "What your child gets to see. The age rating applies on top of these categories.",
+    "helpCan": [
+      "Your child signs in with a name and a password – no email address.",
+      "It only sees the categories you enable, and only titles up to its age.",
+      "It can wish for something. You decide whether that becomes a request.",
+      "Approved wishes run through your account – your quota, your usual path.",
+      "“Preview” shows you exactly what your child sees, any time."
+    ],
+    "helpCanTitle": "This works",
+    "helpCannot": [
+      "It does not limit what your child sees in Plex or on the file share – only Nexview.",
+      "Titles without an age rating stay hidden, so some harmless things are missing.",
+      "Your child gets no notifications, no tickets, no watchlist.",
+      "It cannot change its own password – you do that."
+    ],
+    "helpCannotTitle": "This does not",
+    "helpDisclaimer": "Important: age ratings come from TMDB, a public movie database – not from us. They can be missing or wrong, and we cannot vouch for what is listed there. Use “Preview” to see for yourself what reaches your child.",
+    "helpIntro": "A child account is a separate login for your child – subordinate to yours.",
+    "helpTitle": "What child accounts can do",
+    "intro": "Set up separate logins for your children. They sign in with a name and a password – no email address, no Plex account.",
+    "language": "Language",
+    "languageHint": "Your child cannot change this.",
+    "lockedIntro": "Child accounts need to be enabled by the operator.",
+    "newPassword": "New password",
+    "newPasswordHint": "Leave empty to keep the current one. There is no email reset for children – only you can set a new password.",
+    "nothingToSave": "Nothing to save",
+    "password": "Password",
+    "passwordHint": "At least {{min}} characters. You choose it – remember it for your child.",
+    "passwordMismatch": "The two passwords do not match.",
+    "passwordRepeat": "Repeat password",
+    "passwordRepeatHint": "You are choosing it for someone else – a typo would only surface when your child cannot get in.",
+    "passwordShort": "The password must be at least {{min}} characters long.",
+    "preview": "Preview",
+    "previewBack": "Back to children",
+    "previewBanner": "{{name}}’s view",
+    "previewFor": "View as {{name}}",
+    "previewIntro": "This is how {{name}} sees the app – same view, same rules.",
+    "previewNoWish": "You cannot wish for anything in the preview.",
+    "requestHint": "A ticket is created for the operator. There is nothing else to fill in.",
+    "requestPermission": "Request permission for child accounts",
+    "requestSent": "Your request has been sent – the operator will get back to you.",
+    "saved": "Saved.",
+    "scopeHint": "The age limit only applies inside Nexview. Whatever gets approved and downloaded ends up in the same library – what your child can reach in Plex is decided there.",
+    "title": "Child accounts",
+    "trailers": "Allow trailers",
+    "trailersHint": "The trailer is hosted on YouTube. Without this, the button does not exist.",
+    "unsaved": "Unsaved changes",
+    "username": "Username",
+    "usernameFixed": "The username cannot be changed – your child signs in with it.",
+    "usernameHint": "Your child signs in with this. It must be unique on this server – if “max” is taken, try “maxi”.",
+    "wishBadge": "{{count}} wish",
+    "wishBadge_other": "{{count}} wishes",
+    "wishDecline": "Decline",
+    "wishDeclineNote": "Short reason (optional)",
+    "wishDeclineText": "“{{title}}” will not be requested. You can tell your child why in a sentence.",
+    "wishDeclineTitle": "Decline this wish?",
+    "wishFolder": "Target folder",
+    "wishFrom": "from {{name}}",
+    "wishProfile": "Quality",
+    "wishRelease": "Approve",
+    "wishReleaseHint": "This becomes an ordinary request in your name – your quota, your usual approval path.",
+    "wishTargetLater": "The approver picks folder and quality when approving.",
+    "wishesEmpty": "No wish is waiting for you right now.",
+    "wishesTitle": "Your children’s wishes"
+  },
+  "kids": {
+    "alreadyWished": "Already wished for",
+    "availableBadge": "Already here",
+    "back": "Back",
+    "canWatch": "You can watch this now!",
+    "fromAge": "age {{age}}+",
+    "greeting": "Hi {{name}}",
+    "logout": "Sign out",
+    "more": "Show more",
+    "movies": "Movies",
+    "navDiscover": "Discover",
+    "navLabel": "Sections",
+    "navSearch": "Search",
+    "navWishes": "Wishes",
+    "nothingHere": "Nothing here right now. Tell your mum or dad.",
+    "searchButton": "Search",
+    "searchEmpty": "That is not here. Ask your mum or dad about it.",
+    "searchLabel": "What are you looking for?",
+    "sectionAvailable": "You can watch these now",
+    "sectionWishable": "You can wish for these",
+    "series": "Shows",
+    "state": {
+      "waiting": "Mum or dad is looking at it",
+      "coming": "On its way",
+      "available": "It is here!",
+      "declined": "Not this time"
+    },
+    "titleMissing": "That is not here.",
+    "trailer": "Watch trailer",
+    "wishButton": "I want to watch this",
+    "wishHint": "Your mum or dad decides.",
+    "wishesEmpty": "You have not wished for anything yet.",
+    "wishesTitle": "My wishes"
+  },
   "storage": {
     "usedLabel": "Space used",
     "itemCount_one": "{{count}} title",
@@ -1382,6 +1525,48 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.16.0": {
+        "lead": "Nexview now does children. A parent creates logins for their own children, the children get a completely separate app built for them — and whatever they wish for is decided first by the parent and only then by you.",
+        "sections": [
+          {
+            "title": "Creating child accounts",
+            "where": "Profile → Children",
+            "body": "Name, password, age, language and a few categories — that is all a child account needs. No email address, no Plex account. Who may create them is your call: the “May create child accounts” checkbox sits in user management. Without it the tab still appears, explains the feature and its limits, and offers a button that files the request as a ticket. That ticket then carries a button which grants the permission in one click and closes it."
+          },
+          {
+            "title": "The children's view",
+            "where": "Signing in with the child's login",
+            "body": "A child does not get Nexview with fewer buttons, it gets its own app: bright and colourful instead of dark grey and red, three large destinations along the bottom, no bell, no tickets, no settings. The start page shows the enabled categories as picture tiles; behind each one sit all the titles at once, split into “You can watch these now” and “You can wish for these”. Search stays inside the enabled categories."
+          },
+          {
+            "title": "Wishing, not requesting",
+            "where": "Profile → Children, at the top",
+            "body": "A child does not request anything — it wishes, and nothing happens until the parent decides. Approving turns the wish into an ordinary request in **their** name: their quota, their profile blocks, their usual path — and you approve the download at the end, as always. Declining takes a short note the child gets to read. The child sees its own list with four plain states: waiting, on its way, it is here, not this time."
+          },
+          {
+            "title": "“View as …”",
+            "where": "Profile → Children, yellow button on a child",
+            "body": "The button opens the child's app exactly as the child sees it — same view, same rules, only without the wish button. Checking what actually reaches your child should not require borrowing their password."
+          },
+          {
+            "title": "What this **cannot** do",
+            "where": "Profile → Children, question mark next to “Child accounts”",
+            "body": "The limit only applies inside Nexview. Whatever gets approved and downloaded ends up in the same library — what a child can reach in Plex is decided there. And the age ratings come from TMDB, not from us: they can be missing or wrong. Both are stated plainly in the help window, so nobody relies on something that was never promised."
+          },
+          {
+            "title": "Release notes for the last five versions",
+            "where": "About Nexview → Everything that is new",
+            "body": "This window now keeps the notes for the last five versions, with a switch per version at the top. Skipping a version — updating the container later, two releases in one day — no longer means never learning what was in it. A dot marks what has arrived since your last “got it”, and the About page brings you back here any time."
+          }
+        ],
+        "smallTitle": "Also changed",
+        "small": [
+          "The per-account age restriction is gone from user management: anyone with a full account is treated as an adult. Existing limits are cleared on the first start — child accounts of course keep theirs.",
+          "New mail switch “Your children's wishes” — only visible for accounts that actually have an active child account.",
+          "Taking the permission away again deactivates that person's child accounts instead of deleting them. You should be able to reverse a decision without losing accounts.",
+          "Profile tabs can be addressed directly again (`?reiter=…`), which is how the bell jumps from a child's wish straight to the place it is decided."
+        ]
+      },
       "0.15.0": {
         "lead": "This update is almost entirely about one question: who actually occupies how much space? Nexview can now measure quotas in gigabytes instead of counts — with everything that goes with it.",
         "sections": [
@@ -1428,6 +1613,7 @@
       }
     },
     "fallback": "There is no text for this version here yet – the full list is on",
-    "smallFallback": "Also fixed"
+    "smallFallback": "Also fixed",
+    "unread": "New since you last looked"
   }
 }

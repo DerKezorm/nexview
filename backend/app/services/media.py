@@ -244,6 +244,16 @@ def _demo_page(media_type: str, filters: DiscoverFilters) -> MediaPage:
     if filters.genre_id is not None:
         wanted = genres.get(filters.genre_id)
         items = [i for i in items if wanted and wanted in i.genres]
+    if filters.genres_or:
+        # Auch der Beispielbetrieb muss die Rubriken der Kinderansicht ernst
+        # nehmen - sonst stuende dort unter "Animation" der ganze Bestand,
+        # und der Modus taugte nicht mehr zum Vorfuehren.
+        erlaubt = {
+            genres[int(teil)]
+            for teil in filters.genres_or.split("|")
+            if teil.isdigit() and int(teil) in genres
+        }
+        items = [i for i in items if erlaubt & set(i.genres)]
     if filters.min_runtime is not None:
         items = [i for i in items if (i.runtime_minutes or 0) >= filters.min_runtime]
     if filters.min_rating is not None:
@@ -315,10 +325,34 @@ async def discover(
 
 
 async def search(
-    db: Session, settings: AppSettings, media_type: str, query: str, page: int = 1
+    db: Session,
+    settings: AppSettings,
+    media_type: str,
+    query: str,
+    page: int = 1,
+    nur_genres: set[int] | None = None,
 ) -> MediaPage:
+    """Titelsuche.
+
+    ``nur_genres`` schraenkt das Ergebnis auf bestimmte TMDB-Genres ein - die
+    Suche der Kinderansicht durchsucht nur die freigeschalteten Rubriken.
+    ``/search`` kennt keinen Genre-Filter, deshalb wird die rohe Trefferliste
+    **vor** der Anreicherung gesiebt: so werden fuer verworfene Titel gar keine
+    Detaildaten geholt.
+    """
     if settings.use_demo_data:
-        return _demo_search(media_type, query, page)
+        seite = _demo_search(media_type, query, page)
+        if nur_genres is not None:
+            # Auch im Beispielbetrieb muss die Rubrik-Grenze halten - sonst
+            # fuehrt die Kindersuche dort aus den Rubriken heraus, und der
+            # Modus taugt nicht zum Vorfuehren.
+            namen = {
+                name
+                for kennung, name in (await _genre_map(db, settings, media_type)).items()
+                if kennung in nur_genres
+            }
+            seite.items = [item for item in seite.items if namen & set(item.genres)]
+        return seite
 
     region = settings.default_region
 
@@ -328,11 +362,22 @@ async def search(
     key = f"search:{media_type}:{query.casefold()}:{page}:{settings.default_language}"
     raw = await cache.cached(db, key, cache.SEARCH_TTL, fetch)
 
+    treffer = raw.get("results", [])
+    if nur_genres is not None:
+        treffer = [
+            eintrag
+            for eintrag in treffer
+            if nur_genres & set(eintrag.get("genre_ids") or [])
+        ]
+
     return MediaPage(
         page=raw.get("page", page),
         total_pages=min(raw.get("total_pages", 1), 500),
+        # Die Gesamtzahl stammt von TMDB und weiss nichts vom Sieb. Nach dem
+        # Filtern waere sie eine Luege - die Zahl der wirklich gezeigten
+        # Treffer steht in ``items``.
         total_results=raw.get("total_results", 0),
-        items=await _to_items(db, settings, media_type, raw.get("results", []), region),
+        items=await _to_items(db, settings, media_type, treffer, region),
     )
 
 

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -13,7 +12,7 @@ import type {
   NtfyAuth,
   TestResult,
 } from '../../api/types'
-import { Button, Card, ErrorBanner, Field, Spinner } from '../../components/ui'
+import { Button, Card, ErrorBanner, Field, PlusKachel, RundKnopf, Spinner } from '../../components/ui'
 import { Anleitung, HilfeKnopf, hatAnleitung } from './ChannelHelp'
 import emailLogo from '../../assets/email.svg'
 import gotifyLogo from '../../assets/gotify.svg'
@@ -354,43 +353,6 @@ function Zielverwaltung({ kanal }: { kanal: ChannelKind }) {
   )
 }
 
-/** Die „+"-Kachel mit Beschriftung darunter. */
-function PlusKachel({
-  beschriftung,
-  aktiv,
-  onClick,
-}: {
-  beschriftung: string
-  aktiv: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        'flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border ' +
-        'border-dashed px-4 py-3 text-center transition-colors ' +
-        (aktiv
-          ? 'border-accent-500/60 bg-accent-500/10 text-accent-400'
-          : 'border-ink-700 bg-ink-900/40 text-mist-600 hover:border-ink-600 hover:text-mist-300')
-      }
-    >
-      <svg
-        viewBox="0 0 24 24"
-        className="h-7 w-7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        aria-hidden="true"
-      >
-        <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-      </svg>
-      <span className="text-sm font-medium">{beschriftung}</span>
-    </button>
-  )
-}
-
 type KachelProps = {
   ziel: ChannelTarget
   aktiv: boolean
@@ -537,52 +499,6 @@ function InstanzLink({ ziel }: { ziel: ChannelTarget }) {
         />
       </svg>
     </a>
-  )
-}
-
-function RundKnopf({
-  label,
-  onClick,
-  children,
-  gefahr = false,
-  an,
-}: {
-  label: string
-  onClick: () => void
-  children: ReactNode
-  gefahr?: boolean
-  /** Schalter mit Zustand: hervorgehoben, solange er an ist. */
-  an?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation()
-        onClick()
-      }}
-      aria-label={label}
-      title={label}
-      className={
-        'flex h-9 w-9 items-center justify-center rounded-full border border-ink-700 ' +
-        'bg-ink-850 transition-colors ' +
-        (gefahr
-          ? 'text-mist-500 hover:border-bad-500/50 hover:text-bad-500'
-          : an
-            ? 'border-ok-500/40 text-ok-500 hover:border-ok-500/70'
-            : 'text-mist-500 hover:border-accent-500/50 hover:text-accent-400')
-      }
-    >
-      <svg
-        viewBox="0 0 24 24"
-        className="h-4 w-4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      >
-        {children}
-      </svg>
-    </button>
   )
 }
 

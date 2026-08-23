@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
 
+import { useQuery } from '@tanstack/react-query'
+
 import { ApiError, api } from '../../api/client'
-import type { User } from '../../api/types'
+import type { Child, User } from '../../api/types'
 import { useAuth } from '../../auth/useAuth'
 import { useConfig } from '../../hooks/useConfig'
 import { Button, Card } from '../../components/ui'
@@ -17,6 +19,7 @@ type MailFeld =
   | 'mail_user_imported'
   | 'mail_mediaserver_reconnect'
   | 'mail_storage'
+  | 'mail_child_wish'
 
 type Schalter = {
   feld: MailFeld
@@ -29,6 +32,8 @@ type Schalter = {
   nurVerknuepft?: boolean
   /** Nur, wenn im Haus überhaupt nach Speicherplatz gerechnet wird. */
   nurMitSpeicher?: boolean
+  /** Nur für Konten, die auch wirklich ein aktives Kinderkonto führen. */
+  nurMitKindern?: boolean
   /**
    * Nur für Leute ohne Freigaberecht: Wer selbst freigeben darf, wartet nie
    * auf eine Entscheidung – „freigegeben/abgelehnt" kann ihn nicht erreichen,
@@ -99,6 +104,16 @@ const SCHALTER: Schalter[] = [
     hintKey: 'profile.mailStorageHint',
     nurMitSpeicher: true,
   },
+  {
+    // Ein Wunsch wartet auf eine Entscheidung, und die Glocke sieht nur, wer
+    // die App gerade offen hat. Sichtbar aber erst, wenn es überhaupt ein
+    // aktives Kinderkonto gibt - sonst wäre es ein Schalter für eine Meldung,
+    // die nicht kommen kann.
+    feld: 'mail_child_wish',
+    labelKey: 'profile.mailChildWish',
+    hintKey: 'profile.mailChildWishHint',
+    nurMitKindern: true,
+  },
 ]
 
 type Entwurf = Record<MailFeld, boolean>
@@ -113,6 +128,7 @@ function ausUser(user: User): Entwurf {
     mail_user_imported: user.mail_user_imported,
     mail_mediaserver_reconnect: user.mail_mediaserver_reconnect,
     mail_storage: user.mail_storage,
+    mail_child_wish: user.mail_child_wish,
   }
 }
 
@@ -158,6 +174,17 @@ export function NotificationSettings() {
       setFehler(caught instanceof ApiError ? caught.message : t('errors.generic')),
   })
 
+  // Der Schalter für Kinderwünsche erscheint nur, wenn es auch ein aktives
+  // Kinderkonto gibt. Die Abfrage läuft nur für Konten, die Kinder führen
+  // dürfen - sonst antwortet der Server mit 403.
+  const darfKinder = user?.role === 'admin' || Boolean(user?.can_manage_children)
+  const kinder = useQuery({
+    queryKey: ['children'],
+    queryFn: () => api.get<Child[]>('/api/children'),
+    enabled: darfKinder,
+  })
+  const hatAktiveKinder = (kinder.data ?? []).some((kind) => kind.is_active)
+
   if (!user || !entwurf) return null
 
   const sichtbar = SCHALTER.filter(
@@ -166,7 +193,8 @@ export function NotificationSettings() {
       (!s.nurAdmin || user.role === 'admin') &&
       (!s.nieEntscheider || !user.can_approve) &&
       (!s.nurVerknuepft || user.mediaserver_linked) &&
-      (!s.nurMitSpeicher || Boolean(config?.storage_enabled)),
+      (!s.nurMitSpeicher || Boolean(config?.storage_enabled)) &&
+      (!s.nurMitKindern || hatAktiveKinder),
   )
   // Ohne bestätigte Adresse geht ohnehin nichts raus - das gehört gesagt,
   // statt die Haken wirkungslos setzen zu lassen.

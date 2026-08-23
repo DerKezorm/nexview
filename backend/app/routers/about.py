@@ -43,6 +43,11 @@ class Neuigkeiten(BaseModel):
     # eingespielt, sie sollen wissen, was es bringt. Fuer alle anderen ist
     # ``offen`` immer falsch.
     offen: bool
+    # Bis wohin dieses Konto quittiert hat; ``None`` = noch nie. Das Fenster
+    # haelt die letzten Fassungen vor und markiert damit, welche davon seither
+    # dazugekommen sind - ohne die Angabe muesste man raten, was man schon
+    # gelesen hat.
+    zuletzt_gesehen: str | None = None
 
 
 @router.get("/neuigkeiten", response_model=Neuigkeiten)
@@ -50,7 +55,9 @@ def neuigkeiten(user: CurrentUser) -> Neuigkeiten:
     from ..models import Role
 
     offen = user.role == Role.admin and user.changelog_gesehen != __version__
-    return Neuigkeiten(version=__version__, offen=offen)
+    return Neuigkeiten(
+        version=__version__, offen=offen, zuletzt_gesehen=user.changelog_gesehen
+    )
 
 
 @router.post("/neuigkeiten/gesehen", response_model=Neuigkeiten)
@@ -63,7 +70,7 @@ def neuigkeiten_gesehen(user: CurrentUser, db: DbSession) -> Neuigkeiten:
     """
     user.changelog_gesehen = __version__
     db.commit()
-    return Neuigkeiten(version=__version__, offen=False)
+    return Neuigkeiten(version=__version__, offen=False, zuletzt_gesehen=__version__)
 
 
 @router.get("", response_model=AboutInfo)

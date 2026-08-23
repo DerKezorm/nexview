@@ -49,6 +49,20 @@ class Role(str, enum.Enum):
     # Darf Anfragen freigeben, ablehnen und abbrechen - sonst nichts.
     approver = "approver"
     user = "user"
+    # Ein Kinderkonto: gehoert zu genau einem erwachsenen Konto
+    # (``User.parent_id``) und ist ihm untergeordnet.
+    #
+    # Bewusst eine eigene Rolle und nicht bloss "hat ein Elternteil": Die Frage
+    # "was ist dieses Konto" muss an einer Stelle beantwortbar sein - naemlich
+    # dort, wo auch die Rechte haengen. Ein Kennzeichen neben der Rolle waere
+    # eine zweite Wahrheit, und die erste vergessene Abfrage liesse ein Kind an
+    # eine Erwachsenenfunktion.
+    #
+    # Kinderkonten entstehen und vergehen **ausschliesslich** ueber
+    # ``/api/children``; weder eine Einladung noch der Media-Server-Import noch
+    # ``update_user`` duerfen diese Rolle vergeben - sonst gaebe es ein Kind
+    # ohne Elternteil.
+    child = "child"
 
 
 class MediaType(str, enum.Enum):
@@ -110,6 +124,22 @@ class RequestStatus(str, enum.Enum):
     deferred = "deferred"
 
 
+class WishState(str, enum.Enum):
+    """Lebenslauf eines Kinderwunsches.
+
+    open -> released (daraus wurde eine Anfrage des Elternteils)
+         -> declined (das Elternteil hat nein gesagt)
+         -> obsolete (jemand anders hat den Titel geholt, der Wunsch hat sich
+            erledigt - ausdruecklich **kein** "abgelehnt", sonst laese das Kind
+            eine Absage, wo in Wahrheit ein Erfolg steht)
+    """
+
+    open = "open"
+    released = "released"
+    declined = "declined"
+    obsolete = "obsolete"
+
+
 class QuotaPeriod(str, enum.Enum):
     day = "day"
     week = "week"
@@ -168,6 +198,17 @@ class NotificationType(str, enum.Enum):
     # Ohne Hinweis wechselte sie stillschweigend den Zustand, und das sieht wie
     # ein Fehler aus.
     request_deferred = "request_deferred"
+    # --- Kinderkonten ------------------------------------------------------
+    # Ein Kind wuenscht sich einen Titel - geht an sein Elternteil.
+    #
+    # Bewusst **ohne** Mail-Schalter: ``MAIL_SWITCH`` kennt diesen Typ nicht,
+    # also verschickt ``notify.wants_mail`` dazu nie etwas. Das ist kein
+    # vergessener Baustein, sondern Absicht - Eltern und Kind sitzen in
+    # derselben Wohnung, und ein Wunsch ist kein Vorgang, der eine Mail wert
+    # waere. Wer das aendern will, braucht **drei** Teile: Eintrag in
+    # ``MAIL_SWITCH``, Vorlage in ``mail_templates`` und einen ``case`` in
+    # ``mail_outbox._nachricht`` - sonst wird der Auftrag lautlos verworfen.
+    child_wish = "child_wish"
     # Ein zurueckgestellter Titel ist jetzt da - jemand anders hat ihn geholt.
     # Bewusst ein eigener Typ und nicht ``cancelled``: Der wuerde eine Mail
     # "Deine Anfrage wurde abgelehnt" ausloesen, und das waere das Gegenteil
@@ -195,6 +236,7 @@ class User(Base):
             "mediaserver_account_id",
             unique=True,
         ),
+        Index("ix_users_parent", "parent_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -355,6 +397,10 @@ class User(Base):
     mail_mediaserver_reconnect: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
+    # Wuenscht sich ein Kind etwas, wartet die Entscheidung auf das Elternteil.
+    # Die Glocke sieht es nur, wer die App gerade offen hat - deshalb dieser
+    # Schalter. Standard aus, wie alle Mail-Schalter.
+    mail_child_wish: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # --- Vorbelegung der Filterleiste beim Entdecken ----------------------
     # NULL heisst "nichts Eigenes eingestellt", dann gilt die Vorgabe des
@@ -400,6 +446,45 @@ class User(Base):
     # vorbei. Pro Benutzer und nicht global, weil ein geteilter Zugang
     # (Plex-Runde) durchaus ueber Laender verteilt sein kann.
     rating_region: Mapped[str | None] = mapped_column(String(2))
+
+    # --- Kinderkonten -------------------------------------------------------
+    # Darf dieses Konto Kinderkonten anlegen?
+    #
+    # Standard **aus**: Ein Kinderkonto ist ein echtes Konto auf dieser
+    # Installation, und wer welche anlegen darf, entscheidet der Betreiber -
+    # nicht jeder Mitbenutzer fuer sich. Administratoren duerfen es immer, wie
+    # ueberall sonst auch (sie koennten sich den Haken ohnehin selbst setzen).
+    can_manage_children: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
+    # Darf dieses **Kind** Trailer ansehen?
+    #
+    # Standard **an** - der Trailer ist das, woran ein Kind erkennt, ob es den
+    # Film ueberhaupt will; ein Poster sagt ihm wenig. Abschaltbar, weil das
+    # Video bei YouTube liegt: Wer eingebettete Videos grundsaetzlich nicht
+    # will, dreht es hier ab, und der Knopf verschwindet vollstaendig.
+    child_trailers: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Welche Rubriken dieses **Kind** zu sehen bekommt - Komma-Liste der
+    # Schluessel aus ``services/children.RUBRIKEN``.
+    #
+    # Leer heisst "alle Rubriken". Das ist die Vorgabe fuer Konten, die vor
+    # dieser Einstellung entstanden sind; ueber die Oberflaeche laesst sich
+    # nicht alles abwaehlen, denn ein Kind ohne Rubrik saehe gar nichts.
+    child_genres: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+
+    # Zu welchem erwachsenen Konto dieses Kind gehoert. NULL bei allen anderen.
+    #
+    # ⚠️ **Ohne ``ON DELETE CASCADE``, und das ist Absicht.** Die Spalte wird
+    # auf bestehenden Datenbanken per ``ALTER TABLE ADD COLUMN`` nachgetragen,
+    # und SQLite kann einer vorhandenen Tabelle keine Fremdschluessel-Regel
+    # nachreichen. Eine Kaskade waere also auf jeder *aktualisierten*
+    # Installation stillschweigend wirkungslos - und keiner der Tests koennte
+    # es merken, weil die immer auf frischen Tabellen laufen. Kinder werden
+    # deshalb ausdruecklich im Dienst geloescht (``services/children.py``),
+    # genau wie ``tickets.loeschen`` seine Benachrichtigungen loescht.
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     password_changed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
@@ -483,6 +568,11 @@ class User(Base):
     @property
     def is_admin(self) -> bool:
         return self.role == Role.admin
+
+    @property
+    def is_child(self) -> bool:
+        """Ein Kinderkonto - untergeordnet, ohne eigene Mailadresse."""
+        return self.role == Role.child
 
     @property
     def can_approve(self) -> bool:
@@ -995,6 +1085,17 @@ class MediaRequest(Base):
     # Entscheider soll das sehen: Niemand hat sich diesen Titel im Einzelnen
     # ueberlegt, und das aendert, wie genau man hinschaut.
     from_watchlist: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Hat ein Elternteil diese Anfrage fuer eines seiner Kinder gestellt?
+    #
+    # Reine Auskunft fuer die Anzeige ("Markus (fuer Lena)") - an den Rechten
+    # aendert sie nichts. Die Anfrage gehoert dem Elternteil, mit seinem
+    # Kontingent und seinem Freigabeweg; das ist der ganze Sinn des Aufbaus.
+    #
+    # ``SET NULL``: Wird das Kinderkonto geloescht, bleibt die Anfrage stehen -
+    # die Datei liegt ja weiter beim Elternteil.
+    for_child_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
     # Sollen kuenftige Staffeln automatisch mitkommen?
     #
     # Muss die Freigabe ueberleben: Die Uebergabe an Sonarr passiert erst dort,
@@ -1450,3 +1551,61 @@ class ArrLibraryCache(Base):
     arr_id: Mapped[int] = mapped_column(Integer, nullable=False)
     has_file: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class ChildWish(Base):
+    """Ein Titel, den sich ein Kind wuenscht - **noch keine Anfrage**.
+
+    Bewusst eine eigene Tabelle und kein weiterer ``RequestStatus``. Ein
+    zusaetzlicher Zustand muesste in ``quota.COUNTED_STATUSES``,
+    ``storage.ZURECHENBAR``, ``requests_service.find_active``, ``badges_for``,
+    der Freigabeliste des Administrators, im Status-Abgleich und in der
+    Kontoaufloesung jeweils richtig behandelt werden - und genau diese Art
+    Leck hat in diesem Projekt schon mehrfach Fehler erzeugt.
+
+    Fachlich stimmt die Trennung ohnehin: Ein Wunsch reserviert den Titel fuer
+    niemanden, kostet nichts und der Administrator sieht ihn nie. Erst wenn das
+    Elternteil ihn freigibt, entsteht ueber ``requests_service.create_request``
+    eine gewoehnliche Anfrage - auf **seinen** Namen.
+    """
+
+    __tablename__ = "child_wishes"
+    __table_args__ = (
+        Index("ix_child_wishes_child", "child_id"),
+        Index("ix_child_wishes_parent", "parent_id"),
+        Index("ix_child_wishes_lookup", "media_type", "tmdb_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Ohne ``ON DELETE``-Regel, wie ``User.parent_id``: nachgetragene Spalten
+    # koennen in SQLite keine tragen. Geloescht wird ausdruecklich im Dienst.
+    child_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    parent_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    tvdb_id: Mapped[int | None] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    # Wie bei ``MediaRequest.poster_path`` die **fertige Adresse**, nicht der
+    # Pfad-Teil von TMDB.
+    poster_path: Mapped[str | None] = mapped_column(String(255))
+    release_date: Mapped[str | None] = mapped_column(String(10))
+
+    state: Mapped[WishState] = mapped_column(
+        enum_column(WishState), default=WishState.open, nullable=False
+    )
+    # Kurze Nachricht des Elternteils bei einer Absage. Ohne sie steht dort nur
+    # "diesmal nicht", und das Kind fragt so lange nach, bis es jemand sagt.
+    decline_note: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Die Bruecke zur entstandenen Anfrage: nur darueber sieht das Kind, dass
+    # sein Titel unterwegs ist und wann er da ist.
+    request_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_requests.id", ondelete="SET NULL")
+    )
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    child: Mapped[User] = relationship(foreign_keys=[child_id])
+    request: Mapped["MediaRequest | None"] = relationship(foreign_keys=[request_id])

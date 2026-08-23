@@ -150,6 +150,14 @@ def _nachricht(
                 titel, sprache, link=_link(settings, "/profil"), profil_link=profil
             )
 
+        case NotificationType.child_wish:
+            return mail_templates.child_wish_mail(
+                titel,
+                sprache,
+                link=_link(settings, "/profil?reiter=kinder"),
+                profil_link=profil,
+            )
+
         case NotificationType.mediaserver_reconnect:
             # ``message_title`` traegt hier den Anbieter-Namen ("Plex") - einen
             # Titel im Wortsinn gibt es bei dieser Meldung nicht.

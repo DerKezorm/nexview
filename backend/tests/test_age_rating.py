@@ -216,21 +216,35 @@ def test_benutzer_kann_seine_beschraenkung_nicht_selbst_aufheben(
         assert benutzer.rating_region is None
 
 
-def test_admin_setzt_und_hebt_die_beschraenkung_auf(admin_client: TestClient) -> None:
+def test_vollwertige_konten_haben_keine_altersgrenze_mehr(
+    admin_client: TestClient,
+) -> None:
+    """Die Grenze gibt es nur noch am Kinderkonto.
+
+    Frueher konnte der Administrator jedem Konto ein Alter geben. Zwei Wege zu
+    derselben Sperre waeren zwei Stellen, an denen sie auseinanderlaeuft - wer
+    ein vollwertiges Konto hat, gilt jetzt als volljaehrig.
+    """
     benutzer = create_user(admin_client, "kind4")
     assert benutzer["age"] is None
 
-    geaendert = admin_client.patch(
-        f"/api/users/{benutzer['id']}", json={"age": 12, "rating_region": "at"}
-    )
-    assert geaendert.status_code == 200, geaendert.text
-    assert geaendert.json()["age"] == 12
-    # Klein geschrieben eingegeben, gross gespeichert.
-    assert geaendert.json()["rating_region"] == "AT"
+    # Das Feld gibt es in der Benutzerverwaltung nicht mehr.
+    abgelehnt = admin_client.patch(f"/api/users/{benutzer['id']}", json={"age": 12})
+    assert abgelehnt.status_code == 200
+    assert abgelehnt.json()["age"] is None
 
-    # -1 hebt die Beschraenkung auf; null hiesse nur "nicht mitgeschickt".
-    zurueck = admin_client.patch(f"/api/users/{benutzer['id']}", json={"age": -1})
-    assert zurueck.json()["age"] is None
+    # Am Kinderkonto dagegen sehr wohl - dort haengt die Sperre.
+    admin_client.patch(
+        f"/api/users/{benutzer['id']}", json={"can_manage_children": True}
+    )
+    kopf = auth_headers(admin_client, "kind4", "passwort-1234")
+    kind = admin_client.post(
+        "/api/children",
+        json={"username": "kind4-kind", "password": "kind-passwort", "age": 12},
+        headers=kopf,
+    )
+    assert kind.status_code == 201, kind.text
+    assert kind.json()["age"] == 12
 
 
 # --- Wirkt die Sperre auf einer Liste? ---------------------------------------

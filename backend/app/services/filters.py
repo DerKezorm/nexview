@@ -152,6 +152,24 @@ class DiscoverFilters:
     # Art der Sendung (nur Serien), siehe SERIENARTEN. Leer = alles.
     series_types: str = ""
 
+    # --- Kinderansicht ------------------------------------------------------
+    # Mehrere Genres ODER-verknuepft ("16|10751"). Schlaegt ``genre_id``.
+    #
+    # Gebraucht fuer die Rubriken der Kinderansicht: "Abenteuer" ist bei Serien
+    # kein einzelnes Genre, sondern "Action & Adventure" - und manche Rubriken
+    # fassen ohnehin mehrere zusammen.
+    genres_or: str = ""
+
+    # Nur Filme: TMDB filtert selbst nach Altersfreigabe, wenn Land **und**
+    # Bezeichnungen mitkommen ("DE" + "0|6|12").
+    #
+    # ⚠️ Das ist mehr als Bequemlichkeit. Nachtraeglich zu filtern hiesse, von
+    # 20 geholten Titeln 2 zu behalten - gemessen an dieser Installation. Fuer
+    # ein Kind waere die Seite damit praktisch leer. Bei Serien geht es nicht:
+    # ``/discover/tv`` kennt den Filter nicht, dort tragen die Rubriken allein.
+    certification_country: str | None = None
+    certifications: str = ""
+
     def cache_key(self, media_type: str, textsprache: str = "") -> str:
         """Schluessel fuer den Zwischenspeicher.
 
@@ -170,9 +188,10 @@ class DiscoverFilters:
         eine andere Bedeutung hatten.
         """
         return (
-            f"discover:v2:{media_type}:{textsprache}:{self.date_from}:{self.date_to}:"
+            f"discover:v3:{media_type}:{textsprache}:{self.date_from}:{self.date_to}:"
             f"{self.language}:{self.region}:{self.genre_id}:{self.sort}:{self.page}:"
             f"{self.min_runtime}:{self.min_rating}:{self.hide_unrated}:"
             f"{self.released_in_region}:{self.studio_id}:{self.min_votes}:"
-            f"{self.release_types}:{self.company_ids}:{self.network_ids}:{self.series_types}"
+            f"{self.release_types}:{self.company_ids}:{self.network_ids}:{self.series_types}:"
+            f"{self.genres_or}:{self.certification_country}:{self.certifications}"
         )

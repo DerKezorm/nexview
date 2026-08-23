@@ -47,6 +47,8 @@ MAIL_SWITCH: dict[NotificationType, str] = {
     NotificationType.storage_kept: "mail_storage",
     NotificationType.storage_deleted: "mail_storage",
     NotificationType.storage_grew: "mail_storage",
+    # Der Wunsch eines Kindes - an das Elternteil.
+    NotificationType.child_wish: "mail_child_wish",
 }
 
 

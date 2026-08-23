@@ -12,7 +12,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,6 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
 from .config import get_settings
+from .deps import require_adult
 from .db import init_db
 from .routers import (
     about as about_router,
@@ -28,6 +29,8 @@ from .routers import (
     blocklist as blocklist_router,
     calendar as calendar_router,
     channels as channels_router,
+    children as children_router,
+    kids as kids_router,
     details as details_router,
     discover,
     favorites as favorites_router,
@@ -124,29 +127,48 @@ if settings.cors_origins:
         allow_headers=["*"],
     )
 
+# ⚠️ **Erlaubnisliste, keine Verbotsliste.** Jeder Router, der nicht
+# ausdruecklich fuer Kinderkonten gedacht ist, bekommt hier die
+# Erwachsenen-Pruefung - und zwar am Router, nicht am einzelnen Endpunkt.
+#
+# Umgekehrt gedacht ("ich sperre die Stellen, die einem Kind schaden") waere
+# die erste vergessene Zeile kein falsches Abzeichen, sondern ein Kind in einer
+# Erwachsenenfunktion. ``test_child_permissions.py`` laeuft ueber die ganze
+# Routentabelle und schlaegt fehl, sobald ein Pfad weder hier haengt noch in
+# der Kinder-Erlaubnisliste steht.
+#
+# Router, die schon durchgehend Administratoren oder Entscheidern vorbehalten
+# sind (``users``, ``settings``, ``logs``, ``blocklist``, ``admin_requests``,
+# ``stats``, ``channels``, ``mediaserver.admin_router``), brauchen nichts
+# zusaetzlich - ein Kind ist weder das eine noch das andere.
+NUR_ERWACHSENE = [Depends(require_adult)]
+
 app.include_router(setup.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(settings_router.router)
 app.include_router(channels_router.router)
-app.include_router(discover.router)
-app.include_router(requests_router.router)
+app.include_router(children_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(discover.router, dependencies=NUR_ERWACHSENE)
+app.include_router(discover.public_router)
+app.include_router(kids_router.router)
+app.include_router(requests_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(admin_requests.router)
 app.include_router(stats_router.router)
-app.include_router(home_router.router)
+app.include_router(home_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(onboarding.router)
-app.include_router(notifications.router)
+app.include_router(notifications.router, dependencies=NUR_ERWACHSENE)
 app.include_router(logs_router.router)
-app.include_router(about_router.router)
-app.include_router(details_router.router)
-app.include_router(calendar_router.router)
-app.include_router(favorites_router.router)
+app.include_router(about_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(details_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(calendar_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(favorites_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(blocklist_router.router)
-app.include_router(tickets_router.router)
+app.include_router(tickets_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.router)
-app.include_router(storage_router.router)
+app.include_router(storage_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.admin_router)
-app.include_router(watchlist_router.router)
+app.include_router(watchlist_router.router, dependencies=NUR_ERWACHSENE)
 
 
 @app.get("/api/health", tags=["system"])

@@ -27,7 +27,13 @@ from .conftest import auth_headers, create_user
 def test_admin_bekommt_den_hinweis(admin_client: TestClient) -> None:
     antwort = admin_client.get("/api/about/neuigkeiten")
     assert antwort.status_code == 200
-    assert antwort.json() == {"version": __version__, "offen": True}
+    assert antwort.json() == {
+        "version": __version__,
+        "offen": True,
+        # Noch nie quittiert - daran erkennt das Fenster, welche der
+        # vorgehaltenen Fassungen neu sind.
+        "zuletzt_gesehen": None,
+    }
 
 
 def test_benutzer_bekommen_ihn_nicht(admin_client: TestClient) -> None:
@@ -74,3 +80,18 @@ def test_jeder_admin_quittiert_fuer_sich(admin_client: TestClient) -> None:
 
     kopf = auth_headers(admin_client, "chef2", "passwort-1234")
     assert admin_client.get("/api/about/neuigkeiten", headers=kopf).json()["offen"] is True
+
+
+def test_quittieren_merkt_sich_die_fassung(admin_client: TestClient) -> None:
+    """Das Fenster braucht die Angabe, um "neu seit deinem letzten Blick" zu
+    markieren - es haelt die letzten fuenf Fassungen vor."""
+    erledigt = admin_client.post("/api/about/neuigkeiten/gesehen", json={})
+    assert erledigt.json() == {
+        "version": __version__,
+        "offen": False,
+        "zuletzt_gesehen": __version__,
+    }
+
+    nachher = admin_client.get("/api/about/neuigkeiten").json()
+    assert nachher["zuletzt_gesehen"] == __version__
+    assert nachher["offen"] is False

@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { useAuth } from './auth/useAuth'
 import { AppShell } from './components/AppShell'
+import { KidsShell } from './components/KidsShell'
 import { Logo } from './components/Logo'
 import { Spinner } from './components/ui'
 import { AboutPage } from './pages/AboutPage'
@@ -32,6 +33,31 @@ import { SearchPage } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { SetupPage } from './pages/SetupPage'
 import { StatsPage } from './pages/StatsPage'
+import { KidsHomePage } from './pages/kids/KidsHomePage'
+import { KidsSearchPage } from './pages/kids/KidsSearchPage'
+import { KidsTitlePage } from './pages/kids/KidsTitlePage'
+import { KidsWishesPage } from './pages/kids/KidsWishesPage'
+
+/**
+ * Die Kinderansicht: drei Ziele und die Titelseite - mehr gibt es nicht.
+ *
+ * Der Auffangpfad führt zurück auf die Startseite; ein Kind, das einen alten
+ * Link öffnet, landet also nicht auf einer Fehlerseite, die es nicht lesen
+ * kann.
+ */
+function KidsRoutes() {
+  return (
+    <Routes>
+      <Route element={<KidsShell />}>
+        <Route index element={<KidsHomePage />} />
+        <Route path="suchen" element={<KidsSearchPage />} />
+        <Route path="wuensche" element={<KidsWishesPage />} />
+        <Route path="titel/:mediaType/:tmdbId" element={<KidsTitlePage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  )
+}
 
 function BootScreen() {
   const { t } = useTranslation()
@@ -101,6 +127,12 @@ export default function App() {
   if (status === 'loading') return <BootScreen />
   if (needsSetup) return <SetupPage />
   if (!user) return <LoginPage />
+  // Ein Kinderkonto bekommt einen **eigenen Seitenbaum**, nicht denselben mit
+  // ausgeblendeten Punkten. Was hier nicht steht, existiert für ein Kind nicht
+  // - auch nicht über die Adresszeile. Die Sperre selbst sitzt im Backend
+  // (`require_adult` an allen Erwachsenen-Routern); das hier ist die Ansicht
+  // dazu, nicht der Schutz.
+  if (user.role === 'child') return <KidsRoutes />
 
   const isAdmin = user.role === 'admin'
   /** Geschützte Bereiche sind zusätzlich im Backend abgesichert; hier wird nur umgeleitet. */

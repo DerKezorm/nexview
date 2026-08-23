@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
@@ -10,6 +11,7 @@ import { Avatar } from '../components/Avatar'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { DiscoverDefaults } from './profile/DiscoverDefaults'
+import { Kinder } from './profile/Kinder'
 import { KontoLoeschen } from './profile/KontoLoeschen'
 import { MediaServerLink } from './profile/MediaServerLink'
 import { WatchlistPlex } from './profile/WatchlistPlex'
@@ -23,14 +25,38 @@ import { StorageMine } from './profile/StorageMine'
  * nur noch durch Scrollen findet. Aufgeteilt wie die Einstellungen des
  * Administrators, damit beide Seiten sich gleich anfühlen.
  */
-type Tab = 'account' | 'notifications' | 'discover' | 'security' | 'watchlist' | 'storage'
+type Tab =
+  | 'account'
+  | 'notifications'
+  | 'discover'
+  | 'security'
+  | 'watchlist'
+  | 'storage'
+  | 'children'
 
 export function ProfilePage() {
   const { t } = useTranslation()
   const { user, updateUser } = useAuth()
   const { data: config } = useConfig()
   const minPassword = config?.min_password_length ?? 4
-  const [tab, setTab] = useState<Tab>('account')
+  // `?reiter=kinder` öffnet den Reiter direkt - die Glocke springt so aus
+  // einem Kinderwunsch an die Stelle, an der er entschieden wird.
+  //
+  // Die Adresse spricht deutsch, der Zustand englisch - deshalb die Tabelle.
+  // Ohne sie zeigte der Link auf einen Reiter, den es nicht gibt, und die
+  // Seite blieb kommentarlos auf „Konto" stehen.
+  const [suchparameter, setSuchparameter] = useSearchParams()
+  const REITER_AUS_ADRESSE: Record<string, Tab> = {
+    kinder: 'children',
+    konto: 'account',
+    benachrichtigungen: 'notifications',
+    sprache: 'discover',
+    sicherheit: 'security',
+    merkliste: 'watchlist',
+    speicher: 'storage',
+  }
+  const gewuenschterReiter = REITER_AUS_ADRESSE[suchparameter.get('reiter') ?? '']
+  const [tab, setTab] = useState<Tab>(gewuenschterReiter ?? 'account')
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
@@ -157,13 +183,20 @@ export function ProfilePage() {
   if (config?.storage_enabled) {
     tabs.push({ value: 'storage', labelKey: 'profile.tabStorage' })
   }
+  // Der Reiter erscheint **auch ohne Freigabe**. Wer nicht weiß, dass es
+  // Kinderkonten gibt, fragt auch nicht danach; statt einer leeren Seite steht
+  // dort dann, was die Funktion kann - und ein Knopf, der sie beantragt.
+  // Nur für Kinderkonten selbst gibt es ihn nicht.
+  if (user.role !== 'child') {
+    tabs.push({ value: 'children', labelKey: 'profile.tabChildren' })
+  }
 
   // Ueberschrift und Reiterreihe bekommen **immer** die volle Breite, nur der
   // Inhalt darunter wird eingeschnuert. Vorher hing beides an derselben
   // Breite - und weil breite Reiter (Merkliste, Speicher) einen breiteren
   // Inhalt haben, brach die Reiterreihe je nach gewaehltem Reiter um und bei
   // anderen nicht. Ein Menue darf sich nicht danach richten, was darunter steht.
-  const schmal = tab !== 'watchlist' && tab !== 'storage'
+  const schmal = tab !== 'watchlist' && tab !== 'storage' && tab !== 'children'
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -184,6 +217,9 @@ export function ProfilePage() {
             aria-selected={tab === entry.value}
             onClick={() => {
               setTab(entry.value)
+              // Die Adresse nicht stehen lassen - sonst spränge ein Neuladen
+              // zurück auf den Reiter aus dem Link.
+              if (suchparameter.has('reiter')) setSuchparameter({}, { replace: true })
               // Eine Erfolgsmeldung vom vorherigen Reiter hätte hier keinen
               // Bezug mehr - sie würde nur verwirren.
               reset()
@@ -333,6 +369,7 @@ export function ProfilePage() {
       )}
 
       {tab === 'storage' && <StorageMine />}
+      {tab === 'children' && <Kinder />}
       {tab === 'notifications' && <NotificationSettings />}
       {tab === 'discover' && <DiscoverDefaults />}
 

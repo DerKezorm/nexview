@@ -136,6 +136,7 @@ class UserPublic(BaseModel):
     mail_user_imported: bool
     mail_mediaserver_reconnect: bool
     mail_storage: bool
+    mail_child_wish: bool
 
     # *Ob* ein Plex-Zugang hinterlegt ist - das Token selbst verlaesst den
     # Server nie. Ohne ihn laesst sich die Merkliste nicht lesen.
@@ -165,6 +166,14 @@ class UserPublic(BaseModel):
     age: int | None
     rating_region: str | None
     hide_unrated: bool
+
+    # Darf dieses Konto Kinderkonten anlegen? Bei Administratoren immer.
+    can_manage_children: bool = False
+
+    # Bei einem Kinderkonto das erwachsene Konto, dem es gehoert; sonst NULL.
+    # Nur die Nummer, kein Name: Die Benutzerliste des Administrators enthaelt
+    # ohnehin alle Konten, sie kann den Namen selbst nachschlagen.
+    parent_id: int | None = None
 
     @field_validator(
         "blocked_movie_profiles",
@@ -197,6 +206,22 @@ class VerificationSent(BaseModel):
     error: str | None = None
 
 
+def _keine_kinderrolle(value: Role | None) -> Role | None:
+    """Die Rolle ``child`` darf hier nicht vorkommen.
+
+    Ein Kinderkonto gehoert immer zu genau einem Elternteil. Entstuende es auf
+    einem anderen Weg - ueber eine Einladung oder eine Rollenaenderung -, waere
+    es elternlos: niemand koennte sein Passwort setzen, seine Wuensche
+    freigeben oder es wieder loeschen. Kinder entstehen und vergehen deshalb
+    ausschliesslich ueber ``/api/children``.
+    """
+    if value == Role.child:
+        raise ValueError(
+            "Kinderkonten werden im Profil unter „Kinder“ angelegt, nicht hier."
+        )
+    return value
+
+
 class InvitationCreate(BaseModel):
     """Einladung: der Eingeladene waehlt Benutzername und Namen selbst."""
 
@@ -205,6 +230,8 @@ class InvitationCreate(BaseModel):
     quota_movies_limit: int | None = Field(default=None, ge=0)
     quota_series_limit: int | None = Field(default=None, ge=0)
     quota_period: QuotaPeriod = QuotaPeriod.week
+
+    _check_role = field_validator("role")(_keine_kinderrolle)
 
 
 class InvitationPublic(BaseModel):
@@ -225,6 +252,13 @@ class InvitationCreated(InvitationPublic):
 
 class UserUpdate(BaseModel):
     role: Role | None = None
+
+    # Auch hier keine Kinderrolle - und das ist mehr als Ordnungsliebe:
+    # ``update_user`` prueft "verliert das Haus seinen letzten Administrator"
+    # an ``role == user``. Waere ``child`` erlaubt, liesse sich der letzte
+    # Administrator daran vorbei zum Kind herabstufen, und niemand kaeme mehr
+    # an die Verwaltung.
+    _check_role = field_validator("role")(_keine_kinderrolle)
     display_name: str | None = None
     language: str | None = None
     is_active: bool | None = None
@@ -248,12 +282,101 @@ class UserUpdate(BaseModel):
     blocked_movie_uhd_profiles: list[int] | None = None
     blocked_series_uhd_profiles: list[int] | None = None
 
-    # Altersbeschraenkung - ausschliesslich hier, nie in ``ProfileUpdate``.
-    # -1 hebt die Beschraenkung wieder auf; ``None`` hiesse ja nur "nicht
-    # mitgeschickt", damit liesse sie sich nie mehr entfernen.
-    age: int | None = Field(default=None, ge=-1, le=21)
-    rating_region: str | None = Field(default=None, max_length=2)
-    hide_unrated: bool | None = None
+    # ⚠️ **Die Altersbeschraenkung steht hier nicht mehr.** Wer ein
+    # vollwertiges Konto hat, gilt als volljaehrig; Kinder bekommen ein
+    # Kinderkonto, und ihr Alter pflegt das Elternteil unter "Kinder".
+    # Zwei Wege zu derselben Sperre waeren zwei Stellen, an denen sie
+    # auseinanderlaufen kann - und der Administrator muesste raten, welcher
+    # gilt. ``User.age`` bleibt in der Datenbank: Fuer Kinderkonten ist es
+    # genau das Feld, an dem die Sperre haengt.
+
+    # Wer Kinderkonten anlegen darf, entscheidet der Administrator.
+    can_manage_children: bool | None = None
+
+
+# --- Kinderkonten ----------------------------------------------------------
+
+
+class ChildPublic(BaseModel):
+    """Ein Kinderkonto, wie das Elternteil es sieht.
+
+    Bewusst schmal: Kontingente, Mailschalter, 4K-Rechte und Media-Server
+    haben bei einem Kinderkonto keine Bedeutung. ``UserPublic`` hier
+    wiederzuverwenden hiesse, zwei Dutzend Felder auszuliefern, die alle
+    dasselbe sagen - naemlich nichts.
+    """
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: int
+    username: str
+    display_name: str | None
+    age: int | None
+    is_active: bool
+    language: str
+    # Darf dieses Kind Trailer ansehen? Standard an.
+    child_trailers: bool = True
+    # Welche Rubriken dieses Kind sieht. Leere Liste = alle.
+    #
+    # Die Spalte heisst ``child_genres`` - am Kinderkonto waere "child" doppelt
+    # gemoppelt, an einem gemeinsamen Benutzer-Modell dagegen noetig.
+    genres: list[str] = Field(validation_alias="child_genres")
+    created_at: datetime
+    last_login_at: datetime | None
+
+    @field_validator("genres", mode="before")
+    @classmethod
+    def _split_genres(cls, value: object) -> object:
+        """In der Datenbank eine Komma-Liste, nach aussen eine echte Liste."""
+        if isinstance(value, str):
+            return [teil for teil in value.split(",") if teil]
+        return value
+
+
+# Bis zu welchem Alter ein Kinderkonto reicht.
+#
+# Darueber ist es kein Kinderkonto mehr, sondern ein gewoehnliches: Wer 17 ist,
+# soll eine eigene Mailadresse und ein eigenes Kontingent bekommen, nicht eine
+# Unteransicht ohne Benachrichtigungen. Vom Nutzer so festgelegt.
+MAX_CHILD_AGE = 16
+
+
+class ChildCreate(BaseModel):
+    username: str
+    password: str
+    # Pflichtangabe - ein Kinderkonto ohne Alter waere ein gewoehnliches Konto
+    # mit weniger Rechten und saehe alles. Genau das soll es nicht sein.
+    age: int = Field(ge=0, le=MAX_CHILD_AGE)
+    display_name: str | None = None
+    # Leer bzw. nicht mitgeschickt heisst "alle Rubriken".
+    genres: list[str] | None = None
+    child_trailers: bool = True
+    # Fehlt sie, gilt die Sprache des Elternteils - der Normalfall.
+    language: str | None = Field(default=None, max_length=5)
+
+    _check_username = field_validator("username")(_validate_username)
+    _check_password = field_validator("password")(_validate_password)
+
+
+class ChildUpdate(BaseModel):
+    """Was das Elternteil nachtraeglich aendern darf.
+
+    Der Benutzername steht bewusst nicht dabei: Er ist die Anmeldung, und ein
+    stiller Wechsel waere fuer das Kind nicht nachvollziehbar.
+    """
+
+    display_name: str | None = None
+    age: int | None = Field(default=None, ge=0, le=MAX_CHILD_AGE)
+    is_active: bool | None = None
+    genres: list[str] | None = None
+    child_trailers: bool | None = None
+    language: str | None = Field(default=None, max_length=5)
+
+
+class ChildPassword(BaseModel):
+    password: str
+
+    _check_password = field_validator("password")(_validate_password)
 
 
 class PasswordReset(BaseModel):
@@ -280,6 +403,7 @@ class ProfileUpdate(BaseModel):
     mail_user_imported: bool | None = None
     mail_mediaserver_reconnect: bool | None = None
     mail_storage: bool | None = None
+    mail_child_wish: bool | None = None
 
     # Vorbelegung der Filterleiste. Der leere String bedeutet "nichts
     # Eigenes" - anders liesse sich eine einmal gesetzte Wahl nie wieder

@@ -49,4 +49,10 @@ export type Ticket = {
 
 export type TicketDetail = Ticket & {
   messages: TicketMessage[]
+  /**
+   * Ist das der Antrag „bitte Kinderkonten freischalten", und steht die
+   * Freigabe noch aus? Dann bekommt der Administrator hier einen Knopf, statt
+   * in die Benutzerverwaltung wechseln zu müssen.
+   */
+  kinderkonten_offen: boolean
 }

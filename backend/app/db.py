@@ -58,6 +58,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
     _add_missing_indexes()
+    _altersgrenzen_aufraeumen()
 
 
 def _existing_columns(connection, table_name: str) -> set[str]:
@@ -281,3 +282,29 @@ def get_db() -> Iterator[Session]:
         yield session
     finally:
         session.close()
+
+
+def _altersgrenzen_aufraeumen() -> None:
+    """Altersgrenzen an vollwertigen Konten entfernen.
+
+    Frueher konnte der Administrator jedem Konto ein Alter geben. Seit es
+    Kinderkonten gibt, ist das der falsche Weg: Wer ein vollwertiges Konto hat,
+    gilt als volljaehrig, und Kinder werden von ihren Eltern gepflegt. Die
+    Einstellung ist deshalb aus der Benutzerverwaltung verschwunden - und ohne
+    diesen Schritt bliebe ein frueher beschraenktes Konto fuer immer
+    beschraenkt, weil es keine Stelle mehr gaebe, an der man es aufhebt.
+
+    Bei Kinderkonten bleibt das Alter selbstverstaendlich stehen; dort ist es
+    genau das Feld, an dem die Sperre haengt.
+
+    Laeuft bei jedem Start und trifft nach dem ersten Mal nichts mehr.
+    """
+    with engine.begin() as connection:
+        ergebnis = connection.exec_driver_sql(
+            "UPDATE users SET age = NULL WHERE age IS NOT NULL AND role != 'child'"
+        )
+        if ergebnis.rowcount:
+            logger.info(
+                "Altersgrenze an %d vollwertigen Konten entfernt (gilt nur noch fuer Kinder)",
+                ergebnis.rowcount,
+            )

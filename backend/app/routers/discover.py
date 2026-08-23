@@ -32,6 +32,12 @@ from ..services.tmdb import TmdbError
 
 router = APIRouter(prefix="/api", tags=["discover"])
 
+# Der Demo-Bild-Pfad liegt bewusst in einem **eigenen** Router: ``<img>``
+# schickt keinen Token mit, er muss also ohne Anmeldung erreichbar bleiben.
+# Haenge man die Erwachsenen-Pruefung an den Router oben, waere er es nicht
+# mehr - und im Beispielbetrieb blieben alle Poster leer.
+public_router = APIRouter(prefix="/api", tags=["discover"], include_in_schema=False)
+
 MediaTypePath = Annotated[Literal["movie", "tv"], Path()]
 
 # Ein ISO-Datum wie 2026-08-16.
@@ -325,7 +331,7 @@ async def arr_options(
     return options
 
 
-@router.get("/demo/poster/{media_type}/{tmdb_id}.svg", include_in_schema=False)
+@public_router.get("/demo/poster/{media_type}/{tmdb_id}.svg")
 def demo_poster(
     media_type: MediaTypePath,
     tmdb_id: Annotated[int, Path(ge=1)],

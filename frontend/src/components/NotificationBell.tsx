@@ -57,6 +57,9 @@ export function NotificationBell() {
     // Der abgelaufene Zugang wird auf der Profilseite erneuert - dort sitzt
     // die einmalige Plex-Anmeldung.
     if (item.type === 'mediaserver_reconnect') return '/profil'
+    // Ein Kinderwunsch wird unter „Kinder" entschieden - nicht in den eigenen
+    // Anfragen. Dort läge er erst, wenn er freigegeben ist.
+    if (item.type === 'child_wish') return '/profil?reiter=kinder'
     // Alles andere betrifft die eigenen Anfragen.
     return '/requests'
   }

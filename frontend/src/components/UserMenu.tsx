@@ -17,6 +17,7 @@ const ROLE_LABELS: Record<Role, string> = {
   admin: 'adminUsers.roleAdmin',
   approver: 'adminUsers.roleApprover',
   user: 'adminUsers.roleUser',
+  child: 'adminUsers.roleChild',
 }
 
 type MenuEntry = {

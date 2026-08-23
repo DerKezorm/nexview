@@ -1,11 +1,13 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../api/client'
-import type { AboutInfo, AppSettings } from '../api/types'
+import type { AboutInfo, AppSettings, Neuigkeiten } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { Logo } from '../components/Logo'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
+import { WasNeuFenster } from '../components/WasNeuFenster'
 import { formatDateTime } from '../lib/format'
 
 /** Ein Verweis nach außen - immer in einem neuen Reiter. */
@@ -281,6 +283,16 @@ function Credits() {
 export function AboutPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
+  const [wasNeu, setWasNeu] = useState(false)
+
+  // Nur für die Fassungs-Schalter im Fenster: Sie markieren, was seit dem
+  // letzten Quittieren dazugekommen ist.
+  const neuigkeiten = useQuery({
+    queryKey: ['neuigkeiten'],
+    queryFn: () => api.get<Neuigkeiten>('/api/about/neuigkeiten'),
+    enabled: user?.role === 'admin',
+    staleTime: Infinity,
+  })
 
   const query = useQuery({
     queryKey: ['about'],
@@ -322,6 +334,21 @@ export function AboutPage() {
           <Row label={t('about.releases')}>
             <ExternalLink href={info.release_url}>{t('about.allVersions')}</ExternalLink>
           </Row>
+          {/* Der einzige Weg zurück in die Neuerungen. Der Balken erscheint je
+              Fassung genau einmal; ohne diesen Punkt wären die vorgehaltenen
+              Texte nach einem Klick auf „Verstanden" für immer weg. Nur für
+              Administratoren - nur sie sehen den Balken überhaupt. */}
+          {user?.role === 'admin' && (
+            <Row label={t('about.whatsNew')}>
+              <button
+                type="button"
+                onClick={() => setWasNeu(true)}
+                className="text-accent-400 underline underline-offset-2 transition-colors hover:text-accent-300"
+              >
+                {t('about.whatsNewOpen')}
+              </button>
+            </Row>
+          )}
           <Row label={t('about.license')}>{info.license}</Row>
         </dl>
       </Card>
@@ -331,6 +358,15 @@ export function AboutPage() {
       {user?.role === 'admin' && <UpdateCheckToggle />}
 
       <Credits />
+
+      {user?.role === 'admin' && (
+        <WasNeuFenster
+          offen={wasNeu}
+          version={info.version}
+          zuletztGesehen={neuigkeiten.data?.zuletzt_gesehen}
+          onSchliessen={() => setWasNeu(false)}
+        />
+      )}
     </div>
   )
 }

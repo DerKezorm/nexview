@@ -1,4 +1,9 @@
-export type Role = "admin" | "approver" | "user";
+/**
+ * `child` ist ein Kinderkonto: gehört zu genau einem erwachsenen Konto
+ * (`parent_id`) und wird von dort verwaltet. Es entsteht nur über
+ * `/api/children` – niemals über eine Einladung oder eine Rollenänderung.
+ */
+export type Role = "admin" | "approver" | "user" | "child";
 export type QuotaPeriod = "day" | "week" | "month";
 
 export type User = {
@@ -61,6 +66,7 @@ export type User = {
   /** Neues Konto über den Media-Server – nur für Admins von Belang. */
   mail_user_imported: boolean;
   mail_mediaserver_reconnect: boolean;
+  mail_child_wish: boolean;
   mail_storage: boolean;
   /**
    * Liegt ein persönlicher Plex-Zugang vor? Nur diese Auskunft – nie das
@@ -107,6 +113,99 @@ export type User = {
   rating_region: string | null;
   /** Titel ganz ohne Einstufung verbergen? Standard ja. */
   hide_unrated: boolean;
+  /** Bei einem Kinderkonto das Konto der Eltern, sonst `null`. */
+  parent_id: number | null;
+  /** Darf dieses Konto Kinderkonten anlegen? Bei Administratoren immer. */
+  can_manage_children: boolean;
+};
+
+/**
+ * Ein Kinderkonto, wie das Elternteil es sieht.
+ *
+ * Bewusst schmal: Kontingent, Mailschalter und 4K-Rechte haben bei einem
+ * Kinderkonto keine Bedeutung – die Anfragen laufen später über das Konto der
+ * Eltern.
+ */
+export type Child = {
+  id: number;
+  username: string;
+  display_name: string | null;
+  age: number | null;
+  is_active: boolean;
+  /** Darf dieses Kind Trailer ansehen? */
+  child_trailers: boolean;
+  /** Sprache der Kinderansicht – vom Elternteil gesetzt. */
+  language: string;
+  /** Rubriken, die dieses Kind sieht. Leere Liste heißt: alle. */
+  genres: string[];
+  created_at: string;
+  last_login_at: string | null;
+};
+
+/** Steht der „Alles, was neu ist"-Hinweis an – und bis wohin wurde quittiert? */
+export type Neuigkeiten = {
+  version: string;
+  offen: boolean;
+  /** Bis wohin dieses Konto quittiert hat; `null` = noch nie. */
+  zuletzt_gesehen: string | null;
+};
+
+/** Eine Kachel auf der Kinder-Startseite. */
+export type KidsCategory = {
+  rubrik: string;
+  /**
+   * Szenenbilder aus den Titeln dieser Rubrik. Die Oberfläche wählt eines
+   * zufällig aus – serverseitig zu würfeln wäre wirkungslos, weil die
+   * TMDB-Antwort drei Stunden im Zwischenspeicher liegt.
+   */
+  bilder: string[];
+};
+
+/**
+ * Zwei Listen: was das Kind schon schauen kann, und was es sich wünschen kann.
+ *
+ * Getrennt statt gemischt, weil es zwei verschiedene Handlungen sind. Und
+ * getrennt statt „Vorhandenes weglassen", weil damit gemessen 90 % der Seite
+ * verschwanden – ausgerechnet das, was zu Hause längst liegt.
+ */
+export type KidsItems = {
+  verfuegbar: MediaItem[];
+  wuenschbar: MediaItem[];
+  /** In der Eltern-Vorschau immer leer – dort wird nichts gewünscht. */
+  gewuenscht: number[];
+};
+
+/**
+ * Der Zustand eines Kinderwunsches – vier statt der acht aus `RequestStatus`.
+ * Ein Kind will wissen, ob es den Film sehen kann, nicht wie der Ablauf heißt.
+ */
+export type KidsWishState = "waiting" | "coming" | "available" | "declined";
+
+/** Ein Wunsch, wie das Kind ihn sieht. */
+export type KidsWish = {
+  id: number;
+  media_type: "movie" | "tv";
+  tmdb_id: number;
+  title: string;
+  poster_path: string | null;
+  release_date: string | null;
+  state: KidsWishState;
+  /** Kurze Begründung des Elternteils – nur bei einer Absage. */
+  decline_note: string | null;
+  created_at: string;
+};
+
+/** Ein offener Wunsch, wie das Elternteil ihn sieht. */
+export type ParentWish = {
+  id: number;
+  child_id: number;
+  child_name: string;
+  media_type: "movie" | "tv";
+  tmdb_id: number;
+  title: string;
+  poster_path: string | null;
+  release_date: string | null;
+  created_at: string;
 };
 
 /** Offene Einladung – ein Konto gibt es dazu noch nicht. */
@@ -1056,7 +1155,8 @@ export type AppNotification = {
     | "ticket_new"
     | "ticket_reply"
     | "user_imported"
-    | "mediaserver_reconnect";
+    | "mediaserver_reconnect"
+    | "child_wish";
   /** Übersetzungsschlüssel – der Text kommt aus der Oberfläche. */
   message_key: string;
   message_title: string | null;

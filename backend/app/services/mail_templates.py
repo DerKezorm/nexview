@@ -859,6 +859,50 @@ def storage_kept_mail(
     )
 
 
+def child_wish_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An das Elternteil: Ein Kind wuenscht sich etwas.
+
+    ``titel`` traegt hier **Name und Titel** ("Lena: Elio") - die Textbausteine
+    der Glocke kennen keine Platzhalter, also steht der Name des Kindes im
+    Titelfeld. Fuer die Mail ist das genau richtig: Wer zwei Kinder hat, will
+    schon in der Betreffzeile wissen, um wen es geht.
+    """
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff="Your child wished for something",
+            kopf="There is a wish waiting for you.",
+            unter=titel,
+            rumpf=(
+                "Your child has asked for this title. Nothing happens until you decide: "
+                "approve it and it becomes an ordinary request in your name, or decline it "
+                "with a short note. You will find it in your profile under Children."
+            ),
+            knopf="Open children",
+            link=link,
+            profil_link=profil_link,
+        )
+
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff="Dein Kind wünscht sich etwas",
+        kopf="Ein Wunsch wartet auf dich.",
+        unter=titel,
+        rumpf=(
+            "Dein Kind hat sich diesen Titel gewünscht. Es passiert nichts, bis du "
+            "entscheidest: Gibst du ihn frei, wird daraus eine ganz normale Anfrage auf "
+            "deinen Namen – oder du lehnst ihn mit einer kurzen Begründung ab. Zu finden "
+            "in deinem Profil unter „Kinder“."
+        ),
+        knopf="Kinder öffnen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
 def storage_grew_mail(
     titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
 ) -> Mail:

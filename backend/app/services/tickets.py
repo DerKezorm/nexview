@@ -113,6 +113,7 @@ def _nachricht_anhaengen(db: Session, ticket: Ticket, user: User, body: str) -> 
 # Betreff des Aufloesungs-Antrags - fest, damit Doppelte erkennbar sind und
 # der Administrator die Antraege auf einen Blick von normalen Tickets trennt.
 AUFLOESUNG_BETREFF = "Konto löschen"
+KINDERKONTEN_BETREFF = "Freigabe für Kinderkonten"
 
 
 def aufloesung_beantragen(db: Session, user: User) -> Ticket:
@@ -156,6 +157,88 @@ def aufloesung_beantragen(db: Session, user: User) -> Ticket:
             "löschen lassen. Die Löschung selbst erfolgt in der "
             "Benutzerverwaltung – dort wird auch über die hinterlassenen "
             "Titel entschieden."
+        ),
+    )
+
+
+def ist_kinderkonten_antrag(ticket: Ticket) -> bool:
+    """Ist das der Antrag "bitte Kinderkonten freischalten"?
+
+    Erkannt am festen Betreff. Der ist eine Konstante und wird nicht uebersetzt
+    - der Antrag entsteht ausschliesslich ueber ``kinderkonten_beantragen``,
+    ein von Hand getippter Betreff gleichen Wortlauts waere ein sehr
+    unwahrscheinlicher Zufall und haette obendrein keine Wirkung, weil der
+    Knopf nur den Eigentuemer des Tickets freischaltet.
+    """
+    return ticket.subject == KINDERKONTEN_BETREFF
+
+
+def kinderkonten_freischalten(db: Session, admin: User, ticket: Ticket) -> Ticket:
+    """Den Antrag mit einem Klick erledigen.
+
+    Setzt das Recht, schreibt eine Notiz in den Verlauf und schliesst das
+    Ticket. Ohne diesen Knopf muesste der Administrator die Benutzerverwaltung
+    aufsuchen, das Konto suchen, aufklappen, haken, speichern - und danach das
+    Ticket von Hand schliessen. Fuenf Schritte fuer eine Ja-Entscheidung.
+    """
+    if not ist_kinderkonten_antrag(ticket):
+        raise TicketError("Das ist kein Antrag auf Kinderkonten.", 409)
+
+    empfaenger = ticket.user
+    if empfaenger is None:
+        raise TicketError("Zu diesem Ticket gibt es kein Konto mehr.", 409)
+    if empfaenger.can_manage_children:
+        raise TicketError("Dieses Konto hat die Freigabe bereits.", 409)
+
+    empfaenger.can_manage_children = True
+    _nachricht_anhaengen(
+        db,
+        ticket,
+        admin,
+        "Freigabe erteilt – Kinderkonten können jetzt im Profil unter „Kinder“ "
+        "angelegt werden.",
+    )
+    status_setzen(db, admin, ticket, TicketStatus.closed)
+    return ticket
+
+
+def kinderkonten_beantragen(db: Session, user: User) -> Ticket:
+    """"Ich möchte Kinderkonten anlegen dürfen" - als Ticket an den Betreiber.
+
+    Ein Knopf statt eines Formulars: Wer die Freigabe braucht, soll sie
+    erbitten koennen, ohne sich einen Text auszudenken. Der Administrator
+    setzt danach den Haken in der Benutzerverwaltung.
+
+    Ein zweiter Antrag waere nur Laerm in der Warteschlange, solange der erste
+    offen ist - dieselbe Regel wie bei der Kontoaufloesung.
+    """
+    if darf_alles_sehen(user):
+        raise TicketError(
+            "Administratoren dürfen Kinderkonten ohnehin anlegen.", 403
+        )
+    if user.can_manage_children:
+        raise TicketError("Du hast die Freigabe bereits.", 409)
+
+    offen = db.scalar(
+        select(Ticket).where(
+            Ticket.user_id == user.id,
+            Ticket.subject == KINDERKONTEN_BETREFF,
+            Ticket.status != TicketStatus.closed,
+        )
+    )
+    if offen is not None:
+        raise TicketError(
+            "Dein Antrag liegt bereits vor und wartet auf den Betreiber.", 409
+        )
+
+    return erstellen(
+        db,
+        user,
+        subject=KINDERKONTEN_BETREFF,
+        body=(
+            f"{user.display_name or user.username} möchte Kinderkonten anlegen "
+            "dürfen. Die Freigabe wird in der Benutzerverwaltung gesetzt: "
+            "Bearbeiten → „Darf Kinderkonten anlegen“."
         ),
     )
 

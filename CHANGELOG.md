@@ -12,6 +12,63 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.16.0 – 23.08.2026
+
+### New
+
+- **Child accounts.** A parent can now create logins for their own children,
+  in their profile under "Children" - name and password, no email address, no
+  Plex account. Each child has an age, a set of categories and a language, all
+  managed by the parent. The account is subordinate: it cannot change its own
+  password, cannot add an address, and cannot reach a single adult part of the
+  app. Creating them needs a permission the operator grants per account
+  (Settings → Users → "May create child accounts"); the tab stays visible
+  without it and explains what the feature does, with one button that files
+  the request as a ticket. Deleting a parent deletes their children with them.
+
+- **A view built for children.** A child signing in gets a completely separate
+  app - its own bright colour world, three destinations, large tap targets, no
+  bell, no tickets, no watchlist, no settings. The start page shows the
+  enabled categories as picture tiles; behind each one sit all the titles at
+  once, split into "You can watch these now" and "You can wish for these".
+  Search stays inside the enabled categories. Everything is filtered by the
+  child's age - and for movies the filter runs at TMDB itself, which is the
+  difference between a full page and an empty one.
+
+- **Wishes instead of requests.** A child does not request, it wishes. Nothing
+  happens until the parent decides: approving turns the wish into an ordinary
+  request **in the parent's name** - their quota, their storage, their usual
+  approval path, with the operator deciding the download as always. Declining
+  takes a short note that the child gets to read. The child sees its own list
+  with four plain states: waiting, on its way, it is here, not this time.
+
+- **"View as {child}".** A yellow button in every child's settings opens the
+  child's app exactly as the child sees it - same component, same rules, only
+  read-only. Checking what actually reaches a child should not require
+  borrowing their password.
+
+- **What's new, for the last five versions.** The update notice now keeps the
+  notes for the last five versions and offers a switch per version, marking
+  what has arrived since you last acknowledged one. Skipping a version no
+  longer means never learning what was in it. Reachable any time from About →
+  Everything that is new, not only in the days after an update.
+
+### Changed
+
+- **The per-account age restriction is gone from user management.** Anyone
+  with a full account is treated as an adult; children get a child account,
+  and their age is maintained by their parent. Two routes to the same lock
+  were two places for it to drift apart. Existing accounts have their age
+  cleared on the first start after the update - child accounts keep theirs.
+
+- Notification mails gained a switch for children's wishes. It only appears
+  for accounts that actually have an active child account.
+
+### Fixed
+
+- Profile tabs can be addressed directly again (`?reiter=…`), which is how the
+  bell now jumps from a child's wish straight to the place it is decided.
+
 ## 0.15.0 – 23.08.2026
 
 ### New

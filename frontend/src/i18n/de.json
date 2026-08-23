@@ -505,7 +505,10 @@
     "deleteConfirmTitle": "Konto-Löschung beantragen?",
     "deleteConfirmText": "Der Betreiber bekommt deinen Antrag als Ticket und meldet sich. Bis zur Löschung kannst du Nexview normal weiterbenutzen.",
     "deleteConfirm": "Antrag stellen",
-    "deleteRequested": "Dein Antrag ist gestellt – der Betreiber kümmert sich darum."
+    "deleteRequested": "Dein Antrag ist gestellt – der Betreiber kümmert sich darum.",
+    "tabChildren": "Kinder",
+    "mailChildWish": "Wünsche deiner Kinder",
+    "mailChildWishHint": "Sobald sich eines deiner Kinder etwas wünscht und auf deine Entscheidung wartet."
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -615,7 +618,14 @@
     "dissolveDeleteWarning": "Gelöschte Dateien gehen über Radarr/Sonarr und landen – falls eingerichtet – in deren Papierkorb. Ohne Papierkorb sind sie sofort weg.",
     "dissolveConfirm": "Konto endgültig löschen",
     "toHouse": "ins Haus",
-    "toDelete": "löschen"
+    "toDelete": "löschen",
+    "groupChildren": "Kinderkonten",
+    "childOf": "Kind von {{name}}",
+    "childOfUnknown": "Kinderkonto",
+    "childAge": "{{age}} Jahre",
+    "roleChild": "Kind",
+    "mayManageChildren": "Darf Kinderkonten anlegen",
+    "mayManageChildrenHint": "Legt eigene Zugänge für seine Kinder an – im eigenen Profil unter „Kinder“."
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -641,7 +651,8 @@
     "storageGrew": "Ein Titel belegt jetzt mehr Platz",
     "storageReleaseRequested": "Jemand hat einen Titel abgegeben",
     "storageDeleted": "Ein Titel wurde gelöscht",
-    "storageKept": "Ein Titel bleibt, wird aber nicht mehr geladen"
+    "storageKept": "Ein Titel bleibt, wird aber nicht mehr geladen",
+    "childWish": "Dein Kind wünscht sich etwas"
   },
   "mediaserver": {
     "loginWithPlex": "Mit Plex anmelden",
@@ -822,7 +833,9 @@
     "inspiration": "Vorbild",
     "overseerrNotice": "Overseerr hat gezeigt, wie eine Anfrage-Oberfläche für Radarr und Sonarr aussehen kann – von der zweiten 4K-Instanz bis zum Abgleich mit dem Media-Server. Nexview ist eine eigenständige Neuentwicklung und übernimmt keinen Quelltext, verdankt Overseerr und Jellyseerr aber viele Ideen.",
     "notifyServices": "Benachrichtigungen",
-    "notifyNotice": "Stellen die Systembenachrichtigungen zu, sofern eingerichtet. Nexview ist mit keinem dieser Dienste verbunden."
+    "notifyNotice": "Stellen die Systembenachrichtigungen zu, sofern eingerichtet. Nexview ist mit keinem dieser Dienste verbunden.",
+    "whatsNew": "Neuerungen",
+    "whatsNewOpen": "Alles, was neu ist"
   },
   "watch": {
     "title": "Wo streambar ({{region}})",
@@ -995,7 +1008,9 @@
     "recipient": "Empfänger",
     "recipientHint": "An wen geht das Ticket? Der Empfänger sieht es unter seinen eigenen und kann antworten.",
     "withUser": "mit {{name}}",
-    "recipientNone": "Bitte wählen …"
+    "recipientNone": "Bitte wählen …",
+    "childUnlock": "Kinderkonten freischalten",
+    "childUnlockHint": "Setzt die Freigabe, schreibt eine kurze Antwort und schließt das Ticket."
   },
   "uhd": {
     "open": "noch nicht angefragt",
@@ -1225,6 +1240,134 @@
     "onStorageRelease": "Abgaben beim Speicher",
     "onStorageReleaseHint": "Meldet, wenn jemand einen Titel abgibt und wenn darüber entschieden wurde. Genannt wird nur der Titel – wer ihn abgegeben hat, bleibt dem Postfach verborgen."
   },
+  "children": {
+    "add": "Kinderkonto anlegen",
+    "age": "Alter",
+    "ageHint": "Von 0 bis 16. Gezeigt wird nur, was bis zu diesem Alter freigegeben ist. Titel ohne Altersfreigabe bleiben bei Kindern immer verborgen.",
+    "ageInvalid": "Bitte gib ein Alter zwischen 0 und 16 an.",
+    "ageLine": "{{age}} Jahre",
+    "create": "Anlegen",
+    "deleteText": "„{{name}}“ kann sich danach nicht mehr anmelden. Angefragte Titel bleiben davon unberührt – sie laufen über dein Konto.",
+    "deleteTitle": "Kinderkonto löschen?",
+    "disable": "Deaktivieren",
+    "disabled": "Deaktiviert",
+    "displayName": "Anzeigename",
+    "displayNameHint": "Optional. Wie das Konto in der Übersicht heißt.",
+    "emptyHint": "Du hast noch kein Kinderkonto angelegt.",
+    "enable": "Wieder aktivieren",
+    "formEdit": "{{name}} bearbeiten",
+    "formNew": "Neues Kinderkonto",
+    "genre": {
+      "animation": "Animation",
+      "family": "Familie",
+      "kids": "Kinderserien",
+      "adventure": "Abenteuer",
+      "fantasy": "Fantasy",
+      "comedy": "Komödie",
+      "music": "Musik",
+      "documentary": "Dokumentation"
+    },
+    "genres": "Rubriken",
+    "genresEmpty": "Bitte wähle mindestens eine Rubrik – sonst wäre die App deines Kindes leer.",
+    "genresHint": "Was dein Kind zu sehen bekommt. Innerhalb dieser Rubriken gilt zusätzlich die Altersfreigabe.",
+    "helpCan": [
+      "Dein Kind meldet sich mit Name und Passwort an – ohne E-Mail-Adresse.",
+      "Es sieht nur die Rubriken, die du freischaltest, und nur Titel bis zu seinem Alter.",
+      "Es kann sich etwas wünschen. Du entscheidest, ob daraus eine Anfrage wird.",
+      "Freigegebene Wünsche laufen über dein Konto – dein Kontingent, dein üblicher Weg.",
+      "Über „Vorschau“ siehst du jederzeit genau das, was dein Kind sieht."
+    ],
+    "helpCanTitle": "Das geht",
+    "helpCannot": [
+      "Es begrenzt nicht, was dein Kind in Plex oder auf der Festplatte sieht – nur Nexview.",
+      "Titel ohne Altersfreigabe bleiben verborgen; dadurch fehlt manches, was harmlos wäre.",
+      "Dein Kind bekommt keine Benachrichtigungen, keine Tickets, keine Merkliste.",
+      "Es kann sein Passwort nicht selbst ändern – das machst du."
+    ],
+    "helpCannotTitle": "Das geht nicht",
+    "helpDisclaimer": "Wichtig: Die Altersangaben stammen von TMDB, einer öffentlichen Filmdatenbank – nicht von uns. Sie können fehlen oder falsch sein, und wir können nicht dafür einstehen, was dort steht. Sieh dir über „Vorschau“ selbst an, was bei deinem Kind ankommt.",
+    "helpIntro": "Ein Kinderkonto ist ein eigener Zugang für dein Kind – dem deinen untergeordnet.",
+    "helpTitle": "Was Kinderkonten können",
+    "intro": "Lege für deine Kinder eigene Zugänge an. Sie melden sich mit Name und Passwort an – ohne E-Mail-Adresse und ohne Plex-Konto.",
+    "language": "Sprache",
+    "languageHint": "Dein Kind kann sie nicht selbst umstellen.",
+    "lockedIntro": "Für Kinderkonten brauchst du eine Freigabe vom Betreiber.",
+    "newPassword": "Neues Passwort",
+    "newPasswordHint": "Leer lassen, wenn es so bleiben soll. Für Kinder gibt es kein Zurücksetzen per E-Mail – nur du kannst es neu setzen.",
+    "nothingToSave": "Nichts zu speichern",
+    "password": "Passwort",
+    "passwordHint": "Mindestens {{min}} Zeichen. Du vergibst es – merk es dir für dein Kind.",
+    "passwordMismatch": "Die beiden Passwörter stimmen nicht überein.",
+    "passwordRepeat": "Passwort wiederholen",
+    "passwordRepeatHint": "Du vergibst es für jemand anderen – ein Vertipper fiele sonst erst auf, wenn dein Kind nicht hineinkommt.",
+    "passwordShort": "Das Passwort muss mindestens {{min}} Zeichen lang sein.",
+    "preview": "Vorschau",
+    "previewBack": "Zurück zu den Kindern",
+    "previewBanner": "Ansicht von {{name}}",
+    "previewFor": "Aus Sicht von {{name}} anzeigen",
+    "previewIntro": "So sieht {{name}} die App – dieselbe Ansicht, dieselben Regeln.",
+    "previewNoWish": "In der Vorschau kann nichts gewünscht werden.",
+    "requestHint": "Es wird ein Ticket beim Betreiber angelegt. Du musst nichts weiter ausfüllen.",
+    "requestPermission": "Freigabe für Kinderkonten beantragen",
+    "requestSent": "Dein Antrag ist gestellt – der Betreiber meldet sich.",
+    "saved": "Gespeichert.",
+    "scopeHint": "Die Altersgrenze wirkt nur in Nexview. Was freigegeben und geladen ist, liegt danach in derselben Mediathek – worauf dein Kind in Plex zugreifen kann, entscheidest du dort.",
+    "title": "Kinderkonten",
+    "trailers": "Trailer erlauben",
+    "trailersHint": "Der Trailer liegt bei YouTube. Ohne Haken gibt es den Knopf gar nicht.",
+    "unsaved": "Nicht gespeicherte Änderungen",
+    "username": "Benutzername",
+    "usernameFixed": "Der Benutzername lässt sich nicht mehr ändern – dein Kind meldet sich damit an.",
+    "usernameHint": "Damit meldet sich dein Kind an. Er muss auf diesem Server einmalig sein – ist „max“ vergeben, nimm zum Beispiel „maxi“.",
+    "wishBadge": "{{count}} Wunsch",
+    "wishBadge_other": "{{count}} Wünsche",
+    "wishDecline": "Ablehnen",
+    "wishDeclineNote": "Kurze Begründung (freiwillig)",
+    "wishDeclineText": "„{{title}}“ wird nicht angefragt. Du kannst deinem Kind kurz sagen, warum.",
+    "wishDeclineTitle": "Wunsch ablehnen?",
+    "wishFolder": "Zielordner",
+    "wishFrom": "von {{name}}",
+    "wishProfile": "Qualität",
+    "wishRelease": "Freigeben",
+    "wishReleaseHint": "Daraus wird eine ganz normale Anfrage auf deinen Namen – mit deinem Kontingent und deinem üblichen Freigabeweg.",
+    "wishTargetLater": "Ordner und Qualität wählt der Entscheider bei der Freigabe.",
+    "wishesEmpty": "Gerade wartet kein Wunsch auf dich.",
+    "wishesTitle": "Wünsche deiner Kinder"
+  },
+  "kids": {
+    "alreadyWished": "Schon gewünscht",
+    "availableBadge": "Ist schon da",
+    "back": "Zurück",
+    "canWatch": "Das kannst du schon schauen!",
+    "fromAge": "ab {{age}}",
+    "greeting": "Hallo {{name}}",
+    "logout": "Abmelden",
+    "more": "Mehr anzeigen",
+    "movies": "Filme",
+    "navDiscover": "Entdecken",
+    "navLabel": "Bereiche",
+    "navSearch": "Suchen",
+    "navWishes": "Wünsche",
+    "nothingHere": "Hier ist gerade nichts. Sag Mama oder Papa Bescheid.",
+    "searchButton": "Suchen",
+    "searchEmpty": "Das gibt es hier nicht. Frag Mama oder Papa danach.",
+    "searchLabel": "Wonach suchst du?",
+    "sectionAvailable": "Das kannst du schon schauen",
+    "sectionWishable": "Das kannst du dir wünschen",
+    "series": "Serien",
+    "state": {
+      "waiting": "Mama oder Papa schaut es sich an",
+      "coming": "Ist unterwegs",
+      "available": "Ist da!",
+      "declined": "Diesmal nicht"
+    },
+    "titleMissing": "Das gibt es hier nicht.",
+    "trailer": "Trailer ansehen",
+    "wishButton": "Das möchte ich sehen",
+    "wishHint": "Mama oder Papa entscheidet.",
+    "wishesEmpty": "Du hast dir noch nichts gewünscht.",
+    "wishesTitle": "Meine Wünsche"
+  },
   "storage": {
     "usedLabel": "Belegter Platz",
     "itemCount_one": "{{count}} Titel",
@@ -1382,6 +1525,48 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.16.0": {
+        "lead": "Nexview kann jetzt Kinder. Ein Elternteil legt eigene Zugänge für seine Kinder an, die Kinder bekommen eine völlig eigene, kindgerechte App zu sehen — und was sie sich wünschen, entscheidet zuerst das Elternteil und erst danach du.",
+        "sections": [
+          {
+            "title": "Kinderkonten anlegen",
+            "where": "Profil → Kinder",
+            "body": "Name, Passwort, Alter, Sprache und ein paar Rubriken — mehr braucht ein Kinderkonto nicht. Keine Mailadresse, kein Plex-Konto. Wer welche anlegen darf, entscheidest du: Der Haken „Darf Kinderkonten anlegen“ sitzt in der Benutzerverwaltung. Ohne ihn bleibt der Reiter trotzdem sichtbar, erklärt die Funktion samt ihrer Grenzen und bietet einen Knopf, der die Freigabe als Ticket bei dir beantragt. Im Ticket steht dann ein Knopf, der sie mit einem Klick erteilt und das Ticket schließt."
+          },
+          {
+            "title": "Die Kinderansicht",
+            "where": "Anmeldung mit dem Zugang des Kindes",
+            "body": "Ein Kind sieht nicht Nexview mit weniger Knöpfen, sondern eine eigene App: hell und bunt statt dunkelgrau mit Rot, drei große Ziele unten am Rand, keine Glocke, keine Tickets, keine Einstellungen. Auf der Startseite stehen die freigeschalteten Rubriken als Bildkacheln; dahinter liegen alle Titel auf einmal, getrennt in „Das kannst du schon schauen“ und „Das kannst du dir wünschen“. Gesucht wird nur innerhalb der Rubriken."
+          },
+          {
+            "title": "Wünschen statt anfragen",
+            "where": "Profil → Kinder, oben",
+            "body": "Ein Kind fragt nichts an — es wünscht sich etwas, und bis das Elternteil entscheidet, passiert nichts. Gibt es den Wunsch frei, wird daraus eine ganz gewöhnliche Anfrage auf **seinen** Namen: sein Kontingent, seine Profilsperren, sein üblicher Weg — und den Download gibst am Ende wie immer du frei. Lehnt es ab, kann es eine kurze Begründung mitgeben, die das Kind liest. Das Kind sieht seine Liste mit vier Zuständen: wartet, ist unterwegs, ist da, diesmal nicht."
+          },
+          {
+            "title": "„Aus Sicht von … anzeigen“",
+            "where": "Profil → Kinder, gelber Knopf am Kind",
+            "body": "Der Knopf öffnet die App des Kindes genau so, wie das Kind sie sieht — dieselbe Ansicht, dieselben Regeln, nur ohne Wunsch-Knopf. Wer prüfen will, was bei seinem Kind wirklich ankommt, soll sich dafür nicht dessen Passwort ausleihen müssen."
+          },
+          {
+            "title": "Was das Ganze **nicht** kann",
+            "where": "Profil → Kinder, Fragezeichen neben „Kinderkonten“",
+            "body": "Die Grenze wirkt nur in Nexview. Was freigegeben und geladen ist, liegt danach in derselben Mediathek — worauf ein Kind in Plex zugreifen kann, entscheidest du dort. Und die Altersangaben stammen von TMDB, nicht von uns: Sie können fehlen oder falsch sein. Beides steht ausdrücklich im Hilfe-Fenster, damit sich niemand auf etwas verlässt, das so nicht gemeint ist."
+          },
+          {
+            "title": "Neuerungen der letzten fünf Fassungen",
+            "where": "Über Nexview → Alles, was neu ist",
+            "body": "Dieses Fenster hält jetzt die Texte der letzten fünf Fassungen vor, mit einem Schalter je Fassung ganz oben. Wer eine Version überspringt — Container später aktualisiert, zwei Releases an einem Tag —, erfährt trotzdem, was darin steckte. Ein Punkt markiert, was seit deinem letzten „Verstanden“ dazugekommen ist, und über die Über-Seite kommst du jederzeit wieder her."
+          }
+        ],
+        "smallTitle": "Außerdem geändert",
+        "small": [
+          "Die Altersbeschränkung je Konto ist aus der Benutzerverwaltung verschwunden: Wer ein vollwertiges Konto hat, gilt als volljährig. Bestehende Grenzen werden beim ersten Start entfernt — bei Kinderkonten bleiben sie natürlich stehen.",
+          "Neuer Mail-Schalter „Wünsche deiner Kinder“ — sichtbar nur für Konten, die auch wirklich ein aktives Kinderkonto führen.",
+          "Nimmst du jemandem das Recht wieder weg, werden seine Kinderkonten deaktiviert statt gelöscht. Du sollst zurücknehmen können, ohne dass Konten verschwinden.",
+          "Die Reiter im Profil lassen sich wieder direkt anspringen (`?reiter=…`) — so landet die Glocke bei einem Kinderwunsch dort, wo er entschieden wird."
+        ]
+      },
       "0.15.0": {
         "lead": "Dieses Update dreht sich fast vollständig um eine Frage: Wie viel Platz belegt eigentlich wer? Nexview kann Kontingente jetzt in Gigabyte messen statt in Stückzahl — mit allem, was dazugehört.",
         "sections": [
@@ -1428,6 +1613,7 @@
       }
     },
     "fallback": "Zu dieser Fassung liegt hier noch kein Text – die vollständige Liste steht auf",
-    "smallFallback": "Außerdem behoben"
+    "smallFallback": "Außerdem behoben",
+    "unread": "Neu seit deinem letzten Blick"
   }
 }

@@ -8,7 +8,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from ..deps import CurrentUser, DbSession
+from ..deps import AdultUser, CurrentUser, DbSession
 from ..models import User, utcnow
 from ..services import accounts, avatars, mail, tokens
 from ..services.settings_service import load_settings
@@ -173,7 +173,7 @@ class EmailChange(BaseModel):
 
 
 @router.put("/me/email", response_model=UserPublic)
-async def change_my_email(payload: EmailChange, user: CurrentUser, db: DbSession) -> User:
+async def change_my_email(payload: EmailChange, user: AdultUser, db: DbSession) -> User:
     """Eigene Adresse aendern.
 
     Die neue Adresse gilt erst als bestaetigt, wenn der Link aus der Mail
@@ -209,7 +209,7 @@ async def change_my_email(payload: EmailChange, user: CurrentUser, db: DbSession
 
 
 @router.post("/me/resend-verification", response_model=VerificationSent)
-async def resend_verification(user: CurrentUser, db: DbSession) -> VerificationSent:
+async def resend_verification(user: AdultUser, db: DbSession) -> VerificationSent:
     """Bestaetigungsmail erneut anfordern."""
     if not user.email:
         raise HTTPException(status_code=409, detail="Es ist keine Adresse hinterlegt.")
@@ -221,7 +221,7 @@ async def resend_verification(user: CurrentUser, db: DbSession) -> VerificationS
 
 
 @router.post("/me/avatar", response_model=UserPublic)
-async def upload_avatar(user: CurrentUser, db: DbSession, file: UploadFile = File(...)) -> User:
+async def upload_avatar(user: AdultUser, db: DbSession, file: UploadFile = File(...)) -> User:
     """Eigenes Profilbild hochladen."""
     try:
         user.avatar_path = avatars.save(await file.read(), user.avatar_path)
@@ -234,7 +234,7 @@ async def upload_avatar(user: CurrentUser, db: DbSession, file: UploadFile = Fil
 
 
 @router.delete("/me/avatar", response_model=UserPublic)
-def delete_avatar(user: CurrentUser, db: DbSession) -> User:
+def delete_avatar(user: AdultUser, db: DbSession) -> User:
     avatars.remove(user.avatar_path)
     user.avatar_path = None
     db.commit()
@@ -243,7 +243,7 @@ def delete_avatar(user: CurrentUser, db: DbSession) -> User:
 
 
 @router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
-def change_own_password(payload: PasswordChange, user: CurrentUser, db: DbSession) -> None:
+def change_own_password(payload: PasswordChange, user: AdultUser, db: DbSession) -> None:
     if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

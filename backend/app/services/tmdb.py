@@ -142,7 +142,7 @@ class TmdbClient:
             f"{date_field}.gte": filters.date_from,
             f"{date_field}.lte": filters.date_to,
             "with_original_language": filters.language,
-            "with_genres": filters.genre_id,
+            "with_genres": filters.genres_or or filters.genre_id,
             "with_runtime.gte": filters.min_runtime,
             "vote_average.gte": filters.min_rating,
             "vote_count.gte": self._min_votes(filters, sort_by),
@@ -150,6 +150,12 @@ class TmdbClient:
 
         if is_movie:
             params["region"] = filters.region
+            # Altersfreigabe direkt bei TMDB - nur Filme kennen das.
+            # Beide Angaben oder keine: allein hat "certification" keine
+            # Wirkung, TMDB braucht das Land dazu.
+            if filters.certifications and filters.certification_country:
+                params["certification_country"] = filters.certification_country
+                params["certification"] = filters.certifications
             params["with_release_type"] = filters.release_types
             # Mehrere Firmen ODER-verknuepft schlagen die einzelne Auswahl.
             params["with_companies"] = filters.company_ids or filters.studio_id
@@ -177,6 +183,15 @@ class TmdbClient:
         ]
         gesetzt = [wert for wert in kandidaten if wert is not None]
         return max(gesetzt) if gesetzt else None
+
+    async def certification_list(self, media_type: str) -> dict[str, Any]:
+        """Alle Altersfreigaben je Land, wie TMDB sie schreibt.
+
+        Aendert sich praktisch nie - der Aufrufer legt die Antwort lange
+        beiseite. Gebraucht wird sie, um aus "das Kind ist 6" die Liste der
+        Bezeichnungen zu machen, die TMDB im Filter erwartet.
+        """
+        return await self._get(f"/certification/{media_type}/list", {})
 
     async def search(self, media_type: str, query: str, page: int = 1) -> dict[str, Any]:
         return await self._get(

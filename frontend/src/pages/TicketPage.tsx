@@ -62,6 +62,21 @@ export function TicketPage() {
     onSuccess: aktualisieren,
   })
 
+  /**
+   * Kinderkonten freischalten - Recht setzen, antworten, schließen, in einem.
+   *
+   * Die Benutzerliste muss danach neu geholt werden: Dort steht der Haken,
+   * den dieser Aufruf gesetzt hat.
+   */
+  const freischalten = useMutation({
+    mutationFn: () =>
+      api.post<TicketDetail>(`/api/tickets/${ticketId}/kinderkonten-freischalten`),
+    onSuccess: (neu) => {
+      aktualisieren(neu)
+      void queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+
   if (ticketQuery.isLoading) {
     return (
       <p className="flex items-center gap-2 text-sm text-mist-500">
@@ -149,6 +164,19 @@ export function TicketPage() {
           )}
         </div>
       </header>
+
+      {/* Ein Klick statt fünf Schritte: Recht setzen, Antwort schreiben,
+          Ticket schließen. Der Knopf verschwindet, sobald die Freigabe steht. */}
+      {istAdmin && ticket.kinderkonten_offen && (
+        <Card className="flex flex-wrap items-center gap-3">
+          <p className="min-w-0 flex-1 text-sm text-mist-300">
+            {t('tickets.childUnlockHint')}
+          </p>
+          <Button onClick={() => freischalten.mutate()} loading={freischalten.isPending}>
+            {t('tickets.childUnlock')}
+          </Button>
+        </Card>
+      )}
 
       <ul className="flex flex-col gap-3">
         {ticket.messages.map((nachricht) => {

@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from ..crypto import decrypt, encrypt
-from ..deps import AdminUser, CurrentUser, DbSession
+from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import AuthToken, MediaServerBlock, User, utcnow
 from ..schemas import TokenPair, UserPublic
 from ..security import access_token_expires_in, create_access_token, create_refresh_token
@@ -283,7 +283,7 @@ async def login_poll(payload: PollRequest, db: DbSession) -> LoginResult:
 
 
 @router.post("/link/start", response_model=ChallengeStarted)
-async def link_start(db: DbSession, user: CurrentUser) -> ChallengeStarted:
+async def link_start(db: DbSession, user: AdultUser) -> ChallengeStarted:
     server, settings = _verbundener_server(db)
     try:
         challenge = await server.begin_login()
@@ -299,7 +299,7 @@ async def link_start(db: DbSession, user: CurrentUser) -> ChallengeStarted:
 
 
 @router.post("/link/poll", response_model=LinkResult)
-async def link_poll(payload: PollRequest, db: DbSession, user: CurrentUser) -> LinkResult:
+async def link_poll(payload: PollRequest, db: DbSession, user: AdultUser) -> LinkResult:
     server, _ = _verbundener_server(db)
     try:
         eintrag, daten, konto = await _identitaet(
@@ -336,7 +336,7 @@ async def link_poll(payload: PollRequest, db: DbSession, user: CurrentUser) -> L
 
 
 @router.delete("/link", response_model=UserPublic)
-def link_delete(db: DbSession, user: CurrentUser) -> User:
+def link_delete(db: DbSession, user: AdultUser) -> User:
     try:
         konten.unlink(user)
     except KontoFehler as exc:

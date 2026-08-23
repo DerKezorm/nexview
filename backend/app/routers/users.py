@@ -24,6 +24,7 @@ from ..security import hash_password
 from ..services import (
     accounts,
     avatars,
+    children,
     kontoaufloesung,
     mail,
     mediaserver_accounts,
@@ -277,17 +278,22 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
         # Dasselbe fuer 4K: wer freigeben darf, gibt sich auch dort selbst frei.
         data.pop("auto_approve_uhd", None)
 
-    # Die Altersbeschraenkung aufheben heisst NULL schreiben. ``None`` kann das
-    # nicht ausdruecken - das bedeutet in ``exclude_unset`` bereits "nicht
-    # mitgeschickt". Deshalb steht -1 fuer "nicht mehr beschraenkt".
-    if data.get("age") == -1:
-        data["age"] = None
-
-    # Dasselbe fuer die Speicher-Grenze - nur bedeutet NULL hier "es gilt die
+    # Die Speicher-Grenze zuruecksetzen - nur bedeutet NULL hier "es gilt die
     # Standardgrenze", nicht "unbegrenzt". Unbegrenzt fuer dieses Konto ist
     # die 0, und die geht ohne Umweg durch.
     if data.get("storage_limit_gb") == -1:
         data["storage_limit_gb"] = None
+
+    # Wird das Recht entzogen, muessen die vorhandenen Kinder still werden -
+    # sonst liefe die Kinderansicht weiter, ohne dass jemand sie verwaltet.
+    if data.get("can_manage_children") is False:
+        stillgelegt = children.recht_entzogen(db, user)
+        if stillgelegt:
+            logger.info(
+                "Deactivated %d child account(s) of %r after revoking the permission",
+                stillgelegt,
+                user.username,
+            )
 
     for field, value in data.items():
         # Profil-Sperren liegen als Komma-Liste in der Datenbank.
@@ -298,9 +304,6 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
             "blocked_series_uhd_profiles",
         ):
             value = ",".join(str(int(entry)) for entry in value or [])
-        # Der leere String heisst "kein eigenes Land", dann gilt die Vorgabe.
-        if field == "rating_region":
-            value = (value or "").strip().upper() or None
         setattr(user, field, value)
 
     db.commit()
@@ -446,6 +449,14 @@ async def delete_user(
         raise HTTPException(fehler.status_code, fehler.message) from fehler
     except ArrError as fehler:
         raise HTTPException(502, fehler.message) from fehler
+
+    # Erst die Kinder, dann das Elternteil. Ohne diesen Schritt scheiterte das
+    # Loeschen an der Fremdschluessel-Regel (frische Datenbank) bzw. hinterliesse
+    # ein Kinderkonto mit einem Verweis ins Leere (aktualisierte Datenbank, wo
+    # die nachgetragene Spalte keine Regel traegt).
+    verwaist = children.alle_kinder_loeschen(db, user)
+    if verwaist:
+        logger.info("Deleted %d child account(s) of %r", verwaist, user.username)
 
     # Sonst bliebe das Profilbild als verwaiste Datei liegen.
     avatars.remove(user.avatar_path)

@@ -625,3 +625,68 @@ def test_jede_speicher_meldung_hat_eine_mailvorlage() -> None:
             assert nachricht.subject
             # Der Titel muss vorkommen - sonst weiss niemand, worum es geht.
             assert "Ein Klassiker" in nachricht.html
+
+
+def test_kinderwunsch_erreicht_das_postfach(
+    admin_client: TestClient, mailserver: None, postfach: Postfach
+) -> None:
+    """Bis zur fertigen Mail durchgespielt, nicht nur bis ``mail_pending``.
+
+    Ein neuer Meldungstyp mit Mail braucht **drei** Teile: den Schalter in
+    ``notify.MAIL_SWITCH``, eine Vorlage und einen ``case`` im Postausgang.
+    Fehlt der dritte, wird der Auftrag lautlos verworfen - ohne Fehler, ohne
+    Protokollzeile. Genau deshalb endet dieser Test am Postfach.
+    """
+    create_user(
+        admin_client,
+        "elternteil",
+        "eltern-passwort",
+        can_manage_children=True,
+        mail_child_wish=True,
+    )
+    kopf = auth_headers(admin_client, "elternteil", "eltern-passwort")
+    kind = admin_client.post(
+        "/api/children",
+        json={"username": "kind", "password": "kind-passwort", "age": 8, "display_name": "Lena"},
+        headers=kopf,
+    )
+    assert kind.status_code == 201, kind.text
+
+    with SessionLocal() as db:
+        elternteil = db.query(User).filter(User.username == "elternteil").one()
+        notify.create(
+            db,
+            user=elternteil,
+            kind=NotificationType.child_wish,
+            message_key="notifications.childWish",
+            title="Lena: Elio",
+            broadcast=False,
+        )
+        db.commit()
+
+    assert _abarbeiten() == 1
+    assert postfach.empfaenger == ["elternteil@beispiel.de"]
+    # Name des Kindes und Titel gehoeren in die Mail - wer zwei Kinder hat,
+    # will wissen, um wen es geht.
+    assert "Lena: Elio" in postfach.nachrichten[0]["html"]
+
+
+def test_ohne_schalter_kein_kinderwunsch_im_postfach(
+    admin_client: TestClient, mailserver: None, postfach: Postfach
+) -> None:
+    create_user(admin_client, "stiller", "passwort-1234", can_manage_children=True)
+
+    with SessionLocal() as db:
+        elternteil = db.query(User).filter(User.username == "stiller").one()
+        notify.create(
+            db,
+            user=elternteil,
+            kind=NotificationType.child_wish,
+            message_key="notifications.childWish",
+            title="Lena: Elio",
+            broadcast=False,
+        )
+        db.commit()
+
+    assert _abarbeiten() == 0
+    assert postfach.nachrichten == []

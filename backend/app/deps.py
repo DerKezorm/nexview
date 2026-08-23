@@ -68,6 +68,44 @@ def require_approver(user: CurrentUser) -> User:
 ApproverUser = Annotated[User, Depends(require_approver)]
 
 
+def require_adult(user: CurrentUser) -> User:
+    """Alles ausser Kinderkonten.
+
+    ⚠️ **Die Sperre fuer Kinder ist eine Erlaubnisliste, keine Verbotsliste.**
+    Sie haengt in ``main.py`` an jedem Router, der *nicht* ausdruecklich fuer
+    Kinder gedacht ist. Umgekehrt - "an jedem Endpunkt, der Kindern schadet" -
+    waere es eine Verbotsliste, und die erste vergessene Zeile hiesse nicht ein
+    falsches Abzeichen, sondern ein Kind in einer Erwachsenenfunktion.
+
+    ``test_child_permissions.py`` laeuft ueber die ganze Routentabelle und
+    schlaegt fehl, sobald ein Pfad weder hier haengt noch in der
+    Kinder-Erlaubnisliste steht. Ein kuenftiger neuer Router kann das also
+    nicht stillschweigend unterlaufen.
+    """
+    if user.is_child:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Das ist nichts für Kinderkonten.",
+        )
+    return user
+
+
+AdultUser = Annotated[User, Depends(require_adult)]
+
+
+def require_child(user: CurrentUser) -> User:
+    """Nur Kinderkonten - fuer die Kinderansicht."""
+    if not user.is_child:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Diese Ansicht gibt es nur für Kinderkonten.",
+        )
+    return user
+
+
+ChildUser = Annotated[User, Depends(require_child)]
+
+
 def has_any_user(db: Session) -> bool:
     """Gibt es bereits mindestens einen Benutzer? (steuert die Erst-Einrichtung)"""
     return db.scalar(select(User.id).limit(1)) is not None

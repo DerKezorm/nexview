@@ -840,6 +840,19 @@ async def create_request(
         request.approved_at = utcnow()
 
     db.add(request)
+
+    # Offene Kinderwuensche zu diesem Titel haben sich damit erledigt - egal,
+    # wer die Anfrage gestellt hat. Holt ein Vater den Film einfach selbst,
+    # saesse das Kind des Nachbarzimmers sonst weiter auf einem Wunsch, den
+    # niemand mehr entscheiden kann.
+    #
+    # Der Import steht hier unten, weil ``child_wishes`` seinerseits diesen
+    # Dienst braucht - oben waere es ein Ringschluss. Dieselbe Stelle deckt
+    # jeden Weg ab: gewoehnliche Anfrage, freigegebener Wunsch, Admin-Anfrage.
+    from . import child_wishes
+
+    child_wishes.erledigte_schliessen(db, media_type, item.tmdb_id)
+
     db.commit()
     db.refresh(request)
 

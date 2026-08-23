@@ -17,7 +17,6 @@ import { useAuth } from "../../auth/useAuth";
 import { Avatar } from "../../components/Avatar";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { AdminKontoAufloesung } from "./AdminKontoAufloesung";
-import { REGION_OPTIONS } from "../../components/media/FilterBar";
 import { Button, Card, ErrorBanner, Field, Spinner } from "../../components/ui";
 import { useConfig } from "../../hooks/useConfig";
 import { formatDate } from "../../lib/format";
@@ -34,6 +33,13 @@ const GRUPPEN = [
   { rolle: "admin" as const, titel: "adminUsers.groupAdmins" },
   { rolle: "approver" as const, titel: "adminUsers.groupApprovers" },
   { rolle: "user" as const, titel: "adminUsers.groupUsers" },
+  // Kinderkonten stehen zuletzt und werden hier nur *angezeigt*. Verwaltet
+  // werden sie vom Elternteil in seinem Profil - haette der Administrator hier
+  // dieselben Felder, koennte er die Rolle wegstellen und das Konto waere
+  // elternlos: niemand koennte ihm noch ein Passwort geben. Sichtbar muessen
+  // sie trotzdem sein, sonst waeren es Konten, von denen der Betreiber nichts
+  // weiss.
+  { rolle: "child" as const, titel: "adminUsers.groupChildren" },
 ];
 
 /** Leeres Feld bedeutet "unbegrenzt" - deshalb Text statt Zahl im Zustand. */
@@ -75,7 +81,6 @@ export function AdminUsersSettings() {
   // Als Text: „leer" heißt hier **Standardgrenze**, nicht unbegrenzt –
   // dasselbe Problem wie bei den Stückzahlen, dieselbe Lösung.
   const [speicherDrafts, setSpeicherDrafts] = useState<Record<number, string>>({});
-  const [ageDrafts, setAgeDrafts] = useState<Record<number, string>>({});
   /** Welcher Benutzer ist gerade aufgeklappt? Nur einer zur Zeit. */
   const [editing, setEditing] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
@@ -394,25 +399,6 @@ export function AdminUsersSettings() {
     return zahl;
   }
 
-  /** Alterseingabe - eigener Textzustand, damit Tippen nicht springt. */
-  function ageValue(user: User): string {
-    const draft = ageDrafts[user.id];
-    if (draft !== undefined) return draft;
-    const alter = feld(user, "age");
-    return alter === null ? "" : String(alter);
-  }
-
-  function setAgeDraft(user: User, value: string) {
-    resetMessages();
-    setAgeDrafts((prev) => ({ ...prev, [user.id]: value }));
-  }
-
-  function parseAge(raw: string): number | undefined {
-    const zahl = Number(raw);
-    if (!Number.isInteger(zahl) || zahl < 0 || zahl > 21) return undefined;
-    return zahl;
-  }
-
   /** Gibt es für diesen Benutzer ungespeicherte Änderungen? */
   function geaendert(user: User): boolean {
     const entwurf = drafts[user.id];
@@ -443,8 +429,7 @@ export function AdminUsersSettings() {
       const bisher = feld(user, "storage_limit_gb") ?? -1;
       if (gesetzt !== bisher) return true;
     }
-    const alter = ageDrafts[user.id];
-    return alter !== undefined && parseAge(alter) !== feld(user, "age");
+    return false;
   }
 
   /**
@@ -481,26 +466,12 @@ export function AdminUsersSettings() {
       patch.storage_limit_gb = zahl;
     }
 
-    const alter = ageDrafts[user.id];
-    if (alter !== undefined && feld(user, "age") !== null) {
-      const zahl = parseAge(alter);
-      if (zahl === undefined) {
-        setError(t("adminUsers.ageInvalid"));
-        return;
-      }
-      patch.age = zahl;
-    }
-    // null hiesse für das Backend nur "nicht mitgeschickt" und änderte gar
-    // nichts - -1 hebt die Beschränkung tatsächlich auf.
-    if (patch.age === null) patch.age = -1;
-
     updateMutation.mutate(
       { id: user.id, patch },
       {
         onSuccess: () => {
           setDrafts(({ [user.id]: _weg, ...rest }) => rest);
           setQuotaDrafts(({ [user.id]: _auch, ...rest }) => rest);
-          setAgeDrafts(({ [user.id]: _ebenso, ...rest }) => rest);
           setSpeicherDrafts(({ [user.id]: _dito, ...rest }) => rest);
         },
       },
@@ -511,7 +482,6 @@ export function AdminUsersSettings() {
   function verwerfen(user: User) {
     setDrafts(({ [user.id]: _weg, ...rest }) => rest);
     setQuotaDrafts(({ [user.id]: _auch, ...rest }) => rest);
-    setAgeDrafts(({ [user.id]: _ebenso, ...rest }) => rest);
     setSpeicherDrafts(({ [user.id]: _dito, ...rest }) => rest);
   }
 
@@ -520,6 +490,7 @@ export function AdminUsersSettings() {
       admin: "adminUsers.roleAdmin",
       approver: "adminUsers.roleApprover",
       user: "adminUsers.roleUser",
+      child: "adminUsers.roleChild",
     };
     const teile = [t(rollen[user.role])];
 
@@ -711,7 +682,47 @@ export function AdminUsersSettings() {
                 {gruppe.length}
               </span>
             </h3>
-            {gruppe.map((user) => {
+            {rolle === "child"
+              ? gruppe.map((kind) => {
+                  const elternteil = users.find((u) => u.id === kind.parent_id);
+                  return (
+                    <Card
+                      key={kind.id}
+                      className="flex flex-wrap items-center gap-3"
+                    >
+                      <Avatar
+                        url={null}
+                        name={kind.display_name ?? kind.username}
+                        className="h-10 w-10"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold">
+                          {kind.display_name ?? kind.username}
+                          <span className="ml-2 text-sm font-normal text-mist-600">
+                            @{kind.username}
+                          </span>
+                        </p>
+                        <p className="text-xs text-mist-600">
+                          {elternteil
+                            ? t("adminUsers.childOf", {
+                                name:
+                                  elternteil.display_name ??
+                                  elternteil.username,
+                              })
+                            : t("adminUsers.childOfUnknown")}
+                          {kind.age !== null &&
+                            ` · ${t("adminUsers.childAge", { age: kind.age })}`}
+                        </p>
+                      </div>
+                      {!kind.is_active && (
+                        <span className="rounded-full bg-ink-900 px-2.5 py-1 text-xs text-mist-500 ring-1 ring-ink-700">
+                          {t("adminUsers.inactive")}
+                        </span>
+                      )}
+                    </Card>
+                  );
+                })
+              : gruppe.map((user) => {
               const isMe = user.id === me?.id;
               const offen = editing === user.id;
               return (
@@ -805,6 +816,33 @@ export function AdminUsersSettings() {
                           {user.is_active
                             ? t("adminUsers.active")
                             : t("adminUsers.inactive")}
+                        </label>
+
+                        {/* Kinderkonten sind echte Konten auf dieser
+                            Installation - wer welche anlegen darf, entscheidet
+                            der Betreiber. Administratoren dürfen es ohnehin
+                            immer, deshalb steht der Haken bei ihnen fest. */}
+                        <label
+                          className="flex cursor-pointer items-center gap-2 text-sm text-mist-300"
+                          title={t("adminUsers.mayManageChildrenHint")}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={
+                              user.role === "admin" ||
+                              feld(user, "can_manage_children")
+                            }
+                            disabled={user.role === "admin"}
+                            onChange={(event) =>
+                              setzen(
+                                user,
+                                "can_manage_children",
+                                event.target.checked,
+                              )
+                            }
+                            className="h-4 w-4 accent-accent-500 disabled:opacity-50"
+                          />
+                          {t("adminUsers.mayManageChildren")}
                         </label>
                       </div>
 
@@ -1168,100 +1206,12 @@ export function AdminUsersSettings() {
                         </div>
                       </div>
 
-                      {/* Altersbeschränkung. Ein Schalter dafür, *ob* überhaupt, und
-                  dann das Alter - "wie alt ist das Kind" ist die Frage, die
-                  sich beantworten lässt, nicht "bis zu welcher FSK-Stufe". */}
-                      <div className="border-t border-ink-700 pt-4">
-                        <label className="flex cursor-pointer items-center gap-2 text-sm text-mist-300">
-                          <input
-                            type="checkbox"
-                            checked={feld(user, "age") !== null}
-                            onChange={(event) =>
-                              setzen(
-                                user,
-                                "age",
-                                event.target.checked ? 12 : null,
-                              )
-                            }
-                            className="h-4 w-4 accent-accent-500"
-                          />
-                          {t("adminUsers.ageRestricted")}
-                        </label>
-
-                        {feld(user, "age") !== null && (
-                          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
-                            <label className="flex flex-col gap-1.5">
-                              <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                                {t("adminUsers.age")}
-                              </span>
-                              <input
-                                type="number"
-                                min={0}
-                                max={21}
-                                value={ageValue(user)}
-                                onChange={(event) =>
-                                  setAgeDraft(user, event.target.value)
-                                }
-                                className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
-                              />
-                            </label>
-
-                            <label className="flex flex-col gap-1.5">
-                              <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                                {t("adminUsers.ageRegion")}
-                              </span>
-                              <select
-                                value={feld(user, "rating_region") ?? ""}
-                                onChange={(event) =>
-                                  setzen(
-                                    user,
-                                    "rating_region",
-                                    event.target.value,
-                                  )
-                                }
-                                className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
-                              >
-                                <option value="">
-                                  {t("adminUsers.ageRegionDefault")}
-                                </option>
-                                {REGION_OPTIONS.map((eintrag) => (
-                                  <option key={eintrag} value={eintrag}>
-                                    {eintrag}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-
-                            {/* Ohne diesen Schalter ist "Entdecken" für ein
-                        beschränktes Konto fast leer: neue Titel sind meist
-                        noch nirgends eingestuft (gemessen 20 → 2). */}
-                            <label className="flex cursor-pointer items-start gap-2 text-sm text-mist-300 sm:col-span-4">
-                              <input
-                                type="checkbox"
-                                checked={feld(user, "hide_unrated")}
-                                onChange={(event) =>
-                                  setzen(
-                                    user,
-                                    "hide_unrated",
-                                    event.target.checked,
-                                  )
-                                }
-                                className="mt-0.5 h-4 w-4 accent-accent-500"
-                              />
-                              <span>
-                                {t("adminUsers.hideUnrated")}
-                                <span className="mt-0.5 block text-xs text-mist-600">
-                                  {t("adminUsers.hideUnratedHint")}
-                                </span>
-                              </span>
-                            </label>
-
-                            <p className="text-xs leading-relaxed text-mist-600 sm:col-span-4">
-                              {t("adminUsers.ageHint")}
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                      {/* ⚠️ Die Altersbeschränkung stand früher hier.
+                          Sie ist entfallen: Wer ein vollwertiges Konto hat,
+                          gilt als volljährig, und Kinder bekommen ein
+                          Kinderkonto, dessen Alter das Elternteil unter
+                          „Kinder" pflegt. Zwei Wege zu derselben Sperre wären
+                          zwei Stellen, an denen sie auseinanderläuft. */}
 
                       {/* Kein Haken = alle Profile erlaubt. So muss man nur dort etwas
                   einstellen, wo wirklich begrenzt werden soll.

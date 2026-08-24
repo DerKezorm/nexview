@@ -297,19 +297,26 @@ Downloads are handled by **Radarr** and **Sonarr**; ratings come from **IMDb**,
 Notifications can go through **ntfy**, **Gotify**, **Telegram**, **Discord**, a plain
 webhook or **Apprise**.
 
-**[Overseerr](https://overseerr.dev)** and **[Jellyseerr](https://github.com/Fallenbagel/jellyseerr)**
-were the model: the idea of what a request interface for Radarr and Sonarr can look
-like comes from there, from the second instance for 4K down to matching against the
-media server. Nexview is an independent implementation and takes no source code from
-either, but owes both a great deal.
+**[Seerr](https://seerr.dev)**, which grew out of Overseerr and Jellyseerr, was the
+model: the idea of what a request interface for Radarr and Sonarr can look like comes
+from there, from the second instance for 4K down to matching against the media server.
+Nexview is an independent implementation and takes no source code from it, but owes it
+a great deal.
 
 ---
 
 ## Licence
 
-Nexview is under the **MIT licence** — see [LICENSE](LICENSE). The source may be used,
-modified and passed on, commercially too, as long as the copyright notice stays. There
-is no warranty.
+Nexview is under the **GNU Affero General Public License, version 3 or later**
+(AGPL-3.0-or-later) — see [LICENSE](LICENSE). The source may be used, modified and
+passed on, commercially too. What the AGPL asks in return: if you change Nexview and
+let other people use your changed version — including over a network, without handing
+out any files — you have to make your changed source available to them too. Running
+Nexview unchanged asks nothing of you. There is no warranty.
+
+**Versions up to and including 0.17.0 were released under the MIT licence.** That grant
+is perpetual and is not being withdrawn — anyone who received those versions keeps them
+under MIT. From 0.18.0 on, the AGPL applies.
 
 The licence covers this project's source. It does not cover:
 

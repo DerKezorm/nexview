@@ -16,6 +16,13 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ### New
 
+- **Nexview is now under the AGPL instead of the MIT licence.** The source stays
+  public and free, and running Nexview unchanged asks nothing of you. What changes is
+  what happens if somebody builds on it: anyone who modifies Nexview and lets others
+  use their version — including as a hosted service, where no files ever change hands —
+  now has to make their changed source available too. Versions up to 0.17.0 remain
+  under MIT; that permission was given for good and is not being taken back.
+
 - **Jellyfin, alongside Plex rather than instead of it.** Both servers can be
   connected at the same time, and each person may link an account on each. The
   watched state is merged across them: a title stays marked as seen while *any*

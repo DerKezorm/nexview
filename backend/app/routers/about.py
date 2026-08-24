@@ -18,7 +18,7 @@ class AboutInfo(BaseModel):
     version: str
     repo_url: str
     release_url: str
-    license: str = "MIT"
+    license: str = "AGPL-3.0-or-later"
     # Nur fuer Administratoren gefuellt - alle anderen koennen ohnehin nichts
     # aktualisieren, und ein Hinweis, dem niemand nachgehen kann, ist nur Laerm.
     update_checked: bool = False

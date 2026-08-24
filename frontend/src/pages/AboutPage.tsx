@@ -175,11 +175,9 @@ function Credits() {
         </p>
         <ul className="mt-2 flex flex-col gap-2 text-sm">
           <li>
-            <ExternalLink href="https://overseerr.dev">Overseerr</ExternalLink>
-            {' · '}
-            <ExternalLink href="https://github.com/Fallenbagel/jellyseerr">Jellyseerr</ExternalLink>
+            <ExternalLink href="https://seerr.dev">Seerr</ExternalLink>
             <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
-              {t('about.overseerrNotice')}
+              {t('about.seerrNotice')}
             </span>
           </li>
         </ul>
@@ -206,6 +204,8 @@ function Credits() {
           </li>
           <li>
             <ExternalLink href="https://www.plex.tv">Plex</ExternalLink>
+            {' · '}
+            <ExternalLink href="https://jellyfin.org">Jellyfin</ExternalLink>
             <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
               {t('about.plexNotice')}
             </span>

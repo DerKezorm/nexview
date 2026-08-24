@@ -864,7 +864,7 @@
     "builtWith": "Gebaut mit",
     "ratingsNotice": "Ihre Wertungen erscheinen bei Filmen. Nexview holt sie nicht selbst dort ab, sondern übernimmt sie aus Radarr, das sie zu jedem Film mitliefert. Die Marken gehören den jeweiligen Anbietern.",
     "inspiration": "Vorbild",
-    "overseerrNotice": "Overseerr hat gezeigt, wie eine Anfrage-Oberfläche für Radarr und Sonarr aussehen kann – von der zweiten 4K-Instanz bis zum Abgleich mit dem Media-Server. Nexview ist eine eigenständige Neuentwicklung und übernimmt keinen Quelltext, verdankt Overseerr und Jellyseerr aber viele Ideen.",
+    "seerrNotice": "Seerr, hervorgegangen aus Overseerr und Jellyseerr, hat gezeigt, wie eine Anfrage-Oberfläche für Radarr und Sonarr aussehen kann – von der zweiten 4K-Instanz bis zum Abgleich mit dem Media-Server. Nexview ist eine eigenständige Neuentwicklung und übernimmt keinen Quelltext, verdankt Seerr aber viele Ideen.",
     "notifyServices": "Benachrichtigungen",
     "notifyNotice": "Stellen die Systembenachrichtigungen zu, sofern eingerichtet. Nexview ist mit keinem dieser Dienste verbunden.",
     "whatsNew": "Neuerungen",

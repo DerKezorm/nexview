@@ -864,7 +864,7 @@
     "builtWith": "Built with",
     "ratingsNotice": "Their scores appear on films. Nexview does not fetch them directly; it takes them from Radarr, which supplies them with every movie. The trademarks belong to their respective owners.",
     "inspiration": "Inspiration",
-    "overseerrNotice": "Overseerr showed what a request interface for Radarr and Sonarr can look like – from the second 4K instance to matching against the media server. Nexview is an independent implementation and shares no source code, but owes Overseerr and Jellyseerr many of its ideas.",
+    "seerrNotice": "Seerr, which grew out of Overseerr and Jellyseerr, showed what a request interface for Radarr and Sonarr can look like – from the second 4K instance to matching against the media server. Nexview is an independent implementation and shares no source code, but owes Seerr many of its ideas.",
     "notifyServices": "Notifications",
     "notifyNotice": "Deliver the system notifications, where set up. Nexview is not affiliated with any of these services.",
     "whatsNew": "What’s new",

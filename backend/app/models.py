@@ -1643,6 +1643,42 @@ class FavoritePerson(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
+class StreamingService(Base):
+    """Ein Streaming-Abo, das dieser Benutzer nach eigener Angabe hat.
+
+    Eine Zeile je Konto und Dienst. Bewusst eine eigene Tabelle und kein Feld
+    am ``User``: die Freigabeliste soll spaeter danach fragen koennen ("hat
+    der Anfragende Netflix?"), und dafuer ist eine Zeile das Richtige.
+
+    Gespeichert wird der ``slug`` aus ``services/streaming.py``, **nicht** die
+    TMDB-Kennung. Marken werden umbenannt, Tarife kommen dazu, und dieselbe
+    Marke hat je nach Region eine andere Kennung - Amazon ist 9 in Deutschland
+    und 119 in der Schweiz. Wer die Kennung speichert, muss bei jeder solchen
+    Aenderung die Datenbank anfassen.
+
+    Die Angabe ist eine **Selbstauskunft**. Nexview prueft sie nirgends nach
+    und kann es nicht; sie dient nur dem Hinweis "das laeuft schon in deinem
+    Abo". Nichts wird daran verhindert.
+
+    Kinderkonten bekommen hier nie Zeilen: Sie haben keine eigenen Abos,
+    sondern gucken ueber die ihrer Eltern. Der Hinweis erscheint deshalb beim
+    Elternteil, wenn es den Wunsch entscheidet.
+    """
+
+    __tablename__ = "user_streaming_services"
+    __table_args__ = (
+        UniqueConstraint("user_id", "slug", name="uq_streaming_service"),
+        Index("ix_streaming_services_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    slug: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
 class Blocked(Base):
     """Ein Titel, den der Administrator gesperrt hat.
 

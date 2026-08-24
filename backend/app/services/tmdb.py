@@ -209,6 +209,31 @@ class TmdbClient:
         """
         return await self._get(f"/certification/{media_type}/list", {})
 
+    async def watch_provider_list(self, media_type: str, region: str) -> list[dict[str, Any]]:
+        """Welche Streaming-Anbieter fuehrt TMDB fuer diese Region?
+
+        Die Liste ist lang - 194 Eintraege fuer DE, 292 fuer US - und enthaelt
+        Kaufhaeuser, Nischenkanaele und Untermieter ("Paramount+ Amazon
+        Channel") gleichberechtigt neben Netflix. ``display_priority`` sortiert
+        das **nicht** brauchbar: dort stehen der Apple TV Store und Google Play
+        Movies vor Disney+. Wer "die grossen Abo-Dienste" braucht, muss sie
+        benennen; siehe ``services/streaming.py``.
+
+        Gebraucht wird die Liste nur noch, um Namen und Logos zu holen und um
+        zu wissen, welche Marke es in dieser Region ueberhaupt gibt.
+        """
+        data = await self._get(f"/watch/providers/{media_type}", {"watch_region": region})
+        return data.get("results") or []
+
+    async def watch_provider_regions(self) -> list[dict[str, Any]]:
+        """Die Laender, fuer die TMDB Anbieterdaten hat - derzeit 139.
+
+        Damit die Regionsauswahl kein Land anbietet, zu dem es hinterher nichts
+        zu sagen gibt.
+        """
+        data = await self._get("/watch/providers/regions")
+        return data.get("results") or []
+
     async def search(self, media_type: str, query: str, page: int = 1) -> dict[str, Any]:
         return await self._get(
             f"/search/{media_type}",

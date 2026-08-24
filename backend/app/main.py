@@ -46,6 +46,7 @@ from .routers import (
     stats as stats_router,
     stoebern as stoebern_router,
     storage as storage_router,
+    streaming as streaming_router,
     tickets as tickets_router,
     users,
     watchlist as watchlist_router,
@@ -184,6 +185,7 @@ app.include_router(blocklist_router.router)
 app.include_router(tickets_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.router)
 app.include_router(storage_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(streaming_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.admin_router)
 app.include_router(watchlist_router.router, dependencies=NUR_ERWACHSENE)
 

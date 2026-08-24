@@ -1061,7 +1061,7 @@
   "watchlist": {
     "title": "Plex-Merkliste",
     "intro": "Was du in Plex auf deine Merkliste gesetzt hast. Anfragen geht hier genauso wie im Katalog – mit Kontingent und Freigabe wie sonst auch.",
-    "needsLink": "Verknüpfe zuerst dein Plex-Konto unter „Sicherheit\". Nexview darf nur die Merkliste des Kontos lesen, das zu deinem Profil gehört.",
+    "needsLink": "Verknüpfe zuerst dein Plex-Konto unter „Medienserver\". Nexview darf nur die Merkliste des Kontos lesen, das zu deinem Profil gehört.",
     "needsSignIn": "Für die Merkliste fehlt noch dein persönlicher Plex-Zugang – dein Konto wurde verknüpft, bevor es diese Funktion gab. Einmal anmelden genügt.",
     "tokenInvalid": "Plex nimmt den hinterlegten Zugang nicht mehr an – meist, weil das Gerät abgemeldet wurde. Bitte einmal neu anmelden.",
     "connect": "Mit Plex anmelden",
@@ -1558,6 +1558,41 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.18.0": {
+        "lead": "Nexview spricht jetzt auch mit Jellyfin — und zwar neben Plex, nicht statt Plex. Beide Server dürfen gleichzeitig verbunden sein, und jede Person kann auf beiden ein Konto verknüpfen. Dazu kommt eine Reihe von Handgriffen, die verhindern, dass jemand versehentlich ausgesperrt wird, und ein Protokoll, mit dem sich Fehler tatsächlich finden lassen.",
+        "sections": [
+          {
+            "title": "Jellyfin neben Plex",
+            "where": "Einstellungen → Medienserver",
+            "body": "Beide Server dürfen gleichzeitig verbunden sein. Der Gesehen-Stand wird dabei zusammengeführt: Ein Titel bleibt als gesehen markiert, solange irgendein verbundener Server ihn so meldet — der zweite Server löscht also nicht mehr die Haken, die der erste gesetzt hat.\n\nWo die beiden sich widersprechen, sagt Nexview jetzt, welcher Server was meldet, statt sich stillschweigend für einen zu entscheiden."
+          },
+          {
+            "title": "Anmelden zeigt, welche Wege es gibt",
+            "where": "Anmeldeseite",
+            "body": "Statt eines festen „Mit Plex anmelden“ steht dort jetzt „Anmelden mit“ und darunter ein Logo je verbundenem Server. Wer nur Jellyfin betreibt, bekam vorher einen Plex-Knopf, der beim Klick scheiterte — der Weg dahinter ist um plex.tv herum gebaut, und dafür hat Jellyfin keine Entsprechung.\n\nEine Grenze muss man kennen: Mit Jellyfin anmelden legt kein Konto an. Jellyfin gibt zu einem Konto keine E-Mail-Adresse heraus, und die Adresse ist das Einzige, woran Nexview jemanden wiedererkennt, der schon ein Konto hat. Ohne sie bekäme eine eingeladene Person still ein zweites Konto — ohne Passwort und ohne Weg zurück. Wer ein Konto hat, verknüpft Jellyfin deshalb im Profil; die Anmeldeseite sagt das, bevor jemand hineinläuft."
+          },
+          {
+            "title": "Medienserver-Konten haben einen eigenen Platz",
+            "where": "Profil → Medienserver",
+            "body": "Vorher lagen sie ganz unten unter „Sicherheit“, unterhalb des Passwortformulars. Dort sucht niemand, der Plex verbinden will."
+          },
+          {
+            "title": "Trennen sperrt niemanden mehr aus Versehen aus",
+            "where": "Einstellungen → Medienserver und Einstellungen → Benutzer",
+            "body": "Die Verbindung zum Medienserver zu trennen war ein einzelner Klick, kommentarlos. Für Konten, die nur über diesen Server hereinkamen — ohne eigenes Passwort — schloss das ihre einzige Tür.\n\nJetzt zählt eine Rückfrage vorher auf, wen es namentlich träfe, und der Server verweigert die Trennung, solange der Administrator sie nicht ausdrücklich überschreibt. Dieselbe Prüfung schützte längst die, die sich selbst trennten — eine Ebene darüber fehlte sie. Die Rückfrage erscheint auch dann, wenn niemand gefährdet ist, und sagt das: Eine Warnung, die nur im Ernstfall auftaucht, liest man beim ersten Mal nicht.\n\nIn der Benutzerliste steht außerdem, wer verknüpft ist und wer kein Passwort hat. Beides wusste die App längst und zeigte es nirgends."
+          },
+          {
+            "title": "Das Protokoll findet jetzt wirklich Fehler",
+            "where": "Einstellungen → Protokoll",
+            "body": "Abstürze landen endlich in der Datei. Vorher schrieb uvicorn sie an eine Stelle, die Nexviews eigenes Protokoll nie erreichte: Man lud es herunter, und genau der Absturz fehlte darin.\n\nJede Anfrage bekommt eine kurze Nummer, die in jeder Zeile auftaucht, die sie erzeugt — und in der Fehlermeldung. Der Benutzer gibt sechs Zeichen weiter, der Administrator tippt sie in die Suche und sieht den vollständigen Verlauf dieses einen Klicks, statt an Uhrzeiten zu raten.\n\nVier Stufen, im Betrieb umschaltbar: Ruhig, Normal, Ausführlich und Alles. Die beiden tiefen Stufen schalten sich nach 30 Minuten, 2 Stunden oder 8 Stunden von allein zurück — eine vergessene Diagnosestufe überschreibt sonst genau die Zeilen, für die sie eingeschaltet wurde."
+          },
+          {
+            "title": "Nexview steht jetzt unter der AGPL",
+            "where": "Fußzeile → Über Nexview",
+            "body": "Der Quelltext bleibt öffentlich und kostenlos, und Nexview unverändert zu betreiben verlangt nichts von dir. Was sich ändert, betrifft die, die darauf aufbauen: Wer Nexview verändert und seine Fassung anderen zugänglich macht — auch als gehosteten Dienst, bei dem nie eine Datei den Besitzer wechselt —, muss seinen geänderten Quelltext ebenfalls herausgeben.\n\nDie Fassungen bis einschließlich 0.17.0 bleiben unter der MIT-Lizenz. Diese Erlaubnis wurde für immer gegeben und wird nicht zurückgenommen."
+          }
+        ]
+      },
       "0.17.0": {
         "lead": "Nexview kann jetzt stöbern. Bisher zeigte „Entdecken“ nur ein Zeitfenster von höchstens einem Jahr — alles Ältere war nur über die Suche erreichbar. Der neue Bereich öffnet den ganzen Katalog, und daneben steht ein Assistent, der dir ein paar Fragen stellt und dann etwas für heute Abend vorschlägt.",
         "sections": [

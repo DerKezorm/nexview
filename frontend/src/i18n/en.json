@@ -1061,7 +1061,7 @@
   "watchlist": {
     "title": "Plex watchlist",
     "intro": "What you put on your watchlist in Plex. Requesting works just like in the catalogue – with quota and approval as always.",
-    "needsLink": "Link your Plex account under “Security” first. Nexview may only read the watchlist of the account that belongs to your profile.",
+    "needsLink": "Link your Plex account under “Media servers” first. Nexview may only read the watchlist of the account that belongs to your profile.",
     "needsSignIn": "Your personal Plex access is still missing – your account was linked before this feature existed. One sign-in is enough.",
     "tokenInvalid": "Plex no longer accepts the stored access – usually because the device was signed out. Please sign in once more.",
     "connect": "Sign in with Plex",
@@ -1558,6 +1558,41 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.18.0": {
+        "lead": "Nexview now talks to Jellyfin as well — alongside Plex, not instead of it. Both servers may be connected at the same time, and each person can link an account on each. Around that sits a set of changes that stop anyone being locked out by accident, and a log you can actually find faults with.",
+        "sections": [
+          {
+            "title": "Jellyfin alongside Plex",
+            "where": "Settings → Media servers",
+            "body": "Both servers may be connected at once, and the watched state is merged across them: a title stays marked as seen while any connected server still reports it — so adding a second server no longer wipes the ticks the first one gave you.\n\nWhere the two disagree, Nexview now says which server reports what, instead of quietly picking one."
+          },
+          {
+            "title": "The sign-in page shows the ways that exist",
+            "where": "Sign-in page",
+            "body": "Instead of a fixed “Sign in with Plex” it now says “Sign in with” and offers one logo per connected server. An installation running only Jellyfin used to get a Plex button that failed on click — the flow behind it is built around plex.tv, which Jellyfin has no equivalent for.\n\nOne limit is worth knowing: signing in with Jellyfin will not create an account. Jellyfin gives no email address for an account, and the address is the only thing that lets Nexview recognise somebody who already has one. Without it, an invited person would quietly end up with a second account — no password, no way back in. Those who have an account link Jellyfin from their profile instead; the sign-in form says so before anyone falls into it."
+          },
+          {
+            "title": "Media server accounts have their own place",
+            "where": "Profile → Media servers",
+            "body": "They used to sit at the very bottom of “Security”, below the password form. Nobody looking to connect Plex would think to search there."
+          },
+          {
+            "title": "Disconnecting no longer locks people out by accident",
+            "where": "Settings → Media servers and Settings → Users",
+            "body": "Disconnecting the media server used to happen on a single click, without a word. For accounts that only ever came in through that server — with no password of their own — this closed their only door.\n\nA confirmation now counts them by name beforehand, and the server refuses outright unless the administrator explicitly overrides it. The same check already guarded people disconnecting themselves; it was missing one level up. The dialog also appears when nobody is at risk and says so: a warning that only ever shows up in an emergency is not read the first time it matters.\n\nThe user list also shows who is linked and who has no password. Both facts were already known to the app and shown nowhere."
+          },
+          {
+            "title": "The log finally finds faults",
+            "where": "Settings → Log",
+            "body": "Crashes land in the file at last. Before, uvicorn wrote them somewhere Nexview's own log never reached: you downloaded the log, and precisely the crash was missing from it.\n\nEvery request gets a short number that appears in every line it produces — and in the error message. The user passes on six characters, the administrator types them into the search and sees the complete course of that one click, instead of guessing at timestamps.\n\nFour levels, switchable while running: Quiet, Normal, Detailed and Everything. The two deep levels switch themselves back off after 30 minutes, 2 hours or 8 hours — a forgotten diagnostic level would otherwise overwrite the very lines it was turned on to capture."
+          },
+          {
+            "title": "Nexview is now under the AGPL",
+            "where": "Footer → About Nexview",
+            "body": "The source stays public and free, and running Nexview unchanged asks nothing of you. What changes concerns those who build on it: anyone who modifies Nexview and lets others use their version — including as a hosted service, where no file ever changes hands — has to make their changed source available too.\n\nVersions up to and including 0.17.0 stay under the MIT licence. That permission was given for good and is not being taken back."
+          }
+        ]
+      },
       "0.17.0": {
         "lead": "Nexview can browse now. Until today, Discover only showed a rolling window of at most a year — everything older was reachable by search alone. The new area opens the whole catalogue, and beside it sits a guide that asks you a few questions and then suggests something for tonight.",
         "sections": [

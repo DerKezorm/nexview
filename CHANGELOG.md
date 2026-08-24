@@ -12,7 +12,7 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
-## 0.18.0 – unveröffentlicht
+## 0.18.0 – 24.08.2026
 
 ### New
 
@@ -133,6 +133,11 @@ veröffentlicht, solange kein Tag dazu existiert.
 - **The level filter no longer hides errors.** Choosing "WARNING" in the log
   view compared for equality and therefore left out the ERROR lines — exactly
   the ones being looked for. A level now means "this level and above".
+
+- **The watchlist hint pointed at the wrong tab.** It told people to link their
+  Plex account under "Security" — which is where media server accounts used to
+  live, until this release moved them into a tab of their own. It now names the
+  place they are actually in.
 
 - **Downloading the log includes the rotated files.** During a hunt the
   interesting section has often already rolled over into the previous file.

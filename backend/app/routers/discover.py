@@ -20,6 +20,7 @@ from ..services import (
 )
 from ..services import uhd
 from ..services.arr import ArrError
+from ..services.mediaserver import verbundene_anbieter
 from ..services.filters import (
     KNOWN_TITLES_MIN_VOTES,
     MIN_FEATURE_RUNTIME,
@@ -111,6 +112,7 @@ async def _status_for(
         if user is not None
         else {}
     )
+    verbunden = verbundene_anbieter(settings)
 
     merged = []
     for item in result.items:
@@ -132,6 +134,15 @@ async def _status_for(
             neu["status"] = "in_library"
         if item.tmdb_id in gesehen:
             neu["watched"] = True
+            # Woher das "gesehen" kommt - aber nur, wenn sich zwei verbundene
+            # Server uneins sind. Sonst bleiben beide Listen leer und das Auge
+            # sagt schlicht "gesehen". Siehe ``herkunft_aufteilen``.
+            ja, nein = mediaserver_watched.herkunft_aufteilen(
+                gesehen[item.tmdb_id], verbunden
+            )
+            if ja:
+                neu["watched_on"] = ja
+                neu["watched_not_on"] = nein
         merged.append(item.model_copy(update=neu) if neu else item)
 
     # Zweite Achse zuletzt: Sie ergaenzt nur und aendert nichts an ``status``.

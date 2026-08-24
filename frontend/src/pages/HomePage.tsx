@@ -234,7 +234,9 @@ function CuratedCard({
           {/* Der Aufbau dieser Kachel bleibt bewusst wie er ist - sie ist
               breit statt hoch und damit ohnehin ein anderes Format. Nur das
               Auge kommt dazu, weil "gesehen" ueberall zu sehen sein soll. */}
-          {item.watched && <WatchedBadge />}
+          {item.watched && (
+            <WatchedBadge on={item.watched_on} notOn={item.watched_not_on} />
+          )}
           <FavoriteButton item={item} markiert={favorit} />
           <button
             type="button"

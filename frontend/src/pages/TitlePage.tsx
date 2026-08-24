@@ -340,7 +340,9 @@ export function TitlePage() {
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={item.status} />
                 {item.status_uhd && <UhdBadge status={item.status_uhd} />}
-                {item.watched && <WatchedBadge />}
+                {item.watched && (
+                  <WatchedBadge on={item.watched_on} notOn={item.watched_not_on} />
+                )}
                 <RatingBadge vote={item.vote_average} count={item.vote_count} />
                 {/* IMDb, Rotten Tomatoes, Metacritic - nur bei Filmen, und nur
                     was Radarr auch kennt. */}

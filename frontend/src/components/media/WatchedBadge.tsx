@@ -13,6 +13,8 @@
 
 import { useTranslation } from 'react-i18next'
 
+import { providerName } from '../../lib/mediaserver'
+
 /**
  * `on` und `notOn` sind entweder **beide** gefüllt oder beide leer – das
  * entscheidet das Backend, weil nur dort bekannt ist, welche Server verbunden
@@ -35,10 +37,13 @@ export function WatchedBadge({
 }) {
   const { t } = useTranslation()
   const uneins = on.length > 0 && notOn.length > 0
+  // ⚠️ Das Backend liefert die Schlüssel der Anbieter (`plex`, `jellyfin`),
+  // nicht ihre Namen. Ungewandelt stünde im Hinweis „Gesehen auf plex" - der
+  // Schlüssel ist eine interne Angelegenheit und gehört nicht vor Augen.
   const text = uneins
     ? t('status.watchedOnlyOn', {
-        on: on.join(', '),
-        notOn: notOn.join(', '),
+        on: on.map(providerName).join(', '),
+        notOn: notOn.map(providerName).join(', '),
       })
     : t('status.watched')
 

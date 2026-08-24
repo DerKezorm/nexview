@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../../api/client'
 import { KIDS } from './kidsTheme'
+import { mischen, useSaat } from '../../lib/zufall'
 
 /**
  * Der Seitengrund der Kinderansicht: eine weiche Collage aus Motiven, die
@@ -37,14 +38,17 @@ export function KidsHintergrund({ quelle = '/api/kids' }: { quelle?: string }) {
 
   // Einmal mischen und festhalten: Ohne das ordnete sich die Collage bei jedem
   // Neuzeichnen neu, und der Grund flackerte beim Blättern.
-  const auswahl = useMemo(() => {
-    const alle = [...(bilder.data ?? [])]
-    for (let i = alle.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[alle[i], alle[j]] = [alle[j], alle[i]]
-    }
-    return alle.slice(0, 9)
-  }, [bilder.data])
+  //
+  // ⚠️ Der Würfel fällt in `useSaat` **nach** dem Zeichnen, nicht darin. Hier
+  // stand einmal `Math.random()` mitten im `useMemo` - und `useMemo` ist keine
+  // Zusage: React darf den gemerkten Wert verwerfen und neu rechnen, und dann
+  // fiele der Würfel anders. Also genau das Flackern, das dieser Kommentar
+  // verhindern wollte. Siehe `lib/zufall.ts`.
+  const saat = useSaat()
+  const auswahl = useMemo(
+    () => mischen(bilder.data ?? [], saat).slice(0, 9),
+    [bilder.data, saat],
+  )
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">

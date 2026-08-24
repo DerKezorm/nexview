@@ -8,6 +8,7 @@ import { TrailerModal } from '../../components/media/TrailerModal'
 import { KidsCard } from './KidsCard'
 import { KIDS, rubrikFarbe, RUBRIK_SYMBOLE } from './kidsTheme'
 import { MediaSwitch } from './MediaSwitch'
+import { useSaat, ziehen } from '../../lib/zufall'
 
 type Ansicht =
   | { art: 'kategorien' }
@@ -55,19 +56,27 @@ export function KidsKatalog({
    * `useMemo` hält die Wahl fest, solange die Daten stehen – ohne das würfelte
    * jedes Neuzeichnen neu und die Bilder flackerten.
    */
+  //
+  // ⚠️ Der Würfel fällt in `useSaat` **nach** dem Zeichnen. Hier stand einmal
+  // `Math.random()` mitten im `useMemo` - und das hält gerade nicht fest, was
+  // der Kommentar darüber verspricht: React darf den gemerkten Wert verwerfen
+  // und neu rechnen. Siehe `lib/zufall.ts`.
+  const saat = useSaat()
   const bilder = useMemo(() => {
     const vergeben = new Set<string>()
     const wahl: Record<string, string | null> = {}
+    let strang = 0
     for (const eintrag of kategorien.data ?? []) {
       const frei = eintrag.bilder.filter((bild) => !vergeben.has(bild))
       // Sind alle schon vergeben, lieber doppelt als leer.
       const auswahl = frei.length > 0 ? frei : eintrag.bilder
-      const bild = auswahl[Math.floor(Math.random() * auswahl.length)] ?? null
+      // Je Rubrik ein eigener Strang - sonst zöge jede denselben Wurf.
+      const bild = ziehen(auswahl, saat, strang++)
       if (bild) vergeben.add(bild)
       wahl[eintrag.rubrik] = bild
     }
     return wahl
-  }, [kategorien.data])
+  }, [kategorien.data, saat])
 
   function wechsle(wert: 'movie' | 'tv') {
     setMediaType(wert)

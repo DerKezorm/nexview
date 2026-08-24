@@ -226,7 +226,7 @@ export function Filmabend({
               wahl={['movie', 'tv'] as const}
               onChange={onMediaTypeChange}
               label={(eintrag) =>
-                t(eintrag === 'movie' ? 'stoebern.filme' : 'stoebern.serien')
+                t(eintrag === 'movie' ? 'common.movies' : 'common.seriesPlural')
               }
             />
           </div>

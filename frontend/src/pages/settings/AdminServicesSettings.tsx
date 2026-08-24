@@ -10,7 +10,7 @@ import type {
   RootFolderMode,
   TestResult,
 } from "../../api/types";
-import { REGION_OPTIONS } from "../../components/media/FilterBar";
+import { REGION_OPTIONS } from "../../components/media/optionen";
 import { Button, Card, ErrorBanner, Field, Spinner } from "../../components/ui";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
 

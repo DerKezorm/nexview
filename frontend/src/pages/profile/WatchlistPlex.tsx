@@ -15,7 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
 import type { MediaItem } from '../../api/types'
-import type { ViewMode } from '../../components/media/FilterBar'
+import type { ViewMode } from '../../components/media/optionen'
 import { DetailModal } from '../../components/media/DetailModal'
 import { MediaItemCard } from '../../components/media/MediaCard'
 import { MediaListRow } from '../../components/media/MediaListRow'

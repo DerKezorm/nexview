@@ -96,9 +96,10 @@ export function StoeberPage({ mediaType }: StoeberPageProps) {
           wert={mediaType}
           wahl={['movie', 'tv'] as const}
           onChange={(neu) => navigate(stoeberPath(neu))}
-          // Eigene Schlüssel statt common.series: das heißt dort "Serie"
-          // (Einzahl) und wird als Medienart-Bezeichnung gebraucht.
-          label={(eintrag) => t(eintrag === 'movie' ? 'stoebern.filme' : 'stoebern.serien')}
+          // `common.series` heißt „Serie" (Einzahl) und wird als
+          // Medienart-Bezeichnung an einzelnen Titeln gebraucht - hier steht
+          // die Mehrzahl über einer Liste.
+          label={(eintrag) => t(eintrag === 'movie' ? 'common.movies' : 'common.seriesPlural')}
         />
 
         {/* Die Frage, die am Filmabend zuerst kommt. Anders als auf der

@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DemoBanner } from '../components/DemoBanner'
-import { MediaSection } from '../components/media/MediaSection'
-import { useAuth } from '../auth/useAuth'
+import { SuchErgebnis } from '../components/media/SuchErgebnis'
 import { SearchInput } from '../components/SearchInput'
 import { useConfig } from '../hooks/useConfig'
 
@@ -16,12 +15,10 @@ import { useConfig } from '../hooks/useConfig'
 export function SearchPage() {
   const { t } = useTranslation()
   const { data: config } = useConfig()
-  const { user } = useAuth()
   const [search, setSearch] = useState('')
 
   const query = search.trim()
   const searching = query.length >= 2
-  const region = user?.discover_region || config?.default_region || 'DE'
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,18 +43,16 @@ export function SearchPage() {
         </p>
       ) : (
         <>
-          <MediaSection
+          <SuchErgebnis
             mediaType="movie"
             titleKey="common.movies"
-            searchQuery={query}
-            defaultRegion={region}
+            suche={query}
             arrConfigured={config?.radarr_configured ?? false}
           />
-          <MediaSection
+          <SuchErgebnis
             mediaType="tv"
-            titleKey="common.series"
-            searchQuery={query}
-            defaultRegion={region}
+            titleKey="common.seriesPlural"
+            suche={query}
             arrConfigured={config?.sonarr_configured ?? false}
           />
         </>

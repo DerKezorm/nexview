@@ -30,7 +30,7 @@ import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
 import { darfAnfragen } from '../lib/status'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
-import { browsePath, personPath } from '../lib/routes'
+import { browsePath, personPath, stoeberPath } from '../lib/routes'
 import { useAuth } from '../auth/useAuth'
 
 /** Eine Runde Vorschlaege vom Server. */
@@ -321,11 +321,14 @@ export function TitlePage() {
         )}
 
         <div className="relative px-4 pt-8 sm:px-6">
+          {/* Der Rücksprung führt in den Katalog. Früher zeigte er auf
+              „Filme entdecken" bzw. „Serien entdecken" — diese Seiten gibt es
+              nicht mehr. */}
           <Link
-            to={istFilm ? '/filme' : '/serien'}
+            to={stoeberPath(istFilm ? 'movie' : 'tv')}
             className="text-sm text-mist-500 transition-colors hover:text-mist-200"
           >
-            ← {t(istFilm ? 'nav.discoverMovies' : 'nav.discoverSeries')}
+            ← {t('stoebern.titel')}
           </Link>
 
           <div className="mt-4 flex flex-col gap-6 sm:flex-row">

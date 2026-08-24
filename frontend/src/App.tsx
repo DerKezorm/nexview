@@ -12,7 +12,6 @@ import { AboutPage } from './pages/AboutPage'
 import { BrowsePage } from './pages/BrowsePage'
 import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { CalendarPage } from './pages/CalendarPage'
-import { DiscoverPage } from './pages/DiscoverPage'
 import { StoeberPage } from './pages/StoeberPage'
 import { StoeberFilterPage } from './pages/StoeberFilterPage'
 import { StoeberRegalPage } from './pages/StoeberRegalPage'
@@ -149,10 +148,11 @@ export default function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
-        {/* Nicht mehr im Menue, aber weiter erreichbar - alte Lesezeichen
-            sollen nicht ins Leere laufen. */}
-        <Route path="filme" element={<DiscoverPage mediaType="movie" />} />
-        <Route path="serien" element={<DiscoverPage mediaType="tv" />} />
+        {/* Die alten Entdecken-Seiten sind entfernt. Die Adressen bleiben
+            als Umleitung stehen: Ein Lesezeichen soll im Katalog landen und
+            nicht auf der Startseite, wo man erst wieder suchen muss. */}
+        <Route path="filme" element={<Navigate to="/stoebern" replace />} />
+        <Route path="serien" element={<Navigate to="/stoebern/serien" replace />} />
         {/* Alte Adresse aus der Zeit, als der Assistent eine eigene Seite
             war. Er ist jetzt ein Fenster über der aktuellen Seite (siehe
             AppShell), deshalb führt der Weg auf den Katalog. */}

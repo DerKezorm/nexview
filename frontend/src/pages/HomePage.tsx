@@ -16,7 +16,7 @@ import { Slider } from '../components/Slider'
 import { Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
-import { titlePath } from '../lib/routes'
+import { stoeberPath, titlePath } from '../lib/routes'
 
 /** Abstand zwischen zwei Kacheln beim Aufblenden. */
 const STAGGER_MS = 90
@@ -415,7 +415,7 @@ export function HomePage() {
 
       <p className="text-center">
         <Link
-          to="/filme"
+          to={stoeberPath('movie')}
           className="text-sm text-mist-500 underline-offset-4 transition-colors hover:text-mist-100 hover:underline"
         >
           {t('home.discoverMore')}

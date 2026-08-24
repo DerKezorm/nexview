@@ -367,12 +367,12 @@ async def test_vor_dem_zugriff_steht_es_im_protokoll(monkeypatch, caplog) -> Non
         db.commit()
 
     text = caplog.text
-    assert "LOESCHEN angefordert von chefin" in text
+    assert "DELETE requested by chefin" in text
     # Wer, was, wo und **welche Datei** - alles, was eine Fehlersuche braucht.
     assert "Ein Klassiker" in text
     assert "arr_id=42" in text
     assert "/data/Movies4K/Ein Film/ein.film.mkv" in text
-    assert "LOESCHEN erledigt" in text
+    assert "DELETE done" in text
 
 
 # --- Über die Schnittstelle -------------------------------------------------

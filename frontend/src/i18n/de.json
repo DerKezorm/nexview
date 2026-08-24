@@ -400,7 +400,36 @@
     "level": "Stufe",
     "source": "Quelle",
     "message": "Meldung",
-    "retention": "Das Protokoll wird bei 5 MB umbrochen, es werden 3 ältere Stände behalten und alles nach 14 Tagen gelöscht."
+    "retention": "Das Protokoll wird bei 5 MB umbrochen (25 MB in den tiefen Stufen), es werden 3 ältere Stände behalten und alles nach 14 Tagen gelöscht. Das Herunterladen nimmt die älteren Stände mit.",
+    "levelHint": "Ein Filter zeigt immer auch die höheren Stufen: „WARNING“ enthält also die Fehler.",
+    "requestId": "Nr. / Benutzer",
+    "requestIdHint": "Nach dieser Vorgangsnummer filtern",
+    "modeTitle": "Wie ausführlich wird mitgeschrieben?",
+    "modeIntro": "Mitgeschrieben wird immer — die Stufe bestimmt nur, wie viel. Im Alltag reicht „Normal“; für eine Fehlersuche vorübergehend mehr einschalten.",
+    "modeUntil": "Schaltet sich am {{time}} von allein wieder auf „Normal“.",
+    "modeEnv": "Über die Umgebungsvariable NEXVIEW_LOG_LEVEL festgelegt und hier nicht änderbar.",
+    "traceWarning": "„Alles“ nur einschalten, wenn jemand ausdrücklich danach fragt: Diese Stufe schreibt jede einzelne Datenbank- und HTTP-Zeile mit.",
+    "mode": {
+      "quiet": "Sparsam",
+      "normal": "Normal",
+      "detailed": "Ausführlich",
+      "trace": "Alles"
+    },
+    "modeDesc": {
+      "quiet": "Nur Warnungen und Fehler.",
+      "normal": "Was passiert ist, dazu Warnungen und Fehler.",
+      "detailed": "Zusätzlich der Weg dorthin: jeder Aufruf zu TMDB, Radarr, Sonarr und Media-Server.",
+      "trace": "Zusätzlich die Rohdaten der Fremdbibliotheken. Sehr viele Zeilen."
+    },
+    "duration": {
+      "30": "30 Minuten",
+      "120": "2 Stunden",
+      "480": "8 Stunden",
+      "0": "bis zum Neustart"
+    },
+    "modeTemporary": "(auf Zeit)",
+    "modeNoLimit": "Gilt unbegrenzt.",
+    "durationQuestion": "„{{mode}}“ einschalten für:"
   },
   "profile": {
     "intro": "Dein Profilbild, dein Anzeigename und dein Passwort.",
@@ -758,7 +787,8 @@
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
     "network": "Das Backend ist nicht erreichbar. Läuft der Server?",
-    "sessionExpired": "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an."
+    "sessionExpired": "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+    "internal": "Auf dem Server ist ein Fehler aufgetreten. Nummer für die Fehlersuche: {{id}}"
   },
   "language": {
     "label": "Sprache",

@@ -12,6 +12,54 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.18.0 – unveröffentlicht
+
+### New
+
+- **The log finally contains the crashes.** An unhandled server error was
+  written by uvicorn to a logger that never reached Nexview's own log file. An
+  administrator downloaded the log and precisely the crash was missing from it —
+  it only existed in the container output. Every unhandled error now lands in
+  the file with its full stack trace, and so do uvicorn's own start-up and
+  shutdown errors.
+
+- **A number for every request.** Each incoming request gets a short number
+  that appears in every log line it produces. When something breaks, the error
+  message shows that number: the user passes on six characters, the
+  administrator types them into the log search and sees the complete course of
+  that one click — instead of guessing at timestamps. Clicking a number in the
+  log view filters to that request.
+
+- **Four recording levels, switchable while running.** *Quiet*, *Normal*,
+  *Detailed* and *Everything*, changeable under Settings → Log without a
+  restart. The two deep levels switch themselves back off after 30 minutes, 2
+  hours or 8 hours — a forgotten diagnostic level would otherwise overwrite the
+  very lines it was turned on to capture. `NEXVIEW_LOG_LEVEL` overrides the
+  setting for the case where Nexview does not start at all.
+
+- **Every call to the outside is now visible.** TMDB, Radarr, Sonarr and the
+  media server wrote nothing of their own; whether a failure showed up depended
+  on which caller happened to catch it. Each call now produces one line with
+  method, host, path, status and duration — as a warning when the other side
+  rejects the key or fails, as a detail line when it worked. API keys are
+  masked out of the addresses.
+
+- **Log messages are English throughout.** About sixty messages were German,
+  which made the log unsearchable — looking for "not reachable" missed half the
+  cases. A test now keeps the rule: a German log message fails the build. The
+  user-facing texts stay translated as before.
+
+### Fixed
+
+- **The level filter no longer hides errors.** Choosing "WARNING" in the log
+  view compared for equality and therefore left out the ERROR lines — exactly
+  the ones being looked for. A level now means "this level and above".
+
+- **Downloading the log includes the rotated files.** During a hunt the
+  interesting section has often already rolled over into the previous file.
+
+---
+
 ## 0.17.0 – 23.08.2026
 
 ### New

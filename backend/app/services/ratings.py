@@ -139,7 +139,7 @@ async def for_movies(settings: AppSettings, tmdb_ids: list[int]) -> dict[int, Ra
         async with asyncio.timeout(TIMEOUT_SECONDS):
             await asyncio.gather(*(hole(tmdb_id) for tmdb_id in offen))
     except TimeoutError:
-        logger.info("Bewertungen: Zeitgrenze erreicht, %d von %d geholt", len(ergebnis), len(offen))
+        logger.debug("Ratings: time limit reached, fetched %d of %d", len(ergebnis), len(offen))
 
     return ergebnis
 

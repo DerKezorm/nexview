@@ -589,7 +589,7 @@ async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
                     _film_aufnehmen(gemessen, stufe, tmdb_id, eintrag)
             except ArrError as fehler:
                 logger.warning(
-                    "Radarr (%s) nicht erreichbar, Groessen bleiben wie sie waren: %s",
+                    "Radarr (%s) not reachable, sizes left unchanged: %s",
                     stufe.value,
                     fehler.message,
                 )
@@ -601,7 +601,7 @@ async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
                     _serie_aufnehmen(gemessen, stufe, tvdb_id, eintrag)
             except ArrError as fehler:
                 logger.warning(
-                    "Sonarr (%s) nicht erreichbar, Groessen bleiben wie sie waren: %s",
+                    "Sonarr (%s) not reachable, sizes left unchanged: %s",
                     stufe.value,
                     fehler.message,
                 )
@@ -1035,8 +1035,7 @@ def ins_haus(db: Session, posten_id: int) -> Uebernahme | None:
     posten.state = StorageState.house
     db.flush()
     logger.info(
-        "Hausbestand: Posten %s %r (%s Bytes) von Nutzer %s uebernommen - "
-        "keine Datei angefasst",
+        "Household: item %s %r (%s bytes) taken over from user %s - no file touched",
         posten.id,
         posten.title,
         posten.size_bytes,
@@ -1136,7 +1135,7 @@ def abgeben(
     posten.release_wish = wunsch or StorageWish.delete
     db.flush()
     logger.info(
-        "Abgabe: %s gibt Posten %s %r ab (%s Bytes, Wunsch: %s) - wartet auf Entscheidung",
+        "Handover: %s hands over item %s %r (%s bytes, wish: %s) - awaiting a decision",
         user.username,
         posten.id,
         posten.title,
@@ -1195,16 +1194,15 @@ async def entfolgen(db: Session, settings: AppSettings, posten_id: int) -> Poste
     if client is not None and arr_id is not None:
         await client.unmonitor_season(arr_id, zeile.season)
         logger.info(
-            "Abgabe entschieden: %r Staffel %s stillgelegt (arr_id=%s) - "
-            "bleibt belastet, waechst nicht weiter",
+            "Handover decided: %r season %s frozen (arr_id=%s) - stays charged, will not grow",
             zeile.title,
             zeile.season,
             arr_id,
         )
     else:
         logger.info(
-            "Abgabe entschieden: %r Staffel %s ist nicht mehr in Sonarr - "
-            "nichts stillzulegen, Posten bleibt belastet",
+            "Handover decided: %r season %s is no longer in Sonarr - nothing to freeze, item "
+            "stays charged",
             zeile.title,
             zeile.season,
         )
@@ -1250,7 +1248,7 @@ def konten_zuruecksetzen(db: Session) -> tuple[int, int]:
         zeile.release_wish = None
     if betroffen:
         logger.warning(
-            "Speicher-Konten zurueckgesetzt: %s Posten mit %s Bytes ins Haus umgebucht",
+            "Storage accounts reset: %s item(s) with %s bytes moved to the household",
             len(betroffen),
             bytes_,
         )
@@ -1444,8 +1442,8 @@ async def loeschen(
     # erzaehlt nur von den Faellen, die geklappt haben.
     dateien = await dateien_fuer(db, settings, posten_id)
     logger.warning(
-        "LOESCHEN angefordert von %s: Posten %s %r (%s/%s, arr_id=%s, %s Bytes) - "
-        "%s Datei(en): %s",
+        "DELETE requested by %s: item %s %r (%s/%s, arr_id=%s, %s bytes) - "
+        "%s file(s): %s",
         wer,
         posten_id,
         zeile.title,
@@ -1454,7 +1452,7 @@ async def loeschen(
         arr_id,
         bytes_,
         len(dateien),
-        " | ".join(datei.pfad for datei in dateien) or "(keine gemeldet)",
+        " | ".join(datei.pfad for datei in dateien) or "(none reported)",
     )
 
     try:
@@ -1481,7 +1479,7 @@ async def loeschen(
                 )
             entfernt = await client.delete_episode_files(kennungen)
             logger.warning(
-                "LOESCHEN: %s von %s Dateien der Staffel %s entfernt",
+                "DELETE: removed %s of %s files of season %s",
                 entfernt,
                 len(kennungen),
                 zeile.season,
@@ -1492,7 +1490,7 @@ async def loeschen(
         # 404 heisst: dort schon weg - dann ist das Ziel ja erreicht.
         if fehler.status_code != 404:
             logger.error(
-                "LOESCHEN fehlgeschlagen: Posten %s %r (arr_id=%s) - %s",
+                "DELETE failed: item %s %r (arr_id=%s) - %s",
                 posten_id,
                 zeile.title,
                 arr_id,
@@ -1500,7 +1498,7 @@ async def loeschen(
             )
             raise Loeschfehler(fehler.message, 502) from fehler
         logger.warning(
-            "LOESCHEN: Posten %s %r war in der Instanz schon weg (404) - Ziel erreicht",
+            "DELETE: item %s %r was already gone in the instance (404) - goal reached",
             posten_id,
             zeile.title,
         )
@@ -1517,7 +1515,7 @@ async def loeschen(
     db.flush()
     library.invalidate()
     logger.warning(
-        "LOESCHEN erledigt: %r entfernt, %s Bytes werden frei, %s Anfrage(n) geschlossen",
+        "DELETE done: %r removed, %s bytes freed, %s request(s) closed",
         titel,
         bytes_,
         geschlossen,

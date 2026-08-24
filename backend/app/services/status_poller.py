@@ -151,7 +151,7 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                 request.completed_at = utcnow()
                 verschwunden += 1
                 logger.warning(
-                    "Anfrage %s %r (%s/%s) abgebrochen: in %s nicht mehr vorhanden",
+                    "Request %s %r (%s/%s) cancelled: no longer present in %s",
                     request.id,
                     request.title,
                     request.media_type.value,
@@ -228,15 +228,15 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                             such_staffel=request.season,
                         )
                         logger.warning(
-                            "Ueberwachung geheilt: %r Staffel %s war in Sonarr "
-                            "abgeschaltet (arr_id=%s)",
+                            "Monitoring healed: %r season %s was switched off in Sonarr "
+                            "(arr_id=%s)",
                             request.title,
                             request.season,
                             arr_id,
                         )
                     except ArrError as fehler:
                         logger.warning(
-                            "Ueberwachung von %r nicht heilbar: %s",
+                            "Monitoring of %r could not be healed: %s",
                             request.title,
                             fehler.message,
                         )
@@ -298,13 +298,12 @@ async def check_once(db: Session, settings: AppSettings) -> int:
 
     db.commit()
     if fertig:
-        logger.info("Status-Abgleich: %d Titel fertig geladen", fertig)
+        logger.info("Status sync: %d title(s) finished downloading", fertig)
     if geloescht:
-        logger.info("Status-Abgleich: %d geladene Titel sind verschwunden", geloescht)
+        logger.info("Status sync: %d downloaded title(s) disappeared", geloescht)
     if verschwunden:
         logger.info(
-            "Status-Abgleich: %d wartende Anfragen abgebrochen - Titel nicht mehr "
-            "in Radarr/Sonarr",
+            "Status sync: %d pending request(s) cancelled - title no longer in Radarr/Sonarr",
             verschwunden,
         )
     return fertig
@@ -377,7 +376,7 @@ async def _bibliothek_vielleicht(db, settings) -> None:
         # laeuft ins Leere, solange die nicht eingelesen ist.
         await mediaserver_watched.refresh(db, settings)
     except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
-        logger.exception("Media-Server konnte nicht abgeglichen werden")
+        logger.exception("Media server sync failed")
         # **Die Sitzung zuruecksetzen, nicht nur den Fehler schlucken.**
         # Scheitert der Abgleich mitten im Schreiben, bleibt die Sitzung im
         # Zustand "muss zurueckgerollt werden" - und der naechste Schritt im
@@ -419,21 +418,20 @@ async def _speicher_vielleicht(db, settings) -> None:
         ergebnis = await storage.abgleichen(db, settings)
         if ergebnis.erster_lauf:
             logger.info(
-                "Speicher-Belegung zum ersten Mal erfasst: %s Posten, alle im "
-                "Hausbestand - jedes Konto startet bei null",
+                "Storage usage measured for the first time: %s item(s), all owned by the "
+                "household - every account starts at zero",
                 ergebnis.neu,
             )
         elif ergebnis.neu or ergebnis.aktualisiert or ergebnis.entfernt:
             logger.info(
-                "Speicher-Belegung: %s neu, %s geaendert (davon %s gewachsen), "
-                "%s entfallen",
+                "Storage usage: %s new, %s changed (%s of them grown), %s gone",
                 ergebnis.neu,
                 ergebnis.aktualisiert,
                 ergebnis.gewachsen,
                 ergebnis.entfernt,
             )
     except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
-        logger.exception("Speicher-Belegung konnte nicht erfasst werden")
+        logger.exception("Storage usage could not be measured")
         # Siehe _bibliothek_vielleicht: Ohne das Zuruecksetzen stirbt der
         # naechste Schritt im selben Durchgang an einem fremden Fehler.
         db.rollback()
@@ -466,10 +464,10 @@ async def run_forever(stop: asyncio.Event) -> None:
                 await mail_outbox.process(db, settings)
         except ArrError as error:
             # Radarr/Sonarr gerade nicht erreichbar - kein Grund zur Aufregung.
-            logger.info("Status-Abgleich übersprungen: %s", error.message)
+            logger.warning("Status sync skipped: %s", error.message)
             wartezeit = max(wartezeit, ERROR_BACKOFF_SECONDS)
         except Exception:  # noqa: BLE001 - die Schleife darf nie sterben
-            logger.exception("Status-Abgleich fehlgeschlagen")
+            logger.exception("Status sync failed")
             wartezeit = max(wartezeit, ERROR_BACKOFF_SECONDS)
 
         try:

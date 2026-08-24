@@ -224,14 +224,14 @@ async def process(db: Session, settings: AppSettings) -> int:
             if eintrag.mail_attempts >= MAX_ATTEMPTS:
                 eintrag.mail_pending = False
                 logger.warning(
-                    "Benachrichtigung an %s endgültig nicht zustellbar (%s): %s",
+                    "Notification to %s finally undeliverable (%s): %s",
                     empfaenger.email,
                     eintrag.type.value,
                     fehler,
                 )
             else:
-                logger.info(
-                    "Benachrichtigung an %s fehlgeschlagen, Versuch %d von %d: %s",
+                logger.warning(
+                    "Notification to %s failed, attempt %d of %d: %s",
                     empfaenger.email,
                     eintrag.mail_attempts,
                     MAX_ATTEMPTS,
@@ -245,5 +245,5 @@ async def process(db: Session, settings: AppSettings) -> int:
 
     db.commit()
     if zugestellt:
-        logger.info("%d Benachrichtigung(en) per Mail verschickt", zugestellt)
+        logger.info("Delivered %d notification(s) by mail", zugestellt)
     return zugestellt

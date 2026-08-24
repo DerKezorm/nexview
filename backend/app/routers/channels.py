@@ -519,10 +519,10 @@ def update_enabled(
     db.commit()
     db.refresh(target)
     logger.info(
-        "Ziel %s/%s %s",
+        "Target %s/%s switched %s",
         channels.label(target.channel),
         target.name,
-        "in Betrieb" if target.enabled else "stillgelegt",
+        "on" if target.enabled else "off",
     )
     return channel_targets.als_json(db, target)
 
@@ -535,6 +535,6 @@ def delete_target(channel: Kanal, target_id: int, admin: AdminUser, db: DbSessio
     haetten sie kein Gegenueber mehr. Offene Auftraege dorthin ebenso.
     """
     target = _holen(db, channel, target_id)
-    logger.info("Ziel %s/%s entfernt", channels.label(target.channel), target.name)
+    logger.info("Target %s/%s removed", channels.label(target.channel), target.name)
     db.delete(target)
     db.commit()

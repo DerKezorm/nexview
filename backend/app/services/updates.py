@@ -134,7 +134,7 @@ async def status(*, enabled: bool = True, force: bool = False) -> UpdateStatus:
         try:
             neueste = await _abfragen()
         except Exception as fehler:  # noqa: BLE001 - Ausfall darf nichts kosten
-            logger.warning("Versionspruefung bei GitHub fehlgeschlagen: %s", fehler)
+            logger.warning("Version check at GitHub failed: %s", fehler)
             # Alten Stand behalten, falls vorhanden - sonst nur die eigene
             # Version melden. Der Zeitstempel bleibt unveraendert, damit es
             # beim naechsten Aufruf gleich wieder versucht wird.

@@ -28,6 +28,8 @@ from typing import Any, ClassVar
 
 import httpx
 
+from .. import http_log
+
 TIMEOUT = httpx.Timeout(15.0, connect=6.0)
 MAX_PARALLEL_REQUESTS = 6
 
@@ -53,6 +55,8 @@ async def http_client() -> httpx.AsyncClient:
                 _client = httpx.AsyncClient(
                     timeout=TIMEOUT,
                     headers={"Accept": "application/json"},
+                    # Eine Zeile pro Aufruf ins Protokoll - siehe http_log.py.
+                    event_hooks=http_log.event_hooks("mediaserver"),
                     limits=httpx.Limits(
                         max_connections=MAX_PARALLEL_REQUESTS,
                         max_keepalive_connections=MAX_PARALLEL_REQUESTS,

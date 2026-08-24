@@ -86,7 +86,7 @@ def _token(user: User) -> str:
     try:
         return decrypt(user.watchlist_token)
     except Exception:  # noqa: BLE001 - Schluesselwechsel, beschaedigter Wert
-        logger.warning("Media-Server-Token von %s ist nicht lesbar", user.username)
+        logger.warning("Media server token of %s is not readable", user.username)
         return ""
 
 
@@ -143,7 +143,7 @@ def _neu_verbinden_hinweis(db: Session, user: User, anbieter: str) -> None:
     beachtet. Nach einer neuen Anmeldung (``watchlist_connected_at`` rueckt
     vor) darf ein spaeterer Ausfall wieder melden.
     """
-    logger.warning("%s nimmt das Token von %s nicht mehr an", anbieter, _wer(user))
+    logger.warning("%s no longer accepts the token of %s", anbieter, _wer(user))
 
     # Merken, dass das Token abgelehnt wurde - **ohne es zu loeschen**.
     # Geloescht saehe es aus wie "nie verbunden"; so kann die Oberflaeche
@@ -294,7 +294,7 @@ def _vollstaendig_uebernehmen(
         del vorhanden[(user_id, art, tmdb_id)]
         entfernt += 1
     if entfernt:
-        logger.info("Gesehenes: %d Marker fuer Benutzer %d entfernt", entfernt, benutzer_id)
+        logger.info("Watched: removed %d marker(s) for user %d", entfernt, benutzer_id)
     return geschrieben
 
 
@@ -322,7 +322,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
     )
     werke = {z.rating_key: z for z in zeilen}
     if not werke:
-        logger.info("Gesehenes: Bibliothek noch nicht eingelesen")
+        logger.debug("Watched: library not indexed yet")
         return 0
     im_bestand = {(z.media_type, z.tmdb_id) for z in zeilen if z.tmdb_id is not None}
 
@@ -350,7 +350,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
                 _neu_verbinden_hinweis(db, user, server.label)
             else:
                 logger.warning(
-                    "Gesehen-Stand von %s nicht lesbar: %s", user.username, fehler.message
+                    "Watched state of %s not readable: %s", user.username, fehler.message
                 )
             continue
         # Es geht wieder - einen frueheren Hinweis wegnehmen. Sonst bliebe der
@@ -376,7 +376,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
                 staffel_stand = None
             except MediaServerError as fehler:
                 logger.warning(
-                    "Staffel-Stand von %s nicht lesbar: %s",
+                    "Season state of %s not readable: %s",
                     user.username,
                     fehler.message,
                 )
@@ -418,7 +418,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
             verlauf = []
         except MediaServerError as fehler:
             verlauf = []
-            logger.warning("Wiedergabe-Verlauf nicht lesbar: %s", fehler.message)
+            logger.warning("Playback history not readable: %s", fehler.message)
 
         for eintrag in verlauf:
             benutzer_id = zuordnung.get(eintrag.account_id)
@@ -447,7 +447,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
 
     db.commit()
     if geschrieben:
-        logger.info("Gesehenes: %d neue Zuordnungen", geschrieben)
+        logger.info("Watched: %d new match(es)", geschrieben)
     return geschrieben
 
 

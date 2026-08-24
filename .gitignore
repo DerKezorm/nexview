@@ -21,6 +21,8 @@ venv/
 # --- Node / Frontend ---
 node_modules/
 dist/
+# Behelfsbau zum Ansehen, wenn der Vite-Build lokal nicht laufen kann.
+dist-dev/
 .vite/
 *.local
 

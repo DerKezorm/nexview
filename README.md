@@ -208,6 +208,7 @@ copy `.env.example` to `.env`:
 | `NEXVIEW_REFRESH_TOKEN_DAYS` | How long you stay signed in (default: 30) |
 | `NEXVIEW_CORS_ORIGINS` | Allowed origins in development |
 | `NEXVIEW_STATIC_DIR` | Folder with the built frontend (the container sets this itself) |
+| `NEXVIEW_LOG_LEVEL` | Overrides the log level chosen in the app (`quiet`, `normal`, `detailed`, `trace`). Emergency exit for when Nexview does not start. |
 
 **No TMDB, Radarr or Sonarr keys belong in `.env`** — you enter those in the app.
 

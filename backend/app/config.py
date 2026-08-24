@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     static_dir: str = ""
 
+    # Notausgang fuer die Protokoll-Stufe: Ist ``NEXVIEW_LOG_LEVEL`` gesetzt,
+    # gilt sie und die in der Oberflaeche gewaehlte Stufe wird ignoriert.
+    # Gebraucht, wenn die Anwendung gar nicht erst startet - dann kommt man an
+    # keine Oberflaeche, um die Diagnose einzuschalten.
+    # Erlaubt: quiet | normal | detailed | trace (auch WARNING/INFO/DEBUG).
+    log_level: str = ""
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

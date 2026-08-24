@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import User
 from .security import decode_token
+from .services import logs
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -37,6 +38,9 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise unauthorized
+
+    # Ab hier steht in jeder Protokollzeile dieser Anfrage, wer sie gestellt hat.
+    logs.set_actor(user.username)
     return user
 
 

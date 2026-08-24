@@ -606,7 +606,7 @@ async def _tvdb_nach_tmdb(
             try:
                 gefunden = await cache.cached(db, f"tvdb:{tvdb_id}", TVDB_TTL, fetch)
             except TmdbError as fehler:
-                logger.info("TVDB-Zuordnung fehlgeschlagen: %s", fehler)
+                logger.debug("TVDB mapping failed: %s", fehler)
                 return tvdb_id, None
             return tvdb_id, gefunden.get("tmdb_id")
 
@@ -751,7 +751,7 @@ async def kalender(
         if isinstance(ergebnis, ArrError):
             arr_hinweis = ergebnis.message
         elif isinstance(ergebnis, BaseException):
-            logger.warning("Kalender: eigene Titel nicht abrufbar: %s", ergebnis)
+            logger.warning("Calendar: own titles not available: %s", ergebnis)
             arr_hinweis = arr_hinweis or "Radarr/Sonarr sind gerade nicht erreichbar."
         else:
             eintraege.extend(ergebnis)
@@ -759,7 +759,7 @@ async def kalender(
     if isinstance(tmdb_neu, TmdbError):
         tmdb_hinweis = tmdb_neu.message
     elif isinstance(tmdb_neu, BaseException):
-        logger.warning("Kalender: Neuerscheinungen nicht abrufbar: %s", tmdb_neu)
+        logger.warning("Calendar: new releases not available: %s", tmdb_neu)
         tmdb_hinweis = "Neuerscheinungen sind gerade nicht abrufbar."
     else:
         eintraege.extend(tmdb_neu)
@@ -768,7 +768,7 @@ async def kalender(
         try:
             await _tvdb_nach_tmdb(db, settings, eintraege)
         except Exception as fehler:  # noqa: BLE001 - Zuordnung ist Beiwerk
-            logger.info("TVDB-Zuordnung uebersprungen: %s", fehler)
+            logger.warning("Calendar: TVDB mapping skipped: %s", fehler)
 
     eintraege = await _altersfilter(db, settings, eintraege)
     # Erst nach der Zuordnung der Kennungen - vorher waere der eigene Eintrag

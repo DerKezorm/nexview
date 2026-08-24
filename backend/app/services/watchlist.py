@@ -62,7 +62,7 @@ def _token(user: User) -> str:
     try:
         return decrypt(user.watchlist_token)
     except Exception:  # noqa: BLE001 - Schluesselwechsel, beschaedigter Wert
-        logger.warning("Merklisten-Token von %s ist nicht lesbar", user.username)
+        logger.warning("Watchlist token of %s is not readable", user.username)
         return ""
 
 
@@ -134,7 +134,7 @@ async def _mit_kennungen(
         offen.append(werk)
 
     if offen:
-        logger.info("Merkliste: %d neue Titel werden nachgeschlagen", len(offen))
+        logger.debug("Watchlist: looking up %d new title(s)", len(offen))
         nachgeschlagen = await server.watchlist_ids(token, offen)
         _merken(db, provider, nachgeschlagen)
         fertig.extend(nachgeschlagen)
@@ -166,7 +166,7 @@ async def _als_titel(
             except AgeRestricted:
                 return None
             except TmdbError as fehler:
-                logger.info("Merkliste: %s (%d) nicht ladbar - %s", art, tmdb_id, fehler.message)
+                logger.debug("Watchlist: %s (%d) not loadable - %s", art, tmdb_id, fehler.message)
                 return None
 
     ergebnisse = await asyncio.gather(*(einer(kennung) for kennung in kennungen))

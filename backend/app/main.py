@@ -22,6 +22,7 @@ from . import __version__
 from .config import get_settings
 from .deps import require_adult
 from .db import init_db
+from .middleware import RequestContextMiddleware, unhandled_error
 from .routers import (
     about as about_router,
     admin_requests,
@@ -65,6 +66,9 @@ POLLER_ENABLED = os.getenv("NEXVIEW_DISABLE_POLLER", "").lower() not in ("1", "t
 async def lifespan(app: FastAPI):
     logs.setup()
     init_db()
+    # Erst jetzt: Die gewaehlte Protokoll-Stufe steht in der Datenbank, und die
+    # gibt es beim allerersten Start noch nicht.
+    logs.apply_stored_mode()
     # Erzeugt beim allerersten Start data/secret.key, falls kein
     # NEXVIEW_SECRET_KEY gesetzt ist.
     settings.resolved_secret_key()
@@ -91,6 +95,9 @@ async def lifespan(app: FastAPI):
         if POLLER_ENABLED
         else []
     )
+    # Der Waechter der Protokoll-Stufe laeuft immer - auch ohne Poller. Eine
+    # eingeschaltete Diagnose-Stufe muss sich verlaesslich selbst abschalten.
+    tasks.append(asyncio.create_task(logs.run_forever(stop)))
 
     yield
 
@@ -118,6 +125,14 @@ app = FastAPI(
     description="Persoenliches Media-Discovery-Dashboard mit Radarr-/Sonarr-Anbindung.",
     lifespan=lifespan,
 )
+
+# Vorgangsnummer fuer jede Anfrage. Bewusst vor CORS eingetragen, damit CORS
+# aussen liegt und die Vorabfragen (OPTIONS) gar nicht erst hier ankommen.
+app.add_middleware(RequestContextMiddleware)
+
+# Auffangnetz: Ein unbehandelter Fehler soll eine nennbare Nummer haben, statt
+# nur "Internal Server Error" zu sagen.
+app.add_exception_handler(Exception, unhandled_error)
 
 if settings.cors_origins:
     app.add_middleware(

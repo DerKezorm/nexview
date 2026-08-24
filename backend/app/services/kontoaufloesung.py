@@ -293,11 +293,11 @@ async def aufloesen(
                 if kennungen:
                     await client.delete_episode_files(kennungen)
         logger.warning(
-            "Kontoaufloesung %r: %r %s -> %s",
+            "Account wind-down %r: %r %s -> %s",
             user.username,
             laufend.title,
-            f"Staffel {laufend.season}" if laufend.season is not None else "(Serie)",
-            "behalten, stillgelegt" if wahl.behalten else "geloescht",
+            f"season {laufend.season}" if laufend.season is not None else "(series)",
+            "kept, frozen" if wahl.behalten else "deleted",
         )
 
     # 3. Bestellungen ohne Dateien: aus der Instanz nehmen, damit dort nicht
@@ -339,7 +339,7 @@ async def aufloesen(
             if fehler.status_code != 404:
                 raise
         logger.info(
-            "Kontoaufloesung %r: Bestellung %r storniert", user.username, anfrage.title
+            "Account wind-down %r: cancelled request %r", user.username, anfrage.title
         )
 
     db.flush()

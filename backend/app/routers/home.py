@@ -98,7 +98,7 @@ async def _noch_vorhanden(
                 if eintrag.status != "not_requested"
             }
         except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
-            logger.info("Bestand nicht pruefbar (%s/%s): %s", art.value, stufe, fehler)
+            logger.warning("Library check failed (%s/%s): %s", art.value, stufe, fehler)
             behalten.extend(teil)
             continue
 
@@ -231,7 +231,7 @@ async def trending(user: CurrentUser, db: DbSession) -> list[MediaItem]:
         try:
             kandidaten = await media.suggestions(db, settings, "movie", page=seite)
         except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
-            logger.warning("Trending nicht abrufbar: %s", fehler)
+            logger.warning("Trending not available: %s", fehler)
             break
 
         if not kandidaten:
@@ -240,7 +240,7 @@ async def trending(user: CurrentUser, db: DbSession) -> list[MediaItem]:
         try:
             kandidaten = (await library.apply_status(settings, "movie", kandidaten)).items
         except Exception as fehler:  # noqa: BLE001
-            logger.info("Trending ohne Bibliotheksabgleich: %s", fehler)
+            logger.warning("Trending without library match: %s", fehler)
 
         # Auch die eigenen offenen Anfragen zaehlen als "schon erledigt".
         eigene = requests_service.badges_for(
@@ -324,13 +324,13 @@ async def _kuratiert_fuer(
             db, settings, media_type.value, favoriten, personen
         )
     except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
-        logger.warning("Kuratierte Empfehlungen (%s) nicht abrufbar: %s", media_type.value, fehler)
+        logger.warning("Curated recommendations (%s) not available: %s", media_type.value, fehler)
         return []
 
     try:
         vorschlaege = (await library.apply_status(settings, media_type.value, vorschlaege)).items
     except Exception as fehler:  # noqa: BLE001
-        logger.info("Kuratiert ohne Bibliotheksabgleich: %s", fehler)
+        logger.warning("Curated recommendations without library match: %s", fehler)
 
     eigene = requests_service.badges_for(
         db, media_type, [eintrag.tmdb_id for eintrag in vorschlaege]

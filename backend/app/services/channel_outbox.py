@@ -307,15 +307,15 @@ async def process(db: Session, settings: AppSettings) -> int:
             eintrag.last_error = fehler.message
             if eintrag.attempts >= MAX_ATTEMPTS:
                 logger.warning(
-                    "%s/%s: Nachricht endgültig nicht zustellbar (%s): %s",
+                    "%s/%s: message finally undeliverable (%s): %s",
                     channels.label(target.channel),
                     target.name,
                     eintrag.type.value,
                     fehler.message,
                 )
             else:
-                logger.info(
-                    "%s/%s: Versuch %d von %d fehlgeschlagen: %s",
+                logger.warning(
+                    "%s/%s: attempt %d of %d failed: %s",
                     channels.label(target.channel),
                     target.name,
                     eintrag.attempts,
@@ -330,7 +330,7 @@ async def process(db: Session, settings: AppSettings) -> int:
 
     db.commit()
     if zugestellt:
-        logger.info("%d Benachrichtigung(en) über serverseitige Kanäle verschickt", zugestellt)
+        logger.info("Delivered %d notification(s) via server-side channels", zugestellt)
     return zugestellt
 
 
@@ -364,8 +364,7 @@ async def run_forever(stop: asyncio.Event) -> None:
                 if _offen(db):
                     await process(db, load_settings(db))
         except Exception:  # noqa: BLE001 - die Schleife darf nie sterben
-            logger.exception("Versand über serverseitige Kanäle fehlgeschlagen")
-
+            logger.exception("Delivery via server-side channels failed")
         try:
             await asyncio.wait_for(stop.wait(), timeout=INTERVAL_SECONDS)
         except TimeoutError:

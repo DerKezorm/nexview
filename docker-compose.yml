@@ -41,6 +41,12 @@ services:
       # ihn NICHT ins Repo schreiben - dafuer gibt es die .env-Datei daneben.
       NEXVIEW_SECRET_KEY: ${NEXVIEW_SECRET_KEY:-}
 
+      # Notausgang fuer die Protokoll-Stufe (quiet | normal | detailed | trace).
+      # Leer lassen: Die Stufe wird in der App eingestellt und schaltet sich
+      # nach der Fehlersuche von allein wieder zurueck. Nur setzen, wenn
+      # Nexview gar nicht erst startet und man an keine Oberflaeche kommt.
+      NEXVIEW_LOG_LEVEL: ${NEXVIEW_LOG_LEVEL:-}
+
       # Wie lange eine Anmeldung gilt.
       NEXVIEW_ACCESS_TOKEN_MINUTES: 30
       NEXVIEW_REFRESH_TOKEN_DAYS: 30

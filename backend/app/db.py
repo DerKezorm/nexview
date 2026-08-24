@@ -52,7 +52,7 @@ def init_db() -> None:
     """
     ausstehend = _pending_changes()
     if ausstehend:
-        logger.info("Datenbank wird angepasst: %s", ", ".join(ausstehend))
+        logger.info("Database schema update: %s", ", ".join(ausstehend))
         _backup_database()
 
     Base.metadata.create_all(bind=engine)
@@ -145,10 +145,10 @@ def _backup_database() -> None:
             # zerlegen - deshalb werden sie verdoppelt.
             connection.exec_driver_sql(f"VACUUM INTO '{str(ziel).replace(chr(39), chr(39) * 2)}'")
 
-        logger.info("Sicherung der Datenbank angelegt: %s", ziel.name)
+        logger.info("Database backup created: %s", ziel.name)
         _prune_backups(ordner)
     except Exception as fehler:  # noqa: BLE001 - Start darf daran nicht scheitern
-        logger.warning("Sicherung der Datenbank fehlgeschlagen: %s", fehler)
+        logger.warning("Database backup failed: %s", fehler)
 
 
 def _prune_backups(ordner: Path, behalten: int = BACKUPS_TO_KEEP) -> None:
@@ -158,7 +158,7 @@ def _prune_backups(ordner: Path, behalten: int = BACKUPS_TO_KEEP) -> None:
         try:
             alt.unlink()
         except OSError as fehler:
-            logger.warning("Alte Sicherung %s liess sich nicht loeschen: %s", alt.name, fehler)
+            logger.warning("Could not delete old backup %s: %s", alt.name, fehler)
 
 
 def _sql_literal(wert: object) -> str | None:
@@ -254,7 +254,7 @@ def _add_missing_columns() -> None:
                         f"Spalte {table.name}.{column.name} fehlt und hat keinen Standardwert."
                     )
 
-                logger.info("Datenbank wird ergänzt: %s.%s", table.name, column.name)
+                logger.info("Database extended: %s.%s", table.name, column.name)
                 connection.exec_driver_sql(klausel)
 
 
@@ -271,7 +271,7 @@ def _add_missing_indexes() -> None:
             for index in table.indexes:
                 if index.name in vorhanden:
                     continue
-                logger.info("Datenbank wird ergänzt: Index %s", index.name)
+                logger.info("Database extended: index %s", index.name)
                 index.create(bind=connection)
 
 
@@ -305,6 +305,6 @@ def _altersgrenzen_aufraeumen() -> None:
         )
         if ergebnis.rowcount:
             logger.info(
-                "Altersgrenze an %d vollwertigen Konten entfernt (gilt nur noch fuer Kinder)",
+                "Age limit removed from %d adult account(s), it now applies to children only",
                 ergebnis.rowcount,
             )

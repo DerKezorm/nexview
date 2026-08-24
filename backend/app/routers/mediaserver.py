@@ -472,8 +472,7 @@ async def connect_select(payload: SelectServer, db: DbSession, admin: AdminUser)
         raise _fehler(exc) from exc
 
     logger.info(
-        "Plex-Verbindung wird gespeichert: Server %r (machine_id %s…), "
-        "Adresse %r, erreichbar=%s",
+        "Saving Plex connection: server %r (machine_id %s...), url %r, reachable=%s",
         gewaehlt.name,
         gewaehlt.machine_id[:12],
         erreichbar or gewaehlt.url,
@@ -496,15 +495,15 @@ async def connect_select(payload: SelectServer, db: DbSession, admin: AdminUser)
     # das gemeldete Raetsel - ab jetzt stuende die Diskrepanz hier im Log.
     kontrolle = settings_service.load_settings(db)
     if kontrolle.mediaserver_configured:
-        logger.info("Plex-Verbindung gespeichert und nachgelesen: in Ordnung")
+        logger.info("Plex connection saved and read back: fine")
     else:
         logger.error(
-            "Plex-Verbindung wurde gespeichert, ist beim Nachlesen aber "
-            "unvollständig: provider=%r machine_id=%s token=%s - das ist der "
-            "Moment, in dem die Verbindung 'verschwindet'.",
+            "Plex connection was saved but is incomplete when read back: "
+            "provider=%r machine_id=%s token=%s - this is the moment where the "
+            "connection 'disappears'.",
             kontrolle.mediaserver_provider,
-            "da" if kontrolle.mediaserver_machine_id else "FEHLT",
-            "lesbar" if kontrolle.mediaserver_token else "FEHLT/UNLESBAR",
+            "present" if kontrolle.mediaserver_machine_id else "MISSING",
+            "readable" if kontrolle.mediaserver_token else "MISSING/UNREADABLE",
         )
 
     # Das eigene Konto gleich mitverknuepfen - sofern die Identitaet nicht
@@ -529,7 +528,7 @@ async def connect_select(payload: SelectServer, db: DbSession, admin: AdminUser)
     try:
         await mediaserver_library.refresh(db, settings_service.load_settings(db))
     except MediaServerError as exc:
-        logger.info("Bibliothek nach dem Verbinden nicht lesbar: %s", exc.message)
+        logger.warning("Library not readable after connecting: %s", exc.message)
 
     return ConnectResult(
         user=UserPublic.model_validate(admin),
@@ -567,7 +566,7 @@ def connect_delete(db: DbSession, admin: AdminUser) -> None:
     settings_service.clear_secret(db, "mediaserver_token")
     # Mit Namen: Sollte eine Verbindung je "von selbst" verschwinden, zeigt
     # diese Zeile, ob doch jemand den Trennen-Knopf gedrueckt hat.
-    logger.info("Media-Server-Verbindung getrennt von %r", admin.username)
+    logger.info("Media server disconnected by %r", admin.username)
 
 
 # --------------------------------------------------------------------------

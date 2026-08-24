@@ -667,7 +667,7 @@ async def episode_availability(
 
         vorhanden = await client.episode_status(eintrag.arr_id)
     except ArrError as fehler:
-        logger.info("Folgenzustand nicht abrufbar: %s", fehler.message)
+        logger.warning("Episode status not available: %s", fehler.message)
         return {}
 
     # Mengen lassen sich nicht als JSON ablegen - fuer den Zwischenspeicher

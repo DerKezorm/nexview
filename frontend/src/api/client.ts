@@ -7,6 +7,8 @@
  * Anfrage wiederholt.
  */
 
+import i18n from '../i18n'
+
 const REFRESH_STORAGE_KEY = 'nexview.refresh'
 
 let accessToken: string | null = null
@@ -86,8 +88,16 @@ async function parseError(response: Response): Promise<ErrorInfo> {
     }
     // Eigene Fälle liefern ein Objekt mit Kennung.
     if (detail && typeof detail === 'object') {
+      // Ein unbehandelter Serverfehler bekommt seinen Text hier statt vom
+      // Backend: Der Server kennt die eingestellte Sprache nicht, und die
+      // Vorgangsnummer soll in der Meldung stehen - sie ist das, was der
+      // Nutzer weitergibt und was der Administrator im Protokoll sucht.
+      const meldung =
+        detail.code === 'internal_error'
+          ? i18n.t('errors.internal', { id: String(detail.request_id ?? '?') })
+          : String(detail.message ?? `HTTP ${response.status}`);
       return {
-        message: String(detail.message ?? `HTTP ${response.status}`),
+        message: meldung,
         code: typeof detail.code === 'string' ? detail.code : null,
         data: detail as Record<string, unknown>,
       }

@@ -47,10 +47,10 @@ def decrypt(value: str) -> str:
         # nirgends stand, warum. Zwei Betreiber haben genau das als Raetsel
         # gemeldet - deshalb laermt es jetzt.
         logger.warning(
-            "Ein gespeicherter Zugangsschlüssel lässt sich mit dem aktuellen "
-            "Geheimschlüssel nicht entschlüsseln. Wurde NEXVIEW_SECRET_KEY "
-            "geändert oder data/secret.key beim Container-Neubau verloren? "
-            "Betroffene Zugangsdaten müssen neu eingetragen werden."
+            "A stored credential cannot be decrypted with the current secret "
+            "key. Was NEXVIEW_SECRET_KEY changed, or was data/secret.key lost "
+            "when the container was rebuilt? The affected credentials have to "
+            "be entered again."
         )
         return ""
 

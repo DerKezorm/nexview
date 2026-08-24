@@ -400,7 +400,36 @@
     "level": "Level",
     "source": "Source",
     "message": "Message",
-    "retention": "The log rotates at 5 MB, keeps 3 older files and deletes everything after 14 days."
+    "retention": "The log rotates at 5 MB (25 MB on the deep levels), keeps 3 older files and deletes everything after 14 days. The download includes the older files.",
+    "levelHint": "A filter always includes the higher levels: “WARNING” therefore contains the errors.",
+    "requestId": "No. / user",
+    "requestIdHint": "Filter by this request number",
+    "modeTitle": "How much detail is recorded?",
+    "modeIntro": "Nexview always records — the level only decides how much. “Normal” is enough day to day; turn it up temporarily while hunting a problem.",
+    "modeUntil": "Switches back to “Normal” on its own at {{time}}.",
+    "modeEnv": "Set through the NEXVIEW_LOG_LEVEL environment variable and cannot be changed here.",
+    "traceWarning": "Only turn on “Everything” when someone explicitly asks for it: this level records every single database and HTTP line.",
+    "mode": {
+      "quiet": "Quiet",
+      "normal": "Normal",
+      "detailed": "Detailed",
+      "trace": "Everything"
+    },
+    "modeDesc": {
+      "quiet": "Warnings and errors only.",
+      "normal": "What happened, plus warnings and errors.",
+      "detailed": "Also the way there: every call to TMDB, Radarr, Sonarr and the media server.",
+      "trace": "Also the raw output of third-party libraries. Very many lines."
+    },
+    "duration": {
+      "30": "30 minutes",
+      "120": "2 hours",
+      "480": "8 hours",
+      "0": "until restart"
+    },
+    "modeTemporary": "(temporary)",
+    "modeNoLimit": "Stays on indefinitely.",
+    "durationQuestion": "Turn on “{{mode}}” for:"
   },
   "profile": {
     "intro": "Your picture, display name and password.",
@@ -758,7 +787,8 @@
   "errors": {
     "generic": "Something went wrong. Please try again.",
     "network": "The backend is unreachable. Is the server running?",
-    "sessionExpired": "Your session has expired. Please sign in again."
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "internal": "The server ran into an error. Number for troubleshooting: {{id}}"
   },
   "language": {
     "label": "Language",

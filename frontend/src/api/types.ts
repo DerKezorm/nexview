@@ -326,9 +326,24 @@ export type CalendarResult = {
 
 export type LogEntry = {
   time: string;
-  level: "INFO" | "WARNING" | "ERROR";
+  level: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
   logger: string;
   message: string;
+  /** Vorgangsnummer der Anfrage, zu der diese Zeile gehört. */
+  request_id: string | null;
+  /** Wer die Anfrage gestellt hat, falls angemeldet. */
+  user: string | null;
+};
+
+/** Wie ausführlich Nexview gerade mitschreibt. */
+export type LogModeState = {
+  mode: string;
+  /** Zeitpunkt, an dem eine Diagnose-Stufe von allein endet (ISO, UTC). */
+  until: string | null;
+  /** Über NEXVIEW_LOG_LEVEL festgelegt - dann ist Umschalten gesperrt. */
+  fixed_by_env: boolean;
+  modes: string[];
+  durations: number[];
 };
 
 /** Eine Staffel, wie TMDB sie kennt. */

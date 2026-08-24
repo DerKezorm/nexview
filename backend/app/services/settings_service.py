@@ -444,10 +444,9 @@ def load_settings(db: Session) -> AppSettings:
             if name not in _unlesbar_gemeldet:
                 _unlesbar_gemeldet.add(name)
                 logger.warning(
-                    "Gespeichertes Geheimnis %r ist mit dem aktuellen "
-                    "Geheimschlüssel nicht lesbar - der Wert wird wie leer "
-                    "behandelt. Wurde NEXVIEW_SECRET_KEY geändert oder "
-                    "data/secret.key beim Container-Neubau verloren?",
+                    "Stored secret %r is not readable with the current secret "
+                    "key - it is treated as empty. Was NEXVIEW_SECRET_KEY changed, "
+                    "or was data/secret.key lost when the container was rebuilt?",
                     name,
                 )
 
@@ -714,14 +713,14 @@ def verbindungsbericht() -> None:
 
     einstellungen = get_settings()
     if einstellungen.secret_key:
-        quelle = "NEXVIEW_SECRET_KEY (Umgebungsvariable)"
+        quelle = "NEXVIEW_SECRET_KEY (environment variable)"
     else:
-        quelle = f"Datei {einstellungen.key_file}"
-    logger.info("Geheimschlüssel: %s", quelle)
+        quelle = f"file {einstellungen.key_file}"
+    logger.info("Secret key source: %s", quelle)
     if not einstellungen.secret_key:
         logger.info(
-            "secret.key vorhanden: %s - liegt die Datei NICHT im gemounteten "
-            "Volume, gehen beim Container-Neubau alle Zugangsdaten verloren.",
+            "secret.key present: %s - if that file is NOT inside the mounted "
+            "volume, every credential is lost when the container is rebuilt.",
             os.path.exists(einstellungen.key_file),
         )
 
@@ -731,26 +730,26 @@ def verbindungsbericht() -> None:
         for name in sorted(SECRET_KEYS):
             wert = raw.get(name, "")
             if not wert:
-                stand.append(f"{name}=leer")
+                stand.append(f"{name}=empty")
             elif decrypt(wert):
-                stand.append(f"{name}=lesbar")
+                stand.append(f"{name}=readable")
             else:
-                stand.append(f"{name}=UNLESBAR")
-        logger.info("Geheimnisse: %s", ", ".join(stand))
+                stand.append(f"{name}=UNREADABLE")
+        logger.info("Secrets: %s", ", ".join(stand))
 
         settings = load_settings(db)
         if settings.mediaserver_provider or raw.get("mediaserver_machine_id"):
             logger.info(
-                "Media-Server: provider=%r name=%r machine_id=%s url=%r "
-                "token=%s -> verbunden=%s",
+                "Media server: provider=%r name=%r machine_id=%s url=%r "
+                "token=%s -> connected=%s",
                 settings.mediaserver_provider,
                 settings.mediaserver_name,
-                (settings.mediaserver_machine_id[:12] + "…")
+                (settings.mediaserver_machine_id[:12] + "...")
                 if settings.mediaserver_machine_id
-                else "fehlt",
+                else "missing",
                 settings.mediaserver_url,
-                "lesbar" if settings.mediaserver_token else "FEHLT/UNLESBAR",
+                "readable" if settings.mediaserver_token else "MISSING/UNREADABLE",
                 settings.mediaserver_configured,
             )
         else:
-            logger.info("Media-Server: nicht eingerichtet")
+            logger.info("Media server: not configured")

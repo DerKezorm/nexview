@@ -94,7 +94,7 @@ async def refresh(db: Session, settings: AppSettings, streng: bool = False) -> i
         # Ein Anbieter, der das noch nicht kann - kein Grund fuer einen Fehler.
         return 0
     except MediaServerError as fehler:
-        logger.warning("Bibliothek des Media-Servers nicht lesbar: %s", fehler.message)
+        logger.warning("Media server library not readable: %s", fehler.message)
         if streng:
             raise
         return 0
@@ -139,14 +139,13 @@ async def refresh(db: Session, settings: AppSettings, streng: bool = False) -> i
     zusammengefasst = len(werke) - len(eindeutig)
     if zusammengefasst:
         logger.info(
-            "Media-Server-Bibliothek gelesen: %d Titel (%d Eintraege, %d in "
-            "mehreren Bibliotheken zusammengefasst)",
+            "Media server library read: %d titles (%d entries, %d merged across libraries)",
             len(eindeutig),
             len(werke),
             zusammengefasst,
         )
     else:
-        logger.info("Media-Server-Bibliothek gelesen: %d Titel", len(eindeutig))
+        logger.info("Media server library read: %d titles", len(eindeutig))
     return len(eindeutig)
 
 

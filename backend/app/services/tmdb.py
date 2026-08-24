@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from . import http_log
 from .filters import (
     MIN_VOTES_FOR_RATING,
     MIN_VOTES_FOR_RATING_SORT,
@@ -56,6 +57,8 @@ async def _http() -> httpx.AsyncClient:
                     base_url=BASE_URL,
                     timeout=TIMEOUT,
                     headers={"Accept": "application/json"},
+                    # Eine Zeile pro Aufruf ins Protokoll - siehe http_log.py.
+                    event_hooks=http_log.event_hooks("tmdb"),
                     limits=httpx.Limits(
                         max_connections=MAX_PARALLEL_REQUESTS,
                         max_keepalive_connections=MAX_PARALLEL_REQUESTS,
@@ -102,8 +105,10 @@ class TmdbClient:
             async with _request_slots:
                 response = await client.get(path, params=query)
         except httpx.TimeoutException as exc:
+            http_log.unreachable("tmdb", "GET", path, exc)
             raise TmdbError("TMDB antwortet nicht (Zeitüberschreitung).") from exc
         except httpx.HTTPError as exc:
+            http_log.unreachable("tmdb", "GET", path, exc)
             raise TmdbError("TMDB ist nicht erreichbar. Besteht eine Internetverbindung?") from exc
 
         if response.status_code == 401:

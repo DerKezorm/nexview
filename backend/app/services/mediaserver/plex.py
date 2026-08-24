@@ -322,7 +322,7 @@ class PlexServer(MediaServer):
             # stand nirgends. Das sind zwei verschiedene Probleme mit zwei
             # verschiedenen Loesungen.
             logger.warning(
-                "Plex-Server antwortet auf %s mit HTTP %s (Antwort: %s)",
+                "Plex server answered %s with HTTP %s (body: %s)",
                 pfad,
                 antwort.status_code,
                 " ".join(antwort.text[:200].split()),
@@ -461,15 +461,13 @@ class PlexServer(MediaServer):
             # wirklich die Bibliotheks-Freigabe, und das ist etwas anderes als
             # ein abgelaufenes Token.
             logger.warning(
-                "Konto hat keinen Zugriff auf den Server %s - "
-                "die Bibliotheks-Freigabe fehlt",
+                "Account has no access to server %s - the library share is missing",
                 self.machine_id,
             )
             return konto_token
         if eigenes != konto_token:
-            logger.info(
-                "Fuer diesen Server gilt ein eigenes Zugriffs-Token "
-                "(geteiltes Konto) - es wird verwendet"
+            logger.debug(
+                "This server has its own access token (shared account), using it"
             )
         return eigenes
 

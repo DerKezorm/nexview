@@ -82,6 +82,13 @@ export type User = {
   mediaserver_username: string | null;
   mediaserver_linked: boolean;
   /**
+   * Alle verknüpften Medienserver-Konten, je eine Zeile.
+   *
+   * Die beiden Felder darüber nennen nur das zuletzt hinzugekommene – im
+   * Parallelbetrieb also willkürlich eines von zweien.
+   */
+  mediaserver_accounts: { provider: string; username: string | null }[];
+  /**
    * Kann sich dieses Konto auch mit Passwort anmelden? Wer über den
    * Media-Server angelegt wurde, hat zunächst keines – und darf die
    * Verknüpfung dann nicht lösen, ohne sich auszusperren.
@@ -231,6 +238,22 @@ export type SetupStatus = {
   /** Ist ein Media-Server verbunden? Nur dann gibt es den zusätzlichen Knopf. */
   mediaserver_login: boolean;
   mediaserver_provider: string | null;
+  /**
+   * **Welche** Anbieter einen Anmeldeweg bieten – und welcher Art.
+   *
+   * Die beiden Felder darüber reichten nicht: Aus „irgendeiner ist verbunden"
+   * wurde ein fest beschrifteter Plex-Knopf, der bei einer Jellyfin-only-
+   * Installation beim Klick scheiterte.
+   */
+  mediaserver_login_ways: LoginWay[];
+};
+
+/** Ein Anmeldeweg auf der Anmeldeseite. */
+export type LoginWay = {
+  provider: string;
+  label: string;
+  /** `pin` öffnet das Fenster des Anbieters, `password` klappt ein Formular auf. */
+  kind: "pin" | "password";
 };
 
 export type MediaType = "movie" | "tv";
@@ -500,6 +523,16 @@ export type MediaItem = {
    */
   watched?: boolean;
   /**
+   * Wer sagt „gesehen“ – und wer widerspricht.
+   *
+   * **Beide Listen bleiben leer, solange nur ein Medienserver verbunden ist.**
+   * Die Entscheidung darüber fällt im Backend, weil nur dort bekannt ist,
+   * welche Server überhaupt verbunden sind. Sind sie gefüllt, sind sie es
+   * beide – dann und nur dann gibt es etwas zu unterscheiden.
+   */
+  watched_on?: string[];
+  watched_not_on?: string[];
+  /**
    * Wo die Datei liegt – bei Filmen samt Dateiname, bei Serien der Ordner.
    *
    * **Kommt nur bei Administratoren mit.** Das entscheidet der Server, nicht
@@ -711,6 +744,31 @@ export type AppConfig = {
   /** Ist ein Media-Server verbunden? Daran hängt der Merklisten-Bereich. */
   mediaserver_configured: boolean;
   /**
+   * **Welche** Server verbunden sind. Heute höchstens einer – trotzdem eine
+   * Liste, weil genau hier der Parallelbetrieb ansetzt.
+   */
+  mediaserver_providers: string[];
+  /**
+   * Welche Anbieter **diese Fassung** kennt – unabhängig davon, ob einer
+   * verbunden ist. Alles, was hier nicht steht, bekommt eine ausgegraute
+   * Kachel: sichtbar, damit man weiß, dass es kommt, aber nicht anklickbar.
+   */
+  mediaserver_available: string[];
+  /**
+   * Welche Anbieter mit Benutzername und Passwort verbunden werden.
+   *
+   * Entscheidet, welches Formular die Einrichtung zeigt. Kommt vom Server,
+   * damit hier keine zweite Liste steht, die davon abweichen kann.
+   */
+  mediaserver_password_login: string[];
+  /**
+   * Quellen für Merklisten: was diese Fassung kennt, und was davon verbunden
+   * ist. Zwei Listen, weil eine Quelle auch dann dastehen soll, wenn sie
+   * *nicht* verbunden ist – sonst verschwindet der Bereich kommentarlos.
+   */
+  mediaserver_watchlist_available: string[];
+  mediaserver_watchlist_connected: string[];
+  /**
    * Speicher-Kontingente eingeschaltet? Ist der Schalter aus, verhält sich
    * Nexview wie vor deren Einbau – kein Reiter, keine Karte, keine
    * Verteilung, und gemessen wird auch nicht.
@@ -780,16 +838,26 @@ export type AppSettings = {
   mediaserver_url: string;
   mediaserver_token_set: boolean;
   mediaserver_configured: boolean;
+  /**
+   * Alle Verbindungen, je eine Zeile.
+   *
+   * Die Einzelwerte darüber (`mediaserver_name`, `mediaserver_url`) sind immer
+   * die der **ersten**. Wer eine bestimmte meint – etwa die Seite eines
+   * Anbieters –, muss hier suchen, sonst zeigt sie im Parallelbetrieb die
+   * Angaben des anderen Servers.
+   */
+  mediaserver_connections: MediaServerConnectionInfo[];
   mediaserver_auto_import: boolean;
   mediaserver_default_role: "user" | "approver";
-  mediaserver_default_quota_movies: number | null;
-  mediaserver_default_quota_series: number | null;
-  mediaserver_default_quota_period: QuotaPeriod;
-  /** Leer = keine Altersbeschränkung für neu angelegte Konten. */
-  mediaserver_default_age: number | null;
-
   /** Dürfen Benutzer ihre Merkliste sehen und daraus anfragen? */
   watchlist_enabled: boolean;
+  /**
+   * Zählt der belegte Platz statt der Stückzahl? Entscheidet, was neuen Konten
+   * als Grenze angekündigt wird – es gilt immer nur eine Währung.
+   */
+  storage_enabled: boolean;
+  /** Hausvorgabe in GB; `null` bzw. ≤ 0 heißt unbegrenzt. */
+  storage_default_limit_gb: number | null;
   /**
    * Gespeicherte Zugangsdaten, die sich mit dem aktuellen Schlüssel nicht
    * mehr entschlüsseln lassen – NEXVIEW_SECRET_KEY geändert oder
@@ -818,6 +886,18 @@ export type MediaServerOption = {
   name: string;
   url: string;
   owned: boolean;
+};
+
+/**
+ * Was ein Trennen der Verbindung anrichten würde – abrufbar **vor** dem Klick.
+ *
+ * `gefaehrdet` sind Konten, die nur über den Medienserver hereinkommen: kein
+ * eigenes Passwort, keine bestätigte Adresse. Für sie ist ein Trennen keine
+ * Umstellung, sondern eine verschlossene Tür.
+ */
+export type MediaServerDisconnectImpact = {
+  verknuepft: number;
+  gefaehrdet: { id: number; username: string; display_name: string | null }[];
 };
 
 export type AboutInfo = {
@@ -1277,3 +1357,11 @@ export type QuotaOverview = {
   tv: QuotaInfo;
   auto_approve: boolean;
 };
+
+/** Ein verbundener Medienserver, wie ihn die Einstellungen ausliefern. */
+export interface MediaServerConnectionInfo {
+  provider: string;
+  /** Wie der Server sich selbst nennt – „Bizzy" sagt mehr als eine Adresse. */
+  name: string;
+  url: string;
+}

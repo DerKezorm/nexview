@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from . import __version__
 from .config import get_settings
-from .models import Base
+from .models import Base, NotificationType, utcnow
 
 logger = logging.getLogger("nexview.db")
 
@@ -59,6 +59,80 @@ def init_db() -> None:
     _add_missing_columns()
     _add_missing_indexes()
     _altersgrenzen_aufraeumen()
+    _verwaiste_meldungsarten_aufraeumen()
+    # Muss **vor** dem Nachtragen der Herkunft laufen - das liest den
+    # Anbieternamen bevorzugt aus dieser Tabelle.
+    _verbindung_in_die_tabelle()
+    _gesehen_herkunft_nachtragen()
+    _verknuepfungen_in_die_tabelle()
+
+
+def _verknuepfungen_in_die_tabelle() -> None:
+    """Die eine Medienserver-Identitaet je Benutzer in ihre Tabelle.
+
+    Dasselbe Muster wie ``_verbindung_in_die_tabelle``, eine Ebene tiefer: Dort
+    wanderte der *Server* aus flachen Werten in eine Tabelle, hier die
+    *Identitaeten der Menschen*. Der Grund ist derselbe - bis 0.18.0 konnte es
+    nur eine geben, im Parallelbetrieb sind es zwei.
+
+    Der Schritt laeuft **genau einmal**: Steht schon eine Zeile da, passiert
+    nichts.
+
+    ⚠️ **Anders als beim Server bleiben die alten Spalten stehen und behalten
+    ihren Wert.** Beim Server wurden sie geleert, damit es nicht zwei
+    Wahrheiten gibt. Hier waere genau das falsch: Die Spalten am Benutzer
+    fuehren weiterhin die *zuletzt* verknuepfte Identitaet, und ein gutes
+    Dutzend Stellen liest sie - Profil, Anmeldung, Wiedererkennen. Sie zu
+    leeren hiesse, jeden Benutzer bei laufendem Betrieb als "nicht verbunden"
+    dastehen zu lassen. Gepflegt werden sie ab jetzt von
+    ``mediaserver_accounts.link``.
+
+    Das Token wandert verschluesselt und ungeoeffnet - wie beim Server auch.
+    """
+    with engine.begin() as connection:
+        schon_da = connection.exec_driver_sql(
+            "SELECT COUNT(*) FROM user_media_server_accounts"
+        ).scalar()
+        if schon_da:
+            return
+
+        zeilen = connection.exec_driver_sql(
+            "SELECT id, mediaserver_provider, mediaserver_account_id, "
+            "mediaserver_username, mediaserver_email, mediaserver_thumb, "
+            "mediaserver_linked_at, watchlist_token, watchlist_connected_at, "
+            "watchlist_token_invalid_at FROM users "
+            "WHERE mediaserver_provider IS NOT NULL "
+            "AND mediaserver_provider != '' "
+            "AND mediaserver_account_id IS NOT NULL "
+            "AND mediaserver_account_id != ''"
+        ).fetchall()
+        if not zeilen:
+            return
+
+        jetzt = str(utcnow().replace(microsecond=0))
+        for zeile in zeilen:
+            connection.exec_driver_sql(
+                "INSERT INTO user_media_server_accounts "
+                "(user_id, provider, account_id, username, email, thumb, "
+                "linked_at, token, token_connected_at, token_invalid_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    zeile[0],
+                    zeile[1],
+                    zeile[2],
+                    zeile[3],
+                    zeile[4],
+                    zeile[5],
+                    zeile[6] or jetzt,
+                    zeile[7],
+                    zeile[8],
+                    zeile[9],
+                ),
+            )
+        logger.info(
+            "Personal media server links moved into their own table: %d account(s)",
+            len(zeilen),
+        )
 
 
 def _existing_columns(connection, table_name: str) -> set[str]:
@@ -307,4 +381,205 @@ def _altersgrenzen_aufraeumen() -> None:
             logger.info(
                 "Age limit removed from %d adult account(s), it now applies to children only",
                 ergebnis.rowcount,
+            )
+
+
+def _verbindung_in_die_tabelle() -> None:
+    """Die eine Medienserver-Verbindung aus den Einstellungen in ihre Tabelle.
+
+    Bis zum Parallelbetrieb lag sie in fuenf flachen Werten - Anbieter,
+    Kennung, Name, Adresse, Token. Das ging, solange es nur eine geben konnte.
+
+    Der Schritt laeuft **genau einmal**: Steht schon eine Zeile in der Tabelle,
+    passiert nichts. Danach werden die alten Werte geleert, damit es nicht zwei
+    Wahrheiten gibt - die zweite waere sonst genau die Art Altlast, die einem
+    ein halbes Jahr spaeter als "warum steht da noch Plex" begegnet.
+
+    ⚠️ **Das Token wandert verschluesselt und ungeoeffnet.** Es steht in beiden
+    Tabellen als derselbe Text; entschluesselt wird es erst beim Benutzen. So
+    braucht dieser Schritt weder den Schluessel noch den Einstellungsdienst -
+    und ein Schluesselwechsel macht die Wanderung nicht kaputt, sondern
+    hoechstens das Token, und das war vorher genauso.
+
+    Die Client-Kennung bleibt, wo sie ist: Sie gehoert zur Installation, nicht
+    zum Server.
+    """
+    with engine.begin() as connection:
+        schon_da = connection.exec_driver_sql(
+            "SELECT COUNT(*) FROM media_server_connections"
+        ).scalar()
+        if schon_da:
+            return
+
+        werte = dict(
+            connection.exec_driver_sql(
+                "SELECT key, value FROM settings WHERE key IN "
+                "('mediaserver_provider', 'mediaserver_machine_id', "
+                "'mediaserver_name', 'mediaserver_url', 'mediaserver_token')"
+            ).all()
+        )
+        anbieter = (werte.get("mediaserver_provider") or "").strip()
+        kennung = (werte.get("mediaserver_machine_id") or "").strip()
+        if not anbieter or not kennung:
+            # Nie verbunden gewesen, oder eine halbe Verbindung ohne Kennung -
+            # daraus laesst sich keine Zeile machen, die den Zugriff pruefen
+            # koennte. Dann lieber nichts.
+            return
+
+        connection.exec_driver_sql(
+            "INSERT INTO media_server_connections "
+            "(provider, machine_id, name, url, token, connected_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                anbieter,
+                kennung,
+                werte.get("mediaserver_name") or "",
+                werte.get("mediaserver_url") or "",
+                werte.get("mediaserver_token") or "",
+                str(utcnow().replace(microsecond=0)),
+            ),
+        )
+        connection.exec_driver_sql(
+            "UPDATE settings SET value = '' WHERE key IN "
+            "('mediaserver_provider', 'mediaserver_machine_id', "
+            "'mediaserver_name', 'mediaserver_url', 'mediaserver_token')"
+        )
+        logger.info(
+            "Media server connection moved into its own table: %r on %r",
+            anbieter,
+            werte.get("mediaserver_name") or kennung,
+        )
+
+
+# Tabellen mit einer Spalte ``providers`` - siehe ``UserWatched.providers``.
+GESEHEN_TABELLEN = ("user_watched", "user_watched_seasons")
+
+
+def _gesehen_herkunft_nachtragen() -> None:
+    """Bestehenden Gesehen-Markern den Anbieter eintragen, von dem sie stammen.
+
+    Vor dieser Spalte gab es genau einen Medienserver, also ist die Antwort
+    eindeutig: Alles, was dasteht, kam von dem, der gerade verbunden ist.
+
+    ⚠️ **Ohne diesen Schritt waeren die Marker herrenlos** - und der Abgleich
+    kann eine herrenlose Zeile nicht zuordnen. Beim ersten Lauf eines zweiten
+    Anbieters wuesste er nicht, ob "der andere Server sagt gesehen" gilt oder
+    ob die Zeile einfach nur alt ist.
+
+    Bewusst ueber rohes SQL statt ueber die Dienste: Diese Datei laeuft ganz am
+    Anfang des Starts, und der Anbietername ist kein Geheimnis. Sie einzubinden
+    brauchte ein Sitzungsobjekt und haette hier nichts zu suchen.
+
+    Gelesen wird aus **beiden** Quellen: aus ``media_server_connections``,
+    sobald es sie gibt, sonst aus den Einstellungen. Solange die Wanderung dahin
+    noch nicht angeschaltet ist, steht der Anbieter naemlich weiterhin dort -
+    und dieser Schritt soll von jener Umstellung unabhaengig richtig sein.
+
+    Sind **mehrere** Server verbunden, passiert nichts: Dann liesse sich nicht
+    mehr sagen, von welchem ein alter Marker stammt, und Raten waere schlimmer
+    als eine leere Angabe.
+
+    Ist gar kein Server verbunden, passiert ebenfalls nichts.
+
+    Laeuft bei jedem Start und trifft nach dem ersten Mal nichts mehr.
+    """
+    with engine.begin() as connection:
+        anbieter_liste = [
+            zeile[0]
+            for zeile in connection.exec_driver_sql(
+                "SELECT provider FROM media_server_connections"
+            )
+            if zeile[0] and str(zeile[0]).strip()
+        ]
+        if not anbieter_liste:
+            aus_einstellungen = connection.exec_driver_sql(
+                "SELECT value FROM settings WHERE key = 'mediaserver_provider'"
+            ).scalar()
+            if aus_einstellungen and str(aus_einstellungen).strip():
+                anbieter_liste = [str(aus_einstellungen).strip()]
+        if len(anbieter_liste) != 1:
+            return
+        anbieter = anbieter_liste[0]
+
+        for tabelle in GESEHEN_TABELLEN:
+            ergebnis = connection.exec_driver_sql(
+                f"UPDATE {tabelle} SET providers = ? "  # noqa: S608 - feste Namen
+                "WHERE providers IS NULL OR providers = ''",
+                (str(anbieter).strip(),),
+            )
+            if ergebnis.rowcount:
+                logger.info(
+                    "Watched: %d marker(s) in %s attributed to the connected server %r",
+                    ergebnis.rowcount,
+                    tabelle,
+                    str(anbieter).strip(),
+                )
+
+
+# Tabellen, deren Spalte ``type`` eine ``NotificationType`` fuehrt.
+MELDUNGSTABELLEN = ("notifications", "channel_outbox")
+
+
+def _verwaiste_meldungsarten_aufraeumen() -> None:
+    """Meldungen wegraeumen, deren Art es nicht mehr gibt.
+
+    ⚠️ **Eine einzige unbekannte Zeile legt die ganze Glocke eines Kontos
+    lahm.** ``Notification.type`` ist eine strikte Aufzaehlung; findet
+    SQLAlchemy beim Auspacken einen Wert, den ``NotificationType`` nicht kennt,
+    wirft es ``LookupError`` - und zwar nicht fuer die eine Zeile, sondern fuer
+    die ganze Abfrage. Der Endpunkt antwortet mit 500, die Oberflaeche zeigt
+    "Nichts Neues", und **der Zaehler daneben laeuft weiter**, weil er ueber
+    ``func.count`` geht und nie eine Zeile auspackt. Genau diese Kombination
+    macht den Fehler so tueckisch: Er sieht nicht aus wie ein Fehler, sondern
+    wie ein Zaehler, der spinnt.
+
+    Gemessen in einer echten Datenbank: vier Zeilen der Art
+    ``watchlist_imported`` - ein Name, den es im Code laengst nicht mehr gibt -
+    haben die Glocke eines Kontos dauerhaft blockiert und dabei eine **echte,
+    ungelesene** Rueckmeldung mit verdeckt.
+
+    Solche Zeilen entstehen, sobald eine Meldungsart umbenannt oder entfernt
+    wird: ``init_db`` ergaenzt Tabellen, Spalten und Indizes, aber es fasst
+    **niemals Zeileninhalte** an. Die alten Werte bleiben also liegen.
+
+    Wer hier eine Art umbenennt, muss deshalb wissen: Ohne diesen Schritt ist
+    das kein kosmetischer Eingriff, sondern eine kaputte Glocke bei jedem
+    Konto, das eine solche Meldung hatte.
+
+    Geloescht statt umgeschrieben, weil sich eine verschwundene Art nicht
+    sinnvoll auf eine andere abbilden laesst - der Text stuende dann unter
+    einer Ueberschrift, die nicht dazu gehoert. Auf **WARNING**, nicht INFO:
+    Hier gehen Daten verloren, und das soll jemand sehen.
+
+    Laeuft bei jedem Start und trifft nach dem ersten Mal nichts mehr.
+    """
+    bekannt = sorted(art.value for art in NotificationType)
+    frage = ", ".join("?" for _ in bekannt)
+
+    with engine.begin() as connection:
+        for tabelle in MELDUNGSTABELLEN:
+            # Erst nachsehen, was da ist - die Namen sind der eigentliche
+            # Hinweis fuer den Betreiber. Eine reine Anzahl sagt ihm nicht,
+            # welche Umbenennung ihm das eingebrockt hat.
+            fremd = [
+                zeile[0]
+                for zeile in connection.exec_driver_sql(
+                    f"SELECT DISTINCT type FROM {tabelle} "  # noqa: S608 - feste Namen
+                    f"WHERE type NOT IN ({frage})",
+                    tuple(bekannt),
+                )
+            ]
+            if not fremd:
+                continue
+
+            ergebnis = connection.exec_driver_sql(
+                f"DELETE FROM {tabelle} WHERE type NOT IN ({frage})",  # noqa: S608
+                tuple(bekannt),
+            )
+            logger.warning(
+                "Removed %d row(s) from %s with unknown notification type(s): %s - "
+                "these were unreadable and blocked the whole list for the affected users",
+                ergebnis.rowcount,
+                tabelle,
+                ", ".join(sorted(fremd)),
             )

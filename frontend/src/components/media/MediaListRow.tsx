@@ -85,7 +85,9 @@ export function MediaListRow({
         </span>
 
         <div className="flex items-center gap-2">
-          {item.watched && <WatchedBadge />}
+          {item.watched && (
+            <WatchedBadge on={item.watched_on} notOn={item.watched_not_on} />
+          )}
           <FavoriteButton item={item} markiert={favorit} />
 
           {anfragbar && (

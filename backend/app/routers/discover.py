@@ -109,7 +109,7 @@ async def _status_for(
     gesehen = (
         mediaserver_watched.gesehene_kennungen(db, user.id, MediaType(media_type), kennungen)
         if user is not None
-        else set()
+        else {}
     )
 
     merged = []

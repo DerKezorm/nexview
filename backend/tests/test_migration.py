@@ -15,9 +15,19 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 from app import db as db_modul
-from app.models import Base
+from app.models import (
+    Base,
+    ChannelKind,
+    ChannelMessage,
+    ChannelTarget,
+    Notification,
+    NotificationType,
+    Role,
+    User,
+)
 
 
 def _alte_datenbank(pfad: Path) -> None:
@@ -509,3 +519,260 @@ def test_update_ergaenzt_die_speicher_grenze(alte_installation: Path) -> None:
 
     assert "storage_limit_gb" in spalten
     assert all(zeile[0] is None for zeile in werte)
+
+
+def test_update_raeumt_meldungen_mit_verschwundener_art_weg(alte_installation: Path) -> None:
+    """Eine Meldungsart, die es nicht mehr gibt, blockiert sonst die ganze Glocke.
+
+    ``Notification.type`` ist eine strikte Aufzaehlung. Steht in der Datenbank
+    ein Wert, den ``NotificationType`` nicht kennt, wirft SQLAlchemy beim
+    Auspacken ``LookupError`` - und zwar fuer die **ganze Abfrage**, nicht nur
+    fuer die eine Zeile. Das Konto sieht danach ueberhaupt keine
+    Benachrichtigungen mehr, auch die gueltigen nicht. Der Zaehler daneben
+    laeuft weiter, weil er ueber ``func.count`` geht und nie eine Zeile
+    auspackt - der Fehler sieht deshalb aus wie ein spinnender Zaehler.
+
+    Genau das ist in einer echten Datenbank passiert: vier Zeilen der Art
+    ``watchlist_imported`` haben die Glocke eines Kontos blockiert und dabei
+    eine echte, ungelesene Rueckmeldung mit verdeckt.
+
+    Der Test prueft beide Haelften - die kaputte Zeile muss weg, und die
+    gueltige daneben muss **bleiben**. Ein Aufraeumschritt, der einfach alles
+    loescht, waere schliesslich auch "erfolgreich".
+
+    Die gueltigen Zeilen entstehen ueber das Modell, die kaputte ueber rohes
+    SQL: Einen unbekannten Wert kann das Modell gar nicht erzeugen - das ist ja
+    der Sinn der Aufzaehlung. Nur so bleibt der Test von neuen Pflichtspalten
+    unberuehrt.
+    """
+    db_modul.init_db()
+
+    with Session(db_modul.engine) as sitzung:
+        sitzung.add(User(username="opfer", password_hash="egal", role=Role.user))
+        ziel = ChannelTarget(channel=ChannelKind.ntfy, name="Test")
+        sitzung.add(ziel)
+        sitzung.flush()
+        sitzung.add(
+            Notification(
+                user_id=2, type=NotificationType.feedback, message_key="echt"
+            )
+        )
+        sitzung.add(
+            ChannelMessage(
+                channel=ChannelKind.ntfy,
+                target_id=ziel.id,
+                type=NotificationType.approved,
+            )
+        )
+        sitzung.commit()
+
+    with db_modul.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "UPDATE notifications SET type = 'watchlist_imported' WHERE type = 'feedback'"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO notifications (user_id, type, message_key, is_read, created_at,"
+            " mail_pending, mail_attempts)"
+            " VALUES (2, 'feedback', 'echt', 0, '2026-01-03 12:00:00', 0, 0)"
+        )
+        connection.exec_driver_sql(
+            "UPDATE channel_outbox SET type = 'watchlist_imported' WHERE type = 'approved'"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO channel_outbox (channel, target_id, type, attempts, created_at)"
+            " VALUES ('ntfy', 1, 'approved', 0, '2026-01-03 12:00:00')"
+        )
+
+    # Ein zweiter Start - genau das passiert nach einem Update.
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        meldungen = [
+            zeile[0] for zeile in connection.exec_driver_sql("SELECT type FROM notifications")
+        ]
+        postausgang = [
+            zeile[0] for zeile in connection.exec_driver_sql("SELECT type FROM channel_outbox")
+        ]
+
+    assert meldungen == ["feedback"], "die verschwundene Art muss weg, die gueltige bleiben"
+    assert postausgang == ["approved"], "im Postausgang gilt dasselbe"
+
+
+def test_gueltige_meldungen_ueberleben_jeden_start(alte_installation: Path) -> None:
+    """Der Aufraeumschritt darf im Normalfall nichts anfassen.
+
+    Er laeuft bei **jedem** Start. Wenn er dabei auch nur gelegentlich eine
+    gueltige Zeile mitnaehme, waere er schlimmer als das Problem, das er loest.
+    """
+    db_modul.init_db()
+
+    arten = [
+        NotificationType.approved,
+        NotificationType.rejected,
+        NotificationType.download_complete,
+        NotificationType.feedback,
+    ]
+    with Session(db_modul.engine) as sitzung:
+        sitzung.add(User(username="opfer", password_hash="egal", role=Role.user))
+        sitzung.flush()
+        for art in arten:
+            sitzung.add(Notification(user_id=2, type=art, message_key="k"))
+        sitzung.commit()
+
+    db_modul.init_db()
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        anzahl = connection.exec_driver_sql("SELECT COUNT(*) FROM notifications").scalar()
+
+    assert anzahl == len(arten)
+
+
+def test_update_traegt_den_anbieter_an_bestehenden_gesehen_markern_nach(
+    alte_installation: Path,
+) -> None:
+    """Marker aus der Zeit vor der Spalte bekommen ihre Herkunft.
+
+    Vor der Spalte gab es genau einen Medienserver, also ist die Antwort
+    eindeutig: Alles, was dasteht, kam von dem, der verbunden ist.
+
+    Ohne diesen Schritt waeren die Marker herrenlos - und beim ersten Lauf
+    eines zweiten Anbieters wuesste der Abgleich nicht, ob "der andere Server
+    sagt gesehen" gilt oder ob die Zeile einfach nur alt ist.
+    """
+    db_modul.init_db()
+
+    with db_modul.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO settings (key, value, is_secret, updated_at)"
+            " VALUES ('mediaserver_provider', 'plex', 0, '2026-01-01 12:00:00')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO user_watched (user_id, media_type, tmdb_id, providers)"
+            " VALUES (1, 'movie', 4711, '')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO user_watched_seasons (user_id, tmdb_id, season, providers)"
+            " VALUES (1, 4711, 1, '')"
+        )
+
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        filme = connection.exec_driver_sql("SELECT providers FROM user_watched").scalar()
+        staffeln = connection.exec_driver_sql(
+            "SELECT providers FROM user_watched_seasons"
+        ).scalar()
+
+    assert filme == "plex"
+    assert staffeln == "plex"
+
+
+def test_ohne_verbundenen_server_wird_nichts_geraten(alte_installation: Path) -> None:
+    """Ist kein Server verbunden, bleibt die Herkunft leer.
+
+    Dann gibt es niemanden, dem man die Marker zuschreiben koennte - und eine
+    falsche Zuschreibung waere schlimmer als eine fehlende: Der Abgleich wuerde
+    spaeter glauben, ein Server habe etwas gemeldet, was er nie gesagt hat.
+    """
+    db_modul.init_db()
+
+    with db_modul.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO user_watched (user_id, media_type, tmdb_id, providers)"
+            " VALUES (1, 'movie', 4711, '')"
+        )
+
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        assert (
+            connection.exec_driver_sql("SELECT providers FROM user_watched").scalar() == ""
+        )
+
+
+def test_update_holt_die_verbindung_in_ihre_tabelle(alte_installation: Path) -> None:
+    """Die eine Verbindung aus den Einstellungen wird zur Zeile.
+
+    Das ist der Schritt, der auf jedem bestehenden System klappen muss - dort
+    steht die Verbindung seit jeher in fuenf flachen Werten.
+    """
+    db_modul.init_db()
+
+    with db_modul.engine.begin() as connection:
+        for schluessel, wert in (
+            ("mediaserver_provider", "plex"),
+            ("mediaserver_machine_id", "maschine-1"),
+            ("mediaserver_name", "Wohnzimmer"),
+            ("mediaserver_url", "http://127.0.0.1:32400"),
+            ("mediaserver_token", "enc:egal"),
+        ):
+            connection.exec_driver_sql(
+                "INSERT INTO settings (key, value, is_secret, updated_at)"
+                " VALUES (?, ?, 0, '2026-01-01 12:00:00')",
+                (schluessel, wert),
+            )
+
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        zeilen = connection.exec_driver_sql(
+            "SELECT provider, machine_id, name, url, token FROM media_server_connections"
+        ).all()
+        alt = dict(
+            connection.exec_driver_sql(
+                "SELECT key, value FROM settings WHERE key LIKE 'mediaserver_%'"
+            ).all()
+        )
+
+    assert zeilen == [
+        ("plex", "maschine-1", "Wohnzimmer", "http://127.0.0.1:32400", "enc:egal")
+    ]
+    # Das Token wandert **verschluesselt und ungeoeffnet** - dieser Schritt
+    # braucht den Schluessel gar nicht, also kann ein Schluesselproblem ihn
+    # auch nicht kaputtmachen.
+    assert alt["mediaserver_token"] == "", "die alten Werte muessen leer sein"
+    assert alt["mediaserver_provider"] == ""
+
+
+def test_die_wanderung_laeuft_nur_einmal(alte_installation: Path) -> None:
+    """Ein zweiter Start darf keine zweite Zeile anlegen.
+
+    ``init_db`` laeuft bei **jedem** Start. Ein Schritt, der dabei jedes Mal
+    zuschlaegt, waere schlimmer als gar keiner.
+    """
+    db_modul.init_db()
+    with db_modul.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO media_server_connections"
+            " (provider, machine_id, name, url, token, connected_at)"
+            " VALUES ('plex', 'maschine-1', 'Da', '', '', '2026-01-01 12:00:00')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO settings (key, value, is_secret, updated_at)"
+            " VALUES ('mediaserver_provider', 'plex', 0, '2026-01-01 12:00:00')"
+        )
+
+    db_modul.init_db()
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        anzahl = connection.exec_driver_sql(
+            "SELECT COUNT(*) FROM media_server_connections"
+        ).scalar()
+
+    assert anzahl == 1
+
+
+def test_ohne_verbindung_entsteht_keine_zeile(alte_installation: Path) -> None:
+    """Wer nie einen Server verbunden hatte, bekommt auch keine leere Zeile."""
+    db_modul.init_db()
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        assert (
+            connection.exec_driver_sql(
+                "SELECT COUNT(*) FROM media_server_connections"
+            ).scalar()
+            == 0
+        )

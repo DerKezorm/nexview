@@ -41,6 +41,11 @@ KINDER_ERLAUBT = {
     # ein Kinderkonto hat dort ohnehin kein Gegenstueck.
     "/api/auth/mediaserver/login/start",
     "/api/auth/mediaserver/login/poll",
+    # Derselbe Weg fuer Anbieter ohne Vermittler (Jellyfin, Emby): Benutzername
+    # und Passwort statt Code. Ebenfalls ohne angemeldeten Benutzer - und ein
+    # Kinderkonto hat auf dem Medienserver kein Gegenstueck, denn Kinder sind
+    # Unterprofile ihrer Eltern und existieren dort gar nicht.
+    "/api/auth/mediaserver/login/password",
 }
 
 KINDER_PRAEFIXE = ("/api/kids/", "/api/onboarding/")

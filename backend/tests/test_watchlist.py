@@ -65,6 +65,9 @@ class FakeMerkliste(MediaServer):
         # Wie oft wurde einzeln nachgeschlagen? Daran haengt der Nachweis,
         # dass der Zwischenspeicher wirkt.
         self.nachgeschlagen = 0
+        # Mit welchen Token wurde die Merkliste abgerufen? Damit laesst sich
+        # nachweisen, dass **das des richtigen Anbieters** verwendet wurde.
+        self.gesehene_token: list[str] = []
 
     async def verify(self) -> dict:
         return {"name": "Testserver", "version": "1.0", "machine_id": "maschine-1"}
@@ -88,6 +91,7 @@ class FakeMerkliste(MediaServer):
         return True
 
     async def watchlist(self, provider_token: str) -> list[WatchlistItem]:
+        self.gesehene_token.append(provider_token)
         if self.abgelehnt:
             raise MediaServerError("Plex hat die Anmeldung nicht akzeptiert.", 401)
         return list(self.werke)
@@ -113,7 +117,9 @@ class FakeMerkliste(MediaServer):
 @pytest.fixture
 def merkliste(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeMerkliste]:
     server = FakeMerkliste()
-    monkeypatch.setattr(watchlist, "get_media_server", lambda _settings: server)
+    # Der Dienst sucht seit dem Parallelbetrieb gezielt einen Anbieter mit
+    # Merkliste - Jellyfin und Emby haben keine (siehe ``merklisten_server``).
+    monkeypatch.setattr(watchlist, "merklisten_server", lambda _settings: server)
 
     async def detail(_db, _settings, media_type: str, tmdb_id: int) -> MediaItem:
         return MediaItem(
@@ -148,16 +154,53 @@ def freischalten(**abweichend: object) -> None:
 
 
 def admin_mit_zugang(**extra: object) -> None:
-    """Dem Administrator ein verknuepftes Plex-Konto und einen Zugang geben."""
+    """Dem Administrator ein verknuepftes Plex-Konto und einen Zugang geben.
+
+    Ueber ``konten.link`` und nicht ueber die Spalten: Der Merklisten-Dienst
+    sucht das Token in der Verknuepfungstabelle. Wer nur die Spalten setzt,
+    baut einen Zustand, den es im Betrieb nicht gibt.
+    """
     from app.crypto import encrypt
+    from app.services import mediaserver_accounts as konten
+    from app.services.mediaserver import ExternalAccount
 
     with SessionLocal() as session:
         admin = session.query(User).filter(User.role == Role.admin).one()
-        admin.mediaserver_provider = "plex"
-        admin.mediaserver_account_id = "4711"
-        admin.watchlist_token = encrypt("nutzer-token")
+        konten.link(
+            admin,
+            ExternalAccount(provider="plex", account_id="4711", username="Testkonto"),
+            encrypt("nutzer-token"),
+        )
         for feld, wert in extra.items():
             setattr(admin, feld, wert)
+        # ``watchlist_token=None`` meint "kein Zugang" - dann muss auch die
+        # Zeile leer sein, sonst prueft der Test etwas anderes als gemeint.
+        if "watchlist_token" in extra and extra["watchlist_token"] is None:
+            for zeile in admin.mediaserver_accounts:
+                zeile.token = None
+        session.commit()
+
+
+def admin_mit_zweitem_anbieter() -> None:
+    """Zusaetzlich Jellyfin verknuepfen - **spaeter** als Plex.
+
+    ⚠️ Genau diese Reihenfolge war der Fehler: Die gespiegelte Spalte am
+    Benutzer fuehrt das Token des *zuletzt* verknuepften Anbieters. Der
+    Merklisten-Dienst las sie und schickte damit ein Jellyfin-Token an
+    plex.tv - Plex lehnte ab, und Nexview markierte den *Plex*-Zugang als
+    abgelaufen.
+    """
+    from app.crypto import encrypt
+    from app.services import mediaserver_accounts as konten
+    from app.services.mediaserver import ExternalAccount
+
+    with SessionLocal() as session:
+        admin = session.query(User).filter(User.role == Role.admin).one()
+        konten.link(
+            admin,
+            ExternalAccount(provider="jellyfin", account_id="jf-1", username="Markus"),
+            encrypt("jellyfin-token"),
+        )
         session.commit()
 
 
@@ -328,3 +371,28 @@ def test_admin_kann_nach_herkunft_filtern(arr_client: TestClient) -> None:
     assert len(alle) == 2
     gefiltert = arr_client.get("/api/admin/requests?from_watchlist=true").json()
     assert [r["tmdb_id"] for r in gefiltert] == [von_merkliste["tmdb_id"]]
+
+
+def test_zweiter_anbieter_verdraengt_das_plex_token_nicht(
+    arr_client: TestClient, merkliste: FakeMerkliste
+) -> None:
+    """Die Merkliste nimmt das Token **ihres** Anbieters, nicht das jüngste.
+
+    ⚠️ Genau so gemeldet: Plex um 17:30 verbunden, Jellyfin um 17:31 - und
+    danach stand "Plex nimmt den hinterlegten Zugang nicht mehr an", obwohl
+    der Plex-Zugang nachweislich gültig war. Der Dienst las die gespiegelte
+    Spalte am Benutzer, und die führte das Jellyfin-Token.
+    """
+    freischalten()
+    admin_mit_zugang()
+    admin_mit_zweitem_anbieter()
+
+    # Der Fake gibt die Merkliste nur gegen das *Plex*-Token heraus.
+    antwort = arr_client.get("/api/watchlist/plex")
+    assert antwort.status_code == 200, antwort.text
+    assert merkliste.gesehene_token == ["nutzer-token"], merkliste.gesehene_token
+
+    # Und der Zugang darf danach nicht als abgelehnt dastehen.
+    with SessionLocal() as session:
+        admin = session.query(User).filter(User.role == Role.admin).one()
+        assert admin.watchlist_token_invalid is False

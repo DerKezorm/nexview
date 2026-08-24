@@ -9,21 +9,45 @@ unterscheiden.
 
 from __future__ import annotations
 
-from app.models import User
+from app.models import User, UserMediaServerAccount
 from app.services import mediaserver_accounts as konten
+from app.models import utcnow
+
+
+ANBIETER = "plex"
 
 
 def nutzer(**felder: object) -> User:
-    grund = {"username": "user", "watchlist_token": "verschluesselt"}
+    """Ein Benutzer mit einer **Verknuepfung** - nicht nur mit Spalten.
+
+    ⚠️ Vorher wurde hier ``watchlist_token`` direkt gesetzt. Seit es
+    ``user_media_server_accounts`` gibt, ist das eine halbe Verknuepfung: Die
+    Zustandsfragen (``watchlist_connected``, ``watchlist_token_invalid``)
+    lesen die Zeilen, nicht die Spalte. Ein Test auf den Spalten prueft damit
+    einen Zustand, den es im Betrieb nicht gibt.
+    """
+    token = felder.pop("watchlist_token", "verschluesselt")
+    grund = {"username": "user"}
     grund.update(felder)
-    return User(**grund)
+    person = User(**grund)
+    person.mediaserver_accounts.append(
+        UserMediaServerAccount(
+            provider=ANBIETER,
+            account_id="4711",
+            username="Testkonto",
+            linked_at=utcnow().replace(tzinfo=None),
+            token=token,
+        )
+    )
+    konten._spalten_spiegeln(person)
+    return person
 
 
 def test_abgelehntes_token_wird_vermerkt() -> None:
     person = nutzer()
     assert person.watchlist_token_invalid is False
 
-    assert konten.token_abgelehnt(person) is True
+    assert konten.token_abgelehnt(person, ANBIETER) is True
     assert person.watchlist_token_invalid is True
     # Das Token bleibt stehen: Geloescht saehe es aus wie "nie verbunden".
     assert person.watchlist_token == "verschluesselt"
@@ -32,10 +56,10 @@ def test_abgelehntes_token_wird_vermerkt() -> None:
 def test_zweite_ablehnung_schreibt_nicht_erneut() -> None:
     """Der Abgleich laeuft stuendlich - der Zeitpunkt soll der erste bleiben."""
     person = nutzer()
-    konten.token_abgelehnt(person)
+    konten.token_abgelehnt(person, ANBIETER)
     zuerst = person.watchlist_token_invalid_at
 
-    assert konten.token_abgelehnt(person) is False
+    assert konten.token_abgelehnt(person, ANBIETER) is False
     assert person.watchlist_token_invalid_at == zuerst
 
 
@@ -46,7 +70,7 @@ def test_ohne_token_kein_hinweis() -> None:
     die ueberhaupt einmal verbunden waren.
     """
     person = nutzer(watchlist_token=None)
-    konten.token_abgelehnt(person)
+    konten.token_abgelehnt(person, ANBIETER)
     assert person.watchlist_token_invalid is False
 
 
@@ -60,9 +84,9 @@ def test_neues_token_raeumt_den_hinweis_weg() -> None:
     drei Wegen stehen.
     """
     person = nutzer()
-    konten.token_abgelehnt(person)
+    konten.token_abgelehnt(person, ANBIETER)
 
-    konten.merke_token(person, "neu-verschluesselt")
+    konten.merke_token(person, "neu-verschluesselt", ANBIETER)
 
     assert person.watchlist_token_invalid is False
     assert person.watchlist_token == "neu-verschluesselt"
@@ -71,9 +95,9 @@ def test_neues_token_raeumt_den_hinweis_weg() -> None:
 def test_leeres_token_raeumt_nichts_weg() -> None:
     """Ein Aufrufer ohne Token soll nichts ueberschreiben - auch den Hinweis nicht."""
     person = nutzer()
-    konten.token_abgelehnt(person)
+    konten.token_abgelehnt(person, ANBIETER)
 
-    konten.merke_token(person, None)
+    konten.merke_token(person, None, ANBIETER)
 
     assert person.watchlist_token_invalid is True
 
@@ -83,7 +107,7 @@ def test_trennen_raeumt_alles_weg() -> None:
         password_hash="x", email="a@b.de", email_verified=True,
         mediaserver_provider="plex", mediaserver_account_id="1",
     )
-    konten.token_abgelehnt(person)
+    konten.token_abgelehnt(person, ANBIETER)
 
     konten.unlink(person)
 
@@ -115,10 +139,10 @@ def test_erfolg_nimmt_den_hinweis_zurueck() -> None:
     ihn nichts zuruecknahm.
     """
     person = nutzer()
-    konten.token_abgelehnt(person)
+    konten.token_abgelehnt(person, ANBIETER)
     assert person.watchlist_token_invalid is True
 
-    assert konten.token_geht_wieder(person) is True
+    assert konten.token_geht_wieder(person, ANBIETER) is True
     assert person.watchlist_token_invalid is False
     # Beim zweiten Mal gibt es nichts mehr zu tun.
-    assert konten.token_geht_wieder(person) is False
+    assert konten.token_geht_wieder(person, ANBIETER) is False

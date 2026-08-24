@@ -26,7 +26,13 @@ from sqlalchemy import delete, select  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services import library  # noqa: E402
-from app.models import Base, MediaRequest, Role, User  # noqa: E402
+from app.models import (  # noqa: E402
+    Base,
+    MediaRequest,
+    Role,
+    User,
+    UserMediaServerAccount,
+)
 from app.security import hash_password  # noqa: E402
 
 ADMIN = {
@@ -178,6 +184,33 @@ def create_user(
         for feld, wert in extra.items():
             setattr(vorhanden, feld, wert)
         vorhanden.password_hash = hash_password(password)
+
+        # ⚠️ Wer hier mit ``mediaserver_provider``/``mediaserver_account_id``
+        # angelegt wird, meint "dieses Konto ist verknuepft" - und seit es
+        # ``user_media_server_accounts`` gibt, gehoert dazu eine Zeile. Ohne
+        # sie waere es eine halbe Verknuepfung: Die Anwendung sucht ueber die
+        # Tabelle, faende niemanden, und Tests zum Thema "dieselbe Identitaet
+        # zweimal" liefen ins Leere statt in ihren Konflikt.
+        if vorhanden.mediaserver_provider and vorhanden.mediaserver_account_id:
+            zeile = next(
+                (
+                    z
+                    for z in vorhanden.mediaserver_accounts
+                    if z.provider == vorhanden.mediaserver_provider
+                ),
+                None,
+            )
+            if zeile is None:
+                zeile = UserMediaServerAccount(
+                    provider=vorhanden.mediaserver_provider,
+                    account_id=vorhanden.mediaserver_account_id,
+                )
+                vorhanden.mediaserver_accounts.append(zeile)
+            zeile.account_id = vorhanden.mediaserver_account_id
+            zeile.username = vorhanden.mediaserver_username
+            zeile.email = vorhanden.mediaserver_email
+            zeile.token = vorhanden.watchlist_token
+
         session.commit()
         session.refresh(vorhanden)
         kennung = vorhanden.id

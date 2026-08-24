@@ -8,7 +8,9 @@ import { ApiError, api } from '../api/client'
 import type { User } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { Avatar } from '../components/Avatar'
+import { MediaServerLogo } from '../components/MediaServerLogo'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
+import { providerName } from '../lib/mediaserver'
 import { useConfig } from '../hooks/useConfig'
 import { DiscoverDefaults } from './profile/DiscoverDefaults'
 import { Kinder } from './profile/Kinder'
@@ -30,6 +32,7 @@ type Tab =
   | 'notifications'
   | 'discover'
   | 'security'
+  | 'mediaserver'
   | 'watchlist'
   | 'storage'
   | 'children'
@@ -174,6 +177,19 @@ export function ProfilePage() {
     { value: 'discover', labelKey: 'profile.tabDiscover' },
     { value: 'security', labelKey: 'profile.tabSecurity' },
   ]
+  // ⚠️ Ein eigener Reiter, nicht mehr unten unter „Sicherheit".
+  //
+  // Dort war er nicht zu finden: Wer sein Plex- oder Jellyfin-Konto verbinden
+  // will, sucht nicht hinter „Passwort ändern". Der Reiter erscheint nur,
+  // wenn es überhaupt etwas zu verbinden gibt - entweder steht ein Server
+  // bereit, oder das Konto hängt noch an einem, der gerade nicht verbunden
+  // ist (den muss man lösen können).
+  if (
+    (config?.mediaserver_providers ?? []).length > 0 ||
+    (user.mediaserver_accounts ?? []).length > 0
+  ) {
+    tabs.push({ value: 'mediaserver', labelKey: 'profile.tabMediaServer' })
+  }
   // Nur wenn der Administrator die Merkliste freigeschaltet hat - sonst
   // stünde dort ein Reiter, hinter dem es nichts geben kann.
   if (config?.watchlist_enabled) {
@@ -413,24 +429,61 @@ export function ProfilePage() {
       )}
 
       {/* Die Verknüpfung gehört zur Anmeldung und damit neben das Passwort. */}
-      {tab === 'security' && <MediaServerLink />}
+      {tab === 'mediaserver' && <MediaServerLink />}
 
       {/* Der Antrag, das eigene Konto zu löschen - nicht für Administratoren:
           die löschen direkt in der Benutzerverwaltung. */}
       {tab === 'security' && user?.role !== 'admin' && <KontoLoeschen />}
 
-      {/* Untermenü mit genau einem Eintrag - noch. Plex ist der einzige
-          Anbieter mit Merkliste; Jellyfin und Emby haben keine. Die Reihe
-          steht trotzdem da, damit ein zweiter Anbieter später kein Umbau
-          der Navigation wird. */}
+      {/* Eine Pille je Quelle. Heute nur Plex - Jellyfin und Emby haben
+          keine Merkliste -, später kommen weitere dazu (Trakt etwa).
+
+          ⚠️ **Eine Quelle steht auch dann da, wenn sie nicht verbunden ist.**
+          Sie wegzulassen hieße, den ganzen Bereich verschwinden zu lassen,
+          ohne dass jemand erfährt, warum. Stattdessen steht sie blass da und
+          sagt es. */}
       {tab === 'watchlist' && (
         <>
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-accent-500/60 bg-accent-500/15 px-3.5 py-1.5 text-sm font-medium text-accent-400">
-              Plex
-            </span>
+            {(config?.mediaserver_watchlist_available ?? []).map((anbieter) => {
+              const verbunden = (
+                config?.mediaserver_watchlist_connected ?? []
+              ).includes(anbieter)
+              return (
+                <span
+                  key={anbieter}
+                  className={
+                    'flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium ' +
+                    (verbunden
+                      ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
+                      : 'border-ink-700 bg-ink-950/40 text-mist-600')
+                  }
+                >
+                  <MediaServerLogo provider={anbieter} className="h-3.5 w-3.5" />
+                  {providerName(anbieter)}
+                  {!verbunden && (
+                    <span className="text-xs font-normal">
+                      · {t('watchlist.sourceNotConnected')}
+                    </span>
+                  )}
+                </span>
+              )
+            })}
           </div>
-          <WatchlistPlex />
+
+          {(config?.mediaserver_watchlist_connected ?? []).length > 0 ? (
+            <WatchlistPlex />
+          ) : (
+            <Card>
+              <p className="text-sm text-mist-500">
+                {t('watchlist.sourceNotConnectedHint', {
+                  name: (config?.mediaserver_watchlist_available ?? [])
+                    .map(providerName)
+                    .join(', '),
+                })}
+              </p>
+            </Card>
+          )}
         </>
       )}
       </div>

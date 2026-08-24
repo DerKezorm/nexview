@@ -254,6 +254,36 @@ class MediaServer(ABC):
     provider: ClassVar[str]
     label: ClassVar[str]
 
+    # Wie meldet man sich bei diesem Anbieter an?
+    #
+    # ``"pin"``      - ueber einen Dritten: Nexview zeigt einen Code, bestaetigt
+    #                  wird bei plex.tv. Nexview sieht das Passwort nie.
+    # ``"password"`` - direkt: Benutzername und Passwort gehen an den Server.
+    #                  Jellyfin und Emby haben keinen Dritten.
+    #
+    # ⚠️ Das ist keine Zierde, sondern entscheidet, **welchen Knopf** die
+    # Anmeldeseite zeigt. Vorher hing dort ein fester "Mit Plex anmelden" an
+    # der blossen Frage, ob *irgendein* Server verbunden ist - eine
+    # Installation mit nur Jellyfin bekam damit einen Knopf, der beim Klick
+    # eine Fehlermeldung warf.
+    login_kind: ClassVar[str] = "pin"
+
+    # Nennt dieser Anbieter zu einem Konto eine E-Mail-Adresse?
+    #
+    # Daran haengt mehr, als es aussieht. Die Adresse ist das einzige Merkmal,
+    # ueber das sich eine fremde Identitaet einem **bestehenden** Nexview-Konto
+    # zuordnen laesst: Wer eingeladen wurde und sich spaeter erstmals ueber den
+    # Medienserver anmeldet, landet dank ihr in seinem Konto statt in einem
+    # zweiten.
+    #
+    # ⚠️ **Jellyfin hat kein solches Feld** - nicht leer, sondern gar nicht
+    # vorhanden. Deshalb kann ueber Jellyfin kein Konto neu entstehen: Nexview
+    # koennte nicht unterscheiden, ob da ein neuer Mensch steht oder jemand,
+    # der laengst ein Konto hat. Ueber den Namen zu raten waere ein
+    # Sicherheitsloch - wer sein Jellyfin-Konto "hans" nennt, uebernaehme
+    # Hans' Nexview-Konto.
+    knows_email: ClassVar[bool] = True
+
     # --- Einrichtung -------------------------------------------------------
 
     @abstractmethod
@@ -292,6 +322,48 @@ class MediaServer(ABC):
         sonst ``None`` (noch offen). ``code`` gehoert dazu, weil Plex ihn bei
         jeder Nachfrage erwartet - Jellyfins Quick Connect ebenso.
         """
+
+    async def login_with_password(
+        self, username: str, password: str, url: str | None = None, zweck: str = ""
+    ) -> tuple[str, ExternalAccount, bool]:
+        """Anmelden mit Benutzername und Passwort.
+
+        Der zweite Weg herein, neben dem PIN-Ablauf darueber - und fuer manche
+        Anbieter der einzige. Plex hat mit plex.tv einen Vermittler, bei dem
+        man bestaetigt; Jellyfin und Emby haben keinen und nehmen die Angaben
+        direkt entgegen.
+
+        Zurueck kommen drei Dinge: das Token, das Konto - und ob es ein
+        Administrator ist. Das letzte steht hier, weil der Anbieter es bei
+        derselben Antwort mitliefert und der Aufrufer es beim Verbinden
+        braucht: Ein Zugang ohne Verwaltungsrechte kann die Konten des Servers
+        nicht lesen, und das soll auffallen, bevor eine halbe Verbindung
+        gespeichert ist.
+
+        ⚠️ **Das Passwort darf nirgends bleiben.** Es geht durch diese Methode
+        an den Anbieter und wird nie gespeichert, nie protokolliert und nie an
+        den Browser zurueckgegeben. Aufbewahrt wird ausschliesslich das Token.
+
+        ``zweck`` trennt Anmeldungen, die nichts miteinander zu tun haben -
+        die Server-Verbindung des Administrators und die persoenlichen
+        Zugaenge. Jellyfin fuehrt Zugaenge je *Geraet*: Ohne diese Trennung
+        loescht jede neue Anmeldung die vorherige, und das Verbinden des
+        Servers und das Anmelden derselben Person schliessen sich gegenseitig
+        aus. Genau so passiert.
+
+        Anbieter ohne diesen Weg lassen die Methode stehen;
+        ``supports_password_login`` sagt es vorher.
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def supports_password_login(cls) -> bool:
+        """Kennt dieser Anbieter die Anmeldung mit Passwort?
+
+        Wie ``supports_watchlist``: Die Oberflaeche fragt hier nach, statt ein
+        Formular anzubieten, das der Anbieter gar nicht bedienen kann.
+        """
+        return cls.login_with_password is not MediaServer.login_with_password
 
     @abstractmethod
     async def account_for_token(self, provider_token: str) -> ExternalAccount:

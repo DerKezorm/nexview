@@ -31,11 +31,17 @@ from ..models import (
     Role,
     TokenPurpose,
     User,
+    UserMediaServerAccount,
     utcnow,
 )
 from ..security import has_usable_password, unusable_password
 from . import notify, settings_service, tokens
-from .mediaserver import ExternalAccount, LoginChallenge, new_client_identifier
+from .mediaserver import (
+    PROVIDERS,
+    ExternalAccount,
+    LoginChallenge,
+    new_client_identifier,
+)
 
 if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
     from .settings_service import AppSettings
@@ -148,18 +154,24 @@ def block(db: Session, user: User, *, by: int | None = None) -> None:
     das Loeschen wirkungslos: Wer Zugriff auf die Bibliothek hat, meldet sich
     einfach neu an und haette sofort wieder ein Konto.
     """
-    if not user.mediaserver_provider or not user.mediaserver_account_id:
-        return
-    if is_blocked(db, user.mediaserver_provider, user.mediaserver_account_id):
-        return
-    db.add(
-        MediaServerBlock(
-            provider=user.mediaserver_provider,
-            account_id=user.mediaserver_account_id,
-            username=user.mediaserver_username,
-            blocked_by=by,
+    # ⚠️ **Alle** Verknuepfungen, nicht nur die zuletzt gespiegelte.
+    #
+    # Sonst haette das Loeschen eines Benutzers mit Plex *und* Jellyfin nur
+    # einen der beiden Wege gesperrt - ueber den anderen kaeme dieselbe Person
+    # sofort wieder herein. Genau das soll ``block`` verhindern.
+    for zeile in user.mediaserver_accounts:
+        if not zeile.provider or not zeile.account_id:
+            continue
+        if is_blocked(db, zeile.provider, zeile.account_id):
+            continue
+        db.add(
+            MediaServerBlock(
+                provider=zeile.provider,
+                account_id=zeile.account_id,
+                username=zeile.username,
+                blocked_by=by,
+            )
         )
-    )
 
 
 # --------------------------------------------------------------------------
@@ -167,21 +179,105 @@ def block(db: Session, user: User, *, by: int | None = None) -> None:
 # --------------------------------------------------------------------------
 
 
-def link(user: User, account: ExternalAccount) -> None:
-    """Ein Media-Server-Konto an ein Nexview-Konto haengen."""
-    user.mediaserver_provider = account.provider
-    user.mediaserver_account_id = account.account_id
-    user.mediaserver_username = account.username
-    user.mediaserver_email = account.email
-    user.mediaserver_thumb = account.thumb
-    user.mediaserver_linked_at = utcnow().replace(tzinfo=None)
+def verknuepfung(user: User, provider: str) -> UserMediaServerAccount | None:
+    """Die Verknuepfung dieses Benutzers bei **diesem** Anbieter."""
+    for zeile in user.mediaserver_accounts:
+        if zeile.provider == provider:
+            return zeile
+    return None
+
+
+def _spalten_spiegeln(user: User) -> None:
+    """Die Einzelspalten am Benutzer aus der Tabelle nachziehen.
+
+    ⚠️ **Die einzige Stelle, die diese Spalten schreibt** - und der Grund, dass
+    es sie gibt: Ein gutes Dutzend Aufrufer liest ``mediaserver_provider`` und
+    die vier daneben. Sie fuehren die **zuletzt** verknuepfte Identitaet.
+
+    Wer sie von Hand setzt, laesst Tabelle und Spalten auseinanderlaufen - und
+    genau daran hing der rote "Zugang abgelaufen"-Balken fest, nachdem die
+    betroffene Zeile laengst wieder in Ordnung war.
+    """
+    if not user.mediaserver_accounts:
+        user.mediaserver_provider = None
+        user.mediaserver_account_id = None
+        user.mediaserver_username = None
+        user.mediaserver_email = None
+        user.mediaserver_thumb = None
+        user.mediaserver_linked_at = None
+        user.watchlist_token = None
+        user.watchlist_connected_at = None
+        user.watchlist_token_invalid_at = None
+        return
+
+    neuste = max(user.mediaserver_accounts, key=lambda z: z.linked_at)
+    user.mediaserver_provider = neuste.provider
+    user.mediaserver_account_id = neuste.account_id
+    user.mediaserver_username = neuste.username
+    user.mediaserver_email = neuste.email
+    user.mediaserver_thumb = neuste.thumb
+    user.mediaserver_linked_at = neuste.linked_at
+    user.watchlist_token = neuste.token
+    user.watchlist_connected_at = neuste.token_connected_at
+    user.watchlist_token_invalid_at = neuste.token_invalid_at
+
+
+def link(user: User, account: ExternalAccount, token: str | None = None) -> None:
+    """Ein Media-Server-Konto an ein Nexview-Konto haengen.
+
+    Schreibt an **zwei** Stellen, und das ist Absicht:
+
+    * ``user_media_server_accounts`` fuehrt *alle* Identitaeten - je Anbieter
+      eine. Dort steht die Wahrheit.
+    * Die Spalten am Benutzer fuehren die **zuletzt** verknuepfte davon. Ein
+      gutes Dutzend Stellen liest sie, und fuer die allermeisten gibt es
+      ohnehin nur eine.
+
+    ⚠️ Bis 0.18.0 gab es nur die Spalten - und damit einen stillen Datenverlust:
+    Wer Jellyfin verband, waehrend sein Konto an Plex hing, ueberschrieb die
+    Plex-Verknuepfung samt persoenlichem Token. Ohne Warnung, mitten im
+    Verbinden. Genau so passiert; deshalb die Tabelle.
+
+    ``token`` gehoert hierher und nicht in einen zweiten Aufruf: Es ist *das
+    Token dieser Verknuepfung*. Frueher lag es in einer eigenen Spalte am
+    Benutzer, konnte also nur einem Anbieter gehoeren - wer beide verband,
+    verlor das erste.
+    """
+    zeile = verknuepfung(user, account.provider)
+    if zeile is None:
+        zeile = UserMediaServerAccount(
+            provider=account.provider, account_id=account.account_id
+        )
+        user.mediaserver_accounts.append(zeile)
+
+    zeile.account_id = account.account_id
+    zeile.username = account.username
+    zeile.email = account.email
+    zeile.thumb = account.thumb
+    zeile.linked_at = utcnow().replace(tzinfo=None)
+
+    if token:
+        zeile.token = token
+        zeile.token_connected_at = utcnow()
+        zeile.token_invalid_at = None
+
+    _spalten_spiegeln(user)
+
     # Der Anbieter hat die Adresse geprueft - eine eigene Bestaetigung waere
     # eine Formalie, die nur den ersten Anmeldeversuch blockieren wuerde.
+    #
+    # ⚠️ Nur *setzen*, nie zuruecknehmen: Jellyfin kennt zu einem Konto gar
+    # keine Adresse. Wuerde hier bei fehlender Adresse die Bestaetigung
+    # geloescht, verloere jemand mit bestaetigter Plex-Adresse sie in dem
+    # Moment, in dem er Jellyfin dazunimmt - und damit seinen Weg zurueck ins
+    # Konto.
     if account.email:
         user.email_verified = True
 
 
-def merke_token(user: User, verschluesselt: str | None) -> None:
+def merke_token(
+    user: User, verschluesselt: str | None, provider: str | None = None
+) -> None:
     """Das persoenliche Anbieter-Token am Konto hinterlegen.
 
     Wird bei **jeder** Anmeldung und jeder Verknuepfung aufgerufen: Das Token
@@ -192,11 +288,20 @@ def merke_token(user: User, verschluesselt: str | None) -> None:
 
     Ein leerer Wert wird ignoriert - ein vorhandenes Token soll nicht durch
     nichts ersetzt werden, bloss weil ein Aufrufer keines zur Hand hat.
+
+    ``provider`` sagt, zu **welcher** Verknuepfung das Token gehoert. Ohne
+    Angabe gilt die zuletzt verknuepfte - das ist der Fall bei allen Wegen, die
+    unmittelbar auf ein ``link`` folgen.
     """
     if not verschluesselt:
         return
-    user.watchlist_token = verschluesselt
-    user.watchlist_connected_at = utcnow()
+    zeile = verknuepfung(user, provider or (user.mediaserver_provider or ""))
+    if zeile is None:
+        return
+    zeile.token = verschluesselt
+    zeile.token_connected_at = utcnow()
+    zeile.token_invalid_at = None
+    _spalten_spiegeln(user)
     # Ein frisches Token ist per Definition gueltig - der rote Hinweis muss
     # damit sofort verschwinden, nicht erst nach dem naechsten stuendlichen
     # Durchlauf.
@@ -209,7 +314,7 @@ def merke_token(user: User, verschluesselt: str | None) -> None:
     user.watchlist_token_invalid_at = None
 
 
-def token_abgelehnt(user: User) -> bool:
+def token_abgelehnt(user: User, provider: str) -> bool:
     """Merken, dass der Anbieter das persoenliche Token abgelehnt hat.
 
     **Das Token wird bewusst nicht geloescht.** Geloescht saehe der Zustand aus
@@ -223,13 +328,15 @@ def token_abgelehnt(user: User) -> bool:
     Gibt zurueck, ob sich etwas geaendert hat - der Aufrufer entscheidet, ob er
     dafuer eigens speichert.
     """
-    if user.watchlist_token_invalid_at is not None:
+    zeile = verknuepfung(user, provider)
+    if zeile is None or zeile.token_invalid_at is not None:
         return False
-    user.watchlist_token_invalid_at = utcnow()
+    zeile.token_invalid_at = utcnow()
+    _spalten_spiegeln(user)
     return True
 
 
-def token_geht_wieder(user: User) -> bool:
+def token_geht_wieder(user: User, provider: str) -> bool:
     """Die Markierung "abgelehnt" wieder wegnehmen.
 
     Gegenstueck zu ``token_abgelehnt``. Ohne das bliebe der rote Hinweis
@@ -239,45 +346,122 @@ def token_geht_wieder(user: User) -> bool:
 
     Gibt zurueck, ob sich etwas geaendert hat.
     """
-    if user.watchlist_token_invalid_at is None:
+    zeile = verknuepfung(user, provider)
+    if zeile is None or zeile.token_invalid_at is None:
         return False
-    user.watchlist_token_invalid_at = None
+    zeile.token_invalid_at = None
+    _spalten_spiegeln(user)
     return True
 
 
-def unlink(user: User) -> None:
-    """Die Verknuepfung loesen.
+def unlink(user: User, provider: str | None = None) -> None:
+    """Eine Verknuepfung loesen - oder alle.
+
+    ``provider`` loest genau diesen Anbieter; ohne Angabe faellt die ganze
+    Verbindung zum Medienserver weg (das war das Verhalten, als es nur eine
+    geben konnte).
 
     Wer danach weder Passwort noch bestaetigte Adresse haette, kaeme nicht mehr
     herein - das wird abgefangen, bevor hier etwas passiert.
     """
-    if not has_usable_password(user.password_hash) and not (
-        user.email and user.email_verified
-    ):
+    if kaeme_nicht_mehr_herein(user, ohne=provider):
         raise KontoFehler(
             "mediaserver_would_lock_out",
             "Lege zuerst ein Passwort fest - sonst kämst du nicht mehr hinein.",
             status_code=409,
         )
-    user.mediaserver_provider = None
-    user.mediaserver_account_id = None
-    user.mediaserver_username = None
-    user.mediaserver_email = None
-    user.mediaserver_thumb = None
-    user.mediaserver_linked_at = None
-    # Die Merkliste haengt an genau diesem Konto - ohne Verknuepfung gibt es
-    # nichts mehr, wozu das Token gehoerte. Es stehen zu lassen hiesse, ein
-    # fremdes Zugangstoken ohne Anlass aufzubewahren.
-    user.watchlist_token = None
-    user.watchlist_connected_at = None
-    user.watchlist_token_invalid_at = None
+
+    # Die betroffenen Zeilen aus der Tabelle nehmen. ``delete-orphan`` am
+    # Benutzer raeumt sie beim Speichern weg.
+    bleibt = [
+        zeile
+        for zeile in user.mediaserver_accounts
+        if provider is not None and zeile.provider != provider
+    ]
+    user.mediaserver_accounts[:] = bleibt
+
+    _spalten_spiegeln(user)
+
+
+def kaeme_nicht_mehr_herein(user: User, ohne: str | None = None) -> bool:
+    """Haette dieses Konto ohne den Medienserver noch einen Weg hinein?
+
+    ``ohne`` nennt den Anbieter, der gerade wegfaellt - alle **anderen**
+    Verknuepfungen zaehlen dann weiterhin als Weg hinein. Ohne Angabe faellt
+    der Medienserver als Ganzes weg.
+
+    Genau die Bedingung, an der ``unlink`` das eigene Trennen abweist - hier
+    als eigene Funktion, weil der Administrator dieselbe Frage fuer **alle**
+    Konten beantwortet bekommen muss, bevor er die ganze Verbindung trennt.
+
+    Zwei Wege zaehlen: ein nutzbares Passwort, oder eine **bestaetigte**
+    Adresse - dieselbe Bedingung wie in ``unlink``, absichtlich Wort fuer Wort.
+    Zwei Stellen, die dieselbe Frage verschieden beantworten, waeren genau die
+    Art Fehler, die man erst bemerkt, wenn jemand ausgesperrt ist.
+
+    ⚠️ Die Bedingung ist dabei **strenger als noetig**, und das ist Absicht.
+    "Passwort vergessen" fragt gar nicht nach der Bestaetigung; es verschickt
+    an jede hinterlegte Adresse, und der Link setzt die Bestaetigung hinterher
+    selbst. Wer eine unbestaetigte Adresse hat, kaeme also durchaus zurueck -
+    er wird hier trotzdem als gefaehrdet gezaehlt. Ein Fehlalarm kostet ein
+    ueberfluessiges Passwort, ein Uebersehen sperrt einen Menschen aus.
+    """
+    # ⚠️ **Ein zweiter Medienserver ist auch ein Weg hinein.** Wer Plex *und*
+    # Jellyfin verknuepft hat und nur eines davon loest, meldet sich weiterhin
+    # ueber das andere an. Ohne diese Zeile verlangte Nexview im Parallel-
+    # betrieb ein Passwort fuer eine Trennung, die niemanden aussperrt.
+    #
+    # ⚠️⚠️ Nur bei ``ohne``. Ohne Angabe fallen **alle** Verknuepfungen - dann
+    # ist keine davon ein Weg hinein, und die Frage beantwortet sich allein
+    # ueber Passwort und Adresse. Diese Bedingung hat hier gefehlt, und damit
+    # haette der Aussperrschutz genau in dem Fall geschwiegen, fuer den es ihn
+    # gibt: beim Trennen des ganzen Medienservers.
+    if ohne is not None and any(
+        zeile.provider != ohne for zeile in user.mediaserver_accounts
+    ):
+        return False
+    return not has_usable_password(user.password_hash) and not (
+        user.email and user.email_verified
+    )
+
+
+def verknuepfte_konten(db: Session, provider: str | None = None) -> list[User]:
+    """Alle Konten, die mit einem Medienserver verknuepft sind.
+
+    ``provider`` grenzt auf einen Anbieter ein - gebraucht, bevor der
+    Administrator *eine* Verbindung trennt: Betroffen sind dann nur die, die
+    ueber genau diesen Server hereinkommen.
+
+    Gefragt wird die Tabelle, nicht die Spalten am Benutzer. Die fuehren nur
+    die zuletzt verknuepfte Identitaet - wer Plex und Jellyfin hat, taucht
+    dort nur unter einem von beiden auf.
+    """
+    bedingung = [UserMediaServerAccount.user_id == User.id]
+    if provider is not None:
+        bedingung.append(UserMediaServerAccount.provider == provider)
+    return list(
+        db.scalars(
+            select(User)
+            .where(select(UserMediaServerAccount.id).where(*bedingung).exists())
+            .order_by(User.username)
+        )
+    )
 
 
 def find_linked(db: Session, account: ExternalAccount) -> User | None:
+    """Wem gehoert diese fremde Identitaet?
+
+    ⚠️ Ueber die Tabelle, nicht ueber die Spalten am Benutzer. Sonst faende
+    diese Suche jemanden, der Plex *und* Jellyfin verknuepft hat, nur unter
+    seinem zuletzt verbundenen Anbieter - und der andere Server legte ihm beim
+    naechsten Anmelden ein **zweites** Nexview-Konto an.
+    """
     return db.scalar(
-        select(User).where(
-            User.mediaserver_provider == account.provider,
-            User.mediaserver_account_id == account.account_id,
+        select(User)
+        .join(UserMediaServerAccount, UserMediaServerAccount.user_id == User.id)
+        .where(
+            UserMediaServerAccount.provider == account.provider,
+            UserMediaServerAccount.account_id == account.account_id,
         )
     )
 
@@ -344,8 +528,16 @@ def resolve(db: Session, settings: "AppSettings", account: ExternalAccount) -> U
         if not vorhanden.is_active:
             raise KontoFehler("account_disabled", "Dieses Konto ist deaktiviert.")
         # Name und Bild koennen sich beim Anbieter geaendert haben.
-        vorhanden.mediaserver_username = account.username
-        vorhanden.mediaserver_thumb = account.thumb
+        #
+        # ⚠️ In der **Zeile** nachziehen, nicht in der Spalte: Die Spalte
+        # gehoert der zuletzt verknuepften Identitaet. Wer sich mit Plex
+        # anmeldet, waehrend Jellyfin die juengere Verknuepfung ist, haette
+        # sonst seinen Plex-Namen in die Jellyfin-Anzeige geschrieben.
+        zeile = verknuepfung(vorhanden, account.provider)
+        if zeile is not None:
+            zeile.username = account.username
+            zeile.thumb = account.thumb
+        _spalten_spiegeln(vorhanden)
         return vorhanden
 
     if account.email:
@@ -353,7 +545,16 @@ def resolve(db: Session, settings: "AppSettings", account: ExternalAccount) -> U
             select(User).where(User.email == tokens.normalize_email(account.email))
         )
         if nach_adresse is not None:
-            if nach_adresse.mediaserver_account_id:
+            # ⚠️ Nur die Verknuepfung **dieses Anbieters** steht im Weg.
+            #
+            # Hier stand ``nach_adresse.mediaserver_account_id`` - die
+            # Einzelspalte, die im Parallelbetrieb *irgendeine* Identitaet
+            # nennt. Wer sein Jellyfin-Konto verknuepft hatte und sich dann
+            # erstmals mit Plex anmeldete, wurde damit abgewiesen: "Zu dieser
+            # Adresse gehoert bereits ein anderes Konto" - obwohl es sein
+            # eigenes war und Plex noch gar nicht verknuepft.
+            schon = verknuepfung(nach_adresse, account.provider)
+            if schon is not None and schon.account_id != account.account_id:
                 raise KontoFehler(
                     "mediaserver_link_conflict",
                     "Zu dieser Adresse gehört bereits ein anderes Konto des Media-Servers.",
@@ -363,6 +564,26 @@ def resolve(db: Session, settings: "AppSettings", account: ExternalAccount) -> U
                 raise KontoFehler("account_disabled", "Dieses Konto ist deaktiviert.")
             link(nach_adresse, account)
             return nach_adresse
+
+    # ⚠️ **Ueber einen Anbieter ohne Adresse entsteht kein Konto.**
+    #
+    # Der Schritt darueber - "gleiche Adresse, also verknuepfen" - ist die
+    # einzige Bruecke zu einem bestehenden Konto. Fehlt sie, kann Nexview
+    # nicht unterscheiden, ob hier ein neuer Mensch steht oder jemand, der
+    # laengst eines hat. Automatisch anzulegen hiesse, im zweiten Fall ein
+    # **zweites** Konto zu erzeugen - ohne Adresse und ohne Passwort, also
+    # eines, in das nur der Medienserver hineinfuehrt.
+    #
+    # Der Weg fuer diese Leute ist umgekehrt: erst anmelden wie gewohnt, dann
+    # den Medienserver im Profil verknuepfen. Danach traegt Schritt 2.
+    klasse = PROVIDERS.get(account.provider)
+    if klasse is not None and not klasse.knows_email:
+        raise KontoFehler(
+            "mediaserver_no_new_account",
+            f"Über {klasse.label} kann kein neues Konto entstehen. Melde dich mit "
+            f"deinem Nexview-Konto an und verknüpfe {klasse.label} in deinem "
+            "Profil – oder bitte den Administrator um eine Einladung.",
+        )
 
     if not settings.mediaserver_auto_import:
         raise KontoFehler(
@@ -387,15 +608,49 @@ def _anlegen(db: Session, settings: "AppSettings", account: ExternalAccount) -> 
         einladung.used_at = utcnow().replace(tzinfo=None)
     else:
         rolle = Role(settings.mediaserver_default_role)
-        quota_movies = settings.mediaserver_default_quota_movies
-        quota_series = settings.mediaserver_default_quota_series
-        periode = QuotaPeriod(settings.mediaserver_default_quota_period)
+        # **Ohne Grenze.** Frueher gab es dafuer drei eigene Einstellungen -
+        # sie sind weggefallen, und zwar aus zwei Gruenden.
+        #
+        # Erstens waren sie im Speicher-Betrieb wirkungslos: Dort zaehlt der
+        # belegte Platz, und ``requests_service._kontingent_pruefen`` steigt
+        # aus, bevor die Stueckzahl ueberhaupt geprueft wird. Der Administrator
+        # trug also Zahlen ein, die nichts taten.
+        #
+        # Zweitens ist die Stueckzahl nicht die Bremse, fuer die man sie haelt.
+        # Die Bremse ist die Freigabe direkt darunter (``auto_approve=False``):
+        # Ein neues Konto kann viel *fragen* und nichts holen. Wer einer
+        # bestimmten Person Grenzen setzen will, tut das bei der Einladung -
+        # die kennt sie weiterhin - oder hinterher in der Benutzerverwaltung.
+        quota_movies = None
+        quota_series = None
+        periode = QuotaPeriod.week
         blocked_movies = ""
         blocked_series = ""
 
     benutzer = User(
         username=_unique_username(db, account.username),
-        # Kein Passwort - wer eines will, setzt es spaeter im Profil.
+        # ⚠️ **Hier stand einmal "wer eines will, setzt es spaeter im Profil".
+        # Das war falsch.** Der Profil-Endpunkt verlangt das *aktuelle*
+        # Passwort - und genau das hat ein so entstandenes Konto per Definition
+        # nicht. Es kann sich also nicht selbst eines geben.
+        #
+        # Damit haengt dieses Konto **allein am Medienserver**. Faellt der weg,
+        # gibt es zwei Wege zurueck, und beide liegen ausserhalb seiner
+        # Reichweite:
+        #
+        # 1. **Mit Adresse:** "Passwort vergessen" genuegt. ``link`` setzt
+        #    ``email_verified`` gleich mit (der Anbieter hat die Adresse ja
+        #    geprueft), und der gemailte Link setzt es ohnehin. Braucht einen
+        #    eingerichteten Mailserver.
+        # 2. **Ohne Adresse** - Plex-Heimprofile geben keine heraus, und
+        #    Jellyfin-Konten haben grundsaetzlich keine: Nur der Administrator
+        #    kann helfen, ueber ``POST /api/users/{id}/password``. Danach meldet
+        #    sich die Person damit an, bekommt "Adresse nicht bestaetigt" und
+        #    traegt ueber den Notausgang selbst eine ein.
+        #
+        # Wer diesen Pfad anfasst, sollte ``kaeme_nicht_mehr_herein`` kennen:
+        # Dort wird genau diese Frage beantwortet, und der Trenn-Knopf des
+        # Administrators warnt danach.
         password_hash=unusable_password(),
         email=tokens.normalize_email(account.email) if account.email else None,
         role=rolle,
@@ -409,7 +664,14 @@ def _anlegen(db: Session, settings: "AppSettings", account: ExternalAccount) -> 
         quota_period=periode,
         blocked_movie_profiles=blocked_movies,
         blocked_series_profiles=blocked_series,
-        age=settings.mediaserver_default_age,
+        # **Kein Alter.** Es gab dafuer einmal eine Vorgabe; sie hat nie
+        # gewirkt: ``db._altersgrenzen_aufraeumen`` setzt bei jedem Start das
+        # Alter jedes Kontos zurueck, das kein Kinderkonto ist - und per
+        # Auto-Import entsteht nie eines. Der Wert ueberlebte also bis zum
+        # naechsten Neustart und verschwand dann lautlos.
+        #
+        # Fuer Kinder gibt es seit 0.16.0 den richtigen Weg: ein eigenes
+        # Kinderkonto unter dem Konto der Eltern, wo das Alter auch bleibt.
     )
     link(benutzer, account)
     db.add(benutzer)

@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from ..deps import DbSession, has_any_user
 from ..models import Role, User
-from ..schemas import SetupAdminCreate, SetupStatus, TokenPair
+from ..schemas import AnmeldeWeg, SetupAdminCreate, SetupStatus, TokenPair
 from ..security import (
     access_token_expires_in,
     create_access_token,
@@ -19,6 +19,7 @@ from ..security import (
     hash_password,
 )
 from ..services import mail, tokens
+from ..services.mediaserver import PROVIDERS, verbundene_anbieter
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
@@ -30,10 +31,23 @@ def setup_status(db: DbSession) -> SetupStatus:
     # Anmelden wissen, ob es den Weg ueber den Media-Server gibt - und genau
     # dort ist noch niemand angemeldet, der die Einstellungen lesen duerfte.
     settings = load_settings(db)
+    # Je verbundenem Anbieter ein Weg - mit der Art, wie er funktioniert.
+    # Ein Anbieter, den diese Fassung nicht kennt, faellt still weg; er
+    # koennte ohnehin nichts anbieten.
+    wege = [
+        AnmeldeWeg(
+            provider=anbieter,
+            label=PROVIDERS[anbieter].label,
+            kind=PROVIDERS[anbieter].login_kind,
+        )
+        for anbieter in verbundene_anbieter(settings)
+        if anbieter in PROVIDERS
+    ]
     return SetupStatus(
         needs_setup=not has_any_user(db),
-        mediaserver_login=settings.mediaserver_configured,
+        mediaserver_login=bool(wege),
         mediaserver_provider=settings.mediaserver_provider or None,
+        mediaserver_login_ways=wege,
     )
 
 

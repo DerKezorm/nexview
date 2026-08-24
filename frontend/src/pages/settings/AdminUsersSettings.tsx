@@ -14,6 +14,8 @@ import type {
   User,
 } from "../../api/types";
 import { useAuth } from "../../auth/useAuth";
+import { MediaServerLogo } from "../../components/MediaServerLogo";
+import { providerName } from "../../lib/mediaserver";
 import { Avatar } from "../../components/Avatar";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { AdminKontoAufloesung } from "./AdminKontoAufloesung";
@@ -744,9 +746,68 @@ export function AdminUsersSettings() {
                       <p className="text-xs text-mist-600">{summary(user)}</p>
                     </div>
 
+                    {/* Ein Zeichen je **verbundenem** Server. Für Server, die
+                        gar nicht verbunden sind, wäre eine Aussage sinnlos –
+                        deshalb kommt die Liste vom Backend und nicht aus einer
+                        festen Aufzählung hier.
+
+                        Grün heißt verknüpft, gedämpft heißt nicht verknüpft.
+                        Bewusst **kein Rot**: Ein Konto ohne Verknüpfung ist
+                        völlig in Ordnung, es ist nur eben ein lokales. Rot
+                        stünde hier an jeder zweiten Zeile und nähme dem
+                        Warnabzeichen daneben die Wirkung, auf das es ankommt. */}
+                    {user.role !== "child" && (config?.mediaserver_providers ?? []).length > 0 && (
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {(config?.mediaserver_providers ?? []).map((anbieter) => {
+                          // ⚠️ Aus der Liste, nicht aus `user.mediaserver_provider`.
+                          // Die Einzelspalte nennt nur die **zuletzt**
+                          // verknüpfte Identität - wer Plex und Jellyfin hat,
+                          // bekam damit ein grünes und ein graues Zeichen,
+                          // obwohl beide verknüpft sind.
+                          const konto = (user.mediaserver_accounts ?? []).find(
+                            (k) => k.provider === anbieter,
+                          );
+                          return (
+                            <MediaServerLogo
+                              key={anbieter}
+                              provider={anbieter}
+                              className={
+                                "h-4 w-4 " +
+                                (konto ? "text-ok-500" : "text-mist-700")
+                              }
+                              title={
+                                konto
+                                  ? t("adminUsers.linkedAs", {
+                                      server: providerName(anbieter),
+                                      name: konto.username ?? "",
+                                    })
+                                  : t("adminUsers.notLinkedTo", {
+                                      server: providerName(anbieter),
+                                    })
+                              }
+                            />
+                          );
+                        })}
+                      </span>
+                    )}
+
                     {!user.is_active && (
                       <span className="rounded-full bg-ink-900 px-2.5 py-1 text-xs text-mist-500 ring-1 ring-ink-700">
                         {t("adminUsers.inactive")}
+                      </span>
+                    )}
+
+                    {/* Nur wenn es klemmt. Ein Abzeichen, das an jeder zweiten
+                        Karte hinge, würde niemand mehr lesen - und dieses hier
+                        ist das einzige, das vor einer verschlossenen Tür warnt:
+                        Wer kein Passwort hat, kommt allein über den Medienserver
+                        herein. Fällt der weg, ist Schluss. */}
+                    {!user.has_password && user.role !== "child" && (
+                      <span
+                        className="rounded-full bg-warn-500/10 px-2.5 py-1 text-xs text-warn-500 ring-1 ring-warn-500/30"
+                        title={t("adminUsers.noPasswordHint")}
+                      >
+                        {t("adminUsers.noPassword")}
                       </span>
                     )}
 

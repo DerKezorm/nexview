@@ -24,7 +24,7 @@ from ..deps import CurrentUser, DbSession
 from ..models import utcnow
 from ..schemas_media import MediaItem
 from ..services import settings_service, watchlist
-from ..services.mediaserver import MediaServerError
+from ..services.mediaserver import MediaServer, MediaServerError, merklisten_server
 from ..services.mediaserver_accounts import KontoFehler
 from ..services.watchlist import WatchlistFehler
 
@@ -37,7 +37,6 @@ from .mediaserver import (
     _anbieter_fehler,
     _fehler,
     _identitaet,
-    _verbundener_server,
 )
 from ..services import mediaserver_accounts as konten
 
@@ -88,6 +87,26 @@ def _pruefe_eingeschaltet(settings) -> None:
         )
 
 
+def _merklisten_server(db: DbSession) -> tuple[MediaServer, object]:
+    """Der Medienserver, der eine Merkliste fuehrt.
+
+    ⚠️ Nicht ``_verbundener_server``: Der liefert den *ersten* verbundenen,
+    und der kann Jellyfin sein - ein Anbieter ganz ohne Merkliste. Der
+    Merklisten-Bereich haette dann Knoepfe gezeigt, hinter denen nichts liegt.
+    """
+    settings = settings_service.load_settings(db)
+    server = merklisten_server(settings)
+    if server is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "mediaserver_not_configured",
+                "message": "Es ist kein Medienserver mit Merkliste verbunden.",
+            },
+        )
+    return server, settings
+
+
 @router.get("/status", response_model=VerbindungsStand)
 def verbindung(user: CurrentUser) -> VerbindungsStand:
     """Liegt ein persoenlicher Plex-Zugang vor, und ist ein Konto verknuepft?"""
@@ -126,7 +145,7 @@ async def plex_merkliste(db: DbSession, user: CurrentUser) -> WatchlistAntwort:
 
 @router.post("/connect/start", response_model=ChallengeStarted)
 async def connect_start(db: DbSession, user: CurrentUser) -> ChallengeStarted:
-    server, settings = _verbundener_server(db)
+    server, settings = _merklisten_server(db)
     _pruefe_eingeschaltet(settings)
     if not user.mediaserver_linked:
         raise _fehler(
@@ -160,7 +179,7 @@ async def connect_poll(
     Es muss **dasselbe** Konto sein, das schon verknuepft ist: Sonst liesse
     sich eine fremde Merkliste anzeigen und auf das eigene Kontingent anfragen.
     """
-    server, _ = _verbundener_server(db)
+    server, _ = _merklisten_server(db)
     try:
         eintrag, daten, konto = await _identitaet(
             db, server, payload.poll_token, erwarteter_benutzer=user.id
@@ -173,10 +192,12 @@ async def connect_poll(
             status="pending", connected=False, linked=user.mediaserver_linked
         )
 
-    if (
-        konto.provider != user.mediaserver_provider
-        or konto.account_id != user.mediaserver_account_id
-    ):
+    # ⚠️ Gegen die Verknuepfung **dieses Anbieters** pruefen, nicht gegen die
+    # zuletzt verknuepfte am Benutzer. Wer Plex und Jellyfin hat, wuerde sonst
+    # beim Anmelden mit Plex abgewiesen, sobald Jellyfin die juengere ist -
+    # obwohl sein Plex-Konto laengst verknuepft ist.
+    vorhanden = konten.verknuepfung(user, konto.provider)
+    if vorhanden is None or vorhanden.account_id != konto.account_id:
         raise _fehler(
             KontoFehler(
                 "watchlist_other_account",
@@ -186,7 +207,10 @@ async def connect_poll(
             )
         )
 
-    konten.merke_token(user, daten.get("token"))
+    # Mit Anbieter: Ohne ihn landete ein frisches Plex-Token in der Zeile des
+    # zuletzt verknuepften Anbieters - also womoeglich bei Jellyfin, das damit
+    # nichts anfangen kann.
+    konten.merke_token(user, daten.get("token"), konto.provider)
     eintrag.used_at = utcnow().replace(tzinfo=None)
     db.commit()
     return VerbindungsStand(

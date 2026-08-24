@@ -35,7 +35,7 @@ from ..schemas_media import MediaItem
 from . import media
 from .media import AgeRestricted, TmdbError
 from . import mediaserver_accounts as konten
-from .mediaserver import MediaServerError, get_media_server
+from .mediaserver import MediaServerError, merklisten_server
 from .mediaserver.base import WatchlistItem
 from .settings_service import AppSettings, for_user
 
@@ -56,13 +56,25 @@ class WatchlistFehler(Exception):
         self.status_code = status_code
 
 
-def _token(user: User) -> str:
-    if not user.watchlist_token:
+def _token(user: User, provider: str) -> str:
+    """Das persoenliche Token **dieses Anbieters**.
+
+    ⚠️ Hier stand ``user.watchlist_token`` - die gespiegelte Spalte, und die
+    fuehrt das Token des *zuletzt* verknuepften Anbieters. Wer Plex um 17:30
+    und Jellyfin um 17:31 verband, schickte damit sein **Jellyfin**-Token an
+    plex.tv. Plex lehnte ab, zu Recht - und Nexview markierte daraufhin den
+    *Plex*-Zugang als abgelaufen und zeigte "Bitte einmal neu anmelden",
+    obwohl mit dem Plex-Zugang alles in Ordnung war. Genau so gemeldet.
+    """
+    zeile = konten.verknuepfung(user, provider)
+    if zeile is None or not zeile.token:
         return ""
     try:
-        return decrypt(user.watchlist_token)
+        return decrypt(zeile.token)
     except Exception:  # noqa: BLE001 - Schluesselwechsel, beschaedigter Wert
-        logger.warning("Watchlist token of %s is not readable", user.username)
+        logger.warning(
+            "Watchlist token of %s for %r is not readable", user.username, provider
+        )
         return ""
 
 
@@ -182,13 +194,17 @@ async def lesen(
     TMDB-Nummer kennt, lassen sich nicht anzeigen und nicht anfragen. Sie
     verschwinden nicht stillschweigend, sondern werden gezaehlt.
     """
-    server = get_media_server(settings)
+    # Der Anbieter, der ueberhaupt eine Merkliste kennt - nicht einfach der
+    # erste verbundene. Siehe ``merklisten_anbieter``.
+    server = merklisten_server(settings)
     if server is None:
         raise WatchlistFehler(
-            "mediaserver_not_configured", "Es ist kein Media-Server verbunden.", 404
+            "mediaserver_not_configured",
+            "Es ist kein Medienserver mit Merkliste verbunden.",
+            404,
         )
 
-    token = _token(user)
+    token = _token(user, server.provider)
     if not token:
         raise WatchlistFehler(
             "watchlist_not_connected",
@@ -197,7 +213,10 @@ async def lesen(
 
     try:
         werke = await server.watchlist(token)
-        werke = await _mit_kennungen(db, server, settings.mediaserver_provider, token, werke)
+        # ``server.provider`` und nicht der erste verbundene: Der
+        # Zwischenspeicher fuer die Zuordnung wird danach benannt, und ein
+        # falscher Name mischte Plex-Titel unter eine fremde Herkunft.
+        werke = await _mit_kennungen(db, server, server.provider, token, werke)
     except MediaServerError as fehler:
         if fehler.status_code == 401:
             # Nicht bloss ein Fehler, sondern eine Handlungsanweisung: Das
@@ -206,7 +225,7 @@ async def lesen(
             # Hier faellt es frueher auf als im stuendlichen Abgleich - wer die
             # Seite oeffnet, merkt es sofort. Deshalb auch hier vermerken,
             # damit der Hinweis unter dem Menue erscheint.
-            if konten.token_abgelehnt(user):
+            if konten.token_abgelehnt(user, server.provider):
                 db.commit()
             raise WatchlistFehler(
                 "watchlist_token_invalid",

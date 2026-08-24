@@ -13,9 +13,34 @@
 
 import { useTranslation } from 'react-i18next'
 
-export function WatchedBadge({ className = '' }: { className?: string }) {
+/**
+ * `on` und `notOn` sind entweder **beide** gefüllt oder beide leer – das
+ * entscheidet das Backend, weil nur dort bekannt ist, welche Server verbunden
+ * sind. Sind sie leer, heißt das Auge schlicht „gesehen“; das ist der
+ * Normalfall mit einem Medienserver und bleibt es auch.
+ *
+ * Sind sie gefüllt, sind sich zwei verbundene Server uneins. Dann bleibt das
+ * Auge grün – gesehen ist gesehen –, aber der Hinweistext verschweigt den
+ * Widerspruch nicht. Ohne ihn stünde jemand davor, nähme den Haken auf einem
+ * Server weg und verstünde nicht, warum das Auge bleibt.
+ */
+export function WatchedBadge({
+  className = '',
+  on = [],
+  notOn = [],
+}: {
+  className?: string
+  on?: string[]
+  notOn?: string[]
+}) {
   const { t } = useTranslation()
-  const text = t('status.watched')
+  const uneins = on.length > 0 && notOn.length > 0
+  const text = uneins
+    ? t('status.watchedOnlyOn', {
+        on: on.join(', '),
+        notOn: notOn.join(', '),
+      })
+    : t('status.watched')
 
   return (
     <span

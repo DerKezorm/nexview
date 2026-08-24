@@ -186,7 +186,9 @@ async def test_einlesen_ersetzt_den_bestand(
             LibraryItem(media_type="tv", guid="p2", title="Severance", tvdb_id=371980, year=2022),
         ]
     )
-    monkeypatch.setattr(mediaserver_library, "get_media_server", lambda _s: server)
+    monkeypatch.setattr(
+        mediaserver_library, "media_server_for_setup", lambda _s, _a: server
+    )
 
     with SessionLocal() as db:
         anzahl = await mediaserver_library.refresh(db, load_settings(db))
@@ -218,7 +220,9 @@ async def test_ausfall_laesst_den_bestand_stehen(
 
             raise MediaServerError("Server aus")
 
-    monkeypatch.setattr(mediaserver_library, "get_media_server", lambda _s: Kaputt([]))
+    monkeypatch.setattr(
+        mediaserver_library, "media_server_for_setup", lambda _s, _a: Kaputt([])
+    )
     with SessionLocal() as db:
         assert await mediaserver_library.refresh(db, load_settings(db)) == 0
         assert db.query(MediaServerLibraryItem).count() == 1
@@ -238,7 +242,9 @@ def test_anbieter_ohne_bibliothek_ist_kein_fehler(
     class Schlicht(FakeMediaServer):
         pass  # erbt den NotImplementedError aus der Basis
 
-    monkeypatch.setattr(mediaserver_library, "get_media_server", lambda _s: Schlicht())
+    monkeypatch.setattr(
+        mediaserver_library, "media_server_for_setup", lambda _s, _a: Schlicht()
+    )
 
     import asyncio
 
@@ -357,8 +363,14 @@ async def test_handknopf_zeigt_den_fehler(
     # Beide Stellen ueberschreiben: Der Router prueft die Verbindung selbst.
     from app.routers import mediaserver as mediaserver_router
 
-    monkeypatch.setattr(mediaserver_library, "get_media_server", lambda _s: Kaputt([]))
-    monkeypatch.setattr(mediaserver_router, "get_media_server", lambda _s: Kaputt([]))
+    monkeypatch.setattr(
+        mediaserver_library, "media_server_for_setup", lambda _s, _a: Kaputt([])
+    )
+    # Der Handknopf geht ueber ``media_server_for_setup`` - ``get_media_server``
+    # gibt es im Router nicht mehr, seit der Abgleich alle Anbieter durchlaeuft.
+    monkeypatch.setattr(
+        mediaserver_router, "media_server_for_setup", lambda _s, _p="plex", url="": Kaputt([])
+    )
 
     antwort = admin_client.post("/api/admin/mediaserver/library/refresh")
     assert antwort.status_code == 502

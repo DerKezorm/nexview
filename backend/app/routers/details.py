@@ -32,6 +32,7 @@ from ..services import (
     ratings,
     requests_service,
 )
+from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
 
@@ -119,9 +120,18 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
         gesehen = mediaserver_watched.gesehene_kennungen(
             db, user.id, MediaType(media_type), kennungen
         )
+        verbunden = verbundene_anbieter(settings)
         for eintrag in eintraege:
             if eintrag.tmdb_id in gesehen:
                 eintrag.watched = True
+                # Nur bei mehreren verbundenen Servern und nur, wenn sie sich
+                # uneins sind - sonst bleiben beide Listen leer und das Auge
+                # sagt schlicht "gesehen".
+                eintrag.watched_on, eintrag.watched_not_on = (
+                    mediaserver_watched.herkunft_aufteilen(
+                        gesehen[eintrag.tmdb_id], verbunden
+                    )
+                )
 
         # Zweite Achse zuletzt - sie ergaenzt nur, sie ersetzt nichts.
         await uhd.anreichern(db, settings, media_type, list(eintraege), user)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .models import MediaType
 
@@ -143,6 +143,12 @@ class PersonCredit(BaseModel):
     # sofort auf, sobald eine 4K-Instanz eingerichtet war - dann scheitert
     # *jede* Personenseite.
     status_uhd: str | None = None
+    # Dritter Fall derselben Sorte, und der Kommentar oben hat ihn vorhergesagt:
+    # ``details._mit_status`` setzt seit dem Parallelbetrieb auch die Herkunft
+    # des Gesehen-Markers. Ohne diese beiden Zeilen scheiterte die Personenseite
+    # wieder mit 500 - und wieder nur bei Filmografien mit einem gesehenen Titel.
+    watched_on: list[str] = Field(default_factory=list)
+    watched_not_on: list[str] = Field(default_factory=list)
 
 
 class PersonSummary(BaseModel):
@@ -221,6 +227,19 @@ class MediaItem(BaseModel):
     # "vorhanden" oder "angefragt" und wuerde die verdecken. Ausserdem gilt es
     # je Person, waehrend der Zustand fuer alle derselbe ist.
     watched: bool = False
+    # Wer sagt "gesehen" - und wer widerspricht.
+    #
+    # **Beide Listen bleiben leer, solange nur ein Medienserver verbunden ist.**
+    # Dann gibt es nichts zu unterscheiden, und "gesehen laut Plex" waere blosses
+    # Geraeusch an jeder Kachel. Erst bei mehreren kann das gruene Auge heissen
+    # "der eine fuehrt es, der andere nicht" - und genau dann sollen die Namen
+    # dastehen, statt dass jemand raetselt, warum das Auge nicht verschwindet,
+    # wenn er den Haken auf einem Server wegnimmt.
+    #
+    # Die Entscheidung faellt bewusst hier und nicht in der Oberflaeche: Nur das
+    # Backend weiss, welche Server ueberhaupt verbunden sind.
+    watched_on: list[str] = Field(default_factory=list)
+    watched_not_on: list[str] = Field(default_factory=list)
     # Wo die Datei liegt - bei Filmen samt Dateiname, bei Serien der Ordner.
     #
     # ⚠️ **Wird nur an Administratoren ausgeliefert** (siehe

@@ -17,7 +17,14 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import MediaServerBlock, Role, User
 from app.routers import mediaserver as mediaserver_router
-from app.services.mediaserver import ExternalAccount, LoginChallenge, MediaServer, ServerCandidate
+from app.services import mediaserver as mediaserver_paket
+from app.services.mediaserver import (
+    ExternalAccount,
+    LoginChallenge,
+    MediaServer,
+    MediaServerError,
+    ServerCandidate,
+)
 
 from .conftest import ADMIN, auth_headers, create_user
 
@@ -92,9 +99,13 @@ class FakeMediaServer(MediaServer):
 def fake_server(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeMediaServer]:
     """Verbundener Media-Server, der auf Zuruf antwortet."""
     server = FakeMediaServer()
-    monkeypatch.setattr(mediaserver_router, "get_media_server", lambda _settings: server)
+    # ``get_media_server`` ist hier weggefallen: Der Code-Ablauf sucht seit dem
+    # Parallelbetrieb gezielt einen Anbieter mit Code-Anmeldung, statt blind
+    # den ersten verbundenen zu nehmen (siehe ``_code_server``).
     monkeypatch.setattr(
-        mediaserver_router, "media_server_for_setup", lambda _settings, _provider="plex": server
+        mediaserver_router,
+        "media_server_for_setup",
+        lambda _settings, _provider="plex", url="": server,
     )
     yield server
 
@@ -142,8 +153,20 @@ def test_ohne_verbindung_kein_plex_login(client: TestClient) -> None:
 def test_erste_anmeldung_legt_konto_an(
     admin_client: TestClient, fake_server: FakeMediaServer
 ) -> None:
-    """Auto-Import: Rolle, Kontingent und Alter kommen aus den Vorgaben."""
-    verbinde(admin_client, mediaserver_default_quota_movies="5", mediaserver_default_age="16")
+    """Auto-Import: nur die Rolle kommt aus den Vorgaben.
+
+    Es gab dort einmal auch Stueckzahlen und ein Alter. Beide sind weg, und
+    beide aus einem eigenen Grund:
+
+    * Die **Stueckzahlen** waren im Speicher-Betrieb wirkungslos - dort zaehlt
+      der Platz, und die Pruefung steigt vorher aus. Die Bremse fuer neue
+      Konten ist ohnehin die Freigabe, nicht das Kontingent.
+    * Das **Alter** hat nie gewirkt: ``db._altersgrenzen_aufraeumen`` setzt es
+      bei jedem Start an jedem Konto zurueck, das kein Kinderkonto ist - und
+      per Auto-Import entsteht nie eines. Der Wert ueberlebte bis zum naechsten
+      Neustart. Fuer Kinder gibt es seit 0.16.0 den richtigen Weg.
+    """
+    verbinde(admin_client)
 
     antwort = anmelden(admin_client)
     assert antwort.status_code == 200, antwort.text
@@ -152,11 +175,13 @@ def test_erste_anmeldung_legt_konto_an(
     with SessionLocal() as session:
         neu = session.query(User).filter(User.mediaserver_account_id == "4711").one()
         assert neu.role == Role.user
-        assert neu.quota_movies_limit == 5
-        assert neu.age == 16
-        # Wer neu dazukommt, darf nicht ungefragt herunterladen.
+        assert neu.quota_movies_limit is None, "neue Konten kommen ohne Stueck-Grenze"
+        assert neu.quota_series_limit is None
+        assert neu.age is None, "Altersgrenzen gibt es nur an Kinderkonten"
+        # Wer neu dazukommt, darf nicht ungefragt herunterladen. **Das** ist die
+        # Bremse - nicht das Kontingent.
         assert neu.auto_approve is False
-        # Ohne Passwort - eines setzt man spaeter im Profil.
+        # Ohne Passwort - und ohne den Weg, sich selbst eines zu setzen.
         assert neu.has_password is False
         # Plex hat die Adresse geprueft, eine eigene Bestaetigung waere Formalie.
         assert neu.email_verified is True
@@ -560,3 +585,384 @@ def test_nur_admins_duerfen_verbinden(
         == 403
     )
     assert admin_client.get("/api/admin/mediaserver/blocks", headers=headers).status_code == 403
+
+
+# --------------------------------------------------------------------------
+# Die ganze Verbindung trennen - was das fuer die anderen bedeutet
+# --------------------------------------------------------------------------
+
+
+def _ohne_passwort_und_adresse(account_id: str = "4711") -> int:
+    """Ein per Auto-Import entstandenes Konto vollends wehrlos machen.
+
+    Der Import setzt bereits ``unusable_password``; hier faellt zusaetzlich
+    die Adresse weg. Damit bleibt wirklich kein Weg mehr hinein ausser dem
+    Medienserver - genau der Fall, um den es geht.
+    """
+    with SessionLocal() as session:
+        neu = session.query(User).filter(User.mediaserver_account_id == account_id).one()
+        neu.email = None
+        neu.email_verified = False
+        session.commit()
+        return neu.id
+
+
+def test_folgen_sagen_vorher_wen_es_traefe(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """Die Auskunft gibt es **vor** dem Klick - und auch dann, wenn nichts droht.
+
+    Ein Hinweis, der nur im Ernstfall erscheint, wird beim ersten Mal nicht
+    gelesen, weil niemand ihn kennt.
+    """
+    verbinde(admin_client)
+    anmelden(admin_client)
+
+    # Noch hat das importierte Konto eine Adresse vom Anbieter - Entwarnung.
+    entwarnung = admin_client.get("/api/admin/mediaserver/connection/folgen")
+    assert entwarnung.status_code == 200
+    assert entwarnung.json()["verknuepft"] >= 1
+    assert entwarnung.json()["gefaehrdet"] == []
+
+    _ohne_passwort_und_adresse()
+
+    warnung = admin_client.get("/api/admin/mediaserver/connection/folgen")
+    assert warnung.status_code == 200
+    gefaehrdet = warnung.json()["gefaehrdet"]
+    assert len(gefaehrdet) == 1
+    # Der Name muss mit - eine blosse Anzahl sagt dem Administrator nicht,
+    # wem er ein Passwort setzen soll.
+    assert gefaehrdet[0]["username"]
+
+
+def test_trennen_wird_abgelehnt_wenn_es_andere_aussperrt(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """Dieselbe Sperre wie beim eigenen Trennen - nur eine Ebene hoeher.
+
+    Sie sitzt im Endpunkt und nicht bloss im Bestaetigungsdialog: Ein Dialog
+    schuetzt nur den Weg, der durch ihn hindurchfuehrt.
+    """
+    verbinde(admin_client)
+    anmelden(admin_client)
+    _ohne_passwort_und_adresse()
+
+    antwort = admin_client.delete("/api/admin/mediaserver/connection")
+
+    assert antwort.status_code == 409
+    detail = antwort.json()["detail"]
+    assert detail["code"] == "mediaserver_would_lock_out_others"
+    assert len(detail["gefaehrdet"]) == 1
+
+    # Und nichts ist passiert - die Verbindung steht noch.
+    from app.services import settings_service
+
+    with SessionLocal() as session:
+        assert settings_service.load_settings(session).mediaserver_configured
+
+
+def test_trennen_geht_mit_ausdruecklicher_bestaetigung(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """Der Administrator darf ueberstimmen - er kann den Schaden ja beheben.
+
+    Anders als der einzelne Nutzer, der sich selbst aussperrt und danach
+    niemanden mehr hat, der ihm hilft.
+    """
+    verbinde(admin_client)
+    anmelden(admin_client)
+    _ohne_passwort_und_adresse()
+
+    antwort = admin_client.delete(
+        "/api/admin/mediaserver/connection", params={"bestaetigt": "true"}
+    )
+
+    assert antwort.status_code == 204
+    from app.services import settings_service
+
+    with SessionLocal() as session:
+        assert not settings_service.load_settings(session).mediaserver_configured
+
+
+def test_trennen_ohne_gefaehrdete_braucht_keine_bestaetigung(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """Der Normalfall darf nicht schwerer werden als vorher.
+
+    Wer nur Konten mit Passwort hat, soll nicht gegen eine Sperre laufen, die
+    fuer ihn nie gedacht war.
+    """
+    verbinde(admin_client)
+    create_user(admin_client, "gast", email="gast@beispiel.de")
+    headers = auth_headers(admin_client, "gast", "passwort-1234")
+    verknuepfen(admin_client, headers)
+
+    antwort = admin_client.delete("/api/admin/mediaserver/connection")
+
+    assert antwort.status_code == 204
+
+
+def test_unbekannter_anbieter_wird_abgelehnt(admin_client: TestClient) -> None:
+    """Was nicht in ``PROVIDERS`` steht, kommt gar nicht erst in Gang.
+
+    Ohne diese Pruefung entstuende ein Anmeldevorgang, der beim Abholen mit
+    einem Serverfehler endet - und der Administrator suchte den Grund bei
+    seinem Server statt bei einem Tippfehler.
+    """
+    antwort = admin_client.post(
+        "/api/admin/mediaserver/connect/start", json={"provider": "kodi"}
+    )
+
+    assert antwort.status_code == 400
+    assert antwort.json()["detail"]["code"] == "mediaserver_unknown_provider"
+
+
+def test_ohne_angabe_bleibt_es_bei_plex(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """Ein Aufruf ohne Anbieter verhaelt sich wie frueher.
+
+    Die Oberflaeche schickt heute noch keinen - und soll davon nichts merken,
+    bis sie es tut.
+    """
+    antwort = admin_client.post("/api/admin/mediaserver/connect/start", json={})
+
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["poll_token"]
+
+
+# --------------------------------------------------------------------------
+# Anmelden mit Benutzername und Passwort (Jellyfin, Emby)
+# --------------------------------------------------------------------------
+
+
+JELLY_KONTO = ExternalAccount(
+    provider="jellyfin",
+    account_id="jf-4711",
+    username="Markus",
+    # ⚠️ **Ohne Adresse - und das ist der Punkt.** Jellyfin hat kein solches
+    # Feld. Daran haengt, dass darueber kein Konto entstehen darf.
+    email=None,
+)
+
+
+class FakeJellyfin(FakeMediaServer):
+    """Ein Anbieter ohne Vermittler: Benutzername und Passwort direkt."""
+
+    provider = "jellyfin"
+    label = "Jellyfin"
+    login_kind = "password"
+    knows_email = False
+
+    def __init__(self, *, passwort: str = "geheim", **kw: object) -> None:
+        super().__init__(konto=JELLY_KONTO, **kw)  # type: ignore[arg-type]
+        self.passwort = passwort
+
+    async def login_with_password(
+        self, username: str, password: str, url: str | None = None, zweck: str = ""
+    ) -> tuple[str, ExternalAccount, bool]:
+        # ``zweck`` trennt die Geraete-Kennungen - hier nur entgegengenommen,
+        # geprueft wird er gegen den echten Server.
+        if password != self.passwort:
+            raise MediaServerError("Abgelehnt.", 401)
+        return "jelly-token", self.konto, True
+
+    async def watchlist(self, provider_token: str):  # pragma: no cover
+        raise NotImplementedError
+
+
+@pytest.fixture()
+def jelly_server(monkeypatch: pytest.MonkeyPatch) -> FakeJellyfin:
+    """Jellyfin als verbundenen Anbieter unterschieben."""
+    server = FakeJellyfin()
+    monkeypatch.setitem(mediaserver_paket.PROVIDERS, "jellyfin", FakeJellyfin)
+    monkeypatch.setattr(
+        mediaserver_router, "media_server_for_setup", lambda _s, _p, url="": server
+    )
+    return server
+
+
+def _plex_verbinden() -> None:
+    """Eine Plex-Zeile in der Verbindungstabelle - neben der Jellyfin-Zeile."""
+    from app.crypto import encrypt
+    from app.models import MediaServerConnection
+
+    with SessionLocal() as session:
+        session.add(
+            MediaServerConnection(
+                provider="plex",
+                machine_id="maschine-1",
+                name="Wohnzimmer",
+                url="http://127.0.0.1:32400",
+                token=encrypt("admin-token"),
+            )
+        )
+        session.commit()
+
+
+def _jelly_verbinden() -> None:
+    """Eine Jellyfin-Verbindung eintragen - neben einer moeglichen Plex-Zeile."""
+    from app.models import MediaServerConnection
+    from app.crypto import encrypt
+
+    with SessionLocal() as session:
+        session.add(
+            MediaServerConnection(
+                provider="jellyfin",
+                machine_id="jf-maschine",
+                name="Jellyfin",
+                url="http://127.0.0.1:8096",
+                token=encrypt("admin-token"),
+            )
+        )
+        session.commit()
+
+
+def _jelly_anmelden(client: TestClient, passwort: str = "geheim"):
+    return client.post(
+        "/api/auth/mediaserver/login/password",
+        json={"provider": "jellyfin", "username": "Markus", "password": passwort},
+        headers={"Authorization": ""},
+    )
+
+
+def test_passwort_anmeldung_liefert_vollstaendige_token(
+    admin_client: TestClient, jelly_server: FakeJellyfin
+) -> None:
+    """Das Token-Paar muss **vollstaendig** sein.
+
+    ⚠️ Genau das fehlte: ``expires_in`` war nicht gesetzt, Pydantic liess das
+    Paar gar nicht erst entstehen, und die Anmeldung endete in einem 500er -
+    nachdem das Konto bereits verknuepft war. Der Fall kam beim Ausprobieren
+    heraus, nicht hier; deshalb steht er jetzt hier.
+    """
+    verbinde(admin_client)
+    _jelly_verbinden()
+    # Ein Konto, das Jellyfin schon verknuepft hat - nur so geht es hinein.
+    create_user(
+        admin_client,
+        "markus",
+        email="markus@beispiel.de",
+        mediaserver_provider="jellyfin",
+        mediaserver_account_id="jf-4711",
+        mediaserver_username="Markus",
+    )
+
+    antwort = _jelly_anmelden(admin_client)
+    assert antwort.status_code == 200, antwort.text
+    tokens = antwort.json()["tokens"]
+    assert tokens["access_token"] and tokens["refresh_token"]
+    assert tokens["expires_in"] > 0
+    assert tokens["token_type"] == "bearer"
+    # Und die Sitzung gehoert dem **bestehenden** Konto, nicht einem neuen.
+    with SessionLocal() as session:
+        assert session.query(User).filter(User.username == "markus").count() == 1
+
+
+def test_falsches_passwort_ist_kein_serverausfall(
+    admin_client: TestClient, jelly_server: FakeJellyfin
+) -> None:
+    """401 statt 502 - sonst heisst es "Server kaputt" statt "vertippt"."""
+    verbinde(admin_client)
+    _jelly_verbinden()
+    create_user(
+        admin_client,
+        "markus",
+        email="markus@beispiel.de",
+        mediaserver_provider="jellyfin",
+        mediaserver_account_id="jf-4711",
+    )
+
+    antwort = _jelly_anmelden(admin_client, passwort="daneben")
+    assert antwort.status_code == 401
+    assert antwort.json()["detail"]["code"] == "mediaserver_bad_credentials"
+
+
+def test_ohne_verknuepfung_entsteht_kein_konto(
+    admin_client: TestClient, jelly_server: FakeJellyfin
+) -> None:
+    """Ueber einen Anbieter ohne Adresse darf kein Konto neu entstehen.
+
+    Sonst bekaeme jemand, der laengst ein Nexview-Konto hat, ein **zweites** -
+    ohne Adresse und ohne Passwort, also eines, in das nur der Medienserver
+    hineinfuehrt. Und zwar auch dann, wenn das automatische Anlegen an ist.
+    """
+    verbinde(admin_client, mediaserver_auto_import="on")
+    _jelly_verbinden()
+
+    antwort = _jelly_anmelden(admin_client)
+    # 403 wie jede andere Absage aus ``KontoFehler`` - der Zugang wird
+    # verweigert, die Anfrage war nicht fehlerhaft.
+    assert antwort.status_code == 403, antwort.text
+    assert antwort.json()["detail"]["code"] == "mediaserver_no_new_account"
+
+    with SessionLocal() as session:
+        assert (
+            session.query(User)
+            .filter(User.mediaserver_account_id == "jf-4711")
+            .count()
+            == 0
+        )
+
+
+def test_plex_nimmt_den_passwortweg_nicht(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """Plex hat einen Vermittler - Passwoerter gehoeren dort nicht hin."""
+    verbinde(admin_client)
+    antwort = admin_client.post(
+        "/api/auth/mediaserver/login/password",
+        json={"provider": "plex", "username": "x", "password": "y"},
+        headers={"Authorization": ""},
+    )
+    assert antwort.status_code == 400
+    assert antwort.json()["detail"]["code"] == "mediaserver_password_unsupported"
+
+
+def test_trennen_nimmt_nur_den_genannten_anbieter(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """Ein Anbieter geht, der andere bleibt.
+
+    ⚠️ Genau das ging schief: Das Backend konnte es längst, die Oberfläche
+    rief aber ohne ``provider`` auf - und ohne Angabe fallen *alle*
+    Verbindungen. Ein Klick auf "Jellyfin trennen" nahm Plex gleich mit.
+    """
+    from app.models import MediaServerConnection
+
+    verbinde(admin_client)
+    _plex_verbinden()
+    _jelly_verbinden()
+    with SessionLocal() as session:
+        assert session.query(MediaServerConnection).count() == 2
+
+    antwort = admin_client.delete(
+        "/api/admin/mediaserver/connection?provider=jellyfin&bestaetigt=true"
+    )
+    assert antwort.status_code == 204, antwort.text
+
+    with SessionLocal() as session:
+        uebrig = [z.provider for z in session.query(MediaServerConnection).all()]
+    assert uebrig == ["plex"], uebrig
+
+
+def test_trennen_ohne_anbieter_nimmt_alle(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """Ohne Angabe fallen alle - das ist das alte Verhalten und bleibt so.
+
+    Es ist der Weg für "Medienserver ganz abschalten". Er darf nur nicht
+    versehentlich getroffen werden; deshalb schickt die Oberfläche immer einen
+    Anbieter mit.
+    """
+    from app.models import MediaServerConnection
+
+    verbinde(admin_client)
+    _plex_verbinden()
+    _jelly_verbinden()
+
+    antwort = admin_client.delete("/api/admin/mediaserver/connection?bestaetigt=true")
+    assert antwort.status_code == 204, antwort.text
+
+    with SessionLocal() as session:
+        assert session.query(MediaServerConnection).count() == 0

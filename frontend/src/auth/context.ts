@@ -9,7 +9,7 @@
 import { createContext } from 'react'
 
 import type { TokenPair } from '../api/client'
-import type { User } from '../api/types'
+import type { LoginWay, User } from '../api/types'
 
 export type SetupPayload = {
   username: string
@@ -26,6 +26,13 @@ export type AuthState = {
   needsSetup: boolean
   /** Ist ein Media-Server verbunden? Steuert den Knopf auf der Anmeldeseite. */
   mediaServerLogin: boolean
+  /**
+   * Welche Anmeldewege es gibt – je Anbieter einer.
+   *
+   * Die Anmeldeseite zeigt daraus die Logos. Ohne diese Liste müsste sie
+   * raten, und geraten hat sie „Plex".
+   */
+  mediaServerWays: LoginWay[]
   login: (username: string, password: string) => Promise<void>
   /**
    * Aus fertigen Token eine Sitzung machen.

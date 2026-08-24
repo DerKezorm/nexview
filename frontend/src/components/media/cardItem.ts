@@ -39,6 +39,9 @@ export type CardItem = {
   status_uhd?: MediaStatus | null;
   /** Hat der angemeldete Benutzer das schon gesehen? */
   watched: boolean;
+  /** Wer sagt „gesehen" – beide leer, solange nur ein Server verbunden ist. */
+  watched_on?: string[];
+  watched_not_on?: string[];
   genres: string[];
   runtime_minutes: number | null;
   certification: string | null;
@@ -59,6 +62,8 @@ export function fromMediaItem(item: MediaItem): CardItem {
     status: item.status,
     status_uhd: item.status_uhd,
     watched: item.watched ?? false,
+    watched_on: item.watched_on,
+    watched_not_on: item.watched_not_on,
     genres: item.genres,
     runtime_minutes: item.runtime_minutes,
     certification: item.certification,

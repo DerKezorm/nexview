@@ -16,13 +16,18 @@ from __future__ import annotations
 import logging
 from dataclasses import replace
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import String, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models import MediaServerLibraryItem, MediaType
-from .mediaserver import MediaServerError, get_media_server
+from .mediaserver import (
+    MediaServer,
+    MediaServerError,
+    media_server_for_setup,
+    verbundene_anbieter,
+)
 from .mediaserver.base import LibraryItem
-from .settings_service import AppSettings
+from .settings_service import AppSettings, load_settings
 from .sonarr import normalize_title
 
 logger = logging.getLogger("nexview.mediaserver")
@@ -69,7 +74,9 @@ def _zusammengefasst(werke: list[LibraryItem]) -> list[LibraryItem]:
     return list(nach_guid.values())
 
 
-async def refresh(db: Session, settings: AppSettings, streng: bool = False) -> int:
+async def refresh(
+    db: Session, settings: AppSettings, streng: bool = False, provider: str | None = None
+) -> int:
     """Die Bibliothek neu einlesen. Gibt die Anzahl der Titel zurueck.
 
     Ersetzt den bisherigen Bestand vollstaendig - und zwar nur dann, wenn das
@@ -84,20 +91,71 @@ async def refresh(db: Session, settings: AppSettings, streng: bool = False) -> i
     herausfinden, warum kein einziger Plex-Titel ein Abzeichen bekam. Genau
     so gemeldet (Issue #2).
     """
-    server = get_media_server(settings)
-    if server is None:
+    gesamt = 0
+    gelesen = False
+    # ``provider`` grenzt auf einen Server ein - das ist der Handknopf auf
+    # dessen Seite. Ohne Angabe laufen alle, das ist der Hintergrunddurchlauf.
+    anbieter_liste = [
+        a
+        for a in verbundene_anbieter(settings)
+        if provider is None or a == provider
+    ]
+    for anbieter in anbieter_liste:
+        server = media_server_for_setup(settings, anbieter)
+        anzahl = await _einen_server_lesen(db, server, streng)
+        if anzahl is not None:
+            gelesen = True
+            gesamt += anzahl
+    if not gelesen:
         return 0
+    # Bewusst **nicht** die Summe der einzelnen Server: Die zaehlte jeden Film
+    # so oft, wie ihn Server melden. Was hier zurueckkommt, landet in der
+    # Meldung "N Titel erfasst" - und die soll die Sammlung beschreiben, nicht
+    # die Zahl der Datenbankzeilen.
+    return titel_anzahl(db, provider)
 
+
+async def _einen_server_lesen(
+    db: Session, server: MediaServer, streng: bool
+) -> int | None:
+    """Die Bibliothek **eines** Servers einlesen.
+
+    Gibt die Anzahl zurueck - oder ``None``, wenn nichts geschrieben wurde.
+    Der Unterschied zaehlt: Bei zwei verbundenen Servern darf ein Aussetzer des
+    einen nicht den Bestand des anderen als "0 Titel" erscheinen lassen.
+    """
     try:
         werke = await server.library_index()
     except NotImplementedError:
         # Ein Anbieter, der das noch nicht kann - kein Grund fuer einen Fehler.
-        return 0
+        return None
     except MediaServerError as fehler:
-        logger.warning("Media server library not readable: %s", fehler.message)
+        logger.warning(
+            "Media server %r library not readable: %s", server.provider, fehler.message
+        )
         if streng:
             raise
-        return 0
+        return None
+
+    # ⚠️ **Steht der Server ueberhaupt noch?**
+    #
+    # Zwischen dem Lesen oben und dem Schreiben hier liegt eine vollstaendige
+    # HTTP-Abfrage - bei einer grossen Bibliothek Sekunden. In dieser Zeit kann
+    # der Administrator die Verbindung trennen; sein Endpunkt laeuft im
+    # Threadpool und damit echt nebenlaeufig. Ohne diese Pruefung schriebe der
+    # Abgleich danach munter weiter: frische Zeilen mit frischem Zeitstempel,
+    # Minuten nachdem die Verbindung weg ist - und jede Aufraeumarbeit des
+    # Trennens waere wieder zunichte.
+    #
+    # Bewusst eine **frische** Abfrage und nicht das ``settings`` von oben:
+    # Genau dessen Alter ist ja das Problem.
+    if server.provider not in verbundene_anbieter(load_settings(db)):
+        logger.info(
+            "Media server %r was disconnected while its library was being read - "
+            "nothing written",
+            server.provider,
+        )
+        return None
 
     db.execute(
         delete(MediaServerLibraryItem).where(
@@ -139,26 +197,80 @@ async def refresh(db: Session, settings: AppSettings, streng: bool = False) -> i
     zusammengefasst = len(werke) - len(eindeutig)
     if zusammengefasst:
         logger.info(
-            "Media server library read: %d titles (%d entries, %d merged across libraries)",
+            "Media server %r library read: %d titles (%d entries, %d merged "
+            "across libraries)",
+            server.provider,
             len(eindeutig),
             len(werke),
             zusammengefasst,
         )
     else:
-        logger.info("Media server library read: %d titles", len(eindeutig))
+        logger.info(
+            "Media server %r library read: %d titles", server.provider, len(eindeutig)
+        )
     return len(eindeutig)
 
 
-def stand(db: Session) -> dict[str, object]:
-    """Wie viele Titel sind erfasst, und wann zuletzt?
+def _titel_schluessel():
+    """Woran sich zwei Zeilen als *derselbe Titel* erkennen.
+
+    Die TMDB-Nummer, wo es eine gibt - sonst der normalisierte Titel. Der
+    zweite Weg ist die schlechtere Auskunft, aber die einzige: Ohne Nummer
+    laesst sich ein Film nur ueber seinen Namen wiedererkennen.
+    """
+    return (
+        MediaServerLibraryItem.media_type,
+        func.coalesce(
+            func.cast(MediaServerLibraryItem.tmdb_id, String),
+            "k:" + func.coalesce(MediaServerLibraryItem.title_key, ""),
+        ),
+    )
+
+
+def titel_anzahl(db: Session, provider: str | None = None) -> int:
+    """Wie viele **verschiedene** Titel liegen in den Bibliotheken?
+
+    ⚠️ Nicht die Zahl der Zeilen. Im Parallelbetrieb steht derselbe Film
+    zweimal da - einmal aus Plex, einmal aus Jellyfin -, weil beide Server
+    dieselben Ordner lesen. Gezaehlt wurden vorher die Zeilen, und die
+    Oberflaeche meldete "7409 Titel erfasst" fuer eine Sammlung von gut 3700.
+    Genau so gemeldet.
+
+    Doppelt zu *speichern* ist dabei richtig: Jede Zeile gehoert einem Server
+    und traegt dessen Gesehen-Stand und Dateigroessen. Nur gezaehlt werden
+    darf sie nicht zweimal.
+    """
+    innen = select(*_titel_schluessel())
+    if provider is not None:
+        innen = innen.where(MediaServerLibraryItem.provider == provider)
+    return int(
+        db.scalar(select(func.count()).select_from(innen.distinct().subquery())) or 0
+    )
+
+
+def stand(db: Session, provider: str | None = None) -> dict[str, object]:
+    """Wann wurde zuletzt abgeglichen - und wie viele Titel liegen vor?
 
     Ohne diese Auskunft bliebe der Abgleich unsichtbar: Wer alles ueber
     Radarr/Sonarr laufen laesst, sieht bei sich nie ein Abzeichen - und koennte
     nicht unterscheiden, ob nichts zu finden war oder nichts gelesen wurde.
+
+    ⚠️ **Der Zeitstempel traegt diese Auskunft, nicht die Zahl.** Er stammt aus
+    den Titelzeilen selbst: Wurde nichts gelesen, gibt es keine Zeile und damit
+    auch kein Datum. Ein Datum heisst also bereits "es wurde etwas gelesen".
+    Die Oberflaeche zeigt deshalb nur ihn - die Zahl stand dort auf *beiden*
+    Server-Seiten mit demselben Wert (der Gesamtzahl ueber alle Server) und
+    behauptete damit auf jeder Seite etwas Falsches ueber diesen einen Server.
+
+    ``provider`` grenzt auf einen Anbieter ein; ohne Angabe gilt es fuer alle.
     """
-    anzahl = db.scalar(select(func.count()).select_from(MediaServerLibraryItem)) or 0
-    zuletzt = db.scalar(select(func.max(MediaServerLibraryItem.updated_at)))
-    return {"count": int(anzahl), "updated_at": zuletzt}
+    bedingung = (
+        [MediaServerLibraryItem.provider == provider] if provider is not None else []
+    )
+    zuletzt = db.scalar(
+        select(func.max(MediaServerLibraryItem.updated_at)).where(*bedingung)
+    )
+    return {"count": titel_anzahl(db, provider), "updated_at": zuletzt}
 
 
 def _jahr(item: object) -> int | None:

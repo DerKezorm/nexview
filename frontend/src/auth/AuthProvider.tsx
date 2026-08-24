@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { api, clearTokens, restoreSession, setSessionLostHandler, setTokens } from '../api/client'
 import type { TokenPair } from '../api/client'
-import type { SetupStatus, User } from '../api/types'
+import type { LoginWay, SetupStatus, User } from '../api/types'
 import { changeLanguage } from '../i18n'
 import type { Language } from '../i18n'
 import { istTheme, themeAnwenden } from '../lib/theme'
@@ -21,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Ob es die Anmeldung über den Media-Server gibt, muss vor dem Anmelden
   // feststehen - und dort darf noch niemand die Einstellungen lesen.
   const [mediaServerLogin, setMediaServerLogin] = useState(false)
+  const [mediaServerWays, setMediaServerWays] = useState<LoginWay[]>([])
 
   const applyUser = useCallback((loaded: User) => {
     setUser(loaded)
@@ -58,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         setNeedsSetup(setup.needs_setup)
         setMediaServerLogin(setup.mediaserver_login)
+        setMediaServerWays(setup.mediaserver_login_ways ?? [])
 
         if (!setup.needs_setup && (await restoreSession())) {
           const me = await api.get<User>('/api/auth/me')
@@ -129,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       needsSetup,
       mediaServerLogin,
+      mediaServerWays,
       login,
       loginWithTokens,
       completeSetup,
@@ -141,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       needsSetup,
       mediaServerLogin,
+      mediaServerWays,
       login,
       loginWithTokens,
       completeSetup,

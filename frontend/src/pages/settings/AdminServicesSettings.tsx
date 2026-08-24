@@ -655,8 +655,15 @@ export function AdminServicesSettings() {
     <div>
       <p className="max-w-3xl text-sm text-mist-500">{t("settings.intro")}</p>
 
-      {/* Zweite Reihe: ein Knopf je Dienst. Bewusst optisch leichter als die
-          Reiter darüber, damit die Ebenen unterscheidbar bleiben. */}
+      {/* Zweite Reihe: ein Knopf je Dienst.
+          
+          ⚠️ Hier stand einmal „bewusst optisch leichter als die Reiter
+          darüber" – und dazu ein eckigeres `rounded-lg`. Die Absicht war
+          nachvollziehbar, nur hielt sich keine andere zweite Reihe daran:
+          Benachrichtigungen, Protokoll und die Merklisten-Quelle sind alle
+          rund. Damit war nicht mehr die Ebene erkennbar, sondern nur diese
+          eine Seite anders. Die Ebenen trennen jetzt Größe und Farbe – die
+          Form ist überall dieselbe. */}
       {/* Der Schlüssel passt nicht mehr zu den gespeicherten Zugangsdaten -
           die Folgen ("Verbindung weg", Demo-Daten) sehen aus wie viele andere
           Fehler, deshalb steht die Ursache hier deutlich und ganz oben. */}
@@ -675,7 +682,7 @@ export function AdminServicesSettings() {
             aria-selected={unterTab === eintrag.value}
             onClick={() => setUnterTab(eintrag.value)}
             className={
-              "rounded-lg border px-3 py-1.5 text-sm transition " +
+              "rounded-full border px-3.5 py-1.5 text-sm transition " +
               (unterTab === eintrag.value
                 ? "border-accent-500 bg-accent-500/10 text-accent-400"
                 : "border-ink-700 text-mist-500 hover:border-ink-600 hover:text-mist-300")

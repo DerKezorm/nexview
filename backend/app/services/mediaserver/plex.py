@@ -29,7 +29,7 @@ from .base import (
 )
 
 if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
-    from ..settings_service import AppSettings
+    from ..settings_service import AppSettings, Verbindung
 
 logger = logging.getLogger("nexview.mediaserver")
 
@@ -157,11 +157,22 @@ def _dateigroessen(eintrag: dict[str, Any]) -> tuple[int, int]:
 class PlexServer(MediaServer):
     provider = "plex"
     label = "Plex"
+    login_kind = "pin"
 
-    def __init__(self, settings: "AppSettings") -> None:
-        self.base_url = settings.mediaserver_url.rstrip("/")
-        self.token = settings.mediaserver_token
-        self.machine_id = settings.mediaserver_machine_id
+    def __init__(
+        self, settings: "AppSettings", verbindung: "Verbindung | None" = None
+    ) -> None:
+        # ``verbindung`` ist die Zeile **dieses** Anbieters. Ohne sie greifen
+        # die Einzelwerte - und die gehoeren immer der *ersten* Verbindung.
+        # Solange nur einer verbunden ist, ist das dieselbe Sache; sobald zwei
+        # verbunden sind, waere es die Adresse des falschen Servers.
+        self.base_url = (verbindung.url if verbindung else settings.mediaserver_url).rstrip("/")
+        self.token = verbindung.token if verbindung else settings.mediaserver_token
+        self.machine_id = (
+            verbindung.machine_id if verbindung else settings.mediaserver_machine_id
+        )
+        # Die Geraetekennung gehoert der Installation, nicht dem Server - sie
+        # steht deshalb weiter in den Einstellungen und nicht an der Verbindung.
         self.client_identifier = settings.mediaserver_client_identifier
 
     # --- Einrichtung -------------------------------------------------------

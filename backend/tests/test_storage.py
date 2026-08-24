@@ -1092,3 +1092,93 @@ async def test_der_erste_lauf_meldet_nichts(
 
     assert ergebnis.erster_lauf
     assert db.scalars(select(Notification)).all() == []
+
+
+async def test_bei_zwei_servern_zaehlt_der_groessere_wert(
+    db: Session, settings: AppSettings
+) -> None:
+    """Melden zwei Medienserver denselben Titel verschieden, gilt der groessere.
+
+    Das ist keine Vermutung darueber, wer recht hat, sondern eine Entscheidung
+    darueber, welcher Irrtum weniger schadet: Zu wenig zu zaehlen hiesse, die
+    Platte laeuft voll, obwohl die Kontingente greifen - genau das, wogegen sie
+    gebaut wurden.
+
+    Bis zum Parallelbetrieb gewann schlicht der erste Treffer. Das stimmte in
+    der Praxis, weil es nur einen Server gab - aber es war ein Zufall, kein
+    Ergebnis, und mit zwei Servern haette dieselbe Bibliothek von Lauf zu Lauf
+    andere Zahlen ergeben.
+    """
+    for anbieter, groesse in (("plex", 5 * GB), ("jellyfin", 9 * GB)):
+        db.add(
+            MediaServerLibraryItem(
+                provider=anbieter,
+                media_type=MediaType.movie,
+                guid=f"{anbieter}://movie/603",
+                tmdb_id=603,
+                title="Ein Film",
+                title_key="einfilm",
+                size_standard=groesse,
+            )
+        )
+    db.commit()
+
+    await messen(db, settings, filme={QualityTier.standard: {}})
+
+    assert storage.hausbestand(db).used_bytes == 9 * GB
+
+
+async def test_ein_server_ohne_groesse_drueckt_den_posten_nicht(
+    db: Session, settings: AppSettings
+) -> None:
+    """Null heisst "unbekannt", nicht "leer".
+
+    Ein Server, der zu einem Titel keine Groesse liefert - etwa weil er ihn
+    gar nicht kennt -, darf den Posten nicht auf 0 ziehen. Sonst haenge die
+    Buchhaltung davon ab, welcher Server zuletzt gelesen wurde.
+    """
+    for anbieter, groesse in (("plex", 7 * GB), ("jellyfin", 0)):
+        db.add(
+            MediaServerLibraryItem(
+                provider=anbieter,
+                media_type=MediaType.movie,
+                guid=f"{anbieter}://movie/603",
+                tmdb_id=603,
+                title="Ein Film",
+                title_key="einfilm",
+                size_standard=groesse,
+            )
+        )
+    db.commit()
+
+    await messen(db, settings, filme={QualityTier.standard: {}})
+
+    assert storage.hausbestand(db).used_bytes == 7 * GB
+
+
+async def test_radarr_schlaegt_auch_den_groesseren_server(
+    db: Session, settings: AppSettings
+) -> None:
+    """Die neue Regel gilt **unter** den Servern, nicht gegen Radarr.
+
+    Sonst haette der Parallelbetrieb nebenbei eine Regel gekippt, die mit ihm
+    nichts zu tun hat: Radarrs Zahl ist die genauere, egal wie gross die
+    Medienserver melden.
+    """
+    for anbieter, groesse in (("plex", 50 * GB), ("jellyfin", 99 * GB)):
+        db.add(
+            MediaServerLibraryItem(
+                provider=anbieter,
+                media_type=MediaType.movie,
+                guid=f"{anbieter}://movie/603",
+                tmdb_id=603,
+                title="Ein Film",
+                title_key="einfilm",
+                size_standard=groesse,
+            )
+        )
+    db.commit()
+
+    await messen(db, settings, filme={QualityTier.standard: {603: film(8)}})
+
+    assert storage.hausbestand(db).used_bytes == 8 * GB

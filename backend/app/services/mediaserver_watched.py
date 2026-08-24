@@ -9,8 +9,9 @@ eigenes Thema.
 1. Das **persoenliche Token** der Person (liegt seit der Merkliste ohnehin
    verschluesselt am Konto): Die Bibliothek wird mit ihrem Zugang gelesen, der
    Zaehler am Titel gilt dann fuer ihr Konto. Vollstaendig, erfasst auch von
-   Hand Abgehaktes - und gilt in **beide** Richtungen: Ein in Plex entfernter
-   Haken nimmt auch hier das Auge weg.
+   Hand Abgehaktes - und gilt in **beide** Richtungen: Ein dort entfernter
+   Haken nimmt auch hier das Auge weg. Mit mehreren verbundenen Servern
+   allerdings nur die Stimme *dieses* Servers, siehe unten.
 2. Der Zaehler am Titel aus dem Bibliotheks-Abgleich (``owner_watched``) - er
    gilt fuer den **Eigentuemer** des hinterlegten Zugangs und ist ebenso
    vollstaendig. Nur noch noetig, wenn der Eigentuemer kein eigenes Token hat.
@@ -23,6 +24,13 @@ eigenes Thema.
 Wichtig: Konten mit vollstaendiger Quelle (1 oder 2) werden vom Verlauf **nicht
 mehr angefasst** - sonst setzte ein alter Verlaufseintrag den gerade entfernten
 Haken sofort wieder.
+
+**Und die Regel, sobald mehr als ein Server verbunden ist:** Gesehen, wenn
+*irgendeiner* es sagt. Jede Zeile fuehrt in ``providers`` mit, wer sie stuetzt;
+meldet ein Server einen Titel nicht mehr, faellt nur seine Stimme weg, und die
+Zeile geht erst, wenn niemand mehr uebrig ist. Ohne diese Regel raeumte bei
+zwei Servern jeder Durchlauf weg, was der andere gerade gesetzt hat - ein
+Karussell, dessen Ursache niemand erkennen wuerde.
 
 Zwei Dinge machen das kniffliger, als es klingt, und beide sind hier geloest:
 
@@ -55,10 +63,11 @@ from ..models import (
 )
 from . import mediaserver_accounts as konten, notify
 from .mediaserver import (
+    media_server_for_setup,
+    verbundene_anbieter,
     MediaServerError,
     SeasonWatchedRecord,
     WatchedRecord,
-    get_media_server,
 )
 from .settings_service import AppSettings
 
@@ -79,14 +88,23 @@ def _vergleichbar(name: str) -> str:
     return "".join(zeichen for zeichen in name.lower() if zeichen.isalnum())
 
 
-def _token(user: User) -> str:
-    """Das persoenliche Token entschluesseln - leer, wenn keines taugt."""
-    if not user.watchlist_token:
+def _token(user: User, provider: str) -> str:
+    """Das persoenliche Token **dieses Anbieters** - leer, wenn keines taugt.
+
+    ⚠️ Der Anbieter ist entscheidend, nicht schmueckendes Beiwerk: Ein
+    Plex-Token an Jellyfin geschickt ergibt ein 401, und daraufhin bekaeme die
+    Person die Aufforderung, sich neu zu verbinden - obwohl bei ihr alles in
+    Ordnung ist.
+    """
+    zeile = konten.verknuepfung(user, provider)
+    if zeile is None or not zeile.token:
         return ""
     try:
-        return decrypt(user.watchlist_token)
+        return decrypt(zeile.token)
     except Exception:  # noqa: BLE001 - Schluesselwechsel, beschaedigter Wert
-        logger.warning("Media server token of %s is not readable", user.username)
+        logger.warning(
+            "Media server token of %s for %r is not readable", user.username, provider
+        )
         return ""
 
 
@@ -98,11 +116,16 @@ async def _konto_zuordnung(db: Session, server, benutzer: list[User]) -> dict[st
     Der **Eigentuemer** dagegen laeuft unter der 1 - fuer ihn hilft nur der
     Name aus der Kontenliste des Servers.
     """
-    nach_kennung = {u.mediaserver_account_id: u.id for u in benutzer}
+    # Die Kennung **dieses** Anbieters, nicht die zuletzt verknuepfte am
+    # Benutzer: Wer Plex und Jellyfin hat, traegt dort nur eine von beiden.
+    zeilen = {u.id: konten.verknuepfung(u, server.provider) for u in benutzer}
+    nach_kennung = {
+        z.account_id: uid for uid, z in zeilen.items() if z is not None
+    }
     nach_name = {
-        _vergleichbar(u.mediaserver_username or ""): u.id
-        for u in benutzer
-        if u.mediaserver_username
+        _vergleichbar(z.username or ""): uid
+        for uid, z in zeilen.items()
+        if z is not None and z.username
     }
 
     zuordnung: dict[str, int] = dict(nach_kennung)  # type: ignore[arg-type]
@@ -132,7 +155,9 @@ def _wer(user: User) -> str:
     return user.username
 
 
-def _neu_verbinden_hinweis(db: Session, user: User, anbieter: str) -> None:
+def _neu_verbinden_hinweis(
+    db: Session, user: User, anbieter: str, anbieter_name: str
+) -> None:
     """Der Person sagen, dass ihr Zugang eine neue Anmeldung braucht.
 
     Nur sie selbst kann das beheben - der Weg dorthin ist die einmalige
@@ -148,8 +173,12 @@ def _neu_verbinden_hinweis(db: Session, user: User, anbieter: str) -> None:
     # Merken, dass das Token abgelehnt wurde - **ohne es zu loeschen**.
     # Geloescht saehe es aus wie "nie verbunden"; so kann die Oberflaeche
     # gezielt der betroffenen Person sagen, dass sie sich neu anmelden muss.
-    konten.token_abgelehnt(user)
-    stichtag = user.watchlist_connected_at or datetime.min
+    konten.token_abgelehnt(user, anbieter_name)
+    # Der Stichtag gehoert zu **diesem** Anbieter. Aus der gespiegelten Spalte
+    # gelesen haette eine frische Jellyfin-Anmeldung den Hinweis zu Plex
+    # unterdrueckt - oder umgekehrt einen laengst gemeldeten erneut zugelassen.
+    zeile = konten.verknuepfung(user, anbieter_name)
+    stichtag = (zeile.token_connected_at if zeile else None) or datetime.min
     schon = db.scalar(
         select(Notification.id).where(
             Notification.user_id == user.id,
@@ -205,6 +234,7 @@ def _staffeln_uebernehmen(
     stand: list[SeasonWatchedRecord],
     werke: dict[str | None, MediaServerLibraryItem],
     gefragte: set[int],
+    anbieter: str,
 ) -> int:
     """Die vollstaendig gesehenen Staffeln uebernehmen - in beide Richtungen.
 
@@ -214,6 +244,10 @@ def _staffeln_uebernehmen(
     komplett gesehen und verliert ihren Marker. Nur so bleibt "gruen = alle
     Folgen gesehen" eine wahre Aussage und keine historische. Serien, nach
     denen gar nicht gefragt wurde, bleiben unangetastet.
+
+    Und wie bei den Titeln zaehlt der Server nur fuer sich: Meldet er eine
+    Staffel nicht mehr, faellt seine Stimme weg - nicht der Marker. Der geht
+    erst, wenn kein Server mehr uebrig ist.
     """
     ziel: set[tuple[int, int]] = set()
     for eintrag in stand:
@@ -232,14 +266,36 @@ def _staffeln_uebernehmen(
     geschrieben = 0
     for tmdb_id, staffel in ziel - set(vorhanden):
         db.add(
-            UserWatchedSeason(user_id=benutzer_id, tmdb_id=tmdb_id, season=staffel)
+            UserWatchedSeason(
+                user_id=benutzer_id,
+                tmdb_id=tmdb_id,
+                season=staffel,
+                providers=anbieter,
+            )
         )
         geschrieben += 1
     for schluessel, zeile in vorhanden.items():
-        if schluessel not in ziel and schluessel[0] in gefragte:
-            db.delete(zeile)
-            geschrieben += 1
+        if schluessel in ziel:
+            _anbieter_dazu(zeile, anbieter)
+            continue
+        if schluessel[0] not in gefragte:
+            continue
+        rest = [name for name in zeile.provider_list if name != anbieter]
+        if rest:
+            zeile.providers = ",".join(rest)
+            continue
+        db.delete(zeile)
+        geschrieben += 1
     return geschrieben
+
+
+def _anbieter_dazu(zeile: UserWatched | UserWatchedSeason, anbieter: str) -> None:
+    """Diesen Server in die Herkunftsliste der Zeile aufnehmen."""
+    dabei = set(zeile.provider_list)
+    if anbieter in dabei:
+        return
+    dabei.add(anbieter)
+    zeile.providers = ",".join(sorted(dabei))
 
 
 def _vollstaendig_uebernehmen(
@@ -249,14 +305,30 @@ def _vollstaendig_uebernehmen(
     werke: dict[str | None, MediaServerLibraryItem],
     im_bestand: set[tuple[MediaType, int]],
     vorhanden: dict[tuple[int, MediaType, int], UserWatched],
+    anbieter: str,
 ) -> int:
     """Einen vollstaendigen Gesehen-Stand uebernehmen - in beide Richtungen.
 
-    Neues kommt dazu, und was der Server nicht (mehr) als gesehen fuehrt, wird
-    entfernt - der Stand des Servers gilt. Entfernt wird aber **nur innerhalb
-    des aktuellen Bestands**: Verschwindet ein Titel ganz aus der Bibliothek,
-    kann der Abgleich ihn nicht mehr sehen - das macht die Wiedergabe nicht
-    ungeschehen, also bleibt das Auge.
+    Neues kommt dazu, und was der Server nicht (mehr) als gesehen fuehrt,
+    verliert **seine Stimme**. Entfernt wird nur innerhalb des aktuellen
+    Bestands: Verschwindet ein Titel ganz aus der Bibliothek, kann der Abgleich
+    ihn nicht mehr sehen - das macht die Wiedergabe nicht ungeschehen, also
+    bleibt das Auge.
+
+    ⚠️ **Der Server gilt nur fuer sich selbst, nicht fuer alle.** Frueher stand
+    hier "der Stand des Servers gilt", und die Zeile wurde geloescht, sobald er
+    sie nicht meldete. Mit zwei verbundenen Servern waere das ein Karussell
+    gewesen: Jeder Durchlauf haette weggeraeumt, was der andere gesetzt hat -
+    alle paar Minuten, ohne dass jemand die Ursache erkennen koennte.
+
+    Deshalb gilt jetzt: **gesehen, wenn irgendein verbundener Server es sagt.**
+    Meldet dieser Server einen Titel nicht mehr, wird nur *er* aus der
+    Herkunftsliste gestrichen. Die Zeile faellt erst, wenn niemand mehr uebrig
+    ist - dann ist sie dieselbe Loeschung wie frueher.
+
+    Der Preis ist bewusst bezahlt: Wer einen Haken auf *einem* Server wegnimmt,
+    sieht das Auge nicht mehr verschwinden, solange ein anderer Server ihn noch
+    fuehrt. Die Oberflaeche nennt dafuer die Namen, statt es zu verschweigen.
     """
     gesehen: dict[tuple[MediaType, int], datetime | None] = {}
     for eintrag in stand:
@@ -276,35 +348,80 @@ def _vollstaendig_uebernehmen(
         alt = vorhanden.get((benutzer_id, art, tmdb_id))
         if alt is None:
             neu = UserWatched(
-                user_id=benutzer_id, media_type=art, tmdb_id=tmdb_id, watched_at=wann
+                user_id=benutzer_id,
+                media_type=art,
+                tmdb_id=tmdb_id,
+                watched_at=wann,
+                providers=anbieter,
             )
             db.add(neu)
             vorhanden[(benutzer_id, art, tmdb_id)] = neu
             geschrieben += 1
-        elif wann and (alt.watched_at is None or wann > alt.watched_at):
-            alt.watched_at = wann
+        else:
+            if wann and (alt.watched_at is None or wann > alt.watched_at):
+                alt.watched_at = wann
+            # Auch wenn die Zeile schon stand: Dieser Server sagt jetzt
+            # ebenfalls "gesehen", und das gehoert vermerkt.
+            _anbieter_dazu(alt, anbieter)
 
     entfernt = 0
+    zurueckgenommen = 0
     for (user_id, art, tmdb_id), zeile in list(vorhanden.items()):
         if user_id != benutzer_id:
             continue
         if (art, tmdb_id) in gesehen or (art, tmdb_id) not in im_bestand:
             continue
+
+        # Dieser Server fuehrt den Titel nicht mehr als gesehen. Nur seine
+        # Stimme faellt weg - sagt ein anderer noch ja, bleibt das Auge.
+        rest = [name for name in zeile.provider_list if name != anbieter]
+        if rest:
+            zeile.providers = ",".join(rest)
+            zurueckgenommen += 1
+            continue
+
         db.delete(zeile)
         del vorhanden[(user_id, art, tmdb_id)]
         entfernt += 1
+
     if entfernt:
         logger.info("Watched: removed %d marker(s) for user %d", entfernt, benutzer_id)
+    if zurueckgenommen:
+        logger.info(
+            "Watched: %r no longer reports %d marker(s) for user %d, another server still does",
+            anbieter,
+            zurueckgenommen,
+            benutzer_id,
+        )
     return geschrieben
 
 
 async def refresh(db: Session, settings: AppSettings) -> int:
-    """Gesehenes einlesen. Gibt die Zahl der neuen Zuordnungen zurueck."""
-    server = get_media_server(settings)
-    if server is None:
-        return 0
+    """Gesehenes einlesen - von **allen** verbundenen Servern.
 
-    benutzer = list(db.scalars(select(User).where(User.mediaserver_account_id.isnot(None))))
+    Nacheinander und nicht gleichzeitig: Die Zusammenfuehrung in
+    ``_vollstaendig_uebernehmen`` liest den vorhandenen Bestand und schreibt
+    ihn zurueck. Zwei Server, die sich dabei ins Wort fallen, wuerden sich die
+    Herkunftsvermerke gegenseitig ueberschreiben - und genau die entscheiden,
+    ob ein Auge gruen bleibt, wenn *ein* Server einen Titel nicht mehr meldet.
+    """
+    gesamt = 0
+    for anbieter in verbundene_anbieter(settings):
+        gesamt += await _einen_server_abgleichen(db, settings, anbieter)
+    return gesamt
+
+
+async def _einen_server_abgleichen(
+    db: Session, settings: AppSettings, anbieter: str
+) -> int:
+    """Gesehenes **eines** Servers einlesen."""
+    server = media_server_for_setup(settings, anbieter)
+
+    # Nur wer bei *diesem* Anbieter ein Konto hat. Frueher stand hier ein
+    # Filter auf ``User.mediaserver_account_id`` - der findet im Parallel-
+    # betrieb auch Leute, die nur beim anderen Server ein Konto haben, und
+    # schickte deren Token an den falschen.
+    benutzer = konten.verknuepfte_konten(db, anbieter)
     if not benutzer:
         # Niemand hat sein Konto verknuepft - dann gibt es nichts zuzuordnen.
         return 0
@@ -336,7 +453,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
 
     # Quelle 1: das persoenliche Token - vollstaendig, gilt in beide Richtungen.
     for user in benutzer:
-        token = _token(user)
+        token = _token(user, server.provider)
         if not token:
             continue
         try:
@@ -347,7 +464,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
             break
         except MediaServerError as fehler:
             if fehler.status_code == 401:
-                _neu_verbinden_hinweis(db, user, server.label)
+                _neu_verbinden_hinweis(db, user, server.label, server.provider)
             else:
                 logger.warning(
                     "Watched state of %s not readable: %s", user.username, fehler.message
@@ -355,10 +472,10 @@ async def refresh(db: Session, settings: AppSettings) -> int:
             continue
         # Es geht wieder - einen frueheren Hinweis wegnehmen. Sonst bliebe der
         # rote Balken stehen, obwohl die Ursache behoben ist.
-        konten.token_geht_wieder(user)
+        konten.token_geht_wieder(user, server.provider)
 
         geschrieben += _vollstaendig_uebernehmen(
-            db, user.id, stand, werke, im_bestand, vorhanden
+            db, user.id, stand, werke, im_bestand, vorhanden, server.provider
         )
         # Die Staffel-Stufe haengt am selben Token - und wird **gezielt**
         # abgefragt: Sie kostet eine Anfrage je Serie und wird nur fuer die
@@ -382,7 +499,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
                 )
         if staffel_stand is not None:
             geschrieben += _staffeln_uebernehmen(
-                db, user.id, staffel_stand, werke, set(gewuenscht)
+                db, user.id, staffel_stand, werke, set(gewuenscht), server.provider
             )
         vollstaendig.add(user.id)
 
@@ -404,7 +521,7 @@ async def refresh(db: Session, settings: AppSettings) -> int:
                 if z.owner_watched
             ]
             geschrieben += _vollstaendig_uebernehmen(
-                db, eigentuemer_id, stand, werke, im_bestand, vorhanden
+                db, eigentuemer_id, stand, werke, im_bestand, vorhanden, server.provider
             )
             vollstaendig.add(eigentuemer_id)
 
@@ -472,10 +589,36 @@ def gesehene_staffeln(
     return {paar for paar in paare if paar in gesehen}
 
 
+def herkunft_aufteilen(
+    sagt_ja: list[str], verbunden: list[str]
+) -> tuple[list[str], list[str]]:
+    """Wer sagt "gesehen", und wer widerspricht - oder beides leer.
+
+    ⚠️ **Schweigen ist der Normalfall.** Solange nur ein Server verbunden ist,
+    gibt es nichts zu unterscheiden: "gesehen laut Plex" waere an jeder Kachel
+    dieselbe Selbstverstaendlichkeit. Erst wenn mindestens zwei verbunden sind
+    *und* sie sich uneins sind, kommen Namen ins Spiel.
+
+    Genauso schweigt es, wenn alle verbundenen Server einig sind - dann sagt
+    das gruene Auge ja bereits alles.
+
+    Server, die nicht (mehr) verbunden sind, kommen nicht vor: Ihre Stimme
+    steht zwar noch in der Zeile, aber ueber sie laesst sich nichts
+    Verlaessliches mehr sagen.
+    """
+    if len(verbunden) < 2:
+        return [], []
+    ja = sorted(name for name in sagt_ja if name in verbunden)
+    nein = sorted(name for name in verbunden if name not in sagt_ja)
+    if not nein or not ja:
+        return [], []
+    return ja, nein
+
+
 def gesehene_kennungen(
     db: Session, user_id: int, media_type: MediaType, tmdb_ids: list[int]
-) -> set[int]:
-    """Welche dieser Titel hat *dieser* Benutzer schon gesehen?
+) -> dict[int, list[str]]:
+    """Welche dieser Titel hat *dieser* Benutzer schon gesehen - und laut wem?
 
     **Immer nur die eigenen - auch fuer Administratoren.** Das ist eine
     ausdrueckliche Entscheidung des Betreibers und kein Versaeumnis: Zwischendurch
@@ -483,15 +626,24 @@ def gesehene_kennungen(
     wieder verworfen. Wer sie doch einmal einbaut, sollte wissen, dass er damit
     eine getroffene Entscheidung umkehrt - und dass die Betroffenen davon nichts
     mitbekaemen.
+
+    Gibt ein Woerterbuch zurueck, keine Menge - **aber alle bisherigen Aufrufer
+    bleiben unveraendert**, denn sie fragen nur mit ``in``, und das bedeutet bei
+    einem Woerterbuch dasselbe. Der Wert dahinter ist die Herkunft: welche
+    Medienserver diesen Titel als gesehen fuehren. Gebraucht wird sie erst,
+    wenn mehr als einer verbunden ist - dann kann das gruene Auge naemlich
+    heissen "der eine sagt ja, der andere nein", und das soll es dann auch
+    sagen duerfen.
     """
     if not tmdb_ids:
-        return set()
-    return set(
-        db.scalars(
-            select(UserWatched.tmdb_id).where(
+        return {}
+    return {
+        zeile.tmdb_id: zeile.provider_list
+        for zeile in db.scalars(
+            select(UserWatched).where(
                 UserWatched.user_id == user_id,
                 UserWatched.media_type == media_type,
                 UserWatched.tmdb_id.in_(tmdb_ids),
             )
         )
-    )
+    }

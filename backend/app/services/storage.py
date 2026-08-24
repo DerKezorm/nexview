@@ -681,6 +681,12 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
     Was Radarr bereits gemeldet hat, wird **nicht** ueberschrieben - dessen
     Zahl ist die genauere. Serien bleiben aussen vor: Dort haengen die Dateien
     an den Folgen, der Serien-Eintrag traegt keine Groesse.
+
+    **Melden mehrere Server denselben Titel, zaehlt der groessere Wert.** Bis
+    zum Parallelbetrieb gewann schlicht der erste Treffer - was in der Praxis
+    stimmte, weil es nur einen Server gab, aber eben ein Zufall war und keine
+    Entscheidung. Die Begruendung fuer "groesser" steht unten an der Stelle,
+    an der es passiert.
     """
     zeilen = db.scalars(
         select(MediaServerLibraryItem).where(
@@ -689,17 +695,44 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
         )
     ).all()
 
+    # Erst den besten Wert je Posten ueber **alle** Server bestimmen, dann
+    # eintragen. Die Reihenfolge ist wichtig: Waere beides in einer Schleife,
+    # entschiede darueber, welcher Server zufaellig zuerst gelesen wird - und
+    # dieselbe Bibliothek ergaebe von Lauf zu Lauf andere Zahlen.
+    bester: dict[str, _Gemessen] = {}
+    quelle: dict[str, str] = {}
+    uneinig = 0
+
     for zeile in zeilen:
         for stufe, bytes_ in (
             (QualityTier.standard, zeile.size_standard),
             (QualityTier.uhd, zeile.size_uhd),
         ):
+            # Null heisst "unbekannt", nicht "leer" - ein Server ohne Angabe
+            # soll keinen Posten auf 0 druecken. Faellt hier von selbst weg.
             if bytes_ <= 0:
                 continue
             kennung = schluessel(MediaType.movie, stufe, tmdb_id=zeile.tmdb_id)
-            if kennung is None or kennung in ziel:
+            if kennung is None:
                 continue
-            ziel[kennung] = _Gemessen(
+
+            vorher = bester.get(kennung)
+            if vorher is not None:
+                if quelle.get(kennung) != zeile.provider:
+                    uneinig += 1
+                # ⚠️ **Bei Uneinigkeit gewinnt der groessere Wert** - und das
+                # ist keine Vermutung darueber, wer recht hat, sondern eine
+                # Entscheidung darueber, welcher Irrtum weniger schadet.
+                #
+                # Zu wenig zu zaehlen hiesse: Die Platte laeuft voll, obwohl
+                # die Kontingente greifen - genau das, wogegen sie gebaut
+                # wurden. Zu viel zu zaehlen heisst: Jemand hoert "aufgebraucht",
+                # obwohl noch Luft ist. Das ist aergerlich, aber sichtbar, und
+                # er kann etwas abgeben.
+                if vorher.size_bytes >= bytes_:
+                    continue
+
+            bester[kennung] = _Gemessen(
                 key=kennung,
                 media_type=MediaType.movie,
                 tier=stufe,
@@ -709,6 +742,20 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
                 title=zeile.title,
                 size_bytes=bytes_,
             )
+            quelle[kennung] = zeile.provider
+
+    for kennung, wert in bester.items():
+        # Was Radarr gemeldet hat, bleibt stehen - siehe oben.
+        if kennung in ziel:
+            continue
+        ziel[kennung] = wert
+
+    if uneinig:
+        logger.info(
+            "Storage: %d title(s) reported with differing sizes by the connected "
+            "servers - the larger value counts",
+            uneinig,
+        )
 
 
 def _tvdb_nach_tmdb(db: Session) -> dict[int, int]:

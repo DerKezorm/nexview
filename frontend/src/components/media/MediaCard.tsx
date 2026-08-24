@@ -199,7 +199,9 @@ export function MediaCard({
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {/* Das Auge sitzt hier und nicht auf dem Poster: als zweites Schild
               neben "Bereits geladen" verdeckte es das halbe Bild. */}
-          {item.watched && <WatchedBadge />}
+          {item.watched && (
+            <WatchedBadge on={item.watched_on} notOn={item.watched_not_on} />
+          )}
 
           {actions ?? (
             <>

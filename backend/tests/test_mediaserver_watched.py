@@ -108,13 +108,25 @@ def bibliothek(*werke: tuple[str, int, MediaType], owner_watched: bool = False) 
 
 
 def verknuepfen(username: str, konto: str, plexname: str, token: str | None = None) -> int:
+    """Ein Konto verknuepfen - ueber denselben Weg wie die Anwendung.
+
+    ⚠️ Frueher wurden hier die Spalten am Benutzer direkt gesetzt. Seit es
+    ``user_media_server_accounts`` gibt, waere das nur die halbe Verknuepfung:
+    Der Abgleich sucht die Leute ueber die Tabelle, faende dort niemanden und
+    liefe ins Leere - ohne Fehler, nur ohne Ergebnis.
+    """
+    from app.services import mediaserver_accounts as konten
+    from app.services.mediaserver import ExternalAccount
+
     with SessionLocal() as db:
         u = db.query(User).filter(User.username == username).one()
-        u.mediaserver_provider = "plex"
-        u.mediaserver_account_id = konto
-        u.mediaserver_username = plexname
-        if token is not None:
-            u.watchlist_token = encrypt(token)
+        konten.link(
+            u,
+            ExternalAccount(
+                provider="plex", account_id=konto, username=plexname
+            ),
+            encrypt(token) if token is not None else None,
+        )
         db.commit()
         return u.id
 
@@ -148,7 +160,11 @@ def gesehen_eintragen(user_id: int, tmdb_id: int, art: MediaType = MediaType.mov
 
 
 async def abgleichen(server: VerlaufsServer, monkeypatch: pytest.MonkeyPatch) -> int:
-    monkeypatch.setattr(mediaserver_watched, "get_media_server", lambda _s: server)
+    # Seit dem Parallelbetrieb geht der Abgleich ueber alle verbundenen
+    # Anbieter - er holt sich den Adapter je Anbieter, nicht "den einen".
+    monkeypatch.setattr(
+        mediaserver_watched, "media_server_for_setup", lambda _s, _anbieter: server
+    )
     with SessionLocal() as db:
         return await mediaserver_watched.refresh(db, load_settings(db))
 
@@ -656,3 +672,178 @@ async def test_ohne_staffel_zaehler_bleibt_alles_beim_alten(
             )
             == 1
         )
+
+
+# --------------------------------------------------------------------------
+# Mehrere Server: wer sagt "gesehen"?
+# --------------------------------------------------------------------------
+
+
+def _uebernehmen(user_id: int, tmdb_ids: list[int], anbieter: str) -> None:
+    """``_vollstaendig_uebernehmen`` fuer einen Server aufrufen.
+
+    Bewusst direkt und nicht ueber ``refresh``: Ein zweiter Anbieter ist noch
+    nicht gebaut, aber die Zusammenfuehr-Regel muss **jetzt** stimmen - sie ist
+    die Voraussetzung dafuer, dass ein zweiter ueberhaupt gefahrlos dazukommen
+    kann. Die Funktion nimmt den Anbieternamen als Text; mehr braucht es nicht.
+    """
+    with SessionLocal() as db:
+        werke = {
+            zeile.rating_key: zeile
+            for zeile in db.scalars(select(MediaServerLibraryItem))
+        }
+        im_bestand = {
+            (zeile.media_type, zeile.tmdb_id)
+            for zeile in werke.values()
+            if zeile.tmdb_id
+        }
+        vorhanden = {
+            (z.user_id, z.media_type, z.tmdb_id): z
+            for z in db.scalars(select(UserWatched).where(UserWatched.user_id == user_id))
+        }
+        gemeldet = [
+            WatchedRecord(account_id="1", item_key=str(kennung), media_type="movie")
+            for kennung in tmdb_ids
+        ]
+        mediaserver_watched._vollstaendig_uebernehmen(
+            db, user_id, gemeldet, werke, im_bestand, vorhanden, anbieter
+        )
+        db.commit()
+
+
+def _marker(user_id: int, tmdb_id: int) -> UserWatched | None:
+    with SessionLocal() as db:
+        return db.scalar(
+            select(UserWatched).where(
+                UserWatched.user_id == user_id, UserWatched.tmdb_id == tmdb_id
+            )
+        )
+
+
+async def test_ein_server_nimmt_nur_seine_eigene_stimme_zurueck(
+    admin_client: TestClient,
+) -> None:
+    """Der Kern der Zusammenfuehr-Regel.
+
+    Frueher galt "der Stand des Servers gilt": Was er nicht meldete, wurde
+    geloescht. Mit zwei verbundenen Servern waere das ein Karussell - jeder
+    Durchlauf raeumte weg, was der andere gerade gesetzt hat, alle paar
+    Minuten, ohne erkennbare Ursache.
+
+    Jetzt zaehlt jeder Server nur fuer sich.
+    """
+    verbinde(admin_client)
+    bibliothek(("100", 100, MediaType.movie))
+    user_id = verknuepfen(ADMIN["username"], "1", "Admin")
+
+    # Beide Server sehen den Film.
+    _uebernehmen(user_id, [100], "plex")
+    _uebernehmen(user_id, [100], "jellyfin")
+    assert _marker(user_id, 100).provider_list == ["jellyfin", "plex"]
+
+    # Auf Plex wird der Haken entfernt - Jellyfin sagt weiter ja.
+    _uebernehmen(user_id, [], "plex")
+
+    zeile = _marker(user_id, 100)
+    assert zeile is not None, "das Auge muss bleiben, solange ein Server es stuetzt"
+    assert zeile.provider_list == ["jellyfin"]
+
+
+async def test_die_letzte_stimme_nimmt_den_marker_mit(admin_client: TestClient) -> None:
+    """Faellt der letzte Server weg, ist es dieselbe Loeschung wie frueher.
+
+    Die neue Regel darf das Aufraeumen nicht abschaffen, nur verzoegern - sonst
+    bliebe jedes je gesetzte Auge fuer immer stehen.
+    """
+    verbinde(admin_client)
+    bibliothek(("100", 100, MediaType.movie))
+    user_id = verknuepfen(ADMIN["username"], "1", "Admin")
+
+    _uebernehmen(user_id, [100], "plex")
+    _uebernehmen(user_id, [100], "jellyfin")
+    _uebernehmen(user_id, [], "plex")
+    _uebernehmen(user_id, [], "jellyfin")
+
+    assert _marker(user_id, 100) is None
+
+
+async def test_ein_einzelner_server_verhaelt_sich_wie_vorher(
+    admin_client: TestClient,
+) -> None:
+    """Der Normalfall darf sich nicht geaendert haben.
+
+    Wer nur einen Server betreibt - also praktisch jeder heute - soll von der
+    ganzen Umstellung nichts merken.
+    """
+    verbinde(admin_client)
+    bibliothek(("100", 100, MediaType.movie))
+    user_id = verknuepfen(ADMIN["username"], "1", "Admin")
+
+    _uebernehmen(user_id, [100], "plex")
+    assert _marker(user_id, 100).provider_list == ["plex"]
+
+    _uebernehmen(user_id, [], "plex")
+    assert _marker(user_id, 100) is None
+
+
+async def test_marker_ohne_herkunft_wird_beim_abgleich_zugeordnet(
+    admin_client: TestClient,
+) -> None:
+    """Eine Zeile aus der Zeit vor der Spalte bekommt ihre Herkunft nachtraeglich.
+
+    ``init_db`` traegt sie beim Start nach; meldet der Server denselben Titel
+    aber ohnehin, erledigt es der Abgleich gleich mit. Beides muss zum selben
+    Ergebnis fuehren - sonst haenge das Verhalten davon ab, was zuerst laeuft.
+    """
+    verbinde(admin_client)
+    bibliothek(("100", 100, MediaType.movie))
+    user_id = verknuepfen(ADMIN["username"], "1", "Admin")
+    gesehen_eintragen(user_id, 100)
+
+    assert _marker(user_id, 100).provider_list == []
+
+    _uebernehmen(user_id, [100], "plex")
+
+    assert _marker(user_id, 100).provider_list == ["plex"]
+
+
+def test_bei_einem_server_schweigt_die_herkunft() -> None:
+    """Der Normalfall: ein Server, kein Zusatztext.
+
+    "Gesehen laut Plex" waere an jeder Kachel dieselbe Selbstverstaendlichkeit.
+    Der Hinweis soll erst kommen, wenn es wirklich etwas zu unterscheiden gibt -
+    sonst gewoehnt man sich an ihn und liest ihn dann nicht mehr, wenn er zaehlt.
+    """
+    assert mediaserver_watched.herkunft_aufteilen(["plex"], ["plex"]) == ([], [])
+    assert mediaserver_watched.herkunft_aufteilen([], ["plex"]) == ([], [])
+    assert mediaserver_watched.herkunft_aufteilen(["plex"], []) == ([], [])
+
+
+def test_bei_einigkeit_schweigt_die_herkunft_ebenfalls() -> None:
+    """Zwei Server, beide sagen ja - dann sagt das gruene Auge schon alles."""
+    assert mediaserver_watched.herkunft_aufteilen(
+        ["jellyfin", "plex"], ["jellyfin", "plex"]
+    ) == ([], [])
+
+
+def test_bei_widerspruch_kommen_die_namen() -> None:
+    """Genau dann, wenn jemand sich sonst wundern wuerde.
+
+    Wer den Haken auf einem Server wegnimmt und das Auge bleibt gruen, soll
+    nicht raten muessen, woran das liegt.
+    """
+    assert mediaserver_watched.herkunft_aufteilen(
+        ["plex"], ["jellyfin", "plex"]
+    ) == (["plex"], ["jellyfin"])
+
+
+def test_ein_getrennter_server_zaehlt_nicht_mehr_mit() -> None:
+    """Seine Stimme steht noch in der Zeile - aber sie ist nichts mehr wert.
+
+    Ueber einen Server, der nicht verbunden ist, laesst sich nichts
+    Verlaessliches sagen. Ihn trotzdem zu nennen hiesse, eine alte Auskunft als
+    aktuelle auszugeben.
+    """
+    assert mediaserver_watched.herkunft_aufteilen(
+        ["emby", "plex"], ["jellyfin", "plex"]
+    ) == (["plex"], ["jellyfin"])

@@ -46,6 +46,26 @@ class SetupStatus(BaseModel):
     # zusaetzlichen Knopf - ohne Verbindung soll davon nichts zu sehen sein.
     mediaserver_login: bool = False
     mediaserver_provider: str | None = None
+    # ⚠️ **Welche** Anbieter einen Anmeldeweg bieten - und welchen.
+    #
+    # Die beiden Felder darueber reichten nicht: ``mediaserver_login`` sagt nur
+    # "irgendeiner ist verbunden", und die Anmeldeseite machte daraus einen
+    # fest beschrifteten "Mit Plex anmelden"-Knopf. Auf einer Installation mit
+    # nur Jellyfin war das ein Knopf, der beim Klick scheiterte - der Ablauf
+    # dahinter ist auf plex.tv zugeschnitten.
+    mediaserver_login_ways: list["AnmeldeWeg"] = []
+
+
+class AnmeldeWeg(BaseModel):
+    """Ein Anmeldeweg auf der Anmeldeseite.
+
+    ``kind`` entscheidet, was der Knopf tut: ``"pin"`` oeffnet das Fenster des
+    Anbieters, ``"password"`` klappt ein Formular auf.
+    """
+
+    provider: str
+    label: str
+    kind: str
 
 
 class SetupAdminCreate(BaseModel):
@@ -79,6 +99,20 @@ class RefreshRequest(BaseModel):
 
 
 # --- Benutzer --------------------------------------------------------------
+
+
+class VerknuepftesKonto(BaseModel):
+    """Ein Medienserver-Konto eines Benutzers - fuer die Anzeige.
+
+    Ohne Token und ohne Adresse: Beides geht den Browser nichts an. Der Name
+    steht drin, weil "Verbunden mit Markus" etwas sagt und eine Kontonummer
+    nicht.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    provider: str
+    username: str | None = None
 
 
 class UserPublic(BaseModel):
@@ -152,6 +186,11 @@ class UserPublic(BaseModel):
     mediaserver_provider: str | None
     mediaserver_username: str | None
     mediaserver_linked: bool
+    # **Alle** Verknuepfungen, je eine Zeile. Die beiden Felder darueber
+    # nennen nur die zuletzt hinzugekommene - im Parallelbetrieb also
+    # willkuerlich eine von zweien. Wer nach einem bestimmten Anbieter fragt,
+    # muss hier suchen.
+    mediaserver_accounts: list["VerknuepftesKonto"] = []
     # Wer sich nur ueber den Media-Server anmeldet, hat kein Passwort. Das
     # Profil braucht die Auskunft, um "Passwort festlegen" anzubieten - und um
     # das Trennen zu verhindern, das aussperren wuerde.

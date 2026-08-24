@@ -22,6 +22,11 @@ from ..services.settings_service import (
     public_settings,
     save_settings,
 )
+from ..services.mediaserver import (
+    PROVIDERS,
+    merklisten_anbieter,
+    verbundene_anbieter,
+)
 from ..services.tmdb import TmdbClient, TmdbError
 
 router = APIRouter(prefix="/api", tags=["settings"])
@@ -80,11 +85,6 @@ class SettingsUpdate(BaseModel):
     # Maschinenkennung immer zu einem tatsaechlich geprueften Server gehoert.
     mediaserver_auto_import: bool | None = None
     mediaserver_default_role: str | None = None
-    # Leerer String bedeutet "unbegrenzt" bzw. "keine Altersgrenze".
-    mediaserver_default_quota_movies: str | None = Field(default=None, max_length=6)
-    mediaserver_default_quota_series: str | None = Field(default=None, max_length=6)
-    mediaserver_default_quota_period: str | None = None
-    mediaserver_default_age: str | None = Field(default=None, max_length=3)
     # --- Merkliste ----------------------------------------------------------
     watchlist_enabled: bool | None = None
     storage_enabled: bool | None = None
@@ -146,6 +146,35 @@ class AppConfig(BaseModel):
     # Ist ueberhaupt ein Media-Server verbunden? Daran haengt, ob es den
     # Merklisten-Bereich geben kann.
     mediaserver_configured: bool
+    # **Welche** Server verbunden sind - heute hoechstens einer, die Liste ist
+    # trotzdem eine Liste. Die Oberflaeche braucht die Namen an zwei Stellen:
+    # um Logos statt des Wortes "Plex" zu zeigen, und um zu entscheiden, ob es
+    # ueberhaupt etwas zu unterscheiden gibt. Beides waere mit einem blossen
+    # "ja/nein" nicht moeglich.
+    mediaserver_providers: list[str]
+    # Welche Anbieter **diese Fassung** ueberhaupt kennt - unabhaengig davon, ob
+    # einer verbunden ist. Die Oberflaeche zeigt fuer jeden bekannten Anbieter
+    # eine Kachel und graut die uebrigen aus.
+    #
+    # Kommt bewusst vom Server: Sonst muesste die Oberflaeche eine zweite Liste
+    # fuehren, und die erste vergessene Zeile waere eine Kachel, die man
+    # anklicken kann und die dann nichts tut. Genau die Doppelung, die es hier
+    # bis 0.18.0 zwischen ``PROVIDERS`` und der Anbieter-Weissliste gab.
+    mediaserver_available: list[str]
+    # Welche davon mit Benutzername und Passwort verbunden werden - der Rest
+    # ueber den Code-Ablauf. Auch das kommt vom Server, aus demselben Grund wie
+    # die Liste darueber: Die Oberflaeche soll nicht raten muessen, welches
+    # Formular sie zeigt, und die Antwort steht ohnehin schon im Adapter.
+    mediaserver_password_login: list[str]
+    # Quellen fuer Merklisten: was diese Fassung kennt, und was davon
+    # verbunden ist. Zwei Listen, weil die Oberflaeche beides braucht - eine
+    # Quelle soll auch dann dastehen, wenn sie *nicht* verbunden ist, sonst
+    # verschwindet der ganze Bereich und niemand weiss, warum.
+    #
+    # Heute ist das nur Plex; Jellyfin und Emby haben keine Merkliste. Kommt
+    # spaeter Trakt dazu, ist es hier eine Zeile.
+    mediaserver_watchlist_available: list[str]
+    mediaserver_watchlist_connected: list[str]
     # Duerfen Benutzer ihre Merkliste sehen und daraus anfragen? Die
     # Oberflaeche blendet daran den Menuepunkt und den Filter "Über Merkliste
     # angefragt" ein.
@@ -173,6 +202,15 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         radarr_uhd_configured=settings.radarr_uhd_configured,
         sonarr_uhd_configured=settings.sonarr_uhd_configured,
         mediaserver_configured=settings.mediaserver_configured,
+        mediaserver_providers=verbundene_anbieter(settings),
+        mediaserver_available=sorted(PROVIDERS),
+        mediaserver_password_login=sorted(
+            name for name, klasse in PROVIDERS.items() if klasse.supports_password_login()
+        ),
+        mediaserver_watchlist_available=sorted(
+            name for name, klasse in PROVIDERS.items() if klasse.supports_watchlist()
+        ),
+        mediaserver_watchlist_connected=merklisten_anbieter(settings),
         watchlist_enabled=settings.watchlist_enabled,
         storage_enabled=settings.storage_enabled,
     )

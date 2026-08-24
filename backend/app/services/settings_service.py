@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..crypto import decrypt, encrypt, mask
-from ..models import Setting
+from ..models import MediaServerConnection, Setting
 
 logger = logging.getLogger("nexview.settings")
 
@@ -136,11 +136,6 @@ DEFAULTS: dict[str, str] = {
     # Vorgaben fuer so entstandene Konten. Freigaben bleiben absichtlich
     # noetig - wer neu dazukommt, soll nicht ungefragt herunterladen duerfen.
     "mediaserver_default_role": "user",  # "user" | "approver", niemals "admin"
-    "mediaserver_default_quota_movies": "",
-    "mediaserver_default_quota_series": "",
-    "mediaserver_default_quota_period": "week",
-    # Altersbeschraenkung fuer neue Konten; leer heisst unbeschraenkt.
-    "mediaserver_default_age": "",
     # --- Merkliste ----------------------------------------------------------
     # Ein Schalter, mehr nicht: Er entscheidet, ob Benutzer ihre Merkliste in
     # Nexview sehen und daraus anfragen koennen. Angefragt wird ueber den ganz
@@ -156,6 +151,31 @@ DEFAULTS: dict[str, str] = {
     # nichts, und "nur messen, nicht begrenzen" bleibt ausdrueckbar.
     "storage_default_limit_gb": "",
 }
+
+
+@dataclass(frozen=True)
+class Verbindung:
+    """Ein verbundener Medienserver, fertig zum Benutzen.
+
+    Das Token steht hier im **Klartext** - entschluesselt beim Laden, wie bei
+    allen anderen Zugaengen auch. In der Datenbank liegt es verschluesselt.
+    """
+
+    provider: str
+    machine_id: str
+    name: str
+    url: str
+    token: str
+
+    @property
+    def nutzbar(self) -> bool:
+        """Genug, um damit zu arbeiten?
+
+        Die Adresse gehoert bewusst **nicht** dazu: Der Zugriff wird ueber die
+        Server-Kennung beim Anbieter geprueft, und die Anmeldung funktioniert
+        auch dann noch, wenn der Server daheim gerade aus ist.
+        """
+        return bool(self.provider and self.machine_id and self.token)
 
 
 @dataclass(frozen=True)
@@ -197,6 +217,11 @@ class AppSettings:
     smtp_from_name: str
     public_url: str
     update_check: bool
+    # Die Verbindungen, wie sie in ``media_server_connections`` stehen. Die vier
+    # Einzelwerte darunter sind die **erste** davon - sie bleiben, damit die
+    # ueber zwanzig Stellen, die "ist verbunden?" oder "welcher Anbieter?"
+    # fragen, unveraendert weiterlaufen. Wer mehrere braucht, nimmt die Liste.
+    mediaserver_verbindungen: tuple["Verbindung", ...]
     mediaserver_provider: str
     mediaserver_machine_id: str
     mediaserver_name: str
@@ -205,10 +230,6 @@ class AppSettings:
     mediaserver_client_identifier: str
     mediaserver_auto_import: bool
     mediaserver_default_role: str
-    mediaserver_default_quota_movies: int | None
-    mediaserver_default_quota_series: int | None
-    mediaserver_default_quota_period: str
-    mediaserver_default_age: int | None
     watchlist_enabled: bool
     storage_enabled: bool
     storage_default_limit_gb: int | None
@@ -431,9 +452,52 @@ def _raw_values(db: Session) -> dict[str, str]:
     return {**DEFAULTS, **stored}
 
 
+def _verbindungen_lesen(db: Session, values: dict[str, str]) -> tuple[Verbindung, ...]:
+    """Die verbundenen Medienserver - aus der Tabelle, sonst aus den Altwerten.
+
+    ⚠️ **Der Rueckfall ist der Grund, warum die Wanderung gefahrlos ist.**
+    Bis 0.17.0 lag genau eine Verbindung in fuenf flachen Einstellungswerten.
+    Steht die Tabelle noch leer - eine Installation, die gerade erst
+    aktualisiert wurde, oder eine, bei der die Wanderung aus irgendeinem Grund
+    nicht durchlief -, wird weiterhin von dort gelesen. Es gibt also keinen
+    Augenblick, in dem eine bestehende Verbindung verschwunden waere.
+
+    Der Rueckfall darf spaeter weg, aber erst, wenn keine Installation mehr
+    denkbar ist, die den Sprung nicht gemacht hat. Bis dahin kostet er eine
+    Abfrage und erspart einen Anruf.
+    """
+    aus_tabelle = [
+        Verbindung(
+            provider=zeile.provider,
+            machine_id=zeile.machine_id,
+            name=zeile.name,
+            url=zeile.url.rstrip("/"),
+            token=decrypt(zeile.token) if zeile.token else "",
+        )
+        for zeile in db.scalars(
+            select(MediaServerConnection).order_by(MediaServerConnection.id)
+        )
+    ]
+    if aus_tabelle:
+        return tuple(aus_tabelle)
+
+    alt = Verbindung(
+        provider=values.get("mediaserver_provider", "").strip(),
+        machine_id=values.get("mediaserver_machine_id", "").strip(),
+        name=values.get("mediaserver_name", "").strip(),
+        url=values.get("mediaserver_url", "").strip().rstrip("/"),
+        token=values.get("mediaserver_token", ""),
+    )
+    return (alt,) if alt.provider and alt.machine_id else ()
+
+
 def load_settings(db: Session) -> AppSettings:
     raw = _raw_values(db)
     values = {key: (decrypt(value) if key in SECRET_KEYS else value) for key, value in raw.items()}
+    verbindungen = _verbindungen_lesen(db, values)
+    # Eine leere Verbindung als Platzhalter: So brauchen die Einzelwerte unten
+    # keine Fallunterscheidung, und "nicht verbunden" ist schlicht "alles leer".
+    erste = verbindungen[0] if verbindungen else Verbindung("", "", "", "", "")
 
     # Benennen, *welches* Geheimnis unlesbar ist - die allgemeine Warnung aus
     # crypto.py sagt nur "irgendeines". Fuer die Fehlersuche zaehlt der Name:
@@ -505,15 +569,14 @@ def load_settings(db: Session) -> AppSettings:
         smtp_from_name=values["smtp_from_name"].strip() or "Nexview",
         public_url=values["public_url"].strip().rstrip("/"),
         update_check=_flag(values["update_check"], standard=True),
-        mediaserver_provider=(
-            values["mediaserver_provider"].strip()
-            if values["mediaserver_provider"].strip() in ("plex",)
-            else ""
-        ),
-        mediaserver_machine_id=values["mediaserver_machine_id"].strip(),
-        mediaserver_name=values["mediaserver_name"].strip(),
-        mediaserver_url=values["mediaserver_url"].strip().rstrip("/"),
-        mediaserver_token=values["mediaserver_token"],
+        mediaserver_verbindungen=verbindungen,
+        # Die erste Verbindung, damit alles Bestehende weiterlaeuft. Bei genau
+        # einer - dem heutigen Normalfall - ist das schlicht *die* Verbindung.
+        mediaserver_provider=erste.provider,
+        mediaserver_machine_id=erste.machine_id,
+        mediaserver_name=erste.name,
+        mediaserver_url=erste.url,
+        mediaserver_token=erste.token,
         mediaserver_client_identifier=values["mediaserver_client_identifier"].strip(),
         mediaserver_auto_import=_flag(values["mediaserver_auto_import"], standard=True),
         # "admin" wird hier abgefangen und nicht erst beim Speichern: eine von
@@ -523,14 +586,6 @@ def load_settings(db: Session) -> AppSettings:
             if values["mediaserver_default_role"] in ("user", "approver")
             else "user"
         ),
-        mediaserver_default_quota_movies=_zahl(values.get("mediaserver_default_quota_movies")),
-        mediaserver_default_quota_series=_zahl(values.get("mediaserver_default_quota_series")),
-        mediaserver_default_quota_period=(
-            values["mediaserver_default_quota_period"]
-            if values["mediaserver_default_quota_period"] in ("day", "week", "month")
-            else "week"
-        ),
-        mediaserver_default_age=_zahl(values.get("mediaserver_default_age")),
         watchlist_enabled=_flag(values["watchlist_enabled"], standard=False),
         storage_enabled=_flag(values["storage_enabled"], standard=False),
         storage_default_limit_gb=profil("storage_default_limit_gb"),
@@ -641,12 +696,19 @@ def public_settings(db: Session) -> dict[str, object]:
         # beim Verbinden vom Anbieter geholt.
         "mediaserver_token_set": bool(settings.mediaserver_token),
         "mediaserver_configured": settings.mediaserver_configured,
+        # **Alle** Verbindungen, je eine Zeile. Die Einzelwerte darueber sind
+        # immer die der *ersten* - im Parallelbetrieb also nur zufaellig die
+        # gesuchte. Die Oberflaeche zeigt je Anbieter eine eigene Seite und
+        # braucht deshalb je Anbieter Name und Adresse.
+        #
+        # Ohne Token: Das verlaesst den Server nie, siehe darueber.
+        "mediaserver_connections": [
+            {"provider": zeile.provider, "name": zeile.name, "url": zeile.url}
+            for zeile in settings.mediaserver_verbindungen
+            if zeile.nutzbar
+        ],
         "mediaserver_auto_import": settings.mediaserver_auto_import,
         "mediaserver_default_role": settings.mediaserver_default_role,
-        "mediaserver_default_quota_movies": settings.mediaserver_default_quota_movies,
-        "mediaserver_default_quota_series": settings.mediaserver_default_quota_series,
-        "mediaserver_default_quota_period": settings.mediaserver_default_quota_period,
-        "mediaserver_default_age": settings.mediaserver_default_age,
         "watchlist_enabled": settings.watchlist_enabled,
         "storage_enabled": settings.storage_enabled,
         "storage_default_limit_gb": settings.storage_default_limit_gb,
@@ -726,16 +788,31 @@ def verbindungsbericht() -> None:
 
     with SessionLocal() as db:
         raw = _raw_values(db)
+
+        def _lage(wert: str) -> str:
+            if not wert:
+                return "empty"
+            return "readable" if decrypt(wert) else "UNREADABLE"
+
         stand: list[str] = []
         for name in sorted(SECRET_KEYS):
-            wert = raw.get(name, "")
-            if not wert:
-                stand.append(f"{name}=empty")
-            elif decrypt(wert):
-                stand.append(f"{name}=readable")
-            else:
-                stand.append(f"{name}=UNREADABLE")
-        logger.info("Secrets: %s", ", ".join(stand))
+            # ⚠️ ``mediaserver_token`` steht seit 0.18.0 **nicht mehr** in den
+            # Einstellungen, sondern je Verbindung in ihrer eigenen Zeile. Der
+            # Bericht dort nachzusehen zu vergessen hiesse, bei jedem Start
+            # "mediaserver_token=empty" zu melden, obwohl alles in Ordnung ist -
+            # und genau dieser Bericht existiert, um eine verschwundene
+            # Verbindung erklaeren zu koennen. Eine falsche Auskunft waere hier
+            # schlimmer als gar keine.
+            if name == "mediaserver_token":
+                continue
+            stand.append(f"{name}={_lage(raw.get(name, ''))}")
+
+        for zeile in db.scalars(
+            select(MediaServerConnection).order_by(MediaServerConnection.id)
+        ):
+            stand.append(f"mediaserver_token[{zeile.provider}]={_lage(zeile.token)}")
+
+        logger.info("Secrets: %s", ", ".join(sorted(stand)))
 
         settings = load_settings(db)
         if settings.mediaserver_provider or raw.get("mediaserver_machine_id"):

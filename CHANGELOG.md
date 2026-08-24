@@ -16,6 +16,46 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ### New
 
+- **Jellyfin, alongside Plex rather than instead of it.** Both servers can be
+  connected at the same time, and each person may link an account on each. The
+  watched state is merged across them: a title stays marked as seen while *any*
+  connected server still reports it, so adding a second server no longer wipes
+  the ticks the first one gave you. Where two servers disagree, Nexview can now
+  say so instead of picking one.
+
+  Signing in works with Jellyfin too — but it will not create an account.
+  Jellyfin gives no email address for an account, and the address is the only
+  thing that lets Nexview recognise somebody who already has an account. Without
+  it, a person with an invitation would quietly end up with a *second* account,
+  with no password and no way back in. Those who have an account link Jellyfin
+  from their profile instead; the sign-in form says so before anyone falls into
+  it.
+
+- **The sign-in page shows the ways that exist.** Instead of a fixed "Sign in
+  with Plex" button it now says "Sign in with" and offers one logo per connected
+  server. An installation running only Jellyfin used to get a Plex button that
+  failed on click — the flow behind it is built around plex.tv, which Jellyfin
+  has no equivalent for.
+
+- **Media server accounts have their own place in the profile.** They used to
+  sit at the bottom of "Security", below the password form, where nobody
+  looking to connect Plex would think to search.
+
+- **The disconnect button now says who it would shut out.** Disconnecting the
+  media server used to happen on a single click, without a word. For accounts
+  that only ever came in through that server — no password of their own — this
+  closed their only door. A confirmation now counts them by name beforehand,
+  and the server refuses outright unless the administrator explicitly overrides
+  it. The same check already guarded people disconnecting *themselves*; it was
+  missing one level up. The dialog also appears when nobody is at risk and says
+  so — a warning that only ever shows up in an emergency is not read the first
+  time it matters.
+
+- **The user list shows who is linked, and who has no password.** Both facts
+  were already known to the app and shown nowhere. The link is quiet, in the
+  grey summary line; the missing password gets a badge, because it is the one
+  thing that turns a disconnect into a lockout.
+
 - **The log finally contains the crashes.** An unhandled server error was
   written by uvicorn to a logger that never reached Nexview's own log file. An
   administrator downloaded the log and precisely the crash was missing from it —
@@ -50,6 +90,38 @@ veröffentlicht, solange kein Tag dazu existiert.
   user-facing texts stay translated as before.
 
 ### Fixed
+
+- **A second media server no longer displaces the first.** Every account held
+  exactly one media server identity, in a handful of columns. Connecting
+  Jellyfin while linked to Plex overwrote that link — name, address and the
+  personal token, without a word. Identities now live in a table of their own,
+  one row per provider, each with its own token. The columns remain as the most
+  recently linked one, and exactly one function writes them.
+
+- **Each server keeps its own access.** Jellyfin issues tokens per *device*,
+  and Nexview announced itself under a single device name for everything. Signing
+  in personally therefore revoked the administrator's server connection, and two
+  people signing in revoked each other. Every purpose now has its own device
+  identity.
+
+- **The library count on a server's page was not that server's.** It counted
+  distinct titles across all connected servers and showed the same number on
+  every page — and before that it counted rows, so the same film indexed by two
+  servers was two titles. The page now shows only when it last synced, and the
+  button syncs only the server whose page it is.
+
+- **One unreadable notification no longer silences the whole bell.** A
+  notification whose type had been renamed away could not be unpacked, and the
+  error took the entire list with it — the bell showed "nothing new" while the
+  counter beside it kept claiming unread messages. Measured in a real database:
+  four such rows had been hiding a genuine, unread piece of feedback for a
+  week. Rows of a vanished type are now cleared away at start-up, with a
+  warning naming them, and the same applies to the outgoing channel queue.
+
+- **The comment above passwordless accounts was lying.** It claimed such an
+  account could set a password later in its profile. It cannot — that route
+  demands the current password, which the account never had. The two routes
+  that do work are written down there now.
 
 - **The level filter no longer hides errors.** Choosing "WARNING" in the log
   view compared for equality and therefore left out the ERROR lines — exactly

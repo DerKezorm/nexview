@@ -328,10 +328,22 @@ class User(Base):
     # Wer sein Konto verbunden hat, meldet sich wahlweise damit oder weiter
     # mit Passwort an - es bleibt dasselbe Nexview-Konto.
     #
-    # Bewusst **nicht** ``plex_...`` benannt: Jellyfin und Emby sollen spaeter
-    # dieselben Spalten benutzen. Anbieter sind Alternativen, keine parallelen
+    # Bewusst **nicht** ``plex_...`` benannt: Jellyfin und Emby benutzen
+    # dieselben Spalten.
+    #
+    # ⚠️ Hier stand bis 0.18.0: "Anbieter sind Alternativen, keine parallelen
     # Identitaeten - eine Person hat genau eine davon, deshalb reicht ein Satz
-    # Spalten statt einer eigenen Tabelle.
+    # Spalten statt einer eigenen Tabelle." Das war die Annahme, und sie ist
+    # gefallen. Wer im Parallelbetrieb Jellyfin verband, waehrend sein Konto an
+    # Plex hing, ueberschrieb damit die Plex-Verknuepfung - Kontoname, Adresse
+    # und persoenliches Token weg, ohne Nachfrage.
+    #
+    # Alle Verknuepfungen stehen deshalb in ``user_media_server_accounts``.
+    # Diese Spalten fuehren die **zuletzt** verknuepfte davon und bleiben, weil
+    # vieles nur eine braucht: die Anzeige im Profil, die Anmeldung, der
+    # Abgleich beim Wiedererkennen. Geschrieben werden sie ausschliesslich von
+    # ``mediaserver_accounts.link`` - wer sie von Hand setzt, laesst Tabelle und
+    # Spalten auseinanderlaufen.
     #
     # Verglichen wird immer die Kennung, nie Name oder Adresse - beide kann man
     # beim Anbieter jederzeit aendern.
@@ -561,6 +573,14 @@ class User(Base):
         foreign_keys="MediaRequest.user_id",
         cascade="all, delete-orphan",
     )
+    mediaserver_accounts: Mapped[list["UserMediaServerAccount"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        # Wird fast immer mitgebraucht, sobald ein Benutzer geladen wird -
+        # einzeln nachzuladen ergaebe eine Abfrage je Benutzer in jeder Liste.
+        lazy="selectin",
+    )
+
     notifications: Mapped[list["Notification"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -618,21 +638,36 @@ class User(Base):
 
     @property
     def watchlist_connected(self) -> bool:
-        """Liegt ein Token fuer die Merkliste vor?
+        """Liegt ueberhaupt ein persoenliches Token vor?
 
         Nach aussen gibt es nur diese Ja/Nein-Auskunft - das Token selbst
         verlaesst den Server nie.
+
+        ⚠️ Ueber **alle** Verknuepfungen, nicht ueber die Spalte. Die fuehrt nur
+        die zuletzt hinzugekommene; wer Plex und Jellyfin hat, haette damit
+        gemeldet bekommen, was zufaellig zuletzt verbunden wurde.
         """
-        return bool(self.watchlist_token)
+        return any(zeile.token for zeile in self.mediaserver_accounts)
 
     @property
     def watchlist_token_invalid(self) -> bool:
-        """Hat der Anbieter das persoenliche Token abgelehnt?
+        """Hat ein Anbieter das persoenliche Token abgelehnt?
 
         Nur wahr, wenn es ueberhaupt eines gibt: Wer nie verbunden war, soll
         keinen Hinweis auf ein abgelaufenes Token bekommen.
+
+        ⚠️ **Hier hing der rote Balken fest.** Vorher stand die Antwort in der
+        Spalte ``watchlist_token_invalid_at``. Der stuendliche Abgleich setzte
+        sie, wenn *irgendein* Anbieter das Token ablehnte - aufgeraeumt wurde
+        beim erneuten Anmelden aber nur die Zeile des betroffenen Anbieters.
+        Die Spalte blieb stehen, und mit ihr der Balken: "Dein Zugang ist
+        abgelaufen", obwohl beide Verknuepfungen in Ordnung waren. Genau so
+        gemeldet.
         """
-        return bool(self.watchlist_token) and self.watchlist_token_invalid_at is not None
+        return any(
+            zeile.token and zeile.token_invalid_at is not None
+            for zeile in self.mediaserver_accounts
+        )
 
     @property
     def has_password(self) -> bool:
@@ -742,6 +777,104 @@ class MediaServerBlock(Base):
     blocked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     # Die Sperre ueberlebt das Konto, das sie gesetzt hat.
     blocked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+class MediaServerConnection(Base):
+    """Ein verbundener Medienserver.
+
+    Bis hierher lag genau **eine** Verbindung in flachen Einstellungswerten -
+    ``mediaserver_url``, ``mediaserver_token`` und drei weitere. Das ging,
+    solange es nur einen geben konnte. Fuer den Parallelbetrieb wird daraus
+    eine Zeile je Server.
+
+    ⚠️ **Die Client-Kennung gehoert bewusst nicht hierher.** Sie wird einmal
+    je *Installation* erzeugt, nicht je Server: Plex fuehrt angemeldete Geraete
+    darueber, und Nexview ist ein Geraet - egal, mit wie vielen Servern es
+    spricht. Sie bleibt deshalb eine Einstellung.
+
+    ``machine_id`` ist die dauerhafte Kennung beim Anbieter. Nach ihr wird der
+    Zugriff geprueft, ausdruecklich nicht nach der Adresse: Dieselbe
+    Installation ist mal ueber die lokale IP und mal ueber eine Fremdadresse
+    erreichbar. Sie ist zusammen mit dem Anbieter eindeutig - denselben Server
+    zweimal zu verbinden ergaebe zwei Stimmen fuer dieselbe Bibliothek.
+    """
+
+    __tablename__ = "media_server_connections"
+    __table_args__ = (
+        UniqueConstraint("provider", "machine_id", name="uq_media_server_connection"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    machine_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Nur zur Anzeige - "Bizzy" liest sich besser als eine Kennung.
+    name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    # Verschluesselt, wie alle Zugaenge. Steht als Text da, weil die
+    # Verschluesselung in ``crypto`` sitzt und nicht im Modell.
+    token: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    connected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class UserMediaServerAccount(Base):
+    """Ein Medienserver-Konto eines Benutzers - eines je Anbieter.
+
+    Der Gegenpol zu ``MediaServerConnection``: Dort steht, welche *Server*
+    Nexview kennt, hier, welche *Identitaeten* ein Mensch dort hat.
+
+    ⚠️ **Warum es diese Tabelle gibt.** Bis 0.18.0 lagen diese Angaben als
+    einzelne Spalten am Benutzer (``mediaserver_provider`` und die vier
+    daneben), mit der ausdruecklichen Begruendung: "Anbieter sind Alternativen,
+    keine parallelen Identitaeten - eine Person hat genau eine davon." Im
+    Parallelbetrieb stimmt das nicht mehr, und die Folge war kein theoretisches
+    Problem: Wer Jellyfin verband, waehrend sein Konto an Plex hing, verlor die
+    Plex-Verknuepfung samt persoenlichem Token - stillschweigend, mitten im
+    Verbinden. Genau so passiert.
+
+    Die Spalten am Benutzer bleiben trotzdem: Sie fuehren die **zuletzt**
+    verknuepfte Identitaet und halten damit alles am Laufen, was nur eine
+    braucht (Anzeige im Profil, Anmeldung). Dieselbe Aufteilung wie zwischen
+    ``AppSettings`` und seinen Einzelwerten - eine Liste, und daneben die
+    erste als bequemer Sonderfall.
+
+    Das Token liegt **hier** und nicht mehr am Benutzer, denn es gehoert zur
+    einzelnen Verknuepfung: Ein Plex-Token taugt nicht fuer Jellyfin, und wer
+    beide verbindet, hat zwei.
+    """
+
+    __tablename__ = "user_media_server_accounts"
+    __table_args__ = (
+        # Eine fremde Identitaet gehoert genau einem Nexview-Konto. Ohne diese
+        # Bedingung koennten sich zwei Menschen dasselbe Plex-Konto teilen -
+        # und jeder saehe die Anfragen des anderen.
+        UniqueConstraint("provider", "account_id", name="uq_user_ms_identitaet"),
+        # Und ein Benutzer hat je Anbieter hoechstens ein Konto. Ein zweites
+        # waere nicht "auch noch verbunden", sondern eine zweite Stimme
+        # derselben Person beim selben Server.
+        UniqueConstraint("user_id", "provider", name="uq_user_ms_anbieter"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    account_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    username: Mapped[str | None] = mapped_column(String(120))
+    # Jellyfin kennt zu einem Konto **keine** Adresse - das Feld bleibt dort
+    # leer. Es hat Folgen: Ohne Adresse greift "Passwort vergessen" nicht.
+    email: Mapped[str | None] = mapped_column(String(255))
+    thumb: Mapped[str | None] = mapped_column(String(500))
+    linked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    # Das persoenliche Token beim Anbieter - verschluesselt, wie jedes andere
+    # Geheimnis. Entsteht beim Verknuepfen und beim Anmelden.
+    token: Mapped[str | None] = mapped_column(Text)
+    token_connected_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Wann der Anbieter das Token zuletzt abgelehnt hat (401).
+    token_invalid_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    user: Mapped["User"] = relationship(back_populates="mediaserver_accounts")
 
 
 class MediaServerLibraryItem(Base):
@@ -950,6 +1083,28 @@ class UserWatched(Base):
     tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
     # Wann zuletzt gesehen - fuer "zuletzt geschaut" und den fortlaufenden Abgleich.
     watched_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Welche Medienserver diesen Titel als gesehen fuehren - Kommaliste.
+    #
+    # ⚠️ **Bewusst eine Eigenschaft der Zeile und kein Teil ihrer Identitaet.**
+    # Die Eindeutigkeit oben ist ein echter ``UniqueConstraint``, und den kann
+    # SQLite nachtraeglich weder erweitern noch ersetzen - dieselbe Falle, an
+    # der schon ``UserWatchedSeason`` als eigene Tabelle endete. Den Anbieter
+    # in den Schluessel zu nehmen wuerde also auf jeder bestehenden
+    # Installation scheitern.
+    #
+    # Es ist ausserdem das richtige Modell: "Gesehen" ist eine Aussage ueber
+    # Mensch und Titel, nicht ueber einen Server. Laufen zwei Server, sagen
+    # vielleicht beide ja, vielleicht nur einer - **die Zeile bleibt eine.**
+    # Alle Leser fragen weiterhin nur, ob sie existiert.
+    #
+    # Leer heisst "Herkunft unbekannt" (Zeilen aus der Zeit vor dieser Spalte,
+    # bis ``init_db`` sie nachtraegt).
+    providers: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+
+    @property
+    def provider_list(self) -> list[str]:
+        """Wer sagt "gesehen" - in stabiler Reihenfolge fuer die Anzeige."""
+        return sorted({teil.strip() for teil in self.providers.split(",") if teil.strip()})
 
 
 class UserWatchedSeason(Base):
@@ -987,6 +1142,12 @@ class UserWatchedSeason(Base):
     tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
     season: Mapped[int] = mapped_column(Integer, nullable=False)
     watched_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Wie bei ``UserWatched.providers`` - siehe die Begruendung dort.
+    providers: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+
+    @property
+    def provider_list(self) -> list[str]:
+        return sorted({teil.strip() for teil in self.providers.split(",") if teil.strip()})
 
 
 class WatchlistLookup(Base):

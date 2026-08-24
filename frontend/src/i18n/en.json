@@ -1591,6 +1591,17 @@
             "where": "Footer → About Nexview",
             "body": "The source stays public and free, and running Nexview unchanged asks nothing of you. What changes concerns those who build on it: anyone who modifies Nexview and lets others use their version — including as a hosted service, where no file ever changes hands — has to make their changed source available too.\n\nVersions up to and including 0.17.0 stay under the MIT licence. That permission was given for good and is not being taken back."
           }
+        ],
+        "smallTitle": "Also fixed",
+        "small": [
+          "A second media server displaced the first: every account held exactly one media server identity, in a handful of columns. Connecting Jellyfin while linked to Plex overwrote that link without a word — name, address and the personal token. Identities now live in a table of their own, one row per provider.",
+          "Each server keeps its own access. Jellyfin issues tokens per device, and Nexview announced itself under a single device name for everything: signing in personally therefore revoked the administrator's server connection, and two people signing in revoked each other.",
+          "The library count on a server's page was not that server's: it counted across all connected servers and showed the same number on every page. The page now shows only when it last synced, and the button syncs only the server whose page it is.",
+          "One unreadable notification silenced the whole bell: the list said “nothing new” while the counter beside it kept claiming unread messages. Measured in a real database, four such rows had been hiding a genuine unread piece of feedback for a week.",
+          "The comment above passwordless accounts was lying: it claimed such an account could set a password later in its profile. It cannot — that route demands the current password, which the account never had. The two routes that do work are written down there now.",
+          "The level filter in the log hid errors: choosing “WARNING” compared for equality and therefore left out the ERROR lines, exactly the ones being looked for. A level now means “this level and above”.",
+          "The watchlist hint pointed at the wrong tab — it sent people to “Security” to link their account, which is where media server accounts lived until this release.",
+          "Downloading the log now includes the rotated files. During a hunt the interesting section has often already rolled over into the previous file."
         ]
       },
       "0.17.0": {

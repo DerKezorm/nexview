@@ -1591,6 +1591,17 @@
             "where": "Fußzeile → Über Nexview",
             "body": "Der Quelltext bleibt öffentlich und kostenlos, und Nexview unverändert zu betreiben verlangt nichts von dir. Was sich ändert, betrifft die, die darauf aufbauen: Wer Nexview verändert und seine Fassung anderen zugänglich macht — auch als gehosteten Dienst, bei dem nie eine Datei den Besitzer wechselt —, muss seinen geänderten Quelltext ebenfalls herausgeben.\n\nDie Fassungen bis einschließlich 0.17.0 bleiben unter der MIT-Lizenz. Diese Erlaubnis wurde für immer gegeben und wird nicht zurückgenommen."
           }
+        ],
+        "smallTitle": "Außerdem behoben",
+        "small": [
+          "Ein zweiter Medienserver verdrängte den ersten: Jedes Konto hatte genau eine Medienserver-Identität in einer Handvoll Spalten. Jellyfin zu verbinden, während Plex verknüpft war, überschrieb diese Verknüpfung kommentarlos — Name, Adresse und persönlichen Zugang. Die Identitäten liegen jetzt in einer eigenen Tabelle, eine Zeile je Anbieter.",
+          "Jeder Server behält seinen eigenen Zugang. Jellyfin vergibt Zugänge je Gerät, und Nexview meldete sich für alles unter demselben Gerätenamen an: Wer sich persönlich anmeldete, entzog damit dem Administrator die Serververbindung — und zwei Personen entzogen sie sich gegenseitig.",
+          "Die Bibliothekszahl auf der Seite eines Servers war nicht dessen Zahl: Sie zählte über alle verbundenen Server und stand auf jeder Seite gleich. Jetzt steht dort nur noch, wann zuletzt abgeglichen wurde, und die Schaltfläche gleicht nur den Server der jeweiligen Seite ab.",
+          "Eine einzige unlesbare Benachrichtigung legte die ganze Glocke lahm: Die Liste meldete „nichts Neues“, während der Zähler daneben weiter ungelesene Meldungen behauptete. In einer echten Datenbank hatten vier solcher Zeilen eine Woche lang eine ungelesene Rückmeldung verdeckt.",
+          "Der Hinweis über passwortlosen Konten log: Er behauptete, so ein Konto könne sich später im Profil ein Passwort setzen. Das geht nicht — dieser Weg verlangt das aktuelle Passwort, das es nie gab. Jetzt stehen dort die zwei Wege, die wirklich funktionieren.",
+          "Der Stufenfilter im Protokoll versteckte Fehler: „WARNING“ verglich auf Gleichheit und liess damit genau die ERROR-Zeilen weg, die man suchte. Eine Stufe heißt jetzt „diese und höher“.",
+          "Der Merklisten-Hinweis zeigte auf den falschen Reiter — er schickte zum Verknüpfen nach „Sicherheit“, wo die Medienserver-Konten bis zu dieser Fassung lagen.",
+          "Das Herunterladen des Protokolls nimmt jetzt die rotierten Dateien mit. Bei der Suche ist der interessante Abschnitt oft schon in die vorige Datei gerutscht."
         ]
       },
       "0.17.0": {

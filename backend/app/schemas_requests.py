@@ -76,11 +76,25 @@ class RequestPublic(BaseModel):
     requested_at: datetime
     approved_at: datetime | None
     completed_at: datetime | None
+    # --- Fuer den Verlauf ---------------------------------------------------
+    #
+    # Nexview kannte diese Angaben immer und zeigte davon ein einziges
+    # Zustandswort. "Warum dauert das?" ist aber die haeufigste Frage, und die
+    # Antwort steht hier vollstaendig: wer freigegeben hat und wann zuletzt
+    # bei Radarr/Sonarr nachgesehen wurde.
+    #
+    # ``approved_by_name`` statt der Kennung: Der Anfragende darf die
+    # Benutzerliste nicht abrufen, koennte eine Nummer also nicht aufloesen.
+    approved_by_name: str | None = None
+    last_checked_at: datetime | None = None
     rejection_reason: str | None
     error_message: str | None
     rating: int | None
     feedback: str | None
     rated_at: datetime | None
+    # Gilt die Bewertung noch der Datei, die jetzt dort liegt? Siehe
+    # ``MediaRequest.rating_outdated``.
+    rating_outdated: bool = False
     feedback_reply: str | None
     replied_at: datetime | None
 

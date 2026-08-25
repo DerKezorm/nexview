@@ -335,7 +335,9 @@
     "changeReply": "Antwort ändern",
     "replyTitle": "Antwort",
     "replyPlaceholder": "Antwort an den Anfragenden …",
-    "sendReply": "Antwort senden"
+    "sendReply": "Antwort senden",
+    "outdated": "galt einer älteren Fassung",
+    "outdatedHint": "Radarr hat diesen Titel in besserer Qualität nachgeladen. Deine Bewertung galt der Datei von damals — magst du neu bewerten?"
   },
   "myRequests": {
     "title": "Meine Anfragen",
@@ -675,7 +677,8 @@
     "storageKept": "Ein Titel bleibt, wird aber nicht mehr geladen",
     "childWish": "Dein Kind wünscht sich etwas",
     "watchReady": "Der Titel, auf den du gewartet hast, ist da.",
-    "watchEpisodes": "Es sind neue Folgen da."
+    "watchEpisodes": "Es sind neue Folgen da.",
+    "ratingOutdated": "Ein Titel, den du bewertet hast, wurde in besserer Qualität nachgeladen."
   },
   "mediaserver": {
     "waiting": "Warte auf die Bestätigung im Plex-Fenster …",
@@ -748,7 +751,8 @@
     "selectServerHint": "Beim Verbinden liest Nexview gleich die ganze Bibliothek ein – das kann bei großen Sammlungen eine Minute dauern.",
     "connecting": "Wird verbunden, Bibliothek wird eingelesen …",
     "librarySynced": "Zuletzt abgeglichen",
-    "librarySyncedNow": "Abgeglichen."
+    "librarySyncedNow": "Abgeglichen.",
+    "connectSlow": "Das kann ein paar Minuten dauern — Nexview liest dabei die Bibliothek des Servers ein. Bitte die Seite nicht neu laden."
   },
   "theme": {
     "label": "Darstellung",
@@ -903,10 +907,8 @@
     "justwatch": "Streaming-Daten von JustWatch",
     "start": "Sag mir Bescheid",
     "stop": "Nicht mehr warten",
-    "hintMovie": "Du bekommst eine Nachricht, sobald der Film da ist.",
-    "hintSeries": "Du bekommst eine Nachricht, sobald neue Folgen da sind.",
-    "activeMovie": "Du bekommst Bescheid, sobald er da ist.",
-    "activeSeries": "Du verfolgst diese Serie — neue Folgen werden gemeldet, gebündelt."
+    "explainMovie": "Der Film ist schon angefragt und noch nicht da — anfragen kannst du ihn deshalb nicht. Nexview meldet sich bei dir, sobald er in der Bibliothek liegt. Danach ist die Sache erledigt.",
+    "explainSeries": "Du verfolgst diese Serie dann. Nexview meldet sich, sobald neue Folgen ankommen — gebündelt, nicht eine Nachricht je Folge. Das läuft, bis du es beendest."
   },
   "calendar": {
     "intro": "Was wann erscheint – deine Serien und Filme, dazu Neuerscheinungen in deiner Region.",
@@ -1987,5 +1989,23 @@
     "text": "Deine Region ist {{region}} — gesetzt hat sie der Betreiber, nicht du.",
     "action": "Region festlegen",
     "later": "Später"
+  },
+  "verlauf": {
+    "title": "Verlauf",
+    "open": "Verlauf",
+    "requested": "Angefragt",
+    "approved": "Freigegeben",
+    "approvedBy": "von {{name}}",
+    "approvedAuto": "automatisch, ohne Entscheidung",
+    "rejected": "Abgelehnt",
+    "cancelled": "Abgebrochen",
+    "searching": "Wird gesucht",
+    "lastChecked": "zuletzt nachgesehen am {{wann}}",
+    "failed": "Fehlgeschlagen",
+    "done": "Fertig geladen",
+    "deleted": "Wieder verschwunden",
+    "noReason": "ohne Begründung",
+    "deferred": "Zurückgestellt",
+    "deferredHint": "wird freigegeben, sobald wieder Platz ist — du musst nicht neu fragen"
   }
 }

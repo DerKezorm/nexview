@@ -389,8 +389,16 @@ class PlexServer(MediaServer):
             )
         return werke
 
-    async def watched_index(self, provider_token: str) -> list[WatchedRecord]:
+    async def watched_index(
+        self, provider_token: str, account_id: str = ""
+    ) -> list[WatchedRecord]:
         """Der vollstaendige Gesehen-Stand des Kontos hinter diesem Token.
+
+        ``account_id`` wird hier **nicht gebraucht** und bewusst ignoriert:
+        Ein Plex-Token gehoert bereits zu genau einem Konto, der Server
+        beantwortet damit von selbst "wessen Stand". Der Parameter steht in
+        der Schnittstelle, weil Emby es nicht kann - dort gibt es kein
+        "/Users/Me", ueber das ein Adapter die Nummer erfragen koennte.
 
         Der Zaehler am Titel (``viewCount`` bzw. ``viewedLeafCount``) gilt
         immer fuer das Konto, dessen Token die Bibliothek liest - fuer geteilte
@@ -409,7 +417,7 @@ class PlexServer(MediaServer):
         ]
 
     async def watched_seasons(
-        self, provider_token: str, series_keys: list[str]
+        self, provider_token: str, series_keys: list[str], account_id: str = ""
     ) -> list[SeasonWatchedRecord]:
         """Vollstaendig gesehene Staffeln - **eine Abfrage je genannter Serie**.
 

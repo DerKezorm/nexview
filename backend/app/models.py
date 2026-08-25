@@ -219,6 +219,14 @@ class NotificationType(str, enum.Enum):
     # gebuendelt: Laedt ein Staffelpaket durch, ist das *eine* Meldung ueber
     # acht Folgen und nicht acht Meldungen.
     watch_episodes = "watch_episodes"
+    # Ein bewerteter Titel wurde in besserer Fassung nachgeladen.
+    #
+    # Radarr und Sonarr laden weiter, bis das Qualitaetsprofil erreicht ist.
+    # Eine Bewertung galt aber der Datei, die damals dalag - danach steht ein
+    # "war schlecht" an etwas, das es so nicht mehr gibt. Fuer den Betreiber
+    # ist das die schlechteste Sorte Rueckmeldung: eine ueber einen Zustand,
+    # den er nicht mehr nachpruefen kann.
+    rating_outdated = "rating_outdated"
     # Ein zurueckgestellter Titel ist jetzt da - jemand anders hat ihn geholt.
     # Bewusst ein eigener Typ und nicht ``cancelled``: Der wuerde eine Mail
     # "Deine Anfrage wurde abgelehnt" ausloesen, und das waere das Gegenteil
@@ -828,6 +836,15 @@ class MediaServerConnection(Base):
     # Verschluesselt, wie alle Zugaenge. Steht als Text da, weil die
     # Verschluesselung in ``crypto`` sitzt und nicht im Modell.
     token: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    # Zu welchem *Konto* auf dem Server das Token gehoert.
+    #
+    # Die Anmeldung nennt sie und Nexview warf sie bisher weg, weil Jellyfin
+    # und Plex jederzeit "wer bin ich" beantworten. Emby nicht: Dort gibt es
+    # ``/Users/Me`` schlicht nicht (gemessen an 4.9.5.0, HTTP 500), und ohne
+    # die Nummer laesst sich weder die Bibliothek lesen noch ein Konto
+    # verknuepfen. Sie hier zu merken beantwortet die Frage fuer alle Anbieter
+    # und spart nebenbei einen Aufruf je Abgleich.
+    account_id: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     connected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
@@ -1294,6 +1311,22 @@ class MediaRequest(Base):
     rating: Mapped[int | None] = mapped_column(Integer)
     feedback: Mapped[str | None] = mapped_column(Text)
     rated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Gilt die Bewertung noch der Datei, die jetzt dort liegt?
+    #
+    # Wird gesetzt, wenn Radarr oder Sonarr ein besseres Release nachschieben.
+    # Die Bewertung bleibt bewusst **stehen** - sie zu loeschen verloere die
+    # Information. Sie zaehlt nur nicht mehr in der Auswertung mit und traegt
+    # in der Liste einen Hinweis.
+    rating_outdated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Wie gross die Datei beim letzten Nachsehen war.
+    #
+    # Daran erkennt der Status-Poller eine Aufwertung: Radarr und Sonarr laden
+    # weiter, bis das Qualitaetsprofil erreicht ist, und aus 5 GB werden 50.
+    # Bewusst **hier** und nicht in der Speichermessung - die ist abschaltbar,
+    # und eine Bewertung veraltet auch dann, wenn niemand Kontingente fuehrt.
+    # Kostet keinen zusaetzlichen Aufruf: Der Poller fragt Radarr ohnehin, und
+    # die Groesse steht in derselben Antwort.
+    file_size_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
 
     feedback_reply: Mapped[str | None] = mapped_column(Text)
     replied_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -1301,6 +1334,21 @@ class MediaRequest(Base):
 
     user: Mapped[User] = relationship(back_populates="requests", foreign_keys=[user_id])
     approver: Mapped[User | None] = relationship(foreign_keys=[approved_by])
+
+    @property
+    def approved_by_name(self) -> str | None:
+        """Wer freigegeben hat - als Name, nicht als Nummer.
+
+        Fuer den Verlauf an der eigenen Anfrage. Der Anfragende darf die
+        Benutzerliste nicht abrufen, koennte eine Kennung also nicht
+        aufloesen; deshalb loest der Server sie auf.
+
+        ``None`` heisst "niemand von Hand" - bei automatischer Freigabe gibt
+        es keinen Entscheider, und das ist eine Aussage, keine Luecke.
+        """
+        if self.approver is None:
+            return None
+        return self.approver.display_name or self.approver.username
 
 
 class Notification(Base):

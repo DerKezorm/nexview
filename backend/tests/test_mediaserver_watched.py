@@ -70,7 +70,9 @@ class VerlaufsServer(FakeMediaServer):
     async def list_server_users(self) -> list[ServerUser]:
         return self.konten
 
-    async def watched_index(self, provider_token: str) -> list[WatchedRecord]:
+    async def watched_index(
+        self, provider_token: str, account_id: str = ""
+    ) -> list[WatchedRecord]:
         self.gefragte_tokens.append(provider_token)
         if self.token_kaputt:
             raise MediaServerError("Der Plex-Server hat den Zugang nicht akzeptiert.", 401)
@@ -79,7 +81,7 @@ class VerlaufsServer(FakeMediaServer):
         return self.stand
 
     async def watched_seasons(
-        self, provider_token: str, series_keys: list[str]
+        self, provider_token: str, series_keys: list[str], account_id: str = ""
     ) -> list[SeasonWatchedRecord]:
         self.gefragte_serien = series_keys
         if self.staffel_stand is None:

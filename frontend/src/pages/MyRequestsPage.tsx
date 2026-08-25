@@ -13,7 +13,9 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Pagination, useSeiten } from '../components/Pagination'
 import { StarRating } from '../components/StarRating'
 import { StatusBadge } from '../components/media/StatusBadge'
-import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
+import { Button, Card, ErrorBanner, RundKnopf, Spinner } from '../components/ui'
+import { Fenster } from '../components/Fenster'
+import { Anfrageverlauf } from '../components/media/Anfrageverlauf'
 import { formatDate, formatSize } from '../lib/format'
 import { anfragenStandNeuLaden } from '../lib/refresh'
 
@@ -85,10 +87,84 @@ function QuotaCard({ label, quota }: { label: string; quota: QuotaInfo }) {
   )
 }
 
-/** Sterne und Kommentar zu einem geladenen Titel - plus die Antwort der Entscheider. */
+/**
+ * Der Kreis vor dem Titel - Zustand als Zeichen, manchmal auch Knopf.
+ *
+ * Das Etikett rechts sagt den Zustand in Worten; hier steht er als Form, damit
+ * sich eine Liste aus zwanzig Anfragen überfliegen lässt, ohne zu lesen.
+ *
+ * ⚠️ **Er ist nicht immer anklickbar, und das ist die Schwäche der Idee.**
+ * Wo etwas zu tun ist - zurückziehen, abbrechen -, ist der Kreis ein Knopf;
+ * sonst nur ein Zeichen. Ein Kreis, der mal reagiert und mal nicht, kann
+ * verwirren. Dagegen steht, dass die anklickbaren sich deutlich anders
+ * verhalten: Zeiger, Umrandung und Farbe wechseln beim Darüberfahren, und sie
+ * tragen einen Tooltip. Die anderen sind ausdrücklich stumm gestellt
+ * (``aria-hidden``) - für Screenreader gibt es nur das Etikett, nicht zweimal
+ * dieselbe Aussage.
+ */
+function ZustandsKreis({ status }: { status: MediaRequest['status'] }) {
+  const { t } = useTranslation()
+
+  // Form und Farbe je Zustand. Wer nichts davon trifft, bekommt nichts -
+  // lieber eine leere Spalte als ein erfundenes Zeichen.
+  const zeichen: Partial<Record<MediaRequest['status'], { pfad: string; ton: string }>> = {
+    downloaded: { pfad: 'M5 13l4 4L19 7', ton: 'border-ok-500/40 text-ok-500' },
+    // Durchgestrichener Kreis: abgebrochen, abgelehnt, wieder verschwunden.
+    cancelled: { pfad: 'M5 19L19 5', ton: 'border-ink-700 text-mist-600' },
+    rejected: { pfad: 'M5 19L19 5', ton: 'border-bad-500/40 text-bad-500' },
+    deleted: { pfad: 'M5 19L19 5', ton: 'border-ink-700 text-mist-600' },
+    failed: { pfad: 'M12 7v6M12 17h.01', ton: 'border-bad-500/40 text-bad-500' },
+    // Hand: „halt, noch nicht" - offene Handfläche, kein Stoppschild.
+    deferred: {
+      pfad: 'M9 11V5.5a1.5 1.5 0 0 1 3 0V11m0 0V4.5a1.5 1.5 0 0 1 3 0V11m0 0V6.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6v-2a1.5 1.5 0 0 1 3 0',
+      ton: 'border-warn-500/40 text-warn-500',
+    },
+  }
+
+  const treffer = zeichen[status]
+  if (!treffer) return null
+
+  return (
+    <span
+      className={
+        'flex h-9 w-9 items-center justify-center rounded-full border bg-ink-850 ' + treffer.ton
+      }
+      title={t(`status.${status}`)}
+      aria-hidden="true"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d={treffer.pfad} />
+      </svg>
+    </span>
+  )
+}
+
+/**
+ * Sterne und Kommentar zu einem geladenen Titel - plus die Antwort der
+ * Entscheider.
+ *
+ * **In der Zeile nur die Sterne, alles Weitere im Fenster.** Vorher stand hier
+ * ein aufklappender Block über die volle Breite, mit Trennlinie, Textfeld und
+ * Knöpfen - eine Liste aus zwanzig geladenen Titeln wurde damit doppelt so
+ * hoch, obwohl fast niemand gerade etwas schreiben will. Die Sterne sind die
+ * Handlung, die man im Vorbeigehen macht; der Kommentar ist eine, für die man
+ * sich hinsetzt.
+ *
+ * Ein Klick auf einen Stern setzt ihn **und** öffnet das Fenster: Wer bewertet,
+ * hat oft auch etwas zu sagen, und ein zweiter Klick nur zum Aufmachen wäre
+ * eine Hürde ohne Zweck.
+ */
 function FeedbackBlock({ request, onSaved }: { request: MediaRequest; onSaved: () => void }) {
   const { t } = useTranslation()
-  const [offen, setOffen] = useState(request.rating === null)
+  const [offen, setOffen] = useState(false)
   const [sterne, setSterne] = useState(request.rating ?? 0)
   const [kommentar, setKommentar] = useState(request.feedback ?? '')
 
@@ -104,36 +180,97 @@ function FeedbackBlock({ request, onSaved }: { request: MediaRequest; onSaved: (
     },
   })
 
+  const bewertet = request.rating !== null
+  const veraltet = Boolean(request.rating_outdated)
+
   return (
-    <div className="w-full border-t border-ink-700 pt-3">
-      {offen ? (
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs text-mist-500">{t('feedback.question')}</span>
-            <StarRating value={sterne} onChange={setSterne} />
-          </div>
-          {sterne > 0 && (
-            <>
-              <textarea
-                value={kommentar}
-                onChange={(event) => setKommentar(event.target.value)}
-                maxLength={1000}
-                rows={2}
-                placeholder={t('feedback.commentPlaceholder')}
-                className="w-full rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-200 outline-none focus:border-accent-500"
-              />
-              <div className="flex items-center gap-2">
-                <Button onClick={() => speichern.mutate()} loading={speichern.isPending}>
-                  {t('feedback.submit')}
-                </Button>
-                {request.rating !== null && (
-                  <Button variant="ghost" onClick={() => setOffen(false)}>
-                    {t('common.cancel')}
-                  </Button>
-                )}
-              </div>
-            </>
+    <>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-xs text-mist-500">
+          {t(bewertet ? 'feedback.yourRating' : 'feedback.question')}
+        </span>
+        <StarRating
+          value={sterne}
+          size="sm"
+          onChange={(wert) => {
+            setSterne(wert)
+            setOffen(true)
+          }}
+        />
+        {/* Radarr hat nachgeladen - die Bewertung galt der Datei von damals.
+            Sie bleibt stehen, aber sichtbar entwertet: gelb, nicht rot, denn
+            es ist kein Fehler, sondern eine Verbesserung. */}
+        {veraltet && (
+          <button
+            type="button"
+            onClick={() => setOffen(true)}
+            className="rounded-full border border-warn-500/40 bg-warn-500/10 px-2 py-0.5 text-xs text-warn-500 hover:border-warn-500/70"
+          >
+            {t('feedback.outdated')}
+          </button>
+        )}
+        {/* Die Antwort der Entscheider steckt im Fenster - hier steht nur,
+            dass es eine gibt. Ohne den Hinweis fände sie niemand. */}
+        {request.feedback_reply && (
+          <button
+            type="button"
+            onClick={() => setOffen(true)}
+            className="text-xs text-accent-400 underline-offset-2 hover:underline"
+          >
+            {t('feedback.replyTitle')}
+          </button>
+        )}
+      </div>
+
+      <Fenster
+        offen={offen}
+        titel={t('feedback.question')}
+        unterzeile={request.title}
+        onSchliessen={() => setOffen(false)}
+        fuss={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => setOffen(false)}
+              disabled={speichern.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={() => speichern.mutate()}
+              loading={speichern.isPending}
+              disabled={sterne === 0}
+            >
+              {t('feedback.submit')}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {veraltet && (
+            <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
+              {t('feedback.outdatedHint')}
+            </p>
           )}
+
+          <StarRating value={sterne} onChange={setSterne} />
+
+          <textarea
+            value={kommentar}
+            onChange={(event) => setKommentar(event.target.value)}
+            maxLength={1000}
+            rows={4}
+            placeholder={t('feedback.commentPlaceholder')}
+            className="w-full rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-200 outline-none focus:border-accent-500"
+          />
+
+          {request.feedback_reply && (
+            <div className="rounded-xl border border-ink-700 bg-ink-850/60 px-3 py-2">
+              <p className="text-xs font-medium text-accent-500">{t('feedback.replyTitle')}</p>
+              <p className="mt-0.5 text-sm text-mist-300">{request.feedback_reply}</p>
+            </div>
+          )}
+
           {speichern.isError && (
             <p className="text-xs text-bad-500">
               {speichern.error instanceof ApiError
@@ -142,29 +279,8 @@ function FeedbackBlock({ request, onSaved }: { request: MediaRequest; onSaved: (
             </p>
           )}
         </div>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs text-mist-500">{t('feedback.yourRating')}</span>
-            <StarRating value={request.rating ?? 0} size="sm" />
-            <button
-              type="button"
-              onClick={() => setOffen(true)}
-              className="text-xs text-mist-600 underline-offset-2 hover:text-mist-300 hover:underline"
-            >
-              {t('feedback.change')}
-            </button>
-          </div>
-          {request.feedback && <p className="text-sm text-mist-400">{request.feedback}</p>}
-          {request.feedback_reply && (
-            <div className="mt-1 rounded-xl border border-ink-700 bg-ink-850/60 px-3 py-2">
-              <p className="text-xs font-medium text-accent-500">{t('feedback.replyTitle')}</p>
-              <p className="mt-0.5 text-sm text-mist-300">{request.feedback_reply}</p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      </Fenster>
+    </>
   )
 }
 
@@ -199,6 +315,7 @@ export function MyRequestsPage() {
   const { user } = useAuth()
   const istAdmin = user?.role === 'admin'
   /** Welche Anfrage soll abgebrochen werden? Steuert die Rückfrage. */
+  const [verlauf, setVerlauf] = useState<MediaRequest | null>(null)
   const [cancelling, setCancelling] = useState<MediaRequest | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
 
@@ -353,6 +470,46 @@ export function MyRequestsPage() {
               key={request.id}
               className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-700 bg-ink-900/50 p-3"
             >
+              {/* ⚠️ Die Handlung steht **vor** dem Titel, in einem Platz mit
+                  fester Breite - auch wenn sie fehlt.
+                  Als Knopf hinter dem Titel machte sie die Liste unruhig: Je
+                  nach Zustand steht dort einer oder keiner, und dadurch sprang
+                  jede Zeile an einer anderen Stelle. Vorn und rund kostet sie
+                  eine feste Spalte, und die Titel stehen wieder untereinander.
+                  Die Beschriftung steckt im Tooltip - ``RundKnopf`` setzt sie
+                  zugleich als ``aria-label``, sie ist also nicht nur für die
+                  Maus da. */}
+              <div className="flex w-9 shrink-0 items-center justify-center">
+                {request.status === 'pending_approval' && (
+                  <RundKnopf
+                    label={t('myRequests.withdraw')}
+                    onClick={() => withdrawMutation.mutate(request.id)}
+                    gefahr
+                  >
+                    <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                  </RundKnopf>
+                )}
+
+                {/* Hängt seit Tagen in der Warteschlange? Abbrechen gibt den
+                    Platz im eigenen Kontingent wieder frei. */}
+                {(request.status === 'searching' || request.status === 'requested') && (
+                  <RundKnopf
+                    label={t('requests.cancel')}
+                    onClick={() => setCancelling(request)}
+                    gefahr
+                  >
+                    <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                  </RundKnopf>
+                )}
+
+                {/* Nichts zu tun? Dann steht hier der Zustand als Zeichen. */}
+                {request.status !== 'pending_approval' &&
+                  request.status !== 'searching' &&
+                  request.status !== 'requested' && (
+                    <ZustandsKreis status={request.status} />
+                  )}
+              </div>
+
               {/* Auf dem Telefon nimmt der Titel die ganze Zeile ein, Etikett
                   und Knopf rutschen darunter. Ohne das w-full teilen sich alle
                   drei eine Zeile: flex-1 hat die Grundbreite 0, wehrt sich also
@@ -403,39 +560,48 @@ export function MyRequestsPage() {
                 )}
               </div>
 
-              <StatusBadge status={request.status} />
-
-              {request.status === 'pending_approval' && (
-                <Button
-                  variant="ghost"
-                  onClick={() => withdrawMutation.mutate(request.id)}
-                  loading={withdrawMutation.isPending && withdrawMutation.variables === request.id}
-                >
-                  {t('myRequests.withdraw')}
-                </Button>
-              )}
-
-              {/* Hängt seit Tagen in der Warteschlange? Abbrechen gibt den
-                  Platz im eigenen Kontingent wieder frei. */}
-              {(request.status === 'searching' || request.status === 'requested') && (
-                <Button
-                  variant="ghost"
-                  onClick={() => setCancelling(request)}
-                  loading={cancelMutation.isPending && cancelMutation.variables === request.id}
-                >
-                  {t('requests.cancel')}
-                </Button>
-              )}
-
-              {/* Administratoren bewerten nicht - sie beantworten die
-                  Rückmeldungen der anderen. */}
+              {/* ⚠️ **Feste Spalten, sonst springt jede Zeile woanders hin.**
+                  Die Etiketten sind unterschiedlich lang und je nach Zustand
+                  steht ein Knopf da oder keiner. Ohne feste Breiten liegt in
+                  einer Liste aus zwanzig Anfragen nichts auf einer Linie, und
+                  das liest sich unruhig. Deshalb: Etikett rechtsbündig in
+                  fester Breite, danach ein Platz für die situationsabhängige
+                  Handlung - **auch wenn sie fehlt** -, und „Verlauf" als
+                  letzter. Der steht damit in jeder Zeile an derselben Stelle. */}
+              {/* Direkt hinter dem Titel: Die Sterne gehören zum Titel, nicht
+                  zu den Handlungen rechts. Administratoren bewerten nicht -
+                  sie beantworten die Rückmeldungen der anderen. */}
               {request.status === 'downloaded' && !istAdmin && (
                 <FeedbackBlock request={request} onSaved={refresh} />
               )}
+
+              <div className="flex w-32 shrink-0 justify-end">
+                <StatusBadge status={request.status} />
+              </div>
+
+              {/* „Warum dauert das?" beantwortet sich hier, statt beim
+                  Administrator zu landen. Zurückhaltend, weil es die zweite
+                  Frage ist - die erste ist der Zustand daneben. */}
+              <Button variant="ghost" onClick={() => setVerlauf(request)}>
+                {t('verlauf.open')}
+              </Button>
+
             </div>
           ))}
         </Card>
       )}
+
+      {/* Ohne Fußzeile: ``Fenster`` setzt dann selbst einen Schließen-Knopf
+          oben hin. Hier gibt es nichts zu entscheiden, nur etwas zu lesen -
+          ein „Abbrechen" wäre die falsche Beschriftung dafür. */}
+      <Fenster
+        offen={verlauf !== null}
+        titel={t('verlauf.title')}
+        unterzeile={verlauf?.title}
+        onSchliessen={() => setVerlauf(null)}
+      >
+        {verlauf && <Anfrageverlauf request={verlauf} />}
+      </Fenster>
 
       <Pagination
         seite={blaettern.seite}

@@ -434,7 +434,9 @@ class MediaServer(ABC):
         """
         raise NotImplementedError
 
-    async def watched_index(self, provider_token: str) -> list[WatchedRecord]:
+    async def watched_index(
+        self, provider_token: str, account_id: str = ""
+    ) -> list[WatchedRecord]:
         """Der vollstaendige Gesehen-Stand des Kontos hinter diesem Token.
 
         Liest die Bibliothek mit dem **persoenlichen** Token der Person - der
@@ -442,11 +444,16 @@ class MediaServer(ABC):
         einschliesslich allem, was sie von Hand als gesehen markiert hat.
         ``account_id`` bleibt in den Eintraegen leer: Wessen Stand das ist,
         weiss der Aufrufer bereits, denn ihm gehoert das Token.
+
+        ``account_id`` ist die Nummer des Kontos auf dem Server, falls der
+        Aufrufer sie kennt - er kennt sie fast immer, sie steht an der
+        Verknuepfung. Fuer Emby ist sie **noetig**: Dort gibt es kein
+        "/Users/Me", ueber das ein Adapter sie sonst erfragen koennte.
         """
         raise NotImplementedError
 
     async def watched_seasons(
-        self, provider_token: str, series_keys: list[str]
+        self, provider_token: str, series_keys: list[str], account_id: str = ""
     ) -> list[SeasonWatchedRecord]:
         """Vollstaendig gesehene Staffeln **der genannten Serien**.
 

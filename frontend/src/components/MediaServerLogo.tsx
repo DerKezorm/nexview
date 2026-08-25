@@ -1,5 +1,5 @@
 /**
- * Das Zeichen eines Medienservers – Plex oder Jellyfin.
+ * Das Zeichen eines Medienservers – Plex, Jellyfin oder Emby.
  *
  * Bewusst **inline** und nicht als Bilddatei wie die Logos der
  * Benachrichtigungsdienste unter `assets/`: Ein `<img>` lässt sich nicht
@@ -26,7 +26,7 @@ export function MediaServerLogo({
 }) {
   // Ein unbekannter Anbieter bekommt kein erfundenes Zeichen – lieber nichts
   // als ein falsches. Der Name daneben trägt die Aussage ohnehin.
-  if (provider !== 'plex' && provider !== 'jellyfin') return null
+  if (provider !== 'plex' && provider !== 'jellyfin' && provider !== 'emby') return null
 
   return (
     <svg
@@ -38,7 +38,16 @@ export function MediaServerLogo({
       aria-label={title ?? providerName(provider)}
     >
       {title && <title>{title}</title>}
-      {provider === 'plex' ? (
+      {provider === 'emby' ? (
+        // ⚠️ **Nachgezeichnet, nicht das offizielle Zeichen.**
+        //
+        // Embys Marke ist ein gerundetes Viereck auf der Spitze mit einem
+        // ausgesparten Winkel. Das hier ist eine geometrische Annäherung
+        // daran – erkennbar, aber nicht maßgetreu. Wer das offizielle
+        // Pfad-Datum hat, sollte es ersetzen; es steht unter einer eigenen
+        // Marke, und eine schiefe Nachzeichnung ist kein Ersatz.
+        <path d="M12 1.2 22.8 12 12 22.8 1.2 12 12 1.2Zm0 3.9L5.1 12l6.9 6.9L18.9 12 12 5.1Zm-1.9 3.2 5.4 3.7-5.4 3.7V8.3Z" />
+      ) : provider === 'plex' ? (
         // Kreis mit ausgespartem Winkel.
         <path d="M12 1a11 11 0 1 0 0 22 11 11 0 0 0 0-22Zm-3.1 5h5.2l4.1 6-4.1 6H8.9l4.1-6-4.1-6Z" />
       ) : (

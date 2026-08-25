@@ -25,6 +25,7 @@ from .base import (
     WatchlistItem,
     close_http_client,
 )
+from .emby import EmbyServer
 from .jellyfin import JellyfinServer
 from .plex import PlexServer
 
@@ -58,6 +59,7 @@ logger = logging.getLogger("nexview.mediaserver")
 PROVIDERS: dict[str, type[MediaServer]] = {
     PlexServer.provider: PlexServer,
     JellyfinServer.provider: JellyfinServer,
+    EmbyServer.provider: EmbyServer,
 }
 
 

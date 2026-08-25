@@ -702,6 +702,9 @@ async def connect_select(payload: SelectServer, db: DbSession, admin: AdminUser)
     vorhanden.name = gewaehlt.name
     vorhanden.url = erreichbar or gewaehlt.url
     vorhanden.token = encrypt(anbieter_token)
+    # Wem das Token gehoert. Emby kennt kein "/Users/Me", also muss es hier
+    # stehen - siehe ``MediaServerConnection.account_id``.
+    vorhanden.account_id = konto.account_id or ""
     db.commit()
 
     # Kontrolllesen mit frischer Sitzung: Steht die Verbindung wirklich in der
@@ -855,6 +858,7 @@ async def connect_password(
     vorhanden.name = gewaehlt.name
     vorhanden.url = adresse
     vorhanden.token = encrypt(anbieter_token)
+    vorhanden.account_id = konto.account_id or ""
     db.commit()
 
     # Das eigene Konto gleich mitverknuepfen - wie bei ``connect/select``.

@@ -590,6 +590,8 @@ export type MediaDetail = MediaItem & {
   in_my_subscriptions?: string[];
   /** Habe ich diesen Titel vorgemerkt („Sag mir Bescheid")? */
   watching?: boolean;
+  /** Läuft zu diesem Titel eine Anfrage **von mir**? Dann kein Warten-Knopf. */
+  requested_by_me?: boolean;
   cast: CastMember[];
   crew: CrewMember[];
   recommendations: MediaItem[];
@@ -1025,11 +1027,17 @@ export type MediaRequest = {
   requested_at: string;
   approved_at: string | null;
   completed_at: string | null;
+  /** Wer freigegeben hat – leer heißt: automatisch, ohne Entscheider. */
+  approved_by_name?: string | null;
+  /** Wann Nexview zuletzt bei Radarr/Sonarr nachgesehen hat. */
+  last_checked_at?: string | null;
   rejection_reason: string | null;
   error_message: string | null;
   rating: number | null;
   feedback: string | null;
   rated_at: string | null;
+  /** Galt die Bewertung einer älteren Fassung? Radarr hat nachgeladen. */
+  rating_outdated?: boolean;
   feedback_reply: string | null;
   replied_at: string | null;
 };

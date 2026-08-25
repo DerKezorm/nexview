@@ -500,13 +500,27 @@ export function ProfilePage() {
             titel={t('profile.password')}
             onSchliessen={() => setPasswortOffen(false)}
             fuss={
-              <Button
-                type="submit"
-                form="passwort-formular"
-                loading={passwordMutation.isPending}
-              >
-                {t('profile.changePassword')}
-              </Button>
+              <>
+                {/* Der Ausgang gehört in die Fußzeile, sobald es eine gibt:
+                    ``Fenster`` blendet den Schließen-Knopf oben dann aus, um
+                    nicht zwei Wege mit derselben Wirkung anzubieten. Ohne
+                    „Abbrechen" hier blieben gar keiner - außer Escape, und den
+                    kennt nicht jeder. */}
+                <Button
+                  variant="ghost"
+                  onClick={() => setPasswortOffen(false)}
+                  disabled={passwordMutation.isPending}
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  type="submit"
+                  form="passwort-formular"
+                  loading={passwordMutation.isPending}
+                >
+                  {t('profile.changePassword')}
+                </Button>
+              </>
             }
           >
             <form

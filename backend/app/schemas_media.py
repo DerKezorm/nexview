@@ -305,6 +305,10 @@ class MediaDetail(MediaItem):
     # aus demselben Grund wie oben nicht in ``full_detail`` berechnet.
     watching: bool = False
 
+    # Habe **ich** zu diesem Titel eine laufende Anfrage? Dann ist
+    # "Sag mir Bescheid" gegenstandslos - die Fertig-Meldung kommt ohnehin.
+    requested_by_me: bool = False
+
     cast: list[CastMember] = []
     crew: list[CrewMember] = []
     recommendations: list[MediaItem] = []

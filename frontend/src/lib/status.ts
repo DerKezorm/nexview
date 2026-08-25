@@ -26,3 +26,27 @@ const WIEDER_ANFRAGBAR: ReadonlySet<string> = new Set([
 export function darfAnfragen(status: MediaStatus | string): boolean {
   return WIEDER_ANFRAGBAR.has(status)
 }
+
+/**
+ * Zustände, in denen etwas **unterwegs** ist - darauf lässt sich warten.
+ *
+ * Bewusst nicht das Gegenteil von `darfAnfragen`: Ein Titel kann gleichzeitig
+ * unterwegs *und* anfragbar sein, und genau dieser Fall war der Grund für
+ * diese Liste. Steht die Standard-Fassung auf „wird gesucht", während 4K noch
+ * offen ist, bleibt der Anfrage-Knopf da - und „Sag mir Bescheid" fehlte,
+ * obwohl es genau die Lage ist, in der jemand mitwarten will. Gemeldet an
+ * „Spider-Man: Brand New Day".
+ *
+ * `deleted` fehlt hier mit Absicht: Die Datei ist weg und niemand holt sie
+ * gerade. Wer sie will, fragt an, statt zu warten.
+ */
+const UNTERWEGS: ReadonlySet<string> = new Set([
+  'pending_approval',
+  'requested',
+  'searching',
+])
+
+/** Ist zu diesem Titel gerade etwas unterwegs? */
+export function istUnterwegs(status: MediaStatus | string): boolean {
+  return UNTERWEGS.has(status)
+}

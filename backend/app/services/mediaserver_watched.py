@@ -88,6 +88,17 @@ def _vergleichbar(name: str) -> str:
     return "".join(zeichen for zeichen in name.lower() if zeichen.isalnum())
 
 
+def _konto_id(user: User, provider: str) -> str:
+    """Die Kontonummer dieser Person auf diesem Server - leer, wenn unbekannt.
+
+    Steht an der Verknuepfung und muss deshalb nirgends erfragt werden. Fuer
+    Emby ist sie die **einzige** Quelle: Dort gibt es kein "/Users/Me", ueber
+    das ein Adapter sie sonst nachschlagen koennte.
+    """
+    zeile = konten.verknuepfung(user, provider)
+    return (zeile.account_id or "") if zeile is not None else ""
+
+
 def _token(user: User, provider: str) -> str:
     """Das persoenliche Token **dieses Anbieters** - leer, wenn keines taugt.
 
@@ -457,7 +468,9 @@ async def _einen_server_abgleichen(
         if not token:
             continue
         try:
-            stand = await server.watched_index(token)
+            # Die Kontonummer steht an der Verknuepfung - mitgeben spart eine
+            # Rueckfrage, und Emby hat keine andere Quelle dafuer.
+            stand = await server.watched_index(token, _konto_id(user, server.provider))
         except NotImplementedError:
             # Dieser Anbieter kennt den Weg nicht - alle laufen ueber den
             # Verlauf.

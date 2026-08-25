@@ -161,6 +161,9 @@ async def title_detail(
     # in ``full_detail``: Dessen TMDB-Antwort liegt fuer alle gemeinsam im
     # Zwischenspeicher.
     detail.watching = watch.vorgemerkt(db, user, MediaType(media_type), tmdb_id)
+    detail.requested_by_me = requests_service.eigene_laeuft(
+        db, user, MediaType(media_type), tmdb_id
+    )
 
     detail.in_my_subscriptions = streaming.treffer(
         eigene_dienste(db, user),

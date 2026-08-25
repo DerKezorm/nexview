@@ -335,7 +335,9 @@
     "changeReply": "Change reply",
     "replyTitle": "Reply",
     "replyPlaceholder": "Reply to the requester …",
-    "sendReply": "Send reply"
+    "sendReply": "Send reply",
+    "outdated": "applied to an older file",
+    "outdatedHint": "Radarr replaced this title with a better release. Your rating applied to the earlier file — care to rate it again?"
   },
   "myRequests": {
     "title": "My requests",
@@ -675,7 +677,8 @@
     "storageKept": "A title stays, but stops downloading",
     "childWish": "Your child wished for something",
     "watchReady": "The title you were waiting for has arrived.",
-    "watchEpisodes": "New episodes have arrived."
+    "watchEpisodes": "New episodes have arrived.",
+    "ratingOutdated": "A title you rated has been replaced with a better release."
   },
   "mediaserver": {
     "waiting": "Waiting for confirmation in the Plex window …",
@@ -748,7 +751,8 @@
     "selectServerHint": "On connecting, Nexview reads the whole library right away – with large collections that can take a minute.",
     "connecting": "Connecting, reading the library …",
     "librarySynced": "Last synced",
-    "librarySyncedNow": "Synced."
+    "librarySyncedNow": "Synced.",
+    "connectSlow": "This can take a few minutes — Nexview is reading the server's library. Please do not reload the page."
   },
   "theme": {
     "label": "Appearance",
@@ -903,10 +907,8 @@
     "justwatch": "Streaming data by JustWatch",
     "start": "Tell me when it arrives",
     "stop": "Stop waiting",
-    "hintMovie": "You will hear from us as soon as the film is here.",
-    "hintSeries": "You will hear from us as soon as new episodes arrive.",
-    "activeMovie": "You will be told as soon as it arrives.",
-    "activeSeries": "You are following this series — new episodes are reported, bundled."
+    "explainMovie": "The film has already been requested and is not here yet — which is why you cannot request it. Nexview will tell you as soon as it lands in the library. After that it is done.",
+    "explainSeries": "You will be following this series. Nexview tells you whenever new episodes arrive — bundled, not one message per episode. It runs until you stop it."
   },
   "calendar": {
     "intro": "What lands when — your shows and movies, plus new releases in your region.",
@@ -1987,5 +1989,23 @@
     "text": "Your region is {{region}} — set by the operator, not by you.",
     "action": "Set region",
     "later": "Later"
+  },
+  "verlauf": {
+    "title": "Progress",
+    "open": "Progress",
+    "requested": "Requested",
+    "approved": "Approved",
+    "approvedBy": "by {{name}}",
+    "approvedAuto": "automatically, without a decision",
+    "rejected": "Declined",
+    "cancelled": "Cancelled",
+    "searching": "Searching",
+    "lastChecked": "last checked on {{wann}}",
+    "failed": "Failed",
+    "done": "Downloaded",
+    "deleted": "Gone again",
+    "noReason": "no reason given",
+    "deferred": "Put on hold",
+    "deferredHint": "will be approved once there is room again — you do not need to ask again"
   }
 }

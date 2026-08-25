@@ -513,6 +513,27 @@ class _Gemessen:
 
 
 @dataclass(frozen=True)
+class Zuwachs:
+    """Ein Posten ist gewachsen - Radarr hat etwas Besseres nachgeschoben.
+
+    Traegt die Kennung mit, nicht nur den Titel: Daran haengt inzwischen mehr
+    als eine Meldung - eine Bewertung dieses Titels gilt danach einer Datei,
+    die es nicht mehr gibt, und muss gekennzeichnet werden.
+    """
+
+    # ``None`` heisst Hausbestand - niemand wird belastet. Fuer die
+    # Speicher-Meldung faellt so ein Posten heraus, fuer die Bewertung
+    # ausdruecklich **nicht**: Ob eine Datei jemandem zugerechnet ist, hat
+    # nichts damit zu tun, ob eine Bewertung von ihr noch gilt.
+    user_id: int | None
+    titel: str
+    zuwachs: int
+    media_type: MediaType
+    tmdb_id: int | None
+    season: int | None
+
+
+@dataclass(frozen=True)
 class Ergebnis:
     """Was ein Abgleich bewirkt hat - fuer Protokoll und Anzeige."""
 
@@ -521,10 +542,9 @@ class Ergebnis:
     entfernt: int = 0
     gewachsen: int = 0
     erster_lauf: bool = False
-    # Posten, die einem Nutzer gehoeren und **spuerbar** gewachsen sind - je
-    # Eintrag ``(user_id, titel, zuwachs_bytes)``. Der Aufrufer benachrichtigt;
-    # dieses Modul kennt keine Benachrichtigungen.
-    zugelegt: list[tuple[int, str, int]] = field(default_factory=list)
+    # Posten, die einem Nutzer gehoeren und **spuerbar** gewachsen sind. Der
+    # Aufrufer benachrichtigt; dieses Modul kennt keine Benachrichtigungen.
+    zugelegt: list["Zuwachs"] = field(default_factory=list)
 
 
 async def abgleichen(db: Session, settings: AppSettings) -> Ergebnis:
@@ -562,18 +582,20 @@ def _wachstum_melden(db: Session, ergebnis: Ergebnis) -> None:
     if ergebnis.erster_lauf or not ergebnis.zugelegt:
         return
 
-    for user_id, titel, _zuwachs in ergebnis.zugelegt:
-        person = db.get(User, user_id)
-        if person is None:
-            continue
-        notify.create(
-            db,
-            user=person,
-            kind=NotificationType.storage_grew,
-            message_key="notifications.storageGrew",
-            title=titel,
-        )
+    for eintrag in ergebnis.zugelegt:
+        # Nur wer belastet wird, bekommt die Meldung - beim Hausbestand gibt
+        # es niemanden.
+        person = db.get(User, eintrag.user_id) if eintrag.user_id else None
+        if person is not None:
+            notify.create(
+                db,
+                user=person,
+                kind=NotificationType.storage_grew,
+                message_key="notifications.storageGrew",
+                title=eintrag.titel,
+            )
     db.commit()
+
 
 
 async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
@@ -809,7 +831,7 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
             wert.tmdb_id = nach_tmdb.get(wert.tvdb_id)
 
     neu = aktualisiert = gewachsen = 0
-    zugelegt: list[tuple[int, str, int]] = []
+    zugelegt: list[Zuwachs] = []
     jetzt = utcnow()
 
     for kennung, wert in gemessen.items():
@@ -847,9 +869,12 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
                 # geht, ist die Aufwertung von 1080p auf 2160p: aus 5 GB
                 # werden 50.
                 zuwachs = wert.size_bytes - zeile.size_bytes
+                # Bewusst **ohne** Bedingung an ``user_id``: Auch ein
+                # Haus-Posten kann aufgewertet werden, und eine Bewertung
+                # dazu wird davon genauso hinfaellig. Wer die Meldung
+                # bekommt, entscheidet der Aufrufer.
                 if (
-                    zeile.user_id is not None
-                    and zuwachs >= MELDESCHWELLE
+                    zuwachs >= MELDESCHWELLE
                     # ⚠️ Eine Staffel, deren Download noch laeuft, waechst mit
                     # jeder Folge. Ohne diese Bedingung kaeme stuendlich eine
                     # Meldung "ist um X GB gewachsen", bis die Staffel
@@ -857,7 +882,16 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
                     # ankommt (die Aufwertung), ginge darin unter.
                     and not wert.unvollstaendig
                 ):
-                    zugelegt.append((zeile.user_id, zeile.title, zuwachs))
+                    zugelegt.append(
+                        Zuwachs(
+                            user_id=zeile.user_id,
+                            titel=zeile.title,
+                            zuwachs=zuwachs,
+                            media_type=zeile.media_type,
+                            tmdb_id=zeile.tmdb_id,
+                            season=zeile.season,
+                        )
+                    )
             zeile.size_bytes = wert.size_bytes
             aktualisiert += 1
         # Der Titel kann sich aendern (Umbenennung in Radarr), und er ist das

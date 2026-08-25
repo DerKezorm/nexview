@@ -426,16 +426,26 @@ def _verbindung_in_die_tabelle() -> None:
             # koennte. Dann lieber nichts.
             return
 
+        # ⚠️ **Jede Spalte der Tabelle gehoert in diese Aufzaehlung.**
+        #
+        # Rohes SQL nennt die Spalten selbst, und Standardwerte aus dem Modell
+        # gelten hier nicht - die kennt nur SQLAlchemy, nicht SQLite. Eine
+        # vergessene Pflichtspalte laesst diesen Schritt scheitern, und mit ihm
+        # den ganzen Start. Genau so passiert, als ``account_id`` dazukam.
         connection.exec_driver_sql(
             "INSERT INTO media_server_connections "
-            "(provider, machine_id, name, url, token, connected_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(provider, machine_id, name, url, token, account_id, connected_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 anbieter,
                 kennung,
                 werte.get("mediaserver_name") or "",
                 werte.get("mediaserver_url") or "",
                 werte.get("mediaserver_token") or "",
+                # Leer: Eine Verbindung aus der Zeit davor kennt die
+                # Kontonummer nicht. Der Adapter fragt dann wie bisher beim
+                # Server nach - bei Plex und Jellyfin geht das.
+                "",
                 str(utcnow().replace(microsecond=0)),
             ),
         )

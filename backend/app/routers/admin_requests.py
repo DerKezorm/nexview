@@ -322,7 +322,16 @@ async def approve(
     payload: TargetChoice | None = None,
 ) -> RequestWithUser:
     request = _get_or_404(db, request_id)
-    if request.status != RequestStatus.pending_approval:
+    # ⚠️ **Zurueckgestellte gehoeren ausdruecklich dazu.**
+    #
+    # "Ja im Prinzip, nur nicht jetzt" ist das ganze Versprechen des
+    # Zurueckstellens: Sobald wieder Platz ist, wird freigegeben, und niemand
+    # muss neu fragen. Ohne diese Zeile war es eine Sackgasse - der Entscheider
+    # bekam "wartet nicht mehr auf eine Freigabe", und der Anfragende beim
+    # zweiten Versuch "steht bereits zurueck, sobald du wieder Platz hast, kann
+    # die Anfrage freigegeben werden". Beide Meldungen verwiesen auf einen Weg,
+    # den es nicht gab.
+    if request.status not in (RequestStatus.pending_approval, RequestStatus.deferred):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
@@ -372,7 +381,7 @@ def reject(
     db: DbSession,
 ) -> RequestWithUser:
     request = _get_or_404(db, request_id)
-    if request.status != RequestStatus.pending_approval:
+    if request.status not in (RequestStatus.pending_approval, RequestStatus.deferred):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",

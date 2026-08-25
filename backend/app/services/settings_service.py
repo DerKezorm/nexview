@@ -166,6 +166,10 @@ class Verbindung:
     name: str
     url: str
     token: str
+    # Das Konto auf dem Server, zu dem das Token gehoert. Leer bei
+    # Verbindungen aus der Zeit vor 0.19 - dann fragt der Adapter wie bisher
+    # beim Server nach.
+    account_id: str = ""
 
     @property
     def nutzbar(self) -> bool:
@@ -224,6 +228,8 @@ class AppSettings:
     mediaserver_verbindungen: tuple["Verbindung", ...]
     mediaserver_provider: str
     mediaserver_machine_id: str
+    # Das Konto, zu dem das Server-Token gehoert - siehe ``Verbindung``.
+    mediaserver_account_id: str
     mediaserver_name: str
     mediaserver_url: str
     mediaserver_token: str
@@ -473,6 +479,7 @@ def _verbindungen_lesen(db: Session, values: dict[str, str]) -> tuple[Verbindung
             name=zeile.name,
             url=zeile.url.rstrip("/"),
             token=decrypt(zeile.token) if zeile.token else "",
+            account_id=zeile.account_id or "",
         )
         for zeile in db.scalars(
             select(MediaServerConnection).order_by(MediaServerConnection.id)
@@ -574,6 +581,7 @@ def load_settings(db: Session) -> AppSettings:
         # einer - dem heutigen Normalfall - ist das schlicht *die* Verbindung.
         mediaserver_provider=erste.provider,
         mediaserver_machine_id=erste.machine_id,
+        mediaserver_account_id=erste.account_id,
         mediaserver_name=erste.name,
         mediaserver_url=erste.url,
         mediaserver_token=erste.token,

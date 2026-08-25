@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUser, DbSession
 from ..models import (
@@ -62,6 +63,9 @@ def my_requests(user: CurrentUser, db: DbSession) -> list[MediaRequest]:
     return list(
         db.scalars(
             select(MediaRequest)
+            # Den Entscheider gleich mitladen: Der Verlauf nennt seinen Namen,
+            # und ohne das waere es eine Abfrage je Zeile.
+            .options(selectinload(MediaRequest.approver))
             .where(MediaRequest.user_id == user.id)
             .order_by(MediaRequest.requested_at.desc())
         )

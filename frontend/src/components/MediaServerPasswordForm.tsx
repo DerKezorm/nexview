@@ -103,6 +103,16 @@ export function MediaServerPasswordForm({
 
       {fehler && <ErrorBanner message={fehler} />}
 
+      {/* Das Verbinden liest die Bibliothek des Servers ein, und das dauert
+          bei ein paar tausend Titeln Minuten. Ohne diesen Hinweis sieht ein
+          Knopf, der sich dreht, nach einem Aufhänger aus – und der nächste
+          Griff ist das Neuladen der Seite, mitten im Vorgang. */}
+      {laeuft && (
+        <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
+          {t('mediaserver.connectSlow')}
+        </p>
+      )}
+
       <div>
         <Button type="submit" loading={laeuft}>
           {t('mediaserver.connectWith', { name })}

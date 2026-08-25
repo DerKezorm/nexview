@@ -276,6 +276,22 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                 )
 
         if eintrag is not None and _noch_da(request, eintrag):
+            # ⚠️ Der Titel liegt noch da - aber ist es noch **dieselbe** Datei?
+            #
+            # Radarr und Sonarr laden weiter, bis das Qualitaetsprofil erreicht
+            # ist. Eine Bewertung galt der Fassung von damals; nach einer
+            # Aufwertung ist sie eine Aussage ueber nichts mehr. Hier faellt es
+            # auf, ohne einen zusaetzlichen Aufruf: Die Groesse steht in
+            # derselben Antwort, die gerade "ist noch da" beantwortet hat.
+            #
+            # Nur bei Filmen und ganzen Serien: Bei einer Staffelanfrage ist
+            # die Groesse am Serien-Eintrag die der *ganzen* Serie - sie waechst
+            # auch, wenn eine andere Staffel aufgewertet wird, und die
+            # Bewertung galt nicht der.
+            if request.season is None:
+                requests_service.groesse_pruefen(
+                    db, request, int(getattr(eintrag, "size_bytes", 0) or 0)
+                )
             continue
         # Zweite Quelle: der Media-Server. Wer den Titel nur aus Radarr
         # entfernt hat, hat ihn dort weiterhin - dann bleibt "geladen" wahr.

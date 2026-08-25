@@ -28,7 +28,7 @@ import { UhdBadge } from '../components/media/UhdBadge'
 import { WatchedBadge } from '../components/media/WatchedBadge'
 import { PlayIcon, TrailerModal } from '../components/media/TrailerModal'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
-import { darfAnfragen } from '../lib/status'
+import { darfAnfragen, istUnterwegs } from '../lib/status'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
 import { browsePath, personPath, stoeberPath } from '../lib/routes'
@@ -446,7 +446,7 @@ export function TitlePage() {
 
                 {/* Bei der Serie dauerhaft, beim Film nur, wenn es etwas zu
                     warten gibt - siehe SagMirBescheid. */}
-                {!istFilm && !gesperrt && (
+                {!istFilm && !item.requested_by_me && !gesperrt && (
                   <SagMirBescheid
                     mediaType="tv"
                     tmdbId={item.tmdb_id}
@@ -468,7 +468,13 @@ export function TitlePage() {
 
                 {/* Der Film ist angefragt, aber noch nicht da - genau dann
                     gibt es etwas zu warten. */}
-                {istFilm && !kannAnfragen && !gesperrt && (
+                {/* ⚠️ Nicht fuer den, der selbst angefragt hat.
+                    Er bekommt die Fertig-Meldung ohnehin; ein zweiter Weg
+                    dorthin waere eine zweite Nachricht ueber dasselbe. */}
+                {istFilm &&
+                  istUnterwegs(item.status) &&
+                  !item.requested_by_me &&
+                  !gesperrt && (
                   <SagMirBescheid
                     mediaType="movie"
                     tmdbId={item.tmdb_id}

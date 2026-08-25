@@ -190,7 +190,14 @@ def collect(db: Session) -> dict:
             elif zustand == RequestStatus.failed:
                 eintrag.failed += 1
 
-        if request.rating is not None:
+        # ⚠️ **Veraltete Bewertungen zaehlen nicht mit.**
+        #
+        # Diese Seite beantwortet "wie zufrieden sind die Leute mit dem, was
+        # hier liegt". Eine Bewertung, die einer Datei galt, die Radarr
+        # inzwischen durch eine bessere ersetzt hat, verfaelscht genau diese
+        # Antwort - ein "war schlecht" ueber etwas, das es so nicht mehr gibt.
+        # An der Anfrage bleibt sie stehen, hier faellt sie heraus.
+        if request.rating is not None and not request.rating_outdated:
             gesamt.ratings += 1
             gesamt.rating_sum += request.rating
             verteilung[request.rating] = verteilung.get(request.rating, 0) + 1

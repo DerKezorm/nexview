@@ -745,8 +745,8 @@ def test_die_wanderung_laeuft_nur_einmal(alte_installation: Path) -> None:
     with db_modul.engine.begin() as connection:
         connection.exec_driver_sql(
             "INSERT INTO media_server_connections"
-            " (provider, machine_id, name, url, token, connected_at)"
-            " VALUES ('plex', 'maschine-1', 'Da', '', '', '2026-01-01 12:00:00')"
+            " (provider, machine_id, name, url, token, account_id, connected_at)"
+            " VALUES ('plex', 'maschine-1', 'Da', '', '', '', '2026-01-01 12:00:00')"
         )
         connection.exec_driver_sql(
             "INSERT INTO settings (key, value, is_secret, updated_at)"

@@ -718,7 +718,18 @@ export function AdminRequestsPage() {
 
                   <StatusBadge status={request.status} />
 
-                  {request.status === "pending_approval" && (
+                  {/* ⚠️ Zurückgestellte gehören dazu.
+                      „Ja im Prinzip, nur nicht jetzt" ist nur dann eine
+                      Aussage, wenn das „jetzt" auch eintreten kann. Ohne diese
+                      Zeile stand die Anfrage für immer still: Der Anfragende
+                      durfte nicht neu fragen, und hier gab es keinen Knopf.
+
+                      Bewusst nur einzeln - die Sammelfreigabe weiter oben
+                      bleibt bei den wartenden. Zurückstellen ist eine
+                      Einzelentscheidung, und „alle freigeben" würde sie
+                      versehentlich wieder einsammeln. */}
+                  {(request.status === "pending_approval" ||
+                    request.status === "deferred") && (
                     <div className="flex gap-2">
                       <Button
                         onClick={() => {

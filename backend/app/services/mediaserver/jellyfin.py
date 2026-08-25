@@ -120,8 +120,15 @@ def _als_werk(
     eintrag: dict[str, Any],
     media_type: str,
     angesehene_serien: set[str] | None = None,
+    anbieter: str = "jellyfin",
 ) -> LibraryItem | None:
-    """Einen Jellyfin-Eintrag in die anbieter-neutrale Form uebersetzen."""
+    """Einen Eintrag in die anbieter-neutrale Form uebersetzen.
+
+    ``anbieter`` steckt im ``guid`` und entscheidet ueber die Eindeutigkeit:
+    Die Bibliothekstabelle schluesselt ueber ``(provider, guid)``, und
+    derselbe Film auf zwei Servern muss zwei Zeilen ergeben. Emby benutzt
+    dieselbe Uebersetzung - siehe ``emby.py``.
+    """
     titel = (eintrag.get("Name") or "").strip()
     kennung = str(eintrag.get("Id") or "").strip()
     if not titel or not kennung:
@@ -177,7 +184,7 @@ def _als_werk(
 
     return LibraryItem(
         media_type=media_type,
-        guid=f"jellyfin://{kennung}",
+        guid=f"{anbieter}://{kennung}",
         title=titel,
         tmdb_id=_kennung(anbieter_ids, "tmdb"),
         tvdb_id=_kennung(anbieter_ids, "tvdb"),
@@ -214,7 +221,15 @@ class JellyfinServer(MediaServer):
         # Die Konto-Nummer des hinterlegten Zugangs. Jellyfin verlangt sie bei
         # fast jeder Abfrage und nennt sie nur unter ``/Users/Me`` - deshalb
         # wird sie beim ersten Bedarf geholt und dann behalten.
-        self._eigene_id: str | None = None
+        # Beim Verbinden gemerkt (seit 0.19). Damit entfaellt die Rueckfrage
+        # beim Server - und fuer Emby ist sie die einzige Quelle, weil es dort
+        # kein ``/Users/Me`` gibt.
+        gemerkt = (
+            verbindung.account_id
+            if verbindung is not None
+            else getattr(settings, "mediaserver_account_id", "")
+        )
+        self._eigene_id: str | None = gemerkt or None
 
     # --- Werkzeug ----------------------------------------------------------
 
@@ -276,7 +291,7 @@ class JellyfinServer(MediaServer):
         """
         url = (basis or self.base_url).rstrip("/")
         if not url:
-            raise MediaServerError("Es ist keine Jellyfin-Adresse hinterlegt.")
+            raise MediaServerError(f"Es ist keine {self.label}-Adresse hinterlegt.")
 
         client = await http_client()
         kopfzeilen = self._kopfzeilen(self.token if token is None else token, zweck)
@@ -287,20 +302,20 @@ class JellyfinServer(MediaServer):
             )
         except httpx.TimeoutException as exc:
             raise MediaServerError(
-                "Der Jellyfin-Server antwortet nicht (Zeitüberschreitung)."
+                f"Der {self.label}-Server antwortet nicht (Zeitüberschreitung)."
             ) from exc
         except httpx.HTTPError as exc:
             raise MediaServerError(
-                f"Der Jellyfin-Server ist unter {url} nicht erreichbar."
+                f"Der {self.label}-Server ist unter {url} nicht erreichbar."
             ) from exc
 
         if response.status_code in (401, 403):
             raise MediaServerError(
-                "Der Jellyfin-Server hat die Anmeldung nicht akzeptiert.", 401
+                f"Der {self.label}-Server hat die Anmeldung nicht akzeptiert.", 401
             )
         if response.status_code >= 400:
             raise MediaServerError(
-                f"Der Jellyfin-Server meldet einen Fehler (HTTP {response.status_code}).",
+                f"Der {self.label}-Server meldet einen Fehler (HTTP {response.status_code}).",
                 response.status_code,
             )
         if response.status_code == 204 or not response.content:
@@ -328,14 +343,14 @@ class JellyfinServer(MediaServer):
             # taete es nicht.
             if exc.status_code in (400, 401):
                 raise MediaServerError(
-                    "Dieser Jellyfin-Zugang gehört zu keinem Benutzerkonto. "
+                    f"Dieser {self.label}-Zugang gehört zu keinem Benutzerkonto. "
                     "Bitte den Server neu verbinden - mit Benutzername und Passwort.",
                     401,
                 ) from exc
             raise
         nummer = str(daten.get("Id") or "")
         if not nummer:
-            raise MediaServerError("Jellyfin nennt zu diesem Zugang kein Konto.")
+            raise MediaServerError(f"{self.label} nennt zu diesem Zugang kein Konto.")
         if token is None:
             self._eigene_id = nummer
         return nummer
@@ -360,7 +375,7 @@ class JellyfinServer(MediaServer):
         daten = await self._anfrage("GET", "/System/Info/Public", token="") or {}
         kennung = str(daten.get("Id") or "")
         if not kennung:
-            raise MediaServerError("Unter dieser Adresse meldet sich kein Jellyfin-Server.")
+            raise MediaServerError(f"Unter dieser Adresse meldet sich kein {self.label}-Server.")
         return [
             ServerCandidate(
                 machine_id=kennung,
@@ -436,7 +451,7 @@ class JellyfinServer(MediaServer):
         konto = daten.get("User") or {}
         nummer = str(konto.get("Id") or "")
         if not token or not nummer:
-            raise MediaServerError("Jellyfin hat die Anmeldung nicht akzeptiert.", 401)
+            raise MediaServerError(f"{self.label} hat die Anmeldung nicht akzeptiert.", 401)
 
         richtlinie = konto.get("Policy") or {}
         return (
@@ -457,7 +472,7 @@ class JellyfinServer(MediaServer):
         daten = await self._anfrage("GET", "/Users/Me", token=provider_token) or {}
         nummer = str(daten.get("Id") or "")
         if not nummer:
-            raise MediaServerError("Jellyfin nennt zu diesem Zugang kein Konto.", 401)
+            raise MediaServerError(f"{self.label} nennt zu diesem Zugang kein Konto.", 401)
         return ExternalAccount(
             provider=self.provider,
             account_id=nummer,
@@ -507,7 +522,20 @@ class JellyfinServer(MediaServer):
         art = "Movie" if media_type == "movie" else "Series"
         # Fuer Filme die Dateiangaben (Groesse, Aufloesung), fuer Serien die
         # Zaehler - die Serie selbst hat keine Datei, aber Folgenzahlen.
-        felder = "ProviderIds,MediaSources,Width" if media_type == "movie" else "ProviderIds"
+        # ⚠️ ``ProductionYear`` gehoert dazu, auch wenn es nach Beiwerk aussieht.
+        #
+        # Ohne das Jahr steht in jedem Bibliothekseintrag ``year=None``, und
+        # damit faellt der Titel-Rueckfall in ``vorhandene_kennungen`` in sich
+        # zusammen: Er vergleicht Titel **und Jahr**, damit "The Lion King"
+        # von 1994 nicht dasselbe ist wie das Remake von 2019. Fehlt das Jahr,
+        # greift er gar nicht mehr - und Titel ohne fremde Kennung gelten als
+        # nicht vorhanden. Aufgefallen beim Messen gegen Emby 4.9.5.0, wo das
+        # Feld ohne ausdrueckliche Anforderung nicht mitkommt.
+        felder = (
+            "ProviderIds,ProductionYear,MediaSources,Width"
+            if media_type == "movie"
+            else "ProviderIds,ProductionYear"
+        )
         werke: list[LibraryItem] = []
         start = 0
         while True:
@@ -527,7 +555,7 @@ class JellyfinServer(MediaServer):
             ) or {}
             eintraege = daten.get("Items") or []
             for eintrag in eintraege:
-                werk = _als_werk(eintrag, media_type, angesehene_serien)
+                werk = _als_werk(eintrag, media_type, angesehene_serien, self.provider)
                 if werk is not None:
                     werke.append(werk)
             start += len(eintraege)
@@ -601,14 +629,16 @@ class JellyfinServer(MediaServer):
         serien = await self._titel_lesen(konto, None, "tv", angesehen)
         return filme + serien
 
-    async def watched_index(self, provider_token: str) -> list[WatchedRecord]:
+    async def watched_index(
+        self, provider_token: str, account_id: str = ""
+    ) -> list[WatchedRecord]:
         """Der Gesehen-Stand des Kontos hinter diesem Token.
 
         Dieselbe Abfrage wie fuer die Bibliothek, nur mit dem persoenlichen
         Token: Jellyfin haengt ``UserData`` immer an das Konto an, mit dessen
         Zugang gefragt wurde.
         """
-        konto = await self._eigene_konto_id(provider_token)
+        konto = account_id or await self._eigene_konto_id(provider_token)
         # ``account_id`` bleibt leer: Wessen Stand das ist, weiss der Aufrufer -
         # ihm gehoert das Token. Siehe ``watched_index`` in base.py.
         stand: list[WatchedRecord] = [
@@ -635,11 +665,11 @@ class JellyfinServer(MediaServer):
         return stand
 
     async def watched_seasons(
-        self, provider_token: str, series_keys: list[str]
+        self, provider_token: str, series_keys: list[str], account_id: str = ""
     ) -> list[SeasonWatchedRecord]:
         if not series_keys:
             return []
-        konto = await self._eigene_konto_id(provider_token)
+        konto = account_id or await self._eigene_konto_id(provider_token)
         sperre = asyncio.Semaphore(PARALLELE_STAFFELN)
 
         async def fuer_serie(serie: str) -> list[SeasonWatchedRecord]:

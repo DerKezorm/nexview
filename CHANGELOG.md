@@ -85,6 +85,62 @@ veröffentlicht, solange kein Tag dazu existiert.
   der deutsche. Ein gelber Streifen sagt es, verschwindet von selbst, sobald die
   Region gesetzt ist, und lässt sich für die laufende Sitzung wegklicken.
 
+- **Emby, als dritter Medienserver neben Plex und Jellyfin.** Verbinden,
+  anmelden, Bibliothek abgleichen und der Gesehen-Stand je Person — alles wie
+  gehabt, nur mit einem Server mehr. Der Parallelbetrieb aus 0.18 gilt
+  unverändert: Wer will, verbindet alle drei, und der Gesehen-Stand wird über
+  sie hinweg zusammengeführt.
+
+  Gemessen an einem echten Server (Emby 4.9.5.0): Emby und Jellyfin sprechen
+  dieselbe Sprache. Dieselben Endpunkte, dieselben Felder, sogar dieselbe
+  Ausweiszeile — alle fünf geprüften Anmeldevarianten antworteten. Der
+  Emby-Adapter ist deshalb eine Ableitung des Jellyfin-Adapters und keine
+  zweite Kopie: Zwei fast gleiche Dateien nebeneinander hießen, dass jede
+  Fehlerbehebung zweimal gemacht werden müsste — und beim zweiten Mal
+  vergessen wird.
+
+  **Auch Emby-Konten haben keine E-Mail-Adresse.** Es gilt deshalb dasselbe
+  wie bei Jellyfin: Die Anmeldung über Emby legt kein Konto an, sondern wird
+  aus dem Profil heraus verknüpft. Ohne Adresse gibt es nichts, woran Nexview
+  jemanden wiedererkennt, und eine Einladung endete still in einem zweiten
+  Konto ohne Passwort.
+
+  Die PIN, die Emby optional je Konto kennt, ist dabei keine Hürde: Sie steht
+  bei den Anzeigeeinstellungen und nicht bei den Rechten — eine Profil-PIN zum
+  Umschalten auf einem geteilten Gerät, wie man sie von Netflix kennt. Die
+  Anmeldung mit Benutzername und Passwort ist davon unberührt. Nachgemessen an
+  einem Konto, das eine gesetzt hat.
+
+- **Der Verlauf einer Anfrage.** „Warum dauert das?" ist die häufigste Frage,
+  und Nexview kannte die Antwort immer vollständig — angefragt wann,
+  freigegeben von wem, seit wann in Suche, zuletzt nachgesehen wann. Sichtbar
+  war davon ein einziges Zustandswort. Ein Knopf in „Meine Anfragen" öffnet
+  jetzt eine Zeitleiste: erledigte Schritte grün mit Haken, der laufende gelb,
+  kommende grau. Ein abgebrochener Weg endet dort, wo er endet — unter einer
+  Ablehnung steht kein grauer „Fertig"-Schritt, der ein Versprechen wäre, das
+  niemand mehr einlöst. Zwei Angaben schafften es dabei zum ersten Mal bis zum
+  Anfragenden: wer freigegeben hat (oder dass es automatisch ging) und wann
+  zuletzt nach dem Titel gesehen wurde.
+
+- **Bewertungen veralten, wenn Radarr nachlädt.** Radarr und Sonarr laden
+  weiter, bis das Qualitätsprofil erreicht ist. Eine Bewertung galt aber der
+  Datei, die damals dalag — danach steht ein „war schlecht" an etwas, das es so
+  nicht mehr gibt. Für den Betreiber ist das die schlechteste Sorte Rückmeldung:
+  eine über einen Zustand, den er nicht mehr nachprüfen kann.
+
+  Wächst die Datei spürbar, wird die Bewertung als veraltet gekennzeichnet. Sie
+  bleibt **stehen** — löschen verlöre die Information, und leere Sterne ohne
+  Erklärung sähen aus wie ein Fehler. In der Statistik zählt sie nicht mehr mit,
+  denn die Seite beantwortet „wie zufrieden sind die Leute mit dem, was hier
+  liegt". Der Betroffene bekommt eine Nachricht und kann neu bewerten.
+
+  Erkannt wird das im Status-Abgleich, der ohnehin läuft — die Größe steht in
+  derselben Antwort, die „ist der Titel noch da?" beantwortet. Ausdrücklich
+  **nicht** in der Speichermessung: Die ist abschaltbar, und eine Bewertung
+  veraltet auch dann, wenn niemand Kontingente führt. Bei Staffelanfragen
+  greift es nicht — die Größe am Serien-Eintrag ist die der ganzen Serie und
+  wächst auch, wenn eine andere Staffel aufgewertet wird.
+
 ### Changed
 
 - **„Sprache & Region" und „Sicherheit" sind in „Konto" aufgegangen.** Aus acht
@@ -97,6 +153,32 @@ veröffentlicht, solange kein Tag dazu existiert.
   weiter.
 
 ### Fixed
+
+- **Zurückgestellte Anfragen waren eine Sackgasse.** „Ja im Prinzip, nur nicht
+  jetzt" verspricht, dass später freigegeben wird und niemand neu fragen muss.
+  Gebaut war der Teil nach dem Komma nie: Freigeben und Ablehnen verlangten
+  ausdrücklich „wartet auf Freigabe", und eine zurückgestellte tut das nicht
+  mehr. Der Entscheider bekam „wartet nicht mehr auf eine Freigabe", der
+  Anfragende beim zweiten Versuch „steht bereits zurück, sobald du wieder Platz
+  hast, kann die Anfrage freigegeben werden" — beide Meldungen verwiesen auf
+  einen Weg, den es nicht gab. Jetzt nehmen beide Entscheidungen
+  zurückgestellte Anfragen an, und die Knöpfe erscheinen auch bei ihnen.
+  Bewusst nur einzeln: Die Sammelfreigabe bleibt bei den wartenden, sonst
+  sammelte „alle freigeben" eine Einzelentscheidung wieder ein.
+
+- **Der Gesehen-Abgleich wäre für Plex-Nutzer abgestürzt.** Beim Durchreichen
+  der Kontonummer wurden Jellyfin und Emby angepasst, Plex nicht — der Aufrufer
+  übergab zwei Angaben, der Adapter nahm eine. Aufgefallen im Test, nicht im
+  Betrieb.
+
+- **Bibliothekseinträge vom Medienserver trugen kein Erscheinungsjahr.** Der
+  Feldkatalog forderte es nicht an, also kam es nicht mit, und jeder Eintrag
+  stand mit `year=None` da. Das klingt nach Beiwerk und ist es nicht: Der
+  Titel-Rückfall beim Bibliotheksabgleich vergleicht Titel **und Jahr**, damit
+  „The Lion King" von 1994 nicht dasselbe ist wie das Remake von 2019. Ohne
+  Jahr greift er gar nicht mehr — Titel ohne TMDB- oder TVDB-Kennung galten
+  damit als nicht vorhanden. Aufgefallen beim Messen gegen Emby; betrifft
+  Jellyfin genauso.
 
 - **Der Reiter für die Region hieß nach einer Seite, die es nicht mehr gibt.**
   „Voreinstellung beim Entdecken" mit dem Zusatz „ändern kannst du sie beim

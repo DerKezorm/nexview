@@ -63,6 +63,7 @@ def init_db() -> None:
     # Muss **vor** dem Nachtragen der Herkunft laufen - das liest den
     # Anbieternamen bevorzugt aus dieser Tabelle.
     _verbindung_in_die_tabelle()
+    _bewertungen_in_die_tabelle()
     _gesehen_herkunft_nachtragen()
     _verknuepfungen_in_die_tabelle()
 
@@ -382,6 +383,58 @@ def _altersgrenzen_aufraeumen() -> None:
                 "Age limit removed from %d adult account(s), it now applies to children only",
                 ergebnis.rowcount,
             )
+
+
+def _bewertungen_in_die_tabelle() -> None:
+    """Bewertungen von den Anfragen an die Titel umhaengen.
+
+    Bis 0.19 hing eine Bewertung an ``MediaRequest``. Damit durfte nur der
+    Besteller urteilen - wer denselben Film spaeter sah und merkte, dass die
+    Tonspur fehlt, hatte keine Moeglichkeit, es zu sagen. Seit 0.19 haengt sie
+    am Titel, und die bestehenden muessen mit.
+
+    ⚠️ **Laeuft genau einmal**, erkennbar an der leeren Zieltabelle - wie bei
+    den Medienserver-Verbindungen. Ein zweiter Lauf wuerde vorhandene
+    Bewertungen verdoppeln oder am Eindeutigkeitsschluessel scheitern.
+
+    Die Spalten an der Anfrage bleiben vorerst stehen und werden nicht mehr
+    gelesen. Sie zu loeschen hiesse, eine Tabelle in SQLite neu zu bauen - und
+    solange sie niemanden stoeren, ist der stille Rueckweg mehr wert als die
+    aufgeraeumte Spalte.
+    """
+    with engine.begin() as connection:
+        schon_da = connection.exec_driver_sql("SELECT COUNT(*) FROM title_ratings").scalar()
+        if schon_da:
+            return
+
+        # Dieselbe Person kann denselben Titel zweimal angefragt haben (etwa in
+        # 1080p und 4K) und beide Male bewertet. Am Titel gibt es aber nur ein
+        # Urteil - genommen wird das juengste.
+        connection.exec_driver_sql(
+            """
+            INSERT INTO title_ratings (
+                user_id, media_type, tmdb_id, season, rating, comment, title,
+                reply, replied_at, file_size_bytes, outdated, created_at, updated_at
+            )
+            SELECT
+                r.user_id, r.media_type, r.tmdb_id, r.season, r.rating, r.feedback,
+                r.title, r.feedback_reply, r.replied_at,
+                COALESCE(r.file_size_bytes, 0), COALESCE(r.rating_outdated, 0),
+                COALESCE(r.rated_at, r.requested_at), COALESCE(r.rated_at, r.requested_at)
+            FROM media_requests r
+            WHERE r.rating IS NOT NULL
+              AND r.id = (
+                  SELECT r2.id FROM media_requests r2
+                  WHERE r2.user_id = r.user_id
+                    AND r2.media_type = r.media_type
+                    AND r2.tmdb_id = r.tmdb_id
+                    AND (r2.season IS r.season)
+                    AND r2.rating IS NOT NULL
+                  ORDER BY r2.rated_at DESC, r2.id DESC
+                  LIMIT 1
+              )
+            """
+        )
 
 
 def _verbindung_in_die_tabelle() -> None:

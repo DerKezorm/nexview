@@ -1706,6 +1706,78 @@ class FavoritePerson(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
+class TitleRating(Base):
+    """Wie jemand die Qualitaet eines vorhandenen Titels beurteilt.
+
+    ⚠️ **Am Titel, nicht an der Anfrage** - und das ist der ganze Punkt.
+
+    Bis 0.19 hing die Bewertung an ``MediaRequest``. Daraus folgte, dass nur
+    der Besteller urteilen durfte: Wer denselben Film zwei Wochen spaeter sah
+    und merkte, dass die Tonspur fehlt, hatte keine Moeglichkeit, es zu sagen.
+    Dabei geht es hier nicht um Geschmack - dafuer gibt es das Herz -, sondern
+    um die **Datei**, und die beurteilt jeder gleich gut, der sie gesehen hat.
+
+    Bewusst **kein** Gatter ueber den Gesehen-Stand. Der sagt aus, dass jemand
+    den *Titel* gesehen hat, nicht *diese Datei*: Nach einer Aufwertung durch
+    Radarr bleibt der Haken stehen, obwohl die alte Fassung gemeint war. Als
+    Nachweis taugt er also nicht. Stattdessen haengt die Gueltigkeit an der
+    Datei selbst - siehe ``file_size_bytes``.
+
+    **Je Staffel, nicht je Serie.** Die Dateien liegen staffelweise, die
+    Qualitaet unterscheidet sich staffelweise, und die Anfragen sind es schon.
+    Eine Serie als Ganzes zu bewerten hiesse, ueber zehn verschiedene Dateien
+    ein Urteil zu faellen. ``season`` ist ``None`` bei Filmen.
+    """
+
+    __tablename__ = "title_ratings"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "media_type", "tmdb_id", "season", name="uq_title_rating"
+        ),
+        Index("ix_title_ratings_titel", "media_type", "tmdb_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    season: Mapped[int | None] = mapped_column(Integer)
+
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text)
+
+    # Nur zur Anzeige in der Uebersicht des Betreibers - erspart eine
+    # TMDB-Abfrage je Zeile. Dasselbe Vorgehen wie bei ``Blocked``.
+    title: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+
+    # Die Antwort des Administrators. Steht hier und nicht in einem Verlauf:
+    # Eine Rueckmeldung ist keine Unterhaltung - wer weiterreden will, macht
+    # ein Ticket auf.
+    reply: Mapped[str | None] = mapped_column(Text)
+    replied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    replied_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    # Wie gross die Datei war, als geurteilt wurde.
+    #
+    # Daran haengt die Gueltigkeit: Waechst sie spuerbar, hat Radarr etwas
+    # Besseres nachgeschoben, und das Urteil galt einer Datei, die es nicht
+    # mehr gibt. Die Bewertung bleibt trotzdem stehen - loeschen verloere die
+    # Information, und leere Sterne ohne Erklaerung saehen aus wie ein Fehler.
+    file_size_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    outdated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+
 class TitleWatch(Base):
     """„Sag mir Bescheid" - jemand wartet auf einen Titel, ohne ihn anzufragen.
 

@@ -13,8 +13,11 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import BaseModel
 
 from ..deps import CurrentUser, DbSession
-from ..models import MediaType, QualityTier, Role
+from sqlalchemy import select
+
+from ..models import MediaType, QualityTier, Role, Ticket, TicketStatus
 from ..schemas_media import (
+    MeineRueckmeldung,
     MediaDetail,
     MediaItem,
     MediaPage,
@@ -34,7 +37,7 @@ from ..services import (
 )
 from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
-from ..services import streaming, watch
+from ..services import ratings, streaming, watch
 from ..services.streaming import eigene_dienste
 from ..services.tmdb import TmdbError
 
@@ -164,6 +167,32 @@ async def title_detail(
     detail.requested_by_me = requests_service.eigene_laeuft(
         db, user, MediaType(media_type), tmdb_id
     )
+
+    # Meine eigene Rueckmeldung - bei Serien die zur ganzen Serie; die je
+    # Staffel steht in der Staffelliste.
+    # Ein offenes Ticket zu diesem Titel - egal auf welchem Weg es entstanden
+    # ist. Nexview unterscheidet die Herkunft nicht, und das genuegt: Wer das
+    # Problem schon gemeldet hat, braucht keinen zweiten Kanal dafuer.
+    detail.open_ticket = (
+        db.scalar(
+            select(Ticket.id).where(
+                Ticket.user_id == user.id,
+                Ticket.media_type == MediaType(media_type),
+                Ticket.tmdb_id == tmdb_id,
+                Ticket.status != TicketStatus.closed,
+            )
+        )
+        is not None
+    )
+
+    eigene = ratings.meine(db, user, MediaType(media_type), tmdb_id)
+    if eigene is not None:
+        detail.my_feedback = MeineRueckmeldung(
+            rating=eigene.rating,
+            comment=eigene.comment,
+            reply=eigene.reply,
+            outdated=eigene.outdated,
+        )
 
     detail.in_my_subscriptions = streaming.treffer(
         eigene_dienste(db, user),

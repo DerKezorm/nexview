@@ -15,6 +15,7 @@ import type {
 } from '../api/types'
 import { AddRequestForm } from '../components/media/AddRequestForm'
 import { SagMirBescheid } from '../components/media/SagMirBescheid'
+import { Rueckmeldung } from '../components/media/Rueckmeldung'
 import { CastStrip } from '../components/media/CastStrip'
 import { FavoriteButton, useFavorites } from '../components/media/FavoriteButton'
 import { MediaItemCard } from '../components/media/MediaCard'
@@ -292,6 +293,10 @@ export function TitlePage() {
   // seine Entscheidung und soll die anderen bremsen, nicht ihn. Das
   // Backend sieht es genauso, der Knopf ist nur die Bequemlichkeit dazu.
   const istAdmin = user?.role === 'admin'
+  // Bewerten kann man nur, was dasteht. „partial" gehört dazu: Bei einer
+  // Serie mit Lücken liegt trotzdem etwas vor, das sich beurteilen lässt.
+  const istVorhanden =
+    item.status === 'downloaded' || item.status === 'in_library' || item.status === 'partial'
   const gesperrt = item.status === 'blocked'
   /**
    * Die 4K-Fassung ist noch offen - dann muss der Knopf erscheinen, auch wenn
@@ -443,6 +448,21 @@ export function TitlePage() {
                     </Button>
                   )
                 ) : null}
+
+                {/* Bewerten darf jeder, der den Titel vorliegen hat - nicht
+                    nur der Besteller. Es geht um die Datei, und die beurteilt
+                    jeder gleich gut, der sie gesehen hat. Administratoren
+                    nicht: Sie beantworten die Rückmeldungen der anderen. */}
+                {istVorhanden && !istAdmin && (
+                  <Rueckmeldung
+                    mediaType={item.media_type}
+                    tmdbId={item.tmdb_id}
+                    title={item.title}
+                    stand={item.my_feedback ?? null}
+                    ticketOffen={item.open_ticket ?? false}
+                    onGespeichert={() => void query.refetch()}
+                  />
+                )}
 
                 {/* Bei der Serie dauerhaft, beim Film nur, wenn es etwas zu
                     warten gibt - siehe SagMirBescheid. */}

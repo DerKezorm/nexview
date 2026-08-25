@@ -11,11 +11,11 @@ import { useConfig } from '../hooks/useConfig'
 import { useStorageStand, type SpeicherStand } from '../hooks/useStorageStand'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Pagination, useSeiten } from '../components/Pagination'
-import { StarRating } from '../components/StarRating'
 import { StatusBadge } from '../components/media/StatusBadge'
 import { Button, Card, ErrorBanner, RundKnopf, Spinner } from '../components/ui'
 import { Fenster } from '../components/Fenster'
 import { Anfrageverlauf } from '../components/media/Anfrageverlauf'
+import { Rueckmeldung } from '../components/media/Rueckmeldung'
 import { formatDate, formatSize } from '../lib/format'
 import { anfragenStandNeuLaden } from '../lib/refresh'
 
@@ -144,143 +144,6 @@ function ZustandsKreis({ status }: { status: MediaRequest['status'] }) {
         <path d={treffer.pfad} />
       </svg>
     </span>
-  )
-}
-
-/**
- * Sterne und Kommentar zu einem geladenen Titel - plus die Antwort der
- * Entscheider.
- *
- * **In der Zeile nur die Sterne, alles Weitere im Fenster.** Vorher stand hier
- * ein aufklappender Block über die volle Breite, mit Trennlinie, Textfeld und
- * Knöpfen - eine Liste aus zwanzig geladenen Titeln wurde damit doppelt so
- * hoch, obwohl fast niemand gerade etwas schreiben will. Die Sterne sind die
- * Handlung, die man im Vorbeigehen macht; der Kommentar ist eine, für die man
- * sich hinsetzt.
- *
- * Ein Klick auf einen Stern setzt ihn **und** öffnet das Fenster: Wer bewertet,
- * hat oft auch etwas zu sagen, und ein zweiter Klick nur zum Aufmachen wäre
- * eine Hürde ohne Zweck.
- */
-function FeedbackBlock({ request, onSaved }: { request: MediaRequest; onSaved: () => void }) {
-  const { t } = useTranslation()
-  const [offen, setOffen] = useState(false)
-  const [sterne, setSterne] = useState(request.rating ?? 0)
-  const [kommentar, setKommentar] = useState(request.feedback ?? '')
-
-  const speichern = useMutation({
-    mutationFn: () =>
-      api.post(`/api/requests/${request.id}/feedback`, {
-        rating: sterne,
-        comment: kommentar.trim() || null,
-      }),
-    onSuccess: () => {
-      setOffen(false)
-      onSaved()
-    },
-  })
-
-  const bewertet = request.rating !== null
-  const veraltet = Boolean(request.rating_outdated)
-
-  return (
-    <>
-      <div className="flex shrink-0 items-center gap-2">
-        <span className="text-xs text-mist-500">
-          {t(bewertet ? 'feedback.yourRating' : 'feedback.question')}
-        </span>
-        <StarRating
-          value={sterne}
-          size="sm"
-          onChange={(wert) => {
-            setSterne(wert)
-            setOffen(true)
-          }}
-        />
-        {/* Radarr hat nachgeladen - die Bewertung galt der Datei von damals.
-            Sie bleibt stehen, aber sichtbar entwertet: gelb, nicht rot, denn
-            es ist kein Fehler, sondern eine Verbesserung. */}
-        {veraltet && (
-          <button
-            type="button"
-            onClick={() => setOffen(true)}
-            className="rounded-full border border-warn-500/40 bg-warn-500/10 px-2 py-0.5 text-xs text-warn-500 hover:border-warn-500/70"
-          >
-            {t('feedback.outdated')}
-          </button>
-        )}
-        {/* Die Antwort der Entscheider steckt im Fenster - hier steht nur,
-            dass es eine gibt. Ohne den Hinweis fände sie niemand. */}
-        {request.feedback_reply && (
-          <button
-            type="button"
-            onClick={() => setOffen(true)}
-            className="text-xs text-accent-400 underline-offset-2 hover:underline"
-          >
-            {t('feedback.replyTitle')}
-          </button>
-        )}
-      </div>
-
-      <Fenster
-        offen={offen}
-        titel={t('feedback.question')}
-        unterzeile={request.title}
-        onSchliessen={() => setOffen(false)}
-        fuss={
-          <>
-            <Button
-              variant="ghost"
-              onClick={() => setOffen(false)}
-              disabled={speichern.isPending}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button
-              onClick={() => speichern.mutate()}
-              loading={speichern.isPending}
-              disabled={sterne === 0}
-            >
-              {t('feedback.submit')}
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-4">
-          {veraltet && (
-            <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
-              {t('feedback.outdatedHint')}
-            </p>
-          )}
-
-          <StarRating value={sterne} onChange={setSterne} />
-
-          <textarea
-            value={kommentar}
-            onChange={(event) => setKommentar(event.target.value)}
-            maxLength={1000}
-            rows={4}
-            placeholder={t('feedback.commentPlaceholder')}
-            className="w-full rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-200 outline-none focus:border-accent-500"
-          />
-
-          {request.feedback_reply && (
-            <div className="rounded-xl border border-ink-700 bg-ink-850/60 px-3 py-2">
-              <p className="text-xs font-medium text-accent-500">{t('feedback.replyTitle')}</p>
-              <p className="mt-0.5 text-sm text-mist-300">{request.feedback_reply}</p>
-            </div>
-          )}
-
-          {speichern.isError && (
-            <p className="text-xs text-bad-500">
-              {speichern.error instanceof ApiError
-                ? speichern.error.message
-                : t('feedback.failed')}
-            </p>
-          )}
-        </div>
-      </Fenster>
-    </>
   )
 }
 
@@ -572,7 +435,23 @@ export function MyRequestsPage() {
                   zu den Handlungen rechts. Administratoren bewerten nicht -
                   sie beantworten die Rückmeldungen der anderen. */}
               {request.status === 'downloaded' && !istAdmin && (
-                <FeedbackBlock request={request} onSaved={refresh} />
+                <Rueckmeldung
+                  mediaType={request.media_type}
+                  tmdbId={request.tmdb_id}
+                  title={request.title}
+                  season={request.season}
+                  stand={
+                    request.rating === null
+                      ? null
+                      : {
+                          rating: request.rating,
+                          comment: request.feedback,
+                          reply: request.feedback_reply,
+                          outdated: request.rating_outdated ?? false,
+                        }
+                  }
+                  onGespeichert={refresh}
+                />
               )}
 
               <div className="flex w-32 shrink-0 justify-end">

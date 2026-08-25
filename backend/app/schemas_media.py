@@ -267,6 +267,17 @@ class MediaItem(BaseModel):
     uhd_in_standard: bool = False
 
 
+class MeineRueckmeldung(BaseModel):
+    """Was ich zu diesem Titel gesagt habe - und ob es noch gilt."""
+
+    rating: int
+    comment: str | None = None
+    # Die Antwort des Administrators, falls es eine gibt.
+    reply: str | None = None
+    # Galt das Urteil einer Datei, die Radarr inzwischen ersetzt hat?
+    outdated: bool = False
+
+
 class MediaDetail(MediaItem):
     """Alles, was die Detailseite zeigt - deutlich mehr als eine Kachel.
 
@@ -308,6 +319,16 @@ class MediaDetail(MediaItem):
     # Habe **ich** zu diesem Titel eine laufende Anfrage? Dann ist
     # "Sag mir Bescheid" gegenstandslos - die Fertig-Meldung kommt ohnehin.
     requested_by_me: bool = False
+
+    # Meine eigene Rueckmeldung zur Qualitaet, falls ich eine abgegeben habe.
+    # Am Titel, nicht an der Anfrage - bewerten darf jeder, der einen
+    # vorhandenen Titel gesehen hat.
+    my_feedback: "MeineRueckmeldung | None" = None
+
+    # Liegt zu diesem Titel schon ein offenes Ticket von mir? Dann bietet das
+    # Bewertungsfenster nicht an, ein zweites daraus zu machen - der Betreiber
+    # bekaeme sonst zweimal dieselbe Sache auf den Tisch.
+    open_ticket: bool = False
 
     cast: list[CastMember] = []
     crew: list[CrewMember] = []

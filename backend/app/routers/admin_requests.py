@@ -18,12 +18,13 @@ from ..models import (
     Notification,
     NotificationType,
     RequestStatus,
+    TitleRating,
     Role,
     User,
     utcnow,
 )
 from ..schemas_requests import AnfragerSpeicher, FeedbackReply, RequestWithUser
-from ..services import blocklist, media, notify, requests_service, storage, streaming
+from ..services import blocklist, media, notify, ratings, requests_service, storage, streaming
 from ..services.settings_service import load_settings
 from ..services.tmdb import TmdbError, image_url
 
@@ -186,6 +187,7 @@ def _with_user(
     request: MediaRequest,
     speicher: AnfragerSpeicher | None = None,
     abos: list[str] | None = None,
+    bewertung=None,
 ) -> RequestWithUser:
     vom_benutzer = (
         "username",
@@ -194,7 +196,7 @@ def _with_user(
         "storage",
         "requester_subscriptions",
     )
-    return RequestWithUser(
+    zeile = RequestWithUser(
         **{
             field: getattr(request, field)
             for field in RequestWithUser.model_fields
@@ -206,6 +208,14 @@ def _with_user(
         storage=speicher,
         requester_subscriptions=abos or [],
     )
+    # Die Rueckmeldung haengt am Titel, nicht an der Anfrage - siehe
+    # ``models.TitleRating``. Die gleichnamigen Spalten hier sind tot.
+    zeile.rating = bewertung.rating if bewertung else None
+    zeile.feedback = bewertung.comment if bewertung else None
+    zeile.feedback_reply = bewertung.reply if bewertung else None
+    zeile.rated_at = bewertung.updated_at if bewertung else None
+    zeile.replied_at = bewertung.replied_at if bewertung else None
+    return zeile
 
 
 def _zurueckgestellte_abschliessen(db: Session, request: MediaRequest) -> None:
@@ -229,6 +239,16 @@ def _zurueckgestellte_abschliessen(db: Session, request: MediaRequest) -> None:
             )
 
 
+def _bewertung_zu(db: Session, request: MediaRequest):
+    """Die Rueckmeldung des Anfragenden - sie haengt am Titel, nicht hier."""
+    besitzer = db.get(User, request.user_id)
+    if besitzer is None:
+        return None
+    return ratings.meine(
+        db, besitzer, request.media_type, request.tmdb_id, request.season
+    )
+
+
 def _antwort(db: Session, request: MediaRequest) -> RequestWithUser:
     """Eine einzelne Anfrage nach aussen - samt Stand des Anfragenden.
 
@@ -236,7 +256,11 @@ def _antwort(db: Session, request: MediaRequest) -> RequestWithUser:
     gilt. Das ist die Warnung an der Stelle, an der sie ankommt - der
     Entscheider sieht sofort, was seine Entscheidung bewirkt hat.
     """
-    return _with_user(request, _speicher_staende(db, [request]).get(request.user_id))
+    return _with_user(
+        request,
+        _speicher_staende(db, [request]).get(request.user_id),
+        bewertung=_bewertung_zu(db, request),
+    )
 
 
 def _get_or_404(db: Session, request_id: int) -> MediaRequest:
@@ -291,13 +315,22 @@ async def list_all(
         # Jede Bewertung ohne Antwort - auch die ohne Text. Wer Sterne vergibt,
         # sagt damit etwas, und das soll der Administrator sehen, ohne die
         # ganze Liste durchzugehen.
+        #
+        # ⚠️ Die Bewertung haengt seit 0.19 am **Titel**: Gesucht wird ueber
+        # ``title_ratings``, verbunden ueber Konto, Medienart, Titel und
+        # Staffel. Die gleichnamigen Spalten an der Anfrage stehen noch da,
+        # werden aber nicht mehr geschrieben - danach zu filtern faende nichts.
         query = (
-            query.where(
-                MediaRequest.rating.is_not(None),
-                MediaRequest.feedback_reply.is_(None),
+            query.join(
+                TitleRating,
+                (TitleRating.user_id == MediaRequest.user_id)
+                & (TitleRating.media_type == MediaRequest.media_type)
+                & (TitleRating.tmdb_id == MediaRequest.tmdb_id)
+                & (TitleRating.season.is_not_distinct_from(MediaRequest.season)),
             )
+            .where(TitleRating.reply.is_(None))
             .order_by(None)
-            .order_by(MediaRequest.rated_at.desc())
+            .order_by(TitleRating.updated_at.desc())
         )
     elif from_watchlist:
         query = query.where(MediaRequest.from_watchlist.is_(True))
@@ -310,7 +343,8 @@ async def list_all(
     staende = _speicher_staende(db, zeilen)
     abos = await _abo_treffer(db, zeilen)
     return [
-        _with_user(row, staende.get(row.user_id), abos.get(row.id)) for row in zeilen
+        _with_user(row, staende.get(row.user_id), abos.get(row.id), _bewertung_zu(db, row))
+        for row in zeilen
     ]
 
 
@@ -439,15 +473,24 @@ def reply_to_feedback(
     bekommt dazu eine Benachrichtigung.
     """
     request = _get_or_404(db, request_id)
-    if request.rating is None:
+    # Die Rueckmeldung haengt seit 0.19 am **Titel**, nicht an der Anfrage -
+    # bewerten darf jeder, der ihn vorliegen hat. Dieser Weg antwortet auf die
+    # des Anfragenden; die Uebersicht ueber alle steht unter ``/api/feedback``.
+    besitzer = db.get(User, request.user_id)
+    bewertung = (
+        ratings.meine(db, besitzer, request.media_type, request.tmdb_id, request.season)
+        if besitzer is not None
+        else None
+    )
+    if bewertung is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Zu dieser Anfrage gibt es noch keine Rückmeldung.",
         )
 
-    request.feedback_reply = payload.reply.strip()
-    request.replied_at = utcnow()
-    request.replied_by = admin.id
+    bewertung.reply = payload.reply.strip()
+    bewertung.replied_at = utcnow().replace(tzinfo=None)
+    bewertung.replied_by = admin.id
 
     _notify_requester(db, request, NotificationType.feedback_reply, "notifications.feedbackReply")
     db.commit()

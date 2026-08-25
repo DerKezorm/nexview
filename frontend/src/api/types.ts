@@ -592,6 +592,15 @@ export type MediaDetail = MediaItem & {
   watching?: boolean;
   /** Läuft zu diesem Titel eine Anfrage **von mir**? Dann kein Warten-Knopf. */
   requested_by_me?: boolean;
+  /** Meine eigene Rückmeldung zur Qualität – am Titel, nicht an der Anfrage. */
+  my_feedback?: {
+    rating: number;
+    comment: string | null;
+    reply: string | null;
+    outdated: boolean;
+  } | null;
+  /** Liegt schon ein offenes Ticket von mir zu diesem Titel? */
+  open_ticket?: boolean;
   cast: CastMember[];
   crew: CrewMember[];
   recommendations: MediaItem[];

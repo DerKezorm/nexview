@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUser, DbSession
 from ..models import (
+    TitleRating,
     MediaRequest,
     NotificationType,
     RequestStatus,
@@ -23,7 +24,7 @@ from ..schemas_requests import (
     RequestCreate,
     RequestPublic,
 )
-from ..services import media, notify, quota, requests_service
+from ..services import media, notify, quota, requests_service, ratings
 from ..services.quota import QuotaState
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
@@ -58,9 +59,34 @@ def read_quota(user: CurrentUser, db: DbSession) -> QuotaOverview:
     )
 
 
+def _mit_bewertung(zeile: MediaRequest, bewertung: TitleRating | None) -> RequestPublic:
+    """Eine Anfrage samt der Bewertung, die am **Titel** haengt.
+
+    Die gleichnamigen Spalten an der Anfrage stehen noch da, werden aber seit
+    0.19 nicht mehr geschrieben - bewerten darf jeder, der einen Titel
+    vorliegen hat, und dafuer braucht es keine Anfrage.
+    """
+    eintrag = RequestPublic.model_validate(zeile)
+    eintrag.rating = bewertung.rating if bewertung else None
+    eintrag.feedback = bewertung.comment if bewertung else None
+    eintrag.feedback_reply = bewertung.reply if bewertung else None
+    eintrag.rated_at = bewertung.updated_at if bewertung else None
+    eintrag.replied_at = bewertung.replied_at if bewertung else None
+    eintrag.rating_outdated = bool(bewertung and bewertung.outdated)
+    return eintrag
+
+
 @router.get("/mine", response_model=list[RequestPublic])
-def my_requests(user: CurrentUser, db: DbSession) -> list[MediaRequest]:
-    return list(
+def my_requests(user: CurrentUser, db: DbSession) -> list[RequestPublic]:
+    """Die eigenen Anfragen - mit der Bewertung, die am Titel haengt.
+
+    ⚠️ Die Bewertungsfelder kommen seit 0.19 aus ``title_ratings`` und nicht
+    mehr aus den gleichnamigen Spalten der Anfrage. Die stehen dort noch, sind
+    aber tot: Bewerten darf jeder, der einen Titel vorliegen hat, und dafuer
+    braucht es keine Anfrage. Einmal alle Bewertungen dieser Person holen statt
+    einer Abfrage je Zeile.
+    """
+    zeilen = list(
         db.scalars(
             select(MediaRequest)
             # Den Entscheider gleich mitladen: Der Verlauf nennt seinen Namen,
@@ -70,6 +96,18 @@ def my_requests(user: CurrentUser, db: DbSession) -> list[MediaRequest]:
             .order_by(MediaRequest.requested_at.desc())
         )
     )
+
+    nach_titel = {
+        (b.media_type, b.tmdb_id, b.season): b
+        for b in db.scalars(
+            select(TitleRating).where(TitleRating.user_id == user.id)
+        )
+    }
+
+    return [
+        _mit_bewertung(zeile, nach_titel.get((zeile.media_type, zeile.tmdb_id, zeile.season)))
+        for zeile in zeilen
+    ]
 
 
 @router.post("", response_model=RequestPublic, status_code=status.HTTP_201_CREATED)
@@ -139,10 +177,26 @@ def give_feedback(
             detail="Bewerten kannst du erst, wenn der Titel heruntergeladen ist.",
         )
 
-    war_bewertet = request.rating is not None
-    request.rating = payload.rating
-    request.feedback = (payload.comment or "").strip() or None
-    request.rated_at = utcnow()
+    # ⚠️ **Der Weg bleibt, das Ziel hat sich geaendert.**
+    #
+    # Seit 0.19 haengt eine Bewertung am **Titel**, nicht an der Anfrage -
+    # bewerten darf jeder, der ihn vorliegen hat. Dieser Endpunkt gibt es
+    # weiterhin, weil er der bequeme Weg aus "Meine Anfragen" ist; er schreibt
+    # aber in dieselbe Tabelle wie ``/api/feedback``. Zwei Ziele hiessen zwei
+    # Wahrheiten, und die zweite waere genau die Art Altlast, die einem ein
+    # halbes Jahr spaeter begegnet.
+    eintrag, ist_neu = ratings.setzen(
+        db,
+        user,
+        request.media_type,
+        request.tmdb_id,
+        rating=payload.rating,
+        comment=payload.comment,
+        title=request.title,
+        season=request.season,
+        file_size_bytes=request.file_size_bytes or 0,
+    )
+    war_bewertet = not ist_neu
     db.commit()
 
     if not war_bewertet:
@@ -162,12 +216,13 @@ def give_feedback(
     logger.info(
         "User %r rated %r with %d/5%s",
         user.username,
-        request.title,
+        eintrag.title,
         payload.rating,
         f": {request.feedback}" if request.feedback else "",
     )
     db.refresh(request)
-    return request
+    db.refresh(eintrag)
+    return _mit_bewertung(request, eintrag)
 
 
 @router.post("/{request_id}/cancel", response_model=RequestPublic)

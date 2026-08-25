@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import MediaRequest, MediaType, RequestStatus, Role, User
+from ..models import MediaRequest, MediaType, RequestStatus, Role, User, TitleRating
 from . import quota, storage
 from .settings_service import load_settings
 
@@ -190,27 +190,6 @@ def collect(db: Session) -> dict:
             elif zustand == RequestStatus.failed:
                 eintrag.failed += 1
 
-        # ⚠️ **Veraltete Bewertungen zaehlen nicht mit.**
-        #
-        # Diese Seite beantwortet "wie zufrieden sind die Leute mit dem, was
-        # hier liegt". Eine Bewertung, die einer Datei galt, die Radarr
-        # inzwischen durch eine bessere ersetzt hat, verfaelscht genau diese
-        # Antwort - ein "war schlecht" ueber etwas, das es so nicht mehr gibt.
-        # An der Anfrage bleibt sie stehen, hier faellt sie heraus.
-        if request.rating is not None and not request.rating_outdated:
-            gesamt.ratings += 1
-            gesamt.rating_sum += request.rating
-            verteilung[request.rating] = verteilung.get(request.rating, 0) + 1
-            if request.rating <= POOR_RATING:
-                gesamt.poor_ratings += 1
-            if request.feedback and not request.feedback_reply:
-                gesamt.unanswered_feedback += 1
-            if eintrag is not None:
-                eintrag.ratings += 1
-                eintrag.rating_sum += request.rating
-                if request.rating <= POOR_RATING:
-                    eintrag.poor_ratings += 1
-
         verlauf[_monat(request.requested_at)]["movie" if ist_film else "tv"] += 1
 
         # Welche Titel wurden von mehreren Leuten angefragt?
@@ -226,6 +205,35 @@ def collect(db: Session) -> dict:
             },
         )
         vorhanden["count"] += 1
+
+    # --- Rueckmeldungen zur Qualitaet ------------------------------------
+    #
+    # Eigener Durchgang, weil sie seit 0.19 **am Titel** haengen und nicht mehr
+    # an einer Anfrage: Bewerten darf jeder, der einen vorhandenen Titel
+    # gesehen hat, nicht nur der Besteller.
+    #
+    # ⚠️ **Veraltete zaehlen nicht mit.** Diese Seite beantwortet "wie
+    # zufrieden sind die Leute mit dem, was hier liegt". Ein Urteil, das einer
+    # Datei galt, die Radarr inzwischen durch eine bessere ersetzt hat,
+    # verfaelscht genau diese Antwort. Es bleibt gespeichert, faellt hier aber
+    # heraus.
+    for bewertung in db.scalars(
+        select(TitleRating).where(TitleRating.outdated.is_(False))
+    ):
+        gesamt.ratings += 1
+        gesamt.rating_sum += bewertung.rating
+        verteilung[bewertung.rating] = verteilung.get(bewertung.rating, 0) + 1
+        if bewertung.rating <= POOR_RATING:
+            gesamt.poor_ratings += 1
+        if bewertung.comment and not bewertung.reply:
+            gesamt.unanswered_feedback += 1
+
+        eintrag = pro_benutzer.get(bewertung.user_id)
+        if eintrag is not None:
+            eintrag.ratings += 1
+            eintrag.rating_sum += bewertung.rating
+            if bewertung.rating <= POOR_RATING:
+                eintrag.poor_ratings += 1
 
     gesamt.rating_distribution = verteilung
     gesamt.active_users = sum(1 for eintrag in pro_benutzer.values() if eintrag.total > 0)

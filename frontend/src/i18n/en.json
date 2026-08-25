@@ -337,7 +337,11 @@
     "replyPlaceholder": "Reply to the requester …",
     "sendReply": "Send reply",
     "outdated": "applied to an older file",
-    "outdatedHint": "Radarr replaced this title with a better release. Your rating applied to the earlier file — care to rate it again?"
+    "outdatedHint": "Radarr replaced this title with a better release. Your rating applied to the earlier file — care to rate it again?",
+    "ticketOffer": "That sounds like something somebody should fix. Turn it into a ticket? Then it stays open until it has been dealt with.",
+    "ticketButton": "Report as a problem",
+    "ticketSubject": "Problem with “{{title}}”",
+    "ticketFallback": "Rated {{stars}} out of 5."
   },
   "myRequests": {
     "title": "My requests",

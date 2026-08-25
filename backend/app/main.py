@@ -40,6 +40,7 @@ from .routers import (
     mediaserver as mediaserver_router,
     notifications,
     onboarding,
+    feedback as feedback_router,
     requests as requests_router,
     settings as settings_router,
     setup,
@@ -172,6 +173,7 @@ app.include_router(stoebern_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(discover.public_router)
 app.include_router(kids_router.router)
 app.include_router(requests_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(feedback_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(admin_requests.router)
 app.include_router(stats_router.router)
 app.include_router(home_router.router, dependencies=NUR_ERWACHSENE)

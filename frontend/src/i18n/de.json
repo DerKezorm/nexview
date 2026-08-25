@@ -337,7 +337,11 @@
     "replyPlaceholder": "Antwort an den Anfragenden …",
     "sendReply": "Antwort senden",
     "outdated": "galt einer älteren Fassung",
-    "outdatedHint": "Radarr hat diesen Titel in besserer Qualität nachgeladen. Deine Bewertung galt der Datei von damals — magst du neu bewerten?"
+    "outdatedHint": "Radarr hat diesen Titel in besserer Qualität nachgeladen. Deine Bewertung galt der Datei von damals — magst du neu bewerten?",
+    "ticketOffer": "Klingt nach einem Problem, das jemand beheben sollte. Soll daraus ein Ticket werden? Dann bleibt es offen, bis sich jemand darum gekümmert hat.",
+    "ticketButton": "Als Problem melden",
+    "ticketSubject": "Problem mit „{{title}}“",
+    "ticketFallback": "Bewertet mit {{stars}} von 5 Sternen."
   },
   "myRequests": {
     "title": "Meine Anfragen",

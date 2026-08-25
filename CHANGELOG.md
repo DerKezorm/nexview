@@ -141,6 +141,40 @@ veröffentlicht, solange kein Tag dazu existiert.
   greift es nicht — die Größe am Serien-Eintrag ist die der ganzen Serie und
   wächst auch, wenn eine andere Staffel aufgewertet wird.
 
+- **Bewerten darf jeder, nicht nur der Besteller.** Die Rückmeldung zur
+  Qualität hing an der Anfrage. Daraus folgte alles Weitere: Nur wer bestellt
+  hatte, sah die Sterne — und wer denselben Film zwei Wochen später sah und
+  merkte, dass die Tonspur fehlt, hatte keine Möglichkeit, es zu sagen.
+
+  Dabei geht es hier nicht um Geschmack — dafür gibt es das Herz —, sondern um
+  die **Datei**, und die beurteilt jeder gleich gut, der sie gesehen hat. Die
+  Bewertung hängt deshalb jetzt am Titel. Auf jeder Detailseite eines
+  vorhandenen Titels stehen die Sterne; in „Meine Anfragen" bleiben sie als
+  Abkürzung, weil der Augenblick direkt nach „Bereits geladen" der ist, in dem
+  jemand bewertet.
+
+  Bewusst **kein** Gatter über den Gesehen-Stand, obwohl Nexview ihn kennt: Er
+  sagt aus, dass jemand den *Titel* gesehen hat, nicht *diese Datei*. Nach
+  einer Aufwertung durch Radarr bleibt der Haken stehen, obwohl die alte
+  Fassung gemeint war — als Nachweis taugt er also nicht. Stattdessen hängt die
+  Gültigkeit an der Datei selbst.
+
+  **Serien werden je Staffel beurteilt.** Die Dateien liegen staffelweise, die
+  Qualität unterscheidet sich staffelweise. Eine Serie als Ganzes zu bewerten
+  hieße, über zehn verschiedene Dateien ein Urteil zu fällen.
+
+  Bestehende Bewertungen wandern beim ersten Start mit. Administratoren
+  bewerten weiterhin nicht — sie beantworten die Rückmeldungen der anderen.
+
+- **Aus einem schwachen Urteil wird auf Wunsch ein Ticket.** Wer ein oder zwei
+  Sterne gibt, beschreibt meistens ein Problem — und ein Problem verschwindet
+  in einem Durchschnitt, während ein Ticket einen Zustand hat und offen
+  bleibt, bis sich jemand darum gekümmert hat. Das Fenster bietet es an, der
+  Text ist ja schon geschrieben. Nicht angeboten wird es, wenn zu diesem Titel
+  schon ein offenes Ticket von derselben Person existiert: Der Betreiber
+  bekäme sonst zweimal dieselbe Sache auf den Tisch, und der Nutzer glaubte,
+  sein erstes sei untergegangen.
+
 ### Changed
 
 - **„Sprache & Region" und „Sicherheit" sind in „Konto" aufgegangen.** Aus acht

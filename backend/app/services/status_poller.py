@@ -32,6 +32,7 @@ from . import (
     mediaserver_watched,
     notify,
     storage,
+    ratings,
     requests_service,
 )
 from .arr import ArrError
@@ -289,8 +290,11 @@ async def check_once(db: Session, settings: AppSettings) -> int:
             # auch, wenn eine andere Staffel aufgewertet wird, und die
             # Bewertung galt nicht der.
             if request.season is None:
-                requests_service.groesse_pruefen(
-                    db, request, int(getattr(eintrag, "size_bytes", 0) or 0)
+                ratings.entwerten(
+                    db,
+                    request.media_type,
+                    request.tmdb_id,
+                    int(getattr(eintrag, "size_bytes", 0) or 0),
                 )
             continue
         # Zweite Quelle: der Media-Server. Wer den Titel nur aus Radarr

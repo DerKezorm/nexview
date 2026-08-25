@@ -192,63 +192,6 @@ def eigene_laeuft(db: Session, user: User, media_type: MediaType, tmdb_id: int) 
     ) is not None
 
 
-# Ab welchem Zuwachs eine Datei als *aufgewertet* gilt.
-#
-# Dieselbe Schwelle wie bei der Speichermessung, und aus demselben Grund: Ein
-# Zuwachs von ein paar hundert Megabyte kann eine nachgereichte Untertitelspur
-# sein. Der Fall, um den es geht, ist der Sprung von 1080p auf 2160p - aus 5 GB
-# werden 50.
-AUFWERTUNG_AB = 2 * 1024 * 1024 * 1024
-
-
-def groesse_pruefen(db: Session, request: MediaRequest, groesse: int) -> bool:
-    """Ist die Datei aufgewertet worden? - dann veraltet die Bewertung.
-
-    Radarr und Sonarr laden weiter, bis das Qualitaetsprofil erreicht ist. Eine
-    Bewertung galt aber der Datei, die damals dalag; danach steht ein "war
-    schlecht" an etwas, das es so nicht mehr gibt. Fuer den Betreiber ist das
-    die schlechteste Sorte Rueckmeldung - eine ueber einen Zustand, den er
-    nicht mehr nachpruefen kann.
-
-    **Geloescht wird die Bewertung nicht.** Das verloere die Information, und
-    der Nutzer saehe leere Sterne ohne Erklaerung. Sie bleibt stehen, traegt
-    ein Merkmal, zaehlt in der Auswertung nicht mehr mit - und der Betroffene
-    erfaehrt davon, damit er neu bewerten kann.
-
-    Bewusst **hier** und nicht in der Speichermessung: Die ist abschaltbar, und
-    eine Bewertung veraltet auch dann, wenn niemand Kontingente fuehrt. Der
-    Status-Poller fragt Radarr ohnehin, und die Groesse steht in derselben
-    Antwort - es kostet keinen zusaetzlichen Aufruf.
-
-    Gibt zurueck, ob eine Bewertung entwertet wurde.
-    """
-    if groesse <= 0:
-        return False
-
-    vorher = request.file_size_bytes or 0
-    request.file_size_bytes = groesse
-
-    # Erstes Nachsehen: Der heutige Stand ist der Ausgangspunkt, keine
-    # Aufwertung - sonst gaelte beim Einbau jede Bewertung sofort als veraltet.
-    if vorher <= 0 or groesse - vorher < AUFWERTUNG_AB:
-        return False
-
-    if request.rating is None or request.rating_outdated:
-        return False
-
-    request.rating_outdated = True
-    besitzer = db.get(User, request.user_id)
-    if besitzer is not None:
-        notify.create(
-            db,
-            user=besitzer,
-            kind=NotificationType.rating_outdated,
-            message_key="notifications.ratingOutdated",
-            title=request.title,
-        )
-    return True
-
-
 def _notify_admins(db: Session, request: MediaRequest) -> None:
     """Alle, die freigeben duerfen, ueber eine wartende Anfrage informieren.
 

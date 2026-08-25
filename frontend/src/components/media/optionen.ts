@@ -13,7 +13,5 @@
  * Erscheinungstermine, Verfügbarkeit und Altersfreigabe — deshalb steht sie
  * im Profil und nicht in einer Filterleiste.
  */
-export const REGION_OPTIONS = ['DE', 'AT', 'CH', 'GB', 'US', 'FR', 'IT', 'ES'] as const
-
 /** Kacheln oder Liste. */
 export type ViewMode = 'grid' | 'list'

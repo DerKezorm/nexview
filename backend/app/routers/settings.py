@@ -9,7 +9,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, Field, field_validator
 
-from ..deps import AdminUser, CurrentUser, DbSession
+from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..schemas import MIN_PASSWORD_LENGTH
 from ..services import cache, library, mail, mail_templates, storage
 from ..services.arr import ArrError
@@ -214,6 +214,63 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         watchlist_enabled=settings.watchlist_enabled,
         storage_enabled=settings.storage_enabled,
     )
+
+
+class RegionOut(BaseModel):
+    code: str
+    name: str
+
+
+@router.get("/config/regions", response_model=list[RegionOut])
+async def read_regions(user: AdultUser, db: DbSession) -> list[RegionOut]:
+    """Die Laender, unter denen jemand seine Region waehlen kann.
+
+    Bewusst von TMDB geholt statt im Quelltext gepflegt: Vorher standen acht
+    feste Kuerzel im Frontend, und wer in den Niederlanden oder Polen sass,
+    konnte sein Land schlicht nicht angeben.
+
+    Genommen wird die Liste der Regionen mit **Anbieterdaten** (derzeit 139),
+    nicht TMDBs vollstaendige Laenderliste. Die waere fast doppelt so lang und
+    enthielte Laender, zu denen es zur Verfuegbarkeit nichts zu sagen gibt -
+    ein Eintrag, hinter dem nichts steht, ist ein Versprechen ohne Deckung.
+
+    Aendert sich praktisch nie und liegt deshalb lange im Zwischenspeicher.
+    Scheitert TMDB, kommt eine leere Liste: Das Feld zeigt dann nur den
+    aktuellen Wert, statt die ganze Seite mitzureissen.
+
+    ⚠️ ``AdultUser`` und nicht ``CurrentUser``, obwohl der Rest von ``/config``
+    fuer alle offen ist: Ein Kinderkonto hat keine Einstellungen, in denen es
+    eine Region waehlen koennte. ``test_child_permissions`` besteht zu Recht
+    darauf, dass jeder Pfad eine Entscheidung traegt.
+    """
+    settings = load_settings(db)
+
+    async def beschaffen() -> list[dict[str, str]]:
+        client = TmdbClient(
+            api_key=settings.tmdb_api_key,
+            language=settings.default_language,
+            region=settings.default_region,
+        )
+        return [
+            {
+                "code": eintrag["iso_3166_1"],
+                # ``english_name`` statt ``native_name``: Eine Liste, in der
+                # "Deutschland" zwischen "Ελλάδα" und "日本" steht, laesst sich
+                # weder ueberfliegen noch tippend durchsuchen.
+                "name": eintrag.get("english_name") or eintrag["iso_3166_1"],
+            }
+            for eintrag in await client.watch_provider_regions()
+            if eintrag.get("iso_3166_1")
+        ]
+
+    try:
+        eintraege = await cache.cached(
+            db, "config:regions", cache.GENRE_TTL, beschaffen
+        )
+    except TmdbError:
+        return []
+
+    return [RegionOut(**eintrag) for eintrag in eintraege]
 
 
 @router.get("/settings")

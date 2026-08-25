@@ -151,6 +151,7 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, db: DbSession) -> User:
         "mail_request_decided",
         "mail_feedback",
         "mail_ticket",
+        "mail_watch",
         "mail_user_imported",
         "mail_mediaserver_reconnect",
     ):

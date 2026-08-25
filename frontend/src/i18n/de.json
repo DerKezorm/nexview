@@ -189,7 +189,10 @@
     "futureShort": "auch künftige",
     "seasonRequired": "Wähle mindestens eine Staffel aus.",
     "seasonHere": "schon da",
-    "seasonRunning": "läuft"
+    "seasonRunning": "läuft",
+    "inSubscription": "Läuft in deinem {{services}}.",
+    "inSubscriptionMovie": "Du kannst ihn dort sofort sehen.",
+    "inSubscriptionSeries": "Ob diese Staffel dabei ist, sagt die Quelle nicht."
   },
   "home": {
     "greeting": "Willkommen zurück, {{name}}",
@@ -377,7 +380,9 @@
     "storageWarnApprove": "Trotzdem freigeben",
     "storageWarnReject": "Ablehnen",
     "storageRejectReason": "Speicher-Kontingent überschritten.",
-    "storageWarnDefer": "Zurückstellen"
+    "storageWarnDefer": "Zurückstellen",
+    "inRequesterSubscription": "{{name}} kann das schon über {{services}} sehen.",
+    "inSubscriptionSeriesNote": "Ob diese Staffel dabei ist, sagt die Quelle nicht."
   },
   "requests": {
     "cancel": "Abbrechen",
@@ -503,7 +508,24 @@
     "tabChildren": "Kinder",
     "mailChildWish": "Wünsche deiner Kinder",
     "mailChildWishHint": "Sobald sich eines deiner Kinder etwas wünscht und auf deine Entscheidung wartet.",
-    "tabMediaServer": "Medienserver"
+    "tabMediaServer": "Medienserver",
+    "tabStreaming": "Streaming-Dienste",
+    "streaming": {
+      "title": "Meine Streaming-Dienste",
+      "intro": "Welche Abos du selbst hast. Fragst du einen Titel an, der dort schon läuft, sagt Nexview es dir — verhindert wird nichts. Ohne Angabe bleibt alles, wie es ist.",
+      "regionHint": "Bestimmt, welche Dienste hier zur Wahl stehen — und für welches Land Nexview die Verfügbarkeit nachschlägt.",
+      "regionInherited": "Bisher gilt die Vorgabe des Betreibers. Sieh einmal nach, ob sie stimmt: Danach richtet sich, welche Dienste hier stehen.",
+      "pickLabel": "Deine Abos",
+      "pickHint": "Nur die großen Abo-Dienste. Leihen, Kaufen und die kostenlosen Mediatheken stehen bewusst nicht dabei — sie kosten nichts, also sparst du dort auch nichts.",
+      "noneHere": "Für dieses Land kennt TMDB keinen der großen Abo-Dienste. Sieh nach, ob die Angabe oben stimmt.",
+      "unavailable": "Die Liste der Dienste lässt sich gerade nicht laden.",
+      "saved": "Deine Dienste sind gespeichert.",
+      "regionIs": "Gilt für {{region}}.",
+      "regionChange": "Region ändern"
+    },
+    "accountSaved": "Deine Angaben sind gespeichert.",
+    "mailWatch": "Vorgemerkte Titel",
+    "mailWatchHint": "Wenn ein vorgemerkter Film da ist oder eine verfolgte Serie neue Folgen bekommt. Immer gebündelt — ein Staffelpaket ist eine Mail, nicht acht."
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -651,7 +673,9 @@
     "storageReleaseRequested": "Jemand hat einen Titel abgegeben",
     "storageDeleted": "Ein Titel wurde gelöscht",
     "storageKept": "Ein Titel bleibt, wird aber nicht mehr geladen",
-    "childWish": "Dein Kind wünscht sich etwas"
+    "childWish": "Dein Kind wünscht sich etwas",
+    "watchReady": "Der Titel, auf den du gewartet hast, ist da.",
+    "watchEpisodes": "Es sind neue Folgen da."
   },
   "mediaserver": {
     "waiting": "Warte auf die Bestätigung im Plex-Fenster …",
@@ -876,7 +900,13 @@
     "free": "Kostenlos",
     "rent": "Leihen",
     "buy": "Kaufen",
-    "justwatch": "Streaming-Daten von JustWatch"
+    "justwatch": "Streaming-Daten von JustWatch",
+    "start": "Sag mir Bescheid",
+    "stop": "Nicht mehr warten",
+    "hintMovie": "Du bekommst eine Nachricht, sobald der Film da ist.",
+    "hintSeries": "Du bekommst eine Nachricht, sobald neue Folgen da sind.",
+    "activeMovie": "Du bekommst Bescheid, sobald er da ist.",
+    "activeSeries": "Du verfolgst diese Serie — neue Folgen werden gemeldet, gebündelt."
   },
   "calendar": {
     "intro": "Was wann erscheint – deine Serien und Filme, dazu Neuerscheinungen in deiner Region.",
@@ -1365,7 +1395,9 @@
     "wishReleaseHint": "Daraus wird eine ganz normale Anfrage auf deinen Namen – mit deinem Kontingent und deinem üblichen Freigabeweg.",
     "wishTargetLater": "Ordner und Qualität wählt der Entscheider bei der Freigabe.",
     "wishesEmpty": "Gerade wartet kein Wunsch auf dich.",
-    "wishesTitle": "Wünsche deiner Kinder"
+    "wishesTitle": "Wünsche deiner Kinder",
+    "wishInSubscription": "{{name}} könnte das schon über {{services}} sehen.",
+    "wishSeriesNote": "Ob diese Staffel dabei ist, sagt die Quelle nicht."
   },
   "kids": {
     "alreadyWished": "Schon gewünscht",
@@ -1950,5 +1982,10 @@
     "ansicht": "Darstellung",
     "ansicht_kacheln": "Kacheln",
     "ansicht_liste": "Liste"
+  },
+  "regionHint": {
+    "text": "Deine Region ist {{region}} — gesetzt hat sie der Betreiber, nicht du.",
+    "action": "Region festlegen",
+    "later": "Später"
   }
 }

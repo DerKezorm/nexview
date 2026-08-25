@@ -290,6 +290,21 @@ class MediaDetail(MediaItem):
     # fuer diese Region nichts kennt.
     watch: WatchProviders | None = None
 
+    # Welche der **eigenen** Abos diesen Titel fuehren - Namen, keine
+    # Kennungen. Wird je Benutzer nachgetragen (siehe ``routers/details.py``),
+    # nicht in ``full_detail`` berechnet: Dessen TMDB-Antwort liegt fuer alle
+    # gemeinsam im Zwischenspeicher, und was mein Abo enthaelt, ist nicht das,
+    # was deines enthaelt.
+    #
+    # Leere Liste heisst "in keinem deiner Abos" **und** "du hast keine
+    # angegeben" - fuer die Anzeige ist beides dasselbe: kein Hinweis.
+    in_my_subscriptions: list[str] = []
+
+    # Habe **ich** diesen Titel vorgemerkt? Entscheidet, ob der Knopf
+    # „Sag mir Bescheid" oder „Nicht mehr warten" heisst. Je Benutzer, also
+    # aus demselben Grund wie oben nicht in ``full_detail`` berechnet.
+    watching: bool = False
+
     cast: list[CastMember] = []
     crew: list[CrewMember] = []
     recommendations: list[MediaItem] = []

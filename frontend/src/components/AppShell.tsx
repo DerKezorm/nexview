@@ -12,6 +12,7 @@ import { Logo } from './Logo'
 import { NotificationBell } from './NotificationBell'
 import { WatchlistExpiredBanner } from './WatchlistExpiredBanner'
 import { WasNeuBanner } from './WasNeuBanner'
+import { RegionBanner } from './RegionBanner'
 import { UserMenu } from './UserMenu'
 import type { MediaItem, MediaType } from '../api/types'
 import { DetailModal } from './media/DetailModal'
@@ -210,6 +211,7 @@ export function AppShell() {
           nur dort, wo er zufällig hinklickt. */}
       <WasNeuBanner />
       <WatchlistExpiredBanner />
+      <RegionBanner />
 
       {/* flex-1 schiebt die Fußzeile auch auf kurzen Seiten nach unten. */}
       <main className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">

@@ -36,6 +36,7 @@ from . import (
 )
 from .arr import ArrError
 from .settings_service import AppSettings, load_settings
+from . import watch
 
 logger = logging.getLogger("nexview.poller")
 
@@ -447,6 +448,20 @@ async def run_forever(stop: asyncio.Event) -> None:
                 wartezeit = settings.poll_interval_seconds
                 if settings.radarr_configured or settings.sonarr_configured:
                     await check_once(db, settings)
+
+                    # Vorgemerkte Titel („Sag mir Bescheid"). Bewusst
+                    # **neben** ``check_once`` und nicht darin: Das dort
+                    # haengt an Anfragen und meldet, wenn *deine* Anfrage
+                    # fertig wird. Eine Vormerkung hat keine Anfrage
+                    # dahinter, also treibt sie dort nichts an.
+                    #
+                    # Und bewusst mit eigenem Auffangnetz: Ein Fehler beim
+                    # Vormerken darf nicht die Statusabfrage mitreissen, an
+                    # der die eigentlichen Anfragen haengen.
+                    try:
+                        await watch.pruefen(db, settings)
+                    except Exception:  # noqa: BLE001
+                        logger.exception("Watch check failed")
 
                 # Die Bibliothek des Media-Servers seltener - sie aendert sich
                 # kaum, und ein voller Durchlauf kostet bei ein paar tausend

@@ -34,6 +34,8 @@ from ..services import (
 )
 from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
+from ..services import streaming, watch
+from ..services.streaming import eigene_dienste
 from ..services.tmdb import TmdbError
 
 router = APIRouter(prefix="/api", tags=["details"])
@@ -154,6 +156,16 @@ async def title_detail(
 
     await _mit_status(db, settings, media_type, [detail], user)
     await _mit_status(db, settings, media_type, detail.recommendations, user)
+
+    # Laeuft der Titel in einem Abo, das *dieser* Benutzer hat? Hier und nicht
+    # in ``full_detail``: Dessen TMDB-Antwort liegt fuer alle gemeinsam im
+    # Zwischenspeicher.
+    detail.watching = watch.vorgemerkt(db, user, MediaType(media_type), tmdb_id)
+
+    detail.in_my_subscriptions = streaming.treffer(
+        eigene_dienste(db, user),
+        [anbieter.id for anbieter in (detail.watch.flatrate if detail.watch else [])],
+    )
 
     # Bei Serien: wie viele Folgen jeder Staffel liegen schon vor - und zu
     # welchen laeuft bereits eine Anfrage?

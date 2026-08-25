@@ -111,6 +111,17 @@ export function Kinderwuensche() {
               {t('children.wishFrom', { name: wunsch.child_name })}
               {wunsch.release_date && ` · ${wunsch.release_date.slice(0, 4)}`}
             </p>
+            {/* Läuft in einem Abo, das **du** hast - das Kind guckt darüber
+                mit. Ein Hinweis für die Entscheidung, keine Sperre. */}
+            {(wunsch.in_my_subscriptions ?? []).length > 0 && (
+              <p className="mt-1 text-xs text-warn-500">
+                {t('children.wishInSubscription', {
+                  name: wunsch.child_name,
+                  services: (wunsch.in_my_subscriptions ?? []).join(', '),
+                })}
+                {wunsch.media_type === 'tv' && ` ${t('children.wishSeriesNote')}`}
+              </p>
+            )}
           </div>
           <div className="flex gap-2">
             <Button

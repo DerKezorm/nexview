@@ -16,7 +16,15 @@ from ..models import ChildWish, MediaType, QualityTier, User
 from ..schemas import ChildCreate, ChildPassword, ChildPublic, ChildUpdate
 from ..schemas_media import MediaDetail, MediaItem
 from ..schemas_requests import RequestPublic
-from ..services import child_wishes, children, kids, media, requests_service, tickets
+from ..services import (
+    child_wishes,
+    children,
+    kids,
+    media,
+    requests_service,
+    streaming,
+    tickets,
+)
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
 
@@ -52,6 +60,9 @@ class WishForParent(BaseModel):
     tmdb_id: int
     title: str
     poster_path: str | None
+    # Abos **des Elternteils**, in denen der Titel schon laeuft. Das Kind hat
+    # keine eigenen - es guckt ueber die seiner Eltern.
+    in_my_subscriptions: list[str] = []
     release_date: str | None
     created_at: str
 
@@ -76,7 +87,46 @@ class WishRelease(BaseModel):
     tier: QualityTier = QualityTier.standard
 
 
-def _wunsch_zeile(wunsch: ChildWish) -> WishForParent:
+async def _abo_treffer(
+    db: DbSession, elternteil: User, wuensche: list[ChildWish]
+) -> dict[int, list[str]]:
+    """Welche Wuensche laufen in einem Abo **des Elternteils**? - je Wunsch-Id.
+
+    Das Kind hat keine eigenen Abos; es guckt ueber die seiner Eltern. Gemessen
+    wird deshalb an deren Diensten, und der Hinweis erscheint dort, wo
+    entschieden wird - nicht beim Kind, das ohnehin nichts entscheiden kann.
+
+    Ohne hinterlegte Dienste faellt der ganze Weg sofort weg. Faellt TMDB aus,
+    bleibt die Spalte leer: Ein fehlender Hinweis ist hinnehmbar, eine
+    Wunschliste, die deswegen nicht laedt, nicht.
+    """
+    dienste = streaming.eigene_dienste(db, elternteil)
+    if not dienste or not wuensche:
+        return {}
+
+    einstellungen = load_settings(db)
+    ergebnis: dict[int, list[str]] = {}
+    gesehen: dict[tuple[str, int], list[int]] = {}
+    for wunsch in wuensche:
+        schluessel = (wunsch.media_type.value, wunsch.tmdb_id)
+        if schluessel not in gesehen:
+            try:
+                detail = await media.full_detail(
+                    db, einstellungen, wunsch.media_type.value, wunsch.tmdb_id
+                )
+            except TmdbError:
+                gesehen[schluessel] = []
+            else:
+                gesehen[schluessel] = [
+                    a.id for a in (detail.watch.flatrate if detail.watch else [])
+                ]
+        namen = streaming.treffer(dienste, gesehen[schluessel])
+        if namen:
+            ergebnis[wunsch.id] = namen
+    return ergebnis
+
+
+def _wunsch_zeile(wunsch: ChildWish, abos: list[str] | None = None) -> WishForParent:
     return WishForParent(
         id=wunsch.id,
         child_id=wunsch.child_id,
@@ -87,6 +137,7 @@ def _wunsch_zeile(wunsch: ChildWish) -> WishForParent:
         poster_path=wunsch.poster_path,
         release_date=wunsch.release_date,
         created_at=wunsch.created_at.isoformat(),
+        in_my_subscriptions=abos or [],
     )
 
 
@@ -107,9 +158,11 @@ def request_permission(user: CurrentUser, db: DbSession) -> None:
 
 
 @router.get("/wishes", response_model=list[WishForParent])
-def read_wishes(user: CurrentUser, db: DbSession) -> list[WishForParent]:
+async def read_wishes(user: CurrentUser, db: DbSession) -> list[WishForParent]:
     """Was gerade auf eine Entscheidung wartet."""
-    return [_wunsch_zeile(w) for w in child_wishes.offene_wuensche(db, user)]
+    wuensche = list(child_wishes.offene_wuensche(db, user))
+    abos = await _abo_treffer(db, user, wuensche)
+    return [_wunsch_zeile(w, abos.get(w.id)) for w in wuensche]
 
 
 @router.post("/wishes/{wish_id}/decline", status_code=status.HTTP_204_NO_CONTENT)

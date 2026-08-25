@@ -123,6 +123,14 @@ class RequestWithUser(RequestPublic):
     # "diese Waehrung gilt hier nicht" - es gilt immer nur eine.
     storage: AnfragerSpeicher | None = None
 
+    # Laeuft dieser Titel in einem Abo, das **der Anfragende** hat? Namen der
+    # Dienste, leer heisst "nein" oder "hat nichts angegeben".
+    #
+    # ⚠️ Gemessen an *seinen* Abos, nicht an denen des Entscheiders. Der
+    # Entscheider hat vielleicht kein Netflix - die Frage ist aber, ob der
+    # Anfragende den Film ohne diesen Download sehen kann.
+    requester_subscriptions: list[str] = []
+
 
 class QuotaInfo(BaseModel):
     limit: int | None

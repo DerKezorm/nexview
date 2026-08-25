@@ -10,9 +10,9 @@ import type {
   RootFolderMode,
   TestResult,
 } from "../../api/types";
-import { REGION_OPTIONS } from "../../components/media/optionen";
 import { Button, Card, ErrorBanner, Field, Spinner } from "../../components/ui";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
+import { useRegionen } from "../../hooks/useRegionen";
 
 type TestService = "tmdb" | "radarr" | "sonarr" | "radarr_uhd" | "sonarr_uhd";
 
@@ -405,6 +405,7 @@ function DefaultRootField({
 
 export function AdminServicesSettings() {
   const { t } = useTranslation();
+  const regionen = useRegionen();
   const queryClient = useQueryClient();
 
   const [unterTab, setUnterTab] = useState<UnterTab>("general");
@@ -743,9 +744,9 @@ export function AdminServicesSettings() {
                   }
                   className="rounded-xl border border-ink-700 bg-ink-900 px-4 py-2.5 text-mist-100 focus:border-accent-500 focus:outline-none"
                 >
-                  {REGION_OPTIONS.map((region) => (
-                    <option key={region} value={region}>
-                      {region}
+                  {(regionen.data ?? []).map((region) => (
+                    <option key={region.code} value={region.code}>
+                      {region.name}
                     </option>
                   ))}
                 </select>

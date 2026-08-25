@@ -39,6 +39,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .settings_service import AppSettings
@@ -216,3 +217,19 @@ def treffer(slugs: set[str], kennungen: list[int]) -> list[str]:
         if kennung in NACH_KENNUNG and NACH_KENNUNG[kennung].slug in slugs
     }
     return [marke.name for marke in MARKEN if marke.slug in getroffen]
+
+
+def eigene_dienste(db: Session, user: Any) -> set[str]:
+    """Die angehakten Dienste eines Kontos.
+
+    Hier statt beim Aufrufer, damit die Tabelle nur an einer Stelle abgefragt
+    wird - sie wird spaeter auch von der Wunschliste der Eltern und der
+    Freigabeliste des Betreibers gebraucht.
+    """
+    from ..models import StreamingService
+
+    return set(
+        db.scalars(
+            select(StreamingService.slug).where(StreamingService.user_id == user.id)
+        )
+    )

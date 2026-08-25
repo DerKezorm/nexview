@@ -63,6 +63,7 @@ export type User = {
   mail_feedback: boolean;
   /** Neue Tickets (für Admins) und Antworten darauf (für den Eigentümer). */
   mail_ticket: boolean;
+  mail_watch: boolean;
   /** Neues Konto über den Media-Server – nur für Admins von Belang. */
   mail_user_imported: boolean;
   mail_mediaserver_reconnect: boolean;
@@ -213,6 +214,8 @@ export type ParentWish = {
   poster_path: string | null;
   release_date: string | null;
   created_at: string;
+  /** Abos **des Elternteils**, in denen der Titel schon läuft. */
+  in_my_subscriptions?: string[];
 };
 
 /** Offene Einladung – ein Konto gibt es dazu noch nicht. */
@@ -583,6 +586,10 @@ export type MediaDetail = MediaItem & {
   keywords: NamedRef[];
   trailer: Trailer | null;
   watch: WatchProviders | null;
+  /** Eigene Abos, in denen dieser Titel läuft. Leer = kein Hinweis. */
+  in_my_subscriptions?: string[];
+  /** Habe ich diesen Titel vorgemerkt („Sag mir Bescheid")? */
+  watching?: boolean;
   cast: CastMember[];
   crew: CrewMember[];
   recommendations: MediaItem[];
@@ -1240,6 +1247,12 @@ export type MediaRequestWithUser = MediaRequest & {
   display_name: string | null;
   avatar_url: string | null;
   storage?: AnfragerSpeicher | null;
+  /**
+   * Abos **des Anfragenden**, in denen dieser Titel läuft. Leer = kein Hinweis.
+   * Nicht die des Entscheiders – der hat vielleicht kein Netflix, aber die
+   * Frage ist, ob der Anfragende ohne den Download auskäme.
+   */
+  requester_subscriptions?: string[];
 };
 
 /** Ein zuletzt fertig geladener Titel für die Startseite. */
@@ -1365,3 +1378,9 @@ export interface MediaServerConnectionInfo {
   name: string;
   url: string;
 }
+
+/** Ein Land für die Regionsauswahl. Kommt von TMDB, nicht aus dem Quelltext. */
+export type Region = {
+  code: string;
+  name: string;
+};

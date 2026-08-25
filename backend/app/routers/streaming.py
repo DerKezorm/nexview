@@ -20,9 +20,9 @@ from sqlalchemy import delete, select
 
 from ..deps import CurrentUser, DbSession
 from ..models import StreamingService, User
-from ..services import cache, streaming
+from ..services import streaming
 from ..services.settings_service import for_user, load_settings
-from ..services.tmdb import TmdbClient, TmdbError
+from ..services.tmdb import TmdbError
 
 # Kinderkonten haben keine eigenen Abos - sie gucken ueber die ihrer Eltern.
 # Ausgesperrt werden sie bei der Registrierung in ``main.py`` (NUR_ERWACHSENE),
@@ -47,11 +47,6 @@ class UebersichtOut(BaseModel):
 
 class AuswahlIn(BaseModel):
     slugs: list[str] = Field(default_factory=list, max_length=60)
-
-
-class RegionOut(BaseModel):
-    code: str
-    name: str
 
 
 def _meine_slugs(db: DbSession, user: User) -> list[str]:
@@ -122,46 +117,3 @@ async def auswahl_setzen(
 
     db.commit()
     return await uebersicht(user, db)
-
-
-@router.get("/regionen", response_model=list[RegionOut])
-async def regionen(user: CurrentUser, db: DbSession) -> list[RegionOut]:
-    """Die Laender, fuer die TMDB Anbieterdaten fuehrt - derzeit 139.
-
-    Bewusst von TMDB geholt statt im Quelltext gepflegt: Eine feste Liste war
-    auf acht Laender gewachsen und liess alle anderen aussen vor. Und ein Land
-    anzubieten, zu dem es hinterher keine Anbieter gibt, waere ein Versprechen
-    ohne Deckung.
-    """
-    settings = for_user(load_settings(db), user)
-
-    async def beschaffen() -> list[dict[str, str]]:
-        client = TmdbClient(
-            api_key=settings.tmdb_api_key,
-            language=settings.default_language,
-            region=settings.default_region,
-        )
-        roh = await client.watch_provider_regions()
-        return [
-            {
-                "code": eintrag["iso_3166_1"],
-                # ``native_name`` waere das Land in seiner eigenen Sprache -
-                # eine Liste, in der "Deutschland" zwischen "Ελλάδα" und
-                # "日本" steht, ist nicht durchsuchbar.
-                "name": eintrag.get("english_name") or eintrag["iso_3166_1"],
-            }
-            for eintrag in roh
-            if eintrag.get("iso_3166_1")
-        ]
-
-    try:
-        eintraege = await cache.cached(
-            db,
-            f"streaming:regionen:{settings.default_language}",
-            cache.GENRE_TTL,
-            beschaffen,
-        )
-    except TmdbError:
-        return []
-
-    return [RegionOut(**eintrag) for eintrag in eintraege]

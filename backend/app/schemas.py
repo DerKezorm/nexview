@@ -167,6 +167,7 @@ class UserPublic(BaseModel):
     mail_request_decided: bool
     mail_feedback: bool
     mail_ticket: bool
+    mail_watch: bool
     mail_user_imported: bool
     mail_mediaserver_reconnect: bool
     mail_storage: bool
@@ -439,6 +440,7 @@ class ProfileUpdate(BaseModel):
     mail_request_decided: bool | None = None
     mail_feedback: bool | None = None
     mail_ticket: bool | None = None
+    mail_watch: bool | None = None
     mail_user_imported: bool | None = None
     mail_mediaserver_reconnect: bool | None = None
     mail_storage: bool | None = None

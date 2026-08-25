@@ -209,6 +209,16 @@ class NotificationType(str, enum.Enum):
     # ``MAIL_SWITCH``, Vorlage in ``mail_templates`` und einen ``case`` in
     # ``mail_outbox._nachricht`` - sonst wird der Auftrag lautlos verworfen.
     child_wish = "child_wish"
+    # --- "Sag mir Bescheid" -------------------------------------------------
+    # Ein vorgemerkter **Film** ist da. Bewusst getrennt von
+    # ``download_complete``: Das ist die Meldung an den, der ihn angefragt hat.
+    # Hier wartet jemand, der nichts angefragt hat - ihm "deine Anfrage ist
+    # fertig" zu schreiben, waere schlicht falsch.
+    watch_ready = "watch_ready"
+    # Zu einer vorgemerkten **Serie** sind neue Folgen dazugekommen. Immer
+    # gebuendelt: Laedt ein Staffelpaket durch, ist das *eine* Meldung ueber
+    # acht Folgen und nicht acht Meldungen.
+    watch_episodes = "watch_episodes"
     # Ein zurueckgestellter Titel ist jetzt da - jemand anders hat ihn geholt.
     # Bewusst ein eigener Typ und nicht ``cancelled``: Der wuerde eine Mail
     # "Deine Anfrage wurde abgelehnt" ausloesen, und das waere das Gegenteil
@@ -398,6 +408,11 @@ class User(Base):
     # Eigentuemer) haengen bewusst am selben Schalter - vier Schalter sind
     # ueberschaubar, sechs waeren eine Zumutung.
     mail_ticket: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Vorgemerkte Titel ("Sag mir Bescheid"). Film und Serie an einem
+    # Schalter: Wer sich etwas vormerkt, will davon hoeren - die Unterscheidung
+    # zwischen "ist da" und "neue Folgen" ist keine, die jemand getrennt
+    # abbestellen moechte.
+    mail_watch: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Neues Konto ueber den Media-Server - nur fuer Admins von Belang.
     mail_user_imported: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Der eigene Media-Server-Zugang ist abgelaufen und braucht eine neue
@@ -1641,6 +1656,86 @@ class FavoritePerson(Base):
     department: Mapped[str] = mapped_column(String(40), default="", nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class TitleWatch(Base):
+    """„Sag mir Bescheid" - jemand wartet auf einen Titel, ohne ihn anzufragen.
+
+    Der Fall, den es bisher nicht gab: Ein Titel ist schon angefragt, also
+    laesst er sich nicht noch einmal anfragen - und wer ihn auch haben will,
+    erfaehrt nie, dass er angekommen ist. Bis 0.18 endete das mit „wurde
+    bereits angefragt" und danach mit Schweigen.
+
+    **Film und Serie verhalten sich verschieden**, und das ist Absicht:
+
+    * Ein **Film** wird einmal gemeldet und ist damit erledigt - danach gibt es
+      nichts mehr zu sagen. Die Zeile faellt weg, sobald sie ihren Zweck
+      erfuellt hat.
+    * Eine **Serie** wird dauerhaft verfolgt, ueber alle Staffeln hinweg, und
+      meldet jede neue Folge. Sie endet erst, wenn jemand sie beendet.
+
+    Bewusst **ohne** Staffelnummer. Wer eine Serie verfolgt, verfolgt sie -
+    Staffel fuer Staffel abzuhaken waere Buchhaltung. Und die Stelle, an der
+    ein Staffel-Knopf haette stehen muessen, gibt die Oberflaeche gar nicht
+    her: Die eingeklappte Staffelzeile ist selbst ein Knopf.
+    """
+
+    __tablename__ = "title_watches"
+    __table_args__ = (
+        UniqueConstraint("user_id", "media_type", "tmdb_id", name="uq_title_watch"),
+        Index("ix_title_watches_titel", "media_type", "tmdb_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
+    tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Nur fuer die Anzeige der eigenen Liste - erspart eine TMDB-Abfrage je
+    # Zeile, nur um den Namen zu kennen. Dasselbe Vorgehen wie bei ``Favorite``.
+    title: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    poster_url: Mapped[str | None] = mapped_column(String(500))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class SeasonProgress(Base):
+    """Wie viele Folgen einer Staffel beim letzten Durchgang vorlagen.
+
+    Der Merkposten, ohne den „neue Folge da" nicht zu haben ist. Der
+    Status-Poller haengt an **Anfragen**: Er meldet, wenn *deine* Anfrage
+    fertig wird. Ein vorgemerkter Titel hat keine Anfrage dahinter, also
+    treibt ihn nichts an - es braucht einen eigenen Vergleich mit dem Vorlauf.
+
+    Eine Zeile je Serie und Staffel, **nicht** je Benutzer: Der Stand einer
+    Staffel ist eine Tatsache ueber die Bibliothek, keine ueber eine Person.
+    Zehn Wartende teilen sich dieselbe Zeile.
+
+    Gespeichert werden die **Nummern**, nicht nur ihre Anzahl - als Liste wie
+    "1,2,3,7". Nur so laesst sich sagen, *welche* Folge dazugekommen ist, und
+    genau darauf wartet man ("endlich Folge 9"). Eine blosse Anzahl waere
+    ausserdem falsch, sobald eine Folge nachtraeglich geloescht und eine andere
+    ergaenzt wird: Die Zahl bliebe gleich, die Staffel waere eine andere.
+
+    Es kostet nichts: ``library.episode_availability`` liefert die Nummern
+    ohnehin mit, und die Antwort liegt im Zwischenspeicher.
+    """
+
+    __tablename__ = "season_progress"
+    __table_args__ = (
+        UniqueConstraint("tmdb_id", "season_number", name="uq_season_progress"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    season_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Kommagetrennt, aufsteigend: "1,2,3,7". Leer heisst "noch keine".
+    episodes: Mapped[str] = mapped_column(String(2000), default="", nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
+    )
 
 
 class StreamingService(Base):

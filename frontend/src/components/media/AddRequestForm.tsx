@@ -19,6 +19,13 @@ type AddRequestFormProps = {
    * zuordenbar (Abzeichen und Filter „Über Merkliste angefragt").
    */
   fromWatchlist?: boolean
+  /**
+   * Namen der eigenen Abos, in denen dieser Titel schon läuft. Kommt vom
+   * Server (``in_my_subscriptions``), weil nur dort steht, welche TMDB-Kennung
+   * zu welcher Marke gehört - Amazon ist 9 in Deutschland und 119 in der
+   * Schweiz, und Netflix hört auch auf 175 und 1796.
+   */
+  imAbo?: string[]
 }
 
 type CreatedRequest = { id: number; status: string; title: string }
@@ -33,6 +40,7 @@ export function AddRequestForm({
   item,
   onDone,
   fromWatchlist = false,
+  imAbo = [],
 }: AddRequestFormProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -309,6 +317,22 @@ export function AddRequestForm({
   return (
     <div className="rounded-xl border border-ink-700 bg-ink-900/60 p-4">
       <h3 className="text-sm font-semibold">{t('request.chooseOptions')}</h3>
+
+      {/* „Läuft schon in deinem Abo" - ein Hinweis, keine Sperre. Der
+          Anfrageknopf behält seine Beschriftung; er wird nicht zu „Trotzdem
+          anfragen", weil hier nichts zu überwinden ist.
+
+          Bei Serien steht ein anderer Satz: TMDB sagt „läuft auf Netflix" über
+          die *Serie*, nicht über die vierte Staffel, die dort fehlt - und
+          genau in dem Fall fragt jemand an. */}
+      {imAbo.length > 0 && (
+        <p className="mt-3 rounded-lg border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-sm text-warn-500">
+          <span className="font-semibold">
+            {t('request.inSubscription', { services: imAbo.join(', ') })}
+          </span>{' '}
+          {istSerie ? t('request.inSubscriptionSeries') : t('request.inSubscriptionMovie')}
+        </p>
+      )}
 
       {/* Nur wenn es beide Stufen gibt und der Benutzer beide darf. Sonst
           bleibt der Dialog genau so, wie er immer war. */}

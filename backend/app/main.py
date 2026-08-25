@@ -49,6 +49,7 @@ from .routers import (
     streaming as streaming_router,
     tickets as tickets_router,
     users,
+    watch as watch_router,
     watchlist as watchlist_router,
 )
 from .services import channel_outbox, logs, status_poller
@@ -188,6 +189,7 @@ app.include_router(storage_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(streaming_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.admin_router)
 app.include_router(watchlist_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(watch_router.router, dependencies=NUR_ERWACHSENE)
 
 
 @app.get("/api/health", tags=["system"])

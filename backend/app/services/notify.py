@@ -49,6 +49,11 @@ MAIL_SWITCH: dict[NotificationType, str] = {
     NotificationType.storage_grew: "mail_storage",
     # Der Wunsch eines Kindes - an das Elternteil.
     NotificationType.child_wish: "mail_child_wish",
+    # Vorgemerkte Titel: "ist da" und "neue Folgen" an einem Schalter. Wer sich
+    # etwas vormerkt, will davon hoeren - die Unterscheidung ist keine, die
+    # jemand getrennt abbestellen moechte.
+    NotificationType.watch_ready: "mail_watch",
+    NotificationType.watch_episodes: "mail_watch",
 }
 
 

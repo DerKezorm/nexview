@@ -23,9 +23,9 @@ from ..models import (
     utcnow,
 )
 from ..schemas_requests import AnfragerSpeicher, FeedbackReply, RequestWithUser
-from ..services import blocklist, notify, requests_service, storage
+from ..services import blocklist, media, notify, requests_service, storage, streaming
 from ..services.settings_service import load_settings
-from ..services.tmdb import image_url
+from ..services.tmdb import TmdbError, image_url
 
 router = APIRouter(prefix="/api/admin/requests", tags=["admin"])
 
@@ -108,10 +108,92 @@ def _speicher_staende(
     return staende
 
 
+async def _abo_treffer(
+    db: Session, anfragen: list[MediaRequest]
+) -> dict[int, list[str]]:
+    """Welche Anfragen laufen im Abo **ihres Anfragenden**? - je Anfrage-Id.
+
+    Drei Sparmassnahmen, weil hier sonst pro Zeile ein TMDB-Aufruf stuende:
+
+    * Konten ohne hinterlegte Abos fallen sofort raus - das ist eine Abfrage
+      ueber eine schmale Tabelle und erledigt in der Regel die Mehrheit.
+    * Je Titel wird **einmal** nachgesehen, nicht je Anfrage. Zehn Staffeln
+      derselben Serie sind ein Titel.
+    * Gefragt wird ueber ``full_detail``, und das liegt fuer alles, was gerade
+      angefragt wurde, ohnehin im Zwischenspeicher - jemand hat die
+      Detailseite kurz vorher geoeffnet, sonst haette er nicht angefragt.
+
+    Faellt TMDB aus, bleibt die Spalte leer. Ein fehlender Hinweis ist
+    hinnehmbar; eine Freigabeliste, die deswegen gar nicht laedt, nicht.
+    """
+    if not anfragen:
+        return {}
+
+    # ⚠️ **Nur, wo noch entschieden wird.**
+    #
+    # Steht die automatische Freigabe an, war die Anfrage nie auf dem Tisch des
+    # Entscheiders - der Titel laeuft laengst durch Radarr. Ihm dann zu sagen,
+    # der Anfragende koenne das auch streamen, ist keine Entscheidungshilfe
+    # mehr, sondern ein Vorwurf ohne Adressat.
+    #
+    # Dasselbe gilt fuer alles Abgeschlossene, Abgelehnte und Fehlgeschlagene:
+    # Die Freigabeliste zeigt auch die Vergangenheit, und dort ist der Hinweis
+    # bestenfalls Laerm. Nebenbei spart die Bedingung die TMDB-Abfrage fuer
+    # jede Zeile der gesamten Historie.
+    wartend = [a for a in anfragen if a.status == RequestStatus.pending_approval]
+    if not wartend:
+        return {}
+
+    dienste: dict[int, set[str]] = {}
+    for anfrage in wartend:
+        if anfrage.user_id in dienste or anfrage.user is None:
+            continue
+        dienste[anfrage.user_id] = streaming.eigene_dienste(db, anfrage.user)
+
+    offen = [a for a in wartend if dienste.get(a.user_id)]
+    if not offen:
+        return {}
+
+    einstellungen = load_settings(db)
+    anbieter: dict[tuple[str, int], list[int]] = {}
+    for anfrage in offen:
+        schluessel = (anfrage.media_type.value, anfrage.tmdb_id)
+        if schluessel in anbieter:
+            continue
+        try:
+            detail = await media.full_detail(
+                db, einstellungen, anfrage.media_type.value, anfrage.tmdb_id
+            )
+        except TmdbError:
+            anbieter[schluessel] = []
+            continue
+        anbieter[schluessel] = [
+            eintrag.id for eintrag in (detail.watch.flatrate if detail.watch else [])
+        ]
+
+    ergebnis: dict[int, list[str]] = {}
+    for anfrage in offen:
+        namen = streaming.treffer(
+            dienste[anfrage.user_id],
+            anbieter.get((anfrage.media_type.value, anfrage.tmdb_id), []),
+        )
+        if namen:
+            ergebnis[anfrage.id] = namen
+    return ergebnis
+
+
 def _with_user(
-    request: MediaRequest, speicher: AnfragerSpeicher | None = None
+    request: MediaRequest,
+    speicher: AnfragerSpeicher | None = None,
+    abos: list[str] | None = None,
 ) -> RequestWithUser:
-    vom_benutzer = ("username", "display_name", "avatar_url", "storage")
+    vom_benutzer = (
+        "username",
+        "display_name",
+        "avatar_url",
+        "storage",
+        "requester_subscriptions",
+    )
     return RequestWithUser(
         **{
             field: getattr(request, field)
@@ -122,6 +204,7 @@ def _with_user(
         display_name=request.user.display_name,
         avatar_url=request.user.avatar_url,
         storage=speicher,
+        requester_subscriptions=abos or [],
     )
 
 
@@ -181,7 +264,7 @@ def _notify_requester(
 
 
 @router.get("", response_model=list[RequestWithUser])
-def list_all(
+async def list_all(
     entscheider: ApproverUser,
     db: DbSession,
     # Die Liste wird aus dem Enum abgeleitet statt abgeschrieben: Ein neuer
@@ -225,7 +308,10 @@ def list_all(
 
     zeilen = list(db.scalars(query))
     staende = _speicher_staende(db, zeilen)
-    return [_with_user(row, staende.get(row.user_id)) for row in zeilen]
+    abos = await _abo_treffer(db, zeilen)
+    return [
+        _with_user(row, staende.get(row.user_id), abos.get(row.id)) for row in zeilen
+    ]
 
 
 @router.post("/{request_id}/approve", response_model=RequestWithUser)

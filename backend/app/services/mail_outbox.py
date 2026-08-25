@@ -150,6 +150,16 @@ def _nachricht(
                 titel, sprache, link=_link(settings, "/profil"), profil_link=profil
             )
 
+        case NotificationType.watch_ready:
+            return mail_templates.watch_ready_mail(
+                titel, sprache, link=_link(settings, "/"), profil_link=profil
+            )
+
+        case NotificationType.watch_episodes:
+            return mail_templates.watch_episodes_mail(
+                titel, sprache, link=_link(settings, "/"), profil_link=profil
+            )
+
         case NotificationType.child_wish:
             return mail_templates.child_wish_mail(
                 titel,

@@ -14,6 +14,7 @@ import type {
   WatchProviders,
 } from '../api/types'
 import { AddRequestForm } from '../components/media/AddRequestForm'
+import { SagMirBescheid } from '../components/media/SagMirBescheid'
 import { CastStrip } from '../components/media/CastStrip'
 import { FavoriteButton, useFavorites } from '../components/media/FavoriteButton'
 import { MediaItemCard } from '../components/media/MediaCard'
@@ -424,6 +425,7 @@ export function TitlePage() {
                         item={item}
                         onDone={() => setAdding(false)}
                         fromWatchlist={vonMerkliste}
+                        imAbo={item.in_my_subscriptions ?? []}
                       />
                     </Card>
                   ) : (
@@ -440,7 +442,21 @@ export function TitlePage() {
                           : t(istFilm ? 'request.addMovie' : 'request.addSeries')}
                     </Button>
                   )
-                ) : (
+                ) : null}
+
+                {/* Bei der Serie dauerhaft, beim Film nur, wenn es etwas zu
+                    warten gibt - siehe SagMirBescheid. */}
+                {!istFilm && !gesperrt && (
+                  <SagMirBescheid
+                    mediaType="tv"
+                    tmdbId={item.tmdb_id}
+                    title={item.title}
+                    posterUrl={item.poster_url}
+                    aktiv={item.watching ?? false}
+                  />
+                )}
+
+                {!kannAnfragen && (
                   <p className="text-sm text-mist-500">
                     {t(
                       gesperrt && istAdmin
@@ -448,6 +464,18 @@ export function TitlePage() {
                         : `request.state.${item.status}`,
                     )}
                   </p>
+                )}
+
+                {/* Der Film ist angefragt, aber noch nicht da - genau dann
+                    gibt es etwas zu warten. */}
+                {istFilm && !kannAnfragen && !gesperrt && (
+                  <SagMirBescheid
+                    mediaType="movie"
+                    tmdbId={item.tmdb_id}
+                    title={item.title}
+                    posterUrl={item.poster_url}
+                    aktiv={item.watching ?? false}
+                  />
                 )}
               </div>
             </div>

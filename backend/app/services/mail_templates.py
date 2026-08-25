@@ -903,6 +903,89 @@ def child_wish_mail(
     )
 
 
+def watch_ready_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An den, der sich einen Film vorgemerkt hat: Er ist jetzt da.
+
+    Bewusst nicht dieselbe Mail wie ``download_complete_mail``. Die geht an
+    den, der ihn **angefragt** hat, und spricht von "deiner Anfrage". Hier hat
+    der Empfaenger nichts angefragt - er hat gewartet, weil ein anderer
+    schneller war.
+    """
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff="The title you were waiting for is here",
+            kopf="It has arrived.",
+            unter=titel,
+            rumpf=(
+                "You asked to be told when this title turned up. Somebody else had already "
+                "requested it, so it never became your request - but it is in the library "
+                "now, and you can watch it."
+            ),
+            knopf="Open in Nexview",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff="Der vorgemerkte Titel ist da",
+        kopf="Er ist angekommen.",
+        unter=titel,
+        rumpf=(
+            "Du wolltest Bescheid bekommen, sobald dieser Titel auftaucht. Angefragt hatte "
+            "ihn jemand anders, deshalb wurde nie eine Anfrage von dir daraus - aber jetzt "
+            "liegt er in der Bibliothek, und du kannst ihn sehen."
+        ),
+        knopf="In Nexview öffnen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
+def watch_episodes_mail(
+    titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
+) -> Mail:
+    """An den, der eine Serie verfolgt: Es sind neue Folgen da.
+
+    ``titel`` traegt bereits die Folgen mit ("Andor - S2: 1-8"), weil die
+    Textbausteine bewusst keine Platzhalter enthalten. Immer gebuendelt: ein
+    Staffelpaket mit acht Folgen ist eine Mail, nicht acht.
+    """
+    englisch = _ist_englisch(sprache)
+    if englisch:
+        return _benachrichtigung(
+            englisch=englisch,
+            betreff="New episodes of a series you follow",
+            kopf="New episodes have arrived.",
+            unter=titel,
+            rumpf=(
+                "You are following this series, so you hear about every episode that turns "
+                "up. Everything from this round is in one message - you will not get one "
+                "mail per episode."
+            ),
+            knopf="Open in Nexview",
+            link=link,
+            profil_link=profil_link,
+        )
+    return _benachrichtigung(
+        englisch=englisch,
+        betreff="Neue Folgen einer Serie, der du folgst",
+        kopf="Es sind neue Folgen da.",
+        unter=titel,
+        rumpf=(
+            "Du verfolgst diese Serie und hörst deshalb von jeder Folge, die dazukommt. "
+            "Alles aus diesem Durchgang steht in einer Nachricht - du bekommst keine Mail "
+            "je Folge."
+        ),
+        knopf="In Nexview öffnen",
+        link=link,
+        profil_link=profil_link,
+    )
+
+
 def storage_grew_mail(
     titel: str, sprache: str = "de", *, link: str | None = None, profil_link: str | None = None
 ) -> Mail:

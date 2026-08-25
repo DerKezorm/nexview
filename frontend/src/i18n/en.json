@@ -189,7 +189,10 @@
     "futureShort": "future too",
     "seasonRequired": "Pick at least one season.",
     "seasonHere": "already here",
-    "seasonRunning": "running"
+    "seasonRunning": "running",
+    "inSubscription": "Already on your {{services}}.",
+    "inSubscriptionMovie": "You can watch it there right now.",
+    "inSubscriptionSeries": "Whether this season is included, the source does not say."
   },
   "home": {
     "greeting": "Welcome back, {{name}}",
@@ -377,7 +380,9 @@
     "storageWarnApprove": "Approve anyway",
     "storageWarnReject": "Reject",
     "storageRejectReason": "Storage quota exceeded.",
-    "storageWarnDefer": "Put on hold"
+    "storageWarnDefer": "Put on hold",
+    "inRequesterSubscription": "{{name}} can already watch this on {{services}}.",
+    "inSubscriptionSeriesNote": "Whether this season is included, the source does not say."
   },
   "requests": {
     "cancel": "Cancel",
@@ -503,7 +508,24 @@
     "tabChildren": "Children",
     "mailChildWish": "Your children’s wishes",
     "mailChildWishHint": "As soon as one of your children wishes for something and is waiting for your decision.",
-    "tabMediaServer": "Media servers"
+    "tabMediaServer": "Media servers",
+    "tabStreaming": "Streaming services",
+    "streaming": {
+      "title": "My streaming services",
+      "intro": "Which subscriptions you have yourself. Request a title that already runs on one of them and Nexview says so — nothing is prevented. Leave this empty and nothing changes.",
+      "regionHint": "Decides which services are offered here — and which country Nexview looks up availability for.",
+      "regionInherited": "You are still on the operator's default. Check it once: it decides which services are listed here.",
+      "pickLabel": "Your subscriptions",
+      "pickHint": "Only the big subscription services. Renting, buying and free catch-up TV are deliberately left out — they cost nothing, so there is nothing to save.",
+      "noneHere": "TMDB knows none of the big subscription services for this country. Check that the setting above is right.",
+      "unavailable": "The list of services cannot be loaded right now.",
+      "saved": "Your services have been saved.",
+      "regionIs": "Applies to {{region}}.",
+      "regionChange": "Change region"
+    },
+    "accountSaved": "Your details have been saved.",
+    "mailWatch": "Titles you are waiting for",
+    "mailWatchHint": "When a title you marked arrives, or a series you follow gets new episodes. Always bundled — a season pack is one mail, not eight."
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -651,7 +673,9 @@
     "storageReleaseRequested": "Someone handed a title back",
     "storageDeleted": "A title has been deleted",
     "storageKept": "A title stays, but stops downloading",
-    "childWish": "Your child wished for something"
+    "childWish": "Your child wished for something",
+    "watchReady": "The title you were waiting for has arrived.",
+    "watchEpisodes": "New episodes have arrived."
   },
   "mediaserver": {
     "waiting": "Waiting for confirmation in the Plex window …",
@@ -876,7 +900,13 @@
     "free": "Free",
     "rent": "Rent",
     "buy": "Buy",
-    "justwatch": "Streaming data by JustWatch"
+    "justwatch": "Streaming data by JustWatch",
+    "start": "Tell me when it arrives",
+    "stop": "Stop waiting",
+    "hintMovie": "You will hear from us as soon as the film is here.",
+    "hintSeries": "You will hear from us as soon as new episodes arrive.",
+    "activeMovie": "You will be told as soon as it arrives.",
+    "activeSeries": "You are following this series — new episodes are reported, bundled."
   },
   "calendar": {
     "intro": "What lands when — your shows and movies, plus new releases in your region.",
@@ -1365,7 +1395,9 @@
     "wishReleaseHint": "This becomes an ordinary request in your name – your quota, your usual approval path.",
     "wishTargetLater": "The approver picks folder and quality when approving.",
     "wishesEmpty": "No wish is waiting for you right now.",
-    "wishesTitle": "Your children’s wishes"
+    "wishesTitle": "Your children’s wishes",
+    "wishInSubscription": "{{name}} could already watch this on {{services}}.",
+    "wishSeriesNote": "Whether this season is included, the source does not say."
   },
   "kids": {
     "alreadyWished": "Already wished for",
@@ -1950,5 +1982,10 @@
     "ansicht": "View",
     "ansicht_kacheln": "Tiles",
     "ansicht_liste": "List"
+  },
+  "regionHint": {
+    "text": "Your region is {{region}} — set by the operator, not by you.",
+    "action": "Set region",
+    "later": "Later"
   }
 }

@@ -16,6 +16,7 @@ type MailFeld =
   | 'mail_request_pending'
   | 'mail_feedback'
   | 'mail_ticket'
+  | 'mail_watch'
   | 'mail_user_imported'
   | 'mail_mediaserver_reconnect'
   | 'mail_storage'
@@ -48,6 +49,15 @@ const SCHALTER: Schalter[] = [
     feld: 'mail_download_complete',
     labelKey: 'profile.mailDownloadComplete',
     hintKey: 'profile.mailDownloadCompleteHint',
+  },
+  {
+    // Vorgemerkte Titel. Bewusst getrennt von „deine Anfrage ist fertig": Hier
+    // hat der Empfänger nichts angefragt, sondern gewartet, weil ein anderer
+    // schneller war. „Ist da" und „neue Folgen" teilen sich einen Haken - die
+    // Unterscheidung ist keine, die jemand getrennt abbestellen möchte.
+    feld: 'mail_watch',
+    labelKey: 'profile.mailWatch',
+    hintKey: 'profile.mailWatchHint',
   },
   {
     feld: 'mail_request_decided',
@@ -125,6 +135,7 @@ function ausUser(user: User): Entwurf {
     mail_request_pending: user.mail_request_pending,
     mail_feedback: user.mail_feedback,
     mail_ticket: user.mail_ticket,
+    mail_watch: user.mail_watch,
     mail_user_imported: user.mail_user_imported,
     mail_mediaserver_reconnect: user.mail_mediaserver_reconnect,
     mail_storage: user.mail_storage,

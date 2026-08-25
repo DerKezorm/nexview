@@ -8,11 +8,17 @@ import { ApiError, api } from '../api/client'
 import type { User } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { Avatar } from '../components/Avatar'
+import { Fenster } from '../components/Fenster'
 import { MediaServerLogo } from '../components/MediaServerLogo'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
 import { providerName } from '../lib/mediaserver'
 import { useConfig } from '../hooks/useConfig'
-import { DiscoverDefaults } from './profile/DiscoverDefaults'
+import { changeLanguage as spracheAnwenden } from '../i18n'
+import type { Language } from '../i18n'
+import { istTheme, themeAnwenden } from '../lib/theme'
+import type { Theme } from '../lib/theme'
+import { SpracheUndRegion } from './profile/SpracheUndRegion'
+import { StreamingDienste } from './profile/StreamingDienste'
 import { Kinder } from './profile/Kinder'
 import { KontoLoeschen } from './profile/KontoLoeschen'
 import { MediaServerLink } from './profile/MediaServerLink'
@@ -30,8 +36,7 @@ import { StorageMine } from './profile/StorageMine'
 type Tab =
   | 'account'
   | 'notifications'
-  | 'discover'
-  | 'security'
+  | 'streaming'
   | 'mediaserver'
   | 'watchlist'
   | 'storage'
@@ -53,8 +58,12 @@ export function ProfilePage() {
     kinder: 'children',
     konto: 'account',
     benachrichtigungen: 'notifications',
-    sprache: 'discover',
-    sicherheit: 'security',
+    // „Sprache & Region" und „Sicherheit" sind in „Konto" aufgegangen. Die
+    // alten Adressen bleiben gültig, damit Links aus Mails und der Glocke
+    // nicht ins Leere zeigen.
+    sprache: 'account',
+    sicherheit: 'account',
+    streaming: 'streaming',
     merkliste: 'watchlist',
     speicher: 'storage',
   }
@@ -67,6 +76,18 @@ export function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [repeatPassword, setRepeatPassword] = useState('')
+  const [passwortOffen, setPasswortOffen] = useState(false)
+
+  // Sprache, Region und Darstellung liegen jetzt hier, nicht mehr in einem
+  // eigenen Reiter mit eigenem Knopf: Die ganze Kontoseite wird mit **einem**
+  // Speichern gesichert.
+  const [region, setRegion] = useState(user?.discover_region ?? '')
+  const [sprache, setSprache] = useState<Language>(
+    (user?.language as Language) ?? ('de' as Language),
+  )
+  const [darstellung, setDarstellung] = useState<Theme>(
+    istTheme(user?.theme) ? (user.theme as Theme) : 'dark',
+  )
 
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -106,23 +127,55 @@ export function ProfilePage() {
     onError: fail,
   })
 
-  const nameMutation = useMutation({
-    mutationFn: () => api.patch<User>('/api/auth/me', { display_name: displayName.trim() }),
-    onMutate: reset,
-    onSuccess: (updated) => {
-      updateUser(updated)
-      setMessage(t('profile.nameSaved'))
-    },
-    onError: fail,
-  })
+  /**
+   * **Ein** Speichern für die ganze Kontoseite.
+   *
+   * Vorher hatte jede Karte ihren eigenen Knopf - nach dem Zusammenlegen von
+   * „Sprache & Region" und „Sicherheit" standen fünf davon untereinander, und
+   * keiner sagte, wie weit er reicht.
+   *
+   * Zwei Aufrufe, weil die Adresse einen eigenen Endpunkt hat: Sie löst eine
+   * Bestätigungsmail aus und ist damit kein Feld wie die anderen. Für den
+   * Menschen bleibt es trotzdem eine Entscheidung.
+   *
+   * Bewusst **nicht** hier: Profilbild (wirkt sofort beim Auswählen),
+   * Passwort (eigenes Formular mit eigener Prüfung) und Kontolöschung. Das
+   * sind Handlungen, keine Einstellungen.
+   */
+  const speichern = useMutation({
+    mutationFn: async () => {
+      let aktuell: User | null = null
+      const nameGeaendert = displayName.trim() !== (user?.display_name ?? '')
+      const restGeaendert =
+        region !== (user?.discover_region ?? '') ||
+        sprache !== user?.language ||
+        darstellung !== user?.theme
 
-  const emailMutation = useMutation({
-    mutationFn: () => api.put<User>('/api/auth/me/email', { email: email.trim() }),
+      if (nameGeaendert || restGeaendert) {
+        aktuell = await api.patch<User>('/api/auth/me', {
+          display_name: displayName.trim(),
+          discover_region: region,
+          language: sprache,
+          theme: darstellung,
+        })
+      }
+      // Die Adresse zuletzt: Schlägt sie fehl (schon vergeben), ist der Rest
+      // trotzdem gesichert.
+      if (email.trim() !== '' && email.trim() !== (user?.email ?? '')) {
+        aktuell = await api.put<User>('/api/auth/me/email', { email: email.trim() })
+      }
+      return aktuell
+    },
     onMutate: reset,
-    onSuccess: (updated) => {
-      updateUser(updated)
-      // Die neue Adresse muss erst bestätigt werden - das soll man merken.
-      setMessage(t('profile.emailChanged'))
+    onSuccess: (aktuell) => {
+      if (!aktuell) return
+      updateUser(aktuell)
+      setRegion(aktuell.discover_region ?? '')
+      // Erst jetzt umschalten: Die Auswahl ist ein Vorschlag, bis gespeichert
+      // wird - sonst spränge die Oberfläche schon beim Aufklappen der Liste um.
+      spracheAnwenden(aktuell.language as Language)
+      if (istTheme(aktuell.theme)) themeAnwenden(aktuell.theme)
+      setMessage(t('profile.accountSaved'))
     },
     onError: fail,
   })
@@ -149,6 +202,7 @@ export function ProfilePage() {
       setCurrentPassword('')
       setNewPassword('')
       setRepeatPassword('')
+      setPasswortOffen(false)
       setMessage(t('profile.passwordSaved'))
     },
     onError: fail,
@@ -171,12 +225,26 @@ export function ProfilePage() {
   if (!user) return null
   const name = user.display_name ?? user.username
 
+  // Gesperrt, solange nichts geändert wurde: Ein Knopf, der nichts bewirkt,
+  // sieht aus wie ein Knopf, der nicht funktioniert.
+  const kontoGeaendert =
+    displayName.trim() !== (user.display_name ?? '') ||
+    (email.trim() !== '' && email.trim() !== (user.email ?? '')) ||
+    region !== (user.discover_region ?? '') ||
+    sprache !== user.language ||
+    darstellung !== user.theme
+
   const tabs: { value: Tab; labelKey: string }[] = [
     { value: 'account', labelKey: 'profile.tabAccount' },
     { value: 'notifications', labelKey: 'profile.tabNotifications' },
-    { value: 'discover', labelKey: 'profile.tabDiscover' },
-    { value: 'security', labelKey: 'profile.tabSecurity' },
   ]
+  // Kein Schalter beim Betreiber und keine Bedingung: Wer nichts anhakt,
+  // bekommt nie einen Hinweis, und dann kostet der Reiter auch nichts. Ein
+  // Kinderkonto hat keine eigenen Abos - es guckt ueber die seiner Eltern,
+  // und dort erscheint der Hinweis auch.
+  if (user.role !== 'child') {
+    tabs.splice(2, 0, { value: 'streaming', labelKey: 'profile.tabStreaming' })
+  }
   // ⚠️ Ein eigener Reiter, nicht mehr unten unter „Sicherheit".
   //
   // Dort war er nicht zu finden: Wer sein Plex- oder Jellyfin-Konto verbinden
@@ -212,7 +280,12 @@ export function ProfilePage() {
   // Breite - und weil breite Reiter (Merkliste, Speicher) einen breiteren
   // Inhalt haben, brach die Reiterreihe je nach gewaehltem Reiter um und bei
   // anderen nicht. Ein Menue darf sich nicht danach richten, was darunter steht.
-  const schmal = tab !== 'watchlist' && tab !== 'storage' && tab !== 'children'
+  const schmal =
+    tab !== 'watchlist' &&
+    tab !== 'storage' &&
+    tab !== 'children' &&
+    tab !== 'streaming' &&
+    tab !== 'account'
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -261,7 +334,13 @@ export function ProfilePage() {
       )}
 
       {tab === 'account' && (
-        <>
+        <div className="flex flex-col gap-4">
+          {/* Zwei echte Spalten statt eines Rasters: Ein Raster richtet
+              **zeilenweise** aus, und die kurze Karte links erbte dann die
+              Höhe der langen rechts - zwischen Profilbild und Sprache klaffte
+              eine Lücke, für die es keinen Grund gab. */}
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-4">
             <h2 className="text-lg font-semibold">{t('profile.picture')}</h2>
             <div className="flex flex-wrap items-center gap-4">
@@ -321,19 +400,6 @@ export function ProfilePage() {
               hint={t('profile.nameHint')}
               autoComplete="nickname"
             />
-            <div>
-              {/* Gesperrt, solange nichts geändert wurde - genau wie bei der
-                  Adresse darunter. Ein Knopf, der nichts bewirkt, sieht sonst
-                  aus wie ein Knopf, der nicht funktioniert. */}
-              <Button
-                type="button"
-                onClick={() => nameMutation.mutate()}
-                loading={nameMutation.isPending}
-                disabled={displayName.trim() === (user.display_name ?? '')}
-              >
-                {t('common.save')}
-              </Button>
-            </div>
           </Card>
 
           <Card className="flex flex-col gap-4">
@@ -360,14 +426,6 @@ export function ProfilePage() {
             />
 
             <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                onClick={() => emailMutation.mutate()}
-                loading={emailMutation.isPending}
-                disabled={email.trim() === '' || email.trim() === (user.email ?? '')}
-              >
-                {t('common.save')}
-              </Button>
               {/* Nur anbieten, wenn es auch etwas zu bestätigen gibt. */}
               {!user.email_verified && user.email && (
                 <Button
@@ -381,18 +439,81 @@ export function ProfilePage() {
               )}
             </div>
           </Card>
-        </>
-      )}
+            </div>
 
-      {tab === 'storage' && <StorageMine />}
-      {tab === 'children' && <Kinder />}
-      {tab === 'notifications' && <NotificationSettings />}
-      {tab === 'discover' && <DiscoverDefaults />}
+            <div className="flex flex-col gap-4">
+          <Card className="flex flex-col gap-4">
+            <SpracheUndRegion
+              region={region}
+              setRegion={setRegion}
+              sprache={sprache}
+              setSprache={setSprache}
+              darstellung={darstellung}
+              setDarstellung={setDarstellung}
+              alter={user.age}
+              disabled={speichern.isPending}
+            />
+          </Card>
 
-      {tab === 'security' && (
-        <Card>
-          <h2 className="text-lg font-semibold">{t('profile.password')}</h2>
-          <form onSubmit={handlePassword} className="mt-4 flex flex-col gap-4">
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              onClick={() => speichern.mutate()}
+              loading={speichern.isPending}
+              disabled={!kontoGeaendert}
+            >
+              {t('common.save')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                reset()
+                setCurrentPassword('')
+                setNewPassword('')
+                setRepeatPassword('')
+                setPasswortOffen(true)
+              }}
+            >
+              {t('profile.changePassword')}
+            </Button>
+            {kontoGeaendert && !speichern.isPending && (
+              <span className="text-sm text-mist-600">{t('common.unsaved')}</span>
+            )}
+          </div>
+
+          {/* Der Antrag, das eigene Konto zu löschen - nicht für
+              Administratoren: die löschen direkt in der Benutzerverwaltung. */}
+          {user.role !== 'admin' && (
+
+            <KontoLoeschen />
+          )}
+
+          {/* Das Fenster trägt seinen Knopf in der Fußzeile - dort sucht man
+              Entscheidungen. Einen zweiten Ausgang oben gibt es deshalb
+              nicht; Escape und ein Klick daneben schließen ohnehin. */}
+          <Fenster
+            offen={passwortOffen}
+            titel={t('profile.password')}
+            onSchliessen={() => setPasswortOffen(false)}
+            fuss={
+              <Button
+                type="submit"
+                form="passwort-formular"
+                loading={passwordMutation.isPending}
+              >
+                {t('profile.changePassword')}
+              </Button>
+            }
+          >
+            <form
+              id="passwort-formular"
+              onSubmit={handlePassword}
+              className="flex flex-col gap-4"
+            >
             <Field
               label={t('profile.currentPassword')}
               type="password"
@@ -419,21 +540,20 @@ export function ProfilePage() {
               autoComplete="new-password"
               required
             />
-            <div>
-              <Button type="submit" loading={passwordMutation.isPending}>
-                {t('profile.changePassword')}
-              </Button>
-            </div>
-          </form>
-        </Card>
+            </form>
+          </Fenster>
+        </div>
       )}
+
+      {tab === 'streaming' && (
+        <StreamingDienste aufSpracheUndRegion={() => setTab('account')} />
+      )}
+      {tab === 'notifications' && <NotificationSettings />}
+      {tab === 'storage' && <StorageMine />}
+      {tab === 'children' && <Kinder />}
 
       {/* Die Verknüpfung gehört zur Anmeldung und damit neben das Passwort. */}
       {tab === 'mediaserver' && <MediaServerLink />}
-
-      {/* Der Antrag, das eigene Konto zu löschen - nicht für Administratoren:
-          die löschen direkt in der Benutzerverwaltung. */}
-      {tab === 'security' && user?.role !== 'admin' && <KontoLoeschen />}
 
       {/* Eine Pille je Quelle. Heute nur Plex - Jellyfin und Emby haben
           keine Merkliste -, später kommen weitere dazu (Trakt etwa).

@@ -684,6 +684,21 @@ export function AdminRequestsPage() {
                         {t("adminRequests.reason")}: {request.rejection_reason}
                       </p>
                     )}
+                    {/* Läuft im Abo **des Anfragenden**. Ein Hinweis für die
+                        Entscheidung, keine Sperre – und ausdrücklich an seinen
+                        Abos gemessen, nicht an denen des Entscheiders. */}
+                    {(request.requester_subscriptions ?? []).length > 0 && (
+                      <p className="mt-1 text-xs text-warn-500">
+                        {t("adminRequests.inRequesterSubscription", {
+                          name: gruppe.displayName ?? gruppe.username,
+                          services: (request.requester_subscriptions ?? []).join(
+                            ", ",
+                          ),
+                        })}
+                        {request.media_type === "tv" &&
+                          ` ${t("adminRequests.inSubscriptionSeriesNote")}`}
+                      </p>
+                    )}
                   </div>
 
                   {/* Schwache Bewertungen sollen ohne Aufklappen auffallen. */}

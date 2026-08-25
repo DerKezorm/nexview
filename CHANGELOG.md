@@ -12,6 +12,101 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.19.0 – unveröffentlicht
+
+### New
+
+- **„Sag mir Bescheid" — auf einen Titel warten, ohne ihn anzufragen.** Ist ein
+  Titel schon von jemand anderem angefragt, ließ er sich bisher nicht noch
+  einmal anfragen — und danach hörte der Zweite nie wieder etwas davon. Er
+  erfuhr nicht einmal, dass der Titel angekommen war, obwohl genau das seine
+  Frage war.
+
+  Bei einem **Film** steht der Knopf dort, wo sonst nur der Zustandssatz steht
+  („wird gesucht"), also genau dann, wenn es etwas zu warten gibt. Gemeldet
+  wird einmal, danach ist die Vormerkung erledigt.
+
+  Bei einer **Serie** steht er dauerhaft neben dem Anfrage-Knopf und gilt für
+  die ganze Serie. Der Grund ist ein technischer: Der Zustand „angefragt,
+  nichts mehr zu tun" tritt bei einer Serie praktisch nie ein, solange
+  irgendeine Staffel unvollständig ist — ein Knopf an einer Bedingung, die nie
+  eintritt, wäre kein Angebot. Gemeldet wird jede neue Folge, weil man meistens
+  genau darauf wartet.
+
+  **Immer gebündelt.** Lädt ein Staffelpaket mit acht Folgen durch, ist das
+  *eine* Nachricht über acht Folgen, und zusammenhängende Nummern werden
+  zusammengezogen: „S2: 1-3, 7" statt vier Meldungen. Acht Nachrichten in
+  derselben Minute wären der schnellste Weg, jemanden dazu zu bringen,
+  Benachrichtigungen abzuschalten.
+
+  Beim ersten Zusammentreffen mit einer Staffel wird der aktuelle Stand nur
+  festgehalten, nicht gemeldet — sonst käme direkt nach dem Vormerken eine
+  Nachricht über zwanzig Folgen, die längst dalagen.
+
+- **Was in deinem Abo schon läuft, sagt Nexview beim Anfragen.** Wer seine
+  Streaming-Dienste im Profil hinterlegt, bekommt beim Anfragen den Satz zu
+  sehen, der die Entscheidung ändern kann: „Läuft in deinem Netflix." Ein
+  **Hinweis**, keine Sperre — verhindert wird nichts, und der Anfrage-Knopf
+  behält seine Beschriftung.
+
+  Bei Serien steht ein anderer Satz da, und das hat einen Grund: Die Quelle
+  sagt „läuft auf Netflix" über die *Serie*, nicht über die vierte Staffel, die
+  dort fehlt — und genau in dem Fall fragt jemand an. Der Hinweis sagt das
+  ausdrücklich, statt etwas zu behaupten, das er nicht weiß.
+
+  Derselbe Abgleich erscheint dort, wo entschieden wird: in der Freigabeliste
+  („Dilara kann das schon über Netflix sehen") und bei den Eltern, wenn sie
+  einen Kinderwunsch entscheiden. Gemessen wird an den Abos **des
+  Anfragenden**, nicht an denen des Entscheiders — der hat vielleicht kein
+  Netflix, aber die Frage ist, ob der Anfragende ohne den Download auskäme. In
+  der Freigabeliste erscheint der Hinweis nur bei Anfragen, die wirklich auf
+  eine Entscheidung warten: Bei automatischer Freigabe stand die Anfrage nie
+  auf dem Tisch des Entscheiders, und der Hinweis wäre ein Vorwurf ohne
+  Adressat.
+
+  Die Daten kosten nichts. TMDB reicht sie von JustWatch durch und hängt sie
+  ohnehin an jede Detailabfrage. Die Liste der Dienste ist handverlesen: TMDB
+  führt 194 Anbieter für Deutschland und 292 für die USA, darin Kaufhäuser,
+  Nischenkanäle und Untermieter wie „Paramount+ Amazon Channel" gleichberechtigt
+  neben Netflix. Deren eigene Reihung hilft nicht — dort stehen der Apple TV
+  Store und Google Play Movies **vor** Disney+.
+
+- **Die Regionsauswahl kennt jetzt 139 Länder statt acht.** Sie stammt von TMDB
+  statt aus dem Quelltext: Wer in den Niederlanden, Polen oder Kanada saß,
+  konnte sein Land schlicht nicht angeben. Genommen werden die Länder, für die
+  es Anbieterdaten gibt — ein Land anzubieten, zu dem es hinterher nichts zu
+  sagen gibt, wäre ein Versprechen ohne Deckung.
+
+- **Ein Hinweis für alle, die nie eine Region gewählt haben.** Der
+  Einrichtungsassistent fragt nicht danach, und das Feld beginnt leer — die
+  Mehrheit erbt also stillschweigend die Vorgabe des Betreibers. Für Kinostarts
+  ist das eine Ungenauigkeit; für „läuft in deinem Netflix" ist es eine falsche
+  Behauptung über einen Menschen, denn der Katalog von Netflix Schweiz ist nicht
+  der deutsche. Ein gelber Streifen sagt es, verschwindet von selbst, sobald die
+  Region gesetzt ist, und lässt sich für die laufende Sitzung wegklicken.
+
+### Changed
+
+- **„Sprache & Region" und „Sicherheit" sind in „Konto" aufgegangen.** Aus acht
+  Reitern wurden sechs, und die Kontoseite nutzt die volle Breite in zwei
+  Spalten. Statt fünf Speichern-Knöpfen untereinander gibt es **einen** für die
+  ganze Seite; Profilbild, Passwort und Kontolöschung behalten ihre eigenen,
+  weil das Handlungen sind und keine Einstellungen. Passwort ändern öffnet ein
+  Fenster, statt drei dauerhaft leere Felder in der Spalte stehen zu lassen.
+  Die alten Adressen `?reiter=sprache` und `?reiter=sicherheit` funktionieren
+  weiter.
+
+### Fixed
+
+- **Der Reiter für die Region hieß nach einer Seite, die es nicht mehr gibt.**
+  „Voreinstellung beim Entdecken" mit dem Zusatz „ändern kannst du sie beim
+  Entdecken jederzeit" — nur ist Entdecken seit 0.17 aus dem Menü, und der
+  Regionsfilter dort ebenfalls entfernt. Damit war der Reiter die einzige
+  Stelle, an der sich die Region überhaupt setzen ließ, und er verwies auf einen
+  Weg, den es nicht mehr gab.
+
+---
+
 ## 0.18.0 – 24.08.2026
 
 ### New

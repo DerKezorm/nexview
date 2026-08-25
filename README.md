@@ -163,6 +163,21 @@ In **Container Manager** under *Project → Create*, pick the project folder and
 
 A fixed path instead of `./data` makes backing up through Hyper Backup easier.
 
+#### On host networking
+
+With `network_mode: host` there is no port mapping — the port inside the container *is*
+the port on your server, and if something already sits on 8000, Nexview will not come up.
+`NEXVIEW_PORT` moves it:
+
+```yaml
+    network_mode: host
+    environment:
+      NEXVIEW_PORT: 8123
+```
+
+Everyone else can ignore this. Without the variable Nexview listens on 8000 as before, and
+the left number in `ports:` is what you reach it at.
+
 You do **not** need to sort out permissions on that folder — the container sets them on
 start. If you want the files to belong to a particular user, put their numbers in
 `PUID`/`PGID` (find them over SSH with `id username`).
@@ -209,6 +224,7 @@ copy `.env.example` to `.env`:
 | `NEXVIEW_CORS_ORIGINS` | Allowed origins in development |
 | `NEXVIEW_STATIC_DIR` | Folder with the built frontend (the container sets this itself) |
 | `NEXVIEW_LOG_LEVEL` | Overrides the log level chosen in the app (`quiet`, `normal`, `detailed`, `trace`). Emergency exit for when Nexview does not start. |
+| `NEXVIEW_PORT` | Port Nexview listens on **inside the container** (default: 8000). Read by the container's start script, not by the backend itself. Only needed on host networking — see below. |
 
 **No TMDB, Radarr or Sonarr keys belong in `.env`** — you enter those in the app.
 

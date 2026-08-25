@@ -54,6 +54,12 @@ services:
       # Zeitzone fuer Protokoll und Datumsangaben.
       TZ: Europe/Berlin
 
+      # Auf welchem Port Nexview *im Container* lauscht. Braucht man nur beim
+      # Host-Netzwerk-Betrieb: Dort gibt es keine Zuordnung wie oben, der Port
+      # im Container ist dann direkt der Port des Servers - und wenn dort schon
+      # etwas auf 8000 liegt, kommt Nexview gar nicht hoch. Sonst leer lassen.
+      # NEXVIEW_PORT: 8123
+
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health"]
       interval: 30s

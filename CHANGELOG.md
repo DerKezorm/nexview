@@ -12,6 +12,19 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
+## 0.19.1 – unveröffentlicht
+
+### Fixed
+
+- **Nexview could not be installed on host networking if something already held port
+  8000.** It listened on a fixed 8000, which stays invisible in the normal case because
+  the port mapping hides it. With host networking there is no mapping: the port inside
+  the container *is* the port on the server, and there was no way around the collision.
+  `NEXVIEW_PORT` now moves it. Left unset, everything behaves exactly as before.
+
+  Reported by the TrueNAS catalogue maintainer while Nexview was being taken into their
+  catalogue; it applies just as much to Unraid and plain Docker.
+
 ## 0.19.0 – 25.08.2026
 
 ### New

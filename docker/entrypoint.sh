@@ -16,6 +16,27 @@ set -e
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 
+# Auf welchem Port Nexview lauscht. Standard bleibt 8000; ueber NEXVIEW_PORT
+# laesst er sich umstellen. Gebraucht wird das im Host-Netzwerk-Betrieb: dort
+# gibt es keine Portzuordnung, der Port im Container *ist* der Port des
+# Servers - und wenn dort schon etwas auf 8000 liegt, kaeme Nexview sonst gar
+# nicht hoch.
+#
+# Warum hier und nicht im Dockerfile: In der JSON-Form von CMD ersetzt Docker
+# keine Variablen. Und warum so weit oben: Weiter unten gibt es zwei Ausgaenge,
+# und der erste greift, wenn der Container bereits unprivilegiert startet -
+# genau der Fall auf TrueNAS.
+#
+# Angehaengt wird nur an einen uvicorn-Aufruf und nur, wenn nicht ohnehin ein
+# --port dabeisteht. Wer "docker run ... sh" aufruft, soll keine Portangabe
+# untergeschoben bekommen.
+if [ "$1" = "uvicorn" ]; then
+    case " $* " in
+        *" --port "*) ;;
+        *) set -- "$@" --port "${NEXVIEW_PORT:-8000}" ;;
+    esac
+fi
+
 # Laeuft der Container bereits ohne Administratorrechte (z. B. weil in der
 # compose-Datei "user:" gesetzt ist), gibt es nichts einzurichten.
 if [ "$(id -u)" != "0" ]; then

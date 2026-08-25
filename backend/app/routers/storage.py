@@ -8,6 +8,7 @@ Sinn des Hausbestands: dem Nutzer Luft verschaffen, ohne etwas zu loeschen.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from typing import Annotated
@@ -23,6 +24,8 @@ from sqlalchemy import select
 from ..services import library, mediaserver_watched, notify, storage
 from ..services.arr import ArrError
 from ..services.settings_service import load_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
 
@@ -48,6 +51,9 @@ class StoragePosten(BaseModel):
     release_wish: str | None = None
     # "Schon gesehen?" - nur auf der eigenen Seite, nur bei Filmen. Sonst NULL.
     watched: bool | None = None
+    # Fuehrt Radarr/Sonarr den Titel noch? ``False`` heisst: Nexview kann ihn
+    # nicht mehr entfernen - abgeben geht nur noch an den Hausbestand.
+    managed: bool = True
 
 
 class StorageMine(BaseModel):
@@ -114,18 +120,6 @@ def _als_posten(posten: storage.Posten, *, mit_pfad: bool = False) -> StoragePos
     return StoragePosten(**{**felder, "path": felder["path"] if mit_pfad else ""})
 
 
-def _muss_eingeschaltet_sein(db) -> None:
-    """Ist der Schalter aus, gibt es diese Funktion nicht.
-
-    Bewusst 404 und nicht 403: "Ausgeschaltet" ist kein Rechteproblem,
-    sondern heisst, dass es hier nichts gibt. Und die Oberflaeche blendet
-    ohnehin alles aus - wer hier ankommt, hat eine Adresse von Hand
-    eingetippt oder einen alten Reiter offen.
-    """
-    if not load_settings(db).storage_enabled:
-        raise HTTPException(404, "Speicher-Kontingente sind nicht eingeschaltet.")
-
-
 def _mit_gesehen(
     db: DbSession, user: User, settings, zeilen: list[storage.Posten]
 ) -> list[storage.Posten]:
@@ -189,7 +183,6 @@ def eigener_speicher(
     Benutzer nichts an - anders als beim Hausbestand und bei der Admin-Sicht
     auf ein fremdes Konto.
     """
-    _muss_eingeschaltet_sein(db)
     einstellungen = load_settings(db)
     # Gibt es fuer dieses Konto ueberhaupt Gesehen-Daten? Daran haengt der
     # Filter in der Oberflaeche - ohne Daten waere er ein Knopf, der nichts
@@ -251,7 +244,6 @@ async def hausbestand(
     Pfad auf dem Server. Ein gewoehnlicher Benutzer hat damit nichts zu
     schaffen, und die Ordnerstruktur ist nichts, was er wissen muss.
     """
-    _muss_eingeschaltet_sein(db)
     stand = storage.hausbestand(db)
     zeilen, treffer = storage.posten_im_haus(db, suche=q, seite=page)
     return StorageHausSeite(
@@ -272,7 +264,6 @@ def uebersicht(admin: AdminUser, db: DbSession) -> StorageUebersicht:
     eine Person. Entscheider sehen sie nicht, aus demselben Grund, aus dem sie
     das Ticketcenter anderer nicht sehen.
     """
-    _muss_eingeschaltet_sein(db)
     haus = storage.hausbestand(db)
     anteile: list[StorageAnteil] = []
     gesamt = 0
@@ -363,7 +354,6 @@ def nutzer_speicher(
     Der Pfad kommt mit - der Administrator soll ja beurteilen koennen, worum
     es geht, bevor er einen Titel dem Haus zuschlaegt.
     """
-    _muss_eingeschaltet_sein(db)
     person = db.get(User, user_id)
     if person is None:
         raise HTTPException(404, "Dieses Konto gibt es nicht.")
@@ -406,7 +396,6 @@ def in_den_hausbestand(posten_id: int, admin: AdminUser, db: DbSession) -> Stora
     Der Betroffene bekommt eine Nachricht. Ohne sie saenke seine Zahl grundlos,
     und er wuesste nicht, warum.
     """
-    _muss_eingeschaltet_sein(db)
     if storage.posten_von(db, posten_id) is None:
         raise HTTPException(404, "Diesen Posten gibt es nicht.")
 
@@ -447,13 +436,39 @@ class UmbuchungsVorschau(BaseModel):
 
 @router.get("/umbuchung", response_model=UmbuchungsVorschau)
 def umbuchung(admin: AdminUser, db: DbSession) -> UmbuchungsVorschau:
-    """Vorschau fuers Umschalten der Betriebsart.
+    """Vorschau fuer "alle Bestaende ins Haus".
 
     Der Dialog davor muss die Zahlen nennen ("X Titel mit zusammen Y GB gehen
     in den Hausbestand ueber") - ein allgemeiner Warnhinweis wird weggeklickt,
     eine Zahl wird gelesen.
     """
     anzahl, bytes_ = storage.umbuchungs_vorschau(db)
+    return UmbuchungsVorschau(count=anzahl, bytes=bytes_)
+
+
+@router.post("/umbuchung", response_model=UmbuchungsVorschau)
+def alles_ins_haus(admin: AdminUser, db: DbSession) -> UmbuchungsVorschau:
+    """Alle zugerechneten Posten ins Haus - jedes Konto startet bei null.
+
+    Bis 0.19 lief das als **Nebenwirkung** beim Umschalten der Betriebsart.
+    Die Betriebsart ist weg, der Vorgang bleibt: Er ist der Weg, eine
+    gewachsene Zurechnung zu verwerfen, bevor zum ersten Mal wirklich begrenzt
+    wird - sonst waere jemand schlagartig ueberzogen wegen einer Historie, von
+    der er nicht wusste, dass sie mitzaehlt.
+
+    ⚠️ **Keine Datei wird angefasst**, gespeicherte Grenzen bleiben stehen -
+    und die **Abgabe-Warteschlange ist danach leer**: Wer abgegeben hat, wollte
+    die Belastung loswerden, genau das ist erledigt. Das muss im Dialog stehen.
+    """
+    anzahl, bytes_ = storage.konten_zuruecksetzen(db)
+    db.commit()
+    logger.info(
+        "All storage accounts reset to zero by %r: %s item(s), %s bytes moved to the "
+        "household",
+        admin.username,
+        anzahl,
+        bytes_,
+    )
     return UmbuchungsVorschau(count=anzahl, bytes=bytes_)
 
 
@@ -470,7 +485,6 @@ async def papierkorb_belegung(admin: AdminUser, db: DbSession) -> PapierkorbBele
     kostet je Ordner einen Netzwerk-Umlauf. Die Hauptzahlen sollen sofort da
     sein, diese Nebenangabe darf nachkommen.
     """
-    _muss_eingeschaltet_sein(db)
     einstellungen = load_settings(db)
 
     zeilen: list[dict] = []
@@ -532,7 +546,6 @@ def abgeben(
     sie duerfen hier nicht entscheiden (siehe ``in_den_hausbestand``), eine
     Meldung an sie waere also eine Aufforderung zu etwas, das sie nicht duerfen.
     """
-    _muss_eingeschaltet_sein(db)
     wunsch: StorageWish | None = None
     if nutzlast is not None and nutzlast.wish is not None:
         try:
@@ -566,7 +579,6 @@ def zuruecknehmen(posten_id: int, user: CurrentUser, db: DbSession) -> StoragePo
     stehen bleibt. Am Kontingent aendert sich nichts: Der Posten zaehlte die
     ganze Zeit mit.
     """
-    _muss_eingeschaltet_sein(db)
     try:
         posten = storage.zuruecknehmen(db, posten_id, user)
     except storage.Abgabefehler as fehler:
@@ -591,7 +603,6 @@ async def entfolgen(posten_id: int, admin: AdminUser, db: DbSession) -> StorageP
     Zahl nach einer haengengebliebenen Abgabe aus - der Satz, auf den es
     ankommt, ist "zaehlt weiter, waechst aber nicht mehr".
     """
-    _muss_eingeschaltet_sein(db)
     zeile = storage.posten_von(db, posten_id)
     if zeile is None:
         raise HTTPException(404, "Diesen Posten gibt es nicht.")
@@ -628,7 +639,6 @@ def abgaben(admin: AdminUser, db: DbSession) -> list[StorageAbgabe]:
     freigeben, selbst ans Haus - unbegrenzter Speicher, ohne dass es jemandem
     auffiele.
     """
-    _muss_eingeschaltet_sein(db)
     return [
         StorageAbgabe(
             entry=_als_posten(posten, mit_pfad=True),
@@ -669,7 +679,6 @@ async def loeschvorschau(
     nicht mit einer Zahl. Ein Fehler beim staffelweisen Loeschen trifft Folgen,
     die jemand behalten wollte, und eine Zahl verraet nicht, welche.
     """
-    _muss_eingeschaltet_sein(db)
     posten = storage.posten_von(db, posten_id)
     if posten is None:
         raise HTTPException(404, "Diesen Posten gibt es nicht.")
@@ -711,7 +720,6 @@ async def loeschen(posten_id: int, admin: AdminUser, db: DbSession) -> None:
     **Nur Administratoren.** Dieselbe Sicherheitsregel wie beim Zuschlagen an
     das Haus, und hier mit haerteren Folgen.
     """
-    _muss_eingeschaltet_sein(db)
     posten = storage.posten_von(db, posten_id)
     if posten is None:
         raise HTTPException(404, "Diesen Posten gibt es nicht.")

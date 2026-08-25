@@ -539,35 +539,39 @@ def _kontingent_pruefen(
 ) -> None:
     """Darf dieser Nutzer noch anfragen?
 
-    **Es gilt immer nur eine Waehrung.** Sind Speicher-Kontingente
-    eingeschaltet, zaehlt der belegte Platz - und die Stueckzahl gar nicht
-    mehr. Sonst umgekehrt.
+    **Beide Kontingente gelten immer.** Die Anfrage geht nur durch, wenn
+    Stueckzahl *und* belegter Platz noch Luft haben. Bis 0.19 war das ein
+    haus-weites Entweder-oder; dass beides gilt, ist die Entscheidung des
+    Betreibers und kein Sonderfall mehr.
 
-    Beides gleichzeitig gaebe es zwei Gruende zu scheitern, die sich vollkommen
-    unterschiedlich verhalten: Die Stueckzahl erneuert sich jeden Montag, der
-    Platz nie; gegen das eine hilft warten, gegen das andere nur aufraeumen.
-    Wer dann "ich kann nichts anfragen" meldet, zwingt den Administrator zum
-    Raten, welche der beiden Grenzen gegriffen hat.
+    Der Preis dafuer sind zwei Gruende zu scheitern, die sich vollkommen
+    unterschiedlich verhalten: Die Stueckzahl erneuert sich jeden Montag von
+    selbst, der Platz nie; gegen das eine hilft warten, gegen das andere nur
+    aufraeumen. Deshalb ⚠️ **muss die Meldung sagen, welche der beiden Grenzen
+    gegriffen hat** - sonst zwingt ein "ich kann nichts anfragen" den
+    Administrator zum Raten. Wer nur nach einer Waehrung begrenzen will, laesst
+    die andere auf "unbegrenzt" stehen.
+
+    Zuerst die Stueckzahl: Sie ist die Grenze, gegen die man nichts tun kann
+    ausser warten - das zuerst zu erfahren, erspart ein vergebliches Aufraeumen.
     """
-    if settings.storage_enabled:
-        stand = storage.stand_fuer(db, user, settings)
-        if stand.exhausted:
-            fehlt = -(stand.remaining_bytes or 0)
-            raise RequestError(
-                "Dein Speicher-Kontingent ist aufgebraucht. "
-                f"Du belegst {_gb(stand.used_bytes)} von {_gb(stand.limit_bytes or 0)}"
-                + (f" und liegst {_gb(fehlt)} darüber" if fehlt > 0 else "")
-                + ". Gib etwas ab, dann geht es weiter.",
-                429,
-            )
-        return
-
-    state = quota.state_for(db, user, media_type)
+    state = quota.state_for(db, user, media_type, settings)
     if state.exhausted:
         art = "Filme" if media_type == MediaType.movie else "Serien"
         raise RequestError(
             f"Dein Kontingent für {art} ist aufgebraucht ({state.limit} pro "
             f"{_period_label(state.period.value)}).",
+            429,
+        )
+
+    stand = storage.stand_fuer(db, user, settings)
+    if stand.exhausted:
+        fehlt = -(stand.remaining_bytes or 0)
+        raise RequestError(
+            "Dein Speicher-Kontingent ist aufgebraucht. "
+            f"Du belegst {_gb(stand.used_bytes)} von {_gb(stand.limit_bytes or 0)}"
+            + (f" und liegst {_gb(fehlt)} darüber" if fehlt > 0 else "")
+            + ". Gib etwas ab, dann geht es weiter.",
             429,
         )
 

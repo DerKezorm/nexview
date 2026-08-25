@@ -487,6 +487,39 @@ function PostenZeile({
           </svg>
         </span>
       )}
+      {/* ⚠️ **Der Geisterposten.** Nur der Media-Server meldet diesen Titel
+          noch – wer ihn aus Radarr geworfen und die Datei behalten hat, hat
+          etwas geschaffen, das weiter zählt, aber nicht mehr entfernt werden
+          kann: Nexview löscht ausschließlich über Radarr und Sonarr.
+
+          Die Markierung steht **nur an diesen Zeilen**. Ein Zeichen an jedem
+          normalen Posten wäre bei hunderten Zeilen nur Rauschen – auffallen
+          soll die Ausnahme. Bis hierher merkte es nur der Administrator, und
+          zwar erst beim Löschversuch. */}
+      {eintrag.managed === false && (
+        <span
+          title={t('storage.unmanagedHint')}
+          aria-label={t('storage.unmanagedHint')}
+          className="shrink-0 text-warn-500"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            {/* Eine zerrissene Kette: Die Datei liegt noch da, die
+                Verbindung zu Radarr/Sonarr ist weg. */}
+            <path d="M9 7H7a5 5 0 0 0 0 10h2" />
+            <path d="M15 7h2a5 5 0 0 1 0 10h-2" />
+            <path d="M8 12h2M14 12h2" />
+            <path d="M4 4l16 16" />
+          </svg>
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         {ziel ? (
           <Link to={ziel} className="line-clamp-1 font-medium hover:text-accent-500">

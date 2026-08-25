@@ -288,8 +288,16 @@ class User(Base):
     auto_approve_series: Mapped[bool | None] = mapped_column(Boolean)
     # Der alte gemeinsame Haken - bleibt als Rueckfallwert stehen.
     auto_approve: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    quota_movies_limit: Mapped[int | None] = mapped_column(Integer)  # NULL = unbegrenzt
-    quota_series_limit: Mapped[int | None] = mapped_column(Integer)  # NULL = unbegrenzt
+    # Die Grenzen am Konto - **dreiwertig**, siehe ``quota.UNBEGRENZT``:
+    # NULL = es gilt der Standardwert des Hauses, -1 = ausdruecklich ohne
+    # Grenze, 0 und groesser = genau diese Zahl (die 0 heisst "darf nichts").
+    quota_movies_limit: Mapped[int | None] = mapped_column(Integer)
+    quota_series_limit: Mapped[int | None] = mapped_column(Integer)
+    # ⚠️ **Wird seit 0.20 nicht mehr gelesen.** Der Zeitraum gilt haus-weit und
+    # steht in den Einstellungen (``AppSettings.quota_period``). Die Spalte
+    # bleibt stehen, weil SQLite zum Loeschen die ganze Tabelle neu bauen
+    # muesste - und solange sie niemanden stoert, ist der stille Rueckweg mehr
+    # wert als die aufgeraeumte Spalte.
     quota_period: Mapped[QuotaPeriod] = mapped_column(
         enum_column(QuotaPeriod), default=QuotaPeriod.week, nullable=False
     )
@@ -749,6 +757,8 @@ class AuthToken(Base):
     invite_role: Mapped[Role | None] = mapped_column(enum_column(Role))
     invite_quota_movies: Mapped[int | None] = mapped_column(Integer)
     invite_quota_series: Mapped[int | None] = mapped_column(Integer)
+    # ⚠️ Wird seit 0.20 nicht mehr gefuellt und nicht mehr gelesen - der
+    # Zeitraum gilt haus-weit. Bleibt stehen wie ``User.quota_period``.
     invite_quota_period: Mapped[QuotaPeriod | None] = mapped_column(enum_column(QuotaPeriod))
     invite_blocked_movie_profiles: Mapped[str] = mapped_column(
         String(255), default="", nullable=False
@@ -1071,6 +1081,18 @@ class StorageEntry(Base):
     # Benutzer hat mit Serverpfaden nichts zu schaffen, und die Ordnerstruktur
     # ist nichts, was er wissen muss.
     path: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
+    # ⚠️ Fuehrt Radarr bzw. Sonarr diesen Titel noch?
+    #
+    # ``False`` heisst: Nur der Media-Server meldet ihn. Das entsteht bei
+    # einem verbreiteten Ablauf - laden bis die Qualitaet stimmt, dann den
+    # Eintrag aus Radarr werfen und die Datei behalten. Der Posten zaehlt
+    # weiter (die Bytes liegen ja auf der Platte), ist aber **nicht mehr
+    # loeschbar**: Nexview loescht ausschliesslich ueber Radarr/Sonarr.
+    #
+    # Steht hier und wird nicht beim Anzeigen ermittelt: Der Abgleich weiss es
+    # ohnehin (``_aus_media_server``), und die Liste bliebe sonst auf eine
+    # Netzabfrage angewiesen, nur um ein Zeichen zu setzen.
+    arr_managed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     measured_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     state: Mapped[StorageState] = mapped_column(
         enum_column(StorageState), default=StorageState.house, nullable=False

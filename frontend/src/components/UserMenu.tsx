@@ -8,7 +8,6 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { QuotaOverview, Role } from '../api/types'
 import { useAuth } from '../auth/useAuth'
-import { useConfig } from '../hooks/useConfig'
 import { useStorageStand } from '../hooks/useStorageStand'
 import { formatSize } from '../lib/format'
 import { Avatar } from './Avatar'
@@ -40,7 +39,6 @@ type MenuEntry = {
  */
 export function UserMenu() {
   const { t, i18n } = useTranslation()
-  const { data: config } = useConfig()
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -68,15 +66,15 @@ export function UserMenu() {
 
   // Erst laden, wenn das Menü aufgeklappt wird - vorher sieht es ja niemand.
   //
-  // **Nur die Währung, die auch gilt.** Zählt der belegte Platz, wäre eine
-  // Stückzahl daneben eine Zahl ohne Wirkung - und im Menü fiele das noch
-  // weniger auf als in den Einstellungen.
-  const speicherGilt = Boolean(config?.storage_enabled)
+  // **Beide Währungen stehen hier.** Bis 0.19 zeigte das Menü nur die eine,
+  // die gerade galt; seit Stückzahl und Speicher zusammen greifen, wäre das
+  // die halbe Wahrheit - und die fehlende Hälfte ist genau die, an der eine
+  // Anfrage scheitert.
 
   const quotaQuery = useQuery({
     queryKey: ['quota'],
     queryFn: () => api.get<QuotaOverview>('/api/requests/quota'),
-    enabled: open && !speicherGilt,
+    enabled: open,
   })
 
   const speicher = useStorageStand(open)
@@ -203,7 +201,7 @@ export function UserMenu() {
               </dl>
             )}
 
-            {!speicherGilt && quotaQuery.data && (
+            {quotaQuery.data && (
               <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-ink-700/60 pt-3">
                 {(['movie', 'tv'] as const).map((art) => {
                   const stand = quotaQuery.data[art]

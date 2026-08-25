@@ -566,8 +566,8 @@
     "roleUser": "User",
     "autoApproveAdmin": "always on for administrators and approvers",
     "autoApprove": "Approve requests automatically",
-    "quotaMovies": "Movies per period",
-    "quotaSeries": "Shows per period",
+    "quotaMovies": "Movies {{period}}",
+    "quotaSeries": "Series {{period}}",
     "quotaPeriod": "Period",
     "quotaUnlimited": "unlimited",
     "usedNow": "Used in the current period: {{movies}} movies, {{series}} series",
@@ -577,7 +577,7 @@
     "resetQuotaHint": "The existing requests are kept – only the counter starts over. At the next period change the calendar applies again.",
     "quotaResetDone": "Quota reset.",
     "lastReset": "last reset on {{date}}",
-    "quotaInvalid": "Quotas must be whole numbers from 0 – leave empty for unlimited.",
+    "quotaInvalid": "“Own value” needs a whole number from 0.",
     "saveQuota": "Save quota",
     "unsaved": "not saved yet",
     "periodDay": "per day",
@@ -626,8 +626,6 @@
     "autoApproveTargetLaterBoth": "the approver picks root folder and quality profile – no effect",
     "storageLimit": "Storage limit",
     "storageDefault": "Default limit",
-    "storageLimitHint": "Empty = the default limit applies. 0 = unlimited for this account.",
-    "storageInvalid": "The storage limit must be a whole number from 0 upwards.",
     "dissolveTitle": "Delete {{name}}'s account",
     "dissolveItems": "What the account holds",
     "dissolveItemsHint": "Checked = moves to the house inventory (file stays). Unchecked is deleted via Radarr/Sonarr.",
@@ -653,7 +651,17 @@
     "childAge": "{{age}} years old",
     "roleChild": "Child",
     "mayManageChildren": "May create child accounts",
-    "mayManageChildrenHint": "Creates logins for their own children – in their profile under “Children”."
+    "mayManageChildrenHint": "Creates logins for their own children – in their profile under “Children”.",
+    "limitDefault": "Default",
+    "limitOwn": "own value",
+    "limitHint": "Default = {{standard}}. 0 means: may not request anything.",
+    "summaryDefaults": "defaults",
+    "limitsTitle": "Quotas",
+    "resetStorage": "Reset storage",
+    "resetStorageTitle": "Move {{name}}'s storage to the household?",
+    "resetStorageText": "Everything assigned to {{name}} becomes household stock. The account starts at 0 GB afterwards.",
+    "resetStorageHint": "No file is touched and the saved limit stays put. Pending handovers from this account count as settled afterwards.",
+    "storageResetDone": "Storage reset – everything moved to the household."
   },
   "notifications": {
     "title": "Notifications",
@@ -853,7 +861,7 @@
     "tabWatchlist": "Watchlists",
     "secretsUnreadable": "Stored credentials (API keys, media server access) can no longer be read with the current secret key. Most common cause: NEXVIEW_SECRET_KEY was changed, or data/secret.key was lost when the container was recreated (file not inside the mounted volume). Re-enter the affected credentials or reconnect the media server once – and make sure the key is kept permanently, or this will happen again on the next update.",
     "tabChannels": "Notifications",
-    "tabStorage": "Storage quotas"
+    "tabStorage": "Quotas"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -1496,22 +1504,20 @@
     "noneSeenHint": "As soon as you have watched something from this list, it shows up here.",
     "seenSeason": "All episodes watched",
     "notSeenSeason": "Not all episodes watched yet",
-    "seenNoData": "Status unknown – no watched data for this title"
+    "seenNoData": "Status unknown – no watched data for this title",
+    "unmanagedHint": "No longer managed by Radarr or Sonarr. The title still counts but can no longer be removed through Nexview – it can only be handed over to the household."
   },
   "storageAdmin": {
-    "title": "Storage quotas",
-    "intro": "Records how much space each person uses – and limits it as soon as you set a limit.",
-    "pointMeasure": "Sizes come from Radarr, Sonarr and the media server – with no extra requests.",
-    "pointHouse": "Whatever is already in the library when you switch this on belongs to the house. Every account starts at zero.",
-    "pointNoLimit": "Anyone at their limit cannot request anything new until they free up space. Still nothing gets deleted.",
+    "title": "Quotas",
+    "intro": "Two limits that always both apply: how much someone may request – and how much space they may take up doing it.",
+    "pointHouse": "Whatever is already in the library belongs to the household. Every account starts at zero.",
+    "pointNoLimit": "Anyone who has reached one of their limits cannot request anything new until there is room again. Nothing is deleted.",
     "saved": "Saved.",
     "pending": "The first measurement is running. Numbers appear here once it is done.",
     "stateTitle": "Current state",
     "assigned": "Assigned",
     "people_one": "1 person",
     "people_other": "{{count}} people",
-    "defaultLimit": "Default limit",
-    "defaultLimitHint": "Applies to everybody without a number of their own. Empty means nobody is limited. Individual accounts are set under Users.",
     "unlimited": "unlimited",
     "usersTitle": "Usage by account",
     "usersHint": "Click an account to see its individual titles.",
@@ -1519,22 +1525,32 @@
     "mustStayTitle": "Titles have to stay in Radarr and Sonarr",
     "mustStayText": "Nexview only ever deletes through Radarr and Sonarr – it never sees the filesystem itself. Removing a title there while keeping the file creates something Nexview still counts (the media server knows it) but can no longer remove. The requester is then stuck with a charge they cannot shed – they can only hand it to the house stock.",
     "recycleBin": "In the recycle bin",
-    "modeLabel": "Quota mode",
-    "modeCount": "By count",
-    "modeCountHint": "Titles per week or month – as before. Storage is still measured.",
-    "modeStorage": "By storage",
-    "modeStorageHint": "Used GB per account. The count quota no longer applies.",
-    "resetTitleOn": "Switch to storage quotas?",
-    "resetTitleOff": "Reset and turn off?",
     "resetText_one": "1 title of {{size}} moves to the house inventory. Every account starts at 0; open hand-backs are settled by this.",
     "resetText_zero": "Nothing is attributed to anyone yet – every account is already at 0.",
-    "resetKeeps": "No files are touched. Saved limits are kept and apply again if you switch back.",
-    "resetConfirmOn": "Rebook and switch",
-    "panic": "Reset and turn off",
+    "resetKeeps": "No file is touched and saved limits stay put. Pending handovers count as settled afterwards.",
     "resetText_other": "{{count}} titles totalling {{size}} move to the house inventory. Every account starts at 0; open hand-backs are settled by this.",
     "devTitle": "Test phase – this feature is still in development",
     "devText": "Storage quotas are being tried out in real operation. Expect bugs and changes – and if you spot something:",
-    "devReport": "report it on GitHub."
+    "devReport": "report it on GitHub.",
+    "defaultsTitle": "Defaults",
+    "defaultsHint": "Apply to anyone without a value of their own. Individual accounts are set in user management.",
+    "defaultMovies": "Movies",
+    "defaultSeries": "Series",
+    "defaultStorage": "Storage",
+    "unitCount": "items",
+    "periodLabel": "Period for the item count",
+    "periodDay": "per day",
+    "periodWeek": "per week",
+    "periodMonth": "per month",
+    "bothApply": "A request only goes through when both still have room. To limit by space only, set the counts to “unlimited” – and the other way round.",
+    "houseTitle": "Move everything to the household",
+    "houseHint": "Resets every account to zero: everything assigned so far becomes household stock. Meant for the moment before you start limiting for real.",
+    "houseButton": "Move everything to the household",
+    "resetTitle": "Reset every account to zero?",
+    "resetConfirm": "Move to household",
+    "resetDone": "Done – every account is back to zero.",
+    "pointMeasure": "Sizes come from Radarr, Sonarr and the media server – no extra requests.",
+    "ownValue": "own value"
   },
   "watchlistExpired": {
     "text": "Your media server access has expired. Until you sign in again, your watchlist and watched state stay as they are.",
@@ -1597,6 +1613,71 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.19.0": {
+        "lead": "This release brings Emby as a third media server, opens up rating to everyone — and merges the quotas: item count and storage space now apply together instead of either-or. Along with it, several places where Nexview finally says what it long knew: why a request is taking time, what is already in your own subscription, and when a title you were waiting for has arrived.",
+        "sections": [
+          {
+            "title": "Emby, as a third media server",
+            "where": "Settings → Media server",
+            "body": "Connecting, signing in, syncing the library, watched state per person — all as before, just with one more server. Running them side by side is unchanged: connect Plex, Jellyfin and Emby at the same time if you like, and the watched state is merged across all three.\n\nOne limit is worth knowing: Emby accounts have no e-mail address either. Signing in through Emby therefore does not create an account — you link it from your profile. Without an address there is nothing for Nexview to recognise someone by, and an invitation would quietly end up as a second account with no password.\n\nThe PIN Emby optionally keeps per account is not in the way: it belongs to the display settings, not to permissions — a profile PIN for switching on a shared device, the kind you know from Netflix."
+          },
+          {
+            "title": "Anyone can rate, not just the requester",
+            "where": "On every title page for a title you already have",
+            "body": "Quality feedback used to hang on the request. Everything else followed from that: only whoever ordered saw the stars — and anyone who watched the same film two weeks later and noticed the audio track was missing had no way to say so.\n\nThis is not about taste, that is what the heart is for, but about the **file** — and anyone who has watched it can judge that equally well. Ratings therefore hang on the title now. In “My requests” the stars remain as a shortcut, because the moment right after “already downloaded” is when people rate.\n\nSeries are judged per season: the files sit per season, the quality differs per season. Existing ratings move across on first start."
+          },
+          {
+            "title": "“Tell me when it arrives” — waiting without requesting",
+            "where": "On the title page, when someone else has already requested it",
+            "body": "Until now a title that had already been requested could not be requested again — and after that the second person never heard about it again. They were not even told when it arrived, which was exactly their question.\n\nFor a **film** the button sits where “searching” otherwise stands, so exactly when there is something to wait for. You are told once, then the reminder is done. For a **series** it sits permanently next to the request button and reports every new episode — that is usually what you are waiting for.\n\nReports are always bundled: a season pack of eight episodes is *one* message, and consecutive numbers are collapsed (“S2: 1–3, 7”). Eight messages in the same minute would be the fastest way to make someone turn notifications off."
+          },
+          {
+            "title": "What is already in your subscription",
+            "where": "Profile → Streaming services, shown when requesting",
+            "body": "Anyone who lists their streaming services gets the one sentence that can change the decision: “This is on your Netflix.” A **hint**, not a block — nothing is prevented.\n\nFor series a deliberately different sentence appears: the source says “on Netflix” about the *series*, not about the fourth season that is missing there — and that is exactly the case in which someone requests it.\n\nThe same check appears where decisions are made: in the approval list, and for parents deciding on a child's wish. It is measured against the **requester's** subscriptions, not the approver's — they may not have Netflix, but the question is whether the requester could do without the download."
+          },
+          {
+            "title": "The history of a request",
+            "where": "My requests",
+            "body": "“Why is this taking so long?” is the most common question, and Nexview always knew the full answer — requested when, approved by whom, searching since when, last checked when. All that was visible was a single status word.\n\nA button now opens a timeline: completed steps green with a tick, the running one yellow, upcoming ones grey. A path that was cut short ends where it ends — below a rejection there is no grey “done” step that would be a promise nobody keeps.\n\nTwo pieces of information reach the requester for the first time: who approved it (or that it was automatic) and when the title was last checked on."
+          },
+          {
+            "title": "One tab instead of a mode switch",
+            "where": "Settings → Quotas",
+            "body": "Until now a switch decided whether the number of requests counted or the space used — never both. It is gone. Instead there are three defaults: movies, series, storage. They apply to anyone without a value of their own.\n\nA request goes through when both limits still have room. When someone is stopped, the message says which of the two it was — a full item count is cured by waiting, full storage only by clearing up. Without that you would have to guess.\n\nThe period for the item count (day, week, month) now applies house-wide. It used to sit on every account; three accounts with three different periods no longer explain to anyone what “3 movies” actually means."
+          },
+          {
+            "title": "Three states instead of an empty field",
+            "where": "Settings → Users",
+            "body": "Every account now shows all three limits side by side, each with the same choice: **default** (the value from the quota settings, with the actual number next to it), **unlimited**, or a **value of your own**. A 0 means “may not request anything”.\n\nBefore, “unlimited” was an empty field. Anyone who had typed a number once could not see how to get back.\n\n⚠️ One meaning has flipped: for storage, **0** used to mean “unlimited for this account”. Now it means the opposite. Stored zeroes move to “unlimited” automatically on first start — otherwise an account would have been silently locked overnight."
+          },
+          {
+            "title": "Seeing and handing over storage is available everywhere",
+            "where": "Profile → Storage quota",
+            "body": "The storage tab, the household stock and the hand-over button hung on the old master switch — anyone limiting by item count never saw them. Measuring always happens, limiting only on request, so the whole chain is now open to everyone: hand over, the operator decides, the title goes to the household, stays, or is deleted.\n\nFor operators that means a handover may now land on your desk that never used to arrive.\n\n⚠️ If you have been limiting by item count, every account starts at zero once — everything assigned becomes household stock. The GB limits were inert in that mode while the assignment kept running in the background. Without this step people would be locked out right after the update because of a number that had been lying around for months. No file is touched."
+          },
+          {
+            "title": "Titles Radarr and Sonarr no longer know",
+            "where": "Profile → Storage quota",
+            "body": "Removing a title from Radarr while keeping the file creates something Nexview keeps counting — the media server still reports it — but can no longer remove: deletion happens exclusively through Radarr and Sonarr. The requester was left carrying a load they could not shed.\n\nSuch rows now carry a marker with an explanation. Until now only the operator noticed, and only at the moment they tried to delete the title."
+          },
+          {
+            "title": "Resetting is a button, not a side effect",
+            "where": "Settings → Quotas and Settings → Users",
+            "body": "Switching modes used to silently reset every account to zero. That operation is still there, but now as its own button with a confirmation: “Move everything to the household” in the quota settings, “Reset storage” on every individual account.\n\nBoth state the numbers first. No file is touched, saved limits stay put — and pending handovers count as settled afterwards.\n\nThe per-account button is also the way out of the case above: if someone is stuck with a title Radarr no longer manages, this clears it."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "The region picker now knows 139 countries instead of eight — anyone in the Netherlands, Poland or Canada simply could not state their country before.",
+          "A yellow bar is a reminder to set your own region. For “this is on your Netflix” the operator's inherited default is a false claim — the Netflix Switzerland catalogue is not the German one.",
+          "Ratings are marked as outdated when Radarr upgrades the file afterwards. They stay put but no longer count — and the person affected may rate again.",
+          "The feedback view now shows every rating, not just those with a request behind them.",
+          "One or two stars can be turned into a ticket — a problem otherwise disappears into an average.",
+          "Statistics show movies, series and storage side by side instead of either-or.",
+          "The approval dialog warns when the requester is already over their storage limit — that warning used to exist only in GB mode."
+        ]
+      },
       "0.18.0": {
         "lead": "Nexview now talks to Jellyfin as well — alongside Plex, not instead of it. Both servers may be connected at the same time, and each person can link an account on each. Around that sits a set of changes that stop anyone being locked out by accident, and a log you can actually find faults with.",
         "sections": [

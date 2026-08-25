@@ -11,18 +11,61 @@ import { AdminPapierkorb } from "./AdminPapierkorb";
 import { AdminStorageAbgaben } from "./AdminStorageAbgaben";
 import { AdminStorageUsers } from "./AdminStorageUsers";
 
+type Zeitraum = "day" | "week" | "month";
+
 type Einstellungen = {
-  storage_enabled: boolean;
+  quota_default_movies: number | null;
+  quota_default_series: number | null;
   storage_default_limit_gb: number | null;
+  quota_period: Zeitraum;
 };
 
+/** Die drei Standardwerte in der Reihenfolge, in der sie auf der Seite stehen. */
+const GRENZEN = [
+  { feld: "quota_default_movies", label: "defaultMovies", einheit: "stueck" },
+  { feld: "quota_default_series", label: "defaultSeries", einheit: "stueck" },
+  { feld: "storage_default_limit_gb", label: "defaultStorage", einheit: "GB" },
+] as const;
+
+type Feld = (typeof GRENZEN)[number]["feld"];
+
 /**
- * Speicher-Kontingente ein- und ausschalten.
+ * Was im Auswahlfeld steht.
  *
- * Der Schalter ist ein **Hauptschalter**: Ist er aus, verhaelt sich Nexview
- * wie vor dem Einbau - kein Reiter im Profil, keine Karte bei den Anfragen,
- * keine Verteilung in der Statistik, und gemessen wird auch nicht. Die
- * Funktion existiert dann schlicht nicht.
+ * ⚠️ **„Unbegrenzt" braucht einen eigenen Eintrag.** Als leeres Feld ist es
+ * unauffindbar: Wer einmal eine Zahl getippt hat, sieht nicht, wie er wieder
+ * dorthin zurückkommt – und beim Leeren mit den Pfeiltasten steht plötzlich
+ * eine `-1` da. Dieselbe Lehre steckt schon im Benutzer-Editor.
+ */
+type Grenzentwurf = { modus: "unlimited" | "zahl"; zahl: string };
+
+/** Datenbank-Wert → Entwurf. `null` heißt hier unbegrenzt. */
+function alsEntwurf(wert: number | null): Grenzentwurf {
+  return wert === null
+    ? { modus: "unlimited", zahl: "" }
+    : { modus: "zahl", zahl: String(wert) };
+}
+
+/** Entwurf → API. `-1` ist auf der Leitung das Zeichen für „unbegrenzt". */
+function alsZahl(entwurf: Grenzentwurf): number {
+  return entwurf.modus === "unlimited" ? -1 : Number(entwurf.zahl);
+}
+
+const ZEITRAEUME: Zeitraum[] = ["day", "week", "month"];
+
+/**
+ * Die Kontingente des Hauses: Standardwerte und Zeitraum.
+ *
+ * ⚠️ **Es gilt immer beides.** Bis 0.19 stand hier ein Umschalter zwischen
+ * Stückzahl *und* Speicher – genau eine Währung, haus-weit. Der ist weg: Eine
+ * Anfrage geht nur durch, wenn beide Grenzen noch Luft haben. Wer nur nach
+ * einer begrenzen will, stellt die andere auf „unbegrenzt"; das ist eine Zahl
+ * weniger zu erklären als eine Betriebsart.
+ *
+ * Hier gibt es **zwei** Zustände je Grenze (unbegrenzt / eigene Zahl), am
+ * einzelnen Konto **drei** – dort kommt „Standard" dazu, also der Rückfall auf
+ * genau diese Werte. Auf dieser Seite gäbe es nichts, worauf man zurückfallen
+ * könnte.
  */
 export function AdminStorageSettings() {
   const { t, i18n } = useTranslation();
@@ -33,67 +76,61 @@ export function AdminStorageSettings() {
     queryFn: () => api.get<Einstellungen>("/api/settings"),
   });
 
-  const [an, setAn] = useState<boolean | null>(null);
-  // Als Text, nicht als Zahl: „leer" heißt hier unbegrenzt, und das lässt
-  // sich durch eine Zahl nicht ausdrücken. Dasselbe Muster wie bei den
-  // Stückzahl-Kontingenten in der Nutzerverwaltung.
-  const [grenze, setGrenze] = useState<string | null>(null);
+  const [entwurf, setEntwurf] = useState<Record<Feld, Grenzentwurf> | null>(
+    null,
+  );
+  const [zeitraum, setZeitraum] = useState<Zeitraum | null>(null);
 
   useEffect(() => {
-    if (abfrage.data && an === null) {
-      setAn(abfrage.data.storage_enabled);
-      setGrenze(
-        abfrage.data.storage_default_limit_gb
-          ? String(abfrage.data.storage_default_limit_gb)
-          : "",
-      );
+    if (abfrage.data && entwurf === null) {
+      setEntwurf({
+        quota_default_movies: alsEntwurf(abfrage.data.quota_default_movies),
+        quota_default_series: alsEntwurf(abfrage.data.quota_default_series),
+        storage_default_limit_gb: alsEntwurf(
+          abfrage.data.storage_default_limit_gb,
+        ),
+      });
+      setZeitraum(abfrage.data.quota_period);
     }
-  }, [abfrage.data, an]);
+  }, [abfrage.data, entwurf]);
 
   const speichern = useMutation({
-    mutationFn: (werte: {
-      storage_enabled: boolean;
-      storage_default_limit_gb: number;
-    }) => api.put<Einstellungen>("/api/settings", werte),
+    mutationFn: (werte: Record<string, number | string>) =>
+      api.put<Einstellungen>("/api/settings", werte),
     onSuccess: (daten) => {
-      // Entwuerfe auf den gespeicherten Stand ziehen - der Notausgang setzt
-      // die Betriebsart um, ohne dass der Entwurf vorher umgestellt wurde.
-      setAn(daten.storage_enabled);
-      setGrenze(
-        daten.storage_default_limit_gb
-          ? String(daten.storage_default_limit_gb)
-          : "",
-      );
-      setBestaetigung(null);
-      // Der Schalter aendert, was auf mehreren Seiten ueberhaupt existiert -
-      // deshalb alles neu laden, nicht nur die Einstellungen.
+      setEntwurf({
+        quota_default_movies: alsEntwurf(daten.quota_default_movies),
+        quota_default_series: alsEntwurf(daten.quota_default_series),
+        storage_default_limit_gb: alsEntwurf(daten.storage_default_limit_gb),
+      });
+      setZeitraum(daten.quota_period);
+      // Die Standardwerte greifen für jedes Konto ohne eigene Zahl – die
+      // Nutzerverwaltung und die Anfragen zeigen danach andere Grenzen an.
       void queryClient.invalidateQueries();
     },
   });
 
-  /**
-   * Welcher Wechsel gerade auf Bestätigung wartet – `null` heißt keiner.
-   *
-   * ⚠️ **Jeder Wechsel der Betriebsart setzt die Konten zurück** – in beide
-   * Richtungen, eine Regel statt einer Ausnahme. Ohne den Generalpardon wäre
-   * jemand nach dem Einschalten schlagartig überzogen, wegen einer Historie,
-   * von der er nicht wusste, dass sie mitzählt. Deshalb geht kein Wechsel
-   * ohne diesen Dialog raus – und der nennt die Zahlen, nicht nur eine
-   * Warnung: Ein allgemeiner Hinweis wird weggeklickt, eine Zahl wird
-   * gelesen.
-   */
-  const [bestaetigung, setBestaetigung] = useState<"an" | "aus" | null>(null);
-
-  // Was das Zuruecksetzen traefe - erst geholt, wenn der Dialog es braucht.
+  // „Alles ins Haus" ist ein eigener Vorgang und keine Nebenwirkung des
+  // Speicherns. Die Vorschau wird erst geholt, wenn der Dialog offen ist.
+  const [fragtNachHaus, setFragtNachHaus] = useState(false);
   const vorschau = useQuery({
     queryKey: ["storage-umbuchung"],
     queryFn: () =>
       api.get<{ count: number; bytes: number }>("/api/storage/umbuchung"),
-    enabled: bestaetigung !== null,
+    enabled: fragtNachHaus,
     staleTime: 0,
   });
 
-  if (abfrage.isLoading || an === null) {
+  const insHaus = useMutation({
+    mutationFn: () =>
+      api.post<{ count: number; bytes: number }>("/api/storage/umbuchung", {}),
+    onSuccess: () => {
+      setFragtNachHaus(false);
+      void queryClient.invalidateQueries();
+    },
+  });
+
+  if (abfrage.isLoading || !abfrage.data || entwurf === null || zeitraum === null) {
     return (
       <div className="flex justify-center py-12">
         <Spinner />
@@ -101,15 +138,23 @@ export function AdminStorageSettings() {
     );
   }
 
-  const gespeichert = abfrage.data?.storage_enabled ?? false;
-  const gespeicherteGrenze = abfrage.data?.storage_default_limit_gb;
-  // -1 heißt „zurück auf unbegrenzt" - siehe UserUpdate im Backend.
-  const grenzeZahl = grenze?.trim() ? Number(grenze) : -1;
-  const grenzeGueltig = grenze?.trim()
-    ? Number.isInteger(grenzeZahl) && grenzeZahl > 0
-    : true;
+  const gespeichert = abfrage.data;
+  const zahlen = Object.fromEntries(
+    GRENZEN.map(({ feld }) => [feld, alsZahl(entwurf[feld])]),
+  ) as Record<Feld, number>;
+  // Eine eigene Zahl muss auch eine sein - leer oder negativ geht nicht.
+  const gueltig = GRENZEN.every(({ feld }) => {
+    const wert = entwurf[feld];
+    return (
+      wert.modus === "unlimited" ||
+      (wert.zahl.trim() !== "" &&
+        Number.isInteger(Number(wert.zahl)) &&
+        Number(wert.zahl) >= 0)
+    );
+  });
   const geaendert =
-    an !== gespeichert || grenzeZahl !== (gespeicherteGrenze ?? -1);
+    zeitraum !== gespeichert.quota_period ||
+    GRENZEN.some(({ feld }) => zahlen[feld] !== (gespeichert[feld] ?? -1));
 
   return (
     <div className="flex flex-col gap-5">
@@ -133,232 +178,251 @@ export function AdminStorageSettings() {
         </p>
       </div>
 
-    {/* Zweispaltig, sobald es rechts etwas zu zeigen gibt: Das Formular ist von
-       Natur aus schmal – ein Eingabefeld und ein Haken werden durch Breite
-       nicht besser, und lange Textzeilen lesen sich schlechter. Die
-       Auswertungen dagegen leben von Breite; dort stehen Dateipfade.
-       Beide Spalten gleich breit: Ungleiche Hälften lesen sich wie ein
-       Versehen, und die Karten stehen dann nicht mehr auf einer Kante.
-       Solange nichts gespeichert ist, bleibt es bei der schmalen Spalte –
-       eine leere zweite wäre nur eine Lücke. */}
-    <div
-      className={
-        "flex flex-col gap-5 " +
-        (gespeichert ? "lg:grid lg:grid-cols-2 lg:items-start" : "max-w-2xl")
-      }
-    >
-      <div className="flex flex-col gap-5">
-        <Card className="flex flex-col gap-4 p-5">
-          <div>
-            <h2 className="text-lg font-semibold">{t("storageAdmin.title")}</h2>
-            <p className="mt-1 text-sm text-mist-500">
-              {t("storageAdmin.intro")}
-            </p>
-          </div>
+      {/* Zweispaltig: Das Formular ist von Natur aus schmal – drei
+          Eingabefelder werden durch Breite nicht besser. Die Auswertungen
+          dagegen leben von Breite; dort stehen Dateipfade. */}
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-2 lg:items-start">
+        <div className="flex flex-col gap-5">
+          <Card className="flex flex-col gap-4 p-5">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {t("storageAdmin.title")}
+              </h2>
+              <p className="mt-1 text-sm text-mist-500">
+                {t("storageAdmin.intro")}
+              </p>
+            </div>
 
-          {/* Bewusst eine Zweifach-Auswahl und kein Häkchen: Ein Haken namens
-              „Speicher-Kontingente" ließe offen, ob die Stückzahl daneben noch
-              gilt. Die Auswahl sagt es – es gilt genau eine Währung. */}
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-medium">
-              {t("storageAdmin.modeLabel")}
-            </legend>
-            {(
-              [
-                { wert: false, label: "modeCount", hint: "modeCountHint" },
-                { wert: true, label: "modeStorage", hint: "modeStorageHint" },
-              ] as const
-            ).map((wahl) => (
-              <label
-                key={wahl.label}
-                className={
-                  "flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 " +
-                  (an === wahl.wert
-                    ? "border-accent-500/60 bg-accent-500/5"
-                    : "border-ink-700 hover:border-ink-600")
-                }
-              >
-                <input
-                  type="radio"
-                  name="storage-mode"
-                  checked={an === wahl.wert}
-                  onChange={() => setAn(wahl.wert)}
-                  className="mt-0.5 h-4 w-4 accent-accent-500"
-                />
-                <span>
-                  <span className="font-medium">
-                    {t("storageAdmin." + wahl.label)}
-                  </span>
-                  <span className="mt-0.5 block text-sm text-mist-500">
-                    {t("storageAdmin." + wahl.hint)}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
+            <div>
+              <h3 className="text-sm font-medium">
+                {t("storageAdmin.defaultsTitle")}
+              </h3>
+              <div className="mt-2 flex flex-col gap-2">
+                {GRENZEN.map(({ feld, label, einheit }) => {
+                  const wert = entwurf[feld];
+                  return (
+                    <div key={feld} className="flex items-center gap-3">
+                      <label
+                        className="w-28 shrink-0 text-sm text-mist-400"
+                        htmlFor={"grenze-" + feld}
+                      >
+                        {t("storageAdmin." + label)}
+                      </label>
+                      {/* ⚠️ „Unbegrenzt" ist ein eigener Eintrag, kein leeres
+                          Feld. Wer einmal eine Zahl getippt hat, findet sonst
+                          nicht mehr zurück – und mit den Pfeiltasten landet man
+                          bei einer `-1`, die niemand eingegeben hat. */}
+                      <select
+                        id={"grenze-" + feld}
+                        value={wert.modus}
+                        onChange={(e) =>
+                          setEntwurf({
+                            ...entwurf,
+                            [feld]: {
+                              ...wert,
+                              modus: e.target.value as Grenzentwurf["modus"],
+                            },
+                          })
+                        }
+                        className="rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-sm"
+                      >
+                        <option value="unlimited">
+                          {t("storageAdmin.unlimited")}
+                        </option>
+                        <option value="zahl">{t("storageAdmin.ownValue")}</option>
+                      </select>
+                      {wert.modus === "zahl" && (
+                        <>
+                          <input
+                            type="number"
+                            min={0}
+                            value={wert.zahl}
+                            aria-label={t("storageAdmin." + label)}
+                            onChange={(e) =>
+                              setEntwurf({
+                                ...entwurf,
+                                [feld]: { modus: "zahl", zahl: e.target.value },
+                              })
+                            }
+                            className="w-24 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-sm tabular-nums"
+                          />
+                          <span className="text-sm text-mist-500">
+                            {einheit === "GB" ? "GB" : t("storageAdmin.unitCount")}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-sm text-mist-500">
+                {t("storageAdmin.defaultsHint")}
+              </p>
+            </div>
 
-          {an && (
+            {/* Der Zeitraum gilt haus-weit. Bis 0.19 stand er an jedem Konto
+                einzeln – drei Konten mit drei Zeiträumen erklären aber
+                niemandem mehr, was „3 Filme" bedeutet. */}
             <div className="border-t border-ink-700 pt-4">
               <label
                 className="block text-sm font-medium"
-                htmlFor="storage-default"
+                htmlFor="kontingent-zeitraum"
               >
-                {t("storageAdmin.defaultLimit")}
+                {t("storageAdmin.periodLabel")}
               </label>
-              <div className="mt-1.5 flex items-center gap-2">
-                <input
-                  id="storage-default"
-                  type="number"
-                  min={1}
-                  value={grenze ?? ""}
-                  onChange={(e) => setGrenze(e.target.value)}
-                  placeholder={t("storageAdmin.unlimited")}
-                  className="w-32 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-sm tabular-nums"
-                />
-                <span className="text-sm text-mist-500">GB</span>
-              </div>
-              <p className="mt-1 text-sm text-mist-500">
-                {t("storageAdmin.defaultLimitHint")}
+              <select
+                id="kontingent-zeitraum"
+                value={zeitraum}
+                onChange={(e) => setZeitraum(e.target.value as Zeitraum)}
+                className="mt-1.5 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-sm"
+              >
+                {ZEITRAEUME.map((wert) => (
+                  <option key={wert} value={wert}>
+                    {t(
+                      "storageAdmin.period" +
+                        wert.charAt(0).toUpperCase() +
+                        wert.slice(1),
+                    )}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-sm text-mist-500">
+                {t("storageAdmin.bothApply")}
               </p>
             </div>
-          )}
 
-          {/* Was das Einschalten konkret bedeutet - lieber vorher sagen als
-            hinterher erklaeren. */}
-          <ul className="flex flex-col gap-1.5 border-t border-ink-700 pt-4 text-sm text-mist-500">
-            <li>· {t("storageAdmin.pointMeasure")}</li>
-            <li>· {t("storageAdmin.pointHouse")}</li>
-            <li>· {t("storageAdmin.pointNoLimit")}</li>
-          </ul>
+            <ul className="flex flex-col gap-1.5 border-t border-ink-700 pt-4 text-sm text-mist-500">
+              <li>· {t("storageAdmin.pointMeasure")}</li>
+              <li>· {t("storageAdmin.pointHouse")}</li>
+              <li>· {t("storageAdmin.pointNoLimit")}</li>
+            </ul>
 
-          {/* ⚠️ Die eine Bedingung, ohne die das ganze Kontingent nicht
-              aufgeht – und sie ist nicht offensichtlich.
+            {/* ⚠️ Die eine Bedingung, ohne die das ganze Kontingent nicht
+                aufgeht – und sie ist nicht offensichtlich.
 
-              Nexview löscht **ausschließlich** über Radarr und Sonarr; es
-              sieht das Dateisystem nie. Wer einen Titel dort entfernt und die
-              Datei behält, hat damit etwas geschaffen, das Nexview zwar
-              **messen** kann (der Media-Server führt es weiter) aber nicht
-              mehr **löschen**. Der Anfragende bliebe auf einer Belastung
-              sitzen, die er nicht loswird.
+                Nexview löscht **ausschließlich** über Radarr und Sonarr; es
+                sieht das Dateisystem nie. Wer einen Titel dort entfernt und
+                die Datei behält, hat damit etwas geschaffen, das Nexview zwar
+                **messen** kann (der Media-Server führt es weiter) aber nicht
+                mehr **löschen**. Der Anfragende bliebe auf einer Belastung
+                sitzen, die er nicht loswird.
 
-              Rot, weil es eine Betriebsbedingung ist und keine Feinheit: Wer
-              den Zusammenhang nicht kennt, richtet den Schaden ahnungslos an
-              und merkt ihn erst Wochen später. */}
-          <div className="rounded-xl border border-bad-500/40 bg-bad-500/10 px-4 py-3">
-            <p className="text-sm font-semibold text-bad-500">
-              {t("storageAdmin.mustStayTitle")}
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-bad-500/90">
-              {t("storageAdmin.mustStayText")}
-            </p>
-          </div>
+                Rot, weil es eine Betriebsbedingung ist und keine Feinheit: Wer
+                den Zusammenhang nicht kennt, richtet den Schaden ahnungslos an
+                und merkt ihn erst Wochen später. */}
+            <div className="rounded-xl border border-bad-500/40 bg-bad-500/10 px-4 py-3">
+              <p className="text-sm font-semibold text-bad-500">
+                {t("storageAdmin.mustStayTitle")}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-bad-500/90">
+                {t("storageAdmin.mustStayText")}
+              </p>
+            </div>
 
-          {speichern.isError && (
-            <ErrorBanner
-              message={
-                speichern.error instanceof ApiError
-                  ? speichern.error.message
-                  : t("errors.generic")
-              }
-            />
-          )}
-
-          <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
-            <Button
-              onClick={() => {
-                // Ein Wechsel der Betriebsart geht nie direkt raus - erst der
-                // Dialog mit den Zahlen. Nur die Grenze zu ändern ist harmlos.
-                if (an !== gespeichert) {
-                  setBestaetigung(an ? "an" : "aus");
-                  return;
+            {speichern.isError && (
+              <ErrorBanner
+                message={
+                  speichern.error instanceof ApiError
+                    ? speichern.error.message
+                    : t("errors.generic")
                 }
-                speichern.mutate({
-                  storage_enabled: an,
-                  storage_default_limit_gb: grenzeZahl,
-                });
-              }}
-              disabled={!geaendert || !grenzeGueltig}
-            >
-              {speichern.isPending ? t("common.saving") : t("common.save")}
-            </Button>
-            {geaendert ? (
-              <span className="text-sm text-warn-500">
-                {t("common.unsaved")}
-              </span>
-            ) : (
-              speichern.isSuccess && (
-                <span className="text-sm text-ok-500">
-                  {t("storageAdmin.saved")}
-                </span>
-              )
+              />
             )}
-            {/* Der Notausgang aus dem Plan: räumt den Zustand auf, ohne Code,
-                Container oder Datenbank anzufassen. Nur sichtbar, solange es
-                etwas abzuschalten gibt. */}
-            {gespeichert && (
+
+            <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
+              <Button
+                onClick={() =>
+                  speichern.mutate({ ...zahlen, quota_period: zeitraum })
+                }
+                disabled={!geaendert || !gueltig}
+              >
+                {speichern.isPending ? t("common.saving") : t("common.save")}
+              </Button>
+              {geaendert ? (
+                <span className="text-sm text-warn-500">
+                  {t("common.unsaved")}
+                </span>
+              ) : (
+                speichern.isSuccess && (
+                  <span className="text-sm text-ok-500">
+                    {t("storageAdmin.saved")}
+                  </span>
+                )
+              )}
+            </div>
+          </Card>
+
+          {/* Ein eigener Vorgang, keine Nebenwirkung: Bis 0.19 lief das
+              Zurücksetzen still beim Umschalten der Betriebsart mit. Etwas,
+              das die Zurechnung des ganzen Hauses verwirft, gehört an einen
+              eigenen Knopf – mit Zahlen im Dialog davor. */}
+          <Card className="flex flex-col gap-3 p-5">
+            <div>
+              <h3 className="font-medium">{t("storageAdmin.houseTitle")}</h3>
+              <p className="mt-1 text-sm text-mist-500">
+                {t("storageAdmin.houseHint")}
+              </p>
+            </div>
+            {insHaus.isError && (
+              <ErrorBanner
+                message={
+                  insHaus.error instanceof ApiError
+                    ? insHaus.error.message
+                    : t("errors.generic")
+                }
+              />
+            )}
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 variant="ghost"
-                onClick={() => setBestaetigung("aus")}
-                className="ml-auto border-bad-500/40 text-bad-500 hover:bg-bad-500/10 hover:text-bad-500"
+                onClick={() => setFragtNachHaus(true)}
+                className="border-bad-500/40 text-bad-500 hover:bg-bad-500/10 hover:text-bad-500"
               >
-                {t("storageAdmin.panic")}
+                {t("storageAdmin.houseButton")}
               </Button>
-            )}
-          </div>
-        </Card>
+              {insHaus.isSuccess && (
+                <span className="text-sm text-ok-500">
+                  {t("storageAdmin.resetDone")}
+                </span>
+              )}
+            </div>
+          </Card>
 
-        <ConfirmDialog
-          open={bestaetigung !== null}
-          title={t(
-            bestaetigung === "aus"
-              ? "storageAdmin.resetTitleOff"
-              : "storageAdmin.resetTitleOn",
-          )}
-          description={
-            vorschau.isLoading || !vorschau.data ? (
-              <div className="flex justify-center py-4">
-                <Spinner />
-              </div>
-            ) : (
-              <>
-                {/* Die Zahlen, nicht nur eine Warnung: "X Titel mit zusammen
-                    Y GB" wird gelesen, "Achtung" wird weggeklickt. */}
-                <p>
-                  {t("storageAdmin.resetText", {
-                    count: vorschau.data.count,
-                    size: formatSize(vorschau.data.bytes, i18n.language),
-                  })}
-                </p>
-                <p className="mt-2 text-mist-500">
-                  {t("storageAdmin.resetKeeps")}
-                </p>
-              </>
-            )
-          }
-          confirmLabel={t(
-            bestaetigung === "aus"
-              ? "storageAdmin.panic"
-              : "storageAdmin.resetConfirmOn",
-          )}
-          loading={speichern.isPending}
-          onCancel={() => setBestaetigung(null)}
-          onConfirm={() =>
-            vorschau.data &&
-            speichern.mutate({
-              storage_enabled: bestaetigung === "an",
-              storage_default_limit_gb: grenzeZahl,
-            })
-          }
-        />
+          <ConfirmDialog
+            open={fragtNachHaus}
+            title={t("storageAdmin.resetTitle")}
+            description={
+              vorschau.isLoading || !vorschau.data ? (
+                <div className="flex justify-center py-4">
+                  <Spinner />
+                </div>
+              ) : (
+                <>
+                  {/* Die Zahlen, nicht nur eine Warnung: "X Titel mit zusammen
+                      Y GB" wird gelesen, "Achtung" wird weggeklickt. */}
+                  <p>
+                    {t("storageAdmin.resetText", {
+                      count: vorschau.data.count,
+                      size: formatSize(vorschau.data.bytes, i18n.language),
+                    })}
+                  </p>
+                  <p className="mt-2 text-mist-500">
+                    {t("storageAdmin.resetKeeps")}
+                  </p>
+                </>
+              )
+            }
+            confirmLabel={t("storageAdmin.resetConfirm")}
+            loading={insHaus.isPending}
+            onCancel={() => setFragtNachHaus(false)}
+            onConfirm={() => vorschau.data && insHaus.mutate()}
+          />
 
-        {/* Der Papierkorb steht unter den Einstellungen, weil er dieselbe Frage
-            beantwortet wie der Schalter darüber: was passiert, wenn Nexview
-            später löscht. Er hängt aber **nicht** am Schalter – die Auskunft
-            ist auch dann richtig und nützlich, wenn Kontingente aus sind. */}
-        <AdminPapierkorb />
-      </div>
+          {/* Der Papierkorb steht hier, weil er dieselbe Frage beantwortet wie
+              die Grenzen darüber: was passiert, wenn Nexview später löscht. */}
+          <AdminPapierkorb />
+        </div>
 
-      {gespeichert && (
         <div className="flex flex-col gap-5">
           {/* Ganz oben, und das ist Absicht: Hier wartet jemand. Wer die Karte
               uebersieht, laesst ihn auf einer Belastung sitzen, die er
@@ -369,8 +433,7 @@ export function AdminStorageSettings() {
               hier gibt: einen Titel dem Haus zuschlagen. Er löscht nichts. */}
           <AdminStorageUsers />
         </div>
-      )}
-    </div>
+      </div>
     </div>
   );
 }

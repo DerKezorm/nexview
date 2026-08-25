@@ -238,28 +238,25 @@ def collect(db: Session) -> dict:
     gesamt.rating_distribution = verteilung
     gesamt.active_users = sum(1 for eintrag in pro_benutzer.values() if eintrag.total > 0)
 
-    # Kontingent-Auslastung im laufenden Zeitraum.
+    # Kontingent-Auslastung im laufenden Zeitraum - **beide Waehrungen**, weil
+    # beide immer gelten. Die Oberflaeche entscheidet, welche sie zeigt.
+    einstellungen = load_settings(db)
     for eintrag in pro_benutzer.values():
-        stand = quota.overview(db, benutzer[eintrag.user_id])
+        stand = quota.overview(db, benutzer[eintrag.user_id], einstellungen)
         eintrag.quota_movie_used = stand["movie"].used
         eintrag.quota_movie_limit = stand["movie"].limit
         eintrag.quota_series_used = stand["tv"].used
         eintrag.quota_series_limit = stand["tv"].limit
 
-    # Im GB-Betrieb zusaetzlich der Speicherstand. Die Stueck-Zahlen bleiben
-    # berechnet - sie kosten nichts und die Oberflaeche entscheidet, welche
-    # Waehrung sie zeigt.
-    einstellungen = load_settings(db)
-    if einstellungen.storage_enabled:
-        belegt = {
-            user_id: stand.used_bytes
-            for user_id, stand in storage.verteilung(db)
-            if user_id is not None
-        }
-        for eintrag in pro_benutzer.values():
-            person = benutzer[eintrag.user_id]
-            eintrag.storage_used_bytes = belegt.get(eintrag.user_id, 0)
-            eintrag.storage_limit_bytes = storage.grenze_in_bytes(person, einstellungen)
+    belegt = {
+        user_id: stand.used_bytes
+        for user_id, stand in storage.verteilung(db)
+        if user_id is not None
+    }
+    for eintrag in pro_benutzer.values():
+        person = benutzer[eintrag.user_id]
+        eintrag.storage_used_bytes = belegt.get(eintrag.user_id, 0)
+        eintrag.storage_limit_bytes = storage.grenze_in_bytes(person, einstellungen)
 
     monate = _letzte_monate(HISTORY_MONTHS)
     return {

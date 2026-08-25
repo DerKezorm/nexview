@@ -1,23 +1,21 @@
-"""Der Umschalt-Generalpardon: Betriebsartwechsel setzt die Konten zurueck.
+"""Konten auf null setzen: alles ins Haus - haus-weit und je Konto.
 
-Der Kern der Regel steht im Plan und ist bewusst **symmetrisch**:
+Bis 0.19 lief das als **Nebenwirkung** beim Umschalten der Betriebsart
+(Anzahl <-> Speicher). Die Betriebsart gibt es nicht mehr, der Vorgang bleibt:
+Er ist der Weg, eine gewachsene Zurechnung zu verwerfen, bevor zum ersten Mal
+wirklich begrenzt wird - sonst waere jemand schlagartig ueberzogen wegen einer
+Historie, von der er nicht wusste, dass sie mitzaehlt.
 
-> Jedes Umschalten (Anzahl <-> Speicher) bucht alle zugerechneten Posten in
-> den Hausbestand um, jedes Konto startet bei null. In beide Richtungen -
-> eine Regel statt einer Ausnahme.
+⚠️ Etwas, das die Zurechnung des ganzen Hauses verwirft, gehoert an einen
+**eigenen Knopf** und nicht an das Speichern einer Einstellung.
 
-Ohne den Pardon waere jemand nach dem Einschalten schlagartig ueberzogen -
-wegen einer Historie, von der er nicht wusste, dass sie mitzaehlt: Die
-Zuordnung laeuft naemlich **immer**, auch im Anzahl-Betrieb.
-
-Genauso wichtig ist, was der Pardon *nicht* tut - keine Datei wird angefasst,
+Genauso wichtig ist, was der Vorgang *nicht* tut - keine Datei wird angefasst,
 gespeicherte Grenzen bleiben stehen. Beides ist hier festgenagelt.
 """
 
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import (
@@ -57,39 +55,22 @@ def _posten(
     return zeile.id
 
 
-def _bestand(admin_client: TestClient) -> tuple[int, int, int]:
-    """(zugerechnete Posten, Haus-Posten, offene Abgaben) - der Pruefblick."""
-    with SessionLocal() as db:
-        zugerechnet = len(
-            db.scalars(
-                select(StorageEntry).where(StorageEntry.user_id.is_not(None))
-            ).all()
-        )
-        haus = len(
-            db.scalars(
-                select(StorageEntry).where(StorageEntry.user_id.is_(None))
-            ).all()
-        )
-        offen = len(storage.offene_abgaben(db))
-    return zugerechnet, haus, offen
-
-
-def test_abschalten_bucht_alle_konten_ins_haus(admin_client: TestClient) -> None:
-    """⚠️ **Die Regel selbst** - Richtung Speicher -> Anzahl.
+def test_alles_ins_haus_leert_jedes_konto(admin_client: TestClient) -> None:
+    """⚠️ **Die Regel selbst.**
 
     Auch die abgegebenen, noch unentschiedenen Posten gehen mit: Wer abgegeben
-    hat, wollte die Belastung loswerden - genau das erledigt der Pardon. Die
+    hat, wollte die Belastung loswerden - genau das erledigt der Vorgang. Die
     Warteschlange ist danach leer.
     """
-    admin_client.put("/api/settings", json={"storage_enabled": True})
     konto = create_user(admin_client, "kim", "passwort-1234", storage_limit_gb=50)
     with SessionLocal() as db:
         eigen = _posten(db, user_id=konto["id"], state=StorageState.owned, tmdb=1)
         abgegeben = _posten(db, user_id=konto["id"], state=StorageState.pending, tmdb=2)
         haus = _posten(db, user_id=None, state=StorageState.house, tmdb=3)
 
-    antwort = admin_client.put("/api/settings", json={"storage_enabled": False})
+    antwort = admin_client.post("/api/storage/umbuchung")
     assert antwort.status_code == 200
+    assert antwort.json() == {"count": 2, "bytes": 16 * GB}
 
     with SessionLocal() as db:
         for posten_id in (eigen, abgegeben, haus):
@@ -101,41 +82,48 @@ def test_abschalten_bucht_alle_konten_ins_haus(admin_client: TestClient) -> None
             # Groesse und Titel. Es aendert sich nur, wem er zugerechnet wird.
             assert zeile.size_bytes > 0
         assert storage.offene_abgaben(db) == []
-        # Die gespeicherte Grenze uebersteht den Wechsel - sie gilt wieder,
-        # wenn zurueckgeschaltet wird.
+        # Die gespeicherte Grenze uebersteht den Vorgang - sie gilt weiter.
         assert db.get(User, konto["id"]).storage_limit_gb == 50
 
 
-def test_einschalten_setzt_genauso_zurueck(admin_client: TestClient) -> None:
-    """Die Gegenrichtung - **symmetrisch, eine Regel statt einer Ausnahme.**
+def test_ein_konto_einzeln_zuruecksetzen(admin_client: TestClient) -> None:
+    """Der Ausweg aus dem **Geisterposten** - und er trifft nur diesen einen.
 
-    Die Zuordnung laeuft auch im Anzahl-Betrieb. Ohne Pardon beim Einschalten
-    waere jemand am ersten Tag ueberzogen, wegen Wochen von Historie, von der
-    er nicht wusste, dass sie einmal zaehlen wuerde.
+    Wer einen ueber Nexview angefragten Titel aus Radarr wirft und die Datei
+    behaelt, bleibt dafuer belastet: Nexview loescht ausschliesslich ueber
+    Radarr/Sonarr und kommt an die Datei nicht mehr heran. Ohne diesen Knopf
+    sitzt der Betroffene auf einer Belastung, die er nie wieder loswird.
     """
-    konto = create_user(admin_client, "kim", "passwort-1234")
+    kim = create_user(admin_client, "kim", "passwort-1234", storage_limit_gb=50)
+    alex = create_user(admin_client, "alex", "passwort-1234")
     with SessionLocal() as db:
-        _posten(db, user_id=konto["id"], state=StorageState.owned, tmdb=1)
+        seiner = _posten(db, user_id=kim["id"], state=StorageState.owned, tmdb=1)
+        fremder = _posten(db, user_id=alex["id"], state=StorageState.owned, tmdb=2)
 
-    admin_client.put("/api/settings", json={"storage_enabled": True})
+    antwort = admin_client.post(f"/api/users/{kim['id']}/storage/reset")
+    assert antwort.status_code == 200
 
-    assert _bestand(admin_client) == (0, 1, 0)
+    with SessionLocal() as db:
+        assert db.get(StorageEntry, seiner).user_id is None
+        assert db.get(StorageEntry, seiner).state == StorageState.house
+        # Der andere bleibt unberuehrt - sonst waere es der haus-weite Knopf.
+        assert db.get(StorageEntry, fremder).user_id == alex["id"]
+        assert db.get(User, kim["id"]).storage_limit_gb == 50
 
 
-def test_ohne_wechsel_kein_pardon(admin_client: TestClient) -> None:
-    """Speichern ohne Betriebsartwechsel laesst die Zuordnung in Ruhe.
+def test_speichern_einer_einstellung_ruehrt_nichts_an(admin_client: TestClient) -> None:
+    """Kein Pardon als Nebenwirkung.
 
-    Sonst wuerde jede Aenderung der Vorgabe-Grenze nebenbei alle Konten
-    leeren - ein Pardon, den niemand wollte.
+    Bis 0.19 setzte ein Wechsel der Betriebsart still alle Konten zurueck.
+    Jetzt aendert das Speichern einer Vorgabe nur die Vorgabe - was jemandem
+    zugerechnet ist, bleibt es.
     """
-    admin_client.put("/api/settings", json={"storage_enabled": True})
     konto = create_user(admin_client, "kim", "passwort-1234")
     with SessionLocal() as db:
         posten_id = _posten(db, user_id=konto["id"], state=StorageState.owned, tmdb=1)
 
-    # Derselbe Wert nochmal, dazu eine andere Einstellung - beides harmlos.
-    admin_client.put("/api/settings", json={"storage_enabled": True})
     admin_client.put("/api/settings", json={"storage_default_limit_gb": 200})
+    admin_client.put("/api/settings", json={"quota_default_movies": 3})
 
     with SessionLocal() as db:
         zeile = db.get(StorageEntry, posten_id)
@@ -144,7 +132,7 @@ def test_ohne_wechsel_kein_pardon(admin_client: TestClient) -> None:
 
 
 def test_vorschau_nennt_die_zahlen(admin_client: TestClient) -> None:
-    """Der Dialog vor dem Umschalten nennt Zahlen, keine Allgemeinplaetze.
+    """Der Dialog davor nennt Zahlen, keine Allgemeinplaetze.
 
     Gezaehlt wird nur, was jemandem zugerechnet ist - der Hausbestand geht ja
     nirgendwo hin.

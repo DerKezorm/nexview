@@ -51,7 +51,7 @@ def _quota_info(state: QuotaState) -> QuotaInfo:
 
 @router.get("/quota", response_model=QuotaOverview)
 def read_quota(user: CurrentUser, db: DbSession) -> QuotaOverview:
-    states = quota.overview(db, user)
+    states = quota.overview(db, user, load_settings(db))
     return QuotaOverview(
         movie=_quota_info(states["movie"]),
         tv=_quota_info(states["tv"]),

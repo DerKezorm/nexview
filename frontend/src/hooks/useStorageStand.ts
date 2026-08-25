@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { StorageMine, StorageOverview } from '../api/types'
 import { useAuth } from '../auth/useAuth'
-import { useConfig } from './useConfig'
 
 /**
  * Der Speicher-Stand, den *diese* Person sehen will.
@@ -30,8 +29,7 @@ export type SpeicherStand = {
 
 export function useStorageStand(aktiv = true): SpeicherStand | null {
   const { user } = useAuth()
-  const { data: config } = useConfig()
-  const an = aktiv && Boolean(config?.storage_enabled)
+  const an = aktiv
   const istAdmin = user?.role === 'admin'
 
   // ⚠️ `staleTime: 0` mit Absicht, entgegen der globalen Minute: Diese Zahl

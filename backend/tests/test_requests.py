@@ -267,7 +267,10 @@ def test_abgelehnte_anfrage_zaehlt_nicht_gegen_das_kontingent(arr_client: TestCl
 
 
 def test_alte_anfragen_zaehlen_nicht_mehr(arr_client: TestClient) -> None:
-    create_user(arr_client, "kim", quota_movies_limit=1, quota_period="day")
+    # Der Zeitraum gilt haus-weit, nicht am Konto - deshalb ueber die
+    # Einstellungen und nicht ueber ``create_user``.
+    arr_client.put("/api/settings", json={"quota_period": "day"})
+    create_user(arr_client, "kim", quota_movies_limit=1)
     headers = auth_headers(arr_client, "kim", "passwort-1234")
     _anfrage(arr_client, _first_demo(arr_client), headers)
 

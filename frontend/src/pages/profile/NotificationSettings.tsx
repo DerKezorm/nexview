@@ -7,7 +7,6 @@ import { useQuery } from '@tanstack/react-query'
 import { ApiError, api } from '../../api/client'
 import type { Child, User } from '../../api/types'
 import { useAuth } from '../../auth/useAuth'
-import { useConfig } from '../../hooks/useConfig'
 import { Button, Card } from '../../components/ui'
 
 type MailFeld =
@@ -154,7 +153,6 @@ function ausUser(user: User): Entwurf {
  */
 export function NotificationSettings() {
   const { t } = useTranslation()
-  const { data: config } = useConfig()
   const { user, updateUser } = useAuth()
 
   const [entwurf, setEntwurf] = useState<Entwurf | null>(null)
@@ -204,7 +202,6 @@ export function NotificationSettings() {
       (!s.nurAdmin || user.role === 'admin') &&
       (!s.nieEntscheider || !user.can_approve) &&
       (!s.nurVerknuepft || user.mediaserver_linked) &&
-      (!s.nurMitSpeicher || Boolean(config?.storage_enabled)) &&
       (!s.nurMitKindern || hatAktiveKinder),
   )
   // Ohne bestätigte Adresse geht ohnehin nichts raus - das gehört gesagt,

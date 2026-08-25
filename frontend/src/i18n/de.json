@@ -566,8 +566,8 @@
     "roleUser": "Benutzer",
     "autoApproveAdmin": "bei Administratoren und Entscheidern immer aktiv",
     "autoApprove": "Anfragen automatisch freigeben",
-    "quotaMovies": "Filme pro Zeitraum",
-    "quotaSeries": "Serien pro Zeitraum",
+    "quotaMovies": "Filme {{period}}",
+    "quotaSeries": "Serien {{period}}",
     "quotaPeriod": "Zeitraum",
     "quotaUnlimited": "unbegrenzt",
     "usedNow": "Verbraucht im laufenden Zeitraum: {{movies}} Filme, {{series}} Serien",
@@ -577,7 +577,7 @@
     "resetQuotaHint": "Die bisherigen Anfragen bleiben erhalten – nur der Zähler beginnt von vorn. Beim nächsten Zeitraumwechsel gilt wieder der Kalender.",
     "quotaResetDone": "Kontingent zurückgesetzt.",
     "lastReset": "zuletzt zurückgesetzt am {{date}}",
-    "quotaInvalid": "Kontingente müssen ganze Zahlen ab 0 sein – leer bedeutet unbegrenzt.",
+    "quotaInvalid": "Bei „eigene Zahl“ muss eine ganze Zahl ab 0 dastehen.",
     "saveQuota": "Kontingent speichern",
     "unsaved": "noch nicht gespeichert",
     "periodDay": "pro Tag",
@@ -626,8 +626,6 @@
     "autoApproveTargetLaterBoth": "Zielordner und Qualitätsprofil wählt der Entscheider – wirkungslos",
     "storageLimit": "Speichergrenze",
     "storageDefault": "Standardgrenze",
-    "storageLimitHint": "Leer = es gilt die Standardgrenze. 0 = für dieses Konto unbegrenzt.",
-    "storageInvalid": "Die Speichergrenze muss eine ganze Zahl ab 0 sein.",
     "dissolveTitle": "Konto von {{name}} löschen",
     "dissolveItems": "Was das Konto belegt",
     "dissolveItemsHint": "Häkchen = geht in den Hausbestand (Datei bleibt). Ohne Häkchen wird über Radarr/Sonarr gelöscht.",
@@ -653,7 +651,17 @@
     "childAge": "{{age}} Jahre",
     "roleChild": "Kind",
     "mayManageChildren": "Darf Kinderkonten anlegen",
-    "mayManageChildrenHint": "Legt eigene Zugänge für seine Kinder an – im eigenen Profil unter „Kinder“."
+    "mayManageChildrenHint": "Legt eigene Zugänge für seine Kinder an – im eigenen Profil unter „Kinder“.",
+    "limitDefault": "Standard",
+    "limitOwn": "eigene Zahl",
+    "limitHint": "Standard = {{standard}}. 0 heißt: darf nichts anfragen.",
+    "summaryDefaults": "Standardwerte",
+    "limitsTitle": "Kontingente",
+    "resetStorage": "Speicher zurücksetzen",
+    "resetStorageTitle": "Speicher von {{name}} ins Haus?",
+    "resetStorageText": "Alles, was {{name}} zugerechnet ist, wird Hausbestand. Das Konto startet danach bei 0 GB.",
+    "resetStorageHint": "Keine Datei wird angefasst, die gespeicherte Grenze bleibt stehen. Offene Abgaben dieses Kontos gelten danach als erledigt.",
+    "storageResetDone": "Speicher zurückgesetzt – alles ins Haus übernommen."
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -853,7 +861,7 @@
     "tabWatchlist": "Merklisten",
     "secretsUnreadable": "Gespeicherte Zugangsdaten (API-Schlüssel, Medienserver-Zugang) lassen sich mit dem aktuellen Geheimschlüssel nicht mehr lesen. Häufigste Ursache: NEXVIEW_SECRET_KEY wurde geändert, oder data/secret.key ging beim Neu-Erstellen des Containers verloren (Datei liegt nicht im gemounteten Volume). Die betroffenen Zugangsdaten müssen einmal neu eingetragen bzw. der Medienserver neu verbunden werden – und der Schlüssel sollte dauerhaft gesichert sein, sonst passiert es beim nächsten Update wieder.",
     "tabChannels": "Benachrichtigungen",
-    "tabStorage": "Speicherkontingente"
+    "tabStorage": "Kontingente"
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -1496,22 +1504,20 @@
     "noneSeenHint": "Sobald du etwas davon im Media-Server gesehen hast, taucht es hier auf.",
     "seenSeason": "Alle Folgen gesehen",
     "notSeenSeason": "Noch nicht alle Folgen gesehen",
-    "seenNoData": "Status unbekannt – zu diesem Titel liegen keine Gesehen-Daten vor"
+    "seenNoData": "Status unbekannt – zu diesem Titel liegen keine Gesehen-Daten vor",
+    "unmanagedHint": "Wird nicht mehr von Radarr bzw. Sonarr verwaltet. Der Titel zählt weiter, lässt sich über Nexview aber nicht mehr entfernen – abgeben geht nur noch an den Hausbestand."
   },
   "storageAdmin": {
-    "title": "Speicher-Kontingente",
-    "intro": "Erfasst, wie viel Platz jeder Einzelne belegt – und begrenzt ihn, sobald du eine Grenze setzt.",
-    "pointMeasure": "Die Größen kommen aus Radarr, Sonarr und dem Media-Server – ohne zusätzliche Abfragen.",
-    "pointHouse": "Was beim Einschalten schon in der Bibliothek liegt, gehört dem Haus. Jedes Konto startet bei null.",
-    "pointNoLimit": "Wer seine Grenze erreicht hat, kann nichts Neues anfragen, bis er Platz schafft. Gelöscht wird weiterhin nichts.",
+    "title": "Kontingente",
+    "intro": "Zwei Grenzen, die immer beide gelten: wie viel jemand anfragen darf – und wie viel Platz er dabei belegen darf.",
+    "pointHouse": "Was schon in der Bibliothek liegt, gehört dem Haus. Jedes Konto startet bei null.",
+    "pointNoLimit": "Wer eine seiner Grenzen erreicht hat, kann nichts Neues anfragen, bis wieder Luft ist. Gelöscht wird weiterhin nichts.",
     "saved": "Gespeichert.",
     "pending": "Die erste Messung läuft. Sobald sie durch ist, stehen hier Zahlen.",
     "stateTitle": "Aktueller Stand",
     "assigned": "Zugeordnet",
     "people_one": "1 Person",
     "people_other": "{{count}} Personen",
-    "defaultLimit": "Standardgrenze",
-    "defaultLimitHint": "Gilt für jeden, der keine eigene Zahl hat. Leer heißt: niemand ist begrenzt. Einzelne Konten stellst du in der Nutzerverwaltung ein.",
     "unlimited": "unbegrenzt",
     "usersTitle": "Belegung nach Konto",
     "usersHint": "Anklicken, um die einzelnen Titel zu sehen.",
@@ -1519,22 +1525,32 @@
     "mustStayTitle": "Titel müssen in Radarr und Sonarr bleiben",
     "mustStayText": "Nexview löscht ausschließlich über Radarr und Sonarr – es sieht das Dateisystem selbst nie. Wer einen Titel dort entfernt und die Datei behält, schafft damit etwas, das Nexview zwar weiter mitzählt (der Media-Server führt es ja), aber nicht mehr entfernen kann. Der Anfragende bleibt dann auf einer Belastung sitzen, die er nicht mehr loswird – abgeben kann er sie nur noch an den Hausbestand.",
     "recycleBin": "Im Papierkorb",
-    "modeLabel": "Betriebsart der Kontingente",
-    "modeCount": "Nach Anzahl",
-    "modeCountHint": "Stückzahl je Woche oder Monat – wie bisher. Gemessen wird der Speicher trotzdem.",
-    "modeStorage": "Nach Speicherplatz",
-    "modeStorageHint": "Belegte GB je Konto. Das Stückzahl-Kontingent gilt dann nicht mehr.",
-    "resetTitleOn": "Auf Speicherplatz umstellen?",
-    "resetTitleOff": "Zurücksetzen und abschalten?",
     "resetText_one": "1 Titel mit {{size}} geht in den Hausbestand über. Alle Konten starten bei 0, offene Abgaben sind damit erledigt.",
     "resetText_zero": "Es ist noch niemandem etwas zugerechnet – alle Konten stehen ohnehin bei 0.",
-    "resetKeeps": "Dateien werden dabei nicht angefasst. Gespeicherte Grenzen bleiben erhalten und gelten wieder, wenn du zurückschaltest.",
-    "resetConfirmOn": "Umbuchen und umstellen",
-    "panic": "Zurücksetzen und abschalten",
+    "resetKeeps": "Dateien werden dabei nicht angefasst, gespeicherte Grenzen bleiben stehen. Offene Abgaben gelten danach als erledigt.",
     "resetText_other": "{{count}} Titel mit zusammen {{size}} gehen in den Hausbestand über. Alle Konten starten bei 0, offene Abgaben sind damit erledigt.",
     "devTitle": "Testphase – dieses Feature ist noch in Entwicklung",
     "devText": "Die Speicher-Kontingente werden gerade im echten Betrieb erprobt. Rechne mit Fehlern und Änderungen – und wenn dir etwas auffällt:",
-    "devReport": "melde es auf GitHub."
+    "devReport": "melde es auf GitHub.",
+    "defaultsTitle": "Standardwerte",
+    "defaultsHint": "Gelten für jeden, der nichts Eigenes eingetragen hat. Einzelne Konten stellst du in der Nutzerverwaltung ein.",
+    "defaultMovies": "Filme",
+    "defaultSeries": "Serien",
+    "defaultStorage": "Speicher",
+    "unitCount": "Stück",
+    "periodLabel": "Zeitraum der Stückzahl",
+    "periodDay": "pro Tag",
+    "periodWeek": "pro Woche",
+    "periodMonth": "pro Monat",
+    "bothApply": "Eine Anfrage geht nur durch, wenn beides noch Luft hat. Wer nur nach Platz begrenzen will, stellt die Stückzahlen auf „unbegrenzt“ – und umgekehrt.",
+    "houseTitle": "Alle Bestände ins Haus",
+    "houseHint": "Setzt jedes Konto auf null: Alles bisher Zugerechnete wird Hausbestand. Gedacht für den Moment, bevor du zum ersten Mal wirklich begrenzt.",
+    "houseButton": "Alle Bestände ins Haus übernehmen",
+    "resetTitle": "Alle Konten auf null setzen?",
+    "resetConfirm": "Ins Haus übernehmen",
+    "resetDone": "Erledigt – alle Konten stehen bei null.",
+    "pointMeasure": "Die Größen kommen aus Radarr, Sonarr und dem Media-Server – ohne zusätzliche Abfragen.",
+    "ownValue": "eigene Zahl"
   },
   "watchlistExpired": {
     "text": "Dein Medienserver-Zugang ist abgelaufen. Bis du dich neu anmeldest, bleiben deine Merkliste und der Gesehen-Stand stehen.",
@@ -1597,6 +1613,71 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.19.0": {
+        "lead": "Diese Fassung bringt Emby als dritten Medienserver, macht das Bewerten für alle offen — und legt die Kontingente zusammen: Stückzahl und Speicherplatz gelten ab jetzt gemeinsam statt entweder oder. Dazu einige Stellen, an denen Nexview endlich sagt, was es längst wusste: warum eine Anfrage dauert, was schon im eigenen Abo läuft, und wann ein Titel angekommen ist, auf den man wartet.",
+        "sections": [
+          {
+            "title": "Emby, als dritter Medienserver",
+            "where": "Einstellungen → Medienserver",
+            "body": "Verbinden, anmelden, Bibliothek abgleichen, Gesehen-Stand je Person — alles wie gehabt, nur mit einem Server mehr. Der Parallelbetrieb gilt unverändert: Wer will, verbindet Plex, Jellyfin und Emby gleichzeitig, und der Gesehen-Stand wird über alle drei hinweg zusammengeführt.\n\nEine Grenze muss man kennen: Auch Emby-Konten haben keine E-Mail-Adresse. Die Anmeldung über Emby legt deshalb kein Konto an — man verknüpft sie aus dem Profil heraus. Ohne Adresse gibt es nichts, woran Nexview jemanden wiedererkennt, und eine Einladung endete still in einem zweiten Konto ohne Passwort.\n\nDie PIN, die Emby optional je Konto kennt, stört dabei nicht: Sie gehört zu den Anzeigeeinstellungen, nicht zu den Rechten — eine Profil-PIN zum Umschalten auf einem geteilten Gerät, wie man sie von Netflix kennt."
+          },
+          {
+            "title": "Bewerten darf jeder, nicht nur der Besteller",
+            "where": "Auf jeder Titelseite eines vorhandenen Titels",
+            "body": "Die Rückmeldung zur Qualität hing bisher an der Anfrage. Daraus folgte alles Weitere: Nur wer bestellt hatte, sah die Sterne — und wer denselben Film zwei Wochen später sah und merkte, dass die Tonspur fehlt, hatte keine Möglichkeit, es zu sagen.\n\nHier geht es nicht um Geschmack, dafür gibt es das Herz, sondern um die **Datei** — und die beurteilt jeder gleich gut, der sie gesehen hat. Die Bewertung hängt deshalb jetzt am Titel. In „Meine Anfragen“ bleiben die Sterne als Abkürzung, weil der Augenblick direkt nach „Bereits geladen“ der ist, in dem jemand bewertet.\n\nSerien werden je Staffel beurteilt: Die Dateien liegen staffelweise, die Qualität unterscheidet sich staffelweise. Bestehende Bewertungen wandern beim ersten Start mit."
+          },
+          {
+            "title": "„Sag mir Bescheid“ — warten, ohne anzufragen",
+            "where": "Auf der Titelseite, wenn jemand anderes den Titel schon angefragt hat",
+            "body": "Bisher ließ sich ein bereits angefragter Titel nicht noch einmal anfragen — und danach hörte der Zweite nie wieder etwas davon. Er erfuhr nicht einmal, dass der Titel angekommen war, obwohl genau das seine Frage war.\n\nBei einem **Film** steht der Knopf dort, wo sonst nur „wird gesucht“ steht, also genau dann, wenn es etwas zu warten gibt. Gemeldet wird einmal, danach ist die Vormerkung erledigt. Bei einer **Serie** steht er dauerhaft neben dem Anfrage-Knopf und meldet jede neue Folge — meistens wartet man genau darauf.\n\nGemeldet wird immer gebündelt: Ein Staffelpaket mit acht Folgen ist *eine* Nachricht, und zusammenhängende Nummern werden zusammengezogen („S2: 1–3, 7“). Acht Nachrichten in derselben Minute wären der schnellste Weg, jemanden dazu zu bringen, Benachrichtigungen abzuschalten."
+          },
+          {
+            "title": "Was in deinem Abo schon läuft",
+            "where": "Profil → Streaming-Dienste, sichtbar beim Anfragen",
+            "body": "Wer seine Streaming-Dienste hinterlegt, bekommt beim Anfragen den Satz zu sehen, der die Entscheidung ändern kann: „Läuft in deinem Netflix.“ Ein **Hinweis**, keine Sperre — verhindert wird nichts.\n\nBei Serien steht bewusst ein anderer Satz da: Die Quelle sagt „läuft auf Netflix“ über die *Serie*, nicht über die vierte Staffel, die dort fehlt — und genau in dem Fall fragt jemand an.\n\nDerselbe Abgleich erscheint dort, wo entschieden wird: in der Freigabeliste und bei den Eltern, wenn sie einen Kinderwunsch entscheiden. Gemessen wird an den Abos **des Anfragenden**, nicht an denen des Entscheiders — der hat vielleicht kein Netflix, aber die Frage ist, ob der Anfragende ohne den Download auskäme."
+          },
+          {
+            "title": "Der Verlauf einer Anfrage",
+            "where": "Meine Anfragen",
+            "body": "„Warum dauert das?“ ist die häufigste Frage, und Nexview kannte die Antwort immer vollständig — angefragt wann, freigegeben von wem, seit wann in Suche, zuletzt nachgesehen wann. Sichtbar war davon ein einziges Zustandswort.\n\nEin Knopf öffnet jetzt eine Zeitleiste: erledigte Schritte grün mit Haken, der laufende gelb, kommende grau. Ein abgebrochener Weg endet dort, wo er endet — unter einer Ablehnung steht kein grauer „Fertig“-Schritt, der ein Versprechen wäre, das niemand mehr einlöst.\n\nZwei Angaben schaffen es damit zum ersten Mal bis zum Anfragenden: wer freigegeben hat (oder dass es automatisch ging) und wann zuletzt nach dem Titel gesehen wurde."
+          },
+          {
+            "title": "Ein Reiter statt eines Umschalters",
+            "where": "Einstellungen → Kontingente",
+            "body": "Bisher entschied ein Schalter, ob die Anzahl der Anfragen zählt oder der belegte Platz — nie beides. Der ist weg. Stattdessen stehen dort drei Standardwerte untereinander: Filme, Serien, Speicher. Sie gelten für jeden, der nichts Eigenes eingetragen hat.\n\nEine Anfrage geht durch, wenn beide Grenzen noch Luft haben. Wird jemand gebremst, sagt die Meldung, welche der beiden es war — gegen eine volle Stückzahl hilft warten, gegen vollen Platz nur aufräumen. Ohne diese Angabe müsste man raten.\n\nDer Zeitraum der Stückzahl (Tag, Woche, Monat) gilt jetzt fürs ganze Haus. Vorher stand er an jedem Konto einzeln; drei Konten mit drei verschiedenen Zeiträumen erklären aber niemandem mehr, was „3 Filme“ eigentlich bedeutet."
+          },
+          {
+            "title": "Drei Zustände statt eines leeren Feldes",
+            "where": "Einstellungen → Benutzer",
+            "body": "Bei jedem Konto stehen jetzt alle drei Grenzen nebeneinander, jede mit derselben Auswahl: **Standard** (der Wert aus den Kontingenten, mit der konkreten Zahl daneben), **unbegrenzt** oder eine **eigene Zahl**. Die 0 heißt dabei „darf nichts anfragen“.\n\nVorher war „unbegrenzt“ ein leeres Feld. Wer einmal eine Zahl eingetragen hatte, sah nicht mehr, wie er dorthin zurückkommt.\n\n⚠️ Eine Bedeutung hat sich umgedreht: Beim Speicher hieß die **0** bisher „für dieses Konto unbegrenzt“. Jetzt heißt sie das Gegenteil. Gespeicherte Nullen ziehen beim ersten Start von allein auf „unbegrenzt“ um — sonst wäre ein Konto über Nacht still gesperrt gewesen."
+          },
+          {
+            "title": "Speicher sehen und abgeben gibt es jetzt überall",
+            "where": "Profil → Speicherkontingent",
+            "body": "Der Speicher-Reiter, der Hausbestand und „Brauche ich nicht mehr“ hingen am alten Hauptschalter — wer nach Stückzahl begrenzte, hat davon nie etwas gesehen. Gemessen wird immer, begrenzt nur auf Wunsch, und deshalb steht die ganze Kette jetzt jedem offen: abgeben, der Betreiber entscheidet, der Titel geht ins Haus, bleibt liegen oder wird gelöscht.\n\nFür Betreiber heißt das: Es kann jetzt eine Abgabe auf dem Tisch liegen, die vorher nie kam.\n\n⚠️ Wer bisher nach Stückzahl begrenzt hat, startet einmalig bei null — alles Zugerechnete geht ins Haus. Die GB-Grenzen waren in diesem Betrieb wirkungslos, die Zurechnung lief aber im Hintergrund weiter. Ohne diesen Schritt wären Leute nach dem Update schlagartig gesperrt, wegen einer Zahl, die seit Monaten herumlag. Keine Datei wird dabei angefasst."
+          },
+          {
+            "title": "Titel, die Radarr und Sonarr nicht mehr kennen",
+            "where": "Profil → Speicherkontingent",
+            "body": "Wer einen Titel aus Radarr entfernt und die Datei behält, schafft etwas, das Nexview zwar weiter mitzählt — der Medienserver meldet ihn ja —, aber nicht mehr entfernen kann: Gelöscht wird ausschließlich über Radarr und Sonarr. Der Anfragende blieb auf einer Belastung sitzen, die er nicht mehr loswird.\n\nSolche Zeilen tragen jetzt ein Zeichen mit Erklärung. Bis hierher merkte es nur der Betreiber, und zwar erst in dem Moment, in dem er den Titel löschen wollte."
+          },
+          {
+            "title": "Zurücksetzen ist ein Knopf, keine Nebenwirkung",
+            "where": "Einstellungen → Kontingente und Einstellungen → Benutzer",
+            "body": "Das Umschalten der Betriebsart hat früher still alle Konten auf null gesetzt. Diesen Vorgang gibt es weiter, aber jetzt als eigenen Knopf mit Rückfrage: „Alle Bestände ins Haus übernehmen“ in den Kontingenten, „Speicher zurücksetzen“ bei jedem einzelnen Konto.\n\nBeide nennen vorher die Zahlen. Keine Datei wird angefasst, eingetragene Grenzen bleiben stehen — und offene Abgaben gelten danach als erledigt.\n\nDer Knopf am Konto ist zugleich der Ausweg für den Fall darüber: Sitzt jemand auf einem Titel, den Radarr nicht mehr führt, wird er ihn so wieder los."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Die Regionsauswahl kennt jetzt 139 Länder statt acht — wer in den Niederlanden, Polen oder Kanada sitzt, konnte sein Land bisher schlicht nicht angeben.",
+          "Ein gelber Streifen erinnert daran, die eigene Region zu setzen. Für „läuft in deinem Netflix“ ist die geerbte Vorgabe des Betreibers eine falsche Behauptung — der Katalog von Netflix Schweiz ist nicht der deutsche.",
+          "Bewertungen werden als veraltet gekennzeichnet, wenn Radarr die Datei nachträglich aufwertet. Sie bleiben stehen, zählen aber nicht mehr mit — und der Betroffene darf neu bewerten.",
+          "Die Rückmeldungs-Ansicht zeigt jetzt jede Bewertung, nicht nur die, hinter denen eine Anfrage steht.",
+          "Aus ein oder zwei Sternen wird auf Wunsch ein Ticket — ein Problem verschwindet sonst im Durchschnitt.",
+          "Die Statistik zeigt Filme, Serien und Speicher nebeneinander statt entweder oder.",
+          "Der Freigabe-Dialog warnt, wenn der Anfragende schon über seiner Speichergrenze steht — bisher gab es diese Warnung nur im GB-Betrieb."
+        ]
+      },
       "0.18.0": {
         "lead": "Nexview spricht jetzt auch mit Jellyfin — und zwar neben Plex, nicht statt Plex. Beide Server dürfen gleichzeitig verbunden sein, und jede Person kann auf beiden ein Konto verknüpfen. Dazu kommt eine Reihe von Handgriffen, die verhindern, dass jemand versehentlich ausgesperrt wird, und ein Protokoll, mit dem sich Fehler tatsächlich finden lassen.",
         "sections": [

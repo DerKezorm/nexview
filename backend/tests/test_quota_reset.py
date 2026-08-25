@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import MediaRequest, User, utcnow
 from app.services import quota
+from app.services.settings_service import load_settings
 
 from .conftest import auth_headers, create_user
 
@@ -90,7 +91,10 @@ def test_alte_ruecksetzung_wirkt_nicht_mehr(arr_client: TestClient) -> None:
         # Rücksetzung auf "vor 30 Tagen" datieren, also vor den Zeitraumbeginn.
         kim_db.quota_reset_at = utcnow().replace(tzinfo=None) - timedelta(days=30)
         session.commit()
-        assert quota.counting_start(kim_db) == quota.period_start(kim_db.quota_period)
+        einstellungen = load_settings(session)
+        assert quota.counting_start(kim_db, einstellungen) == quota.period_start(
+            einstellungen.quota_period
+        )
 
     stand = arr_client.get("/api/requests/quota", headers=kim).json()
     assert stand["movie"]["used"] == 1

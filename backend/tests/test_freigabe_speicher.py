@@ -69,7 +69,6 @@ def _belegung(db, user_id: int, gb: int, *, tmdb: int = 900) -> None:
 
 def _kim_im_minus(client) -> tuple[int, int]:
     """kim mit 50 GB Grenze, 60 GB belegt und einer wartenden Anfrage."""
-    client.put("/api/settings", json={"storage_enabled": True})
     konto = create_user(client, "kim", "passwort-1234", storage_limit_gb=50)
     with SessionLocal() as db:
         _belegung(db, konto["id"], 60)
@@ -89,23 +88,23 @@ def test_die_liste_zeigt_den_stand_des_anfragenden(arr_client) -> None:
     assert zeile["storage"]["exhausted"] is True
 
 
-def test_ohne_speicher_kontingente_steht_dort_nichts(arr_client) -> None:
-    """Es gilt immer nur eine Waehrung.
+def test_der_speicherstand_steht_immer_dabei(arr_client) -> None:
+    """Auch ohne jede Grenze - der Stand ist eine Auskunft, keine Warnung.
 
-    Ist der Schalter aus, zaehlt die Stueckzahl - eine Speicher-Zahl daneben
-    waere eine zweite Waehrung in derselben Zeile und genau die Verwirrung,
-    die das Feature vermeiden soll.
+    Bis 0.19 blieb die Spalte leer, solange das Haus nach Stueckzahl begrenzte
+    ("nie beides"). Jetzt gelten beide Waehrungen, und wer freigibt, soll
+    sehen, wie viel Luft der Anfragende noch hat.
     """
     konto = create_user(arr_client, "kim", "passwort-1234")
     with SessionLocal() as db:
         _wartende_anfrage(db, konto["id"])
 
     zeile = arr_client.get("/api/admin/requests").json()[0]
-    assert zeile["storage"] is None
+    assert zeile["storage"]["limit_bytes"] is None
+    assert zeile["storage"]["exhausted"] is False
 
 
 def test_wer_im_rahmen_bleibt_wird_nicht_markiert(arr_client) -> None:
-    arr_client.put("/api/settings", json={"storage_enabled": True})
     konto = create_user(arr_client, "kim", "passwort-1234", storage_limit_gb=50)
     with SessionLocal() as db:
         _belegung(db, konto["id"], 10)
@@ -116,9 +115,12 @@ def test_wer_im_rahmen_bleibt_wird_nicht_markiert(arr_client) -> None:
 
 
 def test_ohne_grenze_bleibt_die_zahl_ohne_marke(arr_client) -> None:
-    """Unbegrenzt heisst: es gibt nichts zu warnen, aber die Zahl steht da."""
-    arr_client.put("/api/settings", json={"storage_enabled": True})
-    konto = create_user(arr_client, "kim", "passwort-1234", storage_limit_gb=0)
+    """Unbegrenzt heisst: es gibt nichts zu warnen, aber die Zahl steht da.
+
+    ``-1`` ist am Konto das ausdrueckliche "ohne Grenze"; die **0** heisst seit
+    0.20 das Gegenteil, naemlich "darf nichts".
+    """
+    konto = create_user(arr_client, "kim", "passwort-1234", storage_limit_gb=-1)
     with SessionLocal() as db:
         _belegung(db, konto["id"], 400)
         _wartende_anfrage(db, konto["id"])
@@ -153,7 +155,6 @@ def test_der_stand_wird_je_person_einmal_gerechnet(arr_client) -> None:
     Stand. Ginge er je Zeile durch eine eigene Rechnung, waere das der Ort, an
     dem sie auseinanderliefen.
     """
-    arr_client.put("/api/settings", json={"storage_enabled": True})
     konto = create_user(arr_client, "kim", "passwort-1234", storage_limit_gb=50)
     with SessionLocal() as db:
         _belegung(db, konto["id"], 60)
@@ -188,7 +189,6 @@ def test_freigabe_wird_vom_speicher_nicht_verhindert(arr_client) -> None:
 
 def test_sammelfreigabe_wird_vom_speicher_nicht_verhindert(arr_client) -> None:
     """Der Weg, auf dem ein Konto am schnellsten ins Minus rutscht."""
-    arr_client.put("/api/settings", json={"storage_enabled": True})
     konto = create_user(arr_client, "kim", "passwort-1234", storage_limit_gb=50)
     with SessionLocal() as db:
         _belegung(db, konto["id"], 60)
@@ -209,7 +209,6 @@ def test_sammelfreigabe_wird_vom_speicher_nicht_verhindert(arr_client) -> None:
 
 def test_die_antwort_zeigt_den_stand_nach_der_entscheidung(arr_client) -> None:
     """Die Warnung dort, wo sie ankommt - unmittelbar nach dem Klick."""
-    arr_client.put("/api/settings", json={"storage_enabled": True})
     konto = create_user(arr_client, "kim", "passwort-1234", storage_limit_gb=50)
     with SessionLocal() as db:
         _belegung(db, konto["id"], 60)
@@ -222,7 +221,6 @@ def test_die_antwort_zeigt_den_stand_nach_der_entscheidung(arr_client) -> None:
 
 def test_admins_tragen_keinen_stand(arr_client) -> None:
     """Ein Administrator hat kein Kontingent - eine Grenze waere erfunden."""
-    arr_client.put("/api/settings", json={"storage_enabled": True})
     with SessionLocal() as db:
         admin_id = db.query(User).filter(User.role == Role.admin).one().id
         _wartende_anfrage(db, admin_id)

@@ -18,7 +18,7 @@ from datetime import timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import AuthToken, QuotaPeriod, Role, TokenPurpose, User, utcnow
+from ..models import AuthToken, Role, TokenPurpose, User, utcnow
 
 # Wie lange die jeweilige Art gilt. Kurz genug, dass ein abgefangener Link
 # selten noch nuetzt - lang genug, dass niemand in Zeitnot geraet.
@@ -68,7 +68,6 @@ def create(
     invite_role: Role | None = None,
     invite_quota_movies: int | None = None,
     invite_quota_series: int | None = None,
-    invite_quota_period: QuotaPeriod | None = None,
     invite_blocked_movie_profiles: str = "",
     invite_blocked_series_profiles: str = "",
     lifetime_days: int | None = None,
@@ -104,7 +103,6 @@ def create(
         invite_role=invite_role,
         invite_quota_movies=invite_quota_movies,
         invite_quota_series=invite_quota_series,
-        invite_quota_period=invite_quota_period,
         invite_blocked_movie_profiles=invite_blocked_movie_profiles,
         invite_blocked_series_profiles=invite_blocked_series_profiles,
         mediaserver_ref=mediaserver_ref,

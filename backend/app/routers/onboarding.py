@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from ..deps import DbSession
-from ..models import AuthToken, QuotaPeriod, Role, TokenPurpose, User, utcnow
+from ..models import AuthToken, Role, TokenPurpose, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH, VerificationSent
 from ..security import hash_password, verify_password
 from ..services import accounts, mail, tokens
@@ -239,7 +239,6 @@ def accept_invitation(raw: str, payload: AcceptInvitation, db: DbSession) -> dic
         language=load_settings(db).default_language,
         quota_movies_limit=token.invite_quota_movies,
         quota_series_limit=token.invite_quota_series,
-        quota_period=token.invite_quota_period or QuotaPeriod.week,
         blocked_movie_profiles=token.invite_blocked_movie_profiles,
         blocked_series_profiles=token.invite_blocked_series_profiles,
     )

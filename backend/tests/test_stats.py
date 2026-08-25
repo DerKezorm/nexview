@@ -123,35 +123,31 @@ def test_kontingent_steht_in_der_statistik(arr_client: TestClient) -> None:
     assert eintrag["quota_series_limit"] is None
 
 
-def test_ohne_speicherbetrieb_kein_speicherstand(arr_client: TestClient) -> None:
-    """Voreinstellung ist die Stueckzaehlung - dann bleibt das Feld leer.
+def test_beide_waehrungen_stehen_nebeneinander(arr_client: TestClient) -> None:
+    """Seit 0.20 gelten beide - also stehen auch beide in der Tabelle.
 
-    Die Oberflaeche entscheidet daran, welche Spalten sie zeigt: Ist der Wert
-    ``None``, stehen dort die Stueck-Kontingente.
+    Bis 0.19 blieb der Speicherstand ``None``, solange das Haus nach Stueckzahl
+    begrenzte; die Oberflaeche entschied daran, welche Spalten sie zeigt. Es
+    gibt kein Entweder-oder mehr, und welche Grenze jemanden gerade aufhaelt,
+    sieht man nur im Vergleich.
     """
     create_user(arr_client, "kim")
     eintrag = next(
         e for e in arr_client.get("/api/admin/stats").json()["users"] if e["username"] == "kim"
     )
-    assert eintrag["storage_used_bytes"] is None
+    assert eintrag["storage_used_bytes"] == 0
+    # Ohne Hausvorgabe ist niemand begrenzt - die Zahl steht trotzdem da.
     assert eintrag["storage_limit_bytes"] is None
-    # Die Stueck-Zahlen sind trotzdem da.
     assert eintrag["quota_movie_used"] == 0
 
 
-def test_im_speicherbetrieb_steht_der_platz_da(arr_client: TestClient) -> None:
-    """⚠️ Anzahl **oder** Speicher, nie beides.
+def test_die_eigene_speichergrenze_steht_in_der_tabelle(arr_client: TestClient) -> None:
+    """⚠️ Die Felder muessen es bis zum Browser schaffen.
 
-    Die Statistik zeigte frueher immer die Stueck-Kontingente, auch wenn das
-    Haus laengst auf GB umgestellt hatte: darueber der belegte Platz in
-    Gigabyte, darunter "unbegrenzt" Stueck - zwei Waehrungen nebeneinander,
-    von denen nur eine gilt.
-
-    ⚠️ Und die Felder muessen es bis zum Browser schaffen. Beim ersten Anlauf
-    wurden sie berechnet, standen aber nicht in ``UserStatsPublic`` - Pydantic
-    liess sie ohne Fehler und ohne Log einfach weg.
+    Beim ersten Anlauf wurden sie berechnet, standen aber nicht in
+    ``UserStatsPublic`` - Pydantic liess sie ohne Fehler und ohne Log einfach
+    weg.
     """
-    arr_client.put("/api/settings", json={"storage_enabled": True})
     created = create_user(arr_client, "kim")
     arr_client.patch(f"/api/users/{created['id']}", json={"storage_limit_gb": 50})
 

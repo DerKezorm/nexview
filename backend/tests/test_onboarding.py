@@ -79,9 +79,18 @@ def test_einladung_verschicken_und_einloesen(
 def test_einladung_uebernimmt_das_kontingent(
     admin_client: TestClient, postfach: list[EmailMessage]
 ) -> None:
+    """Die Einladung traegt die Grenzen ans neue Konto - und nur die.
+
+    Der **Zeitraum** steht nicht mehr dabei: Er gilt haus-weit und wird in den
+    Kontingenten eingestellt.
+    """
     admin_client.post(
         "/api/users/invitations",
-        json={"email": "neu@beispiel.de", "quota_movies_limit": 3, "quota_period": "month"},
+        json={
+            "email": "neu@beispiel.de",
+            "quota_movies_limit": 3,
+            "quota_series_limit": "unlimited",
+        },
     )
     roh = _token_aus(_link_aus(postfach[0], "/einladung/"))
     admin_client.post(
@@ -90,7 +99,7 @@ def test_einladung_uebernimmt_das_kontingent(
 
     eintrag = next(u for u in admin_client.get("/api/users").json() if u["username"] == "neuer")
     assert eintrag["quota_movies_limit"] == 3
-    assert eintrag["quota_period"] == "month"
+    assert eintrag["quota_series_limit"] == "unlimited"
 
 
 def test_vergebener_benutzername_wird_abgelehnt(

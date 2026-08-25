@@ -5,9 +5,45 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .models import QuotaPeriod, Role
+from .models import Role
+from .services.quota import UNBEGRENZT
+
+# --- Kontingente: ein Wert, drei Bedeutungen ------------------------------
+#
+# Eine Grenze am Konto kann dreierlei heissen, und alle drei muessen ueber die
+# Leitung passen:
+#
+# * ``"standard"``  -> es gilt der Standardwert des Hauses
+# * ``"unlimited"`` -> ausdruecklich ohne Grenze
+# * eine Zahl       -> genau diese; die **0 heisst "darf nichts"**
+#
+# ⚠️ Bewusst Woerter statt Zahlen-Sentinels. In der Datenbank stehen ``NULL``
+# und ``-1``, aber ein Feld, in dem ``-1`` mal "Standard" und mal "unbegrenzt"
+# bedeutet, ist genau die Verwechslung, die niemand bemerkt - und in der
+# Oberflaeche haette am Ende jemand eine ``-1`` im Eingabefeld stehen.
+Kontingentwert = int | Literal["standard", "unlimited"]
+
+
+def kontingent_aus_wert(wert: Kontingentwert) -> int | None:
+    """Wire-Wert -> Datenbank: ``None`` = Standard, ``-1`` = unbegrenzt."""
+    if wert == "standard":
+        return None
+    if wert == "unlimited":
+        return UNBEGRENZT
+    return max(0, int(wert))
+
+
+def kontingent_als_wert(wert: int | None) -> Kontingentwert:
+    """Datenbank -> Wire. Die Umkehrung von ``kontingent_aus_wert``."""
+    if wert is None:
+        return "standard"
+    if wert == UNBEGRENZT:
+        return "unlimited"
+    return max(0, wert)
 
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]{3,32}$")
 
@@ -139,13 +175,23 @@ class UserPublic(BaseModel):
     effective_auto_approve_movies: bool
     effective_auto_approve_series: bool
     can_approve: bool
-    quota_movies_limit: int | None
-    quota_series_limit: int | None
-    quota_period: QuotaPeriod
-    # Speicher-Grenze in GB. **NULL heisst "Standardgrenze gilt"**, nicht
-    # unbegrenzt - anders als bei den Stueckzahlen darueber. Unbegrenzt fuer
-    # dieses eine Konto ist die 0.
-    storage_limit_gb: int | None = None
+    # Alle drei Grenzen sprechen dieselbe Sprache: "standard", "unlimited"
+    # oder eine Zahl. Der Zeitraum steht **nicht** mehr am Konto - er gilt
+    # haus-weit und kommt aus den Einstellungen.
+    quota_movies_limit: Kontingentwert
+    quota_series_limit: Kontingentwert
+    storage_limit_gb: Kontingentwert = "standard"
+
+    @field_validator(
+        "quota_movies_limit",
+        "quota_series_limit",
+        "storage_limit_gb",
+        mode="before",
+    )
+    @classmethod
+    def _als_wert(cls, wert: object) -> object:
+        """Aus der Datenbank kommen ``None`` und ``-1``, nach aussen Woerter."""
+        return kontingent_als_wert(wert) if wert is None or isinstance(wert, int) else wert
     # Wann der Admin das Kontingent zuletzt von Hand zurueckgesetzt hat.
     quota_reset_at: datetime | None
     blocked_movie_profiles: list[int]
@@ -267,9 +313,8 @@ class InvitationCreate(BaseModel):
 
     email: str = Field(min_length=3, max_length=255)
     role: Role = Role.user
-    quota_movies_limit: int | None = Field(default=None, ge=0)
-    quota_series_limit: int | None = Field(default=None, ge=0)
-    quota_period: QuotaPeriod = QuotaPeriod.week
+    quota_movies_limit: Kontingentwert = "standard"
+    quota_series_limit: Kontingentwert = "standard"
 
     _check_role = field_validator("role")(_keine_kinderrolle)
 
@@ -305,13 +350,12 @@ class UserUpdate(BaseModel):
     auto_approve: bool | None = None
     auto_approve_movies: bool | None = None
     auto_approve_series: bool | None = None
-    quota_movies_limit: int | None = Field(default=None, ge=0)
-    quota_series_limit: int | None = Field(default=None, ge=0)
-    quota_period: QuotaPeriod | None = None
-    # -1 setzt zurueck auf die Standardgrenze - genau wie bei ``age``.
-    # Ohne Sentinel liesse sich "wieder die Vorgabe" nicht ausdruecken:
-    # ``None`` heisst in diesem Schema "nicht mitgeschickt".
-    storage_limit_gb: int | None = Field(default=None, ge=-1)
+    # ``None`` heisst hier durchgehend "nicht mitgeschickt" - deshalb tragen
+    # die drei Grenzen Woerter fuer "Standard" und "unbegrenzt" und keine
+    # Zahlen-Sentinels.
+    quota_movies_limit: Kontingentwert | None = None
+    quota_series_limit: Kontingentwert | None = None
+    storage_limit_gb: Kontingentwert | None = None
     # Leere Liste bedeutet: alle Qualitaetsprofile erlaubt.
     blocked_movie_profiles: list[int] | None = None
     blocked_series_profiles: list[int] | None = None

@@ -540,13 +540,11 @@ export function AdminMediaServerSettings() {
                 Statt zwei Vorgaben fuer dasselbe gibt es jetzt eine Auskunft,
                 was neue Konten bekommen - und der Weg dorthin steht dabei. */}
             <p className="rounded-xl border border-ink-700 bg-ink-900 px-4 py-3 text-sm text-mist-500">
-              {settings?.storage_enabled
-                ? settings?.storage_default_limit_gb
-                  ? t('mediaserver.newAccountsStorage', {
-                      gb: settings.storage_default_limit_gb,
-                    })
-                  : t('mediaserver.newAccountsStorageUnlimited')
-                : t('mediaserver.newAccountsUnlimited')}
+              {settings?.storage_default_limit_gb
+                ? t('mediaserver.newAccountsStorage', {
+                    gb: settings.storage_default_limit_gb,
+                  })
+                : t('mediaserver.newAccountsStorageUnlimited')}
             </p>
 
 

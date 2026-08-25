@@ -9,6 +9,7 @@ import type {
   ArrOptions,
   Invitation,
   InvitationCreated,
+  Kontingentwert,
   QuotaPeriod,
   Role,
   User,
@@ -23,7 +24,44 @@ import { Button, Card, ErrorBanner, Field, Spinner } from "../../components/ui";
 import { useConfig } from "../../hooks/useConfig";
 import { formatDate } from "../../lib/format";
 
-const PERIODS: QuotaPeriod[] = ["day", "week", "month"];
+/**
+ * Die drei Grenzen eines Kontos - in der Reihenfolge, in der sie dastehen.
+ *
+ * ⚠️ **Alle drei gelten immer.** Bis 0.19 war es ein haus-weites
+ * Entweder-oder (Stueckzahl *oder* Speicher); entsprechend blendete diese
+ * Seite je nach Betriebsart die eine oder die andere Haelfte aus. Beides
+ * nebeneinander ist keine doppelte Wahrheit mehr, sondern die Regel: Eine
+ * Anfrage geht nur durch, wenn beide noch Luft haben.
+ */
+const GRENZEN = [
+  {
+    feld: "quota_movies_limit",
+    label: "adminUsers.quotaMovies",
+    vorgabe: "quota_default_movies",
+    gb: false,
+  },
+  {
+    feld: "quota_series_limit",
+    label: "adminUsers.quotaSeries",
+    vorgabe: "quota_default_series",
+    gb: false,
+  },
+  {
+    feld: "storage_limit_gb",
+    label: "adminUsers.storageLimit",
+    vorgabe: "storage_default_limit_gb",
+    gb: true,
+  },
+] as const;
+
+type Grenzfeld = (typeof GRENZEN)[number]["feld"];
+
+/**
+ * Was im Auswahlfeld steht. Der Entwurf haelt genau diese drei Zustaende -
+ * "zahl" traegt die Ziffern getrennt daneben, damit ein Wechsel auf
+ * "Standard" und zurueck die eingetippte Zahl nicht verliert.
+ */
+type Grenzentwurf = { modus: "standard" | "unlimited" | "zahl"; zahl: string };
 
 /**
  * Die Liste nach Rolle gegliedert - die mit den meisten Rechten zuerst.
@@ -44,16 +82,34 @@ const GRUPPEN = [
   { rolle: "child" as const, titel: "adminUsers.groupChildren" },
 ];
 
-/** Leeres Feld bedeutet "unbegrenzt" - deshalb Text statt Zahl im Zustand. */
-type QuotaDraft = { movies: string; series: string };
-
 function periodLabel(period: QuotaPeriod): string {
   return `adminUsers.period${period.charAt(0).toUpperCase()}${period.slice(1)}`;
 }
 
-/** "2/3" bei begrenztem Kontingent, sonst nur die verbrauchte Anzahl. */
-function verbrauchText(used: number, limit: number | null): string {
-  return limit === null ? String(used) : `${used}/${limit}`;
+/** Backend-Wert -> Entwurf. */
+function alsEntwurf(wert: Kontingentwert): Grenzentwurf {
+  return typeof wert === "number"
+    ? { modus: "zahl", zahl: String(wert) }
+    : { modus: wert, zahl: "" };
+}
+
+/** Entwurf -> Backend. ``undefined`` heisst "keine gueltige Zahl". */
+function alsWert(entwurf: Grenzentwurf): Kontingentwert | undefined {
+  if (entwurf.modus !== "zahl") return entwurf.modus;
+  const zahl = Number(entwurf.zahl);
+  if (entwurf.zahl.trim() === "" || !Number.isInteger(zahl) || zahl < 0)
+    return undefined;
+  return zahl;
+}
+
+/**
+ * "2/3" bei einer eigenen Zahl, sonst nur die verbrauchte Anzahl.
+ *
+ * Steht am Konto "Standard", kennt diese Seite die tatsächliche Grenze nicht -
+ * sie liegt beim Haus. Lieber die nackte Zahl als ein erfundener Nenner.
+ */
+function verbrauchText(used: number, limit: Kontingentwert): string {
+  return typeof limit === "number" ? `${used}/${limit}` : String(used);
 }
 
 export function AdminUsersSettings() {
@@ -62,9 +118,6 @@ export function AdminUsersSettings() {
   const { user: me } = useAuth();
   const { data: config } = useConfig();
   const minPassword = config?.min_password_length ?? 4;
-  // Zählt der belegte Platz? Dann stehen hier keine Stückzahlen – es gilt
-  // immer nur eine Währung, und zwei Felder wären zwei Wahrheiten.
-  const speicherGilt = Boolean(config?.storage_enabled);
   /**
    * Einladen geht nur mit beidem: ohne öffentliche Adresse zeigt der Link ins
    * Leere, ohne Mailserver kommt er nicht an. Das Backend weist es ebenfalls
@@ -77,17 +130,17 @@ export function AdminUsersSettings() {
   const [error, setError] = useState<string | null>(null);
   const [resetting, setResetting] = useState<number | null>(null);
   const [newPassword, setNewPassword] = useState("");
-  const [quotaDrafts, setQuotaDrafts] = useState<Record<number, QuotaDraft>>(
-    {},
-  );
-  // Als Text: „leer" heißt hier **Standardgrenze**, nicht unbegrenzt –
-  // dasselbe Problem wie bei den Stückzahlen, dieselbe Lösung.
-  const [speicherDrafts, setSpeicherDrafts] = useState<Record<number, string>>({});
+  /** Vorgemerkte Grenzen je Benutzer und Feld - erst beim Speichern geschrieben. */
+  const [grenzDrafts, setGrenzDrafts] = useState<
+    Record<number, Partial<Record<Grenzfeld, Grenzentwurf>>>
+  >({});
   /** Welcher Benutzer ist gerade aufgeklappt? Nur einer zur Zeit. */
   const [editing, setEditing] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
   /** Wessen Kontingent soll zurückgesetzt werden? Steuert die Rückfrage. */
   const [quotaReset, setQuotaReset] = useState<User | null>(null);
+  /** Wessen Speicher soll ins Haus? Steuert die zweite Rückfrage. */
+  const [speicherReset, setSpeicherReset] = useState<User | null>(null);
   /**
    * Ungespeicherte Änderungen je Benutzer.
    *
@@ -278,6 +331,30 @@ export function AdminUsersSettings() {
     onError: (caught) => fail(caught, t("errors.generic")),
   });
 
+  /**
+   * Die Speicher-Belegung eines Kontos ins Haus - der Ausweg aus dem
+   * **Geisterposten**.
+   *
+   * ⚠️ Wer einen über Nexview angefragten Titel aus Radarr wirft und die Datei
+   * behält, bleibt dafür belastet: Nexview löscht ausschließlich über
+   * Radarr/Sonarr und kommt an diese Datei nicht mehr heran. Ohne diesen Knopf
+   * sitzt der Betroffene auf einer Belastung, die er selbst nicht loswird.
+   */
+  const resetSpeicherMutation = useMutation({
+    mutationFn: (id: number) => api.post<User>(`/api/users/${id}/storage/reset`),
+    onSuccess: () => {
+      setSpeicherReset(null);
+      setError(null);
+      setMessage(t("adminUsers.storageResetDone"));
+      refresh();
+      // Der Betroffene sieht seinen Stand sofort neu, wenn er die Seite hat.
+      void queryClient.invalidateQueries({ queryKey: ["storage-mine"] });
+      void queryClient.invalidateQueries({ queryKey: ["storage-overview"] });
+    },
+    onMutate: resetMessages,
+    onError: (caught) => fail(caught, t("errors.generic")),
+  });
+
   const resetQuotaMutation = useMutation({
     mutationFn: (id: number) => api.post<User>(`/api/users/${id}/quota/reset`),
     onSuccess: () => {
@@ -344,62 +421,22 @@ export function AdminUsersSettings() {
     }));
   }
 
-  /** Kontingent-Eingabe: leer = unbegrenzt (null ans Backend). */
-  function quotaValue(user: User, kind: keyof QuotaDraft): string {
-    const draft = quotaDrafts[user.id]?.[kind];
-    if (draft !== undefined) return draft;
-    const stored =
-      kind === "movies"
-        ? feld(user, "quota_movies_limit")
-        : feld(user, "quota_series_limit");
-    return stored === null ? "" : String(stored);
+  /** Was gerade im Auswahlfeld steht - Entwurf schlaegt gespeicherten Wert. */
+  function grenze(user: User, grenzfeld: Grenzfeld): Grenzentwurf {
+    return (
+      grenzDrafts[user.id]?.[grenzfeld] ??
+      alsEntwurf(user[grenzfeld] as Kontingentwert)
+    );
   }
 
-  function setQuotaDraft(user: User, kind: keyof QuotaDraft, value: string) {
+  function setGrenze(user: User, grenzfeld: Grenzfeld, wert: Grenzentwurf) {
     resetMessages();
-    setQuotaDrafts((prev) => ({
-      ...prev,
-      [user.id]: {
-        movies: kind === "movies" ? value : quotaValue(user, "movies"),
-        series: kind === "series" ? value : quotaValue(user, "series"),
-      },
+    setGrenzDrafts((alt) => ({
+      ...alt,
+      [user.id]: { ...alt[user.id], [grenzfeld]: wert },
     }));
   }
 
-  /** `undefined` heisst "keine gültige Zahl" - dann wird nicht gespeichert. */
-  function parseQuota(raw: string): number | null | undefined {
-    if (raw.trim() === "") return null;
-    const zahl = Number(raw);
-    if (!Number.isInteger(zahl) || zahl < 0) return undefined;
-    return zahl;
-  }
-
-  /**
-   * Speichergrenze als Text.
-   *
-   * Leer bedeutet hier **„es gilt die Standardgrenze"**, nicht unbegrenzt –
-   * anders als bei den Stückzahlen daneben. Unbegrenzt für dieses eine Konto
-   * ist die 0. Deshalb steht die Bedeutung auch als Hinweis unter dem Feld.
-   */
-  function speicherWert(user: User): string {
-    const draft = speicherDrafts[user.id];
-    if (draft !== undefined) return draft;
-    const wert = feld(user, "storage_limit_gb");
-    return wert === null ? "" : String(wert);
-  }
-
-  function setSpeicherDraft(user: User, value: string) {
-    resetMessages();
-    setSpeicherDrafts((prev) => ({ ...prev, [user.id]: value }));
-  }
-
-  /** `undefined` = ungültig, `-1` = zurück auf die Standardgrenze. */
-  function parseSpeicher(raw: string): number | undefined {
-    if (raw.trim() === "") return -1;
-    const zahl = Number(raw);
-    if (!Number.isInteger(zahl) || zahl < 0) return undefined;
-    return zahl;
-  }
 
   /** Gibt es für diesen Benutzer ungespeicherte Änderungen? */
   function geaendert(user: User): boolean {
@@ -417,21 +454,11 @@ export function AdminUsersSettings() {
     ) {
       return true;
     }
-    const quote = quotaDrafts[user.id];
-    if (
-      quote &&
-      (parseQuota(quote.movies) !== feld(user, "quota_movies_limit") ||
-        parseQuota(quote.series) !== feld(user, "quota_series_limit"))
-    ) {
-      return true;
-    }
-    const speicher = speicherDrafts[user.id];
-    if (speicher !== undefined) {
-      const gesetzt = parseSpeicher(speicher);
-      const bisher = feld(user, "storage_limit_gb") ?? -1;
-      if (gesetzt !== bisher) return true;
-    }
-    return false;
+    return GRENZEN.some(
+      ({ feld: grenzfeld }) =>
+        grenzDrafts[user.id]?.[grenzfeld] !== undefined &&
+        alsWert(grenze(user, grenzfeld)) !== user[grenzfeld],
+    );
   }
 
   /**
@@ -444,28 +471,14 @@ export function AdminUsersSettings() {
   function speichern(user: User) {
     const patch: Partial<User> = { ...drafts[user.id] };
 
-    const quote = quotaDrafts[user.id];
-    if (quote) {
-      const movies = parseQuota(quote.movies);
-      const series = parseQuota(quote.series);
-      if (movies === undefined || series === undefined) {
+    for (const { feld: grenzfeld } of GRENZEN) {
+      if (grenzDrafts[user.id]?.[grenzfeld] === undefined) continue;
+      const wert = alsWert(grenze(user, grenzfeld));
+      if (wert === undefined) {
         setError(t("adminUsers.quotaInvalid"));
         return;
       }
-      patch.quota_movies_limit = movies;
-      patch.quota_series_limit = series;
-    }
-
-    const speicher = speicherDrafts[user.id];
-    if (speicher !== undefined) {
-      const zahl = parseSpeicher(speicher);
-      if (zahl === undefined) {
-        setError(t("adminUsers.storageInvalid"));
-        return;
-      }
-      // -1 heißt „zurück auf die Standardgrenze" - null wäre für das Backend
-      // nur „nicht mitgeschickt" und änderte gar nichts.
-      patch.storage_limit_gb = zahl;
+      patch[grenzfeld] = wert;
     }
 
     updateMutation.mutate(
@@ -473,8 +486,7 @@ export function AdminUsersSettings() {
       {
         onSuccess: () => {
           setDrafts(({ [user.id]: _weg, ...rest }) => rest);
-          setQuotaDrafts(({ [user.id]: _auch, ...rest }) => rest);
-          setSpeicherDrafts(({ [user.id]: _dito, ...rest }) => rest);
+          setGrenzDrafts(({ [user.id]: _auch, ...rest }) => rest);
         },
       },
     );
@@ -483,8 +495,7 @@ export function AdminUsersSettings() {
   /** Beim Zuklappen verwerfen - sonst hängt eine unsichtbare Änderung fest. */
   function verwerfen(user: User) {
     setDrafts(({ [user.id]: _weg, ...rest }) => rest);
-    setQuotaDrafts(({ [user.id]: _auch, ...rest }) => rest);
-    setSpeicherDrafts(({ [user.id]: _dito, ...rest }) => rest);
+    setGrenzDrafts(({ [user.id]: _auch, ...rest }) => rest);
   }
 
   function summary(user: User): string {
@@ -504,17 +515,24 @@ export function AdminUsersSettings() {
       ),
     );
 
-    const zeitraum = t(periodLabel(user.quota_period));
-    const grenze = (limit: number | null, key: string) =>
-      limit === null ? null : `${t(key)} ${limit} ${zeitraum}`;
-    const grenzen = [
-      grenze(user.quota_movies_limit, "common.movies"),
-      grenze(user.quota_series_limit, "common.series"),
-    ].filter(Boolean);
+    // Nur die Zahlen, die dieses Konto selbst trägt. "Standard" steht nicht
+    // dabei: Die tatsächliche Grenze liegt dann beim Haus, und eine Zahl
+    // dorthin zu kopieren wäre eine zweite Wahrheit, die beim nächsten
+    // Ändern auseinanderläuft.
+    const zeitraum = zeitraumText;
+    const eigene = [
+      { wert: user.quota_movies_limit, key: "common.movies", gb: false },
+      { wert: user.quota_series_limit, key: "common.series", gb: false },
+      { wert: user.storage_limit_gb, key: "adminUsers.storageLimit", gb: true },
+    ]
+      .filter((zeile) => typeof zeile.wert === "number")
+      .map((zeile) =>
+        zeile.gb
+          ? `${t(zeile.key)} ${zeile.wert} GB`
+          : `${t(zeile.key)} ${zeile.wert} ${zeitraum}`,
+      );
     teile.push(
-      grenzen.length > 0
-        ? grenzen.join(", ")
-        : t("adminUsers.summaryUnlimited"),
+      eigene.length > 0 ? eigene.join(", ") : t("adminUsers.summaryDefaults"),
     );
 
     const gesperrt =
@@ -523,6 +541,30 @@ export function AdminUsersSettings() {
       teile.push(t("adminUsers.summaryBlocked", { count: gesperrt }));
 
     return teile.join(" · ");
+  }
+
+  /**
+   * „pro Woche" - der Zeitraum, der im Kontingent-Manager eingestellt ist.
+   *
+   * Er steht an den Beschriftungen, weil „Filme 3" ohne ihn nichts aussagt.
+   * Bis 0.19 stand hier ein eigenes Auswahlfeld je Konto; seit der Zeitraum
+   * haus-weit gilt, ist er hier eine **Auskunft** und keine Einstellung.
+   */
+  const zeitraumText = t(periodLabel(settingsQuery.data?.quota_period ?? "week"));
+
+  /**
+   * Was „Standard" für dieses Feld konkret heißt - **als Zahl, nicht als Wort**.
+   *
+   * „Standard" allein beantwortet die Frage nicht, die man an dieser Stelle
+   * hat: *wie viel* denn. Wer es wissen will, müsste sonst in die Kontingente
+   * wechseln und wieder zurück.
+   */
+  function vorgabeText(schluessel: (typeof GRENZEN)[number]["vorgabe"]): string {
+    const wert = settingsQuery.data?.[schluessel] ?? null;
+    if (wert === null) return t("adminUsers.quotaUnlimited");
+    return schluessel === "storage_default_limit_gb"
+      ? `${wert} GB`
+      : `${wert} ${zeitraumText}`;
   }
 
   const users = usersQuery.data ?? [];
@@ -1103,126 +1145,94 @@ export function AdminUsersSettings() {
                           </div>
                         )}
 
-                        {/* Zählt der belegte Platz, wären Stückzahl-Felder daneben
-                    Eingaben ohne Wirkung. Es gilt immer nur eine Währung –
-                    also steht auch nur eine hier. */}
-                        {speicherGilt && (
-                          <div className="flex flex-col gap-1.5 sm:col-span-2">
-                            <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                              {t("adminUsers.storageLimit")}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min={0}
-                                value={
-                                  feld(user, "role") === "admin"
-                                    ? ""
-                                    : (speicherWert(user) ?? "")
-                                }
-                                disabled={feld(user, "role") === "admin"}
-                                placeholder={t("adminUsers.storageDefault")}
-                                aria-label={t("adminUsers.storageLimit")}
-                                onChange={(event) =>
-                                  setSpeicherDraft(user, event.target.value)
-                                }
-                                className="w-32 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none disabled:opacity-50"
-                              />
-                              <span className="text-sm text-mist-500">GB</span>
-                            </div>
-                            <span className="text-xs text-mist-600">
-                              {feld(user, "role") === "admin"
-                                ? t("adminUsers.quotaAdmin")
-                                : t("adminUsers.storageLimitHint")}
-                            </span>
-                          </div>
-                        )}
+                        {/* Eine eigene Überschrift, weil hier ein anderer
+                            Gedanke anfängt: Darüber steht, **was** jemand darf
+                            (freigeben, 4K), hier **wie viel**. Ohne Trennung
+                            liest sich die Karte wie eine einzige lange Reihe
+                            von Feldern. */}
+                        <h3 className="border-t border-ink-700 pt-4 text-sm font-semibold sm:col-span-4">
+                          {t("adminUsers.limitsTitle")}
+                        </h3>
 
-                        {/* "Unbegrenzt" steht als eigener Haken da. Vorher war es das
-                    leere Feld - man sah nie, wie man wieder dorthin kommt. */}
-                        {!speicherGilt &&
-                          (["movies", "series"] as const).map((kind) => {
-                          const unbegrenzt = quotaValue(user, kind) === "";
-                          // Admins haben immer unbegrenzt - genau wie bei Sperrliste,
-                          // Freigabe und 4K. Sie setzen die Grenzen und könnten die
-                          // eigene jederzeit heraufsetzen; ein Feld dafür wäre nur
-                          // eine Einladung zu einer Eingabe ohne Wirkung.
+                        {/* ⚠️ **Alle drei Grenzen stehen immer da.** Vorher
+                            blendete die Betriebsart des Hauses die eine oder
+                            die andere Haelfte aus - jetzt gelten sie zusammen,
+                            und eine Anfrage muss durch beide.
+
+                            Drei Zustaende, deshalb ein Auswahlfeld und nicht
+                            nur eine Zahl: "Standard" faellt auf den Wert des
+                            Hauses zurueck, "unbegrenzt" hebt ihn ausdruecklich
+                            auf, und eine Zahl gilt genau so - die **0 heisst
+                            "darf nichts"**. Als leeres Feld waere der
+                            Unterschied zwischen den ersten beiden unsichtbar
+                            gewesen. */}
+                        {GRENZEN.map(({ feld: grenzfeld, label, vorgabe, gb }) => {
+                          // Admins haben immer unbegrenzt - genau wie bei
+                          // Sperrliste, Freigabe und 4K. Sie setzen die Grenzen
+                          // und koennten die eigene jederzeit heraufsetzen; ein
+                          // Feld dafuer waere eine Eingabe ohne Wirkung.
                           const immerFrei = feld(user, "role") === "admin";
+                          const entwurf = grenze(user, grenzfeld);
                           return (
-                            <div key={kind} className="flex flex-col gap-1.5">
+                            <div key={grenzfeld} className="flex flex-col gap-1.5">
                               <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                                {t(
-                                  kind === "movies"
-                                    ? "adminUsers.quotaMovies"
-                                    : "adminUsers.quotaSeries",
-                                )}
+                                {t(label, { period: zeitraumText })}
                               </span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={immerFrei ? "" : quotaValue(user, kind)}
-                                disabled={unbegrenzt || immerFrei}
-                                placeholder={t("adminUsers.quotaUnlimited")}
-                                aria-label={t(
-                                  kind === "movies"
-                                    ? "adminUsers.quotaMovies"
-                                    : "adminUsers.quotaSeries",
-                                )}
+                              <select
+                                value={immerFrei ? "unlimited" : entwurf.modus}
+                                disabled={immerFrei}
+                                aria-label={t(label, { period: zeitraumText })}
                                 onChange={(event) =>
-                                  setQuotaDraft(user, kind, event.target.value)
+                                  setGrenze(user, grenzfeld, {
+                                    ...entwurf,
+                                    modus: event.target
+                                      .value as Grenzentwurf["modus"],
+                                  })
                                 }
-                                className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 placeholder:text-mist-600 focus:border-accent-500 focus:outline-none disabled:opacity-50"
-                              />
-                              <label className="flex items-center gap-2 text-xs text-mist-500">
-                                <input
-                                  type="checkbox"
-                                  checked={unbegrenzt || immerFrei}
-                                  disabled={immerFrei}
-                                  onChange={(event) =>
-                                    setQuotaDraft(
-                                      user,
-                                      kind,
-                                      event.target.checked ? "" : "1",
-                                    )
-                                  }
-                                  className="h-3.5 w-3.5 accent-accent-500 disabled:opacity-60"
-                                />
-                                {t("adminUsers.quotaUnlimited")}
-                                {immerFrei && (
-                                  <span className="text-mist-600">
-                                    ({t("adminUsers.quotaAdmin")})
-                                  </span>
-                                )}
-                              </label>
+                                className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none disabled:opacity-50"
+                              >
+                                <option value="standard">
+                                  {t("adminUsers.limitDefault")}
+                                </option>
+                                <option value="unlimited">
+                                  {t("adminUsers.quotaUnlimited")}
+                                </option>
+                                <option value="zahl">
+                                  {t("adminUsers.limitOwn")}
+                                </option>
+                              </select>
+                              {!immerFrei && entwurf.modus === "zahl" && (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={entwurf.zahl}
+                                    aria-label={t(label, { period: zeitraumText })}
+                                    onChange={(event) =>
+                                      setGrenze(user, grenzfeld, {
+                                        modus: "zahl",
+                                        zahl: event.target.value,
+                                      })
+                                    }
+                                    className="w-full rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none"
+                                  />
+                                  {gb && (
+                                    <span className="text-sm text-mist-500">
+                                      GB
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              <span className="text-xs text-mist-600">
+                                {immerFrei
+                                  ? t("adminUsers.quotaAdmin")
+                                  : t("adminUsers.limitHint", {
+                                      standard: vorgabeText(vorgabe),
+                                    })}
+                              </span>
                             </div>
                           );
                         })}
-
-                        {!speicherGilt && (
-                        <label className="flex flex-col gap-1.5">
-                          <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
-                            {t("adminUsers.quotaPeriod")}
-                          </span>
-                          <select
-                            value={feld(user, "quota_period")}
-                            disabled={feld(user, "role") === "admin"}
-                            onChange={(event) =>
-                              setzen(
-                                user,
-                                "quota_period",
-                                event.target.value as QuotaPeriod,
-                              )
-                            }
-                            className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none disabled:opacity-50"
-                          >
-                            {PERIODS.map((period) => (
-                              <option key={period} value={period}>
-                                {t(periodLabel(period))}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        )}
 
                         {/* Verbrauch im laufenden Zeitraum - und der Weg, ihn wieder
                     freizugeben, ohne die Anfragen zu löschen. */}
@@ -1239,10 +1249,10 @@ export function AdminUsersSettings() {
                               ),
                             })}
                           </span>
-                          {/* Ohne jede Grenze läuft der Zähler zwar mit, hält aber
-                      niemanden auf - ihn zurückzusetzen bewirkt dann nichts. */}
-                          {(user.quota_movies_limit !== null ||
-                            user.quota_series_limit !== null) && (
+                          {/* Immer angeboten: Ob eine Grenze greift, hängt seit
+                      den Standardwerten nicht mehr allein am Konto - und wer
+                      hier nachsieht, will den Zähler zurücksetzen können. */}
+                          {
                             <Button
                               variant="ghost"
                               onClick={() => setQuotaReset(user)}
@@ -1252,6 +1262,17 @@ export function AdminUsersSettings() {
                               }
                             >
                               {t("adminUsers.resetQuota")}
+                            </Button>
+                          }
+                          {/* Das Gegenstück: Der Zähler oben erneuert sich von
+                      selbst, der belegte Platz nie. Gegen das eine hilft
+                      warten, gegen das andere nur dieser Knopf. */}
+                          {feld(user, "role") !== "admin" && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => setSpeicherReset(user)}
+                            >
+                              {t("adminUsers.resetStorage")}
                             </Button>
                           )}
                           {user.quota_reset_at && (
@@ -1511,6 +1532,21 @@ export function AdminUsersSettings() {
         loading={resetQuotaMutation.isPending}
         onCancel={() => setQuotaReset(null)}
         onConfirm={() => quotaReset && resetQuotaMutation.mutate(quotaReset.id)}
+      />
+
+      <ConfirmDialog
+        open={speicherReset !== null}
+        title={t("adminUsers.resetStorageTitle")}
+        description={t("adminUsers.resetStorageText", {
+          name: speicherReset?.username ?? "",
+        })}
+        warning={t("adminUsers.resetStorageHint")}
+        confirmLabel={t("adminUsers.resetStorage")}
+        loading={resetSpeicherMutation.isPending}
+        onCancel={() => setSpeicherReset(null)}
+        onConfirm={() =>
+          speicherReset && resetSpeicherMutation.mutate(speicherReset.id)
+        }
       />
     </div>
   );

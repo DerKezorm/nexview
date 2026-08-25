@@ -89,13 +89,11 @@ def _speicher_staende(
     In der Freigabeliste stehen von einer Person oft zehn Anfragen; ihren Stand
     zehnmal zu berechnen waere zehnmal dieselbe Summe ueber dieselbe Tabelle.
 
-    Sind Speicher-Kontingente aus, kommt ein leerer Dictionary zurueck und die
-    Zeilen tragen nichts - es gilt immer nur eine Waehrung.
+    Der Stand steht an jeder Zeile, weil der Speicher **immer** mitzaehlt: Wer
+    freigibt, soll sehen, wie viel Luft der Anfragende noch hat - auch in einem
+    Haushalt, der ueber die Stueckzahl steuert.
     """
     einstellungen = load_settings(db)
-    if not einstellungen.storage_enabled:
-        return {}
-
     staende: dict[int, AnfragerSpeicher] = {}
     for anfrage in anfragen:
         if anfrage.user_id in staende or anfrage.user is None:

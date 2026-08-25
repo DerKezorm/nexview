@@ -9,7 +9,6 @@ import { StarRating } from '../components/StarRating'
 import { StorageDistribution } from '../components/StorageDistribution'
 import { Card, ErrorBanner, Spinner } from '../components/ui'
 import { formatDate, formatSize } from '../lib/format'
-import { useConfig } from '../hooks/useConfig'
 
 const POOR_RATING = 2
 
@@ -173,12 +172,9 @@ function QuotaCell({ used, limit }: { used: number; limit: number | null }) {
  */
 function SpeicherAbschnitt() {
   const { t } = useTranslation()
-  const { data: config } = useConfig()
-
   const abfrage = useQuery({
     queryKey: ['storage-overview'],
     queryFn: () => api.get<StorageOverview>('/api/storage/overview'),
-    enabled: !!config?.storage_enabled,
   })
 
   const daten = abfrage.data
@@ -196,13 +192,7 @@ function SpeicherAbschnitt() {
   )
 }
 
-function UserRow({
-  eintrag,
-  speicherBetrieb,
-}: {
-  eintrag: UserStats
-  speicherBetrieb: boolean
-}) {
+function UserRow({ eintrag }: { eintrag: UserStats }) {
   const { t } = useTranslation()
 
   return (
@@ -234,27 +224,21 @@ function UserRow({
           `${eintrag.success_rate}%`
         )}
       </td>
-      {/* ⚠️ Anzahl **oder** Speicher, nie beides — dieselbe Regel wie im
-          ganzen Rest der App. Vorher standen hier immer die Stück-Kontingente,
-          auch wenn das Haus längst auf GB umgestellt hatte: darüber der
-          belegte Platz in Gigabyte, darunter „unbegrenzt" Stück. */}
-      {speicherBetrieb ? (
-        <td className="px-2 text-center text-sm" colSpan={2}>
-          <SpeicherCell
-            used={eintrag.storage_used_bytes}
-            limit={eintrag.storage_limit_bytes}
-          />
-        </td>
-      ) : (
-        <>
-          <td className="px-2 text-center text-sm">
-            <QuotaCell used={eintrag.quota_movie_used} limit={eintrag.quota_movie_limit} />
-          </td>
-          <td className="px-2 text-center text-sm">
-            <QuotaCell used={eintrag.quota_series_used} limit={eintrag.quota_series_limit} />
-          </td>
-        </>
-      )}
+      {/* Alle drei Grenzen nebeneinander: Sie gelten zusammen, und welche
+          davon jemanden gerade aufhält, sieht man nur im Vergleich. Bis 0.19
+          stand hier entweder die Stückzahl oder der Platz - nie beides. */}
+      <td className="px-2 text-center text-sm">
+        <QuotaCell used={eintrag.quota_movie_used} limit={eintrag.quota_movie_limit} />
+      </td>
+      <td className="px-2 text-center text-sm">
+        <QuotaCell used={eintrag.quota_series_used} limit={eintrag.quota_series_limit} />
+      </td>
+      <td className="px-2 text-center text-sm">
+        <SpeicherCell
+          used={eintrag.storage_used_bytes}
+          limit={eintrag.storage_limit_bytes}
+        />
+      </td>
       <td className="py-2.5 pl-2">
         {eintrag.average_rating === null ? (
           <span className="text-xs text-mist-600">{t('stats.noRating')}</span>
@@ -276,11 +260,6 @@ function UserRow({
 
 export function StatsPage() {
   const { t, i18n } = useTranslation()
-  const { data: config } = useConfig()
-  // Welche Währung gilt gerade? Wird beim **Anzeigen** entschieden, nicht beim
-  // Berechnen - der Hauptschalter lässt sich jederzeit umlegen, und die
-  // Einstellungsseite macht danach alle Abfragen ungültig.
-  const speicherBetrieb = !!config?.storage_enabled
 
   const statsQuery = useQuery({
     queryKey: ['admin-stats'],
@@ -424,30 +403,21 @@ export function StatsPage() {
                 <th className="px-2 pb-2 text-center font-medium">{t('stats.colSplit')}</th>
                 <th className="px-2 pb-2 text-center font-medium">{t('stats.colDownloaded')}</th>
                 <th className="px-2 pb-2 text-center font-medium">{t('stats.colSuccess')}</th>
-                {speicherBetrieb ? (
-                  <th className="px-2 pb-2 text-center font-medium" colSpan={2}>
-                    {t('stats.colStorage')}
-                  </th>
-                ) : (
-                  <>
-                    <th className="px-2 pb-2 text-center font-medium">
-                      {t('stats.colQuotaMovies')}
-                    </th>
-                    <th className="px-2 pb-2 text-center font-medium">
-                      {t('stats.colQuotaSeries')}
-                    </th>
-                  </>
-                )}
+                <th className="px-2 pb-2 text-center font-medium">
+                  {t('stats.colQuotaMovies')}
+                </th>
+                <th className="px-2 pb-2 text-center font-medium">
+                  {t('stats.colQuotaSeries')}
+                </th>
+                <th className="px-2 pb-2 text-center font-medium">
+                  {t('stats.colStorage')}
+                </th>
                 <th className="pb-2 pl-2 text-right font-medium">{t('stats.colRating')}</th>
               </tr>
             </thead>
             <tbody>
               {users.map((eintrag) => (
-                <UserRow
-                  key={eintrag.user_id}
-                  eintrag={eintrag}
-                  speicherBetrieb={speicherBetrieb}
-                />
+                <UserRow key={eintrag.user_id} eintrag={eintrag} />
               ))}
             </tbody>
           </table>

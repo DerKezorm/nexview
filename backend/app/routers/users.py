@@ -19,6 +19,7 @@ from ..schemas import (
     UserPublic,
     UserUpdate,
     UserWithUsage,
+    kontingent_aus_wert,
 )
 from ..security import hash_password
 from ..services import (
@@ -88,7 +89,7 @@ def read_avatar(name: str) -> Response:
 
 
 def _mit_verbrauch(db: DbSession, user: User) -> UserWithUsage:
-    stand = quota.overview(db, user)
+    stand = quota.overview(db, user, load_settings(db))
     return UserWithUsage(
         **UserPublic.model_validate(user).model_dump(),
         quota_movies_used=stand["movie"].used,
@@ -117,6 +118,33 @@ def reset_quota(user_id: int, admin: AdminUser, db: DbSession) -> UserWithUsage:
     db.refresh(user)
 
     logger.info("Quota reset for user %r by %r", user.username, admin.username)
+    return _mit_verbrauch(db, user)
+
+
+@router.post("/{user_id}/storage/reset", response_model=UserWithUsage)
+def reset_storage(user_id: int, admin: AdminUser, db: DbSession) -> UserWithUsage:
+    """Die Speicher-Belegung dieses Kontos auf null - alles geht ins Haus.
+
+    Das Gegenstueck zu ``reset_quota``, und der Ausweg aus dem
+    **Geisterposten**: Wer einen ueber Nexview angefragten Titel aus Radarr
+    wirft und die Datei behaelt, bleibt dafuer belastet, und Nexview kann ihn
+    nicht mehr entfernen - es loescht ausschliesslich ueber Radarr/Sonarr.
+
+    ⚠️ **Keine Datei wird angefasst**, die gespeicherte Grenze bleibt stehen,
+    offene Abgaben dieses Kontos sind danach erledigt.
+    """
+    user = _get_user_or_404(db, user_id)
+    anzahl, bytes_ = storage_dienst.konto_zuruecksetzen(db, user.id)
+    db.commit()
+    db.refresh(user)
+
+    logger.info(
+        "Storage reset for user %r by %r: %s item(s), %s bytes",
+        user.username,
+        admin.username,
+        anzahl,
+        bytes_,
+    )
     return _mit_verbrauch(db, user)
 
 
@@ -211,9 +239,11 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
         payload.email,
         created_by=admin.id,
         invite_role=payload.role,
-        invite_quota_movies=payload.quota_movies_limit,
-        invite_quota_series=payload.quota_series_limit,
-        invite_quota_period=payload.quota_period,
+        # Die Einladung traegt die Grenzen so, wie sie am Konto landen sollen -
+        # "Standard" als ``None``, "unbegrenzt" als ``UNBEGRENZT``. Der
+        # Zeitraum steht nicht mehr dabei: er gilt haus-weit.
+        invite_quota_movies=kontingent_aus_wert(payload.quota_movies_limit),
+        invite_quota_series=kontingent_aus_wert(payload.quota_series_limit),
     )
 
     # Bewusst die Standardsprache der Installation, nicht die des einladenden
@@ -278,11 +308,12 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
         # Dasselbe fuer 4K: wer freigeben darf, gibt sich auch dort selbst frei.
         data.pop("auto_approve_uhd", None)
 
-    # Die Speicher-Grenze zuruecksetzen - nur bedeutet NULL hier "es gilt die
-    # Standardgrenze", nicht "unbegrenzt". Unbegrenzt fuer dieses Konto ist
-    # die 0, und die geht ohne Umweg durch.
-    if data.get("storage_limit_gb") == -1:
-        data["storage_limit_gb"] = None
+    # Die drei Grenzen kommen als Wort oder Zahl herein ("standard",
+    # "unlimited", n) und werden hier auf die Datenbank-Schreibweise gebracht:
+    # ``None`` = Standard, ``UNBEGRENZT`` = ohne Grenze, sonst die Zahl.
+    for feld in ("quota_movies_limit", "quota_series_limit", "storage_limit_gb"):
+        if feld in data:
+            data[feld] = kontingent_aus_wert(data[feld])
 
     # Wird das Recht entzogen, muessen die vorhandenen Kinder still werden -
     # sonst liefe die Kinderansicht weiter, ohne dass jemand sie verwaltet.

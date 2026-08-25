@@ -263,10 +263,9 @@ export function ProfilePage() {
   if (config?.watchlist_enabled) {
     tabs.push({ value: 'watchlist', labelKey: 'profile.tabWatchlist' })
   }
-  // Ohne eingeschaltete Speicher-Kontingente gibt es hier nichts zu sehen.
-  if (config?.storage_enabled) {
-    tabs.push({ value: 'storage', labelKey: 'profile.tabStorage' })
-  }
+  // Der Reiter steht immer da: Gemessen wird immer, und wer wissen will, was
+  // er belegt, soll es auch dann sehen, wenn ihn gerade niemand begrenzt.
+  tabs.push({ value: 'storage', labelKey: 'profile.tabStorage' })
   // Der Reiter erscheint **auch ohne Freigabe**. Wer nicht weiß, dass es
   // Kinderkonten gibt, fragt auch nicht danach; statt einer leeren Seite steht
   // dort dann, was die Funktion kann - und ein Knopf, der sie beantragt.

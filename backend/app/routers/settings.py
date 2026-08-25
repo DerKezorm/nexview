@@ -87,9 +87,15 @@ class SettingsUpdate(BaseModel):
     mediaserver_default_role: str | None = None
     # --- Merkliste ----------------------------------------------------------
     watchlist_enabled: bool | None = None
-    storage_enabled: bool | None = None
-    # -1 setzt auf "unbegrenzt" zurueck; siehe UserUpdate.
+    # --- Kontingente --------------------------------------------------------
+    # Die drei Standardwerte des Hauses. **-1 setzt auf "unbegrenzt"** - das
+    # ``None`` von Pydantic heisst hier "nicht mitgeschickt", kann also nicht
+    # gleichzeitig "leeren" bedeuten. Dieselbe Uebereinkunft wie in
+    # ``UserUpdate``.
+    quota_default_movies: int | None = Field(default=None, ge=-1)
+    quota_default_series: int | None = Field(default=None, ge=-1)
     storage_default_limit_gb: int | None = Field(default=None, ge=-1)
+    quota_period: Literal["day", "week", "month"] | None = None
 
     @field_validator("mediaserver_default_role")
     @classmethod
@@ -179,9 +185,6 @@ class AppConfig(BaseModel):
     # Oberflaeche blendet daran den Menuepunkt und den Filter "Über Merkliste
     # angefragt" ein.
     watchlist_enabled: bool
-    # Ist der Schalter aus, verhaelt sich Nexview wie vor dem Einbau der
-    # Speicher-Kontingente: keine Reiter, keine Karten, keine Statistik.
-    storage_enabled: bool
 
 
 @router.get("/config", response_model=AppConfig)
@@ -212,7 +215,6 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         ),
         mediaserver_watchlist_connected=merklisten_anbieter(settings),
         watchlist_enabled=settings.watchlist_enabled,
-        storage_enabled=settings.storage_enabled,
     )
 
 
@@ -388,20 +390,12 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
 
     save_settings(db, payload.model_dump(exclude_unset=True))
 
-    # ⚠️ **Der Umschalt-Generalpardon.** Wechselt die Betriebsart der
-    # Kontingente (Anzahl <-> Speicher), starten alle Konten bei null: Jeder
-    # zugerechnete Posten wird Hausbestand. In beide Richtungen - eine Regel
-    # statt einer Ausnahme. Ohne ihn waere jemand nach dem Einschalten
-    # schlagartig ueberzogen, wegen einer Historie, von der er nicht wusste,
-    # dass sie mitzaehlt. Dateien werden dabei nie angefasst, gespeicherte
-    # Grenzen bleiben stehen. Die Oberflaeche kuendigt die Zahlen vorher an
-    # (GET /api/storage/umbuchung).
-    if (
-        payload.storage_enabled is not None
-        and payload.storage_enabled != aktuell.storage_enabled
-    ):
-        storage.konten_zuruecksetzen(db)
-        db.commit()
+    # ⚠️ Hier stand bis 0.19 der **Umschalt-Generalpardon**: Beim Wechsel der
+    # Betriebsart starteten alle Konten bei null. Die Betriebsart gibt es nicht
+    # mehr, also auch keinen Wechsel - das Zuruecksetzen ist jetzt ein
+    # ausdruecklicher Knopf (POST /api/storage/konten/zuruecksetzen) und keine
+    # Nebenwirkung des Speicherns. Eine Nebenwirkung, die die Zurechnung des
+    # ganzen Hauses verwirft, gehoert nicht an eine Einstellungsseite.
 
     # Alte Ergebnisse verwerfen: Region, Sprache oder Key koennten sich
     # geaendert haben.

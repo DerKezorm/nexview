@@ -21,6 +21,7 @@ from app.models import (
     Notification,
     NotificationType,
     QualityTier,
+    QuotaPeriod,
     RequestStatus,
     StorageEntry,
     StorageState,
@@ -28,7 +29,7 @@ from app.models import (
     Role,
 )
 from app.security import hash_password
-from app.services import storage
+from app.services import quota, storage
 from app.services.radarr import LibraryEntry as MovieEntry
 from app.services.sonarr import LibraryEntry as SeriesEntry
 from app.services.settings_service import AppSettings, load_settings
@@ -629,30 +630,27 @@ def test_serien_anfrage_ohne_staffel_belastet_alle(db: Session, nutzer: User) ->
     assert storage.kontostand(db, nutzer.id).used_bytes == 45 * GB
 
 
-# --------------------------------------------------- Der Hauptschalter
+# ------------------------------------------- Kein Hauptschalter mehr
 
 
-def test_endpunkte_gibt_es_ohne_schalter_nicht(admin_client) -> None:
-    """Ausgeschaltet heisst: die Funktion existiert nicht.
+def test_die_endpunkte_stehen_immer_offen(admin_client) -> None:
+    """Gemessen wird immer - es gibt nichts mehr auszuschalten.
 
-    404 und nicht 403 - es ist kein Rechteproblem, sondern es gibt hier
-    nichts. Der Standard ist "aus", deshalb reicht ein frischer Client.
+    Bis 0.19 antworteten diese Adressen mit 404, solange das Haus nach
+    Stueckzahl begrenzte ("Anzahl **oder** Speicher"). Beide Waehrungen gelten
+    jetzt zusammen; ein frischer Client kommt ohne jede Vorbereitung durch.
     """
-    assert admin_client.get("/api/storage/me").status_code == 404
-    assert admin_client.get("/api/storage/overview").status_code == 404
+    assert admin_client.get("/api/storage/me").status_code == 200
+    assert admin_client.get("/api/storage/overview").status_code == 200
 
 
-def test_konfiguration_nennt_den_schalter(admin_client) -> None:
-    """Die Oberflaeche muss wissen, ob es die Funktion gibt.
+def test_die_konfiguration_kennt_den_schalter_nicht_mehr(admin_client) -> None:
+    """Die Oberflaeche soll nichts mehr daran aufhaengen koennen.
 
-    Ohne diese Angabe koennte sie den Reiter nicht ausblenden - und wuerde
-    stattdessen einen 404 erzeugen und verstecken.
+    Bliebe das Feld stehen, wuerde irgendwo weiter ein Reiter davon abhaengen -
+    und niemand faende heraus, warum er fehlt.
     """
-    daten = admin_client.get("/api/config").json()
-    assert daten["storage_enabled"] is False
-
-    admin_client.put("/api/settings", json={"storage_enabled": True})
-    assert admin_client.get("/api/config").json()["storage_enabled"] is True
+    assert "storage_enabled" not in admin_client.get("/api/config").json()
 
 
 def test_verteilung_zeigt_auch_leere_konten(admin_client, db: Session) -> None:
@@ -698,14 +696,40 @@ def test_eigene_zahl_schlaegt_die_hausvorgabe(db: Session) -> None:
     assert storage.grenze_in_bytes(person, Haus()) == 500 * GB
 
 
-def test_null_am_konto_bedeutet_unbegrenzt(db: Session) -> None:
-    """Nicht "keine Grenze eingetragen" - das ist NULL. Die 0 ist Absicht."""
+def test_null_am_konto_heisst_darf_nichts(db: Session) -> None:
+    """⚠️ **Die 0 hat ihre Bedeutung gewechselt.**
+
+    Bis 0.19 hiess sie "fuer dieses Konto unbegrenzt", jetzt das Gegenteil.
+    Deshalb zieht ``db._kontingente_dreiwertig_machen`` gespeicherte Nullen
+    einmalig auf ``UNBEGRENZT`` um - ohne das waere ein Konto ueber Nacht
+    still gesperrt worden.
+    """
 
     class Haus:
         storage_default_limit_gb = 100
 
     person = User(username="p", role=Role.user, storage_limit_gb=0)
+    assert storage.grenze_in_bytes(person, Haus()) == 0
+
+
+def test_ausdrueckliches_unbegrenzt_schlaegt_die_hausvorgabe(db: Session) -> None:
+    """Der dritte Zustand: nicht "Standard", sondern ausdruecklich ohne Grenze."""
+
+    class Haus:
+        storage_default_limit_gb = 100
+
+    person = User(username="p", role=Role.user, storage_limit_gb=quota.UNBEGRENZT)
     assert storage.grenze_in_bytes(person, Haus()) is None
+
+
+def test_ohne_eigene_zahl_gilt_die_hausvorgabe(db: Session) -> None:
+    """NULL heisst "Standard" - und der Standard ist eine echte Grenze."""
+
+    class Haus:
+        storage_default_limit_gb = 100
+
+    person = User(username="p", role=Role.user, storage_limit_gb=None)
+    assert storage.grenze_in_bytes(person, Haus()) == 100 * GB
 
 
 def test_ohne_hausvorgabe_ist_niemand_begrenzt(db: Session) -> None:
@@ -744,14 +768,14 @@ def test_unbegrenzt_ist_nie_aufgebraucht() -> None:
     assert offen.remaining_bytes is None
 
 
-def test_nur_eine_waehrung_gilt(db: Session, nutzer: User) -> None:
-    """Ist der Speicher eingeschaltet, zaehlt die Stueckzahl gar nicht mehr.
+def test_beide_waehrungen_gelten_zusammen(db: Session, nutzer: User) -> None:
+    """Eine Anfrage muss durch **beide** Grenzen.
 
-    Beides gleichzeitig gaebe zwei Gruende zu scheitern, die sich vollkommen
+    Bis 0.19 galt genau eine, haus-weit umschaltbar. Der Preis fuer das
+    Zusammenlegen sind zwei Gruende zu scheitern, die sich vollkommen
     unterschiedlich verhalten: Die Stueckzahl erneuert sich jeden Montag, der
-    Platz nie; gegen das eine hilft warten, gegen das andere nur aufraeumen.
-    Wer dann "ich kann nichts anfragen" meldet, zwingt den Administrator zum
-    Raten, welche Grenze gegriffen hat.
+    Platz nie. ⚠️ Deshalb **muss die Meldung sagen, welche Grenze griff** -
+    sonst zwingt ein "ich kann nichts anfragen" den Administrator zum Raten.
     """
     from app.services import requests_service
     from app.services.requests_service import RequestError
@@ -760,23 +784,23 @@ def test_nur_eine_waehrung_gilt(db: Session, nutzer: User) -> None:
     nutzer.quota_movies_limit = 0
     db.commit()
 
-    class Aus:
-        storage_enabled = False
-        storage_default_limit_gb = None
-
-    class An:
-        storage_enabled = True
+    class Haus:
+        quota_default_movies = None
+        quota_default_series = None
+        quota_period = QuotaPeriod.week
         # Grosszuegig - der Speicher soll gerade *nicht* bremsen.
         storage_default_limit_gb = 10_000
 
-    # Ohne Speicher-Kontingent bremst die Stueckzahl.
+    # Die Stueckzahl bremst, obwohl im Speicher reichlich Luft ist.
     with pytest.raises(RequestError) as fehler:
-        requests_service._kontingent_pruefen(db, Aus(), nutzer, MediaType.movie)
+        requests_service._kontingent_pruefen(db, Haus(), nutzer, MediaType.movie)
     assert fehler.value.status_code == 429
+    assert "Kontingent für Filme" in fehler.value.message
 
-    # Mit Speicher-Kontingent nicht mehr - obwohl die Stueckzahl unveraendert
-    # auf null steht.
-    requests_service._kontingent_pruefen(db, An(), nutzer, MediaType.movie)
+    # Frei gemacht: jetzt geht sie durch.
+    nutzer.quota_movies_limit = quota.UNBEGRENZT
+    db.commit()
+    requests_service._kontingent_pruefen(db, Haus(), nutzer, MediaType.movie)
 
 
 def test_speichergrenze_bremst_erst_im_minus(db: Session, nutzer: User) -> None:
@@ -784,7 +808,9 @@ def test_speichergrenze_bremst_erst_im_minus(db: Session, nutzer: User) -> None:
     from app.services.requests_service import RequestError
 
     class Haus:
-        storage_enabled = True
+        quota_default_movies = None
+        quota_default_series = None
+        quota_period = QuotaPeriod.week
         storage_default_limit_gb = 10
 
     db.add(
@@ -1182,3 +1208,40 @@ async def test_radarr_schlaegt_auch_den_groesseren_server(
     await messen(db, settings, filme={QualityTier.standard: {603: film(8)}})
 
     assert storage.hausbestand(db).used_bytes == 8 * GB
+
+
+def test_nur_im_media_server_heisst_nicht_mehr_verwaltet(
+    db: Session, settings: AppSettings, nutzer: User
+) -> None:
+    """⚠️ Der **Geisterposten** - und ab jetzt ist er erkennbar.
+
+    Verbreiteter Ablauf: laden bis die Qualitaet stimmt, dann den Eintrag aus
+    Radarr werfen und die Datei behalten. Der Posten zaehlt weiter (die Bytes
+    liegen ja auf der Platte), laesst sich aber **nicht mehr loeschen** -
+    Nexview loescht ausschliesslich ueber Radarr/Sonarr.
+
+    Vorher merkte das nur der Administrator, und zwar erst beim Loeschversuch.
+    """
+    import asyncio
+
+    from app.models import MediaServerLibraryItem
+
+    db.add(
+        MediaServerLibraryItem(
+            provider="plex",
+            media_type=MediaType.movie,
+            guid="plex://movie/603",
+            tmdb_id=603,
+            title="Nur noch im Server",
+            title_key="nurnochimserver",
+            size_standard=7 * GB,
+        )
+    )
+    db.commit()
+
+    # Radarr meldet nichts - der Titel kommt allein vom Media-Server.
+    asyncio.run(messen(db, settings, filme={QualityTier.standard: {}}))
+
+    zeile = db.scalars(select(StorageEntry)).one()
+    assert zeile.arr_managed is False
+    assert storage.posten_von(db, zeile.id).managed is False

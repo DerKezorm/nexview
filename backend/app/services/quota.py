@@ -9,11 +9,29 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import MediaRequest, MediaType, QuotaPeriod, RequestStatus, User
+
+if TYPE_CHECKING:  # pragma: no cover - nur fuer die Typpruefung
+    from .settings_service import AppSettings
+
+# Was ein Konto eintraegt, wenn es **ausdruecklich** unbegrenzt sein soll.
+#
+# ⚠️ Drei Bedeutungen, drei Zustaende - und deshalb reichen "leer" und "0"
+# nicht aus:
+#
+# * ``None`` (leer)  -> es gilt der Standardwert des Hauses
+# * ``UNBEGRENZT``   -> ausdruecklich ohne Grenze, der Standardwert greift nicht
+# * ``0`` und groesser -> genau diese Zahl; die **0 heisst "darf nichts"**
+#
+# Bis 0.19 war die 0 beim Speicher das Zeichen fuer "unbegrenzt". Diese
+# Bedeutung ist umgezogen (``db._kontingente_dreiwertig_machen``), sonst
+# haette dieselbe Zahl von einem Tag auf den anderen das Gegenteil bedeutet.
+UNBEGRENZT = -1
 
 # Abgelehnte Anfragen zaehlen nicht gegen das Kontingent - sonst wuerde eine
 # Ablehnung den Benutzer zusaetzlich bestrafen.
@@ -71,38 +89,60 @@ def period_end(period: QuotaPeriod, start: datetime) -> datetime:
     return (start.replace(day=28) + timedelta(days=4)).replace(day=1)
 
 
-def _limit_for(user: User, media_type: MediaType) -> int | None:
+def _limit_for(
+    user: User, media_type: MediaType, settings: "AppSettings"
+) -> int | None:
     """Wie viele Anfragen darf dieser Benutzer? ``None`` heisst unbegrenzt.
 
-    Administratoren immer unbegrenzt - wie bei der Sperrliste, der Freigabe
-    und 4K: Sie setzen die Grenzen und koennten die eigene jederzeit
-    heraufsetzen. Bliebe sie bestehen, waere es eine Huerde, die genau eine
-    Person aufhaelt: die, die sie gerade wegklicken kann.
+    Drei Stufen, dieselben wie beim Speicher (``storage.grenze_in_bytes``) -
+    zwei verschiedene Regeln fuer dieselbe Frage waeren eine Falle:
+
+    1. **Administratoren immer unbegrenzt** - wie bei der Sperrliste, der
+       Freigabe und 4K: Sie setzen die Grenzen und koennten die eigene
+       jederzeit heraufsetzen. Bliebe sie bestehen, waere es eine Huerde, die
+       genau eine Person aufhaelt: die, die sie gerade wegklicken kann.
+    2. Traegt das Konto etwas Eigenes, gilt das - ``UNBEGRENZT`` heisst
+       ausdruecklich ohne Grenze, die **0** ausdruecklich "darf nichts".
+    3. Sonst der Standardwert des Hauses; ist auch der leer, ist niemand
+       begrenzt.
     """
     if user.is_admin:
         return None
-    return (
+    eigen = (
         user.quota_movies_limit if media_type == MediaType.movie else user.quota_series_limit
     )
+    if eigen is not None:
+        return None if eigen == UNBEGRENZT else max(0, eigen)
+    vorgabe = (
+        settings.quota_default_movies
+        if media_type == MediaType.movie
+        else settings.quota_default_series
+    )
+    return None if vorgabe is None else max(0, vorgabe)
 
 
-def counting_start(user: User) -> datetime:
+def counting_start(user: User, settings: "AppSettings") -> datetime:
     """Ab wann der Verbrauch zaehlt.
 
     Normalerweise der Beginn des Zeitraums. Hat der Admin das Kontingent von
     Hand zurueckgesetzt und liegt das *innerhalb* des laufenden Zeitraums,
     zaehlt es ab da - eine Ruecksetzung aus einem frueheren Zeitraum ist durch
     den Wechsel ohnehin schon ueberholt.
+
+    Der Zeitraum kommt seit 0.20 aus den Einstellungen und gilt fuer das ganze
+    Haus; ``User.quota_period`` wird nicht mehr gelesen.
     """
-    start = period_start(user.quota_period)
+    start = period_start(settings.quota_period)
     if user.quota_reset_at is not None and user.quota_reset_at > start:
         return user.quota_reset_at
     return start
 
 
-def state_for(db: Session, user: User, media_type: MediaType) -> QuotaState:
-    limit = _limit_for(user, media_type)
-    start = counting_start(user)
+def state_for(
+    db: Session, user: User, media_type: MediaType, settings: "AppSettings"
+) -> QuotaState:
+    limit = _limit_for(user, media_type, settings)
+    start = counting_start(user, settings)
 
     used = (
         db.scalar(
@@ -124,14 +164,16 @@ def state_for(db: Session, user: User, media_type: MediaType) -> QuotaState:
         resets_at=(
             None
             if limit is None
-            else period_end(user.quota_period, period_start(user.quota_period))
+            else period_end(settings.quota_period, period_start(settings.quota_period))
         ),
-        period=user.quota_period,
+        period=settings.quota_period,
     )
 
 
-def overview(db: Session, user: User) -> dict[str, QuotaState]:
+def overview(
+    db: Session, user: User, settings: "AppSettings"
+) -> dict[str, QuotaState]:
     return {
-        "movie": state_for(db, user, MediaType.movie),
-        "tv": state_for(db, user, MediaType.tv),
+        "movie": state_for(db, user, MediaType.movie, settings),
+        "tv": state_for(db, user, MediaType.tv, settings),
     }

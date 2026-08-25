@@ -223,7 +223,7 @@ def test_zurueckgestellt_zaehlt_gegen_kein_kontingent(arr_client) -> None:
 
     with SessionLocal() as db:
         person = db.get(User, konto["id"])
-        stand = quota.state_for(db, person, MediaType.movie)
+        stand = quota.state_for(db, person, MediaType.movie, load_settings(db))
         assert stand.used == 0
         assert not stand.exhausted
         assert storage.stand_fuer(db, person, load_settings(db)).used_bytes == 0

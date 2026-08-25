@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..crypto import decrypt, encrypt, mask
-from ..models import MediaServerConnection, Setting
+from ..models import MediaServerConnection, QuotaPeriod, Setting
 
 logger = logging.getLogger("nexview.settings")
 
@@ -141,15 +141,24 @@ DEFAULTS: dict[str, str] = {
     # Nexview sehen und daraus anfragen koennen. Angefragt wird ueber den ganz
     # normalen Weg - deshalb braucht es hier weder Rechte noch ein Ziel.
     "watchlist_enabled": "off",
-    # Speicher-Kontingente. Standard **aus**: Eine aktualisierende
-    # Installation verhaelt sich unveraendert, und wer von Seerr kommt,
-    # findet vor, was er kennt. Solange der Schalter aus ist, wird nicht
-    # einmal gemessen - die Funktion existiert dann schlicht nicht.
-    "storage_enabled": "off",
-    # Gilt fuer jeden, der nichts Eigenes eingetragen hat. **Leer heisst
-    # unbegrenzt** - so aendert das blosse Einschalten fuer sich genommen
-    # nichts, und "nur messen, nicht begrenzen" bleibt ausdrueckbar.
+    # --- Kontingente --------------------------------------------------------
+    # Drei Standardwerte, eine Regel: Sie gelten fuer jeden, der nichts
+    # Eigenes eingetragen hat. **Leer heisst unbegrenzt** - eine frisch
+    # aktualisierte Installation begrenzt damit niemanden, und "nur messen,
+    # nicht begrenzen" bleibt ausdrueckbar.
+    #
+    # ⚠️ Es gelten **immer alle drei zugleich**. Bis 0.19 war das ein
+    # Entweder-oder ("storage_enabled"), haus-weit umschaltbar; der Schalter
+    # ist ersatzlos weg. Wer nur nach Speicher begrenzen will, laesst die
+    # Stueckzahlen leer - und umgekehrt.
+    "quota_default_movies": "",
+    "quota_default_series": "",
     "storage_default_limit_gb": "",
+    # Der Zeitraum der Stueckzahl gilt fuer das **ganze Haus**. Er stand bis
+    # 0.19 an jedem Konto einzeln (``User.quota_period``) - drei Konten mit
+    # drei verschiedenen Zeitraeumen erklaeren aber niemandem mehr, was
+    # "3 Filme" bedeutet, und niemand hat es je unterschiedlich gebraucht.
+    "quota_period": "week",  # "day" | "week" | "month"
 }
 
 
@@ -237,8 +246,13 @@ class AppSettings:
     mediaserver_auto_import: bool
     mediaserver_default_role: str
     watchlist_enabled: bool
-    storage_enabled: bool
+    # --- Kontingente: die drei Standardwerte und ihr Zeitraum ---------------
+    # ``None`` heisst ueberall **unbegrenzt**. Sie greifen fuer jeden, der
+    # nichts Eigenes eingetragen hat, und gelten **immer alle drei zugleich**.
+    quota_default_movies: int | None
+    quota_default_series: int | None
     storage_default_limit_gb: int | None
+    quota_period: "QuotaPeriod"
 
     # --- Nur aus Sicht eines Benutzers gefuellt (siehe ``for_user``) --------
     # Alter des Benutzers; None heisst "nicht altersbeschraenkt".
@@ -453,6 +467,20 @@ def _zahl(wert: str | None) -> int | None:
     return int(text) if text.isdigit() else None
 
 
+def _zeitraum(wert: str | None) -> QuotaPeriod:
+    """Den haus-weiten Kontingent-Zeitraum aus der Einstellung lesen.
+
+    Faellt auf die Woche zurueck, wenn dort Unsinn steht: Ein unlesbarer Wert
+    darf die Anwendung nicht anhalten, und die Woche ist der Wert, mit dem
+    jede Installation startet.
+    """
+    text = (wert or "").strip().lower()
+    try:
+        return QuotaPeriod(text)
+    except ValueError:
+        return QuotaPeriod.week
+
+
 def _raw_values(db: Session) -> dict[str, str]:
     stored = {row.key: (row.value or "") for row in db.scalars(select(Setting))}
     return {**DEFAULTS, **stored}
@@ -595,8 +623,10 @@ def load_settings(db: Session) -> AppSettings:
             else "user"
         ),
         watchlist_enabled=_flag(values["watchlist_enabled"], standard=False),
-        storage_enabled=_flag(values["storage_enabled"], standard=False),
+        quota_default_movies=profil("quota_default_movies"),
+        quota_default_series=profil("quota_default_series"),
         storage_default_limit_gb=profil("storage_default_limit_gb"),
+        quota_period=_zeitraum(values["quota_period"]),
     )
 
 
@@ -718,8 +748,10 @@ def public_settings(db: Session) -> dict[str, object]:
         "mediaserver_auto_import": settings.mediaserver_auto_import,
         "mediaserver_default_role": settings.mediaserver_default_role,
         "watchlist_enabled": settings.watchlist_enabled,
-        "storage_enabled": settings.storage_enabled,
+        "quota_default_movies": settings.quota_default_movies,
+        "quota_default_series": settings.quota_default_series,
         "storage_default_limit_gb": settings.storage_default_limit_gb,
+        "quota_period": settings.quota_period.value,
     }
 
 

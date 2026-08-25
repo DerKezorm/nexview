@@ -27,7 +27,6 @@ from ..models import (
     AuthToken,
     MediaServerBlock,
     NotificationType,
-    QuotaPeriod,
     Role,
     TokenPurpose,
     User,
@@ -602,7 +601,6 @@ def _anlegen(db: Session, settings: "AppSettings", account: ExternalAccount) -> 
         rolle = einladung.invite_role or Role.user
         quota_movies = einladung.invite_quota_movies
         quota_series = einladung.invite_quota_series
-        periode = einladung.invite_quota_period or QuotaPeriod.week
         blocked_movies = einladung.invite_blocked_movie_profiles
         blocked_series = einladung.invite_blocked_series_profiles
         einladung.used_at = utcnow().replace(tzinfo=None)
@@ -611,10 +609,9 @@ def _anlegen(db: Session, settings: "AppSettings", account: ExternalAccount) -> 
         # **Ohne Grenze.** Frueher gab es dafuer drei eigene Einstellungen -
         # sie sind weggefallen, und zwar aus zwei Gruenden.
         #
-        # Erstens waren sie im Speicher-Betrieb wirkungslos: Dort zaehlt der
-        # belegte Platz, und ``requests_service._kontingent_pruefen`` steigt
-        # aus, bevor die Stueckzahl ueberhaupt geprueft wird. Der Administrator
-        # trug also Zahlen ein, die nichts taten.
+        # Erstens gibt es dafuer jetzt die Standardwerte des Hauses: Ein Konto
+        # ohne eigene Zahl erbt sie von selbst - eine zweite Einstellung
+        # daneben waere eine zweite Wahrheit.
         #
         # Zweitens ist die Stueckzahl nicht die Bremse, fuer die man sie haelt.
         # Die Bremse ist die Freigabe direkt darunter (``auto_approve=False``):
@@ -623,7 +620,6 @@ def _anlegen(db: Session, settings: "AppSettings", account: ExternalAccount) -> 
         # die kennt sie weiterhin - oder hinterher in der Benutzerverwaltung.
         quota_movies = None
         quota_series = None
-        periode = QuotaPeriod.week
         blocked_movies = ""
         blocked_series = ""
 
@@ -661,7 +657,6 @@ def _anlegen(db: Session, settings: "AppSettings", account: ExternalAccount) -> 
         auto_approve=False,
         quota_movies_limit=quota_movies,
         quota_series_limit=quota_series,
-        quota_period=periode,
         blocked_movie_profiles=blocked_movies,
         blocked_series_profiles=blocked_series,
         # **Kein Alter.** Es gab dafuer einmal eine Vorgabe; sie hat nie

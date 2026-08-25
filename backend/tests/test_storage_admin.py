@@ -235,14 +235,20 @@ def test_nur_admins_duerfen_ins_haus_schieben(admin_client, name, passwort, roll
         assert db.get(StorageEntry, posten_id).user_id == konto["id"]
 
 
-def test_alles_bleibt_verborgen_wenn_der_schalter_aus_ist(admin_client) -> None:
-    """Ausgeschaltet heisst: es gibt diese Funktion nicht. 404, nicht 403."""
+def test_der_speicher_steht_ohne_vorbedingung_offen(admin_client) -> None:
+    """Es gibt keinen Hauptschalter mehr - gemessen wird immer.
+
+    Bis 0.19 antworteten diese Endpunkte mit 404, solange das Haus nach
+    Stueckzahl begrenzte. Seit beide Waehrungen zusammen gelten, gibt es
+    nichts mehr auszuschalten: Wer wissen will, was er belegt, soll es sehen,
+    auch wenn ihn niemand begrenzt.
+    """
     konto = create_user(admin_client, "kim", "passwort-1234")
     with SessionLocal() as db:
         posten_id = _posten(db, user_id=konto["id"], titel="Ein Klassiker", gb=8).id
 
-    assert admin_client.get(f"/api/storage/user/{konto['id']}").status_code == 404
-    assert admin_client.post(f"/api/storage/entries/{posten_id}/haus").status_code == 404
+    assert admin_client.get(f"/api/storage/user/{konto['id']}").status_code == 200
+    assert admin_client.post(f"/api/storage/entries/{posten_id}/haus").status_code == 200
 
 
 # --- Die Uebersicht --------------------------------------------------------

@@ -43,7 +43,7 @@ from .arr import ArrError
 from .radarr import LibraryEntry as MovieEntry
 from .settings_service import AppSettings
 from .sonarr import LibraryEntry as SeriesEntry
-from . import library, notify
+from . import library, notify, quota
 
 logger = logging.getLogger("nexview.storage")
 
@@ -126,6 +126,9 @@ class Posten:
     # Titel-genau, bei einer Staffel wuerde "gesehen" zu viel behaupten.
     # ``None`` heisst "keine Aussage" (Serie, oder kein Media-Server).
     watched: bool | None = None
+    # Fuehrt Radarr/Sonarr den Titel noch? ``False`` heisst: nicht mehr
+    # loeschbar - Nexview loescht ausschliesslich ueber diese Dienste.
+    managed: bool = True
 
 
 def kontostand(db: Session, user_id: int) -> Kontostand:
@@ -190,23 +193,29 @@ class Grenze:
 def grenze_in_bytes(user: "User", settings: AppSettings) -> int | None:
     """Welche Grenze fuer diesen Nutzer gilt - in Bytes, ``None`` = unbegrenzt.
 
-    Drei Stufen, in dieser Reihenfolge:
+    Drei Stufen, in dieser Reihenfolge - dieselben wie beim Stueck-Kontingent
+    (``quota._limit_for``). Zwei verschiedene Regeln fuer dieselbe Frage waeren
+    eine Falle.
 
-    1. **Administratoren sind immer unbegrenzt.** Genau wie beim
-       Stueck-Kontingent (``quota._limit_for``). Zwei verschiedene Regeln fuer
-       dieselbe Frage waeren eine Falle.
-    2. Traegt das Konto etwas Eigenes, gilt das. Die **0** heisst dort
-       ausdruecklich "unbegrenzt".
+    1. **Administratoren sind immer unbegrenzt.**
+    2. Traegt das Konto etwas Eigenes, gilt das: ``quota.UNBEGRENZT``
+       ausdruecklich ohne Grenze, die **0** ausdruecklich "darf nichts".
     3. Sonst die Vorgabe des Hauses - und ist auch die leer, ist niemand
        begrenzt.
+
+    ⚠️ **Die 0 hat ihre Bedeutung gewechselt.** Bis 0.19 hiess sie hier
+    "unbegrenzt"; gespeicherte Nullen ziehen deshalb einmalig auf
+    ``quota.UNBEGRENZT`` um (``db._kontingente_dreiwertig_machen``). Ohne den
+    Umzug haette dieselbe Zahl von einem Tag auf den anderen das Gegenteil
+    bedeutet - und ein Konto still gesperrt.
     """
     if user.role == Role.admin:
         return None
     eigen = user.storage_limit_gb
     if eigen is not None:
-        return None if eigen <= 0 else eigen * GB
+        return None if eigen == quota.UNBEGRENZT else max(0, eigen) * GB
     vorgabe = settings.storage_default_limit_gb
-    return vorgabe * GB if vorgabe and vorgabe > 0 else None
+    return vorgabe * GB if vorgabe is not None else None
 
 
 def stand_fuer(db: Session, user: "User", settings: AppSettings) -> Grenze:
@@ -482,6 +491,7 @@ def _als_posten(zeile: StorageEntry) -> Posten:
         path=zeile.path or "",
         released_at=zeile.released_at,
         release_wish=zeile.release_wish.value if zeile.release_wish else None,
+        managed=zeile.arr_managed,
     )
 
 
@@ -510,6 +520,8 @@ class _Gemessen:
     # schlicht ankommt. Gemeint ist mit der Meldung die **Aufwertung** -
     # aus 5 GB werden 50, weil 1080p durch 2160p ersetzt wurde.
     unvollstaendig: bool = False
+    # Kommt der Posten von Radarr/Sonarr - oder nur noch vom Media-Server?
+    verwaltet: bool = True
 
 
 @dataclass(frozen=True)
@@ -763,6 +775,10 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
                 season=None,
                 title=zeile.title,
                 size_bytes=bytes_,
+                # ⚠️ Nur der Media-Server kennt ihn noch - also **nicht mehr
+                # loeschbar**. Wer hier landet, hat den Eintrag aus Radarr
+                # geworfen und die Datei behalten.
+                verwaltet=False,
             )
             quelle[kennung] = zeile.provider
 
@@ -850,6 +866,7 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
                     title=wert.title,
                     size_bytes=wert.size_bytes,
                     path=wert.path,
+                    arr_managed=wert.verwaltet,
                     measured_at=jetzt,
                     state=(
                         StorageState.owned if besitzer else StorageState.house
@@ -904,6 +921,11 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
         # Serie inzwischen ueber Nexview angefragt hat.
         if zeile.tmdb_id is None and wert.tmdb_id:
             zeile.tmdb_id = wert.tmdb_id
+        # ⚠️ Faellt bei **jedem** Abgleich neu an, in beide Richtungen: Ein
+        # Titel kann aus Radarr fliegen (dann steht er ab jetzt allein im
+        # Media-Server) und genauso wieder hinein.
+        if zeile.arr_managed != wert.verwaltet:
+            zeile.arr_managed = wert.verwaltet
         zeile.measured_at = jetzt
 
     # Wurde jemand zwischenzeitlich Administrator, wandern seine Posten ins
@@ -1293,6 +1315,38 @@ async def entfolgen(db: Session, settings: AppSettings, posten_id: int) -> Poste
     zeile.release_wish = None
     db.flush()
     return _als_posten(zeile)
+
+
+def konto_zuruecksetzen(db: Session, user_id: int) -> tuple[int, int]:
+    """Ein einzelnes Konto auf null - seine Posten gehen ins Haus.
+
+    Der Ausweg aus dem **Geisterposten**: Wer einen ueber Nexview angefragten
+    Titel aus Radarr wirft und die Datei behaelt, bleibt dafuer belastet - und
+    Nexview kann ihn nicht mehr entfernen, weil es ausschliesslich ueber
+    Radarr/Sonarr loescht. Ohne diesen Knopf sitzt der Betroffene auf einer
+    Belastung, die er selbst nicht mehr loswird.
+
+    Wie beim haus-weiten Zuruecksetzen gilt: **keine Datei wird angefasst**,
+    die gespeicherte Grenze bleibt stehen, und offene Abgaben dieses Kontos
+    sind danach erledigt.
+    """
+    betroffen = list(
+        db.scalars(select(StorageEntry).where(StorageEntry.user_id == user_id))
+    )
+    bytes_ = sum(zeile.size_bytes for zeile in betroffen)
+    for zeile in betroffen:
+        zeile.user_id = None
+        zeile.state = StorageState.house
+        zeile.released_at = None
+        zeile.release_wish = None
+    if betroffen:
+        logger.info(
+            "Storage account %s reset: %s item(s) with %s bytes moved to the household",
+            user_id,
+            len(betroffen),
+            bytes_,
+        )
+    return len(betroffen), bytes_
 
 
 def konten_zuruecksetzen(db: Session) -> tuple[int, int]:

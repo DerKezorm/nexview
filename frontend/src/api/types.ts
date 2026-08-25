@@ -6,6 +6,9 @@
 export type Role = "admin" | "approver" | "user" | "child";
 export type QuotaPeriod = "day" | "week" | "month";
 
+/** Eine Grenze am Konto: Standardwert des Hauses, ohne Grenze, oder eine Zahl. */
+export type Kontingentwert = number | "standard" | "unlimited";
+
 export type User = {
   id: number;
   username: string;
@@ -24,15 +27,23 @@ export type User = {
   effective_auto_approve_movies: boolean;
   effective_auto_approve_series: boolean;
   can_approve: boolean;
-  quota_movies_limit: number | null;
-  quota_series_limit: number | null;
-  quota_period: QuotaPeriod;
   /**
-   * Speicher-Grenze in GB. **null heißt „Standardgrenze gilt"**, nicht
-   * unbegrenzt – anders als bei den Stückzahlen darüber. Unbegrenzt für
-   * dieses eine Konto ist die 0.
+   * Die drei Grenzen am Konto. Alle drei sprechen dieselbe Sprache:
+   * `"standard"` = es gilt der Standardwert des Hauses, `"unlimited"` =
+   * ausdrücklich ohne Grenze, eine Zahl = genau diese (die **0 heißt „darf
+   * nichts"**).
+   *
+   * ⚠️ Bewusst Wörter statt Zahlen-Sentinels: In der Datenbank stehen `NULL`
+   * und `-1`, aber ein Feld, in dem `-1` mal „Standard" und mal „unbegrenzt"
+   * bedeutet, ist genau die Verwechslung, die niemand bemerkt – und am Ende
+   * stünde eine `-1` im Eingabefeld.
+   *
+   * Der **Zeitraum** steht nicht mehr am Konto: Er gilt haus-weit und kommt
+   * aus den Einstellungen (`quota_period`).
    */
-  storage_limit_gb: number | null;
+  quota_movies_limit: Kontingentwert;
+  quota_series_limit: Kontingentwert;
+  storage_limit_gb: Kontingentwert;
   /** Leere Liste = alle Qualitätsprofile erlaubt. */
   blocked_movie_profiles: number[];
   blocked_series_profiles: number[];
@@ -786,12 +797,6 @@ export type AppConfig = {
    */
   mediaserver_watchlist_available: string[];
   mediaserver_watchlist_connected: string[];
-  /**
-   * Speicher-Kontingente eingeschaltet? Ist der Schalter aus, verhält sich
-   * Nexview wie vor deren Einbau – kein Reiter, keine Karte, keine
-   * Verteilung, und gemessen wird auch nicht.
-   */
-  storage_enabled: boolean;
   /** Ist die Merklisten-Automatik eingeschaltet? Blendet den Herkunfts-Filter ein. */
   watchlist_enabled: boolean;
 };
@@ -870,12 +875,15 @@ export type AppSettings = {
   /** Dürfen Benutzer ihre Merkliste sehen und daraus anfragen? */
   watchlist_enabled: boolean;
   /**
-   * Zählt der belegte Platz statt der Stückzahl? Entscheidet, was neuen Konten
-   * als Grenze angekündigt wird – es gilt immer nur eine Währung.
+   * Die drei Standardwerte des Hauses – sie gelten für jedes Konto ohne
+   * eigenen Wert, und zwar **immer alle drei zugleich**. `null` heißt
+   * unbegrenzt.
    */
-  storage_enabled: boolean;
-  /** Hausvorgabe in GB; `null` bzw. ≤ 0 heißt unbegrenzt. */
+  quota_default_movies: number | null;
+  quota_default_series: number | null;
   storage_default_limit_gb: number | null;
+  /** Zeitraum der Stückzahl – haus-weit, nicht mehr je Konto. */
+  quota_period: QuotaPeriod;
   /**
    * Gespeicherte Zugangsdaten, die sich mit dem aktuellen Schlüssel nicht
    * mehr entschlüsseln lassen – NEXVIEW_SECRET_KEY geändert oder
@@ -1082,6 +1090,14 @@ export type StorageEntry = {
   release_wish?: 'delete' | 'keep' | null
   /** „Schon gesehen?“ – nur auf der eigenen Seite, nur bei Filmen. `null` = unbekannt. */
   watched?: boolean | null
+  /**
+   * Führt Radarr bzw. Sonarr diesen Titel noch?
+   *
+   * `false` heißt: Nur der Media-Server meldet ihn. Er zählt weiter, lässt
+   * sich aber **nicht mehr löschen** – Nexview löscht ausschließlich über
+   * Radarr/Sonarr. Abgeben geht dann nur noch an den Hausbestand.
+   */
+  managed?: boolean
 }
 
 /**
@@ -1309,13 +1325,7 @@ export type UserStats = {
   poor_ratings: number;
   /** Anteil der Anfragen, die als Download ankamen - null ohne Anfragen. */
   success_rate: number | null;
-  /**
-   * Belegter Platz und Grenze in Bytes — **nur im GB-Betrieb** gefüllt.
-   *
-   * „Anzahl oder Speicher, nie beides": Welche der beiden Währungen die
-   * Tabelle zeigt, entscheidet `config.storage_enabled` beim Anzeigen. So
-   * wirkt ein Umschalten sofort, ohne dass Daten nachgeladen werden müssen.
-   */
+  /** Belegter Platz und Grenze in Bytes - immer gefüllt, wie die Stückzahlen. */
   storage_used_bytes: number | null;
   storage_limit_bytes: number | null;
   quota_movie_used: number;

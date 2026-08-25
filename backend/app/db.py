@@ -66,6 +66,111 @@ def init_db() -> None:
     _bewertungen_in_die_tabelle()
     _gesehen_herkunft_nachtragen()
     _verknuepfungen_in_die_tabelle()
+    _kontingente_dreiwertig_machen()
+
+
+def _kontingente_dreiwertig_machen() -> None:
+    """Die Speichergrenze auf die neue Schreibweise bringen - **einmalig**.
+
+    ⚠️ **Dieselbe Zahl hat ihre Bedeutung gewechselt.** Bis 0.19 hiess eine
+    ``0`` bei ``storage_limit_gb`` "fuer dieses Konto unbegrenzt". Seit die
+    Kontingente dreiwertig sind, heisst sie "darf nichts anfragen" - und
+    "unbegrenzt" ist die ``-1``. Ohne diesen Schritt waere jedes so gesetzte
+    Konto ueber Nacht **still gesperrt** worden, ohne dass jemand etwas
+    geaendert haette.
+
+    ``NULL`` bleibt ``NULL``: Es hiess vorher "es gilt die Standardgrenze" und
+    heisst es weiter.
+
+    Ausserdem zieht der Kontingent-Zeitraum von den Konten in die
+    Einstellungen um. Er gilt jetzt haus-weit; gab es unter den Konten genau
+    einen abweichenden Wert, wird er uebernommen, damit sich fuer eine
+    bestehende Installation nichts aendert. Waren mehrere verschiedene im
+    Umlauf, gewinnt der haeufigste - eine Entscheidung muss fallen, und die
+    Mehrheit trifft am wenigsten Leute.
+
+    Laeuft bei jedem Start und trifft nach dem ersten Mal nichts mehr.
+    """
+    with engine.begin() as connection:
+        ergebnis = connection.exec_driver_sql(
+            "UPDATE users SET storage_limit_gb = -1 WHERE storage_limit_gb = 0"
+        )
+        if ergebnis.rowcount:
+            logger.info(
+                "Storage limit of %d account(s) migrated: 0 meant 'unlimited' and now "
+                "means 'nothing allowed' - they were set to -1 (unlimited)",
+                ergebnis.rowcount,
+            )
+
+        # ⚠️ **Der Umstellungs-Pardon.** War der alte Hauptschalter *aus*,
+        # galten die gespeicherten GB-Grenzen bis eben gar nicht - weder die
+        # des Hauses noch die der Konten. Ab jetzt gelten sie. Ohne diesen
+        # Schritt waeren Leute nach dem Update schlagartig gesperrt, wegen
+        # einer Zahl, die seit Monaten wirkungslos herumlag, und wegen einer
+        # Zurechnung, von der sie nicht wussten, dass sie einmal zaehlen wuerde.
+        #
+        # Also dieselbe Regel wie beim frueheren Umschalten: alles ins Haus,
+        # jedes Konto startet bei null. Keine Datei wird angefasst, gespeicherte
+        # Grenzen bleiben stehen - sie greifen nur ab jetzt statt rueckwirkend.
+        war_aus = connection.exec_driver_sql(
+            "SELECT value FROM settings WHERE key = 'storage_enabled'"
+        ).scalar()
+        if war_aus is not None and (war_aus or "").strip().lower() not in {
+            "on",
+            "true",
+            "1",
+            "yes",
+            "ja",
+        }:
+            ergebnis = connection.exec_driver_sql(
+                "UPDATE storage_entries SET user_id = NULL, state = 'house', "
+                "released_at = NULL, release_wish = NULL WHERE user_id IS NOT NULL"
+            )
+            if ergebnis.rowcount:
+                logger.warning(
+                    "Quotas merged: storage limits were inert until now, so %d item(s) "
+                    "were moved to the household - every account starts at zero",
+                    ergebnis.rowcount,
+                )
+
+        # Der alte Hauptschalter wird nicht mehr gelesen. Die Zeile stehen zu
+        # lassen waere eine Einstellung, die es nicht mehr gibt - und beim
+        # naechsten Blick in die Datenbank eine falsche Faehrte.
+        connection.exec_driver_sql("DELETE FROM settings WHERE key = 'storage_enabled'")
+
+        # Der Zeitraum nur, solange niemand ihn haus-weit gesetzt hat: Ein
+        # zweiter Lauf duerfte eine bewusste Wahl nicht ueberschreiben.
+        schon_da = connection.exec_driver_sql(
+            "SELECT COUNT(*) FROM settings WHERE key = 'quota_period'"
+        ).scalar()
+        if schon_da:
+            return
+        zeile = connection.exec_driver_sql(
+            """
+            SELECT quota_period, COUNT(*) AS anzahl
+            FROM users
+            WHERE quota_period IS NOT NULL AND quota_period != 'week'
+            GROUP BY quota_period
+            ORDER BY anzahl DESC
+            LIMIT 1
+            """
+        ).first()
+        if zeile is None:
+            return
+        # ⚠️ ``is_secret`` und ``updated_at`` sind Pflichtspalten - beim
+        # rohen SQL springt kein Standardwert aus dem Modell ein. Ohne sie
+        # scheitert das INSERT beim **Start**, also bei jeder Installation,
+        # die gerade aktualisiert.
+        connection.exec_driver_sql(
+            "INSERT INTO settings (key, value, is_secret, updated_at) "
+            "VALUES ('quota_period', ?, 0, ?)",
+            (zeile[0], str(utcnow().replace(tzinfo=None))),
+        )
+        logger.info(
+            "Quota period is now house-wide; adopted %r from %d account(s)",
+            zeile[0],
+            zeile[1],
+        )
 
 
 def _verknuepfungen_in_die_tabelle() -> None:

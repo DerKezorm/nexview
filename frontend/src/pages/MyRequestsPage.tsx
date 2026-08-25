@@ -7,7 +7,6 @@ import { ApiError, api } from '../api/client'
 import type { MediaRequest, QuotaInfo, QuotaOverview } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { TitelVerweis } from '../components/TitelVerweis'
-import { useConfig } from '../hooks/useConfig'
 import { useStorageStand, type SpeicherStand } from '../hooks/useStorageStand'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Pagination, useSeiten } from '../components/Pagination'
@@ -189,15 +188,11 @@ export function MyRequestsPage() {
 
   // Die Belegung laeuft unabhaengig vom Kontingent - gemessen wird immer,
   // begrenzt (spaeter) nur auf Wunsch.
-  const { data: config } = useConfig()
-  const speicherGilt = Boolean(config?.storage_enabled)
   const speicher = useStorageStand()
 
   const quotaQuery = useQuery({
     queryKey: ['quota'],
     queryFn: () => api.get<QuotaOverview>('/api/requests/quota'),
-    // Im Speicher-Betrieb gibt es dazu nichts zu zeigen.
-    enabled: !speicherGilt,
   })
 
   function refresh() {
@@ -248,10 +243,10 @@ export function MyRequestsPage() {
           <div
             className={
               'grid grid-cols-1 gap-3 ' +
-              (speicherGilt ? 'sm:grid-cols-2' : 'sm:grid-cols-2')
+              'sm:grid-cols-2'
             }
           >
-            {!speicherGilt && quotaQuery.data && (
+            {quotaQuery.data && (
               <>
                 <QuotaCard label={t('common.movies')} quota={quotaQuery.data.movie} />
                 <QuotaCard

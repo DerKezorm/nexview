@@ -179,8 +179,7 @@ async def check_once(db: Session, settings: AppSettings) -> int:
             # Abgleich: Wer gerade etwas angefragt hat und nachsieht, was es
             # ihn kostet, faende dort sonst bis zu eine Stunde lang eine Null
             # und hielte die Anzeige fuer kaputt.
-            if settings.storage_enabled:
-                storage.verbuchen(db, request, eintrag)
+            storage.verbuchen(db, request, eintrag)
             anfragender = db.get(User, request.user_id)
             if anfragender is not None:
                 notify.create(
@@ -419,16 +418,12 @@ _speicher_zuletzt: float = 0.0
 async def _speicher_vielleicht(db, settings) -> None:
     """Die Speicher-Belegung erfassen, wenn es an der Zeit ist.
 
-    Laeuft **unabhaengig davon**, ob Kontingente nach Speicher eingestellt
-    sind: Gemessen wird immer, begrenzt nur auf Wunsch. Sonst staende beim
-    Umschalten nirgends eine Zahl, auf deren Grundlage sich eine Grenze
-    festlegen liesse.
+    Laeuft **immer**, unabhaengig davon, ob ueberhaupt jemand begrenzt ist:
+    Gemessen wird stets, begrenzt nur auf Wunsch. Ohne das staende bei jedem
+    eine Null, sobald der Betreiber zum ersten Mal eine Grenze setzen will -
+    also genau dann, wenn er eine Zahl braucht, um eine sinnvolle zu waehlen.
     """
     global _speicher_zuletzt
-    # Ist der Schalter aus, wird nicht einmal gemessen: Die Funktion soll sich
-    # dann verhalten, als gaebe es sie nicht.
-    if not settings.storage_enabled:
-        return
     if not (settings.radarr_configured or settings.sonarr_configured):
         return
     jetzt = time.monotonic()

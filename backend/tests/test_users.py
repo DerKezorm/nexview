@@ -35,12 +35,19 @@ def test_freigabe_und_kontingent_aendern(admin_client: TestClient) -> None:
 
     response = admin_client.patch(
         f"/api/users/{created['id']}",
-        json={"auto_approve": True, "quota_movies_limit": None, "quota_period": "day"},
+        json={
+            "auto_approve": True,
+            "quota_movies_limit": "unlimited",
+            "storage_limit_gb": 50,
+        },
     )
     assert response.status_code == 200
     assert response.json()["auto_approve"] is True
-    assert response.json()["quota_movies_limit"] is None
-    assert response.json()["quota_period"] == "day"
+    # Drei Zustaende, drei Antworten: ausdruecklich ohne Grenze, eine eigene
+    # Zahl - und "standard" fuer alles, was nicht mitgeschickt wurde.
+    assert response.json()["quota_movies_limit"] == "unlimited"
+    assert response.json()["storage_limit_gb"] == 50
+    assert response.json()["quota_series_limit"] == "standard"
 
 
 def test_benutzer_loeschen(admin_client: TestClient) -> None:

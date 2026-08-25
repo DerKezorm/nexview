@@ -1695,6 +1695,35 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.20.0": {
+        "lead": "Diese Fassung hat kaum etwas Neues zum Anschauen — und trotzdem ist sie eine der wichtigsten bisher. Das Anmelden bekommt eine Bremse: Bis hierher konnte eine Maschine Passwörter durchprobieren, so schnell die Leitung hergibt. Und die Fehlermeldungen sprechen endlich die Sprache, die man eingestellt hat.",
+        "sections": [
+          {
+            "title": "Das Anmelden hat jetzt eine Bremse",
+            "where": "Nirgends sichtbar — genau das ist der Punkt",
+            "body": "Bis hierher gab es weder ein Ratenlimit noch eine Sperre. Wer die Adresse deiner Installation kannte, konnte Passwörter durchprobieren, so schnell die Leitung hergibt.\n\nNach drei Fehlversuchen wächst die Wartezeit: eine Sekunde, zwei, vier. Ab dem zehnten bleibt die Tür eine Viertelstunde zu. **Sie geht von selbst wieder auf** — eine Sperre, die den Administrator zum Aufschließen braucht, sperrt am Ende den Administrator aus. Und wer gegen eine geschlossene Tür weiterhämmert, verlängert nichts: Sonst könnte ein Fremder jemanden dauerhaft aussperren, indem er einfach nicht aufhört.\n\n**Drei Türen sind es, nicht eine.** Neben der Nexview-Anmeldung gibt es die Anmeldung mit dem Passwort des *Medienservers* — und die ist die unangenehmere: Nexview reicht das Passwort an Plex, Jellyfin oder Emby weiter, und dafür braucht niemand ein Nexview-Konto. Ohne Bremse war Nexview ein bequemer Weg, Passwörter gegen den eigenen Medienserver zu raten, mit fremder Absenderadresse obendrein. Die Links aus den Mails sind ebenfalls abgedeckt.\n\nWer sein Passwort kennt, merkt nichts davon. Ein falsches Passwort zählt; ein deaktiviertes Konto oder eine unbestätigte Adresse nicht — das sind Leute, die auf etwas anderes warten."
+          },
+          {
+            "title": "Wenn ein Reverse Proxy davorsteht",
+            "where": "docker-compose.yml → NEXVIEW_CLIENT_IP",
+            "body": "Gezählt wird immer **nach Konto**, dafür ist nichts einzustellen.\n\nZusätzlich nach Adresse zu zählen, geht nur, wenn Nexview die echte Adresse kennt — und das weiß es von sich aus nicht. Hinter einem Reverse Proxy sehen alle Anfragen aus wie dieselbe Adresse, nämlich die des Proxys. Würde Nexview das einfach annehmen, sperrte der erste Vertipper den ganzen Haushalt aus, dich eingeschlossen.\n\nDeshalb wird nicht geraten, sondern gefragt: `direct`, wenn Nexview direkt am Netz hängt, `proxy` bei einem Proxy davor, `proxy:2` bei zweien (etwa Cloudflare und dahinter ein eigener). Der Proxy muss `X-Forwarded-For` weiterreichen — Nginx Proxy Manager, Caddy und Traefik tun das von selbst.\n\n⚠️ **Im Zweifel leer lassen.** Das ist immer sicher, und die Kontosperre wirkt trotzdem."
+          },
+          {
+            "title": "Fehlermeldungen kommen in deiner Sprache",
+            "where": "Überall dort, wo etwas schiefgeht",
+            "body": "Die Oberfläche war von Anfang an zweisprachig. Die Meldungen vom Server waren es nie: Wer auf Englisch umstellte und sich vertippte, bekam „Benutzername oder Passwort ist falsch.“ Aufgefallen ist es kaum jemandem, weil man einen Fehler machen muss, um einen zu sehen.\n\nAlle 76 sprechen jetzt beide Sprachen. Der Server übersetzt dabei nicht — er **benennt**. Er kann gar nicht wissen, welche Sprache eingestellt ist: Die Wahl liegt im Browser, und auf der Anmeldeseite gibt es nicht einmal ein Konto, an dem eine Sprache hinge. Ein Server, der dort übersetzt, müsste raten — und läge ausgerechnet bei dem falsch, der bewusst umgeschaltet hat.\n\nZwei Sorten bleiben, wie sie sind: Was Plex, Jellyfin oder Emby zurückmelden, kommt in *deren* Sprache. Das zu übersetzen hieße, es zu erfinden."
+          },
+          {
+            "title": "Der Port im Container lässt sich verschieben",
+            "where": "docker-compose.yml → NEXVIEW_PORT",
+            "body": "Nexview lauschte fest auf 8000. Im Normalfall fällt das nie auf, weil die Portzuordnung es verdeckt. Wer aber `network_mode: host` fährt, hat keine Zuordnung — dort *ist* der Port im Container der Port auf dem Server, und gegen eine Kollision half nichts.\n\n`NEXVIEW_PORT` verschiebt ihn. Leer gelassen bleibt alles, wie es war.\n\nGemeldet hat es der Prüfer des TrueNAS-Katalogs, während Nexview dort aufgenommen wurde. Es betrifft Unraid und einfaches Docker genauso."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Fehlerantworten verloren ihre Kopfzeilen — und zwar überall dort, wo ein gebautes Frontend danebenliegt, also in jedem Container. Zu sehen war davon nichts: Der Status stimmte, der Text stimmte, es fehlte nur die Hälfte."
+        ]
+      },
       "0.19.0": {
         "lead": "Diese Fassung bringt Emby als dritten Medienserver, macht das Bewerten für alle offen — und legt die Kontingente zusammen: Stückzahl und Speicherplatz gelten ab jetzt gemeinsam statt entweder oder. Dazu einige Stellen, an denen Nexview endlich sagt, was es längst wusste: warum eine Anfrage dauert, was schon im eigenen Abo läuft, und wann ein Titel angekommen ist, auf den man wartet.",
         "sections": [

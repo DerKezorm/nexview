@@ -12,7 +12,7 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
-## 0.20.0 – unveröffentlicht
+## 0.20.0 – 25.08.2026
 
 ### New
 

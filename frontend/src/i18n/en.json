@@ -1695,6 +1695,35 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.20.0": {
+        "lead": "There is barely anything to look at in this release — and it is still one of the most important so far. Signing in gets a brake: until now a machine could try passwords as fast as the line allowed. And the error messages finally speak the language you picked.",
+        "sections": [
+          {
+            "title": "Signing in now has a brake",
+            "where": "Nowhere to be seen — which is exactly the point",
+            "body": "Until now there was no rate limit and no lock at all. Anyone who knew the address of your installation could try passwords as fast as the line allowed.\n\nAfter three wrong attempts the wait grows: one second, two, four. After ten the door stays shut for fifteen minutes. **It opens again by itself** — a lock that needs an administrator to open it ends up locking out the administrator. And hammering on a closed door extends nothing: otherwise a stranger could keep someone locked out for good simply by not stopping.\n\n**There are three doors, not one.** Besides signing in to Nexview there is signing in with your *media server* password — and that one is the worse of the two: Nexview hands the password to Plex, Jellyfin or Emby, and it needs no Nexview account at all. Without a brake, Nexview was a comfortable way to guess passwords against your own media server, with somebody else's return address on it. The links sent by mail are covered too.\n\nAnyone who knows their password notices none of this. A wrong password counts; a switched-off account or an unconfirmed address does not — those are people waiting for something else."
+          },
+          {
+            "title": "When a reverse proxy sits in front",
+            "where": "docker-compose.yml → NEXVIEW_CLIENT_IP",
+            "body": "Attempts are always counted **per account**, and that needs no setting.\n\nCounting per address as well only works if Nexview knows the real one, and it cannot tell on its own. Behind a reverse proxy every request looks like it comes from the same address — the proxy's. If Nexview simply assumed otherwise, the first typo would lock out the whole household, you included.\n\nSo it does not guess, it asks: `direct` if Nexview is reachable directly, `proxy` for one in front, `proxy:2` for two (say Cloudflare and then your own). Your proxy has to pass `X-Forwarded-For` — Nginx Proxy Manager, Caddy and Traefik do that on their own.\n\n⚠️ **Leave it empty if unsure.** That is always safe, and the per-account lock still works."
+          },
+          {
+            "title": "Error messages come in your language",
+            "where": "Everywhere something goes wrong",
+            "body": "The interface has been bilingual from the first day. The messages from the server never were: switch to English, mistype your password, and up came „Benutzername oder Passwort ist falsch.“ Hardly anyone noticed, because you have to make a mistake to see one.\n\nAll 76 of them speak both languages now. The server does not translate — it **names**. It cannot know which language you picked: that choice lives in your browser, and on the sign-in page there is not even an account to hang a language on. A server translating there would have to guess, and would guess wrong for exactly the person who switched on purpose.\n\nTwo kinds stay as they are: what Plex, Jellyfin or Emby report back arrives in *their* language. Translating that would mean inventing it."
+          },
+          {
+            "title": "The port inside the container can be moved",
+            "where": "docker-compose.yml → NEXVIEW_PORT",
+            "body": "Nexview listened on a fixed 8000. In the normal case that never shows, because the port mapping hides it. But with `network_mode: host` there is no mapping — there the port inside the container *is* the port on your server, and nothing helped against a collision.\n\n`NEXVIEW_PORT` moves it. Left empty, everything stays as it was.\n\nReported by the TrueNAS catalogue reviewer while Nexview was being taken in. It applies to Unraid and plain Docker just the same."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Error replies were losing their headers — everywhere a built frontend sits next to the backend, which is to say in every container. Nothing looked wrong: the status was right, the text was right, only half the reply was missing."
+        ]
+      },
       "0.19.0": {
         "lead": "This release brings Emby as a third media server, opens up rating to everyone — and merges the quotas: item count and storage space now apply together instead of either-or. Along with it, several places where Nexview finally says what it long knew: why a request is taking time, what is already in your own subscription, and when a title you were waiting for has arrived.",
         "sections": [

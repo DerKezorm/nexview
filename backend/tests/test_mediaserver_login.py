@@ -144,10 +144,19 @@ def anmelden(client: TestClient) -> dict:
 
 
 def test_ohne_verbindung_kein_plex_login(client: TestClient) -> None:
-    """Ohne verbundenen Server gibt es den Weg gar nicht."""
+    """Ohne verbundenen Server gibt es den Weg gar nicht.
+
+    ⚠️ Die Kennung ist bewusst **eng**: ``mediaserver_no_code_login`` und nicht
+    das fruehere ``mediaserver_not_configured``. Letzteres stand an vier
+    Stellen fuer vier verschiedene Saetze - "kein Server mit Code-Anmeldung",
+    "dieser Server ist nicht verbunden", "gar kein Server verbunden" und "kein
+    Server mit Merkliste". Solange die Kennung nur eine Nummer war, fiel das
+    nicht auf; sobald daraus ein uebersetzter Satz wird, muesste eine
+    Uebersetzung vier Dinge gleichzeitig sagen.
+    """
     antwort = client.post("/api/auth/mediaserver/login/start")
     assert antwort.status_code == 404
-    assert antwort.json()["detail"]["code"] == "mediaserver_not_configured"
+    assert antwort.json()["detail"]["code"] == "mediaserver_no_code_login"
 
 
 def test_erste_anmeldung_legt_konto_an(

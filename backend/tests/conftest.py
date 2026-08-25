@@ -25,7 +25,7 @@ from sqlalchemy import delete, select  # noqa: E402
 
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.services import library  # noqa: E402
+from app.services import anmeldebremse, library  # noqa: E402
 from app.models import (  # noqa: E402
     Base,
     MediaRequest,
@@ -61,6 +61,13 @@ def clean_db() -> Iterator[None]:
         for tabelle in reversed(Base.metadata.sorted_tables):
             session.execute(delete(tabelle))
         session.commit()
+
+    # ⚠️ Die Anmeldebremse zaehlt im **Arbeitsspeicher**, nicht in der
+    # Datenbank - die Schleife darueber raeumt sie also nicht mit weg. Ohne
+    # diese Zeile schleppt ein Test, der absichtlich falsche Passwoerter
+    # eingibt, seine Zaehler in den naechsten, und der scheitert dann mit
+    # 429 statt mit dem, was er eigentlich prueft.
+    anmeldebremse.zuruecksetzen()
     yield
 
 

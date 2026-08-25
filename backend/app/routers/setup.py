@@ -21,6 +21,7 @@ from ..security import (
 from ..services import mail, tokens
 from ..services.mediaserver import PROVIDERS, verbundene_anbieter
 from ..services.settings_service import load_settings
+from .. import meldungen
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
 
@@ -56,11 +57,20 @@ def create_first_admin(payload: SetupAdminCreate, db: DbSession) -> TokenPair:
     if has_any_user(db):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Die Einrichtung wurde bereits abgeschlossen.",
+            detail=meldungen.meldung(
+                "setup_already_done",
+                "Die Einrichtung wurde bereits abgeschlossen.",
+            ),
         )
 
     if not mail.valid_address(payload.email):
-        raise HTTPException(status_code=422, detail="Das ist keine gültige E-Mail-Adresse.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "email_invalid",
+                "Das ist keine gültige E-Mail-Adresse.",
+            ),
+        )
 
     admin = User(
         username=payload.username,

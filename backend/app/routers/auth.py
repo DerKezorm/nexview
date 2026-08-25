@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from ..deps import AdultUser, CurrentUser, DbSession
 from ..models import User, utcnow
-from ..services import accounts, avatars, mail, tokens
+from ..services import accounts, anmeldebremse, avatars, mail, tokens
 from ..services.settings_service import load_settings
+from .. import meldungen
 from ..schemas import (
     LoginRequest,
     PasswordChange,
@@ -21,8 +22,7 @@ from ..schemas import (
     UserPublic,
     VerificationSent,
 )
-from ..security import (
-    access_token_expires_in,
+from ..security import (    access_token_expires_in,
     create_access_token,
     create_refresh_token,
     decode_token,
@@ -36,7 +36,7 @@ logger = logging.getLogger("nexview.auth")
 
 _INVALID_LOGIN = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
-    detail="Benutzername oder Passwort ist falsch.",
+    detail=meldungen.meldung("bad_credentials", "Benutzername oder Passwort ist falsch."),
 )
 
 # Gegen einen echten Hash pruefen, wenn es den Benutzer gar nicht gibt - sonst
@@ -45,11 +45,17 @@ _DUMMY_HASH = hash_password("nexview-dummy-password")
 
 
 @router.post("/login", response_model=TokenPair)
-def login(payload: LoginRequest, db: DbSession) -> TokenPair:
+def login(payload: LoginRequest, request: Request, db: DbSession) -> TokenPair:
     # Benutzername *oder* E-Mail-Adresse, beides ohne Ruecksicht auf Gross- und
     # Kleinschreibung. Adressen liegen ohnehin klein geschrieben in der
     # Datenbank; beim Benutzernamen muss verglichen werden.
     eingabe = payload.username.strip()
+
+    # Die Bremse zaehlt gegen die **Eingabe**, nicht gegen den gefundenen
+    # Benutzer: Sonst waere ein Name, den es gar nicht gibt, beliebig oft
+    # frei - und genau damit faengt jeder Angriff an.
+    bremse = anmeldebremse.torwaechter(request, "login", eingabe)
+
     user = db.scalar(
         select(User).where(
             (func.lower(User.username) == eingabe.lower())
@@ -59,15 +65,28 @@ def login(payload: LoginRequest, db: DbSession) -> TokenPair:
 
     if user is None:
         verify_password(payload.password, _DUMMY_HASH)
+        anmeldebremse.gescheitert(bremse)
         raise _INVALID_LOGIN
 
     if not verify_password(payload.password, user.password_hash):
+        anmeldebremse.gescheitert(bremse)
         raise _INVALID_LOGIN
+
+    # Ab hier stimmt das Passwort. Der Zaehler ist erledigt, **auch wenn die
+    # Anmeldung gleich noch scheitert**: Ein deaktiviertes Konto oder eine
+    # unbestaetigte Adresse ist kein Rateversuch, sondern jemand, der sein
+    # Passwort kennt. Wuerde das mitzaehlen, sperrte sich genau die Person
+    # aus, die gerade auf ihre Bestaetigungsmail wartet und es alle zwei
+    # Minuten noch einmal versucht.
+    anmeldebremse.geklappt(bremse)
 
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Dieses Konto ist deaktiviert. Bitte wende dich an den Administrator.",
+            detail=meldungen.meldung(
+                "account_disabled_ask_admin",
+                "Dieses Konto ist deaktiviert. Bitte wende dich an den Administrator.",
+            ),
         )
 
     # Ohne bestaetigte Adresse gibt es keine Sitzung. Die Sperre sitzt hier und
@@ -104,14 +123,20 @@ def refresh(payload: RefreshRequest, db: DbSession) -> TokenPair:
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Sitzung abgelaufen. Bitte erneut anmelden.",
+            detail=meldungen.meldung(
+                "session_expired",
+                "Sitzung abgelaufen. Bitte erneut anmelden.",
+            ),
         )
 
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Sitzung abgelaufen. Bitte erneut anmelden.",
+            detail=meldungen.meldung(
+                "session_expired",
+                "Sitzung abgelaufen. Bitte erneut anmelden.",
+            ),
         )
 
     return TokenPair(
@@ -134,14 +159,17 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, db: DbSession) -> User:
         if payload.language not in {"de", "en"}:
             raise HTTPException(
                 status_code=422,
-                detail="Sprache muss 'de' oder 'en' sein.",
+                detail=meldungen.meldung("language_invalid", "Sprache muss 'de' oder 'en' sein."),
             )
         user.language = payload.language
     if payload.theme is not None:
         if payload.theme not in {"dark", "light"}:
             raise HTTPException(
                 status_code=422,
-                detail="Darstellung muss 'dark' oder 'light' sein.",
+                detail=meldungen.meldung(
+                    "theme_invalid",
+                    "Darstellung muss 'dark' oder 'light' sein.",
+                ),
             )
         user.theme = payload.theme
 
@@ -184,14 +212,23 @@ async def change_my_email(payload: EmailChange, user: AdultUser, db: DbSession) 
     """
     neue = tokens.normalize_email(payload.email)
     if not mail.valid_address(neue):
-        raise HTTPException(status_code=422, detail="Das ist keine gültige E-Mail-Adresse.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "email_invalid",
+                "Das ist keine gültige E-Mail-Adresse.",
+            ),
+        )
     if neue == (user.email or ""):
         return user
 
     if db.scalar(select(User.id).where(User.email == neue, User.id != user.id)) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Diese Adresse gehört bereits zu einem anderen Konto.",
+            detail=meldungen.meldung(
+                "email_taken_other_account",
+                "Diese Adresse gehört bereits zu einem anderen Konto.",
+            ),
         )
 
     alte = user.email
@@ -213,9 +250,21 @@ async def change_my_email(payload: EmailChange, user: AdultUser, db: DbSession) 
 async def resend_verification(user: AdultUser, db: DbSession) -> VerificationSent:
     """Bestaetigungsmail erneut anfordern."""
     if not user.email:
-        raise HTTPException(status_code=409, detail="Es ist keine Adresse hinterlegt.")
+        raise HTTPException(
+            status_code=409,
+            detail=meldungen.meldung(
+                "email_missing",
+                "Es ist keine Adresse hinterlegt.",
+            ),
+        )
     if user.email_verified:
-        raise HTTPException(status_code=409, detail="Deine Adresse ist bereits bestätigt.")
+        raise HTTPException(
+            status_code=409,
+            detail=meldungen.meldung(
+                "email_already_verified",
+                "Deine Adresse ist bereits bestätigt.",
+            ),
+        )
 
     zustellung = await accounts.send_verification(db, load_settings(db), user)
     return VerificationSent(sent=zustellung.sent, error=zustellung.error)
@@ -248,7 +297,10 @@ def change_own_password(payload: PasswordChange, user: AdultUser, db: DbSession)
     if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Das aktuelle Passwort ist falsch.",
+            detail=meldungen.meldung(
+                "current_password_wrong",
+                "Das aktuelle Passwort ist falsch.",
+            ),
         )
     user.password_hash = hash_password(payload.new_password)
     user.password_changed_at = utcnow()

@@ -28,6 +28,7 @@ from ..services.mediaserver import (
     verbundene_anbieter,
 )
 from ..services.tmdb import TmdbClient, TmdbError
+from .. import meldungen
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -307,7 +308,10 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
     if payload.demo_mode is not None and payload.demo_mode not in {"auto", "on", "off"}:
         raise HTTPException(
             status_code=422,
-            detail="Demo-Modus muss 'auto', 'on' oder 'off' sein.",
+            detail=meldungen.meldung(
+                "demo_mode_invalid",
+                "Demo-Modus muss 'auto', 'on' oder 'off' sein.",
+            ),
         )
     for feld in (
         "movie_root_folder_mode",
@@ -319,7 +323,10 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
         if wert is not None and wert not in ("user", "fixed", "approver"):
             raise HTTPException(
                 status_code=422,
-                detail="Regel muss 'user', 'fixed' oder 'approver' sein.",
+                detail=meldungen.meldung(
+                    "rule_invalid",
+                    "Regel muss 'user', 'fixed' oder 'approver' sein.",
+                ),
             )
 
     # Zielordner und Qualitaetsprofil haengen zusammen: Sobald **eines** von
@@ -373,7 +380,10 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
     if payload.smtp_security is not None and payload.smtp_security not in mail.SECURITY_MODES:
         raise HTTPException(
             status_code=422,
-            detail="Verschlüsselung muss 'none', 'starttls' oder 'ssl' sein.",
+            detail=meldungen.meldung(
+                "encryption_invalid",
+                "Verschlüsselung muss 'none', 'starttls' oder 'ssl' sein.",
+            ),
         )
     # Dieselbe Adresse fuer beide Stufen ist immer ein Versehen: Man traegt die
     # 4K-Instanz ein, schreibt in Wahrheit weiter in die alte, und wundert sich,
@@ -381,11 +391,20 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
     _gleiche_adresse_ablehnen(db, payload)
     if payload.smtp_from_address:
         if not mail.valid_address(payload.smtp_from_address):
-            raise HTTPException(status_code=422, detail="Die Absenderadresse ist ungültig.")
+            raise HTTPException(
+                status_code=422,
+                detail=meldungen.meldung(
+                    "sender_address_invalid",
+                    "Die Absenderadresse ist ungültig.",
+                ),
+            )
     if payload.public_url and not payload.public_url.strip().startswith(("http://", "https://")):
         raise HTTPException(
             status_code=422,
-            detail="Die öffentliche Adresse muss mit http:// oder https:// beginnen.",
+            detail=meldungen.meldung(
+                "public_url_needs_scheme",
+                "Die öffentliche Adresse muss mit http:// oder https:// beginnen.",
+            ),
         )
 
     save_settings(db, payload.model_dump(exclude_unset=True))
@@ -428,7 +447,13 @@ def delete_secret(
     Loeschen braucht es deshalb diesen eigenen Weg.
     """
     if name not in SECRET_KEYS:  # pragma: no cover - durch Literal abgesichert
-        raise HTTPException(status_code=404, detail="Unbekannte Einstellung.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "setting_unknown",
+                "Unbekannte Einstellung.",
+            ),
+        )
 
     clear_secret(db, name)
     cache.clear_all(db)
@@ -781,7 +806,10 @@ async def papierkorb_setzen(
         if not settings.arr_configured(wunsch.media_type, wunsch.tier):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Diese Instanz ist gar nicht eingerichtet.",
+                detail=meldungen.meldung(
+                    "instance_not_configured",
+                    "Diese Instanz ist gar nicht eingerichtet.",
+                ),
             )
         try:
             await library.papierkorb_setzen(

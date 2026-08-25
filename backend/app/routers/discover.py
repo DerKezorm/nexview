@@ -30,6 +30,7 @@ from ..services.filters import (
 )
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
+from .. import meldungen
 
 router = APIRouter(prefix="/api", tags=["discover"])
 
@@ -182,7 +183,13 @@ async def discover(
     known_only: Annotated[bool, Query()] = False,
 ) -> MediaPage:
     if studio_id is not None and studio_id not in STUDIO_IDS:
-        raise HTTPException(status_code=422, detail="Unbekanntes Studio.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "studio_unknown",
+                "Unbekanntes Studio.",
+            ),
+        )
 
     settings = for_user(load_settings(db), user)
     filters = DiscoverFilters(
@@ -279,12 +286,18 @@ async def arr_options(
         if not user.may_request_uhd(MediaType(media_type)):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Für 4K-Anfragen fehlt dir die Berechtigung.",
+                detail=meldungen.meldung(
+                    "uhd_not_allowed",
+                    "Für 4K-Anfragen fehlt dir die Berechtigung.",
+                ),
             )
         if not settings.arr_configured(media_type, "uhd"):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Für 4K ist noch keine zweite Instanz eingerichtet.",
+                detail=meldungen.meldung(
+                    "uhd_not_configured",
+                    "Für 4K ist noch keine zweite Instanz eingerichtet.",
+                ),
             )
     try:
         options = ArrOptions(**await library.options(settings, media_type, tier))

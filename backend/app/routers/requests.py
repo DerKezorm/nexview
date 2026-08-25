@@ -28,6 +28,7 @@ from ..services import media, notify, quota, requests_service, ratings
 from ..services.quota import QuotaState
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
+from .. import meldungen
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
 
@@ -162,7 +163,13 @@ def give_feedback(
     """
     request = db.get(MediaRequest, request_id)
     if request is None or request.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Anfrage nicht gefunden.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "request_not_found",
+                "Anfrage nicht gefunden.",
+            ),
+        )
     if user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -174,7 +181,10 @@ def give_feedback(
     if request.status != RequestStatus.downloaded:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Bewerten kannst du erst, wenn der Titel heruntergeladen ist.",
+            detail=meldungen.meldung(
+                "rating_needs_download",
+                "Bewerten kannst du erst, wenn der Titel heruntergeladen ist.",
+            ),
         )
 
     # ⚠️ **Der Weg bleibt, das Ziel hat sich geaendert.**
@@ -236,7 +246,13 @@ async def cancel_own_request(
     """
     request = db.get(MediaRequest, request_id)
     if request is None or request.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Anfrage nicht gefunden.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "request_not_found",
+                "Anfrage nicht gefunden.",
+            ),
+        )
 
     try:
         return await requests_service.cancel(db, load_settings(db), request)

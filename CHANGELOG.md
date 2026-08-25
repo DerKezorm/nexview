@@ -12,18 +12,79 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
-## 0.19.1 – unveröffentlicht
+## 0.20.0 – unveröffentlicht
 
-### Fixed
+### New
 
-- **Nexview could not be installed on host networking if something already held port
-  8000.** It listened on a fixed 8000, which stays invisible in the normal case because
-  the port mapping hides it. With host networking there is no mapping: the port inside
-  the container *is* the port on the server, and there was no way around the collision.
-  `NEXVIEW_PORT` now moves it. Left unset, everything behaves exactly as before.
+- **Signing in now has a brake.** Until now a machine could try passwords as fast as the
+  connection allowed — there was no rate limit and no lock, anywhere. After three wrong
+  attempts the next one has to wait a second, then two, then four; after ten the door
+  stays shut for fifteen minutes.
+
+  **The lock opens again by itself.** A lock that needs an administrator to open it
+  locks out the administrator, sooner or later. And an attempt that is turned away does
+  not extend the wait — otherwise anyone could keep a housemate locked out for good just
+  by keeping at it.
+
+  Three doors are covered, not one. Besides signing in to Nexview there is signing in
+  with a **media-server password**, and that one is the worse of the two: Nexview hands
+  the password to Plex, Jellyfin or Emby, and it needs no Nexview account at all. Without
+  a brake, Nexview was a comfortable way to guess passwords against your media server,
+  with somebody else's return address on it. The links sent by mail are covered too.
+
+  **Nobody who knows their password is affected.** A wrong password counts; a deactivated
+  account or an unconfirmed address does not — those are people who know their password
+  and are waiting for something else. And a correct password clears the counter, even
+  when the sign-in then fails for one of those reasons.
+
+- **Nexview can be told where the caller's address comes from.** Counting always happens
+  per account, and that needs no configuration. Counting per address is extra, and it
+  needs `NEXVIEW_CLIENT_IP` — `direct`, `proxy` or `proxy:2`.
+
+  Left unset, addresses are not used at all, and that is deliberate. Nexview cannot tell
+  on its own whether a reverse proxy sits in front of it, and behind one **every** request
+  looks like it comes from the same address. Guessing wrong would mean the first typo
+  locks out the whole household, the administrator included. So Nexview does not guess.
+
+- **Error messages now come in the language you picked.** The interface has always been
+  bilingual, but the messages from the server never were: switch Nexview to English, mistype
+  your password, and up came „Benutzername oder Passwort ist falsch." All 76 of them speak
+  both languages now.
+
+  The reason it stayed hidden for so long is that you have to make a mistake to see one.
+  And the reason it happened at all is that the interface texts live in the frontend, which
+  was bilingual from the first day, while the error texts live in the backend, which had no
+  way of translating anything.
+
+  **The server does not translate — it names.** It cannot know which language you picked:
+  that choice lives in your browser, and on the sign-in page there is not even an account
+  it could hang a language on. A server translating there would have to guess, and would
+  guess wrong for exactly the person who switched on purpose. So it sends a name for the
+  problem, and the interface writes the sentence. A test walks the whole source and fails
+  if any name is missing its text in either language — forgetting one is no longer possible.
+
+  Two kinds of message stay as they are, on purpose: what Plex, Jellyfin or Emby report
+  back arrives in *their* language, and translating that would mean inventing it.
+
+- **The port inside the container can be moved.** Nexview could not be installed on host
+  networking if something already held port 8000. It listened on a fixed 8000, which stays
+  invisible in the normal case because the port mapping hides it. With host networking
+  there is no mapping: the port inside the container *is* the port on the server, and there
+  was no way around the collision. `NEXVIEW_PORT` now moves it. Left unset, everything
+  behaves exactly as before.
 
   Reported by the TrueNAS catalogue maintainer while Nexview was being taken into their
   catalogue; it applies just as much to Unraid and plain Docker.
+
+### Fixed
+
+- **Error replies were losing their headers.** Whenever a built frontend sat next to the
+  backend — which is to say, in every container — one handler caught *every* error and
+  rebuilt the reply, quietly dropping whatever headers the endpoint had attached. Nothing
+  looked wrong: the status was right, the message was right, only half the reply was
+  missing. It cost every "not signed in" reply its `WWW-Authenticate` header, and it would
+  have swallowed the new brake's `Retry-After` as well, so the sign-in page could never
+  have said how long to wait.
 
 ## 0.19.0 – 25.08.2026
 

@@ -51,6 +51,22 @@ services:
       NEXVIEW_ACCESS_TOKEN_MINUTES: 30
       NEXVIEW_REFRESH_TOKEN_DAYS: 30
 
+      # Woher Nexview die Adresse des Anfragenden nimmt.
+      #
+      # Nach zu vielen Fehlversuchen bremst Nexview die Anmeldung. Gezaehlt
+      # wird immer nach Konto - und zusaetzlich nach Adresse, sobald hier
+      # steht, wie Nexview an die echte Adresse kommt.
+      #
+      #   leer      nur nach Konto zaehlen (Vorgabe, immer sicher)
+      #   direct    Nexview haengt direkt am Netz
+      #   proxy     genau ein Reverse Proxy davor (Nginx, Caddy, NPM, Traefik)
+      #   proxy:2   zwei davor, z. B. Cloudflare und dahinter ein eigener
+      #
+      # ⚠️ Leer lassen, wenn unklar. Steht hier "direct", obwohl ein Proxy
+      # davorsteht, sehen alle Anfragen aus wie dieselbe Adresse - dann
+      # sperrt ein einziger Vertipper den ganzen Haushalt aus.
+      NEXVIEW_CLIENT_IP: ${NEXVIEW_CLIENT_IP:-}
+
       # Zeitzone fuer Protokoll und Datumsangaben.
       TZ: Europe/Berlin
 

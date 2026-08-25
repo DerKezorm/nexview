@@ -14,7 +14,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -199,6 +199,32 @@ def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
 
 
+def fehler_als_json(exc: StarletteHTTPException) -> JSONResponse:
+    """Eine HTTPException als JSON-Antwort - **mit** ihren Kopfzeilen.
+
+    ⚠️ **Die Kopfzeilen sind der ganze Grund, warum es diese Funktion gibt.**
+    Der SPA-Rueckfall unten faengt *jede* HTTPException der ganzen Anwendung
+    ab und baut die Antwort neu zusammen. Was hier fehlt, fehlt ueberall -
+    und es fehlte: ``exc.headers`` wurde stillschweigend weggeworfen. Damit
+    verlor jede 401 ihr ``WWW-Authenticate`` (``deps.get_current_user``) und
+    die Anmeldebremse ihr ``Retry-After``, mit dem die Oberflaeche sagen
+    koennte, wie lange zu warten ist. Auffallen konnte das nicht: Die Antwort
+    hatte den richtigen Status und den richtigen Text, ihr fehlte nur die
+    Haelfte.
+
+    Bewusst eine eigene Funktion auf Modulebene statt einer Zeile in der
+    Schliessung darunter: Der Rueckfall wird nur eingehaengt, wenn ein
+    gebautes Frontend danebenliegt. In der CI laufen die Tests **vor** dem
+    Frontend-Bau - ein Test ueber die Anwendung haette den Rueckschritt dort
+    also gar nicht bemerkt. So laesst er sich direkt pruefen.
+    """
+    return JSONResponse(
+        {"detail": exc.detail},
+        status_code=exc.status_code,
+        headers=getattr(exc, "headers", None),
+    )
+
+
 def _static_dir() -> Path | None:
     """Ordner mit dem gebauten Frontend, falls vorhanden."""
     if settings.static_dir:
@@ -223,9 +249,7 @@ def _mount_frontend(directory: Path) -> None:
     async def spa_fallback(request, exc: StarletteHTTPException):
         if exc.status_code == 404 and not request.url.path.startswith("/api"):
             return FileResponse(index_file)
-        from fastapi.responses import JSONResponse
-
-        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+        return fehler_als_json(exc)
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):

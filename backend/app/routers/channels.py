@@ -26,6 +26,7 @@ from ..deps import AdminUser, DbSession
 from ..models import ChannelKind, ChannelTarget
 from ..services import channel_outbox, channel_targets, channel_verify, channels
 from ..services.settings_service import load_settings
+from .. import meldungen
 
 router = APIRouter(prefix="/api/settings/channels", tags=["channels"])
 
@@ -111,7 +112,13 @@ def _kind(channel: str) -> ChannelKind:
 def _holen(db: DbSession, channel: str, target_id: int) -> ChannelTarget:
     target = db.get(ChannelTarget, target_id)
     if target is None or target.channel != _kind(channel):
-        raise HTTPException(status_code=404, detail="Dieses Ziel gibt es nicht.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "target_unknown",
+                "Dieses Ziel gibt es nicht.",
+            ),
+        )
     return target
 
 
@@ -127,16 +134,28 @@ def _ist_postfach(kind: ChannelKind, parent_id: int | None) -> bool:
 def _pruefe_entwurf(payload: TargetDraft) -> None:
     if payload.auth is not None and payload.auth not in ("none", "basic", "token"):
         raise HTTPException(
-            status_code=422, detail="Anmeldung muss 'none', 'basic' oder 'token' sein."
+            status_code=422, detail=meldungen.meldung(
+                "auth_mode_invalid",
+                "Anmeldung muss 'none', 'basic' oder 'token' sein.",
+            )
         )
     if payload.language is not None and payload.language not in ("de", "en"):
-        raise HTTPException(status_code=422, detail="Sprache muss 'de' oder 'en' sein.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "language_invalid",
+                "Sprache muss 'de' oder 'en' sein.",
+            ),
+        )
     # Bei Discord ist die URL ein Geheimnis und kommt maskiert zurueck -
     # ein Punkte-Wert heisst "unveraendert" und wird nicht geprueft.
     url = (payload.url or "").strip()
     if url and not url.startswith("•") and not url.startswith(("http://", "https://")):
         raise HTTPException(
-            status_code=422, detail="Die Adresse muss mit http:// oder https:// beginnen."
+            status_code=422, detail=meldungen.meldung(
+                "url_needs_scheme",
+                "Die Adresse muss mit http:// oder https:// beginnen.",
+            )
         )
 
 
@@ -319,7 +338,10 @@ def _speichern(
         # Adresse, bei Telegram das Token.
         if any(not getattr(target, feld, "") for feld in channels.parent_required(kind)):
             raise HTTPException(
-                status_code=422, detail="Es fehlen noch Angaben zur Verbindung."
+                status_code=422, detail=meldungen.meldung(
+                    "connection_incomplete",
+                    "Es fehlen noch Angaben zur Verbindung.",
+                )
             )
         db.commit()
         db.refresh(target)
@@ -327,7 +349,13 @@ def _speichern(
 
     config = channel_targets.config(target, settings)
     if config is None:
-        raise HTTPException(status_code=422, detail="Es fehlen noch Angaben zur Verbindung.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "connection_incomplete",
+                "Es fehlen noch Angaben zur Verbindung.",
+            ),
+        )
 
     abdruck = channels.fingerprint(kind, config)
     if (
@@ -359,7 +387,13 @@ def _anlegen(
 ) -> dict[str, object]:
     _pruefe_entwurf(payload)
     if not (payload.name or "").strip():
-        raise HTTPException(status_code=422, detail="Bitte einen Namen vergeben.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "name_required",
+                "Bitte einen Namen vergeben.",
+            ),
+        )
 
     target = ChannelTarget(
         channel=kind,
@@ -392,7 +426,13 @@ def create_child(
         )
     eltern = _holen(db, channel, parent_id)
     if eltern.parent_id is not None:
-        raise HTTPException(status_code=422, detail="Ein Topic kann keine Topics enthalten.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "topic_nested",
+                "Ein Topic kann keine Topics enthalten.",
+            ),
+        )
     return _anlegen(db, admin.id, kind, payload, eltern)
 
 
@@ -425,7 +465,13 @@ def update_events(
     """
     target = _holen(db, channel, target_id)
     if not target.verified:
-        raise HTTPException(status_code=409, detail="Dieses Ziel ist noch nicht bestätigt.")
+        raise HTTPException(
+            status_code=409,
+            detail=meldungen.meldung(
+                "target_unconfirmed",
+                "Dieses Ziel ist noch nicht bestätigt.",
+            ),
+        )
 
     _pruefe_meldungen(payload.events)
     target.events = dict(payload.events)
@@ -456,7 +502,13 @@ async def list_chats_draft(
     werte = channel_targets.entwurf_werte(kind, payload.model_dump(), settings=settings)
     config = channels.build(kind, {**werte, "chat_id": werte.get("chat_id") or "0"})
     if config is None:
-        raise HTTPException(status_code=422, detail="Es fehlen noch Angaben zur Verbindung.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "connection_incomplete",
+                "Es fehlen noch Angaben zur Verbindung.",
+            ),
+        )
 
     try:
         return await channels.chats(kind, config)
@@ -487,7 +539,13 @@ async def list_chats(
     werte = {**channel_targets.werte(target, settings), "chat_id": "0"}
     config = channels.build(kind, werte)
     if config is None:
-        raise HTTPException(status_code=422, detail="Es fehlen noch Angaben zur Verbindung.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "connection_incomplete",
+                "Es fehlen noch Angaben zur Verbindung.",
+            ),
+        )
 
     try:
         return await channels.chats(kind, config)

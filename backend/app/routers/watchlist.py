@@ -100,7 +100,7 @@ def _merklisten_server(db: DbSession) -> tuple[MediaServer, object]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
-                "code": "mediaserver_not_configured",
+                "code": "mediaserver_no_watchlist",
                 "message": "Es ist kein Medienserver mit Merkliste verbunden.",
             },
         )

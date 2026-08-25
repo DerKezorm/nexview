@@ -35,6 +35,7 @@ from ..services import (
 from ..services import storage as storage_dienst
 from ..services.arr import ArrError
 from ..services.settings_service import load_settings
+from .. import meldungen
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -51,7 +52,10 @@ def _get_user_or_404(db: DbSession, user_id: int) -> User:
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Benutzer nicht gefunden."
+            status_code=status.HTTP_404_NOT_FOUND, detail=meldungen.meldung(
+                "user_not_found",
+                "Benutzer nicht gefunden.",
+            )
         )
     return user
 
@@ -226,11 +230,20 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
         )
 
     if not mail.valid_address(payload.email):
-        raise HTTPException(status_code=422, detail="Das ist keine gültige E-Mail-Adresse.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "email_invalid",
+                "Das ist keine gültige E-Mail-Adresse.",
+            ),
+        )
     if _email_taken(db, payload.email):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Diese Adresse gehört bereits zu einem Konto oder zu einer offenen Einladung.",
+            detail=meldungen.meldung(
+                "email_taken_or_invited",
+                "Diese Adresse gehört bereits zu einem Konto oder zu einer offenen Einladung.",
+            ),
         )
 
     roh, token = tokens.create(
@@ -273,7 +286,13 @@ def withdraw_invitation(invitation_id: int, admin: AdminUser, db: DbSession) -> 
     """Einladung zurueckziehen - der Link funktioniert danach nicht mehr."""
     token = db.get(AuthToken, invitation_id)
     if token is None or token.purpose != TokenPurpose.invitation:
-        raise HTTPException(status_code=404, detail="Einladung nicht gefunden.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "invitation_not_found",
+                "Einladung nicht gefunden.",
+            ),
+        )
     db.delete(token)
     db.commit()
     logger.info("Invitation for %s withdrawn by %r", token.email, admin.username)
@@ -289,12 +308,18 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
     if user.role == Role.admin and losing_admin and _count_active_admins(db) <= 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Der letzte aktive Administrator kann nicht herabgestuft oder deaktiviert werden.",
+            detail=meldungen.meldung(
+                "last_admin_protected",
+                "Der letzte aktive Administrator kann nicht herabgestuft oder deaktiviert werden.",
+            ),
         )
     if user.id == admin.id and losing_admin:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Du kannst dir nicht selbst die Administratorrechte entziehen.",
+            detail=meldungen.meldung(
+                "cannot_demote_self",
+                "Du kannst dir nicht selbst die Administratorrechte entziehen.",
+            ),
         )
 
     # Wer selbst freigeben darf, gibt sich nicht erst selbst frei - der Haken
@@ -447,12 +472,18 @@ async def delete_user(
     if user.id == admin.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Du kannst dein eigenes Konto nicht loeschen.",
+            detail=meldungen.meldung(
+                "cannot_delete_self",
+                "Du kannst dein eigenes Konto nicht loeschen.",
+            ),
         )
     if user.role == Role.admin and _count_active_admins(db) <= 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Der letzte aktive Administrator kann nicht geloescht werden.",
+            detail=meldungen.meldung(
+                "last_admin_undeletable",
+                "Der letzte aktive Administrator kann nicht geloescht werden.",
+            ),
         )
 
     # Erst der hinterlassene Bestand, dann das Konto: Jeder Posten braucht

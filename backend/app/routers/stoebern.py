@@ -32,6 +32,7 @@ from ..services.tmdb import TmdbError
 # Datei schlaegt die eigene Anfrage) ist heikel und existiert im Projekt schon
 # zweimal - eine dritte Kopie waere die, die beim naechsten Mal vergessen wird.
 from .discover import _http_error, _status_for
+from .. import meldungen
 
 router = APIRouter(prefix="/api/stoebern", tags=["stoebern"])
 
@@ -126,7 +127,10 @@ async def regal(
     try:
         stoebern.regal_oder_404(kennung, media_type)
     except stoebern.UnbekanntesRegal as fehler:
-        raise HTTPException(status_code=404, detail="Unbekanntes Regal.") from fehler
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung("shelf_unknown", "Unbekanntes Regal."),
+        ) from fehler
 
     settings = for_user(load_settings(db), user)
     warnungen: list[str] = []

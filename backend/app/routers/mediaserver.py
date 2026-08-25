@@ -20,7 +20,7 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
@@ -29,6 +29,7 @@ from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import AuthToken, MediaServerBlock, MediaServerConnection, User, utcnow
 from ..schemas import TokenPair, UserPublic
 from ..security import access_token_expires_in, create_access_token, create_refresh_token
+from ..services import anmeldebremse
 from ..services import mediaserver_accounts as konten
 from ..services import mediaserver_library, settings_service
 from ..services.mediaserver import (
@@ -208,7 +209,7 @@ def _code_server(db: DbSession) -> tuple[MediaServer, object]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
-                "code": "mediaserver_not_configured",
+                "code": "mediaserver_no_code_login",
                 "message": "Es ist kein Medienserver mit Code-Anmeldung verbunden.",
             },
         )
@@ -295,14 +296,25 @@ class PasswortAnmeldung(BaseModel):
 
 
 async def _passwort_identitaet(
-    db: DbSession, payload: PasswortAnmeldung
+    db: DbSession, payload: PasswortAnmeldung, request: Request
 ) -> tuple[MediaServer, str, ExternalAccount]:
     """Anmelden und die Identitaet pruefen - vor jeder Aenderung an Konten.
 
     Das Gegenstueck zu ``_identitaet`` fuer Anbieter ohne Code-Ablauf. Die
     Pruefungen sind bewusst dieselben und in derselben Reihenfolge: erst
     anmelden, dann Zugriff pruefen, dann erst wird irgendetwas geschrieben.
+
+    ⚠️ **Die Bremse sitzt hier und nicht in den beiden Routen darueber**, weil
+    beide durch diese Funktion muessen - und weil eine vergessene dritte Route
+    sonst eine offene Tuer waere. Sie ist an dieser Stelle wichtiger als bei
+    der Nexview-Anmeldung: Was hier durchgereicht wird, ist das Passwort des
+    **Medienservers**, und ``/login/password`` braucht kein Nexview-Konto.
+    Ohne Bremse waere Nexview ein bequemer Durchreiche-Dienst zum Raten gegen
+    Plex, Jellyfin oder Emby - mit fremder Absenderadresse obendrein.
     """
+    bremse = anmeldebremse.torwaechter(
+        request, f"medienserver:{payload.provider}", payload.username
+    )
     settings = konten.ensure_client_identifier(db, settings_service.load_settings(db))
 
     # Nur ein Anbieter, der auch wirklich verbunden ist. Sonst waere das ein
@@ -311,7 +323,7 @@ async def _passwort_identitaet(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
-                "code": "mediaserver_not_configured",
+                "code": "mediaserver_provider_not_linked",
                 "message": "Dieser Medienserver ist nicht verbunden.",
             },
         )
@@ -339,6 +351,10 @@ async def _passwort_identitaet(
         # nichts falsch zu tippen. Hier hiesse es, jemandem mit vertipptem
         # Passwort zu sagen, sein Server sei kaputt.
         if exc.status_code in (400, 401, 403):
+            # Nur das zaehlt als Fehlversuch. Ein Server, der gerade nicht
+            # erreichbar ist, darf niemanden aussperren - sonst sperrt ein
+            # Neustart des Medienservers den halben Haushalt aus.
+            anmeldebremse.gescheitert(bremse)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={
@@ -349,6 +365,10 @@ async def _passwort_identitaet(
                 },
             ) from exc
         raise _anbieter_fehler(exc) from exc
+
+    # Das Passwort stimmt. Was danach noch schiefgehen kann - kein Zugriff auf
+    # die Bibliothek, gesperrtes Konto - ist kein Rateversuch.
+    anmeldebremse.geklappt(bremse)
 
     try:
         # Bei Jellyfin beantwortet sich das mit dem Token selbst - die Pruefung
@@ -369,10 +389,12 @@ async def _passwort_identitaet(
 
 
 @router.post("/login/password", response_model=LoginResult)
-async def login_password(payload: PasswortAnmeldung, db: DbSession) -> LoginResult:
+async def login_password(
+    payload: PasswortAnmeldung, request: Request, db: DbSession
+) -> LoginResult:
     """Mit Benutzername und Passwort des Medienservers bei Nexview anmelden."""
     settings = settings_service.load_settings(db)
-    _server, anbieter_token, konto = await _passwort_identitaet(db, payload)
+    _server, anbieter_token, konto = await _passwort_identitaet(db, payload, request)
 
     try:
         # Dieselbe Stelle wie beim Code-Weg: Hier sitzen die Sperrliste, das
@@ -399,10 +421,10 @@ async def login_password(payload: PasswortAnmeldung, db: DbSession) -> LoginResu
 
 @router.post("/link/password", response_model=LinkResult)
 async def link_password(
-    payload: PasswortAnmeldung, db: DbSession, user: AdultUser
+    payload: PasswortAnmeldung, request: Request, db: DbSession, user: AdultUser
 ) -> LinkResult:
     """Ein Medienserver-Konto an das eigene, bereits angemeldete Konto haengen."""
-    _server, anbieter_token, konto = await _passwort_identitaet(db, payload)
+    _server, anbieter_token, konto = await _passwort_identitaet(db, payload, request)
 
     if konten.is_blocked(db, konto.provider, konto.account_id):
         raise _fehler(
@@ -1072,7 +1094,7 @@ async def library_refresh(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
-                "code": "mediaserver_not_configured",
+                "code": "mediaserver_none_linked",
                 "message": "Es ist kein Media-Server verbunden.",
             },
         )

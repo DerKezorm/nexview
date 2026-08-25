@@ -40,6 +40,7 @@ from ..services.settings_service import for_user, load_settings
 from ..services import ratings, streaming, watch
 from ..services.streaming import eigene_dienste
 from ..services.tmdb import TmdbError
+from .. import meldungen
 
 router = APIRouter(prefix="/api", tags=["details"])
 
@@ -330,7 +331,10 @@ async def browse(
     """Alle Titel zu einem Schlagwort oder Studio."""
     if keyword_id is None and company_id is None:
         raise HTTPException(
-            status_code=422, detail="Es fehlt das Schlagwort bzw. das Studio."
+            status_code=422, detail=meldungen.meldung(
+                "keyword_or_studio_missing",
+                "Es fehlt das Schlagwort bzw. das Studio.",
+            )
         )
 
     settings = for_user(load_settings(db), user)

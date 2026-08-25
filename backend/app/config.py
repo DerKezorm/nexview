@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     static_dir: str = ""
 
+    # Woher die Adresse des Anfragenden kommt - gebraucht von der
+    # ``anmeldebremse``, die nach Konto **und** Adresse zaehlt.
+    #
+    # Leer lassen ist die sichere Vorgabe: Dann zaehlt nur das Konto. Nexview
+    # weiss von sich aus naemlich nicht, ob es direkt am Netz haengt oder
+    # hinter einem Reverse Proxy - und hinter einem Proxy sehen alle Anfragen
+    # aus wie dieselbe Adresse. Eine Sperre nach Adresse wuerde dort beim
+    # ersten Vertipper den ganzen Haushalt aussperren.
+    #
+    # Erlaubt: direct | proxy | proxy:<Zahl>
+    client_ip: str = ""
+
     # Notausgang fuer die Protokoll-Stufe: Ist ``NEXVIEW_LOG_LEVEL`` gesetzt,
     # gilt sie und die in der Oberflaeche gewaehlte Stufe wird ignoriert.
     # Gebraucht, wenn die Anwendung gar nicht erst startet - dann kommt man an

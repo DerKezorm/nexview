@@ -25,6 +25,7 @@ from ..services import child_wishes, kids, media
 from ..services.children import ChildError
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
+from .. import meldungen
 
 router = APIRouter(prefix="/api/kids", tags=["kids"])
 
@@ -142,7 +143,13 @@ async def read_rubrik(
     anfordern, die das Elternteil nicht freigeschaltet hat.
     """
     if not kids.darf_rubrik(kind, rubrik, media_type):
-        raise HTTPException(status_code=404, detail="Diese Rubrik gibt es hier nicht.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "category_unknown_here",
+                "Diese Rubrik gibt es hier nicht.",
+            ),
+        )
 
     settings = for_user(load_settings(db), kind)
     try:
@@ -200,7 +207,13 @@ async def read_title(media_type: MediaTypePath, tmdb_id: int, kind: ChildUser, d
         raise _http(error) from error
 
     if not kids.passt_in_rubrik(kind, detail, genre_namen):
-        raise HTTPException(status_code=404, detail="Diesen Titel gibt es hier nicht.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "title_unknown_here",
+                "Diesen Titel gibt es hier nicht.",
+            ),
+        )
 
     # Trailer nur, wenn das Elternteil sie erlaubt hat. Die Sperre sitzt
     # hier und nicht in der Oberflaeche: Sonst kaeme die YouTube-Kennung
@@ -245,7 +258,13 @@ async def create_wish(payload: WishCreate, kind: ChildUser, db: DbSession) -> Wi
         raise _http(error) from error
 
     if not kids.passt_in_rubrik(kind, item, genre_namen):
-        raise HTTPException(status_code=404, detail="Diesen Titel gibt es hier nicht.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "title_unknown_here",
+                "Diesen Titel gibt es hier nicht.",
+            ),
+        )
 
     try:
         wunsch = child_wishes.wuenschen(db, kind, item)

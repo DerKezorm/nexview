@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from ..deps import AdminUser, CurrentUser, DbSession
 from ..models import MediaType, Ticket, TicketMessage, TicketStatus
 from ..services import tickets
+from .. import meldungen
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
@@ -268,7 +269,13 @@ def nachricht_aendern(
 ) -> TicketDetail:
     nachricht = db.get(TicketMessage, message_id)
     if nachricht is None:
-        raise HTTPException(status_code=404, detail="Diese Nachricht gibt es nicht.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "message_not_found",
+                "Diese Nachricht gibt es nicht.",
+            ),
+        )
 
     try:
         # Erst die Sichtbarkeit des Tickets, dann die Verfasserschaft: wer das

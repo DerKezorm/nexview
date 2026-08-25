@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
@@ -17,12 +17,33 @@ from ..deps import DbSession
 from ..models import AuthToken, Role, TokenPurpose, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH, VerificationSent
 from ..security import hash_password, verify_password
-from ..services import accounts, mail, tokens
+from ..services import accounts, anmeldebremse, mail, tokens
 from ..services.settings_service import load_settings
+from .. import meldungen
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 
 logger = logging.getLogger("nexview.onboarding")
+
+
+def _token_bremse(request: Request) -> list[str]:
+    """Bremse fuer die Routen, deren Geheimnis in der Adresszeile steht.
+
+    ⚠️ **Das ist bewusst nur eine halbe Bremse, und das hat einen Grund.**
+    Diese Token haben 32 Byte Zufall (``tokens.TOKEN_BYTES``), also 256 Bit -
+    sie sind nicht ratbar. Eine Sperre *je Token* waere Theater gegen einen
+    Angriff, den es nicht gibt.
+
+    Was bleibt, ist blosses Haemmern: Jeder Aufruf kostet eine Datenbank-
+    abfrage, und dafuer braucht niemand ein Konto. Deshalb zaehlt hier **nur
+    die Adresse** (``kennung=None``) - und nur, wenn ``NEXVIEW_CLIENT_IP``
+    gesetzt ist, Nexview die echte Adresse also kennt.
+
+    Eine haus-weite Sperre waere hier falsch: Sie liesse sich von aussen
+    ausloesen und wuerde dann allen das Zuruecksetzen ihres Passworts
+    verbauen - ein echter Schaden als Abwehr gegen einen unmoeglichen Angriff.
+    """
+    return anmeldebremse.torwaechter(request, "token", None)
 
 ABGELAUFEN = "Dieser Link ist abgelaufen oder wurde bereits verwendet."
 
@@ -140,11 +161,29 @@ def _unbestaetigter_benutzer(db: DbSession, payload: PendingRequest) -> User:
         )
     )
     if user is None or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Benutzername oder Passwort ist falsch.")
+        raise HTTPException(
+            status_code=401,
+            detail=meldungen.meldung(
+                "bad_credentials",
+                "Benutzername oder Passwort ist falsch.",
+            ),
+        )
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Dieses Konto ist deaktiviert.")
+        raise HTTPException(
+            status_code=403,
+            detail=meldungen.meldung(
+                "account_disabled",
+                "Dieses Konto ist deaktiviert.",
+            ),
+        )
     if user.email_verified:
-        raise HTTPException(status_code=409, detail="Deine Adresse ist bereits bestätigt.")
+        raise HTTPException(
+            status_code=409,
+            detail=meldungen.meldung(
+                "email_already_verified",
+                "Deine Adresse ist bereits bestätigt.",
+            ),
+        )
     return user
 
 
@@ -168,11 +207,20 @@ async def change_pending_email(payload: ChangePendingEmail, db: DbSession) -> Ve
 
     neue = tokens.normalize_email(payload.email)
     if not mail.valid_address(neue):
-        raise HTTPException(status_code=422, detail="Das ist keine gültige E-Mail-Adresse.")
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "email_invalid",
+                "Das ist keine gültige E-Mail-Adresse.",
+            ),
+        )
     if db.scalar(select(User.id).where(User.email == neue, User.id != user.id)) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Diese Adresse gehört bereits zu einem anderen Konto.",
+            detail=meldungen.meldung(
+                "email_taken_other_account",
+                "Diese Adresse gehört bereits zu einem anderen Konto.",
+            ),
         )
 
     user.email = neue
@@ -198,32 +246,46 @@ def username_available(username: str, db: DbSession) -> Availability:
 
 
 @router.get("/invitation/{raw}", response_model=InvitationInfo)
-def read_invitation(raw: str, db: DbSession) -> InvitationInfo:
+def read_invitation(raw: str, request: Request, db: DbSession) -> InvitationInfo:
+    bremse = _token_bremse(request)
     token = tokens.find(db, raw, TokenPurpose.invitation)
     if token is None:
+        anmeldebremse.gescheitert(bremse)
         raise HTTPException(status_code=404, detail=ABGELAUFEN)
+    anmeldebremse.geklappt(bremse)
     return InvitationInfo(email=token.email, role=token.invite_role or Role.user)
 
 
 @router.post("/invitation/{raw}", status_code=status.HTTP_201_CREATED)
-def accept_invitation(raw: str, payload: AcceptInvitation, db: DbSession) -> dict[str, str]:
+def accept_invitation(
+    raw: str, payload: AcceptInvitation, request: Request, db: DbSession
+) -> dict[str, str]:
     """Einladung einloesen: Konto anlegen, wie der Eingeladene es haben will."""
+    bremse = _token_bremse(request)
     token = tokens.find(db, raw, TokenPurpose.invitation)
     if token is None:
+        anmeldebremse.gescheitert(bremse)
         raise HTTPException(status_code=404, detail=ABGELAUFEN)
+    anmeldebremse.geklappt(bremse)
 
     name = payload.username.strip()
     _pruefe_passwort(payload.password)
     if db.scalar(select(User.id).where(func.lower(User.username) == name.lower())) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Dieser Benutzername ist bereits vergeben. Bitte wähle einen anderen.",
+            detail=meldungen.meldung(
+                "username_taken",
+                "Dieser Benutzername ist bereits vergeben. Bitte wähle einen anderen.",
+            ),
         )
     if db.scalar(select(User.id).where(User.email == token.email)) is not None:
         # In der Zwischenzeit hat der Administrator das Konto von Hand angelegt.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Zu dieser Adresse gibt es bereits ein Konto. Bitte melde dich einfach an.",
+            detail=meldungen.meldung(
+                "account_exists_sign_in",
+                "Zu dieser Adresse gibt es bereits ein Konto. Bitte melde dich einfach an.",
+            ),
         )
 
     user = User(
@@ -251,24 +313,30 @@ def accept_invitation(raw: str, payload: AcceptInvitation, db: DbSession) -> dic
 
 
 @router.get("/password/{raw}", response_model=PasswordInfo)
-def read_password_token(raw: str, db: DbSession) -> PasswordInfo:
+def read_password_token(raw: str, request: Request, db: DbSession) -> PasswordInfo:
+    bremse = _token_bremse(request)
     token = tokens.find(db, raw, TokenPurpose.password_reset)
     if token is None or token.user is None:
+        anmeldebremse.gescheitert(bremse)
         raise HTTPException(status_code=404, detail=ABGELAUFEN)
+    anmeldebremse.geklappt(bremse)
     return PasswordInfo(username=token.user.username)
 
 
 @router.post("/password/{raw}", status_code=status.HTTP_204_NO_CONTENT)
-def set_password(raw: str, payload: SetPassword, db: DbSession) -> None:
+def set_password(raw: str, payload: SetPassword, request: Request, db: DbSession) -> None:
     """Passwort setzen - erstes oder neues.
 
     Damit gilt auch die Adresse als bestaetigt: die Mail ist ja angekommen.
     Und alle bestehenden Sitzungen werden ungueltig, denn wer sein Passwort
     zuruecksetzt, will genau das.
     """
+    bremse = _token_bremse(request)
     token = tokens.find(db, raw, TokenPurpose.password_reset)
     if token is None or token.user is None:
+        anmeldebremse.gescheitert(bremse)
         raise HTTPException(status_code=404, detail=ABGELAUFEN)
+    anmeldebremse.geklappt(bremse)
 
     _pruefe_passwort(payload.password)
 
@@ -284,16 +352,25 @@ def set_password(raw: str, payload: SetPassword, db: DbSession) -> None:
 
 
 @router.post("/verify/{raw}", status_code=status.HTTP_204_NO_CONTENT)
-def verify_email(raw: str, db: DbSession) -> None:
+def verify_email(raw: str, request: Request, db: DbSession) -> None:
     """Adresse bestaetigen."""
+    bremse = _token_bremse(request)
     token = tokens.find(db, raw, TokenPurpose.email_verification)
     if token is None or token.user is None:
+        anmeldebremse.gescheitert(bremse)
         raise HTTPException(status_code=404, detail=ABGELAUFEN)
+    anmeldebremse.geklappt(bremse)
 
     user = token.user
     if user.email != token.email:
         # Die Adresse wurde zwischenzeitlich wieder geaendert.
-        raise HTTPException(status_code=409, detail="Diese Adresse ist nicht mehr hinterlegt.")
+        raise HTTPException(
+            status_code=409,
+            detail=meldungen.meldung(
+                "email_gone",
+                "Diese Adresse ist nicht mehr hinterlegt.",
+            ),
+        )
 
     user.email_verified = True
     tokens.consume(db, raw, TokenPurpose.email_verification)

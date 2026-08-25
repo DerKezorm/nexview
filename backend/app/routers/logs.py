@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from ..deps import AdminUser
 from ..services import logs
+from .. import meldungen
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
 
@@ -76,7 +77,7 @@ def set_level(admin: AdminUser, change: LogModeChange) -> LogMode:
     if change.minutes not in logs.ALLOWED_MINUTES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Diese Dauer ist nicht vorgesehen.",
+            detail=meldungen.meldung("duration_not_allowed", "Diese Dauer ist nicht vorgesehen."),
         )
 
     stand = logs.set_mode(change.mode, change.minutes)

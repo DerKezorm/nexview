@@ -23,6 +23,7 @@ from ..deps import AdminUser, CurrentUser, DbSession
 from ..models import MediaType, NotificationType, TitleRating, User, utcnow
 from ..services import library, notify, ratings
 from ..services.settings_service import load_settings
+from .. import meldungen
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
@@ -127,7 +128,13 @@ def antworten(
     """
     eintrag = db.get(TitleRating, rating_id)
     if eintrag is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nicht gefunden.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=meldungen.meldung(
+                "not_found",
+                "Nicht gefunden.",
+            ),
+        )
 
     eintrag.reply = payload.reply.strip()
     eintrag.replied_at = utcnow().replace(tzinfo=None)

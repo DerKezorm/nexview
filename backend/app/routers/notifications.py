@@ -11,6 +11,7 @@ from sqlalchemy import delete, func, select, update
 
 from ..deps import CurrentUser, DbSession
 from ..models import Notification, NotificationType
+from .. import meldungen
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -70,7 +71,13 @@ def mark_read(
 ) -> None:
     notification = db.get(Notification, notification_id)
     if notification is None or notification.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Benachrichtigung nicht gefunden.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "notification_not_found",
+                "Benachrichtigung nicht gefunden.",
+            ),
+        )
     notification.is_read = True
     db.commit()
 
@@ -91,7 +98,13 @@ def delete_notification(
 ) -> None:
     notification = db.get(Notification, notification_id)
     if notification is None or notification.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Benachrichtigung nicht gefunden.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "notification_not_found",
+                "Benachrichtigung nicht gefunden.",
+            ),
+        )
     db.delete(notification)
     db.commit()
 

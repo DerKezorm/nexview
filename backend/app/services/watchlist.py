@@ -199,7 +199,7 @@ async def lesen(
     server = merklisten_server(settings)
     if server is None:
         raise WatchlistFehler(
-            "mediaserver_not_configured",
+            "mediaserver_no_watchlist",
             "Es ist kein Medienserver mit Merkliste verbunden.",
             404,
         )

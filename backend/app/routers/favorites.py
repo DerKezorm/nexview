@@ -19,6 +19,7 @@ from ..deps import CurrentUser, DbSession
 from ..models import Favorite, FavoritePerson, MediaType
 from ..services import media
 from ..services.settings_service import for_user, load_settings
+from .. import meldungen
 
 router = APIRouter(prefix="/api/favorites", tags=["favorites"])
 
@@ -98,7 +99,13 @@ def remove_favorite_person(
     )
     db.commit()
     if ergebnis.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Diese Person war nicht markiert.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "person_not_marked",
+                "Diese Person war nicht markiert.",
+            ),
+        )
 
 
 class FavoriteOut(BaseModel):
@@ -194,4 +201,10 @@ def remove_favorite(
     )
     db.commit()
     if ergebnis.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Dieser Titel war nicht markiert.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "title_not_marked",
+                "Dieser Titel war nicht markiert.",
+            ),
+        )

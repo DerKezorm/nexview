@@ -27,6 +27,7 @@ from ..services import (
 )
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
+from .. import meldungen
 
 router = APIRouter(prefix="/api/children", tags=["children"])
 
@@ -350,7 +351,13 @@ async def preview_rubrik(
 ):
     kind = _kind_oder_404(db, user, child_id)
     if not kids.darf_rubrik(kind, rubrik, media_type):
-        raise HTTPException(status_code=404, detail="Diese Rubrik gibt es dort nicht.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "category_unknown_there",
+                "Diese Rubrik gibt es dort nicht.",
+            ),
+        )
     settings = for_user(load_settings(db), kind)
     try:
         stand = await kids.rubrik_seite(db, settings, kind, media_type, rubrik, page)
@@ -394,7 +401,13 @@ async def preview_title(
         raise HTTPException(status_code=code, detail=error.message) from error
 
     if not kids.passt_in_rubrik(kind, detail, genre_namen):
-        raise HTTPException(status_code=404, detail="Diesen Titel sähe dein Kind nicht.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "title_hidden_from_child",
+                "Diesen Titel sähe dein Kind nicht.",
+            ),
+        )
 
     # Auch in der Vorschau: Sie soll zeigen, was das Kind sieht - nicht mehr.
     if not kind.child_trailers:

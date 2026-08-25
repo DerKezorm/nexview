@@ -27,6 +27,7 @@ from ..schemas_requests import AnfragerSpeicher, FeedbackReply, RequestWithUser
 from ..services import blocklist, media, notify, ratings, requests_service, storage, streaming
 from ..services.settings_service import load_settings
 from ..services.tmdb import TmdbError, image_url
+from .. import meldungen
 
 router = APIRouter(prefix="/api/admin/requests", tags=["admin"])
 
@@ -264,7 +265,13 @@ def _antwort(db: Session, request: MediaRequest) -> RequestWithUser:
 def _get_or_404(db: Session, request_id: int) -> MediaRequest:
     request = db.get(MediaRequest, request_id)
     if request is None:
-        raise HTTPException(status_code=404, detail="Anfrage nicht gefunden.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "request_not_found",
+                "Anfrage nicht gefunden.",
+            ),
+        )
     return request
 
 
@@ -366,7 +373,10 @@ async def approve(
     if request.status not in (RequestStatus.pending_approval, RequestStatus.deferred):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
+            detail=meldungen.meldung(
+                "request_not_pending",
+                "Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
+            ),
         )
 
     settings = load_settings(db)
@@ -416,7 +426,10 @@ def reject(
     if request.status not in (RequestStatus.pending_approval, RequestStatus.deferred):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
+            detail=meldungen.meldung(
+                "request_not_pending",
+                "Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
+            ),
         )
 
     # Sperren ist eine Grundsatzentscheidung fuer die ganze Bibliothek und
@@ -426,7 +439,10 @@ def reject(
     if payload.block and entscheider.role != Role.admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nur ein Administrator darf Titel auf die Sperrliste setzen.",
+            detail=meldungen.meldung(
+                "blocklist_admins_only",
+                "Nur ein Administrator darf Titel auf die Sperrliste setzen.",
+            ),
         )
 
     request.status = RequestStatus.rejected
@@ -483,7 +499,10 @@ def reply_to_feedback(
     if bewertung is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Zu dieser Anfrage gibt es noch keine Rückmeldung.",
+            detail=meldungen.meldung(
+                "no_feedback_yet",
+                "Zu dieser Anfrage gibt es noch keine Rückmeldung.",
+            ),
         )
 
     bewertung.reply = payload.reply.strip()
@@ -527,7 +546,13 @@ async def approve_all(
         )
     )
     if not offen:
-        raise HTTPException(status_code=404, detail="Keine offenen Anfragen für diesen Benutzer.")
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "no_open_requests",
+                "Keine offenen Anfragen für diesen Benutzer.",
+            ),
+        )
 
     settings = load_settings(db)
     uebersprungen: list[MediaRequest] = []
@@ -597,7 +622,10 @@ def zuruecksetzen(
     if request.status != RequestStatus.pending_approval:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
+            detail=meldungen.meldung(
+                "request_not_pending",
+                "Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
+            ),
         )
 
     request.status = RequestStatus.deferred

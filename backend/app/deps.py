@@ -13,6 +13,7 @@ from .db import get_db
 from .models import User
 from .security import decode_token
 from .services import logs
+from . import meldungen
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -25,7 +26,7 @@ def get_current_user(
 ) -> User:
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Nicht angemeldet.",
+        detail=meldungen.meldung("not_signed_in", "Nicht angemeldet."),
         headers={"WWW-Authenticate": "Bearer"},
     )
     if credentials is None:
@@ -51,7 +52,10 @@ def require_admin(user: CurrentUser) -> User:
     if not user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Diese Aktion ist Administratoren vorbehalten.",
+            detail=meldungen.meldung(
+                "admins_only",
+                "Diese Aktion ist Administratoren vorbehalten.",
+            ),
         )
     return user
 
@@ -64,7 +68,10 @@ def require_approver(user: CurrentUser) -> User:
     if not user.can_approve:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Diese Aktion ist Administratoren und Entscheidern vorbehalten.",
+            detail=meldungen.meldung(
+                "approvers_only",
+                "Diese Aktion ist Administratoren und Entscheidern vorbehalten.",
+            ),
         )
     return user
 
@@ -89,7 +96,7 @@ def require_adult(user: CurrentUser) -> User:
     if user.is_child:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Das ist nichts für Kinderkonten.",
+            detail=meldungen.meldung("not_for_children", "Das ist nichts für Kinderkonten."),
         )
     return user
 
@@ -102,7 +109,10 @@ def require_child(user: CurrentUser) -> User:
     if not user.is_child:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Diese Ansicht gibt es nur für Kinderkonten.",
+            detail=meldungen.meldung(
+                "children_only",
+                "Diese Ansicht gibt es nur für Kinderkonten.",
+            ),
         )
     return user
 

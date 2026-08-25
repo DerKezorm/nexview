@@ -225,8 +225,31 @@ copy `.env.example` to `.env`:
 | `NEXVIEW_STATIC_DIR` | Folder with the built frontend (the container sets this itself) |
 | `NEXVIEW_LOG_LEVEL` | Overrides the log level chosen in the app (`quiet`, `normal`, `detailed`, `trace`). Emergency exit for when Nexview does not start. |
 | `NEXVIEW_PORT` | Port Nexview listens on **inside the container** (default: 8000). Read by the container's start script, not by the backend itself. Only needed on host networking — see below. |
+| `NEXVIEW_CLIENT_IP` | How Nexview learns the caller's address, for rate limiting sign-ins: unset (count per account only), `direct`, `proxy`, or `proxy:2`. See below. |
 
 **No TMDB, Radarr or Sonarr keys belong in `.env`** — you enter those in the app.
+
+### Rate limiting sign-ins
+
+After a few wrong passwords Nexview slows the next attempt down, and after ten it
+closes the door for fifteen minutes. The lock **opens again by itself** — nobody has to
+unlock anything. It covers signing in to Nexview, signing in with a media-server
+password, and the links sent by mail.
+
+Counting always happens **per account**, which needs no configuration. Counting per
+address is extra, and it needs `NEXVIEW_CLIENT_IP`, because Nexview cannot tell on its
+own whether it sits behind a reverse proxy:
+
+| Value | When |
+|---|---|
+| unset | You are not sure. Only accounts are counted. **This is always safe.** |
+| `direct` | Nexview is reachable directly, with no proxy in front |
+| `proxy` | Exactly one reverse proxy in front (Nginx, Caddy, Nginx Proxy Manager, Traefik) |
+| `proxy:2` | Two in front, for example Cloudflare and then your own |
+
+> ⚠️ Leave it unset if you are unsure. Saying `direct` while a proxy sits in front makes
+> every request look like it comes from the same address — one typo would then lock out
+> the whole household, you included.
 
 ---
 

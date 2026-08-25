@@ -73,6 +73,64 @@ export function setSessionLostHandler(handler: (() => void) | null): void {
 
 type ErrorInfo = { message: string; code: string | null; data: Record<string, unknown> | null }
 
+/**
+ * Fehlermeldungen des Servers in der eingestellten Sprache.
+ *
+ * ⚠️ **Warum das hier passiert und nicht im Backend.** Der Server kennt die
+ * eingestellte Sprache nicht: Sie liegt im `localStorage` dieses Browsers und
+ * wird nirgends mitgeschickt - und auf der Anmeldeseite gibt es nicht einmal
+ * ein Konto, an dem eine Sprache hinge. Ein Server, der dort übersetzt,
+ * müsste raten und läge genau bei der Person falsch, die bewusst umgeschaltet
+ * hat.
+ *
+ * Deshalb schickt das Backend eine **Kennung** (`code`) samt Zahlen, und der
+ * Satz entsteht hier aus `de.json`/`en.json` unter `errors.byCode`.
+ *
+ * `message` kommt trotzdem mit und ist der Rückfall - für alles, was die API
+ * ohne diese Oberfläche benutzt, und für jede Kennung, deren Übersetzung noch
+ * fehlt. Lieber ein deutscher Satz als eine nackte Kennung im Fehlerbanner.
+ *
+ * **Eine neue Meldung anlegen:** im Backend eine Kennung vergeben, dann je
+ * einen Eintrag unter `errors.byCode` in `de.json` **und** `en.json`. Sonst
+ * nichts - `test_fehlermeldungen.py` schlägt fehl, wenn eine Übersetzung
+ * fehlt.
+ */
+function uebersetzeFehler(detail: Record<string, unknown>, status: number): string {
+  const code = typeof detail.code === 'string' ? detail.code : null
+  const rueckfall = String(detail.message ?? `HTTP ${status}`)
+  if (!code) return rueckfall
+
+  const sonderfall = MIT_EIGENER_LOGIK[code]
+  if (sonderfall) return sonderfall(detail)
+
+  const schluessel = `errors.byCode.${code}`
+  // Die Zahlen aus der Antwort stehen als Platzhalter zur Verfügung, damit
+  // ein Text wie "noch {{remaining}} übrig" ohne Sonderbehandlung auskommt.
+  return i18n.exists(schluessel) ? i18n.t(schluessel, { ...detail }) : rueckfall
+}
+
+/**
+ * Die wenigen Meldungen, deren Satz nicht durch bloßes Einsetzen entsteht.
+ *
+ * Alles andere gehört **nicht** hierher, sondern unter `errors.byCode` in die
+ * Sprachdateien - sonst wächst diese Tabelle mit jeder Meldung mit.
+ */
+const MIT_EIGENER_LOGIK: Record<string, (detail: Record<string, unknown>) => string> = {
+  // Die Vorgangsnummer gehört in die Meldung: Sie ist das, was der Nutzer
+  // weitergibt und was der Administrator im Protokoll sucht.
+  internal_error: (detail) =>
+    i18n.t('errors.internal', { id: String(detail.request_id ?? '?') }),
+
+  // Anmeldebremse: Sekunden oder Minuten, je nachdem was sich besser liest.
+  // "in 900 Sekunden" wäre richtig und trotzdem unbrauchbar.
+  too_many_attempts: (detail) => {
+    const sekunden = Math.max(1, Math.ceil(Number(detail.retry_after ?? 1)))
+    return sekunden >= 60
+      ? i18n.t('errors.tooManyAttemptsMinutes', { count: Math.ceil(sekunden / 60) })
+      : i18n.t('errors.tooManyAttemptsSeconds', { count: sekunden })
+  },
+}
+
 async function parseError(response: Response): Promise<ErrorInfo> {
   try {
     const body = await response.json()
@@ -88,16 +146,8 @@ async function parseError(response: Response): Promise<ErrorInfo> {
     }
     // Eigene Fälle liefern ein Objekt mit Kennung.
     if (detail && typeof detail === 'object') {
-      // Ein unbehandelter Serverfehler bekommt seinen Text hier statt vom
-      // Backend: Der Server kennt die eingestellte Sprache nicht, und die
-      // Vorgangsnummer soll in der Meldung stehen - sie ist das, was der
-      // Nutzer weitergibt und was der Administrator im Protokoll sucht.
-      const meldung =
-        detail.code === 'internal_error'
-          ? i18n.t('errors.internal', { id: String(detail.request_id ?? '?') })
-          : String(detail.message ?? `HTTP ${response.status}`);
       return {
-        message: meldung,
+        message: uebersetzeFehler(detail as Record<string, unknown>, response.status),
         code: typeof detail.code === 'string' ? detail.code : null,
         data: detail as Record<string, unknown>,
       }

@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from ..deps import AdminUser, DbSession
 from ..models import Blocked, MediaType
 from ..services import blocklist
+from .. import meldungen
 
 router = APIRouter(prefix="/api/admin/blocklist", tags=["blocklist"])
 
@@ -72,6 +73,9 @@ def freigeben(
     if not blocklist.freigeben(db, media_type, tmdb_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dieser Titel steht nicht auf der Sperrliste.",
+            detail=meldungen.meldung(
+                "not_on_blocklist",
+                "Dieser Titel steht nicht auf der Sperrliste.",
+            ),
         )
     db.commit()

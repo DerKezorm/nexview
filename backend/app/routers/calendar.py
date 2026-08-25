@@ -18,6 +18,7 @@ from ..services import blocklist, calendar as calendar_service
 from ..services import library, mediaserver_library, mediaserver_watched, requests_service
 from ..services import uhd
 from ..services.settings_service import for_user, load_settings
+from .. import meldungen
 
 router = APIRouter(prefix="/api", tags=["calendar"])
 
@@ -45,7 +46,10 @@ def _zeitraum(date_from: str | None, date_to: str | None) -> tuple[str, str]:
     if von > bis:
         raise HTTPException(
             status_code=422,
-            detail="Das Startdatum liegt hinter dem Enddatum.",
+            detail=meldungen.meldung(
+                "date_range_reversed",
+                "Das Startdatum liegt hinter dem Enddatum.",
+            ),
         )
 
     spanne = (date.fromisoformat(bis) - date.fromisoformat(von)).days

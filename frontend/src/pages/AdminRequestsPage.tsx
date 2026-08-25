@@ -77,6 +77,150 @@ type Gruppe = {
 const POOR_RATING = 2;
 
 /** Rückmeldung des Anfragenden lesen und beantworten. */
+type Rueckmeldungszeile = {
+  id: number;
+  media_type: MediaType;
+  tmdb_id: number;
+  season: number | null;
+  rating: number;
+  comment: string | null;
+  title: string;
+  reply: string | null;
+  outdated: boolean;
+  user_name: string;
+};
+
+/**
+ * Alle Rückmeldungen zur Qualität - unabhängig davon, ob eine Anfrage
+ * dahintersteht.
+ *
+ * ⚠️ Das war der Rest der alten Verknüpfung: Bis 0.19 hing eine Bewertung an
+ * der Anfrage, also zeigte diese Ansicht Anfragen mit Bewertung. Seit
+ * bewerten darf, wer einen Titel vorliegen hat, wäre das eine Ansicht mit
+ * Löchern - genau die Urteile von Leuten, die nie bestellt haben, fehlten.
+ * Für den Betreiber ist es belanglos, woher ein Urteil kommt.
+ */
+function Rueckmeldungen({ darfAntworten }: { darfAntworten: boolean }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [antwortFuer, setAntwortFuer] = useState<number | null>(null);
+  const [text, setText] = useState("");
+
+  const query = useQuery({
+    queryKey: ["feedback", "unanswered"],
+    queryFn: () => api.get<Rueckmeldungszeile[]>("/api/feedback?unanswered=true"),
+  });
+
+  const antworten = useMutation({
+    mutationFn: (id: number) =>
+      api.post(`/api/feedback/${id}/reply`, { reply: text.trim() }),
+    onSuccess: () => {
+      setAntwortFuer(null);
+      setText("");
+      void queryClient.invalidateQueries({ queryKey: ["feedback"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+  if (query.isPending) {
+    return (
+      <Card className="flex items-center gap-3 text-sm text-mist-500">
+        <Spinner />
+        {t("common.loading")}
+      </Card>
+    );
+  }
+
+  const zeilen = query.data ?? [];
+  if (zeilen.length === 0) {
+    return (
+      <p className="rounded-2xl border border-dashed border-ink-700 px-6 py-16 text-center text-sm text-mist-500">
+        {t("adminRequests.emptyFeedback")}
+      </p>
+    );
+  }
+
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      {zeilen.map((zeile) => (
+        <div
+          key={zeile.id}
+          className="rounded-xl border border-ink-700 bg-ink-900/50 p-3"
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="flex min-w-0 flex-wrap items-center gap-x-2">
+                <TitelVerweis
+                  mediaType={zeile.media_type}
+                  tmdbId={zeile.tmdb_id}
+                  titel={zeile.title}
+                  className="min-w-0 font-semibold break-words"
+                />
+                {zeile.season !== null && (
+                  <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
+                    {t("request.seasonShort", { number: zeile.season })}
+                  </span>
+                )}
+                {/* Radarr hat nachgeladen - das Urteil galt einer anderen
+                    Datei. Der Betreiber soll das sehen, bevor er antwortet. */}
+                {zeile.outdated && (
+                  <span className="shrink-0 rounded-full border border-warn-500/40 bg-warn-500/10 px-2 py-0.5 text-xs text-warn-500">
+                    {t("feedback.outdated")}
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-mist-600">
+                {t("feedback.from", { name: zeile.user_name })}
+              </p>
+            </div>
+            <StarRating value={zeile.rating} size="sm" />
+          </div>
+
+          {zeile.comment && (
+            <p className="mt-2 text-sm text-mist-300">{zeile.comment}</p>
+          )}
+
+          {darfAntworten &&
+            (antwortFuer === zeile.id ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  maxLength={1000}
+                  placeholder={t("feedback.replyPlaceholder")}
+                  className="min-w-0 flex-1 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-200 outline-none focus:border-accent-500"
+                />
+                <Button
+                  onClick={() => antworten.mutate(zeile.id)}
+                  loading={antworten.isPending}
+                  disabled={!text.trim()}
+                >
+                  {t("feedback.send")}
+                </Button>
+                <Button variant="ghost" onClick={() => setAntwortFuer(null)}>
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setAntwortFuer(zeile.id);
+                    setText("");
+                  }}
+                >
+                  {t("feedback.reply")}
+                </Button>
+              </div>
+            ))}
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+
 function FeedbackReview({
   request,
   darfAntworten,
@@ -459,17 +603,22 @@ export function AdminRequestsPage() {
         </p>
       )}
 
-      {!requestsQuery.isPending && requests.length === 0 && (
+      {/* ⚠️ Eine andere Liste, keine gefilterte.
+          Rückmeldungen hängen seit 0.19 am Titel; Anfragen zu zeigen, die
+          zufällig eine haben, ließe genau die Urteile weg, die von Leuten
+          kommen, die nie bestellt haben. */}
+      {filter === "feedback" && <Rueckmeldungen darfAntworten={istAdmin} />}
+
+      {filter !== "feedback" && !requestsQuery.isPending && requests.length === 0 && (
         <p className="rounded-2xl border border-dashed border-ink-700 px-6 py-16 text-center text-sm text-mist-500">
           {filter === "pending_approval"
             ? t("adminRequests.noPending")
-            : filter === "feedback"
-              ? t("adminRequests.emptyFeedback")
-              : t("adminRequests.empty")}
+            : t("adminRequests.empty")}
         </p>
       )}
 
-      {gruppen.map((gruppe) => {
+      {filter !== "feedback" &&
+        gruppen.map((gruppe) => {
         // **Über die ganze Liste**, nicht über die sichtbare Seite: Der
         // Sammel-Knopf gibt serverseitig *alle* wartenden Anfragen dieses
         // Benutzers frei. Zählte er nur die Seite, stünde "3 freigeben" auf

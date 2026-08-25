@@ -341,7 +341,8 @@
     "ticketOffer": "Klingt nach einem Problem, das jemand beheben sollte. Soll daraus ein Ticket werden? Dann bleibt es offen, bis sich jemand darum gekümmert hat.",
     "ticketButton": "Als Problem melden",
     "ticketSubject": "Problem mit „{{title}}“",
-    "ticketFallback": "Bewertet mit {{stars}} von 5 Sternen."
+    "ticketFallback": "Bewertet mit {{stars}} von 5 Sternen.",
+    "send": "Absenden"
   },
   "myRequests": {
     "title": "Meine Anfragen",

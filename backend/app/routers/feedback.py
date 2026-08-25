@@ -16,6 +16,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel, Field
 
 from ..deps import AdminUser, CurrentUser, DbSession
@@ -53,6 +54,9 @@ class RatingOut(BaseModel):
     reply: str | None
     outdated: bool
     updated_at: str
+    # Wer geurteilt hat. Der Betreiber muss es wissen, um antworten zu koennen;
+    # in der eigenen Liste steht schlicht der eigene Name.
+    user_name: str = ""
 
     @classmethod
     def von(cls, eintrag: TitleRating) -> "RatingOut":
@@ -67,6 +71,11 @@ class RatingOut(BaseModel):
             reply=eintrag.reply,
             outdated=eintrag.outdated,
             updated_at=eintrag.updated_at.isoformat(),
+            user_name=(
+                (eintrag.user.display_name or eintrag.user.username)
+                if eintrag.user is not None
+                else ""
+            ),
         )
 
 
@@ -93,7 +102,12 @@ def alle(
     unanswered: Annotated[bool, Query()] = False,
 ) -> list[RatingOut]:
     """Alle Rueckmeldungen - fuer die Uebersicht des Betreibers."""
-    query = select(TitleRating).order_by(TitleRating.updated_at.desc())
+    # Den Namen gleich mitladen - sonst eine Abfrage je Zeile.
+    query = (
+        select(TitleRating)
+        .options(selectinload(TitleRating.user))
+        .order_by(TitleRating.updated_at.desc())
+    )
     if unanswered:
         query = query.where(TitleRating.reply.is_(None))
     return [RatingOut.von(z) for z in db.scalars(query)]

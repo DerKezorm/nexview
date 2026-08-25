@@ -341,7 +341,8 @@
     "ticketOffer": "That sounds like something somebody should fix. Turn it into a ticket? Then it stays open until it has been dealt with.",
     "ticketButton": "Report as a problem",
     "ticketSubject": "Problem with “{{title}}”",
-    "ticketFallback": "Rated {{stars}} out of 5."
+    "ticketFallback": "Rated {{stars}} out of 5.",
+    "send": "Send"
   },
   "myRequests": {
     "title": "My requests",

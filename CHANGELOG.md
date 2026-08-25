@@ -166,6 +166,13 @@ veröffentlicht, solange kein Tag dazu existiert.
   Bestehende Bewertungen wandern beim ersten Start mit. Administratoren
   bewerten weiterhin nicht — sie beantworten die Rückmeldungen der anderen.
 
+- **Die Rückmeldungs-Ansicht zeigt jetzt jede Bewertung.** Sie zeigte Anfragen,
+  die zufällig eine Bewertung hatten — ein Rest der alten Verknüpfung. Seit
+  bewerten darf, wer einen Titel vorliegen hat, war das eine Ansicht mit
+  Löchern: Genau die Urteile von Leuten, die nie bestellt haben, fehlten. Auf
+  einer echten Datenbank waren das zwei von sieben. Für den Betreiber ist es
+  ohnehin belanglos, ob hinter einer Rückmeldung eine Anfrage steht.
+
 - **Aus einem schwachen Urteil wird auf Wunsch ein Ticket.** Wer ein oder zwei
   Sterne gibt, beschreibt meistens ein Problem — und ein Problem verschwindet
   in einem Durchschnitt, während ein Ticket einen Zustand hat und offen

@@ -29,6 +29,10 @@ dist-dev/
 # --- Editoren / Betriebssystem ---
 .vscode/
 .idea/
+# Werkzeug-Verzeichnis, kein Projektbestandteil. Die Startdatei darin traegt
+# Pfade dieses einen Rechners (unter Windows .venv/Scripts, sonst .venv/bin) -
+# eingecheckt waere sie fuer jeden anderen eine Vorlage, die nicht startet.
+.claude/
 .DS_Store
 Thumbs.db
 

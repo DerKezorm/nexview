@@ -12,7 +12,7 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ---
 
-## 0.19.0 – unveröffentlicht
+## 0.19.0 – 25.08.2026
 
 ### New
 
@@ -183,6 +183,57 @@ veröffentlicht, solange kein Tag dazu existiert.
   sein erstes sei untergegangen.
 
 ### Changed
+
+- **Kontingente: Stückzahl und Speicher gelten jetzt zusammen.** Bis hierher war
+  es ein haus-weites Entweder-oder — ein Umschalter entschied, ob die Anzahl
+  der Anfragen zählt oder der belegte Platz. Der Umschalter ist weg. Der Reiter
+  heißt nur noch **Kontingente** und trägt drei Standardwerte: Filme, Serien,
+  Speicher. Eine Anfrage geht durch, wenn **beide** Grenzen noch Luft haben;
+  die Meldung sagt, welche gegriffen hat. Wer nur nach einer begrenzen will,
+  stellt die andere auf „unbegrenzt" — das ist eine Einstellung weniger als
+  eine Betriebsart.
+
+  Jede Grenze hat am Konto jetzt **drei Zustände**: *Standard* (der Wert des
+  Hauses), *unbegrenzt* (ausdrücklich ohne Grenze) und eine eigene Zahl, wobei
+  die **0** „darf nichts anfragen" bedeutet. Vorher war „unbegrenzt" ein leeres
+  Feld — wer einmal eine Zahl eingetragen hatte, fand nicht mehr zurück.
+
+  ⚠️ **Die 0 beim Speicher hat ihre Bedeutung gewechselt.** Sie hieß „für
+  dieses Konto unbegrenzt" und heißt jetzt das Gegenteil. Gespeicherte Nullen
+  ziehen beim ersten Start automatisch auf „unbegrenzt" um; ohne das wäre ein
+  Konto über Nacht still gesperrt gewesen.
+
+  ⚠️ **War der Schalter bisher auf „Anzahl", gehen alle Bestände einmalig ins
+  Haus.** Die GB-Grenzen waren in diesem Betrieb wirkungslos, die Zurechnung
+  lief aber im Hintergrund weiter. Ohne diesen Schritt wären Leute nach dem
+  Update schlagartig gesperrt — wegen einer Zahl, die seit Monaten
+  herumlag, und einer Historie, von der sie nichts wussten. Keine Datei wird
+  angefasst, eingetragene Grenzen bleiben stehen und greifen ab jetzt.
+
+- **Der Zeitraum der Stückzahl gilt haus-weit.** Er stand bisher an jedem Konto
+  einzeln. Drei Konten mit drei verschiedenen Zeiträumen erklären aber
+  niemandem mehr, was „3 Filme" bedeutet. Bestehende Einstellungen ziehen um:
+  Wich ein Konto von der Woche ab, gewinnt der häufigste Wert.
+
+- **Speicher-Reiter, Hausbestand und „Brauche ich nicht mehr" gibt es jetzt
+  überall.** Sie hingen am alten Hauptschalter und waren damit für jeden
+  unsichtbar, der nach Stückzahl begrenzte. Gemessen wird immer, begrenzt nur
+  auf Wunsch — und die Kette „abgeben → der Betreiber entscheidet → Haus,
+  behalten oder löschen" steht damit jedem Haushalt offen. Für Betreiber heißt
+  das: Es kann jetzt eine Abgabe auf dem Tisch liegen, die vorher nie kam.
+
+- **Zurücksetzen ist ein Knopf statt einer Nebenwirkung.** Das Umschalten der
+  Betriebsart hat die Konten still auf null gesetzt. Jetzt gibt es „Alle
+  Bestände ins Haus übernehmen" in den Kontingenten und „Speicher zurücksetzen"
+  bei jedem Konto — beide mit Rückfrage und Zahlen. Der zweite ist zugleich der
+  Ausweg für den Fall darunter.
+
+- **Titel, die Radarr oder Sonarr nicht mehr führen, sind jetzt erkennbar.** Wer
+  einen Titel dort entfernt und die Datei behält, schafft einen Posten, der
+  weiter zählt, aber nicht mehr gelöscht werden kann — Nexview löscht
+  ausschließlich über diese Dienste. Solche Zeilen tragen jetzt ein Zeichen mit
+  Erklärung. Bis hierher merkte es nur der Betreiber, und zwar erst beim
+  Löschversuch.
 
 - **„Sprache & Region" und „Sicherheit" sind in „Konto" aufgegangen.** Aus acht
   Reitern wurden sechs, und die Kontoseite nutzt die volle Breite in zwei

@@ -195,3 +195,36 @@ export function RundKnopf({
     </button>
   )
 }
+
+/**
+ * Ein abgegrenzter Einstellungsbereich - Überschrift plus Inhalt in einer Karte.
+ *
+ * ⚠️ **Warum das hier steht und nicht mehr in einer einzelnen Seite.** Diese
+ * Form gab es nur in den Dienste-Einstellungen, lokal definiert. Alle anderen
+ * Seiten bauten ihre Bereiche selbst — mal mit Karte, mal ohne, mal mit
+ * Überschrift darüber statt darin. Das Ergebnis: Beim Wechseln zwischen den
+ * Menüpunkten sah jede Seite anders aus, und man konnte den Bereich, in dem
+ * man wirklich etwas einstellt, nicht mehr auf einen Blick erkennen.
+ *
+ * `breit` für Inhalte, die die volle Breite brauchen — Tabellen etwa. Ohne
+ * das bleibt der Text bei ``max-w-3xl``, weil sehr lange Zeilen sich schlecht
+ * lesen.
+ */
+export function Section({
+  title,
+  breit = false,
+  children,
+  className = '',
+}: {
+  title: string
+  breit?: boolean
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <Card className={'flex flex-col gap-4 ' + className}>
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <div className={'flex flex-col gap-4' + (breit ? '' : ' max-w-3xl')}>{children}</div>
+    </Card>
+  )
+}

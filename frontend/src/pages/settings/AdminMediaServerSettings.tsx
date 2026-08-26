@@ -29,7 +29,7 @@ import { MediaServerPasswordForm } from '../../components/MediaServerPasswordFor
 import { MediaServerPrompt } from '../../components/MediaServerPrompt'
 import { MediaServerTile } from '../../components/MediaServerTile'
 import type { TileState } from '../../components/MediaServerTile'
-import { Button, Card, ErrorBanner, Spinner } from '../../components/ui'
+import { Button, Card, Section, ErrorBanner, Spinner } from '../../components/ui'
 import { formatDateTime } from '../../lib/format'
 import { providerName } from '../../lib/mediaserver'
 import { useConfig } from '../../hooks/useConfig'
@@ -322,26 +322,26 @@ export function AdminMediaServerSettings() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ⚠️ Die Kacheln liegen **frei auf der Seite**, nicht in einer Karte.
-          Vorher steckten sie samt Einleitung, Zurück-Link und einer
-          „Verbunden mit"-Leiste in *einer* Karte - Kästen in einem Kasten. Die
-          Benachrichtigungen machen es andersherum: Kacheln oben frei, darunter
-          die Karte mit den Einstellungen. Das ist jetzt hier genauso. */}
-      <div>
-        <h2 className="text-lg font-semibold">{t('mediaserver.adminTitle')}</h2>
-        <p className="mt-1.5 max-w-3xl text-sm text-mist-500">
+      {/* ⚠️ **Hier lagen die Kacheln einmal frei auf der Seite** - mit der
+          Begründung, Kästen in einem Kasten sähen unruhig aus. Das stimmt für
+          sich genommen, war aber der Grund, warum ausgerechnet diese Seite
+          anders aussah als jede andere Einstellungsseite: Überall sonst sitzt
+          das, was man einstellt, in einer grau hinterlegten Sektion. Beim
+          Durchklicken fiel genau das auf. Einheitlichkeit wiegt hier schwerer
+          als die Sorge vor der Verschachtelung. */}
+      <Section title={t('mediaserver.adminTitle')} breit>
+        <p className="-mt-2 max-w-3xl text-sm text-mist-500">
           {t('mediaserver.adminIntro')}
         </p>
-      </div>
 
-      {/* Übersicht: alle drei. Geöffnet: nur die gewählte, damit die Seite
-          darunter eindeutig zu *einem* Server gehört.
-          
-          ⚠️ Das Raster bleibt dabei **dasselbe**. Vorher wechselte es auf eine
-          schmale Einzelspalte, und die Kachel änderte beim Anklicken ihre
-          Größe - die Seite sprang. Mit gleichem Raster steht die offene Kachel
-          genau dort, wo sie vorher stand. */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Übersicht: alle drei. Geöffnet: nur die gewählte, damit die Seite
+            darunter eindeutig zu *einem* Server gehört.
+
+            ⚠️ Das Raster bleibt dabei **dasselbe**. Vorher wechselte es auf eine
+            schmale Einzelspalte, und die Kachel änderte beim Anklicken ihre
+            Größe - die Seite sprang. Mit gleichem Raster steht die offene Kachel
+            genau dort, wo sie vorher stand. */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(offen === null ? bekannt : [offen]).map((anbieter) => (
           <MediaServerTile
             key={anbieter}
@@ -354,17 +354,18 @@ export function AdminMediaServerSettings() {
             }}
           />
         ))}
-      </div>
+        </div>
 
-      {offen !== null && (
-        <button
-          type="button"
-          onClick={() => setOffen(null)}
-          className="-mt-3 self-start text-sm text-mist-500 hover:text-mist-300"
-        >
-          ← {t('mediaserver.back')}
-        </button>
-      )}
+        {offen !== null && (
+          <button
+            type="button"
+            onClick={() => setOffen(null)}
+            className="self-start text-sm text-mist-500 hover:text-mist-300"
+          >
+            ← {t('mediaserver.back')}
+          </button>
+        )}
+      </Section>
 
       {/* Die Karte gehört zur **geöffneten** Kachel. Auf der Übersicht gäbe es
           darin nichts zu sagen - eine fast leere Karte wäre nur Rauschen. */}

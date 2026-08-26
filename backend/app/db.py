@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import Path
 
 from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from . import __version__
@@ -51,7 +52,12 @@ def init_db() -> None:
     fehlgeschlagener Schritt nie Daten kostet.
     """
     ausstehend = _pending_changes()
-    if ausstehend:
+    # ⚠️ **Bei einer brandneuen Installation wird nicht gesichert.**
+    # Die Schema-Pruefung meldet dort zwangslaeufig "alles fehlt", und Nexview
+    # legte gehorsam eine Kopie einer leeren Datenbank an: Sie schuetzt nichts,
+    # verbraucht aber einen der fuenf Plaetze - und wer nach dem ersten Start
+    # in die Liste sieht, fragt sich zu Recht, wovor die schuetzen soll.
+    if ausstehend and not _leere_installation():
         logger.info("Database schema update: %s", ", ".join(ausstehend))
         _backup_database()
 
@@ -67,6 +73,23 @@ def init_db() -> None:
     _gesehen_herkunft_nachtragen()
     _verknuepfungen_in_die_tabelle()
     _kontingente_dreiwertig_machen()
+
+
+def _leere_installation(ziel: Engine | None = None) -> bool:
+    """Gibt es ueberhaupt schon Tabellen?
+
+    Nur beim allerersten Start ist die Antwort nein - danach steht das Schema,
+    auch wenn noch niemand ein Konto angelegt hat.
+
+    ``ziel`` ist fuer Tests: Ohne den Parameter muesste ein Test die
+    Datenbank des ganzen Laufs austauschen, um den Erstfall zu pruefen - und
+    haenge damit an der Reihenfolge der Tests.
+    """
+    with (ziel or engine).connect() as verbindung:
+        vorhanden = verbindung.exec_driver_sql(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).scalar()
+    return not vorhanden
 
 
 def _kontingente_dreiwertig_machen() -> None:
@@ -299,46 +322,34 @@ def _pending_changes() -> list[str]:
 def _backup_database() -> None:
     """Kopie der Datenbank anlegen, bevor sie veraendert wird.
 
-    ``VACUUM INTO`` erzeugt eine in sich stimmige Kopie, auch waehrend
-    Schreibvorgaenge laufen - ein blosses Kopieren der Datei wuerde im
-    WAL-Betrieb die zuletzt gespeicherten Aenderungen verlieren.
+    Die eigentliche Arbeit macht ``services.sicherung`` - dort liegt auch das
+    Auflisten und das Ausliefern als verschluesseltes Archiv, und beides muss
+    denselben Ordner und dieselben Namen sehen wie das hier.
 
-    Scheitert die Sicherung, laeuft der Start trotzdem weiter: ein Container,
+    Scheitert die Sicherung, laeuft der Start trotzdem weiter: Ein Container,
     der wegen einer nicht schreibbaren Sicherung gar nicht erst hochkommt,
     waere schlimmer als eine fehlende Sicherung.
     """
-    ordner = _settings.data_dir / "sicherungen"
+    # Erst hier importiert - ``sicherung`` greift auf ``engine`` aus diesem
+    # Modul zu, ein Import oben waere ein Ring.
+    from .services import sicherung
+
     try:
-        ordner.mkdir(parents=True, exist_ok=True)
-        stempel = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        ziel = ordner / f"nexview-vor-{__version__}-{stempel}.db"
-        # VACUUM INTO weigert sich, eine vorhandene Datei zu ueberschreiben.
-        # Zwei Anpassungen in derselben Sekunde sind selten, aber moeglich.
-        zaehler = 2
-        while ziel.exists():
-            ziel = ordner / f"nexview-vor-{__version__}-{stempel}-{zaehler}.db"
-            zaehler += 1
-
-        with engine.connect() as connection:
-            # Der Pfad kommt aus der eigenen Konfiguration, nicht von aussen.
-            # Einfache Anfuehrungszeichen darin wuerden das Statement dennoch
-            # zerlegen - deshalb werden sie verdoppelt.
-            connection.exec_driver_sql(f"VACUUM INTO '{str(ziel).replace(chr(39), chr(39) * 2)}'")
-
-        logger.info("Database backup created: %s", ziel.name)
-        _prune_backups(ordner)
+        sicherung.anlegen(art=sicherung.AUTOMATISCH)
     except Exception as fehler:  # noqa: BLE001 - Start darf daran nicht scheitern
         logger.warning("Database backup failed: %s", fehler)
 
 
 def _prune_backups(ordner: Path, behalten: int = BACKUPS_TO_KEEP) -> None:
-    """Nur die juengsten Sicherungen behalten - sonst laeuft die Platte voll."""
-    dateien = sorted(ordner.glob("nexview-vor-*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for alt in dateien[behalten:]:
-        try:
-            alt.unlink()
-        except OSError as fehler:
-            logger.warning("Could not delete old backup %s: %s", alt.name, fehler)
+    """Alte automatische Staende wegraeumen.
+
+    Bleibt als Einstiegspunkt bestehen, weil Tests und aeltere Aufrufe ihn
+    kennen; die Regel selbst - von Hand angelegte Sicherungen bleiben liegen -
+    steht in ``services.sicherung``.
+    """
+    from .services import sicherung
+
+    sicherung.aufraeumen(behalten=behalten, ordner_=ordner)
 
 
 def _sql_literal(wert: object) -> str | None:

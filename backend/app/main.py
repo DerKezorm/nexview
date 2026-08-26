@@ -41,6 +41,7 @@ from .routers import (
     favorites as favorites_router,
     home as home_router,
     logs as logs_router,
+    sicherungen as sicherungen_router,
     mediaserver as mediaserver_router,
     notifications,
     onboarding,
@@ -57,7 +58,7 @@ from .routers import (
     watch as watch_router,
     watchlist as watchlist_router,
 )
-from .services import channel_outbox, csp, logs, status_poller
+from .services import channel_outbox, csp, logs, sicherung, status_poller
 from .services.arr import close_http_client as close_arr_client
 from .services.mediaserver import close_http_client as close_mediaserver_client
 from .services.tmdb import close_http_client
@@ -105,6 +106,12 @@ async def lifespan(app: FastAPI):
     # Der Waechter der Protokoll-Stufe laeuft immer - auch ohne Poller. Eine
     # eingeschaltete Diagnose-Stufe muss sich verlaesslich selbst abschalten.
     tasks.append(asyncio.create_task(logs.run_forever(stop)))
+    # Regelmaessige Sicherungen. Haengt am selben Schalter wie der Poller:
+    # ⚠️ Diese Schleife **schreibt Dateien**. In Tests laege sonst nach jedem
+    # Lauf eine Sicherung im Datenverzeichnis, und ein Test, der Staende zaehlt,
+    # zaehlte die des Nachbarn mit.
+    if POLLER_ENABLED:
+        tasks.append(asyncio.create_task(sicherung.run_forever(stop)))
 
     yield
 
@@ -184,6 +191,7 @@ app.include_router(home_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(onboarding.router)
 app.include_router(notifications.router, dependencies=NUR_ERWACHSENE)
 app.include_router(logs_router.router)
+app.include_router(sicherungen_router.router)
 app.include_router(about_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(details_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(calendar_router.router, dependencies=NUR_ERWACHSENE)

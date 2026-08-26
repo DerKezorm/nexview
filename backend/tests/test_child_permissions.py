@@ -38,6 +38,12 @@ KINDER_ERLAUBT = {
     "/api/auth/me",
     "/api/setup/status",
     "/api/setup/admin",
+    # Aus einer Sicherung starten statt bei null. Dieselbe Einordnung wie
+    # "/api/setup/admin": Beide sind zu, sobald **ein** Konto existiert - und
+    # ein Kinderkonto kann es vorher gar nicht geben, denn Kinder sind
+    # Unterprofile ihrer Eltern. Ein Achtjaehriger sieht damit also nichts.
+    "/api/setup/sicherung/pruefen",
+    "/api/setup/sicherung/einspielen",
     "/api/users/avatar/{name}",
     "/api/demo/poster/{media_type}/{tmdb_id}.svg",
     # Anmeldung ueber den Media-Server: laeuft ohne angemeldeten Benutzer, und

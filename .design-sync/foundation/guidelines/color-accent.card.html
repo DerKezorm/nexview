@@ -1,0 +1,35 @@
+<!-- @dsCard group="Farben" viewport="760x250" name="Akzent — ein einziges Rot" subtitle="accent-500 füllt, accent-400 schreibt, accent-700 trägt den Schimmer" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:20px 22px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden}
+  .reihe{display:flex;gap:10px;margin-bottom:16px}
+  .feld{flex:1;display:flex;flex-direction:column;gap:7px}
+  .platte{height:48px;border-radius:var(--radius-lg)}
+  .name{font-family:var(--font-mono);font-size:var(--size-xs);color:var(--text-body)}
+  .wert{font-family:var(--font-mono);font-size:var(--size-2xs);color:var(--text-faint)}
+  .regel{font-size:var(--size-xs);color:var(--text-dim);line-height:1.5;border-left:2px solid var(--brand);padding-left:12px}
+  .regel b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<div class="reihe">
+  <div class="feld"><span class="platte" style="background:var(--color-accent-300)"></span>
+    <span class="name">accent-300</span><span class="wert">#ff6b7a</span></div>
+  <div class="feld"><span class="platte" style="background:var(--color-accent-400)"></span>
+    <span class="name">accent-400</span><span class="wert">#ff3b4e</span></div>
+  <div class="feld"><span class="platte" style="background:var(--color-accent-500)"></span>
+    <span class="name">accent-500</span><span class="wert">#e11d2f</span></div>
+  <div class="feld"><span class="platte" style="background:var(--color-accent-600)"></span>
+    <span class="name">accent-600</span><span class="wert">#b91626</span></div>
+  <div class="feld"><span class="platte" style="background:var(--color-accent-700)"></span>
+    <span class="name">accent-700</span><span class="wert">#8f0f1c</span></div>
+</div>
+<p class="regel">
+  <b>500 füllt</b> — der eine Knopf, der die Seite weiterbringt.
+  <b>400 schreibt</b> — auf dunklem Grund ist 500 als Text zu blass.
+  <b>700 schimmert</b> — der weiche rote Schein unter Karten und hinter dem Kopf.<br>
+  Auf einer Seite darf <b>genau eine</b> Fläche accent-500 tragen. Zwei rote Knöpfe
+  nebeneinander heißen: Wir wissen selbst nicht, was du tun sollst.
+</p>
+</body></html>

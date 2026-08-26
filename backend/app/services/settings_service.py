@@ -115,6 +115,16 @@ DEFAULTS: dict[str, str] = {
     # Einmal taeglich bei GitHub nachsehen, ob es eine neuere Version gibt.
     # Uebertragen wird dabei nichts ausser der Anfrage selbst.
     "update_check": "on",  # "on" | "off"
+    # Regelmaessige Sicherungen. Bis 0.22 entstand eine automatische Sicherung
+    # **nur** bei einer Schemaaenderung - also praktisch nur beim Update.
+    # Zwischen zwei Fassungen koennen Monate liegen; wer am Dienstag
+    # versehentlich etwas loescht, hatte dann keinen Stand vom Montag.
+    "backup_schedule": "weekly",  # "off" | "daily" | "weekly" | "monthly"
+    # Wie viele automatische Staende liegen bleiben. War fest fuenf - sinnvoll,
+    # solange eine Sicherung 170 MB wog. Seit die Zwischenspeicher draussen
+    # bleiben, sind es ein paar MB, und zwanzig Staende kosten weniger als
+    # frueher einer.
+    "backup_keep": "5",
     # --- Media-Server ------------------------------------------------------
     # Bewusst anbieter-neutral benannt: heute Plex, spaeter ebenso Jellyfin
     # oder Emby. Es ist immer genau einer verbunden - ein Haushalt hat eine
@@ -230,6 +240,8 @@ class AppSettings:
     smtp_from_name: str
     public_url: str
     update_check: bool
+    backup_schedule: str
+    backup_keep: int
     # Die Verbindungen, wie sie in ``media_server_connections`` stehen. Die vier
     # Einzelwerte darunter sind die **erste** davon - sie bleiben, damit die
     # ueber zwanzig Stellen, die "ist verbunden?" oder "welcher Anbieter?"
@@ -604,6 +616,14 @@ def load_settings(db: Session) -> AppSettings:
         smtp_from_name=values["smtp_from_name"].strip() or "Nexview",
         public_url=values["public_url"].strip().rstrip("/"),
         update_check=_flag(values["update_check"], standard=True),
+        backup_schedule=(
+            values["backup_schedule"]
+            if values["backup_schedule"] in ("off", "daily", "weekly", "monthly")
+            else "weekly"
+        ),
+        # Untergrenze zwei: Bei einem einzigen Stand wuerde die naechste
+        # Sicherung den letzten Rueckweg ueberschreiben.
+        backup_keep=max(2, min(50, _zahl(values["backup_keep"]) or 5)),
         mediaserver_verbindungen=verbindungen,
         # Die erste Verbindung, damit alles Bestehende weiterlaeuft. Bei genau
         # einer - dem heutigen Normalfall - ist das schlicht *die* Verbindung.
@@ -725,6 +745,8 @@ def public_settings(db: Session) -> dict[str, object]:
         "mail_configured": settings.mail_configured,
         "public_url": settings.public_url,
         "update_check": settings.update_check,
+        "backup_schedule": settings.backup_schedule,
+        "backup_keep": settings.backup_keep,
         "mediaserver_provider": settings.mediaserver_provider,
         "mediaserver_machine_id": settings.mediaserver_machine_id,
         "mediaserver_name": settings.mediaserver_name,

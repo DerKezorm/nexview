@@ -230,7 +230,7 @@ def test_update_legt_sicherung_an(alte_installation: Path) -> None:
     """Vor der ersten Aenderung entsteht eine Kopie der Datenbank."""
     db_modul.init_db()
 
-    sicherungen = list((alte_installation.parent / "sicherungen").glob("nexview-vor-*.db"))
+    sicherungen = list((alte_installation.parent / "sicherungen").glob("nexview-automatisch-*.db"))
     assert len(sicherungen) == 1
 
     # Die Kopie muss den alten Stand enthalten - also lesbar sein und den
@@ -252,7 +252,7 @@ def test_zweiter_start_aendert_nichts_mehr(alte_installation: Path) -> None:
     assert db_modul._pending_changes() == []
 
     db_modul.init_db()
-    sicherungen = list((alte_installation.parent / "sicherungen").glob("nexview-vor-*.db"))
+    sicherungen = list((alte_installation.parent / "sicherungen").glob("nexview-automatisch-*.db"))
     assert len(sicherungen) == 1
 
 
@@ -275,7 +275,7 @@ def test_alte_sicherungen_werden_aufgeraeumt(tmp_path: Path) -> None:
     ordner = tmp_path / "sicherungen"
     ordner.mkdir()
     for nummer in range(8):
-        datei = ordner / f"nexview-vor-0.{nummer}.0-2026-01-0{nummer + 1}_120000.db"
+        datei = ordner / f"nexview-automatisch-0.{nummer}.0-2026-01-0{nummer + 1}_120000.db"
         datei.write_text("x", encoding="utf-8")
         # Klar unterscheidbare Zeitstempel, damit die Reihenfolge eindeutig ist.
         import os
@@ -776,3 +776,28 @@ def test_ohne_verbindung_entsteht_keine_zeile(alte_installation: Path) -> None:
             ).scalar()
             == 0
         )
+
+
+def test_erster_start_legt_keine_sicherung_an(tmp_path: Path) -> None:
+    """⚠️ Eine Sicherung einer Datenbank, die es noch gar nicht gibt.
+
+    Beim allerersten Start meldet die Schema-Pruefung zwangslaeufig "alles
+    fehlt". Nexview legte daraufhin gehorsam eine Kopie einer leeren Datenbank
+    an - sie schuetzt nichts, verbraucht aber einen der fuenf Plaetze. Wer nach
+    dem ersten Start in die Liste sieht, fragt sich zu Recht, wovor die
+    schuetzen soll.
+    """
+    from sqlalchemy import create_engine
+
+    frisch = create_engine(f"sqlite:///{tmp_path / 'neu.db'}", future=True)
+    try:
+        assert db_modul._leere_installation(frisch) is True
+
+        # Sobald eine einzige Tabelle steht, ist es keine frische Installation
+        # mehr - auch wenn noch kein Konto angelegt wurde.
+        with frisch.connect() as verbindung:
+            verbindung.exec_driver_sql("CREATE TABLE probe (id INTEGER PRIMARY KEY)")
+            verbindung.commit()
+        assert db_modul._leere_installation(frisch) is False
+    finally:
+        frisch.dispose()

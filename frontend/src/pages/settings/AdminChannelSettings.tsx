@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { Reiterreihe } from '../../components/Reiterreihe'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -12,7 +14,7 @@ import type {
   NtfyAuth,
   TestResult,
 } from '../../api/types'
-import { Button, Card, ErrorBanner, Field, PlusKachel, RundKnopf, Spinner } from '../../components/ui'
+import { Button, Card, ErrorBanner, Field, PlusKachel, RundKnopf, Section, Spinner } from '../../components/ui'
 import { Anleitung, HilfeKnopf, hatAnleitung } from './ChannelHelp'
 import emailLogo from '../../assets/email.svg'
 import gotifyLogo from '../../assets/gotify.svg'
@@ -211,25 +213,16 @@ export function AdminChannelSettings() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-2">
-        {KANAELE.map((eintrag) => (
-          <button
-            key={eintrag}
-            type="button"
-            onClick={() => setKanal(eintrag)}
-            className={
-              'inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm ' +
-              'font-medium transition-colors ' +
-              (kanal === eintrag
-                ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
-                : 'border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100')
-            }
-          >
-            <DienstSymbol kanal={eintrag} className="h-4 w-4" />
-            {LABELS[eintrag]}
-          </button>
-        ))}
-      </div>
+      <Reiterreihe
+        unter
+        eintraege={KANAELE.map((eintrag) => ({
+          value: eintrag,
+          label: LABELS[eintrag],
+          eigenesSymbol: <DienstSymbol kanal={eintrag} className="h-4 w-4" />,
+        }))}
+        aktiv={kanal}
+        onWechsel={setKanal}
+      />
 
       {/* Bewusst mit `key`: Beim Wechsel des Dienstes soll ein halb
           ausgefülltes Formular nicht stehen bleiben. */}
@@ -244,6 +237,17 @@ function Zielverwaltung({ kanal }: { kanal: ChannelKind }) {
 
   /** `null` = nichts offen, `'neu'` = anlegen, sonst die Kennung der Instanz. */
   const [offen, setOffen] = useState<number | 'neu' | null>(null)
+
+  /**
+   * ⚠️ **Rückfrage als eigenes Fenster, nicht als `window.confirm`.**
+   *
+   * Der Browser-Dialog sieht aus wie eine Warnung des Browsers, nicht wie eine
+   * Frage von Nexview - Chrome schreibt sogar „Auf localhost:5175 wird
+   * Folgendes angezeigt" darüber. Er ignoriert jede Gestaltung, lässt sich
+   * nicht bebildern und blockiert die ganze Seite. Überall sonst in Nexview
+   * fragt `ConfirmDialog`; das waren die letzten zwei Stellen.
+   */
+  const [zuLoeschen, setZuLoeschen] = useState<ChannelTarget | null>(null)
 
   const zieleQuery = useQuery({
     queryKey: ['channel-targets', kanal],
@@ -281,7 +285,11 @@ function Zielverwaltung({ kanal }: { kanal: ChannelKind }) {
     void queryClient.invalidateQueries({ queryKey: ['channel-targets', kanal] })
 
   return (
-    <div className="flex flex-col gap-6">
+    // ⚠️ **In einer Sektion, mit Überschrift.** Vorher standen die Kacheln frei
+    // auf der Seite und ohne Titel - als einzige Einstellungsseite. Beim
+    // Durchklicken fiel genau das auf: Überall sonst sagt eine graue Fläche
+    // „hier stellst du etwas ein", nur hier nicht.
+    <Section title={LABELS[kanal]} breit>
       {/* Ist ein Feld offen, bleibt nur die Kachel stehen, zu der es gehört.
           Alles andere auszublenden sagt eindeutiger, was gerade bearbeitet
           wird, als jede Linie es könnte. */}
@@ -300,11 +308,7 @@ function Zielverwaltung({ kanal }: { kanal: ChannelKind }) {
               }
               onBearbeiten={() => setOffen(offen === ziel.id ? null : ziel.id)}
               onUmschalten={() => umschalten.mutate({ id: ziel.id, enabled: !ziel.enabled })}
-              onLoeschen={() => {
-                if (window.confirm(t('channels.confirmDelete', { name: ziel.name }))) {
-                  loeschen.mutate(ziel.id)
-                }
-              }}
+              onLoeschen={() => setZuLoeschen(ziel)}
             />
           ))}
 
@@ -349,7 +353,18 @@ function Zielverwaltung({ kanal }: { kanal: ChannelKind }) {
           onAbbrechen={() => setOffen(null)}
         />
       )}
-    </div>
+
+      <ConfirmDialog
+        open={zuLoeschen !== null}
+        title={t('channels.deleteTitle')}
+        description={zuLoeschen?.name ?? ''}
+        warning={t('channels.confirmDeleteWarning')}
+        confirmLabel={t('common.delete')}
+        loading={loeschen.isPending}
+        onConfirm={() => zuLoeschen && loeschen.mutate(zuLoeschen.id)}
+        onCancel={() => setZuLoeschen(null)}
+      />
+    </Section>
   )
 }
 
@@ -1044,6 +1059,8 @@ function TopicListe({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [offen, setOffen] = useState<number | 'neu' | null>(null)
+  /** Siehe ``Zielverwaltung``: Rückfrage als eigenes Fenster, nicht als `window.confirm`. */
+  const [zuLoeschen, setZuLoeschen] = useState<ChannelTarget | null>(null)
 
   const topics = instanz.children ?? []
   const bearbeitet = typeof offen === 'number' ? topics.find((k) => k.id === offen) : undefined
@@ -1078,11 +1095,7 @@ function TopicListe({
               unterschrift={kanal === 'telegram' ? topic.chat_id : topic.topic}
               onBearbeiten={() => setOffen(offen === topic.id ? null : topic.id)}
               onUmschalten={() => umschalten.mutate({ id: topic.id, enabled: !topic.enabled })}
-              onLoeschen={() => {
-                if (window.confirm(t('channels.confirmDelete', { name: topic.name }))) {
-                  loeschen.mutate(topic.id)
-                }
-              }}
+              onLoeschen={() => setZuLoeschen(topic)}
             />
           ))}
 
@@ -1109,6 +1122,17 @@ function TopicListe({
           onAbbrechen={() => setOffen(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={zuLoeschen !== null}
+        title={t('channels.deleteTitle')}
+        description={zuLoeschen?.name ?? ''}
+        warning={t('channels.confirmDeleteWarning')}
+        confirmLabel={t('common.delete')}
+        loading={loeschen.isPending}
+        onConfirm={() => zuLoeschen && loeschen.mutate(zuLoeschen.id)}
+        onCancel={() => setZuLoeschen(null)}
+      />
     </div>
   )
 }

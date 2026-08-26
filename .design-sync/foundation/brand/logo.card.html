@@ -1,0 +1,55 @@
+<!-- @dsCard group="Marke" viewport="760x260" name="Zeichen und Wortmarke" subtitle="Kamerablende mit Play-Dreieck, im einzigen Verlauf, den es gibt" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:22px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden}
+  .reihe{display:flex;align-items:center;gap:34px;margin-bottom:18px}
+  .p{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .m{font-family:var(--font-mono);font-size:var(--size-2xs);color:var(--text-faint)}
+  .wort{font-size:var(--size-h2);font-weight:var(--weight-bold);letter-spacing:var(--tracking-tight);color:var(--text-body)}
+  .wort i{font-style:normal;color:var(--brand)}
+  .regel{font-size:var(--size-xs);color:var(--text-dim);line-height:1.6;
+         border-left:2px solid var(--brand);padding-left:13px}
+  .regel b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<div class="reihe">
+  <div class="p">
+    <svg viewBox="0 0 64 64" width="72" height="72" aria-hidden="true">
+      <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ff3b4e"/><stop offset="55%" stop-color="#e11d2f"/><stop offset="100%" stop-color="#8f0f1c"/>
+      </linearGradient></defs>
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="#141019"/>
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="url(#g1)" stroke-width="2.5" stroke-opacity=".55"/>
+      <path d="M12 32c6.5-9 13.5-13.5 20-13.5S45.5 23 52 32c-6.5 9-13.5 13.5-20 13.5S18.5 41 12 32Z" fill="none" stroke="url(#g1)" stroke-width="3.2" stroke-linejoin="round"/>
+      <path d="M28 25.5 40 32l-12 6.5Z" fill="url(#g1)"/>
+    </svg>
+    <span class="m">Zeichen · 64×64</span>
+  </div>
+  <div class="p">
+    <svg viewBox="0 0 64 64" width="32" height="32" aria-hidden="true">
+      <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ff3b4e"/><stop offset="55%" stop-color="#e11d2f"/><stop offset="100%" stop-color="#8f0f1c"/>
+      </linearGradient></defs>
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="#141019"/>
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="url(#g2)" stroke-width="2.5" stroke-opacity=".55"/>
+      <path d="M12 32c6.5-9 13.5-13.5 20-13.5S45.5 23 52 32c-6.5 9-13.5 13.5-20 13.5S18.5 41 12 32Z" fill="none" stroke="url(#g2)" stroke-width="3.2" stroke-linejoin="round"/>
+      <path d="M28 25.5 40 32l-12 6.5Z" fill="url(#g2)"/>
+    </svg>
+    <span class="m">im Kopf · 32×32</span>
+  </div>
+  <div class="p">
+    <span class="wort">NEX<i>VIEW</i></span>
+    <span class="m">Wortmarke · nur ab sm</span>
+  </div>
+</div>
+<p class="regel">
+  <b>Der einzige Verlauf im ganzen System</b> — accent-400 → 500 → 700, diagonal.
+  Flächen bekommen sonst nirgends einen Verlauf; hier trägt er die Marke.<br>
+  <b>Das dunkle Feld ist #141019, nicht ink-950.</b> Ein eigener Ton, damit das Zeichen
+  auch auf hellem Grund als geschlossene Form steht — es ist ein Logo, keine Fläche.<br>
+  <b>Auf dem Telefon nur das Zeichen.</b> Der Schriftzug überfüllt die Kopfzeile neben
+  Glocke, beiden Schaltern und Menü.
+</p>
+</body></html>

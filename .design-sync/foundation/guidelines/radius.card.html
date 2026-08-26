@@ -1,0 +1,31 @@
+<!-- @dsCard group="Raster" viewport="760x230" name="Radien — zwei Formfamilien" subtitle="Gerundet trägt Inhalt, vollrund ist bedienbar. Das ist keine Geschmacksfrage." -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:20px 22px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden}
+  .reihe{display:flex;gap:12px;align-items:flex-start;margin-bottom:16px}
+  .p{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .k{width:62px;height:46px;background:var(--surface-card);border:1px solid var(--border-default)}
+  .m{font-family:var(--font-mono);font-size:var(--size-2xs);color:var(--text-faint);text-align:center;line-height:1.4}
+  .m em{display:block;font-style:normal;color:var(--text-dim)}
+  .regel{font-size:var(--size-xs);color:var(--text-dim);line-height:1.6;
+         border-left:2px solid var(--brand);padding-left:13px}
+  .regel b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<div class="reihe">
+  <div class="p"><span class="k" style="border-radius:var(--radius-sm)"></span><span class="m">sm · 4px<em>Code im Text</em></span></div>
+  <div class="p"><span class="k" style="border-radius:var(--radius-md)"></span><span class="m">md · 8px<em>Kleinteile</em></span></div>
+  <div class="p"><span class="k" style="border-radius:var(--radius-lg)"></span><span class="m">lg · 12px<em>Listenzeilen</em></span></div>
+  <div class="p"><span class="k" style="border-radius:var(--radius-xl)"></span><span class="m">xl · 16px<em>Felder, Poster</em></span></div>
+  <div class="p"><span class="k" style="border-radius:var(--radius-2xl)"></span><span class="m">2xl · 24px<em>Karten, Fenster</em></span></div>
+  <div class="p"><span class="k" style="border-radius:var(--radius-full);width:88px"></span><span class="m">full<em>Knöpfe, Abzeichen</em></span></div>
+</div>
+<p class="regel">
+  <b>Rechteckig mit Rundung trägt Inhalt.</b> Karten, Felder, Fenster, Poster.<br>
+  <b>Vollrund ist bedienbar oder ein Etikett.</b> Knöpfe, Abzeichen, Umschalter, Reiter.<br>
+  Wer eine Karte vollrund macht, nimmt ihr die Aussage; wer ein Abzeichen eckig macht,
+  lässt es wie eine kleine Karte aussehen — und Leute klicken darauf.
+</p>
+</body></html>

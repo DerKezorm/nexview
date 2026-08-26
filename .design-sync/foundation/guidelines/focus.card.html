@@ -1,0 +1,35 @@
+<!-- @dsCard group="Wirkung" viewport="760x210" name="Fokus und Auswahl" subtitle="Der rote Rahmen liegt außerhalb — deshalb ist er auch auf gefüllten Flächen zu sehen" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:26px 22px 20px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden}
+  .reihe{display:flex;align-items:center;gap:26px;margin-bottom:20px}
+  .knopf{border-radius:var(--radius-full);padding:7px 17px;font-size:var(--size-sm);
+         font-weight:var(--weight-semibold);border:1px solid transparent}
+  .voll{background:var(--brand);color:#fff}
+  .leer{background:transparent;border-color:var(--border-default);color:var(--text-secondary)}
+  .feld{border-radius:var(--radius-xl);background:var(--surface-raised);
+        border:1px solid var(--border-default);padding:8px 13px;color:var(--text-dim);width:11rem}
+  .fokus{outline:var(--focus-ring);outline-offset:var(--focus-offset)}
+  .regel{font-size:var(--size-xs);color:var(--text-dim);line-height:1.6;
+         border-left:2px solid var(--brand);padding-left:13px}
+  .regel b{color:var(--text-body);font-weight:var(--weight-semibold)}
+  mark{background:rgb(225 29 47/.4);color:var(--text-body)}
+</style>
+</head><body>
+<div class="reihe">
+  <span class="knopf voll fokus">Anfragen</span>
+  <span class="knopf leer fokus">Abbrechen</span>
+  <span class="feld fokus">Titel suchen …</span>
+  <span style="font-size:var(--size-sm)">Auswahl sieht so aus: <mark>markierter Text</mark></span>
+</div>
+<p class="regel">
+  <b>2 px accent-500, 2 px Abstand.</b> Der Abstand ist der Punkt: Ein Rahmen direkt
+  auf der Kante verschwindet auf einer gefüllten Fläche im Rot des Knopfes.<br>
+  <b>Nur bei Tastaturbedienung</b> (<code>:focus-visible</code>) — mit der Maus wäre er
+  Lärm.<br>
+  Wer ihn abschaltet, macht die Anwendung mit der Tastatur unbedienbar. Das fällt
+  niemandem auf, der sie mit der Maus prüft.
+</p>
+</body></html>

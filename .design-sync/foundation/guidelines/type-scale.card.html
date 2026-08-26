@@ -1,0 +1,36 @@
+<!-- @dsCard group="Schrift" viewport="760x395" name="Schriftskala" subtitle="Eine Familie, sieben Größen — und keine mitgelieferte Schriftdatei" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:20px 22px;background:var(--surface-page);color:var(--text-body);
+       font-family:var(--font-sans);overflow:hidden}
+  .z{display:flex;align-items:baseline;gap:16px;padding:5px 0}
+  .marke{font-family:var(--font-mono);font-size:var(--size-2xs);color:var(--text-faint);
+         width:9rem;flex:none}
+  .hinweis{margin-top:14px;padding-top:12px;border-top:1px solid var(--border-default);
+           font-size:var(--size-xs);color:var(--text-dim);line-height:1.6}
+  .hinweis b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<div class="z"><span class="marke">h1 · 2rem · 700</span>
+  <span style="font-size:var(--size-h1);font-weight:700;letter-spacing:var(--tracking-tight);line-height:1.1">Tage des Donners</span></div>
+<div class="z"><span class="marke">h2 · 1.5rem · 700</span>
+  <span style="font-size:var(--size-h2);font-weight:700;letter-spacing:var(--tracking-tight)">Was gerade läuft</span></div>
+<div class="z"><span class="marke">h3 · 1.125rem · 600</span>
+  <span style="font-size:var(--size-h3);font-weight:600">Radarr</span></div>
+<div class="z"><span class="marke">body · 1rem · 400</span>
+  <span style="font-size:var(--size-body);line-height:var(--leading-relaxed)">Nexview fragt für dich an und sagt Bescheid, wenn es da ist.</span></div>
+<div class="z"><span class="marke">sm · 0.875rem · 500</span>
+  <span style="font-size:var(--size-sm);font-weight:500;color:var(--text-secondary)">Bereits in der Bibliothek</span></div>
+<div class="z"><span class="marke">xs · 0.75rem · 400</span>
+  <span style="font-size:var(--size-xs);color:var(--text-dim)">Angefragt am 12. August 2026</span></div>
+<div class="z"><span class="marke">2xs · 0.6875rem · 500</span>
+  <span style="font-size:var(--size-2xs);font-weight:500;letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--text-faint)">Medienserver</span></div>
+<p class="hinweis">
+  <b>Inter, wenn sie da ist — sonst die Systemschrift.</b> Es wird bewusst keine
+  Schriftdatei ausgeliefert: kein fremder Server, kein Ladeverzug, kein Textsprung
+  beim Nachladen. Wer Inter garantiert sehen will, installiert sie.<br>
+  Überschriften laufen enger (<b>-0.02em</b>), Fließtext luftiger (<b>1.65</b>).
+  Etiketten in Großbuchstaben laufen weiter (<b>0.06em</b>) — sonst kleben sie.
+</p>
+</body></html>

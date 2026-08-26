@@ -1,0 +1,35 @@
+<!-- @dsCard group="Raster" viewport="760x240" name="Abstände — 4-px-Raster" subtitle="Vielfache von vier, und warum Zwischenwerte teuer sind" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:20px 22px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden}
+  .leiste{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px}
+  .stab{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .fl{background:var(--brand);height:26px;border-radius:var(--radius-sm)}
+  .m{font-family:var(--font-mono);font-size:var(--size-2xs);color:var(--text-faint)}
+  .regel{font-size:var(--size-xs);color:var(--text-dim);line-height:1.6;
+         border-left:2px solid var(--brand);padding-left:13px}
+  .regel b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<div class="leiste">
+  <div class="stab"><span class="fl" style="width:4px"></span><span class="m">1 · 4px</span></div>
+  <div class="stab"><span class="fl" style="width:8px"></span><span class="m">2 · 8px</span></div>
+  <div class="stab"><span class="fl" style="width:12px"></span><span class="m">3 · 12px</span></div>
+  <div class="stab"><span class="fl" style="width:16px"></span><span class="m">4 · 16px</span></div>
+  <div class="stab"><span class="fl" style="width:24px"></span><span class="m">6 · 24px</span></div>
+  <div class="stab"><span class="fl" style="width:32px"></span><span class="m">8 · 32px</span></div>
+  <div class="stab"><span class="fl" style="width:48px"></span><span class="m">12 · 48px</span></div>
+  <div class="stab"><span class="fl" style="width:64px"></span><span class="m">16 · 64px</span></div>
+  <div class="stab"><span class="fl" style="width:96px"></span><span class="m">24 · 96px</span></div>
+</div>
+<p class="regel">
+  <b>2 und 3 tragen den Alltag</b> — zwischen Dingen in einer Reihe, zwischen Karten.
+  <b>6</b> ist der Innenabstand einer Karte. Alles ab <b>12</b> trennt Abschnitte.<br><br>
+  <b>Warum keine Zwischenwerte:</b> Zwei Reiterreihen mit <code>px-4 py-2</code> und
+  <code>px-3.5 py-1.5</code> sehen einzeln beide richtig aus. Beim Wechseln zwischen
+  den Seiten wirkt jede anders — und niemand kann sagen, woran es liegt. Genau daran
+  ist <b>Reiterreihe</b> als eigenes Bauteil entstanden.
+</p>
+</body></html>

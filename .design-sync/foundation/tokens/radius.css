@@ -1,0 +1,23 @@
+/* ==========================================================================
+   Radien
+
+   Zwei Formfamilien, und die Zuordnung ist keine Geschmacksfrage:
+
+     RECHTECKIG MIT RUNDUNG traegt Inhalt - Karten, Felder, Fenster, Poster.
+     VOLLRUND ist bedienbar oder ein Etikett - Knoepfe, Abzeichen, Pillen.
+
+   Wer eine Karte vollrund macht, nimmt ihr die Aussage; wer ein Abzeichen
+   eckig macht, laesst es wie eine kleine Karte aussehen.
+   ========================================================================== */
+
+:root {
+  --radius-sm: 0.25rem; /* Code-Schnipsel im Fliesstext */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem; /* Listenzeilen */
+  --radius-xl: 1rem; /* Felder, Poster */
+  --radius-2xl: 1.5rem; /* Karten, Fenster */
+  --radius-full: 9999px; /* Knoepfe, Abzeichen, Umschalter, Reiter */
+
+  --border-width: 1px;
+  --border-width-strong: 2px; /* der senkrechte Strich einer Unterreihe */
+}

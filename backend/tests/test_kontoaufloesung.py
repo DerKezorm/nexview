@@ -227,7 +227,11 @@ async def test_vorschau_sortiert_den_nachlass(arr_client: TestClient, monkeypatc
     daten = antwort.json()
     assert [p["id"] for p in daten["posten"]] == [posten_id]
     assert [(z["season"], z["dateien"]) for z in daten["laufende"]] == [(2, 5)]
-    assert sorted(daten["storniert"]) == ["Ein Bestellter", "Eine Serie"]
+    # ⚠️ Seit 0.22 mit Kennung statt nur einem Titel. Ohne die konnte der
+    # Administrator ueber diese Bestellungen nicht entscheiden - er sah nur zu,
+    # wie sie storniert wurden.
+    assert sorted(z["title"] for z in daten["offen"]) == ["Ein Bestellter", "Eine Serie"]
+    assert all(z["request_id"] for z in daten["offen"])
 
 
 # --- Die Aufloesung ----------------------------------------------------------
@@ -350,3 +354,80 @@ async def test_ohne_nachlass_geht_es_wie_bisher(arr_client: TestClient, monkeypa
     assert arr_client.delete(f"/api/users/{konto['id']}").status_code == 204
     with SessionLocal() as db:
         assert db.scalar(select(User).where(User.id == konto["id"])) is None
+
+
+@pytest.mark.anyio
+async def test_offene_bestellung_kann_behalten_werden(
+    arr_client: TestClient, monkeypatch
+) -> None:
+    """⚠️ Der Widerspruch, den das Modul bis 0.22 mit sich herumtrug.
+
+    Sein eigener Kopfkommentar sagt: "Beides sind Entscheidungen, die ein
+    Mensch treffen soll, kein Fremdschluessel." Daran hielt es sich bei den
+    fertigen Posten und den angefangenen Staffeln - und brach es bei den
+    offenen Bestellungen, wo es ohne Rueckfrage stornierte.
+
+    Die Begruendung ("wo keine Datei liegt, ist nichts verloren") stimmt fuer
+    den Speicherplatz, aber nicht fuer die Absicht: Jemand hat den Titel
+    gewollt, jemand hat ihn genehmigt, er ist unterwegs.
+    """
+    radarr, _ = _instanzen(monkeypatch, serie=_SERIE)
+    konto = create_user(arr_client, "kim", "passwort-1234")
+    with SessionLocal() as db:
+        _anfrage(
+            db,
+            konto["id"],
+            media_type=MediaType.movie,
+            tmdb=604,
+            tvdb=None,
+            season=None,
+            arr_id=41,
+            titel="Bleibt bestellt",
+        )
+
+    vorschau = arr_client.get(f"/api/users/{konto['id']}/aufloesung").json()
+    behalten = [z["request_id"] for z in vorschau["offen"] if z["title"] == "Bleibt bestellt"]
+    assert behalten, "Die Bestellung muss in der Vorschau auftauchen."
+
+    antwort = arr_client.request(
+        "DELETE",
+        f"/api/users/{konto['id']}",
+        json={"haus": [], "loeschen": [], "staffeln": [], "offen_behalten": behalten},
+    )
+    assert antwort.status_code in (200, 204), antwort.text
+
+    # ⚠️ Der eigentliche Beweis: In Radarr wurde **nicht** entfernt. Ohne die
+    # Entscheidung stuende hier (41, True).
+    assert radarr.entfernt == [], f"Die behaltene Bestellung wurde trotzdem entfernt: {radarr.entfernt}"
+
+
+@pytest.mark.anyio
+async def test_ohne_entscheidung_wird_weiter_storniert(
+    arr_client: TestClient, monkeypatch
+) -> None:
+    """Das bisherige Verhalten bleibt die Voreinstellung.
+
+    Wer nichts angibt, bekommt was er vor 0.22 bekam - sonst laedt eine
+    Bestellung herrenlos weiter, nur weil jemand ein Feld nicht gesetzt hat.
+    """
+    radarr, _ = _instanzen(monkeypatch, serie=_SERIE)
+    konto = create_user(arr_client, "kim", "passwort-1234")
+    with SessionLocal() as db:
+        _anfrage(
+            db,
+            konto["id"],
+            media_type=MediaType.movie,
+            tmdb=604,
+            tvdb=None,
+            season=None,
+            arr_id=41,
+            titel="Wird storniert",
+        )
+
+    antwort = arr_client.request(
+        "DELETE",
+        f"/api/users/{konto['id']}",
+        json={"haus": [], "loeschen": [], "staffeln": []},
+    )
+    assert antwort.status_code in (200, 204), antwort.text
+    assert radarr.entfernt == [(41, True)]

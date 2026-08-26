@@ -1,0 +1,38 @@
+<!-- @dsCard group="Wirkung" viewport="760x280" name="Bewegung" subtitle="Vier Bewegungen mit Namen, ein Easing — und eine Abschaltung, die nicht optional ist" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:20px 22px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden}
+  .z{display:flex;align-items:center;gap:14px;padding:6px 0}
+  .n{font-family:var(--font-mono);font-size:var(--size-xs);width:7rem;flex:none;color:var(--text-body)}
+  .d{font-family:var(--font-mono);font-size:var(--size-2xs);width:4rem;flex:none;color:var(--text-faint)}
+  .b{flex:1;font-size:var(--size-xs);color:var(--text-dim)}
+  .probe{width:110px;height:22px;border-radius:var(--radius-full);flex:none;overflow:hidden;
+         background:var(--surface-raised);border:1px solid var(--border-default);position:relative}
+  .sweep{position:absolute;inset:0;background:linear-gradient(90deg,transparent,var(--brand),transparent);
+         animation:nv-sweep 1.4s linear infinite}
+  .spin{width:18px;height:18px;border-radius:var(--radius-full);border:3px solid var(--border-strong);
+        border-top-color:var(--brand);animation:nv-spin .8s linear infinite}
+  .regel{margin-top:12px;padding-top:11px;border-top:1px solid var(--border-default);
+         font-size:var(--size-xs);color:var(--text-dim);line-height:1.6}
+  .regel b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<div class="z"><span class="n">nv-rise</span><span class="d">0.7s</span>
+  <span class="b">etwas kommt von unten herein und setzt sich</span></div>
+<div class="z"><span class="n">nv-fade</span><span class="d">1.1s</span>
+  <span class="b">ein Bild blendet auf und kommt minimal näher</span></div>
+<div class="z"><span class="n">nv-sweep</span><span class="d">endlos</span>
+  <span class="b">die Ladeanzeige</span><span class="probe"><span class="sweep"></span></span></div>
+<div class="z"><span class="n">nv-spin</span><span class="d">endlos</span>
+  <span class="b">der Spinner</span><span class="spin"></span></div>
+<p class="regel">
+  Ein Easing für alles: <b>cubic-bezier(.22, 1, .36, 1)</b> — startet schnell, läuft
+  lang aus. Das liest sich als „kommt zur Ruhe" statt als „wird abgebremst".<br>
+  <b>nv-sweep ist kein Fortschrittsbalken.</b> Wie lange Radarr sucht, weiß niemand;
+  ein Balken, der bei 90 % stehenbleibt, lügt.<br>
+  <b>prefers-reduced-motion schaltet ab</b> — nicht optional. Wer das eingestellt hat,
+  hat einen Grund, oft einen medizinischen.
+</p>
+</body></html>

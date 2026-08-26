@@ -93,51 +93,61 @@ test('⚠️ die Anmeldung übersteht ein Neuladen - das Abmelden nimmt sie wied
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Browse', exact: true })).toHaveCount(0)
 
-  // ⚠️ **Was hier bewiesen ist - und was nicht.** Dass man nach dem Abmelden
-  // draußen ist, heißt bis hierher nur: Der Browser hat das Cookie
-  // weggeworfen. Ob der **Server** die Sitzung vergessen hat, steht damit
-  // nicht fest. Der Test darunter fragt genau das - und ist noch nicht grün.
+  // ⚠️ **Was hier bewiesen ist - und was ausdrücklich nicht.**
+  //
+  // Dass man nach dem Abmelden draußen ist, heißt nur: Der Browser hat das
+  // Cookie weggeworfen. Der **Server** hat die Sitzung *nicht* vergessen - das
+  // Erneuerungs-Token bleibt gültig, bis es von selbst abläuft (30 Tage). Wer
+  // vorher eine Kopie gezogen hat, kommt damit weiter herein.
+  //
+  // **Das ist so gewollt.** Würde jedes Abmelden alle Sitzungen beenden, flöge
+  // man beim Abmelden auf dem Handy auch vom Fernseher. Für den Fall, dass man
+  // wirklich alle beenden will, gibt es seit 0.22 „Überall abmelden" - der
+  // Test darunter prüft genau das.
+  //
+  // **Offen bleibt die feine Variante:** Abmelden entwertet *genau diese eine*
+  // Sitzung, ohne die anderen anzufassen. Dafür bräuchte es eine Merkliste
+  // beendeter Token - siehe den Docstring von ``logout`` in ``routers/auth.py``.
+  // Solange die fehlt, steht diese Einschränkung hier, damit sie nicht in
+  // Vergessenheit gerät.
 })
 
-test.fixme(
-  '⚠️ ein abgegriffenes Cookie gilt nach dem Abmelden weiter',
-  async ({ page, context }) => {
-    // ═══ Ein offener Punkt, kein kaputter Test ═══
-    //
-    // Das Abmelden löscht das Cookie **nur im Browser**. Serverseitig bleibt
-    // das Erneuerungs-Token gültig, bis es von selbst abläuft - und das dauert
-    // 30 Tage (`refresh_token_days`). Wer eine Kopie des Cookies hat, kommt
-    // damit einen Monat lang weiter hinein, ganz gleich wie oft sich der
-    // Besitzer abmeldet. Ungültig wird es einzig durch einen Passwortwechsel.
-    //
-    // Wie schlimm ist das? Der Alltagsfall ist in Ordnung: Auf einem fremden
-    // Rechner nimmt das Abmelden das Cookie mit, dort bleibt nichts liegen.
-    // Die Lücke trifft den Fall danach - wenn jemand vermutet, dass seine
-    // Sitzung abgegriffen wurde, und sich abmeldet, um sie zu beenden. Das
-    // tut dann nichts. Der einzige Weg, der wirklich wirkt, ist das Passwort
-    // zu ändern.
-    //
-    // Der Weg dorthin ist eine Entscheidung, keine Kleinigkeit: Ein Stempel je
-    // Konto (wie beim Passwortwechsel) würde beim Abmelden **alle** Geräte
-    // hinauswerfen; eine Merkliste beendeter Token trifft nur diese eine
-    // Sitzung, braucht aber eine Tabelle und deren Aufräumen. Deshalb steht
-    // hier `fixme` und nicht schon eine Lösung.
-    await page.goto('/')
-    await page.getByLabel('Username or e-mail').fill(KONTO.username)
-    await page.getByLabel('Password', { exact: true }).fill(KONTO.password)
-    await page.getByRole('button', { name: 'Sign in' }).click()
-    await expect(page.getByRole('link', { name: 'Browse', exact: true }).first()).toBeVisible()
+test('⚠️ „Überall abmelden" entwertet auch ein abgegriffenes Cookie', async ({
+  page,
+  context,
+}) => {
+  // ═══ Warum es diesen Test gibt ═══
+  //
+  // Er stand hier lange als `fixme`, weil er eine Lücke beschrieb: Das
+  // gewöhnliche Abmelden nimmt das Cookie **nur aus diesem Browser**.
+  // Serverseitig blieb das Erneuerungs-Token gültig, bis es von selbst ablief -
+  // bis zu 30 Tage. Wer eine Kopie hatte, kam damit weiter herein, und der
+  // einzige Riegel war ein Passwortwechsel. Man musste also sein Passwort
+  // ändern, obwohl mit dem Passwort nichts war.
+  //
+  // Seit 0.22 gibt es den passenden Ausweg, und **das** prüft dieser Test:
+  // „Überall abmelden" setzt eine Grenze am Konto, hinter der jedes ältere
+  // Token verfällt - auch eins, das längst jemand anderes hat.
+  await page.goto('/')
+  await page.getByLabel('Username or e-mail').fill(KONTO.username)
+  await page.getByLabel('Password', { exact: true }).fill(KONTO.password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByRole('link', { name: 'Browse', exact: true }).first()).toBeVisible()
 
-    const kopie = (await context.cookies()).find((c) => c.name === 'nexview_refresh')!
+  // Die Kopie, die jemand abgegriffen haben könnte.
+  const kopie = (await context.cookies()).find((c) => c.name === 'nexview_refresh')!
+  expect(kopie, 'Kein Sitzungs-Cookie zum Kopieren.').toBeTruthy()
 
-    await page.getByRole('button', { name: KONTO.username, exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Sign out' }).click()
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await page.goto('/profil')
+  await page.getByRole('button', { name: 'Sign out everywhere' }).click()
+  await page.getByRole('button', { name: 'Sign out everywhere' }).last().click()
+  await expect(page.getByText(/all other devices have been signed out/i)).toBeVisible()
 
-    // Zurückgelegt und noch einmal geklopft. Bleibt die Tür zu, hat der Server
-    // die Sitzung wirklich vergessen.
-    await context.addCookies([kopie])
-    await page.reload()
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
-  },
-)
+  // ⚠️ Der eigentliche Beweis: Die Kopie zurücklegen und noch einmal klopfen.
+  // Vorher stand die Tür damit offen.
+  await context.clearCookies()
+  await context.addCookies([kopie])
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Browse', exact: true })).toHaveCount(0)
+})

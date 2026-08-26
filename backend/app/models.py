@@ -561,6 +561,16 @@ class User(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     password_changed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    #: Ab wann Sitzungen dieses Kontos gelten - unabhaengig vom Passwort.
+    #:
+    #: ⚠️ **Eigenes Feld, weil ``password_changed_at`` sonst luegen wuerde.**
+    #: Gebraucht wird es beim Wiederherstellen: Danach darf niemand mehr
+    #: angemeldet sein. Dafuer einfach den Passwort-Zeitpunkt hochzusetzen
+    #: waere bequem, wuerde aber behaupten, jemand haette sein Passwort
+    #: geaendert - und irgendwann verlaesst sich etwas darauf.
+    #:
+    #: ``NULL`` heisst: keine zusaetzliche Grenze.
+    sessions_valid_from: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     def blocked_profiles(

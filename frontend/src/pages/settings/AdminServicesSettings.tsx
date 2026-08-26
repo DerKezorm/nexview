@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { Reiterreihe } from "../../components/Reiterreihe";
+import type { SymbolName } from "../../components/Symbol";
+import { Section } from "../../components/ui";
 import type { FormEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +13,7 @@ import type {
   RootFolderMode,
   TestResult,
 } from "../../api/types";
-import { Button, Card, ErrorBanner, Field, Spinner } from "../../components/ui";
+import { Button, ErrorBanner, Field, Spinner } from "../../components/ui";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
 import { useRegionen } from "../../hooks/useRegionen";
 
@@ -25,12 +28,12 @@ type TestService = "tmdb" | "radarr" | "sonarr" | "radarr_uhd" | "sonarr_uhd";
  */
 type UnterTab = "general" | "tmdb" | "radarr" | "sonarr" | "plex";
 
-const UNTER_TABS: { value: UnterTab; labelKey: string }[] = [
-  { value: "general", labelKey: "settings.generalSection" },
-  { value: "tmdb", labelKey: "settings.tmdbSection" },
-  { value: "radarr", labelKey: "settings.radarrSection" },
-  { value: "sonarr", labelKey: "settings.sonarrSection" },
-  { value: "plex", labelKey: "mediaserver.adminTitle" },
+const UNTER_TABS: { value: UnterTab; labelKey: string; symbol: SymbolName }[] = [
+  { value: "general", labelKey: "settings.generalSection", symbol: "allgemein" },
+  { value: "tmdb", labelKey: "settings.tmdbSection", symbol: "fernseher" },
+  { value: "radarr", labelKey: "settings.radarrSection", symbol: "radarr" },
+  { value: "sonarr", labelKey: "settings.sonarrSection", symbol: "sonarr" },
+  { value: "plex", labelKey: "mediaserver.adminTitle", symbol: "medienserver" },
 ];
 
 type Draft = {
@@ -157,25 +160,11 @@ function ZielordnerBlock({
  * Begrenzt wird der *Inhalt*: Einzelne Eingabefelder ueber die volle
  * Bildschirmbreite liest niemand gern. Nur die Dienste brauchen den Platz,
  * weil dort zwei Instanzen nebeneinanderstehen.
+ *
+ * Die Umsetzung steht seit 0.22 in ``components/ui.tsx``: Sie wird auf jeder
+ * Einstellungsseite gebraucht, und solange sie hier lag, baute jede andere
+ * Seite ihre Bereiche selbst - mal mit Karte, mal ohne.
  */
-function Section({
-  title,
-  breit = false,
-  children,
-}: {
-  title: string;
-  breit?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Card className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <div className={"flex flex-col gap-4" + (breit ? "" : " max-w-3xl")}>
-        {children}
-      </div>
-    </Card>
-  );
-}
 
 /**
  * Darf der Benutzer den Zielordner selbst wählen?
@@ -654,8 +643,6 @@ export function AdminServicesSettings() {
        endlosen Liste. Die Lesbarkeit der einzelnen Felder regelt weiter das
        Raster darin, nicht die Seitenbreite. */
     <div>
-      <p className="max-w-3xl text-sm text-mist-500">{t("settings.intro")}</p>
-
       {/* Zweite Reihe: ein Knopf je Dienst.
           
           ⚠️ Hier stand einmal „bewusst optisch leichter als die Reiter
@@ -674,25 +661,17 @@ export function AdminServicesSettings() {
         </p>
       )}
 
-      <div className="mt-5 flex flex-wrap gap-2" role="tablist">
-        {UNTER_TABS.map((eintrag) => (
-          <button
-            key={eintrag.value}
-            type="button"
-            role="tab"
-            aria-selected={unterTab === eintrag.value}
-            onClick={() => setUnterTab(eintrag.value)}
-            className={
-              "rounded-full border px-3.5 py-1.5 text-sm transition " +
-              (unterTab === eintrag.value
-                ? "border-accent-500 bg-accent-500/10 text-accent-400"
-                : "border-ink-700 text-mist-500 hover:border-ink-600 hover:text-mist-300")
-            }
-          >
-            {t(eintrag.labelKey)}
-          </button>
-        ))}
-      </div>
+      <Reiterreihe
+        unter
+        className="mt-1"
+        eintraege={UNTER_TABS.map((e) => ({
+          value: e.value,
+          label: t(e.labelKey),
+          symbol: e.symbol,
+        }))}
+        aktiv={unterTab}
+        onWechsel={setUnterTab}
+      />
 
       {/* Der Media-Server bringt eigenes Speichern und eigene Abläufe mit -
           er steht deshalb außerhalb dieses Formulars. */}
@@ -708,6 +687,15 @@ export function AdminServicesSettings() {
           "mt-6 flex-col gap-5 " + (unterTab === "plex" ? "hidden" : "flex")
         }
       >
+        {/* ⚠️ Dieser Satz stand über der Unterreihe und schob sie um eine Zeile
+            nach unten - auf **dieser einen** Seite saß die Reihe damit anders
+            als auf allen anderen. Gelöscht ist er nicht: Hier steht er bei den
+            Diensten, die wirklich einen Schlüssel führen, also dort, wo man ihn
+            beim Eintragen liest statt beim Vorbeigehen. */}
+        {unterTab !== "general" && (
+          <p className="max-w-3xl text-sm text-mist-600">{t("settings.intro")}</p>
+        )}
+
         {unterTab === "tmdb" && (
           <Section title={t("settings.tmdbSection")}>
             <Field

@@ -1,0 +1,62 @@
+/* ==========================================================================
+   Farbrollen
+
+   Aliase auf die Rampen aus der Anwendung. Keine eigenen Werte: Wer hier eine
+   Zahl statt eines var() sieht, hat einen Fehler gefunden.
+
+   Die Rollen gelten in BEIDEN Modi. Der helle Modus tauscht die Werte hinter
+   den Rampen aus (:root[data-theme="light"]), nicht die Rollen - deshalb steht
+   hier nur ein einziger Satz.
+   ========================================================================== */
+
+:root {
+  /* --- Flaechen, von hinten nach vorn ------------------------------------ */
+  --surface-page: var(--color-ink-950);
+  --surface-raised: var(--color-ink-900);
+  --surface-card: var(--color-ink-850);
+  --surface-card-hover: var(--color-ink-800);
+
+  /* --- Rahmen ------------------------------------------------------------ */
+  --border-default: var(--color-ink-700);
+  --border-strong: var(--color-ink-600);
+
+  /* --- Text, von laut nach leise ----------------------------------------- */
+  --text-body: var(--color-mist-100);
+  --text-secondary: var(--color-mist-300);
+  --text-dim: var(--color-mist-500);
+  --text-faint: var(--color-mist-600);
+
+  /* --- Marke ------------------------------------------------------------- */
+  --brand: var(--color-accent-500);
+  --brand-hover: var(--color-accent-400);
+  --brand-deep: var(--color-accent-700);
+
+  /* --- Signale ----------------------------------------------------------- */
+  --signal-ok: var(--color-ok-500);
+  --signal-warn: var(--color-warn-500);
+  --signal-bad: var(--color-bad-500);
+
+  /* --- Diagramme ---------------------------------------------------------
+
+     GENAU DREI, und das ist keine Willkuer. Bei vier faellt jede Kombination
+     durch die Pruefung auf Farbfehlsichtigkeit, sobald - wie im Kuchen
+     unvermeidlich - ALLE Paare verglichen werden und nicht nur benachbarte.
+     Eine Rot-Abstufung reicht dafuer nachweislich nicht: zwei benachbarte
+     Rotstufen liegen bei einem Farbabstand von 7,6 und sind selbst mit vollem
+     Farbsehen kaum zu trennen. Deshalb sind diese drei die einzige Ausnahme
+     von "nur ink, mist und accent". Alles darueber gehoert in "Andere".
+     ---------------------------------------------------------------------- */
+  --data-1: var(--color-viz-1);
+  --data-2: var(--color-viz-2);
+  --data-3: var(--color-viz-3);
+  --data-rest: var(--color-ink-600);
+
+  /* --- Der Schleier ------------------------------------------------------
+
+     Hinter Dialogen und hinter Abzeichen auf einem Poster. Bewusst KEIN
+     ink-Ton: er liegt auf einem Bild und muss deshalb in jedem Modus dunkel
+     bleiben, sonst verschwindet die helle Schrift darauf.
+     ---------------------------------------------------------------------- */
+  --scrim: var(--color-scrim);
+  --scrim-badge: rgb(11 11 15 / 0.85);
+}

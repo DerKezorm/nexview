@@ -7,13 +7,14 @@ er dauerhaft mit 409.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
 
+from ..config import get_settings
 from ..deps import DbSession, has_any_user
 from ..models import Role, User
 from ..schemas import AnmeldeWeg, SetupAdminCreate, SetupStatus, TokenPair
 from ..security import hash_password
-from ..services import mail, sitzung, tokens
+from ..services import mail, sicherung, sitzung, tokens
 from ..services.mediaserver import PROVIDERS, verbundene_anbieter
 from ..services.settings_service import load_settings
 from .. import meldungen
@@ -89,3 +90,85 @@ def create_first_admin(
     db.refresh(admin)
 
     return sitzung.starten(response, request, admin)
+
+
+# ---------------------------------------------------------------------------
+# Aus einer Sicherung starten statt bei null
+# ---------------------------------------------------------------------------
+#
+# ⚠️ **Beide Endpunkte hier sind ohne Anmeldung erreichbar** - anders geht es
+# nicht, es gibt ja noch kein Konto. Der Schutz ist derselbe wie beim Anlegen
+# des ersten Administrators: Sobald **ein** Benutzer existiert, ist der Weg zu.
+#
+# Das heisst auch: Wer eine frische, aus dem Netz erreichbare Installation vor
+# ihrem Besitzer findet, kann sie uebernehmen. Das gilt heute schon fuer
+# ``/api/setup/admin`` - Wiederherstellen macht diese Luecke nicht groesser,
+# aber wer Nexview vor dem ersten Login offen ins Netz haengt, hat unabhaengig
+# davon ein Problem.
+
+
+def _nur_vor_der_einrichtung(db: DbSession) -> None:
+    if has_any_user(db):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=meldungen.meldung(
+                "setup_already_done",
+                "Die Einrichtung wurde bereits abgeschlossen.",
+            ),
+        )
+
+
+@router.post("/sicherung/pruefen")
+async def sicherung_pruefen(
+    db: DbSession,
+    datei: UploadFile = File(...),
+    passwort: str = Form(...),
+) -> dict[str, object]:
+    """Nachsehen, was in der Sicherung steckt - ohne etwas zu ersetzen."""
+    _nur_vor_der_einrichtung(db)
+    try:
+        brief, ok, grund = sicherung.pruefen(await datei.read(), passwort)
+    except sicherung.SicherungFehler as fehler:
+        raise HTTPException(
+            status_code=400, detail=meldungen.meldung(fehler.code, fehler.text)
+        ) from fehler
+    return {
+        "version": brief.version,
+        "erstellt": brief.erstellt,
+        "art": brief.art,
+        "kommentar": brief.kommentar,
+        "einspielbar": ok,
+        "grund": grund,
+        "schluessel_aus_umgebung": bool(get_settings().secret_key),
+    }
+
+
+@router.post("/sicherung/einspielen", status_code=status.HTTP_204_NO_CONTENT)
+async def sicherung_einspielen(
+    db: DbSession,
+    datei: UploadFile = File(...),
+    passwort: str = Form(...),
+) -> None:
+    """Die frische Installation aus einer Sicherung aufbauen.
+
+    Danach ist die Einrichtung beendet: Die Konten stehen in der Sicherung, und
+    der Assistent zeigt sich nicht mehr.
+    """
+    _nur_vor_der_einrichtung(db)
+
+    # ⚠️ **Erst die eigene Verbindung schliessen.** Diese Anfrage haelt selbst
+    # eine offene Sitzung auf die Datenbank, die gleich ersetzt wird - und
+    # solange sie offen ist, haelt SQLite die Begleitdatei ``-wal`` fest.
+    # Unter Windows scheitert das Loeschen dann sichtbar; unter Linux ginge es
+    # still durch und liesse einen Schreiber an einer geloeschten Datei
+    # zurueck. Das Schliessen hier ist also kein Windows-Zugestaendnis,
+    # sondern die Behebung.
+    daten = await datei.read()
+    db.close()
+
+    try:
+        sicherung.wiederherstellen(daten, passwort)
+    except sicherung.SicherungFehler as fehler:
+        raise HTTPException(
+            status_code=400, detail=meldungen.meldung(fehler.code, fehler.text)
+        ) from fehler

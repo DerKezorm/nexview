@@ -1,0 +1,45 @@
+<!-- @dsCard group="Farben" viewport="760x240" name="Der Schleier — Abzeichen auf Bildern" subtitle="Die einzige Farbe, die in beiden Modi dunkel bleibt, und warum" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:20px 22px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden;display:flex;gap:20px}
+  .paar{display:flex;gap:14px;flex:none}
+  .poster{width:104px;height:156px;border-radius:var(--radius-xl);position:relative;overflow:hidden;
+          border:1px solid var(--border-default);display:flex;align-items:flex-start;justify-content:flex-end;padding:8px}
+  .hell{background:linear-gradient(150deg,#f6e7c8,#e8c98a 60%,#cfa45c)}
+  .dunkel{background:linear-gradient(150deg,#1b2430,#0d1218)}
+  .abz{border-radius:var(--radius-full);padding:2px 9px;font-size:var(--size-2xs);
+       font-weight:var(--weight-semibold)}
+  .gut{background:rgb(11 11 15/.85);color:var(--color-ok-500);box-shadow:inset 0 0 0 1px rgb(34 197 94/.4)}
+  .schlecht{background:rgb(34 197 94/.2);color:var(--color-ok-500);box-shadow:inset 0 0 0 1px rgb(34 197 94/.4)}
+  .u{font-family:var(--font-mono);font-size:var(--size-2xs);color:var(--text-faint);
+     text-align:center;margin-top:6px;display:block}
+  .regel{flex:1;font-size:var(--size-xs);color:var(--text-dim);line-height:1.6;
+         border-left:2px solid var(--brand);padding-left:13px}
+  .regel b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<div class="paar">
+  <div>
+    <div class="poster hell"><span class="abz gut">4K</span></div>
+    <span class="u">richtig</span>
+  </div>
+  <div>
+    <div class="poster hell"><span class="abz schlecht">4K</span></div>
+    <span class="u">falsch</span>
+  </div>
+</div>
+<p class="regel">
+  <b>Auf einem Bild trägt eine deckende dunkle Platte</b> — <code>ink-950/85</code> —
+  und die Farbe steckt nur in Schrift und Ring.<br><br>
+  Der erste Versuch färbte den Hintergrund selbst ein, mit 15 % Deckkraft. Auf einem
+  dunklen Poster ging das durch; auf einem hellen blieb ein <b>blasser, fast weißer
+  Fleck</b> übrig und das Abzeichen war kaum zu lesen. Genau das zeigt das rechte
+  Beispiel.<br><br>
+  <b><code>--color-scrim</code> ist bewusst kein ink-Ton.</b> Er liegt auf einem Bild
+  und muss deshalb auch im hellen Modus dunkel bleiben — sonst verschwindet die helle
+  Schrift darauf. Es ist die einzige Farbe, die sich beim Moduswechsel <i>nicht</i>
+  ändert.
+</p>
+</body></html>

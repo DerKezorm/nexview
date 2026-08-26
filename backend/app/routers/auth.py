@@ -158,9 +158,17 @@ def logout(request: Request, response: Response) -> None:
     das niemandem ausser dem, der ihn aufruft.
 
     ⚠️ Das Erneuerungs-Token selbst wird damit **nicht** ungueltig; es ist ein
-    reines JWT ohne Eintrag in der Datenbank. Wer es vorher kopiert hat,
-    kaeme damit weiter herein - bis zum naechsten Passwortwechsel. Das zu
-    schliessen braeuchte eine Sitzungstabelle.
+    reines JWT ohne Eintrag in der Datenbank. Wer es vorher kopiert hat, kaeme
+    damit weiter herein, bis es von selbst ablaeuft.
+
+    **Das ist so gewollt.** Wuerde jedes Abmelden alle Sitzungen beenden, floege
+    man beim Abmelden auf dem Handy auch vom Fernseher.
+
+    Wer wirklich alle beenden will, hat seit 0.22 ``/me/ueberall-abmelden`` -
+    das schliesst die Luecke, fuer die es vorher nur den Passwortwechsel gab.
+    **Offen bleibt die feine Variante:** genau *diese eine* Sitzung entwerten,
+    ohne die anderen anzufassen. Dafuer braeuchte es eine Merkliste beendeter
+    Token.
     """
     sitzung.beenden(response, request)
 
@@ -348,4 +356,31 @@ def change_own_password(
     db.commit()
 
     logger.info("User %r changed their password; other sessions were ended", user.username)
+    return sitzung.starten(response, request, user)
+
+
+@router.post("/me/ueberall-abmelden", response_model=TokenPair)
+def abmelden_ueberall(
+    request: Request,
+    response: Response,
+    user: AdultUser,
+    db: DbSession,
+) -> TokenPair:
+    """Alle anderen Geraete abmelden - ohne das Passwort zu aendern.
+
+    ⚠️ **Der Ausweg, den es bis 0.22 nicht gab.** Gewoehnliches Abmelden nimmt
+    nur das Cookie aus *diesem* Browser; wer eine Kopie davon hat, kommt damit
+    weiter herein, bis es ablaeuft. Der einzige Riegel war bis dahin ein
+    Passwortwechsel - was heisst, dass man sein Passwort aendern musste, obwohl
+    mit dem Passwort nichts war.
+
+    Das frische Paar am Ende ist derselbe Gedanke wie beim Passwortwechsel:
+    Wer den Verdacht hat, dass jemand mitliest, soll **den anderen**
+    hinauswerfen, nicht sich selbst. Es passiert seinen eigenen Riegel, weil
+    es **nach** dem Stempel entsteht - auf die Millisekunde genau.
+    """
+    user.sessions_valid_from = utcnow()
+    db.commit()
+
+    logger.info("User %r ended all other sessions", user.username)
     return sitzung.starten(response, request, user)

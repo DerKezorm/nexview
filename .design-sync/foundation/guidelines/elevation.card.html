@@ -1,0 +1,31 @@
+<!-- @dsCard group="Wirkung" viewport="760x250" name="Höhe und Schimmer" subtitle="Auf Schwarz kann Helligkeit keine Nähe zeigen — das machen weiche, weite Schatten" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:26px 22px 20px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden}
+  .reihe{display:flex;gap:18px;margin-bottom:18px}
+  .k{flex:1;height:74px;border-radius:var(--radius-2xl);background:var(--surface-card);
+     border:1px solid var(--border-default);display:flex;flex-direction:column;
+     align-items:center;justify-content:center;gap:5px}
+  .n{font-family:var(--font-mono);font-size:var(--size-2xs);color:var(--text-body)}
+  .r{font-size:var(--size-2xs);color:var(--text-dim)}
+  .regel{font-size:var(--size-xs);color:var(--text-dim);line-height:1.6;
+         border-left:2px solid var(--brand);padding-left:13px}
+  .regel b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<div class="reihe">
+  <div class="k"><span class="n">— ohne —</span><span class="r">liegt auf der Seite</span></div>
+  <div class="k" style="box-shadow:var(--shadow-card)"><span class="n">shadow-card</span><span class="r">Karte, angehoben</span></div>
+  <div class="k" style="box-shadow:var(--shadow-pop)"><span class="n">shadow-pop</span><span class="r">Fenster, Dialog</span></div>
+  <div class="k" style="box-shadow:var(--glow-hover);border-color:rgb(225 29 47/.35)"><span class="n">glow-hover</span><span class="r">beim Zeigen</span></div>
+</div>
+<p class="regel">
+  <b>Warum so weit und weich:</b> Ein dunkles System kann Höhe nicht über Helligkeit
+  zeigen — eine hellere Fläche liest sich als andere <i>Rolle</i>, nicht als näher.
+  Harte, kleine Schatten sieht man auf Schwarz überhaupt nicht.<br>
+  <b>Der Rotschimmer ersetzt den Schatten nicht</b>, er kommt beim Zeigen dazu: ein
+  Hinweis, dass hier etwas passiert, keine zweite Höhe.
+</p>
+</body></html>

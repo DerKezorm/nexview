@@ -26,10 +26,21 @@ type Laufende = {
   folgen: number
 }
 
+type Offene = {
+  request_id: number
+  title: string
+  tier: string
+  season: number | null
+}
+
 type Vorschau = {
   posten: Posten[]
   laufende: Laufende[]
-  storniert: string[]
+  /**
+   * ⚠️ Bis 0.22 nur Titel - und ohne Rückfrage storniert. Jetzt mit Kennung,
+   * damit der Administrator auch hier entscheidet statt nur zuzusehen.
+   */
+  offen: Offene[]
 }
 
 /**
@@ -43,8 +54,10 @@ type Vorschau = {
  *   für den häufigsten Fall (alles behalten).
  * - Je angefangener Staffel: behalten oder löschen – und beim Behalten, ob
  *   weitergeladen wird.
- * - Bestellungen ohne eine einzige Datei werden storniert; sie stehen zur
- *   Information dabei.
+ * - Bestellungen ohne eine einzige Datei: stornieren oder weiterlaufen lassen
+ *   und ans Haus geben. Bis 0.22 wurden sie ohne Rückfrage storniert - als
+ *   einzige der drei Gruppen. Das widersprach dem eigenen Anspruch: Wo etwas
+ *   entschieden werden kann, soll ein Mensch entscheiden.
  */
 export function AdminKontoAufloesung({
   benutzer,
@@ -71,6 +84,15 @@ export function AdminKontoAufloesung({
     number,
     { behalten: boolean; weiter: boolean }
   > | null>(null)
+  /**
+   * Häkchen = weiterlaufen lassen und ans Haus.
+   *
+   * ⚠️ **Hier ist die Vorgabe umgekehrt: nichts angehakt.** Bei den fertigen
+   * Posten ist Behalten die sichere Wahl, weil eine Datei existiert, die man
+   * verlieren könnte. Hier liegt nichts - dafür lädt jede behaltene Bestellung
+   * weiter auf Kosten des Betreibers. Wer sie will, hakt sie an.
+   */
+  const [offenBehalten, setOffenBehalten] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     if (!vorschau.data || haus !== null) return
@@ -97,6 +119,7 @@ export function AdminKontoAufloesung({
           behalten: wahl.behalten,
           weiter: wahl.behalten ? wahl.weiter : false,
         })),
+        offen_behalten: [...offenBehalten],
       })
     },
     onSuccess: onGeloescht,
@@ -302,20 +325,52 @@ export function AdminKontoAufloesung({
             </section>
           )}
 
-          {daten.storniert.length > 0 && (
+          {daten.offen.length > 0 && (
             <section>
               <h4 className="text-sm font-semibold">
-                {t('adminUsers.dissolveCancelled')}
+                {t('adminUsers.dissolveOpenTitle')}
               </h4>
               <p className="mt-1 text-sm text-mist-500">
-                {daten.storniert.join(' · ')}
+                {t('adminUsers.dissolveOpenIntro')}
               </p>
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {daten.offen.map((zeile) => (
+                  <li key={zeile.request_id}>
+                    <label className="flex items-start gap-2.5 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={offenBehalten.has(zeile.request_id)}
+                        onChange={(e) => {
+                          const naechste = new Set(offenBehalten)
+                          if (e.target.checked) naechste.add(zeile.request_id)
+                          else naechste.delete(zeile.request_id)
+                          setOffenBehalten(naechste)
+                        }}
+                      />
+                      <span>
+                        <span className="text-mist-100">{zeile.title}</span>
+                        {zeile.season !== null && (
+                          <span className="ml-1.5 text-mist-600">
+                            {t('adminUsers.dissolveSeason', { number: zeile.season })}
+                          </span>
+                        )}
+                        <span className="ml-1.5 text-mist-600">
+                          {offenBehalten.has(zeile.request_id)
+                            ? t('adminUsers.dissolveOpenKeep')
+                            : t('adminUsers.dissolveOpenCancel')}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 
           {daten.posten.length === 0 &&
             daten.laufende.length === 0 &&
-            daten.storniert.length === 0 && (
+            daten.offen.length === 0 && (
               <p className="text-sm text-mist-500">
                 {t('adminUsers.dissolveNothing')}
               </p>

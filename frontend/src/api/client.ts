@@ -292,15 +292,29 @@ export const api = {
  * Ein einfacher Link würde den Anmelde-Token nicht mitschicken - deshalb wird
  * die Datei angemeldet geholt und danach als Download angeboten.
  */
-export async function downloadFile(path: string, fallbackName: string): Promise<void> {
-  const headers: Record<string, string> = {}
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+export async function downloadFile(
+  path: string,
+  fallbackName: string,
+  /**
+   * Wird ein Rumpf mitgegeben, geht die Anfrage als `POST` hinaus.
+   *
+   * ⚠️ Gebraucht fuer das Sicherungs-Archiv: Dessen Passwort gehoert in den
+   * Rumpf. In einer Adresse landete es im Verlauf des Browsers und in jedem
+   * Protokoll, durch das die Anfrage unterwegs kommt.
+   */
+  body?: unknown,
+): Promise<void> {
+  const bauen = (): RequestInit => {
+    const headers: Record<string, string> = {}
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+    if (body === undefined) return { headers }
+    headers['Content-Type'] = 'application/json'
+    return { method: 'POST', headers, body: JSON.stringify(body) }
+  }
 
-  let response = await fetch(path, { headers })
+  let response = await fetch(path, bauen())
   if (response.status === 401 && (await refreshAccessToken())) {
-    response = await fetch(path, {
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-    })
+    response = await fetch(path, bauen())
   }
   if (!response.ok) {
     const info = await parseError(response)

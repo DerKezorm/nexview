@@ -177,4 +177,21 @@ def gilt_noch(inhalt: TokenInhalt, user: User) -> bool:
     # keine); gemeint ist immer UTC.
     if gewechselt.tzinfo is None:
         gewechselt = gewechselt.replace(tzinfo=timezone.utc)
-    return inhalt.ausgestellt >= int(gewechselt.timestamp() * 1000)
+    grenze = gewechselt
+
+    # ⚠️ Die spaetere der beiden Grenzen zaehlt. ``sessions_valid_from`` setzt
+    # das Wiederherstellen - danach darf keine Sitzung von vorher weitergelten,
+    # auch wenn niemand sein Passwort geaendert hat.
+    #
+    # ⚠️ **Und auch dieser Wert braucht die Zeitzone.** SQLite gibt Zeitpunkte
+    # ohne zurueck; ein Vergleich mit einem zeitzonenbehafteten Wert wirft
+    # ``TypeError`` - und zwar erst beim Anmelden, nicht beim Schreiben. Genau
+    # deshalb steht dieselbe Behandlung schon zwei Zeilen weiter oben.
+    ab = user.sessions_valid_from
+    if ab is not None:
+        if ab.tzinfo is None:
+            ab = ab.replace(tzinfo=timezone.utc)
+        if ab > grenze:
+            grenze = ab
+
+    return inhalt.ausgestellt >= int(grenze.timestamp() * 1000)

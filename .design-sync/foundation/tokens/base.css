@@ -1,0 +1,80 @@
+/* ==========================================================================
+   Minimaler Reset - fuer Seiten OHNE Rahmenwerk
+
+   ⚠️ Wird von `styles.css` bewusst NICHT eingebunden. Die Anwendung bringt
+   ihren eigenen Reset mit (Tailwind Preflight); zwei Resets uebereinander
+   heben sich in Kleinigkeiten gegenseitig auf.
+
+   Gedacht fuer die Projektseite unter nexview.nexapps.dev und alles andere,
+   was diese Gestaltung mit reinem CSS traegt.
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--surface-page);
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  font-size: var(--size-body);
+  line-height: var(--leading-relaxed);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+::selection {
+  background: rgb(225 29 47 / 0.4);
+}
+
+a {
+  color: var(--brand-hover);
+  text-decoration: none;
+  transition: color var(--dur-fast);
+}
+
+a:hover {
+  color: var(--text-body);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  text-wrap: pretty;
+}
+
+p {
+  margin: 0;
+}
+
+img,
+video,
+svg {
+  max-width: 100%;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}

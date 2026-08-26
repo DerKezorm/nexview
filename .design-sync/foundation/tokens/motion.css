@@ -1,0 +1,55 @@
+/* ==========================================================================
+   Bewegung
+
+   Wenig, weich, und immer mit einem Grund. Ein Kuerzel: `--ease-soft` startet
+   schnell und laeuft lang aus - das liest sich als "kommt zur Ruhe" statt als
+   "wird abgebremst".
+
+   Die Bewegungen mit Namen sind gezaehlt vier. Mehr braucht eine Anwendung
+   nicht, in der man Titel sucht und Anfragen stellt.
+   ========================================================================== */
+
+:root {
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --dur-fast: 0.2s; /* Farbwechsel beim Zeigen, Zustandswechsel */
+  --dur-rise: 0.7s; /* etwas kommt herein */
+  --dur-fade: 1.1s; /* ein Bild blendet auf */
+  --stagger: 90ms; /* Versatz zwischen Geschwistern in einer Reihe */
+}
+
+/* Etwas kommt von unten herein und setzt sich. */
+@keyframes nv-rise {
+  from { opacity: 0; transform: translateY(2rem) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Ein Bild blendet auf und kommt dabei minimal naeher. */
+@keyframes nv-fade {
+  from { opacity: 0; transform: scale(1.04); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Der laufende Lichtstreifen der Ladeanzeige (LoadingBar). Bewusst kein
+   Fortschrittsbalken: Wie lange Radarr sucht, weiss niemand - ein Balken, der
+   bei 90 % stehenbleibt, luegt. */
+@keyframes nv-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes nv-spin {
+  to { transform: rotate(360deg); }
+}
+
+.nv-rise { animation: nv-rise var(--dur-rise) var(--ease-soft) both; }
+.nv-fade { animation: nv-fade var(--dur-fade) var(--ease-soft) both; }
+
+/* Nicht optional. Wer "weniger Bewegung" eingestellt hat, hat einen Grund -
+   oft einen medizinischen. */
+@media (prefers-reduced-motion: reduce) {
+  .nv-rise,
+  .nv-fade {
+    animation: none !important;
+  }
+}

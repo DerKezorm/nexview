@@ -1,0 +1,31 @@
+<!-- @dsCard group="Farben" viewport="760x250" name="Signale und Abzeichen" subtitle="Grün, Gelb, Rot — und das Rezept, nach dem jedes Abzeichen gebaut ist" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:20px 22px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden}
+  .reihe{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .abz{display:inline-flex;align-items:center;border-radius:var(--radius-full);
+       padding:3px 11px;font-size:var(--size-xs);font-weight:var(--weight-semibold);
+       box-shadow:inset 0 0 0 1px var(--ring)}
+  .rezept{font-family:var(--font-mono);font-size:var(--size-2xs);color:var(--text-faint);
+          background:var(--surface-raised);border:1px solid var(--border-default);
+          border-radius:var(--radius-md);padding:9px 11px;line-height:1.7}
+  .rezept b{color:var(--text-secondary);font-weight:var(--weight-normal)}
+</style>
+</head><body>
+<div class="reihe">
+  <span class="abz" style="--ring:var(--color-ink-600);background:rgb(16 16 22/.85);color:var(--color-mist-300)">Nicht angefragt</span>
+  <span class="abz" style="--ring:rgb(234 179 8/.4);background:rgb(234 179 8/.2);color:var(--color-warn-500)">Wartet auf Freigabe</span>
+  <span class="abz" style="--ring:rgb(225 29 47/.4);background:rgb(225 29 47/.2);color:var(--color-accent-400)">Angefragt</span>
+  <span class="abz" style="--ring:rgb(225 29 47/.5);background:rgb(225 29 47/.25);color:var(--color-accent-400)">Wird gesucht</span>
+  <span class="abz" style="--ring:rgb(34 197 94/.4);background:rgb(34 197 94/.2);color:var(--color-ok-500)">Bereits geladen</span>
+  <span class="abz" style="--ring:rgb(248 113 113/.4);background:rgb(248 113 113/.2);color:var(--color-bad-500)">Fehlgeschlagen</span>
+  <span class="abz" style="--ring:var(--color-ink-600);background:rgb(16 16 22/.85);color:var(--color-mist-500)">Abgelehnt</span>
+</div>
+<div class="rezept">
+  Fläche <b>Signalfarbe / 20 %</b> &nbsp;·&nbsp; Schrift <b>volle Signalfarbe</b> &nbsp;·&nbsp; Ring <b>Signalfarbe / 40 %</b><br>
+  ok-500 <b>#22c55e</b> &nbsp;·&nbsp; warn-500 <b>#eab308</b> &nbsp;·&nbsp; bad-500 <b>#f87171</b><br>
+  Auf einem Bild gilt das Rezept NICHT: dort deckende Platte ink-950/85, Farbe nur in Schrift und Ring.
+</div>
+</body></html>

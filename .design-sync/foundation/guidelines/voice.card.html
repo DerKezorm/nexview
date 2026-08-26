@@ -1,0 +1,40 @@
+<!-- @dsCard group="Marke" viewport="760x370" name="Sprache und Ton" subtitle="Nach außen englisch, in der App die eingestellte Sprache — und nie beides gemischt" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:20px 22px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden}
+  table{border-collapse:collapse;width:100%;margin-bottom:14px}
+  td{padding:7px 10px;border-bottom:1px solid var(--border-default);vertical-align:top;
+     font-size:var(--size-xs);line-height:1.5}
+  tr:last-child td{border-bottom:0}
+  td:first-child{width:12rem;color:var(--text-body);font-weight:var(--weight-semibold)}
+  .ja{color:var(--color-ok-500)}
+  .nein{color:var(--color-bad-500);text-decoration:line-through}
+  .regel{font-size:var(--size-xs);color:var(--text-dim);line-height:1.6;
+         border-left:2px solid var(--brand);padding-left:13px}
+  .regel b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<table>
+  <tr><td>Projektseite, README, Release-Notizen, GitHub</td>
+      <td><span class="ja">Englisch</span> — immer, ohne Ausnahme. Eine deutsche Release-Notiz landet wörtlich auf der englischen Projektseite.</td></tr>
+  <tr><td>Die Anwendung selbst</td>
+      <td><span class="ja">Die eingestellte Sprache</span> — Deutsch oder Englisch, mehr gibt es nicht.</td></tr>
+  <tr><td>Fehlermeldungen vom Server</td>
+      <td>Der Server <b>benennt</b> den Fehler, er <b>übersetzt</b> ihn nie. Die Oberfläche entscheidet, in welcher Sprache er erscheint.</td></tr>
+  <tr><td>Schlüssel von Diensten</td>
+      <td><span class="nein">Gesehen auf plex</span> &nbsp; <span class="ja">Gesehen auf Plex</span> — <code>plex</code>, <code>jellyfin</code> sind interne Angelegenheiten und gehören nicht vor Augen.</td></tr>
+</table>
+<p class="regel">
+  <b>Ton:</b> sagen, was ist. „Bereits geladen" statt „Verfügbar ✓". Kein Ausrufezeichen,
+  keine Begeisterung, keine Werbung — die Anwendung gehört Leuten, die ihre eigene
+  Bibliothek verwalten.<br>
+  <b>Bei schlechten Nachrichten zuerst die Folge, dann der Grund.</b> „Radarr ist nicht
+  erreichbar — bitte Adresse und Schlüssel prüfen", nicht „Es ist ein Fehler
+  aufgetreten (ECONNREFUSED)".<br>
+  <b>Nichts verschweigen, was jemand später merkt.</b> Wenn zwei Server sich uneins sind,
+  steht das im Hinweis — sonst nimmt jemand auf einem Server den Haken weg und versteht
+  nicht, warum das Auge bleibt.
+</p>
+</body></html>

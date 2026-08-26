@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api, downloadFile } from '../../api/client'
 import type { LogEntry, LogModeState } from '../../api/types'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { Button, ErrorBanner, Spinner } from '../../components/ui'
+import { Button, ErrorBanner, Section, Spinner } from '../../components/ui'
 
 type Stufe = 'ALL' | 'INFO' | 'WARNING' | 'ERROR'
 
@@ -108,14 +108,20 @@ export function AdminLogsSettings() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-mist-500">{t('logs.intro')}</p>
+      {/* --- Aufzeichnungsstufe -------------------------------------------
+          ⚠️ Als `Section` wie überall sonst. Vorher war das eine eigene Karte
+          mit eigenen Maßen - auf dem Bildschirm daneben sah der Bereich, in dem
+          man wirklich etwas einstellt, deshalb anders aus als auf jeder anderen
+          Einstellungsseite. */}
+      <Section title={t('logs.title')} breit>
+        {/* ⚠️ Überschrift und Einleitung stehen **in** der Sektion, nicht
+            darüber - wie auf „Adresse" und „Mail". Vorher lag der Einleitungs-
+            satz frei über der Karte, und diese Seite sah deshalb anders aus
+            als ihre Nachbarn. */}
+        <p className="-mt-2 text-sm text-mist-500">{t('logs.intro')}</p>
 
-      {/* --- Aufzeichnungsstufe ------------------------------------------- */}
-      <section className="flex flex-col gap-3 rounded-2xl border border-ink-700 bg-ink-900/40 p-4">
-        <div>
-          <h3 className="text-sm font-semibold text-mist-100">{t('logs.modeTitle')}</h3>
-          <p className="mt-1 text-xs text-mist-500">{t('logs.modeIntro')}</p>
-        </div>
+        <h3 className="mt-2 text-sm font-semibold text-mist-100">{t('logs.modeTitle')}</h3>
+        <p className="-mt-2 text-xs text-mist-500">{t('logs.modeIntro')}</p>
 
         <div className="flex flex-wrap gap-2">
           {MODI.map((wert) => (
@@ -193,9 +199,13 @@ export function AdminLogsSettings() {
             }
           />
         )}
-      </section>
+      </Section>
 
       {/* --- Filter -------------------------------------------------------- */}
+      {/* Auch die Meldungen selbst in eine Sektion - sonst laege unter der
+          grauen Flaeche wieder etwas frei herum, und die Seite saehe halb
+          gerahmt aus. */}
+      <Section title={t('logs.messagesTitle')} breit>
       <div className="flex flex-wrap items-center gap-2">
         {STUFEN.map((wert) => (
           <button
@@ -326,6 +336,7 @@ export function AdminLogsSettings() {
       )}
 
       <p className="text-xs text-mist-600">{t('logs.retention')}</p>
+      </Section>
     </div>
   )
 }

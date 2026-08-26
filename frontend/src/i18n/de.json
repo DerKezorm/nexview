@@ -20,7 +20,8 @@
     "seriesPlural": "Serien",
     "delete": "Löschen",
     "close": "Schließen",
-    "done": "Fertig"
+    "done": "Fertig",
+    "back": "Zurück"
   },
   "nav": {
     "home": "Startseite",
@@ -91,7 +92,14 @@
     "addressReady": "Adresse erreichbar. Du kannst weitermachen.",
     "addressSkipHint": "Die Adresse lässt sich später in den Einstellungen ändern – etwa wenn eine eigene Domain dazukommt.",
     "mailRequired": "Erst nach einem erfolgreichen Test geht es weiter. Ohne Mailserver kann Nexview dir die Bestätigung nicht schicken – und ohne die kommst du nach dem Assistenten nicht mehr hinein.",
-    "mailReady": "Mailserver erreichbar. Du kannst weitermachen."
+    "mailReady": "Mailserver erreichbar. Du kannst weitermachen.",
+    "startTitle": "Willkommen bei Nexview",
+    "startText": "Zwei Wege führen weiter. Beide dauern nur wenige Minuten.",
+    "startFresh": "Neu anfangen",
+    "startFreshText": "Der Assistent führt dich durch Administrator-Konto, TMDB und die Verbindung zu Radarr und Sonarr.",
+    "startRestore": "Aus einer Sicherung wiederherstellen",
+    "startRestoreText": "Du hast schon eine Nexview-Sicherung? Dann übernimmst du Konten, Anfragen und alle Verbindungen, statt sie neu einzurichten.",
+    "restoreText": "Lade das Archiv hoch, das du in Nexview heruntergeladen hast, und gib sein Passwort ein. Nexview sieht erst nach, was darin steckt — eingespielt wird erst danach, auf deinen Klick."
   },
   "login": {
     "title": "Anmelden",
@@ -443,7 +451,9 @@
     },
     "modeTemporary": "(auf Zeit)",
     "modeNoLimit": "Gilt unbegrenzt.",
-    "durationQuestion": "„{{mode}}“ einschalten für:"
+    "durationQuestion": "„{{mode}}“ einschalten für:",
+    "title": "Protokoll",
+    "messagesTitle": "Meldungen"
   },
   "profile": {
     "intro": "Dein Profilbild, dein Anzeigename und dein Passwort.",
@@ -536,7 +546,11 @@
     "mailWatch": "Vorgemerkte Titel",
     "mailWatchHint": "Wenn ein vorgemerkter Film da ist oder eine verfolgte Serie neue Folgen bekommt. Immer gebündelt — ein Staffelpaket ist eine Mail, nicht acht.",
     "mailCleanup": "Monatlicher Aufräum-Bericht",
-    "mailCleanupHint": "Am Monatsanfang eine Mail mit dem, was ungenutzt herumliegt – die größten zuerst. Kommt nur, wenn es etwas zu berichten gibt."
+    "mailCleanupHint": "Am Monatsanfang eine Mail mit dem, was ungenutzt herumliegt – die größten zuerst. Kommt nur, wenn es etwas zu berichten gibt.",
+    "signOutEverywhere": "Überall abmelden",
+    "signOutEverywhereText": "Beendet alle Anmeldungen dieses Kontos auf allen anderen Geräten. Hier bleibst du angemeldet.",
+    "signOutEverywhereWarning": "Sinnvoll, wenn du vermutest, dass jemand anderes Zugriff hat. Dein Passwort bleibt unverändert – wenn jemand es kennt, ändere es zusätzlich.",
+    "signedOutEverywhere": "Alle anderen Geräte wurden abgemeldet."
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -665,7 +679,12 @@
     "resetStorageTitle": "Speicher von {{name}} ins Haus?",
     "resetStorageText": "Alles, was {{name}} zugerechnet ist, wird Hausbestand. Das Konto startet danach bei 0 GB.",
     "resetStorageHint": "Keine Datei wird angefasst, die gespeicherte Grenze bleibt stehen. Offene Abgaben dieses Kontos gelten danach als erledigt.",
-    "storageResetDone": "Speicher zurückgesetzt – alles ins Haus übernommen."
+    "storageResetDone": "Speicher zurückgesetzt – alles ins Haus übernommen.",
+    "dissolveOpenTitle": "Genehmigte Bestellungen ohne Datei",
+    "dissolveOpenIntro": "Noch ist nichts heruntergeladen. Angehakt läuft die Bestellung weiter und der Titel fällt ans Haus; ohne Haken wird sie storniert und aus Radarr bzw. Sonarr genommen.",
+    "dissolveOpenKeep": "— läuft weiter, fällt ans Haus",
+    "dissolveOpenCancel": "— wird storniert",
+    "dissolveSeason": "(Staffel {{number}})"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -800,7 +819,7 @@
   "settings": {
     "title": "Einstellungen",
     "tabServices": "Dienste",
-    "tabMail": "SMTP-Einstellungen",
+    "tabMail": "Mail",
     "tabUsers": "Benutzer",
     "tabLogs": "Protokoll",
     "intro": "Diese Zugangsdaten liegen verschlüsselt in der Datenbank und verlassen den Server nicht.",
@@ -868,7 +887,9 @@
     "tabWatchlist": "Merklisten",
     "secretsUnreadable": "Gespeicherte Zugangsdaten (API-Schlüssel, Medienserver-Zugang) lassen sich mit dem aktuellen Geheimschlüssel nicht mehr lesen. Häufigste Ursache: NEXVIEW_SECRET_KEY wurde geändert, oder data/secret.key ging beim Neu-Erstellen des Containers verloren (Datei liegt nicht im gemounteten Volume). Die betroffenen Zugangsdaten müssen einmal neu eingetragen bzw. der Medienserver neu verbunden werden – und der Schlüssel sollte dauerhaft gesichert sein, sonst passiert es beim nächsten Update wieder.",
     "tabChannels": "Benachrichtigungen",
-    "tabStorage": "Kontingente"
+    "tabStorage": "Kontingente",
+    "tabBackups": "Sicherungen",
+    "tabSystem": "System"
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -956,7 +977,18 @@
       "user_not_found": "Benutzer nicht gefunden.",
       "username_taken": "Dieser Benutzername ist bereits vergeben. Bitte wähle einen anderen.",
       "watchlist_disabled": "Die Merkliste ist nicht freigeschaltet.",
-      "sync_already_running": "Ein Abgleich läuft gerade. Bitte warte, bis er fertig ist."
+      "sync_already_running": "Ein Abgleich läuft gerade. Bitte warte, bis er fertig ist.",
+      "backup_failed": "Die Sicherung konnte nicht angelegt werden.",
+      "backup_missing": "Diese Sicherung gibt es nicht mehr.",
+      "restore_not_an_archive": "Das ist kein gültiges ZIP-Archiv.",
+      "restore_not_a_backup": "In diesem Archiv steckt keine Nexview-Sicherung.",
+      "restore_wrong_password": "Das Passwort passt nicht zu diesem Archiv.",
+      "restore_not_a_database": "Die Datei im Archiv ist keine Datenbank.",
+      "restore_no_manifest": "Dieser Sicherung fehlt die Angabe, woher sie stammt.",
+      "restore_backup_newer": "Diese Sicherung ist neuer als die laufende Fassung. Aktualisiere Nexview zuerst.",
+      "restore_unknown_version": "Bei dieser Sicherung steht nicht dabei, aus welcher Fassung sie stammt.",
+      "restore_incompatible": "Diese Sicherung passt nicht zur laufenden Fassung.",
+      "restore_files_busy": "Die Datenbank ist gerade noch in Benutzung. Bitte gleich noch einmal versuchen."
     }
   },
   "language": {
@@ -1406,7 +1438,9 @@
     "writeBotDone": "Habe ich erledigt",
     "writeBotTitle": "Noch ein Schritt: dem Bot einmal schreiben",
     "onStorageRelease": "Abgaben beim Speicher",
-    "onStorageReleaseHint": "Meldet, wenn jemand einen Titel abgibt und wenn darüber entschieden wurde. Genannt wird nur der Titel – wer ihn abgegeben hat, bleibt dem Postfach verborgen."
+    "onStorageReleaseHint": "Meldet, wenn jemand einen Titel abgibt und wenn darüber entschieden wurde. Genannt wird nur der Titel – wer ihn abgegeben hat, bleibt dem Postfach verborgen.",
+    "deleteTitle": "Ziel entfernen",
+    "confirmDeleteWarning": "Es gehen dann keine Meldungen mehr dorthin."
   },
   "children": {
     "add": "Kinderkonto anlegen",
@@ -2312,5 +2346,65 @@
       "alle": "Alle",
       "vorgemerkt": "Vorgemerkt"
     }
+  },
+  "backups": {
+    "title": "Sicherungen",
+    "intro": "Nexview legt vor jeder Schemaänderung von selbst eine Kopie an. **Die liegt aber im selben Verzeichnis wie die Datenbank** — geht das Volume verloren, ist sie mit weg. Eine Sicherung wird daraus erst, wenn du sie herunterlädst und woanders aufbewahrst.",
+    "createNow": "Jetzt sichern",
+    "createTitle": "Sicherung anlegen",
+    "createSub": "Dauert ein paar Sekunden und stört den laufenden Betrieb nicht.",
+    "noteLabel": "Notiz (freiwillig)",
+    "noteHint": "Wofür ist diese Sicherung? „Vor dem großen Aufräumen\" hilft dir in drei Monaten mehr als ein Datum.",
+    "colWhen": "Wann",
+    "colKind": "Art",
+    "colNote": "Notiz",
+    "colVersion": "Version",
+    "colSize": "Größe",
+    "kindAuto": "automatisch",
+    "kindManual": "manuell",
+    "download": "Herunterladen",
+    "downloadTitle": "Sicherung herunterladen",
+    "downloadWhat": "Du bekommst ein **verschlüsseltes ZIP** mit der Datenbank und dem Schlüssel `secret.key`. Der Schlüssel muss mit, sonst lassen sich die gespeicherten Zugänge zu Radarr, Sonarr, TMDB und dem Mailserver später nicht mehr lesen. Zwischenspeicher sind nicht enthalten — die holt sich Nexview von selbst wieder.",
+    "passwordWarning": "**Merk dir dieses Passwort.** Es gibt keinen Zweitschlüssel und keinen Weg zurück: Ohne das Passwort ist die Datei wertlos. Das Archiv lässt sich mit 7-Zip, WinRAR oder dem Explorer öffnen — du bist also nicht auf Nexview angewiesen, um an deine Daten zu kommen.",
+    "passwordLabel": "Passwort für das Archiv",
+    "passwordRepeat": "Passwort wiederholen",
+    "passwordTooShort": "Mindestens acht Zeichen.",
+    "passwordMismatch": "Die beiden stimmen nicht überein.",
+    "empty": "Noch keine Sicherung vorhanden.",
+    "loadFailed": "Die Liste konnte nicht geladen werden.",
+    "folderHint": "Die Dateien liegen in `{{ordner}}`. Über den Webserver sind sie **nicht** erreichbar — nur über diesen Knopf und über das Dateisystem.",
+    "tooNew": "neuer als diese Fassung",
+    "unknownVersion": "Version unbekannt",
+    "scheduleLabel": "Regelmäßig sichern",
+    "schedule_off": "aus",
+    "schedule_daily": "täglich",
+    "schedule_weekly": "wöchentlich",
+    "schedule_monthly": "monatlich",
+    "keepLabel": "Automatische behalten",
+    "keepHint": "Nur **automatische** Stände werden begrenzt — von Hand angelegte bleiben liegen, egal wie viele es sind. Seit die Zwischenspeicher draußen bleiben, kostet ein Stand wenige MB; zwanzig davon reichen Monate zurück.",
+    "deleteTitle": "Sicherung löschen",
+    "deleteText": "Vom {{wann}}, Notiz: {{notiz}}",
+    "deleteWarning": "Weg ist weg. Wenn du diesen Stand noch brauchen könntest, lade ihn vorher herunter.",
+    "autoTitle": "Automatische Sicherungen",
+    "listTitle": "Vorhandene Sicherungen"
+  },
+  "restore": {
+    "fileLabel": "Sicherungs-Archiv (.zip)",
+    "passwordLabel": "Passwort des Archivs",
+    "passwordHint": "Das Passwort, das du beim Herunterladen festgelegt hast.",
+    "check": "Archiv prüfen",
+    "fromWhen": "Vom",
+    "fromVersion": "Fassung",
+    "note": "Notiz",
+    "restoreNow": "Jetzt einspielen",
+    "tooNew": "Diese Sicherung stammt aus Fassung **{{version}}** und ist damit **neuer** als die laufende. Nexview kann Daten nur nach vorn bringen, nicht zurück — einspielen würde die Installation beschädigen. Aktualisiere Nexview zuerst.",
+    "unknownVersion": "Dieser Sicherung fehlt die Angabe, aus welcher Fassung sie stammt. Ohne die lässt sich nicht sagen, ob sie passt.",
+    "envKeyWarning": "**Achtung: `NEXVIEW_SECRET_KEY` ist als Umgebungsvariable gesetzt.** Dann gewinnt die Variable, und der Schlüssel aus dem Archiv wird ignoriert. Stimmt der Wert nicht mit dem der Sicherung überein, lässt sich danach **kein gespeicherter Zugang mehr lesen** — Radarr, Sonarr, TMDB, Mailserver und alle Medienserver müssten neu verbunden werden.",
+    "freshNote": "Nexview legt vorher noch eine Sicherung des jetzigen (leeren) Standes an — falls mit dem Archiv etwas nicht stimmt, ist das der Weg zurück.",
+    "replaceWarning": "**Das ersetzt die gesamte Datenbank.** Alles, was seit dieser Sicherung passiert ist, ist danach weg: Konten, Anfragen, Bewertungen, Merklisten. Alle Angemeldeten fliegen heraus, du selbst auch. Nexview legt vorher eine Sicherung des jetzigen Standes an — das ist der Weg zurück.",
+    "title": "Sicherung einspielen",
+    "open": "Wiederherstellen …",
+    "adminIntro": "Ersetzt die laufende Installation durch den Stand aus einer Sicherung. **Alles, was seither passiert ist, geht dabei verloren.** Nexview legt vorher eine Sicherung des jetzigen Standes an.",
+    "outsideWarning": "**Zurückgeholt wird nur Nexview.** Was inzwischen in Radarr, Sonarr oder auf dem Medienserver passiert ist, bleibt wie es ist — gelöschte Filme kommen nicht zurück. Der nächste Abgleich bringt Nexview mit der Wirklichkeit in Übereinstimmung und kann dabei Anfragen erneut stornieren, samt Benachrichtigungen."
   }
 }

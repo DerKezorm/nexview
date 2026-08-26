@@ -394,13 +394,24 @@ class LaufendeZeile(BaseModel):
     folgen: int
 
 
+class OffeneZeile(BaseModel):
+    """Eine genehmigte Bestellung, von der noch keine Datei da ist."""
+
+    request_id: int
+    title: str
+    tier: str
+    # ``None`` heisst: die ganze Serie wurde bestellt.
+    season: int | None
+
+
 class AufloesungsVorschau(BaseModel):
     """Was das Konto hinterlaesst - Grundlage fuer den Loesch-Dialog."""
 
     posten: list[AufloesungsPosten]
     laufende: list[LaufendeZeile]
-    # Titel offener Bestellungen ohne eine einzige Datei - werden storniert.
-    storniert: list[str]
+    # ⚠️ Bis 0.22 nur Titel, und ohne Rueckfrage storniert. Jetzt mit Kennung,
+    # damit der Administrator auch hier entscheiden kann.
+    offen: list[OffeneZeile]
 
 
 class Staffelwahl(BaseModel):
@@ -415,6 +426,9 @@ class Aufloesung(BaseModel):
     haus: list[int] = []
     loeschen: list[int] = []
     staffeln: list[Staffelwahl] = []
+    #: Offene Bestellungen, die weiterlaufen sollen - alles andere wird
+    #: storniert. Leer heisst: alle stornieren, wie bis 0.21.
+    offen_behalten: list[int] = []
 
 
 @router.get("/{user_id}/aufloesung", response_model=AufloesungsVorschau)
@@ -457,7 +471,12 @@ async def aufloesung_vorschau(
             )
             for z in stand.laufende
         ],
-        storniert=stand.storniert,
+        offen=[
+            OffeneZeile(
+                request_id=b.request_id, title=b.title, tier=b.tier, season=b.season
+            )
+            for b in stand.offen
+        ],
     )
 
 
@@ -503,6 +522,7 @@ async def delete_user(
                 )
                 for z in wahl.staffeln
             ],
+            offen_behalten=set(wahl.offen_behalten),
             wer=admin.username,
         )
     except kontoaufloesung.Aufloesungsfehler as fehler:

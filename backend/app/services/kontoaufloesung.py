@@ -82,6 +82,26 @@ class LaufendeStaffel:
 
 
 @dataclass(frozen=True)
+class OffeneBestellung:
+    """Eine genehmigte Bestellung, von der noch keine einzige Datei da ist.
+
+    ⚠️ **Bis 0.22 war das nur ein Titel in einer Liste, und sie wurde ohne
+    Rueckfrage storniert.** Die Begruendung dafuer - "wo keine Datei liegt,
+    ist nichts verloren" - stimmt fuer den Speicherplatz, aber nicht fuer die
+    Absicht: Jemand hat den Titel gewollt, jemand hat ihn genehmigt, er ist
+    unterwegs. Dass der Besteller geht, macht ihn fuer den Haushalt nicht
+    uninteressant. Und das Modul haelt sonst ueberall daran fest, dass ein
+    Mensch entscheidet - nur hier entschied es allein.
+    """
+
+    request_id: int
+    title: str
+    tier: str
+    season: int | None
+    arr_id: int | None
+
+
+@dataclass(frozen=True)
 class Vorschau:
     """Was das Konto hinterlaesst - die Grundlage der Entscheidung."""
 
@@ -89,8 +109,8 @@ class Vorschau:
     posten: list[storage.Posten] = field(default_factory=list)
     # Angefangene Staffeln bzw. Serien mit Dateien, aber ohne Posten.
     laufende: list[LaufendeStaffel] = field(default_factory=list)
-    # Titel offener Bestellungen ohne eine einzige Datei - werden storniert.
-    storniert: list[str] = field(default_factory=list)
+    # Genehmigte Bestellungen ohne eine einzige Datei.
+    offen: list[OffeneBestellung] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -128,18 +148,29 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
         )
     )
 
+    def als_offen(anfrage: MediaRequest, stufe: str, arr_id: int | None) -> OffeneBestellung:
+        return OffeneBestellung(
+            request_id=anfrage.id,
+            title=anfrage.title,
+            tier=stufe,
+            season=anfrage.season,
+            arr_id=arr_id,
+        )
+
     laufende: list[LaufendeStaffel] = []
-    storniert: list[str] = []
+    offen: list[OffeneBestellung] = []
     serien: dict[str, tuple[dict, dict]] = {}
     for anfrage in offene:
         if anfrage.media_type == MediaType.movie:
             # Ein Film mit Datei waere laengst als Posten gebucht - was hier
             # steht, ist eine Bestellung ohne Ergebnis.
-            storniert.append(anfrage.title)
+            offen.append(als_offen(anfrage, anfrage.tier.value, anfrage.arr_id))
             continue
         stufe = anfrage.tier.value
         if not settings.arr_configured("tv", stufe):
-            storniert.append(anfrage.title)
+            # Ohne erreichbare Instanz gibt es nichts zu behalten und nichts
+            # stillzulegen - die Bestellung steht nur noch in der Buchhaltung.
+            offen.append(als_offen(anfrage, stufe, anfrage.arr_id))
             continue
         if stufe not in serien:
             serien[stufe] = await library.series_library(settings, stufe)
@@ -150,7 +181,7 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
                 nach_titel, anfrage.title, library.jahr_aus(anfrage.release_date)
             )
         if eintrag is None:
-            storniert.append(anfrage.title)
+            offen.append(als_offen(anfrage, stufe, anfrage.arr_id))
             continue
 
         staffeln = getattr(eintrag, "staffeln", None) or {}
@@ -180,12 +211,20 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
                 )
             )
         else:
-            storniert.append(anfrage.title)
+            offen.append(
+                OffeneBestellung(
+                    request_id=anfrage.id,
+                    title=anfrage.title,
+                    tier=stufe,
+                    season=anfrage.season,
+                    arr_id=eintrag.arr_id,
+                )
+            )
 
     return Vorschau(
         posten=[storage._als_posten(zeile) for zeile in posten],
         laufende=laufende,
-        storniert=storniert,
+        offen=offen,
     )
 
 
@@ -197,6 +236,11 @@ async def aufloesen(
     haus: set[int],
     loeschen: set[int],
     staffeln: list[Staffelentscheidung],
+    #: Kennungen offener Bestellungen, die **weiterlaufen** sollen.
+    #:
+    #: ⚠️ Alles, was nicht darin steht, wird storniert - das war bis 0.22 das
+    #: einzige Verhalten. Leer heisst also: wie frueher.
+    offen_behalten: set[int] | None = None,
     wer: str,
 ) -> None:
     """Die Entscheidungen ausfuehren - **vor** dem Loeschen des Kontos.
@@ -303,6 +347,12 @@ async def aufloesen(
     # 3. Bestellungen ohne Dateien: aus der Instanz nehmen, damit dort nicht
     #    herrenlos weitergesucht wird. Filme fliegen ganz raus (es liegt ja
     #    nichts), leere Staffeln werden stillgelegt.
+    #
+    #    ⚠️ **Es sei denn, der Administrator will sie behalten.** Dann bleibt
+    #    die Bestellung in Radarr bzw. Sonarr stehen und laedt zu Ende; der
+    #    Posten faellt danach ans Haus, weil ihm niemand mehr zugerechnet ist.
+    #    Dafuer ist hier nichts weiter zu tun als: nichts zu tun.
+    behalten_offen = offen_behalten or set()
     offene = list(
         db.scalars(
             select(MediaRequest).where(
@@ -314,6 +364,13 @@ async def aufloesen(
     entschieden = set(nach_anfrage)
     for anfrage in offene:
         if anfrage.id in entschieden:
+            continue
+        if anfrage.id in behalten_offen:
+            logger.info(
+                "Account wind-down %r: keeping open order %r - it will fall to the house",
+                user.username,
+                anfrage.title,
+            )
             continue
         try:
             if anfrage.media_type == MediaType.movie:

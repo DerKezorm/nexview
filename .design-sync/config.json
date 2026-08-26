@@ -22,6 +22,26 @@
     "ConfirmDialog": {
       "cardMode": "single",
       "viewport": "820x460"
+    },
+    "Fenster": {
+      "cardMode": "single",
+      "viewport": "900x600"
+    },
+    "StorageDistribution": {
+      "cardMode": "single",
+      "viewport": "900x420"
+    },
+    "Symbol": {
+      "cardMode": "column"
+    },
+    "Betont": {
+      "cardMode": "column"
+    },
+    "MediaServerLogo": {
+      "cardMode": "column"
+    },
+    "WatchedBadge": {
+      "cardMode": "column"
     }
   }
 }

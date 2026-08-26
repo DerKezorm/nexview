@@ -1,0 +1,34 @@
+/* ==========================================================================
+   Hoehe, Schimmer, Fokus
+
+   Ein dunkles System kann Hoehe nicht ueber Helligkeit zeigen - eine hellere
+   Flaeche liest sich als andere Rolle, nicht als naeher. Deshalb tragen
+   Schatten die Staffelung, und sie sind absichtlich weich und weit: harte,
+   kleine Schatten sieht man auf Schwarz gar nicht.
+   ========================================================================== */
+
+:root {
+  --shadow-card: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+  --shadow-pop: 0 25px 50px -12px rgb(0 0 0 / 0.6); /* Fenster, Dialoge */
+
+  /* Der Rotschimmer. Ersetzt den Schatten NICHT, er kommt beim Zeigen dazu -
+     ein Hinweis, dass hier etwas passiert, nicht eine zweite Hoehe. */
+  --shadow-accent: 0 10px 15px -3px rgb(143 15 28 / 0.25),
+    0 4px 6px -4px rgb(143 15 28 / 0.25);
+  --glow-hover: 0 25px 50px -12px rgb(143 15 28 / 0.2);
+
+  /* Der rote Schein hinter dem Seitenkopf. Liegt fest hinter dem Inhalt und
+     scrollt nicht mit; deshalb `position: fixed` beim Traeger. */
+  --glow-page: radial-gradient(45rem 26rem at 18% 0%, rgb(225 29 47 / 0.16), transparent 65%),
+    radial-gradient(38rem 22rem at 88% 8%, rgb(143 15 28 / 0.18), transparent 70%);
+
+  /* --- Fokus -------------------------------------------------------------
+
+     Nicht verhandelbar. Der Rahmen ist rot und liegt ausserhalb des Elements
+     (`outline-offset`), damit er auch auf einer gefuellten Flaeche sichtbar
+     bleibt. Wer ihn abschaltet, macht die Anwendung mit der Tastatur
+     unbedienbar - und das faellt niemandem auf, der sie mit der Maus prueft.
+     ---------------------------------------------------------------------- */
+  --focus-ring: 2px solid var(--color-accent-500);
+  --focus-offset: 2px;
+}

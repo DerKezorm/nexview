@@ -12,6 +12,87 @@ tag exists for it.
 
 ---
 
+## 0.22.0 – unreleased
+
+### New
+
+- **Backups you can actually take with you.** Settings has a new entry under *System*:
+  *Backups*. Nexview already wrote a copy before every schema change, but that copy sat in
+  the same directory as the database — lose the volume and it went with it. Now you can
+  make one on demand, give it a note, and **download it**.
+
+  What you get is an **encrypted ZIP** holding the database, the profile pictures and the
+  key file `secret.key`. The key has to come along: the credentials for Radarr, Sonarr,
+  TMDB and the mail server are encrypted with it, and without it they cannot be read again.
+  That is also why the archive needs a password — and why it is a plain AES ZIP rather than
+  a format of our own. You can open it with 7-Zip or your file manager; you do not depend
+  on Nexview to get at your own data.
+
+  **Caches are left out**, and that is the difference between 180 MB and 3: on a grown
+  library over 90 % of the database is cached TMDB responses, and those come back on their
+  own within hours.
+
+- **Back up on a schedule.** Daily, weekly or monthly — weekly by default. Until now an
+  automatic backup only happened when the schema changed, which in practice meant only on
+  update. Between two versions that can be months; whoever deleted something by accident on
+  a Tuesday had no copy from Monday. How many automatic copies to keep is now yours to set
+  as well. Ones you made by hand are never cleaned up.
+
+- **Restore from a backup — in the setup wizard and later.** A fresh installation now
+  starts with a question: *start fresh* or *restore from a backup*. And a running
+  installation can be rolled back too, from the same page the backups live on.
+
+  Nexview looks at the archive first and shows you what is in it — which version, from
+  when, with which note — before anything is replaced. A backup from a **newer** version is
+  refused: Nexview can carry data forward but never back, and restoring one would damage
+  the installation.
+
+  **Afterwards nobody is signed in any more**, on purpose. And a warning that is worth
+  reading: only Nexview is rolled back. Whatever happened in Radarr, Sonarr or on the media
+  server in the meantime stays as it is.
+
+- **Deleting an account no longer cancels approved orders behind your back.** When an
+  account is dissolved, Nexview already asks what should happen to its finished items and
+  its half-downloaded seasons. Approved orders that had not produced a single file yet were
+  the exception: those were cancelled and taken out of Radarr without asking.
+
+  The reasoning — *nothing has downloaded, so nothing is lost* — holds for disk space but
+  not for intent. Somebody wanted the title, somebody approved it, it is on its way; the
+  requester leaving does not make it less wanted by the household. Now it is the third
+  question in the same dialog. Unticked by default: a kept order keeps downloading, and
+  that is the operator's disk.
+
+- **Sign out everywhere.** In your profile, next to the password. Ends every sign-in of this
+  account on all other devices while keeping you signed in here.
+
+  This closes a gap that 0.21.0 named openly but did not fix: signing out only takes the
+  cookie out of *this* browser. Anyone who copied it beforehand kept getting in until it
+  expired — up to 30 days — and the only remedy was to change your password. So you had to
+  change a password that was never the problem.
+
+### Changed
+
+- **The settings look the same on every page now.** The bar had grown to ten entries and
+  wrapped on narrow screens; *Address*, *Mail*, *Log* and *Backups* moved together under a
+  new **System** entry, which sits first. Every tab now carries an icon.
+
+  The real cause of the unevenness was not sloppiness on single pages: there were three
+  different implementations of a sub-navigation row, and the component that draws a
+  highlighted settings block existed only inside the services page. Both now live in one
+  place, so the pages cannot drift apart again.
+
+- **Two browser dialogs are gone.** Deleting a notification target asked through the
+  browser's own popup — the one Chrome puts *"localhost says"* above. Both are proper
+  dialogs now, like everywhere else in Nexview.
+
+### Fixed
+
+- **A brand-new installation wrote a backup of an empty database.** On the very first start
+  the schema check reports that everything is missing, and Nexview dutifully made a copy
+  that protected nothing while using up one of the five slots.
+
+---
+
 ## 0.21.0 – 26.08.2026
 
 ### New

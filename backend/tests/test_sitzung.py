@@ -294,3 +294,66 @@ def test_altes_token_gilt_nicht_mehr(admin_client: TestClient) -> None:
 
     kopf = {"Authorization": f"Bearer {create_access_token(erstellt['id'])}"}
     assert admin_client.get("/api/auth/me", headers=kopf).status_code == 401
+
+
+class TestUeberallAbmelden:
+    """⚠️ Der Ausweg, den es bis 0.22 nicht gab.
+
+    Gewoehnliches Abmelden nimmt nur das Cookie aus **diesem** Browser. Wer
+    eine Kopie hat, kommt damit weiter herein - der einzige Riegel war ein
+    Passwortwechsel. Also musste man sein Passwort aendern, obwohl mit dem
+    Passwort nichts war.
+    """
+
+    def test_setzt_die_grenze(self, admin_client: TestClient) -> None:
+        from app.db import SessionLocal
+        from app.models import User
+
+        with SessionLocal() as db:
+            vorher = db.query(User).filter(User.username == "admin").one()
+            assert vorher.sessions_valid_from is None
+
+        antwort = admin_client.post("/api/auth/me/ueberall-abmelden")
+        assert antwort.status_code == 200
+
+        with SessionLocal() as db:
+            nachher = db.query(User).filter(User.username == "admin").one()
+            assert nachher.sessions_valid_from is not None
+
+    def test_wer_es_ausloest_bleibt_drin(self, admin_client: TestClient) -> None:
+        """⚠️ Sonst sperrt sich genau der aus, der den Verdacht hat.
+
+        Wer vermutet, dass jemand mitliest, will **den anderen** hinauswerfen -
+        nicht sich selbst. Deshalb kommt ein frisches Paar zurueck.
+        """
+        antwort = admin_client.post("/api/auth/me/ueberall-abmelden")
+        assert antwort.status_code == 200
+
+        # ⚠️ **Mit dem frischen Token, nicht mit dem alten.** Das alte faellt
+        # jetzt zu Recht durch - es ist ja aelter als die Grenze, die gerade
+        # gesetzt wurde. Genau deshalb gibt der Endpunkt ein neues Paar
+        # zurueck, und genau deshalb muss die Oberflaeche es uebernehmen.
+        frisch = {"Authorization": f"Bearer {antwort.json()['access_token']}"}
+        assert admin_client.get("/api/auth/me", headers=frisch).status_code == 200
+
+        # Der Gegenbeweis: Wer beim alten bleibt, ist draussen.
+        assert admin_client.get("/api/auth/me").status_code == 401
+
+    def test_ein_aelteres_token_gilt_nicht_mehr(self, admin_client: TestClient) -> None:
+        """Der eigentliche Zweck - geprueft am Riegel selbst."""
+        from app.db import SessionLocal
+        from app.models import User
+        from app.services.sitzung import TokenInhalt, gilt_noch
+        from app.models import utcnow
+
+        # Ein Token, das **vor** dem Abmelden ausgestellt wurde.
+        alt = int(utcnow().timestamp() * 1000)
+
+        assert admin_client.post("/api/auth/me/ueberall-abmelden").status_code == 200
+
+        with SessionLocal() as db:
+            user = db.query(User).filter(User.username == "admin").one()
+            assert gilt_noch(TokenInhalt(benutzer_id=user.id, ausgestellt=alt), user) is False
+
+    def test_nicht_ohne_anmeldung(self, client: TestClient) -> None:
+        assert client.post("/api/auth/me/ueberall-abmelden").status_code in (401, 403)

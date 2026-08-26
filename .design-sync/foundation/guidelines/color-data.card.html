@@ -1,0 +1,36 @@
+<!-- @dsCard group="Farben" viewport="760x260" name="Diagramme — genau drei Farben" subtitle="Die einzige Ausnahme von „nur ink, mist und accent" — und warum es bei drei bleibt" -->
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:20px 22px;background:var(--surface-page);color:var(--text-secondary);
+       font-family:var(--font-sans);font-size:var(--size-sm);overflow:hidden;display:flex;gap:22px}
+  .links{flex:none;width:20rem}
+  .zeile{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .balken{height:9px;border-radius:var(--radius-full);flex:none}
+  .name{font-family:var(--font-mono);font-size:var(--size-xs);width:4.5rem;flex:none;color:var(--text-body)}
+  .wert{font-family:var(--font-mono);font-size:var(--size-2xs);color:var(--text-faint);margin-left:auto}
+  .grund{flex:1;font-size:var(--size-xs);color:var(--text-dim);line-height:1.6;
+         border-left:2px solid var(--brand);padding-left:13px}
+  .grund b{color:var(--text-body);font-weight:var(--weight-semibold)}
+</style>
+</head><body>
+<div class="links">
+  <div class="zeile"><span class="name">viz-1</span>
+    <span class="balken" style="width:9rem;background:var(--color-viz-1)"></span><span class="wert">#3987e5</span></div>
+  <div class="zeile"><span class="name">viz-2</span>
+    <span class="balken" style="width:6rem;background:var(--color-viz-2)"></span><span class="wert">#d95926</span></div>
+  <div class="zeile"><span class="name">viz-3</span>
+    <span class="balken" style="width:3.5rem;background:var(--color-viz-3)"></span><span class="wert">#199e70</span></div>
+  <div class="zeile"><span class="name">Andere</span>
+    <span class="balken" style="width:2rem;background:var(--color-ink-600)"></span><span class="wert">ink-600</span></div>
+</div>
+<p class="grund">
+  <b>Warum nicht Rotstufen?</b> Zwei benachbarte Stufen der Akzentrampe liegen bei
+  einem Farbabstand von 7,6 — kaum zu trennen, selbst mit vollem Farbsehen.<br><br>
+  <b>Warum nicht vier?</b> Bei vier fällt jede Kombination durch die Prüfung auf
+  Farbfehlsichtigkeit, sobald — wie im Kuchendiagramm unvermeidlich — <b>alle</b>
+  Paare verglichen werden und nicht nur benachbarte.<br><br>
+  Was darüber hinausgeht, wird zu <b>Andere</b>. In der Liste darunter steht ohnehin
+  jeder einzeln.
+</p>
+</body></html>

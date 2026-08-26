@@ -8,6 +8,8 @@ import type { SetupStatus } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
+import { SicherungEinspielen } from '../components/SicherungEinspielen'
+import { Symbol } from '../components/Symbol'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
 import { AddressStep } from './setup/AddressStep'
 import { AvatarStep } from './setup/AvatarStep'
@@ -27,6 +29,16 @@ import type { SetupStep } from './setup/SetupSteps'
 export function SetupPage() {
   const { t, i18n } = useTranslation()
   const { completeSetup, finishSetup } = useAuth()
+  /**
+   * ⚠️ **Vor dem ersten Schritt steht eine Weiche, kein Schritt.**
+   *
+   * „Neu anfangen" oder „Aus Sicherung wiederherstellen" — das ist keine
+   * Station auf dem Weg, sondern die Entscheidung, *welchen* Weg man geht.
+   * Deshalb steht sie nicht in der Fortschrittsanzeige: Ein Balken, der bei
+   * einer Verzweigung mitzählt, verspricht einen Fortschritt, den es dort
+   * nicht gibt.
+   */
+  const [weg, setWeg] = useState<'wahl' | 'neu' | 'sicherung'>('wahl')
   const [step, setStep] = useState<SetupStep>('account')
 
   return (
@@ -38,6 +50,81 @@ export function SetupPage() {
         </div>
 
         <Card>
+          {weg === 'wahl' && (
+            <div className="flex flex-col gap-5">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">{t('setup.startTitle')}</h1>
+                <p className="mt-1.5 text-sm leading-relaxed text-mist-500">
+                  {t('setup.startText')}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setWeg('neu')}
+                className="flex items-start gap-4 rounded-2xl border border-ink-700 bg-ink-900 p-4 text-left transition-colors hover:border-accent-600"
+              >
+                <Symbol name="allgemein" className="mt-0.5 h-5 w-5 shrink-0 text-accent-400" />
+                <span>
+                  <span className="block font-semibold text-mist-100">
+                    {t('setup.startFresh')}
+                  </span>
+                  <span className="mt-0.5 block text-sm leading-relaxed text-mist-500">
+                    {t('setup.startFreshText')}
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWeg('sicherung')}
+                className="flex items-start gap-4 rounded-2xl border border-ink-700 bg-ink-900 p-4 text-left transition-colors hover:border-accent-600"
+              >
+                <Symbol name="sicherung" className="mt-0.5 h-5 w-5 shrink-0 text-accent-400" />
+                <span>
+                  <span className="block font-semibold text-mist-100">
+                    {t('setup.startRestore')}
+                  </span>
+                  <span className="mt-0.5 block text-sm leading-relaxed text-mist-500">
+                    {t('setup.startRestoreText')}
+                  </span>
+                </span>
+              </button>
+            </div>
+          )}
+
+          {weg === 'sicherung' && (
+            <div className="flex flex-col gap-5">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">{t('setup.startRestore')}</h1>
+                <p className="mt-1.5 text-sm leading-relaxed text-mist-500">
+                  {t('setup.restoreText')}
+                </p>
+              </div>
+
+              <SicherungEinspielen
+                basis="/api/setup/sicherung"
+                frischeInstallation
+                // ⚠️ Neu laden statt weiterklicken: Unter der Anwendung liegt
+                // jetzt eine andere Datenbank. Alles, was der Browser vorher
+                // geholt hat - Einrichtungsstand, Einstellungen - gehört zur
+                // alten. Ein sauberer Neustart ist ehrlicher als ein Zustand,
+                // der halb von vorher stammt.
+                onFertig={() => window.location.reload()}
+              />
+
+              <button
+                type="button"
+                onClick={() => setWeg('wahl')}
+                className="self-start text-sm text-mist-500 hover:text-mist-300"
+              >
+                ← {t('common.back')}
+              </button>
+            </div>
+          )}
+
+          {weg === 'neu' && (
+          <>
           <StepIndicator current={step} />
 
           {step === 'account' && (
@@ -95,6 +182,8 @@ export function SetupPage() {
           )}
 
           {step === 'done' && <DoneStep onFinish={finishSetup} />}
+          </>
+          )}
         </Card>
       </div>
     </div>

@@ -20,7 +20,8 @@
     "seriesPlural": "Series",
     "delete": "Delete",
     "close": "Close",
-    "done": "Done"
+    "done": "Done",
+    "back": "Back"
   },
   "nav": {
     "home": "Home",
@@ -91,7 +92,14 @@
     "addressReady": "Address reachable. You can continue.",
     "addressSkipHint": "You can change this address later in the settings – for instance once you move to a domain of your own.",
     "mailRequired": "You can continue only after a successful test. Without a mail server Nexview cannot send you the confirmation – and without that you would not get back in after the wizard.",
-    "mailReady": "Mail server reachable. You can continue."
+    "mailReady": "Mail server reachable. You can continue.",
+    "startTitle": "Welcome to Nexview",
+    "startText": "Two ways from here. Either takes a few minutes.",
+    "startFresh": "Start fresh",
+    "startFreshText": "The wizard walks you through the administrator account, TMDB and the connection to Radarr and Sonarr.",
+    "startRestore": "Restore from a backup",
+    "startRestoreText": "Already have a Nexview backup? Then you keep accounts, requests and every connection instead of setting them up again.",
+    "restoreText": "Upload the archive you downloaded from Nexview and enter its password. Nexview first looks at what is inside — nothing is replaced until you say so."
   },
   "login": {
     "title": "Sign in",
@@ -443,7 +451,9 @@
     },
     "modeTemporary": "(temporary)",
     "modeNoLimit": "Stays on indefinitely.",
-    "durationQuestion": "Turn on “{{mode}}” for:"
+    "durationQuestion": "Turn on “{{mode}}” for:",
+    "title": "Log",
+    "messagesTitle": "Messages"
   },
   "profile": {
     "intro": "Your picture, display name and password.",
@@ -536,7 +546,11 @@
     "mailWatch": "Titles you are waiting for",
     "mailWatchHint": "When a title you marked arrives, or a series you follow gets new episodes. Always bundled — a season pack is one mail, not eight.",
     "mailCleanup": "Monthly clear-out report",
-    "mailCleanupHint": "At the start of each month, a mail listing what is lying around unused – biggest first. Only sent when there is something to report."
+    "mailCleanupHint": "At the start of each month, a mail listing what is lying around unused – biggest first. Only sent when there is something to report.",
+    "signOutEverywhere": "Sign out everywhere",
+    "signOutEverywhereText": "Ends every sign-in of this account on all other devices. You stay signed in here.",
+    "signOutEverywhereWarning": "Useful when you suspect someone else has access. Your password stays as it is – if someone knows it, change that as well.",
+    "signedOutEverywhere": "All other devices have been signed out."
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -665,7 +679,12 @@
     "resetStorageTitle": "Move {{name}}'s storage to the household?",
     "resetStorageText": "Everything assigned to {{name}} becomes household stock. The account starts at 0 GB afterwards.",
     "resetStorageHint": "No file is touched and the saved limit stays put. Pending handovers from this account count as settled afterwards.",
-    "storageResetDone": "Storage reset – everything moved to the household."
+    "storageResetDone": "Storage reset – everything moved to the household.",
+    "dissolveOpenTitle": "Approved orders with no file yet",
+    "dissolveOpenIntro": "Nothing has downloaded yet. Ticked, the order keeps running and the title falls to the house; unticked, it is cancelled and taken out of Radarr or Sonarr.",
+    "dissolveOpenKeep": "— keeps running, falls to the house",
+    "dissolveOpenCancel": "— will be cancelled",
+    "dissolveSeason": "(season {{number}})"
   },
   "notifications": {
     "title": "Notifications",
@@ -800,7 +819,7 @@
   "settings": {
     "title": "Settings",
     "tabServices": "Services",
-    "tabMail": "SMTP settings",
+    "tabMail": "Mail",
     "tabUsers": "Users",
     "tabLogs": "Log",
     "intro": "These credentials are stored encrypted in the database and never leave the server.",
@@ -868,7 +887,9 @@
     "tabWatchlist": "Watchlists",
     "secretsUnreadable": "Stored credentials (API keys, media server access) can no longer be read with the current secret key. Most common cause: NEXVIEW_SECRET_KEY was changed, or data/secret.key was lost when the container was recreated (file not inside the mounted volume). Re-enter the affected credentials or reconnect the media server once – and make sure the key is kept permanently, or this will happen again on the next update.",
     "tabChannels": "Notifications",
-    "tabStorage": "Quotas"
+    "tabStorage": "Quotas",
+    "tabBackups": "Backups",
+    "tabSystem": "System"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -956,7 +977,18 @@
       "user_not_found": "No such user.",
       "username_taken": "That username is taken. Please pick another one.",
       "watchlist_disabled": "The watchlist is not switched on.",
-      "sync_already_running": "A sync is already running. Please wait until it finishes."
+      "sync_already_running": "A sync is already running. Please wait until it finishes.",
+      "backup_failed": "The backup could not be created.",
+      "backup_missing": "That backup no longer exists.",
+      "restore_not_an_archive": "That is not a valid ZIP archive.",
+      "restore_not_a_backup": "This archive does not hold a Nexview backup.",
+      "restore_wrong_password": "That password does not match this archive.",
+      "restore_not_a_database": "The file inside the archive is not a database.",
+      "restore_no_manifest": "This backup does not say where it came from.",
+      "restore_backup_newer": "This backup is newer than the running version. Update Nexview first.",
+      "restore_unknown_version": "This backup does not say which version it came from.",
+      "restore_incompatible": "This backup does not fit the running version.",
+      "restore_files_busy": "The database is still in use right now. Please try again in a moment."
     }
   },
   "language": {
@@ -1406,7 +1438,9 @@
     "writeBotDone": "Done that",
     "writeBotTitle": "One more step: message the bot once",
     "onStorageRelease": "Storage hand-backs",
-    "onStorageReleaseHint": "Reports when someone hands a title back and when it has been decided. Only the title is named – who handed it back stays out of the postbox."
+    "onStorageReleaseHint": "Reports when someone hands a title back and when it has been decided. Only the title is named – who handed it back stays out of the postbox.",
+    "deleteTitle": "Remove target",
+    "confirmDeleteWarning": "No more messages will go there."
   },
   "children": {
     "add": "Add child account",
@@ -2312,5 +2346,65 @@
       "alle": "All",
       "vorgemerkt": "Scheduled"
     }
+  },
+  "backups": {
+    "title": "Backups",
+    "intro": "Nexview writes a copy of its own before every schema change. **But that copy sits in the same directory as the database** — lose the volume and it goes with it. It only becomes a backup once you download it and keep it somewhere else.",
+    "createNow": "Back up now",
+    "createTitle": "Create a backup",
+    "createSub": "Takes a few seconds and does not disturb anything that is running.",
+    "noteLabel": "Note (optional)",
+    "noteHint": "What is this backup for? “Before the big cleanup” will help you more in three months than a date.",
+    "colWhen": "When",
+    "colKind": "Kind",
+    "colNote": "Note",
+    "colVersion": "Version",
+    "colSize": "Size",
+    "kindAuto": "automatic",
+    "kindManual": "by hand",
+    "download": "Download",
+    "downloadTitle": "Download backup",
+    "downloadWhat": "You get an **encrypted ZIP** holding the database and the key file `secret.key`. The key has to come along, otherwise the stored credentials for Radarr, Sonarr, TMDB and the mail server cannot be read later. Caches are left out — Nexview fetches those again on its own.",
+    "passwordWarning": "**Remember this password.** There is no second key and no way back: without it the file is worthless. The archive opens with 7-Zip, WinRAR or your file manager — so you do not depend on Nexview to get at your own data.",
+    "passwordLabel": "Password for the archive",
+    "passwordRepeat": "Repeat password",
+    "passwordTooShort": "At least eight characters.",
+    "passwordMismatch": "These two do not match.",
+    "empty": "No backup yet.",
+    "loadFailed": "The list could not be loaded.",
+    "folderHint": "The files live in `{{ordner}}`. They are **not** reachable through the web server — only through this button and through the file system.",
+    "tooNew": "newer than this version",
+    "unknownVersion": "version unknown",
+    "scheduleLabel": "Back up regularly",
+    "schedule_off": "off",
+    "schedule_daily": "daily",
+    "schedule_weekly": "weekly",
+    "schedule_monthly": "monthly",
+    "keepLabel": "Keep automatic ones",
+    "keepHint": "Only **automatic** copies are capped — ones you made by hand stay, however many there are. Now that caches are left out, a copy costs a few MB; twenty of them reach back months.",
+    "deleteTitle": "Delete backup",
+    "deleteText": "From {{wann}}, note: {{notiz}}",
+    "deleteWarning": "Gone is gone. If you might still need this one, download it first.",
+    "autoTitle": "Automatic backups",
+    "listTitle": "Existing backups"
+  },
+  "restore": {
+    "fileLabel": "Backup archive (.zip)",
+    "passwordLabel": "Password of the archive",
+    "passwordHint": "The password you set when you downloaded it.",
+    "check": "Check archive",
+    "fromWhen": "From",
+    "fromVersion": "Version",
+    "note": "Note",
+    "restoreNow": "Restore now",
+    "tooNew": "This backup comes from version **{{version}}** and is therefore **newer** than the one running. Nexview can only carry data forward, never back — restoring it would damage the installation. Update Nexview first.",
+    "unknownVersion": "This backup does not say which version it came from. Without that there is no way to tell whether it fits.",
+    "envKeyWarning": "**Careful: `NEXVIEW_SECRET_KEY` is set as an environment variable.** The variable always wins, so the key inside the archive is ignored. If its value differs from the one the backup was made with, **none of the stored credentials can be read afterwards** — Radarr, Sonarr, TMDB, the mail server and every media server would have to be connected again.",
+    "freshNote": "Nexview writes a backup of the current (empty) state first — if something is wrong with the archive, that is the way back.",
+    "replaceWarning": "**This replaces the entire database.** Everything that happened since this backup is gone afterwards: accounts, requests, ratings, watchlists. Everyone signed in is signed out, including you. Nexview writes a backup of the current state first — that is the way back.",
+    "title": "Restore a backup",
+    "open": "Restore …",
+    "adminIntro": "Replaces the running installation with the state from a backup. **Everything that happened since is lost.** Nexview writes a backup of the current state first.",
+    "outsideWarning": "**Only Nexview is rolled back.** Whatever happened in Radarr, Sonarr or on the media server in the meantime stays as it is — deleted movies do not come back. The next sync brings Nexview in line with reality and may cancel requests again, notifications included."
   }
 }

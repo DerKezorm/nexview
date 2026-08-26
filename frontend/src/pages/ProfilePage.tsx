@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useSearchParams } from 'react-router-dom'
 import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -78,6 +79,7 @@ export function ProfilePage() {
   const [newPassword, setNewPassword] = useState('')
   const [repeatPassword, setRepeatPassword] = useState('')
   const [passwortOffen, setPasswortOffen] = useState(false)
+  const [abmeldenOffen, setAbmeldenOffen] = useState(false)
 
   // Sprache, Region und Darstellung liegen jetzt hier, nicht mehr in einem
   // eigenen Reiter mit eigenem Knopf: Die ganze Kontoseite wird mit **einem**
@@ -215,6 +217,28 @@ export function ProfilePage() {
       setRepeatPassword('')
       setPasswortOffen(false)
       setMessage(t('profile.passwordSaved'))
+    },
+    onError: fail,
+  })
+
+  /**
+   * Alle anderen Geräte abmelden - ohne das Passwort zu ändern.
+   *
+   * ⚠️ **Der Ausweg, den es bis 0.22 nicht gab.** Gewöhnliches Abmelden nimmt
+   * nur das Cookie aus *diesem* Browser; wer eine Kopie hat, kommt damit
+   * weiter herein, bis es abläuft. Der einzige Riegel war bis dahin ein
+   * Passwortwechsel - man musste also sein Passwort ändern, obwohl mit dem
+   * Passwort nichts war.
+   */
+  const ueberallAbmelden = useMutation({
+    mutationFn: () => api.post<TokenPair>('/api/auth/me/ueberall-abmelden', {}),
+    onMutate: reset,
+    // Dasselbe wie beim Passwortwechsel: Ohne das frische Token fände die
+    // nächste Anfrage eines vor, das der Server gerade selbst verworfen hat.
+    onSuccess: (tokens) => {
+      setTokens(tokens)
+      setAbmeldenOffen(false)
+      setMessage(t('profile.signedOutEverywhere'))
     },
     onError: fail,
   })
@@ -490,6 +514,16 @@ export function ProfilePage() {
             >
               {t('profile.changePassword')}
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                reset()
+                setAbmeldenOffen(true)
+              }}
+            >
+              {t('profile.signOutEverywhere')}
+            </Button>
             {kontoGeaendert && !speichern.isPending && (
               <span className="text-sm text-mist-600">{t('common.unsaved')}</span>
             )}
@@ -501,6 +535,17 @@ export function ProfilePage() {
 
             <KontoLoeschen />
           )}
+
+          <ConfirmDialog
+            open={abmeldenOffen}
+            title={t('profile.signOutEverywhere')}
+            description={t('profile.signOutEverywhereText')}
+            warning={t('profile.signOutEverywhereWarning')}
+            confirmLabel={t('profile.signOutEverywhere')}
+            loading={ueberallAbmelden.isPending}
+            onConfirm={() => ueberallAbmelden.mutate()}
+            onCancel={() => setAbmeldenOffen(false)}
+          />
 
           {/* Das Fenster trägt seinen Knopf in der Fußzeile - dort sucht man
               Entscheidungen. Einen zweiten Ausgang oben gibt es deshalb

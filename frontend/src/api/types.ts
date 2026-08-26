@@ -802,6 +802,9 @@ export type AppConfig = {
   watchlist_enabled: boolean;
 };
 
+/** Wie oft Nexview von selbst sichert. */
+export type BackupSchedule = 'off' | 'daily' | 'weekly' | 'monthly';
+
 export type AppSettings = {
   tmdb_api_key: string;
   tmdb_api_key_set: boolean;
@@ -832,6 +835,10 @@ export type AppSettings = {
   /** Adresse, unter der Nexview von außen erreichbar ist – steckt in jedem Link. */
   public_url: string;
   update_check: boolean;
+  /** Regelmäßige Sicherung: 'off' | 'daily' | 'weekly' | 'monthly'. */
+  backup_schedule: BackupSchedule;
+  /** Wie viele automatische Stände liegen bleiben. Von Hand angelegte zählen nicht mit. */
+  backup_keep: number;
   /** Je Dienst getrennt – Filme und Serien haben andere Ordnerstrukturen. */
   /** Wer wählt den Zielordner: 'user' | 'fixed' | 'approver'. */
   movie_root_folder_mode: RootFolderMode;

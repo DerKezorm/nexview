@@ -63,6 +63,11 @@ def _kennungen_im_backend() -> set[str]:
         gefunden.update(re.findall(r'\b(?:meldung|fehler)\(\s*\n?\s*"([a-z0-9_]+)"', text))
         # Handgeschriebene Antworten: detail={"code": "kennung", ...}
         gefunden.update(re.findall(r'"code"\s*:\s*"([a-z0-9_]+)"', text))
+        # ⚠️ Eigene Fehlerklassen, die eine Kennung tragen. Ohne diese Zeile
+        # entgeht dem Waechter jede Kennung, die nicht direkt an
+        # ``meldungen.meldung`` uebergeben wird - genau so ist beim
+        # Sicherungs-Wiederherstellen eine Luecke entstanden.
+        gefunden.update(re.findall(r'SicherungFehler\(\s*\n?\s*"([a-z0-9_]+)"', text))
     return gefunden
 
 

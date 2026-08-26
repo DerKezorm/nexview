@@ -1,0 +1,36 @@
+/* ==========================================================================
+   Abstaende - 4-px-Raster
+
+   Alles, was nebeneinander steht, haelt Vielfache von 4 px. Zwischenwerte
+   erzeugen genau die Unruhe, die niemand benennen kann: Zwei Reiterreihen mit
+   `px-4 py-2` und `px-3.5 py-1.5` sehen einzeln richtig aus - und beim
+   Wechseln zwischen den Seiten wirkt jede anders, ohne dass man den Grund
+   nennen koennte. Genau daran ist die Reiterreihe als eigenes Bauteil
+   entstanden.
+   ========================================================================== */
+
+:root {
+  --space-1: 0.25rem;
+  --space-1-5: 0.375rem;
+  --space-2: 0.5rem; /* Standard zwischen Dingen in einer Reihe */
+  --space-3: 0.75rem; /* Standard zwischen Karten */
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem; /* Innenabstand einer Karte */
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* --- Seitenmasse ------------------------------------------------------- */
+  --page-max: 80rem;
+  --page-pad: 1rem;
+  --page-pad-sm: 1.5rem;
+
+  /* --- Bedienhoehen ------------------------------------------------------ */
+  --control-sm: 2rem;
+  --control-md: 2.25rem; /* runder Symbolknopf (RundKnopf) */
+  --control-lg: 2.75rem;
+}

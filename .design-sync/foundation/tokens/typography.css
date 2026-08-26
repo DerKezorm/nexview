@@ -1,0 +1,38 @@
+/* ==========================================================================
+   Schrift
+
+   Eine Familie, keine Auslieferung: Inter, wenn sie da ist, sonst die
+   Systemschrift. Das ist Absicht - kein fremder Server, kein Ladeverzug, kein
+   Textsprung beim Nachladen. Wer Inter garantiert sehen will, installiert sie.
+   ========================================================================== */
+
+:root {
+  /* Kein eigener Display-Schnitt. Eine Familie reicht; der Unterschied
+     zwischen Ueberschrift und Text entsteht ueber Groesse und Laufweite. */
+  --font-display: var(--font-sans);
+
+  /* --- Groessen ---------------------------------------------------------- */
+  --size-display: clamp(2.25rem, 5vw, 3.5rem); /* Held-Ueberschrift, nur Seite */
+  --size-h1: 2rem;
+  --size-h2: 1.5rem;
+  --size-h3: 1.125rem;
+  --size-body: 1rem;
+  --size-sm: 0.875rem; /* Karten, Listen, Knoepfe */
+  --size-xs: 0.75rem;
+  --size-2xs: 0.6875rem; /* 11px - Etiketten, Symbolbeschriftungen */
+
+  /* --- Zeilenhoehen ------------------------------------------------------ */
+  --leading-tight: 1.1; /* Ueberschriften */
+  --leading-snug: 1.35;
+  --leading-relaxed: 1.65; /* Fliesstext */
+
+  /* --- Laufweiten -------------------------------------------------------- */
+  --tracking-tight: -0.02em; /* grosse Ueberschriften */
+  --tracking-wide: 0.06em; /* Etiketten in Grossbuchstaben */
+
+  /* --- Gewichte ---------------------------------------------------------- */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600; /* Knoepfe, Abzeichen, Reiter */
+  --weight-bold: 700; /* Ueberschriften */
+}

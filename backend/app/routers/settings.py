@@ -80,6 +80,13 @@ class SettingsUpdate(BaseModel):
     public_url: str | None = Field(default=None, max_length=255)
     # Taegliche Nachfrage bei GitHub nach einer neueren Version.
     update_check: bool | None = None
+    # --- Sicherungen -------------------------------------------------------
+    # Regelmaessig sichern. Bis 0.22 entstand eine automatische Sicherung nur
+    # bei einer Schemaaenderung - also praktisch nur beim Update.
+    backup_schedule: Literal["off", "daily", "weekly", "monthly"] | None = None
+    # Untergrenze zwei: Bei einem einzigen Stand wuerde die naechste Sicherung
+    # den letzten Rueckweg ueberschreiben.
+    backup_keep: int | None = Field(default=None, ge=2, le=50)
     # --- Media-Server ------------------------------------------------------
     # Server, Adresse und Token stehen hier bewusst *nicht*: Die setzt allein
     # der Verbindungsvorgang (`/api/admin/mediaserver/connect/...`), damit die

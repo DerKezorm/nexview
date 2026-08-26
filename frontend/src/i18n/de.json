@@ -1783,6 +1783,12 @@
             "where": "Einstellungen und Profil",
             "body": "Die Einstellungsleiste war auf zehn Punkte gewachsen und brach auf schmalen Bildschirmen um. *Adresse*, *Mail*, *Protokoll* und *Sicherungen* sind unter **System** zusammengezogen, jeder Reiter hat ein Symbol.\n\nDein **Profil** hat ein Untermenü bekommen: *Profil* (Bild, Name, E-Mail, hell oder dunkel), *Sicherheit* (Passwort, angemeldete Geräte, API-Token) und *Sprache*. Vorher standen sechs Blöcke untereinander auf einer Seite, und das Wichtigste lag ganz unten.\n\nDie eigentliche Ursache lag tiefer: Es gab **drei** verschiedene Bauweisen für eine Unterreihe, und das Bauteil für einen hervorgehobenen Einstellungsblock existierte nur innerhalb einer einzigen Seite. Beides liegt jetzt an einer Stelle, damit die Seiten nicht wieder auseinanderlaufen."
           }
+        ],
+        "smallTitle": "Außerdem behoben",
+        "small": [
+          "Die Beschreibung der Schnittstelle unter `/docs` war eine **weiße Seite** — in jeder Installation, seit 0.21.0. Sie lädt Swagger UI, und das holte FastAPI von einem fremden Server; die Inhaltsregeln, die wir in derselben Fassung eingebaut haben, lassen aber nur Skripte von Nexview selbst zu. Der Browser verweigerte Stil und Skript und zeigte nichts. Aufgefallen ist es nicht, weil die Regeln gegen die *Anwendung* geprüft wurden — und die lief. Swagger UI liegt jetzt im Abbild und wird von Nexview ausgeliefert: Die Regeln bleiben so streng wie sie waren, und die Beschreibung geht auch auf einem Gerät ganz ohne Internet. `/redoc` zeigte aus demselben Grund nichts und lieferte stattdessen die Weboberfläche — es führt jetzt auf `/docs`.",
+          "Die dreizehn zugesagten Adressen beschreiben sich nach außen auf **Englisch**. Alle Erklärungen im Quelltext sind deutsch, weil das Projekt auf Deutsch geschrieben wird — und FastAPI stellte genau diese Erklärungen auf die öffentliche Seite. Die übrigen 151 sind weiter deutsch; keine davon ist jemandem zugesagt.",
+          "Eine brandneue Installation legte eine Sicherung der **leeren** Datenbank an. Beim allerersten Start meldet die Prüfung, dass noch alles fehlt, und Nexview machte pflichtschuldig eine Kopie, die nichts schützte und trotzdem einen Platz belegte."
         ]
       },
       "0.21.0": {

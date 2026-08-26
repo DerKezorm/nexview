@@ -1783,6 +1783,12 @@
             "where": "Settings and profile",
             "body": "The settings bar had grown to ten entries and wrapped on narrow screens. *Address*, *Mail*, *Log* and *Backups* are pulled together under **System**, and every tab carries an icon.\n\nYour **profile** got a sub-menu: *Profile* (picture, name, email, light or dark), *Security* (password, signed-in devices, API tokens) and *Language*. Before, six blocks sat stacked on one page, and the most useful thing was furthest down.\n\nThe real cause lay deeper: there were **three** different implementations of a sub-navigation row, and the component that draws a highlighted settings block existed only inside a single page. Both now live in one place, so the pages cannot drift apart again."
           }
+        ],
+        "smallTitle": "Also fixed",
+        "small": [
+          "The interface documentation at `/docs` was a **blank white page** — in every installation, since 0.21.0. It loads Swagger UI, which FastAPI fetched from a foreign server; but the content rules we added in that same release only allow scripts from Nexview itself. The browser refused both stylesheet and script and rendered nothing. It went unnoticed because the rules were tested against the *application*, and the application kept working. Swagger UI now ships inside the image and is served by Nexview: the rules stay as strict as they were, and the documentation works on a machine with no internet at all. `/redoc` was blank for the same reason and served the web interface instead — it now leads to `/docs`.",
+          "The thirteen promised endpoints describe themselves in **English**. Every explanation in the source is German, because that is the language this is written in — and FastAPI put those same explanations on the public page. The remaining 151 are still German; none of them is promised to anyone.",
+          "A brand-new installation wrote a backup of the **empty** database. On the very first start the check reports that everything is missing, and Nexview dutifully made a copy that protected nothing while using up a slot."
         ]
       },
       "0.21.0": {

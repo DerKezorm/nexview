@@ -5,7 +5,18 @@
 # im Betrieb liefert FastAPI die gebauten Dateien einfach mit aus.
 
 # --- Stufe 1: Frontend bauen -------------------------------------------------
-FROM node:22-alpine AS frontend
+#
+# ⚠️ **`--platform=$BUILDPLATFORM` gehoert hierher, und es spart Stunden.**
+# Das Abbild wird fuer amd64 *und* arm64 gebaut. Ohne diese Angabe baut Docker
+# auch diese Stufe zweimal - die zweite davon unter Emulation, und ein "npm ci"
+# unter emuliertem ARM ist absurd langsam: Beim Bau von 0.21.0 lief er nach
+# knapp drei Stunden immer noch.
+#
+# Noetig ist das nie: Aus dieser Stufe wandert unten ausschliesslich
+# /build/dist weiter, und das ist HTML, CSS und JavaScript. Da steckt nichts
+# Architekturabhaengiges drin - auf ARM ist es Byte fuer Byte dasselbe. Also
+# wird hier immer auf der Architektur des Baurechners gebaut.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 
 WORKDIR /build
 

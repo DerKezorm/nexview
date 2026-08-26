@@ -14,7 +14,12 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -42,6 +47,7 @@ from .routers import (
     home as home_router,
     logs as logs_router,
     sicherungen as sicherungen_router,
+    v1 as v1_router,
     mediaserver as mediaserver_router,
     notifications,
     onboarding,
@@ -138,6 +144,20 @@ app = FastAPI(
     version=__version__,
     description="Persoenliches Media-Discovery-Dashboard mit Radarr-/Sonarr-Anbindung.",
     lifespan=lifespan,
+    # ⚠️ **Beide abgeschaltet - und weiter unten selbst gebaut.**
+    #
+    # FastAPIs eigene Doku-Seiten holen Swagger UI bzw. ReDoc von
+    # ``cdn.jsdelivr.net``. Seit 0.21.0 schickt Nexview eine
+    # Content-Security-Policy mit ``script-src 'self'``, und damit weigert sich
+    # der Browser, diese Dateien zu laden: ``/docs`` und ``/redoc`` waren in
+    # jeder Installation eine **weisse Seite**. Nicht kaputt aussehend - leer.
+    #
+    # Das ist beim Einbau der CSP niemandem aufgefallen, weil geprueft wurde,
+    # ob die *Anwendung* noch laeuft. Sie lief. Die Doku-Seiten gehoeren aber
+    # nicht zur Anwendung, sondern zu FastAPI, und niemand ruft sie im Alltag
+    # auf.
+    docs_url=None,
+    redoc_url=None,
 )
 
 # Vorgangsnummer fuer jede Anfrage. Bewusst vor CORS eingetragen, damit CORS
@@ -192,6 +212,15 @@ app.include_router(onboarding.router)
 app.include_router(notifications.router, dependencies=NUR_ERWACHSENE)
 app.include_router(logs_router.router)
 app.include_router(sicherungen_router.router)
+# ⚠️ **Die zugesagte Flaeche.** Dieselben Handler, zweite Adresse - siehe
+# routers/v1.py. Bewusst zuletzt eingehaengt: Was hier steht, ist ein
+# Versprechen, und das soll man beim Lesen als Letztes sehen, nicht zwischen
+# den uebrigen Routern verschwinden.
+# ⚠️ **Mit ``NUR_ERWACHSENE``.** Dieselben Handler unter einer zweiten Adresse
+# waeren sonst ein Weg am Kinderschutz vorbei - der haengt hier am Einhaengen,
+# nicht am Handler.
+app.include_router(v1_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(v1_router.public_router)
 app.include_router(about_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(details_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(calendar_router.router, dependencies=NUR_ERWACHSENE)
@@ -235,6 +264,70 @@ def fehler_als_json(exc: StarletteHTTPException) -> JSONResponse:
         status_code=exc.status_code,
         headers=getattr(exc, "headers", None),
     )
+
+
+#: Wo Swagger UI liegt - bei uns, nicht bei einem CDN.
+#:
+#: ⚠️ **Die zwei Dateien liegen im Abbild** (rund 1,7 MB, Fassung 5.32.14).
+#: Das ist Absicht und kein Versehen: Nexview laeuft auf Geraeten, die im Keller
+#: stehen und nicht zwingend ins Internet duerfen. Eine Doku, die erst laedt,
+#: wenn jsdelivr erreichbar ist, waere dort genauso leer wie vorher - nur aus
+#: einem anderen Grund. Und ein Loch in die CSP zu schneiden, um fremde Skripte
+#: wieder zuzulassen, waere die Regel von gestern rueckgaengig zu machen.
+#:
+#: Erneuern von Hand: die beiden Dateien aus
+#: ``https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/`` neu holen.
+SWAGGER_DIR = Path(__file__).resolve().parent / "static" / "swagger"
+
+app.mount("/docs-dateien", StaticFiles(directory=SWAGGER_DIR), name="swagger")
+
+
+@app.get("/docs", include_in_schema=False)
+async def api_dokumentation() -> HTMLResponse:
+    """Die anklickbare Beschreibung der Schnittstelle.
+
+    Selbst gebaut statt ``get_swagger_ui_html``: Dessen Seite traegt die
+    Startanweisung als eingebettetes ``<script>``, und das verbietet unsere
+    CSP. Hier steht sie stattdessen in ``start.js`` daneben.
+    """
+    # Ein einziger Text mit echten Zeilenumbruechen - keine zusammengesetzten
+    # Bruchstuecke. Die Seite ist so kurz, dass jede Zerlegung sie nur
+    # schwerer lesbar machen wuerde.
+    return HTMLResponse(
+        """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexview API</title>
+<link rel="stylesheet" href="/docs-dateien/swagger-ui.css">
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="/docs-dateien/swagger-ui-bundle.js"></script>
+<script src="/docs-dateien/start.js"></script>
+</body>
+</html>
+"""
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_umleiten() -> RedirectResponse:
+    """Alte Lesezeichen auf die eine Doku-Seite fuehren.
+
+    ⚠️ **Ohne diese Zeile landet /redoc in der Weboberflaeche.** Bei
+    unbekannten Pfaden liefert Nexview ``index.html`` aus, damit React Router
+    seine Adressen selbst verwalten kann - eine abgeschaltete Doku-Seite faellt
+    genau in diesen Auffang und zeigt dann die Anwendung mit Status 200. Das
+    ist schlimmer als ein Fehler: Wer eine Beschreibung sucht, bekommt eine
+    Startseite und haelt sie fuer die Antwort.
+
+    ReDoc selbst gibt es nicht mehr - es holt seine Dateien ebenfalls von einem
+    CDN, und ein zweites Megabyte im Abbild fuer eine zweite Ansicht derselben
+    Daten waere es nicht wert.
+    """
+    return RedirectResponse("/docs", status_code=308)
 
 
 def _static_dir() -> Path | None:

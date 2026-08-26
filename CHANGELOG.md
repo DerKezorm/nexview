@@ -62,6 +62,56 @@ tag exists for it.
   question in the same dialog. Unticked by default: a kept order keeps downloading, and
   that is the operator's disk.
 
+- **API tokens, so something other than a browser can talk to Nexview.** In your profile
+  under *Account → Security*: create one, name it, revoke it. It is sent as
+  `Authorization: Bearer …`, and the plain text is shown exactly once — afterwards only a
+  checksum remains, and not even an administrator can look it up.
+
+  **A token has exactly the rights of the account it belongs to.** That is the whole design,
+  and it is deliberately unlike Seerr: there, a single global key is tied to the owner
+  account, so anything done through it is auto-approved even when you wanted a limited
+  service account — an open complaint there for years. Here, role, quota, approval and
+  blocklist apply to a token exactly as they apply to its owner, so there is no second set
+  of permissions to maintain. Need a service account with few rights? Create a *user* with
+  those rights and give it a token.
+
+  One switch on top: **may only read**. It covers the case that actually comes up —
+  dashboards and monitoring — and it is enforced on the HTTP method, which is only sound
+  because not one of the 89 GET paths changes anything. That was measured, not assumed.
+
+  Child accounts get none, expired tokens stop working, and every log line says *which*
+  token acted, not just who owns it.
+
+- **Administrators can see who holds a token.** Settings, under *System → API tokens*: every
+  token in the installation with its owner, when it was made and when it was last used. That
+  last column is the useful one — a token nobody has touched in months is visibly dead.
+
+  **You can look, not revoke.** Only the owner can switch off their own token. This is a
+  decision, not an omission: there is no protected operator account yet, so an appointed
+  administrator could otherwise shut off the tokens of the person who actually runs the
+  server. The blunt instrument that does exist today is deactivating the whole account,
+  which locks its tokens along with it — all of them, and the person too.
+
+- **A promised interface: `/api/v1`.** Nexview has around 190 addresses, and nearly all of
+  them are an inside part of the application - the interface talks to the backend and both
+  change together. That is fine, and it should stay that way: this very release renamed a
+  field from `storniert` to `offen` because the new name fits better.
+
+  For anyone building against it from outside, that is useless. So thirteen endpoints now
+  also live under `/api/v1`, and **for those there is a promise**: as long as `v1` is in the
+  address, nothing disappears from these answers. Should something have to break, `/api/v2`
+  appears beside it and v1 keeps running.
+
+  What is in: searching, title details, making and tracking your own requests, your quota,
+  what was recently downloaded, three counters for dashboards, health and version. What is
+  deliberately out: the whole administration - promising that would freeze the very
+  configuration model that keeps being worked on. It all stays reachable under `/api/…`,
+  just without a promise.
+
+  The handlers are the same ones, registered a second time, so behaviour cannot drift. Two
+  tests guard it: one that the surface is exactly those thirteen, and one that holds the
+  shape of their answers and complains when a field goes missing.
+
 - **Sign out everywhere.** In your profile, next to the password. Ends every sign-in of this
   account on all other devices while keeping you signed in here.
 
@@ -85,7 +135,42 @@ tag exists for it.
   browser's own popup — the one Chrome puts *"localhost says"* above. Both are proper
   dialogs now, like everywhere else in Nexview.
 
+- **Your profile got a sub-menu.** *Account* had grown into six blocks stacked on one page —
+  picture, name, email, language, password, and at the very bottom the new API tokens. The
+  most useful new thing sat furthest down, behind everything you rarely touch.
+
+  It is now split by the reason you came: **Profile** (who am I — picture, name, email,
+  light or dark), **Security** (who gets into this account — password, signed-in devices,
+  API tokens, deleting the account) and **Language** (language and region). Old links like
+  `?reiter=sicherheit` still land where they should. The profile's tab row also uses the
+  same component as the settings pages now, icons and all.
+
 ### Fixed
+
+- **`/docs` was a blank white page — in every installation.** The browsable API documentation
+  loads Swagger UI, and FastAPI fetches it from a CDN. Version 0.21.0 added a
+  Content-Security-Policy that allows scripts only from Nexview itself, so the browser
+  refused both the stylesheet and the script and rendered nothing at all. Not broken-looking:
+  empty. `/redoc` was dead for the same reason.
+
+  This slipped through because the policy was tested against the *application*, which kept
+  working. The documentation pages do not belong to the application — they belong to FastAPI,
+  and nobody opens them in day-to-day use.
+
+  Swagger UI now ships **inside the image** (1.7 MB) and is served from Nexview itself. The
+  policy stays as strict as it was, and the documentation works on a machine with no internet
+  at all — which for something that runs on a NAS in a basement is not an edge case. `/redoc`
+  redirects to `/docs`; keeping a second view of the same data would have cost another
+  megabyte.
+
+  `/openapi.json` was never affected — it is plain JSON and needs no scripts.
+
+- **The thirteen promised endpoints now describe themselves in English.** Every docstring in
+  Nexview is German, because that is the language the project is written in, and FastAPI puts
+  those same docstrings on the public documentation page. The `/api/v1` routes now carry an
+  explicit English description that takes precedence, while the German reasoning stays in the
+  code where it belongs. The remaining 151 descriptions are still German — none of them is
+  promised to anyone.
 
 - **A brand-new installation wrote a backup of an empty database.** On the very first start
   the schema check reports that everything is missing, and Nexview dutifully made a copy

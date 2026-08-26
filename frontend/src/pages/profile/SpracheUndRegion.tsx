@@ -3,17 +3,21 @@ import { useTranslation } from 'react-i18next'
 import { useConfig } from '../../hooks/useConfig'
 import { useRegionen } from '../../hooks/useRegionen'
 import { SUPPORTED_LANGUAGES } from '../../i18n'
+import { AUSWAHL } from '../../components/ui'
 import type { Language } from '../../i18n'
-import type { Theme } from '../../lib/theme'
 
 /**
- * Sprache, Region und Darstellung - als Felder, ohne eigenen Speichern-Knopf.
+ * Sprache und Region - als Felder, ohne eigenen Speichern-Knopf.
  *
  * Hieß früher „Voreinstellung beim Entdecken" und saß in einem eigenen Reiter.
  * Beides war überholt: Die Entdecken-Seite gibt es seit 0.17 nicht mehr, und
  * ein Reiter für drei Auswahlfelder war ein Klick für nichts. Der Inhalt steht
- * jetzt unter „Konto" und wird mit allem anderen zusammen gespeichert - eine
- * Seite, ein Knopf.
+ * jetzt unter „Konto" und wird mit allem anderen zusammen gespeichert.
+ *
+ * ⚠️ **Die Darstellung ist hier wieder ausgezogen** und sitzt unter „Profil"
+ * (siehe ``Darstellung.tsx``). Sie war nur deshalb hier gelandet, weil das
+ * Bauteil zufällig alle Auswahlfelder des Kontos trug - kein Grund, sondern
+ * eine Gewohnheit.
  *
  * Zwei Einstellungen, die oft verwechselt werden:
  *
@@ -30,23 +34,16 @@ type Props = {
   setRegion: (wert: string) => void
   sprache: Language
   setSprache: (wert: Language) => void
-  darstellung: Theme
-  setDarstellung: (wert: Theme) => void
   /** Alter des Kontos, falls beschränkt - nur zur Anzeige. */
   alter: number | null
   disabled?: boolean
 }
-
-const FELD =
-  'rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none disabled:opacity-50'
 
 export function SpracheUndRegion({
   region,
   setRegion,
   sprache,
   setSprache,
-  darstellung,
-  setDarstellung,
   alter,
   disabled = false,
 }: Props) {
@@ -59,7 +56,10 @@ export function SpracheUndRegion({
     (regionen.data ?? []).find((eintrag) => eintrag.code === vorgabe)?.name ?? vorgabe
 
   return (
-    <div className="flex flex-col gap-4">
+    // Die Karte darum geht über die volle Breite - wie überall auf dieser
+    // Seite. Die Felder darin nicht: Ein Auswahlfeld über zwei Bildschirme
+    // ist keine Hilfe, sondern eine leere Fläche mit einem Pfeil am Rand.
+    <div className="flex max-w-3xl flex-col gap-4">
       <div>
         <h2 className="text-lg font-semibold">{t('profile.langRegion')}</h2>
         <p className="mt-1 text-sm text-mist-500">{t('profile.langRegionIntro')}</p>
@@ -80,7 +80,7 @@ export function SpracheUndRegion({
           value={sprache}
           onChange={(event) => setSprache(event.target.value as Language)}
           disabled={disabled}
-          className={FELD}
+          className={AUSWAHL}
         >
           {SUPPORTED_LANGUAGES.map((kuerzel) => (
             <option key={kuerzel} value={kuerzel}>
@@ -99,7 +99,7 @@ export function SpracheUndRegion({
           value={region}
           onChange={(event) => setRegion(event.target.value)}
           disabled={disabled || regionen.isLoading}
-          className={FELD}
+          className={AUSWAHL}
         >
           {/* Der leere Eintrag stellt auf die Vorgabe des Betreibers zurück -
               und wandert dann mit, wenn der sie ändert. */}
@@ -115,25 +115,6 @@ export function SpracheUndRegion({
         </span>
       </label>
 
-      {/* Dieselbe Wahl wie der Schalter oben in der Kopfzeile. Dort wirkt sie
-          sofort, hier erst mit dem Speichern - wie Sprache und Region auch.
-          Gespeichert am Konto, nicht am Browser: jeder im Haushalt hat so
-          seine eigene Voreinstellung. */}
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-mist-300">{t('theme.label')}</span>
-        <select
-          value={darstellung}
-          onChange={(event) => setDarstellung(event.target.value as Theme)}
-          disabled={disabled}
-          className={FELD}
-        >
-          <option value="dark">{t('theme.dark')}</option>
-          <option value="light">{t('theme.light')}</option>
-        </select>
-        <span className="text-xs leading-relaxed text-mist-600">
-          {t('profile.themeHint')}
-        </span>
-      </label>
     </div>
   )
 }

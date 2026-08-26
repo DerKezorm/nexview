@@ -769,6 +769,67 @@ class TokenPurpose(str, enum.Enum):
     mediaserver_login = "mediaserver_login"
 
 
+class ApiKey(Base):
+    """Ein persoenlicher Zugriffs-Schluessel fuer die HTTP-Schnittstelle.
+
+    ⚠️ **Der Schluessel gehoert einem Konto und erbt dessen Rechte** - nicht
+    mehr, nicht weniger. Das ist die wichtigste Entscheidung an dieser Tabelle,
+    und sie ist bewusst anders als bei Seerr: Dort gibt es **einen** globalen
+    Schluessel, der fest am Eigentuemerkonto haengt. Wer ihn hat, handelt als
+    Eigentuemer - jede Anfrage darueber ist damit automatisch genehmigt, auch
+    wenn man eigentlich ein eingeschraenktes Dienstkonto wollte. Das ist dort
+    seit Jahren als Mangel offen (Overseerr-Issue #4070).
+
+    Hier erbt der Schluessel die Rechte seines Besitzers, und damit greifen
+    Rolle, Kontingent, Freigabe und Sperrliste ohne Zutun. Es entsteht keine
+    zweite Rechtewelt, die man bei jeder neuen Funktion mitpflegen muesste.
+    Wer ein Dienstkonto mit wenig Rechten braucht, legt einen **Benutzer** dafuer
+    an und gibt dem einen Schluessel.
+
+    ⚠️ **Gespeichert wird nur die Pruefsumme.** Der Klartext wird genau einmal
+    gezeigt und ist danach fort - wie beim Passwort eines Sicherungs-Archivs.
+
+    Warum SHA-256 und nicht bcrypt, obwohl es sonst ueberall bcrypt ist: Ein
+    Passwort ist kurz und von Menschen gewaehlt, deshalb muss das Pruefen
+    absichtlich langsam sein. Ein Schluessel ist 40 Zeichen Zufall - da gibt es
+    nichts zu erraten, und langsam waere hier nur langsam: Die Pruefung laeuft
+    bei **jeder** Anfrage.
+    """
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    #: Wofuer der Schluessel da ist - "Homepage-Kachel", "Sicherungs-Skript".
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    #: Die ersten Zeichen im Klartext, damit man ihn in der Liste wiedererkennt.
+    #: Verraet nichts: Der Rest ist der Schluessel.
+    vorschau: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+
+    #: ⚠️ Die einzige Abstufung - und mit Absicht die einzige.
+    #:
+    #: Sie deckt den Fall ab, um den es wirklich geht: Dashboards und
+    #: Ueberwachung, die nur zusehen sollen. Feiner abzustufen ("darf anfragen,
+    #: aber keine Einstellungen lesen") waere genau die zweite Rechtewelt, die
+    #: oben vermieden wird.
+    #:
+    #: Durchgesetzt wird sie an der HTTP-Methode: Alles ausser GET und HEAD
+    #: wird abgelehnt. Das ist bei Nexview zulaessig, weil **kein einziger** der
+    #: 89 GET-Pfade etwas veraendert - nachgemessen, nicht angenommen.
+    nur_lesen: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    #: ``None`` = gilt bis zum Widerruf.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    #: Damit ein Schluessel, den seit Monaten niemand benutzt, sichtbar tot ist.
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    user: Mapped["User"] = relationship("User")
+
+
 class AuthToken(Base):
     """Einmal-Links fuer Einladung, Adressbestaetigung und Passwort-Reset.
 

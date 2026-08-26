@@ -234,3 +234,18 @@ def auth_headers(client: TestClient, username: str, password: str) -> dict[str, 
     )
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def pytest_addoption(parser) -> None:
+    """``--abdruck-neu`` erneuert den festgehaltenen Stand der /api/v1-Antworten.
+
+    ⚠️ Bewusst ein eigener Handgriff und keine Automatik: Der Abdruck ist der
+    einzige Waechter ueber eine Zusage nach aussen. Wuerde er sich von selbst
+    erneuern, waere er kein Waechter, sondern ein Protokoll.
+    """
+    parser.addoption(
+        "--abdruck-neu",
+        action="store_true",
+        default=False,
+        help="Den Abdruck der zugesagten /api/v1-Antworten neu schreiben.",
+    )

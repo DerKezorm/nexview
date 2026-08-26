@@ -302,6 +302,68 @@ do:
 
 ---
 
+## The HTTP interface
+
+Nexview has one HTTP interface, and the web interface uses it too. Anyone who can reach
+your instance can call it — the endpoints themselves are protected, but the map is open:
+the browsable documentation lives at `/docs`, the machine-readable version at
+`/openapi.json`.
+
+### API tokens
+
+Scripts, dashboards and anything else that talks to Nexview without a browser use a
+personal API token. You create one in **Profile → Account → Security**, and it is shown
+exactly once — afterwards only a checksum remains, and not even an administrator can look
+it up.
+
+```bash
+curl -H "Authorization: Bearer nxv_…" https://your-nexview/api/v1/requests/mine
+```
+
+**A token has exactly the rights of the account it belongs to** — no more. Role, quota,
+approval and blocklist apply to it just as they apply to its owner, so a token belonging
+to an ordinary account still goes through approval instead of around it. If you want a
+service account with few rights, create a *user* with those rights and give it a token.
+
+One switch on top: **may only read**. Such a token can fetch data but not create, change
+or delete anything — right for dashboards and monitoring.
+
+Tokens can carry an expiry date, the list shows when each was last used, and revoking one
+takes effect immediately. Child accounts do not get tokens.
+
+Administrators see every token in the installation under **Settings → System → API
+tokens** — owner, name, age and last use. They can look, not revoke: only the owner
+switches off their own token. Deactivating an account locks its tokens along with it.
+
+### What is promised, and what is not
+
+Thirteen endpoints live under **`/api/v1`**, and for those there is a promise: as long as
+`v1` is in the address, nothing disappears from their answers. If something has to break,
+`/api/v2` will appear beside it and v1 will keep running.
+
+| | |
+| --- | --- |
+| `GET /api/v1/search/{media_type}` | find a title |
+| `GET /api/v1/media/{media_type}/{tmdb_id}` | details for one |
+| `POST /api/v1/requests` | request it |
+| `GET /api/v1/requests/mine` | how your own requests are doing |
+| `GET /api/v1/requests/quota` | how much you may still request |
+| `POST /api/v1/requests/{id}/cancel` | withdraw one |
+| `GET /api/v1/home/recent` | what was recently downloaded |
+| `GET /api/v1/tickets/open-count` | open tickets |
+| `GET /api/v1/admin/requests/pending/count` | requests waiting for approval |
+| `GET /api/v1/notifications/unread/count` | unread notifications |
+| `GET /api/v1/storage/me` | your own storage use |
+| `GET /api/v1/about` | which version is running |
+| `GET /api/v1/health` | whether it is up |
+
+**Everything else under `/api/…` is an inside part of the application.** You may use it,
+but it can change with any version — field names included. Nothing there is promised.
+
+⚠️ `GET /api/v1/home/recent` also carries `requested_by` and `requester_avatar`. Putting
+that on a dashboard shows **who asked for what**. In a household that is usually the point;
+on a screen other people see, it may not be.
+
 ## Development
 
 **Requirements:** Python 3.12+ and Node.js 20+

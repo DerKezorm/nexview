@@ -42,6 +42,10 @@ KINDER_ERLAUBT = {
     # "/api/setup/admin": Beide sind zu, sobald **ein** Konto existiert - und
     # ein Kinderkonto kann es vorher gar nicht geben, denn Kinder sind
     # Unterprofile ihrer Eltern. Ein Achtjaehriger sieht damit also nichts.
+    # Die zugesagte Schnittstelle kennt nur einen Pfad ohne Anmeldung: die
+    # Frage, ob Nexview laeuft. Alles andere unter /api/v1 haengt an
+    # NUR_ERWACHSENE - siehe main.py.
+    "/api/v1/health",
     "/api/setup/sicherung/pruefen",
     "/api/setup/sicherung/einspielen",
     "/api/users/avatar/{name}",
@@ -136,6 +140,29 @@ def test_kind_kommt_nirgends_hin_wo_es_nicht_hingehoert(admin_client: TestClient
     # Und die Verwaltungsseiten sowieso.
     for pfad in ("/api/users", "/api/settings", "/api/logs", "/api/admin/requests"):
         assert admin_client.get(pfad, headers=kopf).status_code == 403, pfad
+
+    # ⚠️ **Und die zugesagte Schnittstelle, mit denselben Handlern.**
+    #
+    # Der Schutz haengt bei Nexview am Einhaengen des Routers, nicht am
+    # Handler. Eine zweite Registrierung derselben Funktion unter einer
+    # anderen Adresse kommt also daran **vorbei**, wenn man es vergisst -
+    # genau das ist beim ersten Anlauf von /api/v1 passiert. Der Test darueber
+    # hat es gefunden; dieser hier weist nach, dass die Behebung wirkt.
+    for pfad in (
+        "/api/v1/requests/mine",
+        "/api/v1/requests/quota",
+        "/api/v1/storage/me",
+        "/api/v1/home/recent",
+        "/api/v1/about",
+        "/api/v1/search/movie?q=test",
+        "/api/v1/tickets/open-count",
+        "/api/v1/notifications/unread/count",
+    ):
+        antwort = admin_client.get(pfad, headers=kopf)
+        assert antwort.status_code == 403, f"{pfad} -> {antwort.status_code}"
+
+    # Nur die Frage "laeufst du noch" steht offen - wie /api/health.
+    assert admin_client.get("/api/v1/health", headers=kopf).status_code == 200
 
 
 def test_kind_darf_sein_passwort_nicht_selbst_setzen(admin_client: TestClient) -> None:

@@ -56,3 +56,8 @@ ds-bundle/
 frontend/.e2e-data/
 frontend/playwright-report/
 frontend/test-results/
+# ⚠️ Auch im Wurzelverzeichnis: Wird Playwright versehentlich von dort statt
+# aus frontend/ gestartet, legt es seine Ausgabe hier ab - und die Regeln oben
+# greifen dann nicht. Einmal war .last-run.json schon im Commit.
+playwright-report/
+test-results/

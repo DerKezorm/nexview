@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile, status
 from pydantic import BaseModel, Field
@@ -10,7 +11,7 @@ from sqlalchemy import func, select
 
 from ..deps import AdultUser, CurrentUser, DbSession
 from ..models import User, utcnow
-from ..services import accounts, anmeldebremse, avatars, mail, sitzung, tokens
+from ..services import accounts, anmeldebremse, api_schluessel, avatars, mail, sitzung, tokens
 from ..services.settings_service import load_settings
 from .. import meldungen
 from ..schemas import (
@@ -357,6 +358,92 @@ def change_own_password(
 
     logger.info("User %r changed their password; other sessions were ended", user.username)
     return sitzung.starten(response, request, user)
+
+
+# ---------------------------------------------------------------------------
+# Persoenliche Zugriffs-Schluessel
+# ---------------------------------------------------------------------------
+
+
+class SchluesselPublic(BaseModel):
+    """Ein Schluessel, wie ihn die Liste zeigt - **nie** mit dem Klartext."""
+
+    id: int
+    name: str
+    vorschau: str
+    nur_lesen: bool
+    created_at: datetime
+    expires_at: datetime | None
+    last_used_at: datetime | None
+
+
+class SchluesselNeu(SchluesselPublic):
+    """Nur bei der Antwort aufs Anlegen: **einmalig** der Klartext.
+
+    ⚠️ Ein eigener Typ und nicht ein zusaetzliches Feld am gewoehnlichen: So
+    kann der Klartext gar nicht versehentlich in einer Liste landen.
+    """
+
+    schluessel: str
+
+
+class SchluesselAnlegen(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    nur_lesen: bool = False
+    #: ``None`` = gilt bis zum Widerruf.
+    tage: int | None = Field(default=None, ge=1, le=3650)
+
+
+def _als_public(eintrag) -> SchluesselPublic:
+    return SchluesselPublic(
+        id=eintrag.id,
+        name=eintrag.name,
+        vorschau=eintrag.vorschau,
+        nur_lesen=eintrag.nur_lesen,
+        created_at=eintrag.created_at,
+        expires_at=eintrag.expires_at,
+        last_used_at=eintrag.last_used_at,
+    )
+
+
+@router.get("/me/schluessel", response_model=list[SchluesselPublic])
+def schluessel_liste(user: AdultUser, db: DbSession) -> list[SchluesselPublic]:
+    """Die eigenen Zugriffs-Schluessel."""
+    return [_als_public(e) for e in api_schluessel.liste(db, user)]
+
+
+@router.post("/me/schluessel", response_model=SchluesselNeu, status_code=status.HTTP_201_CREATED)
+def schluessel_anlegen(
+    payload: SchluesselAnlegen, user: AdultUser, db: DbSession
+) -> SchluesselNeu:
+    """Einen Zugriffs-Schluessel erzeugen.
+
+    ⚠️ **Der Klartext steht nur in dieser einen Antwort.** Danach gibt es ihn
+    nirgends mehr - auch der Administrator kann ihn nicht nachschlagen.
+    """
+    try:
+        eintrag, klartext = api_schluessel.anlegen(
+            db, user, name=payload.name, nur_lesen=payload.nur_lesen, tage=payload.tage
+        )
+    except api_schluessel.SchluesselFehler as fehler:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=meldungen.meldung(fehler.code, fehler.text),
+        ) from fehler
+
+    return SchluesselNeu(**_als_public(eintrag).model_dump(), schluessel=klartext)
+
+
+@router.delete("/me/schluessel/{schluessel_id}", status_code=status.HTTP_204_NO_CONTENT)
+def schluessel_widerrufen(schluessel_id: int, user: AdultUser, db: DbSession) -> None:
+    """Einen eigenen Schluessel entfernen - ab sofort geht damit nichts mehr."""
+    try:
+        api_schluessel.widerrufen(db, user, schluessel_id)
+    except api_schluessel.SchluesselFehler as fehler:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=meldungen.meldung(fehler.code, fehler.text),
+        ) from fehler
 
 
 @router.post("/me/ueberall-abmelden", response_model=TokenPair)

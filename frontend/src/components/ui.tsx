@@ -3,6 +3,19 @@
 import type { ComponentPropsWithRef, InputHTMLAttributes, ReactNode } from 'react'
 import { useId } from 'react'
 
+/**
+ * Der Stil eines Auswahlfelds - einmal, fuer alle.
+ *
+ * ⚠️ **Steht hier, weil dieselbe Zeile neunmal in der Anwendung stand.** Genau
+ * daran krankte vorher schon der Rahmen der Einstellungsblöcke: Kopien laufen
+ * auseinander, sobald jemand eine davon anfasst, und niemand kann hinterher
+ * sagen, welche die richtige war. Neue Auswahlfelder nehmen diese Konstante;
+ * die verbliebenen Kopien wandern nach, wenn ihre Datei ohnehin drankommt.
+ */
+export const AUSWAHL =
+  'rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100 focus:border-accent-500 focus:outline-none disabled:opacity-50'
+
+
 // ComponentPropsWithRef statt ButtonHTMLAttributes: so lässt sich der Knopf
 // von außen ansprechen (z. B. um ihn in einem Dialog zu fokussieren).
 type ButtonProps = ComponentPropsWithRef<'button'> & {

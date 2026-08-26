@@ -139,6 +139,11 @@ test('⚠️ „Überall abmelden" entwertet auch ein abgegriffenes Cookie', asy
   expect(kopie, 'Kein Sitzungs-Cookie zum Kopieren.').toBeTruthy()
 
   await page.goto('/profil')
+  // ⚠️ Seit 0.22 liegt der Knopf eine Ebene tiefer: „Konto" hat ein
+  // Untermenue bekommen, und „Ueberall abmelden" steht unter „Sicherheit".
+  // Ohne diesen Klick findet der Test den Knopf nicht - und das waere ein
+  // Testfehler, der wie eine kaputte Funktion aussieht.
+  await page.getByRole('tab', { name: 'Security' }).click()
   await page.getByRole('button', { name: 'Sign out everywhere' }).click()
   await page.getByRole('button', { name: 'Sign out everywhere' }).last().click()
   await expect(page.getByText(/all other devices have been signed out/i)).toBeVisible()

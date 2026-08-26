@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import func, select
 
 from ..deps import AdminUser, DbSession
-from ..models import AuthToken, Role, TokenPurpose, User, utcnow
+from ..models import ApiKey, AuthToken, Role, TokenPurpose, User, utcnow
 from pydantic import BaseModel
 
 from ..schemas import (
@@ -106,6 +107,61 @@ def list_users(admin: AdminUser, db: DbSession) -> list[UserWithUsage]:
     return [
         _mit_verbrauch(db, user)
         for user in db.scalars(select(User).order_by(User.created_at))
+    ]
+
+
+class SchluesselZeile(BaseModel):
+    """Ein Zugriffs-Schluessel in der Aufsicht des Administrators.
+
+    ⚠️ **Ohne den Schluessel selbst** - der existiert nur einmal, beim Anlegen.
+    Ein Administrator soll sehen, *dass* es ihn gibt und ob er noch benutzt
+    wird; lesen kann er ihn nicht. Das ist der Unterschied zwischen Aufsicht
+    und Zugriff.
+    """
+
+    id: int
+    user_id: int
+    username: str
+    name: str
+    vorschau: str
+    nur_lesen: bool
+    created_at: datetime
+    expires_at: datetime | None
+    last_used_at: datetime | None
+
+
+@router.get("/api-schluessel", response_model=list[SchluesselZeile])
+def alle_schluessel(admin: AdminUser, db: DbSession) -> list[SchluesselZeile]:
+    """Alle Zugriffs-Schluessel der Installation - wer hat welche, seit wann.
+
+    ⚠️ **Vor den ``/{user_id}``-Pfaden eingetragen.** FastAPI vergleicht in der
+    Reihenfolge der Definition; stuende das hier weiter unten, versuchte es
+    "api-schluessel" als Benutzernummer zu lesen.
+
+    Widerrufen kann der Administrator sie **nicht** - noch nicht. Das haengt am
+    geschuetzten Betreiberkonto: Ohne das koennte ein ernannter Administrator
+    die Schluessel dessen abschalten, der die Anwendung betreibt. Als grobe
+    Notbremse bleibt heute, das Konto stillzulegen; das sperrt seine Schluessel
+    automatisch mit.
+    """
+    zeilen = db.scalars(
+        select(ApiKey).join(User, ApiKey.user_id == User.id).order_by(
+            User.username, ApiKey.created_at.desc()
+        )
+    )
+    return [
+        SchluesselZeile(
+            id=z.id,
+            user_id=z.user_id,
+            username=z.user.username,
+            name=z.name,
+            vorschau=z.vorschau,
+            nur_lesen=z.nur_lesen,
+            created_at=z.created_at,
+            expires_at=z.expires_at,
+            last_used_at=z.last_used_at,
+        )
+        for z in zeilen
     ]
 
 

@@ -42,6 +42,17 @@ const SYMBOLE = {
     { d: 'M10.5 11.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z' },
     { d: 'M19 20v-1.5a3.5 3.5 0 0 0-2.6-3.4M15 5.2a3.25 3.25 0 0 1 0 6.1' },
   ],
+  /**
+   * Ein Kinderkonto - die kleine Figur.
+   *
+   * Bewusst nicht dasselbe wie ``benutzer``: Dort stehen mehrere Personen
+   * nebeneinander, hier eine einzelne und kleiner. Nebeneinander in einer
+   * Reihe muss man die beiden auf einen Blick auseinanderhalten koennen.
+   */
+  kind: [
+    { d: 'M12 11.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z' },
+    { d: 'M17 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-3A3.5 3.5 0 0 0 7 18.5V20' },
+  ],
   /** Vorgemerkt - das Lesezeichen. */
   merkliste: [{ d: 'M6.5 4h11a1 1 0 0 1 1 1v15l-6.5-4-6.5 4V5a1 1 0 0 1 1-1Z' }],
   /** Wie viel darf jemand - die Anzeige. */
@@ -75,6 +86,29 @@ const SYMBOLE = {
     { d: 'M12 8.2c3.9 0 7-1.05 7-2.35S15.9 3.5 12 3.5 5 4.55 5 5.85 8.1 8.2 12 8.2Z' },
     { d: 'M19 5.85v12.3c0 1.3-3.1 2.35-7 2.35s-7-1.05-7-2.35V5.85' },
     { d: 'M5 12c0 1.3 3.1 2.35 7 2.35s7-1.05 7-2.35' },
+  ],
+  /**
+   * Zugang - der Schluessel.
+   *
+   * Fuer alles, was darueber entscheidet, **wer hereinkommt**: Passwort,
+   * angemeldete Geraete, API-Token. Bewusst nicht das Schloss aus ``sperre``
+   * - das steht fuer "kommt nicht durch" und meint das Gegenteil.
+   */
+  schluessel: [
+    { d: 'M14.5 9.5a3.5 3.5 0 1 1 0 5 3.5 3.5 0 0 1 0-5Z' },
+    { d: 'M11.4 12H3.5M6 12v3M9 12v2.5' },
+  ],
+  /**
+   * Sprache und Region - die Kugel.
+   *
+   * Dieselbe Zeichnung wie ``adresse``, unter eigenem Namen: Dort steht sie
+   * fuer Erreichbarkeit, hier fuer "wo bin ich, welche Sprache". Sie stehen
+   * nie nebeneinander, und ein Name je Bedeutung haelt die Liste lesbar.
+   */
+  sprache: [
+    { d: 'M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17Z' },
+    { d: 'M3.5 12h17' },
+    { d: 'M12 3.5c2.2 2.3 3.4 5.3 3.4 8.5s-1.2 6.2-3.4 8.5c-2.2-2.3-3.4-5.3-3.4-8.5S9.8 5.8 12 3.5Z' },
   ],
   /** Grundsaetzliches - die Regler. */
   allgemein: [

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import User
 from .security import decode_token
-from .services import logs, sitzung
+from .services import api_schluessel, logs, sitzung
 from . import meldungen
 
 _bearer = HTTPBearer(auto_error=False)
@@ -21,6 +21,7 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 
 def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
     db: DbSession,
 ) -> User:
@@ -31,6 +32,12 @@ def get_current_user(
     )
     if credentials is None:
         raise unauthorized
+
+    # ⚠️ **Zwei Wege, eine Tuer.** Neben dem Sitzungs-Token der Oberflaeche
+    # darf hier auch ein persoenlicher Zugriffs-Schluessel stehen. Welcher es
+    # ist, verraet das Praefix - ohne Datenbank und ohne Raten.
+    if api_schluessel.sieht_aus_wie_schluessel(credentials.credentials):
+        return _mit_schluessel(request, credentials.credentials, db, unauthorized)
 
     inhalt = decode_token(credentials.credentials, "access")
     if inhalt is None:
@@ -49,6 +56,35 @@ def get_current_user(
     # Ab hier steht in jeder Protokollzeile dieser Anfrage, wer sie gestellt hat.
     logs.set_actor(user.username)
     return user
+
+
+def _mit_schluessel(
+    request: Request, klartext: str, db: Session, unauthorized: HTTPException
+) -> User:
+    """Anmeldung ueber einen persoenlichen Zugriffs-Schluessel."""
+    eintrag = api_schluessel.einloesen(db, klartext)
+    if eintrag is None:
+        raise unauthorized
+
+    # ⚠️ **Die Sperre steht hier, nicht in den einzelnen Routern.** Ein
+    # Schluessel mit "nur lesen" darf keine veraendernde Anfrage stellen, und
+    # das muss an **einer** Stelle gelten - sonst ist die naechste Route, die
+    # jemand vergisst, ein Loch.
+    if not api_schluessel.darf(eintrag, request.method):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=meldungen.meldung(
+                "apikey_read_only",
+                "Dieser Schluessel darf nur lesen.",
+            ),
+        )
+
+    # In jeder Protokollzeile steht damit **welcher** Schluessel es war, nicht
+    # nur wer sein Besitzer ist. Ohne das liesse sich hinterher nicht sagen,
+    # welche Anbindung etwas getan hat - genau der Mangel, den Seerrs einzelner
+    # Schluessel hat.
+    logs.set_actor(f"{eintrag.user.username} [{eintrag.name}]")
+    return eintrag.user
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

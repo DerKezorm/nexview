@@ -12,16 +12,19 @@ import { useAuth } from '../auth/useAuth'
 import { Avatar } from '../components/Avatar'
 import { Fenster } from '../components/Fenster'
 import { MediaServerLogo } from '../components/MediaServerLogo'
-import { Button, Card, ErrorBanner, Field } from '../components/ui'
+import { Reiterreihe, type Reiter } from '../components/Reiterreihe'
+import { Button, Card, ErrorBanner, Field, Section } from '../components/ui'
 import { providerName } from '../lib/mediaserver'
 import { useConfig } from '../hooks/useConfig'
 import { changeLanguage as spracheAnwenden } from '../i18n'
 import type { Language } from '../i18n'
 import { istTheme, themeAnwenden } from '../lib/theme'
 import type { Theme } from '../lib/theme'
+import { Darstellung } from './profile/Darstellung'
 import { SpracheUndRegion } from './profile/SpracheUndRegion'
 import { StreamingDienste } from './profile/StreamingDienste'
 import { Kinder } from './profile/Kinder'
+import { ApiSchluessel } from './profile/ApiSchluessel'
 import { KontoLoeschen } from './profile/KontoLoeschen'
 import { MediaServerLink } from './profile/MediaServerLink'
 import { WatchlistPlex } from './profile/WatchlistPlex'
@@ -35,6 +38,25 @@ import { StorageMine } from './profile/StorageMine'
  * nur noch durch Scrollen findet. Aufgeteilt wie die Einstellungen des
  * Administrators, damit beide Seiten sich gleich anfühlen.
  */
+/**
+ * Das Untermenü unter „Konto".
+ *
+ * ⚠️ **Drei Reiter statt einer langen Seite.** „Konto" trug zuletzt sechs
+ * Blöcke untereinander - Profilbild, Name, E-Mail, Sprache, Passwort und ganz
+ * unten die API-Token. Der wichtigste Neuzugang lag damit am weitesten unten,
+ * hinter allem, was man selten anfasst.
+ *
+ * Aufgeteilt nach der Frage, warum man herkommt: **wer bin ich** (Profil),
+ * **wer kommt an mein Konto** (Sicherheit), **was verstehe ich** (Sprache).
+ *
+ * Sprache und Region hatten früher schon einmal einen eigenen Reiter und sind
+ * damals in „Konto" aufgegangen, weil sie allein zu dünn waren. Das ist kein
+ * Rückschritt dorthin: Damals wären es *obere* Reiter gewesen, gleichrangig
+ * mit „Benachrichtigungen"; hier hängen sie eine Ebene tiefer unter „Konto"
+ * und kosten die Hauptreihe keinen Platz.
+ */
+type KontoReiter = 'profil' | 'sicherheit' | 'sprache'
+
 type Tab =
   | 'account'
   | 'notifications'
@@ -71,6 +93,18 @@ export function ProfilePage() {
   }
   const gewuenschterReiter = REITER_AUS_ADRESSE[suchparameter.get('reiter') ?? '']
   const [tab, setTab] = useState<Tab>(gewuenschterReiter ?? 'account')
+
+  // Die alten Adressen ``?reiter=sprache`` und ``?reiter=sicherheit`` zeigten
+  // auf „Konto", seit die beiden dort aufgegangen waren. Jetzt gibt es sie
+  // wieder - also landen sie auch wieder dort, statt oben auf „Profil".
+  const UNTERREITER_AUS_ADRESSE: Record<string, KontoReiter> = {
+    sprache: 'sprache',
+    sicherheit: 'sicherheit',
+    token: 'sicherheit',
+  }
+  const [kontoReiter, setKontoReiter] = useState<KontoReiter>(
+    UNTERREITER_AUS_ADRESSE[suchparameter.get('reiter') ?? ''] ?? 'profil',
+  )
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
@@ -269,16 +303,24 @@ export function ProfilePage() {
     sprache !== user.language ||
     darstellung !== user.theme
 
-  const tabs: { value: Tab; labelKey: string }[] = [
-    { value: 'account', labelKey: 'profile.tabAccount' },
-    { value: 'notifications', labelKey: 'profile.tabNotifications' },
+  // ⚠️ Dieselbe Reiterreihe wie unter „System" - bis eben zeichnete diese
+  // Seite ihre Reihe selbst, ohne Symbole. Die Klassen stimmten zwar zufaellig
+  // ueberein, aber die Symbole fehlten, und ein Untermenue mit Symbolen unter
+  // einer Reihe ohne haette den Unterschied erst recht sichtbar gemacht.
+  const tabs: Reiter<Tab>[] = [
+    { value: 'account', label: t('profile.tabAccount'), symbol: 'benutzer' },
+    { value: 'notifications', label: t('profile.tabNotifications'), symbol: 'glocke' },
   ]
   // Kein Schalter beim Betreiber und keine Bedingung: Wer nichts anhakt,
   // bekommt nie einen Hinweis, und dann kostet der Reiter auch nichts. Ein
   // Kinderkonto hat keine eigenen Abos - es guckt ueber die seiner Eltern,
   // und dort erscheint der Hinweis auch.
   if (user.role !== 'child') {
-    tabs.splice(2, 0, { value: 'streaming', labelKey: 'profile.tabStreaming' })
+    tabs.splice(2, 0, {
+      value: 'streaming',
+      label: t('profile.tabStreaming'),
+      symbol: 'dienste',
+    })
   }
   // ⚠️ Ein eigener Reiter, nicht mehr unten unter „Sicherheit".
   //
@@ -291,22 +333,26 @@ export function ProfilePage() {
     (config?.mediaserver_providers ?? []).length > 0 ||
     (user.mediaserver_accounts ?? []).length > 0
   ) {
-    tabs.push({ value: 'mediaserver', labelKey: 'profile.tabMediaServer' })
+    tabs.push({
+      value: 'mediaserver',
+      label: t('profile.tabMediaServer'),
+      symbol: 'medienserver',
+    })
   }
   // Nur wenn der Administrator die Merkliste freigeschaltet hat - sonst
   // stünde dort ein Reiter, hinter dem es nichts geben kann.
   if (config?.watchlist_enabled) {
-    tabs.push({ value: 'watchlist', labelKey: 'profile.tabWatchlist' })
+    tabs.push({ value: 'watchlist', label: t('profile.tabWatchlist'), symbol: 'merkliste' })
   }
   // Der Reiter steht immer da: Gemessen wird immer, und wer wissen will, was
   // er belegt, soll es auch dann sehen, wenn ihn gerade niemand begrenzt.
-  tabs.push({ value: 'storage', labelKey: 'profile.tabStorage' })
+  tabs.push({ value: 'storage', label: t('profile.tabStorage'), symbol: 'kontingent' })
   // Der Reiter erscheint **auch ohne Freigabe**. Wer nicht weiß, dass es
   // Kinderkonten gibt, fragt auch nicht danach; statt einer leeren Seite steht
   // dort dann, was die Funktion kann - und ein Knopf, der sie beantragt.
   // Nur für Kinderkonten selbst gibt es ihn nicht.
   if (user.role !== 'child') {
-    tabs.push({ value: 'children', labelKey: 'profile.tabChildren' })
+    tabs.push({ value: 'children', label: t('profile.tabChildren'), symbol: 'kind' })
   }
 
   // Ueberschrift und Reiterreihe bekommen **immer** die volle Breite, nur der
@@ -331,33 +377,40 @@ export function ProfilePage() {
         <p className="mt-1.5 text-mist-500">{t('profile.intro')}</p>
       </header>
 
-      <div className="flex flex-wrap gap-2" role="tablist">
-        {tabs.map((entry) => (
-          <button
-            key={entry.value}
-            type="button"
-            role="tab"
-            aria-selected={tab === entry.value}
-            onClick={() => {
-              setTab(entry.value)
-              // Die Adresse nicht stehen lassen - sonst spränge ein Neuladen
-              // zurück auf den Reiter aus dem Link.
-              if (suchparameter.has('reiter')) setSuchparameter({}, { replace: true })
-              // Eine Erfolgsmeldung vom vorherigen Reiter hätte hier keinen
-              // Bezug mehr - sie würde nur verwirren.
-              reset()
-            }}
-            className={
-              'rounded-full border px-4 py-2 text-sm font-medium transition-colors ' +
-              (tab === entry.value
-                ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
-                : 'border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100')
-            }
-          >
-            {t(entry.labelKey)}
-          </button>
-        ))}
-      </div>
+      <Reiterreihe
+        eintraege={tabs}
+        aktiv={tab}
+        onWechsel={(wert) => {
+          setTab(wert)
+          // Die Adresse nicht stehen lassen - sonst spränge ein Neuladen
+          // zurück auf den Reiter aus dem Link.
+          if (suchparameter.has('reiter')) setSuchparameter({}, { replace: true })
+          // Eine Erfolgsmeldung vom vorherigen Reiter hätte hier keinen
+          // Bezug mehr - sie würde nur verwirren.
+          reset()
+        }}
+      />
+
+      {/* Das Untermenü erscheint nur unter „Konto". Eine Reihe, die bei jedem
+          Reiter dasteht und meistens nichts mit ihm zu tun hat, ist keine
+          Navigation, sondern Zierde. */}
+      {tab === 'account' && (
+        <Reiterreihe
+          unter
+          label={t('profile.tabAccount')}
+          eintraege={[
+            { value: 'profil', label: t('profile.tabProfile'), symbol: 'benutzer' },
+            { value: 'sicherheit', label: t('profile.tabSecurity'), symbol: 'schluessel' },
+            { value: 'sprache', label: t('profile.tabDiscover'), symbol: 'sprache' },
+          ]}
+          aktiv={kontoReiter}
+          onWechsel={(wert) => {
+            setKontoReiter(wert)
+            if (suchparameter.has('reiter')) setSuchparameter({}, { replace: true })
+            reset()
+          }}
+        />
+      )}
 
       <div className={'flex flex-col gap-6 ' + (schmal ? 'max-w-2xl' : '')}>
       {error && <ErrorBanner message={error} />}
@@ -369,10 +422,16 @@ export function ProfilePage() {
 
       {tab === 'account' && (
         <div className="flex flex-col gap-4">
+          {/* --- Profil: wer bin ich ------------------------------------- */}
           {/* Zwei echte Spalten statt eines Rasters: Ein Raster richtet
               **zeilenweise** aus, und die kurze Karte links erbte dann die
-              Höhe der langen rechts - zwischen Profilbild und Sprache klaffte
-              eine Lücke, für die es keinen Grund gab. */}
+              Höhe der langen rechts - zwischen den Karten klaffte eine Lücke,
+              für die es keinen Grund gab.
+
+              ⚠️ Die E-Mail steht **rechts**, nicht unter dem Namen. Seit die
+              Sprache einen eigenen Reiter hat, trüge die rechte Spalte sonst
+              nur ein einziges Auswahlfeld gegen drei hohe Karten links. */}
+          {kontoReiter === 'profil' && (
           <div className="grid items-start gap-4 lg:grid-cols-2">
             <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-4">
@@ -436,6 +495,9 @@ export function ProfilePage() {
             />
           </Card>
 
+            </div>
+
+            <div className="flex flex-col gap-4">
           <Card className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-semibold">{t('profile.email')}</h2>
@@ -473,67 +535,108 @@ export function ProfilePage() {
               )}
             </div>
           </Card>
-            </div>
 
-            <div className="flex flex-col gap-4">
-          <Card className="flex flex-col gap-4">
-            <SpracheUndRegion
-              region={region}
-              setRegion={setRegion}
-              sprache={sprache}
-              setSprache={setSprache}
-              darstellung={darstellung}
-              setDarstellung={setDarstellung}
-              alter={user.age}
-              disabled={speichern.isPending}
-            />
-          </Card>
-
+              <Card className="flex flex-col gap-4">
+                <Darstellung
+                  darstellung={darstellung}
+                  setDarstellung={setDarstellung}
+                  disabled={speichern.isPending}
+                />
+              </Card>
             </div>
           </div>
+          )}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              onClick={() => speichern.mutate()}
-              loading={speichern.isPending}
-              disabled={!kontoGeaendert}
-            >
-              {t('common.save')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                reset()
-                setCurrentPassword('')
-                setNewPassword('')
-                setRepeatPassword('')
-                setPasswortOffen(true)
-              }}
-            >
-              {t('profile.changePassword')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                reset()
-                setAbmeldenOffen(true)
-              }}
-            >
-              {t('profile.signOutEverywhere')}
-            </Button>
-            {kontoGeaendert && !speichern.isPending && (
-              <span className="text-sm text-mist-600">{t('common.unsaved')}</span>
-            )}
-          </div>
+          {/* --- Sprache: was verstehe ich ------------------------------- */}
+          {kontoReiter === 'sprache' && (
+            <Card className="flex flex-col gap-4">
+              <SpracheUndRegion
+                region={region}
+                setRegion={setRegion}
+                sprache={sprache}
+                setSprache={setSprache}
+                alter={user.age}
+                disabled={speichern.isPending}
+              />
+            </Card>
+          )}
 
-          {/* Der Antrag, das eigene Konto zu löschen - nicht für
-              Administratoren: die löschen direkt in der Benutzerverwaltung. */}
-          {user.role !== 'admin' && (
+          {/* ⚠️ **Ein Speichern-Knopf für beide Reiter, nicht zwei.**
+              Gespeichert wird alles zusammen - Name, E-Mail, Darstellung,
+              Sprache und Region gehen in denselben Aufruf. Die Eingaben
+              überleben den Reiterwechsel, weil sie im Zustand dieser Seite
+              stehen und nicht im Reiter: Wer die Sprache ändert, zu „Profil"
+              wechselt und dort speichert, verliert nichts.
 
-            <KontoLoeschen />
+              Deshalb steht der Hinweis „nicht gespeichert" auch auf beiden
+              Reitern - er meint die ganze Seite, nicht den sichtbaren Teil. */}
+          {kontoReiter !== 'sicherheit' && (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                onClick={() => speichern.mutate()}
+                loading={speichern.isPending}
+                disabled={!kontoGeaendert}
+              >
+                {t('common.save')}
+              </Button>
+              {kontoGeaendert && !speichern.isPending && (
+                <span className="text-sm text-mist-600">{t('common.unsaved')}</span>
+              )}
+            </div>
+          )}
+
+          {/* --- Sicherheit: wer kommt an mein Konto --------------------- */}
+          {kontoReiter === 'sicherheit' && (
+            <>
+              {/* ⚠️ **Dasselbe Bauteil wie die API-Token darunter**, nicht eine
+                  eigene Karte mit eigener Breite. Vorher war diese hier
+                  ``max-w-2xl`` und die Token-Sektion ging über die volle
+                  Breite - zwei Blöcke untereinander, zwei Kanten, und keinen
+                  Grund dafür, den man hätte benennen können. */}
+              <Section title={t('profile.tabSecurity')} breit>
+                <p className="-mt-2 text-sm leading-relaxed text-mist-500">
+                  {t('profile.securityIntro')}
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      reset()
+                      setCurrentPassword('')
+                      setNewPassword('')
+                      setRepeatPassword('')
+                      setPasswortOffen(true)
+                    }}
+                  >
+                    {t('profile.changePassword')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      reset()
+                      setAbmeldenOffen(true)
+                    }}
+                  >
+                    {t('profile.signOutEverywhere')}
+                  </Button>
+                </div>
+              </Section>
+
+              {/* API-Token für die HTTP-Schnittstelle. Steht hier und nicht in
+                  den Einstellungen, weil ein Token **einem Konto** gehört und
+                  dessen Rechte erbt - er ist persönlich, kein Instanz-Zugang. */}
+              {user.role !== 'child' && <ApiSchluessel />}
+
+              {/* Der Antrag, das eigene Konto zu löschen - nicht für
+                  Administratoren: die löschen direkt in der Benutzerverwaltung.
+                  Steht unter „Sicherheit", weil es dieselbe Frage beantwortet
+                  wie alles andere hier: wer hat Zugang zu diesem Konto - und
+                  soll es überhaupt weiter geben. */}
+              {user.role !== 'admin' && <KontoLoeschen />}
+            </>
           )}
 
           <ConfirmDialog

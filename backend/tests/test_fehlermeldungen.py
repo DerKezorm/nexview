@@ -67,7 +67,8 @@ def _kennungen_im_backend() -> set[str]:
         # entgeht dem Waechter jede Kennung, die nicht direkt an
         # ``meldungen.meldung`` uebergeben wird - genau so ist beim
         # Sicherungs-Wiederherstellen eine Luecke entstanden.
-        gefunden.update(re.findall(r'SicherungFehler\(\s*\n?\s*"([a-z0-9_]+)"', text))
+        for klasse in ("SicherungFehler", "SchluesselFehler"):
+            gefunden.update(re.findall(klasse + r'\(\s*\n?\s*"([a-z0-9_]+)"', text))
     return gefunden
 
 

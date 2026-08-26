@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AdminAddressSettings } from './settings/AdminAddressSettings'
+import { AdminApiToken } from './settings/AdminApiToken'
 import { AdminChannelSettings } from './settings/AdminChannelSettings'
 import { AdminLogsSettings } from './settings/AdminLogsSettings'
 import { AdminSicherungen } from './settings/AdminSicherungen'
@@ -25,6 +26,7 @@ type Tab =
   | 'blocklist'
   | 'logs'
   | 'sicherungen'
+  | 'token'
 
 /**
  * Was unter „System" liegt.
@@ -43,6 +45,10 @@ const SYSTEM: Reiter<Tab>[] = [
   { value: 'mail', label: 'settings.tabMail', symbol: 'mail' },
   { value: 'logs', label: 'settings.tabLogs', symbol: 'protokoll' },
   { value: 'sicherungen', label: 'settings.tabBackups', symbol: 'sicherung' },
+  // Aufsicht, kein Alltag: Ein Administrator sieht hier, wer Token hat und ob
+  // sie noch benutzt werden. Deshalb steht es neben dem Protokoll und nicht
+  // bei den Benutzern - dort ginge es zwischen Rollen und Kontingenten unter.
+  { value: 'token', label: 'settings.tabTokens', symbol: 'schluessel' },
 ]
 
 const IM_SYSTEM = new Set<Tab>(SYSTEM.map((e) => e.value))
@@ -139,6 +145,7 @@ export function SettingsPage() {
       {tab === 'blocklist' && <AdminBlocklistSettings />}
       {tab === 'logs' && <AdminLogsSettings />}
       {tab === 'sicherungen' && <AdminSicherungen />}
+      {tab === 'token' && <AdminApiToken />}
     </div>
   )
 }

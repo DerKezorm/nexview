@@ -550,7 +550,9 @@
     "signOutEverywhere": "Überall abmelden",
     "signOutEverywhereText": "Beendet alle Anmeldungen dieses Kontos auf allen anderen Geräten. Hier bleibst du angemeldet.",
     "signOutEverywhereWarning": "Sinnvoll, wenn du vermutest, dass jemand anderes Zugriff hat. Dein Passwort bleibt unverändert – wenn jemand es kennt, ändere es zusätzlich.",
-    "signedOutEverywhere": "Alle anderen Geräte wurden abgemeldet."
+    "signedOutEverywhere": "Alle anderen Geräte wurden abgemeldet.",
+    "tabProfile": "Profil",
+    "securityIntro": "Wer kommt an dein Konto — und womit. Passwort, angemeldete Geräte und die Token, mit denen Programme in deinem Namen zugreifen."
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -889,7 +891,8 @@
     "tabChannels": "Benachrichtigungen",
     "tabStorage": "Kontingente",
     "tabBackups": "Sicherungen",
-    "tabSystem": "System"
+    "tabSystem": "System",
+    "tabTokens": "API-Token"
   },
   "errors": {
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
@@ -988,7 +991,12 @@
       "restore_backup_newer": "Diese Sicherung ist neuer als die laufende Fassung. Aktualisiere Nexview zuerst.",
       "restore_unknown_version": "Bei dieser Sicherung steht nicht dabei, aus welcher Fassung sie stammt.",
       "restore_incompatible": "Diese Sicherung passt nicht zur laufenden Fassung.",
-      "restore_files_busy": "Die Datenbank ist gerade noch in Benutzung. Bitte gleich noch einmal versuchen."
+      "restore_files_busy": "Die Datenbank ist gerade noch in Benutzung. Bitte gleich noch einmal versuchen.",
+      "apikey_not_for_children": "Kinderkonten bekommen keine Zugriffs-Schlüssel.",
+      "apikey_needs_name": "Gib dem Schlüssel einen Namen, damit du ihn später wiedererkennst.",
+      "apikey_too_many": "Mehr als 20 Schlüssel je Konto sind nicht vorgesehen.",
+      "apikey_unknown": "Diesen Schlüssel gibt es nicht.",
+      "apikey_read_only": "Dieser Schlüssel darf nur lesen."
     }
   },
   "language": {
@@ -2406,5 +2414,36 @@
     "open": "Wiederherstellen …",
     "adminIntro": "Ersetzt die laufende Installation durch den Stand aus einer Sicherung. **Alles, was seither passiert ist, geht dabei verloren.** Nexview legt vorher eine Sicherung des jetzigen Standes an.",
     "outsideWarning": "**Zurückgeholt wird nur Nexview.** Was inzwischen in Radarr, Sonarr oder auf dem Medienserver passiert ist, bleibt wie es ist — gelöschte Filme kommen nicht zurück. Der nächste Abgleich bringt Nexview mit der Wirklichkeit in Übereinstimmung und kann dabei Anfragen erneut stornieren, samt Benachrichtigungen."
+  },
+  "apikeys": {
+    "title": "API-Token",
+    "intro": "Für Skripte, Dashboards und alles, was Nexview ohne Browser ansprechen soll. **Ein Token hat genau deine Rechte** — nicht mehr. Er wird als `Authorization: Bearer …` mitgeschickt.",
+    "empty": "Noch kein Token angelegt.",
+    "create": "Token anlegen",
+    "nameLabel": "Wofür ist er?",
+    "nameHint": "Zum Beispiel „Homepage-Kachel“ oder „Sicherungs-Skript“. Hilft dir später beim Widerrufen.",
+    "readOnly": "Darf nur lesen",
+    "readOnlyHint": "Kann Daten abfragen, aber nichts anlegen, ändern oder löschen. Richtig für Dashboards und Überwachung.",
+    "createdTitle": "Token angelegt",
+    "onlyOnce": "**Jetzt kopieren.** Dieser Token wird nie wieder angezeigt — auch der Administrator kann ihn nicht nachschlagen. Verlierst du ihn, legst du einen neuen an.",
+    "howToUse": "Verwendung: als Kopfzeile `Authorization: Bearer <Token>` bei jeder Anfrage.",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "done": "Fertig",
+    "revoke": "Widerrufen",
+    "revokeTitle": "Token widerrufen",
+    "revokeWarning": "Ab sofort funktioniert er nicht mehr. Alles, was ihn benutzt, bleibt draußen.",
+    "lastUsed": "zuletzt {{when}}",
+    "neverUsed": "nie benutzt"
+  },
+  "adminTokens": {
+    "title": "API-Token in dieser Installation",
+    "intro": "Wer greift ohne Browser auf Nexview zu. **Ansehen, nicht widerrufen** — einen fremden Token abschalten kann heute nur sein Besitzer selbst. Wird ein Konto stillgelegt, sperren seine Token automatisch mit.",
+    "empty": "Niemand hat bisher einen Token angelegt.",
+    "owner": "Konto",
+    "name": "Token",
+    "created": "Angelegt",
+    "lastUsed": "Zuletzt benutzt",
+    "expires": "läuft ab am {{when}}"
   }
 }

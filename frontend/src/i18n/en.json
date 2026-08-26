@@ -550,7 +550,9 @@
     "signOutEverywhere": "Sign out everywhere",
     "signOutEverywhereText": "Ends every sign-in of this account on all other devices. You stay signed in here.",
     "signOutEverywhereWarning": "Useful when you suspect someone else has access. Your password stays as it is – if someone knows it, change that as well.",
-    "signedOutEverywhere": "All other devices have been signed out."
+    "signedOutEverywhere": "All other devices have been signed out.",
+    "tabProfile": "Profile",
+    "securityIntro": "Who gets into your account, and with what. Password, signed-in devices, and the tokens programs use on your behalf."
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -889,7 +891,8 @@
     "tabChannels": "Notifications",
     "tabStorage": "Quotas",
     "tabBackups": "Backups",
-    "tabSystem": "System"
+    "tabSystem": "System",
+    "tabTokens": "API tokens"
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",
@@ -988,7 +991,12 @@
       "restore_backup_newer": "This backup is newer than the running version. Update Nexview first.",
       "restore_unknown_version": "This backup does not say which version it came from.",
       "restore_incompatible": "This backup does not fit the running version.",
-      "restore_files_busy": "The database is still in use right now. Please try again in a moment."
+      "restore_files_busy": "The database is still in use right now. Please try again in a moment.",
+      "apikey_not_for_children": "Child accounts do not get access keys.",
+      "apikey_needs_name": "Give the key a name so you recognise it later.",
+      "apikey_too_many": "More than 20 keys per account is not supported.",
+      "apikey_unknown": "That key does not exist.",
+      "apikey_read_only": "This key may only read."
     }
   },
   "language": {
@@ -2406,5 +2414,36 @@
     "open": "Restore …",
     "adminIntro": "Replaces the running installation with the state from a backup. **Everything that happened since is lost.** Nexview writes a backup of the current state first.",
     "outsideWarning": "**Only Nexview is rolled back.** Whatever happened in Radarr, Sonarr or on the media server in the meantime stays as it is — deleted movies do not come back. The next sync brings Nexview in line with reality and may cancel requests again, notifications included."
+  },
+  "apikeys": {
+    "title": "API tokens",
+    "intro": "For scripts, dashboards and anything that talks to Nexview without a browser. **A token has exactly your permissions** — no more. Send it as `Authorization: Bearer …`.",
+    "empty": "No token created yet.",
+    "create": "Create token",
+    "nameLabel": "What is it for?",
+    "nameHint": "For example “home dashboard” or “backup script”. Helps you later when revoking.",
+    "readOnly": "May only read",
+    "readOnlyHint": "Can fetch data but not create, change or delete anything. Right for dashboards and monitoring.",
+    "createdTitle": "Token created",
+    "onlyOnce": "**Copy it now.** This token is never shown again — not even an administrator can look it up. If you lose it, create a new one.",
+    "howToUse": "Usage: send the header `Authorization: Bearer <token>` with every request.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "done": "Done",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke token",
+    "revokeWarning": "It stops working immediately. Anything using it is locked out.",
+    "lastUsed": "last used {{when}}",
+    "neverUsed": "never used"
+  },
+  "adminTokens": {
+    "title": "API tokens in this installation",
+    "intro": "Who reaches Nexview without a browser. **View only, no revoking** — today only the owner can switch off their own token. Deactivating an account locks its tokens along with it.",
+    "empty": "Nobody has created a token yet.",
+    "owner": "Account",
+    "name": "Token",
+    "created": "Created",
+    "lastUsed": "Last used",
+    "expires": "expires {{when}}"
   }
 }

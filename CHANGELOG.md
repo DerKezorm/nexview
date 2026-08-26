@@ -12,7 +12,7 @@ tag exists for it.
 
 ---
 
-## 0.22.0 – unreleased
+## 0.22.0 – 26.08.2026
 
 ### New
 

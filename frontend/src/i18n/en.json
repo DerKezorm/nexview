@@ -1745,6 +1745,46 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.22.0": {
+        "lead": "This release is about a question most people ask too late: **what happens when something breaks?** Nexview can now make backups you can download and take with you — and put them back, even on a fresh installation. On top of that comes an interface with a promise, so something other than a browser can finally talk to Nexview.",
+        "sections": [
+          {
+            "title": "Backups you can take with you",
+            "where": "Settings → System → Backups",
+            "body": "Nexview has always put a copy aside before every database change — but that copy sat in the same directory as the database. Lose the volume and it goes too.\n\nNow you can make one on demand, give it a note, and **download it**. What you get is an **encrypted ZIP** holding the database, the profile pictures and the key file `secret.key`. The key has to come along: your credentials for Radarr, Sonarr, TMDB and the mail server are encrypted with it, and without it they cannot be read again. That is why the archive needs a password — and why it is a plain AES ZIP rather than a format of our own. You can open it with 7-Zip, without Nexview.\n\n**Caches are stripped out.** Nine tenths of the database is stored TMDB answers and the library comparison — both of which Nexview fetches again by itself. That is why a backup is a few megabytes rather than a few hundred.\n\nOn a schedule too: daily, weekly or monthly, weekly by default. Automatic backups are marked as such, and you set how many are kept."
+          },
+          {
+            "title": "Restore — including on a fresh installation",
+            "where": "In the setup wizard, first question",
+            "body": "An empty installation now asks first: **start fresh, or restore from a backup?** Anyone moving house or coming back from an outage no longer has to walk the whole wizard and then rebuild everything by hand.\n\n**It checks first whether the backup even fits.** Nexview can only migrate its database forward, never back — so a backup from a *newer* version is refused rather than restored. That is not paternalism: restoring it would break the installation, and quietly.\n\nBefore restoring, Nexview saves a copy of the current state. And afterwards **every sign-in everywhere is ended** — including your own. That is deliberate: the accounts in the backup may not be the ones from a minute ago."
+          },
+          {
+            "title": "API tokens",
+            "where": "Profile → Account → Security",
+            "body": "For scripts, dashboards and anything that talks to Nexview without a browser. You create one, name it, and the plain text appears **exactly once** — afterwards only a checksum remains, and not even an administrator can look it up.\n\n**A token has exactly the rights of its account.** No more. Role, quota, approval and blocklist apply to it just as they apply to you. This is deliberately unlike Seerr, where a single global key is tied to the owner account and therefore gets everything auto-approved. If you want a service account with few rights, create a *user* with those rights and give it a token.\n\nOne switch on top: **may only read** — right for dashboards and monitoring. Tokens can expire, the list shows when each was last used, and revoking one takes effect immediately. Child accounts get none.\n\nAdministrators see under *Settings → System → API tokens* who holds which and whether they are still in use. **Look, do not revoke** — only the owner can do that."
+          },
+          {
+            "title": "A promise for developers: /api/v1",
+            "where": "Documentation at /docs",
+            "body": "Nexview has around 190 addresses, and nearly all of them are internal: the interface talks to the backend, both change together, and a field gets a different name tomorrow when the new one fits better. For anyone wiring something up from outside, that is unusable.\n\nSo **thirteen** addresses live under `/api/v1` — with a promise: as long as `v1` is in the address, nothing disappears from those answers. If something has to break, `/api/v2` appears **beside** it and v1 keeps running.\n\nThey cover what you actually do with such an interface: find something, request it, check what became of it, and a few numbers for a dashboard. **Everything else stays reachable** — just without the promise. Administration is deliberately excluded: promising it would mean freezing the configuration model."
+          },
+          {
+            "title": "Sign out everywhere",
+            "where": "Profile → Account → Security",
+            "body": "Ends every sign-in of this account on every device — including the one you are sitting at.\n\nThis closed a real hole: until now, signing out only worked in your own browser. If you had left your account open on someone else’s machine, there was nothing you could do about it; even a new password only helped against future sign-ins, not running ones."
+          },
+          {
+            "title": "Dissolving an account without collateral damage",
+            "where": "Settings → Users",
+            "body": "When an account was deleted, its already **approved** requests were cancelled along with it. In a household that is almost always wrong: the film has long since arrived, someone else watches it too, and the order vanished with the account.\n\nNow approved requests move into the **house collection** — they stay, just without an owner. Only what is still open gets cancelled. The preview before deleting says what will happen, instead of showing it afterwards."
+          },
+          {
+            "title": "Tidied up",
+            "where": "Settings and profile",
+            "body": "The settings bar had grown to ten entries and wrapped on narrow screens. *Address*, *Mail*, *Log* and *Backups* are pulled together under **System**, and every tab carries an icon.\n\nYour **profile** got a sub-menu: *Profile* (picture, name, email, light or dark), *Security* (password, signed-in devices, API tokens) and *Language*. Before, six blocks sat stacked on one page, and the most useful thing was furthest down.\n\nThe real cause lay deeper: there were **three** different implementations of a sub-navigation row, and the component that draws a highlighted settings block existed only inside a single page. Both now live in one place, so the pages cannot drift apart again."
+          }
+        ]
+      },
       "0.21.0": {
         "lead": "This release tidies up, in the literal sense. Nexview can now show you what has been lying around for a long time with nobody watching it: how much room it takes, when it was last watched, and who it is attributed to. Deleting is not a button that takes effect at once but a suggestion with fourteen days to think it over. And staying signed in now lives somewhere no script can reach.",
         "sections": [

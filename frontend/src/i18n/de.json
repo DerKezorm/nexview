@@ -1745,6 +1745,46 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.22.0": {
+        "lead": "Diese Fassung dreht sich um eine Frage, die man sich meist zu spät stellt: **Was passiert, wenn etwas kaputtgeht?** Nexview kann jetzt Sicherungen anlegen, die du herunterladen und mitnehmen kannst — und sie auch wieder einspielen, sogar auf einer frischen Installation. Dazu kommt eine Schnittstelle mit Zusage, damit endlich etwas anderes als der Browser mit Nexview reden kann.",
+        "sections": [
+          {
+            "title": "Sicherungen, die du mitnehmen kannst",
+            "where": "Einstellungen → System → Sicherungen",
+            "body": "Nexview hat schon immer vor jeder Datenbankänderung eine Kopie weggelegt — nur lag die im selben Verzeichnis wie die Datenbank. Geht der Datenträger verloren, geht sie mit.\n\nJetzt kannst du eine auf Knopfdruck anlegen, ihr eine Notiz mitgeben und sie **herunterladen**. Heraus kommt ein **verschlüsseltes ZIP** mit der Datenbank, den Profilbildern und der Schlüsseldatei `secret.key`. Die muss mit: Deine Zugänge zu Radarr, Sonarr, TMDB und dem Mailserver sind damit verschlüsselt und ohne sie nicht mehr lesbar. Genau deshalb braucht das Archiv ein Passwort — und genau deshalb ist es ein gewöhnliches AES-ZIP und kein eigenes Format. Du bekommst es mit 7-Zip auf, ohne Nexview.\n\n**Zwischenspeicher fliegen raus.** Neun Zehntel der Datenbank sind abgelegte TMDB-Antworten und der Bibliotheksabgleich — beides holt sich Nexview von selbst zurück. Deshalb ist eine Sicherung ein paar Megabyte groß und nicht ein paar hundert.\n\nAutomatisch geht es auch: täglich, wöchentlich oder monatlich, voreingestellt wöchentlich. Automatische Sicherungen sind als solche gekennzeichnet, und wie viele aufgehoben werden, stellst du ein."
+          },
+          {
+            "title": "Wiederherstellen — auch auf einer frischen Installation",
+            "where": "Im Einrichtungsassistenten, erste Frage",
+            "body": "Eine leere Installation fragt jetzt zuerst: **neu anfangen oder aus einer Sicherung wiederherstellen?** Wer umzieht oder nach einem Ausfall zurückkommt, muss nicht mehr durch den ganzen Assistenten und danach alles von Hand nachbauen.\n\n**Vorher wird geprüft, ob die Sicherung überhaupt passt.** Nexview kann seine Datenbank nur vorwärts umbauen, nie zurück — eine Sicherung aus einer *neueren* Fassung wird deshalb abgelehnt statt eingespielt. Das ist keine Bevormundung: Sie einzuspielen würde die Installation kaputtmachen, und zwar leise.\n\nVor dem Einspielen legt Nexview eine Sicherheitskopie des jetzigen Standes an. Und danach ist **jede Anmeldung überall beendet** — auch deine eigene. Das ist Absicht: Die Konten in der Sicherung sind womöglich andere als die von eben."
+          },
+          {
+            "title": "API-Token",
+            "where": "Profil → Konto → Sicherheit",
+            "body": "Für Skripte, Dashboards und alles, was Nexview ohne Browser ansprechen soll. Du legst einen an, gibst ihm einen Namen, und der Klartext erscheint **genau einmal** — danach bleibt nur eine Prüfsumme, und auch ein Administrator kann ihn nicht nachschlagen.\n\n**Ein Token hat genau die Rechte seines Kontos.** Nicht mehr. Rolle, Kontingent, Genehmigungspflicht und Sperrliste gelten für ihn wie für dich. Das ist bewusst anders als bei Seerr, wo ein einziger globaler Schlüssel am Eigentümerkonto hängt und damit alles automatisch genehmigt bekommt. Willst du ein Dienstkonto mit wenigen Rechten, legst du einen *Benutzer* mit diesen Rechten an und gibst ihm einen Token.\n\nEin Schalter obendrauf: **darf nur lesen** — richtig für Dashboards und Überwachung. Tokens können ablaufen, die Liste zeigt, wann jeder zuletzt benutzt wurde, und ein Widerruf wirkt sofort. Kinderkonten bekommen keine.\n\nAdministratoren sehen unter *Einstellungen → System → API-Token*, wer welche hat und ob sie noch benutzt werden. **Ansehen, nicht widerrufen** — das kann nur der Besitzer selbst."
+          },
+          {
+            "title": "Eine Zusage für Entwickler: /api/v1",
+            "where": "Dokumentation unter /docs",
+            "body": "Nexview hat rund 190 Adressen, und fast alle sind Innenteil: Die Oberfläche spricht mit dem Backend, beide ändern sich gemeinsam, und ein Feld heißt morgen anders, wenn der neue Name besser passt. Für jemanden, der von außen etwas anbindet, ist das unbrauchbar.\n\nDeshalb liegen **dreizehn** Adressen unter `/api/v1` — mit einer Zusage: Solange `v1` in der Adresse steht, verschwindet aus diesen Antworten nichts. Muss doch etwas brechen, entsteht `/api/v2` **daneben**, und v1 läuft weiter.\n\nSie decken ab, was man mit so einer Schnittstelle wirklich tut: etwas suchen, etwas anfragen, nachsehen was daraus wurde, und ein paar Zahlen fürs Dashboard. **Alles andere bleibt erreichbar** — nur eben ohne Zusage. Die Verwaltung ist bewusst nicht dabei: Sie zu versprechen hieße, das Einstellungsmodell einzufrieren."
+          },
+          {
+            "title": "Überall abmelden",
+            "where": "Profil → Konto → Sicherheit",
+            "body": "Beendet jede Anmeldung dieses Kontos auf allen Geräten — auch die, an der du gerade sitzt.\n\nDas schloss eine echte Lücke: Bisher wirkte Abmelden nur im eigenen Browser. Wer sein Konto auf einem fremden Rechner offen gelassen hatte, konnte daran nichts mehr ändern; auch ein neues Passwort half nur bei künftigen Anmeldungen, nicht bei laufenden."
+          },
+          {
+            "title": "Ein Konto auflösen, ohne Kollateralschaden",
+            "where": "Einstellungen → Benutzer",
+            "body": "Wird ein Konto gelöscht, wurden bisher auch seine bereits **genehmigten** Anfragen storniert. Im Haushalt ist das fast immer falsch: Der Film ist längst da, jemand anders schaut ihn auch, und mit dem Konto verschwand die Bestellung.\n\nJetzt gehen genehmigte Anfragen in den **Hausbestand** über — sie bleiben, nur ohne Besitzer. Storniert wird nur, was noch offen ist. Die Vorschau vor dem Löschen sagt vorher, was genau passiert, statt es hinterher zu zeigen."
+          },
+          {
+            "title": "Aufgeräumt",
+            "where": "Einstellungen und Profil",
+            "body": "Die Einstellungsleiste war auf zehn Punkte gewachsen und brach auf schmalen Bildschirmen um. *Adresse*, *Mail*, *Protokoll* und *Sicherungen* sind unter **System** zusammengezogen, jeder Reiter hat ein Symbol.\n\nDein **Profil** hat ein Untermenü bekommen: *Profil* (Bild, Name, E-Mail, hell oder dunkel), *Sicherheit* (Passwort, angemeldete Geräte, API-Token) und *Sprache*. Vorher standen sechs Blöcke untereinander auf einer Seite, und das Wichtigste lag ganz unten.\n\nDie eigentliche Ursache lag tiefer: Es gab **drei** verschiedene Bauweisen für eine Unterreihe, und das Bauteil für einen hervorgehobenen Einstellungsblock existierte nur innerhalb einer einzigen Seite. Beides liegt jetzt an einer Stelle, damit die Seiten nicht wieder auseinanderlaufen."
+          }
+        ]
+      },
       "0.21.0": {
         "lead": "Diese Fassung räumt auf — im Wortsinn. Nexview kann dir jetzt zeigen, was seit Langem herumliegt und niemand mehr anschaut: mit Platzbedarf, letztem Blick und dem Vermerk, wem es zugerechnet ist. Löschen ist dabei kein Knopf mit sofortiger Wirkung, sondern ein Vorschlag mit vierzehn Tagen Bedenkzeit. Und das Angemeldetbleiben liegt jetzt an einer Stelle, an die kein Skript herankommt.",
         "sections": [

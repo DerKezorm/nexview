@@ -498,10 +498,20 @@ class User(Base):
     # Frage ist, die der Admin beantworten kann - ein 14-Jaehriger sieht damit
     # bis FSK 12 und nicht bis 16.
     #
-    # Beide Felder darf **nur der Administrator** setzen. Sie stehen deshalb
-    # ausschliesslich in ``UserUpdate``, nie in ``ProfileUpdate``: haetten sie
-    # in der eigenen Profilaenderung Platz, koennte der Beschraenkte die Sperre
-    # mit einem einzigen Aufruf von PATCH /api/auth/me selbst aufheben.
+    # ⚠️ **Nur ein Elternteil setzt das, und nur an seinem Kind.** Das Feld
+    # steht in ``ChildCreate``/``ChildUpdate`` - in ``UserUpdate`` und
+    # ``ProfileUpdate`` steht es **nicht**. Ein Administrator kann an einem
+    # gewoehnlichen Konto also gar kein Alter eintragen; wer ein volles Konto
+    # hat, gilt als erwachsen.
+    #
+    # Dass es nicht in ``ProfileUpdate`` steht, ist der eigentliche Riegel:
+    # haette es dort Platz, koennte der Beschraenkte die Sperre mit einem
+    # einzigen Aufruf von PATCH /api/auth/me selbst aufheben.
+    #
+    # Bis 0.16 gab es eine Altersbeschraenkung je Benutzerkonto, und dieser
+    # Kommentar beschrieb sie ("stehen ausschliesslich in ``UserUpdate``").
+    # Sie ist mit den Kinderkonten weggefallen; die Spalte blieb, weil ein
+    # Kinderkonto selbst eine ``User``-Zeile ist.
     age: Mapped[int | None] = mapped_column(Integer)
 
     # Was mit Titeln geschieht, die nirgends eingestuft sind. Standard ist
@@ -509,6 +519,13 @@ class User(Base):
     # meist noch keine Einstufung haben: gemessen schrumpfte die
     # Entdecken-Seite dadurch von 20 auf 2 Eintraege. Wirkt nur zusammen mit
     # einer gesetzten Altersbeschraenkung.
+    #
+    # ⚠️ **Steht in keinem Schema.** Gesetzt wird es genau einmal, fest auf
+    # ``True``, wenn ein Kinderkonto entsteht (``children.anlegen``) - danach
+    # aendert es niemand mehr. Nicht zu verwechseln mit
+    # ``AppSettings.hide_unrated`` (haus-weit) und dem gleichnamigen
+    # Abfrageparameter der Entdecken-Seite; das sind drei verschiedene Dinge
+    # mit demselben Namen.
     hide_unrated: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Nach welchem Land geurteilt wird. NULL = die Vorgabe des Admins.

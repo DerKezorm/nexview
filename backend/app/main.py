@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
+from . import api_texte
 from .config import get_settings
 from .deps import require_adult
 from .db import init_db
@@ -264,6 +265,12 @@ def fehler_als_json(exc: StarletteHTTPException) -> JSONResponse:
         status_code=exc.status_code,
         headers=getattr(exc, "headers", None),
     )
+
+
+# ⚠️ **Nach allen include_router-Aufrufen.** Legt die englischen Texte ueber
+# die Routen; vorher gibt es die Routen noch nicht. Warum sie in einer eigenen
+# Datei stehen und nicht am Dekorator, steht dort.
+api_texte.anwenden(app)
 
 
 #: Wo Swagger UI liegt - bei uns, nicht bei einem CDN.

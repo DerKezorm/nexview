@@ -436,10 +436,10 @@
       "trace": "Zusätzlich die Rohdaten der Fremdbibliotheken. Sehr viele Zeilen."
     },
     "duration": {
+      "0": "bis zum Neustart",
       "30": "30 Minuten",
       "120": "2 Stunden",
-      "480": "8 Stunden",
-      "0": "bis zum Neustart"
+      "480": "8 Stunden"
     },
     "modeTemporary": "(auf Zeit)",
     "modeNoLimit": "Gilt unbegrenzt.",
@@ -1703,6 +1703,49 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.21.0": {
+        "lead": "Diese Fassung räumt auf — im Wortsinn. Nexview kann dir jetzt zeigen, was seit Langem herumliegt und niemand mehr anschaut: mit Platzbedarf, letztem Blick und dem Vermerk, wem es zugerechnet ist. Löschen ist dabei kein Knopf mit sofortiger Wirkung, sondern ein Vorschlag mit vierzehn Tagen Bedenkzeit. Und das Angemeldetbleiben liegt jetzt an einer Stelle, an die kein Skript herankommt.",
+        "sections": [
+          {
+            "title": "Was liegt ungenutzt herum",
+            "where": "Statistik → eigener Punkt oben",
+            "body": "Eine Liste der Titel, die seit Langem niemand mehr angesehen hat — die größten zuerst. Dazu, wie viel Platz jeder braucht, wann er zuletzt lief, **von wem**, und wem er zugerechnet ist. Filtern nach Filmen oder Serien, suchen nach Titel, und der Zeitraum lässt sich von wenigen Monaten bis auf mehrere Jahre stellen.\n\n**Es zählen zwei Uhren, nicht eine.** Ein Titel erscheint nur, wenn ihn im gewählten Zeitraum niemand angesehen hat *und* er mindestens so lange hier liegt. Ohne die zweite Uhr wäre die Liste im Ergebnis nach Größe sortiert — und die 60-GB-Datei von gestern stünde ganz oben, obwohl noch niemand die Gelegenheit hatte, sie anzusehen.\n\nWas Nexview *nicht* weiß, sagt es auch: Posten, bei denen das Ankunftsdatum noch fehlt, werden gezählt und benannt, statt stillschweigend zu verschwinden."
+          },
+          {
+            "title": "Löschen hat jetzt eine Bedenkzeit",
+            "where": "In derselben Liste, Knopf „Löschen\"",
+            "body": "Etwas vorzumerken löscht es nicht. Es setzt ein Datum **vierzehn Tage** in der Zukunft; bis dahin bleibt der Titel liegen, sichtbar markiert, und ein Klick nimmt die Vormerkung wieder weg.\n\n**Wer ihn in der Zwischenzeit ansieht, hebt die Löschung von selbst auf** — ohne je zu erfahren, dass eine anstand. Das ist der eigentliche Punkt an der Frist: Sie fängt genau den Fall ab, in dem eine Liste recht zu haben scheint und trotzdem irrt."
+          },
+          {
+            "title": "Einmal im Monat per Mail",
+            "where": "Profil → Benachrichtigungen",
+            "body": "Nexview kann dir monatlich schicken, was herumliegt: höchstens dreißig Zeilen, die größten zuerst, mit einem Link mitten in die Liste hinein.\n\n**Standardmäßig aus.** Und ohne eingerichteten Mailserver und ohne öffentliche Adresse geht gar nichts hinaus — eine Mail mit einem Knopf, der ins Leere führt, wäre schlimmer als keine Mail."
+          },
+          {
+            "title": "Deine eigenen Titel, und wie du sie zurückgibst",
+            "where": "Profil → Speicherkontingent",
+            "body": "Dieselbe Liste, aber nur für das, was dir zugerechnet ist — und von dort aus lässt sich etwas zurückgeben.\n\nDass die Liste bei vielen zunächst leer bleibt, ist der Normalfall und kein Fehler: Alles, was vor Nexview schon da war, gilt als **Hausbestand** und gehört niemandem. Nexview sagt das jetzt auch, statt eine leere Seite zu zeigen."
+          },
+          {
+            "title": "Zurückgestellte Anfragen kommen zurück",
+            "where": "Alle Anfragen → offene Freigaben",
+            "body": "Eine zurückgestellte Anfrage blieb zurückgestellt. Sie taucht jetzt wieder unter den offenen Freigaben auf, sobald sie wieder passt."
+          },
+          {
+            "title": "Das Angemeldetbleiben liegt außer Reichweite",
+            "where": "Nirgends sichtbar — genau das ist der Punkt",
+            "body": "Der Nachweis, dass du angemeldet bist, lag bisher im Speicher des Browsers, wo ihn **jedes Skript auf der Seite lesen konnte**. Er liegt jetzt in einem Cookie, das JavaScript gar nicht erst zu Gesicht bekommt, das nur an die Anmelde-Adressen mitgeht und von fremden Seiten aus nicht mitgeschickt wird.\n\n**Ein Passwortwechsel beendet jetzt wirklich alle anderen Sitzungen.** Das stand lange so in der Beschreibung, ohne zu stimmen.\n\nDazu kommt eine Regel an den Browser: Er führt nur noch Code aus, der von Nexview selbst stammt, und lädt Bilder nur von der Handvoll Adressen, von denen die Cover kommen. Sollte je etwas ein fremdes Skript auf die Seite bringen, weist der Browser es ab, bevor es läuft.\n\n⚠️ Was das **nicht** abdeckt: Das Abmelden nimmt das Cookie nur aus *diesem* Browser. Wer vorher eine Kopie gezogen hat, kommt damit weiter herein, bis sie abläuft. Das war vorher nicht anders — aber es gehört gesagt, statt in einer Beschreibung zu stehen. Wirklich beenden lässt sich eine fremde Sitzung heute nur durch einen Passwortwechsel."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Die Bewertungen auf einer Filmseite meldeten seit 0.19.0 einen Fehler — **jeder** Aufruf, in 0.19.0 und in 0.20.0. Ein Umbau hatte eine Aufrufstelle stehen lassen, und niemandem fiel es auf. Ein Test durchsucht jetzt den ganzen Quelltext nach Aufrufen in Funktionen, die es nicht mehr gibt.",
+          "Zwei der Mail-Schalter im Profil wurden nirgends gespeichert. Die Liste der Schalter ergibt sich jetzt aus dem Datenmodell selbst — der nächste kann nicht auf dieselbe Art vergessen werden.",
+          "Speicher wurde doppelt gezählt, wenn Radarr und der Medienserver dieselbe Datei unter verschiedenen Qualitätsstufen melden. Auf einer gewachsenen Sammlung summiert sich das auf hunderte Gigabyte, die es nie gab.",
+          "Fett gesetzter Text zeigte an mehreren Stellen seine Sternchen — am sichtbarsten in genau diesem Fenster.",
+          "Eine Serienkachel sagt jetzt, welche Staffeln da sind, statt gleich auszusehen, ob eine angekommen ist oder alle."
+        ]
+      },
       "0.20.0": {
         "lead": "Diese Fassung hat kaum etwas Neues zum Anschauen — und trotzdem ist sie eine der wichtigsten bisher. Das Anmelden bekommt eine Bremse: Bis hierher konnte eine Maschine Passwörter durchprobieren, so schnell die Leitung hergibt. Und die Fehlermeldungen sprechen endlich die Sprache, die man eingestellt hat.",
         "sections": [

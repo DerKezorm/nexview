@@ -436,10 +436,10 @@
       "trace": "Also the raw output of third-party libraries. Very many lines."
     },
     "duration": {
+      "0": "until restart",
       "30": "30 minutes",
       "120": "2 hours",
-      "480": "8 hours",
-      "0": "until restart"
+      "480": "8 hours"
     },
     "modeTemporary": "(temporary)",
     "modeNoLimit": "Stays on indefinitely.",
@@ -1703,6 +1703,49 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.21.0": {
+        "lead": "This release tidies up, in the literal sense. Nexview can now show you what has been lying around for a long time with nobody watching it: how much room it takes, when it was last watched, and who it is attributed to. Deleting is not a button that takes effect at once but a suggestion with fourteen days to think it over. And staying signed in now lives somewhere no script can reach.",
+        "sections": [
+          {
+            "title": "What is lying around unused",
+            "where": "Statistics → its own entry at the top",
+            "body": "A list of the titles nobody has watched in a long time — biggest first. With how much room each one takes, when it last ran, **who watched it**, and who it is attributed to. Filter by movies or series, search by title, and set the period from a few months up to several years.\n\n**Two clocks count, not one.** A title only appears if nobody watched it within the chosen period *and* it has been here at least that long. Without the second clock the list would effectively be sorted by size, and yesterday’s 60 GB file would sit right at the top of it, before anyone had the chance to watch it.\n\nWhat Nexview does *not* know, it says: items whose arrival date is still missing are counted and named, instead of quietly disappearing."
+          },
+          {
+            "title": "Deleting has a grace period now",
+            "where": "The same list, the “Delete” button",
+            "body": "Marking something does not delete it. It sets a date **fourteen days** out; until then the title stays, visibly marked, and one click takes the mark away again.\n\n**Anyone who watches it in the meantime cancels the deletion on their own** — without ever learning there was one. That is the real point of the grace period: it catches exactly the case where a list looks right and is wrong anyway."
+          },
+          {
+            "title": "A mail once a month",
+            "where": "Profile → Notifications",
+            "body": "Nexview can send you monthly what is lying around: thirty lines at most, biggest first, with a link straight into the list.\n\n**Off by default.** And without a mail server and a public address nothing goes out at all — a mail with a button that leads nowhere would be worse than no mail."
+          },
+          {
+            "title": "Your own titles, and how to hand them back",
+            "where": "Profile → Storage quota",
+            "body": "The same list, but only for what is attributed to you — and from there you can hand something back.\n\nThat the list stays empty for many people at first is the normal case, not a fault: everything that was already here before Nexview counts as **house inventory** and belongs to nobody. Nexview now says so, instead of showing an empty page."
+          },
+          {
+            "title": "Requests that were put aside come back",
+            "where": "All requests → open approvals",
+            "body": "A deferred request stayed deferred. It now reappears under open approvals as soon as it fits again."
+          },
+          {
+            "title": "Staying signed in is out of reach now",
+            "where": "Nowhere to be seen — which is exactly the point",
+            "body": "The proof that you are signed in used to sit in the browser’s storage, where **any script on the page could read it**. It now lives in a cookie that JavaScript never gets to see at all, that only travels to the sign-in addresses, and that is not sent along from other sites.\n\n**Changing your password now really does end every other session.** The description had said so for a long time without it being true.\n\nAlongside it, a rule for the browser: it runs only code that came from Nexview itself, and loads images only from the handful of addresses the covers come from. Should anything ever get a foreign script onto the page, the browser turns it away before it runs.\n\n⚠️ What this does **not** cover: signing out only takes the cookie out of *this* browser. Anyone who made a copy beforehand keeps getting in until it expires. That was no different before — but it deserves saying out loud instead of sitting in a description. Today the only way to really end someone else’s session is to change your password."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Ratings on a movie page had been returning an error since 0.19.0 — **every** call, in 0.19.0 and in 0.20.0. A rewrite had left one caller behind and nobody noticed. A test now walks the whole codebase for calls into functions that no longer exist.",
+          "Two of the mail switches in the profile were saved nowhere. The list of switches is now derived from the data model itself — the next one cannot be forgotten the same way.",
+          "Storage was counted twice whenever Radarr and the media server report the same file under different quality levels. On a grown library that adds up to hundreds of gigabytes that were never there.",
+          "Bold text showed its asterisks in several places — most visibly in this very window.",
+          "A series tile now says which seasons are here, instead of looking the same whether one arrived or all of them."
+        ]
+      },
       "0.20.0": {
         "lead": "There is barely anything to look at in this release — and it is still one of the most important so far. Signing in gets a brake: until now a machine could try passwords as fast as the line allowed. And the error messages finally speak the language you picked.",
         "sections": [

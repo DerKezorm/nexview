@@ -45,6 +45,63 @@ class Settings(BaseSettings):
     # Erlaubt: direct | proxy | proxy:<Zahl>
     client_ip: str = ""
 
+    # Ob das Sitzungs-Cookie das Merkmal ``Secure`` traegt - also nur ueber
+    # HTTPS mitgeschickt wird.
+    #
+    # ``auto`` (Vorgabe) setzt es genau dann, wenn **diese Anfrage** ueber
+    # https hereinkam. Das kann nie etwas kaputtmachen: Wer Nexview unter
+    # ``http://192.168.0.10:8080`` betreibt, bekommt ein Cookie ohne Secure
+    # und bleibt angemeldet - ein Secure-Cookie wuerde der Browser dort
+    # wegwerfen, und niemand kaeme mehr hinein.
+    #
+    # Der Preis der Vorgabe: Steht ein Reverse Proxy davor, der HTTPS
+    # abschliesst und intern schlichtes http weiterreicht, sieht Nexview
+    # ``http`` und laesst Secure weg. Das Cookie funktioniert trotzdem, ist
+    # aber nicht dagegen geschuetzt, versehentlich ueber eine unverschluesselte
+    # Verbindung zum selben Rechner zu wandern. Wer HTTPS erzwingt, setzt
+    # deshalb ``NEXVIEW_COOKIE_SECURE=on``.
+    #
+    # ⚠️ Bewusst wird **nicht** ``X-Forwarded-Proto`` geraten. Der Kopf ist
+    # genauso faelschbar wie ``X-Forwarded-For``, und bei der Anmeldebremse hat
+    # sich Nexview schon einmal gegen das Raten und fuer das Fragen
+    # entschieden. Zwei Stellen mit derselben Frage sollen dieselbe Antwort
+    # geben.
+    #
+    # Erlaubt: auto | on | off
+    cookie_secure: str = "auto"
+
+    # Die Inhaltsregeln der Seite (Content-Security-Policy). Sie sagen dem
+    # Browser, woher er laden und wohin er schicken darf; alles andere lehnt
+    # er ab. Was sie bringt und was nicht, steht in ``services/csp.py``.
+    #
+    #   on           Regeln gelten (Vorgabe)
+    #   report-only  Regeln werden nur **gemeldet**, nicht durchgesetzt -
+    #                fuer alle, die erst in der Browser-Konsole nachsehen
+    #                wollen, bevor sie scharf schalten
+    #   off          gar keine Kopfzeile
+    #
+    # ⚠️ Der Notausschalter ist kein Zierrat: Eine zu enge Regel zeigt keine
+    # Fehlermeldung, sondern eine halb geladene Seite.
+    csp: str = "on"
+
+    # Wer Nexview in einen Rahmen stecken darf. Vorgabe ``none`` - niemand.
+    #
+    # Wer Nexview in einem Uebersichts-Brett wie Organizr eingebettet hat,
+    # setzt hier ``self`` oder die Adresse des Bretts. Sonst bleibt der Rahmen
+    # dort leer, und zwar **ohne jede Fehlermeldung** - der Browser sagt es nur
+    # in seiner Konsole.
+    frame_ancestors: str = "none"
+
+    # Zusaetzliche Bildquellen, mit Leerzeichen getrennt.
+    #
+    # Gebraucht, wenn die Poster im Kalender leer bleiben: Nexview reicht dort
+    # die Adressen durch, die Radarr/Sonarr gespeichert haben, und die haengen
+    # am Metadaten-Anbieter des Hauses. Die ueblichen sind schon erlaubt
+    # (``services/csp.py``); wer einen anderen benutzt, traegt ihn hier nach.
+    #
+    # Beispiel: NEXVIEW_IMG_SOURCES=https://bilder.example.org
+    img_sources: str = ""
+
     # Notausgang fuer die Protokoll-Stufe: Ist ``NEXVIEW_LOG_LEVEL`` gesetzt,
     # gilt sie und die in der Oberflaeche gewaehlte Stufe wird ignoriert.
     # Gebraucht, wenn die Anwendung gar nicht erst startet - dann kommt man an

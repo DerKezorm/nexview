@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from .arr import ArrClient, ArrError
@@ -24,6 +25,11 @@ class LibraryEntry:
     # Wo die Datei liegt, samt Dateiname. Nur fuer den Administrator gedacht -
     # ein gewoehnlicher Benutzer hat mit Serverpfaden nichts zu schaffen.
     path: str = ""
+    # Seit wann die Datei da liegt. Radarr fuehrt es an ``movieFile`` und
+    # schickt es in derselben Antwort mit - es kostet also keine Abfrage.
+    # Gebraucht vom Aufraeum-Vorschlag: Ohne dieses Datum stuende ein Film,
+    # der heute Nacht fertig wurde, ganz oben in der Liste der Ladenhueter.
+    added_at: datetime | None = None
 
 
 def _groesse(movie: dict[str, Any]) -> int:
@@ -43,6 +49,29 @@ def _groesse(movie: dict[str, Any]) -> int:
     datei = movie.get("movieFile") or {}
     groesse = datei.get("size")
     return int(groesse) if isinstance(groesse, (int, float)) and groesse > 0 else 0
+
+
+def _hinzugefuegt(movie: dict[str, Any]) -> datetime | None:
+    """Wann die **Datei** dazukam - nicht, wann der Film eingetragen wurde.
+
+    ``movie.added`` waere das Falsche: Es sagt, wann jemand den Film in Radarr
+    aufgenommen hat, und das kann Jahre vor dem Download liegen. Gefragt ist,
+    seit wann die Datei Platz belegt - also ``movieFile.dateAdded``.
+
+    Fehlt die Datei, fehlt auch das Datum. ``None`` ist dann die richtige
+    Antwort; der Aufrufer raet nicht.
+    """
+    roh = (movie.get("movieFile") or {}).get("dateAdded")
+    if not isinstance(roh, str) or not roh:
+        return None
+    try:
+        # Radarr schreibt ISO 8601 mit "Z". Naiv ablegen, wie alles andere
+        # auch - die Datenbank kennt keine Zeitzonen.
+        return datetime.fromisoformat(roh.replace("Z", "+00:00")).astimezone(
+            timezone.utc
+        ).replace(tzinfo=None)
+    except ValueError:
+        return None
 
 
 def _pfad(movie: dict[str, Any]) -> str:
@@ -82,6 +111,7 @@ class RadarrClient(ArrClient):
                 size_bytes=_groesse(movie),
                 title=str(movie.get("title") or ""),
                 path=_pfad(movie),
+                added_at=_hinzugefuegt(movie),
             )
         return result
 

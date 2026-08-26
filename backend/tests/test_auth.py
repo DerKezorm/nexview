@@ -11,8 +11,11 @@ def test_login_mit_richtigem_passwort(admin_client: TestClient) -> None:
     response = admin_client.post("/api/auth/login", json=ADMIN)
     assert response.status_code == 200
     body = response.json()
-    assert body["access_token"] and body["refresh_token"]
+    assert body["access_token"]
     assert body["expires_in"] > 0
+    # Das Erneuerungs-Token darf **nicht** im Koerper stehen - es geht seit
+    # 0.21 ausschliesslich als HttpOnly-Cookie hinaus.
+    assert "refresh_token" not in body
 
 
 def test_login_mit_falschem_passwort(admin_client: TestClient) -> None:
@@ -39,19 +42,29 @@ def test_geschuetzte_route_mit_unsinnigem_token(client: TestClient) -> None:
 
 
 def test_refresh_token_liefert_neuen_zugang(admin_client: TestClient) -> None:
-    login = admin_client.post("/api/auth/login", json=ADMIN).json()
-    response = admin_client.post(
-        "/api/auth/refresh", json={"refresh_token": login["refresh_token"]}
-    )
+    # Der TestClient fuehrt einen Cookie-Behaelter wie ein Browser; das
+    # Erneuerungs-Token faehrt also von selbst mit.
+    admin_client.post("/api/auth/login", json=ADMIN)
+    response = admin_client.post("/api/auth/refresh")
     assert response.status_code == 200
     assert response.json()["access_token"]
 
 
+def test_refresh_ohne_cookie_ist_abgelaufen(client: TestClient) -> None:
+    """Der einmalige Rauswurf beim Umstieg auf 0.21.
+
+    Wer noch mit dem alten Token aus dem ``localStorage`` kommt, schickt gar
+    kein Cookie - und landet auf der Anmeldeseite statt in einer Sitzung.
+    """
+    response = client.post("/api/auth/refresh")
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "session_expired"
+
+
 def test_access_token_taugt_nicht_als_refresh_token(admin_client: TestClient) -> None:
     login = admin_client.post("/api/auth/login", json=ADMIN).json()
-    response = admin_client.post(
-        "/api/auth/refresh", json={"refresh_token": login["access_token"]}
-    )
+    admin_client.cookies.set("nexview_refresh", login["access_token"], path="/api/auth")
+    response = admin_client.post("/api/auth/refresh")
     assert response.status_code == 401
 
 
@@ -100,7 +113,10 @@ def test_eigenes_passwort_aendern(admin_client: TestClient) -> None:
         "/api/auth/me/password",
         json={"current_password": ADMIN["password"], "new_password": "neues-passwort-9"},
     )
-    assert response.status_code == 204
+    # Seit 0.21 kein leeres 204 mehr, sondern ein frisches Paar: Ohne das
+    # spraenge man sich beim eigenen Passwortwechsel selbst aus der Sitzung.
+    assert response.status_code == 200
+    assert response.json()["access_token"]
 
     assert (
         admin_client.post(

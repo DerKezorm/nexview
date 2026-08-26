@@ -67,6 +67,31 @@ services:
       # sperrt ein einziger Vertipper den ganzen Haushalt aus.
       NEXVIEW_CLIENT_IP: ${NEXVIEW_CLIENT_IP:-}
 
+      # Ob das Anmelde-Cookie nur ueber HTTPS mitfahren darf (Secure).
+      #
+      #   auto      Secure, wenn die Anfrage ueber https kam (Vorgabe)
+      #   on        immer erzwingen - fuer einen Proxy, der HTTPS abschliesst
+      #             und intern schlichtes http weiterreicht
+      #   off       nie setzen
+      #
+      # ⚠️ Nicht auf "on" stellen, wenn Nexview ueber http:// erreichbar sein
+      # soll: Der Browser wirft ein Secure-Cookie ueber http weg, und dann
+      # kommt niemand mehr hinein.
+      NEXVIEW_COOKIE_SECURE: ${NEXVIEW_COOKIE_SECURE:-auto}
+
+      # Inhaltsregeln der Seite: on | report-only | off
+      NEXVIEW_CSP: ${NEXVIEW_CSP:-on}
+
+      # Wer Nexview einrahmen darf: none | self | <Adresse>
+      # ⚠️ Wer Nexview in einem Uebersichts-Brett eingebettet hat, braucht
+      # hier "self" oder die Adresse des Bretts - sonst bleibt der Rahmen
+      # leer, und zwar ohne Fehlermeldung.
+      NEXVIEW_FRAME_ANCESTORS: ${NEXVIEW_FRAME_ANCESTORS:-none}
+
+      # Zusaetzliche Bildquellen, mit Leerzeichen getrennt. Nur noetig, wenn
+      # im Kalender die Poster leer bleiben.
+      NEXVIEW_IMG_SOURCES: ${NEXVIEW_IMG_SOURCES:-}
+
       # Zeitzone fuer Protokoll und Datumsangaben.
       TZ: Europe/Berlin
 

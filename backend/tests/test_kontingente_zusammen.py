@@ -1,6 +1,6 @@
-"""Stückzahl **und** Speicher gelten zusammen - seit 0.20.
+"""Stückzahl **und** Speicher gelten zusammen - seit 0.19.0.
 
-Bis 0.19 war das ein haus-weites Entweder-oder: Ein Umschalter entschied, ob
+Bis 0.18 war das ein haus-weites Entweder-oder: Ein Umschalter entschied, ob
 die Anzahl oder der belegte Platz zählt. Die Begründung damals war, dass zwei
 Gründe zu scheitern die Verwirrung verdoppeln - die Stückzahl erneuert sich
 jeden Montag, der Platz nie.

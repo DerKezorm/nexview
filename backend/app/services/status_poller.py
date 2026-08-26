@@ -26,7 +26,9 @@ from ..models import (
     utcnow,
 )
 from . import (
+    aufraeum_bericht,
     library,
+    loeschfrist,
     mail_outbox,
     mediaserver_library,
     mediaserver_watched,
@@ -34,6 +36,7 @@ from . import (
     storage,
     ratings,
     requests_service,
+    zurueckgestellt,
 )
 from .arr import ArrError
 from .settings_service import AppSettings, load_settings
@@ -453,6 +456,36 @@ async def _speicher_vielleicht(db, settings) -> None:
         db.rollback()
 
 
+async def _faellige_loeschungen(db, settings) -> None:
+    """Was seine Schonfrist ueberlebt hat, jetzt wirklich loeschen.
+
+    ⚠️ **Der Punkt, an dem es keinen Rueckweg mehr gibt** (ausser dem
+    Papierkorb von Radarr/Sonarr). Deshalb steht hier alles einzeln in einer
+    eigenen Fehlerbehandlung: Scheitert eine Loeschung, sollen die anderen
+    trotzdem laufen - und der Posten bleibt mit abgelaufener Frist stehen, wird
+    es also beim naechsten Durchgang wieder versuchen, statt still zu
+    verschwinden.
+
+    Wer den Titel in der Frist angesehen hat, ist hier nicht mehr dabei: Die
+    Vormerkung wurde dann laengst aufgehoben (``loeschfrist.angesehen_hebt_auf``,
+    aufgerufen nach dem Abgleich der Sehdaten).
+    """
+    faellig = loeschfrist.faellig(db)
+    if not faellig:
+        return
+
+    for zeile in faellig:
+        titel, posten_id = zeile.title, zeile.id
+        try:
+            bytes_ = await storage.loeschen(db, settings, posten_id, wer="Schonfrist")
+            logger.info(
+                "Grace period over, deleted %r (%s bytes)", titel, bytes_
+            )
+        except Exception:  # noqa: BLE001 - eine Loeschung darf die anderen nicht mitnehmen
+            logger.exception("Scheduled deletion of %r failed - will try again", titel)
+            db.rollback()
+
+
 async def run_forever(stop: asyncio.Event) -> None:
     """Hintergrundschleife - laeuft, bis die Anwendung beendet wird."""
     while not stop.is_set():
@@ -488,10 +521,37 @@ async def run_forever(stop: asyncio.Event) -> None:
                 # erfassen, die Radarr/Sonarr nicht mehr kennen.
                 await _speicher_vielleicht(db, settings)
 
+                # ⚠️ **Nach** der Speicher-Messung, nicht davor: Eine Datei,
+                # die inzwischen ohnehin verschwunden ist, hat dann keinen
+                # Posten mehr - und wir loeschen nichts, was es nicht mehr
+                # gibt. Ausserdem ist der Sehstand zu diesem Zeitpunkt frisch,
+                # eine Vormerkung also schon aufgehoben, wenn jemand den Titel
+                # doch noch angesehen hat.
+                await _faellige_loeschungen(db, settings)
+
                 # Erst danach: so gehen die Mails zu gerade fertig gewordenen
                 # Downloads schon in diesem Durchgang raus statt erst im
                 # naechsten.
                 await mail_outbox.process(db, settings)
+
+                # Nach der Speichermessung: Der Platz-Kontingentstand ist
+                # jetzt aktuell, und genau der entscheidet mit, ob eine
+                # zurueckgestellte Anfrage wieder passt.
+                try:
+                    zurueckgestellt.zurueckholen(db, settings)
+                except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+                    logger.exception("Deferred requests could not be checked")
+                    db.rollback()
+
+                # Zuletzt: Der monatliche Aufraeum-Bericht braucht die gerade
+                # gemessenen Zahlen, und er darf nichts aufhalten. Der Dienst
+                # entscheidet selbst, ob ueberhaupt etwas faellig ist - hier
+                # steht nur der Takt.
+                try:
+                    await aufraeum_bericht.vielleicht_verschicken(db, settings)
+                except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+                    logger.exception("Cleanup report could not be sent")
+                    db.rollback()
         except ArrError as error:
             # Radarr/Sonarr gerade nicht erreichbar - kein Grund zur Aufregung.
             logger.warning("Status sync skipped: %s", error.message)

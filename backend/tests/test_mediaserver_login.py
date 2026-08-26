@@ -860,7 +860,10 @@ def test_passwort_anmeldung_liefert_vollstaendige_token(
     antwort = _jelly_anmelden(admin_client)
     assert antwort.status_code == 200, antwort.text
     tokens = antwort.json()["tokens"]
-    assert tokens["access_token"] and tokens["refresh_token"]
+    assert tokens["access_token"]
+    assert "refresh_token" not in tokens
+    # Auch der Medienserver-Weg legt das Erneuerungs-Token ins Cookie.
+    assert antwort.cookies.get("nexview_refresh")
     assert tokens["expires_in"] > 0
     assert tokens["token_type"] == "bearer"
     # Und die Sitzung gehoert dem **bestehenden** Konto, nicht einem neuen.

@@ -8,6 +8,7 @@ Laden der Details von TMDB mitgeholt.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 from .arr import ArrClient, ArrError
@@ -463,3 +464,51 @@ class SonarrClient(ArrClient):
                 if fehler.status_code != 404:
                     raise
         return entfernt
+
+
+def _zeitpunkt(roh: object) -> datetime | None:
+    """ISO-8601 aus Sonarr in einen naiven UTC-Zeitpunkt."""
+    if not isinstance(roh, str) or not roh:
+        return None
+    try:
+        return (
+            datetime.fromisoformat(roh.replace("Z", "+00:00"))
+            .astimezone(timezone.utc)
+            .replace(tzinfo=None)
+        )
+    except ValueError:
+        return None
+
+
+async def staffel_daten(client: "SonarrClient", series_id: int) -> dict[int, datetime]:
+    """Seit wann die Dateien jeder Staffel dieser Serie da liegen.
+
+    ⚠️ **Eine eigene Abfrage je Serie - deshalb ist sie hier und nicht in
+    ``library()``.** Sonarr haengt an ``/series`` zwar Groesse und Folgenzahl
+    je Staffel, aber kein Datum. Das steht nur an der einzelnen Datei.
+
+    Der Aufrufer holt sie deswegen **nur fuer Staffeln, deren Datum noch
+    fehlt** (siehe ``services/storage``). Der Abgleich laeuft stuendlich; sie
+    jedes Mal fuer jede Serie zu stellen hiesse bei zweihundert Serien
+    fuenftausend Abfragen am Tag - fuer ein Datum, das sich nie aendert.
+
+    Genommen wird das **aelteste** Datum je Staffel: Gefragt ist, seit wann
+    die Staffel Platz belegt, und das faengt bei ihrer ersten Datei an. Das
+    juengste zu nehmen hiesse, dass eine einzige nachgeladene Folge eine
+    zehn Jahre alte Staffel wieder taufrisch aussehen laesst.
+    """
+    dateien = await client.get("/episodefile", {"seriesId": series_id}) or []
+    if not isinstance(dateien, list):
+        return {}
+
+    aeltestes: dict[int, datetime] = {}
+    for datei in dateien:
+        if not isinstance(datei, dict):
+            continue
+        nummer = datei.get("seasonNumber")
+        wann = _zeitpunkt(datei.get("dateAdded"))
+        if not isinstance(nummer, int) or wann is None:
+            continue
+        if nummer not in aeltestes or wann < aeltestes[nummer]:
+            aeltestes[nummer] = wann
+    return aeltestes

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { api, ApiError } from '../../api/client'
+import { AufraeumTabelle } from '../../components/AufraeumTabelle'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import type {
   StorageEntry,
@@ -113,6 +114,17 @@ function EigenerSpeicher() {
           </p>
         )}
       </Card>
+
+      {/* „Was von mir liegt herum" - dieselbe Tabelle wie in der Statistik,
+          nur auf das eigene Konto zugeschnitten. Hier liest jemand über sich
+          selbst und kann im selben Zug abgeben; unten steht die vollständige
+          Liste seiner Posten mit dem Knopf dazu. */}
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-mist-300">{t('cleanup.title')}</h2>
+        </div>
+        <AufraeumTabelle pfad="/api/storage/me/aufraeumen" schluessel="mein-aufraeumen" eigene />
+      </section>
 
       {/* Die Suche erst, wenn es überhaupt etwas zu suchen gibt. Bei fünf
           Titeln wäre ein Suchfeld nur ein Bedienelement ohne Anlass. */}

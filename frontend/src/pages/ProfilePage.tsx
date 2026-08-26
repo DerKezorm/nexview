@@ -4,7 +4,8 @@ import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
 
-import { ApiError, api } from '../api/client'
+import { ApiError, api, setTokens } from '../api/client'
+import type { TokenPair } from '../api/client'
 import type { User } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { Avatar } from '../components/Avatar'
@@ -193,12 +194,22 @@ export function ProfilePage() {
 
   const passwordMutation = useMutation({
     mutationFn: () =>
-      api.post<void>('/api/auth/me/password', {
+      api.post<TokenPair>('/api/auth/me/password', {
         current_password: currentPassword,
         new_password: newPassword,
       }),
     onMutate: reset,
-    onSuccess: () => {
+    /**
+     * ⚠️ Das frische Token muss uebernommen werden.
+     *
+     * Seit 0.21 beendet ein Passwortwechsel alle Sitzungen dieses Kontos -
+     * die eigene eingeschlossen, denn der Server kann sie nicht von den
+     * anderen unterscheiden. Deshalb gibt er ein frisches Paar zurueck. Ohne
+     * diese Zeile faende die naechste Anfrage ein Token vor, das der Server
+     * gerade selbst fuer ungueltig erklaert hat.
+     */
+    onSuccess: (tokens) => {
+      setTokens(tokens)
       setCurrentPassword('')
       setNewPassword('')
       setRepeatPassword('')

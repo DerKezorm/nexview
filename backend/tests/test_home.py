@@ -360,3 +360,230 @@ async def test_kuratierte_vorschlaege_kennen_den_media_server(
     kennungen = [eintrag["tmdb_id"] for eintrag in daten["items"]]
     assert 1083381 not in kennungen
     assert 777001 in kennungen
+
+
+# --------------------------------------------------------------------------
+# Issue #3: eine Serie ist ein Titel, nicht eine Staffel
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def serien_client(arr_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """Wie ``arr_client``, aber Sonarr kennt auch etwas.
+
+    Die Attrappe in ``conftest`` liefert fuer Serien eine **leere** Bibliothek -
+    dann wirft ``_noch_vorhanden`` jede Serie weg, und die Tests hier haetten
+    nie etwas zu pruefen. Sie spiegelt deshalb, wie die Film-Attrappe, die
+    Anfrage-Tabelle.
+    """
+    from sqlalchemy import select
+
+    from app.services.sonarr import LibraryEntry
+
+    async def serien(_settings: object, _tier: str = "standard") -> tuple[dict, dict]:
+        with SessionLocal() as sitzung:
+            kennungen = sitzung.scalars(
+                select(MediaRequest.tvdb_id).where(
+                    MediaRequest.media_type == MediaType.tv,
+                    MediaRequest.status == RequestStatus.downloaded,
+                    MediaRequest.tvdb_id.is_not(None),
+                )
+            ).all()
+        return {
+            kennung: LibraryEntry(
+                arr_id=kennung,
+                has_file=True,
+                monitored=True,
+                episode_file_count=10,
+                episode_count=10,
+                title_key=f"serie-{kennung}",
+            )
+            for kennung in kennungen
+        }, {}
+
+    monkeypatch.setattr(library, "series_library", serien)
+    return arr_client
+
+
+def _serie(
+    user_id: int,
+    tmdb_id: int,
+    *,
+    staffeln: list[int | None],
+    titel: str = "Testserie",
+    minuten_her: int = 0,
+) -> None:
+    """Je Staffel eine erledigte Anfrage - so, wie sie im Betrieb entstehen."""
+    with SessionLocal() as session:
+        jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+        for versatz, staffel in enumerate(staffeln):
+            session.add(
+                MediaRequest(
+                    user_id=user_id,
+                    media_type=MediaType.tv,
+                    tmdb_id=tmdb_id,
+                    tvdb_id=tmdb_id,
+                    season=staffel,
+                    title=titel,
+                    status=RequestStatus.downloaded,
+                    completed_at=jetzt - timedelta(minutes=minuten_her + versatz),
+                )
+            )
+        session.commit()
+
+
+def test_vier_staffeln_sind_eine_kachel(serien_client: TestClient) -> None:
+    """⚠️ Issue #3, der gemeldete Fall.
+
+    Vier fertige Staffeln ergaben vier Kacheln derselben Serie. Der Bereich
+    heisst "Frisch geladen" und beantwortet die Frage "was ist neu bei euch?" -
+    und die Antwort ist der Titel, nicht die Datei.
+    """
+    kim = create_user(serien_client, "kim")
+    _serie(kim["id"], 770001, staffeln=[1, 2, 3, 4])
+
+    eintraege = serien_client.get("/api/home/recent").json()
+    assert len(eintraege) == 1
+    assert eintraege[0]["seasons"] == [1, 2, 3, 4]
+
+
+def test_eine_staffel_nennt_ihre_nummer(serien_client: TestClient) -> None:
+    kim = create_user(serien_client, "kim")
+    _serie(kim["id"], 770002, staffeln=[3])
+
+    eintraege = serien_client.get("/api/home/recent").json()
+    assert len(eintraege) == 1
+    assert eintraege[0]["seasons"] == [3]
+
+
+def test_ganze_serie_nennt_keine_staffel(serien_client: TestClient) -> None:
+    """``season = NULL`` heisst "ganze Serie" - dann waere jede Zahl gelogen."""
+    kim = create_user(serien_client, "kim")
+    _serie(kim["id"], 770003, staffeln=[None])
+
+    eintraege = serien_client.get("/api/home/recent").json()
+    assert len(eintraege) == 1
+    assert eintraege[0]["seasons"] == []
+
+
+def test_ganze_serie_schlaegt_die_einzelne_staffel(serien_client: TestClient) -> None:
+    """Wer erst Staffel 3 und spaeter die ganze Serie holt, hat beides in der
+    Tabelle. "Staffel 3" waere dann untertrieben und "2 Staffeln" schlicht
+    falsch, wenn die Serie sechs hat."""
+    kim = create_user(serien_client, "kim")
+    _serie(kim["id"], 770004, staffeln=[3, None])
+
+    eintraege = serien_client.get("/api/home/recent").json()
+    assert len(eintraege) == 1
+    assert eintraege[0]["seasons"] == []
+
+
+def test_zwei_serien_bleiben_zwei_kacheln(serien_client: TestClient) -> None:
+    """Zusammengelegt wird je Titel, nicht ueber Titel hinweg."""
+    kim = create_user(serien_client, "kim")
+    _serie(kim["id"], 770005, staffeln=[1, 2], titel="Erste", minuten_her=1)
+    _serie(kim["id"], 770006, staffeln=[1], titel="Zweite", minuten_her=30)
+
+    eintraege = serien_client.get("/api/home/recent").json()
+    assert len(eintraege) == 2
+    assert [e["tmdb_id"] for e in eintraege] == [770005, 770006]
+
+
+def test_die_neueste_staffel_stellt_die_serie_dar(serien_client: TestClient) -> None:
+    """Wer zuletzt etwas geholt hat, steht auf der Kachel - "frisch geladen"
+    meint schliesslich die neueste Staffel."""
+    alt = create_user(serien_client, "kim")
+    neu = create_user(serien_client, "alex")
+
+    with SessionLocal() as session:
+        jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+        session.add(
+            MediaRequest(
+                user_id=alt["id"],
+                media_type=MediaType.tv,
+                tmdb_id=770007,
+                tvdb_id=770007,
+                season=1,
+                title="Geteilt",
+                status=RequestStatus.downloaded,
+                completed_at=jetzt - timedelta(days=3),
+            )
+        )
+        session.add(
+            MediaRequest(
+                user_id=neu["id"],
+                media_type=MediaType.tv,
+                tmdb_id=770007,
+                tvdb_id=770007,
+                season=2,
+                title="Geteilt",
+                status=RequestStatus.downloaded,
+                completed_at=jetzt - timedelta(minutes=1),
+            )
+        )
+        session.commit()
+
+    eintraege = serien_client.get("/api/home/recent").json()
+    assert len(eintraege) == 1
+    assert eintraege[0]["requested_by"] == "alex"
+    assert eintraege[0]["seasons"] == [1, 2]
+
+
+def test_derselbe_film_in_zwei_stufen_ist_eine_kachel(arr_client: TestClient) -> None:
+    """Dasselbe Doppelbild wie bei den Staffeln, nur bei Filmen: 1080p und 4K
+    sind zwei Dateien, aber ein Titel."""
+    from app.models import QualityTier
+
+    kim = create_user(arr_client, "kim")
+    with SessionLocal() as session:
+        jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+        for versatz, stufe in enumerate((QualityTier.standard, QualityTier.uhd)):
+            session.add(
+                MediaRequest(
+                    user_id=kim["id"],
+                    media_type=MediaType.movie,
+                    tmdb_id=770008,
+                    tier=stufe,
+                    title="Doppelt",
+                    status=RequestStatus.downloaded,
+                    completed_at=jetzt - timedelta(minutes=versatz),
+                )
+            )
+        session.commit()
+
+    eintraege = arr_client.get("/api/home/recent").json()
+    assert len(eintraege) == 1
+    assert eintraege[0]["seasons"] == []
+
+
+def test_die_grenze_zaehlt_titel_nicht_zeilen(serien_client: TestClient) -> None:
+    """⚠️ Der Grund, warum das Zusammenlegen in die Abfrage muss.
+
+    Frueher sass ``LIMIT`` an der rohen Anfragetabelle. Eine einzige Serie mit
+    zwoelf Staffeln fuellte damit die ganze Startseite - und nur in der
+    Oberflaeche zusammenzulegen haette daraus **eine** Kachel gemacht statt
+    zwoelf verschiedener Titel.
+    """
+    kim = create_user(serien_client, "kim")
+    for nummer in range(home.LIMIT + 2):
+        _serie(
+            kim["id"],
+            780000 + nummer,
+            staffeln=[1, 2, 3],
+            titel=f"Serie {nummer}",
+            minuten_her=nummer * 10,
+        )
+
+    eintraege = serien_client.get("/api/home/recent").json()
+    assert len(eintraege) == home.LIMIT
+    assert len({e["tmdb_id"] for e in eintraege}) == home.LIMIT
+    assert all(e["seasons"] == [1, 2, 3] for e in eintraege)
+
+
+def test_filme_tragen_keine_staffeln(arr_client: TestClient) -> None:
+    create_user(arr_client, "kim")
+    kim = auth_headers(arr_client, "kim", "passwort-1234")
+    _fertig(_anfrage(arr_client, kim))
+
+    eintraege = arr_client.get("/api/home/recent").json()
+    assert eintraege[0]["seasons"] == []

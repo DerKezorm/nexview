@@ -79,6 +79,7 @@ export type User = {
   mail_user_imported: boolean;
   mail_mediaserver_reconnect: boolean;
   mail_child_wish: boolean;
+  mail_cleanup: boolean;
   mail_storage: boolean;
   /**
    * Liegt ein persönlicher Plex-Zugang vor? Nur diese Auskunft – nie das
@@ -1304,6 +1305,13 @@ export type RecentItem = {
   completed_at: string | null;
   requested_by: string;
   requester_avatar: string | null;
+  /**
+   * Die Staffeln hinter dieser Kachel, aufsteigend.
+   *
+   * Leer heißt: ein Film, oder eine als Ganzes angefragte Serie. Dann steht
+   * auf der Kachel schlicht „Film" bzw. „Serie".
+   */
+  seasons: number[];
 };
 
 export type UserStats = {

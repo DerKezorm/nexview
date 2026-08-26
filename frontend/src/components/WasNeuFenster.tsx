@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
+import { Betont } from './Betont'
 import { Fenster } from './Fenster'
 import { Button } from './ui'
 
@@ -179,7 +180,9 @@ export function WasNeuFenster({
 
         {eintrag ? (
           <>
-            <p className="text-sm leading-relaxed text-mist-300">{eintrag.lead}</p>
+            <p className="text-sm leading-relaxed text-mist-300">
+              <Betont text={eintrag.lead} />
+            </p>
 
             {/* Zuerst die Funktionen – und je Funktion der Weg dorthin. Ein
                 Betreiber will nach dem Update nicht wissen, was sich im Code
@@ -187,10 +190,12 @@ export function WasNeuFenster({
             <ol className="flex flex-col gap-5">
               {eintrag.sections.map((abschnitt) => (
                 <li key={abschnitt.title} className="border-l-2 border-accent-500/40 pl-4">
-                  <h4 className="font-semibold">{abschnitt.title}</h4>
+                  <h4 className="font-semibold">
+                    <Betont text={abschnitt.title} />
+                  </h4>
                   <p className="mt-0.5 font-mono text-xs text-accent-400">{abschnitt.where}</p>
                   <p className="mt-1.5 text-sm leading-relaxed text-mist-300">
-                    {abschnitt.body}
+                    <Betont text={abschnitt.body} />
                   </p>
                 </li>
               ))}
@@ -210,7 +215,9 @@ export function WasNeuFenster({
                       className="flex gap-2 text-xs leading-relaxed text-mist-500"
                     >
                       <span aria-hidden="true">·</span>
-                      <span>{zeile}</span>
+                      <span>
+                        <Betont text={zeile} />
+                      </span>
                     </li>
                   ))}
                 </ul>

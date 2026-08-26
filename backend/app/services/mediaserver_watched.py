@@ -419,6 +419,25 @@ async def refresh(db: Session, settings: AppSettings) -> int:
     gesamt = 0
     for anbieter in verbundene_anbieter(settings):
         gesamt += await _einen_server_abgleichen(db, settings, anbieter)
+
+    # ⚠️ **Hier, und nicht im Waechter der Loeschfrist.** Wer einen zum
+    # Loeschen vorgemerkten Titel angesehen hat, hat damit widersprochen -
+    # ohne einen Knopf zu suchen und ohne von der Vormerkung zu wissen. Der
+    # Widerspruch muss deshalb genau dann greifen, wenn das Ansehen bekannt
+    # wird, nicht erst wenn die Frist ablaeuft: Sonst stuende der Titel bis
+    # zuletzt mit Countdown auf der Startseite, obwohl er laengst gerettet ist.
+    #
+    # Der Import steht hier unten, weil ``loeschfrist`` seinerseits Modelle
+    # zieht, die dieses Modul schon geladen hat.
+    from . import loeschfrist
+
+    aufgehoben = 0
+    for benutzer_id in db.scalars(select(UserWatched.user_id).distinct()):
+        aufgehoben += loeschfrist.angesehen_hebt_auf(db, benutzer_id)
+    if aufgehoben:
+        db.commit()
+        logger.info("%d scheduled deletion(s) cancelled - watched during the grace period", aufgehoben)
+
     return gesamt
 
 

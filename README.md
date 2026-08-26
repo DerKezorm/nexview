@@ -201,7 +201,7 @@ Nexview follows the usual `MAJOR.MINOR.PATCH` numbering:
 | Image | Contents |
 |---|---|
 | `ghcr.io/derkezorm/nexview:latest` | the latest **released** version — the recommendation |
-| `ghcr.io/derkezorm/nexview:0.16.1` | exactly that one version, never changes |
+| `ghcr.io/derkezorm/nexview:0.20.0` | exactly that one version, never changes |
 | `ghcr.io/derkezorm/nexview:main` | the current development state, may be broken |
 
 The running version is in the footer and in detail under **About Nexview**, which also
@@ -226,6 +226,10 @@ copy `.env.example` to `.env`:
 | `NEXVIEW_LOG_LEVEL` | Overrides the log level chosen in the app (`quiet`, `normal`, `detailed`, `trace`). Emergency exit for when Nexview does not start. |
 | `NEXVIEW_PORT` | Port Nexview listens on **inside the container** (default: 8000). Read by the container's start script, not by the backend itself. Only needed on host networking — see below. |
 | `NEXVIEW_CLIENT_IP` | How Nexview learns the caller's address, for rate limiting sign-ins: unset (count per account only), `direct`, `proxy`, or `proxy:2`. See below. |
+| `NEXVIEW_COOKIE_SECURE` | Whether the sign-in cookie is marked `Secure`: `auto` (default), `on`, or `off`. See below. |
+| `NEXVIEW_CSP` | Content security rules: `on` (default), `report-only`, or `off`. See below. |
+| `NEXVIEW_FRAME_ANCESTORS` | Who may put Nexview in a frame: `none` (default), `self`, or an origin. See below. |
+| `NEXVIEW_IMG_SOURCES` | Extra image hosts, space separated. Only needed if calendar posters stay blank. See below. |
 
 **No TMDB, Radarr or Sonarr keys belong in `.env`** — you enter those in the app.
 
@@ -250,6 +254,51 @@ own whether it sits behind a reverse proxy:
 > ⚠️ Leave it unset if you are unsure. Saying `direct` while a proxy sits in front makes
 > every request look like it comes from the same address — one typo would then lock out
 > the whole household, you included.
+
+### The sign-in cookie
+
+Your sign-in is kept in an `HttpOnly` cookie. The browser sends it back on its own, and
+no script on the page can read it — which is the point: a script that gets onto the page
+can no longer carry your sign-in away with it.
+
+`NEXVIEW_COOKIE_SECURE` decides whether that cookie is marked `Secure`, meaning the
+browser only ever sends it over HTTPS:
+
+| Value | When |
+|---|---|
+| `auto` | Default. `Secure` is set whenever the request itself arrived over HTTPS. Works everywhere, including plain HTTP. |
+| `on` | Always set it. Use this when a reverse proxy terminates HTTPS and forwards plain HTTP to Nexview — Nexview sees `http` and would leave it off. |
+| `off` | Never set it. |
+
+> ⚠️ Do not set `on` if Nexview is meant to be reachable over `http://`. A browser throws
+> a `Secure` cookie away over plain HTTP, and nobody would be able to sign in.
+
+Nexview deliberately does **not** guess from `X-Forwarded-Proto`: that header can be
+faked just like `X-Forwarded-For`, and the same question is already answered by asking
+rather than guessing over at `NEXVIEW_CLIENT_IP`.
+
+### Content security rules
+
+Nexview tells your browser where it may load things from, and where it may send things
+to. Anything not on the list is refused. The one that matters most is that **no script
+on the page can send data to any address other than Nexview's own** — which is exactly
+the gap the sign-in cookie leaves open: the cookie stops a stolen pass being carried
+away, not being used.
+
+You should not need to touch any of this. Three switches exist for the cases where you
+do:
+
+| Variable | Values | When |
+|---|---|---|
+| `NEXVIEW_CSP` | `on` (default), `report-only`, `off` | `report-only` reports breaches in the browser console without blocking anything — useful to look before you commit. `off` turns the header off entirely. |
+| `NEXVIEW_FRAME_ANCESTORS` | `none` (default), `self`, or an origin | Set this if you embed Nexview in a dashboard such as Organizr. Without it the frame stays **empty, with no error message**. |
+| `NEXVIEW_IMG_SOURCES` | space separated origins | Set this if calendar posters stay blank. |
+
+> ⚠️ **Why posters can stay blank.** Calendar posters are not built by Nexview — it
+> passes on whatever address Radarr or Sonarr stored, and that depends on your metadata
+> provider. The usual ones (TMDB, TheTVDB, fanart.tv) are allowed already. If yours is
+> something else, the posters simply do not appear; the browser only says so in its
+> console. `NEXVIEW_IMG_SOURCES=https://your.host` fixes it.
 
 ---
 
@@ -312,10 +361,35 @@ password, not even the administrator.
 
 ### Tests
 
+The backend suite — the big one, and the one that has to be green before a
+release:
+
 ```bash
 cd backend
 .venv/Scripts/python.exe -m pytest
 ```
+
+The interface is tested on two levels. The fast ones run without a browser
+against a replaced API layer, in seconds:
+
+```bash
+cd frontend
+npm test
+```
+
+And one runs in a real Chromium, against a real server: it signs in, reloads,
+and signs out again. That is the only way to prove that the browser really
+keeps the sign-in across a reload — the session lives in a cookie that
+JavaScript cannot read, so nothing below a real browser can tell you. It starts
+backend and interface itself, on their own ports and on an empty database:
+
+```bash
+cd frontend
+npx playwright install chromium   # once
+npm run e2e
+```
+
+All three run in CI on every push and every pull request.
 
 ### Starting over
 

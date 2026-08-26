@@ -194,6 +194,18 @@ class NotificationType(str, enum.Enum):
     # dass jemand etwas getan hat**. Ohne Hinweis faende der Betroffene eine
     # still gestiegene Zahl vor und suchte den Fehler bei sich.
     storage_grew = "storage_grew"
+    # Ein Titel ist zum Loeschen vorgemerkt und verschwindet nach Ablauf der
+    # Schonfrist. Geht an **alle mit Bezug zum Titel** - wer ihn angefragt,
+    # bewertet, mit dem Herz markiert oder gesehen hat.
+    #
+    # ⚠️ Ausdruecklich nicht ueber "Sag mir Bescheid" (``TitleWatch``): Das ist
+    # die Warteliste fuer Titel, die es **noch nicht gibt**, und bei Filmen
+    # faellt die Zeile weg, sobald gemeldet wurde. Fuer einen vorhandenen Titel
+    # steht dort praktisch nie jemand - die Nachricht ginge ins Leere.
+    storage_scheduled = "storage_scheduled"
+    # Die Vormerkung ist wieder weg - entweder hat der Administrator sie
+    # zurueckgenommen, oder jemand hat den Titel in der Frist angesehen.
+    storage_unscheduled = "storage_unscheduled"
     # Die eigene Anfrage wurde zurueckgestellt: nicht abgelehnt, nur vertagt.
     # Ohne Hinweis wechselte sie stillschweigend den Zustand, und das sieht wie
     # ein Fehler aus.
@@ -444,6 +456,24 @@ class User(Base):
     # Die Glocke sieht es nur, wer die App gerade offen hat - deshalb dieser
     # Schalter. Standard aus, wie alle Mail-Schalter.
     mail_child_wish: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Der monatliche Aufraeum-Bericht am 1.: Was liegt herum und belegt Platz?
+    #
+    # ⚠️ **Anders als alle anderen Mail-Schalter kein Ereignis, sondern ein
+    # Termin.** Deshalb ist er auch fuer sich zu haben: Wer keine
+    # Einzelmeldungen will, moechte vielleicht trotzdem einmal im Monat
+    # aufraeumen - und umgekehrt.
+    #
+    # Der Administrator bekommt die ganze Bibliothek samt Hausbestand, alle
+    # anderen nur, was ihnen zugerechnet ist.
+    mail_cleanup: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Wann der Bericht zuletzt hinausging.
+    #
+    # ⚠️ **Ohne diesen Stempel schickt ein Container, der am 1. fuenfmal neu
+    # startet, fuenf Berichte.** Das ist der klassische Fehler bei genau dieser
+    # Sorte Funktion, und er faellt erst beim Empfaenger auf. Verglichen wird
+    # der **Monat**, nicht der Tag: Stand der Server am 1. still, geht der
+    # Bericht am 2. hinaus - spaeter ist besser als gar nicht.
+    cleanup_mail_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # --- Vorbelegung der Filterleiste beim Entdecken ----------------------
     # NULL heisst "nichts Eigenes eingestellt", dann gilt die Vorgabe des
@@ -975,6 +1005,9 @@ class MediaServerLibraryItem(Base):
     # ueberhaupt noch kennt.
     size_standard: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     size_uhd: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    # Seit wann die Datei hier liegt - siehe ``LibraryItem.added_at``. Fuer
+    # Titel, die Radarr nicht mehr fuehrt, ist das die einzige Quelle.
+    added_at: Mapped[datetime | None] = mapped_column(DateTime)
     tmdb_id: Mapped[int | None] = mapped_column(Integer)
     tvdb_id: Mapped[int | None] = mapped_column(Integer)
     imdb_id: Mapped[str | None] = mapped_column(String(20))
@@ -1094,6 +1127,41 @@ class StorageEntry(Base):
     # Netzabfrage angewiesen, nur um ein Zeichen zu setzen.
     arr_managed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     measured_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    # ⚠️ **Seit wann die Datei da liegt - nicht, seit wann Nexview sie kennt.**
+    #
+    # Der Unterschied ist der ganze Punkt. ``measured_at`` faellt bei jedem
+    # stuendlichen Abgleich neu an und heisst "zuletzt nachgesehen"; als Alter
+    # taugt es nicht. Wer damit rechnete, haette auf einer zehn Jahre alten
+    # Bibliothek lauter brandneue Dateien vor sich.
+    #
+    # Hier steht deshalb das Datum, das die **Quelle** fuehrt: bei Filmen
+    # ``movieFile.dateAdded`` aus Radarr (steht ohnehin in der Antwort), bei
+    # Staffeln das aelteste ``dateAdded`` ihrer Folgendateien.
+    #
+    # ``None`` heisst "noch nicht ermittelt" und ist ein ehrlicher Zustand:
+    # Direkt nach einem Update steht das bei allem, bis der naechste Abgleich
+    # es nachtraegt. Der Aufraeum-Vorschlag laesst solche Posten dann aus,
+    # statt ihr Alter zu raten.
+    added_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # ⚠️ **Zum Loeschen vorgemerkt - ab wann.** ``None`` heisst: nicht
+    # vorgemerkt, der Normalfall.
+    #
+    # Bewusst ein Zeitpunkt und kein Ja/Nein-Schalter: Die Schonfrist ist der
+    # eigentliche Sinn der Sache. Wer loeschen will, kuendigt es an, und der
+    # Haushalt hat bis dahin Gelegenheit zu widersprechen - oder den Titel
+    # schlicht noch einmal anzusehen, was die Vormerkung von selbst aufhebt.
+    #
+    # Bewusst **kein** eigener ``StorageState``: Der sagt, **wem** ein Posten
+    # gehoert (Nutzer, abgegeben, Haus). "Wird bald geloescht" ist eine andere
+    # Achse und gilt unabhaengig davon - auch der Hausbestand kann vorgemerkt
+    # sein, und der hat gar keinen Eigentuemer.
+    delete_after: Mapped[datetime | None] = mapped_column(DateTime)
+    # Wann die Vormerkung gesetzt wurde. Gebraucht fuer genau eine Regel:
+    # Wer den Titel **danach** ansieht, hebt sie auf. Ohne diesen Zeitpunkt
+    # muesste man den Beginn der Frist aus ihrer Laenge zurueckrechnen - und
+    # die ist einstellbar, also waere es geraten. Ein alter Seh-Eintrag
+    # widerlegt nichts; er ist ja gerade der Grund, warum vorgemerkt wurde.
+    delete_marked_at: Mapped[datetime | None] = mapped_column(DateTime)
     state: Mapped[StorageState] = mapped_column(
         enum_column(StorageState), default=StorageState.house, nullable=False
     )

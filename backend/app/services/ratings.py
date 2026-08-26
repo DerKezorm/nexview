@@ -13,6 +13,13 @@ Zwei Dinge grenzt dieses Modul ausdruecklich ab:
   verschwindet in einem Durchschnitt; ein Ticket laesst sich nicht
   wegmitteln. Deshalb bietet die Oberflaeche bei einem schwachen Urteil an,
   eines daraus zu machen.
+
+⚠️ **Nicht zu verwechseln mit ``portal_ratings.py``.** Hier steht, was der
+**Haushalt** ueber eine Datei sagt. Was **IMDb, Rotten Tomatoes und
+Metacritic** sagen, steht nebenan. Beides hiess einmal ``ratings`` - und als
+diese Datei in 0.19.0 neu geschrieben wurde, verschwanden die Portal-Wertungen
+mit ihr, waehrend ihr Aufrufer stehenblieb. Zwei Versionen lang endete jede
+Anfrage an ``/api/ratings/movie`` in einem 500.
 """
 
 from __future__ import annotations

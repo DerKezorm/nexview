@@ -20,6 +20,7 @@ type MailFeld =
   | 'mail_mediaserver_reconnect'
   | 'mail_storage'
   | 'mail_child_wish'
+  | 'mail_cleanup'
 
 type Schalter = {
   feld: MailFeld
@@ -123,6 +124,19 @@ const SCHALTER: Schalter[] = [
     hintKey: 'profile.mailChildWishHint',
     nurMitKindern: true,
   },
+  {
+    // ⚠️ Der einzige Schalter, hinter dem kein Ereignis steht, sondern ein
+    // Termin: einmal im Monat, ob etwas passiert ist oder nicht. Deshalb ist
+    // er auch für sich zu haben — wer keine Einzelmeldungen will, möchte
+    // vielleicht trotzdem einmal im Monat aufräumen.
+    //
+    // Nur sichtbar, solange nach Speicherplatz gerechnet wird: Ohne Messung
+    // gäbe es nichts zu berichten.
+    feld: 'mail_cleanup',
+    labelKey: 'profile.mailCleanup',
+    hintKey: 'profile.mailCleanupHint',
+    nurMitSpeicher: true,
+  },
 ]
 
 type Entwurf = Record<MailFeld, boolean>
@@ -139,6 +153,7 @@ function ausUser(user: User): Entwurf {
     mail_mediaserver_reconnect: user.mail_mediaserver_reconnect,
     mail_storage: user.mail_storage,
     mail_child_wish: user.mail_child_wish,
+    mail_cleanup: user.mail_cleanup,
   }
 }
 

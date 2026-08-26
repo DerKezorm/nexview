@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { ApiError, api, clearTokens } from '../api/client'
+import { ApiError, api, logout } from '../api/client'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../components/ui'
@@ -141,7 +141,13 @@ export function InvitationPage() {
       // der Eingeladene in dem Konto, das im selben Browser noch angemeldet
       // war - typischerweise beim Administrator, der die Einladung gerade
       // verschickt hat.
-      clearTokens()
+      //
+      // ⚠️ Seit 0.21 muss dafuer der **Server** gefragt werden: Die Sitzung
+      // haengt an einem HttpOnly-Cookie, und das kann dieses Skript nicht
+      // loeschen. Ein blosses Vergessen im Arbeitsspeicher wuerde den
+      // Eingeladenen beim naechsten Seitenaufruf wieder als Administrator
+      // hereinlassen.
+      void logout()
       setAngelegt(true)
     },
     onError: (caught) =>
@@ -270,7 +276,13 @@ export function SetPasswordPage() {
 
   const setzen = useMutation({
     mutationFn: () => api.post(`/api/onboarding/password/${token}`, { password }),
-    onSuccess: () => setFertig(true),
+    onSuccess: () => {
+      // Derselbe Grund wie beim Einloesen einer Einladung - und hier zaehlt er
+      // doppelt: Wer sein Passwort zuruecksetzt, tut das oft, weil jemand
+      // anderes an seinem Konto war.
+      void logout()
+      setFertig(true)
+    },
     onError: (caught) =>
       setError(caught instanceof ApiError ? caught.message : t('errors.network')),
   })

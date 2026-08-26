@@ -37,7 +37,7 @@ from ..services import (
 )
 from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
-from ..services import ratings, streaming, watch
+from ..services import portal_ratings, ratings, streaming, watch
 from ..services.streaming import eigene_dienste
 from ..services.tmdb import TmdbError
 from .. import meldungen
@@ -440,7 +440,7 @@ async def movie_ratings(
         return {}
 
     settings = load_settings(db)
-    gefunden = await ratings.for_movies(settings, kennungen)
+    gefunden = await portal_ratings.for_movies(settings, kennungen)
     return {
         tmdb_id: MovieRatings(
             imdb_id=wert.imdb_id,

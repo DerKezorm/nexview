@@ -1,22 +1,45 @@
 /**
  * Zugriff auf das Nexview-Backend.
  *
- * Der Access-Token liegt nur im Arbeitsspeicher, der Refresh-Token im
- * localStorage - so bleibt man nach einem Neuladen der Seite angemeldet.
- * Laeuft der Access-Token ab, wird er automatisch einmal erneuert und die
- * Anfrage wiederholt.
+ * Der Access-Token liegt nur im Arbeitsspeicher. Der Refresh-Token liegt
+ * ueberhaupt nicht mehr hier: Er ist seit 0.21 ein HttpOnly-Cookie, das der
+ * Browser selbst verwaltet und das dieses Skript weder lesen noch schreiben
+ * kann. Genau das ist der Punkt - vorher lag er dreissig Tage im
+ * `localStorage`, wo jedes Skript ihn mitnehmen konnte.
+ *
+ * Nach einem Neuladen der Seite ist der Access-Token weg; `restoreSession`
+ * holt sich mit dem Cookie einen neuen. Laeuft er waehrend der Sitzung ab,
+ * wird er automatisch einmal erneuert und die Anfrage wiederholt.
  */
 
 import i18n from '../i18n'
 
-const REFRESH_STORAGE_KEY = 'nexview.refresh'
+/**
+ * Der Platz, an dem der Refresh-Token frueher lag.
+ *
+ * Wird beim Start einmal weggeraeumt. Ohne das bliebe bei jedem, der von
+ * einer aelteren Fassung kommt, ein gueltiges Dreissig-Tage-Token im Browser
+ * liegen - nutzlos fuer die Anwendung, aber weiterhin lesbar und bis zum
+ * Ablauf gegen den Server verwendbar. Die Zeile darf fruehestens weg, wenn
+ * niemand mehr von vor 0.21 umsteigt.
+ */
+const ALTER_SPEICHERPLATZ = 'nexview.refresh'
+
+function alteAblageRaeumen(): void {
+  try {
+    localStorage.removeItem(ALTER_SPEICHERPLATZ)
+  } catch {
+    /* Privater Modus ohne localStorage - dann liegt dort auch nichts. */
+  }
+}
+
+alteAblageRaeumen()
 
 let accessToken: string | null = null
 let onSessionLost: (() => void) | null = null
 
 export type TokenPair = {
   access_token: string
-  refresh_token: string
   token_type: string
   expires_in: number
 }
@@ -50,20 +73,29 @@ export class ApiError extends Error {
 
 export function setTokens(tokens: TokenPair): void {
   accessToken = tokens.access_token
-  localStorage.setItem(REFRESH_STORAGE_KEY, tokens.refresh_token)
 }
 
+/**
+ * Ortlich vergessen, dass jemand angemeldet war.
+ *
+ * ⚠️ Raeumt nur den Arbeitsspeicher. Das Cookie kann dieses Skript gar nicht
+ * loeschen - dafuer gibt es `logout()`, das den Server darum bittet. Wer hier
+ * aufraeumt, ohne dort zu fragen, hinterlaesst ein Cookie, mit dem der
+ * naechste Seitenaufruf wieder in einer Sitzung landet.
+ */
 export function clearTokens(): void {
   accessToken = null
-  localStorage.removeItem(REFRESH_STORAGE_KEY)
 }
 
-export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_STORAGE_KEY)
-}
-
-export function hasSession(): boolean {
-  return accessToken !== null || getRefreshToken() !== null
+/** Abmelden: der Server nimmt das Cookie weg. */
+export async function logout(): Promise<void> {
+  accessToken = null
+  try {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+  } catch {
+    // Server nicht erreichbar. Der Arbeitsspeicher ist trotzdem leer, und
+    // beim naechsten Versuch faellt das Cookie ohnehin auf.
+  }
 }
 
 /** Wird aufgerufen, wenn die Sitzung endgueltig abgelaufen ist. */
@@ -158,23 +190,44 @@ async function parseError(response: Response): Promise<ErrorInfo> {
   return { message: `HTTP ${response.status}`, code: null, data: null }
 }
 
+/**
+ * Laufende Erneuerung, damit nicht mehrere gleichzeitig starten.
+ *
+ * Ohne das loesen mehrere parallel abgelaufene Anfragen mehrere Erneuerungen
+ * aus. Bisher fiel das nicht auf, weil alle gueltig waren und die letzte
+ * gewann. Mit einem Cookie ist es unschoen bis gefaehrlich: Jede Antwort
+ * setzt es neu, und die Reihenfolge, in der sie ankommen, ist nicht die, in
+ * der sie losgeschickt wurden.
+ */
+let laufendeErneuerung: Promise<boolean> | null = null
+
 async function refreshAccessToken(): Promise<boolean> {
-  const refreshToken = getRefreshToken()
-  if (!refreshToken) return false
+  if (laufendeErneuerung) return laufendeErneuerung
 
-  const response = await fetch('/api/auth/refresh', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  })
+  laufendeErneuerung = (async () => {
+    try {
+      // Das Erneuerungs-Token faehrt als Cookie mit - es steht nirgends im
+      // Code, weil dieses Skript es gar nicht sehen darf.
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
 
-  if (!response.ok) {
-    clearTokens()
-    return false
-  }
+      if (!response.ok) {
+        clearTokens()
+        return false
+      }
 
-  setTokens((await response.json()) as TokenPair)
-  return true
+      setTokens((await response.json()) as TokenPair)
+      return true
+    } catch {
+      return false
+    } finally {
+      laufendeErneuerung = null
+    }
+  })()
+
+  return laufendeErneuerung
 }
 
 type RequestOptions = {
@@ -269,7 +322,14 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   URL.revokeObjectURL(url)
 }
 
-/** Beim Seitenstart die Sitzung aus dem gespeicherten Refresh-Token wiederherstellen. */
+/**
+ * Beim Seitenstart die Sitzung aus dem Cookie wiederherstellen.
+ *
+ * Anders als frueher laesst sich vorher **nicht** feststellen, ob ueberhaupt
+ * eine Sitzung existiert: Das Cookie ist fuer dieses Skript unsichtbar. Der
+ * Versuch ist deshalb immer eine echte Anfrage, und sein 401 ist keine
+ * Stoerung, sondern die Antwort "niemand angemeldet".
+ */
 export async function restoreSession(): Promise<boolean> {
   if (accessToken) return true
   return refreshAccessToken()

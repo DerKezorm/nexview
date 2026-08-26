@@ -8,6 +8,7 @@ Sinn des Hausbestands: dem Nutzer Luft verschaffen, ohne etwas zu loeschen.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 
@@ -19,11 +20,33 @@ from pydantic import BaseModel
 from ..deps import AdminUser, CurrentUser, DbSession
 from dataclasses import replace
 
-from ..models import MediaType, NotificationType, Role, StorageEntry, StorageWish, User
-from sqlalchemy import select
-from ..services import library, mediaserver_watched, notify, storage
+from ..models import (
+    MediaType,
+    NotificationType,
+    Role,
+    StorageEntry,
+    StorageWish,
+    User,
+    utcnow,
+)
+from sqlalchemy import func, select
+from ..services import (
+    aufraeumen,
+    library,
+    loeschfrist,
+    media,
+    mediaserver_watched,
+    notify,
+    storage,
+)
+# Dieselbe Antwortform wie in der Statistik. Bewusst dort definiert und
+# hier geholt statt verdoppelt: Zwei Fassungen desselben Schemas laufen
+# beim ersten neuen Feld auseinander, und die Oberflaeche haette dann zwei
+# Tabellen zu pflegen statt einer.
+from .stats import AufraeumListe, als_liste
 from ..services.arr import ArrError
-from ..services.settings_service import load_settings
+from ..services.settings_service import for_user, load_settings
+from .. import meldungen
 
 logger = logging.getLogger(__name__)
 
@@ -744,3 +767,241 @@ async def loeschen(posten_id: int, admin: AdminUser, db: DbSession) -> None:
             title=posten.title,
         )
     db.commit()
+
+
+# --------------------------------------------------------------------------
+# "Was von mir liegt herum" - dieselbe Liste, auf das eigene Konto zugeschnitten
+# --------------------------------------------------------------------------
+
+
+@router.get("/me/aufraeumen", response_model=AufraeumListe)
+def mein_aufraeumen(
+    user: CurrentUser,
+    db: DbSession,
+    monate: int = aufraeumen.MONATE_STANDARD,
+    grenze: int = aufraeumen.GRENZE_STANDARD,
+    suche: str = "",
+    art: MediaType | None = None,
+    nur_vorgemerkt: bool = False,
+) -> AufraeumListe:
+    """Was diesem Konto zugerechnet ist und lange niemand angesehen hat.
+
+    Derselbe Dienst wie in der Statistik, nur zugeschnitten - und **ohne
+    Hausbestand**, denn abgeben kann man nur, was einem gehoert. Genau darum
+    steht der Abgabeknopf daneben: Hier liest jemand ueber sich selbst und kann
+    im selben Zug handeln.
+
+    ⚠️ Auf einer gewachsenen Anlage ist diese Liste haeufig **leer**, und das
+    ist richtig so: Wer Nexview auf eine bestehende Bibliothek setzt, hat
+    zunaechst alles im Hausbestand. Zugerechnet wird nur, was danach ueber
+    Nexview bestellt wurde. Die Oberflaeche sagt das, statt eine leere Tabelle
+    zu zeigen.
+    """
+    return als_liste(
+        aufraeumen.liste(
+            db,
+            monate=monate,
+            grenze=grenze,
+            nutzer=user,
+            suche=suche,
+            art=art,
+            nur_vorgemerkt=nur_vorgemerkt,
+        )
+    )
+
+
+class AbgleichErgebnis(BaseModel):
+    """Was ein angestossener Abgleich bewegt hat."""
+
+    neu: int
+    aktualisiert: int
+    entfernt: int
+    #: Wie viele Posten danach ein Datei-Datum haben - und wie viele es gibt.
+    #: Die interessante Zahl direkt nach einem Update: Vorher ist sie null,
+    #: und solange sie es ist, kann der Aufraeum-Vorschlag nichts sagen.
+    mit_datum: int
+    posten_gesamt: int
+
+
+# ⚠️ **Nur ein Abgleich zur Zeit.** Nexview faehrt mit *einem* Arbeitsprozess,
+# und ein Lauf fragt Radarr, Sonarr und den Medienserver komplett ab - beim
+# ersten Mal zusaetzlich eine Abfrage je Serie. Zwei davon gleichzeitig legen
+# den Dienst lahm, drei erst recht; und weil der Knopf nichts sichtbar tut,
+# solange er laeuft, drueckt man ihn genau dann noch einmal.
+#
+# Ein Riegel im Arbeitsspeicher genuegt: Mehrere Prozesse gibt es nicht, und
+# ein Neustart darf ihn vergessen - dann laeuft ohnehin gerade keiner.
+_abgleich_laeuft = asyncio.Lock()
+
+
+@router.post("/abgleich", response_model=AbgleichErgebnis)
+async def abgleich_anstossen(admin: AdminUser, db: DbSession) -> AbgleichErgebnis:
+    """Die Speichermessung sofort laufen lassen, statt auf die Stunde zu warten.
+
+    ⚠️ **Gebaut fuer genau einen Moment: den ersten nach einem Update.** Der
+    Aufraeum-Vorschlag braucht das Datei-Datum aus Radarr/Sonarr, und das
+    traegt erst der naechste Abgleich nach. Bis dahin steht dort "kann ich noch
+    nicht sagen" - eine Stunde lang, und niemand weiss warum. Mit diesem Knopf
+    dauert es eine halbe Minute.
+
+    **Nur Administratoren**, und aus gutem Grund: Der Lauf fragt Radarr, Sonarr
+    und den Medienserver komplett ab. Ihn jedem freizugeben hiesse, dass ein
+    Dutzend Leute ihn gleichzeitig druecken koennen.
+
+    ⚠️ **Und selbst der Administrator bekommt nur einen zur Zeit.** Der Knopf
+    tut sichtbar nichts, solange er laeuft - also drueckt man ihn noch einmal.
+    Zwei volle Durchlaeufe gleichzeitig legen einen Dienst mit einem einzigen
+    Arbeitsprozess lahm; genau das ist beim Bauen passiert.
+    """
+    if _abgleich_laeuft.locked():
+        raise HTTPException(
+            409,
+            meldungen.meldung(
+                "sync_already_running",
+                "Ein Abgleich läuft gerade. Bitte warte, bis er fertig ist.",
+            ),
+        )
+
+    async with _abgleich_laeuft:
+        ergebnis = await storage.abgleichen(db, load_settings(db))
+    gesamt = db.scalar(select(func.count()).select_from(StorageEntry)) or 0
+    mit_datum = (
+        db.scalar(
+            select(func.count())
+            .select_from(StorageEntry)
+            .where(StorageEntry.added_at.is_not(None))
+        )
+        or 0
+    )
+    return AbgleichErgebnis(
+        neu=ergebnis.neu,
+        aktualisiert=ergebnis.aktualisiert,
+        entfernt=ergebnis.entfernt,
+        mit_datum=mit_datum,
+        posten_gesamt=gesamt,
+    )
+
+
+# --------------------------------------------------------------------------
+# Schonfrist: ankuendigen statt wegnehmen
+# --------------------------------------------------------------------------
+
+
+class Vormerkung(BaseModel):
+    """Wie lange die Schonfrist laufen soll."""
+
+    tage: int = loeschfrist.FRIST_TAGE
+
+
+class VorgemerkterPosten(BaseModel):
+    posten_id: int
+    media_type: str
+    tmdb_id: int | None
+    season: int | None
+    title: str
+    size_bytes: int
+    loescht_am: datetime
+    tage_uebrig: int
+    #: Fuer die Anzeige auf der Startseite. Kommt von TMDB, nicht aus der
+    #: Datenbank - der Speicher-Posten fuehrt kein Bild.
+    poster_url: str | None = None
+
+
+@router.post("/entries/{posten_id}/vormerken", response_model=VorgemerkterPosten)
+def vormerken(
+    posten_id: int, admin: AdminUser, db: DbSession, nutzlast: Vormerkung | None = None
+) -> VorgemerkterPosten:
+    """Zum Loeschen vormerken - mit Frist, statt sofort.
+
+    ⚠️ **Es passiert dabei nichts an der Datei.** Der Posten bleibt, wo er ist,
+    zaehlt weiter und laesst sich bis zur letzten Minute retten. Erst nach
+    Ablauf loescht der Waechter im Hintergrund.
+
+    Wer den Titel in der Frist ansieht, hebt die Vormerkung **von selbst** auf
+    (siehe ``services/loeschfrist``). Das ist der beste Widerspruch: Er
+    beweist genau das, was die Aufraeum-Liste bestritten hat.
+    """
+    try:
+        zeile = loeschfrist.vormerken(
+            db, posten_id, nutzlast.tage if nutzlast else loeschfrist.FRIST_TAGE
+        )
+    except loeschfrist.Fristfehler as fehler:
+        raise HTTPException(fehler.status_code, fehler.message) from fehler
+    db.commit()
+    logger.info("%r scheduled for deletion by %r", zeile.title, admin.username)
+
+    jetzt = utcnow().replace(tzinfo=None)
+    return VorgemerkterPosten(
+        posten_id=zeile.id,
+        media_type=zeile.media_type.value,
+        tmdb_id=zeile.tmdb_id,
+        season=zeile.season,
+        title=zeile.title,
+        size_bytes=zeile.size_bytes,
+        loescht_am=zeile.delete_after,
+        tage_uebrig=max(0, (zeile.delete_after - jetzt).days),
+    )
+
+
+@router.post("/entries/{posten_id}/vormerkung-aufheben", status_code=204)
+def vormerkung_aufheben(posten_id: int, admin: AdminUser, db: DbSession) -> None:
+    """Doch nicht loeschen - die Betroffenen erfahren auch das."""
+    try:
+        loeschfrist.aufheben(db, posten_id)
+    except loeschfrist.Fristfehler as fehler:
+        raise HTTPException(fehler.status_code, fehler.message) from fehler
+    db.commit()
+
+
+@router.get("/vorgemerkt", response_model=list[VorgemerkterPosten])
+async def vorgemerkt(user: CurrentUser, db: DbSession) -> list[VorgemerkterPosten]:
+    """Was demnaechst verschwindet - **fuer alle sichtbar**.
+
+    Bewusst nicht nur fuer Administratoren: Der ganze Sinn der Frist ist, dass
+    der Haushalt sie mitbekommt. Eine Ankuendigung, die nur der liest, der sie
+    ausgesprochen hat, ist keine.
+
+    ⚠️ **Die Altersbeschraenkung gilt auch hier.** Ohne sie waere dieser
+    Abschnitt ein Leck: Ein gesperrter Titel stuende mit Namen und Bild auf der
+    Startseite eines beschraenkten Kontos - ausgerechnet auf der Seite, die
+    jeder zuerst sieht. Faellt die Abfrage aus anderen Gruenden aus, bleibt es
+    beim gespeicherten Titel ohne Bild; das ist schlichter, aber nicht falsch.
+    """
+    offen = loeschfrist.offene(db)
+    if not offen:
+        return []
+
+    settings = for_user(load_settings(db), user)
+    VERBERGEN = object()
+
+    async def hole(eintrag):
+        if eintrag.tmdb_id is None:
+            return None
+        try:
+            return await media.detail(db, settings, eintrag.media_type.value, eintrag.tmdb_id)
+        except media.AgeRestricted:
+            return VERBERGEN
+        except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
+            logger.warning("No details for %r: %s", eintrag.title, fehler)
+            return None
+
+    details = await asyncio.gather(*(hole(v) for v in offen))
+
+    ergebnis: list[VorgemerkterPosten] = []
+    for v, detail in zip(offen, details, strict=True):
+        if detail is VERBERGEN:
+            continue
+        ergebnis.append(
+            VorgemerkterPosten(
+                posten_id=v.posten_id,
+                media_type=v.media_type.value,
+                tmdb_id=v.tmdb_id,
+                season=v.season,
+                title=detail.title if detail else v.title,
+                size_bytes=v.size_bytes,
+                loescht_am=v.loescht_am,
+                tage_uebrig=v.tage_uebrig,
+                poster_url=detail.poster_url if detail else None,
+            )
+        )
+    return ergebnis

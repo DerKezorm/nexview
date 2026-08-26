@@ -124,14 +124,18 @@ class LoginRequest(BaseModel):
 
 
 class TokenPair(BaseModel):
+    """Was eine Anmeldung zurueckgibt.
+
+    ⚠️ **Das Erneuerungs-Token steht bewusst nicht mehr hier drin.** Es
+    verlaesst das Backend seit 0.21 ausschliesslich als HttpOnly-Cookie, damit
+    kein Skript im Browser es lesen kann - die Begruendung steht in
+    ``services/sitzung.py``. Der Name bleibt trotzdem: Es sind weiterhin zwei
+    Token, eines davon nimmt nur einen anderen Weg.
+    """
+
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     expires_in: int
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
 
 
 # --- Benutzer --------------------------------------------------------------
@@ -218,6 +222,7 @@ class UserPublic(BaseModel):
     mail_mediaserver_reconnect: bool
     mail_storage: bool
     mail_child_wish: bool
+    mail_cleanup: bool
 
     # *Ob* ein Plex-Zugang hinterlegt ist - das Token selbst verlaesst den
     # Server nie. Ohne ihn laesst sich die Merkliste nicht lesen.
@@ -489,6 +494,7 @@ class ProfileUpdate(BaseModel):
     mail_mediaserver_reconnect: bool | None = None
     mail_storage: bool | None = None
     mail_child_wish: bool | None = None
+    mail_cleanup: bool | None = None
 
     # Vorbelegung der Filterleiste. Der leere String bedeutet "nichts
     # Eigenes" - anders liesse sich eine einmal gesetzte Wahl nie wieder

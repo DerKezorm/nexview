@@ -1068,3 +1068,105 @@ def storage_deleted_mail(
         link=link,
         profil_link=profil_link,
     )
+
+
+def _zeile(nummer: int, titel: str, zusatz: str, groesse: str) -> str:
+    """Eine Zeile der Aufraeum-Tabelle.
+
+    Als Tabelle und nicht als Liste mit Aufzaehlungspunkten: Die Groesse steht
+    rechtsbuendig, und darum geht es hier - man liest die Spalte hinunter und
+    sieht sofort, wo der Platz liegt.
+    """
+    return f"""          <tr>
+            <td style="padding:8px 0;font-family:{SCHRIFT};font-size:14px;color:{TEXT};
+                       border-bottom:1px solid {RAHMEN};">
+              <span style="color:{LEISE};">{nummer}.</span> {titel}
+              <span style="color:{LEISE};font-size:12px;"> {zusatz}</span>
+            </td>
+            <td style="padding:8px 0;font-family:{SCHRIFT};font-size:14px;color:{GEDIMMT};
+                       text-align:right;white-space:nowrap;
+                       border-bottom:1px solid {RAHMEN};">{groesse}</td>
+          </tr>"""
+
+
+def aufraeum_mail(
+    *,
+    zeilen: list[tuple[str, str, str]],
+    gesamt: int,
+    gesamt_platz: str,
+    neu: int,
+    link: str,
+    fuer_admin: bool,
+    sprache: str = "de",
+) -> Mail:
+    """Der monatliche Aufraeum-Bericht.
+
+    ``zeilen`` sind die groessten Brocken - Titel, Zusatz (Staffel/Film und
+    seit wann), Groesse. ``gesamt`` zaehlt **alle** Kandidaten, auch die, die
+    hier nicht mehr hineinpassen.
+
+    ⚠️ **``neu`` ist der Grund, warum diese Mail beim zweiten Mal noch etwas
+    sagt.** Ohne die Angabe kaeme jeden Monat dieselbe Liste, und nach drei
+    Monaten filtert man sie weg. "Vier davon sind neu seit dem letzten
+    Bericht" ist die einzige Zeile, die sich zwischen zwei Monaten aendert.
+
+    Der Unterschied zwischen Betreiber und Haushalt steckt nur im Text: Der
+    eine sieht die ganze Bibliothek samt Hausbestand, der andere das, was ihm
+    zugerechnet ist. Die Tabelle sieht gleich aus.
+    """
+    englisch = _ist_englisch(sprache)
+
+    if englisch:
+        betreff = f"Nexview: {gesamt_platz} lying around unused"
+        kopf = "Time for a clear-out?"
+        unter = (
+            f"{gesamt} items nobody has watched for a while - {gesamt_platz} in total."
+            if fuer_admin
+            else f"{gesamt} of your items - {gesamt_platz} in total."
+        )
+        einleitung = (
+            "These are the biggest ones. Nothing happens automatically: you decide, "
+            "and every deletion can be given a grace period first."
+            if fuer_admin
+            else "These are the biggest ones. If you no longer need something, you can "
+            "hand it back - the operator decides what happens to it."
+        )
+        neu_satz = f"{neu} of them are new since the last report." if neu else ""
+        knopf = "Open the list"
+    else:
+        betreff = f"Nexview: {gesamt_platz} liegen ungenutzt herum"
+        kopf = "Zeit zum Aufräumen?"
+        unter = (
+            f"{gesamt} Posten sieht seit einer Weile niemand mehr an - zusammen {gesamt_platz}."
+            if fuer_admin
+            else f"{gesamt} deiner Posten - zusammen {gesamt_platz}."
+        )
+        einleitung = (
+            "Das sind die größten. Von selbst passiert nichts: Du entscheidest, und "
+            "jede Löschung kann vorher eine Schonfrist bekommen."
+            if fuer_admin
+            else "Das sind die größten. Was du nicht mehr brauchst, kannst du abgeben - "
+            "was damit geschieht, entscheidet der Betreiber."
+        )
+        neu_satz = f"{neu} davon sind neu seit dem letzten Bericht." if neu else ""
+        knopf = "Liste öffnen"
+
+    tabelle = "".join(
+        _zeile(i, titel, zusatz, groesse)
+        for i, (titel, zusatz, groesse) in enumerate(zeilen, start=1)
+    )
+    inhalt = _kasten(f"{einleitung} {neu_satz}".strip()) + f"""      <tr><td style="padding:20px 32px 0 32px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          {tabelle}
+        </table>
+      </td></tr>""" + _knopf(knopf, link)
+
+    text_zeilen = "\n".join(
+        f"{i}. {titel} {zusatz} - {groesse}"
+        for i, (titel, zusatz, groesse) in enumerate(zeilen, start=1)
+    )
+    text = (
+        f"{kopf}\n\n{unter}\n\n{einleitung} {neu_satz}\n\n"
+        f"{text_zeilen}\n\n{link}\n\n{_fuss_text(englisch)}"
+    )
+    return Mail(betreff, _rahmen(englisch, ueberschrift=kopf, unterzeile=unter, inhalt=inhalt), text)

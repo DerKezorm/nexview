@@ -32,6 +32,9 @@ KINDER_ERLAUBT = {
     "/api/config",
     "/api/auth/login",
     "/api/auth/refresh",
+    # Abmelden nimmt nur ein Cookie weg und verlangt deshalb keine Anmeldung -
+    # ein Kind darf sich selbstverstaendlich abmelden.
+    "/api/auth/logout",
     "/api/auth/me",
     "/api/setup/status",
     "/api/setup/admin",

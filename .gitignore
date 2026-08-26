@@ -49,3 +49,10 @@ ds-bundle/
 # Zeigt auf ein privates Claude-Design-Projekt - nicht in einen
 # oeffentlichen Repo.
 .design-sync/projekt-kennung.txt
+
+# Der Ende-zu-Ende-Test legt sich sein eigenes Datenverzeichnis an - eine
+# leere Datenbank je Lauf, damit der Einrichtungsassistent ueberhaupt
+# erscheint. Bericht und Bildschirmfotos entstehen nur bei Fehlschlaegen.
+frontend/.e2e-data/
+frontend/playwright-report/
+frontend/test-results/

@@ -727,9 +727,14 @@ async def create_request(
         )
     )
     if eigene_zurueckgestellte is not None:
+        # ⚠️ **Dieser Satz war lange nur halb wahr.** Er versprach eine
+        # Automatik, die es nicht gab: Niemand holte eine zurueckgestellte
+        # Anfrage zurueck, sie blieb liegen, bis ein Administrator zufaellig
+        # hinsah. Seit ``services/zurueckgestellt`` stimmt er - deshalb steht
+        # jetzt auch "von selbst" darin.
         raise RequestError(
-            f"„{item.title}“ steht bereits zurück – sobald du wieder Platz "
-            "hast, kann die Anfrage freigegeben werden.",
+            f"„{item.title}“ steht bereits zurück. Sobald du wieder Platz hast, "
+            "kommt sie von selbst zurück zu den offenen Freigaben.",
             409,
         )
 

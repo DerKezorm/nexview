@@ -42,6 +42,7 @@ from ..models import (
 from .arr import ArrError
 from .radarr import LibraryEntry as MovieEntry
 from .settings_service import AppSettings
+from . import sonarr
 from .sonarr import LibraryEntry as SeriesEntry
 from . import library, notify, quota
 
@@ -522,6 +523,13 @@ class _Gemessen:
     unvollstaendig: bool = False
     # Kommt der Posten von Radarr/Sonarr - oder nur noch vom Media-Server?
     verwaltet: bool = True
+    # Seit wann die Datei da liegt (siehe ``StorageEntry.added_at``). Bei
+    # Filmen kommt es gratis mit; bei Staffeln wird es nachgetragen, aber nur
+    # dort, wo es noch fehlt - siehe ``_staffeldaten_nachtragen``.
+    added_at: datetime | None = None
+    # Nur bei Serien und nur fuer genau diese Nachfrage: Ohne die Sonarr-Id
+    # laesst sich ``/episodefile`` nicht abrufen.
+    arr_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -641,7 +649,68 @@ async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
                 )
 
     _aus_media_server(db, gemessen)
+    await _staffeldaten_nachtragen(db, settings, gemessen)
     return gemessen
+
+
+async def _staffeldaten_nachtragen(
+    db: Session, settings: AppSettings, gemessen: dict[str, _Gemessen]
+) -> None:
+    """Seit wann die Staffeln da liegen - **nur wo es noch fehlt**.
+
+    ⚠️ **Der Sparsamkeits-Teil ist der wichtige.** Sonarr haengt an ``/series``
+    zwar Groesse und Folgenzahl je Staffel, aber kein Datum; das steht nur an
+    der einzelnen Datei und kostet eine Abfrage je Serie. Dieser Abgleich
+    laeuft **stuendlich** - sie jedes Mal fuer jede Serie zu stellen hiesse bei
+    zweihundert Serien fast fuenftausend Abfragen am Tag, fuer ein Datum, das
+    sich nie aendert.
+
+    Gefragt wird deshalb nur nach Staffeln, deren Datum in der Datenbank noch
+    fehlt. Nach dem ersten Lauf ist das praktisch keine mehr - nur noch neue
+    Staffeln.
+
+    Faellt die Abfrage aus, bleibt das Datum eben leer. Der Aufraeum-Vorschlag
+    laesst solche Posten dann aus, statt ihr Alter zu raten.
+    """
+    bekannt = set(
+        db.scalars(
+            select(StorageEntry.key).where(StorageEntry.added_at.is_not(None))
+        )
+    )
+    # Je Serie einmal, nicht je Staffel - eine Abfrage liefert alle auf einmal.
+    offen: dict[int, list[_Gemessen]] = {}
+    for wert in gemessen.values():
+        if wert.season is None or wert.arr_id is None or wert.key in bekannt:
+            continue
+        offen.setdefault(wert.arr_id, []).append(wert)
+    if not offen:
+        return
+
+    for stufe in (QualityTier.standard, QualityTier.uhd):
+        if not settings.arr_configured("tv", stufe.value):
+            continue
+        client = library.sonarr_client(settings, stufe.value)
+        if client is None:
+            continue
+        for serie_id, posten in list(offen.items()):
+            try:
+                daten = await sonarr.staffel_daten(client, serie_id)
+            except ArrError as fehler:
+                logger.warning(
+                    "Sonarr (%s) gave no file dates for series %s: %s",
+                    stufe.value,
+                    serie_id,
+                    fehler.message,
+                )
+                continue
+            for wert in posten:
+                wann = daten.get(wert.season) if wert.season is not None else None
+                if wann is not None:
+                    wert.added_at = wann
+            if daten:
+                offen.pop(serie_id, None)
+
+    logger.info("File dates fetched; %d series still without one", len(offen))
 
 
 def _film_aufnehmen(
@@ -665,6 +734,7 @@ def _film_aufnehmen(
         title=eintrag.title,
         size_bytes=eintrag.size_bytes,
         path=eintrag.path,
+        added_at=eintrag.added_at,
     )
 
 
@@ -702,6 +772,7 @@ def _serie_aufnehmen(
             # je Serie - und die Aussage "wo liegt das" beantwortet der Ordner.
             path=eintrag.path,
             unvollstaendig=stand is not None and not stand.vollstaendig,
+            arr_id=eintrag.arr_id,
         )
 
 
@@ -782,11 +853,54 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
             )
             quelle[kennung] = zeile.provider
 
+    # Was Radarr/Sonarr schon gemeldet haben, **je Titel** - nicht je
+    # Schluessel. Genau daran ist die Regel unten frueher gescheitert.
+    schon_gemeldet: dict[int, set[int]] = {}
+    for wert in ziel.values():
+        if wert.media_type == MediaType.movie and wert.tmdb_id is not None:
+            schon_gemeldet.setdefault(wert.tmdb_id, set()).add(wert.size_bytes)
+
+    doppelt = 0
     for kennung, wert in bester.items():
-        # Was Radarr gemeldet hat, bleibt stehen - siehe oben.
+        # Was Radarr unter genau diesem Schluessel gemeldet hat, bleibt stehen.
         if kennung in ziel:
             continue
+
+        # ⚠️ **Und was es unter einer anderen Stufe gemeldet hat, ebenfalls.**
+        #
+        # Hier lag ein Fehler, der Speicher **doppelt zaehlte**. Der Ablauf:
+        # Die Standard-Instanz laedt mit einem 1080p-Profil, greift aber eine
+        # 2160p-Datei - das passiert oft genug. Nexview verbucht Radarrs
+        # Meldung unter der Stufe der **Instanz** (``standard``); der
+        # Media-Server meldet dieselbe Datei mit ``videoResolution=4k``, und
+        # daraus entstand ein **zweiter** Posten unter ``uhd``. Die Pruefung
+        # oben griff nicht: Sie vergleicht den Schluessel, und der
+        # unterscheidet sich ja gerade in der Stufe.
+        #
+        # Gemessen an einer echten Anlage: 32 Dateien, 540 GB, die es einmal
+        # gibt und die zweimal gezaehlt wurden. Beim Hausbestand faellt das
+        # niemandem auf - wer ein Speicher-Kontingent hat, bekommt dagegen
+        # eine Datei zweimal angerechnet und kann nichts dagegen tun, denn
+        # der Phantom-Posten laesst sich weder abgeben noch loeschen.
+        #
+        # Erkannt wird es an der **byte-genauen Groesse**: Zwei wirklich
+        # verschiedene Fassungen desselben Films - 1080p in der einen, 4K in
+        # der anderen Instanz - haben nie dieselbe Byte-Zahl. Ein echter
+        # Doppelbestand bleibt also erhalten, und genau darum geht es.
+        if wert.tmdb_id is not None and wert.size_bytes in schon_gemeldet.get(
+            wert.tmdb_id, ()
+        ):
+            doppelt += 1
+            continue
+
         ziel[kennung] = wert
+
+    if doppelt:
+        logger.info(
+            "Storage: %d file(s) reported by both the media server and Radarr/Sonarr "
+            "under different tiers - counted once",
+            doppelt,
+        )
 
     if uneinig:
         logger.info(
@@ -868,6 +982,7 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
                     path=wert.path,
                     arr_managed=wert.verwaltet,
                     measured_at=jetzt,
+                    added_at=wert.added_at,
                     state=(
                         StorageState.owned if besitzer else StorageState.house
                     ),
@@ -926,6 +1041,12 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
         # Media-Server) und genauso wieder hinein.
         if zeile.arr_managed != wert.verwaltet:
             zeile.arr_managed = wert.verwaltet
+        # ⚠️ **Nur nachtragen, nie ueberschreiben.** Das Datum sagt, seit wann
+        # die Datei liegt; es aendert sich nicht. Wuerde es bei jedem Abgleich
+        # neu gesetzt, waere es dasselbe wie ``measured_at`` - und damit
+        # wertlos fuer die Frage, was schon lange herumliegt.
+        if zeile.added_at is None and wert.added_at is not None:
+            zeile.added_at = wert.added_at
         zeile.measured_at = jetzt
 
     # Wurde jemand zwischenzeitlich Administrator, wandern seine Posten ins

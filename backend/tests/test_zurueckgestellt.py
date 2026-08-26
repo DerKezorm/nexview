@@ -1,25 +1,23 @@
-"""Zurueckgestellte Anfragen: „Ja im Prinzip, nur nicht jetzt."
+"""Zurückgestellte Anfragen kommen zurück, sobald sie wieder passen.
 
-Der Anlass war ein Befund aus dem Betrieb: Wenn der Entscheider eine Anfrage
-wegen eines vollen Kontos einfach stehen laesst, **blockiert sie alle anderen**
-- ``pending_approval`` steht in ``ACTIVE_STATUSES``, und ``badges_for`` ist
-global. Auf der Kachel stand fuer jeden "Angefragt", und es kam nie etwas.
+⚠️ **Diese Datei gibt es, weil ein Satz mehr versprach, als der Code hielt.**
 
-Der Kern der Loesung:
+Wer eine Anfrage stellte, die schon zurückstand, las:
 
-> Der Grund, warum die Anfrage nicht durchgeht, liegt **an der Person**, nicht
-> am Titel. Also darf sie den Titel nicht fuer alle reservieren.
+    „… steht bereits zurück – sobald du wieder Platz hast, kann die Anfrage
+    freigegeben werden."
 
-Zwei Regeln tragen das Ganze, und beide sind hier festgenagelt:
-
-1. Zurueckgestellt blockiert niemanden.
-2. Sobald **eine** Anfrage freigegeben wird, sind die anderen zurueckgestellten
-   zu demselben Titel erledigt - sonst gaebe es zwei zurechenbare Anfragen fuer
-   eine Datei, und wem der Platz angerechnet wird, waere Glueckssache.
+Das liest sich wie eine Automatik. Es gab keine: ``deferred`` kam weder im
+Poller noch in der Kontingent-Rechnung noch in der Speichermessung vor. Die
+Anfrage blieb liegen, bis ein Administrator zufällig in den elften Reiter sah.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
+import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.db import SessionLocal
@@ -30,9 +28,11 @@ from app.models import (
     NotificationType,
     QualityTier,
     RequestStatus,
+    StorageEntry,
+    StorageState,
     User,
 )
-from app.services import quota, requests_service, storage
+from app.services import zurueckgestellt
 from app.services.settings_service import load_settings
 
 from .conftest import auth_headers, create_user
@@ -40,190 +40,210 @@ from .conftest import auth_headers, create_user
 GB = 1024**3
 
 
-def _anfrage(db, user_id: int, *, tmdb: int = 603, titel: str = "Matrix") -> int:
-    zeile = MediaRequest(
-        user_id=user_id,
-        media_type=MediaType.movie,
-        tier=QualityTier.standard,
-        tmdb_id=tmdb,
-        title=titel,
-        status=RequestStatus.pending_approval,
-        quality_profile_id=1,
-        root_folder_path="/data/Movies",
-    )
-    db.add(zeile)
-    db.commit()
-    return zeile.id
+def _jetzt() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-# --- Zuruecksetzen selbst --------------------------------------------------
-
-
-def test_zuruecksetzen_setzt_den_zustand_und_meldet_es(arr_client) -> None:
-    """Ein stiller Zustandswechsel saehe aus wie ein Fehler."""
-    konto = create_user(arr_client, "kim", "passwort-1234")
+def _anfrage(user_id: int, *, tmdb_id: int = 900, status=RequestStatus.deferred) -> int:
     with SessionLocal() as db:
-        anfrage_id = _anfrage(db, konto["id"])
-
-    antwort = arr_client.post(f"/api/admin/requests/{anfrage_id}/defer")
-    assert antwort.status_code == 200
-    assert antwort.json()["status"] == "deferred"
-
-    with SessionLocal() as db:
-        assert db.get(MediaRequest, anfrage_id).status == RequestStatus.deferred
-        meldung = db.scalars(
-            select(Notification).where(Notification.user_id == konto["id"])
-        ).all()
-        assert [n.type for n in meldung] == [NotificationType.request_deferred]
-
-
-def test_nur_wartende_lassen_sich_zuruecksetzen(arr_client) -> None:
-    konto = create_user(arr_client, "kim", "passwort-1234")
-    with SessionLocal() as db:
-        anfrage_id = _anfrage(db, konto["id"])
-        db.get(MediaRequest, anfrage_id).status = RequestStatus.downloaded
+        zeile = MediaRequest(
+            user_id=user_id,
+            media_type=MediaType.movie,
+            tmdb_id=tmdb_id,
+            title="Zurückgestellt",
+            status=status,
+        )
+        db.add(zeile)
         db.commit()
-
-    assert arr_client.post(f"/api/admin/requests/{anfrage_id}/defer").status_code == 409
-
-
-# --- Regel 1: blockiert niemanden -----------------------------------------
+        return zeile.id
 
 
-def test_zurueckgestellt_gibt_den_titel_fuer_andere_frei(arr_client) -> None:
-    """**Der eigentliche Zweck.**
+def _grenze(user_id: int, *, filme: int | None = None, gb: int | None = None) -> None:
+    """Grenzen am Konto setzen.
 
-    Eine wartende Anfrage reserviert den Titel fuer alle mit. Eine
-    zurueckgestellte darf das nicht - sonst waere sie nur ein huebscheres Wort
-    fuer denselben Stillstand.
+    ⚠️ Die Spalten heissen ``quota_movies_limit`` und **``storage_limit_gb``**
+    (in Gigabyte, nicht in Bytes). Beim ersten Bau dieser Datei stand hier ein
+    erfundener Name - SQLAlchemy nimmt jedes Attribut widerspruchslos an,
+    schreibt es aber nirgends hin. Der Test lief dann gegen ein Konto **ohne**
+    Grenze und behauptete das Gegenteil dessen, was er pruefen sollte.
     """
-    konto = create_user(arr_client, "kim", "passwort-1234")
     with SessionLocal() as db:
-        anfrage_id = _anfrage(db, konto["id"])
-
-    with SessionLocal() as db:
-        # Solange sie wartet, ist der Titel belegt.
-        assert requests_service.find_active(db, MediaType.movie, 603) is not None
-
-    arr_client.post(f"/api/admin/requests/{anfrage_id}/defer")
-
-    with SessionLocal() as db:
-        assert requests_service.find_active(db, MediaType.movie, 603) is None
-
-
-def test_zurueckgestellt_taucht_auf_keiner_kachel_auf(arr_client) -> None:
-    """``badges_for`` ist global - stuende sie dort, saehe der Titel fuer alle
-    weiterhin nach "ist bestellt" aus."""
-    konto = create_user(arr_client, "kim", "passwort-1234")
-    with SessionLocal() as db:
-        anfrage_id = _anfrage(db, konto["id"])
-    arr_client.post(f"/api/admin/requests/{anfrage_id}/defer")
-
-    with SessionLocal() as db:
-        assert requests_service.badges_for(db, MediaType.movie, [603]) == {}
-
-
-def test_zweimal_zuruecksetzen_derselben_person_geht_nicht(arr_client) -> None:
-    """Blockieren soll sie niemanden - **sich selbst** aber schon.
-
-    Sonst stuenden nach dem dritten Versuch drei zurueckgestellte Anfragen
-    desselben Titels in derselben Liste.
-    """
-    konto = create_user(arr_client, "kim", "passwort-1234")
-    kopf = auth_headers(arr_client, "kim", "passwort-1234")
-    # Ein echter Titel: Beim Anlegen holt der Dienst die Angaben von TMDB, und
-    # eine frei erfundene Nummer gibt es dort nicht.
-    titel = arr_client.get("/api/discover/movie").json()["items"][0]
-    with SessionLocal() as db:
-        anfrage_id = _anfrage(db, konto["id"], tmdb=titel["tmdb_id"], titel=titel["title"])
-    arr_client.post(f"/api/admin/requests/{anfrage_id}/defer")
-
-    antwort = arr_client.post(
-        "/api/requests",
-        json={
-            "media_type": "movie",
-            "tmdb_id": titel["tmdb_id"],
-            "quality_profile_id": 1,
-            "root_folder_path": "/data/Movies",
-        },
-        headers=kopf,
-    )
-    assert antwort.status_code == 409
-    assert "steht bereits zurück" in antwort.json()["detail"]
-
-
-# --- Regel 2: eine Datei, ein Besitzer ------------------------------------
-
-
-def test_freigabe_schliesst_die_anderen_zurueckgestellten(arr_client, monkeypatch) -> None:
-    """⚠️ **Die Regel, ohne die die Speicher-Rechnung mehrdeutig wird.**
-
-    Zwei zurechenbare Anfragen fuer eine Datei - und ``storage._zuordnung``
-    nimmt per ``setdefault`` die erste, die die Datenbank zufaellig liefert.
-    """
-    eins = create_user(arr_client, "kim", "passwort-1234")
-    zwei = create_user(arr_client, "eva", "passwort-1234")
-    with SessionLocal() as db:
-        a = _anfrage(db, eins["id"])
-        b = _anfrage(db, zwei["id"])
-
-    arr_client.post(f"/api/admin/requests/{a}/defer")
-    arr_client.post(f"/api/admin/requests/{b}/defer")
-
-    # Die Uebergabe an Radarr gelingen lassen: Scheitert sie, landet die
-    # Anfrage auf "failed" - und dann sollen die zurueckgestellten
-    # ausdruecklich stehen bleiben, weil gar nichts geladen wird.
-    async def uebergabe(_db, _settings, _anfrage) -> None:
-        return None
-
-    monkeypatch.setattr(requests_service, "push_to_arr", uebergabe)
-
-    with SessionLocal() as db:
-        db.get(MediaRequest, a).status = RequestStatus.pending_approval
+        person = db.get(User, user_id)
+        if filme is not None:
+            person.quota_movies_limit = filme
+        if gb is not None:
+            person.storage_limit_gb = gb
         db.commit()
-    arr_client.post(f"/api/admin/requests/{a}/approve")
+        # Gegenprobe: Der Wert muss wirklich in der Spalte stehen.
+        if gb is not None:
+            assert db.get(User, user_id).storage_limit_gb == gb
 
+
+def _belegen(user_id: int, gb: int, *, tmdb_id: int = 990) -> None:
     with SessionLocal() as db:
-        # Die andere ist erledigt und zaehlt gegen nichts mehr.
-        assert db.get(MediaRequest, b).status == RequestStatus.cancelled
-        # Und eva erfaehrt davon - sonst verschwaende ihre Anfrage kommentarlos.
-        arten = [
-            n.type
-            for n in db.scalars(
-                select(Notification).where(Notification.user_id == zwei["id"])
+        db.add(
+            StorageEntry(
+                key=f"movie:standard:tmdb:{tmdb_id}",
+                user_id=user_id,
+                media_type=MediaType.movie,
+                tier=QualityTier.standard,
+                tmdb_id=tmdb_id,
+                title="Belegt",
+                size_bytes=gb * GB,
+                state=StorageState.owned,
             )
-        ]
-        assert NotificationType.request_fulfilled in arten
+        )
+        db.commit()
 
 
-def test_nur_zurueckgestellte_werden_geschlossen(arr_client) -> None:
-    """Eine Anfrage zu einem **anderen** Titel bleibt unberuehrt."""
-    eins = create_user(arr_client, "kim", "passwort-1234")
-    zwei = create_user(arr_client, "eva", "passwort-1234")
+def _lauf() -> int:
     with SessionLocal() as db:
-        a = _anfrage(db, eins["id"], tmdb=603, titel="Matrix")
-        fremd = _anfrage(db, zwei["id"], tmdb=604, titel="Matrix Reloaded")
-    arr_client.post(f"/api/admin/requests/{fremd}/defer")
+        return zurueckgestellt.zurueckholen(db, load_settings(db))
 
-    arr_client.post(f"/api/admin/requests/{a}/approve")
+
+def _status(anfrage_id: int) -> RequestStatus:
+    with SessionLocal() as db:
+        return db.get(MediaRequest, anfrage_id).status
+
+
+# --------------------------------------------------------------------------
+# Der Rückweg
+# --------------------------------------------------------------------------
+
+
+def test_passt_wieder_also_zurueck_auf_den_tisch(admin_client: TestClient) -> None:
+    """⚠️ Der Fall, für den es diese Datei gibt.
+
+    Ohne Grenze passt alles - die Anfrage gehört zurück zu den offenen
+    Freigaben, wo der Administrator ohnehin hinsieht.
+    """
+    kim = create_user(admin_client, "kim")
+    anfrage_id = _anfrage(kim["id"])
+
+    assert _lauf() == 1
+    assert _status(anfrage_id) == RequestStatus.pending_approval
+
+
+def test_kein_platz_also_bleibt_sie_liegen(admin_client: TestClient) -> None:
+    kim = create_user(admin_client, "kim")
+    _grenze(kim["id"], gb=10)
+    _belegen(kim["id"], 50)  # deutlich darüber
+    anfrage_id = _anfrage(kim["id"])
+
+    assert _lauf() == 0
+    assert _status(anfrage_id) == RequestStatus.deferred
+
+
+def test_wieder_platz_also_wieder_da(admin_client: TestClient) -> None:
+    """Der eigentliche Ablauf: Der Benutzer gibt etwas ab, und die alte
+    Anfrage kommt von selbst zurück."""
+    kim = create_user(admin_client, "kim")
+    _grenze(kim["id"], gb=10)
+    _belegen(kim["id"], 50)
+    anfrage_id = _anfrage(kim["id"])
+    assert _lauf() == 0
+
+    # Der Posten geht an den Hausbestand - der Platz ist wieder frei.
+    with SessionLocal() as db:
+        posten = db.scalar(select(StorageEntry).where(StorageEntry.user_id == kim["id"]))
+        posten.user_id = None
+        posten.state = StorageState.house
+        db.commit()
+
+    assert _lauf() == 1
+    assert _status(anfrage_id) == RequestStatus.pending_approval
+
+
+def test_erschoepfte_stueckzahl_haelt_sie_ebenfalls(admin_client: TestClient) -> None:
+    """Beide Kontingente gelten - eines reicht zum Zurückhalten."""
+    kim = create_user(admin_client, "kim")
+    _grenze(kim["id"], filme=0)
+    anfrage_id = _anfrage(kim["id"])
+
+    assert _lauf() == 0
+    assert _status(anfrage_id) == RequestStatus.deferred
+
+
+# --------------------------------------------------------------------------
+# Was dabei nicht passiert
+# --------------------------------------------------------------------------
+
+
+def test_zurueckholen_ist_kein_freigeben(admin_client: TestClient) -> None:
+    """⚠️ Die Grenze, die diese Automatik nicht überschreitet.
+
+    Die Anfrage kehrt in den **Wartezustand** zurück, nicht in die Bibliothek.
+    Ob sie durchgeht, bleibt die Entscheidung eines Menschen; das Kontingent
+    sagt nur, dass sie wieder gestellt werden *darf*.
+    """
+    kim = create_user(admin_client, "kim")
+    anfrage_id = _anfrage(kim["id"])
+    _lauf()
+
+    assert _status(anfrage_id) == RequestStatus.pending_approval
+    assert _status(anfrage_id) != RequestStatus.approved
+
+
+def test_andere_zustaende_bleiben_unberuehrt(admin_client: TestClient) -> None:
+    """Abgelehnt bleibt abgelehnt - nur Vertagtes wird wieder aufgerufen."""
+    kim = create_user(admin_client, "kim")
+    abgelehnt = _anfrage(kim["id"], tmdb_id=901, status=RequestStatus.rejected)
+    geladen = _anfrage(kim["id"], tmdb_id=902, status=RequestStatus.downloaded)
+
+    _lauf()
+    assert _status(abgelehnt) == RequestStatus.rejected
+    assert _status(geladen) == RequestStatus.downloaded
+
+
+def test_stillgelegte_konten_bleiben_liegen(admin_client: TestClient) -> None:
+    """Ein deaktiviertes Konto soll nicht plötzlich wieder Anfragen im
+    Freigabestapel haben."""
+    kim = create_user(admin_client, "kim")
+    anfrage_id = _anfrage(kim["id"])
+    with SessionLocal() as db:
+        db.get(User, kim["id"]).is_active = False
+        db.commit()
+
+    assert _lauf() == 0
+    assert _status(anfrage_id) == RequestStatus.deferred
+
+
+# --------------------------------------------------------------------------
+# Der Besteller erfährt es
+# --------------------------------------------------------------------------
+
+
+def test_der_besteller_bekommt_bescheid(admin_client: TestClient) -> None:
+    """Sonst wechselt seine Anfrage stillschweigend den Zustand - und das
+    sieht von außen aus wie ein Fehler."""
+    kim = create_user(admin_client, "kim")
+    _anfrage(kim["id"])
+    _lauf()
 
     with SessionLocal() as db:
-        assert db.get(MediaRequest, fremd).status == RequestStatus.deferred
+        nachricht = db.scalar(
+            select(Notification).where(
+                Notification.user_id == kim["id"],
+                Notification.message_key == "notifications.deferredBack",
+            )
+        )
+        assert nachricht is not None
+        assert nachricht.type == NotificationType.request_pending
 
 
-# --- Kostet nichts, solange sie zurueckgestellt ist ------------------------
+def test_zweimal_laufen_meldet_nicht_zweimal(admin_client: TestClient) -> None:
+    """Beim zweiten Durchgang steht sie nicht mehr auf ``deferred`` - es gibt
+    also nichts mehr zurückzuholen und nichts mehr zu melden."""
+    kim = create_user(admin_client, "kim")
+    _anfrage(kim["id"])
 
+    assert _lauf() == 1
+    assert _lauf() == 0
 
-def test_zurueckgestellt_zaehlt_gegen_kein_kontingent(arr_client) -> None:
-    """Weder Stueckzahl noch Speicher - es liegt ja keine Datei."""
-    konto = create_user(arr_client, "kim", "passwort-1234", quota_movies=1)
     with SessionLocal() as db:
-        anfrage_id = _anfrage(db, konto["id"])
-    arr_client.post(f"/api/admin/requests/{anfrage_id}/defer")
-
-    with SessionLocal() as db:
-        person = db.get(User, konto["id"])
-        stand = quota.state_for(db, person, MediaType.movie, load_settings(db))
-        assert stand.used == 0
-        assert not stand.exhausted
-        assert storage.stand_fuer(db, person, load_settings(db)).used_bytes == 0
+        anzahl = (
+            db.query(Notification)
+            .filter(Notification.message_key == "notifications.deferredBack")
+            .count()
+        )
+        assert anzahl == 1

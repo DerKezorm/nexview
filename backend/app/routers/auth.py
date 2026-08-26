@@ -4,27 +4,24 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from ..deps import AdultUser, CurrentUser, DbSession
 from ..models import User, utcnow
-from ..services import accounts, anmeldebremse, avatars, mail, tokens
+from ..services import accounts, anmeldebremse, avatars, mail, sitzung, tokens
 from ..services.settings_service import load_settings
 from .. import meldungen
 from ..schemas import (
     LoginRequest,
     PasswordChange,
     ProfileUpdate,
-    RefreshRequest,
     TokenPair,
     UserPublic,
     VerificationSent,
 )
-from ..security import (    access_token_expires_in,
-    create_access_token,
-    create_refresh_token,
+from ..security import (
     decode_token,
     hash_password,
     verify_password,
@@ -45,7 +42,9 @@ _DUMMY_HASH = hash_password("nexview-dummy-password")
 
 
 @router.post("/login", response_model=TokenPair)
-def login(payload: LoginRequest, request: Request, db: DbSession) -> TokenPair:
+def login(
+    payload: LoginRequest, request: Request, response: Response, db: DbSession
+) -> TokenPair:
     # Benutzername *oder* E-Mail-Adresse, beides ohne Ruecksicht auf Gross- und
     # Kleinschreibung. Adressen liegen ohnehin klein geschrieben in der
     # Datenbank; beim Benutzernamen muss verglichen werden.
@@ -110,40 +109,60 @@ def login(payload: LoginRequest, request: Request, db: DbSession) -> TokenPair:
     user.last_login_at = utcnow()
     db.commit()
 
-    return TokenPair(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
-        expires_in=access_token_expires_in(),
-    )
+    return sitzung.starten(response, request, user)
+
+
+_ABGELAUFEN = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail=meldungen.meldung("session_expired", "Sitzung abgelaufen. Bitte erneut anmelden."),
+)
 
 
 @router.post("/refresh", response_model=TokenPair)
-def refresh(payload: RefreshRequest, db: DbSession) -> TokenPair:
-    user_id = decode_token(payload.refresh_token, "refresh")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=meldungen.meldung(
-                "session_expired",
-                "Sitzung abgelaufen. Bitte erneut anmelden.",
-            ),
-        )
+def refresh(request: Request, response: Response, db: DbSession) -> TokenPair:
+    """Zugangs-Token erneuern.
 
-    user = db.get(User, user_id)
-    if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=meldungen.meldung(
-                "session_expired",
-                "Sitzung abgelaufen. Bitte erneut anmelden.",
-            ),
-        )
+    Das Erneuerungs-Token kommt aus dem HttpOnly-Cookie, nicht mehr aus dem
+    Anfragekoerper. Wer noch mit einem Token aus dem ``localStorage`` einer
+    aelteren Version kommt, bekommt hier ein 401 und landet auf der
+    Anmeldeseite - das ist der einmalige Rauswurf beim Umstieg auf 0.21.
 
-    return TokenPair(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
-        expires_in=access_token_expires_in(),
-    )
+    Der Endpunkt ist die **einzige** Stelle der API, die ueber ein Cookie
+    beglaubigt wird, und damit die einzige mit CSRF-Flaeche. Sie ist folgenlos:
+    ``SameSite=Lax`` laesst das Cookie bei einem fremdveranlassten POST gar
+    nicht mitfahren, und die Antwort duerfte eine fremde Seite ohnehin nicht
+    lesen. Ausfuehrlich in ``services/sitzung.py``.
+    """
+    roh = sitzung.gelesen(request)
+    if roh is None:
+        raise _ABGELAUFEN
+
+    inhalt = decode_token(roh, "refresh")
+    if inhalt is None:
+        raise _ABGELAUFEN
+
+    user = db.get(User, inhalt.benutzer_id)
+    if user is None or not user.is_active or not sitzung.gilt_noch(inhalt, user):
+        raise _ABGELAUFEN
+
+    return sitzung.starten(response, request, user)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(request: Request, response: Response) -> None:
+    """Abmelden - das Cookie loeschen.
+
+    Ohne Anmeldepruefung, mit Absicht: Wer sich abmelden will, soll das auch
+    koennen, wenn sein Zugangs-Token laengst abgelaufen ist. Der Endpunkt tut
+    nichts weiter, als ein Cookie dieses Browsers wegzunehmen - schaden kann
+    das niemandem ausser dem, der ihn aufruft.
+
+    ⚠️ Das Erneuerungs-Token selbst wird damit **nicht** ungueltig; es ist ein
+    reines JWT ohne Eintrag in der Datenbank. Wer es vorher kopiert hat,
+    kaeme damit weiter herein - bis zum naechsten Passwortwechsel. Das zu
+    schliessen braeuchte eine Sitzungstabelle.
+    """
+    sitzung.beenden(response, request)
 
 
 @router.get("/me", response_model=UserPublic)
@@ -173,17 +192,18 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, db: DbSession) -> User:
             )
         user.theme = payload.theme
 
-    for schalter in (
-        "mail_download_complete",
-        "mail_request_pending",
-        "mail_request_decided",
-        "mail_feedback",
-        "mail_ticket",
-        "mail_watch",
-        "mail_user_imported",
-        "mail_mediaserver_reconnect",
-    ):
-        wert = getattr(payload, schalter)
+    # ⚠️ **Abgeleitet, nicht aufgezaehlt - und das ist die Lehre aus einem
+    # Fehler.** Hier stand eine Liste von Hand. Als spaeter ``mail_storage``
+    # und ``mail_child_wish`` dazukamen, wurden sie ins Schema und in die
+    # Oberflaeche eingetragen, aber nicht hierher: Zwei Haken im Profil liessen
+    # sich setzen, sahen danach richtig aus - und bewirkten nichts. Auffallen
+    # konnte das nicht, denn gescheitert ist nie etwas.
+    #
+    # Aus ``ProfileUpdate`` abgeleitet kann die Liste nicht mehr auseinander-
+    # laufen: Was im Schema steht, wird geschrieben. ``test_mail_schalter.py``
+    # prueft zusaetzlich, dass Schema und Konto dieselben Felder fuehren.
+    for schalter in (feld for feld in ProfileUpdate.model_fields if feld.startswith("mail_")):
+        wert = getattr(payload, schalter, None)
         if wert is not None:
             setattr(user, schalter, wert)
 
@@ -292,8 +312,29 @@ def delete_avatar(user: AdultUser, db: DbSession) -> User:
     return user
 
 
-@router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
-def change_own_password(payload: PasswordChange, user: AdultUser, db: DbSession) -> None:
+@router.post("/me/password", response_model=TokenPair)
+def change_own_password(
+    payload: PasswordChange,
+    request: Request,
+    response: Response,
+    user: AdultUser,
+    db: DbSession,
+) -> TokenPair:
+    """Eigenes Passwort aendern - und damit alle **anderen** Geraete abmelden.
+
+    Seit 0.21 gilt jedes Token, das aelter ist als ``password_changed_at``,
+    nicht mehr (``sitzung.gilt_noch``). Genau deshalb gibt dieser Endpunkt ein
+    frisches Paar zurueck statt eines leeren 204: Ohne das wuerde sich jeder,
+    der sein Passwort aendert, im selben Moment selbst aussperren - und der
+    haeufigste Grund, es zu aendern, ist der Verdacht, dass jemand anderes
+    drin ist. Wer sich aussperrt, waehrend der Angreifer bleibt, haette
+    nichts gewonnen.
+
+    Dass das frische Paar seinen eigenen Riegel passiert, kommt allein daher,
+    dass es **nach** ``password_changed_at`` entsteht - der Zeitstempel im
+    Token ist auf die Millisekunde genau (siehe ``security._create_token``).
+    Ein Sonderfall ist dafuer nicht noetig.
+    """
     if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -305,3 +346,6 @@ def change_own_password(payload: PasswordChange, user: AdultUser, db: DbSession)
     user.password_hash = hash_password(payload.new_password)
     user.password_changed_at = utcnow()
     db.commit()
+
+    logger.info("User %r changed their password; other sessions were ended", user.username)
+    return sitzung.starten(response, request, user)

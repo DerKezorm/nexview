@@ -7,18 +7,13 @@ er dauerhaft mit 409.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from ..deps import DbSession, has_any_user
 from ..models import Role, User
 from ..schemas import AnmeldeWeg, SetupAdminCreate, SetupStatus, TokenPair
-from ..security import (
-    access_token_expires_in,
-    create_access_token,
-    create_refresh_token,
-    hash_password,
-)
-from ..services import mail, tokens
+from ..security import hash_password
+from ..services import mail, sitzung, tokens
 from ..services.mediaserver import PROVIDERS, verbundene_anbieter
 from ..services.settings_service import load_settings
 from .. import meldungen
@@ -53,7 +48,9 @@ def setup_status(db: DbSession) -> SetupStatus:
 
 
 @router.post("/admin", response_model=TokenPair, status_code=status.HTTP_201_CREATED)
-def create_first_admin(payload: SetupAdminCreate, db: DbSession) -> TokenPair:
+def create_first_admin(
+    payload: SetupAdminCreate, request: Request, response: Response, db: DbSession
+) -> TokenPair:
     if has_any_user(db):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -91,8 +88,4 @@ def create_first_admin(payload: SetupAdminCreate, db: DbSession) -> TokenPair:
     db.commit()
     db.refresh(admin)
 
-    return TokenPair(
-        access_token=create_access_token(admin.id),
-        refresh_token=create_refresh_token(admin.id),
-        expires_in=access_token_expires_in(),
-    )
+    return sitzung.starten(response, request, admin)

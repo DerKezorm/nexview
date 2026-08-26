@@ -193,6 +193,16 @@ class LibraryItem:
     # den Folgen, der Serien-Eintrag traegt keine Groesse.
     size_standard: int = 0
     size_uhd: int = 0
+    # Seit wann die Datei auf dem Server liegt.
+    #
+    # ⚠️ **Der einzige Weg zum Alter fuer Titel, die Radarr nicht mehr fuehrt.**
+    # Der verbreitete Ablauf "laden bis die Qualitaet stimmt, dann den Eintrag
+    # aus Radarr werfen und die Datei behalten" laesst genau solche Posten
+    # zurueck: Sie belegen Platz, aber keine Instanz kennt mehr ein
+    # ``dateAdded``. Ohne diese Angabe kann der Aufraeum-Vorschlag ueber sie
+    # nichts sagen - und sagt es beim Nutzer als "wird nachgetragen", was fuer
+    # sie nie eintraete.
+    added_at: datetime | None = None
 
 
 @dataclass(frozen=True)

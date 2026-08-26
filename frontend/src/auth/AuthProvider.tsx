@@ -4,7 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
-import { api, clearTokens, restoreSession, setSessionLostHandler, setTokens } from '../api/client'
+import {
+  api,
+  logout as sitzungBeenden,
+  restoreSession,
+  setSessionLostHandler,
+  setTokens,
+} from '../api/client'
 import type { TokenPair } from '../api/client'
 import type { LoginWay, SetupStatus, User } from '../api/types'
 import { changeLanguage } from '../i18n'
@@ -44,7 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const forgetCachedData = useCallback(() => queryClient.clear(), [queryClient])
 
   const logout = useCallback(() => {
-    clearTokens()
+    // ⚠️ Der Server muss mit: Die Sitzung haengt seit 0.21 an einem
+    // HttpOnly-Cookie, das dieses Skript nicht loeschen kann. Wer nur den
+    // Arbeitsspeicher leert, ist beim naechsten Neuladen wieder angemeldet.
+    // Die Oberflaeche wartet trotzdem nicht darauf - abgemeldet ist man
+    // sofort, das Cookie faellt eine Anfrage spaeter.
+    void sitzungBeenden()
     setUser(null)
     forgetCachedData()
   }, [forgetCachedData])

@@ -198,6 +198,9 @@
     "greeting": "Willkommen zurück, {{name}}",
     "intro": "Was gerade gefragt ist - und was zuletzt bei euch gelandet ist.",
     "justArrived": "Frisch geladen",
+    "season": "Staffel {{number}}",
+    "seasonCount_one": "{{count}} Staffel",
+    "seasonCount_other": "{{count}} Staffeln",
     "requestedBy": "Angefragt von {{name}}",
     "alsoNew": "Ebenfalls neu dabei",
     "discoverMore": "Im ganzen Katalog stöbern",
@@ -281,7 +284,6 @@
     "title": "Statistik",
     "intro": "Wer fragt was an, was kommt an – und wie zufrieden sind alle damit?",
     "failed": "Die Statistik konnte nicht geladen werden.",
-    "backToRequests": "Zurück zu den Anfragen",
     "totalRequests": "Anfragen gesamt",
     "byUsers_one": "von {{count}} Person",
     "byUsers_other": "von {{count}} Personen",
@@ -532,7 +534,9 @@
     },
     "accountSaved": "Deine Angaben sind gespeichert.",
     "mailWatch": "Vorgemerkte Titel",
-    "mailWatchHint": "Wenn ein vorgemerkter Film da ist oder eine verfolgte Serie neue Folgen bekommt. Immer gebündelt — ein Staffelpaket ist eine Mail, nicht acht."
+    "mailWatchHint": "Wenn ein vorgemerkter Film da ist oder eine verfolgte Serie neue Folgen bekommt. Immer gebündelt — ein Staffelpaket ist eine Mail, nicht acht.",
+    "mailCleanup": "Monatlicher Aufräum-Bericht",
+    "mailCleanupHint": "Am Monatsanfang eine Mail mit dem, was ungenutzt herumliegt – die größten zuerst. Kommt nur, wenn es etwas zu berichten gibt."
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
@@ -691,7 +695,10 @@
     "childWish": "Dein Kind wünscht sich etwas",
     "watchReady": "Der Titel, auf den du gewartet hast, ist da.",
     "watchEpisodes": "Es sind neue Folgen da.",
-    "ratingOutdated": "Ein Titel, den du bewertet hast, wurde in besserer Qualität nachgeladen."
+    "ratingOutdated": "Ein Titel, den du bewertet hast, wurde in besserer Qualität nachgeladen.",
+    "storageScheduled": "Ein Titel wird bald gelöscht",
+    "storageUnscheduled": "Ein Titel bleibt doch",
+    "deferredBack": "Deine zurückgestellte Anfrage wartet wieder auf Freigabe"
   },
   "mediaserver": {
     "waiting": "Warte auf die Bestätigung im Plex-Fenster …",
@@ -948,7 +955,8 @@
       "url_needs_scheme": "Die Adresse muss mit http:// oder https:// beginnen.",
       "user_not_found": "Benutzer nicht gefunden.",
       "username_taken": "Dieser Benutzername ist bereits vergeben. Bitte wähle einen anderen.",
-      "watchlist_disabled": "Die Merkliste ist nicht freigeschaltet."
+      "watchlist_disabled": "Die Merkliste ist nicht freigeschaltet.",
+      "sync_already_running": "Ein Abgleich läuft gerade. Bitte warte, bis er fertig ist."
     }
   },
   "language": {
@@ -2204,5 +2212,62 @@
     "noReason": "ohne Begründung",
     "deferred": "Zurückgestellt",
     "deferredHint": "wird freigegeben, sobald wieder Platz ist — du musst nicht neu fragen"
+  },
+  "cleanup": {
+    "title": "Was liegt ungenutzt herum",
+    "intro": "Titel, die niemand mehr ansieht und die schon eine Weile da sind – größter Brocken zuerst. Ein Titel steht hier nur, wenn ihn im gewählten Zeitraum niemand angesehen hat und er mindestens so lange schon liegt; was gerade erst geladen wurde, taucht also nicht auf.",
+    "summary": "{{count}} Posten, zusammen {{size}}",
+    "months_one": "{{count}} Monat",
+    "months_other": "{{count}} Monate",
+    "colTitle": "Titel",
+    "colSize": "Speicher",
+    "colLastSeen": "Zuletzt gesehen",
+    "colWho": "Gesehen von",
+    "colOwner": "Zugerechnet",
+    "colRating": "Note",
+    "season": "Staffel {{number}}",
+    "house": "Hausbestand",
+    "neverSeenHere": "nie – laut Nexview",
+    "ratingCount_one": "{{count}} Bewertung",
+    "ratingCount_other": "{{count}} Bewertungen",
+    "empty": "Nichts liegt herum. Alles, was hier liegt, wurde in diesem Zeitraum angesehen.",
+    "emptyMine": "Dir ist nichts zugerechnet, das herumliegt. Auf einer gewachsenen Bibliothek ist das der Normalfall: Alles, was vor Nexview da war, zählt als Hausbestand und gehört niemandem.",
+    "truncated": "Es werden {{shown}} von {{total}} Posten gezeigt - die größten zuerst.",
+    "failed": "Die Liste konnte nicht geladen werden.",
+    "introMine": "Was dir zugerechnet ist und lange niemand mehr angesehen hat. Abgeben kannst du es in der Liste darunter.",
+    "colHere": "Liegt seit",
+    "noDateYet": "{{count}} Posten sind übergangen, weil Nexview noch nicht weiß, wie lange sie schon da liegen. Das Datum kommt aus Radarr bzw. Sonarr und wird beim nächsten Abgleich nachgetragen - er läuft stündlich.",
+    "emptyUnknown": "Noch keine Aussage möglich: Von allen Posten ist bisher nicht bekannt, wie lange sie da liegen. Nach dem nächsten Abgleich steht hier etwas.",
+    "periodLabel": "Ungenutzt seit mindestens:",
+    "syncNow": "Jetzt abgleichen",
+    "syncing": "Läuft …",
+    "delete": "Löschen",
+    "deleteTitle": "Löschen?",
+    "deleteText": "Mit Schonfrist verschwindet der Titel erst in 14 Tagen. Bis dahin steht er für alle sichtbar auf der Startseite, alle mit Bezug dazu bekommen Bescheid - und wer ihn in der Zeit ansieht, hebt die Vormerkung von selbst auf.",
+    "deleteRecycleHint": "Gelöscht wird über Radarr/Sonarr. Ist dort ein Papierkorb eingerichtet, landet die Datei zuerst darin; ohne Papierkorb ist sie sofort und endgültig weg.",
+    "deleteGrace": "14 Tage Schonfrist",
+    "deleteNow": "Sofort löschen",
+    "goingSoon": "Verschwindet bald",
+    "goingSoonIntro": "Diese Titel sind zum Löschen vorgemerkt. Wer einen davon noch einmal ansieht, holt ihn damit zurück - dafür ist nichts weiter zu tun.",
+    "goingToday": "heute",
+    "goingInDays_one": "noch {{count}} Tag",
+    "goingInDays_other": "noch {{count}} Tage",
+    "basis": "Grundlage sind die Sehdaten von {{verknuepft}} der {{gesamt}} Konten – was über {{namen}} läuft, weiß Nexview nicht, dort ist kein Medienserver verknüpft.",
+    "searchPlaceholder": "Titel suchen …",
+    "keepAfterAll": "Doch behalten",
+    "kind": {
+      "alle": "Alle",
+      "movie": "Filme",
+      "tv": "Serien"
+    },
+    "graceRunning_one": "{{count}} Titel wird gelöscht ({{size}})",
+    "graceRunning_other": "{{count}} Titel werden gelöscht ({{size}})",
+    "graceHint": "Die Schonfrist läuft. Bis dahin lässt sich das zurücknehmen - und wer den Titel bis dahin ansieht, holt ihn ohnehin von selbst zurück.",
+    "goingOn": "geht am {{date}}",
+    "periodOff": "Bei „Vorgemerkt“ zählt allein, dass eine Frist läuft.",
+    "stand": {
+      "alle": "Alle",
+      "vorgemerkt": "Vorgemerkt"
+    }
   }
 }

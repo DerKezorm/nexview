@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -13,6 +14,7 @@ import { CartIcon, MediaItemCard } from '../components/media/MediaCard'
 import { useCardData } from '../components/media/useCardData'
 import { WatchedBadge } from '../components/media/WatchedBadge'
 import { Slider } from '../components/Slider'
+import { VerschwindetBald } from '../components/VerschwindetBald'
 import { Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
@@ -20,6 +22,23 @@ import { stoeberPath, titlePath } from '../lib/routes'
 
 /** Abstand zwischen zwei Kacheln beim Aufblenden. */
 const STAGGER_MS = 90
+
+/**
+ * Was unter dem Titel steht: die Staffel, sonst die Medienart.
+ *
+ * Eine Serie ist **eine** Kachel, auch wenn vier Staffeln dahinterstecken
+ * (Issue #3). Damit die Kachel trotzdem sagt, was angekommen ist, tritt die
+ * Staffelangabe an die Stelle des Wortes „Serie" - wer „Staffel 3" liest,
+ * weiß ohnehin, dass es keine Film ist, und die schmale Kachel hat für beides
+ * keinen Platz.
+ *
+ * Leere Liste heißt Film oder ganze Serie; dann bleibt es beim alten Wort.
+ */
+function staffelText(item: RecentItem, t: TFunction): string {
+  if (item.seasons.length === 1) return t('home.season', { number: item.seasons[0] })
+  if (item.seasons.length > 1) return t('home.seasonCount', { count: item.seasons.length })
+  return t(item.media_type === 'movie' ? 'common.movies' : 'common.series')
+}
 
 /** Eine Karte im Slider der zuletzt geladenen Titel. */
 function RecentCard({ item, index }: { item: RecentItem; index: number }) {
@@ -56,7 +75,7 @@ function RecentCard({ item, index }: { item: RecentItem; index: number }) {
 
       <p className="mt-2 line-clamp-2 text-sm leading-snug font-semibold">{item.title}</p>
       <p className="truncate text-xs text-mist-600">
-        {t(item.media_type === 'movie' ? 'common.movies' : 'common.series')}
+        {staffelText(item, t)}
         {item.completed_at && ` · ${formatDate(item.completed_at.slice(0, 10), i18n.language)}`}
       </p>
     </Link>
@@ -395,6 +414,11 @@ export function HomePage() {
         </section>
       )}
 
+      {/* ⚠️ **Vor** „Frisch geladen", nicht dahinter. Was verschwindet, hat
+          eine Frist; was angekommen ist, läuft nicht weg. Wer noch schauen
+          will, muss es zuerst sehen — und Ansehen hebt die Vormerkung auf. */}
+      <VerschwindetBald />
+
       {zuletzt.length > 0 && (
         <section>
           <h2 className="mb-4 text-sm font-semibold tracking-wide text-mist-500 uppercase">
@@ -402,6 +426,8 @@ export function HomePage() {
           </h2>
           <Slider>
             {zuletzt.map((item, index) => (
+              // Seit dem Zusammenlegen ist das Paar wieder eindeutig: Vorher
+              // hatte eine Serie mit vier Staffeln vier gleiche Schlüssel.
               <RecentCard key={`${item.media_type}-${item.tmdb_id}`} item={item} index={index} />
             ))}
           </Slider>

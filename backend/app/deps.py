@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import User
 from .security import decode_token
-from .services import logs
+from .services import logs, sitzung
 from . import meldungen
 
 _bearer = HTTPBearer(auto_error=False)
@@ -32,12 +32,18 @@ def get_current_user(
     if credentials is None:
         raise unauthorized
 
-    user_id = decode_token(credentials.credentials, "access")
-    if user_id is None:
+    inhalt = decode_token(credentials.credentials, "access")
+    if inhalt is None:
         raise unauthorized
 
-    user = db.get(User, user_id)
+    user = db.get(User, inhalt.benutzer_id)
     if user is None or not user.is_active:
+        raise unauthorized
+
+    # Ein Token, das aelter ist als der letzte Passwortwechsel, gilt nicht
+    # mehr. Das ist der einzige Ausweg, den ein Bestohlener hat - siehe
+    # ``sitzung.gilt_noch``. Kostet nichts: Der Benutzer ist gerade geladen.
+    if not sitzung.gilt_noch(inhalt, user):
         raise unauthorized
 
     # Ab hier steht in jeder Protokollzeile dieser Anfrage, wer sie gestellt hat.

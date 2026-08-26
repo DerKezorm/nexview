@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
 
 import { api } from '../api/client'
 import type { Role, Stats, StorageOverview, UserStats } from '../api/types'
+import { AufraeumTabelle } from '../components/AufraeumTabelle'
 import { Avatar } from '../components/Avatar'
 import { StarRating } from '../components/StarRating'
 import { StorageDistribution } from '../components/StorageDistribution'
@@ -258,13 +259,82 @@ function UserRow({ eintrag }: { eintrag: UserStats }) {
   )
 }
 
+/** Die zwei Ansichten dieser Seite. */
+const REITER = [
+  { wert: 'zahlen', schluessel: 'stats.title' },
+  { wert: 'aufraeumen', schluessel: 'cleanup.title' },
+] as const
+
+type Reiter = (typeof REITER)[number]['wert']
+
+/**
+ * Überschrift und Reiterleiste - für beide Ansichten dieselbe.
+ *
+ * Bewusst ein gemeinsames Stück und keine zwei Kopfzeilen: Sonst springt beim
+ * Umschalten die Überschrift um ein paar Pixel, weil zwei fast gleiche
+ * Bausteine nie ganz gleich bleiben.
+ */
+function StatsKopf({
+  t,
+  reiter,
+  setReiter,
+}: {
+  t: (key: string) => string
+  reiter: Reiter
+  setReiter: (wert: Reiter) => void
+}) {
+  return (
+    <>
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          {t(reiter === 'zahlen' ? 'stats.title' : 'cleanup.title')}
+          <span className="text-accent-500">.</span>
+        </h1>
+      </header>
+
+      <div className="flex flex-wrap gap-2" role="tablist">
+        {REITER.map((eintrag) => (
+          <button
+            key={eintrag.wert}
+            type="button"
+            role="tab"
+            aria-selected={reiter === eintrag.wert}
+            onClick={() => setReiter(eintrag.wert)}
+            className={
+              'rounded-full border px-4 py-2 text-sm font-medium transition-colors ' +
+              (reiter === eintrag.wert
+                ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
+                : 'border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100')
+            }
+          >
+            {t(eintrag.schluessel)}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
 export function StatsPage() {
   const { t, i18n } = useTranslation()
+  const [reiter, setReiter] = useState<Reiter>('zahlen')
 
   const statsQuery = useQuery({
     queryKey: ['admin-stats'],
     queryFn: () => api.get<Stats>('/api/admin/stats'),
+    // Nur im ersten Reiter gebraucht - im zweiten waere es eine Abfrage
+    // fuer nichts.
+    enabled: reiter === 'zahlen',
   })
+
+  if (reiter === 'aufraeumen') {
+    return (
+      <div className="flex flex-col gap-6">
+        <StatsKopf t={t} reiter={reiter} setReiter={setReiter} />
+        <AufraeumTabelle pfad="/api/admin/stats/aufraeumen" schluessel="admin-aufraeumen" />
+      </div>
+    )
+  }
 
   if (statsQuery.isPending) {
     return (
@@ -283,21 +353,8 @@ export function StatsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            {t('stats.title')}
-            <span className="text-accent-500">.</span>
-          </h1>
-          <p className="mt-1.5 text-mist-500">{t('stats.intro')}</p>
-        </div>
-        <Link
-          to="/admin/requests"
-          className="rounded-full border border-ink-700 px-4 py-2 text-sm text-mist-300 transition-colors hover:border-accent-600 hover:text-mist-100"
-        >
-          {t('stats.backToRequests')}
-        </Link>
-      </header>
+      <StatsKopf t={t} reiter={reiter} setReiter={setReiter} />
+      <p className="-mt-4 text-mist-500">{t('stats.intro')}</p>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KeyFigure

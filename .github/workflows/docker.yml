@@ -76,6 +76,36 @@ jobs:
           npm ci
           npm run build
 
+      - name: Frontend-Tests
+        working-directory: frontend
+        run: npm test
+
+      # Der eine Test im echten Browser. Er startet sich Backend und
+      # Oberflaeche selbst - Python liegt in diesem Job schon bereit, samt
+      # aller Abhaengigkeiten aus dem Schritt weiter oben.
+      - name: Browser für den Ende-zu-Ende-Test holen
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Ende-zu-Ende-Test
+        working-directory: frontend
+        env:
+          NEXVIEW_E2E_PYTHON: python
+        run: npm run e2e
+
+      # Nur wenn etwas schiefgeht: Bildschirmfoto und Ablauf des gescheiterten
+      # Laufs. Sonst laege nach jedem gruenen Lauf ein Bericht herum, den
+      # niemand ansieht.
+      - name: Bericht sichern, falls etwas fehlschlägt
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-bericht
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+
   image:
     name: Abbild bauen
     runs-on: ubuntu-latest

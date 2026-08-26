@@ -20,7 +20,7 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
@@ -28,8 +28,7 @@ from ..crypto import decrypt, encrypt
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import AuthToken, MediaServerBlock, MediaServerConnection, User, utcnow
 from ..schemas import TokenPair, UserPublic
-from ..security import access_token_expires_in, create_access_token, create_refresh_token
-from ..services import anmeldebremse
+from ..services import anmeldebremse, sitzung
 from ..services import mediaserver_accounts as konten
 from ..services import mediaserver_library, settings_service
 from ..services.mediaserver import (
@@ -390,7 +389,7 @@ async def _passwort_identitaet(
 
 @router.post("/login/password", response_model=LoginResult)
 async def login_password(
-    payload: PasswortAnmeldung, request: Request, db: DbSession
+    payload: PasswortAnmeldung, request: Request, response: Response, db: DbSession
 ) -> LoginResult:
     """Mit Benutzername und Passwort des Medienservers bei Nexview anmelden."""
     settings = settings_service.load_settings(db)
@@ -407,16 +406,10 @@ async def login_password(
     benutzer.last_login_at = utcnow()
     db.commit()
 
-    return LoginResult(
-        status="ready",
-        tokens=TokenPair(
-            access_token=create_access_token(benutzer.id),
-            refresh_token=create_refresh_token(benutzer.id),
-            # Ohne diese Zeile weiss der Browser nicht, wann er erneuern muss -
-            # und Pydantic laesst das Paar gar nicht erst entstehen.
-            expires_in=access_token_expires_in(),
-        ),
-    )
+    # Das Erneuerungs-Token wandert als Cookie mit dieser Antwort hinaus, nicht
+    # im Koerper - eine Anmeldung ueber den Medienserver ist am Ende dieselbe
+    # Sitzung wie jede andere.
+    return LoginResult(status="ready", tokens=sitzung.starten(response, request, benutzer))
 
 
 @router.post("/link/password", response_model=LinkResult)
@@ -449,7 +442,9 @@ async def link_password(
 
 
 @router.post("/login/poll", response_model=LoginResult)
-async def login_poll(payload: PollRequest, db: DbSession) -> LoginResult:
+async def login_poll(
+    payload: PollRequest, request: Request, response: Response, db: DbSession
+) -> LoginResult:
     server, settings = _code_server(db)
     try:
         eintrag, daten, konto = await _identitaet(
@@ -475,14 +470,7 @@ async def login_poll(payload: PollRequest, db: DbSession) -> LoginResult:
     benutzer.last_login_at = utcnow()
     db.commit()
 
-    return LoginResult(
-        status="ready",
-        tokens=TokenPair(
-            access_token=create_access_token(benutzer.id),
-            refresh_token=create_refresh_token(benutzer.id),
-            expires_in=access_token_expires_in(),
-        ),
-    )
+    return LoginResult(status="ready", tokens=sitzung.starten(response, request, benutzer))
 
 
 # --------------------------------------------------------------------------

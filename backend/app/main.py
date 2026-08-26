@@ -22,7 +22,11 @@ from . import __version__
 from .config import get_settings
 from .deps import require_adult
 from .db import init_db
-from .middleware import RequestContextMiddleware, unhandled_error
+from .middleware import (
+    RequestContextMiddleware,
+    SicherheitskopfMiddleware,
+    unhandled_error,
+)
 from .routers import (
     about as about_router,
     admin_requests,
@@ -53,7 +57,7 @@ from .routers import (
     watch as watch_router,
     watchlist as watchlist_router,
 )
-from .services import channel_outbox, logs, status_poller
+from .services import channel_outbox, csp, logs, status_poller
 from .services.arr import close_http_client as close_arr_client
 from .services.mediaserver import close_http_client as close_mediaserver_client
 from .services.tmdb import close_http_client
@@ -268,3 +272,19 @@ def _mount_frontend(directory: Path) -> None:
 _frontend_dir = _static_dir()
 if _frontend_dir is not None:
     _mount_frontend(_frontend_dir)
+
+# ⚠️ **Ganz zum Schluss, und das ist Absicht.** Die Regeln brauchen die
+# Pruefsummen der Inline-Skripte aus der ausgelieferten ``index.html`` - und
+# wo die liegt, steht erst hier fest. Zuletzt eingetragen heisst ausserdem
+# aussen: Die Kopfzeile haengt dann auch an Antworten, die weiter innen
+# entstehen, einschliesslich der Fehlerseiten.
+_inhaltsregeln = csp.kopfzeile(
+    settings.csp,
+    (_frontend_dir / "index.html") if _frontend_dir is not None else None,
+    settings.frame_ancestors,
+    settings.img_sources,
+)
+if _inhaltsregeln is not None:
+    app.add_middleware(
+        SicherheitskopfMiddleware, name=_inhaltsregeln[0], regeln=_inhaltsregeln[1]
+    )

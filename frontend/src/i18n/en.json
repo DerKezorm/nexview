@@ -198,6 +198,9 @@
     "greeting": "Welcome back, {{name}}",
     "intro": "What everyone wants right now - and what recently landed in your library.",
     "justArrived": "Just arrived",
+    "season": "Season {{number}}",
+    "seasonCount_one": "{{count}} season",
+    "seasonCount_other": "{{count}} seasons",
     "requestedBy": "Requested by {{name}}",
     "alsoNew": "Also new",
     "discoverMore": "Browse the whole catalogue",
@@ -281,7 +284,6 @@
     "title": "Statistics",
     "intro": "Who requests what, what actually arrives – and how happy everyone is with it.",
     "failed": "The statistics could not be loaded.",
-    "backToRequests": "Back to the requests",
     "totalRequests": "Requests in total",
     "byUsers_one": "from {{count}} person",
     "byUsers_other": "from {{count}} people",
@@ -532,7 +534,9 @@
     },
     "accountSaved": "Your details have been saved.",
     "mailWatch": "Titles you are waiting for",
-    "mailWatchHint": "When a title you marked arrives, or a series you follow gets new episodes. Always bundled — a season pack is one mail, not eight."
+    "mailWatchHint": "When a title you marked arrives, or a series you follow gets new episodes. Always bundled — a season pack is one mail, not eight.",
+    "mailCleanup": "Monthly clear-out report",
+    "mailCleanupHint": "At the start of each month, a mail listing what is lying around unused – biggest first. Only sent when there is something to report."
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
@@ -691,7 +695,10 @@
     "childWish": "Your child wished for something",
     "watchReady": "The title you were waiting for has arrived.",
     "watchEpisodes": "New episodes have arrived.",
-    "ratingOutdated": "A title you rated has been replaced with a better release."
+    "ratingOutdated": "A title you rated has been replaced with a better release.",
+    "storageScheduled": "A title will be deleted soon",
+    "storageUnscheduled": "A title is staying after all",
+    "deferredBack": "Your deferred request is waiting for approval again"
   },
   "mediaserver": {
     "waiting": "Waiting for confirmation in the Plex window …",
@@ -948,7 +955,8 @@
       "url_needs_scheme": "The address has to start with http:// or https://.",
       "user_not_found": "No such user.",
       "username_taken": "That username is taken. Please pick another one.",
-      "watchlist_disabled": "The watchlist is not switched on."
+      "watchlist_disabled": "The watchlist is not switched on.",
+      "sync_already_running": "A sync is already running. Please wait until it finishes."
     }
   },
   "language": {
@@ -2204,5 +2212,62 @@
     "noReason": "no reason given",
     "deferred": "Put on hold",
     "deferredHint": "will be approved once there is room again — you do not need to ask again"
+  },
+  "cleanup": {
+    "title": "What is lying around unused",
+    "intro": "Titles nobody watches any more that have been here a while – biggest first. A title only appears if nobody watched it within the chosen period and it has been here at least that long; something downloaded recently does not show up.",
+    "summary": "{{count}} items, {{size}} together",
+    "months_one": "{{count}} month",
+    "months_other": "{{count}} months",
+    "colTitle": "Title",
+    "colSize": "Storage",
+    "colLastSeen": "Last watched",
+    "colWho": "Watched by",
+    "colOwner": "Attributed to",
+    "colRating": "Rating",
+    "season": "Season {{number}}",
+    "house": "House inventory",
+    "neverSeenHere": "never – as far as Nexview knows",
+    "ratingCount_one": "{{count}} rating",
+    "ratingCount_other": "{{count}} ratings",
+    "empty": "Nothing is lying around. Everything here was watched within this period.",
+    "emptyMine": "Nothing attributed to you is lying around. On a grown library that is the normal case: everything that was there before Nexview counts as house inventory and belongs to nobody.",
+    "truncated": "Showing {{shown}} of {{total}} items - the biggest first.",
+    "failed": "The list could not be loaded.",
+    "introMine": "What is attributed to you and nobody has watched for a long time. You can hand it back in the list below.",
+    "colHere": "Here since",
+    "noDateYet": "{{count}} items were skipped because Nexview does not yet know how long they have been there. The date comes from Radarr or Sonarr and is filled in at the next sync - it runs hourly.",
+    "emptyUnknown": "No verdict yet: for all items it is still unknown how long they have been there. There will be something here after the next sync.",
+    "periodLabel": "Unused for at least:",
+    "syncNow": "Sync now",
+    "syncing": "Running …",
+    "delete": "Delete",
+    "deleteTitle": "Delete?",
+    "deleteText": "With a grace period the title only goes in 14 days. Until then it stands on the home page for everyone to see, everyone connected to it is told - and whoever watches it in that time cancels the deletion by doing so.",
+    "deleteRecycleHint": "Deletion goes through Radarr/Sonarr. If a recycle bin is set up there, the file lands in it first; without one it is gone immediately and for good.",
+    "deleteGrace": "14 days' grace",
+    "deleteNow": "Delete now",
+    "goingSoon": "Going soon",
+    "goingSoonIntro": "These titles are scheduled for deletion. Watching one of them again brings it back - nothing else needed.",
+    "goingToday": "today",
+    "goingInDays_one": "{{count}} day left",
+    "goingInDays_other": "{{count}} days left",
+    "basis": "Based on the watch data of {{verknuepft}} of the {{gesamt}} accounts – what {{namen}} watch is unknown to Nexview, no media server is linked there.",
+    "searchPlaceholder": "Search titles …",
+    "keepAfterAll": "Keep after all",
+    "kind": {
+      "alle": "All",
+      "movie": "Movies",
+      "tv": "Shows"
+    },
+    "graceRunning_one": "{{count}} title will be deleted ({{size}})",
+    "graceRunning_other": "{{count}} titles will be deleted ({{size}})",
+    "graceHint": "The grace period is running. Until it ends this can be taken back - and anyone who watches the title before then brings it back anyway.",
+    "goingOn": "goes on {{date}}",
+    "periodOff": "With “Scheduled” only a running grace period counts.",
+    "stand": {
+      "alle": "All",
+      "vorgemerkt": "Scheduled"
+    }
   }
 }

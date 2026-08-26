@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
@@ -65,12 +66,29 @@ def has_usable_password(password_hash: str) -> bool:
 
 
 def _create_token(subject: int, token_type: TokenType, expires_in: timedelta) -> str:
-    settings = get_settings()
+    """Ein Token bauen.
+
+    ⚠️ **Neben ``iat`` steht ``ms`` - derselbe Zeitpunkt, aber in
+    Millisekunden.** Das ist kein Schmuck, sondern die Lehre aus einem Fehler.
+
+    ``iat`` ist nach RFC 7519 auf ganze Sekunden gerundet. Wer damit gegen
+    ``password_changed_at`` vergleicht, hat nur schlechte Wahlen: Rundet er
+    ab, ueberlebt ein gestohlenes Token aus derselben Sekunde den
+    Passwortwechsel - und ein Skript, das im Sekundentakt erneuert, faellt
+    zuverlaessig durch dieses Loch. Rundet er auf, sperrt sich jedes frisch
+    angelegte Konto im selben Atemzug selbst aus, denn sein
+    ``password_changed_at`` entsteht in derselben Sekunde wie sein erstes
+    Token.
+
+    Mit Millisekunden gibt es die Zwickmuehle nicht mehr: Der Vergleich ist
+    genau, ohne Rundung und ohne Sonderfaelle.
+    """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "sub": str(subject),
         "type": token_type,
         "iat": int(now.timestamp()),
+        "ms": int(now.timestamp() * 1000),
         "exp": int((now + expires_in).timestamp()),
     }
     return jwt.encode(payload, _signing_key(), algorithm=ALGORITHM)
@@ -86,8 +104,28 @@ def create_refresh_token(user_id: int) -> str:
     return _create_token(user_id, "refresh", timedelta(days=settings.refresh_token_days))
 
 
-def decode_token(token: str, expected_type: TokenType) -> int | None:
-    """Token pruefen und Benutzer-ID zurueckgeben; None wenn ungueltig."""
+@dataclass(frozen=True)
+class TokenInhalt:
+    """Was in einem gueltigen Token steht - mehr braucht niemand.
+
+    ``ausgestellt`` ist der Ausstellungszeitpunkt in **Millisekunden** seit
+    1970. Damit laesst sich ein Token gegen ``password_changed_at`` halten
+    (``services/sitzung.py``) - warum es nicht das gerundete ``iat`` tut,
+    steht bei ``_create_token``.
+    """
+
+    benutzer_id: int
+    ausgestellt: int
+
+
+def decode_token(token: str, expected_type: TokenType) -> TokenInhalt | None:
+    """Token pruefen; None wenn ungueltig.
+
+    ⚠️ Ein gueltiges Ergebnis heisst nur "richtig unterschrieben, richtige Art,
+    noch nicht abgelaufen". Ob das **Konto** dieses Token noch gelten laesst,
+    entscheidet ``sitzung.gilt_noch`` - dafuer muss der Benutzer geladen sein,
+    und das gehoert nicht hierher.
+    """
     try:
         payload = jwt.decode(token, _signing_key(), algorithms=[ALGORITHM])
     except jwt.PyJWTError:
@@ -95,11 +133,16 @@ def decode_token(token: str, expected_type: TokenType) -> int | None:
 
     if payload.get("type") != expected_type:
         return None
-    subject = payload.get("sub")
     try:
-        return int(subject)
-    except (TypeError, ValueError):
+        benutzer_id = int(payload.get("sub"))
+        # Fehlt ``ms``, stammt das Token nicht aus dieser Fassung. Es dann
+        # ueber ``iat`` durchzulassen waere genau das Loch, dessentwegen es
+        # ``ms`` gibt - also gilt es nicht. Kosten: keine. Beim Umstieg auf
+        # 0.21 faellt ohnehin jede bestehende Sitzung einmal heraus.
+        ausgestellt = int(payload["ms"])
+    except (KeyError, TypeError, ValueError):
         return None
+    return TokenInhalt(benutzer_id=benutzer_id, ausgestellt=ausgestellt)
 
 
 def access_token_expires_in() -> int:

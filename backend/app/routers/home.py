@@ -9,7 +9,7 @@ from datetime import datetime
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import selectinload
 
 from ..deps import CurrentUser, DbSession
@@ -27,6 +27,17 @@ LIMIT = 12
 
 
 class RecentItem(BaseModel):
+    """Ein Titel auf der Startseite - **ein Titel, nicht eine Anfrage.**
+
+    Eine Anfrage ist eine Zeile je ``(Titel, Staffel, Qualitaetsstufe)``. Wer
+    vier Staffeln einer Serie holt, hat vier Zeilen; wer denselben Film in
+    1080p und in 4K holt, hat zwei. Frueher wurde daraus je eine Kachel, und
+    dieselbe Serie stand viermal auf der Startseite (Issue #3).
+
+    Hier steht deshalb der **Titel**, und die Anfragen dahinter sind
+    zusammengefasst.
+    """
+
     request_id: int
     media_type: MediaType
     tmdb_id: int
@@ -41,6 +52,14 @@ class RecentItem(BaseModel):
     completed_at: datetime | None = None
     requested_by: str
     requester_avatar: str | None = None
+
+    # Welche Staffeln hinter dieser Kachel stecken, aufsteigend sortiert.
+    #
+    # **Leer heisst dreierlei und alles davon richtig:** ein Film, eine als
+    # Ganzes angefragte Serie, oder eine Serie, bei der beides zusammenkam.
+    # Die Oberflaeche schreibt dann schlicht "Film" beziehungsweise "Serie" -
+    # genau wie vorher. Eine Zahl steht nur da, wo sie etwas hinzufuegt.
+    seasons: list[int] = []
 
 
 async def _noch_vorhanden(
@@ -123,25 +142,79 @@ async def recent_downloads(user: CurrentUser, db: DbSession) -> list[RecentItem]
     bleiben Titel und Poster aus der eigenen Datenbank uebrig - die Startseite
     ist dann schlichter, aber nicht leer.
     """
-    anfragen = list(
-        db.scalars(
-            select(MediaRequest)
-            .options(selectinload(MediaRequest.user))
+    # ⚠️ **Erst gruppieren, dann begrenzen.** Die Grenze sass frueher an der
+    # rohen Anfragetabelle - und weil eine Serie je Staffel eine Zeile hat,
+    # konnte eine einzige Serie mit zwoelf Staffeln die ganze Startseite
+    # fuellen. Nur in der Oberflaeche zusammenzulegen haette es schlimmer
+    # gemacht, nicht besser: Aus zwoelf Zeilen waeren drei Kacheln geworden.
+    #
+    # Deshalb zwei Schritte. Erst die zwoelf **Titel**, deren juengste Zeile am
+    # neuesten ist ...
+    titel = list(
+        db.execute(
+            select(
+                MediaRequest.media_type,
+                MediaRequest.tmdb_id,
+            )
             .where(MediaRequest.status == RequestStatus.downloaded)
+            .group_by(MediaRequest.media_type, MediaRequest.tmdb_id)
             .order_by(
-                MediaRequest.completed_at.desc().nullslast(),
-                MediaRequest.requested_at.desc(),
+                func.max(MediaRequest.completed_at).desc().nullslast(),
+                func.max(MediaRequest.requested_at).desc(),
             )
             .limit(LIMIT)
         )
     )
-    if not anfragen:
+    if not titel:
+        return []
+
+    # ... dann alle Zeilen dazu. Es sind hoechstens zwoelf Titel, also bleibt
+    # auch diese Abfrage klein.
+    zeilen = list(
+        db.scalars(
+            select(MediaRequest)
+            .options(selectinload(MediaRequest.user))
+            .where(
+                MediaRequest.status == RequestStatus.downloaded,
+                tuple_(MediaRequest.media_type, MediaRequest.tmdb_id).in_(titel),
+            )
+            .order_by(
+                MediaRequest.completed_at.desc().nullslast(),
+                MediaRequest.requested_at.desc(),
+            )
+        )
+    )
+    if not zeilen:
         return []
 
     settings = for_user(load_settings(db), user)
-    anfragen = await _noch_vorhanden(db, settings, anfragen)
-    if not anfragen:
+
+    # Die Bestandspruefung laeuft weiter ueber **alle** Zeilen, nicht nur ueber
+    # die neueste je Titel: Ein Titel gehoert auf die Startseite, solange
+    # irgendeine seiner Fassungen noch da ist. Wer die 4K-Kopie loescht, hat
+    # den Film immer noch.
+    zeilen = await _noch_vorhanden(db, settings, zeilen)
+    if not zeilen:
         return []
+
+    # Zusammenlegen. ``zeilen`` ist nach Zeit sortiert, die erste Zeile eines
+    # Titels ist also seine neueste - und sie stellt ihn dar: ihr Datum, ihr
+    # Besteller. Bei "Staffel 4 kam gerade an" ist das die richtige Antwort auf
+    # "wer hat das geholt?".
+    gruppen: dict[tuple[MediaType, int], list[MediaRequest]] = {}
+    for zeile in zeilen:
+        gruppen.setdefault((zeile.media_type, zeile.tmdb_id), []).append(zeile)
+
+    anfragen = [teil[0] for teil in gruppen.values()]
+    staffeln = {
+        schluessel: sorted({z.season for z in teil if z.season is not None})
+        # Eine Anfrage ueber die **ganze** Serie schlaegt jede einzelne Staffel:
+        # "Staffel 3" waere dann untertrieben, und "4 Staffeln" schlicht
+        # falsch, wenn die Serie sechs hat. Dann steht dort nur "Serie".
+        if all(z.season is not None for z in teil)
+        else []
+        for schluessel, teil in gruppen.items()
+    }
 
     # Zwei verschiedene Arten von "keine Details":
     #
@@ -186,6 +259,7 @@ async def recent_downloads(user: CurrentUser, db: DbSession) -> list[RecentItem]
                 completed_at=request.completed_at,
                 requested_by=request.user.display_name or request.user.username,
                 requester_avatar=request.user.avatar_url,
+                seasons=staffeln[(request.media_type, request.tmdb_id)],
             )
         )
     return eintraege

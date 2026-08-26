@@ -1,14 +1,96 @@
-# Änderungen
+# Changelog
 
-Nexview zählt nach `HAUPT.NEBEN.KORREKTUR`:
+Nexview counts in `MAJOR.MINOR.PATCH`:
 
-- **KORREKTUR** (0.2.**1**) – nur Fehlerbehebungen, nichts Neues.
-- **NEBEN** (0.**3**.0) – neue Funktionen; Bestehendes läuft weiter wie bisher.
-- **HAUPT** (**1**.0.0) – etwas verhält sich anders als vorher und braucht
-  einen Handgriff beim Aktualisieren.
+- **PATCH** (0.2.**1**) – fixes only, nothing new.
+- **MINOR** (0.**3**.0) – new features; everything that worked keeps working.
+- **MAJOR** (**1**.0.0) – something behaves differently than before and needs a
+  hand when you update.
 
-Die oberste Nummer ist die, an der gerade gearbeitet wird. Sie ist noch nicht
-veröffentlicht, solange kein Tag dazu existiert.
+The topmost number is the one being worked on. It is not released as long as no
+tag exists for it.
+
+---
+
+## 0.21.0 – unreleased
+
+### New
+
+- **Nexview shows you what is lying around unused.** Statistics has a new entry: *What is
+  lying around unused*. It lists titles nobody has watched in a while — biggest first — with
+  how much room they take, when they were last watched, by whom, and who they are attributed
+  to. Filter by movies or series, search by title, and set the period from a few months up
+  to several years.
+
+  **Two clocks, not one.** A title only shows up if nobody watched it within the chosen
+  period *and* it has been here at least that long. With only the first clock the list would
+  effectively be sorted by size, and the 60 GB file that arrived yesterday would sit at the
+  top of it.
+
+  Everyone finds the same list for their own titles under *Profile → Storage*, and can hand
+  something back from there.
+
+- **Deleting has a grace period.** Marking something for deletion does not delete it — it
+  sets a date fourteen days out. Until then it stays, marked, and one click takes the mark
+  away again. Anyone who watches the title in the meantime cancels the deletion on their
+  own, without ever learning there was one.
+
+- **A monthly mail, if you want it.** Once a month Nexview can send you what is lying
+  around: at most thirty lines, biggest first, with a link straight into the list. Off by
+  default, and the switch is in your profile. Nothing goes out without a mail server and a
+  public address — a mail with a button that leads nowhere is worse than no mail.
+
+- **Requests that were put aside come back.** A request that was deferred stayed deferred,
+  and nothing brought it back. It now reappears under open approvals as soon as it fits
+  again.
+
+- **Series tiles say which seasons are here.** A tile for a series looked the same whether
+  one season had arrived or all of them.
+
+### Changed
+
+- **Staying signed in no longer relies on the browser's storage.** The proof that you are
+  signed in used to sit in `localStorage`, where any script on the page could read it. It
+  now lives in a cookie that JavaScript cannot read at all, that only travels to the
+  sign-in routes, and that does not go along from other sites.
+
+  **Changing your password now really does end every other session.** The docstring had
+  been claiming that for a long time; it was not true.
+
+  ⚠️ What this does *not* cover: signing out still only takes the cookie out of *this*
+  browser. Anyone who copied it beforehand can keep coming back until it expires. That was
+  no different before — but it is worth saying plainly.
+
+- **The browser now refuses foreign scripts.** Nexview sends a Content-Security-Policy: the
+  browser runs only code that came from Nexview itself, and loads images only from the
+  handful of hosts the covers come from. Should anything ever manage to get a script onto
+  the page, the browser turns it away before it runs.
+
+### Fixed
+
+- **Ratings on a movie page returned an error since 0.19.0.** Every single call to the
+  ratings of a movie failed — in 0.19.0 and in 0.20.0. A rewrite left one caller behind,
+  and nothing noticed. A test now walks the whole codebase for calls into functions that no
+  longer exist.
+
+- **Two switches in the profile did nothing.** Two of the mail switches were saved nowhere;
+  turning them on or off changed nothing at all. The list of switches is now derived from
+  the schema itself, so the next one cannot be forgotten the same way.
+
+- **Storage was counted twice for the same file.** A file that Radarr and the media server
+  both report — under different quality labels — was booked twice over. On a grown library
+  that adds up to hundreds of gigabytes that were never there.
+
+- **Bold text showed its asterisks.** In several places text came out as `**like this**`,
+  most visibly in the *Everything that's new* window.
+
+### Under the hood
+
+- **The interface has tests now.** 37 of them run without a browser in seconds, and one
+  runs in a real Chromium against a real server: sign in, reload, still in, sign out, out.
+  That last one is the only way to prove that the browser really keeps a sign-in across a
+  reload — the session lives in a cookie no script can read, so nothing short of a real
+  browser can tell you. All of them run in CI on every push.
 
 ---
 
@@ -86,272 +168,251 @@ veröffentlicht, solange kein Tag dazu existiert.
   have swallowed the new brake's `Retry-After` as well, so the sign-in page could never
   have said how long to wait.
 
+---
+
 ## 0.19.0 – 25.08.2026
 
 ### New
 
-- **„Sag mir Bescheid" — auf einen Titel warten, ohne ihn anzufragen.** Ist ein
-  Titel schon von jemand anderem angefragt, ließ er sich bisher nicht noch
-  einmal anfragen — und danach hörte der Zweite nie wieder etwas davon. Er
-  erfuhr nicht einmal, dass der Titel angekommen war, obwohl genau das seine
-  Frage war.
+- **"Tell me when it lands" — waiting for a title without requesting it.** If
+  someone else had already requested a title, it could not be requested again —
+  and after that the second person never heard another thing about it. They were
+  not even told when the title arrived, which was the one thing they wanted to
+  know.
 
-  Bei einem **Film** steht der Knopf dort, wo sonst nur der Zustandssatz steht
-  („wird gesucht"), also genau dann, wenn es etwas zu warten gibt. Gemeldet
-  wird einmal, danach ist die Vormerkung erledigt.
+  For a **film** the button sits where the status line normally is ("searching"),
+  so it appears exactly when there is something to wait for. You are told once,
+  and the reminder is then done.
 
-  Bei einer **Serie** steht er dauerhaft neben dem Anfrage-Knopf und gilt für
-  die ganze Serie. Der Grund ist ein technischer: Der Zustand „angefragt,
-  nichts mehr zu tun" tritt bei einer Serie praktisch nie ein, solange
-  irgendeine Staffel unvollständig ist — ein Knopf an einer Bedingung, die nie
-  eintritt, wäre kein Angebot. Gemeldet wird jede neue Folge, weil man meistens
-  genau darauf wartet.
+  For a **series** it sits permanently next to the request button and covers the
+  whole series. The reason is technical: the state "requested, nothing left to
+  do" practically never occurs for a series while any season is incomplete — a
+  button tied to a condition that never happens is not an offer. Every new
+  episode is reported, because that is usually what you are waiting for.
 
-  **Immer gebündelt.** Lädt ein Staffelpaket mit acht Folgen durch, ist das
-  *eine* Nachricht über acht Folgen, und zusammenhängende Nummern werden
-  zusammengezogen: „S2: 1-3, 7" statt vier Meldungen. Acht Nachrichten in
-  derselben Minute wären der schnellste Weg, jemanden dazu zu bringen,
-  Benachrichtigungen abzuschalten.
+  **Always bundled.** When a season pack of eight episodes comes down, that is
+  *one* message about eight episodes, and consecutive numbers are pulled
+  together: "S2: 1-3, 7" instead of four separate notes. Eight messages in the
+  same minute would be the fastest way to make somebody switch notifications off.
 
-  Beim ersten Zusammentreffen mit einer Staffel wird der aktuelle Stand nur
-  festgehalten, nicht gemeldet — sonst käme direkt nach dem Vormerken eine
-  Nachricht über zwanzig Folgen, die längst dalagen.
+  The first time a season is seen, the current state is only recorded, not
+  reported — otherwise the reminder would immediately be followed by a message
+  about twenty episodes that had been there all along.
 
-- **Was in deinem Abo schon läuft, sagt Nexview beim Anfragen.** Wer seine
-  Streaming-Dienste im Profil hinterlegt, bekommt beim Anfragen den Satz zu
-  sehen, der die Entscheidung ändern kann: „Läuft in deinem Netflix." Ein
-  **Hinweis**, keine Sperre — verhindert wird nichts, und der Anfrage-Knopf
-  behält seine Beschriftung.
+- **Nexview tells you what your own subscriptions already carry.** Put your
+  streaming services in your profile, and when you request something you get the
+  one sentence that can change your mind: "Already on your Netflix." It is a
+  **hint**, not a block — nothing is prevented, and the request button keeps its
+  label.
 
-  Bei Serien steht ein anderer Satz da, und das hat einen Grund: Die Quelle
-  sagt „läuft auf Netflix" über die *Serie*, nicht über die vierte Staffel, die
-  dort fehlt — und genau in dem Fall fragt jemand an. Der Hinweis sagt das
-  ausdrücklich, statt etwas zu behaupten, das er nicht weiß.
+  For series a different sentence appears, and there is a reason: the source says
+  "on Netflix" about the *series*, not about the fourth season that is missing
+  there — and that is exactly the case in which somebody requests it. The hint
+  says so plainly instead of claiming something it does not know.
 
-  Derselbe Abgleich erscheint dort, wo entschieden wird: in der Freigabeliste
-  („Dilara kann das schon über Netflix sehen") und bei den Eltern, wenn sie
-  einen Kinderwunsch entscheiden. Gemessen wird an den Abos **des
-  Anfragenden**, nicht an denen des Entscheiders — der hat vielleicht kein
-  Netflix, aber die Frage ist, ob der Anfragende ohne den Download auskäme. In
-  der Freigabeliste erscheint der Hinweis nur bei Anfragen, die wirklich auf
-  eine Entscheidung warten: Bei automatischer Freigabe stand die Anfrage nie
-  auf dem Tisch des Entscheiders, und der Hinweis wäre ein Vorwurf ohne
-  Adressat.
+  The same comparison appears where the decision is made: in the approvals list
+  ("Dilara could already watch this on Netflix") and for parents deciding on a
+  child's wish. It is measured against the subscriptions **of the person asking**,
+  not those of the person deciding — the decider may have no Netflix, but the
+  question is whether the requester could do without the download. In the
+  approvals list the hint only shows on requests that are genuinely waiting for a
+  decision: with automatic approval the request was never on the decider's desk,
+  and the hint would be a reproach with no one to receive it.
 
-  Die Daten kosten nichts. TMDB reicht sie von JustWatch durch und hängt sie
-  ohnehin an jede Detailabfrage. Die Liste der Dienste ist handverlesen: TMDB
-  führt 194 Anbieter für Deutschland und 292 für die USA, darin Kaufhäuser,
-  Nischenkanäle und Untermieter wie „Paramount+ Amazon Channel" gleichberechtigt
-  neben Netflix. Deren eigene Reihung hilft nicht — dort stehen der Apple TV
-  Store und Google Play Movies **vor** Disney+.
+  The data costs nothing. TMDB passes it through from JustWatch and attaches it to
+  every detail query anyway. The list of services is hand-picked: TMDB lists 194
+  providers for Germany and 292 for the United States, with storefronts, niche
+  channels and sub-tenants such as "Paramount+ Amazon Channel" ranked alongside
+  Netflix. Their own ordering does not help — it puts the Apple TV Store and
+  Google Play Movies **above** Disney+.
 
-- **Die Regionsauswahl kennt jetzt 139 Länder statt acht.** Sie stammt von TMDB
-  statt aus dem Quelltext: Wer in den Niederlanden, Polen oder Kanada saß,
-  konnte sein Land schlicht nicht angeben. Genommen werden die Länder, für die
-  es Anbieterdaten gibt — ein Land anzubieten, zu dem es hinterher nichts zu
-  sagen gibt, wäre ein Versprechen ohne Deckung.
+- **The region picker now knows 139 countries instead of eight.** It comes from
+  TMDB rather than from the source code: anyone in the Netherlands, Poland or
+  Canada simply could not state their country. The countries offered are those
+  with provider data — offering a country that later has nothing to say would be
+  a promise without cover.
 
-- **Ein Hinweis für alle, die nie eine Region gewählt haben.** Der
-  Einrichtungsassistent fragt nicht danach, und das Feld beginnt leer — die
-  Mehrheit erbt also stillschweigend die Vorgabe des Betreibers. Für Kinostarts
-  ist das eine Ungenauigkeit; für „läuft in deinem Netflix" ist es eine falsche
-  Behauptung über einen Menschen, denn der Katalog von Netflix Schweiz ist nicht
-  der deutsche. Ein gelber Streifen sagt es, verschwindet von selbst, sobald die
-  Region gesetzt ist, und lässt sich für die laufende Sitzung wegklicken.
+- **A note for everyone who never picked a region.** The setup wizard does not ask,
+  and the field starts empty, so most people quietly inherit the operator's
+  default. For cinema dates that is an inaccuracy; for "already on your Netflix"
+  it is a false claim about a person, because the catalogue of Netflix
+  Switzerland is not the German one. A yellow strip says so, disappears by itself
+  once a region is set, and can be dismissed for the current session.
 
-- **Emby, als dritter Medienserver neben Plex und Jellyfin.** Verbinden,
-  anmelden, Bibliothek abgleichen und der Gesehen-Stand je Person — alles wie
-  gehabt, nur mit einem Server mehr. Der Parallelbetrieb aus 0.18 gilt
-  unverändert: Wer will, verbindet alle drei, und der Gesehen-Stand wird über
-  sie hinweg zusammengeführt.
+- **Emby, as a third media server next to Plex and Jellyfin.** Connecting, signing
+  in, matching the library and the watched state per person — all as before, just
+  with one more server. Running them side by side, as introduced in 0.18, is
+  unchanged: connect all three if you like, and the watched state is merged across
+  them.
 
-  Gemessen an einem echten Server (Emby 4.9.5.0): Emby und Jellyfin sprechen
-  dieselbe Sprache. Dieselben Endpunkte, dieselben Felder, sogar dieselbe
-  Ausweiszeile — alle fünf geprüften Anmeldevarianten antworteten. Der
-  Emby-Adapter ist deshalb eine Ableitung des Jellyfin-Adapters und keine
-  zweite Kopie: Zwei fast gleiche Dateien nebeneinander hießen, dass jede
-  Fehlerbehebung zweimal gemacht werden müsste — und beim zweiten Mal
-  vergessen wird.
+  Measured against a real server (Emby 4.9.5.0): Emby and Jellyfin speak the same
+  language. The same endpoints, the same fields, even the same identification
+  header — all five sign-in variants that were tested answered. The Emby adapter is
+  therefore derived from the Jellyfin one rather than being a second copy: two
+  nearly identical files side by side would mean every fix has to be made twice —
+  and the second time it gets forgotten.
 
-  **Auch Emby-Konten haben keine E-Mail-Adresse.** Es gilt deshalb dasselbe
-  wie bei Jellyfin: Die Anmeldung über Emby legt kein Konto an, sondern wird
-  aus dem Profil heraus verknüpft. Ohne Adresse gibt es nichts, woran Nexview
-  jemanden wiedererkennt, und eine Einladung endete still in einem zweiten
-  Konto ohne Passwort.
+  **Emby accounts have no e-mail address either.** So the same rule as for Jellyfin
+  applies: signing in with Emby does not create an account, it is linked from your
+  profile. Without an address there is nothing for Nexview to recognise somebody
+  by, and an invitation would quietly end in a second account with no password.
 
-  Die PIN, die Emby optional je Konto kennt, ist dabei keine Hürde: Sie steht
-  bei den Anzeigeeinstellungen und nicht bei den Rechten — eine Profil-PIN zum
-  Umschalten auf einem geteilten Gerät, wie man sie von Netflix kennt. Die
-  Anmeldung mit Benutzername und Passwort ist davon unberührt. Nachgemessen an
-  einem Konto, das eine gesetzt hat.
+  The PIN that Emby optionally keeps per account is no obstacle: it belongs to the
+  display settings, not to permissions — a profile PIN for switching on a shared
+  device, the kind you know from Netflix. Signing in with username and password is
+  unaffected. Measured against an account that has one set.
 
-- **Der Verlauf einer Anfrage.** „Warum dauert das?" ist die häufigste Frage,
-  und Nexview kannte die Antwort immer vollständig — angefragt wann,
-  freigegeben von wem, seit wann in Suche, zuletzt nachgesehen wann. Sichtbar
-  war davon ein einziges Zustandswort. Ein Knopf in „Meine Anfragen" öffnet
-  jetzt eine Zeitleiste: erledigte Schritte grün mit Haken, der laufende gelb,
-  kommende grau. Ein abgebrochener Weg endet dort, wo er endet — unter einer
-  Ablehnung steht kein grauer „Fertig"-Schritt, der ein Versprechen wäre, das
-  niemand mehr einlöst. Zwei Angaben schafften es dabei zum ersten Mal bis zum
-  Anfragenden: wer freigegeben hat (oder dass es automatisch ging) und wann
-  zuletzt nach dem Titel gesehen wurde.
+- **The history of a request.** "Why is this taking so long?" is the most common
+  question, and Nexview always knew the full answer — requested when, approved by
+  whom, searching since when, last checked when. All of it showed as a single
+  status word. A button in "My requests" now opens a timeline: finished steps green
+  with a tick, the running one amber, the coming ones grey. A path that was broken
+  off ends where it ends — under a rejection there is no grey "done" step that
+  would be a promise nobody is going to keep. Two facts reach the requester for the
+  first time: who approved it (or that it went through automatically) and when the
+  title was last looked for.
 
-- **Bewertungen veralten, wenn Radarr nachlädt.** Radarr und Sonarr laden
-  weiter, bis das Qualitätsprofil erreicht ist. Eine Bewertung galt aber der
-  Datei, die damals dalag — danach steht ein „war schlecht" an etwas, das es so
-  nicht mehr gibt. Für den Betreiber ist das die schlechteste Sorte Rückmeldung:
-  eine über einen Zustand, den er nicht mehr nachprüfen kann.
+- **Ratings go stale when Radarr fetches a better file.** Radarr and Sonarr keep
+  going until the quality profile is met. A rating, though, was about the file that
+  was there at the time — after that a "this was bad" sits on something that no
+  longer exists in that form. For the operator that is the worst kind of feedback:
+  about a state they can no longer check.
 
-  Wächst die Datei spürbar, wird die Bewertung als veraltet gekennzeichnet. Sie
-  bleibt **stehen** — löschen verlöre die Information, und leere Sterne ohne
-  Erklärung sähen aus wie ein Fehler. In der Statistik zählt sie nicht mehr mit,
-  denn die Seite beantwortet „wie zufrieden sind die Leute mit dem, was hier
-  liegt". Der Betroffene bekommt eine Nachricht und kann neu bewerten.
+  When the file grows noticeably, the rating is marked as stale. It **stays** —
+  deleting it would lose the information, and empty stars with no explanation would
+  look like a fault. It no longer counts in the statistics, because that page
+  answers "how happy are people with what is here". The person affected gets a
+  message and can rate again.
 
-  Erkannt wird das im Status-Abgleich, der ohnehin läuft — die Größe steht in
-  derselben Antwort, die „ist der Titel noch da?" beantwortet. Ausdrücklich
-  **nicht** in der Speichermessung: Die ist abschaltbar, und eine Bewertung
-  veraltet auch dann, wenn niemand Kontingente führt. Bei Staffelanfragen
-  greift es nicht — die Größe am Serien-Eintrag ist die der ganzen Serie und
-  wächst auch, wenn eine andere Staffel aufgewertet wird.
+  This is spotted during the status check that runs anyway — the size is in the same
+  reply that answers "is the title still there?". Deliberately **not** in the storage
+  measurement: that can be switched off, and a rating goes stale even where nobody
+  keeps quotas. It does not apply to season requests — the size on a series entry is
+  that of the whole series and also grows when a different season is upgraded.
 
-- **Bewerten darf jeder, nicht nur der Besteller.** Die Rückmeldung zur
-  Qualität hing an der Anfrage. Daraus folgte alles Weitere: Nur wer bestellt
-  hatte, sah die Sterne — und wer denselben Film zwei Wochen später sah und
-  merkte, dass die Tonspur fehlt, hatte keine Möglichkeit, es zu sagen.
+- **Anyone can rate, not just the person who ordered.** Feedback on quality hung off
+  the request. Everything else followed from that: only whoever had ordered saw the
+  stars — and someone who watched the same film two weeks later and noticed the
+  audio track was missing had no way to say so.
 
-  Dabei geht es hier nicht um Geschmack — dafür gibt es das Herz —, sondern um
-  die **Datei**, und die beurteilt jeder gleich gut, der sie gesehen hat. Die
-  Bewertung hängt deshalb jetzt am Titel. Auf jeder Detailseite eines
-  vorhandenen Titels stehen die Sterne; in „Meine Anfragen" bleiben sie als
-  Abkürzung, weil der Augenblick direkt nach „Bereits geladen" der ist, in dem
-  jemand bewertet.
+  This is not about taste — that is what the heart is for — but about the **file**,
+  and anyone who has seen it can judge it just as well. So the rating now hangs off
+  the title. The stars are on every detail page of a title you have; in "My requests"
+  they stay as a shortcut, because the moment right after "already downloaded" is
+  when somebody rates.
 
-  Bewusst **kein** Gatter über den Gesehen-Stand, obwohl Nexview ihn kennt: Er
-  sagt aus, dass jemand den *Titel* gesehen hat, nicht *diese Datei*. Nach
-  einer Aufwertung durch Radarr bleibt der Haken stehen, obwohl die alte
-  Fassung gemeint war — als Nachweis taugt er also nicht. Stattdessen hängt die
-  Gültigkeit an der Datei selbst.
+  Deliberately **no** gate on the watched state, although Nexview knows it: it says
+  that somebody watched the *title*, not *this file*. After an upgrade by Radarr the
+  tick stays, even though it meant the old version — so it is no proof. Instead
+  validity hangs off the file itself.
 
-  **Serien werden je Staffel beurteilt.** Die Dateien liegen staffelweise, die
-  Qualität unterscheidet sich staffelweise. Eine Serie als Ganzes zu bewerten
-  hieße, über zehn verschiedene Dateien ein Urteil zu fällen.
+  **Series are judged per season.** The files sit per season, the quality differs per
+  season. Rating a series as a whole would mean passing judgement on ten different
+  files at once.
 
-  Bestehende Bewertungen wandern beim ersten Start mit. Administratoren
-  bewerten weiterhin nicht — sie beantworten die Rückmeldungen der anderen.
+  Existing ratings move across on first start. Administrators still do not rate —
+  they answer everybody else's feedback.
 
-- **Die Rückmeldungs-Ansicht zeigt jetzt jede Bewertung.** Sie zeigte Anfragen,
-  die zufällig eine Bewertung hatten — ein Rest der alten Verknüpfung. Seit
-  bewerten darf, wer einen Titel vorliegen hat, war das eine Ansicht mit
-  Löchern: Genau die Urteile von Leuten, die nie bestellt haben, fehlten. Auf
-  einer echten Datenbank waren das zwei von sieben. Für den Betreiber ist es
-  ohnehin belanglos, ob hinter einer Rückmeldung eine Anfrage steht.
+- **The feedback view now shows every rating.** It showed requests that happened to
+  have a rating — a leftover of the old link. Since anyone with a title in front of
+  them may rate, that was a view with holes: precisely the judgements of people who
+  never ordered anything were missing. On a real database that was two out of seven.
+  For the operator it makes no difference whether there is a request behind a piece
+  of feedback.
 
-- **Aus einem schwachen Urteil wird auf Wunsch ein Ticket.** Wer ein oder zwei
-  Sterne gibt, beschreibt meistens ein Problem — und ein Problem verschwindet
-  in einem Durchschnitt, während ein Ticket einen Zustand hat und offen
-  bleibt, bis sich jemand darum gekümmert hat. Das Fenster bietet es an, der
-  Text ist ja schon geschrieben. Nicht angeboten wird es, wenn zu diesem Titel
-  schon ein offenes Ticket von derselben Person existiert: Der Betreiber
-  bekäme sonst zweimal dieselbe Sache auf den Tisch, und der Nutzer glaubte,
-  sein erstes sei untergegangen.
+- **A weak rating can become a ticket.** Somebody giving one or two stars is usually
+  describing a problem — and a problem disappears into an average, whereas a ticket
+  has a state and stays open until somebody has dealt with it. The dialog offers it,
+  since the text is written anyway. It is not offered when an open ticket from the
+  same person already exists for that title: the operator would otherwise get the
+  same thing on their desk twice, and the user would think their first one had been
+  lost.
 
 ### Changed
 
-- **Kontingente: Stückzahl und Speicher gelten jetzt zusammen.** Bis hierher war
-  es ein haus-weites Entweder-oder — ein Umschalter entschied, ob die Anzahl
-  der Anfragen zählt oder der belegte Platz. Der Umschalter ist weg. Der Reiter
-  heißt nur noch **Kontingente** und trägt drei Standardwerte: Filme, Serien,
-  Speicher. Eine Anfrage geht durch, wenn **beide** Grenzen noch Luft haben;
-  die Meldung sagt, welche gegriffen hat. Wer nur nach einer begrenzen will,
-  stellt die andere auf „unbegrenzt" — das ist eine Einstellung weniger als
-  eine Betriebsart.
+- **Quotas: item count and storage now apply together.** Until now this was a
+  house-wide either-or — a switch decided whether the number of requests counted or
+  the space used. The switch is gone. The tab is simply called **Quotas** and holds
+  three defaults: films, series, storage. A request goes through when **both** limits
+  have room left; the message says which one stopped it. To limit by only one of
+  them, set the other to "unlimited" — that is one setting fewer than a mode.
 
-  Jede Grenze hat am Konto jetzt **drei Zustände**: *Standard* (der Wert des
-  Hauses), *unbegrenzt* (ausdrücklich ohne Grenze) und eine eigene Zahl, wobei
-  die **0** „darf nichts anfragen" bedeutet. Vorher war „unbegrenzt" ein leeres
-  Feld — wer einmal eine Zahl eingetragen hatte, fand nicht mehr zurück.
+  Every limit now has **three states** on an account: *default* (the house value),
+  *unlimited* (explicitly no limit) and a number of its own, where **0** means "may
+  request nothing". Before, "unlimited" was an empty field — once you had entered a
+  number, there was no way back.
 
-  ⚠️ **Die 0 beim Speicher hat ihre Bedeutung gewechselt.** Sie hieß „für
-  dieses Konto unbegrenzt" und heißt jetzt das Gegenteil. Gespeicherte Nullen
-  ziehen beim ersten Start automatisch auf „unbegrenzt" um; ohne das wäre ein
-  Konto über Nacht still gesperrt gewesen.
+  ⚠️ **The 0 for storage has changed meaning.** It used to mean "unlimited for this
+  account" and now means the opposite. Stored zeros move to "unlimited" automatically
+  on first start; without that, an account would have been quietly locked overnight.
 
-  ⚠️ **War der Schalter bisher auf „Anzahl", gehen alle Bestände einmalig ins
-  Haus.** Die GB-Grenzen waren in diesem Betrieb wirkungslos, die Zurechnung
-  lief aber im Hintergrund weiter. Ohne diesen Schritt wären Leute nach dem
-  Update schlagartig gesperrt — wegen einer Zahl, die seit Monaten
-  herumlag, und einer Historie, von der sie nichts wussten. Keine Datei wird
-  angefasst, eingetragene Grenzen bleiben stehen und greifen ab jetzt.
+  ⚠️ **If the switch was on "count", all holdings move into the house once.** The GB
+  limits had no effect in that mode, but the accounting kept running in the
+  background. Without this step people would have been abruptly blocked after the
+  update — because of a number that had been sitting around for months, and a history
+  they knew nothing about. No file is touched, entered limits stay and take effect
+  from now on.
 
-- **Der Zeitraum der Stückzahl gilt haus-weit.** Er stand bisher an jedem Konto
-  einzeln. Drei Konten mit drei verschiedenen Zeiträumen erklären aber
-  niemandem mehr, was „3 Filme" bedeutet. Bestehende Einstellungen ziehen um:
-  Wich ein Konto von der Woche ab, gewinnt der häufigste Wert.
+- **The period for the item count applies house-wide.** It used to sit on each account
+  separately. But three accounts with three different periods no longer explain to
+  anyone what "3 films" means. Existing settings move across: where an account
+  deviated from the week, the most common value wins.
 
-- **Speicher-Reiter, Hausbestand und „Brauche ich nicht mehr" gibt es jetzt
-  überall.** Sie hingen am alten Hauptschalter und waren damit für jeden
-  unsichtbar, der nach Stückzahl begrenzte. Gemessen wird immer, begrenzt nur
-  auf Wunsch — und die Kette „abgeben → der Betreiber entscheidet → Haus,
-  behalten oder löschen" steht damit jedem Haushalt offen. Für Betreiber heißt
-  das: Es kann jetzt eine Abgabe auf dem Tisch liegen, die vorher nie kam.
+- **The storage tab, house holdings and "I don't need this any more" are now there for
+  everyone.** They hung off the old main switch and were therefore invisible to anyone
+  limiting by item count. Measuring always happens, limiting only on request — so the
+  chain "hand it back → the operator decides → house, keep or delete" is now open to
+  every household. For operators that means: there can now be a handover on your desk
+  that never used to come.
 
-- **Zurücksetzen ist ein Knopf statt einer Nebenwirkung.** Das Umschalten der
-  Betriebsart hat die Konten still auf null gesetzt. Jetzt gibt es „Alle
-  Bestände ins Haus übernehmen" in den Kontingenten und „Speicher zurücksetzen"
-  bei jedem Konto — beide mit Rückfrage und Zahlen. Der zweite ist zugleich der
-  Ausweg für den Fall darunter.
+- **Resetting is a button instead of a side effect.** Switching the mode used to set
+  the accounts quietly to zero. Now there is "move all holdings into the house" in the
+  quotas and "reset storage" on each account — both with a confirmation and with
+  numbers. The second is also the way out of the case below.
 
-- **Titel, die Radarr oder Sonarr nicht mehr führen, sind jetzt erkennbar.** Wer
-  einen Titel dort entfernt und die Datei behält, schafft einen Posten, der
-  weiter zählt, aber nicht mehr gelöscht werden kann — Nexview löscht
-  ausschließlich über diese Dienste. Solche Zeilen tragen jetzt ein Zeichen mit
-  Erklärung. Bis hierher merkte es nur der Betreiber, und zwar erst beim
-  Löschversuch.
+- **Titles that Radarr or Sonarr no longer carry are now recognisable.** Removing a
+  title there while keeping the file creates an entry that still counts but can no
+  longer be deleted — Nexview only ever deletes through those services. Such rows now
+  carry a marker with an explanation. Until now only the operator noticed, and only
+  when trying to delete.
 
-- **„Sprache & Region" und „Sicherheit" sind in „Konto" aufgegangen.** Aus acht
-  Reitern wurden sechs, und die Kontoseite nutzt die volle Breite in zwei
-  Spalten. Statt fünf Speichern-Knöpfen untereinander gibt es **einen** für die
-  ganze Seite; Profilbild, Passwort und Kontolöschung behalten ihre eigenen,
-  weil das Handlungen sind und keine Einstellungen. Passwort ändern öffnet ein
-  Fenster, statt drei dauerhaft leere Felder in der Spalte stehen zu lassen.
-  Die alten Adressen `?reiter=sprache` und `?reiter=sicherheit` funktionieren
-  weiter.
+- **"Language & region" and "Security" have moved into "Account".** Eight tabs became
+  six, and the account page uses the full width in two columns. Instead of five save
+  buttons underneath each other there is **one** for the whole page; profile picture,
+  password and account deletion keep their own, because those are actions rather than
+  settings. Changing the password opens a dialog instead of leaving three permanently
+  empty fields in the column. The old addresses `?reiter=sprache` and
+  `?reiter=sicherheit` still work.
 
 ### Fixed
 
-- **Zurückgestellte Anfragen waren eine Sackgasse.** „Ja im Prinzip, nur nicht
-  jetzt" verspricht, dass später freigegeben wird und niemand neu fragen muss.
-  Gebaut war der Teil nach dem Komma nie: Freigeben und Ablehnen verlangten
-  ausdrücklich „wartet auf Freigabe", und eine zurückgestellte tut das nicht
-  mehr. Der Entscheider bekam „wartet nicht mehr auf eine Freigabe", der
-  Anfragende beim zweiten Versuch „steht bereits zurück, sobald du wieder Platz
-  hast, kann die Anfrage freigegeben werden" — beide Meldungen verwiesen auf
-  einen Weg, den es nicht gab. Jetzt nehmen beide Entscheidungen
-  zurückgestellte Anfragen an, und die Knöpfe erscheinen auch bei ihnen.
-  Bewusst nur einzeln: Die Sammelfreigabe bleibt bei den wartenden, sonst
-  sammelte „alle freigeben" eine Einzelentscheidung wieder ein.
+- **Deferred requests were a dead end.** "Yes in principle, just not now" promises that
+  it will be approved later and that nobody has to ask again. The part after the comma
+  was never built: approving and rejecting explicitly required "waiting for approval",
+  and a deferred request is not. The decider got "no longer waiting for approval", and
+  the requester on a second attempt got "already deferred, it can be approved once you
+  have room again" — both messages pointed at a path that did not exist. Now both
+  decisions accept deferred requests, and the buttons appear on them too. Deliberately
+  one at a time only: bulk approval stays with the waiting ones, otherwise "approve
+  all" would sweep a single decision back up.
 
-- **Der Gesehen-Abgleich wäre für Plex-Nutzer abgestürzt.** Beim Durchreichen
-  der Kontonummer wurden Jellyfin und Emby angepasst, Plex nicht — der Aufrufer
-  übergab zwei Angaben, der Adapter nahm eine. Aufgefallen im Test, nicht im
-  Betrieb.
+- **The watched-state sync would have crashed for Plex users.** When the account number
+  was passed through, Jellyfin and Emby were adjusted and Plex was not — the caller
+  handed over two values, the adapter took one. Caught by a test, not in the field.
 
-- **Bibliothekseinträge vom Medienserver trugen kein Erscheinungsjahr.** Der
-  Feldkatalog forderte es nicht an, also kam es nicht mit, und jeder Eintrag
-  stand mit `year=None` da. Das klingt nach Beiwerk und ist es nicht: Der
-  Titel-Rückfall beim Bibliotheksabgleich vergleicht Titel **und Jahr**, damit
-  „The Lion King" von 1994 nicht dasselbe ist wie das Remake von 2019. Ohne
-  Jahr greift er gar nicht mehr — Titel ohne TMDB- oder TVDB-Kennung galten
-  damit als nicht vorhanden. Aufgefallen beim Messen gegen Emby; betrifft
-  Jellyfin genauso.
+- **Library entries from the media server carried no release year.** The field list did
+  not ask for it, so it did not come, and every entry sat there with `year=None`. That
+  sounds like trimming and is not: the title fallback in the library match compares
+  title **and** year, so that "The Lion King" from 1994 is not the same as the 2019
+  remake. Without a year it does not work at all — titles without a TMDB or TVDB id
+  therefore counted as absent. Found while measuring against Emby; it affects Jellyfin
+  just as much.
 
-- **Der Reiter für die Region hieß nach einer Seite, die es nicht mehr gibt.**
-  „Voreinstellung beim Entdecken" mit dem Zusatz „ändern kannst du sie beim
-  Entdecken jederzeit" — nur ist Entdecken seit 0.17 aus dem Menü, und der
-  Regionsfilter dort ebenfalls entfernt. Damit war der Reiter die einzige
-  Stelle, an der sich die Region überhaupt setzen ließ, und er verwies auf einen
-  Weg, den es nicht mehr gab.
+- **The tab for the region was named after a page that no longer exists.** "Default for
+  Discover", with the note "you can change it in Discover at any time" — except Discover
+  has been out of the menu since 0.17, and the region filter there was removed with it.
+  That made the tab the only place where the region could be set at all, and it pointed
+  at a path that was gone.
 
 ---
 
@@ -596,6 +657,8 @@ veröffentlicht, solange kein Tag dazu existiert.
   This affects every age restriction, not just the child accounts added in
   0.16.0 - the setting has existed since 0.3.0.
 
+---
+
 ## 0.16.0 – 23.08.2026
 
 ### New
@@ -652,6 +715,8 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 - Profile tabs can be addressed directly again (`?reiter=…`), which is how the
   bell now jumps from a child's wish straight to the place it is decided.
+
+---
 
 ## 0.15.0 – 23.08.2026
 
@@ -956,6 +1021,8 @@ veröffentlicht, solange kein Tag dazu existiert.
   round.** The database session was left mid-rollback, so the very next step
   in the same pass – sending mail – died of an error it had nothing to do
   with.
+
+---
 
 ## 0.11.3 – 20.08.2026
 
@@ -1364,259 +1431,252 @@ veröffentlicht, solange kein Tag dazu existiert.
 
 ## 0.4.3 – 18.08.2026
 
-### Neu
+### New
 
-- **„Andere zeigen" bei den Vorschlägen.** Ist unter *Das könnte dir auch
-  gefallen* nichts dabei, holt ein Knopf die nächsten zwölf Titel. Der Vorrat
-  kommt aus zwei TMDB-Listen: den Empfehlungen (was Leuten gefiel, denen
-  dieser Titel gefiel) und den ähnlichen Titeln (gleiche Genres und
-  Schlagworte). Gemessen an echten Daten ergibt das vier bis sieben Runden
-  je Titel — auch bei völlig unbekannten Filmen, wo TMDB nur eine Handvoll
-  Empfehlungen kennt. Ist der Vorrat durch, geht es wieder von vorn los.
+- **"Show me others" under the suggestions.** If nothing under *You might also
+  like* appeals, a button fetches the next twelve titles. The supply comes from
+  two TMDB lists: the recommendations (what people liked who liked this title)
+  and the similar titles (same genres and keywords). Measured against real
+  data that gives four to seven rounds per title — even for completely unknown
+  films, where TMDB only knows a handful of recommendations. Once the supply
+  runs out, it starts over from the beginning.
 
-### Behoben
+### Fixed
 
-- **Die Ansicht auf dem Telefon durchgesehen** (360/390/430 px, alle 20
-  Ansichten). Gekürzt wurde bisher an Stellen, an denen umbrechen richtig
-  gewesen wäre:
-  - In *Meine Anfragen* und *Alle Anfragen* schrumpfte der Titel auf ein
-    Zeichen („S."), weil Zustand und Knopf dieselbe Zeile beanspruchten.
-    Auf schmalen Bildschirmen steht der Titel jetzt allein in der ersten
-    Zeile, Etikett und Knopf darunter.
-  - Fünfzehn Raster hatten keine ausdrückliche Grundspalte. Die
-    stillschweigende Spur ist so breit wie ihr breitester Inhalt, nicht wie
-    der Bildschirm — die Startseite ließ sich dadurch seitlich schieben.
-  - Kacheltitel auf der Startseite, in der Listenansicht und unter *Mag ich*
-    laufen jetzt über zwei Zeilen, statt nach der Hälfte abzubrechen.
-  - Das Zustands-Etikett auf dem Poster wird nicht mehr zusammengedrückt.
-    Passt es nicht neben die Bewertung, rutscht die Bewertung eine Zeile
-    tiefer — vorher brach „Bereits geladen" mitten über das Bild um.
-  - Fehlt ein Poster, stand der Titel als Ersatz im Kasten — aber so breit
-    wie sein längstes Wort, also links und rechts abgeschnitten. Jetzt bricht
-    er um.
-- Zwei fehlende Übersetzungen: der Zustand *Freigegeben* (`status.approved`)
-  zwischen Freigabe und Übergabe an Radarr/Sonarr, und der Hinweis unter der
-  öffentlichen Adresse im Einrichtungsassistenten.
-- Nach dem Abschicken einer Anfrage stand auf der Titelseite weiterhin
-  *Zu Radarr hinzufügen*, obwohl die Anfrage längst lief. Dasselbe galt für
-  Filmografien, Kategorielisten und die Startseite: neu geladen wurden bisher
-  nur die Kachellisten. Welche Ansichten den Zustand einer Anfrage zeigen,
-  steht jetzt an einer einzigen Stelle (`lib/refresh.ts`) — und dort wird
-  nach jeder Änderung alles davon aufgefrischt.
+- **The phone view went through a full pass** (360/390/430 px, all 20 views).
+  Until now things were cut off in places where wrapping would have been right:
+  - In *My requests* and *All requests* the title shrank to a single character
+    ("S."), because the state and the button claimed the same line. On narrow
+    screens the title now stands alone on the first line, with the label and
+    the button beneath it.
+  - Fifteen grids had no explicit base column. The implicit track is as wide as
+    its widest content, not as wide as the screen — which is what let the home
+    page be pushed sideways.
+  - Tile titles on the home page, in the list view and under *Liked* now run
+    over two lines instead of breaking off halfway.
+  - The state label on the poster is no longer squeezed. If it does not fit
+    next to the rating, the rating drops a line — before that, "Already
+    downloaded" broke across the middle of the image.
+  - Where a poster was missing, the title stood in the box as a substitute —
+    but only as wide as its longest word, so it was cut off left and right. It
+    wraps now.
+- Two missing translations: the *Approved* state (`status.approved`) between
+  approval and hand-off to Radarr/Sonarr, and the note under the public address
+  in the setup wizard.
+- After sending a request, the title page still said *Add to Radarr*, although
+  the request had long since started. The same held for filmographies, category
+  lists and the home page: until now only the tile lists were reloaded. Which
+  views show the state of a request is now written down in exactly one place
+  (`lib/refresh.ts`) — and everything listed there is refreshed after every
+  change.
 
 ---
 
 ## 0.4.2 – 18.08.2026
 
-### Behoben
+### Fixed
 
-- Am geschlossenen Ticket stand beim Administrator noch der Satz, die
-  Antwort des Benutzers öffne es wieder — das galt seit der Regeländerung
-  nicht mehr.
-- Der Administrator konnte ein Ticket an sich selbst schreiben. Der
-  Empfänger ist jetzt Pflicht.
-- *Problem melden* erschien auch beim Administrator, obwohl er derjenige
-  ist, bei dem man sich meldet. Für ihn ausgeblendet.
+- On a closed ticket the administrator still saw the sentence saying that a
+  reply from the user would reopen it — which had stopped being true when the
+  rule changed.
+- The administrator could write a ticket to themselves. A recipient is now
+  required.
+- *Report a problem* also appeared for the administrator, although they are the
+  person one reports to. Hidden for them.
 
 ---
 
 ## 0.4.1 – 18.08.2026
 
-### Neu
+### New
 
-- **Der Administrator kann einen Benutzer anschreiben.** Beim Eröffnen eines
-  Tickets wählt er den Empfänger aus einer Liste; das Ticket gehört dann dem
-  Angeschriebenen, er findet es unter seinen eigenen und kann antworten. Wer
-  es verfasst hat, steht in der Kopfzeile. Bisher ging die Post nur in eine
-  Richtung.
+- **The administrator can write to a user.** When opening a ticket they pick
+  the recipient from a list; the ticket then belongs to the person written to,
+  who finds it among their own and can reply. Who wrote it stands in the
+  header. Until now the post only went one way.
 
 ---
 
 ## 0.4.0 – 18.08.2026
 
-### Neu
+### New
 
-- **Ticketcenter.** Benutzer eröffnen Tickets mit Betreff und Text; jeder sieht
-  nur die eigenen. Der Administrator sieht alle, wird über die Glocke
-  informiert, antwortet, kann seine Antworten nachbessern und den Zustand auf
-  *Offen*, *In Bearbeitung* oder *Geschlossen* setzen.
+- **Ticket centre.** Users open tickets with a subject and a text; everyone
+  sees only their own. The administrator sees all of them, is told about them
+  through the bell, replies, can amend their replies and can set the state to
+  *Open*, *In progress* or *Closed*.
 
-  Ein **Entscheider ist hier ausdrücklich kein Administrator**: er entscheidet
-  über Anfragen, sieht aber keine fremden Tickets. Wer ein fremdes Ticket
-  aufruft, bekommt „gibt es nicht" statt „verboten" – ein „verboten" wäre
-  bereits die Auskunft, dass es diese Nummer gibt.
+  An **approver is explicitly not an administrator** here: they decide about
+  requests, but they see no one else's tickets. Anyone opening someone else's
+  ticket is told "does not exist" rather than "forbidden" — a "forbidden" would
+  already be the information that this number exists.
 
-  **Geschlossen heißt für den Benutzer zu.** Er sieht den Verlauf weiterhin,
-  das Antwortfeld verschwindet aber; wer noch etwas hat, eröffnet ein neues
-  Ticket. Der Administrator darf auch danach noch einen Nachtrag hinterlassen,
-  ohne das Ticket dafür wieder aufmachen zu müssen.
+  **Closed means closed for the user.** They still see the history, but the
+  reply box disappears; anyone who has more to say opens a new ticket. The
+  administrator may still leave an addendum afterwards, without having to
+  reopen the ticket for it.
 
-  **Aufräumen:** Der Administrator kann geschlossene Tickets löschen, einzeln
-  oder als Stapel. Offene lassen sich nicht löschen – wer eines loswerden will,
-  schließt es zuerst. So ist die Entscheidung eine bewusste und in zwei
-  Schritten getroffen.
+  **Tidying up:** the administrator can delete closed tickets, one at a time or
+  in a batch. Open ones cannot be deleted — anyone who wants one gone closes it
+  first. That way the decision is a deliberate one, taken in two steps.
 
-  Bearbeiten darf jeder seine **eigenen** Nachrichten; dass etwas geändert
-  wurde, steht danach sichtbar dabei. Gelöscht wird nichts – ein Verlauf mit
-  Lücken ist nicht mehr lesbar.
+  Everyone may edit their **own** messages; that something was changed is
+  visible afterwards. Nothing is deleted — a history with gaps is no longer
+  readable.
 
-  Auf jeder Titelseite gibt es *Problem melden*: das Ticket trägt den Bezug
-  dann von selbst, niemand muss den Namen abtippen.
+  Every title page has *Report a problem*: the ticket then carries the
+  reference by itself, nobody has to type the name out.
 
-  Die Bewertung mit Kommentar an fertigen Downloads bleibt davon unberührt –
-  sie klebt am Titel, das Ticket ist für alles andere.
+  The rating with a comment on finished downloads is untouched by all this — it
+  sticks to the title, the ticket is for everything else.
 
 
-- **Sperrliste.** Der Administrator kann Titel sperren: sie lassen sich dann
-  von niemandem mehr anfragen und gehen nicht an Radarr bzw. Sonarr. Anders als
-  bei der Altersbeschränkung bleiben sie **sichtbar** – auffindbar über Suche
-  und Entdecken, mit dem Abzeichen *Gesperrt* und ohne Einkaufswagen. Wer
-  danach sucht, soll die Antwort bekommen, statt dreimal vergeblich anzufragen.
+- **Blocklist.** The administrator can block titles: nobody can request them
+  any more, and they do not go to Radarr or Sonarr. Unlike with the age limit
+  they stay **visible** — findable through search and discovery, carrying the
+  *Blocked* badge and without a shopping cart. Anyone looking for one should
+  get the answer, instead of requesting it three times in vain.
 
-  Beim Ablehnen einer Anfrage fragt Nexview, ob der Titel gleich mit auf die
-  Liste soll – **nur beim Administrator**. Ein Entscheider entscheidet über die
-  einzelne Anfrage; ob ein Titel grundsätzlich nicht in die Bibliothek gehört,
-  ist Sache des Betreibers. Der Server weist es zusätzlich ab, nicht nur die
-  Oberfläche.
+  When rejecting a request Nexview asks whether the title should go on the list
+  at the same time — **only for the administrator**. An approver decides about
+  the single request; whether a title belongs in the library at all is the
+  operator's business. The server turns it away as well, not just the interface.
 
-  Die Übersicht steht unter *Einstellungen → Sperrliste*, samt Begründung und
-  einem Knopf zum Freigeben. Gesperrt ist auch für den Administrator selbst
-  gesperrt: wer den Titel doch will, gibt ihn frei – ein bewusster Schritt, der
-  hinterher nachvollziehbar ist.
+  The overview sits under *Settings → Blocklist*, complete with the reason and
+  a button to release it again. Blocked is blocked for the administrator too:
+  anyone who wants the title after all releases it — a deliberate step that can
+  be followed afterwards.
 
-- **Altersbeschränkung je Benutzer.** Der Administrator legt fest, ob ein Konto
-  beschränkt ist und wie alt die Person ist; gezeigt wird dann nur, was
-  höchstens ab diesem Alter freigegeben ist. Gesperrte Titel verschwinden
-  vollständig – aus dem Entdecken, der Suche, den Empfehlungen, den
-  Filmografien, der Startseite und den eigenen Favoriten. Auch das Anfragen
-  wird serverseitig abgewiesen, nicht nur der Knopf ausgeblendet.
+- **Age limit per user.** The administrator decides whether an account is
+  limited and how old the person is; only what is cleared for at most that age
+  is then shown. Blocked titles disappear completely — from discovery, search,
+  recommendations, filmographies, the home page and their own favourites.
+  Requesting is turned away on the server as well, not just the button hidden.
 
-  Maßgeblich ist die Einstufung eines Landes, das **nur der Administrator**
-  setzt – getrennt von der Region, die jeder für sich selbst wählen darf.
-  Sonst könnte der Beschränkte einfach ein Land einstellen, in dem der Titel
-  nicht eingestuft ist, und wäre an der Sperre vorbei. Fehlt für das gewählte
-  Land eine Einstufung, gilt die strengste aller Länder.
+  What counts is the rating of a country that **only the administrator** sets —
+  separate from the region everyone may choose for themselves. Otherwise the
+  limited person could simply set a country in which the title is not rated,
+  and would be past the block. Where a rating for the chosen country is
+  missing, the strictest of all countries applies.
 
-  Titel **ganz ohne** Einstufung bleiben standardmäßig verborgen – „kein
-  Nachweis, kein Zutritt". Das lässt sich je Benutzer abschalten, denn neue
-  Titel sind meist noch nirgends eingestuft: gemessen schrumpfte die
-  Entdecken-Seite dadurch von 20 auf 2 Einträge, mit erlaubten Unbewerteten
-  waren es 10. Bei einem 16-Jährigen mag das vertretbar sein, bei einem
-  6-Jährigen nicht – deshalb die Wahl statt einer festen Regel.
+  Titles with **no rating at all** stay hidden by default — "no proof, no
+  entry". That can be switched off per user, because new titles are usually not
+  rated anywhere yet: measured, the discovery page shrank from 20 entries to 2,
+  and with unrated titles allowed it was 10. For a 16-year-old that may be
+  acceptable, for a 6-year-old it is not — hence the choice instead of a fixed
+  rule.
 
-  Freigaben aus über 30 Ländern werden dafür in ein Mindestalter übersetzt –
-  „FSK 12", „PG-13", „MA15+", „K-16" und „M/12" meinen dasselbe. Die Zuordnung
-  deckt 97 % der in der Praxis vorkommenden Bezeichnungen ab; wo sie unsicher
-  wäre, rät sie bewusst nicht.
+  Clearances from over 30 countries are translated into a minimum age for this
+  — "FSK 12", "PG-13", "MA15+", "K-16" and "M/12" all mean the same thing. The
+  mapping covers 97 % of the labels that occur in practice; where it would be
+  uncertain, it deliberately does not guess.
 
-  Die Sperre wirkt nur in Nexview. Über Plex, Jellyfin oder direkt auf der
-  Dateifreigabe bleibt alles erreichbar.
-- **Sprache im Profil wählbar**, zusammen mit der Region im Reiter *Sprache &
-  Region* (hieß vorher *Entdecken*). Der Schalter oben in der Kopfzeile bleibt
-  fürs schnelle Umschalten; im Profil gilt die Wahl erst beim Speichern, wie
-  bei jeder anderen Einstellung.
+  The block only works inside Nexview. Through Plex, Jellyfin or straight off
+  the file share, everything stays reachable.
+- **The language can be chosen in the profile**, together with the region in
+  the *Language & region* tab (previously called *Discover*). The switch at the
+  top of the header stays for switching quickly; in the profile the choice
+  applies when you save, like every other setting.
 
-### Behoben
+### Fixed
 
-- **Ein Sprachwechsel änderte die Texte nicht.** Titel und Handlungen blieben
-  in der zuerst geladenen Sprache stehen, bis man die Seite neu lud – die
-  Abfragen im Browser merkten sich ihr Ergebnis ohne die Sprache. Sie werden
-  jetzt zentral neu geholt.
-- **Die Genres blieben in der alten Sprache**, auch wenn Titel und Handlung
-  schon umgeschaltet hatten: der Zwischenspeicher für die Detaildaten, aus
-  denen die Genrenamen stammen, hatte die Sprache nicht im Schlüssel.
+- **Switching the language did not change the texts.** Titles and plots stayed
+  in the language loaded first until you reloaded the page — the queries in the
+  browser remembered their result without the language. They are now refetched
+  centrally.
+- **The genres stayed in the old language**, even once titles and plots had
+  switched over: the cache for the detail data the genre names come from did
+  not have the language in its key.
 
 ---
 
 ## 0.2.0 – 17.08.2026
 
-### Neu
+### New
 
-- **Über-Seite** in der Fußzeile: installierte Version, Quelltext, Lizenz.
-  Administratoren sehen dort auch, wenn eine neuere Version vorliegt – dafür
-  fragt Nexview höchstens einmal am Tag bei GitHub nach. Abschaltbar.
-- **E-Mail-Benachrichtigungen**, vier Ereignisse einzeln schaltbar: Download
-  fertig, Anfrage entschieden, Anfrage wartet auf Freigabe, neue Bewertung
-  bzw. Antwort darauf. Standard ist alles aus; einschalten kann sie jeder für
-  sich selbst im Profil. Die Glocke in der App bleibt davon unberührt.
-- **Profil in Reitern**: Konto, Benachrichtigungen, Entdecken, Sicherheit.
-- **Region als persönliche Voreinstellung** für die Filterleiste.
-- **Staffelweise Serien-Anfragen.** Statt der ganzen Serie lässt sich eine
-  einzelne Staffel anfragen. Läuft die Serie schon mit, wird sie nicht neu
-  angelegt — es kommt nur die gewünschte Staffel dazu, und genau die wird
-  gesucht. Zählt als eine Anfrage aufs Kontingent.
-- **Zielordner:** Der Administrator legt fest, ob Benutzer ihn beim Anfragen
-  wählen dürfen. Wenn nicht, gilt für alle ein von ihm gesetzter Ordner. Das
-  wird auf dem Server durchgesetzt, nicht nur in der Oberfläche ausgeblendet.
-- **Detailseite je Titel** statt nur eines kleinen Fensters: Besetzung mit
-  Fotos, Regie, Drehbuch, Studios, Schlagworte, Budget, Empfehlungen — und bei
-  Serien die Staffeln zum Aufklappen mit allen Folgen und der Angabe, welche
-  davon schon vorliegen.
-- **Personenseiten**: Ein Klick auf einen Schauspieler zeigt Foto, Biografie
-  und dessen bekannteste Titel, jeweils mit Status und direkter
-  Anfragemöglichkeit.
-- **Trailer** direkt in Nexview, sofern TMDB einen kennt. Eingebunden über die
-  datensparsame YouTube-Adresse; die Verbindung entsteht erst beim Abspielen.
-- **Schlagworte und Studios sind anklickbar** und führen zu einer Liste aller
-  Titel damit — für Filme wie für Serien.
-- Ein Klick auf eine Kachel oder Listenzeile öffnet jetzt die Detailseite. Zum
-  schnellen Anfragen gibt es einen Einkaufswagen direkt am Titel.
+- **About page** in the footer: installed version, source, licence.
+  Administrators also see there when a newer version is available — for that
+  Nexview asks GitHub at most once a day. Can be switched off.
+- **Email notifications**, four events switchable one by one: download
+  finished, request decided, request waiting for approval, new rating or a
+  reply to one. Everything is off by default; everyone can switch them on for
+  themselves in their profile. The bell in the app is untouched by this.
+- **Profile in tabs**: account, notifications, discover, security.
+- **Region as a personal default** for the filter bar.
+- **Season-by-season series requests.** Instead of the whole series, a single
+  season can be requested. If the series is already running it is not created
+  again — only the wanted season is added, and exactly that one is searched
+  for. Counts as one request against the quota.
+- **Root folder:** the administrator decides whether users may choose it when
+  requesting. If not, a folder set by them applies to everyone. That is
+  enforced on the server, not just hidden in the interface.
+- **A detail page per title** instead of only a small window: cast with photos,
+  directing, writing, studios, keywords, budget, recommendations — and for
+  series the seasons to unfold, with all episodes and a note on which of them
+  are already there.
+- **Person pages**: a click on an actor shows their photo, biography and their
+  best-known titles, each with its state and a direct way to request it.
+- **Trailers** straight inside Nexview, where TMDB knows one. Embedded through
+  the data-frugal YouTube address; the connection is only made when you play it.
+- **Keywords and studios are clickable** and lead to a list of every title
+  carrying them — for films as for series.
+- A click on a tile or a list row now opens the detail page. For requesting
+  quickly there is a shopping cart right on the title.
 
-- **Startseite neu**: oben ein Slider mit beliebten Vorschlägen (großes
-  Hintergrundbild, Cover, kurze Handlung) und darunter kleine Kacheln mit
-  weiteren. Titel, die noch nicht erschienen sind, tragen ihr Startdatum gut
-  sichtbar. Was schon in der Bibliothek liegt oder angefragt ist, taucht gar
-  nicht erst auf. Darunter die zuletzt geladenen Titel als Slider.
-- **Danksagung auf der Über-Seite**: Datenquellen (TMDB, Radarr/Sonarr,
-  YouTube) und die verwendeten Bausteine samt Lizenz.
+- **New home page**: a slider of popular suggestions at the top (large
+  backdrop, cover, short plot) and smaller tiles with more of them below.
+  Titles that have not been released yet carry their release date clearly.
+  Anything already in the library or already requested does not appear at all.
+  Below that, the most recently downloaded titles as a slider.
+- **Acknowledgements on the about page**: data sources (TMDB, Radarr/Sonarr,
+  YouTube) and the building blocks used, each with its licence.
 
-- **Bewertungen von IMDb, Rotten Tomatoes und Metacritic** bei Filmen — auf
-  den Kacheln, in der Liste und auf der Detailseite. Die Werte kommen aus
-  Radarr, das sie ohnehin mitliefert; es braucht also keinen weiteren Dienst
-  und keinen weiteren Schlüssel. Bei Serien gibt es sie nicht: Sonarr liefert
-  nur eine Sammelwertung ohne Aufschlüsselung. Die Abzeichen sind anklickbar und führen zur jeweiligen Seite.
+- **Ratings from IMDb, Rotten Tomatoes and Metacritic** for films — on the
+  tiles, in the list and on the detail page. The values come from Radarr, which
+  supplies them anyway; so it needs no further service and no further key. For
+  series there are none: Sonarr only supplies a single combined score with no
+  breakdown. The badges are clickable and lead to the respective page.
 
-- **Favoriten**: An jedem Titel sitzt ein Herz — auf der Kachel, in der Liste
-  und auf der Detailseite. Der Menüpunkt **Mag ich** zeigt alle Markierungen
-  und lässt sie wieder entfernen; er erscheint erst, wenn es etwas zu sehen
-  gibt.
-- **„Für dich kuratiert"** auf der Startseite: Empfehlungen aus den eigenen
-  Favoriten, mit Cover und kurzer Handlung. Was in den Empfehlungslisten
-  mehrerer Favoriten auftaucht, steht vorn — ein einzelner Treffer ist Zufall,
-  ein mehrfacher eine Aussage. Gezeigt wird nur, was der Bibliothek noch fehlt.
-  Ohne Favoriten steht dort, wie man welche anlegt.
+- **Favourites**: every title has a heart — on the tile, in the list and on the
+  detail page. The **Liked** menu entry shows every mark and lets you remove
+  them again; it only appears once there is something to see.
+- **"Curated for you"** on the home page: recommendations built from your own
+  favourites, with cover and short plot. Whatever turns up in the
+  recommendation lists of several favourites comes first — a single hit is
+  chance, a repeated one is a statement. Only what the library is still missing
+  is shown. Without favourites, it tells you how to make some.
 
-### Geändert
+### Changed
 
-- Die **Sprache der Filmtexte folgt der Oberflächensprache**. Wer auf Englisch
-  umstellt, bekommt jetzt auch englische Titel und Beschreibungen.
-- Die **Standardsprache** des Administrators gilt für neu eingeladene Konten
-  und für Einladungsmails. Vorher richtete sich die Mail nach der Sprache des
-  einladenden Administrators.
-- `latest` in der Registry zeigt nur noch auf veröffentlichte Versionen. Der
-  Entwicklungsstand liegt unter `main`.
+- The **language of the film texts follows the interface language**. Switching
+  to English now gets you English titles and descriptions too.
+- The administrator's **default language** applies to newly invited accounts
+  and to invitation mails. Before, the mail followed the language of the
+  inviting administrator.
+- `latest` in the registry now points only at released versions. The
+  development state sits under `main`.
 
-### Behoben
+### Fixed
 
-- **Ein Update von einer älteren Version konnte den Container am Starten
-  hindern.** Beim Nachrüsten fehlender Spalten erzeugte Nexview ungültiges SQL,
-  sobald die Spalte eine Auswahlliste oder einen Zeitstempel als Standardwert
-  hatte. Beides betraf Kernspalten der Benutzertabelle.
-- Vor jeder Änderung an der Datenbank legt Nexview jetzt eine Kopie unter
-  `/data/sicherungen/` ab (die fünf jüngsten bleiben liegen).
-- Der Zwischenspeicher unterschied Filmtexte nicht nach Sprache – ein Benutzer
-  konnte die Fassung eines anderen zu sehen bekommen.
-- Der Container richtet die Rechte am Datenverzeichnis beim Start selbst ein.
-  Auf einem NAS scheiterte der Start vorher an den Ordnerrechten.
-- Ein beim Anfragen mitgeschickter Zielordner wurde ungeprüft übernommen.
-  Jetzt muss es ihn in Radarr bzw. Sonarr wirklich geben.
-- Der Speichern-Knopf beim Anzeigenamen war auch ohne Änderung anklickbar.
+- **An update from an older version could stop the container from starting.**
+  When adding missing columns, Nexview produced invalid SQL as soon as a column
+  had an enumeration or a timestamp as its default. Both affected core columns
+  of the user table.
+- Before every change to the database, Nexview now puts a copy under
+  `/data/sicherungen/` (the five most recent are kept).
+- The cache did not tell film texts apart by language — one user could end up
+  seeing another one's version.
+- The container sets up the permissions on the data directory itself at start.
+  On a NAS the start used to fail on the folder permissions.
+- A root folder sent along with a request was taken over unchecked. Now it has
+  to genuinely exist in Radarr or Sonarr.
+- The save button on the display name was clickable even without a change.
 
 ---
 
 ## 0.1.0 – 17.08.2026
 
-Erste veröffentlichte Fassung: Entdecken über TMDB, Abgleich mit
-Radarr/Sonarr, Anfragen mit Freigabe und Kontingenten, drei Rollen,
-Status-Verfolgung, Benachrichtigungen, Bewertungen, Statistiken, Konten
-ausschließlich über Einladung, Deutsch und Englisch.
+First released version: discovery through TMDB, matching against
+Radarr/Sonarr, requests with approval and quotas, three roles, status
+tracking, notifications, ratings, statistics, accounts by invitation only,
+German and English.

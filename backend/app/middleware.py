@@ -121,3 +121,31 @@ async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
         },
         headers={"X-Request-Id": nummer},
     )
+
+
+class SicherheitskopfMiddleware:
+    """Setzt die Inhaltsregeln an jede Antwort.
+
+    Ebenfalls reines ASGI und aus demselben Grund wie oben: Es wird nur eine
+    Kopfzeile angehaengt.
+
+    An **jede** Antwort, nicht nur an die HTML-Seite. Das ist ein paar hundert
+    Byte teurer und dafuer nicht zu vergessen - eine Regel, die nur an einem
+    von mehreren Auslieferungswegen haengt, ist irgendwann keine Regel mehr.
+    """
+
+    def __init__(self, app: Any, name: str, regeln: str) -> None:
+        self.app = app
+        self.kopf = (name.encode("ascii"), regeln.encode("ascii"))
+
+    async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                message.setdefault("headers", []).append(self.kopf)
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)

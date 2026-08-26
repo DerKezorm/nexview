@@ -328,8 +328,17 @@ def set_password(raw: str, payload: SetPassword, request: Request, db: DbSession
     """Passwort setzen - erstes oder neues.
 
     Damit gilt auch die Adresse als bestaetigt: die Mail ist ja angekommen.
+
     Und alle bestehenden Sitzungen werden ungueltig, denn wer sein Passwort
-    zuruecksetzt, will genau das.
+    zuruecksetzt, will genau das. ⚠️ **Bis 0.21 war dieser Satz falsch.**
+    ``password_changed_at`` wurde hier zwar geschrieben, aber nirgends
+    gelesen - ein gestohlenes Token ueberlebte den Wechsel und galt weiter,
+    bis zu dreissig Tage lang. Wer bestohlen wurde, hatte damit gar keinen
+    Ausweg ausser dem Konto zu deaktivieren oder ``NEXVIEW_SECRET_KEY`` zu
+    tauschen, und Letzteres macht alle gespeicherten Radarr-, Sonarr- und
+    TMDB-Schluessel unlesbar. Durchgesetzt wird es jetzt in
+    ``services.sitzung.gilt_noch``, aufgerufen aus ``deps.get_current_user``
+    und aus ``/api/auth/refresh``.
     """
     bremse = _token_bremse(request)
     token = tokens.find(db, raw, TokenPurpose.password_reset)

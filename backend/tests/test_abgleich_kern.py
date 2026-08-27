@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 from app.models import MediaRequest, MediaType, RequestStatus, utcnow
 from app.services import abgleich_kern
-from app.services.sonarr import Staffelstand
+from app.services.sonarr import Folge, Staffelstand
 
 
 def _serie(
@@ -134,3 +134,72 @@ def test_heilung_braucht_befund_und_kennung() -> None:
 def test_ueberwachte_staffel_braucht_keine_heilung() -> None:
     gesund = _eintrag(staffeln={2: Staffelstand(dateien=0, folgen=8, monitored=True)})
     assert not abgleich_kern.heilung_noetig(_serie(season=2), gesund)
+
+
+# --- Folgen-Pakete -----------------------------------------------------------
+
+
+def _paket(episodes: list[int]) -> MediaRequest:
+    return MediaRequest(
+        media_type=MediaType.tv,
+        season=2,
+        episodes=episodes,
+        status=RequestStatus.searching,
+    )
+
+
+def _folgen(**stand: tuple[bool, bool]) -> dict:
+    """{"f3": (has_file, monitored)} -> Befund fuer Staffel 2."""
+    return {
+        2: {
+            int(name[1:]): Folge(
+                kennung=500 + int(name[1:]),
+                nummer=int(name[1:]),
+                monitored=werte[1],
+                has_file=werte[0],
+            )
+            for name, werte in stand.items()
+        }
+    }
+
+
+def test_paket_fertig_wenn_jede_folge_liegt() -> None:
+    alles = _folgen(f3=(True, True), f7=(True, True))
+    halb = _folgen(f3=(True, True), f7=(False, True))
+    assert abgleich_kern.ist_fertig(_paket([3, 7]), _eintrag(), alles)
+    assert not abgleich_kern.ist_fertig(_paket([3, 7]), _eintrag(), halb)
+
+
+def test_paket_ohne_befund_hat_keine_aussage() -> None:
+    """Kein Befund: nicht fertig, aber auch nicht geloescht - im Zweifel bleibt
+    alles stehen. Der Vertrag fuer jeden Zulieferer."""
+    paket = _paket([3, 7])
+    assert not abgleich_kern.ist_fertig(paket, _eintrag(), None)
+    assert abgleich_kern.ist_noch_da(paket, _eintrag(), None)
+
+
+def test_paket_noch_da_solange_eine_folge_liegt() -> None:
+    eine = _folgen(f3=(True, True), f7=(False, True))
+    keine = _folgen(f3=(False, True), f7=(False, True))
+    assert abgleich_kern.ist_noch_da(_paket([3, 7]), _eintrag(), eine)
+    assert not abgleich_kern.ist_noch_da(_paket([3, 7]), _eintrag(), keine)
+
+
+def test_paket_heilung_bei_abgeraeumten_folgen() -> None:
+    abgeraeumt = _folgen(f3=(False, False), f7=(False, True))
+    gesund = _folgen(f3=(False, True), f7=(False, True))
+    assert abgleich_kern.heilung_noetig(_paket([3, 7]), _eintrag(), abgeraeumt)
+    assert not abgleich_kern.heilung_noetig(_paket([3, 7]), _eintrag(), gesund)
+    # Ohne Befund keine Aussage - aber eine leere Folgenliste (frisch
+    # angelegte Serie) heisst: das Einschalten nachholen.
+    assert not abgleich_kern.heilung_noetig(_paket([3, 7]), _eintrag(), None)
+    assert abgleich_kern.heilung_noetig(_paket([3, 7]), _eintrag(), {})
+
+
+def test_paket_heilung_bei_abgeraeumter_serie() -> None:
+    """Auch die Serien-Flagge selbst kann Sonarr abraeumen - ohne sie laedt
+    es keine einzige ueberwachte Folge."""
+    gesund = _folgen(f3=(False, True))
+    assert abgleich_kern.heilung_noetig(
+        _paket([3]), _eintrag(monitored=False), gesund
+    )

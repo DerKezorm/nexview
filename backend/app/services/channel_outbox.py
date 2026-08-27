@@ -155,6 +155,19 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
 # beantwortet nicht, worum es geht.
 STAFFEL = {"de": "Staffel", "en": "Season"}
 
+# Das Wort vor den Folgennummern eines Pakets - derselbe Zweck: Zwei Pakete
+# derselben Staffel sind sonst zwei identische Nachrichten.
+FOLGE = {"de": "Folge", "en": "Episode"}
+
+
+def folgen_zusatz(request, sprache: str) -> str:
+    """" · Folge 3, 7" - fuer Betreffzeilen zu einem Folgen-Paket, sonst leer."""
+    folgen = getattr(request, "episodes", None) if request is not None else None
+    if not folgen:
+        return ""
+    wort = FOLGE.get(sprache, FOLGE["de"])
+    return f" · {wort} {', '.join(str(nummer) for nummer in folgen)}"
+
 
 def aktiv(target: ChannelTarget) -> bool:
     """Ist dieses Ziel in Betrieb - und seine Instanz auch?
@@ -235,6 +248,7 @@ def _notice(
     titel = eintrag.title or (request.title if request else "")
     if request is not None and request.season is not None:
         titel = f"{titel} · {STAFFEL.get(sprache, STAFFEL['de'])} {request.season}"
+        titel += folgen_zusatz(request, sprache)
 
     zeilen = [f"**{titel}**"] if titel else []
     if request is not None and "by" in bausteine:

@@ -151,6 +151,12 @@ DEFAULTS: dict[str, str] = {
     # Nexview sehen und daraus anfragen koennen. Angefragt wird ueber den ganz
     # normalen Weg - deshalb braucht es hier weder Rechte noch ein Ziel.
     "watchlist_enabled": "off",
+    # --- Folgen-Pakete ------------------------------------------------------
+    # Duerfen Benutzer einzelne Folgen statt ganzer Staffeln anfragen? Ein
+    # Schalter fuer Haeuser, die es schlicht halten wollen. Standard **an**:
+    # Ein Paket kostet einen Platz wie eine Staffel und erzeugt keine
+    # Mehrlast - abgeschaltet wird aus Geschmack, nicht aus Not.
+    "episode_requests_enabled": "on",
     # --- Kontingente --------------------------------------------------------
     # Drei Standardwerte, eine Regel: Sie gelten fuer jeden, der nichts
     # Eigenes eingetragen hat. **Leer heisst unbegrenzt** - eine frisch
@@ -258,6 +264,8 @@ class AppSettings:
     mediaserver_auto_import: bool
     mediaserver_default_role: str
     watchlist_enabled: bool
+    # Duerfen Benutzer Folgen-Pakete anfragen (einzelne Folgen einer Staffel)?
+    episode_requests_enabled: bool
     # --- Kontingente: die drei Standardwerte und ihr Zeitraum ---------------
     # ``None`` heisst ueberall **unbegrenzt**. Sie greifen fuer jeden, der
     # nichts Eigenes eingetragen hat, und gelten **immer alle drei zugleich**.
@@ -643,6 +651,7 @@ def load_settings(db: Session) -> AppSettings:
             else "user"
         ),
         watchlist_enabled=_flag(values["watchlist_enabled"], standard=False),
+        episode_requests_enabled=_flag(values["episode_requests_enabled"], standard=True),
         quota_default_movies=profil("quota_default_movies"),
         quota_default_series=profil("quota_default_series"),
         storage_default_limit_gb=profil("storage_default_limit_gb"),
@@ -770,6 +779,7 @@ def public_settings(db: Session) -> dict[str, object]:
         "mediaserver_auto_import": settings.mediaserver_auto_import,
         "mediaserver_default_role": settings.mediaserver_default_role,
         "watchlist_enabled": settings.watchlist_enabled,
+        "episode_requests_enabled": settings.episode_requests_enabled,
         "quota_default_movies": settings.quota_default_movies,
         "quota_default_series": settings.quota_default_series,
         "storage_default_limit_gb": settings.storage_default_limit_gb,

@@ -23,8 +23,8 @@ from typing import Any
 from ..models import MediaRequest, MediaType, RequestStatus, utcnow
 
 
-def ist_fertig(request: MediaRequest, eintrag: Any) -> bool:
-    """Ist **das Angefragte** geladen - die Staffel, nicht die Serie?
+def ist_fertig(request: MediaRequest, eintrag: Any, folgen: dict | None = None) -> bool:
+    """Ist **das Angefragte** geladen - das Paket bzw. die Staffel, nicht die Serie?
 
     ⚠️ ``has_file`` sagt "irgendeine Folge der ganzen Serie liegt vor". Solange
     nur ganze Serien angefragt werden konnten, war das dieselbe Aussage. Seit
@@ -33,21 +33,46 @@ def ist_fertig(request: MediaRequest, eintrag: Any) -> bool:
     gleichzeitig als "bereits geladen" galten - und fuenf Fertig-Meldungen in
     derselben Sekunde hinausgingen, obwohl vier davon noch gar nicht gesucht
     hatten.
+
+    Fuer Folgen-Pakete zaehlt der folgengenaue Befund (``folgen``, je Staffel
+    die Folgen nach Nummer): fertig, wenn **jede** bestellte Folge eine Datei
+    hat. Ohne Befund gibt es keine Aussage - die Anfrage bleibt dann stehen.
     """
+    if request.episodes:
+        staffel = (folgen or {}).get(request.season) or {}
+        if not staffel:
+            return False
+        return all(
+            (folge := staffel.get(nummer)) is not None and folge.has_file
+            for nummer in request.episodes
+        )
     if request.season is None:
         return bool(getattr(eintrag, "has_file", False))
     stand = (getattr(eintrag, "staffeln", None) or {}).get(request.season)
     return stand is not None and stand.vollstaendig
 
 
-def ist_noch_da(request: MediaRequest, eintrag: Any) -> bool:
+def ist_noch_da(request: MediaRequest, eintrag: Any, folgen: dict | None = None) -> bool:
     """Liegt vom Angefragten ueberhaupt noch etwas auf der Platte?
 
     Bewusst schwaecher als :func:`ist_fertig`: Einer fertigen Staffel, der
     jemand eine einzelne Folge entfernt, ist nicht "geloescht". Mit derselben
     Schwelle in beide Richtungen spraenge sie zwischen "geladen" und "weg" hin
     und her, und jeder Sprung erzeugte eine Meldung.
+
+    Fuer Folgen-Pakete gilt dieselbe Asymmetrie je Folge: Solange **eine**
+    bestellte Folge liegt, ist nichts "geloescht". Und ohne Befund gibt es
+    keine Aussage - im Zweifel gilt "noch da", denn nur was nachweislich weg
+    ist, gilt als weg.
     """
+    if request.episodes:
+        if folgen is None:
+            return True
+        staffel = folgen.get(request.season) or {}
+        return any(
+            (folge := staffel.get(nummer)) is not None and folge.has_file
+            for nummer in request.episodes
+        )
     if request.season is None:
         return bool(getattr(eintrag, "has_file", False))
     stand = (getattr(eintrag, "staffeln", None) or {}).get(request.season)
@@ -94,8 +119,10 @@ def ist_wirklich_weg(request: MediaRequest, instanz_hat_geantwortet: bool) -> bo
     return (jetzt - seit) > timedelta(minutes=SCHONFRIST_MINUTEN)
 
 
-def heilung_noetig(request: MediaRequest, eintrag: Any) -> bool:
-    """Hat Sonarr die Ueberwachung einer laufenden Staffelanfrage abgeraeumt?
+def heilung_noetig(
+    request: MediaRequest, eintrag: Any, folgen: dict | None = None
+) -> bool:
+    """Hat Sonarr die Ueberwachung einer laufenden Anfrage abgeraeumt?
 
     ⚠️ Sonarrs ``addOptions.monitor: "none"`` wirkt asynchron: Bei einer
     frisch angelegten Serie laedt Sonarr erst die Metadaten und raeumt
@@ -114,5 +141,21 @@ def heilung_noetig(request: MediaRequest, eintrag: Any) -> bool:
         return False
     if eintrag is None or not getattr(eintrag, "arr_id", None):
         return False
+    if request.episodes:
+        if not getattr(eintrag, "monitored", True):
+            # Die Serien-Flagge selbst ist abgeraeumt - ohne sie laedt Sonarr
+            # auch ueberwachte Folgen nicht.
+            return True
+        if folgen is None:
+            return False
+        staffel = folgen.get(request.season) or {}
+        if not staffel:
+            # Folgen noch nicht bekannt (frisch angelegte Serie): das
+            # Einschalten aus der Uebergabe nachholen.
+            return True
+        return any(
+            (folge := staffel.get(nummer)) is not None and not folge.monitored
+            for nummer in request.episodes
+        )
     stand = (getattr(eintrag, "staffeln", None) or {}).get(request.season)
     return stand is not None and not stand.monitored

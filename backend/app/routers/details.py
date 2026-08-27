@@ -306,8 +306,32 @@ async def season(
         settings, serie.tvdb_id, serie.title, jahr=library.jahr_aus(serie.release_date)
     )
     in_dieser_staffel = vorhanden.get(season_number, set())
+
+    # Und die zweite Frage je Folge: Laeuft schon eine Anfrage? ``None`` aus
+    # ``angefragte_folgen`` heisst "die ganze Staffel ist abgedeckt".
+    belegt = requests_service.angefragte_folgen(db, tmdb_id, season_number)
+    mit_uhd = settings.arr_configured("tv", "uhd")
+    if mit_uhd:
+        vorhanden_uhd = await library.episode_availability(
+            settings,
+            serie.tvdb_id,
+            serie.title,
+            tier="uhd",
+            jahr=library.jahr_aus(serie.release_date),
+        )
+        uhd_staffel = vorhanden_uhd.get(season_number, set())
+        belegt_uhd = requests_service.angefragte_folgen(
+            db, tmdb_id, season_number, QualityTier.uhd
+        )
+
     for folge in staffel.episodes:
         folge.available = folge.episode_number in in_dieser_staffel
+        folge.requested = belegt is None or folge.episode_number in belegt
+        if mit_uhd:
+            folge.available_uhd = folge.episode_number in uhd_staffel
+            folge.requested_uhd = (
+                belegt_uhd is None or folge.episode_number in belegt_uhd
+            )
 
     return staffel
 

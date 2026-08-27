@@ -95,6 +95,8 @@ class SettingsUpdate(BaseModel):
     mediaserver_default_role: str | None = None
     # --- Merkliste ----------------------------------------------------------
     watchlist_enabled: bool | None = None
+    # --- Folgen-Pakete ------------------------------------------------------
+    episode_requests_enabled: bool | None = None
     # --- Kontingente --------------------------------------------------------
     # Die drei Standardwerte des Hauses. **-1 setzt auf "unbegrenzt"** - das
     # ``None`` von Pydantic heisst hier "nicht mitgeschickt", kann also nicht
@@ -193,6 +195,9 @@ class AppConfig(BaseModel):
     # Oberflaeche blendet daran den Menuepunkt und den Filter "Über Merkliste
     # angefragt" ein.
     watchlist_enabled: bool
+    # Duerfen Benutzer Folgen-Pakete anfragen? Die Oberflaeche blendet daran
+    # die Aufklapp-Pfeile im Staffel-Waehler ein.
+    episode_requests_enabled: bool
 
 
 @router.get("/config", response_model=AppConfig)
@@ -223,6 +228,7 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         ),
         mediaserver_watchlist_connected=merklisten_anbieter(settings),
         watchlist_enabled=settings.watchlist_enabled,
+        episode_requests_enabled=settings.episode_requests_enabled,
     )
 
 

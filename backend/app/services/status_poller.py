@@ -50,6 +50,33 @@ WATCHED_STATUSES = (RequestStatus.approved, RequestStatus.searching)
 ERROR_BACKOFF_SECONDS = 60
 
 
+async def _paket_groesse(settings, request: MediaRequest, eintrag, folgen: dict) -> int | None:
+    """Summe der Episodendateien eines gerade fertig gewordenen Pakets.
+
+    Nur fuer die Sofort-Zurechnung. Scheitert die Abfrage, bleibt es bei
+    ``None`` - der stuendliche Abgleich traegt die Groesse dann nach.
+    """
+    arr_id = getattr(eintrag, "arr_id", None)
+    client = library.sonarr_client(settings, request.tier.value)
+    if not arr_id or client is None:
+        return None
+    staffel = folgen.get(request.season) or {}
+    eigene = {
+        folge.datei_id
+        for nummer in (request.episodes or [])
+        if (folge := staffel.get(nummer)) is not None and folge.datei_id
+    }
+    if not eigene:
+        return 0
+    try:
+        dateien = await client.episode_files(arr_id, request.season)
+    except ArrError:
+        return None
+    return sum(
+        int(datei.get("size") or 0) for datei in dateien if datei.get("id") in eigene
+    )
+
+
 def _open_requests(db: Session) -> list[MediaRequest]:
     return list(
         db.scalars(select(MediaRequest).where(MediaRequest.status.in_(WATCHED_STATUSES)))
@@ -94,6 +121,20 @@ async def check_once(db: Session, settings: AppSettings) -> int:
     # derselben Serie ergeben ohnehin dieselbe Menge.
     geheilt: set[tuple[str, int]] = set()
     verschwunden = 0
+
+    # Folgengenaue Befunde, hoechstens einmal je Serie und Durchlauf geholt -
+    # und nur fuer Serien, zu denen ein Folgen-Paket laeuft. Alle anderen
+    # kosten weiterhin keinen einzigen zusaetzlichen Aufruf.
+    folgen_befunde: dict[tuple[str, int], dict] = {}
+
+    async def _folgen_befund(stufe: str, arr_id: int) -> dict:
+        schluessel = (stufe, arr_id)
+        if schluessel not in folgen_befunde:
+            client = library.sonarr_client(settings, stufe)
+            folgen_befunde[schluessel] = (
+                await client.folgen_stand(arr_id) if client is not None else {}
+            )
+        return folgen_befunde[schluessel]
     for request in offen:
         stufe = request.tier.value
         if request.media_type == MediaType.movie:
@@ -143,15 +184,25 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                     )
             continue
 
+        # Fuer Folgen-Pakete zaehlt der folgengenaue Befund.
+        folgen = None
+        if request.episodes:
+            arr_id_befund = getattr(eintrag, "arr_id", None)
+            if arr_id_befund:
+                folgen = await _folgen_befund(stufe, arr_id_befund)
+
         # Ist der Titel inzwischen wirklich heruntergeladen?
-        if abgleich_kern.ist_fertig(request, eintrag):
+        if abgleich_kern.ist_fertig(request, eintrag, folgen):
             request.status = RequestStatus.downloaded
             request.completed_at = utcnow()
             # Belegten Platz sofort zurechnen, nicht erst beim stuendlichen
             # Abgleich: Wer gerade etwas angefragt hat und nachsieht, was es
             # ihn kostet, faende dort sonst bis zu eine Stunde lang eine Null
             # und hielte die Anzeige fuer kaputt.
-            storage.verbuchen(db, request, eintrag)
+            paket_bytes = None
+            if request.episodes and folgen is not None:
+                paket_bytes = await _paket_groesse(settings, request, eintrag, folgen)
+            storage.verbuchen(db, request, eintrag, paket_bytes=paket_bytes)
             anfragender = db.get(User, request.user_id)
             if anfragender is not None:
                 notify.create(
@@ -169,25 +220,42 @@ async def check_once(db: Session, settings: AppSettings) -> int:
         # Die Ueberwachungs-Heilung - warum es sie gibt, steht bei der Frage:
         # ``abgleich_kern.heilung_noetig``. Entschieden wird dort, ausgefuehrt
         # hier - je Durchlauf hoechstens einmal je Serie.
-        if abgleich_kern.heilung_noetig(request, eintrag):
+        if abgleich_kern.heilung_noetig(request, eintrag, folgen):
             arr_id = getattr(eintrag, "arr_id", None)
             if (stufe, arr_id) not in geheilt:
                 geheilt.add((stufe, arr_id))
                 client = library.sonarr_client(settings, stufe)
                 if client is not None:
                     try:
-                        await client.monitor_seasons(
-                            arr_id,
-                            requests_service._gewollte_staffeln(db, request),
-                            such_staffel=request.season,
-                        )
-                        logger.warning(
-                            "Monitoring healed: %r season %s was switched off in Sonarr "
-                            "(arr_id=%s)",
-                            request.title,
-                            request.season,
-                            arr_id,
-                        )
+                        if request.episodes:
+                            # Paket: Serie an, genau die eigenen Folgen an,
+                            # Suche anstossen - dieselbe Strecke wie bei der
+                            # Uebergabe, dort steht auch das Warum.
+                            geschafft = await requests_service._folgen_einschalten(
+                                client, arr_id, request
+                            )
+                            if geschafft:
+                                logger.warning(
+                                    "Monitoring healed: %r season %s episodes %s "
+                                    "were off or not yet on (arr_id=%s)",
+                                    request.title,
+                                    request.season,
+                                    request.episodes,
+                                    arr_id,
+                                )
+                        else:
+                            await client.monitor_seasons(
+                                arr_id,
+                                requests_service._gewollte_staffeln(db, request),
+                                such_staffel=request.season,
+                            )
+                            logger.warning(
+                                "Monitoring healed: %r season %s was switched off in Sonarr "
+                                "(arr_id=%s)",
+                                request.title,
+                                request.season,
+                                arr_id,
+                            )
                     except ArrError as fehler:
                         logger.warning(
                             "Monitoring of %r could not be healed: %s",
@@ -228,7 +296,12 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                     nach_titel, request.title, library.jahr_aus(request.release_date)
                 )
 
-        if eintrag is not None and abgleich_kern.ist_noch_da(request, eintrag):
+        folgen = None
+        if request.episodes and eintrag is not None:
+            arr_id_befund = getattr(eintrag, "arr_id", None)
+            if arr_id_befund:
+                folgen = await _folgen_befund(stufe, arr_id_befund)
+        if eintrag is not None and abgleich_kern.ist_noch_da(request, eintrag, folgen):
             # ⚠️ Der Titel liegt noch da - aber ist es noch **dieselbe** Datei?
             #
             # Radarr und Sonarr laden weiter, bis das Qualitaetsprofil erreicht

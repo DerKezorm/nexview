@@ -62,6 +62,7 @@ def _nachricht(
     if request is not None and request.season is not None:
         wort = channel_outbox.STAFFEL.get(sprache, channel_outbox.STAFFEL["de"])
         titel = f"{titel} · {wort} {request.season}"
+        titel += channel_outbox.folgen_zusatz(request, sprache)
     profil = _link(settings, "/profil")
 
     match eintrag.type:

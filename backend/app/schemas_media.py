@@ -46,6 +46,14 @@ class EpisodeInfo(BaseModel):
     vote_average: float = 0.0
     # Liegt diese Folge schon vor? Aus Sonarr.
     available: bool = False
+    # Laeuft zu dieser Folge schon eine Anfrage - von **irgendwem**? Dieselbe
+    # Regel wie bei ``SeasonInfo.requested``: Der Folgen-Waehler zeigt
+    # Belegtes an, statt es anzubieten und mit 409 abgelehnt zu bekommen.
+    requested: bool = False
+    # Dieselben zwei Fragen fuer die 4K-Instanz - ``None`` heisst "keine
+    # zweite Instanz eingerichtet", nicht "belegt".
+    available_uhd: bool | None = None
+    requested_uhd: bool | None = None
 
 
 class SeasonDetail(BaseModel):

@@ -996,6 +996,7 @@
       "setup_already_done": "Die Einrichtung wurde bereits abgeschlossen.",
       "shelf_unknown": "Unbekanntes Regal.",
       "sonarr_no_id": "Sonarr hat keine Kennung für diese Serie geliefert.",
+      "sonarr_episode_unknown": "Sonarr kennt Folge {{episode}} von Staffel {{season}} nicht.",
       "sonarr_season_unknown": "Sonarr kennt Staffel {{season}} dieser Serie nicht.",
       "sonarr_series_missing": "Sonarr liefert diese Serie nicht.",
       "sonarr_series_unknown": "Sonarr kennt diese Serie nicht.",

@@ -62,13 +62,21 @@ def find_active(
     tmdb_id: int,
     season: int | None = None,
     tier: QualityTier = QualityTier.standard,
+    episodes: list[int] | None = None,
 ) -> MediaRequest | None:
-    """Laeuft zu diesem Titel schon eine Anfrage *dieser Stufe*?
+    """Laeuft zu diesem Titel schon eine Anfrage *dieser Stufe*, die im Weg steht?
 
-    Bei Serien zaehlt die Staffel mit: Staffel 3 anzufragen muss moeglich
-    bleiben, obwohl Staffel 2 schon laeuft. Eine Anfrage ueber die **ganze**
-    Serie deckt dagegen jede einzelne Staffel mit ab - sonst liesse sich
-    dasselbe zweimal bestellen.
+    Bei Serien gilt die Abdeckungs-Leiter: Die **ganze Serie** deckt jede
+    Staffel ab, eine **Staffel** jede ihrer Folgen, ein **Folgen-Paket** genau
+    seine Folgen. Staffel 3 anzufragen bleibt moeglich, obwohl Staffel 2
+    laeuft - und ein Paket "Folge 1+2" bleibt moeglich, obwohl "Folge 5+6"
+    laeuft. Aber je Folge gibt es hoechstens **einen** laufenden Besitzer:
+    Sonst waere beim Loeschen und beim Speicher-Zurechnen unklar, wem die
+    Datei gehoert.
+
+    Eine ganze Staffel anzufragen, waehrend einzelne Folgen daraus laufen,
+    scheitert deshalb ebenfalls - der Aufrufer nennt dann die belegten Folgen,
+    und die Oberflaeche bietet den Rest an.
 
     Die Stufe gehoert zwingend dazu: Derselbe Film in 1080p **und** in 4K ist
     genau der Fall, um den es geht - das sind zwei Dateien in zwei Ordnern,
@@ -85,8 +93,60 @@ def find_active(
         bedingungen.append(
             (MediaRequest.season == season) | (MediaRequest.season.is_(None))
         )
+        kandidaten = list(db.scalars(select(MediaRequest).where(*bedingungen)))
+        for zeile in kandidaten:
+            # Ganze Serie oder ganze Staffel - deckt jede Folge mit ab.
+            if zeile.season is None or not zeile.episodes:
+                return zeile
+        if episodes is None:
+            # Ganze Staffel gewuenscht: jedes laufende Paket steht ihr im Weg.
+            return kandidaten[0] if kandidaten else None
+        gewuenscht = set(episodes)
+        for zeile in kandidaten:
+            if gewuenscht & set(zeile.episodes or []):
+                return zeile
+        return None
 
     return db.scalar(select(MediaRequest).where(*bedingungen))
+
+
+def angefragte_folgen(
+    db: Session,
+    tmdb_id: int,
+    season: int,
+    tier: QualityTier = QualityTier.standard,
+) -> set[int] | None:
+    """Welche Folgen dieser Staffel sind schon von laufenden Anfragen belegt?
+
+    ``None`` heisst **alle**: Eine Anfrage ueber die ganze Serie oder die
+    ganze Staffel deckt jede Folge ab. Eine Menge nennt die Folgen laufender
+    Pakete. Fuer den Folgen-Waehler gilt dieselbe Regel wie bei den Staffeln:
+    Belegtes wird angezeigt statt angeboten - sonst lehnte der Server die
+    Auswahl anschliessend mit 409 ab.
+    """
+    zeilen = db.scalars(
+        select(MediaRequest).where(
+            MediaRequest.media_type == MediaType.tv,
+            MediaRequest.tmdb_id == tmdb_id,
+            MediaRequest.tier == tier,
+            MediaRequest.status.in_(ACTIVE_STATUSES),
+            (MediaRequest.season == season) | (MediaRequest.season.is_(None)),
+        )
+    )
+    belegte: set[int] = set()
+    for zeile in zeilen:
+        if zeile.season is None or not zeile.episodes:
+            return None
+        belegte.update(zeile.episodes)
+    return belegte
+
+
+def _folgenliste(nummern: list[int]) -> str:
+    """"3, 4 und 7" - fuer Meldungen, die einzelne Folgen nennen."""
+    worte = [str(n) for n in nummern]
+    if len(worte) == 1:
+        return worte[0]
+    return ", ".join(worte[:-1]) + " und " + worte[-1]
 
 
 # Wie ein Anfrage-Zustand auf dem Badge heisst.
@@ -145,6 +205,19 @@ def zurueckgestellte_schliessen(
         )
 
     andere = list(db.scalars(select(MediaRequest).where(*bedingungen)))
+    if anfrage.media_type == MediaType.tv and anfrage.episodes:
+        # Ein Paket deckt nur ab, was vollstaendig in ihm steckt. Wer mehr
+        # wollte - die ganze Staffel, die ganze Serie oder ein groesseres
+        # Paket -, bleibt zurueckgestellt: Er bekaeme sonst weniger, als er
+        # bestellt hat, und die Meldung "ist jetzt da" waere gelogen.
+        gedeckt = set(anfrage.episodes)
+        andere = [
+            zeile
+            for zeile in andere
+            if zeile.season == anfrage.season
+            and zeile.episodes
+            and set(zeile.episodes) <= gedeckt
+        ]
     for zeile in andere:
         zeile.status = RequestStatus.cancelled
     return andere
@@ -299,6 +372,11 @@ def _gewollte_staffeln(db: Session, request: MediaRequest) -> set[int]:
             MediaRequest.tvdb_id == request.tvdb_id,
             MediaRequest.tier == request.tier,
             MediaRequest.season.is_not(None),
+            # ⚠️ Folgen-Pakete bleiben draussen: Ihre Staffel hier mitzunehmen
+            # hiesse, die **ganze** Staffel einzuschalten - und Sonarr zoege
+            # alles, obwohl nur einzelne Folgen bestellt sind. Pakete heilt
+            # der Status-Abgleich folgengenau.
+            MediaRequest.episodes.is_(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
     )
@@ -306,6 +384,86 @@ def _gewollte_staffeln(db: Session, request: MediaRequest) -> set[int]:
     if request.season is not None:
         staffeln.add(request.season)
     return staffeln
+
+
+async def _folgen_einschalten(client, arr_id: int, request: MediaRequest) -> bool:
+    """Die bestellten Folgen eines Pakets ueberwachen und suchen.
+
+    ``True`` heisst erledigt. ``False`` heisst: Sonarr kennt die Folgen dieser
+    Staffel **noch** nicht - direkt nach dem Anlegen laedt es die Metadaten
+    asynchron nach. Das ist kein Fehler: Die Anfrage bleibt stehen, und der
+    Status-Abgleich holt das Einschalten im naechsten Durchgang nach
+    (dieselbe Heilung, die auch abgeraeumte Ueberwachung repariert).
+
+    Kennt Sonarr die Staffel zwar, aber eine der bestellten Folgen nicht,
+    ist das dagegen ein echter Fehler - die Nummer gibt es dort nicht.
+    """
+    stand = await client.folgen_stand(arr_id)
+    staffel = stand.get(request.season) or {}
+    if not staffel:
+        if stand:
+            raise ArrError(
+                f"Sonarr kennt Staffel {request.season} dieser Serie nicht.",
+                404,
+                code="sonarr_season_unknown",
+                season=request.season,
+            )
+        logger.info(
+            "Episodes of %r season %s not listed in Sonarr yet - "
+            "the status sync will switch them on",
+            request.title,
+            request.season,
+        )
+        return False
+
+    fehlend = sorted(
+        nummer for nummer in (request.episodes or []) if nummer not in staffel
+    )
+    if fehlend:
+        raise ArrError(
+            f"Sonarr kennt Folge {fehlend[0]} von Staffel {request.season} nicht.",
+            404,
+            code="sonarr_episode_unknown",
+            season=request.season,
+            episode=fehlend[0],
+        )
+
+    # Serie an (ohne Staffel-Flaggen), dann genau die eigenen Folgen - und
+    # gesucht wird nur, was noch keine Datei hat.
+    await client.serie_ueberwachen(arr_id)
+    eigene = [staffel[nummer] for nummer in (request.episodes or [])]
+    await client.folgen_schalten([folge.kennung for folge in eigene], True)
+    await client.folgen_suchen(
+        [folge.kennung for folge in eigene if not folge.has_file]
+    )
+    return True
+
+
+async def _paket_uebergeben(client, request: MediaRequest, vorhanden) -> dict:
+    """Ein Folgen-Paket an Sonarr uebergeben.
+
+    Liegt die Serie noch nicht dort, wird sie **stumm** angelegt: keine
+    Staffel-Ueberwachung, kein Nachschub, keine Suche - eingeschaltet wird
+    danach folgengenau. Liegt sie schon dort, wird nichts neu angelegt,
+    sondern nur geschaltet und gesucht.
+    """
+    if vorhanden is not None:
+        arr_id = vorhanden.arr_id
+        created: dict = {"id": arr_id}
+    else:
+        tag_id = await client.ensure_tag(requester_tag(request.user.username))
+        created = await client.add(
+            request.tvdb_id,
+            request.quality_profile_id or 0,
+            request.root_folder_path or "",
+            tag_ids=[tag_id] if tag_id else None,
+            nur_anlegen=True,
+        )
+        arr_id = created.get("id") if isinstance(created, dict) else None
+
+    if arr_id:
+        await _folgen_einschalten(client, arr_id, request)
+    return created
 
 
 async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest) -> MediaRequest:
@@ -357,7 +515,9 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
             # das brächte die vorhandenen Folgen durcheinander. Stattdessen
             # wird nur die gewünschte Staffel aktiviert und gesucht.
             vorhanden = await _sonarr_eintrag(settings, request)
-            if vorhanden is not None and request.season is not None:
+            if request.episodes:
+                created = await _paket_uebergeben(client, request, vorhanden)
+            elif vorhanden is not None and request.season is not None:
                 await client.monitor_seasons(
                     vorhanden.arr_id,
                     _gewollte_staffeln(db, request),
@@ -661,8 +821,13 @@ async def create_request(
     tier: QualityTier = QualityTier.standard,
     from_watchlist: bool = False,
     monitor_future: bool = False,
+    episodes: list[int] | None = None,
 ) -> MediaRequest:
     """Neue Anfrage anlegen - inklusive aller Vorpruefungen.
+
+    ``episodes`` macht aus der Staffel-Anfrage ein **Folgen-Paket**: Statt der
+    ganzen Staffel kommen genau diese Folgen. Ein Paket kostet einen Platz wie
+    eine Staffel - den echten Verbrauch misst das Speicher-Kontingent.
 
     ``from_watchlist`` haelt nur fest, **woher** der Klick kam: von der
     Merklisten-Seite statt aus dem Katalog. Am Ablauf aendert das nichts -
@@ -684,9 +849,34 @@ async def create_request(
     """
     media_type = MediaType(item.media_type)
     # Eine Staffel ergibt nur bei Serien Sinn - bei Filmen wird sie still
-    # verworfen statt mit einem Fehler abgelehnt.
+    # verworfen statt mit einem Fehler abgelehnt. Folgen genauso.
     if media_type != MediaType.tv:
         season = None
+        episodes = None
+
+    # Folgen-Pakete: aufraeumen (sortiert, ohne Doppelte) und pruefen. Eine
+    # leere Liste ist keine Auswahl, sondern "ganze Staffel".
+    if episodes is not None:
+        episodes = sorted({int(nummer) for nummer in episodes})
+        if not episodes:
+            episodes = None
+    if episodes is not None:
+        if not settings.episode_requests_enabled:
+            raise RequestError(
+                "Folgenweises Anfragen ist in diesem Haus abgeschaltet - "
+                "wähle die ganze Staffel.",
+                403,
+            )
+        if season is None:
+            raise RequestError(
+                "Einzelne Folgen gibt es nur zusammen mit einer Staffel.", 422
+            )
+        if episodes[0] < 0 or episodes[-1] > 2000:
+            raise RequestError(
+                "Folgennummern müssen zwischen 0 und 2000 liegen.", 422
+            )
+        # Ein Paket ist eine feste Liste - es folgt keinem Nachschub.
+        monitor_future = False
 
     # 4K nur, wenn es dafuer auch eine Instanz gibt - und der Benutzer sie
     # nutzen darf. Beides serverseitig, sonst waere das Recht Dekoration.
@@ -762,7 +952,7 @@ async def create_request(
     # blockiert ja bewusst niemanden -, aber **zweimal dasselbe** soll auch
     # niemand von sich selbst haben. Sonst stuenden nach dem dritten Versuch
     # drei zurueckgestellte Anfragen desselben Titels in derselben Liste.
-    eigene_zurueckgestellte = db.scalar(
+    eigene_zurueck = db.scalars(
         select(MediaRequest).where(
             MediaRequest.user_id == user.id,
             MediaRequest.media_type == media_type,
@@ -771,6 +961,18 @@ async def create_request(
             MediaRequest.season == season,
             MediaRequest.status == RequestStatus.deferred,
         )
+    )
+    # Bei Folgen-Paketen blockiert nur, was sich wirklich ueberschneidet:
+    # "Folge 1+2 steht zurueck" ist kein Grund, Folge 5+6 zu verweigern.
+    eigene_zurueckgestellte = next(
+        (
+            zeile
+            for zeile in eigene_zurueck
+            if episodes is None
+            or not zeile.episodes
+            or (set(zeile.episodes) & set(episodes))
+        ),
+        None,
     )
     if eigene_zurueckgestellte is not None:
         # ⚠️ **Dieser Satz war lange nur halb wahr.** Er versprach eine
@@ -784,11 +986,31 @@ async def create_request(
             409,
         )
 
-    existing = find_active(db, media_type, item.tmdb_id, season, tier)
+    existing = find_active(db, media_type, item.tmdb_id, season, tier, episodes)
     if existing is not None:
         if season is not None and existing.season is None:
             raise RequestError(
                 f"„{item.title}“ ist bereits komplett angefragt - Staffel {season} ist damit abgedeckt.",
+                409,
+            )
+        if season is not None and existing.episodes:
+            # Ein laufendes Paket steht im Weg - die belegten Folgen beim
+            # Namen nennen, damit die Oberflaeche den Rest anbieten kann.
+            belegt_nummern = (
+                sorted(set(existing.episodes) & set(episodes))
+                if episodes
+                else sorted(existing.episodes)
+            )
+            verb = "läuft" if len(belegt_nummern) == 1 else "laufen"
+            raise RequestError(
+                f"Folge {_folgenliste(belegt_nummern)} von Staffel {season} "
+                f"(„{item.title}“) {verb} schon - wähle die übrigen Folgen.",
+                409,
+            )
+        if season is not None and episodes:
+            raise RequestError(
+                f"Staffel {season} von „{item.title}“ wurde bereits komplett "
+                "angefragt - deine Folgen sind damit abgedeckt.",
                 409,
             )
         raise RequestError(
@@ -907,6 +1129,7 @@ async def create_request(
         quality_profile_id=None if ziel_erst_bei_freigabe else quality_profile_id,
         root_folder_path=zielordner,
         season=season,
+        episodes=episodes,
         status=RequestStatus.approved if sofort else RequestStatus.pending_approval,
         from_watchlist=from_watchlist,
         # Nur bei Serien sinnvoll - bei Filmen gibt es keine Folgestaffel.
@@ -1015,6 +1238,28 @@ async def _serie_abbrechen(db: Session, client, request: MediaRequest) -> str:
         # Jemand will weiterhin die ganze Serie - dann ist hier nichts zu
         # loeschen, jede Datei ist noch gedeckt.
         return "left all files in place - another request covers the whole series"
+
+    if request.episodes:
+        # Paket: genau die eigenen Folgen stilllegen und deren Dateien
+        # loeschen. Die Folgen gehoeren nachweislich niemandem sonst - je
+        # Folge gibt es hoechstens einen laufenden Besitzer.
+        stand = await client.folgen_stand(request.arr_id)
+        staffel = stand.get(request.season) or {}
+        eigene = [
+            folge
+            for nummer in request.episodes
+            if (folge := staffel.get(nummer)) is not None
+        ]
+        if eigene:
+            await client.folgen_schalten([folge.kennung for folge in eigene], False)
+        datei_ids = [folge.datei_id for folge in eigene if folge.datei_id]
+        if datei_ids:
+            await client.delete_episode_files(datei_ids)
+        return (
+            f"removed only episodes {', '.join(str(n) for n in request.episodes)} "
+            f"of season {request.season} ({len(datei_ids)} files) - "
+            "the series remains for other requests"
+        )
 
     if request.season is not None:
         kennungen = [

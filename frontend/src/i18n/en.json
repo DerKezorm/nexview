@@ -996,6 +996,7 @@
       "setup_already_done": "Setup has already been completed.",
       "shelf_unknown": "Unknown shelf.",
       "sonarr_no_id": "Sonarr did not return an id for this series.",
+      "sonarr_episode_unknown": "Sonarr does not know episode {{episode}} of season {{season}}.",
       "sonarr_season_unknown": "Sonarr does not know season {{season}} of this series.",
       "sonarr_series_missing": "Sonarr is not returning this series.",
       "sonarr_series_unknown": "Sonarr does not know this series.",

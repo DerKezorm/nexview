@@ -45,6 +45,22 @@ class Staffelstand:
 
 
 @dataclass(frozen=True)
+class Folge:
+    """Eine Folge, wie Sonarr sie fuehrt - das Noetigste fuer Folgen-Pakete.
+
+    ``kennung`` ist Sonarrs Episoden-Id (fuers Einschalten und Suchen),
+    ``datei_id`` die Id der Episodendatei (fuers gezielte Loeschen beim
+    Abbruch) - ``None``, solange keine Datei liegt.
+    """
+
+    kennung: int
+    nummer: int
+    monitored: bool
+    has_file: bool
+    datei_id: int | None = None
+
+
+@dataclass(frozen=True)
 class LibraryEntry:
     """Eine Serie, wie sie Sonarr kennt."""
 
@@ -219,12 +235,17 @@ class SonarrClient(ArrClient):
         tag_ids: list[int] | None = None,
         season: int | None = None,
         monitor_future: bool = False,
+        nur_anlegen: bool = False,
     ) -> dict[str, Any]:
         """Serie zu Sonarr hinzufuegen.
 
         Ohne ``season`` wird die komplette Serie ueberwacht. Mit ``season``
         wird ausschliesslich diese eine Staffel ueberwacht - alle anderen
         bleiben aus, damit Sonarr nicht doch die ganze Serie herunterlaedt.
+
+        ``nur_anlegen`` (fuer Folgen-Pakete): anlegen und schweigen - keine
+        Staffel-Ueberwachung, kein Nachschub, keine Suche. Eingeschaltet wird
+        danach folgengenau durch den Aufrufer.
         """
         found = await self.lookup(tvdb_id)
         if found is None:
@@ -271,12 +292,21 @@ class SonarrClient(ArrClient):
                 "searchForMissingEpisodes": False,
             }
 
+        if nur_anlegen:
+            # Ein Folgen-Paket folgt keinem Nachschub - und eingeschaltet wird
+            # spaeter je Folge, nicht je Staffel.
+            payload["monitorNewItems"] = "none"
+            payload["addOptions"] = {
+                "monitor": "none",
+                "searchForMissingEpisodes": False,
+            }
+
         angelegt = await self.post("/series", payload)
 
         # Erst jetzt die Staffel einschalten - und mit ihr die Serie, denn eine
         # stillgelegte Serie laedt auch einzelne Staffeln nicht. ``monitor_season``
         # stoesst die Suche gleich mit an.
-        if season is not None and isinstance(angelegt, dict):
+        if season is not None and not nur_anlegen and isinstance(angelegt, dict):
             await self.monitor_seasons(
                 angelegt.get("id"), {season}, season if search_now else None
             )
@@ -376,6 +406,93 @@ class SonarrClient(ArrClient):
             if isinstance(staffel, int) and isinstance(nummer, int):
                 vorhanden.setdefault(staffel, set()).add(nummer)
         return vorhanden
+
+    async def folgen_stand(self, arr_id: int) -> dict[int, dict[int, Folge]]:
+        """Alle Folgen einer Serie - je Staffel nach Folgennummer.
+
+        Die eine Quelle fuer alles Folgengenaue: fertig?, ueberwacht?, welche
+        Datei gehoert dazu? Sonarr liefert saemtliche Folgen einer Serie in
+        einem Aufruf; feiner aufzuteilen waere eine Abfrage je Staffel ohne
+        Gewinn.
+
+        ⚠️ **Eine fehlende Staffel bedeutet "noch unbekannt", nicht "leer".**
+        Direkt nach dem Anlegen einer Serie ist die Folgenliste eine Weile
+        leer, weil Sonarr die Metadaten asynchron nachlaedt - dasselbe
+        asynchrone Verhalten, das auch die Ueberwachung abraeumt. Der
+        Aufrufer behandelt das als "spaeter noch einmal".
+        """
+        eintraege = await self.get("/episode", {"seriesId": arr_id}) or []
+        staffeln: dict[int, dict[int, Folge]] = {}
+        for eintrag in eintraege:
+            if not isinstance(eintrag, dict):
+                continue
+            staffel = eintrag.get("seasonNumber")
+            nummer = eintrag.get("episodeNumber")
+            kennung = eintrag.get("id")
+            if not (
+                isinstance(staffel, int)
+                and isinstance(nummer, int)
+                and isinstance(kennung, int)
+            ):
+                continue
+            staffeln.setdefault(staffel, {})[nummer] = Folge(
+                kennung=kennung,
+                nummer=nummer,
+                monitored=bool(eintrag.get("monitored")),
+                has_file=bool(eintrag.get("hasFile")),
+                datei_id=eintrag.get("episodeFileId") or None,
+            )
+        return staffeln
+
+    async def folgen_schalten(self, kennungen: list[int], ueberwachen: bool) -> None:
+        """Genau diese Folgen ueberwachen bzw. stilllegen.
+
+        ``PUT /episode/monitor`` nimmt die Kennungen gesammelt entgegen - der
+        dokumentierte Weg fuer genau diesen Zweck. ⚠️ Vor dem ersten Release
+        an der echten Instanz nachmessen (Bauplan-Pruefliste): Sonarrs
+        Sammel-Endpunkte haben schon einmal anders geantwortet als
+        dokumentiert (``/episodefile/bulk``).
+
+        Eingeschaltet wird nur, was der Aufrufer nennt - nie mehr.
+        Ausgeschaltet genauso: Das ist dem Abbruch der eigenen Folgen
+        vorbehalten; Nexview raeumt sonst nie ab.
+        """
+        if not kennungen:
+            return
+        await self.put(
+            "/episode/monitor", {"episodeIds": kennungen, "monitored": ueberwachen}
+        )
+
+    async def folgen_suchen(self, kennungen: list[int]) -> None:
+        """Sonarr anweisen, genau diese Folgen zu suchen.
+
+        Schlaegt das fehl, ist das kein Beinbruch: Die Folgen sind ueberwacht,
+        Sonarr findet sie beim naechsten regulaeren Durchlauf von selbst.
+        """
+        if not kennungen:
+            return
+        try:
+            await self.post("/command", {"name": "EpisodeSearch", "episodeIds": kennungen})
+        except ArrError:
+            pass
+
+    async def serie_ueberwachen(self, arr_id: int) -> None:
+        """Nur die Serien-Flagge einschalten - Staffeln und Folgen unangetastet.
+
+        Eine Serie, die als Ganzes nicht ueberwacht wird, laedt auch
+        ueberwachte Folgen nicht. Fuer Folgen-Pakete darf aber keine
+        Staffel-Flagge mit umgelegt werden - sonst zoege Sonarr die ganze
+        Staffel, und der Sinn des Pakets waere dahin.
+        """
+        serie = await self.get(f"/series/{arr_id}")
+        if not isinstance(serie, dict):
+            raise ArrError(
+                "Sonarr liefert diese Serie nicht.", 404, code="sonarr_series_missing"
+            )
+        if serie.get("monitored"):
+            return
+        serie["monitored"] = True
+        await self.put(f"/series/{arr_id}", serie)
 
     async def remove(self, arr_id: int, delete_files: bool = True) -> None:
         """Serie aus Sonarr entfernen - samt bereits geladener Folgen."""

@@ -35,6 +35,10 @@ class RequestCreate(BaseModel):
     # Nur bei Serien: welche Staffel? Fehlt sie, ist die ganze Serie gemeint.
     # Staffel 0 sind bei TMDB die Specials - die schliessen wir nicht aus.
     season: int | None = Field(default=None, ge=0, le=200)
+    # Nur zusammen mit ``season``: einzelne Folgen statt der ganzen Staffel
+    # ("Folgen-Paket"). Fehlt die Liste, ist die ganze Staffel gemeint. Der
+    # Dienst sortiert, entfernt Doppelte und prueft die Grenzen.
+    episodes: list[int] | None = Field(default=None, max_length=400)
     # Kam der Klick von der Merklisten-Seite? Reine Herkunftsangabe: Am Ablauf
     # aendert sie nichts, sie macht die Anfrage nur nachtraeglich zuordenbar.
     from_watchlist: bool = False
@@ -70,6 +74,9 @@ class RequestPublic(BaseModel):
     quality_profile_id: int | None
     root_folder_path: str | None
     season: int | None
+    # Das Folgen-Paket, falls die Anfrage einzelne Folgen meint - fuer die
+    # Karten-Pille ("S2 · F 3, 7") und den Verlauf.
+    episodes: list[int] | None = None
     # Kam die Anfrage von der Merkliste? Der Entscheider soll sehen, dass
     # niemand diesen Titel im Einzelnen ausgesucht hat.
     from_watchlist: bool

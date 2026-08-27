@@ -1430,6 +1430,17 @@ class MediaRequest(Base):
     # Nur bei Serien: die angefragte Staffel. NULL bedeutet "ganze Serie" - so
     # bleiben alle bisherigen Anfragen unveraendert gueltig.
     season: Mapped[int | None] = mapped_column(Integer)
+    # Nur zusammen mit ``season``: die angefragten Folgen als sortierte Liste
+    # von Folgennummern ("Folgen-Paket"). NULL bedeutet "die ganze Staffel" -
+    # alle bisherigen Anfragen bleiben unveraendert gueltig, und die Spalte
+    # wandert als leere-erlaubte Spalte von selbst ein.
+    #
+    # ⚠️ Ein Paket ist eine **feste Liste**: Es folgt keinem Nachschub, und
+    # ``monitor_future`` ist fuer Pakete immer aus. Je Folge gibt es hoechstens
+    # einen laufenden Besitzer je Stufe - dafuer sorgt ``find_active``. Nur so
+    # bleibt beim Loeschen und beim Speicher-Zurechnen eindeutig, wem eine
+    # Datei gehoert.
+    episodes: Mapped[list | None] = mapped_column(JSON)
 
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     # Trotz des Namens die **fertige Adresse**, nicht der Pfad-Teil von
@@ -1587,6 +1598,13 @@ class Notification(Base):
     def season(self) -> int | None:
         """Staffel der zugehoerigen Anfrage, sofern es eine ist."""
         return self.request.season if self.request is not None else None
+
+    @property
+    def episodes(self) -> list | None:
+        """Folgen-Paket der zugehoerigen Anfrage - aus demselben Grund wie
+        die Staffel: Zwei Pakete derselben Staffel muessen sich in der Glocke
+        unterscheiden lassen."""
+        return self.request.episodes if self.request is not None else None
 
 
 class ChannelKind(str, enum.Enum):

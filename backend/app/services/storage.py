@@ -73,12 +73,19 @@ def schluessel(
     tmdb_id: int | None = None,
     tvdb_id: int | None = None,
     season: int | None = None,
+    request_id: int | None = None,
 ) -> str | None:
     """Die eindeutige Kennung eines Postens.
 
     Filme ueber die TMDB-Nummer (die kennt Radarr), Serien ueber die
     TVDB-Nummer (die kennt Sonarr). Nicht mischen: Sonst entstuende derselbe
     Titel zweimal, je nachdem welche Quelle ihn zuerst gemeldet hat.
+
+    ``request_id`` macht daraus die Kennung eines **Folgen-Pakets**
+    (``...:s2:r17``): Ein Paket belegt nur die Dateien seiner Folgen, und der
+    Rest der Staffel wird getrennt gefuehrt - zwei Posten, zwei Kennungen.
+    Die Anfrage-Nummer ist dabei die stabilste Kennung, die es gibt: Die
+    Folgenliste selbst koennte in keiner festen Laenge in den Schluessel.
 
     Gibt ``None`` zurueck, wenn die noetige Nummer fehlt - dann laesst sich der
     Posten nicht verlaesslich fuehren und wird uebersprungen.
@@ -89,7 +96,8 @@ def schluessel(
         return f"movie:{stufe}:tmdb:{tmdb_id}" if tmdb_id else None
     if not tvdb_id:
         return None
-    return f"tv:{stufe}:tvdb:{tvdb_id}:s{season if season is not None else 0}"
+    basis = f"tv:{stufe}:tvdb:{tvdb_id}:s{season if season is not None else 0}"
+    return f"{basis}:r{request_id}" if request_id else basis
 
 
 @dataclass(frozen=True)
@@ -648,9 +656,126 @@ async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
                     fehler.message,
                 )
 
+    await _pakete_aufnehmen(db, settings, gemessen)
     _aus_media_server(db, gemessen)
     await _staffeldaten_nachtragen(db, settings, gemessen)
     return gemessen
+
+
+async def _pakete_aufnehmen(
+    db: Session, settings: AppSettings, gemessen: dict[str, _Gemessen]
+) -> None:
+    """Folgen-Pakete aus der Staffel-Zeile herausrechnen.
+
+    Ein Paket belegt nur die Dateien **seiner** Folgen. Die Staffelstatistik
+    von Sonarr kennt aber nur die ganze Staffel - deshalb wird fuer jede Serie
+    mit laufendem Paket einmal je Durchgang die Dateiliste geholt, das Paket
+    als eigener Posten gefuehrt (Kennung ``...:r<anfrage>``) und der
+    Staffel-Zeile abgezogen. Bleibt von ihr nichts uebrig, faellt sie weg.
+
+    Serien ohne Paket kosten weiterhin keinen einzigen zusaetzlichen Aufruf.
+    Die Klammer bei null faengt Mess-Drift zwischen Staffelstatistik und
+    Dateisummen ab - beide stammen aus verschiedenen Sonarr-Antworten.
+    """
+    anfragen = [
+        anfrage
+        for anfrage in db.scalars(
+            select(MediaRequest).where(
+                MediaRequest.status.in_(ZURECHENBAR),
+                MediaRequest.episodes.is_not(None),
+            )
+        )
+        if anfrage.episodes and anfrage.tvdb_id and anfrage.season is not None
+    ]
+    if not anfragen:
+        return
+
+    befunde: dict[tuple[str, int], tuple[dict, dict[int, int]] | None] = {}
+    for anfrage in anfragen:
+        stufe = anfrage.tier or QualityTier.standard
+        basis = schluessel(
+            MediaType.tv, stufe, tvdb_id=anfrage.tvdb_id, season=anfrage.season
+        )
+        staffelzeile = gemessen.get(basis or "")
+        if staffelzeile is None or staffelzeile.arr_id is None:
+            # Die Serie meldet keine Quelle (mehr) - dann gibt es auch nichts
+            # aufzuteilen; eine bestehende Paket-Zeile raeumt der Abgleich ab.
+            continue
+
+        merkmal = (stufe.value, anfrage.tvdb_id)
+        if merkmal not in befunde:
+            client = library.sonarr_client(settings, stufe.value)
+            if client is None:
+                befunde[merkmal] = None
+            else:
+                try:
+                    stand = await client.folgen_stand(staffelzeile.arr_id)
+                    dateien = (
+                        await client.get(
+                            "/episodefile", {"seriesId": staffelzeile.arr_id}
+                        )
+                        or []
+                    )
+                    groessen = {
+                        int(datei["id"]): int(datei.get("size") or 0)
+                        for datei in dateien
+                        if isinstance(datei, dict) and datei.get("id")
+                    }
+                    befunde[merkmal] = (stand, groessen)
+                except ArrError as fehler:
+                    logger.warning(
+                        "Sonarr (%s) gave no episode files for series %s - "
+                        "package sizes left unchanged: %s",
+                        stufe.value,
+                        staffelzeile.arr_id,
+                        fehler.message,
+                    )
+                    befunde[merkmal] = None
+        befund = befunde[merkmal]
+        if befund is None:
+            continue
+        stand, groessen = befund
+        staffel = stand.get(anfrage.season) or {}
+
+        eigene = [
+            folge
+            for nummer in anfrage.episodes
+            if (folge := staffel.get(nummer)) is not None
+        ]
+        bytes_ = sum(
+            groessen.get(folge.datei_id, 0) for folge in eigene if folge.datei_id
+        )
+        kennung = schluessel(
+            MediaType.tv,
+            stufe,
+            tvdb_id=anfrage.tvdb_id,
+            season=anfrage.season,
+            request_id=anfrage.id,
+        )
+        if kennung is None:
+            continue
+        gemessen[kennung] = _Gemessen(
+            key=kennung,
+            media_type=MediaType.tv,
+            tier=stufe,
+            tmdb_id=staffelzeile.tmdb_id,
+            tvdb_id=anfrage.tvdb_id,
+            season=anfrage.season,
+            title=staffelzeile.title,
+            size_bytes=bytes_,
+            path=staffelzeile.path,
+            # Solange nicht jede bestellte Folge liegt, waechst das Paket noch -
+            # dieselbe Regel wie bei einer ladenden Staffel.
+            unvollstaendig=any(
+                not folge.has_file for folge in eigene
+            )
+            or len(eigene) < len(anfrage.episodes),
+            arr_id=staffelzeile.arr_id,
+        )
+        # Der Staffel-Zeile abziehen; die Klammer faengt Mess-Drift ab.
+        staffelzeile.size_bytes = max(0, staffelzeile.size_bytes - bytes_)
+        if staffelzeile.size_bytes == 0 and basis:
+            del gemessen[basis]
 
 
 async def _staffeldaten_nachtragen(
@@ -1110,12 +1235,17 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
 
     nach_film: dict[tuple[int, str], int] = {}
     nach_serie: dict[tuple[int, str, int | None], int] = {}
+    nach_paket: dict[int, int] = {}
     for anfrage in anfragen:
         if anfrage.user_id in admins:
             continue
         stufe = anfrage.tier.value if anfrage.tier else QualityTier.standard.value
         if anfrage.media_type == MediaType.movie:
             nach_film.setdefault((anfrage.tmdb_id, stufe), anfrage.user_id)
+        elif anfrage.episodes:
+            # Folgen-Pakete beanspruchen nie die Staffel-Zeile - nur ihre
+            # eigene ``:r``-Zeile, ueber die Anfrage-Nummer im Schluessel.
+            nach_paket[anfrage.id] = anfrage.user_id
         elif anfrage.tvdb_id:
             nach_serie.setdefault(
                 (anfrage.tvdb_id, stufe, anfrage.season), anfrage.user_id
@@ -1125,6 +1255,8 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
     for wert in werte:
         if wert.media_type == MediaType.movie:
             besitzer = nach_film.get((wert.tmdb_id, wert.tier.value))
+        elif (paket_nummer := _paket_nummer(wert.key)) is not None:
+            besitzer = nach_paket.get(paket_nummer)
         else:
             # Erst die genaue Staffel, dann die Anfrage ueber die ganze Serie.
             besitzer = nach_serie.get(
@@ -1135,7 +1267,22 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
     return ergebnis
 
 
-def verbuchen(db: Session, request: MediaRequest, eintrag: object) -> int:
+def _paket_nummer(kennung: str | None) -> int | None:
+    """Die Anfrage-Nummer aus einer Paket-Kennung (``...:s2:r17`` -> 17)."""
+    if not kennung or ":r" not in kennung:
+        return None
+    try:
+        return int(kennung.rsplit(":r", 1)[1])
+    except ValueError:
+        return None
+
+
+def verbuchen(
+    db: Session,
+    request: MediaRequest,
+    eintrag: object,
+    paket_bytes: int | None = None,
+) -> int:
     """Einen gerade fertig gewordenen Titel sofort zurechnen.
 
     Der stuendliche Abgleich wuerde das auch erledigen - aber bis zu eine
@@ -1158,6 +1305,31 @@ def verbuchen(db: Session, request: MediaRequest, eintrag: object) -> int:
 
     if request.media_type == MediaType.movie:
         _film_aufnehmen(gemessen, stufe, request.tmdb_id, eintrag)  # type: ignore[arg-type]
+    elif request.episodes and request.tvdb_id:
+        # Ein Folgen-Paket bekommt seine eigene Zeile - mit der Summe der
+        # eigenen Episodendateien, die der Aufrufer gerade gemessen hat. Ohne
+        # Messung startet die Zeile bei null; der stuendliche Abgleich traegt
+        # die Groesse nach.
+        kennung = schluessel(
+            MediaType.tv,
+            stufe,
+            tvdb_id=request.tvdb_id,
+            season=request.season,
+            request_id=request.id,
+        )
+        if kennung is not None:
+            gemessen[kennung] = _Gemessen(
+                key=kennung,
+                media_type=MediaType.tv,
+                tier=stufe,
+                tmdb_id=request.tmdb_id,
+                tvdb_id=request.tvdb_id,
+                season=request.season,
+                title=request.title,
+                size_bytes=paket_bytes or 0,
+                path=str(getattr(eintrag, "path", "") or ""),
+                arr_id=getattr(eintrag, "arr_id", None),
+            )
     elif request.tvdb_id:
         _serie_aufnehmen(gemessen, stufe, request.tvdb_id, eintrag)  # type: ignore[arg-type]
         # Eine Anfrage auf **eine** Staffel darf auch nur diese eine belasten.
@@ -1599,6 +1771,25 @@ async def _arr_eintrag(settings: AppSettings, zeile: StorageEntry):
     return client, (eintrag.arr_id if eintrag else None)
 
 
+def _paket_folgen(db: Session, zeile: StorageEntry) -> list[int] | None:
+    """Die Folgen eines Paket-Postens - ``None``, wenn es keiner ist.
+
+    Die Folgenliste steht an der Anfrage, nicht am Posten. Ist die Anfrage
+    weg (Zeile ohne ``request_id``), laesst sich nicht mehr sagen, welche
+    Dateien gemeint waren - dann wird das Loeschen verweigert statt geraten.
+    """
+    if _paket_nummer(zeile.key) is None:
+        return None
+    anfrage = db.get(MediaRequest, zeile.request_id) if zeile.request_id else None
+    if anfrage is None or not anfrage.episodes:
+        raise Loeschfehler(
+            "Dieser Folgen-Posten laesst sich keiner Anfrage mehr zuordnen - "
+            "seine Dateien nennt nur noch Sonarr selbst.",
+            409,
+        )
+    return list(anfrage.episodes)
+
+
 async def dateien_fuer(
     db: Session, settings: AppSettings, posten_id: int
 ) -> list[Datei]:
@@ -1636,6 +1827,19 @@ async def dateien_fuer(
                 400,
             )
         dateien = await client.episode_files(arr_id, zeile.season)
+        folgen_nummern = _paket_folgen(db, zeile)
+        if folgen_nummern is not None:
+            # Ein Paket-Posten trifft nur die Dateien seiner eigenen Folgen.
+            stand = await client.folgen_stand(arr_id)
+            staffel = stand.get(zeile.season) or {}
+            eigene_dateien = {
+                folge.datei_id
+                for nummer in folgen_nummern
+                if (folge := staffel.get(nummer)) is not None and folge.datei_id
+            }
+            dateien = [
+                datei for datei in dateien if datei.get("id") in eigene_dateien
+            ]
         return [
             Datei(
                 pfad=str(datei.get("path") or datei.get("relativePath") or ""),
@@ -1723,23 +1927,52 @@ async def loeschen(
             # Die Reihenfolge ist der Punkt: Scheitert das Stilllegen, liegen
             # die Dateien noch da und nichts ist verloren. Andersherum waeren
             # sie weg **und** kaemen zurueck.
-            await client.unmonitor_season(arr_id, zeile.season)
-            kennungen = [
-                int(datei["id"])
-                for datei in await client.episode_files(arr_id, zeile.season)
-                if datei.get("id")
-            ]
-            if not kennungen:
-                raise Loeschfehler(
-                    f"Sonarr meldet fuer Staffel {zeile.season} keine Dateien.", 409
+            folgen_nummern = _paket_folgen(db, zeile)
+            if folgen_nummern is not None:
+                # Ein Paket-Posten: genau die eigenen Folgen stilllegen und
+                # nur deren Dateien loeschen - die Staffel gehoert anderen mit.
+                stand = await client.folgen_stand(arr_id)
+                staffel = stand.get(zeile.season) or {}
+                eigene = [
+                    folge
+                    for nummer in folgen_nummern
+                    if (folge := staffel.get(nummer)) is not None
+                ]
+                if eigene:
+                    await client.folgen_schalten(
+                        [folge.kennung for folge in eigene], False
+                    )
+                datei_ids = [folge.datei_id for folge in eigene if folge.datei_id]
+                if not datei_ids:
+                    raise Loeschfehler(
+                        "Sonarr meldet fuer dieses Folgen-Paket keine Dateien.",
+                        409,
+                    )
+                entfernt = await client.delete_episode_files(datei_ids)
+                logger.warning(
+                    "DELETE: removed %s of %s episode files of the package in season %s",
+                    entfernt,
+                    len(datei_ids),
+                    zeile.season,
                 )
-            entfernt = await client.delete_episode_files(kennungen)
-            logger.warning(
-                "DELETE: removed %s of %s files of season %s",
-                entfernt,
-                len(kennungen),
-                zeile.season,
-            )
+            else:
+                await client.unmonitor_season(arr_id, zeile.season)
+                kennungen = [
+                    int(datei["id"])
+                    for datei in await client.episode_files(arr_id, zeile.season)
+                    if datei.get("id")
+                ]
+                if not kennungen:
+                    raise Loeschfehler(
+                        f"Sonarr meldet fuer Staffel {zeile.season} keine Dateien.", 409
+                    )
+                entfernt = await client.delete_episode_files(kennungen)
+                logger.warning(
+                    "DELETE: removed %s of %s files of season %s",
+                    entfernt,
+                    len(kennungen),
+                    zeile.season,
+                )
     except Loeschfehler:
         raise
     except ArrError as fehler:
@@ -1804,6 +2037,14 @@ def _anfragen_schliessen(db: Session, zeile: StorageEntry) -> int:
         # Eine Staffel trifft nur ihre eigenen Anfragen; ``season IS NULL``
         # (ganze Serie) bleibt stehen - von der Serie existiert ja noch mehr.
         bedingungen.append(MediaRequest.season == zeile.season)
+        paket_nummer = _paket_nummer(zeile.key)
+        if paket_nummer is not None:
+            # Ein Paket-Posten schliesst genau seine eine Anfrage.
+            bedingungen.append(MediaRequest.id == paket_nummer)
+        else:
+            # Eine Staffel-Zeile trifft keine Folgen-Pakete - deren Dateien
+            # haengen an der eigenen ``:r``-Zeile.
+            bedingungen.append(MediaRequest.episodes.is_(None))
 
     getroffen = 0
     for anfrage in db.scalars(select(MediaRequest).where(*bedingungen)):

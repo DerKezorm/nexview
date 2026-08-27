@@ -144,6 +144,7 @@ async def create_request(
             payload.tier,
             payload.from_watchlist,
             payload.monitor_future,
+            episodes=payload.episodes,
         )
     except requests_service.RequestError as error:
         raise HTTPException(status_code=error.status_code, detail=error.message) from error

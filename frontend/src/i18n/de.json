@@ -854,7 +854,7 @@
     "tileUnreachable": "Nicht erreichbar",
     "targetPerInstance": "Gilt nur für diese Instanz.",
     "removeInstance": "Instanz entfernen",
-    "removeInstanceConfirm": "Entfernt nur Nexviews Zugang – in {{dienst}} laufen Downloads und Suchläufe unverändert weiter, und der Webhook-Eintrag dort wird mit aufgeräumt. Laufende Anfragen dieser Instanz bleiben stehen und werden nicht mehr aktualisiert (sauberer: vorher abbrechen). Speicher-Posten, die der Medienserver weiter meldet, bleiben bestehen.",
+    "removeInstanceConfirm": "Entfernt nur Nexviews Zugang – in {{dienst}} laufen Downloads und Suchläufe unverändert weiter, und der Webhook-Eintrag dort wird mit aufgeräumt. Laufende Anfragen dieser Instanz bleiben stehen und werden nicht mehr aktualisiert (sauberer: vorher abbrechen). Speicher-Posten, die der Medienserver weiter meldet, bleiben bestehen – Abgeben und die Übernahme ins Haus gehen weiterhin, nur Löschen braucht die Instanz.",
     "removeInstanceReally": "Endgültig entfernen",
     "approverRuleShort": "Profil und Zielordner liegen gemeinsam beim Entscheider: Jede Anfrage wartet dann auf die Freigabe – die Sofort-Freigabe greift hier nicht. Wer selbst freigeben darf, wählt weiterhin sofort.",
     "instanceName": "Name",

@@ -17,8 +17,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest, RequestStatus
-from app.services import webhook_pflege, webhooks
+from app.models import MediaRequest, MediaType, QualityTier, RequestStatus, StorageEntry, StorageState
+from app.services import storage, webhook_pflege, webhooks
 from app.services.arr import ArrError
 from app.services.settings_service import load_settings, save_settings
 
@@ -129,3 +129,44 @@ def test_stumme_instanz_haelt_das_entfernen_nicht_auf(
     assert antwort.json()["radarr_url"] == ""
     with SessionLocal() as db:
         assert webhooks.eintrag(db, "radarr-standard") is None
+
+
+def test_unverwalteter_posten_laesst_sich_abgeben_und_ans_haus_geben(
+    arr_client: TestClient,
+) -> None:
+    """Die Antwort auf "bleibt das dann fuer immer im Kontingent?": Nein.
+
+    Ein Posten, den nach dem Entfernen der Instanz nur noch der Medienserver
+    meldet (``arr_managed=False``), zaehlt zwar weiter - aber Abgeben und die
+    Haus-Uebernahme sind reine Zurechnungs-Entscheidungen ohne Radarr. Nur
+    das Loeschen braucht die Instanz.
+    """
+    create_user(arr_client, "kim")
+    with SessionLocal() as db:
+        from app.models import User
+
+        kim = db.query(User).filter(User.username == "kim").one()
+        posten = StorageEntry(
+            key="movie:standard:tmdb:603",
+            media_type=MediaType.movie,
+            tier=QualityTier.standard,
+            tmdb_id=603,
+            title="Matrix",
+            size_bytes=8 * 1024**3,
+            user_id=kim.id,
+            state=StorageState.owned,
+            arr_managed=False,
+        )
+        db.add(posten)
+        db.commit()
+        posten_id = posten.id
+
+        storage.abgeben(db, posten_id, kim)
+        db.commit()
+        uebernahme = storage.ins_haus(db, posten_id)
+        assert uebernahme is not None
+        db.commit()
+
+        frisch = db.get(StorageEntry, posten_id)
+        assert frisch.state == StorageState.house
+        assert frisch.user_id is None

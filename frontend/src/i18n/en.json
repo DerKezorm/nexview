@@ -854,7 +854,7 @@
     "tileUnreachable": "Unreachable",
     "targetPerInstance": "Applies to this instance only.",
     "removeInstance": "Remove instance",
-    "removeInstanceConfirm": "Removes only Nexview’s access – downloads and searches in {{dienst}} keep running, and the webhook entry over there is cleaned up along the way. Running requests of this instance stay put and stop updating (cleaner: cancel them first). Storage items the media server still reports remain.",
+    "removeInstanceConfirm": "Removes only Nexview’s access – downloads and searches in {{dienst}} keep running, and the webhook entry over there is cleaned up along the way. Running requests of this instance stay put and stop updating (cleaner: cancel them first). Storage items the media server still reports remain – handing back and moving to the house still work, only deleting needs the instance.",
     "removeInstanceReally": "Remove for good",
     "approverRuleShort": "Profile and folder sit with the approver together: every request then waits for approval – instant approval does not apply here. Whoever may approve still picks right away.",
     "instanceName": "Name",

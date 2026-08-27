@@ -51,6 +51,7 @@ export type AufraeumListe = {
   gesamt_bytes: number
   monate: number
   ohne_datum: number
+  gesehen_ohne_datum: number
   grundlage: {
     konten_gesamt: number
     konten_verknuepft: number
@@ -169,6 +170,7 @@ export function AufraeumTabelle({
     gesamt_bytes: bytes,
     grundlage,
     ohne_datum: ohneDatum,
+    gesehen_ohne_datum: gesehenOhneDatum = 0,
   } = abfrage.data
 
   return (
@@ -260,6 +262,18 @@ export function AufraeumTabelle({
         </p>
       )}
 
+      {/* ⚠️ Dieselbe Fußnoten-Form wie oben, und aus demselben Grund: Diese
+          Posten stehen in der Liste, obwohl deren Begründung für sie nicht
+          trägt - jemand hat sie gesehen, nur ohne Zeitpunkt. Sie
+          herauszunehmen wäre bequemer und falsch: Es sind gerade die alten,
+          dicken Posten, bei denen der Medienserver den Verlauf vergessen hat.
+          Also stehen bleiben, benennen, zählen. */}
+      {gesehenOhneDatum > 0 && (
+        <p className="text-xs text-mist-600">
+          {t('cleanup.seenUndatedNote', { count: gesehenOhneDatum })}
+        </p>
+      )}
+
       {posten.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-ink-700 px-5 py-10 text-center text-sm text-mist-500">
           {/* ⚠️ „Nichts liegt herum" wäre hier eine Lüge, solange Posten nur
@@ -334,6 +348,14 @@ export function AufraeumTabelle({
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     {eintrag.zuletzt_gesehen ? (
                       formatDate(eintrag.zuletzt_gesehen.slice(0, 10), i18n.language)
+                    ) : eintrag.gesehen_von.length > 0 ? (
+                      // ⚠️ Steht jemand in „Gesehen von", darf hier nicht
+                      // „nie" stehen - dieselbe Zeile widerspräche sich
+                      // selbst. Medienserver führen „ob" und „wann" getrennt
+                      // (Plex: viewCount und lastViewedAt); wurde der Verlauf
+                      // gekürzt oder von Hand auf gesehen gesetzt, überlebt
+                      // der Zähler und der Zeitpunkt nicht.
+                      <span className="text-mist-600">{t('cleanup.seenUndated')}</span>
                     ) : (
                       // ⚠️ Nicht „nie gesehen": Das wäre eine Behauptung über
                       // die Welt. Nexview weiß nur, dass es niemand von den

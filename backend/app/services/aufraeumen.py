@@ -99,6 +99,25 @@ class Kandidat:
     def nie_gesehen(self) -> bool:
         return self.zuletzt_gesehen is None
 
+    @property
+    def gesehen_ohne_datum(self) -> bool:
+        """Jemand hat es gesehen - wann, weiss Nexview nicht.
+
+        ⚠️ **Kein Randfall, sondern ein Widerspruch in derselben Zeile.**
+        Medienserver fuehren "ob" und "wann" getrennt: Plex liefert
+        ``viewCount`` und ``lastViewedAt`` als zwei Felder, Jellyfin
+        ``Played`` und ``LastPlayedDate``. Wurde der Verlauf gekuerzt, von
+        Hand auf "gesehen" gesetzt oder eine Bibliothek zusammengefuehrt,
+        ueberlebt der Zaehler und der Zeitpunkt nicht.
+
+        Fuer die Liste heisst das: Der Filter oben prueft nur den Zeitpunkt,
+        also faellt so ein Posten **nicht** heraus - er steht hier mit der
+        Begruendung "hat im Zeitraum niemand angesehen", obwohl jemand es
+        getan hat. Die Oberflaeche schreibt deshalb nicht "nie", sondern
+        "gesehen - wann, ist unbekannt", und die Zusammenfassung zaehlt sie.
+        """
+        return self.zuletzt_gesehen is None and bool(self.gesehen_von)
+
 
 @dataclass(frozen=True)
 class Grundlage:
@@ -133,6 +152,17 @@ class Liste:
     #: uebergangen wurden. Direkt nach einem Update ist das alles, bis der
     #: naechste Abgleich die Daten aus Radarr/Sonarr nachtraegt.
     ohne_datum: int = 0
+    #: Posten, die jemand **gesehen hat**, ohne dass ein Zeitpunkt dazu
+    #: bekannt waere - siehe ``Kandidat.gesehen_ohne_datum``.
+    #:
+    #: ⚠️ **Gehoert in die Zusammenfassung ueber der Tabelle.** Diese Posten
+    #: stehen in der Liste, obwohl die Begruendung "hat im Zeitraum niemand
+    #: angesehen" fuer sie nicht traegt: Ohne Zeitpunkt greift der Filter
+    #: nicht. Sie herauszunehmen waere schlimmer - es sind gerade die alten,
+    #: dicken Posten, bei denen der Medienserver den Verlauf vergessen hat,
+    #: also genau die, wegen denen es diese Ansicht gibt. Also: drin lassen,
+    #: benennen, zaehlen.
+    gesehen_ohne_datum: int = 0
 
 
 def _ohne_zeitzone(wert: datetime) -> datetime:
@@ -329,4 +359,7 @@ def liste(
         grundlage=grundlage(db),
         monate=monate,
         ohne_datum=unbekannt,
+        # Ueber **alle** Kandidaten gezaehlt, nicht nur ueber die angezeigten:
+        # Die Liste ist gedeckelt, die Aussage darf es nicht sein.
+        gesehen_ohne_datum=sum(1 for k in kandidaten if k.gesehen_ohne_datum),
     )

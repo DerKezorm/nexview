@@ -169,6 +169,11 @@ class AufraeumListe(BaseModel):
     #: Direkt nach einem Update ist das alles - bis der naechste stuendliche
     #: Abgleich die Datei-Daten aus Radarr/Sonarr nachtraegt.
     ohne_datum: int
+    #: Wie viele Posten in der Liste jemand gesehen hat, ohne dass ein
+    #: Zeitpunkt bekannt waere. Sie stehen hier, obwohl die Begruendung der
+    #: Liste fuer sie nicht traegt - die Oberflaeche sagt das ueber der
+    #: Tabelle, statt es zu verschweigen. Siehe ``aufraeumen.Kandidat``.
+    gesehen_ohne_datum: int = 0
 
 
 def als_liste(ergebnis: aufraeumen.Liste) -> AufraeumListe:
@@ -203,6 +208,7 @@ def als_liste(ergebnis: aufraeumen.Liste) -> AufraeumListe:
         gesamt_bytes=ergebnis.gesamt_bytes,
         monate=ergebnis.monate,
         ohne_datum=ergebnis.ohne_datum,
+        gesehen_ohne_datum=ergebnis.gesehen_ohne_datum,
         grundlage=AufraeumGrundlage(
             konten_gesamt=ergebnis.grundlage.konten_gesamt,
             konten_verknuepft=ergebnis.grundlage.konten_verknuepft,

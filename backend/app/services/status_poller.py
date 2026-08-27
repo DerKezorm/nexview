@@ -156,8 +156,16 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                     await client.warteschlange() if client is not None else []
                 )
             except ArrError:
-                # Ohne Warteschlange fehlt nur die Fortschritts-Anzeige -
-                # kein Grund, den ganzen Abgleich scheitern zu lassen.
+                # Instanz gerade stumm: Ohne Warteschlange fehlt nur die
+                # Fortschritts-Anzeige - still weiter, das Erreichbarkeits-
+                # Problem meldet sich an anderer Stelle ohnehin.
+                warteschlangen[schluessel] = []
+            except Exception:  # noqa: BLE001 - Anzeige darf den Abgleich nie umreissen
+                # Alles andere ist ein echter Fehler und soll laermen - aber
+                # als Protokollzeile, nicht als gescheiterter Durchgang. Genau
+                # so gefunden: Ein unvollstaendiger Test-Fake liess frueher
+                # den ganzen check_once sterben.
+                logger.exception("Queue for %s/%s could not be read", art, stufe)
                 warteschlangen[schluessel] = []
         return warteschlangen[schluessel]
     for request in offen:

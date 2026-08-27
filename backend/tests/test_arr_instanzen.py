@@ -70,6 +70,17 @@ def test_reine_4k_installation_zaehlt_als_eingerichtet() -> None:
     assert instanzen[0].tier == "uhd"
 
 
+def test_eigener_name_schlaegt_den_dienstnamen() -> None:
+    """Der Anzeigename ist frei waehlbar ("Filme", "Anime", ...) und schlaegt
+    von hier aus ueberall durch. Leer bleibt der Dienstname - fuer
+    Bestandsinstallationen aendert sich damit nichts."""
+    instanzen = _einstellungen(
+        {**RADARR, **SONARR, "radarr_name": "Filme"}
+    ).arr_instanzen()
+
+    assert [i.name for i in instanzen] == ["Filme", "Sonarr"]
+
+
 def test_halb_eingetragen_heisst_nicht_eingerichtet() -> None:
     """Adresse ohne Schluessel ist keine Instanz - dieselbe Schwelle wie
     ``arr_configured``, sonst gaeben beide verschiedene Antworten."""

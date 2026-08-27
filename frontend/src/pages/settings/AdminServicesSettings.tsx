@@ -22,6 +22,7 @@ import {
   RundKnopf,
   Spinner,
 } from "../../components/ui";
+import { AdminFolgenSettings } from "./AdminFolgenSettings";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
 import { InstanzGesundheit } from "./InstanzGesundheit";
 import { WebhookZeile } from "./WebhookZeile";
@@ -52,6 +53,11 @@ type Draft = {
   radarr_api_key: string;
   sonarr_url: string;
   sonarr_api_key: string;
+  /** Frei wählbare Anzeigenamen – leer heißt: der Dienstname gilt. */
+  radarr_name: string;
+  sonarr_name: string;
+  radarr_uhd_name: string;
+  sonarr_uhd_name: string;
   default_region: string;
   default_language: string;
   demo_mode: "auto" | "on" | "off";
@@ -86,6 +92,10 @@ const EMPTY_DRAFT: Draft = {
   radarr_api_key: "",
   sonarr_url: "",
   sonarr_api_key: "",
+  radarr_name: "",
+  sonarr_name: "",
+  radarr_uhd_name: "",
+  sonarr_uhd_name: "",
   default_region: "DE",
   default_language: "de",
   demo_mode: "auto",
@@ -516,6 +526,10 @@ export function AdminServicesSettings() {
       ...EMPTY_DRAFT,
       radarr_url: data.radarr_url,
       sonarr_url: data.sonarr_url,
+      radarr_name: data.radarr_name,
+      sonarr_name: data.sonarr_name,
+      radarr_uhd_name: data.radarr_uhd_name,
+      sonarr_uhd_name: data.sonarr_uhd_name,
       default_region: data.default_region,
       default_language: data.default_language,
       demo_mode: data.demo_mode,
@@ -548,7 +562,7 @@ export function AdminServicesSettings() {
   const saveMutation = useMutation({
     mutationFn: (payload: Partial<Draft>) =>
       api.put<AppSettings>("/api/settings", payload),
-    onSuccess: (data) => {
+    onSuccess: (data, gesendet) => {
       queryClient.setQueryData(["settings"], data);
       // Startseite und Konfiguration neu holen: Region oder Demo-Modus
       // können sich geändert haben.
@@ -562,10 +576,13 @@ export function AdminServicesSettings() {
       void queryClient.invalidateQueries({ queryKey: ["arr-options"] });
       setMessage({ ok: true, text: t("settings.saved") });
       setTestResults({});
-      // Ab jetzt gilt das Gespeicherte als unveraendert - sonst bliebe der
-      // Knopf aktiv, obwohl es nichts mehr zu speichern gibt.
+      // Ab jetzt gilt das **Gesendete** als unveraendert - nur das. Wer in
+      // einem anderen Bereich noch ungespeicherte Aenderungen hat, behaelt
+      // dort seinen aktiven Knopf; frueher schluckte ein Teil-Speichern die
+      // Marker aller anderen gleich mit.
       basis.current = {
-        ...draft,
+        ...basis.current,
+        ...gesendet,
         tmdb_api_key: "",
         radarr_api_key: "",
         sonarr_api_key: "",
@@ -642,28 +659,97 @@ export function AdminServicesSettings() {
     return Boolean(neueAdresse || String(draft[keyFeld] ?? "").trim());
   }
 
-  const ALLE_DIENSTE: TestService[] = [
-    "tmdb",
-    "radarr",
-    "radarr_uhd",
-    "sonarr",
-    "sonarr_uhd",
+  // Feldgruppen je Speichern-Knopf: Der grosse Knopf unten gilt nur noch
+  // fuer Allgemein und TMDB; jede Instanz und der Regel-Block speichern ihre
+  // eigene Gruppe. So blockiert ein halb ausgefuellter Radarr-Entwurf nicht
+  // mehr das Speichern der Region - und umgekehrt.
+  const ALLGEMEIN_FELDER: (keyof Draft)[] = [
+    "tmdb_api_key",
+    "default_region",
+    "default_language",
+    "demo_mode",
   ];
+  const INSTANZ_FELDER: Record<Exclude<TestService, "tmdb">, (keyof Draft)[]> = {
+    radarr: ["radarr_url", "radarr_api_key", "radarr_name"],
+    radarr_uhd: ["radarr_uhd_url", "radarr_uhd_api_key", "radarr_uhd_name"],
+    sonarr: ["sonarr_url", "sonarr_api_key", "sonarr_name"],
+    sonarr_uhd: ["sonarr_uhd_url", "sonarr_uhd_api_key", "sonarr_uhd_name"],
+  };
+  const REGEL_FELDER: Record<"movie" | "tv", (keyof Draft)[]> = {
+    movie: [
+      "movie_profile_mode",
+      "movie_root_folder_mode",
+      "default_movie_profile_id",
+      "default_movie_root",
+      "default_movie_uhd_profile_id",
+      "default_movie_uhd_root",
+    ],
+    tv: [
+      "series_profile_mode",
+      "series_root_folder_mode",
+      "default_series_profile_id",
+      "default_series_root",
+      "default_series_uhd_profile_id",
+      "default_series_uhd_root",
+    ],
+  };
+  const teil = (felder: (keyof Draft)[]): Partial<Draft> =>
+    Object.fromEntries(felder.map((feld) => [feld, draft[feld]])) as Partial<Draft>;
+  const geaendert = (felder: (keyof Draft)[]) =>
+    felder.some((feld) => draft[feld] !== basis.current[feld]);
+
   // Wer eine Adresse oder einen Key aendert, muss erst pruefen, ob die
   // Verbindung ueberhaupt steht. Sonst speichert man eine tote Adresse und
-  // merkt es erst, wenn die erste Anfrage ins Leere laeuft.
-  const ungetestet = ALLE_DIENSTE.filter(
+  // merkt es erst, wenn die erste Anfrage ins Leere laeuft. Das gilt je
+  // Knopf: unten fuer TMDB, in jedem Instanz-Formular fuer dessen Dienst.
+  const ungetestet = (["tmdb"] as TestService[]).filter(
     (dienst) => verbindungGeaendert(dienst) && testResults[dienst]?.ok !== true,
   );
-  const etwasGeaendert =
-    JSON.stringify(draft) !== JSON.stringify(basis.current);
-  const speichernGesperrt = !etwasGeaendert || ungetestet.length > 0;
+  const speichernGesperrt = !geaendert(ALLGEMEIN_FELDER) || ungetestet.length > 0;
+  const zeigtGlobalenKnopf = unterTab === "general" || unterTab === "tmdb";
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setMessage(null);
-    saveMutation.mutate(draft);
+    // Nur die Allgemein-/TMDB-Gruppe: Instanzen und Regeln haben ihre
+    // eigenen Knoepfe und schicken nur ihre eigenen Felder.
+    saveMutation.mutate(teil(ALLGEMEIN_FELDER));
   }
+
+  /**
+   * Der Speichern-Knopf eines Instanz-Formulars: schickt nur die Felder
+   * dieser Instanz und verlangt vorher den Verbindungstest, wenn Adresse
+   * oder Key sich geaendert haben.
+   */
+  const instanzSpeichernReihe = (dienst: Exclude<TestService, "tmdb">) => {
+    const felder = INSTANZ_FELDER[dienst];
+    const testenNoetig =
+      verbindungGeaendert(dienst) && testResults[dienst]?.ok !== true;
+    return (
+      <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-3">
+        <Button
+          type="button"
+          onClick={() => {
+            setMessage(null);
+            saveMutation.mutate(teil(felder));
+          }}
+          loading={saveMutation.isPending}
+          disabled={!geaendert(felder) || testenNoetig}
+        >
+          {t("common.save")}
+        </Button>
+        {testenNoetig ? (
+          <span className="text-xs text-warn-500">{t("settings.testFirst")}</span>
+        ) : (
+          !geaendert(felder) && (
+            <span className="text-xs text-mist-600">
+              {t("settings.nothingChanged")}
+            </span>
+          )
+        )}
+      </div>
+    );
+  };
 
   // Welche Instanz-Kachel gerade aufgeklappt ist ("radarr-standard" usw.).
   // Höchstens eine – wie bei den Benachrichtigungs-Zielen: Ist ein Formular
@@ -882,7 +968,7 @@ export function AdminServicesSettings() {
               (Profil, Zielordner), bleibt gemeinsam weiter unten. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <InstanzKachel
-                titel={t("settings.instanceStandard")}
+                titel={settings?.radarr_name || t("settings.instanceStandard")}
                 adresse={settings?.radarr_url ?? ""}
                 kennung="radarr-standard"
                 aktiv={offeneInstanz === "radarr-standard"}
@@ -890,7 +976,7 @@ export function AdminServicesSettings() {
               />
               {settings?.radarr_uhd_url || settings?.radarr_uhd_api_key_set ? (
                 <InstanzKachel
-                  titel={t("uhd.section")}
+                  titel={settings?.radarr_uhd_name || t("uhd.section")}
                   adresse={settings?.radarr_uhd_url ?? ""}
                   kennung="radarr-uhd"
                   aktiv={offeneInstanz === "radarr-uhd"}
@@ -910,6 +996,16 @@ export function AdminServicesSettings() {
                 titel={t("settings.instanceStandard")}
                 hinweis={t("settings.instanceStandardHint")}
               >
+                <Field
+                  label={t("settings.instanceName")}
+                  value={draft.radarr_name}
+                  onChange={(event) =>
+                    update({ radarr_name: event.target.value })
+                  }
+                  placeholder="Radarr"
+                  hint={t("settings.instanceNameHint")}
+                  autoComplete="off"
+                />
                 <Field
                   label={t("settings.url")}
                   value={draft.radarr_url}
@@ -937,6 +1033,7 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("radarr")}
+                {instanzSpeichernReihe("radarr")}
                 {settings?.radarr_api_key_set && (
                   <>
                     <InstanzGesundheit kennung="radarr-standard" />
@@ -951,6 +1048,16 @@ export function AdminServicesSettings() {
                 titel={t("uhd.section")}
                 hinweis={t("uhd.sectionHint")}
               >
+                <Field
+                  label={t("settings.instanceName")}
+                  value={draft.radarr_uhd_name}
+                  onChange={(event) =>
+                    update({ radarr_uhd_name: event.target.value })
+                  }
+                  placeholder="Radarr 4K"
+                  hint={t("settings.instanceNameHint")}
+                  autoComplete="off"
+                />
                 <Field
                   label={t("settings.url")}
                   value={draft.radarr_uhd_url}
@@ -980,6 +1087,7 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("radarr_uhd")}
+                {instanzSpeichernReihe("radarr_uhd")}
                 {settings?.radarr_uhd_api_key_set && (
                   <>
                     <InstanzGesundheit kennung="radarr-uhd" />
@@ -1096,6 +1204,25 @@ export function AdminServicesSettings() {
                     {t("settings.approverEndsAutoApprove")}
                   </p>
                 )}
+
+                <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setMessage(null);
+                      saveMutation.mutate(teil(REGEL_FELDER.movie));
+                    }}
+                    loading={saveMutation.isPending}
+                    disabled={!geaendert(REGEL_FELDER.movie)}
+                  >
+                    {t("common.save")}
+                  </Button>
+                  {!geaendert(REGEL_FELDER.movie) && (
+                    <span className="text-xs text-mist-600">
+                      {t("settings.nothingChanged")}
+                    </span>
+                  )}
+                </div>
               </ZielordnerBlock>
             )}
           </Section>
@@ -1106,7 +1233,7 @@ export function AdminServicesSettings() {
             {/* Kacheln wie bei Radarr - Begruendung dort. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <InstanzKachel
-                titel={t("settings.instanceStandard")}
+                titel={settings?.sonarr_name || t("settings.instanceStandard")}
                 adresse={settings?.sonarr_url ?? ""}
                 kennung="sonarr-standard"
                 aktiv={offeneInstanz === "sonarr-standard"}
@@ -1114,7 +1241,7 @@ export function AdminServicesSettings() {
               />
               {settings?.sonarr_uhd_url || settings?.sonarr_uhd_api_key_set ? (
                 <InstanzKachel
-                  titel={t("uhd.section")}
+                  titel={settings?.sonarr_uhd_name || t("uhd.section")}
                   adresse={settings?.sonarr_uhd_url ?? ""}
                   kennung="sonarr-uhd"
                   aktiv={offeneInstanz === "sonarr-uhd"}
@@ -1134,6 +1261,16 @@ export function AdminServicesSettings() {
                 titel={t("settings.instanceStandard")}
                 hinweis={t("settings.instanceStandardHint")}
               >
+                <Field
+                  label={t("settings.instanceName")}
+                  value={draft.sonarr_name}
+                  onChange={(event) =>
+                    update({ sonarr_name: event.target.value })
+                  }
+                  placeholder="Sonarr"
+                  hint={t("settings.instanceNameHint")}
+                  autoComplete="off"
+                />
                 <Field
                   label={t("settings.url")}
                   value={draft.sonarr_url}
@@ -1161,6 +1298,7 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("sonarr")}
+                {instanzSpeichernReihe("sonarr")}
                 {settings?.sonarr_api_key_set && (
                   <>
                     <InstanzGesundheit kennung="sonarr-standard" />
@@ -1175,6 +1313,16 @@ export function AdminServicesSettings() {
                 titel={t("uhd.section")}
                 hinweis={t("uhd.sectionHint")}
               >
+                <Field
+                  label={t("settings.instanceName")}
+                  value={draft.sonarr_uhd_name}
+                  onChange={(event) =>
+                    update({ sonarr_uhd_name: event.target.value })
+                  }
+                  placeholder="Sonarr 4K"
+                  hint={t("settings.instanceNameHint")}
+                  autoComplete="off"
+                />
                 <Field
                   label={t("settings.url")}
                   value={draft.sonarr_uhd_url}
@@ -1204,6 +1352,7 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("sonarr_uhd")}
+                {instanzSpeichernReihe("sonarr_uhd")}
                 {settings?.sonarr_uhd_api_key_set && (
                   <>
                     <InstanzGesundheit kennung="sonarr-uhd" />
@@ -1320,6 +1469,25 @@ export function AdminServicesSettings() {
                     {t("settings.approverEndsAutoApprove")}
                   </p>
                 )}
+
+                <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setMessage(null);
+                      saveMutation.mutate(teil(REGEL_FELDER.tv));
+                    }}
+                    loading={saveMutation.isPending}
+                    disabled={!geaendert(REGEL_FELDER.tv)}
+                  >
+                    {t("common.save")}
+                  </Button>
+                  {!geaendert(REGEL_FELDER.tv) && (
+                    <span className="text-xs text-mist-600">
+                      {t("settings.nothingChanged")}
+                    </span>
+                  )}
+                </div>
               </ZielordnerBlock>
             )}
           </Section>
@@ -1333,28 +1501,43 @@ export function AdminServicesSettings() {
         )}
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="submit"
-            loading={saveMutation.isPending}
-            disabled={speichernGesperrt}
-          >
-            {t("common.save")}
-          </Button>
-          {/* Warum der Knopf gesperrt ist, muss dastehen - ein grauer Knopf
-              ohne Begruendung ist die haeufigste Sackgasse in Formularen. */}
-          {ungetestet.length > 0 ? (
-            <span className="text-xs text-warn-500">
-              {t("settings.testRequired", { dienste: ungetestet.join(", ") })}
-            </span>
-          ) : (
-            !etwasGeaendert && (
-              <span className="text-xs text-mist-600">
-                {t("settings.nothingChanged")}
-              </span>
-            )
+          {zeigtGlobalenKnopf && (
+            <>
+              <Button
+                type="submit"
+                loading={saveMutation.isPending}
+                disabled={speichernGesperrt}
+              >
+                {t("common.save")}
+              </Button>
+              {/* Warum der Knopf gesperrt ist, muss dastehen - ein grauer
+                  Knopf ohne Begruendung ist die haeufigste Sackgasse in
+                  Formularen. */}
+              {ungetestet.length > 0 ? (
+                <span className="text-xs text-warn-500">
+                  {t("settings.testRequired", { dienste: ungetestet.join(", ") })}
+                </span>
+              ) : (
+                !geaendert(ALLGEMEIN_FELDER) && (
+                  <span className="text-xs text-mist-600">
+                    {t("settings.nothingChanged")}
+                  </span>
+                )
+              )}
+            </>
           )}
         </div>
       </form>
+
+      {/* Der Folgen-Paket-Schalter wohnt bei den Serien: Er bestimmt, wie
+          feinkoernig bei Sonarr bestellt werden darf. Er hing mal unter der
+          ganzen Diensteseite und tauchte damit auch bei Filmen auf - dort
+          hat er nichts zu bestimmen. */}
+      {unterTab === "sonarr" && (
+        <div className="mt-6">
+          <AdminFolgenSettings />
+        </div>
+      )}
     </div>
   );
 }

@@ -893,6 +893,11 @@ export type AppSettings = {
   sonarr_uhd_url: string;
   sonarr_uhd_api_key: string;
   sonarr_uhd_api_key_set: boolean;
+  /** Frei wählbare Anzeigenamen – leer heißt: der Dienstname gilt. */
+  radarr_name: string;
+  sonarr_name: string;
+  radarr_uhd_name: string;
+  sonarr_uhd_name: string;
   default_movie_uhd_profile_id: number | null;
   default_series_uhd_profile_id: number | null;
   default_movie_uhd_root: string;

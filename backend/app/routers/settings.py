@@ -53,6 +53,11 @@ class SettingsUpdate(BaseModel):
     radarr_api_key: str | None = None
     sonarr_url: str | None = None
     sonarr_api_key: str | None = None
+    # Frei waehlbare Anzeigenamen - leer heisst: der Dienstname gilt.
+    radarr_name: str | None = Field(default=None, max_length=60)
+    sonarr_name: str | None = Field(default=None, max_length=60)
+    radarr_uhd_name: str | None = Field(default=None, max_length=60)
+    sonarr_uhd_name: str | None = Field(default=None, max_length=60)
     default_region: str | None = Field(default=None, min_length=2, max_length=2)
     default_language: str | None = Field(default=None, min_length=2, max_length=5)
     poll_interval_seconds: int | None = Field(default=None, ge=30, le=3600)

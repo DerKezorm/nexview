@@ -12,7 +12,6 @@ import { AdminStorageSettings } from './settings/AdminStorageSettings'
 import { AdminBlocklistSettings } from './settings/AdminBlocklistSettings'
 import { AdminUsersSettings } from './settings/AdminUsersSettings'
 import { AdminWatchlistSettings } from './settings/AdminWatchlistSettings'
-import { AdminFolgenSettings } from './settings/AdminFolgenSettings'
 import { Reiterreihe, type Reiter } from '../components/Reiterreihe'
 import { useConfig } from '../hooks/useConfig'
 
@@ -118,14 +117,7 @@ export function SettingsPage() {
         />
       )}
 
-      {tab === 'services' && (
-        <div className="flex flex-col gap-6">
-          <AdminServicesSettings />
-          {/* Der Folgen-Paket-Schalter wohnt bei den Diensten: Er bestimmt,
-              wie feinkoernig bei Sonarr bestellt werden darf. */}
-          <AdminFolgenSettings />
-        </div>
-      )}
+      {tab === 'services' && <AdminServicesSettings />}
       {tab === 'address' && <AdminAddressSettings />}
       {tab === 'mail' && <AdminMailSettings />}
 

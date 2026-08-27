@@ -45,6 +45,13 @@ DEFAULTS: dict[str, str] = {
     "radarr_api_key": "",
     "sonarr_url": "",
     "sonarr_api_key": "",
+    # Frei waehlbare Anzeigenamen der Instanzen ("Filme", "Anime", ...).
+    # Leer heisst: der Dienstname gilt ("Radarr", "Sonarr", "... 4K") - so
+    # aendert sich fuer Bestandsinstallationen nichts. Der Name schlaegt
+    # ueberall durch, wo eine Instanz genannt wird: Er kommt aus
+    # ``arr_instanzen()``, und alle Nennungen laufen dort durch.
+    "radarr_name": "",
+    "sonarr_name": "",
     "default_region": "DE",
     "default_language": "de",
     "poll_interval_seconds": "120",
@@ -93,6 +100,8 @@ DEFAULTS: dict[str, str] = {
     "radarr_uhd_api_key": "",
     "sonarr_uhd_url": "",
     "sonarr_uhd_api_key": "",
+    "radarr_uhd_name": "",
+    "sonarr_uhd_name": "",
     "default_movie_uhd_profile_id": "",
     "default_series_uhd_profile_id": "",
     "default_movie_uhd_root": "",
@@ -244,6 +253,8 @@ class AppSettings:
     radarr_api_key: str
     sonarr_url: str
     sonarr_api_key: str
+    radarr_name: str
+    sonarr_name: str
     default_region: str
     default_language: str
     poll_interval_seconds: int
@@ -261,6 +272,8 @@ class AppSettings:
     radarr_uhd_api_key: str
     sonarr_uhd_url: str
     sonarr_uhd_api_key: str
+    radarr_uhd_name: str
+    sonarr_uhd_name: str
     default_movie_uhd_profile_id: int | None
     default_series_uhd_profile_id: int | None
     default_movie_uhd_root: str
@@ -447,11 +460,14 @@ class AppSettings:
         diese Liste und buchstabiert die Stufen nicht selbst aus - so bleibt
         die Zahl der Instanzen an genau einer Stelle bekannt.
         """
+        # Der Anzeigename ist frei waehlbar ("Filme", "Anime", ...); leer
+        # gilt der Dienstname. Er schlaegt von hier aus ueberall durch -
+        # Papierkoerbe, Webhook-Stand, Gesundheits-Meldungen.
         alle = (
-            ("radarr-standard", "movie", "standard", "Radarr"),
-            ("radarr-uhd", "movie", "uhd", "Radarr 4K"),
-            ("sonarr-standard", "tv", "standard", "Sonarr"),
-            ("sonarr-uhd", "tv", "uhd", "Sonarr 4K"),
+            ("radarr-standard", "movie", "standard", self.radarr_name or "Radarr"),
+            ("radarr-uhd", "movie", "uhd", self.radarr_uhd_name or "Radarr 4K"),
+            ("sonarr-standard", "tv", "standard", self.sonarr_name or "Sonarr"),
+            ("sonarr-uhd", "tv", "uhd", self.sonarr_uhd_name or "Sonarr 4K"),
         )
         ergebnis = []
         for kennung, art, stufe, name in alle:
@@ -662,6 +678,8 @@ def load_settings(db: Session) -> AppSettings:
         radarr_api_key=values["radarr_api_key"],
         sonarr_url=values["sonarr_url"].rstrip("/"),
         sonarr_api_key=values["sonarr_api_key"],
+        radarr_name=values["radarr_name"].strip(),
+        sonarr_name=values["sonarr_name"].strip(),
         default_region=values["default_region"].upper() or "DE",
         default_language=values["default_language"] or "de",
         poll_interval_seconds=poll_interval,
@@ -680,6 +698,8 @@ def load_settings(db: Session) -> AppSettings:
         radarr_uhd_api_key=values["radarr_uhd_api_key"],
         sonarr_uhd_url=values["sonarr_uhd_url"].strip().rstrip("/"),
         sonarr_uhd_api_key=values["sonarr_uhd_api_key"],
+        radarr_uhd_name=values["radarr_uhd_name"].strip(),
+        sonarr_uhd_name=values["sonarr_uhd_name"].strip(),
         default_movie_uhd_profile_id=_zahl(values["default_movie_uhd_profile_id"]),
         default_series_uhd_profile_id=_zahl(values["default_series_uhd_profile_id"]),
         default_movie_uhd_root=values["default_movie_uhd_root"].strip(),
@@ -787,9 +807,11 @@ def public_settings(db: Session) -> dict[str, object]:
         "radarr_url": settings.radarr_url,
         "radarr_api_key": mask(settings.radarr_api_key),
         "radarr_api_key_set": bool(settings.radarr_api_key),
+        "radarr_name": settings.radarr_name,
         "sonarr_url": settings.sonarr_url,
         "sonarr_api_key": mask(settings.sonarr_api_key),
         "sonarr_api_key_set": bool(settings.sonarr_api_key),
+        "sonarr_name": settings.sonarr_name,
         "default_region": settings.default_region,
         "default_language": settings.default_language,
         "poll_interval_seconds": settings.poll_interval_seconds,
@@ -806,9 +828,11 @@ def public_settings(db: Session) -> dict[str, object]:
         "radarr_uhd_url": settings.radarr_uhd_url,
         "radarr_uhd_api_key": mask(settings.radarr_uhd_api_key),
         "radarr_uhd_api_key_set": bool(settings.radarr_uhd_api_key),
+        "radarr_uhd_name": settings.radarr_uhd_name,
         "sonarr_uhd_url": settings.sonarr_uhd_url,
         "sonarr_uhd_api_key": mask(settings.sonarr_uhd_api_key),
         "sonarr_uhd_api_key_set": bool(settings.sonarr_uhd_api_key),
+        "sonarr_uhd_name": settings.sonarr_uhd_name,
         "default_movie_uhd_profile_id": settings.default_movie_uhd_profile_id,
         "default_series_uhd_profile_id": settings.default_series_uhd_profile_id,
         "default_movie_uhd_root": settings.default_movie_uhd_root,

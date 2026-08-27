@@ -850,6 +850,8 @@
     "tileProblems": "meldet Probleme",
     "tileEdit": "Bearbeiten",
     "tileAddUhd": "4K-Instanz anlegen",
+    "tileConnected": "Verbunden",
+    "tileUnreachable": "Nicht erreichbar",
     "instanceName": "Name",
     "instanceNameHint": "Frei wählbar – so heißt die Instanz überall in Nexview. Leer heißt: der Dienstname gilt.",
     "testFirst": "Erst die Verbindung testen, dann speichern.",

@@ -213,9 +213,15 @@ class ArrClient:
     async def delete(self, path: str, params: dict[str, Any] | None = None) -> Any:
         return await self._request("DELETE", path, params=params)
 
-    async def system_status(self) -> dict[str, Any]:
-        """Fuer den Verbindungstest - liefert u. a. Version und App-Name."""
-        return await self.get("/system/status")
+    async def system_status(
+        self, timeout: httpx.Timeout | None = None
+    ) -> dict[str, Any]:
+        """Fuer den Verbindungstest - liefert u. a. Version und App-Name.
+
+        ``timeout`` fuer die Kachel-Anzeige: Eine Statusleuchte, die bei
+        stummer Instanz fuenfzehn Sekunden nachdenkt, beruhigt niemanden.
+        """
+        return await self._request("GET", "/system/status", timeout=timeout)
 
     async def quality_profiles(self) -> list[dict[str, Any]]:
         return await self.get("/qualityprofile") or []

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Reiterreihe } from "../../components/Reiterreihe";
+import { Symbol } from "../../components/Symbol";
 import type { SymbolName } from "../../components/Symbol";
 import { Section } from "../../components/ui";
 import type { FormEvent, ReactNode } from "react";
@@ -13,6 +14,7 @@ import type {
   GesundheitStand,
   RootFolderMode,
   TestResult,
+  VerbindungStand,
   WebhookStand,
 } from "../../api/types";
 import {
@@ -162,12 +164,18 @@ function InstanzKachel({
   titel,
   adresse,
   kennung,
+  symbol,
+  uhd = false,
   aktiv,
   onBearbeiten,
 }: {
   titel: string;
   adresse: string;
   kennung: string;
+  /** Das Dienst-Logo, blass im Hintergrund - wie bei den Meldungs-Zielen. */
+  symbol: SymbolName;
+  /** Traegt die Kachel das 4K-Abzeichen? */
+  uhd?: boolean;
   aktiv: boolean;
   onBearbeiten: () => void;
 }) {
@@ -182,6 +190,19 @@ function InstanzKachel({
   const probleme =
     gesundheit.data?.instanzen.find((zeile) => zeile.kennung === kennung)
       ?.probleme ?? [];
+  // Die Statusleuchte: live gefragt und minutenweise aufgefrischt, solange
+  // die Seite offen ist. Gruen beruhigt - Rot sagt ehrlich Bescheid.
+  const verbindung = useQuery({
+    queryKey: ["instanz-verbindung"],
+    queryFn: () =>
+      api.get<VerbindungStand>("/api/settings/instanzen/verbindung"),
+    refetchInterval: 60_000,
+  });
+  const stand = verbindung.data?.instanzen.find(
+    (zeile) => zeile.kennung === kennung,
+  );
+  // Heisst die Instanz selbst schon "4K", waere das Abzeichen ein Echo.
+  const zeigeAbzeichen = uhd && titel.trim().toUpperCase() !== "4K";
 
   return (
     <div
@@ -195,21 +216,53 @@ function InstanzKachel({
         }
       }}
       className={
-        "flex min-h-28 cursor-pointer flex-col justify-between rounded-2xl border px-4 py-3 transition-colors " +
+        "relative flex min-h-28 cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border px-4 py-3 transition-colors " +
         (aktiv
           ? "border-accent-500/60 bg-accent-500/10"
           : "border-ink-700 bg-ink-900 hover:border-ink-600")
       }
     >
-      <div>
-        <p className="text-lg font-semibold text-mist-100">{titel}</p>
+      <Symbol
+        name={symbol}
+        className="pointer-events-none absolute inset-0 m-auto h-20 w-20 text-mist-100 opacity-[0.14]"
+      />
+      <div className="relative">
+        <p className="flex items-center gap-2 text-lg font-semibold text-mist-100">
+          {titel}
+          {zeigeAbzeichen && (
+            <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-[10px] font-semibold text-accent-400 ring-1 ring-accent-500/40">
+              4K
+            </span>
+          )}
+        </p>
         <p className="mt-0.5 text-xs text-mist-600">
           {adresse || t("settings.tileNotConfigured")}
         </p>
       </div>
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <span className="text-xs text-warn-500">
-          {probleme.length > 0 ? t("settings.tileProblems") : ""}
+      <div className="relative mt-3 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-3">
+          {stand && (
+            <span
+              className={
+                "flex items-center gap-1.5 text-xs " +
+                (stand.erreichbar ? "text-ok-500" : "text-bad-500")
+              }
+              title={stand.erreichbar && stand.version ? `v${stand.version}` : undefined}
+            >
+              <span
+                className={
+                  "h-2 w-2 rounded-full " +
+                  (stand.erreichbar ? "bg-ok-500" : "bg-bad-500")
+                }
+              />
+              {stand.erreichbar
+                ? t("settings.tileConnected")
+                : t("settings.tileUnreachable")}
+            </span>
+          )}
+          <span className="text-xs text-warn-500">
+            {probleme.length > 0 ? t("settings.tileProblems") : ""}
+          </span>
         </span>
         <RundKnopf label={t("settings.tileEdit")} onClick={onBearbeiten}>
           <path
@@ -1045,17 +1098,20 @@ export function AdminServicesSettings() {
               (Profil, Zielordner), bleibt gemeinsam weiter unten. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <InstanzKachel
-                titel={settings?.radarr_name || t("settings.instanceStandard")}
+                titel={settings?.radarr_name || "Radarr"}
                 adresse={settings?.radarr_url ?? ""}
                 kennung="radarr-standard"
+                symbol="radarr"
                 aktiv={offeneInstanz === "radarr-standard"}
                 onBearbeiten={() => instanzUmschalten("radarr-standard")}
               />
               {settings?.radarr_uhd_url || settings?.radarr_uhd_api_key_set ? (
                 <InstanzKachel
-                  titel={settings?.radarr_uhd_name || t("uhd.section")}
+                  titel={settings?.radarr_uhd_name || "Radarr"}
                   adresse={settings?.radarr_uhd_url ?? ""}
                   kennung="radarr-uhd"
+                  symbol="radarr"
+                  uhd
                   aktiv={offeneInstanz === "radarr-uhd"}
                   onBearbeiten={() => instanzUmschalten("radarr-uhd")}
                 />
@@ -1342,17 +1398,20 @@ export function AdminServicesSettings() {
             {/* Kacheln wie bei Radarr - Begruendung dort. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <InstanzKachel
-                titel={settings?.sonarr_name || t("settings.instanceStandard")}
+                titel={settings?.sonarr_name || "Sonarr"}
                 adresse={settings?.sonarr_url ?? ""}
                 kennung="sonarr-standard"
+                symbol="sonarr"
                 aktiv={offeneInstanz === "sonarr-standard"}
                 onBearbeiten={() => instanzUmschalten("sonarr-standard")}
               />
               {settings?.sonarr_uhd_url || settings?.sonarr_uhd_api_key_set ? (
                 <InstanzKachel
-                  titel={settings?.sonarr_uhd_name || t("uhd.section")}
+                  titel={settings?.sonarr_uhd_name || "Sonarr"}
                   adresse={settings?.sonarr_uhd_url ?? ""}
                   kennung="sonarr-uhd"
+                  symbol="sonarr"
+                  uhd
                   aktiv={offeneInstanz === "sonarr-uhd"}
                   onBearbeiten={() => instanzUmschalten("sonarr-uhd")}
                 />

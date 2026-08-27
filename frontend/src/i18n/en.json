@@ -850,6 +850,8 @@
     "tileProblems": "reports problems",
     "tileEdit": "Edit",
     "tileAddUhd": "Add the 4K instance",
+    "tileConnected": "Connected",
+    "tileUnreachable": "Unreachable",
     "instanceName": "Name",
     "instanceNameHint": "Your choice – this is how the instance is named everywhere in Nexview. Empty means the service name applies.",
     "testFirst": "Test the connection first, then save.",

@@ -61,6 +61,14 @@ TEXTE: dict[str, tuple[str, str]] = {
             'leftovers. The response carries the resulting state.'
         ),
     ),
+    'GET /api/settings/instanzen/verbindung': (
+        'Reachability of the instances',
+        (
+            'Asks every configured Radarr/Sonarr instance for its status, all '
+            'at once and with a short timeout - the live source of the status '
+            'light on the instance tiles. Nothing is stored.'
+        ),
+    ),
     'GET /api/settings/instanzen/gesundheit': (
         'Health problems the instances report',
         (

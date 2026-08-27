@@ -1539,3 +1539,15 @@ export interface GesundheitInstanz {
 export interface GesundheitStand {
   instanzen: GesundheitInstanz[];
 }
+
+/** Die Statusleuchte der Kacheln (GET /api/settings/instanzen/verbindung). */
+export interface VerbindungInstanz {
+  kennung: string;
+  name: string;
+  erreichbar: boolean;
+  version: string;
+}
+
+export interface VerbindungStand {
+  instanzen: VerbindungInstanz[];
+}

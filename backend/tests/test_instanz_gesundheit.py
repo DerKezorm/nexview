@@ -137,6 +137,28 @@ async def test_stumme_instanz_laesst_den_stand_stehen(admin_client, monkeypatch)
     assert _meldungen() == 1
 
 
+def test_verbindungsleuchte_meldet_erreichbar(arr_client, monkeypatch) -> None:
+    """Die Statusleuchte der Kacheln: live gefragt, mit Version."""
+
+    async def status(self, timeout=None):  # noqa: ANN001 - Signatur der echten Methode
+        return {"version": "6.3.0"}
+
+    monkeypatch.setattr(ArrClient, "system_status", status)
+
+    antwort = arr_client.get("/api/settings/instanzen/verbindung")
+    assert antwort.status_code == 200, antwort.text
+    zeilen = {z["kennung"]: z for z in antwort.json()["instanzen"]}
+    assert zeilen["radarr-standard"]["erreichbar"] is True
+    assert zeilen["radarr-standard"]["version"] == "6.3.0"
+
+
+def test_verbindungsleuchte_sagt_ehrlich_nicht_erreichbar(arr_client) -> None:
+    """Port 9 lehnt sofort ab - die Leuchte wird rot, die Antwort kommt schnell."""
+    antwort = arr_client.get("/api/settings/instanzen/verbindung")
+    assert antwort.status_code == 200, antwort.text
+    assert all(not z["erreichbar"] for z in antwort.json()["instanzen"])
+
+
 def test_diensteseite_zeigt_die_probleme(admin_client, monkeypatch) -> None:
     import asyncio
 

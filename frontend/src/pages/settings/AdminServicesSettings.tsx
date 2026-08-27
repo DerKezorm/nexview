@@ -10,10 +10,18 @@ import { ApiError, api } from "../../api/client";
 import type {
   AppSettings,
   ArrOptions,
+  GesundheitStand,
   RootFolderMode,
   TestResult,
 } from "../../api/types";
-import { Button, ErrorBanner, Field, Spinner } from "../../components/ui";
+import {
+  Button,
+  ErrorBanner,
+  Field,
+  PlusKachel,
+  RundKnopf,
+  Spinner,
+} from "../../components/ui";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
 import { InstanzGesundheit } from "./InstanzGesundheit";
 import { WebhookZeile } from "./WebhookZeile";
@@ -126,6 +134,80 @@ function InstanzBlock({
         )}
       </div>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Eine Instanz als Kachel – dieselbe Optik wie die Benachrichtigungs-Ziele.
+ *
+ * ⚠️ Nur die Optik ist neu: Dahinter stehen weiterhin genau zwei feste
+ * Plätze je Dienst (Standard + 4K, siehe QualityTier) und ein gemeinsamer
+ * Speichern-Fluss. Die Kachelreihe ist zugleich die Vorbereitung auf
+ * „beliebig viele Instanzen": Sie ist als Liste gebaut, und der spätere
+ * Umbau tauscht nur ihre Quelle – nicht diese Bausteine.
+ */
+function InstanzKachel({
+  titel,
+  adresse,
+  kennung,
+  aktiv,
+  onBearbeiten,
+}: {
+  titel: string;
+  adresse: string;
+  kennung: string;
+  aktiv: boolean;
+  onBearbeiten: () => void;
+}) {
+  const { t } = useTranslation();
+  // Dieselbe Abfrage wie der Warnkasten im Formular – geteilt über den
+  // Query-Schlüssel, also keine zweite Netzanfrage.
+  const gesundheit = useQuery({
+    queryKey: ["instanz-gesundheit"],
+    queryFn: () =>
+      api.get<GesundheitStand>("/api/settings/instanzen/gesundheit"),
+  });
+  const probleme =
+    gesundheit.data?.instanzen.find((zeile) => zeile.kennung === kennung)
+      ?.probleme ?? [];
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onBearbeiten}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onBearbeiten();
+        }
+      }}
+      className={
+        "flex min-h-28 cursor-pointer flex-col justify-between rounded-2xl border px-4 py-3 transition-colors " +
+        (aktiv
+          ? "border-accent-500/60 bg-accent-500/10"
+          : "border-ink-700 bg-ink-900 hover:border-ink-600")
+      }
+    >
+      <div>
+        <p className="text-lg font-semibold text-mist-100">{titel}</p>
+        <p className="mt-0.5 text-xs text-mist-600">
+          {adresse || t("settings.tileNotConfigured")}
+        </p>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className="text-xs text-warn-500">
+          {probleme.length > 0 ? t("settings.tileProblems") : ""}
+        </span>
+        <RundKnopf label={t("settings.tileEdit")} onClick={onBearbeiten}>
+          <path
+            d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </RundKnopf>
+      </div>
     </div>
   );
 }
@@ -583,6 +665,13 @@ export function AdminServicesSettings() {
     saveMutation.mutate(draft);
   }
 
+  // Welche Instanz-Kachel gerade aufgeklappt ist ("radarr-standard" usw.).
+  // Höchstens eine – wie bei den Benachrichtigungs-Zielen: Ist ein Formular
+  // offen, gehört die Aufmerksamkeit ihm.
+  const [offeneInstanz, setOffeneInstanz] = useState<string | null>(null);
+  const instanzUmschalten = (kennung: string) =>
+    setOffeneInstanz((aktuell) => (aktuell === kennung ? null : kennung));
+
   const update = (patch: Partial<Draft>) =>
     setDraft((current) => ({ ...current, ...patch }));
   const settings = settingsQuery.data;
@@ -785,11 +874,38 @@ export function AdminServicesSettings() {
 
         {unterTab === "radarr" && (
           <Section title={t("settings.radarrSection")} breit>
-            {/* Oben die Instanzen als eigene Bloecke, nebeneinander sobald Platz
-              ist. Darunter, was fuer beide gilt. Vorher stand die gemeinsame
-              Regel mitten im Standard-Block und sah aus, als betraefe sie nur
-              die eine Instanz. */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Die Instanzen als Kacheln - dieselbe Optik wie die
+              Benachrichtigungs-Ziele. Heute bewusst auf zwei begrenzt
+              (Standard + 4K); die Reihe ist trotzdem eine Liste, damit der
+              spaetere Mehr-Instanzen-Umbau nur ihre Quelle tauscht. Der
+              Klick oeffnet das Formular darunter; was fuer beide gilt
+              (Profil, Zielordner), bleibt gemeinsam weiter unten. */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <InstanzKachel
+                titel={t("settings.instanceStandard")}
+                adresse={settings?.radarr_url ?? ""}
+                kennung="radarr-standard"
+                aktiv={offeneInstanz === "radarr-standard"}
+                onBearbeiten={() => instanzUmschalten("radarr-standard")}
+              />
+              {settings?.radarr_uhd_url || settings?.radarr_uhd_api_key_set ? (
+                <InstanzKachel
+                  titel={t("uhd.section")}
+                  adresse={settings?.radarr_uhd_url ?? ""}
+                  kennung="radarr-uhd"
+                  aktiv={offeneInstanz === "radarr-uhd"}
+                  onBearbeiten={() => instanzUmschalten("radarr-uhd")}
+                />
+              ) : (
+                <PlusKachel
+                  beschriftung={t("settings.tileAddUhd")}
+                  aktiv={offeneInstanz === "radarr-uhd"}
+                  onClick={() => instanzUmschalten("radarr-uhd")}
+                />
+              )}
+            </div>
+
+            {offeneInstanz === "radarr-standard" && (
               <InstanzBlock
                 titel={t("settings.instanceStandard")}
                 hinweis={t("settings.instanceStandardHint")}
@@ -828,7 +944,9 @@ export function AdminServicesSettings() {
                   </>
                 )}
               </InstanzBlock>
+            )}
 
+            {offeneInstanz === "radarr-uhd" && (
               <InstanzBlock
                 titel={t("uhd.section")}
                 hinweis={t("uhd.sectionHint")}
@@ -869,7 +987,7 @@ export function AdminServicesSettings() {
                   </>
                 )}
               </InstanzBlock>
-            </div>
+            )}
 
             {/* Erst sinnvoll, wenn ueberhaupt eine Instanz steht: Profile und
               Ordner kommen ja von dort. */}
@@ -985,11 +1103,33 @@ export function AdminServicesSettings() {
 
         {unterTab === "sonarr" && (
           <Section title={t("settings.sonarrSection")} breit>
-            {/* Oben die Instanzen als eigene Bloecke, nebeneinander sobald Platz
-              ist. Darunter, was fuer beide gilt. Vorher stand die gemeinsame
-              Regel mitten im Standard-Block und sah aus, als betraefe sie nur
-              die eine Instanz. */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Kacheln wie bei Radarr - Begruendung dort. */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <InstanzKachel
+                titel={t("settings.instanceStandard")}
+                adresse={settings?.sonarr_url ?? ""}
+                kennung="sonarr-standard"
+                aktiv={offeneInstanz === "sonarr-standard"}
+                onBearbeiten={() => instanzUmschalten("sonarr-standard")}
+              />
+              {settings?.sonarr_uhd_url || settings?.sonarr_uhd_api_key_set ? (
+                <InstanzKachel
+                  titel={t("uhd.section")}
+                  adresse={settings?.sonarr_uhd_url ?? ""}
+                  kennung="sonarr-uhd"
+                  aktiv={offeneInstanz === "sonarr-uhd"}
+                  onBearbeiten={() => instanzUmschalten("sonarr-uhd")}
+                />
+              ) : (
+                <PlusKachel
+                  beschriftung={t("settings.tileAddUhd")}
+                  aktiv={offeneInstanz === "sonarr-uhd"}
+                  onClick={() => instanzUmschalten("sonarr-uhd")}
+                />
+              )}
+            </div>
+
+            {offeneInstanz === "sonarr-standard" && (
               <InstanzBlock
                 titel={t("settings.instanceStandard")}
                 hinweis={t("settings.instanceStandardHint")}
@@ -1028,7 +1168,9 @@ export function AdminServicesSettings() {
                   </>
                 )}
               </InstanzBlock>
+            )}
 
+            {offeneInstanz === "sonarr-uhd" && (
               <InstanzBlock
                 titel={t("uhd.section")}
                 hinweis={t("uhd.sectionHint")}
@@ -1069,7 +1211,7 @@ export function AdminServicesSettings() {
                   </>
                 )}
               </InstanzBlock>
-            </div>
+            )}
 
             {/* Erst sinnvoll, wenn ueberhaupt eine Instanz steht: Profile und
               Ordner kommen ja von dort. */}

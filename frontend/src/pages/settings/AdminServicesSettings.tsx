@@ -15,6 +15,7 @@ import type {
 } from "../../api/types";
 import { Button, ErrorBanner, Field, Spinner } from "../../components/ui";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
+import { WebhookZeile } from "./WebhookZeile";
 import { useRegionen } from "../../hooks/useRegionen";
 
 type TestService = "tmdb" | "radarr" | "sonarr" | "radarr_uhd" | "sonarr_uhd";
@@ -819,6 +820,9 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("radarr")}
+                {settings?.radarr_api_key_set && (
+                  <WebhookZeile kennung="radarr-standard" />
+                )}
               </InstanzBlock>
 
               <InstanzBlock
@@ -854,6 +858,9 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("radarr_uhd")}
+                {settings?.radarr_uhd_api_key_set && (
+                  <WebhookZeile kennung="radarr-uhd" />
+                )}
               </InstanzBlock>
             </div>
 
@@ -1007,6 +1014,9 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("sonarr")}
+                {settings?.sonarr_api_key_set && (
+                  <WebhookZeile kennung="sonarr-standard" />
+                )}
               </InstanzBlock>
 
               <InstanzBlock
@@ -1042,6 +1052,9 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("sonarr_uhd")}
+                {settings?.sonarr_uhd_api_key_set && (
+                  <WebhookZeile kennung="sonarr-uhd" />
+                )}
               </InstanzBlock>
             </div>
 

@@ -43,6 +43,31 @@ from fastapi.routing import APIRoute
 #: Absaetze haben - sie ist das, was jemand liest, bevor er etwas anbindet.
 TEXTE: dict[str, tuple[str, str]] = {
     # --- Rueckkanal (Webhooks) ---------------------------------------------
+    'GET /api/settings/webhooks': (
+        'Notification link status per instance',
+        (
+            'For every configured Radarr/Sonarr instance: whether the '
+            'per-instance switch is on, whether the entry currently exists '
+            'over there, when the reachability proof last arrived, when the '
+            'last call came in - and, if the link cannot be established, an '
+            'honest reason code.'
+        ),
+    ),
+    'PATCH /api/settings/webhooks/{kennung}': (
+        'Switch the notification link for one instance',
+        (
+            'Turning it on runs the proof and creates the entry in '
+            'Radarr/Sonarr; turning it off removes that entry without '
+            'leftovers. The response carries the resulting state.'
+        ),
+    ),
+    'POST /api/settings/webhooks/{kennung}/testen': (
+        'Prove the notification link right now',
+        (
+            'Asks the instance to send its test event to Nexview and reports '
+            'whether - and how fast - the call arrived, or why it could not.'
+        ),
+    ),
     'POST /api/webhooks/arr/{kennung}': (
         'Inbound call from Radarr or Sonarr',
         (

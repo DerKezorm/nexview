@@ -112,6 +112,12 @@ DEFAULTS: dict[str, str] = {
     # Link, den Nexview verschickt - der Server selbst kann sie nicht kennen,
     # weil er hinter einem Reverse Proxy steht.
     "public_url": "",
+    # Adresse, unter der **Radarr/Sonarr** Nexview erreichen - nur noetig,
+    # wenn die oeffentliche Adresse dafuer nicht taugt (Docker-Netz, Router
+    # ohne Rueckweg ueber die Aussenadresse, Anmeldeschutz oder
+    # selbstsigniertes Zertifikat am Reverse Proxy). Leer heisst: die
+    # oeffentliche Adresse gilt auch fuer den Rueckkanal.
+    "webhook_basis_url": "",
     # Einmal taeglich bei GitHub nachsehen, ob es eine neuere Version gibt.
     # Uebertragen wird dabei nichts ausser der Anfrage selbst.
     "update_check": "on",  # "on" | "off"
@@ -267,6 +273,7 @@ class AppSettings:
     smtp_from_address: str
     smtp_from_name: str
     public_url: str
+    webhook_basis_url: str
     update_check: bool
     backup_schedule: str
     backup_keep: int
@@ -311,6 +318,16 @@ class AppSettings:
     def link(self, pfad: str) -> str:
         """Vollstaendige Adresse fuer einen Link in einer E-Mail."""
         return f"{self.public_url.rstrip('/')}/{pfad.lstrip('/')}"
+
+    @property
+    def webhook_basis(self) -> str:
+        """Von wo aus Radarr/Sonarr Nexview anrufen - leer, wenn nirgends.
+
+        Das eigene Feld gewinnt; sonst gilt die oeffentliche Adresse. Beide
+        leer heisst: Der Rueckkanal kann nicht eingerichtet werden, und die
+        Pflege sagt das ehrlich ("no_address"), statt eine Adresse zu raten.
+        """
+        return self.webhook_basis_url or self.public_url
 
     def default_root(self, media_type: str, tier: str = "standard") -> str:
         """Vom Administrator gesetzter Zielordner - leer, wenn keiner gesetzt ist."""
@@ -675,6 +692,7 @@ def load_settings(db: Session) -> AppSettings:
         smtp_from_address=values["smtp_from_address"].strip(),
         smtp_from_name=values["smtp_from_name"].strip() or "Nexview",
         public_url=values["public_url"].strip().rstrip("/"),
+        webhook_basis_url=values["webhook_basis_url"].strip().rstrip("/"),
         update_check=_flag(values["update_check"], standard=True),
         backup_schedule=(
             values["backup_schedule"]
@@ -805,6 +823,7 @@ def public_settings(db: Session) -> dict[str, object]:
         "smtp_from_name": settings.smtp_from_name,
         "mail_configured": settings.mail_configured,
         "public_url": settings.public_url,
+        "webhook_basis_url": settings.webhook_basis_url,
         "update_check": settings.update_check,
         "backup_schedule": settings.backup_schedule,
         "backup_keep": settings.backup_keep,

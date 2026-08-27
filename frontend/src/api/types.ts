@@ -872,6 +872,8 @@ export type AppSettings = {
 
   /** Adresse, unter der Nexview von außen erreichbar ist – steckt in jedem Link. */
   public_url: string;
+  /** Adresse aus Sicht von Radarr/Sonarr – leer heißt: die öffentliche gilt. */
+  webhook_basis_url: string;
   update_check: boolean;
   /** Regelmäßige Sicherung: 'off' | 'daily' | 'weekly' | 'monthly'. */
   backup_schedule: BackupSchedule;
@@ -1477,3 +1479,36 @@ export type Region = {
   code: string;
   name: string;
 };
+
+/** Der Rückkanal-Zustand einer Radarr-/Sonarr-Instanz (GET /api/settings/webhooks). */
+export interface WebhookInstanzStand {
+  kennung: string;
+  name: string;
+  media_type: "movie" | "tv";
+  tier: "standard" | "uhd";
+  aktiv: boolean;
+  /** Steht unser Eintrag gerade drüben in Radarr/Sonarr? */
+  eingetragen: boolean;
+  bewiesen_am: string | null;
+  zuletzt_angerufen_am: string | null;
+  letztes_ereignis: string;
+  geprueft_am: string | null;
+  /** Hindernis-Kennung ("no_address", "too_old", …) – übersetzt im Frontend. */
+  fehler: string;
+  /** Roher Zusatz (Version, fehlende Fähigkeiten) – wird nicht übersetzt. */
+  fehler_info: string;
+}
+
+export interface WebhookStand {
+  /** Von wo aus Radarr/Sonarr anrufen – leer, wenn keine Adresse gesetzt ist. */
+  basis: string;
+  instanzen: WebhookInstanzStand[];
+}
+
+/** Antwort des Testen-Knopfs (POST /api/settings/webhooks/{kennung}/testen). */
+export interface WebhookProbe {
+  angekommen: boolean;
+  dauer_ms?: number | null;
+  fehler?: string | null;
+  info?: string | null;
+}

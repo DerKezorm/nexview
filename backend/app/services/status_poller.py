@@ -35,6 +35,7 @@ from . import (
     storage,
     ratings,
     requests_service,
+    webhook_pflege,
     webhooks,
     zurueckgestellt,
 )
@@ -576,6 +577,16 @@ async def run_forever(stop: asyncio.Event) -> None:
                 # aufgefrischten Bestand des Media-Servers zu, um Titel zu
                 # erfassen, die Radarr/Sonarr nicht mehr kennen.
                 await _speicher_vielleicht(db, settings)
+
+                # Der Rueckkanal-Eintrag in Radarr/Sonarr: stuendlich still
+                # nachgesehen (fehlt er, wird er neu angelegt; weicht er ab,
+                # nachgezogen), sofort faellig nach geaenderten Einstellungen
+                # (webhook_pflege.gleich_wieder) und beim Start.
+                try:
+                    await webhook_pflege.vielleicht_pflegen(db, settings)
+                except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+                    logger.exception("Webhook upkeep failed")
+                    db.rollback()
 
                 # ⚠️ **Nach** der Speicher-Messung, nicht davor: Eine Datei,
                 # die inzwischen ohnehin verschwunden ist, hat dann keinen

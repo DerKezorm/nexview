@@ -190,6 +190,51 @@ class ArrClient:
     async def root_folders(self) -> list[dict[str, Any]]:
         return await self.get("/rootfolder") or []
 
+    async def notifications(self) -> list[dict[str, Any]]:
+        """Alle Benachrichtigungs-Eintraege der Instanz - auch fremde.
+
+        ⚠️ Fremde Eintraege (z. B. Ruddarr) werden grundsaetzlich nur
+        angesehen, nie veraendert oder geloescht. Wem ein Eintrag gehoert,
+        entscheidet ``webhook_pflege`` - nicht diese Funktion.
+        """
+        return await self.get("/notification") or []
+
+    async def notification_schema_webhook(self) -> dict[str, Any] | None:
+        """Der Bauplan des Webhook-Typs - sagt, was **diese** Fassung kann.
+
+        Gebraucht fuer die Faehigkeits-Pruefung: Statt Versionsnummern zu
+        raten, wird nachgesehen, welche Ereignis-Flaggen (``supportsOn...``)
+        die Instanz wirklich anbietet. Live gemessen am 27.08.2026 (Radarr
+        6.3.0, Sonarr 4.0.19); die Form liegt dem Bauplan "Draht statt Takt"
+        bei.
+        """
+        schema = await self.get("/notification/schema") or []
+        for eintrag in schema:
+            if isinstance(eintrag, dict) and eintrag.get("implementation") == "Webhook":
+                return eintrag
+        return None
+
+    async def notification_anlegen(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self.post("/notification", payload)
+
+    async def notification_nachziehen(
+        self, eintrag_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        return await self.put(f"/notification/{eintrag_id}", {**payload, "id": eintrag_id})
+
+    async def notification_loeschen(self, eintrag_id: int) -> None:
+        await self.delete(f"/notification/{eintrag_id}")
+
+    async def notification_probe(self, payload: dict[str, Any]) -> None:
+        """Die Instanz bitten, den Eintrag **jetzt** einmal anzurufen.
+
+        Sonarr/Radarr schicken dabei ein Test-Ereignis an die eingetragene
+        Adresse - kommt es bei uns an, ist die Strecke bewiesen
+        (``routers/webhooks`` setzt ``bewiesen_am``). Der Aufruf speichert
+        nichts: Er funktioniert auch mit einem noch nicht angelegten Eintrag.
+        """
+        await self.post("/notification/test", payload)
+
     async def ensure_tag(self, label: str) -> int | None:
         """Kennung fuer ein Etikett besorgen - und es notfalls anlegen.
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Annotated, Literal
 
 import httpx
@@ -11,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..schemas import MIN_PASSWORD_LENGTH
-from ..services import cache, library, mail, mail_templates, storage
+from ..services import cache, library, mail, mail_templates, storage, webhook_pflege, webhooks
 from ..services.arr import ArrError
 from ..services.radarr import RadarrClient
 from ..services.sonarr import SonarrClient
@@ -78,6 +79,9 @@ class SettingsUpdate(BaseModel):
     smtp_from_name: str | None = Field(default=None, max_length=120)
     # Adresse, unter der Nexview von aussen erreichbar ist.
     public_url: str | None = Field(default=None, max_length=255)
+    # Adresse aus Sicht von Radarr/Sonarr - nur noetig, wenn die oeffentliche
+    # fuer den Rueckkanal nicht taugt (Docker-Netz, Proxy-Schutz, Zertifikat).
+    webhook_basis_url: str | None = Field(default=None, max_length=255)
     # Taegliche Nachfrage bei GitHub nach einer neueren Version.
     update_check: bool | None = None
     # --- Sicherungen -------------------------------------------------------
@@ -419,8 +423,23 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
                 "Die öffentliche Adresse muss mit http:// oder https:// beginnen.",
             ),
         )
+    if payload.webhook_basis_url and not payload.webhook_basis_url.strip().startswith(
+        ("http://", "https://")
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "public_url_needs_scheme",
+                "Die öffentliche Adresse muss mit http:// oder https:// beginnen.",
+            ),
+        )
 
     save_settings(db, payload.model_dump(exclude_unset=True))
+
+    # Der Rueckkanal haengt an Adressen und Zugaengen von hier: beim naechsten
+    # Rundgang pruefen statt erst zur vollen Stunde. Kein direkter Anstoss -
+    # dieser Endpunkt ist synchron, siehe webhook_pflege.gleich_wieder.
+    webhook_pflege.gleich_wieder()
 
     # ⚠️ Hier stand bis 0.19 der **Umschalt-Generalpardon**: Beim Wechsel der
     # Betriebsart starteten alle Konten bei null. Die Betriebsart gibt es nicht
@@ -917,3 +936,131 @@ async def papierkorb_inhalt(
         )
 
     return PapierkorbInhalt(instances=instanzen)
+
+
+# --- Rueckkanal (Webhook) je Instanz ----------------------------------------
+
+
+class WebhookInstanzStand(BaseModel):
+    """Der ehrliche Zustand einer Instanz - wie er auf der Diensteseite steht."""
+
+    kennung: str
+    name: str
+    media_type: str
+    tier: str
+    aktiv: bool
+    # Steht unser Eintrag gerade in Radarr/Sonarr?
+    eingetragen: bool
+    bewiesen_am: datetime | None
+    zuletzt_angerufen_am: datetime | None
+    letztes_ereignis: str
+    geprueft_am: datetime | None
+    # Kennung des Hindernisgrunds ("no_address", "too_old", "proof_failed",
+    # "unreachable", "create_failed") - uebersetzt im Frontend; dazu ein roher
+    # Zusatz (Version, fehlende Faehigkeiten), der nicht uebersetzt wird.
+    fehler: str
+    fehler_info: str
+
+
+class WebhookStand(BaseModel):
+    # Von wo aus Radarr/Sonarr anrufen - leer, wenn keine Adresse gesetzt ist.
+    basis: str
+    instanzen: list[WebhookInstanzStand]
+
+
+def _webhook_stand(db, settings) -> WebhookStand:
+    zeilen = []
+    for instanz in settings.arr_instanzen():
+        zeile = webhooks.eintrag(db, instanz.kennung)
+        zeilen.append(
+            WebhookInstanzStand(
+                kennung=instanz.kennung,
+                name=instanz.name,
+                media_type=instanz.media_type,
+                tier=instanz.tier,
+                # Vorgabe an: Eine Instanz ohne Zustand hat noch nie eine
+                # Pflege gesehen - der Haken gilt als gesetzt, ausgefuehrt
+                # wird beim naechsten Rundgang.
+                aktiv=zeile.aktiv if zeile else True,
+                eingetragen=bool(zeile and zeile.eintrag_id is not None),
+                bewiesen_am=zeile.bewiesen_am if zeile else None,
+                zuletzt_angerufen_am=zeile.zuletzt_angerufen_am if zeile else None,
+                letztes_ereignis=zeile.letztes_ereignis if zeile else "",
+                geprueft_am=zeile.geprueft_am if zeile else None,
+                fehler=zeile.fehler if zeile else "",
+                fehler_info=zeile.fehler_info if zeile else "",
+            )
+        )
+    return WebhookStand(basis=settings.webhook_basis, instanzen=zeilen)
+
+
+def _webhook_instanz(settings, kennung: str):
+    instanz = next(
+        (i for i in settings.arr_instanzen() if i.kennung == kennung), None
+    )
+    if instanz is None:
+        raise meldungen.fehler(
+            "webhook_unknown_instance",
+            "Zu dieser Kennung ist keine Instanz eingerichtet.",
+            status.HTTP_404_NOT_FOUND,
+        )
+    return instanz
+
+
+@router.get("/settings/webhooks", response_model=WebhookStand)
+async def webhook_stand(admin: AdminUser, db: DbSession) -> WebhookStand:
+    """Der Rueckkanal-Zustand aller eingerichteten Instanzen.
+
+    Nur lesen, nichts anfassen: Die Wahrheit ueber "bewiesen" und "zuletzt
+    angerufen" schreibt der Empfaenger (routers/webhooks), die ueber den
+    Eintrag selbst die Pflege (services/webhook_pflege).
+    """
+    return _webhook_stand(db, load_settings(db))
+
+
+class WebhookHaken(BaseModel):
+    aktiv: bool
+
+
+@router.patch("/settings/webhooks/{kennung}", response_model=WebhookStand)
+async def webhook_haken(
+    kennung: str, payload: WebhookHaken, admin: AdminUser, db: DbSession
+) -> WebhookStand:
+    """Den Haken "Webhook fuer Rueckkanal nutzen" umlegen - mit sofortiger Tat.
+
+    Einschalten heisst: Probe, Beweis, Eintrag anlegen. Abwaehlen heisst:
+    unseren Eintrag in Radarr/Sonarr rueckstandsfrei entfernen. Beides laeuft
+    noch in dieser Anfrage, damit die Antwort den wirklichen Zustand traegt -
+    die Sekunden Wartezeit sind hier Ehrlichkeit, keine Traegheit.
+    """
+    settings = load_settings(db)
+    instanz = _webhook_instanz(settings, kennung)
+    zeile = webhooks.eintrag_sicherstellen(db, kennung)
+    zeile.aktiv = payload.aktiv
+    db.commit()
+    await webhook_pflege.instanz_pflegen(db, settings, instanz)
+    return _webhook_stand(db, load_settings(db))
+
+
+class WebhookProbe(BaseModel):
+    angekommen: bool
+    dauer_ms: int | None = None
+    fehler: str | None = None
+    info: str | None = None
+
+
+@router.post("/settings/webhooks/{kennung}/testen", response_model=WebhookProbe)
+async def webhook_testen(
+    kennung: str, admin: AdminUser, db: DbSession
+) -> WebhookProbe:
+    """Der Testen-Knopf: die Instanz jetzt einmal anrufen lassen.
+
+    Beweist die ganze Strecke - Nexview bittet Radarr/Sonarr um die Probe,
+    die Instanz ruft unsere Anruf-Adresse, der Empfaenger vermerkt den
+    Beweis. Die Antwort sagt ehrlich, ob und wie schnell der Anruf ankam,
+    oder woran es haengt.
+    """
+    settings = load_settings(db)
+    instanz = _webhook_instanz(settings, kennung)
+    ergebnis = await webhook_pflege.testen(db, settings, instanz)
+    return WebhookProbe(**ergebnis)

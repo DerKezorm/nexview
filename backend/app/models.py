@@ -1432,6 +1432,22 @@ class ArrWebhook(Base):
     # Das eventType des letzten Anrufs - reine Anzeige. Mehr wird vom Inhalt
     # eines Anrufs grundsaetzlich nicht gespeichert: Er ist nicht die Wahrheit.
     letztes_ereignis: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    # Der Haken "Webhook fuer Rueckkanal nutzen" - je Instanz, Vorgabe an.
+    # Wer ihn abwaehlt, dessen Nexview-Eintrag wird in Radarr/Sonarr
+    # rueckstandsfrei entfernt (webhook_pflege).
+    aktiv: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Die Nummer unseres Eintrags in Radarr/Sonarr - das sicherste Erkennen
+    # beim Nachziehen. Faellt sie weg (Eintrag von Hand geloescht), findet die
+    # Pflege ihn ersatzweise an Name "Nexview" + Ziel-Adresse.
+    eintrag_id: Mapped[int | None] = mapped_column(Integer)
+    eingetragen_am: Mapped[datetime | None] = mapped_column(DateTime)
+    # Wann die Pflege zuletzt nach dem Eintrag gesehen hat.
+    geprueft_am: Mapped[datetime | None] = mapped_column(DateTime)
+    # Warum es gerade nicht laeuft - als Kennung, uebersetzt im Frontend
+    # ("no_address", "too_old", "proof_failed", "unreachable", ""). Dazu ein
+    # freier Zusatz (etwa die gefundene Version), der nicht uebersetzt wird.
+    fehler: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    fehler_info: Mapped[str] = mapped_column(String(200), default="", nullable=False)
 
 
 class MediaRequest(Base):

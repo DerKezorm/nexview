@@ -1020,7 +1020,9 @@
       "url_needs_scheme": "Die Adresse muss mit http:// oder https:// beginnen.",
       "user_not_found": "Benutzer nicht gefunden.",
       "username_taken": "Dieser Benutzername ist bereits vergeben. Bitte wähle einen anderen.",
-      "watchlist_disabled": "Die Merkliste ist nicht freigeschaltet."
+      "watchlist_disabled": "Die Merkliste ist nicht freigeschaltet.",
+      "webhook_secret_rejected": "Das Anruf-Geheimnis fehlt oder stimmt nicht.",
+      "webhook_unknown_instance": "Zu dieser Kennung ist keine Instanz eingerichtet."
     }
   },
   "language": {

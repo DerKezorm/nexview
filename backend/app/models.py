@@ -1405,6 +1405,35 @@ class Setting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class ArrWebhook(Base):
+    """Der Rueckkanal-Zustand je Radarr-/Sonarr-Instanz.
+
+    ⚠️ **Je Instanz-Kennung, nicht in vier festen Feldern** - die Kennung
+    kommt aus ``settings_service.arr_instanzen()`` (``"radarr-standard"``,
+    ``"sonarr-uhd"`` ...). Kommt spaeter der Umbau auf beliebig viele
+    Instanzen, wird sie zur Instanz-Nummer, und diese Tabelle bleibt stehen.
+    """
+
+    __tablename__ = "arr_webhooks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kennung: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    # Verschluesselt wie die API-Keys in ``settings`` (crypto.encrypt). Der
+    # Klartext steht nur in Radarr/Sonarr selbst - dort traegt ihn die Pflege
+    # als Anruf-Passwort ein.
+    geheimnis: Mapped[str] = mapped_column(Text, nullable=False)
+    erzeugt_am: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    # Wann zuletzt ein Test-Ereignis ankam - der Beweis, dass die Strecke
+    # Radarr/Sonarr → Nexview wirklich funktioniert. None heisst: nie bewiesen.
+    bewiesen_am: Mapped[datetime | None] = mapped_column(DateTime)
+    # Wann zuletzt irgendein Anruf mit gueltigem Geheimnis ankam ("zuletzt
+    # angerufen am ..." auf der Diensteseite).
+    zuletzt_angerufen_am: Mapped[datetime | None] = mapped_column(DateTime)
+    # Das eventType des letzten Anrufs - reine Anzeige. Mehr wird vom Inhalt
+    # eines Anrufs grundsaetzlich nicht gespeichert: Er ist nicht die Wahrheit.
+    letztes_ereignis: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+
+
 class MediaRequest(Base):
     __tablename__ = "media_requests"
     __table_args__ = (

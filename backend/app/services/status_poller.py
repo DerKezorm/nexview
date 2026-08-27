@@ -35,6 +35,7 @@ from . import (
     storage,
     ratings,
     requests_service,
+    webhooks,
     zurueckgestellt,
 )
 from .arr import ArrError
@@ -469,10 +470,79 @@ async def _faellige_loeschungen(db, settings) -> None:
             db.rollback()
 
 
+# Wie viel Ruhe nach dem **Beginn** eines Rundgangs mindestens ist, bevor ein
+# Anruf (Webhook) den naechsten ausloesen darf. Ein Massen-Import feuert je
+# Datei einen Anruf; gebuendelt kosten sie einen Rundgang alle paar Sekunden
+# statt fuenfzig hintereinander. Vorlaeufiger Wert - wird beim Bau der Pflege
+# an einem echten Massen-Import nachgemessen (Bauplan "Draht statt Takt").
+WECK_MINDESTABSTAND_SEKUNDEN = 10.0
+
+
+async def _bis_zum_naechsten_durchgang(
+    stop: asyncio.Event, wartezeit: float, frueheste_weckung: float
+) -> None:
+    """Schlafen bis zum Takt - oder frueher, wenn ein Anruf weckt.
+
+    Drei Ausgaenge, und ihre Rangfolge ist Absicht:
+
+    * ``stop`` gewinnt immer und sofort - das Herunterfahren wartet auf
+      keinen Entprell-Abstand.
+    * Ein Weckruf (``services.webhooks``) verkuerzt das Warten, aber
+      fruehestens nach ``frueheste_weckung`` Sekunden. Anrufe in dieser
+      tauben Phase gehen nicht verloren: Das Signal bleibt gesetzt und wird
+      genau **einmal** verbraucht - aus zehn Anrufen wird ein vorgezogener
+      Rundgang.
+    * Sonst endet das Warten mit dem Takt (``wartezeit``).
+
+    Das Signal wird beim Verlassen geloescht ("verbraucht"): Der nun folgende
+    Rundgang deckt alles ab, was bis hierher angerufen hat. Was waehrend des
+    Rundgangs anruft, setzt es erneut - und fuehrt zu genau einem Nachlauf.
+    """
+    weckruf = webhooks.weckruf()
+    stop_warten = asyncio.create_task(stop.wait())
+    weck_warten: asyncio.Task | None = None
+    try:
+        taub = min(frueheste_weckung, wartezeit)
+        if taub > 0:
+            fertig, _ = await asyncio.wait({stop_warten}, timeout=taub)
+            if stop_warten in fertig:
+                return
+        rest = wartezeit - taub
+        if rest <= 0:
+            return
+        weck_warten = asyncio.create_task(weckruf.wait())
+        await asyncio.wait(
+            {stop_warten, weck_warten},
+            timeout=rest,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+    finally:
+        # Aufgaben abraeumen statt nur abbrechen: Eine liegengelassene
+        # Ausnahme (etwa ein Signal, das noch an einer frueheren
+        # Ereignisschleife hing - der Fall der Tests) wuerde sonst erst beim
+        # Aufraeumen des Speichers als Warnung laermen.
+        stop_warten.cancel()
+        if weck_warten is not None:
+            weck_warten.cancel()
+        for aufgabe in (stop_warten, weck_warten):
+            if aufgabe is None:
+                continue
+            try:
+                await aufgabe
+            except (asyncio.CancelledError, RuntimeError):
+                pass
+        # Verbraucht - egal ob geweckt, Takt oder stop: Es folgt ohnehin ein
+        # Rundgang (bzw. das Ende), und ein liegengebliebenes Signal wuerde
+        # den uebernaechsten Durchgang grundlos sofort starten.
+        weckruf.clear()
+
+
 async def run_forever(stop: asyncio.Event) -> None:
     """Hintergrundschleife - laeuft, bis die Anwendung beendet wird."""
     while not stop.is_set():
         wartezeit = 120
+        durchgang_start = time.monotonic()
+        fehlgeschlagen = False
         try:
             with SessionLocal() as db:
                 settings = load_settings(db)
@@ -542,11 +612,23 @@ async def run_forever(stop: asyncio.Event) -> None:
             # Radarr/Sonarr gerade nicht erreichbar - kein Grund zur Aufregung.
             logger.warning("Status sync skipped: %s", error.message)
             wartezeit = max(wartezeit, ERROR_BACKOFF_SECONDS)
+            fehlgeschlagen = True
         except Exception:  # noqa: BLE001 - die Schleife darf nie sterben
             logger.exception("Status sync failed")
             wartezeit = max(wartezeit, ERROR_BACKOFF_SECONDS)
+            fehlgeschlagen = True
 
-        try:
-            await asyncio.wait_for(stop.wait(), timeout=wartezeit)
-        except TimeoutError:
-            continue
+        if fehlgeschlagen:
+            # Nach einem Fehlschlag gilt der Backoff auch fuer Anrufe: Ein
+            # Anruf-Gewitter darf eine gerade erst gescheiterte Instanz nicht
+            # sofort wieder treffen.
+            frueheste_weckung = float(ERROR_BACKOFF_SECONDS)
+        else:
+            # Der Mindestabstand zaehlt ab **Beginn** des Rundgangs: Wer nach
+            # langer Stille anruft, bekommt seinen Rundgang sofort - nur wer
+            # draengelt, wird gebuendelt.
+            frueheste_weckung = max(
+                0.0,
+                WECK_MINDESTABSTAND_SEKUNDEN - (time.monotonic() - durchgang_start),
+            )
+        await _bis_zum_naechsten_durchgang(stop, wartezeit, frueheste_weckung)

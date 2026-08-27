@@ -42,6 +42,17 @@ from fastapi.routing import APIRoute
 #: verstaendlich sein. Die Beschreibung darf Markdown enthalten und mehrere
 #: Absaetze haben - sie ist das, was jemand liest, bevor er etwas anbindet.
 TEXTE: dict[str, tuple[str, str]] = {
+    # --- Rueckkanal (Webhooks) ---------------------------------------------
+    'POST /api/webhooks/arr/{kennung}': (
+        'Inbound call from Radarr or Sonarr',
+        (
+            'Receiving end of the notification entry Nexview maintains inside '
+            'Radarr and Sonarr. Expects the per-instance secret as the Basic '
+            'auth password. The call only wakes the status sync - its payload '
+            'is never trusted. A "Test" event records the reachability proof '
+            'instead of waking anything.'
+        ),
+    ),
     # --- Speicher und Statistik --------------------------------------------
     'GET /api/admin/stats': (
         'Numbers for the dashboard',

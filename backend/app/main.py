@@ -64,6 +64,7 @@ from .routers import (
     users,
     watch as watch_router,
     watchlist as watchlist_router,
+    webhooks as webhooks_router,
 )
 from .services import channel_outbox, csp, logs, sicherung, status_poller
 from .services.arr import close_http_client as close_arr_client
@@ -234,6 +235,10 @@ app.include_router(streaming_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.admin_router)
 app.include_router(watchlist_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(watch_router.router, dependencies=NUR_ERWACHSENE)
+# Ohne Anmeldung, mit Anruf-Geheimnis: die Adresse, die Radarr/Sonarr rufen.
+# Warum das sicher ist, steht im Router selbst; die bewusste Ausnahme vom
+# Kinderschutz in test_child_permissions.py.
+app.include_router(webhooks_router.router)
 
 
 @app.get("/api/health", tags=["system"])

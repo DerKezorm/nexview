@@ -1020,7 +1020,9 @@
       "url_needs_scheme": "The address has to start with http:// or https://.",
       "user_not_found": "No such user.",
       "username_taken": "That username is taken. Please pick another one.",
-      "watchlist_disabled": "The watchlist is not switched on."
+      "watchlist_disabled": "The watchlist is not switched on.",
+      "webhook_secret_rejected": "The call secret is missing or wrong.",
+      "webhook_unknown_instance": "No instance is set up for this identifier."
     }
   },
   "language": {

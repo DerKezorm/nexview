@@ -59,6 +59,10 @@ KINDER_ERLAUBT = {
     # Kinderkonto hat auf dem Medienserver kein Gegenstueck, denn Kinder sind
     # Unterprofile ihrer Eltern und existieren dort gar nicht.
     "/api/auth/mediaserver/login/password",
+    # Der Rueckkanal von Radarr/Sonarr: verlangt das Anruf-Geheimnis der
+    # Instanz und liefert nichts zurueck - ein Achtjaehriger (oder sonst
+    # jemand ohne Geheimnis) sieht damit nichts. Siehe routers/webhooks.py.
+    "/api/webhooks/arr/{kennung}",
 }
 
 KINDER_PRAEFIXE = ("/api/kids/", "/api/onboarding/")

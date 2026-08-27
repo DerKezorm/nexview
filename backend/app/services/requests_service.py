@@ -973,14 +973,95 @@ async def _liegt_noch_dort(client, request: MediaRequest) -> bool:
         return nachfrage.status_code != 404
 
 
+def _weitere_aktive(db: Session, request: MediaRequest) -> list[MediaRequest]:
+    """Welche anderen laufenden Anfragen wollen noch etwas von diesem Titel?
+
+    Zeilen-, nicht nutzerbasiert: Auch die zweite Staffel desselben Nutzers
+    zaehlt. ``pending_approval`` zaehlt bewusst mit - einer wartenden Anfrage
+    soll ein fremder Abbruch nicht die Serie unter den Fuessen wegziehen.
+    """
+    return list(
+        db.scalars(
+            select(MediaRequest).where(
+                MediaRequest.media_type == request.media_type,
+                MediaRequest.tmdb_id == request.tmdb_id,
+                MediaRequest.tier == request.tier,
+                MediaRequest.status.in_(ACTIVE_STATUSES),
+                MediaRequest.id != request.id,
+            )
+        )
+    )
+
+
+async def _serie_abbrechen(db: Session, client, request: MediaRequest) -> str:
+    """Beim Abbruch einer Serien-Anfrage nur das selbst Bestellte entfernen.
+
+    Frueher loeschte jeder Abbruch die **ganze Serie samt Dateien** - auch
+    dann, wenn andere Nutzer andere Staffeln derselben Serie laufen hatten
+    oder laengst fertig geladen waren. Jetzt faellt die Serie erst, wenn
+    niemand mehr etwas von ihr will; sonst gehen nur die eigenen
+    Staffel-Dateien, und die Staffel wird stillgelegt, damit Sonarr sie
+    nicht im naechsten Suchlauf gleich wieder laedt.
+
+    Gibt fuer das Protokoll zurueck, was tatsaechlich geschehen ist.
+    """
+    andere = _weitere_aktive(db, request)
+    if not andere:
+        await client.remove(request.arr_id, delete_files=True)
+        return "removed the series including files"
+
+    gewollte_staffeln = {anfrage.season for anfrage in andere}
+    if None in gewollte_staffeln:
+        # Jemand will weiterhin die ganze Serie - dann ist hier nichts zu
+        # loeschen, jede Datei ist noch gedeckt.
+        return "left all files in place - another request covers the whole series"
+
+    if request.season is not None:
+        kennungen = [
+            int(datei["id"])
+            for datei in await client.episode_files(request.arr_id, request.season)
+            if datei.get("id")
+        ]
+        await client.unmonitor_season(request.arr_id, request.season)
+        if kennungen:
+            await client.delete_episode_files(kennungen)
+        return (
+            f"removed only season {request.season} ({len(kennungen)} files) - "
+            "the series remains for other requests"
+        )
+
+    # Bestand: eine Anfrage ueber die ganze Serie neben Staffeln anderer.
+    # Anlegbar ist das laengst nicht mehr (``find_active`` sperrt es),
+    # Altdaten koennen es aber noch enthalten. Dann gilt das Muster der
+    # Konto-Aufloesung: stilllegen und nur die Staffeln loeschen, die
+    # niemand will - die Ueberwachung der laufenden fremden Staffeln heilt
+    # der Status-Abgleich im naechsten Durchgang.
+    await client.serie_stilllegen(request.arr_id)
+    dateien = await client.get("/episodefile", {"seriesId": request.arr_id}) or []
+    kennungen = [
+        int(datei["id"])
+        for datei in dateien
+        if isinstance(datei, dict)
+        and datei.get("id")
+        and datei.get("seasonNumber") not in gewollte_staffeln
+    ]
+    if kennungen:
+        await client.delete_episode_files(kennungen)
+    return (
+        f"froze the series and removed {len(kennungen)} files "
+        "of seasons nobody else wants"
+    )
+
+
 async def cancel(
     db: Session, settings: AppSettings, request: MediaRequest
 ) -> MediaRequest:
     """Eine laufende Anfrage abbrechen.
 
-    Der Titel wird in Radarr/Sonarr geloescht - samt bereits geladener
-    Dateien -, und das Kontingent des Anfragenden wird wieder frei, weil
-    ``cancelled`` nicht mitgezaehlt wird.
+    Entfernt wird nur das selbst Bestellte: ein Film ganz, eine Serie erst
+    dann komplett, wenn keine andere laufende Anfrage mehr etwas von ihr
+    will - sonst nur die eigenen Staffel-Dateien. Das Kontingent des
+    Anfragenden wird wieder frei, weil ``cancelled`` nicht mitgezaehlt wird.
     """
     if request.status not in (RequestStatus.approved, RequestStatus.searching):
         raise RequestError(
@@ -988,6 +1069,7 @@ async def cancel(
             409,
         )
 
+    umfang = "removed it including files"
     if request.arr_id:
         # Die Stufe der Anfrage entscheidet, aus welcher Instanz geloescht wird -
         # sonst bliebe die 4K-Datei liegen, waehrend Nexview "abgebrochen" meldet.
@@ -998,7 +1080,10 @@ async def cancel(
         )
         if client is not None:
             try:
-                await client.remove(request.arr_id, delete_files=True)
+                if request.media_type == MediaType.movie:
+                    await client.remove(request.arr_id, delete_files=True)
+                else:
+                    umfang = await _serie_abbrechen(db, client, request)
             except ArrError as error:
                 # 404 heisst: dort schon weg - dann ist das Ziel ja erreicht.
                 #
@@ -1018,6 +1103,7 @@ async def cancel(
                 # Ziel erreicht; liegt er noch dort, war es ein echter Fehler.
                 if error.status_code != 404 and await _liegt_noch_dort(client, request):
                     raise RequestError(error.message, 502) from error
+                umfang = "it was already gone there"
 
     request.status = RequestStatus.cancelled
     request.completed_at = utcnow()
@@ -1025,10 +1111,11 @@ async def cancel(
     db.commit()
 
     logger.warning(
-        "Cancelled %r (tmdb=%s) for user %r and removed it including files",
+        "Cancelled %r (tmdb=%s) for user %r - %s",
         request.title,
         request.tmdb_id,
         request.user.username,
+        umfang,
     )
     library.invalidate()
     return request

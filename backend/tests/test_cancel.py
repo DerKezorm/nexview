@@ -6,10 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest, RequestStatus, User
+from app.models import MediaRequest, MediaType, RequestStatus, User
 from app.services import library
 from app.services.arr import ArrError
 from app.services.radarr import RadarrClient
+from app.services.sonarr import SonarrClient
 
 from .conftest import auth_headers, create_user
 
@@ -256,3 +257,276 @@ def test_abbrechen_scheitert_weiter_wenn_der_titel_noch_dort_liegt(
         request = session.get(MediaRequest, anfrage["id"])
         assert request is not None
         assert request.status == RequestStatus.searching
+
+
+# --- Serien: Der Abbruch trifft nur noch das selbst Bestellte -----------------
+
+
+@pytest.fixture
+def sonarr_protokoll(monkeypatch: pytest.MonkeyPatch) -> dict[str, list]:
+    """Merkt sich, was in Sonarr geschehen wäre - ohne echten Aufruf."""
+    aufrufe: dict[str, list] = {
+        "entfernt": [],
+        "stillgelegte_staffeln": [],
+        "geloeschte_dateien": [],
+        "stillgelegte_serien": [],
+    }
+
+    async def remove(_self: SonarrClient, arr_id: int, delete_files: bool = True) -> None:
+        aufrufe["entfernt"].append((arr_id, delete_files))
+
+    async def episode_files(_self: SonarrClient, arr_id: int, season: int) -> list[dict]:
+        return [
+            {"id": 90 + season, "seasonNumber": season},
+            {"id": 190 + season, "seasonNumber": season},
+        ]
+
+    async def unmonitor_season(_self: SonarrClient, arr_id: int, season: int) -> None:
+        aufrufe["stillgelegte_staffeln"].append((arr_id, season))
+
+    async def delete_episode_files(_self: SonarrClient, datei_ids: list[int]) -> int:
+        assert datei_ids, "delete_episode_files darf nie mit leerer Liste laufen"
+        aufrufe["geloeschte_dateien"].extend(datei_ids)
+        return len(datei_ids)
+
+    async def serie_stilllegen(_self: SonarrClient, arr_id: int) -> None:
+        aufrufe["stillgelegte_serien"].append(arr_id)
+
+    monkeypatch.setattr(SonarrClient, "remove", remove)
+    monkeypatch.setattr(SonarrClient, "episode_files", episode_files)
+    monkeypatch.setattr(SonarrClient, "unmonitor_season", unmonitor_season)
+    monkeypatch.setattr(SonarrClient, "delete_episode_files", delete_episode_files)
+    monkeypatch.setattr(SonarrClient, "serie_stilllegen", serie_stilllegen)
+    return aufrufe
+
+
+def _laufende_serienanfrage(
+    client: TestClient,
+    benutzer: str = "kim",
+    season: int | None = 2,
+    serie: dict | None = None,
+    headers: dict | None = None,
+) -> dict:
+    """Serien-Anfrage anlegen und wie eine laufende aussehen lassen."""
+    if headers is None:
+        create_user(client, benutzer)
+        headers = auth_headers(client, benutzer, "passwort-1234")
+    if serie is None:
+        serie = client.get("/api/discover/tv?page=1").json()["items"][0]
+
+    nutzlast = {"media_type": "tv", "tmdb_id": serie["tmdb_id"], "quality_profile_id": 1}
+    if season is not None:
+        nutzlast["season"] = season
+    angelegt = client.post("/api/requests", json=nutzlast, headers=headers)
+    assert angelegt.status_code == 201, angelegt.text
+
+    kennung = angelegt.json()["id"]
+    with SessionLocal() as session:
+        request = session.get(MediaRequest, kennung)
+        assert request is not None
+        request.status = RequestStatus.searching
+        request.arr_id = 4711
+        session.commit()
+
+    return {"id": kennung, "headers": headers, "serie": serie}
+
+
+def test_letzte_serienanfrage_loescht_die_serie(
+    arr_client: TestClient, sonarr_protokoll: dict
+) -> None:
+    """Will niemand sonst etwas von der Serie, fliegt sie wie bisher ganz raus."""
+    anfrage = _laufende_serienanfrage(arr_client)
+
+    antwort = arr_client.post(
+        f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
+    )
+    assert antwort.status_code == 200
+    assert antwort.json()["status"] == "cancelled"
+
+    assert sonarr_protokoll["entfernt"] == [(4711, True)]
+    assert sonarr_protokoll["stillgelegte_staffeln"] == []
+    assert sonarr_protokoll["geloeschte_dateien"] == []
+
+
+def test_abbruch_verschont_fremde_staffeln(
+    arr_client: TestClient, sonarr_protokoll: dict
+) -> None:
+    """Kims Abbruch von Staffel 2 darf Alex' Staffel 3 nicht mitreissen.
+
+    Frueher loeschte der Abbruch die **ganze Serie samt Dateien** - auch die
+    Staffeln anderer Nutzer. Jetzt gehen nur Kims Staffel-Dateien, die Staffel
+    wird stillgelegt, und die Serie bleibt stehen.
+    """
+    kim = _laufende_serienanfrage(arr_client, "kim", season=2)
+    alex = _laufende_serienanfrage(arr_client, "alex", season=3, serie=kim["serie"])
+
+    antwort = arr_client.post(
+        f"/api/requests/{kim['id']}/cancel", headers=kim["headers"]
+    )
+    assert antwort.status_code == 200
+
+    # Nur Kims Staffel 2: stillgelegt und deren Dateien geloescht - kein remove.
+    assert sonarr_protokoll["entfernt"] == []
+    assert sonarr_protokoll["stillgelegte_staffeln"] == [(4711, 2)]
+    assert sorted(sonarr_protokoll["geloeschte_dateien"]) == [92, 192]
+
+    with SessionLocal() as session:
+        assert session.get(MediaRequest, alex["id"]).status == RequestStatus.searching
+        assert session.get(MediaRequest, kim["id"]).status == RequestStatus.cancelled
+
+
+def test_abbruch_verschont_die_eigene_zweite_staffel(
+    arr_client: TestClient, sonarr_protokoll: dict
+) -> None:
+    """Auch die zweite Staffel desselben Nutzers zaehlt als "noch gewollt"."""
+    erste = _laufende_serienanfrage(arr_client, "kim", season=2)
+    zweite = _laufende_serienanfrage(
+        arr_client, season=3, serie=erste["serie"], headers=erste["headers"]
+    )
+
+    antwort = arr_client.post(
+        f"/api/requests/{zweite['id']}/cancel", headers=erste["headers"]
+    )
+    assert antwort.status_code == 200
+
+    assert sonarr_protokoll["entfernt"] == []
+    assert sonarr_protokoll["stillgelegte_staffeln"] == [(4711, 3)]
+    assert sorted(sonarr_protokoll["geloeschte_dateien"]) == [93, 193]
+
+
+def test_wartende_anfrage_schuetzt_die_serie(
+    arr_client: TestClient, sonarr_protokoll: dict
+) -> None:
+    """Auch wer noch auf Freigabe wartet, will die Serie - sie bleibt stehen."""
+    kim = _laufende_serienanfrage(arr_client, "kim", season=2)
+
+    create_user(arr_client, "alex")
+    alex = auth_headers(arr_client, "alex", "passwort-1234")
+    wartend = arr_client.post(
+        "/api/requests",
+        json={"media_type": "tv", "tmdb_id": kim["serie"]["tmdb_id"], "quality_profile_id": 1, "season": 3},
+        headers=alex,
+    )
+    assert wartend.status_code == 201
+
+    antwort = arr_client.post(
+        f"/api/requests/{kim['id']}/cancel", headers=kim["headers"]
+    )
+    assert antwort.status_code == 200
+
+    assert sonarr_protokoll["entfernt"] == []
+    assert sonarr_protokoll["stillgelegte_staffeln"] == [(4711, 2)]
+
+
+def test_abbruch_ohne_dateien_loescht_keine(
+    arr_client: TestClient, sonarr_protokoll: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Liegt von der eigenen Staffel noch nichts, gibt es nichts zu loeschen -
+    und vor allem keinen Fehlschlag wegen einer leeren Loeschliste."""
+    kim = _laufende_serienanfrage(arr_client, "kim", season=2)
+    _laufende_serienanfrage(arr_client, "alex", season=3, serie=kim["serie"])
+
+    async def keine_dateien(_self: SonarrClient, arr_id: int, season: int) -> list[dict]:
+        return []
+
+    monkeypatch.setattr(SonarrClient, "episode_files", keine_dateien)
+
+    antwort = arr_client.post(
+        f"/api/requests/{kim['id']}/cancel", headers=kim["headers"]
+    )
+    assert antwort.status_code == 200
+    assert sonarr_protokoll["stillgelegte_staffeln"] == [(4711, 2)]
+    assert sonarr_protokoll["geloeschte_dateien"] == []
+
+
+def test_serienabbruch_bei_altbestand_legt_nur_still(
+    arr_client: TestClient, sonarr_protokoll: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Altdaten: eine Ganze-Serie-Anfrage neben einer fremden Staffel.
+
+    Anlegbar ist das laengst nicht mehr, Bestand kann es aber enthalten. Dann
+    wird die Serie stillgelegt und es fallen nur die Staffeln, die niemand
+    will - Alex' Staffel 3 bleibt liegen.
+    """
+    kim = _laufende_serienanfrage(arr_client, "kim", season=None)
+
+    create_user(arr_client, "alex")
+    with SessionLocal() as session:
+        alex = session.query(User).filter(User.username == "alex").one()
+        session.add(
+            MediaRequest(
+                user_id=alex.id,
+                media_type=MediaType.tv,
+                tmdb_id=kim["serie"]["tmdb_id"],
+                title=kim["serie"].get("title") or "Testserie",
+                season=3,
+                status=RequestStatus.searching,
+                arr_id=4711,
+            )
+        )
+        session.commit()
+
+    async def get(_self: SonarrClient, pfad: str, params: dict | None = None) -> list:
+        assert pfad == "/episodefile"
+        return [{"id": 71, "seasonNumber": 1}, {"id": 73, "seasonNumber": 3}]
+
+    monkeypatch.setattr(SonarrClient, "get", get)
+
+    antwort = arr_client.post(
+        f"/api/requests/{kim['id']}/cancel", headers=kim["headers"]
+    )
+    assert antwort.status_code == 200
+
+    assert sonarr_protokoll["entfernt"] == []
+    assert sonarr_protokoll["stillgelegte_serien"] == [4711]
+    # Nur die Datei aus Staffel 1 faellt - Staffel 3 ist noch gewollt.
+    assert sonarr_protokoll["geloeschte_dateien"] == [71]
+
+
+def test_serienabbruch_gelingt_wenn_die_serie_schon_weg_ist(
+    arr_client: TestClient, sonarr_protokoll: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Der 500er-Griff gilt auch im staffelgenauen Pfad: weg ist weg."""
+    kim = _laufende_serienanfrage(arr_client, "kim", season=2)
+    _laufende_serienanfrage(arr_client, "alex", season=3, serie=kim["serie"])
+
+    async def streikt(_self: SonarrClient, arr_id: int, season: int) -> None:
+        raise ArrError("Sonarr meldet einen Fehler (HTTP 500).", 500)
+
+    async def weg(_self: SonarrClient, pfad: str, params: dict | None = None) -> None:
+        assert pfad == "/series/4711"
+        raise ArrError("Sonarr kennt diese Serie nicht.", 404)
+
+    monkeypatch.setattr(SonarrClient, "unmonitor_season", streikt)
+    monkeypatch.setattr(SonarrClient, "get", weg)
+
+    antwort = arr_client.post(
+        f"/api/requests/{kim['id']}/cancel", headers=kim["headers"]
+    )
+    assert antwort.status_code == 200
+    assert antwort.json()["status"] == "cancelled"
+
+
+def test_serienabbruch_scheitert_wenn_sonarr_wirklich_streikt(
+    arr_client: TestClient, sonarr_protokoll: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Gegenprobe: Liegt die Serie noch dort, bleibt der Fehler ein Fehler."""
+    kim = _laufende_serienanfrage(arr_client, "kim", season=2)
+    _laufende_serienanfrage(arr_client, "alex", season=3, serie=kim["serie"])
+
+    async def streikt(_self: SonarrClient, arr_id: int, season: int) -> None:
+        raise ArrError("Sonarr meldet einen Fehler (HTTP 500).", 500)
+
+    async def liegt_noch_da(_self: SonarrClient, pfad: str, params: dict | None = None) -> dict:
+        return {"id": 4711, "title": "Liegt noch da"}
+
+    monkeypatch.setattr(SonarrClient, "unmonitor_season", streikt)
+    monkeypatch.setattr(SonarrClient, "get", liegt_noch_da)
+
+    antwort = arr_client.post(
+        f"/api/requests/{kim['id']}/cancel", headers=kim["headers"]
+    )
+    assert antwort.status_code == 502
+
+    with SessionLocal() as session:
+        assert session.get(MediaRequest, kim["id"]).status == RequestStatus.searching

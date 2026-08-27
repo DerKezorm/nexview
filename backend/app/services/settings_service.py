@@ -208,6 +208,28 @@ class Verbindung:
 
 
 @dataclass(frozen=True)
+class ArrInstanz:
+    """Eine Radarr-/Sonarr-Instanz, wie neuer Code sie sehen soll: als Listeneintrag.
+
+    ⚠️ Absichtlich eine Liste-von-Instanzen-Sicht, obwohl es heute genau die
+    zwei festen Stufen gibt (``QualityTier``): Alles Neue haengt an der
+    ``kennung`` statt an vier ausbuchstabierten Faellen. Kommt spaeter der
+    Umbau auf beliebig viele Instanzen (Seerr und Ombi koennen das), wechselt
+    nur die Quelle dieser Liste - ihre Verbraucher bleiben unberuehrt.
+    """
+
+    # Stabil und pfadtauglich (kein Doppelpunkt): An dieser Kennung haengt
+    # gespeicherter Zustand, spaeter etwa die Anruf-Adresse des Webhooks.
+    # Wer sie umbenennt, verliert diesen Zustand.
+    kennung: str
+    media_type: str  # "movie" | "tv" - wie ueberall sonst
+    tier: str  # "standard" | "uhd"
+    name: str  # Anzeigename: "Radarr", "Sonarr 4K", ...
+    url: str
+    api_key: str
+
+
+@dataclass(frozen=True)
 class AppSettings:
     """Aufbereitete Einstellungen fuer die Verwendung im Code (Klartext)."""
 
@@ -399,6 +421,36 @@ class AppSettings:
         """Ist die Instanz fuer diese Art und Stufe vollstaendig eingetragen?"""
         url, key = self.arr_endpoint(media_type, tier)
         return bool(url and key)
+
+    def arr_instanzen(self) -> tuple[ArrInstanz, ...]:
+        """Alle **eingerichteten** Instanzen, in Anzeigereihenfolge.
+
+        Das Gegenstueck zu ``arr_endpoint``: dort der Einzelzugriff, hier der
+        Ueberblick. Wer "fuer jede Instanz ..." arbeiten will, laeuft ueber
+        diese Liste und buchstabiert die Stufen nicht selbst aus - so bleibt
+        die Zahl der Instanzen an genau einer Stelle bekannt.
+        """
+        alle = (
+            ("radarr-standard", "movie", "standard", "Radarr"),
+            ("radarr-uhd", "movie", "uhd", "Radarr 4K"),
+            ("sonarr-standard", "tv", "standard", "Sonarr"),
+            ("sonarr-uhd", "tv", "uhd", "Sonarr 4K"),
+        )
+        ergebnis = []
+        for kennung, art, stufe, name in alle:
+            url, key = self.arr_endpoint(art, stufe)
+            if url and key:
+                ergebnis.append(
+                    ArrInstanz(
+                        kennung=kennung,
+                        media_type=art,
+                        tier=stufe,
+                        name=name,
+                        url=url,
+                        api_key=key,
+                    )
+                )
+        return tuple(ergebnis)
 
     @property
     def uhd_available(self) -> bool:

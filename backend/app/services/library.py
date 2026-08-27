@@ -469,20 +469,10 @@ async def papierkorb_setzen(
     # Zwischenspeicher genau das falsche Werkzeug.
 
 
-# Alle Stellen, an denen geloescht werden koennte - in Anzeigereihenfolge.
-# ``arr_configured`` entscheidet, welche davon es hier ueberhaupt gibt.
-INSTANZEN: tuple[tuple[str, str, str], ...] = (
-    ("movie", "standard", "Radarr"),
-    ("movie", "uhd", "Radarr 4K"),
-    ("tv", "standard", "Sonarr"),
-    ("tv", "uhd", "Sonarr 4K"),
-)
-
-
 async def papierkoerbe(settings: AppSettings) -> list[tuple[str, str, str, Papierkorb]]:
     """Der Papierkorb-Stand **aller** eingerichteten Instanzen.
 
-    ⚠️ **Die Liste entsteht bei jedem Aufruf neu aus ``arr_configured``.** Wer
+    ⚠️ **Die Liste entsteht bei jedem Aufruf neu aus ``arr_instanzen``.** Wer
     naechste Woche eine zweite Instanz eintraegt, findet sie hier ohne
     Zutun - und ohne Papierkorb faellt der Gesamtzustand dadurch von selbst auf
     "nicht geschuetzt". Genau das soll er: Eine neue Instanz ist eine neue
@@ -494,20 +484,16 @@ async def papierkoerbe(settings: AppSettings) -> list[tuple[str, str, str, Papie
     Zurueck kommen ``(media_type, tier, Anzeigename, Stand)`` - nicht
     eingerichtete Instanzen fehlen ganz.
     """
-    vorhanden = [
-        (art, stufe, name)
-        for art, stufe, name in INSTANZEN
-        if settings.arr_configured(art, stufe)
-    ]
+    vorhanden = settings.arr_instanzen()
     if not vorhanden:
         return []
 
     staende = await asyncio.gather(
-        *(papierkorb(settings, art, stufe) for art, stufe, _ in vorhanden)
+        *(papierkorb(settings, instanz.media_type, instanz.tier) for instanz in vorhanden)
     )
     return [
-        (art, stufe, name, stand)
-        for (art, stufe, name), stand in zip(vorhanden, staende, strict=True)
+        (instanz.media_type, instanz.tier, instanz.name, stand)
+        for instanz, stand in zip(vorhanden, staende, strict=True)
         if stand is not None
     ]
 

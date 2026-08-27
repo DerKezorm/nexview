@@ -409,7 +409,8 @@ async def _speicher_vielleicht(db, settings) -> None:
     also genau dann, wenn er eine Zahl braucht, um eine sinnvolle zu waehlen.
     """
     global _speicher_zuletzt
-    if not (settings.radarr_configured or settings.sonarr_configured):
+    # "Irgendeine Instanz" - nicht nur die Standard-Plaetze (siehe run_forever).
+    if not settings.arr_instanzen():
         return
     jetzt = time.monotonic()
     if jetzt - _speicher_zuletzt < SPEICHER_INTERVALL_SEKUNDEN:
@@ -476,7 +477,10 @@ async def run_forever(stop: asyncio.Event) -> None:
             with SessionLocal() as db:
                 settings = load_settings(db)
                 wartezeit = settings.poll_interval_seconds
-                if settings.radarr_configured or settings.sonarr_configured:
+                # ⚠️ "Irgendeine Instanz eingerichtet" - nicht nur die
+                # Standard-Plaetze. Vorher zaehlten hier nur radarr/sonarr
+                # ohne 4K: Eine reine 4K-Installation wurde nie abgeglichen.
+                if settings.arr_instanzen():
                     await check_once(db, settings)
 
                     # Vorgemerkte Titel („Sag mir Bescheid"). Bewusst

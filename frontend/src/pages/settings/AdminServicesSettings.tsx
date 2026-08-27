@@ -15,6 +15,7 @@ import type {
 } from "../../api/types";
 import { Button, ErrorBanner, Field, Spinner } from "../../components/ui";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
+import { InstanzGesundheit } from "./InstanzGesundheit";
 import { WebhookZeile } from "./WebhookZeile";
 import { useRegionen } from "../../hooks/useRegionen";
 
@@ -821,7 +822,10 @@ export function AdminServicesSettings() {
                 />
                 {testRow("radarr")}
                 {settings?.radarr_api_key_set && (
-                  <WebhookZeile kennung="radarr-standard" />
+                  <>
+                    <InstanzGesundheit kennung="radarr-standard" />
+                    <WebhookZeile kennung="radarr-standard" />
+                  </>
                 )}
               </InstanzBlock>
 
@@ -859,7 +863,10 @@ export function AdminServicesSettings() {
                 />
                 {testRow("radarr_uhd")}
                 {settings?.radarr_uhd_api_key_set && (
-                  <WebhookZeile kennung="radarr-uhd" />
+                  <>
+                    <InstanzGesundheit kennung="radarr-uhd" />
+                    <WebhookZeile kennung="radarr-uhd" />
+                  </>
                 )}
               </InstanzBlock>
             </div>
@@ -1015,7 +1022,10 @@ export function AdminServicesSettings() {
                 />
                 {testRow("sonarr")}
                 {settings?.sonarr_api_key_set && (
-                  <WebhookZeile kennung="sonarr-standard" />
+                  <>
+                    <InstanzGesundheit kennung="sonarr-standard" />
+                    <WebhookZeile kennung="sonarr-standard" />
+                  </>
                 )}
               </InstanzBlock>
 
@@ -1053,7 +1063,10 @@ export function AdminServicesSettings() {
                 />
                 {testRow("sonarr_uhd")}
                 {settings?.sonarr_uhd_api_key_set && (
-                  <WebhookZeile kennung="sonarr-uhd" />
+                  <>
+                    <InstanzGesundheit kennung="sonarr-uhd" />
+                    <WebhookZeile kennung="sonarr-uhd" />
+                  </>
                 )}
               </InstanzBlock>
             </div>

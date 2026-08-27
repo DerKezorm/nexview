@@ -100,6 +100,31 @@ def schluessel(
     return f"{basis}:r{request_id}" if request_id else basis
 
 
+def spuerbar_zugelegt(db: Session, request, size_bytes: int) -> bool:
+    """Hat dieser geladene Posten spuerbar zugelegt - eine Aufwertung?
+
+    Fuer den Status-Abgleich: Der sieht die frische Groesse in derselben
+    Antwort, die gerade "noch da" beantwortet hat, und zieht bei Ja den
+    Speicher-Abgleich vor, statt bis zur vollen Stunde zu warten. Verbucht
+    und gemeldet wird erst **dort** (``abgleichen``) - eine Rechnung, eine
+    Schwelle, eine Meldung, samt der Staffel-Schutzregel ``unvollstaendig``.
+    Hier wird nur verglichen, nichts geschrieben.
+    """
+    if size_bytes <= 0:
+        return False
+    kennung = schluessel(
+        request.media_type,
+        request.tier,
+        tmdb_id=request.tmdb_id,
+        tvdb_id=request.tvdb_id,
+        season=request.season,
+    )
+    if kennung is None:
+        return False
+    zeile = db.scalar(select(StorageEntry).where(StorageEntry.key == kennung))
+    return zeile is not None and size_bytes - zeile.size_bytes >= MELDESCHWELLE
+
+
 @dataclass(frozen=True)
 class Kontostand:
     """Was ein Nutzer belegt."""

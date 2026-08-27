@@ -12,7 +12,16 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..schemas import MIN_PASSWORD_LENGTH
-from ..services import cache, library, mail, mail_templates, storage, webhook_pflege, webhooks
+from ..services import (
+    cache,
+    instanz_gesundheit,
+    library,
+    mail,
+    mail_templates,
+    storage,
+    webhook_pflege,
+    webhooks,
+)
 from ..services.arr import ArrError
 from ..services.radarr import RadarrClient
 from ..services.sonarr import SonarrClient
@@ -1047,6 +1056,51 @@ class WebhookProbe(BaseModel):
     dauer_ms: int | None = None
     fehler: str | None = None
     info: str | None = None
+
+
+class GesundheitProblem(BaseModel):
+    typ: str
+    text: str
+
+
+class GesundheitInstanz(BaseModel):
+    kennung: str
+    name: str
+    probleme: list[GesundheitProblem]
+    aktualisiert_am: datetime | None
+
+
+class GesundheitStand(BaseModel):
+    instanzen: list[GesundheitInstanz]
+
+
+@router.get("/settings/instanzen/gesundheit", response_model=GesundheitStand)
+async def instanzen_gesundheit(admin: AdminUser, db: DbSession) -> GesundheitStand:
+    """Was die Instanzen selbst als Problem melden - je Instanz.
+
+    Gelesen wird der zuletzt gesehene Stand (der Rundgang holt ihn jede
+    Runde frisch); die Texte kommen im Wortlaut der Instanz und werden
+    bewusst nicht uebersetzt.
+    """
+    settings = load_settings(db)
+    zeilen = []
+    for instanz in settings.arr_instanzen():
+        zeile = instanz_gesundheit.eintrag(db, instanz.kennung)
+        zeilen.append(
+            GesundheitInstanz(
+                kennung=instanz.kennung,
+                name=instanz.name,
+                probleme=[
+                    GesundheitProblem(
+                        typ=str(p.get("typ") or "warning"),
+                        text=str(p.get("text") or ""),
+                    )
+                    for p in (zeile.stand if zeile else None) or []
+                ],
+                aktualisiert_am=zeile.aktualisiert_am if zeile else None,
+            )
+        )
+    return GesundheitStand(instanzen=zeilen)
 
 
 @router.post("/settings/webhooks/{kennung}/testen", response_model=WebhookProbe)

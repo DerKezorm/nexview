@@ -155,6 +155,16 @@ const EREIGNISSE = [
     labelKey: 'channels.onStorageRelease',
     hintKey: 'channels.onStorageReleaseHint',
   },
+  {
+    // Radarr/Sonarr melden ein eigenes Problem (Download-Client tot, Indexer
+    // weg). Standard "high": Wenn das kommt, hängen alle Anfragen - genau die
+    // Meldung, für die man ein Postfach eingerichtet hat.
+    key: 'instance_health',
+    gruppe: 'betrieb',
+    standard: 'high',
+    labelKey: 'channels.onInstanceHealth',
+    hintKey: 'channels.onInstanceHealthHint',
+  },
 ] as const
 
 const GRUPPEN = ['anfragen', 'betrieb'] as const

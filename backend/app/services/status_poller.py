@@ -26,6 +26,7 @@ from ..models import (
 from . import (
     abgleich_kern,
     aufraeum_bericht,
+    instanz_gesundheit,
     library,
     loeschfrist,
     mail_outbox,
@@ -362,12 +363,20 @@ async def check_once(db: Session, settings: AppSettings) -> int:
             # auch, wenn eine andere Staffel aufgewertet wird, und die
             # Bewertung galt nicht der.
             if request.season is None:
-                ratings.entwerten(
-                    db,
-                    request.media_type,
-                    request.tmdb_id,
-                    int(getattr(eintrag, "size_bytes", 0) or 0),
-                )
+                groesse = int(getattr(eintrag, "size_bytes", 0) or 0)
+                ratings.entwerten(db, request.media_type, request.tmdb_id, groesse)
+                # Aufwertung erkannt? Dann den Speicher-Abgleich vorziehen -
+                # Verbuchung und "dein Posten ist gewachsen"-Meldung macht
+                # er selbst, er soll es nur nicht erst zur vollen Stunde
+                # erfahren. Der Upgrade-Anruf weckt den Rundgang, der
+                # Rundgang zieht den Abgleich vor: eine Kette, ein
+                # Wahrheitsweg.
+                if storage.spuerbar_zugelegt(db, request, groesse):
+                    logger.info(
+                        "Upgrade spotted for %r - storage sync brought forward",
+                        request.title,
+                    )
+                    _speicher_vorziehen()
             continue
         # Zweite Quelle: der Media-Server. Wer den Titel nur aus Radarr
         # entfernt hat, hat ihn dort weiterhin - dann bleibt "geladen" wahr.
@@ -445,6 +454,17 @@ async def _bibliothek_vielleicht(db, settings) -> None:
 # je Woche. Stuendlich ist reichlich.
 SPEICHER_INTERVALL_SEKUNDEN = 3600
 _speicher_zuletzt: float = 0.0
+
+
+def _speicher_vorziehen() -> None:
+    """Den stuendlichen Speicher-Abgleich sofort faellig machen.
+
+    Gerufen, wenn der Status-Abgleich eine Aufwertung sieht. Weil
+    ``_speicher_vielleicht`` in derselben Runde **nach** ``check_once``
+    laeuft, geht die Meldung noch im selben Durchgang hinaus.
+    """
+    global _speicher_zuletzt
+    _speicher_zuletzt = 0.0
 
 
 async def _speicher_vielleicht(db, settings) -> None:
@@ -631,6 +651,16 @@ async def run_forever(stop: asyncio.Event) -> None:
                     await webhook_pflege.vielleicht_pflegen(db, settings)
                 except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
                     logger.exception("Webhook upkeep failed")
+                    db.rollback()
+
+                # Die Gesundheit der Instanzen - jede Runde, denn der Anruf
+                # (onHealthIssue) ist nur ein Wecker: Er zieht den Rundgang
+                # vor, und erst diese Nachfrage hier holt die Wahrheit. Die
+                # Abfrage ist winzig; gemeldet wird einmal je Problem.
+                try:
+                    await instanz_gesundheit.pruefen(db, settings)
+                except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+                    logger.exception("Instance health check failed")
                     db.rollback()
 
                 # ⚠️ **Nach** der Speicher-Messung, nicht davor: Eine Datei,

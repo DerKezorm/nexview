@@ -231,6 +231,13 @@ class NotificationType(str, enum.Enum):
     # gebuendelt: Laedt ein Staffelpaket durch, ist das *eine* Meldung ueber
     # acht Folgen und nicht acht Meldungen.
     watch_episodes = "watch_episodes"
+    # --- Instanz-Gesundheit -------------------------------------------------
+    # Radarr/Sonarr melden ein eigenes Problem (Download-Client tot, Indexer
+    # weg) - geht an die Administratoren. Der haeufigste stille Totalausfall:
+    # Ohne diese Meldung haengen alle Anfragen auf "wird gesucht", und
+    # niemand merkt es. Einmal je Problem, nicht je Durchgang - das Entprellen
+    # macht ``services/instanz_gesundheit``.
+    instanz_gesundheit = "instance_health"
     # Ein bewerteter Titel wurde in besserer Fassung nachgeladen.
     #
     # Radarr und Sonarr laden weiter, bis das Qualitaetsprofil erreicht ist.
@@ -1448,6 +1455,26 @@ class ArrWebhook(Base):
     # freier Zusatz (etwa die gefundene Version), der nicht uebersetzt wird.
     fehler: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     fehler_info: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+
+
+class ArrGesundheit(Base):
+    """Der zuletzt gesehene Gesundheits-Stand je Instanz.
+
+    Nur das Gedaechtnis fuers Entprellen ("einmal je Problem melden, nicht
+    stuendlich wieder") und fuer die Anzeige auf der Diensteseite. Die
+    Wahrheit ist immer die frische Antwort der Instanz - der Rundgang holt
+    sie sich jede Runde selbst (``services/instanz_gesundheit``).
+    """
+
+    __tablename__ = "arr_gesundheit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kennung: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    # Die aktuellen Probleme: [{"schluessel": "...", "typ": "error",
+    # "text": "..."}]. Der Text kommt roh von der Instanz (englisch) und wird
+    # bewusst nicht uebersetzt - er ist ihre Aussage, nicht unsere.
+    stand: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
+    aktualisiert_am: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class MediaRequest(Base):

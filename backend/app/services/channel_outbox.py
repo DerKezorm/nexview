@@ -83,6 +83,9 @@ EVENTS: dict[NotificationType, str] = {
     NotificationType.storage_released: "storage_release",
     NotificationType.storage_kept: "storage_release",
     NotificationType.storage_deleted: "storage_release",
+    # Radarr/Sonarr melden ein eigenes Problem - eine Haus-Durchsage im
+    # Wortsinn: Sie betrifft jeden, der auf Downloads wartet.
+    NotificationType.instanz_gesundheit: "instance_health",
 }
 
 # Die Haken, die es damit gibt - fuer die Pruefung im Router.
@@ -98,6 +101,8 @@ LINKS: dict[NotificationType, str] = {
     NotificationType.storage_released: "/profil",
     NotificationType.storage_kept: "/profil",
     NotificationType.storage_deleted: "/profil",
+    # Dorthin, wo der Warnkasten der Instanz steht.
+    NotificationType.instanz_gesundheit: "/admin/settings",
 }
 
 # Textbausteine. Ein serverseitiges Ziel hat keinen Empfaenger und damit auch
@@ -125,6 +130,8 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.storage_released: {"title": "Ein Titel gehört jetzt dem Haus"},
         NotificationType.storage_kept: {"title": "Ein Titel bleibt, wird aber nicht mehr geladen"},
         NotificationType.storage_deleted: {"title": "Ein Titel wurde gelöscht"},
+        # Der Titel der Nachricht traegt die Aussage der Instanz im Wortlaut.
+        NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr meldet ein Problem"},
     },
     "en": {
         NotificationType.request_pending: {
@@ -143,6 +150,7 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.storage_released: {"title": "A title now belongs to the house"},
         NotificationType.storage_kept: {"title": "A title stays, but stops downloading"},
         NotificationType.storage_deleted: {"title": "A title has been deleted"},
+        NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr reports a problem"},
     },
 }
 

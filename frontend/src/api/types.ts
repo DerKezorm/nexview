@@ -1516,3 +1516,21 @@ export interface WebhookProbe {
   fehler?: string | null;
   info?: string | null;
 }
+
+/** Was eine Instanz selbst als Problem meldet (GET /api/settings/instanzen/gesundheit). */
+export interface GesundheitProblem {
+  typ: string;
+  /** Wortlaut der Instanz – bewusst unübersetzt. */
+  text: string;
+}
+
+export interface GesundheitInstanz {
+  kennung: string;
+  name: string;
+  probleme: GesundheitProblem[];
+  aktualisiert_am: string | null;
+}
+
+export interface GesundheitStand {
+  instanzen: GesundheitInstanz[];
+}

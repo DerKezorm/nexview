@@ -61,6 +61,14 @@ TEXTE: dict[str, tuple[str, str]] = {
             'leftovers. The response carries the resulting state.'
         ),
     ),
+    'GET /api/settings/instanzen/gesundheit': (
+        'Health problems the instances report',
+        (
+            'The last seen /health state of every configured Radarr/Sonarr '
+            'instance, refreshed each sync round. Messages are passed on in '
+            'the instance’s own words.'
+        ),
+    ),
     'POST /api/settings/webhooks/{kennung}/testen': (
         'Prove the notification link right now',
         (

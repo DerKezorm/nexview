@@ -243,6 +243,17 @@ class ArrClient:
                 return eintraege
             seite += 1
 
+    async def gesundheit(self) -> list[dict[str, Any]]:
+        """Die eigenen Probleme der Instanz (``/health``).
+
+        Live gemessen (27.08.2026): Bei gesunden Instanzen eine leere Liste;
+        die Feldnamen der Eintraege (``source``, ``type``, ``message``)
+        stammen aus der API-Beschreibung - der Verbraucher liest sie deshalb
+        nachsichtig.
+        """
+        antwort = await self.get("/health")
+        return antwort if isinstance(antwort, list) else []
+
     async def notifications(self) -> list[dict[str, Any]]:
         """Alle Benachrichtigungs-Eintraege der Instanz - auch fremde.
 

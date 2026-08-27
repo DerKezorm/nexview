@@ -17,6 +17,15 @@ from . import http_log
 TIMEOUT = httpx.Timeout(15.0, connect=6.0)
 MAX_PARALLEL_REQUESTS = 6
 
+# Fuer Schreibzugriffe auf /notification und die Probe: Radarr/Sonarr
+# validieren einen Webhook-Eintrag, indem sie das Ziel **sofort selbst
+# anrufen** - und antworten erst, wenn dieser Anruf fertig ist. Live gemessen
+# (27.08.2026): Bei stumm geschlucktem Ziel (Firewall) dauert das laenger als
+# die normalen 15 Sekunden, unser Client brach ab, und ob gespeichert wurde,
+# war "ungewiss" (wurde es nicht - die Instanz verwirft bei gescheiterter
+# Validierung). Mit laengerer Frist kommt stattdessen ihre ehrliche Antwort.
+NOTIFICATION_TIMEOUT = httpx.Timeout(60.0, connect=6.0)
+
 _client: httpx.AsyncClient | None = None
 _client_lock = asyncio.Lock()
 
@@ -104,13 +113,20 @@ class ArrClient:
     def _url(self, path: str) -> str:
         return f"{self.base_url}/api/v3{path}"
 
-    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        timeout: httpx.Timeout | None = None,
+        **kwargs: Any,
+    ) -> Any:
         client = await _http()
         try:
             response = await client.request(
                 method,
                 self._url(path),
                 headers={"X-Api-Key": self.api_key},
+                timeout=timeout if timeout is not None else TIMEOUT,
                 **kwargs,
             )
         except httpx.TimeoutException as exc:
@@ -215,12 +231,21 @@ class ArrClient:
         return None
 
     async def notification_anlegen(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self.post("/notification", payload)
+        # Laengere Frist: Das Speichern ruft das Ziel zur Pruefung selbst an
+        # (siehe NOTIFICATION_TIMEOUT).
+        return await self._request(
+            "POST", "/notification", timeout=NOTIFICATION_TIMEOUT, json=payload
+        )
 
     async def notification_nachziehen(
         self, eintrag_id: int, payload: dict[str, Any]
     ) -> dict[str, Any]:
-        return await self.put(f"/notification/{eintrag_id}", {**payload, "id": eintrag_id})
+        return await self._request(
+            "PUT",
+            f"/notification/{eintrag_id}",
+            timeout=NOTIFICATION_TIMEOUT,
+            json={**payload, "id": eintrag_id},
+        )
 
     async def notification_loeschen(self, eintrag_id: int) -> None:
         await self.delete(f"/notification/{eintrag_id}")
@@ -233,7 +258,9 @@ class ArrClient:
         (``routers/webhooks`` setzt ``bewiesen_am``). Der Aufruf speichert
         nichts: Er funktioniert auch mit einem noch nicht angelegten Eintrag.
         """
-        await self.post("/notification/test", payload)
+        await self._request(
+            "POST", "/notification/test", timeout=NOTIFICATION_TIMEOUT, json=payload
+        )
 
     async def ensure_tag(self, label: str) -> int | None:
         """Kennung fuer ein Etikett besorgen - und es notfalls anlegen.

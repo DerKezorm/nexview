@@ -308,8 +308,13 @@ type FolgenProps = {
   onSetzen: (menge: Set<number>, ganz: boolean) => void
 }
 
-/** Die Folgen einer Staffel zum Anhaken – erst geladen, wenn aufgeklappt. */
-function FolgenAuswahl({
+/**
+ * Die Folgen einer Staffel zum Anhaken – erst geladen, wenn aufgeklappt.
+ *
+ * Exportiert, weil auch der Freigabe-Dialog der Kinderwünsche damit dosiert:
+ * gleiche Liste, gleiche Belegt-Regeln, gleiche Worte.
+ */
+export function FolgenAuswahl({
   tmdbId,
   season,
   tier,

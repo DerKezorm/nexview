@@ -84,6 +84,10 @@ class WishRelease(BaseModel):
     quality_profile_id: int | None = Field(default=None, ge=1)
     root_folder_path: str | None = Field(default=None, max_length=500)
     season: int | None = Field(default=None, ge=0, le=200)
+    # Nur zusammen mit ``season``: einzelne Folgen statt der ganzen Staffel -
+    # Eltern koennen erst zwei Folgen zum Antesten holen. Dieselben Regeln
+    # wie bei einer gewoehnlichen Anfrage, geprueft im Dienst.
+    episodes: list[int] | None = Field(default=None, max_length=400)
     monitor_future: bool = False
     tier: QualityTier = QualityTier.standard
 
@@ -209,6 +213,7 @@ async def release_wish(
             quality_profile_id=payload.quality_profile_id,
             root_folder_path=payload.root_folder_path,
             season=payload.season if wunsch.media_type == MediaType.tv else None,
+            episodes=payload.episodes if wunsch.media_type == MediaType.tv else None,
             tier=payload.tier,
             monitor_future=payload.monitor_future,
         )

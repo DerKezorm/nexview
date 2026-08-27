@@ -205,13 +205,22 @@ async def freigeben(
     return anfrage
 
 
-def erledigte_schliessen(db: Session, media_type: MediaType, tmdb_id: int) -> int:
+def erledigte_schliessen(
+    db: Session, media_type: MediaType, tmdb_id: int, season: int | None = None
+) -> int:
     """Offene Wuensche schliessen, deren Titel inzwischen da ist.
 
     Zwei Kinder duerfen sich denselben Film wuenschen. Holt ihn ein Elternteil,
     haette das andere Kind sonst weiter einen offenen Wunsch auf etwas, das
     laengst in der Bibliothek liegt - und sein Elternteil eine Aufgabe, die
     sich nicht mehr erledigen laesst.
+
+    ⚠️ **Nur volle Abdeckung schliesst.** Eine Staffel- oder Folgen-Anfrage
+    (``season`` gesetzt) liefert weniger, als ein Wunsch meint - der Wunsch
+    gilt dem Titel. Wuerde sie fremde Wuensche schliessen, staende bei einem
+    anderen Kind "ist da", weil ein Elternteil zwei Folgen zum Antesten
+    geholt hat. Die bleiben deshalb offen; nur eine Anfrage ueber die ganze
+    Serie (oder ein Film) erledigt sie.
 
     Der Zustand ist ``obsolete`` und ausdruecklich **nicht** ``declined``: Das
     Kind hat ja bekommen, was es wollte. Als Absage gelesen waere es das genaue
@@ -220,6 +229,8 @@ def erledigte_schliessen(db: Session, media_type: MediaType, tmdb_id: int) -> in
 
     Committet **nicht** - der Aufrufer haengt das an seine eigene Transaktion.
     """
+    if media_type == MediaType.tv and season is not None:
+        return 0
     offen = db.scalars(
         select(ChildWish).where(
             ChildWish.media_type == media_type,

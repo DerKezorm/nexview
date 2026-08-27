@@ -1151,7 +1151,7 @@ async def create_request(
     # jeden Weg ab: gewoehnliche Anfrage, freigegebener Wunsch, Admin-Anfrage.
     from . import child_wishes
 
-    child_wishes.erledigte_schliessen(db, media_type, item.tmdb_id)
+    child_wishes.erledigte_schliessen(db, media_type, item.tmdb_id, season=season)
 
     db.commit()
     db.refresh(request)

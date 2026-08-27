@@ -1568,6 +1568,9 @@
     "wishFolder": "Zielordner",
     "wishFrom": "von {{name}}",
     "wishProfile": "Qualität",
+    "wishSeason": "Welche Staffel?",
+    "wishEpisodes": "Nur einzelne Folgen wählen",
+    "wishWholeSeason": "Ganze Staffel",
     "wishRelease": "Freigeben",
     "wishReleaseHint": "Daraus wird eine ganz normale Anfrage auf deinen Namen – mit deinem Kontingent und deinem üblichen Freigabeweg.",
     "wishTargetLater": "Ordner und Qualität wählt der Entscheider bei der Freigabe.",
@@ -1606,6 +1609,7 @@
     "titleMissing": "Das gibt es hier nicht.",
     "trailer": "Trailer ansehen",
     "wishButton": "Das möchte ich sehen",
+    "wishMoreButton": "Ich möchte mehr davon",
     "wishHint": "Mama oder Papa entscheidet.",
     "wishesEmpty": "Du hast dir noch nichts gewünscht.",
     "wishesTitle": "Meine Wünsche"

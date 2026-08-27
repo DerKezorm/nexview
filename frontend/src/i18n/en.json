@@ -1568,6 +1568,9 @@
     "wishFolder": "Target folder",
     "wishFrom": "from {{name}}",
     "wishProfile": "Quality",
+    "wishSeason": "Which season?",
+    "wishEpisodes": "Pick single episodes only",
+    "wishWholeSeason": "Whole season",
     "wishRelease": "Approve",
     "wishReleaseHint": "This becomes an ordinary request in your name – your quota, your usual approval path.",
     "wishTargetLater": "The approver picks folder and quality when approving.",
@@ -1606,6 +1609,7 @@
     "titleMissing": "That is not here.",
     "trailer": "Watch trailer",
     "wishButton": "I want to watch this",
+    "wishMoreButton": "I want more of this",
     "wishHint": "Your mum or dad decides.",
     "wishesEmpty": "You have not wished for anything yet.",
     "wishesTitle": "My wishes"

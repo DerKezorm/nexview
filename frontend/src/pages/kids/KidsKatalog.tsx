@@ -514,12 +514,32 @@ export function KidsTitel({
               {t('children.previewNoWish')}
             </p>
           ) : vorhandener ? (
-            <div
-              className="rounded-3xl px-5 py-5 text-center text-xl font-extrabold text-white"
-              style={{ backgroundColor: KIDS.wunsch }}
-            >
-              {t(`kids.state.${vorhandener.state}`)}
-            </div>
+            <>
+              <div
+                className="rounded-3xl px-5 py-5 text-center text-xl font-extrabold text-white"
+                style={{ backgroundColor: KIDS.wunsch }}
+              >
+                {t(`kids.state.${vorhandener.state}`)}
+              </div>
+              {/* „Mehr davon": Bei Serien darf nach einer erledigten
+                  Teil-Freigabe erneut gewünscht werden - die Eltern dosieren
+                  ja staffel- oder folgenweise, und ohne diesen Knopf käme das
+                  Kind nie wieder an die nächsten Folgen. Der Server erlaubt
+                  den neuen Wunsch, sobald kein offener mehr existiert. */}
+              {vorhandener.state === 'available' &&
+                daten.media_type === 'tv' &&
+                !verfuegbar && (
+                  <button
+                    type="button"
+                    onClick={() => wuenschen.mutate()}
+                    disabled={wuenschen.isPending}
+                    className="rounded-3xl px-6 py-4 text-lg font-extrabold text-white shadow-lg transition-transform active:scale-95 disabled:opacity-60"
+                    style={{ backgroundColor: KIDS.primaer }}
+                  >
+                    {t('kids.wishMoreButton')}
+                  </button>
+                )}
+            </>
           ) : (
             <>
               <button

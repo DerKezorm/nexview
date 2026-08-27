@@ -3,11 +3,17 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
-import type { ArrOptions, ParentWish } from '../../api/types'
+import type { ArrOptions, MediaItem, ParentWish } from '../../api/types'
 import { useAuth } from '../../auth/useAuth'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../../components/ui'
 import { useConfig } from '../../hooks/useConfig'
 import { TitelVerweis } from '../../components/TitelVerweis'
+import {
+  FolgenAuswahl,
+  belegungsWort,
+  staffelBelegt,
+} from '../../components/media/StaffelFolgenWaehler'
+import { folgenKompakt } from '../../lib/format'
 
 /**
  * Die offenen Wünsche der eigenen Kinder.
@@ -155,6 +161,7 @@ export function Kinderwuensche() {
                 ? config?.approver_picks_target_movie
                 : config?.approver_picks_target_tv),
           )}
+          folgenErlaubt={Boolean(config?.episode_requests_enabled)}
           laeuft={freigeben.isPending}
           onFreigeben={(ziel) => freigeben.mutate({ wunsch: freigabe, ziel })}
           onAbbrechen={() => setFreigabe(null)}
@@ -191,24 +198,31 @@ export function Kinderwuensche() {
 type Ziel = {
   quality_profile_id: number | null
   root_folder_path: string | null
+  season: number | null
+  episodes: number[] | null
 }
 
 /**
- * Profil und Ordner wählen – aber nur, soweit der Betreiber die Wahl überhaupt
- * freigegeben hat.
+ * Profil, Ordner – und bei Serien Staffel und Folgen wählen.
  *
  * Ein Feld anzuzeigen, dessen Wert der Server verwirft, wäre eine Lüge; hängt
- * die Wahl am Entscheider, steht hier deshalb nur ein Satz und ein Knopf.
+ * die Ziel-Wahl am Entscheider, bleiben Profil und Ordner weg. **Die Staffel
+ * bleibt trotzdem Pflicht**: Ohne sie hieß die Freigabe stillschweigend
+ * „ganze Serie" – samt allem, was noch kommt. Eltern dosieren jetzt: eine
+ * Staffel je Freigabe, auf Wunsch nur einzelne Folgen zum Antesten. Für
+ * „mehr davon" wünscht das Kind einfach erneut.
  */
 function Zielwahl({
   wunsch,
   zielSpaeter,
+  folgenErlaubt,
   laeuft,
   onFreigeben,
   onAbbrechen,
 }: {
   wunsch: ParentWish
   zielSpaeter: boolean
+  folgenErlaubt: boolean
   laeuft: boolean
   onFreigeben: (ziel: Ziel) => void
   onAbbrechen: () => void
@@ -216,6 +230,11 @@ function Zielwahl({
   const { t } = useTranslation()
   const [profil, setProfil] = useState<number | null>(null)
   const [ordner, setOrdner] = useState('')
+  const [staffel, setStaffel] = useState<number | null>(null)
+  const [folgen, setFolgen] = useState<Set<number>>(new Set())
+  const [folgenSicht, setFolgenSicht] = useState(false)
+
+  const istSerie = wunsch.media_type === 'tv'
 
   const optionen = useQuery({
     queryKey: ['arr-options', wunsch.media_type, 'standard'],
@@ -225,16 +244,29 @@ function Zielwahl({
     enabled: !zielSpaeter,
   })
 
+  // Die Staffelliste samt Belegt-Angaben - dieselbe Quelle wie das
+  // Anfrage-Formular, damit hier nichts wählbar aussieht, was der Server
+  // gleich mit 409 ablehnt.
+  const detail = useQuery({
+    queryKey: ['freigabe-detail', wunsch.tmdb_id],
+    queryFn: () => api.get<MediaItem>(`/api/detail/tv/${wunsch.tmdb_id}`),
+    enabled: istSerie,
+  })
+  const staffeln = detail.data?.seasons ?? []
+  const waehlbare = staffeln.filter((s) => !staffelBelegt(s, 'standard'))
+  const gewaehlteStaffel = staffel ?? waehlbare[0]?.season_number ?? null
+
   const daten = optionen.data
   // Die Vorauswahl bestimmt der Server – sie hängt an den Sperren des Kontos.
   const gewaehltesProfil = profil ?? daten?.default_quality_profile_id ?? null
   const gewaehlterOrdner = ordner || daten?.default_root_folder || ''
 
-  const bereit =
+  const zielBereit =
     zielSpaeter ||
     (daten !== undefined &&
       (!daten.quality_profile_choice || gewaehltesProfil !== null) &&
       (!daten.root_folder_choice || gewaehlterOrdner !== ''))
+  const bereit = zielBereit && (!istSerie || gewaehlteStaffel !== null)
 
   return (
     <Card className="flex flex-col gap-4">
@@ -246,6 +278,80 @@ function Zielwahl({
           erschienen={wunsch.release_date}
         />
       </h3>
+
+      {/* Bei Serien zuerst: Welche Staffel - und auf Wunsch welche Folgen?
+          Das bleibt auch dann Pflicht, wenn Profil und Ordner erst der
+          Entscheider wählt: Der Umfang der Zusage gehört den Eltern. */}
+      {istSerie &&
+        (detail.isPending ? (
+          <p className="flex items-center gap-2 text-sm text-mist-500">
+            <Spinner /> {t('common.loading')}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <label className="flex flex-col gap-1.5 text-sm font-medium text-mist-300">
+              {t('children.wishSeason')}
+              <select
+                value={gewaehlteStaffel ?? ''}
+                onChange={(event) => {
+                  setStaffel(Number(event.target.value))
+                  setFolgen(new Set())
+                  setFolgenSicht(false)
+                }}
+                className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100"
+              >
+                {staffeln.map((eintrag) => {
+                  const belegt = staffelBelegt(eintrag, 'standard')
+                  const gesamt = eintrag.episodes_total_arr ?? eintrag.episode_count
+                  const vorhanden = gesamt > 0 && eintrag.episodes_available >= gesamt
+                  return (
+                    <option
+                      key={eintrag.season_number}
+                      value={eintrag.season_number}
+                      disabled={belegt}
+                    >
+                      {eintrag.name}
+                      {belegt
+                        ? ` · ${t(belegungsWort(eintrag.requested_status, vorhanden))}`
+                        : ''}
+                    </option>
+                  )
+                })}
+              </select>
+            </label>
+
+            {gewaehlteStaffel !== null && folgenErlaubt && (
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFolgenSicht((wert) => !wert)}
+                  className="self-start text-sm text-mist-400 underline-offset-2 hover:text-accent-500 hover:underline"
+                >
+                  {folgen.size > 0
+                    ? t('request.episodesPicked', { list: folgenKompakt([...folgen]) })
+                    : t('children.wishEpisodes')}
+                </button>
+                {folgen.size === 0 && !folgenSicht && (
+                  <p className="text-xs text-mist-600">{t('children.wishWholeSeason')}</p>
+                )}
+                {folgenSicht && (
+                  <div className="rounded-xl border border-ink-700 bg-ink-900/60">
+                    <FolgenAuswahl
+                      tmdbId={wunsch.tmdb_id}
+                      season={gewaehlteStaffel}
+                      tier="standard"
+                      ganzGewaehlt={false}
+                      paket={folgen}
+                      restGewuenscht={false}
+                      onRestErledigt={() => {}}
+                      onSetzen={(menge, ganz) => setFolgen(ganz ? new Set() : menge)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
 
       {zielSpaeter ? (
         <p className="text-sm text-mist-500">{t('children.wishTargetLater')}</p>
@@ -303,6 +409,11 @@ function Zielwahl({
             onFreigeben({
               quality_profile_id: zielSpaeter ? null : gewaehltesProfil,
               root_folder_path: zielSpaeter ? null : gewaehlterOrdner || null,
+              season: istSerie ? gewaehlteStaffel : null,
+              episodes:
+                istSerie && folgen.size > 0
+                  ? [...folgen].sort((a, b) => a - b)
+                  : null,
             })
           }
         >

@@ -414,3 +414,138 @@ def test_kind_loeschen_nimmt_die_wuensche_mit(arr_client: TestClient) -> None:
 
     with SessionLocal() as sitzung:
         assert sitzung.query(ChildWish).count() == 0
+
+
+# --- Eltern dosieren: Staffel und Folgen bei der Freigabe ---------------------
+
+
+def _erste_serie(client: TestClient, kopf: dict[str, str]) -> dict:
+    """Irgendeine Serie, die dieses Kind sehen darf."""
+    kategorien = client.get("/api/kids/categories?media_type=tv", headers=kopf).json()
+    assert kategorien, "Die Kinder-Serienseite ist leer - dann testet hier nichts."
+    rubrik = kategorien[0]["rubrik"]
+    seite = client.get(f"/api/kids/rubrik/{rubrik}?media_type=tv", headers=kopf).json()
+    assert seite["wuenschbar"], "Keine Serie zu wuenschen - dann testet hier nichts."
+    return seite["wuenschbar"][0]
+
+
+def _serienwunsch(client: TestClient, kind_kopf: dict[str, str], eltern: dict[str, str]) -> tuple[dict, int]:
+    """Das Kind wuenscht eine Serie; gibt (serie, wunsch_id aus Elternsicht)."""
+    serie = _erste_serie(client, kind_kopf)
+    antwort = client.post(
+        "/api/kids/wishes",
+        json={"media_type": "tv", "tmdb_id": serie["tmdb_id"]},
+        headers=kind_kopf,
+    )
+    assert antwort.status_code in (200, 201), antwort.text
+    wuensche = client.get("/api/children/wishes", headers=eltern).json()
+    passend = [w for w in wuensche if w["tmdb_id"] == serie["tmdb_id"]]
+    assert passend, "Der Wunsch kam nicht bei den Eltern an."
+    return serie, passend[-1]["id"]
+
+
+def test_freigabe_mit_folgen_wird_paket(arr_client: TestClient) -> None:
+    """Eltern koennen dosieren: erst zwei Folgen zum Antesten."""
+    eltern, kind_kopf, kind_id = _familie(arr_client)
+    serie, wunsch_id = _serienwunsch(arr_client, kind_kopf, eltern)
+
+    antwort = arr_client.post(
+        f"/api/children/wishes/{wunsch_id}/release",
+        json={"quality_profile_id": 1, "season": 2, "episodes": [7, 3]},
+        headers=eltern,
+    )
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["season"] == 2
+    assert antwort.json()["episodes"] == [3, 7]
+
+    with SessionLocal() as sitzung:
+        anfrage = sitzung.get(MediaRequest, antwort.json()["id"])
+        assert anfrage is not None
+        assert anfrage.for_child_id == kind_id
+        wunsch = sitzung.get(ChildWish, wunsch_id)
+        assert wunsch is not None and wunsch.state == WishState.released
+
+
+def test_teilfreigabe_laesst_fremde_wuensche_offen(arr_client: TestClient) -> None:
+    """Zwei Folgen fuer das eine Kind heisst nicht "ist da" fuer das andere.
+
+    Frueher schloss **jede** Anfrage zum Titel alle offenen Wuensche - beim
+    Geschwisterkind stand dann "ist da", weil ein Elternteil zwei Folgen zum
+    Antesten geholt hat. Jetzt erledigt nur die volle Abdeckung fremde
+    Wuensche.
+    """
+    eltern, kind_kopf, _ = _familie(arr_client)
+    kind2 = arr_client.post(
+        "/api/children",
+        json={"username": "kind2", "password": "kind2-passwort", "age": 16},
+        headers=eltern,
+    ).json()
+    assert kind2.get("id"), kind2
+    kind2_kopf = auth_headers(arr_client, "kind2", "kind2-passwort")
+
+    serie, wunsch_id = _serienwunsch(arr_client, kind_kopf, eltern)
+    antwort = arr_client.post(
+        "/api/kids/wishes",
+        json={"media_type": "tv", "tmdb_id": serie["tmdb_id"]},
+        headers=kind2_kopf,
+    )
+    assert antwort.status_code in (200, 201), antwort.text
+
+    freigabe = arr_client.post(
+        f"/api/children/wishes/{wunsch_id}/release",
+        json={"quality_profile_id": 1, "season": 2, "episodes": [1, 2]},
+        headers=eltern,
+    )
+    assert freigabe.status_code == 200, freigabe.text
+
+    with SessionLocal() as sitzung:
+        zustaende = {
+            wunsch.child_id: wunsch.state
+            for wunsch in sitzung.query(ChildWish).all()
+        }
+    # Kind 1: entschieden. Kind 2: wartet weiter auf eine echte Entscheidung.
+    assert zustaende[kind2["id"]] == WishState.open
+
+    # Und die Eltern koennen den zweiten Wunsch eigenstaendig dosieren -
+    # Staffel 3 neben Staffel-2-Folgen ist erlaubt.
+    wuensche = arr_client.get("/api/children/wishes", headers=eltern).json()
+    zweiter = [w for w in wuensche if w["tmdb_id"] == serie["tmdb_id"]]
+    assert len(zweiter) == 1
+    zweite_freigabe = arr_client.post(
+        f"/api/children/wishes/{zweiter[0]['id']}/release",
+        json={"quality_profile_id": 1, "season": 3},
+        headers=eltern,
+    )
+    assert zweite_freigabe.status_code == 200, zweite_freigabe.text
+    assert zweite_freigabe.json()["season"] == 3
+    assert zweite_freigabe.json()["episodes"] is None
+
+
+def test_kind_darf_nach_der_freigabe_erneut_wuenschen(arr_client: TestClient) -> None:
+    """Timos Nachschub: "Ich moechte mehr davon" ist ein neuer Wunsch."""
+    eltern, kind_kopf, _ = _familie(arr_client)
+    serie, wunsch_id = _serienwunsch(arr_client, kind_kopf, eltern)
+
+    assert (
+        arr_client.post(
+            f"/api/children/wishes/{wunsch_id}/release",
+            json={"quality_profile_id": 1, "season": 2, "episodes": [1]},
+            headers=eltern,
+        ).status_code
+        == 200
+    )
+
+    nochmal = arr_client.post(
+        "/api/kids/wishes",
+        json={"media_type": "tv", "tmdb_id": serie["tmdb_id"]},
+        headers=kind_kopf,
+    )
+    assert nochmal.status_code in (200, 201), nochmal.text
+
+    with SessionLocal() as sitzung:
+        offene = (
+            sitzung.query(ChildWish)
+            .filter(ChildWish.state == WishState.open)
+            .count()
+        )
+    assert offene == 1

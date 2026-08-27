@@ -56,12 +56,9 @@ export function AddRequestForm({
   //
   // Wer selbst freigeben darf, ist ausgenommen: Er waere es, der spaeter
   // waehlt, also waehlt er gleich jetzt.
-  const zielSpaeter =
-    Boolean(
-      item.media_type === 'movie'
-        ? config?.approver_picks_target_movie
-        : config?.approver_picks_target_tv,
-    ) && !user?.can_approve
+  // Seit dem Kachel-Umbau gilt die Regel je Instanz - der Hinweis und die
+  // Felder folgen deshalb der gerade gewaehlten Stufe (Definition weiter
+  // unten, nach der tier-Entscheidung).
 
   // Gibt es fuer diese Medienart ueberhaupt eine 4K-Instanz, und darf dieser
   // Benutzer sie nutzen? Nur dann erscheint der Umschalter.
@@ -115,6 +112,17 @@ export function AddRequestForm({
 
   const [profileId, setProfileId] = useState<number | null>(null)
   const [folder, setFolder] = useState('')
+
+  const zielSpaeter =
+    Boolean(
+      item.media_type === 'movie'
+        ? tier === 'uhd'
+          ? config?.approver_picks_target_movie_uhd
+          : config?.approver_picks_target_movie
+        : tier === 'uhd'
+          ? config?.approver_picks_target_tv_uhd
+          : config?.approver_picks_target_tv,
+    ) && !user?.can_approve
   /**
    * Welche Staffeln angefragt werden – **eine Menge, kein einzelner Wert.**
    *

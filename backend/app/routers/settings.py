@@ -73,6 +73,11 @@ class SettingsUpdate(BaseModel):
     series_root_folder_mode: str | None = None
     movie_profile_mode: str | None = None
     series_profile_mode: str | None = None
+    # Dieselben Regeln je 4K-Instanz - seit dem Kachel-Umbau je Instanz.
+    movie_uhd_root_folder_mode: str | None = None
+    series_uhd_root_folder_mode: str | None = None
+    movie_uhd_profile_mode: str | None = None
+    series_uhd_profile_mode: str | None = None
     default_movie_root: str | None = Field(default=None, max_length=500)
     default_series_root: str | None = Field(default=None, max_length=500)
     # --- Zweite Instanz fuer 4K ---------------------------------------------
@@ -174,6 +179,8 @@ class AppConfig(BaseModel):
     # muss es wissen, um sein Formular richtig zu zeichnen.
     approver_picks_target_movie: bool
     approver_picks_target_tv: bool
+    approver_picks_target_movie_uhd: bool
+    approver_picks_target_tv_uhd: bool
     # Gibt es eine zweite Instanz fuer 4K? Ohne sie bleibt die ganze Funktion
     # in der Oberflaeche unsichtbar.
     radarr_uhd_configured: bool
@@ -234,6 +241,8 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         public_url_set=bool(settings.public_url),
         approver_picks_target_movie=settings.approver_picks_target("movie"),
         approver_picks_target_tv=settings.approver_picks_target("tv"),
+        approver_picks_target_movie_uhd=settings.approver_picks_target("movie", "uhd"),
+        approver_picks_target_tv_uhd=settings.approver_picks_target("tv", "uhd"),
         radarr_uhd_configured=settings.radarr_uhd_configured,
         sonarr_uhd_configured=settings.sonarr_uhd_configured,
         mediaserver_configured=settings.mediaserver_configured,
@@ -350,6 +359,10 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
         "series_root_folder_mode",
         "movie_profile_mode",
         "series_profile_mode",
+        "movie_uhd_root_folder_mode",
+        "series_uhd_root_folder_mode",
+        "movie_uhd_profile_mode",
+        "series_uhd_profile_mode",
     ):
         wert = getattr(payload, feld)
         if wert is not None and wert not in ("user", "fixed", "approver"):
@@ -373,9 +386,11 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
     # nur in der Oberflaeche, damit die Datenbank keine Kombination enthaelt,
     # die es in Wirklichkeit gar nicht gibt.
     aktuell = load_settings(db)
-    for ordner_feld, profil_feld, art in (
-        ("movie_root_folder_mode", "movie_profile_mode", "movie"),
-        ("series_root_folder_mode", "series_profile_mode", "tv"),
+    for ordner_feld, profil_feld, art, stufe in (
+        ("movie_root_folder_mode", "movie_profile_mode", "movie", "standard"),
+        ("series_root_folder_mode", "series_profile_mode", "tv", "standard"),
+        ("movie_uhd_root_folder_mode", "movie_uhd_profile_mode", "movie", "uhd"),
+        ("series_uhd_root_folder_mode", "series_uhd_profile_mode", "tv", "uhd"),
     ):
         neu_ordner = getattr(payload, ordner_feld)
         neu_profil = getattr(payload, profil_feld)
@@ -401,7 +416,11 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
         gesetzt, offen = (
             (neu_ordner, profil_feld) if neu_ordner is not None else (neu_profil, ordner_feld)
         )
-        vorher = aktuell.profile_mode(art) if offen.endswith("profile_mode") else             aktuell.root_folder_mode(art)
+        vorher = (
+            aktuell.profile_mode(art, stufe)
+            if offen.endswith("profile_mode")
+            else aktuell.root_folder_mode(art, stufe)
+        )
         if gesetzt == "approver":
             setattr(payload, offen, "approver")
         elif vorher == "approver":

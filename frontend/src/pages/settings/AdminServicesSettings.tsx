@@ -76,6 +76,11 @@ type Draft = {
   series_root_folder_mode: RootFolderMode;
   movie_profile_mode: RootFolderMode;
   series_profile_mode: RootFolderMode;
+  /** Dieselben Regeln je 4K-Instanz - seit dem Kachel-Umbau je Instanz. */
+  movie_uhd_root_folder_mode: RootFolderMode;
+  series_uhd_root_folder_mode: RootFolderMode;
+  movie_uhd_profile_mode: RootFolderMode;
+  series_uhd_profile_mode: RootFolderMode;
   default_movie_root: string;
   default_series_root: string;
   /** Zweite Instanz für 4K – leer heißt: gibt es nicht. */
@@ -108,6 +113,10 @@ const EMPTY_DRAFT: Draft = {
   series_root_folder_mode: "user",
   movie_profile_mode: "user",
   series_profile_mode: "user",
+  movie_uhd_root_folder_mode: "user",
+  series_uhd_root_folder_mode: "user",
+  movie_uhd_profile_mode: "user",
+  series_uhd_profile_mode: "user",
   default_movie_root: "",
   default_series_root: "",
   radarr_uhd_url: "",
@@ -276,30 +285,6 @@ function InstanzKachel({
   );
 }
 
-function ZielordnerBlock({
-  zweiInstanzen,
-  children,
-}: {
-  zweiInstanzen: boolean;
-  children: ReactNode;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="flex flex-col gap-4 rounded-xl border border-ink-700 bg-ink-900/40 p-4">
-      <div>
-        <p className="text-sm font-medium text-mist-300">
-          {t("settings.targetSection")}
-        </p>
-        {zweiInstanzen && (
-          <p className="mt-0.5 text-xs leading-relaxed text-mist-600">
-            {t("settings.targetSectionHint")}
-          </p>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
 
 /**
  * Eine Karte je Themenblock.
@@ -608,6 +593,10 @@ export function AdminServicesSettings() {
       series_root_folder_mode: data.series_root_folder_mode,
       movie_profile_mode: data.movie_profile_mode,
       series_profile_mode: data.series_profile_mode,
+      movie_uhd_root_folder_mode: data.movie_uhd_root_folder_mode,
+      series_uhd_root_folder_mode: data.series_uhd_root_folder_mode,
+      movie_uhd_profile_mode: data.movie_uhd_profile_mode,
+      series_uhd_profile_mode: data.series_uhd_profile_mode,
       default_movie_root: data.default_movie_root,
       default_series_root: data.default_series_root,
       radarr_uhd_url: data.radarr_uhd_url,
@@ -758,27 +747,25 @@ export function AdminServicesSettings() {
     "demo_mode",
   ];
   const INSTANZ_FELDER: Record<Exclude<TestService, "tmdb">, (keyof Draft)[]> = {
-    radarr: ["radarr_url", "radarr_api_key", "radarr_name"],
-    radarr_uhd: ["radarr_uhd_url", "radarr_uhd_api_key", "radarr_uhd_name"],
-    sonarr: ["sonarr_url", "sonarr_api_key", "sonarr_name"],
-    sonarr_uhd: ["sonarr_uhd_url", "sonarr_uhd_api_key", "sonarr_uhd_name"],
-  };
-  const REGEL_FELDER: Record<"movie" | "tv", (keyof Draft)[]> = {
-    movie: [
-      "movie_profile_mode",
-      "movie_root_folder_mode",
-      "default_movie_profile_id",
-      "default_movie_root",
-      "default_movie_uhd_profile_id",
-      "default_movie_uhd_root",
+    radarr: [
+      "radarr_url", "radarr_api_key", "radarr_name",
+      "movie_profile_mode", "movie_root_folder_mode",
+      "default_movie_profile_id", "default_movie_root",
     ],
-    tv: [
-      "series_profile_mode",
-      "series_root_folder_mode",
-      "default_series_profile_id",
-      "default_series_root",
-      "default_series_uhd_profile_id",
-      "default_series_uhd_root",
+    radarr_uhd: [
+      "radarr_uhd_url", "radarr_uhd_api_key", "radarr_uhd_name",
+      "movie_uhd_profile_mode", "movie_uhd_root_folder_mode",
+      "default_movie_uhd_profile_id", "default_movie_uhd_root",
+    ],
+    sonarr: [
+      "sonarr_url", "sonarr_api_key", "sonarr_name",
+      "series_profile_mode", "series_root_folder_mode",
+      "default_series_profile_id", "default_series_root",
+    ],
+    sonarr_uhd: [
+      "sonarr_uhd_url", "sonarr_uhd_api_key", "sonarr_uhd_name",
+      "series_uhd_profile_mode", "series_uhd_root_folder_mode",
+      "default_series_uhd_profile_id", "default_series_uhd_root",
     ],
   };
   const KENNUNGEN: Record<Exclude<TestService, "tmdb">, string> = {
@@ -815,6 +802,121 @@ export function AdminServicesSettings() {
    * dieser Instanz und verlangt vorher den Verbindungstest, wenn Adresse
    * oder Key sich geaendert haben.
    */
+  /**
+   * "Wer waehlt Profil und Zielordner" - seit dem Kachel-Umbau je Instanz.
+   * Sitzt im Instanz-Formular und speichert mit dessen Knopf; die alte
+   * "gilt fuer beide"-Box ist damit Geschichte.
+   */
+  const regelSektion = (dienst: "movie" | "tv", stufe: "standard" | "uhd") => {
+    const profilFeld = (
+      dienst === "movie"
+        ? stufe === "uhd"
+          ? "movie_uhd_profile_mode"
+          : "movie_profile_mode"
+        : stufe === "uhd"
+          ? "series_uhd_profile_mode"
+          : "series_profile_mode"
+    ) as keyof Draft;
+    const ordnerFeld = (
+      dienst === "movie"
+        ? stufe === "uhd"
+          ? "movie_uhd_root_folder_mode"
+          : "movie_root_folder_mode"
+        : stufe === "uhd"
+          ? "series_uhd_root_folder_mode"
+          : "series_root_folder_mode"
+    ) as keyof Draft;
+    const profilVorgabe = (
+      dienst === "movie"
+        ? stufe === "uhd"
+          ? "default_movie_uhd_profile_id"
+          : "default_movie_profile_id"
+        : stufe === "uhd"
+          ? "default_series_uhd_profile_id"
+          : "default_series_profile_id"
+    ) as keyof Draft;
+    const ordnerVorgabe = (
+      dienst === "movie"
+        ? stufe === "uhd"
+          ? "default_movie_uhd_root"
+          : "default_movie_root"
+        : stufe === "uhd"
+          ? "default_series_uhd_root"
+          : "default_series_root"
+    ) as keyof Draft;
+    const profil = draft[profilFeld] as RootFolderMode;
+    const ordner = draft[ordnerFeld] as RootFolderMode;
+    const konfiguriert = Boolean(
+      dienst === "movie"
+        ? stufe === "uhd"
+          ? settings?.radarr_uhd_api_key_set
+          : settings?.radarr_api_key_set
+        : stufe === "uhd"
+          ? settings?.sonarr_uhd_api_key_set
+          : settings?.sonarr_api_key_set,
+    );
+
+    return (
+      <div className="flex flex-col gap-4 border-t border-ink-700 pt-4">
+        <div>
+          <p className="text-sm font-medium text-mist-300">
+            {t("settings.targetSection")}
+          </p>
+          <p className="mt-0.5 text-xs leading-relaxed text-mist-600">
+            {t("settings.targetPerInstance")}
+          </p>
+        </div>
+        <WerWaehlt
+          was="profile"
+          gruppe={`${dienst}-${stufe}`}
+          wert={profil}
+          partner={ordner}
+          onChange={(value) =>
+            update(zielPaar(value, ordner, profilFeld, ordnerFeld))
+          }
+        />
+        {profil === "fixed" && (
+          <DefaultProfileField
+            mediaType={dienst}
+            tier={stufe === "uhd" ? "uhd" : undefined}
+            value={draft[profilVorgabe] as string}
+            onChange={(value) =>
+              update({ [profilVorgabe]: value } as Partial<Draft>)
+            }
+            configured={konfiguriert}
+          />
+        )}
+        <div className="border-t border-ink-700 pt-4">
+          <WerWaehlt
+            was="rootFolder"
+            gruppe={`${dienst}-${stufe}`}
+            wert={ordner}
+            partner={profil}
+            onChange={(value) =>
+              update(zielPaar(value, profil, ordnerFeld, profilFeld))
+            }
+          />
+        </div>
+        {ordner === "fixed" && (
+          <DefaultRootField
+            mediaType={dienst}
+            tier={stufe === "uhd" ? "uhd" : undefined}
+            value={draft[ordnerVorgabe] as string}
+            onChange={(value) =>
+              update({ [ordnerVorgabe]: value } as Partial<Draft>)
+            }
+            configured={konfiguriert}
+          />
+        )}
+        {(profil === "approver" || ordner === "approver") && (
+          <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
+            {t("settings.approverEndsAutoApprove")}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   const instanzSpeichernReihe = (dienst: Exclude<TestService, "tmdb">) => {
     const felder = INSTANZ_FELDER[dienst];
     const kennung = KENNUNGEN[dienst];
@@ -1188,6 +1290,7 @@ export function AdminServicesSettings() {
                     />
                   </>
                 )}
+                {regelSektion("movie", "standard")}
                 {instanzSpeichernReihe("radarr")}
               </InstanzBlock>
             )}
@@ -1258,138 +1361,11 @@ export function AdminServicesSettings() {
                     />
                   </>
                 )}
+                {regelSektion("movie", "uhd")}
                 {instanzSpeichernReihe("radarr_uhd")}
               </InstanzBlock>
             )}
 
-            {/* Erst sinnvoll, wenn ueberhaupt eine Instanz steht: Profile und
-              Ordner kommen ja von dort. */}
-            {(settings?.radarr_api_key_set ||
-              settings?.radarr_uhd_api_key_set) && (
-              <ZielordnerBlock
-                zweiInstanzen={Boolean(settings?.radarr_uhd_api_key_set)}
-              >
-                <WerWaehlt
-                  was="profile"
-                  gruppe="movie"
-                  wert={draft.movie_profile_mode}
-                  partner={draft.movie_root_folder_mode}
-                  onChange={(value) =>
-                    update(
-                      zielPaar(
-                        value,
-                        draft.movie_root_folder_mode,
-                        "movie_profile_mode",
-                        "movie_root_folder_mode",
-                      ),
-                    )
-                  }
-                />
-                {draft.movie_profile_mode === "fixed" && (
-                  <DefaultProfileField
-                    mediaType="movie"
-                    zusatz={
-                      settings?.radarr_uhd_api_key_set
-                        ? t("settings.instanceStandard")
-                        : undefined
-                    }
-                    value={draft.default_movie_profile_id}
-                    onChange={(value) =>
-                      update({ default_movie_profile_id: value })
-                    }
-                    configured={settings?.radarr_api_key_set ?? false}
-                  />
-                )}
-                {draft.movie_profile_mode === "fixed" &&
-                  settings?.radarr_uhd_api_key_set && (
-                    <DefaultProfileField
-                      mediaType="movie"
-                      tier="uhd"
-                      zusatz={t("uhd.tierUhd")}
-                      value={draft.default_movie_uhd_profile_id}
-                      onChange={(value) =>
-                        update({ default_movie_uhd_profile_id: value })
-                      }
-                      configured
-                    />
-                  )}
-
-                <div className="border-t border-ink-700 pt-4">
-                  <WerWaehlt
-                    was="rootFolder"
-                    gruppe="movie"
-                    wert={draft.movie_root_folder_mode}
-                    partner={draft.movie_profile_mode}
-                    onChange={(value) =>
-                      update(
-                        zielPaar(
-                          value,
-                          draft.movie_profile_mode,
-                          "movie_root_folder_mode",
-                          "movie_profile_mode",
-                        ),
-                      )
-                    }
-                  />
-                </div>
-                {draft.movie_root_folder_mode === "fixed" && (
-                  <DefaultRootField
-                    mediaType="movie"
-                    zusatz={
-                      settings?.radarr_uhd_api_key_set
-                        ? t("settings.instanceStandard")
-                        : undefined
-                    }
-                    value={draft.default_movie_root}
-                    onChange={(value) => update({ default_movie_root: value })}
-                    configured={settings?.radarr_api_key_set ?? false}
-                  />
-                )}
-                {draft.movie_root_folder_mode === "fixed" &&
-                  settings?.radarr_uhd_api_key_set && (
-                    <DefaultRootField
-                      mediaType="movie"
-                      tier="uhd"
-                      zusatz={t("uhd.tierUhd")}
-                      value={draft.default_movie_uhd_root}
-                      onChange={(value) =>
-                        update({ default_movie_uhd_root: value })
-                      }
-                      configured
-                    />
-                  )}
-
-                {/* Sobald eines von beidem beim Entscheider liegt, kann keine
-                  Anfrage mehr automatisch durchgehen - sie waere unvollstaendig.
-                  Das muss dastehen, sonst sucht der Administrator den Fehler
-                  spaeter in der Benutzerverwaltung. */}
-                {(draft.movie_profile_mode === "approver" ||
-                  draft.movie_root_folder_mode === "approver") && (
-                  <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
-                    {t("settings.approverEndsAutoApprove")}
-                  </p>
-                )}
-
-                <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setMessage(null);
-                      saveMutation.mutate(teil(REGEL_FELDER.movie));
-                    }}
-                    loading={saveMutation.isPending}
-                    disabled={!geaendert(REGEL_FELDER.movie)}
-                  >
-                    {t("common.save")}
-                  </Button>
-                  {!geaendert(REGEL_FELDER.movie) && (
-                    <span className="text-xs text-mist-600">
-                      {t("settings.nothingChanged")}
-                    </span>
-                  )}
-                </div>
-              </ZielordnerBlock>
-            )}
           </Section>
         )}
 
@@ -1488,6 +1464,7 @@ export function AdminServicesSettings() {
                     />
                   </>
                 )}
+                {regelSektion("tv", "standard")}
                 {instanzSpeichernReihe("sonarr")}
               </InstanzBlock>
             )}
@@ -1558,138 +1535,11 @@ export function AdminServicesSettings() {
                     />
                   </>
                 )}
+                {regelSektion("tv", "uhd")}
                 {instanzSpeichernReihe("sonarr_uhd")}
               </InstanzBlock>
             )}
 
-            {/* Erst sinnvoll, wenn ueberhaupt eine Instanz steht: Profile und
-              Ordner kommen ja von dort. */}
-            {(settings?.sonarr_api_key_set ||
-              settings?.sonarr_uhd_api_key_set) && (
-              <ZielordnerBlock
-                zweiInstanzen={Boolean(settings?.sonarr_uhd_api_key_set)}
-              >
-                <WerWaehlt
-                  was="profile"
-                  gruppe="series"
-                  wert={draft.series_profile_mode}
-                  partner={draft.series_root_folder_mode}
-                  onChange={(value) =>
-                    update(
-                      zielPaar(
-                        value,
-                        draft.series_root_folder_mode,
-                        "series_profile_mode",
-                        "series_root_folder_mode",
-                      ),
-                    )
-                  }
-                />
-                {draft.series_profile_mode === "fixed" && (
-                  <DefaultProfileField
-                    mediaType="tv"
-                    zusatz={
-                      settings?.sonarr_uhd_api_key_set
-                        ? t("settings.instanceStandard")
-                        : undefined
-                    }
-                    value={draft.default_series_profile_id}
-                    onChange={(value) =>
-                      update({ default_series_profile_id: value })
-                    }
-                    configured={settings?.sonarr_api_key_set ?? false}
-                  />
-                )}
-                {draft.series_profile_mode === "fixed" &&
-                  settings?.sonarr_uhd_api_key_set && (
-                    <DefaultProfileField
-                      mediaType="tv"
-                      tier="uhd"
-                      zusatz={t("uhd.tierUhd")}
-                      value={draft.default_series_uhd_profile_id}
-                      onChange={(value) =>
-                        update({ default_series_uhd_profile_id: value })
-                      }
-                      configured
-                    />
-                  )}
-
-                <div className="border-t border-ink-700 pt-4">
-                  <WerWaehlt
-                    was="rootFolder"
-                    gruppe="series"
-                    wert={draft.series_root_folder_mode}
-                    partner={draft.series_profile_mode}
-                    onChange={(value) =>
-                      update(
-                        zielPaar(
-                          value,
-                          draft.series_profile_mode,
-                          "series_root_folder_mode",
-                          "series_profile_mode",
-                        ),
-                      )
-                    }
-                  />
-                </div>
-                {draft.series_root_folder_mode === "fixed" && (
-                  <DefaultRootField
-                    mediaType="tv"
-                    zusatz={
-                      settings?.sonarr_uhd_api_key_set
-                        ? t("settings.instanceStandard")
-                        : undefined
-                    }
-                    value={draft.default_series_root}
-                    onChange={(value) => update({ default_series_root: value })}
-                    configured={settings?.sonarr_api_key_set ?? false}
-                  />
-                )}
-                {draft.series_root_folder_mode === "fixed" &&
-                  settings?.sonarr_uhd_api_key_set && (
-                    <DefaultRootField
-                      mediaType="tv"
-                      tier="uhd"
-                      zusatz={t("uhd.tierUhd")}
-                      value={draft.default_series_uhd_root}
-                      onChange={(value) =>
-                        update({ default_series_uhd_root: value })
-                      }
-                      configured
-                    />
-                  )}
-
-                {/* Sobald eines von beidem beim Entscheider liegt, kann keine
-                  Anfrage mehr automatisch durchgehen - sie waere unvollstaendig.
-                  Das muss dastehen, sonst sucht der Administrator den Fehler
-                  spaeter in der Benutzerverwaltung. */}
-                {(draft.series_profile_mode === "approver" ||
-                  draft.series_root_folder_mode === "approver") && (
-                  <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
-                    {t("settings.approverEndsAutoApprove")}
-                  </p>
-                )}
-
-                <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-4">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setMessage(null);
-                      saveMutation.mutate(teil(REGEL_FELDER.tv));
-                    }}
-                    loading={saveMutation.isPending}
-                    disabled={!geaendert(REGEL_FELDER.tv)}
-                  >
-                    {t("common.save")}
-                  </Button>
-                  {!geaendert(REGEL_FELDER.tv) && (
-                    <span className="text-xs text-mist-600">
-                      {t("settings.nothingChanged")}
-                    </span>
-                  )}
-                </div>
-              </ZielordnerBlock>
-            )}
           </Section>
         )}
 

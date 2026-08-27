@@ -1071,12 +1071,12 @@ export function AdminUsersSettings() {
                                   feld(user, "can_request_uhd_movies"),
                                 ) &&
                                   Boolean(config?.radarr_uhd_configured) &&
-                                  !config?.approver_picks_target_movie) ||
+                                  !config?.approver_picks_target_movie_uhd) ||
                                 (Boolean(
                                   feld(user, "can_request_uhd_series"),
                                 ) &&
                                   Boolean(config?.sonarr_uhd_configured) &&
-                                  !config?.approver_picks_target_tv);
+                                  !config?.approver_picks_target_tv_uhd);
                               const istFreigabe =
                                 schluessel === "auto_approve_uhd";
                               // Wer freigeben darf, darf 4K anfragen *und* gibt es

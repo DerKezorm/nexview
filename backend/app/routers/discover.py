@@ -338,7 +338,7 @@ async def arr_options(
     vorgabe = settings.default_root(media_type, tier)
     options.default_root_folder = vorgabe if vorgabe in pfade else (pfade[0] if pfade else None)
     options.root_folder_choice = settings.root_folder_choice(media_type, tier) or user.is_admin
-    options.quality_profile_choice = settings.profile_choice(media_type) or user.is_admin
+    options.quality_profile_choice = settings.profile_choice(media_type, tier) or user.is_admin
     if not options.quality_profile_choice:
         # Nur die geltende Vorgabe ausliefern - es gibt ja nichts zu waehlen.
         options.quality_profiles = [

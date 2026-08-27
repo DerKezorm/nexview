@@ -86,6 +86,16 @@ DEFAULTS: dict[str, str] = {
     # ist "user" hier der Rueckfallwert.
     "movie_profile_mode": "",
     "series_profile_mode": "",
+    # Dieselben Regeln fuer die 4K-Instanzen - leer heisst: wie die
+    # Standard-Instanz. So verhaelt sich jede bestehende Installation nach
+    # dem Update exakt wie vorher, bis jemand die 4K-Regel bewusst trennt.
+    # (Bis hierher galten die Regeln je Dienst; dass sie je Instanz gelten,
+    # war eine Entscheidung im Kachel-Umbau: "4K waehlt der Entscheider,
+    # Standard laeuft frei" ist genau der Zuegel, den es vorher nicht gab.)
+    "movie_uhd_root_folder_mode": "",
+    "series_uhd_root_folder_mode": "",
+    "movie_uhd_profile_mode": "",
+    "series_uhd_profile_mode": "",
     # Die beiden alten Schluessel bleiben als Rueckfallwert stehen.
     "root_folder_choice": "on",  # "on" | "off" - nur noch Rueckfallwert
     "movie_root_folder_choice": "",
@@ -268,6 +278,12 @@ class AppSettings:
     series_root_folder_mode: str
     movie_profile_mode: str
     series_profile_mode: str
+    # Effektive Werte der 4K-Instanzen: Die Erbschaft ("" = wie Standard) ist
+    # beim Laden bereits aufgeloest - wer hier liest, rechnet nicht mehr.
+    movie_uhd_root_folder_mode: str
+    series_uhd_root_folder_mode: str
+    movie_uhd_profile_mode: str
+    series_uhd_profile_mode: str
     radarr_uhd_url: str
     radarr_uhd_api_key: str
     sonarr_uhd_url: str
@@ -354,7 +370,7 @@ class AppSettings:
             self.default_movie_root if media_type == "movie" else self.default_series_root
         )
 
-    def root_folder_mode(self, media_type: str) -> str:
+    def root_folder_mode(self, media_type: str, tier: str = "standard") -> str:
         """Wer waehlt den Zielordner? ``user`` / ``fixed`` / ``approver``.
 
         Bewusst **nicht** je Stufe: Wer den Ordner waehlen darf, ist eine Regel
@@ -362,38 +378,49 @@ class AppSettings:
         Stufe verschieden - die Zustaendigkeit ist es nicht.
         """
         return (
-            self.movie_root_folder_mode
+            (self.movie_uhd_root_folder_mode if tier == "uhd" else self.movie_root_folder_mode)
             if media_type == "movie"
-            else self.series_root_folder_mode
+            else (self.series_uhd_root_folder_mode if tier == "uhd" else self.series_root_folder_mode)
         )
 
     def root_folder_choice(self, media_type: str, tier: str = "standard") -> bool:
-        """Darf der Benutzer den Zielordner fuer diese Art selbst waehlen?
+        """Darf der Benutzer den Zielordner **bei dieser Instanz** waehlen?
 
-        ``tier`` bleibt in der Signatur, damit die Aufrufer unveraendert
-        bleiben - die Zustaendigkeit haengt aber nicht an der Stufe.
+        ``tier`` war hier lange ein Platzhalter ("die Zustaendigkeit haengt
+        nicht an der Stufe") - seit dem Kachel-Umbau gilt die Regel je
+        Instanz, und der Platzhalter traegt.
         """
-        return self.root_folder_mode(media_type) == "user"
+        return self.root_folder_mode(media_type, tier) == "user"
 
-    def profile_mode(self, media_type: str) -> str:
+    def profile_mode(self, media_type: str, tier: str = "standard") -> str:
         """Wer waehlt das Qualitaetsprofil? ``user`` / ``fixed`` / ``approver``."""
         return (
-            self.movie_profile_mode if media_type == "movie" else self.series_profile_mode
+            (self.movie_uhd_profile_mode if tier == "uhd" else self.movie_profile_mode)
+            if media_type == "movie"
+            else (self.series_uhd_profile_mode if tier == "uhd" else self.series_profile_mode)
         )
 
-    def profile_choice(self, media_type: str) -> bool:
-        """Darf der Benutzer das Profil selbst waehlen?"""
-        return self.profile_mode(media_type) == "user"
+    def profile_choice(self, media_type: str, tier: str = "standard") -> bool:
+        """Darf der Benutzer das Profil selbst waehlen - bei dieser Instanz?"""
+        return self.profile_mode(media_type, tier) == "user"
 
-    def approver_picks_target(self, media_type: str) -> bool:
+    def approver_picks_target(self, media_type: str, tier: str = "standard") -> bool:
         """Entscheidet erst der Entscheider - ueber Ordner **oder** Profil?
+
+        Seit dem Kachel-Umbau gilt die Regel **je Instanz**: 4K kann beim
+        Entscheider liegen, waehrend Standard frei durchlaeuft - der Zuegel,
+        den es je Dienst nicht gab. Eine wartende 4K-Anfrage ueberschreibt
+        dabei auch die Sofort-Freigabe des Benutzers, wie bisher je Dienst.
 
         Sobald eines von beidem beim Entscheider liegt, muss die Anfrage warten:
         Sie waere sonst unvollstaendig bei Radarr gelandet. Die Auto-Freigabe
         ist damit fuer diesen Dienst hinfaellig - und genau das steht auch in
         der Oberflaeche.
         """
-        return "approver" in (self.root_folder_mode(media_type), self.profile_mode(media_type))
+        return "approver" in (
+            self.root_folder_mode(media_type, tier),
+            self.profile_mode(media_type, tier),
+        )
 
     def default_profile_id(self, media_type: str, tier: str = "standard") -> int | None:
         if tier == "uhd":
@@ -533,7 +560,9 @@ def _flag(wert: str, *, standard: bool) -> bool:
     return standard
 
 
-def _ordner_modus(values: dict[str, str], dienst: str) -> str:
+def _ordner_modus(
+    values: dict[str, str], dienst: str, rueckfall: str | None = None
+) -> str:
     """Wer waehlt den Zielordner - aus neuem Schluessel, sonst aus dem alten.
 
     Bestandsinstallationen kennen nur das Ja/Nein "Benutzer duerfen waehlen".
@@ -544,6 +573,10 @@ def _ordner_modus(values: dict[str, str], dienst: str) -> str:
     roh = (values.get(f"{dienst}_root_folder_mode") or "").strip().lower()
     if roh in ("user", "fixed", "approver"):
         return roh
+    if rueckfall is not None:
+        # Die 4K-Regel erbt von der Standard-Instanz, solange sie nie
+        # ausdruecklich gesetzt wurde.
+        return rueckfall
 
     alt = _flag(
         values.get(f"{dienst}_root_folder_choice", ""),
@@ -552,14 +585,19 @@ def _ordner_modus(values: dict[str, str], dienst: str) -> str:
     return "user" if alt else "fixed"
 
 
-def _profil_modus(values: dict[str, str], dienst: str) -> str:
+def _profil_modus(
+    values: dict[str, str], dienst: str, rueckfall: str | None = None
+) -> str:
     """Wer waehlt das Qualitaetsprofil?
 
     Ohne gesetzten Wert gilt "user": So war es immer, und ein Update darf
-    niemandem stillschweigend die Auswahl entziehen.
+    niemandem stillschweigend die Auswahl entziehen. ``rueckfall`` traegt die
+    Erbschaft der 4K-Instanzen: leer heisst dort "wie die Standard-Instanz".
     """
     roh = (values.get(f"{dienst}_profile_mode") or "").strip().lower()
-    return roh if roh in ("user", "fixed", "approver") else "user"
+    if roh in ("user", "fixed", "approver"):
+        return roh
+    return rueckfall if rueckfall is not None else "user"
 
 
 def _zahl(wert: str | None) -> int | None:
@@ -694,6 +732,18 @@ def load_settings(db: Session) -> AppSettings:
         series_root_folder_mode=_ordner_modus(values, "series"),
         movie_profile_mode=_profil_modus(values, "movie"),
         series_profile_mode=_profil_modus(values, "series"),
+        movie_uhd_root_folder_mode=_ordner_modus(
+            values, "movie_uhd", rueckfall=_ordner_modus(values, "movie")
+        ),
+        series_uhd_root_folder_mode=_ordner_modus(
+            values, "series_uhd", rueckfall=_ordner_modus(values, "series")
+        ),
+        movie_uhd_profile_mode=_profil_modus(
+            values, "movie_uhd", rueckfall=_profil_modus(values, "movie")
+        ),
+        series_uhd_profile_mode=_profil_modus(
+            values, "series_uhd", rueckfall=_profil_modus(values, "series")
+        ),
         radarr_uhd_url=values["radarr_uhd_url"].strip().rstrip("/"),
         radarr_uhd_api_key=values["radarr_uhd_api_key"],
         sonarr_uhd_url=values["sonarr_uhd_url"].strip().rstrip("/"),
@@ -823,6 +873,10 @@ def public_settings(db: Session) -> dict[str, object]:
         "series_root_folder_mode": settings.series_root_folder_mode,
         "movie_profile_mode": settings.movie_profile_mode,
         "series_profile_mode": settings.series_profile_mode,
+        "movie_uhd_root_folder_mode": settings.movie_uhd_root_folder_mode,
+        "series_uhd_root_folder_mode": settings.series_uhd_root_folder_mode,
+        "movie_uhd_profile_mode": settings.movie_uhd_profile_mode,
+        "series_uhd_profile_mode": settings.series_uhd_profile_mode,
         "default_movie_root": settings.default_movie_root,
         "default_series_root": settings.default_series_root,
         "radarr_uhd_url": settings.radarr_uhd_url,

@@ -852,6 +852,7 @@
     "tileAddUhd": "Add the 4K instance",
     "tileConnected": "Connected",
     "tileUnreachable": "Unreachable",
+    "targetPerInstance": "Applies to this instance only.",
     "instanceName": "Name",
     "instanceNameHint": "Your choice – this is how the instance is named everywhere in Nexview. Empty means the service name applies.",
     "testFirst": "Test the connection first, then save.",

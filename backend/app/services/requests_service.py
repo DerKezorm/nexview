@@ -672,7 +672,7 @@ async def resolve_profile(
     """
     _, bekannte = await _ziel_auswahl(settings, media_type, tier)
 
-    if not (settings.profile_choice(media_type) or darf_frei_waehlen):
+    if not (settings.profile_choice(media_type, tier) or darf_frei_waehlen):
         vorgabe = settings.default_profile_id(media_type, tier)
         if vorgabe and (not bekannte or vorgabe in bekannte):
             return vorgabe
@@ -903,8 +903,13 @@ async def create_request(
     # der Freigabe waehlen wuerden - sie waehlen also gleich jetzt. Der Umweg
     # ueber die eigene Warteschlange waere ein Klick, der nichts entscheidet,
     # und er widerspraeche der Regel "wer freigeben darf, gibt sich selbst frei".
+    # Seit dem Kachel-Umbau je Instanz: Eine 4K-Anfrage kann auf den
+    # Entscheider warten, waehrend dieselbe Person in Standard sofort
+    # durchlaeuft - und die Sofort-Freigabe des Benutzers (auch die eigene
+    # 4K-Sofort-Freigabe) ist hier bewusst uebersteuert.
     ziel_erst_bei_freigabe = (
-        settings.approver_picks_target(item.media_type) and not user.can_approve
+        settings.approver_picks_target(item.media_type, tier.value)
+        and not user.can_approve
     )
 
     # Die Sperrliste zuerst - und mit klarer Ansage. Anders als bei der
@@ -1096,7 +1101,7 @@ async def create_request(
             _, alle_profile = await _ziel_auswahl(settings, item.media_type, tier.value)
             if alle_profile and gesperrt >= set(alle_profile):
                 gesperrt = set()
-        if settings.profile_choice(item.media_type) and profil in gesperrt:
+        if settings.profile_choice(item.media_type, tier.value) and profil in gesperrt:
             raise RequestError(
                 "Dieses Qualitätsprofil ist für dich gesperrt. Bitte wähle ein anderes.",
                 403,

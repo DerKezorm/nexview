@@ -803,6 +803,8 @@ export type AppConfig = {
   /** Wählt der Entscheider Ordner und Profil erst bei der Freigabe? Je Dienst. */
   approver_picks_target_movie: boolean;
   approver_picks_target_tv: boolean;
+  approver_picks_target_movie_uhd: boolean;
+  approver_picks_target_tv_uhd: boolean;
   /** Gibt es eine zweite Radarr-/Sonarr-Instanz für 4K? */
   radarr_uhd_configured: boolean;
   sonarr_uhd_configured: boolean;
@@ -885,6 +887,11 @@ export type AppSettings = {
   series_root_folder_mode: RootFolderMode;
   movie_profile_mode: RootFolderMode;
   series_profile_mode: RootFolderMode;
+  /** Dieselben Regeln je 4K-Instanz - geliefert als effektive Werte. */
+  movie_uhd_root_folder_mode: RootFolderMode;
+  series_uhd_root_folder_mode: RootFolderMode;
+  movie_uhd_profile_mode: RootFolderMode;
+  series_uhd_profile_mode: RootFolderMode;
   default_movie_root: string;
   default_series_root: string;
   radarr_uhd_url: string;

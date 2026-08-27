@@ -1440,7 +1440,11 @@ class MediaRequest(Base):
     # einen laufenden Besitzer je Stufe - dafuer sorgt ``find_active``. Nur so
     # bleibt beim Loeschen und beim Speicher-Zurechnen eindeutig, wem eine
     # Datei gehoert.
-    episodes: Mapped[list | None] = mapped_column(JSON)
+    #
+    # ``none_as_null``: Ein ausdrueckliches ``None`` soll SQL-``NULL`` sein,
+    # nicht der JSON-Text "null" - sonst greift ``episodes IS NULL`` in den
+    # Abfragen nicht, und eine Staffel-Anfrage saehe aus wie ein Paket.
+    episodes: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
 
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     # Trotz des Namens die **fertige Adresse**, nicht der Pfad-Teil von

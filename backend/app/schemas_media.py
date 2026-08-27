@@ -32,6 +32,25 @@ class SeasonInfo(BaseModel):
     # Dateien, zwei Anfragen.
     episodes_available_uhd: int | None = None
     requested_uhd: bool | None = None
+    # Von Folgen-Paketen belegte Folgen dieser Staffel - je Stufe. Leer heisst
+    # frei. Die Staffel bleibt dann waehlbar: ``requested`` sagt "ganz
+    # vergeben", das hier sagt "diese Nummern laufen schon".
+    requested_episodes: list[int] = []
+    requested_episodes_uhd: list[int] | None = None
+    # Status der deckenden Voll-Anfrage (pending_approval | approved |
+    # searching | downloaded) - damit die Auswahl ehrliche Worte macht:
+    # "wartet" ist etwas anderes als "laeuft" oder "schon da". ``None``
+    # heisst: keine Voll-Anfrage (nur Bestand oder frei).
+    requested_status: str | None = None
+    requested_status_uhd: str | None = None
+    # ⚠️ **Sonarrs** Folgenzahl dieser Staffel - nicht die von TMDB oben in
+    # ``episode_count``. Die beiden zaehlen gern verschieden (gemessen an
+    # Baywatch S1: TMDB 22, Sonarr 21), und "vollstaendig" entscheidet am
+    # Ende Sonarr - wer mit der TMDB-Zahl rechnet, zeigt einer kompletten
+    # Staffel ewig "21 von 22". ``None`` heisst: Sonarr kennt die Serie
+    # (oder die Staffel) nicht - dann bleibt TMDB der einzige Massstab.
+    episodes_total_arr: int | None = None
+    episodes_total_arr_uhd: int | None = None
 
 
 class EpisodeInfo(BaseModel):
@@ -50,10 +69,14 @@ class EpisodeInfo(BaseModel):
     # Regel wie bei ``SeasonInfo.requested``: Der Folgen-Waehler zeigt
     # Belegtes an, statt es anzubieten und mit 409 abgelehnt zu bekommen.
     requested: bool = False
+    # Und in welchem Zustand die belegende Anfrage ist - fuer das ehrliche
+    # Wort daneben: "wartet", "laeuft" oder "schon da".
+    requested_status: str | None = None
     # Dieselben zwei Fragen fuer die 4K-Instanz - ``None`` heisst "keine
     # zweite Instanz eingerichtet", nicht "belegt".
     available_uhd: bool | None = None
     requested_uhd: bool | None = None
+    requested_status_uhd: str | None = None
 
 
 class SeasonDetail(BaseModel):

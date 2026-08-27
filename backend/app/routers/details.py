@@ -207,7 +207,14 @@ async def title_detail(
         vorhanden = await library.episode_availability(
             settings, detail.tvdb_id, detail.title, jahr=jahr
         )
+        # Sonarrs eigene Staffel-Zaehlung - der Massstab fuer "vollstaendig".
+        eintrag = await library.serien_eintrag(
+            settings, detail.tvdb_id, detail.title, jahr=jahr
+        )
+        staffelstaende = getattr(eintrag, "staffeln", None) or {}
         angefragt = requests_service.angefragte_staffeln(db, detail.tmdb_id)
+        pakete = requests_service.angefragte_pakete(db, detail.tmdb_id)
+        belegung = requests_service.staffel_belegung(db, detail.tmdb_id)
         # Die zweite Achse nur, wenn es sie gibt - sonst bleiben die Felder
         # ``None`` und heissen "unbekannt", wie bei ``status_uhd``.
         mit_uhd = settings.arr_configured("tv", "uhd")
@@ -218,6 +225,16 @@ async def title_detail(
             angefragt_uhd = requests_service.angefragte_staffeln(
                 db, detail.tmdb_id, QualityTier.uhd
             )
+            pakete_uhd = requests_service.angefragte_pakete(
+                db, detail.tmdb_id, QualityTier.uhd
+            )
+            belegung_uhd = requests_service.staffel_belegung(
+                db, detail.tmdb_id, QualityTier.uhd
+            )
+            eintrag_uhd = await library.serien_eintrag(
+                settings, detail.tvdb_id, detail.title, jahr=jahr, tier="uhd"
+            )
+            staffelstaende_uhd = getattr(eintrag_uhd, "staffeln", None) or {}
         for staffel in detail.seasons:
             staffel.episodes_available = len(vorhanden.get(staffel.season_number, ()))
             # ``None`` in der Menge steht fuer eine Anfrage ueber die ganze
@@ -225,12 +242,34 @@ async def title_detail(
             staffel.requested = (
                 staffel.season_number in angefragt or None in angefragt
             )
+            staffel.requested_episodes = sorted(
+                pakete.get(staffel.season_number, {})
+            )
+            staffel.requested_status = belegung.get(
+                staffel.season_number
+            ) or belegung.get(None)
+            stand = staffelstaende.get(staffel.season_number)
+            staffel.episodes_total_arr = (
+                stand.folgen if stand is not None and stand.folgen > 0 else None
+            )
             if mit_uhd:
                 staffel.episodes_available_uhd = len(
                     vorhanden_uhd.get(staffel.season_number, ())
                 )
                 staffel.requested_uhd = (
                     staffel.season_number in angefragt_uhd or None in angefragt_uhd
+                )
+                staffel.requested_episodes_uhd = sorted(
+                    pakete_uhd.get(staffel.season_number, {})
+                )
+                staffel.requested_status_uhd = belegung_uhd.get(
+                    staffel.season_number
+                ) or belegung_uhd.get(None)
+                stand_uhd = staffelstaende_uhd.get(staffel.season_number)
+                staffel.episodes_total_arr_uhd = (
+                    stand_uhd.folgen
+                    if stand_uhd is not None and stand_uhd.folgen > 0
+                    else None
                 )
 
     return detail
@@ -307,9 +346,14 @@ async def season(
     )
     in_dieser_staffel = vorhanden.get(season_number, set())
 
-    # Und die zweite Frage je Folge: Laeuft schon eine Anfrage? ``None`` aus
-    # ``angefragte_folgen`` heisst "die ganze Staffel ist abgedeckt".
-    belegt = requests_service.angefragte_folgen(db, tmdb_id, season_number)
+    # Und die zweite Frage je Folge: Laeuft schon eine Anfrage - und in
+    # welchem Zustand? Eine deckende Voll-Anfrage gibt allen Folgen ihren
+    # Status; sonst zaehlt das Paket, das die einzelne Folge besitzt.
+    voll = requests_service.staffel_belegung(db, tmdb_id)
+    deck_status = voll.get(season_number) or voll.get(None)
+    paket_status = requests_service.angefragte_pakete(db, tmdb_id).get(
+        season_number, {}
+    )
     mit_uhd = settings.arr_configured("tv", "uhd")
     if mit_uhd:
         vorhanden_uhd = await library.episode_availability(
@@ -320,18 +364,22 @@ async def season(
             jahr=library.jahr_aus(serie.release_date),
         )
         uhd_staffel = vorhanden_uhd.get(season_number, set())
-        belegt_uhd = requests_service.angefragte_folgen(
-            db, tmdb_id, season_number, QualityTier.uhd
-        )
+        voll_uhd = requests_service.staffel_belegung(db, tmdb_id, QualityTier.uhd)
+        deck_status_uhd = voll_uhd.get(season_number) or voll_uhd.get(None)
+        paket_status_uhd = requests_service.angefragte_pakete(
+            db, tmdb_id, QualityTier.uhd
+        ).get(season_number, {})
 
     for folge in staffel.episodes:
         folge.available = folge.episode_number in in_dieser_staffel
-        folge.requested = belegt is None or folge.episode_number in belegt
+        folge.requested_status = deck_status or paket_status.get(folge.episode_number)
+        folge.requested = folge.requested_status is not None
         if mit_uhd:
             folge.available_uhd = folge.episode_number in uhd_staffel
-            folge.requested_uhd = (
-                belegt_uhd is None or folge.episode_number in belegt_uhd
+            folge.requested_status_uhd = deck_status_uhd or paket_status_uhd.get(
+                folge.episode_number
             )
+            folge.requested_uhd = folge.requested_status_uhd is not None
 
     return staffel
 

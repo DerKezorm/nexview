@@ -17,7 +17,7 @@ import { StarRating } from "../components/StarRating";
 import { StatusBadge } from "../components/media/StatusBadge";
 import { Button, Card, ErrorBanner, Spinner } from "../components/ui";
 import { Pagination, useSeiten } from "../components/Pagination";
-import { formatDate, formatSize } from "../lib/format";
+import { folgenKompakt, formatDate, formatSize } from "../lib/format";
 import { TargetPicker, type Target } from "../components/TargetPicker";
 import { useConfig } from "../hooks/useConfig";
 import { anfragenStandNeuLaden } from "../lib/refresh";
@@ -794,6 +794,14 @@ export function AdminRequestsPage() {
                       {request.season !== null && (
                         <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
                           {t("request.seasonShort", { number: request.season })}
+                          {request.episodes && request.episodes.length > 0 && (
+                            <>
+                              {" · "}
+                              {t("request.episodesShort", {
+                                list: folgenKompakt(request.episodes),
+                              })}
+                            </>
+                          )}
                         </span>
                       )}
                       {/* Haengt an der Anfrage selbst, nicht an der Einstellung:

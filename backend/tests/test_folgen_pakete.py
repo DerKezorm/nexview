@@ -167,8 +167,12 @@ def test_pakete_ohne_ueberschneidung_laufen_nebeneinander(
     assert _anfragen(arr_client, serie, season=2, episodes=[5, 6], headers=ben).status_code == 201
 
     with SessionLocal() as db:
-        staffeln = requests_service.angefragte_staffeln(db, serie["tmdb_id"])
-    assert 2 in staffeln
+        # Pakete grauen die Staffel nicht aus - "belegt" sind nur die Folgen,
+        # jede mit dem Status ihres Besitzers (hier: alle warten auf Freigabe).
+        assert 2 not in requests_service.angefragte_staffeln(db, serie["tmdb_id"])
+        pakete = requests_service.angefragte_pakete(db, serie["tmdb_id"])
+        assert sorted(pakete[2]) == [1, 2, 5, 6]
+        assert set(pakete[2].values()) == {"pending_approval"}
 
 
 def test_ueberschneidung_wird_abgelehnt(
@@ -250,6 +254,43 @@ def test_betreff_nennt_die_folgen() -> None:
 
     staffel = MediaRequest(media_type=MediaType.tv, season=2, episodes=None)
     assert channel_outbox.folgen_zusatz(staffel, "de") == ""
+
+
+def test_staffel_belegung_nennt_den_status(
+    arr_client: TestClient, nutzer: dict[str, str]
+) -> None:
+    """Der Vertrag fuer die ehrlichen Worte: "wartet" ist kein "laeuft"."""
+    serie = _serie(arr_client)
+    angelegt = _anfragen(arr_client, serie, season=3, headers=nutzer).json()
+
+    with SessionLocal() as db:
+        assert requests_service.staffel_belegung(db, serie["tmdb_id"]) == {
+            3: "pending_approval"
+        }
+        db.get(MediaRequest, angelegt["id"]).status = RequestStatus.searching
+        db.commit()
+        assert requests_service.staffel_belegung(db, serie["tmdb_id"]) == {
+            3: "searching"
+        }
+
+
+def test_freigabeliste_traegt_die_folgen(
+    arr_client: TestClient, nutzer: dict[str, str]
+) -> None:
+    """Der Entscheider muss sehen, ob er eine Folge oder die ganze Staffel
+    zusagt - live gemeldet, als die Freigabeseite nur "St. 5" zeigte."""
+    serie = _serie(arr_client)
+    assert _anfragen(arr_client, serie, season=5, episodes=[5], headers=nutzer).status_code == 201
+    assert _anfragen(arr_client, serie, season=3, headers=nutzer).status_code == 201
+
+    zeilen = arr_client.get("/api/admin/requests").json()
+    nach_staffel = {
+        zeile["season"]: zeile.get("episodes")
+        for zeile in zeilen
+        if zeile["tmdb_id"] == serie["tmdb_id"]
+    }
+    assert nach_staffel[5] == [5]
+    assert nach_staffel[3] is None
 
 
 # --- Kontingent --------------------------------------------------------------
@@ -754,6 +795,58 @@ async def test_stundenabgleich_spaltet_die_staffelzeile(
         ).one()
         assert staffel.size_bytes == 3000
         assert staffel.user_id is None
+
+
+@pytest.mark.asyncio
+async def test_teilgeladenes_paket_zahlt_nur_das_vorhandene(
+    arr_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Vier von fuenf Folgen da, die fuenfte kommt nie: Der Stunden-Abgleich
+    rechnet laufend zu, was liegt - nicht erst bei "fertig", und nicht mehr."""
+    konto = create_user(arr_client, "kim", "passwort-1234")
+    _bibliothek(monkeypatch)
+    _folgenstand(
+        monkeypatch,
+        {
+            3: _folge(3, has_file=True, datei_id=91),
+            7: _folge(7),  # kommt nie
+        },
+    )
+    _episodendateien(monkeypatch)
+
+    async def keine_filme(_settings: object, _tier: str = "standard") -> dict:
+        return {}
+
+    monkeypatch.setattr(library, "movie_library", keine_filme)
+
+    with SessionLocal() as db:
+        kennung = _paketzeile(db, konto["id"], [3, 7], status=RequestStatus.searching)
+        db.add(
+            StorageEntry(
+                key="movie:standard:tmdb:1",
+                media_type=MediaType.movie,
+                tier=QualityTier.standard,
+                tmdb_id=1,
+                title="Altbestand",
+                size_bytes=1,
+                measured_at=utcnow(),
+                state=StorageState.house,
+            )
+        )
+        db.commit()
+
+    with SessionLocal() as db:
+        await storage.abgleichen(db, load_settings(db))
+
+    with SessionLocal() as db:
+        zeile = db.query(StorageEntry).filter(StorageEntry.key.like("%:r%")).one()
+        assert zeile.key.endswith(f":r{kennung}")
+        # Nur Folge 3 liegt (Datei 91 = 1200 Bytes) - genau die zaehlt.
+        assert zeile.size_bytes == 1200
+        assert zeile.user_id == konto["id"]
+        # Und die Anfrage bleibt ehrlich auf "wird gesucht".
+        assert db.get(MediaRequest, kennung).status == RequestStatus.searching
 
 
 @pytest.mark.asyncio

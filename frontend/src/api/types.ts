@@ -413,6 +413,22 @@ export type SeasonInfo = {
    * Nicht „von mir": `find_active` sperrt eine laufende Anfrage für alle.
    */
   requested?: boolean;
+  /**
+   * Von Folgen-Paketen belegte Folgen dieser Staffel – je Stufe. Leer heißt
+   * frei; die Staffel bleibt wählbar, nur diese Nummern sind vergeben.
+   */
+  requested_episodes?: number[];
+  requested_episodes_uhd?: number[] | null;
+  /** Status der deckenden Voll-Anfrage – für das ehrliche Wort daneben:
+      „wartet" ist etwas anderes als „läuft" oder „schon da". */
+  requested_status?: string | null;
+  requested_status_uhd?: string | null;
+  /** **Sonarrs** Folgenzahl der Staffel – der Maßstab für „vollständig".
+      TMDB zählt gern anders (Baywatch S1: 22 gegen 21), und wer mit der
+      TMDB-Zahl rechnet, zeigt einer kompletten Staffel ewig „21 von 22".
+      `null` heißt: Sonarr kennt die Serie nicht – dann gilt TMDB. */
+  episodes_total_arr?: number | null;
+  episodes_total_arr_uhd?: number | null;
 };
 
 export type EpisodeInfo = {
@@ -425,6 +441,15 @@ export type EpisodeInfo = {
   vote_average: number;
   /** Liegt diese Folge schon vor? */
   available: boolean;
+  /** Läuft zu dieser Folge schon eine Anfrage – von **irgendwem**? */
+  requested?: boolean;
+  /** Und in welchem Zustand – für „wartet" / „läuft" / „schon da". */
+  requested_status?: string | null;
+  /** Dieselben zwei Fragen für die 4K-Instanz – `null` heißt „keine zweite
+      Instanz", nicht „belegt". */
+  available_uhd?: boolean | null;
+  requested_uhd?: boolean | null;
+  requested_status_uhd?: string | null;
 };
 
 export type SeasonDetail = {
@@ -810,6 +835,9 @@ export type AppConfig = {
   mediaserver_watchlist_connected: string[];
   /** Ist die Merklisten-Automatik eingeschaltet? Blendet den Herkunfts-Filter ein. */
   watchlist_enabled: boolean;
+  /** Dürfen Benutzer Folgen-Pakete anfragen? Blendet die Aufklapp-Pfeile im
+      Staffel-Wähler ein. */
+  episode_requests_enabled: boolean;
 };
 
 /** Wie oft Nexview von selbst sichert. */
@@ -892,6 +920,8 @@ export type AppSettings = {
   mediaserver_default_role: "user" | "approver";
   /** Dürfen Benutzer ihre Merkliste sehen und daraus anfragen? */
   watchlist_enabled: boolean;
+  /** Dürfen Benutzer Folgen-Pakete anfragen (einzelne Folgen einer Staffel)? */
+  episode_requests_enabled: boolean;
   /**
    * Die drei Standardwerte des Hauses – sie gelten für jedes Konto ohne
    * eigenen Wert, und zwar **immer alle drei zugleich**. `null` heißt
@@ -1057,6 +1087,8 @@ export type MediaRequest = {
   root_folder_path: string | null;
   /** Nur bei Serien; null = ganze Serie. */
   season: number | null;
+  /** Nur bei Folgen-Paketen: die bestellten Folgen. `null` = ganze Staffel. */
+  episodes?: number[] | null;
   /** Kam die Anfrage von der Merkliste statt von einem Klick? */
   from_watchlist: boolean;
   requested_at: string;
@@ -1418,6 +1450,8 @@ export type AppNotification = {
   message_title: string | null;
   /** Bei Staffelanfragen die Staffel – sonst `null`. */
   season: number | null;
+  /** Bei Folgen-Paketen die Folgen – aus demselben Grund wie die Staffel. */
+  episodes?: number[] | null;
   request_id: number | null;
   ticket_id: number | null;
   is_read: boolean;

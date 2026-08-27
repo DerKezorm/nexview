@@ -198,6 +198,11 @@
     "seasonRequired": "Wähle mindestens eine Staffel aus.",
     "seasonHere": "schon da",
     "seasonRunning": "läuft",
+    "seasonPending": "wartet",
+    "episodesShort": "F {{list}}",
+    "episodesPicked": "Folge {{list}} gewählt",
+    "episodesTaken": "Folge {{list}} belegt",
+    "episodesToggle": "Einzelne Folgen von {{name}} wählen",
     "inSubscription": "Läuft in deinem {{services}}.",
     "inSubscriptionMovie": "Du kannst ihn dort sofort sehen.",
     "inSubscriptionSeries": "Ob diese Staffel dabei ist, sagt die Quelle nicht."
@@ -1270,6 +1275,12 @@
     "adminEnableHint": "Ohne diesen Schalter gibt es den Bereich nicht. Es wird nichts automatisch angefragt: Jeder Titel braucht einen Klick.",
     "sourceNotConnected": "nicht verbunden",
     "sourceNotConnectedHint": "{{name}} ist gerade nicht verbunden – deshalb gibt es hier nichts zu sehen. Der Administrator verbindet den Server unter Einstellungen ▸ Dienste ▸ Medienserver."
+  },
+  "episodeRequests": {
+    "adminTitle": "Folgen-Pakete",
+    "adminIntro": "Ist das eingeschaltet, lassen sich im Staffel-Wähler einzelne Folgen aufklappen und gezielt anfragen. Ein Paket kostet einen Platz wie eine ganze Staffel – den echten Verbrauch misst das Speicher-Kontingent.",
+    "adminEnable": "Folgenweises Anfragen erlauben",
+    "adminEnableHint": "Ausgeschaltet gibt es nur ganze Staffeln, wie bisher. Bereits laufende Folgen-Pakete laufen normal zu Ende."
   },
   "paging": {
     "label": "Blättern",

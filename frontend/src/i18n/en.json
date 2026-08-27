@@ -198,6 +198,11 @@
     "seasonRequired": "Pick at least one season.",
     "seasonHere": "already here",
     "seasonRunning": "running",
+    "seasonPending": "waiting",
+    "episodesShort": "E {{list}}",
+    "episodesPicked": "Episode {{list}} picked",
+    "episodesTaken": "Episode {{list}} taken",
+    "episodesToggle": "Pick single episodes of {{name}}",
     "inSubscription": "Already on your {{services}}.",
     "inSubscriptionMovie": "You can watch it there right now.",
     "inSubscriptionSeries": "Whether this season is included, the source does not say."
@@ -1270,6 +1275,12 @@
     "adminEnableHint": "Without this switch the section does not exist. Nothing is requested automatically: every title needs a click.",
     "sourceNotConnected": "not connected",
     "sourceNotConnectedHint": "{{name}} is not connected right now – so there is nothing to show. An administrator connects the server under Settings ▸ Services ▸ Media server."
+  },
+  "episodeRequests": {
+    "adminTitle": "Episode packages",
+    "adminIntro": "When enabled, the season picker lets people expand a season and request single episodes. A package costs one slot like a full season – actual usage is measured by the storage quota.",
+    "adminEnable": "Allow episode-level requests",
+    "adminEnableHint": "When off, only full seasons can be requested, as before. Episode packages already underway simply finish."
   },
   "paging": {
     "label": "Pagination",

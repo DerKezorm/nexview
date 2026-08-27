@@ -80,6 +80,33 @@ export function daysAhead(days: number): string {
 }
 
 /**
+ * Folgennummern kompakt: [1,2,3,5,8] -> „1–3, 5, 8".
+ *
+ * Für die Karten-Pille und die Glocke: Zehn einzelne Nummern sprengen jede
+ * Zeile, und wer 1 bis 8 bestellt hat, liest „1–8" schneller als jede Liste.
+ */
+export function folgenKompakt(nummern: number[]): string {
+  const sortiert = [...nummern].sort((a, b) => a - b)
+  const teile: string[] = []
+  let start: number | null = null
+  let vorher = 0
+  for (const nummer of sortiert) {
+    if (start === null) {
+      start = vorher = nummer
+      continue
+    }
+    if (nummer === vorher + 1) {
+      vorher = nummer
+      continue
+    }
+    teile.push(start === vorher ? `${start}` : `${start}–${vorher}`)
+    start = vorher = nummer
+  }
+  if (start !== null) teile.push(start === vorher ? `${start}` : `${start}–${vorher}`)
+  return teile.join(', ')
+}
+
+/**
  * Bytes als lesbare Groesse - „12,4 GB".
  *
  * Bewusst nur GB und TB: Alles darunter ist bei Filmen und Serien nie die

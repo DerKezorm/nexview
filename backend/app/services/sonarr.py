@@ -483,6 +483,14 @@ class SonarrClient(ArrClient):
         ueberwachte Folgen nicht. Fuer Folgen-Pakete darf aber keine
         Staffel-Flagge mit umgelegt werden - sonst zoege Sonarr die ganze
         Staffel, und der Sinn des Pakets waere dahin.
+
+        ⚠️ **Das Einschalten weckt Altlasten.** Live erlebt: In einer global
+        stummen Serie waren vier Folgen einzeln als ueberwacht markiert -
+        von frueher, ohne Datei, ohne Anfrage. Mit der Serien-Flagge fing
+        Sonarr sofort an, sie zu laden. Nexview schaltet grundsaetzlich
+        nichts ab, was es nicht selbst bestellt hat (die Markierung koennte
+        gewollt sein) - aber es sagt es laut, damit die Ursache im Protokoll
+        steht, wenn ploetzlich Unbestelltes eintrudelt.
         """
         serie = await self.get(f"/series/{arr_id}")
         if not isinstance(serie, dict):
@@ -491,6 +499,24 @@ class SonarrClient(ArrClient):
             )
         if serie.get("monitored"):
             return
+        geweckt = 0
+        try:
+            stand = await self.folgen_stand(arr_id)
+            geweckt = sum(
+                1
+                for staffel in stand.values()
+                for folge in staffel.values()
+                if folge.monitored and not folge.has_file
+            )
+        except ArrError:
+            pass
+        if geweckt:
+            logger.warning(
+                "Switching series %s on wakes %s previously monitored episode(s) "
+                "without a file - Sonarr may start downloading them",
+                arr_id,
+                geweckt,
+            )
         serie["monitored"] = True
         await self.put(f"/series/{arr_id}", serie)
 

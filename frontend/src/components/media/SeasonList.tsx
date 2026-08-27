@@ -53,6 +53,23 @@ function Folgen({ tmdbId, season }: { tmdbId: number; season: number }) {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-mist-100">
               <span className="text-mist-600">{folge.episode_number}.</span> {folge.name}
+              {/* Läuft schon eine Anfrage auf genau diese Folge? Dann steht
+                  es hier - dieselbe Auskunft wie an der Staffel, mit dem
+                  ehrlichen Wort: Warten ist kein Laufen. Bei einer laengst
+                  geladenen Deckungs-Anfrage steht nichts - der fehlende
+                  Haken sagt dann alles (etwa TMDBs Phantomfolge, die es bei
+                  Sonarr gar nicht gibt). */}
+              {folge.requested &&
+                !folge.available &&
+                folge.requested_status !== 'downloaded' && (
+                  <span className="ml-2 rounded-full bg-warn-500/15 px-2 py-0.5 text-[11px] font-normal text-warn-500">
+                    {t(
+                      folge.requested_status === 'pending_approval'
+                        ? 'request.seasonPending'
+                        : 'request.seasonRunning',
+                    )}
+                  </span>
+                )}
             </p>
             {folge.overview && (
               <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-mist-500">
@@ -96,8 +113,11 @@ export function SeasonList({ tmdbId, seasons }: { tmdbId: number; seasons: Seaso
       <div className="flex flex-col gap-2">
         {seasons.map((staffel) => {
           const auf = offen === staffel.season_number
-          const komplett =
-            staffel.episode_count > 0 && staffel.episodes_available >= staffel.episode_count
+          // ⚠️ Der Nenner kommt von **Sonarr**, wo es die Serie kennt - TMDB
+          // zaehlt gern anders (Baywatch S1: 22 gegen 21), und mit der
+          // TMDB-Zahl stand an einer kompletten Staffel ewig "21 von 22".
+          const gesamt = staffel.episodes_total_arr ?? staffel.episode_count
+          const komplett = gesamt > 0 && staffel.episodes_available >= gesamt
           const teilweise = staffel.episodes_available > 0 && !komplett
 
           return (
@@ -141,7 +161,7 @@ export function SeasonList({ tmdbId, seasons }: { tmdbId: number; seasons: Seaso
                       ? t('detail.seasonComplete')
                       : t('detail.seasonPartial', {
                           have: staffel.episodes_available,
-                          total: staffel.episode_count,
+                          total: gesamt,
                         })}
                   </span>
                 )}

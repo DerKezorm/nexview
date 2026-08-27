@@ -56,6 +56,19 @@ const SERIE = {
   ],
 } as unknown as MediaItem
 
+// ⚠️ **Vollständig, auch was das Formular nicht anzeigt.** Ohne Auswahlrecht
+// sind Profil und Ordner unsichtbar - gelesen werden sie trotzdem, und eine
+// unvollständige Attrappe lässt das Bauteil beim Erscheinen scheitern. Genau
+// daran ist der erste Anlauf gestorben.
+const ARR_OPTIONEN = {
+  quality_profiles: [{ id: 1, name: 'HD-1080p' }],
+  root_folders: [{ path: '/data/Movies', free_space: 1_000_000_000 }],
+  default_root_folder: '/data/Movies',
+  default_quality_profile_id: 1,
+  quality_profile_choice: false,
+  root_folder_choice: false,
+}
+
 function serverAntwortet() {
   holen.mockImplementation(async (pfad: string) => {
     if (pfad === '/api/setup/status') {
@@ -65,17 +78,48 @@ function serverAntwortet() {
       return { radarr_configured: true, sonarr_configured: true }
     }
     if (pfad.startsWith('/api/arr/')) {
-      // ⚠️ **Vollständig, auch was das Formular nicht anzeigt.** Ohne
-      // Auswahlrecht sind Profil und Ordner unsichtbar - gelesen werden sie
-      // trotzdem, und eine unvollständige Attrappe lässt das Bauteil beim
-      // Erscheinen scheitern. Genau daran ist der erste Anlauf gestorben.
+      return ARR_OPTIONEN
+    }
+    throw new Error(`Unerwartet: ${pfad}`)
+  })
+}
+
+/** Wie ``serverAntwortet``, aber mit Haus-Schalter an und Folgenlisten. */
+function serverMitFolgen() {
+  holen.mockImplementation(async (pfad: string) => {
+    if (pfad === '/api/setup/status') {
+      return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+    }
+    if (pfad === '/api/config') {
       return {
-        quality_profiles: [{ id: 1, name: 'HD-1080p' }],
-        root_folders: [{ path: '/data/Movies', free_space: 1_000_000_000 }],
-        default_root_folder: '/data/Movies',
-        default_quality_profile_id: 1,
-        quality_profile_choice: false,
-        root_folder_choice: false,
+        radarr_configured: true,
+        sonarr_configured: true,
+        episode_requests_enabled: true,
+      }
+    }
+    if (pfad.startsWith('/api/arr/')) {
+      return ARR_OPTIONEN
+    }
+    if (pfad === '/api/detail/tv/1399/season/2') {
+      return {
+        season_number: 2,
+        name: 'Staffel 2',
+        episodes: [
+          { episode_number: 1, name: 'Eins', available: false, requested: true },
+          { episode_number: 2, name: 'Zwei', available: false },
+          { episode_number: 3, name: 'Drei', available: true },
+          { episode_number: 4, name: 'Vier', available: false },
+        ],
+      }
+    }
+    if (pfad === '/api/detail/tv/1399/season/3') {
+      return {
+        season_number: 3,
+        name: 'Staffel 3',
+        episodes: [
+          { episode_number: 1, name: 'Eins', available: false },
+          { episode_number: 2, name: 'Zwei', available: false },
+        ],
       }
     }
     throw new Error(`Unerwartet: ${pfad}`)
@@ -130,19 +174,11 @@ describe('Eine Serie anfragen', () => {
     const nutzer = userEvent.setup()
     // Erst das Staffelfenster öffnen.
     await nutzer.click(await screen.findByRole('button', { name: /auswählen/i }))
-    // ⚠️ Über den Text des Labels, nicht über den berechneten Namen des
-    // Kästchens. Der setzt sich aus Staffelname **und** Folgenzahl zusammen
-    // („Staffel 1 10 Folgen"), und ein Suchmuster darauf wäre beim ersten
-    // geänderten Zusatz hinfällig — der Test ginge kaputt, ohne dass sich am
-    // Verhalten etwas geändert hätte.
-    const kaestchenZu = async (nummer: number) => {
-      const beschriftung = await screen.findByText(`Staffel ${nummer}`)
-      const kaestchen = beschriftung
-        .closest('label')
-        ?.querySelector<HTMLInputElement>('input[type="checkbox"]')
-      if (!kaestchen) throw new Error(`Kein Kästchen zu Staffel ${nummer}`)
-      return kaestchen
-    }
+    // Seit dem Folgen-Wähler trägt jedes Staffel-Kästchen den Staffelnamen
+    // als eigenes ``aria-label`` — der berechnete Name ist damit genau der
+    // Name, ohne Zusätze wie die Folgenzahl.
+    const kaestchenZu = async (nummer: number) =>
+      await screen.findByRole('checkbox', { name: `Staffel ${nummer}` })
 
     for (const nummer of nummern) {
       await nutzer.click(await kaestchenZu(nummer))
@@ -203,5 +239,67 @@ describe('Eine Serie anfragen', () => {
 
     await userEvent.setup().click(knopf)
     expect(schicken).not.toHaveBeenCalled()
+  })
+})
+
+describe('Folgen-Pakete', () => {
+  async function fensterOeffnen() {
+    const nutzer = userEvent.setup()
+    await nutzer.click(await screen.findByRole('button', { name: /auswählen/i }))
+    return nutzer
+  }
+
+  it('ein Folgen-Paket schickt seine Folgenliste mit', async () => {
+    serverMitFolgen()
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    const nutzer = await fensterOeffnen()
+
+    // Mischform in einem Zug: Staffel 1 ganz, aus Staffel 2 nur Folge 2 und 4.
+    await nutzer.click(await screen.findByRole('checkbox', { name: 'Staffel 1' }))
+    await nutzer.click(
+      await screen.findByRole('button', { name: /einzelne folgen von staffel 2/i }),
+    )
+    await nutzer.click(await screen.findByRole('checkbox', { name: /zwei/i }))
+    await nutzer.click(await screen.findByRole('checkbox', { name: /vier/i }))
+    await nutzer.click(screen.getByRole('button', { name: /^fertig$/i }))
+    await abschicken()
+
+    await waitFor(() => expect(schicken).toHaveBeenCalledTimes(2))
+    expect(schicken.mock.calls[0][1]).toMatchObject({ season: 1 })
+    expect(schicken.mock.calls[0][1]).not.toHaveProperty('episodes')
+    expect(schicken.mock.calls[1][1]).toMatchObject({ season: 2, episodes: [2, 4] })
+  })
+
+  it('belegte Folgen lassen sich nicht anhaken', async () => {
+    serverMitFolgen()
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    const nutzer = await fensterOeffnen()
+
+    await nutzer.click(
+      await screen.findByRole('button', { name: /einzelne folgen von staffel 2/i }),
+    )
+    // Folge 1 läuft schon (Anfrage), Folge 3 liegt schon da - beides gesperrt.
+    expect(await screen.findByRole('checkbox', { name: /eins/i })).toBeDisabled()
+    expect(await screen.findByRole('checkbox', { name: /drei/i })).toBeDisabled()
+  })
+
+  it('alle Folgen angehakt heißt: die ganze Staffel', async () => {
+    serverMitFolgen()
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    const nutzer = await fensterOeffnen()
+
+    await nutzer.click(
+      await screen.findByRole('button', { name: /einzelne folgen von staffel 3/i }),
+    )
+    await nutzer.click(await screen.findByRole('checkbox', { name: /eins/i }))
+    await nutzer.click(await screen.findByRole('checkbox', { name: /zwei/i }))
+    await nutzer.click(screen.getByRole('button', { name: /^fertig$/i }))
+    await abschicken()
+
+    // Wer alles anhakt, bestellt die Staffel - samt künftiger Folgen, ohne
+    // Folgenliste im Auftrag.
+    await waitFor(() => expect(schicken).toHaveBeenCalledTimes(1))
+    expect(schicken.mock.calls[0][1]).toMatchObject({ season: 3 })
+    expect(schicken.mock.calls[0][1]).not.toHaveProperty('episodes')
   })
 })

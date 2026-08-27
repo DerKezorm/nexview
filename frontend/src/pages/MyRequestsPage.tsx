@@ -15,7 +15,7 @@ import { Button, Card, ErrorBanner, RundKnopf, Spinner } from '../components/ui'
 import { Fenster } from '../components/Fenster'
 import { Anfragebalken, Anfrageverlauf } from '../components/media/Anfrageverlauf'
 import { Rueckmeldung } from '../components/media/Rueckmeldung'
-import { formatDate, formatSize } from '../lib/format'
+import { folgenKompakt, formatDate, formatSize } from '../lib/format'
 import { anfragenStandNeuLaden } from '../lib/refresh'
 
 /**
@@ -407,6 +407,16 @@ export function MyRequestsPage() {
                   {request.season !== null && (
                     <span className="shrink-0 rounded-full border border-ink-700 bg-ink-850 px-2 py-0.5 text-xs font-medium text-mist-400">
                       {t('request.seasonShort', { number: request.season })}
+                      {/* Ein Folgen-Paket zeigt seine Folgen - sonst wären
+                          zwei Pakete derselben Staffel nicht zu unterscheiden. */}
+                      {request.episodes && request.episodes.length > 0 && (
+                        <>
+                          {' · '}
+                          {t('request.episodesShort', {
+                            list: folgenKompakt(request.episodes),
+                          })}
+                        </>
+                      )}
                     </span>
                   )}
                   {/* Haengt an der Anfrage selbst, nicht an der Einstellung:

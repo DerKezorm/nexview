@@ -1398,13 +1398,70 @@ def angefragte_staffeln(
     also zwei Anfragen. Vorher galt die Staffel hier stufenuebergreifend als
     belegt, und die Auswahl graute eine 4K-Anfrage aus, die der Server
     laengst erlaubt haette.
+
+    ⚠️ **Folgen-Pakete zaehlen hier nicht.** "Belegt" heisst fuer die
+    Oberflaeche "ganz vergeben" - eine Staffel mit zwei laufenden Folgen ist
+    aber weiter waehlbar, der Rest gehoert noch niemandem. Was ein Paket
+    belegt, sagt ``angefragte_pakete`` je Folge.
     """
     zeilen = db.scalars(
         select(MediaRequest.season).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
             MediaRequest.tier == tier,
+            MediaRequest.episodes.is_(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
     ).all()
     return set(zeilen)
+
+
+def angefragte_pakete(
+    db: Session, tmdb_id: int, tier: QualityTier = QualityTier.standard
+) -> dict[int, dict[int, str]]:
+    """Welche Folgen je Staffel sind von laufenden Paketen belegt - und wie?
+
+    Das Gegenstueck zu ``angefragte_staffeln`` fuer die dritte Ebene, je
+    Folge mit dem **Status** der belegenden Anfrage (je Folge gibt es genau
+    einen Besitzer). Die Auswahl macht daraus ehrliche Worte: "wartet" ist
+    etwas anderes als "laeuft" - eine wartende Freigabe kann noch abgelehnt
+    werden, und wer das nicht sieht, wundert sich spaeter zu Recht.
+    """
+    zeilen = db.scalars(
+        select(MediaRequest).where(
+            MediaRequest.media_type == MediaType.tv,
+            MediaRequest.tmdb_id == tmdb_id,
+            MediaRequest.tier == tier,
+            MediaRequest.episodes.is_not(None),
+            MediaRequest.status.in_(ACTIVE_STATUSES),
+        )
+    )
+    belegt: dict[int, dict[int, str]] = {}
+    for zeile in zeilen:
+        if zeile.season is None or not zeile.episodes:
+            continue
+        staffel = belegt.setdefault(zeile.season, {})
+        for nummer in zeile.episodes:
+            staffel[nummer] = zeile.status.value
+    return belegt
+
+
+def staffel_belegung(
+    db: Session, tmdb_id: int, tier: QualityTier = QualityTier.standard
+) -> dict[int | None, str]:
+    """Der Status der deckenden Voll-Anfrage je Staffel (``None`` = ganze Serie).
+
+    Nur volle Abdeckungen - Pakete stehen in ``angefragte_pakete``. Je
+    Staffel kann es hoechstens eine aktive Voll-Anfrage geben, der Status
+    ist also eindeutig.
+    """
+    zeilen = db.scalars(
+        select(MediaRequest).where(
+            MediaRequest.media_type == MediaType.tv,
+            MediaRequest.tmdb_id == tmdb_id,
+            MediaRequest.tier == tier,
+            MediaRequest.episodes.is_(None),
+            MediaRequest.status.in_(ACTIVE_STATUSES),
+        )
+    )
+    return {zeile.season: zeile.status.value for zeile in zeilen}

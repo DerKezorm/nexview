@@ -640,6 +640,32 @@ def jahr_aus(datum: str | None) -> int | None:
     return int(vorn) if vorn.isdigit() else None
 
 
+async def serien_eintrag(
+    settings: AppSettings,
+    tvdb_id: int | None,
+    titel: str,
+    jahr: int | None = None,
+    tier: str = "standard",
+) -> SeriesEntry | None:
+    """Der Sonarr-Eintrag zu einer Serie - ueber TVDB, ersatzweise den Titel.
+
+    Gebraucht, wo die Oberflaeche **Sonarrs** Zaehlung braucht statt der von
+    TMDB: Die beiden zaehlen Folgen gern verschieden (gemessen an Baywatch
+    S1: TMDB 22, Sonarr 21), und wer mit der TMDB-Zahl rechnet, haelt eine
+    vollstaendige Staffel fuer ewig unvollstaendig.
+    """
+    client = sonarr_client(settings, tier)
+    if client is None:
+        return None
+    try:
+        nach_tvdb, nach_titel = await series_library(settings, tier)
+    except ArrError:
+        return None
+    if tvdb_id and (treffer := nach_tvdb.get(tvdb_id)) is not None:
+        return treffer
+    return treffer_nach_titel(nach_titel, titel, jahr)
+
+
 async def episode_availability(
     settings: AppSettings,
     tvdb_id: int | None,

@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../api/client'
 import type { AppNotification } from '../api/types'
-import { formatDate } from '../lib/format'
+import { folgenKompakt, formatDate } from '../lib/format'
 
 /** Wie oft im Hintergrund nach Neuem geschaut wird. */
 const POLL_MS = 60_000
@@ -176,6 +176,14 @@ export function NotificationBell() {
                       {item.season !== null && item.season !== undefined && (
                         <span className="ml-1.5 font-normal text-mist-500">
                           {t('storage.season', { number: item.season })}
+                          {item.episodes && item.episodes.length > 0 && (
+                            <>
+                              {' · '}
+                              {t('request.episodesShort', {
+                                list: folgenKompakt(item.episodes),
+                              })}
+                            </>
+                          )}
                         </span>
                       )}
                     </p>

@@ -483,7 +483,10 @@ export function MyRequestsPage() {
               )}
 
               <div className="flex w-32 shrink-0 justify-end">
-                <StatusBadge status={request.status} />
+                <StatusBadge
+                  status={request.status}
+                  fortschritt={request.laedt_fortschritt}
+                />
               </div>
 
               {/* „Warum dauert das?" beantwortet sich hier, statt beim

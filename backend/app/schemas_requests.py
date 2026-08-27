@@ -94,6 +94,10 @@ class RequestPublic(BaseModel):
     # Benutzerliste nicht abrufen, koennte eine Nummer also nicht aufloesen.
     approved_by_name: str | None = None
     last_checked_at: datetime | None = None
+    # "Laedt gerade": Prozent aus der Warteschlange (0-100) oder None - eine
+    # Momentaufnahme fuer die Pille, kein eigener Status. Siehe MediaRequest.
+    laedt_fortschritt: int | None = None
+    laedt_seit: datetime | None = None
     rejection_reason: str | None
     error_message: str | None
     # Kennung samt Werten - das Frontend baut daraus den Satz in der

@@ -119,6 +119,48 @@ def ist_wirklich_weg(request: MediaRequest, instanz_hat_geantwortet: bool) -> bo
     return (jetzt - seit) > timedelta(minutes=SCHONFRIST_MINUTEN)
 
 
+def laedt_fortschritt(
+    request: MediaRequest, eintrag: Any, warteschlange: list
+) -> int | None:
+    """Zu wie viel Prozent liegt das **Angefragte** in der Warteschlange?
+
+    ``None`` heisst: Davon laedt gerade nichts - auch dann, wenn andere Teile
+    derselben Serie laden. Die Zuordnung ist bewusst vorsichtig: Ein Eintrag
+    ohne Staffel- oder Folgenangabe zaehlt bei Staffel- und Paket-Anfragen
+    **nicht** mit - lieber keine Anzeige als eine falsche (Sonarrs
+    Warteschlange war beim Messen leer, die Feldnamen sind unbelegt).
+
+    Der Fortschritt ist eine Momentaufnahme fuer die Pille, keine Wahrheit
+    ueber den Ausgang: Ein Download kann scheitern und neu anlaufen. Genau
+    deshalb ist das ein Anzeige-Feld und kein Status.
+    """
+    arr_id = getattr(eintrag, "arr_id", None) if eintrag is not None else None
+    if not arr_id:
+        return None
+    passend = [
+        zeile
+        for zeile in warteschlange
+        if zeile.arr_id == arr_id and _in_der_anfrage(request, zeile)
+    ]
+    if not passend:
+        return None
+    gesamt = sum(zeile.size for zeile in passend)
+    geladen = sum(max(0, zeile.size - zeile.sizeleft) for zeile in passend)
+    if gesamt <= 0:
+        return 0
+    return max(0, min(100, round(geladen * 100 / gesamt)))
+
+
+def _in_der_anfrage(request: MediaRequest, zeile: Any) -> bool:
+    if request.media_type != MediaType.tv or request.season is None:
+        return True
+    if zeile.season != request.season:
+        return False
+    if request.episodes:
+        return zeile.episode is not None and zeile.episode in request.episodes
+    return True
+
+
 def heilung_noetig(
     request: MediaRequest, eintrag: Any, folgen: dict | None = None
 ) -> bool:

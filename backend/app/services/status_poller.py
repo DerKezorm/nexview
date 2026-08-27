@@ -137,6 +137,28 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                 await client.folgen_stand(arr_id) if client is not None else {}
             )
         return folgen_befunde[schluessel]
+
+    # Die Warteschlangen fuer "laedt gerade" - hoechstens einmal je Instanz
+    # und Durchlauf geholt, und nur, wenn ueberhaupt eine Suche laeuft.
+    warteschlangen: dict[tuple[str, str], list] = {}
+
+    async def _warteschlange(art: str, stufe: str) -> list:
+        schluessel = (art, stufe)
+        if schluessel not in warteschlangen:
+            client = (
+                library.radarr_client(settings, stufe)
+                if art == "movie"
+                else library.sonarr_client(settings, stufe)
+            )
+            try:
+                warteschlangen[schluessel] = (
+                    await client.warteschlange() if client is not None else []
+                )
+            except ArrError:
+                # Ohne Warteschlange fehlt nur die Fortschritts-Anzeige -
+                # kein Grund, den ganzen Abgleich scheitern zu lassen.
+                warteschlangen[schluessel] = []
+        return warteschlangen[schluessel]
     for request in offen:
         stufe = request.tier.value
         if request.media_type == MediaType.movie:
@@ -166,6 +188,8 @@ async def check_once(db: Session, settings: AppSettings) -> int:
             if abgleich_kern.ist_wirklich_weg(request, geantwortet):
                 request.status = RequestStatus.cancelled
                 request.completed_at = utcnow()
+                request.laedt_fortschritt = None
+                request.laedt_seit = None
                 verschwunden += 1
                 logger.warning(
                     "Request %s %r (%s/%s) cancelled: no longer present in %s",
@@ -197,6 +221,9 @@ async def check_once(db: Session, settings: AppSettings) -> int:
         if abgleich_kern.ist_fertig(request, eintrag, folgen):
             request.status = RequestStatus.downloaded
             request.completed_at = utcnow()
+            # Fertig heisst: nichts laedt mehr - die Anzeige raeumt mit auf.
+            request.laedt_fortschritt = None
+            request.laedt_seit = None
             # Belegten Platz sofort zurechnen, nicht erst beim stuendlichen
             # Abgleich: Wer gerade etwas angefragt hat und nachsieht, was es
             # ihn kostet, faende dort sonst bis zu eine Stunde lang eine Null
@@ -218,6 +245,24 @@ async def check_once(db: Session, settings: AppSettings) -> int:
         elif request.status == RequestStatus.approved:
             # In Radarr/Sonarr angelegt, Datei fehlt noch.
             request.status = RequestStatus.searching
+
+        # "Laedt gerade": die Momentaufnahme aus der Warteschlange - gesetzt,
+        # solange etwas vom Angefragten dort liegt, sonst wieder geloescht.
+        # Der Grab-Anruf macht sie sofort sichtbar; ohne Draht erscheint sie
+        # ueber den Takt binnen zwei Minuten.
+        if request.status == RequestStatus.searching:
+            fortschritt = abgleich_kern.laedt_fortschritt(
+                request,
+                eintrag,
+                await _warteschlange(request.media_type.value, stufe),
+            )
+            if fortschritt is None:
+                request.laedt_fortschritt = None
+                request.laedt_seit = None
+            else:
+                if request.laedt_seit is None:
+                    request.laedt_seit = utcnow()
+                request.laedt_fortschritt = fortschritt
 
         # Die Ueberwachungs-Heilung - warum es sie gibt, steht bei der Frage:
         # ``abgleich_kern.heilung_noetig``. Entschieden wird dort, ausgefuehrt

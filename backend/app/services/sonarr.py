@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from .arr import ArrClient, ArrError
+from .arr import ArrClient, ArrError, WarteschlangenEintrag
 
 
 @dataclass(frozen=True)
@@ -170,6 +170,36 @@ def _staffel_stand(show: dict[str, Any]) -> dict[int, Staffelstand]:
 class SonarrClient(ArrClient):
     def __init__(self, base_url: str, api_key: str) -> None:
         super().__init__(base_url, api_key, "Sonarr")
+
+    async def warteschlange(self) -> list[WarteschlangenEintrag]:
+        """Was Sonarr gerade laedt - je Folge ein Eintrag.
+
+        ⚠️ Staffel und Folge kommen aus dem mitbestellten ``episode``-Objekt
+        (``includeEpisode``). Beim Messen (27.08.2026) war Sonarrs
+        Warteschlange leer - die Feldnamen stammen aus der API-Beschreibung,
+        nicht aus einer Live-Antwort. Deshalb ist der Kern vorsichtig: Ein
+        Eintrag ohne Staffelangabe zaehlt bei Staffel- und Paket-Anfragen
+        nicht mit (lieber keine Anzeige als eine falsche), und hier faellt
+        nur weg, was nicht einmal eine Serien-Kennung traegt.
+        """
+        ergebnis: list[WarteschlangenEintrag] = []
+        for record in await self._warteschlange_roh({"includeEpisode": "true"}):
+            series_id = record.get("seriesId")
+            if not isinstance(series_id, int):
+                continue
+            episode = record.get("episode") if isinstance(record.get("episode"), dict) else {}
+            season = episode.get("seasonNumber", record.get("seasonNumber"))
+            nummer = episode.get("episodeNumber")
+            ergebnis.append(
+                WarteschlangenEintrag(
+                    arr_id=series_id,
+                    season=season if isinstance(season, int) else None,
+                    episode=nummer if isinstance(nummer, int) else None,
+                    size=int(record.get("size") or 0),
+                    sizeleft=int(record.get("sizeleft") or 0),
+                )
+            )
+        return ergebnis
 
     async def library(self) -> tuple[dict[int, LibraryEntry], dict[str, LibraryEntry]]:
         """Alle Serien aus Sonarr - einmal nach TVDB-Id, einmal nach Titel.

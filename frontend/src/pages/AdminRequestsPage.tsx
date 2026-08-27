@@ -874,7 +874,10 @@ export function AdminRequestsPage() {
                     </span>
                   )}
 
-                  <StatusBadge status={request.status} />
+                  <StatusBadge
+                    status={request.status}
+                    fortschritt={request.laedt_fortschritt}
+                  />
 
                   {/* ⚠️ Zurückgestellte gehören dazu.
                       „Ja im Prinzip, nur nicht jetzt" ist nur dann eine

@@ -1096,6 +1096,10 @@ export type MediaRequest = {
   requested_at: string;
   approved_at: string | null;
   completed_at: string | null;
+  /** „Lädt gerade": Prozent aus der Warteschlange (0–100) oder null – eine
+   * Momentaufnahme für die Pille, kein eigener Status. */
+  laedt_fortschritt?: number | null;
+  laedt_seit?: string | null;
   /** Wer freigegeben hat – leer heißt: automatisch, ohne Entscheider. */
   approved_by_name?: string | null;
   /** Wann Nexview zuletzt bei Radarr/Sonarr nachgesehen hat. */

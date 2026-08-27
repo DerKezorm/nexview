@@ -1542,6 +1542,15 @@ class MediaRequest(Base):
     requested_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # --- "Laedt gerade" -----------------------------------------------------
+    # Reine Anzeige aus der Warteschlange von Radarr/Sonarr: Prozent (0-100),
+    # solange etwas vom Angefragten dort liegt, sonst None. Gesetzt und
+    # geloescht vom Rundgang. ⚠️ Bewusst KEIN eigener RequestStatus: Der
+    # Download kann jederzeit scheitern und neu anlaufen - ein Status, der
+    # zwischen "searching" und "laedt" hin- und herspraenge, wuerde Verlauf
+    # und Meldungen fluten. Das Wort auf der Pille wechselt, der Zustand nicht.
+    laedt_fortschritt: Mapped[int | None] = mapped_column(Integer)
+    laedt_seit: Mapped[datetime | None] = mapped_column(DateTime)
     error_message: Mapped[str | None] = mapped_column(Text)
     # ⚠️ **Derselbe Inhalt noch einmal - als Kennung statt als Satz.**
     #

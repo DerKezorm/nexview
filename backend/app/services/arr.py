@@ -8,6 +8,7 @@ Serien und ``tvdbId``.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -100,6 +101,22 @@ async def close_http_client() -> None:
     if _client is not None and not _client.is_closed:
         await _client.aclose()
     _client = None
+
+
+@dataclass(frozen=True)
+class WarteschlangenEintrag:
+    """Ein laufender Download aus ``/queue`` - aufs Noetigste verdichtet.
+
+    ``arr_id`` ist die movieId bzw. seriesId der Instanz; Staffel und Folge
+    gibt es nur bei Sonarr. ``size``/``sizeleft`` tragen die Fortschritts-
+    Anzeige: geladen ist, was von ``size`` nicht mehr uebrig ist.
+    """
+
+    arr_id: int
+    season: int | None
+    episode: int | None
+    size: int
+    sizeleft: int
 
 
 class ArrClient:
@@ -205,6 +222,26 @@ class ArrClient:
 
     async def root_folders(self) -> list[dict[str, Any]]:
         return await self.get("/rootfolder") or []
+
+    async def _warteschlange_roh(self, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """Alle Seiten von ``/queue`` - die Antwort ist seitenweise.
+
+        Form live gemessen (27.08.2026, Radarr 6.3 mit laufendem Download):
+        ``{page, pageSize, totalRecords, records: [...]}``.
+        """
+        seite = 1
+        eintraege: list[dict[str, Any]] = []
+        while True:
+            antwort = (
+                await self.get("/queue", {"page": seite, "pageSize": 250, **params})
+                or {}
+            )
+            records = [r for r in antwort.get("records") or [] if isinstance(r, dict)]
+            eintraege.extend(records)
+            gesamt = antwort.get("totalRecords")
+            if not records or not isinstance(gesamt, int) or len(eintraege) >= gesamt:
+                return eintraege
+            seite += 1
 
     async def notifications(self) -> list[dict[str, Any]]:
         """Alle Benachrichtigungs-Eintraege der Instanz - auch fremde.

@@ -816,6 +816,7 @@
     "approved": "Approved",
     "requested": "Requested",
     "searching": "Searching",
+    "downloading": "Downloading · {{prozent}} %",
     "downloaded": "Already downloaded",
     "in_library": "In library",
     "rejected": "Rejected",

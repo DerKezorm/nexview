@@ -31,11 +31,20 @@ const TONES: Record<MediaStatus, string> = {
 
 type StatusBadgeProps = {
   status: MediaStatus
+  /** „Lädt gerade“-Prozent aus der Warteschlange – nur bei `searching` gezeigt. */
+  fortschritt?: number | null
   className?: string
 }
 
-export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
+export function StatusBadge({ status, fortschritt = null, className = '' }: StatusBadgeProps) {
   const { t } = useTranslation()
+
+  // Das Wort wechselt, der Zustand nicht: „lädt“ ist „wird gesucht“ mit
+  // sichtbarem Fortschritt. Ein Download kann scheitern und neu anlaufen –
+  // deshalb bleibt es dieselbe Farbe und derselbe Status, nur das Wort ist
+  // gerade ehrlicher.
+  const laedt =
+    status === 'searching' && fortschritt !== null && fortschritt !== undefined
 
   return (
     <span
@@ -47,7 +56,9 @@ export function StatusBadge({ status, className = '' }: StatusBadgeProps) {
         className
       }
     >
-      {t(`status.${status}`)}
+      {laedt
+        ? t('status.downloading', { prozent: fortschritt })
+        : t(`status.${status}`)}
     </span>
   )
 }

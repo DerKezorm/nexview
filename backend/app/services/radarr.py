@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from .arr import ArrClient, ArrError
+from .arr import ArrClient, ArrError, WarteschlangenEintrag
 
 
 @dataclass(frozen=True)
@@ -114,6 +114,29 @@ class RadarrClient(ArrClient):
                 added_at=_hinzugefuegt(movie),
             )
         return result
+
+    async def warteschlange(self) -> list[WarteschlangenEintrag]:
+        """Was Radarr gerade laedt - fuer die "laedt gerade"-Anzeige.
+
+        Form live gemessen (27.08.2026): je Record ``movieId``, ``size``,
+        ``sizeleft``. Eintraege ohne Film-Kennung (verwaiste Downloads)
+        fallen raus - ihnen laesst sich keine Anfrage zuordnen.
+        """
+        ergebnis: list[WarteschlangenEintrag] = []
+        for record in await self._warteschlange_roh({}):
+            movie_id = record.get("movieId")
+            if not isinstance(movie_id, int):
+                continue
+            ergebnis.append(
+                WarteschlangenEintrag(
+                    arr_id=movie_id,
+                    season=None,
+                    episode=None,
+                    size=int(record.get("size") or 0),
+                    sizeleft=int(record.get("sizeleft") or 0),
+                )
+            )
+        return ergebnis
 
     async def calendar(self, start: str, end: str) -> list[dict[str, Any]]:
         """Was in diesem Zeitraum erscheint - von Filmen, die Radarr kennt.

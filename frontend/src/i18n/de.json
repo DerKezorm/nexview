@@ -816,6 +816,7 @@
     "approved": "Freigegeben",
     "requested": "Angefragt",
     "searching": "Wird gesucht",
+    "downloading": "Lädt · {{prozent}} %",
     "downloaded": "Bereits geladen",
     "in_library": "In der Bibliothek",
     "rejected": "Abgelehnt",

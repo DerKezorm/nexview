@@ -857,7 +857,7 @@ export function AdminServicesSettings() {
     );
 
     return (
-      <div className="flex flex-col gap-4 border-t border-ink-700 pt-4">
+      <div className="flex flex-col gap-4 border-t border-ink-700 pt-4 lg:border-t-0 lg:pt-0">
         <div>
           <p className="text-sm font-medium text-mist-300">
             {t("settings.targetSection")}
@@ -1231,6 +1231,11 @@ export function AdminServicesSettings() {
                 titel={t("settings.instanceStandard")}
                 hinweis={t("settings.instanceStandardHint")}
               >
+                {/* Zweispaltig, sobald der Platz reicht: links der Zugang,
+                  rechts die Entscheider-Regeln - untereinander war das
+                  verschenkte Breite. */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className="flex flex-col gap-4">
                 <Field
                   label={t("settings.instanceName")}
                   value={draft.radarr_name}
@@ -1290,7 +1295,11 @@ export function AdminServicesSettings() {
                     />
                   </>
                 )}
-                {regelSektion("movie", "standard")}
+                </div>
+                <div className="lg:border-l lg:border-ink-700 lg:pl-6">
+                  {regelSektion("movie", "standard")}
+                </div>
+                </div>
                 {instanzSpeichernReihe("radarr")}
               </InstanzBlock>
             )}
@@ -1300,6 +1309,11 @@ export function AdminServicesSettings() {
                 titel={t("uhd.section")}
                 hinweis={t("uhd.sectionHint")}
               >
+                {/* Zweispaltig, sobald der Platz reicht: links der Zugang,
+                  rechts die Entscheider-Regeln - untereinander war das
+                  verschenkte Breite. */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className="flex flex-col gap-4">
                 <Field
                   label={t("settings.instanceName")}
                   value={draft.radarr_uhd_name}
@@ -1361,7 +1375,11 @@ export function AdminServicesSettings() {
                     />
                   </>
                 )}
-                {regelSektion("movie", "uhd")}
+                </div>
+                <div className="lg:border-l lg:border-ink-700 lg:pl-6">
+                  {regelSektion("movie", "uhd")}
+                </div>
+                </div>
                 {instanzSpeichernReihe("radarr_uhd")}
               </InstanzBlock>
             )}
@@ -1405,6 +1423,11 @@ export function AdminServicesSettings() {
                 titel={t("settings.instanceStandard")}
                 hinweis={t("settings.instanceStandardHint")}
               >
+                {/* Zweispaltig, sobald der Platz reicht: links der Zugang,
+                  rechts die Entscheider-Regeln - untereinander war das
+                  verschenkte Breite. */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className="flex flex-col gap-4">
                 <Field
                   label={t("settings.instanceName")}
                   value={draft.sonarr_name}
@@ -1464,7 +1487,11 @@ export function AdminServicesSettings() {
                     />
                   </>
                 )}
-                {regelSektion("tv", "standard")}
+                </div>
+                <div className="lg:border-l lg:border-ink-700 lg:pl-6">
+                  {regelSektion("tv", "standard")}
+                </div>
+                </div>
                 {instanzSpeichernReihe("sonarr")}
               </InstanzBlock>
             )}
@@ -1474,6 +1501,11 @@ export function AdminServicesSettings() {
                 titel={t("uhd.section")}
                 hinweis={t("uhd.sectionHint")}
               >
+                {/* Zweispaltig, sobald der Platz reicht: links der Zugang,
+                  rechts die Entscheider-Regeln - untereinander war das
+                  verschenkte Breite. */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className="flex flex-col gap-4">
                 <Field
                   label={t("settings.instanceName")}
                   value={draft.sonarr_uhd_name}
@@ -1535,7 +1567,11 @@ export function AdminServicesSettings() {
                     />
                   </>
                 )}
-                {regelSektion("tv", "uhd")}
+                </div>
+                <div className="lg:border-l lg:border-ink-700 lg:pl-6">
+                  {regelSektion("tv", "uhd")}
+                </div>
+                </div>
                 {instanzSpeichernReihe("sonarr_uhd")}
               </InstanzBlock>
             )}

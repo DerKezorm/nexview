@@ -12,6 +12,7 @@ import { StatusBadge } from './StatusBadge'
 import { UhdBadge } from './UhdBadge'
 import { WatchedBadge } from './WatchedBadge'
 import { useAuth } from '../../auth/useAuth'
+import { darfAnfragen } from '../../lib/status'
 
 type DetailModalProps = {
   item: MediaItem | null
@@ -91,9 +92,12 @@ export function DetailModal({
    * `status_uhd` liefert der Server nur, wenn es eine 4K-Instanz gibt **und**
    * dieser Benutzer sie nutzen darf - die Prüfung steckt also schon darin.
    */
-  const uhdOffen = item?.status_uhd === 'not_requested'
+  const uhdOffen = item?.status_uhd != null && darfAnfragen(item.status_uhd)
   const kannAnfragen =
-    item?.status === 'not_requested' || uhdOffen || nurWeitereStaffel || (gesperrt && istAdmin)
+    (item != null && darfAnfragen(item.status)) ||
+    uhdOffen ||
+    nurWeitereStaffel ||
+    (gesperrt && istAdmin)
 
   /**
    * Steht eine Staffelauswahl bevor, muss der Knopf das ankündigen.

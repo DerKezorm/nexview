@@ -69,6 +69,12 @@ def _kennungen_im_backend() -> set[str]:
         # Sicherungs-Wiederherstellen eine Luecke entstanden.
         for klasse in ("SicherungFehler", "SchluesselFehler"):
             gefunden.update(re.findall(klasse + r'\(\s*\n?\s*"([a-z0-9_]+)"', text))
+        # ⚠️ Kennungen, die als **Schluesselwort** uebergeben werden:
+        # ``ArrError(..., code="arr_timeout", service=...)``. Diese Meldungen
+        # nehmen einen eigenen Weg - sie landen in ``MediaRequest.error_detail``
+        # und stehen von dort Wochen spaeter im Verlauf. Ohne diese Zeile bliebe
+        # ausgerechnet die Gruppe ungeprueft, die am laengsten sichtbar ist.
+        gefunden.update(re.findall(r'\bcode\s*=\s*"([a-z0-9_]+)"', text))
     return gefunden
 
 

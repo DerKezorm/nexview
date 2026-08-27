@@ -146,7 +146,9 @@ class RadarrClient(ArrClient):
         """Film zu Radarr hinzufuegen und direkt die Suche anstossen."""
         found = await self.lookup(tmdb_id)
         if found is None:
-            raise ArrError("Radarr kennt diesen Film nicht.", 404)
+            raise ArrError(
+                "Radarr kennt diesen Film nicht.", 404, code="radarr_movie_unknown"
+            )
 
         payload = {
             **found,

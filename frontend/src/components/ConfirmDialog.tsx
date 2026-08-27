@@ -12,6 +12,15 @@ type ConfirmDialogProps = {
   description: ReactNode
   /** Zusätzlicher Hinweis in Warnfarbe, z. B. "Dateien werden gelöscht". */
   warning?: ReactNode
+  /**
+   * Was beim letzten Bestätigen schiefging - im Dialog, nicht dahinter.
+   *
+   * ⚠️ Ein Banner auf der Seite hilft hier nicht: Der Dialog liegt davor und
+   * ist modal, die Meldung wäre unsichtbar. Genau so gemeldet - bestätigen,
+   * nichts passiert sichtbar, der Dialog bleibt stehen und der einzige Ausweg
+   * heißt ausgerechnet "Abbrechen".
+   */
+  fehler?: ReactNode
   confirmLabel: string
   onConfirm: () => void
   onCancel: () => void
@@ -42,6 +51,7 @@ export function ConfirmDialog({
   title,
   description,
   warning,
+  fehler,
   confirmLabel,
   onConfirm,
   onCancel,
@@ -97,6 +107,15 @@ export function ConfirmDialog({
         {warning && (
           <p className="mt-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-sm text-warn-500">
             {warning}
+          </p>
+        )}
+
+        {fehler && (
+          <p
+            className="mt-3 rounded-xl border border-bad-500/40 bg-bad-500/10 px-3 py-2 text-sm text-bad-500"
+            role="alert"
+          >
+            {fehler}
           </p>
         )}
 

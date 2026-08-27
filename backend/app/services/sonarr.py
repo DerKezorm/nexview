@@ -228,7 +228,9 @@ class SonarrClient(ArrClient):
         """
         found = await self.lookup(tvdb_id)
         if found is None:
-            raise ArrError("Sonarr kennt diese Serie nicht.", 404)
+            raise ArrError(
+                "Sonarr kennt diese Serie nicht.", 404, code="sonarr_series_unknown"
+            )
 
         payload = {
             **found,
@@ -303,19 +305,28 @@ class SonarrClient(ArrClient):
         Staffel ueberwacht, soll sie behalten.
         """
         if not arr_id:
-            raise ArrError("Sonarr hat keine Kennung fuer diese Serie geliefert.", 502)
+            raise ArrError(
+                "Sonarr hat keine Kennung fuer diese Serie geliefert.",
+                502,
+                code="sonarr_no_id",
+            )
         if not seasons:
             return
         serie = await self.get(f"/series/{arr_id}")
         if not isinstance(serie, dict):
-            raise ArrError("Sonarr liefert diese Serie nicht.", 404)
+            raise ArrError(
+                "Sonarr liefert diese Serie nicht.", 404, code="sonarr_series_missing"
+            )
 
         staffeln = serie.get("seasons") or []
         bekannt = {eintrag.get("seasonNumber") for eintrag in staffeln}
         fehlend = seasons - bekannt
         if fehlend:
             raise ArrError(
-                f"Sonarr kennt Staffel {sorted(fehlend)[0]} dieser Serie nicht.", 404
+                f"Sonarr kennt Staffel {sorted(fehlend)[0]} dieser Serie nicht.",
+                404,
+                code="sonarr_season_unknown",
+                season=sorted(fehlend)[0],
             )
 
         serie["seasons"] = [
@@ -423,7 +434,9 @@ class SonarrClient(ArrClient):
         """
         serie = await self.get(f"/series/{arr_id}")
         if not isinstance(serie, dict):
-            raise ArrError("Sonarr liefert diese Serie nicht.", 404)
+            raise ArrError(
+                "Sonarr liefert diese Serie nicht.", 404, code="sonarr_series_missing"
+            )
 
         serie["seasons"] = [
             {**eintrag, "monitored": False}
@@ -452,7 +465,9 @@ class SonarrClient(ArrClient):
         aufgelistet und dem Administrator gezeigt wurde.
         """
         if not datei_ids:
-            raise ArrError("Ohne Dateien gibt es nichts zu loeschen.", 400)
+            raise ArrError(
+                "Ohne Dateien gibt es nichts zu loeschen.", 400, code="arr_nothing_to_delete"
+            )
 
         entfernt = 0
         for kennung in datei_ids:

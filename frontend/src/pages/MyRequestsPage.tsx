@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
-import { ApiError, api } from '../api/client'
+import { ApiError, api, gespeicherterFehler } from '../api/client'
 import type { MediaRequest, QuotaInfo, QuotaOverview } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { TitelVerweis } from '../components/TitelVerweis'
@@ -13,7 +13,7 @@ import { Pagination, useSeiten } from '../components/Pagination'
 import { StatusBadge } from '../components/media/StatusBadge'
 import { Button, Card, ErrorBanner, RundKnopf, Spinner } from '../components/ui'
 import { Fenster } from '../components/Fenster'
-import { Anfrageverlauf } from '../components/media/Anfrageverlauf'
+import { Anfragebalken, Anfrageverlauf } from '../components/media/Anfrageverlauf'
 import { Rueckmeldung } from '../components/media/Rueckmeldung'
 import { formatDate, formatSize } from '../lib/format'
 import { anfragenStandNeuLaden } from '../lib/refresh'
@@ -204,11 +204,25 @@ export function MyRequestsPage() {
     onSuccess: refresh,
   })
 
+  // ⚠️ Ohne ``onError`` verschluckt diese Mutation jeden Fehlschlag: Der
+  // Dialog bliebe offen, nichts geschähe sichtbar, und der einzige Ausgang
+  // wäre der Knopf "Abbrechen" - der ausgerechnet nichts abbricht. Der Fehler
+  // gehört deshalb **in** den Dialog; ``withdrawMutation`` daneben zeigt ihn
+  // in einem Banner, weil dort kein Dialog davorliegt.
   const cancelMutation = useMutation({
     mutationFn: (id: number) => api.post(`/api/requests/${id}/cancel`),
     onSuccess: () => setCancelling(null),
     onSettled: refresh,
   })
+
+  // Beim Öffnen einer neuen Rückfrage den alten Fehler vergessen - sonst
+  // stünde er über einer Anfrage, die damit nichts zu tun hat.
+  const abbruchFehler =
+    cancelling !== null && cancelMutation.isError
+      ? cancelMutation.error instanceof ApiError
+        ? cancelMutation.error.message
+        : t('myRequests.cancelFailed')
+      : null
 
   const alle = requestsQuery.data ?? []
   // Nur Filter anbieten, zu denen es auch Einträge gibt - sonst führt eine
@@ -326,8 +340,15 @@ export function MyRequestsPage() {
           {blaettern.sichtbar.map((request) => (
             <div
               key={request.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-700 bg-ink-900/50 p-3"
+              className={
+                'relative flex flex-wrap items-center gap-3 rounded-xl ' +
+                'border border-ink-700 bg-ink-900/50 p-3'
+              }
             >
+              {/* Die Wegstrecke als Linie an der Unterkante. Sie liegt im
+                  Innenabstand der Zeile, ändert also keine Höhe - siehe die
+                  Anmerkung zu den festen Spalten weiter unten. */}
+              <Anfragebalken status={request.status} />
               {/* ⚠️ Die Handlung steht **vor** dem Titel, in einem Platz mit
                   fester Breite - auch wenn sie fehlt.
                   Als Knopf hinter dem Titel machte sie die Liste unruhig: Je
@@ -411,7 +432,9 @@ export function MyRequestsPage() {
                   {formatDate(request.requested_at.slice(0, 10), i18n.language)}
                 </p>
                 {request.error_message && (
-                  <p className="mt-1 text-xs text-bad-500">{request.error_message}</p>
+                  <p className="mt-1 text-xs text-bad-500">
+                    {gespeicherterFehler(request.error_detail, request.error_message)}
+                  </p>
                 )}
                 {request.rejection_reason && (
                   <p className="mt-1 text-xs text-mist-500">{request.rejection_reason}</p>
@@ -488,9 +511,13 @@ export function MyRequestsPage() {
         title={t('requests.cancelTitle')}
         description={t('requests.cancelText', { title: cancelling?.title ?? '' })}
         warning={t('requests.cancelWarning')}
+        fehler={abbruchFehler}
         confirmLabel={t('requests.cancelConfirm')}
         loading={cancelMutation.isPending}
-        onCancel={() => setCancelling(null)}
+        onCancel={() => {
+          cancelMutation.reset()
+          setCancelling(null)
+        }}
         onConfirm={() => cancelling && cancelMutation.mutate(cancelling.id)}
       />
     </div>

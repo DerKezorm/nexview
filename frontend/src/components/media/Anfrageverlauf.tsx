@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { MediaRequest } from '../../api/types'
 import { formatDate } from '../../lib/format'
+import { gespeicherterFehler } from '../../api/client'
 
 /**
  * Der Verlauf einer Anfrage - als Zeitleiste.
@@ -115,7 +116,7 @@ function schritte(
       schluessel: 'failed',
       titel: t('verlauf.failed'),
       zustand: 'gescheitert',
-      dazu: request.error_message,
+      dazu: gespeicherterFehler(request.error_detail, request.error_message),
     })
     return liste
   }
@@ -209,5 +210,89 @@ export function Anfrageverlauf({ request }: { request: MediaRequest }) {
         )
       })}
     </ol>
+  )
+}
+
+/**
+ * Derselbe Weg als Linie - der Verlauf in 1 px.
+ *
+ * Der Verlauf beantwortet „warum dauert das?", aber erst nach einem Klick.
+ * Die Linie beantwortet die halbe Frage schon vorher: **wo steht es?** Aus
+ * zwanzig Zeilen wird damit eine Leiter, die man von oben nach unten
+ * überfliegen kann, ohne ein einziges Etikett zu lesen.
+ *
+ * ⚠️ **Sie misst die Wegstrecke, nicht das Tempo.** Vier Stationen, dieselben
+ * wie oben: angefragt, freigegeben, wird gesucht, fertig. Ein echter
+ * Ladefortschritt in Prozent stünde nur in Radarrs Warteschlange, und die
+ * fragt Nexview bewusst nicht ab - siehe ``status_poller``. Wenn die Linie
+ * also tagelang bei drei Vierteln steht, ist das keine Schwäche der Anzeige,
+ * sondern die Wahrheit über die Anfrage.
+ *
+ * ⚠️ **Die Spur steht in jeder Zeile, auch wenn nichts darin liegt.** Eine
+ * Linie, die nur bei aktiven Anfragen erscheint, macht Zeilen unterschiedlich
+ * hoch - genau das, wogegen die feste Spaltenaufteilung in ``MyRequestsPage``
+ * gebaut ist. Ein unbekannter Zustand füllt die Spur nicht, statt sich etwas
+ * auszudenken.
+ *
+ * Stumm für Screenreader: Das Etikett daneben sagt denselben Zustand in
+ * Worten, und zweimal dieselbe Aussage hilft niemandem. Dieselbe Regel gilt
+ * für den Zustandskreis vor dem Titel.
+ *
+ * Setzt voraus, dass die Zeile ``relative`` ist.
+ */
+const VIERTEL: Partial<
+  Record<MediaRequest['status'], { erreicht: number; zustand: Zustand }>
+> = {
+  pending_approval: { erreicht: 1, zustand: 'laeuft' },
+  approved: { erreicht: 2, zustand: 'laeuft' },
+  // Kommt auf einer Anfrage kaum vor, wird von ``MyRequestsPage`` aber
+  // ausdrücklich neben ``searching`` behandelt - also als „unterwegs" gelesen.
+  requested: { erreicht: 2, zustand: 'laeuft' },
+  searching: { erreicht: 3, zustand: 'laeuft' },
+  downloaded: { erreicht: 4, zustand: 'fertig' },
+  // Ein Halt, kein Abbruch: Der Weg geht weiter, sobald wieder Platz ist.
+  // Deshalb gelb wie „läuft" und nicht rot - genau wie im Verlauf.
+  deferred: { erreicht: 1, zustand: 'laeuft' },
+  rejected: { erreicht: 1, zustand: 'gescheitert' },
+  cancelled: { erreicht: 1, zustand: 'gescheitert' },
+  // Die Übergabe an Radarr/Sonarr ist gescheitert - freigegeben war es schon.
+  failed: { erreicht: 2, zustand: 'gescheitert' },
+  // War vollständig da und ist wieder verschwunden: volle Länge, aber rot.
+  deleted: { erreicht: 4, zustand: 'gescheitert' },
+}
+
+// Volle Farbe statt der ``LINIE``-Werte oben: Die Zeitleiste im Fenster wird
+// aus der Nähe gelesen, diese Linie im Vorbeifliegen über zwanzig Zeilen.
+// Bei **einem** Pixel Höhe ist halbe Deckkraft nicht mehr zu erkennen -
+// je feiner die Linie, desto weniger Deckkraft verträgt sie.
+const BALKEN: Record<Zustand, string> = {
+  fertig: 'bg-ok-500',
+  laeuft: 'bg-warn-500',
+  offen: 'bg-ink-700',
+  gescheitert: 'bg-bad-500',
+}
+
+export function Anfragebalken({ status }: { status: MediaRequest['status'] }) {
+  const stand = VIERTEL[status]
+
+  return (
+    <span
+      className={
+        'pointer-events-none absolute inset-x-3 bottom-1.5 h-px ' +
+        'overflow-hidden bg-ink-700'
+      }
+      aria-hidden="true"
+    >
+      {stand && (
+        <span
+          className={
+            'block h-full transition-[width] duration-500 ' +
+            'motion-reduce:transition-none ' +
+            BALKEN[stand.zustand]
+          }
+          style={{ width: `${(stand.erreicht / 4) * 100}%` }}
+        />
+      )}
+    </span>
   )
 }

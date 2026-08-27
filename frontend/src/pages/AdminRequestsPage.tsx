@@ -22,6 +22,7 @@ import { TargetPicker, type Target } from "../components/TargetPicker";
 import { useConfig } from "../hooks/useConfig";
 import { anfragenStandNeuLaden } from "../lib/refresh";
 import { TitelVerweis } from '../components/TitelVerweis'
+import { gespeicherterFehler } from '../api/client'
 
 // "watchlist" ist kein Zustand, sondern eine Herkunft - deshalb ein eigener
 // Wert neben den Zustaenden. Der Knopf erscheint nur, wenn die Automatik
@@ -825,7 +826,7 @@ export function AdminRequestsPage() {
                     </p>
                     {request.error_message && (
                       <p className="mt-1 text-xs text-bad-500">
-                        {request.error_message}
+                        {gespeicherterFehler(request.error_detail, request.error_message)}
                       </p>
                     )}
                     {request.rejection_reason && (

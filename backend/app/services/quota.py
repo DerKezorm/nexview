@@ -35,12 +35,23 @@ UNBEGRENZT = -1
 
 # Abgelehnte Anfragen zaehlen nicht gegen das Kontingent - sonst wuerde eine
 # Ablehnung den Benutzer zusaetzlich bestrafen.
+#
+# ⚠️ **``failed`` zaehlt aus demselben Grund nicht mehr mit.** Ein Fehlschlag
+# ist keine Entscheidung ueber die Person, sondern eine Stoerung im Haus:
+# Sonarr war nicht erreichbar, TMDB kannte noch keine TVDB-Kennung. Wer das
+# ausbaden muss, verliert einen Platz in seinem Kontingent, ohne je eine Datei
+# bekommen zu haben - und beim zweiten Versuch noch einen. Nachgemessen an
+# einer Serie, die zweimal fehlschlug: zwei verbrauchte Plaetze, null Dateien.
+#
+# Die Anfrage bleibt trotzdem als "fehlgeschlagen" in der Liste stehen. Sie
+# soll sichtbar sein - sie soll nur nichts mehr kosten. Am Titel selbst hat
+# sie ebenfalls keine Wirkung mehr (``requests_service.BADGE_FOR_STATUS``),
+# und einen Speicher-Posten bekam sie nie (``storage.ZURECHENBAR``).
 COUNTED_STATUSES = (
     RequestStatus.pending_approval,
     RequestStatus.approved,
     RequestStatus.searching,
     RequestStatus.downloaded,
-    RequestStatus.failed,
 )
 
 

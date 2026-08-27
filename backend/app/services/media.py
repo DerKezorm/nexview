@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Sequence
 from typing import Any
 
@@ -43,6 +44,8 @@ from .tmdb import (
     image_url,
     release_date_for,
 )
+
+logger = logging.getLogger("nexview.media")
 
 PAGE_SIZE = 20
 
@@ -1345,3 +1348,51 @@ async def curated(
     )
 
     return await _to_items(db, settings, media_type, sortiert[:40], settings.default_region)
+
+
+# --- Nachschlag: TVDB-Kennung -----------------------------------------------
+
+
+async def tvdb_kennung_nachschlagen(
+    db: Session, settings: AppSettings, tmdb_id: int
+) -> int | None:
+    """Die TVDB-Kennung einer Serie **frisch** bei TMDB holen.
+
+    ⚠️ **Warum es diese Funktion ueberhaupt gibt.** Detaildaten liegen sieben
+    Tage im Zwischenspeicher (``cache.DETAIL_TTL``), und das ist richtig so -
+    sie aendern sich fast nie. Eine Angabe aendert sich doch: Genau den neuen
+    Serien, um die es hier geht, fehlt bei TMDB anfangs die TVDB-Kennung, und
+    sie wird spaeter nachgetragen.
+
+    Ohne diesen Nachschlag hiess das: Wer eine solche Serie anfragt, bekommt
+    einen Fehlschlag - **und danach sieben Tage lang denselben**, auch wenn
+    TMDB die Kennung eine Stunde spaeter kennt. Die Meldung war ab dann falsch,
+    und niemand konnte das erkennen oder umgehen. Live nachgemessen: zwei
+    Fehlschlaege am 26.08., am 27.08. dieselbe Serie auf einer anderen Instanz
+    erfolgreich, und auf der ersten weiter derselbe Fehler - der
+    Zwischenspeicher war schlicht aelter als die Wirklichkeit.
+
+    Der Aufruf geht **am Zwischenspeicher vorbei** und schreibt die frische
+    Antwort gleich hinein, damit der naechste Leser sie ebenfalls hat. Er
+    kostet einen zusaetzlichen TMDB-Aufruf und steht deshalb nur im
+    Fehlerfall - also selten.
+
+    Bewusst die schlanke Abfrage: ``external_ids`` steckt schon darin, und die
+    ausfuehrliche waere um ein Vielfaches groesser, ohne mehr zu beantworten.
+
+    Antwortet TMDB nicht, gilt die Kennung als weiterhin unbekannt - der
+    Aufrufer bleibt dann bei seiner urspruenglichen Meldung.
+    """
+    region = settings.default_region
+    try:
+        roh = await _client(settings).detail("tv", tmdb_id)
+    except TmdbError as fehler:
+        logger.info(
+            "Fresh TVDB lookup for tmdb=%s failed, keeping the cached answer: %s",
+            tmdb_id,
+            fehler,
+        )
+        return None
+
+    cache.write(db, _schlanker_schluessel(settings, "tv", tmdb_id, region), roh, cache.DETAIL_TTL)
+    return extract_tvdb_id(roh)

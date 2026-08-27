@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import MediaRequest, RequestStatus, User
 from app.services import library
+from app.services.arr import ArrError
 from app.services.radarr import RadarrClient
 
 from .conftest import auth_headers, create_user
@@ -191,3 +192,67 @@ def test_abbrechen_braucht_rechte(arr_client: TestClient, geloescht_in_radarr: l
         arr_client.post(f"/api/admin/requests/{anfrage['id']}/cancel", headers=alex).status_code
         == 403
     )
+
+
+def test_abbrechen_gelingt_wenn_der_titel_dort_schon_weg_ist(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ein 500er beim Löschen darf keine Anfrage einsperren.
+
+    Gemessen an der Live-Instanz: Wer eine Serie in Sonarr von Hand entfernt
+    und danach in Nexview abbricht, bekommt **500** statt 404 -
+
+        DELETE /api/v3/series/213?deleteFiles=true -> 500
+        POST   /api/requests/6/cancel              -> 502
+
+    Die Anfrage war damit nicht mehr loszuwerden: Jeder weitere Versuch lief
+    in denselben Fehler. Jetzt wird nachgesehen, ob der Titel überhaupt noch
+    dort liegt - ist er weg, ist das Ziel erreicht.
+    """
+    anfrage = _laufende_anfrage(arr_client)
+
+    async def remove(_self: RadarrClient, _arr_id: int, delete_files: bool = True) -> None:
+        raise ArrError("Radarr meldet einen Fehler (HTTP 500).", 500)
+
+    async def get(_self: RadarrClient, pfad: str, params: dict | None = None) -> None:
+        assert pfad == "/movie/4711"
+        raise ArrError("Radarr kennt diesen Film nicht.", 404)
+
+    monkeypatch.setattr(RadarrClient, "remove", remove)
+    monkeypatch.setattr(RadarrClient, "get", get)
+
+    antwort = arr_client.post(
+        f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
+    )
+    assert antwort.status_code == 200
+    assert antwort.json()["status"] == "cancelled"
+
+
+def test_abbrechen_scheitert_weiter_wenn_der_titel_noch_dort_liegt(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Der Gegenprobe wegen: Ein echter Fehler bleibt ein Fehler.
+
+    Sonst hiesse "abgebrochen" irgendwann "die Dateien sind weg", waehrend sie
+    weiter auf der Platte liegen - und niemand suchte sie dort noch.
+    """
+    anfrage = _laufende_anfrage(arr_client)
+
+    async def remove(_self: RadarrClient, _arr_id: int, delete_files: bool = True) -> None:
+        raise ArrError("Radarr meldet einen Fehler (HTTP 500).", 500)
+
+    async def get(_self: RadarrClient, _pfad: str, params: dict | None = None) -> dict:
+        return {"id": 4711, "title": "Liegt noch da"}
+
+    monkeypatch.setattr(RadarrClient, "remove", remove)
+    monkeypatch.setattr(RadarrClient, "get", get)
+
+    antwort = arr_client.post(
+        f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
+    )
+    assert antwort.status_code == 502
+
+    with SessionLocal() as session:
+        request = session.get(MediaRequest, anfrage["id"])
+        assert request is not None
+        assert request.status == RequestStatus.searching

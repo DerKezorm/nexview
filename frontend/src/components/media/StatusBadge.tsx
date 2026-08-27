@@ -6,6 +6,10 @@ import type { MediaStatus } from '../../api/types'
 const TONES: Record<MediaStatus, string> = {
   not_requested: 'bg-ink-900/85 text-mist-300 ring-ink-600',
   pending_approval: 'bg-warn-500/20 text-warn-500 ring-warn-500/40',
+  // Dieselbe Farbe wie „angefragt": Aus Sicht des Wartenden ist die
+  // Freigabe kein eigener Halt, sondern der Beginn des Wartens auf die
+  // Suche. Der Unterschied steht im Wort, nicht in der Farbe.
+  approved: 'bg-accent-500/20 text-accent-400 ring-accent-500/40',
   requested: 'bg-accent-500/20 text-accent-400 ring-accent-500/40',
   searching: 'bg-accent-500/25 text-accent-400 ring-accent-500/50',
   downloaded: 'bg-ok-500/20 text-ok-500 ring-ok-500/40',

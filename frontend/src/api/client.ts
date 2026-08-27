@@ -127,7 +127,7 @@ type ErrorInfo = { message: string; code: string | null; data: Record<string, un
  * nichts - `test_fehlermeldungen.py` schlägt fehl, wenn eine Übersetzung
  * fehlt.
  */
-function uebersetzeFehler(detail: Record<string, unknown>, status: number): string {
+export function uebersetzeFehler(detail: Record<string, unknown>, status: number): string {
   const code = typeof detail.code === 'string' ? detail.code : null
   const rueckfall = String(detail.message ?? `HTTP ${status}`)
   if (!code) return rueckfall
@@ -347,4 +347,26 @@ export async function downloadFile(
 export async function restoreSession(): Promise<boolean> {
   if (accessToken) return true
   return refreshAccessToken()
+}
+
+/**
+ * Der Satz zu einer **gespeicherten** Meldung, in der eingestellten Sprache.
+ *
+ * Fehler beim Übergeben an Radarr/Sonarr landen als fertiger deutscher Satz in
+ * der Anfrage und stehen dort Wochen später im Verlauf - lange nachdem die
+ * Antwort weg ist, die sie erzeugt hat. Seit `error_detail` liegt dieselbe
+ * Kennung daneben, aus der auch eine Fehlerantwort gebaut wird; damit ist das
+ * hier derselbe Weg wie oben.
+ *
+ * Ohne Kennung bleibt der gespeicherte Satz stehen - so sehen Anfragen, die
+ * vor dieser Änderung fehlgeschlagen sind, weiterhin ihre Begründung.
+ */
+export function gespeicherterFehler(
+  detail: Record<string, unknown> | null | undefined,
+  rueckfall: string | null | undefined,
+): string | null {
+  if (detail && typeof detail === 'object') {
+    return uebersetzeFehler({ message: rueckfall ?? '', ...detail }, 0)
+  }
+  return rueckfall ?? null
 }

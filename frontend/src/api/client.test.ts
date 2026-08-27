@@ -15,10 +15,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '../i18n'
 import {
   ApiError,
   api,
   clearTokens,
+  gespeicherterFehler,
   logout,
   restoreSession,
   setSessionLostHandler,
@@ -269,5 +271,51 @@ describe('Anfragen', () => {
   it('gibt bei 204 nichts zurück, statt an leerem JSON zu scheitern', async () => {
     holen.mockResolvedValueOnce(antwort(204))
     await expect(api.post('/api/etwas')).resolves.toBeUndefined()
+  })
+})
+
+describe('gespeicherterFehler', () => {
+  /**
+   * Fehler beim Übergeben an Radarr/Sonarr nehmen einen anderen Weg als alle
+   * übrigen Meldungen: Sie landen als fertiger Satz in der Anfrage und stehen
+   * von dort Wochen später im Verlauf — lange nachdem die Antwort weg ist, die
+   * sie erzeugt hat.
+   *
+   * Gemeldet aus dem Betrieb: Die Oberfläche stand auf Englisch, und unter der
+   * fehlgeschlagenen Serie stand trotzdem der deutsche Satz.
+   */
+  it('baut den Satz aus der Kennung', () => {
+    const text = gespeicherterFehler(
+      { code: 'tvdb_id_missing' },
+      'Für diese Serie kennt TMDB noch keine TVDB-Kennung.',
+    )
+    expect(text).toBe(i18n.t('errors.byCode.tvdb_id_missing'))
+  })
+
+  it('setzt die mitgelieferten Werte ein', () => {
+    const text = gespeicherterFehler(
+      { code: 'arr_http_error', service: 'Sonarr', status: 500 },
+      'Sonarr meldet einen Fehler (HTTP 500).',
+    )
+    expect(text).toContain('Sonarr')
+    expect(text).toContain('500')
+  })
+
+  it('fällt ohne Kennung auf den gespeicherten Satz zurück', () => {
+    // ⚠️ Der Fall älterer Anfragen: Sie sind fehlgeschlagen, bevor es die
+    // Kennung gab. Ihre Begründung darf trotzdem nicht verschwinden.
+    expect(gespeicherterFehler(null, 'Alter Satz aus der Datenbank.')).toBe(
+      'Alter Satz aus der Datenbank.',
+    )
+  })
+
+  it('behält den gespeicherten Satz, solange eine Übersetzung fehlt', () => {
+    expect(
+      gespeicherterFehler({ code: 'gibt_es_nicht' }, 'Der gespeicherte Satz.'),
+    ).toBe('Der gespeicherte Satz.')
+  })
+
+  it('macht aus nichts nichts', () => {
+    expect(gespeicherterFehler(null, null)).toBeNull()
   })
 })

@@ -1483,6 +1483,20 @@ class MediaRequest(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime)
     error_message: Mapped[str | None] = mapped_column(Text)
+    # ⚠️ **Derselbe Inhalt noch einmal - als Kennung statt als Satz.**
+    #
+    # ``error_message`` ist ein fertiger **deutscher** Satz. Er steht Wochen
+    # spaeter im Verlauf, lange nachdem die Antwort weg ist, die ihn erzeugt
+    # hat - und stand dort auch dann auf Deutsch, wenn die Oberflaeche auf
+    # Englisch lief. Alle anderen Meldungen nehmen den Weg ueber ``meldungen``
+    # und werden vorn gebaut; diese eine nicht, weil sie gespeichert wird.
+    #
+    # Hier liegt deshalb dieselbe Form wie in einer Fehlerantwort:
+    # ``{"code": ..., "message": ..., ...Werte}``. Das Frontend baut den Satz
+    # damit in der eingestellten Sprache - und faellt auf ``message`` zurueck,
+    # solange eine Uebersetzung fehlt oder die Anfrage aelter ist als diese
+    # Spalte. ``error_message`` bleibt genau dafuer stehen.
+    error_detail: Mapped[dict | None] = mapped_column(JSON)
 
     # Rueckmeldung des Anfragenden zur Qualitaet des Downloads (0-5 Sterne).
     # Administratoren bewerten nicht - sie antworten nur darauf.

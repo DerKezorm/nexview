@@ -89,6 +89,9 @@ class RequestPublic(BaseModel):
     last_checked_at: datetime | None = None
     rejection_reason: str | None
     error_message: str | None
+    # Kennung samt Werten - das Frontend baut daraus den Satz in der
+    # eingestellten Sprache und faellt sonst auf ``error_message`` zurueck.
+    error_detail: dict | None = None
     rating: int | None
     feedback: str | None
     rated_at: datetime | None

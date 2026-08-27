@@ -288,10 +288,11 @@ async def options(
         radarr_client(settings, tier) if media_type == "movie" else sonarr_client(settings, tier)
     )
     if client is None:
+        dienst = "Radarr" if media_type == "movie" else "Sonarr"
         raise ArrError(
-            "Radarr ist noch nicht eingerichtet."
-            if media_type == "movie"
-            else "Sonarr ist noch nicht eingerichtet."
+            f"{dienst} ist noch nicht eingerichtet.",
+            code="arr_not_configured",
+            service=dienst,
         )
 
     profiles = await client.quality_profiles()
@@ -447,11 +448,17 @@ async def papierkorb_setzen(
         radarr_client(settings, tier) if media_type == "movie" else sonarr_client(settings, tier)
     )
     if client is None:
-        raise ArrError("Diese Instanz ist nicht eingerichtet.", 400)
+        raise ArrError(
+            "Diese Instanz ist nicht eingerichtet.", 400, code="arr_instance_missing"
+        )
 
     aktuell = await client.get("/config/mediamanagement")
     if not isinstance(aktuell, dict):
-        raise ArrError("Die Instanz liefert ihre Medienverwaltung nicht.", 502)
+        raise ArrError(
+            "Die Instanz liefert ihre Medienverwaltung nicht.",
+            502,
+            code="arr_media_management_missing",
+        )
 
     geaendert = {**aktuell, "recycleBin": pfad}
     if tage is not None:

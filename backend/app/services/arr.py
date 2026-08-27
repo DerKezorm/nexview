@@ -29,15 +29,41 @@ class ArrError(Exception):
     Auftrag kann angekommen und ausgefuehrt worden sein, nur die Antwort kam
     nicht mehr an. Genau so gesehen - Nexview vermerkte "fehlgeschlagen",
     waehrend Sonarr die Serie laengst angelegt hatte und suchte.
+
+    ``code`` und ``zahlen`` sind dasselbe, was ``meldungen.meldung`` fuer
+    HTTP-Antworten liefert: eine **Kennung** und die Werte zum Einsetzen. Das
+    Backend uebersetzt nicht, es benennt - den Satz baut das Frontend in der
+    eingestellten Sprache (siehe ``app/meldungen.py``).
+
+    ⚠️ **Warum das hier ueberhaupt noetig ist.** Diese Meldungen nehmen einen
+    anderen Weg als alle anderen: Sie landen als fertiger Satz in
+    ``MediaRequest.error_message`` und stehen von dort im Verlauf - Wochen
+    spaeter und ohne die Antwort, die sie erzeugt hat. Deshalb stand dort
+    Deutsch, auch wenn die Oberflaeche auf Englisch lief.
+
+    ``message`` bleibt der deutsche Rueckfall: fuer alles, was die API ohne
+    die Nexview-Oberflaeche benutzt, und fuer Anfragen, die schon vor dieser
+    Aenderung fehlgeschlagen sind.
     """
 
     def __init__(
-        self, message: str, status_code: int | None = None, ungewiss: bool = False
+        self,
+        message: str,
+        status_code: int | None = None,
+        ungewiss: bool = False,
+        code: str | None = None,
+        **zahlen: object,
     ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.ungewiss = ungewiss
+        self.code = code
+        self.zahlen = zahlen
+
+    def als_meldung(self) -> dict[str, object]:
+        """Kennung, deutscher Rueckfall und Werte - wie ``meldungen.meldung``."""
+        return {"code": self.code, "message": self.message, **self.zahlen}
 
 
 async def _http() -> httpx.AsyncClient:
@@ -90,27 +116,43 @@ class ArrClient:
         except httpx.TimeoutException as exc:
             http_log.unreachable(self.label.lower(), method, self._url(path), exc)
             raise ArrError(
-                f"{self.label} antwortet nicht (Zeitüberschreitung).", ungewiss=True
+                f"{self.label} antwortet nicht (Zeitüberschreitung).",
+                ungewiss=True,
+                code="arr_timeout",
+                service=self.label,
             ) from exc
         except httpx.HTTPError as exc:
             http_log.unreachable(self.label.lower(), method, self._url(path), exc)
             raise ArrError(
                 f"{self.label} ist unter {self.base_url} nicht erreichbar. "
-                "Stimmen Adresse und Port?"
+                "Stimmen Adresse und Port?",
+                code="arr_unreachable",
+                service=self.label,
+                url=self.base_url,
             ) from exc
 
         if response.status_code in (401, 403):
-            raise ArrError(f"Der API-Key für {self.label} wurde nicht akzeptiert.", 401)
+            raise ArrError(
+                f"Der API-Key für {self.label} wurde nicht akzeptiert.",
+                401,
+                code="arr_key_rejected",
+                service=self.label,
+            )
         if response.status_code == 404:
             raise ArrError(
                 f"{self.label} antwortet, kennt diese Adresse aber nicht. "
                 f"Zeigt die URL wirklich auf {self.label}?",
                 404,
+                code="arr_path_unknown",
+                service=self.label,
             )
         if response.status_code >= 400:
             raise ArrError(
                 f"{self.label} meldet einen Fehler (HTTP {response.status_code}).",
                 response.status_code,
+                code="arr_http_error",
+                service=self.label,
+                status=response.status_code,
             )
 
         if not response.content:
@@ -121,7 +163,9 @@ class ArrClient:
             # Passiert typischerweise, wenn die URL auf eine andere Anwendung zeigt.
             raise ArrError(
                 f"Die Antwort von {self.label} ist unerwartet. Zeigt die Adresse "
-                f"wirklich auf {self.label}?"
+                f"wirklich auf {self.label}?",
+                code="arr_unexpected_answer",
+                service=self.label,
             ) from exc
 
     async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:

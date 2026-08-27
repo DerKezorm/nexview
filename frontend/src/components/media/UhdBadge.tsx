@@ -29,6 +29,7 @@ const PLATTE = "bg-ink-950/85";
 const TONES: Record<MediaStatus, string> = {
   not_requested: "text-mist-400 ring-ink-600",
   pending_approval: "text-warn-500 ring-warn-500/40",
+  approved: "text-accent-400 ring-accent-500/40",
   requested: "text-accent-400 ring-accent-500/40",
   searching: "text-accent-400 ring-accent-500/50",
   downloaded: "text-ok-500 ring-ok-500/40",

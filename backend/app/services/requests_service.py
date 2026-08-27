@@ -19,7 +19,7 @@ from ..models import (
     utcnow,
 )
 from ..schemas_media import MediaItem
-from . import blocklist, library, mediaserver_library, notify, quota, storage
+from . import blocklist, library, media, mediaserver_library, notify, quota, storage
 from .arr import ArrError
 from .settings_service import AppSettings
 
@@ -90,12 +90,21 @@ def find_active(
 
 
 # Wie ein Anfrage-Zustand auf dem Badge heisst.
+#
+# ⚠️ **``failed`` steht hier bewusst nicht mehr.** Das Abzeichen am Titel gilt
+# fuer *alle* - es sagt aus, was mit diesem Titel im Haus gerade geschieht.
+# Eine fehlgeschlagene Anfrage geschieht aber nicht mehr: Sie laeuft nicht,
+# haelt keinen Platz besetzt und ``find_active`` kennt sie nicht. Trotzdem
+# stand an so einem Titel fuer jeden "Fehlgeschlagen", und niemand konnte ihn
+# neu anfragen - obwohl der Server eine neue Anfrage angenommen haette.
+#
+# Alle anderen erledigten Zustaende - abgelehnt, abgebrochen, wieder
+# geloescht - waren von jeher draussen. ``failed`` war der einzige Ausreisser.
 BADGE_FOR_STATUS = {
     RequestStatus.pending_approval: "pending_approval",
     RequestStatus.approved: "requested",
     RequestStatus.searching: "searching",
     RequestStatus.downloaded: "downloaded",
-    RequestStatus.failed: "failed",
 }
 
 
@@ -164,7 +173,7 @@ def badges_for(
             MediaRequest.media_type == media_type,
             MediaRequest.tmdb_id.in_(tmdb_ids),
             MediaRequest.tier == tier,
-            MediaRequest.status.in_(ACTIVE_STATUSES + (RequestStatus.failed,)),
+            MediaRequest.status.in_(ACTIVE_STATUSES),
         )
     )
     return {row.tmdb_id: BADGE_FOR_STATUS.get(row.status, "requested") for row in rows}
@@ -231,6 +240,20 @@ def _nicht_eingerichtet(dienst: str, tier: QualityTier) -> str:
     return f"{dienst}{zusatz} ist nicht eingerichtet."
 
 
+def _nicht_eingerichtet_fehler(dienst: str, tier: QualityTier) -> ArrError:
+    """Dasselbe als ``ArrError`` - mit Kennung, damit es uebersetzbar bleibt.
+
+    Zwei Kennungen statt einer mit Platzhalter: "Radarr für 4K" laesst sich
+    nicht sauber aus Bausteinen zusammensetzen, ohne dass eine Sprache
+    irgendwann daran zerbricht.
+    """
+    return ArrError(
+        _nicht_eingerichtet(dienst, tier),
+        code="arr_uhd_not_configured" if tier == QualityTier.uhd else "arr_not_configured",
+        service=dienst,
+    )
+
+
 def requester_tag(username: str) -> str:
     """Etikett, das in Radarr/Sonarr zeigt, wer den Titel angefordert hat."""
     return f"nexview-{username.lower()}"
@@ -291,7 +314,7 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
         if request.media_type == MediaType.movie:
             client = library.radarr_client(settings, request.tier.value)
             if client is None:
-                raise ArrError(_nicht_eingerichtet("Radarr", request.tier))
+                raise _nicht_eingerichtet_fehler("Radarr", request.tier)
             tag_id = await client.ensure_tag(requester_tag(request.user.username))
             created = await client.add(
                 request.tmdb_id,
@@ -302,11 +325,32 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
         else:
             client = library.sonarr_client(settings, request.tier.value)
             if client is None:
-                raise ArrError(_nicht_eingerichtet("Sonarr", request.tier))
+                raise _nicht_eingerichtet_fehler("Sonarr", request.tier)
+            if not request.tvdb_id:
+                # ⚠️ **Erst frisch nachfragen, dann aufgeben.** Die Kennung an
+                # der Anfrage stammt aus dem Detail-Zwischenspeicher, und der
+                # haelt sieben Tage. Neuen Serien fehlt die TVDB-Kennung bei
+                # TMDB anfangs regelmaessig und wird spaeter nachgetragen -
+                # ohne den Nachschlag scheiterte dieselbe Serie eine Woche
+                # lang mit einer Begruendung, die laengst nicht mehr stimmte.
+                # Der zusaetzliche TMDB-Aufruf faellt nur in diesem Fehlerfall
+                # an. Live nachgemessen am 26./27.08.2026.
+                request.tvdb_id = await media.tvdb_kennung_nachschlagen(
+                    db, settings, request.tmdb_id
+                )
+                if request.tvdb_id:
+                    db.commit()
+                    logger.info(
+                        "TVDB id for %r (tmdb=%s) appeared since the cached answer: %s",
+                        request.title,
+                        request.tmdb_id,
+                        request.tvdb_id,
+                    )
             if not request.tvdb_id:
                 raise ArrError(
                     "Für diese Serie kennt TMDB noch keine TVDB-Kennung - "
-                    "Sonarr kann sie deshalb nicht anlegen."
+                    "Sonarr kann sie deshalb nicht anlegen.",
+                    code="tvdb_id_missing",
                 )
 
             # Liegt die Serie schon in Sonarr, wird sie nicht neu angelegt -
@@ -345,6 +389,7 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
             RequestStatus.approved if error.ungewiss else RequestStatus.failed
         )
         request.error_message = error.message
+        request.error_detail = error.als_meldung() if error.code else None
         request.last_checked_at = utcnow()
         db.commit()
         logger.error(
@@ -362,6 +407,7 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
     request.arr_id = created.get("id") if isinstance(created, dict) else None
     request.status = RequestStatus.searching
     request.error_message = None
+    request.error_detail = None
     request.last_checked_at = utcnow()
     db.commit()
 
@@ -899,6 +945,34 @@ def _period_label(period: str) -> str:
     return {"day": "Tag", "week": "Woche", "month": "Monat"}.get(period, period)
 
 
+async def _liegt_noch_dort(client, request: MediaRequest) -> bool:
+    """Kennt Radarr/Sonarr diesen Titel unter seiner Kennung noch?
+
+    Wird nur gefragt, wenn das Loeschen fehlgeschlagen ist - und beantwortet
+    dann die einzige Frage, die zaehlt: War es ein echter Fehler, oder war der
+    Titel ohnehin schon weg?
+
+    ⚠️ **Bewusst ein frischer Aufruf und nicht die zwischengespeicherte
+    Bibliothek.** Der Zwischenspeicher kann Minuten alt sein; wer gerade in
+    Sonarr geloescht hat, staende darin noch drin - und der Abbruch scheiterte
+    ein zweites Mal an derselben Ursache.
+
+    Im Zweifel ``True``: Nur was nachweislich weg ist, gilt als weg. Antwortet
+    die Instanz gar nicht mehr oder mit einem weiteren Fehler, bleibt es beim
+    urspruenglichen Fehler - lieber eine Anfrage, die stehen bleibt, als die
+    Behauptung, Dateien seien geloescht.
+    """
+    pfad = (
+        f"/movie/{request.arr_id}"
+        if request.media_type == MediaType.movie
+        else f"/series/{request.arr_id}"
+    )
+    try:
+        return await client.get(pfad) is not None
+    except ArrError as nachfrage:
+        return nachfrage.status_code != 404
+
+
 async def cancel(
     db: Session, settings: AppSettings, request: MediaRequest
 ) -> MediaRequest:
@@ -927,7 +1001,22 @@ async def cancel(
                 await client.remove(request.arr_id, delete_files=True)
             except ArrError as error:
                 # 404 heisst: dort schon weg - dann ist das Ziel ja erreicht.
-                if error.status_code != 404:
+                #
+                # ⚠️ **Sonarr sagt aber nicht immer 404.** Wer eine Serie in
+                # Sonarr von Hand entfernt und danach in Nexview abbricht,
+                # bekam gemessen einen **500er** auf dasselbe Loeschen:
+                #
+                #     DELETE /api/v3/series/213?deleteFiles=true -> 500
+                #     POST /api/requests/6/cancel -> 502
+                #
+                # Damit war die Anfrage nicht mehr loszuwerden: Abbrechen
+                # scheiterte immer wieder an einer Serie, die es laengst nicht
+                # mehr gab. Ein 500er darf trotzdem nicht einfach als Erfolg
+                # gelten - dann behauptete Nexview geloeschte Dateien, die
+                # weiter auf der Platte liegen. Also wird **nachgesehen**:
+                # Ist der Titel unter dieser Kennung wirklich weg, ist das
+                # Ziel erreicht; liegt er noch dort, war es ein echter Fehler.
+                if error.status_code != 404 and await _liegt_noch_dort(client, request):
                     raise RequestError(error.message, 502) from error
 
     request.status = RequestStatus.cancelled

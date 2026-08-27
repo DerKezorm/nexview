@@ -9,6 +9,7 @@ import { useConfig } from '../../hooks/useConfig'
 import { anfragenStandNeuLaden } from '../../lib/refresh'
 import { Fenster } from '../Fenster'
 import { Button, ErrorBanner, Spinner } from '../ui'
+import { darfAnfragen } from '../../lib/status'
 
 type AddRequestFormProps = {
   item: MediaItem
@@ -105,7 +106,11 @@ export function AddRequestForm({
     )
   }
 
-  const standardOffen = item.status === 'not_requested'
+  // Ueber ``darfAnfragen`` statt ueber einen Vergleich mit
+  // ``not_requested``: Welche erledigten Zustaende wieder anfragbar sind,
+  // steht an **einer** Stelle - sonst haengt es davon ab, welches Fenster
+  // gerade offen ist.
+  const standardOffen = darfAnfragen(item.status)
   // ⚠️ Ein **fehlendes** `status_uhd` heißt „unbekannt", nicht „belegt". Nicht
   // jede Kachel trägt die zweite Achse mit – aus dem Kalender und von der
   // Merkliste kommt sie gar nicht mit. Als „liegt schon in 4K vor" gelesen,
@@ -113,7 +118,7 @@ export function AddRequestForm({
   // Sprechblasentext obendrein etwas Falsches. Großzügig zu sein ist hier
   // gefahrlos: Eine echte Doppelanfrage weist der Server ohnehin ab.
   const uhdOffen =
-    uhdMoeglich && (item.status_uhd == null || item.status_uhd === 'not_requested')
+    uhdMoeglich && (item.status_uhd == null || darfAnfragen(item.status_uhd))
   const [tier, setTier] = useState<QualityTier>(
     standardOffen || !uhdOffen ? 'standard' : 'uhd',
   )

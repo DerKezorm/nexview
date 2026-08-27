@@ -282,6 +282,16 @@ export type RootFolderMode = "user" | "fixed" | "approver";
 export type MediaStatus =
   | "not_requested"
   | "pending_approval"
+  /**
+   * Freigegeben, aber noch nicht an Radarr/Sonarr uebergeben.
+   *
+   * ⚠️ Fehlte hier lange, obwohl der Server ihn sehr wohl schickt: Der
+   * Status-Abgleich schaltet erst nach bis zu zwei Minuten auf `searching`
+   * weiter, und nach einer Zeitueberschreitung bleibt eine Anfrage
+   * ausdruecklich darauf stehen. Die Etiketten fanden ihn dann in keiner
+   * Farbtabelle und rendertem `undefined` in die Klassenliste.
+   */
+  | "approved"
   | "requested"
   | "searching"
   | "downloaded"
@@ -1058,6 +1068,13 @@ export type MediaRequest = {
   last_checked_at?: string | null;
   rejection_reason: string | null;
   error_message: string | null;
+  /**
+   * Kennung samt Werten zur gespeicherten Fehlermeldung.
+   *
+   * `error_message` ist der deutsche Rückfall; den angezeigten Satz baut
+   * `gespeicherterFehler` daraus in der eingestellten Sprache.
+   */
+  error_detail?: Record<string, unknown> | null;
   rating: number | null;
   feedback: string | null;
   rated_at: string | null;

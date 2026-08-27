@@ -1172,6 +1172,87 @@ async def instanzen_gesundheit(admin: AdminUser, db: DbSession) -> GesundheitSta
     return GesundheitStand(instanzen=zeilen)
 
 
+# Welche Einstellungs-Schluessel zu einer Instanz gehoeren - fuers Entfernen.
+# Die 4K-Regeln gehen zurueck auf "" (= erben wieder von der Standard-Instanz);
+# die Standard-Regeln bleiben stehen, sie sind eine Regel des Hauses.
+INSTANZ_FELDGRUPPEN: dict[str, dict[str, object]] = {
+    "radarr-standard": {
+        "url": "radarr_url", "key": "radarr_api_key", "name": "radarr_name",
+        "leeren": ["default_movie_profile_id", "default_movie_root"],
+    },
+    "radarr-uhd": {
+        "url": "radarr_uhd_url", "key": "radarr_uhd_api_key", "name": "radarr_uhd_name",
+        "leeren": [
+            "default_movie_uhd_profile_id", "default_movie_uhd_root",
+            "movie_uhd_profile_mode", "movie_uhd_root_folder_mode",
+        ],
+    },
+    "sonarr-standard": {
+        "url": "sonarr_url", "key": "sonarr_api_key", "name": "sonarr_name",
+        "leeren": ["default_series_profile_id", "default_series_root"],
+    },
+    "sonarr-uhd": {
+        "url": "sonarr_uhd_url", "key": "sonarr_uhd_api_key", "name": "sonarr_uhd_name",
+        "leeren": [
+            "default_series_uhd_profile_id", "default_series_uhd_root",
+            "series_uhd_profile_mode", "series_uhd_root_folder_mode",
+        ],
+    },
+}
+
+
+@router.delete("/settings/instanzen/{kennung}")
+async def instanz_entfernen(
+    kennung: str, admin: AdminUser, db: DbSession
+) -> dict[str, object]:
+    """Nexviews Zugang zu dieser Instanz entfernen - mehr nicht.
+
+    In Radarr/Sonarr selbst passiert nichts: Downloads und Suchlaeufe dort
+    laufen weiter. Eine Ausnahme: Unser Webhook-Eintrag wird vorher
+    rueckstandsfrei mit entfernt - sonst riefe er fuer immer ins Leere und
+    stuende drueben als krank. Laufende Anfragen der Instanz bleiben bewusst
+    stehen (kein Massen-Abbruch, dieselbe Regel wie beim Ausfall einer
+    Quelle im Status-Abgleich); die Speicher-Posten uebernimmt der naechste
+    Abgleich: Was der Medienserver weiter meldet, bleibt - nur nicht mehr
+    ueber Nexview loeschbar -, was allein die Instanz kannte, verschwindet
+    aus der Zurechnung.
+    """
+    settings = load_settings(db)
+    instanz = _webhook_instanz(settings, kennung)
+    felder = INSTANZ_FELDGRUPPEN[kennung]
+
+    zeile = webhooks.eintrag(db, kennung)
+    if zeile is not None:
+        # Abwaehlen und einmal pflegen raeumt den Eintrag drueben weg - so
+        # gut es geht: Eine gerade stumme Instanz haelt das Entfernen nicht
+        # auf, dann bleibt ihr Eintrag eben stehen.
+        zeile.aktiv = False
+        db.commit()
+        try:
+            await webhook_pflege.instanz_pflegen(db, settings, instanz)
+        except Exception:  # noqa: BLE001 - Aufraeumen ist Beiwerk des Entfernens
+            logger.warning(
+                "Webhook entry in %s could not be removed while deleting the instance",
+                instanz.name,
+            )
+        rest = webhooks.eintrag(db, kennung)
+        if rest is not None:
+            db.delete(rest)
+    gesund = instanz_gesundheit.eintrag(db, kennung)
+    if gesund is not None:
+        db.delete(gesund)
+    db.commit()
+
+    clear_secret(db, felder["key"])
+    save_settings(
+        db,
+        {felder["url"]: "", felder["name"]: "", **{f: "" for f in felder["leeren"]}},
+    )
+    library.invalidate()
+    logger.info("Instance access removed: %s", instanz.name)
+    return public_settings(db)
+
+
 @router.post("/settings/webhooks/{kennung}/testen", response_model=WebhookProbe)
 async def webhook_testen(
     kennung: str, admin: AdminUser, db: DbSession

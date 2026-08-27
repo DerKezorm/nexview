@@ -61,6 +61,16 @@ TEXTE: dict[str, tuple[str, str]] = {
             'leftovers. The response carries the resulting state.'
         ),
     ),
+    'DELETE /api/settings/instanzen/{kennung}': (
+        'Remove access to one instance',
+        (
+            'Clears the stored address, key, name and per-instance rules of '
+            'one Radarr/Sonarr instance - nothing changes inside the instance '
+            'itself, except that Nexview removes its own webhook entry first. '
+            'Running requests of that instance stay put and simply stop '
+            'updating.'
+        ),
+    ),
     'GET /api/settings/instanzen/verbindung': (
         'Reachability of the instances',
         (

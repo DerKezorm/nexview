@@ -543,6 +543,10 @@ export function AdminServicesSettings() {
   const [webhookProbeOk, setWebhookProbeOk] = useState<Record<string, boolean>>(
     {},
   );
+  // Welche Instanz gerade zum Entfernen ansteht - erst die Folgen, dann die Tat.
+  const [loeschBestaetigung, setLoeschBestaetigung] = useState<string | null>(
+    null,
+  );
 
   const webhookStand = useQuery({
     queryKey: ["webhook-stand"],
@@ -669,6 +673,28 @@ export function AdminServicesSettings() {
         delete neu[kennung];
         return neu;
       });
+      setMessage({ ok: true, text: t("settings.saved") });
+    },
+    onError: (error) =>
+      setMessage({
+        ok: false,
+        text:
+          error instanceof ApiError ? error.message : t("settings.saveFailed"),
+      }),
+  });
+
+  const loeschMutation = useMutation({
+    mutationFn: (kennung: string) =>
+      api.delete<AppSettings>(`/api/settings/instanzen/${kennung}`),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["settings"], data);
+      void queryClient.invalidateQueries({ queryKey: ["webhook-stand"] });
+      void queryClient.invalidateQueries({ queryKey: ["instanz-verbindung"] });
+      void queryClient.invalidateQueries({ queryKey: ["instanz-gesundheit"] });
+      void queryClient.invalidateQueries({ queryKey: ["arr-options"] });
+      void queryClient.invalidateQueries({ queryKey: ["config"] });
+      setLoeschBestaetigung(null);
+      setOffeneInstanz(null);
       setMessage({ ok: true, text: t("settings.saved") });
     },
     onError: (error) =>
@@ -930,6 +956,12 @@ export function AdminServicesSettings() {
     const webhookTestNoetig =
       hakenGeaendert && wunsch === true && webhookProbeOk[kennung] !== true;
     const laufend = saveMutation.isPending || hakenMutation.isPending;
+    const konfiguriert = Boolean(
+      (settings as unknown as Record<string, unknown> | undefined)?.[
+        `${dienst}_api_key_set`
+      ],
+    );
+    const dienstName = dienst.startsWith("radarr") ? "Radarr" : "Sonarr";
 
     const speichern = () => {
       setMessage(null);
@@ -948,6 +980,7 @@ export function AdminServicesSettings() {
     };
 
     return (
+      <>
       <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-3">
         <Button
           type="button"
@@ -975,7 +1008,40 @@ export function AdminServicesSettings() {
             </span>
           )
         )}
+        {konfiguriert && loeschBestaetigung !== kennung && (
+          <button
+            type="button"
+            onClick={() => setLoeschBestaetigung(kennung)}
+            className="ml-auto text-xs text-mist-600 transition-colors hover:text-bad-500"
+          >
+            {t("settings.removeInstance")}
+          </button>
+        )}
       </div>
+      {loeschBestaetigung === kennung && (
+        <div className="flex flex-col gap-3 rounded-xl border border-bad-500/40 bg-bad-500/10 px-4 py-3">
+          <p className="text-xs leading-relaxed text-bad-500">
+            {t("settings.removeInstanceConfirm", { dienst: dienstName })}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              onClick={() => loeschMutation.mutate(kennung)}
+              loading={loeschMutation.isPending}
+            >
+              {t("settings.removeInstanceReally")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setLoeschBestaetigung(null)}
+            >
+              {t("common.cancel")}
+            </Button>
+          </div>
+        </div>
+      )}
+      </>
     );
   };
 
@@ -1303,7 +1369,7 @@ export function AdminServicesSettings() {
             {offeneInstanz === "radarr-uhd" && (
               <InstanzBlock
                 titel={t("uhd.section")}
-                hinweis={t("uhd.sectionHint")}
+                hinweis={t("uhd.sectionHint", { dienst: "Radarr" })}
               >
                 {/* Zweispaltig, sobald der Platz reicht: links der Zugang,
                   rechts die Entscheider-Regeln - untereinander war das
@@ -1495,7 +1561,7 @@ export function AdminServicesSettings() {
             {offeneInstanz === "sonarr-uhd" && (
               <InstanzBlock
                 titel={t("uhd.section")}
-                hinweis={t("uhd.sectionHint")}
+                hinweis={t("uhd.sectionHint", { dienst: "Sonarr" })}
               >
                 {/* Zweispaltig, sobald der Platz reicht: links der Zugang,
                   rechts die Entscheider-Regeln - untereinander war das

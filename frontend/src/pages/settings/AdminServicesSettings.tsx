@@ -334,9 +334,10 @@ function WerWaehlt({
   onChange: (wert: RootFolderMode) => void;
 }) {
   const { t } = useTranslation();
-  // Beide stehen gemeinsam auf „Entscheider"? Dann ist das erklärungsbedürftig:
-  // Wer nur eines davon gesetzt hat, findet hier das andere mit umgestellt.
-  const gekoppelt = wert === "approver" && partner === "approver";
+  // Der Kopplungs-Hinweis ("beides wurde mitumgestellt") wohnt bewusst NICHT
+  // hier: Zwei Gruppen haetten ihn doppelt gezeigt - er steht einmal in der
+  // Regel-Sektion. ``partner`` bleibt fuer die Umstell-Logik der Aufrufer.
+  void partner;
 
   return (
     <fieldset className="flex flex-col gap-2">
@@ -362,11 +363,6 @@ function WerWaehlt({
           </span>
         </label>
       ))}
-      {gekoppelt && (
-        <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
-          {t("settings.targetPairCoupled")}
-        </p>
-      )}
     </fieldset>
   );
 }
@@ -907,6 +903,11 @@ export function AdminServicesSettings() {
             }
             configured={konfiguriert}
           />
+        )}
+        {profil === "approver" && ordner === "approver" && (
+          <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
+            {t("settings.targetPairCoupled")}
+          </p>
         )}
         {(profil === "approver" || ordner === "approver") && (
           <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">

@@ -904,14 +904,9 @@ export function AdminServicesSettings() {
             configured={konfiguriert}
           />
         )}
-        {profil === "approver" && ordner === "approver" && (
-          <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
-            {t("settings.targetPairCoupled")}
-          </p>
-        )}
         {(profil === "approver" || ordner === "approver") && (
           <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
-            {t("settings.approverEndsAutoApprove")}
+            {t("settings.approverRuleShort")}
           </p>
         )}
       </div>

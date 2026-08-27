@@ -57,6 +57,8 @@ class FakeArr:
         self.schema: dict | None = dict(SCHEMA_MOVIE)
         # "arrives" | "silent" | eine ArrError-Instanz
         self.probe = "arrives"
+        # Jede Probe-Payload, wie sie bei der Instanz ankaeme.
+        self.proben: list[dict] = []
         self.angelegt: list[dict] = []
         self.nachgezogen: list[tuple[int, dict]] = []
         self.geloescht: list[int] = []
@@ -69,6 +71,7 @@ class FakeArr:
         return self.schema
 
     async def notification_probe(self, payload: dict) -> None:
+        self.proben.append(dict(payload))
         if isinstance(self.probe, ArrError):
             raise self.probe
         if self.probe == "arrives":
@@ -305,6 +308,8 @@ async def test_testen_meldet_angekommen_mit_dauer(fake) -> None:
 
     assert ergebnis["angekommen"] is True
     assert isinstance(ergebnis["dauer_ms"], int)
+    # Ohne bestehenden Eintrag faehrt keine Nummer mit.
+    assert "id" not in fake.proben[-1]
 
 
 @pytest.mark.anyio
@@ -316,6 +321,33 @@ async def test_testen_sagt_ehrlich_wenn_nichts_ankommt(fake) -> None:
         ergebnis = await webhook_pflege.testen(db, settings, instanz)
 
     assert ergebnis == {"angekommen": False, "fehler": "proof_failed"}
+
+
+@pytest.mark.anyio
+async def test_testen_faehrt_mit_der_nummer_des_bestehenden_eintrags(fake) -> None:
+    """Sonarr prueft die Probe wie ein Speichern: Ohne Nummer gilt der
+    gleichnamige Bestand als Duplikat (HTTP 400) - live so gesehen, nachdem
+    der erste Beweis laengst stand."""
+    fake.eintraege = [
+        {
+            "id": 7,
+            "name": "Nexview",
+            "implementation": "Webhook",
+            "fields": [
+                {
+                    "name": "url",
+                    "value": "http://nexview.test/api/webhooks/arr/radarr-standard",
+                }
+            ],
+        }
+    ]
+    settings, instanz = _radarr()
+
+    with SessionLocal() as db:
+        ergebnis = await webhook_pflege.testen(db, settings, instanz)
+
+    assert ergebnis["angekommen"] is True
+    assert fake.proben[-1].get("id") == 7
 
 
 def test_haken_endpunkt_speichert_und_meldet_ehrlich(arr_client) -> None:

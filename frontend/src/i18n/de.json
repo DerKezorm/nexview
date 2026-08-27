@@ -853,6 +853,7 @@
     "tileConnected": "Verbunden",
     "tileUnreachable": "Nicht erreichbar",
     "targetPerInstance": "Gilt nur für diese Instanz.",
+    "approverRuleShort": "Profil und Zielordner liegen gemeinsam beim Entscheider: Jede Anfrage wartet dann auf die Freigabe – die Sofort-Freigabe greift hier nicht. Wer selbst freigeben darf, wählt weiterhin sofort.",
     "instanceName": "Name",
     "instanceNameHint": "Frei wählbar – so heißt die Instanz überall in Nexview. Leer heißt: der Dienstname gilt.",
     "testFirst": "Erst die Verbindung testen, dann speichern.",

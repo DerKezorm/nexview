@@ -853,6 +853,7 @@
     "tileConnected": "Connected",
     "tileUnreachable": "Unreachable",
     "targetPerInstance": "Applies to this instance only.",
+    "approverRuleShort": "Profile and folder sit with the approver together: every request then waits for approval – instant approval does not apply here. Whoever may approve still picks right away.",
     "instanceName": "Name",
     "instanceNameHint": "Your choice – this is how the instance is named everywhere in Nexview. Empty means the service name applies.",
     "testFirst": "Test the connection first, then save.",

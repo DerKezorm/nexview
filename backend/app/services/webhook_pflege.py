@@ -339,6 +339,33 @@ async def testen(db: Session, settings: AppSettings, instanz: ArrInstanz) -> dic
     if fehlend:
         return {"angekommen": False, "fehler": "too_old", "info": ", ".join(fehlend)}
 
+    # ⚠️ Existiert unser Eintrag schon, faehrt seine Nummer in der Probe mit.
+    # Sonarr prueft die Probe wie ein Speichern - ohne Nummer hielte es den
+    # gleichnamigen Bestand fuer ein Duplikat und antwortete mit 400, statt
+    # anzurufen. Live so gesehen, nachdem der erste Beweis laengst stand.
+    try:
+        vorhandene = await client.notifications()
+    except ArrError as fehler:
+        return {"angekommen": False, "fehler": "unreachable", "info": fehler.message}
+    eigener = None
+    if zeile.eintrag_id is not None:
+        eigener = next(
+            (
+                eintrag
+                for eintrag in vorhandene
+                if eintrag.get("id") == zeile.eintrag_id
+                and eintrag.get("implementation") == "Webhook"
+            ),
+            None,
+        )
+    if eigener is None:
+        eigener = next(
+            (eintrag for eintrag in vorhandene if _gehoert_uns(eintrag, instanz.kennung)),
+            None,
+        )
+    if eigener is not None:
+        payload = {**payload, "id": int(eigener["id"])}
+
     seit = utcnow().replace(tzinfo=None)
     db.commit()
     start = time.monotonic()

@@ -9,13 +9,31 @@ import { Button } from "../../components/ui";
 /**
  * Der Rückkanal einer Instanz: Haken, Beweis-Stand und Testen-Knopf.
  *
- * Sitzt bewusst **im Instanz-Block** der Diensteseite – die Kontrolle gehört
- * dorthin, wo der Eintrag in Radarr/Sonarr entsteht. Der Haken handelt
- * sofort: Einschalten heißt Probe, Beweis und Eintrag; Abwählen entfernt den
- * Eintrag rückstandsfrei. Deshalb dreht er einen Moment und zeigt danach den
- * wirklichen Zustand statt eines Wunsches.
+ * Der Haken ist hier nur ein **Wunsch**: Er wirkt erst mit dem
+ * Speichern-Knopf der Instanz – dort läuft dann das Anlegen bzw. das
+ * rückstandsfreie Entfernen. Vorher handelte er sofort beim Klick; das
+ * passte nicht mehr, sobald das Formular einen eigenen Speichern-Knopf
+ * hatte: zwei Klicks, zwei verschiedene Momente der Wahrheit.
+ *
+ * Der Testen-Knopf bleibt sofortig – er ändert nichts, er beweist nur. Sein
+ * Ergebnis meldet er nach oben: Einschalten darf erst gespeichert werden,
+ * wenn der Anruf nachweislich ankam.
  */
-export function WebhookZeile({ kennung }: { kennung: string }) {
+export function WebhookZeile({
+  kennung,
+  dienst,
+  wunsch,
+  onWunsch,
+  onProbe,
+}: {
+  kennung: string;
+  /** Nur für den Hinweistext – Radarr und Sonarr sind strikt getrennt. */
+  dienst: "radarr" | "sonarr";
+  /** Der ungespeicherte Haken-Wunsch; undefined heißt: wie gespeichert. */
+  wunsch?: boolean;
+  onWunsch: (aktiv: boolean) => void;
+  onProbe: (angekommen: boolean) => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [probe, setProbe] = useState<WebhookProbe | null>(null);
@@ -25,20 +43,12 @@ export function WebhookZeile({ kennung }: { kennung: string }) {
     queryFn: () => api.get<WebhookStand>("/api/settings/webhooks"),
   });
 
-  const haken = useMutation({
-    mutationFn: (aktiv: boolean) =>
-      api.patch<WebhookStand>(`/api/settings/webhooks/${kennung}`, { aktiv }),
-    onSuccess: (stand) => {
-      queryClient.setQueryData(["webhook-stand"], stand);
-      setProbe(null);
-    },
-  });
-
   const test = useMutation({
     mutationFn: () =>
       api.post<WebhookProbe>(`/api/settings/webhooks/${kennung}/testen`),
     onSuccess: (ergebnis) => {
       setProbe(ergebnis);
+      onProbe(ergebnis.angekommen);
       void queryClient.invalidateQueries({ queryKey: ["webhook-stand"] });
     },
   });
@@ -49,6 +59,9 @@ export function WebhookZeile({ kennung }: { kennung: string }) {
   if (!zeile) {
     return null;
   }
+
+  const gewollt = wunsch ?? zeile.aktiv;
+  const ungespeichert = gewollt !== zeile.aktiv;
 
   /** Hindernis-Kennung übersetzen, roher Zusatz (Version o. Ä.) unübersetzt. */
   const grund = (code: string, info?: string | null) => {
@@ -61,22 +74,25 @@ export function WebhookZeile({ kennung }: { kennung: string }) {
       <label className="flex cursor-pointer items-start gap-3">
         <input
           type="checkbox"
-          checked={zeile.aktiv}
-          disabled={haken.isPending}
-          onChange={(event) => haken.mutate(event.target.checked)}
+          checked={gewollt}
+          onChange={(event) => onWunsch(event.target.checked)}
           className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
         />
         <span>
           <span className="text-sm font-medium text-mist-100">
             {t("settings.webhookUse")}
-            {haken.isPending && (
-              <span className="ml-2 text-xs font-normal text-mist-600">
-                {t("settings.webhookWorking")}
+            {ungespeichert && (
+              <span className="ml-2 text-xs font-normal text-warn-500">
+                {t("settings.webhookPending")}
               </span>
             )}
           </span>
           <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
-            {t("settings.webhookVersionHint")}
+            {t(
+              dienst === "radarr"
+                ? "settings.webhookVersionHintRadarr"
+                : "settings.webhookVersionHintSonarr",
+            )}
           </span>
         </span>
       </label>
@@ -106,7 +122,9 @@ export function WebhookZeile({ kennung }: { kennung: string }) {
         </p>
       )}
 
-      {zeile.aktiv && (
+      {/* Auch sichtbar, wenn der Haken erst gewollt ist: Genau dann braucht
+          es den Beweis, bevor gespeichert werden darf. */}
+      {(zeile.aktiv || gewollt) && (
         <div className="flex flex-wrap items-center gap-3">
           <Button
             type="button"

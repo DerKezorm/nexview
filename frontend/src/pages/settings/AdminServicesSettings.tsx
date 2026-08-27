@@ -13,6 +13,7 @@ import type {
   GesundheitStand,
   RootFolderMode,
   TestResult,
+  WebhookStand,
 } from "../../api/types";
 import {
   Button,
@@ -499,6 +500,20 @@ export function AdminServicesSettings() {
   const [testResults, setTestResults] = useState<
     Partial<Record<TestService, TestResult>>
   >({});
+  // Der Webhook-Haken je Instanz ist ein Wunsch im Entwurf: Er wirkt erst
+  // mit dem Speichern-Knopf der Instanz. Der Testen-Beweis wird je Instanz
+  // mitgefuehrt - Einschalten darf erst speichern, wenn der Anruf ankam.
+  const [webhookWunsch, setWebhookWunsch] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [webhookProbeOk, setWebhookProbeOk] = useState<Record<string, boolean>>(
+    {},
+  );
+
+  const webhookStand = useQuery({
+    queryKey: ["webhook-stand"],
+    queryFn: () => api.get<WebhookStand>("/api/settings/webhooks"),
+  });
 
   const settingsQuery = useQuery({
     queryKey: ["settings"],
@@ -606,6 +621,26 @@ export function AdminServicesSettings() {
       }),
   });
 
+  const hakenMutation = useMutation({
+    mutationFn: ({ kennung, aktiv }: { kennung: string; aktiv: boolean }) =>
+      api.patch<WebhookStand>(`/api/settings/webhooks/${kennung}`, { aktiv }),
+    onSuccess: (stand, { kennung }) => {
+      queryClient.setQueryData(["webhook-stand"], stand);
+      setWebhookWunsch((aktuell) => {
+        const neu = { ...aktuell };
+        delete neu[kennung];
+        return neu;
+      });
+      setMessage({ ok: true, text: t("settings.saved") });
+    },
+    onError: (error) =>
+      setMessage({
+        ok: false,
+        text:
+          error instanceof ApiError ? error.message : t("settings.saveFailed"),
+      }),
+  });
+
   const removeKeyMutation = useMutation({
     mutationFn: (name: `${TestService}_api_key`) =>
       api.delete<AppSettings>(`/api/settings/secret/${name}`),
@@ -693,6 +728,12 @@ export function AdminServicesSettings() {
       "default_series_uhd_root",
     ],
   };
+  const KENNUNGEN: Record<Exclude<TestService, "tmdb">, string> = {
+    radarr: "radarr-standard",
+    radarr_uhd: "radarr-uhd",
+    sonarr: "sonarr-standard",
+    sonarr_uhd: "sonarr-uhd",
+  };
   const teil = (felder: (keyof Draft)[]): Partial<Draft> =>
     Object.fromEntries(felder.map((feld) => [feld, draft[feld]])) as Partial<Draft>;
   const geaendert = (felder: (keyof Draft)[]) =>
@@ -723,25 +764,61 @@ export function AdminServicesSettings() {
    */
   const instanzSpeichernReihe = (dienst: Exclude<TestService, "tmdb">) => {
     const felder = INSTANZ_FELDER[dienst];
-    const testenNoetig =
+    const kennung = KENNUNGEN[dienst];
+    const zeile = webhookStand.data?.instanzen.find(
+      (eintrag) => eintrag.kennung === kennung,
+    );
+    const wunsch = webhookWunsch[kennung];
+    const hakenGeaendert =
+      zeile !== undefined && wunsch !== undefined && wunsch !== zeile.aktiv;
+    const felderGeaendert = geaendert(felder);
+    const verbindungTestNoetig =
       verbindungGeaendert(dienst) && testResults[dienst]?.ok !== true;
+    // Einschalten verlangt den bewiesenen Anruf - Abwaehlen nicht: Fuers
+    // Aufraeumen braucht es keinen Beweis.
+    const webhookTestNoetig =
+      hakenGeaendert && wunsch === true && webhookProbeOk[kennung] !== true;
+    const laufend = saveMutation.isPending || hakenMutation.isPending;
+
+    const speichern = () => {
+      setMessage(null);
+      const hakenAusfuehren = () => {
+        if (hakenGeaendert) {
+          hakenMutation.mutate({ kennung, aktiv: wunsch as boolean });
+        }
+      };
+      if (felderGeaendert) {
+        // Erst die Felder, dann der Haken - und der Haken nur, wenn das
+        // Speichern der Felder nicht schiefging.
+        saveMutation.mutate(teil(felder), { onSuccess: hakenAusfuehren });
+      } else {
+        hakenAusfuehren();
+      }
+    };
+
     return (
       <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 pt-3">
         <Button
           type="button"
-          onClick={() => {
-            setMessage(null);
-            saveMutation.mutate(teil(felder));
-          }}
-          loading={saveMutation.isPending}
-          disabled={!geaendert(felder) || testenNoetig}
+          onClick={speichern}
+          loading={laufend}
+          disabled={
+            (!felderGeaendert && !hakenGeaendert) ||
+            verbindungTestNoetig ||
+            webhookTestNoetig
+          }
         >
           {t("common.save")}
         </Button>
-        {testenNoetig ? (
+        {verbindungTestNoetig ? (
           <span className="text-xs text-warn-500">{t("settings.testFirst")}</span>
+        ) : webhookTestNoetig ? (
+          <span className="text-xs text-warn-500">
+            {t("settings.webhookTestFirst")}
+          </span>
         ) : (
-          !geaendert(felder) && (
+          !felderGeaendert &&
+          !hakenGeaendert && (
             <span className="text-xs text-mist-600">
               {t("settings.nothingChanged")}
             </span>
@@ -1033,13 +1110,29 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("radarr")}
-                {instanzSpeichernReihe("radarr")}
                 {settings?.radarr_api_key_set && (
                   <>
                     <InstanzGesundheit kennung="radarr-standard" />
-                    <WebhookZeile kennung="radarr-standard" />
+                    <WebhookZeile
+                      kennung="radarr-standard"
+                      dienst="radarr"
+                      wunsch={webhookWunsch["radarr-standard"]}
+                      onWunsch={(aktiv) =>
+                        setWebhookWunsch((aktuell) => ({
+                          ...aktuell,
+                          "radarr-standard": aktiv,
+                        }))
+                      }
+                      onProbe={(angekommen) =>
+                        setWebhookProbeOk((aktuell) => ({
+                          ...aktuell,
+                          "radarr-standard": angekommen,
+                        }))
+                      }
+                    />
                   </>
                 )}
+                {instanzSpeichernReihe("radarr")}
               </InstanzBlock>
             )}
 
@@ -1087,13 +1180,29 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("radarr_uhd")}
-                {instanzSpeichernReihe("radarr_uhd")}
                 {settings?.radarr_uhd_api_key_set && (
                   <>
                     <InstanzGesundheit kennung="radarr-uhd" />
-                    <WebhookZeile kennung="radarr-uhd" />
+                    <WebhookZeile
+                      kennung="radarr-uhd"
+                      dienst="radarr"
+                      wunsch={webhookWunsch["radarr-uhd"]}
+                      onWunsch={(aktiv) =>
+                        setWebhookWunsch((aktuell) => ({
+                          ...aktuell,
+                          "radarr-uhd": aktiv,
+                        }))
+                      }
+                      onProbe={(angekommen) =>
+                        setWebhookProbeOk((aktuell) => ({
+                          ...aktuell,
+                          "radarr-uhd": angekommen,
+                        }))
+                      }
+                    />
                   </>
                 )}
+                {instanzSpeichernReihe("radarr_uhd")}
               </InstanzBlock>
             )}
 
@@ -1298,13 +1407,29 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("sonarr")}
-                {instanzSpeichernReihe("sonarr")}
                 {settings?.sonarr_api_key_set && (
                   <>
                     <InstanzGesundheit kennung="sonarr-standard" />
-                    <WebhookZeile kennung="sonarr-standard" />
+                    <WebhookZeile
+                      kennung="sonarr-standard"
+                      dienst="sonarr"
+                      wunsch={webhookWunsch["sonarr-standard"]}
+                      onWunsch={(aktiv) =>
+                        setWebhookWunsch((aktuell) => ({
+                          ...aktuell,
+                          "sonarr-standard": aktiv,
+                        }))
+                      }
+                      onProbe={(angekommen) =>
+                        setWebhookProbeOk((aktuell) => ({
+                          ...aktuell,
+                          "sonarr-standard": angekommen,
+                        }))
+                      }
+                    />
                   </>
                 )}
+                {instanzSpeichernReihe("sonarr")}
               </InstanzBlock>
             )}
 
@@ -1352,13 +1477,29 @@ export function AdminServicesSettings() {
                   autoComplete="off"
                 />
                 {testRow("sonarr_uhd")}
-                {instanzSpeichernReihe("sonarr_uhd")}
                 {settings?.sonarr_uhd_api_key_set && (
                   <>
                     <InstanzGesundheit kennung="sonarr-uhd" />
-                    <WebhookZeile kennung="sonarr-uhd" />
+                    <WebhookZeile
+                      kennung="sonarr-uhd"
+                      dienst="sonarr"
+                      wunsch={webhookWunsch["sonarr-uhd"]}
+                      onWunsch={(aktiv) =>
+                        setWebhookWunsch((aktuell) => ({
+                          ...aktuell,
+                          "sonarr-uhd": aktiv,
+                        }))
+                      }
+                      onProbe={(angekommen) =>
+                        setWebhookProbeOk((aktuell) => ({
+                          ...aktuell,
+                          "sonarr-uhd": angekommen,
+                        }))
+                      }
+                    />
                   </>
                 )}
+                {instanzSpeichernReihe("sonarr_uhd")}
               </InstanzBlock>
             )}
 

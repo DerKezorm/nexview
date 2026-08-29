@@ -202,6 +202,16 @@ function Credits() {
               {t('about.arrNotice')}
             </span>
           </li>
+          {/* ⚠️ Steht hier nicht aus Höflichkeit: Nexview liefert einen
+              Schnappschuss ihrer Daten mit und zieht Aktualisierungen von
+              GitHub nach. Was die Qualitätsprofile bewerten und wie Dateien
+              benannt werden, ist ihre Arbeit — nicht unsere. */}
+          <li>
+            <ExternalLink href="https://trash-guides.info">TRaSH Guides</ExternalLink>
+            <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.trashNotice')}
+            </span>
+          </li>
           <li>
             <ExternalLink href="https://www.plex.tv">Plex</ExternalLink>
             {' · '}

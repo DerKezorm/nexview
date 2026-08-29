@@ -472,6 +472,12 @@ Downloads are handled by **Radarr** and **Sonarr**; ratings come from **IMDb**,
 Notifications can go through **ntfy**, **Gotify**, **Telegram**, **Discord**, a plain
 webhook or **Apprise**.
 
+Quality profiles, custom formats and the file naming scheme are built from the
+**[TRaSH Guides](https://trash-guides.info)** (MIT). Nexview ships a snapshot of their
+JSON data so the first setup works without internet access, and fetches newer versions
+from [their repository](https://github.com/TRaSH-Guides/Guides) when you ask it to. The
+scoring itself — which release is worth more than which, and why — is their work.
+
 **[Seerr](https://seerr.dev)**, which grew out of Overseerr and Jellyseerr, was the
 model: the idea of what a request interface for Radarr and Sonarr can look like comes
 from there, from the second instance for 4K down to matching against the media server.

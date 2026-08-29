@@ -32,6 +32,7 @@ import { Symbol } from '../../components/Symbol'
 import { AdminQualitaetsWizard } from './AdminQualitaetsWizard'
 import { AdminQualitaetsVerteilen } from './AdminQualitaetsVerteilen'
 import { AdminQualitaetsUnterschiede } from './AdminQualitaetsUnterschiede'
+import { AdminQualitaetsUmzug } from './AdminQualitaetsUmzug'
 import type { Antworten, Installation, Profil, Stand, Typ } from './qualitaetsprofile-typen'
 import { fingerabdruck, kurzfassung } from './qualitaetsprofile-typen'
 
@@ -413,6 +414,12 @@ export function AdminQualitaetsprofile() {
                 ? t('qualityProfiles.fetching')
                 : t('qualityProfiles.fetchNow')}
             </Button>
+            {/* ⚠️ Sichern und Einlesen stehen **auch bei leerer Ablage** da —
+                gerade dann werden sie gebraucht. Eine frische Installation vor
+                einem gewachsenen Radarr ist genau der Fall, für den es sie
+                gibt: Ohne Ablage hält Nexview die Muster, die ein Bauplan mit
+                null Punkten mitbringt, für ungenutzt. */}
+            <AdminQualitaetsUmzug onFertig={() => setHinweise([])} />
             {instanzen.length > 0 && zeilen.length > 0 && (
               <Button type="button" onClick={() => setWizardOffen(true)}>
                 {t('qualityProfiles.startWizard')}

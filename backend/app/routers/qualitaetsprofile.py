@@ -18,6 +18,7 @@ from .. import meldungen
 from ..deps import AdminUser, DbSession
 from ..models import Qualitaetsprofil
 from ..services import arr_bestand
+from ..services import qualitaet_umzug
 from ..services import benennung as benennung_dienst
 from ..services import medienserver_verbindung as mediaserver_verbindung
 from ..services import qualitaetsprofile as dienst
@@ -1112,3 +1113,132 @@ async def _eine_instanz(
         raise meldungen.fehler(
             fehler.code or "arr_http_error", fehler.message, 502
         ) from fehler
+
+
+# --------------------------------------------------------------------- Umzug
+#
+# ⚠️ **Warum die Ablage ueberhaupt reisen koennen muss.** Nexview fuehrt das
+# Besitzbuch allein in seiner eigenen Datenbank. Wer neu aufsetzt und auf
+# dasselbe Radarr zeigt, steht vor seinen eigenen Profilen wie vor fremden -
+# und der Bestand meldet dann die Muster mit null Punkten als "ungenutzt".
+# Gemessen am 29.08.2026: 17 statt 2, darunter beide TRaSH-Profile.
+
+
+class UmzugBefundOut(BaseModel):
+    name: str
+    dienst: str
+    kennung: str
+    instanz: str
+    #: "uebernehmen" | "weicht_ab" | "nicht_gefunden" | "unerreichbar"
+    lage: str
+    profil_id_extern: int | None = None
+    unterschiede: int = 0
+
+
+class UmzugOut(BaseModel):
+    neu: list[str] = Field(default_factory=list)
+    schon_da: list[str] = Field(default_factory=list)
+    befunde: list[UmzugBefundOut] = Field(default_factory=list)
+
+
+class UmzugIn(BaseModel):
+    """Der Inhalt der Datei, wie ihn die Oberflaeche hochlaedt."""
+
+    datei: dict
+
+
+def _umzug_instanzen(db: Session) -> list[tuple[str, str, str, ArrClient | None]]:
+    """Alle eingerichteten Instanzen als (Kennung, Name, Art, Client)."""
+    heraus: list[tuple[str, str, str, ArrClient | None]] = []
+    for instanz in load_settings(db).arr_instanzen():
+        art = instanz.kennung.split("-")[0]
+        client = (
+            ArrClient(instanz.url, instanz.api_key, instanz.name)
+            if instanz.url and instanz.api_key
+            else None
+        )
+        heraus.append((instanz.kennung, instanz.name, art, client))
+    return heraus
+
+
+def _umzug_lesen(payload: UmzugIn) -> list[qualitaet_umzug.Ausfuhr]:
+    """Die Datei lesen - oder sagen, was mit ihr nicht stimmt.
+
+    ⚠️ **Jeder Fall ausgeschrieben, keine Nachschlagetabelle.** Die
+    Uebersetzungspruefung liest den Quelltext und findet nur Kennungen, die
+    woertlich am Aufruf stehen. Aus einer Tabelle geholt, gaelten sie als
+    "uebersetzt, aber nie geschickt". Fuenf Zeilen mehr sind der Preis dafuer,
+    dass der Waechter greift - und lesbarer ist es obendrein.
+    """
+    try:
+        return qualitaet_umzug.einlesen(payload.datei)
+    except ValueError as fehler:
+        grund = str(fehler)
+    if grund == "kein_objekt":
+        raise meldungen.fehler(
+            "quality_import_kein_objekt", "Die Datei enthaelt kein JSON-Objekt.", 400
+        )
+    if grund == "falsche_art":
+        raise meldungen.fehler(
+            "quality_import_falsche_art",
+            "Das ist keine Nexview-Profildatei. Erwartet wird eine Datei, die "
+            "der Ausfuhr-Knopf in der Profilablage erzeugt hat.",
+            400,
+        )
+    if grund == "zu_neu":
+        raise meldungen.fehler(
+            "quality_import_zu_neu",
+            "Die Datei stammt aus einer neueren Nexview-Fassung. Aktualisiere "
+            "zuerst diese Installation.",
+            400,
+        )
+    if grund == "leer":
+        raise meldungen.fehler(
+            "quality_import_leer", "Die Datei enthaelt kein einziges Profil.", 400
+        )
+    raise meldungen.fehler(
+        "quality_import_kaputt",
+        "Mindestens ein Profil in der Datei ist unvollstaendig.",
+        400,
+    )
+
+
+def _umzug_antwort(schau: qualitaet_umzug.Vorschau) -> UmzugOut:
+    return UmzugOut(
+        neu=schau.neu,
+        schon_da=schau.schon_da,
+        befunde=[
+            UmzugBefundOut(
+                name=b.name, dienst=b.dienst, kennung=b.kennung, instanz=b.instanz,
+                lage=b.lage, profil_id_extern=b.profil_id_extern,
+                unterschiede=b.unterschiede,
+            )
+            for b in schau.befunde
+        ],
+    )
+
+
+@router.get("/ausfuhr")
+async def ausfuhr(admin: AdminUser, db: DbSession) -> dict:
+    """Die Profilablage als Datei - ohne Zugangsdaten."""
+    return qualitaet_umzug.ausfuehren(db)
+
+
+@router.post("/einfuhr/vorschau", response_model=UmzugOut)
+async def einfuhr_vorschau(
+    payload: UmzugIn, admin: AdminUser, db: DbSession
+) -> UmzugOut:
+    """Was der Import taete - ohne etwas zu tun."""
+    eintraege = _umzug_lesen(payload)
+    return _umzug_antwort(
+        await qualitaet_umzug.pruefen(db, eintraege, _umzug_instanzen(db))
+    )
+
+
+@router.post("/einfuhr", response_model=UmzugOut)
+async def einfuhr(payload: UmzugIn, admin: AdminUser, db: DbSession) -> UmzugOut:
+    """Profile in die Ablage holen und drueben Vorgefundenes uebernehmen."""
+    eintraege = _umzug_lesen(payload)
+    return _umzug_antwort(
+        await qualitaet_umzug.uebernehmen(db, eintraege, _umzug_instanzen(db))
+    )

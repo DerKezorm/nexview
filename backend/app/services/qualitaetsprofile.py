@@ -345,6 +345,30 @@ def unsere_kopie(
     return live
 
 
+def abweichungen(profil_live: dict, plan: Bauplan) -> list[Unterschied]:
+    """Was unterscheidet die Kopie drueben von dem, was der Bauplan will?
+
+    ⚠️ **Oeffentlich, weil der Umzug sie braucht.** Beim Uebernehmen einer
+    vorgefundenen Kopie muss gesagt werden koennen, ob sie sich deckt - ohne
+    dafuer in die Innereien dieses Moduls zu greifen. Leere Liste heisst:
+    identisch.
+    """
+    return _unterschiede(_gestalt(plan), _gestalt_von_instanz(profil_live, plan))
+
+
+def abdruck_von(plan: Bauplan) -> str:
+    """Der Fingerabdruck eines Bauplans.
+
+    ⚠️ Beim Uebernehmen wird **dieser** festgehalten, nicht der der
+    vorgefundenen Kopie. Der Unterschied entscheidet, was die Ablage danach
+    anzeigt: Mit dem Plan-Abdruck gilt eine abweichende Kopie als
+    "angepasst" - jemand hat drueben nachgebessert - und genau das ist wahr.
+    Mit dem Abdruck der Kopie hiesse es "update", also "die Quelle hat sich
+    bewegt", und das waere gelogen.
+    """
+    return _fingerabdruck(plan)
+
+
 async def vergleichen(
     client: ArrClient,
     profil: Qualitaetsprofil,

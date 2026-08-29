@@ -12,6 +12,142 @@ tag exists for it.
 
 ---
 
+## 0.23.0 – 29.08.2026
+
+### New
+
+- **Quality profiles, built from the TRaSH Guides.** Settings → *Services* → *Quality
+  profiles*. Radarr and Sonarr decide what to download by quality profiles made of custom
+  formats and scores; whoever can operate that does not need Nexview for it. So Nexview
+  asks about the **purpose of the profile** instead — what resolution should end up on the
+  shelf, how good the source has to be, which audio tracks are required — and builds a
+  complete profile from the answers, then writes it to as many instances as you like.
+
+  The wizard branches on its first question. **Simple** is six questions and 53 custom
+  formats. **Detailed** adds three steps about audio, video and release groups, and lands
+  at 109. The simple path is the detailed one *without answers*: both build the same base,
+  and the extra questions only put more groups on top — so a profile made before this
+  release still matches after it.
+
+  No invented numbers. Every score comes from the guides. Three of their groups were
+  measured and **dropped** because they carry nothing but zeros; a question that changes
+  nothing is a lie.
+
+- **Inventory: what actually lies on your instances.** Everywhere else Nexview shows only
+  what it made itself. Here it shows everything, including profiles it never touched —
+  because a foreign profile holding a name, or blocking a delete, was invisible and left
+  you searching in Radarr.
+
+  Radarr refuses to delete a profile that is in use **without saying who uses it**; the
+  cause turned out once to be a collection nobody had thought of. All three holders are now
+  named: media, import lists, collections. Media on a bound profile can be **moved to
+  another profile** first — the files stay where they are, only the assignment changes —
+  and then the profile is free.
+
+- **Adopt the recommended naming scheme — and bring existing files in line.** File names
+  and folder names are offered separately, because their consequences differ: a new file
+  name is harmless, a new folder name can cost the watched state in your media server.
+  Folder names apply only to titles arriving from now on, and it says so.
+
+  One tickbox goes further and renames **files that are already on disk**. That run
+  survives a restart and picks up where it stopped — proven on 3531 files — and shows its
+  progress to anyone who opens the page, not only to the browser that started it. It
+  refuses to start while old format names would flow into the file names, because that is
+  not a blemish but a second full run to undo.
+
+- **Radarr and Sonarr can tell your media server.** After an import or a rename, Plex,
+  Jellyfin or Emby learn about it instead of waiting for their own next scan.
+
+  With a **preview of how paths get rewritten**. Radarr names a path from its own point of
+  view; if the media server knows a different one, the call arrives, is acknowledged, and
+  nothing happens — for years, without an error appearing anywhere. Nexview compares both
+  sides and shows the rewriting before you agree to it. Where it cannot work the mapping
+  out, it says so and refuses rather than guessing. Existing links are re-checked too,
+  because they can stop working in silence.
+
+- **Ask for single episodes.** On a series page you can now pick a season or individual
+  episodes instead of the whole show, counted the way Sonarr counts them rather than the
+  way we would. Cancelling removes **only what you ordered** — the series stays for
+  everybody else who wanted it.
+
+- **Parents can portion a child's wish.** One season, or two episodes to try. A partial
+  release no longer closes the other children's wishes, and once a released wish is done
+  while the series is not, the child gets an *I want more of this* button instead of a dead
+  end.
+
+- **Radarr and Sonarr call you, instead of being asked.** Nexview enters itself as a
+  webhook in both — after proving the connection first, and without touching entries
+  somebody else made. When the call comes in, the sync round is pulled forward instead of
+  waiting for the next tick.
+
+- **Every instance is its own tile.** Its own name, its own Save, its own logo. And with it
+  a change worth reading twice: **who picks profile and folder is now decided per
+  instance** instead of per service. A rule never set follows the default instance, so an
+  existing installation behaves exactly as it did before the update — but a 4K instance can
+  now be strict while the standard one stays open, or the other way round.
+
+- **Remove an instance cleanly.** What it means is spelled out before you click, and the
+  webhook entry over in Radarr is swept along. Handing storage back keeps working
+  afterwards, even though the instance is gone.
+
+- **"Downloading" while it downloads.** The queue is asked, and the word on the title
+  changes with it.
+
+- **What the instance complains about reaches you.** Radarr's own health warnings used to
+  end up in the log where nobody looked. Upgrade notifications also hurry up now when the
+  file on disk is growing.
+
+### Changed
+
+- **The settings open on *System*.** The first tab in the row is now also the tab you land
+  on; before, opening settings highlighted an entry nobody had clicked.
+
+- **Quality profiles sit next to Radarr and Sonarr**, before *Media server*, because that
+  is what they are about.
+
+- **Deleting a quality profile asks in a Nexview window**, not a browser popup. The browser
+  dialog looks like a warning from the browser, ignores every bit of styling, and — the
+  point — cannot show **where** the profile currently lies. The new one names the
+  instances, and says plainly that nothing happens in Radarr. A test now forbids
+  `confirm`, `alert` and `prompt` across the whole interface, because a comment saying
+  "those were the last two places" had already failed to stop the next one.
+
+- **The TRaSH Guides are credited** under *Credits* and in the README. Nexview ships a
+  snapshot of their data and fetches newer versions on request; the scoring is their work,
+  under MIT.
+
+### Fixed
+
+- **A failed request cost twice.** The title showed *Failed* to everyone with no way to ask
+  again — the server would have accepted it, only the button was gone — and the attempt
+  still counted against the piece quota. Failed now behaves like every other finished
+  state.
+
+- **Cancelling could trap a request forever.** Sonarr answers 500, not 404, when the series
+  was already removed by hand, and every retry hit the same wall while the dialog swallowed
+  the error. Cancel now checks whether the title is still there, and the dialog says what
+  went wrong instead of silently staying open.
+
+- **Error messages appear in your language.** Stored failures carry a code, so the
+  interface builds the sentence in the configured language instead of always German.
+
+- **"Watched, when is unknown" instead of "never".** Two different things that looked the
+  same.
+
+- **4K-only setups were overlooked** when the instances were listed.
+
+- **A series could fail for a whole day** on a stale cache when TMDB did not have the TVDB
+  id yet. TMDB is now asked again before giving up.
+
+- **The progress display could topple the whole sync round.**
+
+- **The description now says where the age limit actually lives.**
+
+- **Everything Nexview says outwards is English**, enforced by a test rather than by
+  discipline.
+
+---
+
 ## 0.22.0 – 26.08.2026
 
 ### New

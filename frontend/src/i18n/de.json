@@ -2140,6 +2140,68 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.23.0": {
+        "lead": "Zwei Dinge stecken in dieser Fassung. Nexview kann jetzt **aufräumen**: Qualitätsprofile nach den TRaSH-Guides bauen, verteilen, und dabei auch das in den Blick nehmen, was schon vorher in Radarr und Sonarr lag. Und der Weg zurück ist offen — **Radarr und Sonarr rufen an**, statt darauf zu warten, gefragt zu werden.",
+        "sections": [
+          {
+            "title": "Qualitätsprofile, gebaut aus den TRaSH-Guides",
+            "where": "Einstellungen → Dienste → Qualitätsprofile → Profile",
+            "body": "Radarr und Sonarr entscheiden über Qualitätsprofile aus Erkennungsmustern und Punktwerten, was geladen wird. Wer das bedienen kann, braucht Nexview dafür nicht. Deshalb fragt der Assistent nach dem **Zweck des Profils** — welche Auflösung am Ende stehen soll, wie hochwertig die Quelle sein muss, welche Tonspuren gebraucht werden — und baut daraus ein vollständiges Profil.\n\nEs lebt danach in Nexview, und auf welche Instanzen es geschoben wird, ist eine spätere und jederzeit wiederholbare Entscheidung. Erfundene Zahlen gibt es nicht: Jeder Punktwert kommt aus den Guides."
+          },
+          {
+            "title": "Der Assistent fragt so genau, wie du willst",
+            "where": "Erste Frage im Assistenten",
+            "body": "**Einfach** sind sechs Fragen und 53 Erkennungsmuster. **Ausführlich** legt drei Schritte zu Ton, Bild und Herkunft obendrauf und landet bei 109.\n\nDer einfache Weg ist der ausführliche *ohne Antworten* — beide bauen dasselbe Grundprofil, die zusätzlichen Fragen legen nur weitere Bausteine darauf. Ein Profil, das du vorher angelegt hast, passt danach also unverändert."
+          },
+          {
+            "title": "Bestand: was wirklich auf deinen Instanzen liegt",
+            "where": "Einstellungen → Dienste → Qualitätsprofile → Bestand",
+            "body": "Überall sonst zeigt Nexview nur, was es selbst angelegt hat. Hier alles — auch die Profile, die es nie angefasst hat. Ein fremdes Muster, das einen Namen belegt, oder ein Profil, das ein Löschen blockiert, war vorher unsichtbar, und du hast in Radarr gesucht.\n\nRadarr lehnt das Löschen eines benutzten Profils ab, **ohne zu sagen wer es benutzt** — die Ursache war einmal eine Sammlung, an die niemand gedacht hatte. Jetzt stehen alle drei Quellen da: Medien, Importlisten, Sammlungen. Medien auf einem gebundenen Profil lassen sich vorher **umhängen**; die Dateien bleiben, wo sie sind, nur die Zuordnung ändert sich."
+          },
+          {
+            "title": "Benennung — und auf Wunsch auch für das, was schon da ist",
+            "where": "Einstellungen → Dienste → Qualitätsprofile → Benennung",
+            "body": "Dateinamen und Ordnernamen werden getrennt angeboten, weil ihre Folgen verschieden schwer sind: Ein neuer Dateiname ist harmlos, ein neuer Ordnername kann den Gesehen-Stand im Medienserver kosten. Ordnernamen gelten nur für Titel, die ab jetzt dazukommen — und das steht auch so da.\n\nEin Haken geht weiter und benennt **Dateien um, die schon auf der Platte liegen**. Dieser Lauf übersteht einen Neustart und macht dort weiter, wo er stand. Er verweigert den Start, solange alte Musternamen in die Dateinamen fließen würden — das wäre kein Schönheitsfehler, sondern ein zweiter kompletter Lauf, um es rückgängig zu machen."
+          },
+          {
+            "title": "Radarr und Sonarr sagen dem Medienserver Bescheid",
+            "where": "Einstellungen → Dienste → Qualitätsprofile → Rückverbindung",
+            "body": "Nach einem Import oder einer Umbenennung erfahren Plex, Jellyfin oder Emby davon, statt auf ihren eigenen nächsten Durchlauf zu warten.\n\nMit einer **Vorschau, wie Pfade umgeschrieben werden**. Radarr nennt einen Pfad aus seiner Sicht; kennt der Medienserver einen anderen, kommt der Anruf an, wird bejaht — und nichts passiert. Jahrelang, ohne dass irgendwo ein Fehler stünde. Nexview vergleicht beide Seiten und zeigt die Umschreibung, bevor du zustimmst. Wo es die Zuordnung nicht ermitteln kann, sagt es das und verweigert, statt zu raten."
+          },
+          {
+            "title": "Einzelne Folgen anfragen",
+            "where": "Auf der Seite einer Serie",
+            "body": "Statt der ganzen Serie lässt sich eine Staffel oder lassen sich einzelne Folgen wählen — gezählt so, wie Sonarr sie zählt, nicht wie wir es täten.\n\nUnd Abbrechen nimmt **nur weg, was du bestellt hast**: Für alle anderen, die dieselbe Serie wollten, bleibt sie stehen."
+          },
+          {
+            "title": "Kinderwünsche portionsweise freigeben",
+            "where": "Profil → Kinderwünsche",
+            "body": "Eine Staffel, oder zwei Folgen zum Probieren. Eine Teilfreigabe schließt die Wünsche der anderen Kinder nicht mehr mit.\n\nIst der freigegebene Wunsch erledigt, die Serie aber noch nicht vollständig, bekommt das Kind einen **„Ich will mehr davon“**-Knopf statt einer Sackgasse."
+          },
+          {
+            "title": "Radarr und Sonarr rufen an, statt gefragt zu werden",
+            "where": "Einstellungen → Dienste",
+            "body": "Nexview trägt sich in beiden selbst als Webhook ein — nachdem es die Verbindung bewiesen hat, und ohne Einträge anzurühren, die jemand anders angelegt hat.\n\nKommt der Anruf, wird die Abgleichsrunde vorgezogen, statt auf den nächsten Takt zu warten. Was Radarr an eigenen Warnungen meldet, landet jetzt bei dir statt im Protokoll."
+          },
+          {
+            "title": "Jede Instanz als eigene Kachel",
+            "where": "Einstellungen → Dienste",
+            "body": "Eigener Name, eigenes Speichern, eigenes Logo. Und darin eine Änderung, die zweimal Lesen verdient: **Wer Profil und Ordner wählt, gilt jetzt je Instanz** statt je Dienst.\n\nEine nie gesetzte Regel folgt der Standard-Instanz — deine bestehende Anlage verhält sich nach dem Update also **exakt wie vorher**. Neu ist nur die Möglichkeit: Deine 4K-Instanz kann streng sein, während die Standard-Instanz offen bleibt, oder umgekehrt.\n\nEine Instanz zu entfernen sagt vorher, was das bedeutet, und räumt den Webhook-Eintrag drüben mit auf."
+          }
+        ],
+        "smallTitle": "Außerdem behoben",
+        "small": [
+          "Eine **fehlgeschlagene Anfrage kostete doppelt**: kein Weg, sie erneut zu stellen — der Server hätte sie angenommen, nur der Knopf fehlte —, und der Versuch zählte trotzdem gegen dein Kontingent.",
+          "**Abbrechen konnte eine Anfrage für immer festsetzen.** Sonarr antwortet 500 statt 404, wenn die Serie schon von Hand entfernt wurde; jeder neue Versuch lief in dieselbe Wand, und der Dialog schluckte den Fehler.",
+          "Fehlermeldungen erscheinen in **deiner eingestellten Sprache**, nicht mehr fest auf Deutsch.",
+          "**„Gesehen, wann unbekannt“ statt „nie“** — zwei verschiedene Dinge, die gleich aussahen.",
+          "**4K-only-Aufstellungen** wurden beim Auflisten der Instanzen übersehen.",
+          "Eine Serie konnte **einen ganzen Tag lang scheitern**, wenn TMDB die TVDB-Nummer noch nicht hatte und ein alter Zwischenspeicher im Weg stand.",
+          "Die Fortschrittsanzeige konnte die **ganze Abgleichsrunde umwerfen**.",
+          "**„Lädt gerade“** steht jetzt am Titel, solange geladen wird — die Warteschlange wird gefragt.",
+          "Beim Öffnen der Einstellungen ist **System** markiert, nicht ein Punkt, auf den niemand geklickt hat."
+        ]
+      },
       "0.22.0": {
         "lead": "Diese Fassung dreht sich um eine Frage, die man sich meist zu spät stellt: **Was passiert, wenn etwas kaputtgeht?** Nexview kann jetzt Sicherungen anlegen, die du herunterladen und mitnehmen kannst — und sie auch wieder einspielen, sogar auf einer frischen Installation. Dazu kommt eine Schnittstelle mit Zusage, damit endlich etwas anderes als der Browser mit Nexview reden kann.",
         "sections": [

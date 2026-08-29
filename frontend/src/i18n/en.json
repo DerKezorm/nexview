@@ -2140,6 +2140,68 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.23.0": {
+        "lead": "Two things sit in this release. Nexview can now **tidy up**: build quality profiles from the TRaSH Guides, hand them out, and look at what was already in Radarr and Sonarr before it. And the way back is open — **Radarr and Sonarr call you** instead of waiting to be asked.",
+        "sections": [
+          {
+            "title": "Quality profiles, built from the TRaSH Guides",
+            "where": "Settings → Services → Quality profiles → Profiles",
+            "body": "Radarr and Sonarr decide what to download by quality profiles made of custom formats and scores. Whoever can operate that does not need Nexview for it. So the wizard asks about the **purpose of the profile** — what resolution should end up on the shelf, how good the source has to be, which audio tracks are required — and builds a complete profile from the answers.\n\nIt lives in Nexview afterwards, and which instances it goes to is a later decision you can repeat any time. No invented numbers: every score comes from the guides."
+          },
+          {
+            "title": "The wizard asks as closely as you want",
+            "where": "First question in the wizard",
+            "body": "**Simple** is six questions and 53 custom formats. **Detailed** puts three more steps on top — audio, video and origin — and lands at 109.\n\nThe simple path is the detailed one *without answers*: both build the same base, and the extra questions only add further pieces. A profile you made before this release therefore still matches after it."
+          },
+          {
+            "title": "Inventory: what actually lies on your instances",
+            "where": "Settings → Services → Quality profiles → Inventory",
+            "body": "Everywhere else Nexview shows only what it made itself. Here it shows everything, including profiles it never touched. A foreign format holding a name, or a profile blocking a delete, used to be invisible and left you searching in Radarr.\n\nRadarr refuses to delete a profile that is in use **without saying who uses it** — the cause turned out once to be a collection nobody had thought of. All three holders are now named: media, import lists, collections. Media on a bound profile can be **moved** first; the files stay where they are, only the assignment changes."
+          },
+          {
+            "title": "Naming — and, if you want, for what is already there",
+            "where": "Settings → Services → Quality profiles → Naming",
+            "body": "File names and folder names are offered separately, because their consequences differ: a new file name is harmless, a new folder name can cost the watched state in your media server. Folder names apply only to titles arriving from now on, and it says so.\n\nOne tickbox goes further and renames **files that are already on disk**. That run survives a restart and picks up where it stopped. It refuses to start while old format names would flow into the file names — that would not be a blemish but a second full run to undo."
+          },
+          {
+            "title": "Radarr and Sonarr tell your media server",
+            "where": "Settings → Services → Quality profiles → Reconnection",
+            "body": "After an import or a rename, Plex, Jellyfin or Emby learn about it instead of waiting for their own next scan.\n\nWith a **preview of how paths get rewritten**. Radarr names a path from its own point of view; if the media server knows a different one, the call arrives, is acknowledged, and nothing happens — for years, without an error appearing anywhere. Nexview compares both sides and shows the rewriting before you agree to it. Where it cannot work the mapping out, it says so and refuses rather than guessing."
+          },
+          {
+            "title": "Ask for single episodes",
+            "where": "On a series page",
+            "body": "Instead of the whole show you can pick a season, or individual episodes — counted the way Sonarr counts them, not the way we would.\n\nAnd cancelling removes **only what you ordered**: for everybody else who wanted the same series, it stays."
+          },
+          {
+            "title": "Parents can portion a child's wish",
+            "where": "Profile → Children's wishes",
+            "body": "One season, or two episodes to try. A partial release no longer closes the other children's wishes.\n\nOnce the released wish is done while the series is not complete, the child gets an **“I want more of this”** button instead of a dead end."
+          },
+          {
+            "title": "Radarr and Sonarr call you, instead of being asked",
+            "where": "Settings → Services",
+            "body": "Nexview enters itself as a webhook in both — after proving the connection first, and without touching entries somebody else made.\n\nWhen the call comes in, the sync round is pulled forward instead of waiting for the next tick. And Radarr's own health warnings now reach you instead of the log."
+          },
+          {
+            "title": "Every instance is its own tile",
+            "where": "Settings → Services",
+            "body": "Its own name, its own Save, its own logo. And with it a change worth reading twice: **who picks profile and folder is now decided per instance** instead of per service.\n\nA rule never set follows the default instance — so your existing installation behaves **exactly as it did before** the update. What is new is only the possibility: your 4K instance can be strict while the standard one stays open, or the other way round.\n\nRemoving an instance says what that means before you click, and sweeps the webhook entry over in Radarr along with it."
+          }
+        ],
+        "smallTitle": "Also fixed",
+        "small": [
+          "A **failed request cost twice**: no way to ask again — the server would have accepted it, only the button was gone — and the attempt still counted against your quota.",
+          "**Cancelling could trap a request forever.** Sonarr answers 500, not 404, when the series was already removed by hand; every retry hit the same wall while the dialog swallowed the error.",
+          "Error messages appear in **your configured language**, no longer always German.",
+          "**“Watched, when is unknown” instead of “never”** — two different things that looked the same.",
+          "**4K-only setups** were overlooked when the instances were listed.",
+          "A series could **fail for a whole day** when TMDB did not have the TVDB id yet and a stale cache was in the way.",
+          "The progress display could topple the **whole sync round**.",
+          "**“Downloading”** now shows on the title while it downloads — the queue is asked.",
+          "Opening the settings highlights **System**, not an entry nobody clicked."
+        ]
+      },
       "0.22.0": {
         "lead": "This release is about a question most people ask too late: **what happens when something breaks?** Nexview can now make backups you can download and take with you — and put them back, even on a fresh installation. On top of that comes an interface with a promise, so something other than a browser can finally talk to Nexview.",
         "sections": [

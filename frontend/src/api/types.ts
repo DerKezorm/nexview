@@ -1778,6 +1778,55 @@ export interface QualitaetsprofilFortschritt {
  * selbst sagt beim Löschversuch nur „is in use“ und verschweigt, wer es
  * benutzt — genau daran scheitert das Aufräumen sonst.
  */
+/**
+ * Was der Import auf **einer** Instanz zu **einem** Profil gefunden hat.
+ *
+ * ⚠️ `weicht_ab` heisst nicht „Fehler": Das Profil wird trotzdem uebernommen,
+ * nur unveraendert gelassen. In Radarr schreibt der Import nie.
+ */
+/**
+ * Zwei oder mehr Instanzen auf derselben Bahn eines Download-Programms.
+ *
+ * ⚠️ Das kann nur Nexview sehen: Radarr kennt die zweite Instanz nicht und
+ * warnt deshalb nie - waehrend beide sich die Downloads wegnehmen.
+ */
+export interface DownloadKollision {
+  /** Woran sie wiedererkannt wird - traegt die Beteiligten, fuers Wegklicken. */
+  schluessel: string;
+  /** Lesbar, etwa "Sabnzbd auf 10.10.10.109:8080". */
+  programm: string;
+  kategorie: string;
+  /** Keine Kategorie gesetzt - der schwerere Fall. */
+  ohne_kategorie: boolean;
+  instanzen: string[];
+  kennungen: string[];
+}
+
+export interface DownloadKollisionStand {
+  kollisionen: DownloadKollision[];
+}
+
+export interface UmzugBefund {
+  name: string;
+  dienst: string;
+  kennung: string;
+  instanz: string;
+  /** "uebernehmen" | "weicht_ab" | "nicht_gefunden" | "unerreichbar" */
+  lage: string;
+  profil_id_extern: number | null;
+  /** Wie viele Punkte oder Qualitaeten anders sind - nur bei `weicht_ab`. */
+  unterschiede: number;
+}
+
+export interface UmzugErgebnis {
+  /** Profile, die neu in die Ablage kommen. */
+  neu: string[];
+  /** Namen, die es in der Ablage schon gibt - sie werden uebersprungen. */
+  schon_da: string[];
+  befunde: UmzugBefund[];
+}
+
+
 export interface ProfilBestand {
   id: number;
   name: string;

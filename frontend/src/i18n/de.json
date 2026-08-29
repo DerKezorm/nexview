@@ -1378,7 +1378,12 @@
       "mediaserver_unknown": "Diesen Medienserver gibt es nicht (mehr).",
       "quality_instance_unreachable": "Diese Instanz antwortet gerade nicht.",
       "quality_profile_name_taken": "In {{service}} gibt es bereits ein Profil namens „{{name}}“. Nexview überschreibt keine fremden Profile — benenne das Profil um oder räume das andere dort weg.",
-      "quality_move_same_profile": "Quelle und Ziel sind dasselbe Profil."
+      "quality_move_same_profile": "Quelle und Ziel sind dasselbe Profil.",
+      "quality_import_kein_objekt": "Die Datei enthält kein JSON-Objekt.",
+      "quality_import_falsche_art": "Das ist keine Nexview-Profildatei. Erwartet wird eine Datei, die der Ausfuhr-Knopf in der Profilablage erzeugt hat.",
+      "quality_import_zu_neu": "Die Datei stammt aus einer neueren Nexview-Fassung. Aktualisiere zuerst diese Installation.",
+      "quality_import_leer": "Die Datei enthält kein einziges Profil.",
+      "quality_import_kaputt": "Mindestens ein Profil in der Datei ist unvollständig."
     }
   },
   "language": {
@@ -2993,5 +2998,38 @@
     "namingHint": "Datei- und Ordnernamen",
     "link": "Rückverbindung",
     "linkHint": "Medienserver Bescheid geben"
+  },
+  "quality": {
+    "transfer": {
+      "export": "Ablage sichern",
+      "import": "Ablage einlesen",
+      "exported": "Die Datei liegt in deinen Downloads. Sie enthält nur Rezepte und Namen — keine Zugangsdaten.",
+      "notJson": "Das ist keine JSON-Datei.",
+      "previewTitle": "Was eingelesen würde",
+      "previewIntro": "Nexview hat auf jeder Instanz nach Profilen dieses Namens gesehen. Gefundene übernimmt es in seine Verwaltung — mit ihrer Nummer, damit es sie künftig wiedererkennt.",
+      "nothingNew": "Alle Profile aus der Datei liegen schon in deiner Ablage. Es gibt nichts einzulesen.",
+      "alreadyHere": "{{anzahl}} übersprungen",
+      "alreadyHereWhy": "Diesen Namen gibt es in deiner Ablage schon. Zwei Rezepte unter einem Namen gäben beim nächsten Verteilen einen Namensstreit auf der Instanz — und welches das richtige ist, weißt nur du.",
+      "noInstance": "Keine passende Instanz eingerichtet",
+      "differs": "{{anzahl}} Unterschiede zum Rezept",
+      "doImport": "{{anzahl}} einlesen",
+      "imported": "{{neu}} Profile eingelesen, {{uebernommen}} Kopien übernommen.",
+      "nothingWritten": "In Radarr und Sonarr wird dabei nichts geschrieben. Eine Kopie, die vom Rezept abweicht, bleibt so wie sie ist und erscheint danach als „angepasst“ — angleichen kannst du sie später mit „Verteilen“, und siehst vorher die Unterschiede.",
+      "state": {
+        "uebernehmen": "wird übernommen",
+        "weicht_ab": "wird übernommen, weicht ab",
+        "nicht_gefunden": "liegt dort nicht",
+        "unerreichbar": "antwortet nicht"
+      }
+    }
+  },
+  "downloadCollision": {
+    "title": "{{instanzen}} benutzen dieselbe Kategorie „{{kategorie}}“ in {{programm}}",
+    "titleEmpty": "{{instanzen}} benutzen {{programm}} ohne eigene Kategorie",
+    "symptoms": "Beide sehen dort dieselben Downloads und greifen danach. Was passiert: Anfragen bleiben auf „wird geladen“ stehen, Dateien landen in der falschen Bibliothek oder verschwinden aus der Warteschlange. Es erscheint dabei nirgends ein Fehler — deshalb sucht man den Grund meist beim Netz, beim Indexer oder beim Anbieter.",
+    "fix": "Gib jeder Instanz ihre eigene Kategorie. Sie muss im Download-Programm selbst angelegt werden — Radarr und Sonarr können das nicht.",
+    "fixEmpty": "Ohne Kategorie greift eine Instanz nach allem, was im Download-Programm liegt. Radarr nennt eine eigene Kategorie „dringend empfohlen“. Lege sie im Download-Programm an und trage sie in jeder Instanz getrennt ein.",
+    "dismiss": "Ist so gewollt",
+    "dismissHint": "Kommt später eine weitere Instanz auf dieselbe Kategorie, wird wieder gewarnt."
   }
 }

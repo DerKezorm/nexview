@@ -22,6 +22,7 @@ from ..services import (
     storage,
     webhook_pflege,
     webhooks,
+    download_kollision,
 )
 from ..services.arr import ArrClient, ArrError
 from ..services.radarr import RadarrClient
@@ -1170,6 +1171,68 @@ async def instanzen_gesundheit(admin: AdminUser, db: DbSession) -> GesundheitSta
             )
         )
     return GesundheitStand(instanzen=zeilen)
+
+
+class KollisionOut(BaseModel):
+    schluessel: str
+    programm: str
+    kategorie: str
+    ohne_kategorie: bool
+    instanzen: list[str]
+    kennungen: list[str]
+
+
+class KollisionStand(BaseModel):
+    kollisionen: list[KollisionOut]
+
+
+class KollisionIgnorierenIn(BaseModel):
+    schluessel: str
+
+
+@router.get("/settings/instanzen/downloadkollision", response_model=KollisionStand)
+async def instanzen_downloadkollision(admin: AdminUser, db: DbSession) -> KollisionStand:
+    """Benutzen zwei Instanzen dieselbe Kategorie im Download-Programm?
+
+    ⚠️ **Das kann nur Nexview sehen.** Radarr kennt die zweite Instanz nicht
+    und warnt deshalb nie - waehrend sich beide die Downloads wegnehmen und
+    der Fehler wie ein Netzproblem aussieht.
+
+    Frisch gefragt statt gemerkt: Die Einstellung aendert sich selten, aber
+    ein gemerkter Stand waere nach jeder Aenderung drueben falsch.
+    """
+    settings = load_settings(db)
+    je_instanz: list[tuple[str, str, list[dict]]] = []
+    for instanz in settings.arr_instanzen():
+        client = ArrClient(instanz.url, instanz.api_key, instanz.name)
+        try:
+            programme = await client.get("/downloadclient")
+        except Exception:  # noqa: BLE001 - eine stumme Instanz kippt die Seite nicht
+            logger.info("Download clients of %s not readable", instanz.kennung)
+            continue
+        je_instanz.append((instanz.kennung, instanz.name, list(programme or [])))
+
+    treffer = download_kollision.offen(
+        download_kollision.finden(je_instanz), download_kollision.ignorierte(db)
+    )
+    return KollisionStand(
+        kollisionen=[
+            KollisionOut(
+                schluessel=k.schluessel, programm=k.programm_name,
+                kategorie=k.kategorie, ohne_kategorie=k.ohne_kategorie,
+                instanzen=k.instanzen, kennungen=k.kennungen,
+            )
+            for k in treffer
+        ]
+    )
+
+
+@router.post("/settings/instanzen/downloadkollision/ignorieren", status_code=204)
+async def instanzen_downloadkollision_ignorieren(
+    payload: KollisionIgnorierenIn, admin: AdminUser, db: DbSession
+) -> None:
+    """Diese Kollision nicht mehr melden - sie ist gewollt."""
+    download_kollision.ignorieren(db, payload.schluessel)
 
 
 # Welche Einstellungs-Schluessel zu einer Instanz gehoeren - fuers Entfernen.

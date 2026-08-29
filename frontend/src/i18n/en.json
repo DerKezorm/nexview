@@ -1378,7 +1378,12 @@
       "mediaserver_unknown": "That media server no longer exists.",
       "quality_instance_unreachable": "This instance is not responding right now.",
       "quality_profile_name_taken": "{{service}} already has a profile called \"{{name}}\". Nexview does not overwrite profiles it did not create — rename this one, or remove the other one over there.",
-      "quality_move_same_profile": "Source and target are the same profile."
+      "quality_move_same_profile": "Source and target are the same profile.",
+      "quality_import_kein_objekt": "The file does not contain a JSON object.",
+      "quality_import_falsche_art": "This is not a Nexview profile file. It expects a file produced by the export button in the profile store.",
+      "quality_import_zu_neu": "The file comes from a newer version of Nexview. Update this installation first.",
+      "quality_import_leer": "The file contains no profiles at all.",
+      "quality_import_kaputt": "At least one profile in the file is incomplete."
     }
   },
   "language": {
@@ -2993,5 +2998,38 @@
     "namingHint": "file and folder names",
     "link": "Link-back",
     "linkHint": "telling the media server"
+  },
+  "quality": {
+    "transfer": {
+      "export": "Save the store",
+      "import": "Read a store",
+      "exported": "The file is in your downloads. It holds recipes and names only — no credentials.",
+      "notJson": "That is not a JSON file.",
+      "previewTitle": "What would be read in",
+      "previewIntro": "Nexview looked on every instance for profiles of these names. Whatever it found, it takes into its own records — with the id, so it recognises them from now on.",
+      "nothingNew": "Every profile in the file is already in your store. There is nothing to read in.",
+      "alreadyHere": "{{anzahl}} skipped",
+      "alreadyHereWhy": "That name is already in your store. Two recipes under one name would collide on the instance at the next write — and only you know which one is right.",
+      "noInstance": "No matching instance set up",
+      "differs": "{{anzahl}} differences from the recipe",
+      "doImport": "Read in {{anzahl}}",
+      "imported": "{{neu}} profiles read in, {{uebernommen}} copies adopted.",
+      "nothingWritten": "Nothing is written to Radarr or Sonarr. A copy that differs from its recipe stays exactly as it is and shows up as “adjusted” — you can bring it in line later with “Distribute”, and see the differences first.",
+      "state": {
+        "uebernehmen": "will be adopted",
+        "weicht_ab": "adopted, differs",
+        "nicht_gefunden": "not there",
+        "unerreichbar": "no answer"
+      }
+    }
+  },
+  "downloadCollision": {
+    "title": "{{instanzen}} share the category “{{kategorie}}” in {{programm}}",
+    "titleEmpty": "{{instanzen}} use {{programm}} without a category of their own",
+    "symptoms": "Both see the same downloads there and reach for them. What happens: requests sit on “downloading” forever, files land in the wrong library or vanish from the queue. No error appears anywhere — which is why people go looking at the network, the indexer or the provider instead.",
+    "fix": "Give each instance its own category. It has to exist in the download client itself — Radarr and Sonarr cannot create one.",
+    "fixEmpty": "Without a category an instance reaches for everything in the download client. Radarr calls a category of your own “highly recommended”. Create one in the download client and enter a separate one in each instance.",
+    "dismiss": "This is intended",
+    "dismissHint": "If another instance later joins the same category, you will be warned again."
   }
 }

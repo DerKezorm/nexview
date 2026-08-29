@@ -1599,6 +1599,55 @@ TEXTE: dict[str, tuple[str, str]] = {
         'Is a watchlist available',
         'Whether a personal access exists and whether an account is linked.',
     ),
+    'GET /api/settings/instanzen/downloadkollision': (
+        'Do two instances share a download category',
+        (
+            'Radarr and Sonarr only see what sits in their own category of '
+            'the download client. If two instances share one, each grabs the '
+            'downloads the other one queued: requests hang, files land in '
+            'the wrong place, and no error appears anywhere - so the '
+            'operator goes looking at the network. Radarr cannot warn about '
+            'this: it does not know the second instance exists. Nexview does.'
+        ),
+    ),
+    'POST /api/settings/instanzen/downloadkollision/ignorieren': (
+        'Stop reporting this collision',
+        (
+            'Some setups share a category on purpose. Dismissing is '
+            'permanent, but tied to the instances involved - adding a third '
+            'one to the same category reports again, because that is a new '
+            'mistake and not a dismissed old one.'
+        ),
+    ),
+    'GET /api/settings/qualitaetsprofile/ausfuhr': (
+        'Take the profile store with you',
+        (
+            'Every profile kept in Nexview as one file: names, recipes and '
+            'the instances each was last written to. It carries no '
+            'credentials and no keys, so it can be handed to somebody else. '
+            'Needed because Nexview keeps the record of ownership in its own '
+            'database only - a fresh installation pointed at the same Radarr '
+            'stands before its own profiles as before strangers.'
+        ),
+    ),
+    'POST /api/settings/qualitaetsprofile/einfuhr/vorschau': (
+        'What the import would do',
+        (
+            'Reads the file and looks at every instance: which profiles '
+            'would be taken over, which differ from their recipe, which are '
+            'not there at all. Changes nothing.'
+        ),
+    ),
+    'POST /api/settings/qualitaetsprofile/einfuhr': (
+        'Bring the profile store back',
+        (
+            'Adds the profiles to Nexview and takes over the copies found on '
+            'the instances by name, recording their id. Nothing is written to '
+            'Radarr or Sonarr - a copy that differs from its recipe is '
+            'adopted as it stands and shown as adjusted. A name already in '
+            'the store is skipped rather than overwritten.'
+        ),
+    ),
     'GET /api/settings/qualitaetsprofile': (
         'Quality profiles kept in Nexview',
         (

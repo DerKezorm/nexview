@@ -29,6 +29,7 @@ import { AdminFolgenSettings } from "./AdminFolgenSettings";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
 import { AdminQualitaetsBereich } from "./AdminQualitaetsBereich";
 import { InstanzGesundheit } from "./InstanzGesundheit";
+import { DownloadKollision } from "./DownloadKollision";
 import { WebhookZeile } from "./WebhookZeile";
 import { useRegionen } from "../../hooks/useRegionen";
 import { useConfig } from "../../hooks/useConfig";
@@ -1302,6 +1303,12 @@ export function AdminServicesSettings() {
 
         {unterTab === "radarr" && (
           <Section title={t("settings.radarrSection")} breit>
+            {/* ⚠️ In beiden Unterreitern: Eine Kollision kann Radarr und Sonarr
+              zugleich betreffen - stuende sie nur bei einem, faende sie
+              ausgerechnet der nicht, der beim anderen sucht. Das Bauteil zeigt
+              nichts, wenn nichts anliegt. */}
+            <DownloadKollision />
+
             {/* Die Instanzen als Kacheln - dieselbe Optik wie die
               Benachrichtigungs-Ziele. Heute bewusst auf zwei begrenzt
               (Standard + 4K); die Reihe ist trotzdem eine Liste, damit der
@@ -1499,6 +1506,12 @@ export function AdminServicesSettings() {
 
         {unterTab === "sonarr" && (
           <Section title={t("settings.sonarrSection")} breit>
+            {/* ⚠️ In beiden Unterreitern: Eine Kollision kann Radarr und Sonarr
+              zugleich betreffen - stuende sie nur bei einem, faende sie
+              ausgerechnet der nicht, der beim anderen sucht. Das Bauteil zeigt
+              nichts, wenn nichts anliegt. */}
+            <DownloadKollision />
+
             {/* Kacheln wie bei Radarr - Begruendung dort. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <InstanzKachel

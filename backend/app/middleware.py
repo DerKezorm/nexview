@@ -123,6 +123,49 @@ async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
+class BasisPfadMiddleware:
+    """Streift den Unterpfad (``NEXVIEW_URL_BASE``) vom Anfragepfad.
+
+    Damit beantwortet Nexview jede Adresse **doppelt**: mit Vorbau
+    (``/nexview/api/health``) und ohne (``/api/health``). Beides ist noetig:
+
+    * Ein **durchreichender** Proxy schickt die Anfrage mitsamt Vorbau weiter -
+      der Normalfall, so erwarten es auch Radarr und Sonarr.
+    * Ein **abschneidender** Proxy entfernt den Vorbau, bevor die Anfrage hier
+      ankommt. Und der Docker-Healthcheck sowie die Radarr-/Sonarr-Webhooks
+      rufen den Server ohnehin direkt an der Wurzel an.
+
+    Es wird nur der Pfad umgeschrieben, sonst nichts: Routing, Erlaubnis-
+    pruefungen und Protokoll sehen die Anfrage anschliessend so, als waere sie
+    an der Wurzel angekommen. Ein Pfad, der den Vorbau nur scheinbar traegt
+    (``/nexviewfoo``), bleibt unangetastet.
+    """
+
+    def __init__(self, app: Any, basis: str) -> None:
+        self.app = app
+        self.basis = basis.rstrip("/")
+        self._praefix = self.basis + "/"
+        self._basis_roh = self.basis.encode("latin-1")
+
+    async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
+        if scope["type"] in ("http", "websocket") and self.basis:
+            pfad = scope.get("path", "")
+            neu = None
+            if pfad == self.basis:
+                neu = "/"
+            elif pfad.startswith(self._praefix):
+                neu = pfad[len(self.basis):]
+            if neu is not None:
+                scope["path"] = neu
+                # ``raw_path`` ist die unentschluesselte Urfassung; wo sie
+                # vorliegt, muss sie denselben Schnitt bekommen, sonst zeigen
+                # zwei Felder desselben Scopes auf verschiedene Adressen.
+                roh = scope.get("raw_path")
+                if isinstance(roh, bytes) and roh.startswith(self._basis_roh):
+                    scope["raw_path"] = roh[len(self._basis_roh):] or b"/"
+        await self.app(scope, receive, send)
+
+
 class SicherheitskopfMiddleware:
     """Setzt die Inhaltsregeln an jede Antwort.
 

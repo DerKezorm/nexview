@@ -20,6 +20,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from .config import get_settings
+
 
 def enum_column(enum_class: type[enum.Enum]) -> Enum:
     """Aufzaehlung als Text speichern - und beim Lesen zurueckverwandeln.
@@ -724,8 +726,15 @@ class User(Base):
 
     @property
     def avatar_url(self) -> str | None:
-        """Adresse des Profilbilds fuer die Oberflaeche."""
-        return f"/api/users/avatar/{self.avatar_path}" if self.avatar_path else None
+        """Adresse des Profilbilds fuer die Oberflaeche.
+
+        Mit dem Unterpfad vorneweg, falls einer gesetzt ist: Die Adresse geht
+        als fertiger ``<img src>`` an den Browser, und der fragt sonst an der
+        Wurzel der Domain - dort, wohin der Reverse Proxy gar nicht zeigt.
+        """
+        if not self.avatar_path:
+            return None
+        return f"{get_settings().url_base}/api/users/avatar/{self.avatar_path}"
 
     @property
     def mediaserver_linked(self) -> bool:

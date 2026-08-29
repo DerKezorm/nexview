@@ -7,12 +7,17 @@ und werden ueber die Einstellungsseite gepflegt.
 
 from __future__ import annotations
 
+import logging
+import re
 import secrets
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger("nexview.config")
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BACKEND_DIR.parent
@@ -32,6 +37,24 @@ class Settings(BaseSettings):
     refresh_token_days: int = 30
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     static_dir: str = ""
+
+    # Unterpfad, unter dem Nexview hinter einem Reverse Proxy laeuft -
+    # z. B. ``/nexview`` fuer ``https://example.com/nexview/``.
+    #
+    # Leer (Vorgabe) heisst: Nexview wohnt an der Wurzel, alles bleibt exakt
+    # wie bisher. Ist der Pfad gesetzt, beantwortet Nexview jede Adresse
+    # **doppelt** - mit und ohne Vorbau. Beides ist noetig, weil Proxys auf
+    # zwei Arten eingestellt sind: Die einen reichen den Pfad mitsamt Vorbau
+    # durch, die anderen schneiden ihn vorher ab. Ausserdem rufen der
+    # Docker-Healthcheck und die Radarr-/Sonarr-Webhooks den Server direkt an
+    # der Wurzel an. Details und Proxy-Beispiele stehen in der README unter
+    # "Behind a reverse proxy".
+    #
+    # Der Wert wird beim Einlesen aufgeraeumt (fuehrender Schraegstrich wird
+    # ergaenzt, ein abschliessender entfernt, eine versehentlich eingetragene
+    # ganze Adresse auf ihren Pfad verkuerzt). ``/api`` ist als Vorbau
+    # verboten - er wuerde mit der Schnittstelle selbst zusammenfallen.
+    url_base: str = ""
 
     # Woher die Adresse des Anfragenden kommt - gebraucht von der
     # ``anmeldebremse``, die nach Konto **und** Adresse zaehlt.
@@ -115,6 +138,47 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+
+    @field_validator("url_base", mode="before")
+    @classmethod
+    def _normalize_url_base(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        wert = value.strip()
+        if not wert:
+            return ""
+        if "://" in wert:
+            # Wer die ganze Adresse eintraegt, meint den Pfad darin.
+            wert = urlsplit(wert).path
+            logger.warning(
+                "NEXVIEW_URL_BASE looks like a full address; using only its "
+                "path %r. The setting takes just the path, e.g. /nexview.",
+                wert,
+            )
+        wert = "/" + wert.strip("/")
+        if wert == "/":
+            return ""
+        # Nur Zeichen, die in einem URL-Pfad nichts Besonderes bedeuten.
+        # Alles andere (Leerzeichen, Doppelpunkte, ...) ist kein Unterpfad,
+        # sondern ein Versehen - etwa ein von der Windows-Shell in einen
+        # Laufwerkspfad verwandelter Wert. Stumm ausgeliefert ergaebe das
+        # eine halb kaputte Seite ohne jede Fehlermeldung.
+        if not re.fullmatch(r"[A-Za-z0-9/_.-]+", wert):
+            logger.warning(
+                "NEXVIEW_URL_BASE %r contains characters that do not belong "
+                "in a URL path. Ignoring the setting; use something like "
+                "/nexview.",
+                wert,
+            )
+            return ""
+        if wert == "/api" or wert.startswith("/api/"):
+            logger.warning(
+                "NEXVIEW_URL_BASE must not be %r - it would collide with the "
+                "API itself. Ignoring the setting; pick a prefix like /nexview.",
+                wert,
+            )
+            return ""
+        return wert
 
     @property
     def db_path(self) -> Path:

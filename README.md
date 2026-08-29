@@ -227,6 +227,7 @@ copy `.env.example` to `.env`:
 | `NEXVIEW_PORT` | Port Nexview listens on **inside the container** (default: 8000). Read by the container's start script, not by the backend itself. Only needed on host networking — see below. |
 | `NEXVIEW_CLIENT_IP` | How Nexview learns the caller's address, for rate limiting sign-ins: unset (count per account only), `direct`, `proxy`, or `proxy:2`. See below. |
 | `NEXVIEW_COOKIE_SECURE` | Whether the sign-in cookie is marked `Secure`: `auto` (default), `on`, or `off`. See below. |
+| `NEXVIEW_URL_BASE` | Serve Nexview under a sub-path behind a reverse proxy, e.g. `/nexview` for `https://example.com/nexview/`. Unset means the root, exactly as before. See below. |
 | `NEXVIEW_CSP` | Content security rules: `on` (default), `report-only`, or `off`. See below. |
 | `NEXVIEW_FRAME_ANCESTORS` | Who may put Nexview in a frame: `none` (default), `self`, or an origin. See below. |
 | `NEXVIEW_IMG_SOURCES` | Extra image hosts, space separated. Only needed if calendar posters stay blank. See below. |
@@ -276,6 +277,63 @@ browser only ever sends it over HTTPS:
 Nexview deliberately does **not** guess from `X-Forwarded-Proto`: that header can be
 faked just like `X-Forwarded-For`, and the same question is already answered by asking
 rather than guessing over at `NEXVIEW_CLIENT_IP`.
+
+### Behind a reverse proxy
+
+With its own (sub)domain — `https://nexview.example.com` — Nexview needs no
+configuration at all. To serve it under a **sub-path** of a shared domain instead,
+set one variable and restart the container:
+
+```
+NEXVIEW_URL_BASE=/nexview
+```
+
+Now Nexview lives at `https://example.com/nexview/`. Any prefix works, `/tools/nexview`
+too. Leave the variable unset and everything behaves exactly as before.
+
+With the prefix set, Nexview answers **both** forms of address: with the prefix (for
+proxies that pass the path through unchanged — the recommended setup) and without it
+(for proxies that strip the prefix before forwarding, and for the container's own
+health check). Whichever way your proxy is configured, it works.
+
+**nginx**
+
+```nginx
+location /nexview {
+    proxy_pass http://127.0.0.1:5173;
+    proxy_set_header Host $host;
+}
+```
+
+**Caddy**
+
+```caddy
+handle /nexview* {
+    reverse_proxy 127.0.0.1:5173
+}
+```
+
+`handle_path` (which strips the prefix) works just as well.
+
+**Traefik** (labels on the Nexview container)
+
+```yaml
+- traefik.http.routers.nexview.rule=PathPrefix(`/nexview`)
+- traefik.http.services.nexview.loadbalancer.server.port=8000
+```
+
+A `stripprefix` middleware works just as well.
+
+**Nginx Proxy Manager**
+
+On your proxy host, add a *Custom Location* `/nexview` and forward it to the host and
+port Nexview listens on. No advanced configuration needed.
+
+> ⚠️ **Set the public address with the prefix included.** The address under
+> *Settings → Addresses* goes into every link Nexview sends — invitations, password
+> resets. With a prefix it must read `https://example.com/nexview`. Nexview suggests it
+> correctly and shows a warning when the prefix is missing, but it cannot stop you from
+> saving without it.
 
 ### Content security rules
 

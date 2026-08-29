@@ -5,6 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { ApiError, api, logout } from '../api/client'
+import { mitBasis } from '../lib/basis'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../components/ui'
@@ -190,7 +191,7 @@ export function InvitationPage() {
           className="mt-6 w-full"
           onClick={() => {
             // Neu laden, damit die App den alten Anmeldezustand vergisst.
-            window.location.href = '/'
+            window.location.href = mitBasis('/')
           }}
         >
           {t('onboarding.toLogin')}

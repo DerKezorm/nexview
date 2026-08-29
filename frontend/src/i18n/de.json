@@ -269,6 +269,7 @@
     "publicIntro": "Unter welcher Adresse ist Nexview erreichbar? Sie steckt in jedem Link, den Nexview verschickt – Einladungen, Bestätigungen, Passwort zurücksetzen.",
     "publicUrl": "Adresse",
     "publicUrlHint": "Genau so, wie ihr Nexview im Browser aufruft – mit https:// und ohne Schrägstrich am Ende.",
+    "publicUrlBaseWarning": "Der Adresse fehlt der eingestellte Unterpfad {{base}} – jeder verschickte Link würde ins Leere führen.",
     "webhookBasisSection": "Adresse aus Sicht von Radarr/Sonarr",
     "webhookBasisIntro": "Nur nötig, wenn die öffentliche Adresse für den Rückkanal nicht taugt – etwa im Docker-Netz oder wenn vor Nexview ein Anmeldeschutz oder ein selbstsigniertes Zertifikat hängt. Leer heißt: Die öffentliche Adresse gilt auch hier.",
     "webhookBasisUrl": "Rückkanal-Adresse (URL)",
@@ -2145,6 +2146,35 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.24.0": {
+        "lead": "Drei Dinge stecken in dieser Fassung. Nexview passt jetzt hinter einen Reverse Proxy im **Unterpfad** — `deinedomain.de/nexview` statt einer eigenen Subdomain. Die **Profilablage kann umziehen**: als Datei sichern, woanders einlesen, und Nexview erkennt seine Kopien wieder. Und Nexview warnt, wenn sich **zwei Instanzen dieselbe Download-Kategorie** teilen — der Fehler, der wie ein Netzproblem aussieht.",
+        "sections": [
+          {
+            "title": "Unterpfad hinter dem Reverse Proxy",
+            "where": "docker-compose → NEXVIEW_URL_BASE, Beispiele in der README",
+            "body": "Eine Zeile im docker-compose — `NEXVIEW_URL_BASE=/nexview` —, Container neu starten, und Nexview wohnt unter `https://deinedomain.de/nexview/`. Beide üblichen Proxy-Einstellungen funktionieren: **durchreichen wie abschneiden**, ganz gleich, nach welcher Anleitung dein Proxy eingerichtet ist.\n\nAnmeldung, Bilder, Downloads und die API-Beschreibung laufen vollständig unter dem Vorbau. Wer nichts einstellt, merkt von alledem nichts — ohne die Variable bleibt alles exakt wie bisher. Fertige Beispiele für nginx, Caddy, Traefik und Nginx Proxy Manager stehen in der README."
+          },
+          {
+            "title": "Die öffentliche Adresse denkt mit",
+            "where": "Einstellungen → Adressen",
+            "body": "Die öffentliche Adresse steckt in jedem Link, den Nexview verschickt. Mit gesetztem Unterpfad schlägt Nexview sie jetzt **mitsamt Vorbau** vor — und warnt, wenn er in einer von Hand eingetragenen Adresse fehlt. Vorher wären Einladungen und Passwort-Links stumm ins Leere gelaufen."
+          },
+          {
+            "title": "Die Profilablage kann umziehen",
+            "where": "Einstellungen → Dienste → Qualitätsprofile → „Ablage sichern“ / „Ablage einlesen“",
+            "body": "Wer Nexview neu aufsetzt und auf dasselbe Radarr zeigt, stand bisher vor den **eigenen** Profilen wie vor fremden — wem welche Nummer gehört, weiß nur Nexviews Datenbank. Jetzt lässt sich die Ablage als Datei sichern und drüben wieder einlesen: Nexview erkennt seine Kopien auf den Instanzen am Namen wieder und übernimmt sie mitsamt Nummer.\n\nVor dem Einlesen zeigt eine Vorschau, was passieren würde; geschrieben wird dabei in Radarr und Sonarr **nichts**. Die Datei enthält nur Rezepte und Namen — keine Zugangsdaten — und taugt damit auch, ein Profil an jemand anderen weiterzugeben."
+          },
+          {
+            "title": "Zwei Instanzen, eine Kategorie — jetzt gewarnt",
+            "where": "Einstellungen → Dienste",
+            "body": "Teilen sich zwei Radarr- oder Sonarr-Instanzen dieselbe Kategorie im Download-Programm, greift jede nach den Downloads der anderen: Anfragen bleiben auf „wird geladen“ stehen, Dateien landen in der falschen Bibliothek — und nirgends erscheint ein Fehler. Deshalb sucht man den Grund beim Netz oder beim Indexer. Radarr kann davor nicht warnen, es weiß nichts von der zweiten Instanz — Nexview weiß es und warnt jetzt, auch wenn eine Instanz ganz ohne eigene Kategorie arbeitet.\n\nDie Kategorie selbst muss im Download-Programm angelegt werden, Radarr und Sonarr können das nicht. Wer die Teilung absichtlich betreibt, klickt „Ist so gewollt“ — kommt später eine dritte Instanz auf dieselbe Kategorie, wird wieder gewarnt."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Ein dauerhafter Browser-Test prüft den Unterpfad-Betrieb künftig bei jedem Release automatisch mit — in beiden Proxy-Arten."
+        ]
+      },
       "0.23.0": {
         "lead": "Zwei Dinge stecken in dieser Fassung. Nexview kann jetzt **aufräumen**: Qualitätsprofile nach den TRaSH-Guides bauen, verteilen, und dabei auch das in den Blick nehmen, was schon vorher in Radarr und Sonarr lag. Und der Weg zurück ist offen — **Radarr und Sonarr rufen an**, statt darauf zu warten, gefragt zu werden.",
         "sections": [

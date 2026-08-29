@@ -12,7 +12,12 @@
  */
 
 window.ui = SwaggerUIBundle({
-  url: '/openapi.json',
+  /*
+   * Relativ mit Absicht: Die Adresse loest gegen die /docs-Seite auf und
+   * findet die Beschreibung damit an der Wurzel UND unter einem Unterpfad
+   * (NEXVIEW_URL_BASE) - eine absolute Adresse ginge dort am Proxy vorbei.
+   */
+  url: 'openapi.json',
   dom_id: '#swagger-ui',
   layout: 'BaseLayout',
   deepLinking: true,

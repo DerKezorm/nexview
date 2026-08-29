@@ -269,6 +269,7 @@
     "publicIntro": "Where is Nexview reachable? This address goes into every link Nexview sends – invitations, confirmations, password resets.",
     "publicUrl": "Address",
     "publicUrlHint": "Exactly how you open Nexview in the browser – with https:// and no trailing slash.",
+    "publicUrlBaseWarning": "The address is missing the configured URL base {{base}} – every link Nexview sends would lead nowhere.",
     "webhookBasisSection": "Address as seen by Radarr/Sonarr",
     "webhookBasisIntro": "Only needed when the public address does not work for the return channel – for example inside a Docker network, or when a sign-in guard or a self-signed certificate sits in front of Nexview. Empty means the public address applies here too.",
     "webhookBasisUrl": "Return-channel address (URL)",
@@ -2145,6 +2146,35 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.24.0": {
+        "lead": "Three things in this release. Nexview now fits behind a reverse proxy under a **sub-path** — `yourdomain.com/nexview` instead of its own subdomain. The **profile store can travel**: save it as a file, read it in elsewhere, and Nexview recognises its own copies. And Nexview warns when **two instances share one download category** — the mistake that looks like a network fault.",
+        "sections": [
+          {
+            "title": "A sub-path behind the reverse proxy",
+            "where": "docker-compose → NEXVIEW_URL_BASE, examples in the README",
+            "body": "One line in your docker-compose — `NEXVIEW_URL_BASE=/nexview` —, restart the container, and Nexview lives at `https://yourdomain.com/nexview/`. Both common proxy styles work: **passing the path through and stripping it**, whichever guide your proxy was set up from.\n\nSign-in, images, downloads and the API docs all follow the prefix. If you set nothing, nothing changes — without the variable everything stays exactly as before. Copy-paste examples for nginx, Caddy, Traefik and Nginx Proxy Manager are in the README."
+          },
+          {
+            "title": "The public address thinks along",
+            "where": "Settings → Addresses",
+            "body": "The public address goes into every link Nexview sends. With a sub-path set, Nexview now suggests it **with the prefix included** — and warns when a hand-typed address is missing it. Before, invitations and password links would have led nowhere, silently."
+          },
+          {
+            "title": "The profile store can travel",
+            "where": "Settings → Services → Quality profiles → “Save the store” / “Read a store”",
+            "body": "Set up Nexview fresh and point it at the same Radarr, and until now it stood before its **own** profiles as before strangers — which number belongs to whom lives only in Nexview's database. Now the store can be saved as a file and read back in elsewhere: Nexview recognises its copies on the instances by name and adopts them, id included.\n\nA preview shows what would happen before anything is read in; nothing is written to Radarr or Sonarr in the process. The file holds recipes and names only — no credentials — which also makes it the way to hand a profile to somebody else."
+          },
+          {
+            "title": "Two instances, one category — now warned about",
+            "where": "Settings → Services",
+            "body": "When two Radarr or Sonarr instances share one category in the download client, each grabs the other's downloads: requests sit on “downloading”, files land in the wrong library — and no error appears anywhere. So people go looking at the network or the indexer. Radarr cannot warn about it, it does not know the second instance exists — Nexview does, and now warns, including when an instance runs without a category of its own.\n\nThe category itself has to be created in the download client; Radarr and Sonarr cannot do that. If you share on purpose, click “This is intended” — should a third instance later land on the same category, the warning returns."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "A permanent browser test now checks sub-path operation automatically with every release — in both proxy styles."
+        ]
+      },
       "0.23.0": {
         "lead": "Two things sit in this release. Nexview can now **tidy up**: build quality profiles from the TRaSH Guides, hand them out, and look at what was already in Radarr and Sonarr before it. And the way back is open — **Radarr and Sonarr call you** instead of waiting to be asked.",
         "sections": [

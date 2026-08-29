@@ -11,6 +11,7 @@ import hashlib
 from datetime import date, timedelta
 from typing import Any
 
+from ..config import get_settings
 from ..schemas_media import MediaItem
 
 MOVIE_GENRES = [
@@ -299,8 +300,10 @@ def _build(entry: dict[str, Any], media_type: str, offset_days: int) -> MediaIte
         title=entry["title"],
         original_title=entry["title"],
         overview=entry["overview"],
-        poster_url=f"/api/demo/poster/{media_type}/{tmdb_id}.svg",
-        backdrop_url=f"/api/demo/poster/{media_type}/{tmdb_id}.svg?wide=1",
+        # Mit Unterpfad vorneweg: Die Adressen landen als ``<img src>`` im
+        # Browser, und der fragt sonst an der Wurzel der Domain vorbei am Proxy.
+        poster_url=f"{get_settings().url_base}/api/demo/poster/{media_type}/{tmdb_id}.svg",
+        backdrop_url=f"{get_settings().url_base}/api/demo/poster/{media_type}/{tmdb_id}.svg?wide=1",
         release_date=release.isoformat(),
         vote_average=entry["vote"],
         vote_count=entry["votes"],

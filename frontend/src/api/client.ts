@@ -13,6 +13,7 @@
  */
 
 import i18n from '../i18n'
+import { mitBasis } from '../lib/basis'
 
 /**
  * Der Platz, an dem der Refresh-Token frueher lag.
@@ -91,7 +92,7 @@ export function clearTokens(): void {
 export async function logout(): Promise<void> {
   accessToken = null
   try {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+    await fetch(mitBasis('/api/auth/logout'), { method: 'POST', credentials: 'same-origin' })
   } catch {
     // Server nicht erreichbar. Der Arbeitsspeicher ist trotzdem leer, und
     // beim naechsten Versuch faellt das Cookie ohnehin auf.
@@ -208,7 +209,7 @@ async function refreshAccessToken(): Promise<boolean> {
     try {
       // Das Erneuerungs-Token faehrt als Cookie mit - es steht nirgends im
       // Code, weil dieses Skript es gar nicht sehen darf.
-      const response = await fetch('/api/auth/refresh', {
+      const response = await fetch(mitBasis('/api/auth/refresh'), {
         method: 'POST',
         credentials: 'same-origin',
       })
@@ -246,7 +247,9 @@ async function send<T>(path: string, options: RequestOptions, retry: boolean): P
   if (body !== undefined && !isFormData) headers['Content-Type'] = 'application/json'
   if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`
 
-  const response = await fetch(path, {
+  // Der Unterpfad (NEXVIEW_URL_BASE) kommt genau hier davor - die vielen
+  // '/api/...'-Aufrufstellen in den Seiten bleiben wurzel-absolut.
+  const response = await fetch(mitBasis(path), {
     method,
     headers,
     body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
@@ -312,9 +315,9 @@ export async function downloadFile(
     return { method: 'POST', headers, body: JSON.stringify(body) }
   }
 
-  let response = await fetch(path, bauen())
+  let response = await fetch(mitBasis(path), bauen())
   if (response.status === 401 && (await refreshAccessToken())) {
-    response = await fetch(path, bauen())
+    response = await fetch(mitBasis(path), bauen())
   }
   if (!response.ok) {
     const info = await parseError(response)

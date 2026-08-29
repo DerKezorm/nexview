@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
 import type { AppSettings, TestResult } from '../../api/types'
+import { BASIS, adresseOhneBasis } from '../../lib/basis'
 import { Button, Card, Field, Spinner } from '../../components/ui'
 
 /**
@@ -135,7 +136,8 @@ export function AdminAddressSettings() {
             type="button"
             variant="ghost"
             onClick={() => {
-              setUrl(window.location.origin)
+              // Mitsamt Unterpfad - origin allein würde ihn verschlucken.
+              setUrl(window.location.origin + BASIS)
               setResult(null)
             }}
             className="mb-6"
@@ -143,6 +145,14 @@ export function AdminAddressSettings() {
             {t('mail.useCurrent')}
           </Button>
         </div>
+
+        {/* Adresse ohne den eingestellten Unterpfad: jeder verschickte Link
+            würde ins Leere führen, und niemand merkte es sofort. */}
+        {adresseOhneBasis(url) && (
+          <p className="text-sm text-bad-500">
+            {t('mail.publicUrlBaseWarning', { base: BASIS })}
+          </p>
+        )}
 
         {result && (
           <p

@@ -82,7 +82,7 @@ TRAILERQUELLE = "https://www.youtube-nocookie.com"
 _SKRIPT_MUSTER = re.compile(r"<script(?![^>]*\ssrc=)[^>]*>(.*?)</script>", re.DOTALL)
 
 
-def _hashes(index_html: Path | None) -> list[str]:
+def _hashes(index_html: Path | str | None) -> list[str]:
     """Pruefsummen aller Inline-Skripte der ausgelieferten Seite.
 
     ⚠️ **Bewusst beim Start berechnet statt im Quelltext hinterlegt.** Eine
@@ -90,12 +90,24 @@ def _hashes(index_html: Path | None) -> list[str]:
     Skript aendert, auseinander - und der Fehler zeigt sich dann nicht beim
     Bauen, sondern als weisse Seite bei einem Fremden. So kann es gar nicht
     erst passieren.
+
+    Statt eines Pfads darf auch der **fertige Seitentext** kommen: Mit
+    gesetztem Unterpfad (``NEXVIEW_URL_BASE``) wird ``index.html`` beim Start
+    umgeschrieben und bekommt ein zusaetzliches Inline-Skript - die Summen
+    muessen aus genau dieser ausgelieferten Fassung stammen, nicht aus der
+    Datei auf der Platte.
     """
-    if index_html is None or not index_html.exists():
+    if index_html is None:
         return []
+    if isinstance(index_html, Path):
+        if not index_html.exists():
+            return []
+        seitentext = index_html.read_text(encoding="utf-8")
+    else:
+        seitentext = index_html
 
     gefunden = []
-    for inhalt in _SKRIPT_MUSTER.findall(index_html.read_text(encoding="utf-8")):
+    for inhalt in _SKRIPT_MUSTER.findall(seitentext):
         summe = base64.b64encode(hashlib.sha256(inhalt.encode("utf-8")).digest()).decode()
         gefunden.append(f"'sha256-{summe}'")
     return gefunden
@@ -118,7 +130,7 @@ def _frame_ancestors(einstellung: str) -> str:
 
 
 def regeln(
-    index_html: Path | None,
+    index_html: Path | str | None,
     frame_ancestors: str = "none",
     zusaetzliche_bildquellen: str = "",
 ) -> str:
@@ -159,7 +171,7 @@ def regeln(
 
 def kopfzeile(
     modus: str,
-    index_html: Path | None,
+    index_html: Path | str | None,
     frame_ancestors: str = "none",
     zusaetzliche_bildquellen: str = "",
 ):

@@ -58,14 +58,21 @@ logger = logging.getLogger("nexview.sitzung")
 
 COOKIE_NAME = "nexview_refresh"
 
-# Der Pfad schneidet das Cookie auf die Anmeldewege zu: Es faehrt dann nicht
-# bei jedem Poster-Abruf mit, sondern nur dort, wo es gebraucht wird.
-#
-# Es passt, dass auch die Medienserver-Anmeldung unter ``/api/auth/mediaserver``
-# haengt - sonst muesste es zwei Cookies geben. Ein Sicherheitsriegel ist der
-# Pfad nicht (innerhalb eines Ursprungs trennt er nichts), sondern nur eine
-# Verkleinerung der Flaeche.
-COOKIE_PFAD = "/api/auth"
+def cookie_pfad() -> str:
+    """Der Pfad des Cookies - er schneidet es auf die Anmeldewege zu.
+
+    Das Cookie faehrt dann nicht bei jedem Poster-Abruf mit, sondern nur dort,
+    wo es gebraucht wird. Es passt, dass auch die Medienserver-Anmeldung unter
+    ``/api/auth/mediaserver`` haengt - sonst muesste es zwei Cookies geben.
+    Ein Sicherheitsriegel ist der Pfad nicht (innerhalb eines Ursprungs trennt
+    er nichts), sondern nur eine Verkleinerung der Flaeche.
+
+    Mit gesetztem Unterpfad (``NEXVIEW_URL_BASE``) traegt der Pfad den Vorbau:
+    Cookie-Pfade prueft der **Browser**, und aus dessen Sicht liegt die
+    Anmeldung unter ``/nexview/api/auth`` - egal, ob der Proxy den Vorbau
+    durchreicht oder abschneidet; abgeschnitten wird erst hinter dem Browser.
+    """
+    return f"{get_settings().url_base}/api/auth"
 
 
 def _secure(request: Request) -> bool:
@@ -104,7 +111,7 @@ def starten(response: Response, request: Request, user: User) -> TokenPair:
         COOKIE_NAME,
         create_refresh_token(user.id),
         max_age=get_settings().refresh_token_days * 24 * 60 * 60,
-        path=COOKIE_PFAD,
+        path=cookie_pfad(),
         httponly=True,
         samesite="lax",
         secure=_secure(request),
@@ -124,7 +131,7 @@ def beenden(response: Response, request: Request) -> None:
     """
     response.delete_cookie(
         COOKIE_NAME,
-        path=COOKIE_PFAD,
+        path=cookie_pfad(),
         httponly=True,
         samesite="lax",
         secure=_secure(request),

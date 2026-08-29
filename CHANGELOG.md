@@ -12,6 +12,40 @@ tag exists for it.
 
 ---
 
+## 0.24.0 – unreleased
+
+### New
+
+- **Serve Nexview under a sub-path.** Set `NEXVIEW_URL_BASE=/nexview` and Nexview lives at
+  `https://example.com/nexview/` behind your reverse proxy — the setup that simply did not
+  work before. Both common proxy styles are supported, passing the path through unchanged
+  *and* stripping the prefix; the sign-in cookie, images, downloads and the API docs all
+  follow the prefix. Unset means the root, exactly as before. Copy-paste examples for
+  nginx, Caddy, Traefik and Nginx Proxy Manager are in the README under *Behind a reverse
+  proxy*.
+- **The public address suggests the prefix and warns when it is missing.** That address
+  goes into every link Nexview sends — invitations, confirmations, password resets. The
+  setup wizard and the address settings now prefill it including the sub-path, and show a
+  warning when a hand-typed address lacks it; those links would otherwise lead nowhere,
+  silently.
+- A permanent browser test exercises sub-path operation on every release — sign-in,
+  reload, deep links — through a real proxy in both styles.
+- **The profile store can travel.** Settings → *Services* → *Quality profiles*: save the
+  store as one file — recipes and names only, no credentials — and read it back in on a
+  fresh installation. Nexview recognises its own copies on the instances by name and
+  adopts them with their id; a preview shows what would happen first, and nothing is
+  written to Radarr or Sonarr in the process. Without this, a fresh Nexview pointed at
+  the same Radarr stood before its own profiles as before strangers — and cleanup would
+  have flagged parts of them as unused.
+- **Two instances, one download category — now warned about.** When two Radarr or Sonarr
+  instances share a category in the download client (or run without one), each grabs the
+  other's downloads: requests hang, files land in the wrong library, and no error appears
+  anywhere — so the search starts at the network. Radarr cannot warn, it does not know
+  the second instance exists; Nexview does, under Settings → *Services*. Dismissible for
+  setups that share on purpose; a third instance on the same category warns again.
+
+---
+
 ## 0.23.0 – 29.08.2026
 
 ### New

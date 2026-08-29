@@ -17,7 +17,10 @@ import type {
 import { Button, Card, ErrorBanner, Field, PlusKachel, RundKnopf, Section, Spinner } from '../../components/ui'
 import { Anleitung, HilfeKnopf, hatAnleitung } from './ChannelHelp'
 import emailLogo from '../../assets/email.svg'
-import gotifyLogo from '../../assets/gotify.svg'
+// ?inline: als data:-Adresse ins Bündel, statt als Datei unter /assets. Die
+// einzige eingebaute absolute Asset-Adresse - unter einem Unterpfad
+// (NEXVIEW_URL_BASE) würde sie an der Domain-Wurzel am Proxy vorbeifragen.
+import gotifyLogo from '../../assets/gotify.svg?inline'
 import ntfyLogo from '../../assets/ntfy.svg'
 import discordLogo from '../../assets/discord.svg'
 import webhookLogo from '../../assets/webhook.svg'

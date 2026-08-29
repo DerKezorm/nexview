@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
 import type { TestResult } from '../../api/types'
+import { BASIS, adresseOhneBasis } from '../../lib/basis'
 import { Button, ErrorBanner, Field } from '../../components/ui'
 
 /**
@@ -17,7 +18,9 @@ import { Button, ErrorBanner, Field } from '../../components/ui'
 export function AddressStep({ onDone }: { onDone: () => void }) {
   const { t } = useTranslation()
 
-  const [url, setUrl] = useState(window.location.origin)
+  // Mitsamt Unterpfad, falls einer gesetzt ist - window.location.origin allein
+  // würde ihn verschlucken, und dann führte jeder verschickte Link ins Leere.
+  const [url, setUrl] = useState(window.location.origin + BASIS)
   const [error, setError] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   /** Erst ein bestandener Test schaltet Weiter frei. */
@@ -65,6 +68,12 @@ export function AddressStep({ onDone }: { onDone: () => void }) {
           placeholder="https://nexview.beispiel.de"
           autoComplete="off"
         />
+
+        {adresseOhneBasis(url) && (
+          <p className="text-sm text-bad-500">
+            {t('mail.publicUrlBaseWarning', { base: BASIS })}
+          </p>
+        )}
 
         {error && <ErrorBanner message={error} />}
 

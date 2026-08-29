@@ -21,6 +21,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { PYTHON, WURZEL as wurzel } from './e2e/konto'
+import {
+  UNTERPFAD_BACKEND_PORT,
+  UNTERPFAD_DATEN,
+  PROXY_ABSCHNEIDEN_PORT,
+  PROXY_DURCHREICHEN_PORT,
+} from './e2e/unterpfad-ports'
 
 const hier = path.dirname(fileURLToPath(import.meta.url))
 
@@ -45,6 +51,7 @@ const DATEN = path.join(hier, '.e2e-data')
  */
 if (process.env.TEST_WORKER_INDEX === undefined) {
   rmSync(DATEN, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+  rmSync(UNTERPFAD_DATEN, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
 }
 
 export default defineConfig({
@@ -91,6 +98,53 @@ export default defineConfig({
       url: `http://127.0.0.1:${OBERFLAECHE_PORT}`,
       reuseExistingServer: false,
       timeout: 120_000,
+    },
+
+    // ── Der Unterpfad-Aufbau (unterpfad.spec.ts) ──────────────────────────
+    //
+    // Nexview unter https://…/nexview/ gibt es in keiner Entwicklungs-
+    // Installation - deshalb wird die Umgebung hier nachgebaut: ein zweites
+    // Backend mit NEXVIEW_URL_BASE und dem **gebauten** Frontend (der Spec
+    // überspringt lokal mit Handgriff-Hinweis, wenn dist fehlt), davor je ein
+    // Pförtner für die beiden Proxy-Betriebsarten.
+    {
+      command: `"${PYTHON}" -m uvicorn app.main:app --host 127.0.0.1 --port ${UNTERPFAD_BACKEND_PORT}`,
+      cwd: path.join(wurzel, 'backend'),
+      env: {
+        NEXVIEW_DATA_DIR: UNTERPFAD_DATEN,
+        NEXVIEW_URL_BASE: '/nexview',
+        NEXVIEW_STATIC_DIR: path.join(hier, 'dist'),
+      },
+      // Die Wurzel bleibt bewusst bedienbar - darüber meldet sich der Server.
+      url: `http://127.0.0.1:${UNTERPFAD_BACKEND_PORT}/api/setup/status`,
+      reuseExistingServer: false,
+      timeout: 120_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      command: `node e2e/unterpfad-proxy.mjs`,
+      cwd: hier,
+      env: {
+        PROXY_PORT: String(PROXY_DURCHREICHEN_PORT),
+        PROXY_ZIEL: String(UNTERPFAD_BACKEND_PORT),
+        PROXY_MODUS: 'durchreichen',
+      },
+      url: `http://127.0.0.1:${PROXY_DURCHREICHEN_PORT}/nexview/api/setup/status`,
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
+    {
+      command: `node e2e/unterpfad-proxy.mjs`,
+      cwd: hier,
+      env: {
+        PROXY_PORT: String(PROXY_ABSCHNEIDEN_PORT),
+        PROXY_ZIEL: String(UNTERPFAD_BACKEND_PORT),
+        PROXY_MODUS: 'abschneiden',
+      },
+      url: `http://127.0.0.1:${PROXY_ABSCHNEIDEN_PORT}/nexview/api/setup/status`,
+      reuseExistingServer: false,
+      timeout: 30_000,
     },
   ],
 })

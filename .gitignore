@@ -57,6 +57,8 @@ ds-bundle/
 # leere Datenbank je Lauf, damit der Einrichtungsassistent ueberhaupt
 # erscheint. Bericht und Bildschirmfotos entstehen nur bei Fehlschlaegen.
 frontend/.e2e-data/
+# Dasselbe fuer den Unterpfad-Aufbau (eigenes Backend samt Datenbank).
+frontend/.e2e-data-unterpfad/
 frontend/playwright-report/
 frontend/test-results/
 # ⚠️ Auch im Wurzelverzeichnis: Wird Playwright versehentlich von dort statt

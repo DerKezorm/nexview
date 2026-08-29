@@ -79,6 +79,11 @@ services:
       # kommt niemand mehr hinein.
       NEXVIEW_COOKIE_SECURE: ${NEXVIEW_COOKIE_SECURE:-auto}
 
+      # Unterpfad hinter einem Reverse Proxy, z. B. /nexview fuer
+      # https://example.com/nexview/. Leer = Wurzel, alles wie bisher.
+      # Proxy-Beispiele: README, "Behind a reverse proxy".
+      NEXVIEW_URL_BASE: ${NEXVIEW_URL_BASE:-}
+
       # Inhaltsregeln der Seite: on | report-only | off
       NEXVIEW_CSP: ${NEXVIEW_CSP:-on}
 

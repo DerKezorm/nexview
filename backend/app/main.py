@@ -8,8 +8,10 @@ Frontend separat auf dem Vite-Server und wird ueber CORS erlaubt.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -30,6 +32,7 @@ from .config import get_settings
 from .deps import require_adult
 from .db import init_db
 from .middleware import (
+    BasisPfadMiddleware,
     RequestContextMiddleware,
     SicherheitskopfMiddleware,
     unhandled_error,
@@ -335,20 +338,23 @@ async def api_dokumentation() -> HTMLResponse:
     """
     # Ein einziger Text mit echten Zeilenumbruechen - keine zusammengesetzten
     # Bruchstuecke. Die Seite ist so kurz, dass jede Zerlegung sie nur
-    # schwerer lesbar machen wuerde.
+    # schwerer lesbar machen wuerde. Der Unterpfad steht vor jedem Verweis,
+    # damit die Seite auch hinter einem Reverse Proxy ihre Dateien findet;
+    # ohne NEXVIEW_URL_BASE ist er leer und alles bleibt wie gehabt.
+    basis = settings.url_base
     return HTMLResponse(
-        """<!doctype html>
+        f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nexview API</title>
-<link rel="stylesheet" href="/docs-dateien/swagger-ui.css">
+<link rel="stylesheet" href="{basis}/docs-dateien/swagger-ui.css">
 </head>
 <body>
 <div id="swagger-ui"></div>
-<script src="/docs-dateien/swagger-ui-bundle.js"></script>
-<script src="/docs-dateien/start.js"></script>
+<script src="{basis}/docs-dateien/swagger-ui-bundle.js"></script>
+<script src="{basis}/docs-dateien/start.js"></script>
 </body>
 </html>
 """
@@ -370,7 +376,7 @@ async def redoc_umleiten() -> RedirectResponse:
     CDN, und ein zweites Megabyte im Abbild fuer eine zweite Ansicht derselben
     Daten waere es nicht wert.
     """
-    return RedirectResponse("/docs", status_code=308)
+    return RedirectResponse(f"{settings.url_base}/docs", status_code=308)
 
 
 def _static_dir() -> Path | None:
@@ -382,21 +388,59 @@ def _static_dir() -> Path | None:
     return candidate if (candidate / "index.html").exists() else None
 
 
-def _mount_frontend(directory: Path) -> None:
+def _index_mit_basis(index_file: Path) -> str | None:
+    """``index.html`` mit vorangestelltem Unterpfad - oder ``None`` ohne Basis.
+
+    Die gebaute Seite verweist mit absoluten Pfaden auf sich selbst
+    (``/assets/…``, ``/logo.svg``). Unter einem Unterpfad muessen diese
+    Verweise den Vorbau tragen, sonst fragt der Browser an der Wurzel der
+    Domain - dort, wohin der Proxy gar nicht zeigt. Zusaetzlich bekommt die
+    Seite die Basis als Inline-Wert mit; daraus beziehen React Router und der
+    API-Aufrufer im Frontend ihren Vorbau.
+
+    Einmal beim Start umgeschrieben, nicht je Anfrage - und **vor** der
+    CSP-Berechnung unten, denn deren Pruefsummen muessen das eingefuegte
+    Skript einschliessen.
+    """
+    basis = settings.url_base
+    if not basis:
+        return None
+    html = index_file.read_text(encoding="utf-8")
+    html = re.sub(
+        r'\b(href|src)="/(?!/)',
+        lambda treffer: f'{treffer.group(1)}="{basis}/',
+        html,
+    )
+    marke = f"<script>window.__NEXVIEW_BASIS__ = {json.dumps(basis)};</script>"
+    if "<head>" in html:
+        return html.replace("<head>", f"<head>\n    {marke}", 1)
+    return marke + html
+
+
+def _mount_frontend(directory: Path, index_inhalt: str | None) -> None:
     """Gebautes Frontend ausliefern.
 
     React Router verwaltet die Adressen im Browser. Ruft jemand direkt
     ``/login`` auf, kennt der Server diese Datei nicht - deshalb wird bei
     unbekannten Pfaden ``index.html`` zurueckgegeben (SPA-Fallback).
     ``/api/*`` bleibt davon ausgenommen und liefert weiterhin echte 404er.
+
+    ``index_inhalt`` ist die beim Start umgeschriebene Fassung fuer den
+    Betrieb unter einem Unterpfad; ohne Unterpfad kommt die Datei unveraendert
+    von der Platte.
     """
     app.mount("/assets", StaticFiles(directory=directory / "assets"), name="assets")
     index_file = directory / "index.html"
 
+    def index_antwort():
+        if index_inhalt is not None:
+            return HTMLResponse(index_inhalt)
+        return FileResponse(index_file)
+
     @app.exception_handler(StarletteHTTPException)
     async def spa_fallback(request, exc: StarletteHTTPException):
         if exc.status_code == 404 and not request.url.path.startswith("/api"):
-            return FileResponse(index_file)
+            return index_antwort()
         return fehler_als_json(exc)
 
     @app.get("/{full_path:path}", include_in_schema=False)
@@ -410,21 +454,29 @@ def _mount_frontend(directory: Path) -> None:
         candidate = directory / full_path
         if full_path and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(index_file)
+        return index_antwort()
 
 
 _frontend_dir = _static_dir()
+_index_umgeschrieben: str | None = None
 if _frontend_dir is not None:
-    _mount_frontend(_frontend_dir)
+    _index_umgeschrieben = _index_mit_basis(_frontend_dir / "index.html")
+    _mount_frontend(_frontend_dir, _index_umgeschrieben)
 
 # ⚠️ **Ganz zum Schluss, und das ist Absicht.** Die Regeln brauchen die
 # Pruefsummen der Inline-Skripte aus der ausgelieferten ``index.html`` - und
 # wo die liegt, steht erst hier fest. Zuletzt eingetragen heisst ausserdem
 # aussen: Die Kopfzeile haengt dann auch an Antworten, die weiter innen
 # entstehen, einschliesslich der Fehlerseiten.
+#
+# Mit Unterpfad zaehlt die **umgeschriebene** Fassung - sie enthaelt ein
+# zusaetzliches Inline-Skript, dessen Pruefsumme sonst fehlen wuerde und die
+# Seite beim ersten Laden lautlos brechen liesse.
 _inhaltsregeln = csp.kopfzeile(
     settings.csp,
-    (_frontend_dir / "index.html") if _frontend_dir is not None else None,
+    _index_umgeschrieben
+    if _index_umgeschrieben is not None
+    else ((_frontend_dir / "index.html") if _frontend_dir is not None else None),
     settings.frame_ancestors,
     settings.img_sources,
 )
@@ -432,3 +484,11 @@ if _inhaltsregeln is not None:
     app.add_middleware(
         SicherheitskopfMiddleware, name=_inhaltsregeln[0], regeln=_inhaltsregeln[1]
     )
+
+# ⚠️ **Nach den Inhaltsregeln, damit ganz aussen.** Jede Anfrage wird zuerst
+# vom Unterpfad befreit, bevor irgendetwas anderes sie sieht - so zaehlen
+# Routing, Kinderschutz-Erlaubnisliste und die stillen Pfade des Protokolls
+# weiter auf dieselben Wurzel-Adressen wie ohne Unterpfad. Ohne gesetzte
+# Basis wird gar nichts eingehaengt.
+if settings.url_base:
+    app.add_middleware(BasisPfadMiddleware, basis=settings.url_base)

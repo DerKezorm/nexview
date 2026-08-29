@@ -1599,6 +1599,165 @@ TEXTE: dict[str, tuple[str, str]] = {
         'Is a watchlist available',
         'Whether a personal access exists and whether an account is linked.',
     ),
+    'GET /api/settings/qualitaetsprofile': (
+        'Quality profiles kept in Nexview',
+        (
+            'The profiles you created here, each with the instances it has '
+            'been written to. A profile lives in Nexview; the copies on the '
+            'instances are made from it.'
+        ),
+    ),
+    'POST /api/settings/qualitaetsprofile': (
+        'Keep a new quality profile',
+        (
+            'Stores the answers from the guide. Nothing is written to Radarr '
+            'or Sonarr yet - that is a separate step.'
+        ),
+    ),
+    'DELETE /api/settings/qualitaetsprofile/{profil_id}': (
+        'Forget a quality profile',
+        (
+            'Removes it from Nexview. Copies already written to an instance '
+            'stay there: deleting a profile that titles are assigned to would '
+            'damage those titles.'
+        ),
+    ),
+    'PUT /api/settings/qualitaetsprofile/{profil_id}/instanzen': (
+        'Decide where the profile lives',
+        (
+            'Writes the profile and its detection patterns to every instance '
+            'listed, and stops managing it on the others. The list is the '
+            'truth, not a set of changes.'
+        ),
+    ),
+    'GET /api/settings/qualitaetsprofile/quelle': (
+        'Which TRaSH snapshot is in use',
+        (
+            'Date, origin and licence of the guide data, whether it is still '
+            'the bundled one, and whether a newer state has been seen.'
+        ),
+    ),
+    'POST /api/settings/qualitaetsprofile/quelle/aktualisieren': (
+        'Fetch the current TRaSH state',
+        (
+            'Downloads the guide data from GitHub and adopts it, but only if '
+            'every profile you keep can still be built from it. Nothing is '
+            'written to Radarr or Sonarr by this: afterwards the comparison '
+            'shows which copies have fallen behind, and you decide.'
+        ),
+    ),
+    'GET /api/settings/qualitaetsprofile/benennung': (
+        'How each instance names files and folders',
+        (
+            'What is set right now, next to what the TRaSH Guides recommend '
+            'for the media server you have connected.'
+        ),
+    ),
+    'PUT /api/settings/qualitaetsprofile/benennung': (
+        'Adopt the recommended naming scheme',
+        (
+            'Sets the file and/or folder scheme on one instance. It applies to '
+            'what the instance writes from now on; files already on disk are '
+            'not touched. Renaming an existing library is a separate step in '
+            'Radarr or Sonarr, with consequences for seeding and the media '
+            'server.'
+        ),
+    ),
+    'GET /api/settings/qualitaetsprofile/medienserver': (
+        'Which instance knows which media server',
+        (
+            'Radarr and Sonarr only tell a media server about imports, '
+            'upgrades and renames when a connection is set up. This lists '
+            'where one is missing.'
+        ),
+    ),
+    'PUT /api/settings/qualitaetsprofile/medienserver/schluessel': (
+        'Store the API key of a media server',
+        (
+            'Jellyfin and Emby need a key from their own dashboard. It is not '
+            'the access Nexview itself uses: that one comes from a username '
+            'and password and ends with the session.'
+        ),
+    ),
+    'POST /api/settings/qualitaetsprofile/medienserver/verbinden': (
+        'Create the missing connections',
+        (
+            'Each one is tested from the instance first and only written when '
+            'the test succeeds. A connection that never worked is worse than '
+            'none, because nobody questions it later.'
+        ),
+    ),
+    'GET /api/settings/qualitaetsprofile/benennung/{kennung}/fortschritt': (
+        'How far the library rename has got',
+        (
+            'Radarr and Sonarr report only whether a command is running, never '
+            'how far along it is, so Nexview splits the work into batches and '
+            'counts them itself. Two phases: checking every title (read only), '
+            'then renaming the ones that change.'
+        ),
+    ),
+    'POST /api/settings/qualitaetsprofile/benennung/{kennung}/altnamen': (
+        'Drop the old prefix from format names',
+        (
+            'Earlier versions prefixed every custom format Nexview created. '
+            'That prefix reaches the file name whenever a format is marked to '
+            'appear there, so a library rename would write it into thousands '
+            'of files. This renames those formats back, keeping their ids so '
+            'profiles keep pointing at them. Formats whose plain name is '
+            'already taken by someone else are left untouched and reported.'
+        ),
+    ),
+    'GET /api/settings/qualitaetsprofile/bestand': (
+        'Everything on the instances',
+        (
+            'Every quality profile and custom format that exists in Radarr and '
+            'Sonarr, including the ones Nexview did not create, together with '
+            'what depends on each: media, import lists and collections. The '
+            'instances themselves refuse a deletion with "in use" without '
+            'naming who is using it - this answers that question.'
+        ),
+    ),
+    'POST /api/settings/qualitaetsprofile/bestand/{kennung}/umhaengen': (
+        'Move media to another profile',
+        (
+            'Reassigns every movie or series that currently sits on one quality '
+            'profile to another one. Files are not touched - only the assignment '
+            'changes. This is what makes cleaning up possible at all: a profile '
+            'cannot be deleted while media sit on it, and in a grown setup almost '
+            'everything sits on profiles that predate Nexview. Note that the new '
+            'profile scores differently, so titles whose existing file falls below '
+            'it will be queued for an upgrade.'
+        ),
+    ),
+    'POST /api/settings/qualitaetsprofile/bestand/{kennung}/aufraeumen': (
+        'Remove selected profiles and formats',
+        (
+            'Deletes what the operator picked, checking each entry against the '
+            'instance again immediately beforehand - what is in use by then is '
+            'refused with the reason instead of forced. Profiles go first so '
+            'that formats which only hung on them can follow in the same run. '
+            'This is the one place where Nexview removes things it did not '
+            'create; the mandate comes from the selection.'
+        ),
+    ),
+    'GET /api/settings/qualitaetsprofile/abgleich': (
+        'Do the copies still match',
+        (
+            'Asks every instance whether the profile written there still looks '
+            'the way Nexview left it, and whether the guide data has moved on '
+            'since. Separate from the list so a silent instance cannot hold up '
+            'the page.'
+        ),
+    ),
+    'GET /api/settings/qualitaetsprofile/{profil_id}/fortschritt': (
+        'How far the writing has got',
+        (
+            'Radarr and Sonarr accept detection patterns one at a time, so '
+            'writing a profile keeps the connection open for a minute or more. '
+            'This says which instance is being written and how many patterns '
+            'are done.'
+        ),
+    ),
 }
 
 

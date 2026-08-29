@@ -27,9 +27,11 @@ import {
 } from "../../components/ui";
 import { AdminFolgenSettings } from "./AdminFolgenSettings";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
+import { AdminQualitaetsBereich } from "./AdminQualitaetsBereich";
 import { InstanzGesundheit } from "./InstanzGesundheit";
 import { WebhookZeile } from "./WebhookZeile";
 import { useRegionen } from "../../hooks/useRegionen";
+import { useConfig } from "../../hooks/useConfig";
 
 type TestService = "tmdb" | "radarr" | "sonarr" | "radarr_uhd" | "sonarr_uhd";
 
@@ -40,13 +42,30 @@ type TestService = "tmdb" | "radarr" | "sonarr" | "radarr_uhd" | "sonarr_uhd";
  * durch Scrollen fand. "Allgemein" steht voran: Region, Sprache und
  * Beispieldaten gehören zu keinem einzelnen Dienst.
  */
-type UnterTab = "general" | "tmdb" | "radarr" | "sonarr" | "plex";
+type UnterTab = "general" | "tmdb" | "radarr" | "sonarr" | "plex" | "qualitaet";
 
-const UNTER_TABS: { value: UnterTab; labelKey: string; symbol: SymbolName }[] = [
+const UNTER_TABS: {
+  value: UnterTab;
+  labelKey: string;
+  symbol: SymbolName;
+  /**
+   * Bedingung für das Erscheinen. Fehlt sie, steht der Reiter immer da.
+   *
+   * Qualitätsprofile brauchen etwas, worauf sie geschoben werden können -
+   * ohne eine einzige Instanz wäre der Reiter eine Sackgasse.
+   */
+  wenn?: (stand: { arrVorhanden: boolean }) => boolean;
+}[] = [
   { value: "general", labelKey: "settings.generalSection", symbol: "allgemein" },
   { value: "tmdb", labelKey: "settings.tmdbSection", symbol: "fernseher" },
   { value: "radarr", labelKey: "settings.radarrSection", symbol: "radarr" },
   { value: "sonarr", labelKey: "settings.sonarrSection", symbol: "sonarr" },
+  {
+    value: "qualitaet",
+    labelKey: "qualityProfiles.title",
+    symbol: "qualitaet",
+    wenn: ({ arrVorhanden }) => arrVorhanden,
+  },
   { value: "plex", labelKey: "mediaserver.adminTitle", symbol: "medienserver" },
 ];
 
@@ -525,6 +544,8 @@ export function AdminServicesSettings() {
   const { t } = useTranslation();
   const regionen = useRegionen();
   const queryClient = useQueryClient();
+
+  const { data: config } = useConfig();
 
   const [unterTab, setUnterTab] = useState<UnterTab>("general");
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -1057,6 +1078,27 @@ export function AdminServicesSettings() {
   const settings = settingsQuery.data;
 
   /**
+   * Welche Reiter überhaupt dastehen.
+   *
+   * ⚠️ Und der Rückfall dazu: Verschwindet der aktive Reiter - etwa weil
+   * gerade die letzte Instanz entfernt wurde -, bliebe die Ansicht sonst auf
+   * ihm stehen und zeigte nichts. Ein leerer Bereich ohne erkennbaren Grund
+   * ist schlimmer als ein Sprung zurück auf "Allgemein".
+   */
+  const arrVorhanden = Boolean(
+    config?.radarr_configured ||
+      config?.sonarr_configured ||
+      config?.radarr_uhd_configured ||
+      config?.sonarr_uhd_configured,
+  );
+  const sichtbareTabs = UNTER_TABS.filter(
+    (e) => !e.wenn || e.wenn({ arrVorhanden }),
+  );
+  useEffect(() => {
+    if (!sichtbareTabs.some((e) => e.value === unterTab)) setUnterTab("general");
+  }, [sichtbareTabs, unterTab]);
+
+  /**
    * Zeile mit "Verbindung testen" und - falls ein Key hinterlegt ist -
    * "Key entfernen". Bewusst eine Funktion und keine eigene Komponente:
    * sonst würde React die Knöpfe bei jedem Tastendruck neu einhängen.
@@ -1135,7 +1177,7 @@ export function AdminServicesSettings() {
       <Reiterreihe
         unter
         className="mt-1"
-        eintraege={UNTER_TABS.map((e) => ({
+        eintraege={sichtbareTabs.map((e) => ({
           value: e.value,
           label: t(e.labelKey),
           symbol: e.symbol,
@@ -1152,10 +1194,16 @@ export function AdminServicesSettings() {
         </div>
       )}
 
+      {/* Profile werden nicht mit den Zugangsdaten zusammen gespeichert - sie
+          haben eigene Abläufe und stehen deshalb, wie der Media-Server, außerhalb
+          dieses Formulars. */}
+      {unterTab === "qualitaet" && <AdminQualitaetsBereich />}
+
       <form
         onSubmit={handleSubmit}
         className={
-          "mt-6 flex-col gap-5 " + (unterTab === "plex" ? "hidden" : "flex")
+          "mt-6 flex-col gap-5 " +
+          (unterTab === "plex" || unterTab === "qualitaet" ? "hidden" : "flex")
         }
       >
         {/* ⚠️ Dieser Satz stand über der Unterreihe und schob sie um eine Zeile

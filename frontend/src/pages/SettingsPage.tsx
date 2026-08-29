@@ -64,7 +64,9 @@ const SYSTEM_START: Tab = SYSTEM[0].value
  */
 export function SettingsPage() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<Tab>('services')
+  // ⚠️ Der erste Reiter der Reihe ist auch der Startreiter - alles andere
+  // markiert beim Öffnen einen Punkt, auf den niemand geklickt hat.
+  const [tab, setTab] = useState<Tab>(SYSTEM_START)
   // Merklisten gibt es nur mit verbundenem Media-Server - ohne ihn wäre der
   // Reiter eine Einstellung ohne Gegenstand.
   const { data: config } = useConfig()

@@ -11,9 +11,13 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any
 
+import logging
+
 import httpx
 
 from . import http_log
+
+logger = logging.getLogger("nexview.arr")
 
 TIMEOUT = httpx.Timeout(15.0, connect=6.0)
 MAX_PARALLEL_REQUESTS = 6
@@ -180,6 +184,26 @@ class ArrClient:
                 service=self.label,
             )
         if response.status_code >= 400:
+            # ⚠️ **Den Antwortkoerper ins Protokoll, nicht in die Meldung.**
+            # Radarr und Sonarr schreiben ihre eigentliche Begruendung dorthin
+            # ("Should be unique", "Quality profile is in use by ..."). Ohne sie
+            # bleibt nur "HTTP 409" - und damit laesst sich aus der Ferne nichts
+            # entscheiden. In die Oberflaeche gehoert der Text trotzdem nicht:
+            # Er ist englisch, technisch und kann Feldnamen der Instanz nennen.
+            grund = ""
+            try:
+                grund = response.text[:400].replace("\n", " ").strip()
+            except Exception:  # noqa: BLE001 - eine unlesbare Antwort ist kein Absturz
+                grund = ""
+            if grund:
+                logger.info(
+                    "%s rejected %s %s with HTTP %s: %s",
+                    self.label,
+                    method,
+                    path,
+                    response.status_code,
+                    grund,
+                )
             raise ArrError(
                 f"{self.label} meldet einen Fehler (HTTP {response.status_code}).",
                 response.status_code,
@@ -225,6 +249,101 @@ class ArrClient:
 
     async def quality_profiles(self) -> list[dict[str, Any]]:
         return await self.get("/qualityprofile") or []
+
+    async def quality_profile_schema(self) -> dict[str, Any]:
+        """Der leere Bauplan eines Profils - die Vorlage zum Ausfuellen.
+
+        ⚠️ **Immer von hier nehmen, nie selbst zusammenstellen.** Der Bauplan
+        traegt alle Qualitaetsstufen dieser Fassung mitsamt ihren Nummern und
+        ihrer Rangfolge; eine eingebaute Liste veraltet mit dem naechsten
+        Radarr und faellt erst auf, wenn ein Profil schief steht.
+        """
+        return await self.get("/qualityprofile/schema") or {}
+
+    async def quality_profile_anlegen(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self.post("/qualityprofile", payload)
+
+    async def quality_profile_nachziehen(
+        self, profil_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        return await self.put(f"/qualityprofile/{profil_id}", payload)
+
+    async def quality_profile_loeschen(self, profil_id: int) -> None:
+        await self.delete(f"/qualityprofile/{profil_id}")
+
+    async def custom_formats(self) -> list[dict[str, Any]]:
+        return await self.get("/customformat") or []
+
+    async def custom_format_anlegen(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self.post("/customformat", payload)
+
+    async def custom_format_nachziehen(
+        self, format_id: int, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        return await self.put(f"/customformat/{format_id}", payload)
+
+    async def custom_format_loeschen(self, format_id: int) -> None:
+        """Ein Erkennungsmuster entfernen.
+
+        ⚠️ **Muster sind instanzweit.** Wird eines geloescht, verschwindet es
+        aus **jedem** Profil, das ihm Punkte gab - auch aus fremden. Vor dem
+        Aufruf gehoert deshalb geprueft, ob es noch irgendwo bepunktet ist
+        (siehe ``arr_bestand.aufraeumen``).
+
+        Bei grossen Bibliotheken dauert die Antwort: Die Instanz bewertet
+        danach ihren Bestand neu. Live gemessen (28.08.2026, 3929 Filme) lief
+        das mehrfach in die Zeitgrenze - **der Auftrag wurde trotzdem
+        ausgefuehrt**. Deshalb die laengere Frist.
+        """
+        await self._request(
+            "DELETE", f"/customformat/{format_id}", timeout=NOTIFICATION_TIMEOUT
+        )
+
+    async def benennung(self) -> dict[str, Any]:
+        """Wie diese Instanz Dateien und Ordner benennt."""
+        return await self.get("/config/naming") or {}
+
+    async def benennung_speichern(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Die Benennung zurueckschreiben.
+
+        ⚠️ **Immer den vollstaendigen Datensatz senden**, also den gelesenen
+        veraendern statt einen neuen zu bauen: Radarr und Sonarr fuehren dort
+        je nach Fassung unterschiedliche Felder (Doppelpunkt-Ersatz,
+        Mehrteiler-Schema, Specials-Ordner). Ein selbst zusammengestellter
+        Datensatz loescht still, was er nicht kennt.
+        """
+        return await self.put(f"/config/naming/{payload.get('id', 1)}", payload)
+
+    async def umbenennen_vorschau(self, feld: str, nummer: int) -> list[dict[str, Any]]:
+        """Was an *einem* Titel umbenannt wuerde - leer heisst: nichts zu tun.
+
+        ⚠️ **Einzeln, nicht im Paket.** Live gemessen (28.08.2026): ``/rename``
+        verlangt genau ein ``movieId`` und lehnt eine Liste mit 400 ab. Wer
+        eine grosse Bibliothek pruefen will, fragt also je Titel - das dauert,
+        ist aber die einzige Art, vorher zu wissen, was passieren wuerde.
+        """
+        return await self.get("/rename", {feld: nummer}) or []
+
+    async def befehl(self, name: str, **felder: Any) -> dict[str, Any]:
+        """Einen Auftrag anstossen (Umbenennen, Suche, ...)."""
+        return await self.post("/command", {"name": name, **felder})
+
+    async def befehl_stand(self, befehl_id: int) -> dict[str, Any]:
+        """Laeuft der Auftrag noch?
+
+        ⚠️ **Radarr und Sonarr melden nur ``queued``/``started``/``completed``,
+        keinen Fortschritt.** Ein Balken laesst sich daraus nicht bauen; wer
+        einen will, zerlegt die Arbeit selbst in Haeppchen und zaehlt sie.
+        """
+        return await self.get(f"/command/{befehl_id}") or {}
+
+    async def sprachen(self) -> list[dict[str, Any]]:
+        """Welche Sprachen diese Instanz kennt - mit ihren Nummern.
+
+        Die Nummern sind nicht ueber alle Fassungen gleich, deshalb werden sie
+        gefragt statt angenommen.
+        """
+        return await self.get("/language") or []
 
     async def root_folders(self) -> list[dict[str, Any]]:
         return await self.get("/rootfolder") or []

@@ -1558,3 +1558,290 @@ export interface VerbindungInstanz {
 export interface VerbindungStand {
   instanzen: VerbindungInstanz[];
 }
+
+/** Eine Kopie eines Qualitätsprofils auf einer Instanz. */
+export interface QualitaetsprofilInstallation {
+  kennung: string;
+  geschrieben_am: string | null;
+  trash_stand: string;
+}
+
+/**
+ * Ein Profil, wie es in Nexview liegt.
+ *
+ * ⚠️ `rezept` sind die Antworten aus dem Assistenten, nicht das fertige
+ * Radarr-Profil. Daraus wird beim Verteilen jeweils frisch gebaut.
+ */
+export interface Qualitaetsprofil {
+  id: number;
+  name: string;
+  dienst: "radarr" | "sonarr";
+  rezept: Record<string, unknown>;
+  installationen: QualitaetsprofilInstallation[];
+}
+
+export interface VerteilenErgebnis {
+  installationen: QualitaetsprofilInstallation[];
+  formate_neu: number;
+  formate_wiederverwendet: number;
+  hinweise: string[];
+}
+
+export interface TrashQuelle {
+  stand: string;
+  quelle: string;
+  lizenz: string;
+  commit: string;
+  /** Noch der mit Nexview ausgelieferte Stand? */
+  mitgeliefert: boolean;
+  geholt_am: string;
+  /** Hat das tägliche Nachsehen schon etwas ergeben? */
+  pruefung_bekannt: boolean;
+  neuer_stand_da: boolean;
+  neuer_stand_datum: string;
+}
+
+/** Ein einzelner Unterschied zwischen Ablage und Instanz. */
+export interface QualitaetsprofilUnterschied {
+  /** "qualitaeten" | "mindestpunkte" | "schlusspunkte" | "punkte" | "fremd" | "fehlt" */
+  art: string;
+  was: string;
+  ist: string;
+  soll: string;
+}
+
+/** Steht auf der Instanz noch, was Nexview geschrieben hat? */
+export interface QualitaetsprofilAbgleich {
+  profil_id: number;
+  kennung: string;
+  /** "aktuell" | "update" | "angepasst" | "konflikt" | "fehlt" | "unerreichbar" */
+  stand: string;
+  unterschiede: QualitaetsprofilUnterschied[];
+}
+
+/** Ein Medienserver und der Zugang, den Radarr/Sonarr dafür braucht. */
+export interface MedienserverZugang {
+  id: number;
+  provider: string;
+  name: string;
+  url: string;
+  /** Braucht dieser Anbieter einen API-Schlüssel vom Betreiber? */
+  braucht_schluessel: boolean;
+  /** Liegt er vor? Der Schlüssel selbst wird nie ausgeliefert. */
+  schluessel_da: boolean;
+}
+
+/**
+ * Wie Pfade umgeschrieben werden müssen.
+ *
+ * ⚠️ Radarr nennt dem Medienserver einen Pfad aus **seiner** Sicht. Stecken
+ * beide in eigenen Containern, meint derselbe Film zwei verschiedene Pfade —
+ * und ohne diese Umschreibung sucht der Medienserver ins Leere, ohne dass es
+ * jemand merkt.
+ */
+export interface PfadZuordnung {
+  /** Was Radarr sagt. Leer heißt: beide Seiten sehen denselben Pfad. */
+  von: string;
+  /** Was der Medienserver versteht. */
+  nach: string;
+  /** "" | "keine_pfade" | "keine_wurzeln" | "kein_treffer" | "unreachable" | "kein_schluessel" */
+  hindernis: string;
+  beispiel_arr: string;
+  beispiel_server: string;
+}
+
+export interface MedienserverLuecke {
+  provider: string;
+  name: string;
+  url: string;
+  selbst_moeglich: boolean;
+  hindernis: string;
+  zuordnung: PfadZuordnung;
+}
+
+/** Eine bestehende Verbindung, die nicht mehr tut, was sie soll. */
+export interface MedienserverWarnung {
+  instanz: string;
+  provider: string;
+  grund: string;
+}
+
+export interface VerbindungslageInstanz {
+  kennung: string;
+  name: string;
+  erreichbar: boolean;
+  fehlend: MedienserverLuecke[];
+  /**
+   * Anbieter mit funktionierender Verbindung.
+   *
+   * ⚠️ Muss sichtbar bleiben: Sonst zeigt eine halb verbundene Instanz nur
+   * ihre Lücken, und das Bestehende sieht aus, als fehlte es auch.
+   */
+  verbunden: string[];
+}
+
+export interface VerbindungslageGesamt {
+  server: MedienserverZugang[];
+  instanzen: VerbindungslageInstanz[];
+  /** Leer heißt „nichts gefunden“, nicht „nicht geprüft“. */
+  warnungen: MedienserverWarnung[];
+}
+
+/** Wie weit das Angleichen des Bestands ist. */
+export interface UmbenennenFortschritt {
+  laeuft: boolean;
+  instanz: string;
+  /** "pruefen" | "umbenennen" | "fertig" | "fehler" */
+  schritt: string;
+  erledigt: number;
+  gesamt: number;
+  /** Wie viele Titel wirklich einen neuen Namen bekommen. */
+  betroffen: number;
+  beispiele: string[];
+  /**
+   * Nach einem Abbruch wieder aufgenommen.
+   *
+   * ⚠️ Muss sichtbar sein: Ein Lauf, der nach einem Neustart von selbst
+   * weiterläuft, wirkt sonst wie ein Fehler statt wie die Rettung, die er ist.
+   */
+  fortgesetzt: boolean;
+}
+
+/** Wie eine Instanz Dateien und Ordner benennt - und was empfohlen wird. */
+export interface BenennungStand {
+  kennung: string;
+  name: string;
+  dienst: string;
+  umbenennen_an: boolean;
+  datei_ist: string;
+  datei_soll: string;
+  ordner_ist: string;
+  ordner_soll: string;
+  /** Welche TRaSH-Fassung gilt - richtet sich nach dem Medienserver. */
+  fassung: string;
+  erreichbar: boolean;
+  /** Sagt diese Instanz dem Medienserver Bescheid? */
+  meldet_medienserver: boolean;
+  altnamen: Altnamen;
+  /**
+   * Läuft gerade ein Bestandslauf auf dieser Instanz?
+   *
+   * ⚠️ Nötig, damit die Seite einen Lauf auch dann findet, wenn sie ihn nicht
+   * selbst angestoßen hat — nach einem Neuladen oder von einem anderen Gerät.
+   */
+  lauf_offen: boolean;
+}
+
+/**
+ * Erkennungsmuster, die noch den alten Vorsatz `NXV - ` tragen.
+ *
+ * ⚠️ `im_dateinamen` ist die Zahl, die zählt: So viele Muster fließen in
+ * Dateinamen ein. Ein Bestandslauf in diesem Zustand schreibt `[NXV - German
+ * DL]` in jede betroffene Datei — deshalb steht die Warnung direkt über dem
+ * Knopf und nicht im Kleingedruckten.
+ */
+export interface Altnamen {
+  gesamt: number;
+  im_dateinamen: number;
+  /**
+   * Muster, die im Dateinamen landen und sich NICHT umbenennen lassen, weil
+   * ein fremdes Muster den schlichten Namen hält. Diese bleiben nach dem
+   * Aufräumen stehen und brauchen eine Entscheidung.
+   */
+  blockiert: number;
+  beispiele: string[];
+  blockierte_namen: string[];
+}
+
+export interface AltnamenAufgeraeumt {
+  umbenannt: number;
+  altnamen: Altnamen;
+}
+
+/** Wie weit das Schreiben eines Profils auf eine Instanz ist. */
+export interface QualitaetsprofilFortschritt {
+  laeuft: boolean;
+  instanz: string;
+  /** "plan" | "formate" | "profil" */
+  schritt: string;
+  erledigt: number;
+  gesamt: number;
+  instanz_nummer: number;
+  von_instanzen: number;
+}
+
+
+/**
+ * Ein Qualitätsprofil auf der Instanz — auch eines, das Nexview nicht angelegt hat.
+ *
+ * ⚠️ `grund` nennt, **was** daran hängt (`medien:12,sammlungen:3`). Radarr
+ * selbst sagt beim Löschversuch nur „is in use“ und verschweigt, wer es
+ * benutzt — genau daran scheitert das Aufräumen sonst.
+ */
+export interface ProfilBestand {
+  id: number;
+  name: string;
+  /** Hat Nexview dieses Profil angelegt? */
+  unser: boolean;
+  medien: number;
+  importlisten: number;
+  sammlungen: number;
+  loeschbar: boolean;
+  grund: string;
+}
+
+/**
+ * Ein Erkennungsmuster auf der Instanz.
+ *
+ * ⚠️ Hier steht bewusst nicht „gehört uns“: Für Muster merkt sich Nexview
+ * keine Nummer, und seit der Vorsatz entfallen ist, tragen sie keine
+ * Handschrift mehr. Beantwortbar ist nur die Frage, die zählt — benutzt es
+ * noch jemand?
+ */
+export interface MusterBestand {
+  id: number;
+  name: string;
+  /** Profile, die diesem Muster Punkte geben. Leer heißt: niemand braucht es. */
+  benutzt_von: string[];
+  /**
+   * Gehört zum Bauplan eines Nexview-Profils auf dieser Instanz.
+   *
+   * ⚠️ Solche Muster sind nicht „ungenutzt", auch wenn kein Profil ihnen
+   * Punkte gibt: Ein Bauplan bringt bewusst Muster mit null Punkten mit. Sie
+   * zu löschen ist vergebliche Arbeit — das nächste Verteilen legt sie wieder
+   * an.
+   */
+  gehoert_zu_plan: boolean;
+  alter_vorsatz: boolean;
+  im_dateinamen: boolean;
+  loeschbar: boolean;
+}
+
+export interface InstanzBestand {
+  kennung: string;
+  name: string;
+  erreichbar: boolean;
+  profile: ProfilBestand[];
+  muster: MusterBestand[];
+}
+
+export interface AufraeumErgebnis {
+  geloescht_profile: string[];
+  geloescht_muster: string[];
+  /** Was nicht ging, mit Grund — `name: grund`. */
+  abgelehnt: Record<string, string>;
+}
+
+
+/**
+ * Medien von einem Profil auf ein anderes umhängen.
+ *
+ * ⚠️ Dateien werden dabei **nicht** angefasst — nur die Zuordnung ändert sich.
+ * Das neue Profil bewertet aber anders, und Titel darunter merkt die Instanz
+ * zur Aufwertung vor.
+ */
+export interface UmhaengErgebnis {
+  umgehaengt: number;
+  /** Leer heißt: hat geklappt. */
+  grund: string;
+}

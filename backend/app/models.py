@@ -981,6 +981,27 @@ class MediaServerConnection(Base):
     # und spart nebenbei einen Aufruf je Abgleich.
     account_id: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     connected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    # Der API-Schluessel dieses Servers - **nicht** derselbe wie ``token``.
+    #
+    # ⚠️ Zwei verschiedene Dinge, und die Verwechslung waere teuer: ``token``
+    # ist der Sitzungs-Token, mit dem *Nexview* spricht. Bei Jellyfin und Emby
+    # entsteht er aus Benutzer und Passwort und endet mit der Sitzung. Radarr
+    # und Sonarr brauchen dagegen einen **API-Schluessel** aus dem Dashboard
+    # des Medienservers, der dauerhaft gilt. Wer den Sitzungs-Token dort
+    # eintraegt, baut eine Verbindung, die eines Tages stillschweigend
+    # aufhoert zu arbeiten.
+    #
+    # Bei Plex bleibt das Feld leer: Dort ist der Plex-Token schon das
+    # Richtige, und Nexview hat ihn ohnehin.
+    #
+    # ⚠️ **``server_default`` ist hier Pflicht, nicht Geschmack.** ``default=""``
+    # kennt nur SQLAlchemy; eine Zeile, die per rohem ``INSERT`` entsteht -
+    # etwa beim Uebernehmen einer alten Verbindung in ``db.py`` - nennt diese
+    # Spalte nicht und liefe gegen ``NOT NULL``. Getroffen haette das **jede
+    # bestehende Installation beim Update**, nicht nur die Tests.
+    arr_api_key: Mapped[str] = mapped_column(
+        Text, default="", server_default="", nullable=False
+    )
 
 
 class UserMediaServerAccount(Base):
@@ -1475,6 +1496,111 @@ class ArrGesundheit(Base):
     # bewusst nicht uebersetzt - er ist ihre Aussage, nicht unsere.
     stand: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
     aktualisiert_am: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class Qualitaetsprofil(Base):
+    """Ein Profil, wie es in **Nexview** liegt - nicht in Radarr.
+
+    ⚠️ **Der Unterschied traegt das ganze Modell.** Was hier steht, ist das
+    Rezept: die Antworten aus dem Assistenten. Was in Radarr steht, ist eine
+    *Kopie* davon auf einer Instanz - siehe ``QualitaetsprofilInstallation``.
+    Deshalb kann dasselbe Profil auf mehreren Instanzen liegen und dort einen
+    unterschiedlichen Stand haben, und deshalb ueberlebt es, wenn man es von
+    einer Instanz wieder herunternimmt.
+    """
+
+    __tablename__ = "qualitaetsprofile"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    # "radarr" oder "sonarr" - ein Profil gehoert zu genau einem Dienst, weil
+    # die Bausteine der beiden nichts gemeinsam haben (getrennte Kennungen).
+    dienst: Mapped[str] = mapped_column(String(16), nullable=False)
+    # Die Antworten des Assistenten. Bewusst als Ganzes: Aus ihnen laesst sich
+    # das Profil jederzeit neu bauen, auch wenn sich die Uebersetzung aendert.
+    rezept: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    erzeugt_am: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=False
+    )
+    aktualisiert_am: Mapped[datetime | None] = mapped_column(DateTime)
+
+    installationen: Mapped[list["QualitaetsprofilInstallation"]] = relationship(
+        back_populates="profil", cascade="all, delete-orphan"
+    )
+
+
+class QualitaetsprofilInstallation(Base):
+    """Eine Kopie eines Profils auf einer Instanz.
+
+    ``profil_id_extern`` ist die Nummer, unter der es *drueben* liegt - ohne
+    sie liesse sich spaeter nicht sagen, welches Profil in Radarr unseres ist.
+    ``fingerabdruck`` haelt fest, was wir zuletzt geschrieben haben; daraus
+    ergibt sich, ob jemand dort von Hand nachgebessert hat.
+    """
+
+    __tablename__ = "qualitaetsprofil_installationen"
+    __table_args__ = (
+        Index(
+            "ix_qprofil_inst_eindeutig", "profil_id", "kennung", unique=True
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profil_id: Mapped[int] = mapped_column(
+        ForeignKey("qualitaetsprofile.id", ondelete="CASCADE"), nullable=False
+    )
+    kennung: Mapped[str] = mapped_column(String(32), nullable=False)
+    profil_id_extern: Mapped[int | None] = mapped_column(Integer)
+    fingerabdruck: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    # Welcher TRaSH-Stand beim Schreiben galt - fuer die Frage, ob es Neues gibt.
+    trash_stand: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    geschrieben_am: Mapped[datetime | None] = mapped_column(DateTime)
+
+    profil: Mapped["Qualitaetsprofil"] = relationship(back_populates="installationen")
+
+
+class Umbenennlauf(Base):
+    """Ein Umbenennungslauf ueber den Bestand - so, dass er einen Abbruch ueberlebt.
+
+    ⚠️ **Warum das in der Datenbank steht und nicht im Arbeitsspeicher.** Ein
+    Lauf ueber mehrere tausend Titel dauert Minuten bis Stunden. Ein
+    Container-Neustart, ein zugeklappter Deckel oder ein Absturz mittendrin
+    hinterliesse sonst eine **halb umbenannte Bibliothek** - teils altes, teils
+    neues Schema, und nirgends stuende, wo die Grenze verlaeuft. Genau das
+    macht den Unterschied zwischen einem Werkzeug, das man auf 4000 Filme
+    loslassen kann, und einem, das man besser nicht anfasst.
+
+    ⚠️ **Warum das ueberhaupt geht: Umbenennen ist wiederholbar.** Ein Auftrag
+    fuer eine Datei, die schon richtig heisst, tut nichts. Ein abgebrochenes
+    Haeppchen darf deshalb einfach noch einmal laufen - es muss nicht auf den
+    einzelnen Titel genau festgehalten werden, was schon erledigt ist.
+    """
+
+    __tablename__ = "umbenennlaeufe"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: Welche Instanz - zugleich der Schluessel, es gibt je Instanz hoechstens einen.
+    kennung: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    #: "pruefen" | "umbenennen" | "fertig" | "fehler"
+    schritt: Mapped[str] = mapped_column(String(16), default="pruefen", nullable=False)
+    #: "radarr" | "sonarr" - beim Fortsetzen ist die Instanz nicht mehr zur Hand.
+    dienst: Mapped[str] = mapped_column(String(16), default="radarr", nullable=False)
+    #: Der Anzeigename ("Radarr FHD"). Ohne ihn stuende nach einem Neustart die
+    #: Kennung im Fortschrittsbalken - technisch richtig, aber nicht der Name,
+    #: den der Betreiber der Instanz gegeben hat.
+    instanz: Mapped[str] = mapped_column(String(120), default="", server_default="", nullable=False)
+    gesamt: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    erledigt: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    betroffen: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    #: Die Titelnummern, die noch drankommen. Leer heisst: nichts mehr offen.
+    offen: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    beispiele: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    #: Wurde dieser Lauf nach einem Abbruch wieder aufgenommen? Gehoert in die
+    #: Oberflaeche - sonst wirkt ein Lauf, der ploetzlich weiterlaeuft, wie ein
+    #: Fehler.
+    fortgesetzt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    begonnen_am: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    beruehrt_am: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 
 class MediaRequest(Base):

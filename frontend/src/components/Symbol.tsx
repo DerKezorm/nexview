@@ -171,6 +171,16 @@ const SYMBOLE = {
     { d: 'M9.5 7V5h5v2' },
     { d: 'M6.5 7l.8 12.1a1 1 0 0 0 1 .9h7.4a1 1 0 0 0 1-.9L17.5 7' },
   ],
+  /**
+   * Qualitaetsprofile - die Schieberegler.
+   *
+   * Bewusst nicht ein Stern oder ein Haken: Ein Profil ist kein Urteil ueber
+   * Gute und Schlechte, sondern eine Reihe Einstellungen, die man verschiebt.
+   */
+  qualitaet: [
+    { d: 'M5 7.5h14M5 16.5h14' },
+    { d: 'M10 5v5M15 14v5' },
+  ],
 } satisfies Record<string, Pfad[]>
 
 export type SymbolName = keyof typeof SYMBOLE

@@ -181,6 +181,23 @@ const SYMBOLE = {
     { d: 'M5 7.5h14M5 16.5h14' },
     { d: 'M10 5v5M15 14v5' },
   ],
+  /** Auswertung, Verlauf - die Saeulen. */
+  analyse: [
+    { d: 'M4 20h16' },
+    { d: 'M7 20v-6M12 20V6M17 20v-9' },
+  ],
+  /**
+   * Ein Befund - das Ausrufezeichen im Kreis.
+   *
+   * Bewusst neutral und nicht als Warndreieck: Dasselbe Symbol steht auch
+   * ueber einer leeren Liste ("nichts gefunden"), und ein Dreieck waere dort
+   * ein Schreck ohne Anlass. Die Dringlichkeit traegt die Farbe, nicht die Form.
+   */
+  befund: [
+    { d: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z' },
+    { d: 'M12 8v5' },
+    { d: 'M12 16.2v0', punkt: true },
+  ],
 } satisfies Record<string, Pfad[]>
 
 export type SymbolName = keyof typeof SYMBOLE

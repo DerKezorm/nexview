@@ -34,6 +34,8 @@ import httpx
 
 from ... import __version__
 from .base import (
+    Umrechnung,
+    Wiedergabe,
     ExternalAccount,
     LibraryItem,
     LoginChallenge,
@@ -700,3 +702,86 @@ class JellyfinServer(MediaServer):
 
         ergebnisse = await asyncio.gather(*(fuer_serie(s) for s in series_keys))
         return [eintrag for liste in ergebnisse for eintrag in liste]
+
+    async def laufende_wiedergaben(self) -> list[Wiedergabe]:
+        """Was gerade laeuft - aus ``/Sessions``.
+
+        ⚠️ **``/Sessions`` sind Geraete, keine Wiedergaben.** Gemessen am
+        30.08.2026: Jellyfin meldete vier Sitzungen und Emby fuenf, davon
+        **null** mit Wiedergabe - darunter Eintraege von vor zwei Tagen, ein
+        Radarr und **Nexview selbst**. Gefiltert wird deshalb auf
+        ``NowPlayingItem``; nur wer eines hat, schaut wirklich.
+
+        ⚠️ **``IsActive`` taugt dafuer nicht.** Jellyfin setzt es auch bei
+        einer zwei Tage alten Sitzung auf ``true``, und Emby kennt das Feld
+        gar nicht.
+        """
+        try:
+            antwort = await self._anfrage("GET", "/Sessions")
+        except MediaServerError:
+            # Eine Anzeige "gerade laeuft nichts" ist besser als eine Seite,
+            # die wegen einer Nebensache nicht laedt.
+            return []
+        if not isinstance(antwort, list):
+            return []
+
+        gefunden: list[Wiedergabe] = []
+        for sitzung in antwort:
+            if not isinstance(sitzung, dict):
+                continue
+            titel = sitzung.get("NowPlayingItem")
+            if not isinstance(titel, dict):
+                continue
+            gefunden.append(self._als_wiedergabe(sitzung, titel))
+        return gefunden
+
+    def _als_wiedergabe(self, sitzung: dict, titel: dict) -> Wiedergabe:
+        zustand = sitzung.get("PlayState") or {}
+        umrechnen = sitzung.get("TranscodingInfo") or {}
+
+        # ⚠️ **``PlayMethod`` allein reicht nicht.** Emby meldete
+        # ``PlayMethod: "Transcode"`` **und** ``IsVideoDirect: true`` - Ton
+        # wurde umgerechnet, das Bild durchgereicht. Als "Umrechnung" waere
+        # das ein falscher Alarm ueber die CPU-Last.
+        art = Umrechnung.direkt
+        if str(zustand.get("PlayMethod") or "").lower() != "directplay":
+            art = (
+                Umrechnung.ton
+                if umrechnen.get("IsVideoDirect") is True
+                else Umrechnung.bild
+            )
+
+        laenge = titel.get("RunTimeTicks")
+        stand = zustand.get("PositionTicks")
+        fortschritt = None
+        if isinstance(laenge, int) and laenge > 0 and isinstance(stand, int):
+            fortschritt = max(0.0, min(1.0, stand / laenge))
+
+        kennungen = titel.get("ProviderIds") or {}
+        tmdb = kennungen.get("Tmdb") or kennungen.get("TMDB")
+        try:
+            tmdb_id = int(tmdb) if tmdb else None
+        except (TypeError, ValueError):
+            tmdb_id = None
+
+        gruende = umrechnen.get("TranscodeReasons")
+        bandbreite = umrechnen.get("Bitrate")
+
+        return Wiedergabe(
+            provider=self.provider,
+            konto=str(sitzung.get("UserName") or ""),
+            konto_id=str(sitzung.get("UserId") or ""),
+            titel=str(titel.get("Name") or ""),
+            media_type="tv" if titel.get("Type") == "Episode" else "movie",
+            serie=str(titel.get("SeriesName") or ""),
+            fortschritt=fortschritt,
+            geraet=str(sitzung.get("DeviceName") or ""),
+            anwendung=str(sitzung.get("Client") or ""),
+            pausiert=bool(zustand.get("IsPaused")),
+            umrechnung=art,
+            grund=", ".join(str(g) for g in gruende) if isinstance(gruende, list) else "",
+            beschleunigung=str(umrechnen.get("HardwareAccelerationType") or ""),
+            # Der Anbieter meldet Bit je Sekunde; hier zaehlen kBit.
+            bandbreite=int(bandbreite / 1000) if isinstance(bandbreite, int) else None,
+            tmdb_id=tmdb_id,
+        )

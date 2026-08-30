@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..db import SessionLocal
 from ..models import (
+    SpeicherVerlauf,
     MediaRequest,
     MediaType,
     NotificationType,
@@ -27,6 +28,10 @@ from . import (
     abgleich_kern,
     aufraeum_bericht,
     instanz_gesundheit,
+    abgleich,
+    instanz_stand,
+    wiedergaben,
+    updates,
     library,
     loeschfrist,
     mail_outbox,
@@ -425,6 +430,93 @@ async def check_once(db: Session, settings: AppSettings) -> int:
 BIBLIOTHEK_INTERVALL_SEKUNDEN = 3600
 _bibliothek_zuletzt: float = 0.0
 
+#: Wie oft die "grosse" Messung laeuft: Datentraeger, Warteschlange,
+#: Aktualisierung. Erreichbarkeit und Fassung werden dagegen **jede** Runde
+#: gemessen - das ist eine winzige Antwort, und sie veraltet schnell.
+MESSUNG_INTERVALL_SEKUNDEN = 3600
+_messung_zuletzt: float = 0.0
+
+
+async def _instanzen_messen(db, settings) -> None:
+    """Erreichbarkeit jede Runde, der Rest stuendlich."""
+    global _messung_zuletzt
+    jetzt = time.monotonic()
+    voll = jetzt - _messung_zuletzt >= MESSUNG_INTERVALL_SEKUNDEN
+    if voll:
+        _messung_zuletzt = jetzt
+    try:
+        await instanz_stand.messen(db, settings, voll=voll)
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        logger.exception("Instance measurement failed")
+        db.rollback()
+
+    if not voll:
+        return
+
+    # Den eigenen Aktualisierungs-Stand warmhalten. ``status()`` fragt selbst
+    # hoechstens einmal am Tag nach; der Aufruf hier kostet also fast nie
+    # etwas und sorgt dafuer, dass das Befund-Register (das synchron ist und
+    # nicht ins Netz greifen darf) ueberhaupt einen Stand vorfindet.
+    try:
+        await updates.status()
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        logger.exception("Update check failed")
+
+    try:
+        wiedergaben.verlauf_aufraeumen(db)
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        logger.exception("Playback history cleanup failed")
+        db.rollback()
+
+    try:
+        _verlaufspunkt(db)
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        logger.exception("Storage history point failed")
+        db.rollback()
+
+    # Der Abgleich der Quellen. Stuendlich und nicht auf Klick: Er laeuft
+    # ueber tausende Zeilen und braucht die Bibliothek aus dem Netz.
+    try:
+        await abgleich.messen(db, settings)
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        logger.exception("Reconciliation failed")
+        db.rollback()
+
+
+def _verlaufspunkt(db) -> None:
+    """Einen Messpunkt fuer heute festhalten - genau einen.
+
+    ⚠️ **Ueberschreiben statt ueberspringen.** Der Punkt des laufenden Tages
+    wird bei jedem Durchgang aktualisiert; erst mit dem Datumswechsel entsteht
+    ein neuer. Wuerde der erste Wert des Tages stehenbleiben, waere der
+    juengste Punkt im Verlauf immer bis zu 24 Stunden alt - und die
+    Hochrechnung "in sechs Wochen voll" damit systematisch zu optimistisch.
+    """
+    stand = instanz_stand.alle(db)
+    traeger = None
+    for zeile in stand.values():
+        moeglich = (zeile.messwerte or {}).get("traeger")
+        if isinstance(moeglich, list) and moeglich:
+            traeger = moeglich
+            break
+    if not traeger:
+        return
+
+    frei = sum(int(t.get("frei") or 0) for t in traeger if isinstance(t, dict))
+    gesamt = sum(int(t.get("gesamt") or 0) for t in traeger if isinstance(t, dict))
+    if gesamt <= 0:
+        return
+
+    tag = utcnow().strftime("%Y-%m-%d")
+    zeile = db.scalar(select(SpeicherVerlauf).where(SpeicherVerlauf.tag == tag))
+    if zeile is None:
+        zeile = SpeicherVerlauf(tag=tag)
+        db.add(zeile)
+    zeile.belegt_bytes = gesamt - frei
+    zeile.frei_bytes = frei
+    zeile.gemessen_am = utcnow()
+    db.commit()
+
 
 async def _bibliothek_vielleicht(db, settings) -> None:
     """Die Bibliothek des Media-Servers einlesen, wenn es an der Zeit ist.
@@ -670,6 +762,25 @@ async def run_forever(stop: asyncio.Event) -> None:
                 except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
                     logger.exception("Instance health check failed")
                     db.rollback()
+
+                # Was gerade laeuft - jede Runde, und das ist hier richtig:
+                # Eine Spitze, die zwischen zwei Messungen liegt, ist verloren.
+                # Gespeichert wird trotzdem nur eine Zeile je Viertelstunde,
+                # sonst waeren es 260.000 im Jahr.
+                try:
+                    laufend = await wiedergaben.laufende(db, settings)
+                    wiedergaben.spitze_merken(db, laufend)
+                except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+                    logger.exception("Playback sampling failed")
+                    db.rollback()
+
+                # Direkt daneben, weil beides dieselbe Frage in zwei Haelften
+                # beantwortet: Was die Instanz *ueber sich* meldet, steht
+                # oben; was sich *an ihr* messen laesst - antwortet sie
+                # ueberhaupt, wie voll ist die Platte, haengt etwas in der
+                # Warteschlange - steht hier. Zusammen ergibt das den
+                # Dienste-Teil des Dashboards.
+                await _instanzen_messen(db, settings)
 
                 # ⚠️ **Nach** der Speicher-Messung, nicht davor: Eine Datei,
                 # die inzwischen ohnehin verschwunden ist, hat dann keinen

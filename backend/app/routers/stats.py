@@ -1,4 +1,15 @@
-"""Statistik-Seite - fuer Administratoren und Entscheider."""
+"""Statistik & Analyse - fuer Administratoren.
+
+⚠️ **Seit 0.25 nur noch Administratoren, vorher auch Entscheider.** Das ist
+ein bewusster Rueckschritt gegenueber der vorigen Fassung: Auf dieser Seite
+stehen jetzt Instanz-Zustand, Plattenfuellstand, Sicherungen und der Abgleich
+der Quellen - Betriebsdaten. Wer ueber Anfragen entscheidet, braucht davon
+nichts, und ein Entscheider ist nicht dasselbe wie ein Betreiber.
+
+Nebenbei loest das einen Fehler: Der Reiter "Aufraeumen" wurde jedem
+Entscheider gezeigt, der Endpunkt dahinter war schon immer ``AdminUser`` und
+antwortete 403.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +18,7 @@ from datetime import datetime
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from ..deps import AdminUser, ApproverUser, DbSession
+from ..deps import AdminUser, DbSession
 from ..models import MediaType, utcnow
 from ..services import aufraeumen
 from ..services import stats
@@ -63,6 +74,9 @@ class TotalsPublic(BaseModel):
     average_rating: float | None
     poor_ratings: int
     unanswered_feedback: int
+    #: Median, nicht Durchschnitt - siehe ``services/stats.py``.
+    freigabe_median_stunden: float | None = None
+    freigabe_laengste_offen_stunden: float | None = None
     rating_distribution: dict[int, int]
     last_request_at: datetime | None
 
@@ -89,7 +103,7 @@ class StatsPublic(BaseModel):
 
 
 @router.get("", response_model=StatsPublic)
-def read_stats(entscheider: ApproverUser, db: DbSession) -> dict:
+def read_stats(admin: AdminUser, db: DbSession) -> dict:
     """Zahlen zu Anfragen, Downloads, Kontingenten und Bewertungen."""
     zahlen = stats.collect(db)
     return {

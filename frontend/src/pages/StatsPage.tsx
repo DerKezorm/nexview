@@ -1,14 +1,21 @@
+import type { TFunction } from 'i18next'
+import { useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../api/client'
-import type { Role, Stats, StorageOverview, UserStats } from '../api/types'
-import { AufraeumTabelle } from '../components/AufraeumTabelle'
+import type { AnalyseStand, WiedergabeStand, Role, Stats, StorageOverview, UserStats } from '../api/types'
 import { Avatar } from '../components/Avatar'
 import { StarRating } from '../components/StarRating'
 import { StorageDistribution } from '../components/StorageDistribution'
-import { Card, ErrorBanner, Spinner } from '../components/ui'
+import { BereichsBefunde } from '../components/BereichsBefunde'
+import { Reiterreihe } from '../components/Reiterreihe'
+import { Card, ErrorBanner, Kennzahl, Spinner } from '../components/ui'
+import { AnalyseBetrieb } from './stats/AnalyseBetrieb'
+import { AnalyseBibliothek } from './stats/AnalyseBibliothek'
+import { AnalyseDienste } from './stats/AnalyseDienste'
+import { AnalyseWiedergabe } from './stats/AnalyseWiedergabe'
 import { formatDate, formatSize } from '../lib/format'
 
 const POOR_RATING = 2
@@ -18,41 +25,6 @@ const ROLE_LABELS: Record<Role, string> = {
   approver: 'adminUsers.roleApprover',
   user: 'adminUsers.roleUser',
   child: 'adminUsers.roleChild',
-}
-
-/** Eine große Zahl mit Beschriftung. */
-function KeyFigure({
-  label,
-  value,
-  hint,
-  tone = 'normal',
-}: {
-  label: string
-  value: string
-  hint?: string
-  tone?: 'normal' | 'warn'
-}) {
-  return (
-    <div
-      className={
-        'rounded-2xl border px-4 py-3 ' +
-        (tone === 'warn'
-          ? 'border-bad-500/50 bg-bad-500/10'
-          : 'border-ink-700 bg-ink-850/60')
-      }
-    >
-      <p className="text-xs font-medium tracking-wide text-mist-600 uppercase">{label}</p>
-      <p
-        className={
-          'mt-1 text-3xl font-bold tabular-nums ' +
-          (tone === 'warn' ? 'text-bad-500' : 'text-mist-100')
-        }
-      >
-        {value}
-      </p>
-      {hint && <p className="mt-0.5 text-xs text-mist-600">{hint}</p>}
-    </div>
-  )
 }
 
 /** Ein waagerechter Balken mit Beschriftung links und Zahl rechts. */
@@ -260,78 +232,152 @@ function UserRow({ eintrag }: { eintrag: UserStats }) {
 }
 
 /** Die zwei Ansichten dieser Seite. */
+/**
+ * Welcher Reiter hinter welchem Adress-Wort steckt.
+ *
+ * ⚠️ **Damit ein Verweis dort landet, wo es um etwas geht.** „47 Titel liegen
+ * herum" auf die Zahlen-Übersicht zu schicken hieße, den Leser danach selbst
+ * suchen zu lassen — dieselbe Beschwerde, die der Nutzer über die Einstellungen
+ * hatte. Die Wörter sind eine Zusage: Sie stehen in Befund-Zielen.
+ */
+const REITER_AUS_ADRESSE: Record<string, Reiter> = {
+  anfragen: 'anfragen',
+  nutzer: 'nutzer',
+  wiedergabe: 'wiedergabe',
+  bibliothek: 'bibliothek',
+  dienste: 'dienste',
+  betrieb: 'betrieb',
+  // ⚠️ **Die alten Namen bleiben gültig.** Sie stehen in Lesezeichen und in
+  // Befund-Zielen, die vor dem Umbau gesetzt wurden. Ein Link, der ins Leere
+  // zeigt, ist schlimmer als ein Link auf den zweitbesten Reiter — dasselbe
+  // macht das Profil mit `sprache` und `sicherheit`.
+  zahlen: 'anfragen',
+  aufraeumen: 'bibliothek',
+}
+
 const REITER = [
-  { wert: 'zahlen', schluessel: 'stats.title' },
-  { wert: 'aufraeumen', schluessel: 'cleanup.title' },
+  { wert: 'anfragen', schluessel: 'analyse.tabRequests', symbol: 'film' },
+  { wert: 'nutzer', schluessel: 'analyse.tabUsers', symbol: 'benutzer' },
+  { wert: 'wiedergabe', schluessel: 'wiedergabe.tabPlayback', symbol: 'medienserver' },
+  { wert: 'bibliothek', schluessel: 'analyse.tabLibrary', symbol: 'kontingent' },
+  { wert: 'dienste', schluessel: 'analyse.tabServices', symbol: 'dienste' },
+  { wert: 'betrieb', schluessel: 'analyse.tabOperations', symbol: 'system' },
 ] as const
 
 type Reiter = (typeof REITER)[number]['wert']
 
 /**
- * Überschrift und Reiterleiste - für beide Ansichten dieselbe.
+ * Eine Dauer in Stunden lesbar machen — mit mitwandernder Einheit.
  *
- * Bewusst ein gemeinsames Stück und keine zwei Kopfzeilen: Sonst springt beim
- * Umschalten die Überschrift um ein paar Pixel, weil zwei fast gleiche
- * Bausteine nie ganz gleich bleiben.
+ * ⚠️ **Ohne das steht bei einer typischen Anlage „0 Std.".** An echten Daten
+ * gemessen: Der Median lag bei 0,1 Stunden, also sechs Minuten — gerundet auf
+ * Stunden eine Null, und eine Null liest sich als „gibt es nicht" statt als
+ * „geht schnell". Der längste offene Fall lag gleichzeitig bei 104 Stunden;
+ * eine einzige Einheit kann beides nicht.
  */
-function StatsKopf({
-  t,
-  reiter,
-  setReiter,
-}: {
-  t: (key: string) => string
-  reiter: Reiter
-  setReiter: (wert: Reiter) => void
-}) {
-  return (
-    <>
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          {t(reiter === 'zahlen' ? 'stats.title' : 'cleanup.title')}
-          <span className="text-accent-500">.</span>
-        </h1>
-      </header>
-
-      <div className="flex flex-wrap gap-2" role="tablist">
-        {REITER.map((eintrag) => (
-          <button
-            key={eintrag.wert}
-            type="button"
-            role="tab"
-            aria-selected={reiter === eintrag.wert}
-            onClick={() => setReiter(eintrag.wert)}
-            className={
-              'rounded-full border px-4 py-2 text-sm font-medium transition-colors ' +
-              (reiter === eintrag.wert
-                ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
-                : 'border-ink-700 bg-ink-900 text-mist-500 hover:text-mist-100')
-            }
-          >
-            {t(eintrag.schluessel)}
-          </button>
-        ))}
-      </div>
-    </>
-  )
+function dauerText(stunden: number, t: TFunction): string {
+  if (stunden < 1) return t('stats.minutes', { count: Math.max(1, Math.round(stunden * 60)) })
+  if (stunden < 48) return t('stats.hours', { count: Math.round(stunden) })
+  return t('stats.days', { count: Math.round(stunden / 24) })
 }
 
 export function StatsPage() {
   const { t, i18n } = useTranslation()
-  const [reiter, setReiter] = useState<Reiter>('zahlen')
+  const [suchparameter, setSuchparameter] = useSearchParams()
+  const [reiter, setReiter] = useState<Reiter>(
+    REITER_AUS_ADRESSE[suchparameter.get('reiter') ?? ''] ?? 'anfragen',
+  )
+
+  /** Beim Wechseln von Hand fliegt der Parameter raus — sonst springt ein
+   *  Neuladen auf den Reiter aus der Adresse zurück. */
+  const wechseln = (wert: Reiter) => {
+    setReiter(wert)
+    if (suchparameter.has('reiter')) {
+      const rest = new URLSearchParams(suchparameter)
+      rest.delete('reiter')
+      setSuchparameter(rest, { replace: true })
+    }
+  }
+
+  // ⚠️ **Zwei Abfragen, je nach Reiter — nicht eine grosse.** Die Zahlen zu
+  // den Anfragen laufen ueber jede Zeile der Anfragetabelle; der Zustand der
+  // Instanzen ist ein Blick in drei kleine Tabellen. Beides immer zu holen
+  // hiesse, den teuren Teil auch dann zu rechnen, wenn jemand nur wissen
+  // will, ob Sonarr antwortet.
+  const zahlenNoetig = reiter === 'anfragen' || reiter === 'nutzer'
+  const analyseNoetig = !zahlenNoetig
 
   const statsQuery = useQuery({
     queryKey: ['admin-stats'],
     queryFn: () => api.get<Stats>('/api/admin/stats'),
-    // Nur im ersten Reiter gebraucht - im zweiten waere es eine Abfrage
-    // fuer nichts.
-    enabled: reiter === 'zahlen',
+    enabled: zahlenNoetig,
   })
 
-  if (reiter === 'aufraeumen') {
+  const analyseQuery = useQuery({
+    queryKey: ['admin-analyse'],
+    queryFn: () => api.get<AnalyseStand>('/api/admin/analyse'),
+    enabled: analyseNoetig && reiter !== 'wiedergabe',
+  })
+
+  // ⚠️ Eine eigene Abfrage: Sie rechnet ueber jede Wiedergabe und jeden
+  // Speicherposten. Wer nur wissen will, ob Sonarr antwortet, soll das nicht
+  // mitbezahlen.
+  const wiedergabeQuery = useQuery({
+    queryKey: ['admin-wiedergabe'],
+    queryFn: () => api.get<WiedergabeStand>('/api/admin/analyse/wiedergabe'),
+    enabled: reiter === 'wiedergabe',
+  })
+
+  const kopf = (
+    <>
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          {t('analyse.title')}
+          <span className="text-accent-500">.</span>
+        </h1>
+      </header>
+      <Reiterreihe
+        eintraege={REITER.map((e) => ({
+          value: e.wert,
+          label: t(e.schluessel),
+          symbol: e.symbol,
+        }))}
+        aktiv={reiter}
+        onWechsel={wechseln}
+        label={t('analyse.title')}
+      />
+    </>
+  )
+
+  const aktiveAbfrage = reiter === 'wiedergabe' ? wiedergabeQuery : analyseQuery
+
+  if (analyseNoetig) {
     return (
       <div className="flex flex-col gap-6">
-        <StatsKopf t={t} reiter={reiter} setReiter={setReiter} />
-        <AufraeumTabelle pfad="/api/admin/stats/aufraeumen" schluessel="admin-aufraeumen" />
+        {kopf}
+        {/* ⚠️ **Die abgeschaltete Abfrage meldet trotzdem `isPending`.** In
+            TanStack Query heißt `enabled: false` nicht „fertig", sondern „noch
+            nicht angefangen" — und stünde der Spinner an beiden Abfragen, hinge
+            er dauerhaft neben fertigem Inhalt. Gefragt wird deshalb die, die
+            zu diesem Reiter gehört. */}
+        {aktiveAbfrage.isPending && (
+          <p className="flex items-center gap-2 text-sm text-mist-500">
+            <Spinner /> {t('common.loading')}
+          </p>
+        )}
+        {aktiveAbfrage.isError && <ErrorBanner message={t('stats.failed')} />}
+        {wiedergabeQuery.data && reiter === 'wiedergabe' && (
+          <AnalyseWiedergabe stand={wiedergabeQuery.data} />
+        )}
+        {analyseQuery.data && reiter === 'bibliothek' && (
+          <AnalyseBibliothek stand={analyseQuery.data} />
+        )}
+        {analyseQuery.data && reiter === 'dienste' && (
+          <AnalyseDienste stand={analyseQuery.data} />
+        )}
+        {analyseQuery.data && reiter === 'betrieb' && (
+          <AnalyseBetrieb stand={analyseQuery.data} />
+        )}
       </div>
     )
   }
@@ -353,14 +399,16 @@ export function StatsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <StatsKopf t={t} reiter={reiter} setReiter={setReiter} />
-      <p className="-mt-4 text-mist-500">{t('stats.intro')}</p>
+      {kopf}
+      {reiter === 'anfragen' && <BereichsBefunde bereiche={['nachschub']} />}
 
+      {reiter === 'anfragen' && (
+      <>
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KeyFigure
+        <Kennzahl
           label={t('stats.totalRequests')}
-          value={String(totals.requests)}
-          hint={
+          wert={String(totals.requests)}
+          hinweis={
             t('stats.movieCount', { count: totals.movies }) +
             ' · ' +
             t('stats.seriesCount', { count: totals.series }) +
@@ -368,44 +416,62 @@ export function StatsPage() {
             t('stats.byUsers', { count: totals.active_users })
           }
         />
-        <KeyFigure
+        <Kennzahl
           label={t('stats.downloaded')}
-          value={String(totals.downloaded)}
-          hint={
+          wert={String(totals.downloaded)}
+          hinweis={
             t('stats.movieCount', { count: totals.downloaded_movies }) +
             ' · ' +
             t('stats.seriesCount', { count: totals.downloaded_series })
           }
         />
-        <KeyFigure
+        <Kennzahl
           label={t('stats.waiting')}
-          value={String(totals.pending)}
-          hint={t('stats.rejectedCancelled', {
+          wert={String(totals.pending)}
+          hinweis={t('stats.rejectedCancelled', {
             rejected: totals.rejected,
             cancelled: totals.cancelled,
           })}
-          tone={totals.pending > 0 ? 'warn' : 'normal'}
+          ton={totals.pending > 0 ? 'warn' : 'normal'}
         />
-        <KeyFigure
+        <Kennzahl
+          label={t('stats.waitForApproval')}
+          wert={
+            totals.freigabe_median_stunden === null
+              ? '–'
+              : dauerText(totals.freigabe_median_stunden, t)
+          }
+          hinweis={
+            totals.freigabe_laengste_offen_stunden === null
+              ? t('stats.waitForApprovalHint')
+              : t('stats.waitLongest', {
+                  dauer: dauerText(totals.freigabe_laengste_offen_stunden, t),
+                })
+          }
+          ton={
+            (totals.freigabe_laengste_offen_stunden ?? 0) > 72 ? 'warn' : 'normal'
+          }
+        />
+        <Kennzahl
           label={t('stats.averageRating')}
-          value={totals.average_rating === null ? '–' : totals.average_rating.toFixed(1)}
-          hint={t('stats.ratingCount', { count: totals.ratings })}
+          wert={totals.average_rating === null ? '–' : totals.average_rating.toFixed(1)}
+          hinweis={t('stats.ratingCount', { count: totals.ratings })}
         />
       </section>
 
       {(totals.unanswered_feedback > 0 || totals.poor_ratings > 0) && (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <KeyFigure
+          <Kennzahl
             label={t('stats.poorRatings')}
-            value={String(totals.poor_ratings)}
-            hint={t('stats.poorRatingsHint', { max: POOR_RATING })}
-            tone={totals.poor_ratings > 0 ? 'warn' : 'normal'}
+            wert={String(totals.poor_ratings)}
+            hinweis={t('stats.poorRatingsHint', { max: POOR_RATING })}
+            ton={totals.poor_ratings > 0 ? 'warn' : 'normal'}
           />
-          <KeyFigure
+          <Kennzahl
             label={t('stats.unanswered')}
-            value={String(totals.unanswered_feedback)}
-            hint={t('stats.unansweredHint')}
-            tone={totals.unanswered_feedback > 0 ? 'warn' : 'normal'}
+            wert={String(totals.unanswered_feedback)}
+            hinweis={t('stats.unansweredHint')}
+            ton={totals.unanswered_feedback > 0 ? 'warn' : 'normal'}
           />
         </section>
       )}
@@ -447,6 +513,11 @@ export function StatsPage() {
         </Card>
       </section>
 
+      </>
+      )}
+
+      {reiter === 'nutzer' && (
+      <>
       <SpeicherAbschnitt />
 
       <section>
@@ -480,8 +551,10 @@ export function StatsPage() {
           </table>
         </Card>
       </section>
+      </>
+      )}
 
-      {beliebt.length > 0 && (
+      {reiter === 'anfragen' && beliebt.length > 0 && (
         <section>
           <h2 className="mb-2 text-sm font-semibold text-mist-300">{t('stats.mostRequested')}</h2>
           <Card className="flex flex-col gap-2 p-4">
@@ -503,7 +576,7 @@ export function StatsPage() {
         </section>
       )}
 
-      {totals.last_request_at && (
+      {reiter === 'anfragen' && totals.last_request_at && (
         <p className="text-xs text-mist-600">
           {t('stats.lastRequest', {
             date: formatDate(totals.last_request_at.slice(0, 10), i18n.language),

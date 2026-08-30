@@ -15,6 +15,7 @@ import { useCardData } from '../components/media/useCardData'
 import { WatchedBadge } from '../components/media/WatchedBadge'
 import { Slider } from '../components/Slider'
 import { VerschwindetBald } from '../components/VerschwindetBald'
+import { Symbol } from '../components/Symbol'
 import { Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
@@ -320,12 +321,28 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col gap-10">
-      <header className="animate-nv-fade">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">
-          {t('home.greeting', { name: user?.display_name ?? user?.username ?? '' })}
-          <span className="text-accent-500">.</span>
-        </h1>
-        <p className="mt-2 text-mist-500">{t('home.intro')}</p>
+      <header className="animate-nv-fade flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">
+            {t('home.greeting', { name: user?.display_name ?? user?.username ?? '' })}
+            <span className="text-accent-500">.</span>
+          </h1>
+          <p className="mt-2 text-mist-500">{t('home.intro')}</p>
+        </div>
+        {/* ⚠️ **Ein Knopf, kein zweites Dashboard auf dieser Seite.** Die
+            Startseite ist die Entdecken-Seite und bleibt es - auch für den
+            Betreiber, der hier ja ebenfalls Filme sucht. Der Betriebsteil
+            liegt eine Adresse weiter, und wo dieser Knopf steht, lässt sich
+            später ohne Umbau ändern. */}
+        {user?.role === 'admin' && (
+          <Link
+            to="/admin/dashboard"
+            className="inline-flex items-center gap-2 rounded-full border border-ink-700 px-4 py-2 text-sm text-mist-300 transition-colors hover:border-accent-600 hover:text-mist-100"
+          >
+            <Symbol name="analyse" />
+            {t('nav.dashboard')}
+          </Link>
+        )}
       </header>
 
       {(recentQuery.isPending || trendingQuery.isPending) && (

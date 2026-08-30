@@ -15,6 +15,8 @@ import httpx
 
 from . import plextv
 from .base import (
+    Umrechnung,
+    Wiedergabe,
     ExternalAccount,
     LibraryItem,
     LoginChallenge,
@@ -609,3 +611,80 @@ class PlexServer(MediaServer):
             gesamt = int(container.get("totalSize") or container.get("size") or 0)
             if not eintraege or start >= gesamt:
                 return werke
+
+    async def laufende_wiedergaben(self) -> list[Wiedergabe]:
+        """Was gerade laeuft - aus ``/status/sessions``.
+
+        ⚠️ **Plex liefert von sich aus nur echte Wiedergaben** (gemessen
+        30.08.2026: ``MediaContainer.size`` war 0, solange nichts lief). Anders
+        als Jellyfin und Emby braucht es hier keinen Filter auf laufende
+        Titel - dafuer sieht die Antwort voellig anders aus.
+        """
+        try:
+            # ⚠️ ``_server`` packt ``MediaContainer`` **schon aus**. Der erste
+            # Anlauf packte hier ein zweites Mal aus und lieferte deshalb immer
+            # eine leere Liste - waehrend Plex einen laufenden Film meldete.
+            # Aufgefallen ist es erst beim Vergleich mit der rohen Antwort;
+            # die Umwandlungs-Tests konnten es nicht sehen, weil sie den
+            # Abrufweg gar nicht durchlaufen.
+            behaelter = await self._server("/status/sessions")
+        except MediaServerError:
+            return []
+        eintraege = (behaelter or {}).get("Metadata") or []
+
+        gefunden: list[Wiedergabe] = []
+        for eintrag in eintraege:
+            if isinstance(eintrag, dict):
+                gefunden.append(self._als_wiedergabe(eintrag))
+        return gefunden
+
+    def _als_wiedergabe(self, eintrag: dict) -> Wiedergabe:
+        spieler = eintrag.get("Player") or {}
+        konto = eintrag.get("User") or {}
+        sitzung = eintrag.get("Session") or {}
+        umrechnen = eintrag.get("TranscodeSession")
+
+        # ⚠️ **Nicht am Vorhandensein der TranscodeSession festmachen.**
+        # Gemessen am 30.08.2026 bei laufendem Film: ``videoDecision: "copy"``
+        # neben ``audioDecision: "transcode"`` - das Bild wird durchgereicht.
+        # Als "Umrechnung" gemeldet waere das ein falscher Alarm ueber eine
+        # CPU-Last, die es nicht gibt.
+        art = Umrechnung.direkt
+        if isinstance(umrechnen, dict):
+            art = (
+                Umrechnung.ton
+                if str(umrechnen.get("videoDecision") or "").lower() == "copy"
+                else Umrechnung.bild
+            )
+
+        laenge = eintrag.get("duration")
+        stand = eintrag.get("viewOffset")
+        fortschritt = None
+        if isinstance(laenge, int) and laenge > 0 and isinstance(stand, int):
+            fortschritt = max(0.0, min(1.0, stand / laenge))
+
+        # ⚠️ Plex nennt hier **keine** TMDB-Nummer - anders als Jellyfin und
+        # Emby, die sie unter ``ProviderIds`` mitliefern. Die Bruecke ist der
+        # ``ratingKey``, den Nexview beim Bibliotheks-Abgleich ohnehin
+        # mitschreibt; aufgeloest wird sie im Dienst, nicht hier.
+        return Wiedergabe(
+            provider=self.provider,
+            konto=str(konto.get("title") or ""),
+            konto_id=str(konto.get("id") or ""),
+            titel=str(eintrag.get("title") or ""),
+            media_type="tv" if eintrag.get("type") == "episode" else "movie",
+            serie=str(eintrag.get("grandparentTitle") or ""),
+            fortschritt=fortschritt,
+            geraet=str(spieler.get("device") or spieler.get("title") or ""),
+            anwendung=str(spieler.get("product") or ""),
+            pausiert=str(spieler.get("state") or "").lower() == "paused",
+            umrechnung=art,
+            grund="",
+            beschleunigung="",
+            bandbreite=(
+                sitzung.get("bandwidth")
+                if isinstance(sitzung.get("bandwidth"), int)
+                else None
+            ),
+            tmdb_id=None,
+        )

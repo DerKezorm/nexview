@@ -1514,6 +1514,109 @@ class ArrGesundheit(Base):
     aktualisiert_am: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class InstanzStand(Base):
+    """Was beim letzten Rundgang an einer Instanz gemessen wurde.
+
+    ⚠️ **Bewusst getrennt von ``ArrGesundheit``, obwohl beide je Kennung
+    einmal existieren.** Jene Tabelle ist ein *Gedaechtnis* mit einer
+    empfindlichen Regel ("einmal je Problem melden, nicht jede Runde
+    wieder"); ein Schnappschuss alle 120 Sekunden haette dort nichts zu
+    suchen und wuerde die Entprellung schwer lesbar machen.
+
+    Warum ueberhaupt gespeichert wird, statt beim Anzeigen zu fragen: Ein
+    Befund darf nicht nach draussen rechnen. Sonst kostet jeder Aufruf des
+    Dashboards zwanzig Radarr-Anfragen - bei jedem Neuladen, fuer jeden
+    Administrator.
+
+    Und ein zweiter Grund, der erst beim Bauen auffiel: **"Seit wann ist die
+    Instanz weg" laesst sich gar nicht live beantworten.** Die Diensteseite
+    fragt jede Instanz beim Aufschlagen kurz an und weiss danach nur
+    "erreichbar ja/nein". Erst ein gemerkter Zeitpunkt macht daraus "seit
+    zwei Stunden stumm" - und das ist der Unterschied zwischen einem
+    Neustart und einem Ausfall.
+    """
+
+    __tablename__ = "instanz_stand"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kennung: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    # Hat die Instanz beim letzten Rundgang geantwortet?
+    erreichbar: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Seit wann sie im aktuellen Zustand ist - **nicht** wann zuletzt gemessen
+    # wurde. Wechselt nur beim Uebergang, sonst waere es immer "seit gerade
+    # eben" und die Angabe wertlos.
+    erreichbar_seit: Mapped[datetime | None] = mapped_column(DateTime)
+    version: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    # Alles Gemessene in einem JSON-Feld statt in zehn Spalten: Was gemessen
+    # wird, waechst noch (Datentraeger, Warteschlange, Aktualisierung ...),
+    # und jede neue Zahl waere sonst eine Wanderung. Gelesen wird es nur von
+    # ``services/befunde.py``, und zwar nachsichtig - ein fehlender Schluessel
+    # heisst "noch nicht gemessen", nicht "null".
+    messwerte: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
+    gemessen_am: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class SpeicherVerlauf(Base):
+    """Ein Messpunkt je Tag: wieviel belegt, wieviel frei.
+
+    ⚠️ **Warum ueberhaupt ein Verlauf.** "Die Platte ist zu 91 Prozent voll"
+    sagt einem Betreiber, dass er bald etwas tun muss - aber nicht, ob "bald"
+    naechste Woche oder naechstes Jahr heisst. Genau diese Frage entscheidet,
+    ob er heute Abend Platten bestellt oder es notiert. Zwei Punkte im Abstand
+    von Wochen beantworten sie; ein Momentwert nie.
+
+    **Ein Punkt je Tag, mehr nicht.** Feiner gaebe es nichts her: Ein Download
+    von 60 GB ist auf einer 80-TB-Platte ein Ausschlag von 0,07 Prozent, und
+    stuendliche Punkte waeren fast nur Rauschen. Grob gerechnet wird ohnehin
+    ueber Wochen.
+
+    Der Tag steht als Text (``2026-08-30``) und ist eindeutig - so kann ein
+    Container, der fuenfmal am Tag neu startet, keine fuenf Punkte erzeugen.
+    """
+
+    __tablename__ = "speicher_verlauf"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tag: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
+    belegt_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    frei_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    gemessen_am: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class WiedergabeSpitze(Base):
+    """Wie viele Wiedergaben gleichzeitig liefen - je Viertelstunde die Spitze.
+
+    ⚠️ **Die Spitze, nicht der Durchschnitt.** Die Frage dahinter ist "reicht
+    meine Anlage", und die entscheidet sich am schlimmsten Moment: Wenn abends
+    um acht vier Leute gleichzeitig schauen und drei davon umgerechnet werden,
+    nuetzt es nichts, dass der Tagesdurchschnitt bei 0,3 liegt.
+
+    ⚠️ **Je Viertelstunde, nicht je Messung.** Der Rundgang laeuft alle zwei
+    Minuten; jede Messung zu speichern gaebe 720 Zeilen am Tag und 260.000 im
+    Jahr - fuer eine Kurve, die man in Tagen liest. Eine Viertelstunde ergibt
+    96 Zeilen am Tag und verliert nichts, was in dieser Frage zaehlt: Eine
+    Spitze, die keine fuenfzehn Minuten dauert, ist keine Last, sondern ein
+    Ausschlag.
+
+    Der Zeitpunkt ist der **Beginn** des Abschnitts und eindeutig - so kann ein
+    Container, der fuenfmal neu startet, keine fuenf Zeilen erzeugen.
+    """
+
+    __tablename__ = "wiedergabe_spitzen"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: Beginn der Viertelstunde, als "2026-08-30 20:15".
+    abschnitt: Mapped[str] = mapped_column(String(16), unique=True, nullable=False)
+    gleichzeitig: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    #: Davon solche, die das **Bild** neu berechnen - die teuren.
+    bild_umrechnungen: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    #: Summe der gemeldeten Bandbreiten in kBit/s, soweit die Anbieter sie nennen.
+    bandbreite_kbit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    gemessen_am: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=False
+    )
+
+
 class Qualitaetsprofil(Base):
     """Ein Profil, wie es in **Nexview** liegt - nicht in Radarr.
 

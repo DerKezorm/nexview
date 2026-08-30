@@ -149,6 +149,18 @@ async def status(*, enabled: bool = True, force: bool = False) -> UpdateStatus:
         return _cached
 
 
+def gemerkt() -> UpdateStatus | None:
+    """Der zuletzt geholte Stand - ohne selbst nachzusehen.
+
+    ⚠️ **Fuer Aufrufer, die nicht warten koennen.** ``status()`` ist eine
+    Netzabfrage und damit ``async``; das Befund-Register ist bewusst
+    synchron und darf ohnehin nicht nach draussen greifen. Wer hier ``None``
+    bekommt, hat einfach noch keinen Stand - das ist kein Fehler, sondern der
+    Zustand direkt nach dem Start.
+    """
+    return _cached
+
+
 def reset_cache() -> None:
     """Nur fuer Tests."""
     global _cached

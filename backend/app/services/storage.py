@@ -448,10 +448,42 @@ async def freier_platz(settings: AppSettings) -> tuple[int, int]:
     Fotos, das Betriebssystem. Der Unterschied zwischen Hausbestand und
     Gesamtgroesse ist eben **nicht** der Platz, der fuer Medien frei ist.
     """
-    # Kennung des Traegers -> freier Platz. Bei mehreren Meldungen zaehlt die
-    # kleinste: Sie ist die juengste Nachricht ueber eine Platte, auf die
-    # gerade geschrieben wird, und untertreibt im Zweifel.
-    traeger: dict[int, int] = {}
+    gefunden = await traeger(settings)
+    return sum(t.frei for t in gefunden), len(gefunden)
+
+
+@dataclass(frozen=True)
+class Traeger:
+    """Ein Datentraeger, auf dem mindestens ein Zielordner liegt."""
+
+    #: Gesamtgroesse - zugleich die Kennung, ueber die entdoppelt wird.
+    gesamt: int
+    frei: int
+    #: Welche Zielordner darauf liegen. Fuer die Anzeige: "die Platte unter
+    #: /data/Movies" sagt einem Betreiber mehr als eine Byte-Zahl.
+    ordner: tuple[str, ...]
+
+    @property
+    def belegt_anteil(self) -> float:
+        """Anteil belegt, 0.0 bis 1.0. Ohne Gesamtgroesse ist er 0."""
+        return 0.0 if self.gesamt <= 0 else (self.gesamt - self.frei) / self.gesamt
+
+
+async def traeger(settings: AppSettings) -> list[Traeger]:
+    """Die Datentraeger hinter den Zielordnern - jeder genau einmal.
+
+    ⚠️ **Herausgeloest aus ``freier_platz``, weil die Entdopplung jetzt zweimal
+    gebraucht wird**: dort fuer "wieviel ist noch frei", hier fuer "die Platte
+    ist zu 91 Prozent voll". Die Begruendung, warum ueber die *Gesamtgroesse*
+    entdoppelt wird und nicht ueber den freien Platz, steht im Docstring von
+    ``freier_platz`` - sie ist an einer echten Anlage teuer gelernt worden und
+    darf nicht in zwei Fassungen auseinanderlaufen.
+    """
+    # Kennung des Traegers -> (freier Platz, Ordner darauf). Bei mehreren
+    # Meldungen zaehlt der kleinste freie Wert: Er ist die juengste Nachricht
+    # ueber eine Platte, auf die gerade geschrieben wird, und untertreibt im
+    # Zweifel.
+    gefunden: dict[int, tuple[int, list[str]]] = {}
 
     for art in ("movie", "tv"):
         for stufe in ("standard", "uhd"):
@@ -472,9 +504,19 @@ async def freier_platz(settings: AppSettings) -> tuple[int, int]:
                 frei = (punkt or {}).get("free_space")
                 if not isinstance(gesamt, int) or not isinstance(frei, int) or frei <= 0:
                     continue
-                traeger[gesamt] = min(traeger.get(gesamt, frei), frei)
+                bisher = gefunden.get(gesamt)
+                if bisher is None:
+                    gefunden[gesamt] = (frei, [pfad])
+                else:
+                    pfade = bisher[1]
+                    if pfad not in pfade:
+                        pfade.append(pfad)
+                    gefunden[gesamt] = (min(bisher[0], frei), pfade)
 
-    return sum(traeger.values()), len(traeger)
+    return [
+        Traeger(gesamt=gesamt, frei=frei, ordner=tuple(sorted(pfade)))
+        for gesamt, (frei, pfade) in sorted(gefunden.items())
+    ]
 
 
 def verteilung(db: Session) -> list[tuple[int | None, Kontostand]]:

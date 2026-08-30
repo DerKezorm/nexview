@@ -45,6 +45,7 @@ OHNE_VORAUSSETZUNG = {
     "/api/v1/admin/requests/pending/count",
     "/api/v1/notifications/unread/count",
     "/api/v1/storage/me",
+    "/api/v1/dashboard",
 }
 
 #: Warum die uebrigen vier nicht aufgerufen werden.

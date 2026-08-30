@@ -32,7 +32,7 @@
     "profile": "Profile",
     "myRequests": "My requests",
     "allRequests": "All requests",
-    "stats": "Statistics",
+    "stats": "Statistics & analysis",
     "users": "Users",
     "settings": "Settings",
     "logout": "Sign out",
@@ -40,7 +40,8 @@
     "favorites": "Liked",
     "tickets": "Tickets",
     "browse": "Browse",
-    "whatToWatch": "What to watch?"
+    "whatToWatch": "What to watch?",
+    "dashboard": "Admin dashboard"
   },
   "setup": {
     "title": "Welcome to Nexview",
@@ -342,7 +343,16 @@
     "requestedTimes": "{{count}}×",
     "lastRequest": "Last request on {{date}}.",
     "colStorage": "Storage",
-    "storageOf": "{{used}} of {{limit}}"
+    "storageOf": "{{used}} of {{limit}}",
+    "waitForApproval": "Wait for approval",
+    "waitForApprovalHint": "half were faster, half slower",
+    "hours_one": "1 hr",
+    "hours_other": "{{count}} hrs",
+    "minutes_one": "1 min",
+    "minutes_other": "{{count}} min",
+    "days_one": "1 day",
+    "days_other": "{{count}} days",
+    "waitLongest": "oldest open has waited {{dauer}}"
   },
   "feedback": {
     "question": "How was the quality?",
@@ -2230,6 +2240,43 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.25.0": {
+        "lead": "This release turns Nexview into a **tool for whoever runs it**. There is a dedicated **admin dashboard** that tells you within ten seconds whether something is broken. “Statistics” becomes **Statistics & analysis** with six tabs — right down to **who is watching what right now** and whether your server is transcoding for it. And you can now **sign in through Authentik, Keycloak, Pocket ID or Google**.",
+        "sections": [
+          {
+            "title": "Sign in through an external provider",
+            "where": "Settings → System → Sign-in",
+            "body": "Nexview can hang off a sign-in service you already run — **Authentik, Keycloak, Pocket ID, Google** or anything else that speaks OpenID Connect. A button per provider then appears on the sign-in page.\n\nAn existing account can be linked from your profile; new people can be created automatically if you want, with the role and quota you set. Your password keeps working — the external provider is added, it replaces nothing.\n\nSetup guides for the four common services are in the README."
+          },
+          {
+            "title": "The admin dashboard",
+            "where": "Button on the home page, or the menu under your name",
+            "body": "Until now everything operational was spread across thirty settings pages. Now there is **one place** that says: three requests awaiting approval, Sonarr has not answered for two hours, the disk is 94 percent full.\n\nTwenty checks run in the background. Every **finding** says not only what is, but **what follows from it** — and the button next to it takes you exactly where you fix it. Not to “Settings”, but to *Settings → Services → Sonarr*.\n\nThe most valuable check is the quietest one: **requests that have been searching for over two weeks.** In the interface “searching” looks like work, not like a standstill — until now it only surfaced when somebody complained."
+          },
+          {
+            "title": "Statistics & analysis",
+            "where": "Menu under your name → Statistics & analysis",
+            "body": "One page of numbers becomes **six tabs**: requests, people, watching, library, services, operations. Each opens with the findings for its area and backs them up with figures.\n\nNew under **library**: source reconciliation. Radarr manages the files, the media server plays them, Nexview bills them to somebody — and where the three disagree, errors appear that nobody looks for, because nothing is red anywhere. Titles with no identifier, year conflicts, files the media server never scanned in.\n\n⚠️ The page is now **for administrators only**. Approvers could see it before; it now carries instance state, disk usage and backups."
+          },
+          {
+            "title": "Who is watching — and whether the server is sweating",
+            "where": "Statistics & analysis → Watching",
+            "body": "Nexview now shows **live playback** across every connected media server: who, what, on which device, how far in — and how hard your server is working for it.\n\nThere are **three** states here, not two. “Transcoding” sounds like yes or no, and it is not: both Plex and Emby report a transcode while passing the video through untouched and only re-encoding the audio — which costs almost nothing. **Only video transcoding is red**, the one that actually eats CPU. Along with why it is transcoding and whether your GPU is helping.\n\nBelow that: how much gets watched and by whom, how the library grew, and how many streams ran at the same time."
+          },
+          {
+            "title": "A tile for your home dashboard",
+            "where": "Profile → Account → Security (token), guide in docs/dashboard-tile.md",
+            "body": "If you use Homepage, Homarr or a similar board as your start page, Nexview can now sit on it with real numbers: open approvals, findings, library size, instance state — **one call**, with ready-made config snippets to copy.\n\nThe address lives under `/api/v1`, which makes it a promise: what is in it today will not disappear again."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Links land where the thing actually is: *Settings → Services → Sonarr* instead of just “Settings”, and *Requests → Failed* instead of the full list.",
+          "The requests tab now shows how long your people typically wait for an approval — and how long the oldest open one has been sitting there.",
+          "The disk ring separates **media**, **everything else** and **free**. “Used versus free” would be a half-truth: backups, photos and the operating system live on the same disk, and only “media” can be cleaned up through Nexview.",
+          "Nexview remembers since when an instance stopped answering. “Restarting right now” and “gone since last night” are two different messages."
+        ]
+      },
       "0.24.0": {
         "lead": "Three things in this release. Nexview now fits behind a reverse proxy under a **sub-path** — `yourdomain.com/nexview` instead of its own subdomain. The **profile store can travel**: save it as a file, read it in elsewhere, and Nexview recognises its own copies. And Nexview warns when **two instances share one download category** — the mistake that looks like a network fault.",
         "sections": [
@@ -3145,5 +3192,282 @@
     "fixEmpty": "Without a category an instance reaches for everything in the download client. Radarr calls a category of your own “highly recommended”. Create one in the download client and enter a separate one in each instance.",
     "dismiss": "This is intended",
     "dismissHint": "If another instance later joins the same category, you will be warned again."
+  },
+  "dashboard": {
+    "title": "Admin dashboard",
+    "subtitle": "What is waiting for someone — and what is wrong.",
+    "findings": "Findings",
+    "pendingApprovals": "Waiting for approval",
+    "pendingApprovalsHint": "requests nobody has decided on yet",
+    "running": "In flight",
+    "runningHint": "approved or currently searching",
+    "openTickets": "Open tickets",
+    "openTicketsHint": "reports still open",
+    "openFeedback": "Unanswered feedback",
+    "openFeedbackHint": "comments on titles, without a reply",
+    "trend": "How long will the space last?",
+    "trendAlt": "Free storage from {{von}} to {{bis}}, currently {{frei}}. The dashed line at the bottom means: disk full.",
+    "trendFreeLabel": "still free",
+    "trendShrinking": "{{menge}} less free than at the start",
+    "trendGrowing": "{{menge}} more free than at the start",
+    "disk": "Disk",
+    "diskMedia": "Media",
+    "diskOther": "Everything else",
+    "diskFree": "Free",
+    "diskUsedShort": "used",
+    "diskTotal": "{{gesamt}} in total",
+    "diskAlt": "Disk {{prozent}} percent full, {{gesamt}} in total",
+    "diskHint": "“Everything else” is whatever else lives on the same disk — backups, photos, the operating system. Only “Media” can be cleaned up through Nexview.",
+    "allCategories": "All",
+    "trendTooEarly": "Too early for a curve — {{tage}} more daily readings needed. Nexview measures once a day; after that this shows how fast the space is going."
+  },
+  "befund": {
+    "hingehen": "View",
+    "allesInOrdnung": "Nothing found. All good.",
+    "anzahl": {
+      "fehler_one": "{{count}} error",
+      "fehler_other": "{{count}} errors",
+      "warnung_one": "{{count}} warning",
+      "warnung_other": "{{count}} warnings",
+      "hinweis_one": "{{count}} note",
+      "hinweis_other": "{{count}} notes"
+    },
+    "schwere": {
+      "fehler": "Error",
+      "warnung": "Warning",
+      "hinweis": "Note"
+    },
+    "dienst": {
+      "meldet_problem": {
+        "titel": "{{instanz}} reports a problem",
+        "folge": "The message comes from {{instanz}} itself. While it stands, something over there cannot do its job — usually an indexer or the download client."
+      },
+      "rueckkanal_gestoert": {
+        "titel": "Callback from {{instanz}} is not getting through",
+        "folge": "Nexview learns late that something has finished downloading — at the next round instead of straight away. Things still work, just more slowly."
+      },
+      "nicht_erreichbar": {
+        "titel": "{{instanz}} has not answered for {{dauer_lesbar}}",
+        "folge": "Until it does, every request to this instance sits still — nothing is searched for and nothing is downloaded. Usually the service is stopped or its address has changed."
+      },
+      "version_alt": {
+        "titel": "Version {{neu}} is available for {{instanz}}",
+        "folge": "Installed is {{jetzt}}. No hurry — Nexview works with either."
+      }
+    },
+    "nachschub": {
+      "haengt": {
+        "titel_one": "One request has been searching for over {{tage}} days",
+        "titel_other": "{{count}} requests have been searching for over {{tage}} days",
+        "folge": "Nothing that can be found takes that long. Usually an indexer is down or the download client has stopped — and the person who asked is still waiting, with no error shown anywhere."
+      },
+      "freigabe_wartet": {
+        "titel_one": "One request has been waiting over {{tage}} days for approval",
+        "titel_other": "{{count}} requests have been waiting over {{tage}} days for approval",
+        "folge": "Wait that long and people start asking. By then it is a complaint, not a note."
+      },
+      "fehlgeschlagen": {
+        "titel_one": "One request failed within {{tage}} days",
+        "titel_other": "{{count}} requests failed within {{tage}} days",
+        "folge": "The odd failure is normal. Several in one week point to something shared — the root folder, permissions, or the download client."
+      },
+      "eingriff_noetig": {
+        "titel_one": "One download is stuck",
+        "titel_other": "{{count}} downloads are stuck",
+        "folge_one": "It has finished downloading but the import is stuck. To whoever asked for it, it still looks like “downloading”. Usually a path or a permission is wrong.",
+        "folge_other": "They have finished downloading but the import is stuck. To whoever asked for them, it still looks like “downloading”. Usually a path or a permission is wrong."
+      }
+    },
+    "bibliothek": {
+      "geisterposten": {
+        "titel_one": "One item is no longer tracked by Radarr/Sonarr",
+        "titel_other": "{{count}} items are no longer tracked by Radarr/Sonarr",
+        "folge_one": "It takes up {{bytes_lesbar}} and still counts against its owner's allowance — but Nexview can no longer delete it. This happens when a title is removed from Radarr while the file is kept.",
+        "folge_other": "They take up {{bytes_lesbar}} and still count against their owner's allowance — but Nexview can no longer delete them. This happens when a title is removed from Radarr while the file is kept."
+      }
+    },
+    "betrieb": {
+      "sicherung_alt": {
+        "titel": "Last automatic backup is {{tage}} days old",
+        "folge": "It is overdue. Delete something by accident now and you fall back to a state from {{tage}} days ago."
+      },
+      "sicherung_fehlt": {
+        "titel": "No automatic backup yet",
+        "folge": "A schedule is set, but none has been made in {{tage}} days. Usually there is no space, or no permission to write to the folder."
+      },
+      "mail_haengt": {
+        "titel_one": "One mail could not be delivered",
+        "titel_other": "{{count}} mails could not be delivered",
+        "folge": "Nexview tried three times and gave up. The notifications are still in the bell — only the mail never reaches anyone."
+      },
+      "protokoll_fehler": {
+        "titel_one": "One error line in the log of the last 24 hours",
+        "titel_other": "{{count}} error lines in the log of the last 24 hours",
+        "folge_one": "The odd error happens in any installation.",
+        "folge_other": "The odd error happens in any installation — this many in one day is a pattern, and usually the same error repeating."
+      },
+      "diagnose_an": {
+        "titel": "Verbose logging is still running ({{stufe}})",
+        "folge": "It normally turns itself off — but “until restart” is one of the allowed durations, and a container sometimes runs for weeks. Until then Nexview writes down everything."
+      },
+      "aktualisierung": {
+        "titel": "Nexview {{neu}} has been released",
+        "folge": "Installed is {{jetzt}}. What changed is in the release notes."
+      }
+    },
+    "dauer": {
+      "minuten_one": "a minute",
+      "minuten_other": "{{count}} minutes",
+      "stunden_one": "an hour",
+      "stunden_other": "{{count}} hours",
+      "tage_one": "a day",
+      "tage_other": "{{count}} days"
+    },
+    "platz": {
+      "knapp": {
+        "titel": "The disk under {{ordner}} is {{prozent}}% full",
+        "folge": "{{bytes_lesbar}} left. Once it fills up, new downloads start failing — without anybody having changed a thing."
+      },
+      "waechst_schnell": {
+        "titel_one": "The disk will be full in about a week",
+        "titel_other": "The disk will be full in about {{count}} weeks",
+        "folge": "Based on the last {{tage}} days — roughly {{bytes_lesbar}} is added every week. There is still time to act; wait until the disk is full and the only choice left is deleting or overflowing."
+      }
+    },
+    "abgleich": {
+      "arr_ohne_server": {
+        "titel_one": "One file is unknown to the media server",
+        "titel_other": "{{count}} files are unknown to the media server",
+        "folge_one": "Radarr or Sonarr tracks it, but the media server has never scanned it in. To everybody else the title looks absent — and gets requested a second time. Usually the server has not scanned, or the path mapping is wrong.",
+        "folge_other": "Radarr or Sonarr tracks them, but the media server has never scanned them in. To everybody else these titles look absent — and get requested a second time. Usually the server has not scanned, or the path mapping is wrong."
+      },
+      "nicht_erkannt": {
+        "titel_one": "One title in the media server has no identifier at all",
+        "titel_other": "{{count}} titles in the media server have no identifier at all",
+        "folge_one": "Neither a TMDB nor a TVDB id. To Nexview it does not exist: it shows up in no status badge and can be requested again without warning. Only the media server itself can fix the match.",
+        "folge_other": "Neither a TMDB nor a TVDB id. To Nexview they do not exist: they show up in no status badge and can be requested again without warning. Only the media server itself can fix the match."
+      },
+      "jahr_widerspruch": {
+        "titel_one": "One title is listed with two different years",
+        "titel_other": "{{count}} titles are listed with two different years",
+        "folge_one": "Either one source matched the wrong film — or the two use different release dates (festival versus cinema). This is not cosmetic: Nexview discards matches whose years disagree, and then reports “not available” for a title that is sitting right there.",
+        "folge_other": "Either one source matched the wrong film — or the two use different release dates (festival versus cinema). This is not cosmetic: Nexview discards matches whose years disagree, and then reports “not available” for titles that are sitting right there."
+      },
+      "anbieter_uneinig": {
+        "titel_one": "One title is missing from one of your {{server}} media servers",
+        "titel_other": "{{count}} titles are missing from at least one of your {{server}} media servers",
+        "folge_one": "At least one server knows it, another does not. People see a different library depending on which server they use.",
+        "folge_other": "At least one server knows them, another does not. People see a different library depending on which server they use."
+      }
+    },
+    "bereich": {
+      "dienste": "Services",
+      "platz": "Disk space",
+      "nachschub": "Supply",
+      "bibliothek": "Library",
+      "abgleich": "Source reconciliation",
+      "betrieb": "Operations"
+    }
+  },
+  "analyse": {
+    "title": "Statistics & analysis",
+    "tabRequests": "Requests",
+    "tabUsers": "People",
+    "tabLibrary": "Library",
+    "tabServices": "Services",
+    "tabOperations": "Operations",
+    "noInstances": "No Radarr or Sonarr instance has been set up yet.",
+    "reachable": "answering",
+    "unreachable": "not answering",
+    "version": "Version",
+    "newerAvailable": "→ {{version}}",
+    "since": "in this state since",
+    "queue": "Queue",
+    "queueStuck_one": "1 of them stuck",
+    "queueStuck_other": "{{count}} of them stuck",
+    "gaps": "Still missing",
+    "gapUnit": {
+      "titel": "titles",
+      "folgen": "episodes"
+    },
+    "callbackOk": "Callback set up and working.",
+    "callbackBroken": "Callback is not getting through ({{grund}}).",
+    "disk": "Disk",
+    "diskFree": "{{frei}} free",
+    "items": "Items",
+    "house": "House collection",
+    "houseHint": "belongs to nobody in particular",
+    "assigned": "Assigned",
+    "assignedHint": "booked to accounts",
+    "ghosts": "Orphaned items",
+    "reconciliation": "Do the sources agree?",
+    "reconciliationHint": "Radarr and Sonarr manage the files, the media server plays them, Nexview bills them to somebody. Where the three disagree, errors appear that nobody looks for — because nothing is red anywhere.",
+    "arrOnly": "Only in Radarr/Sonarr",
+    "arrOnlyHint": "file is there, media server does not know it",
+    "serverOnly": "Only in the media server",
+    "serverOnlyHint": "runs without upgrades or renaming",
+    "unmatched": "No identifier",
+    "unmatchedHint": "invisible to Nexview",
+    "duplicates": "Listed more than once",
+    "duplicatesHint": "often two cuts or a separate 4K library — worth a look",
+    "yearConflicts": "Year conflicts",
+    "yearConflictsHint": "wrong match, or festival versus cinema release",
+    "providerGap": "Servers disagree",
+    "providerGapHint": "not known to all {{count}} of your servers",
+    "perProvider": "Titles per server",
+    "examples": "Examples",
+    "backups": "Backups",
+    "backupLast": "last {{datum}}",
+    "backupNone": "no automatic one yet",
+    "backupSchedule": "Schedule",
+    "mailQueue": "Mail waiting",
+    "mailQueueHint": "not sent yet",
+    "mailFailed": "Mail given up",
+    "mailFailedHint": "after three attempts, last 7 days",
+    "logErrors": "Errors in the log",
+    "logErrorsHint": "last 24 hours",
+    "logLevel": "Log level",
+    "installation": "This installation"
+  },
+  "wiedergabe": {
+    "tabPlayback": "Watching",
+    "total": "Titles watched",
+    "totalHint": "over {{monate}} months",
+    "watchers": "Accounts with data",
+    "watchersHint": "linked and reporting",
+    "touched": "Library touched",
+    "touchedHint": "{{gesehen}} of {{gesamt}} titles",
+    "libraryNow": "Library today",
+    "perMonth": "Watched per month",
+    "perMonthHint": "when things were watched",
+    "growth": "How the library grew",
+    "growthHint": "growth over the period shown — by the date the file carries, not the day Nexview first saw it",
+    "people": "Who watches",
+    "nobody": "No watch data yet. It appears once an account is linked to a media server.",
+    "titles_one": "1 title",
+    "titles_other": "{{count}} titles",
+    "lastSeen": "last {{datum}}",
+    "mostWatched": "Watched by the most people",
+    "byPeople_one": "1 person",
+    "byPeople_other": "{{count}} people",
+    "markerHint": "This counts titles somebody has watched — not how often. Nexview keeps one marker per person; a real play counter only the media server itself has.",
+    "peak": "How many at once",
+    "peakHint": "the busiest quarter hour of each day — that is what the hardware has to cope with",
+    "peakEver_one": "Highest: 1",
+    "peakEver_other": "Highest: {{count}}"
+  },
+  "laufend": {
+    "title": "Playing now",
+    "nothing": "Nobody is watching right now.",
+    "transcodingNow_one": "1 video transcode",
+    "transcodingNow_other": "{{count}} video transcodes",
+    "paused": "paused",
+    "bandwidth": "{{kbit}} kbit/s",
+    "hardware": "Acceleration: {{art}}",
+    "mode": {
+      "direkt": "direct play",
+      "ton": "audio transcode",
+      "bild": "video transcode"
+    }
   }
 }

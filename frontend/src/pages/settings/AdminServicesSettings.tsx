@@ -541,14 +541,38 @@ function DefaultRootField({
   );
 }
 
-export function AdminServicesSettings() {
+/**
+ * Welcher Unterreiter hinter welchem Adress-Wort steckt.
+ *
+ * Bewusst nicht dieselben Woerter wie die internen Werte: `medienserver` ist
+ * anbieter-neutral, waehrend der interne Wert aus historischen Gruenden noch
+ * `plex` heisst. Wer einen Link setzt, soll nicht den Anbieter nennen muessen,
+ * den diese Installation zufaellig benutzt.
+ */
+const UNTER_AUS_ADRESSE: Record<string, UnterTab> = {
+  allgemein: "general",
+  tmdb: "tmdb",
+  radarr: "radarr",
+  sonarr: "sonarr",
+  medienserver: "plex",
+  qualitaet: "qualitaet",
+};
+
+export function AdminServicesSettings({
+  /** Startwert aus der Adresse (`?unter=sonarr`). Danach verwaltet die Seite ihn selbst. */
+  startUnter,
+}: {
+  startUnter?: string;
+} = {}) {
   const { t } = useTranslation();
   const regionen = useRegionen();
   const queryClient = useQueryClient();
 
   const { data: config } = useConfig();
 
-  const [unterTab, setUnterTab] = useState<UnterTab>("general");
+  const [unterTab, setUnterTab] = useState<UnterTab>(
+    UNTER_AUS_ADRESSE[startUnter ?? ""] ?? "general",
+  );
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
     null,

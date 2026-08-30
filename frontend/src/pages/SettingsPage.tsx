@@ -13,6 +13,8 @@ import { AdminStorageSettings } from './settings/AdminStorageSettings'
 import { AdminBlocklistSettings } from './settings/AdminBlocklistSettings'
 import { AdminUsersSettings } from './settings/AdminUsersSettings'
 import { AdminWatchlistSettings } from './settings/AdminWatchlistSettings'
+import { useSearchParams } from 'react-router-dom'
+
 import { Reiterreihe, type Reiter } from '../components/Reiterreihe'
 import { useConfig } from '../hooks/useConfig'
 
@@ -59,6 +61,34 @@ const SYSTEM: Reiter<Tab>[] = [
 
 const IM_SYSTEM = new Set<Tab>(SYSTEM.map((e) => e.value))
 
+/**
+ * Welcher Reiter hinter welchem Adress-Wort steckt.
+ *
+ * ⚠️ **Deutsche Woerter in der Adresse, englische Werte im Code.** Die Adresse
+ * ist etwas, das man liest und weitergibt — `?reiter=dienste` sagt einem
+ * Menschen, wo er landet, `?reiter=services` sagt es nur dem Programm. Dasselbe
+ * Muster wie im Profil.
+ *
+ * ⚠️ **Diese Namen sind eine Zusage.** Sie stehen in Befund-Zielen, in
+ * Benachrichtigungen und in Lesezeichen. Wer einen umbenennt, macht die alten
+ * Links stumm — dann lieber den alten Namen als zweiten Eintrag stehen lassen,
+ * wie es das Profil mit `sprache` und `sicherheit` tut.
+ */
+const REITER_AUS_ADRESSE: Record<string, Tab> = {
+  dienste: 'services',
+  adresse: 'address',
+  mail: 'mail',
+  anmeldung: 'anmeldung',
+  kanaele: 'channels',
+  benutzer: 'users',
+  merkliste: 'watchlist',
+  kontingente: 'storage',
+  sperrliste: 'blocklist',
+  protokoll: 'logs',
+  sicherungen: 'sicherungen',
+  token: 'token',
+}
+
 /** Der Punkt, auf dem „System" aufgeht - der erste seiner Reihe. */
 const SYSTEM_START: Tab = SYSTEM[0].value
 
@@ -70,9 +100,34 @@ const SYSTEM_START: Tab = SYSTEM[0].value
  */
 export function SettingsPage() {
   const { t } = useTranslation()
+  const [suchparameter, setSuchparameter] = useSearchParams()
   // ⚠️ Der erste Reiter der Reihe ist auch der Startreiter - alles andere
-  // markiert beim Öffnen einen Punkt, auf den niemand geklickt hat.
-  const [tab, setTab] = useState<Tab>(SYSTEM_START)
+  // markiert beim Öffnen einen Punkt, auf den niemand geklickt hat. Steht
+  // aber ein Reiter in der Adresse, gilt der: Dann kommt jemand aus einem
+  // Befund oder einer Meldung und weiß genau, wohin er will.
+  const [tab, setTab] = useState<Tab>(
+    REITER_AUS_ADRESSE[suchparameter.get('reiter') ?? ''] ?? SYSTEM_START,
+  )
+  // Die zweite Ebene der Dienste-Seite. Nur der Startwert kommt von hier —
+  // danach verwaltet sie ihn selbst.
+  const [startUnter] = useState(suchparameter.get('unter') ?? undefined)
+
+  /**
+   * Beim Wechseln von Hand fliegt der Parameter aus der Adresse.
+   *
+   * Ohne das springt ein Neuladen auf den Reiter aus der Adresse zurück — man
+   * hat also weitergeklickt, lädt neu und ist wieder am Anfang, ohne zu
+   * verstehen warum. Dasselbe Verhalten wie im Profil.
+   */
+  const wechseln = (wert: Tab) => {
+    setTab(wert)
+    if (suchparameter.has('reiter') || suchparameter.has('unter')) {
+      const rest = new URLSearchParams(suchparameter)
+      rest.delete('reiter')
+      rest.delete('unter')
+      setSuchparameter(rest, { replace: true })
+    }
+  }
   // Merklisten gibt es nur mit verbundenem Media-Server - ohne ihn wäre der
   // Reiter eine Einstellung ohne Gegenstand.
   const { data: config } = useConfig()
@@ -109,7 +164,7 @@ export function SettingsPage() {
         // „System" gilt als gewählt, solange irgendetwas darunter offen ist -
         // sonst sähe die obere Reihe leer aus, während unten etwas steht.
         aktiv={systemOffen ? SYSTEM_START : tab}
-        onWechsel={setTab}
+        onWechsel={wechseln}
       />
 
       {/* Die zweite Reihe erscheint nur, wenn sie gebraucht wird. Eine dauerhaft
@@ -121,11 +176,11 @@ export function SettingsPage() {
           label={t('settings.tabSystem')}
           eintraege={SYSTEM.map((e) => ({ ...e, label: t(e.label) }))}
           aktiv={tab}
-          onWechsel={setTab}
+          onWechsel={wechseln}
         />
       )}
 
-      {tab === 'services' && <AdminServicesSettings />}
+      {tab === 'services' && <AdminServicesSettings startUnter={startUnter} />}
       {tab === 'address' && <AdminAddressSettings />}
       {tab === 'mail' && <AdminMailSettings />}
       {tab === 'anmeldung' && <AdminOidcSettings />}

@@ -104,6 +104,87 @@ TEXTE: dict[str, tuple[str, str]] = {
             'instead of waking anything.'
         ),
     ),
+    # --- Betrieb: Dashboard und Befunde ------------------------------------
+    'GET /api/admin/dashboard': (
+        'The operator dashboard in one call',
+        (
+            'Everything the operator dashboard shows: the open **findings**, how '
+            'many there are of each severity, and the four numbers that are waiting '
+            'for somebody.\n\n'
+            'Findings and numbers are deliberately two different things. A number '
+            'like "three requests awaiting approval" is everyday business, not a '
+            'fault; as a finding it would be a permanent alarm and would devalue the '
+            'real findings next to it. A finding is an exception and disappears once '
+            'it is dealt with.\n\n'
+            '**Findings carry no ready-made sentence.** Each one names an identifier '
+            '(`kennung`) plus the values that belong in the text, so the caller can '
+            'phrase it in the language of whoever is reading. `wortlaut` is the one '
+            'exception: it holds what Radarr or Sonarr said, word for word and in '
+            'English, because it is their statement and not ours.\n\n'
+            '**Administrators only.** Instance health, disk state and backups are an '
+            "operator's business, not an approver's."
+        ),
+    ),
+    'GET /api/admin/analyse/laufend': (
+        'What is playing right now',
+        (
+            'Live sessions across every connected media server: who, what, on '
+            'which device, how far in, and how hard the server is working for '
+            'it.\n\n'
+            'Transcoding has **three** states, not two, and the difference '
+            'matters. Measured against real servers, both Plex and Emby '
+            'reported a transcode while passing the video through untouched '
+            'and only re-encoding the audio - that costs almost nothing. Only '
+            '`bild` means the video itself is being re-encoded, and that is '
+            'the one that eats CPU.\n\n'
+            'This is the only call on the analysis page that contacts the '
+            'providers live; everything else is read from what the background '
+            'round already collected. Each provider gets its own short '
+            'timeout, so one stalled server cannot hold up the rest.\n\n'
+            '**Administrators only.**'
+        ),
+    ),
+    'GET /api/admin/analyse/wiedergabe': (
+        'Who watched what, and how the library grew',
+        (
+            'Playback figures from the connected media servers, and how the '
+            'collection has grown over the last eighteen months.\n\n'
+            '**This names people.** Until 0.24 even an administrator saw only '
+            'their own watch markers; the operator lifted that deliberately, '
+            'because a tool meant to help run a household has to be able to say '
+            'who pulls and who does not.\n\n'
+            'Everything comes from data Nexview already holds - no media server '
+            'is contacted for this call. Library growth uses the date the '
+            '**file** carries, not the day Nexview first saw it; otherwise every '
+            'grown installation would appear to have sprung into existence on '
+            'setup day.\n\n'
+            '**Administrators only.**'
+        ),
+    ),
+    'GET /api/admin/analyse': (
+        'Everything the analysis page shows',
+        (
+            'The numbers behind the *Statistics & analysis* page: every Radarr and '
+            'Sonarr instance with its state, the disks, what the library holds, how '
+            'the sources compare, and how Nexview itself is doing.\n\n'
+            'One call rather than five, so switching between the tabs never reloads. '
+            'Nothing is measured here - everything comes from what the background '
+            'round has already collected, which is why the answer is immediate even '
+            'on a large library.\n\n'
+            '**Administrators only.**'
+        ),
+    ),
+    'GET /api/admin/befunde': (
+        'Findings, optionally for one area',
+        (
+            'The same findings the dashboard shows, without the numbers around them. '
+            'Pass `bereich` to narrow it down to one area: `dienste`, `platz`, '
+            '`nachschub`, `bibliothek` or `betrieb`.\n\n'
+            'An unknown area returns an empty list rather than an error - the names '
+            'travel with the interface, and a typo in an address should not produce a '
+            'broken page.'
+        ),
+    ),
     # --- Speicher und Statistik --------------------------------------------
     'GET /api/admin/stats': (
         'Numbers for the dashboard',

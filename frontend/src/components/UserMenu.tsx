@@ -6,7 +6,7 @@ import { useFavorites, usePersonFavorites } from './media/FavoriteButton'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../api/client'
-import type { QuotaOverview, Role } from '../api/types'
+import type { DashboardStand, QuotaOverview, Role } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { useStorageStand } from '../hooks/useStorageStand'
 import { formatSize } from '../lib/format'
@@ -63,6 +63,19 @@ export function UserMenu() {
     queryFn: () => api.get<{ count: number }>('/api/tickets/open-count'),
     refetchInterval: 60_000,
   })
+
+  // Wie die Tickets *nicht* erst beim Aufklappen: Der Sinn des Dashboards ist,
+  // dass man von einem Fehler erfährt, ohne danach gesucht zu haben. Gezählt
+  // werden nur Fehler, nicht Warnungen und Hinweise - sonst stünde bei einer
+  // gewachsenen Anlage dauerhaft eine zweistellige Zahl am Menü, und die eine
+  // Ziffer, auf die es ankommt, ginge darin unter.
+  const befundeQuery = useQuery({
+    queryKey: ['admin-dashboard'],
+    queryFn: () => api.get<DashboardStand>('/api/admin/dashboard'),
+    enabled: isAdmin,
+    refetchInterval: 60_000,
+  })
+  const fehler = befundeQuery.data?.zaehler.fehler ?? 0
 
   // Erst laden, wenn das Menü aufgeklappt wird - vorher sieht es ja niemand.
   //
@@ -124,7 +137,13 @@ export function UserMenu() {
         approverOnly: true,
         badge: pendingQuery.data?.pending,
       },
-      { to: '/admin/stats', labelKey: 'nav.stats', approverOnly: true },
+      {
+        to: '/admin/dashboard',
+        labelKey: 'nav.dashboard',
+        adminOnly: true,
+        badge: fehler || undefined,
+      },
+      { to: '/admin/stats', labelKey: 'nav.stats', adminOnly: true },
       { to: '/admin/settings', labelKey: 'nav.settings', adminOnly: true },
     ] as MenuEntry[]
   ).filter((entry) => {
@@ -134,7 +153,10 @@ export function UserMenu() {
     return true
   })
 
-  const offene = canApprove ? (pendingQuery.data?.pending ?? 0) : 0
+  // Der rote Punkt am zugeklappten Menü: wartende Freigaben **oder** ein
+  // Fehlerbefund. Ohne das zweite müsste ein Administrator das Menü aufklappen,
+  // um zu erfahren, dass etwas kaputt ist - und genau das tut er nicht.
+  const offene = (canApprove ? (pendingQuery.data?.pending ?? 0) : 0) + fehler
 
   return (
     <div ref={containerRef} className="relative">

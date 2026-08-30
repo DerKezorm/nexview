@@ -1475,6 +1475,9 @@ export type Stats = {
     average_rating: number | null;
     poor_ratings: number;
     unanswered_feedback: number;
+  /** Median, nicht Durchschnitt — ein Ausreißer soll die Zahl nicht bewegen. */
+  freigabe_median_stunden: number | null;
+  freigabe_laengste_offen_stunden: number | null;
     rating_distribution: Record<number, number>;
     last_request_at: string | null;
   };
@@ -1935,4 +1938,237 @@ export interface UmhaengErgebnis {
   umgehaengt: number;
   /** Leer heißt: hat geklappt. */
   grund: string;
+}
+
+
+// --------------------------------------------------------------------------
+// Admin-Dashboard: Befunde und Handlungszahlen
+// --------------------------------------------------------------------------
+
+/** Wie dringend ein Befund ist — die Reihenfolge bestimmt der Server. */
+export type BefundSchwere = 'fehler' | 'warnung' | 'hinweis';
+
+/** Wohin ein Befund auf der Analyse-Seite gehört. */
+export type BefundBereich =
+  | 'dienste'
+  | 'platz'
+  | 'nachschub'
+  | 'bibliothek'
+  /** Wo Radarr/Sonarr, Medienserver und Nexview sich widersprechen. */
+  | 'abgleich'
+  | 'betrieb';
+
+/**
+ * Ein einzelner Befund.
+ *
+ * ⚠️ **Kein fertiger Satz.** Der Server liefert `kennung` und `werte`; den Text
+ * baut die Oberfläche aus `befund.<kennung>.titel` und `befund.<kennung>.folge`.
+ * Ein serverseitig zusammengesetzter Satz wäre in der Sprache des Servers und
+ * nicht in der des Lesers.
+ */
+export interface Befund {
+  /** Eindeutig auch dann, wenn dieselbe Prüfung mehrfach anschlägt — React-Key. */
+  schluessel: string;
+  kennung: string;
+  schwere: BefundSchwere;
+  bereich: BefundBereich;
+  /** Zahlen und Namen für die Textbausteine. */
+  werte: Record<string, string | number>;
+  ziel: string | null;
+  /** Wortlaut von Radarr/Sonarr — bleibt englisch, es ist ihre Aussage. */
+  wortlaut: string | null;
+}
+
+/** Was auf jemanden wartet — auch wenn nichts kaputt ist. */
+export interface HandlungsZahlen {
+  freigaben_offen: number;
+  laeuft: number;
+  tickets_offen: number;
+  rueckmeldungen_offen: number;
+}
+
+export interface VerlaufsPunkt {
+  tag: string;
+  belegt_bytes: number;
+  frei_bytes: number;
+}
+
+/**
+ * Wie voll der Datenträger ist.
+ *
+ * ⚠️ `gesamt - frei` ist **nicht** die Mediathek: Auf demselben Träger liegen
+ * Sicherungen, Fotos, das Betriebssystem. `medien_bytes` ist der Teil, den
+ * Nexview kennt — der Rest ist alles andere.
+ */
+export interface Datentraeger {
+  gesamt_bytes: number;
+  frei_bytes: number;
+  medien_bytes: number;
+}
+
+export interface DashboardStand {
+  befunde: Befund[];
+  /** Anzahl je Schwere, immer alle drei Schlüssel. */
+  zaehler: Record<BefundSchwere, number>;
+  zahlen: HandlungsZahlen;
+  /** Speicher-Verlauf, ältester Punkt zuerst. Leer heißt: noch zu wenig gemessen. */
+  verlauf: VerlaufsPunkt[];
+  /** `null` heißt: noch nichts gemessen. */
+  traeger: Datentraeger | null;
+}
+
+
+// --------------------------------------------------------------------------
+// Statistik & Analyse: alles, was nicht die Anfragen betrifft
+// --------------------------------------------------------------------------
+
+export interface GesundheitsMeldung {
+  typ: string;
+  /** Wortlaut der Instanz — bleibt englisch, es ist ihre Aussage. */
+  text: string;
+}
+
+export interface InstanzZeile {
+  kennung: string;
+  name: string;
+  media_type: string;
+  tier: string;
+  erreichbar: boolean;
+  /** Seit wann in diesem Zustand — **nicht** wann zuletzt nachgesehen wurde. */
+  erreichbar_seit: string | null;
+  gemessen_am: string | null;
+  version: string;
+  neuere_version: string | null;
+  warteschlange: number | null;
+  warteschlange_haengt: number | null;
+  /** Überwacht, aber nicht da. Einheit ist „titel“ oder „folgen“ — nie addieren. */
+  luecken: number | null;
+  luecken_einheit: string | null;
+  meldungen: GesundheitsMeldung[];
+  rueckkanal_aktiv: boolean;
+  rueckkanal_fehler: string;
+}
+
+export interface TraegerZeile {
+  gesamt_bytes: number;
+  frei_bytes: number;
+  belegt_anteil: number;
+  ordner: string[];
+}
+
+export interface BibliothekZahlen {
+  posten: number;
+  medien_bytes: number;
+  hausbestand_bytes: number;
+  zugerechnet_bytes: number;
+  geisterposten: number;
+  geisterposten_bytes: number;
+}
+
+export interface AbgleichZahlen {
+  moeglich: boolean;
+  arr_ohne_server: number;
+  server_ohne_arr: number;
+  nicht_erkannt: number;
+  doppelt: number;
+  jahr_widerspruch: number;
+  anbieter_luecke: number;
+  je_anbieter: Record<string, number>;
+  beispiele: Record<string, string[]>;
+}
+
+export interface BetriebZahlen {
+  sicherungen: number;
+  sicherung_letzte: string | null;
+  sicherung_takt: string;
+  mail_offen: number;
+  mail_aufgegeben: number;
+  protokoll_fehler_24h: number;
+  protokoll_stufe: string;
+  version: string;
+  neueste_version: string | null;
+}
+
+export interface AnalyseStand {
+  instanzen: InstanzZeile[];
+  traeger: TraegerZeile[];
+  verlauf_tage: number;
+  bibliothek: BibliothekZahlen;
+  abgleich: AbgleichZahlen;
+  betrieb: BetriebZahlen;
+}
+
+
+export interface MonatsPunkt {
+  monat: string;
+  anzahl: number;
+}
+
+export interface BestandsPunkt {
+  monat: string;
+  /** Aufsummiert bis zu diesem Monat — der Bestand, nicht der Zuwachs. */
+  posten: number;
+  bytes: number;
+}
+
+export interface SeherZeile {
+  user_id: number | null;
+  name: string;
+  avatar_url: string | null;
+  anzahl: number;
+  zuletzt: string | null;
+}
+
+export interface GesehenerTitel {
+  tmdb_id: number;
+  media_type: string;
+  titel: string;
+  /** ⚠️ Personen, keine Abspielvorgänge — Nexview kennt nur „gesehen / nicht". */
+  anzahl: number;
+}
+
+export interface SpitzenTag {
+  tag: string;
+  gleichzeitig: number;
+  bild_umrechnungen: number;
+}
+
+export interface WiedergabeStand {
+  monate: MonatsPunkt[];
+  personen: SeherZeile[];
+  /** Leer, solange kein Titel von mehr als einer Person gesehen wurde. */
+  beliebteste: GesehenerTitel[];
+  bestand: BestandsPunkt[];
+  angesehen: number;
+  bestand_gesamt: number;
+  konten_mit_daten: number;
+  /** Leer heißt: noch nicht lange genug gemessen. */
+  spitzen: SpitzenTag[];
+  spitze_gesamt: number;
+}
+
+
+export interface LaufendeZeile {
+  provider: string;
+  konto: string;
+  /** `null` heißt „kein Nexview-Konto dazu" — nicht „unbekannte Person". */
+  user_id: number | null;
+  avatar_url: string | null;
+  titel: string;
+  serie: string;
+  media_type: string;
+  fortschritt: number | null;
+  geraet: string;
+  anwendung: string;
+  pausiert: boolean;
+  /** „direkt" | „ton" | „bild" — nur „bild" kostet nennenswert CPU. */
+  umrechnung: string;
+  grund: string;
+  beschleunigung: string;
+  bandbreite: number | null;
+}
+
+export interface LaufendStand {
+  wiedergaben: LaufendeZeile[];
+  bild_umrechnungen: number;
 }

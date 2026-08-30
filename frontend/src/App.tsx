@@ -34,6 +34,7 @@ import { ProfilePage } from './pages/ProfilePage'
 import { SearchPage } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { SetupPage } from './pages/SetupPage'
+import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { StatsPage } from './pages/StatsPage'
 import { KidsHomePage } from './pages/kids/KidsHomePage'
 import { KidsSearchPage } from './pages/kids/KidsSearchPage'
@@ -181,7 +182,14 @@ export default function App() {
         <Route path="liste/:mediaType/:art/:id" element={<BrowsePage />} />
         <Route path="requests" element={<MyRequestsPage />} />
         <Route path="admin/requests" element={approverOnly(<AdminRequestsPage />)} />
-        <Route path="admin/stats" element={approverOnly(<StatsPage />)} />
+        {/* Das Betreiber-Dashboard: was ist kaputt, was wartet. Bewusst eine
+            eigene Adresse und kein Aufsatz auf der Startseite - die bleibt
+            unveraendert erreichbar, und der Platz laesst sich spaeter ohne
+            Umbau aendern. */}
+        <Route path="admin/dashboard" element={adminOnly(<AdminDashboardPage />)} />
+        {/* Seit 0.25 admin-only: Auf der Seite stehen jetzt Betriebsdaten -
+            Instanz-Zustand, Plattenfuellstand, Sicherungen. */}
+        <Route path="admin/stats" element={adminOnly(<StatsPage />)} />
         {/* Benutzerverwaltung ist jetzt ein Reiter der Einstellungen. */}
         <Route path="admin/users" element={<Navigate to="/admin/settings" replace />} />
         <Route path="admin/settings" element={adminOnly(<SettingsPage />)} />

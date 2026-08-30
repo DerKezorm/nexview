@@ -11,7 +11,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import MediaRequest, MediaType, RequestStatus, Role, User, TitleRating
@@ -90,6 +90,19 @@ class Totals:
     rating_sum: int = 0
     poor_ratings: int = 0
     unanswered_feedback: int = 0
+    #: Wie lange eine Anfrage typischerweise auf ihre Entscheidung wartet.
+    #:
+    #: ⚠️ **Der Median, nicht der Durchschnitt.** Eine einzige Anfrage, die
+    #: jemand ein halbes Jahr liegen liess, zoege den Durchschnitt so weit
+    #: hoch, dass die Zahl nichts mehr ueber den Alltag sagt - und genau
+    #: danach wird hier gefragt. Der Median beschreibt den mittleren Fall und
+    #: laesst sich von einem Ausreisser nicht bewegen.
+    #:
+    #: ``None`` heisst: Es wurde noch nie etwas freigegeben.
+    freigabe_median_stunden: float | None = None
+    #: Wie lange die aelteste **noch offene** Anfrage schon wartet. Das ist die,
+    #: bei der sich als Naechstes jemand meldet.
+    freigabe_laengste_offen_stunden: float | None = None
     rating_distribution: dict[int, int] = field(default_factory=dict)
     last_request_at: datetime | None = None
 
@@ -234,6 +247,44 @@ def collect(db: Session) -> dict:
             eintrag.rating_sum += bewertung.rating
             if bewertung.rating <= POOR_RATING:
                 eintrag.poor_ratings += 1
+
+    # --- Wie lange auf eine Freigabe gewartet wird ------------------------
+    #
+    # ⚠️ **Nur was wirklich freigegeben wurde.** Abgelehntes und Abgebrochenes
+    # hat auch eine Entscheidung bekommen, aber die Frage hier lautet "wie
+    # lange wartet jemand auf sein Ja" - und eine Ablehnung ist kein Ja.
+    #
+    # ⚠️ **Auto-Freigaben zaehlen nicht mit.** Wer freigeben darf, dessen
+    # eigene Anfragen sind in derselben Sekunde durch; sie stehen mit null
+    # Stunden drin und druecken den Median auf null, sobald der Administrator
+    # selbst ein paar Titel bestellt. Gemessen wird ab einer Minute.
+    wartezeiten = sorted(
+        (r.approved_at - r.requested_at).total_seconds() / 3600
+        for r in db.scalars(select(MediaRequest))
+        if r.approved_at is not None
+        and r.requested_at is not None
+        and (r.approved_at - r.requested_at).total_seconds() >= 60
+    )
+    if wartezeiten:
+        mitte = len(wartezeiten) // 2
+        gesamt.freigabe_median_stunden = round(
+            wartezeiten[mitte]
+            if len(wartezeiten) % 2
+            else (wartezeiten[mitte - 1] + wartezeiten[mitte]) / 2,
+            1,
+        )
+
+    aelteste = db.scalar(
+        select(func.min(MediaRequest.requested_at)).where(
+            MediaRequest.status == RequestStatus.pending_approval
+        )
+    )
+    if aelteste is not None:
+        gesamt.freigabe_laengste_offen_stunden = round(
+            (datetime.now(timezone.utc).replace(tzinfo=None) - aelteste).total_seconds()
+            / 3600,
+            1,
+        )
 
     gesamt.rating_distribution = verteilung
     gesamt.active_users = sum(1 for eintrag in pro_benutzer.values() if eintrag.total > 0)

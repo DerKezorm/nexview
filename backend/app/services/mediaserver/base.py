@@ -20,6 +20,8 @@ und ein Eintrag in der Registrierung - und kein Umbau.
 
 from __future__ import annotations
 
+import enum
+
 import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -258,6 +260,74 @@ class WatchlistItem:
     rating_key: str | None = None
 
 
+class Umrechnung(str, enum.Enum):
+    """Wie stark der Server an einer Wiedergabe arbeitet.
+
+    ⚠️ **Drei Zustaende, nicht zwei - und das ist an echten Servern gemessen,
+    nicht gedacht.** "Rechnet der Server um" ist die Frage, die einem Betreiber
+    die CPU erklaert; die naheliegende Antwort waere "laeuft eine Umrechnung
+    ja/nein". Sie ist falsch:
+
+    * Plex meldete am 30.08.2026 bei laufendem Film eine ``TranscodeSession``
+      mit ``videoDecision: "copy"`` und ``audioDecision: "transcode"`` - das
+      Bild wird durchgereicht, nur der Ton umgerechnet.
+    * Emby meldete im selben Test ``PlayMethod: "Transcode"`` **und**
+      ``IsVideoDirect: true`` - dieselbe Lage, andere Worte.
+
+    Beide haetten als "Umrechnung" in Rot gestanden, obwohl der Server fast
+    nichts tut. Was zaehlt, ist allein das **Bild**.
+    """
+
+    direkt = "direkt"
+    #: Nur Ton oder Behaelter - billig.
+    ton = "ton"
+    #: Das Bild wird neu berechnet - das ist der teure Fall.
+    bild = "bild"
+
+
+@dataclass(frozen=True)
+class Wiedergabe:
+    """Was gerade auf einem Server laeuft.
+
+    ⚠️ **Nur wirklich laufende Wiedergaben.** Jellyfin und Emby geben unter
+    ``/Sessions`` auch bloss **verbundene Geraete** heraus - gemessen am
+    30.08.2026: vier bzw. fuenf Sitzungen, davon null mit Wiedergabe, darunter
+    Eintraege von vor zwei Tagen und **Nexview selbst**. Wer das ungefiltert
+    anzeigt, meldet "fuenf Leute schauen gerade", waehrend niemand schaut.
+    Der Adapter filtert deshalb, nicht der Aufrufer.
+
+    ``konto`` ist der Name beim Anbieter - die Zuordnung zu einem
+    Nexview-Konto macht der Dienst darueber, nicht der Adapter.
+    """
+
+    provider: str
+    konto: str
+    titel: str
+    #: "movie" | "tv" - wie ueberall sonst.
+    media_type: str
+    #: Die Nummer des Kontos **beim Anbieter**. Der sichere Weg zum
+    #: Nexview-Konto: Sie steht so auch an der Verknuepfung. Der Name taugt
+    #: dafuer nicht - gemessen am 30.08.2026 heisst dieselbe Person bei
+    #: Jellyfin "Markus" und in Nexview "admin-kezorm".
+    konto_id: str = ""
+    #: Bei einer Folge die Serie; sonst leer.
+    serie: str = ""
+    #: 0.0 bis 1.0. ``None`` heisst: der Anbieter sagt es nicht.
+    fortschritt: float | None = None
+    geraet: str = ""
+    anwendung: str = ""
+    pausiert: bool = False
+    umrechnung: Umrechnung = Umrechnung.direkt
+    #: Warum umgerechnet wird - im Wortlaut des Anbieters, unuebersetzt.
+    grund: str = ""
+    #: Laeuft eine Grafikkarte mit? Leer heisst: der Anbieter sagt nichts dazu.
+    beschleunigung: str = ""
+    #: Kilobit je Sekunde, soweit gemeldet.
+    bandbreite: int | None = None
+    #: Die Kennung des Titels beim Anbieter - Bruecke in den Bestand.
+    tmdb_id: int | None = None
+
+
 class MediaServer(ABC):
     """Was Nexview von einem Media-Server erwartet."""
 
@@ -434,6 +504,17 @@ class MediaServer(ABC):
     async def library_index(self) -> list[LibraryItem]:
         """Meilenstein 2 - erkennt Titel, die nicht ueber Radarr/Sonarr kamen."""
         raise NotImplementedError
+
+    async def laufende_wiedergaben(self) -> list[Wiedergabe]:
+        """Was gerade laeuft.
+
+        ⚠️ **Gibt eine leere Liste zurueck statt ``NotImplementedError``.**
+        Anders als bei den uebrigen Faehigkeiten ist "kann ich nicht" hier
+        keine Stoerung: Die Anzeige heisst "gerade laeuft nichts", und dieselbe
+        Antwort ist bei einem Anbieter ohne Sitzungsliste richtig. Wer es
+        anders macht, zwingt jeden Aufrufer zu einem ``try``.
+        """
+        return []
 
     async def watched_since(self, since: datetime | None = None) -> list[WatchedRecord]:
         """Meilenstein 3 - wer hat was gesehen (Wiedergabe-Verlauf des Servers).

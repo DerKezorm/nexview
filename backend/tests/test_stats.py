@@ -212,12 +212,20 @@ def test_verlauf_hat_sechs_monate(admin_client: TestClient) -> None:
     assert verlauf == sorted(verlauf, key=lambda punkt: punkt["month"])
 
 
-def test_entscheider_sieht_die_statistik(arr_client: TestClient) -> None:
+def test_entscheider_sieht_die_statistik_nicht_mehr(arr_client: TestClient) -> None:
+    """Seit 0.25 admin-only - ein bewusster Rueckschritt.
+
+    Auf der Seite stehen jetzt Instanz-Zustand, Plattenfuellstand, Sicherungen
+    und der Abgleich der Quellen. Das sind Betriebsdaten; wer ueber Anfragen
+    entscheidet, braucht davon nichts. Nebenbei loest es einen Fehler: Der
+    Reiter "Aufraeumen" wurde jedem Entscheider gezeigt, sein Endpunkt war
+    aber schon immer admin-only und antwortete 403.
+    """
     created = create_user(arr_client, "eva")
     arr_client.patch(f"/api/users/{created['id']}", json={"role": "approver"})
     eva = auth_headers(arr_client, "eva", "passwort-1234")
 
-    assert arr_client.get("/api/admin/stats", headers=eva).status_code == 200
+    assert arr_client.get("/api/admin/stats", headers=eva).status_code == 403
 
 
 def test_benutzer_sieht_die_statistik_nicht(arr_client: TestClient) -> None:

@@ -379,6 +379,61 @@ class ArrClient:
         antwort = await self.get("/health")
         return antwort if isinstance(antwort, list) else []
 
+    #: Zustaende, bei denen ein Download ohne Handarbeit nicht weitergeht.
+    #:
+    #: ⚠️ **Diese Werte sind NICHT gemessen.** Beim Bauen (30.08.2026) waren
+    #: alle Warteschlangen der Messanlage leer, es liess sich also nichts
+    #: beobachten; sie stammen aus der API-Beschreibung. Deshalb wird
+    #: nachsichtig gelesen: Was hier nicht steht, gilt als "laeuft" - lieber
+    #: einen haengenden Download uebersehen als jeden laufenden melden.
+    EINGRIFF_NOETIG = frozenset(
+        {"importpending", "importblocked", "importfailed", "failedpending"}
+    )
+
+    async def warteschlangen_zustand(self) -> dict[str, int]:
+        """Wieviel liegt in der Warteschlange, und wieviel davon haengt fest?
+
+        Steht hier und nicht im Messdienst, weil es Wissen ueber die **Form**
+        der Antwort ist - und das lebt im Client, neben ``gesundheit()`` und
+        ``aktualisierung()``.
+        """
+        roh = await self._warteschlange_roh({})
+        eingriff = 0
+        for satz in roh:
+            zustand = str(satz.get("trackedDownloadState") or "").lower()
+            meldung = str(satz.get("trackedDownloadStatus") or "").lower()
+            if zustand in self.EINGRIFF_NOETIG or meldung in ("warning", "error"):
+                eingriff += 1
+        return {"gesamt": len(roh), "eingriff": eingriff}
+
+    async def aktualisierung(self) -> dict[str, Any] | None:
+        """Steht fuer diese Instanz eine neuere Fassung bereit?
+
+        Form live gemessen (30.08.2026, Radarr 6.3.0 und Sonarr 4.0.19):
+        ``/update`` liefert eine **Liste** der letzten Fassungen, neueste
+        zuerst, je Eintrag ``version``, ``installed``, ``installable`` und
+        ``latest``. Bei einer aktuellen Installation traegt der erste Eintrag
+        ``installed: true`` **und** ``latest: true``.
+
+        Gemeldet wird nur, wenn die neueste Fassung nachweislich **nicht**
+        installiert ist. Ein fehlendes oder unerwartetes Feld heisst hier
+        "unbekannt" und damit "nichts melden" - eine falsche Update-Meldung
+        schickt jemanden los, der nichts zu tun hat.
+        """
+        antwort = await self.get("/update")
+        if not isinstance(antwort, list):
+            return None
+        for eintrag in antwort:
+            if not isinstance(eintrag, dict):
+                continue
+            if eintrag.get("latest") is not True:
+                continue
+            if eintrag.get("installed") is True:
+                return None
+            version = str(eintrag.get("version") or "")
+            return {"version": version} if version else None
+        return None
+
     async def notifications(self) -> list[dict[str, Any]]:
         """Alle Benachrichtigungs-Eintraege der Instanz - auch fremde.
 

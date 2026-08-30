@@ -241,3 +241,47 @@ export function Section({
     </Card>
   )
 }
+
+/**
+ * Eine große Zahl mit Beschriftung.
+ *
+ * ⚠️ **Warum das hier steht und nicht mehr in der Statistik-Seite.** Sie war
+ * dort lokal definiert (`KeyFigure`) und damit für niemanden sonst zu haben.
+ * Das Admin-Dashboard braucht genau dieselbe Kachel — und eine zweite,
+ * nachgebaute Fassung wäre nach dem ersten Feinschliff eine andere: minimal
+ * andere Polsterung, minimal andere Schrift, und beim Wechsel zwischen den
+ * Seiten wirkt es unruhig, ohne dass man den Grund benennen könnte.
+ *
+ * `ton` färbt nur ein, es ist keine Schwere-Angabe: Eine Zahl ist kein Befund.
+ */
+export function Kennzahl({
+  label,
+  wert,
+  hinweis,
+  ton = 'normal',
+}: {
+  label: string
+  wert: string
+  hinweis?: string
+  ton?: 'normal' | 'warn'
+}) {
+  return (
+    <div
+      className={
+        'rounded-2xl border px-4 py-3 ' +
+        (ton === 'warn' ? 'border-bad-500/50 bg-bad-500/10' : 'border-ink-700 bg-ink-850/60')
+      }
+    >
+      <p className="text-xs font-medium tracking-wide text-mist-600 uppercase">{label}</p>
+      <p
+        className={
+          'mt-1 text-3xl font-bold tabular-nums ' +
+          (ton === 'warn' ? 'text-bad-500' : 'text-mist-100')
+        }
+      >
+        {wert}
+      </p>
+      {hinweis && <p className="mt-0.5 text-xs text-mist-600">{hinweis}</p>}
+    </div>
+  )
+}

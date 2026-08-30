@@ -323,12 +323,23 @@ export function AdminRequestsPage() {
   // Antworten auf Rückmeldungen ist dem Administrator vorbehalten.
   const istAdmin = user?.role === "admin";
 
-  // Aus der Adresse vorbelegen, damit ein Klick in der Glocke direkt in der
-  // richtigen Ansicht landet.
+  // Aus der Adresse vorbelegen, damit ein Klick in der Glocke oder in einem
+  // Befund direkt in der richtigen Ansicht landet.
+  //
+  // ⚠️ **Jede Ansicht, nicht nur "feedback".** Anfangs stand hier ein
+  // Vergleich auf genau ein Wort - der eine Fall, fuer den es gebaut wurde.
+  // Damit landete "sieben Anfragen sind fehlgeschlagen" trotzdem auf den
+  // wartenden Freigaben, und man suchte sich durch zehn Ansichten. Geprueft
+  // wird jetzt gegen ``FILTERS``: Was es wirklich gibt, gilt; alles andere
+  // faellt still auf den Startwert zurueck, damit ein Tippfehler in einer
+  // Adresse keine kaputte Seite ergibt.
   const [suche, setSuche] = useSearchParams();
-  const [filter, setFilterState] = useState<Filter>(() =>
-    suche.get("filter") === "feedback" ? "feedback" : "pending_approval",
-  );
+  const [filter, setFilterState] = useState<Filter>(() => {
+    const gewuenscht = suche.get("filter") as Filter | null;
+    return gewuenscht && FILTERS.includes(gewuenscht)
+      ? gewuenscht
+      : "pending_approval";
+  });
 
   function setFilter(wert: Filter) {
     setFilterState(wert);

@@ -40,11 +40,13 @@ from .middleware import (
 from .routers import (
     about as about_router,
     admin_requests,
+    analyse as analyse_router,
     auth,
     blocklist as blocklist_router,
     calendar as calendar_router,
     channels as channels_router,
     children as children_router,
+    dashboard as dashboard_router,
     kids as kids_router,
     details as details_router,
     discover,
@@ -246,6 +248,9 @@ app.include_router(requests_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(feedback_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(admin_requests.router)
 app.include_router(stats_router.router)
+# Durchgehend admin-only, deshalb ohne NUR_ERWACHSENE - wie qualitaetsprofile.
+app.include_router(dashboard_router.router)
+app.include_router(analyse_router.router)
 app.include_router(home_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(onboarding.router)
 app.include_router(notifications.router, dependencies=NUR_ERWACHSENE)

@@ -54,9 +54,20 @@ davon ist zugesagt. Wer von aussen anbindet, liest diese dreizehn.
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from datetime import timedelta
 
+from fastapi import APIRouter
+from pydantic import BaseModel
+from sqlalchemy import func, select
+
+from .. import __version__
+from ..deps import AdminUser, DbSession
+from ..models import MediaRequest, RequestStatus, StorageEntry, TicketStatus, utcnow
 from ..schemas_media import MediaItem, MediaPage
+from ..services import befunde as befunde_service
+from ..services import instanz_gesundheit, instanz_stand
+from ..services import tickets as tickets_service
+from ..services.settings_service import load_settings
 from ..schemas_requests import QuotaOverview, RequestPublic
 from . import about as about_router
 from . import admin_requests, discover, home, notifications, requests, storage, tickets
@@ -208,6 +219,175 @@ router.add_api_route(
 )
 
 
+# --- Die Kachel -------------------------------------------------------------
+#
+# ⚠️ **Warum das hier eine eigene Umsetzung ist und keine zweite Registrierung
+# von ``/api/admin/dashboard``.**
+#
+# Der Rest dieser Datei registriert dieselben Handler ein zweites Mal, damit
+# Zusage und Innenteil gar nicht auseinanderlaufen koennen. Hier waere das
+# genau falsch: Das Admin-Dashboard ist eine **Oberflaechen**-Antwort. Es
+# traegt Befund-Kennungen samt Werten, weil die Oberflaeche daraus Saetze baut,
+# und es wird sich aendern, sooft eine Pruefung dazukommt. Wuerde es unter
+# ``v1`` haengen, waere jede neue Pruefung ein Bruch der Zusage - und die Zusage
+# damit die Bremse fuer genau die Arbeit, um die es geht.
+#
+# Deshalb steht hier eine eigene, absichtlich **schmale und traege** Form: ein
+# paar Zahlen, die nicht schrumpfen koennen. Was sich bewegt, bleibt draussen.
+
+
+class KachelBefunde(BaseModel):
+    """Wie viele Befunde es gibt - je Schwere."""
+
+    fehler: int
+    warnung: int
+    hinweis: int
+    #: Die Kennungen der dringendsten, hoechstens drei.
+    #:
+    #: ⚠️ **Kennungen, kein Freitext.** Ein fertiger Satz waere in der Sprache
+    #: des Servers, und er wuerde sich aendern, sobald jemand eine Formulierung
+    #: verbessert - unter einer Zusage also nie wieder. Eine Kennung wie
+    #: ``dienst.nicht_erreichbar`` ist stabil und laesst sich drueben
+    #: uebersetzen oder schlicht anzeigen.
+    dringendste: list[str]
+
+
+class KachelAnfragen(BaseModel):
+    wartend: int
+    laufend: int
+    fehlgeschlagen_7d: int
+
+
+class KachelBibliothek(BaseModel):
+    filme: int
+    serien: int
+    belegt_bytes: int
+    frei_bytes: int
+
+
+class KachelInstanz(BaseModel):
+    name: str
+    erreichbar: bool
+    probleme: int
+
+
+class Kachel(BaseModel):
+    version: str
+    befunde: KachelBefunde
+    anfragen: KachelAnfragen
+    bibliothek: KachelBibliothek
+    instanzen: list[KachelInstanz]
+    tickets_offen: int
+
+
+@router.get(
+    "/dashboard",
+    response_model=Kachel,
+    summary="One tile for your home dashboard",
+    description=(
+        "Everything a dashboard tile needs, in a single call: how many findings "
+        "are open, what is waiting, how full the library is and whether the "
+        "instances are answering.\n\n"
+        "**Findings come as identifiers, not sentences.** `dringendste` holds up "
+        "to three stable keys such as `dienst.nicht_erreichbar`. A ready-made "
+        "sentence would be in the server's language, and it would change "
+        "whenever somebody improves a wording - which under a promise it never "
+        "could.\n\n"
+        "⚠️ **This needs a token belonging to an administrator.** Instance state "
+        "and disk figures are an operator's business, and a token inherits the "
+        "rights of its owner. Mark it *read only* and it is limited to GET - but "
+        "an administrator's read-only token can still read the user list, the "
+        "log and the settings. Worth knowing before you pin it to a screen "
+        "somebody else can see."
+    ),
+)
+def kachel(admin: AdminUser, db: DbSession) -> Kachel:
+    """Die Kachel - eine Antwort, wenige Zahlen.
+
+    ⚠️ **Alles kommt aus Gemerktem, nichts wird hier gemessen.** Eine Kachel
+    fragt im Minutentakt; jede Messung an dieser Stelle waere eine Radarr-
+    Anfrage pro Bildschirm und Minute.
+    """
+    from ..models import MediaType
+
+    settings = load_settings(db)
+    gefunden = befunde_service.sammeln(db, settings)
+    gezaehlt = befunde_service.zaehlen(gefunden)
+
+    grenze = utcnow() - timedelta(days=7)
+
+    def zahl(bedingung) -> int:
+        return db.scalar(select(func.count(MediaRequest.id)).where(bedingung)) or 0
+
+    def probleme(kennung: str) -> int:
+        zeile = instanz_gesundheit.eintrag(db, kennung)
+        return len((zeile.stand if zeile else None) or [])
+
+    staende = instanz_stand.alle(db)
+
+    traeger = None
+    for stand in staende.values():
+        gefundene = (stand.messwerte or {}).get("traeger")
+        if isinstance(gefundene, list) and gefundene:
+            traeger = gefundene
+            break
+
+    return Kachel(
+        version=__version__,
+        befunde=KachelBefunde(
+            fehler=gezaehlt["fehler"],
+            warnung=gezaehlt["warnung"],
+            hinweis=gezaehlt["hinweis"],
+            dringendste=[b.kennung for b in gefunden[:3]],
+        ),
+        anfragen=KachelAnfragen(
+            wartend=zahl(MediaRequest.status == RequestStatus.pending_approval),
+            laufend=zahl(
+                MediaRequest.status.in_(
+                    (RequestStatus.approved, RequestStatus.searching)
+                )
+            ),
+            fehlgeschlagen_7d=zahl(
+                (MediaRequest.status == RequestStatus.failed)
+                & (MediaRequest.requested_at >= grenze)
+            ),
+        ),
+        bibliothek=KachelBibliothek(
+            filme=db.scalar(
+                select(func.count(StorageEntry.id)).where(
+                    StorageEntry.media_type == MediaType.movie
+                )
+            )
+            or 0,
+            serien=db.scalar(
+                select(func.count(func.distinct(StorageEntry.tvdb_id))).where(
+                    StorageEntry.media_type == MediaType.tv
+                )
+            )
+            or 0,
+            belegt_bytes=int(db.scalar(select(func.sum(StorageEntry.size_bytes))) or 0),
+            frei_bytes=sum(
+                int(t.get("frei") or 0) for t in (traeger or []) if isinstance(t, dict)
+            ),
+        ),
+        instanzen=[
+            KachelInstanz(
+                name=instanz.name,
+                erreichbar=(
+                    staende[instanz.kennung].erreichbar
+                    if instanz.kennung in staende
+                    else True
+                ),
+                probleme=probleme(instanz.kennung),
+            )
+            for instanz in settings.arr_instanzen()
+        ],
+        tickets_offen=len(
+            tickets_service.sichtbare_tickets(db, admin, status=TicketStatus.open)
+        ),
+    )
+
+
 # ⚠️ Eigene Umsetzung statt einer zweiten Registrierung: Das Original steht in
 # ``main.py`` und nicht in einem Router, und eine Zusage soll nicht daran
 # haengen, wo etwas zufaellig definiert ist.
@@ -243,5 +423,6 @@ ZUGESAGT = (
     "/api/v1/notifications/unread/count",
     "/api/v1/about",
     "/api/v1/storage/me",
+    "/api/v1/dashboard",
     "/api/v1/health",
 )

@@ -127,19 +127,21 @@ async def sicherung_pruefen(
     """Nachsehen, was in der Sicherung steckt - ohne etwas zu ersetzen."""
     _nur_vor_der_einrichtung(db)
     try:
-        brief, ok, grund = sicherung.pruefen(await datei.read(), passwort)
+        befund = sicherung.pruefen(await datei.read(), passwort)
     except sicherung.SicherungFehler as fehler:
         raise HTTPException(
             status_code=400, detail=meldungen.meldung(fehler.code, fehler.text)
         ) from fehler
     return {
-        "version": brief.version,
-        "erstellt": brief.erstellt,
-        "art": brief.art,
-        "kommentar": brief.kommentar,
-        "einspielbar": ok,
-        "grund": grund,
+        "version": befund.brief.version,
+        "erstellt": befund.brief.erstellt,
+        "art": befund.brief.art,
+        "kommentar": befund.brief.kommentar,
+        "einspielbar": befund.einspielbar,
+        "grund": befund.grund,
         "schluessel_aus_umgebung": bool(get_settings().secret_key),
+        # Die andere Haelfte derselben Frage - siehe ``sicherung.Befund``.
+        "schluessel_im_archiv": befund.schluessel_im_archiv,
     }
 
 

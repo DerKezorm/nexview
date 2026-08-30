@@ -23,6 +23,11 @@ Deshalb wandert ``secret.key`` mit ins Archiv - und deshalb ist das Archiv
 **passwortgeschuetzt**. Mit dem Schluessel darin gibt die Datei tatsaechlich
 alles her.
 
+Aus demselben Grund wandern die Profilbilder und der geholte TRaSH-Stand mit
+(siehe ``BEILAGEN``): Beides liegt als Datei neben der Datenbank, und beides
+faellt erst nach dem Einspielen auf - als verlorene Bilder und als
+Qualitaetsprofile, die gegen einen fremden Stand gemessen werden.
+
 ⚠️ **AES-ZIP und kein eigenes Format.** Ein selbstgebautes Format koennte nur
 Nexview wieder oeffnen - und ausgerechnet dann, wenn man die Sicherung braucht,
 laeuft Nexview vielleicht nicht. Ein ZIP bekommt man mit 7-Zip, WinRAR oder dem
@@ -37,6 +42,7 @@ import io
 import json
 import logging
 import re
+import shutil
 import sqlite3
 import time
 from dataclasses import asdict, dataclass, field, fields
@@ -68,8 +74,37 @@ AUTOMATISCH_BEHALTEN = 5
 #: laedt niemand herunter.
 ZWISCHENSPEICHER = ("tmdb_cache", "arr_library_cache")
 
+#: Was statt des Schluessels ins Archiv wandert, wenn keiner danebenliegt.
+#:
+#: Er steht dann in NEXVIEW_SECRET_KEY, also in der Docker-Datei - und der
+#: Hinweis darauf gehoert ins Archiv, nicht in ein Protokoll, das niemand liest.
+OHNE_SCHLUESSEL = (
+    "Dieser Installation liegt kein secret.key bei - der Schluessel kommt\n"
+    "aus der Umgebungsvariablen NEXVIEW_SECRET_KEY.\n\n"
+    "Beim Wiederherstellen muss derselbe Wert wieder gesetzt sein, sonst\n"
+    "lassen sich die gespeicherten Zugaenge zu Radarr, Sonarr, TMDB und\n"
+    "dem Mailserver nicht mehr entschluesseln.\n"
+)
+
 #: Name des Steckbriefs im Archiv.
 STECKBRIEF = "nexview-sicherung.json"
+
+#: Ordner im Datenverzeichnis, die zur Sicherung gehoeren - neben der Datenbank.
+#:
+#: ``avatars`` enthaelt die Profilbilder; in der Datenbank steht nur ihr Name.
+#: ``trash`` enthaelt den geholten TRaSH-Stand. Der klingt nach Beiwerk, ist
+#: aber der Massstab: Zu jedem Qualitaetsprofil steht in der Datenbank, gegen
+#: welchen Stand es geschrieben wurde. Fehlt der Ordner, faellt Nexview auf den
+#: mitgelieferten Abzug zurueck und meldet danach Abweichungen an Profilen, an
+#: denen niemand etwas geaendert hat.
+BEILAGEN = ("avatars", "trash")
+
+#: Woran der Ordner mit den Beilagen einer Sicherung zu erkennen ist.
+#:
+#: Kein ``.``-Suffix: ``datei()`` laesst nur ``.db`` durch, und ``aufraeumen``
+#: zaehlt ueber ``*.db``. Ein Ordner, der auf ``-dateien`` endet, kommt keinem
+#: von beiden in die Quere.
+BEILAGEN_ORDNER = "-dateien"
 
 
 @dataclass(slots=True)
@@ -117,6 +152,74 @@ def _steckbrief_pfad(sicherung: Path) -> Path:
     gerade ersetzt, und eine Liste, die dabei verschwindet, ist keine.
     """
     return sicherung.with_suffix(".json")
+
+
+def _beilagen_pfad(sicherung: Path) -> Path:
+    """Der Ordner mit den Dateien, die zu **dieser** Sicherung gehoeren.
+
+    Ein eigener Ordner je Sicherung und kein gemeinsamer: Zu einem Stand
+    gehoeren die Bilder und der TRaSH-Abzug von damals, und zwei Staende haben
+    verschiedene.
+    """
+    return sicherung.with_name(sicherung.stem + BEILAGEN_ORDNER)
+
+
+def _beilagen_sichern(sicherung: Path) -> list[str]:
+    """Bilder und TRaSH-Stand neben die Kopie legen - wie sie **jetzt** sind.
+
+    ⚠️ **Hier und nicht erst beim Herunterladen.** Vorher wurde die Datenbank
+    beim Anlegen kopiert und die Dateien daneben erst beim Packen des Archivs
+    aus dem laufenden Datenverzeichnis geholt. Wer das Archiv einer vier Wochen
+    alten Sicherung zog, bekam eine alte Datenbank mit heutigen Dateien: ein
+    ausgetauschtes Profilbild kam als kaputtes Bild zurueck, und die
+    Qualitaetsprofile massen sich an einem TRaSH-Stand, den es zu ihrer Zeit
+    noch nicht gab.
+
+    Der Ordner entsteht **auch dann, wenn nichts darin landet**. Er ist das
+    Kennzeichen dafuer, dass diese Sicherung ihre Beilagen selbst mitbringt -
+    ohne ihn liesse sich "hatte damals keine Bilder" nicht von "stammt aus
+    einer Fassung vor diesem Umbau" unterscheiden, und ``archiv`` muesste
+    raten.
+    """
+    ordner_ = _beilagen_pfad(sicherung)
+    ordner_.mkdir(parents=True, exist_ok=True)
+
+    daten = get_settings().data_dir
+    kopiert: list[str] = []
+    for name in BEILAGEN:
+        quelle = daten / name
+        if not quelle.is_dir():
+            continue
+        for datei_ in sorted(quelle.iterdir()):
+            if not datei_.is_file():
+                continue
+            ziel_datei = ordner_ / name / datei_.name
+            try:
+                ziel_datei.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(datei_, ziel_datei)
+            except OSError as fehler:
+                # ⚠️ Daran darf die Sicherung nicht scheitern - die Datenbank
+                # ist der Teil, auf den es ankommt. Verschwiegen wird es
+                # trotzdem nicht: Der Steckbrief zaehlt gleich auf, was
+                # wirklich hier liegt, und diese Datei fehlt dann darin.
+                logger.warning("Could not copy %s into backup: %s", datei_.name, fehler)
+                continue
+            kopiert.append(f"{name}/{datei_.name}")
+    return kopiert
+
+
+def entfernen(sicherung: Path) -> None:
+    """Eine Sicherung restlos loeschen: Datenbank, Steckbrief, Beilagen.
+
+    ⚠️ **Der einzige Weg, eine Sicherung loszuwerden - absichtlich.** Zu ihr
+    gehoeren drei Dinge, nicht mehr nur zwei. Wer den Beilagenordner an einer
+    Stelle vergisst, sammelt dort die Bilder und TRaSH-Abzuege aller je
+    aufgeraeumten Staende, und niemand sucht in einem Sicherungsordner nach
+    verlorenem Platz.
+    """
+    sicherung.unlink(missing_ok=True)
+    _steckbrief_pfad(sicherung).unlink(missing_ok=True)
+    shutil.rmtree(_beilagen_pfad(sicherung), ignore_errors=True)
 
 
 def schema_fingerabdruck(verbindung: sqlite3.Connection) -> str:
@@ -185,6 +288,7 @@ def anlegen(*, art: str = MANUELL, kommentar: str = "") -> Path:
         verbindung.exec_driver_sql(f"VACUUM INTO '{str(ziel).replace(chr(39), chr(39) * 2)}'")
 
     geleert = _zwischenspeicher_leeren(ziel)
+    beilagen = _beilagen_sichern(ziel)
 
     roh = sqlite3.connect(ziel)
     try:
@@ -198,7 +302,10 @@ def anlegen(*, art: str = MANUELL, kommentar: str = "") -> Path:
         erstellt=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         art=art,
         kommentar=kommentar.strip(),
-        enthaelt=["nexview.db", "secret.key"],
+        # ⚠️ Was wirklich hier liegt, nicht was hier liegen sollte. ``secret.key``
+        # steht bewusst **nicht** darin: Der Schluessel bleibt im
+        # Datenverzeichnis und kommt erst beim Packen des Archivs dazu.
+        enthaelt=["nexview.db", *beilagen],
         geleert=geleert,
     )
     _steckbrief_pfad(ziel).write_text(brief.als_json(), encoding="utf-8")
@@ -266,7 +373,7 @@ def liste() -> list[Eintrag]:
         eintraege.append(
             Eintrag(
                 name=datei.name,
-                groesse=datei.stat().st_size,
+                groesse=_groesse(datei),
                 erstellt=brief.erstellt,
                 art=brief.art,
                 kommentar=brief.kommentar,
@@ -275,6 +382,20 @@ def liste() -> list[Eintrag]:
         )
     eintraege.sort(key=lambda e: e.erstellt, reverse=True)
     return eintraege
+
+
+def _groesse(sicherung: Path) -> int:
+    """Was eine Sicherung wirklich belegt - Datenbank **und** Beilagen.
+
+    ⚠️ Seit Bilder und TRaSH-Stand je Sicherung mitkopiert werden, ist die
+    ``.db`` allein nicht mehr die Antwort. Eine Spalte, die zu wenig anzeigt,
+    ist genau dann falsch, wenn jemand hinsieht: weil der Platz knapp wird.
+    """
+    gesamt = sicherung.stat().st_size
+    beilagen = _beilagen_pfad(sicherung)
+    if beilagen.is_dir():
+        gesamt += sum(p.stat().st_size for p in beilagen.rglob("*") if p.is_file())
+    return gesamt
 
 
 def _steckbrief_lesen(sicherung: Path) -> Steckbrief:
@@ -324,8 +445,7 @@ def aufraeumen(behalten: int = AUTOMATISCH_BEHALTEN, ordner_: Path | None = None
     entfernt = 0
     for alt in automatisch[behalten:]:
         try:
-            alt.unlink()
-            _steckbrief_pfad(alt).unlink(missing_ok=True)
+            entfernen(alt)
             entfernt += 1
         except OSError as fehler:
             logger.warning("Could not delete old backup %s: %s", alt.name, fehler)
@@ -347,7 +467,10 @@ def datei(name: str) -> Path:
 
 
 def archiv(name: str, passwort: str) -> bytes:
-    """Eine Sicherung als verschluesseltes ZIP - Datenbank, Schluessel, Steckbrief.
+    """Eine Sicherung als verschluesseltes ZIP.
+
+    Darin: die Datenbank, der Schluessel, die Beilagen aus ``BEILAGEN`` und ein
+    Steckbrief, der aufzaehlt, was wirklich mitgekommen ist.
 
     ⚠️ Ohne ``secret.key`` waere das Archiv unvollstaendig: Die Zugaenge zu
     Radarr, Sonarr, TMDB und dem Mailserver sind damit verschluesselt. Wer nur
@@ -368,37 +491,69 @@ def archiv(name: str, passwort: str) -> bytes:
         puffer, "w", compression=pyzipper.ZIP_DEFLATED, encryption=pyzipper.WZ_AES
     ) as zip_datei:
         zip_datei.setpassword(passwort.encode("utf-8"))
-        zip_datei.writestr(STECKBRIEF, brief.als_json())
         zip_datei.write(quelle, "nexview.db")
+        drin = ["nexview.db"]
 
-        # ⚠️ **Profilbilder liegen als Dateien daneben, nicht in der Datenbank.**
-        # Dort steht nur ihr Name. Ohne sie kommt eine Installation zurueck, in
-        # der jeder Benutzer sein Bild verloren hat - und niemand versteht,
-        # warum, weil "die Sicherung war doch vollstaendig".
-        bilder = get_settings().data_dir / "avatars"
-        if bilder.is_dir():
-            for bild in sorted(bilder.iterdir()):
-                if bild.is_file():
-                    zip_datei.write(bild, f"avatars/{bild.name}")
+        # ⚠️ **Profilbilder und TRaSH-Stand liegen als Dateien daneben, nicht
+        # in der Datenbank.** Von den Bildern steht dort nur der Name; ohne sie
+        # kommt eine Installation zurueck, in der jeder sein Bild verloren hat -
+        # und niemand versteht, warum, weil "die Sicherung war doch
+        # vollstaendig".
+        for pfad, eintrag in _beilagen_zum_packen(quelle):
+            zip_datei.write(pfad, eintrag)
+            drin.append(eintrag)
 
         schluessel = get_settings().key_file
         if schluessel.exists():
             zip_datei.write(schluessel, "secret.key")
+            drin.append("secret.key")
         else:
-            # Kommt vor, wenn NEXVIEW_SECRET_KEY als Umgebungsvariable gesetzt
-            # ist. Dann liegt der Schluessel in der Docker-Datei, nicht hier -
-            # und der Hinweis gehoert ins Archiv, nicht in ein Protokoll, das
-            # niemand liest.
-            zip_datei.writestr(
-                "SCHLUESSEL-FEHLT.txt",
-                "Dieser Installation liegt kein secret.key bei - der Schluessel kommt\n"
-                "aus der Umgebungsvariablen NEXVIEW_SECRET_KEY.\n\n"
-                "Beim Wiederherstellen muss derselbe Wert wieder gesetzt sein, sonst\n"
-                "lassen sich die gespeicherten Zugaenge zu Radarr, Sonarr, TMDB und\n"
-                "dem Mailserver nicht mehr entschluesseln.\n",
-            )
+            zip_datei.writestr("SCHLUESSEL-FEHLT.txt", OHNE_SCHLUESSEL)
+            drin.append("SCHLUESSEL-FEHLT.txt")
+
+        # ⚠️ **Zuletzt, und mit der wirklichen Liste.** Hier stand ein fester
+        # Wert, geschrieben bevor feststand, was tatsaechlich hineinwandert: Er
+        # nannte ``secret.key`` auch dann, wenn stattdessen nur der Hinweis
+        # darauf drinlag, und die Profilbilder nie. Gelesen wird das Feld
+        # nirgends im Programm - getaeuscht hat es also genau den Leser, fuer
+        # den ueberhaupt ein offenes ZIP gewaehlt wurde: den Menschen, der das
+        # Archiv aufmacht, weil Nexview gerade nicht laeuft.
+        #
+        # Der Steckbrief selbst steht nicht in seiner eigenen Liste - das
+        # beantwortet keine Frage.
+        brief.enthaelt = drin
+        zip_datei.writestr(STECKBRIEF, brief.als_json())
 
     return puffer.getvalue()
+
+
+def _beilagen_zum_packen(sicherung: Path) -> list[tuple[Path, str]]:
+    """Welche Dateien neben der Datenbank ins Archiv gehoeren - und woher.
+
+    Normalerweise aus dem Beilagenordner der Sicherung, also im Zustand von
+    damals. Fehlt er, stammt der Stand aus einer Fassung vor diesem Umbau;
+    dann bleibt nur das heutige Datenverzeichnis. Das ist nicht derselbe
+    Zeitpunkt - aber eine Installation, die ohne Bilder zurueckkommt, ist
+    schlechter als eine mit den falschen.
+    """
+    ordner_ = _beilagen_pfad(sicherung)
+    hat_eigene = ordner_.is_dir()
+    if not hat_eigene:
+        logger.info(
+            "Backup %s has no file snapshot of its own - packing today's files instead",
+            sicherung.name,
+        )
+    wurzel = ordner_ if hat_eigene else get_settings().data_dir
+
+    gefunden: list[tuple[Path, str]] = []
+    for name in BEILAGEN:
+        unter = wurzel / name
+        if not unter.is_dir():
+            continue
+        for datei_ in sorted(unter.iterdir()):
+            if datei_.is_file():
+                gefunden.append((datei_, f"{name}/{datei_.name}"))
+    return gefunden
 
 
 # ---------------------------------------------------------------------------
@@ -537,7 +692,8 @@ def _oeffnen(
     """Archiv aufmachen und den Inhalt herausholen - ohne irgendetwas zu ersetzen.
 
     Gibt Steckbrief, Datenbank, den Schluessel (falls enthalten) und die
-    Profilbilder zurueck.
+    Beilagen zurueck - letztere unter ihrem Ordnernamen, also
+    ``"avatars/bild.jpg"`` oder ``"trash/trash-radarr.json"``.
     """
     try:
         zip_datei = pyzipper.AESZipFile(io.BytesIO(daten))
@@ -555,13 +711,15 @@ def _oeffnen(
         roh_brief = zip_datei.read(STECKBRIEF)
         roh_db = zip_datei.read("nexview.db")
         schluessel = zip_datei.read("secret.key").decode("utf-8").strip() if "secret.key" in namen else None
-        bilder = {
-            # Nur der reine Dateiname, nie der Pfad aus dem Archiv: Ein
-            # praepariertes ZIP koennte sonst ``../../secret.key`` enthalten
-            # und beim Auspacken irgendwo landen.
-            Path(name).name: zip_datei.read(name)
+        beilagen = {
+            # Ordnername aus unserer eigenen Liste, Dateiname nur als reiner
+            # Name - nie der Pfad aus dem Archiv: Ein praepariertes ZIP
+            # koennte sonst ``avatars/../../secret.key`` enthalten und beim
+            # Auspacken irgendwo landen.
+            f"{unter}/{Path(name).name}": zip_datei.read(name)
+            for unter in BEILAGEN
             for name in namen
-            if name.startswith("avatars/") and not name.endswith("/")
+            if name.startswith(f"{unter}/") and not name.endswith("/")
         }
     except SicherungFehler:
         raise
@@ -581,22 +739,42 @@ def _oeffnen(
     except (ValueError, TypeError) as fehler:
         raise SicherungFehler("restore_no_manifest", "Dem Archiv fehlt der Steckbrief.") from fehler
 
-    return brief, roh_db, schluessel, bilder
+    return brief, roh_db, schluessel, beilagen
 
 
-def pruefen(daten: bytes, passwort: str) -> tuple[Steckbrief, bool, str]:
+@dataclass(slots=True)
+class Befund:
+    """Was sich ueber ein Archiv sagen laesst - vor und nach dem Einspielen."""
+
+    brief: Steckbrief
+    einspielbar: bool
+    grund: str
+    #: Liegt im Archiv eine ``secret.key``?
+    #:
+    #: ⚠️ **Nicht dieselbe Frage wie die, ob die Zielinstallation einen
+    #: Schluessel hat** - und die Verwechslung liess die Vorschau ausgerechnet
+    #: im schlimmsten Fall beruhigend aussehen. Kommt das Archiv von einer
+    #: Installation mit ``NEXVIEW_SECRET_KEY`` und hat das Ziel die Variable
+    #: nicht, erzeugt Nexview beim Einspielen einen **neuen** Schluessel.
+    #: Danach ist kein gespeicherter Zugang mehr lesbar - Radarr, Sonarr,
+    #: TMDB, Mailserver, dazu jedes Webhook- und OIDC-Geheimnis -, und der
+    #: Betreiber hat keinen Anlass, den Schluessel zu verdaechtigen.
+    schluessel_im_archiv: bool
+
+
+def pruefen(daten: bytes, passwort: str) -> Befund:
     """Nur nachsehen: Was ist das, und darf es eingespielt werden?
 
     ⚠️ **Getrennt vom Einspielen, und das ist der Punkt.** Wiederherstellen
     ersetzt alles. Wer den Knopf drueckt, soll vorher gesehen haben, *was* er
     einspielt - Datum, Fassung, Notiz -, statt es hinterher zu erfahren.
     """
-    brief, _, _, _ = _oeffnen(daten, passwort)
+    brief, _, schluessel, _ = _oeffnen(daten, passwort)
     ok, grund = vertraeglich(brief)
-    return brief, ok, grund
+    return Befund(brief, ok, grund, schluessel is not None)
 
 
-def wiederherstellen(daten: bytes, passwort: str) -> Steckbrief:
+def wiederherstellen(daten: bytes, passwort: str) -> Befund:
     """Datenbank und Schluessel aus dem Archiv einspielen.
 
     ⚠️ **Vorher wird der jetzige Stand gesichert.** Auch wenn gerade nichts
@@ -608,7 +786,7 @@ def wiederherstellen(daten: bytes, passwort: str) -> Steckbrief:
     nicht mehr. Das ist kein Nebeneffekt, sondern richtig so: Die Konten aus der
     Sicherung sind andere als die von eben.
     """
-    brief, roh_db, schluessel, bilder = _oeffnen(daten, passwort)
+    brief, roh_db, schluessel, beilagen = _oeffnen(daten, passwort)
 
     ok, grund = vertraeglich(brief)
     if not ok:
@@ -678,12 +856,23 @@ def wiederherstellen(daten: bytes, passwort: str) -> Steckbrief:
         else:
             einstellungen.key_file.write_text(schluessel, encoding="utf-8")
 
-    if bilder:
-        bild_ordner = einstellungen.data_dir / "avatars"
-        bild_ordner.mkdir(parents=True, exist_ok=True)
-        for name, inhalt in bilder.items():
-            (bild_ordner / name).write_bytes(inhalt)
-        logger.info("Restored %d avatar(s)", len(bilder))
+    for schluessel_name, inhalt in beilagen.items():
+        # ``unter`` stammt aus BEILAGEN, nicht aus dem Archiv - der Name kann
+        # also nicht aus dem Datenverzeichnis herausfuehren.
+        unter, _, dateiname = schluessel_name.partition("/")
+        ziel_ordner = einstellungen.data_dir / unter
+        ziel_ordner.mkdir(parents=True, exist_ok=True)
+        (ziel_ordner / dateiname).write_bytes(inhalt)
+    if beilagen:
+        logger.info("Restored %d accompanying file(s)", len(beilagen))
+
+    # ⚠️ **Der TRaSH-Stand wird gemerkt.** Ohne das Leeren arbeitet der
+    # laufende Prozess bis zum Neustart mit dem Abzug von vor dem Einspielen
+    # weiter - und misst die gerade eingespielten Qualitaetsprofile gegen einen
+    # Stand, den sie nie gesehen haben.
+    from .trash import schnappschuss
+
+    schnappschuss.cache_clear()
 
     # Aeltere Sicherung? Dann fehlen ihr Spalten und Tabellen - die ergaenzt
     # der gewoehnliche Startweg.
@@ -692,7 +881,7 @@ def wiederherstellen(daten: bytes, passwort: str) -> Steckbrief:
     _alle_abmelden()
 
     logger.info("Backup restored: version %s from %s", brief.version, brief.erstellt)
-    return brief
+    return Befund(brief, True, "ok", schluessel is not None)
 
 
 def _alle_abmelden() -> None:

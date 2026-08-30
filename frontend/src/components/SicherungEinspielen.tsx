@@ -30,6 +30,27 @@ type Steckbrief = {
   einspielbar: boolean
   grund: string
   schluessel_aus_umgebung: boolean
+  schluessel_im_archiv: boolean
+}
+
+/**
+ * Welche Warnung zum Schlüssel gilt — oder keine.
+ *
+ * ⚠️ **Zwei Fragen, nicht eine.** Hier stand nur die halbe: ob *diese*
+ * Installation ihren Schlüssel aus der Umgebung nimmt. Ob im Archiv einer
+ * liegt, wurde nie gefragt — und genau die Kombination „Archiv ohne Schlüssel,
+ * Ziel ohne Variable" ist die schlimmste: Nexview erzeugt beim Einspielen
+ * einen neuen, und danach ist kein gespeicherter Zugang mehr lesbar. Die
+ * Vorschau sah dabei beruhigend aus.
+ */
+function schluesselWarnung(brief: Steckbrief): { text: string; schwer: boolean } | null {
+  if (!brief.schluessel_im_archiv) {
+    return brief.schluessel_aus_umgebung
+      ? { text: 'restore.keyOnlyFromEnv', schwer: false }
+      : { text: 'restore.noKeyAtAll', schwer: true }
+  }
+  // Schlüssel liegt bei — dann zählt nur noch, ob die Variable ihn übergeht.
+  return brief.schluessel_aus_umgebung ? { text: 'restore.envKeyWarning', schwer: false } : null
 }
 
 export function SicherungEinspielen({
@@ -49,6 +70,8 @@ export function SicherungEinspielen({
   const [brief, setBrief] = useState<Steckbrief | null>(null)
   const [laeuft, setLaeuft] = useState(false)
   const [fehler, setFehler] = useState('')
+
+  const schluessel = brief === null ? null : schluesselWarnung(brief)
 
   function formular(): FormData {
     const daten = new FormData()
@@ -162,9 +185,16 @@ export function SicherungEinspielen({
           </p>
 
           {/* ⚠️ Die Falle, bei der man nachher lange sucht. */}
-          {brief.schluessel_aus_umgebung && (
-            <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm leading-relaxed text-warn-500">
-              <Betont text={t('restore.envKeyWarning')} />
+          {schluessel !== null && (
+            <p
+              className={
+                'rounded-xl px-4 py-3 text-sm leading-relaxed ' +
+                (schluessel.schwer
+                  ? 'border border-bad-500/40 bg-bad-500/10 text-bad-500'
+                  : 'border border-warn-500/40 bg-warn-500/10 text-warn-500')
+              }
+            >
+              <Betont text={t(schluessel.text)} />
             </p>
           )}
 

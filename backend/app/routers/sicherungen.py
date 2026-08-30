@@ -136,8 +136,7 @@ def loeschen(name: str, _: AdminUser) -> None:
             detail=meldungen.meldung("backup_missing", "Diese Sicherung gibt es nicht."),
         ) from fehler
 
-    pfad.unlink(missing_ok=True)
-    pfad.with_suffix(".json").unlink(missing_ok=True)
+    sicherung.entfernen(pfad)
     logger.info("Backup deleted: %s", pfad.name)
 
 
@@ -156,17 +155,24 @@ class SteckbriefPublic(BaseModel):
     #: Klick, nicht in eine Protokollzeile, die niemand im richtigen Moment
     #: liest.
     schluessel_aus_umgebung: bool
+    #: ⚠️ **Und die andere Haelfte derselben Frage.** Ohne sie meldete die
+    #: Vorschau nur, ob *diese* Installation einen Schluessel in der Umgebung
+    #: hat - nicht, ob im Archiv einer liegt. Beim schlimmsten Fall, Archiv
+    #: ohne Schluessel und Ziel ohne Variable, blieb sie deshalb still,
+    #: obwohl danach kein gespeicherter Zugang mehr lesbar ist.
+    schluessel_im_archiv: bool
 
 
-def _steckbrief_public(brief: sicherung.Steckbrief, ok: bool, grund: str) -> SteckbriefPublic:
+def _steckbrief_public(befund: sicherung.Befund) -> SteckbriefPublic:
     return SteckbriefPublic(
-        version=brief.version,
-        erstellt=brief.erstellt,
-        art=brief.art,
-        kommentar=brief.kommentar,
-        einspielbar=ok,
-        grund=grund,
+        version=befund.brief.version,
+        erstellt=befund.brief.erstellt,
+        art=befund.brief.art,
+        kommentar=befund.brief.kommentar,
+        einspielbar=befund.einspielbar,
+        grund=befund.grund,
         schluessel_aus_umgebung=bool(get_settings().secret_key),
+        schluessel_im_archiv=befund.schluessel_im_archiv,
     )
 
 
@@ -182,10 +188,10 @@ async def pruefen(
 ) -> SteckbriefPublic:
     """Nur nachsehen, nichts ersetzen."""
     try:
-        brief, ok, grund = sicherung.pruefen(await datei.read(), passwort)
+        befund = sicherung.pruefen(await datei.read(), passwort)
     except sicherung.SicherungFehler as fehler:
         raise _als_fehler(fehler) from fehler
-    return _steckbrief_public(brief, ok, grund)
+    return _steckbrief_public(befund)
 
 
 @router.post("/einspielen", response_model=SteckbriefPublic)
@@ -209,7 +215,7 @@ async def einspielen(
     db.close()
 
     try:
-        brief = sicherung.wiederherstellen(daten, passwort)
+        befund = sicherung.wiederherstellen(daten, passwort)
     except sicherung.SicherungFehler as fehler:
         raise _als_fehler(fehler) from fehler
-    return _steckbrief_public(brief, True, "ok")
+    return _steckbrief_public(befund)

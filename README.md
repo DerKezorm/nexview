@@ -156,11 +156,20 @@ Everything that matters lives in the directory mapped to `/data`:
 | `nexview.db` | accounts, requests, feedback, settings |
 | `secret.key` | the key your stored API keys are encrypted with |
 | `avatars/` | profile pictures |
+| `trash/` | the fetched TRaSH guides your quality profiles were built against |
 | `logs/` | error log |
 
 **`secret.key` belongs with the database.** Without it the stored TMDB, Radarr, Sonarr
 and SMTP credentials cannot be decrypted. Back both up together — and never put that
 backup in a public repository.
+
+`trash/` matters for a subtler reason: each quality profile records which TRaSH snapshot
+it was written against. Restore a database without it and Nexview measures those profiles
+against a different snapshot, reporting drift on profiles nobody touched.
+
+Nexview's own backups (*Settings → Backups*) already contain all of this — database, key,
+avatars and TRaSH snapshot — in one encrypted archive. The list above is for backing up
+the directory by hand.
 
 ### On a Synology
 

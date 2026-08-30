@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
 import sqlite3
 
 import pyzipper
@@ -17,6 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import __version__
+from app.config import get_settings
 from app.services import sicherung
 
 
@@ -24,17 +26,40 @@ PASSWORT = "ein-langes-testpasswort"
 
 
 @pytest.fixture(autouse=True)
-def leerer_sicherungsordner() -> None:
-    """Jeder Test faengt ohne fremde Sicherungen an.
+def leerer_sicherungsordner():
+    """Jeder Test faengt ohne fremde Sicherungen an - und hinterlaesst keine.
 
     ⚠️ ``clean_db`` raeumt nur die Tabellen. Die Sicherungen liegen als Dateien
     daneben und ueberleben sonst den ganzen Testlauf - dann zaehlt ein Test die
     Staende eines anderen mit.
+
+    ⚠️ **Und hinterher der TRaSH-Ordner, das ist der wichtigere Teil.** Die
+    Tests hier legen dort Attrappen ab (``{"stand": "damals"}``), und das
+    Einspielen schreibt welche zurueck. Beides liegt im gemeinsamen
+    Datenverzeichnis. Bleibt es liegen, liest ``trash.schnappschuss`` es in
+    **anderen** Testdateien als echten Stand - und fuenfzehn Tests zu den
+    Qualitaetsprofilen brechen mit ``KeyError: 'profile'`` an einer Stelle, die
+    mit Sicherungen nichts zu tun hat. Genau so ist es passiert.
     """
-    ordner = sicherung.ordner()
-    if ordner.is_dir():
-        for datei in list(ordner.glob("*")):
-            datei.unlink(missing_ok=True)
+    from app.services import trash
+
+    def leeren() -> None:
+        ordner = sicherung.ordner()
+        if ordner.is_dir():
+            for datei in list(ordner.glob("*")):
+                if datei.is_dir():
+                    # Der Beilagenordner einer Sicherung - Bilder und TRaSH-Stand.
+                    shutil.rmtree(datei, ignore_errors=True)
+                else:
+                    datei.unlink(missing_ok=True)
+
+    leeren()
+    yield
+    leeren()
+    shutil.rmtree(get_settings().data_dir / "trash", ignore_errors=True)
+    # Ohne das haelt der Zwischenspeicher die Attrappe bis zum Ende des Laufs
+    # fest, auch wenn die Datei weg ist.
+    trash.schnappschuss.cache_clear()
 
 
 def _archiv_oeffnen(daten: bytes, passwort: str) -> pyzipper.AESZipFile:
@@ -428,9 +453,9 @@ class TestWiederherstellen:
         with SessionLocal() as db:
             vorher = db.query(User).count()
 
-        brief, ok, _ = sicherung.pruefen(daten, PASSWORT)
-        assert ok is True
-        assert brief.kommentar == "zum Einspielen"
+        befund = sicherung.pruefen(daten, PASSWORT)
+        assert befund.einspielbar is True
+        assert befund.brief.kommentar == "zum Einspielen"
 
         with SessionLocal() as db:
             assert db.query(User).count() == vorher
@@ -568,6 +593,188 @@ class TestProfilbilder:
         assert (ordner / "avatars" / "entwischt.txt").exists()
 
 
+class TestStandVonDamals:
+    """⚠️ **Eine Sicherung ist ein Zeitpunkt, nicht nur eine Datei.**
+
+    Die Datenbank wurde schon immer beim Anlegen kopiert, die Dateien daneben
+    aber erst beim Herunterladen aus dem laufenden Datenverzeichnis geholt. Wer
+    das Archiv einer vier Wochen alten Sicherung zog, bekam eine alte Datenbank
+    mit heutigen Dateien. Der aeltere Bildertest bemerkte das nicht: Er legte
+    das Bild **vor** dem Sichern an und liess es liegen - dann sieht beides
+    gleich aus.
+    """
+
+    def _ablegen(self, unter: str, name: str, inhalt: bytes) -> "Path":
+        from pathlib import Path
+
+        from app.config import get_settings
+
+        ordner = get_settings().data_dir / unter
+        ordner.mkdir(parents=True, exist_ok=True)
+        pfad: Path = ordner / name
+        pfad.write_bytes(inhalt)
+        return pfad
+
+    def test_das_bild_von_damals_kommt_ins_archiv(self) -> None:
+        bild = self._ablegen("avatars", "getauscht.jpg", b"JPG das war damals")
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+
+        # Nach der Sicherung tauscht jemand sein Bild.
+        bild.write_bytes(b"JPG und das ist von heute")
+
+        with _archiv_oeffnen(sicherung.archiv(pfad.name, PASSWORT), PASSWORT) as zip_datei:
+            assert zip_datei.read("avatars/getauscht.jpg") == b"JPG das war damals"
+
+    def test_geloeschtes_bild_ist_trotzdem_im_archiv(self) -> None:
+        bild = self._ablegen("avatars", "geloescht.jpg", b"JPG noch da")
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        bild.unlink()
+
+        with _archiv_oeffnen(sicherung.archiv(pfad.name, PASSWORT), PASSWORT) as zip_datei:
+            assert "avatars/geloescht.jpg" in zip_datei.namelist()
+
+    def test_der_trash_stand_von_damals_kommt_ins_archiv(self) -> None:
+        """⚠️ Kein Beiwerk.
+
+        Zu jedem Qualitaetsprofil steht in der Datenbank, gegen welchen
+        TRaSH-Stand es geschrieben wurde. Ein Archiv mit alter Datenbank und
+        heutigem Stand meldet nach dem Einspielen Abweichungen an Profilen, an
+        denen niemand etwas geaendert hat.
+        """
+        stand = self._ablegen("trash", "trash-radarr.json", b'{"stand": "damals"}')
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        stand.write_bytes(b'{"stand": "heute"}')
+
+        with _archiv_oeffnen(sicherung.archiv(pfad.name, PASSWORT), PASSWORT) as zip_datei:
+            assert zip_datei.read("trash/trash-radarr.json") == b'{"stand": "damals"}'
+
+    def test_der_trash_stand_kommt_beim_einspielen_zurueck(self, admin_client: TestClient) -> None:
+        stand = self._ablegen("trash", "herkunft.json", b'{"commit": "abc"}')
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        daten = sicherung.archiv(pfad.name, PASSWORT)
+
+        stand.write_bytes(b'{"commit": "spaeter"}')
+        sicherung.wiederherstellen(daten, PASSWORT)
+
+        assert stand.read_bytes() == b'{"commit": "abc"}'
+
+    def test_beilagen_verschwinden_mit_der_sicherung(self) -> None:
+        """⚠️ Sonst sammelt der Ordner die Bilder aller je aufgeraeumten
+        Staende, und niemand sucht dort nach Platz."""
+        self._ablegen("avatars", "mitweg.jpg", b"JPG x")
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        beilagen = sicherung._beilagen_pfad(pfad)
+        assert (beilagen / "avatars" / "mitweg.jpg").is_file()
+
+        sicherung.entfernen(pfad)
+        assert not beilagen.exists()
+
+    def test_aufraeumen_nimmt_die_beilagen_mit(self) -> None:
+        self._ablegen("avatars", "mitweg.jpg", b"JPG x")
+        staende = [sicherung.anlegen(art=sicherung.AUTOMATISCH) for _ in range(3)]
+
+        sicherung.aufraeumen(behalten=1)
+
+        uebrig = [p for p in staende if p.exists()]
+        assert len(uebrig) == 1
+        for weg in (p for p in staende if p not in uebrig):
+            assert not sicherung._beilagen_pfad(weg).exists()
+
+
+class TestSteckbriefSagtDieWahrheit:
+    """⚠️ **Das Feld ``enthaelt`` war ein fester Wert.**
+
+    Geschrieben, bevor feststand, ob eine Schluesseldatei existiert - es nannte
+    ``secret.key`` auch dann, wenn stattdessen nur der Hinweis darauf drinlag,
+    und die Profilbilder nie. Gelesen wird es nirgends im Programm; getaeuscht
+    hat es also genau den Leser, fuer den ueberhaupt ein offenes ZIP gewaehlt
+    wurde: den Menschen, der das Archiv aufmacht, weil Nexview nicht laeuft.
+    """
+
+    def test_enthaelt_nennt_genau_das_was_drin_ist(self) -> None:
+        from app.config import get_settings
+
+        ordner = get_settings().data_dir / "avatars"
+        ordner.mkdir(parents=True, exist_ok=True)
+        (ordner / "im-steckbrief.jpg").write_bytes(b"JPG x")
+
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        with _archiv_oeffnen(sicherung.archiv(pfad.name, PASSWORT), PASSWORT) as zip_datei:
+            namen = set(zip_datei.namelist())
+            brief = json.loads(zip_datei.read(sicherung.STECKBRIEF))
+
+        # Der Steckbrief zaehlt sich selbst nicht auf - alles andere schon.
+        assert set(brief["enthaelt"]) == namen - {sicherung.STECKBRIEF}
+        assert "avatars/im-steckbrief.jpg" in brief["enthaelt"]
+
+    def test_nennt_keinen_schluessel_der_nicht_drin_ist(self) -> None:
+        """In der Testumgebung kommt der Schluessel aus der Umgebungsvariablen -
+        dann liegt statt ``secret.key`` der Hinweis darauf im Archiv."""
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        with _archiv_oeffnen(sicherung.archiv(pfad.name, PASSWORT), PASSWORT) as zip_datei:
+            namen = set(zip_datei.namelist())
+            brief = json.loads(zip_datei.read(sicherung.STECKBRIEF))
+
+        assert "secret.key" not in namen
+        assert "secret.key" not in brief["enthaelt"]
+        assert "SCHLUESSEL-FEHLT.txt" in brief["enthaelt"]
+
+
+class TestVorschauZumSchluessel:
+    """⚠️ **Der eine Fall, der still zuschlaegt.**
+
+    Die Vorschau meldete, ob die *Zielinstallation* einen Schluessel in der
+    Umgebung hat - nicht, ob im Archiv einer liegt. Kommt das Archiv von einer
+    Installation mit Umgebungsvariable und hat das Ziel keine, sah die Vorschau
+    beruhigend aus und bedeutete den schlimmsten Fall: ein neuer Schluessel, und
+    danach kein lesbarer Zugang mehr.
+    """
+
+    def _mit_schluessel(self, daten: bytes) -> bytes:
+        """Dasselbe Archiv, aber mit einer ``secret.key`` darin."""
+        quelle = pyzipper.AESZipFile(io.BytesIO(daten))
+        quelle.setpassword(PASSWORT.encode("utf-8"))
+        puffer = io.BytesIO()
+        with pyzipper.AESZipFile(
+            puffer, "w", compression=pyzipper.ZIP_DEFLATED, encryption=pyzipper.WZ_AES
+        ) as ziel:
+            ziel.setpassword(PASSWORT.encode("utf-8"))
+            for name in quelle.namelist():
+                if name != "SCHLUESSEL-FEHLT.txt":
+                    ziel.writestr(name, quelle.read(name))
+            ziel.writestr("secret.key", "ein-schluessel-aus-der-sicherung")
+        quelle.close()
+        return puffer.getvalue()
+
+    def test_ohne_schluessel_im_archiv_sagt_die_vorschau_das(self) -> None:
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        befund = sicherung.pruefen(sicherung.archiv(pfad.name, PASSWORT), PASSWORT)
+
+        assert befund.schluessel_im_archiv is False
+
+    def test_mit_schluessel_im_archiv_sagt_die_vorschau_das(self) -> None:
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        daten = self._mit_schluessel(sicherung.archiv(pfad.name, PASSWORT))
+
+        assert sicherung.pruefen(daten, PASSWORT).schluessel_im_archiv is True
+
+    def test_die_schnittstelle_reicht_beides_durch(self, admin_client: TestClient) -> None:
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        daten = sicherung.archiv(pfad.name, PASSWORT)
+
+        antwort = admin_client.post(
+            "/api/admin/sicherungen/pruefen",
+            files={"datei": ("sicherung.zip", daten, "application/zip")},
+            data={"passwort": PASSWORT},
+        )
+        assert antwort.status_code == 200, antwort.text
+        inhalt = antwort.json()
+        # Zwei Fragen, nicht eine: Das Ziel hat einen Schluessel in der
+        # Umgebung, im Archiv liegt trotzdem keiner.
+        assert inhalt["schluessel_aus_umgebung"] is True
+        assert inhalt["schluessel_im_archiv"] is False
+
+
 class TestSitzungenNachDemEinspielen:
     def test_alle_werden_abgemeldet(self, admin_client: TestClient) -> None:
         """⚠️ Passiert **nicht** von selbst.
@@ -666,6 +873,7 @@ class TestWiederherstellenUeberDieSchnittstelle:
             "einspielbar",
             "grund",
             "schluessel_aus_umgebung",
+            "schluessel_im_archiv",
         ):
             assert feld in inhalt, f"{feld} fehlt in der Antwort"
         assert inhalt["kommentar"] == "ueber die Schnittstelle"

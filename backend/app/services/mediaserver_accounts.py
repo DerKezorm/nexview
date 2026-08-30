@@ -484,12 +484,16 @@ def _unique_username(db: Session, wunsch: str) -> str:
     return kandidat
 
 
-def _offene_einladung(db: Session, email: str) -> AuthToken | None:
+def offene_einladung(db: Session, email: str) -> AuthToken | None:
     """Eine noch nicht eingeloeste Einladung fuer diese Adresse.
 
     Wer eingeladen wurde und sich dann ueber den Media-Server anmeldet, soll
     die dort vergebene Rolle bekommen - sonst waere die bewusste Entscheidung
     des Administrators stillschweigend verfallen.
+
+    Ohne Unterstrich, weil die OIDC-Anmeldung (``oidc_accounts``) dieselbe
+    Frage stellt - und zwei Stellen, die "gibt es eine Einladung?" verschieden
+    beantworten, waeren ein Fehler auf Vorrat.
     """
     eintrag = db.scalar(
         select(AuthToken)
@@ -595,7 +599,7 @@ def resolve(db: Session, settings: "AppSettings", account: ExternalAccount) -> U
 
 def _anlegen(db: Session, settings: "AppSettings", account: ExternalAccount) -> User:
     """Ein neues Konto aus einer Media-Server-Anmeldung."""
-    einladung = _offene_einladung(db, account.email) if account.email else None
+    einladung = offene_einladung(db, account.email) if account.email else None
 
     if einladung is not None:
         rolle = einladung.invite_role or Role.user

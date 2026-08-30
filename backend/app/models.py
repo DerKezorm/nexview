@@ -677,6 +677,13 @@ class User(Base):
         # einzeln nachzuladen ergaebe eine Abfrage je Benutzer in jeder Liste.
         lazy="selectin",
     )
+    oidc_links: Mapped[list["OidcLink"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        # Wie bei den Medienserver-Konten: Das Profil und die Anmeldewege
+        # brauchen die Liste ohnehin, sobald der Benutzer geladen ist.
+        lazy="selectin",
+    )
 
     notifications: Mapped[list["Notification"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -2451,3 +2458,109 @@ class ChildWish(Base):
 
     child: Mapped[User] = relationship(foreign_keys=[child_id])
     request: Mapped["MediaRequest | None"] = relationship(foreign_keys=[request_id])
+
+
+class OidcProvider(Base):
+    """Ein Anmelde-Anbieter nach OpenID Connect - vom Administrator eingerichtet.
+
+    Aus Nexview-Sicht ist ein Anbieter drei Werte: Adresse, Client-ID,
+    Geheimnis. Ob dahinter Authentik, Keycloak, Pocket ID oder Google steht,
+    ist dem Code egal - das ist der Sinn der Norm, und deshalb gibt es hier
+    keine Anbieter-Sonderfaelle.
+
+    ⚠️ **Ab Werk ist diese Tabelle leer, und dann aendert sich nichts.** Keine
+    Knoepfe auf der Anmeldeseite, keine offenen Endpunkte - eine Installation,
+    deren Administrator nie einen Anbieter einrichtet, weiss von OIDC nichts.
+    """
+
+    __tablename__ = "oidc_providers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: Das Kuerzel in der Adresse (``/api/auth/oidc/{slug}/...``). Klein
+    #: geschrieben, eindeutig - und **nie** aus der Beschriftung geraten,
+    #: sondern beim Anlegen festgelegt. Die Beschriftung darf sich aendern;
+    #: eine Adresse, die beim Anbieter als Rueckkehr-Adresse hinterlegt ist,
+    #: darf es nicht.
+    slug: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
+    #: Was auf dem Knopf steht: "Anmelden mit <label>".
+    label: Mapped[str] = mapped_column(String(80), nullable=False)
+    #: Die Adresse des Anbieters, ohne ``/.well-known/...`` - normalisiert
+    #: ohne Schlussstrich, denn sie wird gegen das ``iss`` der Ausweise
+    #: verglichen, Zeichen fuer Zeichen.
+    issuer_url: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
+    client_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    #: Verschluesselt wie jedes andere Geheimnis (``crypto.encrypt``).
+    client_secret: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: Duerfen Unbekannte ein Konto bekommen? **Standard aus** - bei einem
+    #: Welt-Anbieter wie Google hiesse "an", dass jeder Mensch mit einem
+    #: Google-Konto ein Nexview-Konto bekommt. Bei einem selbst gehosteten
+    #: Anbieter ist "an" dagegen der Normalfall: Wer dort ein Konto hat, wurde
+    #: vom selben Administrator angelegt.
+    auto_create: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    #: Deaktivieren nimmt den Knopf von der Anmeldeseite **und** schliesst die
+    #: Endpunkte - getrennt vom Loeschen, damit ein zickender Anbieter
+    #: verschwinden kann, ohne die Einrichtung wegzuwerfen.
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class OidcLink(Base):
+    """Die OIDC-Identitaet eines Benutzers - je Anbieter hoechstens eine.
+
+    Dasselbe Muster wie ``UserMediaServerAccount``, aus demselben Grund: Die
+    Identitaet eines Menschen bei einem fremden Anbieter gehoert in eine
+    Tabelle, nicht in Spalten am Konto.
+
+    ⚠️ **Der Schluessel ist (issuer, subject), nicht die Zeile des Anbieters.**
+    Die Norm sagt: Ein Mensch ist beim Anbieter das Paar aus dessen Adresse
+    (``iss``) und einer Kennung (``sub``) - Name und Mailadresse duerfen sich
+    aendern, das Paar nicht. Deshalb haengt die Verknuepfung an der Adresse
+    statt an ``oidc_providers.id``: Loescht der Administrator den Eintrag und
+    legt ihn neu an, bleiben alle Verknuepfungen gueltig.
+    """
+
+    __tablename__ = "user_oidc_links"
+    __table_args__ = (
+        # Eine fremde Identitaet gehoert genau einem Nexview-Konto - sonst
+        # teilten sich zwei Menschen ein Konto, und jeder saehe die Anfragen
+        # des anderen.
+        UniqueConstraint("issuer", "subject", name="uq_oidc_identitaet"),
+        # Und ein Benutzer hat je Anbieter hoechstens eine Identitaet. Eine
+        # zweite waere keine weitere Anmeldung, sondern eine zweite Person.
+        UniqueConstraint("user_id", "issuer", name="uq_oidc_anbieter"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    issuer: Mapped[str] = mapped_column(String(500), nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    #: Nur zur Anzeige im Profil ("verknuepft als ..."): Mailadresse oder Name
+    #: beim Anbieter, je nachdem, was er herausgibt. Verglichen wird damit nie.
+    display: Mapped[str | None] = mapped_column(String(255))
+    linked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="oidc_links")
+
+
+class OidcBlock(Base):
+    """OIDC-Identitaeten, die sich kein Konto mehr anlegen duerfen.
+
+    Dasselbe Loch wie beim Media-Server (``MediaServerBlock``): Loescht der
+    Administrator ein Konto, waere das bei eingeschalteter automatischer
+    Anlage wirkungslos - die Person meldet sich neu an und haette sofort
+    wieder eines. Die Sperre haelt an (issuer, subject) fest, ueberlebt also
+    auch ein Loeschen und Neuanlegen des Anbieter-Eintrags.
+    """
+
+    __tablename__ = "oidc_blocks"
+    __table_args__ = (UniqueConstraint("issuer", "subject", name="uq_oidc_block"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    issuer: Mapped[str] = mapped_column(String(500), nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    #: Nur zur Anzeige in der Liste - gesperrt wird ueber (issuer, subject).
+    display: Mapped[str | None] = mapped_column(String(255))
+    blocked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    blocked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))

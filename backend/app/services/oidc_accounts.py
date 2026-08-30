@@ -1,0 +1,311 @@
+"""Konten aus einer OIDC-Anmeldung: verknuepfen, zuordnen, anlegen.
+
+Das Geschwister von ``mediaserver_accounts``, mit derselben Arbeitsteilung:
+Der Weg zur gepruefte Identitaet liegt in ``services/oidc``; hier steht nur
+noch die Frage "wer ist das, und bekommt diese Person ein Nexview-Konto?".
+
+Die Kaskade in ``resolve`` ist dieselbe wie beim Media-Server - mit einem
+entscheidenden Unterschied bei der Adress-Bruecke: **Die Adresse zaehlt nur,
+wenn der Anbieter sie als bestaetigt meldet** (``email_verified``). Beim
+Media-Server buergt der Anbieter pauschal fuer jede herausgegebene Adresse;
+ein OIDC-Anbieter sagt es ausdruecklich dazu - und bei "nein" waere die
+Bruecke eine offene Tuer: Wer sich bei irgendeinem Anbieter ein Konto mit
+fremder Adresse anlegt, uebernaehme darueber das fremde Nexview-Konto.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from ..models import NotificationType, OidcBlock, OidcLink, Role, User, utcnow
+from ..security import unusable_password
+from . import notify, tokens
+from .mediaserver_accounts import KontoFehler, _unique_username, offene_einladung
+from .oidc import OidcIdentitaet
+
+if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
+    from .settings_service import AppSettings
+
+logger = logging.getLogger("nexview.oidc")
+
+
+# ---------------------------------------------------------------------------
+# Sperrliste
+# ---------------------------------------------------------------------------
+
+
+def is_blocked(db: Session, issuer: str, subject: str) -> bool:
+    return (
+        db.scalar(
+            select(OidcBlock).where(
+                OidcBlock.issuer == issuer, OidcBlock.subject == subject
+            )
+        )
+        is not None
+    )
+
+
+def block(db: Session, user: User, *, by: int | None = None) -> None:
+    """Die OIDC-Identitaeten eines Benutzers sperren - beim Loeschen des Kontos.
+
+    Dasselbe Loch wie beim Media-Server: Mit eingeschalteter automatischer
+    Anlage waere das Loeschen sonst wirkungslos, die Person meldet sich neu an
+    und hat sofort wieder ein Konto. Gesperrt wird an (issuer, subject) - die
+    Sperre ueberlebt damit auch ein Loeschen des Anbieter-Eintrags.
+    """
+    for zeile in user.oidc_links:
+        if is_blocked(db, zeile.issuer, zeile.subject):
+            continue
+        db.add(
+            OidcBlock(
+                issuer=zeile.issuer,
+                subject=zeile.subject,
+                display=zeile.display,
+                blocked_by=by,
+            )
+        )
+
+
+# ---------------------------------------------------------------------------
+# Verknuepfen und Zuordnen
+# ---------------------------------------------------------------------------
+
+
+def verknuepfung(user: User, issuer: str) -> OidcLink | None:
+    """Die Verknuepfung dieses Benutzers bei **diesem** Anbieter."""
+    for zeile in user.oidc_links:
+        if zeile.issuer == issuer:
+            return zeile
+    return None
+
+
+def find_linked(db: Session, identitaet: OidcIdentitaet) -> User | None:
+    """Wem gehoert diese Identitaet?"""
+    return db.scalar(
+        select(User)
+        .join(OidcLink, OidcLink.user_id == User.id)
+        .where(
+            OidcLink.issuer == identitaet.issuer,
+            OidcLink.subject == identitaet.subject,
+        )
+    )
+
+
+def link(user: User, identitaet: OidcIdentitaet) -> None:
+    """Eine OIDC-Identitaet an ein Nexview-Konto haengen.
+
+    ⚠️ **Die Adress-Bestaetigung wird nur uebernommen, wenn beides stimmt:**
+    Der Anbieter meldet die Adresse als bestaetigt, **und** sie ist dieselbe,
+    die am Konto steht. Beim Media-Server genuegt die Herausgabe der Adresse;
+    hier waere das falsch - ``email_verified: false`` heisst ausdruecklich
+    "dafuer buerge ich nicht", und eine *andere* bestaetigte Adresse bestaetigt
+    nicht die des Kontos.
+    """
+    zeile = verknuepfung(user, identitaet.issuer)
+    if zeile is None:
+        zeile = OidcLink(issuer=identitaet.issuer, subject=identitaet.subject)
+        user.oidc_links.append(zeile)
+
+    zeile.subject = identitaet.subject
+    zeile.display = identitaet.email or identitaet.username
+    zeile.linked_at = utcnow().replace(tzinfo=None)
+
+    if (
+        identitaet.email_verified
+        and identitaet.email
+        and user.email == tokens.normalize_email(identitaet.email)
+    ):
+        user.email_verified = True
+
+
+def loesen(user: User, issuer: str) -> None:
+    """Eine Verknuepfung loesen - mit demselben Aussperrschutz wie ueberall.
+
+    Wer weder Passwort noch bestaetigte Adresse noch einen anderen Weg hinein
+    haette, wird abgewiesen, bevor etwas passiert - Wort fuer Wort dieselbe
+    Frage wie ``mediaserver_accounts.kaeme_nicht_mehr_herein``.
+    """
+    if kaeme_nicht_mehr_herein(user, ohne=issuer):
+        raise KontoFehler(
+            "oidc_would_lock_out",
+            "Lege zuerst ein Passwort fest - sonst kämst du nicht mehr hinein.",
+            status_code=409,
+        )
+    user.oidc_links[:] = [z for z in user.oidc_links if z.issuer != issuer]
+
+
+def kaeme_nicht_mehr_herein(user: User, ohne: str) -> bool:
+    """Haette dieses Konto ohne diesen Anbieter noch einen Weg hinein?
+
+    Gezaehlt werden: eine andere OIDC-Verknuepfung, eine Medienserver-
+    Verknuepfung, ein nutzbares Passwort, eine bestaetigte Adresse. Die
+    letzten beiden sind absichtlich dieselbe Bedingung wie beim Media-Server -
+    zwei Stellen, die "kaeme er noch herein?" verschieden beantworten, waeren
+    genau die Art Fehler, die man erst bemerkt, wenn jemand ausgesperrt ist.
+    """
+    from ..security import has_usable_password
+
+    if any(zeile.issuer != ohne for zeile in user.oidc_links):
+        return False
+    if user.mediaserver_accounts:
+        return False
+    return not has_usable_password(user.password_hash) and not (
+        user.email and user.email_verified
+    )
+
+
+# ---------------------------------------------------------------------------
+# Die Kaskade
+# ---------------------------------------------------------------------------
+
+
+def resolve(
+    db: Session, settings: "AppSettings", identitaet: OidcIdentitaet, *, auto_create: bool
+) -> User:
+    """Zu welchem Nexview-Konto gehoert diese Anmeldung?
+
+    Dieselbe Reihenfolge wie beim Media-Server, und die ist wichtig:
+
+    1. gesperrt? Dann endet es hier.
+    2. schon verknuepft? Der uebliche Fall.
+    3. gleiche **bestaetigte** Adresse? Dann verknuepfen statt ein zweites
+       Konto anzulegen.
+    4. offene Einladung fuer diese Adresse? Deren Vorgaben gelten.
+    5. sonst neu anlegen - falls der Administrator das fuer diesen Anbieter
+       erlaubt hat (``auto_create`` kommt je Anbieter, nicht haus-weit).
+    """
+    if is_blocked(db, identitaet.issuer, identitaet.subject):
+        raise KontoFehler("oidc_blocked", "Für dieses Konto ist der Zugang gesperrt.")
+
+    vorhanden = find_linked(db, identitaet)
+    if vorhanden is not None:
+        if not vorhanden.is_active:
+            raise KontoFehler("account_disabled", "Dieses Konto ist deaktiviert.")
+        # Name oder Adresse koennen sich beim Anbieter geaendert haben - die
+        # Anzeige zieht nach, die Identitaet (issuer, subject) bleibt.
+        zeile = verknuepfung(vorhanden, identitaet.issuer)
+        if zeile is not None:
+            zeile.display = identitaet.email or identitaet.username
+        return vorhanden
+
+    if identitaet.email and identitaet.email_verified:
+        nach_adresse = db.scalar(
+            select(User).where(User.email == tokens.normalize_email(identitaet.email))
+        )
+        if nach_adresse is not None:
+            # Nur die Verknuepfung **dieses Anbieters** steht im Weg - dieselbe
+            # Lehre wie beim Media-Server im Parallelbetrieb.
+            schon = verknuepfung(nach_adresse, identitaet.issuer)
+            if schon is not None and schon.subject != identitaet.subject:
+                raise KontoFehler(
+                    "oidc_link_conflict",
+                    "Zu dieser Adresse gehört bereits eine andere Anmeldung "
+                    "dieses Anbieters.",
+                    status_code=409,
+                )
+            if not nach_adresse.is_active:
+                raise KontoFehler("account_disabled", "Dieses Konto ist deaktiviert.")
+            if nach_adresse.role == Role.child:
+                # Kinderkonten haben keine eigene Anmeldung - auch keine
+                # delegierte. Praktisch entsteht der Fall kaum (Kinderkonten
+                # haben keine Adresse), aber "kaum" ist kein Riegel.
+                raise KontoFehler(
+                    "oidc_not_invited",
+                    "Für diesen Zugang gibt es noch kein Konto. "
+                    "Bitte den Administrator um eine Einladung.",
+                )
+            link(nach_adresse, identitaet)
+            return nach_adresse
+
+    if not auto_create:
+        raise KontoFehler(
+            "oidc_not_invited",
+            "Für diesen Zugang gibt es noch kein Konto. "
+            "Bitte den Administrator um eine Einladung.",
+        )
+
+    return _anlegen(db, settings, identitaet)
+
+
+def _anlegen(db: Session, settings: "AppSettings", identitaet: OidcIdentitaet) -> User:
+    """Ein neues Konto aus einer OIDC-Anmeldung.
+
+    Rolle und Grenzen kommen aus einer offenen Einladung, falls es eine gibt -
+    sonst ist es ein gewoehnlicher Benutzer mit den Standardwerten des Hauses.
+    **Rollen bleiben lokal**: Was der Anbieter an Gruppen kennt, liest Nexview
+    nicht - der Anbieter beglaubigt, *wer* jemand ist, nicht, was er darf.
+    """
+    einladung = (
+        offene_einladung(db, identitaet.email)
+        if identitaet.email and identitaet.email_verified
+        else None
+    )
+
+    if einladung is not None:
+        rolle = einladung.invite_role or Role.user
+        quota_movies = einladung.invite_quota_movies
+        quota_series = einladung.invite_quota_series
+        blocked_movies = einladung.invite_blocked_movie_profiles
+        blocked_series = einladung.invite_blocked_series_profiles
+        einladung.used_at = utcnow().replace(tzinfo=None)
+    else:
+        rolle = Role.user
+        quota_movies = None
+        quota_series = None
+        blocked_movies = ""
+        blocked_series = ""
+
+    benutzer = User(
+        username=_unique_username(db, identitaet.username or "user"),
+        # Kein Passwort - wie beim Media-Server-Import. Der Weg zurueck ohne
+        # den Anbieter ist derselbe und in ``mediaserver_accounts._anlegen``
+        # ausbuchstabiert: "Passwort vergessen" bei bestaetigter Adresse,
+        # sonst der Administrator.
+        password_hash=unusable_password(),
+        email=tokens.normalize_email(identitaet.email) if identitaet.email else None,
+        # Nur eine **bestaetigte** Adresse gilt als bestaetigt - anders als
+        # beim Media-Server, wo die Herausgabe genuegt. ``email_verified:
+        # false`` heisst ausdruecklich "dafuer buerge ich nicht".
+        email_verified=identitaet.email_verified,
+        role=rolle,
+        display_name=identitaet.username,
+        language=settings.default_language,
+        # Neue Konten muessen ihre Anfragen freigeben lassen - ein Konto beim
+        # Anmeldedienst zu haben heisst nicht, ungefragt herunterladen zu
+        # duerfen.
+        auto_approve=False,
+        quota_movies_limit=quota_movies,
+        quota_series_limit=quota_series,
+        blocked_movie_profiles=blocked_movies,
+        blocked_series_profiles=blocked_series,
+    )
+    link(benutzer, identitaet)
+    db.add(benutzer)
+
+    try:
+        db.flush()
+    except IntegrityError:
+        # Zwei gleichzeitige Anmeldungen derselben Identitaet - der eindeutige
+        # Index hat den zweiten Versuch abgefangen, das bereits angelegte
+        # Konto ist das richtige.
+        db.rollback()
+        bereits_da = find_linked(db, identitaet)
+        if bereits_da is None:
+            raise
+        return bereits_da
+
+    logger.info(
+        "OIDC: created account %r from provider %r", benutzer.username, identitaet.issuer
+    )
+    notify.create_for_admins(
+        db,
+        kind=NotificationType.user_imported,
+        message_key="notifications.userImported",
+        title=benutzer.display_name or benutzer.username,
+    )
+    return benutzer

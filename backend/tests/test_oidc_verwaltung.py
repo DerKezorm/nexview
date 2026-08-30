@@ -153,6 +153,29 @@ def test_loeschen_warnt_vor_dem_aussperren(admin_client: TestClient) -> None:
         assert db.query(OidcLink).count() == 2
 
 
+def test_sperrliste_zeigen_und_aufheben(admin_client: TestClient) -> None:
+    """Ohne diesen Weg waere eine Sperre fuer immer - sie entsteht ja still
+    beim Loeschen eines Kontos."""
+    with SessionLocal() as db:
+        konto = User(username="wegdamit", password_hash=unusable_password())
+        konto.oidc_links.append(OidcLink(issuer=ISSUER, subject="p-9", display="weg@bsp.de"))
+        db.add(konto)
+        db.commit()
+        kennung = konto.id
+
+    geloescht = admin_client.delete(f"/api/users/{kennung}")
+    assert geloescht.status_code == 204, geloescht.text
+
+    liste = admin_client.get("/api/admin/oidc/blocks").json()
+    assert len(liste) == 1
+    assert liste[0]["issuer"] == ISSUER
+    assert liste[0]["display"] == "weg@bsp.de"
+
+    aufgehoben = admin_client.delete(f"/api/admin/oidc/blocks/{liste[0]['id']}")
+    assert aufgehoben.status_code == 204
+    assert admin_client.get("/api/admin/oidc/blocks").json() == []
+
+
 def test_pruef_knopf(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     _mit_adresse()
     eintrag = admin_client.post("/api/admin/oidc", json=NEU).json()

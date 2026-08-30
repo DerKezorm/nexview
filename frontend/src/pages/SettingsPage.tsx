@@ -7,6 +7,7 @@ import { AdminChannelSettings } from './settings/AdminChannelSettings'
 import { AdminLogsSettings } from './settings/AdminLogsSettings'
 import { AdminSicherungen } from './settings/AdminSicherungen'
 import { AdminMailSettings } from './settings/AdminMailSettings'
+import { AdminOidcSettings } from './settings/AdminOidcSettings'
 import { AdminServicesSettings } from './settings/AdminServicesSettings'
 import { AdminStorageSettings } from './settings/AdminStorageSettings'
 import { AdminBlocklistSettings } from './settings/AdminBlocklistSettings'
@@ -19,6 +20,7 @@ type Tab =
   | 'services'
   | 'address'
   | 'mail'
+  | 'anmeldung'
   | 'channels'
   | 'users'
   | 'watchlist'
@@ -43,6 +45,10 @@ type Tab =
 const SYSTEM: Reiter<Tab>[] = [
   { value: 'address', label: 'settings.tabAddress', symbol: 'adresse' },
   { value: 'mail', label: 'settings.tabMail', symbol: 'mail' },
+  // Anmeldung über fremde Anbieter (OIDC). Unter „System", weil es die
+  // Anlage betrifft, nicht den Alltag - und direkt hinter der Adresse, von
+  // der seine Rückkehr-Adresse abhängt.
+  { value: 'anmeldung', label: 'settings.tabSignIn', symbol: 'schluessel' },
   { value: 'logs', label: 'settings.tabLogs', symbol: 'protokoll' },
   { value: 'sicherungen', label: 'settings.tabBackups', symbol: 'sicherung' },
   // Aufsicht, kein Alltag: Ein Administrator sieht hier, wer Token hat und ob
@@ -122,6 +128,7 @@ export function SettingsPage() {
       {tab === 'services' && <AdminServicesSettings />}
       {tab === 'address' && <AdminAddressSettings />}
       {tab === 'mail' && <AdminMailSettings />}
+      {tab === 'anmeldung' && <AdminOidcSettings />}
 
       {/* Serverseitige Kanäle - vom Administrator eingerichtet, ein Ziel für
           die ganze Installation. Die persönlichen Wege stellt jeder im

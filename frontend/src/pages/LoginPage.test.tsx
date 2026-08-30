@@ -42,13 +42,16 @@ const holen = vi.mocked(api.get)
 const schicken = vi.mocked(api.post)
 
 /** Der Aufruf, den der AuthProvider beim Erscheinen macht. */
-function einrichtungFertig() {
+function einrichtungFertig(oidcAnbieter: object[] = []) {
   holen.mockImplementation(async (pfad: string) => {
     if (pfad === '/api/setup/status') {
       return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
     }
     if (pfad === '/api/auth/me') {
       return { id: 1, username: 'kim', role: 'user', language: 'de', theme: 'dark' }
+    }
+    if (pfad === '/api/auth/oidc') {
+      return oidcAnbieter
     }
     throw new Error(`Unerwarteter Aufruf: ${pfad}`)
   })
@@ -158,5 +161,42 @@ describe('Anmelden', () => {
 
     expect(schicken).toHaveBeenCalledTimes(1)
     aufloesen({ access_token: 'abc', token_type: 'bearer', expires_in: 1800 })
+  })
+})
+
+describe('Anmelden über OIDC-Anbieter', () => {
+  it('zeigt je eingerichtetem Anbieter einen Knopf - und ohne keinen', async () => {
+    einrichtungFertig([
+      { slug: 'firma', label: 'Firmen-SSO', issuer_url: 'https://sso.beispiel.de' },
+    ])
+    rendern(<LoginPage />)
+
+    expect(
+      await screen.findByRole('button', { name: /anmelden mit firmen-sso/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('bleibt ohne Anbieter die Anmeldeseite von immer', async () => {
+    rendern(<LoginPage />)
+    await waitFor(() => expect(screen.getByLabelText(/benutzername/i)).toBeInTheDocument())
+    expect(screen.queryByText(/oder anmelden über/i)).toBeNull()
+  })
+
+  it('zeigt die Kennung aus einer gescheiterten Rückkehr - und räumt die Adresse', async () => {
+    // Der Rückweg vom Anbieter ist eine Weiterleitung; sein Fehler steht in
+    // der Adresse statt in einer API-Antwort.
+    window.history.replaceState(null, '', '/login?oidc_fehler=oidc_not_invited')
+    try {
+      rendern(<LoginPage />)
+
+      expect(
+        await screen.findByText(/für diesen zugang gibt es noch kein konto/i),
+      ).toBeInTheDocument()
+      // Einmal gezeigt, aus der Adresse verschwunden: Ein Neuladen soll die
+      // alte Meldung nicht noch einmal bringen.
+      expect(window.location.search).toBe('')
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
   })
 })

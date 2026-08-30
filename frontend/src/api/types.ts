@@ -102,6 +102,12 @@ export type User = {
    */
   mediaserver_accounts: { provider: string; username: string | null }[];
   /**
+   * Die OIDC-Anmeldungen am Konto – je Anbieter eine. Zugeordnet wird über
+   * die Anbieter-Adresse, nicht über ein Kürzel: Der Eintrag des
+   * Administrators kann gelöscht sein, während die Verknüpfung noch steht.
+   */
+  oidc_links: { issuer: string; display: string | null }[];
+  /**
    * Kann sich dieses Konto auch mit Passwort anmelden? Wer über den
    * Media-Server angelegt wurde, hat zunächst keines – und darf die
    * Verknüpfung dann nicht lösen, ohne sich auszusperren.
@@ -269,6 +275,42 @@ export type LoginWay = {
   label: string;
   /** `pin` öffnet das Fenster des Anbieters, `password` klappt ein Formular auf. */
   kind: "pin" | "password";
+};
+
+/**
+ * Ein Anmelde-Anbieter nach OpenID Connect, wie ihn Anmeldeseite und Profil
+ * sehen: Kürzel für die Adresse, Beschriftung für den Knopf – und die
+ * Anbieter-Adresse, über die das Profil seine Verknüpfungen zuordnet.
+ */
+export type OidcAnbieter = {
+  slug: string;
+  label: string;
+  issuer_url: string;
+};
+
+/** Derselbe Anbieter aus Sicht des Administrators – das Geheimnis bleibt drin. */
+export type OidcAdminEintrag = {
+  id: number;
+  slug: string;
+  label: string;
+  issuer_url: string;
+  client_id: string;
+  /** `"••••"` wenn gesetzt – kein Zeichen des Geheimnisses verlässt die Datenbank. */
+  client_secret_vorschau: string;
+  auto_create: boolean;
+  enabled: boolean;
+  created_at: string;
+  /** Zum Kopieren; leer, solange die öffentliche Adresse fehlt. */
+  rueckkehr_adresse: string;
+  /** Wie viele Konten über diesen Anbieter verknüpft sind. */
+  verknuepfte: number;
+};
+
+/** Antwort des Prüf-Knopfs – strukturiert, nie als Fehler. */
+export type OidcPruefErgebnis = {
+  ok: boolean;
+  code: string | null;
+  aussteller: string | null;
 };
 
 export type MediaType = "movie" | "tv";

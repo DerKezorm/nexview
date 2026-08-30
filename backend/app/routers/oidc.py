@@ -34,7 +34,7 @@ from sqlalchemy import func, select
 from ..config import get_settings
 from ..crypto import encrypt
 from ..deps import AdminUser, AdultUser, DbSession
-from ..models import OidcLink, OidcProvider, User, utcnow
+from ..models import OidcBlock, OidcLink, OidcProvider, User, utcnow
 from ..schemas import UserPublic
 from ..services import anmeldebremse, oidc, oidc_accounts, sitzung
 from ..services.mediaserver_accounts import KontoFehler
@@ -46,19 +46,26 @@ admin_router = APIRouter(prefix="/api/admin/oidc", tags=["oidc"])
 logger = logging.getLogger("nexview.oidc")
 
 #: Wohin der Browser nach dem Rueckweg gefuehrt wird - Routen der Oberflaeche.
+#: ``/login`` gibt es dort gar nicht als eigene Route, und genau das traegt:
+#: Ohne Sitzung zeigt die App auf jedem Pfad die Anmeldeseite (die den
+#: Fehler-Parameter liest), und **mit** frischer Sitzung faengt der
+#: Auffangpfad des Routers die Adresse und raeumt sie auf die Startseite.
 LOGIN_ZIEL = "/login"
-PROFIL_ZIEL = "/profile"
+PROFIL_ZIEL = "/profil"
 
 
 class AnbieterKnopf(BaseModel):
-    """Was die Anmeldeseite braucht, um einen Knopf zu malen - nicht mehr.
+    """Was Anmeldeseite und Profil brauchen - nicht mehr.
 
-    Ausdruecklich ohne Adresse, Client-ID oder Schalter: Diese Liste ist
-    **oeffentlich**, sie steht vor der Anmeldung.
+    Diese Liste ist **oeffentlich**, sie steht vor der Anmeldung: Client-ID,
+    Geheimnis und Schalter bleiben drinnen. Die Anbieter-Adresse steht dabei -
+    sie ist kein Geheimnis (der erste Klick auf den Knopf zeigt sie in der
+    Adresszeile), und das Profil ordnet darueber seine Verknuepfungen zu.
     """
 
     slug: str
     label: str
+    issuer_url: str
 
 
 class LinkStart(BaseModel):
@@ -148,7 +155,10 @@ def anbieter_liste(db: DbSession) -> list[AnbieterKnopf]:
     eintraege = db.scalars(
         select(OidcProvider).where(OidcProvider.enabled.is_(True)).order_by(OidcProvider.id)
     )
-    return [AnbieterKnopf(slug=e.slug, label=e.label) for e in eintraege]
+    return [
+        AnbieterKnopf(slug=e.slug, label=e.label, issuer_url=e.issuer_url)
+        for e in eintraege
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -235,9 +245,12 @@ async def callback(
     zustand = oidc.zustand_lesen(request.cookies.get(oidc.COOKIE_NAME))
     zweck = (zustand or {}).get("zweck", "login")
     ziel = PROFIL_ZIEL if zweck == "link" else LOGIN_ZIEL
+    # ``?reiter=anmeldung`` oeffnet im Profil direkt die richtige Karte - der
+    # Browser war beim Anbieter und soll nicht vor dem falschen Reiter landen.
+    extra = {"reiter": "anmeldung"} if zweck == "link" else {}
 
     def scheitern(kennung: str) -> RedirectResponse:
-        antwort = _oberflaeche(ziel, oidc_fehler=kennung)
+        antwort = _oberflaeche(ziel, oidc_fehler=kennung, **extra)
         _cookie_loeschen(antwort)
         return antwort
 
@@ -296,7 +309,7 @@ async def callback(
             return scheitern("oidc_link_conflict")
         oidc_accounts.link(benutzer, identitaet)
         db.commit()
-        antwort = _oberflaeche(ziel, oidc="verknuepft")
+        antwort = _oberflaeche(ziel, oidc="verknuepft", **extra)
         _cookie_loeschen(antwort)
         return antwort
 
@@ -327,28 +340,25 @@ async def callback(
 # ---------------------------------------------------------------------------
 
 
-@router.delete("/{slug}/link", response_model=UserPublic)
-def link_delete(slug: str, db: DbSession, user: AdultUser) -> UserPublic:
+@router.delete("/link", response_model=UserPublic)
+def link_delete(issuer: str, db: DbSession, user: AdultUser) -> UserPublic:
     """Die eigene Verknuepfung bei diesem Anbieter loesen.
 
-    Derselbe Aussperrschutz wie beim Media-Server: Wer danach keinen Weg mehr
-    hinein haette, wird abgewiesen, bevor etwas passiert.
+    Ueber die Anbieter-**Adresse**, nicht das Kuerzel: Die Verknuepfung haengt
+    an der Adresse, und sie muss sich auch dann loesen lassen, wenn der
+    Administrator den Anbieter-Eintrag laengst geloescht hat - genau wie beim
+    Media-Server, wo ``?provider=`` dieselbe Rolle spielt. Derselbe
+    Aussperrschutz wie ueberall: Wer danach keinen Weg mehr hinein haette,
+    wird abgewiesen, bevor etwas passiert.
     """
-    anbieter = db.scalar(select(OidcProvider).where(OidcProvider.slug == slug))
-    issuer = anbieter.issuer_url if anbieter is not None else None
-    if issuer is None:
-        # Der Anbieter-Eintrag kann geloescht sein, waehrend die Verknuepfung
-        # noch steht - dann traegt die Verknuepfung selbst die Adresse.
-        vorhandene = {z.issuer for z in user.oidc_links}
-        if len(vorhandene) == 1:
-            issuer = vorhandene.pop()
-    if issuer is None or oidc_accounts.verknuepfung(user, issuer) is None:
+    adresse = issuer.rstrip("/")
+    if oidc_accounts.verknuepfung(user, adresse) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "oidc_not_linked", "message": "Hier ist nichts verknüpft."},
         )
     try:
-        oidc_accounts.loesen(user, issuer)
+        oidc_accounts.loesen(user, adresse)
     except KontoFehler as fehler:
         raise HTTPException(
             status_code=fehler.status_code,
@@ -686,6 +696,38 @@ def admin_loeschen(
     db.commit()
     oidc.cache_leeren()
     logger.info("OIDC provider %r deleted by %r", eintrag.slug, admin.username)
+
+
+class SperrEintrag(BaseModel):
+    """Eine gesperrte Identitaet, wie die Liste sie zeigt."""
+
+    id: int
+    issuer: str
+    display: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+@admin_router.get("/blocks", response_model=list[SperrEintrag])
+def admin_sperrliste(db: DbSession, admin: AdminUser) -> list[SperrEintrag]:
+    """Gesperrte Identitaeten - entstanden beim Loeschen von Konten.
+
+    Das Gegenstueck zur Medienserver-Sperrliste: Ohne diese Ansicht waere
+    eine Sperre fuer immer, denn sie entsteht still beim Loeschen.
+    """
+    return [
+        SperrEintrag.model_validate(zeile)
+        for zeile in db.scalars(select(OidcBlock).order_by(OidcBlock.blocked_at.desc()))
+    ]
+
+
+@admin_router.delete("/blocks/{block_id}", status_code=status.HTTP_204_NO_CONTENT)
+def admin_sperre_aufheben(block_id: int, db: DbSession, admin: AdminUser) -> None:
+    """Sperre aufheben - danach darf diese Identitaet wieder herein."""
+    eintrag = db.get(OidcBlock, block_id)
+    if eintrag is not None:
+        db.delete(eintrag)
+        db.commit()
 
 
 @admin_router.post("/{provider_id}/pruefen", response_model=PruefErgebnis)

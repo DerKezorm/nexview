@@ -54,6 +54,15 @@ KINDER_ERLAUBT = {
     # ein Kinderkonto hat dort ohnehin kein Gegenstueck.
     "/api/auth/mediaserver/login/start",
     "/api/auth/mediaserver/login/poll",
+    # Anmeldung ueber fremde Anbieter (OIDC): dieselbe Einordnung. Die drei
+    # Pfade stehen **vor** jeder Sitzung - eine Knopfliste und der Hin- und
+    # Rueckweg der Anmeldung. Ein Kinderkonto hat beim Anbieter kein
+    # Gegenstueck (Kinder sind Unterprofile ihrer Eltern), und die Kaskade in
+    # ``oidc_accounts.resolve`` weist Kinderkonten ausdruecklich ab. Das
+    # Verknuepfen und Trennen im Profil haengt dagegen an ``require_adult``.
+    "/api/auth/oidc",
+    "/api/auth/oidc/{slug}/login",
+    "/api/auth/oidc/{slug}/callback",
     # Derselbe Weg fuer Anbieter ohne Vermittler (Jellyfin, Emby): Benutzername
     # und Passwort statt Code. Ebenfalls ohne angemeldeten Benutzer - und ein
     # Kinderkonto hat auf dem Medienserver kein Gegenstueck, denn Kinder sind

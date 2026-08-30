@@ -889,12 +889,14 @@ TEXTE: dict[str, tuple[str, str]] = {
             'header.'
         ),
     ),
-    'DELETE /api/auth/oidc/{slug}/link': (
+    'DELETE /api/auth/oidc/link': (
         'Unlink an OIDC identity',
         (
-            'Removes the own link to this provider. Refused (409) if the '
-            'account would be left without any way back in - no password, no '
-            'verified address, no other linked sign-in.'
+            'Removes the own link to the provider named by ?issuer=... - the '
+            'address rather than the slug, so a link can still be removed '
+            'after the administrator deleted the provider entry. Refused '
+            '(409) if the account would be left without any way back in - no '
+            'password, no verified address, no other linked sign-in.'
         ),
     ),
     'GET /api/admin/oidc': (
@@ -941,6 +943,18 @@ TEXTE: dict[str, tuple[str, str]] = {
             'the list of endangered accounts if some would lose their only way '
             'in; can be overridden with bestaetigt=true.'
         ),
+    ),
+    'GET /api/admin/oidc/blocks': (
+        'List blocked OIDC identities',
+        (
+            'Identities blocked from re-creating an account - created silently '
+            'when a user is deleted. Without this list a block would be '
+            'forever.'
+        ),
+    ),
+    'DELETE /api/admin/oidc/blocks/{block_id}': (
+        'Unblock an OIDC identity',
+        'Afterwards that identity may sign in - and, where enabled, be created - again.',
     ),
     'POST /api/admin/oidc/{provider_id}/pruefen': (
         'Probe an OIDC provider',

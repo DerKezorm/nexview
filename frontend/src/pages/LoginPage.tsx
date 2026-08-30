@@ -10,8 +10,34 @@ import { useAuth } from '../auth/useAuth'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
 import { MediaServerLoginRow } from '../components/MediaServerLoginRow'
+import { OidcLoginRow } from '../components/OidcLoginRow'
 import { ThemeSwitcher } from '../components/ThemeSwitcher'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
+import i18n from '../i18n'
+
+/**
+ * Die Kennung aus einer gescheiterten OIDC-Rückkehr – einmal gelesen, dann
+ * aus der Adresse geräumt.
+ *
+ * Der Rückweg vom Anbieter ist eine Browser-Weiterleitung; scheitert er,
+ * steht die Kennung als `?oidc_fehler=...` in der Adresse statt in einer
+ * API-Antwort. Sie wird sofort per `replaceState` entfernt: Ein neu geladenes
+ * Fenster soll die alte Meldung nicht noch einmal zeigen, und in kopierten
+ * Adressen hat sie nichts verloren.
+ */
+function oidcFehlerAusAdresse(): string | null {
+  const params = new URLSearchParams(window.location.search)
+  const code = params.get('oidc_fehler')
+  if (!code) return null
+  params.delete('oidc_fehler')
+  const rest = params.toString()
+  window.history.replaceState(
+    null,
+    '',
+    window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash,
+  )
+  return code
+}
 
 export function LoginPage() {
   const { t } = useTranslation()
@@ -20,7 +46,12 @@ export function LoginPage() {
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(() => {
+    const code = oidcFehlerAusAdresse()
+    if (!code) return null
+    const schluessel = `errors.byCode.${code}`
+    return i18n.exists(schluessel) ? i18n.t(schluessel) : i18n.t('errors.generic')
+  })
   const [busy, setBusy] = useState(false)
   /** Adresse noch nicht bestätigt: dann statt Fehlermeldung den Ausweg zeigen. */
   const [pending, setPending] = useState<{ email: string; message: string } | null>(null)
@@ -131,6 +162,11 @@ export function LoginPage() {
               navigate('/', { replace: true })
             }}
           />
+
+          {/* Die eingerichteten OIDC-Anbieter. Nach der Rückkehr baut der
+              Start der App die Sitzung aus dem frischen Cookie – hier gibt es
+              deshalb keinen onTokens-Weg, nur den Absprung. */}
+          <OidcLoginRow />
         </Card>
         )}
       </div>

@@ -155,6 +155,22 @@ class VerknuepftesKonto(BaseModel):
     username: str | None = None
 
 
+class OidcVerknuepfung(BaseModel):
+    """Eine OIDC-Anmeldung am eigenen Konto - fuer die Anzeige im Profil.
+
+    Die Anbieter-Adresse statt eines Kuerzels, weil die Verknuepfung an ihr
+    haengt: Das Profil ordnet sie ueber die oeffentliche Anbieter-Liste einer
+    Beschriftung zu - und zeigt die Adresse selbst, wenn der Eintrag des
+    Administrators inzwischen weg ist. ``subject`` bleibt drinnen: Es sagt
+    einem Menschen nichts.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    issuer: str
+    display: str | None = None
+
+
 class UserPublic(BaseModel):
     """Eigenes Profil bzw. Benutzer in Admin-Listen."""
 
@@ -243,6 +259,8 @@ class UserPublic(BaseModel):
     # willkuerlich eine von zweien. Wer nach einem bestimmten Anbieter fragt,
     # muss hier suchen.
     mediaserver_accounts: list["VerknuepftesKonto"] = []
+    # Dieselbe Liste fuer die genormte Anmeldung - je Anbieter eine Zeile.
+    oidc_links: list["OidcVerknuepfung"] = []
     # Wer sich nur ueber den Media-Server anmeldet, hat kein Passwort. Das
     # Profil braucht die Auskunft, um "Passwort festlegen" anzubieten - und um
     # das Trennen zu verhindern, das aussperren wuerde.

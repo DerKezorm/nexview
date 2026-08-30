@@ -80,7 +80,7 @@ def test_liste_zeigt_nur_aktive_anbieter(client: TestClient) -> None:
 
     anbieter_anlegen()
     assert client.get("/api/auth/oidc").json() == [
-        {"slug": "firma", "label": "Firmen-SSO"}
+        {"slug": "firma", "label": "Firmen-SSO", "issuer_url": ISSUER}
     ]
 
     with SessionLocal() as db:
@@ -263,15 +263,15 @@ def test_verknuepfen_und_trennen(admin_client: TestClient, attrappe: dict) -> No
         follow_redirects=False,
     )
     assert antwort.status_code == 303, antwort.text
-    assert antwort.headers["location"] == "/profile?oidc=verknuepft"
+    assert antwort.headers["location"] == "/profil?oidc=verknuepft&reiter=anmeldung"
 
     with SessionLocal() as db:
         max_ = db.query(User).filter(User.username == "max").one()
         assert [z.subject for z in max_.oidc_links] == ["max-beim-sso"]
 
-    geloest = admin_client.delete(f"/api/auth/oidc/{SLUG}/link", headers=kopf)
+    geloest = admin_client.delete(f"/api/auth/oidc/link?issuer={ISSUER}", headers=kopf)
     assert geloest.status_code == 200, geloest.text
-    nochmal = admin_client.delete(f"/api/auth/oidc/{SLUG}/link", headers=kopf)
+    nochmal = admin_client.delete(f"/api/auth/oidc/link?issuer={ISSUER}", headers=kopf)
     assert nochmal.status_code == 404
 
 
@@ -297,7 +297,7 @@ def test_fremde_identitaet_laesst_sich_nicht_verknuepfen(
         )
 
     # Der zweite Versuch endet mit der Konflikt-Kennung im Profil.
-    assert antwort.headers["location"] == "/profile?oidc_fehler=oidc_link_conflict"
+    assert antwort.headers["location"] == "/profil?oidc_fehler=oidc_link_conflict&reiter=anmeldung"
     with SessionLocal() as db:
         zweite = db.query(User).filter(User.username == "zweite").one()
         assert zweite.oidc_links == []

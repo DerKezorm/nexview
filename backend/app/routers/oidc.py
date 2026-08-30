@@ -23,21 +23,25 @@ Deaktivieren blendet nicht nur den Knopf aus - der Weg selbst ist zu.
 from __future__ import annotations
 
 import logging
+import re
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 
 from ..config import get_settings
-from ..deps import AdultUser, DbSession
-from ..models import OidcProvider, User, utcnow
+from ..crypto import encrypt
+from ..deps import AdminUser, AdultUser, DbSession
+from ..models import OidcLink, OidcProvider, User, utcnow
 from ..schemas import UserPublic
 from ..services import anmeldebremse, oidc, oidc_accounts, sitzung
 from ..services.mediaserver_accounts import KontoFehler
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["oidc"])
+admin_router = APIRouter(prefix="/api/admin/oidc", tags=["oidc"])
 
 logger = logging.getLogger("nexview.oidc")
 
@@ -353,3 +357,350 @@ def link_delete(slug: str, db: DbSession, user: AdultUser) -> UserPublic:
     db.commit()
     db.refresh(user)
     return UserPublic.model_validate(user)
+
+
+# ---------------------------------------------------------------------------
+# Verwaltung (Administrator)
+# ---------------------------------------------------------------------------
+
+#: Klein geschrieben, mit Bindestrichen - es steht in einer Adresse. Und ab
+#: dem Anlegen fest: Beim Anbieter ist es Teil der Rueckkehr-Adresse.
+_SLUG_MUSTER = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+
+
+class AnbieterAdmin(BaseModel):
+    """Ein Eintrag, wie ihn die Einstellungsseite zeigt.
+
+    ``client_secret_vorschau`` statt des Geheimnisses - wie bei jedem anderen
+    Schluessel. ``rueckkehr_adresse`` ist der Wert, den der Administrator beim
+    Anbieter eintraegt; leer, solange die oeffentliche Adresse fehlt.
+    """
+
+    id: int
+    slug: str
+    label: str
+    issuer_url: str
+    client_id: str
+    client_secret_vorschau: str
+    auto_create: bool
+    enabled: bool
+    created_at: datetime
+    rueckkehr_adresse: str
+    verknuepfte: int
+
+
+class AnbieterAnlegen(BaseModel):
+    slug: str = Field(min_length=1, max_length=40)
+    label: str = Field(min_length=1, max_length=80)
+    issuer_url: str = Field(min_length=1, max_length=500)
+    client_id: str = Field(min_length=1, max_length=255)
+    client_secret: str = Field(min_length=1, max_length=500)
+    auto_create: bool = False
+    enabled: bool = True
+
+
+class AnbieterAendern(BaseModel):
+    """Alles ausser dem Kuerzel - das ist Teil der Rueckkehr-Adresse und fest.
+
+    Ein leeres ``client_secret`` heisst "behalten": Die Seite zeigt das
+    Geheimnis nie an, also darf ein unangefasstes Feld es nicht loeschen.
+    """
+
+    label: str | None = Field(default=None, min_length=1, max_length=80)
+    issuer_url: str | None = Field(default=None, min_length=1, max_length=500)
+    client_id: str | None = Field(default=None, min_length=1, max_length=255)
+    client_secret: str | None = Field(default=None, max_length=500)
+    auto_create: bool | None = None
+    enabled: bool | None = None
+
+
+class PruefErgebnis(BaseModel):
+    """Was der Pruef-Knopf meldet - strukturiert, nie als Fehlerantwort.
+
+    Ein nicht erreichbarer Anbieter ist hier kein Ausnahmefall, sondern genau
+    die Auskunft, um die gebeten wurde.
+    """
+
+    ok: bool
+    code: str | None = None
+    aussteller: str | None = None
+
+
+class GefaehrdetesKonto(BaseModel):
+    id: int
+    username: str
+    display_name: str | None
+
+
+class LoeschFolgen(BaseModel):
+    """Was ein Loeschen dieses Anbieters anrichten wuerde.
+
+    Wie beim Media-Server bewusst **immer** abrufbar - ein Hinweis, der nur im
+    Ernstfall erscheint, wird beim ersten Mal nicht gelesen.
+    """
+
+    verknuepft: int
+    gefaehrdet: list[GefaehrdetesKonto]
+
+
+def _normalisiert(issuer_url: str) -> str:
+    adresse = issuer_url.strip().rstrip("/")
+    if not adresse.lower().startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "url_needs_scheme",
+                "message": "Die Adresse muss mit http:// oder https:// beginnen.",
+            },
+        )
+    return adresse
+
+
+def _eintrag(db: DbSession, provider_id: int) -> OidcProvider:
+    eintrag = db.get(OidcProvider, provider_id)
+    if eintrag is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "oidc_unknown_provider", "message": "Diesen Anbieter gibt es nicht."},
+        )
+    return eintrag
+
+
+def _als_admin(db: DbSession, eintrag: OidcProvider) -> AnbieterAdmin:
+    settings = load_settings(db)
+    return AnbieterAdmin(
+        id=eintrag.id,
+        slug=eintrag.slug,
+        label=eintrag.label,
+        issuer_url=eintrag.issuer_url,
+        client_id=eintrag.client_id,
+        # Bewusst ohne die letzten Zeichen, anders als bei den API-Schluesseln:
+        # Zum Wiedererkennen reicht "gesetzt", und ein Geheimnis, von dem nie
+        # ein Zeichen die Datenbank verlaesst, ist das bessere Geheimnis.
+        client_secret_vorschau="••••" if eintrag.client_secret else "",
+        auto_create=eintrag.auto_create,
+        enabled=eintrag.enabled,
+        created_at=eintrag.created_at,
+        rueckkehr_adresse=(
+            settings.link(f"api/auth/oidc/{eintrag.slug}/callback")
+            if settings.public_url
+            else ""
+        ),
+        verknuepfte=db.scalar(
+            select(func.count())
+            .select_from(OidcLink)
+            .where(OidcLink.issuer == eintrag.issuer_url)
+        )
+        or 0,
+    )
+
+
+def _loesch_folgen(db: DbSession, eintrag: OidcProvider) -> LoeschFolgen:
+    konten = list(
+        db.scalars(
+            select(User)
+            .join(OidcLink, OidcLink.user_id == User.id)
+            .where(OidcLink.issuer == eintrag.issuer_url)
+            .order_by(User.username)
+        )
+    )
+    return LoeschFolgen(
+        verknuepft=len(konten),
+        gefaehrdet=[
+            GefaehrdetesKonto(
+                id=konto.id, username=konto.username, display_name=konto.display_name
+            )
+            for konto in konten
+            if oidc_accounts.kaeme_nicht_mehr_herein(konto, ohne=eintrag.issuer_url)
+        ],
+    )
+
+
+@admin_router.get("", response_model=list[AnbieterAdmin])
+def admin_liste(db: DbSession, admin: AdminUser) -> list[AnbieterAdmin]:
+    return [
+        _als_admin(db, eintrag)
+        for eintrag in db.scalars(select(OidcProvider).order_by(OidcProvider.id))
+    ]
+
+
+@admin_router.post("", response_model=AnbieterAdmin, status_code=status.HTTP_201_CREATED)
+def admin_anlegen(payload: AnbieterAnlegen, db: DbSession, admin: AdminUser) -> AnbieterAdmin:
+    """Einen Anbieter eintragen.
+
+    ⚠️ **Ohne oeffentliche Adresse geht es nicht los** - aus ihr entsteht die
+    Rueckkehr-Adresse, die der Administrator beim Anbieter hinterlegen muss.
+    Die Pruefung sitzt beim Anlegen und nicht erst beim ersten Anmeldeversuch:
+    Dort traefe sie den falschen Menschen.
+    """
+    if not load_settings(db).public_url:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "oidc_no_public_url",
+                "message": "Die öffentliche Adresse von Nexview ist nicht eingestellt.",
+            },
+        )
+
+    slug = payload.slug.strip().lower()
+    if not _SLUG_MUSTER.fullmatch(slug):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "oidc_slug_invalid",
+                "message": "Das Kürzel darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten.",
+            },
+        )
+    adresse = _normalisiert(payload.issuer_url)
+
+    if db.scalar(select(OidcProvider.id).where(OidcProvider.slug == slug)) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "oidc_slug_taken", "message": "Dieses Kürzel ist bereits vergeben."},
+        )
+    if (
+        db.scalar(select(OidcProvider.id).where(OidcProvider.issuer_url == adresse))
+        is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "oidc_issuer_taken",
+                "message": "Dieser Anbieter ist bereits eingetragen.",
+            },
+        )
+
+    eintrag = OidcProvider(
+        slug=slug,
+        label=payload.label.strip(),
+        issuer_url=adresse,
+        client_id=payload.client_id.strip(),
+        client_secret=encrypt(payload.client_secret),
+        auto_create=payload.auto_create,
+        enabled=payload.enabled,
+    )
+    db.add(eintrag)
+    db.commit()
+    db.refresh(eintrag)
+    logger.info("OIDC provider %r (%r) created by %r", slug, adresse, admin.username)
+    return _als_admin(db, eintrag)
+
+
+@admin_router.patch("/{provider_id}", response_model=AnbieterAdmin)
+def admin_aendern(
+    provider_id: int, payload: AnbieterAendern, db: DbSession, admin: AdminUser
+) -> AnbieterAdmin:
+    eintrag = _eintrag(db, provider_id)
+
+    if payload.issuer_url is not None:
+        adresse = _normalisiert(payload.issuer_url)
+        if adresse != eintrag.issuer_url:
+            doppelt = db.scalar(
+                select(OidcProvider.id).where(
+                    OidcProvider.issuer_url == adresse, OidcProvider.id != eintrag.id
+                )
+            )
+            if doppelt is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "oidc_issuer_taken",
+                        "message": "Dieser Anbieter ist bereits eingetragen.",
+                    },
+                )
+            # ⚠️ Eine andere Adresse heisst: ein anderer Anbieter, andere
+            # Identitaeten. Bestehende Verknuepfungen haengen an der alten
+            # Adresse und gelten fuer die neue schlicht nicht - das ist die
+            # Norm, kein Datenverlust. Es steht im Protokoll, weil die Frage
+            # "warum sind alle Verknuepfungen weg?" sonst hier ihre stille
+            # Antwort haette.
+            logger.warning(
+                "OIDC provider %r changed issuer from %r to %r - existing links "
+                "keep pointing at the old issuer and will not match the new one",
+                eintrag.slug,
+                eintrag.issuer_url,
+                adresse,
+            )
+            eintrag.issuer_url = adresse
+            oidc.cache_leeren()
+
+    if payload.label is not None:
+        eintrag.label = payload.label.strip()
+    if payload.client_id is not None:
+        eintrag.client_id = payload.client_id.strip()
+    if payload.client_secret:
+        eintrag.client_secret = encrypt(payload.client_secret)
+    if payload.auto_create is not None:
+        eintrag.auto_create = payload.auto_create
+    if payload.enabled is not None:
+        eintrag.enabled = payload.enabled
+
+    db.commit()
+    db.refresh(eintrag)
+    return _als_admin(db, eintrag)
+
+
+@admin_router.get("/{provider_id}/folgen", response_model=LoeschFolgen)
+def admin_folgen(provider_id: int, db: DbSession, admin: AdminUser) -> LoeschFolgen:
+    """Wen ein Loeschen treffen wuerde - **vor** dem Klick, nicht danach."""
+    return _loesch_folgen(db, _eintrag(db, provider_id))
+
+
+@admin_router.delete("/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
+def admin_loeschen(
+    provider_id: int, db: DbSession, admin: AdminUser, bestaetigt: bool = False
+) -> None:
+    """Einen Anbieter loeschen.
+
+    Die Verknuepfungen der Benutzer bleiben stehen - wer denselben Anbieter
+    spaeter wieder eintraegt (gleiche Adresse), findet alles vor. Sind Konten
+    gefaehrdet, deren einziger Weg hinein dieser Anbieter ist, wird wie beim
+    Media-Server mit 409 abgelehnt; der Administrator kann das mit
+    ``bestaetigt=true`` ueberstimmen und hinterher Passwoerter setzen.
+    """
+    eintrag = _eintrag(db, provider_id)
+    folgen = _loesch_folgen(db, eintrag)
+    if folgen.gefaehrdet and not bestaetigt:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "oidc_would_lock_out_others",
+                "message": (
+                    f"{len(folgen.gefaehrdet)} Konten kämen ohne diesen Anbieter "
+                    "nicht mehr herein."
+                ),
+                "gefaehrdet": [konto.model_dump() for konto in folgen.gefaehrdet],
+            },
+        )
+    if folgen.gefaehrdet:
+        logger.warning(
+            "OIDC provider %r deleted by %r although %d account(s) lose their only "
+            "way in: %s",
+            eintrag.slug,
+            admin.username,
+            len(folgen.gefaehrdet),
+            ", ".join(konto.username for konto in folgen.gefaehrdet),
+        )
+
+    db.delete(eintrag)
+    db.commit()
+    oidc.cache_leeren()
+    logger.info("OIDC provider %r deleted by %r", eintrag.slug, admin.username)
+
+
+@admin_router.post("/{provider_id}/pruefen", response_model=PruefErgebnis)
+async def admin_pruefen(provider_id: int, db: DbSession, admin: AdminUser) -> PruefErgebnis:
+    """Der Pruef-Knopf: Meldet sich unter der Adresse ein Anbieter?
+
+    Holt die Selbstauskunft **frisch** (am Zwischenspeicher vorbei) - wer den
+    Knopf drueckt, hat gerade etwas geaendert und will die Wahrheit von jetzt,
+    nicht die von vor einer Stunde. Mehr als die Selbstauskunft laesst sich
+    ohne einen echten Anmeldelauf nicht pruefen; ob Client-ID und Geheimnis
+    stimmen, zeigt erst der erste Knopfdruck auf der Anmeldeseite.
+    """
+    eintrag = _eintrag(db, provider_id)
+    try:
+        beschreibung = await oidc.discovery(eintrag.issuer_url, frisch=True)
+    except oidc.OidcFehler as fehler:
+        return PruefErgebnis(ok=False, code=fehler.code)
+    return PruefErgebnis(ok=True, aussteller=str(beschreibung["issuer"]))

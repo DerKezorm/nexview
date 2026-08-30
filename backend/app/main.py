@@ -270,6 +270,7 @@ app.include_router(mediaserver_router.router)
 # Wie die Medienserver-Anmeldung ohne NUR_ERWACHSENE: Die Anmeldewege stehen
 # vor jeder Sitzung; die Endpunkte mit Sitzung verlangen selbst ``AdultUser``.
 app.include_router(oidc_router.router)
+app.include_router(oidc_router.admin_router)
 app.include_router(storage_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(streaming_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.admin_router)

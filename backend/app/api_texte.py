@@ -897,6 +897,60 @@ TEXTE: dict[str, tuple[str, str]] = {
             'verified address, no other linked sign-in.'
         ),
     ),
+    'GET /api/admin/oidc': (
+        'List the configured OIDC providers',
+        (
+            'Every configured provider with its settings, the redirect URI to '
+            'register on the provider side and how many accounts are linked. '
+            'The client secret never leaves the database - the list only says '
+            'whether one is set.'
+        ),
+    ),
+    'POST /api/admin/oidc': (
+        'Add an OIDC provider',
+        (
+            'Issuer URL, client id and secret, button label and the per-provider '
+            'switches (enabled, auto-create). Refused while no public address is '
+            'configured, because the redirect URI is built from it. The slug is '
+            'fixed after creation - it is part of the redirect URI registered '
+            'with the provider.'
+        ),
+    ),
+    'PATCH /api/admin/oidc/{provider_id}': (
+        'Change an OIDC provider',
+        (
+            'Everything but the slug. An empty client secret means "keep the '
+            'stored one". Changing the issuer URL is allowed but means a '
+            'different provider: existing links keep pointing at the old '
+            'issuer.'
+        ),
+    ),
+    'GET /api/admin/oidc/{provider_id}/folgen': (
+        'Impact of deleting an OIDC provider',
+        (
+            'How many accounts are linked, and which of them would lose their '
+            'only way in. Always available, so the answer is usually "nobody" - '
+            'a warning that only ever appears in the bad case is never read.'
+        ),
+    ),
+    'DELETE /api/admin/oidc/{provider_id}': (
+        'Delete an OIDC provider',
+        (
+            'Removes the entry; the links of the users stay, so re-adding the '
+            'same issuer later finds everything in place. Refused (409) with '
+            'the list of endangered accounts if some would lose their only way '
+            'in; can be overridden with bestaetigt=true.'
+        ),
+    ),
+    'POST /api/admin/oidc/{provider_id}/pruefen': (
+        'Probe an OIDC provider',
+        (
+            'Fetches the provider description fresh, bypassing the cache, and '
+            'reports reachability as a structured result rather than an error. '
+            'Whether client id and secret are right can only be proven by a '
+            'real sign-in.'
+        ),
+    ),
     # --- Betrieb: Einstellungen, Kanaele, Protokoll, Sicherungen -----------
     'GET /api/about': (
         'Version and build',

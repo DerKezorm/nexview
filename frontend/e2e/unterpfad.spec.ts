@@ -82,10 +82,20 @@ test('⚠️ durchreichender Proxy: anmelden, neu laden, tiefe Adresse - alles u
   // Jede Anfrage, die den Vorbau verliert, landet beim Pförtner im 404 -
   // hier wird mitgeschrieben, ob es eine gab.
   const ohneVorbau: string[] = []
+  // ⚠️ **Und was überhaupt nachgeliefert wurde.** Seit die Oberfläche in
+  // Stücke geteilt ist, holt sie sich seltene Seiten selbst, später, mit
+  // Adressen, die schon beim Bauen entstanden sind - die zeigten ohne
+  // Zutun auf die Wurzel der Domain statt in den Unterpfad. Die Liste
+  // unten belegt, dass hier wirklich Nachschub gelaufen ist; sonst wäre
+  // dieser Test grün, ohne je geprüft zu haben, worum es geht.
+  const nachgeliefert: string[] = []
   page.on('request', (anfrage) => {
     const adresse = new URL(anfrage.url())
     if (adresse.origin === DURCHREICHEN && !adresse.pathname.startsWith('/nexview')) {
       ohneVorbau.push(adresse.pathname)
+    }
+    if (adresse.pathname.includes('/assets/') && adresse.pathname.endsWith('.js')) {
+      nachgeliefert.push(adresse.pathname.split('/').pop()!)
     }
   })
 
@@ -105,7 +115,25 @@ test('⚠️ durchreichender Proxy: anmelden, neu laden, tiefe Adresse - alles u
   await page.goto(`${DURCHREICHEN}/nexview/profil`)
   await expect(page.getByRole('tab', { name: 'Security' })).toBeVisible()
 
+  // Die dickste nachgelieferte Seite - dreißig Einstellungsseiten in einem
+  // Stück. Sie ist im ersten Laden nicht dabei und muss hier ankommen.
+  await page.goto(`${DURCHREICHEN}/nexview/admin/settings`)
+  await expect(page.getByRole('tab', { name: 'Services' })).toBeVisible()
+
   expect(ohneVorbau, 'Anfragen ohne Vorbau - sie liefen am Proxy vorbei.').toEqual([])
+
+  // ⚠️ **Der eigentliche Prüfstein.** Kommen Profil und Einstellungen nicht
+  // als eigene Dateien an, steckt die Oberfläche wieder in einem Stück - dann
+  // hat der Test oben nichts bewiesen, und die Waage im automatischen Bau
+  // stünde auf einer Zahl, die nichts mehr bedeutet.
+  expect(
+    nachgeliefert.filter((n) => n.startsWith('ProfilePage')),
+    `Das Profil kam nicht als eigene Datei. Geladen wurde: ${nachgeliefert.join(', ')}`,
+  ).not.toEqual([])
+  expect(
+    nachgeliefert.filter((n) => n.startsWith('SettingsPage')),
+    `Die Einstellungen kamen nicht als eigene Datei. Geladen wurde: ${nachgeliefert.join(', ')}`,
+  ).not.toEqual([])
 })
 
 test('abschneidender Proxy: dieselbe Anmeldung funktioniert auch ohne Kopfzeilen-Hilfe', async ({

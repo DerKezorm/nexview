@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "gewicht": "node tools/gewicht-pruefen.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "mobil": "node tools/mobil-pruefen.mjs",

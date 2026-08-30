@@ -76,6 +76,19 @@ jobs:
           npm ci
           npm run build
 
+      # Die Waage an der Tuer. Sie bricht ab, wenn ein Besucher beim Oeffnen
+      # mehr herunterladen muesste als vereinbart.
+      #
+      # ⚠️ **Schlaegt sie an, wird die Grenze NICHT hochgesetzt.** Sie steht in
+      # frontend/tools/gewicht-pruefen.mjs, samt der Begruendung. Genau dieser
+      # Griff - Grenze hoch, weiter geht's - hat die Oberflaeche ueber drei
+      # Fassungen von 1.065 auf 1.390 kB wachsen lassen, ohne dass es jemandem
+      # auffiel. Was neu dazukommt und nicht jeder sofort braucht, gehoert
+      # nachgeliefert (die lazy-Liste in src/App.tsx).
+      - name: Gewicht des ersten Ladens
+        working-directory: frontend
+        run: npm run gewicht
+
       - name: Frontend-Tests
         working-directory: frontend
         run: npm test

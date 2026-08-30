@@ -2,6 +2,7 @@
 
 import type { ComponentPropsWithRef, InputHTMLAttributes, ReactNode } from 'react'
 import { useId } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Der Stil eines Auswahlfelds - einmal, fuer alle.
@@ -53,6 +54,32 @@ export function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" fill="none" opacity=".25" />
       <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" />
     </svg>
+  )
+}
+
+/**
+ * Der Platzhalter, während eine nachgelieferte Seite eintrifft.
+ *
+ * ⚠️ **Bewusst zurückhaltend.** Seiten, die ein Nutzer selten öffnet, sind
+ * nicht mehr im ersten Laden dabei; sie kommen beim Klick nach. Das dauert
+ * Bruchteile einer Sekunde - vom eigenen Server, meist schon im Zwischenspeicher
+ * des Browsers. Ein großes Ladebild wäre in dieser Zeit selbst das Auffälligste
+ * am Vorgang und ließe die Anwendung langsamer wirken, als sie ist.
+ *
+ * `role="status"` ist kein Beiwerk: Für ein Vorleseprogramm ist ein Wechsel
+ * ohne Ansage sonst einfach Stille.
+ */
+export function SeiteLaedt() {
+  const { t } = useTranslation()
+  return (
+    <div
+      className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-mist-600"
+      role="status"
+      aria-live="polite"
+    >
+      <Spinner />
+      <span>{t('common.loading')}</span>
+    </div>
   )
 }
 

@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -5,6 +6,7 @@ import { useAuth } from '../auth/useAuth'
 import { KidsHintergrund } from '../pages/kids/KidsHintergrund'
 import { KIDS } from '../pages/kids/kidsTheme'
 import { LoadingBar } from './LoadingBar'
+import { SeiteLaedt } from './ui'
 
 /**
  * Der Rahmen der Kinderansicht.
@@ -71,7 +73,13 @@ export function KidsShell() {
 
       {/* Platz unten für die Leiste, damit sie nichts verdeckt. */}
       <main className="relative mx-auto w-full max-w-5xl flex-1 px-4 pt-5 pb-32">
-        <Outlet />
+        {/* ⚠️ **Der Rahmen bleibt stehen.** Seltene Seiten kommen erst
+            beim Klick nach; ohne diese Klammer bliebe der Bildschirm in
+            dieser Zeit ganz leer - samt Navigation, die gerade eben noch da
+            war. So wechselt nur der Inhalt. */}
+        <Suspense fallback={<SeiteLaedt />}>
+          <Outlet />
+        </Suspense>
       </main>
 
       <nav

@@ -8,9 +8,21 @@
 
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach, beforeEach, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, vi } from 'vitest'
 
-import i18n from '../i18n'
+import i18n, { i18nStarten } from '../i18n'
+
+// ⚠️ **Die Texte kommen nicht mehr von allein.** Seit jede Sprache einzeln
+// nachgeladen wird, startet i18next erst, wenn jemand es anstößt - in der
+// Anwendung tut das `main.tsx`. Ohne diese Zeilen liefe jeder Test gegen eine
+// Oberfläche, die statt Sätzen ihre Schlüssel zeigt.
+//
+// Die Sprache steht hier ausdrücklich dabei und wird nicht vom Browser
+// erfragt: Sonst hinge das Ergebnis daran, auf welche Sprache die Testumgebung
+// gerade eingestellt ist.
+beforeAll(async () => {
+  await i18nStarten('de')
+})
 
 // Nach jedem Test das gerenderte Stück wieder abräumen. Ohne das sammeln sich
 // die Bäume im Dokument, und `getByText` findet plötzlich zwei Treffer aus

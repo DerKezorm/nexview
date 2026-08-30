@@ -223,7 +223,7 @@ export function ProfilePage() {
       setRegion(aktuell.discover_region ?? '')
       // Erst jetzt umschalten: Die Auswahl ist ein Vorschlag, bis gespeichert
       // wird - sonst spränge die Oberfläche schon beim Aufklappen der Liste um.
-      spracheAnwenden(aktuell.language as Language)
+      void spracheAnwenden(aktuell.language as Language)
       if (istTheme(aktuell.theme)) themeAnwenden(aktuell.theme)
       setMessage(t('profile.accountSaved'))
     },

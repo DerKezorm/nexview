@@ -20,7 +20,9 @@ export function useSpracheWaehlen() {
 
   return async function waehlen(language: Language) {
     if (language === i18n.language) return
-    changeLanguage(language)
+    // Warten, nicht nur anstoßen: Die gewählte Sprache muss erst geholt
+    // werden. Ohne das Warten stünde der nächste Satz noch in der alten.
+    await changeLanguage(language)
     if (user) {
       try {
         updateUser(await api.patch<User>('/api/auth/me', { language }))

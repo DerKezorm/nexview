@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { Suspense, lazy, useEffect, useRef } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
@@ -8,9 +8,17 @@ import { AppShell } from './components/AppShell'
 import { KidsShell } from './components/KidsShell'
 import { Logo } from './components/Logo'
 import { Spinner } from './components/ui'
-import { AboutPage } from './pages/AboutPage'
+
+/* ---------------------------------------------------------------------------
+ * Die Alltagsseiten - sie kommen mit dem ersten Laden.
+ *
+ * ⚠️ **Was hier steht, trägt jeder Besucher mit herein.** Diese Seiten sind
+ * genau die, die jemand im normalen Gebrauch ohnehin binnen Sekunden öffnet:
+ * die Startseite, der Katalog, ein Titel, die Suche. Sie nachzuliefern hieße,
+ * einen kleineren ersten Eindruck gegen eine kurze Wartezeit bei **jedem**
+ * Klick zu tauschen - ein schlechter Tausch.
+ * ------------------------------------------------------------------------ */
 import { BrowsePage } from './pages/BrowsePage'
-import { AdminRequestsPage } from './pages/AdminRequestsPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { StoeberPage } from './pages/StoeberPage'
 import { StoeberFilterPage } from './pages/StoeberFilterPage'
@@ -18,28 +26,78 @@ import { StoeberRegalPage } from './pages/StoeberRegalPage'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
-import {
-  ForgotPasswordPage,
-  InvitationPage,
-  SetPasswordPage,
-  VerifyEmailPage,
-} from './pages/OnboardingPage'
 import { MyRequestsPage } from './pages/MyRequestsPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { PersonPage } from './pages/PersonPage'
 import { TicketPage } from './pages/TicketPage'
 import { TicketsPage } from './pages/TicketsPage'
 import { TitlePage } from './pages/TitlePage'
-import { ProfilePage } from './pages/ProfilePage'
 import { SearchPage } from './pages/SearchPage'
-import { SettingsPage } from './pages/SettingsPage'
-import { SetupPage } from './pages/SetupPage'
-import { AdminDashboardPage } from './pages/AdminDashboardPage'
-import { StatsPage } from './pages/StatsPage'
-import { KidsHomePage } from './pages/kids/KidsHomePage'
-import { KidsSearchPage } from './pages/kids/KidsSearchPage'
-import { KidsTitlePage } from './pages/kids/KidsTitlePage'
-import { KidsWishesPage } from './pages/kids/KidsWishesPage'
+
+/* ---------------------------------------------------------------------------
+ * Der Nachschub - erst holen, wenn jemand hingeht.
+ *
+ * ⚠️ **Hier lag der ganze Ballast.** Die Oberfläche war ein einziges Stück
+ * von 1.392 kB, und jeder Besucher trug es komplett herein: dreißig
+ * Einstellungsseiten, das Betreiber-Dashboard, sechs Analysereiter, die
+ * Kinderansicht, den Einrichtungsassistenten. Wer nur einen Film wünschen
+ * wollte, schleppte das gesamte Werkzeug des Betreibers mit.
+ *
+ * ⚠️ **Der `import(...)` muss wörtlich dastehen.** Über eine Variable
+ * erkennt der Bau nicht, dass daraus eine eigene Datei werden soll, und packt
+ * vorsichtshalber wieder alles zusammen. Aufgefallen wäre das nur an der
+ * Waage im automatischen Bau.
+ *
+ * ⚠️ **Und die Adressen dieser Dateien stehen nicht fest.** Läuft Nexview
+ * unter `/nexview`, muss der Nachschub von dort kommen und nicht von der
+ * Wurzel der Domain. Wie das zusammenhängt, steht in `vite.config.ts`.
+ * ------------------------------------------------------------------------ */
+const AboutPage = lazy(() => import('./pages/AboutPage').then((m) => ({ default: m.AboutPage })))
+const AdminRequestsPage = lazy(() =>
+  import('./pages/AdminRequestsPage').then((m) => ({ default: m.AdminRequestsPage })),
+)
+const AdminDashboardPage = lazy(() =>
+  import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
+)
+const ProfilePage = lazy(() =>
+  import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+)
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+)
+const SetupPage = lazy(() => import('./pages/SetupPage').then((m) => ({ default: m.SetupPage })))
+const StatsPage = lazy(() => import('./pages/StatsPage').then((m) => ({ default: m.StatsPage })))
+
+// Die Seiten aus einer E-Mail: Einladung, Passwort, Adressbestätigung. Sie
+// stehen alle in **einer** Datei, werden also auch als eine geholt - wer einen
+// solchen Link öffnet, bekommt genau sie und sonst nichts.
+const ForgotPasswordPage = lazy(() =>
+  import('./pages/OnboardingPage').then((m) => ({ default: m.ForgotPasswordPage })),
+)
+const InvitationPage = lazy(() =>
+  import('./pages/OnboardingPage').then((m) => ({ default: m.InvitationPage })),
+)
+const SetPasswordPage = lazy(() =>
+  import('./pages/OnboardingPage').then((m) => ({ default: m.SetPasswordPage })),
+)
+const VerifyEmailPage = lazy(() =>
+  import('./pages/OnboardingPage').then((m) => ({ default: m.VerifyEmailPage })),
+)
+
+// Die Kinderansicht ist ein eigener Seitenbaum - und für die allermeisten
+// Konten toter Ballast.
+const KidsHomePage = lazy(() =>
+  import('./pages/kids/KidsHomePage').then((m) => ({ default: m.KidsHomePage })),
+)
+const KidsSearchPage = lazy(() =>
+  import('./pages/kids/KidsSearchPage').then((m) => ({ default: m.KidsSearchPage })),
+)
+const KidsTitlePage = lazy(() =>
+  import('./pages/kids/KidsTitlePage').then((m) => ({ default: m.KidsTitlePage })),
+)
+const KidsWishesPage = lazy(() =>
+  import('./pages/kids/KidsWishesPage').then((m) => ({ default: m.KidsWishesPage })),
+)
 
 /**
  * Die Kinderansicht: drei Ziele und die Titelseite - mehr gibt es nicht.
@@ -84,12 +142,16 @@ function BootScreen() {
  */
 function PublicRoutes() {
   return (
-    <Routes>
-      <Route path="/einladung/:token" element={<InvitationPage />} />
-      <Route path="/passwort/:token" element={<SetPasswordPage />} />
-      <Route path="/bestaetigen/:token" element={<VerifyEmailPage />} />
-      <Route path="/passwort-vergessen" element={<ForgotPasswordPage />} />
-    </Routes>
+    // Hier gibt es keinen Rahmen, in dem ein kleines Ladezeichen sitzen
+    // könnte - also dasselbe Bild wie beim Start der Anwendung.
+    <Suspense fallback={<BootScreen />}>
+      <Routes>
+        <Route path="/einladung/:token" element={<InvitationPage />} />
+        <Route path="/passwort/:token" element={<SetPasswordPage />} />
+        <Route path="/bestaetigen/:token" element={<VerifyEmailPage />} />
+        <Route path="/passwort-vergessen" element={<ForgotPasswordPage />} />
+      </Routes>
+    </Suspense>
   )
 }
 
@@ -128,7 +190,12 @@ export default function App() {
 
   if (oeffentlich) return <PublicRoutes />
   if (status === 'loading') return <BootScreen />
-  if (needsSetup) return <SetupPage />
+  if (needsSetup)
+    return (
+      <Suspense fallback={<BootScreen />}>
+        <SetupPage />
+      </Suspense>
+    )
   if (!user) return <LoginPage />
   // Ein Kinderkonto bekommt einen **eigenen Seitenbaum**, nicht denselben mit
   // ausgeblendeten Punkten. Was hier nicht steht, existiert für ein Kind nicht

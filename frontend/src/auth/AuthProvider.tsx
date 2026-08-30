@@ -32,7 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const applyUser = useCallback((loaded: User) => {
     setUser(loaded)
     if (loaded.language === 'de' || loaded.language === 'en') {
-      changeLanguage(loaded.language as Language)
+      // Seit die Sprachen einzeln nachkommen, kann das einen Moment dauern -
+      // nämlich genau dann, wenn die Kontosprache eine andere ist als die, mit
+      // der die Seite gestartet ist. Das passiert einmal, bei der ersten
+      // Anmeldung an einem Gerät; danach steht die Sprache im Browser und die
+      // Seite startet gleich richtig.
+      void changeLanguage(loaded.language as Language)
     }
     // Die Darstellung haengt am Konto: wer sich an einem anderen Geraet
     // anmeldet, findet seine Einstellung wieder. Der Browser merkt sie sich

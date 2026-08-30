@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useSearchParams } from 'react-router-dom'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
@@ -8,6 +8,7 @@ import type { AboutInfo } from '../api/types'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { LoadingBar } from './LoadingBar'
+import { SeiteLaedt } from './ui'
 import { Logo } from './Logo'
 import { NotificationBell } from './NotificationBell'
 import { WatchlistExpiredBanner } from './WatchlistExpiredBanner'
@@ -215,7 +216,13 @@ export function AppShell() {
 
       {/* flex-1 schiebt die Fußzeile auch auf kurzen Seiten nach unten. */}
       <main className="relative z-10 mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
-        <Outlet />
+        {/* ⚠️ **Der Rahmen bleibt stehen.** Seltene Seiten kommen erst
+            beim Klick nach; ohne diese Klammer bliebe der Bildschirm in
+            dieser Zeit ganz leer - samt Navigation, die gerade eben noch da
+            war. So wechselt nur der Inhalt. */}
+        <Suspense fallback={<SeiteLaedt />}>
+          <Outlet />
+        </Suspense>
       </main>
 
       {filmabendOffen && (

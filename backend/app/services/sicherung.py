@@ -99,6 +99,43 @@ STECKBRIEF = "nexview-sicherung.json"
 #: denen niemand etwas geaendert hat.
 BEILAGEN = ("avatars", "trash")
 
+#: Was im Datenverzeichnis liegt und **nicht** ins Archiv wandert - mit Grund.
+#:
+#: ⚠️ **Diese Liste ist der Waechter, nicht die Ausrede.** Bis hierher pruefte
+#: jeder Test benannte Bestandteile: "ist die Datenbank drin, ist der Schluessel
+#: drin". Genau deshalb konnte ``trash/`` unbemerkt fehlen - es stand auf keiner
+#: Liste, also fragte niemand danach. Der Test dazu dreht das um: Alles im
+#: Datenverzeichnis muss entweder ins Archiv gehen oder **hier** stehen, samt
+#: Begruendung.
+#:
+#: ⚠️ **Beim Fehlschlag wird hier nicht routinemaessig ein Eintrag ergaenzt.**
+#: Ein neuer Name heisst: Jemand hat etwas angelegt, ohne zu entscheiden, ob es
+#: in eine Sicherung gehoert. Diese Entscheidung ist der Zweck des roten Laufs.
+#: Wer hier eintraegt, schreibt den Grund dazu - und wenn ihm keiner einfaellt,
+#: gehoert der Eintrag ins Archiv statt in diese Liste.
+NICHT_INS_ARCHIV = {
+    "logs": (
+        "Das Protokoll beschreibt den Betrieb, nicht den Stand. Vier Wochen "
+        "alte Zeilen in einer frisch eingespielten Installation waeren "
+        "irrefuehrend, und die Datei ist das Groesste im Verzeichnis."
+    ),
+    ORDNER_NAME: (
+        "Die Sicherungen selbst. Eine Sicherung, die alle vorherigen "
+        "enthaelt, waechst bei jedem Lauf um sich selbst."
+    ),
+    "nexview.db-wal": (
+        "Begleitdatei von SQLite. VACUUM INTO schreibt eine in sich "
+        "stimmige Kopie - die Begleitdatei einer anderen Datenbank waere "
+        "beim Einspielen schaedlich, nicht nuetzlich (siehe wiederherstellen)."
+    ),
+    "nexview.db-shm": ("Begleitdatei von SQLite, dasselbe wie -wal."),
+}
+
+#: Was umgekehrt ins Archiv gehoert. Zusammen mit der Liste darueber muss das
+#: **alles** abdecken, was im Datenverzeichnis liegt.
+IM_ARCHIV = ("nexview.db", "secret.key", *BEILAGEN)
+
+
 #: Woran der Ordner mit den Beilagen einer Sicherung zu erkennen ist.
 #:
 #: Kein ``.``-Suffix: ``datei()`` laesst nur ``.db`` durch, und ``aufraeumen``
@@ -143,6 +180,25 @@ class Eintrag:
 
 def ordner() -> Path:
     return get_settings().data_dir / ORDNER_NAME
+
+
+def nicht_zugeordnet(datenverzeichnis: Path | None = None) -> list[str]:
+    """Was im Datenverzeichnis liegt, ohne dass jemand entschieden hat, wohin es gehoert.
+
+    ⚠️ **Die Frage, die vorher niemand gestellt hat.** Die Tests zur Sicherung
+    pruefen benannte Bestandteile - und finden deshalb nie etwas, das auf keiner
+    Liste steht. So konnte ``trash/`` fehlen: Es war nicht vergessen worden,
+    es war nie gefragt worden.
+
+    Leere Rueckgabe heisst: Zu jedem Eintrag gibt es eine Entscheidung. Steht
+    etwas darin, fehlt genau diese Entscheidung - nicht unbedingt ein Eintrag im
+    Archiv.
+    """
+    wurzel = datenverzeichnis or get_settings().data_dir
+    if not wurzel.is_dir():
+        return []
+    bekannt = set(IM_ARCHIV) | set(NICHT_INS_ARCHIV)
+    return sorted(e.name for e in wurzel.iterdir() if e.name not in bekannt)
 
 
 def _steckbrief_pfad(sicherung: Path) -> Path:

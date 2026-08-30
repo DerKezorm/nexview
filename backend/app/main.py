@@ -56,6 +56,7 @@ from .routers import (
     v1 as v1_router,
     mediaserver as mediaserver_router,
     notifications,
+    oidc as oidc_router,
     onboarding,
     feedback as feedback_router,
     requests as requests_router,
@@ -82,6 +83,7 @@ from .services import (
 )
 from .services.arr import close_http_client as close_arr_client
 from .services.mediaserver import close_http_client as close_mediaserver_client
+from .services.oidc import close_http_client as close_oidc_client
 from .services.tmdb import close_http_client
 
 settings = get_settings()
@@ -171,6 +173,7 @@ async def lifespan(app: FastAPI):
     await close_http_client()
     await close_arr_client()
     await close_mediaserver_client()
+    await close_oidc_client()
 
 
 app = FastAPI(
@@ -264,6 +267,9 @@ app.include_router(favorites_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(blocklist_router.router)
 app.include_router(tickets_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.router)
+# Wie die Medienserver-Anmeldung ohne NUR_ERWACHSENE: Die Anmeldewege stehen
+# vor jeder Sitzung; die Endpunkte mit Sitzung verlangen selbst ``AdultUser``.
+app.include_router(oidc_router.router)
 app.include_router(storage_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(streaming_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.admin_router)

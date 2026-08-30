@@ -30,6 +30,7 @@ from ..services import (
     kontoaufloesung,
     mail,
     mediaserver_accounts,
+    oidc_accounts,
     quota,
     tokens,
 )
@@ -603,5 +604,8 @@ async def delete_user(
     # bekommt sofort wieder ein Konto. Der Administrator kann die Sperre in den
     # Einstellungen jederzeit aufheben.
     mediaserver_accounts.block(db, user, by=admin.id)
+    # Dieselbe Sperre fuer die OIDC-Wege: Mit eingeschalteter automatischer
+    # Anlage legte dieselbe Identitaet sich sonst sofort ein neues Konto an.
+    oidc_accounts.block(db, user, by=admin.id)
     db.delete(user)
     db.commit()

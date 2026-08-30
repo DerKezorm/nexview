@@ -204,7 +204,7 @@ async def test_hs256_wird_nie_akzeptiert(anbieter) -> None:
             "exp": jetzt + 300,
             "nonce": "nonce-1",
         },
-        "irgendein-geheimnis",
+        "irgendein-geheimnis-mit-genug-laenge-fuer-hs256",
         algorithm="HS256",
         headers={"kid": KID},
     )

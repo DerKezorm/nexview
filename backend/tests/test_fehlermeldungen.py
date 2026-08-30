@@ -67,8 +67,15 @@ def _kennungen_im_backend() -> set[str]:
         # entgeht dem Waechter jede Kennung, die nicht direkt an
         # ``meldungen.meldung`` uebergeben wird - genau so ist beim
         # Sicherungs-Wiederherstellen eine Luecke entstanden.
-        for klasse in ("SicherungFehler", "SchluesselFehler"):
+        # ``KontoFehler`` und ``OidcFehler`` kamen erst mit der OIDC-Arbeit in
+        # diese Liste - und haben dabei aufgedeckt, dass die KontoFehler des
+        # Media-Servers hier jahrelang unbewacht waren.
+        for klasse in ("SicherungFehler", "SchluesselFehler", "KontoFehler", "OidcFehler"):
             gefunden.update(re.findall(klasse + r'\(\s*\n?\s*"([a-z0-9_]+)"', text))
+        # Kennungen des OIDC-Rueckwegs: Sie erreichen die Oberflaeche nicht als
+        # Fehlerantwort, sondern als ``?oidc_fehler=...`` in einer
+        # Weiterleitung - uebersetzt werden sie trotzdem, ueber denselben Topf.
+        gefunden.update(re.findall(r'scheitern\(\s*\n?\s*"([a-z0-9_]+)"', text))
         # ⚠️ Kennungen, die als **Schluesselwort** uebergeben werden:
         # ``ArrError(..., code="arr_timeout", service=...)``. Diese Meldungen
         # nehmen einen eigenen Weg - sie landen in ``MediaRequest.error_detail``

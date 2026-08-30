@@ -850,6 +850,53 @@ TEXTE: dict[str, tuple[str, str]] = {
             'account.'
         ),
     ),
+    # --- Anmeldung ueber fremde Anbieter (OIDC) -----------------------------
+    'GET /api/auth/oidc': (
+        'List the sign-in providers',
+        (
+            'The OpenID Connect providers the administrator has configured and '
+            'enabled - slug and button label only, nothing sensitive. The login '
+            'page uses this to decide which buttons to show; an empty list means '
+            'the login page looks exactly as it always did.'
+        ),
+    ),
+    'GET /api/auth/oidc/{slug}/login': (
+        'Sign in via an OIDC provider',
+        (
+            'Redirects the browser to the configured provider (authorization '
+            'code flow with PKCE). Meant to be navigated to, not called: the '
+            'result is a redirect chain that ends back at the Nexview login '
+            'page. Returns 404 for unknown or disabled providers.'
+        ),
+    ),
+    'GET /api/auth/oidc/{slug}/callback': (
+        'Return leg of the OIDC flow',
+        (
+            'The redirect URI registered with the provider. Verifies state, '
+            'exchanges the code, validates the id_token and either starts a '
+            'regular Nexview session (sign-in) or attaches the identity to the '
+            'signed-in account (linking). Every outcome - including every '
+            'error - is a redirect to the Nexview UI with a code in the query, '
+            'never a bare API response.'
+        ),
+    ),
+    'POST /api/auth/oidc/{slug}/link/start': (
+        'Link an OIDC identity to the own account',
+        (
+            'Returns the provider URL to navigate to and arms the short-lived '
+            'state cookie. A POST with a session rather than a redirect, '
+            'because a browser navigation cannot carry the Authorization '
+            'header.'
+        ),
+    ),
+    'DELETE /api/auth/oidc/{slug}/link': (
+        'Unlink an OIDC identity',
+        (
+            'Removes the own link to this provider. Refused (409) if the '
+            'account would be left without any way back in - no password, no '
+            'verified address, no other linked sign-in.'
+        ),
+    ),
     # --- Betrieb: Einstellungen, Kanaele, Protokoll, Sicherungen -----------
     'GET /api/about': (
         'Version and build',

@@ -80,6 +80,8 @@ its own page and more screenshots.
   request but *wishes* — nothing happens until the parent approves, and the request
   then runs in the parent's name
 - A block list for titles that should stay out: visible, but not requestable
+- Sign in through **Authentik, Keycloak, Pocket ID, Google** or any other OpenID Connect
+  provider — added alongside the password, never replacing it
 
 **With a media server**
 
@@ -90,8 +92,10 @@ Plex is optional. Connect one and four things arrive:
   Radarr or Sonarr, and cannot be requested twice
 - Your Plex watchlist appears inside the catalogue, requestable with one click.
   Nothing happens on its own; every title takes a click
-- What each person has already watched carries a marker, and everyone sees only
-  their own
+- What each person has already watched carries a marker. Everyone sees their own;
+  an administrator sees who watched what, under *Statistics & analysis → Watching*
+- Live playback across every connected server: who is watching what, on which device,
+  and whether the server is transcoding the video for it — the one that costs CPU
 
 **Staying informed**
 
@@ -101,6 +105,15 @@ Plex is optional. Connect one and four things arrive:
   Each inbox picks its own events, language and urgency
 - A ticket centre where people report problems and get an answer, with state and history
 - Statistics and an error log for the administrator
+
+**Running it**
+
+- An **admin dashboard**: twenty background checks across services, disk, supply,
+  library, source reconciliation and Nexview itself. Every finding says what follows
+  from it, and its button lands on the page that fixes it
+- **Statistics & analysis** in six tabs — including where Radarr, the media server and
+  Nexview's own books disagree, which is where the errors nobody looks for live
+- A **tile for Homepage or Homarr**: one call, ready-made snippets
 
 **And**
 
@@ -278,6 +291,70 @@ Nexview deliberately does **not** guess from `X-Forwarded-Proto`: that header ca
 faked just like `X-Forwarded-For`, and the same question is already answered by asking
 rather than guessing over at `NEXVIEW_CLIENT_IP`.
 
+### Signing in through an external provider
+
+Nexview can hang off a sign-in service you already run — anything that speaks **OpenID
+Connect**. Set it up under **Settings → System → Sign-in**; a button per provider then
+appears on the sign-in page.
+
+You need four things from your provider:
+
+| Field | Where it comes from |
+|---|---|
+| **Issuer URL** | The base address of your provider. Nexview reads its `/.well-known/openid-configuration` itself, so you do not enter individual endpoints. |
+| **Client ID** | Created when you register Nexview as an application. |
+| **Client secret** | Same place. Leave empty only for a public client. |
+| **Label** | What the button says: “Sign in with Authentik”. |
+
+And your provider needs one thing from you — the **redirect URI**:
+
+```
+https://your-nexview/api/auth/oidc/<slug>/callback
+```
+
+The slug is what you chose when adding the provider; Nexview shows the finished address
+on the settings page, ready to copy. Requested scopes are `openid email profile`.
+
+> **⚠️ The public address has to be right.** The redirect URI is built from it, and a
+> provider rejects anything that does not match its registration exactly. If you run
+> Nexview under a sub-path, the address includes it.
+
+**Existing accounts link from the profile**, under *Account → Sign-in*. Your password
+keeps working — an external provider is added, it never replaces what is there.
+**New people** can be created automatically if you switch that on; they get the role and
+quota from your defaults. Leave it off and only people you have already invited can sign
+in that way.
+
+#### Authentik
+
+*Applications → Providers → Create → OAuth2/OpenID Provider.* Set the redirect URI,
+choose `Authorization code` flow, and take the **client ID and secret** from the
+provider page. The issuer URL is
+`https://authentik.example.com/application/o/<application-slug>/` — Authentik shows it
+under the provider as *OpenID Configuration Issuer*.
+
+#### Keycloak
+
+*Clients → Create client*, type `OpenID Connect`. Switch **Client authentication** on
+(otherwise there is no secret), enable `Standard flow`, and enter the redirect URI under
+*Valid redirect URIs*. The issuer URL is
+`https://keycloak.example.com/realms/<realm>`.
+
+#### Pocket ID
+
+*OIDC Clients → Add client.* Enter the redirect URI, copy client ID and secret. The
+issuer URL is your Pocket ID address itself, e.g. `https://id.example.com`.
+
+#### Google
+
+*Google Cloud Console → APIs & Services → Credentials → Create credentials → OAuth
+client ID*, type `Web application`. Add the redirect URI under *Authorised redirect
+URIs*. The issuer URL is `https://accounts.google.com`.
+
+> Google hands out an email address for every Google account in the world. Leave
+> automatic account creation **off** unless you have restricted the OAuth client to your
+> own workspace — otherwise anyone with a Google account can sign in.
+
 ### Behind a reverse proxy
 
 With its own (sub)domain — `https://nexview.example.com` — Nexview needs no
@@ -395,7 +472,7 @@ switches off their own token. Deactivating an account locks its tokens along wit
 
 ### What is promised, and what is not
 
-Thirteen endpoints live under **`/api/v1`**, and for those there is a promise: as long as
+Fourteen endpoints live under **`/api/v1`**, and for those there is a promise: as long as
 `v1` is in the address, nothing disappears from their answers. If something has to break,
 `/api/v2` will appear beside it and v1 will keep running.
 
@@ -414,6 +491,7 @@ Thirteen endpoints live under **`/api/v1`**, and for those there is a promise: a
 | `GET /api/v1/storage/me` | your own storage use |
 | `GET /api/v1/about` | which version is running |
 | `GET /api/v1/health` | whether it is up |
+| `GET /api/v1/dashboard` | one tile for your home dashboard |
 
 **Everything else under `/api/…` is an inside part of the application.** You may use it,
 but it can change with any version — field names included. Nothing there is promised.
@@ -421,6 +499,17 @@ but it can change with any version — field names included. Nothing there is pr
 ⚠️ `GET /api/v1/home/recent` also carries `requested_by` and `requester_avatar`. Putting
 that on a dashboard shows **who asked for what**. In a household that is usually the point;
 on a screen other people see, it may not be.
+
+### A tile for Homepage or Homarr
+
+`GET /api/v1/dashboard` answers with everything a tile needs in one call: how many findings
+are open, what is waiting, how full the library is, and whether the instances are answering.
+Ready-made snippets for both are in **[docs/dashboard-tile.md](docs/dashboard-tile.md)**.
+
+⚠️ **That one needs a token belonging to an administrator.** Instance state and disk figures
+are an operator's business, and a token inherits the rights of its owner. *May only read*
+limits it to `GET`, but an administrator's read-only token can still read the user list, the
+log and the settings — worth knowing before you pin it to a screen somebody else can see.
 
 ## Development
 

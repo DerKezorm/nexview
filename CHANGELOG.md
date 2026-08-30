@@ -12,6 +12,76 @@ tag exists for it.
 
 ---
 
+## 0.25.0 – 30.08.2026
+
+### New
+
+- **Sign in through an external provider.** Nexview can now hang off a sign-in service
+  you already run — Authentik, Keycloak, Pocket ID, Google, or anything else that speaks
+  OpenID Connect. A button per provider appears on the sign-in page; existing accounts
+  link from the profile, and new people can be created automatically with the role and
+  quota you set. Your password keeps working — the provider is added, it replaces
+  nothing. Setup guides for the four common services are in the README.
+
+- **An admin dashboard.** Everything operational used to be spread across thirty
+  settings pages. There is now one place that says: three requests awaiting approval,
+  Sonarr has not answered for two hours, the disk is 94 percent full, the last backup is
+  overdue.
+
+  Twenty checks run in the background, grouped into six areas. Every **finding** says
+  not only what is wrong but **what follows from it**, and the button beside it lands
+  exactly where you fix it — *Settings → Services → Sonarr*, not just “Settings”.
+
+  The most valuable check is the quietest: requests that have been searching for over
+  two weeks. In the interface “searching” looks like work rather than a standstill, so
+  until now it only surfaced when somebody complained.
+
+- **“Statistics” becomes “Statistics & analysis”**, with six tabs: requests, people,
+  watching, library, services, operations. Each opens with the findings for its area and
+  backs them up with figures.
+
+  New under *library*: **source reconciliation**. Radarr manages the files, the media
+  server plays them, Nexview bills them to somebody — and where the three disagree,
+  errors appear that nobody looks for, because nothing is red anywhere. Titles with no
+  identifier, year conflicts, files the media server never scanned in.
+
+- **Live playback across every connected media server.** Who is watching what, on which
+  device, how far in — and how hard the server is working for it.
+
+  Transcoding has **three** states here, not two, and that distinction was measured
+  rather than assumed: both Plex and Emby report a transcode while passing the video
+  through untouched and only re-encoding the audio, which costs almost nothing. Only
+  video transcoding is flagged red. Shown along with the reason and whether hardware
+  acceleration is in play.
+
+  Below that: how much gets watched and by whom, how the library grew over the last
+  eighteen months, and how many streams ran at the same time.
+
+- **A tile for Homepage, Homarr and friends.** `GET /api/v1/dashboard` answers with
+  everything a dashboard tile needs in one call — open approvals, findings, library
+  size, instance state. Ready-made snippets are in `docs/dashboard-tile.md`. It needs a
+  token belonging to an administrator, and the guide says plainly what that means.
+
+- **Links land where the thing actually is.** Settings and requests are now addressable
+  down to the tab: `?reiter=dienste&unter=sonarr` and `?filter=failed`. Previously every
+  link dropped you at the top of a page and left you to search.
+
+- **How long people wait for an approval**, on the requests tab — as the median, so a
+  single request somebody left lying for months does not distort the everyday picture.
+  Alongside it, how long the oldest open request has been waiting.
+
+### Changed
+
+- **“Statistics & analysis” is now for administrators only.** Approvers could see the
+  statistics page before. It now carries instance state, disk usage, backups and the
+  source reconciliation — operating data, and deciding on requests does not require it.
+  This also resolves a long-standing fault: the *Clean-up* tab was shown to approvers
+  while the endpoint behind it had always been admin-only and answered 403.
+
+- The disk breakdown separates **media**, **everything else** and **free**. “Used versus
+  free” would be a half-truth: backups, photos and the operating system live on the same
+  disk, and only media can be cleaned up through Nexview.
+
 ## 0.24.0 – 30.08.2026
 
 ### New

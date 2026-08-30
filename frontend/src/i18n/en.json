@@ -3439,6 +3439,7 @@
     "watchersHint": "linked and reporting",
     "touched": "Library touched",
     "touchedHint": "{{gesehen}} of {{gesamt}} titles",
+    "touchedNoLibrary": "{{gesehen}} seen — no library data yet",
     "libraryNow": "Library today",
     "perMonth": "Watched per month",
     "perMonthHint": "when things were watched",

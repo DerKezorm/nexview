@@ -25,10 +25,28 @@ export function AnalyseWiedergabe({ stand }: { stand: WiedergabeStand }) {
   const { t, i18n } = useTranslation()
 
   const gesamtWiedergaben = stand.monate.reduce((summe, m) => summe + m.anzahl, 0)
-  const anteil =
-    stand.bestand_gesamt > 0
-      ? Math.round((stand.angesehen / stand.bestand_gesamt) * 100)
-      : 0
+
+  /**
+   * Der Anteil - oder eingestanden, dass es keinen gibt.
+   *
+   * ⚠️ **Hier stand „0 %".** Der Teiler war gegen null abgesichert, die
+   * Aussage nicht: Neben „0 %" stand „2 von 0 Titeln", und wer 2 gesehen hat,
+   * kann nicht 0 im Bestand haben. Ein Widerspruch in der ersten Kennzahl, die
+   * ein Betreiber auf dieser Seite ansieht.
+   *
+   * ⚠️ **Und es ist kein Fall aus der Vorführung.** ``bestand_gesamt`` ist
+   * auch dann null, wenn der Bibliotheks-Abgleich noch nicht gelaufen ist oder
+   * Nexview die Bibliotheken des Medienservers nicht lesen kann - also genau
+   * bei einem frisch verbundenen Server. Der erste Blick eines neuen
+   * Betreibers trifft damit auf eine Zahl, die sich selbst widerspricht.
+   *
+   * Ohne Bestand ist der Anteil nicht null, sondern **unbekannt**. Ein Strich
+   * sagt das; eine Null behauptet etwas.
+   */
+  const bestandBekannt = stand.bestand_gesamt > 0
+  const anteil = bestandBekannt
+    ? `${Math.round((stand.angesehen / stand.bestand_gesamt) * 100)} %`
+    : '—'
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,11 +66,15 @@ export function AnalyseWiedergabe({ stand }: { stand: WiedergabeStand }) {
         />
         <Kennzahl
           label={t('wiedergabe.touched')}
-          wert={`${anteil} %`}
-          hinweis={t('wiedergabe.touchedHint', {
-            gesehen: stand.angesehen,
-            gesamt: stand.bestand_gesamt,
-          })}
+          wert={anteil}
+          hinweis={
+            bestandBekannt
+              ? t('wiedergabe.touchedHint', {
+                  gesehen: stand.angesehen,
+                  gesamt: stand.bestand_gesamt,
+                })
+              : t('wiedergabe.touchedNoLibrary', { gesehen: stand.angesehen })
+          }
         />
         <Kennzahl
           label={t('wiedergabe.libraryNow')}

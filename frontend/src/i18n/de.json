@@ -3439,6 +3439,7 @@
     "watchersHint": "verknüpft und gemeldet",
     "touched": "Bibliothek angesehen",
     "touchedHint": "{{gesehen}} von {{gesamt}} Titeln",
+    "touchedNoLibrary": "{{gesehen}} gesehen — noch keine Bibliotheksdaten",
     "libraryNow": "Bestand heute",
     "perMonth": "Wiedergaben je Monat",
     "perMonthHint": "wann geschaut wurde",

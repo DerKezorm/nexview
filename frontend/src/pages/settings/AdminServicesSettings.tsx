@@ -1120,8 +1120,21 @@ export function AdminServicesSettings({
     (e) => !e.wenn || e.wenn({ arrVorhanden }),
   );
   useEffect(() => {
+    // ⚠️ **Erst wenn die Konfiguration wirklich da ist.** Beim allerersten
+    // Zeichnen ist ``config`` noch ``undefined``, also ``arrVorhanden`` falsch
+    // - und jeder Reiter mit Bedingung faellt aus ``sichtbareTabs`` heraus.
+    // Der Rueckfall sprang dann sofort auf "Allgemein", noch bevor die
+    // Konfiguration eintraf. Ein Verweis wie
+    // ``/admin/settings?reiter=dienste&unter=qualitaet`` landete deshalb immer
+    // auf dem falschen Reiter, waehrend ``unter=radarr`` (ohne Bedingung)
+    // funktionierte - was die Ursache gut versteckt hat.
+    //
+    // Der Fall, den dieser Rueckfall abdecken soll, steht oben: "die letzte
+    // Instanz wurde gerade entfernt". Der tritt erst nach geladener
+    // Konfiguration ein.
+    if (!config) return;
     if (!sichtbareTabs.some((e) => e.value === unterTab)) setUnterTab("general");
-  }, [sichtbareTabs, unterTab]);
+  }, [config, sichtbareTabs, unterTab]);
 
   /**
    * Zeile mit "Verbindung testen" und - falls ein Key hinterlegt ist -

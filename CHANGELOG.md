@@ -19,7 +19,7 @@ tag exists for it.
 - **Passwords could be guessed on two addresses that need no sign-in.** The sign-in
   brake named three doors where a password is checked. There was a fourth: resending
   the confirmation mail and correcting an unconfirmed address. Measured: 100 wrong
-  passwords, 100 times 401, not a single 429 — and the answer told the caller when a
+  passwords, 100 times 401, not a single 429, and the answer told the caller when a
   guess was right. Anyone able to reach Nexview from the network could try passwords
   for every account, the operator's included, without holding one of their own.
 
@@ -30,24 +30,30 @@ tag exists for it.
   leaves them alone and points at where to revoke.
 
 - **A slow Jellyfin or Emby no longer loses the whole library sync.** Every request to
-  a media server had fifteen seconds, whatever it asked for. A library big enough — or
-  a server slow enough — missed that, and because one missed page takes the entire run
+  a media server had fifteen seconds, whatever it asked for. A library big enough, or
+  a server slow enough, missed that, and because one missed page takes the entire run
   with it, the card read "Not synced yet." rather than "half done". Reported for
   Jellyfin while Emby on the same installation worked; both run the same code, the
   Jellyfin server was simply the slower of the two.
+
+  Reported by [@ldoctoru](https://github.com/ldoctoru) in
+  [#7](https://github.com/DerKezorm/nexview/issues/7). The two screenshots in that
+  report are what made it findable: the card saying "Not synced yet." and a log line
+  ending in `502 in 15011ms`: three attempts, three times the same figure, which is
+  our own clock rather than the server's.
 
   The time limit is no longer a fixed number. Nexview now asks in chunks whose size
   the server decides: a chunk that misses its time is halved and the same place asked
   again, and what gets through is kept for the rest of the run. A library twice the
   size needs twice as many chunks, but each one fits. Nothing to configure.
 
-  Timeouts also reach the log now, naming the request that died — media servers were
+  Timeouts also reach the log now, naming the request that died. Media servers were
   the only outward connection that stayed silent about it, so the report that started
   this could not be traced from the logs.
 
 - **A silent Radarr deleted the whole storage accounting.** No answer meant no items,
   and everything the instance would have reported counted as gone. Measured: usage
-  fell from 28 GB to 20, the house from 2 GB to 0 — and because the rows were deleted,
+  fell from 28 GB to 20, the house from 2 GB to 0, and because the rows were deleted,
   deletion deadlines and releases were lost for good. The rule from the status sync now
   holds here too: not answering is not a no.
 
@@ -56,7 +62,7 @@ tag exists for it.
   but counted as foreign here.
 
 - **Sixteen error messages reached everybody in German**, whatever language they had
-  chosen — among them the very first contact with Nexview, an expired invitation link.
+  chosen, among them the very first contact with Nexview: an expired invitation link.
   All of them are named now, so the interface can say them in the reader's language;
   the German sentence stays as the fallback. Media-server timeouts join them in this
   release.
@@ -88,7 +94,7 @@ tag exists for it.
   `?unter=radarr` kept working, which is what hid the cause.
 
 - **"Library touched" read "0 %" above "2 of 0 titles".** Without a stock the share is not
-  zero, it is unknown — and a dash says that where a zero asserts something.
+  zero, it is unknown, and a dash says that where a zero asserts something.
 
 - **The health check in `docker-compose.yml` ignored `NEXVIEW_PORT`**, so following our own
   instructions produced a container that runs and counts as unhealthy. ESLint checked
@@ -106,6 +112,14 @@ tag exists for it.
   kinds know where their click leads, the v1 promise covers nested fields (252 instead of
   the top level), and a media server that only answers to small requests still delivers
   every title.
+
+### Thanks
+
+- **[@ldoctoru](https://github.com/ldoctoru)** for reporting
+  [#7](https://github.com/DerKezorm/nexview/issues/7), with screenshots and a log
+  excerpt, which is what turned "Jellyfin is not syncing" into something that could be
+  measured. If you run into something, please open an issue; that is how this list
+  gets shorter.
 
 ## 0.25.0 – 30.08.2026
 

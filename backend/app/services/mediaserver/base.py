@@ -35,17 +35,96 @@ from .. import http_log
 TIMEOUT = httpx.Timeout(15.0, connect=6.0)
 MAX_PARALLEL_REQUESTS = 6
 
+# --------------------------------------------------------------------------
+# Wie gross ein Haeppchen sein darf - und wie lange es dafuer Zeit bekommt.
+#
+# ⚠️ **Eine feste Zeitgrenze ist hier der Fehler, nicht die Zahl darin.**
+# Sie steht entweder zu knapp fuer einen langsamen Server oder zu weit fuer
+# einen toten. Genau daran ist der Bibliotheks-Abgleich gescheitert (Issue #7):
+# 15 Sekunden fuer alles, dreimal punktgenau gerissen, und weil ein einziges
+# gerissenes Haeppchen den ganzen Durchlauf mitnimmt, stand danach "Not synced
+# yet." - nicht "halb fertig".
+#
+# Deshalb rechnet die Grenze mit der Menge, und die Menge lernt vom Server:
+# Reisst ein Haeppchen die Zeit, wird es halbiert und dieselbe Stelle erneut
+# gefragt. Was durchgeht, gilt fuer den Rest des Durchlaufs - der Server hat
+# damit gesagt, wie schnell er ist. Eine doppelt so grosse Bibliothek braucht
+# dann doppelt so viele Haeppchen, aber jedes einzelne passt.
+#
+# Die Zahlen: Am eigenen Server gemessen sind rund 3500 Filme samt
+# Dateiangaben in 17-20 Sekunden gelesen, also knapp 200 Titel je Sekunde.
+# Veranschlagt ist ein Fuenfzigstel davon - vier je Sekunde -, damit auch ein
+# NAS mit drehender Platte durchkommt.
+SEKUNDEN_JE_TITEL = 0.25
+GRUNDZEIT = 6.0
+
+#: Womit ein Durchlauf anfaengt. Nicht mehr die alten 500: Der Gewinn gegenueber
+#: 200 ist ein paar eingesparte Abfragen, der Preis ist eine Leiter, die im
+#: schlimmsten Fall doppelt so lange braucht, um einen toten Server als tot zu
+#: erkennen. Round-Trips kosten Millisekunden, Warten kostet Minuten.
+SEITE_HOECHSTENS = 200
+
+#: Wo die Leiter aufhoert. Wer 25 Titel nicht in gut zwoelf Sekunden liefert,
+#: ist nicht langsam - da stimmt etwas anderes nicht, und weiter zu halbieren
+#: verlaengert nur die Wartezeit vor derselben Auskunft.
+SEITE_MINDESTENS = 25
+
+
+def seiten_timeout(groesse: int) -> httpx.Timeout:
+    """Wie lange ein Haeppchen dieser Groesse antworten darf."""
+    return httpx.Timeout(GRUNDZEIT + groesse * SEKUNDEN_JE_TITEL, connect=6.0)
+
+
+def kleineres_haeppchen(groesse: int) -> int | None:
+    """Die naechstkleinere Groesse - oder ``None``, wenn die Leiter zu Ende ist."""
+    if groesse <= SEITE_MINDESTENS:
+        return None
+    return max(SEITE_MINDESTENS, groesse // 2)
+
 _client: httpx.AsyncClient | None = None
 _client_lock = asyncio.Lock()
 
 
 class MediaServerError(Exception):
-    """Fehler beim Zugriff auf einen Media-Server - mit lesbarer Meldung."""
+    """Fehler beim Zugriff auf einen Media-Server - mit lesbarer Meldung.
 
-    def __init__(self, message: str, status_code: int | None = None) -> None:
+    ``code`` und ``zahlen`` sind dasselbe wie bei ``ArrError``: eine
+    **Kennung** und die Werte zum Einsetzen. Das Backend uebersetzt nicht, es
+    benennt - den Satz baut das Frontend in der eingestellten Sprache (siehe
+    ``app/meldungen.py``).
+
+    ⚠️ **Ohne Kennung kommt der deutsche Satz beim Leser an.** Der Router
+    schlaegt jeden Fehler von hier in ``mediaserver_unreachable`` ein, und zu
+    dieser Kennung gibt es keinen Text in den Sprachdateien - ``client.ts``
+    faellt deshalb auf ``message`` zurueck und reicht ihn unveraendert durch.
+    Genau so gemeldet (Issue #7): ein englischsprachiger Nutzer las "Der
+    Jellyfin-Server antwortet nicht (Zeitueberschreitung)."
+
+    ``code`` bleibt trotzdem freiwillig. Vieles, was ein Media-Server
+    zurueckmeldet, sind **seine** Worte - die zu uebersetzen hiesse, sie zu
+    erfinden. Eine Kennung bekommt, was Nexview selbst formuliert.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        code: str | None = None,
+        **zahlen: object,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+        self.code = code
+        self.zahlen = zahlen
+
+    def als_meldung(self) -> dict[str, object]:
+        """Kennung, deutscher Rueckfall und Werte - wie ``meldungen.meldung``."""
+        return {
+            "code": self.code or "mediaserver_unreachable",
+            "message": self.message,
+            **self.zahlen,
+        }
 
 
 async def http_client() -> httpx.AsyncClient:

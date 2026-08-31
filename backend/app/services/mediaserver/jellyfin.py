@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from hashlib import sha1
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -33,6 +34,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from ... import __version__
+from .. import http_log
 from .base import (
     Umrechnung,
     Wiedergabe,
@@ -46,6 +48,9 @@ from .base import (
     SeasonWatchedRecord,
     WatchedRecord,
     http_client,
+    kleineres_haeppchen,
+    seiten_timeout,
+    SEITE_HOECHSTENS,
 )
 
 if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
@@ -53,9 +58,19 @@ if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
 
 logger = logging.getLogger("nexview.mediaserver")
 
-# Wie viele Titel je Abfrage - wie bei Plex. Eine Bibliothek mit ein paar
-# tausend Filmen samt Dateiangaben ist sonst eine sehr grosse Antwort.
-SEITENGROESSE = 500
+# Wie viele Titel je Abfrage. Die Obergrenze und die Leiter darunter stehen in
+# ``base.py`` (``SEITE_HOECHSTENS``, ``kleineres_haeppchen``) - sie gelten fuer
+# jeden Anbieter, der seitenweise liest.
+#
+# ⚠️ **Die Film-Abfrage faengt kleiner an, und das ist kein Feinschliff.**
+# Sie ist die einzige, die ``MediaSources`` mitliest - die Dateiangaben, aus
+# denen Groesse und Aufloesung kommen. Jellyfin baut die je Titel zusammen,
+# und damit ist diese eine Abfrage um ein Vielfaches teurer als alle anderen.
+# Bei 200 laeuft ein langsamer Server in jedem Durchlauf erst zweimal in die
+# Zeitgrenze, bevor er unten ankommt; bei 100 faengt er dort an, wo er ohnehin
+# landet. Serien tragen keine Dateien (die haengen an den Folgen), der
+# Gesehen-Stand ist gefiltert und klein - beide bleiben bei der Obergrenze.
+SEITE_FILME = 100
 
 # Ab dieser Breite gilt eine Datei als 4K.
 #
@@ -232,6 +247,12 @@ class JellyfinServer(MediaServer):
             else getattr(settings, "mediaserver_account_id", "")
         )
         self._eigene_id: str | None = gemerkt or None
+        # Wie viele Titel dieser Server auf einmal vertraegt. Faengt bei der
+        # Obergrenze an und sinkt, sobald er eine Zeitgrenze reisst - siehe
+        # ``_seiten``. Bewusst am Server-Objekt und nicht global: Ein Abgleich
+        # baut sich seinen eigenen, und was ein lahmes Jellyfin gelernt hat,
+        # soll das flotte Emby daneben nicht ausbaden.
+        self._seitengroesse = SEITE_HOECHSTENS
 
     # --- Werkzeug ----------------------------------------------------------
 
@@ -283,6 +304,7 @@ class JellyfinServer(MediaServer):
         token: str | None = None,
         basis: str | None = None,
         zweck: str = "",
+        timeout: httpx.Timeout | None = None,
         **kwargs: Any,
     ) -> Any:
         """Eine Abfrage an den Server - mit lesbaren Fehlern statt Ausnahmen.
@@ -298,17 +320,34 @@ class JellyfinServer(MediaServer):
         client = await http_client()
         kopfzeilen = self._kopfzeilen(self.token if token is None else token, zweck)
         kopfzeilen.update(kwargs.pop("headers", {}))
+        # ⚠️ Nur setzen, wenn es eine gibt: ``timeout=None`` heisst bei httpx
+        # **gar keine** Grenze, nicht "die vom Client".
+        if timeout is not None:
+            kwargs["timeout"] = timeout
         try:
             response = await client.request(
                 methode, f"{url}{pfad}", headers=kopfzeilen, **kwargs
             )
         except httpx.TimeoutException as exc:
+            # ⚠️ Die Haken am Client laufen hier **nicht** - sie haengen an
+            # einer Antwort, und die gibt es nicht. Ohne diese Zeile steht von
+            # einer Zeitueberschreitung nichts im Protokoll, und niemand kann
+            # hinterher sagen, welche Abfrage gestorben ist. Genau daran war
+            # Issue #7 nicht nachzuvollziehen; arr.py und tmdb.py machen es
+            # laengst so.
+            http_log.unreachable("mediaserver", methode, f"{url}{pfad}", exc)
             raise MediaServerError(
-                f"Der {self.label}-Server antwortet nicht (Zeitüberschreitung)."
+                f"Der {self.label}-Server antwortet nicht (Zeitüberschreitung).",
+                code="mediaserver_timeout",
+                service=self.label,
             ) from exc
         except httpx.HTTPError as exc:
+            http_log.unreachable("mediaserver", methode, f"{url}{pfad}", exc)
             raise MediaServerError(
-                f"Der {self.label}-Server ist unter {url} nicht erreichbar."
+                f"Der {self.label}-Server ist unter {url} nicht erreichbar.",
+                code="mediaserver_offline",
+                service=self.label,
+                url=url,
             ) from exc
 
         if response.status_code in (401, 403):
@@ -513,6 +552,70 @@ class JellyfinServer(MediaServer):
             if zeile.get("Id")
         ]
 
+    async def _seiten(
+        self,
+        params: dict[str, Any],
+        token: str | None,
+        hoechstens: int = SEITE_HOECHSTENS,
+    ) -> AsyncIterator[list[dict[str, Any]]]:
+        """``/Items`` seitenweise - mit einer Groesse, die der Server bestimmt.
+
+        Reisst ein Haeppchen die Zeitgrenze, ist das keine Panne, sondern eine
+        Auskunft: zu viel auf einmal. Also wird halbiert und **dieselbe**
+        Stelle erneut gefragt - ``start`` bleibt stehen, es geht kein Titel
+        verloren und keiner kommt doppelt. Die kleinere Groesse gilt danach
+        fuer den Rest des Durchlaufs; der Server hat gerade gesagt, wie schnell
+        er ist.
+
+        ⚠️ **Ein Erzeuger, keine Liste.** Der Aufrufer bekommt Seite fuer Seite
+        und verarbeitet jede sofort. Wer hier eine fertige Liste zurueckgibt,
+        haelt bei einer grossen Bibliothek die Rohdaten *und* das Ergebnis
+        gleichzeitig im Speicher - und tauscht genau das ein, was diese
+        Aenderung gewinnen soll.
+
+        ⚠️ **Nur eine Zeitueberschreitung fuehrt zum Halbieren.** Ein HTTP 500
+        oder ein abgelehnter Zugang wird durchgereicht: Die Antwort kaeme bei
+        25 Titeln genauso, nur viermal spaeter.
+        """
+        start = 0
+        while True:
+            groesse = min(hoechstens, self._seitengroesse)
+            try:
+                daten = await self._anfrage(
+                    "GET",
+                    "/Items",
+                    token=token,
+                    params={**params, "StartIndex": start, "Limit": groesse},
+                    timeout=seiten_timeout(groesse),
+                ) or {}
+            except MediaServerError as fehler:
+                if fehler.code != "mediaserver_timeout":
+                    raise
+                kleiner = kleineres_haeppchen(groesse)
+                if kleiner is None:
+                    raise MediaServerError(
+                        f"Der {self.label}-Server hat auch auf kleine Abfragen "
+                        f"({groesse} Titel) nicht rechtzeitig geantwortet.",
+                        code="mediaserver_pages_too_slow",
+                        service=self.label,
+                        size=groesse,
+                    ) from fehler
+                logger.info(
+                    "Media server %r: a page of %d titles timed out, retrying with %d",
+                    self.provider,
+                    groesse,
+                    kleiner,
+                )
+                self._seitengroesse = kleiner
+                continue
+            seite = daten.get("Items") or []
+            if seite:
+                yield seite
+            start += len(seite)
+            gesamt = daten.get("TotalRecordCount")
+            if not seite or not isinstance(gesamt, int) or start >= gesamt:
+                return
+
     async def _titel_lesen(
         self,
         konto_id: str,
@@ -539,31 +642,21 @@ class JellyfinServer(MediaServer):
             else "ProviderIds,ProductionYear"
         )
         werke: list[LibraryItem] = []
-        start = 0
-        while True:
-            daten = await self._anfrage(
-                "GET",
-                "/Items",
-                token=token,
-                params={
-                    "userId": konto_id,
-                    "Recursive": "true",
-                    "IncludeItemTypes": art,
-                    "Fields": felder,
-                    "EnableUserData": "true",
-                    "StartIndex": start,
-                    "Limit": SEITENGROESSE,
-                },
-            ) or {}
-            eintraege = daten.get("Items") or []
-            for eintrag in eintraege:
+        async for seite in self._seiten(
+            {
+                "userId": konto_id,
+                "Recursive": "true",
+                "IncludeItemTypes": art,
+                "Fields": felder,
+                "EnableUserData": "true",
+            },
+            token,
+            SEITE_FILME if media_type == "movie" else SEITE_HOECHSTENS,
+        ):
+            for eintrag in seite:
                 werk = _als_werk(eintrag, media_type, angesehene_serien, self.provider)
                 if werk is not None:
                     werke.append(werk)
-            start += len(eintraege)
-            gesamt = daten.get("TotalRecordCount")
-            if not eintraege or not isinstance(gesamt, int) or start >= gesamt:
-                break
         return werke
 
     async def _gesehenes_lesen(
@@ -578,29 +671,18 @@ class JellyfinServer(MediaServer):
         einer Minute und einer Viertelstunde.
         """
         treffer: list[dict[str, Any]] = []
-        start = 0
-        while True:
-            daten = await self._anfrage(
-                "GET",
-                "/Items",
-                token=token,
-                params={
-                    "userId": konto_id,
-                    "Recursive": "true",
-                    "IncludeItemTypes": art,
-                    "Filters": "IsPlayed",
-                    "Fields": felder,
-                    "EnableUserData": "true",
-                    "StartIndex": start,
-                    "Limit": SEITENGROESSE,
-                },
-            ) or {}
-            eintraege = daten.get("Items") or []
-            treffer.extend(eintraege)
-            start += len(eintraege)
-            gesamt = daten.get("TotalRecordCount")
-            if not eintraege or not isinstance(gesamt, int) or start >= gesamt:
-                break
+        async for seite in self._seiten(
+            {
+                "userId": konto_id,
+                "Recursive": "true",
+                "IncludeItemTypes": art,
+                "Filters": "IsPlayed",
+                "Fields": felder,
+                "EnableUserData": "true",
+            },
+            token,
+        ):
+            treffer.extend(seite)
         return treffer
 
     async def _angesehene_serien(

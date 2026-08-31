@@ -180,10 +180,21 @@ def _anbieter_fehler(exc: MediaServerError) -> HTTPException:
 
     502 statt 500: Nexview selbst funktioniert, nur der Media-Server oder
     plex.tv antwortet nicht wie erwartet.
+
+    ⚠️ **Die Kennung kommt vom Fehler, wenn er eine mitbringt.** Frueher stand
+    hier fuer *jeden* Fall ``mediaserver_unreachable`` - eine Kennung, zu der
+    es keinen Text in den Sprachdateien gibt. ``client.ts`` faellt dann auf
+    ``message`` zurueck und reicht den deutschen Satz unveraendert durch. So
+    las ein englischsprachiger Nutzer "Der Jellyfin-Server antwortet nicht
+    (Zeitueberschreitung)." (Issue #7).
+
+    Wer keine Kennung mitbringt, bleibt bei der alten - das ist meist die
+    Antwort des Media-Servers selbst, und die zu uebersetzen hiesse, sie zu
+    erfinden.
     """
     return HTTPException(
         status_code=status.HTTP_502_BAD_GATEWAY,
-        detail={"code": "mediaserver_unreachable", "message": exc.message},
+        detail=exc.als_meldung(),
     )
 
 

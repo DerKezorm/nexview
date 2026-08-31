@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from . import plextv
+from .. import http_log
 from .base import (
     Umrechnung,
     Wiedergabe,
@@ -195,10 +196,22 @@ class PlexServer(MediaServer):
                 headers=self._kopfzeilen(self.token),
             )
         except httpx.TimeoutException as exc:
-            raise MediaServerError("Der Plex-Server antwortet nicht (Zeitüberschreitung).") from exc
-        except httpx.HTTPError as exc:
+            # Ohne diese Zeile steht von einer Zeitueberschreitung nichts im
+            # Protokoll - die Haken am Client haengen an einer Antwort, und die
+            # gibt es hier nicht. Siehe jellyfin.py und arr.py.
+            http_log.unreachable("mediaserver", "GET", f"{self.base_url}/identity", exc)
             raise MediaServerError(
-                f"Der Plex-Server ist unter {self.base_url} nicht erreichbar."
+                "Der Plex-Server antwortet nicht (Zeitüberschreitung).",
+                code="mediaserver_timeout",
+                service="Plex",
+            ) from exc
+        except httpx.HTTPError as exc:
+            http_log.unreachable("mediaserver", "GET", f"{self.base_url}/identity", exc)
+            raise MediaServerError(
+                f"Der Plex-Server ist unter {self.base_url} nicht erreichbar.",
+                code="mediaserver_offline",
+                service="Plex",
+                url=self.base_url,
             ) from exc
 
         if response.status_code in (401, 403):
@@ -320,10 +333,19 @@ class PlexServer(MediaServer):
                 timeout=30.0,
             )
         except httpx.TimeoutException as exc:
-            raise MediaServerError("Der Plex-Server antwortet nicht (Zeitüberschreitung).") from exc
-        except httpx.HTTPError as exc:
+            http_log.unreachable("mediaserver", "GET", f"{self.base_url}{pfad}", exc)
             raise MediaServerError(
-                f"Der Plex-Server ist unter {self.base_url} nicht erreichbar."
+                "Der Plex-Server antwortet nicht (Zeitüberschreitung).",
+                code="mediaserver_timeout",
+                service="Plex",
+            ) from exc
+        except httpx.HTTPError as exc:
+            http_log.unreachable("mediaserver", "GET", f"{self.base_url}{pfad}", exc)
+            raise MediaServerError(
+                f"Der Plex-Server ist unter {self.base_url} nicht erreichbar.",
+                code="mediaserver_offline",
+                service="Plex",
+                url=self.base_url,
             ) from exc
 
         if antwort.status_code in (401, 403):

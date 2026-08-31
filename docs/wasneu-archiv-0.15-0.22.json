@@ -1,0 +1,720 @@
+{
+  "de": {
+    "0.15.0": {
+      "lead": "Dieses Update dreht sich fast vollständig um eine Frage: Wie viel Platz belegt eigentlich wer? Nexview kann Kontingente jetzt in Gigabyte messen statt in Stückzahl — mit allem, was dazugehört.",
+      "sections": [
+        {
+          "title": "Speicher-Kontingente",
+          "where": "Einstellungen → Speicherkontingente",
+          "body": "Kontingente rechnen wahlweise nach Anzahl (wie bisher) oder nach belegtem Speicher. Es gilt immer genau eine der beiden Währungen — die Auswahl steht ganz oben, darunter die Standardgrenze für alle Konten. Gemessen wird in beiden Betriebsarten, du kannst also erst beobachten und später begrenzen. Jeder Wechsel bucht alle Titel in den Hausbestand um und startet jedes Konto bei null; ein Dialog nennt vorher die echten Zahlen. Das Feature trägt bewusst die Marke „In Dev“."
+        },
+        {
+          "title": "Mein Speicher — für jede Person",
+          "where": "Profil → Speicherkontingent",
+          "body": "Jede Person sieht ihren belegten Platz gegen ihre Grenze und darunter jeden Titel, das Größte zuerst. Ein Auge je Zeile sagt, ob sie ihn schon gesehen hat: grün bedeutet gesehen, bei Staffeln ausdrücklich „alle Folgen“. Wer aufräumen will, filtert auf „Nur Gesehene“."
+        },
+        {
+          "title": "Abgeben statt löschen",
+          "where": "Profil → Speicherkontingent, Entscheidung in den Einstellungen",
+          "body": "„Brauche ich nicht mehr“ stellt einen Titel zur Entscheidung, ohne dass sofort etwas passiert — er zählt weiter, bis du entschieden hast. Bei Staffeln nennt die Person gleich ihren Wunsch: löschen lassen oder behalten und nur das Nachladen beenden. In deiner Warteschlange stehen dann drei Ausgänge bereit: ins Haus (Datei bleibt, Konto frei), löschen (mit der tatsächlichen Dateiliste vor Augen) oder nicht mehr folgen."
+        },
+        {
+          "title": "Papierkorb und die eine Bedingung",
+          "where": "Einstellungen → Speicherkontingente, unterer Bereich",
+          "body": "Weil Nexview löschen kann, gehört ein Papierkorb dazu — eintragen kannst du ihn direkt hier, die Arbeit übernehmen Radarr und Sonarr. Und die Bedingung, ohne die das System nicht aufgeht: Titel müssen in Radarr und Sonarr bleiben. Wer sie dort entfernt und die Datei behält, schafft etwas, das Nexview zwar messen, aber nie wieder löschen kann."
+        },
+        {
+          "title": "Staffeln einzeln anfragen",
+          "where": "Detailseite einer Serie",
+          "body": "Statt nur „ganze Serie“ lassen sich einzelne Staffeln auswählen — mit Häkchen, auch mehrere auf einmal, plus einem eigenen Haken für künftige Staffeln. Was schon da oder angefragt ist, ist ausgegraut statt versteckt. Nebenbei behoben: Sonarr schaltete frisch angelegte Serien manchmal wieder unbeobachtet; Nexview merkt das jetzt und stellt es von selbst richtig."
+        },
+        {
+          "title": "Konto löschen — mit Entscheidung über den Bestand",
+          "where": "Einstellungen → Benutzer",
+          "body": "Benutzer und Entscheider beantragen die Löschung im Profil unter „Sicherheit“; der Antrag erreicht dich als Ticket. Beim Löschen entscheidest du je Titel per Häkchen, ob er ins Haus geht oder gelöscht wird, und was mit angefangenen Downloads passiert. Nichts lädt danach herrenlos weiter."
+        }
+      ],
+      "smallTitle": "Außerdem behoben",
+      "small": [
+        "Eine Staffel gilt erst als geladen, wenn wirklich alle Folgen da sind — vorher meldete Nexview mehrere Staffeln gleichzeitig als fertig.",
+        "Meldungen zu Staffeln nennen die Staffel — in der Glocke, in den Kanälen und per Mail.",
+        "4K und 1080p werden sauber getrennt: Eine laufende Anfrage in einer Stufe blockiert die andere nicht mehr.",
+        "Eine 4K-Datei im normalen Radarr wird nicht mehr für eine eigene 4K-Fassung gehalten.",
+        "Ein Titel, der aus Radarr oder Sonarr verschwunden ist, bleibt nicht mehr ewig auf „wird gesucht“ stehen.",
+        "Der freie Plattenplatz zählt denselben Datenträger nicht mehr doppelt."
+      ]
+    },
+    "0.16.0": {
+      "lead": "Nexview kann jetzt Kinder. Ein Elternteil legt eigene Zugänge für seine Kinder an, die Kinder bekommen eine völlig eigene, kindgerechte App zu sehen — und was sie sich wünschen, entscheidet zuerst das Elternteil und erst danach du.",
+      "sections": [
+        {
+          "title": "Kinderkonten anlegen",
+          "where": "Profil → Kinder",
+          "body": "Name, Passwort, Alter, Sprache und ein paar Rubriken — mehr braucht ein Kinderkonto nicht. Keine Mailadresse, kein Plex-Konto. Wer welche anlegen darf, entscheidest du: Der Haken „Darf Kinderkonten anlegen“ sitzt in der Benutzerverwaltung. Ohne ihn bleibt der Reiter trotzdem sichtbar, erklärt die Funktion samt ihrer Grenzen und bietet einen Knopf, der die Freigabe als Ticket bei dir beantragt. Im Ticket steht dann ein Knopf, der sie mit einem Klick erteilt und das Ticket schließt."
+        },
+        {
+          "title": "Die Kinderansicht",
+          "where": "Anmeldung mit dem Zugang des Kindes",
+          "body": "Ein Kind sieht nicht Nexview mit weniger Knöpfen, sondern eine eigene App: hell und bunt statt dunkelgrau mit Rot, drei große Ziele unten am Rand, keine Glocke, keine Tickets, keine Einstellungen. Auf der Startseite stehen die freigeschalteten Rubriken als Bildkacheln; dahinter liegen alle Titel auf einmal, getrennt in „Das kannst du schon schauen“ und „Das kannst du dir wünschen“. Gesucht wird nur innerhalb der Rubriken."
+        },
+        {
+          "title": "Wünschen statt anfragen",
+          "where": "Profil → Kinder, oben",
+          "body": "Ein Kind fragt nichts an — es wünscht sich etwas, und bis das Elternteil entscheidet, passiert nichts. Gibt es den Wunsch frei, wird daraus eine ganz gewöhnliche Anfrage auf **seinen** Namen: sein Kontingent, seine Profilsperren, sein üblicher Weg — und den Download gibst am Ende wie immer du frei. Lehnt es ab, kann es eine kurze Begründung mitgeben, die das Kind liest. Das Kind sieht seine Liste mit vier Zuständen: wartet, ist unterwegs, ist da, diesmal nicht."
+        },
+        {
+          "title": "„Aus Sicht von … anzeigen“",
+          "where": "Profil → Kinder, gelber Knopf am Kind",
+          "body": "Der Knopf öffnet die App des Kindes genau so, wie das Kind sie sieht — dieselbe Ansicht, dieselben Regeln, nur ohne Wunsch-Knopf. Wer prüfen will, was bei seinem Kind wirklich ankommt, soll sich dafür nicht dessen Passwort ausleihen müssen."
+        },
+        {
+          "title": "Was das Ganze **nicht** kann",
+          "where": "Profil → Kinder, Fragezeichen neben „Kinderkonten“",
+          "body": "Die Grenze wirkt nur in Nexview. Was freigegeben und geladen ist, liegt danach in derselben Mediathek — worauf ein Kind in Plex zugreifen kann, entscheidest du dort. Und die Altersangaben stammen von TMDB, nicht von uns: Sie können fehlen oder falsch sein. Beides steht ausdrücklich im Hilfe-Fenster, damit sich niemand auf etwas verlässt, das so nicht gemeint ist."
+        },
+        {
+          "title": "Neuerungen der letzten fünf Fassungen",
+          "where": "Über Nexview → Alles, was neu ist",
+          "body": "Dieses Fenster hält jetzt die Texte der letzten fünf Fassungen vor, mit einem Schalter je Fassung ganz oben. Wer eine Version überspringt — Container später aktualisiert, zwei Releases an einem Tag —, erfährt trotzdem, was darin steckte. Ein Punkt markiert, was seit deinem letzten „Verstanden“ dazugekommen ist, und über die Über-Seite kommst du jederzeit wieder her."
+        }
+      ],
+      "smallTitle": "Außerdem geändert",
+      "small": [
+        "Die Altersbeschränkung je Konto ist aus der Benutzerverwaltung verschwunden: Wer ein vollwertiges Konto hat, gilt als volljährig. Bestehende Grenzen werden beim ersten Start entfernt — bei Kinderkonten bleiben sie natürlich stehen.",
+        "Neuer Mail-Schalter „Wünsche deiner Kinder“ — sichtbar nur für Konten, die auch wirklich ein aktives Kinderkonto führen.",
+        "Nimmst du jemandem das Recht wieder weg, werden seine Kinderkonten deaktiviert statt gelöscht. Du sollst zurücknehmen können, ohne dass Konten verschwinden.",
+        "Die Reiter im Profil lassen sich wieder direkt anspringen (`?reiter=…`) — so landet die Glocke bei einem Kinderwunsch dort, wo er entschieden wird."
+      ]
+    },
+    "0.17.0": {
+      "lead": "Nexview kann jetzt stöbern. Bisher zeigte „Entdecken“ nur ein Zeitfenster von höchstens einem Jahr — alles Ältere war nur über die Suche erreichbar. Der neue Bereich öffnet den ganzen Katalog, und daneben steht ein Assistent, der dir ein paar Fragen stellt und dann etwas für heute Abend vorschlägt.",
+      "sections": [
+        {
+          "title": "Was schauen?",
+          "where": "Hauptmenü → Was schauen?",
+          "body": "Der Assistent fragt: Wer schaut mit, worauf hast du Lust, muss es heute Abend sofort laufen, wie viel Zeit ist, etwas Neues oder etwas Vertrautes. Höchstens sechs Fragen — und der Baum passt sich an: Wer „nur was schon da ist“ wählt, wird nicht mehr nach Geheimtipps gefragt, weil das in der eigenen Bibliothek keinen Sinn ergibt. Am Ende stehen zwölf Vorschläge, und „Nochmal würfeln“ gibt einen anderen Stapel.\n\n„Mit Kindern“ setzt dabei eine echte Altersfreigabe (höchstens FSK 6), keine geratenen Genres. Weggenommen wird trotzdem nichts: Auch Gruseln bleibt wählbar und liefert dann „Das Haus der geheimnisvollen Uhren“ und „Hexen hexen“ statt Horror für Erwachsene."
+        },
+        {
+          "title": "Stöbern",
+          "where": "Hauptmenü → Stöbern",
+          "body": "Regale statt Zeitfenster: „Perlen“ (gut bewertet, aber kaum bekannt), „Zeitlose Klassiker“, „Unter 90 Minuten“, „Neu erschienen“, dazu fünf Jahrzehnte und jedes Genre. Jedes Regal funktioniert auch bei leerer Bibliothek und ohne persönliche Daten.\n\nOben steht die Frage, die am Filmabend zuerst kommt: „Muss es heute Abend sofort laufen?“ Anders als früher wird das auf dem Server gesiebt — bei einer vollen Bibliothek bleiben die Reihen also voll, statt auf zwei Kacheln zusammenzuschrumpfen."
+        },
+        {
+          "title": "Selbst filtern",
+          "where": "Stöbern → Lieber selbst filtern",
+          "body": "Sechs Fragen statt dreizehn Reglern: Wie viel Zeit, wonach ist dir (Genres lassen sich ein- und ausschließen), aus welcher Zeit (echte Jahrzehnte), wie bekannt, schon vorhanden, und die Reihenfolge.\n\nNeu ist vor allem die Laufzeit-Obergrenze — „wir haben nur anderthalb Stunden“ war vorher gar nicht ausdrückbar. Und was du einstellst, steht in der Adresse: Du kannst ein Ergebnis verschicken oder als Lesezeichen ablegen."
+        },
+        {
+          "title": "Deine eigenen Regale",
+          "where": "Stöbern, ganz oben",
+          "body": "„Lang nicht gesehen“ nimmt, was mindestens ein halbes Jahr zurückliegt — gibt es nichts davon, verschwindet das Regal, statt etwas Unpassendes vorzuschlagen. „Weil dir X gefällt“ bekommt je Herz eine eigene Reihe, damit erkennbar bleibt, warum etwas vorgeschlagen wird.\n\nHöchstens drei davon: Ein Platz gehört immer dem zuletzt markierten Titel, die anderen wechseln täglich. So siehst du bei hundert Favoriten über die Zeit alle, statt immer dieselben drei."
+        },
+        {
+          "title": "Das Menü ist kürzer",
+          "where": "oben",
+          "body": "„Filme entdecken“ und „Serien entdecken“ sind aus dem Menü verschwunden. Stöbern beantwortet jede ihrer Fragen besser — bis auf eine, „was kam gerade heraus?“, und das ist jetzt das Regal „Neu erschienen“. Die Adressen funktionieren weiter, alte Lesezeichen laufen also nicht ins Leere."
+        },
+        {
+          "title": "Kalender aufgeräumt",
+          "where": "Hauptmenü → Kalender",
+          "body": "Statt „Alles / Bereits angefragt“ steht dort jetzt „Filme & Folgen / Nur Filme / Nur Folgen“ — deine eigenen Titel stehen ohnehin oben in jedem Tag, die nützliche Trennung ist die zwischen Film und Folge.\n\nUnd der Strenge-Filter fragt nicht mehr entweder nach großen Studios oder nach bekannten Titeln, sondern nach beidem: Gemessen an einer echten Woche findet keiner der beiden, was der andere findet — die Studioliste fängt brandneue Serien ohne Stimmen, die Stimmenzahl fängt gute Titel ohne großen Verleih."
+        }
+      ],
+      "smallTitle": "Außerdem behoben",
+      "small": [
+        "„Beste Bewertung“ lieferte Nischenmüll statt guter Filme: TMDB kennt keine gewichtete Sortierung, und die Untergrenze lag bei fünf Stimmen — ein Film mit zwanzig Stimmen und 9,4 stand damit über „Der Pate“. Jetzt sind es 300. Das repariert auch die Sortierung auf der alten Entdecken-Seite.",
+        "Eine Laufzeit-Grenze wurde nicht eingehalten. TMDBs eigener Filter ist unzuverlässig — „höchstens 95 Minuten“ lieferte einen 97- und einen 99-Minüter. Die Laufzeit wird jetzt auf dem Server nachgeprüft.",
+        "Filme zwischen 126 und 129 Minuten waren über die Laufzeit gar nicht auffindbar: „Bis 2 Stunden“ endete bei 125, die nächste Stufe begann bei 130. Die Stufen stoßen jetzt genau aneinander — und „Darf lang sein“ heißt ehrlich „Über 2 Stunden“, denn gebaut war es als Mindestlänge.",
+        "Bei jeder Serien-Abfrage ging ein wirkungsloser Parameter an TMDB mit (`watch_region` ohne `with_watch_providers`). Entfernt."
+      ]
+    },
+    "0.18.0": {
+      "lead": "Nexview spricht jetzt auch mit Jellyfin — und zwar neben Plex, nicht statt Plex. Beide Server dürfen gleichzeitig verbunden sein, und jede Person kann auf beiden ein Konto verknüpfen. Dazu kommt eine Reihe von Handgriffen, die verhindern, dass jemand versehentlich ausgesperrt wird, und ein Protokoll, mit dem sich Fehler tatsächlich finden lassen.",
+      "sections": [
+        {
+          "title": "Jellyfin neben Plex",
+          "where": "Einstellungen → Medienserver",
+          "body": "Beide Server dürfen gleichzeitig verbunden sein. Der Gesehen-Stand wird dabei zusammengeführt: Ein Titel bleibt als gesehen markiert, solange irgendein verbundener Server ihn so meldet — der zweite Server löscht also nicht mehr die Haken, die der erste gesetzt hat.\n\nWo die beiden sich widersprechen, sagt Nexview jetzt, welcher Server was meldet, statt sich stillschweigend für einen zu entscheiden."
+        },
+        {
+          "title": "Anmelden zeigt, welche Wege es gibt",
+          "where": "Anmeldeseite",
+          "body": "Statt eines festen „Mit Plex anmelden“ steht dort jetzt „Anmelden mit“ und darunter ein Logo je verbundenem Server. Wer nur Jellyfin betreibt, bekam vorher einen Plex-Knopf, der beim Klick scheiterte — der Weg dahinter ist um plex.tv herum gebaut, und dafür hat Jellyfin keine Entsprechung.\n\nEine Grenze muss man kennen: Mit Jellyfin anmelden legt kein Konto an. Jellyfin gibt zu einem Konto keine E-Mail-Adresse heraus, und die Adresse ist das Einzige, woran Nexview jemanden wiedererkennt, der schon ein Konto hat. Ohne sie bekäme eine eingeladene Person still ein zweites Konto — ohne Passwort und ohne Weg zurück. Wer ein Konto hat, verknüpft Jellyfin deshalb im Profil; die Anmeldeseite sagt das, bevor jemand hineinläuft."
+        },
+        {
+          "title": "Medienserver-Konten haben einen eigenen Platz",
+          "where": "Profil → Medienserver",
+          "body": "Vorher lagen sie ganz unten unter „Sicherheit“, unterhalb des Passwortformulars. Dort sucht niemand, der Plex verbinden will."
+        },
+        {
+          "title": "Trennen sperrt niemanden mehr aus Versehen aus",
+          "where": "Einstellungen → Medienserver und Einstellungen → Benutzer",
+          "body": "Die Verbindung zum Medienserver zu trennen war ein einzelner Klick, kommentarlos. Für Konten, die nur über diesen Server hereinkamen — ohne eigenes Passwort — schloss das ihre einzige Tür.\n\nJetzt zählt eine Rückfrage vorher auf, wen es namentlich träfe, und der Server verweigert die Trennung, solange der Administrator sie nicht ausdrücklich überschreibt. Dieselbe Prüfung schützte längst die, die sich selbst trennten — eine Ebene darüber fehlte sie. Die Rückfrage erscheint auch dann, wenn niemand gefährdet ist, und sagt das: Eine Warnung, die nur im Ernstfall auftaucht, liest man beim ersten Mal nicht.\n\nIn der Benutzerliste steht außerdem, wer verknüpft ist und wer kein Passwort hat. Beides wusste die App längst und zeigte es nirgends."
+        },
+        {
+          "title": "Das Protokoll findet jetzt wirklich Fehler",
+          "where": "Einstellungen → Protokoll",
+          "body": "Abstürze landen endlich in der Datei. Vorher schrieb uvicorn sie an eine Stelle, die Nexviews eigenes Protokoll nie erreichte: Man lud es herunter, und genau der Absturz fehlte darin.\n\nJede Anfrage bekommt eine kurze Nummer, die in jeder Zeile auftaucht, die sie erzeugt — und in der Fehlermeldung. Der Benutzer gibt sechs Zeichen weiter, der Administrator tippt sie in die Suche und sieht den vollständigen Verlauf dieses einen Klicks, statt an Uhrzeiten zu raten.\n\nVier Stufen, im Betrieb umschaltbar: Ruhig, Normal, Ausführlich und Alles. Die beiden tiefen Stufen schalten sich nach 30 Minuten, 2 Stunden oder 8 Stunden von allein zurück — eine vergessene Diagnosestufe überschreibt sonst genau die Zeilen, für die sie eingeschaltet wurde."
+        },
+        {
+          "title": "Nexview steht jetzt unter der AGPL",
+          "where": "Fußzeile → Über Nexview",
+          "body": "Der Quelltext bleibt öffentlich und kostenlos, und Nexview unverändert zu betreiben verlangt nichts von dir. Was sich ändert, betrifft die, die darauf aufbauen: Wer Nexview verändert und seine Fassung anderen zugänglich macht — auch als gehosteten Dienst, bei dem nie eine Datei den Besitzer wechselt —, muss seinen geänderten Quelltext ebenfalls herausgeben.\n\nDie Fassungen bis einschließlich 0.17.0 bleiben unter der MIT-Lizenz. Diese Erlaubnis wurde für immer gegeben und wird nicht zurückgenommen."
+        }
+      ],
+      "smallTitle": "Außerdem behoben",
+      "small": [
+        "Ein zweiter Medienserver verdrängte den ersten: Jedes Konto hatte genau eine Medienserver-Identität in einer Handvoll Spalten. Jellyfin zu verbinden, während Plex verknüpft war, überschrieb diese Verknüpfung kommentarlos — Name, Adresse und persönlichen Zugang. Die Identitäten liegen jetzt in einer eigenen Tabelle, eine Zeile je Anbieter.",
+        "Jeder Server behält seinen eigenen Zugang. Jellyfin vergibt Zugänge je Gerät, und Nexview meldete sich für alles unter demselben Gerätenamen an: Wer sich persönlich anmeldete, entzog damit dem Administrator die Serververbindung — und zwei Personen entzogen sie sich gegenseitig.",
+        "Die Bibliothekszahl auf der Seite eines Servers war nicht dessen Zahl: Sie zählte über alle verbundenen Server und stand auf jeder Seite gleich. Jetzt steht dort nur noch, wann zuletzt abgeglichen wurde, und die Schaltfläche gleicht nur den Server der jeweiligen Seite ab.",
+        "Eine einzige unlesbare Benachrichtigung legte die ganze Glocke lahm: Die Liste meldete „nichts Neues“, während der Zähler daneben weiter ungelesene Meldungen behauptete. In einer echten Datenbank hatten vier solcher Zeilen eine Woche lang eine ungelesene Rückmeldung verdeckt.",
+        "Der Hinweis über passwortlosen Konten log: Er behauptete, so ein Konto könne sich später im Profil ein Passwort setzen. Das geht nicht — dieser Weg verlangt das aktuelle Passwort, das es nie gab. Jetzt stehen dort die zwei Wege, die wirklich funktionieren.",
+        "Der Stufenfilter im Protokoll versteckte Fehler: „WARNING“ verglich auf Gleichheit und liess damit genau die ERROR-Zeilen weg, die man suchte. Eine Stufe heißt jetzt „diese und höher“.",
+        "Der Merklisten-Hinweis zeigte auf den falschen Reiter — er schickte zum Verknüpfen nach „Sicherheit“, wo die Medienserver-Konten bis zu dieser Fassung lagen.",
+        "Das Herunterladen des Protokolls nimmt jetzt die rotierten Dateien mit. Bei der Suche ist der interessante Abschnitt oft schon in die vorige Datei gerutscht."
+      ]
+    },
+    "0.19.0": {
+      "lead": "Diese Fassung bringt Emby als dritten Medienserver, macht das Bewerten für alle offen — und legt die Kontingente zusammen: Stückzahl und Speicherplatz gelten ab jetzt gemeinsam statt entweder oder. Dazu einige Stellen, an denen Nexview endlich sagt, was es längst wusste: warum eine Anfrage dauert, was schon im eigenen Abo läuft, und wann ein Titel angekommen ist, auf den man wartet.",
+      "sections": [
+        {
+          "title": "Emby, als dritter Medienserver",
+          "where": "Einstellungen → Medienserver",
+          "body": "Verbinden, anmelden, Bibliothek abgleichen, Gesehen-Stand je Person — alles wie gehabt, nur mit einem Server mehr. Der Parallelbetrieb gilt unverändert: Wer will, verbindet Plex, Jellyfin und Emby gleichzeitig, und der Gesehen-Stand wird über alle drei hinweg zusammengeführt.\n\nEine Grenze muss man kennen: Auch Emby-Konten haben keine E-Mail-Adresse. Die Anmeldung über Emby legt deshalb kein Konto an — man verknüpft sie aus dem Profil heraus. Ohne Adresse gibt es nichts, woran Nexview jemanden wiedererkennt, und eine Einladung endete still in einem zweiten Konto ohne Passwort.\n\nDie PIN, die Emby optional je Konto kennt, stört dabei nicht: Sie gehört zu den Anzeigeeinstellungen, nicht zu den Rechten — eine Profil-PIN zum Umschalten auf einem geteilten Gerät, wie man sie von Netflix kennt."
+        },
+        {
+          "title": "Bewerten darf jeder, nicht nur der Besteller",
+          "where": "Auf jeder Titelseite eines vorhandenen Titels",
+          "body": "Die Rückmeldung zur Qualität hing bisher an der Anfrage. Daraus folgte alles Weitere: Nur wer bestellt hatte, sah die Sterne — und wer denselben Film zwei Wochen später sah und merkte, dass die Tonspur fehlt, hatte keine Möglichkeit, es zu sagen.\n\nHier geht es nicht um Geschmack, dafür gibt es das Herz, sondern um die **Datei** — und die beurteilt jeder gleich gut, der sie gesehen hat. Die Bewertung hängt deshalb jetzt am Titel. In „Meine Anfragen“ bleiben die Sterne als Abkürzung, weil der Augenblick direkt nach „Bereits geladen“ der ist, in dem jemand bewertet.\n\nSerien werden je Staffel beurteilt: Die Dateien liegen staffelweise, die Qualität unterscheidet sich staffelweise. Bestehende Bewertungen wandern beim ersten Start mit."
+        },
+        {
+          "title": "„Sag mir Bescheid“ — warten, ohne anzufragen",
+          "where": "Auf der Titelseite, wenn jemand anderes den Titel schon angefragt hat",
+          "body": "Bisher ließ sich ein bereits angefragter Titel nicht noch einmal anfragen — und danach hörte der Zweite nie wieder etwas davon. Er erfuhr nicht einmal, dass der Titel angekommen war, obwohl genau das seine Frage war.\n\nBei einem **Film** steht der Knopf dort, wo sonst nur „wird gesucht“ steht, also genau dann, wenn es etwas zu warten gibt. Gemeldet wird einmal, danach ist die Vormerkung erledigt. Bei einer **Serie** steht er dauerhaft neben dem Anfrage-Knopf und meldet jede neue Folge — meistens wartet man genau darauf.\n\nGemeldet wird immer gebündelt: Ein Staffelpaket mit acht Folgen ist *eine* Nachricht, und zusammenhängende Nummern werden zusammengezogen („S2: 1–3, 7“). Acht Nachrichten in derselben Minute wären der schnellste Weg, jemanden dazu zu bringen, Benachrichtigungen abzuschalten."
+        },
+        {
+          "title": "Was in deinem Abo schon läuft",
+          "where": "Profil → Streaming-Dienste, sichtbar beim Anfragen",
+          "body": "Wer seine Streaming-Dienste hinterlegt, bekommt beim Anfragen den Satz zu sehen, der die Entscheidung ändern kann: „Läuft in deinem Netflix.“ Ein **Hinweis**, keine Sperre — verhindert wird nichts.\n\nBei Serien steht bewusst ein anderer Satz da: Die Quelle sagt „läuft auf Netflix“ über die *Serie*, nicht über die vierte Staffel, die dort fehlt — und genau in dem Fall fragt jemand an.\n\nDerselbe Abgleich erscheint dort, wo entschieden wird: in der Freigabeliste und bei den Eltern, wenn sie einen Kinderwunsch entscheiden. Gemessen wird an den Abos **des Anfragenden**, nicht an denen des Entscheiders — der hat vielleicht kein Netflix, aber die Frage ist, ob der Anfragende ohne den Download auskäme."
+        },
+        {
+          "title": "Der Verlauf einer Anfrage",
+          "where": "Meine Anfragen",
+          "body": "„Warum dauert das?“ ist die häufigste Frage, und Nexview kannte die Antwort immer vollständig — angefragt wann, freigegeben von wem, seit wann in Suche, zuletzt nachgesehen wann. Sichtbar war davon ein einziges Zustandswort.\n\nEin Knopf öffnet jetzt eine Zeitleiste: erledigte Schritte grün mit Haken, der laufende gelb, kommende grau. Ein abgebrochener Weg endet dort, wo er endet — unter einer Ablehnung steht kein grauer „Fertig“-Schritt, der ein Versprechen wäre, das niemand mehr einlöst.\n\nZwei Angaben schaffen es damit zum ersten Mal bis zum Anfragenden: wer freigegeben hat (oder dass es automatisch ging) und wann zuletzt nach dem Titel gesehen wurde."
+        },
+        {
+          "title": "Ein Reiter statt eines Umschalters",
+          "where": "Einstellungen → Kontingente",
+          "body": "Bisher entschied ein Schalter, ob die Anzahl der Anfragen zählt oder der belegte Platz — nie beides. Der ist weg. Stattdessen stehen dort drei Standardwerte untereinander: Filme, Serien, Speicher. Sie gelten für jeden, der nichts Eigenes eingetragen hat.\n\nEine Anfrage geht durch, wenn beide Grenzen noch Luft haben. Wird jemand gebremst, sagt die Meldung, welche der beiden es war — gegen eine volle Stückzahl hilft warten, gegen vollen Platz nur aufräumen. Ohne diese Angabe müsste man raten.\n\nDer Zeitraum der Stückzahl (Tag, Woche, Monat) gilt jetzt fürs ganze Haus. Vorher stand er an jedem Konto einzeln; drei Konten mit drei verschiedenen Zeiträumen erklären aber niemandem mehr, was „3 Filme“ eigentlich bedeutet."
+        },
+        {
+          "title": "Drei Zustände statt eines leeren Feldes",
+          "where": "Einstellungen → Benutzer",
+          "body": "Bei jedem Konto stehen jetzt alle drei Grenzen nebeneinander, jede mit derselben Auswahl: **Standard** (der Wert aus den Kontingenten, mit der konkreten Zahl daneben), **unbegrenzt** oder eine **eigene Zahl**. Die 0 heißt dabei „darf nichts anfragen“.\n\nVorher war „unbegrenzt“ ein leeres Feld. Wer einmal eine Zahl eingetragen hatte, sah nicht mehr, wie er dorthin zurückkommt.\n\n⚠️ Eine Bedeutung hat sich umgedreht: Beim Speicher hieß die **0** bisher „für dieses Konto unbegrenzt“. Jetzt heißt sie das Gegenteil. Gespeicherte Nullen ziehen beim ersten Start von allein auf „unbegrenzt“ um — sonst wäre ein Konto über Nacht still gesperrt gewesen."
+        },
+        {
+          "title": "Speicher sehen und abgeben gibt es jetzt überall",
+          "where": "Profil → Speicherkontingent",
+          "body": "Der Speicher-Reiter, der Hausbestand und „Brauche ich nicht mehr“ hingen am alten Hauptschalter — wer nach Stückzahl begrenzte, hat davon nie etwas gesehen. Gemessen wird immer, begrenzt nur auf Wunsch, und deshalb steht die ganze Kette jetzt jedem offen: abgeben, der Betreiber entscheidet, der Titel geht ins Haus, bleibt liegen oder wird gelöscht.\n\nFür Betreiber heißt das: Es kann jetzt eine Abgabe auf dem Tisch liegen, die vorher nie kam.\n\n⚠️ Wer bisher nach Stückzahl begrenzt hat, startet einmalig bei null — alles Zugerechnete geht ins Haus. Die GB-Grenzen waren in diesem Betrieb wirkungslos, die Zurechnung lief aber im Hintergrund weiter. Ohne diesen Schritt wären Leute nach dem Update schlagartig gesperrt, wegen einer Zahl, die seit Monaten herumlag. Keine Datei wird dabei angefasst."
+        },
+        {
+          "title": "Titel, die Radarr und Sonarr nicht mehr kennen",
+          "where": "Profil → Speicherkontingent",
+          "body": "Wer einen Titel aus Radarr entfernt und die Datei behält, schafft etwas, das Nexview zwar weiter mitzählt — der Medienserver meldet ihn ja —, aber nicht mehr entfernen kann: Gelöscht wird ausschließlich über Radarr und Sonarr. Der Anfragende blieb auf einer Belastung sitzen, die er nicht mehr loswird.\n\nSolche Zeilen tragen jetzt ein Zeichen mit Erklärung. Bis hierher merkte es nur der Betreiber, und zwar erst in dem Moment, in dem er den Titel löschen wollte."
+        },
+        {
+          "title": "Zurücksetzen ist ein Knopf, keine Nebenwirkung",
+          "where": "Einstellungen → Kontingente und Einstellungen → Benutzer",
+          "body": "Das Umschalten der Betriebsart hat früher still alle Konten auf null gesetzt. Diesen Vorgang gibt es weiter, aber jetzt als eigenen Knopf mit Rückfrage: „Alle Bestände ins Haus übernehmen“ in den Kontingenten, „Speicher zurücksetzen“ bei jedem einzelnen Konto.\n\nBeide nennen vorher die Zahlen. Keine Datei wird angefasst, eingetragene Grenzen bleiben stehen — und offene Abgaben gelten danach als erledigt.\n\nDer Knopf am Konto ist zugleich der Ausweg für den Fall darüber: Sitzt jemand auf einem Titel, den Radarr nicht mehr führt, wird er ihn so wieder los."
+        }
+      ],
+      "smallTitle": "Außerdem",
+      "small": [
+        "Die Regionsauswahl kennt jetzt 139 Länder statt acht — wer in den Niederlanden, Polen oder Kanada sitzt, konnte sein Land bisher schlicht nicht angeben.",
+        "Ein gelber Streifen erinnert daran, die eigene Region zu setzen. Für „läuft in deinem Netflix“ ist die geerbte Vorgabe des Betreibers eine falsche Behauptung — der Katalog von Netflix Schweiz ist nicht der deutsche.",
+        "Bewertungen werden als veraltet gekennzeichnet, wenn Radarr die Datei nachträglich aufwertet. Sie bleiben stehen, zählen aber nicht mehr mit — und der Betroffene darf neu bewerten.",
+        "Die Rückmeldungs-Ansicht zeigt jetzt jede Bewertung, nicht nur die, hinter denen eine Anfrage steht.",
+        "Aus ein oder zwei Sternen wird auf Wunsch ein Ticket — ein Problem verschwindet sonst im Durchschnitt.",
+        "Die Statistik zeigt Filme, Serien und Speicher nebeneinander statt entweder oder.",
+        "Der Freigabe-Dialog warnt, wenn der Anfragende schon über seiner Speichergrenze steht — bisher gab es diese Warnung nur im GB-Betrieb."
+      ]
+    },
+    "0.20.0": {
+      "lead": "Diese Fassung hat kaum etwas Neues zum Anschauen — und trotzdem ist sie eine der wichtigsten bisher. Das Anmelden bekommt eine Bremse: Bis hierher konnte eine Maschine Passwörter durchprobieren, so schnell die Leitung hergibt. Und die Fehlermeldungen sprechen endlich die Sprache, die man eingestellt hat.",
+      "sections": [
+        {
+          "title": "Das Anmelden hat jetzt eine Bremse",
+          "where": "Nirgends sichtbar — genau das ist der Punkt",
+          "body": "Bis hierher gab es weder ein Ratenlimit noch eine Sperre. Wer die Adresse deiner Installation kannte, konnte Passwörter durchprobieren, so schnell die Leitung hergibt.\n\nNach drei Fehlversuchen wächst die Wartezeit: eine Sekunde, zwei, vier. Ab dem zehnten bleibt die Tür eine Viertelstunde zu. **Sie geht von selbst wieder auf** — eine Sperre, die den Administrator zum Aufschließen braucht, sperrt am Ende den Administrator aus. Und wer gegen eine geschlossene Tür weiterhämmert, verlängert nichts: Sonst könnte ein Fremder jemanden dauerhaft aussperren, indem er einfach nicht aufhört.\n\n**Drei Türen sind es, nicht eine.** Neben der Nexview-Anmeldung gibt es die Anmeldung mit dem Passwort des *Medienservers* — und die ist die unangenehmere: Nexview reicht das Passwort an Plex, Jellyfin oder Emby weiter, und dafür braucht niemand ein Nexview-Konto. Ohne Bremse war Nexview ein bequemer Weg, Passwörter gegen den eigenen Medienserver zu raten, mit fremder Absenderadresse obendrein. Die Links aus den Mails sind ebenfalls abgedeckt.\n\nWer sein Passwort kennt, merkt nichts davon. Ein falsches Passwort zählt; ein deaktiviertes Konto oder eine unbestätigte Adresse nicht — das sind Leute, die auf etwas anderes warten."
+        },
+        {
+          "title": "Wenn ein Reverse Proxy davorsteht",
+          "where": "docker-compose.yml → NEXVIEW_CLIENT_IP",
+          "body": "Gezählt wird immer **nach Konto**, dafür ist nichts einzustellen.\n\nZusätzlich nach Adresse zu zählen, geht nur, wenn Nexview die echte Adresse kennt — und das weiß es von sich aus nicht. Hinter einem Reverse Proxy sehen alle Anfragen aus wie dieselbe Adresse, nämlich die des Proxys. Würde Nexview das einfach annehmen, sperrte der erste Vertipper den ganzen Haushalt aus, dich eingeschlossen.\n\nDeshalb wird nicht geraten, sondern gefragt: `direct`, wenn Nexview direkt am Netz hängt, `proxy` bei einem Proxy davor, `proxy:2` bei zweien (etwa Cloudflare und dahinter ein eigener). Der Proxy muss `X-Forwarded-For` weiterreichen — Nginx Proxy Manager, Caddy und Traefik tun das von selbst.\n\n⚠️ **Im Zweifel leer lassen.** Das ist immer sicher, und die Kontosperre wirkt trotzdem."
+        },
+        {
+          "title": "Fehlermeldungen kommen in deiner Sprache",
+          "where": "Überall dort, wo etwas schiefgeht",
+          "body": "Die Oberfläche war von Anfang an zweisprachig. Die Meldungen vom Server waren es nie: Wer auf Englisch umstellte und sich vertippte, bekam „Benutzername oder Passwort ist falsch.“ Aufgefallen ist es kaum jemandem, weil man einen Fehler machen muss, um einen zu sehen.\n\nAlle 76 sprechen jetzt beide Sprachen. Der Server übersetzt dabei nicht — er **benennt**. Er kann gar nicht wissen, welche Sprache eingestellt ist: Die Wahl liegt im Browser, und auf der Anmeldeseite gibt es nicht einmal ein Konto, an dem eine Sprache hinge. Ein Server, der dort übersetzt, müsste raten — und läge ausgerechnet bei dem falsch, der bewusst umgeschaltet hat.\n\nZwei Sorten bleiben, wie sie sind: Was Plex, Jellyfin oder Emby zurückmelden, kommt in *deren* Sprache. Das zu übersetzen hieße, es zu erfinden."
+        },
+        {
+          "title": "Der Port im Container lässt sich verschieben",
+          "where": "docker-compose.yml → NEXVIEW_PORT",
+          "body": "Nexview lauschte fest auf 8000. Im Normalfall fällt das nie auf, weil die Portzuordnung es verdeckt. Wer aber `network_mode: host` fährt, hat keine Zuordnung — dort *ist* der Port im Container der Port auf dem Server, und gegen eine Kollision half nichts.\n\n`NEXVIEW_PORT` verschiebt ihn. Leer gelassen bleibt alles, wie es war.\n\nGemeldet hat es der Prüfer des TrueNAS-Katalogs, während Nexview dort aufgenommen wurde. Es betrifft Unraid und einfaches Docker genauso."
+        }
+      ],
+      "smallTitle": "Außerdem",
+      "small": [
+        "Fehlerantworten verloren ihre Kopfzeilen — und zwar überall dort, wo ein gebautes Frontend danebenliegt, also in jedem Container. Zu sehen war davon nichts: Der Status stimmte, der Text stimmte, es fehlte nur die Hälfte."
+      ]
+    },
+    "0.21.0": {
+      "lead": "Diese Fassung räumt auf — im Wortsinn. Nexview kann dir jetzt zeigen, was seit Langem herumliegt und niemand mehr anschaut: mit Platzbedarf, letztem Blick und dem Vermerk, wem es zugerechnet ist. Löschen ist dabei kein Knopf mit sofortiger Wirkung, sondern ein Vorschlag mit vierzehn Tagen Bedenkzeit. Und das Angemeldetbleiben liegt jetzt an einer Stelle, an die kein Skript herankommt.",
+      "sections": [
+        {
+          "title": "Was liegt ungenutzt herum",
+          "where": "Statistik → eigener Punkt oben",
+          "body": "Eine Liste der Titel, die seit Langem niemand mehr angesehen hat — die größten zuerst. Dazu, wie viel Platz jeder braucht, wann er zuletzt lief, **von wem**, und wem er zugerechnet ist. Filtern nach Filmen oder Serien, suchen nach Titel, und der Zeitraum lässt sich von wenigen Monaten bis auf mehrere Jahre stellen.\n\n**Es zählen zwei Uhren, nicht eine.** Ein Titel erscheint nur, wenn ihn im gewählten Zeitraum niemand angesehen hat *und* er mindestens so lange hier liegt. Ohne die zweite Uhr wäre die Liste im Ergebnis nach Größe sortiert — und die 60-GB-Datei von gestern stünde ganz oben, obwohl noch niemand die Gelegenheit hatte, sie anzusehen.\n\nWas Nexview *nicht* weiß, sagt es auch: Posten, bei denen das Ankunftsdatum noch fehlt, werden gezählt und benannt, statt stillschweigend zu verschwinden."
+        },
+        {
+          "title": "Löschen hat jetzt eine Bedenkzeit",
+          "where": "In derselben Liste, Knopf „Löschen\"",
+          "body": "Etwas vorzumerken löscht es nicht. Es setzt ein Datum **vierzehn Tage** in der Zukunft; bis dahin bleibt der Titel liegen, sichtbar markiert, und ein Klick nimmt die Vormerkung wieder weg.\n\n**Wer ihn in der Zwischenzeit ansieht, hebt die Löschung von selbst auf** — ohne je zu erfahren, dass eine anstand. Das ist der eigentliche Punkt an der Frist: Sie fängt genau den Fall ab, in dem eine Liste recht zu haben scheint und trotzdem irrt."
+        },
+        {
+          "title": "Einmal im Monat per Mail",
+          "where": "Profil → Benachrichtigungen",
+          "body": "Nexview kann dir monatlich schicken, was herumliegt: höchstens dreißig Zeilen, die größten zuerst, mit einem Link mitten in die Liste hinein.\n\n**Standardmäßig aus.** Und ohne eingerichteten Mailserver und ohne öffentliche Adresse geht gar nichts hinaus — eine Mail mit einem Knopf, der ins Leere führt, wäre schlimmer als keine Mail."
+        },
+        {
+          "title": "Deine eigenen Titel, und wie du sie zurückgibst",
+          "where": "Profil → Speicherkontingent",
+          "body": "Dieselbe Liste, aber nur für das, was dir zugerechnet ist — und von dort aus lässt sich etwas zurückgeben.\n\nDass die Liste bei vielen zunächst leer bleibt, ist der Normalfall und kein Fehler: Alles, was vor Nexview schon da war, gilt als **Hausbestand** und gehört niemandem. Nexview sagt das jetzt auch, statt eine leere Seite zu zeigen."
+        },
+        {
+          "title": "Zurückgestellte Anfragen kommen zurück",
+          "where": "Alle Anfragen → offene Freigaben",
+          "body": "Eine zurückgestellte Anfrage blieb zurückgestellt. Sie taucht jetzt wieder unter den offenen Freigaben auf, sobald sie wieder passt."
+        },
+        {
+          "title": "Das Angemeldetbleiben liegt außer Reichweite",
+          "where": "Nirgends sichtbar — genau das ist der Punkt",
+          "body": "Der Nachweis, dass du angemeldet bist, lag bisher im Speicher des Browsers, wo ihn **jedes Skript auf der Seite lesen konnte**. Er liegt jetzt in einem Cookie, das JavaScript gar nicht erst zu Gesicht bekommt, das nur an die Anmelde-Adressen mitgeht und von fremden Seiten aus nicht mitgeschickt wird.\n\n**Ein Passwortwechsel beendet jetzt wirklich alle anderen Sitzungen.** Das stand lange so in der Beschreibung, ohne zu stimmen.\n\nDazu kommt eine Regel an den Browser: Er führt nur noch Code aus, der von Nexview selbst stammt, und lädt Bilder nur von der Handvoll Adressen, von denen die Cover kommen. Sollte je etwas ein fremdes Skript auf die Seite bringen, weist der Browser es ab, bevor es läuft.\n\n⚠️ Was das **nicht** abdeckt: Das Abmelden nimmt das Cookie nur aus *diesem* Browser. Wer vorher eine Kopie gezogen hat, kommt damit weiter herein, bis sie abläuft. Das war vorher nicht anders — aber es gehört gesagt, statt in einer Beschreibung zu stehen. Wirklich beenden lässt sich eine fremde Sitzung heute nur durch einen Passwortwechsel."
+        }
+      ],
+      "smallTitle": "Außerdem",
+      "small": [
+        "Die Bewertungen auf einer Filmseite meldeten seit 0.19.0 einen Fehler — **jeder** Aufruf, in 0.19.0 und in 0.20.0. Ein Umbau hatte eine Aufrufstelle stehen lassen, und niemandem fiel es auf. Ein Test durchsucht jetzt den ganzen Quelltext nach Aufrufen in Funktionen, die es nicht mehr gibt.",
+        "Zwei der Mail-Schalter im Profil wurden nirgends gespeichert. Die Liste der Schalter ergibt sich jetzt aus dem Datenmodell selbst — der nächste kann nicht auf dieselbe Art vergessen werden.",
+        "Speicher wurde doppelt gezählt, wenn Radarr und der Medienserver dieselbe Datei unter verschiedenen Qualitätsstufen melden. Auf einer gewachsenen Sammlung summiert sich das auf hunderte Gigabyte, die es nie gab.",
+        "Fett gesetzter Text zeigte an mehreren Stellen seine Sternchen — am sichtbarsten in genau diesem Fenster.",
+        "Eine Serienkachel sagt jetzt, welche Staffeln da sind, statt gleich auszusehen, ob eine angekommen ist oder alle."
+      ]
+    },
+    "0.22.0": {
+      "lead": "Diese Fassung dreht sich um eine Frage, die man sich meist zu spät stellt: **Was passiert, wenn etwas kaputtgeht?** Nexview kann jetzt Sicherungen anlegen, die du herunterladen und mitnehmen kannst — und sie auch wieder einspielen, sogar auf einer frischen Installation. Dazu kommt eine Schnittstelle mit Zusage, damit endlich etwas anderes als der Browser mit Nexview reden kann.",
+      "sections": [
+        {
+          "title": "Sicherungen, die du mitnehmen kannst",
+          "where": "Einstellungen → System → Sicherungen",
+          "body": "Nexview hat schon immer vor jeder Datenbankänderung eine Kopie weggelegt — nur lag die im selben Verzeichnis wie die Datenbank. Geht der Datenträger verloren, geht sie mit.\n\nJetzt kannst du eine auf Knopfdruck anlegen, ihr eine Notiz mitgeben und sie **herunterladen**. Heraus kommt ein **verschlüsseltes ZIP** mit der Datenbank, den Profilbildern und der Schlüsseldatei `secret.key`. Die muss mit: Deine Zugänge zu Radarr, Sonarr, TMDB und dem Mailserver sind damit verschlüsselt und ohne sie nicht mehr lesbar. Genau deshalb braucht das Archiv ein Passwort — und genau deshalb ist es ein gewöhnliches AES-ZIP und kein eigenes Format. Du bekommst es mit 7-Zip auf, ohne Nexview.\n\n**Zwischenspeicher fliegen raus.** Neun Zehntel der Datenbank sind abgelegte TMDB-Antworten und der Bibliotheksabgleich — beides holt sich Nexview von selbst zurück. Deshalb ist eine Sicherung ein paar Megabyte groß und nicht ein paar hundert.\n\nAutomatisch geht es auch: täglich, wöchentlich oder monatlich, voreingestellt wöchentlich. Automatische Sicherungen sind als solche gekennzeichnet, und wie viele aufgehoben werden, stellst du ein."
+        },
+        {
+          "title": "Wiederherstellen — auch auf einer frischen Installation",
+          "where": "Im Einrichtungsassistenten, erste Frage",
+          "body": "Eine leere Installation fragt jetzt zuerst: **neu anfangen oder aus einer Sicherung wiederherstellen?** Wer umzieht oder nach einem Ausfall zurückkommt, muss nicht mehr durch den ganzen Assistenten und danach alles von Hand nachbauen.\n\n**Vorher wird geprüft, ob die Sicherung überhaupt passt.** Nexview kann seine Datenbank nur vorwärts umbauen, nie zurück — eine Sicherung aus einer *neueren* Fassung wird deshalb abgelehnt statt eingespielt. Das ist keine Bevormundung: Sie einzuspielen würde die Installation kaputtmachen, und zwar leise.\n\nVor dem Einspielen legt Nexview eine Sicherheitskopie des jetzigen Standes an. Und danach ist **jede Anmeldung überall beendet** — auch deine eigene. Das ist Absicht: Die Konten in der Sicherung sind womöglich andere als die von eben."
+        },
+        {
+          "title": "API-Token",
+          "where": "Profil → Konto → Sicherheit",
+          "body": "Für Skripte, Dashboards und alles, was Nexview ohne Browser ansprechen soll. Du legst einen an, gibst ihm einen Namen, und der Klartext erscheint **genau einmal** — danach bleibt nur eine Prüfsumme, und auch ein Administrator kann ihn nicht nachschlagen.\n\n**Ein Token hat genau die Rechte seines Kontos.** Nicht mehr. Rolle, Kontingent, Genehmigungspflicht und Sperrliste gelten für ihn wie für dich. Das ist bewusst anders als bei Seerr, wo ein einziger globaler Schlüssel am Eigentümerkonto hängt und damit alles automatisch genehmigt bekommt. Willst du ein Dienstkonto mit wenigen Rechten, legst du einen *Benutzer* mit diesen Rechten an und gibst ihm einen Token.\n\nEin Schalter obendrauf: **darf nur lesen** — richtig für Dashboards und Überwachung. Tokens können ablaufen, die Liste zeigt, wann jeder zuletzt benutzt wurde, und ein Widerruf wirkt sofort. Kinderkonten bekommen keine.\n\nAdministratoren sehen unter *Einstellungen → System → API-Token*, wer welche hat und ob sie noch benutzt werden. **Ansehen, nicht widerrufen** — das kann nur der Besitzer selbst."
+        },
+        {
+          "title": "Eine Zusage für Entwickler: /api/v1",
+          "where": "Dokumentation unter /docs",
+          "body": "Nexview hat rund 190 Adressen, und fast alle sind Innenteil: Die Oberfläche spricht mit dem Backend, beide ändern sich gemeinsam, und ein Feld heißt morgen anders, wenn der neue Name besser passt. Für jemanden, der von außen etwas anbindet, ist das unbrauchbar.\n\nDeshalb liegen **dreizehn** Adressen unter `/api/v1` — mit einer Zusage: Solange `v1` in der Adresse steht, verschwindet aus diesen Antworten nichts. Muss doch etwas brechen, entsteht `/api/v2` **daneben**, und v1 läuft weiter.\n\nSie decken ab, was man mit so einer Schnittstelle wirklich tut: etwas suchen, etwas anfragen, nachsehen was daraus wurde, und ein paar Zahlen fürs Dashboard. **Alles andere bleibt erreichbar** — nur eben ohne Zusage. Die Verwaltung ist bewusst nicht dabei: Sie zu versprechen hieße, das Einstellungsmodell einzufrieren."
+        },
+        {
+          "title": "Überall abmelden",
+          "where": "Profil → Konto → Sicherheit",
+          "body": "Beendet jede Anmeldung dieses Kontos auf allen Geräten — auch die, an der du gerade sitzt.\n\nDas schloss eine echte Lücke: Bisher wirkte Abmelden nur im eigenen Browser. Wer sein Konto auf einem fremden Rechner offen gelassen hatte, konnte daran nichts mehr ändern; auch ein neues Passwort half nur bei künftigen Anmeldungen, nicht bei laufenden."
+        },
+        {
+          "title": "Ein Konto auflösen, ohne Kollateralschaden",
+          "where": "Einstellungen → Benutzer",
+          "body": "Wird ein Konto gelöscht, wurden bisher auch seine bereits **genehmigten** Anfragen storniert. Im Haushalt ist das fast immer falsch: Der Film ist längst da, jemand anders schaut ihn auch, und mit dem Konto verschwand die Bestellung.\n\nJetzt gehen genehmigte Anfragen in den **Hausbestand** über — sie bleiben, nur ohne Besitzer. Storniert wird nur, was noch offen ist. Die Vorschau vor dem Löschen sagt vorher, was genau passiert, statt es hinterher zu zeigen."
+        },
+        {
+          "title": "Aufgeräumt",
+          "where": "Einstellungen und Profil",
+          "body": "Die Einstellungsleiste war auf zehn Punkte gewachsen und brach auf schmalen Bildschirmen um. *Adresse*, *Mail*, *Protokoll* und *Sicherungen* sind unter **System** zusammengezogen, jeder Reiter hat ein Symbol.\n\nDein **Profil** hat ein Untermenü bekommen: *Profil* (Bild, Name, E-Mail, hell oder dunkel), *Sicherheit* (Passwort, angemeldete Geräte, API-Token) und *Sprache*. Vorher standen sechs Blöcke untereinander auf einer Seite, und das Wichtigste lag ganz unten.\n\nDie eigentliche Ursache lag tiefer: Es gab **drei** verschiedene Bauweisen für eine Unterreihe, und das Bauteil für einen hervorgehobenen Einstellungsblock existierte nur innerhalb einer einzigen Seite. Beides liegt jetzt an einer Stelle, damit die Seiten nicht wieder auseinanderlaufen."
+        }
+      ],
+      "smallTitle": "Außerdem behoben",
+      "small": [
+        "Die Beschreibung der Schnittstelle unter `/docs` war eine **weiße Seite** — in jeder Installation, seit 0.21.0. Sie lädt Swagger UI, und das holte FastAPI von einem fremden Server; die Inhaltsregeln, die wir in derselben Fassung eingebaut haben, lassen aber nur Skripte von Nexview selbst zu. Der Browser verweigerte Stil und Skript und zeigte nichts. Aufgefallen ist es nicht, weil die Regeln gegen die *Anwendung* geprüft wurden — und die lief. Swagger UI liegt jetzt im Abbild und wird von Nexview ausgeliefert: Die Regeln bleiben so streng wie sie waren, und die Beschreibung geht auch auf einem Gerät ganz ohne Internet. `/redoc` zeigte aus demselben Grund nichts und lieferte stattdessen die Weboberfläche — es führt jetzt auf `/docs`.",
+        "Die dreizehn zugesagten Adressen beschreiben sich nach außen auf **Englisch**. Alle Erklärungen im Quelltext sind deutsch, weil das Projekt auf Deutsch geschrieben wird — und FastAPI stellte genau diese Erklärungen auf die öffentliche Seite. Die übrigen 151 sind weiter deutsch; keine davon ist jemandem zugesagt.",
+        "Eine brandneue Installation legte eine Sicherung der **leeren** Datenbank an. Beim allerersten Start meldet die Prüfung, dass noch alles fehlt, und Nexview machte pflichtschuldig eine Kopie, die nichts schützte und trotzdem einen Platz belegte."
+      ]
+    }
+  },
+  "en": {
+    "0.15.0": {
+      "lead": "This update is almost entirely about one question: who actually occupies how much space? Nexview can now measure quotas in gigabytes instead of counts — with everything that goes with it.",
+      "sections": [
+        {
+          "title": "Storage quotas",
+          "where": "Settings → Storage quotas",
+          "body": "Quotas now work either by count (as before) or by occupied storage. Exactly one of the two currencies applies at a time — the choice sits at the top, with the default limit for all accounts below it. Measuring runs in both modes, so you can watch first and limit later. Every switch rebooks all titles to the house inventory and starts every account at zero; a dialog states the real numbers first. The feature deliberately carries an “In Dev” badge."
+        },
+        {
+          "title": "My storage — for every person",
+          "where": "Profile → Storage quota",
+          "body": "Everyone sees their occupied space against their limit, and below it every title, largest first. An eye on each row says whether they have watched it: green means watched, and for seasons explicitly “every episode”. Anyone tidying up can filter to “Watched only”."
+        },
+        {
+          "title": "Hand back instead of delete",
+          "where": "Profile → Storage quota; you decide in the settings",
+          "body": "“I don't need this” puts a title up for a decision without anything happening yet — it keeps counting until you have decided. For seasons the person states their wish right away: have it deleted, or keep it and only stop the downloading. Your queue then offers three outcomes: to the house (file stays, account freed), delete (with the actual file list in view) or stop following."
+        },
+        {
+          "title": "The recycle bin and the one condition",
+          "where": "Settings → Storage quotas, lower area",
+          "body": "Because Nexview can delete, a recycle bin belongs to it — you can enter it right here, and Radarr and Sonarr do the work. And the condition without which the system does not add up: titles must stay in Radarr and Sonarr. Removing them there while keeping the file creates something Nexview can measure but never delete again."
+        },
+        {
+          "title": "Requesting single seasons",
+          "where": "A show's detail page",
+          "body": "Instead of only “whole series”, individual seasons can be picked — with checkboxes, several at once, plus a separate option for future seasons. Whatever is already there or requested is greyed out rather than hidden. Fixed along the way: Sonarr sometimes unmonitored freshly added shows again; Nexview now notices and repairs that by itself."
+        },
+        {
+          "title": "Deleting an account — with a decision about the estate",
+          "where": "Settings → Users",
+          "body": "Users and approvers request deletion in their profile under “Security”; the request reaches you as a ticket. When deleting you decide per title, by checkbox, whether it moves to the house or gets deleted, and what happens to downloads in progress. Nothing keeps downloading ownerless afterwards."
+        }
+      ],
+      "smallTitle": "Also fixed",
+      "small": [
+        "A season counts as downloaded only once every episode is really there — before, Nexview reported several seasons finished at once.",
+        "Notifications about seasons name the season — in the bell, in the channels and by mail.",
+        "4K and 1080p are kept apart properly: a running request in one tier no longer blocks the other.",
+        "A 4K file in the regular Radarr is no longer mistaken for a separate 4K copy.",
+        "A title that vanished from Radarr or Sonarr no longer stays on “searching” forever.",
+        "Free disk space no longer counts the same volume twice."
+      ]
+    },
+    "0.16.0": {
+      "lead": "Nexview now does children. A parent creates logins for their own children, the children get a completely separate app built for them — and whatever they wish for is decided first by the parent and only then by you.",
+      "sections": [
+        {
+          "title": "Creating child accounts",
+          "where": "Profile → Children",
+          "body": "Name, password, age, language and a few categories — that is all a child account needs. No email address, no Plex account. Who may create them is your call: the “May create child accounts” checkbox sits in user management. Without it the tab still appears, explains the feature and its limits, and offers a button that files the request as a ticket. That ticket then carries a button which grants the permission in one click and closes it."
+        },
+        {
+          "title": "The children's view",
+          "where": "Signing in with the child's login",
+          "body": "A child does not get Nexview with fewer buttons, it gets its own app: bright and colourful instead of dark grey and red, three large destinations along the bottom, no bell, no tickets, no settings. The start page shows the enabled categories as picture tiles; behind each one sit all the titles at once, split into “You can watch these now” and “You can wish for these”. Search stays inside the enabled categories."
+        },
+        {
+          "title": "Wishing, not requesting",
+          "where": "Profile → Children, at the top",
+          "body": "A child does not request anything — it wishes, and nothing happens until the parent decides. Approving turns the wish into an ordinary request in **their** name: their quota, their profile blocks, their usual path — and you approve the download at the end, as always. Declining takes a short note the child gets to read. The child sees its own list with four plain states: waiting, on its way, it is here, not this time."
+        },
+        {
+          "title": "“View as …”",
+          "where": "Profile → Children, yellow button on a child",
+          "body": "The button opens the child's app exactly as the child sees it — same view, same rules, only without the wish button. Checking what actually reaches your child should not require borrowing their password."
+        },
+        {
+          "title": "What this **cannot** do",
+          "where": "Profile → Children, question mark next to “Child accounts”",
+          "body": "The limit only applies inside Nexview. Whatever gets approved and downloaded ends up in the same library — what a child can reach in Plex is decided there. And the age ratings come from TMDB, not from us: they can be missing or wrong. Both are stated plainly in the help window, so nobody relies on something that was never promised."
+        },
+        {
+          "title": "Release notes for the last five versions",
+          "where": "About Nexview → Everything that is new",
+          "body": "This window now keeps the notes for the last five versions, with a switch per version at the top. Skipping a version — updating the container later, two releases in one day — no longer means never learning what was in it. A dot marks what has arrived since your last “got it”, and the About page brings you back here any time."
+        }
+      ],
+      "smallTitle": "Also changed",
+      "small": [
+        "The per-account age restriction is gone from user management: anyone with a full account is treated as an adult. Existing limits are cleared on the first start — child accounts of course keep theirs.",
+        "New mail switch “Your children's wishes” — only visible for accounts that actually have an active child account.",
+        "Taking the permission away again deactivates that person's child accounts instead of deleting them. You should be able to reverse a decision without losing accounts.",
+        "Profile tabs can be addressed directly again (`?reiter=…`), which is how the bell jumps from a child's wish straight to the place it is decided."
+      ]
+    },
+    "0.17.0": {
+      "lead": "Nexview can browse now. Until today, Discover only showed a rolling window of at most a year — everything older was reachable by search alone. The new area opens the whole catalogue, and beside it sits a guide that asks you a few questions and then suggests something for tonight.",
+      "sections": [
+        {
+          "title": "What to watch?",
+          "where": "Main menu → What to watch?",
+          "body": "The guide asks: who is watching, what are you in the mood for, does it have to play tonight, how much time is there, something new or something familiar. Six questions at most — and the tree adapts: choosing “only what's already here” drops the hidden-gem question, because in your own library it has no meaning. It ends in twelve suggestions, and “Roll again” gives you a different set.\n\n“With children” sets a real age rating (FSK 6 at most), not guessed genres. Nothing is taken away for it: a scare stays selectable and then returns “The House with a Clock in Its Walls” and “The Witches” instead of grown-up horror."
+        },
+        {
+          "title": "Browse",
+          "where": "Main menu → Browse",
+          "body": "Shelves instead of a time window: “Hidden gems” (well rated, barely known), “Timeless classics”, “Under 90 minutes”, “Newly released”, plus five decades and every genre. Every shelf works on an empty library and without any personal data.\n\nAt the top sits the question that comes first on movie night: “Does it have to play tonight?” Unlike before, this is sieved on the server — with a full library the rows stay full instead of shrinking to two tiles."
+        },
+        {
+          "title": "Filter yourself",
+          "where": "Browse → Rather filter yourself",
+          "body": "Six questions instead of thirteen controls: how much time, what you are after (genres can be included and excluded), which era (real decades), how well known, already here or not, and the order.\n\nThe runtime ceiling is genuinely new — “we only have ninety minutes” could not be expressed at all before. And what you set lives in the address: you can send a result to someone or bookmark it."
+        },
+        {
+          "title": "Your own shelves",
+          "where": "Browse, at the top",
+          "body": "“Not seen in a while” takes what is at least six months back — if there is nothing like that, the shelf disappears instead of suggesting something that does not fit. “Because you like X” gives every favourite its own row, so it stays clear why something is suggested.\n\nAt most three of them: one slot always belongs to your newest favourite, the others change daily. With a hundred favourites you see all of them over time instead of the same three."
+        },
+        {
+          "title": "The menu is shorter",
+          "where": "at the top",
+          "body": "“Discover movies” and “Discover series” have left the menu. Browse answers every one of their questions better — except one, “what came out recently?”, and that is now the “Newly released” shelf. The addresses still work, so old bookmarks do not break."
+        },
+        {
+          "title": "Calendar tidied up",
+          "where": "Main menu → Calendar",
+          "body": "Instead of “Everything / already requested” it now says “Films & episodes / Films only / Episodes only” — your own titles already sit at the top of each day, so the useful split is between film and episode.\n\nAnd the strictness filter no longer asks either for big studios or for known titles, but for both: measured against a real week, neither finds what the other finds — the studio list catches brand-new series with no votes, the vote floor catches good titles without a big distributor."
+        }
+      ],
+      "smallTitle": "Also fixed",
+      "small": [
+        "“Highest rated” returned noise instead of good films: TMDB has no weighted ranking and the floor was five votes, so a film with twenty votes and a 9.4 average outranked “The Godfather”. It is 300 now. This also repairs the sort on the old Discover page.",
+        "A runtime limit was not kept. TMDB's own filter is unreliable — asking for at most 95 minutes returned a 97- and a 99-minute film. The runtime is checked again on the server now.",
+        "Films between 126 and 129 minutes were unfindable by runtime: “Up to 2 hours” ended at 125 and the next step started at 130. The steps now meet exactly — and “May be long” is honestly called “Over 2 hours”, because that is what it was built as.",
+        "Every series query sent an ineffective parameter to TMDB (`watch_region` without `with_watch_providers`). Removed."
+      ]
+    },
+    "0.18.0": {
+      "lead": "Nexview now talks to Jellyfin as well — alongside Plex, not instead of it. Both servers may be connected at the same time, and each person can link an account on each. Around that sits a set of changes that stop anyone being locked out by accident, and a log you can actually find faults with.",
+      "sections": [
+        {
+          "title": "Jellyfin alongside Plex",
+          "where": "Settings → Media servers",
+          "body": "Both servers may be connected at once, and the watched state is merged across them: a title stays marked as seen while any connected server still reports it — so adding a second server no longer wipes the ticks the first one gave you.\n\nWhere the two disagree, Nexview now says which server reports what, instead of quietly picking one."
+        },
+        {
+          "title": "The sign-in page shows the ways that exist",
+          "where": "Sign-in page",
+          "body": "Instead of a fixed “Sign in with Plex” it now says “Sign in with” and offers one logo per connected server. An installation running only Jellyfin used to get a Plex button that failed on click — the flow behind it is built around plex.tv, which Jellyfin has no equivalent for.\n\nOne limit is worth knowing: signing in with Jellyfin will not create an account. Jellyfin gives no email address for an account, and the address is the only thing that lets Nexview recognise somebody who already has one. Without it, an invited person would quietly end up with a second account — no password, no way back in. Those who have an account link Jellyfin from their profile instead; the sign-in form says so before anyone falls into it."
+        },
+        {
+          "title": "Media server accounts have their own place",
+          "where": "Profile → Media servers",
+          "body": "They used to sit at the very bottom of “Security”, below the password form. Nobody looking to connect Plex would think to search there."
+        },
+        {
+          "title": "Disconnecting no longer locks people out by accident",
+          "where": "Settings → Media servers and Settings → Users",
+          "body": "Disconnecting the media server used to happen on a single click, without a word. For accounts that only ever came in through that server — with no password of their own — this closed their only door.\n\nA confirmation now counts them by name beforehand, and the server refuses outright unless the administrator explicitly overrides it. The same check already guarded people disconnecting themselves; it was missing one level up. The dialog also appears when nobody is at risk and says so: a warning that only ever shows up in an emergency is not read the first time it matters.\n\nThe user list also shows who is linked and who has no password. Both facts were already known to the app and shown nowhere."
+        },
+        {
+          "title": "The log finally finds faults",
+          "where": "Settings → Log",
+          "body": "Crashes land in the file at last. Before, uvicorn wrote them somewhere Nexview's own log never reached: you downloaded the log, and precisely the crash was missing from it.\n\nEvery request gets a short number that appears in every line it produces — and in the error message. The user passes on six characters, the administrator types them into the search and sees the complete course of that one click, instead of guessing at timestamps.\n\nFour levels, switchable while running: Quiet, Normal, Detailed and Everything. The two deep levels switch themselves back off after 30 minutes, 2 hours or 8 hours — a forgotten diagnostic level would otherwise overwrite the very lines it was turned on to capture."
+        },
+        {
+          "title": "Nexview is now under the AGPL",
+          "where": "Footer → About Nexview",
+          "body": "The source stays public and free, and running Nexview unchanged asks nothing of you. What changes concerns those who build on it: anyone who modifies Nexview and lets others use their version — including as a hosted service, where no file ever changes hands — has to make their changed source available too.\n\nVersions up to and including 0.17.0 stay under the MIT licence. That permission was given for good and is not being taken back."
+        }
+      ],
+      "smallTitle": "Also fixed",
+      "small": [
+        "A second media server displaced the first: every account held exactly one media server identity, in a handful of columns. Connecting Jellyfin while linked to Plex overwrote that link without a word — name, address and the personal token. Identities now live in a table of their own, one row per provider.",
+        "Each server keeps its own access. Jellyfin issues tokens per device, and Nexview announced itself under a single device name for everything: signing in personally therefore revoked the administrator's server connection, and two people signing in revoked each other.",
+        "The library count on a server's page was not that server's: it counted across all connected servers and showed the same number on every page. The page now shows only when it last synced, and the button syncs only the server whose page it is.",
+        "One unreadable notification silenced the whole bell: the list said “nothing new” while the counter beside it kept claiming unread messages. Measured in a real database, four such rows had been hiding a genuine unread piece of feedback for a week.",
+        "The comment above passwordless accounts was lying: it claimed such an account could set a password later in its profile. It cannot — that route demands the current password, which the account never had. The two routes that do work are written down there now.",
+        "The level filter in the log hid errors: choosing “WARNING” compared for equality and therefore left out the ERROR lines, exactly the ones being looked for. A level now means “this level and above”.",
+        "The watchlist hint pointed at the wrong tab — it sent people to “Security” to link their account, which is where media server accounts lived until this release.",
+        "Downloading the log now includes the rotated files. During a hunt the interesting section has often already rolled over into the previous file."
+      ]
+    },
+    "0.19.0": {
+      "lead": "This release brings Emby as a third media server, opens up rating to everyone — and merges the quotas: item count and storage space now apply together instead of either-or. Along with it, several places where Nexview finally says what it long knew: why a request is taking time, what is already in your own subscription, and when a title you were waiting for has arrived.",
+      "sections": [
+        {
+          "title": "Emby, as a third media server",
+          "where": "Settings → Media server",
+          "body": "Connecting, signing in, syncing the library, watched state per person — all as before, just with one more server. Running them side by side is unchanged: connect Plex, Jellyfin and Emby at the same time if you like, and the watched state is merged across all three.\n\nOne limit is worth knowing: Emby accounts have no e-mail address either. Signing in through Emby therefore does not create an account — you link it from your profile. Without an address there is nothing for Nexview to recognise someone by, and an invitation would quietly end up as a second account with no password.\n\nThe PIN Emby optionally keeps per account is not in the way: it belongs to the display settings, not to permissions — a profile PIN for switching on a shared device, the kind you know from Netflix."
+        },
+        {
+          "title": "Anyone can rate, not just the requester",
+          "where": "On every title page for a title you already have",
+          "body": "Quality feedback used to hang on the request. Everything else followed from that: only whoever ordered saw the stars — and anyone who watched the same film two weeks later and noticed the audio track was missing had no way to say so.\n\nThis is not about taste, that is what the heart is for, but about the **file** — and anyone who has watched it can judge that equally well. Ratings therefore hang on the title now. In “My requests” the stars remain as a shortcut, because the moment right after “already downloaded” is when people rate.\n\nSeries are judged per season: the files sit per season, the quality differs per season. Existing ratings move across on first start."
+        },
+        {
+          "title": "“Tell me when it arrives” — waiting without requesting",
+          "where": "On the title page, when someone else has already requested it",
+          "body": "Until now a title that had already been requested could not be requested again — and after that the second person never heard about it again. They were not even told when it arrived, which was exactly their question.\n\nFor a **film** the button sits where “searching” otherwise stands, so exactly when there is something to wait for. You are told once, then the reminder is done. For a **series** it sits permanently next to the request button and reports every new episode — that is usually what you are waiting for.\n\nReports are always bundled: a season pack of eight episodes is *one* message, and consecutive numbers are collapsed (“S2: 1–3, 7”). Eight messages in the same minute would be the fastest way to make someone turn notifications off."
+        },
+        {
+          "title": "What is already in your subscription",
+          "where": "Profile → Streaming services, shown when requesting",
+          "body": "Anyone who lists their streaming services gets the one sentence that can change the decision: “This is on your Netflix.” A **hint**, not a block — nothing is prevented.\n\nFor series a deliberately different sentence appears: the source says “on Netflix” about the *series*, not about the fourth season that is missing there — and that is exactly the case in which someone requests it.\n\nThe same check appears where decisions are made: in the approval list, and for parents deciding on a child's wish. It is measured against the **requester's** subscriptions, not the approver's — they may not have Netflix, but the question is whether the requester could do without the download."
+        },
+        {
+          "title": "The history of a request",
+          "where": "My requests",
+          "body": "“Why is this taking so long?” is the most common question, and Nexview always knew the full answer — requested when, approved by whom, searching since when, last checked when. All that was visible was a single status word.\n\nA button now opens a timeline: completed steps green with a tick, the running one yellow, upcoming ones grey. A path that was cut short ends where it ends — below a rejection there is no grey “done” step that would be a promise nobody keeps.\n\nTwo pieces of information reach the requester for the first time: who approved it (or that it was automatic) and when the title was last checked on."
+        },
+        {
+          "title": "One tab instead of a mode switch",
+          "where": "Settings → Quotas",
+          "body": "Until now a switch decided whether the number of requests counted or the space used — never both. It is gone. Instead there are three defaults: movies, series, storage. They apply to anyone without a value of their own.\n\nA request goes through when both limits still have room. When someone is stopped, the message says which of the two it was — a full item count is cured by waiting, full storage only by clearing up. Without that you would have to guess.\n\nThe period for the item count (day, week, month) now applies house-wide. It used to sit on every account; three accounts with three different periods no longer explain to anyone what “3 movies” actually means."
+        },
+        {
+          "title": "Three states instead of an empty field",
+          "where": "Settings → Users",
+          "body": "Every account now shows all three limits side by side, each with the same choice: **default** (the value from the quota settings, with the actual number next to it), **unlimited**, or a **value of your own**. A 0 means “may not request anything”.\n\nBefore, “unlimited” was an empty field. Anyone who had typed a number once could not see how to get back.\n\n⚠️ One meaning has flipped: for storage, **0** used to mean “unlimited for this account”. Now it means the opposite. Stored zeroes move to “unlimited” automatically on first start — otherwise an account would have been silently locked overnight."
+        },
+        {
+          "title": "Seeing and handing over storage is available everywhere",
+          "where": "Profile → Storage quota",
+          "body": "The storage tab, the household stock and the hand-over button hung on the old master switch — anyone limiting by item count never saw them. Measuring always happens, limiting only on request, so the whole chain is now open to everyone: hand over, the operator decides, the title goes to the household, stays, or is deleted.\n\nFor operators that means a handover may now land on your desk that never used to arrive.\n\n⚠️ If you have been limiting by item count, every account starts at zero once — everything assigned becomes household stock. The GB limits were inert in that mode while the assignment kept running in the background. Without this step people would be locked out right after the update because of a number that had been lying around for months. No file is touched."
+        },
+        {
+          "title": "Titles Radarr and Sonarr no longer know",
+          "where": "Profile → Storage quota",
+          "body": "Removing a title from Radarr while keeping the file creates something Nexview keeps counting — the media server still reports it — but can no longer remove: deletion happens exclusively through Radarr and Sonarr. The requester was left carrying a load they could not shed.\n\nSuch rows now carry a marker with an explanation. Until now only the operator noticed, and only at the moment they tried to delete the title."
+        },
+        {
+          "title": "Resetting is a button, not a side effect",
+          "where": "Settings → Quotas and Settings → Users",
+          "body": "Switching modes used to silently reset every account to zero. That operation is still there, but now as its own button with a confirmation: “Move everything to the household” in the quota settings, “Reset storage” on every individual account.\n\nBoth state the numbers first. No file is touched, saved limits stay put — and pending handovers count as settled afterwards.\n\nThe per-account button is also the way out of the case above: if someone is stuck with a title Radarr no longer manages, this clears it."
+        }
+      ],
+      "smallTitle": "Also",
+      "small": [
+        "The region picker now knows 139 countries instead of eight — anyone in the Netherlands, Poland or Canada simply could not state their country before.",
+        "A yellow bar is a reminder to set your own region. For “this is on your Netflix” the operator's inherited default is a false claim — the Netflix Switzerland catalogue is not the German one.",
+        "Ratings are marked as outdated when Radarr upgrades the file afterwards. They stay put but no longer count — and the person affected may rate again.",
+        "The feedback view now shows every rating, not just those with a request behind them.",
+        "One or two stars can be turned into a ticket — a problem otherwise disappears into an average.",
+        "Statistics show movies, series and storage side by side instead of either-or.",
+        "The approval dialog warns when the requester is already over their storage limit — that warning used to exist only in GB mode."
+      ]
+    },
+    "0.20.0": {
+      "lead": "There is barely anything to look at in this release — and it is still one of the most important so far. Signing in gets a brake: until now a machine could try passwords as fast as the line allowed. And the error messages finally speak the language you picked.",
+      "sections": [
+        {
+          "title": "Signing in now has a brake",
+          "where": "Nowhere to be seen — which is exactly the point",
+          "body": "Until now there was no rate limit and no lock at all. Anyone who knew the address of your installation could try passwords as fast as the line allowed.\n\nAfter three wrong attempts the wait grows: one second, two, four. After ten the door stays shut for fifteen minutes. **It opens again by itself** — a lock that needs an administrator to open it ends up locking out the administrator. And hammering on a closed door extends nothing: otherwise a stranger could keep someone locked out for good simply by not stopping.\n\n**There are three doors, not one.** Besides signing in to Nexview there is signing in with your *media server* password — and that one is the worse of the two: Nexview hands the password to Plex, Jellyfin or Emby, and it needs no Nexview account at all. Without a brake, Nexview was a comfortable way to guess passwords against your own media server, with somebody else's return address on it. The links sent by mail are covered too.\n\nAnyone who knows their password notices none of this. A wrong password counts; a switched-off account or an unconfirmed address does not — those are people waiting for something else."
+        },
+        {
+          "title": "When a reverse proxy sits in front",
+          "where": "docker-compose.yml → NEXVIEW_CLIENT_IP",
+          "body": "Attempts are always counted **per account**, and that needs no setting.\n\nCounting per address as well only works if Nexview knows the real one, and it cannot tell on its own. Behind a reverse proxy every request looks like it comes from the same address — the proxy's. If Nexview simply assumed otherwise, the first typo would lock out the whole household, you included.\n\nSo it does not guess, it asks: `direct` if Nexview is reachable directly, `proxy` for one in front, `proxy:2` for two (say Cloudflare and then your own). Your proxy has to pass `X-Forwarded-For` — Nginx Proxy Manager, Caddy and Traefik do that on their own.\n\n⚠️ **Leave it empty if unsure.** That is always safe, and the per-account lock still works."
+        },
+        {
+          "title": "Error messages come in your language",
+          "where": "Everywhere something goes wrong",
+          "body": "The interface has been bilingual from the first day. The messages from the server never were: switch to English, mistype your password, and up came „Benutzername oder Passwort ist falsch.“ Hardly anyone noticed, because you have to make a mistake to see one.\n\nAll 76 of them speak both languages now. The server does not translate — it **names**. It cannot know which language you picked: that choice lives in your browser, and on the sign-in page there is not even an account to hang a language on. A server translating there would have to guess, and would guess wrong for exactly the person who switched on purpose.\n\nTwo kinds stay as they are: what Plex, Jellyfin or Emby report back arrives in *their* language. Translating that would mean inventing it."
+        },
+        {
+          "title": "The port inside the container can be moved",
+          "where": "docker-compose.yml → NEXVIEW_PORT",
+          "body": "Nexview listened on a fixed 8000. In the normal case that never shows, because the port mapping hides it. But with `network_mode: host` there is no mapping — there the port inside the container *is* the port on your server, and nothing helped against a collision.\n\n`NEXVIEW_PORT` moves it. Left empty, everything stays as it was.\n\nReported by the TrueNAS catalogue reviewer while Nexview was being taken in. It applies to Unraid and plain Docker just the same."
+        }
+      ],
+      "smallTitle": "Also",
+      "small": [
+        "Error replies were losing their headers — everywhere a built frontend sits next to the backend, which is to say in every container. Nothing looked wrong: the status was right, the text was right, only half the reply was missing."
+      ]
+    },
+    "0.21.0": {
+      "lead": "This release tidies up, in the literal sense. Nexview can now show you what has been lying around for a long time with nobody watching it: how much room it takes, when it was last watched, and who it is attributed to. Deleting is not a button that takes effect at once but a suggestion with fourteen days to think it over. And staying signed in now lives somewhere no script can reach.",
+      "sections": [
+        {
+          "title": "What is lying around unused",
+          "where": "Statistics → its own entry at the top",
+          "body": "A list of the titles nobody has watched in a long time — biggest first. With how much room each one takes, when it last ran, **who watched it**, and who it is attributed to. Filter by movies or series, search by title, and set the period from a few months up to several years.\n\n**Two clocks count, not one.** A title only appears if nobody watched it within the chosen period *and* it has been here at least that long. Without the second clock the list would effectively be sorted by size, and yesterday’s 60 GB file would sit right at the top of it, before anyone had the chance to watch it.\n\nWhat Nexview does *not* know, it says: items whose arrival date is still missing are counted and named, instead of quietly disappearing."
+        },
+        {
+          "title": "Deleting has a grace period now",
+          "where": "The same list, the “Delete” button",
+          "body": "Marking something does not delete it. It sets a date **fourteen days** out; until then the title stays, visibly marked, and one click takes the mark away again.\n\n**Anyone who watches it in the meantime cancels the deletion on their own** — without ever learning there was one. That is the real point of the grace period: it catches exactly the case where a list looks right and is wrong anyway."
+        },
+        {
+          "title": "A mail once a month",
+          "where": "Profile → Notifications",
+          "body": "Nexview can send you monthly what is lying around: thirty lines at most, biggest first, with a link straight into the list.\n\n**Off by default.** And without a mail server and a public address nothing goes out at all — a mail with a button that leads nowhere would be worse than no mail."
+        },
+        {
+          "title": "Your own titles, and how to hand them back",
+          "where": "Profile → Storage quota",
+          "body": "The same list, but only for what is attributed to you — and from there you can hand something back.\n\nThat the list stays empty for many people at first is the normal case, not a fault: everything that was already here before Nexview counts as **house inventory** and belongs to nobody. Nexview now says so, instead of showing an empty page."
+        },
+        {
+          "title": "Requests that were put aside come back",
+          "where": "All requests → open approvals",
+          "body": "A deferred request stayed deferred. It now reappears under open approvals as soon as it fits again."
+        },
+        {
+          "title": "Staying signed in is out of reach now",
+          "where": "Nowhere to be seen — which is exactly the point",
+          "body": "The proof that you are signed in used to sit in the browser’s storage, where **any script on the page could read it**. It now lives in a cookie that JavaScript never gets to see at all, that only travels to the sign-in addresses, and that is not sent along from other sites.\n\n**Changing your password now really does end every other session.** The description had said so for a long time without it being true.\n\nAlongside it, a rule for the browser: it runs only code that came from Nexview itself, and loads images only from the handful of addresses the covers come from. Should anything ever get a foreign script onto the page, the browser turns it away before it runs.\n\n⚠️ What this does **not** cover: signing out only takes the cookie out of *this* browser. Anyone who made a copy beforehand keeps getting in until it expires. That was no different before — but it deserves saying out loud instead of sitting in a description. Today the only way to really end someone else’s session is to change your password."
+        }
+      ],
+      "smallTitle": "Also",
+      "small": [
+        "Ratings on a movie page had been returning an error since 0.19.0 — **every** call, in 0.19.0 and in 0.20.0. A rewrite had left one caller behind and nobody noticed. A test now walks the whole codebase for calls into functions that no longer exist.",
+        "Two of the mail switches in the profile were saved nowhere. The list of switches is now derived from the data model itself — the next one cannot be forgotten the same way.",
+        "Storage was counted twice whenever Radarr and the media server report the same file under different quality levels. On a grown library that adds up to hundreds of gigabytes that were never there.",
+        "Bold text showed its asterisks in several places — most visibly in this very window.",
+        "A series tile now says which seasons are here, instead of looking the same whether one arrived or all of them."
+      ]
+    },
+    "0.22.0": {
+      "lead": "This release is about a question most people ask too late: **what happens when something breaks?** Nexview can now make backups you can download and take with you — and put them back, even on a fresh installation. On top of that comes an interface with a promise, so something other than a browser can finally talk to Nexview.",
+      "sections": [
+        {
+          "title": "Backups you can take with you",
+          "where": "Settings → System → Backups",
+          "body": "Nexview has always put a copy aside before every database change — but that copy sat in the same directory as the database. Lose the volume and it goes too.\n\nNow you can make one on demand, give it a note, and **download it**. What you get is an **encrypted ZIP** holding the database, the profile pictures and the key file `secret.key`. The key has to come along: your credentials for Radarr, Sonarr, TMDB and the mail server are encrypted with it, and without it they cannot be read again. That is why the archive needs a password — and why it is a plain AES ZIP rather than a format of our own. You can open it with 7-Zip, without Nexview.\n\n**Caches are stripped out.** Nine tenths of the database is stored TMDB answers and the library comparison — both of which Nexview fetches again by itself. That is why a backup is a few megabytes rather than a few hundred.\n\nOn a schedule too: daily, weekly or monthly, weekly by default. Automatic backups are marked as such, and you set how many are kept."
+        },
+        {
+          "title": "Restore — including on a fresh installation",
+          "where": "In the setup wizard, first question",
+          "body": "An empty installation now asks first: **start fresh, or restore from a backup?** Anyone moving house or coming back from an outage no longer has to walk the whole wizard and then rebuild everything by hand.\n\n**It checks first whether the backup even fits.** Nexview can only migrate its database forward, never back — so a backup from a *newer* version is refused rather than restored. That is not paternalism: restoring it would break the installation, and quietly.\n\nBefore restoring, Nexview saves a copy of the current state. And afterwards **every sign-in everywhere is ended** — including your own. That is deliberate: the accounts in the backup may not be the ones from a minute ago."
+        },
+        {
+          "title": "API tokens",
+          "where": "Profile → Account → Security",
+          "body": "For scripts, dashboards and anything that talks to Nexview without a browser. You create one, name it, and the plain text appears **exactly once** — afterwards only a checksum remains, and not even an administrator can look it up.\n\n**A token has exactly the rights of its account.** No more. Role, quota, approval and blocklist apply to it just as they apply to you. This is deliberately unlike Seerr, where a single global key is tied to the owner account and therefore gets everything auto-approved. If you want a service account with few rights, create a *user* with those rights and give it a token.\n\nOne switch on top: **may only read** — right for dashboards and monitoring. Tokens can expire, the list shows when each was last used, and revoking one takes effect immediately. Child accounts get none.\n\nAdministrators see under *Settings → System → API tokens* who holds which and whether they are still in use. **Look, do not revoke** — only the owner can do that."
+        },
+        {
+          "title": "A promise for developers: /api/v1",
+          "where": "Documentation at /docs",
+          "body": "Nexview has around 190 addresses, and nearly all of them are internal: the interface talks to the backend, both change together, and a field gets a different name tomorrow when the new one fits better. For anyone wiring something up from outside, that is unusable.\n\nSo **thirteen** addresses live under `/api/v1` — with a promise: as long as `v1` is in the address, nothing disappears from those answers. If something has to break, `/api/v2` appears **beside** it and v1 keeps running.\n\nThey cover what you actually do with such an interface: find something, request it, check what became of it, and a few numbers for a dashboard. **Everything else stays reachable** — just without the promise. Administration is deliberately excluded: promising it would mean freezing the configuration model."
+        },
+        {
+          "title": "Sign out everywhere",
+          "where": "Profile → Account → Security",
+          "body": "Ends every sign-in of this account on every device — including the one you are sitting at.\n\nThis closed a real hole: until now, signing out only worked in your own browser. If you had left your account open on someone else’s machine, there was nothing you could do about it; even a new password only helped against future sign-ins, not running ones."
+        },
+        {
+          "title": "Dissolving an account without collateral damage",
+          "where": "Settings → Users",
+          "body": "When an account was deleted, its already **approved** requests were cancelled along with it. In a household that is almost always wrong: the film has long since arrived, someone else watches it too, and the order vanished with the account.\n\nNow approved requests move into the **house collection** — they stay, just without an owner. Only what is still open gets cancelled. The preview before deleting says what will happen, instead of showing it afterwards."
+        },
+        {
+          "title": "Tidied up",
+          "where": "Settings and profile",
+          "body": "The settings bar had grown to ten entries and wrapped on narrow screens. *Address*, *Mail*, *Log* and *Backups* are pulled together under **System**, and every tab carries an icon.\n\nYour **profile** got a sub-menu: *Profile* (picture, name, email, light or dark), *Security* (password, signed-in devices, API tokens) and *Language*. Before, six blocks sat stacked on one page, and the most useful thing was furthest down.\n\nThe real cause lay deeper: there were **three** different implementations of a sub-navigation row, and the component that draws a highlighted settings block existed only inside a single page. Both now live in one place, so the pages cannot drift apart again."
+        }
+      ],
+      "smallTitle": "Also fixed",
+      "small": [
+        "The interface documentation at `/docs` was a **blank white page** — in every installation, since 0.21.0. It loads Swagger UI, which FastAPI fetched from a foreign server; but the content rules we added in that same release only allow scripts from Nexview itself. The browser refused both stylesheet and script and rendered nothing. It went unnoticed because the rules were tested against the *application*, and the application kept working. Swagger UI now ships inside the image and is served by Nexview: the rules stay as strict as they were, and the documentation works on a machine with no internet at all. `/redoc` was blank for the same reason and served the web interface instead — it now leads to `/docs`.",
+        "The thirteen promised endpoints describe themselves in **English**. Every explanation in the source is German, because that is the language this is written in — and FastAPI put those same explanations on the public page. The remaining 151 are still German; none of them is promised to anyone.",
+        "A brand-new installation wrote a backup of the **empty** database. On the very first start the check reports that everything is missing, and Nexview dutifully made a copy that protected nothing while using up a slot."
+      ]
+    }
+  }
+}

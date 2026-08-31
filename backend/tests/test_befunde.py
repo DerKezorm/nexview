@@ -58,7 +58,14 @@ def _anfrage(
     vor_tagen: int = 0,
     freigegeben_vor_tagen: int | None = None,
     tmdb_id: int = 1,
+    erschienen_vor_tagen: int | None = None,
 ) -> None:
+    """Eine Anfrage anlegen.
+
+    ``erschienen_vor_tagen`` schreibt das Erscheinungsdatum des Titels:
+    ``None`` heisst "steht nicht dabei", eine **negative** Zahl heisst
+    "erscheint erst in so vielen Tagen".
+    """
     with SessionLocal() as session:
         besitzer = session.query(User).first()
         assert besitzer is not None
@@ -71,6 +78,11 @@ def _anfrage(
                 tmdb_id=tmdb_id,
                 title=f"Titel {tmdb_id}",
                 status=status,
+                release_date=(
+                    None
+                    if erschienen_vor_tagen is None
+                    else (jetzt - timedelta(days=erschienen_vor_tagen)).date().isoformat()
+                ),
                 requested_at=jetzt - timedelta(days=vor_tagen),
                 approved_at=(
                     None
@@ -113,6 +125,71 @@ def test_gerechnet_wird_ab_der_freigabe(admin_client: TestClient) -> None:
     """
     _anfrage(RequestStatus.searching, vor_tagen=90, freigegeben_vor_tagen=1)
     assert _sammeln("nachschub.haengt") == []
+
+
+def test_kuenftiger_titel_schweigt(admin_client: TestClient) -> None:
+    """Ein Film, der erst in Monaten herauskommt, sucht zu Recht ergebnislos.
+
+    Das war der Fehler, der die Kachel unbrauchbar machte: Sie meldete einen
+    Ausfall, wo nur das Erscheinungsdatum in der Zukunft lag.
+    """
+    _anfrage(
+        RequestStatus.searching,
+        vor_tagen=40,
+        freigegeben_vor_tagen=30,
+        erschienen_vor_tagen=-90,
+    )
+    assert _sammeln("nachschub.haengt") == []
+
+
+def test_gerade_erschienener_titel_schweigt(admin_client: TestClient) -> None:
+    """Auch nach dem Start braucht ein Titel Zeit, bis ihn jemand anbietet.
+
+    Gerechnet wird ab dem **spaeteren** der beiden Zeitpunkte - sonst schlaegt
+    der Befund am Tag der Veroeffentlichung sofort an, wenn die Freigabe lange
+    vorher lag.
+    """
+    _anfrage(
+        RequestStatus.searching,
+        vor_tagen=60,
+        freigegeben_vor_tagen=50,
+        erschienen_vor_tagen=3,
+    )
+    assert _sammeln("nachschub.haengt") == []
+
+
+def test_titel_ohne_erscheinungsdatum_zaehlt_mit(admin_client: TestClient) -> None:
+    """Ohne Datum laesst sich nicht sagen, dass der Titel noch nicht heraus ist.
+
+    Die stille Variante waere hier die gefaehrlichere: Ein echter
+    Indexer-Ausfall an einem alten Titel bliebe unbemerkt.
+    """
+    _anfrage(RequestStatus.searching, vor_tagen=40, freigegeben_vor_tagen=30)
+    assert len(_sammeln("nachschub.haengt")) == 1
+
+
+def test_der_befund_nennt_den_aeltesten_titel(admin_client: TestClient) -> None:
+    """Eine blosse Zahl half niemandem - man wusste nicht, wonach man sucht."""
+    _anfrage(
+        RequestStatus.searching,
+        vor_tagen=40,
+        freigegeben_vor_tagen=20,
+        tmdb_id=1,
+        erschienen_vor_tagen=300,
+    )
+    _anfrage(
+        RequestStatus.searching,
+        vor_tagen=90,
+        freigegeben_vor_tagen=80,
+        tmdb_id=2,
+        erschienen_vor_tagen=300,
+    )
+
+    treffer = _sammeln("nachschub.haengt")
+    assert len(treffer) == 1
+    assert treffer[0].werte["anzahl"] == 2
+    # Titel 2 wartet laenger - er gehoert in die Kachel.
+    assert treffer[0].werte["titel"] == "Titel 2"
 
 
 def test_wartende_freigabe_erst_nach_tagen(admin_client: TestClient) -> None:

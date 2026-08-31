@@ -48,6 +48,7 @@ from . import (
 from .arr import ArrError
 from .settings_service import AppSettings, load_settings
 from . import watch
+from . import logs
 
 logger = logging.getLogger("nexview.poller")
 
@@ -255,6 +256,23 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                     message_key="notifications.downloadComplete",
                     request=request,
                 )
+            # Offene Kinderwuensche zu diesem Titel sind damit erfuellt.
+            #
+            # ⚠️ **Die Stelle in ``create_request`` reicht nicht.** Dort wird
+            # geschlossen, wenn eine Anfrage *entsteht* - also nur, wenn der
+            # Wunsch schon vorher dalag. Kommt er dazu, waehrend der Download
+            # laeuft, blieb er bisher fuer immer offen: Die Datei ist da, die
+            # Freigabe scheitert an "liegt schon vor", und uebrig bliebe nur
+            # eine Ablehnung. Hier ist der Moment, in dem die Wirklichkeit sich
+            # aendert - deshalb gehoert der zweite Aufruf hierher.
+            #
+            # Der Import steht lokal: ``child_wishes`` braucht seinerseits
+            # ``requests_service``, das oben schon hier haengt.
+            from . import child_wishes
+
+            child_wishes.erledigte_schliessen(
+                db, request.media_type, request.tmdb_id, season=request.season
+            )
             fertig += 1
         elif request.status == RequestStatus.approved:
             # In Radarr/Sonarr angelegt, Datei fehlt noch.
@@ -321,7 +339,7 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                         logger.warning(
                             "Monitoring of %r could not be healed: %s",
                             request.title,
-                            fehler.message,
+                            logs.kennung(fehler),
                         )
 
     # Und die Gegenrichtung: Gilt ein fertig geladener Titel noch?
@@ -815,7 +833,7 @@ async def run_forever(stop: asyncio.Event) -> None:
                     db.rollback()
         except ArrError as error:
             # Radarr/Sonarr gerade nicht erreichbar - kein Grund zur Aufregung.
-            logger.warning("Status sync skipped: %s", error.message)
+            logger.warning("Status sync skipped: %s", logs.kennung(error))
             wartezeit = max(wartezeit, ERROR_BACKOFF_SECONDS)
             fehlgeschlagen = True
         except Exception:  # noqa: BLE001 - die Schleife darf nie sterben

@@ -194,7 +194,9 @@ def _with_user(
         "avatar_url",
         "storage",
         "requester_subscriptions",
+        "for_child_name",
     )
+    kind = request.for_child
     zeile = RequestWithUser(
         **{
             field: getattr(request, field)
@@ -206,6 +208,7 @@ def _with_user(
         avatar_url=request.user.avatar_url,
         storage=speicher,
         requester_subscriptions=abos or [],
+        for_child_name=(kind.display_name or kind.username) if kind else None,
     )
     # Die Rueckmeldung haengt am Titel, nicht an der Anfrage - siehe
     # ``models.TitleRating``. Die gleichnamigen Spalten hier sind tot.
@@ -393,7 +396,7 @@ async def approve(
                 quality_profile_id=payload.quality_profile_id if payload else None,
             )
         except requests_service.RequestError as error:
-            raise HTTPException(status_code=error.status_code, detail=error.message) from error
+            raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error
 
     request.status = RequestStatus.approved
     request.approved_by = entscheider.id
@@ -406,7 +409,7 @@ async def approve(
     except requests_service.RequestError as error:
         # Der Zustand steht jetzt auf "fehlgeschlagen" - der Admin sieht warum.
         db.refresh(request)
-        raise HTTPException(status_code=error.status_code, detail=error.message) from error
+        raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error
 
     _notify_requester(db, request, NotificationType.approved, "notifications.approved")
     _zurueckgestellte_abschliessen(db, request)
@@ -647,7 +650,7 @@ async def cancel_request(
     try:
         await requests_service.cancel(db, load_settings(db), request)
     except requests_service.RequestError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.message) from error
+        raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error
 
     _notify_requester(db, request, NotificationType.cancelled, "notifications.cancelled")
     db.commit()

@@ -55,8 +55,19 @@ function urlFuer(filter: Filter): string {
   return `/api/admin/requests?status=${filter}`;
 }
 
-/** Zustände, in denen ein Abbruch möglich ist (Titel liegt in Radarr/Sonarr). */
-const CANCELLABLE: ReadonlySet<string> = new Set(["approved", "searching"]);
+/**
+ * Zustände, in denen ein Abbruch möglich ist.
+ *
+ * Die ersten beiden, weil der Titel in Radarr/Sonarr liegt und dort mit
+ * entfernt wird.
+ *
+ * ⚠️ **`failed` steht bewusst dabei, obwohl dort nichts zu entfernen ist.**
+ * Sonst ist der Zustand eine Sackgasse: Freigeben und Ablehnen erscheinen nur
+ * bei `pending_approval`/`deferred`, einen Löschen-Knopf gibt es nicht — die
+ * Anfrage bliebe für immer in der Liste stehen, und der Besteller wartete auf
+ * etwas, das nie kommt. Abbrechen gibt ihr ein Ende und sein Kontingent zurück.
+ */
+const CANCELLABLE: ReadonlySet<string> = new Set(["approved", "searching", "failed"]);
 
 type Gruppe = {
   userId: number;
@@ -843,6 +854,18 @@ export function AdminRequestsPage() {
                         i18n.language,
                       )}
                     </p>
+                    {/* Steckt der Wunsch eines Kindes dahinter? Beantwortet die
+                        Frage, die sich der Entscheider sonst selbst stellt:
+                        warum ein Erwachsener einen Kinderfilm bestellt. An den
+                        Rechten ändert es nichts – die Anfrage gehört weiterhin
+                        dem Elternteil. */}
+                    {request.for_child_name && (
+                      <p className="mt-1 text-xs text-mist-500">
+                        {t("adminRequests.forChild", {
+                          name: request.for_child_name,
+                        })}
+                      </p>
+                    )}
                     {request.error_message && (
                       <p className="mt-1 text-xs text-bad-500">
                         {gespeicherterFehler(request.error_detail, request.error_message)}

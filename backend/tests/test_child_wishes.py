@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import ChildWish, MediaRequest, RequestStatus, User, WishState
+from app.services import requests_service
 
 from .conftest import auth_headers, create_user
 
@@ -581,3 +582,219 @@ def test_kind_bekommt_keine_technik_zu_lesen(
     # Kein Dienstname, keine Abkuerzung, kein Fehlercode.
     assert "TMDB" not in detail["message"]
     assert "API" not in detail["message"]
+
+
+# ---------------------------------------------------------------------------
+# Der Titel ist schon da
+# ---------------------------------------------------------------------------
+#
+# Gemeldet aus dem laufenden Betrieb: Ein Film kam ueber eine zweite Instanz
+# ins Haus, waehrend der Wunsch noch zur Freigabe lag. Die Freigabe scheiterte
+# danach bei jedem Versuch - der Grund konnte sich ja nicht mehr aendern -,
+# und uebrig blieb nur "Ablehnen". Also ausgerechnet die Antwort, die dem Kind
+# das Gegenteil der Wahrheit sagt: Es hat ja bekommen, was es wollte.
+
+
+def _offener_filmwunsch(client: TestClient) -> tuple[dict[str, str], int]:
+    """Elternteil + ein offener Filmwunsch des Kindes. Gibt (eltern, wunsch_id)."""
+    eltern, kind_kopf, _ = _familie(client)
+    titel = _erster_titel(client, kind_kopf)
+    wunsch = client.post(
+        "/api/kids/wishes",
+        json={"media_type": "movie", "tmdb_id": titel["tmdb_id"]},
+        headers=kind_kopf,
+    ).json()
+    return eltern, wunsch["id"]
+
+
+def test_wunsch_ist_erledigt_wenn_der_titel_schon_da_ist(
+    arr_client: TestClient, monkeypatch
+) -> None:
+    """Nicht abgelehnt, sondern hinfaellig - und nicht mehr in der Liste."""
+    eltern, wunsch_id = _offener_filmwunsch(arr_client)
+
+    async def liegt_schon_da(*_args, **_kwargs):
+        raise requests_service.RequestError(
+            "„Elio“ ist bereits in deiner Bibliothek.",
+            409,
+            code="already_in_library",
+        )
+
+    monkeypatch.setattr(requests_service, "create_request", liegt_schon_da)
+
+    antwort = arr_client.post(
+        f"/api/children/wishes/{wunsch_id}/release",
+        json={"quality_profile_id": 1, "root_folder_path": "/data/Movies"},
+        headers=eltern,
+    )
+    assert antwort.status_code == 409, antwort.text
+    # Mit Kennung, damit die Oberflaeche den Satz in ihrer Sprache bauen kann -
+    # sonst laese ein englischer Nutzer hier Deutsch.
+    detail = antwort.json()["detail"]
+    assert detail["code"] == "wish_already_available"
+    assert detail["titel"]
+
+    with SessionLocal() as sitzung:
+        wunsch = sitzung.get(ChildWish, wunsch_id)
+        assert wunsch is not None
+        # ``obsolete`` und ausdruecklich nicht ``declined``.
+        assert wunsch.state == WishState.obsolete
+        assert wunsch.decided_at is not None
+
+    # Und damit weg aus der Liste, die auf eine Entscheidung wartet.
+    offen = arr_client.get("/api/children/wishes", headers=eltern).json()
+    assert offen == []
+
+
+def test_andere_fehler_lassen_den_wunsch_offen(
+    arr_client: TestClient, monkeypatch
+) -> None:
+    """Ein volles Kontingent geht vorueber - der Wunsch muss das ueberleben.
+
+    Ohne diese Grenze haette die Reparatur oben aus jedem Fehlschlag ein
+    "erledigt" gemacht, und ein Kind verloere seinen Wunsch, weil sein
+    Elternteil gerade keinen Platz hat.
+    """
+    eltern, wunsch_id = _offener_filmwunsch(arr_client)
+
+    async def kontingent_voll(*_args, **_kwargs):
+        raise requests_service.RequestError("Dein Kontingent ist aufgebraucht.", 409)
+
+    monkeypatch.setattr(requests_service, "create_request", kontingent_voll)
+
+    antwort = arr_client.post(
+        f"/api/children/wishes/{wunsch_id}/release",
+        json={"quality_profile_id": 1, "root_folder_path": "/data/Movies"},
+        headers=eltern,
+    )
+    assert antwort.status_code == 409, antwort.text
+
+    with SessionLocal() as sitzung:
+        wunsch = sitzung.get(ChildWish, wunsch_id)
+        assert wunsch is not None
+        assert wunsch.state == WishState.open
+
+    offen = arr_client.get("/api/children/wishes", headers=eltern).json()
+    assert len(offen) == 1
+
+
+# ---------------------------------------------------------------------------
+# Ein geloeschtes Kind hinterlaesst nichts
+# ---------------------------------------------------------------------------
+
+
+def test_geloeschtes_kinderkonto_nimmt_seine_wuensche_mit(arr_client: TestClient) -> None:
+    """Auch ueber die Nutzerverwaltung, nicht nur ueber die Elternansicht.
+
+    ``DELETE /api/users/{id}`` raeumte bisher nur die Kinder *unterhalb* eines
+    Kontos ab. War das Konto selbst ein Kind, blieb seine Wunsch-Zeile mit
+    einer toten ``child_id`` stehen - und die Wunschliste des Elternteils
+    stuerzte daran ab, weil sie den Namen des Kindes liest.
+    """
+    eltern, kind_kopf, kind_id = _familie(arr_client)
+    titel = _erster_titel(arr_client, kind_kopf)
+    arr_client.post(
+        "/api/kids/wishes",
+        json={"media_type": "movie", "tmdb_id": titel["tmdb_id"]},
+        headers=kind_kopf,
+    )
+    with SessionLocal() as sitzung:
+        assert sitzung.query(ChildWish).count() == 1
+
+    weg = arr_client.delete(f"/api/users/{kind_id}")
+    assert weg.status_code == 204, weg.text
+
+    with SessionLocal() as sitzung:
+        assert sitzung.query(ChildWish).count() == 0
+
+    # Der eigentliche Beweis: Die Liste des Elternteils antwortet noch.
+    offen = arr_client.get("/api/children/wishes", headers=eltern)
+    assert offen.status_code == 200, offen.text
+    assert offen.json() == []
+
+
+def test_altlasten_werden_beim_start_abgeraeumt(arr_client: TestClient) -> None:
+    """Fuer Datenbanken, die den luecklichen Weg schon genommen haben.
+
+    Auch ein eingespielter Stand aus einer fremden Installation bringt solche
+    Zeilen mit - dort hatten die Konten andere Nummern.
+    """
+    from app.db import _verwaiste_kinderwuensche_aufraeumen, engine
+
+    eltern, kind_kopf, kind_id = _familie(arr_client)
+    with SessionLocal() as sitzung:
+        elternteil = sitzung.query(User).filter(User.username == "elternteil").one()
+        eltern_id = elternteil.id
+
+    # ⚠️ **Die Zeile muss an der Fremdschluessel-Regel vorbei entstehen.** In
+    # einer frisch angelegten Datenbank traegt ``child_wishes.child_id`` sie,
+    # und dann ist eine Waise gar nicht erst moeglich. Sie entsteht nur dort,
+    # wo die Tabelle **nachgetragen** wurde - SQLite kann einer per ALTER TABLE
+    # ergaenzten Spalte keine Regel geben. Genau diese Datenbanken sind
+    # gemeint, und genau so muss der Test sie nachstellen.
+    with engine.connect() as verbindung:
+        verbindung.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        verbindung.exec_driver_sql(
+            "INSERT INTO child_wishes "
+            "(child_id, parent_id, media_type, tmdb_id, title, state, created_at) "
+            "VALUES (999999, ?, 'movie', 42, 'Verwaister Wunsch', 'open', "
+            "'2026-01-01 00:00:00')",
+            (eltern_id,),
+        )
+        verbindung.commit()
+
+    _verwaiste_kinderwuensche_aufraeumen()
+
+    with SessionLocal() as sitzung:
+        assert sitzung.query(ChildWish).count() == 0
+
+    offen = arr_client.get("/api/children/wishes", headers=eltern)
+    assert offen.status_code == 200, offen.text
+
+
+def test_freigabeliste_nennt_das_kind(arr_client: TestClient) -> None:
+    """"Aus einem Wunsch von Lena" - sonst wundert sich der Entscheider.
+
+    Das Feld ``for_child_id`` wurde seit jeher gesetzt und nirgends gelesen;
+    die im Modell beschriebene Anzeige gab es nicht.
+    """
+    eltern, kind_kopf, _ = _familie(arr_client)
+    titel = _erster_titel(arr_client, kind_kopf)
+    wunsch = arr_client.post(
+        "/api/kids/wishes",
+        json={"media_type": "movie", "tmdb_id": titel["tmdb_id"]},
+        headers=kind_kopf,
+    ).json()
+    arr_client.post(
+        f"/api/children/wishes/{wunsch['id']}/release",
+        json={"quality_profile_id": 1, "root_folder_path": "/data/Movies"},
+        headers=eltern,
+    )
+
+    zeilen = arr_client.get("/api/admin/requests").json()
+    assert len(zeilen) == 1
+    # Der Anzeigename des Kindes, nicht seine Nummer.
+    assert zeilen[0]["for_child_name"] == "kind"
+    # Die Anfrage gehoert weiterhin dem Elternteil.
+    assert zeilen[0]["username"] == "elternteil"
+
+
+def test_ohne_kinderwunsch_steht_dort_nichts(arr_client: TestClient) -> None:
+    """Eine gewoehnliche Anfrage traegt keinen Kindernamen."""
+    create_user(arr_client, "allein", "allein-passwort")
+    kopf = auth_headers(arr_client, "allein", "allein-passwort")
+    item = arr_client.get("/api/discover/movie", headers=kopf).json()["items"][0]
+    arr_client.post(
+        "/api/requests",
+        json={
+            "media_type": "movie",
+            "tmdb_id": item["tmdb_id"],
+            "quality_profile_id": 1,
+            "root_folder_path": "/data/Movies",
+        },
+        headers=kopf,
+    )
+
+    zeilen = arr_client.get("/api/admin/requests").json()
+    assert len(zeilen) == 1
+    assert zeilen[0]["for_child_name"] is None

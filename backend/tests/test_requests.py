@@ -435,3 +435,41 @@ async def test_echter_fehler_bleibt_fehlgeschlagen(
     with SessionLocal() as db:
         anfrage = db.query(MediaRequest).filter(MediaRequest.tmdb_id == item["tmdb_id"]).one()
         assert anfrage.status == RequestStatus.failed
+
+
+def test_titel_liegt_schon_da_meldet_eine_kennung(
+    arr_client: TestClient, monkeypatch
+) -> None:
+    """Die Meldung muss uebersetzbar sein, nicht nur lesbar.
+
+    Der deutsche Satz steht im Backend und ist der Rueckfall; den Satz in der
+    eingestellten Sprache baut die Oberflaeche aus ``code`` und ``titel``.
+    Ohne die Kennung in der Antwort las ein englischer Nutzer hier Deutsch.
+
+    ⚠️ **Der Titel liegt hier ohne zugehoerige Anfrage im Haus** - von Hand
+    hinzugefuegt, ueber eine zweite Instanz geholt oder aus einem eingespielten
+    Stand. Gaebe es eine Anfrage dazu, griffe vorher "wurde bereits angefragt",
+    und dieser Zweig waere gar nicht erreicht.
+    """
+    from app.services import library
+
+    create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+    item = _first_demo(arr_client)
+
+    async def liegt_im_haus(_einstellungen, _art, items, _stufe="standard", **_rest):
+        for eintrag in items:
+            eintrag.status = "downloaded"
+        return library.MatchResult(items=items)
+
+    monkeypatch.setattr(library, "apply_status", liegt_im_haus)
+
+    antwort = _anfrage(arr_client, item, headers)
+
+    assert antwort.status_code == 409, antwort.text
+    detail = antwort.json()["detail"]
+    assert detail["code"] == "already_in_library"
+    # Der Titel als Platzhalter - sonst kann die Oberflaeche ihn nicht einsetzen.
+    assert detail["titel"] == item["title"]
+    # Der deutsche Rueckfall bleibt dabei.
+    assert "Bibliothek" in detail["message"]

@@ -147,7 +147,7 @@ async def create_request(
             episodes=payload.episodes,
         )
     except requests_service.RequestError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.message) from error
+        raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error
 
 
 @router.post("/{request_id}/feedback", response_model=RequestPublic)
@@ -259,7 +259,7 @@ async def cancel_own_request(
     try:
         return await requests_service.cancel(db, load_settings(db), request)
     except requests_service.RequestError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.message) from error
+        raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error
 
 
 @router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -269,4 +269,4 @@ def withdraw_request(
     try:
         requests_service.withdraw(db, user, request_id)
     except requests_service.RequestError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.message) from error
+        raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error

@@ -16,6 +16,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import meldungen
 from ..models import Role, User, utcnow
 from ..security import hash_password
 
@@ -72,12 +73,37 @@ def _rubriken_pruefen(genres: list[str] | None) -> str | None:
 
 
 class ChildError(Exception):
-    """Etwas ist nicht erlaubt oder nicht moeglich."""
+    """Etwas ist nicht erlaubt oder nicht moeglich.
 
-    def __init__(self, message: str, status_code: int = 400) -> None:
+    ``code`` ist der Schluessel, unter dem die Oberflaeche den Satz in ihrer
+    Sprache baut (``errors.byCode``, siehe ``meldungen``). Er ist **optional**:
+    Die aelteren Meldungen hier tragen keinen und kommen deshalb auf Deutsch
+    an - ein bekannter Rueckstand, der sich Stueck fuer Stueck aufloesen laesst,
+    ohne dass jemand alle auf einmal anfassen muss.
+
+    ⚠️ Wer einen ergaenzt, braucht zwei Uebersetzungen: ``test_fehlermeldungen``
+    findet jedes ``code="..."`` im Quelltext und besteht auf einem Eintrag in
+    beiden Sprachdateien.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 400,
+        code: str | None = None,
+        **zahlen: object,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+        self.code = code
+        self.zahlen = zahlen
+
+    def als_meldung(self) -> dict[str, object] | str:
+        """Der Inhalt fuer ``detail`` - mit Kennung, wenn es eine gibt."""
+        if not self.code:
+            return self.message
+        return meldungen.meldung(self.code, self.message, **self.zahlen)
 
 
 def darf_kinder_anlegen(user: User) -> bool:

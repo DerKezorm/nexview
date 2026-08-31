@@ -35,7 +35,7 @@ logger = logging.getLogger("nexview.children")
 
 
 def _fehler(error: children.ChildError) -> HTTPException:
-    return HTTPException(status_code=error.status_code, detail=error.message)
+    return HTTPException(status_code=error.status_code, detail=error.als_meldung())
 
 
 # ⚠️ Muss **vor** jedem Pfad mit Platzhalter stehen: sonst versucht FastAPI,
@@ -188,8 +188,14 @@ async def release_wish(
 
     Der Titel wird dabei aus **seiner** Sicht geholt: Es ist seine Anfrage, mit
     seinem Kontingent und seinen Regeln. Scheitert sie (Kontingent voll,
-    Sperrliste, liegt schon da), bleibt der Wunsch offen und der Grund kommt
-    unveraendert zurueck.
+    Sperrliste), bleibt der Wunsch offen und der Grund kommt unveraendert
+    zurueck.
+
+    ⚠️ **Eine Ausnahme: Der Titel liegt laengst da.** Dann ist der Wunsch nicht
+    gescheitert, sondern erfuellt - er wird geschlossen, und die Antwort sagt
+    das (``wish_already_available``). Vorher war dieser Fall eine Sackgasse:
+    Die Freigabe scheiterte bei jedem Versuch aufs Neue, uebrig blieb nur
+    "Ablehnen". Siehe ``child_wishes.freigeben``.
     """
     settings = for_user(load_settings(db), user)
     try:
@@ -220,7 +226,7 @@ async def release_wish(
     except children.ChildError as error:
         raise _fehler(error) from error
     except requests_service.RequestError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.message) from error
+        raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error
 
 
 @router.get("", response_model=list[ChildPublic])

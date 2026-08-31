@@ -169,3 +169,42 @@ def test_jeder_zustand_ist_als_filter_erlaubt(admin_client: TestClient) -> None:
             f"Zustand {zustand.value!r} wird vom Filter nicht angenommen "
             f"(HTTP {antwort.status_code})"
         )
+
+
+def test_freigabe_verknuepft_einen_film_der_schon_in_radarr_liegt(
+    arr_client: TestClient, monkeypatch
+) -> None:
+    """Kein zweites Anlegen - und vor allem kein Fehlschlag.
+
+    Der Fall aus dem Betrieb: Waehrend die Anfrage auf Freigabe wartete, kam
+    der Film ueber eine zweite Instanz ins Haus. Radarr antwortet auf ein
+    zweites Anlegen mit einem gewoehnlichen 400er, und die Anfrage landete auf
+    "fehlgeschlagen" - danach ohne einen einzigen Knopf in der Liste.
+
+    Bei Serien wurde seit jeher vorher nachgesehen (``_sonarr_eintrag``); bei
+    Filmen fehlte genau das.
+    """
+    from app.services import library
+    from app.services.radarr import LibraryEntry
+
+    angelegt, _ = _anfrage_von_kim(arr_client)
+
+    async def bestand(*_args, **_kwargs):
+        return {angelegt["tmdb_id"]: LibraryEntry(arr_id=815, has_file=True, monitored=True)}
+
+    monkeypatch.setattr(library, "movie_library", bestand)
+
+    # ⚠️ Die Radarr-Attrappe dieser Testreihe antwortet nicht. Ohne die
+    # Vorabpruefung ginge der Auftrag also hinaus und die Freigabe endete mit
+    # 502 auf "fehlgeschlagen" - genau das prueft
+    # ``test_freigeben_bei_nicht_erreichbarem_radarr`` eine Ebene weiter oben.
+    # Dass hier stattdessen 200 herauskommt, ist der Beweis.
+    antwort = arr_client.post(f"/api/admin/requests/{angelegt['id']}/approve")
+    assert antwort.status_code == 200, antwort.text
+
+    with SessionLocal() as session:
+        request = session.query(MediaRequest).one()
+        assert request.status == RequestStatus.searching
+        # Die vorhandene Radarr-Nummer, nicht eine neu angelegte.
+        assert request.arr_id == 815
+        assert request.error_message is None

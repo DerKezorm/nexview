@@ -66,6 +66,7 @@ def init_db() -> None:
     _add_missing_indexes()
     _altersgrenzen_aufraeumen()
     _verwaiste_meldungsarten_aufraeumen()
+    _verwaiste_kinderwuensche_aufraeumen()
     # Muss **vor** dem Nachtragen der Herkunft laufen - das liest den
     # Anbieternamen bevorzugt aus dieser Tabelle.
     _verbindung_in_die_tabelle()
@@ -698,6 +699,51 @@ def _gesehen_herkunft_nachtragen() -> None:
 
 # Tabellen, deren Spalte ``type`` eine ``NotificationType`` fuehrt.
 MELDUNGSTABELLEN = ("notifications", "channel_outbox")
+
+
+def _verwaiste_kinderwuensche_aufraeumen() -> None:
+    """Kinderwuensche wegraeumen, deren Kind oder Elternteil es nicht mehr gibt.
+
+    ⚠️ **Eine einzige solche Zeile legt die Wunschliste eines Elternteils
+    lahm.** ``_wunsch_zeile`` in ``routers/children`` liest
+    ``wunsch.child.display_name``; fehlt das Kind, ist das kein leerer Name,
+    sondern ein ``AttributeError`` - und damit ein 500er fuer die ganze Liste,
+    nicht nur fuer die eine Zeile.
+
+    Wie solche Zeilen entstehen: ``ChildWish.child_id`` traegt keine
+    ``ON DELETE``-Regel, weil nachgetragene Spalten in SQLite keine tragen
+    koennen. Abgeraeumt wird deshalb ausdruecklich im Dienst - und genau ein
+    Weg vergass es bis 0.27: ``DELETE /api/users/{id}`` auf ein Konto, das
+    selbst ein Kind ist. Der Weg ist inzwischen dicht, aber Datenbanken, die
+    ihn genommen haben, tragen die Zeilen weiter. Dasselbe gilt fuer
+    eingespielte Staende aus einer anderen Installation, in der die Konten
+    andere Nummern hatten.
+
+    Auf **WARNING**, nicht INFO: Hier verschwinden Wuensche, die jemand einmal
+    geaeussert hat. Dass sie ohnehin niemandem mehr zuzuordnen sind, macht das
+    Loeschen richtig, aber nicht unsichtbar.
+
+    Laeuft bei jedem Start und trifft nach dem ersten Mal nichts mehr.
+    """
+    with engine.begin() as connection:
+        offen = connection.exec_driver_sql(
+            "SELECT COUNT(*) FROM child_wishes "
+            "WHERE child_id NOT IN (SELECT id FROM users) "
+            "OR parent_id NOT IN (SELECT id FROM users)"
+        ).scalar()
+        if not offen:
+            return
+
+        connection.exec_driver_sql(
+            "DELETE FROM child_wishes "
+            "WHERE child_id NOT IN (SELECT id FROM users) "
+            "OR parent_id NOT IN (SELECT id FROM users)"
+        )
+        logger.warning(
+            "Removed %d child wish(es) whose child or parent account no longer exists. "
+            "They could not be shown or decided any more.",
+            offen,
+        )
 
 
 def _verwaiste_meldungsarten_aufraeumen() -> None:

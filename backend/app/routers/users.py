@@ -27,6 +27,7 @@ from ..services import (
     accounts,
     betreiber as betreiber_dienst,
     avatars,
+    child_wishes,
     children,
     kontoaufloesung,
     mail,
@@ -715,6 +716,22 @@ async def delete_user(
     verwaist = children.alle_kinder_loeschen(db, user)
     if verwaist:
         logger.info("Deleted %d child account(s) of %r", verwaist, user.username)
+
+    # ⚠️ **Und die Wuensche des Kontos selbst, falls es ein Kind ist.** Der
+    # Schritt darueber raeumt die Kinder *unterhalb* eines Elternteils ab -
+    # ist das geloeschte Konto aber selbst ein Kind, greift er nicht. Ueber die
+    # Oberflaeche kommt dieser Fall nicht vor (die Nutzerverwaltung zeigt
+    # Kinderkonten bewusst ohne Loeschknopf), ueber diesen Endpunkt sehr wohl.
+    #
+    # Ohne das bliebe eine Wunsch-Zeile mit einer toten ``child_id`` stehen -
+    # ``ChildWish.child_id`` traegt keine Fremdschluessel-Regel, nachgetragene
+    # Spalten koennen das in SQLite nicht. Sie waere nicht bloss Ballast: Die
+    # Wunschliste des Elternteils liest ``wunsch.child.display_name`` und
+    # stuerzte daran ab.
+    if user.role == Role.child:
+        offene = child_wishes.wuensche_loeschen(db, user)
+        if offene:
+            logger.info("Deleted %d wish(es) of child account %r", offene, user.username)
 
     # Sonst bliebe das Profilbild als verwaiste Datei liegen.
     avatars.remove(user.avatar_path)

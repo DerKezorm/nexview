@@ -186,16 +186,42 @@ async def freigeben(
     ``item`` kommt frisch von TMDB - aus den Sicht **des Elternteils**, nicht
     des Kindes: Es ist seine Anfrage, sein Kontingent, und der Titel muss
     seinen Regeln genuegen. Scheitert ``create_request`` (Kontingent voll,
-    Sperrliste, liegt schon da), bleibt der Wunsch offen und der Fehler geht
-    unveraendert an das Elternteil - es soll ja wissen, warum.
+    Sperrliste), bleibt der Wunsch offen und der Fehler geht unveraendert an
+    das Elternteil - es soll ja wissen, warum.
+
+    ⚠️ **Ein Fall ist davon ausgenommen: Der Titel liegt laengst da.** Frueher
+    lief er in denselben Zweig, und das war eine Sackgasse - die Freigabe
+    scheiterte bei jedem Versuch aufs Neue, weil der Grund sich nicht mehr
+    aendern konnte. Uebrig blieb nur "Ablehnen", also ausgerechnet die
+    Antwort, die das Gegenteil der Wahrheit sagt: Das Kind hat ja bekommen,
+    was es wollte. Gemeldet wurde genau das, nachdem ein Film ueber eine
+    zweite Instanz ins Haus kam, waehrend der Wunsch noch zur Freigabe lag.
+
+    Deshalb schliesst dieser Fall den Wunsch als ``obsolete`` - dieselbe
+    Bewertung, die ``erledigte_schliessen`` seit jeher trifft, und aus
+    demselben Grund. Die Meldung bleibt, aber sie sagt jetzt, was wirklich
+    passiert ist.
     """
     wunsch = _wunsch_von(db, elternteil, wunsch_id)
     if wunsch.state != WishState.open:
         raise ChildError("Über diesen Wunsch ist schon entschieden.", 409)
 
-    anfrage = await requests_service.create_request(
-        db, settings, elternteil, item, **anfrage_optionen
-    )
+    try:
+        anfrage = await requests_service.create_request(
+            db, settings, elternteil, item, **anfrage_optionen
+        )
+    except requests_service.RequestError as fehler:
+        if fehler.code not in requests_service.SCHON_DA:
+            raise
+        wunsch.state = WishState.obsolete
+        wunsch.decided_at = utcnow()
+        db.commit()
+        raise ChildError(
+            f"„{wunsch.title}“ ist bereits da - der Wunsch ist damit erledigt.",
+            409,
+            code="wish_already_available",
+            titel=wunsch.title,
+        ) from fehler
 
     anfrage.for_child_id = wunsch.child_id
     wunsch.state = WishState.released

@@ -19,9 +19,11 @@ from ..models import (
     utcnow,
 )
 from ..schemas_media import MediaItem
+from .. import meldungen
 from . import blocklist, library, media, mediaserver_library, notify, quota, storage
 from .arr import ArrError
 from .settings_service import AppSettings
+from . import logs
 
 logger = logging.getLogger("nexview.requests")
 
@@ -48,12 +50,64 @@ ACTIVE_STATUSES = (
 
 
 class RequestError(Exception):
-    """Fachlicher Fehler mit lesbarer Meldung und passendem HTTP-Code."""
+    """Fachlicher Fehler mit lesbarer Meldung und passendem HTTP-Code.
 
-    def __init__(self, message: str, status_code: int = 400) -> None:
+    ⚠️ **Die Kennung leistet zweierlei.** Sie ist der Schluessel, unter dem die
+    Oberflaeche den Satz in ihrer Sprache baut (``errors.byCode``, siehe
+    ``meldungen``) - **und** der Marker, an dem anderer Python-Code den Fall
+    erkennt. Beides faellt hier zusammen, weil es dieselbe Aussage ist.
+
+    Die zwei, die eine tragen, haben etwas gemeinsam: Sie sagen nicht "das war
+    falsch", sondern "der Titel ist schon da". Wer eine Anfrage im Namen eines
+    anderen stellt (``child_wishes.freigeben``), muss diesen Unterschied
+    kennen - sonst behandelt er "ist laengst da" wie "Kontingent voll" und
+    laesst einen Wunsch offen, der nie mehr erfuellbar ist.
+
+    Ohne Kennung liesse sich beides nur am deutschen Meldungstext festmachen -
+    und an einem Text, an dem Verhalten haengt, traut sich niemand mehr eine
+    Umformulierung zu.
+
+    ⚠️ **Wer hier eine Kennung ergaenzt, braucht zwei Uebersetzungen.**
+    ``test_fehlermeldungen`` findet jedes ``code="..."`` im Quelltext und
+    besteht auf einem Eintrag in **beiden** Sprachdateien. Das ist kein
+    Formalismus: Ohne ihn faellt die Oberflaeche auf den deutschen Text zurueck,
+    und ein englischer Nutzer liest einen deutschen Satz.
+
+    ``zahlen`` sind die Platzhalter dieses Satzes - hier immer der Titel.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 400,
+        code: str | None = None,
+        **zahlen: object,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+        self.code = code
+        self.zahlen = zahlen
+
+    def als_meldung(self) -> dict[str, object] | str:
+        """Der Inhalt fuer ``detail`` - mit Kennung, wenn es eine gibt.
+
+        Ohne Kennung bleibt es beim blossen Text, genau wie bisher. So mussten
+        die drei Dutzend Fehler ohne Kennung nicht angefasst werden.
+        """
+        if not self.code:
+            return self.message
+        return meldungen.meldung(self.code, self.message, **self.zahlen)
+
+
+#: Kennungen, die **"der Titel liegt bereits vor"** bedeuten - nicht "das war
+#: falsch". Ein Wunsch, der daran scheitert, ist erfuellt und nicht abzulehnen.
+#:
+#: "Wurde bereits angefragt" gehoert ausdruecklich **nicht** hierher: Da laeuft
+#: der Download noch. Dieser Wunsch schliesst sich von selbst, sobald die
+#: laufende Anfrage fertig ist (``status_poller`` ruft
+#: ``child_wishes.erledigte_schliessen``).
+SCHON_DA = ("already_in_library", "already_on_media_server")
 
 
 def find_active(
@@ -332,6 +386,34 @@ def requester_tag(username: str) -> str:
     return f"nexview-{username.lower()}"
 
 
+async def _radarr_eintrag(settings: AppSettings, request: MediaRequest):
+    """Kennt Radarr diesen Film bereits? Sonst ``None``.
+
+    ⚠️ **Das Gegenstueck zu ``_sonarr_eintrag`` - und es hat lange gefehlt.**
+    Bei Serien wird seit jeher nachgesehen, bevor etwas angelegt wird; bei
+    Filmen ging der Auftrag bedingungslos an Radarr. Liegt der Film dort
+    schon, antwortet Radarr mit einem gewoehnlichen 400er, dessen Begruendung
+    nur im Protokoll landet - die Anfrage wurde "fehlgeschlagen", und in der
+    Freigabeliste blieb sie ohne einen einzigen Knopf stehen.
+
+    Der Fall ist nicht selten: eine zweite Radarr-Instanz, ein von Hand
+    hinzugefuegter Film, ein eingespielter Stand aus einer anderen
+    Installation. Gemeldet wurde er, nachdem ein Film waehrend der offenen
+    Freigabe ueber eine andere Instanz ins Haus kam.
+
+    Liegt er schon da, wird nichts neu angelegt: Die Anfrage uebernimmt seine
+    Radarr-Nummer und laeuft ganz gewoehnlich weiter. Hat er bereits eine
+    Datei, setzt der naechste Rundgang sie auf "geladen" - dafuer braucht es
+    hier keinen Sonderfall.
+
+    Der Bestand kommt aus demselben Zwischenspeicher wie bei Serien. Er kann
+    ein paar Minuten alt sein; in diesem Fenster schlaegt weiterhin Radarrs
+    400er durch, und dafuer gibt es den Weg aus der Freigabeliste.
+    """
+    bestand = await library.movie_library(settings, request.tier.value)
+    return bestand.get(request.tmdb_id)
+
+
 async def _sonarr_eintrag(settings: AppSettings, request: MediaRequest):
     """Kennt Sonarr diese Serie bereits? Sonst ``None``.
 
@@ -473,13 +555,27 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
             client = library.radarr_client(settings, request.tier.value)
             if client is None:
                 raise _nicht_eingerichtet_fehler("Radarr", request.tier)
-            tag_id = await client.ensure_tag(requester_tag(request.user.username))
-            created = await client.add(
-                request.tmdb_id,
-                request.quality_profile_id or 0,
-                request.root_folder_path or "",
-                tag_ids=[tag_id] if tag_id else None,
-            )
+            # Liegt der Film schon in Radarr, wird er nicht neu angelegt -
+            # sonst antwortet Radarr mit einem 400er, und die Anfrage bliebe
+            # als "fehlgeschlagen" liegen (siehe ``_radarr_eintrag``).
+            vorhanden = await _radarr_eintrag(settings, request)
+            if vorhanden is not None:
+                logger.info(
+                    "Radarr already holds %r (tmdb=%s) as #%s - linking the request "
+                    "to it instead of adding it again",
+                    request.title,
+                    request.tmdb_id,
+                    vorhanden.arr_id,
+                )
+                created = {"id": vorhanden.arr_id}
+            else:
+                tag_id = await client.ensure_tag(requester_tag(request.user.username))
+                created = await client.add(
+                    request.tmdb_id,
+                    request.quality_profile_id or 0,
+                    request.root_folder_path or "",
+                    tag_ids=[tag_id] if tag_id else None,
+                )
         else:
             client = library.sonarr_client(settings, request.tier.value)
             if client is None:
@@ -557,7 +653,7 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
             request.title,
             request.tmdb_id,
             request.user.username,
-            error.message,
+            logs.kennung(error),
             " - Ausgang ungewiss, der Status-Abgleich prüft nach"
             if error.ungewiss
             else "",
@@ -1035,6 +1131,8 @@ async def create_request(
             raise RequestError(
                 f"„{item.title}“ ist bereits in deiner Bibliothek.",
                 409,
+                code="already_in_library",
+                titel=item.title,
             )
 
         # Zweite Quelle: der Media-Server. Wer einen Titel nach dem Laden aus
@@ -1071,6 +1169,8 @@ async def create_request(
             raise RequestError(
                 f"„{item.title}“ liegt bereits auf dem Media-Server.",
                 409,
+                code="already_on_media_server",
+                titel=item.title,
             )
 
     # Beide Pruefungen entfallen, wenn erst der Entscheider waehlt: Es gibt
@@ -1312,10 +1412,22 @@ async def cancel(
     dann komplett, wenn keine andere laufende Anfrage mehr etwas von ihr
     will - sonst nur die eigenen Staffel-Dateien. Das Kontingent des
     Anfragenden wird wieder frei, weil ``cancelled`` nicht mitgezaehlt wird.
+
+    ⚠️ **Auch fehlgeschlagene Anfragen lassen sich abbrechen** - seit 0.26.
+    Vorher war ``failed`` eine Sackgasse: freigeben ging nicht mehr (dafuer
+    ist der Zustand zu spaet), abbrechen war verboten, und einen Loesch-Knopf
+    gab es in der Oberflaeche nie. Die Anfrage blieb sichtbar liegen, und der
+    Besteller wartete auf etwas, das nie kommen wuerde. Zu entfernen gibt es
+    dabei in aller Regel nichts - ohne ``arr_id`` ueberspringt der Weg unten
+    Radarr und Sonarr ohnehin.
     """
-    if request.status not in (RequestStatus.approved, RequestStatus.searching):
+    if request.status not in (
+        RequestStatus.approved,
+        RequestStatus.searching,
+        RequestStatus.failed,
+    ):
         raise RequestError(
-            "Nur laufende Anfragen können abgebrochen werden.",
+            "Nur laufende oder fehlgeschlagene Anfragen können abgebrochen werden.",
             409,
         )
 

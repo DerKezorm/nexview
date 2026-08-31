@@ -159,6 +159,19 @@ class RequestWithUser(RequestPublic):
     # Anfragende den Film ohne diesen Download sehen kann.
     requester_subscriptions: list[str] = []
 
+    # Steckt der Wunsch eines Kindes dahinter? Dann steht hier sein Name.
+    #
+    # ⚠️ **Reine Auskunft.** Die Anfrage gehoert dem Elternteil, mit seinem
+    # Kontingent und seinem Freigabeweg - daran aendert dieser Name nichts.
+    # Er beantwortet nur die Frage, die sich der Entscheider sonst selbst
+    # stellt: warum ein Erwachsener einen Kinderfilm bestellt.
+    #
+    # ``None`` heisst "kein Kinderwunsch" **oder** "das Kind gibt es nicht
+    # mehr" - beim Loeschen wird der Verweis auf NULL gesetzt. Beide Faelle
+    # sehen gleich aus, und das ist richtig so: Der Name eines geloeschten
+    # Kontos gehoert nirgends mehr hin.
+    for_child_name: str | None = None
+
 
 class QuotaInfo(BaseModel):
     limit: int | None

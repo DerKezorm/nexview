@@ -158,26 +158,6 @@ export function AdminStorageSettings() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Gross und zuallererst: Das Feature ist in der Testphase. Wer hier
-          Grenzen setzt und loescht, soll das wissen, bevor er es tut - und
-          Fundstuecke sollen den kuerzesten Weg zu uns haben. */}
-      <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3">
-        <p className="text-sm font-semibold text-warn-500">
-          {t("storageAdmin.devTitle")}
-        </p>
-        <p className="mt-1 text-sm leading-relaxed text-warn-500/90">
-          {t("storageAdmin.devText")}{" "}
-          <a
-            href="https://github.com/DerKezorm/nexview/issues/new"
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium underline underline-offset-2 hover:text-warn-500"
-          >
-            {t("storageAdmin.devReport")}
-          </a>
-        </p>
-      </div>
-
       {/* Zweispaltig: Das Formular ist von Natur aus schmal – drei
           Eingabefelder werden durch Breite nicht besser. Die Auswertungen
           dagegen leben von Breite; dort stehen Dateipfade. */}

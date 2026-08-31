@@ -59,7 +59,16 @@ export function Kinderwuensche() {
       setFreigabe(null)
       auffrischen()
     },
-    onError: (error) => setFehler(error instanceof ApiError ? error.message : String(error)),
+    // ⚠️ **Auch der Fehlschlag frischt auf.** Ein Wunsch, dessen Titel längst
+    // im Haus ist, wird beim Freigeben serverseitig als erledigt geschlossen —
+    // die Freigabe selbst scheitert dabei mit einer Meldung. Ohne dieses
+    // Auffrischen bliebe er in der Liste stehen und ließe sich immer wieder
+    // anklicken, obwohl über ihn längst entschieden ist.
+    onError: (error) => {
+      setFehler(error instanceof ApiError ? error.message : String(error))
+      setFreigabe(null)
+      auffrischen()
+    },
   })
 
   const ablehnen = useMutation({

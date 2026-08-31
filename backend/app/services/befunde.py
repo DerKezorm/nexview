@@ -41,7 +41,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models import (
@@ -517,26 +517,56 @@ def _nachschub_haengt(
     Faellt heute erst auf, wenn sich jemand beschwert: In der Oberflaeche sieht
     "wird gesucht" nach Arbeit aus, nicht nach Stillstand. Gerechnet wird ab
     der Freigabe, nicht ab der Bestellung - vorher hat ja niemand gesucht.
+
+    ⚠️ **Und ab dem Erscheinen, nicht nur ab der Freigabe.** Man kann Titel
+    anfragen, die erst in Monaten herauskommen; die suchen voellig zu Recht
+    wochenlang, und nichts daran ist kaputt. Die Schwelle allein hat das nie
+    geprueft, sie hat es nur *angenommen* - vierzehn Tage galten als genug
+    Puffer. Bei einem Film mit Start im naechsten Halbjahr stimmt die Annahme
+    nicht, und der Befund meldete einen Ausfall, den es nicht gab. Genau so
+    ist es gemeldet worden.
+
+    Deshalb zaehlt hier der **spaetere** der beiden Zeitpunkte: freigegeben
+    *und* erschienen, beides mindestens ``HAENGT_TAGE`` her.
+
+    Ein Titel **ohne** Erscheinungsdatum zaehlt mit. Das ist die unangenehmere
+    Wahl, aber die richtige: Ohne Datum laesst sich nicht sagen, dass er noch
+    nicht heraus ist - und ein echter Indexer-Ausfall an einem alten Titel
+    bliebe sonst stumm.
+
+    Der Titel des aeltesten Falls steht im Befund. Ohne ihn nannte die Kachel
+    nur eine Zahl, und der einzige Weg weiter fuehrte in eine Liste *aller*
+    suchenden Anfragen - man wusste nicht einmal, wonach man dort sucht.
     """
     grenze = jetzt - timedelta(days=HAENGT_TAGE)
     seit = func.coalesce(MediaRequest.approved_at, MediaRequest.requested_at)
-    anzahl = (
-        db.scalar(
-            select(func.count(MediaRequest.id)).where(
+    # ``release_date`` steht als "JJJJ-MM-TT" in der Zeile - der Vergleich mit
+    # demselben Format ist damit ein gewoehnlicher Zeichenvergleich.
+    erschienen_bis = (jetzt - timedelta(days=HAENGT_TAGE)).date().isoformat()
+    treffer = list(
+        db.execute(
+            select(MediaRequest.title)
+            .where(
                 MediaRequest.status == RequestStatus.searching,
                 seit < grenze,
+                or_(
+                    MediaRequest.release_date.is_(None),
+                    MediaRequest.release_date == "",
+                    MediaRequest.release_date <= erschienen_bis,
+                ),
             )
-        )
-        or 0
+            # Der aelteste zuerst - sein Titel steht nachher in der Kachel.
+            .order_by(seit)
+        ).scalars()
     )
-    if not anzahl:
+    if not treffer:
         return []
     return [
         Befund(
             kennung="nachschub.haengt",
             schwere=Schwere.fehler,
             bereich=Bereich.nachschub,
-            werte={"anzahl": anzahl, "tage": HAENGT_TAGE},
+            werte={"anzahl": len(treffer), "tage": HAENGT_TAGE, "titel": treffer[0]},
             ziel="/admin/requests?filter=searching",
         )
     ]

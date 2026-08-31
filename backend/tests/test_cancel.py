@@ -530,3 +530,51 @@ def test_serienabbruch_scheitert_wenn_sonarr_wirklich_streikt(
 
     with SessionLocal() as session:
         assert session.get(MediaRequest, kim["id"]).status == RequestStatus.searching
+
+
+def test_fehlgeschlagene_anfrage_laesst_sich_abbrechen(
+    arr_client: TestClient, geloescht_in_radarr: list
+) -> None:
+    """Sonst ist ``failed`` eine Sackgasse.
+
+    Freigeben und Ablehnen erscheinen nur bei wartenden Anfragen, einen
+    Loesch-Knopf gibt es in der Oberflaeche nicht - die Anfrage bliebe fuer
+    immer stehen, und der Besteller wartete auf etwas, das nie kommt.
+    """
+    anfrage = _laufende_anfrage(arr_client, "fehlschlag")
+    with SessionLocal() as session:
+        eintrag = session.query(MediaRequest).filter(MediaRequest.id == anfrage["id"]).one()
+        eintrag.status = RequestStatus.failed
+        # Nie in Radarr angekommen - der Regelfall bei einem Fehlschlag.
+        eintrag.arr_id = None
+        session.commit()
+
+    antwort = arr_client.post(
+        f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
+    )
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["status"] == "cancelled"
+    # Ohne Nummer gibt es in Radarr nichts zu entfernen.
+    assert geloescht_in_radarr == []
+
+
+def test_erledigte_anfrage_bleibt_unantastbar(
+    arr_client: TestClient, geloescht_in_radarr: list
+) -> None:
+    """Die Lockerung gilt genau fuer ``failed`` - nicht fuer alles Uebrige.
+
+    Ohne diese Grenze waere aus "auch Fehlgeschlagene" versehentlich "alles"
+    geworden, und ein geladener Titel liesse sich ueber den Abbruch-Weg samt
+    Datei entfernen.
+    """
+    anfrage = _laufende_anfrage(arr_client, "fertig")
+    with SessionLocal() as session:
+        eintrag = session.query(MediaRequest).filter(MediaRequest.id == anfrage["id"]).one()
+        eintrag.status = RequestStatus.downloaded
+        session.commit()
+
+    antwort = arr_client.post(
+        f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
+    )
+    assert antwort.status_code == 409, antwort.text
+    assert geloescht_in_radarr == []

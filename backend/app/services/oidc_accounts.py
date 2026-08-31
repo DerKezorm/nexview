@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from ..models import NotificationType, OidcBlock, OidcLink, Role, User, utcnow
 from ..security import unusable_password
-from . import notify, tokens
+from . import logs, notify, tokens
 from .mediaserver_accounts import KontoFehler, _unique_username, offene_einladung
 from .oidc import OidcIdentitaet
 
@@ -164,6 +164,43 @@ def kaeme_nicht_mehr_herein(user: User, ohne: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _abgewiesen(db: Session, identitaet: OidcIdentitaet, grund: str) -> None:
+    """Warum diese Anmeldung nicht durchkam - fuer den Betreiber.
+
+    ⚠️ **Ohne diese Zeile ist der Fehlschlag stumm.** Der Anmeldende sieht eine
+    Meldung, die absichtlich wenig verraet; im Protokoll stand bisher gar
+    nichts. Ein Betreiber, dessen Anbieter ``email_verified: false`` liefert
+    (bei authentik, Keycloak und Pocket ID die Werkseinstellung), hatte damit
+    keinen einzigen Anhaltspunkt - genau so gemeldet.
+
+    Nachgesehen wird hier **auch dann**, ob es ein Konto zu der Adresse gibt,
+    wenn die Bruecke sie nicht benutzen durfte. Das ist der Unterschied
+    zwischen "es gibt kein Konto" und "es gaebe eines, aber niemand buergt fuer
+    die Adresse" - und ohne ihn sucht der Betreiber an der falschen Stelle.
+    Die Auskunft geht ausdruecklich **nur** ins Protokoll, nicht an den
+    Anmeldenden.
+
+    Die Adresse steht gekuerzt da (siehe ``logs.adresse``). Auf **WARNING**:
+    Hier ist jemand nicht hereingekommen, der es versucht hat.
+    """
+    konto_da = False
+    if identitaet.email:
+        konto_da = (
+            db.scalar(
+                select(User.id).where(User.email == tokens.normalize_email(identitaet.email))
+            )
+            is not None
+        )
+    logger.warning(
+        "OIDC sign-in refused (%s): issuer=%r email=%s verified=%s account_exists=%s",
+        grund,
+        identitaet.issuer,
+        logs.adresse(identitaet.email),
+        identitaet.email_verified,
+        konto_da,
+    )
+
+
 def resolve(
     db: Session, settings: "AppSettings", identitaet: OidcIdentitaet, *, auto_create: bool
 ) -> User:
@@ -214,6 +251,7 @@ def resolve(
                 # Kinderkonten haben keine eigene Anmeldung - auch keine
                 # delegierte. Praktisch entsteht der Fall kaum (Kinderkonten
                 # haben keine Adresse), aber "kaum" ist kein Riegel.
+                _abgewiesen(db, identitaet, "child account")
                 raise KontoFehler(
                     "oidc_not_invited",
                     "Für diesen Zugang gibt es noch kein Konto. "
@@ -223,6 +261,18 @@ def resolve(
             return nach_adresse
 
     if not auto_create:
+        # ⚠️ **Zwei Ursachen, eine Meldung.** Entweder kennt Nexview diese
+        # Person wirklich nicht - oder es gaebe ein Konto, aber der Anbieter
+        # hat die Adresse nicht beglaubigt und die Bruecke wurde uebersprungen.
+        # Fuer den Anmeldenden bleibt es derselbe Satz (er soll nichts ueber
+        # fremde Konten erfahren); im Protokoll stehen die Faelle getrennt.
+        _abgewiesen(
+            db,
+            identitaet,
+            "no auto-create"
+            if identitaet.email_verified or not identitaet.email
+            else "no auto-create, address not confirmed by the provider",
+        )
         raise KontoFehler(
             "oidc_not_invited",
             "Für diesen Zugang gibt es noch kein Konto. "
@@ -290,14 +340,32 @@ def _anlegen(db: Session, settings: "AppSettings", identitaet: OidcIdentitaet) -
     try:
         db.flush()
     except IntegrityError:
+        db.rollback()
+
         # Zwei gleichzeitige Anmeldungen derselben Identitaet - der eindeutige
         # Index hat den zweiten Versuch abgefangen, das bereits angelegte
         # Konto ist das richtige.
-        db.rollback()
         bereits_da = find_linked(db, identitaet)
-        if bereits_da is None:
-            raise
-        return bereits_da
+        if bereits_da is not None:
+            return bereits_da
+
+        # ⚠️ **Die Adresse gehoert schon einem anderen Konto.** Der Fall
+        # entsteht ohne jedes Zutun: Der Anbieter meldet
+        # ``email_verified: false`` (bei authentik, Keycloak und Pocket ID die
+        # Werkseinstellung), die Bruecke zu diesem Konto bleibt deshalb zu -
+        # und die automatische Anlage laeuft in den eindeutigen Index.
+        #
+        # Vorher flog die Ausnahme bis nach oben durch: eine Fehlerseite ohne
+        # Erklaerung, im Protokoll nur ein Stapelabzug. Jetzt ist es eine
+        # gewoehnliche Abweisung - **nach aussen mit demselben Satz wie sonst**,
+        # damit niemand ueber fremde Konten erfaehrt, und im Protokoll mit dem
+        # Grund, den der Betreiber braucht.
+        _abgewiesen(db, identitaet, "address already belongs to another account")
+        raise KontoFehler(
+            "oidc_not_invited",
+            "Für diesen Zugang gibt es noch kein Konto. "
+            "Bitte den Administrator um eine Einladung.",
+        ) from None
 
     logger.info(
         "OIDC: created account %r from provider %r", benutzer.username, identitaet.issuer

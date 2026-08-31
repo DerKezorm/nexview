@@ -280,7 +280,7 @@ async def callback(
 
     try:
         beschreibung = await oidc.discovery(anbieter.issuer_url)
-        id_token = await oidc.code_tauschen(
+        id_token, access_token = await oidc.code_tauschen(
             beschreibung,
             anbieter.client_id,
             anbieter.client_secret,
@@ -289,7 +289,11 @@ async def callback(
             str(zustand.get("verifier", "")),
         )
         identitaet = await oidc.ausweis_pruefen(
-            beschreibung, anbieter.client_id, id_token, str(zustand.get("nonce", ""))
+            beschreibung,
+            anbieter.client_id,
+            id_token,
+            str(zustand.get("nonce", "")),
+            access_token,
         )
     except oidc.OidcFehler as fehler:
         anmeldebremse.gescheitert(bremse)

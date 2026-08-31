@@ -35,13 +35,21 @@ def jwk() -> dict:
     return eintrag
 
 
-def beschreibung(issuer: str = ISSUER) -> dict:
-    return {
+def beschreibung(issuer: str = ISSUER, *, userinfo: bool = True) -> dict:
+    """Die Selbstauskunft.
+
+    ``userinfo=False`` bildet einen Anbieter nach, der den Endpunkt gar nicht
+    anbietet - dann darf Nexview auch nicht nachfragen.
+    """
+    daten = {
         "issuer": issuer,
         "authorization_endpoint": f"{issuer}/auth",
         "token_endpoint": f"{issuer}/token",
         "jwks_uri": f"{issuer}/jwks",
     }
+    if userinfo:
+        daten["userinfo_endpoint"] = f"{issuer}/userinfo"
+    return daten
 
 
 def ausweis(**ueberschrieben) -> str:
@@ -69,20 +77,46 @@ def transport(zustand: dict | None = None) -> httpx.MockTransport:
     ``claims`` steht, schreibt der Token-Tausch in den Ausweis - so bekommt
     der Ausweis das ``nonce`` des laufenden Anlaufs, das der Test erst aus
     der Weiterleitungs-Adresse erfaehrt.
+
+    Weitere Schalter im Zustand:
+
+    * ``userinfo`` - was der gleichnamige Endpunkt antwortet. Fehlt der
+      Schluessel, antwortet er mit 404; das ist der Anbieter, der ihn
+      anbietet, aber nichts hergibt.
+    * ``userinfo_status`` - stattdessen dieser HTTP-Code. Fuer den Fall
+      "Endpunkt da, antwortet aber nicht".
+    * ``ohne_userinfo`` - die Selbstauskunft nennt den Endpunkt gar nicht.
     """
     merker = zustand if zustand is not None else {}
 
     def antworten(request: httpx.Request) -> httpx.Response:
         pfad = request.url.path
         if pfad == "/.well-known/openid-configuration":
-            return httpx.Response(200, json=beschreibung())
+            return httpx.Response(
+                200, json=beschreibung(userinfo=not merker.get("ohne_userinfo"))
+            )
         if pfad == "/jwks":
             return httpx.Response(200, json={"keys": [jwk()]})
         if pfad == "/token":
             merker["token_anfrage"] = dict(
                 httpx.QueryParams(request.content.decode("utf-8"))
             )
-            return httpx.Response(200, json={"id_token": ausweis(**merker.get("claims", {}))})
+            return httpx.Response(
+                200,
+                json={
+                    "id_token": ausweis(**merker.get("claims", {})),
+                    # Ohne ihn kann Nexview nicht nachfragen - jeder echte
+                    # Anbieter liefert ihn beim Code-Lauf mit.
+                    "access_token": merker.get("access_token", "zugang-1"),
+                },
+            )
+        if pfad == "/userinfo":
+            merker["userinfo_kopf"] = request.headers.get("authorization")
+            if "userinfo_status" in merker:
+                return httpx.Response(merker["userinfo_status"], json={})
+            if "userinfo" not in merker:
+                return httpx.Response(404)
+            return httpx.Response(200, json=merker["userinfo"])
         return httpx.Response(404)
 
     return httpx.MockTransport(antworten)

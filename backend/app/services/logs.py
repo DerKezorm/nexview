@@ -588,3 +588,24 @@ def kennung(fehler: object) -> str:
         return f"{type(fehler).__name__} (no code)"
     zahlen = getattr(fehler, "zahlen", None)
     return f"{code} {zahlen}" if zahlen else str(code)
+
+
+def adresse(email: str | None) -> str:
+    """Eine Mailadresse so, wie sie ins **Protokoll** gehoert.
+
+    ⚠️ **Genug, um den Fall zu erkennen - nicht genug, um jemanden zu kennen.**
+    Ein Protokoll laeuft wochenlang mit, wird beim Melden eines Fehlers
+    angehaengt und landet damit bei Fremden. Vollstaendige Adressen darin
+    machen es zu einem Verzeichnis; ganz ohne Adresse laesst sich dagegen
+    nicht sagen, um welches Konto es ging.
+
+    Die Domain bleibt, weil sie die Diagnose traegt (welcher Anbieter, welches
+    Haus), der oertliche Teil wird nach zwei Zeichen abgeschnitten:
+    ``ma***@beispiel.de``.
+    """
+    if not email:
+        return "none"
+    oertlich, trenner, domain = email.partition("@")
+    if not trenner:
+        return "***"
+    return f"{oertlich[:2]}***@{domain}"

@@ -39,6 +39,37 @@ tag exists for it.
   failed outright. Both are fixed, and rows left behind by the old behaviour are
   cleared away at startup, with a line in the log saying how many.
 
+- **Signing in through Authelia or Zitadel could never find an existing account.**
+  Nexview read the identity from the ID token alone. By the OIDC specification only
+  `sub` is guaranteed to be there; a provider may keep everything else at the
+  userinfo endpoint — and those two do exactly that out of the box. Authelia calls
+  putting the address into the ID token "a break-glass measure … on a best-effort
+  basis". So no address ever reached Nexview, and the bridge to an existing account
+  was not misjudged: it was never entered. Nexview now asks the userinfo endpoint,
+  but only when the ID token carries no address and the provider advertises one.
+  The answer is discarded unless its `sub` matches the ID token, and a failing
+  request falls back to "no extra information" rather than breaking a sign-in that
+  would have worked without it.
+
+- **An OIDC sign-in could end in an error page instead of a message.** With
+  automatic account creation switched on, a provider that reports
+  `email_verified: false` (the factory setting at authentik, Keycloak and Pocket
+  ID) and an address that already belongs to an account was enough: the bridge to
+  that account stays closed - correctly - and the new account then ran into the
+  unique index on the address. The exception travelled all the way up. It is now
+  an ordinary refusal, with the same message as always on the outside and the
+  reason in the log.
+
+- **A refused OIDC sign-in said nothing in the log.** The person signing in got a
+  deliberately vague message, and the log stayed silent — so an operator whose
+  provider reports `email_verified: false` (the factory setting at authentik,
+  Keycloak and Pocket ID) had nothing to go on. The log now names the reason, the
+  issuer, whether an address arrived, whether the provider vouched for it, and
+  whether an account with that address exists. The address is shortened to
+  `ma***@example.org`: enough to recognise the case, not enough to turn a log file
+  into a directory. What the operator learns there is deliberately not what the
+  person signing in is told.
+
 - **Approving a film that Radarr already held failed for good.** Before creating a
   movie, Nexview never asked whether Radarr knew it — for series that lookup has always
   existed. Radarr answers a second attempt with a plain 400 whose reason only reaches

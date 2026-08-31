@@ -310,8 +310,12 @@ async def code_tauschen(
     code: str,
     redirect_uri: str,
     verifier: str,
-) -> str:
-    """Den Einmal-Code gegen die Ausweise tauschen; zurueck kommt der ID-Ausweis.
+) -> tuple[str, str | None]:
+    """Den Einmal-Code gegen die Ausweise tauschen.
+
+    Zurueck kommen **beide**: der ID-Ausweis und der Zugangs-Ausweis. Letzterer
+    wurde frueher weggeworfen; er wird gebraucht, um beim Anbieter nachzufragen,
+    wenn im ID-Ausweis keine Adresse steht (siehe ``_adresse_nachfragen``).
 
     Beglaubigt wird per HTTP-Basic (``client_secret_basic``) - das ist die
     Auth-Methode, die die Norm jedem Anbieter vorschreibt. Das Geheimnis liegt
@@ -366,7 +370,77 @@ async def code_tauschen(
             "oidc_exchange_failed",
             "Der Anbieter hat die Anmeldung nicht angenommen.",
         )
-    return id_token
+
+    try:
+        access_token = antwort.json().get("access_token")
+    except ValueError:
+        access_token = None
+    if not isinstance(access_token, str) or not access_token:
+        access_token = None
+    return id_token, access_token
+
+
+async def _adresse_nachfragen(
+    beschreibung: dict[str, Any], access_token: str, subject: str
+) -> dict[str, Any]:
+    """Beim Anbieter nachfragen, was er ueber diese Person sagt (``userinfo``).
+
+    ⚠️ **Ohne das ist Nexview bei mehreren Anbietern blind.** Nach OIDC Core
+    ist im ID-Ausweis allein ``sub`` zugesichert; alles andere darf ein
+    Anbieter nur hier bereithalten - und zwei verbreitete tun das ab Werk:
+
+    * **Authelia** legt ``email`` gar nicht in den ID-Ausweis. Den Weg, es doch
+      zu tun, nennt seine Doku eine "break-glass measure ... on a best-effort
+      basis".
+    * **Zitadel** liefert die Adresse im ID-Ausweis nur beim reinen
+      ``response_type=id_token``, nicht beim gewoehnlichen Code-Lauf.
+
+    Bei beiden kam in Nexview nie eine Adresse an - die Bruecke zu einem
+    bestehenden Konto wurde nicht etwa falsch bewertet, sie wurde nie betreten.
+
+    ⚠️ **Das ``sub`` entscheidet.** Antwortet ``userinfo`` mit einer anderen
+    Kennung als der ID-Ausweis, wird die Antwort **verworfen** - die Norm
+    verlangt das (Core 5.3.2), und ohne die Pruefung liesse sich einer
+    beglaubigten Anmeldung die Adresse einer fremden anhaengen.
+
+    ⚠️ **Ein Fehlschlag darf nichts kaputtmachen.** Wer heute ohne diesen
+    Aufruf hereinkommt, muss es auch morgen - deshalb faengt hier **jeder**
+    Fehler, und der Rueckfall ist "keine zusaetzliche Auskunft", nicht ein
+    gescheiterter Anmeldelauf. Die Zeitgrenze bringt der gemeinsame Client mit
+    (10 s).
+    """
+    adresse = beschreibung.get("userinfo_endpoint")
+    if not isinstance(adresse, str) or not adresse:
+        return {}
+
+    client = await _http()
+    try:
+        antwort = await client.get(
+            adresse, headers={"Authorization": f"Bearer {access_token}"}
+        )
+        antwort.raise_for_status()
+        daten = antwort.json()
+    except httpx.HTTPError as fehler:
+        logger.warning("OIDC: userinfo at %r could not be read: %s", adresse, fehler)
+        return {}
+    except ValueError:
+        logger.warning("OIDC: userinfo at %r is not valid JSON", adresse)
+        return {}
+
+    if not isinstance(daten, dict):
+        logger.warning("OIDC: userinfo at %r did not answer with an object", adresse)
+        return {}
+
+    # Manche Anbieter antworten mit einem signierten JWT statt mit JSON; dann
+    # fehlt ``sub`` schlicht. Auch das ist ein Fall fuer den Rueckfall - lieber
+    # keine Auskunft als eine ungeprueste.
+    if str(daten.get("sub") or "") != subject:
+        logger.warning(
+            "OIDC: userinfo at %r answered for a different subject - discarded",
+            adresse,
+        )
+        return {}
+    return daten
 
 
 async def ausweis_pruefen(
@@ -374,6 +448,7 @@ async def ausweis_pruefen(
     client_id: str,
     id_token: str,
     nonce: str,
+    access_token: str | None = None,
 ) -> OidcIdentitaet:
     """Den ID-Ausweis pruefen und die Identitaet herausgeben.
 
@@ -420,8 +495,37 @@ async def ausweis_pruefen(
             "oidc_token_invalid", "Der Ausweis des Anbieters ließ sich nicht prüfen."
         )
 
+    subject = str(claims["sub"])
+
+    # ⚠️ **Es wird immer nachgefragt, nicht nur bei fehlender Adresse.** Das ist
+    # der Weg, den die Selbsthoster-Welt geht: Immich ruft ``userinfo`` bei
+    # jeder Anmeldung ab und brauchte einen Schalter fuer den *umgekehrten*
+    # Fall (ADFS kennt den Endpunkt nicht); ``django-allauth`` - die Grundlage
+    # unter Paperless-ngx und vielen anderen - tut dasselbe ueber
+    # ``fetch_userinfo``; und Authelia empfiehlt ihn ausdruecklich als den
+    # stabilen Weg.
+    #
+    # Der erste Bauversuch fragte nur, wenn die Adresse fehlte. Das laesst eine
+    # Luecke: Ein Anbieter darf ``email`` mitschicken und ``email_verified``
+    # nur hier bereithalten - dann galte die Adresse als unbestaetigt, obwohl
+    # die Auskunft einen Aufruf entfernt war.
+    #
+    # Der Preis ist ein Aufruf **je Anmeldung**, nicht je Seitenaufruf.
+    #
+    # ⚠️ **Der Ausweis behaelt das letzte Wort.** Er ist signiert und geprueft;
+    # die Nachfrage ist es nicht - sie haengt allein am ``sub``-Abgleich.
+    # Widersprechen sich beide, gilt der Ausweis. Deshalb steht ``claims``
+    # rechts.
+    if access_token:
+        claims = {**(await _adresse_nachfragen(beschreibung, access_token, subject)), **claims}
+
     email = str(claims.get("email") or "").strip().lower() or None
     # Manche Anbieter liefern das Feld als Zeichenkette statt als Wahrheitswert.
+    #
+    # ⚠️ **``email_verified`` aus ``userinfo`` gilt genauso wie aus dem Ausweis.**
+    # Die Nachfrage beschafft die Auskunft, sie bewertet sie nicht - ein
+    # Anbieter, der nicht fuer die Adresse buergt, tut das an beiden Stellen
+    # nicht, und die Bruecke bleibt zu.
     bestaetigt_roh = claims.get("email_verified", False)
     bestaetigt = bestaetigt_roh is True or str(bestaetigt_roh).strip().lower() == "true"
 
@@ -431,7 +535,7 @@ async def ausweis_pruefen(
 
     return OidcIdentitaet(
         issuer=str(claims["iss"]).rstrip("/"),
-        subject=str(claims["sub"]),
+        subject=subject,
         email=email,
         email_verified=bool(email) and bestaetigt,
         username=name or None,

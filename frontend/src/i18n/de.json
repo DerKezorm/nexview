@@ -393,6 +393,81 @@
     "fromWatchlist": "Merkliste",
     "fromWatchlistTab": "Über Merkliste angefragt"
   },
+  "hausordnung": {
+    "titel": "Hausordnung",
+    "oeffnen": "Hausordnung öffnen",
+    "akzeptieren": "Akzeptieren",
+    "ablehnen": "Ablehnen",
+    "gelesen": "Gelesen",
+    "nichtGeladen": "Die Hausordnung konnte nicht geladen werden.",
+    "bildFehlt": "Hier stand ein Bild, das nicht mehr da ist.",
+    "bildFehltMitText": "Hier stand ein Bild: {{text}} – es ist nicht mehr da."
+  },
+  "hausordnungAdmin": {
+    "uebersicht": "Übersicht",
+    "uebersichtLeer": "Solange nichts veröffentlicht ist, hat niemand etwas zu entscheiden.",
+    "keineTreffer": "In diesem Zustand ist gerade niemand.",
+    "fassungHinweis": "„Offen“ heißt: über Fassung {{fassung}} wurde noch nicht entschieden. Wer eine frühere akzeptiert hat, steht wieder offen.",
+    "filter": {
+      "alle": "Alle",
+      "offen": "Offen",
+      "akzeptiert": "Akzeptiert",
+      "abgelehnt": "Abgelehnt"
+    },
+    "zustand": {
+      "offen": "Noch offen",
+      "akzeptiert": "Akzeptiert",
+      "abgelehnt": "Abgelehnt"
+    },
+    "title": "Hausordnung",
+    "intro": "Ein Text mit deinen Regeln. Wer angemeldet ist, erreicht ihn über einen Knopf unten rechts und über die Fußzeile.",
+    "titelLabel": "Überschrift",
+    "titelPlatzhalter": "Zum Beispiel: Bei uns zu Hause",
+    "schreiben": "Schreiben",
+    "ansehen": "Ansehen",
+    "vorschau": "So sieht es aus",
+    "nochLeer": "Sobald du links etwas schreibst, steht es hier.",
+    "textPlatzhalter": "Schreib hier deine Regeln. Über die Knöpfe darüber kannst du Text hervorheben, Listen anlegen und Bilder einfügen.",
+    "zeichen_one": "{{count}} Zeichen",
+    "zeichen_other": "{{count}} Zeichen",
+    "vorlage": "Vorlage einfügen",
+    "vorlageTitel": "Bei uns zu Hause",
+    "vorlageText": "## Willkommen\n\nDas hier ist ein privater Medienserver, kein Streamingdienst. Ein paar Regeln\nhalten ihn für alle benutzbar.\n\n## Was du anfragen kannst\n\n- Filme und Serien, die es noch nicht in der Bibliothek gibt\n- Titel, die erschienen sind oder demnächst erscheinen\n\n## Wie lange etwas bleibt\n\n1. Filme bleiben mindestens ein halbes Jahr\n2. Serien bleiben, solange sie laufen\n3. Was lange niemand angesehen hat, wird aufgeräumt\n\n## Wenn etwas nicht klappt\n\nSchreib mich an, bevor du eine Anfrage mehrfach stellst.\n",
+    "nichtGespeichert": "Nicht gespeichert.",
+    "gespeichert": "Gespeichert.",
+    "nichtGeladen": "Die Hausordnung konnte nicht geladen werden.",
+    "bilderTitel": "Bilder",
+    "bilderHinweis": "Nur hochgeladene Bilder lassen sich einfügen – eine fremde Adresse würde die Anschrift jedes Lesers an Dritte melden.",
+    "bildWaehlen": "Bild hochladen",
+    "keineBilder": "Noch keine Bilder hinterlegt.",
+    "einfuegen": "Einfügen",
+    "ungenutzt": "Kommt im Text nicht vor",
+    "ungenutztHinweis_one": "1 Bild kommt im Text nicht vor. Es bleibt liegen, bis du es löschst – wer einen Absatz kurz herausnimmt, soll sein Bild nicht verlieren.",
+    "ungenutztHinweis_other": "{{count}} Bilder kommen im Text nicht vor. Sie bleiben liegen, bis du sie löschst – wer einen Absatz kurz herausnimmt, soll sein Bild nicht verlieren.",
+    "bilderFehlen_one": "Der Text verweist auf 1 Bild, das es nicht gibt. An dieser Stelle sehen alle einen Platzhalter.",
+    "bilderFehlen_other": "Der Text verweist auf {{count}} Bilder, die es nicht gibt. An diesen Stellen sehen alle einen Platzhalter.",
+    "quittierbar": "Als gelesen markieren erlauben",
+    "quittierbarHinweis": "Wer abgehakt hat, sieht den Knopf nicht mehr. Ist das aus, bleibt er dauerhaft stehen.",
+    "veroeffentlicht": "Veröffentlicht",
+    "veroeffentlichtHinweis": "Solange das aus ist, sieht nur du diesen Text. Nichts erscheint bei den anderen.",
+    "erneutLesen": "Alle müssen erneut lesen",
+    "erneutLesenHinweis_one": "Bei 1 Konto erscheint der Knopf wieder. Für Tippfehler nicht nötig.",
+    "erneutLesenHinweis_other": "Bei {{count}} Konten erscheint der Knopf wieder. Für Tippfehler nicht nötig.",
+    "loeschen": "Hausordnung löschen",
+    "loeschenTitel": "Hausordnung löschen?",
+    "loeschenText": "Text und alle Bilder werden entfernt. Der Knopf und der Verweis in der Fußzeile verschwinden bei allen.",
+    "werkzeug": {
+      "fett": "Fett",
+      "kursiv": "Kursiv",
+      "code": "Code",
+      "ueberschrift": "Überschrift",
+      "liste": "Liste",
+      "nummeriert": "Nummeriert",
+      "zitat": "Zitat",
+      "verweis": "Link",
+      "trennlinie": "Trennlinie"
+    }
+  },
   "adminRequests": {
     "intro": "Alle Anfragen aller Benutzer – hier gibst du frei oder lehnst ab.",
     "filterAll": "Alle",
@@ -403,6 +478,7 @@
     "reject": "Ablehnen",
     "confirmReject": "Ablehnen bestätigen",
     "reason": "Begründung",
+    "forChild": "Aus einem Wunsch von {{name}}",
     "reasonPlaceholder": "Begründung (optional) – sieht der Anfragende",
     "pendingBadge": "{{count}} offen",
     "countForUser_one": "{{count}} Anfrage",
@@ -707,6 +783,8 @@
     "childOfUnknown": "Kinderkonto",
     "childAge": "{{age}} Jahre",
     "roleChild": "Kind",
+    "hausordnungGelesen": "Hausordnung: {{date}}",
+    "hausordnungOffen": "Hausordnung: offen",
     "mayManageChildren": "Darf Kinderkonten anlegen",
     "mayManageChildrenHint": "Legt eigene Zugänge für seine Kinder an – im eigenen Profil unter „Kinder“.",
     "limitDefault": "Standard",
@@ -918,6 +996,7 @@
     "tabMail": "Mail",
     "tabSignIn": "Anmeldung",
     "tabUsers": "Benutzer",
+    "tabHausordnung": "Hausordnung",
     "tabLogs": "Protokoll",
     "intro": "Diese Zugangsdaten liegen verschlüsselt in der Datenbank und verlassen den Server nicht.",
     "tmdbSection": "TMDB",
@@ -1369,6 +1448,14 @@
       "apikey_too_many": "Mehr als 20 Schlüssel je Konto sind nicht vorgesehen.",
       "apikey_unknown": "Diesen Schlüssel gibt es nicht.",
       "approvers_only": "Diese Aktion ist Administratoren und Entscheidern vorbehalten.",
+      "hausordnung_missing": "Es ist keine Hausordnung hinterlegt.",
+      "hausordnung_not_ackable": "Diese Hausordnung lässt sich nicht abhaken.",
+      "hausordnung_empty": "Eine leere Hausordnung lässt sich nicht veröffentlichen.",
+      "hausordnung_image_missing": "Dieses Bild gibt es nicht.",
+      "hausordnung_image_rejected": "Das Bild wurde abgelehnt.",
+      "already_in_library": "„{{titel}}“ ist bereits in deiner Bibliothek.",
+      "wish_already_available": "„{{titel}}“ ist bereits da – der Wunsch ist damit erledigt.",
+      "already_on_media_server": "„{{titel}}“ liegt bereits auf dem Media-Server.",
       "arr_http_error": "{{service}} meldet einen Fehler (HTTP {{status}}).",
       "arr_instance_missing": "Diese Instanz ist nicht eingerichtet.",
       "arr_key_rejected": "Der API-Key für {{service}} wurde nicht akzeptiert.",
@@ -2208,9 +2295,6 @@
     "resetText_zero": "Es ist noch niemandem etwas zugerechnet – alle Konten stehen ohnehin bei 0.",
     "resetKeeps": "Dateien werden dabei nicht angefasst, gespeicherte Grenzen bleiben stehen. Offene Abgaben gelten danach als erledigt.",
     "resetText_other": "{{count}} Titel mit zusammen {{size}} gehen in den Hausbestand über. Alle Konten starten bei 0, offene Abgaben sind damit erledigt.",
-    "devTitle": "Testphase – dieses Feature ist noch in Entwicklung",
-    "devText": "Die Speicher-Kontingente werden gerade im echten Betrieb erprobt. Rechne mit Fehlern und Änderungen – und wenn dir etwas auffällt:",
-    "devReport": "melde es auf GitHub.",
     "defaultsTitle": "Standardwerte",
     "defaultsHint": "Gelten für jeden, der nichts Eigenes eingetragen hat. Einzelne Konten stellst du in der Nutzerverwaltung ein.",
     "defaultMovies": "Filme",
@@ -2485,363 +2569,6 @@
           "Die Fortschrittsanzeige konnte die **ganze Abgleichsrunde umwerfen**.",
           "**„Lädt gerade“** steht jetzt am Titel, solange geladen wird — die Warteschlange wird gefragt.",
           "Beim Öffnen der Einstellungen ist **System** markiert, nicht ein Punkt, auf den niemand geklickt hat."
-        ]
-      },
-      "0.22.0": {
-        "lead": "Diese Fassung dreht sich um eine Frage, die man sich meist zu spät stellt: **Was passiert, wenn etwas kaputtgeht?** Nexview kann jetzt Sicherungen anlegen, die du herunterladen und mitnehmen kannst — und sie auch wieder einspielen, sogar auf einer frischen Installation. Dazu kommt eine Schnittstelle mit Zusage, damit endlich etwas anderes als der Browser mit Nexview reden kann.",
-        "sections": [
-          {
-            "title": "Sicherungen, die du mitnehmen kannst",
-            "where": "Einstellungen → System → Sicherungen",
-            "body": "Nexview hat schon immer vor jeder Datenbankänderung eine Kopie weggelegt — nur lag die im selben Verzeichnis wie die Datenbank. Geht der Datenträger verloren, geht sie mit.\n\nJetzt kannst du eine auf Knopfdruck anlegen, ihr eine Notiz mitgeben und sie **herunterladen**. Heraus kommt ein **verschlüsseltes ZIP** mit der Datenbank, den Profilbildern und der Schlüsseldatei `secret.key`. Die muss mit: Deine Zugänge zu Radarr, Sonarr, TMDB und dem Mailserver sind damit verschlüsselt und ohne sie nicht mehr lesbar. Genau deshalb braucht das Archiv ein Passwort — und genau deshalb ist es ein gewöhnliches AES-ZIP und kein eigenes Format. Du bekommst es mit 7-Zip auf, ohne Nexview.\n\n**Zwischenspeicher fliegen raus.** Neun Zehntel der Datenbank sind abgelegte TMDB-Antworten und der Bibliotheksabgleich — beides holt sich Nexview von selbst zurück. Deshalb ist eine Sicherung ein paar Megabyte groß und nicht ein paar hundert.\n\nAutomatisch geht es auch: täglich, wöchentlich oder monatlich, voreingestellt wöchentlich. Automatische Sicherungen sind als solche gekennzeichnet, und wie viele aufgehoben werden, stellst du ein."
-          },
-          {
-            "title": "Wiederherstellen — auch auf einer frischen Installation",
-            "where": "Im Einrichtungsassistenten, erste Frage",
-            "body": "Eine leere Installation fragt jetzt zuerst: **neu anfangen oder aus einer Sicherung wiederherstellen?** Wer umzieht oder nach einem Ausfall zurückkommt, muss nicht mehr durch den ganzen Assistenten und danach alles von Hand nachbauen.\n\n**Vorher wird geprüft, ob die Sicherung überhaupt passt.** Nexview kann seine Datenbank nur vorwärts umbauen, nie zurück — eine Sicherung aus einer *neueren* Fassung wird deshalb abgelehnt statt eingespielt. Das ist keine Bevormundung: Sie einzuspielen würde die Installation kaputtmachen, und zwar leise.\n\nVor dem Einspielen legt Nexview eine Sicherheitskopie des jetzigen Standes an. Und danach ist **jede Anmeldung überall beendet** — auch deine eigene. Das ist Absicht: Die Konten in der Sicherung sind womöglich andere als die von eben."
-          },
-          {
-            "title": "API-Token",
-            "where": "Profil → Konto → Sicherheit",
-            "body": "Für Skripte, Dashboards und alles, was Nexview ohne Browser ansprechen soll. Du legst einen an, gibst ihm einen Namen, und der Klartext erscheint **genau einmal** — danach bleibt nur eine Prüfsumme, und auch ein Administrator kann ihn nicht nachschlagen.\n\n**Ein Token hat genau die Rechte seines Kontos.** Nicht mehr. Rolle, Kontingent, Genehmigungspflicht und Sperrliste gelten für ihn wie für dich. Das ist bewusst anders als bei Seerr, wo ein einziger globaler Schlüssel am Eigentümerkonto hängt und damit alles automatisch genehmigt bekommt. Willst du ein Dienstkonto mit wenigen Rechten, legst du einen *Benutzer* mit diesen Rechten an und gibst ihm einen Token.\n\nEin Schalter obendrauf: **darf nur lesen** — richtig für Dashboards und Überwachung. Tokens können ablaufen, die Liste zeigt, wann jeder zuletzt benutzt wurde, und ein Widerruf wirkt sofort. Kinderkonten bekommen keine.\n\nAdministratoren sehen unter *Einstellungen → System → API-Token*, wer welche hat und ob sie noch benutzt werden. **Ansehen, nicht widerrufen** — das kann nur der Besitzer selbst."
-          },
-          {
-            "title": "Eine Zusage für Entwickler: /api/v1",
-            "where": "Dokumentation unter /docs",
-            "body": "Nexview hat rund 190 Adressen, und fast alle sind Innenteil: Die Oberfläche spricht mit dem Backend, beide ändern sich gemeinsam, und ein Feld heißt morgen anders, wenn der neue Name besser passt. Für jemanden, der von außen etwas anbindet, ist das unbrauchbar.\n\nDeshalb liegen **dreizehn** Adressen unter `/api/v1` — mit einer Zusage: Solange `v1` in der Adresse steht, verschwindet aus diesen Antworten nichts. Muss doch etwas brechen, entsteht `/api/v2` **daneben**, und v1 läuft weiter.\n\nSie decken ab, was man mit so einer Schnittstelle wirklich tut: etwas suchen, etwas anfragen, nachsehen was daraus wurde, und ein paar Zahlen fürs Dashboard. **Alles andere bleibt erreichbar** — nur eben ohne Zusage. Die Verwaltung ist bewusst nicht dabei: Sie zu versprechen hieße, das Einstellungsmodell einzufrieren."
-          },
-          {
-            "title": "Überall abmelden",
-            "where": "Profil → Konto → Sicherheit",
-            "body": "Beendet jede Anmeldung dieses Kontos auf allen Geräten — auch die, an der du gerade sitzt.\n\nDas schloss eine echte Lücke: Bisher wirkte Abmelden nur im eigenen Browser. Wer sein Konto auf einem fremden Rechner offen gelassen hatte, konnte daran nichts mehr ändern; auch ein neues Passwort half nur bei künftigen Anmeldungen, nicht bei laufenden."
-          },
-          {
-            "title": "Ein Konto auflösen, ohne Kollateralschaden",
-            "where": "Einstellungen → Benutzer",
-            "body": "Wird ein Konto gelöscht, wurden bisher auch seine bereits **genehmigten** Anfragen storniert. Im Haushalt ist das fast immer falsch: Der Film ist längst da, jemand anders schaut ihn auch, und mit dem Konto verschwand die Bestellung.\n\nJetzt gehen genehmigte Anfragen in den **Hausbestand** über — sie bleiben, nur ohne Besitzer. Storniert wird nur, was noch offen ist. Die Vorschau vor dem Löschen sagt vorher, was genau passiert, statt es hinterher zu zeigen."
-          },
-          {
-            "title": "Aufgeräumt",
-            "where": "Einstellungen und Profil",
-            "body": "Die Einstellungsleiste war auf zehn Punkte gewachsen und brach auf schmalen Bildschirmen um. *Adresse*, *Mail*, *Protokoll* und *Sicherungen* sind unter **System** zusammengezogen, jeder Reiter hat ein Symbol.\n\nDein **Profil** hat ein Untermenü bekommen: *Profil* (Bild, Name, E-Mail, hell oder dunkel), *Sicherheit* (Passwort, angemeldete Geräte, API-Token) und *Sprache*. Vorher standen sechs Blöcke untereinander auf einer Seite, und das Wichtigste lag ganz unten.\n\nDie eigentliche Ursache lag tiefer: Es gab **drei** verschiedene Bauweisen für eine Unterreihe, und das Bauteil für einen hervorgehobenen Einstellungsblock existierte nur innerhalb einer einzigen Seite. Beides liegt jetzt an einer Stelle, damit die Seiten nicht wieder auseinanderlaufen."
-          }
-        ],
-        "smallTitle": "Außerdem behoben",
-        "small": [
-          "Die Beschreibung der Schnittstelle unter `/docs` war eine **weiße Seite** — in jeder Installation, seit 0.21.0. Sie lädt Swagger UI, und das holte FastAPI von einem fremden Server; die Inhaltsregeln, die wir in derselben Fassung eingebaut haben, lassen aber nur Skripte von Nexview selbst zu. Der Browser verweigerte Stil und Skript und zeigte nichts. Aufgefallen ist es nicht, weil die Regeln gegen die *Anwendung* geprüft wurden — und die lief. Swagger UI liegt jetzt im Abbild und wird von Nexview ausgeliefert: Die Regeln bleiben so streng wie sie waren, und die Beschreibung geht auch auf einem Gerät ganz ohne Internet. `/redoc` zeigte aus demselben Grund nichts und lieferte stattdessen die Weboberfläche — es führt jetzt auf `/docs`.",
-          "Die dreizehn zugesagten Adressen beschreiben sich nach außen auf **Englisch**. Alle Erklärungen im Quelltext sind deutsch, weil das Projekt auf Deutsch geschrieben wird — und FastAPI stellte genau diese Erklärungen auf die öffentliche Seite. Die übrigen 151 sind weiter deutsch; keine davon ist jemandem zugesagt.",
-          "Eine brandneue Installation legte eine Sicherung der **leeren** Datenbank an. Beim allerersten Start meldet die Prüfung, dass noch alles fehlt, und Nexview machte pflichtschuldig eine Kopie, die nichts schützte und trotzdem einen Platz belegte."
-        ]
-      },
-      "0.21.0": {
-        "lead": "Diese Fassung räumt auf — im Wortsinn. Nexview kann dir jetzt zeigen, was seit Langem herumliegt und niemand mehr anschaut: mit Platzbedarf, letztem Blick und dem Vermerk, wem es zugerechnet ist. Löschen ist dabei kein Knopf mit sofortiger Wirkung, sondern ein Vorschlag mit vierzehn Tagen Bedenkzeit. Und das Angemeldetbleiben liegt jetzt an einer Stelle, an die kein Skript herankommt.",
-        "sections": [
-          {
-            "title": "Was liegt ungenutzt herum",
-            "where": "Statistik → eigener Punkt oben",
-            "body": "Eine Liste der Titel, die seit Langem niemand mehr angesehen hat — die größten zuerst. Dazu, wie viel Platz jeder braucht, wann er zuletzt lief, **von wem**, und wem er zugerechnet ist. Filtern nach Filmen oder Serien, suchen nach Titel, und der Zeitraum lässt sich von wenigen Monaten bis auf mehrere Jahre stellen.\n\n**Es zählen zwei Uhren, nicht eine.** Ein Titel erscheint nur, wenn ihn im gewählten Zeitraum niemand angesehen hat *und* er mindestens so lange hier liegt. Ohne die zweite Uhr wäre die Liste im Ergebnis nach Größe sortiert — und die 60-GB-Datei von gestern stünde ganz oben, obwohl noch niemand die Gelegenheit hatte, sie anzusehen.\n\nWas Nexview *nicht* weiß, sagt es auch: Posten, bei denen das Ankunftsdatum noch fehlt, werden gezählt und benannt, statt stillschweigend zu verschwinden."
-          },
-          {
-            "title": "Löschen hat jetzt eine Bedenkzeit",
-            "where": "In derselben Liste, Knopf „Löschen\"",
-            "body": "Etwas vorzumerken löscht es nicht. Es setzt ein Datum **vierzehn Tage** in der Zukunft; bis dahin bleibt der Titel liegen, sichtbar markiert, und ein Klick nimmt die Vormerkung wieder weg.\n\n**Wer ihn in der Zwischenzeit ansieht, hebt die Löschung von selbst auf** — ohne je zu erfahren, dass eine anstand. Das ist der eigentliche Punkt an der Frist: Sie fängt genau den Fall ab, in dem eine Liste recht zu haben scheint und trotzdem irrt."
-          },
-          {
-            "title": "Einmal im Monat per Mail",
-            "where": "Profil → Benachrichtigungen",
-            "body": "Nexview kann dir monatlich schicken, was herumliegt: höchstens dreißig Zeilen, die größten zuerst, mit einem Link mitten in die Liste hinein.\n\n**Standardmäßig aus.** Und ohne eingerichteten Mailserver und ohne öffentliche Adresse geht gar nichts hinaus — eine Mail mit einem Knopf, der ins Leere führt, wäre schlimmer als keine Mail."
-          },
-          {
-            "title": "Deine eigenen Titel, und wie du sie zurückgibst",
-            "where": "Profil → Speicherkontingent",
-            "body": "Dieselbe Liste, aber nur für das, was dir zugerechnet ist — und von dort aus lässt sich etwas zurückgeben.\n\nDass die Liste bei vielen zunächst leer bleibt, ist der Normalfall und kein Fehler: Alles, was vor Nexview schon da war, gilt als **Hausbestand** und gehört niemandem. Nexview sagt das jetzt auch, statt eine leere Seite zu zeigen."
-          },
-          {
-            "title": "Zurückgestellte Anfragen kommen zurück",
-            "where": "Alle Anfragen → offene Freigaben",
-            "body": "Eine zurückgestellte Anfrage blieb zurückgestellt. Sie taucht jetzt wieder unter den offenen Freigaben auf, sobald sie wieder passt."
-          },
-          {
-            "title": "Das Angemeldetbleiben liegt außer Reichweite",
-            "where": "Nirgends sichtbar — genau das ist der Punkt",
-            "body": "Der Nachweis, dass du angemeldet bist, lag bisher im Speicher des Browsers, wo ihn **jedes Skript auf der Seite lesen konnte**. Er liegt jetzt in einem Cookie, das JavaScript gar nicht erst zu Gesicht bekommt, das nur an die Anmelde-Adressen mitgeht und von fremden Seiten aus nicht mitgeschickt wird.\n\n**Ein Passwortwechsel beendet jetzt wirklich alle anderen Sitzungen.** Das stand lange so in der Beschreibung, ohne zu stimmen.\n\nDazu kommt eine Regel an den Browser: Er führt nur noch Code aus, der von Nexview selbst stammt, und lädt Bilder nur von der Handvoll Adressen, von denen die Cover kommen. Sollte je etwas ein fremdes Skript auf die Seite bringen, weist der Browser es ab, bevor es läuft.\n\n⚠️ Was das **nicht** abdeckt: Das Abmelden nimmt das Cookie nur aus *diesem* Browser. Wer vorher eine Kopie gezogen hat, kommt damit weiter herein, bis sie abläuft. Das war vorher nicht anders — aber es gehört gesagt, statt in einer Beschreibung zu stehen. Wirklich beenden lässt sich eine fremde Sitzung heute nur durch einen Passwortwechsel."
-          }
-        ],
-        "smallTitle": "Außerdem",
-        "small": [
-          "Die Bewertungen auf einer Filmseite meldeten seit 0.19.0 einen Fehler — **jeder** Aufruf, in 0.19.0 und in 0.20.0. Ein Umbau hatte eine Aufrufstelle stehen lassen, und niemandem fiel es auf. Ein Test durchsucht jetzt den ganzen Quelltext nach Aufrufen in Funktionen, die es nicht mehr gibt.",
-          "Zwei der Mail-Schalter im Profil wurden nirgends gespeichert. Die Liste der Schalter ergibt sich jetzt aus dem Datenmodell selbst — der nächste kann nicht auf dieselbe Art vergessen werden.",
-          "Speicher wurde doppelt gezählt, wenn Radarr und der Medienserver dieselbe Datei unter verschiedenen Qualitätsstufen melden. Auf einer gewachsenen Sammlung summiert sich das auf hunderte Gigabyte, die es nie gab.",
-          "Fett gesetzter Text zeigte an mehreren Stellen seine Sternchen — am sichtbarsten in genau diesem Fenster.",
-          "Eine Serienkachel sagt jetzt, welche Staffeln da sind, statt gleich auszusehen, ob eine angekommen ist oder alle."
-        ]
-      },
-      "0.20.0": {
-        "lead": "Diese Fassung hat kaum etwas Neues zum Anschauen — und trotzdem ist sie eine der wichtigsten bisher. Das Anmelden bekommt eine Bremse: Bis hierher konnte eine Maschine Passwörter durchprobieren, so schnell die Leitung hergibt. Und die Fehlermeldungen sprechen endlich die Sprache, die man eingestellt hat.",
-        "sections": [
-          {
-            "title": "Das Anmelden hat jetzt eine Bremse",
-            "where": "Nirgends sichtbar — genau das ist der Punkt",
-            "body": "Bis hierher gab es weder ein Ratenlimit noch eine Sperre. Wer die Adresse deiner Installation kannte, konnte Passwörter durchprobieren, so schnell die Leitung hergibt.\n\nNach drei Fehlversuchen wächst die Wartezeit: eine Sekunde, zwei, vier. Ab dem zehnten bleibt die Tür eine Viertelstunde zu. **Sie geht von selbst wieder auf** — eine Sperre, die den Administrator zum Aufschließen braucht, sperrt am Ende den Administrator aus. Und wer gegen eine geschlossene Tür weiterhämmert, verlängert nichts: Sonst könnte ein Fremder jemanden dauerhaft aussperren, indem er einfach nicht aufhört.\n\n**Drei Türen sind es, nicht eine.** Neben der Nexview-Anmeldung gibt es die Anmeldung mit dem Passwort des *Medienservers* — und die ist die unangenehmere: Nexview reicht das Passwort an Plex, Jellyfin oder Emby weiter, und dafür braucht niemand ein Nexview-Konto. Ohne Bremse war Nexview ein bequemer Weg, Passwörter gegen den eigenen Medienserver zu raten, mit fremder Absenderadresse obendrein. Die Links aus den Mails sind ebenfalls abgedeckt.\n\nWer sein Passwort kennt, merkt nichts davon. Ein falsches Passwort zählt; ein deaktiviertes Konto oder eine unbestätigte Adresse nicht — das sind Leute, die auf etwas anderes warten."
-          },
-          {
-            "title": "Wenn ein Reverse Proxy davorsteht",
-            "where": "docker-compose.yml → NEXVIEW_CLIENT_IP",
-            "body": "Gezählt wird immer **nach Konto**, dafür ist nichts einzustellen.\n\nZusätzlich nach Adresse zu zählen, geht nur, wenn Nexview die echte Adresse kennt — und das weiß es von sich aus nicht. Hinter einem Reverse Proxy sehen alle Anfragen aus wie dieselbe Adresse, nämlich die des Proxys. Würde Nexview das einfach annehmen, sperrte der erste Vertipper den ganzen Haushalt aus, dich eingeschlossen.\n\nDeshalb wird nicht geraten, sondern gefragt: `direct`, wenn Nexview direkt am Netz hängt, `proxy` bei einem Proxy davor, `proxy:2` bei zweien (etwa Cloudflare und dahinter ein eigener). Der Proxy muss `X-Forwarded-For` weiterreichen — Nginx Proxy Manager, Caddy und Traefik tun das von selbst.\n\n⚠️ **Im Zweifel leer lassen.** Das ist immer sicher, und die Kontosperre wirkt trotzdem."
-          },
-          {
-            "title": "Fehlermeldungen kommen in deiner Sprache",
-            "where": "Überall dort, wo etwas schiefgeht",
-            "body": "Die Oberfläche war von Anfang an zweisprachig. Die Meldungen vom Server waren es nie: Wer auf Englisch umstellte und sich vertippte, bekam „Benutzername oder Passwort ist falsch.“ Aufgefallen ist es kaum jemandem, weil man einen Fehler machen muss, um einen zu sehen.\n\nAlle 76 sprechen jetzt beide Sprachen. Der Server übersetzt dabei nicht — er **benennt**. Er kann gar nicht wissen, welche Sprache eingestellt ist: Die Wahl liegt im Browser, und auf der Anmeldeseite gibt es nicht einmal ein Konto, an dem eine Sprache hinge. Ein Server, der dort übersetzt, müsste raten — und läge ausgerechnet bei dem falsch, der bewusst umgeschaltet hat.\n\nZwei Sorten bleiben, wie sie sind: Was Plex, Jellyfin oder Emby zurückmelden, kommt in *deren* Sprache. Das zu übersetzen hieße, es zu erfinden."
-          },
-          {
-            "title": "Der Port im Container lässt sich verschieben",
-            "where": "docker-compose.yml → NEXVIEW_PORT",
-            "body": "Nexview lauschte fest auf 8000. Im Normalfall fällt das nie auf, weil die Portzuordnung es verdeckt. Wer aber `network_mode: host` fährt, hat keine Zuordnung — dort *ist* der Port im Container der Port auf dem Server, und gegen eine Kollision half nichts.\n\n`NEXVIEW_PORT` verschiebt ihn. Leer gelassen bleibt alles, wie es war.\n\nGemeldet hat es der Prüfer des TrueNAS-Katalogs, während Nexview dort aufgenommen wurde. Es betrifft Unraid und einfaches Docker genauso."
-          }
-        ],
-        "smallTitle": "Außerdem",
-        "small": [
-          "Fehlerantworten verloren ihre Kopfzeilen — und zwar überall dort, wo ein gebautes Frontend danebenliegt, also in jedem Container. Zu sehen war davon nichts: Der Status stimmte, der Text stimmte, es fehlte nur die Hälfte."
-        ]
-      },
-      "0.19.0": {
-        "lead": "Diese Fassung bringt Emby als dritten Medienserver, macht das Bewerten für alle offen — und legt die Kontingente zusammen: Stückzahl und Speicherplatz gelten ab jetzt gemeinsam statt entweder oder. Dazu einige Stellen, an denen Nexview endlich sagt, was es längst wusste: warum eine Anfrage dauert, was schon im eigenen Abo läuft, und wann ein Titel angekommen ist, auf den man wartet.",
-        "sections": [
-          {
-            "title": "Emby, als dritter Medienserver",
-            "where": "Einstellungen → Medienserver",
-            "body": "Verbinden, anmelden, Bibliothek abgleichen, Gesehen-Stand je Person — alles wie gehabt, nur mit einem Server mehr. Der Parallelbetrieb gilt unverändert: Wer will, verbindet Plex, Jellyfin und Emby gleichzeitig, und der Gesehen-Stand wird über alle drei hinweg zusammengeführt.\n\nEine Grenze muss man kennen: Auch Emby-Konten haben keine E-Mail-Adresse. Die Anmeldung über Emby legt deshalb kein Konto an — man verknüpft sie aus dem Profil heraus. Ohne Adresse gibt es nichts, woran Nexview jemanden wiedererkennt, und eine Einladung endete still in einem zweiten Konto ohne Passwort.\n\nDie PIN, die Emby optional je Konto kennt, stört dabei nicht: Sie gehört zu den Anzeigeeinstellungen, nicht zu den Rechten — eine Profil-PIN zum Umschalten auf einem geteilten Gerät, wie man sie von Netflix kennt."
-          },
-          {
-            "title": "Bewerten darf jeder, nicht nur der Besteller",
-            "where": "Auf jeder Titelseite eines vorhandenen Titels",
-            "body": "Die Rückmeldung zur Qualität hing bisher an der Anfrage. Daraus folgte alles Weitere: Nur wer bestellt hatte, sah die Sterne — und wer denselben Film zwei Wochen später sah und merkte, dass die Tonspur fehlt, hatte keine Möglichkeit, es zu sagen.\n\nHier geht es nicht um Geschmack, dafür gibt es das Herz, sondern um die **Datei** — und die beurteilt jeder gleich gut, der sie gesehen hat. Die Bewertung hängt deshalb jetzt am Titel. In „Meine Anfragen“ bleiben die Sterne als Abkürzung, weil der Augenblick direkt nach „Bereits geladen“ der ist, in dem jemand bewertet.\n\nSerien werden je Staffel beurteilt: Die Dateien liegen staffelweise, die Qualität unterscheidet sich staffelweise. Bestehende Bewertungen wandern beim ersten Start mit."
-          },
-          {
-            "title": "„Sag mir Bescheid“ — warten, ohne anzufragen",
-            "where": "Auf der Titelseite, wenn jemand anderes den Titel schon angefragt hat",
-            "body": "Bisher ließ sich ein bereits angefragter Titel nicht noch einmal anfragen — und danach hörte der Zweite nie wieder etwas davon. Er erfuhr nicht einmal, dass der Titel angekommen war, obwohl genau das seine Frage war.\n\nBei einem **Film** steht der Knopf dort, wo sonst nur „wird gesucht“ steht, also genau dann, wenn es etwas zu warten gibt. Gemeldet wird einmal, danach ist die Vormerkung erledigt. Bei einer **Serie** steht er dauerhaft neben dem Anfrage-Knopf und meldet jede neue Folge — meistens wartet man genau darauf.\n\nGemeldet wird immer gebündelt: Ein Staffelpaket mit acht Folgen ist *eine* Nachricht, und zusammenhängende Nummern werden zusammengezogen („S2: 1–3, 7“). Acht Nachrichten in derselben Minute wären der schnellste Weg, jemanden dazu zu bringen, Benachrichtigungen abzuschalten."
-          },
-          {
-            "title": "Was in deinem Abo schon läuft",
-            "where": "Profil → Streaming-Dienste, sichtbar beim Anfragen",
-            "body": "Wer seine Streaming-Dienste hinterlegt, bekommt beim Anfragen den Satz zu sehen, der die Entscheidung ändern kann: „Läuft in deinem Netflix.“ Ein **Hinweis**, keine Sperre — verhindert wird nichts.\n\nBei Serien steht bewusst ein anderer Satz da: Die Quelle sagt „läuft auf Netflix“ über die *Serie*, nicht über die vierte Staffel, die dort fehlt — und genau in dem Fall fragt jemand an.\n\nDerselbe Abgleich erscheint dort, wo entschieden wird: in der Freigabeliste und bei den Eltern, wenn sie einen Kinderwunsch entscheiden. Gemessen wird an den Abos **des Anfragenden**, nicht an denen des Entscheiders — der hat vielleicht kein Netflix, aber die Frage ist, ob der Anfragende ohne den Download auskäme."
-          },
-          {
-            "title": "Der Verlauf einer Anfrage",
-            "where": "Meine Anfragen",
-            "body": "„Warum dauert das?“ ist die häufigste Frage, und Nexview kannte die Antwort immer vollständig — angefragt wann, freigegeben von wem, seit wann in Suche, zuletzt nachgesehen wann. Sichtbar war davon ein einziges Zustandswort.\n\nEin Knopf öffnet jetzt eine Zeitleiste: erledigte Schritte grün mit Haken, der laufende gelb, kommende grau. Ein abgebrochener Weg endet dort, wo er endet — unter einer Ablehnung steht kein grauer „Fertig“-Schritt, der ein Versprechen wäre, das niemand mehr einlöst.\n\nZwei Angaben schaffen es damit zum ersten Mal bis zum Anfragenden: wer freigegeben hat (oder dass es automatisch ging) und wann zuletzt nach dem Titel gesehen wurde."
-          },
-          {
-            "title": "Ein Reiter statt eines Umschalters",
-            "where": "Einstellungen → Kontingente",
-            "body": "Bisher entschied ein Schalter, ob die Anzahl der Anfragen zählt oder der belegte Platz — nie beides. Der ist weg. Stattdessen stehen dort drei Standardwerte untereinander: Filme, Serien, Speicher. Sie gelten für jeden, der nichts Eigenes eingetragen hat.\n\nEine Anfrage geht durch, wenn beide Grenzen noch Luft haben. Wird jemand gebremst, sagt die Meldung, welche der beiden es war — gegen eine volle Stückzahl hilft warten, gegen vollen Platz nur aufräumen. Ohne diese Angabe müsste man raten.\n\nDer Zeitraum der Stückzahl (Tag, Woche, Monat) gilt jetzt fürs ganze Haus. Vorher stand er an jedem Konto einzeln; drei Konten mit drei verschiedenen Zeiträumen erklären aber niemandem mehr, was „3 Filme“ eigentlich bedeutet."
-          },
-          {
-            "title": "Drei Zustände statt eines leeren Feldes",
-            "where": "Einstellungen → Benutzer",
-            "body": "Bei jedem Konto stehen jetzt alle drei Grenzen nebeneinander, jede mit derselben Auswahl: **Standard** (der Wert aus den Kontingenten, mit der konkreten Zahl daneben), **unbegrenzt** oder eine **eigene Zahl**. Die 0 heißt dabei „darf nichts anfragen“.\n\nVorher war „unbegrenzt“ ein leeres Feld. Wer einmal eine Zahl eingetragen hatte, sah nicht mehr, wie er dorthin zurückkommt.\n\n⚠️ Eine Bedeutung hat sich umgedreht: Beim Speicher hieß die **0** bisher „für dieses Konto unbegrenzt“. Jetzt heißt sie das Gegenteil. Gespeicherte Nullen ziehen beim ersten Start von allein auf „unbegrenzt“ um — sonst wäre ein Konto über Nacht still gesperrt gewesen."
-          },
-          {
-            "title": "Speicher sehen und abgeben gibt es jetzt überall",
-            "where": "Profil → Speicherkontingent",
-            "body": "Der Speicher-Reiter, der Hausbestand und „Brauche ich nicht mehr“ hingen am alten Hauptschalter — wer nach Stückzahl begrenzte, hat davon nie etwas gesehen. Gemessen wird immer, begrenzt nur auf Wunsch, und deshalb steht die ganze Kette jetzt jedem offen: abgeben, der Betreiber entscheidet, der Titel geht ins Haus, bleibt liegen oder wird gelöscht.\n\nFür Betreiber heißt das: Es kann jetzt eine Abgabe auf dem Tisch liegen, die vorher nie kam.\n\n⚠️ Wer bisher nach Stückzahl begrenzt hat, startet einmalig bei null — alles Zugerechnete geht ins Haus. Die GB-Grenzen waren in diesem Betrieb wirkungslos, die Zurechnung lief aber im Hintergrund weiter. Ohne diesen Schritt wären Leute nach dem Update schlagartig gesperrt, wegen einer Zahl, die seit Monaten herumlag. Keine Datei wird dabei angefasst."
-          },
-          {
-            "title": "Titel, die Radarr und Sonarr nicht mehr kennen",
-            "where": "Profil → Speicherkontingent",
-            "body": "Wer einen Titel aus Radarr entfernt und die Datei behält, schafft etwas, das Nexview zwar weiter mitzählt — der Medienserver meldet ihn ja —, aber nicht mehr entfernen kann: Gelöscht wird ausschließlich über Radarr und Sonarr. Der Anfragende blieb auf einer Belastung sitzen, die er nicht mehr loswird.\n\nSolche Zeilen tragen jetzt ein Zeichen mit Erklärung. Bis hierher merkte es nur der Betreiber, und zwar erst in dem Moment, in dem er den Titel löschen wollte."
-          },
-          {
-            "title": "Zurücksetzen ist ein Knopf, keine Nebenwirkung",
-            "where": "Einstellungen → Kontingente und Einstellungen → Benutzer",
-            "body": "Das Umschalten der Betriebsart hat früher still alle Konten auf null gesetzt. Diesen Vorgang gibt es weiter, aber jetzt als eigenen Knopf mit Rückfrage: „Alle Bestände ins Haus übernehmen“ in den Kontingenten, „Speicher zurücksetzen“ bei jedem einzelnen Konto.\n\nBeide nennen vorher die Zahlen. Keine Datei wird angefasst, eingetragene Grenzen bleiben stehen — und offene Abgaben gelten danach als erledigt.\n\nDer Knopf am Konto ist zugleich der Ausweg für den Fall darüber: Sitzt jemand auf einem Titel, den Radarr nicht mehr führt, wird er ihn so wieder los."
-          }
-        ],
-        "smallTitle": "Außerdem",
-        "small": [
-          "Die Regionsauswahl kennt jetzt 139 Länder statt acht — wer in den Niederlanden, Polen oder Kanada sitzt, konnte sein Land bisher schlicht nicht angeben.",
-          "Ein gelber Streifen erinnert daran, die eigene Region zu setzen. Für „läuft in deinem Netflix“ ist die geerbte Vorgabe des Betreibers eine falsche Behauptung — der Katalog von Netflix Schweiz ist nicht der deutsche.",
-          "Bewertungen werden als veraltet gekennzeichnet, wenn Radarr die Datei nachträglich aufwertet. Sie bleiben stehen, zählen aber nicht mehr mit — und der Betroffene darf neu bewerten.",
-          "Die Rückmeldungs-Ansicht zeigt jetzt jede Bewertung, nicht nur die, hinter denen eine Anfrage steht.",
-          "Aus ein oder zwei Sternen wird auf Wunsch ein Ticket — ein Problem verschwindet sonst im Durchschnitt.",
-          "Die Statistik zeigt Filme, Serien und Speicher nebeneinander statt entweder oder.",
-          "Der Freigabe-Dialog warnt, wenn der Anfragende schon über seiner Speichergrenze steht — bisher gab es diese Warnung nur im GB-Betrieb."
-        ]
-      },
-      "0.18.0": {
-        "lead": "Nexview spricht jetzt auch mit Jellyfin — und zwar neben Plex, nicht statt Plex. Beide Server dürfen gleichzeitig verbunden sein, und jede Person kann auf beiden ein Konto verknüpfen. Dazu kommt eine Reihe von Handgriffen, die verhindern, dass jemand versehentlich ausgesperrt wird, und ein Protokoll, mit dem sich Fehler tatsächlich finden lassen.",
-        "sections": [
-          {
-            "title": "Jellyfin neben Plex",
-            "where": "Einstellungen → Medienserver",
-            "body": "Beide Server dürfen gleichzeitig verbunden sein. Der Gesehen-Stand wird dabei zusammengeführt: Ein Titel bleibt als gesehen markiert, solange irgendein verbundener Server ihn so meldet — der zweite Server löscht also nicht mehr die Haken, die der erste gesetzt hat.\n\nWo die beiden sich widersprechen, sagt Nexview jetzt, welcher Server was meldet, statt sich stillschweigend für einen zu entscheiden."
-          },
-          {
-            "title": "Anmelden zeigt, welche Wege es gibt",
-            "where": "Anmeldeseite",
-            "body": "Statt eines festen „Mit Plex anmelden“ steht dort jetzt „Anmelden mit“ und darunter ein Logo je verbundenem Server. Wer nur Jellyfin betreibt, bekam vorher einen Plex-Knopf, der beim Klick scheiterte — der Weg dahinter ist um plex.tv herum gebaut, und dafür hat Jellyfin keine Entsprechung.\n\nEine Grenze muss man kennen: Mit Jellyfin anmelden legt kein Konto an. Jellyfin gibt zu einem Konto keine E-Mail-Adresse heraus, und die Adresse ist das Einzige, woran Nexview jemanden wiedererkennt, der schon ein Konto hat. Ohne sie bekäme eine eingeladene Person still ein zweites Konto — ohne Passwort und ohne Weg zurück. Wer ein Konto hat, verknüpft Jellyfin deshalb im Profil; die Anmeldeseite sagt das, bevor jemand hineinläuft."
-          },
-          {
-            "title": "Medienserver-Konten haben einen eigenen Platz",
-            "where": "Profil → Medienserver",
-            "body": "Vorher lagen sie ganz unten unter „Sicherheit“, unterhalb des Passwortformulars. Dort sucht niemand, der Plex verbinden will."
-          },
-          {
-            "title": "Trennen sperrt niemanden mehr aus Versehen aus",
-            "where": "Einstellungen → Medienserver und Einstellungen → Benutzer",
-            "body": "Die Verbindung zum Medienserver zu trennen war ein einzelner Klick, kommentarlos. Für Konten, die nur über diesen Server hereinkamen — ohne eigenes Passwort — schloss das ihre einzige Tür.\n\nJetzt zählt eine Rückfrage vorher auf, wen es namentlich träfe, und der Server verweigert die Trennung, solange der Administrator sie nicht ausdrücklich überschreibt. Dieselbe Prüfung schützte längst die, die sich selbst trennten — eine Ebene darüber fehlte sie. Die Rückfrage erscheint auch dann, wenn niemand gefährdet ist, und sagt das: Eine Warnung, die nur im Ernstfall auftaucht, liest man beim ersten Mal nicht.\n\nIn der Benutzerliste steht außerdem, wer verknüpft ist und wer kein Passwort hat. Beides wusste die App längst und zeigte es nirgends."
-          },
-          {
-            "title": "Das Protokoll findet jetzt wirklich Fehler",
-            "where": "Einstellungen → Protokoll",
-            "body": "Abstürze landen endlich in der Datei. Vorher schrieb uvicorn sie an eine Stelle, die Nexviews eigenes Protokoll nie erreichte: Man lud es herunter, und genau der Absturz fehlte darin.\n\nJede Anfrage bekommt eine kurze Nummer, die in jeder Zeile auftaucht, die sie erzeugt — und in der Fehlermeldung. Der Benutzer gibt sechs Zeichen weiter, der Administrator tippt sie in die Suche und sieht den vollständigen Verlauf dieses einen Klicks, statt an Uhrzeiten zu raten.\n\nVier Stufen, im Betrieb umschaltbar: Ruhig, Normal, Ausführlich und Alles. Die beiden tiefen Stufen schalten sich nach 30 Minuten, 2 Stunden oder 8 Stunden von allein zurück — eine vergessene Diagnosestufe überschreibt sonst genau die Zeilen, für die sie eingeschaltet wurde."
-          },
-          {
-            "title": "Nexview steht jetzt unter der AGPL",
-            "where": "Fußzeile → Über Nexview",
-            "body": "Der Quelltext bleibt öffentlich und kostenlos, und Nexview unverändert zu betreiben verlangt nichts von dir. Was sich ändert, betrifft die, die darauf aufbauen: Wer Nexview verändert und seine Fassung anderen zugänglich macht — auch als gehosteten Dienst, bei dem nie eine Datei den Besitzer wechselt —, muss seinen geänderten Quelltext ebenfalls herausgeben.\n\nDie Fassungen bis einschließlich 0.17.0 bleiben unter der MIT-Lizenz. Diese Erlaubnis wurde für immer gegeben und wird nicht zurückgenommen."
-          }
-        ],
-        "smallTitle": "Außerdem behoben",
-        "small": [
-          "Ein zweiter Medienserver verdrängte den ersten: Jedes Konto hatte genau eine Medienserver-Identität in einer Handvoll Spalten. Jellyfin zu verbinden, während Plex verknüpft war, überschrieb diese Verknüpfung kommentarlos — Name, Adresse und persönlichen Zugang. Die Identitäten liegen jetzt in einer eigenen Tabelle, eine Zeile je Anbieter.",
-          "Jeder Server behält seinen eigenen Zugang. Jellyfin vergibt Zugänge je Gerät, und Nexview meldete sich für alles unter demselben Gerätenamen an: Wer sich persönlich anmeldete, entzog damit dem Administrator die Serververbindung — und zwei Personen entzogen sie sich gegenseitig.",
-          "Die Bibliothekszahl auf der Seite eines Servers war nicht dessen Zahl: Sie zählte über alle verbundenen Server und stand auf jeder Seite gleich. Jetzt steht dort nur noch, wann zuletzt abgeglichen wurde, und die Schaltfläche gleicht nur den Server der jeweiligen Seite ab.",
-          "Eine einzige unlesbare Benachrichtigung legte die ganze Glocke lahm: Die Liste meldete „nichts Neues“, während der Zähler daneben weiter ungelesene Meldungen behauptete. In einer echten Datenbank hatten vier solcher Zeilen eine Woche lang eine ungelesene Rückmeldung verdeckt.",
-          "Der Hinweis über passwortlosen Konten log: Er behauptete, so ein Konto könne sich später im Profil ein Passwort setzen. Das geht nicht — dieser Weg verlangt das aktuelle Passwort, das es nie gab. Jetzt stehen dort die zwei Wege, die wirklich funktionieren.",
-          "Der Stufenfilter im Protokoll versteckte Fehler: „WARNING“ verglich auf Gleichheit und liess damit genau die ERROR-Zeilen weg, die man suchte. Eine Stufe heißt jetzt „diese und höher“.",
-          "Der Merklisten-Hinweis zeigte auf den falschen Reiter — er schickte zum Verknüpfen nach „Sicherheit“, wo die Medienserver-Konten bis zu dieser Fassung lagen.",
-          "Das Herunterladen des Protokolls nimmt jetzt die rotierten Dateien mit. Bei der Suche ist der interessante Abschnitt oft schon in die vorige Datei gerutscht."
-        ]
-      },
-      "0.17.0": {
-        "lead": "Nexview kann jetzt stöbern. Bisher zeigte „Entdecken“ nur ein Zeitfenster von höchstens einem Jahr — alles Ältere war nur über die Suche erreichbar. Der neue Bereich öffnet den ganzen Katalog, und daneben steht ein Assistent, der dir ein paar Fragen stellt und dann etwas für heute Abend vorschlägt.",
-        "sections": [
-          {
-            "title": "Was schauen?",
-            "where": "Hauptmenü → Was schauen?",
-            "body": "Der Assistent fragt: Wer schaut mit, worauf hast du Lust, muss es heute Abend sofort laufen, wie viel Zeit ist, etwas Neues oder etwas Vertrautes. Höchstens sechs Fragen — und der Baum passt sich an: Wer „nur was schon da ist“ wählt, wird nicht mehr nach Geheimtipps gefragt, weil das in der eigenen Bibliothek keinen Sinn ergibt. Am Ende stehen zwölf Vorschläge, und „Nochmal würfeln“ gibt einen anderen Stapel.\n\n„Mit Kindern“ setzt dabei eine echte Altersfreigabe (höchstens FSK 6), keine geratenen Genres. Weggenommen wird trotzdem nichts: Auch Gruseln bleibt wählbar und liefert dann „Das Haus der geheimnisvollen Uhren“ und „Hexen hexen“ statt Horror für Erwachsene."
-          },
-          {
-            "title": "Stöbern",
-            "where": "Hauptmenü → Stöbern",
-            "body": "Regale statt Zeitfenster: „Perlen“ (gut bewertet, aber kaum bekannt), „Zeitlose Klassiker“, „Unter 90 Minuten“, „Neu erschienen“, dazu fünf Jahrzehnte und jedes Genre. Jedes Regal funktioniert auch bei leerer Bibliothek und ohne persönliche Daten.\n\nOben steht die Frage, die am Filmabend zuerst kommt: „Muss es heute Abend sofort laufen?“ Anders als früher wird das auf dem Server gesiebt — bei einer vollen Bibliothek bleiben die Reihen also voll, statt auf zwei Kacheln zusammenzuschrumpfen."
-          },
-          {
-            "title": "Selbst filtern",
-            "where": "Stöbern → Lieber selbst filtern",
-            "body": "Sechs Fragen statt dreizehn Reglern: Wie viel Zeit, wonach ist dir (Genres lassen sich ein- und ausschließen), aus welcher Zeit (echte Jahrzehnte), wie bekannt, schon vorhanden, und die Reihenfolge.\n\nNeu ist vor allem die Laufzeit-Obergrenze — „wir haben nur anderthalb Stunden“ war vorher gar nicht ausdrückbar. Und was du einstellst, steht in der Adresse: Du kannst ein Ergebnis verschicken oder als Lesezeichen ablegen."
-          },
-          {
-            "title": "Deine eigenen Regale",
-            "where": "Stöbern, ganz oben",
-            "body": "„Lang nicht gesehen“ nimmt, was mindestens ein halbes Jahr zurückliegt — gibt es nichts davon, verschwindet das Regal, statt etwas Unpassendes vorzuschlagen. „Weil dir X gefällt“ bekommt je Herz eine eigene Reihe, damit erkennbar bleibt, warum etwas vorgeschlagen wird.\n\nHöchstens drei davon: Ein Platz gehört immer dem zuletzt markierten Titel, die anderen wechseln täglich. So siehst du bei hundert Favoriten über die Zeit alle, statt immer dieselben drei."
-          },
-          {
-            "title": "Das Menü ist kürzer",
-            "where": "oben",
-            "body": "„Filme entdecken“ und „Serien entdecken“ sind aus dem Menü verschwunden. Stöbern beantwortet jede ihrer Fragen besser — bis auf eine, „was kam gerade heraus?“, und das ist jetzt das Regal „Neu erschienen“. Die Adressen funktionieren weiter, alte Lesezeichen laufen also nicht ins Leere."
-          },
-          {
-            "title": "Kalender aufgeräumt",
-            "where": "Hauptmenü → Kalender",
-            "body": "Statt „Alles / Bereits angefragt“ steht dort jetzt „Filme & Folgen / Nur Filme / Nur Folgen“ — deine eigenen Titel stehen ohnehin oben in jedem Tag, die nützliche Trennung ist die zwischen Film und Folge.\n\nUnd der Strenge-Filter fragt nicht mehr entweder nach großen Studios oder nach bekannten Titeln, sondern nach beidem: Gemessen an einer echten Woche findet keiner der beiden, was der andere findet — die Studioliste fängt brandneue Serien ohne Stimmen, die Stimmenzahl fängt gute Titel ohne großen Verleih."
-          }
-        ],
-        "smallTitle": "Außerdem behoben",
-        "small": [
-          "„Beste Bewertung“ lieferte Nischenmüll statt guter Filme: TMDB kennt keine gewichtete Sortierung, und die Untergrenze lag bei fünf Stimmen — ein Film mit zwanzig Stimmen und 9,4 stand damit über „Der Pate“. Jetzt sind es 300. Das repariert auch die Sortierung auf der alten Entdecken-Seite.",
-          "Eine Laufzeit-Grenze wurde nicht eingehalten. TMDBs eigener Filter ist unzuverlässig — „höchstens 95 Minuten“ lieferte einen 97- und einen 99-Minüter. Die Laufzeit wird jetzt auf dem Server nachgeprüft.",
-          "Filme zwischen 126 und 129 Minuten waren über die Laufzeit gar nicht auffindbar: „Bis 2 Stunden“ endete bei 125, die nächste Stufe begann bei 130. Die Stufen stoßen jetzt genau aneinander — und „Darf lang sein“ heißt ehrlich „Über 2 Stunden“, denn gebaut war es als Mindestlänge.",
-          "Bei jeder Serien-Abfrage ging ein wirkungsloser Parameter an TMDB mit (`watch_region` ohne `with_watch_providers`). Entfernt."
-        ]
-      },
-      "0.16.0": {
-        "lead": "Nexview kann jetzt Kinder. Ein Elternteil legt eigene Zugänge für seine Kinder an, die Kinder bekommen eine völlig eigene, kindgerechte App zu sehen — und was sie sich wünschen, entscheidet zuerst das Elternteil und erst danach du.",
-        "sections": [
-          {
-            "title": "Kinderkonten anlegen",
-            "where": "Profil → Kinder",
-            "body": "Name, Passwort, Alter, Sprache und ein paar Rubriken — mehr braucht ein Kinderkonto nicht. Keine Mailadresse, kein Plex-Konto. Wer welche anlegen darf, entscheidest du: Der Haken „Darf Kinderkonten anlegen“ sitzt in der Benutzerverwaltung. Ohne ihn bleibt der Reiter trotzdem sichtbar, erklärt die Funktion samt ihrer Grenzen und bietet einen Knopf, der die Freigabe als Ticket bei dir beantragt. Im Ticket steht dann ein Knopf, der sie mit einem Klick erteilt und das Ticket schließt."
-          },
-          {
-            "title": "Die Kinderansicht",
-            "where": "Anmeldung mit dem Zugang des Kindes",
-            "body": "Ein Kind sieht nicht Nexview mit weniger Knöpfen, sondern eine eigene App: hell und bunt statt dunkelgrau mit Rot, drei große Ziele unten am Rand, keine Glocke, keine Tickets, keine Einstellungen. Auf der Startseite stehen die freigeschalteten Rubriken als Bildkacheln; dahinter liegen alle Titel auf einmal, getrennt in „Das kannst du schon schauen“ und „Das kannst du dir wünschen“. Gesucht wird nur innerhalb der Rubriken."
-          },
-          {
-            "title": "Wünschen statt anfragen",
-            "where": "Profil → Kinder, oben",
-            "body": "Ein Kind fragt nichts an — es wünscht sich etwas, und bis das Elternteil entscheidet, passiert nichts. Gibt es den Wunsch frei, wird daraus eine ganz gewöhnliche Anfrage auf **seinen** Namen: sein Kontingent, seine Profilsperren, sein üblicher Weg — und den Download gibst am Ende wie immer du frei. Lehnt es ab, kann es eine kurze Begründung mitgeben, die das Kind liest. Das Kind sieht seine Liste mit vier Zuständen: wartet, ist unterwegs, ist da, diesmal nicht."
-          },
-          {
-            "title": "„Aus Sicht von … anzeigen“",
-            "where": "Profil → Kinder, gelber Knopf am Kind",
-            "body": "Der Knopf öffnet die App des Kindes genau so, wie das Kind sie sieht — dieselbe Ansicht, dieselben Regeln, nur ohne Wunsch-Knopf. Wer prüfen will, was bei seinem Kind wirklich ankommt, soll sich dafür nicht dessen Passwort ausleihen müssen."
-          },
-          {
-            "title": "Was das Ganze **nicht** kann",
-            "where": "Profil → Kinder, Fragezeichen neben „Kinderkonten“",
-            "body": "Die Grenze wirkt nur in Nexview. Was freigegeben und geladen ist, liegt danach in derselben Mediathek — worauf ein Kind in Plex zugreifen kann, entscheidest du dort. Und die Altersangaben stammen von TMDB, nicht von uns: Sie können fehlen oder falsch sein. Beides steht ausdrücklich im Hilfe-Fenster, damit sich niemand auf etwas verlässt, das so nicht gemeint ist."
-          },
-          {
-            "title": "Neuerungen der letzten fünf Fassungen",
-            "where": "Über Nexview → Alles, was neu ist",
-            "body": "Dieses Fenster hält jetzt die Texte der letzten fünf Fassungen vor, mit einem Schalter je Fassung ganz oben. Wer eine Version überspringt — Container später aktualisiert, zwei Releases an einem Tag —, erfährt trotzdem, was darin steckte. Ein Punkt markiert, was seit deinem letzten „Verstanden“ dazugekommen ist, und über die Über-Seite kommst du jederzeit wieder her."
-          }
-        ],
-        "smallTitle": "Außerdem geändert",
-        "small": [
-          "Die Altersbeschränkung je Konto ist aus der Benutzerverwaltung verschwunden: Wer ein vollwertiges Konto hat, gilt als volljährig. Bestehende Grenzen werden beim ersten Start entfernt — bei Kinderkonten bleiben sie natürlich stehen.",
-          "Neuer Mail-Schalter „Wünsche deiner Kinder“ — sichtbar nur für Konten, die auch wirklich ein aktives Kinderkonto führen.",
-          "Nimmst du jemandem das Recht wieder weg, werden seine Kinderkonten deaktiviert statt gelöscht. Du sollst zurücknehmen können, ohne dass Konten verschwinden.",
-          "Die Reiter im Profil lassen sich wieder direkt anspringen (`?reiter=…`) — so landet die Glocke bei einem Kinderwunsch dort, wo er entschieden wird."
-        ]
-      },
-      "0.15.0": {
-        "lead": "Dieses Update dreht sich fast vollständig um eine Frage: Wie viel Platz belegt eigentlich wer? Nexview kann Kontingente jetzt in Gigabyte messen statt in Stückzahl — mit allem, was dazugehört.",
-        "sections": [
-          {
-            "title": "Speicher-Kontingente",
-            "where": "Einstellungen → Speicherkontingente",
-            "body": "Kontingente rechnen wahlweise nach Anzahl (wie bisher) oder nach belegtem Speicher. Es gilt immer genau eine der beiden Währungen — die Auswahl steht ganz oben, darunter die Standardgrenze für alle Konten. Gemessen wird in beiden Betriebsarten, du kannst also erst beobachten und später begrenzen. Jeder Wechsel bucht alle Titel in den Hausbestand um und startet jedes Konto bei null; ein Dialog nennt vorher die echten Zahlen. Das Feature trägt bewusst die Marke „In Dev“."
-          },
-          {
-            "title": "Mein Speicher — für jede Person",
-            "where": "Profil → Speicherkontingent",
-            "body": "Jede Person sieht ihren belegten Platz gegen ihre Grenze und darunter jeden Titel, das Größte zuerst. Ein Auge je Zeile sagt, ob sie ihn schon gesehen hat: grün bedeutet gesehen, bei Staffeln ausdrücklich „alle Folgen“. Wer aufräumen will, filtert auf „Nur Gesehene“."
-          },
-          {
-            "title": "Abgeben statt löschen",
-            "where": "Profil → Speicherkontingent, Entscheidung in den Einstellungen",
-            "body": "„Brauche ich nicht mehr“ stellt einen Titel zur Entscheidung, ohne dass sofort etwas passiert — er zählt weiter, bis du entschieden hast. Bei Staffeln nennt die Person gleich ihren Wunsch: löschen lassen oder behalten und nur das Nachladen beenden. In deiner Warteschlange stehen dann drei Ausgänge bereit: ins Haus (Datei bleibt, Konto frei), löschen (mit der tatsächlichen Dateiliste vor Augen) oder nicht mehr folgen."
-          },
-          {
-            "title": "Papierkorb und die eine Bedingung",
-            "where": "Einstellungen → Speicherkontingente, unterer Bereich",
-            "body": "Weil Nexview löschen kann, gehört ein Papierkorb dazu — eintragen kannst du ihn direkt hier, die Arbeit übernehmen Radarr und Sonarr. Und die Bedingung, ohne die das System nicht aufgeht: Titel müssen in Radarr und Sonarr bleiben. Wer sie dort entfernt und die Datei behält, schafft etwas, das Nexview zwar messen, aber nie wieder löschen kann."
-          },
-          {
-            "title": "Staffeln einzeln anfragen",
-            "where": "Detailseite einer Serie",
-            "body": "Statt nur „ganze Serie“ lassen sich einzelne Staffeln auswählen — mit Häkchen, auch mehrere auf einmal, plus einem eigenen Haken für künftige Staffeln. Was schon da oder angefragt ist, ist ausgegraut statt versteckt. Nebenbei behoben: Sonarr schaltete frisch angelegte Serien manchmal wieder unbeobachtet; Nexview merkt das jetzt und stellt es von selbst richtig."
-          },
-          {
-            "title": "Konto löschen — mit Entscheidung über den Bestand",
-            "where": "Einstellungen → Benutzer",
-            "body": "Benutzer und Entscheider beantragen die Löschung im Profil unter „Sicherheit“; der Antrag erreicht dich als Ticket. Beim Löschen entscheidest du je Titel per Häkchen, ob er ins Haus geht oder gelöscht wird, und was mit angefangenen Downloads passiert. Nichts lädt danach herrenlos weiter."
-          }
-        ],
-        "smallTitle": "Außerdem behoben",
-        "small": [
-          "Eine Staffel gilt erst als geladen, wenn wirklich alle Folgen da sind — vorher meldete Nexview mehrere Staffeln gleichzeitig als fertig.",
-          "Meldungen zu Staffeln nennen die Staffel — in der Glocke, in den Kanälen und per Mail.",
-          "4K und 1080p werden sauber getrennt: Eine laufende Anfrage in einer Stufe blockiert die andere nicht mehr.",
-          "Eine 4K-Datei im normalen Radarr wird nicht mehr für eine eigene 4K-Fassung gehalten.",
-          "Ein Titel, der aus Radarr oder Sonarr verschwunden ist, bleibt nicht mehr ewig auf „wird gesucht“ stehen.",
-          "Der freie Plattenplatz zählt denselben Datenträger nicht mehr doppelt."
         ]
       }
     },
@@ -3379,9 +3106,9 @@
     },
     "nachschub": {
       "haengt": {
-        "titel_one": "Eine Anfrage sucht seit über {{tage}} Tagen",
-        "titel_other": "{{count}} Anfragen suchen seit über {{tage}} Tagen",
-        "folge": "So lange sucht nichts, was zu finden ist. In aller Regel steckt ein ausgefallener Indexer oder ein stehendes Download-Programm dahinter — und der Besteller wartet, ohne dass irgendwo ein Fehler steht."
+        "titel_one": "„{{titel}}“ sucht seit über {{tage}} Tagen",
+        "titel_other": "{{count}} Anfragen suchen seit über {{tage}} Tagen, die älteste: „{{titel}}“",
+        "folge": "Gezählt wird nur, was längst erschienen ist — so lange sucht nichts, was zu finden ist. In aller Regel steckt ein ausgefallener Indexer oder ein stehendes Download-Programm dahinter, und der Besteller wartet, ohne dass irgendwo ein Fehler steht."
       },
       "freigabe_wartet": {
         "titel_one": "Eine Anfrage wartet seit über {{tage}} Tagen auf Freigabe",

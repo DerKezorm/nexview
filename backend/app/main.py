@@ -52,6 +52,7 @@ from .routers import (
     discover,
     qualitaetsprofile as qualitaetsprofile_router,
     favorites as favorites_router,
+    hausordnung as hausordnung_router,
     home as home_router,
     logs as logs_router,
     sicherungen as sicherungen_router,
@@ -247,6 +248,7 @@ app.include_router(kids_router.router)
 app.include_router(requests_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(feedback_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(admin_requests.router)
+app.include_router(hausordnung_router.router)
 app.include_router(stats_router.router)
 # Durchgehend admin-only, deshalb ohne NUR_ERWACHSENE - wie qualitaetsprofile.
 app.include_router(dashboard_router.router)

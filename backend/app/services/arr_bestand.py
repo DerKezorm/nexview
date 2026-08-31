@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 
 from .arr import ArrClient, ArrError
 from .qualitaetsprofile import ALTER_PRAEFIX
+from . import logs
 
 logger = logging.getLogger("nexview.qualitaet")
 
@@ -127,7 +128,7 @@ async def aufnehmen(
         formate = await client.custom_formats()
         medien = await client.get(art) or []
     except ArrError as fehler:
-        logger.info("Inventory of %s not readable: %s", kennung, fehler.message)
+        logger.info("Inventory of %s not readable: %s", kennung, logs.kennung(fehler))
         bestand.erreichbar = False
         return bestand
 
@@ -249,7 +250,7 @@ async def aufraeumen(
             # ⚠️ Radarr weiss manchmal mehr als wir - etwa eine Bindung, die
             # ueber keine der drei Listen sichtbar ist. Dann gilt seine Antwort.
             logger.info(
-                "Instance refused to delete profile %r: %s", profil.name, fehler.message
+                "Instance refused to delete profile %r: %s", profil.name, logs.kennung(fehler)
             )
             ergebnis.abgelehnt[profil.name] = "instanz_verweigert"
 
@@ -286,7 +287,7 @@ async def aufraeumen(
             ergebnis.geloescht_muster.append(muster.name)
         except ArrError as fehler:
             logger.info(
-                "Instance refused to delete format %r: %s", muster.name, fehler.message
+                "Instance refused to delete format %r: %s", muster.name, logs.kennung(fehler)
             )
             ergebnis.abgelehnt[muster.name] = "instanz_verweigert"
     if ergebnis.geloescht_muster:
@@ -344,7 +345,7 @@ async def umhaengen(
     try:
         medien = await client.get(art["liste"]) or []
     except ArrError as fehler:
-        logger.info("Could not list media on %s: %s", client.label, fehler.message)
+        logger.info("Could not list media on %s: %s", client.label, logs.kennung(fehler))
         return Umhaengergebnis(grund="unerreichbar")
 
     # ⚠️ ``is not None`` statt Wahrheitswert: Die Nummer **0** ist eine gueltige
@@ -371,7 +372,7 @@ async def umhaengen(
             # auch keines vorgetaeuscht.
             logger.info(
                 "Moving titles on %s failed after %d: %s",
-                client.label, umgehaengt, fehler.message,
+                client.label, umgehaengt, logs.kennung(fehler),
             )
             return Umhaengergebnis(umgehaengt=umgehaengt, grund="abgebrochen")
         umgehaengt += len(haeppchen)

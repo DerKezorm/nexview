@@ -68,6 +68,8 @@ export type User = {
   last_login_at: string | null;
   /** Wann der Admin das Kontingent zuletzt von Hand zurückgesetzt hat. */
   quota_reset_at: string | null;
+  /** Wann dieses Konto die Hausordnung abgehakt hat. `null` = noch nie. */
+  hausordnung_gelesen_am?: string | null;
   /** Verbrauch im laufenden Zeitraum – nur in der Admin-Liste gefüllt. */
   quota_movies_used: number;
   quota_series_used: number;
@@ -892,6 +894,13 @@ export type AppConfig = {
   /** Dürfen Benutzer Folgen-Pakete anfragen? Blendet die Aufklapp-Pfeile im
       Staffel-Wähler ein. */
   episode_requests_enabled: boolean;
+  /** Gibt es eine veröffentlichte Hausordnung? Trägt Knopf und Fußzeile. */
+  hausordnung_vorhanden: boolean;
+  hausordnung_titel: string;
+  hausordnung_fassung: number;
+  hausordnung_quittierbar: boolean;
+  /** Welche Fassung **dieses** Konto entschieden hat. `null` = noch nie. */
+  hausordnung_gelesen: number | null;
 };
 
 /** Wie oft Nexview von selbst sichert. */
@@ -1413,6 +1422,12 @@ export type MediaRequestWithUser = MediaRequest & {
    * Frage ist, ob der Anfragende ohne den Download auskäme.
    */
   requester_subscriptions?: string[];
+  /**
+   * Name des Kindes, dessen Wunsch dahintersteckt. `null` heißt „kein
+   * Kinderwunsch" oder „das Kind gibt es nicht mehr" – beides sieht gleich
+   * aus, und das ist richtig so.
+   */
+  for_child_name?: string | null;
 };
 
 /** Ein zuletzt fertig geladener Titel für die Startseite. */
@@ -2213,3 +2228,46 @@ export type BetreiberStand = {
   aus_umgebung: boolean;
 };
 
+
+/** Die Hausordnung, wie der Administrator sie im Editor sieht. */
+export type HausordnungVerwaltung = {
+  titel: string;
+  inhalt: string;
+  fassung: number;
+  quittierbar: boolean;
+  veroeffentlicht: boolean;
+  aktualisiert_am: string | null;
+  /** Wie viele Konten der Haken „alle müssen erneut lesen" betrifft. */
+  betroffene_konten: number;
+};
+
+/** Ein hinterlegtes Bild der Hausordnung. */
+export type HausordnungBild = {
+  name: string;
+  bytes: number;
+};
+
+/** Die Hausordnung, wie ein gewöhnliches Konto sie sieht. */
+export type HausordnungOeffentlich = {
+  titel: string;
+  inhalt: string;
+  fassung: number;
+  quittierbar: boolean;
+  /** Welche Fassung dieses Konto entschieden hat – `null` heißt „noch nie". */
+  gelesen: number | null;
+  /** `true` akzeptiert, `false` abgelehnt, `null` noch nicht entschieden. */
+  akzeptiert: boolean | null;
+};
+
+/** Ein Konto in der Übersicht des Betreibers. */
+export type HausordnungUebersichtZeile = {
+  user_id: number;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  role: "admin" | "approver" | "user" | "child";
+  /** `true` akzeptiert, `false` abgelehnt, `null` offen. */
+  akzeptiert: boolean | null;
+  entschieden_am: string | null;
+  fassung: number | null;
+};

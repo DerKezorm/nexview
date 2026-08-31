@@ -222,6 +222,11 @@ class UserPublic(BaseModel):
         return kontingent_als_wert(wert) if wert is None or isinstance(wert, int) else wert
     # Wann der Admin das Kontingent zuletzt von Hand zurueckgesetzt hat.
     quota_reset_at: datetime | None
+    # Wann dieses Konto die Hausordnung zuletzt abgehakt hat. ``None`` heisst
+    # "noch nie" - der Betreiber sieht in der Nutzerverwaltung, wen er noch
+    # erinnern muss. Die Spalte erscheint dort nur, wenn ueberhaupt eine
+    # Hausordnung veroeffentlicht ist.
+    hausordnung_gelesen_am: datetime | None = None
     blocked_movie_profiles: list[int]
     blocked_series_profiles: list[int]
     # --- 4K -----------------------------------------------------------------

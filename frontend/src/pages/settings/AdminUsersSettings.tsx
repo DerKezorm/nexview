@@ -7,6 +7,7 @@ import { ApiError, api } from "../../api/client";
 import type {
   AppSettings,
   ArrOptions,
+  HausordnungVerwaltung,
   Invitation,
   InvitationCreated,
   Kontingentwert,
@@ -117,6 +118,13 @@ export function AdminUsersSettings() {
   const queryClient = useQueryClient();
   const { user: me } = useAuth();
   const { data: config } = useConfig();
+  // ⚠️ **Nur wenn es überhaupt eine gibt.** Sonst stünde in jeder Zeile
+  // dauerhaft „Hausordnung: offen" – eine Spalte voller Striche, deren Grund
+  // niemand sieht.
+  const { data: hausordnung } = useQuery({
+    queryKey: ["hausordnung-verwaltung"],
+    queryFn: () => api.get<HausordnungVerwaltung>("/api/hausordnung/verwaltung"),
+  });
   const minPassword = config?.min_password_length ?? 4;
   /**
    * Einladen geht nur mit beidem: ohne öffentliche Adresse zeigt der Link ins
@@ -514,6 +522,23 @@ export function AdminUsersSettings() {
           : "adminUsers.summaryApproval",
       ),
     );
+
+    // Wer die Hausordnung noch nicht abgehakt hat - der Betreiber soll sehen,
+    // wen er noch erinnern muss.
+    //
+    // ⚠️ **Kinderkonten und Administratoren stehen nicht dabei.** Die einen
+    // bekommen die Hausordnung nie zu sehen, die anderen schreiben sie. Eine
+    // Zeile, die bei ihnen dauerhaft „offen" sagt, wäre kein Hinweis, sondern
+    // Lärm. Dieselbe Grenze wie in `routers/hausordnung.UNBETEILIGT`.
+    if (hausordnung?.veroeffentlicht && user.role !== "child" && user.role !== "admin") {
+      teile.push(
+        user.hausordnung_gelesen_am
+          ? t("adminUsers.hausordnungGelesen", {
+              date: formatDate(user.hausordnung_gelesen_am.slice(0, 10), i18n.language),
+            })
+          : t("adminUsers.hausordnungOffen"),
+      );
+    }
 
     // Nur die Zahlen, die dieses Konto selbst trägt. "Standard" steht nicht
     // dabei: Die tatsächliche Grenze liegt dann beim Haus, und eine Zahl

@@ -70,6 +70,7 @@ from .mediaserver import (
     WatchedRecord,
 )
 from .settings_service import AppSettings
+from . import logs
 
 logger = logging.getLogger("nexview.mediaserver")
 
@@ -499,7 +500,7 @@ async def _einen_server_abgleichen(
                 _neu_verbinden_hinweis(db, user, server.label, server.provider)
             else:
                 logger.warning(
-                    "Watched state of %s not readable: %s", user.username, fehler.message
+                    "Watched state of %s not readable: %s", user.username, logs.kennung(fehler)
                 )
             continue
         # Es geht wieder - einen frueheren Hinweis wegnehmen. Sonst bliebe der
@@ -527,7 +528,7 @@ async def _einen_server_abgleichen(
                 logger.warning(
                     "Season state of %s not readable: %s",
                     user.username,
-                    fehler.message,
+                    logs.kennung(fehler),
                 )
         if staffel_stand is not None:
             geschrieben += _staffeln_uebernehmen(
@@ -567,7 +568,7 @@ async def _einen_server_abgleichen(
             verlauf = []
         except MediaServerError as fehler:
             verlauf = []
-            logger.warning("Playback history not readable: %s", fehler.message)
+            logger.warning("Playback history not readable: %s", logs.kennung(fehler))
 
         for eintrag in verlauf:
             benutzer_id = zuordnung.get(eintrag.account_id)

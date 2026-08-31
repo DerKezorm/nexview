@@ -26,6 +26,7 @@ from ..services import trash_bezug as bezug
 from ..services.arr import ArrClient, ArrError
 from ..services.settings_service import load_settings
 from ..services.trash import TrashFehler, schnappschuss
+from ..services import logs
 
 logger = logging.getLogger("nexview.qualitaet")
 
@@ -231,7 +232,7 @@ async def abgleich(admin: AdminUser, db: DbSession) -> list[AbgleichOut]:
         except ArrError as fehler:
             # Eine stumme Instanz darf die Auskunft ueber die anderen nicht
             # verhindern - sie bekommt ihren eigenen Stand.
-            logger.info("Instance %s not reachable for comparison: %s", kennung, fehler.message)
+            logger.info("Instance %s not reachable for comparison: %s", kennung, logs.kennung(fehler))
             for profil, _ in paare:
                 ergebnis.append(
                     AbgleichOut(
@@ -878,7 +879,7 @@ async def benennung(admin: AdminUser, db: DbSession) -> list[BenennungOut]:
             )
         except ArrError as fehler:
             logger.info(
-                "Naming scheme of %s not readable: %s", instanz.kennung, fehler.message
+                "Naming scheme of %s not readable: %s", instanz.kennung, logs.kennung(fehler)
             )
             ergebnis.append(
                 BenennungOut(

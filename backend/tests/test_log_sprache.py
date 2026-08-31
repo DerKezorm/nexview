@@ -123,3 +123,102 @@ def test_alle_meldungen_sind_englisch() -> None:
             verstoesse.append(f"{ort}: {sorted(treffer)} in {text!r}")
 
     assert not verstoesse, "Protokollmeldungen müssen englisch sein:\n" + "\n".join(verstoesse)
+
+
+# ---------------------------------------------------------------------------
+# Die zweite Lücke: deutsche Saetze, die erst zur Laufzeit hineinkommen
+# ---------------------------------------------------------------------------
+#
+# ⚠️ **Der Test darueber sieht nur feste Texte im Quelltext.** Eine Zeile wie
+#
+#     logger.warning("Library not readable: %s", fehler.message)
+#
+# ist dort englisch und faellt nicht auf - deutsch wird sie erst, wenn der
+# Fehler eingesetzt wird. Denn ``message`` ist unser Rueckfalltext fuer die
+# Oberflaeche (siehe ``meldungen``), und der ist deutsch.
+#
+# Gefunden in Issue #7: Ein Betreiber in Rumaenien las in seinem Protokoll
+# "Der Jellyfin-Server hat auch auf kleine Abfragen (25 Titel) nicht
+# rechtzeitig geantwortet." Ins Protokoll gehoert stattdessen die Kennung -
+# ``services.logs.kennung`` baut sie.
+
+#: Stellen, an denen der eingesetzte Text **nicht** von uns stammt.
+#:
+#: ⚠️ **Das ist keine Ausrede-Liste.** Was ein Mailserver oder TMDB selbst
+#: antwortet, ist deren Aussage und oft das Einzige, was den Fall erklaert -
+#: genau wie der Wortlaut von Radarr. Wer hier eintraegt, schreibt dazu, wessen
+#: Worte es sind. Wem das nicht gelingt, hat gerade gemerkt, dass die Stelle
+#: eine Kennung braucht.
+FREMDER_WORTLAUT: dict[tuple[str, str], str] = {
+    ("kids.py", "_http"): "Was TMDB selbst geantwortet hat.",
+    # ``einer`` ist die innere Funktion in ``_als_titel``.
+    ("watchlist.py", "einer"): "Was TMDB selbst geantwortet hat.",
+    ("accounts.py", "_deliver"): "Was der Mailserver selbst geantwortet hat.",
+    ("accounts.py", "notify_address_change"): "Was der Mailserver selbst geantwortet hat.",
+    # ⚠️ **Die einzige echte Luecke, und sie ist benannt.** ``ChannelError``
+    # traegt unsere eigenen deutschen Saetze und keine Kennung. Ihn umzustellen
+    # heisst, 24 Wurfstellen in sieben Dateien mit Kennungen und je zwei
+    # Uebersetzungen zu versehen - ein eigener Durchgang, nicht ein Nebenbei.
+    # Bis dahin steht hier ein deutscher Satz im Protokoll, und das ist
+    # ausdruecklich bekannt.
+    ("channel_outbox.py", "process"): "ChannelError hat noch keine Kennung - siehe oben.",
+}
+
+
+def _eingesetzte_fehlertexte() -> list[tuple[str, str, int]]:
+    """Jede Log-Zeile, die ein ``…​.message`` einsetzt: (Datei, Funktion, Zeile)."""
+    gefunden: list[tuple[str, str, int]] = []
+    for pfad in sorted(APP.rglob("*.py")):
+        baum = ast.parse(pfad.read_text(encoding="utf-8"))
+
+        # ⚠️ **Jede Fundstelle gehoert genau einer Funktion** - der innersten.
+        # Ein Durchlauf ueber alle Funktionen fand verschachtelte Stellen
+        # zweimal (einmal unter der inneren, einmal unter der aeusseren), und
+        # dann braeuchte jede zwei Eintraege in der Liste oben.
+        eltern: dict[ast.AST, str] = {}
+        for knoten in ast.walk(baum):
+            if isinstance(knoten, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for kind in ast.walk(knoten):
+                    if kind is not knoten:
+                        eltern[kind] = knoten.name
+
+        for knoten in ast.walk(baum):
+            if not isinstance(knoten, ast.Call):
+                continue
+            ziel = knoten.func
+            if not (isinstance(ziel, ast.Attribute) and ziel.attr in LOG_METHODEN):
+                continue
+            if not (isinstance(ziel.value, ast.Name) and ziel.value.id in {"logger", "log"}):
+                continue
+            for arg in knoten.args[1:]:
+                if isinstance(arg, ast.Attribute) and arg.attr == "message":
+                    gefunden.append((pfad.name, eltern.get(knoten, "<modul>"), knoten.lineno))
+    return gefunden
+
+
+def test_der_waechter_sieht_diese_form_ueberhaupt() -> None:
+    """⚠️ Zuerst: Findet er noch, wonach er sucht?
+
+    Die erlaubten Stellen sind selbst der Beweis - waeren sie null, suchte der
+    Test an der falschen Form.
+    """
+    assert _eingesetzte_fehlertexte(), (
+        "Keine einzige Stelle gefunden, die einen Fehlertext ins Protokoll "
+        "einsetzt - wird jetzt anders geloggt? Dann muss dieser Test das lernen."
+    )
+
+
+def test_kein_fehlertext_ohne_begruendung_im_protokoll() -> None:
+    """Unsere eigenen Saetze sind deutsch - im Protokoll haben sie nichts verloren."""
+    offen = [
+        f"{datei}:{zeile} in {funktion}()"
+        for datei, funktion, zeile in _eingesetzte_fehlertexte()
+        if (datei, funktion) not in FREMDER_WORTLAUT
+    ]
+    assert not offen, (
+        "Diese Stellen setzen einen Fehlertext ins Protokoll ein und schmuggeln "
+        "damit Deutsch hinein:\n  " + "\n  ".join(offen) + "\n\n"
+        "Richtig ist die Kennung: services.logs.kennung(fehler).\n"
+        "Ist der Text der Wortlaut eines fremden Systems (Mailserver, TMDB, "
+        "Radarr), gehoert die Stelle mit Begruendung nach FREMDER_WORTLAUT."
+    )

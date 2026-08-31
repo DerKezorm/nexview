@@ -20,6 +20,7 @@ from .radarr import RadarrClient
 from .settings_service import AppSettings
 from .sonarr import LibraryEntry as SeriesEntry
 from .sonarr import SonarrClient, jahre_passen, normalize_title
+from . import logs
 
 logger = logging.getLogger("nexview.library")
 
@@ -686,7 +687,7 @@ async def episode_availability(
 
         vorhanden = await client.episode_status(eintrag.arr_id)
     except ArrError as fehler:
-        logger.warning("Episode status not available: %s", fehler.message)
+        logger.warning("Episode status not available: %s", logs.kennung(fehler))
         return {}
 
     # Mengen lassen sich nicht als JSON ablegen - fuer den Zwischenspeicher

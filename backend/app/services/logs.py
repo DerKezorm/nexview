@@ -557,3 +557,34 @@ def clear() -> None:
     datei = log_file()
     if datei.is_file():
         datei.write_text("", encoding="utf-8")
+
+
+def kennung(fehler: object) -> str:
+    """Was von einem Fehler ins **Protokoll** gehoert - nicht sein Satz.
+
+    ⚠️ **Warum das noetig ist.** Unsere Fehlertexte sind deutsch: Sie sind der
+    Rueckfall fuer die Oberflaeche, falls eine Uebersetzung fehlt (siehe
+    ``meldungen``). Wer sie ins Protokoll einsetzt, schmuggelt damit Deutsch
+    hinein - und zwar an ``test_log_sprache`` vorbei, denn der prueft die
+    festen Texte im Quelltext, und die sind englisch. Deutsch wird die Zeile
+    erst zur Laufzeit.
+
+    Aufgefallen ist es in Issue #7: Ein Betreiber in Rumaenien las in seinem
+    Protokoll "Der Jellyfin-Server hat auch auf kleine Abfragen (25 Titel)
+    nicht rechtzeitig geantwortet."
+
+    Geliefert wird die Kennung samt Werten - englisch, kurz und durchsuchbar:
+    ``mediaserver_pages_too_slow {'service': 'Jellyfin', 'size': 25}``.
+
+    ⚠️ **Nicht fuer fremde Wortlaute.** Was ein Mailserver oder TMDB selbst
+    antwortet, gehoert im Original ins Protokoll - das ist ihre Aussage, nicht
+    unsere, und sie ist oft das Einzige, was den Fall erklaert. Solche Stellen
+    stehen in ``test_log_sprache.FREMDER_WORTLAUT``.
+    """
+    code = getattr(fehler, "code", None)
+    if not code:
+        # Ohne Kennung bleibt nur die Klasse - immer noch besser als ein
+        # deutscher Satz, und ein Hinweis darauf, dass hier eine fehlt.
+        return f"{type(fehler).__name__} (no code)"
+    zahlen = getattr(fehler, "zahlen", None)
+    return f"{code} {zahlen}" if zahlen else str(code)

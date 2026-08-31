@@ -81,6 +81,18 @@ const SYMBOLE = {
     { d: 'M5 4.5h14v15H5z' },
     { d: 'M8 9h8M8 12.5h8M8 16h5' },
   ],
+  /**
+   * Die Hausordnung - ein aufgeschlagenes Buch.
+   *
+   * Bewusst kein „§": In 16 Pixeln neben einem Wort zerfaellt das Zeichen zu
+   * einem Fleck. Auf dem runden Knopf unten rechts steht es trotzdem - dort
+   * ist es gross genug, und dort traegt es die Bedeutung allein.
+   */
+  hausordnung: [
+    { d: 'M12 7.5v12' },
+    { d: 'M12 7.5C12 6.4 10.2 5 7.5 5H4v12h3.5c2.7 0 4.5 1.4 4.5 2.5' },
+    { d: 'M12 7.5C12 6.4 13.8 5 16.5 5H20v12h-3.5c-2.7 0-4.5 1.4-4.5 2.5' },
+  ],
   /** Weggelegte Staende - der Stapel. */
   sicherung: [
     { d: 'M12 8.2c3.9 0 7-1.05 7-2.35S15.9 3.5 12 3.5 5 4.55 5 5.85 8.1 8.2 12 8.2Z' },

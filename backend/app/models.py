@@ -388,6 +388,26 @@ class User(Base):
     # neu ist"-Hinweis quittiert hat. NULL = noch nie - der Balken erscheint
     # dann, und nach jedem Update wieder, bis er erneut quittiert wird.
     changelog_gesehen: Mapped[str | None] = mapped_column(String(20))
+    # Welche Fassung der Hausordnung dieses Konto quittiert hat. NULL = noch
+    # nie - dann traegt der Knopf unten rechts einen Punkt. Ist die Zahl
+    # kleiner als ``Hausordnung.fassung``, gibt es eine neue Fassung zu lesen.
+    #
+    # Dasselbe Muster wie ``changelog_gesehen`` daneben, und aus demselben
+    # Grund keine eigene Tabelle: Es gibt genau eine Hausordnung und je Konto
+    # genau einen Stand.
+    hausordnung_gelesen: Mapped[int | None] = mapped_column(Integer)
+    # Wann entschieden wurde. Steht in der Nutzerverwaltung und in der
+    # Uebersicht - der Betreiber soll sehen, wen er noch erinnern muss.
+    hausordnung_gelesen_am: Mapped[datetime | None] = mapped_column(DateTime)
+    # Wie entschieden wurde: ``True`` akzeptiert, ``False`` abgelehnt,
+    # ``None`` noch gar nicht.
+    #
+    # ⚠️ **Ablehnen hat ausdruecklich keine technische Folge.** Wer ablehnt,
+    # darf weiter anfragen; der Betreiber sieht es und entscheidet selbst, ob
+    # er nachfragt oder das Konto stilllegt. Ein Automatismus haette hier den
+    # falschen Preis: Ein versehentlicher Klick sperrte jemanden aus, und
+    # gemerkt haette es niemand.
+    hausordnung_akzeptiert: Mapped[bool | None] = mapped_column(Boolean)
 
     # Erlaubte Qualitaetsprofile als Komma-Liste von Radarr-/Sonarr-Kennungen.
     # Leer bedeutet: keine Einschraenkung.
@@ -1913,6 +1933,10 @@ class MediaRequest(Base):
 
     user: Mapped[User] = relationship(back_populates="requests", foreign_keys=[user_id])
     approver: Mapped[User | None] = relationship(foreign_keys=[approved_by])
+    #: Das Kind, dessen Wunsch dahintersteckt - falls es noch existiert.
+    #: ``SET NULL`` beim Loeschen, deshalb ist ``None`` ein normaler Zustand
+    #: und kein Fehler.
+    for_child: Mapped[User | None] = relationship(foreign_keys=[for_child_id])
 
     @property
     def approved_by_name(self) -> str | None:
@@ -2713,3 +2737,54 @@ class OidcBlock(Base):
     display: Mapped[str | None] = mapped_column(String(255))
     blocked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     blocked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+class Hausordnung(Base):
+    """Die Hausregeln des Betreibers - **genau eine Zeile**, ``id = 1``.
+
+    Ein Text, den der Betreiber schreibt und der jedem erwachsenen Konto
+    zugaenglich ist: was angefragt werden darf, wie lange Titel liegen
+    bleiben, wen man bei Problemen anschreibt.
+
+    ⚠️ **Eine Tabelle mit einer Zeile statt Eintraegen in ``settings``.**
+    Naheliegend waere der Schluessel/Wert-Topf gewesen - aber hier gehoeren
+    sechs Angaben zusammen, von denen zwei (``fassung``, ``veroeffentlicht``)
+    das Verhalten anderer Stellen steuern. Als sechs lose Schluessel muesste
+    jede davon einzeln gelesen, geprueft und umgewandelt werden, und ein
+    fehlender waere ein stiller Sonderfall.
+
+    ⚠️ **``fassung`` steigt nur auf ausdrueckliche Anweisung.** Nicht bei jedem
+    Speichern: Ein berichtigter Tippfehler darf nicht bei allen den Hinweis
+    erneut aufpoppen lassen. Wer wirklich will, dass alle noch einmal lesen,
+    setzt beim Speichern den Haken - und sieht daneben, wie viele Konten das
+    betrifft.
+
+    Wer gelesen hat, steht am Konto (``User.hausordnung_gelesen``) und nicht
+    in einer eigenen Tabelle: Es gibt eine Hausordnung und je Konto einen
+    Stand. Eine Historie waere ein Nachweis-Feature mit eigenen Fragen
+    (Aufbewahrung, Loeschfristen) - das ist es hier ausdruecklich nicht.
+    """
+
+    __tablename__ = "hausordnung"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    titel: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    #: Der Text in der Auszeichnungs-Teilmenge (siehe ``lib/auszeichnung.ts``).
+    #: Die Grenze ist grosszuegig, aber vorhanden - ohne sie kann ein
+    #: verunglueckter Einfuegevorgang die Datenbank aufblaehen.
+    inhalt: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    #: Zaehlt bei 1 los. Steigt nur, wenn der Betreiber "alle muessen erneut
+    #: lesen" waehlt.
+    fassung: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    #: Darf man "gelesen" abhaken? Ist er aus, bleibt der Knopf immer stehen.
+    quittierbar: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    #: Entwurf oder sichtbar. ⚠️ **Ohne das schreibt der Betreiber vor
+    #: Publikum**: Eine halbfertige Hausordnung waere ab dem ersten Speichern
+    #: fuer alle sichtbar.
+    veroeffentlicht: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    aktualisiert_am: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
+    )
+    aktualisiert_von: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )

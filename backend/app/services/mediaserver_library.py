@@ -130,8 +130,20 @@ async def _einen_server_lesen(
         # Ein Anbieter, der das noch nicht kann - kein Grund fuer einen Fehler.
         return None
     except MediaServerError as fehler:
+        # ⚠️ **Die Kennung, nicht der Satz.** ``fehler.message`` ist der
+        # deutsche Rueckfall fuer die Oberflaeche - im Protokoll hat er nichts
+        # zu suchen: Es soll englisch und durchsuchbar bleiben, und ein
+        # Betreiber in Rumaenien las hier bisher einen deutschen Satz
+        # (gemeldet in Issue #7).
+        #
+        # Der Waechter ``test_log_sprache`` konnte das nicht sehen - er prueft
+        # die festen Texte im Quelltext, und der ist hier englisch. Deutsch
+        # wird die Zeile erst zur Laufzeit.
         logger.warning(
-            "Media server %r library not readable: %s", server.provider, fehler.message
+            "Media server %r library not readable: %s %s",
+            server.provider,
+            fehler.code or "mediaserver_unreachable",
+            fehler.zahlen or "",
         )
         if streng:
             raise

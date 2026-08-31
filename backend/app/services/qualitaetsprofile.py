@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from ..models import Qualitaetsprofil, QualitaetsprofilInstallation, utcnow
 from .arr import ArrClient, ArrError
 from .trash import Bauplan, bauplan
+from . import logs
 
 logger = logging.getLogger("nexview.qualitaet")
 
@@ -484,7 +485,7 @@ async def _alt_umbenennen(
                 int(eintrag["id"]), {**eintrag, "name": ohne}
             )
         except ArrError as fehler:
-            logger.info("Could not rename custom format %r: %s", name, fehler.message)
+            logger.info("Could not rename custom format %r: %s", name, logs.kennung(fehler))
             continue
         belegt.add(ohne)
         logger.info("Custom format renamed: %r -> %r on %s", name, ohne, client.label)
@@ -551,7 +552,7 @@ async def praefix_lage(client: ArrClient) -> Praefixlage:
     try:
         return _praefix_lage_aus(await client.custom_formats())
     except ArrError as fehler:
-        logger.info("Could not read custom formats of %s: %s", client.label, fehler.message)
+        logger.info("Could not read custom formats of %s: %s", client.label, logs.kennung(fehler))
         return Praefixlage()
 
 
@@ -587,7 +588,7 @@ async def praefix_aufraeumen(client: ArrClient) -> int:
                 int(eintrag["id"]), {**eintrag, "name": ohne}
             )
         except ArrError as fehler:
-            logger.info("Could not rename custom format %r: %s", name, fehler.message)
+            logger.info("Could not rename custom format %r: %s", name, logs.kennung(fehler))
             continue
         belegt.discard(name)
         belegt.add(ohne)

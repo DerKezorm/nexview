@@ -97,7 +97,11 @@ STECKBRIEF = "nexview-sicherung.json"
 #: welchen Stand es geschrieben wurde. Fehlt der Ordner, faellt Nexview auf den
 #: mitgelieferten Abzug zurueck und meldet danach Abweichungen an Profilen, an
 #: denen niemand etwas geaendert hat.
-BEILAGEN = ("avatars", "trash")
+#: ``hausordnung`` enthaelt die Bilder im Regeltext des Betreibers - wieder
+#: steht in der Datenbank nur ihr Name. Ohne den Ordner kaeme der Text
+#: vollstaendig zurueck und zeigte an jeder Bildstelle eine Luecke; geschrieben
+#: hat ihn jemand von Hand, ein zweites Mal will das niemand tun.
+BEILAGEN = ("avatars", "trash", "hausordnung")
 
 #: Was im Datenverzeichnis liegt und **nicht** ins Archiv wandert - mit Grund.
 #:

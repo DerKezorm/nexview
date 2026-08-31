@@ -1,9 +1,9 @@
 """Profilbilder: pruefen, ablegen, ausliefern.
 
-Hochgeladene Dateien sind grundsaetzlich nichts, dem man trauen sollte.
-Deshalb: Groesse begrenzen, anhand der ersten Bytes pruefen, ob es wirklich
-ein Bild ist, und einen eigenen Dateinamen vergeben - der vom Nutzer gelieferte
-Name wird nie verwendet.
+Was ein hochgeladenes Bild ueberstehen muss, steht in ``bilddateien`` - die
+Regeln gelten fuer die Hausordnung genauso. Hier bleibt, was nur Profilbilder
+betrifft: wo sie liegen, wie gross sie sein duerfen und dass beim Austauschen
+das alte verschwindet.
 """
 
 from __future__ import annotations
@@ -12,17 +12,9 @@ import secrets
 from pathlib import Path
 
 from ..config import get_settings
+from . import bilddateien
 
 MAX_BYTES = 2 * 1024 * 1024  # 2 MB
-
-# Nur Bildformate, die der Browser gefahrlos darstellt. Bewusst kein SVG:
-# das darf Skripte enthalten.
-SIGNATURES: list[tuple[bytes, str, str]] = [
-    (b"\x89PNG\r\n\x1a\n", "png", "image/png"),
-    (b"\xff\xd8\xff", "jpg", "image/jpeg"),
-    (b"GIF87a", "gif", "image/gif"),
-    (b"GIF89a", "gif", "image/gif"),
-]
 
 
 class AvatarError(Exception):
@@ -38,29 +30,26 @@ def avatar_dir() -> Path:
 
 
 def detect(content: bytes) -> tuple[str, str]:
-    """Endung und Inhaltstyp anhand der ersten Bytes bestimmen."""
-    for signature, suffix, media_type in SIGNATURES:
-        if content.startswith(signature):
-            return suffix, media_type
+    """Endung und Inhaltstyp anhand der ersten Bytes bestimmen.
 
-    # WebP: "RIFF....WEBP"
-    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
-        return "webp", "image/webp"
-
-    raise AvatarError("Nur PNG-, JPEG-, GIF- oder WebP-Bilder sind möglich.")
+    ⚠️ **Die Pruefung selbst steht in ``bilddateien``.** Hier wird nur die
+    Ausnahme uebersetzt: Die Aufrufer dieses Moduls fangen ``AvatarError``,
+    und daran soll das Herausheben des gemeinsamen Kerns nichts geaendert
+    haben.
+    """
+    try:
+        return bilddateien.erkennen(content)
+    except bilddateien.BildFehler as fehler:
+        raise AvatarError(fehler.message) from fehler
 
 
 def save(content: bytes, previous: str | None = None) -> str:
     """Bild ablegen und den Dateinamen zurueckgeben."""
-    if not content:
-        raise AvatarError("Die Datei ist leer.")
-    if len(content) > MAX_BYTES:
-        raise AvatarError(
-            f"Das Bild ist zu groß ({len(content) // 1024} KB). "
-            f"Erlaubt sind {MAX_BYTES // 1024} KB."
-        )
+    try:
+        suffix, _ = bilddateien.pruefen(content, MAX_BYTES)
+    except bilddateien.BildFehler as fehler:
+        raise AvatarError(fehler.message) from fehler
 
-    suffix, _ = detect(content)
     name = f"{secrets.token_hex(16)}.{suffix}"
     (avatar_dir() / name).write_bytes(content)
 

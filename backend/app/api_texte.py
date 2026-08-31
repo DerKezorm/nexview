@@ -42,6 +42,81 @@ from fastapi.routing import APIRoute
 #: verstaendlich sein. Die Beschreibung darf Markdown enthalten und mehrere
 #: Absaetze haben - sie ist das, was jemand liest, bevor er etwas anbindet.
 TEXTE: dict[str, tuple[str, str]] = {
+    # --- Hausordnung -------------------------------------------------------
+    'GET /api/hausordnung': (
+        'Read the house rules',
+        (
+            'The operator\'s rule text, as an adult account sees it. Answers 404 '
+            'while nothing is published - a draft belongs to the operator alone. '
+            '"gelesen" carries the version this account has acknowledged, or null '
+            'if it never has.'
+        ),
+    ),
+    'POST /api/hausordnung/entscheidung': (
+        'Accept or decline the house rules',
+        (
+            "Records the calling account's decision together with the version "
+            'that is currently published - not the one that happened to be on '
+            'screen. Declining has no technical consequence: the account keeps '
+            'every right it had. It is information for the operator, who decides '
+            'what to do with it. Refused with 409 if the operator has switched '
+            'the decision off entirely.'
+        ),
+    ),
+    'GET /api/hausordnung/uebersicht': (
+        'Who has decided, and how',
+        (
+            'Administrators only: every adult account with its decision and the '
+            'date. Child accounts are left out - they never get to see the rules. '
+            'An account that decided on an older version counts as undecided '
+            'again, but the answer still says what it chose back then.'
+        ),
+    ),
+    'GET /api/hausordnung/verwaltung': (
+        'The house rules for editing',
+        (
+            'Administrators only. Unlike the public path this also returns an '
+            'unpublished draft, plus how many accounts a "everyone reads it again" '
+            'would affect.'
+        ),
+    ),
+    'PUT /api/hausordnung/verwaltung': (
+        'Write the house rules',
+        (
+            'Saves title, text and both switches. The version number only goes up '
+            'when "erneut_lesen" is set - a corrected typo must not make the notice '
+            'pop up for everyone again. Publishing an empty text is refused.'
+        ),
+    ),
+    'DELETE /api/hausordnung/verwaltung': (
+        'Remove the house rules',
+        (
+            'Deletes the text and every image with it. The button and the footer '
+            'link disappear for everyone. Acknowledgements on the accounts stay; '
+            'they cost nothing and would be outdated anyway.'
+        ),
+    ),
+    'GET /api/hausordnung/bilder': (
+        'List the images',
+        'Administrators only: every image stored for the house rules, oldest first.',
+    ),
+    'POST /api/hausordnung/bilder': (
+        'Upload an image',
+        (
+            'Administrators only. The file is checked by its first bytes, not by '
+            'its name or the content type the browser claims; SVG is refused '
+            'because it can carry scripts. The stored name is random - the one '
+            'supplied by the caller is never used.'
+        ),
+    ),
+    'DELETE /api/hausordnung/bilder/{name}': (
+        'Delete one image',
+        (
+            'Administrators only. Images are never removed automatically when they '
+            'drop out of the text: taking a paragraph out for a moment should not '
+            'cost you the image.'
+        ),
+    ),
     # --- Rueckkanal (Webhooks) ---------------------------------------------
     'GET /api/settings/webhooks': (
         'Notification link status per instance',

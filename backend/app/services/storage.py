@@ -45,6 +45,7 @@ from .settings_service import AppSettings
 from . import sonarr
 from .sonarr import LibraryEntry as SeriesEntry
 from . import library, notify, quota
+from . import logs
 
 logger = logging.getLogger("nexview.storage")
 
@@ -716,7 +717,7 @@ async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Geme
                 logger.warning(
                     "Radarr (%s) not reachable, sizes left unchanged: %s",
                     stufe.value,
-                    fehler.message,
+                    logs.kennung(fehler),
                 )
 
         if settings.arr_configured("tv", stufe.value):
@@ -729,7 +730,7 @@ async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Geme
                 logger.warning(
                     "Sonarr (%s) not reachable, sizes left unchanged: %s",
                     stufe.value,
-                    fehler.message,
+                    logs.kennung(fehler),
                 )
 
     await _pakete_aufnehmen(db, settings, gemessen)
@@ -804,7 +805,7 @@ async def _pakete_aufnehmen(
                         "package sizes left unchanged: %s",
                         stufe.value,
                         staffelzeile.arr_id,
-                        fehler.message,
+                        logs.kennung(fehler),
                     )
                     befunde[merkmal] = None
         befund = befunde[merkmal]
@@ -901,7 +902,7 @@ async def _staffeldaten_nachtragen(
                     "Sonarr (%s) gave no file dates for series %s: %s",
                     stufe.value,
                     serie_id,
-                    fehler.message,
+                    logs.kennung(fehler),
                 )
                 continue
             for wert in posten:
@@ -2084,7 +2085,7 @@ async def loeschen(
                 posten_id,
                 zeile.title,
                 arr_id,
-                fehler.message,
+                logs.kennung(fehler),
             )
             raise Loeschfehler(fehler.message, 502) from fehler
         logger.warning(

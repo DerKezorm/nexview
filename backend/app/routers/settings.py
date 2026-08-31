@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, Field, field_validator
 
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
+from ..models import Hausordnung, User
 from ..schemas import MIN_PASSWORD_LENGTH
 from ..services import (
     cache,
@@ -225,6 +226,45 @@ class AppConfig(BaseModel):
     # Duerfen Benutzer Folgen-Pakete anfragen? Die Oberflaeche blendet daran
     # die Aufklapp-Pfeile im Staffel-Waehler ein.
     episode_requests_enabled: bool
+    # --- Hausordnung --------------------------------------------------------
+    #
+    # ⚠️ **Hier und nicht in einem eigenen Endpunkt.** Der Knopf unten rechts
+    # steht auf jeder Seite; eine eigene Abfrage dafuer waere ein zusaetzlicher
+    # Aufruf bei jedem Seitenaufbau. Diese hier laeuft ohnehin.
+    #
+    # ``hausordnung_gelesen`` traegt die quittierte Fassung des **aufrufenden**
+    # Kontos - daraus ergibt sich, ob der Knopf einen Punkt traegt.
+    hausordnung_vorhanden: bool = False
+    hausordnung_titel: str = ""
+    hausordnung_fassung: int = 0
+    hausordnung_quittierbar: bool = True
+    hausordnung_gelesen: int | None = None
+
+
+def _hausordnung_stand(db: DbSession, user: User) -> dict:
+    """Was die Oberflaeche ueber die Hausordnung wissen muss.
+
+    Ein leeres Ergebnis heisst "es gibt keine" - dann greifen die Vorgaben des
+    Schemas, und weder der Knopf noch der Fusszeilen-Verweis erscheinen.
+
+    ⚠️ **Kinderkonten und Administratoren bekommen sie nicht.** Die einen
+    sehen die Hausordnung nie - ihr Rahmen hat den Knopf ohnehin nicht -, die
+    anderen schreiben sie: Ein Knopf, der den Betreiber an seinen eigenen Text
+    erinnert, ist Zeremonie. Wer dazugehoert, steht an genau einer Stelle:
+    ``routers/hausordnung.UNBETEILIGT``.
+    """
+    from .hausordnung import _geht_es_an
+
+    ordnung = db.get(Hausordnung, 1)
+    if ordnung is None or not ordnung.veroeffentlicht or not _geht_es_an(user):
+        return {}
+    return {
+        "hausordnung_vorhanden": True,
+        "hausordnung_titel": ordnung.titel,
+        "hausordnung_fassung": ordnung.fassung,
+        "hausordnung_quittierbar": ordnung.quittierbar,
+        "hausordnung_gelesen": user.hausordnung_gelesen,
+    }
 
 
 @router.get("/config", response_model=AppConfig)
@@ -258,6 +298,7 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         mediaserver_watchlist_connected=merklisten_anbieter(settings),
         watchlist_enabled=settings.watchlist_enabled,
         episode_requests_enabled=settings.episode_requests_enabled,
+        **_hausordnung_stand(db, user),
     )
 
 

@@ -9,6 +9,7 @@ import { LanguageSwitcher } from './LanguageSwitcher'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { LoadingBar } from './LoadingBar'
 import { SeiteLaedt } from './ui'
+import { HausordnungKnopf, useHausordnung } from './HausordnungKnopf'
 import { Logo } from './Logo'
 import { NotificationBell } from './NotificationBell'
 import { WatchlistExpiredBanner } from './WatchlistExpiredBanner'
@@ -64,8 +65,9 @@ const NAV_ITEMS: NavItem[] = [
  * Über-Seite von sich aus aufsuchen, und genau das tut niemand. Den Hinweis
  * bekommt nur, wer auch aktualisieren kann; das entscheidet der Server.
  */
-function Footer() {
+function Footer({ onHausordnung }: { onHausordnung: () => void }) {
   const { t } = useTranslation()
+  const { vorhanden } = useHausordnung()
 
   const { data } = useQuery({
     queryKey: ['about'],
@@ -79,6 +81,23 @@ function Footer() {
         <NavLink to="/ueber" className="transition-colors hover:text-mist-300">
           {t('about.title')}
         </NavLink>
+
+        {/* ⚠️ **Der dauerhafte Weg zum Text.** Der Knopf unten rechts
+            verschwindet, sobald jemand abgehakt hat - ohne diesen Verweis
+            wäre die Hausordnung danach nicht mehr erreichbar, und wer etwas
+            nachlesen will, stünde vor nichts. */}
+        {vorhanden && (
+          <>
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              onClick={onHausordnung}
+              className="transition-colors hover:text-mist-300"
+            >
+              {t('hausordnung.titel')}
+            </button>
+          </>
+        )}
 
         {data && (
           <>
@@ -108,6 +127,9 @@ export function AppShell() {
   const [params, setParams] = useSearchParams()
   const { data: config } = useConfig()
   const [schnellAnfrage, setSchnellAnfrage] = useState<MediaItem | null>(null)
+  // Knopf und Fußzeile öffnen dasselbe Fenster - deshalb liegt der Zustand
+  // hier und nicht in einem der beiden.
+  const [hausordnungOffen, setzeHausordnungOffen] = useState(false)
 
   const filmabendWert = params.get(FILMABEND)
   const filmabendOffen = filmabendWert !== null
@@ -245,7 +267,13 @@ export function AppShell() {
         }
       />
 
-      <Footer />
+      <HausordnungKnopf
+        offen={hausordnungOffen}
+        onOeffnen={() => setzeHausordnungOffen(true)}
+        onSchliessen={() => setzeHausordnungOffen(false)}
+      />
+
+      <Footer onHausordnung={() => setzeHausordnungOffen(true)} />
     </div>
   )
 }

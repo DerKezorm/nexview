@@ -658,6 +658,50 @@ class TestStandVonDamals:
 
         assert stand.read_bytes() == b'{"commit": "abc"}'
 
+    def test_das_bild_der_hausordnung_kommt_beim_einspielen_zurueck(
+        self, admin_client: TestClient
+    ) -> None:
+        """⚠️ In der Datenbank steht nur der Name des Bildes.
+
+        Fehlte ``hausordnung`` in ``BEILAGEN``, kaeme der Regeltext
+        vollstaendig zurueck und zeigte an jeder Bildstelle eine Luecke -
+        geschrieben hat ihn jemand von Hand, ein zweites Mal will das niemand.
+        """
+        bild = self._ablegen("hausordnung", "regel.png", b"\x89PNG\r\n\x1a\ndamals")
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        daten = sicherung.archiv(pfad.name, PASSWORT)
+
+        # Nach der Sicherung wird das Bild ausgetauscht ...
+        bild.write_bytes(b"\x89PNG\r\n\x1a\nheute")
+        sicherung.wiederherstellen(daten, PASSWORT)
+
+        # ... und kommt beim Einspielen im Stand von damals zurueck.
+        assert bild.read_bytes() == b"\x89PNG\r\n\x1a\ndamals"
+
+    def test_sicherung_ohne_hausordnungsbilder_laesst_sich_einspielen(
+        self, admin_client: TestClient
+    ) -> None:
+        """Eine Sicherung aus der Zeit vor diesem Ordner darf nicht scheitern.
+
+        Sie bringt keinen einzigen Eintrag unter ``hausordnung/`` mit - und
+        genau so sehen alle Staende aus, die vor dieser Fassung entstanden
+        sind.
+        """
+        # Ausdruecklich leer: Ein frueherer Test in dieser Klasse legt dort ein
+        # Bild ab, und das Datenverzeichnis ueberlebt den Testwechsel.
+        ordner = get_settings().data_dir / "hausordnung"
+        if ordner.is_dir():
+            shutil.rmtree(ordner)
+
+        pfad = sicherung.anlegen(art=sicherung.MANUELL)
+        daten = sicherung.archiv(pfad.name, PASSWORT)
+
+        with _archiv_oeffnen(daten, PASSWORT) as zip_datei:
+            assert not [n for n in zip_datei.namelist() if n.startswith("hausordnung/")]
+
+        # Muss ohne Fehler durchlaufen.
+        sicherung.wiederherstellen(daten, PASSWORT)
+
     def test_beilagen_verschwinden_mit_der_sicherung(self) -> None:
         """⚠️ Sonst sammelt der Ordner die Bilder aller je aufgeraeumten
         Staende, und niemand sucht dort nach Platz."""

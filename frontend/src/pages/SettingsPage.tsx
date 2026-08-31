@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { AdminAddressSettings } from './settings/AdminAddressSettings'
 import { AdminApiToken } from './settings/AdminApiToken'
 import { AdminChannelSettings } from './settings/AdminChannelSettings'
+import { AdminHausordnung } from './settings/AdminHausordnung'
+import { AdminHausordnungUebersicht } from './settings/AdminHausordnungUebersicht'
 import { AdminLogsSettings } from './settings/AdminLogsSettings'
 import { AdminSicherungen } from './settings/AdminSicherungen'
 import { AdminMailSettings } from './settings/AdminMailSettings'
@@ -25,6 +27,7 @@ type Tab =
   | 'anmeldung'
   | 'channels'
   | 'users'
+  | 'hausordnung'
   | 'watchlist'
   | 'storage'
   | 'blocklist'
@@ -81,6 +84,7 @@ const REITER_AUS_ADRESSE: Record<string, Tab> = {
   anmeldung: 'anmeldung',
   kanaele: 'channels',
   benutzer: 'users',
+  hausordnung: 'hausordnung',
   merkliste: 'watchlist',
   kontingente: 'storage',
   sperrliste: 'blocklist',
@@ -111,6 +115,11 @@ export function SettingsPage() {
   // Die zweite Ebene der Dienste-Seite. Nur der Startwert kommt von hier —
   // danach verwaltet sie ihn selbst.
   const [startUnter] = useState(suchparameter.get('unter') ?? undefined)
+  // Welche der beiden Hausordnungs-Seiten offen ist. Startwert aus der
+  // Adresse, damit ein Verweis direkt in der Übersicht landen kann.
+  const [hausordnungUnter, setzeHausordnungUnter] = useState<'schreiben' | 'uebersicht'>(
+    suchparameter.get('unter') === 'uebersicht' ? 'uebersicht' : 'schreiben',
+  )
 
   /**
    * Beim Wechseln von Hand fliegt der Parameter aus der Adresse.
@@ -143,6 +152,9 @@ export function SettingsPage() {
     { value: 'services', label: t('settings.tabServices'), symbol: 'dienste' },
     { value: 'channels', label: t('settings.tabChannels'), symbol: 'glocke' },
     { value: 'users', label: t('settings.tabUsers'), symbol: 'benutzer' },
+    // Direkt hinter den Benutzern: Die Hausordnung richtet sich an genau die,
+    // die dort stehen.
+    { value: 'hausordnung', label: t('settings.tabHausordnung'), symbol: 'hausordnung' },
     ...(config?.mediaserver_configured
       ? [{ value: 'watchlist' as Tab, label: t('settings.tabWatchlist'), symbol: 'merkliste' as const }]
       : []),
@@ -190,6 +202,34 @@ export function SettingsPage() {
           eigenen Profil ein. */}
       {tab === 'channels' && <AdminChannelSettings />}
       {tab === 'users' && <AdminUsersSettings />}
+      {tab === 'hausordnung' && (
+        <div className="flex flex-col gap-6">
+          {/* Zwei Seiten unter einem Reiter: hier wird geschrieben, daneben
+              steht, wer entschieden hat. */}
+          <Reiterreihe
+            unter
+            eintraege={[
+              {
+                value: 'schreiben' as const,
+                label: t('settings.tabHausordnung'),
+                symbol: 'hausordnung',
+              },
+              {
+                value: 'uebersicht' as const,
+                label: t('hausordnungAdmin.uebersicht'),
+                symbol: 'benutzer',
+              },
+            ]}
+            aktiv={hausordnungUnter}
+            onWechsel={setzeHausordnungUnter}
+          />
+          {hausordnungUnter === 'schreiben' ? (
+            <AdminHausordnung />
+          ) : (
+            <AdminHausordnungUebersicht />
+          )}
+        </div>
+      )}
       {tab === 'storage' && <AdminStorageSettings />}
 
       {/* Untermenü mit genau einem Eintrag - Plex ist der einzige Anbieter

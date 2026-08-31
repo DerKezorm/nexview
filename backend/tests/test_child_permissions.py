@@ -49,6 +49,14 @@ KINDER_ERLAUBT = {
     "/api/setup/sicherung/pruefen",
     "/api/setup/sicherung/einspielen",
     "/api/users/avatar/{name}",
+    # Bilder aus der Hausordnung - dieselbe Einordnung wie das Profilbild
+    # darueber, und aus demselben Grund: Ein ``<img>``-Element schickt keinen
+    # Token mit, und das Sitzungs-Cookie gilt nur unter ``/api/auth``. Ein
+    # Endpunkt mit Anmeldung liefert im Browser also **nie** ein Bild (so
+    # gemeldet). Der Schutz ist der unratbare Dateiname: 32 Hexziffern.
+    # Ein Kind sieht damit hoechstens ein Bild aus einem Text, den seine
+    # Eltern ohnehin lesen - und nur, wenn es den Namen kennt.
+    "/api/hausordnung/bild/{name}",
     "/api/demo/poster/{media_type}/{tmdb_id}.svg",
     # Anmeldung ueber den Media-Server: laeuft ohne angemeldeten Benutzer, und
     # ein Kinderkonto hat dort ohnehin kein Gegenstueck.

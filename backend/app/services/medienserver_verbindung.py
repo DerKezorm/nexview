@@ -30,6 +30,7 @@ from .. import crypto
 from ..models import MediaServerConnection
 from .arr import ArrClient, ArrError
 from .pfad_zuordnung import Zuordnung, ableiten, server_pfade
+from . import logs
 
 logger = logging.getLogger("nexview.qualitaet")
 
@@ -315,7 +316,7 @@ async def zuordnungen(
             if eintrag.get("path")
         ]
     except ArrError as fehler:
-        logger.info("No root folders from %s: %s", client.label, fehler.message)
+        logger.info("No root folders from %s: %s", client.label, logs.kennung(fehler))
         wurzeln = []
 
     ergebnis: dict[str, Zuordnung] = {}
@@ -395,7 +396,7 @@ async def bestehende_pruefen(
                 "Existing link %s -> %s no longer works: %s",
                 client.label,
                 eintrag_server.provider,
-                fehler.message,
+                logs.kennung(fehler),
             )
             kaputt.append((eintrag_server.provider, "unreachable"))
             continue
@@ -437,7 +438,7 @@ async def herstellen(
             "Media server connection to %s not reachable from %s: %s",
             name,
             client.label,
-            fehler.message,
+            logs.kennung(fehler),
         )
         return "unreachable"
 

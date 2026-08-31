@@ -52,6 +52,7 @@ from .base import (
     seiten_timeout,
     SEITE_HOECHSTENS,
 )
+from .. import logs
 
 if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
     from ..settings_service import AppSettings, Verbindung
@@ -771,7 +772,7 @@ class JellyfinServer(MediaServer):
                     logger.info(
                         "Jellyfin: seasons of series %s could not be read (%s)",
                         serie,
-                        exc.message,
+                        logs.kennung(exc),
                     )
                     return []
             treffer: list[SeasonWatchedRecord] = []

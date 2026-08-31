@@ -12,6 +12,84 @@ tag exists for it.
 
 ---
 
+## 0.26.0 – 31.08.2026
+
+### Fixed
+
+- **A child's wish could only be declined once the film had already arrived.** If a
+  title turned up in the library while the wish was still waiting for a parent's
+  decision — someone added it by hand, or a second Radarr instance fetched it — every
+  attempt to release the wish failed with "already there". The reason could not change
+  any more, so the only remaining button was "Decline": exactly the answer that tells
+  the child the opposite of the truth, because it did get what it asked for. Such a
+  wish is now closed as fulfilled, and the child sees "it's here" instead of "not this
+  time".
+
+- **A wish whose film arrived through somebody else's request stayed open forever.**
+  Open wishes were only ever closed at the moment a request was *created*. If the wish
+  came in while a download was already running, nothing ever closed it — and it then
+  ran into the dead end above. The regular round now closes them when the download
+  finishes.
+
+- **Deleting a child account through the user API left its wishes behind.** The route
+  cleared the children *below* an account, but not the account's own wishes when it was
+  itself a child. On an upgraded database that leaves a wish pointing at a user who no
+  longer exists, and the parent's wish list reads the child's name — so the whole list
+  answered with an error instead of one broken row. On a fresh database the deletion
+  failed outright. Both are fixed, and rows left behind by the old behaviour are
+  cleared away at startup, with a line in the log saying how many.
+
+- **Approving a film that Radarr already held failed for good.** Before creating a
+  movie, Nexview never asked whether Radarr knew it — for series that lookup has always
+  existed. Radarr answers a second attempt with a plain 400 whose reason only reaches
+  the log, so the request was marked "failed" and the operator was left guessing. This
+  happens more often than it sounds: a second Radarr instance, a film added by hand, a
+  database restored from another installation. The request is now linked to the entry
+  that is already there and carries on as usual; if the file exists, the next round
+  marks it as downloaded.
+
+- **A failed request had no button left at all.** Approve and reject only appear while
+  a request is waiting, cancelling was refused for "failed", and the interface has
+  never had a delete button — so the request stayed in the list forever and the person
+  who asked kept waiting for something that would never come. Failed requests can now
+  be cancelled, which also frees the quota they were holding.
+
+- **"Already in your library" and "already on the media server" arrived in German.**
+  Both sentences were written straight into the response with no key attached, so the
+  interface had nothing to translate and fell back to the German text — on an English
+  interface too. They now carry a key and the title as a placeholder, and are written
+  out in both languages. The same applies to the new message when a child's wish turns
+  out to be already fulfilled.
+
+- **"Searching for over 14 days" reported films that had not come out yet.** The rule
+  only asked how long a request had been searching, never whether the title was
+  actually available. Anything ordered months before its release was flagged as a
+  broken indexer. It now counts from the later of the two moments — approved *and*
+  released — and names the oldest title instead of showing only a number. Titles with
+  no release date on record still count: without a date there is no way to tell that
+  they are unreleased, and a genuine indexer outage on an older title must not go
+  unnoticed.
+
+### Changed
+
+- **The approval list now says which child a request came from.** "From a wish by Lena"
+  answers the question a decider would otherwise ask themselves — why an adult is
+  ordering a children's film. Nothing about the permissions changes: the request still
+  belongs to the parent, with their quota and their rules. The record behind this line
+  had been kept since child accounts were introduced and was never shown anywhere.
+
+- **The "test phase" notice above the storage quotas is gone.** The quotas have been
+  running in real operation for a while; a warning that never goes away stops being
+  read.
+
+### Under the hood
+
+- **The first visit is 47 kB lighter.** "What's new" carried thirteen versions in both
+  language files while the window only ever shows the latest five — eight of them were
+  downloaded by every visitor and never displayed. They are archived in
+  `docs/wasneu-archiv-0.15-0.22.json`. The bundle limit itself is unchanged; the
+  headroom below it grew from 50 kB to 97 kB.
+
 ## 0.25.1 – 31.08.2026
 
 ### Fixed

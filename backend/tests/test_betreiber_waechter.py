@@ -230,6 +230,12 @@ def _schreibstellen() -> dict[tuple[str, str], set[str]]:
 #: Anfrage sich nicht aussuchen kann".
 NUR_EIGENES_KONTO: dict[tuple[str, str], str] = {
     ("about.py", "neuigkeiten_gesehen"): "Quittiert am eigenen Konto (CurrentUser).",
+    ("hausordnung.py", "entscheiden"): (
+        "Haelt die eigene Entscheidung ueber die Hausordnung fest (AdultUser) - "
+        "dieselbe Bauart wie neuigkeiten_gesehen darueber. Eine fremde Kennung "
+        "kommt gar nicht erst herein: Der Pfad traegt keine, und im Rumpf steht "
+        "nur ja oder nein."
+    ),
     ("auth.py", "abmelden_ueberall"): "Beendet die eigenen Sitzungen.",
     ("auth.py", "change_my_email"): "Die eigene Mailadresse - /api/auth/me/email.",
     ("auth.py", "change_own_password"): (

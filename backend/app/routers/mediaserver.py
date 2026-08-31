@@ -40,6 +40,7 @@ from ..services.mediaserver import (
     verbundene_anbieter,
 )
 from ..services.mediaserver_accounts import KontoFehler
+from ..services import logs
 
 router = APIRouter(prefix="/api/auth/mediaserver", tags=["mediaserver"])
 admin_router = APIRouter(prefix="/api/admin/mediaserver", tags=["mediaserver"])
@@ -766,7 +767,7 @@ async def connect_select(payload: SelectServer, db: DbSession, admin: AdminUser)
     try:
         await mediaserver_library.refresh(db, settings_service.load_settings(db))
     except MediaServerError as exc:
-        logger.warning("Library not readable after connecting: %s", exc.message)
+        logger.warning("Library not readable after connecting: %s", logs.kennung(exc))
 
     return ConnectResult(
         user=UserPublic.model_validate(admin),
@@ -892,7 +893,7 @@ async def connect_password(
     try:
         await mediaserver_library.refresh(db, settings_service.load_settings(db))
     except MediaServerError as exc:
-        logger.warning("Library not readable after connecting: %s", exc.message)
+        logger.warning("Library not readable after connecting: %s", logs.kennung(exc))
 
     return ConnectResult(
         user=UserPublic.model_validate(admin),

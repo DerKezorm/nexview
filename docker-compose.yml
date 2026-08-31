@@ -83,6 +83,11 @@ services:
       # https://example.com/nexview/. Leer = Wurzel, alles wie bisher.
       # Proxy-Beispiele: README, "Behind a reverse proxy".
       NEXVIEW_URL_BASE: ${NEXVIEW_URL_BASE:-}
+      # Emergency exit only: the username of the account that owns this
+      # installation. Leave unset - the account from the setup wizard owns
+      # it. Set it if the owner locks themselves out, restart once, then
+      # remove it again. See README, "The owner account".
+      NEXVIEW_BETREIBER: ${NEXVIEW_BETREIBER:-}
 
       # Inhaltsregeln der Seite: on | report-only | off
       NEXVIEW_CSP: ${NEXVIEW_CSP:-on}

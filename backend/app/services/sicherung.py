@@ -870,6 +870,35 @@ def wiederherstellen(daten: bytes, passwort: str) -> Befund:
     einstellungen = get_settings()
     ziel = einstellungen.db_path
 
+    # ⚠️ **Wer den Betreiber-Haken traegt, wird jetzt gemerkt - vor dem Tausch.**
+    #
+    # Eine Sicherung kopiert die ganze Datenbank, der Haken reiste also mit. Ein
+    # zweiter Administrator koennte damit eine Uebergabe rueckgaengig machen:
+    # einen Stand von vor der Uebergabe einspielen, und der Haken saesse wieder
+    # bei ihm. Genau der Angriff, gegen den der Haken steht, ginge dann ueber
+    # die Sicherungsseite weiter.
+    #
+    # Der Haken ist deshalb der **eine** Wert, der die Zeitmaschine nicht
+    # mitmacht. Das ist eine bewusste Ausnahme von "eine Sicherung stellt den
+    # Stand von damals her", und sie ist in ``betreiber.nach_dem_einspielen``
+    # ausgeschrieben.
+    #
+    # Der **Name**, nicht die Kennung: Die Kennungen der eingespielten Datenbank
+    # sind andere. Vor der Einrichtung gibt es niemanden - dann gilt der Stand
+    # aus der Sicherung, und das ist richtig.
+    from .betreiber import nach_dem_einspielen, traeger as betreiber_traeger
+
+    try:
+        from ..db import SessionLocal
+
+        with SessionLocal() as vorher:
+            bisheriger_betreiber = getattr(betreiber_traeger(vorher), "username", None)
+    except Exception as fehler:  # noqa: BLE001
+        # Eine Datenbank, die sich nicht mehr lesen laesst, ist genau der Grund,
+        # aus dem jemand einspielt. Der Vorgang darf daran nicht scheitern.
+        logger.warning("Could not read the current owner before restoring: %s", fehler)
+        bisheriger_betreiber = None
+
     # Rueckweg zuerst - solange die alte Datenbank noch steht.
     if ziel.exists():
         try:
@@ -933,6 +962,15 @@ def wiederherstellen(daten: bytes, passwort: str) -> Befund:
     # Aeltere Sicherung? Dann fehlen ihr Spalten und Tabellen - die ergaenzt
     # der gewoehnliche Startweg.
     init_db()
+
+    # ⚠️ **Nach ``init_db``, nicht davor.** Der Startweg traegt die Spalte
+    # nach und vergibt den Haken notfalls neu (aelteste Sicherung, in der es
+    # ihn noch gar nicht gab). Erst danach steht fest, worauf hier gesetzt
+    # werden kann.
+    from ..db import SessionLocal as _Sitzung
+
+    with _Sitzung() as nachher:
+        nach_dem_einspielen(nachher, bisheriger_betreiber)
 
     _alle_abmelden()
 

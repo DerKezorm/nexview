@@ -595,6 +595,31 @@ TEXTE: dict[str, tuple[str, str]] = {
             'not offered here: only the owner can switch off their own token.'
         ),
     ),
+    'GET /api/users/betreiber': (
+        'Who owns this installation',
+        (
+            'Exactly one account carries the owner flag, and no other administrator can '
+            'switch it off, delete it, demote it or set its password. `user_id: null` '
+            'means nobody carries it - a real state, not an error. `aus_umgebung` says '
+            'the owner is pinned by the `NEXVIEW_BETREIBER` environment variable; while '
+            'that is set, handing over is refused rather than silently undone on the '
+            'next restart.\n\n'
+            'Readable by every administrator, not just the owner: whoever meets the '
+            'greyed-out buttons should be able to find out who they belong to.'
+        ),
+    ),
+    'POST /api/users/betreiber/uebergeben': (
+        'Hand ownership to another administrator',
+        (
+            '**Only the current owner may call this**, and there is no way back. The '
+            'target must be an active administrator - not an ordinary account, not an '
+            'approver, not a child account, not yourself.\n\n'
+            'Afterwards the previous owner is an ordinary administrator again and is as '
+            'removable as anyone else. Only the new owner can hand the flag back.\n\n'
+            'The flag grants no rights of its own. It only says what **others** may not '
+            'do with that account.'
+        ),
+    ),
     'GET /api/users/invitations': (
         'Open invitations',
         (

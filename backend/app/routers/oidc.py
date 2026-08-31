@@ -36,9 +36,10 @@ from ..crypto import encrypt
 from ..deps import AdminUser, AdultUser, DbSession
 from ..models import OidcBlock, OidcLink, OidcProvider, User, utcnow
 from ..schemas import UserPublic
-from ..services import anmeldebremse, oidc, oidc_accounts, sitzung
+from ..services import anmeldebremse, betreiber as betreiber_dienst, oidc, oidc_accounts, sitzung
 from ..services.mediaserver_accounts import KontoFehler
 from ..services.settings_service import load_settings
+from .. import meldungen
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["oidc"])
 admin_router = APIRouter(prefix="/api/admin/oidc", tags=["oidc"])
@@ -505,6 +506,35 @@ def _als_admin(db: DbSession, eintrag: OidcProvider) -> AnbieterAdmin:
     )
 
 
+def _betreiber_nicht_aussperren(db: DbSession, admin: User, gefaehrdet: list[int]) -> None:
+    """Die Seitentuer: den Betreiber aussperren, ohne sein Konto anzufassen.
+
+    ⚠️ **Das ist der Fall, den die Wache an den Konto-Adressen nicht sieht.**
+    Hier wird kein Konto geaendert - es wird der *Anmeldeweg* abgeschaltet, ueber
+    den der Betreiber hereinkommt. Sein Konto bleibt unversehrt und ist trotzdem
+    unerreichbar. Wer nur die Konto-Adressen bewacht, laesst diese Tuer offen.
+
+    ⚠️ **Und hier zaehlt ``bestaetigt=true`` nicht.** Fuer jedes andere Konto
+    darf der Administrator die Warnung ueberstimmen - er kann den Schaden ja
+    hinterher beheben, indem er ein Passwort setzt. Beim Betreiber kann er das
+    gerade nicht: Dessen Passwort zu setzen ist ihm verboten. Ein
+    ueberstimmbarer Schutz waere hier also gar keiner.
+
+    Der Betreiber selbst darf es. Der Haken sagt, was **andere** nicht duerfen.
+    """
+    traeger = betreiber_dienst.traeger(db)
+    if traeger is None or traeger.id == admin.id or traeger.id not in set(gefaehrdet):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=meldungen.meldung(
+            "betreiber_wuerde_ausgesperrt",
+            "Der Betreiber käme danach nicht mehr herein - das kann niemand "
+            "außer ihm selbst entscheiden.",
+        ),
+    )
+
+
 def _loesch_folgen(db: DbSession, eintrag: OidcProvider) -> LoeschFolgen:
     konten = list(
         db.scalars(
@@ -670,6 +700,7 @@ def admin_loeschen(
     """
     eintrag = _eintrag(db, provider_id)
     folgen = _loesch_folgen(db, eintrag)
+    _betreiber_nicht_aussperren(db, admin, [konto.id for konto in folgen.gefaehrdet])
     if folgen.gefaehrdet and not bestaetigt:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

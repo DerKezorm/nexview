@@ -105,6 +105,40 @@ def require_admin(user: CurrentUser) -> User:
 AdminUser = Annotated[User, Depends(require_admin)]
 
 
+def betreiberschutz(user_id: int, user: CurrentUser, db: DbSession) -> None:
+    """Das Zielkonto darf nicht der Betreiber sein - ausser er ist es selbst.
+
+    ⚠️ **Diese Wache haengt an der Adresse, nicht im Rumpf.** Sie steht als
+    ``dependencies=[Depends(betreiberschutz)]`` am Router-Aufruf, und genau
+    dadurch ist sie von aussen sichtbar: ``test_betreiber_waechter.py`` laeuft
+    ueber die Routentabelle und sieht, ob sie da ist. Eine Pruefung mitten im
+    Rumpf koennte er nicht finden - und die naechste Adresse, die jemand
+    anlegt, waere still ungeschuetzt.
+
+    Sie ist die einzige der Wachen hier, die ein **Ziel** braucht. Deshalb
+    liest sie ``user_id`` aus dem Pfad, so wie es die Adresse selbst tut; die
+    Reihenfolge der Parameter ist FastAPI dabei egal.
+
+    ⚠️ **Sie gibt dem Betreiber nichts.** Sie nimmt allen anderen etwas. Wer
+    hier jemals eine Zeile ergaenzt, die dem Betreiber ein Recht *gibt*, hat
+    die Regel gebrochen, fuer die es diesen Haken gibt.
+
+    Ein unbekanntes ``user_id`` laesst sie durch: Die Adresse hat ihr eigenes
+    404, und zwei Stellen mit derselben Aufgabe laufen frueher oder spaeter
+    auseinander.
+    """
+    ziel = db.get(User, user_id)
+    if ziel is None or not ziel.is_betreiber or ziel.id == user.id:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=meldungen.meldung(
+            "betreiber_geschuetzt",
+            "Das Konto des Betreibers kann von niemandem sonst geändert werden.",
+        ),
+    )
+
+
 def require_approver(user: CurrentUser) -> User:
     """Admin oder Entscheider - darf ueber fremde Anfragen bestimmen."""
     if not user.can_approve:

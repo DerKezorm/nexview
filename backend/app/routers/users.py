@@ -5,10 +5,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 
-from ..deps import AdminUser, DbSession
+from ..deps import AdminUser, AdultUser, DbSession, betreiberschutz
 from ..models import ApiKey, AuthToken, Role, TokenPurpose, User, utcnow
 from pydantic import BaseModel
 
@@ -25,6 +25,7 @@ from ..schemas import (
 from ..security import hash_password
 from ..services import (
     accounts,
+    betreiber as betreiber_dienst,
     avatars,
     children,
     kontoaufloesung,
@@ -166,7 +167,99 @@ def alle_schluessel(admin: AdminUser, db: DbSession) -> list[SchluesselZeile]:
     ]
 
 
-@router.post("/{user_id}/quota/reset", response_model=UserWithUsage)
+# ---------------------------------------------------------------------------
+# Der Betreiber
+# ---------------------------------------------------------------------------
+#
+# ⚠️ **Beide Pfade stehen vor den ``/{user_id}``-Adressen.** FastAPI vergleicht
+# in der Reihenfolge der Definition; weiter unten versuchte es "betreiber" als
+# Benutzernummer zu lesen - dieselbe Falle wie bei "api-schluessel" oben.
+
+
+class BetreiberInfo(BaseModel):
+    """Wer die Installation betreibt - fuer das Abzeichen und die Uebergabe."""
+
+    #: ``None`` heisst: niemand traegt ihn. Das ist ein echter Zustand, kein
+    #: Fehler - siehe ``services/betreiber.traeger``. Die Oberflaeche muss ihn
+    #: **zeigen**, sonst wundert sich jemand ueber ausgegraute Knoepfe, die es
+    #: gar nicht gibt.
+    user_id: int | None = None
+    username: str | None = None
+    display_name: str | None = None
+    #: In ``NEXVIEW_BETREIBER`` festgelegt. Dann ist die Uebergabe zu, und die
+    #: Oberflaeche sagt warum - statt eine Uebergabe anzunehmen, die der
+    #: naechste Neustart still zurueckdrehen wuerde.
+    aus_umgebung: bool = False
+
+
+class BetreiberUebergabe(BaseModel):
+    user_id: int
+
+
+def _betreiber_info(db: DbSession) -> BetreiberInfo:
+    traeger = betreiber_dienst.traeger(db)
+    return BetreiberInfo(
+        user_id=traeger.id if traeger else None,
+        username=traeger.username if traeger else None,
+        display_name=traeger.display_name if traeger else None,
+        aus_umgebung=betreiber_dienst.festgelegt_in_der_umgebung(),
+    )
+
+
+@router.get("/betreiber", response_model=BetreiberInfo)
+def betreiber_stand(admin: AdminUser, db: DbSession) -> BetreiberInfo:
+    """Wer traegt den Haken - und laesst er sich hier ueberhaupt bewegen?
+
+    Fuer **jeden** Administrator lesbar, nicht nur fuer den Traeger: Wer die
+    ausgegrauten Knoepfe sieht, soll auch erfahren, an wem es liegt. Ein Schutz,
+    den man merkt, aber nicht versteht, sieht wie ein Fehler aus.
+    """
+    return _betreiber_info(db)
+
+
+@router.post("/betreiber/uebergeben", response_model=BetreiberInfo)
+def betreiber_uebergeben(
+    payload: BetreiberUebergabe, user: AdultUser, db: DbSession
+) -> BetreiberInfo:
+    """Den Betreiber weitergeben - nur der Traeger selbst, und ohne Rueckweg.
+
+    ⚠️ **``AdultUser`` und nicht ``AdminUser``**, obwohl der Betreiber immer
+    Administrator ist. Die eigentliche Sperre soll genau **eine** Bedingung
+    haben - "bist du der Traeger"; stuende ``AdminUser`` daneben, gaebe es zwei
+    Stellen fuer dieselbe Frage, und welche Meldung ein gewoehnlicher Benutzer
+    bekommt, hinge davon ab, welche zuerst greift.
+
+    Ganz ohne Wache geht es aber auch nicht: ``test_child_permissions`` verlangt
+    zu jedem Pfad eine Entscheidung, und diese Zeile ist sie. Sie behauptet das
+    Schwaechste, was wahr ist - "nichts fuer Kinderkonten" - und laesst die
+    Frage nach dem Betreiber dort, wo sie hingehoert.
+
+    (Genau dieser Waechter hat den Pfad beim Bauen gefangen, als hier noch
+    ``CurrentUser`` stand. Er funktioniert.)
+
+    ⚠️ **Und ausdruecklich ohne ``betreiberschutz``.** Die Wache verbietet
+    anderen, das Betreiberkonto anzufassen; hier fasst der Betreiber sein
+    eigenes an. Sie haenge hier nur im Weg - sie liest ``user_id`` aus dem
+    Pfad, und der steht hier fuer das **Ziel** der Uebergabe, nicht fuer das
+    geschuetzte Konto.
+    """
+    ziel = _get_user_or_404(db, payload.user_id)
+    try:
+        betreiber_dienst.uebergeben(db, user, ziel)
+    except betreiber_dienst.BetreiberFehler as fehler:
+        raise HTTPException(
+            status_code=fehler.status_code,
+            detail=meldungen.meldung(fehler.code, fehler.message),
+        ) from fehler
+    db.commit()
+    return _betreiber_info(db)
+
+
+@router.post(
+    "/{user_id}/quota/reset",
+    response_model=UserWithUsage,
+    dependencies=[Depends(betreiberschutz)],
+)
 def reset_quota(user_id: int, admin: AdminUser, db: DbSession) -> UserWithUsage:
     """Den Verbrauch im laufenden Zeitraum auf null setzen.
 
@@ -182,7 +275,11 @@ def reset_quota(user_id: int, admin: AdminUser, db: DbSession) -> UserWithUsage:
     return _mit_verbrauch(db, user)
 
 
-@router.post("/{user_id}/storage/reset", response_model=UserWithUsage)
+@router.post(
+    "/{user_id}/storage/reset",
+    response_model=UserWithUsage,
+    dependencies=[Depends(betreiberschutz)],
+)
 def reset_storage(user_id: int, admin: AdminUser, db: DbSession) -> UserWithUsage:
     """Die Speicher-Belegung dieses Kontos auf null - alles geht ins Haus.
 
@@ -365,7 +462,11 @@ def withdraw_invitation(invitation_id: int, admin: AdminUser, db: DbSession) -> 
     logger.info("Invitation for %s withdrawn by %r", token.email, admin.username)
 
 
-@router.patch("/{user_id}", response_model=UserPublic)
+@router.patch(
+    "/{user_id}",
+    response_model=UserPublic,
+    dependencies=[Depends(betreiberschutz)],
+)
 def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSession) -> User:
     user = _get_user_or_404(db, user_id)
     data = payload.model_dump(exclude_unset=True)
@@ -434,7 +535,11 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
     return user
 
 
-@router.post("/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{user_id}/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(betreiberschutz)],
+)
 def reset_password(user_id: int, payload: PasswordReset, admin: AdminUser, db: DbSession) -> None:
     user = _get_user_or_404(db, user_id)
     user.password_hash = hash_password(payload.password)
@@ -547,7 +652,11 @@ async def aufloesung_vorschau(
     )
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(betreiberschutz)],
+)
 async def delete_user(
     user_id: int,
     admin: AdminUser,

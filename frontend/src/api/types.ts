@@ -18,6 +18,16 @@ export type User = {
   /** 'dark' oder 'light' - siehe lib/theme.ts. */
   theme: string;
   is_active: boolean;
+  /**
+   * Trägt dieses Konto den Betreiber-Haken?
+   *
+   * ⚠️ **Nur zur Anzeige – er gibt kein Recht.** Genau ein Konto trägt ihn; er
+   * sagt ausschließlich, was **andere** damit nicht tun dürfen: deaktivieren,
+   * löschen, herabstufen, umkonfigurieren, das Passwort setzen. Die Oberfläche
+   * graut die Knöpfe deshalb aus – aber die Sperre selbst sitzt im Backend
+   * (`deps.betreiberschutz`). Ausgegraute Knöpfe sind Höflichkeit, kein Schutz.
+   */
+  is_betreiber: boolean;
   auto_approve: boolean;
   /** Was tatsächlich gilt – bei Administratoren immer true. */
   effective_auto_approve: boolean;
@@ -2181,3 +2191,25 @@ export interface LaufendStand {
   wiedergaben: LaufendeZeile[];
   bild_umrechnungen: number;
 }
+
+
+/**
+ * Wer die Installation betreibt – für das Abzeichen und die Übergabe.
+ *
+ * `user_id: null` heißt: niemand trägt ihn. Das ist ein echter Zustand und
+ * kein Fehler (frische Installation, oder ein Update ohne aktiven
+ * Administrator). Die Oberfläche muss ihn **zeigen** – sonst wundert sich
+ * jemand über ausgegraute Knöpfe, die es gar nicht gibt.
+ */
+export type BetreiberStand = {
+  user_id: number | null;
+  username: string | null;
+  display_name: string | null;
+  /**
+   * In `NEXVIEW_BETREIBER` festgelegt. Dann ist die Übergabe zu, und die
+   * Oberfläche sagt warum – statt eine Übergabe anzunehmen, die der nächste
+   * Neustart still zurückdrehen würde.
+   */
+  aus_umgebung: boolean;
+};
+

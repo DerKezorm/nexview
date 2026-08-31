@@ -768,6 +768,18 @@ export function AdminUsersSettings() {
                 })
               : gruppe.map((user) => {
               const isMe = user.id === me?.id;
+              /**
+               * Das Betreiberkonto – aus Sicht eines **anderen** Administrators.
+               *
+               * ⚠️ Nicht anklickbar und dann eine Fehlermeldung, sondern gar
+               * nicht erst anklickbar. Ein Knopf, der immer scheitert, ist eine
+               * Falle; ein ausgegrauter Knopf mit einem Satz daneben ist eine
+               * Auskunft.
+               *
+               * Der Betreiber selbst sieht hier nichts Ausgegrautes – der Haken
+               * nimmt ihm nichts weg. Er sagt nur, was andere nicht dürfen.
+               */
+              const geschuetzt = user.is_betreiber && !isMe;
               const offen = editing === user.id;
               return (
                 <Card key={user.id} className="flex flex-col gap-4">
@@ -833,6 +845,18 @@ export function AdminUsersSettings() {
                       </span>
                     )}
 
+                    {/* Genau ein Konto trägt es. Es ist bewusst ruhig
+                        gehalten und nicht als Warnung gefärbt: Hier ist nichts
+                        kaputt, hier ist nur etwas geschützt. */}
+                    {user.is_betreiber && (
+                      <span
+                        className="rounded-full bg-accent-500/10 px-2.5 py-1 text-xs text-accent-500 ring-1 ring-accent-500/30"
+                        title={t("adminUsers.betreiberHint")}
+                      >
+                        {t("adminUsers.betreiber")}
+                      </span>
+                    )}
+
                     {!user.is_active && (
                       <span className="rounded-full bg-ink-900 px-2.5 py-1 text-xs text-mist-500 ring-1 ring-ink-700">
                         {t("adminUsers.inactive")}
@@ -889,7 +913,8 @@ export function AdminUsersSettings() {
 
                         <select
                           value={feld(user, "role")}
-                          disabled={isMe}
+                          disabled={isMe || geschuetzt}
+                          title={geschuetzt ? t("adminUsers.betreiberGesperrt") : undefined}
                           onChange={(event) =>
                             setzen(user, "role", event.target.value as Role)
                           }
@@ -910,7 +935,7 @@ export function AdminUsersSettings() {
                           <input
                             type="checkbox"
                             checked={feld(user, "is_active")}
-                            disabled={isMe}
+                            disabled={isMe || geschuetzt}
                             onChange={(event) =>
                               setzen(user, "is_active", event.target.checked)
                             }
@@ -935,7 +960,7 @@ export function AdminUsersSettings() {
                               user.role === "admin" ||
                               feld(user, "can_manage_children")
                             }
-                            disabled={user.role === "admin"}
+                            disabled={user.role === "admin" || geschuetzt}
                             onChange={(event) =>
                               setzen(
                                 user,
@@ -1257,8 +1282,14 @@ export function AdminUsersSettings() {
                               variant="ghost"
                               onClick={() => setQuotaReset(user)}
                               disabled={
-                                user.quota_movies_used === 0 &&
-                                user.quota_series_used === 0
+                                geschuetzt ||
+                                (user.quota_movies_used === 0 &&
+                                  user.quota_series_used === 0)
+                              }
+                              title={
+                                geschuetzt
+                                  ? t("adminUsers.betreiberGesperrt")
+                                  : undefined
                               }
                             >
                               {t("adminUsers.resetQuota")}
@@ -1271,6 +1302,12 @@ export function AdminUsersSettings() {
                             <Button
                               variant="ghost"
                               onClick={() => setSpeicherReset(user)}
+                              disabled={geschuetzt}
+                              title={
+                                geschuetzt
+                                  ? t("adminUsers.betreiberGesperrt")
+                                  : undefined
+                              }
                             >
                               {t("adminUsers.resetStorage")}
                             </Button>
@@ -1453,6 +1490,12 @@ export function AdminUsersSettings() {
                       <div className="flex flex-wrap items-center gap-2 border-t border-ink-700 pt-4">
                         <Button
                           variant="ghost"
+                          disabled={geschuetzt}
+                          title={
+                            geschuetzt
+                              ? t("adminUsers.betreiberGesperrt")
+                              : undefined
+                          }
                           onClick={() => {
                             setResetting(
                               resetting === user.id ? null : user.id,
@@ -1465,10 +1508,26 @@ export function AdminUsersSettings() {
                         {!isMe && (
                           <Button
                             variant="ghost"
+                            disabled={geschuetzt}
+                            title={
+                              geschuetzt
+                                ? t("adminUsers.betreiberGesperrt")
+                                : undefined
+                            }
                             onClick={() => setDeleting(user)}
                           >
                             {t("adminUsers.delete")}
                           </Button>
+                        )}
+
+                        {/* ⚠️ Der Satz gehört hierher, nicht in einen
+                            Tooltip allein. Wer graue Knöpfe sieht und nicht
+                            erfährt, warum, hält es für einen Fehler und
+                            probiert es beim nächsten Mal wieder. */}
+                        {geschuetzt && (
+                          <p className="w-full text-xs text-mist-600">
+                            {t("adminUsers.betreiberGesperrtLang")}
+                          </p>
                         )}
 
                         {resetting === user.id && (

@@ -180,6 +180,27 @@ class Settings(BaseSettings):
             return ""
         return wert
 
+    # Der Nothammer im Glaskasten: Wer sich als Betreiber aussperrt - Passwort
+    # weg, Anmeldedienst tot, Konto unbrauchbar -, traegt hier den
+    # **Benutzernamen** ein und startet den Behaelter neu. Dieses Konto traegt
+    # danach den Betreiber-Haken.
+    #
+    # Bei einer neuen Installation braucht es die Variable nicht: Das Konto aus
+    # dem Einrichtungsassistenten bekommt den Haken von selbst. Sie steht
+    # normalerweise nirgends.
+    #
+    # ⚠️ **Sie wird bei jedem Start gelesen, nicht einmal.** Bleibt sie stehen,
+    # ist der Betreiber dauerhaft von aussen festgelegt - die Uebergabe in der
+    # Oberflaeche wird dann ausdruecklich verweigert (siehe
+    # ``services/betreiber.py``), statt beim naechsten Neustart still
+    # zurueckzuspringen.
+    #
+    # ⚠️ **Und die Abgrenzung, die ausgesprochen sein muss:** Der Betreiber-
+    # Haken schuetzt gegen einen zweiten *Administrator*, nicht gegen jemanden
+    # mit Zugriff auf den Server. Wer den Behaelter neu starten kann, hat
+    # ohnehin die volle Kontrolle ueber Anwendung und Datenbank.
+    betreiber: str = ""
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "nexview.db"

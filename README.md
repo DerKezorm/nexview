@@ -253,8 +253,49 @@ copy `.env.example` to `.env`:
 | `NEXVIEW_CSP` | Content security rules: `on` (default), `report-only`, or `off`. See below. |
 | `NEXVIEW_FRAME_ANCESTORS` | Who may put Nexview in a frame: `none` (default), `self`, or an origin. See below. |
 | `NEXVIEW_IMG_SOURCES` | Extra image hosts, space separated. Only needed if calendar posters stay blank. See below. |
+| `NEXVIEW_BETREIBER` | Emergency exit: the **username** of the account that owns this installation. Normally unset — the account from the setup wizard owns it. Only needed if the owner locks themselves out. See below. |
 
 **No TMDB, Radarr or Sonarr keys belong in `.env`** — you enter those in the app.
+
+### The owner account
+
+Exactly one account owns the installation. It carries an **Owner** badge in
+Settings → Users, and no other administrator can switch it off, delete it,
+demote it, change its quotas or set its password. The buttons are greyed out for
+them, with a sentence explaining why.
+
+The flag grants **no extra rights**. It only says what *others* may not do with
+that account. The owner approves requests, spends quota and manages keys exactly
+like any other administrator.
+
+**Who gets it.** On a new installation, the account you create in the setup
+wizard. On an existing installation being upgraded, the oldest active
+administrator — usually that same account. If there is no active administrator,
+the flag stays unassigned and says so in the user list.
+
+**Handing it over.** Only the current owner can, under Profile → Security →
+*Hand over ownership*. The target must be an active administrator. Afterwards
+the previous owner is an ordinary administrator again and cannot take the flag
+back — only the new owner can hand it back.
+
+**If you lock yourself out** — password gone with no mail delivery set up, login
+provider dead, account unusable — set `NEXVIEW_BETREIBER` to your username and
+restart the container:
+
+```yaml
+environment:
+  NEXVIEW_BETREIBER: yourusername
+```
+
+That account carries the flag again on the next start, with one line in the log.
+**Then remove the line**: the variable is read on *every* start, so while it is
+set, Nexview refuses to hand ownership over in the app rather than silently
+undoing it on the next restart. A username that does not exist is ignored with a
+warning — no account is created from this variable.
+
+⚠️ The owner flag protects against a second **administrator**, not against
+someone with access to your server. Whoever can restart the container already
+has full control over Nexview and its database.
 
 ### Rate limiting sign-ins
 

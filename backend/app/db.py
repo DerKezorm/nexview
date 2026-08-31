@@ -73,6 +73,7 @@ def init_db() -> None:
     _gesehen_herkunft_nachtragen()
     _verknuepfungen_in_die_tabelle()
     _kontingente_dreiwertig_machen()
+    _betreiber_bestimmen()
 
 
 def _leere_installation(ziel: Engine | None = None) -> bool:
@@ -762,3 +763,25 @@ def _verwaiste_meldungsarten_aufraeumen() -> None:
                 tabelle,
                 ", ".join(sorted(fremd)),
             )
+
+
+def _betreiber_bestimmen() -> None:
+    """Wer traegt den Betreiber-Haken? - beim Hochfahren, einmal.
+
+    Bei einer **bestehenden** Installation hat ihn nach dem Update niemand.
+    Sie bekommt den aeltesten aktiven Administrator; das ist in aller Regel das
+    Konto aus dem Einrichtungsassistenten. Ist ``NEXVIEW_BETREIBER`` gesetzt,
+    gewinnt die Variable. Die Regeln stehen in ``services/betreiber.py``, hier
+    haengt nur der Startweg daran.
+
+    ⚠️ **Nicht in ``_add_missing_columns`` aufgehoben.** Das Nachtragen der
+    Spalte ist eine Schema-Aenderung, das Vergeben des Hakens eine
+    Entscheidung ueber Daten - und die muss auch bei einer Datenbank laufen,
+    der die Spalte schon gehoert (etwa nach einer eingespielten Sicherung aus
+    einer aelteren Fassung).
+    """
+    from .services import betreiber
+
+    with SessionLocal() as db:
+        betreiber.beim_start(db)
+

@@ -7,6 +7,8 @@ er dauerhaft mit 409.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
 
 from ..config import get_settings
@@ -20,6 +22,8 @@ from ..services.settings_service import load_settings
 from .. import meldungen
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
+
+logger = logging.getLogger("nexview.setup")
 
 
 @router.get("/status", response_model=SetupStatus)
@@ -84,10 +88,21 @@ def create_first_admin(
         display_name=payload.display_name or payload.username,
         language=payload.language,
         auto_approve=True,  # der Admin braucht keine Freigabe von sich selbst
+        # ⚠️ **Der Betreiber-Haken entsteht hier, und das ist der Regelfall.**
+        # Wer Nexview neu aufsetzt, muss dafuer nichts wissen und nichts
+        # eintragen: Das Konto aus dem Assistenten gehoert dem Menschen, dem
+        # der Server gehoert. ``NEXVIEW_BETREIBER`` ist nur der Nothammer fuer
+        # spaeter - zum Zeitpunkt dieses Aufrufs gibt es noch gar kein Konto,
+        # das die Variable nennen koennte.
+        #
+        # Er gibt ihm kein Recht dazu. Er sagt nur, was ein spaeter ernannter
+        # zweiter Administrator mit diesem Konto nicht tun darf.
+        is_betreiber=True,
     )
     db.add(admin)
     db.commit()
     db.refresh(admin)
+    logger.info("Owner account is now %r (first administrator from setup)", admin.username)
 
     return sitzung.starten(response, request, admin)
 

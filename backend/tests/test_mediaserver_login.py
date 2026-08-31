@@ -693,6 +693,48 @@ def test_trennen_geht_mit_ausdruecklicher_bestaetigung(
         assert not settings_service.load_settings(session).mediaserver_configured
 
 
+def test_trennen_kann_den_betreiber_nicht_aussperren(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """⚠️ Die Seitentuer zum Betreiberkonto - und hier hilft ``bestaetigt`` nicht.
+
+    Ein zweiter Administrator koennte den Betreiber erledigen, ohne sein Konto
+    je anzufassen: einfach den Anmeldeweg abschalten, ueber den er hereinkommt.
+    Die Wache an den Konto-Adressen sieht das nicht.
+
+    Fuer jedes andere Konto bleibt das Ueberstimmen richtig - der Administrator
+    kann hinterher ein Passwort setzen. Beim Betreiber darf er genau das
+    nicht, also waere ein ueberstimmbarer Schutz gar keiner.
+    """
+    verbinde(admin_client)
+    anmelden(admin_client)
+    kennung = _ohne_passwort_und_adresse()
+
+    # Das wehrlose Konto ist der Betreiber, und ein anderer versucht zu trennen.
+    with SessionLocal() as session:
+        for konto in session.query(User).all():
+            konto.is_betreiber = konto.id == kennung
+        session.commit()
+    create_user(admin_client, "zweiter", "zweites-passwort", role=Role.admin)
+    kopf_b = auth_headers(admin_client, "zweiter", "zweites-passwort")
+
+    ohne = admin_client.delete("/api/admin/mediaserver/connection", headers=kopf_b)
+    assert ohne.status_code == 403
+    assert ohne.json()["detail"]["code"] == "betreiber_wuerde_ausgesperrt"
+
+    mit = admin_client.delete(
+        "/api/admin/mediaserver/connection",
+        params={"bestaetigt": "true"},
+        headers=kopf_b,
+    )
+    assert mit.status_code == 403, "bestaetigt=true darf hier nichts ausrichten"
+
+    from app.services import settings_service
+
+    with SessionLocal() as session:
+        assert settings_service.load_settings(session).mediaserver_configured
+
+
 def test_trennen_ohne_gefaehrdete_braucht_keine_bestaetigung(
     admin_client: TestClient, fake_server: FakeMediaServer
 ) -> None:

@@ -579,6 +579,17 @@
     "tabProfile": "Profil",
     "securityIntro": "Wer kommt an dein Konto — und womit. Passwort, angemeldete Geräte und die Token, mit denen Programme in deinem Namen zugreifen."
   },
+  "betreiber": {
+    "title": "Betreiber übergeben",
+    "text": "Dir gehört diese Installation. Kein anderer Administrator kann dein Konto deaktivieren, löschen, herabstufen oder umstellen. Hier gibst du das weiter – an genau einen anderen Administrator.",
+    "pick": "Administrator wählen …",
+    "handOver": "Betreiber übergeben",
+    "noCandidates": "Es gibt keinen weiteren aktiven Administrator, an den du übergeben könntest. Ernenne zuerst einen in der Benutzerverwaltung.",
+    "fromEnvironment": "Der Betreiber ist beim Start festgelegt (NEXVIEW_BETREIBER) und lässt sich hier nicht ändern. Nimm die Zeile aus deiner docker-compose.yml und starte neu – sonst würde der nächste Start jede Übergabe wieder zurückdrehen.",
+    "confirmTitle": "Betreiber wirklich übergeben?",
+    "confirmText": "{{name}} wird der Betreiber dieser Installation.",
+    "confirmWarning": "Das lässt sich nicht rückgängig machen. Danach bist du ein gewöhnlicher Administrator: Der neue Betreiber – und jeder andere Administrator – kann dein Konto deaktivieren, herabstufen, löschen und dein Passwort setzen. Zurückholen kann den Haken nur der neue Träger, indem er ihn dir wieder übergibt."
+  },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",
     "allowedMovieProfiles": "Gesperrte Qualitätsprofile (Filme)",
@@ -712,7 +723,11 @@
     "dissolveOpenIntro": "Noch ist nichts heruntergeladen. Angehakt läuft die Bestellung weiter und der Titel fällt ans Haus; ohne Haken wird sie storniert und aus Radarr bzw. Sonarr genommen.",
     "dissolveOpenKeep": "— läuft weiter, fällt ans Haus",
     "dissolveOpenCancel": "— wird storniert",
-    "dissolveSeason": "(Staffel {{number}})"
+    "dissolveSeason": "(Staffel {{number}})",
+    "betreiber": "Betreiber",
+    "betreiberHint": "Diesem Konto gehört die Installation. Es kann von keinem anderen Administrator geändert, deaktiviert oder gelöscht werden.",
+    "betreiberGesperrt": "Das Konto des Betreibers kann nur er selbst ändern.",
+    "betreiberGesperrtLang": "Dieses Konto trägt den Betreiber-Haken. Es lässt sich von hier aus nicht deaktivieren, herabstufen, löschen oder umstellen – auch sein Passwort nicht setzen. Weitergeben kann den Haken nur der Betreiber selbst, in seinem Profil."
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -1506,7 +1521,14 @@
       "quality_import_falsche_art": "Das ist keine Nexview-Profildatei. Erwartet wird eine Datei, die der Ausfuhr-Knopf in der Profilablage erzeugt hat.",
       "quality_import_zu_neu": "Die Datei stammt aus einer neueren Nexview-Fassung. Aktualisiere zuerst diese Installation.",
       "quality_import_leer": "Die Datei enthält kein einziges Profil.",
-      "quality_import_kaputt": "Mindestens ein Profil in der Datei ist unvollständig."
+      "quality_import_kaputt": "Mindestens ein Profil in der Datei ist unvollständig.",
+      "betreiber_geschuetzt": "Das Konto des Betreibers kann von niemandem sonst geändert werden.",
+      "betreiber_not_owner": "Nur der Betreiber selbst kann den Betreiber übergeben.",
+      "betreiber_von_umgebung": "Der Betreiber ist beim Start festgelegt (NEXVIEW_BETREIBER) und lässt sich hier nicht ändern.",
+      "betreiber_selbst": "Du bist bereits der Betreiber.",
+      "betreiber_nur_admin": "Der Betreiber kann nur an einen Administrator übergeben werden.",
+      "betreiber_ziel_inaktiv": "Ein deaktiviertes Konto kann den Betreiber nicht übernehmen.",
+      "betreiber_wuerde_ausgesperrt": "Der Betreiber käme danach nicht mehr herein – das kann niemand außer ihm selbst entscheiden."
     }
   },
   "language": {
@@ -2270,6 +2292,37 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.26.0": {
+        "lead": "Bis jetzt waren alle Administratoren gleich. Wer einen zweiten ernannte, gab ihm damit auch die Macht, den ersten hinauszuwerfen. Ab dieser Fassung trägt genau ein Konto den **Betreiber**-Haken — und das ist das einzige, das kein anderer abschalten kann.",
+        "sections": [
+          {
+            "title": "Ein Konto, das niemand sonst anfassen kann",
+            "where": "Einstellungen → Benutzer — am Abzeichen „Betreiber“ zu erkennen",
+            "body": "Wer die Anwendung aufgesetzt hat, zahlt den Strom und hat die Festplatte in der Hand — und war trotzdem so abwählbar wie jeder andere. Es gab genau eine Bremse dagegen, und die griff zu spät: Nur der *letzte* aktive Administrator war geschützt. Solange noch ein zweiter da war, durfte jeder jeden.\n\nJetzt trägt genau ein Konto den Haken. Öffnet ein anderer Administrator es in der Benutzerliste, sind die Knöpfe **ausgegraut** — deaktivieren, herabstufen, löschen, Kontingente umstellen, Passwort setzen — mit einem Satz daneben, warum. Nicht anklickbar und dann eine Fehlermeldung: gar nicht erst anklickbar.\n\n**Die schwerwiegendste der fünf Türen war das Passwort.** Sie hatte bis jetzt keine einzige Bremse, nicht einmal die für den letzten Administrator. Ein zweiter Administrator musste den ersten gar nicht hinauswerfen: Er setzte ihm ein Passwort und **wurde** er — mit seinen Zugangsschlüsseln, seinen Kinderkonten, seinem Zugang. Im Protokoll stand eine unauffällige Zeile.\n\n⚠️ **Der Haken gibt kein einziges Recht dazu.** Keine automatische Freigabe, kein größeres Kontingent, keine Macht über fremde Zugangsschlüssel. Er sagt ausschließlich, was **andere** mit diesem Konto nicht dürfen. Wer die Installation betreibt, sieht deshalb an seiner eigenen Oberfläche keinen Unterschied — bis auf das Abzeichen und einen neuen Bereich im Profil."
+          },
+          {
+            "title": "Weitergeben — einmal, und ohne Rückweg",
+            "where": "Profil → Sicherheit → „Betreiber übergeben“",
+            "body": "Nur der Träger selbst kann den Haken weitergeben. Es gibt keinen Weg, ihn sich zu holen. In seinem Profil wählt er einen anderen Administrator, liest eine Warnung, die sagt, was danach gilt, und bestätigt.\n\nDanach ist er ein gewöhnlicher Administrator — der neue Betreiber und jeder andere kann sein Konto deaktivieren, herabstufen, löschen und sein Passwort setzen. Zurückholen kann er den Haken nicht; nur der neue Träger kann ihn zurückgeben.\n\nÜbergeben geht nur an einen **aktiven Administrator**. Nicht an ein gewöhnliches Konto, nicht an einen Entscheider, nicht an ein Kinderkonto, nicht an ein stillgelegtes Konto und nicht an sich selbst — sonst säße der Haken auf einem Konto, das ihn nie wieder weitergeben könnte.\n\nSolange jemand den Haken trägt, kann er sein Konto nicht auflösen: erst weitergeben, dann gehen."
+          },
+          {
+            "title": "Der Weg zurück, wenn du dich aussperrst",
+            "where": "docker-compose.yml — nur im Notfall, sonst nirgends",
+            "body": "Passwort vergessen und kein Mailversand eingerichtet, Anmeldedienst tot, Konto versehentlich unbrauchbar: Dann wanderte der Haken nie wieder. Dafür gibt es den Nothammer. Trag `NEXVIEW_BETREIBER=deinbenutzername` ein und starte den Container neu — dieses Konto trägt danach den Haken, mit einer Zeile im Protokoll. Danach nimmst du die Zeile wieder heraus.\n\nBei einer neuen Installation brauchst du davon nichts zu wissen: Das Konto aus dem Einrichtungsassistenten bekommt den Haken von selbst. Nennt die Variable einen Namen, den es nicht gibt, passiert **nichts** außer einer Warnung im Protokoll — ein Vertipper legt kein Konto an.\n\nBleibt die Zeile stehen, ist der Betreiber dauerhaft von außen festgelegt. Die Übergabe im Profil wird dann ausdrücklich **verweigert** und sagt warum, statt beim nächsten Neustart still zurückzuspringen.\n\n⚠️ **Und die Grenze, die dazugehört:** Der Haken schützt gegen einen zweiten Administrator, nicht gegen jemanden mit Zugriff auf deinen Server. Wer den Container neu starten kann, hat ohnehin die volle Kontrolle über Nexview und seine Datenbank."
+          },
+          {
+            "title": "Zwei Seitentüren, die auch zu sind",
+            "where": "Einstellungen → Medienserver bzw. Anmeldedienste, und Sicherungen",
+            "body": "Man kann den Betreiber auch erledigen, ohne sein Konto je anzufassen — und beides ist mitgeschlossen.\n\n**Den Anmeldeweg abschalten.** Wer nur über einen Anmeldedienst oder den Medienserver hereinkommt, steht draußen, sobald der weg ist. Sein Konto ist unversehrt und unerreichbar. Bisher konnte ein Administrator die Warnung überstimmen; beim Betreiber geht das jetzt nicht mehr. Für jedes andere Konto bleibt das Überstimmen erlaubt — dort kann er den Schaden hinterher beheben, indem er ein Passwort setzt. Beim Betreiber darf er genau das nicht.\n\n**Eine alte Sicherung einspielen.** Sie kopiert die ganze Datenbank, der Haken wäre also mitgereist — und eine Übergabe ließe sich damit rückgängig machen. Der Betreiber-Haken ist deshalb der eine Wert, der die Zeitmaschine nicht mitmacht: Nach dem Einspielen trägt ihn, wer ihn davor getragen hat. Gibt es dieses Konto in der Sicherung nicht, bleibt er unvergeben, statt geraten zu werden."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Bestehende Installationen: Nach dem Update bekommt der **älteste aktive Administrator** den Haken — in aller Regel das Konto aus dem Einrichtungsassistenten. Gibt es keinen aktiven Administrator, bleibt er sichtbar unvergeben, statt still jemanden zu ernennen.",
+          "Die Datenbank erzwingt selbst, dass es nie zwei Betreiber geben kann — nicht erst der Programmcode.",
+          "Ein neuer Prüflauf geht bei jedem Bau die **ganze** Adressliste durch und schlägt an, sobald jemand eine Adresse anlegt, die ein fremdes Konto verändern kann, ohne über den Betreiber-Schutz entschieden zu haben."
+        ]
+      },
       "0.25.1": {
         "lead": "Eine Wartungsfassung — nichts Neues zu entdecken, aber vieles, das jetzt stimmt. Zwei **Sicherheitslücken** sind geschlossen, der **Bibliotheks-Abgleich** gibt bei langsamen Medienservern nicht mehr auf, und **sechzehn Fehlermeldungen** kamen bisher auf Deutsch, gleich welche Sprache du eingestellt hattest.",
         "sections": [

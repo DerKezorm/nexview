@@ -17,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -276,6 +277,29 @@ class User(Base):
             unique=True,
         ),
         Index("ix_users_parent", "parent_id"),
+        # ⚠️ **"Nie zwei Betreiber" erzwingt die Datenbank selbst**, nicht der
+        # Code. Auch wenn sich zwei Vorgaenge in derselben Tausendstelsekunde
+        # beide den Haken geben wollen, kommt genau einer durch - der andere
+        # laeuft in einen IntegrityError. Eine Pruefung im Code haette dieses
+        # Fenster nicht schliessen koennen.
+        #
+        # **Teil-eindeutig** (``WHERE is_betreiber = 1``): Ein gewoehnlicher
+        # eindeutiger Index liesse nur *einen* Nichtbetreiber zu, denn auch die
+        # vielen Nullen waeren dann Doppelte.
+        #
+        # ⚠️ Und die Grenze, die man kennen muss: Das erzwingt "hoechstens
+        # einer", **nicht** "mindestens einer". Eine Datenbank kann verlangen,
+        # dass etwas nicht doppelt vorkommt; dass es ueberhaupt vorkommt, kann
+        # sie nicht. Das ist hier auch richtig so - der Zustand "noch nicht
+        # vergeben" ist ausdruecklich vorgesehen (frische Installation vor der
+        # Einrichtung, oder ein Update ohne aktiven Administrator). Dass
+        # jemand ihn traegt, halten ``betreiber.py`` und die Oberflaeche.
+        Index(
+            "ix_users_betreiber",
+            "is_betreiber",
+            unique=True,
+            sqlite_where=text("is_betreiber = 1"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -293,6 +317,28 @@ class User(Base):
     # so findet jeder seine Einstellung auf jedem Geraet wieder.
     theme: Mapped[str] = mapped_column(String(5), default="dark", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # --- Der Betreiber -----------------------------------------------------
+    # Wem die Installation gehoert. **Ein Haken am Konto, keine vierte Rolle.**
+    #
+    # ⚠️ **Er gibt kein einziges Recht dazu.** Der Betreiber darf nicht mehr
+    # als jeder andere Administrator - keine automatische Freigabe, kein
+    # Kontingent-Freifahrtschein, keine Macht ueber fremde Schluessel. Der
+    # Haken sagt ausschliesslich, was **andere** mit ihm nicht tun duerfen:
+    # deaktivieren, loeschen, herabstufen, umkonfigurieren, sein Passwort
+    # setzen. Wer daraus eine Rolle macht, hat ihn missverstanden - dann
+    # gehoerte er nach ``Role``, und dort steht er bewusst nicht.
+    #
+    # Der Grund, warum es ihn gibt: Bis 0.25 waren alle Administratoren
+    # gleich. Wer einen zweiten ernannte, gab ihm damit die Macht, den ersten
+    # hinauszuwerfen. Die einzige Bremse dagegen griff zu spaet - sie schuetzt
+    # nur den *letzten* aktiven Administrator (``update_user``,
+    # ``delete_user``). Solange noch ein zweiter da war, durfte jeder jeden.
+    #
+    # Weitergeben kann ihn **nur der Traeger selbst** (``uebergeben``), und er
+    # kann ihn sich danach nicht zurueckholen. Sperrt der Traeger sich aus,
+    # ist ``NEXVIEW_BETREIBER`` der Weg zurueck - siehe ``betreiber.py``.
+    is_betreiber: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Freigabe- und Kontingent-Regeln (vom Admin pro Benutzer einstellbar)
     # Auto-Freigabe je Medienart - wie die Kontingente, die schon lange

@@ -25,6 +25,7 @@ import { SpracheUndRegion } from './profile/SpracheUndRegion'
 import { StreamingDienste } from './profile/StreamingDienste'
 import { Kinder } from './profile/Kinder'
 import { ApiSchluessel } from './profile/ApiSchluessel'
+import { BetreiberUebergeben } from './profile/BetreiberUebergeben'
 import { KontoLoeschen } from './profile/KontoLoeschen'
 import { MediaServerLink } from './profile/MediaServerLink'
 import { OidcLinks } from './profile/OidcLinks'
@@ -654,6 +655,11 @@ export function ProfilePage() {
                   wie alles andere hier: wer hat Zugang zu diesem Konto - und
                   soll es überhaupt weiter geben. */}
               {user.role !== 'admin' && <KontoLoeschen />}
+
+              {/* „Betreiber übergeben" – nur der Träger sieht es überhaupt.
+                  Steht unter „Sicherheit" aus demselben Grund wie das Löschen:
+                  Es beantwortet die Frage, wem dieses Haus gehört. */}
+              <BetreiberUebergeben me={user} />
             </>
           )}
 

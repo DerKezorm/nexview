@@ -579,6 +579,17 @@
     "tabProfile": "Profile",
     "securityIntro": "Who gets into your account, and with what. Password, signed-in devices, and the tokens programs use on your behalf."
   },
+  "betreiber": {
+    "title": "Hand over ownership",
+    "text": "This installation is yours. No other administrator can switch off, delete, demote or reconfigure your account. Here you hand that on – to exactly one other administrator.",
+    "pick": "Choose an administrator …",
+    "handOver": "Hand over ownership",
+    "noCandidates": "There is no other active administrator to hand over to. Appoint one in user management first.",
+    "fromEnvironment": "The owner is fixed at startup (NEXVIEW_BETREIBER) and cannot be changed here. Remove the line from your docker-compose.yml and restart – otherwise the next start would undo any handover again.",
+    "confirmTitle": "Really hand over ownership?",
+    "confirmText": "{{name}} becomes the owner of this installation.",
+    "confirmWarning": "This cannot be undone. Afterwards you are an ordinary administrator: the new owner – and every other administrator – can switch off, demote and delete your account and set your password. Only the new owner can hand the flag back to you."
+  },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",
     "allowedMovieProfiles": "Blocked quality profiles (movies)",
@@ -712,7 +723,11 @@
     "dissolveOpenIntro": "Nothing has downloaded yet. Ticked, the order keeps running and the title falls to the house; unticked, it is cancelled and taken out of Radarr or Sonarr.",
     "dissolveOpenKeep": "— keeps running, falls to the house",
     "dissolveOpenCancel": "— will be cancelled",
-    "dissolveSeason": "(season {{number}})"
+    "dissolveSeason": "(season {{number}})",
+    "betreiber": "Owner",
+    "betreiberHint": "This account owns the installation. No other administrator can change, switch off or delete it.",
+    "betreiberGesperrt": "Only the owner can change the owner's account.",
+    "betreiberGesperrtLang": "This account carries the owner flag. It cannot be switched off, demoted, deleted or reconfigured from here, and its password cannot be set. Only the owner can hand the flag on, from their own profile."
   },
   "notifications": {
     "title": "Notifications",
@@ -1506,7 +1521,14 @@
       "quality_import_falsche_art": "This is not a Nexview profile file. It expects a file produced by the export button in the profile store.",
       "quality_import_zu_neu": "The file comes from a newer version of Nexview. Update this installation first.",
       "quality_import_leer": "The file contains no profiles at all.",
-      "quality_import_kaputt": "At least one profile in the file is incomplete."
+      "quality_import_kaputt": "At least one profile in the file is incomplete.",
+      "betreiber_geschuetzt": "The owner's account cannot be changed by anyone else.",
+      "betreiber_not_owner": "Only the owner can hand over ownership.",
+      "betreiber_von_umgebung": "The owner is fixed at startup (NEXVIEW_BETREIBER) and cannot be changed here.",
+      "betreiber_selbst": "You are already the owner.",
+      "betreiber_nur_admin": "Ownership can only be handed to an administrator.",
+      "betreiber_ziel_inaktiv": "A disabled account cannot take over ownership.",
+      "betreiber_wuerde_ausgesperrt": "The owner would no longer be able to get in – nobody but the owner can decide that."
     }
   },
   "language": {
@@ -2270,6 +2292,37 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.26.0": {
+        "lead": "Until now all administrators were equal. Appointing a second one also handed them the power to throw out the first. From this version on, exactly one account carries the **owner** flag — and it is the one account nobody else can switch off.",
+        "sections": [
+          {
+            "title": "One account nobody else can touch",
+            "where": "Settings → Users — look for the “Owner” badge",
+            "body": "Whoever set the application up, pays for the electricity and holds the hard disk in their hands — and was still as removable as anyone else. There was exactly one brake against that, and it applied too late: only the *last* active administrator was protected. As long as a second one was around, anyone could remove anyone.\n\nNow exactly one account carries the flag. When another administrator opens it in the user list, the buttons are **greyed out** — switch off, demote, delete, change quotas, set the password — with a sentence next to them explaining why. Not clickable followed by an error: not clickable in the first place.\n\n**The worst of the five doors was the password.** Until now it had no brake at all, not even the one for the last administrator. A second administrator did not have to throw the first one out: they set a password and **became** them — with their access keys, their child accounts, their way in. The log held one inconspicuous line.\n\n⚠️ **The flag grants no rights whatsoever.** No automatic approval, no larger quota, no power over anyone else's access keys. It says only what **others** may not do with this account. Whoever runs the installation therefore sees no difference in their own interface — apart from the badge and one new section in their profile."
+          },
+          {
+            "title": "Handing it on — once, and with no way back",
+            "where": "Profile → Security → “Hand over ownership”",
+            "body": "Only the holder can hand the flag on. There is no way to take it. In their profile they pick another administrator, read a warning that says what applies afterwards, and confirm.\n\nAfterwards they are an ordinary administrator — the new owner, and every other administrator, can switch off, demote and delete their account and set their password. They cannot take the flag back; only the new holder can hand it back.\n\nHanding over works only to an **active administrator**. Not to an ordinary account, not to an approver, not to a child account, not to a disabled account and not to yourself — otherwise the flag would sit on an account that could never pass it on.\n\nWhile someone carries the flag, they cannot close their own account: hand it on first, then leave."
+          },
+          {
+            "title": "The way back if you lock yourself out",
+            "where": "docker-compose.yml — for emergencies only, nowhere else",
+            "body": "Password forgotten with no mail delivery set up, login provider dead, account accidentally unusable: the flag would never move again. That is what the emergency hammer is for. Add `NEXVIEW_BETREIBER=yourusername` and restart the container — that account carries the flag afterwards, with one line in the log. Then take the line out again.\n\nOn a new installation you need to know none of this: the account from the setup wizard gets the flag by itself. If the variable names an account that does not exist, **nothing** happens beyond a warning in the log — a typo does not create an account.\n\nIf the line stays in place, the owner is permanently fixed from outside. Handing over in the profile is then explicitly **refused**, with a reason, rather than silently springing back on the next restart.\n\n⚠️ **And the boundary that comes with it:** the flag protects against a second administrator, not against someone with access to your server. Whoever can restart the container already has full control over Nexview and its database."
+          },
+          {
+            "title": "Two side doors, also closed",
+            "where": "Settings → Media server and login providers, and Backups",
+            "body": "The owner can also be dealt with without ever touching their account — and both routes are closed too.\n\n**Switching off their way in.** Anyone who only gets in through a login provider or the media server is left outside as soon as it is gone. Their account is untouched and unreachable. Until now an administrator could override that warning; for the owner they no longer can. For every other account overriding stays allowed — there the administrator can repair the damage afterwards by setting a password. For the owner that is exactly what they may not do.\n\n**Restoring an old backup.** It copies the whole database, so the flag would have travelled with it — and a handover could be undone that way. The owner flag is therefore the one value that does not join the time machine: after a restore it is carried by whoever carried it before. If that account does not exist in the backup, it stays unassigned rather than being guessed."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Existing installations: after the update the **oldest active administrator** gets the flag — usually the account from the setup wizard. If there is no active administrator, it stays visibly unassigned instead of quietly appointing someone.",
+          "The database itself enforces that there can never be two owners — not just the program code.",
+          "A new check walks the **entire** list of endpoints on every build and fails as soon as someone adds one that can change another account without having decided about owner protection."
+        ]
+      },
       "0.25.1": {
         "lead": "A maintenance release — nothing new to discover, but a lot that is now correct. Two **security holes** are closed, the **library sync** no longer gives up on a slow media server, and **sixteen error messages** used to arrive in German whatever language you had chosen.",
         "sections": [

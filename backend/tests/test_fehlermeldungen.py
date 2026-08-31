@@ -74,7 +74,21 @@ def _kennungen_im_backend() -> set[str]:
         # ``KontoFehler`` und ``OidcFehler`` kamen erst mit der OIDC-Arbeit in
         # diese Liste - und haben dabei aufgedeckt, dass die KontoFehler des
         # Media-Servers hier jahrelang unbewacht waren.
-        for klasse in ("SicherungFehler", "SchluesselFehler", "KontoFehler", "OidcFehler"):
+        # ⚠️ **Diese Liste ist von Hand gepflegt - und das ist ihre Schwaeche.**
+        # Sie waechst nur, wenn jemand daran denkt; ``BetreiberFehler`` kam
+        # dazu, weil ein Testlauf rot wurde, nicht weil jemand es vorher wusste.
+        # Besser waere, die Klassen aus dem Quelltext abzuleiten (alles, was von
+        # ``Exception`` erbt und eine Kennung als erstes Argument nimmt) - so
+        # wie ``test_betreiber_waechter`` seine Felder aus ``models.User``
+        # ableitet. Solange das nicht geschehen ist, gilt: Wer eine neue
+        # Fehlerklasse mit Kennung anlegt, traegt sie hier ein.
+        for klasse in (
+            "SicherungFehler",
+            "SchluesselFehler",
+            "KontoFehler",
+            "OidcFehler",
+            "BetreiberFehler",
+        ):
             gefunden.update(re.findall(klasse + r'\(\s*\n?\s*"([a-z0-9_]+)"', text))
         # Kennungen des OIDC-Rueckwegs: Sie erreichen die Oberflaeche nicht als
         # Fehlerantwort, sondern als ``?oidc_fehler=...`` in einer

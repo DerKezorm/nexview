@@ -28,7 +28,7 @@ from ..crypto import decrypt, encrypt
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import AuthToken, MediaServerBlock, MediaServerConnection, User, utcnow
 from ..schemas import TokenPair, UserPublic
-from ..services import anmeldebremse, sitzung
+from ..services import anmeldebremse, betreiber as betreiber_dienst, sitzung
 from ..services import mediaserver_accounts as konten
 from ..services import mediaserver_library, settings_service
 from ..services.mediaserver import (
@@ -952,6 +952,34 @@ def _trenn_folgen(db: DbSession, provider: str | None = None) -> TrennFolgen:
     )
 
 
+def _betreiber_nicht_aussperren(db: DbSession, admin: User, gefaehrdet: list[int]) -> None:
+    """Die Seitentuer: den Betreiber aussperren, ohne sein Konto anzufassen.
+
+    Dieselbe Ueberlegung wie in ``routers/oidc.py`` - dort steht sie
+    ausgeschrieben. Kurz: Hier faellt kein Konto, sondern der *Anmeldeweg*, ueber
+    den der Betreiber hereinkommt. Die Wache an den Konto-Adressen sieht das
+    nicht.
+
+    ⚠️ **``bestaetigt=true`` hilft hier nicht.** Fuer alle anderen Konten ist das
+    Ueberstimmen richtig - der Administrator kann hinterher Passwoerter setzen.
+    Beim Betreiber darf er genau das nicht, also waere ein ueberstimmbarer
+    Schutz gar keiner.
+    """
+    traeger = betreiber_dienst.traeger(db)
+    if traeger is None or traeger.id == admin.id or traeger.id not in set(gefaehrdet):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": "betreiber_wuerde_ausgesperrt",
+            "message": (
+                "Der Betreiber käme danach nicht mehr herein - das kann niemand "
+                "außer ihm selbst entscheiden."
+            ),
+        },
+    )
+
+
 @admin_router.get("/connection/folgen", response_model=TrennFolgen)
 def connect_impact(
     db: DbSession, admin: AdminUser, provider: str | None = None
@@ -987,6 +1015,7 @@ def connect_delete(
     der durch ihn hindurchfuehrt.
     """
     folgen = _trenn_folgen(db, provider)
+    _betreiber_nicht_aussperren(db, admin, [konto.id for konto in folgen.gefaehrdet])
     if folgen.gefaehrdet and not bestaetigt:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

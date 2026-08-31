@@ -186,6 +186,14 @@ class UserPublic(BaseModel):
     language: str
     theme: str
     is_active: bool
+    # Traegt dieses Konto den Betreiber-Haken?
+    #
+    # ⚠️ **Nur zur Anzeige - er gibt kein Recht.** Die Oberflaeche braucht ihn
+    # an zwei Stellen: fuer das Abzeichen in der Benutzerliste und um die
+    # Knoepfe auszugrauen, die an diesem Konto nicht gehen. Wer ihn irgendwo
+    # als Erlaubnis liest, hat ihn missverstanden - die Sperren sitzen im
+    # Backend (``deps.betreiberschutz``), nicht hier.
+    is_betreiber: bool = False
     auto_approve: bool
     # Je Medienart gesetzt; None heisst "es gilt der alte gemeinsame Haken".
     auto_approve_movies: bool | None

@@ -495,3 +495,95 @@ async def test_stumme_instanz_haengt_nichts_um():
 
     ergebnis = await arr_bestand.umhaengen(Stumm(), "radarr", 7, 9)
     assert ergebnis.grund == "unerreichbar" and ergebnis.umgehaengt == 0
+
+
+# ---------------------------------------------------------------------------
+# Was die Instanz ablehnt, darf Nexview nicht vergessen
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_abgelehnte_profile_stehen_nicht_bei_den_geloeschten():
+    """⚠️ **Die Nummern der wirklich geloeschten, nicht der angefragten.**
+
+    Der Merkposten im Besitzbuch haengt an der Nummer, die das Profil auf der
+    Instanz hat. Wer stattdessen nimmt, was *angefragt* war, vergisst auch die
+    Profile, die die Instanz gar nicht loeschen wollte.
+    """
+    arr = GespieltesArr(
+        profile=[_profil(1, "Geht weg"), _profil(2, "Bleibt")],
+        verweigert={2},
+    )
+    bestand = await arr_bestand.aufnehmen(arr, "radarr-standard", "radarr", {})
+    ergebnis = await arr_bestand.aufraeumen(arr, bestand, [1, 2], [])
+
+    assert ergebnis.geloescht_profile == ["Geht weg"]
+    assert ergebnis.geloescht_profil_ids == [1], "nur die Nummer, die wirklich weg ist"
+    assert ergebnis.abgelehnt == {"Bleibt": "instanz_verweigert"}
+
+
+REZEPT = {
+    "name": "Pruefprofil", "typ": "radarr", "aufloesung": "1080p",
+    "sofortNehmen": True, "quelle": "remux", "sprachen": ["de"],
+    "sprachRollen": {"de": "pflicht"}, "mehrerePflicht": "alle",
+    "hdr": "netz", "schlusspunkt": "trash",
+}
+
+
+def test_aufraeumen_vergisst_nur_was_die_instanz_hergegeben_hat(
+    arr_client, monkeypatch
+) -> None:
+    """⚠️ **Der ganze Weg, ueber HTTP - denn der Fehler sass im Router.**
+
+    Zwei Profile werden zum Aufraeumen ausgewaehlt, die Instanz gibt nur eines
+    her (am zweiten haengt etwas). Vorher strich Nexview den Merkposten fuer
+    **beide**: Das ueberlebende Profil stand danach weiter in Radarr, galt hier
+    aber als fremd, und der Abgleich meldete dauerhaft "fehlt".
+    """
+    from app.db import SessionLocal
+    from app.models import QualitaetsprofilInstallation
+    from app.routers import qualitaetsprofile as router
+    from sqlalchemy import select
+
+    stamm = "/api/settings/qualitaetsprofile"
+    weg = arr_client.post(stamm, json={"name": "Weg", "dienst": "radarr", "rezept": REZEPT})
+    bleibt = arr_client.post(
+        stamm, json={"name": "Bleibt", "dienst": "radarr", "rezept": REZEPT}
+    )
+    assert weg.status_code in (200, 201), weg.text
+    assert bleibt.status_code in (200, 201), bleibt.text
+
+    with SessionLocal() as db:
+        for profil_id, extern in ((weg.json()["id"], 1), (bleibt.json()["id"], 2)):
+            db.add(
+                QualitaetsprofilInstallation(
+                    profil_id=profil_id, kennung="radarr-standard",
+                    profil_id_extern=extern, fingerabdruck="x", trash_stand="2026-01-01",
+                )
+            )
+        db.commit()
+
+    arr = GespieltesArr(
+        profile=[_profil(1, "Weg"), _profil(2, "Bleibt")],
+        verweigert={2},
+    )
+    monkeypatch.setattr(router, "ArrClient", lambda *a, **k: arr)
+
+    antwort = arr_client.post(
+        f"{stamm}/bestand/radarr-standard/aufraeumen",
+        json={"profil_ids": [1, 2], "muster_ids": []},
+    )
+    assert antwort.status_code == 200, antwort.text
+    daten = antwort.json()
+    assert daten["geloescht_profile"] == ["Weg"]
+    assert "Bleibt" in daten["abgelehnt"]
+
+    with SessionLocal() as db:
+        uebrig = {
+            zeile.profil_id_extern
+            for zeile in db.scalars(select(QualitaetsprofilInstallation))
+        }
+    assert uebrig == {2}, (
+        "Der Merkposten des abgelehnten Profils muss stehenbleiben - "
+        f"uebrig: {uebrig}"
+    )

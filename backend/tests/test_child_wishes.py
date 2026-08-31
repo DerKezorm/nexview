@@ -549,3 +549,35 @@ def test_kind_darf_nach_der_freigabe_erneut_wuenschen(arr_client: TestClient) ->
             .count()
         )
     assert offene == 1
+
+
+def test_kind_bekommt_keine_technik_zu_lesen(
+    arr_client: TestClient, monkeypatch
+) -> None:
+    """⚠️ **Ein Achtjaehriger liest nicht "Der TMDB API-Key wurde nicht akzeptiert".**
+
+    Der Kinder-Router reichte den Fehlertext von TMDB unveraendert durch. Auf
+    der Startseite der Kinderansicht stand er dem Kind sofort beim Oeffnen da,
+    ohne dass es etwas getan hatte - ein Satz ueber einen Dienst, von dem es
+    noch nie gehoert hat, und ueber ein Problem, das es nicht loesen kann.
+
+    Der technische Grund gehoert ins Protokoll, nicht auf seinen Bildschirm.
+    """
+    from app.routers import kids as kids_router
+    from app.services.tmdb import TmdbError
+
+    _eltern, kind, _kennung = _familie(arr_client)
+
+    async def kaputt(*_args, **_kwargs):
+        raise TmdbError("Der TMDB API-Key wurde nicht akzeptiert.", status_code=401)
+
+    monkeypatch.setattr(kids_router.kids, "kategorien", kaputt)
+
+    antwort = arr_client.get("/api/kids/categories?media_type=movie", headers=kind)
+
+    assert antwort.status_code == 502
+    detail = antwort.json()["detail"]
+    assert detail["code"] == "kids_service_down"
+    # Kein Dienstname, keine Abkuerzung, kein Fehlercode.
+    assert "TMDB" not in detail["message"]
+    assert "API" not in detail["message"]

@@ -40,28 +40,22 @@ export function NotificationBell() {
   })
 
   /** Wohin eine Benachrichtigung führt. */
+  /**
+   * Wohin der Klick fuehrt - **der Server sagt es**.
+   *
+   * ⚠️ Hier stand eine eigene Liste mit acht Faellen und einem Rueckfall auf
+   * `/requests`. Im Hintergrund gab es eine zweite fuer die Links in Discord
+   * und E-Mail, und die kannte mehr. Dieselbe Meldung fuehrte damit ueber
+   * Discord an die richtige Stelle und ueber die Glocke auf die eigene
+   * Anfrageliste - was ausgerechnet den Betreiber traf: „Titel abgegeben" und
+   * „Instanz meldet ein Problem" landeten bei seinen eigenen Anfragen.
+   *
+   * Jetzt gibt es eine Liste (`backend/app/services/meldungsziele.py`), sie
+   * ist vollstaendig, und ein Waechter besteht darauf. Auseinanderlaufen kann
+   * es nicht mehr, weil es nichts mehr gibt, was auseinanderlaufen koennte.
+   */
   function zielFuer(item: AppNotification): string {
-    // Rückmeldungen landen direkt im passenden Filter - sonst käme man auf
-    // "wartet auf Freigabe" heraus und müsste erst suchen, worum es ging.
-    if (item.type === 'feedback' || item.type === 'feedback_poor') {
-      return '/admin/requests?filter=feedback'
-    }
-    if (item.type === 'request_pending') return '/admin/requests'
-    // Tickets führen direkt in den Verlauf - die Liste allein hülfe nicht
-    // weiter, wenn mehrere offen sind.
-    if (item.type === 'ticket_new' || item.type === 'ticket_reply') {
-      return item.ticket_id ? `/tickets/${item.ticket_id}` : '/tickets'
-    }
-    // Ein neues Konto will man ansehen, nicht suchen.
-    if (item.type === 'user_imported') return '/admin/settings'
-    // Der abgelaufene Zugang wird auf der Profilseite erneuert - dort sitzt
-    // die einmalige Plex-Anmeldung.
-    if (item.type === 'mediaserver_reconnect') return '/profil'
-    // Ein Kinderwunsch wird unter „Kinder" entschieden - nicht in den eigenen
-    // Anfragen. Dort läge er erst, wenn er freigegeben ist.
-    if (item.type === 'child_wish') return '/profil?reiter=kinder'
-    // Alles andere betrifft die eigenen Anfragen.
-    return '/requests'
+    return item.ziel ?? '/requests'
   }
 
   function oeffnen(item: AppNotification) {

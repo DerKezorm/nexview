@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel, Field
 
-from ..deps import AdminUser, CurrentUser, DbSession
+from ..deps import AdminUser, ApproverUser, CurrentUser, DbSession
 from ..models import MediaType, NotificationType, TitleRating, User, utcnow
 from ..services import library, notify, ratings
 from ..services.settings_service import load_settings
@@ -98,11 +98,27 @@ def meine_bewertungen(user: CurrentUser, db: DbSession) -> list[RatingOut]:
 
 @router.get("", response_model=list[RatingOut])
 def alle(
-    admin: AdminUser,
+    entscheider: ApproverUser,
     db: DbSession,
     unanswered: Annotated[bool, Query()] = False,
 ) -> list[RatingOut]:
-    """Alle Rueckmeldungen - fuer die Uebersicht des Betreibers."""
+    """Alle Rueckmeldungen - fuer die Uebersicht des Betreibers.
+
+    ⚠️ **Lesen darf auch der Entscheider, antworten nur der Administrator.**
+    Hier stand ``AdminUser``, und das widersprach zwei anderen Stellen: Die
+    Glocke schickt die Meldung "neue Rueckmeldung" ausdruecklich an
+    Entscheider (``notify.create_for_approvers``), und die Oberflaeche zeigt
+    ihnen die Liste bewusst - nur ohne Antwort-Knopf
+    (``AdminRequestsPage``: ``darfAntworten={istAdmin}``).
+
+    Die Folge war keine Fehlermeldung, sondern eine ruhige Falschaussage: Der
+    Entscheider klickte die Meldung an, die Abfrage bekam 403, die Liste blieb
+    leer - und darunter stand "Es liegen keine unbeantworteten Rueckmeldungen
+    vor." Er hatte keinen Hinweis, dass ihm etwas verwehrt wird.
+
+    Das Antworten (``/{rating_id}/reply``) bleibt dem Administrator
+    vorbehalten.
+    """
     # Den Namen gleich mitladen - sonst eine Abfrage je Zeile.
     query = (
         select(TitleRating)
@@ -176,9 +192,10 @@ async def bewerten(
     if user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
+            detail=meldungen.meldung(
+                "admins_do_not_rate",
                 "Administratoren bewerten nicht - sie beantworten die "
-                "Rückmeldungen der Benutzer."
+                "Rückmeldungen der Benutzer.",
             ),
         )
 

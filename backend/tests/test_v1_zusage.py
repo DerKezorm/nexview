@@ -47,18 +47,70 @@ def test_die_flaeche_ist_genau_die_zugesagte() -> None:
     )
 
 
+#: Notausgang gegen einen Schema-Kreis, den ``gesehen`` nicht abfaengt. So tief
+#: ist keine zugesagte Antwort.
+MAX_TIEFE = 8
+
+
 def _felder_je_pfad() -> dict[str, list[str]]:
-    """Aus dem OpenAPI-Dokument die Antwortfelder der v1-Pfade ziehen."""
+    """Aus dem OpenAPI-Dokument die Antwortfelder der v1-Pfade ziehen.
+
+    ⚠️ **Bis in die Tiefe, nicht nur die oberste Ebene.** Vorher wurde genau
+    ein ``$ref`` aufgeloest und dann die Namen der Eigenschaften notiert. Fuer
+    ``GET /api/v1/dashboard`` - die Kachel fuer Homepage und Homarr - standen
+    im Abdruck deshalb nur sechs Namen: ``anfragen``, ``befunde``,
+    ``bibliothek``, ``instanzen``, ``tickets_offen``, ``version``. **Alles,
+    was eine Kachel wirklich ausliest**, liegt eine Ebene tiefer
+    (``anfragen.wartend``, ``bibliothek.belegt_bytes``, ``instanzen[].name``)
+    und war damit von der Zusage nicht gedeckt: Wer eines davon umbenannte,
+    brach jede angebundene Kachel, und der Waechter blieb gruen.
+
+    Ergebnis sind Pfade wie ``befunde.fehler`` oder ``instanzen[].name``.
+    """
     dokument = app.openapi()
     schemas = dokument.get("components", {}).get("schemas", {})
 
-    def felder(schema: dict) -> list[str]:
+    def felder(
+        schema: dict, praefix: str = "", gesehen: frozenset = frozenset(), tiefe: int = 0
+    ) -> list[str]:
+        if tiefe > MAX_TIEFE:
+            return []
+
         if "$ref" in schema:
             name = schema["$ref"].rsplit("/", 1)[-1]
-            return sorted(schemas.get(name, {}).get("properties", {}))
+            if name in gesehen:  # Selbstbezug - hier ist Schluss.
+                return []
+            return felder(schemas.get(name, {}), praefix, gesehen | {name}, tiefe + 1)
+
+        # ``str | None`` wird zu ``anyOf``. Der ``null``-Zweig traegt keine Felder.
+        for zweig in ("anyOf", "oneOf", "allOf"):
+            if zweig in schema:
+                aus: list[str] = []
+                for teil in schema[zweig]:
+                    if teil.get("type") == "null":
+                        continue
+                    aus += felder(teil, praefix, gesehen, tiefe + 1)
+                return sorted(set(aus))
+
         if schema.get("type") == "array":
-            return felder(schema.get("items", {}))
-        return sorted(schema.get("properties", {}))
+            return felder(schema.get("items", {}), praefix + "[]", gesehen, tiefe + 1)
+
+        eigenschaften = schema.get("properties")
+        if not eigenschaften:
+            if schema.get("additionalProperties"):
+                # Ein Beutel ohne benannte Felder (``dict[str, int]``). Was darin
+                # steckt, verraet das Schema nicht - deshalb fragt
+                # ``test_v1_wirklichkeit.py`` diese vier Adressen ausdruecklich
+                # ab, statt sich auf den Abdruck zu verlassen.
+                return [f"{praefix}{{*}}"] if praefix else ["{*}"]
+            return [praefix] if praefix else []
+
+        ergebnis: list[str] = []
+        for name, unter in sorted(eigenschaften.items()):
+            pfad = f"{praefix}.{name}" if praefix else name
+            tiefer = felder(unter, pfad, gesehen, tiefe + 1)
+            ergebnis += tiefer or [pfad]
+        return sorted(set(ergebnis))
 
     ergebnis: dict[str, list[str]] = {}
     for pfad, operationen in dokument.get("paths", {}).items():

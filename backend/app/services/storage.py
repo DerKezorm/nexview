@@ -651,8 +651,8 @@ async def abgleichen(db: Session, settings: AppSettings) -> Ergebnis:
     Abfragen zuerst und die Datenbank wird danach in einem kurzen Zug
     angefasst - dasselbe Vorgehen wie im Status-Abgleich.
     """
-    gemessen = await _erfassen(db, settings)
-    ergebnis = _schreiben(db, gemessen)
+    gemessen, vollstaendig = await _erfassen(db, settings)
+    ergebnis = _schreiben(db, gemessen, vollstaendig)
     _wachstum_melden(db, ergebnis)
     return ergebnis
 
@@ -693,9 +693,16 @@ def _wachstum_melden(db: Session, ergebnis: Ergebnis) -> None:
 
 
 
-async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
-    """Alle Groessen einsammeln - reine Leserei, kein Schreiben."""
+async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Gemessen], bool]:
+    """Alle Groessen einsammeln - reine Leserei, kein Schreiben.
+
+    Zurueck kommt neben dem Gemessenen die Antwort auf die Frage, ob **jede**
+    eingerichtete Instanz auch geantwortet hat. Das ist kein Beiwerk: Ohne sie
+    ist "Radarr hat den Titel nicht genannt" nicht von "Radarr hat gar nichts
+    genannt" zu unterscheiden - siehe ``_schreiben``.
+    """
     gemessen: dict[str, _Gemessen] = {}
+    vollstaendig = True
 
     for stufe in (QualityTier.standard, QualityTier.uhd):
         if settings.arr_configured("movie", stufe.value):
@@ -705,6 +712,7 @@ async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
                 ).items():
                     _film_aufnehmen(gemessen, stufe, tmdb_id, eintrag)
             except ArrError as fehler:
+                vollstaendig = False
                 logger.warning(
                     "Radarr (%s) not reachable, sizes left unchanged: %s",
                     stufe.value,
@@ -717,6 +725,7 @@ async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
                 for tvdb_id, eintrag in nach_tvdb.items():
                     _serie_aufnehmen(gemessen, stufe, tvdb_id, eintrag)
             except ArrError as fehler:
+                vollstaendig = False
                 logger.warning(
                     "Sonarr (%s) not reachable, sizes left unchanged: %s",
                     stufe.value,
@@ -726,7 +735,7 @@ async def _erfassen(db: Session, settings: AppSettings) -> dict[str, _Gemessen]:
     await _pakete_aufnehmen(db, settings, gemessen)
     _aus_media_server(db, gemessen)
     await _staffeldaten_nachtragen(db, settings, gemessen)
-    return gemessen
+    return gemessen, vollstaendig
 
 
 async def _pakete_aufnehmen(
@@ -1133,8 +1142,16 @@ def _tvdb_nach_tmdb(db: Session) -> dict[int, int]:
     return paare
 
 
-def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
-    """Den gemessenen Stand in die Datenbank uebertragen."""
+def _schreiben(
+    db: Session, gemessen: dict[str, _Gemessen], vollstaendig: bool = True
+) -> Ergebnis:
+    """Den gemessenen Stand in die Datenbank uebertragen.
+
+    ``vollstaendig`` sagt, ob jede eingerichtete Instanz geantwortet hat. Ist
+    sie falsch, wird **nichts geloescht** - siehe die Begruendung unten am
+    Aufraeumen. Vorgabe ``True`` fuer Aufrufe, die einen fertigen Messwert
+    hereinreichen (Tests).
+    """
     vorhanden = {zeile.key: zeile for zeile in db.scalars(select(StorageEntry)).all()}
 
     # Beim allererste Lauf gehoert alles dem Haus: Was schon da war, hat
@@ -1258,14 +1275,31 @@ def _schreiben(db: Session, gemessen: dict[str, _Gemessen]) -> Ergebnis:
     # weg ist - siehe _aus_media_server. Uebrig bleibt hier nur, was weder
     # Radarr/Sonarr noch der Media-Server meldet. Genau dieselbe Regel wie im
     # Status-Abgleich, bevor er eine Anfrage auf "geloescht" setzt.
-    for zeile in vorhanden.values():
-        db.delete(zeile)
+    #
+    # ⚠️ **Und deshalb gar nicht, wenn eine Instanz geschwiegen hat.** Genau
+    # das war der Fehler: Eine stumme Instanz liefert keine Posten, damit steht
+    # ihr ganzer Bestand hier unter "meldet keine Quelle mehr" - und wurde
+    # geloescht. Gemessen bei zwei Filmen: Der Verbrauch fiel von 28 GB auf
+    # 20 GB, das Haus von 2 GB auf 0, und weil die Zeilen weg waren, kamen sie
+    # auch nach der Rueckkehr der Instanz nicht als dieselben zurueck -
+    # Loeschfristen und Abgaben waren verfallen. Wer am Kontingent haengt,
+    # durfte im selben Moment weiter anfragen. Dieselbe Regel wie in
+    # ``abgleich_kern.ist_wirklich_weg``: Wer nicht antwortet, sagt nicht Nein.
+    entfernt = 0
+    if vollstaendig:
+        for zeile in vorhanden.values():
+            db.delete(zeile)
+        entfernt = len(vorhanden)
+    elif vorhanden:
+        logger.warning(
+            "An instance stayed silent - %d entries kept instead of removed", len(vorhanden)
+        )
 
     db.commit()
     return Ergebnis(
         neu=neu,
         aktualisiert=aktualisiert,
-        entfernt=len(vorhanden),
+        entfernt=entfernt,
         gewachsen=gewachsen,
         erster_lauf=erster_lauf,
         zugelegt=zugelegt,

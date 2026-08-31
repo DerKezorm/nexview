@@ -80,7 +80,9 @@ def test_beide_zusammen_muessen_stimmig_sein(admin_client: TestClient) -> None:
         json={"movie_root_folder_mode": "user", "movie_profile_mode": "approver"},
     )
     assert antwort.status_code == 422
-    assert "zusammen" in antwort.json()["detail"]
+    detail = antwort.json()["detail"]
+    assert detail["code"] == "target_and_profile_together"
+    assert "zusammen" in detail["message"]
 
 
 def test_stimmige_paare_gehen_durch(admin_client: TestClient) -> None:

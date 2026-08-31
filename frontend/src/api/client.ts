@@ -154,6 +154,18 @@ const MIT_EIGENER_LOGIK: Record<string, (detail: Record<string, unknown>) => str
   internal_error: (detail) =>
     i18n.t('errors.internal', { id: String(detail.request_id ?? '?') }),
 
+  // ⚠️ **Eine Aufzählung lässt sich nicht durch Einsetzen übersetzen.**
+  // Der Server schickte hier einen fertigen deutschen Satz ("die öffentliche
+  // Adresse **und** ein Mailserver") - das "und" steckt mitten drin, und auf
+  // Englisch stand es dann trotzdem auf Deutsch da. Jetzt kommen zwei
+  // Schalter, und der Satz entsteht hier.
+  invite_needs_setup: (detail) => {
+    const adresse = detail.needs_public_url === true
+    const mail = detail.needs_mail === true
+    if (adresse && mail) return i18n.t('errors.inviteNeedsBoth')
+    return i18n.t(adresse ? 'errors.inviteNeedsUrl' : 'errors.inviteNeedsMail')
+  },
+
   // Anmeldebremse: Sekunden oder Minuten, je nachdem was sich besser liest.
   // "in 900 Sekunden" wäre richtig und trotzdem unbrauchbar.
   too_many_attempts: (detail) => {

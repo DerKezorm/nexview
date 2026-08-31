@@ -11,6 +11,7 @@ from sqlalchemy import delete, func, select, update
 
 from ..deps import CurrentUser, DbSession
 from ..models import Notification, NotificationType
+from ..services import meldungsziele
 from .. import meldungen
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
@@ -34,6 +35,12 @@ class NotificationPublic(BaseModel):
     ticket_id: int | None
     is_read: bool
     created_at: datetime
+    # ⚠️ **Wohin der Klick fuehrt - vom Server, nicht geraten.** Die Glocke
+    # hatte dafuer eine eigene Liste mit acht Faellen und einem Rueckfall auf
+    # die eigene Anfrageliste. Zwei Sorten, die an den Betreiber gehen
+    # ("Titel abgegeben", "Instanz meldet ein Problem"), landeten damit bei
+    # seinen eigenen Anfragen. Siehe ``services/meldungsziele.py``.
+    ziel: str
 
 
 @router.get("", response_model=list[NotificationPublic])
@@ -42,7 +49,7 @@ def list_notifications(
     db: DbSession,
     unread_only: Annotated[bool, Query()] = False,
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
-) -> list[Notification]:
+) -> list[NotificationPublic]:
     query = (
         select(Notification)
         .where(Notification.user_id == user.id)
@@ -51,7 +58,17 @@ def list_notifications(
     )
     if unread_only:
         query = query.where(Notification.is_read.is_(False))
-    return list(db.scalars(query))
+    return [
+        NotificationPublic(
+            **{
+                feld: getattr(eintrag, feld)
+                for feld in NotificationPublic.model_fields
+                if feld != "ziel"
+            },
+            ziel=meldungsziele.ziel_fuer(eintrag),
+        )
+        for eintrag in db.scalars(query)
+    ]
 
 
 @router.get("/unread/count")

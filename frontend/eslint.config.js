@@ -10,7 +10,14 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  // ⚠️ **Alle Ausgabeverzeichnisse, nicht nur das eine.** `'dist'` trifft in
+  // der flachen Konfiguration nur den Ordner ganz oben. Damit prüfte ESLint
+  // `packages/nexview-ui/dist` und den Behelfsbau `dist-dev` mit — erzeugte
+  // Dateien, in denen Regeln stehen, die es hier gar nicht gibt. Der Lauf
+  // endete deshalb auf jedem Rechner, der einmal gebaut hatte, mit vier
+  // Fehlern, die nichts mit dem eigenen Code zu tun haben. Ein Werkzeug, das
+  // immer rot ist, sieht sich niemand mehr an.
+  { ignores: ['**/dist/**', '**/dist-dev/**'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

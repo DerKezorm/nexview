@@ -174,9 +174,10 @@ def give_feedback(
     if user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
+            detail=meldungen.meldung(
+                "admins_do_not_rate",
                 "Administratoren bewerten nicht - sie beantworten die "
-                "Rückmeldungen der Benutzer."
+                "Rückmeldungen der Benutzer.",
             ),
         )
     if request.status != RequestStatus.downloaded:

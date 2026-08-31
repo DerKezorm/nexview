@@ -338,9 +338,11 @@ def _gleiche_adresse_ablehnen(db: DbSession, payload: SettingsUpdate) -> None:
         if standard and uhd and standard.lower() == uhd.lower():
             raise HTTPException(
                 status_code=422,
-                detail=(
+                detail=meldungen.meldung(
+                    "arr_uhd_same_url",
                     f"Die 4K-Instanz von {name} hat dieselbe Adresse wie die normale. "
-                    "Es müssen zwei getrennte Server sein."
+                    "Es müssen zwei getrennte Server sein.",
+                    service=name,
                 ),
             )
 
@@ -405,9 +407,10 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
             if (neu_ordner == "approver") != (neu_profil == "approver"):
                 raise HTTPException(
                     status_code=422,
-                    detail=(
+                    detail=meldungen.meldung(
+                        "target_and_profile_together",
                         "Zielordner und Qualitätsprofil gehören zusammen: „Der "
-                        "Entscheider wählt“ gilt entweder für beide oder für keines."
+                        "Entscheider wählt“ gilt entweder für beide oder für keines.",
                     ),
                 )
             continue
@@ -889,7 +892,17 @@ async def papierkorb_setzen(
         except ArrError as fehler:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"{wunsch.media_type}/{wunsch.tier}: {fehler.message}",
+                # ⚠️ Der Rahmen bekommt eine Kennung, die fremde Meldung
+                # bleibt als Zitat daneben stehen: Was Radarr antwortet,
+                # antwortet Radarr in seiner Sprache - das kann Nexview nicht
+                # uebersetzen, ohne es zu erfinden.
+                detail=meldungen.meldung(
+                    "recyclebin_write_failed",
+                    f"{wunsch.media_type}/{wunsch.tier}: {fehler.message}",
+                    media_type=wunsch.media_type,
+                    tier=wunsch.tier,
+                    reason=fehler.message,
+                ),
             ) from fehler
 
     # Den frisch gelesenen Stand zurueckgeben, nicht den gewuenschten: Was

@@ -254,3 +254,36 @@ def test_bewertung_steht_in_der_admin_uebersicht(arr_client: TestClient) -> None
     assert eintrag["rating"] == 3
     assert eintrag["feedback"] == "Geht so."
     assert eintrag["username"] == "kim"
+
+
+def test_entscheider_darf_die_liste_lesen(arr_client: TestClient) -> None:
+    """⚠️ **Sonst macht die App ihm eine ruhige Falschaussage.**
+
+    Die Glocke schickt "neue Rueckmeldung" ausdruecklich auch an Entscheider,
+    und die Oberflaeche zeigt ihnen den Reiter - nur ohne Antwort-Knopf.
+    Stand hier ``AdminUser``, bekam die Abfrage 403, die Liste blieb leer, und
+    darunter stand "Es liegen keine unbeantworteten Rueckmeldungen vor."
+    Keine Fehlermeldung, sondern eine Auskunft, die nicht stimmt.
+    """
+    anfrage = _geladene_anfrage(arr_client)
+    arr_client.post(
+        f"/api/requests/{anfrage['id']}/feedback",
+        json={"rating": 2, "comment": "Ton kaputt."},
+        headers=anfrage["headers"],
+    )
+
+    created = create_user(arr_client, "eva")
+    arr_client.patch(f"/api/users/{created['id']}", json={"role": "approver"})
+    eva = auth_headers(arr_client, "eva", "passwort-1234")
+
+    antwort = arr_client.get("/api/feedback?unanswered=true", headers=eva)
+    assert antwort.status_code == 200
+    assert [z["comment"] for z in antwort.json()] == ["Ton kaputt."]
+
+
+def test_gewoehnlicher_nutzer_sieht_die_liste_nicht(arr_client: TestClient) -> None:
+    """Die Gegenrichtung: geoeffnet wurde nur bis zum Entscheider."""
+    create_user(arr_client, "lars")
+    lars = auth_headers(arr_client, "lars", "passwort-1234")
+
+    assert arr_client.get("/api/feedback", headers=lars).status_code == 403

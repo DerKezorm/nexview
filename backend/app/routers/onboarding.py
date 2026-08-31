@@ -45,7 +45,12 @@ def _token_bremse(request: Request) -> list[str]:
     """
     return anmeldebremse.torwaechter(request, "token", None)
 
-ABGELAUFEN = "Dieser Link ist abgelaufen oder wurde bereits verwendet."
+#: ⚠️ **Mit Kennung, nicht als blosser Satz.** Dieser Text ist fuer viele der
+#: allererste Kontakt mit Nexview - der Einladungslink, der nicht mehr gilt.
+#: Ohne Kennung stand hier ein deutscher Satz in einer englischen Oberflaeche.
+ABGELAUFEN = meldungen.meldung(
+    "link_expired", "Dieser Link ist abgelaufen oder wurde bereits verwendet."
+)
 
 
 class InvitationInfo(BaseModel):
@@ -77,7 +82,11 @@ def _pruefe_passwort(password: str) -> None:
     if len(password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(
             status_code=422,
-            detail=f"Das Passwort muss mindestens {MIN_PASSWORD_LENGTH} Zeichen lang sein.",
+            detail=meldungen.meldung(
+                "password_too_short",
+                f"Das Passwort muss mindestens {MIN_PASSWORD_LENGTH} Zeichen lang sein.",
+                count=MIN_PASSWORD_LENGTH,
+            ),
         )
 
 
@@ -151,9 +160,25 @@ class ChangePendingEmail(PendingRequest):
     email: str = Field(min_length=3, max_length=255)
 
 
-def _unbestaetigter_benutzer(db: DbSession, payload: PendingRequest) -> User:
+def _unbestaetigter_benutzer(request: Request, db: DbSession, payload: PendingRequest) -> User:
+    """Konto und Passwort pruefen - **mit derselben Bremse wie die Anmeldung**.
+
+    ⚠️ **Das hier ist die vierte Tuer, hinter der ein Passwort geprueft wird.**
+    ``services/anmeldebremse.py`` zaehlt drei auf; diese fehlte. Damit stand
+    neben der gebremsten Haustuer ein ungebremstes Fenster: Hundert falsche
+    Passwoerter hintereinander ergaben hundertmal 401 und kein einziges 429,
+    und der Unterschied zwischen 401 (falsch) und 409/200 (richtig) verriet,
+    wann geraten war. Beide Adressen davor sind **ohne Anmeldung** erreichbar,
+    ein Angreifer braucht also nicht einmal ein eigenes Konto.
+
+    Gezaehlt wird bewusst auf dieselbe Tuer ``"login"`` wie in ``auth.py`` und
+    gegen dieselbe **Eingabe**, nicht gegen den gefundenen Benutzer. Sonst
+    haette man hier in Ruhe raten und den Treffer drueben verwenden koennen -
+    zwei getrennte Zaehler waeren zwei halbe Bremsen.
+    """
     # Wie beim Anmelden: Benutzername oder Adresse.
     eingabe = payload.username.strip()
+    bremse = anmeldebremse.torwaechter(request, "login", eingabe)
     user = db.scalar(
         select(User).where(
             (func.lower(User.username) == eingabe.lower())
@@ -161,6 +186,7 @@ def _unbestaetigter_benutzer(db: DbSession, payload: PendingRequest) -> User:
         )
     )
     if user is None or not verify_password(payload.password, user.password_hash):
+        anmeldebremse.gescheitert(bremse)
         raise HTTPException(
             status_code=401,
             detail=meldungen.meldung(
@@ -168,6 +194,13 @@ def _unbestaetigter_benutzer(db: DbSession, payload: PendingRequest) -> User:
                 "Benutzername oder Passwort ist falsch.",
             ),
         )
+
+    # Ab hier stimmt das Passwort - genau wie in ``auth.py`` ist der Zaehler
+    # damit erledigt, auch wenn die Anfrage gleich noch scheitert. Ein Konto,
+    # dessen Adresse laengst bestaetigt ist, ist kein Rateversuch, sondern
+    # jemand, der sein Passwort kennt.
+    anmeldebremse.geklappt(bremse)
+
     if not user.is_active:
         raise HTTPException(
             status_code=403,
@@ -188,22 +221,26 @@ def _unbestaetigter_benutzer(db: DbSession, payload: PendingRequest) -> User:
 
 
 @router.post("/pending/resend", response_model=VerificationSent)
-async def resend_pending(payload: PendingRequest, db: DbSession) -> VerificationSent:
+async def resend_pending(
+    payload: PendingRequest, request: Request, db: DbSession
+) -> VerificationSent:
     """Bestaetigungsmail erneut anfordern, ohne angemeldet zu sein."""
-    user = _unbestaetigter_benutzer(db, payload)
+    user = _unbestaetigter_benutzer(request, db, payload)
     zustellung = await accounts.send_verification(db, load_settings(db), user)
     logger.info("Verification resent for %r", user.username)
     return VerificationSent(sent=zustellung.sent, error=zustellung.error)
 
 
 @router.put("/pending/email", response_model=VerificationSent)
-async def change_pending_email(payload: ChangePendingEmail, db: DbSession) -> VerificationSent:
+async def change_pending_email(
+    payload: ChangePendingEmail, request: Request, db: DbSession
+) -> VerificationSent:
     """Adresse korrigieren, solange sie noch nicht bestaetigt ist.
 
     Der haeufigste Grund fuer eine nie ankommende Mail ist ein Tippfehler.
     Ohne diesen Weg waere die Installation dann verloren.
     """
-    user = _unbestaetigter_benutzer(db, payload)
+    user = _unbestaetigter_benutzer(request, db, payload)
 
     neue = tokens.normalize_email(payload.email)
     if not mail.valid_address(neue):

@@ -291,7 +291,14 @@ def test_eine_stumme_instanz_bricht_den_ganzen_vorgang_ab(arr_client, monkeypatc
     )
 
     assert antwort.status_code == 502
-    assert "Radarr antwortet nicht" in antwort.json()["detail"]
+    detail = antwort.json()["detail"]
+    # ⚠️ Der Rahmen traegt seit der Umstellung eine Kennung, die fremde Meldung
+    # steht als Zitat daneben: Was Radarr sagt, sagt Radarr in seiner Sprache -
+    # das kann Nexview nicht uebersetzen, ohne es zu erfinden.
+    assert detail["code"] == "recyclebin_write_failed"
+    assert detail["media_type"] == "movie"
+    assert "Radarr antwortet nicht" in detail["reason"]
+    assert "Radarr antwortet nicht" in detail["message"]
     # Sonarr wurde gar nicht erst angefasst.
     assert versucht == ["movie"]
 

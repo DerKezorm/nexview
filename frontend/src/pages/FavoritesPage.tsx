@@ -8,7 +8,7 @@ import type { Favorite, FavoritePerson } from '../api/types'
 import { useFavorites, usePersonFavorites } from '../components/media/FavoriteButton'
 import { PersonPhoto } from '../components/media/PersonPhoto'
 import { Poster } from '../components/media/Poster'
-import { Spinner } from '../components/ui'
+import { ErrorBanner, Spinner } from '../components/ui'
 import { formatDate } from '../lib/format'
 import { personPath, titlePath } from '../lib/routes'
 
@@ -37,14 +37,23 @@ function TrashIcon({ className = 'h-4 w-4' }: { className?: string }) {
 function EntfernenKnopf({
   onClick,
   laedt,
+  fehlgeschlagen = false,
   label,
   overlay = false,
 }: {
   onClick: () => void
   laedt: boolean
+  /** ⚠️ Ohne das schluckt der Mülleimer jeden Fehlschlag - siehe unten. */
+  fehlgeschlagen?: boolean
   label: string
   overlay?: boolean
 }) {
+  const { t } = useTranslation()
+  /* ⚠️ **Der Knopf sagt es selbst.** Vorher passierte bei einem Fehlschlag
+     nichts Sichtbares: Der Eintrag blieb stehen, und „nicht gelöscht" sah aus
+     wie „danebengeklickt". Ein Banner am Seitenkopf wäre weit weg von der
+     Kachel, auf die gerade geklickt wurde. */
+  const beschriftung = fehlgeschlagen ? t('favorites.failed') : label
   return (
     <button
       type="button"
@@ -54,12 +63,15 @@ function EntfernenKnopf({
         onClick()
       }}
       disabled={laedt}
-      title={label}
-      aria-label={label}
+      title={beschriftung}
+      aria-label={beschriftung}
       className={
         'shrink-0 rounded-full border p-1.5 transition-colors ' +
-        'border-ink-700 text-mist-300 hover:border-bad-500 hover:bg-bad-500 hover:text-white ' +
-        (overlay ? 'absolute top-2 right-2 z-10 bg-ink-950/85 backdrop-blur' : 'bg-ink-900')
+        (fehlgeschlagen
+          ? 'border-bad-500 bg-bad-500/15 text-bad-500 '
+          : 'border-ink-700 text-mist-300 hover:border-bad-500 hover:bg-bad-500 hover:text-white ') +
+        (overlay ? 'absolute top-2 right-2 z-10 backdrop-blur' : '') +
+        (overlay && !fehlgeschlagen ? ' bg-ink-950/85' : fehlgeschlagen ? '' : ' bg-ink-900')
       }
     >
       {laedt ? <Spinner className="h-4 w-4" /> : <TrashIcon />}
@@ -106,6 +118,7 @@ function TitelKachel({ eintrag }: { eintrag: Favorite }) {
       <EntfernenKnopf
         onClick={() => entfernen.mutate()}
         laedt={entfernen.isPending}
+        fehlgeschlagen={entfernen.isError}
         label={t('favorites.remove')}
         overlay
       />
@@ -140,6 +153,7 @@ function TitelZeile({ eintrag }: { eintrag: Favorite }) {
       <EntfernenKnopf
         onClick={() => entfernen.mutate()}
         laedt={entfernen.isPending}
+        fehlgeschlagen={entfernen.isError}
         label={t('favorites.remove')}
       />
     </div>
@@ -171,6 +185,7 @@ function PersonKachel({ person }: { person: FavoritePerson }) {
       <EntfernenKnopf
         onClick={() => entfernen.mutate()}
         laedt={entfernen.isPending}
+        fehlgeschlagen={entfernen.isError}
         label={t('favorites.removePerson')}
         overlay
       />
@@ -195,6 +210,7 @@ function PersonZeile({ person }: { person: FavoritePerson }) {
       <EntfernenKnopf
         onClick={() => entfernen.mutate()}
         laedt={entfernen.isPending}
+        fehlgeschlagen={entfernen.isError}
         label={t('favorites.removePerson')}
       />
     </div>
@@ -217,8 +233,9 @@ const FILTER_LABEL: Record<Filter, string> = {
  */
 export function FavoritesPage() {
   const { t } = useTranslation()
-  const { favorites } = useFavorites()
-  const { people } = usePersonFavorites()
+  const { favorites, fehlgeschlagen: titelFehler } = useFavorites()
+  const { people, fehlgeschlagen: personenFehler } = usePersonFavorites()
+  const fehlgeschlagen = titelFehler || personenFehler
 
   const [filter, setFilter] = useState<Filter>('movie')
   const [ansicht, setAnsicht] = useState<Ansicht>('grid')
@@ -300,7 +317,12 @@ export function FavoritesPage() {
             </div>
           </div>
 
-          {anzahl[filter] === 0 ? (
+          {/* ⚠️ **Eine Störung ist keine leere Merkliste.** Vorher sah beides
+              gleich aus, und wer beim Öffnen einen Ausfall erwischte, glaubte,
+              seine Markierungen seien verschwunden. */}
+          {fehlgeschlagen ? (
+            <ErrorBanner message={t('errors.listFailed')} />
+          ) : anzahl[filter] === 0 ? (
             <p className="rounded-2xl border border-dashed border-ink-700 px-6 py-16 text-center text-sm text-mist-500">
               {t(filter === 'person' ? 'favorites.emptyPeople' : 'favorites.emptyTitles')}
             </p>

@@ -730,6 +730,14 @@ export function ProfilePage() {
               autoComplete="new-password"
               required
             />
+            {/* Sagen, was NICHT mitgeht. Ein Passwortwechsel beendet alle
+                Sitzungen, laesst die Zugriffs-Schluessel aber leben - sie
+                nehmen einen zweiten Weg durch die Anmeldung. Wer wechselt,
+                weil ihm etwas gestohlen wurde, haelt sich sonst fuer
+                abgesichert und ist es nicht. */}
+            <p className="text-xs leading-relaxed text-mist-500">
+              {t('profile.passwordKeepsKeys')}
+            </p>
             </form>
           </Fenster>
         </div>

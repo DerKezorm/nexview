@@ -838,8 +838,15 @@ async def bestand_aufraeumen(
     # ⚠️ Das Besitzbuch nachziehen: Wurde eine Kopie von Nexview geloescht,
     # darf der Eintrag nicht stehenbleiben - sonst meldete der Abgleich fuer
     # immer "fehlt" und die Oberflaeche riete zum Neuschreiben.
-    if ergebnis.geloescht_profile:
-        entfernt = set(payload.profil_ids)
+    #
+    # ⚠️ **Nur die wirklich geloeschten, nicht die angefragten.** Hier stand
+    # ``set(payload.profil_ids)`` - also alles, was angeklickt war. Lehnte die
+    # Instanz eines davon ab (weil Filme, Importlisten oder eine Sammlung daran
+    # haengen), vergass Nexview es trotzdem: Das Profil stand danach weiter in
+    # Radarr, galt hier aber als fremd, und der Abgleich meldete dauerhaft
+    # "fehlt". Zurueck kam es erst beim naechsten Verteilen.
+    entfernt = set(ergebnis.geloescht_profil_ids)
+    if entfernt:
         for profil in dienst.alle(db):
             for eintrag_ in list(profil.installationen):
                 if eintrag_.kennung == kennung and eintrag_.profil_id_extern in entfernt:

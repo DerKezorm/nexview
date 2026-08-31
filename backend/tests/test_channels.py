@@ -1044,11 +1044,22 @@ async def test_neu_verfuegbar_mit_eigenem_titel(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_ticket_fuehrt_zum_ticketbereich(admin_client: TestClient) -> None:
-    """Der Klick soll dorthin, wo man antworten kann - nicht auf die Freigabeliste."""
-    from app.models import NotificationType as NT
-    from app.services.channel_outbox import LINKS
+    """Der Klick soll dorthin, wo man antworten kann - nicht auf die Freigabeliste.
 
-    assert LINKS[NT.ticket_new] == "/tickets"
+    ⚠️ Die Liste ist umgezogen: Sie stand doppelt (hier und in der Glocke) und
+    lief auseinander. Jetzt sagt ``services/meldungsziele.py`` das Ziel, und
+    beide Wege folgen ihm - siehe ``test_meldungsziele.py``.
+    """
+    from app.models import Notification, NotificationType as NT
+    from app.services import meldungsziele
+
+    ohne_nummer = Notification(type=NT.ticket_new, message_key="x", ticket_id=None)
+    assert meldungsziele.ziel_fuer(ohne_nummer) == "/tickets"
+
+    # Mit Vorgangsnummer direkt in den Verlauf - die Liste allein hilft nicht
+    # weiter, wenn mehrere offen sind.
+    mit_nummer = Notification(type=NT.ticket_new, message_key="x", ticket_id=7)
+    assert meldungsziele.ziel_fuer(mit_nummer) == "/tickets/7"
 
 
 # --- Discord ----------------------------------------------------------------

@@ -342,9 +342,10 @@ async def filmabend_ergebnis(
         # "Unbekannte Antwort: stimmung=herz" hilft dabei niemandem.
         raise HTTPException(
             status_code=422,
-            detail=(
+            detail=meldungen.meldung(
+                "wizard_out_of_step",
                 "Diese Antwort passt nicht mehr zu den vorherigen. "
-                "Fang bitte noch einmal von vorn an."
+                "Fang bitte noch einmal von vorn an.",
             ),
         ) from fehler
 

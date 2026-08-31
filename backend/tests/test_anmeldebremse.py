@@ -441,3 +441,82 @@ def test_die_sperrmeldung_kommt_als_kennung_nicht_als_satz(
     # Deutscher Rueckfall bleibt dabei - fuer alles, was die API ohne diese
     # Oberflaeche benutzt.
     assert "Fehlversuche" in detail["message"]
+
+
+# ------------------------------------------------------------ Die vierte Tuer
+#
+# ⚠️ **Der Kopftext von ``anmeldebremse.py`` zaehlt drei Tueren auf. Es sind
+# vier.** ``_unbestaetigter_benutzer`` in ``routers/onboarding.py`` prueft
+# dasselbe Kontopasswort - und hing lange ohne Bremse an zwei Adressen, die
+# **ohne Anmeldung** erreichbar sind. Gemessen: hundert falsche Passwoerter
+# hintereinander ergaben hundertmal 401 und kein einziges 429; der Unterschied
+# zwischen 401 und 409 verriet dabei, wann das Passwort stimmte. Ein Angreifer
+# brauchte dafuer nicht einmal ein eigenes Konto.
+#
+# Die Tests hier stehen bewusst neben denen der Haustuer und nicht in
+# ``test_onboarding.py``: Was hier gilt, gilt wegen der Bremse, nicht wegen
+# des Einstiegs.
+
+NOTAUSGANG = "/api/onboarding/pending/resend"
+ADRESSWECHSEL = "/api/onboarding/pending/email"
+
+
+def test_der_notausgang_ohne_anmeldung_wird_auch_gebremst(admin_client: TestClient) -> None:
+    """Sonst steht neben der gebremsten Tuer ein ungebremstes Fenster."""
+    create_user(admin_client, "anna")
+    for _ in range(4):
+        admin_client.post(NOTAUSGANG, json=FALSCH)
+
+    antwort = admin_client.post(NOTAUSGANG, json=FALSCH)
+    assert antwort.status_code == 429
+    assert antwort.json()["detail"]["code"] == "too_many_attempts"
+
+
+def test_auch_der_adresswechsel_vor_der_bestaetigung_wird_gebremst(
+    admin_client: TestClient,
+) -> None:
+    """Dieselbe Passwortpruefung, dieselbe Bremse - beide Adressen zaehlen."""
+    create_user(admin_client, "anna")
+    versuch = {**FALSCH, "email": "neu@beispiel.de"}
+    for _ in range(4):
+        admin_client.put(ADRESSWECHSEL, json=versuch)
+
+    antwort = admin_client.put(ADRESSWECHSEL, json=versuch)
+    assert antwort.status_code == 429
+
+
+def test_der_notausgang_zaehlt_auf_denselben_zaehler_wie_die_anmeldung(
+    admin_client: TestClient,
+) -> None:
+    """⚠️ **Ein Zaehler, nicht zwei.**
+
+    Zwei getrennte Zaehler waeren zwei halbe Bremsen: Man raet in Ruhe an der
+    einen Tuer und benutzt den Treffer an der anderen.
+    """
+    create_user(admin_client, "anna")
+    for _ in range(4):
+        admin_client.post(NOTAUSGANG, json=FALSCH)
+
+    assert admin_client.post("/api/auth/login", json=FALSCH).status_code == 429
+
+
+def test_richtiges_passwort_loescht_den_zaehler_auch_am_notausgang(
+    admin_client: TestClient,
+) -> None:
+    """Wer sein Passwort kennt, ist kein Rateversuch - wie an der Haustuer.
+
+    Die Adresse des Kontos ist hier laengst bestaetigt, die Anfrage endet also
+    mit 409. Trotzdem war es kein Fehlversuch, und der Zaehler muss weg sein -
+    sonst sperrt sich genau die Person aus, die es gerade noch einmal
+    probiert.
+    """
+    create_user(admin_client, "anna")
+    for _ in range(3):
+        admin_client.post(NOTAUSGANG, json=FALSCH)
+
+    richtig = {"username": "anna", "password": "passwort-1234"}
+    assert admin_client.post(NOTAUSGANG, json=richtig).status_code == 409
+
+    # Der Zaehler steht wieder auf null: vier weitere Fehlversuche sind frei.
+    codes = [admin_client.post(NOTAUSGANG, json=FALSCH).status_code for _ in range(4)]
+    assert codes == [401, 401, 401, 401]

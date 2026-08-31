@@ -1519,6 +1519,15 @@ export type AppNotification = {
   ticket_id: number | null;
   is_read: boolean;
   created_at: string;
+  /**
+   * Wohin der Klick führt – vom Server, nicht geraten.
+   *
+   * ⚠️ Die Glocke hatte dafür eine eigene Liste, der Hintergrund eine zweite,
+   * und sie liefen auseinander. Jetzt sagt es
+   * `backend/app/services/meldungsziele.py`, und ein Wächter hält die Liste
+   * vollständig.
+   */
+  ziel: string;
 };
 
 export type QuotaOverview = {

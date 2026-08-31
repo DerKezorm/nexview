@@ -203,6 +203,12 @@ class Aufraeumergebnis:
     geloescht_muster: list[str] = field(default_factory=list)
     #: Was abgelehnt wurde, mit Grund - ``name: grund``.
     abgelehnt: dict[str, str] = field(default_factory=dict)
+    #: ⚠️ **Dieselben Profile wie oben, aber als Nummern - fuer das Besitzbuch.**
+    #: Die Namen daneben sind fuer den Menschen; der Merkposten haengt aber an
+    #: der Nummer der Instanz. Wer sie ueber den Namen zurueckrechnet, raet.
+    #: Und wer stattdessen die *angefragten* Nummern nimmt, vergisst auch die,
+    #: die die Instanz gar nicht loeschen wollte - genau das war der Fehler.
+    geloescht_profil_ids: list[int] = field(default_factory=list)
 
 
 async def aufraeumen(
@@ -237,6 +243,7 @@ async def aufraeumen(
         try:
             await client.quality_profile_loeschen(nummer)
             ergebnis.geloescht_profile.append(profil.name)
+            ergebnis.geloescht_profil_ids.append(nummer)
             logger.info("Quality profile %r deleted on %s", profil.name, client.label)
         except ArrError as fehler:
             # ⚠️ Radarr weiss manchmal mehr als wir - etwa eine Bindung, die

@@ -69,9 +69,10 @@ def set_level(admin: AdminUser, change: LogModeChange) -> LogMode:
     if logs.env_mode():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
+            detail=meldungen.meldung(
+                "log_level_from_environment",
                 "Die Protokoll-Stufe ist über die Umgebungsvariable "
-                "NEXVIEW_LOG_LEVEL festgelegt und lässt sich hier nicht ändern."
+                "NEXVIEW_LOG_LEVEL festgelegt und lässt sich hier nicht ändern.",
             ),
         )
     if change.minutes not in logs.ALLOWED_MINUTES:

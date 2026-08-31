@@ -134,6 +134,32 @@ def widerrufen(db: Session, user: User, schluessel_id: int) -> None:
     logger.info("API key %r of %r revoked", eintrag.name, user.username)
 
 
+def alle_widerrufen(db: Session, user: User) -> int:
+    """Alle Schluessel eines Kontos auf einen Schlag entfernen.
+
+    ⚠️ **Gehoert zu "ueberall abmelden", nicht zum Passwortwechsel.**
+    Ein Sitzungs-Token und ein Zugriffs-Schluessel sind zwei verschiedene
+    Dinge: Die Sitzung ist ein Browser, der Schluessel ist eine Anbindung
+    (eine Kachel auf dem Uebersichtsbrett, ein Skript). Wer sein Passwort
+    wechselt, will meistens nur ein besseres Passwort - dabei jede Anbindung
+    stumm sterben zu lassen waere eine Ueberraschung.
+
+    "Ueberall abmelden" heisst dagegen ausdruecklich "jemand liest mit". Dann
+    muss auch der Schluessel weg, sonst hat der Riegel ein Loch: Der
+    Sitzungs-Weg prueft ``sitzung.gilt_noch``, der Schluessel-Weg nie - er
+    kennt nur Pruefsumme, Ablauf und "Konto aktiv".
+
+    Liefert, wie viele es waren, damit die Oberflaeche es sagen kann.
+    """
+    eintraege = list(db.scalars(select(ApiKey).where(ApiKey.user_id == user.id)))
+    for eintrag in eintraege:
+        db.delete(eintrag)
+    db.commit()
+    if eintraege:
+        logger.info("All %d API key(s) of %r revoked", len(eintraege), user.username)
+    return len(eintraege)
+
+
 def sieht_aus_wie_schluessel(wert: str) -> bool:
     """Ist das ueberhaupt ein Schluessel - oder ein Sitzungs-Token?
 

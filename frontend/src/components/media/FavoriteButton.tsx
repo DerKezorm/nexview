@@ -18,8 +18,26 @@ export function useFavorites() {
   })
 
   const markiert = new Set((query.data ?? []).map((f) => `${f.media_type}-${f.tmdb_id}`))
-  return { favorites: query.data ?? [], markiert }
+  // ⚠️ `fehlgeschlagen` gehoert mit heraus. Ohne das gab der Haken bei einer
+  // Stoerung dasselbe zurueck wie bei einer wirklich leeren Merkliste - und
+  // die Seite darueber konnte gar nicht unterscheiden, was sie anzeigen soll.
+  return { favorites: query.data ?? [], markiert, fehlgeschlagen: query.isError }
 }
+
+/**
+ * Wie ein Herz aussieht, dessen Klick nicht angekommen ist.
+ *
+ * ⚠️ **Die Meldung sitzt am Knopf, nicht oben auf der Seite.** Herzen sitzen
+ * auf Kacheln - in Regalreihen, auf der Titelseite, in Suchergebnissen. Ein
+ * Banner am Seitenkopf wäre weit weg von der Stelle, auf die der Mensch gerade
+ * gesehen hat. Vorher gab es gar nichts: Das Herz sprang zurück, und
+ * „nicht gemerkt" sah genauso aus wie „danebengeklickt" - also klickte man
+ * noch einmal. Und noch einmal.
+ *
+ * Der Beschriftungstext wechselt mit, damit ein Vorleseprogramm es mitsagt.
+ */
+const FEHLGESCHLAGEN =
+  'border-bad-500 bg-bad-500/15 text-bad-500 hover:bg-bad-500/25'
 
 function HeartIcon({ gefuellt, className = 'h-4 w-4' }: { gefuellt: boolean; className?: string }) {
   return (
@@ -90,15 +108,21 @@ export function FavoriteButton({
         umschalten.mutate()
       }}
       disabled={umschalten.isPending}
-      title={t(markiert ? 'favorites.remove' : 'favorites.add')}
-      aria-label={`${item.title} – ${t(markiert ? 'favorites.remove' : 'favorites.add')}`}
+      title={umschalten.isError ? t('favorites.failed') : t(markiert ? 'favorites.remove' : 'favorites.add')}
+      aria-label={
+        umschalten.isError
+          ? `${item.title} – ${t('favorites.failed')}`
+          : `${item.title} – ${t(markiert ? 'favorites.remove' : 'favorites.add')}`
+      }
       aria-pressed={markiert}
       className={
         'shrink-0 rounded-full border transition-colors ' +
         (gross ? 'p-2.5 ' : 'p-1.5 ') +
-        (markiert
-          ? 'border-accent-500 bg-accent-500/15 text-accent-400 hover:bg-accent-500/25'
-          : 'border-ink-700 bg-ink-900 text-mist-400 hover:border-accent-500 hover:text-accent-400') +
+        (umschalten.isError
+          ? FEHLGESCHLAGEN
+          : markiert
+            ? 'border-accent-500 bg-accent-500/15 text-accent-400 hover:bg-accent-500/25'
+            : 'border-ink-700 bg-ink-900 text-mist-400 hover:border-accent-500 hover:text-accent-400') +
         ' ' +
         className
       }
@@ -126,7 +150,7 @@ export function usePersonFavorites() {
     staleTime: 5 * 60 * 1000,
   })
   const markiert = new Set((query.data ?? []).map((p) => p.person_id))
-  return { people: query.data ?? [], markiert }
+  return { people: query.data ?? [], markiert, fehlgeschlagen: query.isError }
 }
 
 /** Herz zum Merken einer Person - gebaut wie das Herz an einem Titel. */
@@ -175,15 +199,21 @@ export function FavoritePersonButton({
         umschalten.mutate()
       }}
       disabled={umschalten.isPending}
-      title={t(markiert ? 'favorites.removePerson' : 'favorites.addPerson')}
-      aria-label={`${person.name} – ${t(markiert ? 'favorites.removePerson' : 'favorites.addPerson')}`}
+      title={umschalten.isError ? t('favorites.failed') : t(markiert ? 'favorites.removePerson' : 'favorites.addPerson')}
+      aria-label={
+        umschalten.isError
+          ? `${person.name} – ${t('favorites.failed')}`
+          : `${person.name} – ${t(markiert ? 'favorites.removePerson' : 'favorites.addPerson')}`
+      }
       aria-pressed={markiert}
       className={
         'shrink-0 rounded-full border transition-colors ' +
         (gross ? 'p-2.5 ' : 'p-1.5 ') +
-        (markiert
-          ? 'border-accent-500 bg-accent-500/15 text-accent-400 hover:bg-accent-500/25'
-          : 'border-ink-700 bg-ink-900/80 text-mist-300 hover:border-accent-500 hover:text-accent-400') +
+        (umschalten.isError
+          ? FEHLGESCHLAGEN
+          : markiert
+            ? 'border-accent-500 bg-accent-500/15 text-accent-400 hover:bg-accent-500/25'
+            : 'border-ink-700 bg-ink-900/80 text-mist-300 hover:border-accent-500 hover:text-accent-400') +
         ' ' +
         className
       }

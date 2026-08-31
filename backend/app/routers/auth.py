@@ -465,9 +465,23 @@ def abmelden_ueberall(
     Wer den Verdacht hat, dass jemand mitliest, soll **den anderen**
     hinauswerfen, nicht sich selbst. Es passiert seinen eigenen Riegel, weil
     es **nach** dem Stempel entsteht - auf die Millisekunde genau.
+
+    ⚠️ **Und die Zugriffs-Schluessel gehen mit.** Sie nehmen einen zweiten Weg
+    durch ``deps.get_current_user``, der ``sitzung.gilt_noch`` nie aufruft -
+    ein Stempel allein liesse sie also weiterlaufen. Wer diesen Knopf drueckt,
+    sagt "jemand liest mit"; ein Riegel, hinter dem eine Tuer offen bleibt,
+    waere schlimmer als keiner, weil er Sicherheit vorgibt.
+
+    Beim **Passwortwechsel** bleiben die Schluessel bewusst stehen: Das ist
+    meistens Hausputz, und jede Anbindung dabei stumm sterben zu lassen waere
+    eine Ueberraschung. Die Oberflaeche sagt dort, wo man sie widerruft.
     """
     user.sessions_valid_from = utcnow()
     db.commit()
 
-    logger.info("User %r ended all other sessions", user.username)
+    widerrufen = api_schluessel.alle_widerrufen(db, user)
+
+    logger.info(
+        "User %r ended all other sessions and %d API key(s)", user.username, widerrufen
+    )
     return sitzung.starten(response, request, user)

@@ -56,7 +56,11 @@ def _zeitraum(date_from: str | None, date_to: str | None) -> tuple[str, str]:
     if spanne > calendar_service.MAX_TAGE:
         raise HTTPException(
             status_code=422,
-            detail=f"Der Zeitraum darf höchstens {calendar_service.MAX_TAGE} Tage umfassen.",
+            detail=meldungen.meldung(
+                "calendar_range_too_long",
+                f"Der Zeitraum darf höchstens {calendar_service.MAX_TAGE} Tage umfassen.",
+                days=calendar_service.MAX_TAGE,
+            ),
         )
 
     return von, bis

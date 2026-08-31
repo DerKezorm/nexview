@@ -46,7 +46,22 @@ export function KidsWishesPage() {
         {t('kids.wishesTitle')}
       </h1>
 
-      {liste.length === 0 && (
+      {/* ⚠️ **Erst der Fehler, dann der Leer-Text.** Vorher stand bei einer
+          Störung derselbe Satz da wie bei einer wirklich leeren Liste - ein
+          Kind, das gestern drei Wünsche abgeschickt hat, las „Du hast noch
+          nichts gewünscht." Das ist keine Fehlermeldung, das ist eine
+          Auskunft, die nicht stimmt. */}
+      {wuensche.isError && (
+        <p
+          role="alert"
+          className="rounded-3xl px-6 py-10 text-center text-lg font-medium"
+          style={{ backgroundColor: KIDS.flaeche, color: KIDS.text }}
+        >
+          {t('kids.wishesFailed')}
+        </p>
+      )}
+
+      {!wuensche.isError && liste.length === 0 && (
         <p
           className="rounded-3xl px-6 py-14 text-center text-lg font-medium"
           style={{ backgroundColor: KIDS.flaeche, color: KIDS.textLeise }}

@@ -36,6 +36,10 @@ MIT_EIGENER_LOGIK = {
     # Waehlt zwischen Sekunden und Minuten - "in 900 Sekunden" waere richtig
     # und trotzdem unbrauchbar.
     "too_many_attempts",
+    # Baut aus zwei Schaltern eine Aufzaehlung. Ein "und" mitten im Satz laesst
+    # sich nicht durch Einsetzen uebersetzen - deshalb entsteht der Satz in
+    # der Oberflaeche, aus errors.inviteNeeds*.
+    "invite_needs_setup",
 }
 
 # ⚠️ Kennungen, deren Text **von aussen** kommt und deshalb nicht uebersetzbar

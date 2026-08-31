@@ -107,7 +107,13 @@ services:
       # NEXVIEW_PORT: 8123
 
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health"]
+      # ⚠️ **Der Port muss aus NEXVIEW_PORT kommen, nicht fest hier stehen.**
+      # Sonst prüft die Kontrolle die 8000, während Nexview im
+      # Host-Netzwerk-Betrieb längst woanders lauscht - der Container läuft
+      # dann einwandfrei und gilt trotzdem dauerhaft als "unhealthy". Die
+      # Shell-Form ist nötig, weil Docker in der Listen-Form keine Variablen
+      # einsetzt; das Abbild macht es in seinem eigenen HEALTHCHECK genauso.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${NEXVIEW_PORT:-8000}/api/health"]
       interval: 30s
       timeout: 5s
       start_period: 20s

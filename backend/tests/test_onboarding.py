@@ -230,11 +230,24 @@ def test_geloeschter_benutzer_nimmt_seine_links_mit(
 
 
 def test_ohne_mailserver_und_adresse_kein_einladen(admin_client: TestClient) -> None:
-    """Eine Einladung, die niemand einlösen kann, hilft niemandem."""
+    """Eine Einladung, die niemand einlösen kann, hilft niemandem.
+
+    ⚠️ Die Meldung traegt seit der Umstellung eine Kennung und **zwei
+    Schalter** statt einer fertigen Aufzaehlung: Ein "und" mitten im Satz
+    laesst sich nicht durch Einsetzen uebersetzen, und so stand der deutsche
+    Satz auch in einer englischen Oberflaeche. Den Satz baut jetzt die
+    Oberflaeche (``client.ts``, ``MIT_EIGENER_LOGIK``).
+    """
     antwort = admin_client.post("/api/users/invitations", json={"email": "neu@beispiel.de"})
     assert antwort.status_code == 409
-    assert "öffentliche Adresse" in antwort.json()["detail"]
-    assert "Mailserver" in antwort.json()["detail"]
+    detail = antwort.json()["detail"]
+    assert detail["code"] == "invite_needs_setup"
+    assert detail["needs_public_url"] is True
+    assert detail["needs_mail"] is True
+    # Der deutsche Rueckfall bleibt - fuer alles, was die Schnittstelle ohne
+    # diese Oberflaeche benutzt.
+    assert "öffentliche Adresse" in detail["message"]
+    assert "Mailserver" in detail["message"]
 
 
 def test_ohne_adresse_allein_kein_einladen(admin_client: TestClient) -> None:
@@ -244,15 +257,21 @@ def test_ohne_adresse_allein_kein_einladen(admin_client: TestClient) -> None:
     )
     antwort = admin_client.post("/api/users/invitations", json={"email": "neu@beispiel.de"})
     assert antwort.status_code == 409
-    assert "öffentliche Adresse" in antwort.json()["detail"]
-    assert "Mailserver" not in antwort.json()["detail"]
+    detail = antwort.json()["detail"]
+    assert detail["needs_public_url"] is True
+    assert detail["needs_mail"] is False
+    assert "öffentliche Adresse" in detail["message"]
+    assert "Mailserver" not in detail["message"]
 
 
 def test_ohne_mailserver_allein_kein_einladen(admin_client: TestClient) -> None:
     admin_client.put("/api/settings", json={"public_url": "https://nexview.beispiel.de"})
     antwort = admin_client.post("/api/users/invitations", json={"email": "neu@beispiel.de"})
     assert antwort.status_code == 409
-    assert "Mailserver" in antwort.json()["detail"]
+    detail = antwort.json()["detail"]
+    assert detail["needs_mail"] is True
+    assert detail["needs_public_url"] is False
+    assert "Mailserver" in detail["message"]
 
 
 def test_die_oberflaeche_erfaehrt_es_ueber_config(admin_client: TestClient) -> None:

@@ -36,10 +36,36 @@ MediaTypeQuery = Annotated[Literal["movie", "tv"], Query()]
 
 
 def _http(error: TmdbError) -> HTTPException:
-    # Auch die Altersperre kommt hier als 404 an (``media.AgeRestricted`` ist
-    # ein ``TmdbError`` mit genau dieser Nummer) - gewollt: eine eigene Meldung
-    # wuerde bestaetigen, dass es den Titel gibt.
-    return HTTPException(status_code=404 if error.status_code == 404 else 502, detail=error.message)
+    """Ein TMDB-Fehler, uebersetzt in etwas, das ein Kind lesen kann.
+
+    ⚠️ **Hier stand ``detail=error.message``, und das ging ungefiltert auf den
+    Schirm eines Achtjaehrigen.** Gemessen kamen so Saetze wie "Der TMDB
+    API-Key wurde nicht akzeptiert." oder "TMDB antwortet nicht
+    (Zeitueberschreitung)." in der Kinderansicht an - auf der Startseite sogar
+    sofort beim Oeffnen, ohne dass das Kind etwas getan hat. Ein Kind kann
+    damit nichts anfangen, und es ist auch nicht sein Problem.
+
+    Der technische Grund gehoert ins Protokoll, wo der Betreiber ihn sucht -
+    nicht auf den Bildschirm des Kindes.
+
+    Die Altersperre kommt hier ebenfalls als 404 an (``media.AgeRestricted``
+    ist ein ``TmdbError`` mit genau dieser Nummer) - gewollt: eine eigene
+    Meldung wuerde bestaetigen, dass es den Titel gibt.
+    """
+    if error.status_code == 404:
+        return HTTPException(
+            status_code=404,
+            detail=meldungen.meldung("kids_not_found", "Das finden wir gerade nicht."),
+        )
+
+    logger.warning("Kids view: TMDB failed - %s", error.message)
+    return HTTPException(
+        status_code=502,
+        detail=meldungen.meldung(
+            "kids_service_down",
+            "Das klappt gerade nicht. Probier es gleich noch einmal!",
+        ),
+    )
 
 
 def _fehler(error: ChildError) -> HTTPException:

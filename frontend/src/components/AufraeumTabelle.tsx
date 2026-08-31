@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
-import { api } from '../api/client'
+import { ApiError, api } from '../api/client'
 import { formatDate, formatSize } from '../lib/format'
 import { titlePath } from '../lib/routes'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -124,6 +124,23 @@ export function AufraeumTabelle({
       queryClient.invalidateQueries({ queryKey: ['vorgemerkt'] })
     },
   })
+
+  /**
+   * ⚠️ **Ein Fehlschlag muss im Dialog stehen, nicht nur in der Konsole.**
+   * Der Dialog hat dafür einen Platz (`fehler`), er blieb nur leer: Schlug das
+   * Löschen fehl - Radarr kurz weg, Datei schon von Hand entfernt -, schloss
+   * sich nichts, es erschien nichts, und der Betreiber wusste nicht, ob die
+   * Datei nun weg ist oder nicht.
+   *
+   * Beim Öffnen einer neuen Rückfrage ist der alte Fehler hinfällig; daran
+   * hängt die Bedingung auf `frage`.
+   */
+  const loeschFehler =
+    frage !== null && (vormerken.isError || sofortLoeschen.isError)
+      ? ((vormerken.error ?? sofortLoeschen.error) instanceof ApiError
+          ? (vormerken.error ?? sofortLoeschen.error)!.message
+          : t('cleanup.deleteFailed'))
+      : null
 
   const abgleich = useMutation({
     mutationFn: () =>
@@ -438,6 +455,7 @@ export function AufraeumTabelle({
             onClick: () => frage && sofortLoeschen.mutate(frage),
           },
         ]}
+        fehler={loeschFehler}
         loading={vormerken.isPending || sofortLoeschen.isPending}
         onCancel={() => setFrage(null)}
         onConfirm={() => frage && vormerken.mutate(frage)}

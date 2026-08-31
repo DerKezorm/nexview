@@ -21,7 +21,7 @@ from app.db import SessionLocal
 from app.models import ApiKey, Role, User, utcnow
 from app.services import api_schluessel
 
-from .conftest import auth_headers, create_user
+from .conftest import ADMIN, auth_headers, create_user
 
 
 def _anlegen(client: TestClient, name: str = "Testschluessel", **rest) -> dict:
@@ -314,3 +314,52 @@ class TestAufsichtDesAdministrators:
 
         antwort = admin_client.get("/api/users/api-schluessel", headers=_kopf(klartext))
         assert antwort.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Der Riegel, hinter dem eine Tuer offen stand
+# ---------------------------------------------------------------------------
+
+
+def test_ueberall_abmelden_widerruft_die_schluessel(admin_client: TestClient) -> None:
+    """⚠️ **Sonst hat der Riegel ein Loch, und zwar ein unsichtbares.**
+
+    Ein Zugriffs-Schluessel nimmt einen zweiten Weg durch
+    ``deps.get_current_user`` - ``sitzung.gilt_noch`` wird dabei nie gefragt.
+    Ein Stempel auf ``sessions_valid_from`` liess ihn also weiterlaufen.
+
+    Wer diesen Knopf drueckt, sagt "jemand liest mit". Ein Riegel, der dabei
+    eine Tuer offen laesst, ist schlimmer als keiner: Er gibt Sicherheit vor.
+    """
+    klartext = _anlegen(admin_client)["schluessel"]
+    assert admin_client.get("/api/auth/me", headers=_kopf(klartext)).status_code == 200
+
+    antwort = admin_client.post("/api/auth/me/ueberall-abmelden", json={})
+    assert antwort.status_code == 200, antwort.text
+    # Der Aufruf beendet auch die eigene Sitzung und liefert ein frisches Paar -
+    # sonst haette er den Anrufer selbst hinausgeworfen.
+    admin_client.headers["Authorization"] = f"Bearer {antwort.json()['access_token']}"
+
+    assert admin_client.get("/api/auth/me", headers=_kopf(klartext)).status_code == 401
+    assert admin_client.get("/api/auth/me/schluessel").json() == [], (
+        "der Schluessel muss wirklich weg sein, nicht nur abgewiesen"
+    )
+
+
+def test_passwortwechsel_laesst_die_schluessel_leben(admin_client: TestClient) -> None:
+    """⚠️ Die andere Richtung - und sie ist genauso wichtig.
+
+    Ein Passwortwechsel ist meistens Hausputz. Wuerde er jede Anbindung
+    mitnehmen - die Kachel auf dem Uebersichtsbrett, das eigene Skript -,
+    stuende der Betreiber ohne Vorwarnung vor lauter toten Verbindungen und
+    wuesste nicht warum. Wer wirklich verdaechtigt, hat den anderen Knopf.
+    """
+    klartext = _anlegen(admin_client, "Bleibt am Leben")["schluessel"]
+
+    antwort = admin_client.post(
+        "/api/auth/me/password",
+        json={"current_password": ADMIN["password"], "new_password": "neues-passwort-1234"},
+    )
+    assert antwort.status_code in (200, 204), antwort.text
+
+    assert admin_client.get("/api/auth/me", headers=_kopf(klartext)).status_code == 200

@@ -163,9 +163,21 @@ def _pruefe_meldungen(events: dict[str, str]) -> None:
     erlaubt = channel_outbox.GROUPS
     for name, stufe in events.items():
         if name not in erlaubt:
-            raise HTTPException(status_code=422, detail=f"Unbekannte Meldung: {name}")
+            raise HTTPException(
+                status_code=422,
+                detail=meldungen.meldung(
+                    "channel_event_unknown", f"Unbekannte Meldung: {name}", event=name
+                ),
+            )
         if stufe not in channels.LEVELS:
-            raise HTTPException(status_code=422, detail=f"Unbekannte Dringlichkeit: {stufe}")
+            raise HTTPException(
+                status_code=422,
+                detail=meldungen.meldung(
+                    "channel_level_unknown",
+                    f"Unbekannte Dringlichkeit: {stufe}",
+                    level=stufe,
+                ),
+            )
 
 
 @router.get("/{channel}/targets")
@@ -365,9 +377,10 @@ def _speichern(
     ):
         raise HTTPException(
             status_code=409,
-            detail=(
+            detail=meldungen.meldung(
+                "channel_not_verified",
                 "Für diese Verbindung liegt keine bestätigte Testnachricht vor. "
-                "Bitte zuerst testen und den Code eintragen."
+                "Bitte zuerst testen und den Code eintragen.",
             ),
         )
 
@@ -422,7 +435,12 @@ def create_child(
     kind = _kind(channel)
     if not channels.has_children(kind):
         raise HTTPException(
-            status_code=422, detail=f"{channels.label(kind)} kennt keine zweite Ebene."
+            status_code=422,
+            detail=meldungen.meldung(
+                "channel_no_second_level",
+                f"{channels.label(kind)} kennt keine zweite Ebene.",
+                channel=channels.label(kind),
+            ),
         )
     eltern = _holen(db, channel, parent_id)
     if eltern.parent_id is not None:
@@ -495,7 +513,12 @@ async def list_chats_draft(
     _pruefe_entwurf(payload)
     if not channels.kann_chats_suchen(kind):
         raise HTTPException(
-            status_code=422, detail=f"{channels.label(kind)} kann das nicht von sich aus."
+            status_code=422,
+            detail=meldungen.meldung(
+                "channel_cannot_list_chats",
+                f"{channels.label(kind)} kann das nicht von sich aus.",
+                channel=channels.label(kind),
+            ),
         )
 
     settings = load_settings(db)
@@ -529,7 +552,12 @@ async def list_chats(
     kind = _kind(channel)
     if not channels.kann_chats_suchen(kind):
         raise HTTPException(
-            status_code=422, detail=f"{channels.label(kind)} kann das nicht von sich aus."
+            status_code=422,
+            detail=meldungen.meldung(
+                "channel_cannot_list_chats",
+                f"{channels.label(kind)} kann das nicht von sich aus.",
+                channel=channels.label(kind),
+            ),
         )
 
     target = _holen(db, channel, target_id)

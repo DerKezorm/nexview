@@ -657,10 +657,17 @@ def test_die_fehlermeldung_ist_lesbar(admin_client: TestClient) -> None:
     Der haeufigste Grund fuer diesen Fehler ist ein Fenster, das noch offen
     war, als eine neue Fassung ausgeliefert wurde.
     """
-    text = admin_client.post(
+    detail = admin_client.post(
         "/api/stoebern/filmabend/ergebnis/movie",
         json={"antworten": {"stimmung": "tanzen"}, "runde": 0},
     ).json()["detail"]
+
+    # ⚠️ Die Meldung traegt seit der Umstellung eine Kennung: Ohne sie kann die
+    # Oberflaeche den Satz nicht in der eingestellten Sprache bauen, und ein
+    # englischer Nutzer las hier Deutsch.
+    assert detail["code"] == "wizard_out_of_step"
+
+    text = detail["message"]
     assert "=" not in text
     assert "von vorn" in text.lower()
 

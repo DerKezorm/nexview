@@ -29,7 +29,7 @@ from ..models import (
     User,
     utcnow,
 )
-from . import channels
+from . import channels, meldungsziele
 from .settings_service import AppSettings, load_settings
 
 logger = logging.getLogger("nexview.channels")
@@ -91,20 +91,10 @@ EVENTS: dict[NotificationType, str] = {
 # Die Haken, die es damit gibt - fuer die Pruefung im Router.
 GROUPS = frozenset(EVENTS.values())
 
-# Wohin der Klick auf die Meldung fuehrt. Was hier nicht steht, zeigt auf die
-# Freigabeliste - dort landet ohnehin fast alles Anfragenbezogene.
-LINKS: dict[NotificationType, str] = {
-    NotificationType.ticket_new: "/tickets",
-    NotificationType.user_imported: "/admin/settings",
-    # Dorthin, wo die Warteschlange steht und entschieden wird.
-    NotificationType.storage_release_requested: "/admin/settings",
-    NotificationType.storage_released: "/profil",
-    NotificationType.storage_kept: "/profil",
-    NotificationType.storage_deleted: "/profil",
-    # Dorthin, wo der Warnkasten der Instanz steht.
-    NotificationType.instanz_gesundheit: "/admin/settings",
-}
-
+# ⚠️ **Wohin der Klick fuehrt, steht jetzt an EINER Stelle** -
+# ``services/meldungsziele.py``. Hier stand eine zweite Liste, und die
+# Oberflaeche hatte eine dritte Lesart; dieselbe Meldung fuehrte in Discord an
+# die richtige Stelle und in der Glocke auf die eigene Anfrageliste.
 # Textbausteine. Ein serverseitiges Ziel hat keinen Empfaenger und damit auch
 # keine Empfaengersprache; welche gilt, steht deshalb beim Ziel. ``by`` ist
 # die Beschriftung der Personenzeile - fehlt sie, entfaellt die Zeile.
@@ -267,7 +257,7 @@ def _notice(
 
     # Ohne hinterlegte oeffentliche Adresse waere der Link ein Verweis auf
     # "localhost" - fuer den, der aufs Handy schaut, wertlos.
-    pfad = LINKS.get(eintrag.type, "/admin/requests")
+    pfad = meldungsziele.ziel_fuer(eintrag)
     ziel = settings.link(pfad) if settings.public_url else None
 
     return channels.Notice(

@@ -6,6 +6,8 @@ Zahlen stimmen und ob ein Posten dem Richtigen zugerechnet wird.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from collections.abc import Iterator
 
@@ -30,6 +32,7 @@ from app.models import (
 )
 from app.security import hash_password
 from app.services import quota, storage
+from app.services.arr import ArrError
 from app.services.radarr import LibraryEntry as MovieEntry
 from app.services.sonarr import LibraryEntry as SeriesEntry
 from app.services.settings_service import AppSettings, load_settings
@@ -1245,3 +1248,44 @@ def test_nur_im_media_server_heisst_nicht_mehr_verwaltet(
     zeile = db.scalars(select(StorageEntry)).one()
     assert zeile.arr_managed is False
     assert storage.posten_von(db, zeile.id).managed is False
+
+
+# ------------------------------------------- Wenn eine Instanz schweigt
+
+
+async def test_stumme_instanz_loescht_die_zurechnung_nicht(
+    db: Session, settings: AppSettings, nutzer: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ **Wer nicht antwortet, sagt nicht Nein.**
+
+    Der gefaehrliche Fall: Radarr ist kurz weg, liefert also **keine** Posten.
+    Ohne diese Regel stuenden alle seine Titel unter "meldet keine Quelle
+    mehr" und wuerden geloescht - der Verbrauch faellt schlagartig, wer am
+    Kontingent haengt darf im selben Moment weiter anfragen, und
+    Loeschfristen und Abgaben an den Zeilen sind verfallen. Zurueck kommen sie
+    nach der Rueckkehr der Instanz nur als **neue** Zeilen, ohne diese
+    Angaben.
+
+    Dieselbe Regel wie in ``abgleich_kern.ist_wirklich_weg``, bevor der
+    Status-Abgleich eine Anfrage auf "geloescht" setzt.
+    """
+    anfrage(db, nutzer, tmdb_id=603)
+    await messen(db, settings, filme={QualityTier.standard: {1: film(2)}})
+    await messen(db, settings, filme={QualityTier.standard: {1: film(2), 603: film(8)}})
+    assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
+
+    # Jetzt schweigt Radarr - genau wie im Betrieb, ueber die echte Grenze.
+    # ``AppSettings`` ist eingefroren, also eine Kopie mit eingerichteter
+    # Instanz: Ohne sie fragt ``_erfassen`` Radarr gar nicht erst.
+    mit_radarr = replace(settings, radarr_url="http://radarr.invalid", radarr_api_key="x")
+
+    async def stumm(*_args, **_kwargs):
+        raise ArrError("Radarr antwortet nicht", service="radarr")
+
+    monkeypatch.setattr(storage.library, "movie_library", stumm)
+
+    ergebnis = await storage.abgleichen(db, mit_radarr)
+
+    assert ergebnis.entfernt == 0, "Eine stumme Instanz darf nichts entfernen"
+    assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
+    assert db.scalar(select(StorageEntry).where(StorageEntry.key.like("movie:%"))) is not None

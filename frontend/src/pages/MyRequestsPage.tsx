@@ -329,7 +329,14 @@ export function MyRequestsPage() {
         </div>
       )}
 
-      {!requestsQuery.isPending && requests.length === 0 && (
+      {/* ⚠️ **Der Fehlerfall zuerst - und der Leer-Text nur dann, wenn es
+          wirklich leer ist.** Vorher hing der Leer-Text allein am Ladezustand.
+          Scheiterte die Abfrage, war `isPending` falsch und die Liste leer -
+          und wer zwölf laufende Anfragen hatte, las „Du hast noch nichts
+          angefragt." Keine Fehlermeldung, sondern eine ruhige Falschaussage. */}
+      {requestsQuery.isError && <ErrorBanner message={t('errors.listFailed')} />}
+
+      {!requestsQuery.isPending && !requestsQuery.isError && requests.length === 0 && (
         <p className="rounded-2xl border border-dashed border-ink-700 px-6 py-16 text-center text-sm text-mist-500">
           {t('myRequests.empty')}
         </p>

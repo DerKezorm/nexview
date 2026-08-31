@@ -269,6 +269,13 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
     deshalb wird hier abgebrochen statt es zu versuchen.
     """
     settings = load_settings(db)
+    # ⚠️ **Zwei Schalter statt eines fertigen Satzes.** Hier stand eine deutsche
+    # Aufzaehlung ("die oeffentliche Adresse **und** ein Mailserver"), und die
+    # kam auch bei einer englischen Oberflaeche auf Deutsch an - Aufzaehlungen
+    # lassen sich nicht durch Einsetzen uebersetzen, das "und" steckt mitten
+    # drin. Die Oberflaeche baut den Satz jetzt selbst (``client.ts``,
+    # ``MIT_EIGENER_LOGIK``); der deutsche Satz bleibt als Rueckfall stehen,
+    # fuer alles, was die Schnittstelle ohne diese Oberflaeche benutzt.
     fehlt = [
         bezeichnung
         for bezeichnung, vorhanden in (
@@ -280,9 +287,12 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
     if fehlt:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
+            detail=meldungen.meldung(
+                "invite_needs_setup",
                 f"Zum Einladen fehlt noch {' und '.join(fehlt)}. "
-                "Nachzutragen unter Einstellungen → E-Mail."
+                "Nachzutragen unter Einstellungen → E-Mail.",
+                needs_public_url=not settings.public_url,
+                needs_mail=not settings.mail_configured,
             ),
         )
 

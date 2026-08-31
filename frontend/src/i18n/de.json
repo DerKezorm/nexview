@@ -2270,6 +2270,42 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.25.1": {
+        "lead": "Eine Wartungsfassung — nichts Neues zu entdecken, aber vieles, das jetzt stimmt. Zwei **Sicherheitslücken** sind geschlossen, der **Bibliotheks-Abgleich** gibt bei langsamen Medienservern nicht mehr auf, und **sechzehn Fehlermeldungen** kamen bisher auf Deutsch, gleich welche Sprache du eingestellt hattest.",
+        "sections": [
+          {
+            "title": "Zwei Sicherheitslücken",
+            "where": "Betrifft jede Installation — nichts einzustellen",
+            "body": "**Passwörter ließen sich durchprobieren.** Die Anmeldebremse kannte drei Türen, an denen ein Passwort geprüft wird. Es gab eine vierte: das erneute Verschicken der Bestätigungsmail und das Korrigieren einer unbestätigten Adresse. Gemessen: hundert falsche Passwörter, hundertmal abgelehnt, kein einziges Mal gebremst — und die Antwort verriet, wann ein Versuch richtig war. Wer Nexview im Netz erreichen konnte, konnte für jedes Konto Passwörter durchprobieren, auch für deins, ohne selbst eines zu haben.\n\n**Zugangsschlüssel überlebten „Überall abmelden“.** Sie nehmen einen zweiten Weg durch die Anmeldung, der nie gefragt hat, ob die Sitzung noch gilt. Wem der Laptop gestohlen wurde, der sperrte den Dieb aus den Sitzungen aus — aber nicht aus den Schlüsseln. „Überall abmelden“ zieht sie jetzt mit ein und sagt das vorher; ein gewöhnlicher Passwortwechsel lässt sie in Ruhe und zeigt, wo du sie widerrufst."
+          },
+          {
+            "title": "Der Bibliotheks-Abgleich gibt nicht mehr auf",
+            "where": "Einstellungen → Medienserver → Bibliotheks-Abgleich",
+            "body": "Jede Abfrage an einen Medienserver hatte fünfzehn Sekunden, gleich wonach sie fragte. Eine Bibliothek, die groß genug ist — oder ein Server, der langsam genug ist —, riss diese Grenze. Und weil ein einziges gerissenes Häppchen den ganzen Durchlauf mitnimmt, stand danach nicht „halb fertig“ in der Karte, sondern „Noch nicht abgeglichen“.\n\nDie Zeitgrenze ist jetzt keine feste Zahl mehr. Nexview fragt in Häppchen, deren Größe **der Server bestimmt**: Was die Zeit reißt, wird halbiert und dieselbe Stelle erneut gefragt; was durchgeht, gilt für den Rest des Durchlaufs. Eine doppelt so große Bibliothek braucht doppelt so viele Häppchen, aber jedes einzelne passt. Einzustellen gibt es nichts.\n\nGemeldet wurde es für Jellyfin, während Emby auf derselben Installation lief. Beide laufen durch denselben Code — der Jellyfin-Server war schlicht der langsamere von beiden."
+          },
+          {
+            "title": "Fehlermeldungen in deiner Sprache",
+            "where": "Überall, wo etwas schiefgeht",
+            "body": "Sechzehn Meldungen kamen auf Deutsch, gleich welche Sprache eingestellt war — darunter ausgerechnet der allererste Kontakt mit Nexview, ein abgelaufener Einladungslink. Sie sind jetzt alle benannt, sodass die Oberfläche sie in deiner Sprache sagen kann.\n\nDie Zeitüberschreitungen der Medienserver sind in dieser Fassung dazugekommen: Wer auf Englisch arbeitete, las bisher „Der Jellyfin-Server antwortet nicht“."
+          },
+          {
+            "title": "Was die Oberfläche behauptete, ohne dass es stimmte",
+            "where": "Meine Anfragen, Mag ich, Kinderwünsche",
+            "body": "Drei Seiten zeigten ihren Leertext, wenn das Laden **fehlgeschlagen** war. Wer zwölf laufende Anfragen hatte, las „du hast noch nichts angefragt“.\n\nEin Freigeber wurde von der Glocke auf neues Feedback hingewiesen, folgte ihr und las „es gibt kein unbeantwortetes Feedback“ — die Adresse dahinter verlangte einen Administrator. Lesen dürfen Freigeber jetzt, antworten weiterhin nicht.\n\nUnd ein Absturz beim Zeichnen räumte die ganze Oberfläche ab, Navigation eingeschlossen. Der wahrscheinlichste Auslöser ist ein Update mit einem offen gebliebenen Reiter. Jetzt steht dort ein Netz, mit genau einem sichtbaren Ausgang."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Ein stiller Radarr löschte die ganze Speicher-Abrechnung: keine Antwort hieß keine Titel, und alles, was die Instanz gemeldet hätte, galt als weg. Weil die Zeilen gelöscht wurden, waren Löschfristen und Freigaben endgültig verloren. Es gilt jetzt dieselbe Regel wie beim Status-Abgleich: **keine Antwort ist kein Nein.**",
+          "Mehrere Qualitätsprofile auf einmal aufzuräumen vergaß bei allen den Besitzvermerk — auch bei denen, die die Instanz gar nicht löschen wollte. Die blieben in Radarr und galten hier als fremd.",
+          "Die Glocke schickte zwei Arten von Benachrichtigung auf die falsche Seite. Wohin ein Klick führt, stand an zwei Stellen, die sich uneinig waren; jetzt gibt es eine Liste, und sie deckt alle 26 Arten ab.",
+          "Das Herz und der Papierkorb schluckten jeden fehlgeschlagenen Klick. Sie melden es jetzt selbst, dort wo das Auge ohnehin ist — und ein Vorleseprogramm sagt es mit.",
+          "Ein Kind bekam den technischen Text von TMDB zu lesen. Der Grund geht jetzt ins Protokoll.",
+          "Ein Verweis auf einen bedingten Unterreiter der Einstellungen landete immer auf „Allgemein“. Betroffen waren nur die bedingten — deshalb hielt jeder, der die funktionierenden prüfte, den Verweis für gesund.",
+          "„Bibliothek berührt“ zeigte „0 %“ über „2 von 0 Titeln“. Ohne Bestand ist der Anteil nicht null, sondern unbekannt — jetzt steht dort ein Strich.",
+          "Die Gesundheitsprüfung in docker-compose.yml übersah NEXVIEW_PORT: Wer unserer eigenen Anleitung folgte, bekam einen Container, der läuft und trotzdem als ungesund gilt."
+        ]
+      },
       "0.25.0": {
         "lead": "Diese Fassung macht Nexview zum **Werkzeug für den Betreiber**. Es gibt ein eigenes **Admin-Dashboard**, das in zehn Sekunden sagt, ob etwas kaputt ist. Aus „Statistik“ wird **Statistik & Analyse** mit sechs Reitern — bis hin zu **wer gerade was schaut** und ob dein Server dabei umrechnet. Und du kannst dich jetzt **über Authentik, Keycloak, Pocket ID oder Google anmelden**.",
         "sections": [

@@ -2270,6 +2270,42 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.25.1": {
+        "lead": "A maintenance release — nothing new to discover, but a lot that is now correct. Two **security holes** are closed, the **library sync** no longer gives up on a slow media server, and **sixteen error messages** used to arrive in German whatever language you had chosen.",
+        "sections": [
+          {
+            "title": "Two security holes",
+            "where": "Affects every installation — nothing to set up",
+            "body": "**Passwords could be guessed.** The sign-in brake named three doors where a password is checked. There was a fourth: resending the confirmation mail and correcting an unconfirmed address. Measured: a hundred wrong passwords, a hundred refusals, not once slowed down — and the answer told the caller when a guess was right. Anyone able to reach Nexview from the network could try passwords for every account, yours included, without holding one of their own.\n\n**Access keys survived “sign out everywhere”.** They take a second path through the sign-in that never asked whether the session was still valid. Somebody whose laptop was stolen locked the thief out of sessions but not out of keys. “Sign out everywhere” now revokes them and says so beforehand; a routine password change leaves them alone and points at where to revoke them."
+          },
+          {
+            "title": "The library sync no longer gives up",
+            "where": "Settings → Media servers → Library sync",
+            "body": "Every request to a media server had fifteen seconds, whatever it asked for. A library big enough — or a server slow enough — missed that limit. And because one missed chunk takes the entire run with it, the card did not read “half done” afterwards, it read “Not synced yet.”\n\nThe time limit is no longer a fixed number. Nexview now asks in chunks whose size **the server decides**: a chunk that misses its time is halved and the same place asked again, and what gets through is kept for the rest of the run. A library twice the size needs twice as many chunks, but each one fits. There is nothing to configure.\n\nIt was reported for Jellyfin while Emby on the same installation kept working. Both run through the same code — the Jellyfin server was simply the slower of the two."
+          },
+          {
+            "title": "Error messages in your language",
+            "where": "Everywhere something goes wrong",
+            "body": "Sixteen messages arrived in German whatever language was set — among them the very first contact with Nexview, an expired invitation link. All of them are named now, so the interface can say them in your language.\n\nMedia-server timeouts joined them in this release: anyone working in English used to read “Der Jellyfin-Server antwortet nicht”."
+          },
+          {
+            "title": "What the interface claimed that was not true",
+            "where": "My requests, Liked, a child's wishes",
+            "body": "Three pages showed their empty text when loading had **failed**. Somebody with twelve running requests read “you have not requested anything yet”.\n\nAn approver was told about new feedback by the bell, followed it, and read “there is no unanswered feedback” — the address behind it required an administrator. Approvers may read now; answering is still not theirs.\n\nAnd a crash while drawing wiped the whole interface, navigation included. The likeliest trigger is an update with a tab left open. There is a net there now, with one visible way out."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "A silent Radarr deleted the whole storage accounting: no answer meant no titles, and everything the instance would have reported counted as gone. Because the rows were deleted, deletion deadlines and releases were lost for good. The rule from the status sync now holds here too: **not answering is not a no.**",
+          "Cleaning up several quality profiles at once forgot the ownership record for all of them — including the ones the instance refused to delete. Those stayed in Radarr but counted as foreign here.",
+          "The bell sent two kinds of notification to the wrong page. Where a click leads was answered in two places that disagreed; there is one list now, and it covers all 26 kinds.",
+          "The heart and the bin swallowed every failed click. They report it themselves now, where the eye already is — and a screen reader says it too.",
+          "A child was shown TMDB's technical text. The reason goes to the log instead.",
+          "A link to a conditional settings sub-tab always landed on “General”. Only the conditional ones were affected — which is why anyone testing a working one called the link healthy.",
+          "“Library touched” read “0 %” above “2 of 0 titles”. Without a stock the share is not zero, it is unknown — a dash says that now.",
+          "The health check in docker-compose.yml ignored NEXVIEW_PORT: following our own instructions produced a container that runs and still counts as unhealthy."
+        ]
+      },
       "0.25.0": {
         "lead": "This release turns Nexview into a **tool for whoever runs it**. There is a dedicated **admin dashboard** that tells you within ten seconds whether something is broken. “Statistics” becomes **Statistics & analysis** with six tabs — right down to **who is watching what right now** and whether your server is transcoding for it. And you can now **sign in through Authentik, Keycloak, Pocket ID or Google**.",
         "sections": [

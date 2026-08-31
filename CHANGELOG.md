@@ -12,6 +12,101 @@ tag exists for it.
 
 ---
 
+## 0.25.1 – 31.08.2026
+
+### Fixed
+
+- **Passwords could be guessed on two addresses that need no sign-in.** The sign-in
+  brake named three doors where a password is checked. There was a fourth: resending
+  the confirmation mail and correcting an unconfirmed address. Measured: 100 wrong
+  passwords, 100 times 401, not a single 429 — and the answer told the caller when a
+  guess was right. Anyone able to reach Nexview from the network could try passwords
+  for every account, the operator's included, without holding one of their own.
+
+- **Access keys survived "sign out everywhere".** They take a second path through the
+  sign-in that never asked whether the session was still valid. Somebody whose laptop
+  was stolen locked the thief out of sessions but not out of keys. "Sign out
+  everywhere" now revokes them and says so beforehand; a routine password change
+  leaves them alone and points at where to revoke.
+
+- **A slow Jellyfin or Emby no longer loses the whole library sync.** Every request to
+  a media server had fifteen seconds, whatever it asked for. A library big enough — or
+  a server slow enough — missed that, and because one missed page takes the entire run
+  with it, the card read "Not synced yet." rather than "half done". Reported for
+  Jellyfin while Emby on the same installation worked; both run the same code, the
+  Jellyfin server was simply the slower of the two.
+
+  The time limit is no longer a fixed number. Nexview now asks in chunks whose size
+  the server decides: a chunk that misses its time is halved and the same place asked
+  again, and what gets through is kept for the rest of the run. A library twice the
+  size needs twice as many chunks, but each one fits. Nothing to configure.
+
+  Timeouts also reach the log now, naming the request that died — media servers were
+  the only outward connection that stayed silent about it, so the report that started
+  this could not be traced from the logs.
+
+- **A silent Radarr deleted the whole storage accounting.** No answer meant no items,
+  and everything the instance would have reported counted as gone. Measured: usage
+  fell from 28 GB to 20, the house from 2 GB to 0 — and because the rows were deleted,
+  deletion deadlines and releases were lost for good. The rule from the status sync now
+  holds here too: not answering is not a no.
+
+- **Cleaning up several quality profiles at once forgot the ownership record** for all
+  of them, including the ones the instance refused to delete. Those stayed in Radarr
+  but counted as foreign here.
+
+- **Sixteen error messages reached everybody in German**, whatever language they had
+  chosen — among them the very first contact with Nexview, an expired invitation link.
+  All of them are named now, so the interface can say them in the reader's language;
+  the German sentence stays as the fallback. Media-server timeouts join them in this
+  release.
+
+- **An approver was told "new feedback" and then could not read it.** The bell led to
+  an address that required an administrator, so the page said "there is no unanswered
+  feedback". Reading is now open to approvers; answering is not.
+
+- **Three pages showed their empty text when loading had failed:** your own requests,
+  favourites, and a child's wishes. Somebody with twelve running requests read "you
+  have not requested anything yet".
+
+- **The bell sent two kinds of notification to the wrong page.** Where a click leads was
+  answered in two places that disagreed; there is now one list, and it covers all 26
+  kinds with no fallback.
+
+- **A crash while drawing wiped the whole interface**, navigation included. The likeliest
+  trigger is an update with a tab left open. There is a net now, with one visible way out.
+
+- **The heart and the bin swallowed every failed click.** They report it themselves, where
+  the eye already is, and a screen reader says it too. Deleting from the cleanup list
+  failed silently for the same reason.
+
+- **A child was shown TMDB's technical text.** The reason goes to the log instead.
+
+- **A link to a conditional settings sub-tab always landed on "General".** On the first
+  render the configuration is not loaded yet, so every sub-tab with a condition dropped
+  out of the visible list and the fallback jumped away before the configuration arrived.
+  `?unter=radarr` kept working, which is what hid the cause.
+
+- **"Library touched" read "0 %" above "2 of 0 titles".** Without a stock the share is not
+  zero, it is unknown — and a dash says that where a zero asserts something.
+
+- **The health check in `docker-compose.yml` ignored `NEXVIEW_PORT`**, so following our own
+  instructions produced a container that runs and counts as unhealthy. ESLint checked
+  generated output and therefore always failed.
+
+### Under the hood
+
+- **Backups are now checked by what lives in the data directory**, not by a list of parts
+  somebody remembered to name. `data/trash/` could have gone missing unnoticed: it had not
+  been forgotten, it had never been asked about. Every name is now either archived or
+  excluded with a written reason.
+
+- **Five new guards**, each proven against a mutation: every literal `t('a.b')` exists in
+  both languages (2,204 keys), no new error answer without a code, all 26 notification
+  kinds know where their click leads, the v1 promise covers nested fields (252 instead of
+  the top level), and a media server that only answers to small requests still delivers
+  every title.
+
 ## 0.25.0 – 30.08.2026
 
 ### New

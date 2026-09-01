@@ -23,6 +23,12 @@ logger = logging.getLogger("nexview.settings")
 # dieselbe Zeile wuerde das Protokoll unbrauchbar machen.
 _unlesbar_gemeldet: set[str] = set()
 
+#: Unter diesem Namen haengt der Merker an der Sitzung (``Session.info``).
+#:
+#: Er steht hier als Konstante, damit der Name an genau einer Stelle steht;
+#: geleert wird ausschliesslich ueber ``merker_verwerfen``.
+MERKER = "nexview_einstellungen"
+
 if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
     from ..models import User
 
@@ -669,7 +675,54 @@ def _verbindungen_lesen(db: Session, values: dict[str, str]) -> tuple[Verbindung
     return (alt,) if alt.provider and alt.machine_id else ()
 
 
-def load_settings(db: Session) -> AppSettings:
+def merker_verwerfen(session: Session) -> None:
+    """Den gemerkten Stand dieser Sitzung wegwerfen.
+
+    Der einzige Weg, den Merker zu loeschen. Gerufen wird er vom Horcher in
+    ``db.py``, sobald in derselben Sitzung eine Zeile der Tabelle ``settings``
+    oder ``media_server_connections`` geschrieben wird.
+    """
+    session.info.pop(MERKER, None)
+
+
+def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:
+    """Die Einstellungen - je Sitzung einmal aus der Datenbank geholt.
+
+    ⚠️ **Der Merker haengt an der Sitzung, nicht am Prozess.** Eine Anfrage
+    hat genau eine Sitzung (``get_db``), also holt jede Anfrage die
+    Einstellungen genau einmal statt bis zu achtmal. Zwei Anfragen teilen
+    nichts.
+
+    Geleert wird er nicht von Hand, sondern vom ``after_flush``-Horcher in
+    ``db.py``: Wer in derselben Sitzung an ``settings`` oder
+    ``media_server_connections`` schreibt, bekommt danach wieder den neuen
+    Stand zu sehen. Das ist kein Feinschliff, sondern Bedingung - mehrere
+    Endpunkte speichern und lesen im selben Atemzug zurueck (etwa
+    ``PUT /api/settings``, das Verbinden eines Medienservers und das Vergeben
+    der Geraetekennung beim Anmelden).
+
+    ⚠️ **Was sich damit bewusst aendert:** Liegt in einer Anfrage ein ``await``
+    mit einem Netzaufruf, und ein Administrator aendert waehrenddessen die
+    Einstellungen, arbeitet diese Anfrage bis zum Ende mit dem Stand von ihrem
+    Anfang. Das ist die bessere Haelfte des Tauschs - eine Anfrage, die
+    mittendrin die Einstellungen wechselt, ist ihre eigene Art von
+    Unstimmigkeit. Die einzige Stelle, an der das Alter wirklich zaehlt, liest
+    ausdruecklich mit ``frisch=True`` (``mediaserver_library``).
+
+    ⚠️ **Fuer kuenftige Hintergrundschleifen:** Der Merker ist nur deshalb
+    unbedenklich, weil keine Sitzung ausserhalb einer Anfrage laenger lebt als
+    ein Rundgang. Alle stehen in einem ``with SessionLocal() as db:``, das
+    **vor** der Wartezeit endet (Status-Abgleich, Nachrichtenausgang,
+    Sicherungsplan). Wer eine Sitzung ueber ein ``sleep`` hinweg offen haelt,
+    arbeitet ab dann mit veralteten Einstellungen.
+
+    ``frisch=True`` geht am Merker vorbei und legt danach den neuen Stand ab.
+    """
+    if not frisch:
+        gemerkt = db.info.get(MERKER)
+        if gemerkt is not None:
+            return gemerkt
+
     raw = _raw_values(db)
     values = {key: (decrypt(value) if key in SECRET_KEYS else value) for key, value in raw.items()}
     verbindungen = _verbindungen_lesen(db, values)
@@ -710,7 +763,7 @@ def load_settings(db: Session) -> AppSettings:
 
     sicherheit = values["smtp_security"]
 
-    return AppSettings(
+    einstellungen = AppSettings(
         tmdb_api_key=values["tmdb_api_key"],
         radarr_url=values["radarr_url"].rstrip("/"),
         radarr_api_key=values["radarr_api_key"],
@@ -797,6 +850,8 @@ def load_settings(db: Session) -> AppSettings:
         storage_default_limit_gb=profil("storage_default_limit_gb"),
         quota_period=_zeitraum(values["quota_period"]),
     )
+    db.info[MERKER] = einstellungen
+    return einstellungen
 
 
 def for_user(settings: AppSettings, user: "User") -> AppSettings:

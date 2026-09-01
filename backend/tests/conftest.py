@@ -81,6 +81,12 @@ def clean_db() -> Iterator[None]:
     # eingibt, seine Zaehler in den naechsten, und der scheitert dann mit
     # 429 statt mit dem, was er eigentlich prueft.
     anmeldebremse.zuruecksetzen()
+
+    # Der Merker von ``load_settings`` braucht hier bewusst **nichts**: Er
+    # haengt an der Sitzung (``Session.info``), nicht am Prozess, und jede
+    # Sitzung faengt leer an. Waere er global, muesste er eine Zeile weiter
+    # oben stehen - und die Testreihe waere ab sofort reihenfolgeabhaengig.
+    # Bewacht von tests/test_einstellungen_merker.py.
     yield
 
 

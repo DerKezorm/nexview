@@ -88,6 +88,50 @@ def _fremdschluessel_sicherstellen(dbapi_connection, _connection_record, _proxy)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
 
 
+@event.listens_for(SessionLocal, "after_flush")
+def _einstellungen_merker_verwerfen(session: Session, _kontext) -> None:
+    """Wer Einstellungen schreibt, soll sie danach auch neu lesen.
+
+    ``load_settings`` merkt sich sein Ergebnis an der Sitzung, damit eine
+    Anfrage die Einstellungen einmal holt statt bis zu achtmal. Der Merker
+    haelt genau so lange, bis in **derselben** Sitzung eine Zeile der Tabelle
+    ``settings`` oder ``media_server_connections`` geschrieben wird - dann
+    wirft dieser Horcher ihn weg.
+
+    Ohne ihn liefe jedes "speichern und zurueckgeben" ins Leere: Die Antwort
+    auf ``PUT /api/settings`` zeigte den Stand von vorher, der frisch
+    verbundene Medienserver fehlte im Bibliotheks-Abgleich, und die
+    Geraetekennung wuerde bei jeder Anmeldung neu erzeugt statt einmal.
+
+    ⚠️ **Beide Typen muessen hier stehen.** ``Setting`` allein liesse das
+    Verbinden und Trennen eines Medienservers durchrutschen, denn eine
+    Verbindung ist seit 0.18.0 eine eigene Zeile und kein Einstellungswert
+    mehr.
+
+    ⚠️ **Rohes SQL laeuft hier vorbei.** Der Horcher haengt am
+    Objektzustand der Sitzung, nicht an der Tabelle. In ``db.py`` schreiben
+    drei Stellen mit ``exec_driver_sql`` an ``settings``:
+    ``_kontingente_dreiwertig_machen`` (DELETE und INSERT) und
+    ``_verbindung_in_die_tabelle`` (UPDATE). Nachgesehen nach dem Umbau auf
+    das Wanderungsbuch: Beide sind Einmal-Schritte, stehen in ``init_db`` und
+    laufen beim Start, bevor die erste Anfrage eine Sitzung hat - und seit dem
+    Buch ohnehin hoechstens ein einziges Mal je Datenbank. Der zweite
+    ``init_db``-Lauf, der nach dem Einspielen einer Sicherung folgt, kommt
+    hinter ``engine.dispose()``, und der einspielende Endpunkt liest danach
+    keine Einstellungen mehr. Wer hier eine vierte Stelle ergaenzt, muss sie
+    selbst pruefen.
+
+    ``after_flush`` und nicht ``after_flush_postexec``: Nur davor stehen
+    ``new``, ``dirty`` und ``deleted`` noch gefuellt.
+    """
+    from .models import MediaServerConnection, Setting
+    from .services.settings_service import merker_verwerfen
+
+    betroffen = (*session.new, *session.dirty, *session.deleted)
+    if any(isinstance(objekt, (Setting, MediaServerConnection)) for objekt in betroffen):
+        merker_verwerfen(session)
+
+
 #: Schritte in ``init_db``, die **genau einmal** laufen duerfen.
 #:
 #: Sie deuten Bestandsdaten um. Ein zweiter Lauf verdoppelt Zeilen, scheitert

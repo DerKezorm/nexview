@@ -19,13 +19,49 @@ logger = logging.getLogger("nexview.crypto")
 
 _PREFIX = "enc:"
 
+#: Der abgeleitete Schluessel, einmal je Prozesslauf.
+#:
+#: ⚠️ **Wie viel das bringt, haengt daran, woher der Schluessel kommt.**
+#: ``resolved_secret_key`` liefert ``NEXVIEW_SECRET_KEY`` sofort zurueck, wenn
+#: die Variable gesetzt ist. Ist sie leer - und das ist die Vorgabe, siehe
+#: ``.env.example`` -, macht sie bei **jedem** Aufruf ein ``mkdir`` und liest
+#: ``data/secret.key`` von der Platte. ``load_settings`` leitet einmal je
+#: gespeichertem Geheimnis ab, in der vorbereiteten Datenbank achtmal (fuenf
+#: Geheimnisse plus drei Verbindungs-Token).
+#:
+#: Gemessen an dieser Datenbank, eine Anfrage mit acht ``load_settings``:
+#: mit gesetzter Variable 10,7 auf 1,3 ms, davon 0,3 ms durch diesen Merker
+#: und der Rest durch den Sitzungs-Merker in ``settings_service``. Ohne die
+#: Variable, also mit ``secret.key`` auf der Platte, 25,6 auf 1,4 ms - dort
+#: traegt dieser Merker mehr als die Haelfte.
+#:
+#: ⚠️ **Ein von aussen ausgetauschtes ``secret.key`` greift damit erst nach
+#: einem Neustart.** Das ist kein Verlust, sondern besser: Ein im Betrieb
+#: getauschter Schluessel macht ohnehin **alle** gespeicherten Geheimnisse
+#: unlesbar - bisher schlug das mitten im Betrieb zu, mit dem Merker bleiben
+#: sie bis zum Neustart lesbar, und der Betreiber sieht die Folgen dann
+#: geschlossen statt haeppchenweise.
+#:
+#: Wer den Schluessel von innen austauscht, muss ``fernet_vergessen`` rufen.
+#: Das tut heute genau eine Stelle, das Einspielen einer Sicherung.
+_gemerkt: Fernet | None = None
+
 
 def _fernet() -> Fernet:
-    secret = get_settings().resolved_secret_key().encode("utf-8")
-    # Eigenes Praefix, damit dieser Schluessel nicht mit dem Signierschluessel
-    # aus security.py identisch ist.
-    digest = hashlib.sha256(b"nexview-settings:" + secret).digest()
-    return Fernet(base64.urlsafe_b64encode(digest))
+    global _gemerkt
+    if _gemerkt is None:
+        secret = get_settings().resolved_secret_key().encode("utf-8")
+        # Eigenes Praefix, damit dieser Schluessel nicht mit dem Signierschluessel
+        # aus security.py identisch ist.
+        digest = hashlib.sha256(b"nexview-settings:" + secret).digest()
+        _gemerkt = Fernet(base64.urlsafe_b64encode(digest))
+    return _gemerkt
+
+
+def fernet_vergessen() -> None:
+    """Den gemerkten Schluessel wegwerfen; der naechste Aufruf leitet neu ab."""
+    global _gemerkt
+    _gemerkt = None
 
 
 def encrypt(value: str) -> str:

@@ -481,6 +481,30 @@ class TestWiederherstellen:
             assert db.query(User).filter(User.username == "danach").count() == 0
             assert db.query(User).count() >= 1
 
+    def test_der_verschluesselungsschluessel_wird_vergessen(
+        self, admin_client: TestClient
+    ) -> None:
+        """Sonst laeuft der Dienst mit dem Schluessel von **vor** dem Einspielen weiter.
+
+        ``crypto`` leitet den Fernet einmal je Prozesslauf ab und merkt ihn
+        sich - das Ableiten liest ``data/secret.key`` von der Platte und war
+        der teuerste Teil am Lesen der Einstellungen. Genau hier kann aber ein
+        fremdes ``secret.key`` aus dem Archiv geschrieben worden sein. Ohne das
+        Vergessen haelt Nexview jedes eingespielte Geheimnis bis zum Neustart
+        fuer unlesbar: Plex "weg", TMDB im Demo-Modus, Radarr "nicht
+        eingerichtet" - die drei Raetsel, die schon einmal gemeldet wurden.
+
+        Dieselbe Ueberlegung wie beim TRaSH-Stand eine Zeile daneben.
+        """
+        from app import crypto
+
+        daten = self._archiv()
+        vorher = crypto._fernet()
+
+        sicherung.wiederherstellen(daten, PASSWORT)
+
+        assert crypto._fernet() is not vorher
+
     def test_vorher_wird_gesichert(self, admin_client: TestClient) -> None:
         """⚠️ Der einzige Weg zurueck, wenn die eingespielte Sicherung kaputt ist."""
         daten = self._archiv()

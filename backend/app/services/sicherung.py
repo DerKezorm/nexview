@@ -963,6 +963,16 @@ def wiederherstellen(daten: bytes, passwort: str) -> Befund:
 
     schnappschuss.cache_clear()
 
+    # ⚠️ **Und der abgeleitete Verschluesselungsschluessel genauso.** Ein paar
+    # Zeilen weiter oben kann gerade ein fremdes ``secret.key`` geschrieben
+    # worden sein. ``crypto`` merkt sich den daraus abgeleiteten Fernet einmal
+    # je Prozesslauf; ohne dieses Vergessen liefe der Dienst bis zum Neustart
+    # mit dem Schluessel von **vor** dem Einspielen weiter und hielte jedes
+    # eingespielte Geheimnis fuer unlesbar.
+    from ..crypto import fernet_vergessen
+
+    fernet_vergessen()
+
     # Aeltere Sicherung? Dann fehlen ihr Spalten und Tabellen - die ergaenzt
     # der gewoehnliche Startweg.
     init_db()

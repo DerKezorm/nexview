@@ -161,7 +161,17 @@ async def _einen_server_lesen(
     #
     # Bewusst eine **frische** Abfrage und nicht das ``settings`` von oben:
     # Genau dessen Alter ist ja das Problem.
-    if server.provider not in verbundene_anbieter(load_settings(db)):
+    #
+    # ⚠️ **Und deshalb ``frisch=True``.** ``load_settings`` merkt sich seit
+    # 0.26.2 sein Ergebnis an der Sitzung. Der Merker faellt, sobald diese
+    # Sitzung selbst an den Einstellungen schreibt - aber das Trennen laeuft in
+    # einer **fremden** Sitzung (``routers/mediaserver.py``, eigener Endpunkt
+    # im Threadpool). Ohne das Schluesselwort bekaeme die Pruefung hier den
+    # Stand vom Anfang des Lesevorgangs zurueck, also genau die Verbindung, die
+    # inzwischen weg ist, und der Abgleich schriebe munter weiter. Das ist die
+    # einzige Stelle im ganzen Quelltext, die einen Stand braucht, den eine
+    # andere Sitzung geschrieben hat.
+    if server.provider not in verbundene_anbieter(load_settings(db, frisch=True)):
         logger.info(
             "Media server %r was disconnected while its library was being read - "
             "nothing written",

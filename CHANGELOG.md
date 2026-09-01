@@ -102,6 +102,30 @@ tag exists for it.
   claim that has to stay true, and one written to get a build green hides a real hole from
   whoever reads it next.
 
+### Under the hood
+
+- **The settings are read once per request instead of up to eight times.** Every endpoint
+  that needs them calls `load_settings`, and a page like the dashboard did so eight times
+  over: eight round trips to the database, and one fresh derivation of the encryption key
+  per stored credential each time. The answer is now kept for the length of a single
+  request and thrown away the moment that same request writes a setting or a media server
+  connection, so "save it and read it straight back" still sees the new value. Measured
+  against a real database with `NEXVIEW_SECRET_KEY` set: one such request drops from
+  10.7 ms to 1.3 ms. An installation that lets Nexview generate `data/secret.key` gains
+  more than that, because deriving the key read that file from disk every single time.
+
+  Two consequences worth naming. A request that waits on the network in the middle now
+  works with the settings it started with, and that is the better half of the trade: a
+  request that changes its mind halfway through is its own kind of inconsistency. The one
+  place where the age of that answer really matters, the library sync checking whether its
+  media server is still connected, asks the database directly and says so.
+
+  And the encryption key is derived once per process, so a `secret.key` replaced from
+  outside while Nexview runs takes effect on the next restart rather than at once. That is
+  not a loss. A key changed under a running service makes every stored credential
+  unreadable anyway; this way they stay readable until the restart, and restoring a backup
+  forgets the derived key on its own.
+
 ---
 
 ## 0.26.1 – 01.09.2026

@@ -17,7 +17,7 @@ from app.services import settings_service
 from app.security import hash_password, unusable_password
 
 from .conftest import auth_headers, create_user
-from .oidc_helfer import ISSUER, transport
+from .oidc_helfer import ISSUER, KAPUTTE_ADRESSE, transport
 
 NEU = {
     "slug": "firma",
@@ -197,3 +197,212 @@ def test_pruef_knopf(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) 
     assert schlecht["ok"] is False
     assert schlecht["code"] == "oidc_provider_unreachable"
     oidc_dienst.cache_leeren()
+
+
+def test_pruef_knopf_ueberlebt_eine_unbrauchbare_adresse(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ **Ein Tippfehler ergibt eine Auskunft, keine Fehlerseite.**
+
+    ``httpx.InvalidURL`` erbt direkt von ``Exception``, nicht von
+    ``httpx.HTTPError``, und die Ausnahme entsteht schon beim **Zerlegen** der
+    Adresse. Ohne den groben Faenger flog sie aus genau dem Knopf heraus, der
+    dem Administrator sagen soll, ob seine Eingabe taugt - als nackte 500, mit
+    einem Stapelabzug im Protokoll und ohne ein Wort darueber, was zu tun ist.
+
+    Die Adresse hier ist eine unvollstaendige IPv6-Klammer: derselbe
+    Tippfehler, wie er in einer handgeschriebenen Anbieter-Adresse im Heimnetz
+    vorkommt.
+    """
+    _mit_adresse()
+    eintrag = admin_client.post("/api/admin/oidc", json=NEU).json()
+    with SessionLocal() as db:
+        db.query(OidcProvider).update({"issuer_url": KAPUTTE_ADRESSE})
+        db.commit()
+
+    oidc_dienst.cache_leeren()
+    monkeypatch.setattr(oidc_dienst, "_client", httpx.AsyncClient(transport=transport()))
+    antwort = admin_client.post(f"/api/admin/oidc/{eintrag['id']}/pruefen")
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json() == {
+        "ok": False,
+        "code": "oidc_provider_unreachable",
+        "aussteller": None,
+    }
+    oidc_dienst.cache_leeren()
+
+
+def _anbieter_mit_gefaehrdetem_konto(admin_client: TestClient) -> int:
+    """Ein Anbieter plus ein Konto, dessen einziger Weg hinein er ist."""
+    _mit_adresse()
+    eintrag = admin_client.post("/api/admin/oidc", json=NEU).json()
+    with SessionLocal() as db:
+        konto = User(
+            username="nur-sso",
+            password_hash=unusable_password(),
+            email=None,
+            email_verified=False,
+        )
+        konto.oidc_links.append(OidcLink(issuer=ISSUER, subject="p-1"))
+        db.add(konto)
+        db.commit()
+    return eintrag["id"]
+
+
+def test_abschalten_warnt_genauso_wie_loeschen(admin_client: TestClient) -> None:
+    """⚠️ **Abschalten ist Loeschen, aus Sicht des Ausgesperrten.**
+
+    Der Riegel hing lange nur an ``DELETE``. Ein Administrator, dem das
+    Loeschen mit 403 oder 409 verweigert wurde, kam mit einem Klick weiter:
+    ``PATCH {"enabled": false}`` ging mit 200 durch, danach antworteten
+    ``/login`` und ``/callback`` mit 404 und die Knopfliste war leer - fuer ein
+    Konto ohne brauchbares Passwort dasselbe wie geloescht, nur ohne Warnung,
+    ohne Bestaetigung und ohne Zeile im Protokoll.
+    """
+    provider_id = _anbieter_mit_gefaehrdetem_konto(admin_client)
+
+    abgelehnt = admin_client.patch(f"/api/admin/oidc/{provider_id}", json={"enabled": False})
+    assert abgelehnt.status_code == 409, abgelehnt.text
+    assert abgelehnt.json()["detail"]["code"] == "oidc_would_lock_out_others"
+    assert [k["username"] for k in abgelehnt.json()["detail"]["gefaehrdet"]] == ["nur-sso"]
+    with SessionLocal() as db:
+        assert db.get(OidcProvider, provider_id).enabled is True
+
+    ueberstimmt = admin_client.patch(
+        f"/api/admin/oidc/{provider_id}?bestaetigt=true", json={"enabled": False}
+    )
+    assert ueberstimmt.status_code == 200, ueberstimmt.text
+    with SessionLocal() as db:
+        assert db.get(OidcProvider, provider_id).enabled is False
+
+
+def test_andere_adresse_warnt_genauso_wie_loeschen(admin_client: TestClient) -> None:
+    """Eine neue Adresse haengt jede Verknuepfung ab - eine Identitaet besteht
+    aus Aussteller UND Subjekt. Fuer den Betroffenen ist das ein Loeschen."""
+    provider_id = _anbieter_mit_gefaehrdetem_konto(admin_client)
+
+    abgelehnt = admin_client.patch(
+        f"/api/admin/oidc/{provider_id}", json={"issuer_url": "https://woanders.beispiel.de"}
+    )
+    assert abgelehnt.status_code == 409, abgelehnt.text
+    assert abgelehnt.json()["detail"]["code"] == "oidc_would_lock_out_others"
+
+    # Was die Verknuepfungen nicht anfasst, geht ohne Bestaetigung durch.
+    harmlos = admin_client.patch(
+        f"/api/admin/oidc/{provider_id}", json={"label": "Anderer Name"}
+    )
+    assert harmlos.status_code == 200, harmlos.text
+    # Und dieselbe Adresse noch einmal ist keine Aenderung.
+    gleich = admin_client.patch(
+        f"/api/admin/oidc/{provider_id}", json={"issuer_url": ISSUER}
+    )
+    assert gleich.status_code == 200, gleich.text
+
+
+def test_nur_leerzeichen_ist_kein_name(admin_client: TestClient) -> None:
+    """⚠️ ``min_length=1`` allein laesst ``"   "`` durch - drei Zeichen sind
+    mehr als eins. Gespeichert wurde danach die leere Zeichenkette: ein Knopf
+    ohne Beschriftung auf der Anmeldeseite, und mit leerer Client-ID scheiterte
+    jede Anmeldung beim Anbieter, waehrend der Pruef-Knopf gruen meldete."""
+    _mit_adresse()
+
+    abgelehnt = admin_client.post(
+        "/api/admin/oidc", json={**NEU, "label": "   ", "client_id": "   "}
+    )
+    assert abgelehnt.status_code == 422, abgelehnt.text
+
+    # Und Leerzeichen aussen herum werden geputzt, nicht gespeichert.
+    angelegt = admin_client.post(
+        "/api/admin/oidc", json={**NEU, "label": "  Firmen-SSO  "}
+    )
+    assert angelegt.status_code == 201, angelegt.text
+    assert angelegt.json()["label"] == "Firmen-SSO"
+
+    beim_aendern = admin_client.patch(
+        f"/api/admin/oidc/{angelegt.json()['id']}", json={"label": "   "}
+    )
+    assert beim_aendern.status_code == 422, beim_aendern.text
+
+
+def test_neue_zugangsdaten_warnen_genauso_wie_loeschen(admin_client: TestClient) -> None:
+    """⚠️ Die Seitentuer neben der Seitentuer.
+
+    Der Riegel hing zuerst nur an ``enabled`` und der Adresse. Wer stattdessen
+    ein falsches Client-Geheimnis eintraegt, laesst jeden Token-Tausch mit
+    ``invalid_client`` scheitern - niemand kommt mehr herein. Das ist
+    schlimmer als Abschalten: Das richtige Geheimnis verlaesst die Datenbank
+    nie, aus Nexview heraus ist es nicht wiederherstellbar.
+    """
+    provider_id = _anbieter_mit_gefaehrdetem_konto(admin_client)
+
+    fuer_geheimnis = admin_client.patch(
+        f"/api/admin/oidc/{provider_id}", json={"client_secret": "falsch"}
+    )
+    assert fuer_geheimnis.status_code == 409, fuer_geheimnis.text
+    assert fuer_geheimnis.json()["detail"]["code"] == "oidc_would_lock_out_others"
+
+    fuer_kennung = admin_client.patch(
+        f"/api/admin/oidc/{provider_id}", json={"client_id": "falsch"}
+    )
+    assert fuer_kennung.status_code == 409, fuer_kennung.text
+
+    ueberstimmt = admin_client.patch(
+        f"/api/admin/oidc/{provider_id}?bestaetigt=true", json={"client_id": "falsch"}
+    )
+    assert ueberstimmt.status_code == 200, ueberstimmt.text
+
+
+def test_verwaiste_verknuepfung_ist_kein_weg_hinein(admin_client: TestClient) -> None:
+    """⚠️ **Der Riegel fiel still aus, sobald irgendwo eine tote Zeile lag.**
+
+    Verknuepfungen bleiben beim Loeschen eines Anbieters absichtlich stehen,
+    und eine geaenderte Anbieter-Adresse laesst sie ebenfalls verwaist zurueck.
+    Gezaehlt wurde aber "irgendeine andere Verknuepfung" - ohne nachzusehen, ob
+    es den Anbieter dazu noch gibt. Wer je einen zweiten Anbieter geloescht
+    oder abgeschaltet hatte, war fuer die betroffenen Konten danach voellig
+    ungeschuetzt: keine Rueckfrage, kein Betreiber-Riegel, kein Ton.
+    """
+    _mit_adresse()
+    erster = admin_client.post("/api/admin/oidc", json=NEU).json()
+    zweiter = admin_client.post(
+        "/api/admin/oidc",
+        json={**NEU, "slug": "zweiter", "issuer_url": "https://zweiter.beispiel.de"},
+    ).json()
+
+    with SessionLocal() as db:
+        konto = User(
+            username="nur-sso",
+            password_hash=unusable_password(),
+            email=None,
+            email_verified=False,
+        )
+        konto.oidc_links.append(OidcLink(issuer=ISSUER, subject="p-1"))
+        konto.oidc_links.append(
+            OidcLink(issuer="https://zweiter.beispiel.de", subject="p-2")
+        )
+        db.add(konto)
+        db.commit()
+
+    # Mit zwei lebenden Anbietern ist niemand gefaehrdet - richtig so.
+    folgen = admin_client.get(f"/api/admin/oidc/{erster['id']}/folgen").json()
+    assert folgen["gefaehrdet"] == []
+
+    # Den zweiten abschalten. Die Verknuepfung dorthin bleibt stehen, taugt
+    # aber nicht mehr als Weg hinein.
+    aus = admin_client.patch(
+        f"/api/admin/oidc/{zweiter['id']}?bestaetigt=true", json={"enabled": False}
+    )
+    assert aus.status_code == 200, aus.text
+
+    folgen = admin_client.get(f"/api/admin/oidc/{erster['id']}/folgen").json()
+    assert [k["username"] for k in folgen["gefaehrdet"]] == ["nur-sso"], folgen
+    abgelehnt = admin_client.patch(
+        f"/api/admin/oidc/{erster['id']}", json={"enabled": False}
+    )
+    assert abgelehnt.status_code == 409, abgelehnt.text
+
+    # Und dasselbe, wenn der zweite ganz geloescht ist.
+    weg = admin_client.delete(f"/api/admin/oidc/{zweiter['id']}?bestaetigt=true")
+    assert weg.status_code == 204, weg.text
+    folgen = admin_client.get(f"/api/admin/oidc/{erster['id']}/folgen").json()
+    assert [k["username"] for k in folgen["gefaehrdet"]] == ["nur-sso"], folgen

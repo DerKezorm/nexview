@@ -102,6 +102,16 @@ def _secure(request: Request) -> bool:
     return request.url.scheme == "https"
 
 
+#: Oeffentlicher Name fuer ``_secure``.
+#:
+#: ⚠️ **Jedes Cookie, das Nexview setzt, gehoert an dieselbe Entscheidung.**
+#: Das OIDC-Anlauf-Cookie hing lange daneben und trug nie ``Secure`` - auch
+#: nicht, wenn der Betreiber ``NEXVIEW_COOKIE_SECURE=on`` gesetzt hatte. Ein
+#: zweiter Aufruf von ``os.environ`` an anderer Stelle waere derselbe Fehler
+#: noch einmal; deshalb gibt es genau diese eine Quelle.
+cookie_secure = _secure
+
+
 def starten(response: Response, request: Request, user: User) -> TokenPair:
     """Eine Sitzung beginnen: Cookie setzen, Zugangs-Token zurueckgeben.
 

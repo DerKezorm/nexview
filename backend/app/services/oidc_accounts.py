@@ -139,7 +139,9 @@ def loesen(user: User, issuer: str) -> None:
     user.oidc_links[:] = [z for z in user.oidc_links if z.issuer != issuer]
 
 
-def kaeme_nicht_mehr_herein(user: User, ohne: str) -> bool:
+def kaeme_nicht_mehr_herein(
+    user: User, ohne: str, nutzbare_issuer: set[str] | None = None
+) -> bool:
     """Haette dieses Konto ohne diesen Anbieter noch einen Weg hinein?
 
     Gezaehlt werden: eine andere OIDC-Verknuepfung, eine Medienserver-
@@ -150,7 +152,24 @@ def kaeme_nicht_mehr_herein(user: User, ohne: str) -> bool:
     """
     from ..security import has_usable_password
 
-    if any(zeile.issuer != ohne for zeile in user.oidc_links):
+    # ⚠️ **Eine Verknuepfung zaehlt nur, wenn es den Anbieter noch gibt - und
+    # er eingeschaltet ist.** Hier stand einmal schlicht "irgendeine andere
+    # Verknuepfung", und das machte den ganzen Aussperrschutz still wirkungslos:
+    # Verknuepfungen bleiben beim Loeschen eines Anbieters absichtlich stehen
+    # (wer denselben spaeter wieder eintraegt, findet alles vor), und eine
+    # geaenderte Anbieter-Adresse laesst sie ebenfalls verwaist zurueck. Wer je
+    # einen zweiten Anbieter geloescht, abgeschaltet oder umgezogen hat, hatte
+    # danach fuer die betroffenen Konten gar keinen Schutz mehr - weder die
+    # Rueckfrage noch den Betreiber-Riegel, und beides ohne einen Ton.
+    if nutzbare_issuer is None:
+        # Ohne Liste bleibt es beim alten, grosszuegigen Verhalten. Aufrufer mit
+        # Datenbank sollen die Liste mitgeben; siehe ``nutzbare_issuer()``.
+        if any(zeile.issuer != ohne for zeile in user.oidc_links):
+            return False
+    elif any(
+        zeile.issuer != ohne and zeile.issuer in nutzbare_issuer
+        for zeile in user.oidc_links
+    ):
         return False
     if user.mediaserver_accounts:
         return False
@@ -217,11 +236,17 @@ def resolve(
        erlaubt hat (``auto_create`` kommt je Anbieter, nicht haus-weit).
     """
     if is_blocked(db, identitaet.issuer, identitaet.subject):
+        _abgewiesen(db, identitaet, "identity is on the block list")
         raise KontoFehler("oidc_blocked", "Für dieses Konto ist der Zugang gesperrt.")
 
     vorhanden = find_linked(db, identitaet)
     if vorhanden is not None:
         if not vorhanden.is_active:
+            # ⚠️ Der eine Abbruch, den ein **bekannter** Benutzer erlebt: Er hat
+            # sich hier schon angemeldet, und heute geht es nicht mehr. Ohne
+            # Zeile sucht der Betreiber beim Anbieter, statt beim Haken am
+            # Konto.
+            _abgewiesen(db, identitaet, "linked account is switched off")
             raise KontoFehler("account_disabled", "Dieses Konto ist deaktiviert.")
         # Name oder Adresse koennen sich beim Anbieter geaendert haben - die
         # Anzeige zieht nach, die Identitaet (issuer, subject) bleibt.
@@ -239,6 +264,12 @@ def resolve(
             # Lehre wie beim Media-Server im Parallelbetrieb.
             schon = verknuepfung(nach_adresse, identitaet.issuer)
             if schon is not None and schon.subject != identitaet.subject:
+                _abgewiesen(
+                    db,
+                    identitaet,
+                    "the account for this address already has a different sign-in "
+                    "of this provider",
+                )
                 raise KontoFehler(
                     "oidc_link_conflict",
                     "Zu dieser Adresse gehört bereits eine andere Anmeldung "
@@ -246,6 +277,7 @@ def resolve(
                     status_code=409,
                 )
             if not nach_adresse.is_active:
+                _abgewiesen(db, identitaet, "account for this address is switched off")
                 raise KontoFehler("account_disabled", "Dieses Konto ist deaktiviert.")
             if nach_adresse.role == Role.child:
                 # Kinderkonten haben keine eigene Anmeldung - auch keine
@@ -293,6 +325,21 @@ def _anlegen(db: Session, settings: "AppSettings", identitaet: OidcIdentitaet) -
     einladung = (
         offene_einladung(db, identitaet.email)
         if identitaet.email and identitaet.email_verified
+        else None
+    )
+
+    # ⚠️ **Eine Einladung, die keiner beglaubigten Adresse gegenuebersteht,
+    # faellt weg - und das war bisher stumm.** Der Betreiber hat Rolle und
+    # Kontingent von Hand vergeben; meldet der Anbieter ``email_verified:
+    # false`` (bei authentik, Keycloak und Pocket ID die Werkseinstellung),
+    # entsteht das Konto trotzdem, aber mit den Standardwerten des Hauses.
+    # Nachgesehen wird hier nur fuer das Protokoll - benutzt wird die
+    # Einladung ausdruecklich **nicht**: Sie zu verwerten hiesse, eine
+    # unbeglaubigte Adresse als Ausweis zu nehmen, und genau davor steht die
+    # Bedingung oben.
+    uebergangen = (
+        offene_einladung(db, identitaet.email)
+        if einladung is None and identitaet.email and not identitaet.email_verified
         else None
     )
 
@@ -366,6 +413,19 @@ def _anlegen(db: Session, settings: "AppSettings", identitaet: OidcIdentitaet) -
             "Für diesen Zugang gibt es noch kein Konto. "
             "Bitte den Administrator um eine Einladung.",
         ) from None
+
+    if uebergangen is not None:
+        # Auf WARNING und erst hier: Das Konto steht jetzt wirklich, und es
+        # steht anders da, als der Betreiber es eingestellt hat.
+        logger.warning(
+            "OIDC: account %r created with the default role and quota although an "
+            "open invitation exists for %s - the provider did not confirm the "
+            "address (issuer=%r, invited role=%s)",
+            benutzer.username,
+            logs.adresse(identitaet.email),
+            identitaet.issuer,
+            getattr(uebergangen.invite_role, "value", uebergangen.invite_role),
+        )
 
     logger.info(
         "OIDC: created account %r from provider %r", benutzer.username, identitaet.issuer

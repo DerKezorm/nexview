@@ -80,8 +80,11 @@ its own page and more screenshots.
   request but *wishes* — nothing happens until the parent approves, and the request
   then runs in the parent's name
 - A block list for titles that should stay out: visible, but not requestable
-- Sign in through **Authentik, Keycloak, Pocket ID, Google** or any other OpenID Connect
-  provider — added alongside the password, never replacing it
+- Sign in through **Authentik, Keycloak, Pocket ID, Authelia, Zitadel, Google** or any
+  other OpenID Connect provider — added alongside the password, never replacing it.
+  Roles and quotas stay in Nexview; no group from the provider changes them
+- One account **owns** the installation: no other administrator can switch it off,
+  delete it, demote it or set its password. Handed on by its holder alone
 
 **With a media server**
 
@@ -114,6 +117,8 @@ Plex is optional. Connect one and four things arrive:
 - **Statistics & analysis** in six tabs — including where Radarr, the media server and
   Nexview's own books disagree, which is where the errors nobody looks for live
 - A **tile for Homepage or Homarr**: one call, ready-made snippets
+- **House rules** you write yourself, with images: reachable through a § button and the
+  footer, tickable, and an overview of who accepted, declined or has not decided
 
 **And**
 
@@ -157,6 +162,7 @@ Everything that matters lives in the directory mapped to `/data`:
 | `secret.key` | the key your stored API keys are encrypted with |
 | `avatars/` | profile pictures |
 | `trash/` | the fetched TRaSH guides your quality profiles were built against |
+| `hausordnung/` | the images used in the house rules |
 | `logs/` | error log |
 
 **`secret.key` belongs with the database.** Without it the stored TMDB, Radarr, Sonarr
@@ -167,9 +173,13 @@ backup in a public repository.
 it was written against. Restore a database without it and Nexview measures those profiles
 against a different snapshot, reporting drift on profiles nobody touched.
 
-Nexview's own backups (*Settings → Backups*) already contain all of this — database, key,
-avatars and TRaSH snapshot — in one encrypted archive. The list above is for backing up
-the directory by hand.
+`hausordnung/` has the same catch on a smaller scale: the database holds only the *name*
+of each image in the house rules, never the file. Restore without the folder and the text
+survives with holes in it.
+
+Nexview's own backups (*Settings → System → Backups*) already contain all of this —
+database, key, avatars, TRaSH snapshot and house-rules images — in one encrypted archive.
+The list above is for backing up the directory by hand.
 
 ### On a Synology
 
@@ -353,7 +363,7 @@ You need four things from your provider:
 |---|---|
 | **Issuer URL** | The base address of your provider. Nexview reads its `/.well-known/openid-configuration` itself, so you do not enter individual endpoints. |
 | **Client ID** | Created when you register Nexview as an application. |
-| **Client secret** | Same place. Leave empty only for a public client. |
+| **Client secret** | Same place. **Required.** Nexview always authenticates itself at the token endpoint (HTTP Basic, `client_secret_basic`); a public client without a secret cannot be set up. |
 | **Label** | What the button says: “Sign in with Authentik”. |
 
 And your provider needs one thing from you — the **redirect URI**:
@@ -369,11 +379,95 @@ on the settings page, ready to copy. Requested scopes are `openid email profile`
 > provider rejects anything that does not match its registration exactly. If you run
 > Nexview under a sub-path, the address includes it.
 
-**Existing accounts link from the profile**, under *Account → Sign-in*. Your password
+**Existing accounts link from the profile**, under *Profile → Sign-in*. Your password
 keeps working — an external provider is added, it never replaces what is there.
 **New people** can be created automatically if you switch that on; they get the role and
 quota from your defaults. Leave it off and only people you have already invited can sign
 in that way.
+
+#### What Nexview reads, and what it ignores
+
+Nexview checks the ID token (signature, issuer, audience, expiry, `nonce`) and then asks
+the provider's `userinfo` endpoint, on every sign-in, if the provider advertises one.
+The answer is only used when its `sub` matches the token; where the two disagree, the
+**ID token wins**, because that one is signed and verified. If `userinfo` is missing,
+slow or broken, the sign-in carries on without it.
+
+| Claim | What it is for | If it is missing |
+|---|---|---|
+| `iss` + `sub` | **The identity.** Both together are what a link and a block are stored against — not the address, not the name. Rename the person at your provider and the link holds. | The token is rejected and nobody signs in. Every provider sends both. |
+| `email` | The bridge to an account that already exists, and the address a “forgot password” mail would go to. | No bridge: an existing account is never found, whatever else matches. With automatic creation on, the new account has no address and no way back in without the administrator. |
+| `email_verified` | Whether that bridge may be used at all. See the next section. | Counts as “not confirmed”. Missing and `false` are the same answer here. |
+| `preferred_username`, else `name` | Username and display name of a newly created account. | The part of the address before the `@`; with no address either, `user`. Characters Nexview does not allow in a username are dropped, and a name already taken gets `-2` appended. |
+
+**Groups are not read.** If you know OIDC from Grafana, Gitea or Paperless you will look
+for the group-to-role mapping: there is none, deliberately. Your provider vouches for
+*who* somebody is; what they may do here — role, quotas, blocked quality profiles,
+auto-approval — stays in Nexview and is set in *Settings → Users*. An account created
+automatically from an external sign-in starts as an ordinary user whose requests need
+approval, even if it is an administrator at your provider; only an open Nexview
+invitation for that address can say otherwise. Nothing at the identity provider can
+widen it.
+
+#### ⚠️ When the provider does not vouch for the address
+
+Nexview links an external sign-in to an **existing** account only when the provider
+reports the address as confirmed (`email_verified: true`). This is not a formality: the
+address is the only thing the two accounts have in common, and anyone who can register
+that address at *any* provider you trust would otherwise walk into the matching Nexview
+account.
+
+**That default catches most self-hosted setups.** Authentik reports `false` out of the
+box since release 2025.10, Keycloak does for newly created accounts until an
+administrator ticks the box, and Pocket ID does until the address is confirmed. What you
+see when it happens: the person gets “There is no account for this sign-in yet. Ask the
+administrator for an invitation.”, and the log (see below) names the reason, along with
+whether an account for that address exists after all.
+
+Three ways out, in the order worth trying:
+
+1. **Fix it at the provider.** The honest one: a provider that has confirmed an address
+   should say so. Recipe for Authentik below.
+2. **Let the person link it themselves**, signed in, under *Profile → Sign-in*. This is
+   not a hole in the check above — it is the reason the check exists. Whoever is already
+   signed in has proved who they are; nothing has to be inferred from an address, so
+   `email_verified` never comes into it. This is also the right answer for a provider
+   that has no `email_verified` at all, such as Microsoft Entra ID.
+3. **Switch automatic account creation on** for that provider. That does not repair the
+   bridge — it creates a *second*, empty account beside the existing one, with new
+   quotas and no history. Fine on a fresh installation, wrong for people who are already
+   here. And if the address already belongs to an account, the sign-in is refused anyway
+   rather than creating a duplicate address.
+
+**Authentik, concretely.** Two objects, and the second one replaces something:
+
+- On the account: a **user attribute** `email_verified: true`.
+- A **scope mapping** of your own (*Customisation → Property Mappings*; in the German
+  interface that type reads *Umfang Zuordnung*) whose expression hands that attribute
+  out under the name `email_verified`, then bound to the provider under *Scopes*.
+
+⚠️ **The new mapping has to replace the built-in `email` mapping on that provider**, not
+sit next to it. Leave both bound and the shipped one keeps answering for the `email`
+scope, and nothing changes.
+
+#### If a sign-in is refused
+
+Look in **Settings → System → Log**. Every refused external sign-in leaves one `WARNING`
+line naming the reason, the issuer, whether an address arrived, whether the provider
+vouched for it, and whether an account with that address exists:
+
+```
+OIDC sign-in refused (no auto-create, address not confirmed by the provider): issuer='https://sso.example.com' email=ma***@example.org verified=False account_exists=True
+```
+
+The address is shortened on purpose — enough to recognise which case this was, not
+enough to turn a log file into an address book. `WARNING` shows at every log level,
+`quiet` included, so nothing has to be switched on first.
+
+**The person signing in is deliberately told less than the log says.** They always get
+the same sentence, whether Nexview does not know them at all or an account exists that
+the bridge was not allowed to use. Otherwise the sign-in page would answer the question
+“does this house have an account for this address?” for anyone who asks.
 
 #### Authentik
 
@@ -383,6 +477,10 @@ provider page. The issuer URL is
 `https://authentik.example.com/application/o/<application-slug>/` — Authentik shows it
 under the provider as *OpenID Configuration Issuer*.
 
+> ⚠️ Since release 2025.10 Authentik reports `email_verified: false` out of the box, so
+> a sign-in will not find an existing Nexview account until you change that. See *When
+> the provider does not vouch for the address* above.
+
 #### Keycloak
 
 *Clients → Create client*, type `OpenID Connect`. Switch **Client authentication** on
@@ -390,10 +488,45 @@ under the provider as *OpenID Configuration Issuer*.
 *Valid redirect URIs*. The issuer URL is
 `https://keycloak.example.com/realms/<realm>`.
 
+> ⚠️ A freshly created Keycloak account has **Email verified** switched off, and until
+> an administrator switches it on, Nexview will not link it to an existing account. See
+> *When the provider does not vouch for the address* above.
+
 #### Pocket ID
 
 *OIDC Clients → Add client.* Enter the redirect URI, copy client ID and secret. The
 issuer URL is your Pocket ID address itself, e.g. `https://id.example.com`.
+
+> ⚠️ Pocket ID reports `email_verified: false` until the address has been confirmed —
+> same consequence as with Authentik, see above.
+
+#### Authelia
+
+The client goes into Authelia's own configuration, under
+`identity_providers.oidc.clients`: `client_id`, the **hashed** client secret, the
+redirect URI in `redirect_uris`, and `scopes: [openid, email, profile]`. Authelia stores
+the secret hashed (`authelia crypto hash generate pbkdf2`) — Nexview gets the plaintext
+you generated it from. The issuer URL is your Authelia address itself, e.g.
+`https://auth.example.com`.
+
+> ⚠️ **Authelia does not put the address in the ID token.** Its own documentation calls
+> doing so “a break-glass measure … on a best-effort basis”. Nexview therefore reads
+> `email` and `email_verified` from the `userinfo` endpoint, which needs nothing from
+> you. A **signed** `userinfo` response works too: if Authelia returns a JWT instead of
+> plain JSON, Nexview verifies it against the same published keys, issuer and audience
+> as the ID token, and only then reads the address from it. You do not have to turn that
+> setting off.
+
+#### Zitadel
+
+*Console → your project → Applications → New*, type `Web`, authentication method `Basic`
+— that is the one that produces a client secret, and Zitadel shows it exactly once. Add
+the redirect URI, and make sure the `email` scope is requested. The issuer URL is your
+instance address, e.g. `https://your-instance.zitadel.cloud` or your own domain.
+
+> ⚠️ **Zitadel does not put the address in the ID token** on the authorization-code
+> flow. As with Authelia, Nexview picks it up from `userinfo`; there is nothing to
+> configure for that.
 
 #### Google
 

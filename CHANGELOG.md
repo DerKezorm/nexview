@@ -14,7 +14,140 @@ tag exists for it.
 
 ## 0.26.0 – 31.08.2026
 
+### New
+
+- **The account that set this server up can no longer be thrown out by a second
+  administrator.** Until now all administrators were equal, so appointing one also handed
+  them the power to remove the first: switch the account off, demote it, delete it. The
+  only brake protected the *last* active administrator, which is too late, because as
+  long as a second one was around, anyone could remove anyone. Setting somebody else's
+  password was the worst of the five ways in and had no brake at all: a second
+  administrator did not have to throw the first one out, they set a password and *became*
+  them, with their access keys and their child accounts.
+
+  Exactly one account now carries an **Owner** badge in *Settings → Users*. It is a flag,
+  not a fourth role, and it grants its holder nothing: no automatic approval, no larger
+  quota, no power over anyone else's access. It says only what *others* may not do with
+  that account, and the buttons that would have done it are greyed out with a sentence
+  saying why. A new installation gives the flag to the account from the setup wizard, an
+  upgrade to the oldest active administrator; if there is no active administrator at all,
+  the user list says the flag is unassigned instead of quietly appointing somebody.
+
+  **Handing it over** is the owner's alone, under *Profile → Security*, and only to an
+  active administrator. There is no way back: afterwards the previous owner is an
+  ordinary administrator, as removable as anyone else, and the confirmation says so. Two
+  ways around all this are shut as well. Switching off the owner's last remaining way in
+  (their sign-in provider or media-server link) is refused even for an administrator who
+  could repair the damage afterwards, because for this one account that repair is exactly
+  what they may not do. And restoring an older backup no longer carries the flag along,
+  which would otherwise have undone a handover through the time machine.
+
+  **If the owner locks themselves out**, `NEXVIEW_BETREIBER=<username>` at startup puts
+  the flag back, with one line in the log; then the line comes out again, because while
+  it is set Nexview refuses a handover in the app rather than silently undoing it on the
+  next restart. The README spells out the boundary: this protects against a second
+  administrator, not against somebody with access to your server.
+
+- **House rules: a text you write, and a § button for everyone else.** What may be
+  requested, how long titles stay, whom to write to when something is broken. Until now
+  that lived in a message somebody sent once and nobody could find again. You write it
+  under *Settings → House rules*, in a text field with a toolbar and the finished page
+  rendered live beside it, images included. Everyone else reaches it through a round §
+  button in the bottom right corner, with a dot on it while they have not read the
+  current version, and permanently through a link in the footer. Ticking it off makes the
+  button disappear; the footer link stays.
+
+  An **overview** lists who accepted, who declined and who has not decided yet, with a
+  filter by state. **Declining has no technical consequence**, deliberately: it is
+  information for you, and you decide what to do with it. An automatism would lock
+  somebody out on a misclick, and nobody would notice. Administrators are exempt
+  everywhere, no button, no dot, no row in the overview, because they write the rules;
+  child accounts never see them at all. Both boundaries sit in the server, not only in
+  the interface.
+
+  A draft stays invisible until you publish it, and "everyone has to read it again" is a
+  tick box rather than a side effect of saving, so a corrected typo does not put the
+  notice back in front of the whole house. The images live in `data/hausordnung/`, which
+  the built-in backup already carries and which the README now lists. Only uploaded files
+  can be shown: an image loaded from a foreign address would report every reader's
+  address to a third party.
+
 ### Fixed
+
+- **Providers signing with ES512 or Ed25519 could never sign in — nobody could.** Nexview
+  accepted ES256 and ES384 but not ES512, and no EdDSA at all. Pocket ID lets an operator
+  pick either. Anyone who did got "the provider's identity token could not be verified" on
+  every single attempt, and the log said only that the algorithm was not allowed — which
+  reads like a broken provider, not like a missing line in a list. Both are accepted now.
+
+- **A signed `userinfo` response was silently thrown away.** Authelia and Zitadel can
+  return that endpoint as a signed JWT instead of plain JSON. Nexview checked "is this an
+  object", found a string, and carried on as if no address had arrived — so the bridge to
+  an existing account was never entered, with nothing in the log pointing at the cause. A
+  signed response is now verified against the same published keys, issuer and audience as
+  the ID token, and only then read.
+
+- **A stranger could lock every user out of signing in through a provider.** The sign-in
+  throttle counted on the provider, not on the person: one counter for everybody. Ten
+  failed callbacks — no account and no password needed, just a browser — and nobody could
+  use that provider for fifteen minutes, repeatable indefinitely. The same thing happened
+  by accident after a mistyped client secret: the tenth honest attempt shut the door for
+  the whole house, and because nobody could succeed during the lockout, nobody reset the
+  counter either. The throttle now counts on the person where there is one, and on the
+  address otherwise.
+
+- **A link to a provider that no longer exists counted as a way in — and the whole
+  lock-out guard fell silent.** Links are deliberately kept when a provider is deleted, so
+  that re-adding the same one finds everything in place, and changing a provider's address
+  leaves them behind too. But the check for "would this account still get in?" counted any
+  other link without asking whether there was still a provider behind it. Anyone who had
+  ever deleted, switched off or moved a second provider had no protection left for the
+  affected accounts: no confirmation, no owner guard, and nothing in the log. Only links
+  to a provider that exists and is switched on count now.
+
+- **Switching a provider off, changing its address, or replacing its credentials went
+  around the lock-out guard.**
+  Deleting a provider is refused when accounts would lose their only way in, and refused
+  outright when it would lock out the owner. Both of those could be walked around with one
+  click: switching the provider off answers 404 on the sign-in routes, a new issuer
+  address detaches every existing link, and a wrong client secret makes every token
+  exchange fail with `invalid_client` — worse than the other two, because the correct
+  secret never leaves the database and cannot be restored from inside Nexview — for an account without a usable password that is
+  the same as deletion. Both now go through the same guard as deleting, with the same
+  confirmation and the same line in the log.
+
+- **The sign-in cookie did not carry `Secure`, and `NEXVIEW_COOKIE_SECURE` did not reach
+  it.** It holds `state`, `nonce` and the PKCE verifier, and when linking also the user
+  id. Without `Secure`, someone on the network could set their own signed cookie over
+  plain http on an HTTPS installation — and whoever slips their own sign-in run into
+  somebody else's browser signs that person into *their* account. It now follows the same
+  rule as the session cookie, "auto" by default, so a plain-http installation is
+  unaffected.
+
+- **An identity token issued for a different application was accepted.** When a provider
+  names several audiences, the specification requires an `azp` claim saying which
+  application the token is actually for, and Nexview never looked at it — it only checked
+  that its own client id appeared somewhere in the list. Both Keycloak and authentik let
+  an operator add extra audiences with a couple of clicks, so this was a misconfiguration
+  away rather than an attack away. It is checked now.
+
+- **A provider whose description names no `userinfo` endpoint failed silently.** Nexview
+  skipped the question without a word, and the operator later saw only a refusal with no
+  address — which sends them hunting through scopes while the real answer is that there
+  was nothing to ask. The log now says so.
+
+- **A name made of spaces passed for a name.** The length check counted characters, so
+  three spaces were three characters and got through, and what ended up stored was an
+  empty string: a button with no label on the sign-in page, and with an empty client id
+  every sign-in failing at the provider while the "check connection" button still reported
+  green. Fields are trimmed before they are measured.
+
+- **A confirmation could vouch for an address it never meant.** Where the ID token and
+  `userinfo` disagreed about the address, Nexview took the one from the ID token together
+  with the confirmation from `userinfo`. The bridge to an existing account — which may
+  only ever be crossed with a confirmed address — could then be crossed with an
+  unconfirmed one. Contradicting sources now count as unconfirmed, with the reason in the
+  log; the sign-in itself still goes through.
 
 - **A child's wish could only be declined once the film had already arrived.** If a
   title turned up in the library while the wish was still waiting for a parent's
@@ -45,11 +178,32 @@ tag exists for it.
   userinfo endpoint — and those two do exactly that out of the box. Authelia calls
   putting the address into the ID token "a break-glass measure … on a best-effort
   basis". So no address ever reached Nexview, and the bridge to an existing account
-  was not misjudged: it was never entered. Nexview now asks the userinfo endpoint,
-  but only when the ID token carries no address and the provider advertises one.
-  The answer is discarded unless its `sub` matches the ID token, and a failing
-  request falls back to "no extra information" rather than breaking a sign-in that
-  would have worked without it.
+  was not misjudged: it was never entered. Nexview now asks the userinfo endpoint
+  whenever the provider advertises one — not only when the ID token lacks an
+  address. Keycloak is the reason: it maps `email` and `email_verified` through two
+  separate mappers with two independent targets each, so an operator can quite
+  legitimately publish the address in the ID token and the confirmation only at
+  userinfo. The ID token still has the last word where the two disagree, because it
+  is signed and verified. The answer is discarded unless its `sub` matches the ID
+  token, and a failing request falls back to "no extra information" rather than
+  breaking a sign-in that would have worked without it.
+
+- **A typo in the provider's own description could lock everyone out.** Asking the
+  userinfo endpoint is optional by design: if it fails, Nexview carries on without
+  the extra information. That promise had a hole. The guard caught `httpx.HTTPError`,
+  but a malformed address — an unclosed bracket in an IPv6 host is enough — raises
+  `httpx.InvalidURL`, which does not inherit from it. The exception escaped and took
+  the whole sign-in with it, including sign-ins that would have worked before the
+  question was ever asked. The guard now catches everything and logs the exception
+  type, so a mistake in Nexview's own code still stands out from a provider that is
+  merely unreachable.
+
+- **One slow provider could make every sign-in in the house slow.** The question to
+  the userinfo endpoint is asked on every sign-in and shared the ten-second limit
+  used for everything else. A provider that hangs instead of refusing therefore added
+  up to ten seconds to each sign-in — for an answer that may never arrive and is not
+  needed. The optional question now gives up after five seconds. The token exchange
+  keeps its ten: without it there is no sign-in at all.
 
 - **An OIDC sign-in could end in an error page instead of a message.** With
   automatic account creation switched on, a provider that reports

@@ -35,6 +35,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+import re
 import secrets
 import time
 from dataclasses import dataclass
@@ -46,6 +47,7 @@ import jwt
 
 from ..config import get_settings
 from ..crypto import decrypt
+from . import logs
 
 logger = logging.getLogger("nexview.oidc")
 
@@ -55,7 +57,31 @@ logger = logging.getLogger("nexview.oidc")
 #: Ausweis wuerde mit dem Client-Geheimnis geprueft - und ein Angreifer, der
 #: den ``alg``-Kopf umbiegt, koennte sich sonst mit einem selbstgebauten
 #: Ausweis anmelden. Genau dieser Trick ist der bekannteste JWT-Angriff.
-ALGORITHMEN = ("RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384")
+#:
+#: ⚠️ **Was hier fehlt, sperrt aus.** Ein Anbieter unterschreibt mit dem
+#: Verfahren, das sein Betreiber eingestellt hat; steht es nicht in dieser
+#: Liste, scheitert **jede** Anmeldung bei ihm, und im Browser steht nur "Der
+#: Ausweis des Anbieters ließ sich nicht prüfen". ES512 fehlte, obwohl ES256
+#: und ES384 dastanden, EdDSA fehlte ganz - Pocket ID laesst beides
+#: einstellen. Beide sind gegen das festgenagelte PyJWT (2.11) erprobt, und
+#: zwar ueber ``PyJWK`` wie im Betrieb, nicht nur ueber einen rohen Schluessel.
+#:
+#: ⚠️ EdDSA traegt dabei **nur Ed25519**: ``PyJWK`` lehnt einen JWKS-Eintrag
+#: mit ``crv: Ed448`` mit "Unsupported crv" ab. Das ist eine Grenze der
+#: Bibliothek, keine Entscheidung von Nexview - Ed25519 ist die Kurve, die
+#: die Anbieter anbieten.
+ALGORITHMEN = (
+    "RS256",
+    "RS384",
+    "RS512",
+    "PS256",
+    "PS384",
+    "PS512",
+    "ES256",
+    "ES384",
+    "ES512",
+    "EdDSA",
+)
 
 #: Uhren-Toleranz in Sekunden. Selbst gehostete Anbieter laufen auf Rechnern,
 #: deren Uhr schon einmal nachgeht - eine Minute Spielraum lehnt niemanden ab,
@@ -71,6 +97,24 @@ ANLAUF_MINUTEN = 10
 #: aendern sich selten, und ohne Speicher stuenden bei jeder Anmeldung drei
 #: Abrufe vor dem ersten eigenen Handgriff.
 CACHE_SEKUNDEN = 3600
+
+#: Die gewoehnliche Zeitgrenze fuer Abrufe beim Anbieter. Sie gilt fuer alles,
+#: ohne das keine Anmeldung zustande kaeme - Selbstauskunft, Schluessel,
+#: Token-Tausch. Selbst gehostete Anbieter auf kleiner Hardware brauchen
+#: gelegentlich ein paar Sekunden.
+ZEITGRENZE_SEKUNDEN = 10
+
+#: Wie lange die Nachfrage bei ``userinfo`` warten darf - **kuerzer als der
+#: Rest**.
+#:
+#: ⚠️ Diese Nachfrage haengt an **jeder** Anmeldung, und ihr Ausbleiben ist
+#: verkraftbar: Der Rueckfall ist "keine zusaetzliche Auskunft". Der
+#: Token-Tausch ist das Gegenteil - ohne ihn gibt es keine Anmeldung, er darf
+#: sich die vollen zehn Sekunden nehmen. Haengen beide an derselben Grenze,
+#: verlangsamt ein traeger ``userinfo``-Endpunkt jede Anmeldung im Haus um bis
+#: zu zehn Sekunden, fuer eine Auskunft, die am Ende vielleicht gar nicht
+#: kommt.
+NACHFRAGE_SEKUNDEN = 5
 
 COOKIE_NAME = "nexview_oidc"
 
@@ -148,7 +192,7 @@ async def _http() -> httpx.AsyncClient:
     if _client is None or _client.is_closed:
         async with _client_lock:
             if _client is None or _client.is_closed:
-                _client = httpx.AsyncClient(timeout=10)
+                _client = httpx.AsyncClient(timeout=ZEITGRENZE_SEKUNDEN)
     return _client
 
 
@@ -165,30 +209,101 @@ def cache_leeren() -> None:
     _jwks_cache.clear()
 
 
-async def _json_holen(adresse: str, zweck: str) -> dict[str, Any]:
-    client = await _http()
+def _inhaltstyp(antwort: httpx.Response) -> str:
+    """Der Inhaltstyp ohne Zusaetze wie ``; charset=utf-8``, klein geschrieben."""
+    return antwort.headers.get("content-type", "").split(";")[0].strip().lower()
+
+
+def _json_deuten(antwort: httpx.Response, zweck: str, adresse: str) -> dict[str, Any]:
+    """Den Rumpf als JSON-Objekt deuten - oder mit dem echten Grund scheitern.
+
+    ⚠️ **Der haeufigste Fall ist nicht kaputtes JSON, sondern gar keines.** Ein
+    Reverse Proxy vor dem Anbieter, ein Pfad-Vertipper, eine Anmeldeseite
+    davor: Zurueck kommt HTML, oft genug mit Status 200. Deshalb nennt das
+    Protokoll den **Inhaltstyp** - ``text/html`` sagt dem Betreiber in einem
+    Wort, dass er beim Proxy nachsehen muss und nicht bei der Client-ID.
+
+    ⚠️ Der Rumpf selbst steht **nicht** im Protokoll. Bei der Token-Antwort
+    stuenden dort Ausweise, und ein Protokoll wandert beim Melden eines
+    Fehlers zu Fremden.
+    """
     try:
-        antwort = await client.get(adresse)
-        antwort.raise_for_status()
         daten = antwort.json()
-    except httpx.HTTPError as fehler:
-        logger.warning("OIDC: fetching the %s from %r failed: %s", zweck, adresse, fehler)
-        raise OidcFehler(
-            "oidc_provider_unreachable",
-            "Der Anmelde-Anbieter ist gerade nicht erreichbar.",
-        ) from fehler
     except ValueError as fehler:
-        logger.warning("OIDC: the %s at %r is not valid JSON", zweck, adresse)
+        logger.warning(
+            "OIDC: the %s at %r is not JSON (content-type %s, %d bytes)",
+            zweck,
+            adresse,
+            _inhaltstyp(antwort) or "none",
+            len(antwort.content),
+        )
         raise OidcFehler(
             "oidc_provider_invalid",
             "Die Antwort des Anmelde-Anbieters ist unverständlich.",
         ) from fehler
     if not isinstance(daten, dict):
+        logger.warning(
+            "OIDC: the %s at %r is JSON, but not an object (%s)",
+            zweck,
+            adresse,
+            type(daten).__name__,
+        )
         raise OidcFehler(
             "oidc_provider_invalid",
             "Die Antwort des Anmelde-Anbieters ist unverständlich.",
         )
     return daten
+
+
+async def _json_holen(adresse: str, zweck: str) -> dict[str, Any]:
+    client = await _http()
+    try:
+        antwort = await client.get(adresse)
+    except httpx.HTTPError as fehler:
+        logger.warning("OIDC: fetching the %s from %r failed: %r", zweck, adresse, fehler)
+        raise OidcFehler(
+            "oidc_provider_unreachable",
+            "Der Anmelde-Anbieter ist gerade nicht erreichbar.",
+        ) from fehler
+    except Exception as fehler:  # noqa: BLE001 - Absicht, siehe unten
+        # ⚠️ **``httpx.InvalidURL`` erbt direkt von ``Exception``**, nicht von
+        # ``httpx.HTTPError`` - ein Faenger fuer HTTP-Fehler geht daran vorbei,
+        # und die Ausnahme entsteht schon beim **Zerlegen** der Adresse, bevor
+        # eine Anfrage existiert. Die Adressen hier kommen von aussen: die
+        # Aussteller-Adresse tippt der Administrator, ``jwks_uri`` liefert die
+        # Anbieter-Beschreibung. Ein Tippfehler an einer der beiden ist ein
+        # Einrichtungsfehler und muss als solcher zurueckkommen - nicht als
+        # nackte 500 aus dem Pruef-Knopf.
+        logger.warning(
+            "OIDC: the address for the %s cannot be used at all (%r): %r",
+            zweck,
+            adresse,
+            fehler,
+        )
+        raise OidcFehler(
+            "oidc_provider_unreachable",
+            "Der Anmelde-Anbieter ist gerade nicht erreichbar.",
+        ) from fehler
+
+    if not antwort.is_success:
+        # Eine Weiterleitung zaehlt hier dazu: Der gemeinsame Client folgt
+        # keiner, und ``location`` ist der Hinweis, der die Ursache nennt -
+        # meist http statt https oder ein Portal vor dem Anbieter.
+        ziel = antwort.headers.get("location")
+        logger.warning(
+            "OIDC: fetching the %s from %r answered %d (content-type %s%s)",
+            zweck,
+            adresse,
+            antwort.status_code,
+            _inhaltstyp(antwort) or "none",
+            f", redirect to {ziel!r}" if ziel else "",
+        )
+        raise OidcFehler(
+            "oidc_provider_unreachable",
+            "Der Anmelde-Anbieter ist gerade nicht erreichbar.",
+        )
+
+    return _json_deuten(antwort, zweck, adresse)
 
 
 async def discovery(issuer_url: str, *, frisch: bool = False) -> dict[str, Any]:
@@ -219,12 +334,22 @@ async def discovery(issuer_url: str, *, frisch: bool = False) -> dict[str, Any]:
             "oidc_issuer_mismatch",
             "Der Anbieter meldet sich unter einer anderen Adresse als eingetragen.",
         )
-    for pflicht in ("authorization_endpoint", "token_endpoint", "jwks_uri"):
-        if not daten.get(pflicht):
-            raise OidcFehler(
-                "oidc_provider_invalid",
-                "Die Antwort des Anmelde-Anbieters ist unverständlich.",
-            )
+    fehlend = [
+        pflicht
+        for pflicht in ("authorization_endpoint", "token_endpoint", "jwks_uri")
+        if not daten.get(pflicht)
+    ]
+    if fehlend:
+        logger.warning(
+            "OIDC: the provider description at %r is missing %s - without it no "
+            "login can even start",
+            issuer,
+            ", ".join(fehlend),
+        )
+        raise OidcFehler(
+            "oidc_provider_invalid",
+            "Die Antwort des Anmelde-Anbieters ist unverständlich.",
+        )
 
     _discovery_cache[issuer] = (daten, time.monotonic())
     return daten
@@ -248,7 +373,29 @@ async def _schluessel(jwks_uri: str, kid: str | None) -> dict[str, Any]:
     _jwks_cache[jwks_uri] = (daten, time.monotonic())
     gefunden = _kid_suchen(daten, kid)
     if gefunden is None:
-        logger.warning("OIDC: no signing key with kid %r at %r", kid, jwks_uri)
+        # Was der Anbieter stattdessen anbietet, gehoert ins Protokoll: Ohne
+        # das steht dort "Schluessel nicht gefunden" und der Betreiber weiss
+        # nicht, ob er die falsche ``jwks_uri`` hat, ob der Satz leer ist oder
+        # ob nur der ``kid`` nicht passt. Schluessel-Kennungen sind
+        # oeffentlich - sie stehen im selben Dokument.
+        angeboten = [
+            str(eintrag.get("kid"))
+            for eintrag in daten.get("keys", [])
+            if isinstance(eintrag, dict)
+        ]
+        if kid is None:
+            logger.warning(
+                "OIDC: the token names no kid and %r offers %d keys - refusing to guess",
+                jwks_uri,
+                len(angeboten),
+            )
+        else:
+            logger.warning(
+                "OIDC: no signing key for kid %r at %r - the provider offers %s",
+                kid,
+                jwks_uri,
+                ", ".join(angeboten) or "no keys at all",
+            )
         raise OidcFehler(
             "oidc_token_invalid",
             "Der Ausweis des Anbieters ließ sich nicht prüfen.",
@@ -303,6 +450,54 @@ def autorisierungs_adresse(
 # ---------------------------------------------------------------------------
 
 
+def _oauth_fehler(antwort: httpx.Response) -> str:
+    """Warum der Anbieter abgelehnt hat - in einer Zeile fuers Protokoll.
+
+    ⚠️ **Das ist die wertvollste Diagnose im ganzen Ablauf.** OAuth 2 (RFC
+    6749, 5.2) schreibt ``error`` vor und empfiehlt ``error_description``;
+    darin steht ``invalid_client`` oder ``invalid_grant`` statt "irgendwas mit
+    400", und der Beschreibungstext nennt oft genau das falsche Feld. Wer
+    diese beiden Felder wegwirft, laesst den Betreiber raten.
+
+    Kommt gar kein JSON, ist **das** die Auskunft: Dann hat nicht der Anbieter
+    geantwortet, sondern etwas davor.
+    """
+    try:
+        daten = antwort.json()
+    except ValueError:
+        return (
+            f"no JSON body (content-type {_inhaltstyp(antwort) or 'none'}, "
+            f"{len(antwort.content)} bytes) - that is usually a proxy or an "
+            "error page in front of the provider, not the provider itself"
+        )
+    if not isinstance(daten, dict):
+        return "a JSON body that is not an object"
+    kennung = str(daten.get("error") or "").strip()
+    erklaerung = str(daten.get("error_description") or "").strip()
+    if not kennung and not erklaerung:
+        return (
+            'a JSON body without the "error" field OAuth 2 requires (it carries: '
+            f"{', '.join(sorted(daten)) or 'nothing at all'})"
+        )
+    if not erklaerung:
+        # Ohne eigenen Text des Anbieters hilft, was die Kennungen bedeuten -
+        # mit Text waere das nur Beiwerk.
+        return (
+            f"error={kennung} (no error_description) - invalid_client points at "
+            "the client id or the secret, invalid_grant at the code or at a "
+            "redirect_uri the provider does not have on file"
+        )
+    # Gekuerzt: Manche Anbieter legen einen Stacktrace in die Beschreibung.
+    #
+    # ⚠️ **Und deshalb ``!r``, nicht roh.** Ein Stacktrace bringt
+    # Zeilenumbrueche mit; ohne ``repr`` zerfaellt die Protokollzeile in
+    # mehrere, und ``logs._parse`` verwirft jede, die nicht wie ein Zeilenanfang
+    # aussieht ("Fortsetzungszeile eines Stacktrace"). Im Protokoll-Fenster der
+    # Oberflaeche endete die wertvollste Diagnose des ganzen Ablaufs dann genau
+    # dort, wo sie interessant wird.
+    return f"error={kennung or 'none'} error_description={erklaerung[:300]!r}"
+
+
 async def code_tauschen(
     beschreibung: dict[str, Any],
     client_id: str,
@@ -321,11 +516,17 @@ async def code_tauschen(
     Auth-Methode, die die Norm jedem Anbieter vorschreibt. Das Geheimnis liegt
     verschluesselt in der Datenbank und wird erst hier geoeffnet.
     """
+    adresse = str(beschreibung["token_endpoint"])
+    # ⚠️ Vor dem Faenger: ``decrypt`` scheitert nicht, es meldet sich selbst und
+    # liefert "". Stuende es im ``try``, saehe ein Schluesselproblem im
+    # Protokoll wie eine unbrauchbare Adresse aus.
+    geheimnis = decrypt(client_secret)
+
     client = await _http()
     try:
         antwort = await client.post(
-            str(beschreibung["token_endpoint"]),
-            auth=(client_id, decrypt(client_secret)),
+            adresse,
+            auth=(client_id, geheimnis),
             data={
                 "grant_type": "authorization_code",
                 "code": code,
@@ -334,7 +535,23 @@ async def code_tauschen(
             },
         )
     except httpx.HTTPError as fehler:
-        logger.warning("OIDC: token exchange failed to connect: %s", fehler)
+        logger.warning(
+            "OIDC: the token exchange at %r could not be sent: %r", adresse, fehler
+        )
+        raise OidcFehler(
+            "oidc_provider_unreachable",
+            "Der Anmelde-Anbieter ist gerade nicht erreichbar.",
+        ) from fehler
+    except Exception as fehler:  # noqa: BLE001 - dieselbe Falle wie in ``_json_holen``
+        # ⚠️ Auch diese Adresse stammt aus der Anbieter-Beschreibung, und auch
+        # hier faengt ``httpx.HTTPError`` ``httpx.InvalidURL`` nicht. Ohne
+        # diesen Zweig wird aus einem ``token_endpoint``, an dem sich httpx
+        # schon beim Zerlegen verschluckt, eine 500 mitten im Rueckweg.
+        logger.warning(
+            "OIDC: the token endpoint address %r cannot be used at all: %r",
+            adresse,
+            fehler,
+        )
         raise OidcFehler(
             "oidc_provider_unreachable",
             "Der Anmelde-Anbieter ist gerade nicht erreichbar.",
@@ -345,43 +562,241 @@ async def code_tauschen(
         # falsches Geheimnis - das ist ein Einrichtungsfehler, kein Ausfall.
         # Der Anbieter erklaert sich in ``error``; das gehoert ins Protokoll,
         # nicht in den Browser eines Benutzers.
-        try:
-            grund = antwort.json().get("error", "")
-        except ValueError:
-            grund = ""
         logger.warning(
-            "OIDC: token endpoint answered %d (%s) - usually a wrong client id "
-            "or secret in the provider settings",
+            "OIDC: the token endpoint at %r refused the exchange with %d: %s",
+            adresse,
             antwort.status_code,
-            grund or "no error code",
+            _oauth_fehler(antwort),
         )
         raise OidcFehler(
             "oidc_exchange_failed",
             "Der Anbieter hat die Anmeldung nicht angenommen.",
         )
 
-    try:
-        id_token = antwort.json().get("id_token")
-    except ValueError:
-        id_token = None
-    if not id_token or not isinstance(id_token, str):
-        logger.warning("OIDC: token endpoint answered without an id_token")
+    # ⚠️ **Kein JSON ist ein eigener Grund.** Frueher lief jede Antwort, die
+    # sich nicht lesen liess, in dieselbe Meldung "answered without an
+    # id_token" - und die schickt den Betreiber zu den Scopes seines Clients,
+    # waehrend in Wahrheit ein Proxy eine HTML-Seite ausgeliefert hat. Ein
+    # falscher Grund kostet mehr Zeit als gar keiner.
+    daten = _json_deuten(antwort, "token response", adresse)
+
+    id_token = daten.get("id_token")
+    if not isinstance(id_token, str) or not id_token:
+        # Erst hier stimmt der Satz - und die Feldnamen dazu sagen, woran es
+        # liegt: Steht dort nur ``access_token`` und ``token_type``, hat der
+        # Anbieter den ``openid``-Scope nicht anerkannt. Namen, keine Werte.
+        logger.warning(
+            "OIDC: the token endpoint at %r answered 200 without an id_token "
+            "(the response carries: %s)",
+            adresse,
+            ", ".join(sorted(daten)) or "nothing at all",
+        )
         raise OidcFehler(
             "oidc_exchange_failed",
             "Der Anbieter hat die Anmeldung nicht angenommen.",
         )
 
-    try:
-        access_token = antwort.json().get("access_token")
-    except ValueError:
-        access_token = None
+    access_token = daten.get("access_token")
     if not isinstance(access_token, str) or not access_token:
+        # Kein Abbruch: Ohne ihn entfaellt nur die Nachfrage bei ``userinfo``.
+        # Wenn spaeter die Adresse fehlt, steht der Grund hier.
+        logger.info(
+            "OIDC: the token endpoint at %r answered without an access_token - "
+            "userinfo will not be asked",
+            adresse,
+        )
         access_token = None
     return id_token, access_token
 
 
+async def _token_pruefen(
+    beschreibung: dict[str, Any],
+    client_id: str,
+    token: str,
+    *,
+    zweck: str,
+    pflicht: tuple[str, ...],
+) -> dict[str, Any]:
+    """Ein unterschriebenes Dokument des Anbieters pruefen und aufmachen.
+
+    Unterschrift gegen die veroeffentlichten Schluessel, Aussteller, Empfaenger,
+    Ablauf - dieselbe Pruefung fuer den ID-Ausweis **und** fuer eine signierte
+    ``userinfo``-Antwort.
+
+    ⚠️ **Eine zweite, mildere Fassung waere die Luecke.** Wer Auskuenfte aus
+    einem unterschriebenen Dokument zieht, muss davon dasselbe verlangen wie
+    vom Ausweis; sonst ist der zweite Weg der bequemere fuer jemanden, der
+    etwas unterschieben will.
+
+    ``zweck`` steht im Protokoll, ``pflicht`` nennt die Claims, ohne die das
+    Dokument nichts wert ist.
+    """
+    try:
+        kopf = jwt.get_unverified_header(token)
+    except jwt.PyJWTError as fehler:
+        # ``zweck`` bringt seinen Artikel mit ("the id_token") - hier keinen
+        # zweiten davorsetzen.
+        logger.warning("OIDC: %s is not a readable JWT: %s", zweck, fehler)
+        raise OidcFehler(
+            "oidc_token_invalid", "Der Ausweis des Anbieters ließ sich nicht prüfen."
+        ) from fehler
+
+    jwks_uri = str(beschreibung["jwks_uri"])
+    jwk = await _schluessel(jwks_uri, kopf.get("kid"))
+    try:
+        schluessel = jwt.PyJWK(jwk).key
+    except jwt.PyJWTError as fehler:
+        # Hierher fuehrt auch ein Verfahren, das PyJWT nicht aufmachen kann -
+        # etwa ein OKP-Schluessel mit ``crv: Ed448``. Deshalb stehen kty und crv
+        # in der Zeile: Ohne sie sieht das aus wie ein kaputter Anbieter.
+        logger.warning(
+            "OIDC: unusable signing key from %r (kid %r, kty %r, crv %r): %s",
+            jwks_uri,
+            jwk.get("kid"),
+            jwk.get("kty"),
+            jwk.get("crv"),
+            fehler,
+        )
+        raise OidcFehler(
+            "oidc_token_invalid", "Der Ausweis des Anbieters ließ sich nicht prüfen."
+        ) from fehler
+
+    try:
+        inhalt = jwt.decode(
+            token,
+            key=schluessel,
+            algorithms=list(ALGORITHMEN),
+            audience=client_id,
+            issuer=str(beschreibung["issuer"]),
+            leeway=UHREN_TOLERANZ,
+            options={"require": list(pflicht)},
+        )
+        # ⚠️ **Mehrere Empfaenger verlangen ``azp``** (OIDC Core 3.1.3.7).
+        # ``jwt.decode`` prueft nur, ob unsere ``client_id`` in der Liste
+        # *vorkommt* - ein Dokument, das der Anbieter fuer eine andere
+        # Anwendung ausgestellt hat und in dem Nexview bloss mitgenannt ist,
+        # kaeme sonst durch. Ein Angriffsweg von aussen ist das nicht (der
+        # Ausweis stammt immer aus unserem eigenen, mit Geheimnis und PKCE
+        # beglaubigten Tausch), eine Fehlkonfiguration am Anbieter aber sehr
+        # wohl - und die Norm verlangt es.
+        # ⚠️ **Gilt, sobald ``azp`` dasteht - nicht erst bei mehreren
+        # Empfaengern.** Der erste Bauversuch pruefte nur Listen mit mehr als
+        # einem Eintrag und liess damit ausgerechnet den Fall durch, fuer den
+        # ``azp`` gemacht ist: ein Ausweis mit genau einem Empfaenger, den der
+        # Anbieter fuer eine ANDERE Anwendung ausgestellt hat. Die Norm bindet
+        # beides an "if present" (Core 2, und 3.1.3.7 Schritt 4/5), nicht an
+        # die Zahl der Empfaenger.
+        if "azp" in inhalt:
+            if inhalt.get("azp") != client_id:
+                logger.warning(
+                    "OIDC: %s carries azp %r, which is not this client - the "
+                    "provider issued it for a different application",
+                    zweck,
+                    inhalt.get("azp"),
+                )
+                raise OidcFehler(
+                    "oidc_token_invalid",
+                    "Der Ausweis des Anbieters ließ sich nicht prüfen.",
+                )
+        return inhalt
+    except jwt.PyJWTError as fehler:
+        # ``alg`` gehoert in die Zeile: Ein Verfahren, das nicht in
+        # ``ALGORITHMEN`` steht, sieht in der Meldung von PyJWT sonst aus wie
+        # eine falsche Unterschrift - und der Betreiber sucht am falschen Ende.
+        logger.warning(
+            "OIDC: %s was rejected (alg %r, kid %r, expected issuer %r): %s",
+            zweck,
+            kopf.get("alg"),
+            kopf.get("kid"),
+            beschreibung.get("issuer"),
+            fehler,
+        )
+        raise OidcFehler(
+            "oidc_token_invalid", "Der Ausweis des Anbieters ließ sich nicht prüfen."
+        ) from fehler
+
+
+#: Ein Abschnitt eines JWT: Base64url, ohne Polster.
+_ABSCHNITT = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def _sieht_signiert_aus(antwort: httpx.Response) -> bool:
+    """Ist der Rumpf ein JWT statt eines JSON-Objekts?
+
+    Massgeblich ist ``application/jwt`` - der Inhaltstyp, den die Norm dafuer
+    vorschreibt (Core 5.3.2). Der Blick auf den Rumpf ist die Ruecklage fuer
+    den Proxy, der Koepfe verbiegt: drei Abschnitte, durch Punkte getrennt,
+    nur Base64url-Zeichen - so sieht kein JSON-Objekt aus. Erkannt heisst hier
+    nur "auf diesem Weg deuten"; geprueft wird danach genauso streng.
+    """
+    if _inhaltstyp(antwort) == "application/jwt":
+        return True
+    teile = antwort.text.strip().split(".")
+    return len(teile) == 3 and all(_ABSCHNITT.fullmatch(teil) for teil in teile)
+
+
+async def _userinfo_deuten(
+    beschreibung: dict[str, Any], client_id: str, antwort: httpx.Response, adresse: str
+) -> dict[str, Any] | None:
+    """Die Antwort von ``userinfo`` deuten - JSON **oder** signiertes JWT.
+
+    ⚠️ **Authelia und Zitadel koennen die Auskunft unterschrieben liefern**
+    (``Content-Type: application/jwt``, im Rumpf ein JWT statt eines Objekts) -
+    bei Zitadel ist es ein Haken in der Anwendung, bei Authelia eine Zeile in
+    der Konfiguration. Frueher fiel das **still** durch: Der Code fragte "ist
+    es ein dict", bekam eine Zeichenkette und verwarf sie ohne einen Ton. Beim
+    Betreiber sah das aus wie "Nexview holt die Adresse einfach nicht" - der
+    Fall, gegen den diese ganze Nachfrage gebaut wurde, ausgerechnet bei zwei
+    der Anbieter, um die es dabei geht.
+
+    Geprueft wird das Dokument wie der ID-Ausweis: dieselben Schluessel,
+    dieselben Verfahren, dieselben Anforderungen an ``iss`` und ``aud``.
+    Scheitert das, ist die Antwort **weg** - eine ungepruefte Auskunft ist
+    schlechter als keine, denn sie entscheidet ueber die Bruecke zu einem
+    bestehenden Konto.
+
+    ``None`` heisst "nichts Brauchbares"; der Grund steht dann schon im
+    Protokoll.
+    """
+    if _sieht_signiert_aus(antwort):
+        try:
+            return await _token_pruefen(
+                beschreibung,
+                client_id,
+                antwort.text.strip(),
+                zweck=f"the signed userinfo from {adresse!r}",
+                # ⚠️ Ohne ``exp``: Die Norm verlangt es fuer den ID-Ausweis,
+                # fuer eine signierte userinfo-Antwort nicht - die ist die
+                # Antwort auf eine Frage von gerade eben, keine Eintrittskarte.
+                # ``iss`` und ``aud`` dagegen schreibt Core 5.3.2 vor.
+                pflicht=("iss", "aud", "sub"),
+            )
+        except OidcFehler:
+            return None  # ``_token_pruefen`` hat den Grund schon protokolliert
+
+    try:
+        daten = antwort.json()
+    except ValueError:
+        logger.warning(
+            "OIDC: userinfo at %r answered neither JSON nor a signed token "
+            "(content-type %s, %d bytes)",
+            adresse,
+            _inhaltstyp(antwort) or "none",
+            len(antwort.content),
+        )
+        return None
+    if not isinstance(daten, dict):
+        logger.warning(
+            "OIDC: userinfo at %r did not answer with an object but with %s",
+            adresse,
+            type(daten).__name__,
+        )
+        return None
+    return daten
+
+
 async def _adresse_nachfragen(
-    beschreibung: dict[str, Any], access_token: str, subject: str
+    beschreibung: dict[str, Any], client_id: str, access_token: str, subject: str
 ) -> dict[str, Any]:
     """Beim Anbieter nachfragen, was er ueber diese Person sagt (``userinfo``).
 
@@ -398,6 +813,9 @@ async def _adresse_nachfragen(
     Bei beiden kam in Nexview nie eine Adresse an - die Bruecke zu einem
     bestehenden Konto wurde nicht etwa falsch bewertet, sie wurde nie betreten.
 
+    Beide koennen die Auskunft ausserdem **unterschrieben** liefern statt als
+    JSON; wie das gedeutet und geprueft wird, steht in ``_userinfo_deuten``.
+
     ⚠️ **Das ``sub`` entscheidet.** Antwortet ``userinfo`` mit einer anderen
     Kennung als der ID-Ausweis, wird die Antwort **verworfen** - die Norm
     verlangt das (Core 5.3.2), und ohne die Pruefung liesse sich einer
@@ -406,34 +824,62 @@ async def _adresse_nachfragen(
     ⚠️ **Ein Fehlschlag darf nichts kaputtmachen.** Wer heute ohne diesen
     Aufruf hereinkommt, muss es auch morgen - deshalb faengt hier **jeder**
     Fehler, und der Rueckfall ist "keine zusaetzliche Auskunft", nicht ein
-    gescheiterter Anmeldelauf. Die Zeitgrenze bringt der gemeinsame Client mit
-    (10 s).
+    gescheiterter Anmeldelauf. Was "jeder" bedeutet und was es kostet, steht
+    am ``except`` selbst.
+
+    Die Zeitgrenze ist mit ``NACHFRAGE_SEKUNDEN`` **kuerzer** als die des
+    gemeinsamen Clients: Diese Nachfrage haengt an jeder Anmeldung und ist
+    entbehrlich, der Token-Tausch ist es nicht.
     """
     adresse = beschreibung.get("userinfo_endpoint")
     if not isinstance(adresse, str) or not adresse:
+        # ⚠️ **Nicht stumm zurueckkehren.** Ohne diese Zeile sieht der
+        # Betreiber spaeter nur die Abweisung mit ``email=none`` und sucht bei
+        # den Scopes - waehrend in Wahrheit die Selbstauskunft den Endpunkt gar
+        # nicht nennt und Nexview nie gefragt hat. Das ist kein Sonderfall:
+        # ADFS kennt ihn nicht, und ein Anbieter darf ihn weglassen.
+        logger.info(
+            "OIDC: the provider description names no userinfo endpoint - not asking; "
+            "whatever is missing from the id_token stays missing"
+        )
         return {}
 
     client = await _http()
     try:
         antwort = await client.get(
-            adresse, headers={"Authorization": f"Bearer {access_token}"}
+            adresse,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=NACHFRAGE_SEKUNDEN,
         )
         antwort.raise_for_status()
-        daten = antwort.json()
-    except httpx.HTTPError as fehler:
-        logger.warning("OIDC: userinfo at %r could not be read: %s", adresse, fehler)
-        return {}
-    except ValueError:
-        logger.warning("OIDC: userinfo at %r is not valid JSON", adresse)
+        daten = await _userinfo_deuten(beschreibung, client_id, antwort, adresse)
+    except Exception as fehler:  # noqa: BLE001 - Absicht, siehe unten
+        # ⚠️ **Absichtlich jede Ausnahme, nicht eine Liste von Namen.**
+        # Vorher stand hier ``httpx.HTTPError``, und genau daran ging
+        # ``httpx.InvalidURL`` vorbei - es erbt direkt von ``Exception``. Eine
+        # verhunzte Adresse in der Anbieter-Beschreibung (ein vertipptes
+        # ``http://[fd00::1/ui`` genuegt) haette damit eine Anmeldung
+        # umgerissen, die ohne diese Nachfrage funktioniert haette. Ein
+        # Faenger, der Ausnahmenamen aufzaehlt, altert mit der Bibliothek; das
+        # Versprechen "reisst nie eine Anmeldung um" darf das nicht.
+        #
+        # Der Preis: Auch ein Programmierfehler in dieser Funktion landet hier.
+        # Deshalb ``%r`` und nicht ``%s`` - ``repr()`` nennt den Typ mit, und
+        # ein ``AttributeError`` in der Zeile sieht anders aus als ein
+        # ``ConnectError``. Ohne das bezahlt man den groben Faenger, ohne den
+        # Gegenwert zu bekommen.
+        #
+        # Was hier **nicht** haengenbleibt: ``CancelledError``,
+        # ``KeyboardInterrupt`` und ``SystemExit`` erben von ``BaseException``,
+        # nicht von ``Exception``. Ein Abbruch oder das Herunterfahren kommt
+        # also durch - der Faenger ist grob, aber er haelt den Prozess nicht
+        # fest.
+        logger.warning("OIDC: userinfo at %r could not be read: %r", adresse, fehler)
         return {}
 
-    if not isinstance(daten, dict):
-        logger.warning("OIDC: userinfo at %r did not answer with an object", adresse)
-        return {}
+    if daten is None:
+        return {}  # Der Grund steht schon in ``_userinfo_deuten``.
 
-    # Manche Anbieter antworten mit einem signierten JWT statt mit JSON; dann
-    # fehlt ``sub`` schlicht. Auch das ist ein Fall fuer den Rueckfall - lieber
-    # keine Auskunft als eine ungeprueste.
     if str(daten.get("sub") or "") != subject:
         logger.warning(
             "OIDC: userinfo at %r answered for a different subject - discarded",
@@ -457,40 +903,24 @@ async def ausweis_pruefen(
     ``nonce`` aus dem Hinweg, damit ein abgefangener Ausweis kein zweites Mal
     eingeloest werden kann.
     """
-    try:
-        kopf = jwt.get_unverified_header(id_token)
-    except jwt.PyJWTError as fehler:
-        raise OidcFehler(
-            "oidc_token_invalid", "Der Ausweis des Anbieters ließ sich nicht prüfen."
-        ) from fehler
-
-    jwk = await _schluessel(str(beschreibung["jwks_uri"]), kopf.get("kid"))
-    try:
-        schluessel = jwt.PyJWK(jwk).key
-    except jwt.PyJWTError as fehler:
-        logger.warning("OIDC: unusable signing key: %s", fehler)
-        raise OidcFehler(
-            "oidc_token_invalid", "Der Ausweis des Anbieters ließ sich nicht prüfen."
-        ) from fehler
-
-    try:
-        claims = jwt.decode(
-            id_token,
-            key=schluessel,
-            algorithms=list(ALGORITHMEN),
-            audience=client_id,
-            issuer=str(beschreibung["issuer"]),
-            leeway=UHREN_TOLERANZ,
-            options={"require": ["exp", "iss", "aud", "sub"]},
-        )
-    except jwt.PyJWTError as fehler:
-        logger.warning("OIDC: id_token rejected: %s", fehler)
-        raise OidcFehler(
-            "oidc_token_invalid", "Der Ausweis des Anbieters ließ sich nicht prüfen."
-        ) from fehler
+    claims = await _token_pruefen(
+        beschreibung,
+        client_id,
+        id_token,
+        zweck="the id_token",
+        pflicht=("exp", "iss", "aud", "sub"),
+    )
 
     if claims.get("nonce") != nonce:
-        logger.warning("OIDC: nonce mismatch - the id_token does not belong to this login")
+        # Zwei verschiedene Faelle, eine Meldung waere zu wenig: Ein **fehlendes**
+        # nonce heisst, dass der Anbieter es nicht zurueckspiegelt (manche tun
+        # das nur mit passender Client-Einstellung); ein **anderes** heisst,
+        # dass der Ausweis aus einem anderen Lauf stammt. Die Werte selbst
+        # gehoeren nicht ins Protokoll.
+        logger.warning(
+            "OIDC: the id_token does not belong to this login - it carries %s",
+            "no nonce at all" if claims.get("nonce") is None else "a different nonce",
+        )
         raise OidcFehler(
             "oidc_token_invalid", "Der Ausweis des Anbieters ließ sich nicht prüfen."
         )
@@ -516,8 +946,16 @@ async def ausweis_pruefen(
     # die Nachfrage ist es nicht - sie haengt allein am ``sub``-Abgleich.
     # Widersprechen sich beide, gilt der Ausweis. Deshalb steht ``claims``
     # rechts.
+    # Was der signierte Ausweis selbst sagt - festgehalten, bevor die Nachfrage
+    # daruntergelegt wird. Ohne diese Kopie liesse sich hinterher nicht mehr
+    # unterscheiden, welche Quelle welche Angabe geliefert hat.
+    ausweis_claims = dict(claims)
+    nachfrage: dict[str, Any] = {}
     if access_token:
-        claims = {**(await _adresse_nachfragen(beschreibung, access_token, subject)), **claims}
+        nachfrage = await _adresse_nachfragen(
+            beschreibung, client_id, access_token, subject
+        )
+        claims = {**nachfrage, **claims}
 
     email = str(claims.get("email") or "").strip().lower() or None
     # Manche Anbieter liefern das Feld als Zeichenkette statt als Wahrheitswert.
@@ -528,6 +966,31 @@ async def ausweis_pruefen(
     # nicht, und die Bruecke bleibt zu.
     bestaetigt_roh = claims.get("email_verified", False)
     bestaetigt = bestaetigt_roh is True or str(bestaetigt_roh).strip().lower() == "true"
+
+    # ⚠️ **Die Bestaetigung muss zu DIESER Adresse gehoeren.** Der Ausweis
+    # sticht beim Verschmelzen; ``email_verified`` kann aber aus ``userinfo``
+    # stammen, und dort stand womoeglich eine **andere** Adresse - nach einem
+    # Adresswechsel bei einem selbst gehosteten Anbieter ist genau das
+    # moeglich. Dann buergte eine Bestaetigung fuer eine Adresse, die sie nie
+    # betraf, und die Bruecke zu einem bestehenden Konto (oidc_accounts) waere
+    # mit einer unbestaetigten Adresse betreten worden. Widersprechen sich die
+    # beiden Quellen, gilt die Adresse als unbestaetigt - der Anmeldelauf
+    # bricht deshalb nicht ab, nur die Bruecke bleibt zu.
+    nachgefragte_adresse = str(nachfrage.get("email") or "").strip().lower() or None
+    if (
+        bestaetigt
+        and email
+        and nachgefragte_adresse
+        and nachgefragte_adresse != email
+        and "email_verified" not in ausweis_claims
+    ):
+        logger.warning(
+            "OIDC: the provider vouched for %r at userinfo but the id_token carries "
+            "%r - treating the address as unconfirmed",
+            logs.adresse(nachgefragte_adresse),
+            logs.adresse(email),
+        )
+        bestaetigt = False
 
     name = str(claims.get("preferred_username") or claims.get("name") or "").strip()
     if not name and email:

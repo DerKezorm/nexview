@@ -25,10 +25,11 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import func, select
 
 from ..config import get_settings
@@ -36,7 +37,14 @@ from ..crypto import encrypt
 from ..deps import AdminUser, AdultUser, DbSession
 from ..models import OidcBlock, OidcLink, OidcProvider, User, utcnow
 from ..schemas import UserPublic
-from ..services import anmeldebremse, betreiber as betreiber_dienst, oidc, oidc_accounts, sitzung
+from ..services import (
+    anmeldebremse,
+    betreiber as betreiber_dienst,
+    logs,
+    oidc,
+    oidc_accounts,
+    sitzung,
+)
 from ..services.mediaserver_accounts import KontoFehler
 from ..services.settings_service import load_settings
 from .. import meldungen
@@ -53,6 +61,11 @@ logger = logging.getLogger("nexview.oidc")
 #: Auffangpfad des Routers die Adresse und raeumt sie auf die Startseite.
 LOGIN_ZIEL = "/login"
 PROFIL_ZIEL = "/profil"
+
+#: Wie viel vom Fehlertext des Anbieters ins Protokoll darf. Er kommt von
+#: draussen und hat keine Laengengrenze; fuer die Diagnose reicht der Anfang,
+#: und die Protokolldatei ist ein Ringpuffer.
+_FREMDTEXT_MAX = 200
 
 
 class AnbieterKnopf(BaseModel):
@@ -90,6 +103,13 @@ def _anbieter(db: DbSession, slug: str) -> OidcProvider:
         # Absichtlich wortkarg und ohne Unterscheidung "gibt es nicht" /
         # "deaktiviert": Beides heisst fuer draussen dasselbe - hier ist
         # keine Tuer.
+        #
+        # Ins Protokoll gehoert der Unterschied trotzdem: Ein gerade
+        # abgeschalteter Anbieter sieht fuer den Benutzer wie ein kaputter
+        # Knopf aus, und die 404 allein sagt dem Betreiber nichts.
+        # ⚠️ Nur INFO - die Adresse steht offen im Netz, jeder Aufruf mit
+        # geratenem Kuerzel kaeme sonst als Warnung ins Protokoll.
+        logger.info("OIDC: no such provider, or it is switched off: %r", slug)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "oidc_unknown_provider", "message": "Diesen Anbieter gibt es nicht."},
@@ -111,7 +131,7 @@ def _oberflaeche(pfad: str, **params: str) -> RedirectResponse:
     )
 
 
-def _cookie_setzen(antwort: Response, wert: str) -> None:
+def _cookie_setzen(antwort: Response, wert: str, request: Request) -> None:
     antwort.set_cookie(
         oidc.COOKIE_NAME,
         wert,
@@ -122,6 +142,19 @@ def _cookie_setzen(antwort: Response, wert: str) -> None:
         # das ist eine Top-Level-Navigation. ``strict`` saehe sicherer aus und
         # brueche genau diesen Schritt.
         samesite="lax",
+        # ⚠️ **Dasselbe ``secure`` wie beim Sitzungs-Cookie, und aus demselben
+        # Grund.** Hier fehlte es: Auf einer HTTPS-Installation durfte ein
+        # Angreifer im Netz ueber eine Klartext-Anfrage unter diesem Pfad ein
+        # eigenes, gueltig signiertes Anlauf-Cookie setzen - und wer dem Browser
+        # eines anderen seinen Lauf unterschiebt, meldet ihn in **seinem** Konto
+        # an. Genau das verhindert ``Secure``: Browser lassen unsichere
+        # Ursprunge ein Secure-Cookie nicht ueberschreiben. Im Cookie stehen
+        # ausserdem ``state``, ``nonce`` und der PKCE-Aufloeser im Klartext.
+        #
+        # ``_secure`` erkennt HTTPS auch hinter einem Proxy und laesst sich mit
+        # ``NEXVIEW_COOKIE_SECURE`` erzwingen; eine reine http-Installation
+        # bricht dadurch nicht, dafuer ist die Voreinstellung ``auto`` gebaut.
+        secure=sitzung.cookie_secure(request),
     )
 
 
@@ -168,7 +201,7 @@ def anbieter_liste(db: DbSession) -> list[AnbieterKnopf]:
 
 
 @router.get("/{slug}/login")
-async def login_start(slug: str, db: DbSession) -> RedirectResponse:
+async def login_start(slug: str, request: Request, db: DbSession) -> RedirectResponse:
     """Zum Anbieter weiterleiten - der Klick auf den Knopf.
 
     Ein schlichtes GET, damit die Anmeldeseite einen Link daraus machen kann.
@@ -182,6 +215,14 @@ async def login_start(slug: str, db: DbSession) -> RedirectResponse:
         rueckkehr = _rueckkehr_adresse(db, slug)
         beschreibung = await oidc.discovery(anbieter.issuer_url)
     except oidc.OidcFehler as fehler:
+        # Der Browser ist gleich wieder auf der Anmeldeseite; ohne diese Zeile
+        # bliebe der Grund (Anbieter nicht erreichbar, oeffentliche Adresse
+        # fehlt) nirgends stehen - und genau er gehoert dem Betreiber.
+        logger.warning(
+            "OIDC sign-in could not be started for provider %r: %s",
+            slug,
+            logs.kennung(fehler),
+        )
         return _oberflaeche(LOGIN_ZIEL, oidc_fehler=fehler.code)
 
     anlauf = oidc.anlauf_erzeugen()
@@ -189,13 +230,13 @@ async def login_start(slug: str, db: DbSession) -> RedirectResponse:
         oidc.autorisierungs_adresse(beschreibung, anbieter.client_id, rueckkehr, anlauf),
         status_code=status.HTTP_302_FOUND,
     )
-    _cookie_setzen(antwort, oidc.zustand_verpacken(slug, "login", anlauf))
+    _cookie_setzen(antwort, oidc.zustand_verpacken(slug, "login", anlauf), request)
     return antwort
 
 
 @router.post("/{slug}/link/start", response_model=LinkStart)
 async def link_start(
-    slug: str, response: Response, db: DbSession, user: AdultUser
+    slug: str, request: Request, response: Response, db: DbSession, user: AdultUser
 ) -> LinkStart:
     """Verknuepfen aus dem Profil - Schritt 1.
 
@@ -209,13 +250,21 @@ async def link_start(
         rueckkehr = _rueckkehr_adresse(db, slug)
         beschreibung = await oidc.discovery(anbieter.issuer_url)
     except oidc.OidcFehler as fehler:
+        logger.warning(
+            "OIDC linking could not be started for provider %r by %r: %s",
+            slug,
+            user.username,
+            logs.kennung(fehler),
+        )
         raise HTTPException(
             status_code=fehler.status_code,
             detail={"code": fehler.code, "message": fehler.message},
         ) from fehler
 
     anlauf = oidc.anlauf_erzeugen()
-    _cookie_setzen(response, oidc.zustand_verpacken(slug, "link", anlauf, user_id=user.id))
+    _cookie_setzen(
+        response, oidc.zustand_verpacken(slug, "link", anlauf, user_id=user.id), request
+    )
     return LinkStart(
         url=oidc.autorisierungs_adresse(beschreibung, anbieter.client_id, rueckkehr, anlauf)
     )
@@ -234,12 +283,21 @@ async def callback(
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
+    error_description: str | None = None,
 ) -> RedirectResponse:
     """Die Rueckkehr vom Anbieter - fuer beide Zwecke.
 
     Die Reihenfolge der Pruefungen ist Absicht: Erst der eigene Zustand
     (Cookie, ``state``), dann die Bremse, dann der Anbieter, dann das Konto.
     Nichts wird geschrieben, bevor nicht alles davor bestanden ist.
+
+    ⚠️ **Jeder Ausgang hinterlaesst eine Zeile.** Ein gescheiterter Rueckweg
+    sieht von aussen immer gleich aus: Der Browser steht auf der Anmeldeseite
+    und zeigt einen Satz, der absichtlich wenig verraet. Steht dazu nichts im
+    Protokoll, hat der Betreiber keinen einzigen Anhaltspunkt. Deshalb geht
+    jeder Abbruch durch ``scheitern`` (siehe dort), und die beiden Ausgaenge
+    daneben - 404 fuer einen unbekannten Anbieter, 429 aus der Bremse -
+    schreiben ihre Zeile selbst.
     """
     anbieter = _anbieter(db, slug)
 
@@ -250,33 +308,130 @@ async def callback(
     # Browser war beim Anbieter und soll nicht vor dem falschen Reiter landen.
     extra = {"reiter": "anmeldung"} if zweck == "link" else {}
 
-    def scheitern(kennung: str) -> RedirectResponse:
+    def scheitern(
+        kennung: str, grund: str, *, email: str | None = None, echt: bool = True
+    ) -> RedirectResponse:
+        """Der einzige Ausgang eines gescheiterten Rueckwegs - samt Zeile.
+
+        ⚠️ **Das Protokollieren steht hier, nicht an den Aufrufstellen.** Elf
+        Abbruchwege endeten stumm; an einer einzigen Stelle bekommt auch der
+        naechste Abbruch, den jemand hinzufuegt, seine Zeile von selbst.
+
+        ``kennung`` ist, was der Anmeldende sieht; ``grund`` steht nur im
+        Protokoll und darf deutlich mehr sagen - er ist der Unterschied
+        zwischen "Cookie abgelaufen" und "state gefaelscht", die nach aussen
+        dieselbe Kennung tragen.
+
+        ``echt`` waehlt die Stufe, und die Grenze ist die Bremse: Alles
+        **vor** ihr laesst sich ohne jeden Anbieter beliebig oft erzeugen -
+        die Rueckkehr-Adresse steht offen im Netz. Stuende das auf WARNING,
+        schriebe ein Fremder dem Betreiber das Protokoll voll (dieselbe
+        Ueberlegung wie in ``anmeldebremse.fehlschlag``). Was **nach** ihr
+        scheitert, hat einen echten Lauf beim Anbieter hinter sich.
+
+        Die Adresse steht gekuerzt da - siehe ``logs.adresse``.
+        """
+        werte = (grund, slug, zweck, kennung, logs.adresse(email))
+        if echt:
+            logger.warning(
+                "OIDC callback refused (%s): provider=%r purpose=%s code=%s address=%s",
+                *werte,
+            )
+        else:
+            # ⚠️ Zweimal derselbe Satz, statt ihn in eine Variable zu legen:
+            # ``test_log_sprache`` liest nur woertliche Meldungen - eine aus
+            # einer Variablen pruefte niemand mehr auf Englisch.
+            logger.info(
+                "OIDC callback refused (%s): provider=%r purpose=%s code=%s address=%s",
+                *werte,
+            )
         antwort = _oberflaeche(ziel, oidc_fehler=kennung, **extra)
         _cookie_loeschen(antwort)
         return antwort
 
     # Der Anbieter meldet selbst einen Fehler - meistens "abgebrochen".
+    #
+    # ⚠️ **Diese Pruefung steht vor der des ``state``**, und das ist keine
+    # Kleinigkeit: Ein Rueckweg mit ``error`` traegt keinen ``code`` und nicht
+    # zwingend einen brauchbaren ``state``. Weiter unten wuerde daraus
+    # "oidc_state_mismatch" - ein Nebenbefund, der den Anmeldenden zum
+    # vergeblichen Wiederholen schickt, statt ihm zu sagen, dass der Anbieter
+    # abgelehnt hat. ``error_description`` ist der Wortlaut des Anbieters und
+    # steht deshalb im Original da: gekuerzt, und ueber %r auch mit
+    # Zeilenumbruechen darin harmlos - sonst schriebe ein Anbieter (oder wer
+    # die Rueckkehr-Adresse aufruft) sich eigene Zeilen ins Protokoll.
     if error:
-        logger.info("OIDC: provider %r sent the browser back with error=%r", slug, error)
-        return scheitern("oidc_denied")
+        grund = f"provider returned error={error[:_FREMDTEXT_MAX]!r}"
+        if error_description:
+            grund += f" description={error_description[:_FREMDTEXT_MAX]!r}"
+        return scheitern("oidc_denied", grund, echt=False)
 
-    if (
-        zustand is None
-        or not code
-        or not state
-        or zustand.get("slug") != slug
-        or zustand.get("state") != state
-    ):
-        # Cookie fehlt (abgelaufen, anderer Browser) oder der ``state`` passt
-        # nicht - dann gehoert diese Antwort nicht zu einem Lauf, den **dieser**
-        # Browser begonnen hat.
-        return scheitern("oidc_state_mismatch")
+    # Cookie fehlt (abgelaufen, anderer Browser) oder der ``state`` passt
+    # nicht - dann gehoert diese Antwort nicht zu einem Lauf, den **dieser**
+    # Browser begonnen hat. Nach aussen ist das eine Kennung; im Protokoll
+    # sind es vier verschiedene Faelle, und nur einer davon riecht nach
+    # Angriff.
+    if zustand is None:
+        return scheitern(
+            "oidc_state_mismatch",
+            "callback cookie missing or expired (other browser, cookie blocked, "
+            f"or more than {oidc.ANLAUF_MINUTEN} minutes at the provider)",
+            echt=False,
+        )
+    if not code or not state:
+        return scheitern(
+            "oidc_state_mismatch", "callback without code or state", echt=False
+        )
+    if zustand.get("slug") != slug:
+        return scheitern(
+            "oidc_state_mismatch",
+            f"the running attempt belongs to provider {zustand.get('slug')!r}",
+            echt=False,
+        )
+    if zustand.get("state") != state:
+        return scheitern(
+            "oidc_state_mismatch", "state does not match the running attempt", echt=False
+        )
 
     # ⚠️ Die Bremse zaehlt erst **nach** der state-Pruefung: Was daran schon
     # scheitert, hat den Anbieter nie gesehen und kann beliebig billig
     # erzeugt werden - es soll niemandem den Zaehler fuellen. Ab hier dagegen
     # steckt in jedem Versuch ein echter Lauf beim Anbieter.
-    bremse = anmeldebremse.torwaechter(request, "oidc", slug)
+    # ⚠️ **Die Kennung ist NIE das Anbieter-Kuerzel.** Hier stand einmal
+    # ``slug``, und das machte aus der Bremse eine Waffe: ``torwaechter`` baut
+    # aus der Kennung einen Zaehler, und ein Kuerzel ist fuer alle Nutzer
+    # dasselbe. Ein Fremder brauchte weder Konto noch Passwort - er holte sich
+    # ein eigenes Anlauf-Cookie, kehrte zehnmal mit erfundenem ``code`` zurueck,
+    # und danach kam **niemand** mehr ueber diesen Anbieter herein. Dasselbe
+    # passierte ohne Angreifer nach einem falsch abgetippten Client-Geheimnis:
+    # Der zehnte ehrliche Versuch sperrte das ganze Haus aus, und weil waehrend
+    # der Sperre niemand mehr Erfolg haben konnte, setzte auch niemand den
+    # Zaehler zurueck.
+    #
+    # Beim Verknuepfen gibt es eine echte Person - die zaehlt auf sich selbst.
+    # Beim Anmelden gibt es sie noch nicht: Wer hereinkommen will, steht erst
+    # nach dem Token-Tausch fest. Dann bleibt die Adresse als Zaehler, und wer
+    # keine hat (``NEXVIEW_CLIENT_IP`` nicht gesetzt), bremst hier gar nicht -
+    # das ist richtig so. An diesem Endpunkt gibt es **kein Geheimnis zu
+    # erraten**: Der ``code`` kommt vom Anbieter, ist einmalig, und ohne den
+    # PKCE-Aufloeser aus dem Cookie ist er wertlos. Eine Bremse, die hier
+    # niemanden findet, verhindert nichts - eine, die alle trifft, richtet an.
+    kennung = f"uid:{zustand.get('uid')}" if zustand.get("zweck") == "link" else None
+    try:
+        bremse = anmeldebremse.torwaechter(request, "oidc", kennung)
+    except HTTPException:
+        # ⚠️ Der einzige Ausgang, der **keine** Weiterleitung ist: Die Bremse
+        # antwortet mit 429, und das sieht hier ein Mensch im Browser. Nur
+        # INFO - wer gesperrt ist, kann weiter klopfen, und jede dieser Zeilen
+        # auf WARNING waere genau das Vollschreiben, das die Bremse in ihrem
+        # eigenen Protokoll vermeidet. Dass gesperrt wurde, steht dort einmal
+        # laut.
+        logger.info(
+            "OIDC callback stopped by the sign-in throttle: provider=%r purpose=%s",
+            slug,
+            zweck,
+        )
+        raise
 
     try:
         beschreibung = await oidc.discovery(anbieter.issuer_url)
@@ -297,7 +452,10 @@ async def callback(
         )
     except oidc.OidcFehler as fehler:
         anmeldebremse.gescheitert(bremse)
-        return scheitern(fehler.code)
+        # Hier steckt der Fall, den der Betreiber am haeufigsten sucht: falsches
+        # Geheimnis, abgelaufener Schluessel, Anbieter nicht erreichbar. Die
+        # Bremse davor begrenzt, wie oft diese Warnung entstehen kann.
+        return scheitern(fehler.code, f"the run at the provider failed: {logs.kennung(fehler)}")
 
     # Ab hier buergt der Anbieter fuer die Identitaet - alles Weitere sind
     # Konto-Fragen, keine Rateversuche.
@@ -305,15 +463,47 @@ async def callback(
 
     if zweck == "link":
         benutzer = db.get(User, int(zustand.get("uid", 0)))
-        if benutzer is None or not benutzer.is_active:
-            return scheitern("oidc_state_mismatch")
+        # ⚠️ Zwei sehr verschiedene Faelle unter derselben Kennung: Das Konto
+        # wurde geloescht, oder es wurde abgeschaltet, waehrend der Browser beim
+        # Anbieter war. Nach aussen bleibt es "diese Anmeldung passt nicht zu
+        # diesem Browser"; im Protokoll steht, was wirklich war.
+        if benutzer is None:
+            return scheitern(
+                "oidc_state_mismatch",
+                "the account from the callback cookie no longer exists",
+                email=identitaet.email,
+            )
+        if not benutzer.is_active:
+            return scheitern(
+                "oidc_state_mismatch",
+                "the account is switched off",
+                email=identitaet.email,
+            )
         if oidc_accounts.is_blocked(db, identitaet.issuer, identitaet.subject):
-            return scheitern("oidc_blocked")
+            return scheitern(
+                "oidc_blocked",
+                "this identity is on the block list",
+                email=identitaet.email,
+            )
         fremd = oidc_accounts.find_linked(db, identitaet)
         if fremd is not None and fremd.id != benutzer.id:
-            return scheitern("oidc_link_conflict")
+            return scheitern(
+                "oidc_link_conflict",
+                f"this identity already belongs to account {fremd.username!r}",
+                email=identitaet.email,
+            )
         oidc_accounts.link(benutzer, identitaet)
         db.commit()
+        # Eine neue Verknuepfung ist ein neuer Weg in dieses Konto hinein - das
+        # gehoert protokolliert wie die Anmeldung selbst. Und es haelt das
+        # Protokoll ehrlich: Staenden hier nur die Fehlschlaege, saehe ein
+        # Anbieter, an dem alles klappt, aus wie einer, an dem nichts geht.
+        logger.info(
+            "User %r linked OIDC provider %r, address=%s",
+            benutzer.username,
+            slug,
+            logs.adresse(identitaet.email),
+        )
         antwort = _oberflaeche(ziel, oidc="verknuepft", **extra)
         _cookie_loeschen(antwort)
         return antwort
@@ -324,7 +514,14 @@ async def callback(
         )
     except KontoFehler as fehler:
         db.rollback()
-        return scheitern(fehler.code)
+        # Warum es kein Konto wurde, steht ausfuehrlich in ``oidc_accounts``
+        # (mit Adresse und der Frage, ob es zu ihr ein Konto gaebe). Diese
+        # Zeile haelt den Zusammenhang: welcher Anbieter, welcher Zweck.
+        return scheitern(
+            fehler.code,
+            f"no account for this identity: {logs.kennung(fehler)}",
+            email=identitaet.email,
+        )
 
     benutzer.last_login_at = utcnow()
     db.commit()
@@ -404,12 +601,25 @@ class AnbieterAdmin(BaseModel):
     verknuepfte: int
 
 
+#: Ein Textfeld, das erst geputzt und dann gemessen wird.
+#:
+#: ⚠️ ``Field(min_length=1)`` allein laesst ``"   "`` durch: drei Zeichen sind
+#: mehr als eins. Gespeichert wurde danach die leere Zeichenkette - ein Knopf
+#: ohne Beschriftung auf der Anmeldeseite, und mit leerer Client-ID scheiterte
+#: jede Anmeldung beim Anbieter mit ``invalid_client``, waehrend der Pruef-Knopf
+#: weiter gruen meldete, weil er nur die Selbstauskunft holt.
+def _Pflichttext(laenge: int) -> Any:
+    return Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=laenge)
+    ]
+
+
 class AnbieterAnlegen(BaseModel):
-    slug: str = Field(min_length=1, max_length=40)
-    label: str = Field(min_length=1, max_length=80)
-    issuer_url: str = Field(min_length=1, max_length=500)
-    client_id: str = Field(min_length=1, max_length=255)
-    client_secret: str = Field(min_length=1, max_length=500)
+    slug: _Pflichttext(40)
+    label: _Pflichttext(80)
+    issuer_url: _Pflichttext(500)
+    client_id: _Pflichttext(255)
+    client_secret: _Pflichttext(500)
     auto_create: bool = False
     enabled: bool = True
 
@@ -421,9 +631,9 @@ class AnbieterAendern(BaseModel):
     Geheimnis nie an, also darf ein unangefasstes Feld es nicht loeschen.
     """
 
-    label: str | None = Field(default=None, min_length=1, max_length=80)
-    issuer_url: str | None = Field(default=None, min_length=1, max_length=500)
-    client_id: str | None = Field(default=None, min_length=1, max_length=255)
+    label: _Pflichttext(80) | None = None
+    issuer_url: _Pflichttext(500) | None = None
+    client_id: _Pflichttext(255) | None = None
     client_secret: str | None = Field(default=None, max_length=500)
     auto_create: bool | None = None
     enabled: bool | None = None
@@ -548,6 +758,18 @@ def _loesch_folgen(db: DbSession, eintrag: OidcProvider) -> LoeschFolgen:
             .order_by(User.username)
         )
     )
+    # ⚠️ **Nur eingeschaltete, noch vorhandene Anbieter sind ein Weg hinein.**
+    # Verknuepfungen bleiben beim Loeschen absichtlich stehen, und eine
+    # geaenderte Anbieter-Adresse laesst sie verwaist zurueck. Ohne diese Liste
+    # zaehlte so eine tote Zeile als zweiter Weg, und der ganze Aussperrschutz
+    # fiel fuer das betroffene Konto still aus - Rueckfrage und Betreiber-Riegel
+    # gleich mit.
+    nutzbare = {
+        adresse
+        for adresse in db.scalars(
+            select(OidcProvider.issuer_url).where(OidcProvider.enabled.is_(True))
+        )
+    }
     return LoeschFolgen(
         verknuepft=len(konten),
         gefaehrdet=[
@@ -555,7 +777,9 @@ def _loesch_folgen(db: DbSession, eintrag: OidcProvider) -> LoeschFolgen:
                 id=konto.id, username=konto.username, display_name=konto.display_name
             )
             for konto in konten
-            if oidc_accounts.kaeme_nicht_mehr_herein(konto, ohne=eintrag.issuer_url)
+            if oidc_accounts.kaeme_nicht_mehr_herein(
+                konto, ohne=eintrag.issuer_url, nutzbare_issuer=nutzbare
+            )
         ],
     )
 
@@ -632,9 +856,70 @@ def admin_anlegen(payload: AnbieterAnlegen, db: DbSession, admin: AdminUser) -> 
 
 @admin_router.patch("/{provider_id}", response_model=AnbieterAdmin)
 def admin_aendern(
-    provider_id: int, payload: AnbieterAendern, db: DbSession, admin: AdminUser
+    provider_id: int,
+    payload: AnbieterAendern,
+    db: DbSession,
+    admin: AdminUser,
+    bestaetigt: bool = False,
 ) -> AnbieterAdmin:
+    """Einen Anbieter aendern.
+
+    ⚠️ **Zwei dieser Aenderungen wirken wie ein Loeschen.** Wer ``enabled``
+    ausschaltet, nimmt den Anbieter aus der Knopfliste und laesst
+    ``/login`` und ``/callback`` mit 404 antworten; wer die Adresse aendert,
+    haengt jede bestehende Verknuepfung ab, weil eine Identitaet aus Aussteller
+    und Subjekt besteht. Fuer ein Konto ohne brauchbares Passwort - jedes aus
+    der automatischen Anlage ist so - ist beides dasselbe wie geloescht.
+
+    Deshalb gilt hier derselbe Riegel wie beim Loeschen: Der Betreiber wird
+    nicht ausgesperrt, und gefaehrdete Konten erzwingen ein ``bestaetigt=true``.
+    Ohne das ging beides mit einem schlichten 200 durch - der Betreiberschutz
+    haette am Loeschknopf gehalten und einen Klick weiter nicht.
+    """
     eintrag = _eintrag(db, provider_id)
+
+    schaltet_ab = payload.enabled is False and eintrag.enabled
+    andere_adresse = (
+        payload.issuer_url is not None
+        and _normalisiert(payload.issuer_url) != eintrag.issuer_url
+    )
+    # ⚠️ **Auch die Zugangsdaten sperren aus.** Der Riegel hing zuerst nur an
+    # ``enabled`` und der Adresse - und liess damit genau die Seitentuer offen,
+    # die er schliessen sollte: Wer ein falsches Client-Geheimnis eintraegt,
+    # laesst jeden Token-Tausch mit ``invalid_client`` scheitern, und niemand
+    # kommt mehr ueber diesen Anbieter herein. Das ist schlimmer als Abschalten,
+    # denn das richtige Geheimnis verlaesst die Datenbank nie (die Oberflaeche
+    # zeigt nur Punkte) - aus Nexview heraus ist es nicht wiederherstellbar.
+    andere_zugangsdaten = (
+        payload.client_id is not None and payload.client_id != eintrag.client_id
+    ) or bool(payload.client_secret)
+    if schaltet_ab or andere_adresse or andere_zugangsdaten:
+        folgen = _loesch_folgen(db, eintrag)
+        _betreiber_nicht_aussperren(db, admin, [konto.id for konto in folgen.gefaehrdet])
+        if folgen.gefaehrdet and not bestaetigt:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "oidc_would_lock_out_others",
+                    "message": (
+                        f"{len(folgen.gefaehrdet)} Konten kämen nach dieser "
+                        "Änderung nicht mehr herein."
+                    ),
+                    "gefaehrdet": [konto.model_dump() for konto in folgen.gefaehrdet],
+                },
+            )
+        if folgen.gefaehrdet:
+            logger.warning(
+                "OIDC provider %r changed by %r (%s) although %d account(s) lose "
+                "their only way in: %s",
+                eintrag.slug,
+                admin.username,
+                "switched off"
+                if schaltet_ab
+                else ("new issuer" if andere_adresse else "new credentials"),
+                len(folgen.gefaehrdet),
+                ", ".join(konto.username for konto in folgen.gefaehrdet),
+            )
 
     if payload.issuer_url is not None:
         adresse = _normalisiert(payload.issuer_url)

@@ -9,6 +9,7 @@ der Standard.
 
 from __future__ import annotations
 
+import logging
 import time
 
 import httpx
@@ -17,12 +18,15 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from app.crypto import encrypt
 from app.db import SessionLocal
 from app.models import AuthToken, OidcBlock, Role, TokenPurpose, User, utcnow
 from app.security import has_usable_password, hash_password
 from app.services import oidc, oidc_accounts
 from app.services.mediaserver_accounts import KontoFehler
 from app.services.settings_service import load_settings
+
+from . import oidc_helfer as helfer
 
 ISSUER = "https://sso.beispiel.de"
 CLIENT_ID = "nexview"
@@ -479,3 +483,385 @@ def test_loesen_mit_aussperrschutz(client) -> None:
         oidc_accounts.loesen(benutzer, ISSUER)
         db.commit()
         assert benutzer.oidc_links == []
+
+
+# ---------------------------------------------------------------------------
+# Stufe 1b: die Verfahren, die signierte Auskunft und die ehrlichen Gruende
+# ---------------------------------------------------------------------------
+#
+# ⚠️ Ab hier laeuft alles gegen den **geteilten** Attrappen-Anbieter aus
+# ``oidc_helfer``: Er ist der einzige, der auch mit ES512 und EdDSA
+# unterschreiben und ``userinfo`` unterschrieben ausliefern kann. Die aeltere
+# Kopie oben bleibt, wo sie ist - sie traegt die Faelle, die es schon gab.
+
+
+@pytest.fixture
+def helfer_anbieter(monkeypatch: pytest.MonkeyPatch):
+    """Der geteilte Attrappen-Anbieter; liefert seinen Zustand als Draht."""
+    zustand: dict = {}
+    oidc.cache_leeren()
+    monkeypatch.setattr(
+        oidc, "_client", httpx.AsyncClient(transport=helfer.transport(zustand))
+    )
+    yield zustand
+    oidc.cache_leeren()
+
+
+# --- Die Unterschrifts-Verfahren -------------------------------------------
+
+
+@pytest.mark.parametrize("verfahren", ["RS256", "ES512", "EdDSA"])
+async def test_jedes_angenommene_verfahren_traegt_eine_anmeldung(
+    helfer_anbieter: dict, verfahren: str
+) -> None:
+    """⚠️ **Was in ``ALGORITHMEN`` fehlt, sperrt aus - vollstaendig.**
+
+    ES512 fehlte, obwohl ES256 und ES384 dastanden; EdDSA fehlte ganz. Bei
+    einem Anbieter, der so unterschreibt (Pocket ID laesst beides einstellen),
+    scheiterte damit **jede** Anmeldung, und im Browser stand nur "Der Ausweis
+    des Anbieters liess sich nicht pruefen" - eine Meldung, die den Betreiber
+    zum Schluessel schickt statt zum Verfahren.
+
+    Geprueft wird ueber den echten Weg mit ``PyJWK``, nicht mit einem rohen
+    Schluessel: Im Betrieb kommt der Schluessel aus dem JWKS, und die
+    Eintraege dort tragen kein ``alg``-Feld (siehe ``oidc_helfer.jwks``).
+    """
+    ident = await oidc.ausweis_pruefen(
+        helfer.beschreibung(),
+        helfer.CLIENT_ID,
+        helfer.ausweis(verfahren=verfahren),
+        "nonce-1",
+    )
+    assert ident.subject == "person-1"
+    assert ident.email == "oma@beispiel.de"
+
+
+async def test_hs256_bleibt_auch_mit_den_neuen_verfahren_draussen(
+    helfer_anbieter: dict, caplog
+) -> None:
+    """Die Liste ist laenger geworden - der symmetrische Trick bleibt zu.
+
+    Es geht nicht um HS256 als Rechenverfahren, sondern darum, dass ein
+    Angreifer den ``alg``-Kopf umbiegt und mit dem Client-Geheimnis
+    unterschreibt. Wer die Liste erweitert, muss das hier stehen lassen.
+    """
+    jetzt = int(time.time())
+    gefaelscht = jwt.encode(
+        {
+            "iss": helfer.ISSUER,
+            "sub": "person-1",
+            "aud": helfer.CLIENT_ID,
+            "exp": jetzt + 300,
+        },
+        "irgendein-geheimnis-mit-genug-laenge-fuer-hs256",
+        algorithm="HS256",
+        headers={"kid": helfer.KID},
+    )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
+        with pytest.raises(oidc.OidcFehler) as fehler:
+            await oidc.ausweis_pruefen(
+                helfer.beschreibung(), helfer.CLIENT_ID, gefaelscht, "nonce-1"
+            )
+    assert fehler.value.code == "oidc_token_invalid"
+    # ⚠️ Das Verfahren gehoert in die Zeile: Sonst sieht ein nicht
+    # angenommenes ``alg`` aus wie eine falsche Unterschrift.
+    assert "'HS256'" in caplog.text
+
+
+# --- Signiertes userinfo (Core 5.3.2) --------------------------------------
+
+
+async def test_signiertes_userinfo_liefert_die_adresse(helfer_anbieter: dict) -> None:
+    """⚠️ **Der Fall, der vorher still durchfiel.**
+
+    Authelia und Zitadel koennen die Auskunft unterschrieben liefern
+    (``Content-Type: application/jwt``). Der Code fragte "ist es ein dict",
+    bekam eine Zeichenkette und verwarf sie ohne einen Ton - beim Betreiber
+    sah das aus wie "Nexview holt die Adresse einfach nicht", ausgerechnet bei
+    den beiden Anbietern, um die es dabei geht.
+
+    Das Token traegt bewusst **kein** ``exp``: Die Norm verlangt es hier
+    nicht, und wer es doch verlangte, spraeche genau diesen beiden Anbietern
+    ihre Antwort ab.
+    """
+    helfer_anbieter["userinfo_jwt"] = helfer.signierte_auskunft()
+    ident = await oidc.ausweis_pruefen(
+        helfer.beschreibung(),
+        helfer.CLIENT_ID,
+        helfer.ausweis(email=None, email_verified=None),
+        "nonce-1",
+        "zugang-1",
+    )
+    assert ident.email == "oma@beispiel.de"
+    assert ident.email_verified is True
+
+
+async def test_signiertes_userinfo_auch_ohne_den_richtigen_inhaltstyp(
+    helfer_anbieter: dict,
+) -> None:
+    """Die Ruecklage fuer den Proxy, der Koepfe verbiegt.
+
+    Massgeblich ist ``application/jwt``; kommt es nicht durch, entscheidet die
+    Gestalt des Rumpfs - drei Base64url-Abschnitte, durch Punkte getrennt. So
+    sieht kein JSON-Objekt aus, also ist die Verwechslung ungefaehrlich.
+    """
+    helfer_anbieter["userinfo_jwt"] = helfer.signierte_auskunft()
+    helfer_anbieter["userinfo_inhaltstyp"] = "text/plain"
+    ident = await oidc.ausweis_pruefen(
+        helfer.beschreibung(),
+        helfer.CLIENT_ID,
+        helfer.ausweis(email=None, email_verified=None),
+        "nonce-1",
+        "zugang-1",
+    )
+    assert ident.email == "oma@beispiel.de"
+
+
+@pytest.mark.parametrize(
+    ("was", "gebaut"),
+    [
+        # Unterschrieben mit einem Schluessel, der nicht im JWKS steht - der
+        # ``kid`` zeigt weiter auf den echten.
+        ("fremde Unterschrift", {"schluessel": helfer.FREMDER_SCHLUESSEL}),
+        ("fremder Empfaenger", {"aud": "eine-andere-app"}),
+        ("fremder Aussteller", {"iss": "https://boese.beispiel.de"}),
+        ("fremdes subject", {"sub": "jemand-anderes"}),
+        ("kein subject", {"sub": None}),
+    ],
+)
+async def test_unterschobenes_userinfo_wird_verworfen(
+    helfer_anbieter: dict, was: str, gebaut: dict
+) -> None:
+    """⚠️ **Die Sicherheitseigenschaft der signierten Auskunft.**
+
+    Das unterschriebene ``userinfo`` geht denselben Weg wie der ID-Ausweis:
+    dieselben Schluessel, dieselben Verfahren, dieselben Anforderungen an
+    ``iss`` und ``aud`` - und danach gilt der ``sub``-Abgleich weiter. Waere
+    die Pruefung hier milder, waere dieser Weg der bequemere fuer jemanden,
+    der einer beglaubigten Anmeldung eine fremde Adresse anhaengen will.
+
+    Verworfen heisst: keine Adresse, nicht etwa "Anmeldung kaputt" - der
+    Ausweis selbst ist ja in Ordnung.
+    """
+    helfer_anbieter["userinfo_jwt"] = helfer.signierte_auskunft(
+        email="opfer@beispiel.de", **gebaut
+    )
+    ident = await oidc.ausweis_pruefen(
+        helfer.beschreibung(),
+        helfer.CLIENT_ID,
+        helfer.ausweis(email=None, email_verified=None),
+        "nonce-1",
+        "zugang-1",
+    )
+    assert ident.email is None, was
+    assert ident.email_verified is False, was
+    assert ident.subject == "person-1", was
+
+
+# --- Ehrliche Gruende beim Token-Tausch ------------------------------------
+
+
+async def _tauschen(beschreibung: dict | None = None) -> oidc.OidcFehler:
+    with pytest.raises(oidc.OidcFehler) as fehler:
+        await oidc.code_tauschen(
+            beschreibung or helfer.beschreibung(),
+            helfer.CLIENT_ID,
+            encrypt("sehr-geheim"),
+            "einmal-code",
+            "http://testserver/callback",
+            "verifier",
+        )
+    return fehler.value
+
+
+async def test_token_antwort_ohne_json_heisst_nicht_mehr_abgelehnt(
+    helfer_anbieter: dict, caplog
+) -> None:
+    """⚠️ **Ein falscher Grund kostet mehr Zeit als gar keiner.**
+
+    Status 200, im Rumpf eine HTML-Seite: Das ist der Proxy vor dem Anbieter,
+    nicht der Anbieter. Frueher lief das in "answered without an id_token" und
+    schickte den Betreiber zu den Scopes seines Clients. Jetzt ist es
+    ``oidc_provider_invalid``, und im Protokoll steht der Inhaltstyp - das
+    Wort, das ihn zum Proxy schickt.
+    """
+    helfer_anbieter["token_antwort"] = (200, b"<html>Anmelden</html>", "text/html")
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
+        fehler = await _tauschen()
+    assert fehler.code == "oidc_provider_invalid"
+    assert "text/html" in caplog.text
+
+
+async def test_abgelehnter_tausch_nennt_error_und_beschreibung(
+    helfer_anbieter: dict, caplog
+) -> None:
+    """RFC 6749 5.2: ``error`` und ``error_description`` sind die Diagnose.
+
+    Sie nennen das falsche Feld beim Namen, statt "irgendwas mit 400". Wer sie
+    wegwirft, laesst den Betreiber raten - und der haeufigste Fall ist eine
+    abgetippte Client-ID.
+    """
+    helfer_anbieter["token_antwort"] = (
+        401,
+        b'{"error":"invalid_client","error_description":"client secret mismatch"}',
+        "application/json",
+    )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
+        fehler = await _tauschen()
+    assert fehler.code == "oidc_exchange_failed"
+    assert "invalid_client" in caplog.text
+    assert "client secret mismatch" in caplog.text
+
+
+async def test_zweihundert_ohne_id_token_nennt_die_feldnamen(
+    helfer_anbieter: dict, caplog
+) -> None:
+    """Nur ``access_token`` und ``token_type``: der ``openid``-Scope fehlt.
+
+    Der Satz stimmt hier - und erst die **Feldnamen** sagen, woran es liegt.
+    Namen, keine Werte: In den Werten staenden Ausweise, und ein Protokoll
+    wandert beim Melden eines Fehlers zu Fremden.
+    """
+    helfer_anbieter["token_antwort"] = (
+        200,
+        b'{"access_token":"geheim-und-echt","token_type":"Bearer"}',
+        "application/json",
+    )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
+        fehler = await _tauschen()
+    assert fehler.code == "oidc_exchange_failed"
+    assert "without an id_token" in caplog.text
+    assert "access_token, token_type" in caplog.text
+    assert "geheim-und-echt" not in caplog.text
+
+
+# --- Adressen, an denen sich httpx schon beim Zerlegen verschluckt ----------
+
+
+@pytest.mark.parametrize("feld", ["jwks_uri", "token_endpoint"])
+async def test_unbrauchbare_adresse_ist_ein_einrichtungsfehler(
+    helfer_anbieter: dict, feld: str, caplog
+) -> None:
+    """⚠️ ``httpx.InvalidURL`` erbt direkt von ``Exception``.
+
+    Ein Faenger fuer ``httpx.HTTPError`` geht daran vorbei, und die Ausnahme
+    entsteht schon beim **Zerlegen** der Adresse. Ohne den groben Faenger wird
+    aus einem Tippfehler in der Anbieter-Beschreibung eine nackte 500 mitten
+    im Rueckweg - oder aus dem Pruef-Knopf.
+    """
+    kaputt = {**helfer.beschreibung(), feld: helfer.KAPUTTE_ADRESSE}
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
+        if feld == "jwks_uri":
+            with pytest.raises(oidc.OidcFehler) as gefangen:
+                await oidc.ausweis_pruefen(
+                    kaputt, helfer.CLIENT_ID, helfer.ausweis(), "nonce-1"
+                )
+            kennung = gefangen.value.code
+        else:
+            kennung = (await _tauschen(kaputt)).code
+    assert kennung == "oidc_provider_unreachable"
+    assert "cannot be used at all" in caplog.text
+
+
+async def test_weiterleitung_gilt_als_unerreichbar(monkeypatch, caplog) -> None:
+    """Der gemeinsame Client folgt keiner Weiterleitung - und das ist gut so.
+
+    Ein Portal vor dem Anbieter oder http statt https antwortet mit 302.
+    Frueher lief das weiter und scheiterte spaeter als "unverstaendlich"; der
+    Hinweis, der die Ursache nennt, ist ``location``.
+    """
+
+    def antworten(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": "https://portal.beispiel.de/"})
+
+    oidc.cache_leeren()
+    monkeypatch.setattr(
+        oidc, "_client", httpx.AsyncClient(transport=httpx.MockTransport(antworten))
+    )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
+        with pytest.raises(oidc.OidcFehler) as fehler:
+            await oidc.discovery(helfer.ISSUER)
+    assert fehler.value.code == "oidc_provider_unreachable"
+    assert "portal.beispiel.de" in caplog.text
+    oidc.cache_leeren()
+
+
+# --- Was das Protokoll beim Schluessel und beim nonce sagt ------------------
+
+
+async def test_fehlender_schluessel_nennt_die_angebotenen_kids(
+    helfer_anbieter: dict, caplog
+) -> None:
+    """Ohne die angebotenen Kennungen weiss der Betreiber nicht, ob er die
+    falsche ``jwks_uri`` hat, ob der Satz leer ist oder ob nur der ``kid``
+    nicht passt. Schluessel-Kennungen sind oeffentlich - sie stehen im selben
+    Dokument."""
+    von_gestern = jwt.encode(
+        {
+            "iss": helfer.ISSUER,
+            "sub": "person-1",
+            "aud": helfer.CLIENT_ID,
+            "exp": int(time.time()) + 300,
+        },
+        _PRIVAT_PEM,
+        algorithm="RS256",
+        headers={"kid": "ein-kid-von-gestern"},
+    )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
+        with pytest.raises(oidc.OidcFehler) as fehler:
+            await oidc.ausweis_pruefen(
+                helfer.beschreibung(), helfer.CLIENT_ID, von_gestern, "nonce-1"
+            )
+    assert fehler.value.code == "oidc_token_invalid"
+    assert "ein-kid-von-gestern" in caplog.text
+    # Und was der Anbieter stattdessen anbietet.
+    assert helfer.KID_ES512 in caplog.text
+
+
+async def test_ohne_kid_wird_bei_mehreren_schluesseln_nicht_geraten(
+    helfer_anbieter: dict, caplog
+) -> None:
+    """Zu raten waere schlimmer als abzulehnen - und im Protokoll steht der
+    Unterschied zum Fall "kid passt nicht"."""
+    ohne_kid = jwt.encode(
+        {
+            "iss": helfer.ISSUER,
+            "sub": "person-1",
+            "aud": helfer.CLIENT_ID,
+            "exp": int(time.time()) + 300,
+        },
+        _PRIVAT_PEM,
+        algorithm="RS256",
+    )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
+        with pytest.raises(oidc.OidcFehler):
+            await oidc.ausweis_pruefen(
+                helfer.beschreibung(), helfer.CLIENT_ID, ohne_kid, "nonce-1"
+            )
+    assert "names no kid" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("nonce", "erwartet"),
+    [(None, "no nonce at all"), ("ein-anderer-lauf", "a different nonce")],
+)
+async def test_der_nonce_fehlschlag_unterscheidet_die_faelle(
+    helfer_anbieter: dict, nonce: str | None, erwartet: str, caplog
+) -> None:
+    """Zwei sehr verschiedene Ursachen unter derselben Kennung.
+
+    **Kein** nonce heisst, dass der Anbieter es nicht zurueckspiegelt (manche
+    tun das nur mit passender Client-Einstellung) - eine Einstellungsfrage.
+    Ein **anderes** heisst, dass der Ausweis aus einem fremden Lauf stammt.
+    Die Werte selbst gehoeren nicht ins Protokoll.
+    """
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
+        with pytest.raises(oidc.OidcFehler) as fehler:
+            await oidc.ausweis_pruefen(
+                helfer.beschreibung(),
+                helfer.CLIENT_ID,
+                helfer.ausweis(nonce=nonce),
+                "nonce-1",
+            )
+    assert fehler.value.code == "oidc_token_invalid"
+    assert erwartet in caplog.text

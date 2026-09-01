@@ -9,7 +9,7 @@ Authorization: Bearer nxv_…
 
 ```json
 {
-  "version": "0.25.0",
+  "version": "0.26.0",
   "befunde": {
     "fehler": 1,
     "warnung": 3,

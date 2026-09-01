@@ -720,9 +720,17 @@ def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:
 
     ⚠️ **Fuer kuenftige Hintergrundschleifen:** Der Merker ist nur deshalb
     unbedenklich, weil keine Sitzung ausserhalb einer Anfrage laenger lebt als
-    ein Rundgang. Alle stehen in einem ``with SessionLocal() as db:``, das
-    **vor** der Wartezeit endet (Status-Abgleich, Nachrichtenausgang,
-    Sicherungsplan). Wer eine Sitzung ueber ein ``sleep`` hinweg offen haelt,
+    ein Rundgang. ``main.py`` startet fuenf solcher Schleifen: Status-Abgleich,
+    Nachrichtenausgang, Protokoll-Waechter (``logs``), Sicherungsplan und
+    TRaSH-Nachschau (``trash_bezug``); dazu kommt die losgeloeste
+    Umbenennungs-Aufgabe aus ``benennung.anstossen``. Alle nachgesehen: Jede
+    Sitzung steht in einem ``with SessionLocal() as db:``, das **vor** der
+    Wartezeit endet. ``trash_bezug`` fasst gar keine Sitzung an; ``logs`` und
+    die Umbenennung oeffnen je Handgriff eine eigene kurze Sitzung und
+    schliessen sie sofort wieder. Die langlebigste Sitzung der Anwendung ist
+    ein Rundgang des Status-Abgleichs, bei einer grossen Bibliothek Minuten
+    statt Sekunden; genau deshalb liest ``mediaserver_library`` dort mit
+    ``frisch=True``. Wer eine Sitzung ueber ein ``sleep`` hinweg offen haelt,
     arbeitet ab dann mit veralteten Einstellungen.
 
     ``frisch=True`` geht am Merker vorbei und legt danach den neuen Stand ab.

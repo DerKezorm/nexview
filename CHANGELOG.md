@@ -75,19 +75,22 @@ tag exists for it.
   The one that mattered most is CVE-2026-32597 in PyJWT, rated high: an unknown `crit`
   header parameter was accepted instead of refused. That affects every `jwt.decode` call,
   and Nexview makes three of them, on the session token, on the OIDC id token and on the
-  sign-in cookie. One side effect comes with it: PyJWT can now open Ed448 keys as well, so
-  an OIDC provider that signs with EdDSA on that curve gets in where it used to be turned
-  away. Ed25519 remains the curve providers actually offer.
+  sign-in cookie.
 
   **python-multipart parses differently from 0.0.31 on, and that can be visible from
   outside.** Three changes come with it. A `filename*` parameter (RFC 2231/5987) is no
-  longer unwrapped, so a part carrying both `filename` and `filename*` keeps the plain
-  `filename`. A semicolon no longer separates query string fields, so `a=1;b=2` is one
-  field and not two. And every part is now limited to 8 header lines of 4224 bytes each,
-  so an upload with a file name over 4 kB is refused with 400 where it used to go
-  through. Nexview reads only the bytes of an upload and has no endpoint that takes
-  semicolon separated form data, so none of this changes anything here; a client that
-  relied on one of the three will notice.
+  longer unwrapped: a part carrying both `filename` and `filename*` keeps the plain
+  `filename`, and a part carrying only `filename*` now has no file name at all. Nexview
+  never reads a file name's value, but its presence is what makes a part an upload
+  instead of a text field, so a client that sends only `filename*` (the same goes for
+  `name*`) is refused with 422 on all six upload endpoints where it used to get through.
+  Browsers always send a plain `filename` and are not affected; a hand-written script
+  against the API can be. A semicolon no longer separates query string fields, so
+  `a=1;b=2` is one field and not two; Nexview has no endpoint that takes semicolon
+  separated form data. And three size limits arrived: at most 8 header lines per part,
+  at most 4224 bytes per header line and at most 256 bytes of multipart boundary, so an
+  upload with a file name over 4 kB is refused with 400 where it used to go through. No
+  browser or common HTTP library comes anywhere near the boundary limit.
 
   From now on every CI run holds `backend/requirements.txt` against api.osv.dev before it
   does anything else, and a hit stops the build. It does not warn: a warning that lets the

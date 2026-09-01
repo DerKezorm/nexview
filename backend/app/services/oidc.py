@@ -66,11 +66,12 @@ logger = logging.getLogger("nexview.oidc")
 #: einstellen. Beide sind gegen das festgenagelte PyJWT (2.13) erprobt, und
 #: zwar ueber ``PyJWK`` wie im Betrieb, nicht nur ueber einen rohen Schluessel.
 #:
-#: ⚠️ EdDSA trug bis PyJWT 2.11 **nur Ed25519**: ``PyJWK`` lehnte einen
-#: JWKS-Eintrag mit ``crv: Ed448`` mit "Unsupported crv" ab. Seit 2.13 nimmt
-#: es beide Kurven, ein Anbieter mit Ed448 kommt also herein. Das war eine
-#: Grenze der Bibliothek und nie eine Entscheidung von Nexview; die Liste hier
-#: nennt weiterhin nur das Verfahren, nicht die Kurve.
+#: ⚠️ EdDSA traegt **nur Ed25519**: ``PyJWK`` lehnt einen JWKS-Eintrag mit
+#: ``crv: Ed448`` auch unter PyJWT 2.13 mit "Unsupported crv" ab
+#: (nachgemessen gegen 2.13.0). Das ist eine Grenze der Bibliothek und keine
+#: Entscheidung von Nexview; die Liste hier nennt nur das Verfahren, nicht
+#: die Kurve. Wer beim Anbieter EdDSA auf Ed448 stellt, sperrt jede
+#: Anmeldung aus.
 ALGORITHMEN = (
     "RS256",
     "RS384",

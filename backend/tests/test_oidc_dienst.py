@@ -216,6 +216,40 @@ async def test_hs256_wird_nie_akzeptiert(anbieter) -> None:
         await oidc.ausweis_pruefen(_beschreibung(), CLIENT_ID, gefaelscht, "nonce-1")
 
 
+async def test_crit_kopf_wird_abgelehnt(anbieter) -> None:
+    """Ein Ausweis mit ``crit``-Kopf faellt durch, und das mit Absicht.
+
+    RFC 7515 laesst einen Aussteller per ``crit`` Erweiterungen fuer
+    verpflichtend erklaeren; wer sie nicht versteht, muss das Dokument
+    ablehnen. PyJWT nahm so einen Kopf bis 2.11 stillschweigend an - das war
+    CVE-2026-32597 und der Grund fuer die Hebung auf 2.13. Der Ausweis hier
+    ist bis auf den ``crit``-Kopf tadellos: richtiger Schluessel, richtiger
+    Empfaenger, richtiges ``nonce``. Faellt er trotzdem durch, ist es der
+    Kopf. Ohne diesen Test kippte das Ablehnen beim naechsten Heben unbemerkt
+    zurueck.
+    """
+    jetzt = int(time.time())
+    mit_crit = jwt.encode(
+        {
+            "iss": ISSUER,
+            "sub": "person-1",
+            "aud": CLIENT_ID,
+            "exp": jetzt + 300,
+            "iat": jetzt,
+            "nonce": "nonce-1",
+        },
+        _PRIVAT_PEM,
+        algorithm="RS256",
+        # ``nonce`` steht auch als Kopf-Parameter da, wie es die Norm fuer
+        # ``crit`` verlangt - abgelehnt wird also wirklich die unbekannte
+        # Erweiterung, nicht ein schlampig gebauter Kopf.
+        headers={"kid": KID, "crit": ["nonce"], "nonce": "nonce-1"},
+    )
+    with pytest.raises(oidc.OidcFehler) as fehler:
+        await oidc.ausweis_pruefen(_beschreibung(), CLIENT_ID, mit_crit, "nonce-1")
+    assert fehler.value.code == "oidc_token_invalid"
+
+
 async def test_email_verified_als_zeichenkette(anbieter) -> None:
     """Manche Anbieter liefern ``"true"``/``"false"`` statt Wahrheitswerten."""
     ident = await oidc.ausweis_pruefen(

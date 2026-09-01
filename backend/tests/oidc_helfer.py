@@ -43,9 +43,9 @@ _PRIVAT_PEM = _pem(_PRIVAT)
 #: Ausweis des Anbieters ließ sich nicht prüfen".
 #:
 #: ES512 verlangt P-521. EdDSA steht hier auf Ed25519, weil das die Kurve ist,
-#: die die Anbieter anbieten; bis PyJWT 2.11 war sie auch die einzige, die
-#: ``PyJWK`` aufmachen konnte (``crv: Ed448`` lehnte es mit "Unsupported crv"
-#: ab), seit 2.13 gehen beide.
+#: die die Anbieter anbieten - und die einzige, die ``PyJWK`` aufmacht: einen
+#: Eintrag mit ``crv: Ed448`` lehnt es auch unter PyJWT 2.13 mit
+#: "Unsupported crv" ab.
 _EC = ec.generate_private_key(ec.SECP521R1())
 _EC_PEM = _pem(_EC)
 _ED = ed25519.Ed25519PrivateKey.generate()

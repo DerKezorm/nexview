@@ -110,15 +110,17 @@ def _einstellungen_merker_verwerfen(session: Session, _kontext) -> None:
 
     ⚠️ **Rohes SQL laeuft hier vorbei.** Der Horcher haengt am
     Objektzustand der Sitzung, nicht an der Tabelle. In ``db.py`` schreiben
-    drei Stellen mit ``exec_driver_sql`` an ``settings``:
-    ``_kontingente_dreiwertig_machen`` (DELETE und INSERT) und
-    ``_verbindung_in_die_tabelle`` (UPDATE). Nachgesehen nach dem Umbau auf
+    vier Stellen mit ``exec_driver_sql`` an die bewachten Tabellen:
+    ``_kontingente_dreiwertig_machen`` (DELETE und INSERT an ``settings``)
+    und ``_verbindung_in_die_tabelle`` (UPDATE an ``settings`` sowie das
+    INSERT in ``media_server_connections`` - die einzige rohe Schreibstelle
+    an der zweiten bewachten Tabelle). Nachgesehen nach dem Umbau auf
     das Wanderungsbuch: Beide sind Einmal-Schritte, stehen in ``init_db`` und
     laufen beim Start, bevor die erste Anfrage eine Sitzung hat - und seit dem
     Buch ohnehin hoechstens ein einziges Mal je Datenbank. Der zweite
     ``init_db``-Lauf, der nach dem Einspielen einer Sicherung folgt, kommt
     hinter ``engine.dispose()``, und der einspielende Endpunkt liest danach
-    keine Einstellungen mehr. Wer hier eine vierte Stelle ergaenzt, muss sie
+    keine Einstellungen mehr. Wer hier eine fuenfte Stelle ergaenzt, muss sie
     selbst pruefen.
 
     ``after_flush`` und nicht ``after_flush_postexec``: Nur davor stehen
@@ -134,10 +136,15 @@ def _einstellungen_merker_verwerfen(session: Session, _kontext) -> None:
 
 #: Schritte in ``init_db``, die **genau einmal** laufen duerfen.
 #:
-#: Sie deuten Bestandsdaten um. Ein zweiter Lauf verdoppelt Zeilen, scheitert
-#: am Eindeutigkeitsschluessel oder - im schlimmsten Fall - deutet eine
-#: Eingabe um, die inzwischen jemand bewusst gemacht hat. Genau das ist bei
-#: ``_kontingente_dreiwertig_machen`` passiert, siehe dort.
+#: Sie deuten Bestandsdaten um. Drei von ihnen tragen ihre Sperre selbst:
+#: ``_verbindung_in_die_tabelle``, ``_bewertungen_in_die_tabelle`` und
+#: ``_verknuepfungen_in_die_tabelle`` steigen bei einem zweiten Lauf ueber
+#: ihren eigenen Zustandsblick sofort wieder aus, ohne Duplikat und ohne
+#: Fehler (nachgemessen). Fuer sie ist das Buch das zweite Schloss, gegen ein
+#: spaeter geleertes Ziel, das den Zustandsblick wieder scharf machte. Nur bei
+#: ``_kontingente_dreiwertig_machen`` ist das Buch das einzige Schloss: Ein
+#: zweiter Lauf deutet dort eine Eingabe um, die inzwischen jemand bewusst
+#: gemacht hat. Genau das ist passiert, siehe dort.
 #:
 #: Wer hier etwas eintraegt, sagt damit: Der Schritt ist ab jetzt durch das
 #: Wanderungsbuch gesperrt und laeuft in dieser Datenbank nie wieder.
@@ -1393,7 +1400,14 @@ def _verwaiste_meldungsarten_aufraeumen() -> None:
     einer Ueberschrift, die nicht dazu gehoert. Auf **WARNING**, nicht INFO:
     Hier gehen Daten verloren, und das soll jemand sehen.
 
-    Laeuft bei jedem Start und trifft nach dem ersten Mal nichts mehr.
+    Laeuft bei jedem Start und trifft nach dem ersten Mal nichts mehr,
+    solange es vorwaerts geht. ⚠️ **Beim Zurueckrollen loescht dieser
+    Schritt echte Daten, bei jedem Start aufs Neue:** Rollt der Betreiber das
+    Abbild eine Fassung zurueck, sind alle Meldungen von Arten, die erst die
+    neuere Fassung kennt, hier "unbekannt" und damit weg, aus
+    ``notifications`` wie aus ``channel_outbox``. Das ist hingenommen, kein
+    Versehen; wer nach einem missglueckten Update zurueckgeht, soll nur nicht
+    ueberrascht sein, wohin die Meldungen der neuen Fassung verschwunden sind.
     """
     bekannt = sorted(art.value for art in NotificationType)
     frage = ", ".join("?" for _ in bekannt)

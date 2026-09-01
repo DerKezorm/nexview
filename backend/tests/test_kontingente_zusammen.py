@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaType, User
-from app.services import quota
+from app.services import quota, storage
 from app.services.settings_service import load_settings
 
 from .conftest import auth_headers, create_user
@@ -77,6 +77,27 @@ def test_null_heisst_darf_nichts(admin_client: TestClient) -> None:
     with SessionLocal() as db:
         person = db.get(User, konto["id"])
         assert quota._limit_for(person, MediaType.movie, load_settings(db)) == 0
+
+
+def test_null_beim_speicher_heisst_ebenfalls_darf_nichts(admin_client: TestClient) -> None:
+    """⚠️ Die Schwester daneben - und die eigentlich gefährdete Währung.
+
+    Der Test darüber prüft ``quota_movies_limit``. Die 0 hat ihre Bedeutung
+    aber beim **Speicher** gewechselt, und nur dort greift
+    ``db._kontingente_dreiwertig_machen`` ein. Genau diese Stelle ist einmal
+    gekippt: Der Umzug lief bei jedem Start erneut und machte aus einer frisch
+    gesetzten 0 wieder "unbegrenzt". Ohne diesen Test wäre die Bedeutung
+    ausgerechnet dort ungeprüft geblieben, wo sie schon einmal verloren ging.
+    """
+    konto = create_user(admin_client, "kim", "passwort-1234")
+    antwort = admin_client.patch(f"/api/users/{konto['id']}", json={"storage_limit_gb": 0})
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["storage_limit_gb"] == 0
+
+    with SessionLocal() as db:
+        person = db.get(User, konto["id"])
+        assert person.storage_limit_gb == 0
+        assert storage.grenze_in_bytes(person, load_settings(db)) == 0
 
 
 def test_die_worte_kommen_auch_wieder_heraus(admin_client: TestClient) -> None:

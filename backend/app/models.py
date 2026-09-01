@@ -2850,3 +2850,50 @@ class BefundGesehen(Base):
     gesehen_am: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
+
+
+class Wanderung(Base):
+    """Das Wanderungsbuch: welcher Einmal-Schritt in dieser Datenbank gelaufen ist.
+
+    ⚠️ **Warum es das gibt.** ``init_db`` fuehrt zwei ganz verschiedene Arten
+    von Schritten aus, und man sieht ihnen das nicht an. Die einen sind
+    **Pflege** und muessen bei jedem Start laufen (Spalten nachtragen, Waisen
+    wegraeumen). Die anderen sind **Wanderungen**: Sie deuten Bestandsdaten um
+    und duerfen danach nie wieder laufen. Drei von ihnen erkannten das bisher
+    an ihren eigenen Daten ("steht schon eine Zeile in der Zieltabelle?"). Die
+    vierte, ``_kontingente_dreiwertig_machen``, konnte das nicht: Sie schreibt
+    ``storage_limit_gb = -1``, wo eine ``0`` steht, und eine frisch gesetzte
+    ``0`` sieht genauso aus wie eine alte. Sie schlug deshalb bei **jedem**
+    Start wieder zu, und ein Betreiber, der einem Konto ausdruecklich "darf
+    nichts anfragen" gab, hatte nach dem naechsten Neustart "unbegrenzt"
+    dastehen.
+
+    Das Buch haelt die Antwort dort fest, wo sie hingehoert: an der Datenbank,
+    nicht an ihren Daten.
+
+    ``herkunft`` unterscheidet zwei Wege in dieselbe Zeile. ``ausgefuehrt``
+    heisst, dieser Lauf hat den Schritt gemacht. ``vorgefunden`` heisst, der
+    Ankunftsbefund hat am Schema erkannt, dass er in einer frueheren Fassung
+    schon lief - eine Bestandsdatenbank soll ihn nicht nachtraeglich noch
+    einmal ueber sich ergehen lassen.
+
+    ⚠️ **Eigene Spaltennamen, mit Absicht.** ``name``, ``version`` und
+    ``created_at`` waeren die naheliegenden gewesen und haetten einen anderen
+    Waechter stumpf gemacht: ``tests/test_betreiber_waechter.py`` leitet die
+    ueberwachten Kontofelder ab, indem es die Spalten **aller anderen**
+    Tabellen abzieht. Jeder geteilte Name faellt dort heraus.
+    """
+
+    __tablename__ = "wanderungen"
+
+    #: Der Funktionsname des Schrittes, etwa ``_kontingente_dreiwertig_machen``.
+    #: Zugleich der Schluessel - er ist damit unveraenderlich: Wer die Funktion
+    #: umbenennt, laesst ihre Wanderung noch einmal laufen.
+    wanderung_name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    wanderung_am: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    #: ``ausgefuehrt`` | ``vorgefunden`` - siehe oben.
+    wanderung_herkunft: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: Die Fassung, die den Eintrag gemacht hat. Reine Spurensicherung: Ohne
+    #: sie liesse sich bei einer eingeschickten Datenbank nicht sagen, ab wann
+    #: das Buch gefuehrt wurde.
+    wanderung_version: Mapped[str] = mapped_column(String(20), default="", nullable=False)

@@ -256,6 +256,40 @@ def test_zweiter_start_aendert_nichts_mehr(alte_installation: Path) -> None:
     assert len(sicherungen) == 1
 
 
+def test_zweiter_start_schreibt_keine_zweite_zeile_ins_wanderungsbuch(
+    alte_installation: Path,
+) -> None:
+    """Dasselbe eine Ebene tiefer: Das Buch darf nicht mitwachsen.
+
+    ⚠️ **Hier ist die richtige Datei dafuer**, denn hier ist ``clean_db``
+    ausgehebelt. In der gemeinsamen Vorbereitung wird das Buch vor jedem Test
+    geleert; ein Test dort wuerde also nie den Zustand sehen, um den es geht -
+    naemlich ein Buch, das einen Start ueberlebt hat.
+    """
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        erster_stand = connection.exec_driver_sql(
+            "SELECT wanderung_name, wanderung_am, wanderung_herkunft FROM wanderungen"
+            " ORDER BY wanderung_name"
+        ).all()
+
+    assert {zeile[0] for zeile in erster_stand} == set(db_modul.EINMAL_SCHRITTE)
+
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        zweiter_stand = connection.exec_driver_sql(
+            "SELECT wanderung_name, wanderung_am, wanderung_herkunft FROM wanderungen"
+            " ORDER BY wanderung_name"
+        ).all()
+
+    # Nicht nur gleich viele Zeilen: **dieselben**, mit demselben Zeitstempel.
+    # Eine neu geschriebene Zeile mit derselben Anzahl waere genau der Fall,
+    # den eine reine Zaehlung durchgehen liesse.
+    assert zweiter_stand == erster_stand
+
+
 def test_frische_installation_ohne_sicherung(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Beim allerersten Start gibt es nichts zu sichern."""
     datenverzeichnis = tmp_path / "data"
@@ -696,10 +730,23 @@ def test_update_holt_die_verbindung_in_ihre_tabelle(alte_installation: Path) -> 
 
     Das ist der Schritt, der auf jedem bestehenden System klappen muss - dort
     steht die Verbindung seit jeher in fuenf flachen Werten.
-    """
-    db_modul.init_db()
 
+    ⚠️ **Die Werte muessen vor dem Update dastehen, nicht danach.** Frueher
+    schrieb dieser Test sie zwischen zwei ``init_db``-Laeufe, weil der alten
+    Datenbank aus der Vorrichtung die Tabelle ``settings`` fehlt. Das war ein
+    Zustand, den es im Betrieb nicht gibt - und seit das Wanderungsbuch die
+    Wanderung nach ihrem ersten Lauf zuschliesst, wuerde er auch nichts mehr
+    beweisen. Die Tabelle wird deshalb hier von Hand angelegt, im Stand von
+    damals.
+    """
     with db_modul.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE settings ("
+            " key VARCHAR(100) NOT NULL PRIMARY KEY,"
+            " value TEXT,"
+            " is_secret BOOLEAN NOT NULL,"
+            " updated_at DATETIME NOT NULL)"
+        )
         for schluessel, wert in (
             ("mediaserver_provider", "plex"),
             ("mediaserver_machine_id", "maschine-1"),

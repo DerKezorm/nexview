@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -88,6 +88,57 @@ def _fremdschluessel_sicherstellen(dbapi_connection, _connection_record, _proxy)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
 
 
+#: Schritte in ``init_db``, die **genau einmal** laufen duerfen.
+#:
+#: Sie deuten Bestandsdaten um. Ein zweiter Lauf verdoppelt Zeilen, scheitert
+#: am Eindeutigkeitsschluessel oder - im schlimmsten Fall - deutet eine
+#: Eingabe um, die inzwischen jemand bewusst gemacht hat. Genau das ist bei
+#: ``_kontingente_dreiwertig_machen`` passiert, siehe dort.
+#:
+#: Wer hier etwas eintraegt, sagt damit: Der Schritt ist ab jetzt durch das
+#: Wanderungsbuch gesperrt und laeuft in dieser Datenbank nie wieder.
+EINMAL_SCHRITTE = (
+    "_verbindung_in_die_tabelle",
+    "_bewertungen_in_die_tabelle",
+    "_verknuepfungen_in_die_tabelle",
+    "_kontingente_dreiwertig_machen",
+)
+
+#: Schritte in ``init_db``, die **bei jedem Start** laufen - und laufen muessen.
+#:
+#: ⚠️ **Das ist die Voreinstellung, nicht der Rest.** Mehrere davon sehen wie
+#: Wanderungen aus und sind keine: ``_altersgrenzen_aufraeumen`` faengt jedes
+#: Kinderkonto ab, das spaeter zum vollwertigen Konto hochgestuft wird;
+#: ``_gesehen_herkunft_nachtragen`` bekommt vom laufenden Abgleich immer neue
+#: Marker ohne Herkunft; ``_verwaiste_meldungsarten_aufraeumen`` bekommt sie
+#: bei jeder kuenftigen Umbenennung einer Meldungsart. Wer einen von ihnen ins
+#: Buch traegt, schaltet eine Reparatur ab, die noch gebraucht wird - und
+#: nichts protokolliert das.
+PFLEGE_SCHRITTE = (
+    "_ankunftsbefund",
+    "_wanderungsbuch_nachtragen",
+    "_pending_changes",
+    "_leere_installation",
+    "_backup_database",
+    "create_all",
+    "_add_missing_columns",
+    "_add_missing_indexes",
+    "_altersgrenzen_aufraeumen",
+    "_verwaiste_meldungsarten_aufraeumen",
+    "_verwaiste_kinderwuensche_aufraeumen",
+    "_gesehen_herkunft_nachtragen",
+    "_betreiber_bestimmen",
+)
+
+#: Die Tabelle, in der das Wanderungsbuch steht - siehe ``models.Wanderung``.
+WANDERUNGSBUCH = "wanderungen"
+
+#: Dieser Lauf hat den Schritt gemacht.
+AUSGEFUEHRT = "ausgefuehrt"
+#: Der Ankunftsbefund hat ihn in einer bestehenden Datenbank wiedererkannt.
+VORGEFUNDEN = "vorgefunden"
+
+
 def init_db() -> None:
     """Datenbank auf den Stand der laufenden Version bringen.
 
@@ -95,8 +146,22 @@ def init_db() -> None:
     Datenbank die Tabellen, Spalten und Indizes, die inzwischen dazugekommen
     sind - die werden hier ergaenzt. Vorher wird gesichert, damit ein
     fehlgeschlagener Schritt nie Daten kostet.
+
+    ⚠️ **Der Ankunftsbefund muss vor jeder Schema-Aenderung stehen.** Er
+    beantwortet fuer jeden Einmal-Schritt die Frage "in dieser Datenbank schon
+    gelaufen?", und die laesst sich nur am Schema *vor* dem Update beantworten.
+    ``create_all`` und ``_add_missing_columns`` weiter unten ergaenzen genau
+    die Tabellen und Spalten, an denen man das Alter einer Datenbank noch
+    erkennen konnte - danach sieht jede Installation aus wie die neueste, und
+    das Buch bekaeme fuer alle dieselbe, falsche Antwort.
+
+    Er steht **hinter** ``_pending_changes``, nicht davor: Der Befund oeffnet
+    die Datenbank, und SQLite legt die Datei dabei an. Davor gestellt naehme er
+    der Schema-Pruefung ihren Kurzweg "die Datei gibt es noch gar nicht".
+    Lesen aendert am Schema nichts, die Reihenfolge der beiden ist also frei.
     """
     ausstehend = _pending_changes()
+    befund = _ankunftsbefund()
     # ⚠️ **Bei einer brandneuen Installation wird nicht gesichert.**
     # Die Schema-Pruefung meldet dort zwangslaeufig "alles fehlt", und Nexview
     # legte gehorsam eine Kopie einer leeren Datenbank an: Sie schuetzt nichts,
@@ -109,16 +174,20 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
     _add_missing_indexes()
+    # Erst jetzt steht die Buchtabelle sicher. Was der Befund oben als "lief
+    # schon" erkannt hat, wird hier nachgetragen; zurueck kommt das Buch als
+    # Ganzes, damit die Schritte darunter es nicht einzeln abfragen muessen.
+    gelaufen = _wanderungsbuch_nachtragen(befund)
     _altersgrenzen_aufraeumen()
     _verwaiste_meldungsarten_aufraeumen()
     _verwaiste_kinderwuensche_aufraeumen()
     # Muss **vor** dem Nachtragen der Herkunft laufen - das liest den
     # Anbieternamen bevorzugt aus dieser Tabelle.
-    _verbindung_in_die_tabelle()
-    _bewertungen_in_die_tabelle()
+    _einmal(_verbindung_in_die_tabelle, gelaufen)
+    _einmal(_bewertungen_in_die_tabelle, gelaufen)
     _gesehen_herkunft_nachtragen()
-    _verknuepfungen_in_die_tabelle()
-    _kontingente_dreiwertig_machen()
+    _einmal(_verknuepfungen_in_die_tabelle, gelaufen)
+    _einmal(_kontingente_dreiwertig_machen, gelaufen)
     _betreiber_bestimmen()
 
 
@@ -139,6 +208,253 @@ def _leere_installation(ziel: Engine | None = None) -> bool:
     return not vorhanden
 
 
+def _ankunftsbefund() -> dict[str, bool]:
+    """Je Einmal-Schritt: Ist er in dieser Datenbank schon gelaufen?
+
+    Gelesen wird die Datenbank, **wie sie ankommt** - vor ``create_all`` und
+    vor ``_add_missing_columns``. Danach waere die Frage nicht mehr zu
+    beantworten, siehe ``init_db``.
+
+    ⚠️ **Nichts davon wird zwischengespeichert.** ``sicherung.wiederherstellen``
+    tauscht die Datenbankdatei im laufenden Prozess aus und ruft danach
+    ``init_db()`` erneut. Ein gemerkter Befund gehoerte dann noch zur alten
+    Datei, und eine eingespielte Sicherung aus 0.18 wuerde als fertig gewandert
+    eingetragen - ihre Nullen blieben stehen und hiessen ab sofort das
+    Gegenteil.
+
+    Fehlende Tabellen und fehlende Spalten sind kein Fehler, sondern die
+    Antwort "nein, noch nicht gelaufen".
+
+    ⚠️ **Eine Luecke bleibt, und sie wird hier benannt statt verschwiegen.**
+    Eine Installation, deren Start seinerzeit *zwischen* ``_add_missing_columns``
+    und den Wanderungen abgestuerzt ist und die danach direkt auf diese Fassung
+    springt, traegt die neuen Spalten, ohne dass ihre Wanderungen je liefen.
+    Sie gilt hier als erledigt. Der Fall ist schmal: So ein Behaelter kam gar
+    nicht erst hoch, das faellt auf.
+    """
+    befund: dict[str, bool] = dict.fromkeys(EINMAL_SCHRITTE, False)
+
+    with engine.connect() as verbindung:
+        tabellen = {
+            zeile[0]
+            for zeile in verbindung.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        if not tabellen:
+            # Frische Installation: Es gibt nichts zu wandern, also gilt alles
+            # als erledigt. Ohne diese Regel bliebe das Buch bis zum ersten
+            # Datensatz offen, und der erste angelegte Server oder die erste
+            # Bewertung wuerde eine Wanderung ausloesen, die nie gemeint war.
+            return dict.fromkeys(EINMAL_SCHRITTE, True)
+
+        def zeilen(tabelle: str) -> bool:
+            if tabelle not in tabellen:
+                return False
+            return bool(
+                verbindung.exec_driver_sql(
+                    f"SELECT EXISTS(SELECT 1 FROM {tabelle})"  # noqa: S608 - feste Namen
+                ).scalar()
+            )
+
+        def einstellung_leer(*schluessel: str) -> bool:
+            """Steht zu **keinem** dieser Schluessel noch ein Wert da?"""
+            if "settings" not in tabellen:
+                return True
+            frage = ", ".join("?" for _ in schluessel)
+            return not verbindung.exec_driver_sql(
+                f"SELECT EXISTS(SELECT 1 FROM settings "  # noqa: S608 - feste Namen
+                f"WHERE key IN ({frage}) AND value IS NOT NULL AND value != '')",
+                schluessel,
+            ).scalar()
+
+        # Der Server aus den Einstellungen in seine Tabelle. Steht dort eine
+        # Zeile, ist die Sache klar. Ist sie leer, entscheidet die zweite
+        # Haelfte: Der Schritt setzt die flachen Werte am Ende auf '', ein
+        # leeres Paar heisst also "schon gewandert oder nie verbunden" - und
+        # beides fuehrt zu demselben Ergebnis, naemlich nichts zu tun.
+        befund["_verbindung_in_die_tabelle"] = "media_server_connections" in tabellen and (
+            zeilen("media_server_connections")
+            or einstellung_leer("mediaserver_provider", "mediaserver_machine_id")
+        )
+
+        # Dieselbe Ueberlegung eine Ebene tiefer. Hier bleiben die Spalten am
+        # Konto zwar stehen, aber ``mediaserver_accounts.link`` raeumt sie beim
+        # Loesen der letzten Verknuepfung ab: "Zieltabelle leer und trotzdem
+        # Spalten gefuellt" kann deshalb nur "nie gewandert" heissen.
+        spalten_konto = _existing_columns(verbindung, "users") if "users" in tabellen else set()
+        noch_am_konto = False
+        if {"mediaserver_provider", "mediaserver_account_id"} <= spalten_konto:
+            noch_am_konto = bool(
+                verbindung.exec_driver_sql(
+                    "SELECT EXISTS(SELECT 1 FROM users "
+                    "WHERE mediaserver_provider IS NOT NULL AND mediaserver_provider != '' "
+                    "AND mediaserver_account_id IS NOT NULL AND mediaserver_account_id != '')"
+                ).scalar()
+            )
+        befund["_verknuepfungen_in_die_tabelle"] = (
+            "user_media_server_accounts" in tabellen
+            and (zeilen("user_media_server_accounts") or not noch_am_konto)
+        )
+
+        # ⚠️ Hier bleibt ein Rest unentscheidbar: Ist ``title_ratings`` leer
+        # und stehen an den Anfragen noch Bewertungen, laesst sich "nie
+        # gewandert" nicht von "gewandert und danach alles geloescht"
+        # unterscheiden. Dann gilt "nicht gelaufen", der Schritt laeuft also -
+        # genau wie heute schon, und ab dem ersten Start dieser Fassung
+        # schliesst das Buch dahinter zu.
+        spalten_anfrage = (
+            _existing_columns(verbindung, "media_requests")
+            if "media_requests" in tabellen
+            else set()
+        )
+        noch_an_der_anfrage = False
+        if "rating" in spalten_anfrage:
+            noch_an_der_anfrage = bool(
+                verbindung.exec_driver_sql(
+                    "SELECT EXISTS(SELECT 1 FROM media_requests WHERE rating IS NOT NULL)"
+                ).scalar()
+            )
+        befund["_bewertungen_in_die_tabelle"] = "title_ratings" in tabellen and (
+            zeilen("title_ratings") or not noch_an_der_anfrage
+        )
+
+        # ⚠️ **Der Schritt ohne eigene Spur.** Er schreibt ``-1``, wo eine ``0``
+        # steht, und eine frisch gesetzte ``0`` sieht aus wie eine alte. Die
+        # Frage muss deshalb ueber Bande beantwortet werden:
+        #
+        # * ``storage_entries.arr_managed`` kam in **derselben** Fassung wie
+        #   dieser Schritt (0.19.0, ein Commit). Wer die Spalte hat, hat
+        #   mindestens einen 0.19er Start hinter sich - und auf dem lief er.
+        # * Die Zeile ``storage_enabled`` loescht der Schritt am Ende. Sie
+        #   allein waere aber **kein** Beweis: Sie entsteht nur, wenn ein
+        #   Administrator die Speicherseite einmal ausdruecklich gespeichert
+        #   hat. Eine 0.18er Installation, die den Schalter nie anfasste, sieht
+        #   ohne diese Zeile genauso aus wie eine fertig gewanderte - und ihre
+        #   bewusst gesetzten Nullen wuerden nie umziehen.
+        #
+        # Also beides zusammen: ``arr_managed`` entscheidet die Richtung,
+        # ``storage_enabled`` faengt zusaetzlich einen halb gewanderten Stand ab.
+        spalten_speicher = (
+            _existing_columns(verbindung, "storage_entries")
+            if "storage_entries" in tabellen
+            else set()
+        )
+        befund["_kontingente_dreiwertig_machen"] = (
+            "arr_managed" in spalten_speicher and einstellung_leer("storage_enabled")
+        )
+
+    return befund
+
+
+def _wanderungsbuch_nachtragen(befund: dict[str, bool]) -> set[str]:
+    """Was der Ankunftsbefund wiedererkannt hat, kommt als ``vorgefunden`` ins Buch.
+
+    Zurueck kommt das Buch als Ganzes, also alle Namen darin - die Schritte
+    darunter fragen es damit nicht einzeln ab. Das ist kein Geiz: ``init_db``
+    laeuft in der Testreihe rund 2400 mal, und jede Abfrage wird dort genauso
+    oft bezahlt.
+    """
+    with engine.connect() as verbindung:
+        gelaufen = {
+            zeile[0]
+            for zeile in verbindung.exec_driver_sql(
+                f"SELECT wanderung_name FROM {WANDERUNGSBUCH}"  # noqa: S608 - fester Name
+            )
+        }
+
+    nachzutragen = [
+        name for name in EINMAL_SCHRITTE if name not in gelaufen and befund.get(name)
+    ]
+    # Lesen genuegt fast immer: Ab dem zweiten Start steht alles schon im Buch.
+    # Eine Schreib-Transaktion nur fuers Nachsehen kostet einen Commit, und den
+    # bezahlt die Testreihe rund 2400 mal.
+    if not nachzutragen:
+        return gelaufen
+
+    with engine.begin() as verbindung:
+        for name in nachzutragen:
+            _eintragen(verbindung, name, VORGEFUNDEN)
+            gelaufen.add(name)
+            logger.info(
+                "Migration %r recorded as already done (found in an existing database)", name
+            )
+            if name == "_kontingente_dreiwertig_machen":
+                _umgedeutete_nullen_melden(verbindung)
+    return gelaufen
+
+
+def _umgedeutete_nullen_melden(verbindung) -> None:
+    """Einmalig sagen, dass frueher gesetzte Nullen umgedeutet worden sind.
+
+    ⚠️ **Der Schaden ist schon eingetreten und nicht mehr rueckgaengig zu
+    machen.** Auf jeder Installation ab 0.19 schlug
+    ``_kontingente_dreiwertig_machen`` bei **jedem** Start wieder zu. Wer einem
+    Konto ausdruecklich "darf nichts anfragen" gab, fand nach dem naechsten
+    Neustart "unbegrenzt" vor. Nexview kann das nicht selbst reparieren: In der
+    Datenbank steht danach dieselbe ``-1`` wie bei einem Konto, dem jemand
+    absichtlich "unbegrenzt" gegeben hat, und der alte Schritt hat sich keine
+    Kennungen gemerkt.
+
+    Deshalb wird **nichts** geaendert, nur gesagt.
+
+    ⚠️ **Und sie schweigt, wo nichts passiert sein kann.** Die Meldung haengt
+    an zwei Bedingungen: Der Schritt wird gerade als *vorgefunden* eingetragen
+    (nur solche Datenbanken hatten den alten Schritt ueberhaupt laufen), und es
+    gibt ueberhaupt ein Konto mit ``-1``. Eine Warnung, die auch dort erscheint,
+    wo es nichts zu sehen gibt, liest beim dritten Mal niemand mehr.
+    """
+    betroffen = verbindung.exec_driver_sql(
+        "SELECT COUNT(*) FROM users WHERE storage_limit_gb = -1"
+    ).scalar()
+    if not betroffen:
+        return
+    logger.warning(
+        "Storage limits: until this version, a stored 0 was rewritten to -1 on every "
+        "start, not just once. A 0 set on purpose ('may not request anything') was "
+        "therefore turned into 'unlimited' again after the next restart. %d account(s) "
+        "currently hold -1 and may be affected. Nexview cannot repair this by itself: a "
+        "rewritten 0 is indistinguishable from an 'unlimited' set on purpose, so nothing "
+        "has been changed. Please check the storage limits of these accounts",
+        betroffen,
+    )
+
+
+def _eintragen(verbindung, name: str, herkunft: str) -> None:
+    """Eine Zeile ins Wanderungsbuch schreiben.
+
+    ``INSERT OR IGNORE``, weil ein Schritt sich auch **selbst** eintragen darf:
+    ``_kontingente_dreiwertig_machen`` tut das in derselben Transaktion wie
+    seine Aenderung, und ``_einmal`` kaeme danach ein zweites Mal vorbei. Ein
+    Fehler waere das nicht, nur laut.
+    """
+    verbindung.exec_driver_sql(
+        f"INSERT OR IGNORE INTO {WANDERUNGSBUCH} "  # noqa: S608 - fester Name
+        "(wanderung_name, wanderung_am, wanderung_herkunft, wanderung_version) "
+        "VALUES (?, ?, ?, ?)",
+        (name, str(utcnow().replace(tzinfo=None)), herkunft, __version__),
+    )
+
+
+def _einmal(schritt: Callable[[], None], gelaufen: set[str]) -> None:
+    """Einen Einmal-Schritt nur laufen lassen, wenn er nicht im Buch steht.
+
+    ⚠️ **Die Zustandssperren in den Schritten selbst bleiben trotzdem
+    stehen.** Zwei Schloesser sind hier billiger als eines: Das Buch schuetzt
+    gegen ein spaeter geleertes Ziel (die Zieltabelle ist irgendwann leer, der
+    Schritt wuerde wieder losziehen), die alte Sperre gegen einen Absturz
+    zwischen Schritt und Bucheintrag.
+    """
+    name = schritt.__name__
+    if name in gelaufen:
+        return
+    schritt()
+    with engine.begin() as verbindung:
+        _eintragen(verbindung, name, AUSGEFUEHRT)
+    gelaufen.add(name)
+    logger.info("Migration %r ran", name)
+
+
 def _kontingente_dreiwertig_machen() -> None:
     """Die Speichergrenze auf die neue Schreibweise bringen - **einmalig**.
 
@@ -151,6 +467,14 @@ def _kontingente_dreiwertig_machen() -> None:
 
     ``NULL`` bleibt ``NULL``: Es hiess vorher "es gilt die Standardgrenze" und
     heisst es weiter.
+
+    ⚠️ **Bis 0.26 lief er nicht einmalig, sondern bei jedem Start.** Die drei
+    anderen Wanderungen erkennen an ihren eigenen Daten, dass sie fertig sind
+    ("steht schon eine Zeile in der Zieltabelle?"). Dieser hier kann das nicht:
+    Eine frisch gesetzte ``0`` sieht aus wie eine alte. Ein Betreiber, der einem
+    Konto ausdruecklich "darf nichts anfragen" gab, fand nach dem naechsten
+    Neustart "unbegrenzt" vor - und niemand konnte sagen, warum. Seitdem haelt
+    das Wanderungsbuch fest, dass er gelaufen ist.
 
     Ausserdem zieht der Kontingent-Zeitraum von den Konten in die
     Einstellungen um. Er gilt jetzt haus-weit; gab es unter den Konten genau
@@ -207,6 +531,14 @@ def _kontingente_dreiwertig_machen() -> None:
         # lassen waere eine Einstellung, die es nicht mehr gibt - und beim
         # naechsten Blick in die Datenbank eine falsche Faehrte.
         connection.exec_driver_sql("DELETE FROM settings WHERE key = 'storage_enabled'")
+
+        # ⚠️ **Der Bucheintrag gehoert hier hinein, in dieselbe Transaktion.**
+        # Dieser Schritt ist der einzige der vier ohne eigene Zustandssperre;
+        # ein Absturz zwischen der Aenderung und dem Eintrag liesse ihn beim
+        # naechsten Start noch einmal ueber die Konten laufen. So faellt
+        # entweder beides oder nichts. Die beiden Rueckspruenge weiter unten
+        # liegen dahinter und tragen den Eintrag deshalb mit.
+        _eintragen(connection, "_kontingente_dreiwertig_machen", AUSGEFUEHRT)
 
         # Der Zeitraum nur, solange niemand ihn haus-weit gesetzt hat: Ein
         # zweiter Lauf duerfte eine bewusste Wahl nicht ueberschreiben.

@@ -34,6 +34,34 @@ tag exists for it.
   Deliberately only the count, not the other values, since figures like "for X days" or
   "X bytes" grow by themselves and would have switched the badge back on daily.
 
+- **A storage limit of 0 turned itself back into "unlimited" on every restart.** Up to
+  0.19 a `0` in a per account storage limit meant "no limit for this account". Since
+  quotas became three valued it means the opposite, "may not request anything", and
+  "unlimited" is `-1`. A one off step moved the old zeros across so nobody would be
+  locked out overnight by a number they had set months earlier.
+
+  That step had no way of telling that it had already run. The other three migrations in
+  the database check their own data ("is there already a row in the target table?"); this
+  one writes `-1` where it finds a `0`, and a freshly set `0` looks exactly like an old
+  one. So it ran again on every single start. An operator who deliberately gave an account
+  "may not request anything" found "unlimited" there after the next restart, with nothing
+  in the log and nothing to point at.
+
+  Nexview now keeps a migration book: a small table that records which one off step has
+  run in this database. For an existing installation the entry is not guessed. It is
+  derived from the state the database is in when it arrives, before the schema is brought
+  up to date, because the schema update is what erases the traces. The column
+  `storage_entries.arr_managed` shipped in the very same version as the migration, so a
+  database that has it has been through a 0.19 start, and on that start the migration ran.
+
+  **What this does not repair.** Wherever it already happened, the damage cannot be
+  undone. In the database a rewritten `0` is the same `-1` as an "unlimited" somebody set
+  on purpose, and the old step kept no record of which accounts it touched. Guessing would
+  lock out accounts nobody wanted locked out. On the first start after this update, an
+  installation that is affected gets one warning in the log naming how many accounts hold
+  "unlimited" and could be among them. Nothing is changed automatically, and the warning
+  stays quiet where nothing can have happened.
+
 ### Security
 
 - **Four dependencies moved up, and a check that will notice the next one.** The pins had

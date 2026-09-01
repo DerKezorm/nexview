@@ -92,6 +92,32 @@ def test_warnung_unterhalb_der_schwelle(caplog: pytest.LogCaptureFixture) -> Non
     assert [satz.levelno for satz in caplog.records] == [logging.WARNING]
 
 
+def test_genau_die_vorgabe_warnt_nicht(caplog: pytest.LogCaptureFixture) -> None:
+    """Der Grenzfall, an dem die ganze Warnung haengt: 12 schweigt.
+
+    Aus dem Kleiner ein Kleinergleich zu machen ist der naheliegendste
+    Vertipper im Validator. Dann meldete jede gewoehnliche Installation bei
+    jedem Start, ihre Passwoerter seien schwaecher als die Vorgabe, obwohl sie
+    genau auf der Vorgabe steht - und eine Warnung, die immer dasteht, liest
+    beim dritten Mal niemand mehr. Die obere Grenze gleich mit: 31 ist die
+    letzte Zahl, die bcrypt nimmt, und sie darf nicht auf 12 zurueckfallen.
+    """
+    with caplog.at_level(logging.WARNING, logger="nexview.config"):
+        assert Settings(bcrypt_rounds=BCRYPT_ROUNDS_DEFAULT).bcrypt_rounds == BCRYPT_ROUNDS_DEFAULT
+        assert Settings(bcrypt_rounds=31).bcrypt_rounds == 31
+
+    assert caplog.records == []
+
+
+def test_direkt_unter_der_vorgabe_warnt(caplog: pytest.LogCaptureFixture) -> None:
+    """Die andere Seite derselben Grenze: 11 ist die erste Zahl, die warnt."""
+    with caplog.at_level(logging.WARNING, logger="nexview.config"):
+        einstellungen = Settings(bcrypt_rounds=BCRYPT_ROUNDS_DEFAULT - 1)
+
+    assert einstellungen.bcrypt_rounds == BCRYPT_ROUNDS_DEFAULT - 1
+    assert [satz.levelno for satz in caplog.records] == [logging.WARNING]
+
+
 def test_alter_zwoelf_runden_hash_gilt_weiter() -> None:
     """Bestehende Konten bleiben pruefbar, egal was beim Erzeugen gilt.
 

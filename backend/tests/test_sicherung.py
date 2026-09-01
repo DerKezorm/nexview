@@ -482,7 +482,7 @@ class TestWiederherstellen:
             assert db.query(User).count() >= 1
 
     def test_der_verschluesselungsschluessel_wird_vergessen(
-        self, admin_client: TestClient
+        self, admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Sonst laeuft der Dienst mit dem Schluessel von **vor** dem Einspielen weiter.
 
@@ -494,16 +494,60 @@ class TestWiederherstellen:
         fuer unlesbar: Plex "weg", TMDB im Demo-Modus, Radarr "nicht
         eingerichtet" - die drei Raetsel, die schon einmal gemeldet wurden.
 
-        Dieselbe Ueberlegung wie beim TRaSH-Stand eine Zeile daneben.
+        ⚠️ **Der Test spielt den Schluesselwechsel wirklich durch, statt nur
+        Objekte zu vergleichen.** Eine fruehere Fassung pruefte allein
+        ``_fernet() is not vorher``, und die war doppelt hohl: Sie bestuende
+        auch ohne den Merker (dann ist jedes Ergebnis ein neues Objekt), und
+        sie bestuende mit jedem beliebigen neuen Schluessel, denn das
+        ``NEXVIEW_SECRET_KEY`` aus ``conftest.py`` gewinnt gegen die Datei und
+        liess den Schluessel im Testlauf nie wechseln. Deshalb hier: die
+        Umgebungsvariable abgeklemmt, ein Geheimnis mit dem Schluessel der
+        Sicherung verschluesselt, die laufende Installation auf einen anderen
+        Schluessel gestellt - und nach dem Einspielen muss das Geheimnis
+        wieder im Klartext herauskommen. Das geht nur, wenn die Ableitung
+        wirklich neu geschieht, und zwar aus genau dem ``secret.key``, den das
+        Archiv mitgebracht hat.
         """
         from app import crypto
 
-        daten = self._archiv()
-        vorher = crypto._fernet()
+        einstellungen = get_settings()
+        # Solange die Umgebungsvariable gesetzt ist, wird das Archiv-secret.key
+        # gar nicht geschrieben und der Schluessel wechselt nie.
+        monkeypatch.setattr(einstellungen, "secret_key", "")
 
-        sicherung.wiederherstellen(daten, PASSWORT)
+        try:
+            # Die Installation, aus der die Sicherung stammt: eigener
+            # Schluessel auf der Platte, ein Geheimnis damit verschluesselt.
+            einstellungen.key_file.write_text("schluessel-aus-der-sicherung", encoding="utf-8")
+            crypto.fernet_vergessen()
+            geheim = crypto.encrypt("radarr-api-key-aus-der-sicherung")
+            daten = self._archiv()  # nimmt secret.key von der Platte mit
 
-        assert crypto._fernet() is not vorher
+            # Die laufende Installation, in die eingespielt wird: anderer
+            # Schluessel, und der Prozess hat ihn sich gemerkt.
+            einstellungen.key_file.write_text(
+                "schluessel-der-laufenden-installation", encoding="utf-8"
+            )
+            crypto.fernet_vergessen()
+            vorher = crypto._fernet()
+            # Der Merker existiert wirklich. Ohne diese Zeile bestuende der
+            # Test auch dann, wenn crypto bei jedem Aufruf neu ableitete.
+            assert crypto._fernet() is vorher
+            # Und mit dem falschen Schluessel ist das Geheimnis wirklich
+            # unlesbar - sonst bewiese der Klartext unten nichts.
+            assert crypto.decrypt(geheim) == ""
+
+            sicherung.wiederherstellen(daten, PASSWORT)
+
+            assert crypto._fernet() is not vorher
+            assert crypto.decrypt(geheim) == "radarr-api-key-aus-der-sicherung"
+        finally:
+            # Beides ist prozessweit beziehungsweise liegt im gemeinsamen
+            # Datenverzeichnis: Der naechste Test soll wieder mit dem
+            # Schluessel aus der Umgebung ableiten, und eine liegengebliebene
+            # secret.key wanderte sonst in die Archive der anderen Tests.
+            crypto.fernet_vergessen()
+            einstellungen.key_file.unlink(missing_ok=True)
 
     def test_vorher_wird_gesichert(self, admin_client: TestClient) -> None:
         """⚠️ Der einzige Weg zurueck, wenn die eingespielte Sicherung kaputt ist."""

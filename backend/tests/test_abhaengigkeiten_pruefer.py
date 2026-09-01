@@ -537,3 +537,79 @@ def test_eine_falsch_gestellte_frage_wird_nicht_durchgewunken(
 
     with pytest.raises(pruefer.NichtPruefbar):
         pruefer.osv_abfragen("pyjwt", "2.13.0")
+
+
+# ---------------------------------------------------------------------------
+# main(): der Rueckgabecode ist die Zusage nach aussen
+# ---------------------------------------------------------------------------
+#
+# Die CI ruft ``python tools/abhaengigkeiten_pruefen.py``, und das Einzige,
+# was dort zaehlt, ist der Rueckgabecode von main(). Alle Teile darueber
+# koennen einzeln stimmen und main() trotzdem immer 0 liefern; dann winkt der
+# Bau ab sofort jede Meldung durch, ohne dass sich an der Ausgabe ein Zeichen
+# aendert. Deshalb wird hier die Verdrahtung selbst gefahren: monkeypatch auf
+# ``osv_abfragen``, damit kein Netz noetig ist, und gemessen wird allein, was
+# main() zurueckgibt.
+
+
+def test_main_sauberer_lauf_gibt_null(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Der Regelfall, einmal ueber den ganzen Weg statt ueber die Teile."""
+    monkeypatch.setattr(pruefer, "osv_abfragen", lambda name, fassung: [])
+
+    assert pruefer.main() == 0
+    assert "In Ordnung." in capsys.readouterr().out
+
+
+def test_main_macht_aus_einer_meldung_die_eins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Eine Meldung ohne Ausnahme muss den Bau anhalten.
+
+    Gefragt wird hier nicht ``bewerten``, sondern main(): Wuerfe main() das
+    Urteil weg und gaebe 0 zurueck, bliebe die Ausgabe voellig gleich. Genau
+    deshalb zaehlt in diesem Test allein der Rueckgabecode.
+    """
+
+    def eine_meldung(name: str, fassung: str) -> list[dict]:
+        return [_meldung("GHSA-erfunden", "CVE-2026-11111", "9.9.9")]
+
+    monkeypatch.setattr(pruefer, "osv_abfragen", eine_meldung)
+
+    assert pruefer.main() == 1
+
+
+def test_main_macht_aus_nicht_pruefbar_die_zwei(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Die Sorge aus test_eine_falsch_gestellte_frage..., zu Ende gedacht.
+
+    Der Test dort belegt nur, dass ``osv_abfragen`` die Ausnahme wirft. Dass
+    main() daraus die 2 macht, also den Bau wirklich anhaelt statt ihn gruen
+    durchzuwinken, stand bis hierher nirgends.
+    """
+
+    def falsch_gefragt(name: str, fassung: str) -> list[dict]:
+        raise pruefer.NichtPruefbar("Erfunden fuer diesen Test.")
+
+    monkeypatch.setattr(pruefer, "osv_abfragen", falsch_gefragt)
+
+    assert pruefer.main() == 2
+
+
+def test_main_sagt_bei_einem_ausfall_nicht_geprueft_und_gibt_null(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Ein Ausfall draussen wirft den Bau nicht um, aber er muss dastehen.
+
+    0 allein waere hier zu wenig gemessen: Dieselbe 0 bekommt auch der saubere
+    Lauf. Der Unterschied ist die Zeile NICHT GEPRUEFT, und dass kein Wort
+    dasteht, das nach einem Ergebnis klingt.
+    """
+
+    def weg(name: str, fassung: str) -> list[dict]:
+        raise pruefer.NichtErreichbar("pyjwt==2.13.0: erfundener Ausfall")
+
+    monkeypatch.setattr(pruefer, "osv_abfragen", weg)
+
+    assert pruefer.main() == 0
+    ausgabe = capsys.readouterr().out
+    assert "NICHT GEPRUEFT" in ausgabe
+    assert "In Ordnung." not in ausgabe

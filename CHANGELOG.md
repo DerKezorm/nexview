@@ -34,6 +34,46 @@ tag exists for it.
   Deliberately only the count, not the other values, since figures like "for X days" or
   "X bytes" grow by themselves and would have switched the badge back on daily.
 
+### Security
+
+- **Four dependencies moved up, and a check that will notice the next one.** The pins had
+  aged in silence. OSV listed six advisories against `pyjwt 2.11.0`, seven against
+  `python-multipart 0.0.20`, six against `cryptography 46.0.4` and one against
+  `pydantic-settings 2.13.0`, and nothing in this repository had ever asked. Nexview now
+  pins `pyjwt 2.13.0`, `python-multipart 0.0.31`, `cryptography 50.0.1` and
+  `pydantic-settings 2.14.2`, at which point OSV reports nothing at all for any of the
+  eleven pinned packages.
+
+  The one that mattered most is CVE-2026-32597 in PyJWT, rated high: an unknown `crit`
+  header parameter was accepted instead of refused. That affects every `jwt.decode` call,
+  and Nexview makes three of them, on the session token, on the OIDC id token and on the
+  sign-in cookie. One side effect comes with it: PyJWT can now open Ed448 keys as well, so
+  an OIDC provider that signs with EdDSA on that curve gets in where it used to be turned
+  away. Ed25519 remains the curve providers actually offer.
+
+  **python-multipart parses differently from 0.0.31 on, and that can be visible from
+  outside.** Three changes come with it. A `filename*` parameter (RFC 2231/5987) is no
+  longer unwrapped, so a part carrying both `filename` and `filename*` keeps the plain
+  `filename`. A semicolon no longer separates query string fields, so `a=1;b=2` is one
+  field and not two. And every part is now limited to 8 header lines of 4224 bytes each,
+  so an upload with a file name over 4 kB is refused with 400 where it used to go
+  through. Nexview reads only the bytes of an upload and has no endpoint that takes
+  semicolon separated form data, so none of this changes anything here; a client that
+  relied on one of the three will notice.
+
+  From now on every CI run holds `backend/requirements.txt` against api.osv.dev before it
+  does anything else, and a hit stops the build. It does not warn: a warning that lets the
+  build through is not read after the third time. If api.osv.dev is unreachable the run
+  says so in plain words and carries on, because a build that a stranger's outage can
+  knock over gets switched off within a week, and then nothing gets checked at all. Only
+  `backend/requirements.txt` is covered; `requirements-dev.txt` and the frontend's npm
+  packages are not.
+
+  The tool's list of exemptions ships empty, and that is the point. Versions were picked
+  so that not a single advisory is left standing anywhere, because every exemption is a
+  claim that has to stay true, and one written to get a build green hides a real hole from
+  whoever reads it next.
+
 ---
 
 ## 0.26.1 – 01.09.2026

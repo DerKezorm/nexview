@@ -63,13 +63,14 @@ logger = logging.getLogger("nexview.oidc")
 #: Liste, scheitert **jede** Anmeldung bei ihm, und im Browser steht nur "Der
 #: Ausweis des Anbieters ließ sich nicht prüfen". ES512 fehlte, obwohl ES256
 #: und ES384 dastanden, EdDSA fehlte ganz - Pocket ID laesst beides
-#: einstellen. Beide sind gegen das festgenagelte PyJWT (2.11) erprobt, und
+#: einstellen. Beide sind gegen das festgenagelte PyJWT (2.13) erprobt, und
 #: zwar ueber ``PyJWK`` wie im Betrieb, nicht nur ueber einen rohen Schluessel.
 #:
-#: ⚠️ EdDSA traegt dabei **nur Ed25519**: ``PyJWK`` lehnt einen JWKS-Eintrag
-#: mit ``crv: Ed448`` mit "Unsupported crv" ab. Das ist eine Grenze der
-#: Bibliothek, keine Entscheidung von Nexview - Ed25519 ist die Kurve, die
-#: die Anbieter anbieten.
+#: ⚠️ EdDSA trug bis PyJWT 2.11 **nur Ed25519**: ``PyJWK`` lehnte einen
+#: JWKS-Eintrag mit ``crv: Ed448`` mit "Unsupported crv" ab. Seit 2.13 nimmt
+#: es beide Kurven, ein Anbieter mit Ed448 kommt also herein. Das war eine
+#: Grenze der Bibliothek und nie eine Entscheidung von Nexview; die Liste hier
+#: nennt weiterhin nur das Verfahren, nicht die Kurve.
 ALGORITHMEN = (
     "RS256",
     "RS384",
@@ -646,9 +647,10 @@ async def _token_pruefen(
     try:
         schluessel = jwt.PyJWK(jwk).key
     except jwt.PyJWTError as fehler:
-        # Hierher fuehrt auch ein Verfahren, das PyJWT nicht aufmachen kann -
-        # etwa ein OKP-Schluessel mit ``crv: Ed448``. Deshalb stehen kty und crv
-        # in der Zeile: Ohne sie sieht das aus wie ein kaputter Anbieter.
+        # Hierher fuehrt auch ein Schluessel, den PyJWT nicht aufmachen kann -
+        # etwa ein OKP-Eintrag mit einer Kurve, die es nicht kennt. Deshalb
+        # stehen kty und crv in der Zeile: Ohne sie sieht das aus wie ein
+        # kaputter Anbieter.
         logger.warning(
             "OIDC: unusable signing key from %r (kid %r, kty %r, crv %r): %s",
             jwks_uri,

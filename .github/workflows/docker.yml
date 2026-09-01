@@ -40,6 +40,24 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
 
+      # Ganz nach vorn, und mit Absicht vor den Tests.
+      #
+      # Die Prüfung liest nur backend/requirements.txt, braucht also kein
+      # installiertes Paket, und sie kostet gemessene sechs Sekunden - während
+      # die Testreihe rund eine halbe Stunde braucht und danach noch npm ci,
+      # Bau, Vitest und Playwright kommen. Die härteste und billigste Prüfung
+      # gehört nach vorn.
+      #
+      # Der Preis ist bewusst: Schlägt sie an, sieht man in diesem Lauf keine
+      # Testergebnisse mehr. Dieselbe Haltung wie bei der Waage im Frontend.
+      #
+      # ⚠️ Nicht auf den Tag-Lauf verzichten. Eine Ausnahme für refs/tags/v*
+      # hätte zur Folge, dass ausgerechnet der Bau, aus dem "latest" entsteht,
+      # der ungeprüfte ist.
+      - name: Abhängigkeiten gegen bekannte Meldungen prüfen
+        working-directory: backend
+        run: python tools/abhaengigkeiten_pruefen.py
+
       - name: Abhängigkeiten installieren
         working-directory: backend
         run: pip install -r requirements-dev.txt

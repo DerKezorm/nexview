@@ -2,13 +2,13 @@ fastapi==0.121.2
 uvicorn[standard]==0.38.0
 sqlalchemy==2.0.44
 pydantic==2.12.4
-pydantic-settings==2.13.0
+pydantic-settings==2.14.2
 bcrypt==5.0.0
-pyjwt==2.11.0
+pyjwt==2.13.0
 httpx==0.28.1
-cryptography==46.0.4
+cryptography==50.0.1
 # Verschluesselte Sicherungs-Archive (AES-ZIP). Bewusst ein Standardformat:
 # ein selbstgebautes koennte nur Nexview wieder oeffnen - und ausgerechnet
 # dann, wenn man die Sicherung braucht, laeuft Nexview vielleicht nicht.
 pyzipper==0.4.0
-python-multipart==0.0.20
+python-multipart==0.0.31

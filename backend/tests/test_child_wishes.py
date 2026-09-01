@@ -734,14 +734,37 @@ def test_altlasten_werden_beim_start_abgeraeumt(arr_client: TestClient) -> None:
     # gemeint, und genau so muss der Test sie nachstellen.
     with engine.connect() as verbindung:
         verbindung.exec_driver_sql("PRAGMA foreign_keys=OFF")
-        verbindung.exec_driver_sql(
-            "INSERT INTO child_wishes "
-            "(child_id, parent_id, media_type, tmdb_id, title, state, created_at) "
-            "VALUES (999999, ?, 'movie', 42, 'Verwaister Wunsch', 'open', "
-            "'2026-01-01 00:00:00')",
-            (eltern_id,),
-        )
-        verbindung.commit()
+        try:
+            verbindung.exec_driver_sql(
+                "INSERT INTO child_wishes "
+                "(child_id, parent_id, media_type, tmdb_id, title, state, created_at) "
+                "VALUES (999999, ?, 'movie', 42, 'Verwaister Wunsch', 'open', "
+                "'2026-01-01 00:00:00')",
+                (eltern_id,),
+            )
+            verbindung.commit()
+        finally:
+            # ⚠️ **Wieder anschalten, bevor die Verbindung in den Vorrat
+            # zurueckgeht.** ``PRAGMA foreign_keys`` haengt an der Verbindung,
+            # nicht an diesem ``with``, und der Vorrat reicht dieselbe
+            # Verbindung an den naechsten Test weiter. Ohne diese Zeile lief
+            # hier eine Verbindung mit abgeschalteten Fremdschluesseln davon,
+            # und in einem Ausschnitt der Reihe fiel danach
+            # ``tests/test_tickets.py`` um, weil das Loeschen eines Kontos
+            # seine Tickets nicht mehr mitnahm: eine ganz andere Datei, ohne
+            # jeden Bezug, und nur je nach Reihenfolge.
+            #
+            # Der Rollback davor ist kein Ritual: SQLite **uebergeht** ein
+            # ``PRAGMA foreign_keys`` stillschweigend, solange ein Vorgang
+            # offen ist. Scheitert das INSERT, waere die Zeile darunter sonst
+            # wirkungslos, ohne zu murren.
+            #
+            # Der zweite Riegel steht in ``app/db.py`` im Ereignis
+            # ``checkout``; der faengt auch die naechste solche Stelle ab.
+            # Diese hier bleibt trotzdem: Wer ein PRAGMA umlegt, raeumt es
+            # selbst wieder weg.
+            verbindung.rollback()
+            verbindung.exec_driver_sql("PRAGMA foreign_keys=ON")
 
     _verwaiste_kinderwuensche_aufraeumen()
 

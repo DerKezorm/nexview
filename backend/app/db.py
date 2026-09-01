@@ -40,6 +40,51 @@ def _configure_sqlite(dbapi_connection, _connection_record) -> None:
     cursor.close()
 
 
+@event.listens_for(engine, "checkout")
+def _fremdschluessel_sicherstellen(dbapi_connection, _connection_record, _proxy) -> None:
+    """Bei **jeder** Entnahme aus dem Vorrat: Fremdschluessel wieder an.
+
+    ⚠️ **Das Ereignis ``connect`` darueber genuegt nicht.** Es feuert nur,
+    wenn SQLite wirklich eine neue Verbindung aufmacht. Danach reicht der
+    Verbindungsvorrat (QueuePool, fuenf Plaetze) dieselbe Verbindung beliebig
+    oft weiter, und ``PRAGMA foreign_keys`` gilt **je Verbindung**, nicht je
+    Sitzung. Wer es einmal abschaltet und die Verbindung zurueckgibt, gibt sie
+    abgeschaltet an den naechsten Aufrufer weiter, und nichts protokolliert das.
+
+    Gemessen: frisch aus dem Vorrat ``foreign_keys=1``, nach einem einzigen
+    ``PRAGMA foreign_keys=OFF`` samt Rueckgabe ``foreign_keys=0``. Betroffen
+    sind dann 37 der 40 Fremdschluessel in ``models.py``, naemlich alle mit
+    ``ON DELETE CASCADE`` (23) oder ``ON DELETE SET NULL`` (14): Das Loeschen
+    eines Kontos liesse seine Tickets, Anfragen und Wuensche stehen.
+
+    Das ist keine reine Testsorge. Auch im Betrieb legt vielleicht einmal
+    jemand ein PRAGMA um, und dann traegt es der Vorrat weiter, bis der
+    Prozess neu startet. Aufgefallen ist es in der Testreihe, weil dort
+    ``tests/test_child_wishes.py`` genau das tat und eine Datei spaeter das
+    Loeschen eines Kontos seine Tickets nicht mehr mitnahm.
+
+    Kosten, gemessen, damit es niemand aus Sorge wieder herausnimmt. Eine
+    Entnahme kostet mit diesem Horcher 14,8 statt 7,96 Mikrosekunden, also
+    6,8 mehr (je 100.000 Entnahmen, bester von drei Durchlaeufen). Das ist
+    fast das Doppelte, aber vom Falschen: Eine Entnahme ist nichts gegen das,
+    was danach auf ihr passiert. In Zahlen, die zaehlen: Ein Test nimmt
+    gemessen 19 mal (Waechter-Ausschnitt, 933 Entnahmen auf 50 Tests) bis 46
+    mal (datenbanklastiger Ausschnitt, 2.970 auf 64 Tests) aus dem Vorrat. Auf
+    die rund 2.400 Tests der Reihe sind das 45.000 bis 110.000 Entnahmen und
+    damit 0,3 bis 0,8 Sekunden auf einen Lauf von 28 Minuten.
+
+    Erst nachsehen und nur bei Bedarf setzen waere uebrigens **teurer**, nicht
+    billiger: Das Abholen der Antwort kostet mehr als das blosse Setzen (5,0
+    gegen 4,3 Mikrosekunden im Cursor gemessen).
+
+    ``journal_mode`` steht bewusst nicht hier: WAL haengt an der Datei, nicht
+    an der Verbindung, und ueberlebt die Rueckgabe ohnehin.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
 
 

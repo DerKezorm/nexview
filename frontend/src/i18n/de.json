@@ -2401,6 +2401,37 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Verstanden, nicht mehr anzeigen",
     "entries": {
+      "0.26.1": {
+        "lead": "Eine Wartungsfassung: keine neue Funktion, sieben Reparaturen. Zwei davon fielen beim Ausprobieren auf, und eine hatte in einem echten Sonarr eine Serie hinterlassen, die dort nichts zu suchen hatte.",
+        "sections": [
+          {
+            "title": "Beschreibungen, die es gab, aber niemand sah",
+            "where": "Überall, wo Titel stehen: Katalog, Titelseite, Staffelansicht",
+            "body": "„Keine Beschreibung vorhanden.“ stand oft da, wo TMDB sehr wohl eine Handlung führt — nur eben auf Englisch. TMDB pflegt den Text je Sprache getrennt und fällt von sich aus nicht zurück; fehlt die Übersetzung, kommt ein leerer Text statt des Originals.\n\nNexview holt jetzt den englischen nach, bei Titeln ebenso wie bei Staffeln und Folgen. Gemessen an einem echten Bestand: 64 von 454 Titeln hatten keine Beschreibung, 29 davon aus diesem Jahr — also gerade die Neuerscheinungen, die vorne stehen."
+          },
+          {
+            "title": "Serien, die sich nicht anfragen ließen",
+            "where": "Beim Anfragen einer Serie",
+            "body": "Sonarr legt Serien über ihre TVDB-Kennung an, und die kam bisher allein von TMDB. Bei neuen Titeln fehlt sie dort regelmäßig — die Anfrage scheiterte mit einem Satz, der nach „warte ein paar Tage“ klang und oft gar nicht stimmte.\n\nJetzt fragt Nexview zusätzlich Sonarr, das dieselbe Serie über die eigene Suche kennt. Trägt ein Treffer dieselbe TMDB-Nummer, ist die Sache eindeutig und es wird nichts gefragt. Sonst legt Nexview die Vorschläge vor — mit dem, was du angefragt hast, direkt daneben. Denn „Still Water“ (Thailand, 2026) und „Still Waters“ (Wales, 1995) sind einen Buchstaben auseinander und zwei verschiedene Serien; geraten wird hier nicht.\n\nPasst keiner der Vorschläge, sagt der Satz darunter, ob Warten hilft — bei einer Serie von letzter Woche etwas anderes als bei einer von 1978."
+          },
+          {
+            "title": "Künftige Staffeln zählen jetzt auf dein Speicher-Kontingent",
+            "where": "Beim Anfragen einer Serie, Haken „Auch künftige Staffeln“",
+            "body": "Der Haken ist eine Zusage: Diese Serie soll weiterlaufen. Die Speicher-Abrechnung las das bisher unterschiedlich — wer die ganze Serie anfragte, bekam spätere Staffeln angerechnet, wer Staffel 1 anfragte und den Haken setzte, nicht. Derselbe Wunsch, zwei Antworten.\n\nBeide antworten jetzt gleich. Die **Stückzahl** zählt Wünsche: Eine später erscheinende Staffel kostet keinen weiteren Platz, denn beim Anfragen weiß niemand, wie viele es werden. Das **Speicher-Kontingent** zählt Gigabyte, und die sind da, sobald die Staffel geladen ist — also trägt sie, wer den Haken gesetzt hat.\n\nDas gilt für Staffeln, die ab jetzt hereinkommen. Was bereits zugerechnet ist, bleibt, wo es ist."
+          },
+          {
+            "title": "„Abbrechen“ sagt jetzt, was es wirklich tut",
+            "where": "Meine Anfragen, und Einstellungen → Alle Anfragen",
+            "body": "Die Rückfrage kündigte immer an, der Titel werde aus Radarr bzw. Sonarr entfernt, das Kontingent werde frei und heruntergeladene Dateien würden mitgelöscht. Bei einer **fehlgeschlagenen** Anfrage stimmt davon nichts: Sie kam nie bis zum Anlegen, und sie kostet auch kein Kontingent.\n\nGemeldet von einem Betreiber, der in dieser Liste Serien fand, die er längst geladen hatte — und dazu eine Warnung, die mit ihren Dateien drohte. Jetzt steht dort, was wirklich passiert, und die Warnung erscheint nur noch, wenn es etwas zu löschen gibt."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "**Eine gescheiterte Anfrage lässt nichts mehr liegen.** Anlegen und Staffel einschalten sind zwei Schritte; ging der zweite schief, blieb die Serie ohne Staffel und ohne Datei in Sonarr stehen. Was der gescheiterte Versuch angelegt hat, wird jetzt zurückgenommen — nur das, und ohne Dateien zu löschen.",
+          "**„Noch keine Staffeln“ heißt nicht „kennt die Staffel nicht“.** Sonarr lädt die Daten einer frisch angelegten Serie nebenher nach. Wer sofort danach fragt, bekam eine Serie ohne Staffeln und damit eine Absage. Nexview wartet das jetzt ab; der Abgleich schaltet die Staffel im nächsten Durchgang ein.",
+          "**Das Protokoll ist wieder durchgehend englisch.** Fünf Zeilen schrieben den deutschen Satz eines Fehlers hinein, und eine Warnung im Sonarr-Teil wäre abgestürzt statt zu warnen. Ein neuer Wächter findet solche Zeilen künftig beim Bauen."
+        ]
+      },
       "0.26.0": {
         "lead": "Bis jetzt waren alle Administratoren gleich. Wer einen zweiten ernannte, gab ihm damit auch die Macht, den ersten hinauszuwerfen. Ab dieser Fassung trägt genau ein Konto den **Betreiber**-Haken — und das ist das einzige, das kein anderer abschalten kann.",
         "sections": [

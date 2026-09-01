@@ -2401,6 +2401,37 @@
     "subtitle": "Version {{version}}",
     "dismiss": "Got it, don't show again",
     "entries": {
+      "0.26.1": {
+        "lead": "A maintenance release: no new feature, seven repairs. Two of them turned up while trying the others out, and one had left a series behind in a real Sonarr that had no business being there.",
+        "sections": [
+          {
+            "title": "Descriptions that existed but nobody saw",
+            "where": "Everywhere titles appear: catalogue, title page, season view",
+            "body": "“No description available.” often stood where TMDB does have a plot, just not in your language. TMDB keeps the text separately per language and does not fall back on its own; where the translation is missing, the answer carries an empty text rather than the original.\n\nNexview now fetches the English one, for titles as well as seasons and episodes. Measured against a real library: 64 of 454 titles carried no description, 29 of them from this year, which is exactly what the catalogue puts at the front."
+          },
+          {
+            "title": "Series that could not be requested",
+            "where": "When requesting a series",
+            "body": "Sonarr adds series by their TVDB id, and that came from TMDB alone. For new titles TMDB regularly does not have it, and the request failed with a sentence that sounded like “wait a few days” and often was not the case at all.\n\nNexview now also asks Sonarr, which knows the same series through its own search. Where a hit carries the same TMDB number, the match is certain and nothing is asked. Otherwise the suggestions are put up, with what you actually requested right beside them. Because “Still Water” (Thailand, 2026) and “Still Waters” (Wales, 1995) are one letter apart and two different shows; no guessing happens here.\n\nWhere none of them fit, the line underneath says whether waiting helps, and it says something different for a series from last week than for one from 1978."
+          },
+          {
+            "title": "Future seasons now count against your storage quota",
+            "where": "When requesting a series, the “also future seasons” tick box",
+            "body": "The tick box is a promise: keep this series coming. The storage accounting read that inconsistently. Somebody who requested a whole series was charged for later seasons, somebody who requested season 1 and ticked the box was not. The same wish, two answers.\n\nBoth answer the same way now. The **count** quota counts wishes: a season appearing later costs no further slot, because at request time nobody can say how many there will be. The **storage** quota counts gigabytes, and those exist once the season is downloaded, so they land on whoever ticked the box.\n\nThis applies to seasons arriving from now on. What has already been attributed stays where it is."
+          },
+          {
+            "title": "“Cancel” now says what it actually does",
+            "where": "My requests, and Settings → All requests",
+            "body": "The confirmation always announced that the title would be removed from Radarr or Sonarr, that the quota would be freed, and that downloaded files would be deleted with it. For a **failed** request none of that is true: it never got as far as being added, and it costs no quota either.\n\nReported by an operator who found series in that list which he had long since downloaded, with a warning pointing at their files. It now says what really happens, and the warning only appears when there is something to delete."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "**A failed request no longer leaves anything behind.** Adding a series and switching its season on are two steps; when the second failed, the series stood in Sonarr without a season and without a file. What the failed attempt created is taken back now, only that, and without deleting files.",
+          "**“No seasons yet” does not mean “does not have that season”.** Sonarr loads the data of a freshly added series in the background. Asking straight afterwards returned a series without seasons and therefore a refusal. Nexview waits for it now; the sync switches the season on in its next pass.",
+          "**The log is English throughout again.** Five lines wrote the German sentence of an error into it, and a warning in the Sonarr part would have crashed instead of warning. A new guard finds such lines at build time."
+        ]
+      },
       "0.26.0": {
         "lead": "Until now all administrators were equal. Appointing a second one also handed them the power to throw out the first. From this version on, exactly one account carries the **owner** flag — and it is the one account nobody else can switch off.",
         "sections": [

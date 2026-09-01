@@ -681,8 +681,17 @@ def merker_verwerfen(session: Session) -> None:
     Der einzige Weg, den Merker zu loeschen. Gerufen wird er vom Horcher in
     ``db.py``, sobald in derselben Sitzung eine Zeile der Tabelle ``settings``
     oder ``media_server_connections`` geschrieben wird.
+
+    ⚠️ **Die Zeile steht auf der Diagnose-Stufe, und man liest sie rueckwaerts.**
+    Meldet jemand "ich habe gespeichert und bekam den alten Stand zurueck",
+    ist ihr **Fehlen** die Auskunft: Dann hat der Horcher nicht ausgeloest, und
+    genau das ist die einzige Art, wie der Merker schaden kann. Auf ``INFO``
+    waere sie das nicht wert - dass er gerade gespeichert hat, weiss der
+    Betreiber ohnehin. Und nur, wenn wirklich einer dalag: Ein Vermerk ueber
+    das Wegwerfen von nichts erklaert nichts.
     """
-    session.info.pop(MERKER, None)
+    if session.info.pop(MERKER, None) is not None:
+        logger.debug("Settings memo dropped: this session wrote settings or a media server")
 
 
 def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:

@@ -154,6 +154,14 @@ def _holen(anfrage: urllib.request.Request, was: str) -> dict:
     ``HTTPError`` ist eine Unterklasse von ``URLError`` und die wiederum von
     ``OSError``. Die Reihenfolge der ``except``-Zweige ist deshalb kein Detail:
     stuende ``OSError`` oben, kaeme ein 404 nie unten an.
+
+    ⚠️ **Ein geglueckter zweiter Versuch wird gesagt.** Sonst hinterlaesst er
+    keine Spur: Der Lauf ist gruen, war zwanzig Sekunden laenger unterwegs, und
+    niemand kann sagen, ob api.osv.dev gerade wackelt. Erst wenn *beide*
+    Versuche scheitern, meldet sich ``nicht_geprueft`` - und dann steht
+    nirgends, dass es vorher schon geknirscht hat. Ein "NICHT GEPRUEFT" aus
+    heiterem Himmel sieht aus wie ein einmaliger Ausrutscher; drei vorherige
+    Laeufe mit je einem zweiten Versuch erzaehlen etwas anderes.
     """
     letzter = ""
     for versuch in range(1, VERSUCHE + 1):
@@ -173,6 +181,10 @@ def _holen(anfrage: urllib.request.Request, was: str) -> dict:
         except (urllib.error.URLError, TimeoutError, OSError) as fehler:
             letzter = f"{type(fehler).__name__}: {fehler}"
         if versuch < VERSUCHE:
+            print(
+                f"  Versuch {versuch} von {VERSUCHE} fuer {was} fehlgeschlagen "
+                f"({letzter}). Naechster Versuch in {PAUSE_SEKUNDEN} s."
+            )
             time.sleep(PAUSE_SEKUNDEN)
     raise NichtErreichbar(f"{was}: {letzter}")
 

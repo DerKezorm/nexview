@@ -14,6 +14,8 @@ Stelle, die ausdruecklich am Merker vorbei liest.
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -282,3 +284,45 @@ def test_der_horcher_sieht_auch_rohe_setting_zeilen() -> None:
         db.add(Setting(key="default_language", value="en", is_secret=False))
         db.commit()
         assert load_settings(db).default_language == "en"
+
+
+# --------------------------------------------------------------------------
+# Was davon ins Protokoll gehoert - und was nicht
+# --------------------------------------------------------------------------
+
+
+def test_das_verwerfen_steht_auf_der_diagnose_stufe(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """⚠️ **Diese Zeile liest man rueckwaerts.**
+
+    Meldet jemand "ich habe gespeichert und bekam den alten Stand zurueck",
+    ist ihr **Fehlen** die Auskunft: Dann hat der Horcher nicht ausgeloest, und
+    das ist die einzige Art, wie der Merker schaden kann.
+
+    Auf ``DEBUG``, nicht auf ``INFO``: Dass er gerade gespeichert hat, weiss
+    der Betreiber ohnehin. Und ``load_settings`` selbst sagt gar nichts - acht
+    Aufrufe je Anfrage waeren eine Flut, in der die wichtigen Zeilen untergehen.
+    """
+    with SessionLocal() as db:
+        load_settings(db)
+        with caplog.at_level(logging.DEBUG, logger="nexview.settings"):
+            save_settings(db, {"default_region": "AT"})
+
+    passend = [satz for satz in caplog.records if "Settings memo" in satz.getMessage()]
+    assert len(passend) == 1, [satz.getMessage() for satz in caplog.records]
+    assert passend[0].levelno == logging.DEBUG
+
+
+def test_ohne_merker_wird_nichts_vermerkt(caplog: pytest.LogCaptureFixture) -> None:
+    """Ein Vermerk ueber das Wegwerfen von nichts erklaert nichts.
+
+    Die Gegenprobe zum Test darueber: Ohne sie wuerde jede Anfrage, die
+    irgendetwas an den Einstellungen schreibt, ohne vorher gelesen zu haben,
+    dieselbe Zeile erzeugen - und die Zeile verlaere ihre Aussage.
+    """
+    with SessionLocal() as db:
+        with caplog.at_level(logging.DEBUG, logger="nexview.settings"):
+            save_settings(db, {"default_region": "AT"})
+
+    assert not [satz for satz in caplog.records if "Settings memo" in satz.getMessage()]

@@ -233,6 +233,119 @@ def test_frische_installation_traegt_alle_wanderungen_ein(eigene_installation) -
 
 
 # ---------------------------------------------------------------------------
+# Was der Ankunftsbefund gesehen hat, muss nachlesbar sein
+# ---------------------------------------------------------------------------
+#
+# ⚠️ **Die Entscheidung faellt je Datenbank genau einmal.** Danach liest
+# ``init_db`` nur noch das Buch; nachstellen laesst sie sich nicht. War sie
+# falsch - ein Konto steht auf "unbegrenzt", das nie so gemeint war -, ist das
+# Protokoll das Einzige, woran sich das nachlesen laesst. Ein blosses "gilt als
+# erledigt" beantwortet die Frage, die man dann stellt, gerade nicht: Woran
+# wurde das erkannt?
+
+
+def _wanderungszeilen(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        satz.getMessage()
+        for satz in caplog.records
+        if satz.getMessage().startswith("Migration ")
+    ]
+
+
+def test_ein_faelliger_schritt_wird_vor_dem_umzug_angekuendigt(
+    eigene_installation, caplog: pytest.LogCaptureFixture
+) -> None:
+    """**Vor** dem Umzug, nicht danach.
+
+    Ein Eintrag nach getaner Arbeit erzaehlt nur von den Faellen, die
+    durchgekommen sind. Bricht der Schritt mittendrin ab, ist diese Zeile der
+    einzige Beleg dafuer, dass er ueberhaupt losgezogen ist - und die Probe
+    daneben sagt, warum er losdurfte.
+    """
+    motor = eigene_installation(ohne_arr_managed=True)
+    _konto_anlegen(motor, 0)
+
+    with caplog.at_level(logging.INFO, logger="nexview.db"):
+        db_modul.init_db()
+
+    faellig = [
+        zeile
+        for zeile in _wanderungszeilen(caplog)
+        if "_kontingente_dreiwertig_machen" in zeile and "will run now" in zeile
+    ]
+    assert len(faellig) == 1, _wanderungszeilen(caplog)
+    # Und zwar mit der Probe, aus der das Urteil kam: Genau an der fehlenden
+    # Spalte erkennt der Befund eine Datenbank von vor 0.19.
+    assert "arr_managed=missing" in faellig[0]
+
+
+def test_ein_vorgefundener_schritt_nennt_seine_probe(
+    eigene_installation, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Die haeufigere Haelfte: Der Schritt laeuft **nicht**, und das ist die Aussage.
+
+    Wer spaeter fragt, warum die alte 0 seines Kontos nie umgezogen ist, muss
+    hier lesen koennen, dass Nexview die Datenbank fuer fertig gewandert
+    hielt - und woran.
+    """
+    motor = eigene_installation()
+    _konto_anlegen(motor, 0)
+
+    with caplog.at_level(logging.INFO, logger="nexview.db"):
+        db_modul.init_db()
+
+    vorgefunden = [
+        zeile
+        for zeile in _wanderungszeilen(caplog)
+        if "_kontingente_dreiwertig_machen" in zeile and "already done" in zeile
+    ]
+    assert len(vorgefunden) == 1, _wanderungszeilen(caplog)
+    assert "arr_managed=present" in vorgefunden[0]
+    assert "storage_enabled=gone" in vorgefunden[0]
+
+
+def test_die_frische_installation_sagt_dass_sie_leer_war(
+    eigene_installation, caplog: pytest.LogCaptureFixture
+) -> None:
+    """⚠️ Sonst stuende im Protokoll einer brandneuen Installation viermal,
+    ihre Wanderungen seien in einer **bestehenden** Datenbank wiedererkannt
+    worden.
+
+    Das ist die eine Auskunft, die hier nicht stimmt, und sie stand vorher da.
+    Wer beim ersten Start hineinsieht, haelt seine leere Datenbank fuer eine
+    geerbte - und traut dem Buch beim naechsten Raetsel nicht mehr.
+    """
+    eigene_installation(vollstaendig=False)
+
+    with caplog.at_level(logging.INFO, logger="nexview.db"):
+        db_modul.init_db()
+
+    zeilen = _wanderungszeilen(caplog)
+    assert len(zeilen) == len(db_modul.EINMAL_SCHRITTE), zeilen
+    assert all("database was empty on arrival" in zeile for zeile in zeilen)
+
+
+def test_beim_zweiten_start_schweigt_das_buch(
+    eigene_installation, caplog: pytest.LogCaptureFixture
+) -> None:
+    """⚠️ **Das ist die Haelfte, die das Mass haelt.**
+
+    Der Befund entscheidet einmal, also wird er einmal aufgeschrieben. Eine
+    Zeile, die bei jedem Start wiederkehrt und nie etwas bedeutet, macht die
+    wichtigen unsichtbar - und dieselbe Meldung viermal je Neustart waere
+    genau das.
+    """
+    eigene_installation()
+    db_modul.init_db()
+
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="nexview.db"):
+        db_modul.init_db()
+
+    assert _wanderungszeilen(caplog) == []
+
+
+# ---------------------------------------------------------------------------
 # Die Meldung ueber die Nullen, die schon gekippt sind
 # ---------------------------------------------------------------------------
 

@@ -20,7 +20,9 @@ Eintraegen belegt.
 
 from __future__ import annotations
 
+import io
 import json
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -444,3 +446,94 @@ def test_der_waechter_wuerde_einen_luecken_eintrag_finden() -> None:
     assert _maengel("CVE-2026-11111", veraltet, gepinnt) == [
         "CVE-2026-11111: gilt_fuer '2.11.0', gepinnt ist '2.13.0'"
     ]
+
+
+# ---------------------------------------------------------------------------
+# Der Ausfall draussen, und was der Lauf davon sagt
+# ---------------------------------------------------------------------------
+
+
+def _antwort(nutzlast: dict) -> io.BytesIO:
+    """Was ``urlopen`` liefert: ein Kontextmanager mit lesbarem JSON."""
+    return io.BytesIO(json.dumps(nutzlast).encode("utf-8"))
+
+
+def test_ein_geglueckter_zweiter_versuch_steht_in_der_ausgabe(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """⚠️ Sonst hinterlaesst er keine Spur.
+
+    Der Lauf ist gruen und war zwanzig Sekunden laenger unterwegs; niemand
+    kann sagen, ob api.osv.dev gerade wackelt. Meldet sich Wochen spaeter ein
+    "NICHT GEPRUEFT", sieht das nach einem einmaligen Ausrutscher aus - und
+    die Laeufe davor, die es beim zweiten Versuch gerade noch schafften,
+    haetten es vorher gesagt.
+    """
+    versuche: list[int] = []
+
+    def wackelig(_anfrage, timeout=None):
+        versuche.append(timeout)
+        if len(versuche) == 1:
+            raise urllib.error.URLError("Verbindung abgelehnt")
+        return _antwort({"vulns": []})
+
+    monkeypatch.setattr(pruefer.urllib.request, "urlopen", wackelig)
+    monkeypatch.setattr(pruefer, "PAUSE_SEKUNDEN", 0)
+
+    assert pruefer.osv_abfragen("pyjwt", "2.13.0") == []
+
+    ausgabe = capsys.readouterr().out
+    assert "Versuch 1 von 2" in ausgabe
+    assert "pyjwt==2.13.0" in ausgabe
+    assert "Verbindung abgelehnt" in ausgabe
+
+
+def test_zwei_fehlversuche_heissen_nicht_geprueft(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Ein Ausfall darf nicht wie ein Ergebnis aussehen.
+
+    Er endet mit Rueckgabecode 0 - ein Bau, den ein fremder Ausfall umwirft,
+    wird binnen einer Woche abgeschaltet, und dann prueft gar nichts mehr.
+    Genau deshalb muss die Ausgabe unverwechselbar sein: drei Worte zum
+    Suchen, die ``::warning::``-Zeile fuer die Zusammenfassung, und der Grund
+    samt Paket, an dem es haengenblieb.
+    """
+
+    def tot(_anfrage, timeout=None):
+        raise urllib.error.URLError("Name oder Dienst unbekannt")
+
+    monkeypatch.setattr(pruefer.urllib.request, "urlopen", tot)
+    monkeypatch.setattr(pruefer, "PAUSE_SEKUNDEN", 0)
+
+    with pytest.raises(pruefer.NichtErreichbar) as fehler:
+        pruefer.osv_abfragen("cryptography", "50.0.1")
+
+    pruefer.nicht_geprueft(str(fehler.value))
+
+    ausgabe = capsys.readouterr().out
+    assert "NICHT GEPRUEFT" in ausgabe
+    assert "::warning::" in ausgabe
+    assert "cryptography==50.0.1" in ausgabe
+    assert "Name oder Dienst unbekannt" in ausgabe
+    # Und kein Wort, das nach einem Ergebnis klingt.
+    assert "In Ordnung." not in ausgabe
+
+
+def test_eine_falsch_gestellte_frage_wird_nicht_durchgewunken(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """4xx ist unser Fehler und keine Stoerung draussen.
+
+    Ohne diese Trennung liefe eine dauerhaft falsche Abfrage jahrelang als
+    "nicht erreichbar" durch, und der Lauf waere jedes Mal gruen.
+    """
+
+    def abgelehnt(_anfrage, timeout=None):
+        raise urllib.error.HTTPError("https://api.osv.dev", 400, "Bad Request", {}, None)
+
+    monkeypatch.setattr(pruefer.urllib.request, "urlopen", abgelehnt)
+    monkeypatch.setattr(pruefer, "PAUSE_SEKUNDEN", 0)
+
+    with pytest.raises(pruefer.NichtPruefbar):
+        pruefer.osv_abfragen("pyjwt", "2.13.0")

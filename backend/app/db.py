@@ -205,7 +205,7 @@ def init_db() -> None:
     Lesen aendert am Schema nichts, die Reihenfolge der beiden ist also frei.
     """
     ausstehend = _pending_changes()
-    befund = _ankunftsbefund()
+    befund, spuren = _ankunftsbefund()
     # ⚠️ **Bei einer brandneuen Installation wird nicht gesichert.**
     # Die Schema-Pruefung meldet dort zwangslaeufig "alles fehlt", und Nexview
     # legte gehorsam eine Kopie einer leeren Datenbank an: Sie schuetzt nichts,
@@ -221,7 +221,7 @@ def init_db() -> None:
     # Erst jetzt steht die Buchtabelle sicher. Was der Befund oben als "lief
     # schon" erkannt hat, wird hier nachgetragen; zurueck kommt das Buch als
     # Ganzes, damit die Schritte darunter es nicht einzeln abfragen muessen.
-    gelaufen = _wanderungsbuch_nachtragen(befund)
+    gelaufen = _wanderungsbuch_nachtragen(befund, spuren)
     _altersgrenzen_aufraeumen()
     _verwaiste_meldungsarten_aufraeumen()
     _verwaiste_kinderwuensche_aufraeumen()
@@ -252,8 +252,25 @@ def _leere_installation(ziel: Engine | None = None) -> bool:
     return not vorhanden
 
 
-def _ankunftsbefund() -> dict[str, bool]:
-    """Je Einmal-Schritt: Ist er in dieser Datenbank schon gelaufen?
+def _ankunftsbefund() -> tuple[dict[str, bool], dict[str, str]]:
+    """Je Einmal-Schritt: Ist er in dieser Datenbank schon gelaufen - und woran?
+
+    Zurueck kommen zwei Woerterbuecher: das Urteil und die **Proben**, aus
+    denen es entstanden ist.
+
+    ⚠️ **Warum die Proben mitkommen.** Diese Entscheidung faellt je Datenbank
+    genau einmal und ueber fremde Bestandsdaten; ab dem naechsten Start liest
+    ``init_db`` nur noch das Buch, und nachstellen laesst sie sich dann nicht
+    mehr. War sie falsch, ist die Spur im Protokoll das Einzige, woran sich
+    das nachlesen laesst. Ein blosses "gilt als erledigt" beantwortet die
+    Frage, die man dann stellt, gerade nicht - naemlich *woran* das erkannt
+    wurde. Geschrieben werden die Spuren in ``_wanderungsbuch_nachtragen``,
+    und nur solange das Buch noch Luecken hat.
+
+    Dafuer wird jede Probe gezogen, auch die, die das Urteil nicht mehr
+    aendern kann - frueher hoerte die Auswertung beim ersten ``or`` auf. Das
+    kostet je Start bis zu zwei zusaetzliche EXISTS-Abfragen auf ``settings``,
+    im Regelfall eine; eine halbe Spur waere die Muehe nicht wert.
 
     Gelesen wird die Datenbank, **wie sie ankommt** - vor ``create_all`` und
     vor ``_add_missing_columns``. Danach waere die Frage nicht mehr zu
@@ -277,6 +294,7 @@ def _ankunftsbefund() -> dict[str, bool]:
     nicht erst hoch, das faellt auf.
     """
     befund: dict[str, bool] = dict.fromkeys(EINMAL_SCHRITTE, False)
+    spuren: dict[str, str] = {}
 
     with engine.connect() as verbindung:
         tabellen = {
@@ -290,7 +308,23 @@ def _ankunftsbefund() -> dict[str, bool]:
             # als erledigt. Ohne diese Regel bliebe das Buch bis zum ersten
             # Datensatz offen, und der erste angelegte Server oder die erste
             # Bewertung wuerde eine Wanderung ausloesen, die nie gemeint war.
-            return dict.fromkeys(EINMAL_SCHRITTE, True)
+            #
+            # Die Spur sagt das ausdruecklich. Ohne sie stuende im Protokoll
+            # einer brandneuen Installation viermal, ihre Wanderungen seien in
+            # einer bestehenden Datenbank wiedererkannt worden - und das ist
+            # die eine Auskunft, die hier nicht stimmt.
+            return (
+                dict.fromkeys(EINMAL_SCHRITTE, True),
+                dict.fromkeys(
+                    EINMAL_SCHRITTE, "database was empty on arrival, nothing to migrate"
+                ),
+            )
+
+        def da(vorhanden: bool) -> str:
+            return "present" if vorhanden else "missing"
+
+        def ja(zutreffend: bool) -> str:
+            return "yes" if zutreffend else "no"
 
         def zeilen(tabelle: str) -> bool:
             if tabelle not in tabellen:
@@ -317,9 +351,14 @@ def _ankunftsbefund() -> dict[str, bool]:
         # Haelfte: Der Schritt setzt die flachen Werte am Ende auf '', ein
         # leeres Paar heisst also "schon gewandert oder nie verbunden" - und
         # beides fuehrt zu demselben Ergebnis, naemlich nichts zu tun.
-        befund["_verbindung_in_die_tabelle"] = "media_server_connections" in tabellen and (
-            zeilen("media_server_connections")
-            or einstellung_leer("mediaserver_provider", "mediaserver_machine_id")
+        hat_tabelle = "media_server_connections" in tabellen
+        hat_zeilen = zeilen("media_server_connections")
+        flach_leer = einstellung_leer("mediaserver_provider", "mediaserver_machine_id")
+        befund["_verbindung_in_die_tabelle"] = hat_tabelle and (hat_zeilen or flach_leer)
+        spuren["_verbindung_in_die_tabelle"] = (
+            f"table media_server_connections={da(hat_tabelle)}, rows={ja(hat_zeilen)}, "
+            f"flat settings mediaserver_provider/machine_id="
+            f"{'empty' if flach_leer else 'still set'}"
         )
 
         # Dieselbe Ueberlegung eine Ebene tiefer. Hier bleiben die Spalten am
@@ -336,9 +375,14 @@ def _ankunftsbefund() -> dict[str, bool]:
                     "AND mediaserver_account_id IS NOT NULL AND mediaserver_account_id != '')"
                 ).scalar()
             )
-        befund["_verknuepfungen_in_die_tabelle"] = (
-            "user_media_server_accounts" in tabellen
-            and (zeilen("user_media_server_accounts") or not noch_am_konto)
+        hat_tabelle = "user_media_server_accounts" in tabellen
+        hat_zeilen = zeilen("user_media_server_accounts")
+        befund["_verknuepfungen_in_die_tabelle"] = hat_tabelle and (
+            hat_zeilen or not noch_am_konto
+        )
+        spuren["_verknuepfungen_in_die_tabelle"] = (
+            f"table user_media_server_accounts={da(hat_tabelle)}, rows={ja(hat_zeilen)}, "
+            f"links still on users={ja(noch_am_konto)}"
         )
 
         # ⚠️ Hier bleibt ein Rest unentscheidbar: Ist ``title_ratings`` leer
@@ -359,8 +403,14 @@ def _ankunftsbefund() -> dict[str, bool]:
                     "SELECT EXISTS(SELECT 1 FROM media_requests WHERE rating IS NOT NULL)"
                 ).scalar()
             )
-        befund["_bewertungen_in_die_tabelle"] = "title_ratings" in tabellen and (
-            zeilen("title_ratings") or not noch_an_der_anfrage
+        hat_tabelle = "title_ratings" in tabellen
+        hat_zeilen = zeilen("title_ratings")
+        befund["_bewertungen_in_die_tabelle"] = hat_tabelle and (
+            hat_zeilen or not noch_an_der_anfrage
+        )
+        spuren["_bewertungen_in_die_tabelle"] = (
+            f"table title_ratings={da(hat_tabelle)}, rows={ja(hat_zeilen)}, "
+            f"ratings still on media_requests={ja(noch_an_der_anfrage)}"
         )
 
         # ⚠️ **Der Schritt ohne eigene Spur.** Er schreibt ``-1``, wo eine ``0``
@@ -384,20 +434,36 @@ def _ankunftsbefund() -> dict[str, bool]:
             if "storage_entries" in tabellen
             else set()
         )
-        befund["_kontingente_dreiwertig_machen"] = (
-            "arr_managed" in spalten_speicher and einstellung_leer("storage_enabled")
+        hat_spalte = "arr_managed" in spalten_speicher
+        schalter_weg = einstellung_leer("storage_enabled")
+        befund["_kontingente_dreiwertig_machen"] = hat_spalte and schalter_weg
+        spuren["_kontingente_dreiwertig_machen"] = (
+            f"column storage_entries.arr_managed={da(hat_spalte)}, "
+            f"setting storage_enabled={'gone' if schalter_weg else 'still there'}"
         )
 
-    return befund
+    return befund, spuren
 
 
-def _wanderungsbuch_nachtragen(befund: dict[str, bool]) -> set[str]:
+def _wanderungsbuch_nachtragen(befund: dict[str, bool], spuren: dict[str, str]) -> set[str]:
     """Was der Ankunftsbefund wiedererkannt hat, kommt als ``vorgefunden`` ins Buch.
 
     Zurueck kommt das Buch als Ganzes, also alle Namen darin - die Schritte
     darunter fragen es damit nicht einzeln ab. Das ist kein Geiz: ``init_db``
     laeuft in der Testreihe rund 2400 mal, und jede Abfrage wird dort genauso
     oft bezahlt.
+
+    ⚠️ **Hier steht die einzige Gelegenheit, den Befund festzuhalten.** Solange
+    das Buch Luecken hat, kommt zu jedem noch offenen Schritt sein Urteil samt
+    Proben ins Protokoll - einmal je Datenbank, danach nie wieder. Ab dem
+    zweiten Start ist das Buch voll, und diese Funktion schweigt.
+
+    ⚠️ **Auf ``INFO`` und nicht auf der Diagnose-Stufe.** ``init_db`` laeuft
+    **vor** ``logs.apply_stored_mode()`` (siehe ``main.py``); eine gespeicherte
+    ``detailed``-Stufe greift hier noch gar nicht. Und selbst wer sie ueber
+    ``NEXVIEW_LOG_LEVEL`` setzt und neu startet, kaeme zu spaet: Die
+    Entscheidung ist dann laengst gefallen und wird nicht noch einmal
+    getroffen. Eine Zeile, die man nur zu spaet einschalten kann, ist keine.
     """
     with engine.connect() as verbindung:
         gelaufen = {
@@ -410,6 +476,20 @@ def _wanderungsbuch_nachtragen(befund: dict[str, bool]) -> set[str]:
     nachzutragen = [
         name for name in EINMAL_SCHRITTE if name not in gelaufen and befund.get(name)
     ]
+    # Die andere Haelfte: noch nicht im Buch und vom Befund **nicht**
+    # wiedererkannt. Diese Schritte laufen gleich ueber die Bestandsdaten. Sie
+    # hier zu nennen ist der einzige Eintrag *vor* der Aenderung - was ein
+    # Schritt getan hat, sagt er selbst, aber nur wenn er heil durchkommt.
+    faellig = [
+        name for name in EINMAL_SCHRITTE if name not in gelaufen and not befund.get(name)
+    ]
+    for name in faellig:
+        logger.info(
+            "Migration %r has not run in this database yet and will run now. Evidence: %s",
+            name,
+            spuren.get(name, "none recorded"),
+        )
+
     # Lesen genuegt fast immer: Ab dem zweiten Start steht alles schon im Buch.
     # Eine Schreib-Transaktion nur fuers Nachsehen kostet einen Commit, und den
     # bezahlt die Testreihe rund 2400 mal.
@@ -421,7 +501,9 @@ def _wanderungsbuch_nachtragen(befund: dict[str, bool]) -> set[str]:
             _eintragen(verbindung, name, VORGEFUNDEN)
             gelaufen.add(name)
             logger.info(
-                "Migration %r recorded as already done (found in an existing database)", name
+                "Migration %r recorded as already done, it will not run again. Evidence: %s",
+                name,
+                spuren.get(name, "none recorded"),
             )
             if name == "_kontingente_dreiwertig_machen":
                 _umgedeutete_nullen_melden(verbindung)

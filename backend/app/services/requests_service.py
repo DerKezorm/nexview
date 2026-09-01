@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,7 +21,16 @@ from ..models import (
 )
 from ..schemas_media import MediaItem
 from .. import meldungen
-from . import blocklist, library, media, mediaserver_library, notify, quota, storage
+from . import (
+    blocklist,
+    library,
+    media,
+    mediaserver_library,
+    notify,
+    quota,
+    serien_zuordnung,
+    storage,
+)
 from .arr import ArrError
 from .settings_service import AppSettings
 from . import logs
@@ -906,6 +916,192 @@ async def _mit_datei_in_standard(settings: AppSettings, item: MediaItem) -> set[
     }
 
 
+#: Bis zu welchem Alter ein Titel als "gerade erst erschienen" gilt.
+#:
+#: Entscheidet nur, **welcher Satz** erscheint, wenn Sonarr die Serie nicht
+#: kennt: "TheTVDB traegt das meist in ein paar Tagen nach" oder "daran wird
+#: sich nichts mehr aendern". Ein Jahr ist gegriffen, nicht gemessen - aber
+#: die Richtung stimmt: Bei "Ciné regards" von 1978 waere ein Vertroesten
+#: schlicht falsch, und derjenige kaeme naechste Woche wieder.
+FRISCH_TAGE = 365
+
+
+def _frisch(release_date: str | None) -> bool:
+    """Ist der Titel jung genug, dass TheTVDB ihn noch nachtragen wird?"""
+    if not release_date:
+        # Ohne Datum lieber vertroesten als abwuergen: Ein Titel ohne
+        # Erstausstrahlung ist meist einer, der noch gar nicht lief.
+        return True
+    try:
+        erschienen = datetime.strptime(release_date[:10], "%Y-%m-%d")
+    except ValueError:
+        return True
+    return (utcnow().replace(tzinfo=None) - erschienen).days <= FRISCH_TAGE
+
+
+def _darf_waehlen(settings: AppSettings, user: User) -> bool:
+    """Darf dieser Mensch aus Sonarrs Vorschlaegen waehlen?
+
+    ⚠️ **Das beantwortet nur die halbe Frage.** Ob ueberhaupt jemand
+    davorsitzt, der antworten kann, weiss der **Weg** - siehe
+    ``auswahl_moeglich`` in ``_tvdb_klaeren``.
+
+    ⚠️ **Nein, sobald eine Altersbeschraenkung gilt.** Die Vorschlaege kommen
+    aus Sonarr und sind damit an TMDB vorbei - und an TMDB haengt die
+    Alterspruefung (``media._darf_sehen``). Wer waehlen darf, koennte sich
+    ueber eine harmlose Anfrage eine beliebige Serie in die Bibliothek holen.
+
+    Kinderkonten sind ohnehin aussen vor: Sie stellen keine Anfragen, sondern
+    Wuensche, und die entscheiden die Eltern.
+    """
+    return settings.age_limit is None and user.role != Role.child
+
+
+async def _tvdb_klaeren(
+    db: Session,
+    settings: AppSettings,
+    user: User,
+    item: MediaItem,
+    tier: QualityTier,
+    wahl: int | None,
+    season: int | None,
+    *,
+    # ⚠️ **Ohne Vorgabe, mit Absicht.** Eine Vorgabe waere eine Annahme
+    # darueber, ob am anderen Ende jemand antworten kann - und die kann nur
+    # der Aufrufer treffen. ``create_request`` hat eine (aus), weil es der
+    # oeffentliche Dienst ist; hier drinnen soll niemand raten muessen, und
+    # ein vergessenes Argument faellt sofort auf statt still das Falsche zu
+    # tun.
+    auswahl_moeglich: bool,
+) -> int | None:
+    """Die TVDB-Kennung einer Serie klaeren - **bevor** die Anfrage entsteht.
+
+    ⚠️ **Warum hier und nicht in ``push_to_arr``.** Dort scheiterte es bisher,
+    und dort ist der Anfragende laengst weg: Bei einer Anfrage, die erst
+    freigegeben werden muss, faellt der Fehler dem Entscheider vor die Fuesse -
+    und der weiss nicht, welche Serie gemeint war. Fragen kann man nur den,
+    der gerade davorsitzt.
+
+    Drei Ausgaenge, und nur der erste ist stumm:
+
+    * **Eindeutig** - ein Treffer traegt dieselbe TMDB-Kennung. Nichts zu
+      fragen, die Anfrage laeuft durch.
+    * **Vorschlaege** - Sonarr kennt aehnliche Serien. Die Oberflaeche zeigt
+      sie zur Auswahl (``tvdb_choice_needed``) und schickt die Anfrage danach
+      noch einmal, diesmal mit ``tvdb_id``. Nur, wenn ``auswahl_moeglich``
+      gesetzt ist.
+
+    ⚠️ **``auswahl_moeglich`` ist standardmaessig aus, und das mit Absicht.**
+    Eine Rueckfrage taugt nur, wo jemand davorsitzt und antworten kann. Beim
+    Freigeben eines **Kinderwunsches** ist das nicht so: Dort laeuft derselbe
+    Dienst, aber die Oberflaeche kennt kein Auswahlfenster - das Elternteil
+    laese "Bitte waehle die richtige aus" und haette nichts zum Waehlen, und
+    der Wunsch bliebe fuer immer offen. Wer einen neuen Weg baut, bekommt
+    deshalb die Auskunft, bis er ausdruecklich sagt, dass er fragen kann.
+    * **Nichts** - dann sagt ``tvdb_id_missing``, woran es liegt, und ob
+      Warten hilft.
+    """
+    client = library.sonarr_client(settings, tier.value)
+    if client is None:
+        # Ohne eingerichtetes Sonarr scheitert die Anfrage weiter unten mit
+        # der Meldung, dass nichts eingerichtet ist - die ist hier die
+        # bessere, und sie kommt von ``push_to_arr``.
+        return None
+
+    # ⚠️ **Der englische Titel gehoert dazu, sonst greift das hier gar nicht.**
+    # TheTVDB ist englisch indiziert. In deutscher Oberflaeche liefert TMDB
+    # fuer eine thailaendische Serie Titel *und* Originaltitel auf Thai -
+    # Sonarr findet damit nichts, obwohl es unter dem englischen Namen zwanzig
+    # Treffer hat. Live nachgemessen; ohne diese Zeile lief der Rueckfall bei
+    # genau den Serien ins Leere, fuer die er gedacht ist.
+    englisch = await media.englischer_titel(db, settings, "tv", item.tmdb_id)
+
+    try:
+        zuordnung = await serien_zuordnung.zuordnen(
+            client, item.tmdb_id, item.title, item.original_title or "", englisch or ""
+        )
+    except ArrError as fehler:
+        # ⚠️ **Ein stummes Sonarr darf die Anfrage nicht kippen.** Diese Suche
+        # ist eine Zusatzchance, kein Teil der Pruefung: Vorher entstand die
+        # Anfrage auch ohne TVDB-Kennung und scheiterte erst bei der Uebergabe -
+        # mit der Meldung, dass Sonarr nicht erreichbar ist. Genau die ist hier
+        # die richtige, und sie kommt von ``push_to_arr``. Wer stattdessen hier
+        # abbraeche, liesse den Anfragenden ueber eine fehlende TVDB-Kennung
+        # raetseln, waehrend in Wahrheit der Server aus war.
+        logger.info(
+            "Sonarr could not be asked about %r (tmdb=%s): %s",
+            item.title,
+            item.tmdb_id,
+            logs.kennung(fehler),
+        )
+        return None
+    if zuordnung.eindeutig:
+        logger.info(
+            "TVDB id for %r (tmdb=%s) came from Sonarr rather than TMDB: %s",
+            item.title,
+            item.tmdb_id,
+            zuordnung.tvdb_id,
+        )
+        return zuordnung.tvdb_id
+
+    if wahl is not None:
+        # ⚠️ Die Zahl kommt aus dem Browser. Ungeprueft uebernommen waere sie
+        # ein Weg, jede beliebige Serie anlegen zu lassen - siehe
+        # ``serien_zuordnung.erlaubt``.
+        if not serien_zuordnung.erlaubt(zuordnung, wahl):
+            raise RequestError(
+                "Diese Auswahl steht nicht mehr zur Verfügung. Bitte frage den Titel erneut an.",
+                400,
+                code="tvdb_choice_invalid",
+                title=item.title,
+            )
+        return wahl
+
+    if zuordnung.kandidaten and auswahl_moeglich and _darf_waehlen(settings, user):
+        # ⚠️ **428 und nicht 409, und das ist keine Feinheit.** Die Oberflaeche
+        # fragt Staffeln einzeln an und **verschluckt jeden 409** - "ist schon
+        # angefragt" soll den Stapel nicht abbrechen (``AddRequestForm``).
+        # Unter 409 waere dieses Fenster nie erschienen; der Anfragende saehe
+        # "alle Staffeln bereits angefragt" und nie die Auswahl.
+        raise RequestError(
+            "Diese Serie ließ sich nicht automatisch zuordnen. Bitte wähle die richtige aus.",
+            428,
+            code="tvdb_choice_needed",
+            title=item.title,
+            fresh=_frisch(item.release_date),
+            candidates=[
+                {
+                    "tvdb_id": k.tvdb_id,
+                    "title": k.title,
+                    "year": k.year,
+                    "overview": k.overview,
+                    "poster_url": k.poster_url,
+                }
+                for k in zuordnung.kandidaten
+            ],
+        )
+
+    # Zwei Kennungen statt einer mit Schalter: Der Unterschied ist nicht die
+    # Ursache, sondern der Rat. "Versuch es spaeter" bei einem Titel von 1978
+    # waere eine Vertroestung, und uebersetzen laesst sich ein Satz, kein
+    # Wahrheitswert.
+    if _frisch(item.release_date):
+        raise RequestError(
+            "TheTVDB führt diese Serie noch nicht - bei neuen Titeln dauert das "
+            "meist ein paar Tage.",
+            422,
+            code="tvdb_id_missing_new",
+            title=item.title,
+        )
+    raise RequestError(
+        "TheTVDB führt keinen Eintrag zu dieser Serie, und Sonarr kann sie "
+        "deshalb nicht anlegen.",
+        422,
+        code="tvdb_id_missing",
+        title=item.title,
+    )
+
+
 async def create_request(
     db: Session,
     settings: AppSettings,
@@ -918,6 +1114,8 @@ async def create_request(
     from_watchlist: bool = False,
     monitor_future: bool = False,
     episodes: list[int] | None = None,
+    tvdb_wahl: int | None = None,
+    tvdb_auswahl_moeglich: bool = False,
 ) -> MediaRequest:
     """Neue Anfrage anlegen - inklusive aller Vorpruefungen.
 
@@ -1219,6 +1417,18 @@ async def create_request(
 
     _kontingent_pruefen(db, settings, user, media_type)
 
+    # ⚠️ **Erst hier, ganz zum Schluss der Pruefungen.** Die Frage "welche
+    # Serie meinst du?" kostet zwei Abfragen an Sonarr; sie zu stellen, waehrend
+    # das Kontingent voll ist oder das Profil gesperrt, waere eine Rueckfrage
+    # ohne Zweck. Und noch ist nichts geschrieben: Wer hier abbricht,
+    # hinterlaesst keine halbe Anfrage.
+    tvdb_id = item.tvdb_id
+    if media_type == MediaType.tv and not tvdb_id:
+        tvdb_id = await _tvdb_klaeren(
+            db, settings, user, item, tier, tvdb_wahl, season,
+            auswahl_moeglich=tvdb_auswahl_moeglich,
+        )
+
     # Ohne Ordner darf nichts durchrutschen: eine automatisch freigegebene
     # Anfrage kaeme an keinem Entscheider vorbei, und genau der soll ja waehlen.
     sofort = user.auto_approve_for(media_type, tier) and not ziel_erst_bei_freigabe
@@ -1227,7 +1437,7 @@ async def create_request(
         media_type=media_type,
         tier=tier,
         tmdb_id=item.tmdb_id,
-        tvdb_id=item.tvdb_id,
+        tvdb_id=tvdb_id,
         title=item.title,
         poster_path=item.poster_url,
         release_date=item.release_date,

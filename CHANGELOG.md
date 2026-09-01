@@ -12,6 +12,120 @@ tag exists for it.
 
 ---
 
+## 0.26.1
+
+### Fixed
+
+- **"No description available." on titles that do have one, just not in your language.**
+  TMDB keeps the plot separately per language and has no fallback of its own for that
+  field: where the translation is missing, the answer carries an empty text rather than
+  the English original. Nexview took it at face value and printed the placeholder, while
+  themoviedb.org showed a full plot on the very same page.
+
+  It hits exactly the titles people look at first. Measured against the cache of a
+  running installation: 64 of 454 titles carried no description, and 29 of those came
+  out this year, which is what the catalogue and "What to watch?" put at the front.
+
+  Where the configured language has no text, Nexview now fetches the English one and
+  shows it without further comment. The extra request only happens for a title whose
+  description is actually empty, so a page where nothing is missing costs nothing, and
+  the answer is remembered for a week. "No English text either" is remembered too,
+  because otherwise the same fruitless request would run on every page view; a TMDB
+  outage is not, because otherwise a single hiccup would mean a blank card for a week.
+  Nothing to configure.
+
+  **Episodes get the same treatment**, where the gap is wider still: a season that has
+  just started often carries an English text on every episode and a translated one on
+  none. One request covers the whole season rather than one per episode, and a season
+  that misses nothing makes none at all.
+
+  The release calendar needed no change. Its upcoming titles come through the same
+  place and are covered along with everything else; the entries from Radarr and Sonarr
+  carry those servers' own text, which is a different source and not this fault.
+
+  Reported in [#6](https://github.com/DerKezorm/nexview/issues/6).
+
+- **A series TMDB has no TVDB id for is no longer simply refused.** Sonarr adds series by
+  their TVDB id, Nexview derived that id from TMDB, and for new titles TMDB regularly does
+  not have it yet. The answer was "TMDB does not have a TVDB id for this series yet", which
+  read like "wait a few days" and was often not what was going on at all.
+
+  Nexview now asks Sonarr, which knows the same series through its own search. Sonarr
+  carries the TMDB number on nearly every series, so where one hit carries the number that
+  was requested, the match is certain and nothing is asked: the request goes through as if
+  nothing had been missing. Measured against a real instance, that settles it outright for
+  one in four of the affected titles.
+
+  Where it is not certain, the suggestions are put up for a person to choose from, the way
+  Seerr does it. Nexview does not guess here, and the measurement says why: for "Still
+  Water" (Thailand, 2026) Sonarr offers "Still Waters" (Wales, 1995), one letter apart and
+  an entirely different show. Matching on title and year would have added it. What the
+  request was actually for now sits above the list with its poster, year and plot, which
+  is what makes that difference visible. Nothing is preselected.
+
+  Under the list stands what is going on when none of them fit, and it says something
+  different for a series that started last week than for one from 1978, where "try again
+  later" would be an empty promise.
+
+  Two boundaries sit in the server rather than the interface. The chosen id is checked
+  against the same search before it is accepted, because a freely chosen TVDB id would be
+  a way past TMDB and therefore past the age restriction. And accounts with an age limit,
+  child accounts among them, get the explanation rather than the choice, for the same
+  reason.
+
+  Reported in [#5](https://github.com/DerKezorm/nexview/issues/5).
+
+- **A series that failed to be added no longer stays behind in Sonarr.** Adding a series
+  and switching its season on are two calls. When the second one failed, the request was
+  marked failed and the series stood in Sonarr anyway: no season, no file, and nobody
+  knew where it came from. Found while testing the above, against a real instance, with a
+  TheTVDB entry that carries no seasons at all.
+
+  What the failed call created is now taken back. Only that: a series that was already in
+  Sonarr is never touched, because in that case Nexview attaches itself to the existing
+  entry rather than adding one, so it never reaches this path. A timeout is left alone as
+  well, since it does not mean nothing happened, and the status sync clears those cases up
+  by itself. Files are kept, unlike cancelling a request: the series is seconds old and
+  realistically has none, but the folder may be older than the series, and somebody who
+  put episodes there by hand should not lose them over a request that never came to be.
+
+- **Seasons that appear later now count against the person who asked for them.** Ticking
+  "also future seasons" is a promise: keep this series coming, and I will carry it. The
+  storage accounting did not read it that way. Somebody who requested a whole series was
+  charged for every season that turned up afterwards, while somebody who requested season 1
+  and ticked the box was not, and those seasons fell to the house instead. The same wish,
+  two different answers, depending on which button had been pressed.
+
+  The two quotas answer different questions, and both now answer consistently. The **count**
+  quota counts wishes: a season nobody asked for individually costs no further slot, because
+  at request time nobody can say how many there will be. The **storage** quota counts bytes,
+  and those exist once the season is downloaded, so they land on the account of whoever
+  ticked the box. The wording next to the tick box says this now instead of the opposite.
+
+  What this cannot tell apart: whether a season is genuinely new or was simply switched on
+  by hand in Sonarr. Both go to the same person. Measured against a real library, the second
+  case is rare, because seasons nobody requested stay unmonitored and never download by
+  themselves.
+
+- **Cancelling a failed request threatened to delete files it was never going to touch.**
+  The confirmation always announced that the title would be removed from Radarr or Sonarr,
+  that the quota would be freed, and that any downloaded files would go with it. For a
+  failed request none of that is true: it never got as far as being added, so there is no
+  entry to remove, and a failed request costs no quota to begin with. Reported by an
+  operator who found series in that list which he had long since downloaded, with the
+  warning pointing at their files.
+
+  The dialog now says what actually happens, and the warning about files only appears
+  when there is something to delete.
+
+- **A warning about waking sleeping episodes would have crashed instead of warning.** The
+  Sonarr module used a logger it never defined, so the line raised a `NameError` whenever
+  it came up. It only comes up when switching a series on wakes previously monitored
+  episodes without a file, which is rare enough that nobody hit it. Every other module was
+  checked for the same mistake; there was none.
+
+---
+
 ## 0.26.0 – 01.09.2026
 
 ### New

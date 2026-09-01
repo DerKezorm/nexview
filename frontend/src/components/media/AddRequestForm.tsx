@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { SerienZuordnung, type Zuordnungsvorschlag } from './SerienZuordnung'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -158,6 +159,17 @@ export function AddRequestForm({
    */
   const [kuenftige, setKuenftige] = useState(false)
 
+  // „Welche Serie meinst du?" - gefüllt, sobald der Server mit
+  // ``tvdb_choice_needed`` antwortet (Issue #5). Solange etwas drinsteht,
+  // zeigt dieses Formular nur das Auswahlfenster.
+  const [zuordnung, setZuordnung] = useState<{
+    vorschlaege: Zuordnungsvorschlag[]
+    frisch: boolean
+  } | null>(null)
+  // Die getroffene Wahl. Geht als ``tvdb_id`` mit; der Server prüft sie
+  // gegen dieselbe Sonarr-Suche, bevor er sie annimmt.
+  const [tvdbWahl, setTvdbWahl] = useState<number | null>(null)
+
   const optionsQuery = useQuery({
     queryKey: ['arr-options', item.media_type, tier],
     queryFn: () =>
@@ -208,7 +220,10 @@ export function AddRequestForm({
   }
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (wahl?: number) => {
+      // Die Wahl kommt als Argument, nicht aus dem Zustand: React setzt ihn
+      // erst nach dem Rendern, und der Klick löst die Anfrage sofort aus.
+      const gewaehlteKennung = wahl ?? tvdbWahl
       const gemeinsam = {
         media_type: item.media_type,
         tmdb_id: item.tmdb_id,
@@ -220,6 +235,8 @@ export function AddRequestForm({
         root_folder_path: !zielSpaeter && options?.root_folder_choice ? folder : null,
         from_watchlist: fromWatchlist,
         monitor_future: istSerie ? kuenftige : false,
+        // Nur gesetzt, nachdem jemand im Auswahlfenster geklickt hat.
+        ...(gewaehlteKennung !== null ? { tvdb_id: gewaehlteKennung } : {}),
       }
 
       // Filme haben keine Staffel; bei Serien ist mindestens eine gewählt -
@@ -256,7 +273,17 @@ export function AddRequestForm({
           // Wer 1, 4 und 7 anhakt und 4 ist schon unterwegs, will 1 und 7
           // trotzdem haben – und „ist schon angefragt" ist ohnehin das
           // Ergebnis, das er wollte.
-          if (fehler instanceof ApiError && fehler.status === 409) {
+          // ⚠️ **Nicht jeder 409 heißt „ist schon angefragt".** Diese Zeile
+          // prüfte lange nur den Zahlencode - und verschluckte damit alles,
+          // was der Server sonst noch unter 409 meldet. Die Rückfrage nach
+          // der richtigen Serie kommt deshalb als 428; hier steht die
+          // Bedingung trotzdem enger, damit die nächste Meldung nicht in
+          // dieselbe Falle läuft.
+          if (
+            fehler instanceof ApiError &&
+            fehler.status === 409 &&
+            fehler.code !== 'tvdb_choice_needed'
+          ) {
             uebersprungen += 1
             continue
           }
@@ -273,6 +300,25 @@ export function AddRequestForm({
       // diesem Fenster liegt und gleich wieder sichtbar wird.
       anfragenStandNeuLaden(queryClient)
       onDone()
+    },
+    onError: (fehler) => {
+      // Der Server kann die Serie nicht zuordnen und legt Vorschläge vor.
+      // Kein Fehler im eigentlichen Sinn: Es fehlt eine Angabe, und die kann
+      // nur der geben, der gerade davorsitzt.
+      if (fehler instanceof ApiError && fehler.code === 'tvdb_choice_needed') {
+        const daten = fehler.data ?? {}
+        setZuordnung({
+          vorschlaege: (daten.candidates as Zuordnungsvorschlag[] | undefined) ?? [],
+          frisch: daten.fresh !== false,
+        })
+        return
+      }
+      // Eine abgelaufene Auswahl darf nicht in einer Schleife enden: Der
+      // nächste Versuch geht wieder ohne sie los.
+      if (fehler instanceof ApiError && fehler.code === 'tvdb_choice_invalid') {
+        setTvdbWahl(null)
+        setZuordnung(null)
+      }
     },
   })
 
@@ -338,6 +384,42 @@ export function AddRequestForm({
           `${nummer} (${t('request.episodesShort', { list: folgenKompakt([...eps]) })})`,
       ),
   ]
+
+  // ⚠️ **Ein Fenster, ein Ausgang.** Solange die Zuordnung offen ist, zeigt
+  // dieses Formular nichts anderes - Profil und Ordner sind längst gewählt,
+  // und daneben noch die Serie zu klären hieße, zwei Fragen gleichzeitig zu
+  // stellen.
+  if (zuordnung) {
+    return (
+      <div className="rounded-xl border border-ink-700 bg-ink-900/60 p-4">
+        <h3 className="text-sm font-semibold">{t('request.match.title')}</h3>
+        <div className="mt-3">
+          <SerienZuordnung
+            gesucht={{
+              title: item.title,
+              year: item.release_date?.slice(0, 4) ?? null,
+              overview: item.overview,
+              poster_url: item.poster_url ?? null,
+            }}
+            vorschlaege={zuordnung.vorschlaege}
+            frisch={zuordnung.frisch}
+            laeuft={createMutation.isPending}
+            onWaehlen={(tvdbId) => {
+              setTvdbWahl(tvdbId)
+              setZuordnung(null)
+              // Der Zustand ist noch nicht gesetzt, wenn die Mutation läuft -
+              // deshalb die Wahl direkt mitgeben statt sie abzuwarten.
+              createMutation.mutate(tvdbId)
+            }}
+            onAbbrechen={() => {
+              setZuordnung(null)
+              setTvdbWahl(null)
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-xl border border-ink-700 bg-ink-900/60 p-4">
@@ -505,7 +587,7 @@ export function AddRequestForm({
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button
           type="button"
-          onClick={() => createMutation.mutate()}
+          onClick={() => createMutation.mutate(undefined)}
           loading={createMutation.isPending}
           disabled={!ready}
         >

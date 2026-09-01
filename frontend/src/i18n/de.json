@@ -190,7 +190,7 @@
     "seasonAll": "Alle inkl. künftige",
     "seasonNone": "Auswahl aufheben",
     "future": "Auch künftige Staffeln",
-    "futureHint": "Neue Staffeln werden dann automatisch geladen, sobald es sie gibt. Sie zählen zum Hausbestand, nicht auf dein Kontingent – niemand kann vorher wissen, wie groß sie werden.",
+    "futureHint": "Neue Staffeln werden dann automatisch geladen, sobald es sie gibt. Ihr Platz zählt auf dein Speicher-Kontingent, sobald sie da sind – einen weiteren Anfrage-Platz kosten sie nicht, denn vorher weiß niemand, wie viele es werden.",
     "allSeasonsAlready": "Alle gewählten Staffeln sind bereits angefragt oder vorhanden.",
     "seasonChoose": "Auswählen",
     "seasonChooseFor": "Staffeln von {{title}}",
@@ -208,7 +208,17 @@
     "episodesToggle": "Einzelne Folgen von {{name}} wählen",
     "inSubscription": "Läuft in deinem {{services}}.",
     "inSubscriptionMovie": "Du kannst ihn dort sofort sehen.",
-    "inSubscriptionSeries": "Ob diese Staffel dabei ist, sagt die Quelle nicht."
+    "inSubscriptionSeries": "Ob diese Staffel dabei ist, sagt die Quelle nicht.",
+    "match": {
+      "title": "Welche Serie meinst du?",
+      "intro": "Diese Serie ließ sich nicht automatisch zuordnen. Bitte wähle unten die richtige aus.",
+      "youAsked": "Das hast du angefragt",
+      "yearUnknown": "Jahr unbekannt",
+      "notThere": "Nicht dabei?",
+      "hintNew": "Bei einer so neuen Serie trägt TheTVDB das meist in ein paar Tagen nach - dann versuch es noch einmal.",
+      "hintOld": "Diese Serie fehlt in TheTVDB, und daran wird sich nichts mehr ändern. Sag der Betreiberin oder dem Betreiber Bescheid, wenn du sie brauchst.",
+      "confirm": "Weiter"
+    }
   },
   "home": {
     "greeting": "Willkommen zurück, {{name}}",
@@ -505,6 +515,8 @@
     "cancelTitle": "Anfrage abbrechen?",
     "cancelText": "„{{title}}“ wird aus Radarr bzw. Sonarr entfernt und nicht weiter gesucht. Dein Kontingent wird dafür wieder frei – du kannst also stattdessen etwas anderes anfragen.",
     "cancelTextAdmin": "„{{title}}“ von {{name}} wird aus Radarr bzw. Sonarr entfernt und nicht weiter gesucht. Das Kontingent von {{name}} wird dafür wieder frei.",
+    "cancelTextNothing": "„{{title}}“ kam nie bis zu Radarr oder Sonarr - die Anfrage ist ja fehlgeschlagen. Es wird nichts entfernt und keine Datei gelöscht; die Zeile wandert nur zu den abgebrochenen Anfragen.",
+    "cancelTextNothingAdmin": "„{{title}}“ von {{name}} kam nie bis zu Radarr oder Sonarr - die Anfrage ist ja fehlgeschlagen. Es wird nichts entfernt und keine Datei gelöscht; die Zeile wandert nur zu den abgebrochenen Anfragen.",
     "cancelWarning": "Bereits heruntergeladene Dateien werden dabei mitgelöscht.",
     "cancelConfirm": "Ja, abbrechen"
   },
@@ -1590,7 +1602,10 @@
       "title_not_marked": "Dieser Titel war nicht markiert.",
       "title_unknown_here": "Diesen Titel gibt es hier nicht.",
       "topic_nested": "Ein Topic kann keine Topics enthalten.",
-      "tvdb_id_missing": "Für diese Serie kennt TMDB noch keine TVDB-Kennung – Sonarr kann sie deshalb nicht anlegen.",
+      "tvdb_choice_invalid": "Diese Auswahl steht nicht mehr zur Verfügung. Bitte frage den Titel erneut an.",
+      "tvdb_choice_needed": "Diese Serie ließ sich nicht automatisch zuordnen. Bitte wähle die richtige aus.",
+      "tvdb_id_missing": "TheTVDB führt keinen Eintrag zu dieser Serie, Sonarr kann sie deshalb nicht anlegen. Daran wird sich nichts ändern.",
+      "tvdb_id_missing_new": "TheTVDB führt diese Serie noch nicht. Bei einem so neuen Titel dauert das meist ein paar Tage - versuch es später noch einmal.",
       "uhd_not_allowed": "Für 4K-Anfragen fehlt dir die Berechtigung.",
       "uhd_not_configured": "Für 4K ist noch keine zweite Instanz eingerichtet.",
       "url_needs_scheme": "Die Adresse muss mit http:// oder https:// beginnen.",

@@ -145,6 +145,9 @@ async def create_request(
             payload.from_watchlist,
             payload.monitor_future,
             episodes=payload.episodes,
+            tvdb_wahl=payload.tvdb_id,
+            # Diese Oberflaeche kann nachfragen - siehe ``SerienZuordnung``.
+            tvdb_auswahl_moeglich=True,
         )
     except requests_service.RequestError as error:
         raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error

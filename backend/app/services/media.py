@@ -29,7 +29,7 @@ from ..schemas_media import (
     WatchProvider,
     WatchProviders,
 )
-from . import age_rating, cache
+from . import age_rating, cache, logs
 from .filters import DiscoverFilters
 from .settings_service import AppSettings
 from .tmdb import (
@@ -185,6 +185,145 @@ def _enrich(
     )
 
 
+# --- Rueckfall auf die englische Beschreibung --------------------------------
+#
+# TMDB fuellt ``overview`` je Sprache getrennt, und einen eigenen Rueckfall auf
+# Englisch gibt es dafuer nicht (anders als bei Bildern ueber
+# ``include_image_language``). Fehlt die Uebersetzung, kommt ein **leerer**
+# String zurueck - und Nexview zeigte dafuer "Keine Beschreibung vorhanden",
+# obwohl auf themoviedb.org sehr wohl ein Text steht (Issue #6).
+#
+# Gemessen am Zwischenspeicher einer echten Installation: 64 von 454 Titeln
+# ohne Beschreibung, 29 davon aus dem laufenden Jahr - also genau die
+# Neuerscheinungen, die im Katalog und in "Was schauen?" vorne stehen.
+
+def _beschreibungs_schluessel(media_type: str, tmdb_id: int) -> str:
+    """Wo die englische Beschreibung eines Titels liegt.
+
+    Ein eigener Schluessel, weil ``_schlanker_schluessel`` die eingestellte
+    Sprache enthaelt - unter ihm liegt bereits die Antwort, in der der Text ja
+    gerade fehlt.
+
+    ⚠️ **Ohne Region, und das ist Absicht** - siehe ``englischer_titel``:
+    Gefragt wird mit ``en-US``, und der englische Text ist fuer jeden
+    derselbe. Die Region steckt weiterhin im regionsbehafteten Eintrag, wo
+    sie hingehoert.
+
+    Gemerkt wird der blosse Text und nicht die ganze Antwort: Gebraucht wird
+    ein einziges Feld, und der Eintrag steht neben einem, der alles Uebrige
+    schon haelt.
+    """
+    return f"overview:en:{media_type}:{tmdb_id}"
+
+
+async def _englische_beschreibungen(
+    db: Session, settings: AppSettings, media_type: str, items: list[MediaItem]
+) -> list[MediaItem]:
+    """Leere Beschreibungen mit dem englischen Text auffuellen.
+
+    ⚠️ **Der Aufruf kostet im Normalfall nichts.** Gefragt wird nur nach den
+    Titeln, deren Beschreibung wirklich leer ist - bei den allermeisten Listen
+    ist das keiner, und dann geht die Funktion ohne eine einzige Abfrage
+    wieder heraus. Dasselbe Muster wie beim Nachschlag der TVDB-Kennung.
+
+    ⚠️ **Ein leerer Text wird gemerkt, ein Ausfall nicht.** Hat TMDB auch auf
+    Englisch nichts, ist das eine Auskunft und gilt sieben Tage - sonst liefe
+    fuer diese Titel bei jedem Seitenaufruf dieselbe vergebliche Abfrage.
+    Antwortet TMDB dagegen gar nicht, fehlt der Titel in der Antwort und bleibt
+    ungemerkt; sonst haette ein einzelner Aussetzer eine Woche lang eine leere
+    Karte zur Folge.
+
+    Bei englisch eingestellter Oberflaeche faellt die ganze Sache aus: Der
+    Text, der dort fehlt, ist derselbe, den wir holen wuerden.
+    """
+    if settings.use_demo_data or (settings.default_language or "").lower().startswith("en"):
+        return items
+
+    offen = [item.tmdb_id for item in items if not item.overview]
+    if not offen:
+        return items
+
+    texte: dict[int, str] = {}
+    fehlend: list[int] = []
+    for tmdb_id in offen:
+        gemerkt = cache.read(db, _beschreibungs_schluessel(media_type, tmdb_id))
+        if gemerkt is None:
+            fehlend.append(tmdb_id)
+        else:
+            texte[tmdb_id] = str(gemerkt)
+
+    if fehlend:
+        englisch = TmdbClient(
+            api_key=settings.tmdb_api_key, language="en-US", region=settings.default_region
+        )
+        geholt = await englisch.overviews(media_type, fehlend)
+        for tmdb_id, text in geholt.items():
+            cache.write(db, _beschreibungs_schluessel(media_type, tmdb_id), text, cache.DETAIL_TTL)
+            texte[tmdb_id] = text
+
+    if not any(texte.values()):
+        return items
+
+    return [
+        item
+        if item.overview or not texte.get(item.tmdb_id)
+        else item.model_copy(update={"overview": texte[item.tmdb_id]})
+        for item in items
+    ]
+
+
+async def englischer_titel(
+    db: Session, settings: AppSettings, media_type: str, tmdb_id: int
+) -> str | None:
+    """Wie der Titel auf Englisch heisst - fuer die Suche bei Sonarr.
+
+    ⚠️ **TheTVDB ist englisch indiziert, TMDB nicht.** In deutscher
+    Oberflaeche liefert TMDB fuer eine thailaendische Serie sowohl ``name``
+    als auch ``original_name`` auf Thai. Wer damit bei Sonarr sucht, bekommt
+    null Treffer - waehrend dieselbe Serie unter "Still Water" zwanzig liefert.
+    Live nachgemessen am 01.09.2026; ohne diesen Titel griff der Rueckfall aus
+    Issue #5 bei genau den Serien nicht, fuer die er gedacht ist.
+
+    Gemerkt wird nur der Name, sieben Tage, unter einem eigenen Schluessel.
+    Der Aufruf faellt nur an, wenn TMDB keine TVDB-Kennung fuehrt - also
+    selten.
+
+    ⚠️ **Ohne Region im Schluessel, und das ist Absicht.** Jeder Benutzer darf
+    seine eigene Region einstellen (``for_user``), und der schlanke
+    Detaileintrag traegt sie deshalb im Schluessel. Hier nicht: Gefragt wird
+    ausdruecklich mit ``en-US``, und wie eine Serie auf Englisch heisst, haengt
+    nicht davon ab, wer fragt. Ein Eintrag je Region waere derselbe Name in
+    zwanzig Kopien - und zwanzigmal derselbe Aufruf an TMDB. Was tatsaechlich
+    an der Region haengt (Kinostarts, Freigaben, Streaming-Anbieter), steht
+    weiterhin im regionsbehafteten Eintrag und wird hiervon nicht beruehrt.
+
+    Bei englisch eingestellter Oberflaeche gibt es nichts zu holen: Der Titel
+    aus ``item`` **ist** der englische.
+    """
+    if settings.use_demo_data or (settings.default_language or "").lower().startswith("en"):
+        return None
+
+    schluessel = f"title:en:{media_type}:{tmdb_id}"
+    gemerkt = cache.read(db, schluessel)
+    if gemerkt is not None:
+        return str(gemerkt) or None
+
+    englisch = TmdbClient(
+        api_key=settings.tmdb_api_key, language="en-US", region=settings.default_region
+    )
+    try:
+        roh = await englisch.detail(media_type, tmdb_id)
+    except TmdbError as fehler:
+        # ⚠️ Nicht merken: Ein Aussetzer duerfte sonst eine Woche lang die
+        # Suche verkuerzen, und das faellt niemandem auf.
+        logger.info("English title for tmdb=%s not available: %s", tmdb_id, logs.kennung(fehler))
+        return None
+
+    name = str(roh.get("name") if media_type == "tv" else roh.get("title") or "")
+    cache.write(db, schluessel, name, cache.DETAIL_TTL)
+    return name or None
+
+
 async def _to_items(
     db: Session,
     settings: AppSettings,
@@ -228,7 +367,7 @@ async def _to_items(
         if not _darf_sehen(detail, media_type, settings):
             continue
         enriched.append(_enrich(item, detail, media_type, region) if detail else item)
-    return enriched
+    return await _englische_beschreibungen(db, settings, media_type, enriched)
 
 
 # --- Demo-Modus ------------------------------------------------------------
@@ -518,7 +657,8 @@ async def detail(
     item = _base_item(raw, media_type, genres)
     # Nur hier mit Staffeln: die Detailansicht ist die einzige Stelle, an
     # der man eine Staffel auswaehlen kann.
-    return _enrich(item, raw, media_type, region, mit_staffeln=True)
+    fertig = _enrich(item, raw, media_type, region, mit_staffeln=True)
+    return (await _englische_beschreibungen(db, settings, media_type, [fertig]))[0]
 
 
 # --- Detailseite -------------------------------------------------------------
@@ -727,6 +867,7 @@ async def full_detail(
 
     genres = await _genre_map(db, settings, media_type)
     basis = _enrich(_base_item(raw, media_type, genres), raw, media_type, region, mit_staffeln=True)
+    basis = (await _englische_beschreibungen(db, settings, media_type, [basis]))[0]
 
     # Die Empfehlungen laufen bewusst durch ``_to_items`` statt durch
     # ``_base_item``: nur dort greift die Altersbeschraenkung. Sonst waere
@@ -793,16 +934,20 @@ async def season_detail(
         fetch,
     )
 
+    englisch = await _englische_staffel(db, settings, tmdb_id, season_number, raw)
+
     return SeasonDetail(
         season_number=raw.get("season_number", season_number),
         name=raw.get("name") or f"Staffel {season_number}",
-        overview=raw.get("overview") or "",
+        overview=raw.get("overview") or englisch.get(0, ""),
         air_date=raw.get("air_date") or None,
         episodes=[
             EpisodeInfo(
                 episode_number=folge.get("episode_number", 0),
                 name=folge.get("name") or "",
-                overview=folge.get("overview") or "",
+                overview=(
+                    folge.get("overview") or englisch.get(folge.get("episode_number"), "")
+                ),
                 air_date=folge.get("air_date") or None,
                 runtime_minutes=folge.get("runtime") or None,
                 still_url=image_url(folge.get("still_path"), STILL_SIZE),
@@ -811,6 +956,72 @@ async def season_detail(
             for folge in raw.get("episodes") or []
         ],
     )
+
+
+async def _englische_staffel(
+    db: Session, settings: AppSettings, tmdb_id: int, season_number: int, roh: dict[str, Any]
+) -> dict[int, str]:
+    """Die englischen Beschreibungen einer Staffel - Staffel selbst unter ``0``.
+
+    Derselbe Fall wie bei den Titeln (siehe ``_englische_beschreibungen``), nur
+    eine Ebene tiefer: Gerade bei einer frisch angelaufenen Staffel steht bei
+    TMDB zu jeder Folge ein englischer Text und zu keiner ein deutscher.
+
+    ⚠️ **Eine Abfrage fuer die ganze Staffel, nicht eine je Folge.** Die
+    englische Staffelantwort enthaelt alle Folgen auf einmal; sie liegt unter
+    demselben Schluessel wie die deutsche, nur mit ``en`` am Ende, und wird
+    ebenso sieben Tage gemerkt. Fehlt kein einziger Text, unterbleibt sie.
+
+    ⚠️ **Ein Ausfall bleibt folgenlos.** Antwortet TMDB nicht, kommt die
+    Staffel ohne die fehlenden Texte heraus statt gar nicht - sie wegen einer
+    fehlenden Beschreibung scheitern zu lassen, waere der schlechtere Tausch.
+
+    Die erste Zeile ist eine **Abkuerzung, keine Absicherung**: Bei englischer
+    Oberflaeche liegt die Antwort schon unter demselben Schluessel, den dieser
+    Rueckfall lesen wuerde - ohne die Zeile kaeme dasselbe heraus, nur ueber
+    einen ueberfluessigen Blick in den Zwischenspeicher. Kein Test kann sie
+    deshalb festhalten; es gibt nichts, was sich ohne sie anders verhielte.
+    """
+    if (settings.default_language or "").lower().startswith("en"):
+        return {}
+
+    folgen = roh.get("episodes") or []
+    fehlt = not (roh.get("overview") or "") or any(
+        not (folge.get("overview") or "") for folge in folgen
+    )
+    if not fehlt:
+        return {}
+
+    async def fetch() -> dict[str, Any]:
+        englisch = TmdbClient(
+            api_key=settings.tmdb_api_key, language="en-US", region=settings.default_region
+        )
+        return await englisch.season(tmdb_id, season_number)
+
+    try:
+        daten = await cache.cached(
+            db, f"season:{tmdb_id}:{season_number}:en", cache.DETAIL_TTL, fetch
+        )
+    except TmdbError as fehler:
+        # ⚠️ Die Kennung, nicht der Satz: ``TmdbError.message`` ist deutsch -
+        # er ist der Rueckfall fuer die Oberflaeche. Im Protokoll waere er
+        # genau der Fehler aus Issue #7, und ``test_log_sprache`` saehe ihn
+        # nicht, weil er erst zur Laufzeit deutsch wird.
+        logger.info(
+            "English descriptions for tmdb=%s season %s not available: %s (HTTP %s)",
+            tmdb_id,
+            season_number,
+            type(fehler).__name__,
+            fehler.status_code,
+        )
+        return {}
+
+    texte: dict[int, str] = {0: str(daten.get("overview") or "")}
+    for folge in daten.get("episodes") or []:
+        nummer = folge.get("episode_number")
+        if isinstance(nummer, int):
+            texte[nummer] = str(folge.get("overview") or "")
+    return texte
 
 
 # Fach-Kürzel der Oberflaeche -> das, was TMDB im Feld known_for_department

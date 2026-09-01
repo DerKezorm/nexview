@@ -303,6 +303,37 @@ class TmdbClient:
 
         return await self._get(f"/{media_type}/{tmdb_id}", params)
 
+    async def overviews(self, media_type: str, tmdb_ids: list[int]) -> dict[int, str]:
+        """Nur die Beschreibung - in der Sprache dieses Clients.
+
+        Fuer den Rueckfall auf Englisch, wenn TMDB in der eingestellten Sprache
+        keinen Text fuehrt (Issue #6). Bewusst **ohne** ``append_to_response``:
+        Gebraucht wird ein einziges Feld, und die angehaengten Abfragen
+        (Freigaben, Anbieter, Empfehlungen) machen die Antwort um ein
+        Vielfaches groesser, ohne etwas dazu beizutragen.
+
+        Ein leerer Text ist ein gueltiges Ergebnis - dann hat TMDB auch hier
+        keinen. Ein **Ausfall** ist es nicht: Der Titel fehlt dann in der
+        Antwort, statt mit leerem Text darin zu stehen. Der Unterschied
+        entscheidet, ob der Aufrufer das Ergebnis merken darf.
+        """
+        if not tmdb_ids:
+            return {}
+
+        async def fetch_one(tmdb_id: int) -> str | None:
+            try:
+                daten = await self._get(f"/{media_type}/{tmdb_id}")
+            except TmdbError:
+                return None
+            return str(daten.get("overview") or "")
+
+        texte = await asyncio.gather(*(fetch_one(tmdb_id) for tmdb_id in tmdb_ids))
+        return {
+            tmdb_id: text
+            for tmdb_id, text in zip(tmdb_ids, texte, strict=True)
+            if text is not None
+        }
+
     async def keyword(self, keyword_id: int) -> dict[str, Any]:
         """Name eines Schlagworts - fuer die Ueberschrift der Ergebnisseite."""
         return await self._get(f"/keyword/{keyword_id}")

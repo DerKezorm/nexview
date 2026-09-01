@@ -1338,6 +1338,8 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
     nach_film: dict[tuple[int, str], int] = {}
     nach_serie: dict[tuple[int, str, int | None], int] = {}
     nach_paket: dict[int, int] = {}
+    # Wer bei dieser Serie "auch kuenftige Staffeln" angehakt hat.
+    nach_kuenftig: dict[tuple[int, str], int] = {}
     for anfrage in anfragen:
         if anfrage.user_id in admins:
             continue
@@ -1352,6 +1354,8 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
             nach_serie.setdefault(
                 (anfrage.tvdb_id, stufe, anfrage.season), anfrage.user_id
             )
+            if anfrage.monitor_future:
+                nach_kuenftig.setdefault((anfrage.tvdb_id, stufe), anfrage.user_id)
 
     ergebnis: dict[str, int] = {}
     for wert in werte:
@@ -1360,10 +1364,31 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
         elif (paket_nummer := _paket_nummer(wert.key)) is not None:
             besitzer = nach_paket.get(paket_nummer)
         else:
-            # Erst die genaue Staffel, dann die Anfrage ueber die ganze Serie.
-            besitzer = nach_serie.get(
-                (wert.tvdb_id, wert.tier.value, wert.season)
-            ) or nach_serie.get((wert.tvdb_id, wert.tier.value, None))
+            # Drei Stufen, von genau nach weit.
+            #
+            # ⚠️ **Die dritte war lange nicht da, und das war widerspruechlich.**
+            # Wer die *ganze* Serie anfragte, bekam ueber die None-Zeile auch
+            # jede spaeter erscheinende Staffel zugerechnet. Wer Staffel 1
+            # anfragte und "auch kuenftige Staffeln" anhakte, bekam sie nicht -
+            # sie fielen dem Haus zu. Derselbe Wunsch, zwei Antworten, je
+            # nachdem welchen Knopf jemand gedrueckt hatte.
+            #
+            # Der Haken **ist** die Zusage: "Diese Serie soll weiterlaufen, und
+            # ich stehe dafuer ein." Also traegt sie auch, wer ihn gesetzt hat.
+            #
+            # ⚠️ **Was das nicht unterscheiden kann.** Aus einer Datei laesst
+            # sich nicht ablesen, ob eine Staffel *neu erschienen* ist oder ob
+            # sie laengst existierte und jemand sie von Hand in Sonarr
+            # eingeschaltet hat - ein "zuerst gesehen" wird nirgends gefuehrt.
+            # Beides faellt hier demselben Menschen zu. Gemessen an einer
+            # echten Bibliothek ist der zweite Fall selten: Nicht angefragte
+            # Staffeln bleiben unueberwacht und laden nie von selbst (bei
+            # 11 Staffeln "The X-Files" waren es null).
+            besitzer = (
+                nach_serie.get((wert.tvdb_id, wert.tier.value, wert.season))
+                or nach_serie.get((wert.tvdb_id, wert.tier.value, None))
+                or nach_kuenftig.get((wert.tvdb_id, wert.tier.value))
+            )
         if besitzer is not None:
             ergebnis[wert.key] = besitzer
     return ergebnis

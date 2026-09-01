@@ -1081,14 +1081,26 @@ export function AdminRequestsPage() {
         onSeite={blaettern.setSeite}
       />
 
+      {/* ⚠️ Was der Dialog ankündigt, hängt daran, ob überhaupt etwas zu
+          entfernen ist. Vorher drohte er immer mit „wird aus Radarr bzw.
+          Sonarr entfernt" und „bereits heruntergeladene Dateien werden dabei
+          mitgelöscht" - auch bei fehlgeschlagenen Anfragen, die nie dort
+          ankamen. Gemeldet, weil in der Liste Serien standen, die der
+          Betreiber längst geladen hatte, und der Satz mit ihren Dateien
+          drohte. */}
       <ConfirmDialog
         open={cancelling !== null}
         title={t("requests.cancelTitle")}
-        description={t("requests.cancelTextAdmin", {
-          title: cancelling?.title ?? "",
-          name: cancelling?.display_name ?? cancelling?.username ?? "",
-        })}
-        warning={t("requests.cancelWarning")}
+        description={t(
+          cancelling?.arr_linked
+            ? "requests.cancelTextAdmin"
+            : "requests.cancelTextNothingAdmin",
+          {
+            title: cancelling?.title ?? "",
+            name: cancelling?.display_name ?? cancelling?.username ?? "",
+          },
+        )}
+        warning={cancelling?.arr_linked ? t("requests.cancelWarning") : undefined}
         confirmLabel={t("requests.cancelConfirm")}
         loading={cancelMutation.isPending}
         onCancel={() => setCancelling(null)}

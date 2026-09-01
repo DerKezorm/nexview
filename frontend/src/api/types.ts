@@ -1165,7 +1165,9 @@ export type MediaRequest = {
   /** Nur bei Folgen-Paketen: die bestellten Folgen. `null` = ganze Staffel. */
   episodes?: number[] | null;
   /** Kam die Anfrage von der Merkliste statt von einem Klick? */
-  from_watchlist: boolean;
+  from_watchlist: boolean
+  /** Hängt an der Anfrage wirklich ein Eintrag in Radarr/Sonarr? */
+  arr_linked: boolean;
   requested_at: string;
   approved_at: string | null;
   completed_at: string | null;

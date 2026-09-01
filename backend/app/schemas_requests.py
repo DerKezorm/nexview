@@ -32,6 +32,15 @@ class RequestCreate(BaseModel):
     root_folder_path: str | None = Field(default=None, max_length=500)
     # Nur bei Serien von Belang. Standard aus - siehe ``MediaRequest``.
     monitor_future: bool = False
+    # Die Antwort auf "welche Serie meinst du?" (Issue #5).
+    #
+    # ⚠️ **Die einzige Kennung, die von aussen kommen darf - und auch die nur
+    # scheinbar.** Der Server faehrt dieselbe Sonarr-Suche noch einmal und
+    # nimmt die Zahl nur an, wenn sie darin vorkam
+    # (``serien_zuordnung.erlaubt``). Ungeprueft waere sie der Weg, an TMDB
+    # und damit an der Altersbeschraenkung vorbei eine beliebige Serie
+    # anlegen zu lassen.
+    tvdb_id: int | None = Field(default=None, ge=1)
     # Nur bei Serien: welche Staffel? Fehlt sie, ist die ganze Serie gemeint.
     # Staffel 0 sind bei TMDB die Specials - die schliessen wir nicht aus.
     season: int | None = Field(default=None, ge=0, le=200)
@@ -80,6 +89,23 @@ class RequestPublic(BaseModel):
     # Kam die Anfrage von der Merkliste? Der Entscheider soll sehen, dass
     # niemand diesen Titel im Einzelnen ausgesucht hat.
     from_watchlist: bool
+    #: Haengt an dieser Anfrage wirklich ein Eintrag in Radarr/Sonarr?
+    #:
+    #: ⚠️ **Damit das Abbrechen die Wahrheit sagen kann.** Der Rueckfrage-Dialog
+    #: kuendigte bisher **immer** an, der Titel werde "aus Radarr bzw. Sonarr
+    #: entfernt", das Kontingent werde frei und "bereits heruntergeladene
+    #: Dateien werden dabei mitgeloescht". Bei einer **fehlgeschlagenen**
+    #: Anfrage stimmt davon nichts: Sie kam nie bis zum Anlegen, ``arr_id``
+    #: blieb leer, sie zaehlt auch nicht aufs Kontingent (siehe
+    #: ``quota.COUNTED_STATUSES``) - abgebrochen wird nur die Zeile selbst.
+    #:
+    #: Gemeldet, weil genau diese Warnung Angst gemacht hat: Es standen
+    #: Serien in der Liste, die der Betreiber laengst geladen hatte, und der
+    #: Satz drohte mit dem Loeschen seiner Dateien.
+    #:
+    #: Bewusst ein Wahrheitswert und nicht ``arr_id``: Die Nummer ist eine
+    #: Interna von Radarr/Sonarr, und die Oberflaeche braucht nur die Antwort.
+    arr_linked: bool = False
     requested_at: datetime
     approved_at: datetime | None
     completed_at: datetime | None

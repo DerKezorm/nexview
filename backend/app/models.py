@@ -1846,6 +1846,18 @@ class MediaRequest(Base):
     root_folder_path: Mapped[str | None] = mapped_column(String(500))
     arr_id: Mapped[int | None] = mapped_column(Integer)  # ID in Radarr/Sonarr
 
+    @property
+    def arr_linked(self) -> bool:
+        """Haengt an dieser Anfrage wirklich ein Eintrag in Radarr/Sonarr?
+
+        ⚠️ **Die Frage entscheidet, was "Abbrechen" anrichtet.** Ohne
+        ``arr_id`` ueberspringt ``requests_service.cancel`` Radarr und Sonarr
+        ganz - es wird nichts entfernt und keine Datei geloescht. Der
+        Rueckfrage-Dialog drohte trotzdem mit beidem, und zwar immer. Siehe
+        ``schemas_requests.RequestPublic.arr_linked``.
+        """
+        return self.arr_id is not None
+
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime)
     rejection_reason: Mapped[str | None] = mapped_column(Text)

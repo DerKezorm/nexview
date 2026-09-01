@@ -529,8 +529,11 @@ export function MyRequestsPage() {
       <ConfirmDialog
         open={cancelling !== null}
         title={t('requests.cancelTitle')}
-        description={t('requests.cancelText', { title: cancelling?.title ?? '' })}
-        warning={t('requests.cancelWarning')}
+        description={t(
+          cancelling?.arr_linked ? 'requests.cancelText' : 'requests.cancelTextNothing',
+          { title: cancelling?.title ?? '' },
+        )}
+        warning={cancelling?.arr_linked ? t('requests.cancelWarning') : undefined}
         fehler={abbruchFehler}
         confirmLabel={t('requests.cancelConfirm')}
         loading={cancelMutation.isPending}

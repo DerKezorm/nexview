@@ -7,11 +7,22 @@ Laden der Details von TMDB mitgeholt.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 from .arr import ArrClient, ArrError, WarteschlangenEintrag
+
+# ⚠️ **Dieses Modul hatte lange gar keinen.** ``serie_ueberwachen`` rief
+# ``logger.warning`` trotzdem - die Zeile waere mit einem ``NameError``
+# abgestuerzt, sobald sie drankommt (und sie kommt nur dran, wenn das
+# Einschalten schlafende Folgen weckt, also selten genug, um es niemandem
+# auffallen zu lassen). Aufgefallen beim Bauen der Ruecknahme in ``add``.
+#
+# Derselbe Name wie in ``arr.py``: Es ist dieselbe Familie, und wer nach dem
+# Verkehr mit Radarr/Sonarr sucht, will beides in einem Filter haben.
+logger = logging.getLogger("nexview.arr")
 
 
 @dataclass(frozen=True)
@@ -250,6 +261,17 @@ class SonarrClient(ArrClient):
         )
         return entries if isinstance(entries, list) else []
 
+    async def suche(self, begriff: str) -> list[dict[str, Any]]:
+        """Serien bei Sonarr ueber den **Titel** suchen.
+
+        Der zweite Weg zu einer Serie, neben ``lookup`` ueber die Kennung.
+        Gebraucht, wenn TMDB keine TVDB-Kennung fuehrt - siehe
+        ``serien_zuordnung``. Sonarr antwortet mit bis zu zwanzig Treffern,
+        nach eigener Rangfolge sortiert.
+        """
+        treffer = await self.get("/series/lookup", {"term": begriff})
+        return treffer if isinstance(treffer, list) else []
+
     async def lookup(self, tvdb_id: int) -> dict[str, Any] | None:
         result = await self.get("/series/lookup", {"term": f"tvdb:{tvdb_id}"})
         if isinstance(result, list):
@@ -337,11 +359,62 @@ class SonarrClient(ArrClient):
         # stillgelegte Serie laedt auch einzelne Staffeln nicht. ``monitor_season``
         # stoesst die Suche gleich mit an.
         if season is not None and not nur_anlegen and isinstance(angelegt, dict):
-            await self.monitor_seasons(
-                angelegt.get("id"), {season}, season if search_now else None
-            )
+            try:
+                await self.monitor_seasons(
+                    angelegt.get("id"), {season}, season if search_now else None
+                )
+            except ArrError as fehler:
+                # ⚠️ **Was hier gerade entstanden ist, wird wieder abgeraeumt.**
+                #
+                # Anlegen und Einschalten sind zwei Aufrufe. Geht der zweite
+                # schief, ist die Anfrage gescheitert - die Serie aber blieb in
+                # Sonarr stehen, ohne Staffel, ohne Datei und ohne dass jemand
+                # wusste, woher sie kommt. Live aufgefallen: Ein TVDB-Eintrag
+                # ganz **ohne** Staffeln ("Still Waters"), der sich anlegen,
+                # aber nicht bedienen liess.
+                #
+                # Zurueckgenommen wird ausschliesslich, was dieser Aufruf eben
+                # selbst angelegt hat. Wer die Serie schon in Sonarr hatte,
+                # kommt hier gar nicht vorbei: Der Aufrufer haengt sich dann an
+                # den vorhandenen Eintrag, statt ``add`` zu rufen. Sonst waere
+                # aus einer misslungenen Anfrage das Loeschen einer fremden
+                # Serie geworden.
+                await self._zuruecknehmen(angelegt.get("id"), fehler)
+                raise
 
         return angelegt
+
+    async def _zuruecknehmen(self, arr_id: object, ausloeser: ArrError) -> None:
+        """Eine eben angelegte Serie wieder entfernen.
+
+        ⚠️ **Nicht bei Ungewissheit.** Eine Zeitueberschreitung heisst nicht,
+        dass nichts passiert ist (siehe ``ArrError.ungewiss``) - vielleicht ist
+        die Staffel laengst eingeschaltet und laedt. Dann waere das Loeschen
+        der Schaden, nicht die Rettung. Der Status-Abgleich klaert solche
+        Faelle von selbst.
+
+        ⚠️ **Ein Fehler beim Aufraeumen verdeckt den echten nicht.** Der
+        Aufrufer wirft gleich danach den urspruenglichen Fehler weiter; der
+        erklaert, was schiefging. Ein zweiter daneben erklaerte nur noch, dass
+        auch das Aufraeumen nicht klappte - und verlegte damit die Spur.
+        """
+        if ausloeser.ungewiss or not isinstance(arr_id, int) or arr_id <= 0:
+            return
+        try:
+            await self.remove(arr_id, delete_files=False)
+        except ArrError as aufraeumfehler:
+            logger.warning(
+                "Series %s could not be removed after a failed add: %s",
+                arr_id,
+                aufraeumfehler.code or type(aufraeumfehler).__name__,
+            )
+            return
+        logger.info(
+            "Series %s removed again - it was created moments ago and the "
+            "request failed afterwards (%s)",
+            arr_id,
+            ausloeser.code or type(ausloeser).__name__,
+        )
 
     async def monitor_seasons(
         self, arr_id: int | None, seasons: set[int], such_staffel: int | None = None
@@ -379,6 +452,31 @@ class SonarrClient(ArrClient):
             )
 
         staffeln = serie.get("seasons") or []
+        if not staffeln:
+            # ⚠️ **Noch keine Staffeln heisst "noch nicht", nicht "nie".**
+            #
+            # Sonarr laedt die Metadaten einer frisch angelegten Serie
+            # **asynchron** nach. Wer unmittelbar danach fragt, bekommt eine
+            # Serie ganz ohne Staffeln zurueck - und das ist kein Fehler,
+            # sondern ein Zeitpunkt. ``_folgen_einschalten`` macht diesen
+            # Unterschied seit jeher; hier fehlte er.
+            #
+            # Live gemessen (01.09.2026): Eine eben angelegte Serie meldete
+            # null Staffeln, die Anfrage scheiterte mit "Sonarr kennt Staffel 1
+            # dieser Serie nicht" - und Minuten spaeter meldete dieselbe Serie
+            # die Staffeln 0 und 1. Die Auskunft war schlicht zu frueh geholt.
+            #
+            # Der Status-Abgleich schaltet die Staffel im naechsten Durchgang
+            # ein (``status_poller``, ``heilung_noetig``) - dieselbe Heilung,
+            # die auch abgeraeumte Ueberwachung repariert.
+            logger.info(
+                "Series %s has no seasons yet - Sonarr is still loading its "
+                "metadata; the status sync will switch season(s) %s on",
+                arr_id,
+                sorted(seasons),
+            )
+            return
+
         bekannt = {eintrag.get("seasonNumber") for eintrag in staffeln}
         fehlend = seasons - bekannt
         if fehlend:

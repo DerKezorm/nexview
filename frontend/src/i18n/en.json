@@ -190,7 +190,7 @@
     "seasonAll": "All incl. future",
     "seasonNone": "Clear selection",
     "future": "Future seasons too",
-    "futureHint": "New seasons will be fetched automatically once they exist. They count as house stock, not against your quota – nobody can know in advance how large they will be.",
+    "futureHint": "New seasons are then downloaded automatically as soon as they exist. Their space counts against your storage quota once they arrive; they do not cost another request slot, because nobody can say in advance how many there will be.",
     "allSeasonsAlready": "Every season you picked is already requested or available.",
     "seasonChoose": "Choose",
     "seasonChooseFor": "Seasons of {{title}}",
@@ -208,7 +208,17 @@
     "episodesToggle": "Pick single episodes of {{name}}",
     "inSubscription": "Already on your {{services}}.",
     "inSubscriptionMovie": "You can watch it there right now.",
-    "inSubscriptionSeries": "Whether this season is included, the source does not say."
+    "inSubscriptionSeries": "Whether this season is included, the source does not say.",
+    "match": {
+      "title": "Which series do you mean?",
+      "intro": "This series could not be matched automatically. Please pick the right one below.",
+      "youAsked": "You asked for",
+      "yearUnknown": "Year unknown",
+      "notThere": "Not there?",
+      "hintNew": "For a series this new, TheTVDB usually catches up within a few days - try again then.",
+      "hintOld": "TheTVDB has no entry for this series, and that will not change. Let your operator know if you need it.",
+      "confirm": "Continue"
+    }
   },
   "home": {
     "greeting": "Welcome back, {{name}}",
@@ -505,6 +515,8 @@
     "cancelTitle": "Cancel this request?",
     "cancelText": "“{{title}}” will be removed from Radarr or Sonarr and no longer searched for. Your quota is freed up in return – you can request something else instead.",
     "cancelTextAdmin": "“{{title}}” by {{name}} will be removed from Radarr or Sonarr and no longer searched for. {{name}}'s quota is freed up in return.",
+    "cancelTextNothing": "“{{title}}” never reached Radarr or Sonarr - the request failed before that. Nothing is removed and no file is deleted; the entry simply moves to the cancelled ones.",
+    "cancelTextNothingAdmin": "“{{title}}” by {{name}} never reached Radarr or Sonarr - the request failed before that. Nothing is removed and no file is deleted; the entry simply moves to the cancelled ones.",
     "cancelWarning": "Any files already downloaded will be deleted as well.",
     "cancelConfirm": "Yes, cancel it"
   },
@@ -1590,7 +1602,10 @@
       "title_not_marked": "That title was not marked.",
       "title_unknown_here": "There is no such title here.",
       "topic_nested": "A topic cannot contain topics.",
-      "tvdb_id_missing": "TMDB does not have a TVDB id for this series yet, so Sonarr cannot add it.",
+      "tvdb_choice_invalid": "That choice is no longer available. Please request the title again.",
+      "tvdb_choice_needed": "This series could not be matched automatically. Please pick the right one.",
+      "tvdb_id_missing": "TheTVDB has no entry for this series, so Sonarr cannot add it. Waiting will not change that.",
+      "tvdb_id_missing_new": "TheTVDB does not list this series yet. For a title this new that usually takes a few days - try again later.",
       "uhd_not_allowed": "You are not allowed to request in 4K.",
       "uhd_not_configured": "No second instance has been set up for 4K yet.",
       "url_needs_scheme": "The address has to start with http:// or https://.",

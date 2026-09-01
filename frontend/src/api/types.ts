@@ -2046,6 +2046,13 @@ export interface DashboardStand {
   befunde: Befund[];
   /** Anzahl je Schwere, immer alle drei Schlüssel. */
   zaehler: Record<BefundSchwere, number>;
+  /**
+   * Wie viele Fehler dieser Betreiber noch nicht gesehen hat.
+   *
+   * Das ist die Zahl fürs Menü-Abzeichen, **nicht** `zaehler`: Befunde sind
+   * Zustände und verschwinden nicht dadurch, dass man sie liest.
+   */
+  ungesehen: number;
   zahlen: HandlungsZahlen;
   /** Speicher-Verlauf, ältester Punkt zuerst. Leer heißt: noch zu wenig gemessen. */
   verlauf: VerlaufsPunkt[];

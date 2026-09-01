@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
@@ -51,6 +51,7 @@ const KATEGORIEN: { wert: BefundBereich; symbol: SymbolName }[] = [
 export function AdminDashboardPage() {
   const { t } = useTranslation()
   const [kategorie, setKategorie] = useState<Kategorie>('alle')
+  const queryClient = useQueryClient()
 
   const query = useQuery({
     queryKey: ['admin-dashboard'],
@@ -61,6 +62,31 @@ export function AdminDashboardPage() {
   })
 
   const stand = query.data
+
+  // ⚠️ **Das Vermerken gehört hierher, nicht in die Abfrage.** Das Menü fragt
+  // denselben Endpunkt im Minutentakt ab; zählte schon das Abfragen als
+  // gesehen, wäre das Abzeichen nie zu sehen.
+  //
+  // Nach dem Vermerken wird der Stand neu geholt, damit das Abzeichen sofort
+  // verschwindet statt erst beim nächsten Takt.
+  useEffect(() => {
+    if (!stand) return
+    let abgebrochen = false
+    void api
+      .post('/api/admin/dashboard/gesehen')
+      .then(() => {
+        if (!abgebrochen) void queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] })
+      })
+      // Ein misslungenes Vermerken ist kein Grund, die Seite zu stören: Die
+      // Befunde stehen ja da. Es bleibt beim Abzeichen, das ist ertragbar.
+      .catch(() => {})
+    return () => {
+      abgebrochen = true
+    }
+    // Nur beim ersten Stand, nicht bei jedem 60-Sekunden-Takt - sonst schriebe
+    // die Seite im Minutentakt, solange sie offen liegt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stand !== undefined])
 
   return (
     <div className="flex flex-col gap-6">

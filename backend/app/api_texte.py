@@ -200,6 +200,29 @@ TEXTE: dict[str, tuple[str, str]] = {
             "operator's business, not an approver's."
         ),
     ),
+    'POST /api/admin/dashboard/gesehen': (
+        'Mark the findings as seen',
+        (
+            'Records everything that currently applies as seen by this '
+            'administrator, which is what puts the badge on the menu back to '
+            'zero.\n\n'
+            '**The findings themselves stay.** They are states, not messages: '
+            '"searching for over 14 days" is just as true tomorrow, and a '
+            'finding disappears when the situation does, not when somebody '
+            'reads it. Only the badge is cleared, so that it means "something '
+            'new" again rather than sitting on the same digit for good.\n\n'
+            '**Call this when the dashboard is opened, not when it is '
+            'polled.** The menu asks `GET /admin/dashboard` once a minute for '
+            'its badge; if merely asking counted as seen, the badge would '
+            'clear before anyone had looked at it.\n\n'
+            'A finding that bundles several cases comes back when it grows: '
+            'the identifier stays the same whether one title is stuck or '
+            'five, so the number of cases is remembered alongside it. Values '
+            'that grow by themselves, such as "for X days", are deliberately '
+            'ignored.\n\n'
+            'What each administrator has seen is kept for them alone.'
+        ),
+    ),
     'GET /api/admin/analyse/laufend': (
         'What is playing right now',
         (

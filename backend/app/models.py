@@ -2800,3 +2800,53 @@ class Hausordnung(Base):
     aktualisiert_von: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
+
+
+class BefundGesehen(Base):
+    """Welche Befunde ein Betreiber schon gesehen hat.
+
+    ⚠️ **Das Abzeichen am Menue zaehlt Ungelesenes, nicht Probleme.** Befunde
+    sind Zustaende: "sucht seit ueber 14 Tagen" ist morgen genauso wahr, und
+    der Zaehler stand deshalb dauerhaft auf derselben Zahl - auch nachdem
+    jemand nachgesehen hatte. Er sagte damit nichts mehr, und ein Abzeichen,
+    das immer leuchtet, sieht bald niemand mehr an.
+
+    Gezaehlt wird jetzt, was seit dem letzten Blick aufs Dashboard **dazu**
+    kam. Die Befunde selbst bleiben stehen, solange sie zutreffen; nur das
+    Abzeichen geht auf null.
+
+    ⚠️ **Je Betreiber.** Was der eine gesehen hat, hat der andere nicht.
+
+    ``anzahl`` haelt fest, wie gross die Sache beim Hinsehen war. Steigt sie -
+    haengt also ein zweiter Titel -, gilt der Befund wieder als ungesehen,
+    obwohl sein Schluessel derselbe ist. Ohne das verstecke ein einziges
+    Abhaken jede kuenftige Verschlechterung mit.
+
+    ⚠️ **Nicht die uebrigen Werte.** Manche Befunde tragen Zahlen, die von
+    selbst wachsen ("seit X Tagen", "X Minuten", "X Bytes"). Wer daran haengt,
+    baut ein Abzeichen, das sich jeden Tag selbst wieder einschaltet.
+    """
+
+    __tablename__ = "befund_gesehen"
+    __table_args__ = (
+        # Eindeutig als **Index**, nicht als Constraint - dieselbe Begruendung
+        # wie bei ``StorageEntry``: SQLite kann einer bestehenden Tabelle keine
+        # Constraints nachtragen, Indizes dagegen schon. Als Constraint waere
+        # die Regel auf jeder aktualisierten Installation stillschweigend
+        # wirkungslos, und kein Test faende das, weil Tests auf frischen
+        # Tabellen laufen.
+        Index("ix_befund_gesehen_paar", "user_id", "schluessel", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    #: ``kennung`` bzw. ``kennung|zusatz`` - siehe ``befunde.Befund.schluessel``.
+    schluessel: Mapped[str] = mapped_column(String(200), nullable=False)
+    #: Wie viele Faelle der Befund beim Hinsehen umfasste. ``None`` bei
+    #: Befunden, die gar keine Anzahl tragen.
+    anzahl: Mapped[int | None] = mapped_column(Integer)
+    gesehen_am: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
+    )

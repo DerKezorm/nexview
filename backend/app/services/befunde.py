@@ -46,6 +46,7 @@ from sqlalchemy.orm import Session
 
 from ..models import (
     ArrWebhook,
+    BefundGesehen,
     SpeicherVerlauf,
     MediaRequest,
     Notification,
@@ -53,6 +54,7 @@ from ..models import (
     StorageEntry,
     StorageState,
     User,
+    utcnow,
 )
 from . import (
     abgleich,
@@ -1073,3 +1075,92 @@ def zaehlen(befunde: list[Befund]) -> dict[str, int]:
         schwere.value: sum(1 for b in befunde if b.schwere is schwere)
         for schwere in Schwere
     }
+
+
+# --- Ungesehenes ------------------------------------------------------------
+#
+# ⚠️ **Das Abzeichen am Menue zaehlt Ungelesenes, nicht Probleme.** Befunde sind
+# Zustaende: "sucht seit ueber 14 Tagen" ist morgen genauso wahr. Der Zaehler
+# stand deshalb dauerhaft auf derselben Zahl, auch nachdem jemand nachgesehen
+# hatte - und ein Abzeichen, das immer leuchtet, sieht bald niemand mehr an.
+#
+# Die Befunde selbst bleiben stehen, solange sie zutreffen. Nur das Abzeichen
+# geht auf null, sobald das Dashboard geoeffnet war.
+
+
+def _anzahl_von(befund: Befund) -> int | None:
+    """Wie viele Faelle dieser Befund umfasst - falls er es sagt.
+
+    ⚠️ **Nur ``anzahl``, nicht die uebrigen Werte.** Manche Befunde tragen
+    Zahlen, die von selbst wachsen ("seit X Tagen", "X Minuten", "X Bytes").
+    Wer daran haengt, baut ein Abzeichen, das sich jeden Tag selbst wieder
+    einschaltet.
+    """
+    wert = befund.werte.get("anzahl")
+    return wert if isinstance(wert, int) else None
+
+
+def ungesehen(db: Session, user_id: int, befunde: list[Befund]) -> list[Befund]:
+    """Welche dieser Befunde der Betreiber noch nicht gesehen hat.
+
+    Ungesehen ist ein Befund, wenn sein Schluessel gar nicht vermerkt ist -
+    oder wenn er **groesser** geworden ist, seit jemand hinsah. Haengt ein
+    zweiter Titel, ist das eine neue Nachricht, auch wenn der Befund derselbe
+    bleibt; ohne diese Zeile versteckte ein einziges Hinsehen jede kuenftige
+    Verschlechterung mit.
+    """
+    if not befunde:
+        return []
+    gesehen = {
+        zeile.schluessel: zeile.anzahl
+        for zeile in db.scalars(
+            select(BefundGesehen).where(BefundGesehen.user_id == user_id)
+        )
+    }
+    offen = []
+    for befund in befunde:
+        if befund.schluessel not in gesehen:
+            offen.append(befund)
+            continue
+        vorher = gesehen[befund.schluessel]
+        jetzt = _anzahl_von(befund)
+        if vorher is not None and jetzt is not None and jetzt > vorher:
+            offen.append(befund)
+    return offen
+
+
+def als_gesehen(db: Session, user_id: int, befunde: list[Befund]) -> int:
+    """Alles, was gerade zutrifft, als gesehen vermerken.
+
+    Gibt zurueck, wie viele Eintraege danach stehen. Aufgerufen, wenn jemand
+    das Dashboard **oeffnet** - nicht, wenn das Menue seinen Zaehler abfragt:
+    Das tut es alle 60 Sekunden, und das Abzeichen waere nie zu sehen.
+
+    ⚠️ **Was nicht mehr zutrifft, wird vergessen.** Sonst waechst die Tabelle
+    mit jedem Befund, den es je gab, und ein Problem, das nach Monaten
+    wiederkehrt, kaeme stumm zurueck - vermerkt ist es ja noch.
+    """
+    aktuell = {b.schluessel: _anzahl_von(b) for b in befunde}
+    vorhanden = {
+        zeile.schluessel: zeile
+        for zeile in db.scalars(
+            select(BefundGesehen).where(BefundGesehen.user_id == user_id)
+        )
+    }
+
+    for schluessel, zeile in vorhanden.items():
+        if schluessel not in aktuell:
+            db.delete(zeile)
+
+    for schluessel, anzahl in aktuell.items():
+        zeile = vorhanden.get(schluessel)
+        if zeile is None:
+            db.add(
+                BefundGesehen(user_id=user_id, schluessel=schluessel, anzahl=anzahl)
+            )
+        else:
+            zeile.anzahl = anzahl
+            zeile.gesehen_am = utcnow()
+
+    db.commit()
+    return len(aktuell)

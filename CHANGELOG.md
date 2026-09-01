@@ -12,6 +12,30 @@ tag exists for it.
 
 ---
 
+## 0.26.2
+
+### Fixed
+
+- **The badge on the admin menu never went away.** It counted findings, and findings are
+  states: "searching for over 14 days" is just as true tomorrow. So the badge sat on the
+  same digit for good, even after somebody had looked, and a badge that is always lit is
+  one nobody looks at any more. Reported by an operator whose badge had shown 1 for days
+  with no way to acknowledge it.
+
+  It counts unread now. Opening the dashboard sets it to zero; the findings themselves
+  stay listed as long as they hold, because they are still true. What each administrator
+  has seen is kept for them alone.
+
+  Two things this had to get right. The menu polls the same endpoint once a minute, so
+  merely asking must not count as seen, or the badge would clear before anyone looked at
+  it; the page reports the visit, not the query. And a finding that bundles several cases
+  wakes the badge again when it grows: the key stays the same whether one title hangs or
+  five, so without that a single glance would have hidden every future deterioration.
+  Deliberately only the count, not the other values, since figures like "for X days" or
+  "X bytes" grow by themselves and would have switched the badge back on daily.
+
+---
+
 ## 0.26.1 – 01.09.2026
 
 ### Fixed

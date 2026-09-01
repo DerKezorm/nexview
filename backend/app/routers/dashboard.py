@@ -21,7 +21,7 @@ Kinderkonto ist kein Administrator, und ``require_admin`` zaehlt fuer
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
@@ -101,6 +101,14 @@ class DashboardStand(BaseModel):
     befunde: list[BefundPublic]
     #: Anzahl je Schwere - fuer das Abzeichen am Menuepunkt.
     zaehler: dict[str, int]
+    #: Wie viele **Fehler** dieser Betreiber noch nicht gesehen hat.
+    #:
+    #: ⚠️ **Das ist die Zahl fuers Menue-Abzeichen, nicht ``zaehler``.**
+    #: Befunde sind Zustaende und verschwinden nicht dadurch, dass man sie
+    #: liest - das Abzeichen stand deshalb dauerhaft auf derselben Ziffer,
+    #: auch nachdem jemand nachgesehen hatte. Auf null geht es, sobald das
+    #: Dashboard geoeffnet war (``POST /admin/dashboard/gesehen``).
+    ungesehen: int = 0
     zahlen: HandlungsZahlen
     #: Der Speicher-Verlauf, aeltester Punkt zuerst. Leer heisst: noch nicht
     #: genug gemessen - die Oberflaeche zeigt dann kein Diagramm statt eines
@@ -178,12 +186,36 @@ def dashboard(admin: AdminUser, db: DbSession) -> DashboardStand:
     """
     settings = load_settings(db)
     gefunden = befunde_service.sammeln(db, settings)
+    # ⚠️ **Hier wird nichts als gesehen vermerkt.** Das Menue fragt diesen
+    # Endpunkt alle 60 Sekunden ab; wuerde schon das Abfragen zaehlen, waere
+    # das Abzeichen nie zu sehen. Das Vermerken loest die **Seite** aus, wenn
+    # sie sich oeffnet.
+    offen = befunde_service.ungesehen(db, admin.id, gefunden)
     return DashboardStand(
         befunde=[_als_public(b) for b in gefunden],
         zaehler=befunde_service.zaehlen(gefunden),
+        ungesehen=sum(
+            1 for b in offen if b.schwere is befunde_service.Schwere.fehler
+        ),
         zahlen=_handlungszahlen(db, admin),
         verlauf=_verlauf(db),
         traeger=_traeger(db),
+    )
+
+
+@router.post("/dashboard/gesehen", status_code=status.HTTP_204_NO_CONTENT)
+def dashboard_gesehen(admin: AdminUser, db: DbSession) -> None:
+    """Alles, was gerade zutrifft, als gesehen vermerken.
+
+    Ausgeloest, wenn das Dashboard **geoeffnet** wird - eigens und nicht als
+    Nebenwirkung von ``GET /dashboard``: Den fragt das Menue im Minutentakt
+    ab, und das Abzeichen waere nie zu sehen.
+
+    Die Befunde selbst bleiben stehen, solange sie zutreffen. Es geht nur das
+    Abzeichen auf null.
+    """
+    befunde_service.als_gesehen(
+        db, admin.id, befunde_service.sammeln(db, load_settings(db))
     )
 
 

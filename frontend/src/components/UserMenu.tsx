@@ -75,7 +75,11 @@ export function UserMenu() {
     enabled: isAdmin,
     refetchInterval: 60_000,
   })
-  const fehler = befundeQuery.data?.zaehler.fehler ?? 0
+  // ⚠️ **Ungesehene, nicht alle.** Befunde sind Zustände: „sucht seit über 14
+  // Tagen" ist morgen genauso wahr. Am `zaehler` hing das Abzeichen deshalb
+  // dauerhaft auf derselben Ziffer, auch nachdem jemand nachgesehen hatte -
+  // und eines, das immer leuchtet, sieht bald niemand mehr an.
+  const fehler = befundeQuery.data?.ungesehen ?? 0
 
   // Erst laden, wenn das Menü aufgeklappt wird - vorher sieht es ja niemand.
   //

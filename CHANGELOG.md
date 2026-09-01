@@ -74,29 +74,29 @@ tag exists for it.
 
 ### Fixed
 
-- **Providers signing with ES512 or Ed25519 could never sign in — nobody could.** Nexview
+- **Providers signing with ES512 or Ed25519 could never sign in: nobody could.** Nexview
   accepted ES256 and ES384 but not ES512, and no EdDSA at all. Pocket ID lets an operator
   pick either. Anyone who did got "the provider's identity token could not be verified" on
-  every single attempt, and the log said only that the algorithm was not allowed — which
+  every single attempt, and the log said only that the algorithm was not allowed, which
   reads like a broken provider, not like a missing line in a list. Both are accepted now.
 
 - **A signed `userinfo` response was silently thrown away.** Authelia and Zitadel can
   return that endpoint as a signed JWT instead of plain JSON. Nexview checked "is this an
-  object", found a string, and carried on as if no address had arrived — so the bridge to
+  object", found a string, and carried on as if no address had arrived, so the bridge to
   an existing account was never entered, with nothing in the log pointing at the cause. A
   signed response is now verified against the same published keys, issuer and audience as
   the ID token, and only then read.
 
 - **A stranger could lock every user out of signing in through a provider.** The sign-in
   throttle counted on the provider, not on the person: one counter for everybody. Ten
-  failed callbacks — no account and no password needed, just a browser — and nobody could
+  failed callbacks, no account and no password needed and just a browser, and nobody could
   use that provider for fifteen minutes, repeatable indefinitely. The same thing happened
   by accident after a mistyped client secret: the tenth honest attempt shut the door for
   the whole house, and because nobody could succeed during the lockout, nobody reset the
   counter either. The throttle now counts on the person where there is one, and on the
   address otherwise.
 
-- **A link to a provider that no longer exists counted as a way in — and the whole
+- **A link to a provider that no longer exists counted as a way in, and the whole
   lock-out guard fell silent.** Links are deliberately kept when a provider is deleted, so
   that re-adding the same one finds everything in place, and changing a provider's address
   leaves them behind too. But the check for "would this account still get in?" counted any
@@ -111,29 +111,29 @@ tag exists for it.
   outright when it would lock out the owner. Both of those could be walked around with one
   click: switching the provider off answers 404 on the sign-in routes, a new issuer
   address detaches every existing link, and a wrong client secret makes every token
-  exchange fail with `invalid_client` — worse than the other two, because the correct
-  secret never leaves the database and cannot be restored from inside Nexview — for an account without a usable password that is
+  exchange fail with `invalid_client`, worse than the other two, because the correct
+  secret never leaves the database and cannot be restored from inside Nexview. For an account without a usable password that is
   the same as deletion. Both now go through the same guard as deleting, with the same
   confirmation and the same line in the log.
 
 - **The sign-in cookie did not carry `Secure`, and `NEXVIEW_COOKIE_SECURE` did not reach
   it.** It holds `state`, `nonce` and the PKCE verifier, and when linking also the user
   id. Without `Secure`, someone on the network could set their own signed cookie over
-  plain http on an HTTPS installation — and whoever slips their own sign-in run into
+  plain http on an HTTPS installation, and whoever slips their own sign-in run into
   somebody else's browser signs that person into *their* account. It now follows the same
   rule as the session cookie, "auto" by default, so a plain-http installation is
   unaffected.
 
 - **An identity token issued for a different application was accepted.** When a provider
   names several audiences, the specification requires an `azp` claim saying which
-  application the token is actually for, and Nexview never looked at it — it only checked
+  application the token is actually for, and Nexview never looked at it: it only checked
   that its own client id appeared somewhere in the list. Both Keycloak and authentik let
   an operator add extra audiences with a couple of clicks, so this was a misconfiguration
   away rather than an attack away. It is checked now.
 
 - **A provider whose description names no `userinfo` endpoint failed silently.** Nexview
   skipped the question without a word, and the operator later saw only a refusal with no
-  address — which sends them hunting through scopes while the real answer is that there
+  address, which sends them hunting through scopes while the real answer is that there
   was nothing to ask. The log now says so.
 
 - **A name made of spaces passed for a name.** The length check counted characters, so
@@ -144,14 +144,14 @@ tag exists for it.
 
 - **A confirmation could vouch for an address it never meant.** Where the ID token and
   `userinfo` disagreed about the address, Nexview took the one from the ID token together
-  with the confirmation from `userinfo`. The bridge to an existing account — which may
-  only ever be crossed with a confirmed address — could then be crossed with an
+  with the confirmation from `userinfo`. The bridge to an existing account, which may
+  only ever be crossed with a confirmed address, could then be crossed with an
   unconfirmed one. Contradicting sources now count as unconfirmed, with the reason in the
   log; the sign-in itself still goes through.
 
 - **A child's wish could only be declined once the film had already arrived.** If a
   title turned up in the library while the wish was still waiting for a parent's
-  decision — someone added it by hand, or a second Radarr instance fetched it — every
+  decision (someone added it by hand, or a second Radarr instance fetched it), every
   attempt to release the wish failed with "already there". The reason could not change
   any more, so the only remaining button was "Decline": exactly the answer that tells
   the child the opposite of the truth, because it did get what it asked for. Such a
@@ -160,14 +160,14 @@ tag exists for it.
 
 - **A wish whose film arrived through somebody else's request stayed open forever.**
   Open wishes were only ever closed at the moment a request was *created*. If the wish
-  came in while a download was already running, nothing ever closed it — and it then
+  came in while a download was already running, nothing ever closed it, and it then
   ran into the dead end above. The regular round now closes them when the download
   finishes.
 
 - **Deleting a child account through the user API left its wishes behind.** The route
   cleared the children *below* an account, but not the account's own wishes when it was
   itself a child. On an upgraded database that leaves a wish pointing at a user who no
-  longer exists, and the parent's wish list reads the child's name — so the whole list
+  longer exists, and the parent's wish list reads the child's name, so the whole list
   answered with an error instead of one broken row. On a fresh database the deletion
   failed outright. Both are fixed, and rows left behind by the old behaviour are
   cleared away at startup, with a line in the log saying how many.
@@ -175,11 +175,11 @@ tag exists for it.
 - **Signing in through Authelia or Zitadel could never find an existing account.**
   Nexview read the identity from the ID token alone. By the OIDC specification only
   `sub` is guaranteed to be there; a provider may keep everything else at the
-  userinfo endpoint — and those two do exactly that out of the box. Authelia calls
+  userinfo endpoint, and those two do exactly that out of the box. Authelia calls
   putting the address into the ID token "a break-glass measure … on a best-effort
   basis". So no address ever reached Nexview, and the bridge to an existing account
   was not misjudged: it was never entered. Nexview now asks the userinfo endpoint
-  whenever the provider advertises one — not only when the ID token lacks an
+  whenever the provider advertises one, not only when the ID token lacks an
   address. Keycloak is the reason: it maps `email` and `email_verified` through two
   separate mappers with two independent targets each, so an operator can quite
   legitimately publish the address in the ID token and the confirmation only at
@@ -191,7 +191,7 @@ tag exists for it.
 - **A typo in the provider's own description could lock everyone out.** Asking the
   userinfo endpoint is optional by design: if it fails, Nexview carries on without
   the extra information. That promise had a hole. The guard caught `httpx.HTTPError`,
-  but a malformed address — an unclosed bracket in an IPv6 host is enough — raises
+  but a malformed address (an unclosed bracket in an IPv6 host is enough) raises
   `httpx.InvalidURL`, which does not inherit from it. The exception escaped and took
   the whole sign-in with it, including sign-ins that would have worked before the
   question was ever asked. The guard now catches everything and logs the exception
@@ -201,7 +201,7 @@ tag exists for it.
 - **One slow provider could make every sign-in in the house slow.** The question to
   the userinfo endpoint is asked on every sign-in and shared the ten-second limit
   used for everything else. A provider that hangs instead of refusing therefore added
-  up to ten seconds to each sign-in — for an answer that may never arrive and is not
+  up to ten seconds to each sign-in, for an answer that may never arrive and is not
   needed. The optional question now gives up after five seconds. The token exchange
   keeps its ten: without it there is no sign-in at all.
 
@@ -215,7 +215,7 @@ tag exists for it.
   reason in the log.
 
 - **A refused OIDC sign-in said nothing in the log.** The person signing in got a
-  deliberately vague message, and the log stayed silent — so an operator whose
+  deliberately vague message, and the log stayed silent, so an operator whose
   provider reports `email_verified: false` (the factory setting at authentik,
   Keycloak and Pocket ID) had nothing to go on. The log now names the reason, the
   issuer, whether an address arrived, whether the provider vouched for it, and
@@ -225,7 +225,7 @@ tag exists for it.
   person signing in is told.
 
 - **Approving a film that Radarr already held failed for good.** Before creating a
-  movie, Nexview never asked whether Radarr knew it — for series that lookup has always
+  movie, Nexview never asked whether Radarr knew it. For series that lookup has always
   existed. Radarr answers a second attempt with a plain 400 whose reason only reaches
   the log, so the request was marked "failed" and the operator was left guessing. This
   happens more often than it sounds: a second Radarr instance, a film added by hand, a
@@ -235,13 +235,13 @@ tag exists for it.
 
 - **A failed request had no button left at all.** Approve and reject only appear while
   a request is waiting, cancelling was refused for "failed", and the interface has
-  never had a delete button — so the request stayed in the list forever and the person
+  never had a delete button, so the request stayed in the list forever and the person
   who asked kept waiting for something that would never come. Failed requests can now
   be cancelled, which also frees the quota they were holding.
 
 - **"Already in your library" and "already on the media server" arrived in German.**
   Both sentences were written straight into the response with no key attached, so the
-  interface had nothing to translate and fell back to the German text — on an English
+  interface had nothing to translate and fell back to the German text, on an English
   interface too. They now carry a key and the title as a placeholder, and are written
   out in both languages. The same applies to the new message when a child's wish turns
   out to be already fulfilled.
@@ -249,8 +249,8 @@ tag exists for it.
 - **"Searching for over 14 days" reported films that had not come out yet.** The rule
   only asked how long a request had been searching, never whether the title was
   actually available. Anything ordered months before its release was flagged as a
-  broken indexer. It now counts from the later of the two moments — approved *and*
-  released — and names the oldest title instead of showing only a number. Titles with
+  broken indexer. It now counts from the later of the two moments, approved *and*
+  released, and names the oldest title instead of showing only a number. Titles with
   no release date on record still count: without a date there is no way to tell that
   they are unreleased, and a genuine indexer outage on an older title must not go
   unnoticed.
@@ -258,7 +258,7 @@ tag exists for it.
 ### Changed
 
 - **The approval list now says which child a request came from.** "From a wish by Lena"
-  answers the question a decider would otherwise ask themselves — why an adult is
+  answers the question a decider would otherwise ask themselves: why an adult is
   ordering a children's film. Nothing about the permissions changes: the request still
   belongs to the parent, with their quota and their rules. The record behind this line
   had been kept since child accounts were introduced and was never shown anywhere.
@@ -270,7 +270,7 @@ tag exists for it.
 ### Under the hood
 
 - **The first visit is 47 kB lighter.** "What's new" carried thirteen versions in both
-  language files while the window only ever shows the latest five — eight of them were
+  language files while the window only ever shows the latest five, and eight of them were
   downloaded by every visitor and never displayed. They are archived in
   `docs/wasneu-archiv-0.15-0.22.json`. The bundle limit itself is unchanged; the
   headroom below it grew from 50 kB to 97 kB.

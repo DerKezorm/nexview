@@ -351,6 +351,11 @@ Nexview deliberately does **not** guess from `X-Forwarded-Proto`: that header ca
 faked just like `X-Forwarded-For`, and the same question is already answered by asking
 rather than guessing over at `NEXVIEW_CLIENT_IP`.
 
+The same setting governs the **short-lived cookie of a sign-in through an external
+provider**, which holds the `state`, the `nonce` and the PKCE verifier for the ten
+minutes you spend at the provider. Until 0.26.0 that one never carried `Secure` at all,
+not even with `on` set.
+
 ### Signing in through an external provider
 
 Nexview can hang off a sign-in service you already run — anything that speaks **OpenID

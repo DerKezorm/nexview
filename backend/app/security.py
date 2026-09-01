@@ -36,10 +36,19 @@ def _password_bytes(password: str) -> bytes:
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
+    # Die Rundenzahl kommt aus den Einstellungen (Vorgabe 12, siehe
+    # ``config.py``). ``get_settings`` ist gepuffert, der Nachschlag kostet
+    # neben dem Hashen nichts.
+    runden = get_settings().bcrypt_rounds
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt(runden)).decode(
+        "utf-8"
+    )
 
 
 def verify_password(password: str, password_hash: str) -> bool:
+    # Bewusst ohne Rundenzahl: Sie steht im Hash selbst (``$2b$12$...``).
+    # Ein Konto von frueher bleibt darum pruefbar, auch wenn beim Erzeugen
+    # inzwischen eine andere Zahl gilt.
     try:
         return bcrypt.checkpw(_password_bytes(password), password_hash.encode("utf-8"))
     except ValueError:

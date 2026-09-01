@@ -980,7 +980,7 @@ def clear_secret(db: Session, key: str) -> None:
 def verbindungsbericht() -> None:
     """Beim Start einmal hinschreiben, woran man sonst tagelang raetselt.
 
-    Drei Fragen, deren Antworten bisher nirgends standen:
+    Vier Fragen, deren Antworten bisher nirgends standen:
 
     * Woher kommt der Geheimschluessel - Umgebungsvariable oder Datei?
       (Die Datei ausserhalb des gemounteten Volumes ist der klassische Weg,
@@ -988,10 +988,11 @@ def verbindungsbericht() -> None:
     * Ist ein Media-Server eingetragen, und laesst sich sein Token mit dem
       aktuellen Schluessel lesen?
     * Welche weiteren Geheimnisse sind eingetragen, und sind sie lesbar?
+    * Mit wie vielen bcrypt-Runden werden Passwoerter gehasht?
     """
     import os
 
-    from ..config import get_settings
+    from ..config import BCRYPT_ROUNDS_DEFAULT, get_settings
     from ..db import SessionLocal
 
     einstellungen = get_settings()
@@ -1005,6 +1006,23 @@ def verbindungsbericht() -> None:
             "secret.key present: %s - if that file is NOT inside the mounted "
             "volume, every credential is lost when the container is rebuilt.",
             os.path.exists(einstellungen.key_file),
+        )
+
+    # ⚠️ Die Warnung aus dem Validator in ``config.py`` entsteht, bevor
+    # ``logs.setup()`` gelaufen ist. Sie landet auf stderr und nie in der
+    # Protokolldatei. Hier steht sie noch einmal, an der Stelle, an der ein
+    # Betreiber ohnehin nach dem Zustand seiner Installation sieht.
+    if einstellungen.bcrypt_rounds < BCRYPT_ROUNDS_DEFAULT:
+        logger.warning(
+            "Password hashing: bcrypt with only %s rounds instead of %s. "
+            "NEXVIEW_BCRYPT_ROUNDS is meant for the test suite; in a real "
+            "installation it weakens every password set from now on.",
+            einstellungen.bcrypt_rounds,
+            BCRYPT_ROUNDS_DEFAULT,
+        )
+    else:
+        logger.info(
+            "Password hashing: bcrypt with %s rounds.", einstellungen.bcrypt_rounds
         )
 
     with SessionLocal() as db:

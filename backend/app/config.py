@@ -22,6 +22,10 @@ logger = logging.getLogger("nexview.config")
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BACKEND_DIR.parent
 
+#: Rundenzahl fuer bcrypt im Betrieb. Steht hier als Konstante, damit die
+#: Vorgabe und der Rueckfall bei unsinnigen Werten nicht auseinanderlaufen.
+BCRYPT_ROUNDS_DEFAULT = 12
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -37,6 +41,28 @@ class Settings(BaseSettings):
     refresh_token_days: int = 30
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     static_dir: str = ""
+
+    # Wie viele Runden bcrypt rechnet, wenn Nexview ein Passwort hasht.
+    #
+    # 12 ist die Vorgabe, und dabei bleibt es. Der Rechenaufwand **ist** der
+    # Schutz: Jede Runde verdoppelt ihn. 12 Runden kosten rund 0,3 Sekunden je
+    # Hash, 4 Runden rund eine Millisekunde. Wer die Zahl in einer echten
+    # Installation herunterdreht, schwaecht jedes Passwort, das danach gesetzt
+    # wird, und zwar dauerhaft: Nexview hasht beim Anmelden nicht nach
+    # (``security.py`` kennt nur ``hashpw`` und ``checkpw``).
+    #
+    # ``NEXVIEW_BCRYPT_ROUNDS`` gibt es allein fuer den **Testlauf**. Die
+    # Testreihe legt tausende Konten an und meldet sich tausende Male an; mit
+    # 12 Runden geht der groessere Teil der Laufzeit fuer bcrypt drauf.
+    # ``tests/conftest.py`` setzt die Variable deshalb auf 4, bevor ``app``
+    # importiert wird. In ``.env.example`` und ``docker-compose.yml`` steht sie
+    # bewusst **nicht**: Ein Betreiber hat keinen Anlass, daran zu drehen, und
+    # was dort steht, wird ausprobiert.
+    #
+    # Bestehende Hashes bleiben unberuehrt. Die Rundenzahl steht im Hash selbst
+    # (``$2b$12$...``), ``verify_password`` liest sie von dort; ein aelteres
+    # Konto behaelt seine 12 also bis zum naechsten Passwortwechsel.
+    bcrypt_rounds: int = BCRYPT_ROUNDS_DEFAULT
 
     # Unterpfad, unter dem Nexview hinter einem Reverse Proxy laeuft -
     # z. B. ``/nexview`` fuer ``https://example.com/nexview/``.
@@ -179,6 +205,34 @@ class Settings(BaseSettings):
             )
             return ""
         return wert
+
+    @field_validator("bcrypt_rounds", mode="after")
+    @classmethod
+    def _pruefe_bcrypt_rounds(cls, value: int) -> int:
+        # bcrypt selbst nimmt nur 4 bis 31. Alles darunter oder darueber wirft
+        # einen ValueError, und zwar erst beim ersten Hashen: also lange nach
+        # dem Start, mitten in einer Anmeldung. Hier faellt es beim Einlesen
+        # auf, wo es hingehoert.
+        if not 4 <= value <= 31:
+            logger.warning(
+                "NEXVIEW_BCRYPT_ROUNDS=%s is outside the range bcrypt accepts "
+                "(4 to 31). Falling back to %s.",
+                value,
+                BCRYPT_ROUNDS_DEFAULT,
+            )
+            return BCRYPT_ROUNDS_DEFAULT
+        if value < BCRYPT_ROUNDS_DEFAULT:
+            # Angenommen, aber nicht stillschweigend: Der Wert wirkt auf jedes
+            # Passwort, das ab jetzt gesetzt wird, und niemand sieht es der
+            # Anwendung an.
+            logger.warning(
+                "NEXVIEW_BCRYPT_ROUNDS=%s hashes passwords weaker than the "
+                "default of %s. This setting exists for the test suite and "
+                "does not belong in a real installation.",
+                value,
+                BCRYPT_ROUNDS_DEFAULT,
+            )
+        return value
 
     # Der Nothammer im Glaskasten: Wer sich als Betreiber aussperrt - Passwort
     # weg, Anmeldedienst tot, Konto unbrauchbar -, traegt hier den

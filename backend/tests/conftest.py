@@ -19,6 +19,19 @@ os.environ["NEXVIEW_DATA_DIR"] = str(_TMP_DIR)
 os.environ["NEXVIEW_SECRET_KEY"] = "test-secret-key-nur-fuer-tests"
 # Die Hintergrundschleife wuerde in Tests nur stoeren.
 os.environ["NEXVIEW_DISABLE_POLLER"] = "true"
+# ⚠️ bcrypt mit der Vorgabe 12 kostet rund 0,3 Sekunden je Hash **und** je
+# Pruefung. Die Testreihe legt tausende Konten an und meldet sich tausende Male
+# an; damit ging der groessere Teil der Laufzeit fuer bcrypt drauf. Mit 4
+# Runden sind es rund 0,001 Sekunden. Geprueft wird dieselbe Mechanik, nur
+# billiger: Die Rundenzahl steht im Hash und aendert an ihr nichts.
+#
+# Die Zeile muss **hier oben** stehen, vor dem ersten ``from app...``. ``app.db``
+# ruft beim Import ``get_settings()``, und das Ergebnis ist mit ``lru_cache``
+# gepuffert; wer die Variable danach setzt, aendert nichts mehr. Ein
+# ``monkeypatch`` am gepufferten Objekt waere noch schlechter: ``test_unterpfad``
+# leert den Puffer mitten im Lauf, und die Zahl fiele dort still auf 12
+# zurueck. tests/test_bcrypt_runden.py bewacht genau das.
+os.environ["NEXVIEW_BCRYPT_ROUNDS"] = "4"
 
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import delete, select  # noqa: E402

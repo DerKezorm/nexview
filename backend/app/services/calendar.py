@@ -39,6 +39,7 @@ from .filters import (
 )
 from .settings_service import AppSettings
 from .tmdb import TmdbError
+from . import logs
 
 logger = logging.getLogger("nexview.calendar")
 
@@ -606,7 +607,7 @@ async def _tvdb_nach_tmdb(
             try:
                 gefunden = await cache.cached(db, f"tvdb:{tvdb_id}", TVDB_TTL, fetch)
             except TmdbError as fehler:
-                logger.debug("TVDB mapping failed: %s", fehler)
+                logger.debug("TVDB mapping failed: %s", logs.kennung(fehler))
                 return tvdb_id, None
             return tvdb_id, gefunden.get("tmdb_id")
 

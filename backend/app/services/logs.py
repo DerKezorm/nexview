@@ -583,9 +583,16 @@ def kennung(fehler: object) -> str:
     """
     code = getattr(fehler, "code", None)
     if not code:
-        # Ohne Kennung bleibt nur die Klasse - immer noch besser als ein
-        # deutscher Satz, und ein Hinweis darauf, dass hier eine fehlt.
-        return f"{type(fehler).__name__} (no code)"
+        # Ohne Kennung bleibt die Klasse - immer noch besser als ein deutscher
+        # Satz, und ein Hinweis darauf, dass hier eine fehlt.
+        #
+        # Der HTTP-Code kommt mit, wenn es einen gibt: Bei ``TmdbError`` traegt
+        # ihn fast jeder Fall, und er ist genau das, was die Diagnose traegt -
+        # 404 heisst "gibt es dort nicht", 429 "zu viele Abfragen", und das ist
+        # ein Unterschied, den "TmdbError" allein verschweigt.
+        status = getattr(fehler, "status_code", None)
+        klasse = type(fehler).__name__
+        return f"{klasse} (no code, HTTP {status})" if status else f"{klasse} (no code)"
     zahlen = getattr(fehler, "zahlen", None)
     return f"{code} {zahlen}" if zahlen else str(code)
 

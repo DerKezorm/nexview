@@ -1008,11 +1008,10 @@ async def _englische_staffel(
         # genau der Fehler aus Issue #7, und ``test_log_sprache`` saehe ihn
         # nicht, weil er erst zur Laufzeit deutsch wird.
         logger.info(
-            "English descriptions for tmdb=%s season %s not available: %s (HTTP %s)",
+            "English descriptions for tmdb=%s season %s not available: %s",
             tmdb_id,
             season_number,
-            type(fehler).__name__,
-            fehler.status_code,
+            logs.kennung(fehler),
         )
         return {}
 
@@ -1601,7 +1600,7 @@ async def tvdb_kennung_nachschlagen(
         logger.info(
             "Fresh TVDB lookup for tmdb=%s failed, keeping the cached answer: %s",
             tmdb_id,
-            fehler,
+            logs.kennung(fehler),
         )
         return None
 

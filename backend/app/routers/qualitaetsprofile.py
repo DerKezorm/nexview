@@ -246,7 +246,9 @@ async def abgleich(admin: AdminUser, db: DbSession) -> list[AbgleichOut]:
                     client, profil, eintrag_, live, umgebung
                 )
             except (ArrError, TrashFehler) as fehler:
-                logger.info("Comparison for profile %s failed: %s", profil.id, fehler)
+                logger.info(
+                    "Comparison for profile %s failed: %s", profil.id, logs.kennung(fehler)
+                )
                 ergebnis.append(
                     AbgleichOut(
                         profil_id=profil.id, kennung=kennung, stand="unerreichbar"

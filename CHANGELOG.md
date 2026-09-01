@@ -118,6 +118,19 @@ tag exists for it.
   The dialog now says what actually happens, and the warning about files only appears
   when there is something to delete.
 
+- **Five log lines still arrived in German.** The rule that the log is English throughout
+  is kept by a test, but that test reads the fixed texts in the source, and those are
+  English. A line like `logger.info("... %s", error)` passes it and writes German anyway,
+  because the messages of Nexview's own errors are German: they are the fallback for the
+  interface when a translation is missing. That is how an operator in Romania came to read
+  "Der Jellyfin-Server hat auch auf kleine Abfragen (25 Titel) nicht rechtzeitig
+  geantwortet." Four more of the same kind sat in the media, watch, watchlist and calendar
+  modules, and a fifth turned up in the quality profiles when the new guard first ran.
+
+  The guard reads the source and reports any error object handed straight to the log inside
+  an `except` for one of Nexview's own error types. Log lines without a code now also name
+  the HTTP status, so "TmdbError" alone no longer hides whether it was a 404 or a 429.
+
 - **A warning about waking sleeping episodes would have crashed instead of warning.** The
   Sonarr module used a logger it never defined, so the line raised a `NameError` whenever
   it came up. It only comes up when switching a series on wakes previously monitored

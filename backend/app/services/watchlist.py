@@ -38,6 +38,7 @@ from . import mediaserver_accounts as konten
 from .mediaserver import MediaServerError, merklisten_server
 from .mediaserver.base import WatchlistItem
 from .settings_service import AppSettings, for_user
+from . import logs
 
 logger = logging.getLogger("nexview.watchlist")
 
@@ -178,7 +179,10 @@ async def _als_titel(
             except AgeRestricted:
                 return None
             except TmdbError as fehler:
-                logger.debug("Watchlist: %s (%d) not loadable - %s", art, tmdb_id, fehler.message)
+                logger.debug(
+                    "Watchlist: %s (%d) not loadable - %s",
+                    art, tmdb_id, logs.kennung(fehler),
+                )
                 return None
 
     ergebnisse = await asyncio.gather(*(einer(kennung) for kennung in kennungen))

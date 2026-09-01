@@ -37,6 +37,7 @@ from ..models import (
 from . import library, media, notify
 from .settings_service import AppSettings
 from .tmdb import TmdbError
+from . import logs
 
 logger = logging.getLogger("nexview.watch")
 
@@ -257,7 +258,9 @@ async def _serie_pruefen(
     try:
         detail = await media.full_detail(db, settings, "tv", tmdb_id)
     except TmdbError as fehler:
-        logger.warning("Series detail not available for watch %s: %s", tmdb_id, fehler)
+        logger.warning(
+            "Series detail not available for watch %s: %s", tmdb_id, logs.kennung(fehler)
+        )
         return 0
 
     try:

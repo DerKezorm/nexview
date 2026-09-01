@@ -222,3 +222,68 @@ def test_kein_fehlertext_ohne_begruendung_im_protokoll() -> None:
         "Ist der Text der Wortlaut eines fremden Systems (Mailserver, TMDB, "
         "Radarr), gehoert die Stelle mit Begruendung nach FREMDER_WORTLAUT."
     )
+
+
+# --- Deutsch, das erst zur Laufzeit entsteht ---------------------------------
+
+
+def test_kein_fehlerobjekt_wandert_ungefiltert_ins_protokoll() -> None:
+    """⚠️ Die Lücke, durch die Issue #7 gekommen ist.
+
+    Die Prüfungen oben lesen die **festen Texte** im Quelltext, und die sind
+    englisch. Ein ``logger.info("... %s", fehler)`` besteht sie deshalb mühelos
+    und schreibt trotzdem Deutsch ins Protokoll: Die Meldungen von ``ArrError``,
+    ``TmdbError`` und ``MediaServerError`` sind deutsch, denn sie sind der
+    Rückfall für die Oberfläche, falls eine Übersetzung fehlt.
+
+    So las ein Betreiber in Rumänien "Der Jellyfin-Server hat auch auf kleine
+    Abfragen (25 Titel) nicht rechtzeitig geantwortet." Vier weitere Stellen
+    derselben Art fanden sich später in media, watch, watchlist und calendar.
+
+    Richtig ist ``logs.kennung(fehler)``: englisch, kurz, durchsuchbar.
+    """
+    import ast
+
+    EIGENE_FEHLER = {"ArrError", "TmdbError", "MediaServerError", "RequestError"}
+    funde: list[str] = []
+
+    for datei in sorted(APP.rglob("*.py")):
+        baum = ast.parse(datei.read_text(encoding="utf-8"), str(datei))
+        for knoten in ast.walk(baum):
+            if not isinstance(knoten, ast.ExceptHandler) or not knoten.name:
+                continue
+            typen = knoten.type
+            namen = (
+                {t.id for t in typen.elts if isinstance(t, ast.Name)}
+                if isinstance(typen, ast.Tuple)
+                else {typen.id} if isinstance(typen, ast.Name) else set()
+            )
+            if not (namen & EIGENE_FEHLER):
+                continue
+
+            for innen in ast.walk(knoten):
+                if not (
+                    isinstance(innen, ast.Call)
+                    and isinstance(innen.func, ast.Attribute)
+                    and isinstance(innen.func.value, ast.Name)
+                    and innen.func.value.id == "logger"
+                ):
+                    continue
+                for arg in innen.args:
+                    # ``logger.info("...", fehler)``
+                    roh = isinstance(arg, ast.Name) and arg.id == knoten.name
+                    # ``logger.info("...", fehler.message)``
+                    satz = (
+                        isinstance(arg, ast.Attribute)
+                        and isinstance(arg.value, ast.Name)
+                        and arg.value.id == knoten.name
+                        and arg.attr == "message"
+                    )
+                    if roh or satz:
+                        pfad = datei.relative_to(APP.parent).as_posix()
+                        funde.append(f"{pfad}:{innen.lineno}")
+
+    assert not funde, (
+        "Diese Zeilen schreiben den deutschen Satz eines eigenen Fehlers ins "
+        "Protokoll. Richtig ist logs.kennung(fehler):\n  " + "\n  ".join(funde)
+    )

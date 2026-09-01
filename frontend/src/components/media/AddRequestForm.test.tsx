@@ -303,3 +303,149 @@ describe('Folgen-Pakete', () => {
     expect(schicken.mock.calls[0][1]).not.toHaveProperty('episodes')
   })
 })
+
+/**
+ * Welche Serie meinst du? (Issue #5)
+ *
+ * Der Server antwortet mit 428, wenn TMDB keine TVDB-Kennung führt und Sonarr
+ * mehrere ähnliche Serien kennt. Was hier hängt, hängt still: Der Server ist
+ * gut abgedeckt, aber ob das Fenster überhaupt erscheint und ob die Auswahl
+ * zurückgeht, sah bisher nur ein Mensch.
+ */
+describe('Die Rückfrage, welche Serie gemeint ist', () => {
+  /** Wie oben - dort steckt sie in einem anderen ``describe``. */
+  async function staffelnWaehlen(nummern: number[]) {
+    const nutzer = userEvent.setup()
+    await nutzer.click(await screen.findByRole('button', { name: /auswählen/i }))
+    for (const nummer of nummern) {
+      await nutzer.click(await screen.findByRole('checkbox', { name: `Staffel ${nummer}` }))
+    }
+    await nutzer.click(screen.getByRole('button', { name: /^fertig$/i }))
+    return nutzer
+  }
+
+  const VORSCHLAEGE = [
+    {
+      tvdb_id: 479935,
+      title: 'Still Waters',
+      year: null,
+      overview: 'Wales, 1995.',
+      poster_url: null,
+    },
+    {
+      tvdb_id: 85098,
+      title: 'Stille Waters',
+      year: 2001,
+      overview: 'Stan Moereels wird tot aufgefunden.',
+      poster_url: null,
+    },
+  ]
+
+  function serverFragtZurueck(fresh = true) {
+    schicken.mockImplementationOnce(async () => {
+      throw new ApiError(428, 'Nicht zuzuordnen.', 'tvdb_choice_needed', {
+        candidates: VORSCHLAEGE,
+        fresh,
+      })
+    })
+  }
+
+  it('zeigt das Fenster mit Sonarrs Vorschlägen', async () => {
+    serverFragtZurueck()
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    await staffelnWaehlen([1])
+    await abschicken()
+
+    expect(await screen.findByText('Still Waters')).toBeInTheDocument()
+    expect(screen.getByText('Stille Waters')).toBeInTheDocument()
+  })
+
+  it('⚠️ zeigt daneben, was angefragt wurde', async () => {
+    // Der Grund, warum das Fenster überhaupt taugt: "Still Waters" und
+    // "Still Water" sind einen Buchstaben auseinander. Nebeneinandergelegt
+    // fällt der Unterschied auf, sonst nicht.
+    serverFragtZurueck()
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    await staffelnWaehlen([1])
+    await abschicken()
+
+    expect(await screen.findByText(/das hast du angefragt/i)).toBeInTheDocument()
+    expect(screen.getByText('Eine Serie')).toBeInTheDocument()
+  })
+
+  it('⚠️ wählt nichts vor', async () => {
+    // Ein voreingestellter erster Treffer wäre genau das Raten, das der
+    // Server bewusst unterlässt.
+    serverFragtZurueck()
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    await staffelnWaehlen([1])
+    await abschicken()
+
+    await screen.findByText('Still Waters')
+    for (const knopf of screen.getAllByRole('button', { pressed: false })) {
+      expect(knopf).toHaveAttribute('aria-pressed', 'false')
+    }
+    expect(screen.getByRole('button', { name: /weiter/i })).toBeDisabled()
+  })
+
+  it('schickt die Anfrage nach der Auswahl noch einmal, mit der Kennung', async () => {
+    serverFragtZurueck()
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    await staffelnWaehlen([1])
+    const nutzer = await abschicken()
+
+    await nutzer.click(await screen.findByRole('button', { name: /stille waters/i }))
+    await nutzer.click(screen.getByRole('button', { name: /weiter/i }))
+
+    await waitFor(() => expect(schicken).toHaveBeenCalledTimes(2))
+    const [, koerper] = schicken.mock.calls[1]
+    expect((koerper as { tvdb_id: number }).tvdb_id).toBe(85098)
+    expect((koerper as { season: number }).season).toBe(1)
+  })
+
+  it('sagt bei einer neuen Serie, dass Warten hilft', async () => {
+    serverFragtZurueck(true)
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    await staffelnWaehlen([1])
+    await abschicken()
+
+    expect(await screen.findByText(/ein paar tagen nach/i)).toBeInTheDocument()
+  })
+
+  it('⚠️ sagt bei einer alten Serie, dass Warten nicht hilft', async () => {
+    // "Versuch es später" wäre bei einem Titel von 1978 eine Vertröstung -
+    // es trägt niemand mehr etwas nach.
+    serverFragtZurueck(false)
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    await staffelnWaehlen([1])
+    await abschicken()
+
+    expect(await screen.findByText(/nichts mehr ändern/i)).toBeInTheDocument()
+  })
+
+  it('bricht ohne Anfrage ab, wenn niemand passt', async () => {
+    serverFragtZurueck()
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    await staffelnWaehlen([1])
+    const nutzer = await abschicken()
+
+    await nutzer.click(await screen.findByRole('button', { name: /abbrechen/i }))
+
+    expect(screen.queryByText('Still Waters')).not.toBeInTheDocument()
+    expect(schicken).toHaveBeenCalledTimes(1)
+  })
+
+  it('⚠️ ein gewöhnlicher Fehler öffnet kein Fenster', async () => {
+    // Sonst erschiene die Rückfrage bei jedem Aussetzer, und niemand wüsste,
+    // was er da eigentlich beantwortet.
+    schicken.mockImplementationOnce(async () => {
+      throw new ApiError(502, 'Sonarr antwortet nicht.')
+    })
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    await staffelnWaehlen([1])
+    await abschicken()
+
+    await waitFor(() => expect(schicken).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText(/welche serie meinst du/i)).not.toBeInTheDocument()
+  })
+})

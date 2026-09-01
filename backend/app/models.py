@@ -2871,11 +2871,16 @@ class Wanderung(Base):
     Das Buch haelt die Antwort dort fest, wo sie hingehoert: an der Datenbank,
     nicht an ihren Daten.
 
-    ``herkunft`` unterscheidet zwei Wege in dieselbe Zeile. ``ausgefuehrt``
+    ``herkunft`` unterscheidet drei Wege in dieselbe Zeile. ``ausgefuehrt``
     heisst, dieser Lauf hat den Schritt gemacht. ``vorgefunden`` heisst, der
     Ankunftsbefund hat am Schema erkannt, dass er in einer frueheren Fassung
     schon lief - eine Bestandsdatenbank soll ihn nicht nachtraeglich noch
-    einmal ueber sich ergehen lassen.
+    einmal ueber sich ergehen lassen. ``offen`` heisst, der Befund hat ihn als
+    ausstehend erkannt und angesagt, gelaufen ist er aber noch nicht: Der
+    Eintrag entsteht **vor** allen Schema-Aenderungen, damit ein abgebrochener
+    Start eine lesbare Spur hinterlaesst statt einer Luecke, die der naechste
+    Start am inzwischen vorgerueckten Schema falsch fuellt. Beim Ausfuehren
+    wird die Zeile auf ``ausgefuehrt`` gehoben.
 
     ⚠️ **Eigene Spaltennamen, mit Absicht.** ``name``, ``version`` und
     ``created_at`` waeren die naheliegenden gewesen und haetten einen anderen
@@ -2891,7 +2896,7 @@ class Wanderung(Base):
     #: umbenennt, laesst ihre Wanderung noch einmal laufen.
     wanderung_name: Mapped[str] = mapped_column(String(64), primary_key=True)
     wanderung_am: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
-    #: ``ausgefuehrt`` | ``vorgefunden`` - siehe oben.
+    #: ``ausgefuehrt`` | ``vorgefunden`` | ``offen`` - siehe oben.
     wanderung_herkunft: Mapped[str] = mapped_column(String(16), nullable=False)
     #: Die Fassung, die den Eintrag gemacht hat. Reine Spurensicherung: Ohne
     #: sie liesse sich bei einer eingeschickten Datenbank nicht sagen, ab wann

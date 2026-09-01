@@ -265,6 +265,14 @@ def test_zweiter_start_schreibt_keine_zweite_zeile_ins_wanderungsbuch(
     ausgehebelt. In der gemeinsamen Vorbereitung wird das Buch vor jedem Test
     geleert; ein Test dort wuerde also nie den Zustand sehen, um den es geht -
     naemlich ein Buch, das einen Start ueberlebt hat.
+
+    ⚠️ **Die Zeilen allein beweisen nichts.** Ein Buch, das beim zweiten Start
+    unveraendert dasteht, kann trotzdem wirkungslos sein - die Eintraege
+    aendern sich naemlich auch dann nicht, wenn jeder Schritt sie ignoriert
+    und einfach wieder losrennt. Deshalb haengt hier eine Wirkung dran: Nach
+    der Wanderung wird eine 0 gesetzt ("darf nichts anfragen"), und die muss
+    den zweiten Start ueberleben. Kippt sie nach -1, hat das Buch nichts
+    gesperrt - das ist exakt der Fehler, wegen dem es das Buch gibt.
     """
     db_modul.init_db()
 
@@ -276,6 +284,12 @@ def test_zweiter_start_schreibt_keine_zweite_zeile_ins_wanderungsbuch(
 
     assert {zeile[0] for zeile in erster_stand} == set(db_modul.EINMAL_SCHRITTE)
 
+    # Eine bewusste 0 nach der Wanderung - die neue Bedeutung des Wertes.
+    with db_modul.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "UPDATE users SET storage_limit_gb = 0 WHERE username = 'altbenutzer'"
+        )
+
     db_modul.init_db()
 
     with db_modul.engine.connect() as connection:
@@ -283,11 +297,15 @@ def test_zweiter_start_schreibt_keine_zweite_zeile_ins_wanderungsbuch(
             "SELECT wanderung_name, wanderung_am, wanderung_herkunft FROM wanderungen"
             " ORDER BY wanderung_name"
         ).all()
+        grenze = connection.exec_driver_sql(
+            "SELECT storage_limit_gb FROM users WHERE username = 'altbenutzer'"
+        ).scalar()
 
     # Nicht nur gleich viele Zeilen: **dieselben**, mit demselben Zeitstempel.
     # Eine neu geschriebene Zeile mit derselben Anzahl waere genau der Fall,
     # den eine reine Zaehlung durchgehen liesse.
     assert zweiter_stand == erster_stand
+    assert grenze == 0, "die nach der Wanderung gesetzte 0 wurde wieder umgedeutet"
 
 
 def test_frische_installation_ohne_sicherung(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

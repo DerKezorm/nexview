@@ -216,6 +216,79 @@ def test_bestandsdatenbank_wird_als_erledigt_vorgefunden(eigene_installation) ->
     assert _grenze(motor) == 0
 
 
+def test_der_halb_gewanderte_stand_gilt_nicht_als_erledigt(eigene_installation) -> None:
+    """Die zweite Haelfte des Ankunftsbefunds: ``storage_enabled`` zaehlt mit.
+
+    ``arr_managed`` allein genuegt nicht. Eine Installation, deren
+    Kontingent-Schritt seinerzeit zwischen Spalte und Aufraeumen abgebrochen
+    ist, traegt die Spalte **und** noch die alte ``storage_enabled``-Zeile.
+    Wer nur auf die Spalte sieht, haelt sie fuer fertig gewandert - ihre alten
+    Nullen blieben stehen und hiessen ab sofort "darf nichts anfragen".
+    """
+    motor = eigene_installation()
+    _konto_anlegen(motor, 0)
+    with motor.begin() as verbindung:
+        verbindung.exec_driver_sql(
+            "INSERT INTO settings (key, value, is_secret, updated_at)"
+            " VALUES ('storage_enabled', 'on', 0, '2026-01-01 12:00:00')"
+        )
+
+    db_modul.init_db()
+
+    assert _grenze(motor) == -1, "der halb gewanderte Stand galt faelschlich als erledigt"
+    assert _buch(motor)["_kontingente_dreiwertig_machen"] == "ausgefuehrt"
+
+
+def test_ein_abgebrochener_erster_start_versiegelt_die_wanderung_nicht(
+    eigene_installation,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⚠️ **Der Abbruch mitten im Update darf die alte 0 nicht einsperren.**
+
+    Der erste Start einer 0.18er Datenbank kommt bis hinter
+    ``_add_missing_columns`` - die Spalte ``arr_managed`` steht damit schon da -
+    und bricht dann ab, bevor die Kontingent-Wanderung an der Reihe war. Der
+    zweite Start laeuft heil durch. Laese er sein Urteil jetzt aus dem
+    Schema, hielte er die Wanderung fuer erledigt: Die alte 0 bliebe stehen
+    und hiesse ab sofort "darf nichts anfragen" - still, dauerhaft, und ohne
+    dass die Meldung ueber umgedeutete Nullen anschlaegt.
+
+    Deshalb schreibt ``init_db`` den Befund ins Buch, **bevor** irgendeine
+    Schema-Aenderung laeuft: Der Fehlstart hinterlaesst ``offen``, und der
+    zweite Start holt den Schritt nach.
+    """
+    motor = eigene_installation(ohne_arr_managed=True)
+    _konto_anlegen(motor, 0)
+
+    echte_pflege = db_modul._gesehen_herkunft_nachtragen
+    kaputt = True
+
+    def stromausfall() -> None:
+        # Einer der Pflegeschritte zwischen Schema-Aenderung und Wanderung -
+        # genau das Fenster, in dem der Abbruch frueher zur Versiegelung wurde.
+        if kaputt:
+            raise RuntimeError("abgebrochener erster Start")
+        echte_pflege()
+
+    monkeypatch.setattr(db_modul, "_gesehen_herkunft_nachtragen", stromausfall)
+    with pytest.raises(RuntimeError, match="abgebrochener erster Start"):
+        db_modul.init_db()
+
+    # Der Fehlstart hat das Schema schon vorgerueckt - aber das Buch weiss es
+    # besser: Die Wanderung steht als offen darin, nicht als erledigt.
+    assert _buch(motor)["_kontingente_dreiwertig_machen"] == "offen"
+    assert _grenze(motor) == 0
+
+    kaputt = False
+    db_modul.init_db()
+
+    assert _grenze(motor) == -1, (
+        "die alte 0 haette der zweite Start noch umziehen muessen - "
+        "der Fehlstart hat die Wanderung versiegelt"
+    )
+    assert _buch(motor)["_kontingente_dreiwertig_machen"] == "ausgefuehrt"
+
+
 def test_frische_installation_traegt_alle_wanderungen_ein(eigene_installation) -> None:
     """Beim allerersten Start gibt es nichts zu wandern - und das kommt ins Buch.
 
@@ -571,6 +644,11 @@ def test_ein_gesehen_marker_ohne_herkunft_wird_auch_spaeter_nachgetragen(
     Der laufende Abgleich legt weiterhin Marker ohne Herkunft an. Als
     Einmal-Schritt eingetragen blieben die fuer immer herrenlos, und der
     Abgleich zweier Server koennte sie nicht mehr zuordnen.
+
+    ⚠️ **Neben dem herrenlosen Marker steht ein zugeordneter.** Nur die leere
+    Herkunft darf gefuellt werden; ein Nachtragen, das jeden Marker auf den
+    gerade verbundenen Server umschreibt, saehe an der einen Zeile genauso
+    aus - und wuerde die Zuordnung aller anderen zerstoeren.
     """
     konto = create_user(admin_client, "kim", "passwort-1234")
     with db_modul.engine.begin() as verbindung:
@@ -583,6 +661,11 @@ def test_ein_gesehen_marker_ohne_herkunft_wird_auch_spaeter_nachgetragen(
         sitzung.add(
             UserWatched(user_id=konto["id"], media_type="movie", tmdb_id=4711, providers="")
         )
+        sitzung.add(
+            UserWatched(
+                user_id=konto["id"], media_type="movie", tmdb_id=4712, providers="jellyfin"
+            )
+        )
         sitzung.commit()
 
     db_modul.init_db()
@@ -590,6 +673,10 @@ def test_ein_gesehen_marker_ohne_herkunft_wird_auch_spaeter_nachgetragen(
     with db_modul.SessionLocal() as sitzung:
         marker = sitzung.query(UserWatched).filter(UserWatched.tmdb_id == 4711).one()
         assert marker.providers == "plex"
+        zugeordnet = sitzung.query(UserWatched).filter(UserWatched.tmdb_id == 4712).one()
+        assert zugeordnet.providers == "jellyfin", (
+            "das Nachtragen hat einen Marker umgeschrieben, der schon eine Herkunft hatte"
+        )
 
 
 def test_eine_unbekannte_meldungsart_wird_auch_spaeter_noch_geraeumt(
@@ -601,6 +688,10 @@ def test_eine_unbekannte_meldungsart_wird_auch_spaeter_noch_geraeumt(
     und **eine einzige** legt die Glocke eines Kontos ganz lahm. Die
     vorhandenen Tests dazu laufen nur auf der nachgebauten alten Datenbank -
     eine Fehleinordnung wuerde ihnen deshalb entgehen.
+
+    ⚠️ **Neben der verwaisten Zeile steht eine gesunde.** Ein Aufraeumen, das
+    schlicht alles loescht, raeumt die verwaiste ja auch weg - erst die
+    ueberlebende Nachbarzeile zeigt, dass das DELETE seine Grenze kennt.
     """
     konto = create_user(admin_client, "kim", "passwort-1234")
     with db_modul.engine.begin() as verbindung:
@@ -610,11 +701,22 @@ def test_eine_unbekannte_meldungsart_wird_auch_spaeter_noch_geraeumt(
             " VALUES (?, 'watchlist_imported', 'alt', 0, '2026-01-01 12:00:00', 0, 0)",
             (konto["id"],),
         )
+        verbindung.exec_driver_sql(
+            "INSERT INTO notifications"
+            " (user_id, type, message_key, is_read, created_at, mail_pending, mail_attempts)"
+            " VALUES (?, 'feedback', 'echt', 0, '2026-01-02 12:00:00', 0, 0)",
+            (konto["id"],),
+        )
 
     db_modul.init_db()
 
     with db_modul.engine.connect() as verbindung:
-        uebrig = verbindung.exec_driver_sql(
-            "SELECT COUNT(*) FROM notifications WHERE type = 'watchlist_imported'"
-        ).scalar()
-    assert uebrig == 0
+        uebrig = dict(
+            verbindung.exec_driver_sql(
+                "SELECT type, COUNT(*) FROM notifications GROUP BY type"
+            ).all()
+        )
+    assert uebrig.get("watchlist_imported", 0) == 0
+    assert uebrig.get("feedback") == 1, (
+        "das Aufraeumen hat auch die gueltige Meldung mitgenommen"
+    )

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from . import __version__
 from .config import get_settings
-from .models import Base, NotificationType, utcnow
+from .models import Base, NotificationType, Wanderung, utcnow
 
 logger = logging.getLogger("nexview.db")
 
@@ -160,6 +160,7 @@ EINMAL_SCHRITTE = (
 #: nichts protokolliert das.
 PFLEGE_SCHRITTE = (
     "_ankunftsbefund",
+    "_buchtabelle_anlegen",
     "_wanderungsbuch_nachtragen",
     "_pending_changes",
     "_leere_installation",
@@ -181,6 +182,13 @@ WANDERUNGSBUCH = "wanderungen"
 AUSGEFUEHRT = "ausgefuehrt"
 #: Der Ankunftsbefund hat ihn in einer bestehenden Datenbank wiedererkannt.
 VORGEFUNDEN = "vorgefunden"
+#: Der Ankunftsbefund hat ihn als noch ausstehend erkannt, gelaufen ist er
+#: aber noch nicht. Ein Schritt mit dieser Herkunft gilt als **nicht**
+#: gelaufen; ``_einmal`` fuehrt ihn aus und hebt die Zeile auf ``ausgefuehrt``.
+#: Bleibt sie stehen, ist der Start dazwischen abgebrochen - und der naechste
+#: holt den Schritt nach, statt die Luecke aus dem inzwischen vorgerueckten
+#: Schema falsch zu fuellen.
+OFFEN = "offen"
 
 
 def init_db() -> None:
@@ -199,12 +207,24 @@ def init_db() -> None:
     erkennen konnte - danach sieht jede Installation aus wie die neueste, und
     das Buch bekaeme fuer alle dieselbe, falsche Antwort.
 
-    Er steht **hinter** ``_pending_changes``, nicht davor: Der Befund oeffnet
+    ⚠️ **Und sein Urteil kommt sofort ins Buch, aus demselben Grund.** Frueher
+    wurde es erst hinter ``_add_missing_columns`` festgehalten. Brach der
+    Start dazwischen ab, hatte der abgebrochene Lauf das Schema schon
+    vorgerueckt, und der naechste hielt die Wanderungen faelschlich fuer
+    erledigt - eine alte 0 blieb dann fuer immer stehen und hiess ab sofort
+    "darf nichts anfragen". Jetzt steht fuer jeden noch offenen Schritt eine
+    ``offen``-Zeile im Buch, **bevor** irgendeine Schema-Aenderung laeuft; ein
+    Abbruch hinterlaesst damit eine Spur, die der naechste Start richtig
+    liest, statt einer Luecke, die er falsch fuellt. Die einzige Ausnahme ist
+    die Buchtabelle selbst - siehe ``_buchtabelle_anlegen``.
+
+    Der Befund steht **hinter** ``_pending_changes``, nicht davor: Er oeffnet
     die Datenbank, und SQLite legt die Datei dabei an. Davor gestellt naehme er
     der Schema-Pruefung ihren Kurzweg "die Datei gibt es noch gar nicht".
     Lesen aendert am Schema nichts, die Reihenfolge der beiden ist also frei.
     """
     ausstehend = _pending_changes()
+    _buchtabelle_anlegen()
     befund, spuren = _ankunftsbefund()
     # ⚠️ **Bei einer brandneuen Installation wird nicht gesichert.**
     # Die Schema-Pruefung meldet dort zwangslaeufig "alles fehlt", und Nexview
@@ -214,25 +234,44 @@ def init_db() -> None:
     if ausstehend and not _leere_installation():
         logger.info("Database schema update: %s", ", ".join(ausstehend))
         _backup_database()
+    # Sofort, vor ``create_all`` und ``_add_missing_columns`` - siehe oben.
+    # Hinter der Sicherung, damit die Kopie die Datenbank zeigt, wie sie
+    # angekommen ist.
+    _wanderungsbuch_nachtragen(befund, spuren)
 
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
     _add_missing_indexes()
-    # Erst jetzt steht die Buchtabelle sicher. Was der Befund oben als "lief
-    # schon" erkannt hat, wird hier nachgetragen; zurueck kommt das Buch als
-    # Ganzes, damit die Schritte darunter es nicht einzeln abfragen muessen.
-    gelaufen = _wanderungsbuch_nachtragen(befund, spuren)
     _altersgrenzen_aufraeumen()
     _verwaiste_meldungsarten_aufraeumen()
     _verwaiste_kinderwuensche_aufraeumen()
     # Muss **vor** dem Nachtragen der Herkunft laufen - das liest den
     # Anbieternamen bevorzugt aus dieser Tabelle.
-    _einmal(_verbindung_in_die_tabelle, gelaufen)
-    _einmal(_bewertungen_in_die_tabelle, gelaufen)
+    _einmal(_verbindung_in_die_tabelle)
+    _einmal(_bewertungen_in_die_tabelle)
     _gesehen_herkunft_nachtragen()
-    _einmal(_verknuepfungen_in_die_tabelle, gelaufen)
-    _einmal(_kontingente_dreiwertig_machen, gelaufen)
+    _einmal(_verknuepfungen_in_die_tabelle)
+    _einmal(_kontingente_dreiwertig_machen)
     _betreiber_bestimmen()
+
+
+def _buchtabelle_anlegen() -> None:
+    """Die Buchtabelle allein, vor allem anderen.
+
+    ``create_all`` weiter unten legte sie frueher mit an - zu spaet: Das Buch
+    muss den Ankunftsbefund aufnehmen koennen, **bevor** die Schema-Schritte
+    laufen, sonst gibt es zwischen Befund und Eintrag ein Fenster, in dem ein
+    Abbruch das Urteil verliert und das Schema trotzdem vorrueckt. Deshalb
+    entsteht genau diese eine Tabelle hier zuerst.
+
+    Sie ist damit die einzige Schema-Aenderung vor dem Ankunftsbefund. Fuer
+    ihn ist sie unsichtbar (er nimmt ``wanderungen`` aus seiner Betrachtung),
+    und ``_leere_installation`` zaehlt sie nicht mit - eine brandneue
+    Installation bleibt also eine.
+
+    ``checkfirst=True``: ab dem zweiten Start gibt es sie schon.
+    """
+    Wanderung.__table__.create(bind=engine, checkfirst=True)
 
 
 def _leere_installation(ziel: Engine | None = None) -> bool:
@@ -244,10 +283,17 @@ def _leere_installation(ziel: Engine | None = None) -> bool:
     ``ziel`` ist fuer Tests: Ohne den Parameter muesste ein Test die
     Datenbank des ganzen Laufs austauschen, um den Erstfall zu pruefen - und
     haenge damit an der Reihenfolge der Tests.
+
+    Die Buchtabelle zaehlt nicht mit: ``_buchtabelle_anlegen`` hat sie schon
+    angelegt, bevor diese Frage gestellt wird. Mit ihr in der Zaehlung saehe
+    jede brandneue Installation nach Bestand aus - und bekaeme beim ersten
+    Start eine Sicherung ihrer leeren Datenbank.
     """
     with (ziel or engine).connect() as verbindung:
         vorhanden = verbindung.exec_driver_sql(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            "SELECT COUNT(*) FROM sqlite_master "
+            "WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != ?",
+            (WANDERUNGSBUCH,),
         ).scalar()
     return not vorhanden
 
@@ -287,11 +333,16 @@ def _ankunftsbefund() -> tuple[dict[str, bool], dict[str, str]]:
     Antwort "nein, noch nicht gelaufen".
 
     ⚠️ **Eine Luecke bleibt, und sie wird hier benannt statt verschwiegen.**
-    Eine Installation, deren Start seinerzeit *zwischen* ``_add_missing_columns``
-    und den Wanderungen abgestuerzt ist und die danach direkt auf diese Fassung
-    springt, traegt die neuen Spalten, ohne dass ihre Wanderungen je liefen.
-    Sie gilt hier als erledigt. Der Fall ist schmal: So ein Behaelter kam gar
-    nicht erst hoch, das faellt auf.
+    Bricht ein Start dieser Fassung ab, ist das kein Problem mehr: Das Urteil
+    steht als ``offen`` im Buch, bevor irgendeine Schema-Aenderung laeuft, und
+    der naechste Start holt den Schritt nach. Was bleibt, ist der Abbruch
+    unter einer **aelteren** Fassung ohne Buch: Wessen Start seinerzeit
+    zwischen ``_add_missing_columns`` und den Wanderungen abgestuerzt ist und
+    wer danach direkt auf diese Fassung springt, traegt die neuen Spalten,
+    ohne dass seine Wanderungen je liefen - und gilt hier als erledigt. Diese
+    Datenbanken tragen keine Spur mehr, an der man den Fehlstart noch erkennen
+    koennte; ihr Urteil laesst sich nachtraeglich nicht reparieren, nur im
+    Protokoll nachlesen.
     """
     befund: dict[str, bool] = dict.fromkeys(EINMAL_SCHRITTE, False)
     spuren: dict[str, str] = {}
@@ -303,6 +354,12 @@ def _ankunftsbefund() -> tuple[dict[str, bool], dict[str, str]]:
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )
         }
+        # Die Buchtabelle gehoert zur Buchfuehrung, nicht zum Ankunftszustand:
+        # ``_buchtabelle_anlegen`` hat sie eben erst angelegt. Bliebe sie in
+        # der Menge, saehe eine brandneue Installation hier nach Bestand aus -
+        # und ihre vier Schritte wuerden angekuendigt statt als "database was
+        # empty on arrival" abgehakt.
+        tabellen.discard(WANDERUNGSBUCH)
         if not tabellen:
             # Frische Installation: Es gibt nichts zu wandern, also gilt alles
             # als erledigt. Ohne diese Regel bliebe das Buch bis zum ersten
@@ -445,18 +502,32 @@ def _ankunftsbefund() -> tuple[dict[str, bool], dict[str, str]]:
     return befund, spuren
 
 
-def _wanderungsbuch_nachtragen(befund: dict[str, bool], spuren: dict[str, str]) -> set[str]:
-    """Was der Ankunftsbefund wiedererkannt hat, kommt als ``vorgefunden`` ins Buch.
+def _wanderungsbuch_nachtragen(befund: dict[str, bool], spuren: dict[str, str]) -> None:
+    """Das Urteil des Ankunftsbefunds vollstaendig ins Buch schreiben - sofort.
 
-    Zurueck kommt das Buch als Ganzes, also alle Namen darin - die Schritte
-    darunter fragen es damit nicht einzeln ab. Das ist kein Geiz: ``init_db``
-    laeuft in der Testreihe rund 2400 mal, und jede Abfrage wird dort genauso
-    oft bezahlt.
+    **Vollstaendig** heisst: fuer alle vier Schritte, nicht nur fuer die
+    wiedererkannten. Was der Befund als "lief schon" erkannt hat, kommt als
+    ``vorgefunden`` hinein; was noch aussteht, als ``offen``. Damit steht die
+    Entscheidung in der Datenbank, **bevor** ``create_all`` und
+    ``_add_missing_columns`` das Schema vorruecken - ein Abbruch irgendwo
+    dahinter hinterlaesst ``offen``-Zeilen, und der naechste Start fuehrt
+    genau diese Schritte aus, statt das inzwischen aktuelle Schema falsch zu
+    deuten.
+
+    Vorhandene Zeilen bleiben unangetastet, fehlende werden ergaenzt. Ein
+    Buch aus einer Fassung, die noch keine ``offen``-Zeilen schrieb, kommt
+    damit unveraendert durch: Was drinsteht, gilt; nur Luecken fuellt der
+    Befund.
+
+    Entschieden wird hier nichts weiter - ``_einmal`` liest die Herkunft
+    spaeter selbst aus dem Buch, nicht aus einer mitgefuehrten Menge im
+    Speicher.
 
     ⚠️ **Hier steht die einzige Gelegenheit, den Befund festzuhalten.** Solange
-    das Buch Luecken hat, kommt zu jedem noch offenen Schritt sein Urteil samt
-    Proben ins Protokoll - einmal je Datenbank, danach nie wieder. Ab dem
-    zweiten Start ist das Buch voll, und diese Funktion schweigt.
+    das Buch Luecken hat, kommt zu jedem Schritt sein Urteil samt Proben ins
+    Protokoll - einmal je Datenbank, danach nie wieder. Ab dem zweiten Start
+    ist das Buch voll, und diese Funktion schweigt; nur eine liegengebliebene
+    ``offen``-Zeile wird noch einmal angesagt, denn ihr Schritt laeuft gleich.
 
     ⚠️ **Auf ``INFO`` und nicht auf der Diagnose-Stufe.** ``init_db`` laeuft
     **vor** ``logs.apply_stored_mode()`` (siehe ``main.py``); eine gespeicherte
@@ -466,48 +537,53 @@ def _wanderungsbuch_nachtragen(befund: dict[str, bool], spuren: dict[str, str]) 
     getroffen. Eine Zeile, die man nur zu spaet einschalten kann, ist keine.
     """
     with engine.connect() as verbindung:
-        gelaufen = {
-            zeile[0]
-            for zeile in verbindung.exec_driver_sql(
-                f"SELECT wanderung_name FROM {WANDERUNGSBUCH}"  # noqa: S608 - fester Name
-            )
-        }
-
-    nachzutragen = [
-        name for name in EINMAL_SCHRITTE if name not in gelaufen and befund.get(name)
-    ]
-    # Die andere Haelfte: noch nicht im Buch und vom Befund **nicht**
-    # wiedererkannt. Diese Schritte laufen gleich ueber die Bestandsdaten. Sie
-    # hier zu nennen ist der einzige Eintrag *vor* der Aenderung - was ein
-    # Schritt getan hat, sagt er selbst, aber nur wenn er heil durchkommt.
-    faellig = [
-        name for name in EINMAL_SCHRITTE if name not in gelaufen and not befund.get(name)
-    ]
-    for name in faellig:
-        logger.info(
-            "Migration %r has not run in this database yet and will run now. Evidence: %s",
-            name,
-            spuren.get(name, "none recorded"),
+        buch = dict(
+            verbindung.exec_driver_sql(
+                f"SELECT wanderung_name, wanderung_herkunft FROM {WANDERUNGSBUCH}"  # noqa: S608 - fester Name
+            ).all()
         )
+
+    # Eine ``offen``-Zeile im Buch heisst: Der Start, der sie geschrieben hat,
+    # ist vor diesem Schritt abgebrochen. Er laeuft gleich nach - das gehoert
+    # angesagt, denn der Befund dieses Laufs sieht das vorgerueckte Schema und
+    # koennte die Wiederholung nicht mehr begruenden.
+    for name in EINMAL_SCHRITTE:
+        if buch.get(name) == OFFEN:
+            logger.info(
+                "Migration %r is recorded as open, a previous start did not finish it. "
+                "It will run now",
+                name,
+            )
 
     # Lesen genuegt fast immer: Ab dem zweiten Start steht alles schon im Buch.
     # Eine Schreib-Transaktion nur fuers Nachsehen kostet einen Commit, und den
     # bezahlt die Testreihe rund 2400 mal.
-    if not nachzutragen:
-        return gelaufen
+    fehlend = [name for name in EINMAL_SCHRITTE if name not in buch]
+    if not fehlend:
+        return
 
     with engine.begin() as verbindung:
-        for name in nachzutragen:
-            _eintragen(verbindung, name, VORGEFUNDEN)
-            gelaufen.add(name)
-            logger.info(
-                "Migration %r recorded as already done, it will not run again. Evidence: %s",
-                name,
-                spuren.get(name, "none recorded"),
-            )
-            if name == "_kontingente_dreiwertig_machen":
-                _umgedeutete_nullen_melden(verbindung)
-    return gelaufen
+        for name in fehlend:
+            if befund.get(name):
+                _eintragen(verbindung, name, VORGEFUNDEN)
+                logger.info(
+                    "Migration %r recorded as already done, it will not run again. "
+                    "Evidence: %s",
+                    name,
+                    spuren.get(name, "none recorded"),
+                )
+                if name == "_kontingente_dreiwertig_machen":
+                    _umgedeutete_nullen_melden(verbindung)
+            else:
+                # Der Eintrag *vor* der Aenderung: was ein Schritt getan hat,
+                # sagt er selbst, aber nur wenn er heil durchkommt.
+                _eintragen(verbindung, name, OFFEN)
+                logger.info(
+                    "Migration %r has not run in this database yet and will run now. "
+                    "Evidence: %s",
+                    name,
+                    spuren.get(name, "none recorded"),
+                )
 
 
 def _umgedeutete_nullen_melden(verbindung) -> None:
@@ -530,6 +606,14 @@ def _umgedeutete_nullen_melden(verbindung) -> None:
     gibt ueberhaupt ein Konto mit ``-1``. Eine Warnung, die auch dort erscheint,
     wo es nichts zu sehen gibt, liest beim dritten Mal niemand mehr.
     """
+    # Das Buch wird vor ``create_all`` geschrieben. Bei einer brandneuen
+    # Installation gibt es die Kontotabelle hier also noch nicht - und wo
+    # keine Konten sind, kann auch nichts umgedeutet worden sein.
+    hat_konten = verbindung.exec_driver_sql(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'"
+    ).scalar()
+    if not hat_konten:
+        return
     betroffen = verbindung.exec_driver_sql(
         "SELECT COUNT(*) FROM users WHERE storage_limit_gb = -1"
     ).scalar()
@@ -547,23 +631,47 @@ def _umgedeutete_nullen_melden(verbindung) -> None:
 
 
 def _eintragen(verbindung, name: str, herkunft: str) -> None:
-    """Eine Zeile ins Wanderungsbuch schreiben.
+    """Eine Zeile ins Wanderungsbuch schreiben - oder eine ``offen``-Zeile heben.
 
-    ``INSERT OR IGNORE``, weil ein Schritt sich auch **selbst** eintragen darf:
-    ``_kontingente_dreiwertig_machen`` tut das in derselben Transaktion wie
-    seine Aenderung, und ``_einmal`` kaeme danach ein zweites Mal vorbei. Ein
-    Fehler waere das nicht, nur laut.
+    ⚠️ **Nur ``offen`` darf ueberschrieben werden.** Diese Herkunft ist die
+    Ankuendigung "laeuft gleich"; fuehrt ``_einmal`` den Schritt dann aus,
+    muss aus derselben Zeile ``ausgefuehrt`` werden - ein blosses
+    ``INSERT OR IGNORE`` liesse sie fuer immer auf ``offen`` stehen, und der
+    Schritt liefe bei jedem Start erneut. Die beiden fertigen Herkuenfte
+    bleiben dagegen unantastbar: Ein Schritt darf sich auch **selbst**
+    eintragen (``_kontingente_dreiwertig_machen`` tut das in derselben
+    Transaktion wie seine Aenderung), und ``_einmal`` kommt danach ein zweites
+    Mal vorbei. Ein Fehler waere das nicht, nur laut - deshalb prallt der
+    zweite Versuch hier ab, statt Zeitstempel und Herkunft zu ueberschreiben.
     """
     verbindung.exec_driver_sql(
-        f"INSERT OR IGNORE INTO {WANDERUNGSBUCH} "  # noqa: S608 - fester Name
+        f"INSERT INTO {WANDERUNGSBUCH} "  # noqa: S608 - fester Name
         "(wanderung_name, wanderung_am, wanderung_herkunft, wanderung_version) "
-        "VALUES (?, ?, ?, ?)",
-        (name, str(utcnow().replace(tzinfo=None)), herkunft, __version__),
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(wanderung_name) DO UPDATE SET "
+        "wanderung_am = excluded.wanderung_am, "
+        "wanderung_herkunft = excluded.wanderung_herkunft, "
+        "wanderung_version = excluded.wanderung_version "
+        f"WHERE {WANDERUNGSBUCH}.wanderung_herkunft = ?",
+        (name, str(utcnow().replace(tzinfo=None)), herkunft, __version__, OFFEN),
     )
 
 
-def _einmal(schritt: Callable[[], None], gelaufen: set[str]) -> None:
-    """Einen Einmal-Schritt nur laufen lassen, wenn er nicht im Buch steht.
+def _einmal(schritt: Callable[[], None]) -> None:
+    """Einen Einmal-Schritt nur laufen lassen, wenn das Buch ihn nicht sperrt.
+
+    ⚠️ **Die Entscheidung kommt aus dem Buch in der Datenbank, nicht aus einer
+    mitgefuehrten Menge im Speicher.** Eine Menge, die durch ``init_db``
+    weitergereicht wird, kann vom Stand der Datei abweichen, ohne dass es
+    jemand sieht - genau so ein Verdacht stand einmal im Raum, als eine
+    Einspielung eine bewusst gesetzte 0 doch umgedeutet hatte. Vier winzige
+    Abfragen auf einer Tabelle mit vier Zeilen sind der Preis dafuer, dass
+    diese Frage sich gar nicht mehr stellt.
+
+    ``offen`` heisst "angesagt, aber nie fertig geworden" und sperrt darum
+    nicht - der Schritt laeuft und die Zeile wird auf ``ausgefuehrt`` gehoben.
+    Eine ganz fehlende Zeile heisst dasselbe; sie kommt im Regelfall nicht
+    vor, weil ``_wanderungsbuch_nachtragen`` vorher alles eintraegt.
 
     ⚠️ **Die Zustandssperren in den Schritten selbst bleiben trotzdem
     stehen.** Zwei Schloesser sind hier billiger als eines: Das Buch schuetzt
@@ -572,12 +680,17 @@ def _einmal(schritt: Callable[[], None], gelaufen: set[str]) -> None:
     zwischen Schritt und Bucheintrag.
     """
     name = schritt.__name__
-    if name in gelaufen:
+    with engine.connect() as verbindung:
+        herkunft = verbindung.exec_driver_sql(
+            f"SELECT wanderung_herkunft FROM {WANDERUNGSBUCH} "  # noqa: S608 - fester Name
+            "WHERE wanderung_name = ?",
+            (name,),
+        ).scalar()
+    if herkunft is not None and herkunft != OFFEN:
         return
     schritt()
     with engine.begin() as verbindung:
         _eintragen(verbindung, name, AUSGEFUEHRT)
-    gelaufen.add(name)
     logger.info("Migration %r ran", name)
 
 

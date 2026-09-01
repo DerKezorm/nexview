@@ -2408,6 +2408,11 @@
             "title": "Zwei Seitentüren, die auch zu sind",
             "where": "Einstellungen → Medienserver bzw. Anmeldedienste, und Sicherungen",
             "body": "Man kann den Betreiber auch erledigen, ohne sein Konto je anzufassen — und beides ist mitgeschlossen.\n\n**Den Anmeldeweg abschalten.** Wer nur über einen Anmeldedienst oder den Medienserver hereinkommt, steht draußen, sobald der weg ist. Sein Konto ist unversehrt und unerreichbar. Bisher konnte ein Administrator die Warnung überstimmen; beim Betreiber geht das jetzt nicht mehr. Für jedes andere Konto bleibt das Überstimmen erlaubt — dort kann er den Schaden hinterher beheben, indem er ein Passwort setzt. Beim Betreiber darf er genau das nicht.\n\n**Eine alte Sicherung einspielen.** Sie kopiert die ganze Datenbank, der Haken wäre also mitgereist — und eine Übergabe ließe sich damit rückgängig machen. Der Betreiber-Haken ist deshalb der eine Wert, der die Zeitmaschine nicht mitmacht: Nach dem Einspielen trägt ihn, wer ihn davor getragen hat. Gibt es dieses Konto in der Sicherung nicht, bleibt er unvergeben, statt geraten zu werden."
+          },
+          {
+            "title": "Hausordnung: dein Regeltext, wenn du einen willst",
+            "where": "Einstellungen → Hausordnung",
+            "body": "Was angefragt werden darf, wie lange Titel bleiben, wen man bei einer Störung anschreibt: Du kannst das jetzt aufschreiben, statt es einmal in einer Nachricht zu erklären, die keiner wiederfindet. Angemeldete erreichen den Text über einen **§-Knopf unten rechts**. **Musst du nicht** — lässt du das Feld leer, gibt es auch keinen Knopf."
           }
         ],
         "smallTitle": "Außerdem",

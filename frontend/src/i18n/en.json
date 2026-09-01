@@ -2408,6 +2408,11 @@
             "title": "Two side doors, also closed",
             "where": "Settings → Media server and login providers, and Backups",
             "body": "The owner can also be dealt with without ever touching their account — and both routes are closed too.\n\n**Switching off their way in.** Anyone who only gets in through a login provider or the media server is left outside as soon as it is gone. Their account is untouched and unreachable. Until now an administrator could override that warning; for the owner they no longer can. For every other account overriding stays allowed — there the administrator can repair the damage afterwards by setting a password. For the owner that is exactly what they may not do.\n\n**Restoring an old backup.** It copies the whole database, so the flag would have travelled with it — and a handover could be undone that way. The owner flag is therefore the one value that does not join the time machine: after a restore it is carried by whoever carried it before. If that account does not exist in the backup, it stays unassigned rather than being guessed."
+          },
+          {
+            "title": "House rules: your own text, if you want one",
+            "where": "Settings → House rules",
+            "body": "What may be requested, how long titles stay, who to write to when something is broken: you can write it down now instead of explaining it once in a message nobody finds again. Anyone signed in reaches it through a **§ button in the bottom right corner**. **Entirely optional** — leave the field empty and there is no button either."
           }
         ],
         "smallTitle": "Also",

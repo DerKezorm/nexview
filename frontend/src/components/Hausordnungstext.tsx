@@ -12,12 +12,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { auszeichnung, type Block, type Teil } from '../lib/auszeichnung'
-import { mitBasis } from '../lib/basis'
-
-/** Die Adresse eines hinterlegten Bildes. Nur eigene – siehe Parser. */
-export function bildAdresse(name: string): string {
-  return mitBasis(`/api/hausordnung/bild/${encodeURIComponent(name)}`)
-}
+import { bildAdresse } from '../lib/hausordnungBild'
 
 function teile(inhalt: Teil[]): ReactNode[] {
   return inhalt.map((teil, i) => {

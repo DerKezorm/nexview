@@ -14,7 +14,7 @@ import type { User } from '../api/types'
  * Speichern-Knopf wie jede andere Einstellung auch - deshalb greift das Profil
  * nicht auf diesen Haken zu.
  */
-export function useSpracheWaehlen() {
+function useSpracheWaehlen() {
   const { i18n } = useTranslation()
   const { user, updateUser } = useAuth()
 

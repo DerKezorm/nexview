@@ -8,11 +8,8 @@ import { useAuth } from '../../auth/useAuth'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../../components/ui'
 import { useConfig } from '../../hooks/useConfig'
 import { TitelVerweis } from '../../components/TitelVerweis'
-import {
-  FolgenAuswahl,
-  belegungsWort,
-  staffelBelegt,
-} from '../../components/media/StaffelFolgenWaehler'
+import { FolgenAuswahl } from '../../components/media/StaffelFolgenWaehler'
+import { belegungsWort, staffelBelegt } from '../../components/media/staffelbelegung'
 import { folgenKompakt } from '../../lib/format'
 
 /**

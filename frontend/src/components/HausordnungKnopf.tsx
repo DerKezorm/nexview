@@ -15,32 +15,11 @@
 import { Suspense, lazy, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useConfig } from '../hooks/useConfig'
+import { useHausordnung } from '../hooks/useHausordnung'
 
 const HausordnungFenster = lazy(() =>
   import('./HausordnungFenster').then((m) => ({ default: m.HausordnungFenster })),
 )
-
-/** Gibt es etwas zu lesen, das dieses Konto noch nicht quittiert hat? */
-export function useHausordnung() {
-  const { data: config } = useConfig()
-  const vorhanden = config?.hausordnung_vorhanden ?? false
-  const quittierbar = config?.hausordnung_quittierbar ?? true
-  const nichtQuittiert =
-    vorhanden &&
-    (config?.hausordnung_gelesen == null ||
-      config.hausordnung_gelesen < (config?.hausordnung_fassung ?? 0))
-
-  return {
-    vorhanden,
-    // ⚠️ **Der Punkt nur, wenn man ihn auch loswerden kann.** Ist das Abhaken
-    // abgeschaltet, gibt es nichts zu quittieren - der Punkt bliebe für immer
-    // stehen, und einen Hinweis, den man nie loswird, lernt man zu übersehen.
-    // Dann ist der Knopf kein Anstupser mehr, sondern schlicht der Zugang.
-    ungelesen: nichtQuittiert && quittierbar,
-    knopfSichtbar: vorhanden && (nichtQuittiert || !quittierbar),
-  }
-}
 
 export function HausordnungKnopf({
   offen,

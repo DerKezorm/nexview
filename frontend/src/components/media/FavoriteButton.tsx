@@ -1,28 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../../api/client'
-import type { Favorite, FavoritePerson, MediaItem } from '../../api/types'
-
-/**
- * Die eigenen Favoriten - einmal geladen und überall verfügbar.
- *
- * Bewusst eine gemeinsame Abfrage statt einer pro Herz: auf einer Seite mit
- * zwanzig Kacheln wären das zwanzig Aufrufe für dieselbe Liste.
- */
-export function useFavorites() {
-  const query = useQuery({
-    queryKey: ['favorites'],
-    queryFn: () => api.get<Favorite[]>('/api/favorites'),
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const markiert = new Set((query.data ?? []).map((f) => `${f.media_type}-${f.tmdb_id}`))
-  // ⚠️ `fehlgeschlagen` gehoert mit heraus. Ohne das gab der Haken bei einer
-  // Stoerung dasselbe zurueck wie bei einer wirklich leeren Merkliste - und
-  // die Seite darueber konnte gar nicht unterscheiden, was sie anzeigen soll.
-  return { favorites: query.data ?? [], markiert, fehlgeschlagen: query.isError }
-}
+import type { MediaItem } from '../../api/types'
 
 /**
  * Wie ein Herz aussieht, dessen Klick nicht angekommen ist.
@@ -140,17 +120,6 @@ type PersonLike = {
   name: string
   photo_url: string | null
   department: string
-}
-
-/** Die gemerkten Personen - einmal geladen, überall verfügbar (siehe useFavorites). */
-export function usePersonFavorites() {
-  const query = useQuery({
-    queryKey: ['person-favorites'],
-    queryFn: () => api.get<FavoritePerson[]>('/api/favorites/people'),
-    staleTime: 5 * 60 * 1000,
-  })
-  const markiert = new Set((query.data ?? []).map((p) => p.person_id))
-  return { people: query.data ?? [], markiert, fehlgeschlagen: query.isError }
 }
 
 /** Herz zum Merken einer Person - gebaut wie das Herz an einem Titel. */

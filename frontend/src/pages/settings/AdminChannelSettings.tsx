@@ -15,7 +15,8 @@ import type {
   TestResult,
 } from '../../api/types'
 import { Button, Card, ErrorBanner, Field, PlusKachel, RundKnopf, Section, Spinner } from '../../components/ui'
-import { Anleitung, HilfeKnopf, hatAnleitung } from './ChannelHelp'
+import { Anleitung, HilfeKnopf } from './ChannelHelp'
+import { hatAnleitung } from './channelAnleitungen'
 import emailLogo from '../../assets/email.svg'
 // ?inline: als data:-Adresse ins Bündel, statt als Datei unter /assets. Die
 // einzige eingebaute absolute Asset-Adresse - unter einem Unterpfad

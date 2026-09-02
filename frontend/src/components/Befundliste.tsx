@@ -37,27 +37,6 @@ function dauerText(minuten: number, t: TFunction): string {
   return t('befund.dauer.tage', { count: Math.floor(minuten / (60 * 24)) })
 }
 
-/**
- * „3 Fehler · 8 Warnungen · 1 Hinweis“ — aus drei Bausteinen, nicht aus einem Satz.
- *
- * ⚠️ **Ein Satz mit drei Zahlen lässt sich nicht beugen.** i18next entscheidet
- * über Einzahl und Mehrzahl anhand von genau einem `count`; bei drei Zahlen in
- * einer Zeile stand deshalb „1 Hinweise“. Jeder Teil wird einzeln übersetzt und
- * erst danach zusammengesetzt.
- */
-export function befundZusammenfassung(
-  zaehler: Record<BefundSchwere, number>,
-  t: TFunction,
-): string {
-  const teile: string[] = []
-  for (const schwere of ['fehler', 'warnung', 'hinweis'] as BefundSchwere[]) {
-    const anzahl = zaehler[schwere] ?? 0
-    // Nullen weglassen: „0 Hinweise“ ist keine Auskunft, nur Länge.
-    if (anzahl > 0) teile.push(t(`befund.anzahl.${schwere}`, { count: anzahl }))
-  }
-  return teile.join(' · ')
-}
-
 const FARBEN: Record<BefundSchwere, { punkt: string; rahmen: string }> = {
   fehler: { punkt: 'bg-bad-500', rahmen: 'border-bad-500/40 bg-bad-500/5' },
   warnung: { punkt: 'bg-warn-500', rahmen: 'border-warn-500/40 bg-warn-500/5' },

@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { anzeigename, eigenname } from './AdminMedienserverVerbindung'
+import { anzeigename, eigenname } from './medienservername'
 import { LEERE_ANTWORTEN, fingerabdruck, kurzfassung } from './qualitaetsprofile-typen'
 import type { Antworten } from './qualitaetsprofile-typen'
 

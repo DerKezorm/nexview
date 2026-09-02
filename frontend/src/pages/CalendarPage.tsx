@@ -74,16 +74,20 @@ export function CalendarPage() {
   // React Query behält bei einem fehlgeschlagenen Nachladen die alten Daten;
   // dann steht der Fehler nur in `failureReason`.
   const fehler = query.error ?? query.failureReason
-  const roheTage = query.data?.days ?? []
   // Filme/Folgen wird hier gesiebt, nicht beim Server: Die Woche ist eine
   // feste Menge, es kann also nichts "zu kurz" werden - anders als bei einer
   // blätternden Liste.
+  //
+  // ⚠️ Die rohe Liste entsteht **im** useMemo. Draußen wäre `?? []` bei
+  // fehlenden Daten in jedem Render ein neues leeres Array, und der Vergleich
+  // der Abhängigkeiten schlüge jedes Mal an - gerechnet würde dann immer.
   const tage = useMemo(() => {
+    const roheTage = query.data?.days ?? []
     if (art === 'beides') return roheTage
     return roheTage
       .map((tag) => ({ ...tag, entries: tag.entries.filter((e) => e.media_type === art) }))
       .filter((tag) => tag.entries.length > 0)
-  }, [roheTage, art])
+  }, [query.data, art])
 
   const alleEintraege = useMemo(() => tage.flatMap((tag) => tag.entries), [tage])
   const { ratingsFor, istFavorit } = useCardData(

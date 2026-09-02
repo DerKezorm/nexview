@@ -2,59 +2,17 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ChannelKind } from '../../api/types'
+import { ANLEITUNGEN } from './channelAnleitungen'
 
 /**
- * Schritt-für-Schritt-Anleitung zu einem Dienst.
- *
- * Nur dort, wo die Einrichtung außerhalb von Nexview stattfindet und mehr als
- * zwei Handgriffe braucht. Bei Gotify und ntfy trägt man eine Adresse und ein
- * Token ein – dafür genügen die Hinweise am Feld. Telegram dagegen verlangt ein
- * Konto, einen Bot, ein Token und eine Chat-Kennung, und jeder dieser Schritte
- * spielt woanders.
+ * Die Schritt-für-Schritt-Anleitung zu einem Dienst, angezeigt.
  *
  * Sie steht **in** der rechten Spalte, nicht in einem Fenster darüber: Dort
  * liegen sonst die Postfächer, und die gibt es ohnehin erst, wenn die
  * Verbindung steht. So bleibt beim Lesen sichtbar, welches Feld links gerade
- * gemeint ist.
+ * gemeint ist. Welche Dienste eine Anleitung haben, steht in
+ * `channelAnleitungen.ts`.
  */
-
-type Verweis = { href: string; label: string }
-
-type Schritt = {
-  /** Schlüssel unter `channels.guide.<dienst>.` */
-  key: string
-  links?: Verweis[]
-  /**
-   * Bild zum Schritt. Bewusst noch nirgends gesetzt: Aufnahmen fremder
-   * Oberflächen veralten schnell, und erfundene wären schlimmer als keine.
-   * Sobald echte vorliegen, genügt hier ein Dateiname.
-   */
-  bild?: string
-}
-
-const ANLEITUNGEN: Partial<Record<ChannelKind, Schritt[]>> = {
-  telegram: [
-    {
-      key: 'account',
-      links: [
-        { href: 'https://desktop.telegram.org', label: 'desktop.telegram.org' },
-        { href: 'https://web.telegram.org', label: 'web.telegram.org' },
-      ],
-    },
-    { key: 'botfather', links: [{ href: 'https://t.me/BotFather', label: '@BotFather' }] },
-    { key: 'newbot' },
-    { key: 'token' },
-    { key: 'instance' },
-    { key: 'checktoken' },
-    { key: 'startchat' },
-    { key: 'group' },
-    { key: 'finish' },
-  ],
-}
-
-export function hatAnleitung(kanal: ChannelKind): boolean {
-  return Boolean(ANLEITUNGEN[kanal])
-}
 
 /** Der runde Knopf, der die Anleitung ein- und ausblendet. */
 export function HilfeKnopf({ offen, onKlick }: { offen: boolean; onKlick: () => void }) {

@@ -6,10 +6,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ApiError, api } from '../api/client'
 import type { CreditKind, MediaItem, PersonCredit, PersonDetail } from '../api/types'
 import { DetailModal } from '../components/media/DetailModal'
-import {
-  FavoritePersonButton,
-  usePersonFavorites,
-} from '../components/media/FavoriteButton'
+import { FavoritePersonButton } from '../components/media/FavoriteButton'
+import { usePersonFavorites } from '../components/media/useFavorites'
 import { fromPersonCredit } from '../components/media/cardItem'
 import { MediaCard } from '../components/media/MediaCard'
 import { PersonPhoto } from '../components/media/PersonPhoto'

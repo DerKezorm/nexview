@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../api/client'
 import type { Favorite, FavoritePerson } from '../api/types'
-import { useFavorites, usePersonFavorites } from '../components/media/FavoriteButton'
+import { useFavorites, usePersonFavorites } from '../components/media/useFavorites'
 import { PersonPhoto } from '../components/media/PersonPhoto'
 import { Poster } from '../components/media/Poster'
 import { ErrorBanner, Spinner } from '../components/ui'

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-export const SETUP_STEPS = ['account', 'avatar', 'tmdb', 'radarr', 'sonarr', 'address', 'mail', 'done'] as const
+const SETUP_STEPS = ['account', 'avatar', 'tmdb', 'radarr', 'sonarr', 'address', 'mail', 'done'] as const
 export type SetupStep = (typeof SETUP_STEPS)[number]
 
 /** Fortschrittsanzeige über den Schritten des Assistenten. */

@@ -94,6 +94,24 @@ jobs:
           npm ci
           npm run build
 
+      # ESLint. Er lief bisher in keinem Schritt - das Skript stand seit jeher
+      # in package.json und niemand rief es auf.
+      #
+      # ⚠️ **Die Schwelle steht auf null und wird beim Anschlagen NICHT
+      # hochgesetzt.** Sie steckt im Skript selbst (`eslint . --max-warnings
+      # 0`), damit lokal und im CI dasselbe herauskommt; ohne sie gaebe ESLint
+      # bei reinen Warnungen Rueckgabecode 0 zurueck und der Schritt koennte
+      # gar nicht fehlschlagen. Die Begruendung steht ausfuehrlich im Kopf von
+      # frontend/eslint.config.js. Genau wie bei der Waage darunter gilt: Was
+      # anschlaegt, wird behoben, nicht weggemessen.
+      #
+      # Nach dem Bau, weil `tsc -b` das Grundsaetzlichere findet, und vor den
+      # Testschritten, damit eine Lint-Meldung nicht hinter vier Minuten
+      # Playwright wartet. Kosten rund 20 s gegen rund 7 min Gesamtlauf.
+      - name: Frontend-Regeln prüfen
+        working-directory: frontend
+        run: npm run lint
+
       # Die Waage an der Tuer. Sie bricht ab, wenn ein Besucher beim Oeffnen
       # mehr herunterladen muesste als vereinbart.
       #

@@ -13,8 +13,8 @@
  * Wer Kacheln zeigt, ruft hier einmal auf und ist fertig.
  */
 
-import { useFavorites } from './FavoriteButton'
-import { useMovieRatings } from './RatingBadges'
+import { useFavorites } from './useFavorites'
+import { useMovieRatings } from './useMovieRatings'
 
 export function useCardData(items: { media_type: string; tmdb_id: number }[]) {
   const ratings = useMovieRatings(items)

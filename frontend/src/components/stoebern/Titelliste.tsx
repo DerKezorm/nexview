@@ -8,7 +8,7 @@ import { Umschalter } from '../Umschalter'
 
 export type Ansicht = 'kacheln' | 'liste'
 
-export const ANSICHTEN: readonly Ansicht[] = ['kacheln', 'liste'] as const
+const ANSICHTEN: readonly Ansicht[] = ['kacheln', 'liste'] as const
 
 /** Der Umschalter allein - er steht bei den übrigen Reglern, nicht über der Liste. */
 export function AnsichtUmschalter({

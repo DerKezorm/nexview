@@ -42,7 +42,8 @@ import type {
   VerbindungslageInstanz,
 } from '../../api/types'
 import { rendernSchlicht } from '../../test/rendern'
-import { AdminMedienserverVerbindung, anzeigename } from './AdminMedienserverVerbindung'
+import { AdminMedienserverVerbindung } from './AdminMedienserverVerbindung'
+import { anzeigename } from './medienservername'
 
 const holen = vi.mocked(api.get)
 const setzen = vi.mocked(api.put)

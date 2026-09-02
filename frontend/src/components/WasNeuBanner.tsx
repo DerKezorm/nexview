@@ -5,7 +5,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Neuigkeiten } from '../api/types'
 import { useAuth } from '../auth/useAuth'
-import { hatEintrag, WasNeuFenster } from './WasNeuFenster'
+import { WasNeuFenster } from './WasNeuFenster'
+import { hatEintrag } from './wasNeuEintrag'
 
 /**
  * „Alles, was neu ist" – der Hinweis nach einem Update.

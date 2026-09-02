@@ -20,35 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api } from '../../api/client'
 import type { MedienserverLuecke, VerbindungslageGesamt } from '../../api/types'
 import { Button, Section, Spinner } from '../../components/ui'
-
-/** Wie der Anbieter heißt — nicht, wie der Server sich selbst nennt. */
-export const ANBIETER: Record<string, string> = {
-  plex: 'Plex',
-  jellyfin: 'Jellyfin',
-  emby: 'Emby',
-}
-
-/**
- * Trägt dieser Servername etwas bei, oder ist es eine Maschinenkennung?
- *
- * ⚠️ Emby nennt sich hier schon mal „fed014e636a7“ — das ist die Kennung der
- * Installation, kein Name. Sie in der Oberfläche zu zeigen hilft niemandem;
- * „Emby“ sagt mehr. Plex dagegen liefert echte Namen wie „Bizzy“, und die
- * sind es wert, genannt zu werden.
- */
-export function eigenname(name: string, provider: string): string {
-  const sauber = (name || '').trim()
-  if (!sauber) return ''
-  if (sauber.toLowerCase() === provider.toLowerCase()) return ''
-  if (/^[0-9a-f]{8,}$/i.test(sauber)) return ''
-  return sauber
-}
-
-export function anzeigename(provider: string, name: string): string {
-  const anbieter = ANBIETER[provider] ?? provider
-  const eigen = eigenname(name, provider)
-  return eigen ? `${anbieter} (${eigen})` : anbieter
-}
+import { ANBIETER, anzeigename } from './medienservername'
 
 /**
  * Die Pfad-Vorschau zu einer Lücke.

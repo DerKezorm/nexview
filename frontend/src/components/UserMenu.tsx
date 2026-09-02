@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation } from 'react-router-dom'
 
-import { useFavorites, usePersonFavorites } from './media/FavoriteButton'
+import { useFavorites, usePersonFavorites } from './media/useFavorites'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../api/client'

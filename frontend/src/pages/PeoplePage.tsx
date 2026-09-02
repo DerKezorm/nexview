@@ -5,10 +5,8 @@ import { Link } from 'react-router-dom'
 
 import { api } from '../api/client'
 import type { PersonDepartment, PersonSummary } from '../api/types'
-import {
-  FavoritePersonButton,
-  usePersonFavorites,
-} from '../components/media/FavoriteButton'
+import { FavoritePersonButton } from '../components/media/FavoriteButton'
+import { usePersonFavorites } from '../components/media/useFavorites'
 import { PersonPhoto } from '../components/media/PersonPhoto'
 import { SearchInput } from '../components/SearchInput'
 import { Umschalter } from '../components/Umschalter'

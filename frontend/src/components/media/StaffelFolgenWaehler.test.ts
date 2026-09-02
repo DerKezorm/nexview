@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SeasonInfo } from '../../api/types'
 import { folgenKompakt } from '../../lib/format'
-import { belegungsWort, staffelBelegt } from './StaffelFolgenWaehler'
+import { belegungsWort, staffelBelegt } from './staffelbelegung'
 
 describe('belegungsWort', () => {
   it('wartende Freigaben heißen „wartet", nicht „läuft"', () => {

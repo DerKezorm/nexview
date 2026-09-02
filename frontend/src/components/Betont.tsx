@@ -21,7 +21,7 @@ import type { ReactNode } from 'react'
 /** Trennt an `**…**` und `` `…` `` — die Klammern bleiben in den Treffern. */
 const MUSTER = /(\*\*[^*]+\*\*|`[^`]+`)/g
 
-export function betont(text: string): ReactNode[] {
+function betont(text: string): ReactNode[] {
   return text.split(MUSTER).map((teil, index) => {
     if (teil.startsWith('**') && teil.endsWith('**') && teil.length > 4) {
       return (

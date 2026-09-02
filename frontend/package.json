@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "gewicht": "node tools/gewicht-pruefen.mjs",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "mobil": "node tools/mobil-pruefen.mjs",
     "konsole": "node tools/konsole-pruefen.mjs",
     "test": "vitest run",

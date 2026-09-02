@@ -3,6 +3,22 @@
 // Absichtlich die Standardregeln und nichts Eigenes: Die Typprüfung läuft
 // ohnehin im Build (`tsc -b`); ESLint fängt darüber hinaus die React-Fallen
 // (Hook-Regeln, veraltete Abhängigkeits-Listen) und totes Zeug.
+//
+// ⚠️ **Die Schwelle steht auf null und wird beim Anschlagen NICHT
+// hochgesetzt.** `npm run lint` ruft `eslint . --max-warnings 0` auf, und
+// derselbe Aufruf steht im CI. Der Grund für die Null:
+//
+//   * Ohne Schwelle wäre der Schritt ein Prüfer, der niemals anschlägt.
+//     ESLint gibt bei reinen Warnungen Rückgabecode 0 zurück; gemessen am
+//     02.09.2026 waren das 20 Stück und der Lauf trotzdem grün.
+//   * Eine Schwelle auf den Stand von heute (20) wäre keine Waage, sondern
+//     ein Deckel auf einer **Summe über alle Regeln**. Wer eine Warnung
+//     wegräumt und dabei eine andere einbaut, käme unbemerkt durch.
+//
+// Schlägt sie an, gehört die Meldung behoben oder die betroffene Regel
+// benannt und begründet abgeschaltet, so wie die beiden react-hooks-Regeln
+// weiter unten. Die Zahl bleibt null. Dieselbe Haltung wie bei der Waage in
+// `tools/gewicht-pruefen.mjs`.
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'

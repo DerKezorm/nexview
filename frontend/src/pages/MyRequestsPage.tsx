@@ -49,7 +49,13 @@ function StorageCard({ stand }: { stand: SpeicherStand }) {
               limit: formatSize(stand.limitBytes, i18n.language),
             })}
       </p>
-      <Link to="/profil" className="mt-0.5 block text-xs text-mist-600 hover:text-accent-500">
+      {/* ⚠️ **Mit Reiter, sonst landet man im Profil-Menü.** Die Beschriftung
+          verspricht die einzelnen Titel; ohne ``?reiter=speicher`` steht man
+          auf der Startkarte des Profils und sucht sie. */}
+      <Link
+        to="/profil?reiter=speicher"
+        className="mt-0.5 block text-xs text-mist-600 hover:text-accent-500"
+      >
         {t(stand.gesamtsicht ? 'storage.houseHint' : 'storage.showDetail')}
       </Link>
     </div>
@@ -215,6 +221,18 @@ export function MyRequestsPage() {
     onSuccess: () => setCancelling(null),
     onSettled: refresh,
   })
+
+  // ⚠️ **Der Weg zurück, wenn eine Regel abgelehnt hat.** Nur dort, wo die
+  // Regel ihn ausdrücklich zulässt - der Server prüft das noch einmal, und
+  // zwar samt Kontingent. Der Knopf ist die Einladung, nicht die Erlaubnis.
+  const trotzdemMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/api/requests/${id}/trotzdem`),
+    onSettled: refresh,
+  })
+  const trotzdemFehler =
+    trotzdemMutation.isError && trotzdemMutation.error instanceof ApiError
+      ? trotzdemMutation.error.message
+      : null
 
   // Beim Öffnen einer neuen Rückfrage den alten Fehler vergessen - sonst
   // stünde er über einer Anfrage, die damit nichts zu tun hat.
@@ -457,6 +475,12 @@ export function MyRequestsPage() {
                 {request.rejection_reason && (
                   <p className="mt-1 text-xs text-mist-500">{request.rejection_reason}</p>
                 )}
+                {/* ⚠️ Ohne diese Zeile klickt man „trotzdem fragen“ und es
+                    passiert scheinbar nichts - dabei sagt der Server sehr
+                    genau, warum: Kontingent voll, oder jemand war schneller. */}
+                {trotzdemFehler && trotzdemMutation.variables === request.id && (
+                  <p className="mt-1 text-xs text-bad-500">{trotzdemFehler}</p>
+                )}
               </div>
 
               {/* ⚠️ **Feste Spalten, sonst springt jede Zeile woanders hin.**
@@ -500,6 +524,16 @@ export function MyRequestsPage() {
               {/* „Warum dauert das?" beantwortet sich hier, statt beim
                   Administrator zu landen. Zurückhaltend, weil es die zweite
                   Frage ist - die erste ist der Zustand daneben. */}
+              {request.darf_trotzdem_fragen && (
+                <Button
+                  variant="ghost"
+                  loading={trotzdemMutation.isPending && trotzdemMutation.variables === request.id}
+                  onClick={() => trotzdemMutation.mutate(request.id)}
+                >
+                  {t('myRequests.askAnyway')}
+                </Button>
+              )}
+
               <Button variant="ghost" onClick={() => setVerlauf(request)}>
                 {t('verlauf.open')}
               </Button>

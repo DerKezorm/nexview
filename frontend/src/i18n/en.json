@@ -218,7 +218,10 @@
       "hintNew": "For a series this new, TheTVDB usually catches up within a few days - try again then.",
       "hintOld": "TheTVDB has no entry for this series, and that will not change. Let your operator know if you need it.",
       "confirm": "Continue"
-    }
+    },
+    "byRuleDeclined": "A house rule declined this.",
+    "byRuleWhere": "The request is under “My requests”, so you can read the reason there.",
+    "byRuleMayAsk": "You can still send it to an approver from “My requests”."
   },
   "home": {
     "greeting": "Welcome back, {{name}}",
@@ -401,7 +404,8 @@
     "autoApprove": "Your requests are approved automatically.",
     "needsApproval": "Your requests need administrator approval.",
     "fromWatchlist": "Watchlist",
-    "fromWatchlistTab": "Requested from watchlist"
+    "fromWatchlistTab": "Requested from watchlist",
+    "askAnyway": "Ask anyway"
   },
   "hausordnung": {
     "titel": "House rules",
@@ -508,7 +512,10 @@
     "storageRejectReason": "Storage quota exceeded.",
     "storageWarnDefer": "Put on hold",
     "inRequesterSubscription": "{{name}} can already watch this on {{services}}.",
-    "inSubscriptionSeriesNote": "Whether this season is included, the source does not say."
+    "inSubscriptionSeriesNote": "Whether this season is included, the source does not say.",
+    "askedAnywayBadge": "Against a rule",
+    "askedAnyway": "Rule “{{name}}” had declined this. The requester asked anyway.",
+    "askedAnywayOhneRegel": "A rule had declined this. The requester asked anyway."
   },
   "requests": {
     "cancel": "Cancel",
@@ -1121,7 +1128,8 @@
     "tabBackups": "Backups",
     "tabSystem": "System",
     "tabTokens": "API tokens",
-    "namingSection": "Naming"
+    "namingSection": "Naming",
+    "tabRegeln": "Rules"
   },
   "qualityProfiles": {
     "title": "Quality profiles",
@@ -1641,7 +1649,16 @@
       "betreiber_nur_admin": "Ownership can only be handed to an administrator.",
       "betreiber_ziel_inaktiv": "A disabled account cannot take over ownership.",
       "betreiber_wuerde_ausgesperrt": "The owner would no longer be able to get in – nobody but the owner can decide that.",
-      "mediaserver_no_user_list": "This media server cannot list its accounts."
+      "mediaserver_no_user_list": "This media server cannot list its accounts.",
+      "regel_bedingung_ungueltig": "That condition does not work: {{grund}}",
+      "regel_nicht_gefunden": "That rule no longer exists.",
+      "regel_reihenfolge_unvollstaendig": "The order has to name every existing rule exactly once.",
+      "already_requested": "“{{title}}” has been requested in the meantime.",
+      "request_not_rule_rejected": "That request was not declined by a rule.",
+      "rule_forbids_asking": "That rule does not allow asking again.",
+      "already_asked_anyway": "That request has already been passed on and decided since.",
+      "already_rule_rejected": "“{{title}}” has already been declined by a rule.",
+      "wish_rule_rejected": "A house rule has declined “{{title}}”."
     }
   },
   "language": {
@@ -2640,7 +2657,8 @@
     "deleted": "Gone again",
     "noReason": "no reason given",
     "deferred": "Put on hold",
-    "deferredHint": "will be approved once there is room again — you do not need to ask again"
+    "deferredHint": "will be approved once there is room again — you do not need to ask again",
+    "byRule": "by rule “{{name}}”"
   },
   "cleanup": {
     "title": "What is lying around unused",
@@ -3191,5 +3209,86 @@
     "confirmOk": "Take over anyway",
     "sectionTitle": "Existing accounts",
     "sectionIntro": "Whoever already has an account on this server needs none by hand in Nexview. Only what you tick is taken over."
+  },
+  "regeln": {
+    "ablehnen": "reject",
+    "aendernTitel": "Change a rule",
+    "aus": "off",
+    "ausschalten": "Off",
+    "bedingungHinzufuegen": "Add a condition …",
+    "begruendung": "What the requester reads",
+    "begruendungPlatzhalter": "Without a text it just says “rejected”.",
+    "bis": "below",
+    "dann": "Then",
+    "darfTrotzdem": "The requester may send it to an approver anyway.",
+    "egal": "any",
+    "einschalten": "On",
+    "entfernen": "remove",
+    "grenzeAlter": "A rule saying “approve everything from 2026” gives a child no title it is not allowed to see.",
+    "grenzeAlterTitel": "The age filter.",
+    "grenzeEltern": "A child's wish always goes to them, even where a rule would match.",
+    "grenzeElternTitel": "The parents' decision.",
+    "grenzeKontingent": "Whoever may not request anything gets no further through a rule either — not even when the title would go to house stock.",
+    "grenzeKontingentTitel": "The requester's quota.",
+    "grenzen": "“from” counts, “below” does not — so “from 5” and “below 5” do not overlap.",
+    "grenzenTitel": "Three things no rule can override",
+    "hausbestandHinweis": "The title then counts against nobody's storage quota. The item count still applies — that hangs on the request, not on storage.",
+    "hausbestandTitel": "Book to house stock",
+    "hinzufuegen": "Add a rule",
+    "inDenHausbestand": "to house stock",
+    "intro": "Rules decide requests before the account setting applies. Nexview walks the list from top to bottom and takes the first rule that matches. If none does, everything stays as before.",
+    "introUnd": "Every condition in a rule has to hold. If you need an “or”, add a second rule — that keeps the list readable.",
+    "leer": "No rules yet. Without them, the account setting keeps deciding.",
+    "liestText": "The requester reads: “{{text}}”",
+    "loeschenText": "“{{name}}” is taken out of the list. Requests it used to catch will take the normal route from now on.",
+    "loeschenTitel": "Delete this rule?",
+    "nachOben": "Move up",
+    "nachObenAria": "Move {{name}} up",
+    "nachUntenAria": "Move {{name}} down",
+    "name": "Name",
+    "namePlatzhalter": "What is this rule for?",
+    "neuTitel": "New rule",
+    "sofortFreigeben": "approve at once",
+    "title": "Rules",
+    "trotzdemHinweis": "They can still send the request to an approver. Sensible for “poorly rated”, pointless for “already here in 4K”.",
+    "trotzdemTitel": "The requester may ask anyway",
+    "ueberholt": "For some titles {{name}} matches first.",
+    "und": "and",
+    "von": "from",
+    "wenn": "If",
+    "zielHinweis": "Does not approve at once here: the approver picks the target folder, so the request goes to them anyway.",
+    "zielKasten": "Because the approver picks the target folder in this house, the request goes to them anyway — otherwise it would bypass the very choice they are meant to make.",
+    "zielKastenTitel": "Does not apply everywhere here.",
+    "feld_typ": "Type",
+    "feld_genre": "Genre",
+    "feld_bewertung": "Rating",
+    "feld_stimmen": "Number of votes",
+    "feld_jahr": "Release year",
+    "feld_laufzeit": "Runtime",
+    "feld_sprache": "Original language",
+    "feld_altersfreigabe": "Age rating",
+    "feld_qualitaet": "Requested tier",
+    "feld_bestand": "Already here as",
+    "feldKurz_stimmen": "Votes",
+    "einheit_bewertung": "out of 10",
+    "einheit_laufzeit": "minutes",
+    "einheit_altersfreigabe": "years",
+    "hinweis_stimmen": "Always add this one. 9.2 out of four votes is not a good film, and a rule saying “approve from 8.0” becomes a way in without it.",
+    "hinweis_bestand": "Needs two instances. Nexview only knows what was requested through Nexview — anything that was in the library before counts as “not at all” here. It means any request in the house, including someone else's.",
+    "hinweis_altersfreigabe": "As far as TMDB knows it for your region. A title without one does not match the condition.",
+    "wertFilm": "Film",
+    "wertSerie": "Series",
+    "wertGarNicht": "not at all",
+    "sprache_de": "German",
+    "sprache_en": "English",
+    "sprache_fr": "French",
+    "sprache_es": "Spanish",
+    "sprache_ja": "Japanese",
+    "sprache_ko": "Korean",
+    "chipAb": "from {{wert}}",
+    "chipVor": "before {{wert}}",
+    "ladefehler": "The rules could not be loaded. What you see here is therefore incomplete — rules may well be active.",
+    "gilt_nicht_fuer_dich": "Rules do not apply to administrators and approvers — same as the block list. They are meant to slow the others down, not you.",
+    "verdeckt": "{{name}} already catches the same titles. This rule is never reached for them, and neither is its reason text."
   }
 }

@@ -218,7 +218,10 @@
       "hintNew": "Bei einer so neuen Serie trägt TheTVDB das meist in ein paar Tagen nach - dann versuch es noch einmal.",
       "hintOld": "Diese Serie fehlt in TheTVDB, und daran wird sich nichts mehr ändern. Sag der Betreiberin oder dem Betreiber Bescheid, wenn du sie brauchst.",
       "confirm": "Weiter"
-    }
+    },
+    "byRuleDeclined": "Eine Regel des Hauses hat das abgelehnt.",
+    "byRuleWhere": "Die Anfrage steht unter „Meine Anfragen“, damit du den Grund nachlesen kannst.",
+    "byRuleMayAsk": "Du kannst sie unter „Meine Anfragen“ trotzdem an den Entscheider schicken."
   },
   "home": {
     "greeting": "Willkommen zurück, {{name}}",
@@ -401,7 +404,8 @@
     "autoApprove": "Deine Anfragen werden sofort freigegeben.",
     "needsApproval": "Deine Anfragen müssen vom Administrator freigegeben werden.",
     "fromWatchlist": "Merkliste",
-    "fromWatchlistTab": "Über Merkliste angefragt"
+    "fromWatchlistTab": "Über Merkliste angefragt",
+    "askAnyway": "Trotzdem fragen"
   },
   "hausordnung": {
     "titel": "Hausordnung",
@@ -508,7 +512,10 @@
     "storageRejectReason": "Speicher-Kontingent überschritten.",
     "storageWarnDefer": "Zurückstellen",
     "inRequesterSubscription": "{{name}} kann das schon über {{services}} sehen.",
-    "inSubscriptionSeriesNote": "Ob diese Staffel dabei ist, sagt die Quelle nicht."
+    "inSubscriptionSeriesNote": "Ob diese Staffel dabei ist, sagt die Quelle nicht.",
+    "askedAnywayBadge": "Gegen eine Regel",
+    "askedAnyway": "Regel „{{name}}“ hatte das abgelehnt. Der Anfragende hat trotzdem gefragt.",
+    "askedAnywayOhneRegel": "Eine Regel hatte das abgelehnt. Der Anfragende hat trotzdem gefragt."
   },
   "requests": {
     "cancel": "Abbrechen",
@@ -1121,7 +1128,8 @@
     "tabBackups": "Sicherungen",
     "tabSystem": "System",
     "tabTokens": "API-Token",
-    "namingSection": "Benennung"
+    "namingSection": "Benennung",
+    "tabRegeln": "Regeln"
   },
   "qualityProfiles": {
     "title": "Qualitätsprofile",
@@ -1641,7 +1649,16 @@
       "betreiber_nur_admin": "Der Betreiber kann nur an einen Administrator übergeben werden.",
       "betreiber_ziel_inaktiv": "Ein deaktiviertes Konto kann den Betreiber nicht übernehmen.",
       "betreiber_wuerde_ausgesperrt": "Der Betreiber käme danach nicht mehr herein – das kann niemand außer ihm selbst entscheiden.",
-      "mediaserver_no_user_list": "Dieser Medienserver kann seine Konten nicht auflisten."
+      "mediaserver_no_user_list": "Dieser Medienserver kann seine Konten nicht auflisten.",
+      "regel_bedingung_ungueltig": "Diese Bedingung geht so nicht: {{grund}}",
+      "regel_nicht_gefunden": "Diese Regel gibt es nicht mehr.",
+      "regel_reihenfolge_unvollstaendig": "Die Reihenfolge muss jede vorhandene Regel genau einmal nennen.",
+      "already_requested": "„{{title}}“ wurde inzwischen angefragt.",
+      "request_not_rule_rejected": "Diese Anfrage wurde nicht von einer Regel abgelehnt.",
+      "rule_forbids_asking": "Diese Regel lässt kein Nachfragen zu.",
+      "already_asked_anyway": "Diese Anfrage wurde bereits weitergereicht und danach entschieden.",
+      "already_rule_rejected": "„{{title}}“ wurde bereits von einer Regel abgelehnt.",
+      "wish_rule_rejected": "Eine Regel des Hauses hat „{{title}}“ abgelehnt."
     }
   },
   "language": {
@@ -2640,7 +2657,8 @@
     "deleted": "Wieder verschwunden",
     "noReason": "ohne Begründung",
     "deferred": "Zurückgestellt",
-    "deferredHint": "wird freigegeben, sobald wieder Platz ist — du musst nicht neu fragen"
+    "deferredHint": "wird freigegeben, sobald wieder Platz ist — du musst nicht neu fragen",
+    "byRule": "durch Regel „{{name}}“"
   },
   "cleanup": {
     "title": "Was liegt ungenutzt herum",
@@ -3191,5 +3209,86 @@
     "confirmOk": "Trotzdem übernehmen",
     "sectionTitle": "Vorhandene Konten",
     "sectionIntro": "Wer auf diesem Server schon ein Konto hat, braucht in Nexview keins von Hand. Übernommen wird nur, was du anhakst."
+  },
+  "regeln": {
+    "ablehnen": "ablehnen",
+    "aendernTitel": "Regel ändern",
+    "aus": "aus",
+    "ausschalten": "Aus",
+    "bedingungHinzufuegen": "Bedingung hinzufügen …",
+    "begruendung": "Das liest der Anfragende",
+    "begruendungPlatzhalter": "Ohne Text steht dort nur „abgelehnt“.",
+    "bis": "bis",
+    "dann": "Dann",
+    "darfTrotzdem": "Der Anfragende darf trotzdem an den Entscheider schicken.",
+    "egal": "egal",
+    "einschalten": "An",
+    "entfernen": "entfernen",
+    "grenzeAlter": "Eine Regel „ab 2026 alles freigeben“ gibt einem Kind keinen Titel, den es nicht sehen darf.",
+    "grenzeAlterTitel": "Den Altersfilter.",
+    "grenzeEltern": "Ein Kinderwunsch geht immer an sie, auch wenn eine Regel passen würde.",
+    "grenzeElternTitel": "Die Entscheidung der Eltern.",
+    "grenzeKontingent": "Wer nichts mehr anfragen darf, kommt auch über eine Regel nicht weiter — selbst dann nicht, wenn der Titel auf den Hausbestand ginge.",
+    "grenzeKontingentTitel": "Das Kontingent des Anfragenden.",
+    "grenzen": "„von“ zählt mit, „bis“ nicht — so überschneiden sich „ab 5“ und „unter 5“ nicht.",
+    "grenzenTitel": "Drei Dinge kann keine Regel übergehen",
+    "hausbestandHinweis": "Der Titel zählt dann bei niemandem gegen das Speicher-Kontingent. Die Stückzahl zählt weiter — die hängt an der Anfrage, nicht am Speicher.",
+    "hausbestandTitel": "Auf den Hausbestand buchen",
+    "hinzufuegen": "Regel hinzufügen",
+    "inDenHausbestand": "in den Hausbestand",
+    "intro": "Regeln entscheiden über Anfragen, bevor die Einstellung am Konto gilt. Nexview geht die Liste von oben nach unten durch und nimmt die erste Regel, die passt. Passt keine, bleibt alles wie bisher.",
+    "introUnd": "Innerhalb einer Regel müssen alle Bedingungen zutreffen. Wer ein „oder“ braucht, legt eine zweite Regel an — das hält die Liste lesbar.",
+    "leer": "Noch keine Regel. Ohne Regeln entscheidet weiterhin, was am Konto steht.",
+    "liestText": "Der Anfragende liest: „{{text}}“",
+    "loeschenText": "„{{name}}“ wird aus der Liste genommen. Anfragen, die sie bisher abgefangen hat, nehmen danach den normalen Weg.",
+    "loeschenTitel": "Regel löschen?",
+    "nachOben": "Nach oben",
+    "nachObenAria": "{{name}} nach oben",
+    "nachUntenAria": "{{name}} nach unten",
+    "name": "Name",
+    "namePlatzhalter": "Wofür ist die Regel da?",
+    "neuTitel": "Neue Regel",
+    "sofortFreigeben": "sofort freigeben",
+    "title": "Regeln",
+    "trotzdemHinweis": "Dann kann er die Anfrage doch an den Entscheider schicken. Sinnvoll bei „schwach bewertet“, unsinnig bei „liegt schon in 4K vor“.",
+    "trotzdemTitel": "Der Anfragende darf trotzdem fragen",
+    "ueberholt": "Bei manchen Titeln greift {{name}} vorher.",
+    "und": "und",
+    "von": "von",
+    "wenn": "Wenn",
+    "zielHinweis": "Gibt hier nicht sofort frei: Der Entscheider wählt den Zielordner, also geht die Anfrage trotzdem an ihn.",
+    "zielKasten": "Weil in diesem Haus der Entscheider den Zielordner wählt, geht die Anfrage trotzdem an ihn — sonst käme sie an genau der Wahl vorbei, die er treffen soll.",
+    "zielKastenTitel": "Greift bei euch nicht überall.",
+    "feld_typ": "Typ",
+    "feld_genre": "Genre",
+    "feld_bewertung": "Bewertung",
+    "feld_stimmen": "Anzahl Stimmen",
+    "feld_jahr": "Erscheinungsjahr",
+    "feld_laufzeit": "Laufzeit",
+    "feld_sprache": "Originalsprache",
+    "feld_altersfreigabe": "Altersfreigabe",
+    "feld_qualitaet": "Angefragte Stufe",
+    "feld_bestand": "Liegt schon vor als",
+    "feldKurz_stimmen": "Stimmen",
+    "einheit_bewertung": "von 10",
+    "einheit_laufzeit": "Minuten",
+    "einheit_altersfreigabe": "Jahre",
+    "hinweis_stimmen": "Bitte immer mitgeben. 9,2 aus vier Stimmen ist kein guter Film, und eine Regel „ab 8,0 freigeben“ wird ohne diese Bedingung zum Einfallstor.",
+    "hinweis_bestand": "Braucht zwei Instanzen. Nexview kennt nur, was über Nexview angefragt wurde — was vorher in der Mediathek lag, zählt hier als „gar nicht“. Gemeint ist jede Anfrage im Haus, auch die von jemand anderem.",
+    "hinweis_altersfreigabe": "Soweit TMDB sie für deine Region kennt. Titel ohne Angabe trifft die Bedingung nicht.",
+    "wertFilm": "Film",
+    "wertSerie": "Serie",
+    "wertGarNicht": "gar nicht",
+    "sprache_de": "Deutsch",
+    "sprache_en": "Englisch",
+    "sprache_fr": "Französisch",
+    "sprache_es": "Spanisch",
+    "sprache_ja": "Japanisch",
+    "sprache_ko": "Koreanisch",
+    "chipAb": "ab {{wert}}",
+    "chipVor": "vor {{wert}}",
+    "ladefehler": "Die Regeln konnten nicht geladen werden. Was hier steht, ist deshalb unvollständig — es können sehr wohl Regeln aktiv sein.",
+    "gilt_nicht_fuer_dich": "Regeln gelten nicht für Administratoren und Entscheider — wie die Sperrliste. Sie sollen die anderen bremsen, nicht dich.",
+    "verdeckt": "{{name}} fängt dieselben Titel schon ab. Diese Regel wird bei ihnen nie erreicht, auch ihr Begründungstext nicht."
   }
 }

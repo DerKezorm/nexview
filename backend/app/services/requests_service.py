@@ -22,6 +22,7 @@ from ..models import (
 )
 from ..schemas_media import MediaItem
 from . import (
+    age_rating,
     blocklist,
     library,
     logs,
@@ -29,6 +30,7 @@ from . import (
     mediaserver_library,
     notify,
     quota,
+    regeln,
     serien_zuordnung,
     storage,
 )
@@ -846,6 +848,130 @@ async def resolve_root_folder(
     return standard if standard in vorhanden else vorhanden[0]
 
 
+def trotzdem_fragen(db: Session, settings: AppSettings, user: User, request_id: int) -> MediaRequest:
+    """Eine von einer Regel abgelehnte Anfrage doch an den Entscheider schicken.
+
+    ⚠️ **Nur, wo die Regel es ausdruecklich erlaubt.** Der Haken steht je
+    Regel, nicht haus-weit: Bei "schwach bewertet" laedt der Begruendungstext
+    zum Nachfragen ein, bei "liegt schon in 4K vor" gaebe es nichts
+    nachzufragen.
+
+    ⚠️ **Und mit allen Pruefungen, die eine neue Anfrage auch haette.** Die
+    Ablehnung kostete kein Kontingent und blockierte niemanden - beim
+    Umschalten auf ``pending_approval`` faengt beides an zu gelten. Wer das
+    ueberspringt, hat hier den Weg gebaut, auf dem man ein volles Kontingent
+    umgeht: einmal von einer Regel ablehnen lassen, dann "trotzdem".
+    """
+    request = db.get(MediaRequest, request_id)
+    if request is None or request.user_id != user.id:
+        raise RequestError("Anfrage nicht gefunden.", 404, code="request_not_found")
+
+    if request.status != RequestStatus.rejected or request.regel is None:
+        raise RequestError(
+            "Diese Anfrage wurde nicht von einer Regel abgelehnt.",
+            409,
+            code="request_not_rule_rejected",
+        )
+    if not request.regel.trotzdem_fragen:
+        raise RequestError(
+            "Diese Regel lässt kein Nachfragen zu.",
+            403,
+            code="rule_forbids_asking",
+        )
+    # ⚠️ **Nur einmal.** Wurde die Anfrage schon einmal weitergereicht und
+    # danach von Hand abgelehnt, ist Schluss. Sonst koennte jemand beliebig oft
+    # gegen die Entscheidung eines Menschen nachfassen.
+    if request.trotzdem_gefragt:
+        raise RequestError(
+            "Diese Anfrage wurde bereits weitergereicht und danach entschieden.",
+            409,
+            code="already_asked_anyway",
+        )
+
+    # ⚠️ **Die Sperrliste gilt auch hier.** Sie ist keine Regel, sondern die
+    # ausdrueckliche Entscheidung des Betreibers ueber genau diesen Titel - und
+    # sie kann nach der Ablehnung dazugekommen sein. Ohne diese Pruefung waere
+    # "trotzdem fragen" der Weg an ihr vorbei, und beim Ausprobieren ist genau
+    # das passiert: Der Titel stand auf der Liste, der Knopf stand daneben.
+    if user.role != Role.admin:
+        gesperrt = blocklist.eintrag(db, request.media_type, request.tmdb_id)
+        if gesperrt is not None:
+            grund = f" Begründung: {gesperrt.reason}" if gesperrt.reason else ""
+            raise RequestError(
+                f"„{request.title}“ steht auf der Sperrliste und kann nicht "
+                f"angefragt werden.{grund}",
+                403,
+            )
+
+    # Inzwischen laeuft der Titel vielleicht schon - bei jemand anderem oder
+    # bei einem selbst in einer zweiten Anfrage.
+    laeuft = find_active(
+        db, request.media_type, request.tmdb_id, request.season,
+        request.tier, list(request.episodes or []) or None,
+    )
+    if laeuft is not None:
+        raise RequestError(
+            f"„{request.title}“ wurde inzwischen angefragt.",
+            409,
+            code="already_requested",
+        )
+
+    _kontingent_pruefen(db, settings, user, request.media_type)
+
+    request.status = RequestStatus.pending_approval
+    request.rejection_reason = None
+    request.approved_at = None
+    request.trotzdem_gefragt = True
+    # ``regel_id`` bleibt: Dass eine Regel das einmal abgelehnt hat, ist Teil
+    # des Vorgangs und soll dem Entscheider nicht verlorengehen.
+    logger.info(
+        "Request %d (%r) was rejected by rule %d and is going to the approvers anyway",
+        request.id,
+        request.title,
+        request.regel_id,
+    )
+    _notify_admins(db, request)
+    db.commit()
+    db.refresh(request)
+    return request
+
+
+def _jahr_aus(datum: str | None) -> int | None:
+    """Das Erscheinungsjahr aus einem TMDB-Datum. Ohne Datum kein Jahr."""
+    if not datum or len(datum) < 4 or not datum[:4].isdigit():
+        return None
+    return int(datum[:4])
+
+
+def _bestand_stufe(
+    db: Session, media_type: MediaType, tmdb_id: int, tier: QualityTier
+) -> str:
+    """In welcher **anderen** Stufe liegt der Titel schon vor?
+
+    ⚠️ **Die eigene Stufe kann hier nicht mehr auftauchen.** Dieselbe Stufe
+    zweimal hat ``find_active`` weiter oben schon abgefangen - wer bis hierher
+    kommt, fragt eine Stufe an, die es noch nicht gibt. Uebrig bleibt genau
+    die Frage, um die es geht: Gibt es den Titel schon in der anderen?
+
+    ⚠️ **Nur was Nexview kennt.** Ein Film, der vor Nexview in der Mediathek
+    lag, hat hier keine Anfrage und zaehlt deshalb als "nichts". Das ist kein
+    Versehen, sondern die Grenze dieser Auskunft: Der Bibliotheksabgleich
+    weiter oben prueft die angefragte Stufe, nicht die andere.
+    """
+    andere = QualityTier.standard if tier == QualityTier.uhd else QualityTier.uhd
+    vorhanden = db.scalar(
+        select(MediaRequest.id).where(
+            MediaRequest.media_type == media_type,
+            MediaRequest.tmdb_id == tmdb_id,
+            MediaRequest.tier == andere,
+            MediaRequest.status.in_(ACTIVE_STATUSES),
+        )
+    )
+    if vorhanden is None:
+        return "nichts"
+    return regeln.stufe_von(andere)
+
+
 def _kontingent_pruefen(
     db: Session, settings: AppSettings, user: User, media_type: MediaType
 ) -> None:
@@ -1285,6 +1411,43 @@ async def create_request(
             409,
         )
 
+    # ⚠️ **Und dasselbe fuer eine Regel-Ablehnung.** Direkt darueber steht die
+    # Begruendung fuer die zurueckgestellten Anfragen - "zweimal dasselbe soll
+    # auch niemand von sich selbst haben" -, und fuer ``rejected`` wurde sie
+    # nicht mitgezogen. Gemessen: fuenfmal derselbe Klick, fuenf Zeilen. Da die
+    # Ablehnung nichts kostet und niemanden blockiert, faellt das nur in der
+    # Liste auf - in seiner und in der des Administrators.
+    #
+    # Nur Ablehnungen **durch eine Regel**: Eine von Hand abgelehnte Anfrage
+    # darf man erneut stellen, das war ja die Entscheidung eines Menschen und
+    # die Lage kann sich geaendert haben.
+    schon_abgelehnt = db.scalar(
+        select(MediaRequest)
+        .where(
+            MediaRequest.user_id == user.id,
+            MediaRequest.media_type == media_type,
+            MediaRequest.tmdb_id == item.tmdb_id,
+            MediaRequest.tier == tier,
+            MediaRequest.status == RequestStatus.rejected,
+            MediaRequest.regel_id.is_not(None),
+        )
+        .limit(1)
+    )
+    if schon_abgelehnt is not None and (
+        season is None or schon_abgelehnt.season == season
+    ):
+        grund = (
+            f" {schon_abgelehnt.rejection_reason}"
+            if schon_abgelehnt.rejection_reason
+            else ""
+        )
+        raise RequestError(
+            f"„{item.title}“ wurde bereits von einer Regel abgelehnt.{grund}",
+            409,
+            code="already_rule_rejected",
+            titel=item.title,
+        )
+
     existing = find_active(db, media_type, item.tmdb_id, season, tier, episodes)
     if existing is not None:
         if season is not None and existing.season is None:
@@ -1429,9 +1592,117 @@ async def create_request(
             auswahl_moeglich=tvdb_auswahl_moeglich,
         )
 
+    # ------------------------------------------------------------------
+    # Die letzte Sprosse: sofort freigeben, ablehnen, oder zum Entscheider?
+    #
+    # ⚠️ **Alles davor ist bereits gelaufen** - Sperrliste, Bibliothek,
+    # Medienserver, Qualitaetsprofil und vor allem das **Kontingent**. Eine
+    # Regel entscheidet nur ueber Anfragen, die es bis hierher geschafft haben.
+    # Sie kann nichts durchwinken, was aus einem anderen Grund schon
+    # gescheitert ist; siehe den Kopf von ``services/regeln.py``.
+    # ------------------------------------------------------------------
+    titel_fuer_regeln = regeln.Titel(
+        typ=media_type,
+        qualitaet=regeln.stufe_von(tier),
+        bestand=_bestand_stufe(db, media_type, item.tmdb_id, tier),
+        genres=tuple(item.genre_ids),
+        # ⚠️ ``vote_average`` ist 0.0, wenn **niemand** bewertet hat - TMDB
+        # unterscheidet das nicht von einer echten Null. Eine Regel
+        # "Bewertung unter 5 ablehnen" haette sonst jeden unbewerteten Titel
+        # erwischt, und gerade neue Titel sind unbewertet.
+        bewertung=item.vote_average if item.vote_count else None,
+        stimmen=item.vote_count or None,
+        jahr=_jahr_aus(item.release_date),
+        laufzeit=item.runtime_minutes,
+        sprache=item.original_language,
+        altersfreigabe=age_rating.stufe(settings.default_region, item.certification or ""),
+    )
+    regel_ergebnis = regeln.entscheiden(db, user, titel_fuer_regeln)
+
+    # ⚠️ **Hier wird protokolliert, nicht nur beim Scheitern.** Wenn jemand
+    # fragt "warum ist das durchgelaufen?", ist die Antwort ohne diese Zeile
+    # nicht mehr zu bekommen: Regeln lassen sich aendern und loeschen, die
+    # Anfrage bleibt. Die Bedingungen stehen mit im Protokoll, weil dieselbe
+    # Regel morgen andere haben kann.
+    if regel_ergebnis is None:
+        logger.info(
+            "No rule matched for %r (%s, tier %s) - the account setting applies",
+            item.title,
+            media_type.value,
+            tier.value,
+        )
+    else:
+        logger.info(
+            "Rule %d (%r) decided %r for %r: %s%s",
+            regel_ergebnis.regel.id,
+            regel_ergebnis.regel.name,
+            "approve" if regel_ergebnis.freigeben else "reject",
+            item.title,
+            regel_ergebnis.regel.bedingungen,
+            " (house stock)" if regel_ergebnis.hausbestand else "",
+        )
+
+    if regel_ergebnis is not None and not regel_ergebnis.freigeben:
+        # ⚠️ **Die Anfrage entsteht trotzdem, als abgelehnt.** Sonst waere die
+        # Absage ein Satz auf dem Bildschirm und danach spurlos: Der
+        # Anfragende koennte nicht nachlesen, warum, und der Administrator
+        # nie sehen, dass seine Regel zu scharf steht.
+        #
+        # ``rejected`` steht weder in ``ACTIVE_STATUSES`` noch in
+        # ``COUNTED_STATUSES`` - der Titel bleibt fuer alle anderen frei, und
+        # das Kontingent kostet die Ablehnung nichts.
+        abgelehnt = MediaRequest(
+            user_id=user.id,
+            media_type=media_type,
+            tier=tier,
+            tmdb_id=item.tmdb_id,
+            tvdb_id=tvdb_id,
+            title=item.title,
+            poster_path=item.poster_url,
+            release_date=item.release_date,
+            season=season,
+            episodes=episodes,
+            status=RequestStatus.rejected,
+            rejection_reason=regel_ergebnis.begruendung or None,
+            regel_id=regel_ergebnis.regel.id,
+            from_watchlist=from_watchlist,
+            # ⚠️ **Der Zeitpunkt gehoert dazu, der Mensch nicht.** Der Verlauf
+            # an der Anfrage nimmt ``approved_at`` als Datum der Entscheidung -
+            # ohne das stuende dort "Abgelehnt" ohne Wann. ``approved_by``
+            # bleibt leer: Es hat niemand abgelehnt, es war eine Regel.
+            approved_at=utcnow(),
+        )
+        db.add(abgelehnt)
+        db.flush()
+
+        # ⚠️ **Benachrichtigen, genau wie bei einer Ablehnung von Hand.**
+        # Sonst verschwindet die Anfrage lautlos in der eigenen Liste: Der
+        # Anfragende sieht ein „abgelehnt", von dem er nie erfahren hat, und
+        # fragt beim naechsten Mal wieder. Dass hier eine Regel entschied und
+        # kein Mensch, aendert daran nichts - fuer ihn ist es dieselbe
+        # Nachricht, und der Grund steht an der Anfrage.
+        notify.create(
+            db,
+            user=user,
+            kind=NotificationType.rejected,
+            message_key="notifications.rejected",
+            request=abgelehnt,
+        )
+
+        db.commit()
+        db.refresh(abgelehnt)
+        return abgelehnt
+
     # Ohne Ordner darf nichts durchrutschen: eine automatisch freigegebene
     # Anfrage kaeme an keinem Entscheider vorbei, und genau der soll ja waehlen.
-    sofort = user.auto_approve_for(media_type, tier) and not ziel_erst_bei_freigabe
+    #
+    # Eine Regel setzt sich an die Stelle der Einstellung am Konto - aber
+    # ``ziel_erst_bei_freigabe`` uebersteuert weiterhin beide.
+    sofort = (
+        regel_ergebnis.freigeben
+        if regel_ergebnis is not None
+        else user.auto_approve_for(media_type, tier)
+    ) and not ziel_erst_bei_freigabe
     request = MediaRequest(
         user_id=user.id,
         media_type=media_type,
@@ -1450,6 +1721,9 @@ async def create_request(
         # Nur bei Serien sinnvoll - bei Filmen gibt es keine Folgestaffel.
         monitor_future=monitor_future and media_type == MediaType.tv,
     )
+    if regel_ergebnis is not None:
+        request.regel_id = regel_ergebnis.regel.id
+        request.hausbestand = regel_ergebnis.hausbestand
     if sofort:
         request.approved_by = user.id
         request.approved_at = utcnow()

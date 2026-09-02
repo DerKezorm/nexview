@@ -56,9 +56,14 @@ function schritte(
   ]
 
   // Wer entschieden hat - gilt für Freigabe und Ablehnung gleichermaßen.
-  const wer = request.approved_by_name
-    ? t('verlauf.approvedBy', { name: request.approved_by_name })
-    : null
+  // ⚠️ **Die Regel steht vor der Person.** Hat eine Regel entschieden, gab es
+  // keinen Menschen, den man fragen könnte - und genau das ist die Auskunft,
+  // die fehlt, wenn eine Anfrage von selbst durchläuft oder abprallt.
+  const wer = request.regel_name
+    ? t('verlauf.byRule', { name: request.regel_name })
+    : request.approved_by_name
+      ? t('verlauf.approvedBy', { name: request.approved_by_name })
+      : null
 
   // --- Der Weg endet vorzeitig ---------------------------------------------
   if (request.status === 'rejected') {

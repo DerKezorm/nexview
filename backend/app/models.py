@@ -1862,6 +1862,39 @@ class MediaRequest(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime)
     rejection_reason: Mapped[str | None] = mapped_column(Text)
 
+    # Welche Regel hat ueber diese Anfrage entschieden? ``None`` heisst: keine
+    # hat gegriffen, es galt die Einstellung am Konto.
+    #
+    # ⚠️ **SET NULL, nicht CASCADE.** Wird eine Regel geloescht, bleibt die
+    # Anfrage stehen - sie ist ein Vorgang und keine Eigenschaft der Regel. Der
+    # Grund im Text bleibt ebenfalls lesbar; nur der Verweis faellt weg.
+    regel_id: Mapped[int | None] = mapped_column(
+        ForeignKey("regeln.id", ondelete="SET NULL")
+    )
+
+    #: Geht dieser Titel auf den Hausbestand, statt dem Anfragenden zugerechnet
+    #: zu werden?
+    #:
+    #: ⚠️ **Der Merker steht hier und nicht an der Regel.** Wer ihn an der
+    #: Regel naehme, wuerde die Zurechnung rueckwirkend verschieben, sobald
+    #: jemand die Regel aendert: Titel, die vor Monaten bewusst aufs Haus
+    #: gingen, laegen ploetzlich bei ihren Anfragenden. Eine Entscheidung, die
+    #: einmal gefallen ist, gehoert an den Vorgang.
+    hausbestand: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    #: Kam diese Anfrage ueber "trotzdem fragen" zurueck, nachdem eine Regel
+    #: sie abgelehnt hatte?
+    #:
+    #: ⚠️ **Der Entscheider muss das sehen.** Sonst liegt vor ihm eine ganz
+    #: gewoehnliche wartende Anfrage, und dass das Haus dagegen eine Regel hat,
+    #: erfaehrt er nicht. Er soll nicht gehindert werden - er soll es wissen.
+    #:
+    #: Ein eigener Merker und keine Ableitung aus ``regel_id``: Eine Regel
+    #: laesst sich von "ablehnen" auf "freigeben" umstellen, und dann saehe
+    #: jede von ihr freigegebene Anfrage rueckwirkend so aus, als waere sie
+    #: erzwungen worden.
+    trotzdem_gefragt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Kam diese Anfrage von der Merkliste statt von einem Klick? Der
     # Entscheider soll das sehen: Niemand hat sich diesen Titel im Einzelnen
     # ueberlegt, und das aendert, wie genau man hinschaut.
@@ -1949,6 +1982,46 @@ class MediaRequest(Base):
     #: ``SET NULL`` beim Loeschen, deshalb ist ``None`` ein normaler Zustand
     #: und kein Fehler.
     for_child: Mapped[User | None] = relationship(foreign_keys=[for_child_id])
+
+    #: Die Regel, die entschieden hat - falls es sie noch gibt.
+    regel: Mapped[Regel | None] = relationship(foreign_keys=[regel_id])
+
+    @property
+    def regel_name(self) -> str | None:
+        """Welche Regel entschieden hat - als Name, nicht als Nummer.
+
+        ⚠️ **Damit niemand die Leiter im Kopf haben muss.** Bei einer Anfrage,
+        die von selbst freigegeben oder abgelehnt wurde, ist die naechste Frage
+        immer "warum?". Ohne diesen Namen ist sie nicht zu beantworten: Regeln
+        lassen sich aendern und loeschen, die Anfrage bleibt.
+
+        ``None`` heisst "keine Regel" - entweder hat keine gepasst, oder die,
+        die es tat, ist geloescht. Beides ist eine Aussage und keine Luecke.
+        """
+        return self.regel.name if self.regel is not None else None
+
+    @property
+    def darf_trotzdem_fragen(self) -> bool:
+        """Darf der Anfragende diese Ablehnung an den Entscheider weiterreichen?
+
+        Nur bei einer Ablehnung **durch eine Regel**, nur wenn die Regel den
+        Haken traegt, und **nur einmal**. Eine Ablehnung von Hand bleibt eine
+        Ablehnung: Da hat ein Mensch entschieden, den man ohnehin ansprechen
+        kann.
+
+        ⚠️ **Genau einmal, und das ist der Kern.** Beim Ausprobieren kam eine
+        Anfrage ueber "trotzdem" beim Entscheider an, der lehnte sie von Hand
+        ab - und der Knopf stand wieder da. ``regel_id`` bleibt ja am Vorgang,
+        und der Zustand war wieder ``rejected``. Damit haette derselbe Mensch
+        beliebig oft nachfassen koennen, gegen die ausdrueckliche Entscheidung
+        eines anderen. Ein Nein von Hand steht ueber der Einladung der Regel.
+        """
+        return (
+            self.status == RequestStatus.rejected
+            and not self.trotzdem_gefragt
+            and self.regel is not None
+            and self.regel.trotzdem_fragen
+        )
 
     @property
     def approved_by_name(self) -> str | None:
@@ -2513,6 +2586,89 @@ class StreamingService(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     slug: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class RegelEntscheidung(str, enum.Enum):
+    """Was eine Regel mit einer Anfrage macht."""
+
+    freigeben = "freigeben"
+    ablehnen = "ablehnen"
+
+
+class Regel(Base):
+    """Eine Regel, die ueber Anfragen entscheidet, bevor das Konto zaehlt.
+
+    Verwandt mit der Sperrliste: beides sind Grundsatzentscheidungen des
+    Administrators ueber alle Anfragen, und beide nehmen ihn selbst aus. Der
+    Unterschied ist die Reichweite - die Sperrliste nennt einzelne Titel, eine
+    Regel beschreibt eine Art von Titel.
+
+    ⚠️ **Die Reihenfolge ist Teil der Bedeutung.** Nexview geht die Liste nach
+    ``position`` durch und nimmt die **erste** Regel, die passt. Zwei Regeln
+    duerfen sich widersprechen; das ist erlaubt und sogar ueblich, weil "eine
+    weite Regel plus eine Ausnahme" so gedacht wird. Wer verbieten will, muss
+    ueber die Erlaubnis - die Oberflaeche sagt das, wenn es auffaellt.
+
+    ⚠️ **Bedingungen nur mit UND.** Kein ODER, keine Klammern. Das ist keine
+    Sparsamkeit, sondern die Voraussetzung dafuer, dass sich Widersprueche
+    ueberhaupt ausrechnen lassen: Jede Regel ist damit ein Kasten, und zwei
+    Kaesten stossen zusammen, wenn sich in jeder Dimension die Bereiche
+    ueberschneiden. Mit Klammern waere das nicht mehr entscheidbar. Wer ein
+    ODER braucht, legt eine zweite Regel an.
+
+    ⚠️ **Wo die Regel greift:** ganz am Ende von ``create_request``, an der
+    Stelle, an der bisher allein ``user.auto_approve_for`` stand. Alles davor -
+    Sperrliste, Bibliothek, Medienserver, Qualitaetsprofil, **Kontingent** -
+    laeuft unveraendert und **vor** ihr. Eine Regel kann also nichts
+    durchwinken, was aus einem anderen Grund schon gescheitert ist. Das ist
+    Absicht: Sonst haette dieselbe Anfrage je nach Regellage ein anderes
+    Ergebnis, und das Kontingent waere keine Grenze mehr.
+    """
+
+    __tablename__ = "regeln"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    #: Kleiner heisst frueher. Luecken sind erlaubt, Gleichstand wird nach
+    #: ``id`` aufgeloest - sonst waere die Reihenfolge nach einem Umsortieren
+    #: vom Zufall abhaengig, und genau davon haengt hier die Bedeutung ab.
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    aktiv: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    #: Die Bedingungen als Liste, alle mit UND verknuepft. Je Eintrag ein
+    #: ``feld`` und entweder ``von``/``bis`` (Zahl) oder ``werte`` (Menge).
+    #:
+    #: ⚠️ **JSON statt einer Kindtabelle**, weil Bedingungen immer nur
+    #: vollstaendig gelesen und vollstaendig ersetzt werden. Es gibt keine
+    #: Abfrage "alle Regeln mit Bedingung X" und wird keine geben: Ausgewertet
+    #: wird gegen einen einzelnen Titel, nie ueber alle Regeln hinweg gesucht.
+    bedingungen: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
+
+    entscheidung: Mapped[RegelEntscheidung] = mapped_column(
+        enum_column(RegelEntscheidung), nullable=False
+    )
+
+    #: Nur bei ``freigeben``: Der Titel geht auf den Hausbestand und zaehlt
+    #: damit bei niemandem gegen das **Speicher**-Kontingent. Die Stueckzahl
+    #: zaehlt weiter, die haengt an der Anfrage und nicht am Speicherposten.
+    hausbestand: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    #: Was der Anfragende bei einer Ablehnung liest. Leer heisst: nur
+    #: "abgelehnt", ohne Begruendung.
+    begruendung: Mapped[str | None] = mapped_column(String(500))
+
+    #: Nur bei ``ablehnen``: Darf der Anfragende die Regel uebergehen und die
+    #: Anfrage doch an den Entscheider schicken?
+    #:
+    #: ⚠️ **Je Regel, nicht haus-weit.** Bei "schwach bewertete Filme" will man
+    #: das meistens - der Begruendungstext laedt ja zum Nachfragen ein. Bei
+    #: "liegt schon in 4K vor" nie: Da gaebe es nichts nachzufragen, die Datei
+    #: ist da.
+    trotzdem_fragen: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
 

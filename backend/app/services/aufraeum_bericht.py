@@ -34,7 +34,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Role, User, utcnow
-from . import aufraeumen, mail, mail_templates
+from . import aufraeumen, mail, mail_templates, meldungsziele
 from .accounts import _mail_config
 from .settings_service import AppSettings
 
@@ -114,7 +114,11 @@ async def einen_schicken(db: Session, settings: AppSettings, person: User) -> bo
         )
         zeilen.append((k.title, f"{art}{seit_text}", _groesse(k.size_bytes, englisch)))
 
-    ziel = "admin/stats" if ist_admin else "profil?reiter=Speicherkontingent"
+    # ⚠️ ``meldungsziele.MEIN_SPEICHER`` statt eines abgeschriebenen Pfades:
+    # Hier stand "?reiter=Speicherkontingent" - ein Wort, das die
+    # Reitertabelle gar nicht kennt. Der Link fuehrte ins Profil-Menue
+    # statt zum Speicher, und niemand hat es gemerkt.
+    ziel = "admin/stats" if ist_admin else meldungsziele.MEIN_SPEICHER.lstrip("/")
     nachricht = mail_templates.aufraeum_mail(
         zeilen=zeilen,
         gesamt=ergebnis.gesamt_anzahl,

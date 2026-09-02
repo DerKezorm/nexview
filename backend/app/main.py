@@ -97,6 +97,9 @@ from .routers import (
     qualitaetsprofile as qualitaetsprofile_router,
 )
 from .routers import (
+    regeln as regeln_router,
+)
+from .routers import (
     requests as requests_router,
 )
 from .routers import (
@@ -329,6 +332,7 @@ app.include_router(details_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(calendar_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(favorites_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(blocklist_router.router)
+app.include_router(regeln_router.router)
 app.include_router(tickets_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.router)
 # Wie die Medienserver-Anmeldung ohne NUR_ERWACHSENE: Die Anmeldewege stehen

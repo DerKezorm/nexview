@@ -879,6 +879,11 @@
         "schluessel": false,
         "typ": "BOOLEAN"
       },
+      "hausbestand": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
       "id": {
         "leer_erlaubt": false,
         "schluessel": true,
@@ -939,6 +944,11 @@
         "schluessel": false,
         "typ": "BOOLEAN"
       },
+      "regel_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
       "rejection_reason": {
         "leer_erlaubt": true,
         "schluessel": false,
@@ -993,6 +1003,11 @@
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "INTEGER"
+      },
+      "trotzdem_gefragt": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
       },
       "tvdb_id": {
         "leer_erlaubt": true,
@@ -1451,6 +1466,62 @@
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "JSON"
+      }
+    }
+  },
+  "regeln": {
+    "eindeutig": [],
+    "indizes": [],
+    "spalten": {
+      "aktiv": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "bedingungen": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "begruendung": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "entscheidung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(9)"
+      },
+      "hausbestand": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "name": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "position": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "trotzdem_fragen": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
       }
     }
   },

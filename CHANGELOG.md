@@ -12,6 +12,58 @@ tag exists for it.
 
 ---
 
+## 0.28.0 – unreleased
+
+### New
+
+- **Rules decide requests, before the account setting applies.** A new admin tab holds an
+  ordered list. Every rule is a handful of conditions joined by AND and one consequence:
+  approve at once, or decline. Nexview walks the list from top to bottom and takes the
+  first rule that matches; if none does, everything stays exactly as before.
+
+  Conditions can be built from the type, the genre, the TMDB rating, the **number of
+  votes**, the release year, the runtime, the original language, the age rating, the
+  requested tier, and whether the title is already here in the other tier. That last one
+  closes a gap that had no answer until now: the same film in HD and in 4K are two files
+  in two folders, so nothing stopped a second copy. A rule can.
+
+  Approving may additionally book the title to **house stock**, where it counts against
+  nobody's storage quota. The item count still applies — that hangs on the request, not on
+  the storage entry.
+
+- **Three things no rule can override**, and none of them is a matter of ordering. The
+  **age filter** acts when listing, not when requesting: what an account cannot see, it
+  cannot request, so no rule ever gets to see the case. The **parents' decision** stands: a
+  child's wish is not a request, and only once a parent approves does anything run. And the
+  **requester's quota** is checked before the rules and wins even over a rule that would
+  have booked the title to house stock — otherwise the same request would come out
+  differently depending on the rule list, and a quota would stop being a limit.
+
+  Administrators and approvers are exempt from rules altogether, exactly as they are from
+  the block list, and for the same reason: the rules are their own decision.
+
+- **A decline leaves a trace instead of a shrug.** The request is created in the declined
+  state, carries the reason the administrator wrote, and says which rule decided. The
+  requester is notified the same way a decision by hand would notify them. Per rule, they
+  may be allowed to send it to an approver anyway — and then the approver sees a badge
+  saying a rule had declined it, because that is information they should have rather than a
+  hurdle they should not.
+
+### Fixed
+
+- A rule matching on genre names would have worked in one language and not the other:
+  `genres` carries translated names. Genre numbers now travel with a title.
+- TMDB reports a rating of 0.0 with zero votes, which is indistinguishable from a real
+  zero. A rule saying "rating below 5, decline" would have caught every unrated title —
+  and unrated means new. The rating is only read where somebody voted.
+- The same applies to a series runtime: TMDB reports `episode_run_time: [0]` for some, and
+  that means "we don't know", not "zero minutes". It now counts as unknown, as it always
+  did for films.
+- "View single titles" under your storage led to the profile menu instead of the storage
+  tab, and the clean-up mail pointed at a tab name that does not exist.
+
+---
+
 ## 0.27.0 – 02.09.2026
 
 ### New

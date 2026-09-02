@@ -497,8 +497,14 @@ def extract_runtime(detail: dict[str, Any], media_type: str) -> int | None:
         runtime = detail.get("runtime")
         return runtime if isinstance(runtime, int) and runtime > 0 else None
 
+    # ⚠️ **Auch hier ``> 0``, wie bei den Filmen eine Zeile darueber.** TMDB
+    # liefert bei manchen Serien ``episode_run_time: [0]`` - das heisst "wissen
+    # wir nicht", nicht "dauert null Minuten". Ohne diese Grenze galt die
+    # Laufzeit als *bekannt*, und eine Regel "Laufzeit unter 60 -> ablehnen"
+    # traf jede solche Serie.
     runtimes = detail.get("episode_run_time") or []
-    return runtimes[0] if runtimes and isinstance(runtimes[0], int) else None
+    erste = runtimes[0] if runtimes else None
+    return erste if isinstance(erste, int) and erste > 0 else None
 
 
 def extract_tvdb_id(detail: dict[str, Any]) -> int | None:

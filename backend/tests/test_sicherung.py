@@ -8,10 +8,13 @@ sie nicht hergeben darf.
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import shutil
 import sqlite3
+import threading
+from pathlib import Path
 
 import pyzipper
 import pytest
@@ -1021,3 +1024,68 @@ class TestWiederherstellenUeberDieSchnittstelle:
     def test_nur_fuer_administratoren(self, client: TestClient) -> None:
         assert self._hochladen(client, "pruefen", b"egal").status_code in (401, 403)
         assert self._hochladen(client, "einspielen", b"egal").status_code in (401, 403)
+
+
+class TestRunForever:
+    """Der stuendliche Takt verlaesst die Ereignisschleife.
+
+    ``anlegen`` blockiert (``VACUUM INTO`` plus Packen), und dasselbe gilt fuer
+    das Dateilisten in ``faellig``. Laeuft das im Schleifenthread, steht
+    waehrenddessen jede andere Anfrage. Deshalb schiebt ``run_forever`` die
+    ganze Runde per ``asyncio.to_thread`` hinaus, und genau das wird hier
+    festgenagelt.
+    """
+
+    async def test_der_takt_laeuft_nicht_im_schleifenthread(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gesehen: list[int] = []
+
+        def merken(*, art: str, kommentar: str) -> Path:
+            gesehen.append(threading.get_ident())
+            return Path("unbenutzt")
+
+        monkeypatch.setattr(sicherung, "anlegen", merken)
+        monkeypatch.setattr(sicherung, "faellig", lambda takt: True)
+
+        stop = asyncio.Event()
+        aufgabe = asyncio.create_task(sicherung.run_forever(stop))
+        for _ in range(500):
+            if gesehen:
+                break
+            await asyncio.sleep(0.01)
+        stop.set()
+        await aufgabe
+
+        assert gesehen, "der Takt ist nie bis zu anlegen gekommen"
+        # Der Test selbst laeuft im Thread der Ereignisschleife; der Takt
+        # muss woanders gelaufen sein.
+        assert gesehen[0] != threading.get_ident()
+
+    async def test_eine_ausnahme_im_takt_toetet_die_schleife_nicht(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Die Schutzregel der Schleife gilt weiter: sie darf nie sterben.
+
+        Und der Takt laeuft genau einmal je Runde, nicht oefter: mehr als der
+        eine Aufruf vor dem Stopp darf nicht passiert sein.
+        """
+        aufrufe: list[int] = []
+
+        def kaputt() -> None:
+            aufrufe.append(1)
+            raise RuntimeError("Takt kaputt")
+
+        monkeypatch.setattr(sicherung, "_takt", kaputt)
+
+        stop = asyncio.Event()
+        aufgabe = asyncio.create_task(sicherung.run_forever(stop))
+        for _ in range(500):
+            if aufrufe:
+                break
+            await asyncio.sleep(0.01)
+        stop.set()
+        # Truege die Aufgabe die Ausnahme weiter, wuerfe dieses await sie hier.
+        await aufgabe
+
+        assert len(aufrufe) == 1

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from collections.abc import Callable, Iterator
 from datetime import datetime
 from enum import Enum
@@ -180,6 +181,7 @@ PFLEGE_SCHRITTE = (
     "_verwaiste_kinderwuensche_aufraeumen",
     "_gesehen_herkunft_nachtragen",
     "_betreiber_bestimmen",
+    "_speicher_zurueckgeben_umstellen",
 )
 
 #: Die Tabelle, in der das Wanderungsbuch steht - siehe ``models.Wanderung``.
@@ -260,6 +262,7 @@ def init_db() -> None:
     _einmal(_verknuepfungen_in_die_tabelle)
     _einmal(_kontingente_dreiwertig_machen)
     _betreiber_bestimmen()
+    _speicher_zurueckgeben_umstellen()
 
 
 def _buchtabelle_anlegen() -> None:
@@ -1460,4 +1463,110 @@ def _betreiber_bestimmen() -> None:
 
     with SessionLocal() as db:
         betreiber.beim_start(db)
+
+
+def _speicher_zurueckgeben_umstellen() -> None:
+    """Die Datenbank einmalig auf ``auto_vacuum=INCREMENTAL`` umstellen.
+
+    Ohne die Umstellung gibt SQLite die Seiten geloeschter Zeilen nie ans
+    Dateisystem zurueck: die echte Datei stand bei 180 MB mit 81 Prozent
+    Freiraum. Danach traegt ``platz_zurueckgeben`` den Freiraum am
+    stuendlichen Sicherungstakt stueckweise ab.
+
+    ⚠️ **Bewusst Pflegeschritt, kein Wanderungsbucheintrag.** Die Entscheidung
+    haengt am direkt ablesbaren ``PRAGMA auto_vacuum``, ein zweiter Lauf
+    richtet also keinen Schaden an. Und nur so heilt sich eine eingespielte
+    Sicherung von vor der Umstellung von selbst: ``VACUUM INTO`` vererbt das
+    ``auto_vacuum`` der Quelle (gemessen), die eingespielte Datei ist damit
+    wieder NONE. Ein Bucheintrag reiste in ihr mit und hielte den Schritt fuer
+    erledigt; das PRAGMA sagt beim ``init_db`` des Wiederherstellens die
+    Wahrheit, und der Schritt laeuft einfach noch einmal.
+
+    ⚠️ **PRAGMA, VACUUM und Checkpoint gehoeren auf dieselbe Verbindung.**
+    Das PRAGMA allein wirkt nicht; erst das ``VACUUM`` baut die Datei um, und
+    es nimmt dabei die Einstellung der eigenen Verbindung (gemessen). Das
+    ``VACUUM`` braucht voruebergehend zusaetzlichen Platz etwa in
+    Inhaltsgroesse, denn der Inhalt wird einmal gelesen und doppelt
+    geschrieben (gemessen an der echten Kopie: 33,9 MB Datei plus 34,1 MB
+    WAL); der Checkpoint TRUNCATE raeumt das WAL danach in Millisekunden
+    wieder auf 0.
+
+    Scheitert der Schritt, etwa mit SQLITE_BUSY durch eine offene Transaktion,
+    dann laeuft der Start weiter: das PRAGMA meldet weiterhin 0, und der
+    naechste Start versucht es erneut. Am Ende von ``init_db`` wird noch
+    nichts bedient (``main.py``, lifespan), das einmalige volle ``VACUUM``
+    trifft also keine laufende Anfrage. Auf einer frischen Datei kostet der
+    ganze Schritt nur das Lesen des PRAGMAs plus ein leeres ``VACUUM``.
+    """
+    pfad = _settings.db_path
+    try:
+        verbindung = sqlite3.connect(pfad)
+    except sqlite3.Error as fehler:
+        logger.warning("Auto vacuum conversion skipped, database not readable: %s", fehler)
+        return
+    try:
+        modus = verbindung.execute("PRAGMA auto_vacuum").fetchone()[0]
+        if modus != 0:
+            return
+        seitengroesse = verbindung.execute("PRAGMA page_size").fetchone()[0]
+        seiten = verbindung.execute("PRAGMA page_count").fetchone()[0]
+        frei = verbindung.execute("PRAGMA freelist_count").fetchone()[0]
+        vorher = pfad.stat().st_size
+        # Die Kosten haengen am Inhalt, nicht an der Dateigroesse. Beide
+        # Zahlen kommen ins Protokoll, bevor es losgeht, damit ein langsamer
+        # Start auf NAS Platten dort erklaert ist.
+        logger.info(
+            "Converting database to incremental auto vacuum: file %.1f MB, "
+            "content %.1f MB. This runs once and may delay this start on slow disks",
+            vorher / 1048576,
+            (seiten - frei) * seitengroesse / 1048576,
+        )
+        verbindung.execute("PRAGMA auto_vacuum=2")
+        verbindung.execute("VACUUM")
+        verbindung.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+        logger.info(
+            "Auto vacuum conversion done: file size %.1f MB before, %.1f MB after",
+            vorher / 1048576,
+            pfad.stat().st_size / 1048576,
+        )
+    except sqlite3.Error as fehler:
+        logger.warning("Auto vacuum conversion failed, the next start retries: %s", fehler)
+    finally:
+        verbindung.close()
+
+
+def platz_zurueckgeben(seiten: int = 1000) -> int:
+    """Bis zu ``seiten`` freie Seiten ans Dateisystem zurueckgeben.
+
+    Der laufende Teil der Selbstpflege: ``_speicher_zurueckgeben_umstellen``
+    macht den Platz abtragbar, dieser Aufruf traegt ihn ab. Er haengt am
+    stuendlichen Sicherungstakt (``services/sicherung.py``, ``_takt``).
+
+    1000 Seiten sind rund 4 MB je Runde, gemessen in 8 bis 16 ms. Das Polster
+    ist gross: die beobachtete Freiliste von 35668 Seiten entstand in rund 15
+    Tagen, also etwa 100 Seiten je Stunde. Ein Blick auf die Freiliste vorab
+    lohnt nicht, der Leerlauf kostet gemessen 0,08 ms und auf einer nicht
+    umgestellten Datei 0,7 ms ohne Wirkung.
+
+    Eigene sqlite3 Verbindung statt des Verbindungsvorrats, damit hier kein
+    PRAGMA auf einer Vorratsverbindung liegen bleibt (siehe
+    ``_fremdschluessel_sicherstellen``) und der Aufruf aus jedem Thread
+    kommen darf.
+    """
+    verbindung = sqlite3.connect(_settings.db_path)
+    try:
+        vorher = verbindung.execute("PRAGMA freelist_count").fetchone()[0]
+        # fetchall zwingt das PRAGMA zur Ausfuehrung; ohne Abholen bliebe das
+        # Statement stehen und nichts wuerde freigegeben.
+        verbindung.execute(f"PRAGMA incremental_vacuum({int(seiten)})").fetchall()
+        nachher = verbindung.execute("PRAGMA freelist_count").fetchone()[0]
+        # PASSIVE genuegt: die Hauptdatei schrumpft mit dem Checkpoint, und
+        # niemand wird dafuer angehalten.
+        verbindung.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchall()
+    finally:
+        verbindung.close()
+    freigegeben = vorher - nachher
+    if freigegeben:
+        logger.info("Returned %d free pages to the file system", freigegeben)
+    return freigegeben
 

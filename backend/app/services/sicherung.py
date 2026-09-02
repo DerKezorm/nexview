@@ -686,6 +686,35 @@ def faellig(takt: str, *, jetzt: datetime | None = None) -> bool:
     return (jetzt - letzte).total_seconds() >= TAKTE[takt] * 86400
 
 
+def _takt() -> None:
+    """Eine Runde des Sicherungstakts, gemacht fuer einen Arbeitsthread.
+
+    Alles hier drin blockiert: das Lesen der Einstellungen, das Dateilisten
+    in ``faellig`` und vor allem ``anlegen`` selbst (``VACUUM INTO`` plus
+    Aufraeumen). ``run_forever`` schiebt deshalb die ganze Runde per
+    ``asyncio.to_thread`` aus der Ereignisschleife, nicht nur das Anlegen.
+
+    ``anlegen`` ist fuer den Thread belegt geeignet: es nutzt
+    ``engine.connect()`` (Vorrat mit ``check_same_thread=False``), rohe
+    sqlite3 Verbindungen nur auf der Kopie und je Aufruf eine eigene
+    ``SessionLocal``. Der manuelle Endpunkt (``routers/sicherungen.py``) ist
+    ein synchrones ``def`` und laeuft heute schon im FastAPI Threadpool,
+    ``anlegen`` wird also laengst produktiv aus Arbeitsthreads gerufen.
+    """
+    from ..db import SessionLocal, platz_zurueckgeben
+    from .settings_service import load_settings
+
+    with SessionLocal() as db:
+        takt = load_settings(db).backup_schedule
+    if faellig(takt):
+        logger.info("Scheduled backup due (%s)", takt)
+        anlegen(art=AUTOMATISCH, kommentar="")
+    # Der laufende Teil der Selbstpflege: gibt geloeschten Platz stueckweise
+    # ans Dateisystem zurueck, 1000 Seiten sind rund 4 MB je Runde. Warum
+    # gerade hier und warum das reicht, steht bei ``platz_zurueckgeben``.
+    platz_zurueckgeben(1000)
+
+
 async def run_forever(stop: "asyncio.Event") -> None:
     """Stuendlich nachsehen, ob eine Sicherung ansteht.
 
@@ -694,16 +723,9 @@ async def run_forever(stop: "asyncio.Event") -> None:
     letzten Sicherung, nicht der Kalender - dann holt ein Neustart den Termin
     einfach nach.
     """
-    from ..db import SessionLocal
-    from .settings_service import load_settings
-
     while not stop.is_set():
         try:
-            with SessionLocal() as db:
-                takt = load_settings(db).backup_schedule
-            if faellig(takt):
-                logger.info("Scheduled backup due (%s)", takt)
-                anlegen(art=AUTOMATISCH, kommentar="")
+            await asyncio.to_thread(_takt)
         except Exception:  # noqa: BLE001 - die Schleife darf nie sterben
             logger.exception("Scheduled backup failed")
         try:

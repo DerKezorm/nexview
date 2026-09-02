@@ -2727,7 +2727,7 @@
     "passwordMismatch": "Die beiden stimmen nicht überein.",
     "empty": "Noch keine Sicherung vorhanden.",
     "loadFailed": "Die Liste konnte nicht geladen werden.",
-    "folderHint": "Die Dateien liegen in `{{ordner}}`. Über den Webserver sind sie **nicht** erreichbar — nur über diesen Knopf und über das Dateisystem.",
+    "folderHint": "Die Dateien liegen in `{{ordner}}`. Über den Webserver sind sie **nicht** erreichbar, nur über diesen Knopf und über das Dateisystem. **Sie liegen dort unverschlüsselt**, als blanke Datenbankdateien: Wer dieses Verzeichnis lesen kann, liest jedes Konto, und jeden älteren Stand gleich mit, der noch aufbewahrt wird. Verschlüsselt ist allein der Download darüber. Wem das wichtig ist, der muss das Verzeichnis schützen, nicht die Datei.",
     "tooNew": "neuer als diese Fassung",
     "unknownVersion": "Version unbekannt",
     "scheduleLabel": "Regelmäßig sichern",

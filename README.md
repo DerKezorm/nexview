@@ -177,9 +177,22 @@ against a different snapshot, reporting drift on profiles nobody touched.
 of each image in the house rules, never the file. Restore without the folder and the text
 survives with holes in it.
 
-Nexview's own backups (*Settings → System → Backups*) already contain all of this —
-database, key, avatars, TRaSH snapshot and house-rules images — in one encrypted archive.
-The list above is for backing up the directory by hand.
+Nexview's own backups (*Settings → System → Backups*) already contain all of this:
+database, key, avatars, TRaSH snapshot and house-rules images. The list above is for
+backing up the directory by hand.
+
+**Only the download is encrypted.** The copies Nexview keeps for itself, the automatic
+one before every schema change and anything you create with *Back up now*, sit in
+`sicherungen/` inside the data directory as plain SQLite files. Whoever can read that
+directory can read every account out of them, and out of every older state still being
+kept. The password you type when downloading protects the archive you take away, not the
+copies that stay behind. If that gap matters in your setup, the answer is to protect the
+directory, not the file: a backup that Nexview could decrypt on its own would have to keep
+the key next to it, which protects nobody.
+
+`secret.key` is created with mode `0600` and tightened to it on every start, so an older
+installation gets there too. That is hardening, not a wall: it helps when the database
+travels somewhere without the directory around it.
 
 ### On a Synology
 

@@ -12,6 +12,87 @@ tag exists for it.
 
 ---
 
+## 0.26.3
+
+### Security
+
+- **The watcher over the owner account stopped at a folder boundary.** It checks from two
+  sides: the route table, and the source. The source side read `app/routers` in full but
+  looked outside it only for writes that go through the query layer, never for the
+  ordinary one. Two lines in `services/tickets.py` were enough: a second administrator
+  sent the owner a perfectly normal ticket, and came out of it as the only administrator
+  left. All 2,491 tests stayed green.
+
+  Both sides now use one and the same detection, over the whole backend. Fifteen places
+  outside the routers came to light and were each examined by hand; none of them was a
+  hole. Three are false alarms worth keeping: `email`, `username` and `parent_id` exist on
+  more than one table, and a `setattr` can hit any object at all, so the watcher reports
+  them rather than guess. Two of the exemptions carry a warning for whoever reads them
+  next. `children.aendern` is harmless only because `ChildUpdate` is a closed model of six
+  fields; give it `extra="allow"` some day and it becomes a write to every column of the
+  user table. And unlocking child accounts from a ticket is harmless only because it
+  *grants* a permission and never takes one away.
+
+- **And its other half hung on seven hand-written field names.** A request can name a
+  foreign account through a field in its body, and the watcher knew seven names it might
+  carry. Four of them (`konto_id`, `kind_id`, `benutzer_id`, `benutzer_ids`) do not exist
+  anywhere in the schema and never matched a thing; eight that do exist were missing,
+  among them `parent_id`, `for_child_id` and `approved_by`. Exactly the kind of list this
+  watcher exists to make unnecessary.
+
+  The names now come from the database itself: every column with a foreign key to
+  `users.id`, plus the plural form. That still leaves the case a name cannot cover, a
+  field called `ziel` or `empfaenger`, so a third check looks for the grab itself:
+  `db.get(User, ...)` and `select(User)` in the handler. The watcher sees 17 addresses
+  where it saw 8. The nine that came to light all fetch an account only to show its name
+  or send it a message, and each says so in writing.
+
+- **`secret.key` was readable by everyone.** Measured in the published image: `-rw-r--r--`,
+  next to the database, in the directory an operator mounts from outside. It is the key
+  the stored Radarr, Sonarr, TMDB and mail credentials are encrypted with. It is now
+  created with `0600`, and tightened to it on **every** start, so an installation that has
+  been running for weeks gets there too, not only a fresh one.
+
+  Honest about the size of it: this is hardening, not a wall. Whoever can read `/data` can
+  read `nexview.db` anyway. It helps in the case the encryption was built for, where the
+  database travels somewhere without the directory around it.
+
+### Fixed
+
+- **A list could quietly lose its age filter.** The age check itself is well tested, and
+  was never the problem; the problem was that nothing asked whether every list still calls
+  it. Taking the filter out of the favourites list let a twelve year old see the FSK 18
+  title, and not one of 2,491 tests noticed.
+
+  There is now a watcher that measures the result rather than the intention: an account
+  limited to twelve, a catalogue of three titles, and every title-serving address called
+  once. Two assertions per address, and the second one is what makes it work: the blocked
+  title must be absent, **and the allowed one must be present**. Without that, an address
+  answering with an error would have passed without ever serving anything.
+
+  The first attempt at this was a source scan, and it failed its own counter-check: the
+  call to the filter is still *in* the code, an `if` in front of it only makes it
+  unreachable, and dead code is invisible to a syntax tree.
+
+### Under the hood
+
+- **A renamed column loses its data without a word.** Nexview has no numbered migrations;
+  the start path compares the models with the file on disk and adds what is missing. That
+  covers the common case and is well tested. It does not cover renaming, and it did not
+  say so. Rename `display_name` in the model, start as if updating: a new empty column
+  appears, the values stay in the old one, the application shows a blank, and nothing is
+  logged. The test suite cannot see it either, because every test starts from a fresh
+  database.
+
+  Two halves against it. `tests/schema_abdruck.json` holds the schema the models produce,
+  so a rename is one line less and one line more in the diff, where whoever made it will
+  see it. And for installations where it has already happened, the start now names every
+  column the database still has and the model does not. It changes nothing on its own:
+  deleting a column automatically is precisely the move that costs data, and the start
+  path cannot tell a rename from a deliberate removal.
+
+---
+
 ## 0.26.2 – 02.09.2026
 
 ### Fixed

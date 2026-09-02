@@ -267,3 +267,13 @@ def pytest_addoption(parser) -> None:
         default=False,
         help="Den Abdruck der zugesagten /api/v1-Antworten neu schreiben.",
     )
+    # Dieselbe Ueberlegung eine Ebene tiefer, fuer das Datenbankschema:
+    # ``tests/schema_abdruck.json`` haelt fest, welche Spalte es mit welchem
+    # Typ gibt. Auch der erneuert sich nur von Hand - eine Umbenennung soll im
+    # Diff auffallen und nicht lautlos mitwandern.
+    parser.addoption(
+        "--abdruck-schreiben",
+        action="store_true",
+        default=False,
+        help="Den Abdruck des Datenbankschemas neu schreiben.",
+    )

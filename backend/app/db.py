@@ -207,6 +207,12 @@ PFLEGE_SCHRITTE = (
     "create_all",
     "_add_missing_columns",
     "_add_missing_indexes",
+    # Sieht nach, ob die Datenbank Spalten hat, die es im Modell nicht mehr
+    # gibt, und sagt es. Pflege und nicht Wanderung, aus zwei Gruenden: Sie
+    # aendert nichts, und sie muss bei **jedem** Start etwas sagen koennen -
+    # ein Hinweis, der nur einmal kommt und dann nie wieder, ist bei genau der
+    # Gelegenheit weg, bei der jemand ins Protokoll sieht.
+    "_verwaiste_spalten_melden",
     "_altersgrenzen_aufraeumen",
     "_verwaiste_meldungsarten_aufraeumen",
     "_verwaiste_kinderwuensche_aufraeumen",
@@ -282,6 +288,9 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
     _add_missing_indexes()
+    # Direkt hinter dem Ergaenzen, denn erst danach steht fest, was wirklich
+    # uebrig bleibt und nicht bloss noch nicht angelegt war.
+    _verwaiste_spalten_melden()
     _altersgrenzen_aufraeumen()
     _verwaiste_meldungsarten_aufraeumen()
     _verwaiste_kinderwuensche_aufraeumen()
@@ -1123,6 +1132,54 @@ def _add_missing_indexes() -> None:
                     continue
                 logger.info("Database extended: index %s", index.name)
                 index.create(bind=connection)
+
+
+def _verwaiste_spalten_melden() -> None:
+    """Spalten, die die Datenbank noch hat und das Modell nicht mehr.
+
+    ⚠️ **Die eine Stelle, an der Nexview Daten verlieren kann, ohne es zu
+    sagen.** Der Startweg ergaenzt, was fehlt - Tabellen, Spalten, Indizes -,
+    und das deckt den haeufigen Fall ab. Er kann aber nicht umbenennen. Wird im
+    Modell aus ``display_name`` ein ``anzeigename``, legt der naechste Start
+    eine **leere** neue Spalte an, laesst die Werte in der alten stehen und
+    meldet nichts. Nachgestellt am 02.09.2026: Die Anwendung zeigte danach
+    einen leeren Anzeigenamen, im Protokoll stand kein Wort, und beim naechsten
+    Aufraeumen waeren die Werte wirklich fort gewesen.
+
+    Repariert wird hier **nichts**. Eine Spalte automatisch zu loeschen waere
+    genau der Griff, der Daten kostet; und ob eine verwaiste Spalte eine
+    Umbenennung oder ein bewusster Rueckbau war, kann der Startweg nicht
+    wissen. Er sagt es nur - einmal, deutlich, mit Namen.
+
+    ``tests/test_schema_abdruck.py`` haelt die andere Haelfte fest: Dort faellt
+    eine Umbenennung schon im Diff auf, bevor sie je eine Datenbank erreicht.
+    """
+    if not _settings.db_path.exists():
+        return
+
+    verwaist: list[str] = []
+    with engine.connect() as connection:
+        vorhandene_tabellen = {
+            row[0]
+            for row in connection.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        for tabelle in Base.metadata.sorted_tables:
+            if tabelle.name not in vorhandene_tabellen:
+                continue
+            im_modell = {spalte.name for spalte in tabelle.columns}
+            for name in _existing_columns(connection, tabelle.name) - im_modell:
+                verwaist.append(f"{tabelle.name}.{name}")
+
+    if verwaist:
+        logger.warning(
+            "These columns exist in the database but not in the model any more: %s. "
+            "Nothing was changed. If a column was renamed, its values are still in the "
+            "old one and the new one is empty - move them across before the next "
+            "cleanup removes it.",
+            ", ".join(sorted(verwaist)),
+        )
 
 
 def get_db() -> Iterator[Session]:

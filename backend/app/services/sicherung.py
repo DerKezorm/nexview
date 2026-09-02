@@ -994,6 +994,9 @@ def wiederherstellen(daten: bytes, passwort: str) -> Befund:
                 )
             else:
                 einstellungen.key_file.write_text(schluessel, encoding="utf-8")
+                # Der zweite Weg, auf dem diese Datei entsteht - und ohne diese
+                # Zeile der einzige, der sie offen liegen liesse.
+                einstellungen.schluesseldatei_zuschliessen()
 
         for schluessel_name, inhalt in beilagen.items():
             # ``unter`` stammt aus BEILAGEN, nicht aus dem Archiv - der Name kann

@@ -263,6 +263,38 @@ class Settings(BaseSettings):
     def key_file(self) -> Path:
         return self.data_dir / "secret.key"
 
+    def schluesseldatei_zuschliessen(self) -> None:
+        """``secret.key`` nur fuer den Besitzer lesbar machen (0600).
+
+        ⚠️ **Warum das noetig ist.** Der Schluessel entschluesselt die
+        abgelegten Zugaenge zu Radarr, Sonarr, TMDB und dem Mailserver. Er
+        entstand bisher mit den Rechten, die die Maske gerade hergab - im
+        Docker-Abbild gemessen ``-rw-r--r--``, also lesbar fuer jeden Prozess
+        im Behaelter und fuer jeden, der das eingehaengte Datenverzeichnis
+        sehen kann.
+
+        Das ist Haertung, kein geschlossenes Loch: Wer ``/data`` lesen darf,
+        liest ohnehin ``nexview.db``. Aber die Verschluesselung der Zugaenge
+        ist genau fuer den Fall gebaut, dass jemand die **Datenbank allein**
+        in die Haende bekommt - eine hochgeladene Sicherung, eine Kopie fuer
+        die Fehlersuche -, und dann soll der Schluessel nicht die Datei
+        daneben mit denselben Rechten sein.
+
+        ⚠️ Wird bei **jedem** Start gerufen, nicht nur beim Anlegen. Sonst
+        bliebe jede bestehende Installation auf ihren alten Rechten stehen,
+        und die Haertung gaelte nur fuer Neuinstallationen.
+
+        Unter Windows setzt ``chmod`` nur das Schreibschutz-Bit; der Aufruf
+        schadet dort nicht und wirkt eben nur unter Linux, wo Nexview laeuft.
+        Schlaegt er fehl (Dateisystem ohne Rechte, etwa eine SMB-Freigabe),
+        ist das kein Grund, den Start abzubrechen - ohne Schluessel gaebe es
+        gar keinen Dienst mehr.
+        """
+        try:
+            self.key_file.chmod(0o600)
+        except OSError:  # noqa: S110 - siehe Docstring: Start darf nicht scheitern
+            pass
+
     def resolved_secret_key(self) -> str:
         """Geheimen Schluessel liefern; beim ersten Start automatisch erzeugen.
 
@@ -276,10 +308,13 @@ class Settings(BaseSettings):
         if self.key_file.exists():
             existing = self.key_file.read_text(encoding="utf-8").strip()
             if existing:
+                # Auch die schon vorhandene Datei zuschliessen - siehe dort.
+                self.schluesseldatei_zuschliessen()
                 return existing
 
         generated = secrets.token_urlsafe(48)
         self.key_file.write_text(generated, encoding="utf-8")
+        self.schluesseldatei_zuschliessen()
         return generated
 
 

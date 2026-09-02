@@ -1,0 +1,2687 @@
+{
+  "api_keys": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_api_keys_token_hash",
+      "ix_api_keys_user_id"
+    ],
+    "spalten": {
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "expires_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "last_used_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "name": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(80)"
+      },
+      "nur_lesen": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "token_hash": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "vorschau": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      }
+    }
+  },
+  "arr_gesundheit": {
+    "eindeutig": [
+      [
+        "kennung"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "aktualisiert_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "kennung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "stand": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      }
+    }
+  },
+  "arr_library_cache": {
+    "eindeutig": [
+      [
+        "external_id",
+        "media_type"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "arr_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "external_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "has_file": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "updated_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      }
+    }
+  },
+  "arr_webhooks": {
+    "eindeutig": [
+      [
+        "kennung"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "aktiv": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "bewiesen_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "eingetragen_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "eintrag_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "erzeugt_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "fehler": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "fehler_info": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(200)"
+      },
+      "geheimnis": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "geprueft_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "kennung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "letztes_ereignis": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "zuletzt_angerufen_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      }
+    }
+  },
+  "auth_tokens": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_auth_tokens_purpose_email",
+      "ix_auth_tokens_token_hash"
+    ],
+    "spalten": {
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "created_by": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "email": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "expires_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "invite_blocked_movie_profiles": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "invite_blocked_series_profiles": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "invite_quota_movies": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "invite_quota_period": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "invite_quota_series": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "invite_role": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "mediaserver_ref": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "purpose": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(18)"
+      },
+      "token_hash": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "used_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "user_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "befund_gesehen": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_befund_gesehen_paar"
+    ],
+    "spalten": {
+      "anzahl": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "gesehen_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "schluessel": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(200)"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "blocked_titles": {
+    "eindeutig": [
+      [
+        "media_type",
+        "tmdb_id"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "blocked_by": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "poster_url": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "reason": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "title": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "channel_outbox": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_channel_outbox_offen"
+    ],
+    "spalten": {
+      "attempts": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "channel": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "last_error": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "request_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "sent_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "target_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "ticket_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "title": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(25)"
+      }
+    }
+  },
+  "channel_targets": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_channel_targets_kanal"
+    ],
+    "spalten": {
+      "address": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "auth": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "channel": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "chat_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "enabled": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "events": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "language": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "name": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(80)"
+      },
+      "parent_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "password": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "silent": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "subject": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(200)"
+      },
+      "thread_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "token": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "topic": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "url": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "username": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "verified": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      }
+    }
+  },
+  "child_wishes": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_child_wishes_child",
+      "ix_child_wishes_lookup",
+      "ix_child_wishes_parent"
+    ],
+    "spalten": {
+      "child_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "decided_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "decline_note": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "parent_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "poster_path": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "release_date": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(10)"
+      },
+      "request_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "state": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "title": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "tvdb_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "favorite_people": {
+    "eindeutig": [
+      [
+        "person_id",
+        "user_id"
+      ]
+    ],
+    "indizes": [
+      "ix_favorite_people_user"
+    ],
+    "spalten": {
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "department": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "name": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(200)"
+      },
+      "person_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "photo_url": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "favorites": {
+    "eindeutig": [
+      [
+        "media_type",
+        "tmdb_id",
+        "user_id"
+      ]
+    ],
+    "indizes": [
+      "ix_favorites_user"
+    ],
+    "spalten": {
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "poster_url": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "title": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "hausordnung": {
+    "eindeutig": [],
+    "indizes": [],
+    "spalten": {
+      "aktualisiert_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "aktualisiert_von": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "fassung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "inhalt": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "quittierbar": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "titel": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "veroeffentlicht": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      }
+    }
+  },
+  "instanz_stand": {
+    "eindeutig": [
+      [
+        "kennung"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "erreichbar": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "erreichbar_seit": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "gemessen_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "kennung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "messwerte": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "version": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
+      }
+    }
+  },
+  "media_requests": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_media_requests_lookup",
+      "ix_media_requests_status",
+      "ix_media_requests_user"
+    ],
+    "spalten": {
+      "approved_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "approved_by": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "arr_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "completed_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "episodes": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "error_detail": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "error_message": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "feedback": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "feedback_reply": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "file_size_bytes": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BIGINT"
+      },
+      "for_child_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "from_watchlist": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "laedt_fortschritt": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "laedt_seit": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "last_checked_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "monitor_future": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "poster_path": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "quality_profile_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "quality_profile_name": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "rated_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "rating": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "rating_outdated": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "rejection_reason": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "release_date": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(10)"
+      },
+      "replied_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "replied_by": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "requested_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "root_folder_path": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "season": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "status": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "tier": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "title": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "tvdb_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "media_server_blocks": {
+    "eindeutig": [
+      [
+        "account_id",
+        "provider"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "account_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "blocked_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "blocked_by": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "provider": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "username": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      }
+    }
+  },
+  "media_server_connections": {
+    "eindeutig": [
+      [
+        "machine_id",
+        "provider"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "account_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "arr_api_key": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "connected_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "machine_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "name": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "provider": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "token": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "url": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      }
+    }
+  },
+  "media_server_library": {
+    "eindeutig": [
+      [
+        "guid",
+        "provider"
+      ]
+    ],
+    "indizes": [
+      "ix_media_server_library_ratingkey",
+      "ix_media_server_library_titel",
+      "ix_media_server_library_tmdb",
+      "ix_media_server_library_tvdb"
+    ],
+    "spalten": {
+      "added_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "guid": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "has_standard": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "has_uhd": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "imdb_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "owner_watched": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "provider": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "rating_key": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
+      },
+      "size_standard": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BIGINT"
+      },
+      "size_uhd": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BIGINT"
+      },
+      "title": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "title_key": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "tvdb_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "updated_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "year": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "notifications": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_notifications_user_unread"
+    ],
+    "spalten": {
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "is_read": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_attempts": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "mail_pending": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_sent_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "message_key": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "message_title": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "request_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "ticket_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(25)"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "oidc_blocks": {
+    "eindeutig": [
+      [
+        "issuer",
+        "subject"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "blocked_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "blocked_by": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "display": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "issuer": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "subject": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      }
+    }
+  },
+  "oidc_providers": {
+    "eindeutig": [
+      [
+        "issuer_url"
+      ]
+    ],
+    "indizes": [
+      "ix_oidc_providers_slug"
+    ],
+    "spalten": {
+      "auto_create": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "client_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "client_secret": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "enabled": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "issuer_url": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "label": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(80)"
+      },
+      "slug": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
+      }
+    }
+  },
+  "qualitaetsprofil_installationen": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_qprofil_inst_eindeutig"
+    ],
+    "spalten": {
+      "fingerabdruck": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "geschrieben_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "kennung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "profil_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "profil_id_extern": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "trash_stand": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      }
+    }
+  },
+  "qualitaetsprofile": {
+    "eindeutig": [],
+    "indizes": [],
+    "spalten": {
+      "aktualisiert_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "dienst": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "erzeugt_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "name": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "rezept": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "JSON"
+      }
+    }
+  },
+  "season_progress": {
+    "eindeutig": [
+      [
+        "season_number",
+        "tmdb_id"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "episodes": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(2000)"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "season_number": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "updated_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      }
+    }
+  },
+  "settings": {
+    "eindeutig": [],
+    "indizes": [],
+    "spalten": {
+      "is_secret": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "key": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "VARCHAR(64)"
+      },
+      "updated_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "value": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      }
+    }
+  },
+  "speicher_verlauf": {
+    "eindeutig": [
+      [
+        "tag"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "belegt_bytes": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BIGINT"
+      },
+      "frei_bytes": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BIGINT"
+      },
+      "gemessen_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "tag": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(10)"
+      }
+    }
+  },
+  "storage_entries": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_storage_nutzer",
+      "ix_storage_schluessel",
+      "ix_storage_tmdb"
+    ],
+    "spalten": {
+      "added_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "arr_managed": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "delete_after": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "delete_marked_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "key": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(80)"
+      },
+      "measured_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "path": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(1000)"
+      },
+      "release_wish": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(6)"
+      },
+      "released_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "request_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "season": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "size_bytes": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BIGINT"
+      },
+      "state": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(7)"
+      },
+      "tier": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "title": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "tvdb_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "user_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "ticket_messages": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_ticket_messages_ticket"
+    ],
+    "spalten": {
+      "body": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "edited_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "ticket_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "user_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "tickets": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_tickets_user_status"
+    ],
+    "spalten": {
+      "closed_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "last_reply_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "last_reply_by": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "media_title": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "media_type": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "status": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(11)"
+      },
+      "subject": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(200)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "updated_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "title_ratings": {
+    "eindeutig": [
+      [
+        "media_type",
+        "season",
+        "tmdb_id",
+        "user_id"
+      ]
+    ],
+    "indizes": [
+      "ix_title_ratings_titel"
+    ],
+    "spalten": {
+      "comment": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "file_size_bytes": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BIGINT"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "outdated": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "rating": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "replied_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "replied_by": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "reply": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "season": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "title": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "updated_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "title_watches": {
+    "eindeutig": [
+      [
+        "media_type",
+        "tmdb_id",
+        "user_id"
+      ]
+    ],
+    "indizes": [
+      "ix_title_watches_titel"
+    ],
+    "spalten": {
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "poster_url": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "title": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "tmdb_cache": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_tmdb_cache_expires_at"
+    ],
+    "spalten": {
+      "cache_key": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "VARCHAR(255)"
+      },
+      "expires_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "payload": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "TEXT"
+      }
+    }
+  },
+  "umbenennlaeufe": {
+    "eindeutig": [
+      [
+        "kennung"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "begonnen_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "beispiele": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "beruehrt_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "betroffen": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "dienst": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "erledigt": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "fortgesetzt": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "gesamt": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "instanz": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "kennung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "offen": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "schritt": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      }
+    }
+  },
+  "user_media_server_accounts": {
+    "eindeutig": [
+      [
+        "account_id",
+        "provider"
+      ],
+      [
+        "provider",
+        "user_id"
+      ]
+    ],
+    "indizes": [
+      "ix_user_media_server_accounts_user_id"
+    ],
+    "spalten": {
+      "account_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "email": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "linked_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "provider": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "thumb": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "token": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "token_connected_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "token_invalid_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "username": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      }
+    }
+  },
+  "user_oidc_links": {
+    "eindeutig": [
+      [
+        "issuer",
+        "subject"
+      ],
+      [
+        "issuer",
+        "user_id"
+      ]
+    ],
+    "indizes": [
+      "ix_user_oidc_links_user_id"
+    ],
+    "spalten": {
+      "display": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "issuer": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "linked_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "subject": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "user_streaming_services": {
+    "eindeutig": [
+      [
+        "slug",
+        "user_id"
+      ]
+    ],
+    "indizes": [
+      "ix_streaming_services_user"
+    ],
+    "spalten": {
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "slug": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(60)"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "user_watched": {
+    "eindeutig": [
+      [
+        "media_type",
+        "tmdb_id",
+        "user_id"
+      ]
+    ],
+    "indizes": [
+      "ix_user_watched_lookup"
+    ],
+    "spalten": {
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "providers": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(60)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "watched_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      }
+    }
+  },
+  "user_watched_seasons": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_user_watched_season"
+    ],
+    "spalten": {
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "providers": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(60)"
+      },
+      "season": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "watched_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      }
+    }
+  },
+  "users": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_users_betreiber",
+      "ix_users_email",
+      "ix_users_mediaserver_konto",
+      "ix_users_parent",
+      "ix_users_username"
+    ],
+    "spalten": {
+      "age": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "auto_approve": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "auto_approve_movies": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "auto_approve_series": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "auto_approve_uhd": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "avatar_path": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "blocked_movie_profiles": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "blocked_movie_uhd_profiles": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "blocked_series_profiles": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "blocked_series_uhd_profiles": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "can_manage_children": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "can_request_uhd_movies": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "can_request_uhd_series": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "changelog_gesehen": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "child_genres": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "child_trailers": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "cleanup_mail_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "discover_region": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(2)"
+      },
+      "display_name": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "email": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "email_verified": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "hausordnung_akzeptiert": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "hausordnung_gelesen": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "hausordnung_gelesen_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "hide_unrated": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "is_active": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "is_betreiber": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "language": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "last_login_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "mail_child_wish": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_cleanup": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_download_complete": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_feedback": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_mediaserver_reconnect": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_request_decided": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_request_pending": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_storage": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_ticket": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_user_imported": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mail_watch": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "mediaserver_account_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "mediaserver_email": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "mediaserver_linked_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "mediaserver_provider": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "mediaserver_thumb": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "mediaserver_username": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "parent_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "password_changed_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "password_hash": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "quota_movies_limit": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "quota_period": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "quota_reset_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "quota_series_limit": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "rating_region": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(2)"
+      },
+      "role": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "sessions_valid_from": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "storage_limit_gb": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "theme": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "username": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "watchlist_connected_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "watchlist_token": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "watchlist_token_invalid_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      }
+    }
+  },
+  "wanderungen": {
+    "eindeutig": [],
+    "indizes": [],
+    "spalten": {
+      "wanderung_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "wanderung_herkunft": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "wanderung_name": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "VARCHAR(64)"
+      },
+      "wanderung_version": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      }
+    }
+  },
+  "watchlist_lookup": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_watchlist_lookup_guid"
+    ],
+    "spalten": {
+      "guid": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(5)"
+      },
+      "provider": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "title": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "tmdb_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "updated_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "year": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "wiedergabe_spitzen": {
+    "eindeutig": [
+      [
+        "abschnitt"
+      ]
+    ],
+    "indizes": [],
+    "spalten": {
+      "abschnitt": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "bandbreite_kbit": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "bild_umrechnungen": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "gemessen_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "gleichzeitig": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      }
+    }
+  }
+}

@@ -20,23 +20,36 @@ ihn braucht.
 Geprueft wird von zwei Seiten, weil jede allein ein Loch hat:
 
 * **Aus der Routentabelle** (Teil 1): Jede schreibende Adresse, die ein
-  fremdes Konto benennen kann, muss ``betreiberschutz`` tragen. Benennen kann
-  sie es auf zwei Wegen - ueber den Pfad (``{user_id}``) und ueber den
-  **Rumpf** der Anfrage (``KONTO_FELDER``).
-* **Aus dem Quelltext** (Teil 2): Jede Funktion in ``app/routers``, die an
+  fremdes Konto erreichen kann, muss ``betreiberschutz`` tragen. Erreichen kann
+  sie es auf drei Wegen - ueber den Pfad (``{user_id}``), ueber den **Rumpf**
+  der Anfrage (``KONTO_FELDER``, abgeleitet aus den Fremdschluesseln auf
+  ``users.id``) und indem sie sich das Konto **selbst holt**
+  (``_holt_selbst_ein_konto``).
+* **Aus dem Quelltext** (Teil 2): Jede Funktion im **ganzen** ``app/``, die an
   einem Konto schreibt, muss entschieden sein. Auch dann, wenn sie ueber die
-  SQLAlchemy Core schreibt und deshalb gar kein Feld im Router stehen laesst.
-  Und weil sich diese eine Zeile auch eine Datei weiter schreiben laesst, wird
-  der Core-Weg zusaetzlich im **ganzen** ``app/`` gesucht (``CORE_AUSSERHALB``).
+  SQLAlchemy Core schreibt und deshalb gar kein Feld stehen laesst. Router
+  gehen gegen ``NUR_EIGENES_KONTO``, alles andere gegen ``AUSSERHALB``, und
+  **beide durch dieselbe Erkennung** (``_formen_in``).
 
-⚠️ **Beide Erweiterungen sind nachgetragen, und zwar aus demselben Anlass.**
-Eine Adresse ``POST /api/users/stilllegen``, die ein beliebiges Konto ueber
-``db.execute(update(User)...)`` abschaltet und ihr Ziel aus dem Rumpf nimmt,
-lief durch die ganze Testreihe: 2.482 Tests, kein einziger roter. Teil 1 sah
-sie nicht, weil kein ``{user_id}`` im Pfad stand; Teil 2 sah sie nicht, weil
-sein Quelltext-Scan nur Attribut-Zuweisungen und ``setattr()`` kannte. Der
-Nachbau steht als ``test_der_scan_sieht_den_core_schreibweg`` in dieser Datei
-und muss einen Treffer liefern - sonst ist die Erweiterung nur eine Absicht.
+⚠️ **Alle Erweiterungen sind nachgetragen, und jede hat ihren eigenen Anlass.**
+
+1. Eine Adresse ``POST /api/users/stilllegen``, die ein beliebiges Konto ueber
+   ``db.execute(update(User)...)`` abschaltet und ihr Ziel aus dem Rumpf nimmt,
+   lief durch die ganze Testreihe: 2.482 Tests, kein einziger roter. Teil 1 sah
+   sie nicht, weil kein ``{user_id}`` im Pfad stand; Teil 2 sah sie nicht, weil
+   sein Quelltext-Scan nur Attribut-Zuweisungen und ``setattr()`` kannte. Der
+   Nachbau steht als ``test_der_scan_sieht_den_core_schreibweg`` in dieser Datei
+   und muss einen Treffer liefern - sonst ist die Erweiterung nur eine Absicht.
+2. Danach blieb der einfachste Weg offen: ``opfer.role = Role.user`` in einem
+   **Dienst**, gerufen aus einem Router. Teil 2 las ausserhalb von
+   ``app/routers`` nur den Core-Weg. Nachgewiesen mit zwei Zeilen in
+   ``services/tickets.py``, ueber die ein zweiter Administrator dem Betreiber
+   Rolle und Haken nahm - 2.491 Tests, kein einziger roter. Seitdem gilt
+   ueberall derselbe Umfang.
+3. Und Teil 1 hing an sieben von Hand eingetragenen Feldnamen. Ein Rumpf-Feld
+   namens ``ziel`` war damit unsichtbar. Die Namen kommen jetzt aus den
+   Fremdschluesseln der Datenbank, und wo auch das nicht reicht, sieht das
+   dritte Bein den Griff zur Nutzertabelle selbst.
 
 Die gefaehrlichen Felder sind **nicht aufgezaehlt**, sondern aus ``models.User``
 abgeleitet. Wer der Nutzertabelle morgen eine Spalte gibt, ist damit von selbst
@@ -47,7 +60,9 @@ bekommt genau den Zustand zurueck, den dieser Test verhindern soll.
 from __future__ import annotations
 
 import ast
+import inspect
 import typing
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -93,6 +108,63 @@ OHNE_SCHUTZ: dict[str, str] = {
         "approve-all darueber: Den Betreiber davon auszunehmen hiesse, dass ihm "
         "niemand mehr schreiben kann."
     ),
+    # ------------------------------------------------------------------
+    # Ab hier: Adressen, die erst das dritte Bein sichtbar gemacht hat.
+    #
+    # ⚠️ Sie holen sich alle ein Konto aus der Nutzertabelle, aber keine
+    # schreibt daran. Neun Eintraege sind der Preis dafuer, dass der Waechter
+    # nicht mehr an einem Feldnamen haengt - jeder einzelne ist nachgesehen,
+    # nicht abgeschrieben.
+    # ------------------------------------------------------------------
+    "POST /api/admin/requests/{request_id}/reply": (
+        "Holt mit ``db.get(User, request.user_id)`` den Besteller, um ihm die "
+        "Antwort zu melden. Geschrieben wird an der Bewertung (``reply``, "
+        "``replied_at``, ``replied_by``), nicht am Konto - und das Ziel sucht "
+        "sich die Anfrage nicht aus, es haengt an der Anfragenummer im Pfad."
+    ),
+    "POST /api/feedback/{rating_id}/reply": (
+        "Dieselbe Bauart wie die Adresse darueber, nur von der anderen Seite: "
+        "geschrieben wird an ``TitleRating``, das Konto wird geholt, um die "
+        "Meldung zuzustellen."
+    ),
+    "POST /api/auth/login": (
+        "Sucht das Konto zum eingegebenen Benutzernamen. Wer das Passwort hat, "
+        "**ist** das Konto - eine Wache davor wuerde den Betreiber aussperren, "
+        "nicht schuetzen. Steht aus demselben Grund auch in NUR_EIGENES_KONTO."
+    ),
+    "POST /api/auth/refresh": (
+        "Holt das Konto zur Nummer **aus dem eigenen Token**. Die Anfrage kann "
+        "hier gar kein Ziel benennen; sie kann nur ein Token vorlegen, das "
+        "jemand ausgestellt hat."
+    ),
+    "POST /api/onboarding/forgot-password": (
+        "Sucht das Konto zur Mailadresse und legt einen Einladungs-Token an. "
+        "Am Konto selbst wird nichts geaendert, und der Weg zurueck fuehrt "
+        "ueber das Postfach - siehe die ausfuehrliche Begruendung bei "
+        "``onboarding.set_password`` in NUR_EIGENES_KONTO."
+    ),
+    "POST /api/settings/channels/{channel}/test": (
+        "Ein Fehlalarm, und ein lehrreicher: Der Entwurf eines Meldeziels "
+        "traegt ein Feld ``parent_id``, das auf ein **uebergeordnetes Ziel** "
+        "zeigt, nicht auf ein Konto. Denselben Spaltennamen gibt es an "
+        "``User``, und daran kann die Ableitung die beiden nicht "
+        "unterscheiden. Die Adresse schickt eine Probemeldung und schreibt "
+        "nirgends an einem Konto."
+    ),
+    "POST /api/storage/entries/{posten_id}/haus": (
+        "Nimmt einen Posten in den Hausbestand. Geschrieben wird am "
+        "``StorageEntry``; das Konto wird geholt, um dem bisherigen Besitzer "
+        "die Uebernahme zu melden. Das Ziel haengt am Posten, nicht an der "
+        "Anfrage."
+    ),
+    "POST /api/storage/entries/{posten_id}/entfolgen": (
+        "Dieselbe Bauart: geschrieben wird am Posten und in Sonarr, das Konto "
+        "wird nur fuer die Meldung geholt."
+    ),
+    "POST /api/storage/entries/{posten_id}/loeschen": (
+        "Dieselbe Bauart wie die beiden Adressen darueber. Was hier "
+        "verschwindet, ist ein Posten samt Dateien, kein Konto."
+    ),
 }
 
 
@@ -112,21 +184,57 @@ def _wachen(route) -> set:
     return gefunden
 
 
-#: Feldnamen, die eine **fremde** Benutzernummer bezeichnen.
+def _kontofelder() -> set[str]:
+    """Feldnamen, die eine **fremde** Benutzernummer bezeichnen - abgeleitet.
+
+    ⚠️ Der Pfad ist nur der auffaellige Weg. Eine Adresse, die ihr Ziel aus dem
+    Anfrage-Rumpf nimmt, erreicht dasselbe Konto - und stand bis vor Kurzem
+    ausserhalb des Blickfelds. Genau so kam ``POST /api/users/stilllegen``
+    durch die ganze Testreihe: kein ``{user_id}`` im Pfad, also kein Waechter.
+
+    ⚠️ **Und deshalb steht hier keine Liste mehr.** Bis zum 02.09.2026 waren es
+    sieben von Hand eingetragene Namen. Vier davon (``benutzer_id``,
+    ``benutzer_ids``, ``konto_id``, ``kind_id``) kommen im ganzen Schema nicht
+    vor, waren also Vorrat fuer einen Fall, den es nie gab; dafuer fehlten
+    sechs, die es wirklich gibt - ``parent_id``, ``for_child_id``,
+    ``approved_by``, ``blocked_by``, ``created_by``, ``last_reply_by``,
+    ``replied_by``, ``aktualisiert_von``. Genau die Sorte Liste, deretwegen es
+    diesen Waechter ueberhaupt gibt.
+
+    Die Datenbank weiss es besser: Ein Fremdschluessel auf ``users.id`` ist die
+    Definition von "diese Spalte benennt ein Konto". Wer der naechsten Tabelle
+    eine solche Spalte gibt, ist damit von selbst mit drin. Dazu die
+    Mehrzahlform, weil eine Adresse auch eine Liste entgegennehmen kann.
+
+    ⚠️ Ein Name kann in zwei Tabellen dasselbe heissen und Verschiedenes
+    meinen: ``parent_id`` zeigt an ``User`` auf ein Elternkonto, an
+    ``ChannelTarget`` auf einen uebergeordneten Kanal. Der Waechter kann das
+    nicht unterscheiden und schlaegt bei beiden an. Das ist die richtige
+    Richtung: lieber einmal zu viel entschieden als einmal zu wenig, und der
+    Fehlalarm kostet einen Eintrag in ``OHNE_SCHUTZ`` mit ausgeschriebenem
+    Grund.
+    """
+    namen: set[str] = set()
+    for tabelle in Base.metadata.tables.values():
+        for spalte in tabelle.columns:
+            for fremd in spalte.foreign_keys:
+                if fremd.column.table.name == User.__table__.name:
+                    namen.add(spalte.name)
+    return namen | {name + "s" for name in namen if name.endswith("_id")}
+
+
+KONTO_FELDER = _kontofelder()
+
+
+#: Aufrufe, mit denen eine Adresse ein Konto **selbst aufloest**.
 #:
-#: ⚠️ Der Pfad ist nur der auffaellige Weg. Eine Adresse, die ihr Ziel aus dem
-#: Anfrage-Rumpf nimmt, erreicht dasselbe Konto - und stand bis hierhin
-#: ausserhalb des Blickfelds. Genau so kam ``POST /api/users/stilllegen``
-#: durch die ganze Testreihe: kein ``{user_id}`` im Pfad, also kein Waechter.
-KONTO_FELDER = {
-    "user_id",
-    "user_ids",
-    "benutzer_id",
-    "benutzer_ids",
-    "konto_id",
-    "child_id",
-    "kind_id",
-}
+#: ⚠️ **Das zweite Bein von Teil 1, und es schliesst genau die Luecke, die
+#: ein Name allein offenlaesst.** Ein Rumpf-Feld muss nicht ``user_id`` heissen.
+#: Es kann ``ziel`` heissen oder ``empfaenger``, und dann findet es keine noch
+#: so gut abgeleitete Namensliste. Was sich nicht verstecken laesst, ist der
+#: Griff zur Nutzertabelle: Wer ein fremdes Konto anfassen will, muss es zuerst
+#: holen.
+KONTO_AUFLOESUNG = ("db.get(User, ...)", "select(User)")
 
 
 class _Leer:
@@ -168,17 +276,66 @@ def _hereingereichte_namen(dependant) -> set[str]:
     return namen
 
 
-def _schreibende_kontoadressen() -> list[tuple[str, object]]:
-    """Alle Adressen, die ein fremdes Konto benennen koennen und schreiben.
+def _holt_selbst_ein_konto(endpunkt: object) -> bool:
+    """Greift diese Handler-Funktion selbst zur Nutzertabelle?
 
-    Zwei Wege hinein, weil einer allein nicht reicht:
+    ⚠️ **Das dritte Bein, und das einzige, das ohne Namen auskommt.** Die
+    beiden anderen erkennen ein Ziel daran, wie es *heisst* - im Pfad oder im
+    Rumpf. Beide sind blind gegen ein Feld, das ``ziel`` oder ``empfaenger``
+    heisst, und dagegen hilft keine noch so gut abgeleitete Namensliste.
+
+    Was sich nicht umbenennen laesst, ist der Griff selbst: ``db.get(User, x)``
+    und ``select(User)``. Wer ein Konto anfassen will, muss es zuerst holen.
+
+    Bewusst grob: Auch das blosse Nachschlagen zaehlt, nicht erst das
+    Schreiben. Neun der siebzehn heutigen Adressen holen ein Konto nur, um
+    seinen Namen anzuzeigen oder ihm eine Meldung zu schicken - jede davon
+    steht mit diesem Grund in ``OHNE_SCHUTZ``. Der Preis ist ein Eintrag je
+    Adresse, der Gewinn ist, dass niemand mehr an einem Feldnamen vorbeikommt.
+    """
+    try:
+        quelle = inspect.getsource(endpunkt)  # type: ignore[arg-type]
+    except (OSError, TypeError):
+        return False
+    try:
+        # Der Umweg ueber ``unparse`` nimmt die Einrueckung heraus, mit der
+        # eine Methode sonst nicht fuer sich allein parsbar waere.
+        baum = ast.parse(ast.unparse(ast.parse(quelle)))
+    except SyntaxError:  # pragma: no cover - nur bei kaputtem Quelltext
+        return False
+    for knoten in ast.walk(baum):
+        if not isinstance(knoten, ast.Call):
+            continue
+        if (
+            isinstance(knoten.func, ast.Attribute)
+            and knoten.func.attr == "get"
+            and knoten.args
+            and isinstance(knoten.args[0], ast.Name)
+            and knoten.args[0].id == "User"
+        ):
+            return True
+        if (
+            isinstance(knoten.func, ast.Name)
+            and knoten.func.id == "select"
+            and any(isinstance(a, ast.Name) and a.id == "User" for a in knoten.args)
+        ):
+            return True
+    return False
+
+
+def _schreibende_kontoadressen() -> list[tuple[str, object]]:
+    """Alle Adressen, die ein fremdes Konto erreichen koennen und schreiben.
+
+    Drei Wege hinein, weil keiner allein reicht:
 
     * die Benutzernummer steht im **Pfad** (``/api/users/{user_id}``),
-    * oder sie steht im **Rumpf** bzw. in der Abfrage (``KONTO_FELDER``).
+    * oder sie steht im **Rumpf** bzw. in der Abfrage (``KONTO_FELDER``,
+      abgeleitet aus den Fremdschluesseln auf ``users.id``),
+    * oder die Adresse **holt sich das Konto selbst** (``_holt_selbst_ein_konto``).
 
-    Der zweite Weg ist nachgetragen: Ohne ihn sah dieser Teil eine Adresse
-    nicht, die ihr Ziel aus dem Rumpf nahm - und die kam damit an jedem
-    Waechter vorbei.
+    Der zweite Weg war nachgetragen, weil dieser Teil eine Adresse nicht sah,
+    die ihr Ziel aus dem Rumpf nahm. Der dritte ist nachgetragen, weil auch der
+    zweite an einem Namen haengt und ein Feld ``ziel`` heissen darf.
     """
     gefunden = []
     for route in app.routes:
@@ -193,7 +350,8 @@ def _schreibende_kontoadressen() -> list[tuple[str, object]]:
             _hereingereichte_namen(getattr(route, "dependant", None) or _LEER)
             & KONTO_FELDER
         )
-        if not (aus_dem_pfad or aus_dem_rumpf):
+        aus_dem_quelltext = _holt_selbst_ein_konto(getattr(route, "endpoint", None))
+        if not (aus_dem_pfad or aus_dem_rumpf or aus_dem_quelltext):
             continue
         for methode in schreibend:
             gefunden.append((f"{methode} {pfad}", route))
@@ -207,10 +365,29 @@ def _schreibende_kontoadressen() -> list[tuple[str, object]]:
 #: sieht, meldet auch nichts.
 MINDESTENS_BEWACHT = 5
 
-#: Und so viele Adressen mit Kontobezug gibt es ueberhaupt - Pfad und Rumpf
-#: zusammengezaehlt. Dieselbe Ueberlegung: ein Waechter, der nichts mehr
-#: einsammelt, meldet auch nichts.
-MINDESTENS_KONTOADRESSEN = 8
+#: Und so viele Adressen mit Kontobezug gibt es ueberhaupt - Pfad, Rumpf und
+#: Quelltext zusammengezaehlt. Dieselbe Ueberlegung: ein Waechter, der nichts
+#: mehr einsammelt, meldet auch nichts.
+#:
+#: Am 02.09.2026 gemessen: 17. Die Schwelle liegt darunter, damit eine
+#: absichtlich entfernte Adresse den Test nicht rot macht - aber nicht so weit,
+#: dass ein Bein still ausfallen koennte.
+MINDESTENS_KONTOADRESSEN = 15
+
+#: So viele Feldnamen leitet ``_kontofelder`` mindestens ab.
+#:
+#: ⚠️ Ohne diese Schwelle liefe die Ableitung leer, sobald jemand die Tabelle
+#: umbenennt oder ``Base.metadata`` zum falschen Zeitpunkt gelesen wird - und
+#: der Rumpf-Weg waere still wieder zu.
+MINDESTENS_KONTOFELDER = 10
+
+#: So viele Adressen findet das dritte Bein mindestens von sich aus.
+#:
+#: ⚠️ Dieselbe Ueberlegung eine Ebene tiefer: Faende ``_holt_selbst_ein_konto``
+#: nichts mehr - etwa weil ``inspect.getsource`` an einer verpackten Funktion
+#: scheitert -, faellt das ganze Bein aus, ohne dass eine Zahl kleiner wuerde,
+#: solange die anderen beiden noch genug einsammeln. Am 02.09.2026: 8.
+MINDESTENS_AUS_DEM_QUELLTEXT = 6
 
 
 def test_jede_kontoadresse_ist_entschieden() -> None:
@@ -254,6 +431,54 @@ def test_teil_eins_sieht_auch_den_rumpf() -> None:
         f"Nur {len(namen)} Adressen mit Kontobezug gefunden, erwartet mindestens "
         f"{MINDESTENS_KONTOADRESSEN}. Der Wächter sieht offenbar nichts mehr."
     )
+
+
+def test_die_kontofelder_kommen_aus_dem_schema() -> None:
+    """Die Feldnamen muessen wirklich aus den Fremdschluesseln stammen.
+
+    ⚠️ **Ohne diese Probe koennte die Ableitung leer laufen** - und der
+    Rumpf-Weg waere still wieder zu, ohne dass eine einzige Zeile rot wird.
+    Geprueft wird deshalb beides: dass etwas herauskommt, und dass genau die
+    Namen dabei sind, die es vorher **nicht** gab.
+    """
+    felder = _kontofelder()
+    assert len(felder) >= MINDESTENS_KONTOFELDER, (
+        f"Nur {len(felder)} Kontofelder abgeleitet, erwartet mindestens "
+        f"{MINDESTENS_KONTOFELDER}. Zeigt in diesem Schema nichts mehr auf users.id?"
+    )
+    # Der offensichtliche Fall, und die Mehrzahlform dazu.
+    assert {"user_id", "user_ids"} <= felder
+    # Die Namen, die der Handliste gefehlt haben. Sie stehen hier als Beleg,
+    # dass die Ableitung wirklich mehr sieht als das, was jemand aufzaehlt.
+    assert {"parent_id", "for_child_id", "approved_by", "blocked_by"} <= felder
+    # Und die Gegenrichtung: Was nie im Schema stand, taucht auch nicht auf.
+    # ``konto_id`` und ``kind_id`` standen bis zum 02.09.2026 in der Handliste
+    # und haben dort nie etwas getroffen.
+    assert not ({"konto_id", "kind_id", "benutzer_id"} & felder)
+
+
+def test_teil_eins_sieht_auch_den_quelltext() -> None:
+    """Das dritte Bein muss wirklich etwas finden, nicht bloss dastehen.
+
+    ⚠️ **Dieselbe Sorge wie beim Rumpf-Weg, nur eine Ebene tiefer.** Scheitert
+    ``inspect.getsource`` kuenftig an einer verpackten Handler-Funktion, gibt
+    ``_holt_selbst_ein_konto`` still ueberall ``False`` zurueck. Die
+    Gesamtzahl faellt dann kaum auf, weil die anderen beiden Beine weiter
+    liefern - dieser Test faellt auf.
+    """
+    aus_dem_quelltext = [
+        name
+        for name, route in _schreibende_kontoadressen()
+        if _holt_selbst_ein_konto(getattr(route, "endpoint", None))
+    ]
+    assert len(aus_dem_quelltext) >= MINDESTENS_AUS_DEM_QUELLTEXT, (
+        f"Nur {len(aus_dem_quelltext)} Adressen holen sich laut Quelltext selbst ein "
+        f"Konto, erwartet mindestens {MINDESTENS_AUS_DEM_QUELLTEXT}. Das dritte Bein "
+        "läuft offenbar leer."
+    )
+    # Eine Adresse, die **nur** ueber dieses Bein hereinkommt: kein
+    # ``{user_id}`` im Pfad, und ihr Rumpf traegt keinen Kontonamen.
+    assert "POST /api/auth/refresh" in aus_dem_quelltext
 
 
 def test_keine_verwaisten_ausnahmen() -> None:
@@ -345,8 +570,16 @@ def _core_schreibweg(knoten: ast.Call) -> str | None:
     return None
 
 
-def _schreibstellen() -> dict[tuple[str, str], set[str]]:
-    """Wo in ``app/routers`` an einem Konto geschrieben wird.
+def _formen_in(knoten: ast.AST, felder: set[str]) -> set[str]:
+    """Alle Schreibformen an einem Konto innerhalb dieser Funktion.
+
+    ⚠️ **Es gibt genau diese eine Definition von "hier wird geschrieben", und
+    das ist der Sinn dieser Funktion.** Bis zum 02.09.2026 stand die Erkennung
+    zweimal da: einmal vollstaendig fuer ``app/routers``, einmal verkuerzt auf
+    den Core-Weg fuer alles andere. Der einfache Weg - ``nutzer.is_active =
+    False`` in einem Dienst - fiel damit durch beide. Nachgewiesen: Zwei Zeilen
+    in ``services/tickets.py`` nahmen dem Betreiber Rolle und Haken, und alle
+    2.491 Tests blieben gruen.
 
     Vier Formen, und jede hat ihren Grund:
 
@@ -364,43 +597,67 @@ def _schreibstellen() -> dict[tuple[str, str], set[str]]:
       Adresse genau darueber jedes Konto abschalten konnte, ohne dass der
       Waechter etwas gemerkt haette.
     """
+    gefunden: set[str] = set()
+    for inner in ast.walk(knoten):
+        if isinstance(inner, ast.Assign):
+            for ziel in inner.targets:
+                if isinstance(ziel, ast.Attribute) and ziel.attr in felder:
+                    gefunden.add(ziel.attr)
+        if isinstance(inner, ast.Call):
+            if isinstance(inner.func, ast.Name) and inner.func.id == "setattr":
+                gefunden.add("setattr()")
+            if (
+                isinstance(inner.func, ast.Attribute)
+                and inner.func.attr in KONTO_VERAENDERNDE_AUFRUFE
+            ):
+                gefunden.add(f"{inner.func.attr}()")
+            weg = _core_schreibweg(inner)
+            if weg is not None:
+                gefunden.add(weg)
+                # Die Felder stehen bei ``.values(is_active=False)`` als
+                # Schluesselwoerter da - die gehoeren in die Meldung, sonst
+                # steht dort nur "update(User)".
+                if isinstance(inner.func, ast.Attribute) and inner.func.attr == "values":
+                    for schluesselwort in inner.keywords:
+                        if schluesselwort.arg in felder:
+                            gefunden.add(schluesselwort.arg)
+    return gefunden
+
+
+def _scan_ueber_dateien(
+    dateien: list[Path], schluessel_von: Callable[[Path], str]
+) -> tuple[dict[tuple[str, str], set[str]], int]:
+    """Alle Schreibstellen in diesen Dateien, dazu die Zahl der gelesenen.
+
+    ⚠️ **Die zweite Rueckgabe ist kein Beiwerk.** Ein Scan, dessen Dateiliste
+    leer laeuft, meldet nichts und ist damit fuer immer gruen. Genau das ist
+    hier schon passiert: Ein verwandter Waechter hatte still aufgehoert, 90
+    Module zu sehen, und niemandem fiel etwas auf. Wer diese Funktion ruft,
+    bekommt die Zahl mit und muss sie gegen eine Schwelle halten.
+    """
     felder = _felder_nur_am_konto()
     gefunden: dict[tuple[str, str], set[str]] = {}
-    for datei in sorted(ROUTER_ORDNER.glob("*.py")):
+    gelesen = 0
+    for datei in sorted(dateien):
+        gelesen += 1
         baum = ast.parse(datei.read_text(encoding="utf-8"))
         for knoten in ast.walk(baum):
             if not isinstance(knoten, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            schluessel = (datei.name, knoten.name)
-            for inner in ast.walk(knoten):
-                if isinstance(inner, ast.Assign):
-                    for ziel in inner.targets:
-                        if isinstance(ziel, ast.Attribute) and ziel.attr in felder:
-                            gefunden.setdefault(schluessel, set()).add(ziel.attr)
-                if isinstance(inner, ast.Call):
-                    if isinstance(inner.func, ast.Name) and inner.func.id == "setattr":
-                        gefunden.setdefault(schluessel, set()).add("setattr()")
-                    if (
-                        isinstance(inner.func, ast.Attribute)
-                        and inner.func.attr in KONTO_VERAENDERNDE_AUFRUFE
-                    ):
-                        gefunden.setdefault(schluessel, set()).add(
-                            f"{inner.func.attr}()"
-                        )
-                    weg = _core_schreibweg(inner)
-                    if weg is not None:
-                        gefunden.setdefault(schluessel, set()).add(weg)
-                        # Die Felder stehen bei ``.values(is_active=False)``
-                        # als Schluesselwoerter da - die gehoeren in die
-                        # Meldung, sonst steht dort nur "update(User)".
-                        if (
-                            isinstance(inner.func, ast.Attribute)
-                            and inner.func.attr == "values"
-                        ):
-                            for schluesselwort in inner.keywords:
-                                if schluesselwort.arg in felder:
-                                    gefunden[schluessel].add(schluesselwort.arg)
-    return gefunden
+            formen = _formen_in(knoten, felder)
+            if formen:
+                gefunden.setdefault((schluessel_von(datei), knoten.name), set())
+                gefunden[(schluessel_von(datei), knoten.name)] |= formen
+    return gefunden, gelesen
+
+
+def _router_dateien() -> list[Path]:
+    return [d for d in ROUTER_ORDNER.glob("*.py") if "__pycache__" not in d.parts]
+
+
+def _schreibstellen() -> dict[tuple[str, str], set[str]]:
+    """Wo in ``app/routers`` an einem Konto geschrieben wird."""
+    return _scan_ueber_dateien(_router_dateien(), lambda d: d.name)[0]
 
 
 #: Schreibstellen, die **kein** fremdes Konto erreichen koennen - mit Grund.
@@ -578,7 +835,31 @@ def liste(db):
 #: einer Adresse aus genauso erreichbar wie im Router selbst, nur unsichtbar
 #: fuer den Scan darueber. Die Liste ist absichtlich kurz und bleibt es nur,
 #: solange jeder Eintrag begruendet ist.
-CORE_AUSSERHALB: dict[tuple[str, str], str] = {
+#: Schreibstellen **ausserhalb** von ``app/routers`` - jede mit Grund.
+#:
+#: ⚠️ Warum ueberhaupt hier hinsehen? Weil ein Router die Zeile auslagern kann.
+#: Ein Schreibzugriff in einem Dienst ist von einer Adresse aus genauso
+#: erreichbar wie im Router selbst, nur unsichtbar fuer den Scan darueber.
+#:
+#: ⚠️ **Bis zum 02.09.2026 stand hier nur der Core-Weg**, also
+#: ``db.execute(update(User)...)``. Der gewoehnliche Weg - ``nutzer.role =
+#: Role.user`` - wurde ausserhalb der Router nie gesucht. Nachgewiesen mit zwei
+#: Zeilen in ``services/tickets.py``: Ein zweiter Administrator nahm dem
+#: Betreiber ueber ``POST /api/tickets`` Rolle und Haken ab, und alle 2.491
+#: Tests blieben gruen. Seitdem gilt hier derselbe Umfang wie im Router.
+#:
+#: Die Liste ist absichtlich lang statt kurz. Jeder Eintrag behauptet etwas
+#: Nachpruefbares, und drei Sorten kommen vor:
+#:
+#: * **schreibt wirklich am Konto**, aber an einem, das die Anfrage sich nicht
+#:   aussuchen kann (``betreiber._setzen``, ``children.recht_entzogen``),
+#: * **schreibt am Konto der eigenen Sitzung** oder an einem Unterprofil davon
+#:   (``children.*``, ``mediaserver_accounts.*``, ``oidc_accounts.link``),
+#: * **schreibt gar nicht am Konto** - der Spaltenname kommt an einer anderen
+#:   Tabelle noch einmal vor, oder ``setattr`` trifft ein anderes Objekt.
+#:   Diese Fehlalarme sind der Preis dafuer, dass ``email``, ``username`` und
+#:   ``parent_id`` ausdruecklich mit ueberwacht werden.
+AUSSERHALB: dict[tuple[str, str], str] = {
     ("services/sicherung.py", "_alle_abmelden"): (
         "Setzt nach dem Einspielen einer Sicherung ``sessions_valid_from`` an "
         "**allen** Konten, den Betreiber eingeschlossen - genau das ist der "
@@ -586,63 +867,217 @@ CORE_AUSSERHALB: dict[tuple[str, str], str] = {
         "Parameter, und wer eine Sicherung einspielen darf, hat die "
         "Installation ohnehin in der Hand."
     ),
+    ("services/betreiber.py", "_setzen"): (
+        "**Das ist der Haken selbst.** Die einzige Stelle, die "
+        "``is_betreiber`` umlegt, und sie raeumt erst ab und setzt dann. "
+        "Gerufen wird sie nur aus ``ernennen`` und ``uebergeben``, und dort "
+        "stehen die Regeln. Eine Wache davor haenge im Weg des Vorgangs, den "
+        "sie schuetzen soll."
+    ),
+    ("services/betreiber.py", "nach_dem_einspielen"): (
+        "Stellt nach einer eingespielten Sicherung den Traeger von vorher "
+        "wieder her - die eine Stelle, an der der Haken die Zeitmaschine nicht "
+        "mitmacht. Ohne sie koennte ein zweiter Administrator eine Uebergabe "
+        "rueckgaengig machen, indem er einen alten Stand einspielt. Das Ziel "
+        "kommt aus dem gemerkten Benutzernamen, nicht aus einer Anfrage."
+    ),
+    ("services/children.py", "recht_entzogen"): (
+        "Legt die Kinder eines Elternteils still, wenn ihm das Recht genommen "
+        "wird. Zwei Gruende, und beide nachgesehen: Der Weg hierher ist "
+        "``PATCH /api/users/{user_id}``, und der traegt die Wache. Und die "
+        "Ziele stammen aus ``eigene_kinder``, sind also Unterprofile - ein "
+        "Kinderkonto kann den Haken gar nicht tragen, weil ``uebergeben`` "
+        "``an.is_child`` und ``an.role != Role.admin`` ausdruecklich abweist "
+        "und ``ernennen`` nur aus Einrichtung, Startweg und Umgebung gerufen "
+        "wird."
+    ),
+    ("services/children.py", "aendern"): (
+        "``setattr(kind, feld, wert)`` am eigenen Kind - ``kind_von`` laesst "
+        "nur Unterprofile des angemeldeten Elternteils durch. ⚠️ Dass das "
+        "``setattr`` harmlos ist, haengt allein daran, dass ``ChildUpdate`` "
+        "ein geschlossenes Modell mit sechs Feldern ist. Wer ihm eines Tages "
+        "``extra=\"allow\"`` gibt, macht daraus einen Schreibzugriff auf jede "
+        "Spalte der Nutzertabelle."
+    ),
+    ("services/children.py", "passwort_setzen"): (
+        "Setzt Passwort und ``password_changed_at`` am eigenen Kind, wieder "
+        "ueber ``kind_von``. Fuer Kinder gibt es kein Passwort-vergessen, das "
+        "Elternteil ist der Weg zurueck."
+    ),
+    ("services/mediaserver_accounts.py", "_spalten_spiegeln"): (
+        "Die einzige Stelle, die die gespiegelten ``mediaserver_*``-Spalten "
+        "schreibt, und sie schreibt sie aus der Verknuepfungstabelle desselben "
+        "Kontos. Kein fremdes Ziel: Die Funktion nimmt genau einen Benutzer "
+        "entgegen, und den bringt der Aufrufer aus der laufenden Anmeldung mit."
+    ),
+    ("services/mediaserver_accounts.py", "link"): (
+        "``email`` und ``username`` gehoeren hier der Zeile in "
+        "``user_media_server_accounts``, nicht dem Konto - beide Namen gibt es "
+        "an beiden Tabellen. Am Konto wird nur ``email_verified`` gesetzt, und "
+        "nur gesetzt, nie zurueckgenommen, weil Jellyfin zu einem Konto gar "
+        "keine Adresse kennt."
+    ),
+    ("services/mediaserver_accounts.py", "merke_token"): (
+        "Legt das persoenliche Anbieter-Token an der Verknuepfung ab und ruft "
+        "``_spalten_spiegeln``. Dasselbe Konto, dieselbe Anmeldung."
+    ),
+    ("services/mediaserver_accounts.py", "resolve"): (
+        "``username`` ist hier das Feld der Verknuepfungszeile. Wo wirklich ein "
+        "Konto entsteht, geschieht das ueber ``User(...)`` mit einem frisch "
+        "eindeutig gemachten Namen - ein neues Konto kann kein fremdes sein."
+    ),
+    ("services/oidc_accounts.py", "link"): (
+        "Setzt ``email_verified`` am Konto, das sich gerade verknuepft, und nur "
+        "wenn der Anbieter fuer die Adresse buergt **und** es dieselbe ist, die "
+        "am Konto steht. Strenger als der Media-Server-Weg, und mit Absicht."
+    ),
+    ("services/tickets.py", "kinderkonten_freischalten"): (
+        "Setzt ``can_manage_children`` beim **Eigentuemer des Tickets**, nicht "
+        "bei einem frei gewaehlten Konto, und nur auf ``True``. Die Freigabe "
+        "gibt etwas und nimmt nichts; den Betreiber davon auszunehmen hiesse, "
+        "dass ausgerechnet er seinen Antrag nicht bewilligt bekommt. ⚠️ Fiele "
+        "die Richtung je weg, waere das hier eine Adresse, an der ein zweiter "
+        "Administrator ein Recht entziehen kann."
+    ),
+    ("services/aufraeum_bericht.py", "vielleicht_verschicken"): (
+        "Setzt ``cleanup_mail_at`` als Merker \"Bericht fuer diesen Monat ist "
+        "raus\". Laeuft im Hintergrund ueber alle Konten, hat keine Anfrage und "
+        "damit kein waehlbares Ziel; der Wert ist ein Datum und traegt kein "
+        "Recht."
+    ),
+    ("services/channel_targets.py", "anwenden"): (
+        "Fehlalarm: Das ``setattr`` trifft einen ``ChannelTarget``, kein Konto. "
+        "Der Scan zaehlt jedes ``setattr`` mit, weil er nicht sehen kann, was "
+        "es trifft - lieber diese Zeile hier als ein uebersehenes "
+        "``update_user``."
+    ),
+    ("services/stats.py", "collect"): (
+        "Fehlalarm derselben Sorte: ``quota_series_limit`` ist hier das Feld "
+        "einer Auswertungszeile, die genauso heisst wie die Spalte am Konto. "
+        "Geschrieben wird an einer Datenklasse, die nur bis zum Ende der "
+        "Antwort lebt."
+    ),
 }
 
 APP_ORDNER = ROUTER_ORDNER.parent
 
 
-def _core_schreibstellen_ausserhalb() -> dict[tuple[str, str], set[str]]:
-    """Core-Schreibwege an der Nutzertabelle im ganzen ``app/`` ausser Routern."""
-    gefunden: dict[tuple[str, str], set[str]] = {}
-    for datei in sorted(APP_ORDNER.rglob("*.py")):
-        if "__pycache__" in datei.parts or datei.parent == ROUTER_ORDNER:
-            continue
-        name = datei.relative_to(APP_ORDNER).as_posix()
-        baum = ast.parse(datei.read_text(encoding="utf-8"))
-        for knoten in ast.walk(baum):
-            if not isinstance(knoten, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            for inner in ast.walk(knoten):
-                if not isinstance(inner, ast.Call):
-                    continue
-                weg = _core_schreibweg(inner)
-                if weg is not None:
-                    gefunden.setdefault((name, knoten.name), set()).add(weg)
-    return gefunden
+def _dateien_ausserhalb() -> list[Path]:
+    return [
+        d
+        for d in APP_ORDNER.rglob("*.py")
+        if "__pycache__" not in d.parts and d.parent != ROUTER_ORDNER
+    ]
 
 
-def test_kein_core_schreibweg_ausserhalb_der_entscheidung() -> None:
-    """Auch ein Dienst darf nicht unentschieden am Konto vorbeischreiben.
+def _schreibstellen_ausserhalb() -> tuple[dict[tuple[str, str], set[str]], int]:
+    """Schreibstellen am Konto im ganzen ``app/`` ausser Routern.
+
+    Derselbe Umfang wie im Router, weil ``_scan_ueber_dateien`` und
+    ``_formen_in`` dieselben sind. Das ist der ganze Punkt: Zwei Scans mit
+    verschiedener Reichweite sind ein Loch mit Ansage.
+    """
+    return _scan_ueber_dateien(
+        _dateien_ausserhalb(), lambda d: d.relative_to(APP_ORDNER).as_posix()
+    )
+
+
+#: So viele Schreibstellen gibt es ausserhalb der Router mindestens.
+#: Am 02.09.2026 gemessen: 15.
+MINDESTENS_STELLEN_AUSSERHALB = 12
+
+#: Und so viele Module muss der Scan dabei wirklich gelesen haben.
+#:
+#: ⚠️ **Die wichtigere der beiden Schwellen.** Eine Stellenzahl kann noch
+#: stimmen, waehrend der Scan die Haelfte des Backends nicht mehr aufmacht;
+#: genau so hat ein verwandter Waechter hier still 90 Module verloren. Am
+#: 02.09.2026 gemessen: 111 Dateien ausserhalb von ``app/routers``.
+MINDESTENS_MODULE_AUSSERHALB = 90
+
+
+def test_kein_schreibweg_ausserhalb_der_entscheidung() -> None:
+    """Auch ein Dienst darf nicht unentschieden am Konto schreiben.
 
     ⚠️ **Der Scan darueber sieht nur ``app/routers``.** Wer dieselbe Zeile
     eine Datei weiter schreibt und sie aus einem Router ruft, erreicht
     dasselbe Konto und faellt dort nicht auf.
+
+    Bis zum 02.09.2026 suchte dieser Test hier nur den Core-Weg. Der
+    gewoehnliche Schreibzugriff, ``nutzer.role = Role.user`` in einem Dienst,
+    lief durch - nachgewiesen an ``services/tickets.py``, wo zwei Zeilen dem
+    Betreiber Rolle und Haken nahmen, ohne dass einer von 2.491 Tests rot
+    wurde.
     """
-    stellen = _core_schreibstellen_ausserhalb()
+    stellen, module = _schreibstellen_ausserhalb()
     offen = {
         f"{datei}::{funktion} ({', '.join(sorted(wege))})"
         for (datei, funktion), wege in stellen.items()
-        if (datei, funktion) not in CORE_AUSSERHALB
+        if (datei, funktion) not in AUSSERHALB
     }
     assert not offen, (
-        "Diese Stellen schreiben über die SQLAlchemy Core an der Nutzertabelle, "
+        "Diese Stellen schreiben außerhalb der Router an der Nutzertabelle, "
         "ohne über den Betreiber-Schutz entschieden zu haben: "
         + ", ".join(sorted(offen))
-        + ". Trag sie mit ausgeschriebenem Grund in CORE_AUSSERHALB ein - oder "
+        + ". Trag sie mit ausgeschriebenem Grund in AUSSERHALB ein - oder "
         "häng die Entscheidung an die Adresse, die sie ruft."
     )
-    # Die Bodenschwelle: Der Scan muss die eine bekannte Stelle wirklich
-    # finden. Sonst liefe er leer und waere still gruen.
-    assert ("services/sicherung.py", "_alle_abmelden") in stellen, (
-        "Der Scan findet die bekannte Stelle in sicherung.py nicht mehr - "
-        "er sieht offenbar nichts."
+    # Drei Bodenschwellen, und jede fuer einen eigenen Ausfall.
+    assert module >= MINDESTENS_MODULE_AUSSERHALB, (
+        f"Der Scan hat nur {module} Module gelesen, erwartet mindestens "
+        f"{MINDESTENS_MODULE_AUSSERHALB}. Er sieht offenbar den Großteil des "
+        "Backends nicht mehr."
     )
+    assert len(stellen) >= MINDESTENS_STELLEN_AUSSERHALB, (
+        f"Nur {len(stellen)} Schreibstellen außerhalb der Router gefunden, erwartet "
+        f"mindestens {MINDESTENS_STELLEN_AUSSERHALB}. Der Scan läuft offenbar leer."
+    )
+    # Und die eine bekannte Stelle des Core-Wegs muss weiter dabei sein -
+    # sonst waere der Core-Teil still ausgefallen, waehrend die einfachen
+    # Zuweisungen die Zahl oben noch halten.
+    assert ("services/sicherung.py", "_alle_abmelden") in stellen, (
+        "Der Scan findet die bekannte Core-Stelle in sicherung.py nicht mehr - "
+        "der Core-Weg ist offenbar ausgefallen."
+    )
+
+
+def test_beide_scans_haben_denselben_umfang() -> None:
+    """Router und Dienste muessen mit derselben Elle gemessen werden.
+
+    ⚠️ **Genau hier lag das Loch.** Zwei Scans mit verschiedener Reichweite
+    sind ein Loch mit Ansage: Was der eine kann und der andere nicht, ist der
+    Weg, den der naechste nimmt. Der Test haelt fest, dass beide durch
+    ``_formen_in`` gehen, indem er denselben Quelltext einmal als Router und
+    einmal als Dienst durch die Erkennung schickt.
+    """
+    quelle = """
+def irgendwas(db, opfer):
+    opfer.is_betreiber = False
+"""
+    felder = _felder_nur_am_konto()
+    knoten = next(
+        k
+        for k in ast.walk(ast.parse(quelle))
+        if isinstance(k, (ast.FunctionDef, ast.AsyncFunctionDef))
+    )
+    assert _formen_in(knoten, felder) == {"is_betreiber"}
 
 
 def test_keine_verwaisten_schreibstellen() -> None:
     """Auch hier: keine Erlaubnis fuer eine Funktion, die es nicht mehr gibt."""
     stellen = set(_schreibstellen())
     verwaist = set(NUR_EIGENES_KONTO) - stellen
+    assert not verwaist, f"Erlaubnisse ohne Schreibstelle: {sorted(verwaist)}"
+
+
+def test_keine_verwaisten_ausnahmen_ausserhalb() -> None:
+    """Und dasselbe fuer die Liste ausserhalb der Router.
+
+    Eine Erlaubnis fuer eine Funktion, die es nicht mehr gibt, ist eine
+    Erlaubnis, die niemand mehr liest - und beim naechsten gleichnamigen
+    Nachfolger gilt sie stillschweigend weiter.
+    """
+    stellen, _ = _schreibstellen_ausserhalb()
+    verwaist = set(AUSSERHALB) - set(stellen)
     assert not verwaist, f"Erlaubnisse ohne Schreibstelle: {sorted(verwaist)}"
 
 

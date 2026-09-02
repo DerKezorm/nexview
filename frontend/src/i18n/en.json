@@ -2727,7 +2727,7 @@
     "passwordMismatch": "These two do not match.",
     "empty": "No backup yet.",
     "loadFailed": "The list could not be loaded.",
-    "folderHint": "The files live in `{{ordner}}`. They are **not** reachable through the web server — only through this button and through the file system.",
+    "folderHint": "The files live in `{{ordner}}`. They are **not** reachable through the web server, only through this button and through the file system. **They lie there unencrypted**, as plain database files: whoever can read that directory can read every account, and every older state still being kept along with it. Only the download above is encrypted. If that matters to you, the directory needs the protection, not the file.",
     "tooNew": "newer than this version",
     "unknownVersion": "version unknown",
     "scheduleLabel": "Back up regularly",

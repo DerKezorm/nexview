@@ -21,6 +21,8 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
+import { wasNeuNachziehen } from './wasneu'
+
 export const SUPPORTED_LANGUAGES = ['de', 'en'] as const
 export type Language = (typeof SUPPORTED_LANGUAGES)[number]
 
@@ -73,6 +75,10 @@ export async function i18nStarten(sprache: Language = initialLanguage()): Promis
 export async function changeLanguage(language: Language): Promise<void> {
   localStorage.setItem(STORAGE_KEY, language)
   await nachladen(language)
+  // Wer die nachgelieferten Texte schon gebraucht hat, soll sie nach dem
+  // Wechsel nicht als rohe Schluessel vorfinden. Der Aufruf ist billig:
+  // Er tut nichts, solange sie noch niemand gebraucht hat.
+  await wasNeuNachziehen(language)
   document.documentElement.lang = language
   await i18n.changeLanguage(language)
 }

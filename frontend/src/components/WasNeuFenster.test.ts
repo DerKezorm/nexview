@@ -19,8 +19,13 @@
 
 import { describe, expect, it } from 'vitest'
 
-import de from '../i18n/de.json'
-import en from '../i18n/en.json'
+// ⚠️ Die redaktionellen Texte stehen seit dem Auslagern nicht mehr in
+// de.json/en.json, sondern in eigenen Dateien, die die Oberflaeche erst holt,
+// wenn ein Betreiber sie braucht. Dieser Waechter muss ihnen folgen: Er ist
+// der einzige, der prueft, dass jeder Eintrag seine vier Pflichtfelder hat,
+// und ein Eintrag ohne sie wird im Fenster lautlos verworfen.
+import de from '../i18n/de.wasneu.json'
+import en from '../i18n/en.wasneu.json'
 
 /** Muss zu `istEintrag()` in WasNeuFenster.tsx passen. */
 const PFLICHTFELDER = ['lead', 'sections', 'smallTitle', 'small'] as const

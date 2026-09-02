@@ -1,0 +1,175 @@
+{
+  "whatsNew": {
+    "entries": {
+      "0.26.1": {
+        "lead": "A maintenance release: no new feature, seven repairs. Two of them turned up while trying the others out, and one had left a series behind in a real Sonarr that had no business being there.",
+        "sections": [
+          {
+            "title": "Descriptions that existed but nobody saw",
+            "where": "Everywhere titles appear: catalogue, title page, season view",
+            "body": "“No description available.” often stood where TMDB does have a plot, just not in your language. TMDB keeps the text separately per language and does not fall back on its own; where the translation is missing, the answer carries an empty text rather than the original.\n\nNexview now fetches the English one, for titles as well as seasons and episodes. Measured against a real library: 64 of 454 titles carried no description, 29 of them from this year, which is exactly what the catalogue puts at the front."
+          },
+          {
+            "title": "Series that could not be requested",
+            "where": "When requesting a series",
+            "body": "Sonarr adds series by their TVDB id, and that came from TMDB alone. For new titles TMDB regularly does not have it, and the request failed with a sentence that sounded like “wait a few days” and often was not the case at all.\n\nNexview now also asks Sonarr, which knows the same series through its own search. Where a hit carries the same TMDB number, the match is certain and nothing is asked. Otherwise the suggestions are put up, with what you actually requested right beside them. Because “Still Water” (Thailand, 2026) and “Still Waters” (Wales, 1995) are one letter apart and two different shows; no guessing happens here.\n\nWhere none of them fit, the line underneath says whether waiting helps, and it says something different for a series from last week than for one from 1978."
+          },
+          {
+            "title": "Future seasons now count against your storage quota",
+            "where": "When requesting a series, the “also future seasons” tick box",
+            "body": "The tick box is a promise: keep this series coming. The storage accounting read that inconsistently. Somebody who requested a whole series was charged for later seasons, somebody who requested season 1 and ticked the box was not. The same wish, two answers.\n\nBoth answer the same way now. The **count** quota counts wishes: a season appearing later costs no further slot, because at request time nobody can say how many there will be. The **storage** quota counts gigabytes, and those exist once the season is downloaded, so they land on whoever ticked the box.\n\nThis applies to seasons arriving from now on. What has already been attributed stays where it is."
+          },
+          {
+            "title": "“Cancel” now says what it actually does",
+            "where": "My requests, and Settings → All requests",
+            "body": "The confirmation always announced that the title would be removed from Radarr or Sonarr, that the quota would be freed, and that downloaded files would be deleted with it. For a **failed** request none of that is true: it never got as far as being added, and it costs no quota either.\n\nReported by an operator who found series in that list which he had long since downloaded, with a warning pointing at their files. It now says what really happens, and the warning only appears when there is something to delete."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "**A failed request no longer leaves anything behind.** Adding a series and switching its season on are two steps; when the second failed, the series stood in Sonarr without a season and without a file. What the failed attempt created is taken back now, only that, and without deleting files.",
+          "**“No seasons yet” does not mean “does not have that season”.** Sonarr loads the data of a freshly added series in the background. Asking straight afterwards returned a series without seasons and therefore a refusal. Nexview waits for it now; the sync switches the season on in its next pass.",
+          "**The log is English throughout again.** Five lines wrote the German sentence of an error into it, and a warning in the Sonarr part would have crashed instead of warning. A new guard finds such lines at build time."
+        ]
+      },
+      "0.26.0": {
+        "lead": "Until now all administrators were equal. Appointing a second one also handed them the power to throw out the first. From this version on, exactly one account carries the **owner** flag — and it is the one account nobody else can switch off.",
+        "sections": [
+          {
+            "title": "One account nobody else can touch",
+            "where": "Settings → Users — look for the “Owner” badge",
+            "body": "Whoever set the application up, pays for the electricity and holds the hard disk in their hands — and was still as removable as anyone else. There was exactly one brake against that, and it applied too late: only the *last* active administrator was protected. As long as a second one was around, anyone could remove anyone.\n\nNow exactly one account carries the flag. When another administrator opens it in the user list, the buttons are **greyed out** — switch off, demote, delete, change quotas, set the password — with a sentence next to them explaining why. Not clickable followed by an error: not clickable in the first place.\n\n**The worst of the five doors was the password.** Until now it had no brake at all, not even the one for the last administrator. A second administrator did not have to throw the first one out: they set a password and **became** them — with their access keys, their child accounts, their way in. The log held one inconspicuous line.\n\n⚠️ **The flag grants no rights whatsoever.** No automatic approval, no larger quota, no power over anyone else's access keys. It says only what **others** may not do with this account. Whoever runs the installation therefore sees no difference in their own interface — apart from the badge and one new section in their profile."
+          },
+          {
+            "title": "Handing it on — once, and with no way back",
+            "where": "Profile → Security → “Hand over ownership”",
+            "body": "Only the holder can hand the flag on. There is no way to take it. In their profile they pick another administrator, read a warning that says what applies afterwards, and confirm.\n\nAfterwards they are an ordinary administrator — the new owner, and every other administrator, can switch off, demote and delete their account and set their password. They cannot take the flag back; only the new holder can hand it back.\n\nHanding over works only to an **active administrator**. Not to an ordinary account, not to an approver, not to a child account, not to a disabled account and not to yourself — otherwise the flag would sit on an account that could never pass it on.\n\nWhile someone carries the flag, they cannot close their own account: hand it on first, then leave."
+          },
+          {
+            "title": "The way back if you lock yourself out",
+            "where": "docker-compose.yml — for emergencies only, nowhere else",
+            "body": "Password forgotten with no mail delivery set up, login provider dead, account accidentally unusable: the flag would never move again. That is what the emergency hammer is for. Add `NEXVIEW_BETREIBER=yourusername` and restart the container — that account carries the flag afterwards, with one line in the log. Then take the line out again.\n\nOn a new installation you need to know none of this: the account from the setup wizard gets the flag by itself. If the variable names an account that does not exist, **nothing** happens beyond a warning in the log — a typo does not create an account.\n\nIf the line stays in place, the owner is permanently fixed from outside. Handing over in the profile is then explicitly **refused**, with a reason, rather than silently springing back on the next restart.\n\n⚠️ **And the boundary that comes with it:** the flag protects against a second administrator, not against someone with access to your server. Whoever can restart the container already has full control over Nexview and its database."
+          },
+          {
+            "title": "Two side doors, also closed",
+            "where": "Settings → Media server and login providers, and Backups",
+            "body": "The owner can also be dealt with without ever touching their account — and both routes are closed too.\n\n**Switching off their way in.** Anyone who only gets in through a login provider or the media server is left outside as soon as it is gone. Their account is untouched and unreachable. Until now an administrator could override that warning; for the owner they no longer can. For every other account overriding stays allowed — there the administrator can repair the damage afterwards by setting a password. For the owner that is exactly what they may not do.\n\n**Restoring an old backup.** It copies the whole database, so the flag would have travelled with it — and a handover could be undone that way. The owner flag is therefore the one value that does not join the time machine: after a restore it is carried by whoever carried it before. If that account does not exist in the backup, it stays unassigned rather than being guessed."
+          },
+          {
+            "title": "House rules: your own text, if you want one",
+            "where": "Settings → House rules",
+            "body": "What may be requested, how long titles stay, who to write to when something is broken: you can write it down now instead of explaining it once in a message nobody finds again. Anyone signed in reaches it through a **§ button in the bottom right corner**. **Entirely optional** — leave the field empty and there is no button either."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Existing installations: after the update the **oldest active administrator** gets the flag — usually the account from the setup wizard. If there is no active administrator, it stays visibly unassigned instead of quietly appointing someone.",
+          "The database itself enforces that there can never be two owners — not just the program code.",
+          "A new check walks the **entire** list of endpoints on every build and fails as soon as someone adds one that can change another account without having decided about owner protection."
+        ]
+      },
+      "0.25.1": {
+        "lead": "A maintenance release — nothing new to discover, but a lot that is now correct. Two **security holes** are closed, the **library sync** no longer gives up on a slow media server, and **sixteen error messages** used to arrive in German whatever language you had chosen.",
+        "sections": [
+          {
+            "title": "Two security holes",
+            "where": "Affects every installation — nothing to set up",
+            "body": "**Passwords could be guessed.** The sign-in brake named three doors where a password is checked. There was a fourth: resending the confirmation mail and correcting an unconfirmed address. Measured: a hundred wrong passwords, a hundred refusals, not once slowed down — and the answer told the caller when a guess was right. Anyone able to reach Nexview from the network could try passwords for every account, yours included, without holding one of their own.\n\n**Access keys survived “sign out everywhere”.** They take a second path through the sign-in that never asked whether the session was still valid. Somebody whose laptop was stolen locked the thief out of sessions but not out of keys. “Sign out everywhere” now revokes them and says so beforehand; a routine password change leaves them alone and points at where to revoke them."
+          },
+          {
+            "title": "The library sync no longer gives up",
+            "where": "Settings → Media servers → Library sync",
+            "body": "Every request to a media server had fifteen seconds, whatever it asked for. A library big enough — or a server slow enough — missed that limit. And because one missed chunk takes the entire run with it, the card did not read “half done” afterwards, it read “Not synced yet.”\n\nThe time limit is no longer a fixed number. Nexview now asks in chunks whose size **the server decides**: a chunk that misses its time is halved and the same place asked again, and what gets through is kept for the rest of the run. A library twice the size needs twice as many chunks, but each one fits. There is nothing to configure.\n\nIt was reported for Jellyfin while Emby on the same installation kept working. Both run through the same code — the Jellyfin server was simply the slower of the two."
+          },
+          {
+            "title": "Error messages in your language",
+            "where": "Everywhere something goes wrong",
+            "body": "Sixteen messages arrived in German whatever language was set — among them the very first contact with Nexview, an expired invitation link. All of them are named now, so the interface can say them in your language.\n\nMedia-server timeouts joined them in this release: anyone working in English used to read “Der Jellyfin-Server antwortet nicht”."
+          },
+          {
+            "title": "What the interface claimed that was not true",
+            "where": "My requests, Liked, a child's wishes",
+            "body": "Three pages showed their empty text when loading had **failed**. Somebody with twelve running requests read “you have not requested anything yet”.\n\nAn approver was told about new feedback by the bell, followed it, and read “there is no unanswered feedback” — the address behind it required an administrator. Approvers may read now; answering is still not theirs.\n\nAnd a crash while drawing wiped the whole interface, navigation included. The likeliest trigger is an update with a tab left open. There is a net there now, with one visible way out."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "A silent Radarr deleted the whole storage accounting: no answer meant no titles, and everything the instance would have reported counted as gone. Because the rows were deleted, deletion deadlines and releases were lost for good. The rule from the status sync now holds here too: **not answering is not a no.**",
+          "Cleaning up several quality profiles at once forgot the ownership record for all of them — including the ones the instance refused to delete. Those stayed in Radarr but counted as foreign here.",
+          "The bell sent two kinds of notification to the wrong page. Where a click leads was answered in two places that disagreed; there is one list now, and it covers all 26 kinds.",
+          "The heart and the bin swallowed every failed click. They report it themselves now, where the eye already is — and a screen reader says it too.",
+          "A child was shown TMDB's technical text. The reason goes to the log instead.",
+          "A link to a conditional settings sub-tab always landed on “General”. Only the conditional ones were affected — which is why anyone testing a working one called the link healthy.",
+          "“Library touched” read “0 %” above “2 of 0 titles”. Without a stock the share is not zero, it is unknown — a dash says that now.",
+          "The health check in docker-compose.yml ignored NEXVIEW_PORT: following our own instructions produced a container that runs and still counts as unhealthy."
+        ]
+      },
+      "0.25.0": {
+        "lead": "This release turns Nexview into a **tool for whoever runs it**. There is a dedicated **admin dashboard** that tells you within ten seconds whether something is broken. “Statistics” becomes **Statistics & analysis** with six tabs — right down to **who is watching what right now** and whether your server is transcoding for it. And you can now **sign in through Authentik, Keycloak, Pocket ID or Google**.",
+        "sections": [
+          {
+            "title": "Sign in through an external provider",
+            "where": "Settings → System → Sign-in",
+            "body": "Nexview can hang off a sign-in service you already run — **Authentik, Keycloak, Pocket ID, Google** or anything else that speaks OpenID Connect. A button per provider then appears on the sign-in page.\n\nAn existing account can be linked from your profile; new people can be created automatically if you want, with the role and quota you set. Your password keeps working — the external provider is added, it replaces nothing.\n\nSetup guides for the four common services are in the README."
+          },
+          {
+            "title": "The admin dashboard",
+            "where": "Button on the home page, or the menu under your name",
+            "body": "Until now everything operational was spread across thirty settings pages. Now there is **one place** that says: three requests awaiting approval, Sonarr has not answered for two hours, the disk is 94 percent full.\n\nTwenty checks run in the background. Every **finding** says not only what is, but **what follows from it** — and the button next to it takes you exactly where you fix it. Not to “Settings”, but to *Settings → Services → Sonarr*.\n\nThe most valuable check is the quietest one: **requests that have been searching for over two weeks.** In the interface “searching” looks like work, not like a standstill — until now it only surfaced when somebody complained."
+          },
+          {
+            "title": "Statistics & analysis",
+            "where": "Menu under your name → Statistics & analysis",
+            "body": "One page of numbers becomes **six tabs**: requests, people, watching, library, services, operations. Each opens with the findings for its area and backs them up with figures.\n\nNew under **library**: source reconciliation. Radarr manages the files, the media server plays them, Nexview bills them to somebody — and where the three disagree, errors appear that nobody looks for, because nothing is red anywhere. Titles with no identifier, year conflicts, files the media server never scanned in.\n\n⚠️ The page is now **for administrators only**. Approvers could see it before; it now carries instance state, disk usage and backups."
+          },
+          {
+            "title": "Who is watching — and whether the server is sweating",
+            "where": "Statistics & analysis → Watching",
+            "body": "Nexview now shows **live playback** across every connected media server: who, what, on which device, how far in — and how hard your server is working for it.\n\nThere are **three** states here, not two. “Transcoding” sounds like yes or no, and it is not: both Plex and Emby report a transcode while passing the video through untouched and only re-encoding the audio — which costs almost nothing. **Only video transcoding is red**, the one that actually eats CPU. Along with why it is transcoding and whether your GPU is helping.\n\nBelow that: how much gets watched and by whom, how the library grew, and how many streams ran at the same time."
+          },
+          {
+            "title": "A tile for your home dashboard",
+            "where": "Profile → Account → Security (token), guide in docs/dashboard-tile.md",
+            "body": "If you use Homepage, Homarr or a similar board as your start page, Nexview can now sit on it with real numbers: open approvals, findings, library size, instance state — **one call**, with ready-made config snippets to copy.\n\nThe address lives under `/api/v1`, which makes it a promise: what is in it today will not disappear again."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Links land where the thing actually is: *Settings → Services → Sonarr* instead of just “Settings”, and *Requests → Failed* instead of the full list.",
+          "The requests tab now shows how long your people typically wait for an approval — and how long the oldest open one has been sitting there.",
+          "The disk ring separates **media**, **everything else** and **free**. “Used versus free” would be a half-truth: backups, photos and the operating system live on the same disk, and only “media” can be cleaned up through Nexview.",
+          "Nexview remembers since when an instance stopped answering. “Restarting right now” and “gone since last night” are two different messages."
+        ]
+      },
+      "0.24.0": {
+        "lead": "Three things in this release. Nexview now fits behind a reverse proxy under a **sub-path** — `yourdomain.com/nexview` instead of its own subdomain. The **profile store can travel**: save it as a file, read it in elsewhere, and Nexview recognises its own copies. And Nexview warns when **two instances share one download category** — the mistake that looks like a network fault.",
+        "sections": [
+          {
+            "title": "A sub-path behind the reverse proxy",
+            "where": "docker-compose → NEXVIEW_URL_BASE, examples in the README",
+            "body": "One line in your docker-compose — `NEXVIEW_URL_BASE=/nexview` —, restart the container, and Nexview lives at `https://yourdomain.com/nexview/`. Both common proxy styles work: **passing the path through and stripping it**, whichever guide your proxy was set up from.\n\nSign-in, images, downloads and the API docs all follow the prefix. If you set nothing, nothing changes — without the variable everything stays exactly as before. Copy-paste examples for nginx, Caddy, Traefik and Nginx Proxy Manager are in the README."
+          },
+          {
+            "title": "The public address thinks along",
+            "where": "Settings → Addresses",
+            "body": "The public address goes into every link Nexview sends. With a sub-path set, Nexview now suggests it **with the prefix included** — and warns when a hand-typed address is missing it. Before, invitations and password links would have led nowhere, silently."
+          },
+          {
+            "title": "The profile store can travel",
+            "where": "Settings → Services → Quality profiles → “Save the store” / “Read a store”",
+            "body": "Set up Nexview fresh and point it at the same Radarr, and until now it stood before its **own** profiles as before strangers — which number belongs to whom lives only in Nexview's database. Now the store can be saved as a file and read back in elsewhere: Nexview recognises its copies on the instances by name and adopts them, id included.\n\nA preview shows what would happen before anything is read in; nothing is written to Radarr or Sonarr in the process. The file holds recipes and names only — no credentials — which also makes it the way to hand a profile to somebody else."
+          },
+          {
+            "title": "Two instances, one category — now warned about",
+            "where": "Settings → Services",
+            "body": "When two Radarr or Sonarr instances share one category in the download client, each grabs the other's downloads: requests sit on “downloading”, files land in the wrong library — and no error appears anywhere. So people go looking at the network or the indexer. Radarr cannot warn about it, it does not know the second instance exists — Nexview does, and now warns, including when an instance runs without a category of its own.\n\nThe category itself has to be created in the download client; Radarr and Sonarr cannot do that. If you share on purpose, click “This is intended” — should a third instance later land on the same category, the warning returns."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "A permanent browser test now checks sub-path operation automatically with every release — in both proxy styles."
+        ]
+      }
+    }
+  }
+}

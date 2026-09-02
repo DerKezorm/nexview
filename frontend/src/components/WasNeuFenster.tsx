@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Betont } from './Betont'
 import { Fenster } from './Fenster'
 import { Button } from './ui'
+import { useWasNeuTexte } from './useWasNeuTexte'
 import { istEintrag } from './wasNeuEintrag'
 
 /** Fassungen vergleichen: 0.9.0 ist **kleiner** als 0.10.0, nicht größer. */
@@ -57,6 +58,10 @@ export function WasNeuFenster({
 }) {
   const { t } = useTranslation()
   const [gewaehlt, setGewaehlt] = useState<string | null>(null)
+  // Die Ueber-Seite oeffnet dasselbe Fenster ohne den Balken davor, also
+  // holt es sich seine Texte selbst. Zweimal Laden kostet nichts, die
+  // Merkliste in i18n/wasneu.ts laesst nur einen Vorgang durch.
+  useWasNeuTexte(offen)
 
   /* Die Texte liegen in den Sprachdateien unter `whatsNew.entries`, nicht im
      Code: So lassen sie sich vor jedem Release schreiben, ohne dass jemand

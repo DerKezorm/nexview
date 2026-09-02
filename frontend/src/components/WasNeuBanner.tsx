@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { Neuigkeiten } from '../api/types'
 import { useAuth } from '../auth/useAuth'
+import { useWasNeuTexte } from './useWasNeuTexte'
 import { WasNeuFenster } from './WasNeuFenster'
 import { hatEintrag } from './wasNeuEintrag'
 
@@ -44,7 +45,16 @@ export function WasNeuBanner() {
     },
   })
 
+  // Erst holen, wenn es diesen Betreiber ueberhaupt angeht: Ein normaler
+  // Nutzer laedt die 23,6 kB Text damit nie.
+  const texteDa = useWasNeuTexte(user?.role === 'admin' && Boolean(stand.data?.offen))
+
   if (user?.role !== 'admin' || !stand.data?.offen) return null
+
+  /* ⚠️ Warten, nicht raten. Ohne die Texte saehe `hatEintrag` ein leeres
+     Verzeichnis und schlosse daraus, zu dieser Fassung gebe es nichts zu
+     lesen - der Balken waere fuer immer weg. */
+  if (!texteDa) return null
 
   /* Kein redaktioneller Text zu dieser Fassung, kein Balken.
      Fehlerbehebungen bekommen keinen eigenen Eintrag - sie sammeln sich für

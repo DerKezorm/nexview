@@ -23,7 +23,9 @@
 import { describe, expect, it } from 'vitest'
 
 import de from './de.json'
+import deWasNeu from './de.wasneu.json'
 import en from './en.json'
+import enWasNeu from './en.wasneu.json'
 
 /**
  * Alle Knoten, nicht nur die Blätter.
@@ -48,8 +50,14 @@ function kennt(menge: Set<string>, schluessel: string): boolean {
   return PLURAL.some((endung) => menge.has(schluessel + endung))
 }
 
-const deutsch = new Set(knoten(de))
-const englisch = new Set(knoten(en))
+/* ⚠️ **Zusammengeführt, weil die Oberfläche es auch zusammenführt.**
+   Die redaktionellen `whatsNew.entries` liegen seit dem Auslagern in einer
+   eigenen Datei, die `i18n/wasneu.ts` später tief in denselben Namensraum hängt.
+   Wer hier nur `de.json` prüft, hält jeden dieser Schlüssel fälschlich für
+   fehlend; wer nur die eine Datei prüft, sieht den Rest nicht. Geprüft wird
+   deshalb, was am Ende im Namensraum steht. */
+const deutsch = new Set(knoten({ ...de, whatsNew: { ...de.whatsNew, ...deWasNeu.whatsNew } }))
+const englisch = new Set(knoten({ ...en, whatsNew: { ...en.whatsNew, ...enWasNeu.whatsNew } }))
 
 const DATEIEN = import.meta.glob('../**/*.{ts,tsx}', {
   query: '?raw',

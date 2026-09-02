@@ -14,6 +14,32 @@ tag exists for it.
 
 ## 0.26.2
 
+### Under the hood
+
+- **The release notes no longer travel with every page load.** The editorial texts behind
+  "Everything that's new" were the single largest block in the language catalogue, 23.6 kB
+  on German, and every visitor downloaded them before the first paint. They are read once
+  by one administrator after an update, and normal users never see them at all: the banner
+  and the window are admin-only.
+
+  They now arrive on demand, and only when they are actually needed: when an administrator
+  has an unread update, or when somebody opens the window from the About page. No call site
+  was touched. The texts are merged into the same namespace they always lived in, so
+  `whatsNew.entries` still resolves the way it did.
+
+  The oldest of the six versions moved into `docs/wasneu-archiv.json` at the same time,
+  where 0.15 through 0.22 already were. The archive lost the version range from its
+  filename, because it gains an entry before every release and renaming it each time is
+  churn. Together this takes the first load from 821.81 kB to 791.89 kB, and from
+  240.41 kB to 229.78 kB compressed.
+
+  The failure this could have caused is worth naming: since the language split there is no
+  fallback language, so a text that arrives late shows its key instead. The banner would
+  have been the victim, because it asks whether an entry exists before deciding to appear,
+  and an empty answer reads as "nothing to report". It waits for the texts now instead of
+  guessing. Checked in a browser, in both languages, including a language switch with the
+  window open: no raw keys.
+
 ### Fixed
 
 - **The badge on the admin menu never went away.** It counted findings, and findings are

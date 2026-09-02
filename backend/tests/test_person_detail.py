@@ -8,6 +8,8 @@ geprueft. TMDB wird untergeschoben.
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,6 +19,8 @@ from app.db import SessionLocal
 from app.routers import details
 from app.services.settings_service import save_settings
 from tests.conftest import auth_headers, create_user
+
+BACKEND = Path(__file__).resolve().parent.parent
 
 PFAD = "/api/person/488"  # die Kennung ist beliebig, der Client faelscht ohnehin
 
@@ -108,23 +112,100 @@ def test_talkshow_bleibt_auftritt(
     assert talk["kind"] == "appearance"
 
 
+#: Die Funktionen, die auf jedem Eintrag Felder setzen - Datei und Name.
+#:
+#: ``uhd.anreichern`` steht daneben, weil ``_mit_status`` es als letzten
+#: Schritt ruft und es auf denselben Eintraegen schreibt.
+STATUS_SETZER = (
+    ("app/routers/details.py", "_mit_status"),
+    ("app/services/uhd.py", "anreichern"),
+)
+
+
+def _zielnamen(ziel: ast.AST) -> set[str]:
+    """Die Attributnamen eines Zuweisungsziels - auch bei ``a.x, a.y = ...``."""
+    if isinstance(ziel, ast.Attribute):
+        return {ziel.attr}
+    if isinstance(ziel, (ast.Tuple, ast.List)):
+        namen: set[str] = set()
+        for teil in ziel.elts:
+            namen |= _zielnamen(teil)
+        return namen
+    return set()
+
+
+def _gesetzte_felder(datei: str, funktion: str) -> set[str]:
+    """Welche Felder setzt diese Funktion auf den durchgereichten Eintraegen?
+
+    ⚠️ **Abgezogen wird, was der Code selbst mit ``hasattr`` absichert.** Der
+    Ablageort (``path``, ``path_uhd``) und ``uhd_in_standard`` werden nur
+    gesetzt, wo das Ziel sie kennt - genau deshalb *muss* ``PersonCredit`` sie
+    nicht haben. Wer diese Absicherung entfernt, bekommt das Feld hier
+    automatisch als Forderung zurueck.
+    """
+    quelle = (BACKEND / datei).read_text(encoding="utf-8")
+    baum = ast.parse(quelle, filename=datei)
+    for knoten in ast.walk(baum):
+        if not isinstance(knoten, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if knoten.name != funktion:
+            continue
+        gesetzt: set[str] = set()
+        abgesichert: set[str] = set()
+        for inner in ast.walk(knoten):
+            if isinstance(inner, ast.Assign):
+                for ziel in inner.targets:
+                    gesetzt |= _zielnamen(ziel)
+            elif isinstance(inner, (ast.AugAssign, ast.AnnAssign)):
+                gesetzt |= _zielnamen(inner.target)
+            elif (
+                isinstance(inner, ast.Call)
+                and isinstance(inner.func, ast.Name)
+                and inner.func.id == "hasattr"
+                and len(inner.args) == 2
+                and isinstance(inner.args[1], ast.Constant)
+            ):
+                abgesichert.add(inner.args[1].value)
+        return gesetzt - abgesichert
+    raise AssertionError(f"{funktion} steht nicht mehr in {datei} - Wächter läuft leer.")
+
+
 def test_personenseite_kennt_jedes_status_feld() -> None:
     """Was ``_mit_status`` setzt, muss es auf *beiden* Modellen geben.
 
-    Der Fehler dahinter ist zweimal passiert - erst mit ``watched``, dann mit
-    ``status_uhd``. Beide Male setzt ``details._mit_status`` ein Feld auf
-    jedem Eintrag, und beide Male kannte ``PersonCredit`` es nicht: Pydantic
-    laesst kein undeklariertes Feld zu, die Personenseite antwortete mit 500.
+    Der Fehler dahinter ist dreimal passiert - erst mit ``watched``, dann mit
+    ``status_uhd``, dann mit ``watched_on``/``watched_not_on``. Jedes Mal
+    setzt ``details._mit_status`` ein Feld auf jedem Eintrag, und jedes Mal
+    kannte ``PersonCredit`` es nicht: Pydantic laesst kein undeklariertes Feld
+    zu, die Personenseite antwortete mit 500.
 
     Auffallen konnte das jeweils nur unter einer Zusatzbedingung (ein
     gesehener Titel bzw. eine eingerichtete 4K-Instanz) - deshalb hier ein
     Abgleich der Felder statt eines weiteren Einzelfalls.
+
+    ⚠️ **Und die Feldmenge steht nicht mehr von Hand da.** Sie stand es, und
+    sie hing bereits zwei Felder hinterher: ``watched_on`` und
+    ``watched_not_on`` fehlten, gefangen hat den Fall stattdessen ein Test,
+    der zufaellig die Zusatzbedingung herstellte. Jetzt wird sie aus dem
+    Quelltext der setzenden Funktionen abgeleitet, damit der vierte Fall
+    derselben Sorte von selbst mit drin ist.
     """
     from app.schemas_media import MediaItem, PersonCredit
 
-    # Die Felder, die ``_mit_status`` und die von dort gerufenen Dienste auf
-    # den Eintraegen setzen.
-    gesetzt = {"status", "watched", "status_uhd"}
+    gesetzt: set[str] = set()
+    for datei, funktion in STATUS_SETZER:
+        gesetzt |= _gesetzte_felder(datei, funktion)
+    # Nur die Felder, die ueberhaupt auf einem Eintrag stehen - lokale
+    # Zuweisungen an ``settings.x`` und dergleichen gehen hier nicht ein.
+    gesetzt &= set(MediaItem.model_fields)
+
+    # ⚠️ Ohne diese Probe koennte die Ableitung leer laufen und der Test waere
+    # wieder hohl, nur eleganter. Die drei Namen sind genau die Faelle, an
+    # denen die Personenseite schon einmal mit 500 gescheitert ist.
+    for pflicht in ("status", "watched", "status_uhd", "watched_on", "watched_not_on"):
+        assert pflicht in gesetzt, (
+            f"{pflicht!r} fällt aus der Ableitung heraus - der Wächter läuft leer."
+        )
+
     fehlt = gesetzt - set(PersonCredit.model_fields)
     assert not fehlt, f"PersonCredit fehlen Felder aus _mit_status: {sorted(fehlt)}"
-    assert gesetzt <= set(MediaItem.model_fields)

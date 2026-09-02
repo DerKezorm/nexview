@@ -7,20 +7,30 @@ in den Einstellungen steht.
 
 Die Regel dahinter ist eine **Erlaubnisliste**: Ein Pfad ist entweder
 ausdruecklich fuer Kinder gedacht (``KINDER_ERLAUBT``), oder er haengt an einer
-Wache - ``require_adult``, ``require_admin`` oder ``require_approver``. Ein
-Kind ist weder Administrator noch Entscheider, deshalb zaehlen alle drei.
+Wache - ``require_adult``, ``require_admin``, ``require_approver`` oder
+``require_child``. Ein Kind ist weder Administrator noch Entscheider, deshalb
+zaehlen die ersten drei; ``require_child`` zaehlt, weil es die Entscheidung in
+die andere Richtung faellt - Kinderansicht, Erwachsene draussen.
+
+⚠️ **Es gab hier einen Praefix, und der war das Loch.** Bis zum 02.09.2026
+nahm ``KINDER_PRAEFIXE`` jeden Pfad unter ``/api/kids/`` und
+``/api/onboarding/`` pauschal aus. Ein ``@router.delete("/alles-loeschen")``
+ganz ohne Abhaengigkeit kam damit durch - ohne jede Anmeldung, und der Test,
+den diese Datei "den eigentlichen Wachhund" nennt, blieb gruen. Jetzt braucht
+auch dort jeder Pfad eine Entscheidung: eine Wache oder einen Eintrag mit
+Grund.
 """
 
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.deps import get_current_user, require_admin, require_adult, require_approver
+from app.deps import require_admin, require_adult, require_approver, require_child
 from app.main import app
 
 from .conftest import auth_headers, create_user
 
-WACHEN = {require_adult, require_admin, require_approver}
+WACHEN = {require_adult, require_admin, require_approver, require_child}
 
 # Pfade, die ein Kinderkonto erreichen darf - oder die gar keine Anmeldung
 # verlangen (Einrichtung, Einladungslinks, Bilder).
@@ -80,9 +90,34 @@ KINDER_ERLAUBT = {
     # Instanz und liefert nichts zurueck - ein Achtjaehriger (oder sonst
     # jemand ohne Geheimnis) sieht damit nichts. Siehe routers/webhooks.py.
     "/api/webhooks/arr/{kennung}",
+    # ⚠️ **Die Einrichtungswege - frueher pauschal per Praefix ausgenommen.**
+    #
+    # Sie stehen alle **vor** jeder Sitzung, und ihr Nachweis ist der
+    # Einmal-Link aus einer Mail oder das Passwort selbst. Fuer ein
+    # Kinderkonto sind sie aus einem gemeinsamen Grund unerreichbar: Ein Kind
+    # ist ein Unterprofil seiner Eltern und hat **keine Mailadresse** -
+    # ``children`` legt es mit ``email=None`` und ``email_verified=True`` an.
+    # Jeder Eintrag nennt zusaetzlich, woran es im Einzelnen scheitert.
+    #
+    # Der Weg zum neuen Passwort sucht ueber ``User.email``. Ohne Adresse
+    # findet sich kein Kinderkonto, und die Antwort ist ohnehin immer
+    # dieselbe - auch fuer Erwachsene.
+    "/api/onboarding/forgot-password",
+    # Beide verlangen ein Konto mit **unbestaetigter** Adresse. Ein
+    # Kinderkonto ist von Anfang an bestaetigt; es bekaeme 409, noch bevor
+    # irgendetwas passiert.
+    "/api/onboarding/pending/resend",
+    "/api/onboarding/pending/email",
+    # Verraet nur, ob ein Benutzername vergeben ist - dieselbe Auskunft, die
+    # das Absenden des Formulars ohnehin gibt.
+    "/api/onboarding/username-available",
+    # Die drei Wege ueber einen Einmal-Link. Wer den Link hat, hat das
+    # Postfach; ein Kinderkonto hat keines, und eine Einladung an ein Kind
+    # gibt es nicht - Kinderkonten legen die Eltern an.
+    "/api/onboarding/invitation/{raw}",
+    "/api/onboarding/password/{raw}",
+    "/api/onboarding/verify/{raw}",
 }
-
-KINDER_PRAEFIXE = ("/api/kids/", "/api/onboarding/")
 
 
 def _wachen_einer_route(route) -> set:
@@ -97,30 +132,84 @@ def _wachen_einer_route(route) -> set:
     return gefunden
 
 
-def test_jede_route_ist_entschieden() -> None:
-    """Kein Pfad darf ohne Entscheidung dastehen."""
-    offen = []
+def _entschiedene_pfade() -> tuple[list[str], int]:
+    """Alle offenen Pfade und die Zahl der ueberhaupt angesehenen."""
+    offen: list[str] = []
+    angesehen = 0
     for route in app.routes:
         pfad = str(getattr(route, "path", ""))
         if not pfad.startswith("/api") or not getattr(route, "methods", None):
             continue
-        if pfad in KINDER_ERLAUBT or pfad.startswith(KINDER_PRAEFIXE):
+        angesehen += 1
+        if pfad in KINDER_ERLAUBT:
             continue
-
-        wachen = _wachen_einer_route(route)
-        if wachen & WACHEN:
+        if _wachen_einer_route(route) & WACHEN:
             continue
-        # Pfade ganz ohne Anmeldung muessen ausdruecklich in der Liste stehen -
-        # sonst rutscht ein neuer offener Endpunkt unbemerkt durch.
-        if get_current_user not in wachen:
-            offen.append(pfad)
-            continue
+        # Alles Uebrige - ob ohne Anmeldung oder nur mit ``get_current_user`` -
+        # ist unentschieden. Ein Kind ist ein angemeldeter Benutzer; die blosse
+        # Anmeldung sagt also gar nichts.
         offen.append(pfad)
+    return offen, angesehen
+
+
+#: So viele Pfade sieht der Wachhund mindestens an.
+#:
+#: ⚠️ **Ohne diese Schwelle waere der Test still gruen, sobald er nichts mehr
+#: findet** - etwa weil das Praefix ``/api`` wandert oder ``app.routes`` anders
+#: heisst. Dieselbe Ueberlegung wie ``MINDESTENS_BEWACHT`` im
+#: Betreiber-Waechter, und genau die hat hier bisher gefehlt.
+MINDESTENS_ANGESEHEN = 200
+
+
+def test_jede_route_ist_entschieden() -> None:
+    """Kein Pfad darf ohne Entscheidung dastehen."""
+    offen, angesehen = _entschiedene_pfade()
 
     assert not offen, (
         "Diese Pfade sind weder für Kinder freigegeben noch geschützt: "
         + ", ".join(sorted(set(offen)))
     )
+    assert angesehen >= MINDESTENS_ANGESEHEN, (
+        f"Nur {angesehen} Pfade angesehen, erwartet mindestens "
+        f"{MINDESTENS_ANGESEHEN}. Der Wachhund sieht offenbar nichts mehr."
+    )
+
+
+def test_der_wachhund_meldet_eine_route_ohne_wache() -> None:
+    """Die Mutationsprobe: Eine neue Adresse ohne Wache muss auffallen.
+
+    ⚠️ **Genau dieser Fall kam hier einmal durch.** Ein
+    ``@router.delete("/alles-loeschen")`` unter ``/api/kids/`` ohne jede
+    Abhaengigkeit blieb gruen, weil der Praefix ihn ausnahm. Der Nachbau
+    haengt eine solche Route voruebergehend ein und verlangt, dass sie
+    gemeldet wird.
+    """
+    from fastapi import APIRouter
+
+    probe = APIRouter(prefix="/api/kids", tags=["probe"])
+
+    @probe.delete("/alles-loeschen", include_in_schema=False)
+    def alles_loeschen() -> None:  # pragma: no cover - wird nie gerufen
+        return None
+
+    app.include_router(probe)
+    try:
+        offen, _ = _entschiedene_pfade()
+        assert "/api/kids/alles-loeschen" in offen, (
+            "Eine Route unter /api/kids/ ohne jede Wache fällt dem Wachhund "
+            "nicht auf - genau das Loch, das der Präfix gerissen hat."
+        )
+    finally:
+        app.router.routes[:] = [
+            route
+            for route in app.router.routes
+            if str(getattr(route, "path", "")) != "/api/kids/alles-loeschen"
+        ]
+
+    # Und aufgeräumt ist aufgeräumt - sonst faerbte die Probe alle folgenden
+    # Tests in dieser Sitzung rot.
+    offen, _ = _entschiedene_pfade()
+    assert "/api/kids/alles-loeschen" not in offen
 
 
 def _kind(client: TestClient) -> dict[str, str]:

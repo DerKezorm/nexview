@@ -29,8 +29,6 @@ prüft die zweite Hälfte dieser Datei.
 
 from __future__ import annotations
 
-import pytest
-
 from app.models import MediaType, QualityTier
 from app.services.storage import _Gemessen, schluessel
 

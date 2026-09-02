@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .arr import ArrClient, ArrError, WarteschlangenEintrag
@@ -481,10 +481,10 @@ class SonarrClient(ArrClient):
         fehlend = seasons - bekannt
         if fehlend:
             raise ArrError(
-                f"Sonarr kennt Staffel {sorted(fehlend)[0]} dieser Serie nicht.",
+                f"Sonarr kennt Staffel {min(fehlend)} dieser Serie nicht.",
                 404,
                 code="sonarr_season_unknown",
-                season=sorted(fehlend)[0],
+                season=min(fehlend),
             )
 
         serie["seasons"] = [
@@ -759,14 +759,14 @@ def _zeitpunkt(roh: object) -> datetime | None:
     try:
         return (
             datetime.fromisoformat(roh.replace("Z", "+00:00"))
-            .astimezone(timezone.utc)
+            .astimezone(UTC)
             .replace(tzinfo=None)
         )
     except ValueError:
         return None
 
 
-async def staffel_daten(client: "SonarrClient", series_id: int) -> dict[int, datetime]:
+async def staffel_daten(client: SonarrClient, series_id: int) -> dict[int, datetime]:
     """Seit wann die Dateien jeder Staffel dieser Serie da liegen.
 
     ⚠️ **Eine eigene Abfrage je Serie - deshalb ist sie hier und nicht in

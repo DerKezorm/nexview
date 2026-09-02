@@ -57,7 +57,7 @@ import itertools
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -168,7 +168,7 @@ def _satz_fuer(session, kennung: int, entscheider: int, mit_geladenem: bool) -> 
     entfernten ``selectinload(for_child)`` kein einziges Nachladen, und
     genau diese Mutation ueberlebte die Probe (Gegenprobe vom 02.09.2026).
     """
-    jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+    jetzt = datetime.now(UTC).replace(tzinfo=None)
     nummer = next(_TITELNUMMER)
     kind = User(
         username=f"waage-kind-{nummer}",

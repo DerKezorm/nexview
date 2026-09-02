@@ -9,10 +9,10 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import delete, func, select, update
 
+from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..models import Notification, NotificationType
 from ..services import meldungsziele
-from .. import meldungen
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 

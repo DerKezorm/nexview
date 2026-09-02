@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -34,7 +34,7 @@ def _fertig(request_id: int, minuten_her: int = 0) -> None:
         request = session.get(MediaRequest, request_id)
         assert request is not None
         request.status = RequestStatus.downloaded
-        request.completed_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        request.completed_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(
             minutes=minuten_her
         )
         session.commit()
@@ -83,7 +83,7 @@ def test_hoechstens_zwoelf_titel(arr_client: TestClient) -> None:
     created = create_user(arr_client, "kim")
 
     with SessionLocal() as session:
-        jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+        jetzt = datetime.now(UTC).replace(tzinfo=None)
         for nummer in range(home.LIMIT + 2):
             session.add(
                 MediaRequest(
@@ -415,7 +415,7 @@ def _serie(
 ) -> None:
     """Je Staffel eine erledigte Anfrage - so, wie sie im Betrieb entstehen."""
     with SessionLocal() as session:
-        jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+        jetzt = datetime.now(UTC).replace(tzinfo=None)
         for versatz, staffel in enumerate(staffeln):
             session.add(
                 MediaRequest(
@@ -496,7 +496,7 @@ def test_die_neueste_staffel_stellt_die_serie_dar(serien_client: TestClient) -> 
     neu = create_user(serien_client, "alex")
 
     with SessionLocal() as session:
-        jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+        jetzt = datetime.now(UTC).replace(tzinfo=None)
         session.add(
             MediaRequest(
                 user_id=alt["id"],
@@ -536,7 +536,7 @@ def test_derselbe_film_in_zwei_stufen_ist_eine_kachel(arr_client: TestClient) ->
 
     kim = create_user(arr_client, "kim")
     with SessionLocal() as session:
-        jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+        jetzt = datetime.now(UTC).replace(tzinfo=None)
         for versatz, stufe in enumerate((QualityTier.standard, QualityTier.uhd)):
             session.add(
                 MediaRequest(

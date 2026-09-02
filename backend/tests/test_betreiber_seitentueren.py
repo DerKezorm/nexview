@@ -17,7 +17,6 @@ der ganze Schutz ist.
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal

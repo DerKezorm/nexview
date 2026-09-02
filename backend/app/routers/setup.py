@@ -12,6 +12,7 @@ import logging
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
 
+from .. import meldungen
 from ..config import get_settings
 from ..deps import DbSession, has_any_user
 from ..models import Role, User
@@ -20,7 +21,6 @@ from ..security import hash_password
 from ..services import mail, sicherung, sitzung, tokens
 from ..services.mediaserver import PROVIDERS, verbundene_anbieter
 from ..services.settings_service import load_settings
-from .. import meldungen
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
 

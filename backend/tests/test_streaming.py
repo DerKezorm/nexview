@@ -16,7 +16,6 @@ from app.services import streaming
 
 from .conftest import auth_headers, create_user
 
-
 # --- Die Markenliste selbst -------------------------------------------------
 
 

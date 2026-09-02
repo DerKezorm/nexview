@@ -6,16 +6,14 @@ Zahlen stimmen und ob ein Posten dem Richtigen zugerechnet wird.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import replace
 
 import pytest
-from collections.abc import Iterator
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-
 from app.models import (
     MediaRequest,
     MediaServerLibraryItem,
@@ -25,17 +23,17 @@ from app.models import (
     QualityTier,
     QuotaPeriod,
     RequestStatus,
+    Role,
     StorageEntry,
     StorageState,
     User,
-    Role,
 )
 from app.security import hash_password
 from app.services import quota, storage
 from app.services.arr import ArrError
 from app.services.radarr import LibraryEntry as MovieEntry
-from app.services.sonarr import LibraryEntry as SeriesEntry
 from app.services.settings_service import AppSettings, load_settings
+from app.services.sonarr import LibraryEntry as SeriesEntry
 
 GB = 1024**3
 

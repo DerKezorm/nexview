@@ -26,9 +26,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from . import logs
 from .arr import ArrClient, ArrError
 from .qualitaetsprofile import ALTER_PRAEFIX
-from . import logs
 
 logger = logging.getLogger("nexview.qualitaet")
 

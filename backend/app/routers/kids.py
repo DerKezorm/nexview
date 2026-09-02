@@ -18,6 +18,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel
 
+from .. import meldungen
 from ..deps import ChildUser, DbSession
 from ..models import ChildWish
 from ..schemas_media import MediaDetail, MediaItem
@@ -25,7 +26,6 @@ from ..services import child_wishes, kids, media
 from ..services.children import ChildError
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
-from .. import meldungen
 
 router = APIRouter(prefix="/api/kids", tags=["kids"])
 

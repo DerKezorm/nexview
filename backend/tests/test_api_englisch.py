@@ -19,8 +19,6 @@ wurde. Stimmen beide ueberein, ist der Text durchgereicht - also deutsch.
 
 from __future__ import annotations
 
-import inspect
-
 from fastapi.routing import APIRoute
 
 from app import api_texte
@@ -88,12 +86,7 @@ def test_der_kurztitel_steht_fuer_sich() -> None:
 #: beim Abschalten die echten Funde mit. Lieber ein paar Faelle uebersehen als
 #: einmal falsch Alarm schlagen.
 DEUTSCHE_WOERTER = frozenset(
-    """
-    nicht werden wird wurde und oder auch eine einen einem keine kein
-    kann koennen muss muessen beim vom sich aber dass dieser diese dieses
-    fuer ueber waere gibt steht stehen statt ohne durch mit ist sind haben
-    hat wenn weil damit schon noch nur mehr immer jeder jede jedes welche
-    """.split()
+    ["nicht", "werden", "wird", "wurde", "und", "oder", "auch", "eine", "einen", "einem", "keine", "kein", "kann", "koennen", "muss", "muessen", "beim", "vom", "sich", "aber", "dass", "dieser", "diese", "dieses", "fuer", "ueber", "waere", "gibt", "steht", "stehen", "statt", "ohne", "durch", "mit", "ist", "sind", "haben", "hat", "wenn", "weil", "damit", "schon", "noch", "nur", "mehr", "immer", "jeder", "jede", "jedes", "welche"]
 )
 
 

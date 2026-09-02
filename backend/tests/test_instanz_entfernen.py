@@ -17,7 +17,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest, MediaType, QualityTier, RequestStatus, StorageEntry, StorageState
+from app.models import (
+    MediaRequest,
+    MediaType,
+    QualityTier,
+    RequestStatus,
+    StorageEntry,
+    StorageState,
+)
 from app.services import storage, webhook_pflege, webhooks
 from app.services.arr import ArrError
 from app.services.settings_service import load_settings, save_settings

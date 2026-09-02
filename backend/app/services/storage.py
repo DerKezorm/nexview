@@ -31,8 +31,8 @@ from ..models import (
     NotificationType,
     QualityTier,
     RequestStatus,
-    StorageEntry,
     Role,
+    StorageEntry,
     StorageState,
     StorageWish,
     User,
@@ -40,13 +40,11 @@ from ..models import (
     UserWatchedSeason,
     utcnow,
 )
+from . import library, logs, notify, quota, sonarr
 from .arr import ArrError
 from .radarr import LibraryEntry as MovieEntry
 from .settings_service import AppSettings
-from . import sonarr
 from .sonarr import LibraryEntry as SeriesEntry
-from . import library, notify, quota
-from . import logs
 
 logger = logging.getLogger("nexview.storage")
 
@@ -250,7 +248,7 @@ class Grenze:
         return self.limit_bytes is not None and self.used_bytes >= self.limit_bytes
 
 
-def grenze_in_bytes(user: "User", settings: AppSettings) -> int | None:
+def grenze_in_bytes(user: User, settings: AppSettings) -> int | None:
     """Welche Grenze fuer diesen Nutzer gilt - in Bytes, ``None`` = unbegrenzt.
 
     Drei Stufen, in dieser Reihenfolge - dieselben wie beim Stueck-Kontingent
@@ -278,7 +276,7 @@ def grenze_in_bytes(user: "User", settings: AppSettings) -> int | None:
     return vorgabe * GB if vorgabe is not None else None
 
 
-def stand_fuer(db: Session, user: "User", settings: AppSettings) -> Grenze:
+def stand_fuer(db: Session, user: User, settings: AppSettings) -> Grenze:
     """Belegung und Grenze eines Nutzers in einem Stueck."""
     return Grenze(
         used_bytes=kontostand(db, user.id).used_bytes,
@@ -665,7 +663,7 @@ class Ergebnis:
     erster_lauf: bool = False
     # Posten, die einem Nutzer gehoeren und **spuerbar** gewachsen sind. Der
     # Aufrufer benachrichtigt; dieses Modul kennt keine Benachrichtigungen.
-    zugelegt: list["Zuwachs"] = field(default_factory=list)
+    zugelegt: list[Zuwachs] = field(default_factory=list)
 
 
 async def abgleichen(db: Session, settings: AppSettings) -> Ergebnis:
@@ -1627,7 +1625,7 @@ class Abgabefehler(Exception):
 
 
 def abgeben(
-    db: Session, posten_id: int, user: "User", wunsch: StorageWish | None = None
+    db: Session, posten_id: int, user: User, wunsch: StorageWish | None = None
 ) -> Posten:
     """"Brauche ich nicht mehr" - der Nutzer gibt einen Posten ab.
 
@@ -1693,7 +1691,7 @@ def abgeben(
     return _als_posten(posten)
 
 
-def zuruecknehmen(db: Session, posten_id: int, user: "User") -> Posten:
+def zuruecknehmen(db: Session, posten_id: int, user: User) -> Posten:
     """Eine Abgabe zurueckziehen - "doch nicht".
 
     Kostet nichts und verhindert, dass ein versehentlicher Klick bis zur
@@ -1850,7 +1848,7 @@ def umbuchungs_vorschau(db: Session) -> tuple[int, int]:
     return int(zeilen[0]), int(zeilen[1])
 
 
-def offene_abgaben(db: Session) -> list[tuple[Posten, "User | None"]]:
+def offene_abgaben(db: Session) -> list[tuple[Posten, User | None]]:
     """Was wartet auf die Entscheidung des Administrators?
 
     Das Aelteste zuerst: Wer am laengsten wartet, steht oben. Eine

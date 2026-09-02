@@ -35,7 +35,6 @@ from app.services.settings_service import (
 
 from .test_mediaserver_login import FakeMediaServer
 
-
 # --------------------------------------------------------------------------
 # Der Merker selbst
 # --------------------------------------------------------------------------
@@ -321,8 +320,7 @@ def test_ohne_merker_wird_nichts_vermerkt(caplog: pytest.LogCaptureFixture) -> N
     irgendetwas an den Einstellungen schreibt, ohne vorher gelesen zu haben,
     dieselbe Zeile erzeugen - und die Zeile verlaere ihre Aussage.
     """
-    with SessionLocal() as db:
-        with caplog.at_level(logging.DEBUG, logger="nexview.settings"):
-            save_settings(db, {"default_region": "AT"})
+    with SessionLocal() as db, caplog.at_level(logging.DEBUG, logger="nexview.settings"):
+        save_settings(db, {"default_region": "AT"})
 
     assert not [satz for satz in caplog.records if "Settings memo" in satz.getMessage()]

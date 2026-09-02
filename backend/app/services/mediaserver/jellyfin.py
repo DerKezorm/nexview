@@ -27,32 +27,31 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from hashlib import sha1
 from datetime import UTC, datetime
+from hashlib import sha1
 from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from ... import __version__
-from .. import http_log
+from .. import http_log, logs
 from .base import (
-    Umrechnung,
-    Wiedergabe,
+    SEITE_HOECHSTENS,
     ExternalAccount,
     LibraryItem,
     LoginChallenge,
     MediaServer,
     MediaServerError,
+    SeasonWatchedRecord,
     ServerCandidate,
     ServerUser,
-    SeasonWatchedRecord,
+    Umrechnung,
     WatchedRecord,
+    Wiedergabe,
     http_client,
     kleineres_haeppchen,
     seiten_timeout,
-    SEITE_HOECHSTENS,
 )
-from .. import logs
 
 if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
     from ..settings_service import AppSettings, Verbindung
@@ -226,7 +225,7 @@ class JellyfinServer(MediaServer):
     knows_email = False
 
     def __init__(
-        self, settings: "AppSettings", verbindung: "Verbindung | None" = None
+        self, settings: AppSettings, verbindung: Verbindung | None = None
     ) -> None:
         # Anders als bei Plex ist die Adresse hier lebenswichtig: Es gibt
         # keinen Vermittler, ueber den sich der Server sonst finden liesse.

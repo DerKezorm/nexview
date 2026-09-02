@@ -853,8 +853,8 @@ def _plex_verbinden() -> None:
 
 def _jelly_verbinden() -> None:
     """Eine Jellyfin-Verbindung eintragen - neben einer moeglichen Plex-Zeile."""
-    from app.models import MediaServerConnection
     from app.crypto import encrypt
+    from app.models import MediaServerConnection
 
     with SessionLocal() as session:
         session.add(

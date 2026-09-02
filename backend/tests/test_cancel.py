@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus, User
-from app.services import library
 from app.services.arr import ArrError
 from app.services.radarr import RadarrClient
 from app.services.sonarr import SonarrClient

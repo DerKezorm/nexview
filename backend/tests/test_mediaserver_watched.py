@@ -9,10 +9,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select
-
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.crypto import encrypt
 from app.db import SessionLocal

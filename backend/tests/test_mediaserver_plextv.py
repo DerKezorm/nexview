@@ -13,8 +13,7 @@ from collections.abc import Iterator
 import httpx
 import pytest
 
-from app.services.mediaserver import MediaServerError
-from app.services.mediaserver import base, plextv
+from app.services.mediaserver import MediaServerError, base, plextv
 
 KENNUNG = "test-client-id"
 

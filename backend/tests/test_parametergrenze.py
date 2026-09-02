@@ -21,7 +21,7 @@ verfaelscht.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from app.db import SessionLocal
@@ -128,7 +128,7 @@ def test_uebersichten_uebersteht_die_parametergrenze() -> None:
                 tmdb_id=7,
                 title="Grenzfall",
                 status=RequestStatus.approved,
-                requested_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                requested_at=datetime.now(UTC).replace(tzinfo=None),
             )
         )
         db.commit()

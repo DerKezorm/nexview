@@ -14,7 +14,6 @@ nichts, und eine Wahl ohne Unterschied ist keine.
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import select
 
 from app.db import SessionLocal
@@ -25,7 +24,6 @@ from app.models import (
     QualityTier,
     StorageEntry,
     StorageState,
-    StorageWish,
 )
 from app.services import library
 
@@ -276,8 +274,8 @@ def test_entfolgen_nur_fuer_admins(admin_client) -> None:
 def _plex_verknuepft(client, konto: dict) -> None:
     """Media-Server einschalten und das Konto verknuepfen - die zwei
     Bedingungen, an denen Gesehen-Daten haengen."""
-    from app.services.settings_service import save_settings
     from app.models import User
+    from app.services.settings_service import save_settings
 
     with SessionLocal() as db:
         save_settings(

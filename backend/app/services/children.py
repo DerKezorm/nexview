@@ -20,7 +20,6 @@ from .. import meldungen
 from ..models import Role, User, utcnow
 from ..security import hash_password
 
-
 # Rubriken der Kinderansicht.
 #
 # Bewusst **eigene Rubriken statt roher TMDB-Genres**: Film und Serie fuehren

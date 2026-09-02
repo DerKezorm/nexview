@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .arr import ArrClient, ArrError, WarteschlangenEintrag
@@ -68,7 +68,7 @@ def _hinzugefuegt(movie: dict[str, Any]) -> datetime | None:
         # Radarr schreibt ISO 8601 mit "Z". Naiv ablegen, wie alles andere
         # auch - die Datenbank kennt keine Zeitzonen.
         return datetime.fromisoformat(roh.replace("Z", "+00:00")).astimezone(
-            timezone.utc
+            UTC
         ).replace(tzinfo=None)
     except ValueError:
         return None

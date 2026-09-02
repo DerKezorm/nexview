@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from itertools import zip_longest
 from datetime import datetime
+from itertools import zip_longest
 
 from fastapi import APIRouter
 from pydantic import BaseModel

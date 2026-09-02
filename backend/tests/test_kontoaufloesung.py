@@ -30,9 +30,9 @@ from app.models import (
     User,
 )
 from app.services import library
+from app.services.radarr import LibraryEntry as MovieEntry
 from app.services.sonarr import LibraryEntry as SeriesEntry
 from app.services.sonarr import Staffelstand
-from app.services.radarr import LibraryEntry as MovieEntry
 
 from .conftest import auth_headers, create_user
 

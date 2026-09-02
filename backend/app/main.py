@@ -26,11 +26,10 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__
-from . import api_texte
+from . import __version__, api_texte
 from .config import get_settings
-from .deps import require_adult
 from .db import init_db
+from .deps import require_adult
 from .middleware import (
     BasisPfadMiddleware,
     RequestContextMiddleware,
@@ -39,40 +38,98 @@ from .middleware import (
 )
 from .routers import (
     about as about_router,
+)
+from .routers import (
     admin_requests,
-    analyse as analyse_router,
     auth,
-    blocklist as blocklist_router,
-    calendar as calendar_router,
-    channels as channels_router,
-    children as children_router,
-    dashboard as dashboard_router,
-    kids as kids_router,
-    details as details_router,
     discover,
-    qualitaetsprofile as qualitaetsprofile_router,
-    favorites as favorites_router,
-    hausordnung as hausordnung_router,
-    home as home_router,
-    logs as logs_router,
-    sicherungen as sicherungen_router,
-    v1 as v1_router,
-    mediaserver as mediaserver_router,
     notifications,
-    oidc as oidc_router,
     onboarding,
-    feedback as feedback_router,
-    requests as requests_router,
-    settings as settings_router,
     setup,
-    stats as stats_router,
-    stoebern as stoebern_router,
-    storage as storage_router,
-    streaming as streaming_router,
-    tickets as tickets_router,
     users,
+)
+from .routers import (
+    analyse as analyse_router,
+)
+from .routers import (
+    blocklist as blocklist_router,
+)
+from .routers import (
+    calendar as calendar_router,
+)
+from .routers import (
+    channels as channels_router,
+)
+from .routers import (
+    children as children_router,
+)
+from .routers import (
+    dashboard as dashboard_router,
+)
+from .routers import (
+    details as details_router,
+)
+from .routers import (
+    favorites as favorites_router,
+)
+from .routers import (
+    feedback as feedback_router,
+)
+from .routers import (
+    hausordnung as hausordnung_router,
+)
+from .routers import (
+    home as home_router,
+)
+from .routers import (
+    kids as kids_router,
+)
+from .routers import (
+    logs as logs_router,
+)
+from .routers import (
+    mediaserver as mediaserver_router,
+)
+from .routers import (
+    oidc as oidc_router,
+)
+from .routers import (
+    qualitaetsprofile as qualitaetsprofile_router,
+)
+from .routers import (
+    requests as requests_router,
+)
+from .routers import (
+    settings as settings_router,
+)
+from .routers import (
+    sicherungen as sicherungen_router,
+)
+from .routers import (
+    stats as stats_router,
+)
+from .routers import (
+    stoebern as stoebern_router,
+)
+from .routers import (
+    storage as storage_router,
+)
+from .routers import (
+    streaming as streaming_router,
+)
+from .routers import (
+    tickets as tickets_router,
+)
+from .routers import (
+    v1 as v1_router,
+)
+from .routers import (
     watch as watch_router,
+)
+from .routers import (
     watchlist as watchlist_router,
+)
+from .routers import (
     webhooks as webhooks_router,
 )
 from .services import (

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import re
-import secrets
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
@@ -65,7 +64,7 @@ class KontoFehler(Exception):
 # --------------------------------------------------------------------------
 
 
-def ensure_client_identifier(db: Session, settings: "AppSettings") -> "AppSettings":
+def ensure_client_identifier(db: Session, settings: AppSettings) -> AppSettings:
     """Die Geraetekennung dieser Installation - beim ersten Mal erzeugt.
 
     Plex fuehrt angemeldete Geraete darueber. Wuerde sie bei jeder Anmeldung
@@ -507,7 +506,7 @@ def offene_einladung(db: Session, email: str) -> AuthToken | None:
     return eintrag if eintrag is not None and eintrag.open else None
 
 
-def resolve(db: Session, settings: "AppSettings", account: ExternalAccount) -> User:
+def resolve(db: Session, settings: AppSettings, account: ExternalAccount) -> User:
     """Zu welchem Nexview-Konto gehoert diese Anmeldung?
 
     Reihenfolge - und die ist wichtig:
@@ -597,7 +596,7 @@ def resolve(db: Session, settings: "AppSettings", account: ExternalAccount) -> U
     return _anlegen(db, settings, account)
 
 
-def _anlegen(db: Session, settings: "AppSettings", account: ExternalAccount) -> User:
+def _anlegen(db: Session, settings: AppSettings, account: ExternalAccount) -> User:
     """Ein neues Konto aus einer Media-Server-Anmeldung."""
     einladung = offene_einladung(db, account.email) if account.email else None
 

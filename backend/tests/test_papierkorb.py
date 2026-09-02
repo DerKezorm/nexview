@@ -171,8 +171,9 @@ def test_stumme_instanz_ist_nicht_dasselbe_wie_kein_papierkorb(
 
 def test_nur_administratoren(arr_client) -> None:
     """Wo geloescht wird, geht Entscheider nichts an - es ist Serverbetrieb."""
-    from .conftest import auth_headers, create_user
     from app.models import Role
+
+    from .conftest import auth_headers, create_user
 
     create_user(arr_client, "entscheider2", "test1234", role=Role.approver)
     kopf = auth_headers(arr_client, "entscheider2", "test1234")
@@ -339,8 +340,9 @@ def test_ordnerauswahl_fragt_die_richtige_instanz(arr_client, monkeypatch) -> No
 
 
 def test_schreiben_ist_nur_fuer_administratoren(arr_client) -> None:
-    from .conftest import auth_headers, create_user
     from app.models import Role
+
+    from .conftest import auth_headers, create_user
 
     create_user(arr_client, "entscheider3", "test1234", role=Role.approver)
     kopf = auth_headers(arr_client, "entscheider3", "test1234")

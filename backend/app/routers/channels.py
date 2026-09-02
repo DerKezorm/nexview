@@ -22,11 +22,11 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Path
 from pydantic import BaseModel, Field
 
+from .. import meldungen
 from ..deps import AdminUser, DbSession
 from ..models import ChannelKind, ChannelTarget
 from ..services import channel_outbox, channel_targets, channel_verify, channels
 from ..services.settings_service import load_settings
-from .. import meldungen
 
 router = APIRouter(prefix="/api/settings/channels", tags=["channels"])
 
@@ -299,7 +299,7 @@ async def test_target(
 
     if not channels.requires_code(kind):
         return TestResult(
-            ok=True, message=f"Testnachricht verschickt. Kommt sie an?"
+            ok=True, message="Testnachricht verschickt. Kommt sie an?"
         )
 
     return TestResult(

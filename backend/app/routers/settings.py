@@ -11,23 +11,27 @@ import httpx
 from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, Field, field_validator
 
+from .. import meldungen
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import Hausordnung, User
 from ..schemas import MIN_PASSWORD_LENGTH
 from ..services import (
     cache,
+    download_kollision,
     instanz_gesundheit,
     library,
     mail,
     mail_templates,
-    storage,
     webhook_pflege,
     webhooks,
-    download_kollision,
 )
 from ..services.arr import ArrClient, ArrError
+from ..services.mediaserver import (
+    PROVIDERS,
+    merklisten_anbieter,
+    verbundene_anbieter,
+)
 from ..services.radarr import RadarrClient
-from ..services.sonarr import SonarrClient
 from ..services.settings_service import (
     SECRET_KEYS,
     clear_secret,
@@ -35,13 +39,8 @@ from ..services.settings_service import (
     public_settings,
     save_settings,
 )
-from ..services.mediaserver import (
-    PROVIDERS,
-    merklisten_anbieter,
-    verbundene_anbieter,
-)
+from ..services.sonarr import SonarrClient
 from ..services.tmdb import TmdbClient, TmdbError
-from .. import meldungen
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -485,15 +484,14 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
     # 4K-Instanz ein, schreibt in Wahrheit weiter in die alte, und wundert sich,
     # warum 4K nie ankommt. Lieber jetzt widersprechen als still danebengehen.
     _gleiche_adresse_ablehnen(db, payload)
-    if payload.smtp_from_address:
-        if not mail.valid_address(payload.smtp_from_address):
-            raise HTTPException(
-                status_code=422,
-                detail=meldungen.meldung(
-                    "sender_address_invalid",
-                    "Die Absenderadresse ist ungültig.",
-                ),
-            )
+    if payload.smtp_from_address and not mail.valid_address(payload.smtp_from_address):
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "sender_address_invalid",
+                "Die Absenderadresse ist ungültig.",
+            ),
+        )
     if payload.public_url and not payload.public_url.strip().startswith(("http://", "https://")):
         raise HTTPException(
             status_code=422,

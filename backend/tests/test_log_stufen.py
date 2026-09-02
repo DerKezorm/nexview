@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -127,7 +127,7 @@ def test_diagnose_stufe_schaltet_sich_selbst_ab(admin_client: TestClient) -> Non
     admin_client.put("/api/logs/level", json={"mode": "detailed", "minutes": 30})
 
     # Frist in die Vergangenheit ruecken, statt eine halbe Stunde zu warten.
-    logs._store("detailed", datetime.now(timezone.utc) - timedelta(minutes=1))
+    logs._store("detailed", datetime.now(UTC) - timedelta(minutes=1))
 
     assert logs.enforce_expiry() is True
     assert logs.current_mode() == "normal"
@@ -135,7 +135,7 @@ def test_diagnose_stufe_schaltet_sich_selbst_ab(admin_client: TestClient) -> Non
 
 
 def test_frist_laeuft_ab_waehrend_der_container_steht(admin_client: TestClient) -> None:
-    logs._store("trace", datetime.now(timezone.utc) - timedelta(hours=5))
+    logs._store("trace", datetime.now(UTC) - timedelta(hours=5))
 
     logs.apply_stored_mode()
 

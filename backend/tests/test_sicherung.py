@@ -16,17 +16,17 @@ import sqlite3
 import threading
 import time
 import types
+from datetime import UTC
 from pathlib import Path
 
-import pyzipper
 import pytest
+import pyzipper
 from fastapi.testclient import TestClient
 
 import app.db as db_modul
 from app import __version__
 from app.config import get_settings
 from app.services import settings_service, sicherung
-
 
 PASSWORT = "ein-langes-testpasswort"
 
@@ -102,8 +102,9 @@ class TestAnlegen:
         eine Sicherung, die zu gross zum Herunterladen ist, laedt niemand
         herunter.
         """
-        from app.db import SessionLocal
         from sqlalchemy import text
+
+        from app.db import SessionLocal
 
         with SessionLocal() as db:
             db.execute(
@@ -197,9 +198,8 @@ class TestArchiv:
         pfad = sicherung.anlegen(art=sicherung.MANUELL)
         daten = sicherung.archiv(pfad.name, PASSWORT)
 
-        with _archiv_oeffnen(daten, "etwas-ganz-anderes") as zip_datei:
-            with pytest.raises(Exception):
-                zip_datei.read("nexview.db")
+        with _archiv_oeffnen(daten, "etwas-ganz-anderes") as zip_datei, pytest.raises(Exception):
+            zip_datei.read("nexview.db")
 
     def test_die_datenbank_im_archiv_ist_lesbar(self) -> None:
         """Nicht nur vorhanden - auch brauchbar."""
@@ -327,10 +327,10 @@ class TestZeitplan:
         assert sicherung.faellig("daily") is False
 
     def test_nach_der_frist_wieder_faellig(self) -> None:
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         sicherung.anlegen(art=sicherung.AUTOMATISCH)
-        spaeter = datetime.now(timezone.utc) + timedelta(days=8)
+        spaeter = datetime.now(UTC) + timedelta(days=8)
         assert sicherung.faellig("weekly", jetzt=spaeter) is True
         assert sicherung.faellig("monthly", jetzt=spaeter) is False
 
@@ -605,8 +605,7 @@ class TestProfilbilder:
     Sicherung war doch vollstaendig".
     """
 
-    def _bild_anlegen(self, name: str = "probe.jpg") -> "Path":
-        from pathlib import Path
+    def _bild_anlegen(self, name: str = "probe.jpg") -> Path:
 
         from app.config import get_settings
 
@@ -678,8 +677,7 @@ class TestStandVonDamals:
     gleich aus.
     """
 
-    def _ablegen(self, unter: str, name: str, inhalt: bytes) -> "Path":
-        from pathlib import Path
+    def _ablegen(self, unter: str, name: str, inhalt: bytes) -> Path:
 
         from app.config import get_settings
 

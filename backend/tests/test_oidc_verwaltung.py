@@ -12,9 +12,9 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import OidcLink, OidcProvider, User
+from app.security import hash_password, unusable_password
 from app.services import oidc as oidc_dienst
 from app.services import settings_service
-from app.security import hash_password, unusable_password
 
 from .conftest import auth_headers, create_user
 from .oidc_helfer import ISSUER, KAPUTTE_ADRESSE, transport

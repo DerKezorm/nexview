@@ -15,15 +15,15 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, Field
 
+from .. import meldungen
 from ..deps import AdminUser, ApproverUser, CurrentUser, DbSession
 from ..models import MediaType, NotificationType, TitleRating, User, utcnow
 from ..services import library, notify, ratings
 from ..services.settings_service import load_settings
-from .. import meldungen
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
@@ -60,7 +60,7 @@ class RatingOut(BaseModel):
     user_name: str = ""
 
     @classmethod
-    def von(cls, eintrag: TitleRating) -> "RatingOut":
+    def von(cls, eintrag: TitleRating) -> RatingOut:
         return cls(
             id=eintrag.id,
             media_type=eintrag.media_type.value,

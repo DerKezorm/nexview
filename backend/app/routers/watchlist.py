@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from ..deps import CurrentUser, DbSession
 from ..models import utcnow
 from ..schemas_media import MediaItem
+from ..services import mediaserver_accounts as konten
 from ..services import settings_service, watchlist
 from ..services.mediaserver import MediaServer, MediaServerError, merklisten_server
 from ..services.mediaserver_accounts import KontoFehler
@@ -38,7 +39,6 @@ from .mediaserver import (
     _fehler,
     _identitaet,
 )
-from ..services import mediaserver_accounts as konten
 
 router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 

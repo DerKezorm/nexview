@@ -39,7 +39,7 @@ from __future__ import annotations
 import enum
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -49,10 +49,10 @@ from ..models import (
     ArrWebhook,
     BefundGesehen,
     InstanzStand,
-    SpeicherVerlauf,
     MediaRequest,
     Notification,
     RequestStatus,
+    SpeicherVerlauf,
     StorageEntry,
     StorageState,
     User,
@@ -227,7 +227,7 @@ SICHERUNG_TOLERANZ_TAGE = 1
 
 def _jetzt() -> datetime:
     """Ohne Zeitzone - so liegen die Zeitstempel in der Datenbank."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 @dataclass
@@ -909,7 +909,7 @@ def _betrieb_sicherung_alt(
     except ValueError:
         return []
     if letzte.tzinfo is not None:
-        letzte = letzte.astimezone(timezone.utc).replace(tzinfo=None)
+        letzte = letzte.astimezone(UTC).replace(tzinfo=None)
 
     tage = (jetzt - letzte).days
     if tage < erlaubt:

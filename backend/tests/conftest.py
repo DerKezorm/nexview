@@ -38,15 +38,14 @@ from sqlalchemy import delete, select  # noqa: E402
 
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.services import anmeldebremse, library  # noqa: E402
 from app.models import (  # noqa: E402
     Base,
     MediaRequest,
-    Role,
     User,
     UserMediaServerAccount,
 )
 from app.security import hash_password  # noqa: E402
+from app.services import anmeldebremse, library  # noqa: E402
 
 ADMIN = {
     "username": "admin",

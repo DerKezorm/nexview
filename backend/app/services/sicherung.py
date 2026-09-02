@@ -47,7 +47,7 @@ import sqlite3
 import threading
 import time
 from dataclasses import asdict, dataclass, field, fields
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pyzipper
@@ -165,7 +165,7 @@ class Steckbrief:
         return json.dumps(asdict(self), indent=2, ensure_ascii=False)
 
     @classmethod
-    def aus_json(cls, roh: str | bytes) -> "Steckbrief":
+    def aus_json(cls, roh: str | bytes) -> Steckbrief:
         daten = json.loads(roh)
         erlaubt = {f.name for f in fields(cls)}
         return cls(**{k: v for k, v in daten.items() if k in erlaubt})
@@ -360,7 +360,7 @@ def anlegen(*, art: str = MANUELL, kommentar: str = "") -> Path:
     brief = Steckbrief(
         version=__version__,
         schema=abdruck,
-        erstellt=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        erstellt=datetime.now(UTC).isoformat(timespec="seconds"),
         art=art,
         kommentar=kommentar.strip(),
         # ⚠️ Was wirklich hier liegt, nicht was hier liegen sollte. ``secret.key``
@@ -413,7 +413,9 @@ def _zwischenspeicher_leeren(sicherung: Path) -> list[str]:
         }
         for tabelle in ZWISCHENSPEICHER:
             if tabelle in vorhanden:
-                verbindung.execute(f"DELETE FROM [{tabelle}]")
+                # noqa wie an den acht vergleichbaren Stellen in db.py: ``tabelle``
+                # stammt aus der festen Liste ZWISCHENSPEICHER, nicht von aussen.
+                verbindung.execute(f"DELETE FROM [{tabelle}]")  # noqa: S608
                 geleert.append(tabelle)
         verbindung.commit()
         verbindung.execute("VACUUM")
@@ -473,7 +475,7 @@ def _steckbrief_lesen(sicherung: Path) -> Steckbrief:
         except (ValueError, TypeError) as fehler:
             logger.warning("Backup manifest %s unreadable: %s", pfad.name, fehler)
 
-    zeit = datetime.fromtimestamp(sicherung.stat().st_mtime, timezone.utc)
+    zeit = datetime.fromtimestamp(sicherung.stat().st_mtime, UTC)
     alt = re.match(r"nexview-vor-(?P<version>[\d.]+)-", sicherung.name)
     return Steckbrief(
         version=alt.group("version") if alt else "",
@@ -688,13 +690,13 @@ def faellig(takt: str, *, jetzt: datetime | None = None) -> bool:
     if not automatisch:
         return True
 
-    jetzt = jetzt or datetime.now(timezone.utc)
+    jetzt = jetzt or datetime.now(UTC)
     try:
         letzte = datetime.fromisoformat(automatisch[0].erstellt)
     except ValueError:
         return True
     if letzte.tzinfo is None:
-        letzte = letzte.replace(tzinfo=timezone.utc)
+        letzte = letzte.replace(tzinfo=UTC)
 
     return (jetzt - letzte).total_seconds() >= TAKTE[takt] * 86400
 
@@ -733,7 +735,7 @@ def _takt() -> None:
         platz_zurueckgeben(1000)
 
 
-async def run_forever(stop: "asyncio.Event") -> None:
+async def run_forever(stop: asyncio.Event) -> None:
     """Stuendlich nachsehen, ob eine Sicherung ansteht.
 
     Bewusst keine feste Uhrzeit: Ein Container, der nachts um drei aus ist,
@@ -937,7 +939,8 @@ def wiederherstellen(daten: bytes, passwort: str) -> Befund:
         # Der **Name**, nicht die Kennung: Die Kennungen der eingespielten Datenbank
         # sind andere. Vor der Einrichtung gibt es niemanden - dann gilt der Stand
         # aus der Sicherung, und das ist richtig.
-        from .betreiber import nach_dem_einspielen, traeger as betreiber_traeger
+        from .betreiber import nach_dem_einspielen
+        from .betreiber import traeger as betreiber_traeger
 
         try:
             from ..db import SessionLocal
@@ -1051,9 +1054,10 @@ def _alle_abmelden() -> None:
 
     Deshalb wird die Grenze hier ausdruecklich gesetzt.
     """
+    from sqlalchemy import update
+
     from ..db import SessionLocal
     from ..models import User, utcnow
-    from sqlalchemy import update
 
     try:
         with SessionLocal() as db:

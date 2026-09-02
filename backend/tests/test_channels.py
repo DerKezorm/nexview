@@ -1050,7 +1050,8 @@ def test_ticket_fuehrt_zum_ticketbereich(admin_client: TestClient) -> None:
     lief auseinander. Jetzt sagt ``services/meldungsziele.py`` das Ziel, und
     beide Wege folgen ihm - siehe ``test_meldungsziele.py``.
     """
-    from app.models import Notification, NotificationType as NT
+    from app.models import Notification
+    from app.models import NotificationType as NT
     from app.services import meldungsziele
 
     ohne_nummer = Notification(type=NT.ticket_new, message_key="x", ticket_id=None)

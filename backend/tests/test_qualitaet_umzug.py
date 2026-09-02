@@ -17,7 +17,6 @@ from __future__ import annotations
 import pytest
 
 from app.db import SessionLocal
-from app.models import Qualitaetsprofil
 from app.services import qualitaet_umzug as umzug
 from app.services import qualitaetsprofile as dienst
 from app.services import trash

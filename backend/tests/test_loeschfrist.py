@@ -8,9 +8,8 @@ was dasselbe bewirkt und der eigentliche Kniff der Sache ist.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
@@ -33,7 +32,7 @@ GB = 1024**3
 
 
 def _jetzt() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _posten(*, tmdb_id: int = 700, title: str = "Ladenhüter", verwaltet: bool = True) -> int:

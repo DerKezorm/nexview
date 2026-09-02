@@ -41,7 +41,6 @@ from app.models import Base, Role, User, UserWatched, Wanderung
 
 from .conftest import create_user
 
-
 # ---------------------------------------------------------------------------
 # Eine Datenbank fuer sich
 # ---------------------------------------------------------------------------

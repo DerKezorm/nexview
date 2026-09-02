@@ -30,7 +30,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import MediaRequest, NotificationType, RequestStatus, User
+from ..models import MediaRequest, NotificationType, RequestStatus
 from . import notify, quota, storage
 from .settings_service import AppSettings, for_user
 

@@ -14,10 +14,10 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, Field
 
+from .. import meldungen
 from ..deps import AdminUser, DbSession
 from ..models import Blocked, MediaType
 from ..services import blocklist
-from .. import meldungen
 
 router = APIRouter(prefix="/api/admin/blocklist", tags=["blocklist"])
 

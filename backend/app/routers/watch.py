@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Path
 from pydantic import BaseModel, Field
 
 from ..deps import CurrentUser, DbSession

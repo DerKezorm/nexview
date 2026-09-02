@@ -1,0 +1,104 @@
+# Regeln für den Python-Teil. Bisher gab es hier gar nichts: Das Frontend hatte
+# ESLint, TypeScript und drei eigene Prüfer, das Backend hatte 63.000 Zeilen und
+# pytest. Diese Datei schließt die Lücke.
+#
+# ⚠️ **Was ruff hier findet, ist nicht der Punkt.** Beim ersten Lauf standen 426
+# Meldungen im Protokoll, und darin war kein einziger Absturz und keine
+# Sicherheitslücke. Der Wert liegt woanders: Ab jetzt wachen rund 400 Regeln, die
+# heute schweigen, über jede Zeile, die noch dazukommt. Der stärkste Befund des
+# ersten Laufs war ein Nicht-Befund: Die ASYNC-Gruppe, die blockierende Aufrufe in
+# asynchronen Funktionen sucht, meldete über alle 150 Module nichts. Bei einer
+# FastAPI-Anwendung mit httpx, sqlite3 und Dateizugriffen ist das nicht
+# selbstverständlich, und ab jetzt bleibt es so.
+
+[tool.ruff]
+target-version = "py313"
+
+# Deutlich mehr als die üblichen 88 Zeichen, und die Zahl ist bewusst gewählt,
+# nicht weggeschoben: Der Code entstand ohne Zeilengrenze, und die 29 längsten
+# Zeilen liegen zwischen 101 und 111 Zeichen. Es sind durchweg einzelne
+# Ausdrücke, ein Typ-Alias, eine Übersetzungszeile, ein Vergleich über eine
+# Sammlung, die durch Umbrechen schlechter lesbar würden, nicht besser.
+#
+# Der Sinn dieser Grenze ist deshalb nicht, 29 Zeilen umzuformatieren, die sich
+# gut lesen, sondern die Zeile abzufangen, die eines Tages auf 300 Zeichen
+# anwächst. Dafür ist 120 die richtige Marke. Wer sie erhöht, sollte denselben
+# Absatz schreiben können.
+line-length = 120
+
+# ⚠️ **Eine abweichende Fassung darf nicht stillschweigend anders urteilen.**
+# ruff nimmt mit jeder Nebenversion Regeln in seine Vorauswahl auf. Ohne diese
+# Grenze wäre der Bau eines Tages rot, ohne dass jemand etwas geändert hätte, und
+# die Suche ginge zuerst in den eigenen Code statt ins Werkzeug.
+required-version = ">=0.16,<0.17"
+
+[tool.ruff.lint]
+# Bewusst extend-select und nicht select: So bleibt ruffs eigene Vorauswahl die
+# Grundlage, und was hier steht, kommt obendrauf. Mit select würde die Liste
+# irgendwann zur Obergrenze dessen, was geprüft wird.
+extend-select = [
+    "E501",  # Zeilenlänge, siehe line-length oben
+    # ⚠️ Die beiden folgenden stehen hier nicht, weil sie viel finden, sondern
+    # damit ihre ``# noqa``-Ausnahmen gültig bleiben. Eine noqa-Zeile für eine
+    # Regel, die gar nicht läuft, gilt als tot und wird beim Aufräumen entfernt,
+    # samt der deutschen Begründung daneben. Genau das wäre hier neunmal in
+    # conftest.py und achtmal in db.py passiert.
+    "E402",  # Import nicht am Dateianfang (in conftest.py Absicht, siehe dort)
+    "S608",  # SQL aus Zeichenketten gebaut (in db.py feste Namen, siehe dort)
+]
+
+ignore = [
+    # Zeitzonenlose Zeitstempel. Nexview rechnet innen bewusst in naiver UTC,
+    # weil SQLite keine Zeitzone speichert; die Umrechnung passiert an der
+    # Außengrenze. Diese vier Regeln würden jede Zeile davon anmahnen.
+    "DTZ005",  # datetime.now() ohne Zeitzone
+    "DTZ011",  # date.today() ohne Zeitzone
+    "DTZ901",  # datetime.max und datetime.min ohne Zeitzone
+    "DTZ007",  # strptime auf ein reines Datum, wo es keine Zeitzone gibt
+    # Schreibweise von timezone.utc. Nach dem Aufräumen steht überall UTC,
+    # aber die Regel meldet auch dort, wo die alte Form absichtlich steht.
+    "FURB162",  # timezone.utc statt UTC
+    # ⚠️ **Tote noqa-Kommentare melden: noch nicht.** RUF100 hielt beim Probelauf
+    # 75 der damals 115 vorhandenen ``# noqa`` für überflüssig und hätte sie beim
+    # Aufräumen samt ihrer deutschen Begründung gelöscht. Ein Teil davon ist
+    # wirklich tot, aber das auszusortieren ist eine eigene Arbeit mit eigenem
+    # Lauf, keine Nebensache in einem Durchgang über 150 Dateien.
+    "RUF100",  # tote noqa melden, bewacht von tests/test_ruff_konfiguration.py
+]
+
+
+# FastAPI baut seine Abhängigkeiten als Vorgabewerte in die Signatur. Für ruff
+# sieht das aus wie ein veränderlicher Vorgabewert, ist aber genau die vorgesehene
+# Schreibweise des Rahmenwerks.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.Security",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests dürfen mehr. Sie behaupten (assert), sie bauen feste Zeitpunkte, sie
+# halten Listen als Klassenattribute, und ihre Zeilen sind manchmal lang, weil
+# eine Zusicherung nun einmal in eine Zeile gehört.
+"tests/**" = [
+    "S101",    # assert, das ist der Sinn der Sache
+    "DTZ001",  # datetime ohne Zeitzone, hier absichtlich fest gewählt
+    "DTZ007",  # dasselbe beim Einlesen
+    "RUF012",  # veränderliche Klassenattribute ohne ClassVar
+    "RUF059",  # ungenutzte Teile beim Entpacken
+    "B017",    # blankes Exception im pytest.raises
+    "E501",    # lange Zeilen in Zusicherungen
+]
+# Die Attrappen liefern feste Antworten für die Vorführung und brauchen dieselbe
+# Freiheit bei Zeitpunkten wie die Tests.
+"app/mocks/**" = [
+    "DTZ001",
+    "DTZ007",  # strptime auf ein reines Datum
+]

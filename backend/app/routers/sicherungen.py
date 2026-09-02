@@ -8,10 +8,9 @@ import logging
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 
-from .. import __version__
-from ..deps import AdminUser, DbSession
-from .. import meldungen
+from .. import __version__, meldungen
 from ..config import get_settings
+from ..deps import AdminUser, DbSession
 from ..services import sicherung
 
 logger = logging.getLogger(__name__)

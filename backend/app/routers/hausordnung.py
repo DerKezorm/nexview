@@ -25,10 +25,10 @@ from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+from .. import meldungen
 from ..deps import AdminUser, AdultUser, DbSession
 from ..models import Hausordnung, Role, User, utcnow
 from ..services import hausordnung_bilder
-from .. import meldungen
 
 router = APIRouter(prefix="/api/hausordnung", tags=["hausordnung"])
 

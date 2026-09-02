@@ -6,12 +6,12 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel
 from sqlalchemy import func, select
 
+from .. import meldungen
 from ..deps import AdminUser, AdultUser, DbSession, betreiberschutz
 from ..models import ApiKey, AuthToken, Role, TokenPurpose, User, utcnow
-from pydantic import BaseModel
-
 from ..schemas import (
     InvitationCreate,
     InvitationCreated,
@@ -25,7 +25,6 @@ from ..schemas import (
 from ..security import hash_password
 from ..services import (
     accounts,
-    betreiber as betreiber_dienst,
     avatars,
     child_wishes,
     children,
@@ -36,10 +35,12 @@ from ..services import (
     quota,
     tokens,
 )
+from ..services import (
+    betreiber as betreiber_dienst,
+)
 from ..services import storage as storage_dienst
 from ..services.arr import ArrError
 from ..services.settings_service import load_settings
-from .. import meldungen
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 

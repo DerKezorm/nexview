@@ -25,22 +25,21 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from ..crypto import decrypt, encrypt
-from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
+from ..deps import AdminUser, AdultUser, DbSession
 from ..models import AuthToken, MediaServerBlock, MediaServerConnection, User, utcnow
 from ..schemas import TokenPair, UserPublic
-from ..services import anmeldebremse, betreiber as betreiber_dienst, sitzung
+from ..services import anmeldebremse, logs, mediaserver_library, settings_service, sitzung
+from ..services import betreiber as betreiber_dienst
 from ..services import mediaserver_accounts as konten
-from ..services import mediaserver_library, settings_service
 from ..services.mediaserver import (
+    PROVIDERS,
     ExternalAccount,
     MediaServer,
     MediaServerError,
-    PROVIDERS,
     media_server_for_setup,
     verbundene_anbieter,
 )
 from ..services.mediaserver_accounts import KontoFehler
-from ..services import logs
 
 router = APIRouter(prefix="/api/auth/mediaserver", tags=["mediaserver"])
 admin_router = APIRouter(prefix="/api/admin/mediaserver", tags=["mediaserver"])

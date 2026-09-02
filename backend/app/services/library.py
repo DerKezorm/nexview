@@ -14,13 +14,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..schemas_media import MediaItem
+from . import logs
 from .arr import ArrError
 from .radarr import LibraryEntry as MovieEntry
 from .radarr import RadarrClient
 from .settings_service import AppSettings
 from .sonarr import LibraryEntry as SeriesEntry
 from .sonarr import SonarrClient, jahre_passen, normalize_title
-from . import logs
 
 logger = logging.getLogger("nexview.library")
 

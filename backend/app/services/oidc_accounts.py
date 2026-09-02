@@ -221,7 +221,7 @@ def _abgewiesen(db: Session, identitaet: OidcIdentitaet, grund: str) -> None:
 
 
 def resolve(
-    db: Session, settings: "AppSettings", identitaet: OidcIdentitaet, *, auto_create: bool
+    db: Session, settings: AppSettings, identitaet: OidcIdentitaet, *, auto_create: bool
 ) -> User:
     """Zu welchem Nexview-Konto gehoert diese Anmeldung?
 
@@ -314,7 +314,7 @@ def resolve(
     return _anlegen(db, settings, identitaet)
 
 
-def _anlegen(db: Session, settings: "AppSettings", identitaet: OidcIdentitaet) -> User:
+def _anlegen(db: Session, settings: AppSettings, identitaet: OidcIdentitaet) -> User:
     """Ein neues Konto aus einer OIDC-Anmeldung.
 
     Rolle und Grenzen kommen aus einer offenen Einladung, falls es eine gibt -

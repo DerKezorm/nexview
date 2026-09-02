@@ -35,6 +35,7 @@ wert nichts:
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 from .sonarr import SonarrClient
 
 #: Wie viele Vorschlaege hoechstens - in **Sonarrs** Reihenfolge.

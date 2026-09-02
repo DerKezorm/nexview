@@ -9,10 +9,8 @@ unterscheiden.
 
 from __future__ import annotations
 
-from app.models import User, UserMediaServerAccount
+from app.models import User, UserMediaServerAccount, utcnow
 from app.services import mediaserver_accounts as konten
-from app.models import utcnow
-
 
 ANBIETER = "plex"
 

@@ -354,7 +354,7 @@ class MediaDetail(MediaItem):
     # Meine eigene Rueckmeldung zur Qualitaet, falls ich eine abgegeben habe.
     # Am Titel, nicht an der Anfrage - bewerten darf jeder, der einen
     # vorhandenen Titel gesehen hat.
-    my_feedback: "MeineRueckmeldung | None" = None
+    my_feedback: MeineRueckmeldung | None = None
 
     # Liegt zu diesem Titel schon ein offenes Ticket von mir? Dann bietet das
     # Bewertungsfenster nicht an, ein zweites daraus zu machen - der Betreiber

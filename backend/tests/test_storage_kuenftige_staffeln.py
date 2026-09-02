@@ -15,7 +15,6 @@ Antworten, je nachdem welchen Knopf jemand gedrückt hatte.
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import select
 
 from app.db import SessionLocal

@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from ..mocks import demo_data
 from ..models import MediaRequest, MediaServerLibraryItem, MediaType
 from ..schemas_calendar import CalendarDay, CalendarEntry, CalendarResult
-from . import cache, library, media
+from . import cache, library, logs, media
 from .arr import ArrError
 from .filters import (
     DIGITAL_ARTEN,
@@ -39,7 +39,6 @@ from .filters import (
 )
 from .settings_service import AppSettings
 from .tmdb import TmdbError
-from . import logs
 
 logger = logging.getLogger("nexview.calendar")
 

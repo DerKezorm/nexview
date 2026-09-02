@@ -89,7 +89,9 @@ async def anruf(
         if isinstance(daten, dict):
             ereignis = str(daten.get("eventType") or "")
     except Exception:  # noqa: BLE001 - Inhalt ist ohnehin unglaubwuerdig
-        pass
+        # Kein Ablehnungsgrund, aber auf der Diagnose-Stufe erwaehnenswert: Eine
+        # Instanz, die dauerhaft unlesbares Zeug schickt, ist falsch eingerichtet.
+        logger.debug("Webhook: body could not be read, only the secret counted", exc_info=True)
 
     zeile.zuletzt_angerufen_am = utcnow()
     zeile.letztes_ereignis = ereignis[:64]

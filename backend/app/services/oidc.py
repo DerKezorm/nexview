@@ -689,18 +689,17 @@ async def _token_pruefen(
         # Anbieter fuer eine ANDERE Anwendung ausgestellt hat. Die Norm bindet
         # beides an "if present" (Core 2, und 3.1.3.7 Schritt 4/5), nicht an
         # die Zahl der Empfaenger.
-        if "azp" in inhalt:
-            if inhalt.get("azp") != client_id:
-                logger.warning(
-                    "OIDC: %s carries azp %r, which is not this client - the "
-                    "provider issued it for a different application",
-                    zweck,
-                    inhalt.get("azp"),
-                )
-                raise OidcFehler(
-                    "oidc_token_invalid",
-                    "Der Ausweis des Anbieters ließ sich nicht prüfen.",
-                )
+        if "azp" in inhalt and inhalt.get("azp") != client_id:
+            logger.warning(
+                "OIDC: %s carries azp %r, which is not this client - the "
+                "provider issued it for a different application",
+                zweck,
+                inhalt.get("azp"),
+            )
+            raise OidcFehler(
+                "oidc_token_invalid",
+                "Der Ausweis des Anbieters ließ sich nicht prüfen.",
+            )
         return inhalt
     except jwt.PyJWTError as fehler:
         # ``alg`` gehoert in die Zeile: Ein Verfahren, das nicht in

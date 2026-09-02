@@ -23,7 +23,6 @@ from ..models import MediaType, UserWatched, utcnow
 from .filters import (
     BEKANNTE_TITEL_STIMMEN,
     LAUFZEITEN,
-    MIN_FEATURE_RUNTIME,
     PERLEN_MINDESTALTER_JAHRE,
     PERLEN_STIMMEN,
     PERLEN_STIMMEN_TV,

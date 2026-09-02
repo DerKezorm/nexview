@@ -605,8 +605,8 @@ async def test_verbindung_wird_erst_geprueft_dann_eingetragen(monkeypatch) -> No
     Medienserver erreicht, muss nicht die sein, unter der *Radarr* ihn erreicht.
     Ein Eintrag, der nie funktioniert hat, ist schlimmer als keiner.
     """
-    from app.services.arr import ArrError
     from app.services import medienserver_verbindung as mv
+    from app.services.arr import ArrError
 
     angelegt: list[dict] = []
     geprueft: list[dict] = []
@@ -722,9 +722,8 @@ def test_fortschritt_bleibt_nicht_liegen() -> None:
         assert dienst.fortschritt(7) is stand
     assert dienst.fortschritt(7) is None
 
-    with pytest.raises(RuntimeError):
-        with dienst.fortschritt_fuehren(7):
-            raise RuntimeError("etwas ging schief")
+    with pytest.raises(RuntimeError), dienst.fortschritt_fuehren(7):
+        raise RuntimeError("etwas ging schief")
     assert dienst.fortschritt(7) is None, "auch nach einem Fehler aufgeraeumt"
 
 

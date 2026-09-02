@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ...models import ChannelKind
-from .base import ChannelError, Notice, check_url, post
+from .base import Notice, check_url, post
 
 KIND = ChannelKind.webhook
 LABEL = "Webhook"

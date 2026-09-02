@@ -7,7 +7,7 @@ garantiert nichts an eine echte Instanz.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,18 +40,18 @@ def _anfrage(client: TestClient, item: dict, headers: dict | None = None):
 
 
 def test_zeitraum_beginn_tag() -> None:
-    jetzt = datetime(2026, 8, 16, 14, 30, tzinfo=timezone.utc)
+    jetzt = datetime(2026, 8, 16, 14, 30, tzinfo=UTC)
     assert quota.period_start(QuotaPeriod.day, jetzt) == datetime(2026, 8, 16)
 
 
 def test_zeitraum_beginn_woche_ist_montag() -> None:
     # 16.08.2026 ist ein Sonntag -> Wochenbeginn ist Montag, der 10.
-    jetzt = datetime(2026, 8, 16, 14, 30, tzinfo=timezone.utc)
+    jetzt = datetime(2026, 8, 16, 14, 30, tzinfo=UTC)
     assert quota.period_start(QuotaPeriod.week, jetzt) == datetime(2026, 8, 10)
 
 
 def test_zeitraum_beginn_monat() -> None:
-    jetzt = datetime(2026, 8, 16, 14, 30, tzinfo=timezone.utc)
+    jetzt = datetime(2026, 8, 16, 14, 30, tzinfo=UTC)
     assert quota.period_start(QuotaPeriod.month, jetzt) == datetime(2026, 8, 1)
 
 
@@ -277,7 +277,7 @@ def test_alte_anfragen_zaehlen_nicht_mehr(arr_client: TestClient) -> None:
     # Anfrage auf gestern zurückdatieren -> zählt nicht mehr für heute.
     with SessionLocal() as session:
         request = session.query(MediaRequest).one()
-        request.requested_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
+        request.requested_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)
         session.commit()
 
     stand = arr_client.get("/api/requests/quota", headers=headers).json()

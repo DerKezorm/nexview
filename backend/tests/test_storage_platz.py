@@ -17,9 +17,9 @@ from __future__ import annotations
 
 import pytest
 
+from app.db import SessionLocal
 from app.services import library, storage
 from app.services.settings_service import AppSettings, load_settings, save_settings
-from app.db import SessionLocal
 
 TB = 1024**4
 

@@ -40,7 +40,7 @@ Token aus; beide schicken danach auf die normale Anmeldung.
 from __future__ import annotations
 
 import logging
-from datetime import timezone
+from datetime import UTC
 
 from fastapi import Request, Response
 
@@ -193,7 +193,7 @@ def gilt_noch(inhalt: TokenInhalt, user: User) -> bool:
     # Aus der Datenbank kommt der Wert ohne Zeitzone zurueck (SQLite kennt
     # keine); gemeint ist immer UTC.
     if gewechselt.tzinfo is None:
-        gewechselt = gewechselt.replace(tzinfo=timezone.utc)
+        gewechselt = gewechselt.replace(tzinfo=UTC)
     grenze = gewechselt
 
     # ⚠️ Die spaetere der beiden Grenzen zaehlt. ``sessions_valid_from`` setzt
@@ -207,8 +207,7 @@ def gilt_noch(inhalt: TokenInhalt, user: User) -> bool:
     ab = user.sessions_valid_from
     if ab is not None:
         if ab.tzinfo is None:
-            ab = ab.replace(tzinfo=timezone.utc)
-        if ab > grenze:
-            grenze = ab
+            ab = ab.replace(tzinfo=UTC)
+        grenze = max(grenze, ab)
 
     return inhalt.ausgestellt >= int(grenze.timestamp() * 1000)

@@ -16,39 +16,39 @@ from sqlalchemy.orm import Session
 
 from ..db import SessionLocal
 from ..models import (
-    SpeicherVerlauf,
     MediaRequest,
     MediaType,
     NotificationType,
     RequestStatus,
+    SpeicherVerlauf,
     User,
     utcnow,
 )
 from . import (
+    abgleich,
     abgleich_kern,
     aufraeum_bericht,
     instanz_gesundheit,
-    abgleich,
     instanz_stand,
-    wiedergaben,
-    updates,
     library,
     loeschfrist,
+    logs,
     mail_outbox,
     mediaserver_library,
     mediaserver_watched,
     notify,
-    storage,
     ratings,
     requests_service,
+    storage,
+    updates,
+    watch,
     webhook_pflege,
     webhooks,
+    wiedergaben,
     zurueckgestellt,
 )
 from .arr import ArrError
 from .settings_service import AppSettings, load_settings
-from . import watch
-from . import logs
 
 logger = logging.getLogger("nexview.poller")
 
@@ -111,10 +111,13 @@ async def check_once(db: Session, settings: AppSettings) -> int:
     serien: dict[str, tuple[dict[int, object], dict[str, object]]] = {}
 
     for stufe in {r.tier.value for r in offen}:
-        if any(r.media_type == MediaType.movie and r.tier.value == stufe for r in offen):
+        # noqa: SIM102 an beiden Stellen - zusammengelegt ergibt die Bedingung
+        # ueber 130 Zeichen, und "wird es nachgefragt" ist eine andere Frage als
+        # "ist es ueberhaupt eingerichtet".
+        if any(r.media_type == MediaType.movie and r.tier.value == stufe for r in offen):  # noqa: SIM102
             if settings.arr_configured("movie", stufe):
                 filme[stufe] = await library.movie_library(settings, stufe)
-        if any(r.media_type == MediaType.tv and r.tier.value == stufe for r in offen):
+        if any(r.media_type == MediaType.tv and r.tier.value == stufe for r in offen):  # noqa: SIM102
             if settings.arr_configured("tv", stufe):
                 serien[stufe] = await library.series_library(settings, stufe)
 

@@ -316,7 +316,7 @@ class AppSettings:
     # Einzelwerte darunter sind die **erste** davon - sie bleiben, damit die
     # ueber zwanzig Stellen, die "ist verbunden?" oder "welcher Anbieter?"
     # fragen, unveraendert weiterlaufen. Wer mehrere braucht, nimmt die Liste.
-    mediaserver_verbindungen: tuple["Verbindung", ...]
+    mediaserver_verbindungen: tuple[Verbindung, ...]
     mediaserver_provider: str
     mediaserver_machine_id: str
     # Das Konto, zu dem das Server-Token gehoert - siehe ``Verbindung``.
@@ -336,7 +336,7 @@ class AppSettings:
     quota_default_movies: int | None
     quota_default_series: int | None
     storage_default_limit_gb: int | None
-    quota_period: "QuotaPeriod"
+    quota_period: QuotaPeriod
 
     # --- Nur aus Sicht eines Benutzers gefuellt (siehe ``for_user``) --------
     # Alter des Benutzers; None heisst "nicht altersbeschraenkt".
@@ -752,7 +752,9 @@ def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:
     # "mediaserver_token" erklaert eine verschwundene Plex-Verbindung,
     # "tmdb_api_key" den ploetzlichen Demo-Modus.
     for name in SECRET_KEYS:
-        if raw.get(name, "").startswith("enc:") and not values.get(name):
+        if raw.get(name, "").startswith("enc:") and not values.get(name):  # noqa: SIM102
+            # Bewusst zwei Stufen: oben steht, ob ein Geheimnis kaputt ist, unten,
+            # ob wir es schon einmal gemeldet haben. Das sind zwei Fragen.
             if name not in _unlesbar_gemeldet:
                 _unlesbar_gemeldet.add(name)
                 logger.warning(
@@ -871,7 +873,7 @@ def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:
     return einstellungen
 
 
-def for_user(settings: AppSettings, user: "User") -> AppSettings:
+def for_user(settings: AppSettings, user: User) -> AppSettings:
     """Dieselben Einstellungen, aber aus Sicht eines bestimmten Benutzers.
 
     Zwei Dinge sind persoenlich:

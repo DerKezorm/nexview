@@ -96,9 +96,7 @@ class Handler(BaseHTTPRequestHandler):
             self._sende(200, [{"id": n, "hasFile": True} for n in range(1, self.launen.titel + 1)])
         elif self.path.startswith("/api/v3/command/"):
             self._sende(200, {"status": "completed"})
-        elif self.path.startswith("/api/v3/qualityprofile"):
-            self._sende(200, [])
-        elif self.path.startswith("/api/v3/customformat"):
+        elif self.path.startswith("/api/v3/qualityprofile") or self.path.startswith("/api/v3/customformat"):
             self._sende(200, [])
         else:
             self._sende(200, [])

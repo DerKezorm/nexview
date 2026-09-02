@@ -503,12 +503,9 @@ def laufzeit_pruefer(filter_: DiscoverFilters) -> Callable[[MediaItem], bool]:
 
     def passt(item: MediaItem) -> bool:
         dauer = item.runtime_minutes
-        if filter_.max_runtime is not None:
-            if not dauer or dauer > filter_.max_runtime:
-                return False
-        if filter_.min_runtime is not None and dauer and dauer < filter_.min_runtime:
+        if filter_.max_runtime is not None and (not dauer or dauer > filter_.max_runtime):
             return False
-        return True
+        return not (filter_.min_runtime is not None and dauer and dauer < filter_.min_runtime)
 
     return passt
 

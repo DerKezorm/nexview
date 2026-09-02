@@ -35,12 +35,11 @@ import ast
 import io
 from pathlib import Path
 
-import pyzipper
 import pytest
+import pyzipper
 
 from app.config import get_settings
 from app.services import sicherung
-
 
 QUELLEN = Path(__file__).resolve().parent.parent / "app"
 

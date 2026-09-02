@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import MediaRequest, RequestStatus
 
 from .conftest import auth_headers, create_user
-from sqlalchemy import select
 
 
 def _anfrage(client: TestClient, headers: dict, index: int = 0) -> int:

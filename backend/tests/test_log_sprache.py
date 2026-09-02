@@ -166,7 +166,7 @@ FREMDER_WORTLAUT: dict[tuple[str, str], str] = {
 
 
 def _eingesetzte_fehlertexte() -> list[tuple[str, str, int]]:
-    """Jede Log-Zeile, die ein ``…​.message`` einsetzt: (Datei, Funktion, Zeile)."""
+    """Jede Log-Zeile, die ein ``…\u200b.message`` einsetzt: (Datei, Funktion, Zeile)."""
     gefunden: list[tuple[str, str, int]] = []
     for pfad in sorted(APP.rglob("*.py")):
         baum = ast.parse(pfad.read_text(encoding="utf-8"))

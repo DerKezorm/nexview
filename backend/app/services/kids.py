@@ -34,8 +34,7 @@ from sqlalchemy.orm import Session
 from ..models import ChildWish, MediaType, User, WishState
 from ..schemas_media import MediaItem
 from ..services.settings_service import AppSettings
-from . import age_rating, blocklist, cache, library, media, mediaserver_library
-from . import requests_service
+from . import age_rating, blocklist, cache, library, media, mediaserver_library, requests_service
 from .children import RUBRIKEN, rubriken_von
 from .filters import DiscoverFilters
 
@@ -155,7 +154,7 @@ async def freigaben_bis_alter(
 
     try:
         tabelle = await _freigaben(db, settings, "movie")
-    except Exception:
+    except Exception:  # noqa: BLE001 - jeder Ausfall fuehrt hier zu demselben Ruecktritt
         # Faellt die Abfrage aus, bleibt der Nachfilter - lieber eine duenne
         # Seite als gar keine.
         return None, ""

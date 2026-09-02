@@ -7,9 +7,6 @@ bis er im Betrieb passiert.
 
 from __future__ import annotations
 
-import io
-import tarfile
-
 import pytest
 from sqlalchemy import select
 

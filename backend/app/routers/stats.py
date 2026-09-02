@@ -20,8 +20,7 @@ from pydantic import BaseModel
 
 from ..deps import AdminUser, DbSession
 from ..models import MediaType, utcnow
-from ..services import aufraeumen
-from ..services import stats
+from ..services import aufraeumen, stats
 
 router = APIRouter(prefix="/api/admin/stats", tags=["admin"])
 

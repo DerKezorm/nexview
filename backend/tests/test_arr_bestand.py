@@ -540,10 +540,11 @@ def test_aufraeumen_vergisst_nur_was_die_instanz_hergegeben_hat(
     **beide**: Das ueberlebende Profil stand danach weiter in Radarr, galt hier
     aber als fremd, und der Abgleich meldete dauerhaft "fehlt".
     """
+    from sqlalchemy import select
+
     from app.db import SessionLocal
     from app.models import QualitaetsprofilInstallation
     from app.routers import qualitaetsprofile as router
-    from sqlalchemy import select
 
     stamm = "/api/settings/qualitaetsprofile"
     weg = arr_client.post(stamm, json={"name": "Weg", "dienst": "radarr", "rezept": REZEPT})

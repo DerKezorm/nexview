@@ -18,9 +18,9 @@ from .base import (
     LoginChallenge,
     MediaServer,
     MediaServerError,
+    SeasonWatchedRecord,
     ServerCandidate,
     ServerUser,
-    SeasonWatchedRecord,
     WatchedRecord,
     WatchlistItem,
     close_http_client,
@@ -33,15 +33,15 @@ if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
     from ..settings_service import AppSettings, Verbindung
 
 __all__ = [
+    "PROVIDERS",
     "ExternalAccount",
     "LibraryItem",
     "LoginChallenge",
     "MediaServer",
     "MediaServerError",
-    "PROVIDERS",
+    "SeasonWatchedRecord",
     "ServerCandidate",
     "ServerUser",
-    "SeasonWatchedRecord",
     "WatchedRecord",
     "WatchlistItem",
     "close_http_client",
@@ -49,9 +49,9 @@ __all__ = [
     "media_server_for_setup",
     "merklisten_anbieter",
     "merklisten_server",
+    "new_client_identifier",
     "verbindung_fuer",
     "verbundene_anbieter",
-    "new_client_identifier",
 ]
 
 logger = logging.getLogger("nexview.mediaserver")
@@ -73,7 +73,7 @@ def new_client_identifier() -> str:
     return secrets.token_hex(12)
 
 
-def get_media_server(settings: "AppSettings") -> MediaServer | None:
+def get_media_server(settings: AppSettings) -> MediaServer | None:
     """Der eingerichtete Media-Server - ``None``, wenn keiner verbunden ist.
 
     Ohne Verbindung bleibt in Nexview schlicht alles beim Alten; niemand muss
@@ -104,7 +104,7 @@ def get_media_server(settings: "AppSettings") -> MediaServer | None:
     return media_server_for_setup(settings, settings.mediaserver_provider)
 
 
-def verbundene_anbieter(settings: "AppSettings") -> list[str]:
+def verbundene_anbieter(settings: AppSettings) -> list[str]:
     """Welche Medienserver sind gerade verbunden?
 
     Heute hoechstens einer - die Liste ist trotzdem eine Liste, weil genau hier
@@ -119,7 +119,7 @@ def verbundene_anbieter(settings: "AppSettings") -> list[str]:
     return [v.provider for v in settings.mediaserver_verbindungen if v.nutzbar]
 
 
-def verbindung_fuer(settings: "AppSettings", provider: str) -> "Verbindung | None":
+def verbindung_fuer(settings: AppSettings, provider: str) -> Verbindung | None:
     """Die gespeicherte Verbindung **dieses** Anbieters.
 
     Der Unterschied zu den Einzelwerten in ``AppSettings`` ist im Parallel-
@@ -133,7 +133,7 @@ def verbindung_fuer(settings: "AppSettings", provider: str) -> "Verbindung | Non
     return None
 
 
-def merklisten_anbieter(settings: "AppSettings") -> list[str]:
+def merklisten_anbieter(settings: AppSettings) -> list[str]:
     """Verbundene Anbieter, die ueberhaupt eine Merkliste kennen.
 
     ⚠️ Nicht dasselbe wie "verbunden". Jellyfin und Emby haben keine
@@ -149,14 +149,14 @@ def merklisten_anbieter(settings: "AppSettings") -> list[str]:
     ]
 
 
-def merklisten_server(settings: "AppSettings") -> MediaServer | None:
+def merklisten_server(settings: AppSettings) -> MediaServer | None:
     """Der Adapter fuer die Merkliste - ``None``, wenn keiner sie kann."""
     anbieter = merklisten_anbieter(settings)
     return media_server_for_setup(settings, anbieter[0]) if anbieter else None
 
 
 def media_server_for_setup(
-    settings: "AppSettings", provider: str = "plex", url: str = ""
+    settings: AppSettings, provider: str = "plex", url: str = ""
 ) -> MediaServer:
     """Adapter fuer die Ersteinrichtung.
 

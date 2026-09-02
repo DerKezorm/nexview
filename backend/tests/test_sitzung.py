@@ -8,7 +8,7 @@ Bestohlenen den Ausweg. Eines ohne das andere waere halbe Arbeit.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -231,7 +231,7 @@ def test_token_aus_derselben_sekunde_faellt_durch(admin_client: TestClient) -> N
         # Eine Millisekunde nach dem Token - und damit in derselben **Sekunde**.
         # Genau dieser Fall rutschte vorher durch.
         person.password_changed_at = datetime.fromtimestamp(
-            (inhalt.ausgestellt + 1) / 1000, tz=timezone.utc
+            (inhalt.ausgestellt + 1) / 1000, tz=UTC
         ).replace(tzinfo=None)
         session.commit()
 
@@ -342,9 +342,8 @@ class TestUeberallAbmelden:
     def test_ein_aelteres_token_gilt_nicht_mehr(self, admin_client: TestClient) -> None:
         """Der eigentliche Zweck - geprueft am Riegel selbst."""
         from app.db import SessionLocal
-        from app.models import User
+        from app.models import User, utcnow
         from app.services.sitzung import TokenInhalt, gilt_noch
-        from app.models import utcnow
 
         # Ein Token, das **vor** dem Abmelden ausgestellt wurde.
         alt = int(utcnow().timestamp() * 1000)

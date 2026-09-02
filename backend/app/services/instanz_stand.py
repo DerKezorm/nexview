@@ -25,16 +25,16 @@ Ausfall. Deshalb wird es **nur beim Wechsel** gesetzt.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import InstanzStand
+from . import library, storage
 from .arr import ArrClient, ArrError
 from .settings_service import AppSettings, ArrInstanz
-from . import library, storage, updates
 
 logger = logging.getLogger("nexview.instanzstand")
 
@@ -45,7 +45,7 @@ ANTWORTFRIST = httpx.Timeout(4.0, connect=3.0)
 
 
 def _jetzt() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def eintrag(db: Session, kennung: str) -> InstanzStand | None:

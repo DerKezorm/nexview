@@ -8,9 +8,9 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
+from .. import meldungen
 from ..deps import AdminUser
 from ..services import logs
-from .. import meldungen
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
 

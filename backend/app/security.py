@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 import bcrypt
@@ -92,7 +92,7 @@ def _create_token(subject: int, token_type: TokenType, expires_in: timedelta) ->
     Mit Millisekunden gibt es die Zwickmuehle nicht mehr: Der Vergleich ist
     genau, ohne Rundung und ohne Sonderfaelle.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": str(subject),
         "type": token_type,

@@ -10,24 +10,23 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from .. import meldungen
 from ..deps import AdminUser, ApproverUser, DbSession
 from ..models import (
     MediaRequest,
     MediaType,
-    QualityTier,
-    Notification,
     NotificationType,
+    QualityTier,
     RequestStatus,
-    TitleRating,
     Role,
+    TitleRating,
     User,
     utcnow,
 )
 from ..schemas_requests import AnfragerSpeicher, FeedbackReply, RequestWithUser
 from ..services import blocklist, media, notify, ratings, requests_service, storage, streaming
 from ..services.settings_service import load_settings
-from ..services.tmdb import TmdbError, image_url
-from .. import meldungen
+from ..services.tmdb import TmdbError
 
 router = APIRouter(prefix="/api/admin/requests", tags=["admin"])
 

@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import MediaRequest, MediaType, RequestStatus, Role, User, TitleRating
+from ..models import MediaRequest, MediaType, RequestStatus, Role, TitleRating, User
 from . import quota, storage
 from .settings_service import load_settings
 
@@ -116,7 +116,7 @@ def _monat(zeitpunkt: datetime) -> str:
 
 
 def _letzte_monate(anzahl: int) -> list[str]:
-    heute = datetime.now(timezone.utc).replace(tzinfo=None)
+    heute = datetime.now(UTC).replace(tzinfo=None)
     monate: list[str] = []
     zeiger = heute.replace(day=1)
     for _ in range(anzahl):
@@ -281,7 +281,7 @@ def collect(db: Session) -> dict:
     )
     if aelteste is not None:
         gesamt.freigabe_laengste_offen_stunden = round(
-            (datetime.now(timezone.utc).replace(tzinfo=None) - aelteste).total_seconds()
+            (datetime.now(UTC).replace(tzinfo=None) - aelteste).total_seconds()
             / 3600,
             1,
         )

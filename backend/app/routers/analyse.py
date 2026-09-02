@@ -16,7 +16,7 @@ Instanz-Zustand, Plattenfuellstand und Sicherungen; das sind Betriebsdaten.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -32,8 +32,8 @@ from ..models import (
     StorageEntry,
     StorageState,
     User,
-    WiedergabeSpitze,
     UserWatched,
+    WiedergabeSpitze,
 )
 from ..services import abgleich as abgleich_dienst
 from ..services import instanz_gesundheit, instanz_stand, logs, mail_outbox, sicherung
@@ -127,7 +127,7 @@ class AnalyseStand(BaseModel):
 
 
 def _jetzt() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _instanzen(db, settings) -> list[InstanzZeile]:

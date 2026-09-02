@@ -1,3 +1,8 @@
 -r requirements.txt
 pytest==8.4.2
 pytest-asyncio==1.3.0
+# ⚠️ Genau festgenagelt, und das ist hier wichtiger als sonst: ruff nimmt mit
+# jeder Nebenversion Regeln in seine Vorauswahl auf. Ohne Pin waere der Bau
+# eines Tages rot, ohne dass jemand etwas geaendert haette. Die Konfiguration in
+# pyproject.toml zieht dieselbe Grenze noch einmal von der anderen Seite.
+ruff==0.16.5

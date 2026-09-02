@@ -25,7 +25,6 @@ from app.services import watch
 
 from .conftest import auth_headers, create_user
 
-
 # --- Die Bündelung ----------------------------------------------------------
 
 

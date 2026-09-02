@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -317,7 +317,7 @@ def test_startseite_verwechselt_gesperrt_nicht_mit_unauffindbar(
     bleiben; ein gesperrter muss ganz verschwinden. Als die Startseite nur auf
     den Statuscode sah, war sie im Demo-Modus komplett leer.
     """
-    jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+    jetzt = datetime.now(UTC).replace(tzinfo=None)
     with SessionLocal() as session:
         benutzer = session.query(User).filter(User.role == Role.admin).first()
         assert benutzer is not None

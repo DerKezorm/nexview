@@ -8,10 +8,9 @@ from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-
-from app.db import SessionLocal
 from sqlalchemy import select
 
+from app.db import SessionLocal
 from app.models import MediaType, User, UserWatched
 from app.services import filmabend
 from app.services.filters import BEKANNTE_TITEL_STIMMEN, PERLEN_MINDESTALTER_JAHRE

@@ -17,8 +17,7 @@ from sqlalchemy.orm import Session
 from .. import meldungen
 from ..deps import AdminUser, DbSession
 from ..models import Qualitaetsprofil
-from ..services import arr_bestand
-from ..services import qualitaet_umzug
+from ..services import arr_bestand, logs, qualitaet_umzug
 from ..services import benennung as benennung_dienst
 from ..services import medienserver_verbindung as mediaserver_verbindung
 from ..services import qualitaetsprofile as dienst
@@ -26,7 +25,6 @@ from ..services import trash_bezug as bezug
 from ..services.arr import ArrClient, ArrError
 from ..services.settings_service import load_settings
 from ..services.trash import TrashFehler, schnappschuss
-from ..services import logs
 
 logger = logging.getLogger("nexview.qualitaet")
 

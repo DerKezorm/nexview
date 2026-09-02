@@ -42,7 +42,7 @@ import sys
 import time
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -412,12 +412,12 @@ async def run_forever(stop) -> None:
             logging.getLogger("nexview").exception("Log mode watchdog failed")
         try:
             await asyncio.wait_for(stop.wait(), timeout=30)
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             continue
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _stored() -> tuple[str, datetime | None]:
@@ -443,7 +443,7 @@ def _stored() -> tuple[str, datetime | None]:
             )
             gelesen = (werte.get(SETTING_MODE) or "").strip()
             frist = (werte.get(SETTING_UNTIL) or "").strip()
-    except Exception:
+    except Exception:  # noqa: BLE001 - ohne lesbare Einstellung gilt die Vorgabe, egal warum
         return DEFAULT_MODE, None
 
     if gelesen not in MODES:
@@ -457,7 +457,7 @@ def _stored() -> tuple[str, datetime | None]:
             zeitpunkt = None
         else:
             if zeitpunkt.tzinfo is None:
-                zeitpunkt = zeitpunkt.replace(tzinfo=timezone.utc)
+                zeitpunkt = zeitpunkt.replace(tzinfo=UTC)
     return gelesen, zeitpunkt
 
 
@@ -481,7 +481,7 @@ def _store(mode: str, until: datetime | None) -> None:
                 else:
                     row.value = text
             db.commit()
-    except Exception:  # pragma: no cover - ohne Datenbank bleibt die Stufe fluechtig
+    except Exception:  # noqa: BLE001 - die Meldung darunter nennt die Folge, der Grund zaehlt nicht  # pragma: no cover
         logging.getLogger("nexview").warning("Could not store log mode %s", mode)
 
 

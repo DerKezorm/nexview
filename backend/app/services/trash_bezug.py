@@ -192,8 +192,10 @@ def _aus_paket(rohdaten: bytes) -> dict[str, dict[str, Any]]:
 
 
 async def _paket_holen() -> bytes:
-    async with httpx.AsyncClient(timeout=FRIST_HOLEN, follow_redirects=True) as client:
-        async with client.stream("GET", PAKET) as antwort:
+    async with (
+        httpx.AsyncClient(timeout=FRIST_HOLEN, follow_redirects=True) as client,
+        client.stream("GET", PAKET) as antwort,
+    ):
             if antwort.status_code != 200:
                 raise BezugFehler(code="trash_unreachable", meldung="Das Paket liess sich nicht laden.")
             teile: list[bytes] = []

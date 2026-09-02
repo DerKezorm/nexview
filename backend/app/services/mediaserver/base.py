@@ -20,9 +20,8 @@ und ein Eintrag in der Registrierung - und kein Umbau.
 
 from __future__ import annotations
 
-import enum
-
 import asyncio
+import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime

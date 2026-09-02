@@ -9,11 +9,9 @@ from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFil
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+from .. import meldungen
 from ..deps import AdultUser, CurrentUser, DbSession
 from ..models import User, utcnow
-from ..services import accounts, anmeldebremse, api_schluessel, avatars, mail, sitzung, tokens
-from ..services.settings_service import load_settings
-from .. import meldungen
 from ..schemas import (
     LoginRequest,
     PasswordChange,
@@ -27,6 +25,8 @@ from ..security import (
     hash_password,
     verify_password,
 )
+from ..services import accounts, anmeldebremse, api_schluessel, avatars, mail, sitzung, tokens
+from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

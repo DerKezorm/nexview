@@ -29,19 +29,19 @@ from sqlalchemy import select
 from app.db import SessionLocal
 from app.models import (
     MediaRequest,
-    RequestStatus,
     MediaType,
     Notification,
     NotificationType,
     QualityTier,
+    RequestStatus,
     Role,
     StorageEntry,
     StorageState,
 )
 from app.services import library, storage
 from app.services.radarr import LibraryEntry as MovieEntry
-from app.services.sonarr import LibraryEntry as SeriesEntry
 from app.services.settings_service import load_settings, save_settings
+from app.services.sonarr import LibraryEntry as SeriesEntry
 
 from .conftest import auth_headers, create_user
 
@@ -449,8 +449,9 @@ def test_vorschau_nennt_den_grund_wenn_nicht_geloescht_werden_kann(
 def _anfrage(db, *, tmdb=603, tvdb=None, season=None,
              media_type=MediaType.movie, status=RequestStatus.downloaded) -> int:
     """Eine Anfrage, wie sie zum geloeschten Posten gehoert."""
-    from app.models import User
     from sqlalchemy import select
+
+    from app.models import User
     benutzer = db.scalars(select(User)).first()
     if benutzer is None:
         # Diese Datei arbeitet ohne Client-Fixture - also auch ohne das

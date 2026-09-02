@@ -8,10 +8,11 @@ weggeklickt - und danach auch die eine Meldung, auf die es ankommt.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import (
@@ -24,23 +25,20 @@ from app.models import (
     NotificationType,
     QualityTier,
     RequestStatus,
-    SpeicherVerlauf,
     Role,
+    SpeicherVerlauf,
     StorageEntry,
     StorageState,
     User,
 )
-from sqlalchemy import select
-
 from app.services import befunde, mail_outbox
-from app.services import instanz_stand as instanz_stand_dienst
 from app.services.settings_service import load_settings
 
 from .conftest import auth_headers, create_user
 
 
 def _jetzt() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _sammeln(kennung: str | None = None) -> list[befunde.Befund]:
@@ -850,7 +848,6 @@ def test_normale_protokollstufe_schweigt(admin_client: TestClient) -> None:
 
 
 def _update_gemerkt(jetzt: str, neu: str | None) -> None:
-    from datetime import timezone as _tz
 
     from app.services import updates as updates_dienst
 
@@ -858,7 +855,7 @@ def _update_gemerkt(jetzt: str, neu: str | None) -> None:
         current=jetzt,
         latest=neu,
         update_available=neu is not None,
-        checked_at=datetime.now(_tz.utc),
+        checked_at=datetime.now(UTC),
     )
 
 

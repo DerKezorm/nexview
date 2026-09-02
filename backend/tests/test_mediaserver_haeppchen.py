@@ -39,7 +39,6 @@ from app.services.mediaserver.base import (
 )
 from app.services.mediaserver.jellyfin import SEITE_FILME, JellyfinServer
 
-
 EINSTELLUNGEN = SimpleNamespace(
     mediaserver_url="http://jelly.test",
     mediaserver_token="token",

@@ -10,16 +10,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import replace
 from datetime import datetime
-
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import func, select
 
+from .. import meldungen
 from ..deps import AdminUser, CurrentUser, DbSession
-from dataclasses import replace
-
 from ..models import (
     MediaType,
     NotificationType,
@@ -29,7 +29,6 @@ from ..models import (
     User,
     utcnow,
 )
-from sqlalchemy import func, select
 from ..services import (
     aufraeumen,
     library,
@@ -39,14 +38,14 @@ from ..services import (
     notify,
     storage,
 )
+from ..services.arr import ArrError
+from ..services.settings_service import for_user, load_settings
+
 # Dieselbe Antwortform wie in der Statistik. Bewusst dort definiert und
 # hier geholt statt verdoppelt: Zwei Fassungen desselben Schemas laufen
 # beim ersten neuen Feld auseinander, und die Oberflaeche haette dann zwei
 # Tabellen zu pflegen statt einer.
 from .stats import AufraeumListe, als_liste
-from ..services.arr import ArrError
-from ..services.settings_service import for_user, load_settings
-from .. import meldungen
 
 logger = logging.getLogger(__name__)
 

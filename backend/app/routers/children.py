@@ -11,6 +11,7 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
+from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..models import ChildWish, MediaType, QualityTier, User
 from ..schemas import ChildCreate, ChildPassword, ChildPublic, ChildUpdate
@@ -27,7 +28,6 @@ from ..services import (
 )
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
-from .. import meldungen
 
 router = APIRouter(prefix="/api/children", tags=["children"])
 

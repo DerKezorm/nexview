@@ -25,7 +25,7 @@ eines Haufens.
 als geprueft wird:
 
 * Nur ``backend/requirements.txt``. ``backend/requirements-dev.txt`` bringt
-  zusaetzlich pytest und pytest-asyncio mit; die fragt hier niemand ab.
+  zusaetzlich pytest, pytest-asyncio und ruff mit; die fragt hier niemand ab.
 * Das Frontend haengt an ``frontend/package.json`` mit einer eigenen
   Lieferkette. npm ist hier gar nicht abgedeckt.
 * OSV antwortet auch fuer Fassungen, die es nie gab: die Abfrage ``pyjwt@2.13.1``

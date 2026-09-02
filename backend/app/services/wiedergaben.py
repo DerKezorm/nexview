@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -46,7 +46,7 @@ async def _von_einem(settings: AppSettings, anbieter: str) -> list[Wiedergabe]:
         return await asyncio.wait_for(
             server.laufende_wiedergaben(), timeout=FRIST_SEKUNDEN
         )
-    except (MediaServerError, asyncio.TimeoutError):
+    except (TimeoutError, MediaServerError):
         # Kein Grund zum Aufregen: Der Server ist gerade nicht da, und das
         # steht ohnehin schon als Befund auf der Diensteseite.
         return []
@@ -154,7 +154,7 @@ def spitze_merken(db: Session, gefunden: list[Wiedergabe]) -> None:
     lief nichts" ist eine Aussage; eine Luecke in der Kurve sieht dagegen aus
     wie ein Ausfall der Messung.
     """
-    jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+    jetzt = datetime.now(UTC).replace(tzinfo=None)
     abschnitt = _abschnitt(jetzt)
 
     gleichzeitig = len(gefunden)
@@ -187,7 +187,7 @@ def spitze_merken(db: Session, gefunden: list[Wiedergabe]) -> None:
 def verlauf_aufraeumen(db: Session) -> int:
     """Alles Aeltere wegwerfen. Gibt zurueck, wie viele Zeilen gingen."""
     grenze = (
-        datetime.now(timezone.utc).replace(tzinfo=None)
+        datetime.now(UTC).replace(tzinfo=None)
         - timedelta(days=AUFBEWAHREN_TAGE)
     ).strftime("%Y-%m-%d %H:%M")
     alt = list(

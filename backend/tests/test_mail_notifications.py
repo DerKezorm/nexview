@@ -592,10 +592,10 @@ def test_jede_speicher_meldung_hat_eine_mailvorlage() -> None:
     wird abgehakt, verschickt wird nichts. Der Nutzer setzt den Haken, wartet
     auf Post und bekommt nie welche - ohne dass irgendwo ein Fehler steht.
     """
+    from app.db import SessionLocal
     from app.models import Notification, NotificationType, User
     from app.services import mail_outbox
     from app.services.settings_service import load_settings
-    from app.db import SessionLocal
 
     with SessionLocal() as db:
         einstellungen = load_settings(db)

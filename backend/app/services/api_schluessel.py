@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -183,8 +183,8 @@ def einloesen(db: Session, klartext: str) -> ApiKey | None:
         # SQLite gibt Zeitpunkte ohne Zeitzone zurueck - der Vergleich mit
         # einem zeitzonenbehafteten Wert wuerde sonst ``TypeError`` werfen.
         if faellig.tzinfo is None:
-            faellig = faellig.replace(tzinfo=timezone.utc)
-        if faellig <= datetime.now(timezone.utc):
+            faellig = faellig.replace(tzinfo=UTC)
+        if faellig <= datetime.now(UTC):
             return None
 
     if eintrag.user is None or not eintrag.user.is_active:
@@ -198,7 +198,7 @@ def _nutzung_vermerken(db: Session, eintrag: ApiKey) -> None:
     jetzt = utcnow()
     zuletzt = eintrag.last_used_at
     if zuletzt is not None and zuletzt.tzinfo is None:
-        zuletzt = zuletzt.replace(tzinfo=timezone.utc)
+        zuletzt = zuletzt.replace(tzinfo=UTC)
 
     if zuletzt is not None and jetzt - zuletzt < NUTZUNG_MERKEN_AB:
         return

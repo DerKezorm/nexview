@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -89,7 +88,7 @@ class SetupStatus(BaseModel):
     # fest beschrifteten "Mit Plex anmelden"-Knopf. Auf einer Installation mit
     # nur Jellyfin war das ein Knopf, der beim Klick scheiterte - der Ablauf
     # dahinter ist auf plex.tv zugeschnitten.
-    mediaserver_login_ways: list["AnmeldeWeg"] = []
+    mediaserver_login_ways: list[AnmeldeWeg] = []
 
 
 class AnmeldeWeg(BaseModel):
@@ -271,9 +270,9 @@ class UserPublic(BaseModel):
     # nennen nur die zuletzt hinzugekommene - im Parallelbetrieb also
     # willkuerlich eine von zweien. Wer nach einem bestimmten Anbieter fragt,
     # muss hier suchen.
-    mediaserver_accounts: list["VerknuepftesKonto"] = []
+    mediaserver_accounts: list[VerknuepftesKonto] = []
     # Dieselbe Liste fuer die genormte Anmeldung - je Anbieter eine Zeile.
-    oidc_links: list["OidcVerknuepfung"] = []
+    oidc_links: list[OidcVerknuepfung] = []
     # Wer sich nur ueber den Media-Server anmeldet, hat kein Passwort. Das
     # Profil braucht die Auskunft, um "Passwort festlegen" anzubieten - und um
     # das Trennen zu verhindern, das aussperren wuerde.

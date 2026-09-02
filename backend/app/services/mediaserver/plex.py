@@ -13,21 +13,21 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from . import plextv
 from .. import http_log
+from . import plextv
 from .base import (
-    Umrechnung,
-    Wiedergabe,
     ExternalAccount,
     LibraryItem,
     LoginChallenge,
     MediaServer,
     MediaServerError,
+    SeasonWatchedRecord,
     ServerCandidate,
     ServerUser,
-    SeasonWatchedRecord,
+    Umrechnung,
     WatchedRecord,
     WatchlistItem,
+    Wiedergabe,
     http_client,
 )
 
@@ -163,7 +163,7 @@ class PlexServer(MediaServer):
     login_kind = "pin"
 
     def __init__(
-        self, settings: "AppSettings", verbindung: "Verbindung | None" = None
+        self, settings: AppSettings, verbindung: Verbindung | None = None
     ) -> None:
         # ``verbindung`` ist die Zeile **dieses** Anbieters. Ohne sie greifen
         # die Einzelwerte - und die gehoeren immer der *ersten* Verbindung.

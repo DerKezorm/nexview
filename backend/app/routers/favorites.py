@@ -15,11 +15,11 @@ from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 
+from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..models import Favorite, FavoritePerson, MediaType
 from ..services import media
 from ..services.settings_service import for_user, load_settings
-from .. import meldungen
 
 router = APIRouter(prefix="/api/favorites", tags=["favorites"])
 

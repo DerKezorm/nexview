@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
@@ -40,7 +40,7 @@ def enum_column(enum_class: type[enum.Enum]) -> Enum:
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Base(DeclarativeBase):
@@ -666,7 +666,7 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     def blocked_profiles(
-        self, media_type: "MediaType", tier: "QualityTier" = QualityTier.standard
+        self, media_type: MediaType, tier: QualityTier = QualityTier.standard
     ) -> list[int]:
         """Gesperrte Profil-Kennungen; leere Liste = nichts gesperrt.
 
@@ -692,7 +692,7 @@ class User(Base):
             )
         return [int(part) for part in raw.split(",") if part.strip().isdigit()]
 
-    def may_request_uhd(self, media_type: "MediaType") -> bool:
+    def may_request_uhd(self, media_type: MediaType) -> bool:
         """Darf dieser Benutzer diese Medienart in 4K anfragen?
 
         Wer freigeben darf - Administratoren und Entscheider - immer: Sie
@@ -709,7 +709,7 @@ class User(Base):
         )
 
     def auto_approve_for(
-        self, media_type: "MediaType", tier: "QualityTier" = QualityTier.standard
+        self, media_type: MediaType, tier: QualityTier = QualityTier.standard
     ) -> bool:
         """Gilt eine Anfrage sofort als freigegeben?
 
@@ -731,19 +731,19 @@ class User(Base):
         )
         return self.auto_approve if eigen is None else eigen
 
-    requests: Mapped[list["MediaRequest"]] = relationship(
+    requests: Mapped[list[MediaRequest]] = relationship(
         back_populates="user",
         foreign_keys="MediaRequest.user_id",
         cascade="all, delete-orphan",
     )
-    mediaserver_accounts: Mapped[list["UserMediaServerAccount"]] = relationship(
+    mediaserver_accounts: Mapped[list[UserMediaServerAccount]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         # Wird fast immer mitgebraucht, sobald ein Benutzer geladen wird -
         # einzeln nachzuladen ergaebe eine Abfrage je Benutzer in jeder Liste.
         lazy="selectin",
     )
-    oidc_links: Mapped[list["OidcLink"]] = relationship(
+    oidc_links: Mapped[list[OidcLink]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         # Wie bei den Medienserver-Konten: Das Profil und die Anmeldewege
@@ -751,7 +751,7 @@ class User(Base):
         lazy="selectin",
     )
 
-    notifications: Mapped[list["Notification"]] = relationship(
+    notifications: Mapped[list[Notification]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -933,7 +933,7 @@ class ApiKey(Base):
     #: Damit ein Schluessel, den seit Monaten niemand benutzt, sichtbar tot ist.
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    user: Mapped["User"] = relationship("User")
+    user: Mapped[User] = relationship("User")
 
 
 class AuthToken(Base):
@@ -1144,7 +1144,7 @@ class UserMediaServerAccount(Base):
     # Wann der Anbieter das Token zuletzt abgelehnt hat (401).
     token_invalid_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    user: Mapped["User"] = relationship(back_populates="mediaserver_accounts")
+    user: Mapped[User] = relationship(back_populates="mediaserver_accounts")
 
 
 class MediaServerLibraryItem(Base):
@@ -1709,7 +1709,7 @@ class Qualitaetsprofil(Base):
     )
     aktualisiert_am: Mapped[datetime | None] = mapped_column(DateTime)
 
-    installationen: Mapped[list["QualitaetsprofilInstallation"]] = relationship(
+    installationen: Mapped[list[QualitaetsprofilInstallation]] = relationship(
         back_populates="profil", cascade="all, delete-orphan"
     )
 
@@ -1741,7 +1741,7 @@ class QualitaetsprofilInstallation(Base):
     trash_stand: Mapped[str] = mapped_column(String(16), default="", nullable=False)
     geschrieben_am: Mapped[datetime | None] = mapped_column(DateTime)
 
-    profil: Mapped["Qualitaetsprofil"] = relationship(back_populates="installationen")
+    profil: Mapped[Qualitaetsprofil] = relationship(back_populates="installationen")
 
 
 class Umbenennlauf(Base):
@@ -2116,10 +2116,10 @@ class ChannelTarget(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
-    parent: Mapped["ChannelTarget | None"] = relationship(
+    parent: Mapped[ChannelTarget | None] = relationship(
         remote_side=[id], back_populates="children"
     )
-    children: Mapped[list["ChannelTarget"]] = relationship(
+    children: Mapped[list[ChannelTarget]] = relationship(
         back_populates="parent", cascade="all, delete-orphan"
     )
 
@@ -2232,7 +2232,7 @@ class Ticket(Base):
     )
 
     user: Mapped[User] = relationship(foreign_keys=[user_id])
-    messages: Mapped[list["TicketMessage"]] = relationship(
+    messages: Mapped[list[TicketMessage]] = relationship(
         back_populates="ticket",
         cascade="all, delete-orphan",
         order_by="TicketMessage.created_at",
@@ -2642,7 +2642,7 @@ class ChildWish(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
     child: Mapped[User] = relationship(foreign_keys=[child_id])
-    request: Mapped["MediaRequest | None"] = relationship(foreign_keys=[request_id])
+    request: Mapped[MediaRequest | None] = relationship(foreign_keys=[request_id])
 
 
 class OidcProvider(Base):
@@ -2726,7 +2726,7 @@ class OidcLink(Base):
     display: Mapped[str | None] = mapped_column(String(255))
     linked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
-    user: Mapped["User"] = relationship(back_populates="oidc_links")
+    user: Mapped[User] = relationship(back_populates="oidc_links")
 
 
 class OidcBlock(Base):

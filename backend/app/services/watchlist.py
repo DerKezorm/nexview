@@ -32,13 +32,12 @@ from sqlalchemy.orm import Session
 from ..crypto import decrypt
 from ..models import MediaType, User, WatchlistLookup, utcnow
 from ..schemas_media import MediaItem
-from . import media
-from .media import AgeRestricted, TmdbError
+from . import logs, media
 from . import mediaserver_accounts as konten
+from .media import AgeRestricted, TmdbError
 from .mediaserver import MediaServerError, merklisten_server
 from .mediaserver.base import WatchlistItem
 from .settings_service import AppSettings, for_user
-from . import logs
 
 logger = logging.getLogger("nexview.watchlist")
 

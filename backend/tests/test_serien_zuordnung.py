@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from app.services import serien_zuordnung
-from app.services.serien_zuordnung import zuordnen, erlaubt
+from app.services.serien_zuordnung import erlaubt, zuordnen
 
 
 class _FakeSonarr:

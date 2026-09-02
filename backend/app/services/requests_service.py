@@ -8,22 +8,23 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import meldungen
 from ..models import (
     MediaRequest,
     MediaType,
-    QualityTier,
     Notification,
     NotificationType,
+    QualityTier,
     RequestStatus,
     Role,
     User,
     utcnow,
 )
 from ..schemas_media import MediaItem
-from .. import meldungen
 from . import (
     blocklist,
     library,
+    logs,
     media,
     mediaserver_library,
     notify,
@@ -33,7 +34,6 @@ from . import (
 )
 from .arr import ArrError
 from .settings_service import AppSettings
-from . import logs
 
 logger = logging.getLogger("nexview.requests")
 
@@ -45,8 +45,8 @@ __all__ = [
     "create_request",
     "find_active",
     "push_to_arr",
-    "resolve_root_folder",
     "requester_tag",
+    "resolve_root_folder",
     "withdraw",
 ]
 

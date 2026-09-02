@@ -34,10 +34,9 @@ from ..models import (
     User,
     utcnow,
 )
-from . import library, media, notify
+from . import library, logs, media, notify
 from .settings_service import AppSettings
 from .tmdb import TmdbError
-from . import logs
 
 logger = logging.getLogger("nexview.watch")
 

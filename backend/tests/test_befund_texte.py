@@ -69,9 +69,7 @@ def _alle_kennungen() -> set[str]:
     # vollstaendig zu sein, ohne es zu sein.
     for zeile in quelle.splitlines():
         stueck = zeile.strip()
-        if stueck.startswith('"bibliothek.luecken') or stueck.startswith(
-            '"betrieb.sicherung'
-        ):
+        if stueck.startswith(('"bibliothek.luecken', '"betrieb.sicherung')):
             gefunden.add(stueck.strip('",'))
     return gefunden
 

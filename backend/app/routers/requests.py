@@ -9,13 +9,13 @@ from fastapi import APIRouter, HTTPException, Path, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..models import (
-    TitleRating,
     MediaRequest,
     NotificationType,
     RequestStatus,
-    utcnow,
+    TitleRating,
 )
 from ..schemas_requests import (
     FeedbackCreate,
@@ -24,11 +24,10 @@ from ..schemas_requests import (
     RequestCreate,
     RequestPublic,
 )
-from ..services import media, notify, quota, requests_service, ratings
+from ..services import media, notify, quota, ratings, requests_service
 from ..services.quota import QuotaState
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
-from .. import meldungen
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
 

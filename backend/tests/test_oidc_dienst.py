@@ -343,13 +343,13 @@ def test_zustand_manipuliert_oder_leer() -> None:
 
 
 def _identitaet(**ueberschrieben) -> oidc.OidcIdentitaet:
-    werte = dict(
-        issuer=ISSUER,
-        subject="person-1",
-        email="oma@beispiel.de",
-        email_verified=True,
-        username="oma",
-    )
+    werte = {
+        "issuer": ISSUER,
+        "subject": "person-1",
+        "email": "oma@beispiel.de",
+        "email_verified": True,
+        "username": "oma",
+    }
     werte.update(ueberschrieben)
     return oidc.OidcIdentitaet(**werte)
 
@@ -591,11 +591,10 @@ async def test_hs256_bleibt_auch_mit_den_neuen_verfahren_draussen(
         algorithm="HS256",
         headers={"kid": helfer.KID},
     )
-    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
-        with pytest.raises(oidc.OidcFehler) as fehler:
-            await oidc.ausweis_pruefen(
-                helfer.beschreibung(), helfer.CLIENT_ID, gefaelscht, "nonce-1"
-            )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"), pytest.raises(oidc.OidcFehler) as fehler:
+        await oidc.ausweis_pruefen(
+            helfer.beschreibung(), helfer.CLIENT_ID, gefaelscht, "nonce-1"
+        )
     assert fehler.value.code == "oidc_token_invalid"
     # ⚠️ Das Verfahren gehoert in die Zeile: Sonst sieht ein nicht
     # angenommenes ``alg`` aus wie eine falsche Unterschrift.
@@ -812,9 +811,8 @@ async def test_weiterleitung_gilt_als_unerreichbar(monkeypatch, caplog) -> None:
     monkeypatch.setattr(
         oidc, "_client", httpx.AsyncClient(transport=httpx.MockTransport(antworten))
     )
-    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
-        with pytest.raises(oidc.OidcFehler) as fehler:
-            await oidc.discovery(helfer.ISSUER)
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"), pytest.raises(oidc.OidcFehler) as fehler:
+        await oidc.discovery(helfer.ISSUER)
     assert fehler.value.code == "oidc_provider_unreachable"
     assert "portal.beispiel.de" in caplog.text
     oidc.cache_leeren()
@@ -841,11 +839,10 @@ async def test_fehlender_schluessel_nennt_die_angebotenen_kids(
         algorithm="RS256",
         headers={"kid": "ein-kid-von-gestern"},
     )
-    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
-        with pytest.raises(oidc.OidcFehler) as fehler:
-            await oidc.ausweis_pruefen(
-                helfer.beschreibung(), helfer.CLIENT_ID, von_gestern, "nonce-1"
-            )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"), pytest.raises(oidc.OidcFehler) as fehler:
+        await oidc.ausweis_pruefen(
+            helfer.beschreibung(), helfer.CLIENT_ID, von_gestern, "nonce-1"
+        )
     assert fehler.value.code == "oidc_token_invalid"
     assert "ein-kid-von-gestern" in caplog.text
     # Und was der Anbieter stattdessen anbietet.
@@ -867,11 +864,10 @@ async def test_ohne_kid_wird_bei_mehreren_schluesseln_nicht_geraten(
         _PRIVAT_PEM,
         algorithm="RS256",
     )
-    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
-        with pytest.raises(oidc.OidcFehler):
-            await oidc.ausweis_pruefen(
-                helfer.beschreibung(), helfer.CLIENT_ID, ohne_kid, "nonce-1"
-            )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"), pytest.raises(oidc.OidcFehler):
+        await oidc.ausweis_pruefen(
+            helfer.beschreibung(), helfer.CLIENT_ID, ohne_kid, "nonce-1"
+        )
     assert "names no kid" in caplog.text
 
 
@@ -889,13 +885,12 @@ async def test_der_nonce_fehlschlag_unterscheidet_die_faelle(
     Ein **anderes** heisst, dass der Ausweis aus einem fremden Lauf stammt.
     Die Werte selbst gehoeren nicht ins Protokoll.
     """
-    with caplog.at_level(logging.WARNING, logger="nexview.oidc"):
-        with pytest.raises(oidc.OidcFehler) as fehler:
-            await oidc.ausweis_pruefen(
-                helfer.beschreibung(),
-                helfer.CLIENT_ID,
-                helfer.ausweis(nonce=nonce),
-                "nonce-1",
-            )
+    with caplog.at_level(logging.WARNING, logger="nexview.oidc"), pytest.raises(oidc.OidcFehler) as fehler:
+        await oidc.ausweis_pruefen(
+            helfer.beschreibung(),
+            helfer.CLIENT_ID,
+            helfer.ausweis(nonce=nonce),
+            "nonce-1",
+        )
     assert fehler.value.code == "oidc_token_invalid"
     assert erwartet in caplog.text

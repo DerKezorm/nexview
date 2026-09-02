@@ -62,6 +62,18 @@ jobs:
         working-directory: backend
         run: pip install -r requirements-dev.txt
 
+      # Die härteste und billigste Prüfung nach vorn, dieselbe Haltung wie beim
+      # Abhängigkeits-Prüfer darüber: rund zwei Sekunden, und sie bricht ab statt
+      # zu warnen. Weiter nach vorn geht sie nicht, ohne einen zweiten
+      # pip-Aufruf zu kosten, denn ruff kommt aus requirements-dev.txt.
+      #
+      # ⚠️ Schlägt sie an, wird die Regel nicht abgeschaltet. Die Konfiguration
+      # steht in backend/pyproject.toml, jede dortige Ausnahme trägt ihre
+      # Begründung, und eine neue gehört genauso begründet.
+      - name: Python-Regeln prüfen
+        working-directory: backend
+        run: python -m ruff check app tests tools
+
       - name: Tests ausführen
         working-directory: backend
         run: python -m pytest -q

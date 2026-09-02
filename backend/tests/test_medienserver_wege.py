@@ -24,7 +24,6 @@ import pytest
 
 from app.services import medienserver_verbindung as mv
 from app.services import pfad_zuordnung as pz
-from app.services.arr import ArrClient
 
 PLEX_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <MediaContainer>

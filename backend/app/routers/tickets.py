@@ -13,10 +13,10 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
+from .. import meldungen
 from ..deps import AdminUser, CurrentUser, DbSession
 from ..models import MediaType, Ticket, TicketMessage, TicketStatus
 from ..services import tickets
-from .. import meldungen
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 

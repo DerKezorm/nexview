@@ -10,9 +10,9 @@ import asyncio
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
-
 from sqlalchemy import select
 
+from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..models import Favorite, MediaType
 from ..schemas_media import MediaItem
@@ -32,7 +32,6 @@ from ..services.tmdb import TmdbError
 # Datei schlaegt die eigene Anfrage) ist heikel und existiert im Projekt schon
 # zweimal - eine dritte Kopie waere die, die beim naechsten Mal vergessen wird.
 from .discover import _http_error, _status_for
-from .. import meldungen
 
 router = APIRouter(prefix="/api/stoebern", tags=["stoebern"])
 

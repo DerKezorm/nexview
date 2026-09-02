@@ -32,6 +32,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import func, select
 
+from .. import meldungen
 from ..config import get_settings
 from ..crypto import encrypt
 from ..deps import AdminUser, AdultUser, DbSession
@@ -39,15 +40,16 @@ from ..models import OidcBlock, OidcLink, OidcProvider, User, utcnow
 from ..schemas import UserPublic
 from ..services import (
     anmeldebremse,
-    betreiber as betreiber_dienst,
     logs,
     oidc,
     oidc_accounts,
     sitzung,
 )
+from ..services import (
+    betreiber as betreiber_dienst,
+)
 from ..services.mediaserver_accounts import KontoFehler
 from ..services.settings_service import load_settings
-from .. import meldungen
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["oidc"])
 admin_router = APIRouter(prefix="/api/admin/oidc", tags=["oidc"])

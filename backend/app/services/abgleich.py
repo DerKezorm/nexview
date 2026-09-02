@@ -41,12 +41,12 @@ import logging
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import MediaServerLibraryItem, MediaType, Setting
-from .arr import ArrError
 from . import library
+from .arr import ArrError
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.abgleich")

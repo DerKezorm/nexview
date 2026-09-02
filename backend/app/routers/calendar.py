@@ -6,19 +6,28 @@ gleichzeitig befragt und daraus eine Zeitleiste baut.
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
+from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..models import MediaType
 from ..schemas_calendar import CalendarEntry, CalendarResult
-from ..services import blocklist, calendar as calendar_service
-from ..services import library, mediaserver_library, mediaserver_watched, requests_service
-from ..services import uhd
+from ..services import (
+    blocklist,
+    library,
+    mediaserver_library,
+    mediaserver_watched,
+    requests_service,
+    uhd,
+)
+from ..services import calendar as calendar_service
 from ..services.settings_service import for_user, load_settings
-from .. import meldungen
+
+logger = logging.getLogger("nexview.calendar")
 
 router = APIRouter(prefix="/api", tags=["calendar"])
 
@@ -92,7 +101,10 @@ async def _zustaende(db, settings, user, eintraege: list[CalendarEntry]) -> None
                 for ziel, quelle in zip(fremde, abgeglichen.items, strict=True):
                     ziel.status = quelle.status
             except Exception:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung
-                pass
+                # Auf der Diagnose-Stufe, nicht hoeher: Der Kalender laeuft haeufig,
+                # und ein fehlendes Abzeichen ist kein Vorfall. Wer aber meldet, dass
+                # die Abzeichen fehlen, findet hier den Grund statt einer leeren Stelle.
+                logger.debug("Calendar: status badges could not be filled in", exc_info=True)
 
         eigene = requests_service.badges_for(db, art, kennungen)
         gesperrt = blocklist.gesperrte_kennungen(db, art, kennungen)
@@ -122,7 +134,7 @@ async def _zustaende(db, settings, user, eintraege: list[CalendarEntry]) -> None
         try:
             await uhd.anreichern(db, settings, art.value, betroffen, user)
         except Exception:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung
-            pass
+            logger.debug("Calendar: 4K badges could not be filled in", exc_info=True)
 
 
 @router.get("/calendar", response_model=CalendarResult)

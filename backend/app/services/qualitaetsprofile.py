@@ -27,9 +27,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Qualitaetsprofil, QualitaetsprofilInstallation, utcnow
+from . import logs
 from .arr import ArrClient, ArrError
 from .trash import Bauplan, bauplan
-from . import logs
 
 logger = logging.getLogger("nexview.qualitaet")
 
@@ -641,7 +641,7 @@ async def schreiben(
     client: ArrClient,
     plan: Bauplan,
     vorhandene_id: int | None = None,
-    melden: "Fortschritt | None" = None,
+    melden: Fortschritt | None = None,
 ) -> Schreibergebnis:
     """Den Bauplan auf einer Instanz umsetzen.
 

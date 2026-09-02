@@ -13,13 +13,13 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+from .. import meldungen
 from ..deps import DbSession
 from ..models import AuthToken, Role, TokenPurpose, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH, VerificationSent
 from ..security import hash_password, verify_password
 from ..services import accounts, anmeldebremse, mail, tokens
 from ..services.settings_service import load_settings
-from .. import meldungen
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 

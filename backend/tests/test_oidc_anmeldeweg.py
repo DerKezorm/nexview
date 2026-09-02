@@ -28,6 +28,7 @@ from app.models import (
 )
 from app.services import oidc as oidc_dienst
 from app.services import settings_service
+
 from .conftest import auth_headers, create_user
 from .oidc_helfer import (
     CLIENT_ID,

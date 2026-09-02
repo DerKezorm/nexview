@@ -11,10 +11,10 @@ from typing import Any
 
 import pytest
 
+from app.db import SessionLocal
 from app.models import Role
 from app.schemas_media import MediaItem, MediaType
-from app.db import SessionLocal
-from app.services import requests_service, serien_zuordnung
+from app.services import requests_service
 from app.services.arr import ArrError
 from app.services.requests_service import RequestError, _tvdb_klaeren
 

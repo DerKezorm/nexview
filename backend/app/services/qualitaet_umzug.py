@@ -33,8 +33,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from ..models import Qualitaetsprofil
-from .arr import ArrClient
 from . import qualitaetsprofile as dienst
+from .arr import ArrClient
 
 logger = logging.getLogger("nexview.qualitaet")
 
@@ -118,8 +118,11 @@ def einlesen(roh: Any) -> list[Ausfuhr]:
     Fall braucht einen Satz, der sagt, was zu tun ist - deshalb eigene
     Ausnahmen statt eines Schluesselfehlers aus der Tiefe.
     """
+    # ⚠️ ValueError und nicht TypeError, obwohl es eine Typpruefung ist: Die
+    # Kennungen hier sind Meldungsschluessel, und qualitaetsprofile.py:1183
+    # faengt genau ValueError, um daraus einen Satz fuer den Betreiber zu machen.
     if not isinstance(roh, dict):
-        raise ValueError("kein_objekt")
+        raise ValueError("kein_objekt")  # noqa: TRY004
     if roh.get("art") != ART:
         raise ValueError("falsche_art")
     fassung = roh.get("fassung")
@@ -132,7 +135,7 @@ def einlesen(roh: Any) -> list[Ausfuhr]:
     heraus: list[Ausfuhr] = []
     for eintrag in profile:
         if not isinstance(eintrag, dict):
-            raise ValueError("kaputt")
+            raise ValueError("kaputt")  # noqa: TRY004 - Meldungsschluessel, siehe oben
         name = str(eintrag.get("name") or "").strip()
         art = str(eintrag.get("dienst") or "").strip()
         rezept = eintrag.get("rezept")

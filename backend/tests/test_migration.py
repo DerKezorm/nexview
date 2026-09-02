@@ -184,8 +184,10 @@ def test_update_ergaenzt_die_media_server_verknuepfung(alte_installation: Path) 
             """
         )
 
-    with pytest.raises(Exception):  # noqa: B017 - SQLite meldet IntegrityError
-        with db_modul.engine.begin() as connection:
+    with (
+        pytest.raises(Exception),  # noqa: B017 - SQLite meldet IntegrityError
+        db_modul.engine.begin() as connection,
+    ):
             connection.exec_driver_sql(
                 "UPDATE users SET mediaserver_account_id='4711' WHERE username='zweiter'"
             )

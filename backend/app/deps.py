@@ -9,11 +9,11 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from . import meldungen
 from .db import get_db
 from .models import User
 from .security import decode_token
 from .services import api_schluessel, logs, sitzung
-from . import meldungen
 
 _bearer = HTTPBearer(auto_error=False)
 

@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 
+from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..mocks import demo_data
 from ..models import MediaType, QualityTier, Role
@@ -17,10 +18,9 @@ from ..services import (
     mediaserver_library,
     mediaserver_watched,
     requests_service,
+    uhd,
 )
-from ..services import uhd
 from ..services.arr import ArrError
-from ..services.mediaserver import verbundene_anbieter
 from ..services.filters import (
     KNOWN_TITLES_MIN_VOTES,
     MIN_FEATURE_RUNTIME,
@@ -28,9 +28,9 @@ from ..services.filters import (
     STUDIOS,
     DiscoverFilters,
 )
+from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
-from .. import meldungen
 
 router = APIRouter(prefix="/api", tags=["discover"])
 

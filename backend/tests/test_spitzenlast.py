@@ -8,7 +8,7 @@ Anlage" mit einer Zahl, die zu klein ist.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -96,10 +96,10 @@ def test_bandbreiten_werden_addiert(admin_client: TestClient) -> None:
 def test_alter_verlauf_wird_weggeworfen(admin_client: TestClient) -> None:
     """Zwei Monate reichen - laenger zurueck liegt eine andere Anlage."""
     alt = (
-        datetime.now(timezone.utc).replace(tzinfo=None)
+        datetime.now(UTC).replace(tzinfo=None)
         - timedelta(days=wiedergaben.AUFBEWAHREN_TAGE + 5)
     ).strftime("%Y-%m-%d %H:%M")
-    jung = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
+    jung = datetime.now(UTC).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
 
     with SessionLocal() as session:
         session.add(WiedergabeSpitze(abschnitt=alt, gleichzeitig=9))
@@ -118,7 +118,7 @@ def test_die_tagesspitze_ist_nicht_die_summe(admin_client: TestClient) -> None:
 
     Die Frage lautet, wie viele die Anlage **auf einmal** aushalten muss.
     """
-    heute = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d")
+    heute = datetime.now(UTC).replace(tzinfo=None).strftime("%Y-%m-%d")
     with SessionLocal() as session:
         session.add(WiedergabeSpitze(abschnitt=f"{heute} 20:00", gleichzeitig=4))
         session.add(WiedergabeSpitze(abschnitt=f"{heute} 22:00", gleichzeitig=4))

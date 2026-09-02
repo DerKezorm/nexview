@@ -82,7 +82,7 @@ def _module_im_blick(baum: ast.Module, paket: str) -> dict[str, object]:
                 pfad = name.name if name.asname else gebunden
                 try:
                     gefunden[gebunden] = importlib.import_module(pfad)
-                except Exception:
+                except Exception:  # noqa: BLE001, S112 - ein Modul, das sich nicht laden laesst, ist nicht unser Fall
                     continue
             continue
         if not isinstance(knoten, ast.ImportFrom):
@@ -93,7 +93,7 @@ def _module_im_blick(baum: ast.Module, paket: str) -> dict[str, object]:
             pfad = "." * knoten.level + (knoten.module + "." if knoten.module else "") + name.name
             try:
                 ziel = importlib.import_module(pfad, package=paket)
-            except Exception:
+            except Exception:  # noqa: BLE001, S112 - siehe oben
                 # Kein Modul, sondern eine Klasse oder Funktion - nicht unser Fall.
                 continue
             gefunden[name.asname or name.name] = ziel

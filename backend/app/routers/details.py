@@ -7,40 +7,44 @@ jemand sie wirklich oeffnet.
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import BaseModel
-
-from ..deps import CurrentUser, DbSession
 from sqlalchemy import select
 
+from .. import meldungen
+from ..deps import CurrentUser, DbSession
 from ..models import MediaType, QualityTier, Role, Ticket, TicketStatus
 from ..schemas_media import (
-    MeineRueckmeldung,
     MediaDetail,
     MediaItem,
     MediaPage,
+    MeineRueckmeldung,
     PersonDetail,
     PersonSummary,
     SeasonDetail,
 )
 from ..services import (
-    uhd,
     blocklist,
     library,
     media,
     mediaserver_library,
     mediaserver_watched,
+    portal_ratings,
     ratings,
     requests_service,
+    streaming,
+    uhd,
+    watch,
 )
 from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
-from ..services import portal_ratings, ratings, streaming, watch
 from ..services.streaming import eigene_dienste
 from ..services.tmdb import TmdbError
-from .. import meldungen
+
+logger = logging.getLogger("nexview.details")
 
 router = APIRouter(prefix="/api", tags=["details"])
 
@@ -79,7 +83,9 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
             if fuer_admin and quelle.path and hasattr(ziel, "path"):
                 ziel.path = quelle.path
     except Exception:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung
-        pass
+        # Diagnose-Stufe, siehe calendar.py: haeufiger Weg, harmlose Folge, aber der
+        # Grund soll auffindbar sein, wenn jemand fehlende Abzeichen meldet.
+        logger.debug("Details: status badges could not be filled in", exc_info=True)
 
     kennungen = [eintrag.tmdb_id for eintrag in eintraege]
     eigene = requests_service.badges_for(db, MediaType(media_type), kennungen)

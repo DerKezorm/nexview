@@ -14,9 +14,8 @@ Anfrage blieb liegen, bis ein Administrator zufällig in den elften Reiter sah.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -35,13 +34,13 @@ from app.models import (
 from app.services import zurueckgestellt
 from app.services.settings_service import load_settings
 
-from .conftest import auth_headers, create_user
+from .conftest import create_user
 
 GB = 1024**3
 
 
 def _jetzt() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _anfrage(user_id: int, *, tmdb_id: int = 900, status=RequestStatus.deferred) -> int:

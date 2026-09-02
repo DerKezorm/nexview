@@ -8,7 +8,7 @@ dem, was man unter "maximal X pro Tag" versteht.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
@@ -82,7 +82,7 @@ class QuotaState:
 
 def period_start(period: QuotaPeriod, now: datetime | None = None) -> datetime:
     """Beginn des laufenden Zeitraums (in UTC, ohne Zeitzonenangabe)."""
-    moment = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).replace(tzinfo=None)
+    moment = (now or datetime.now(UTC)).astimezone(UTC).replace(tzinfo=None)
     midnight = moment.replace(hour=0, minute=0, second=0, microsecond=0)
 
     if period == QuotaPeriod.day:
@@ -102,7 +102,7 @@ def period_end(period: QuotaPeriod, start: datetime) -> datetime:
 
 
 def _limit_for(
-    user: User, media_type: MediaType, settings: "AppSettings"
+    user: User, media_type: MediaType, settings: AppSettings
 ) -> int | None:
     """Wie viele Anfragen darf dieser Benutzer? ``None`` heisst unbegrenzt.
 
@@ -133,7 +133,7 @@ def _limit_for(
     return None if vorgabe is None else max(0, vorgabe)
 
 
-def counting_start(user: User, settings: "AppSettings") -> datetime:
+def counting_start(user: User, settings: AppSettings) -> datetime:
     """Ab wann der Verbrauch zaehlt.
 
     Normalerweise der Beginn des Zeitraums. Hat der Admin das Kontingent von
@@ -151,7 +151,7 @@ def counting_start(user: User, settings: "AppSettings") -> datetime:
 
 
 def state_for(
-    db: Session, user: User, media_type: MediaType, settings: "AppSettings"
+    db: Session, user: User, media_type: MediaType, settings: AppSettings
 ) -> QuotaState:
     limit = _limit_for(user, media_type, settings)
     start = counting_start(user, settings)
@@ -183,7 +183,7 @@ def state_for(
 
 
 def uebersichten(
-    db: Session, konten: list[User], settings: "AppSettings"
+    db: Session, konten: list[User], settings: AppSettings
 ) -> dict[int, dict[str, QuotaState]]:
     """Der Stand mehrerer Konten - gruppiert gezaehlt statt zweimal je Konto.
 
@@ -239,7 +239,7 @@ def uebersichten(
 
 
 def overview(
-    db: Session, user: User, settings: "AppSettings"
+    db: Session, user: User, settings: AppSettings
 ) -> dict[str, QuotaState]:
     """Der Stand eines Kontos - der Einzelfall der Sammelabfrage."""
     return uebersichten(db, [user], settings)[user.id]

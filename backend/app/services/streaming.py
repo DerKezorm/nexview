@@ -42,8 +42,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .settings_service import AppSettings
 from . import cache
+from .settings_service import AppSettings
 from .tmdb import TmdbClient, image_url
 
 # Logos in derselben Groesse wie auf der Detailseite - dort stehen dieselben

@@ -35,7 +35,6 @@ from app.services.sitzung import cookie_pfad
 
 from .conftest import ADMIN
 
-
 # ---------------------------------------------------------------------------
 # Normalisierung der Einstellung
 # ---------------------------------------------------------------------------

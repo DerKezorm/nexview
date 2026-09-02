@@ -17,7 +17,7 @@ hieße auf einer zehn Jahre alten Bibliothek „alles brandneu".
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,7 +40,7 @@ GB = 1024**3
 
 
 def _jetzt() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _posten(

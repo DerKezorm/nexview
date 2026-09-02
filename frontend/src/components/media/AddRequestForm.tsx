@@ -33,7 +33,14 @@ type AddRequestFormProps = {
   imAbo?: string[]
 }
 
-type CreatedRequest = { id: number; status: string; title: string }
+type CreatedRequest = {
+  id: number
+  status: string
+  title: string
+  rejection_reason: string | null
+  regel_name: string | null
+  darf_trotzdem_fragen: boolean
+}
 
 /**
  * Auswahl von Qualitätsprofil und Zielordner, dann Anfrage abschicken.
@@ -163,6 +170,7 @@ export function AddRequestForm({
   // „Welche Serie meinst du?" - gefüllt, sobald der Server mit
   // ``tvdb_choice_needed`` antwortet (Issue #5). Solange etwas drinsteht,
   // zeigt dieses Formular nur das Auswahlfenster.
+  const [abgelehnt, setAbgelehnt] = useState<CreatedRequest | null>(null)
   const [zuordnung, setZuordnung] = useState<{
     vorschlaege: Zuordnungsvorschlag[]
     frisch: boolean
@@ -296,10 +304,21 @@ export function AddRequestForm({
       }
       return letzte as CreatedRequest
     },
-    onSuccess: () => {
+    onSuccess: (angelegt) => {
       // Badges und Kontingent neu laden - auch auf der Seite, die hinter
       // diesem Fenster liegt und gleich wieder sichtbar wird.
       anfragenStandNeuLaden(queryClient)
+
+      // ⚠️ **Eine Regel kann abgelehnt haben, und der Server sagt trotzdem
+      // 201.** Die Anfrage *ist* ja entstanden - im Zustand „abgelehnt".
+      // Wer das nicht ansieht, schließt hier einfach das Fenster: Der
+      // Anfragende klickt, es passiert scheinbar nichts, und er klickt
+      // wieder. Der Grund stünde nur unter „Meine Anfragen", wo er ihn nicht
+      // sucht.
+      if (angelegt?.status === 'rejected') {
+        setAbgelehnt(angelegt)
+        return
+      }
       onDone()
     },
     onError: (fehler) => {
@@ -330,6 +349,29 @@ export function AddRequestForm({
       <p className="flex items-center gap-2 text-sm text-mist-500">
         <Spinner /> {t('common.loading')}
       </p>
+    )
+  }
+
+  if (abgelehnt) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-bad-500/40 bg-bad-500/10 px-4 py-3">
+          <div className="text-sm font-semibold text-bad-500">
+            {t('request.byRuleDeclined')}
+          </div>
+          {abgelehnt.rejection_reason && (
+            <p className="mt-1 text-sm text-mist-300">{abgelehnt.rejection_reason}</p>
+          )}
+          <p className="mt-2 text-xs text-mist-500">
+            {abgelehnt.darf_trotzdem_fragen
+              ? t('request.byRuleMayAsk')
+              : t('request.byRuleWhere')}
+          </p>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={onDone}>{t('common.close')}</Button>
+        </div>
+      </div>
     )
   }
 

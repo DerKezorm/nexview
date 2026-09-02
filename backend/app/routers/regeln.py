@@ -101,11 +101,17 @@ def _uebernehmen(regel: Regel, daten: RegelIn) -> None:
         # ⚠️ Der Text der Ausnahme sagt, *welche* Bedingung nicht taugt. Er
         # geht als ``grund`` mit hinaus, damit die Oberflaeche nicht raten
         # muss, was der Administrator falsch gemacht hat.
+        # ⚠️ **Der Grund muss als Platzhalter mit, nicht nur als Text.** Die
+        # Oberflaeche baut den Satz aus der Kennung; der deutsche Text hier ist
+        # nur ihr Rueckfall. Ohne ``grund=`` stand dort woertlich
+        # "Diese Bedingung geht so nicht: {{grund}}" - der Platzhalter blieb
+        # stehen, und die einzige nuetzliche Auskunft ging verloren.
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail=meldungen.meldung(
                 "regel_bedingung_ungueltig",
                 str(fehler),
+                grund=str(fehler),
             ),
         ) from fehler
 

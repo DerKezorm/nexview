@@ -218,7 +218,10 @@
       "hintNew": "For a series this new, TheTVDB usually catches up within a few days - try again then.",
       "hintOld": "TheTVDB has no entry for this series, and that will not change. Let your operator know if you need it.",
       "confirm": "Continue"
-    }
+    },
+    "byRuleDeclined": "A house rule declined this.",
+    "byRuleWhere": "The request is under “My requests”, so you can read the reason there.",
+    "byRuleMayAsk": "You can still send it to an approver from “My requests”."
   },
   "home": {
     "greeting": "Welcome back, {{name}}",
@@ -401,7 +404,8 @@
     "autoApprove": "Your requests are approved automatically.",
     "needsApproval": "Your requests need administrator approval.",
     "fromWatchlist": "Watchlist",
-    "fromWatchlistTab": "Requested from watchlist"
+    "fromWatchlistTab": "Requested from watchlist",
+    "askAnyway": "Ask anyway"
   },
   "hausordnung": {
     "titel": "House rules",
@@ -508,7 +512,10 @@
     "storageRejectReason": "Storage quota exceeded.",
     "storageWarnDefer": "Put on hold",
     "inRequesterSubscription": "{{name}} can already watch this on {{services}}.",
-    "inSubscriptionSeriesNote": "Whether this season is included, the source does not say."
+    "inSubscriptionSeriesNote": "Whether this season is included, the source does not say.",
+    "askedAnywayBadge": "Against a rule",
+    "askedAnyway": "Rule “{{name}}” had declined this. The requester asked anyway.",
+    "askedAnywayOhneRegel": "A rule had declined this. The requester asked anyway."
   },
   "requests": {
     "cancel": "Cancel",
@@ -1121,7 +1128,8 @@
     "tabBackups": "Backups",
     "tabSystem": "System",
     "tabTokens": "API tokens",
-    "namingSection": "Naming"
+    "namingSection": "Naming",
+    "tabRegeln": "Rules"
   },
   "qualityProfiles": {
     "title": "Quality profiles",
@@ -1644,7 +1652,13 @@
       "mediaserver_no_user_list": "This media server cannot list its accounts.",
       "regel_bedingung_ungueltig": "That condition does not work: {{grund}}",
       "regel_nicht_gefunden": "That rule no longer exists.",
-      "regel_reihenfolge_unvollstaendig": "The order has to name every existing rule exactly once."
+      "regel_reihenfolge_unvollstaendig": "The order has to name every existing rule exactly once.",
+      "already_requested": "“{{title}}” has been requested in the meantime.",
+      "request_not_rule_rejected": "That request was not declined by a rule.",
+      "rule_forbids_asking": "That rule does not allow asking again.",
+      "already_asked_anyway": "That request has already been passed on and decided since.",
+      "already_rule_rejected": "“{{title}}” has already been declined by a rule.",
+      "wish_rule_rejected": "A house rule has declined “{{title}}”."
     }
   },
   "language": {
@@ -3242,8 +3256,39 @@
     "und": "and",
     "von": "from",
     "wenn": "If",
-    "zielHinweis": "Does not approve at once here: the approver picks the target folder, so the request goes to them anyway. It still applies for approvers and administrators.",
-    "zielKasten": "Because the approver picks the target folder in this house, the request goes to them anyway — otherwise it would bypass the very choice they are meant to make. Approvers and administrators are exempt.",
-    "zielKastenTitel": "Does not apply everywhere here."
+    "zielHinweis": "Does not approve at once here: the approver picks the target folder, so the request goes to them anyway.",
+    "zielKasten": "Because the approver picks the target folder in this house, the request goes to them anyway — otherwise it would bypass the very choice they are meant to make.",
+    "zielKastenTitel": "Does not apply everywhere here.",
+    "feld_typ": "Type",
+    "feld_genre": "Genre",
+    "feld_bewertung": "Rating",
+    "feld_stimmen": "Number of votes",
+    "feld_jahr": "Release year",
+    "feld_laufzeit": "Runtime",
+    "feld_sprache": "Original language",
+    "feld_altersfreigabe": "Age rating",
+    "feld_qualitaet": "Requested tier",
+    "feld_bestand": "Already here as",
+    "feldKurz_stimmen": "Votes",
+    "einheit_bewertung": "out of 10",
+    "einheit_laufzeit": "minutes",
+    "einheit_altersfreigabe": "years",
+    "hinweis_stimmen": "Always add this one. 9.2 out of four votes is not a good film, and a rule saying “approve from 8.0” becomes a way in without it.",
+    "hinweis_bestand": "Needs two instances. Nexview only knows what was requested through Nexview — anything that was in the library before counts as “not at all” here. It means any request in the house, including someone else's.",
+    "hinweis_altersfreigabe": "As far as TMDB knows it for your region. A title without one does not match the condition.",
+    "wertFilm": "Film",
+    "wertSerie": "Series",
+    "wertGarNicht": "not at all",
+    "sprache_de": "German",
+    "sprache_en": "English",
+    "sprache_fr": "French",
+    "sprache_es": "Spanish",
+    "sprache_ja": "Japanese",
+    "sprache_ko": "Korean",
+    "chipAb": "from {{wert}}",
+    "chipVor": "before {{wert}}",
+    "ladefehler": "The rules could not be loaded. What you see here is therefore incomplete — rules may well be active.",
+    "gilt_nicht_fuer_dich": "Rules do not apply to administrators and approvers — same as the block list. They are meant to slow the others down, not you.",
+    "verdeckt": "{{name}} already catches the same titles. This rule is never reached for them, and neither is its reason text."
   }
 }

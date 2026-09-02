@@ -848,6 +848,94 @@ async def resolve_root_folder(
     return standard if standard in vorhanden else vorhanden[0]
 
 
+def trotzdem_fragen(db: Session, settings: AppSettings, user: User, request_id: int) -> MediaRequest:
+    """Eine von einer Regel abgelehnte Anfrage doch an den Entscheider schicken.
+
+    ⚠️ **Nur, wo die Regel es ausdruecklich erlaubt.** Der Haken steht je
+    Regel, nicht haus-weit: Bei "schwach bewertet" laedt der Begruendungstext
+    zum Nachfragen ein, bei "liegt schon in 4K vor" gaebe es nichts
+    nachzufragen.
+
+    ⚠️ **Und mit allen Pruefungen, die eine neue Anfrage auch haette.** Die
+    Ablehnung kostete kein Kontingent und blockierte niemanden - beim
+    Umschalten auf ``pending_approval`` faengt beides an zu gelten. Wer das
+    ueberspringt, hat hier den Weg gebaut, auf dem man ein volles Kontingent
+    umgeht: einmal von einer Regel ablehnen lassen, dann "trotzdem".
+    """
+    request = db.get(MediaRequest, request_id)
+    if request is None or request.user_id != user.id:
+        raise RequestError("Anfrage nicht gefunden.", 404, code="request_not_found")
+
+    if request.status != RequestStatus.rejected or request.regel is None:
+        raise RequestError(
+            "Diese Anfrage wurde nicht von einer Regel abgelehnt.",
+            409,
+            code="request_not_rule_rejected",
+        )
+    if not request.regel.trotzdem_fragen:
+        raise RequestError(
+            "Diese Regel lässt kein Nachfragen zu.",
+            403,
+            code="rule_forbids_asking",
+        )
+    # ⚠️ **Nur einmal.** Wurde die Anfrage schon einmal weitergereicht und
+    # danach von Hand abgelehnt, ist Schluss. Sonst koennte jemand beliebig oft
+    # gegen die Entscheidung eines Menschen nachfassen.
+    if request.trotzdem_gefragt:
+        raise RequestError(
+            "Diese Anfrage wurde bereits weitergereicht und danach entschieden.",
+            409,
+            code="already_asked_anyway",
+        )
+
+    # ⚠️ **Die Sperrliste gilt auch hier.** Sie ist keine Regel, sondern die
+    # ausdrueckliche Entscheidung des Betreibers ueber genau diesen Titel - und
+    # sie kann nach der Ablehnung dazugekommen sein. Ohne diese Pruefung waere
+    # "trotzdem fragen" der Weg an ihr vorbei, und beim Ausprobieren ist genau
+    # das passiert: Der Titel stand auf der Liste, der Knopf stand daneben.
+    if user.role != Role.admin:
+        gesperrt = blocklist.eintrag(db, request.media_type, request.tmdb_id)
+        if gesperrt is not None:
+            grund = f" Begründung: {gesperrt.reason}" if gesperrt.reason else ""
+            raise RequestError(
+                f"„{request.title}“ steht auf der Sperrliste und kann nicht "
+                f"angefragt werden.{grund}",
+                403,
+            )
+
+    # Inzwischen laeuft der Titel vielleicht schon - bei jemand anderem oder
+    # bei einem selbst in einer zweiten Anfrage.
+    laeuft = find_active(
+        db, request.media_type, request.tmdb_id, request.season,
+        request.tier, list(request.episodes or []) or None,
+    )
+    if laeuft is not None:
+        raise RequestError(
+            f"„{request.title}“ wurde inzwischen angefragt.",
+            409,
+            code="already_requested",
+        )
+
+    _kontingent_pruefen(db, settings, user, request.media_type)
+
+    request.status = RequestStatus.pending_approval
+    request.rejection_reason = None
+    request.approved_at = None
+    request.trotzdem_gefragt = True
+    # ``regel_id`` bleibt: Dass eine Regel das einmal abgelehnt hat, ist Teil
+    # des Vorgangs und soll dem Entscheider nicht verlorengehen.
+    logger.info(
+        "Request %d (%r) was rejected by rule %d and is going to the approvers anyway",
+        request.id,
+        request.title,
+        request.regel_id,
+    )
+    _notify_admins(db, request)
+    db.commit()
+    db.refresh(request)
+    return request
+
+
 def _jahr_aus(datum: str | None) -> int | None:
     """Das Erscheinungsjahr aus einem TMDB-Datum. Ohne Datum kein Jahr."""
     if not datum or len(datum) < 4 or not datum[:4].isdigit():
@@ -1323,6 +1411,43 @@ async def create_request(
             409,
         )
 
+    # ⚠️ **Und dasselbe fuer eine Regel-Ablehnung.** Direkt darueber steht die
+    # Begruendung fuer die zurueckgestellten Anfragen - "zweimal dasselbe soll
+    # auch niemand von sich selbst haben" -, und fuer ``rejected`` wurde sie
+    # nicht mitgezogen. Gemessen: fuenfmal derselbe Klick, fuenf Zeilen. Da die
+    # Ablehnung nichts kostet und niemanden blockiert, faellt das nur in der
+    # Liste auf - in seiner und in der des Administrators.
+    #
+    # Nur Ablehnungen **durch eine Regel**: Eine von Hand abgelehnte Anfrage
+    # darf man erneut stellen, das war ja die Entscheidung eines Menschen und
+    # die Lage kann sich geaendert haben.
+    schon_abgelehnt = db.scalar(
+        select(MediaRequest)
+        .where(
+            MediaRequest.user_id == user.id,
+            MediaRequest.media_type == media_type,
+            MediaRequest.tmdb_id == item.tmdb_id,
+            MediaRequest.tier == tier,
+            MediaRequest.status == RequestStatus.rejected,
+            MediaRequest.regel_id.is_not(None),
+        )
+        .limit(1)
+    )
+    if schon_abgelehnt is not None and (
+        season is None or schon_abgelehnt.season == season
+    ):
+        grund = (
+            f" {schon_abgelehnt.rejection_reason}"
+            if schon_abgelehnt.rejection_reason
+            else ""
+        )
+        raise RequestError(
+            f"„{item.title}“ wurde bereits von einer Regel abgelehnt.{grund}",
+            409,
+            code="already_rule_rejected",
+            titel=item.title,
+        )
+
     existing = find_active(db, media_type, item.tmdb_id, season, tier, episodes)
     if existing is not None:
         if season is not None and existing.season is None:
@@ -1541,8 +1666,29 @@ async def create_request(
             rejection_reason=regel_ergebnis.begruendung or None,
             regel_id=regel_ergebnis.regel.id,
             from_watchlist=from_watchlist,
+            # ⚠️ **Der Zeitpunkt gehoert dazu, der Mensch nicht.** Der Verlauf
+            # an der Anfrage nimmt ``approved_at`` als Datum der Entscheidung -
+            # ohne das stuende dort "Abgelehnt" ohne Wann. ``approved_by``
+            # bleibt leer: Es hat niemand abgelehnt, es war eine Regel.
+            approved_at=utcnow(),
         )
         db.add(abgelehnt)
+        db.flush()
+
+        # ⚠️ **Benachrichtigen, genau wie bei einer Ablehnung von Hand.**
+        # Sonst verschwindet die Anfrage lautlos in der eigenen Liste: Der
+        # Anfragende sieht ein „abgelehnt", von dem er nie erfahren hat, und
+        # fragt beim naechsten Mal wieder. Dass hier eine Regel entschied und
+        # kein Mensch, aendert daran nichts - fuer ihn ist es dieselbe
+        # Nachricht, und der Grund steht an der Anfrage.
+        notify.create(
+            db,
+            user=user,
+            kind=NotificationType.rejected,
+            message_key="notifications.rejected",
+            request=abgelehnt,
+        )
+
         db.commit()
         db.refresh(abgelehnt)
         return abgelehnt

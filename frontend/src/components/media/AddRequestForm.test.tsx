@@ -167,6 +167,48 @@ describe('Einen Film anfragen', () => {
 
     await waitFor(() => expect(fertig).toHaveBeenCalled())
   })
+
+  /**
+   * ⚠️ **Der Server antwortet 201, und trotzdem ist es ein Nein.**
+   *
+   * Lehnt eine Regel ab, entsteht die Anfrage sehr wohl - im Zustand
+   * „abgelehnt". Wer nur auf den HTTP-Code sieht, schließt hier das Fenster:
+   * Der Anfragende klickt, es passiert scheinbar nichts, und er klickt wieder.
+   * Der Grund stünde nur unter „Meine Anfragen", wo er ihn nicht sucht.
+   */
+  it('zeigt die Ablehnung durch eine Regel, statt einfach zu schließen', async () => {
+    schicken.mockResolvedValue({
+      id: 1,
+      status: 'rejected',
+      title: 'Matrix',
+      rejection_reason: 'Zu schwach bewertet.',
+      regel_name: 'Schwache Filme',
+      darf_trotzdem_fragen: false,
+    })
+    const fertig = vi.fn()
+    rendern(<AddRequestForm item={FILM} onDone={fertig} />)
+    await abschicken()
+
+    expect(await screen.findByText(/Regel des Hauses hat das abgelehnt/i)).toBeInTheDocument()
+    expect(screen.getByText('Zu schwach bewertet.')).toBeInTheDocument()
+    // Und das Fenster bleibt stehen, bis der Mensch es schließt.
+    expect(fertig).not.toHaveBeenCalled()
+  })
+
+  it('sagt es, wenn man trotzdem fragen darf', async () => {
+    schicken.mockResolvedValue({
+      id: 1,
+      status: 'rejected',
+      title: 'Matrix',
+      rejection_reason: 'Zu schwach bewertet.',
+      regel_name: 'Schwache Filme',
+      darf_trotzdem_fragen: true,
+    })
+    rendern(<AddRequestForm item={FILM} onDone={() => {}} />)
+    await abschicken()
+
+    expect(await screen.findByText(/trotzdem an den Entscheider/i)).toBeInTheDocument()
+  })
 })
 
 describe('Eine Serie anfragen', () => {

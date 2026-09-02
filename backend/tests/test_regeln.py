@@ -366,3 +366,67 @@ def test_die_tabelle_deckt_jedes_feld_ab() -> None:
         "Fuer diese Felder fehlt die Probe „was der Titel nicht weiss“: "
         f"{sorted(regeln.FELDER - ohne_luecke)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Was eine unabhaengige Pruefung am 03.09.2026 als ungeprueft fand
+# ---------------------------------------------------------------------------
+
+
+def test_eine_regel_ohne_bedingungen_trifft_auf_nichts(db_session) -> None:
+    """⚠️ **Die zweite Verteidigungslinie, und sie war ungeprueft.**
+
+    ``bedingungen_pruefen`` laesst eine leere Bedingungsliste nicht durch -
+    aber die Spalte ist ``nullable``, und aus einer aelteren Fassung oder von
+    Hand kann eine solche Zeile in der Datenbank stehen. Faellt das ``bool``
+    am Ende von ``passt`` weg, trifft sie auf **alles** zu: Eine Regel, die
+    niemand geschrieben hat, entscheidet dann jede Anfrage.
+
+    Eine Mutationsprobe hat genau das entfernt, und kein Test wurde rot.
+    """
+    for leer in ([], None):
+        assert regeln.passt(regel(leer), titel(**VOLL)) is False
+
+
+def test_nan_und_unendlich_sind_keine_grenzen() -> None:
+    """⚠️ **Der Weg zur Regel, die auf alles zutrifft.**
+
+    JSON kennt beides, Python nimmt beides klaglos, ``isinstance(nan, float)``
+    ist wahr - und jeder Vergleich mit ``NaN`` ist falsch, also auch
+    ``von >= bis``. Eine so gebaute Regel ging durch die Pruefung, traf danach
+    auf jeden Titel zu, und die Oberflaeche zeigte "von: —".
+    """
+    for wert in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(regeln.RegelFehler, match="rechnen"):
+            regeln.bedingungen_pruefen([{"feld": "bewertung", "von": wert, "bis": None}])
+        with pytest.raises(regeln.RegelFehler, match="rechnen"):
+            regeln.bedingungen_pruefen([{"feld": "bewertung", "von": None, "bis": wert}])
+
+
+def test_ein_ja_ist_keine_zahl() -> None:
+    """``True`` ist in Python ein ``int`` - ohne Extrawurst ginge es durch."""
+    with pytest.raises(regeln.RegelFehler, match="keine Zahl"):
+        regeln.bedingungen_pruefen([{"feld": "bewertung", "von": True, "bis": None}])
+
+
+@pytest.mark.parametrize(
+    "feld,falsch",
+    [("typ", "hoerspiel"), ("qualitaet", "4k"), ("bestand", "sd")],
+)
+def test_geschlossene_mengen_nehmen_nichts_erfundenes(feld: str, falsch: str) -> None:
+    """⚠️ Ein Tippfehler ergaebe sonst eine Regel, die still nie greift.
+
+    Genau den Zustand soll ``bedingungen_pruefen`` verhindern - geprueft wurde
+    anfangs aber nur ``bestand``.
+    """
+    with pytest.raises(regeln.RegelFehler, match=feld):
+        regeln.bedingungen_pruefen([{"feld": feld, "werte": [falsch]}])
+
+
+def test_jede_geschlossene_menge_wird_auch_geprueft() -> None:
+    """Bodenschwelle: Kommt ein Feld mit festen Werten dazu, muss es hier hinein."""
+    assert set(regeln.GESCHLOSSENE_WERTE) == {"typ", "qualitaet", "bestand"}
+    for feld, werte in regeln.GESCHLOSSENE_WERTE.items():
+        assert werte, f"{feld} hat keine erlaubten Werte"
+        # Und jeder erlaubte Wert geht auch wirklich durch.
+        regeln.bedingungen_pruefen([{"feld": feld, "werte": sorted(werte)}])

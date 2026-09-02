@@ -98,6 +98,12 @@ def test_eine_ablehnende_regel_legt_die_anfrage_als_abgelehnt_an(
         assert anfrage.status == RequestStatus.rejected
         assert anfrage.rejection_reason == "Zu schwach bewertet."
         assert anfrage.regel_id == regel_id
+        # ⚠️ Der Verlauf an der Anfrage nimmt ``approved_at`` als Datum der
+        # Entscheidung. Ohne das stuende dort "Abgelehnt" ohne Wann.
+        assert anfrage.approved_at is not None
+        # Und niemand hat abgelehnt - es war eine Regel.
+        assert anfrage.approved_by is None
+        assert anfrage.regel_name == "Probe"
 
 
 def test_die_abgelehnte_anfrage_blockiert_niemanden(
@@ -336,3 +342,252 @@ def test_ohne_regel_entscheidet_weiterhin_das_konto(
         assert anfrage.status != RequestStatus.rejected
         assert anfrage.regel_id is None
         assert anfrage.hausbestand is False
+
+
+# ---------------------------------------------------------------------------
+# Der Anfragende erfaehrt davon - und darf manchmal nachfragen
+# ---------------------------------------------------------------------------
+
+
+def test_die_ablehnung_wird_gemeldet(arr_client: TestClient, nutzer: dict) -> None:
+    """⚠️ **Sonst verschwindet die Anfrage lautlos.**
+
+    Beim Ausprobieren fiel genau das auf: Der Titel stand als abgelehnt in der
+    eigenen Liste, aber weder Glocke noch Mail sagten etwas. Wer davon nichts
+    erfaehrt, fragt beim naechsten Mal wieder - und wundert sich wieder.
+    """
+    _regel_anlegen(begruendung="Nicht dieses Jahr.")
+    _anfragen(arr_client, _titel(arr_client), nutzer)
+
+    offen = arr_client.get("/api/notifications", headers=nutzer)
+    assert offen.status_code == 200, offen.text
+    arten = [n.get("type") for n in offen.json()]
+    assert "rejected" in arten, offen.json()
+
+
+def test_trotzdem_fragen_geht_nur_wo_die_regel_es_erlaubt(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    _regel_anlegen(trotzdem_fragen=False)
+    _anfragen(arr_client, _titel(arr_client), nutzer)
+    with SessionLocal() as db:
+        anfrage_id = db.query(MediaRequest).one().id
+
+    antwort = arr_client.post(f"/api/requests/{anfrage_id}/trotzdem", headers=nutzer)
+    assert antwort.status_code == 403, antwort.text
+    with SessionLocal() as db:
+        assert db.query(MediaRequest).one().status == RequestStatus.rejected
+
+
+def test_trotzdem_fragen_schickt_die_anfrage_zum_entscheider(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    _regel_anlegen(begruendung="Zu schwach.", trotzdem_fragen=True)
+    _anfragen(arr_client, _titel(arr_client), nutzer)
+    with SessionLocal() as db:
+        anfrage = db.query(MediaRequest).one()
+        assert anfrage.darf_trotzdem_fragen is True
+        anfrage_id = anfrage.id
+
+    antwort = arr_client.post(f"/api/requests/{anfrage_id}/trotzdem", headers=nutzer)
+    assert antwort.status_code == 200, antwort.text
+
+    with SessionLocal() as db:
+        anfrage = db.query(MediaRequest).one()
+        assert anfrage.status == RequestStatus.pending_approval
+        assert anfrage.rejection_reason is None
+        # Die Regel bleibt am Vorgang: Der Entscheider soll sehen, dass hier
+        # schon einmal etwas dagegen sprach.
+        assert anfrage.regel_id is not None
+        # ⚠️ Und der Merker dafuer, **wie** sie hereinkam. Ohne ihn liegt vor
+        # dem Entscheider eine gewoehnliche wartende Anfrage.
+        assert anfrage.trotzdem_gefragt is True
+
+
+def test_eine_gewoehnliche_anfrage_traegt_den_merker_nicht(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    """Die Gegenprobe: Ohne den waere das Abzeichen an jeder Anfrage."""
+    _anfragen(arr_client, _titel(arr_client), nutzer)
+    with SessionLocal() as db:
+        assert db.query(MediaRequest).one().trotzdem_gefragt is False
+
+
+def test_trotzdem_fragen_prueft_das_kontingent_erneut(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    """⚠️ **Sonst waere das der Weg um ein volles Kontingent herum.**
+
+    Die Ablehnung kostet nichts und blockiert niemanden. Wer sie ohne Pruefung
+    auf ``pending_approval`` umschalten koennte, muesste sich nur einmal von
+    einer Regel ablehnen lassen und dann „trotzdem“ druecken.
+    """
+    _regel_anlegen(trotzdem_fragen=True)
+    _anfragen(arr_client, _titel(arr_client), nutzer)
+    with SessionLocal() as db:
+        anfrage_id = db.query(MediaRequest).one().id
+        person = db.query(User).filter(User.username == "kim").one()
+        person.quota_movies_limit = 0
+        db.commit()
+
+    antwort = arr_client.post(f"/api/requests/{anfrage_id}/trotzdem", headers=nutzer)
+    assert antwort.status_code == 429, antwort.text
+    with SessionLocal() as db:
+        assert db.query(MediaRequest).one().status == RequestStatus.rejected
+
+
+def test_eine_fremde_anfrage_laesst_sich_nicht_weiterreichen(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    _regel_anlegen(trotzdem_fragen=True)
+    _anfragen(arr_client, _titel(arr_client), nutzer)
+    with SessionLocal() as db:
+        anfrage_id = db.query(MediaRequest).one().id
+
+    create_user(arr_client, "fremd")
+    fremd = auth_headers(arr_client, "fremd", "passwort-1234")
+    antwort = arr_client.post(f"/api/requests/{anfrage_id}/trotzdem", headers=fremd)
+    assert antwort.status_code == 404, antwort.text
+
+
+def test_nach_einer_ablehnung_von_hand_ist_schluss(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    """⚠️ **Der Fehler, den das Ausprobieren gefunden hat.**
+
+    Die Anfrage kam ueber "trotzdem" beim Entscheider an, der lehnte sie von
+    Hand ab - und der Knopf stand wieder da. ``regel_id`` bleibt ja am Vorgang,
+    und der Zustand war wieder ``rejected``. Derselbe Mensch haette beliebig
+    oft nachfassen koennen, gegen die ausdrueckliche Entscheidung eines
+    anderen.
+    """
+    _regel_anlegen(trotzdem_fragen=True)
+    _anfragen(arr_client, _titel(arr_client), nutzer)
+    with SessionLocal() as db:
+        anfrage_id = db.query(MediaRequest).one().id
+
+    assert arr_client.post(
+        f"/api/requests/{anfrage_id}/trotzdem", headers=nutzer
+    ).status_code == 200
+
+    # Jetzt lehnt ein Mensch ab.
+    abgelehnt = arr_client.post(
+        f"/api/admin/requests/{anfrage_id}/reject",
+        json={"reason": "Trotzdem nicht."},
+    )
+    assert abgelehnt.status_code == 200, abgelehnt.text
+
+    with SessionLocal() as db:
+        anfrage = db.query(MediaRequest).one()
+        assert anfrage.status == RequestStatus.rejected
+        # Der Knopf darf nicht wiederkommen.
+        assert anfrage.darf_trotzdem_fragen is False
+
+    nochmal = arr_client.post(f"/api/requests/{anfrage_id}/trotzdem", headers=nutzer)
+    assert nochmal.status_code == 409, nochmal.text
+
+
+def test_die_sperrliste_gilt_auch_beim_trotzdem_fragen(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    """⚠️ **Sonst waere das der Weg an der Sperrliste vorbei.**
+
+    Sie ist keine Regel, sondern die ausdrueckliche Entscheidung des
+    Betreibers ueber genau diesen Titel - und sie kann nach der Ablehnung
+    dazugekommen sein. Beim Ausprobieren stand der Titel auf der Liste und der
+    Knopf daneben.
+    """
+    _regel_anlegen(trotzdem_fragen=True)
+    item = _titel(arr_client)
+    _anfragen(arr_client, item, nutzer)
+    with SessionLocal() as db:
+        anfrage_id = db.query(MediaRequest).one().id
+
+    gesperrt = arr_client.post(
+        "/api/admin/blocklist",
+        json={"media_type": "movie", "tmdb_id": item["tmdb_id"], "title": item["title"]},
+    )
+    assert gesperrt.status_code in (200, 201), gesperrt.text
+
+    antwort = arr_client.post(f"/api/requests/{anfrage_id}/trotzdem", headers=nutzer)
+    assert antwort.status_code == 403, antwort.text
+    with SessionLocal() as db:
+        assert db.query(MediaRequest).one().status == RequestStatus.rejected
+
+
+def test_der_zielordner_beim_entscheider_uebersteuert_die_freigabe(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    """⚠️ **Sprosse 10 schlaegt Sprosse 13 - versprochen und ungeprueft.**
+
+    Waehlt der Entscheider den Zielordner, darf keine Regel sofort freigeben:
+    Die Anfrage kaeme sonst an genau der Wahl vorbei, die er treffen soll. Der
+    Commit sagt das ausdruecklich zu, die Oberflaeche zeigt einen eigenen
+    Warnkasten dafuer - und eine Mutationsprobe hat die Bedingung entfernt,
+    ohne dass ein Test rot wurde.
+    """
+    gesetzt = arr_client.put("/api/settings", json={"movie_root_folder_mode": "approver"})
+    assert gesetzt.status_code == 200, gesetzt.text
+
+    _regel_anlegen(entscheidung=RegelEntscheidung.freigeben)
+    antwort = _anfragen(arr_client, _titel(arr_client), nutzer)
+    assert antwort.status_code in (200, 201), antwort.text
+
+    with SessionLocal() as db:
+        anfrage = db.query(MediaRequest).one()
+        # Die Regel hat entschieden - aber der Zielordner uebersteuert sie.
+        assert anfrage.regel_id is not None
+        assert anfrage.status == RequestStatus.pending_approval, (
+            "Die Regel hat sofort freigegeben, obwohl der Entscheider den "
+            "Zielordner wählt - die Anfrage käme an ihm vorbei."
+        )
+        assert anfrage.approved_at is None
+
+
+def test_zweimal_derselbe_titel_ergibt_nicht_zwei_ablehnungen(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    """⚠️ **Fuenf Klicks, fuenf Zeilen - so war es.**
+
+    Direkt ueber der Pruefung fuer zurueckgestellte Anfragen steht die
+    Begruendung: "zweimal dasselbe soll auch niemand von sich selbst haben".
+    Fuer ``rejected`` wurde sie nicht mitgezogen. Da die Ablehnung nichts
+    kostet und niemanden blockiert, faellt es nur in den Listen auf - in
+    seiner und in der des Administrators.
+    """
+    _regel_anlegen(begruendung="Nicht dieses Jahr.")
+    item = _titel(arr_client)
+
+    erste = _anfragen(arr_client, item, nutzer)
+    assert erste.status_code in (200, 201), erste.text
+
+    for _ in range(4):
+        weitere = _anfragen(arr_client, item, nutzer)
+        assert weitere.status_code == 409, weitere.text
+
+    with SessionLocal() as db:
+        assert db.query(MediaRequest).count() == 1
+
+
+def test_eine_ablehnung_von_hand_darf_man_erneut_versuchen(
+    arr_client: TestClient, nutzer: dict
+) -> None:
+    """⚠️ **Die Gegenprobe, und sie zieht die Grenze.**
+
+    Nur Ablehnungen **durch eine Regel** sperren einen zweiten Versuch. Hat
+    ein Mensch abgelehnt, war das seine Entscheidung zu diesem Zeitpunkt - die
+    Lage kann sich geaendert haben, und dann soll man wieder fragen duerfen.
+    """
+    item = _titel(arr_client)
+    _anfragen(arr_client, item, nutzer)
+    with SessionLocal() as db:
+        anfrage = db.query(MediaRequest).one()
+        anfrage.status = RequestStatus.rejected
+        anfrage.rejection_reason = "Diesmal nicht."
+        anfrage.regel_id = None  # von Hand, nicht durch eine Regel
+        db.commit()
+
+    nochmal = _anfragen(arr_client, item, nutzer)
+    assert nochmal.status_code in (200, 201), nochmal.text
+    with SessionLocal() as db:
+        assert db.query(MediaRequest).count() == 2

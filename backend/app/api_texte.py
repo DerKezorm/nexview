@@ -1545,6 +1545,14 @@ TEXTE: dict[str, tuple[str, str]] = {
         'Unblock a title',
         'The title can be requested again afterwards.',
     ),
+    'POST /api/requests/{request_id}/trotzdem': (
+        'Ask anyway after a rule declined',
+        (
+            'Only where the rule allows it, and only with the same checks a fresh '
+            'request would face - quota included. Skipping those would build the '
+            'very path around a full quota: have a rule decline it, then ask anyway.'
+        ),
+    ),
     'GET /api/admin/regeln': (
         'The rules',
         (

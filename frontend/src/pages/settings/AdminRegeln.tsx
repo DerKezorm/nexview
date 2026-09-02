@@ -29,45 +29,21 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Fenster } from '../../components/Fenster'
 import { Umschalter } from '../../components/Umschalter'
 import { AUSWAHL, Button, Card, ErrorBanner, Section, Spinner } from '../../components/ui'
+import {
+  ueberschneiden,
+  type Bedingung,
+  type Feld,
+  type FeldArt,
+  type Regel,
+} from './regeln-kollision'
 
 // ---------------------------------------------------------------------------
 // Was vom Server kommt
 // ---------------------------------------------------------------------------
 
-type Entscheidung = 'freigeben' | 'ablehnen'
-
 const ENTSCHEIDUNGEN = ['freigeben', 'ablehnen'] as const
 
-type Bedingung = {
-  feld: string
-  von?: number | null
-  bis?: number | null
-  werte?: string[]
-}
-
-type Regel = {
-  id: number
-  position: number
-  name: string
-  aktiv: boolean
-  bedingungen: Bedingung[]
-  entscheidung: Entscheidung
-  hausbestand: boolean
-  begruendung: string
-  trotzdem_fragen: boolean
-}
-
-type FeldArt = 'zahl' | 'menge'
 type ServerFeld = { kennung: string; art: FeldArt }
-/** Was ein Feld in der Oberfläche heißt und welche Werte es kennt. */
-type Feld = {
-  kennung: string
-  name: string
-  art: FeldArt
-  einheit?: string
-  hinweis?: string
-  werte?: { wert: string; name: string }[]
-}
 
 // ---------------------------------------------------------------------------
 
@@ -118,8 +94,8 @@ export function AdminRegeln() {
   )
 
   const felder = useMemo(
-    () => bauFelder(felderQuery.data ?? [], genresQuery.data ?? []),
-    [felderQuery.data, genresQuery.data],
+    () => bauFelder(felderQuery.data ?? [], genresQuery.data ?? [], t),
+    [felderQuery.data, genresQuery.data, t],
   )
   const FELD = useMemo(() => Object.fromEntries(felder.map((f) => [f.kennung, f])), [felder])
 
@@ -181,15 +157,23 @@ export function AdminRegeln() {
 
   /** Welche Regel wird von welcher überholt? Siehe Kopf der Datei. */
   const ueberholt = useMemo(() => {
-    const treffer = new Map<number, Regel>()
+    const treffer = new Map<number, { regel: Regel; verdeckt: boolean }>()
     for (let i = 0; i < regeln.length; i++) {
       for (let j = i + 1; j < regeln.length; j++) {
         const oben = regeln[i]
         const unten = regeln[j]
         if (!oben.aktiv || !unten.aktiv) continue
-        if (oben.entscheidung === unten.entscheidung) continue
         if (treffer.has(unten.id)) continue
-        if (ueberschneiden(oben, unten, felder)) treffer.set(unten.id, oben)
+        if (!ueberschneiden(oben, unten, felder)) continue
+        // ⚠️ **Auch bei gleicher Entscheidung sagen.** Die erste Fassung
+        // übersprang solche Paare als „kein Widerspruch". Zwei ablehnende
+        // Regeln mit verschiedenen Begründungen sind aber sehr wohl einer:
+        // Die untere wird nie erreicht, ihr Text nie gelesen — und der Text
+        // ist das, was der Anfragende sieht.
+        treffer.set(unten.id, {
+          regel: oben,
+          verdeckt: oben.entscheidung === unten.entscheidung,
+        })
       }
     }
     return treffer
@@ -219,6 +203,19 @@ export function AdminRegeln() {
     )
   }
 
+  // ⚠️ **Ein Ladefehler darf nicht als „keine Regeln“ erscheinen.** Mit
+  // ``data ?? []`` griff der Leer-Satz: „Ohne Regeln entscheidet weiterhin,
+  // was am Konto steht.“ Das stand einmal auf dem Bildschirm, während in der
+  // Datenbank eine aktive, ablehnende Regel lag. Für ein Feature, das im
+  // Hintergrund entscheidet, ist das die gefährlichste Anzeige überhaupt.
+  if (regelnQuery.isError || felderQuery.isError) {
+    return (
+      <Card>
+        <ErrorBanner message={t('regeln.ladefehler')} />
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {fehler && <ErrorBanner message={fehler} />}
@@ -243,6 +240,13 @@ export function AdminRegeln() {
               {t('regeln.grenzeKontingent')}
             </li>
           </ul>
+          {/* ⚠️ **Stand nirgends, und der einzige Satz dazu sagte das
+              Gegenteil.** Wer eine Regel schreibt, nimmt zuerst an, sie gelte
+              auch für ihn - und wundert sich, dass sein eigener Test nichts
+              tut. */}
+          <p className="mt-3 border-t border-ink-700 pt-3 text-sm text-mist-400">
+            {t('regeln.gilt_nicht_fuer_dich')}
+          </p>
         </div>
       </Section>
 
@@ -294,7 +298,7 @@ export function AdminRegeln() {
                       key={k}
                       className="rounded-full border border-ink-700 px-2.5 py-0.5 text-xs whitespace-nowrap text-mist-300"
                     >
-                      {chipText(b, FELD)}
+                      {chipText(b, FELD, t)}
                     </span>
                   ))}
                 </div>
@@ -314,14 +318,24 @@ export function AdminRegeln() {
 
                 {ueberholt.get(r.id) && (
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-warn-500">
-                    <span>{t('regeln.ueberholt', { name: ueberholt.get(r.id)!.name })}</span>
-                    <Button
-                      variant="ghost"
-                      className="px-3 py-1 text-xs"
-                      onClick={() => davorSetzen(r.id, ueberholt.get(r.id)!.id)}
-                    >
-                      {t('regeln.nachOben')}
-                    </Button>
+                    <span>
+                      {t(
+                        ueberholt.get(r.id)!.verdeckt ? 'regeln.verdeckt' : 'regeln.ueberholt',
+                        { name: ueberholt.get(r.id)!.regel.name },
+                      )}
+                    </span>
+                    {/* Nach oben schieben hilft nur beim Widerspruch. Bei
+                        gleicher Entscheidung wäre es nur eine andere
+                        Reihenfolge desselben Ergebnisses. */}
+                    {!ueberholt.get(r.id)!.verdeckt && (
+                      <Button
+                        variant="ghost"
+                        className="px-3 py-1 text-xs"
+                        onClick={() => davorSetzen(r.id, ueberholt.get(r.id)!.regel.id)}
+                      >
+                        {t('regeln.nachOben')}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -392,22 +406,29 @@ export function AdminRegeln() {
 // Felder, Text, Kollision
 // ---------------------------------------------------------------------------
 
-/** Aus den Kennungen des Servers die Felder samt Beschriftung und Werten. */
-function bauFelder(server: ServerFeld[], genres: Genre[]): Feld[] {
+/**
+ * Aus den Kennungen des Servers die Felder samt Beschriftung und Werten.
+ *
+ * ⚠️ **Alles über ``t``, nichts fest verdrahtet.** Die erste Fassung trug die
+ * Namen als deutsche Zeichenketten - in der englischen Oberfläche standen
+ * dann „Typ", „Anzahl Stimmen", „Liegt schon vor als" und Werte wie „gar
+ * nicht" mitten im englischen Text.
+ */
+function bauFelder(
+  server: ServerFeld[],
+  genres: Genre[],
+  t: (key: string) => string,
+): Feld[] {
   const werte: Record<string, { wert: string; name: string }[]> = {
     typ: [
-      { wert: 'movie', name: 'Film' },
-      { wert: 'tv', name: 'Serie' },
+      { wert: 'movie', name: t('regeln.wertFilm') },
+      { wert: 'tv', name: t('regeln.wertSerie') },
     ],
     genre: genres.map((g) => ({ wert: String(g.id), name: g.name })),
-    sprache: [
-      { wert: 'de', name: 'Deutsch' },
-      { wert: 'en', name: 'Englisch' },
-      { wert: 'fr', name: 'Französisch' },
-      { wert: 'es', name: 'Spanisch' },
-      { wert: 'ja', name: 'Japanisch' },
-      { wert: 'ko', name: 'Koreanisch' },
-    ],
+    sprache: ['de', 'en', 'fr', 'es', 'ja', 'ko'].map((kuerzel) => ({
+      wert: kuerzel,
+      name: t(`regeln.sprache_${kuerzel}`),
+    })),
     qualitaet: [
       { wert: 'hd', name: 'HD' },
       { wert: 'uhd', name: '4K' },
@@ -415,35 +436,11 @@ function bauFelder(server: ServerFeld[], genres: Genre[]): Feld[] {
     bestand: [
       { wert: 'hd', name: 'HD' },
       { wert: 'uhd', name: '4K' },
-      { wert: 'nichts', name: 'gar nicht' },
+      { wert: 'nichts', name: t('regeln.wertGarNicht') },
     ],
   }
-  const namen: Record<string, string> = {
-    typ: 'Typ',
-    genre: 'Genre',
-    bewertung: 'Bewertung',
-    stimmen: 'Anzahl Stimmen',
-    jahr: 'Erscheinungsjahr',
-    laufzeit: 'Laufzeit',
-    sprache: 'Originalsprache',
-    altersfreigabe: 'Altersfreigabe',
-    qualitaet: 'Angefragte Stufe',
-    bestand: 'Liegt schon vor als',
-  }
-  const einheiten: Record<string, string> = {
-    bewertung: 'von 10',
-    laufzeit: 'Minuten',
-    altersfreigabe: 'Jahre',
-  }
-  const hinweise: Record<string, string> = {
-    stimmen:
-      'Bitte immer mitgeben. 9,2 aus vier Stimmen ist kein guter Film, und eine Regel ' +
-      '„ab 8,0 freigeben" wird ohne diese Bedingung zum Einfallstor.',
-    bestand:
-      'Braucht zwei Instanzen. Nexview kennt nur, was über Nexview angefragt wurde — ' +
-      'was vorher in der Mediathek lag, zählt hier als „gar nicht".',
-    altersfreigabe: 'Soweit TMDB sie für deine Region kennt.',
-  }
+  const mitEinheit = new Set(['bewertung', 'laufzeit', 'altersfreigabe'])
+  const mitHinweis = new Set(['stimmen', 'bestand', 'altersfreigabe'])
   // Feste Reihenfolge statt alphabetisch: erst wonach man sucht, dann wie gut
   // es ist, dann was das Haus damit macht.
   const ordnung = [
@@ -462,15 +459,19 @@ function bauFelder(server: ServerFeld[], genres: Genre[]): Feld[] {
     .map((f) => ({
       kennung: f.kennung,
       art: f.art,
-      name: namen[f.kennung] ?? f.kennung,
-      einheit: einheiten[f.kennung],
-      hinweis: hinweise[f.kennung],
+      name: t(`regeln.feld_${f.kennung}`),
+      einheit: mitEinheit.has(f.kennung) ? t(`regeln.einheit_${f.kennung}`) : undefined,
+      hinweis: mitHinweis.has(f.kennung) ? t(`regeln.hinweis_${f.kennung}`) : undefined,
       werte: werte[f.kennung],
     }))
     .sort((a, b) => ordnung.indexOf(a.kennung) - ordnung.indexOf(b.kennung))
 }
 
-function chipText(b: Bedingung, FELD: Record<string, Feld>): string {
+function chipText(
+  b: Bedingung,
+  FELD: Record<string, Feld>,
+  t: (key: string, werte?: Record<string, unknown>) => string,
+): string {
   const feld = FELD[b.feld]
   if (!feld) return b.feld
   if (feld.art === 'menge') {
@@ -482,10 +483,10 @@ function chipText(b: Bedingung, FELD: Record<string, Feld>): string {
   }
   if (b.feld === 'jahr') {
     if (b.von != null && b.bis != null) return `${b.von}–${b.bis}`
-    if (b.von != null) return `ab ${b.von}`
-    return `vor ${b.bis}`
+    if (b.von != null) return t('regeln.chipAb', { wert: b.von })
+    return t('regeln.chipVor', { wert: b.bis })
   }
-  const kurz = b.feld === 'stimmen' ? 'Stimmen' : feld.name
+  const kurz = b.feld === 'stimmen' ? t('regeln.feldKurz_stimmen') : feld.name
   if (b.von != null && b.bis != null) return `${kurz} ${b.von}–${b.bis}`
   if (b.von != null) return `${kurz} ≥ ${b.von}`
   if (b.bis != null) return `${kurz} < ${b.bis}`
@@ -514,35 +515,6 @@ function Folge({ regel }: { regel: Regel }) {
       )}
     </div>
   )
-}
-
-function bedingungFuer(regel: Regel, feld: string): Bedingung | undefined {
-  return regel.bedingungen.find((b) => b.feld === feld)
-}
-
-/**
- * Können zwei Regeln denselben Titel treffen?
- *
- * ⚠️ **„von" schließt ein, „bis" schließt aus** — genau wie im Dienst. Mit zwei
- * einschließenden Grenzen meldete die Oberfläche „unter 5" und „ab 5" als
- * Widerspruch, den es nicht gibt.
- */
-function ueberschneiden(a: Regel, b: Regel, felder: Feld[]): boolean {
-  for (const feld of felder) {
-    const x = bedingungFuer(a, feld.kennung)
-    const y = bedingungFuer(b, feld.kennung)
-    if (!x || !y) continue
-    if (feld.art === 'zahl') {
-      const xv = x.von ?? -Infinity
-      const xb = x.bis ?? Infinity
-      const yv = y.von ?? -Infinity
-      const yb = y.bis ?? Infinity
-      if (!(xv < yb && yv < xb)) return false
-    } else if (!(x.werte ?? []).some((w) => (y.werte ?? []).includes(w))) {
-      return false
-    }
-  }
-  return true
 }
 
 /** Was der Server entgegennimmt. ``position`` setzt er selbst. */
@@ -584,10 +556,18 @@ function RegelFenster({
   const ungenutzt = felder.filter((f) => !entwurf.bedingungen.some((b) => b.feld === f.kennung))
   // Eine Bedingung, bei der nichts angehakt oder nichts eingetragen ist, würde
   // der Server ablehnen. Das sagt der Knopf, statt es passieren zu lassen.
+  // ⚠️ ``Number.isFinite`` und nicht ``!= null``: Ein einzelnes „-“ im Feld
+  // macht ``Number('-')`` zu ``NaN``, und ``NaN`` ist nicht ``null``. Der
+  // Knopf stand damit aktiv über einer Eingabe, die der Server ablehnt.
+  const zahlUnbrauchbar = (wert: number | null | undefined) =>
+    wert != null && !Number.isFinite(wert)
   const unfertig = entwurf.bedingungen.some(
     (b) =>
       (FELD[b.feld]?.art === 'menge' && !(b.werte ?? []).length) ||
-      (FELD[b.feld]?.art === 'zahl' && b.von == null && b.bis == null),
+      (FELD[b.feld]?.art === 'zahl' &&
+        (zahlUnbrauchbar(b.von) ||
+          zahlUnbrauchbar(b.bis) ||
+          (b.von == null && b.bis == null))),
   )
 
   return (

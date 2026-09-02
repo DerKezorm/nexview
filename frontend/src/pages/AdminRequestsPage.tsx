@@ -877,6 +877,21 @@ export function AdminRequestsPage() {
                         {t("adminRequests.reason")}: {request.rejection_reason}
                       </p>
                     )}
+                    {/* ⚠️ **Hier stand schon einmal eine Regel dagegen.** Ohne
+                        diese Zeile liegt vor dem Entscheider eine ganz
+                        gewöhnliche wartende Anfrage, und dass das Haus dagegen
+                        eine Regel hat, erfährt er nicht. Kein Hindernis - eine
+                        Auskunft. Entscheiden soll er weiterhin selbst. */}
+                    {request.trotzdem_gefragt && (
+                      <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-warn-500">
+                        <span className="inline-flex shrink-0 items-center rounded-full bg-warn-500/15 px-2 py-0.5 text-[10px] font-semibold ring-1 ring-warn-500/30">
+                          {t("adminRequests.askedAnywayBadge")}
+                        </span>
+                        {request.regel_name
+                          ? t("adminRequests.askedAnyway", { name: request.regel_name })
+                          : t("adminRequests.askedAnywayOhneRegel")}
+                      </p>
+                    )}
                     {/* Läuft im Abo **des Anfragenden**. Ein Hinweis für die
                         Entscheidung, keine Sperre – und ausdrücklich an seinen
                         Abos gemessen, nicht an denen des Entscheiders. */}

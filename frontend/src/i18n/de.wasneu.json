@@ -234,6 +234,38 @@
         "small": [
           "Ein dauerhafter Browser-Test prüft den Unterpfad-Betrieb künftig bei jedem Release automatisch mit — in beiden Proxy-Arten."
         ]
+      },
+      "0.28.0": {
+        "lead": "Bisher entschied bei jeder Anfrage, was am Konto des Anfragenden steht. Diese Fassung stellt eine Liste davor: „Dokumentationen ab Bewertung 5 durchwinken“, „Filme unter 5 gar nicht erst“. Nexview geht sie von oben nach unten durch und nimmt die erste Regel, die passt. Passt keine, bleibt alles wie bisher.",
+        "sections": [
+          {
+            "title": "Regeln, die über Anfragen entscheiden",
+            "where": "Einstellungen, Regeln",
+            "body": "Eine Regel besteht aus Bedingungen, die alle zutreffen müssen, und einer Folge: sofort freigeben oder ablehnen. Als Bedingung stehen Typ, Genre, Bewertung, Anzahl Stimmen, Erscheinungsjahr, Laufzeit, Originalsprache, Altersfreigabe, die angefragte Stufe und der eigene Bestand zur Wahl. Wer ein „oder“ braucht, legt eine zweite Regel an - das hält die Liste lesbar und ist zugleich der Grund, warum Nexview Widersprüche überhaupt ausrechnen kann. Wird eine Regel von einer darüber überholt, sagt die Liste es und bietet einen Klick zum Umsortieren an."
+          },
+          {
+            "title": "Auf den Hausbestand buchen",
+            "where": "Einstellungen, Regeln, Regel anlegen, unter „sofort freigeben“",
+            "body": "Wer will, dass gut bewertete Neuerscheinungen sofort da sind, ohne dass sie jemandem zur Last fallen, hakt das an: Der Titel zählt dann bei niemandem gegen das Speicher-Kontingent. Die Stückzahl zählt weiter, die hängt an der Anfrage und nicht am Speicherposten - und sie erneuert sich ohnehin jede Woche."
+          },
+          {
+            "title": "Was eine Regel nicht kann",
+            "where": "Einstellungen, Regeln, oben im Kasten",
+            "body": "Drei Dinge bleiben außerhalb ihrer Reichweite, und das ist keine Frage der Reihenfolge. Der Altersfilter wirkt beim Anzeigen: Was ein Konto nicht sehen darf, kann es nicht anfragen. Ein Kinderwunsch geht immer an die Eltern. Und das Kontingent des Anfragenden wird vor den Regeln geprüft und gewinnt - auch gegen eine Regel, die auf den Hausbestand gebucht hätte. Für Administratoren und Entscheider gelten Regeln gar nicht, genau wie die Sperrliste."
+          },
+          {
+            "title": "Abgelehnt heißt nicht spurlos",
+            "where": "Meine Anfragen",
+            "body": "Lehnt eine Regel ab, entsteht die Anfrage trotzdem - im Zustand abgelehnt, mit der Begründung, die du in die Regel geschrieben hast, und mit dem Namen der Regel im Verlauf. Der Anfragende bekommt eine Nachricht wie bei einer Ablehnung von Hand. Je Regel kannst du erlauben, dass er trotzdem an den Entscheider schickt; der sieht dann ein Abzeichen, dass hier schon einmal eine Regel dagegen stand."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Eine Regel auf ein Genre vergleicht jetzt Nummern statt Namen. Namen sind übersetzt - dieselbe Dokumentation heißt je nach Sprache anders, und die Regel hätte in einer Sprache gewirkt und in der anderen nicht.",
+          "TMDB meldet Bewertung 0,0 bei null Stimmen, nicht unterscheidbar von einer echten Null. „Bewertung unter 5 ablehnen“ hätte damit jeden unbewerteten Titel erwischt - und unbewertet sind vor allem die neuen.",
+          "Dasselbe bei der Laufzeit einer Serie: Bei manchen meldet TMDB null Minuten, und das heißt „wissen wir nicht“.",
+          "„Einzelne Titel ansehen“ beim eigenen Speicher führte ins Profil-Menü statt zum Speicher. Die Aufräum-Mail zeigte auf einen Reiter, den es gar nicht gibt."
+        ]
       }
     }
   }

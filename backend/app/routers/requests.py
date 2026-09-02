@@ -264,6 +264,22 @@ async def cancel_own_request(
         raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error
 
 
+@router.post("/{request_id}/trotzdem", response_model=RequestPublic)
+def ask_anyway(
+    request_id: Annotated[int, Path(ge=1)], user: CurrentUser, db: DbSession
+) -> MediaRequest:
+    """Eine von einer Regel abgelehnte Anfrage doch an den Entscheider schicken.
+
+    Nur, wo die Regel es erlaubt - und nur mit denselben Pruefungen, die eine
+    neue Anfrage auch bestehen muesste. Sonst waere das der Weg, auf dem sich
+    ein volles Kontingent umgehen laesst.
+    """
+    try:
+        return requests_service.trotzdem_fragen(db, load_settings(db), user, request_id)
+    except requests_service.RequestError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error
+
+
 @router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
 def withdraw_request(
     request_id: Annotated[int, Path(ge=1)], user: CurrentUser, db: DbSession

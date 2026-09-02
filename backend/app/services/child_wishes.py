@@ -224,6 +224,31 @@ async def freigeben(
         ) from fehler
 
     anfrage.for_child_id = wunsch.child_id
+
+    # ⚠️ **Eine Regel kann das Ja der Eltern ueberstimmen - dann darf der
+    # Wunsch nicht als freigegeben gelten.**
+    #
+    # ``create_request`` wirft bei einer Regel-Ablehnung keine Ausnahme; sie
+    # legt eine Anfrage im Zustand ``rejected`` an und gibt sie zurueck. Wer
+    # das nicht ansieht, schreibt ``released`` in die Datenbank, waehrend in
+    # Wirklichkeit abgelehnt wurde: Das Elternteil sieht seinen Wunsch aus der
+    # Liste verschwinden und glaubt, es habe freigegeben. Das Kind liest
+    # "diesmal nicht". Und niemand erfaehrt, dass eine Hausregel dazwischen
+    # stand.
+    #
+    # Der Wunsch bleibt deshalb **offen**. Die abgelehnte Anfrage bleibt
+    # ebenfalls stehen - sie ist der Vorgang, an dem "trotzdem fragen" haengt,
+    # falls die Regel das zulaesst.
+    if anfrage.status == RequestStatus.rejected and anfrage.regel_id is not None:
+        db.commit()
+        grund = f" {anfrage.rejection_reason}" if anfrage.rejection_reason else ""
+        raise ChildError(
+            f"Eine Regel des Hauses hat „{wunsch.title}“ abgelehnt.{grund}",
+            409,
+            code="wish_rule_rejected",
+            titel=wunsch.title,
+        )
+
     wunsch.state = WishState.released
     wunsch.decided_at = utcnow()
     wunsch.request_id = anfrage.id

@@ -1182,6 +1182,10 @@ export type MediaRequest = {
   rejection_reason: string | null;
   /** Welche Regel entschieden hat. `null` = keine, es galt das Konto. */
   regel_name: string | null;
+  /** Darf der Anfragende diese Regel-Ablehnung an den Entscheider weiterreichen? */
+  darf_trotzdem_fragen: boolean;
+  /** Kam sie über „trotzdem fragen“ zurück, nachdem eine Regel abgelehnt hatte? */
+  trotzdem_gefragt: boolean;
   error_message: string | null;
   /**
    * Kennung samt Werten zur gespeicherten Fehlermeldung.

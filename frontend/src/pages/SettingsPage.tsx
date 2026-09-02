@@ -158,9 +158,9 @@ export function SettingsPage() {
     // Direkt hinter den Benutzern: Die Hausordnung richtet sich an genau die,
     // die dort stehen.
     { value: 'hausordnung', label: t('settings.tabHausordnung'), symbol: 'hausordnung' },
-    // ⚠️ Attrappe, noch ohne Backend. Steht neben der Hausordnung, weil beide
-    // dasselbe tun: Regeln fuer alle festlegen statt je Konto.
-    { value: 'regeln', label: 'Regeln', symbol: 'hausordnung' },
+    // Steht neben der Hausordnung, weil beide dasselbe tun: etwas fuer alle
+    // festlegen statt je Konto.
+    { value: 'regeln', label: t('settings.tabRegeln'), symbol: 'hausordnung' },
     ...(config?.mediaserver_configured
       ? [{ value: 'watchlist' as Tab, label: t('settings.tabWatchlist'), symbol: 'merkliste' as const }]
       : []),

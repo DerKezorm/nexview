@@ -234,6 +234,38 @@
         "small": [
           "A permanent browser test now checks sub-path operation automatically with every release — in both proxy styles."
         ]
+      },
+      "0.28.0": {
+        "lead": "Until now the account setting decided every request. This version puts a list in front of it: “wave through documentaries rated 5 and up”, “don't even start with films below 5”. Nexview walks the list from top to bottom and takes the first rule that matches. If none does, everything stays as before.",
+        "sections": [
+          {
+            "title": "Rules that decide requests",
+            "where": "Settings, Rules",
+            "body": "A rule is a set of conditions that all have to hold, and one consequence: approve at once, or decline. Conditions can use the type, the genre, the rating, the number of votes, the release year, the runtime, the original language, the age rating, the requested tier and what is already here. If you need an “or”, add a second rule - that keeps the list readable and is the very reason Nexview can work out contradictions at all. Where one rule overtakes another, the list says so and offers a click to reorder."
+          },
+          {
+            "title": "Book to house stock",
+            "where": "Settings, Rules, add a rule, under “approve at once”",
+            "body": "If you want well-rated new releases to be there at once without burdening anybody, tick this: the title then counts against nobody's storage quota. The item count still applies - that hangs on the request, not on the storage entry, and it renews every week anyway."
+          },
+          {
+            "title": "What a rule cannot do",
+            "where": "Settings, Rules, in the box at the top",
+            "body": "Three things stay out of reach, and none of them is a matter of ordering. The age filter acts when listing: what an account cannot see, it cannot request. A child's wish always goes to the parents. And the requester's quota is checked before the rules and wins - even against a rule that would have booked the title to house stock. Rules do not apply to administrators and approvers at all, just like the block list."
+          },
+          {
+            "title": "Declined does not mean vanished",
+            "where": "My requests",
+            "body": "Where a rule declines, the request is still created - in the declined state, with the reason you wrote into the rule, and with the rule's name in the history. The requester is notified the same way a decision by hand would notify them. Per rule you can allow them to send it to an approver anyway; the approver then sees a badge saying a rule had declined it."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "A rule matching on genre now compares numbers rather than names. Names are translated - the same documentary is called something else in each language, and the rule would have worked in one and not the other.",
+          "TMDB reports a rating of 0.0 with zero votes, indistinguishable from a real zero. “Rating below 5, decline” would have caught every unrated title - and unrated mostly means new.",
+          "The same for a series runtime: for some, TMDB reports zero minutes, and that means “we don't know”.",
+          "“View single titles” under your storage led to the profile menu instead of the storage tab. The clean-up mail pointed at a tab name that does not exist."
+        ]
       }
     }
   }

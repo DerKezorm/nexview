@@ -1004,6 +1004,11 @@
         "schluessel": false,
         "typ": "INTEGER"
       },
+      "trotzdem_gefragt": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
       "tvdb_id": {
         "leer_erlaubt": true,
         "schluessel": false,

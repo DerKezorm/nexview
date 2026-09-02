@@ -1882,6 +1882,19 @@ class MediaRequest(Base):
     #: einmal gefallen ist, gehoert an den Vorgang.
     hausbestand: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    #: Kam diese Anfrage ueber "trotzdem fragen" zurueck, nachdem eine Regel
+    #: sie abgelehnt hatte?
+    #:
+    #: ⚠️ **Der Entscheider muss das sehen.** Sonst liegt vor ihm eine ganz
+    #: gewoehnliche wartende Anfrage, und dass das Haus dagegen eine Regel hat,
+    #: erfaehrt er nicht. Er soll nicht gehindert werden - er soll es wissen.
+    #:
+    #: Ein eigener Merker und keine Ableitung aus ``regel_id``: Eine Regel
+    #: laesst sich von "ablehnen" auf "freigeben" umstellen, und dann saehe
+    #: jede von ihr freigegebene Anfrage rueckwirkend so aus, als waere sie
+    #: erzwungen worden.
+    trotzdem_gefragt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Kam diese Anfrage von der Merkliste statt von einem Klick? Der
     # Entscheider soll das sehen: Niemand hat sich diesen Titel im Einzelnen
     # ueberlegt, und das aendert, wie genau man hinschaut.
@@ -1971,7 +1984,7 @@ class MediaRequest(Base):
     for_child: Mapped[User | None] = relationship(foreign_keys=[for_child_id])
 
     #: Die Regel, die entschieden hat - falls es sie noch gibt.
-    regel: Mapped["Regel | None"] = relationship(foreign_keys=[regel_id])
+    regel: Mapped[Regel | None] = relationship(foreign_keys=[regel_id])
 
     @property
     def regel_name(self) -> str | None:
@@ -1986,6 +1999,29 @@ class MediaRequest(Base):
         die es tat, ist geloescht. Beides ist eine Aussage und keine Luecke.
         """
         return self.regel.name if self.regel is not None else None
+
+    @property
+    def darf_trotzdem_fragen(self) -> bool:
+        """Darf der Anfragende diese Ablehnung an den Entscheider weiterreichen?
+
+        Nur bei einer Ablehnung **durch eine Regel**, nur wenn die Regel den
+        Haken traegt, und **nur einmal**. Eine Ablehnung von Hand bleibt eine
+        Ablehnung: Da hat ein Mensch entschieden, den man ohnehin ansprechen
+        kann.
+
+        ⚠️ **Genau einmal, und das ist der Kern.** Beim Ausprobieren kam eine
+        Anfrage ueber "trotzdem" beim Entscheider an, der lehnte sie von Hand
+        ab - und der Knopf stand wieder da. ``regel_id`` bleibt ja am Vorgang,
+        und der Zustand war wieder ``rejected``. Damit haette derselbe Mensch
+        beliebig oft nachfassen koennen, gegen die ausdrueckliche Entscheidung
+        eines anderen. Ein Nein von Hand steht ueber der Einladung der Regel.
+        """
+        return (
+            self.status == RequestStatus.rejected
+            and not self.trotzdem_gefragt
+            and self.regel is not None
+            and self.regel.trotzdem_fragen
+        )
 
     @property
     def approved_by_name(self) -> str | None:

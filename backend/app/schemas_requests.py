@@ -128,6 +128,12 @@ class RequestPublic(BaseModel):
     # Welche Regel entschieden hat. ``None`` heisst: keine - es galt, was am
     # Konto steht.
     regel_name: str | None = None
+    # Darf der Anfragende diese Ablehnung an den Entscheider weiterreichen?
+    # Nur bei einer Regel-Ablehnung, und nur wo die Regel es erlaubt.
+    darf_trotzdem_fragen: bool = False
+    # Kam sie über „trotzdem fragen“ zurück? Der Entscheider soll sehen,
+    # dass hier schon einmal eine Regel dagegen stand.
+    trotzdem_gefragt: bool = False
     error_message: str | None
     # Kennung samt Werten - das Frontend baut daraus den Satz in der
     # eingestellten Sprache und faellt sonst auf ``error_message`` zurueck.

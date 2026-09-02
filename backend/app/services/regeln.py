@@ -37,6 +37,7 @@ nimmt den gewohnten Weg.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -81,9 +82,25 @@ MENGENFELDER = frozenset({
 
 FELDER = ZAHLENFELDER | MENGENFELDER
 
-#: Was ``bestand`` annehmen kann. "nichts" ist ein Wert und keine Luecke: Wer
-#: eine Regel auf "liegt gar nicht vor" stellen will, soll das koennen.
-BESTAND_WERTE = frozenset({"hd", "uhd", "nichts"})
+#: Felder, deren Werte feststehen. Was nicht darin steht, ist ein Tippfehler -
+#: und ein Tippfehler ergaebe eine Regel, die still nie greift. Genau den
+#: Zustand soll ``bedingungen_pruefen`` verhindern.
+#:
+#: ⚠️ Anfangs stand hier nur ``bestand``. ``typ`` und ``qualitaet`` sind
+#: genauso geschlossen, wurden aber nicht geprueft: ``{"feld": "typ",
+#: "werte": ["hoerspiel"]}`` ging durch und ergab eine Regel, die nichts tat.
+#: ``genre`` und ``sprache`` bleiben offen - deren Werte kommen von TMDB und
+#: aendern sich, ohne dass jemand hier etwas nachtraegt.
+GESCHLOSSENE_WERTE: dict[str, frozenset[str]] = {
+    "typ": frozenset({"movie", "tv"}),
+    "qualitaet": frozenset({"hd", "uhd"}),
+    # "nichts" ist ein Wert und keine Luecke: Wer eine Regel auf "liegt gar
+    # nicht vor" stellen will, soll das koennen.
+    "bestand": frozenset({"hd", "uhd", "nichts"}),
+}
+
+#: Rueckwaertskompatibler Name - einige Stellen nennen ihn noch einzeln.
+BESTAND_WERTE = GESCHLOSSENE_WERTE["bestand"]
 
 
 class RegelFehler(ValueError):
@@ -120,8 +137,21 @@ def bedingungen_pruefen(bedingungen: list | None) -> list[dict]:
             von = eintrag.get("von")
             bis = eintrag.get("bis")
             for wert in (von, bis):
-                if wert is not None and not isinstance(wert, (int, float)):
+                if wert is None:
+                    continue
+                if isinstance(wert, bool) or not isinstance(wert, (int, float)):
                     raise RegelFehler(f"{feld}: {wert!r} ist keine Zahl.")
+                # ⚠️ **``NaN`` und ``Infinity`` kommen durch JSON herein.**
+                # Python nimmt beide klaglos an, ``isinstance(nan, float)`` ist
+                # wahr, und **jeder** Vergleich mit ``NaN`` ist falsch - also
+                # auch ``von >= bis``. Eine Regel mit ``von: NaN`` ging so
+                # durch und traf danach auf **alles** zu, waehrend die
+                # Oberflaeche "von: —" anzeigte. Eine Grenze, die auf alles
+                # passt und die niemand sehen kann.
+                if not math.isfinite(wert):
+                    raise RegelFehler(
+                        f"{feld}: {wert!r} ist keine Grenze, mit der sich rechnen lässt."
+                    )
             if von is None and bis is None:
                 raise RegelFehler(f"{feld}: weder Unter- noch Obergrenze.")
             if von is not None and bis is not None and von >= bis:
@@ -135,8 +165,12 @@ def bedingungen_pruefen(bedingungen: list | None) -> list[dict]:
             if not isinstance(werte, list) or not werte:
                 raise RegelFehler(f"{feld}: keine Auswahl getroffen.")
             werte = [str(w) for w in werte]
-            if feld == "bestand" and not set(werte) <= BESTAND_WERTE:
-                raise RegelFehler(f"bestand: erlaubt sind {sorted(BESTAND_WERTE)}.")
+            erlaubt = GESCHLOSSENE_WERTE.get(feld)
+            if erlaubt is not None and not set(werte) <= erlaubt:
+                falsch = sorted(set(werte) - erlaubt)
+                raise RegelFehler(
+                    f"{feld}: {falsch} gibt es nicht - erlaubt sind {sorted(erlaubt)}."
+                )
             sauber.append({"feld": feld, "werte": werte})
 
     return sauber

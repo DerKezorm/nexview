@@ -18,6 +18,7 @@ import asyncio
 from dataclasses import replace
 from typing import Any
 from urllib.parse import urlencode
+from xml.etree import ElementTree
 
 import httpx
 
@@ -27,6 +28,7 @@ from .base import (
     LoginChallenge,
     MediaServerError,
     ServerCandidate,
+    ServerUser,
     WatchlistItem,
     http_client,
 )
@@ -42,6 +44,12 @@ METADATA_URL = "https://metadata.provider.plex.tv"
 # als gesehen fuehrt, auch fuer Titel, die in keiner Bibliothek liegen. Eine
 # GraphQL-Schnittstelle, nicht die uebliche REST-Form von plex.tv.
 COMMUNITY_URL = "https://community.plex.tv/api"
+# ⚠️ **Die alte Wurzel, und sie ist hier die richtige.** Die Liste der Konten,
+# die auf einen Server zugreifen duerfen, gibt es nur unter ``/api/users`` -
+# in XML, nicht in JSON. Der naheliegende neuere Weg ``/api/v2/friends`` ist
+# **abgeschaltet**: gemessen am 02.09.2026 antwortet er mit 410 Gone. Wer hier
+# aufraeumt und auf v2 umstellt, baut eine Liste, die immer leer ist.
+ACCOUNT_URL = "https://plex.tv"
 PRODUCT = "Nexview"
 
 # Wie viele Eintraege je Seite geholt werden. Plex deckelt selbst; 100 haelt
@@ -77,7 +85,15 @@ async def _request(
     token: str | None = None,
     params: dict[str, Any] | None = None,
     base: str = BASE_URL,
+    als_text: bool = False,
 ) -> Any:
+    """Eine Anfrage an plex.tv, mit einer Stelle fuer alle Fehlerfaelle.
+
+    ``als_text`` gibt die Antwort unausgewertet zurueck. Gebraucht wird das
+    fuer ``/api/users``, das ausschliesslich XML spricht; die Fehlerbehandlung
+    darueber gilt trotzdem, und das ist der Grund, warum es hier steht und
+    nicht in einer zweiten Funktion daneben.
+    """
     client = await http_client()
     try:
         response = await client.request(
@@ -103,6 +119,8 @@ async def _request(
 
     if not response.content:
         return None
+    if als_text:
+        return response.text
     try:
         return response.json()
     except ValueError as exc:
@@ -397,3 +415,86 @@ async def watchlist_ids(
 
     ergebnisse = await asyncio.gather(*(einer(werk) for werk in items))
     return [werk for werk in ergebnisse if werk is not None]
+
+
+async def kontenliste(
+    client_identifier: str, token: str, machine_id: str
+) -> list[ServerUser]:
+    """Wer darf auf diesen Server zugreifen - mit der Kennung der **Anmeldung**.
+
+    ⚠️ **Warum das hier steht und nicht im Server-Adapter.** ``PlexServer``
+    hat bereits ``list_server_users``, und die fragt den Server nach
+    ``/accounts``. Deren Nummern sind Server-Nummern: Der Eigentuemer steht
+    dort auf der 1, geteilte Nutzer unter etwas, das nur dieser Server kennt.
+    Fuer den Seh-Verlauf ist genau das richtig, denn Plex fuehrt ihn unter
+    ebendiesen Nummern.
+
+    Zum **Anlegen einer Verknuepfung** sind sie falsch. Beim Anmelden entsteht
+    die Kennung bei plex.tv, und ``find_linked`` sucht danach. Wer eine
+    Verknuepfung aus einer Server-Nummer baut, legt ein Konto an, in das
+    niemand hineinkommt.
+
+    Deshalb zwei Listen nebeneinander, und deshalb dieser lange Absatz: Die
+    Verwechslung waere nicht zu sehen, bis sich jemand nicht anmelden kann.
+
+    Gemessen am 02.09.2026 an einer echten Installation: Der Eigentuemer steht
+    unter derselben Nummer, die in ``user_media_server_accounts`` liegt, und
+    das geteilte Konto ebenso. ``backend/tools/plex_kennungen_pruefen.py``
+    stellt dieselbe Frage noch einmal, wenn jemand daran zweifelt.
+
+    Zwei Quellen, weil Plex den Eigentuemer nicht in seine eigene Freundesliste
+    schreibt.
+    """
+    gefunden: list[ServerUser] = []
+
+    konto = await _request(
+        "GET",
+        "/users/account.json",
+        client_identifier=client_identifier,
+        token=token,
+        base=ACCOUNT_URL,
+    )
+    eigner = (konto or {}).get("user") or {}
+    if eigner.get("id"):
+        gefunden.append(
+            ServerUser(
+                account_id=str(eigner["id"]),
+                username=eigner.get("username") or eigner.get("title") or "",
+                email=eigner.get("email") or None,
+            )
+        )
+
+    roh = await _request(
+        "GET",
+        "/api/users",
+        client_identifier=client_identifier,
+        token=token,
+        base=ACCOUNT_URL,
+        als_text=True,
+    )
+    if not roh:
+        return gefunden
+
+    try:
+        baum = ElementTree.fromstring(roh)
+    except ElementTree.ParseError as exc:
+        raise MediaServerError("Die Kontenliste von plex.tv ist unlesbar.") from exc
+
+    for nutzer in baum.findall("User"):
+        nummer = nutzer.get("id")
+        if not nummer:
+            continue
+        # ⚠️ **Der Filter ist Pflicht, nicht Feinschliff.** Die Liste fuehrt
+        # *alle* Freunde des Kontos, auch die, die nie Zugriff auf diesen
+        # Server hatten. Ohne ihn stuenden Fremde zum Import bereit.
+        server = {eintrag.get("machineIdentifier") for eintrag in nutzer.findall("Server")}
+        if machine_id not in server:
+            continue
+        gefunden.append(
+            ServerUser(
+                account_id=nummer,
+                username=nutzer.get("username") or nutzer.get("title") or "",
+                email=nutzer.get("email") or None,
+            )
+        )
+    return gefunden

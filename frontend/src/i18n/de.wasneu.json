@@ -1,6 +1,39 @@
 {
   "whatsNew": {
     "entries": {
+      "0.27.0": {
+        "lead": "Wer schon einen Medienserver betreibt, hat die Leute dort längst. Diese Fassung holt sie herüber: Nexview fragt Plex, Jellyfin oder Emby nach seinen Konten, du hakst an, wen du übernehmen willst, und die Betreffenden melden sich anschließend mit ihrem gewohnten Zugang an. Ohne Einladung, ohne Passwort, ohne Mailadresse.",
+        "sections": [
+          {
+            "title": "Vorhandene Konten aus dem Medienserver übernehmen",
+            "where": "Einstellungen, Dienste, Medienserver, Kachel öffnen, Vorhandene Konten",
+            "body": "Bisher entstand ein Konto erst, wenn sich jemand zum ersten Mal anmeldete. Bei Jellyfin und Emby entstand dabei gar keins: Beide kennen zu einem Konto keine Mailadresse, und ohne die kann Nexview nicht unterscheiden, ob da ein neuer Mensch steht oder jemand, der längst ein Konto hat. Für dreißig Leute hieß das dreißigmal von Hand anlegen, Passwort setzen, weitergeben. Jetzt zeigt Nexview die Konten des Servers als Liste, du hakst an, und für jede Zeile entscheidest du: neues Konto, oder verknüpfen mit einem, das es schon gibt. Vorausgewählt ist nichts, und verknüpfen ist nie die Vorgabe."
+          },
+          {
+            "title": "Für neu angelegte Konten lassen sich die Grenzen gleich mitgeben",
+            "where": "Im selben Fenster unten, Für neu angelegte Konten",
+            "body": "Filme, Serien und Speicher, jeweils als Hausvorgabe, unbegrenzt oder feste Zahl. Und ein Haken, mit dem die Konten inaktiv entstehen, falls du sie erst später freischalten willst. Wer ein bestehendes Konto nur verknüpft, behält dessen Grenzen unangetastet: Sie wurden einmal bewusst gesetzt, und ein Import, der sie nebenbei überschreibt, nähme sie weg, ohne dass irgendwo steht, dass er es getan hat. Die Rolle steht nicht zur Wahl, es ist immer Nutzer, und Anfragen brauchen eine Freigabe."
+          },
+          {
+            "title": "Wer übernommen wurde, meldet sich mit dem Medienserver an",
+            "where": "Anmeldeseite, mit Plex, Jellyfin oder Emby anmelden",
+            "body": "Der Import legt Konto und Verknüpfung in einem Zug an, und die Verknüpfung ist dabei die eigentliche Arbeit: Ohne sie gäbe es ein Konto, in das niemand hineinkommt. Deshalb bekommen die neuen Konten kein Passwort und keine Mailadresse. Wer einem trotzdem ein Passwort setzt, muss danach erst eine Adresse hinterlegen, sonst hält ihn die Adressbestätigung auf. Das Fenster sagt es dazu."
+          },
+          {
+            "title": "Die Sperrliste gibt es jetzt bei allen drei Servern",
+            "where": "Einstellungen, Dienste, Medienserver, Gesperrte Konten",
+            "body": "Wird ein Konto gelöscht, landet seine Medienserver-Identität auf einer Sperrliste, damit sie sich nicht bei der nächsten Anmeldung gleich wieder selbst anlegt. Diese Liste war bisher nur bei Plex zu sehen, weil bei Jellyfin und Emby ohnehin kein Konto entstehen konnte. Mit dem Import stimmt das nicht mehr, und deshalb steht sie jetzt überall. Steht jemand darauf, den du übernehmen willst, sagt es die Zeile, und beim Übernehmen fragt Nexview einmal nach, bevor es die Sperre aufhebt."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Der Betreiber-Wächter sieht jetzt das ganze Backend statt nur die Router. Ein Schreibzugriff auf ein fremdes Konto, ausgelagert in einen Dienst, kam ihm bisher nicht unter.",
+          "Die Feldnamen, an denen er ein fremdes Konto erkennt, kommen aus den Fremdschlüsseln der Datenbank statt aus einer Liste von Hand. Vier der sieben alten Namen gab es im ganzen Schema nicht, acht echte fehlten.",
+          "secret.key liegt jetzt mit Rechten 0600 statt 0644, und zwar auch in bestehenden Installationen. Die Sicherungen im Datenverzeichnis liegen unverschlüsselt, und README und Oberfläche sagen das jetzt.",
+          "Ein Wächter über den Altersfilter misst zur Laufzeit, ob ein gesperrter Titel doch irgendwo herauskommt.",
+          "Der Schema-Abdruck macht eine umbenannte Spalte im Diff sichtbar, und der Start meldet Spalten, die die Datenbank noch hat und das Modell nicht mehr."
+        ]
+      },
       "0.26.2": {
         "lead": "Unter der Haube. Diese Fassung bringt keine neue Funktion, und das ist Absicht: Sie repariert eine Einstellung, die sich hinter deinem Rücken umgedreht hat, macht die Listen deutlich schneller und räumt auf, was sich im Verborgenen angesammelt hatte. Zu sehen gibt es fast nichts. Zu merken schon.",
         "sections": [

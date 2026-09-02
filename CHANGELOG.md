@@ -12,7 +12,65 @@ tag exists for it.
 
 ---
 
-## 0.26.3
+## 0.27.0 – 02.09.2026
+
+### New
+
+- **Existing accounts can be taken over from a media server.** Whoever already runs Plex,
+  Jellyfin or Emby already has the people. Until now an account came into being only when
+  somebody signed in for the first time, and with Jellyfin and Emby it did not come into
+  being at all: neither knows an e-mail address for an account, and without one Nexview
+  cannot tell a new person from somebody who has had an account for years. Onboarding
+  thirty people meant creating thirty accounts by hand, setting thirty passwords and
+  passing them on, after which each person still had to link the server in their own
+  profile.
+
+  Nexview now asks the server for its accounts and shows them as a list. Nothing is
+  preselected, and for every row the decision is the operator's: a new account, or a link
+  to one that already exists. **Linking is never the default**, because a wrong link hands
+  whoever controls that server identity the way into somebody else's Nexview account, and
+  that must not happen by clicking past it.
+
+  What the import writes is the account **and** the link, in one transaction. The link is
+  the actual work: without it there would be an account nobody can get into.
+
+  Three things it deliberately does not do. It does not guess who belongs to whom: across
+  providers there is no reliable signal, Plex knows an e-mail address while Jellyfin and
+  Emby know none, and the same person is often named differently on two servers. It does
+  not offer a role, so an import creates plain users and never approvers or
+  administrators. And it does not carry quotas over to an account that is merely linked,
+  because those were set deliberately once.
+
+  For newly created accounts the limits can be set for the batch: movies, shows and
+  storage, each as house default, unlimited or a fixed number, plus a tick that creates
+  them inactive. The three-valued form is the one used everywhere else, and for the same
+  reason as in 0.26.2: `0` means "may request nothing", which is not the same as "house
+  default".
+
+- **The list says which accounts already exist, and under which name.** An entry in the
+  assignment offers every Nexview account that has no link *for this provider* - not
+  "no link at all". Someone who is already on Plex has to be offered at the Jellyfin
+  import, or a second account is created for the same human, and Nexview cannot merge two
+  accounts. Each entry names what it already hangs on, "jamie (Plex)" rather than
+  "jamie", because on the second import that is the only hint there is.
+
+### Fixed
+
+- **The block list was only visible for Plex.** When an account is deleted, its
+  media-server identity lands on a block list so that it cannot simply create itself again
+  at the next sign-in. The list was shown for Plex only, with a reason that was correct
+  until this release: with Jellyfin and Emby no account could come into being anyway, so a
+  block there could not achieve anything.
+
+  The import makes that assumption false. The list is now shown for all three. Reported
+  after exactly this sequence: take over, delete, take over again, "access blocked" - and
+  the list holding the entry was hidden.
+
+  A blocked identity is refused by the import, and the row says so with a badge. Ticking
+  it anyway and confirming once lifts the block rather than bypassing it: a block left
+  standing would mean account and link exist while the sign-in is still refused, which is
+  precisely the state this feature is meant to prevent. Lifting a block is written to the
+  log.
 
 ### Security
 
@@ -42,27 +100,28 @@ tag exists for it.
 
   The names now come from the database itself: every column with a foreign key to
   `users.id`, plus the plural form. That still leaves the case a name cannot cover, a
-  field called `ziel` or `empfaenger`, so a third check looks for the grab itself:
-  `db.get(User, ...)` and `select(User)` in the handler. The watcher sees 17 addresses
-  where it saw 8. The nine that came to light all fetch an account only to show its name
-  or send it a message, and each says so in writing.
+  field called `ziel` or `empfaenger`, so a third check looks for the grab itself,
+  `db.get(User, ...)` in the handler. The watcher sees 17 addresses where it saw 8.
 
-- **`secret.key` was readable by everyone.** Measured in the published image: `-rw-r--r--`,
-  next to the database, in the directory an operator mounts from outside. It is the key
-  the stored Radarr, Sonarr, TMDB and mail credentials are encrypted with. It is now
-  created with `0600`, and tightened to it on **every** start, so an installation that has
-  been running for weeks gets there too, not only a fresh one.
+- **`secret.key` was readable by everyone.** Measured in the published image:
+  `-rw-r--r--`, next to the database, in the directory an operator mounts from outside. It
+  is the key the stored Radarr, Sonarr, TMDB and mail credentials are encrypted with. It
+  is now created with `0600`, and tightened to it on **every** start, so an installation
+  that has been running for weeks gets there too, not only a fresh one.
 
   Honest about the size of it: this is hardening, not a wall. Whoever can read `/data` can
   read `nexview.db` anyway. It helps in the case the encryption was built for, where the
   database travels somewhere without the directory around it.
 
-### Fixed
+  The backups inside the data directory stay plain SQLite files. Only the download is
+  encrypted, and the README and the interface now say so instead of implying otherwise.
 
-- **A list could quietly lose its age filter.** The age check itself is well tested, and
-  was never the problem; the problem was that nothing asked whether every list still calls
-  it. Taking the filter out of the favourites list let a twelve year old see the FSK 18
-  title, and not one of 2,491 tests noticed.
+### Under the hood
+
+- **An age filter could be lost from a list without a sound.** The age check itself is
+  well tested and was never the problem; the problem was that nothing asked whether every
+  list still calls it. Taking the filter out of the favourites list let a twelve year old
+  see the FSK 18 title, and not one of 2,491 tests noticed.
 
   There is now a watcher that measures the result rather than the intention: an account
   limited to twelve, a catalogue of three titles, and every title-serving address called
@@ -70,26 +129,23 @@ tag exists for it.
   title must be absent, **and the allowed one must be present**. Without that, an address
   answering with an error would have passed without ever serving anything.
 
-  The first attempt at this was a source scan, and it failed its own counter-check: the
-  call to the filter is still *in* the code, an `if` in front of it only makes it
-  unreachable, and dead code is invisible to a syntax tree.
-
-### Under the hood
+  The first attempt was a source scan and failed its own counter-check, because the call
+  to the filter stays in the code and an `if` in front of it only makes it unreachable.
 
 - **A renamed column loses its data without a word.** Nexview has no numbered migrations;
   the start path compares the models with the file on disk and adds what is missing. That
   covers the common case and is well tested. It does not cover renaming, and it did not
-  say so. Rename `display_name` in the model, start as if updating: a new empty column
-  appears, the values stay in the old one, the application shows a blank, and nothing is
-  logged. The test suite cannot see it either, because every test starts from a fresh
-  database.
+  say so. Rename a column in the model, start as if updating: a new empty column appears,
+  the values stay in the old one, the application shows a blank, and nothing is logged.
+  The test suite cannot see it either, because every test starts from a fresh database.
 
-  Two halves against it. `tests/schema_abdruck.json` holds the schema the models produce,
-  so a rename is one line less and one line more in the diff, where whoever made it will
-  see it. And for installations where it has already happened, the start now names every
-  column the database still has and the model does not. It changes nothing on its own:
-  deleting a column automatically is precisely the move that costs data, and the start
-  path cannot tell a rename from a deliberate removal.
+  `tests/schema_abdruck.json` puts that in the diff, and the start now names every column
+  the database still has and the model does not. It changes nothing on its own: deleting
+  a column automatically is precisely the move that costs data.
+
+- **Two click paths are now tested in a real browser.** Search, open, request, find it in
+  the list; and a child wishes for something while a parent releases it. Both assert the
+  outcome rather than that something is visible.
 
 ---
 

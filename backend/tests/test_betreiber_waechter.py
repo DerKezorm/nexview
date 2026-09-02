@@ -165,6 +165,25 @@ OHNE_SCHUTZ: dict[str, str] = {
         "Dieselbe Bauart wie die beiden Adressen darueber. Was hier "
         "verschwindet, ist ein Posten samt Dateien, kein Konto."
     ),
+    "POST /api/admin/mediaserver/{provider}/import": (
+        "⚠️ **Der unbequemste Eintrag in dieser Liste, und er gehoert gelesen.** "
+        "Die Adresse verknuepft Medienserver-Konten mit Nexview-Konten, greift "
+        "also sehr wohl an fremde Konten. Die Wache passt hier trotzdem nicht: "
+        "``betreiberschutz`` liest genau **ein** ``user_id`` aus dem Pfad, und "
+        "diese Adresse bekommt beliebig viele Ziele im Rumpf. Sie anzuhaengen "
+        "hiesse, sie umzubauen.\n\n"
+        "Stattdessen prueft ``nutzer_import.uebernehmen`` jedes Ziel selbst und "
+        "weist das Betreiberkonto ab. Warum das noetig ist: Wer eine "
+        "Medienserver-Identitaet an ein Konto haengt, kommt ohne Passwort in "
+        "dieses Konto - am Betreiber waere das eine Uebernahme in zwei Klicks.\n\n"
+        "Der Ersatz fuer die Wache ist "
+        "``test_nutzer_import.py::test_der_betreiber_ist_kein_ziel``. Er ist "
+        "schwaecher als sie, weil er an einer Stelle steht und nicht an allen: "
+        "Wer eine **zweite** Adresse mit Zielen im Rumpf baut, bekommt von ihm "
+        "keine Warnung. Sollte das je vorkommen, gehoert ``betreiberschutz`` so "
+        "umgebaut, dass er auch eine Liste im Rumpf lesen kann - und dieser "
+        "Eintrag hier verschwindet."
+    ),
 }
 
 

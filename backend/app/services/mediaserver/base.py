@@ -579,6 +579,24 @@ class MediaServer(ABC):
         """
         raise NotImplementedError
 
+    async def importierbare_konten(self) -> list[ServerUser]:
+        """Wer laesst sich in ein Nexview-Konto uebernehmen?
+
+        ⚠️ **Nicht dasselbe wie ``list_server_users``, auch wenn es bei zwei
+        von drei Anbietern dieselbe Liste ist.** Die Frage hier lautet: Welche
+        Kennung traegt jemand, wenn er sich **anmeldet**? Nur mit ihr laesst
+        sich eine Verknuepfung anlegen, die ``mediaserver_accounts.find_linked``
+        spaeter wiederfindet.
+
+        Bei Jellyfin und Emby faellt beides zusammen - ``GET /Users`` liefert
+        dieselben ``Id``, mit denen ``AuthenticateByName`` antwortet. Deshalb
+        ist die Vorgabe hier, an ``list_server_users`` weiterzureichen.
+
+        Bei Plex faellt es auseinander, und darum ueberschreibt der Adapter
+        dort. Die ausfuehrliche Begruendung steht in ``plextv.kontenliste``.
+        """
+        return await self.list_server_users()
+
     async def library_index(self) -> list[LibraryItem]:
         """Meilenstein 2 - erkennt Titel, die nicht ueber Radarr/Sonarr kamen."""
         raise NotImplementedError

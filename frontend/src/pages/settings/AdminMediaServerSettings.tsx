@@ -34,6 +34,7 @@ import { formatDateTime } from '../../lib/format'
 import { providerName } from '../../lib/mediaserver'
 import { useConfig } from '../../hooks/useConfig'
 import { useMediaServerChallenge } from '../../lib/useMediaServerChallenge'
+import MedienserverImport from './MedienserverImport'
 
 type Draft = {
   mediaserver_auto_import: boolean
@@ -573,6 +574,22 @@ export function AdminMediaServerSettings() {
         </Abschnitt>
         )}
 
+        {/* Der Nutzer-Import gehört an die einzelne Verbindung, nicht auf
+            eine allgemeine Seite: Er holt die Konten *dieses* Servers, und
+            bei drei angebundenen Servern sind es damit von selbst drei
+            Knöpfe statt einer Auswahl, die man erst treffen muss. */}
+        {verbunden && (
+        <Abschnitt>
+          <div>
+            <h2 className="text-lg font-semibold">{t('mediaserverImport.sectionTitle')}</h2>
+            <p className="mt-1.5 text-sm text-mist-500">
+              {t('mediaserverImport.sectionIntro')}
+            </p>
+          </div>
+          <MedienserverImport provider={offen} />
+        </Abschnitt>
+        )}
+
         {verbunden && (
         <Abschnitt>
           <div>
@@ -615,11 +632,20 @@ export function AdminMediaServerSettings() {
         </Abschnitt>
         )}
 
-        {/* ⚠️ Nur bei Anbietern, über die überhaupt ein Konto entstehen kann.
-          Eine Sperre hält genau das auf - bei Jellyfin entsteht ohnehin keines
-          (keine E-Mail-Adresse, siehe `knows_email`), die Liste könnte dort
-          also nichts bewirken und stünde nur im Weg. */}
-        {!mitPasswort.includes(offen) && (
+        {/* ⚠️ **Stand hier einmal nur für Plex, und die Begründung war
+          richtig - bis zum Nutzer-Import.**
+
+          Sie lautete: Eine Sperre hält auf, dass ein Konto entsteht; bei
+          Jellyfin und Emby entsteht über die Anmeldung ohnehin keines (keine
+          E-Mail-Adresse, siehe `knows_email`), also könnte die Liste dort
+          nichts bewirken.
+
+          Seit dem Import entsteht dort sehr wohl ein Konto. Damit wirkt die
+          Sperre bei allen dreien, und wer sie nicht sieht, sucht vergeblich:
+          gemeldet nach genau diesem Ablauf - übernehmen, löschen, wieder
+          übernehmen, „Zugang gesperrt", und die Liste mit dem Eintrag war
+          ausgeblendet. */}
+        {(
         <Abschnitt>
         <div>
           <h2 className="text-lg font-semibold">{t('mediaserver.blocks')}</h2>

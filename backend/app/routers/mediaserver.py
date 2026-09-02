@@ -27,8 +27,8 @@ from sqlalchemy import func, select
 from ..crypto import decrypt, encrypt
 from ..deps import AdminUser, AdultUser, DbSession
 from ..models import AuthToken, MediaServerBlock, MediaServerConnection, User, utcnow
-from ..schemas import TokenPair, UserPublic
-from ..services import anmeldebremse, logs, mediaserver_library, settings_service, sitzung
+from ..schemas import Kontingentwert, TokenPair, UserPublic
+from ..services import anmeldebremse, logs, mediaserver_library, nutzer_import, settings_service, sitzung
 from ..services import betreiber as betreiber_dienst
 from ..services import mediaserver_accounts as konten
 from ..services.mediaserver import (
@@ -1149,3 +1149,172 @@ def blocks_delete(block_id: int, db: DbSession, admin: AdminUser) -> None:
     if eintrag is not None:
         db.delete(eintrag)
         db.commit()
+
+
+class ImportKandidat(BaseModel):
+    """Ein Konto des Servers, wie es zur Entscheidung vorgelegt wird."""
+
+    account_id: str
+    username: str
+    email: str | None = None
+    schon_verknuepft: bool
+    gehoert_zu: str | None = None
+    gesperrt: bool = False
+
+
+class ImportZuordenbar(BaseModel):
+    """Ein Nexview-Konto, dem sich ein Server-Konto zuweisen liesse."""
+
+    user_id: int
+    username: str
+    #: Woran es sonst schon haengt. Gehoert sichtbar in die Auswahl - beim
+    #: zweiten Import ist das der einzige Hinweis, dass jemand schon da ist.
+    verknuepft_mit: list[str] = []
+
+
+class ImportVorlage(BaseModel):
+    provider: str
+    kandidaten: list[ImportKandidat]
+    zuordenbar: list[ImportZuordenbar]
+
+
+@admin_router.get("/{provider}/import-kandidaten", response_model=ImportVorlage)
+async def import_kandidaten(
+    provider: str, db: DbSession, admin: AdminUser
+) -> ImportVorlage:
+    """Wen dieser Server kennt, und was Nexview davon schon hat.
+
+    ⚠️ **Liest nur.** Angelegt wird hier nichts; die Entscheidung, wer
+    uebernommen wird und ob er zu einem bestehenden Konto gehoert, faellt der
+    Betreiber in der Oberflaeche.
+
+    Der Aufruf geht nach draussen und kann deshalb dauern oder scheitern. Ein
+    Ausfall des Servers wird als solcher gemeldet und nicht als leere Liste:
+    "kann ich gerade nicht" und "da ist niemand" duerfen nicht gleich aussehen.
+    """
+    settings = settings_service.load_settings(db)
+    if provider not in verbundene_anbieter(settings):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "mediaserver_provider_not_linked",
+                "message": "Dieser Medienserver ist nicht verbunden.",
+            },
+        )
+
+    server = media_server_for_setup(settings, provider)
+    try:
+        vom_server = await server.importierbare_konten()
+    except NotImplementedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail={
+                "code": "mediaserver_no_user_list",
+                "message": "Dieser Medienserver kann seine Konten nicht auflisten.",
+            },
+        ) from exc
+    except MediaServerError as exc:
+        raise _anbieter_fehler(exc) from exc
+
+    vorlage = nutzer_import.kandidaten(db, provider, vom_server)
+    return ImportVorlage(
+        provider=vorlage.provider,
+        kandidaten=[ImportKandidat(**vars(zeile)) for zeile in vorlage.kandidaten],
+        zuordenbar=[
+            ImportZuordenbar(
+                user_id=zeile.user_id,
+                username=zeile.username,
+                verknuepft_mit=list(zeile.verknuepft_mit),
+            )
+            for zeile in vorlage.zuordenbar
+        ],
+    )
+
+
+class ImportWunsch(BaseModel):
+    account_id: str
+    username: str
+    email: str | None = None
+    #: ``None`` heisst "neues Konto anlegen", sonst die Nummer des Zielkontos.
+    user_id: int | None = None
+    #: Ausdrueckliches Ja zu einer gesperrten Kennung - hebt die Sperre auf.
+    trotz_sperre: bool = False
+
+
+class ImportAuftrag(BaseModel):
+    """Die entschiedenen Zeilen samt der Werte fuer die neu angelegten Konten.
+
+    ⚠️ Die drei Grenzen sprechen dieselbe Sprache wie ueberall
+    (``schemas.Kontingentwert``): ``"standard"``, ``"unlimited"`` oder eine
+    Zahl, wobei die 0 "darf nichts" heisst. Und sie gelten **nur** fuer neu
+    angelegte Konten, nie fuer verknuepfte - siehe ``nutzer_import.Vorgaben``.
+    """
+
+    wuensche: list[ImportWunsch]
+    filme: Kontingentwert = "standard"
+    serien: Kontingentwert = "standard"
+    speicher_gb: Kontingentwert = "standard"
+    aktiv: bool = True
+
+
+class ImportErgebnis(BaseModel):
+    angelegt: int
+    verknuepft: int
+    aufgehoben: int = 0
+    abgelehnt: dict[str, str]
+
+
+@admin_router.post("/{provider}/import", response_model=ImportErgebnis)
+def import_ausfuehren(
+    provider: str, auftrag: ImportAuftrag, db: DbSession, admin: AdminUser
+) -> ImportErgebnis:
+    """Die entschiedenen Zeilen uebernehmen - Konto und Verknuepfung in einem.
+
+    ⚠️ **Diese Adresse traegt ``betreiberschutz`` nicht, und das ist eine
+    Entscheidung mit einem Preis.** Die Wache liest genau ein ``user_id`` aus
+    dem Pfad; hier kommen beliebig viele Ziele im Rumpf. Sie liesse sich nicht
+    anhaengen, ohne sie umzubauen.
+
+    Stattdessen prueft ``nutzer_import.uebernehmen`` jedes Ziel selbst, und
+    ``test_nutzer_import.py::test_der_betreiber_ist_kein_ziel`` haelt das fest.
+    Der Grund, warum es diese Pruefung ueberhaupt braucht, steht dort
+    ausgeschrieben: Eine Medienserver-Identitaet an ein Konto zu haengen heisst,
+    jedem, der diese Identitaet kontrolliert, den Weg in dieses Konto zu geben -
+    ohne Passwort. Am Betreiberkonto waere das eine Uebernahme in zwei Klicks.
+    """
+    settings = settings_service.load_settings(db)
+    if provider not in verbundene_anbieter(settings):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "mediaserver_provider_not_linked",
+                "message": "Dieser Medienserver ist nicht verbunden.",
+            },
+        )
+
+    ergebnis = nutzer_import.uebernehmen(
+        db,
+        provider,
+        [
+            nutzer_import.Wunsch(
+                account_id=zeile.account_id,
+                username=zeile.username,
+                email=zeile.email,
+                ziel_user_id=zeile.user_id,
+                trotz_sperre=zeile.trotz_sperre,
+            )
+            for zeile in auftrag.wuensche
+        ],
+        nutzer_import.Vorgaben(
+            filme=auftrag.filme,
+            serien=auftrag.serien,
+            speicher_gb=auftrag.speicher_gb,
+            aktiv=auftrag.aktiv,
+        ),
+    )
+    return ImportErgebnis(
+        angelegt=ergebnis.angelegt,
+        verknuepft=ergebnis.verknuepft,
+        aufgehoben=ergebnis.aufgehoben,
+        abgelehnt=ergebnis.abgelehnt,
+    )

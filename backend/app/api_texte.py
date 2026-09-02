@@ -936,6 +936,24 @@ TEXTE: dict[str, tuple[str, str]] = {
         ),
     ),
     # --- Medienserver ------------------------------------------------------
+    'GET /api/admin/mediaserver/{provider}/import-kandidaten': (
+        'Accounts on this media server',
+        (
+            'Everyone the server knows, alongside what Nexview already has for them. '
+            'Reads only: whether an account is taken over, and whether it belongs to an '
+            "existing Nexview account, is the operator's decision. Administrators only."
+        ),
+    ),
+    'POST /api/admin/mediaserver/{provider}/import': (
+        'Take over accounts from this media server',
+        (
+            'Creates a Nexview account and the media-server link in one step, so the '
+            'person can sign in with the server straight away. Quotas apply to newly '
+            'created accounts only; an account that is merely linked keeps its own. '
+            'A blocked identity is refused unless the request says so explicitly, in '
+            'which case the block is lifted. Administrators only.'
+        ),
+    ),
     'GET /api/admin/mediaserver/blocks': (
         'Blocked media-server accounts',
         (

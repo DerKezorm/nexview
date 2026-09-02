@@ -1,6 +1,39 @@
 {
   "whatsNew": {
     "entries": {
+      "0.27.0": {
+        "lead": "Anyone already running a media server already has the people. This release brings them across: Nexview asks Plex, Jellyfin or Emby for its accounts, you tick whoever you want, and those people then sign in with the credentials they already use. No invitation, no password, no e-mail address.",
+        "sections": [
+          {
+            "title": "Take over existing accounts from the media server",
+            "where": "Settings, Services, Media server, open a tile, Existing accounts",
+            "body": "Until now an account came into being only when somebody signed in for the first time. With Jellyfin and Emby none came into being at all: neither knows an e-mail address for an account, and without one Nexview cannot tell a new person from somebody who has had an account for years. For thirty people that meant creating thirty accounts by hand, setting thirty passwords and passing them on. Now Nexview shows the server's accounts as a list, you tick them, and for each row you decide: a new account, or link it to one that already exists. Nothing is preselected, and linking is never the default."
+          },
+          {
+            "title": "Newly created accounts can be given their limits right away",
+            "where": "Same window, at the bottom, For newly created accounts",
+            "body": "Movies, shows and storage, each as house default, unlimited or a fixed number. Plus a tick that creates the accounts inactive, in case you want to enable them later. An account that is merely linked keeps its own limits untouched: they were set deliberately once, and an import that overwrites them in passing would take them away without saying so anywhere. The role is not on offer, it is always a plain user, and requests need approval."
+          },
+          {
+            "title": "Whoever was taken over signs in with the media server",
+            "where": "Sign-in page, sign in with Plex, Jellyfin or Emby",
+            "body": "The import creates the account and the link in one step, and the link is the actual work: without it there would be an account nobody can get into. That is why the new accounts get no password and no e-mail address. Give one a password anyway and that person has to add an address first, or the address confirmation stops them. The window says so."
+          },
+          {
+            "title": "The block list is now there for all three servers",
+            "where": "Settings, Services, Media server, Blocked accounts",
+            "body": "When an account is deleted, its media-server identity lands on a block list so that it cannot simply create itself again at the next sign-in. That list used to be visible for Plex only, because with Jellyfin and Emby no account could come into being anyway. With the import that is no longer true, so it is there everywhere now. If somebody you want to take over is on it, the row says so, and Nexview asks once before lifting the block."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "The watcher over the owner account now reads the whole backend instead of the routers alone. A write to a foreign account moved out into a service used to slip past it.",
+          "The field names it recognises a foreign account by now come from the database's foreign keys instead of a hand-written list. Four of the seven old names existed nowhere in the schema; eight real ones were missing.",
+          "secret.key is now created with mode 0600 instead of 0644, and existing installations are tightened too. The backups inside the data directory are unencrypted, and the README and the interface now say so.",
+          "A watcher over the age filter measures at runtime whether a blocked title comes out anywhere.",
+          "The schema fingerprint makes a renamed column visible in the diff, and the start now names columns the database still has and the model does not."
+        ]
+      },
       "0.26.2": {
         "lead": "Under the hood. This release brings no new feature, and that is deliberate: it repairs a setting that turned itself around behind your back, makes the lists a lot faster, and clears out what had piled up out of sight. There is almost nothing to see. There is something to notice.",
         "sections": [

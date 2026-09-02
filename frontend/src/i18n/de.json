@@ -1640,7 +1640,8 @@
       "betreiber_selbst": "Du bist bereits der Betreiber.",
       "betreiber_nur_admin": "Der Betreiber kann nur an einen Administrator übergeben werden.",
       "betreiber_ziel_inaktiv": "Ein deaktiviertes Konto kann den Betreiber nicht übernehmen.",
-      "betreiber_wuerde_ausgesperrt": "Der Betreiber käme danach nicht mehr herein – das kann niemand außer ihm selbst entscheiden."
+      "betreiber_wuerde_ausgesperrt": "Der Betreiber käme danach nicht mehr herein – das kann niemand außer ihm selbst entscheiden.",
+      "mediaserver_no_user_list": "Dieser Medienserver kann seine Konten nicht auflisten."
     }
   },
   "language": {
@@ -3147,5 +3148,48 @@
       "ton": "Ton umgerechnet",
       "bild": "Bild umgerechnet"
     }
+  },
+  "mediaserverImport": {
+    "button": "Konten aus {{name}} übernehmen",
+    "title": "Konten aus {{name}} übernehmen",
+    "subtitle_one": "{{count}} auf dem Server",
+    "subtitle_other": "{{count}} auf dem Server",
+    "loading": "Wird bei {{name}} nachgefragt …",
+    "loadFailed": "Die Kontenliste ließ sich nicht holen: {{grund}}",
+    "empty": "{{name}} nennt keine Konten. Das heißt: Es gibt dort außer dir niemanden.",
+    "groupOpen": "Zu entscheiden",
+    "groupColumn": "Zuordnung",
+    "groupKnown": "Schon da, nichts zu tun",
+    "linkedWith": "verknüpft mit {{name}}",
+    "blocked": "auf Sperrliste",
+    "assignFor": "Zuordnung für {{name}}",
+    "createNew": "neues Konto anlegen",
+    "defaultsTitle": "Für neu angelegte Konten",
+    "quotaMovies": "Filme",
+    "quotaSeries": "Serien",
+    "quotaStorage": "Speicher",
+    "unitPieces": "Stück",
+    "unitGb": "GB",
+    "limitStandard": "Hausvorgabe",
+    "limitUnlimited": "unbegrenzt",
+    "limitNumber": "feste Zahl",
+    "limitNumberFor": "{{titel}} - Zahl",
+    "activeLabel": "aktiv anlegen",
+    "activeHint": "ohne Haken: erst übernehmen, später freischalten",
+    "fixedNote": "Rolle ist immer „Nutzer\", und Anfragen brauchen eine Freigabe. Beides steht hier bewusst nicht zur Wahl.",
+    "noPasswordNote": "Die neuen Konten bekommen <1>kein Passwort</1> und <3>keine Mailadresse</3>. Angemeldet wird sich über {{name}}. Wer stattdessen ein Passwort setzt, muss danach erst eine Adresse hinterlegen, sonst kommt er nicht hinein.",
+    "submit": "Übernehmen",
+    "submitCount": "{{count}} übernehmen",
+    "close": "Schließen",
+    "resultCreated": "{{angelegt}} angelegt, {{verknuepft}} verknüpft.",
+    "resultCreatedWithBlocks": "{{angelegt}} angelegt, {{verknuepft}} verknüpft, {{aufgehoben}} Sperre aufgehoben.",
+    "importFailed": "Das Übernehmen ist gescheitert: {{grund}}",
+    "confirmTitle": "Gesperrte Konten dabei",
+    "confirmIntro": "Diese Konten stehen auf der Sperrliste von {{name}}: <1>{{namen}}</1>.",
+    "confirmWhy": "Auf die Liste kommt, wessen Nexview-Konto gelöscht wurde. Sie hält auf, dass sich so jemand bei der nächsten Anmeldung gleich wieder selbst ein Konto anlegt.",
+    "confirmWarning": "Beim Übernehmen wird die Sperre aufgehoben. Danach kann sich dieses Konto wieder anmelden.",
+    "confirmOk": "Trotzdem übernehmen",
+    "sectionTitle": "Vorhandene Konten",
+    "sectionIntro": "Wer auf diesem Server schon ein Konto hat, braucht in Nexview keins von Hand. Übernommen wird nur, was du anhakst."
   }
 }

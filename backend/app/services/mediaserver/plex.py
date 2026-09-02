@@ -529,6 +529,21 @@ class PlexServer(MediaServer):
             gefunden.append(ServerUser(account_id=str(kennung), username=name))
         return gefunden
 
+    async def importierbare_konten(self) -> list[ServerUser]:
+        """Bei Plex kommt diese Liste von plex.tv, nicht vom Server.
+
+        ⚠️ Die Methode darueber (``list_server_users``) bleibt, wie sie ist,
+        und muss es auch: ``watched_since`` ein paar Zeilen weiter unten
+        braucht genau deren Server-Nummern. Zwei Listen, zwei Zwecke - der
+        Unterschied steht ausgeschrieben in ``plextv.kontenliste``.
+        """
+        if not self.machine_id:
+            raise MediaServerError(
+                "Ohne Maschinenkennung lässt sich nicht sagen, wer Zugriff auf "
+                "diesen Server hat.",
+            )
+        return await plextv.kontenliste(self.client_identifier, self.token, self.machine_id)
+
     async def watched_since(self, since: datetime | None = None) -> list[WatchedRecord]:
         """Was wurde gesehen - je Konto.
 

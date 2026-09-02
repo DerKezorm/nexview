@@ -1640,7 +1640,8 @@
       "betreiber_selbst": "You are already the owner.",
       "betreiber_nur_admin": "Ownership can only be handed to an administrator.",
       "betreiber_ziel_inaktiv": "A disabled account cannot take over ownership.",
-      "betreiber_wuerde_ausgesperrt": "The owner would no longer be able to get in – nobody but the owner can decide that."
+      "betreiber_wuerde_ausgesperrt": "The owner would no longer be able to get in – nobody but the owner can decide that.",
+      "mediaserver_no_user_list": "This media server cannot list its accounts."
     }
   },
   "language": {
@@ -3147,5 +3148,48 @@
       "ton": "audio transcode",
       "bild": "video transcode"
     }
+  },
+  "mediaserverImport": {
+    "button": "Take over accounts from {{name}}",
+    "title": "Take over accounts from {{name}}",
+    "subtitle_one": "{{count}} on the server",
+    "subtitle_other": "{{count}} on the server",
+    "loading": "Asking {{name}} …",
+    "loadFailed": "The account list could not be fetched: {{grund}}",
+    "empty": "{{name}} lists no accounts. Which means there is nobody there but you.",
+    "groupOpen": "To decide",
+    "groupColumn": "Assignment",
+    "groupKnown": "Already here, nothing to do",
+    "linkedWith": "linked with {{name}}",
+    "blocked": "blocked",
+    "assignFor": "Assignment for {{name}}",
+    "createNew": "create a new account",
+    "defaultsTitle": "For newly created accounts",
+    "quotaMovies": "Movies",
+    "quotaSeries": "Shows",
+    "quotaStorage": "Storage",
+    "unitPieces": "titles",
+    "unitGb": "GB",
+    "limitStandard": "house default",
+    "limitUnlimited": "unlimited",
+    "limitNumber": "fixed number",
+    "limitNumberFor": "{{titel}} - number",
+    "activeLabel": "create as active",
+    "activeHint": "unticked: take over now, enable later",
+    "fixedNote": "The role is always \"user\", and requests need approval. Neither is offered here, on purpose.",
+    "noPasswordNote": "The new accounts get <1>no password</1> and <3>no e-mail address</3>. They sign in through {{name}}. Give one a password instead and that person has to add an address first, or they cannot get in.",
+    "submit": "Take over",
+    "submitCount": "Take over {{count}}",
+    "close": "Close",
+    "resultCreated": "{{angelegt}} created, {{verknuepft}} linked.",
+    "resultCreatedWithBlocks": "{{angelegt}} created, {{verknuepft}} linked, {{aufgehoben}} block lifted.",
+    "importFailed": "Taking over failed: {{grund}}",
+    "confirmTitle": "Blocked accounts among them",
+    "confirmIntro": "These accounts are on the block list of {{name}}: <1>{{namen}}</1>.",
+    "confirmWhy": "An account lands there when its Nexview account was deleted. The list stops such a person from simply creating a new account at their next sign-in.",
+    "confirmWarning": "Taking over lifts the block. That account can sign in again afterwards.",
+    "confirmOk": "Take over anyway",
+    "sectionTitle": "Existing accounts",
+    "sectionIntro": "Whoever already has an account on this server needs none by hand in Nexview. Only what you tick is taken over."
   }
 }

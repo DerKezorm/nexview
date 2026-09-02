@@ -967,8 +967,11 @@ def test_jede_pruefung_zeigt_wohin_genau(arr_client: TestClient) -> None:
     stumpf: list[str] = []
     with SessionLocal() as session:
         einstellungen = load_settings(session)
+        # Der Vorrat kommt wie in ``sammeln`` einmal vorab - die Pruefungen
+        # selbst gehen seit Punkt 5 nicht mehr einzeln an die Datenbank.
+        vorrat = befunde._vorrat_laden(session)
         for pruefung in befunde.PRUEFUNGEN:
-            gefunden = pruefung(session, einstellungen, _jetzt())
+            gefunden = pruefung(session, einstellungen, _jetzt(), vorrat)
             if not gefunden:
                 stumm.append(pruefung.__name__)
                 continue

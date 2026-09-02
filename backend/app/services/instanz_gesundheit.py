@@ -75,6 +75,15 @@ def eintrag(db: Session, kennung: str) -> ArrGesundheit | None:
     return db.scalar(select(ArrGesundheit).where(ArrGesundheit.kennung == kennung))
 
 
+def alle(db: Session) -> dict[str, ArrGesundheit]:
+    """Der gemerkte Stand aller Instanzen, nach Kennung.
+
+    Gegenstueck zu ``instanz_stand.alle``: Wer je Instanz fragt, stellt bei
+    drei Instanzen drei Abfragen fuer eine Tabelle mit drei Zeilen.
+    """
+    return {zeile.kennung: zeile for zeile in db.scalars(select(ArrGesundheit))}
+
+
 async def pruefen(db: Session, settings: AppSettings) -> None:
     """Alle Instanzen einmal befragen - Fehler je Instanz, nie im Ganzen."""
     for instanz in settings.arr_instanzen():

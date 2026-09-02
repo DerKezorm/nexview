@@ -95,12 +95,23 @@ def _speicher_staende(
     Haushalt, der ueber die Stueckzahl steuert.
     """
     einstellungen = load_settings(db)
-    staende: dict[int, AnfragerSpeicher] = {}
+    personen: dict[int, User] = {}
     for anfrage in anfragen:
-        if anfrage.user_id in staende or anfrage.user is None:
-            continue
-        grenze = storage.stand_fuer(db, anfrage.user, einstellungen)
-        staende[anfrage.user_id] = AnfragerSpeicher(
+        if anfrage.user_id not in personen and anfrage.user is not None:
+            personen[anfrage.user_id] = anfrage.user
+    if not personen:
+        return {}
+
+    # Eine Sammelabfrage fuer alle Belegungen; die Grenze selbst kostet keine
+    # Abfrage und kommt aus derselben Regel wie in ``storage.stand_fuer``.
+    bestaende = storage.kontostaende(db, personen)
+    staende: dict[int, AnfragerSpeicher] = {}
+    for user_id, person in personen.items():
+        grenze = storage.Grenze(
+            used_bytes=bestaende[user_id].used_bytes,
+            limit_bytes=storage.grenze_in_bytes(person, einstellungen),
+        )
+        staende[user_id] = AnfragerSpeicher(
             used_bytes=grenze.used_bytes,
             limit_bytes=grenze.limit_bytes,
             exhausted=grenze.exhausted,
@@ -316,7 +327,12 @@ async def list_all(
     """Alle Anfragen aller Benutzer, optional gefiltert."""
     query = (
         select(MediaRequest)
-        .options(selectinload(MediaRequest.user))
+        # ``for_child`` gleich mit: Sonst laedt jede Kinderwunsch-Zeile ihr
+        # Kind einzeln nach - dieselbe N+1-Falle wie einst beim Benutzer.
+        .options(
+            selectinload(MediaRequest.user),
+            selectinload(MediaRequest.for_child),
+        )
         .order_by(MediaRequest.requested_at.desc())
     )
     if feedback:
@@ -350,8 +366,16 @@ async def list_all(
     zeilen = list(db.scalars(query))
     staende = _speicher_staende(db, zeilen)
     abos = await _abo_treffer(db, zeilen)
+    # Alle Urteile in einer Abfrage statt einer je Zeile; ``_bewertung_zu``
+    # bleibt fuer die Einzelantwort nach approve/reject stehen.
+    bewertungen = ratings.fuer_anfragen(db, zeilen)
     return [
-        _with_user(row, staende.get(row.user_id), abos.get(row.id), _bewertung_zu(db, row))
+        _with_user(
+            row,
+            staende.get(row.user_id),
+            abos.get(row.id),
+            bewertungen.get((row.user_id, row.media_type, row.tmdb_id, row.season)),
+        )
         for row in zeilen
     ]
 

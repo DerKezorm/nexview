@@ -287,3 +287,96 @@ def test_gewoehnlicher_nutzer_sieht_die_liste_nicht(arr_client: TestClient) -> N
     lars = auth_headers(arr_client, "lars", "passwort-1234")
 
     assert arr_client.get("/api/feedback", headers=lars).status_code == 403
+
+
+def test_jede_zeile_zeigt_ihr_eigenes_urteil(arr_client: TestClient) -> None:
+    """Die Admin-Liste haengt jedes Urteil an genau seine Zeile.
+
+    Zwei Faelle, an denen ein falsch gebauter Schluessel kippt: Zwei Nutzer
+    urteilen ueber denselben Titel (ohne Konto im Schluessel bekaeme der
+    zweite das Urteil des ersten), und ein Nutzer urteilt ueber zwei Staffeln
+    derselben Serie (ohne Staffel im Schluessel zeigten beide Zeilen dasselbe).
+    """
+    kim = _geladene_anfrage(arr_client, "kim")
+    arr_client.post(
+        f"/api/requests/{kim['id']}/feedback",
+        json={"rating": 4, "comment": "Bild gut."},
+        headers=kim["headers"],
+    )
+
+    # Alex fragt erst einen anderen Titel an (denselben geladenen laesst der
+    # Dienst nicht zu) - danach wird seine Anfrage auf Kims Titel umgebogen.
+    create_user(arr_client, "alex")
+    alex_kopf = auth_headers(arr_client, "alex", "passwort-1234")
+    anderer = arr_client.get("/api/discover/movie").json()["items"][1]
+    angelegt = arr_client.post(
+        "/api/requests",
+        json={
+            "media_type": "movie",
+            "tmdb_id": anderer["tmdb_id"],
+            "quality_profile_id": 1,
+            "root_folder_path": "/data/Movies",
+        },
+        headers=alex_kopf,
+    )
+    assert angelegt.status_code == 201, angelegt.text
+    alex = {"id": angelegt.json()["id"], "headers": alex_kopf}
+    with SessionLocal() as session:
+        original = session.get(MediaRequest, kim["id"])
+        zweite = session.get(MediaRequest, alex["id"])
+        assert original is not None and zweite is not None
+        zweite.tmdb_id = original.tmdb_id
+        session.commit()
+        gemeinsamer_titel = original.tmdb_id
+    urteil = arr_client.put(
+        f"/api/feedback/movie/{gemeinsamer_titel}",
+        json={"rating": 2, "comment": "Ton kaputt.", "title": "T"},
+        headers=alex["headers"],
+    )
+    assert urteil.status_code == 200, urteil.text
+    geantwortet = arr_client.post(
+        f"/api/feedback/{urteil.json()['id']}/reply", json={"reply": "Neu geholt."}
+    )
+    assert geantwortet.status_code == 200, geantwortet.text
+
+    # Kim urteilt ausserdem ueber zwei Staffeln derselben Serie.
+    serie = arr_client.get("/api/discover/tv").json()["items"][0]
+    for staffel, sterne in ((1, 5), (2, 1)):
+        angelegt = arr_client.post(
+            "/api/requests",
+            json={
+                "media_type": "tv",
+                "tmdb_id": serie["tmdb_id"],
+                "quality_profile_id": 1,
+                "season": staffel,
+            },
+            headers=kim["headers"],
+        )
+        assert angelegt.status_code == 201, angelegt.text
+        bewertet = arr_client.put(
+            f"/api/feedback/tv/{serie['tmdb_id']}",
+            json={"rating": sterne, "season": staffel, "title": "S"},
+            headers=kim["headers"],
+        )
+        assert bewertet.status_code == 200, bewertet.text
+
+    zeilen = arr_client.get("/api/admin/requests").json()
+
+    zeile_kim = next(z for z in zeilen if z["id"] == kim["id"])
+    assert zeile_kim["rating"] == 4
+    assert zeile_kim["feedback"] == "Bild gut."
+    assert zeile_kim["feedback_reply"] is None
+    assert zeile_kim["rated_at"] is not None
+
+    zeile_alex = next(z for z in zeilen if z["id"] == alex["id"])
+    assert zeile_alex["rating"] == 2
+    assert zeile_alex["feedback"] == "Ton kaputt."
+    assert zeile_alex["feedback_reply"] == "Neu geholt."
+    assert zeile_alex["rated_at"] is not None
+
+    staffeln = {
+        z["season"]: z["rating"]
+        for z in zeilen
+        if z["media_type"] == "tv" and z["tmdb_id"] == serie["tmdb_id"]
+    }
+    assert staffeln == {1: 5, 2: 1}

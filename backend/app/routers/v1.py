@@ -319,8 +319,12 @@ def kachel(admin: AdminUser, db: DbSession) -> Kachel:
     def zahl(bedingung) -> int:
         return db.scalar(select(func.count(MediaRequest.id)).where(bedingung)) or 0
 
+    # Einmal je Tabelle statt einmal je Instanz - die Kachel fragt im
+    # Minutentakt, und drei Instanzen sind drei Zeilen, keine drei Abfragen.
+    gesundheit = instanz_gesundheit.alle(db)
+
     def probleme(kennung: str) -> int:
-        zeile = instanz_gesundheit.eintrag(db, kennung)
+        zeile = gesundheit.get(kennung)
         return len((zeile.stand if zeile else None) or [])
 
     staende = instanz_stand.alle(db)

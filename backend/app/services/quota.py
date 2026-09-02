@@ -181,10 +181,59 @@ def state_for(
     )
 
 
+def uebersichten(
+    db: Session, konten: list[User], settings: "AppSettings"
+) -> dict[int, dict[str, QuotaState]]:
+    """Der Stand mehrerer Konten - gruppiert gezaehlt statt zweimal je Konto.
+
+    Die Benutzerliste rief ``state_for`` zweimal je Konto; das waren zwei
+    Zaehl-Abfragen je Zeile. Hier zaehlt **eine** gruppierte Abfrage je
+    Zaehlbeginn - und der Zaehlbeginn ist fuer fast alle derselbe. Nur ein
+    von Hand zurueckgesetztes Konto (``quota_reset_at``) bildet eine eigene
+    Gruppe, denn ein globaler Beginn wuerde genau dessen Zahlen verfaelschen.
+    """
+    gruppen: dict[datetime, list[int]] = {}
+    for user in konten:
+        gruppen.setdefault(counting_start(user, settings), []).append(user.id)
+
+    zaehler: dict[tuple[int, MediaType], int] = {}
+    for start, kennungen in gruppen.items():
+        for user_id, media_type, anzahl in db.execute(
+            select(
+                MediaRequest.user_id,
+                MediaRequest.media_type,
+                func.count(MediaRequest.id),
+            )
+            .where(
+                MediaRequest.user_id.in_(kennungen),
+                MediaRequest.status.in_(COUNTED_STATUSES),
+                MediaRequest.requested_at >= start,
+            )
+            .group_by(MediaRequest.user_id, MediaRequest.media_type)
+        ):
+            zaehler[(user_id, media_type)] = int(anzahl)
+
+    # Der naechste automatische Wechsel richtet sich nach dem Kalender,
+    # nicht nach einer Ruecksetzung von Hand.
+    ende = period_end(settings.quota_period, period_start(settings.quota_period))
+
+    ergebnis: dict[int, dict[str, QuotaState]] = {}
+    for user in konten:
+        staende: dict[str, QuotaState] = {}
+        for schluessel, media_type in (("movie", MediaType.movie), ("tv", MediaType.tv)):
+            limit = _limit_for(user, media_type, settings)
+            staende[schluessel] = QuotaState(
+                limit=limit,
+                used=zaehler.get((user.id, media_type), 0),
+                resets_at=None if limit is None else ende,
+                period=settings.quota_period,
+            )
+        ergebnis[user.id] = staende
+    return ergebnis
+
+
 def overview(
     db: Session, user: User, settings: "AppSettings"
 ) -> dict[str, QuotaState]:
-    return {
-        "movie": state_for(db, user, MediaType.movie, settings),
-        "tv": state_for(db, user, MediaType.tv, settings),
-    }
+    """Der Stand eines Kontos - der Einzelfall der Sammelabfrage."""
+    return uebersichten(db, [user], settings)[user.id]

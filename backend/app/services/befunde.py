@@ -45,8 +45,10 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models import (
+    ArrGesundheit,
     ArrWebhook,
     BefundGesehen,
+    InstanzStand,
     SpeicherVerlauf,
     MediaRequest,
     Notification,
@@ -228,6 +230,39 @@ def _jetzt() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+@dataclass
+class Vorrat:
+    """Was ``sammeln`` einmal laedt und allen Pruefungen hinlegt.
+
+    Vorher las jede Pruefung ihren Stand selbst: sechsmal ``instanz_stand``,
+    je Instanz die Gesundheit, viermal dieselbe Abgleich-Zeile - das Dashboard
+    kostete 42 Abfragen fuer eine Handvoll Tabellenzeilen.
+
+    ⚠️ **Ein lokales Buendel, das als Parameter wandert** - ausdruecklich kein
+    Merker an der Session oder am Modul: Session-Objekte verwenden
+    Speicheradressen wieder, und ein Merker daran ueberlebt in die naechste
+    Anfrage. Genau das ist bei der Messung zu diesem Umbau passiert.
+    """
+
+    #: Der gemerkte Stand je Instanz-Kennung (``instanz_stand.alle``).
+    staende: dict[str, InstanzStand]
+    #: Was Radarr/Sonarr unter ``/health`` fuehren, je Kennung.
+    gesundheit: dict[str, ArrGesundheit]
+    #: Die Rueckkanal-Zeilen je Kennung.
+    webhooks: dict[str, ArrWebhook]
+    #: Der zuletzt gemessene Abgleich-Stand.
+    abgleich: abgleich.Stand
+
+
+def _vorrat_laden(db: Session) -> Vorrat:
+    return Vorrat(
+        staende=instanz_stand.alle(db),
+        gesundheit=instanz_gesundheit.alle(db),
+        webhooks={zeile.kennung: zeile for zeile in db.scalars(select(ArrWebhook))},
+        abgleich=abgleich.lesen(db),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dienste
 # ---------------------------------------------------------------------------
@@ -252,7 +287,7 @@ def _dienst_ziel(instanz) -> str:
 
 
 def _dienst_meldet_problem(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Was Radarr oder Sonarr selbst unter ``/health`` fuehrt.
 
@@ -261,7 +296,6 @@ def _dienst_meldet_problem(
     den Einstellungen zu sehen - und in der Glocke, einmal, beim ersten Mal.
     """
     ergebnis: list[Befund] = []
-    staende = instanz_stand.alle(db)
     for instanz in settings.arr_instanzen():
         # ⚠️ **Eine stumme Instanz meldet hier gar nichts.** Was in
         # ``arr_gesundheit`` steht, ist der zuletzt *gesehene* Stand; ob er noch
@@ -270,10 +304,10 @@ def _dienst_meldet_problem(
         # loeschen. Ihn trotzdem als Befund zu zeigen hiesse: zwei Zeilen fuer
         # eine Instanz, von denen die zweite geraten ist. Die eine Zeile, die
         # zaehlt, ist "antwortet nicht".
-        gemessen = staende.get(instanz.kennung)
+        gemessen = vorrat.staende.get(instanz.kennung)
         if gemessen is not None and not gemessen.erreichbar:
             continue
-        zeile = instanz_gesundheit.eintrag(db, instanz.kennung)
+        zeile = vorrat.gesundheit.get(instanz.kennung)
         for problem in (zeile.stand if zeile else None) or []:
             typ = str(problem.get("typ") or "warning").lower()
             ergebnis.append(
@@ -293,7 +327,7 @@ def _dienst_meldet_problem(
 
 
 def _dienst_rueckkanal_gestoert(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Der Rueckkanal ist eingeschaltet, kommt aber nicht zustande.
 
@@ -305,9 +339,7 @@ def _dienst_rueckkanal_gestoert(
     """
     ergebnis: list[Befund] = []
     for instanz in settings.arr_instanzen():
-        zeile = db.scalar(
-            select(ArrWebhook).where(ArrWebhook.kennung == instanz.kennung)
-        )
+        zeile = vorrat.webhooks.get(instanz.kennung)
         if zeile is None or not zeile.aktiv or not zeile.fehler:
             continue
         ergebnis.append(
@@ -325,7 +357,7 @@ def _dienst_rueckkanal_gestoert(
 
 
 def _dienst_nicht_erreichbar(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Eine Instanz antwortet nicht mehr.
 
@@ -339,9 +371,8 @@ def _dienst_nicht_erreichbar(
     Poller-Runde, und eine Meldung dafuer waere Laerm.
     """
     ergebnis: list[Befund] = []
-    staende = instanz_stand.alle(db)
     for instanz in settings.arr_instanzen():
-        zeile = staende.get(instanz.kennung)
+        zeile = vorrat.staende.get(instanz.kennung)
         if zeile is None or zeile.erreichbar:
             continue
         seit = zeile.erreichbar_seit
@@ -362,7 +393,7 @@ def _dienst_nicht_erreichbar(
 
 
 def _dienst_version_alt(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Fuer eine Instanz steht eine neuere Fassung bereit.
 
@@ -370,9 +401,8 @@ def _dienst_version_alt(
     bewusst auf einer Fassung bleibt, soll dafuer keine Warnung bekommen.
     """
     ergebnis: list[Befund] = []
-    staende = instanz_stand.alle(db)
     for instanz in settings.arr_instanzen():
-        zeile = staende.get(instanz.kennung)
+        zeile = vorrat.staende.get(instanz.kennung)
         neuer = (zeile.messwerte or {}).get("aktualisierung") if zeile else None
         if not isinstance(neuer, dict) or not neuer.get("version"):
             continue
@@ -399,7 +429,7 @@ def _dienst_version_alt(
 
 
 def _platz_knapp(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Eine Platte laeuft voll.
 
@@ -409,7 +439,7 @@ def _platz_knapp(
     schon beim Messen ueber die Gesamtgroesse - hier wird nur noch gelesen,
     und zwar aus **einer** Instanz-Zeile: Der Wert ist haus-weit derselbe.
     """
-    for zeile in instanz_stand.alle(db).values():
+    for zeile in vorrat.staende.values():
         traeger = (zeile.messwerte or {}).get("traeger")
         if not isinstance(traeger, list):
             continue
@@ -444,7 +474,7 @@ def _platz_knapp(
 
 
 def _platz_waechst_schnell(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Bei diesem Tempo ist die Platte bald voll.
 
@@ -512,7 +542,7 @@ def _platz_waechst_schnell(
 
 
 def _nachschub_haengt(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Anfragen, die seit Wochen suchen - der stille Totalausfall.
 
@@ -575,7 +605,7 @@ def _nachschub_haengt(
 
 
 def _nachschub_freigabe_wartet(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Freigaben, die zu lange liegen.
 
@@ -608,7 +638,7 @@ def _nachschub_freigabe_wartet(
 
 
 def _nachschub_fehlgeschlagen(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Haeufen sich die Fehlschlaege?"""
     grenze = jetzt - timedelta(days=FEHLGESCHLAGEN_TAGE)
@@ -635,7 +665,7 @@ def _nachschub_fehlgeschlagen(
 
 
 def _nachschub_eingriff_noetig(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Downloads, die ohne Handarbeit nicht weitergehen.
 
@@ -645,7 +675,7 @@ def _nachschub_eingriff_noetig(
     und nicht drei Zeilen.
     """
     anzahl = 0
-    for zeile in instanz_stand.alle(db).values():
+    for zeile in vorrat.staende.values():
         warteschlange = (zeile.messwerte or {}).get("warteschlange")
         if isinstance(warteschlange, dict):
             wert = warteschlange.get("eingriff")
@@ -670,7 +700,7 @@ def _nachschub_eingriff_noetig(
 
 
 def _bibliothek_geisterposten(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Belastet, aber von Radarr/Sonarr nicht mehr gefuehrt.
 
@@ -714,7 +744,7 @@ def _bibliothek_geisterposten(
 
 
 def _abgleich_arr_ohne_server(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Datei liegt in Radarr/Sonarr, der Medienserver kennt sie nicht.
 
@@ -722,7 +752,7 @@ def _abgleich_arr_ohne_server(
     Pfadzuordnung stimmt nicht. Fuer jeden Benutzer sieht es aus, als gaebe es
     den Titel nicht - und er bestellt ihn ein zweites Mal.
     """
-    stand = abgleich.lesen(db)
+    stand = vorrat.abgleich
     if not stand.moeglich or stand.arr_ohne_server < ARR_OHNE_SERVER_AB:
         return []
     return [
@@ -738,14 +768,14 @@ def _abgleich_arr_ohne_server(
 
 
 def _abgleich_nicht_erkannt(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Der Medienserver konnte diesen Titeln nichts zuordnen.
 
     Ohne Kennung ist ein Titel fuer Nexview nicht vorhanden - er taucht in
     keiner Zustandsanzeige auf und wird munter noch einmal bestellt.
     """
-    stand = abgleich.lesen(db)
+    stand = vorrat.abgleich
     if not stand.moeglich or stand.nicht_erkannt < NICHT_ERKANNT_AB:
         return []
     return [
@@ -760,7 +790,7 @@ def _abgleich_nicht_erkannt(
 
 
 def _abgleich_jahr_widerspruch(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Zwei Anbieter, dieselbe Nummer, verschiedene Jahre.
 
@@ -777,7 +807,7 @@ def _abgleich_jahr_widerspruch(
 
     Schon **einer** genuegt - das ist selten genug, um jedes Mal hinzusehen.
     """
-    stand = abgleich.lesen(db)
+    stand = vorrat.abgleich
     if not stand.moeglich or stand.jahr_widerspruch < 1:
         return []
     return [
@@ -793,7 +823,7 @@ def _abgleich_jahr_widerspruch(
 
 
 def _abgleich_anbieter_uneinig(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Mehrere Medienserver kennen unterschiedliche Bestaende.
 
@@ -802,7 +832,7 @@ def _abgleich_anbieter_uneinig(
     Pruefung, die nicht zutrifft, schweigt; sie sagt nicht "du koenntest noch
     einen verbinden".
     """
-    stand = abgleich.lesen(db)
+    stand = vorrat.abgleich
     if not stand.moeglich or len(stand.je_anbieter) < 2:
         return []
     if stand.anbieter_luecke < ANBIETER_LUECKE_AB:
@@ -827,7 +857,7 @@ def _abgleich_anbieter_uneinig(
 
 
 def _betrieb_sicherung_alt(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Die automatische Sicherung ist ueberfaellig.
 
@@ -896,7 +926,7 @@ def _betrieb_sicherung_alt(
 
 
 def _betrieb_mail_haengt(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Mails, die der Ausgang endgueltig aufgegeben hat.
 
@@ -931,7 +961,7 @@ def _betrieb_mail_haengt(
 
 
 def _betrieb_protokoll_fehler(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Haeufen sich Fehlerzeilen im Protokoll?
 
@@ -960,7 +990,7 @@ def _betrieb_protokoll_fehler(
 
 
 def _betrieb_diagnose_an(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Eine ausfuehrliche Protokollstufe laeuft noch.
 
@@ -986,7 +1016,7 @@ def _betrieb_diagnose_an(
 
 
 def _betrieb_aktualisierung(
-    db: Session, settings: AppSettings, jetzt: datetime
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Fuer Nexview selbst gibt es eine neuere Fassung.
 
@@ -1053,10 +1083,12 @@ def sammeln(
     protokolliert, und die uebrigen stehen weiter da.
     """
     jetzt = jetzt or _jetzt()
+    # Einmal laden, alle lesen mit - siehe ``Vorrat``.
+    vorrat = _vorrat_laden(db)
     gefunden: list[Befund] = []
     for pruefung in PRUEFUNGEN:
         try:
-            gefunden.extend(pruefung(db, settings, jetzt))
+            gefunden.extend(pruefung(db, settings, jetzt, vorrat))
         except Exception:  # noqa: BLE001 - siehe Docstring
             logger.exception("Check %s failed", pruefung.__name__)
 

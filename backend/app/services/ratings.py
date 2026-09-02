@@ -64,6 +64,39 @@ def meine(
     )
 
 
+def fuer_anfragen(
+    db: Session, anfragen: list
+) -> dict[tuple[int, MediaType, int, int | None], TitleRating]:
+    """Die Urteile zu einer Anfrageliste - **eine** Abfrage statt einer je Zeile.
+
+    Die Freigabeliste rief ``meine`` fuer jede Zeile auf; bei 145 Anfragen
+    waren das 145 Abfragen fuer eine haushaltskleine Tabelle. Hier holt eine
+    IN-Abfrage alles auf einmal, und das Woerterbuch filtert exakt auf den
+    Viererschluessel - was das Kreuzprodukt aus Nutzern und Titeln zu viel
+    holt, faellt dabei von selbst raus.
+
+    ⚠️ ``order_by(id)`` plus erste-gewinnt ist Absicht: SQLite zaehlt NULLs im
+    UNIQUE als verschieden, doppelte staffellose Zeilen sind also moeglich -
+    und ``meine`` lieferte dann irgendeine. Hier gewinnt deterministisch die
+    aelteste.
+    """
+    if not anfragen:
+        return {}
+    ergebnis: dict[tuple[int, MediaType, int, int | None], TitleRating] = {}
+    for zeile in db.scalars(
+        select(TitleRating)
+        .where(
+            TitleRating.user_id.in_({a.user_id for a in anfragen}),
+            TitleRating.tmdb_id.in_({a.tmdb_id for a in anfragen}),
+        )
+        .order_by(TitleRating.id)
+    ):
+        ergebnis.setdefault(
+            (zeile.user_id, zeile.media_type, zeile.tmdb_id, zeile.season), zeile
+        )
+    return ergebnis
+
+
 def fuer_titel(db: Session, media_type: MediaType, tmdb_id: int) -> list[TitleRating]:
     """Alle Urteile zu diesem Titel - fuer die Uebersicht des Betreibers."""
     return list(

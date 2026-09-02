@@ -107,9 +107,16 @@ def _mit_verbrauch(db: DbSession, user: User) -> UserWithUsage:
 
 @router.get("", response_model=list[UserWithUsage])
 def list_users(admin: AdminUser, db: DbSession) -> list[UserWithUsage]:
+    # Gruppiert gezaehlt statt zweimal je Konto - siehe ``quota.uebersichten``.
+    konten = list(db.scalars(select(User).order_by(User.created_at)))
+    staende = quota.uebersichten(db, konten, load_settings(db))
     return [
-        _mit_verbrauch(db, user)
-        for user in db.scalars(select(User).order_by(User.created_at))
+        UserWithUsage(
+            **UserPublic.model_validate(user).model_dump(),
+            quota_movies_used=staende[user.id]["movie"].used,
+            quota_series_used=staende[user.id]["tv"].used,
+        )
+        for user in konten
     ]
 
 

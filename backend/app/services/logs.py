@@ -356,13 +356,19 @@ def set_mode(mode: str, minutes: int = 0) -> ModeState:
 
 
 def state() -> ModeState:
-    """Aktueller Stand - beruecksichtigt eine abgelaufene Frist."""
+    """Aktueller Stand - beruecksichtigt eine abgelaufene Frist.
+
+    Liest den gespeicherten Stand genau **einmal** und erledigt den
+    Ablauf-Check damit; vorher rief er ``enforce_expiry`` und las danach noch
+    einmal - zwei Gaenge zur Datenbank fuer dieselben zwei Schluessel.
+    """
     vorgabe = env_mode()
     if vorgabe:
         return ModeState(mode=vorgabe, until=None, fixed_by_env=True)
 
-    enforce_expiry()
-    _, until = _stored()
+    mode, until = _stored()
+    if _ablauf_anwenden(mode, until):
+        until = None
     return ModeState(
         mode=_mode,
         until=until.isoformat(timespec="seconds") if until else None,
@@ -376,6 +382,11 @@ def enforce_expiry() -> bool:
         return False
 
     mode, until = _stored()
+    return _ablauf_anwenden(mode, until)
+
+
+def _ablauf_anwenden(mode: str, until: datetime | None) -> bool:
+    """Der gemeinsame Kern von ``state`` und ``enforce_expiry``."""
     if mode not in DEEP_MODES or until is None or until > _now():
         return False
 
@@ -416,14 +427,22 @@ def _stored() -> tuple[str, datetime | None]:
     die Protokollierung darf den Start nie verhindern.
     """
     try:
+        from sqlalchemy import select
+
         from ..db import SessionLocal
         from ..models import Setting
 
         with SessionLocal() as db:
-            mode_row = db.get(Setting, SETTING_MODE)
-            until_row = db.get(Setting, SETTING_UNTIL)
-            gelesen = (mode_row.value or "").strip() if mode_row else ""
-            frist = (until_row.value or "").strip() if until_row else ""
+            # Beide Schluessel in einem Gang - sie werden nie einzeln gebraucht.
+            werte = dict(
+                db.execute(
+                    select(Setting.key, Setting.value).where(
+                        Setting.key.in_((SETTING_MODE, SETTING_UNTIL))
+                    )
+                ).all()
+            )
+            gelesen = (werte.get(SETTING_MODE) or "").strip()
+            frist = (werte.get(SETTING_UNTIL) or "").strip()
     except Exception:
         return DEFAULT_MODE, None
 

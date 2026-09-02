@@ -166,30 +166,49 @@ class Posten:
     managed: bool = True
 
 
-def kontostand(db: Session, user_id: int) -> Kontostand:
-    """Belegter Platz eines Nutzers.
+def kontostaende(db: Session, user_ids) -> dict[int, Kontostand]:
+    """Belegter Platz mehrerer Nutzer - **eine** Abfrage statt einer je Person.
 
     Hausbestand zaehlt ausdruecklich **nicht** mit - er gehoert niemandem.
+    Jede uebergebene Kennung bekommt einen Eintrag; wer nichts belegt, steht
+    mit Nullen drin.
     """
-    zeilen = db.execute(
-        select(
-            func.coalesce(func.sum(StorageEntry.size_bytes), 0),
-            func.count(StorageEntry.id),
-            StorageEntry.state,
+    kennungen = list(user_ids)
+    summen: dict[int, list[int]] = {kennung: [0, 0, 0] for kennung in kennungen}
+    if kennungen:
+        for zeile in db.execute(
+            select(
+                StorageEntry.user_id,
+                func.coalesce(func.sum(StorageEntry.size_bytes), 0),
+                func.count(StorageEntry.id),
+                StorageEntry.state,
+            )
+            .where(
+                StorageEntry.user_id.in_(kennungen),
+                StorageEntry.state.in_((StorageState.owned, StorageState.pending)),
+            )
+            .group_by(StorageEntry.user_id, StorageEntry.state)
+        ).all():
+            eintrag = summen[zeile[0]]
+            eintrag[0] += int(zeile[1])
+            eintrag[1] += int(zeile[2])
+            if zeile[3] == StorageState.pending:
+                eintrag[2] += int(zeile[1])
+    return {
+        kennung: Kontostand(
+            used_bytes=gesamt, items=anzahl, pending_bytes=wartend
         )
-        .where(
-            StorageEntry.user_id == user_id,
-            StorageEntry.state.in_((StorageState.owned, StorageState.pending)),
-        )
-        .group_by(StorageEntry.state)
-    ).all()
+        for kennung, (gesamt, anzahl, wartend) in summen.items()
+    }
 
-    gesamt = sum(int(zeile[0]) for zeile in zeilen)
-    anzahl = sum(int(zeile[1]) for zeile in zeilen)
-    wartend = sum(
-        int(zeile[0]) for zeile in zeilen if zeile[2] == StorageState.pending
-    )
-    return Kontostand(used_bytes=gesamt, items=anzahl, pending_bytes=wartend)
+
+def kontostand(db: Session, user_id: int) -> Kontostand:
+    """Belegter Platz eines Nutzers - der Einzelfall der Sammelabfrage.
+
+    Die Regel (owned **und** pending zaehlen, Hausbestand nie) steht nur in
+    ``kontostaende``; zwei Umsetzungen liefen unweigerlich auseinander.
+    """
+    return kontostaende(db, (user_id,))[user_id]
 
 
 GB = 1024**3

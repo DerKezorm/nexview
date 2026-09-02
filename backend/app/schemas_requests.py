@@ -125,6 +125,9 @@ class RequestPublic(BaseModel):
     laedt_fortschritt: int | None = None
     laedt_seit: datetime | None = None
     rejection_reason: str | None
+    # Welche Regel entschieden hat. ``None`` heisst: keine - es galt, was am
+    # Konto steht.
+    regel_name: str | None = None
     error_message: str | None
     # Kennung samt Werten - das Frontend baut daraus den Satz in der
     # eingestellten Sprache und faellt sonst auf ``error_message`` zurueck.

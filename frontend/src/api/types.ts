@@ -1180,6 +1180,8 @@ export type MediaRequest = {
   /** Wann Nexview zuletzt bei Radarr/Sonarr nachgesehen hat. */
   last_checked_at?: string | null;
   rejection_reason: string | null;
+  /** Welche Regel entschieden hat. `null` = keine, es galt das Konto. */
+  regel_name: string | null;
   error_message: string | null;
   /**
    * Kennung samt Werten zur gespeicherten Fehlermeldung.

@@ -1366,6 +1366,11 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
     for anfrage in anfragen:
         if anfrage.user_id in admins:
             continue
+        # **Und was eine Regel aufs Haus gebucht hat, gehoert dem Haus.**
+        # Derselbe Fall wie beim Administrator: Der Titel kam nicht, weil
+        # jemand ihn fuer sich wollte, sondern weil das Haus ihn haben wollte.
+        if anfrage.hausbestand:
+            continue
         stufe = anfrage.tier.value if anfrage.tier else QualityTier.standard.value
         if anfrage.media_type == MediaType.movie:
             nach_film.setdefault((anfrage.tmdb_id, stufe), anfrage.user_id)

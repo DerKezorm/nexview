@@ -1545,6 +1545,50 @@ TEXTE: dict[str, tuple[str, str]] = {
         'Unblock a title',
         'The title can be requested again afterwards.',
     ),
+    'GET /api/admin/regeln': (
+        'The rules',
+        (
+            'Rules decide requests before the account setting applies. They are '
+            'checked in order and the first one that matches wins. Administrators '
+            'only.'
+        ),
+    ),
+    'POST /api/admin/regeln': (
+        'Add a rule',
+        (
+            'The new rule goes last, so it overtakes nothing that is already there. '
+            'A rule without conditions is refused - it would match everything.'
+        ),
+    ),
+    'PUT /api/admin/regeln/{regel_id}': (
+        'Change a rule',
+        (
+            'Conditions are replaced as a whole. "House stock" is kept only on a rule '
+            'that approves, "may ask anyway" only on one that rejects.'
+        ),
+    ),
+    'DELETE /api/admin/regeln/{regel_id}': (
+        'Delete a rule',
+        (
+            'Requests it already decided stay as they are; they simply lose the link '
+            'to it.'
+        ),
+    ),
+    'PUT /api/admin/regeln/reihenfolge': (
+        'Reorder the rules',
+        (
+            'Send every rule id exactly once. Order carries meaning here - the first '
+            'matching rule decides - so an incomplete list is refused rather than '
+            'guessed at.'
+        ),
+    ),
+    'GET /api/admin/regeln/felder': (
+        'Fields a condition can use',
+        (
+            'So the interface keeps no second list of its own. Each field is either a '
+            'number, with a lower and an upper bound, or a set of allowed values.'
+        ),
+    ),
     'GET /api/calendar': (
         'What arrives when',
         (

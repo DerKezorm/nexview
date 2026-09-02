@@ -1641,7 +1641,10 @@
       "betreiber_nur_admin": "Ownership can only be handed to an administrator.",
       "betreiber_ziel_inaktiv": "A disabled account cannot take over ownership.",
       "betreiber_wuerde_ausgesperrt": "The owner would no longer be able to get in – nobody but the owner can decide that.",
-      "mediaserver_no_user_list": "This media server cannot list its accounts."
+      "mediaserver_no_user_list": "This media server cannot list its accounts.",
+      "regel_bedingung_ungueltig": "That condition does not work: {{grund}}",
+      "regel_nicht_gefunden": "That rule no longer exists.",
+      "regel_reihenfolge_unvollstaendig": "The order has to name every existing rule exactly once."
     }
   },
   "language": {
@@ -2640,7 +2643,8 @@
     "deleted": "Gone again",
     "noReason": "no reason given",
     "deferred": "Put on hold",
-    "deferredHint": "will be approved once there is room again — you do not need to ask again"
+    "deferredHint": "will be approved once there is room again — you do not need to ask again",
+    "byRule": "by rule “{{name}}”"
   },
   "cleanup": {
     "title": "What is lying around unused",
@@ -3191,5 +3195,55 @@
     "confirmOk": "Take over anyway",
     "sectionTitle": "Existing accounts",
     "sectionIntro": "Whoever already has an account on this server needs none by hand in Nexview. Only what you tick is taken over."
+  },
+  "regeln": {
+    "ablehnen": "reject",
+    "aendernTitel": "Change a rule",
+    "aus": "off",
+    "ausschalten": "Off",
+    "bedingungHinzufuegen": "Add a condition …",
+    "begruendung": "What the requester reads",
+    "begruendungPlatzhalter": "Without a text it just says “rejected”.",
+    "bis": "below",
+    "dann": "Then",
+    "darfTrotzdem": "The requester may send it to an approver anyway.",
+    "egal": "any",
+    "einschalten": "On",
+    "entfernen": "remove",
+    "grenzeAlter": "A rule saying “approve everything from 2026” gives a child no title it is not allowed to see.",
+    "grenzeAlterTitel": "The age filter.",
+    "grenzeEltern": "A child's wish always goes to them, even where a rule would match.",
+    "grenzeElternTitel": "The parents' decision.",
+    "grenzeKontingent": "Whoever may not request anything gets no further through a rule either — not even when the title would go to house stock.",
+    "grenzeKontingentTitel": "The requester's quota.",
+    "grenzen": "“from” counts, “below” does not — so “from 5” and “below 5” do not overlap.",
+    "grenzenTitel": "Three things no rule can override",
+    "hausbestandHinweis": "The title then counts against nobody's storage quota. The item count still applies — that hangs on the request, not on storage.",
+    "hausbestandTitel": "Book to house stock",
+    "hinzufuegen": "Add a rule",
+    "inDenHausbestand": "to house stock",
+    "intro": "Rules decide requests before the account setting applies. Nexview walks the list from top to bottom and takes the first rule that matches. If none does, everything stays as before.",
+    "introUnd": "Every condition in a rule has to hold. If you need an “or”, add a second rule — that keeps the list readable.",
+    "leer": "No rules yet. Without them, the account setting keeps deciding.",
+    "liestText": "The requester reads: “{{text}}”",
+    "loeschenText": "“{{name}}” is taken out of the list. Requests it used to catch will take the normal route from now on.",
+    "loeschenTitel": "Delete this rule?",
+    "nachOben": "Move up",
+    "nachObenAria": "Move {{name}} up",
+    "nachUntenAria": "Move {{name}} down",
+    "name": "Name",
+    "namePlatzhalter": "What is this rule for?",
+    "neuTitel": "New rule",
+    "sofortFreigeben": "approve at once",
+    "title": "Rules",
+    "trotzdemHinweis": "They can still send the request to an approver. Sensible for “poorly rated”, pointless for “already here in 4K”.",
+    "trotzdemTitel": "The requester may ask anyway",
+    "ueberholt": "For some titles {{name}} matches first.",
+    "und": "and",
+    "von": "from",
+    "wenn": "If",
+    "zielHinweis": "Does not approve at once here: the approver picks the target folder, so the request goes to them anyway. It still applies for approvers and administrators.",
+    "zielKasten": "Because the approver picks the target folder in this house, the request goes to them anyway — otherwise it would bypass the very choice they are meant to make. Approvers and administrators are exempt.",
+    "zielKastenTitel": "Does not apply everywhere here."
   }
 }

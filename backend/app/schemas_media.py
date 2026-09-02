@@ -229,6 +229,12 @@ class MediaItem(BaseModel):
     vote_count: int = 0
 
     genres: list[str] = []
+    # ⚠️ **Die Nummern, nicht nur die Namen.** ``genres`` traegt uebersetzte
+    # Namen - dieselbe Dokumentation heisst je nach Sprache "Dokumentarfilm"
+    # oder "Documentary". Alles, was Genres *vergleicht* statt sie anzuzeigen,
+    # muss deshalb die Nummern nehmen; sonst wirkt eine Regel in einer Sprache
+    # und in der anderen nicht.
+    genre_ids: list[int] = []
     runtime_minutes: int | None = None
     certification: str | None = None
     original_language: str | None = None

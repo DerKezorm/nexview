@@ -136,6 +136,7 @@ def _base_item(raw: dict[str, Any], media_type: str, genres: dict[int, str]) -> 
         vote_average=round(float(raw.get("vote_average") or 0), 1),
         vote_count=int(raw.get("vote_count") or 0),
         genres=[genres[gid] for gid in raw.get("genre_ids", []) if gid in genres],
+        genre_ids=[gid for gid in raw.get("genre_ids", []) if isinstance(gid, int)],
         original_language=raw.get("original_language"),
         origin_country=[
             land for land in (raw.get("origin_country") or []) if isinstance(land, str)
@@ -172,10 +173,14 @@ def _enrich(
 ) -> MediaItem:
     """Laufzeit, Altersfreigabe, Genres und TVDB-Id aus den Detaildaten ergaenzen."""
     detail_genres = [genre["name"] for genre in detail.get("genres", []) if genre.get("name")]
+    detail_ids = [
+        genre["id"] for genre in detail.get("genres", []) if isinstance(genre.get("id"), int)
+    ]
 
     return item.model_copy(
         update={
             "genres": detail_genres or item.genres,
+            "genre_ids": detail_ids or item.genre_ids,
             "runtime_minutes": extract_runtime(detail, media_type),
             "certification": extract_certification(detail, media_type, region),
             "tvdb_id": extract_tvdb_id(detail) if media_type == "tv" else None,

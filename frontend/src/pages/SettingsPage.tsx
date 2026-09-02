@@ -5,6 +5,7 @@ import { AdminAddressSettings } from './settings/AdminAddressSettings'
 import { AdminApiToken } from './settings/AdminApiToken'
 import { AdminChannelSettings } from './settings/AdminChannelSettings'
 import { AdminHausordnung } from './settings/AdminHausordnung'
+import { AdminRegeln } from './settings/AdminRegeln'
 import { AdminHausordnungUebersicht } from './settings/AdminHausordnungUebersicht'
 import { AdminLogsSettings } from './settings/AdminLogsSettings'
 import { AdminSicherungen } from './settings/AdminSicherungen'
@@ -28,6 +29,7 @@ type Tab =
   | 'channels'
   | 'users'
   | 'hausordnung'
+  | 'regeln'
   | 'watchlist'
   | 'storage'
   | 'blocklist'
@@ -85,6 +87,7 @@ const REITER_AUS_ADRESSE: Record<string, Tab> = {
   kanaele: 'channels',
   benutzer: 'users',
   hausordnung: 'hausordnung',
+  regeln: 'regeln',
   merkliste: 'watchlist',
   kontingente: 'storage',
   sperrliste: 'blocklist',
@@ -155,6 +158,9 @@ export function SettingsPage() {
     // Direkt hinter den Benutzern: Die Hausordnung richtet sich an genau die,
     // die dort stehen.
     { value: 'hausordnung', label: t('settings.tabHausordnung'), symbol: 'hausordnung' },
+    // ⚠️ Attrappe, noch ohne Backend. Steht neben der Hausordnung, weil beide
+    // dasselbe tun: Regeln fuer alle festlegen statt je Konto.
+    { value: 'regeln', label: 'Regeln', symbol: 'hausordnung' },
     ...(config?.mediaserver_configured
       ? [{ value: 'watchlist' as Tab, label: t('settings.tabWatchlist'), symbol: 'merkliste' as const }]
       : []),
@@ -230,6 +236,7 @@ export function SettingsPage() {
           )}
         </div>
       )}
+      {tab === 'regeln' && <AdminRegeln />}
       {tab === 'storage' && <AdminStorageSettings />}
 
       {/* Untermenü mit genau einem Eintrag - Plex ist der einzige Anbieter

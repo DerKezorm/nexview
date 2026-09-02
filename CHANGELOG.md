@@ -1457,7 +1457,7 @@ tag exists for it.
   says so plainly instead of claiming something it does not know.
 
   The same comparison appears where the decision is made: in the approvals list
-  ("Dilara could already watch this on Netflix") and for parents deciding on a
+  ("Mira could already watch this on Netflix") and for parents deciding on a
   child's wish. It is measured against the subscriptions **of the person asking**,
   not those of the person deciding — the decider may have no Netflix, but the
   question is whether the requester could do without the download. In the
@@ -2195,7 +2195,7 @@ tag exists for it.
   rule says at the time.
 
 - **The log names people, not placeholders.** "Plex no longer accepts the token
-  of user" reads like a template; it now says "user (Dilara)" where a display
+  of user" reads like a template; it now says "user (Mira)" where a display
   name exists. And a rejection from Plex records the actual HTTP status, so it
   is possible to tell "who are you" from "you may not" - that distinction had
   been thrown away, which made this whole class of problem undiagnosable.

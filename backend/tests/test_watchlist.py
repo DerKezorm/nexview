@@ -198,7 +198,7 @@ def admin_mit_zweitem_anbieter() -> None:
         admin = session.query(User).filter(User.role == Role.admin).one()
         konten.link(
             admin,
-            ExternalAccount(provider="jellyfin", account_id="jf-1", username="Markus"),
+            ExternalAccount(provider="jellyfin", account_id="jf-1", username="Jonas"),
             encrypt("jellyfin-token"),
         )
         session.commit()

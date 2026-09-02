@@ -117,7 +117,7 @@ def test_protokollzeile_nennt_den_anzeigenamen() -> None:
     """Ein Konto namens "user" liest sich sonst wie ein Platzhalter."""
     from app.services.mediaserver_watched import _wer
 
-    assert _wer(nutzer(display_name="Markus")) == "user (Markus)"
+    assert _wer(nutzer(display_name="Jonas")) == "user (Jonas)"
 
 
 def test_ohne_anzeigenamen_bleibt_es_beim_benutzernamen() -> None:

@@ -176,11 +176,11 @@ async def test_geteilter_nutzer_ueber_die_nummer(
     """Wer geteilt bekommt, erscheint im Verlauf unter seiner plex.tv-Nummer."""
     verbinde(admin_client)
     create_user(admin_client, "gast", email="gast@beispiel.de")
-    gast_id = verknuepfen("gast", "838679208", "DilaraUygunMrozek")
+    gast_id = verknuepfen("gast", "700000101", "MiraBaumgart")
     bibliothek(("54860", 12345, MediaType.movie))
 
     server = VerlaufsServer(
-        [WatchedRecord(account_id="838679208", item_key="54860", media_type="movie")]
+        [WatchedRecord(account_id="700000101", item_key="54860", media_type="movie")]
     )
     assert await abgleichen(server, monkeypatch) == 1
 
@@ -201,7 +201,7 @@ async def test_eigentuemer_ueber_den_namen(
     kommt aus dem Zaehler am Titel (``owner_watched``), nicht aus dem Verlauf.
     """
     verbinde(admin_client)
-    admin_id = verknuepfen(ADMIN["username"], "490145397", "DerKezorm")
+    admin_id = verknuepfen(ADMIN["username"], "700000102", "DerKezorm")
     bibliothek(("54860", 12345, MediaType.movie), owner_watched=True)
 
     server = VerlaufsServer(
@@ -223,7 +223,7 @@ async def test_alter_verlauf_setzt_entfernten_haken_nicht_zurueck(
     den Eigentuemer weiter angewendet, staende das Auge sofort wieder da.
     """
     verbinde(admin_client)
-    admin_id = verknuepfen(ADMIN["username"], "490145397", "DerKezorm")
+    admin_id = verknuepfen(ADMIN["username"], "700000102", "DerKezorm")
     bibliothek(("54860", 12345, MediaType.movie), owner_watched=False)
     gesehen_eintragen(admin_id, 12345)
 
@@ -243,12 +243,12 @@ async def test_namensvergleich_ignoriert_schreibweise(
     """Plex nennt denselben Menschen mal mit und mal ohne Leerzeichen."""
     verbinde(admin_client)
     create_user(admin_client, "gast", email="gast@beispiel.de")
-    gast_id = verknuepfen("gast", "unbekannt", "DilaraUygunMrozek")
+    gast_id = verknuepfen("gast", "unbekannt", "MiraBaumgart")
     bibliothek(("77", 999, MediaType.movie))
 
     server = VerlaufsServer(
         [WatchedRecord(account_id="5", item_key="77", media_type="movie")],
-        konten=[ServerUser(account_id="5", username="Dilara Uygun-Mrozek")],
+        konten=[ServerUser(account_id="5", username="Mira Baumgart")],
     )
     assert await abgleichen(server, monkeypatch) == 1
 
@@ -261,7 +261,7 @@ async def test_unbekanntes_konto_wird_uebergangen(
 ) -> None:
     """Verwaltete Profile ohne eigenes Konto lassen sich niemandem zuordnen."""
     verbinde(admin_client)
-    verknuepfen(ADMIN["username"], "490145397", "DerKezorm")
+    verknuepfen(ADMIN["username"], "700000102", "DerKezorm")
     bibliothek(("54860", 12345, MediaType.movie))
 
     server = VerlaufsServer(
@@ -279,11 +279,11 @@ async def test_titel_ausserhalb_der_bibliothek(
 ) -> None:
     """Ohne Bibliotheks-Eintrag gibt es keine TMDB-Kennung - also keine Zuordnung."""
     verbinde(admin_client)
-    verknuepfen(ADMIN["username"], "490145397", "DerKezorm")
+    verknuepfen(ADMIN["username"], "700000102", "DerKezorm")
     bibliothek(("54860", 12345, MediaType.movie))
 
     server = VerlaufsServer(
-        [WatchedRecord(account_id="490145397", item_key="99999", media_type="movie")]
+        [WatchedRecord(account_id="700000102", item_key="99999", media_type="movie")]
     )
     assert await abgleichen(server, monkeypatch) == 0
 
@@ -292,13 +292,13 @@ async def test_zweiter_lauf_verdoppelt_nichts(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     verbinde(admin_client)
-    verknuepfen(ADMIN["username"], "490145397", "DerKezorm")
+    verknuepfen(ADMIN["username"], "700000102", "DerKezorm")
     bibliothek(("54860", 12345, MediaType.movie))
 
     server = VerlaufsServer(
         [
             WatchedRecord(
-                account_id="490145397",
+                account_id="700000102",
                 item_key="54860",
                 media_type="movie",
                 watched_at=datetime(2026, 8, 1, 20, 0),
@@ -310,7 +310,7 @@ async def test_zweiter_lauf_verdoppelt_nichts(
     # Dieselbe Wiedergabe noch einmal, spaeter gesehen.
     server.verlauf = [
         WatchedRecord(
-            account_id="490145397",
+            account_id="700000102",
             item_key="54860",
             media_type="movie",
             watched_at=datetime(2026, 8, 15, 20, 0),
@@ -329,13 +329,13 @@ async def test_serie_zaehlt_als_ganzes(
 ) -> None:
     """Bei Serien zaehlt die Serie, nicht die einzelne Folge."""
     verbinde(admin_client)
-    verknuepfen(ADMIN["username"], "490145397", "DerKezorm")
+    verknuepfen(ADMIN["username"], "700000102", "DerKezorm")
     bibliothek(("21339", 555, MediaType.tv))
 
     server = VerlaufsServer(
         [
-            WatchedRecord(account_id="490145397", item_key="21339", media_type="tv"),
-            WatchedRecord(account_id="490145397", item_key="21339", media_type="tv"),
+            WatchedRecord(account_id="700000102", item_key="21339", media_type="tv"),
+            WatchedRecord(account_id="700000102", item_key="21339", media_type="tv"),
         ]
     )
     assert await abgleichen(server, monkeypatch) == 1
@@ -352,7 +352,7 @@ async def test_eigenes_token_liest_vollstaendig(
     """Mit eigenem Token kommt der Stand vom Zaehler - nicht aus dem Verlauf."""
     verbinde(admin_client)
     create_user(admin_client, "gast", email="gast@beispiel.de")
-    gast_id = verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    gast_id = verknuepfen("gast", "700000101", "MiraBaumgart", token="gast-token")
     bibliothek(("54860", 12345, MediaType.movie))
 
     server = VerlaufsServer(
@@ -375,7 +375,7 @@ async def test_eigenes_token_entfernt_haken(
     """Haken in Plex entfernt -> Auge in Nexview weg. Der Plex-Stand gilt."""
     verbinde(admin_client)
     create_user(admin_client, "gast", email="gast@beispiel.de")
-    gast_id = verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    gast_id = verknuepfen("gast", "700000101", "MiraBaumgart", token="gast-token")
     bibliothek(("54860", 12345, MediaType.movie))
     gesehen_eintragen(gast_id, 12345)
 
@@ -396,7 +396,7 @@ async def test_entfernte_titel_behalten_ihr_auge(
     """
     verbinde(admin_client)
     create_user(admin_client, "gast", email="gast@beispiel.de")
-    gast_id = verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    gast_id = verknuepfen("gast", "700000101", "MiraBaumgart", token="gast-token")
     bibliothek(("54860", 12345, MediaType.movie))
     gesehen_eintragen(gast_id, 99999)  # nicht (mehr) in der Bibliothek
 
@@ -417,11 +417,11 @@ async def test_verlauf_gilt_nicht_fuer_token_nutzer(
     """
     verbinde(admin_client)
     create_user(admin_client, "gast", email="gast@beispiel.de")
-    verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    verknuepfen("gast", "700000101", "MiraBaumgart", token="gast-token")
     bibliothek(("54860", 12345, MediaType.movie))
 
     server = VerlaufsServer(
-        [WatchedRecord(account_id="838679208", item_key="54860", media_type="movie")],
+        [WatchedRecord(account_id="700000101", item_key="54860", media_type="movie")],
         stand=[],
     )
     assert await abgleichen(server, monkeypatch) == 0
@@ -440,7 +440,7 @@ async def test_defektes_token_meldet_sich_genau_einmal(
     """
     verbinde(admin_client)
     create_user(admin_client, "gast", email="gast@beispiel.de")
-    gast_id = verknuepfen("gast", "838679208", "DilaraUygunMrozek", token="gast-token")
+    gast_id = verknuepfen("gast", "700000101", "MiraBaumgart", token="gast-token")
     bibliothek(("54860", 12345, MediaType.movie))
 
     server = VerlaufsServer([], token_kaputt=True)

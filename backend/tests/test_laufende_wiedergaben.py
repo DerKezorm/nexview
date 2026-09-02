@@ -44,8 +44,8 @@ PLEX_TON = {
 
 #: Jellyfin, laufender Film mit **Bild**-Umrechnung.
 JELLYFIN_BILD = {
-    "UserName": "Markus",
-    "UserId": "7d29788866bc49939958216701c405c6",
+    "UserName": "Jonas",
+    "UserId": "11111111111111111111111111111111",
     "Client": "Jellyfin Web",
     "DeviceName": "Chrome",
     "NowPlayingItem": {
@@ -72,7 +72,7 @@ JELLYFIN_BILD = {
 #: ``IsVideoDirect: true`` - nur der Ton wird umgerechnet.
 EMBY_TON = {
     "UserName": "admin",
-    "UserId": "e93a3dcd412241fb900c673c1c8422e4",
+    "UserId": "22222222222222222222222222222222",
     "Client": "Emby Web",
     "DeviceName": "Chrome Windows",
     "NowPlayingItem": {
@@ -97,7 +97,7 @@ EMBY_TON = {
 #: vier Sitzungen aus, solange niemand schaute; ``IsActive`` stand trotzdem auf
 #: ``true``, obwohl der Eintrag zwei Tage alt war.
 JELLYFIN_NUR_VERBUNDEN = {
-    "UserName": "Markus",
+    "UserName": "Jonas",
     "Client": "Infuse-Library",
     "DeviceName": "Apple TV",
     "IsActive": True,
@@ -162,8 +162,8 @@ def test_jellyfin_liest_alle_gemessenen_felder() -> None:
     w = _jellyfin()._als_wiedergabe(JELLYFIN_BILD, JELLYFIN_BILD["NowPlayingItem"])
     assert w.titel == "2 Fast 2 Furious"
     assert w.media_type == "movie"
-    assert w.konto == "Markus"
-    assert w.konto_id == "7d29788866bc49939958216701c405c6"
+    assert w.konto == "Jonas"
+    assert w.konto_id == "11111111111111111111111111111111"
     assert w.geraet == "Chrome" and w.anwendung == "Jellyfin Web"
     assert w.tmdb_id == 584
     assert w.pausiert is False

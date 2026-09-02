@@ -3,3 +3,9 @@
 *.sh text eol=lf
 Dockerfile text eol=lf
 docker-compose.yml text eol=lf
+
+# Git-Haken laufen unter Windows ueber Git Bash. Mit CRLF scheitert schon die
+# erste Zeile ("bad interpreter"), und der Haken faellt still aus - genau der
+# Haken, der Personendaten aufhalten soll. Er hat keine .sh-Endung, die Regel
+# oben greift also nicht.
+.githooks/* text eol=lf

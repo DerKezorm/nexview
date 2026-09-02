@@ -144,7 +144,7 @@ class VerknuepftesKonto(BaseModel):
     """Ein Medienserver-Konto eines Benutzers - fuer die Anzeige.
 
     Ohne Token und ohne Adresse: Beides geht den Browser nichts an. Der Name
-    steht drin, weil "Verbunden mit Markus" etwas sagt und eine Kontonummer
+    steht drin, weil "Verbunden mit Jonas" etwas sagt und eine Kontonummer
     nicht.
     """
 

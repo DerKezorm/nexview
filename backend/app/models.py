@@ -1868,7 +1868,7 @@ class MediaRequest(Base):
     from_watchlist: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Hat ein Elternteil diese Anfrage fuer eines seiner Kinder gestellt?
     #
-    # Reine Auskunft fuer die Anzeige ("Markus (fuer Lena)") - an den Rechten
+    # Reine Auskunft fuer die Anzeige ("Jonas (fuer Lena)") - an den Rechten
     # aendert sie nichts. Die Anfrage gehoert dem Elternteil, mit seinem
     # Kontingent und seinem Freigabeweg; das ist der ganze Sinn des Aufbaus.
     #
@@ -2046,7 +2046,7 @@ class ChannelTarget(Base):
     eines fuer den Betreiber, ein ntfy-Topic fuer die Familie.
 
     ``name`` ist frei gewaehlt und steht auf der Kachel in den Einstellungen -
-    "Handy Markus" sagt mehr als eine Serveradresse.
+    "Handy Jonas" sagt mehr als eine Serveradresse.
 
     Nicht jeder Dienst nutzt jedes Feld: Gotify kennt kein Topic, ntfy kein
     Anwendungs-Token. Eine Tabelle je Dienst waere sauberer und kostete fuer

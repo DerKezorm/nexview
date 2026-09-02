@@ -795,7 +795,7 @@ def test_verteilen_schreibt_und_merkt_sich(arr_client, monkeypatch) -> None:
 def test_beide_schreibweisen_je_profil_erkannt() -> None:
     """Auf einer Instanz koennen alte und neue Musternamen nebeneinander liegen.
 
-    ⚠️ **Der Fall, der Markus zweimal faelschlich beschuldigt hat.** Vor der
+    ⚠️ **Der Fall, der den Betreiber zweimal faelschlich beschuldigt hat.** Vor der
     Praefix-Umstellung schrieb Nexview "NXV - AMZN", danach "AMZN". Beide
     Schreibweisen liegen dann auf derselben Instanz, und weil Radarr und Sonarr
     eigene Muster gleichen Namens mitbringen, steht die jeweils andere mit 0

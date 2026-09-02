@@ -22,7 +22,7 @@ Gewicht verstellt, sobald sie anschlaegt, misst nichts mehr - sie bestaetigt
 nur noch jeden Zustand. Schlaegt sie an, gehoeren die Abfragen gebuendelt:
 ``selectinload`` fuer Beziehungen oder **eine** Abfrage ueber alle Kennungen
 (Muster: ``requests.my_requests``, ``ratings.fuer_anfragen``). Soll
-WACHSTUM_ERLAUBT wirklich steigen, ist das eine Entscheidung von Markus und
+WACHSTUM_ERLAUBT wirklich steigen, ist das eine Entscheidung des Betreibers und
 keine Zeile nebenbei.
 
 **Die ehrlichen Grenzen des Messgeraets** - drei Blindstellen, nachgemessen

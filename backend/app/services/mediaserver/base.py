@@ -386,7 +386,7 @@ class Wiedergabe:
     #: Die Nummer des Kontos **beim Anbieter**. Der sichere Weg zum
     #: Nexview-Konto: Sie steht so auch an der Verknuepfung. Der Name taugt
     #: dafuer nicht - gemessen am 30.08.2026 heisst dieselbe Person bei
-    #: Jellyfin "Markus" und in Nexview "admin-kezorm".
+    #: Jellyfin "Jonas" und in Nexview "admin-nexview".
     konto_id: str = ""
     #: Bei einer Folge die Serie; sonst leer.
     serie: str = ""

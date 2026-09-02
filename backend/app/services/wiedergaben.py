@@ -82,7 +82,7 @@ def nexview_konto(db: Session, wiedergabe: Wiedergabe) -> User | None:
     ⚠️ **Ueber die Konto-Nummer des Anbieters, nicht ueber den Namen.** Die
     Nummer steht so auch an der Verknuepfung; der Name muss nirgends
     uebereinstimmen. Gemessen am 30.08.2026: Dieselbe Person heisst bei
-    Jellyfin "Markus" und in Nexview "admin-kezorm" - ein Namensvergleich
+    Jellyfin "Jonas" und in Nexview "admin-nexview" - ein Namensvergleich
     haette sie nicht gefunden, und bei zwei aehnlichen Namen haette er die
     falsche gefunden. Das waere schlimmer: Dann stuende an einer Wiedergabe
     der Name von jemand anderem.

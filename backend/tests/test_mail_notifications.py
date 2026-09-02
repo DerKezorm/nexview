@@ -556,12 +556,12 @@ def test_neues_konto_kommt_als_mail(
             user=lena,
             kind=NotificationType.user_imported,
             message_key="notifications.userImported",
-            title="DilaraUygunMrozek",
+            title="MiraBaumgart",
         )
         db.commit()
 
     assert _abarbeiten() == 1
-    assert "DilaraUygunMrozek" in postfach.nachrichten[0]["subject"]
+    assert "MiraBaumgart" in postfach.nachrichten[0]["subject"]
     assert "/admin/settings" in postfach.nachrichten[0]["text"]
 
 

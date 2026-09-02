@@ -790,7 +790,7 @@ def test_ohne_angabe_bleibt_es_bei_plex(
 JELLY_KONTO = ExternalAccount(
     provider="jellyfin",
     account_id="jf-4711",
-    username="Markus",
+    username="Jonas",
     # ⚠️ **Ohne Adresse - und das ist der Punkt.** Jellyfin hat kein solches
     # Feld. Daran haengt, dass darueber kein Konto entstehen darf.
     email=None,
@@ -872,7 +872,7 @@ def _jelly_verbinden() -> None:
 def _jelly_anmelden(client: TestClient, passwort: str = "geheim"):
     return client.post(
         "/api/auth/mediaserver/login/password",
-        json={"provider": "jellyfin", "username": "Markus", "password": passwort},
+        json={"provider": "jellyfin", "username": "Jonas", "password": passwort},
         headers={"Authorization": ""},
     )
 
@@ -892,11 +892,11 @@ def test_passwort_anmeldung_liefert_vollstaendige_token(
     # Ein Konto, das Jellyfin schon verknuepft hat - nur so geht es hinein.
     create_user(
         admin_client,
-        "markus",
-        email="markus@beispiel.de",
+        "jonas",
+        email="nutzer@beispiel.de",
         mediaserver_provider="jellyfin",
         mediaserver_account_id="jf-4711",
-        mediaserver_username="Markus",
+        mediaserver_username="Jonas",
     )
 
     antwort = _jelly_anmelden(admin_client)
@@ -910,7 +910,7 @@ def test_passwort_anmeldung_liefert_vollstaendige_token(
     assert tokens["token_type"] == "bearer"
     # Und die Sitzung gehoert dem **bestehenden** Konto, nicht einem neuen.
     with SessionLocal() as session:
-        assert session.query(User).filter(User.username == "markus").count() == 1
+        assert session.query(User).filter(User.username == "jonas").count() == 1
 
 
 def test_falsches_passwort_ist_kein_serverausfall(
@@ -921,8 +921,8 @@ def test_falsches_passwort_ist_kein_serverausfall(
     _jelly_verbinden()
     create_user(
         admin_client,
-        "markus",
-        email="markus@beispiel.de",
+        "jonas",
+        email="nutzer@beispiel.de",
         mediaserver_provider="jellyfin",
         mediaserver_account_id="jf-4711",
     )

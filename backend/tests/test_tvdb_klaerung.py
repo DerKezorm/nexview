@@ -428,7 +428,7 @@ def test_die_gewaehlte_kennung_landet_an_der_anfrage(
 def test_eindeutiger_treffer_kommt_ohne_fenster_durch(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Was Markus ausdruecklich wollte: Wer gefunden wird, wird nicht gefragt."""
+    """Was der Betreiber ausdruecklich wollte: Wer gefunden wird, wird nicht gefragt."""
     _serie_ohne_kennung(monkeypatch, [_serie(3001, "Still Water", 2026, tmdb_id=331370)])
     create_user(arr_client, "kim")
     headers = auth_headers(arr_client, "kim", "passwort-1234")

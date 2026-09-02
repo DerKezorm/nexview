@@ -14,7 +14,7 @@
  * Schlägt sie an, gehört das Gewicht zurück: Was neu dazugekommen ist und
  * nicht jeder sofort braucht, wird nachgeliefert statt mitgetragen (siehe die
  * `lazy(...)`-Liste in `src/App.tsx`). Soll die Grenze wirklich steigen, ist
- * das eine Entscheidung von Markus und keine Zeile nebenbei.
+ * das eine Entscheidung des Betreibers und keine Zeile nebenbei.
  *
  * Gemessen wird, was ein Besucher beim Öffnen wirklich herunterlädt: der
  * Einstieg samt allem, was fest daran hängt, das Stilblatt und **eine**
@@ -126,7 +126,7 @@ if (summe > GRENZE_KB * KILO) {
       'Die Grenze wird NICHT hochgesetzt. Was neu dazugekommen ist und nicht\n' +
       'jeder Besucher sofort braucht, gehört in die `lazy(...)`-Liste in\n' +
       'src/App.tsx - dann kommt es erst, wenn jemand es öffnet.\n\n' +
-      'Soll die Grenze wirklich steigen, ist das eine Frage an Markus.',
+      'Soll die Grenze wirklich steigen, ist das eine Frage an den Betreiber.',
   )
   process.exit(1)
 }

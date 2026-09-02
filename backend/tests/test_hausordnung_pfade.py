@@ -373,7 +373,7 @@ def test_die_uebersicht_zeigt_beide_entscheidungen(admin_client: TestClient) -> 
 
 
 def test_ablehnen_nimmt_niemandem_etwas(arr_client: TestClient) -> None:
-    """⚠️ **Die Entscheidung von Markus, als Test festgehalten.**
+    """⚠️ **Eine ausdrueckliche Entscheidung, als Test festgehalten.**
 
     Ablehnen ist eine Auskunft an den Betreiber, keine Sperre. Wer ablehnt,
     darf weiter anfragen - was daraus folgt, entscheidet ein Mensch.

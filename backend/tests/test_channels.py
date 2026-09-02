@@ -945,7 +945,7 @@ def test_telegram_chats_aus_dem_entwurf(
             json={
                 "ok": True,
                 "result": [
-                    {"message": {"chat": {"id": 77, "first_name": "Markus", "type": "private"}}},
+                    {"message": {"chat": {"id": 77, "first_name": "Jonas", "type": "private"}}},
                     {"message": {"chat": {"id": -100, "title": "Familie", "type": "supergroup"}}},
                 ],
             },
@@ -957,7 +957,7 @@ def test_telegram_chats_aus_dem_entwurf(
     )
     assert antwort.status_code == 200, antwort.text
     daten = {eintrag["chat_id"]: eintrag["name"] for eintrag in antwort.json()}
-    assert daten == {"77": "Markus", "-100": "Familie"}
+    assert daten == {"77": "Jonas", "-100": "Familie"}
 
 
 # --- Ein/Aus je Ziel --------------------------------------------------------

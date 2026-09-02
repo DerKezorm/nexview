@@ -191,7 +191,7 @@ class _Staffelstand(SonarrClient):
 
 @pytest.mark.anyio
 async def test_noch_keine_staffeln_ist_kein_fehler() -> None:
-    """⚠️ Der Fehler, den Markus beim Testen ausgelöst hat.
+    """⚠️ Der Fehler, den der Betreiber beim Testen ausgelöst hat.
 
     Sonarr lädt die Metadaten einer frisch angelegten Serie **asynchron**. Wer
     unmittelbar danach fragt, bekommt eine Serie ganz ohne Staffeln - und das

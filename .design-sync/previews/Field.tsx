@@ -2,7 +2,7 @@ import { Field } from 'nexview-ui'
 
 export const Standard = () => (
   <div className="bg-ink-950 p-6 max-w-sm">
-    <Field label="Anzeigename" defaultValue="Markus" />
+    <Field label="Anzeigename" defaultValue="Jonas" />
   </div>
 )
 

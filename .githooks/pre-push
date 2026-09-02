@@ -1,0 +1,56 @@
+#!/bin/sh
+#
+# Personenbezogene Angaben aufhalten - vor dem Push, nicht danach.
+#
+# ⚠️ Warum hier und nicht nur in der CI. Am 02.09.2026 stand der volle Name
+# einer angehoerigen Person seit Wochen im oeffentlichen Repository, dazu zwei
+# echte Konto-Kennungen. Die CI laeuft nach dem Push: Was sie meldet, steht
+# schon in der Historie, und dort bekommt man es nur mit Umschreiben wieder
+# heraus - was jeden Klon bricht und die alten Objekte trotzdem noch eine
+# Weile ueber die GitHub-Oberflaeche erreichbar laesst. Dieser Haken laeuft
+# davor, und deshalb ist er der wichtigere Teil.
+#
+# Aktivieren (einmal je Klon, sonst hat ihn nur ein Rechner):
+#
+#     git config core.hooksPath .githooks
+#
+# Der Haken laeuft unter Windows ueber Git Bash - daher #!/bin/sh oben.
+#
+# ⚠️ Was er nicht kann: Er prueft den Arbeitsstand, nicht den Inhalt der
+# Commits, die gerade hinausgehen. Wer eine Angabe committet und danach aus
+# der Datei loescht, kommt an ihm vorbei. Gegen den haeufigen Fall - jemand
+# schreibt etwas hin und pusht - hilft er.
+
+set -e
+
+# Hooks starten in der Repo-Wurzel; bei einem Worktree oder einem Aufruf von
+# Hand ist das nicht garantiert.
+WURZEL=$(git rev-parse --show-toplevel) || exit 1
+cd "$WURZEL" || exit 1
+
+if command -v python >/dev/null 2>&1; then
+    PY=python
+elif command -v python3 >/dev/null 2>&1; then
+    PY=python3
+else
+    echo "pre-push: kein Python gefunden - die Prüfung auf personenbezogene" >&2
+    echo "          Angaben konnte nicht laufen. Der Push wird abgebrochen." >&2
+    echo "          Notausgang, wenn es wirklich sein muss: git push --no-verify" >&2
+    exit 1
+fi
+
+set +e
+"$PY" backend/tools/personendaten_pruefen.py
+STAND=$?
+set -e
+
+if [ "$STAND" -ne 0 ]; then
+    echo "" >&2
+    echo "pre-push: Der Push wurde abgebrochen." >&2
+    echo "          Ersetze die Angaben oben durch erfundene Werte." >&2
+    echo "          Eine Ausnahme in AUSNAHMEN kommt nur infrage, wenn der Fund" >&2
+    echo "          gar keine personenbezogene Angabe ist - mit Begründung." >&2
+    exit 1
+fi
+
+exit 0

@@ -82,8 +82,8 @@ EIGENTUEMER_KONTO = "1"
 def _vergleichbar(name: str) -> str:
     """Namen vergleichbar machen.
 
-    Plex fuehrt denselben Menschen mal als "Dilara Uygun-Mrozek" und mal als
-    "DilaraUygunMrozek" - je nachdem, ob der Anzeigename oder der Anmeldename
+    Plex fuehrt denselben Menschen mal als "Mira Baumgart" und mal als
+    "MiraBaumgart" - je nachdem, ob der Anzeigename oder der Anmeldename
     gemeint ist.
     """
     return "".join(zeichen for zeichen in name.lower() if zeichen.isalnum())

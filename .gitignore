@@ -67,3 +67,7 @@ frontend/test-results/
 # greifen dann nicht. Einmal war .last-run.json schon im Commit.
 playwright-report/
 test-results/
+
+# Die Sperrliste der Personendaten gehoert nicht ins Repository.
+# Sie enthaelt nur Abdruecke, aber auch die Liste selbst waere eine Aussage.
+backend/tools/.personendaten-sperrliste.json

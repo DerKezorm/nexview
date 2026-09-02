@@ -769,6 +769,25 @@ administrator sets only the address and the role; the invitee picks their own us
 display name and password through the link in the mail. Nobody else learns that
 password, not even the administrator.
 
+### Before you push
+
+One check deliberately runs *before* the push rather than in CI: it searches every
+versioned file for personal data, meaning names, account identifiers, tokens, e-mail
+addresses with a real domain, public IP addresses and home directory paths. CI would
+find them too, but only once they are already in the history, and getting them out of
+there means rewriting it. Activate the hook once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+To run the same check by hand:
+
+```bash
+cd backend
+python tools/personendaten_pruefen.py
+```
+
 ### Tests
 
 The backend suite — the big one, and the one that has to be green before a

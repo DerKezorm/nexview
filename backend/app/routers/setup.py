@@ -7,6 +7,7 @@ er dauerhaft mit 409.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
@@ -184,7 +185,10 @@ async def sicherung_einspielen(
     db.close()
 
     try:
-        sicherung.wiederherstellen(daten, passwort)
+        # In den Arbeitsthread wie beim Einspielen im Betrieb
+        # (``routers/sicherungen.py``): das Einspielen blockiert komplett,
+        # und die Ereignisschleife soll waehrenddessen weiter bedienen.
+        await asyncio.to_thread(sicherung.wiederherstellen, daten, passwort)
     except sicherung.SicherungFehler as fehler:
         raise HTTPException(
             status_code=400, detail=meldungen.meldung(fehler.code, fehler.text)

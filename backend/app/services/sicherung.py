@@ -44,6 +44,7 @@ import logging
 import re
 import shutil
 import sqlite3
+import threading
 import time
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
@@ -659,6 +660,18 @@ TAKTE = {"daily": 1, "weekly": 7, "monthly": 30}
 #: kuerzeste Takt ist ein Tag, und ein paar Stunden Versatz aendern nichts.
 NACHSEHEN_SEKUNDEN = 3600
 
+#: ⚠️ Takt und Einspielen teilen sich dieses Schloss. Seit die Taktrunde in
+#: einem Arbeitsthread laeuft (``asyncio.to_thread``), kann sie mit
+#: ``wiederherstellen`` ueberlappen - und dann scheitert das Einspielen mit
+#: ``restore_files_busy``, weil der Takt den Verbindungsvorrat nach jedem
+#: ``engine.dispose()`` sofort wieder fuellt und die ``-wal``-Datei offen
+#: haelt (gemessen am 02.09.2026: 4 von 8 Versuchen, und einmal busy blieb
+#: es ueber alle Wiederholungen busy). Mit dem Schloss wartet das Einspielen
+#: die laufende Taktrunde ab, und der Takt setzt aus, solange eingespielt
+#: wird. Das dichtet auch den Linux-Zweig ab, wo der schuetzende
+#: ``PermissionError`` beim Loeschen offener Dateien gar nicht kaeme.
+_pflege_schloss = threading.Lock()
+
 
 def faellig(takt: str, *, jetzt: datetime | None = None) -> bool:
     """Ist seit der letzten automatischen Sicherung genug Zeit vergangen?
@@ -700,19 +713,24 @@ def _takt() -> None:
     ``SessionLocal``. Der manuelle Endpunkt (``routers/sicherungen.py``) ist
     ein synchrones ``def`` und laeuft heute schon im FastAPI Threadpool,
     ``anlegen`` wird also laengst produktiv aus Arbeitsthreads gerufen.
+
+    Das Schloss deckt die **ganze** Runde, also genau den Koerper, den
+    ``asyncio.to_thread`` in den Arbeitsthread schiebt - sonst bliebe
+    zwischen Pruefen und Anlegen ein Fenster fuer das Einspielen.
     """
     from ..db import SessionLocal, platz_zurueckgeben
     from .settings_service import load_settings
 
-    with SessionLocal() as db:
-        takt = load_settings(db).backup_schedule
-    if faellig(takt):
-        logger.info("Scheduled backup due (%s)", takt)
-        anlegen(art=AUTOMATISCH, kommentar="")
-    # Der laufende Teil der Selbstpflege: gibt geloeschten Platz stueckweise
-    # ans Dateisystem zurueck, 1000 Seiten sind rund 4 MB je Runde. Warum
-    # gerade hier und warum das reicht, steht bei ``platz_zurueckgeben``.
-    platz_zurueckgeben(1000)
+    with _pflege_schloss:
+        with SessionLocal() as db:
+            takt = load_settings(db).backup_schedule
+        if faellig(takt):
+            logger.info("Scheduled backup due (%s)", takt)
+            anlegen(art=AUTOMATISCH, kommentar="")
+        # Der laufende Teil der Selbstpflege: gibt geloeschten Platz stueckweise
+        # ans Dateisystem zurueck, 1000 Seiten sind rund 4 MB je Runde. Warum
+        # gerade hier und warum das reicht, steht bei ``platz_zurueckgeben``.
+        platz_zurueckgeben(1000)
 
 
 async def run_forever(stop: "asyncio.Event") -> None:
@@ -891,127 +909,134 @@ def wiederherstellen(daten: bytes, passwort: str) -> Befund:
             )
         raise SicherungFehler("restore_incompatible", f"{woher} und passt nicht zu {__version__}.")
 
-    from ..db import engine, init_db
+    # ⚠️ Ab hier gilt das gemeinsame Schloss mit dem Sicherungstakt (siehe
+    # ``_pflege_schloss``): erst die laufende Taktrunde abwarten, dann
+    # tauschen - sonst haelt der Takt die ``-wal``-Datei offen und das
+    # Loeschen unten scheitert mit ``restore_files_busy``, auch beim
+    # Wiederholen. Das Auspacken und Pruefen darueber braucht das Schloss
+    # nicht; es fasst keine Datei an.
+    with _pflege_schloss:
+        from ..db import engine, init_db
 
-    einstellungen = get_settings()
-    ziel = einstellungen.db_path
+        einstellungen = get_settings()
+        ziel = einstellungen.db_path
 
-    # ⚠️ **Wer den Betreiber-Haken traegt, wird jetzt gemerkt - vor dem Tausch.**
-    #
-    # Eine Sicherung kopiert die ganze Datenbank, der Haken reiste also mit. Ein
-    # zweiter Administrator koennte damit eine Uebergabe rueckgaengig machen:
-    # einen Stand von vor der Uebergabe einspielen, und der Haken saesse wieder
-    # bei ihm. Genau der Angriff, gegen den der Haken steht, ginge dann ueber
-    # die Sicherungsseite weiter.
-    #
-    # Der Haken ist deshalb der **eine** Wert, der die Zeitmaschine nicht
-    # mitmacht. Das ist eine bewusste Ausnahme von "eine Sicherung stellt den
-    # Stand von damals her", und sie ist in ``betreiber.nach_dem_einspielen``
-    # ausgeschrieben.
-    #
-    # Der **Name**, nicht die Kennung: Die Kennungen der eingespielten Datenbank
-    # sind andere. Vor der Einrichtung gibt es niemanden - dann gilt der Stand
-    # aus der Sicherung, und das ist richtig.
-    from .betreiber import nach_dem_einspielen, traeger as betreiber_traeger
+        # ⚠️ **Wer den Betreiber-Haken traegt, wird jetzt gemerkt - vor dem Tausch.**
+        #
+        # Eine Sicherung kopiert die ganze Datenbank, der Haken reiste also mit. Ein
+        # zweiter Administrator koennte damit eine Uebergabe rueckgaengig machen:
+        # einen Stand von vor der Uebergabe einspielen, und der Haken saesse wieder
+        # bei ihm. Genau der Angriff, gegen den der Haken steht, ginge dann ueber
+        # die Sicherungsseite weiter.
+        #
+        # Der Haken ist deshalb der **eine** Wert, der die Zeitmaschine nicht
+        # mitmacht. Das ist eine bewusste Ausnahme von "eine Sicherung stellt den
+        # Stand von damals her", und sie ist in ``betreiber.nach_dem_einspielen``
+        # ausgeschrieben.
+        #
+        # Der **Name**, nicht die Kennung: Die Kennungen der eingespielten Datenbank
+        # sind andere. Vor der Einrichtung gibt es niemanden - dann gilt der Stand
+        # aus der Sicherung, und das ist richtig.
+        from .betreiber import nach_dem_einspielen, traeger as betreiber_traeger
 
-    try:
-        from ..db import SessionLocal
-
-        with SessionLocal() as vorher:
-            bisheriger_betreiber = getattr(betreiber_traeger(vorher), "username", None)
-    except Exception as fehler:  # noqa: BLE001
-        # Eine Datenbank, die sich nicht mehr lesen laesst, ist genau der Grund,
-        # aus dem jemand einspielt. Der Vorgang darf daran nicht scheitern.
-        logger.warning("Could not read the current owner before restoring: %s", fehler)
-        bisheriger_betreiber = None
-
-    # Rueckweg zuerst - solange die alte Datenbank noch steht.
-    if ziel.exists():
         try:
-            anlegen(art=AUTOMATISCH, kommentar="vor dem Wiederherstellen")
+            from ..db import SessionLocal
+
+            with SessionLocal() as vorher:
+                bisheriger_betreiber = getattr(betreiber_traeger(vorher), "username", None)
         except Exception as fehler:  # noqa: BLE001
-            logger.warning("Could not back up before restore: %s", fehler)
+            # Eine Datenbank, die sich nicht mehr lesen laesst, ist genau der Grund,
+            # aus dem jemand einspielt. Der Vorgang darf daran nicht scheitern.
+            logger.warning("Could not read the current owner before restoring: %s", fehler)
+            bisheriger_betreiber = None
 
-    # Verbindungen schliessen, sonst haelt SQLite die Dateien fest.
-    engine.dispose()
+        # Rueckweg zuerst - solange die alte Datenbank noch steht.
+        if ziel.exists():
+            try:
+                anlegen(art=AUTOMATISCH, kommentar="vor dem Wiederherstellen")
+            except Exception as fehler:  # noqa: BLE001
+                logger.warning("Could not back up before restore: %s", fehler)
 
-    # ⚠️ **Die Begleitdateien muessen mit weg** - und genau daran haengt es.
-    # Bleibt ein ``-wal`` der alten Datenbank liegen, spielt SQLite dessen
-    # Aenderungen in die **neue** ein; die stammen aber aus einer voellig
-    # anderen Datenbank.
-    #
-    # ⚠️ Und es kann fehlschlagen: Haelt noch irgendetwas eine Verbindung
-    # offen - eine Hintergrundschleife mitten in einer Abfrage, die Sitzung
-    # der laufenden Anfrage -, verweigert Windows das Loeschen. Deshalb ein
-    # paar Versuche mit kurzer Pause.
-    #
-    # Unter Linux waere das Ausbleiben dieses Fehlers **schlimmer**: Dort
-    # laesst sich eine offene Datei loeschen, der Aufruf ginge still durch,
-    # und ein Schreiber haenge danach an einer Datei, die es nicht mehr gibt.
-    # Der Schaden fiele erst viel spaeter auf. Deshalb wird hier nicht
-    # weggeschaut, sondern abgebrochen.
-    for anhang in ("-wal", "-shm"):
-        _hartnaeckig_loeschen(ziel.with_name(ziel.name + anhang))
+        # Verbindungen schliessen, sonst haelt SQLite die Dateien fest.
+        engine.dispose()
 
-    ziel.write_bytes(roh_db)
+        # ⚠️ **Die Begleitdateien muessen mit weg** - und genau daran haengt es.
+        # Bleibt ein ``-wal`` der alten Datenbank liegen, spielt SQLite dessen
+        # Aenderungen in die **neue** ein; die stammen aber aus einer voellig
+        # anderen Datenbank.
+        #
+        # ⚠️ Und es kann fehlschlagen: Haelt noch irgendetwas eine Verbindung
+        # offen - eine Hintergrundschleife mitten in einer Abfrage, die Sitzung
+        # der laufenden Anfrage -, verweigert Windows das Loeschen. Deshalb ein
+        # paar Versuche mit kurzer Pause.
+        #
+        # Unter Linux waere das Ausbleiben dieses Fehlers **schlimmer**: Dort
+        # laesst sich eine offene Datei loeschen, der Aufruf ginge still durch,
+        # und ein Schreiber haenge danach an einer Datei, die es nicht mehr gibt.
+        # Der Schaden fiele erst viel spaeter auf. Deshalb wird hier nicht
+        # weggeschaut, sondern abgebrochen.
+        for anhang in ("-wal", "-shm"):
+            _hartnaeckig_loeschen(ziel.with_name(ziel.name + anhang))
 
-    if schluessel:
-        if einstellungen.secret_key:
-            # Die Umgebungsvariable gewinnt immer - eine Datei daneben aendert
-            # daran nichts. Wer das nicht weiss, sucht spaeter lange.
-            logger.warning(
-                "Restored backup contains a secret.key, but NEXVIEW_SECRET_KEY is set - "
-                "the variable wins. Stored service credentials will stay unreadable "
-                "unless the variable holds the same value."
-            )
-        else:
-            einstellungen.key_file.write_text(schluessel, encoding="utf-8")
+        ziel.write_bytes(roh_db)
 
-    for schluessel_name, inhalt in beilagen.items():
-        # ``unter`` stammt aus BEILAGEN, nicht aus dem Archiv - der Name kann
-        # also nicht aus dem Datenverzeichnis herausfuehren.
-        unter, _, dateiname = schluessel_name.partition("/")
-        ziel_ordner = einstellungen.data_dir / unter
-        ziel_ordner.mkdir(parents=True, exist_ok=True)
-        (ziel_ordner / dateiname).write_bytes(inhalt)
-    if beilagen:
-        logger.info("Restored %d accompanying file(s)", len(beilagen))
+        if schluessel:
+            if einstellungen.secret_key:
+                # Die Umgebungsvariable gewinnt immer - eine Datei daneben aendert
+                # daran nichts. Wer das nicht weiss, sucht spaeter lange.
+                logger.warning(
+                    "Restored backup contains a secret.key, but NEXVIEW_SECRET_KEY is set - "
+                    "the variable wins. Stored service credentials will stay unreadable "
+                    "unless the variable holds the same value."
+                )
+            else:
+                einstellungen.key_file.write_text(schluessel, encoding="utf-8")
 
-    # ⚠️ **Der TRaSH-Stand wird gemerkt.** Ohne das Leeren arbeitet der
-    # laufende Prozess bis zum Neustart mit dem Abzug von vor dem Einspielen
-    # weiter - und misst die gerade eingespielten Qualitaetsprofile gegen einen
-    # Stand, den sie nie gesehen haben.
-    from .trash import schnappschuss
+        for schluessel_name, inhalt in beilagen.items():
+            # ``unter`` stammt aus BEILAGEN, nicht aus dem Archiv - der Name kann
+            # also nicht aus dem Datenverzeichnis herausfuehren.
+            unter, _, dateiname = schluessel_name.partition("/")
+            ziel_ordner = einstellungen.data_dir / unter
+            ziel_ordner.mkdir(parents=True, exist_ok=True)
+            (ziel_ordner / dateiname).write_bytes(inhalt)
+        if beilagen:
+            logger.info("Restored %d accompanying file(s)", len(beilagen))
 
-    schnappschuss.cache_clear()
+        # ⚠️ **Der TRaSH-Stand wird gemerkt.** Ohne das Leeren arbeitet der
+        # laufende Prozess bis zum Neustart mit dem Abzug von vor dem Einspielen
+        # weiter - und misst die gerade eingespielten Qualitaetsprofile gegen einen
+        # Stand, den sie nie gesehen haben.
+        from .trash import schnappschuss
 
-    # ⚠️ **Und der abgeleitete Verschluesselungsschluessel genauso.** Ein paar
-    # Zeilen weiter oben kann gerade ein fremdes ``secret.key`` geschrieben
-    # worden sein. ``crypto`` merkt sich den daraus abgeleiteten Fernet einmal
-    # je Prozesslauf; ohne dieses Vergessen liefe der Dienst bis zum Neustart
-    # mit dem Schluessel von **vor** dem Einspielen weiter und hielte jedes
-    # eingespielte Geheimnis fuer unlesbar.
-    from ..crypto import fernet_vergessen
+        schnappschuss.cache_clear()
 
-    fernet_vergessen()
+        # ⚠️ **Und der abgeleitete Verschluesselungsschluessel genauso.** Ein paar
+        # Zeilen weiter oben kann gerade ein fremdes ``secret.key`` geschrieben
+        # worden sein. ``crypto`` merkt sich den daraus abgeleiteten Fernet einmal
+        # je Prozesslauf; ohne dieses Vergessen liefe der Dienst bis zum Neustart
+        # mit dem Schluessel von **vor** dem Einspielen weiter und hielte jedes
+        # eingespielte Geheimnis fuer unlesbar.
+        from ..crypto import fernet_vergessen
 
-    # Aeltere Sicherung? Dann fehlen ihr Spalten und Tabellen - die ergaenzt
-    # der gewoehnliche Startweg.
-    init_db()
+        fernet_vergessen()
 
-    # ⚠️ **Nach ``init_db``, nicht davor.** Der Startweg traegt die Spalte
-    # nach und vergibt den Haken notfalls neu (aelteste Sicherung, in der es
-    # ihn noch gar nicht gab). Erst danach steht fest, worauf hier gesetzt
-    # werden kann.
-    from ..db import SessionLocal as _Sitzung
+        # Aeltere Sicherung? Dann fehlen ihr Spalten und Tabellen - die ergaenzt
+        # der gewoehnliche Startweg.
+        init_db()
 
-    with _Sitzung() as nachher:
-        nach_dem_einspielen(nachher, bisheriger_betreiber)
+        # ⚠️ **Nach ``init_db``, nicht davor.** Der Startweg traegt die Spalte
+        # nach und vergibt den Haken notfalls neu (aelteste Sicherung, in der es
+        # ihn noch gar nicht gab). Erst danach steht fest, worauf hier gesetzt
+        # werden kann.
+        from ..db import SessionLocal as _Sitzung
 
-    _alle_abmelden()
+        with _Sitzung() as nachher:
+            nach_dem_einspielen(nachher, bisheriger_betreiber)
 
-    logger.info("Backup restored: version %s from %s", brief.version, brief.erstellt)
-    return Befund(brief, True, "ok", schluessel is not None)
+        _alle_abmelden()
+
+        logger.info("Backup restored: version %s from %s", brief.version, brief.erstellt)
+        return Befund(brief, True, "ok", schluessel is not None)
 
 
 def _alle_abmelden() -> None:

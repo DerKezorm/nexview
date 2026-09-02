@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
@@ -215,7 +216,14 @@ async def einspielen(
     db.close()
 
     try:
-        befund = sicherung.wiederherstellen(daten, passwort)
+        # ⚠️ In den Arbeitsthread, nicht auf die Ereignisschleife: das
+        # Einspielen blockiert komplett (Sicherung vorher, Dateitausch,
+        # ``init_db`` samt einmaligem Umstellungs-VACUUM - gemessen 0,44 bis
+        # 0,59 s, inhaltsproportional nach oben offen). Solange es auf der
+        # Schleife liefe, wuerde keine andere Anfrage bedient. Im Thread darf
+        # es auch blockierend auf ``_pflege_schloss`` warten, falls gerade
+        # eine Taktrunde laeuft.
+        befund = await asyncio.to_thread(sicherung.wiederherstellen, daten, passwort)
     except sicherung.SicherungFehler as fehler:
         raise _als_fehler(fehler) from fehler
     return _steckbrief_public(befund)

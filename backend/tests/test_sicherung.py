@@ -14,15 +14,18 @@ import json
 import shutil
 import sqlite3
 import threading
+import time
+import types
 from pathlib import Path
 
 import pyzipper
 import pytest
 from fastapi.testclient import TestClient
 
+import app.db as db_modul
 from app import __version__
 from app.config import get_settings
-from app.services import sicherung
+from app.services import settings_service, sicherung
 
 
 PASSWORT = "ein-langes-testpasswort"
@@ -1089,3 +1092,94 @@ class TestRunForever:
         await aufgabe
 
         assert len(aufrufe) == 1
+
+
+class TestTaktGegenEinspielen:
+    """Takt-Thread und Einspielen teilen sich ``_pflege_schloss``.
+
+    Seit die Taktrunde per ``asyncio.to_thread`` in einem Arbeitsthread
+    laeuft, konnte sie mit ``wiederherstellen`` ueberlappen: Der Takt fuellt
+    den Verbindungsvorrat nach jedem ``engine.dispose()`` sofort wieder und
+    haelt die ``-wal``-Datei offen - das Einspielen scheiterte dann mit
+    ``restore_files_busy``, und einmal busy blieb es das auch beim
+    Wiederholen (gemessen am 02.09.2026: 4 von 8 Versuchen). Das Schloss
+    serialisiert beide: Einspielen wartet die laufende Runde ab, der Takt
+    setzt aus, solange eingespielt wird.
+    """
+
+    def test_einspielen_wartet_auf_die_laufende_taktrunde(
+        self, admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Einspielen mitten in einer kuenstlich verlangsamten Taktrunde.
+
+        Es darf weder mit ``restore_files_busy`` scheitern noch haengen - es
+        wartet, bis die Runde fertig ist, und laeuft dann durch. Die
+        Reihenfolge-Liste haelt genau das fest: erst die Runde, dann das
+        Einspielen.
+        """
+        pfad = sicherung.anlegen(art=sicherung.MANUELL, kommentar="takt-probe")
+        daten = sicherung.archiv(pfad.name, PASSWORT)
+
+        # ``off`` steht nicht in ``TAKTE``: die Runde legt keine Sicherung
+        # an, ihr langsamer Teil ist allein die gebremste Pflege darunter.
+        monkeypatch.setattr(
+            settings_service,
+            "load_settings",
+            lambda db: types.SimpleNamespace(backup_schedule="off"),
+        )
+
+        betreten = threading.Event()
+        reihenfolge: list[str] = []
+
+        def gebremste_pflege(seiten: int = 1000) -> int:
+            betreten.set()
+            time.sleep(0.8)
+            reihenfolge.append("takt fertig")
+            return 0
+
+        monkeypatch.setattr(db_modul, "platz_zurueckgeben", gebremste_pflege)
+
+        faden = threading.Thread(target=sicherung._takt)
+        faden.start()
+        try:
+            assert betreten.wait(5), "die Taktrunde ist nie angelaufen"
+            befund = sicherung.wiederherstellen(daten, PASSWORT)
+            reihenfolge.append("einspielen fertig")
+        finally:
+            faden.join(10)
+        assert not faden.is_alive(), "die Taktrunde haengt"
+        assert befund.grund == "ok"
+        assert reihenfolge == ["takt fertig", "einspielen fertig"], (
+            f"das Einspielen lief mitten in die Taktrunde hinein: {reihenfolge}"
+        )
+
+    def test_der_takt_setzt_aus_solange_eingespielt_wird(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Haelt das Einspielen das Schloss, laeuft keine Runde an.
+
+        Und danach wird sie nachgeholt, nicht verschluckt: Der Takt wartet am
+        Schloss und traegt dann ab.
+        """
+        monkeypatch.setattr(
+            settings_service,
+            "load_settings",
+            lambda db: types.SimpleNamespace(backup_schedule="off"),
+        )
+        gepflegt: list[int] = []
+        monkeypatch.setattr(
+            db_modul,
+            "platz_zurueckgeben",
+            lambda seiten=1000: gepflegt.append(seiten) or 0,
+        )
+
+        # Stellvertretend fuer ein laufendes Einspielen: dasselbe Schloss,
+        # das ``wiederherstellen`` um den Dateitausch haelt.
+        with sicherung._pflege_schloss:
+            faden = threading.Thread(target=sicherung._takt)
+            faden.start()
+            time.sleep(0.3)
+            assert not gepflegt, "die Taktrunde lief mitten ins Einspielen"
+        faden.join(5)
+        assert not faden.is_alive(), "die Taktrunde haengt"
+        assert gepflegt == [1000], "nach dem Einspielen holt der Takt die Runde nach"

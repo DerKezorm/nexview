@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..db import scheiben
 from ..models import MediaRequest, MediaType, QuotaPeriod, RequestStatus, User
 
 if TYPE_CHECKING:  # pragma: no cover - nur fuer die Typpruefung
@@ -198,20 +199,25 @@ def uebersichten(
 
     zaehler: dict[tuple[int, MediaType], int] = {}
     for start, kennungen in gruppen.items():
-        for user_id, media_type, anzahl in db.execute(
-            select(
-                MediaRequest.user_id,
-                MediaRequest.media_type,
-                func.count(MediaRequest.id),
-            )
-            .where(
-                MediaRequest.user_id.in_(kennungen),
-                MediaRequest.status.in_(COUNTED_STATUSES),
-                MediaRequest.requested_at >= start,
-            )
-            .group_by(MediaRequest.user_id, MediaRequest.media_type)
-        ):
-            zaehler[(user_id, media_type)] = int(anzahl)
+        # In Scheiben wegen der SQLite-Parametergrenze (siehe ``db.scheiben``).
+        # Die Scheiben einer Gruppe sind disjunkt, jedes Konto liefert seine
+        # Zahlen also aus genau einer Abfrage - das Zusammenlegen per
+        # Zuweisung bleibt richtig.
+        for scheibe in scheiben(kennungen):
+            for user_id, media_type, anzahl in db.execute(
+                select(
+                    MediaRequest.user_id,
+                    MediaRequest.media_type,
+                    func.count(MediaRequest.id),
+                )
+                .where(
+                    MediaRequest.user_id.in_(scheibe),
+                    MediaRequest.status.in_(COUNTED_STATUSES),
+                    MediaRequest.requested_at >= start,
+                )
+                .group_by(MediaRequest.user_id, MediaRequest.media_type)
+            ):
+                zaehler[(user_id, media_type)] = int(anzahl)
 
     # Der naechste automatische Wechsel richtet sich nach dem Kalender,
     # nicht nach einer Ruecksetzung von Hand.

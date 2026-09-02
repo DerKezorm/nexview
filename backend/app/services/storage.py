@@ -23,6 +23,7 @@ from datetime import datetime
 from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
+from ..db import scheiben
 from ..models import (
     MediaRequest,
     MediaServerLibraryItem,
@@ -175,7 +176,12 @@ def kontostaende(db: Session, user_ids) -> dict[int, Kontostand]:
     """
     kennungen = list(user_ids)
     summen: dict[int, list[int]] = {kennung: [0, 0, 0] for kennung in kennungen}
-    if kennungen:
+    # In Scheiben wegen der SQLite-Parametergrenze (siehe ``db.scheiben``).
+    # Geschnitten wird ``list(summen)``, nicht ``kennungen``: das Woerterbuch
+    # hat doppelte Kennungen bereits verschluckt, und ein Duplikat in zwei
+    # Scheiben wuerde beim Aufaddieren doppelt zaehlen - im alten einen IN
+    # zaehlte es nur einmal.
+    for scheibe in scheiben(list(summen)):
         for zeile in db.execute(
             select(
                 StorageEntry.user_id,
@@ -184,7 +190,7 @@ def kontostaende(db: Session, user_ids) -> dict[int, Kontostand]:
                 StorageEntry.state,
             )
             .where(
-                StorageEntry.user_id.in_(kennungen),
+                StorageEntry.user_id.in_(scheibe),
                 StorageEntry.state.in_((StorageState.owned, StorageState.pending)),
             )
             .group_by(StorageEntry.user_id, StorageEntry.state)

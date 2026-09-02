@@ -29,6 +29,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..db import SCHEIBE, scheiben
 from ..models import (
     MediaType,
     NotificationType,
@@ -79,21 +80,37 @@ def fuer_anfragen(
     UNIQUE als verschieden, doppelte staffellose Zeilen sind also moeglich -
     und ``meine`` lieferte dann irgendeine. Hier gewinnt deterministisch die
     aelteste.
+
+    Altbestand ohne Fremdschluessel (moeglich von vor dem checkout-Horcher in
+    ``db.py``) kann das stehengebliebene Urteil eines geloeschten Nutzers
+    enthalten; anders als die alte ``db.get``-Wache in ``_bewertung_zu``
+    liefert diese Abfrage es mit - am Endpunkt unsichtbar, weil beide Wege
+    fuer dieselbe verwaiste Zeile vorher an ``request.user`` mit 500
+    abstuerzen.
     """
     if not anfragen:
         return {}
     ergebnis: dict[tuple[int, MediaType, int, int | None], TitleRating] = {}
-    for zeile in db.scalars(
-        select(TitleRating)
-        .where(
-            TitleRating.user_id.in_({a.user_id for a in anfragen}),
-            TitleRating.tmdb_id.in_({a.tmdb_id for a in anfragen}),
-        )
-        .order_by(TitleRating.id)
-    ):
-        ergebnis.setdefault(
-            (zeile.user_id, zeile.media_type, zeile.tmdb_id, zeile.season), zeile
-        )
+    # In Scheiben wegen der SQLite-Parametergrenze (siehe ``db.scheiben``);
+    # zwei IN-Listen teilen sich das Kontingent, darum je die Haelfte. Ein
+    # Scheiben**paar** je Abfrage aendert am Ergebnis nichts: Zeilen mit
+    # demselben Viererschluessel teilen sich Nutzer UND Titel, landen also
+    # immer im selben Paar - erste-gewinnt bleibt erhalten.
+    benutzer = list({a.user_id for a in anfragen})
+    titel = list({a.tmdb_id for a in anfragen})
+    for benutzer_scheibe in scheiben(benutzer, SCHEIBE // 2):
+        for titel_scheibe in scheiben(titel, SCHEIBE // 2):
+            for zeile in db.scalars(
+                select(TitleRating)
+                .where(
+                    TitleRating.user_id.in_(benutzer_scheibe),
+                    TitleRating.tmdb_id.in_(titel_scheibe),
+                )
+                .order_by(TitleRating.id)
+            ):
+                ergebnis.setdefault(
+                    (zeile.user_id, zeile.media_type, zeile.tmdb_id, zeile.season), zeile
+                )
     return ergebnis
 
 

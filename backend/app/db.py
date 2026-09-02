@@ -38,6 +38,15 @@ def _configure_sqlite(dbapi_connection, _connection_record) -> None:
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA foreign_keys=ON")
+    # ⚠️ Seit der Sicherungstakt in einem eigenen Thread laeuft, schreibt
+    # planmaessig ein zweiter Faden. Ohne busy_timeout wirft der zweite
+    # Schreiber sofort "database is locked" statt kurz zu warten. Bisher trug
+    # das allein der stillschweigende Standard von ``sqlite3.connect``
+    # (timeout=5.0) - der stand aber nirgends im Code, und wer je ein
+    # ``timeout`` uebergibt oder den Treiber wechselt, verloere den Schutz
+    # unbemerkt. Deshalb steht der Wert hier ausdruecklich. 5000 ms decken
+    # die gemessenen 8 bis 16 ms einer Taktrunde weit ab.
+    cursor.execute("PRAGMA busy_timeout=5000")
     cursor.close()
 
 
@@ -133,6 +142,28 @@ def _einstellungen_merker_verwerfen(session: Session, _kontext) -> None:
     betroffen = (*session.new, *session.dirty, *session.deleted)
     if any(isinstance(objekt, (Setting, MediaServerConnection)) for objekt in betroffen):
         merker_verwerfen(session)
+
+
+#: ⚠️ Hoechstens so viele Schluessel je IN-Abfrage. SQLite deckelt gebundene
+#: Parameter: heutige Builds bei 32766, aeltere (SQLITE_MAX_VARIABLE_NUMBER
+#: vor 3.32) schon bei 999. Eine gewachsene Anfragetabelle liess die
+#: Sammelabfragen sonst mit "too many SQL variables" in einen 500 laufen, wo
+#: der alte Je-Zeile-Weg nur langsam war. 900 laesst neben den Schluesseln
+#: noch Luft fuer die uebrigen Parameter derselben Abfrage (Status, Datum)
+#: und bleibt auch unter der alten Grenze.
+SCHEIBE = 900
+
+
+def scheiben(werte: list, groesse: int = SCHEIBE) -> Iterator[list]:
+    """Eine Schluesselliste in Scheiben fuer je eine IN-Abfrage schneiden.
+
+    Bei kleinen Mengen - dem Normalfall - kommt genau **eine** Scheibe
+    heraus, es bleibt also bei einer Abfrage; die Waagen in
+    ``test_abfragezahl.py`` messen das. Eine leere Liste ergibt keine
+    Scheibe und damit gar keine Abfrage.
+    """
+    for anfang in range(0, len(werte), groesse):
+        yield werte[anfang : anfang + groesse]
 
 
 #: Schritte in ``init_db``, die **genau einmal** laufen duerfen.
@@ -1493,9 +1524,13 @@ def _speicher_zurueckgeben_umstellen() -> None:
 
     Scheitert der Schritt, etwa mit SQLITE_BUSY durch eine offene Transaktion,
     dann laeuft der Start weiter: das PRAGMA meldet weiterhin 0, und der
-    naechste Start versucht es erneut. Am Ende von ``init_db`` wird noch
-    nichts bedient (``main.py``, lifespan), das einmalige volle ``VACUUM``
-    trifft also keine laufende Anfrage. Auf einer frischen Datei kostet der
+    naechste Start versucht es erneut. Beim Start trifft das einmalige volle
+    ``VACUUM`` keine laufende Anfrage (``main.py``, lifespan - bedient wird
+    erst danach). Der zweite Aufrufer ist aber das **Einspielen einer
+    Sicherung**: dort laeuft ``init_db`` mitten im Betrieb. Deshalb rufen die
+    Einspiel-Endpunkte das Ganze per ``asyncio.to_thread`` - die
+    Ereignisschleife bleibt frei, und ``sicherung._pflege_schloss`` haelt
+    waehrenddessen den Takt fern. Auf einer frischen Datei kostet der
     ganze Schritt nur das Lesen des PRAGMAs plus ein leeres ``VACUUM``.
     """
     pfad = _settings.db_path

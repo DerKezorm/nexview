@@ -219,17 +219,33 @@ def treffer(slugs: set[str], kennungen: list[int]) -> list[str]:
     return [marke.name for marke in MARKEN if marke.slug in getroffen]
 
 
-def eigene_dienste(db: Session, user: Any) -> set[str]:
-    """Die angehakten Dienste eines Kontos.
+def dienste_fuer(db: Session, user_ids) -> dict[int, set[str]]:
+    """Die angehakten Dienste mehrerer Konten - **eine** Abfrage statt einer je Konto.
 
-    Hier statt beim Aufrufer, damit die Tabelle nur an einer Stelle abgefragt
-    wird - sie wird spaeter auch von der Wunschliste der Eltern und der
-    Freigabeliste des Betreibers gebraucht.
+    Die Freigabeliste fragte die Tabelle je Anfragendem einzeln ab; das war
+    dieselbe Falle wie einst bei Bewertung und Speicherstand, nur eine Tabelle
+    weiter - und die Abfragen-Waage hat sie gewogen. Jede uebergebene Kennung
+    bekommt einen Eintrag; wer nichts angehakt hat, steht mit leerer Menge drin.
     """
     from ..models import StreamingService
 
-    return set(
-        db.scalars(
-            select(StreamingService.slug).where(StreamingService.user_id == user.id)
-        )
-    )
+    kennungen = list(user_ids)
+    ergebnis: dict[int, set[str]] = {kennung: set() for kennung in kennungen}
+    if kennungen:
+        for user_id, slug in db.execute(
+            select(StreamingService.user_id, StreamingService.slug).where(
+                StreamingService.user_id.in_(kennungen)
+            )
+        ):
+            ergebnis[user_id].add(slug)
+    return ergebnis
+
+
+def eigene_dienste(db: Session, user: Any) -> set[str]:
+    """Die angehakten Dienste eines Kontos - der Einzelfall der Sammelabfrage.
+
+    Hier statt beim Aufrufer, damit die Tabelle nur an einer Stelle abgefragt
+    wird - sie wird auch von der Wunschliste der Eltern und der Freigabeliste
+    des Betreibers gebraucht.
+    """
+    return dienste_fuer(db, (user.id,))[user.id]

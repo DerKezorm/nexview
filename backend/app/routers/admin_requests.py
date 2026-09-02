@@ -155,11 +155,11 @@ async def _abo_treffer(
     if not wartend:
         return {}
 
-    dienste: dict[int, set[str]] = {}
-    for anfrage in wartend:
-        if anfrage.user_id in dienste or anfrage.user is None:
-            continue
-        dienste[anfrage.user_id] = streaming.eigene_dienste(db, anfrage.user)
+    # Eine Sammelabfrage fuer alle Wartenden statt einer je Konto - die
+    # Abfragen-Waage hat hier ein Wachstum je Nutzer gewogen.
+    dienste = streaming.dienste_fuer(
+        db, {a.user_id for a in wartend if a.user is not None}
+    )
 
     offen = [a for a in wartend if dienste.get(a.user_id)]
     if not offen:

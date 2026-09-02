@@ -293,9 +293,15 @@ def uebersicht(admin: AdminUser, db: DbSession) -> StorageUebersicht:
 
     einstellungen = load_settings(db)
 
+    # Alle Konten in einem Gang statt ``db.get`` je Zeile: ``verteilung``
+    # fuehrt ohnehin jedes aktive Konto, und jedes einzelne ``get`` zog seine
+    # Verknuepfungen noch einzeln nach - drei Abfragen je Nutzer, gewogen von
+    # der Abfragen-Waage.
+    personen = {zeile.id: zeile for zeile in db.scalars(select(User))}
+
     for user_id, stand in storage.verteilung(db):
         gesamt += stand.used_bytes
-        person = db.get(User, user_id) if user_id is not None else None
+        person = personen.get(user_id) if user_id is not None else None
 
         # **Administratoren, die nichts halten, bleiben weg.** Ihr Konto steht
         # per Definition auf null - was sie holen, gehoert dem Haus -, und eine

@@ -12,33 +12,7 @@ tag exists for it.
 
 ---
 
-## 0.26.2
-
-### Under the hood
-
-- **The release notes no longer travel with every page load.** The editorial texts behind
-  "Everything that's new" were the single largest block in the language catalogue, 23.6 kB
-  on German, and every visitor downloaded them before the first paint. They are read once
-  by one administrator after an update, and normal users never see them at all: the banner
-  and the window are admin-only.
-
-  They now arrive on demand, and only when they are actually needed: when an administrator
-  has an unread update, or when somebody opens the window from the About page. No call site
-  was touched. The texts are merged into the same namespace they always lived in, so
-  `whatsNew.entries` still resolves the way it did.
-
-  The oldest of the six versions moved into `docs/wasneu-archiv.json` at the same time,
-  where 0.15 through 0.22 already were. The archive lost the version range from its
-  filename, because it gains an entry before every release and renaming it each time is
-  churn. Together this takes the first load from 821.81 kB to 791.89 kB, and from
-  240.41 kB to 229.78 kB compressed.
-
-  The failure this could have caused is worth naming: since the language split there is no
-  fallback language, so a text that arrives late shows its key instead. The banner would
-  have been the victim, because it asks whether an entry exists before deciding to appear,
-  and an empty answer reads as "nothing to report". It waits for the texts now instead of
-  guessing. Checked in a browser, in both languages, including a language switch with the
-  window open: no raw keys.
+## 0.26.2 – 02.09.2026
 
 ### Fixed
 
@@ -89,6 +63,24 @@ tag exists for it.
   stays quiet where nothing can have happened.
 
 ### Security
+- **A guard that was meant to find the next unguarded door did not find it.** The test
+  suite has several watchers that walk the whole route table and demand a decision for
+  every address: who may call it, whether a child account may, whether the protected
+  operator account is safe. To see whether they hold, a backdoor was built on purpose:
+  an endpoint that switches off any account, taking its target from the request body and
+  writing through the query layer rather than the object layer.
+
+  It walked through all 2,482 tests without a single failure. Part one of the operator
+  watcher missed it because no account id appeared in the path; part two missed it
+  because its scan knew about attribute assignment but not about that write path. Three
+  further watchers had holes of the same kind, and one of them had silently stopped
+  seeing 90 modules.
+
+  All four are repaired, a fifth now covers the whole backend instead of the routers
+  alone, and every one of them carries a floor check: it fails if it did not actually
+  look at anything. That was the real defect. A watcher that examines nothing is green
+  forever, and nobody notices. Ten addresses the sharpened watchers reported afterwards
+  were each checked by hand; none of them was a genuine hole.
 
 - **Four dependencies moved up, and a check that will notice the next one.** The pins had
   aged in silence. OSV listed six advisories against `pyjwt 2.11.0`, seven against
@@ -132,6 +124,73 @@ tag exists for it.
   whoever reads it next.
 
 ### Under the hood
+- **Lists fetch their data in one go instead of row by row.** The pending requests list
+  asked the database once per row for that row's rating: 157 queries for 144 rows, and it
+  grew with the archive. It now needs 11. The user list dropped from 22 to 9, the
+  dashboard from 42 to 25. The answers are unchanged, byte for byte, checked across 14
+  address variants against a copy of a real database before and after.
+
+  A scale in the test run keeps it that way. It does not ask whether the number is small
+  but whether it grows: seed the data twice over, and not a single extra query is
+  allowed. Arming it immediately turned up three more of the same kind that the targeted
+  repair had missed, including one the first fix could not see because its test data
+  happened to have no pending requests.
+
+- **The database gives deleted space back on its own.** Expired cache rows were deleted
+  but their pages stayed in the file, so it only ever grew: 172 MB of file for 32 MB of
+  content, 81 per cent of it dead. The mechanism to reclaim it already existed and was
+  used, but only on the copy that goes into a backup, never on the live file. It now runs
+  once at startup to switch the file over, and afterwards a little at a time on the backup
+  beat. On the measured database that is 180 MB down to 34 MB. A restored old backup
+  heals itself the same way.
+
+  While that beat moved off the event loop, it turned out it could now collide with a
+  restore. Both take turns on a shared lock, and the restore left the event loop as well:
+  it used to block every other request for as long as it ran.
+
+- **A switched-off foreign key check could survive in the connection pool.** Connections
+  are reused, and the setting that makes deletes cascade was applied when a connection was
+  created, not when it was handed out. A test that switched it off and did not switch it
+  back put that connection back into the pool, and whoever drew it next worked without 37
+  of the 40 cascade rules. In the test suite this showed up as a deleted account leaving
+  its tickets behind, three files away, with no visible connection. It is now set on every
+  checkout, so the next forgotten setting cannot do damage either.
+
+- **The build checks the Python code, and the test run stopped waiting for bcrypt.**
+  The frontend had ESLint, TypeScript, three checkers of its own; the backend had 63,000
+  lines and pytest. Ruff now runs as its own step and stops the build instead of warning.
+  Honest about the yield: it found 426 messages and not one crash or security hole among
+  them. The point is the roughly 400 rules that watch every line from here on. ESLint
+  joined the build too, with its threshold at zero; its 20 warnings were fixed, not muted.
+
+  Password hashing is deliberately slow, and the test run paid that price 2,482 times over:
+  roughly 60 per cent of it was spent inside bcrypt. Tests now hash with a low cost while
+  everything else keeps the full one, which is checked by its own test. The whole build
+  went from 40 minutes to 7.
+
+- **The release notes no longer travel with every page load.** The editorial texts behind
+  "Everything that's new" were the single largest block in the language catalogue, 23.6 kB
+  on German, and every visitor downloaded them before the first paint. They are read once
+  by one administrator after an update, and normal users never see them at all: the banner
+  and the window are admin-only.
+
+  They now arrive on demand, and only when they are actually needed: when an administrator
+  has an unread update, or when somebody opens the window from the About page. No call site
+  was touched. The texts are merged into the same namespace they always lived in, so
+  `whatsNew.entries` still resolves the way it did.
+
+  The oldest of the six versions moved into `docs/wasneu-archiv.json` at the same time,
+  where 0.15 through 0.22 already were. The archive lost the version range from its
+  filename, because it gains an entry before every release and renaming it each time is
+  churn. Together this takes the first load from 821.81 kB to 791.89 kB, and from
+  240.41 kB to 229.78 kB compressed.
+
+  The failure this could have caused is worth naming: since the language split there is no
+  fallback language, so a text that arrives late shows its key instead. The banner would
+  have been the victim, because it asks whether an entry exists before deciding to appear,
+  and an empty answer reads as "nothing to report". It waits for the texts now instead of
+  guessing. Checked in a browser, in both languages, including a language switch with the
+  window open: no raw keys.
 
 - **The settings are read once per request instead of up to eight times.** Every endpoint
   that needs them calls `load_settings`, and a page like the dashboard did so eight times

@@ -1,6 +1,38 @@
 {
   "whatsNew": {
     "entries": {
+      "0.26.2": {
+        "lead": "Unter der Haube. Diese Fassung bringt keine neue Funktion, und das ist Absicht: Sie repariert eine Einstellung, die sich hinter deinem Rücken umgedreht hat, macht die Listen deutlich schneller und räumt auf, was sich im Verborgenen angesammelt hatte. Zu sehen gibt es fast nichts. Zu merken schon.",
+        "sections": [
+          {
+            "title": "Eine Speichergrenze von 0 kippte bei jedem Neustart ins Gegenteil",
+            "where": "Verwaltung, Benutzer, Spalte Speichergrenze",
+            "body": "Wer einem Konto 0 GB gab, meinte: Dieses Konto darf nichts anfragen. Beim nächsten Start machte Nexview daraus „unbegrenzt“, also genau das Gegenteil, und sagte nichts dazu. Schuld war ein Umzugsschritt aus Fassung 0.19, der seither bei jedem Start mitlief statt ein einziges Mal. Das ist behoben, und zwar nicht nur für diesen einen Schritt: Nexview führt jetzt Buch darüber, welcher Umzug schon gelaufen ist, und dieses Buch übersteht sogar ein Update, das mittendrin abbricht. Was in der Vergangenheit bereits umgesprungen ist, lässt sich leider nicht zurückholen: Eine umgedeutete 0 sieht in der Datenbank aus wie ein absichtlich gesetztes „unbegrenzt“. Betrifft es deine Installation, steht beim nächsten Start ein Hinweis im Protokoll."
+          },
+          {
+            "title": "Die Listen holen ihre Daten am Stück",
+            "where": "Freigaben, Benutzerverwaltung, Dashboard",
+            "body": "Die Freigabeliste fragte die Datenbank für jede Zeile einzeln nach der Bewertung: 157 kleine Fragen für 144 Zeilen, und es wurden mehr, je länger die Liste wird. Jetzt sind es elf. Die Benutzerliste und das Dashboard genauso. Angezeigt wird exakt dasselbe wie vorher, Zeichen für Zeichen nachgeprüft. Damit das nicht zurückkommt, misst der Testlauf ab sofort nicht, ob die Zahl klein ist, sondern ob sie mitwächst, wenn sich die Daten verdoppeln."
+          },
+          {
+            "title": "Die Datenbank gibt gelöschten Platz von selbst zurück",
+            "where": "Nichts zu tun, passiert beim Start und danach im Hintergrund",
+            "body": "Abgelaufene Einträge im Zwischenspeicher wurden zwar gelöscht, ihr Platz blieb aber in der Datei liegen. Sie wuchs also immer weiter: gemessen 172 MB Datei für 32 MB Inhalt. Nexview stellt die Datenbank beim ersten Start dieser Fassung einmalig um und trägt den Platz danach nach und nach ab. Auf der gemessenen Datenbank waren das 180 MB vorher und 34 MB nachher. Der erste Start dauert dadurch etwas länger, einmalig, und sagt im Protokoll Bescheid."
+          },
+          {
+            "title": "Vier Bibliotheken auf einen sicheren Stand gehoben",
+            "where": "Nichts zu tun, steckt im Abbild",
+            "body": "Nexview kommt mit elf fremden Bibliotheken aus, wo vergleichbare Anwendungen siebenundsiebzig brauchen. Vier davon standen auf Fassungen, zu denen es inzwischen bekannte Meldungen gab, darunter die für Anmeldung und Verschlüsselung zuständigen. Alle vier sind gehoben. Ab jetzt hält eine Prüfung bei jedem Bau die eingetragenen Fassungen gegen die öffentliche Schwachstellen-Datenbank und bricht ab, statt bloß zu warnen."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "**Die Oberfläche lädt weniger.** Die Texte dieses Fensters reisten bisher bei jedem Seitenaufruf mit, obwohl sie nur ein Betreiber liest und nur einmal nach einem Update. Sie kommen jetzt auf Abruf. Der erste Ladevorgang fällt von 822 auf 792 kB.",
+          "**Das Abzeichen im Verwaltungsmenü verschwindet wieder.** Es zählte Befunde, und ein Befund bleibt wahr, solange er wahr ist. Also stand dieselbe Ziffer für immer da, auch nachdem jemand nachgesehen hatte. Es zählt jetzt Ungelesenes.",
+          "**Sicherungen und Wartung gehen sich nicht mehr in die Quere.** Der stündliche Takt und das Einspielen einer Sicherung konnten sich gegenseitig blockieren. Beide warten jetzt aufeinander, und das Einspielen lässt die Oberfläche währenddessen erreichbar.",
+          "**Die Werkstatt wurde aufgeräumt.** Zwei Prüfwerkzeuge wachen jetzt über den Python-Teil und die Oberfläche, und der Bau bei GitHub braucht statt vierzig Minuten nur noch sieben. Das merkt niemand außer mir, macht aber jede künftige Reparatur schneller."
+        ]
+      },
       "0.26.1": {
         "lead": "Eine Wartungsfassung: keine neue Funktion, sieben Reparaturen. Zwei davon fielen beim Ausprobieren auf, und eine hatte in einem echten Sonarr eine Serie hinterlassen, die dort nichts zu suchen hatte.",
         "sections": [

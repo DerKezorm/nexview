@@ -1,6 +1,38 @@
 {
   "whatsNew": {
     "entries": {
+      "0.26.2": {
+        "lead": "Under the hood. This release brings no new feature, and that is deliberate: it repairs a setting that turned itself around behind your back, makes the lists a lot faster, and clears out what had piled up out of sight. There is almost nothing to see. There is something to notice.",
+        "sections": [
+          {
+            "title": "A storage limit of 0 turned into its opposite on every restart",
+            "where": "Settings, Users, the storage limit column",
+            "body": "Giving an account 0 GB meant: this account may not request anything. On the next start Nexview turned that into unlimited, the exact opposite, and said nothing about it. The cause was a migration step from version 0.19 that kept running on every start instead of once. It is fixed, and not only for that one step: Nexview now keeps a book of which migrations have run, and that book survives an update that breaks off halfway. What already flipped in the past cannot be recovered; a rewritten 0 looks exactly like a deliberate unlimited in the database. If your installation is affected, a note appears in the log on the next start."
+          },
+          {
+            "title": "Lists fetch their data in one go",
+            "where": "Requests, user management, dashboard",
+            "body": "The pending requests list asked the database once per row for that row's rating: 157 small questions for 144 rows, and more the longer the list got. It is eleven now. Same for the user list and the dashboard. What is displayed is exactly what was displayed before, checked character by character. To keep it that way, the test run no longer measures whether the number is small but whether it grows when the data doubles."
+          },
+          {
+            "title": "The database gives deleted space back by itself",
+            "where": "Nothing to do, happens at startup and then in the background",
+            "body": "Expired cache entries were deleted, but their space stayed in the file, so it only ever grew: 172 MB of file for 32 MB of content, measured. Nexview converts the database once on the first start of this version and reclaims the space gradually after that. On the measured database that was 180 MB before and 34 MB after. The first start takes a little longer because of it, once, and says so in the log."
+          },
+          {
+            "title": "Four libraries raised to a safe version",
+            "where": "Nothing to do, it is in the image",
+            "body": "Nexview gets by with eleven third-party libraries where comparable applications need seventy-seven. Four of them sat on versions with published advisories, including the ones responsible for sign-in and encryption. All four are raised. From now on a check holds the pinned versions against the public vulnerability database on every build, and stops the build instead of merely warning."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "**The interface loads less.** The texts in this window used to travel along with every page load, although only an operator reads them and only once after an update. They arrive on demand now. The first load drops from 822 to 792 kB.",
+          "**The badge on the admin menu goes away again.** It counted findings, and a finding stays true as long as it is true, so the same digit sat there forever even after somebody had looked. It counts unread now.",
+          "**Backups and maintenance no longer get in each other's way.** The hourly beat and restoring a backup could block one another. They take turns now, and restoring leaves the interface reachable while it runs.",
+          "**The workshop was tidied up.** Two checkers now watch the Python side and the interface, and the build on GitHub takes seven minutes instead of forty. Nobody notices that but me, and it makes every future repair faster."
+        ]
+      },
       "0.26.1": {
         "lead": "A maintenance release: no new feature, seven repairs. Two of them turned up while trying the others out, and one had left a series behind in a real Sonarr that had no business being there.",
         "sections": [

@@ -24,6 +24,31 @@ nur noch jeden Zustand. Schlaegt sie an, gehoeren die Abfragen gebuendelt:
 (Muster: ``requests.my_requests``, ``ratings.fuer_anfragen``). Soll
 WACHSTUM_ERLAUBT wirklich steigen, ist das eine Entscheidung von Markus und
 keine Zeile nebenbei.
+
+**Die ehrlichen Grenzen des Messgeraets** - drei Blindstellen, nachgemessen
+am 02.09.2026, die man beim Aufnehmen neuer Adressen kennen muss:
+
+* **Rohe DBAPI-Cursor sieht der Horcher nicht.** ``before_cursor_execute``
+  zaehlt ORM-Selects, ``text()``-Ausfuehrungen und ``exec_driver_sql`` -
+  aber ``raw_connection().cursor().execute`` und der DBAPI-Cursor unter
+  einer laufenden Session laufen daran vorbei (gemessen: 0 Ereignisse).
+  Heute benutzt kein Request-Pfad rohes DBAPI, nur die Pflegewege in
+  ``db.py`` und ``services/sicherung.py``. Wer je eine Handler-Abfrage auf
+  einen rohen Cursor umstellt, verschwindet lautlos von dieser Waage.
+* **Der Aufwaermer schluckt Nur-beim-ersten-Mal-Arbeit.** Gezaehlt wird
+  immer der zweite, warme Aufruf. Ein Muster, das je Zeile genau einmal
+  schreibt (Zwischenspeicher fuellen, Gesehen-Markierung, Lazy-Anlage),
+  passiert vollstaendig im Aufwaermer und erscheint im gezaehlten Aufruf
+  nie. Fuer die heutigen Adressen folgenlos - keine hat so ein Muster, die
+  Zahlen sind ueber Laeufe byteweise identisch -, aber eine neue Adresse
+  mit so einem Muster wiegt hier leichter, als sie ist.
+* **Jede verschiedene Reset-Sekunde ist eine eigene Zaehlabfrage.**
+  ``quota.uebersichten`` bildet je ``counting_start`` eine Gruppe; setzt
+  der Betreiber vielen Konten einzeln das Kontingent zurueck, kostet die
+  Benutzerliste eine Abfrage je Gruppe. Das ist bewusst so - die Gruppen
+  zaehlen fachlich Verschiedenes, Korrektheit geht vor Abfragezahl. Die
+  Saat hier enthaelt deshalb kein ``quota_reset_at``; den Normalfall einer
+  einzelnen Gruppe bewacht ``test_abfragezahl.py``.
 """
 
 from __future__ import annotations
@@ -46,6 +71,7 @@ from app.models import (
     NotificationType,
     QualityTier,
     RequestStatus,
+    Role,
     StorageEntry,
     StorageState,
     User,
@@ -78,7 +104,9 @@ def _gezaehlt() -> Iterator[list[str]]:
 
     Die PRAGMA-Befehle der Verbindungs-Horcher aus ``db.py`` laufen als rohe
     Cursor-Aufrufe an diesem Ereignis vorbei und verschmutzen die Zahl nicht;
-    der Sockel war in allen Messungen exakt konstant.
+    der Sockel war in allen Messungen exakt konstant. Dieselbe Eigenschaft
+    ist zugleich die Blindstelle des Horchers: rohe DBAPI-Cursor sieht er
+    grundsaetzlich nicht - siehe den Kopf dieser Datei.
     """
     saetze: list[str] = []
 
@@ -99,7 +127,12 @@ def _gezaehlt() -> Iterator[list[str]]:
 def _gemessen(
     client: TestClient, pfad: str, kopf: dict[str, str] | None = None
 ) -> tuple[int, list[str]]:
-    """Ein aufwaermender Aufruf, dann der gezaehlte - beide muessen 200 sein."""
+    """Ein aufwaermender Aufruf, dann der gezaehlte - beide muessen 200 sein.
+
+    Der Aufwaermer stellt vor beiden Messungen denselben warmen Zustand her -
+    und macht die Waage damit blind fuer Arbeit, die je Zeile genau einmal
+    anfaellt (siehe den Kopf dieser Datei).
+    """
     aufwaermer = client.get(pfad, headers=kopf)
     assert aufwaermer.status_code == 200, aufwaermer.text
     with _gezaehlt() as saetze:
@@ -127,8 +160,26 @@ def _darf_nicht_wachsen(pfad: str, vorher: int, nachher: int, saetze: list[str])
 
 
 def _satz_fuer(session, kennung: int, entscheider: int, mit_geladenem: bool) -> None:
-    """Ein Satz Zeilen fuer ein Konto: 5 Anfragen, 5 Meldungen, 2 Posten."""
+    """Ein Satz Zeilen fuer ein Konto: 5 Anfragen, 5 Meldungen, 2 Posten.
+
+    Zwei der Anfragen sind Kinderwuensche (``for_child_id``) - mit einem
+    **eigenen** Kinderkonto je Satz, damit die Zahl der zu ladenden Kinder
+    mit der Saat waechst. Ohne Kinderwuensche in der Saat feuert bei einem
+    entfernten ``selectinload(for_child)`` kein einziges Nachladen, und
+    genau diese Mutation ueberlebte die Probe (Gegenprobe vom 02.09.2026).
+    """
     jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+    nummer = next(_TITELNUMMER)
+    kind = User(
+        username=f"waage-kind-{nummer}",
+        # Meldet sich nie an - der Hash muss nur die NOT-NULL-Regel erfuellen.
+        password_hash="ungenutzt",
+        role=Role.child,
+        parent_id=kennung,
+        display_name=f"Waage-Kind {nummer}",
+    )
+    session.add(kind)
+    session.flush()
     stati = [
         RequestStatus.pending_approval,
         RequestStatus.approved,
@@ -136,7 +187,7 @@ def _satz_fuer(session, kennung: int, entscheider: int, mit_geladenem: bool) -> 
         RequestStatus.rejected,
         RequestStatus.failed,
     ]
-    for status in stati:
+    for stelle, status in enumerate(stati):
         nummer = next(_TITELNUMMER)
         session.add(
             MediaRequest(
@@ -157,6 +208,7 @@ def _satz_fuer(session, kennung: int, entscheider: int, mit_geladenem: bool) -> 
                     None if status == RequestStatus.pending_approval else jetzt
                 ),
                 completed_at=jetzt if status == RequestStatus.downloaded else None,
+                for_child_id=kind.id if stelle < 2 else None,
             )
         )
     for _ in range(5):
@@ -264,6 +316,16 @@ def test_freigabeliste_waechst_nicht(arr_client: TestClient) -> None:
 def test_benutzerliste_waechst_nicht(arr_client: TestClient) -> None:
     """/api/users - zaehlte vor Punkt 5 zweimal je Konto."""
     _wachstumsprobe(arr_client, "/api/users")
+
+
+def test_statistik_waechst_nicht(arr_client: TestClient) -> None:
+    """/api/admin/stats - rief ``quota.overview`` je Konto in einer Schleife.
+
+    An der Kopie der echten Datenbank gemessen: 19 Abfragen bei 5 Konten,
+    24 bei 10 - exakt +1 je Konto, waehrend der fertige Fix
+    (``quota.uebersichten``) laengst im selben Modulhaushalt benutzt wurde.
+    """
+    _wachstumsprobe(arr_client, "/api/admin/stats")
 
 
 def test_speicher_uebersicht_waechst_nicht(arr_client: TestClient) -> None:

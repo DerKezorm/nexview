@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest, RequestStatus, User
+from app.models import MediaRequest, MediaType, RequestStatus, TitleRating, User
 
 from .conftest import auth_headers, create_user
 
@@ -292,10 +292,15 @@ def test_gewoehnlicher_nutzer_sieht_die_liste_nicht(arr_client: TestClient) -> N
 def test_jede_zeile_zeigt_ihr_eigenes_urteil(arr_client: TestClient) -> None:
     """Die Admin-Liste haengt jedes Urteil an genau seine Zeile.
 
-    Zwei Faelle, an denen ein falsch gebauter Schluessel kippt: Zwei Nutzer
+    Drei Faelle, an denen ein falsch gebauter Schluessel kippt: Zwei Nutzer
     urteilen ueber denselben Titel (ohne Konto im Schluessel bekaeme der
-    zweite das Urteil des ersten), und ein Nutzer urteilt ueber zwei Staffeln
-    derselben Serie (ohne Staffel im Schluessel zeigten beide Zeilen dasselbe).
+    zweite das Urteil des ersten), ein Nutzer urteilt ueber zwei Staffeln
+    derselben Serie (ohne Staffel im Schluessel zeigten beide Zeilen dasselbe),
+    und ein Nutzer hat **zwei staffellose Urteile zum selben Titel** - SQLite
+    zaehlt NULLs im UNIQUE als verschieden, das Duplikat ist also moeglich,
+    und ``ratings.fuer_anfragen`` verspricht dann deterministisch das aelteste
+    (kleinste id). Die API laesst das Duplikat nicht zu, deshalb kommt es hier
+    direkt in die Datenbank.
     """
     kim = _geladene_anfrage(arr_client, "kim")
     arr_client.post(
@@ -359,6 +364,26 @@ def test_jede_zeile_zeigt_ihr_eigenes_urteil(arr_client: TestClient) -> None:
             headers=kim["headers"],
         )
         assert bewertet.status_code == 200, bewertet.text
+
+    # Der Duplikatfall: ein zweites staffelloses Urteil von Kim zum selben
+    # Titel, direkt eingefuegt. Es ist juenger (groessere id) und widerspricht
+    # dem ersten - gewinnen darf trotzdem nur das aelteste mit seinen 4
+    # Sternen, sonst zeigte die Liste je nach Lesereihenfolge mal das eine,
+    # mal das andere.
+    with SessionLocal() as session:
+        kim_kennung = session.get(MediaRequest, kim["id"]).user_id
+        session.add(
+            TitleRating(
+                user_id=kim_kennung,
+                media_type=MediaType.movie,
+                tmdb_id=gemeinsamer_titel,
+                season=None,
+                rating=1,
+                comment="Doppelt eingefuegt.",
+                title="T",
+            )
+        )
+        session.commit()
 
     zeilen = arr_client.get("/api/admin/requests").json()
 

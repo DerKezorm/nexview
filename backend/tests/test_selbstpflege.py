@@ -24,19 +24,26 @@ import pytest
 from sqlalchemy import create_engine
 
 import app.db as db_modul
+from app.services import settings_service, sicherung
 
 
-def _aufgeblasene_datei(pfad: Path, *, umgestellt: bool = False) -> None:
+def _aufgeblasene_datei(pfad: Path, *, umgestellt: bool = False, wal: bool = False) -> None:
     """500 Blobs zu 4000 Bytes rein und wieder raus: 2 MB Datei, Freiliste 500.
 
     Mit ``umgestellt=True`` entsteht die Datei gleich als INCREMENTAL: vor der
     ersten Tabelle gesetzt wirkt das PRAGMA sofort, ganz ohne VACUUM. So laesst
     sich der laufende Teil pruefen, ohne vorher die Umstellung zu bemuehen.
+
+    Mit ``wal=True`` entsteht sie im WAL-Modus - wie die echte Datenbank
+    (``db.py`` setzt ihn je Verbindung). Der Modus haengt an der Datei und
+    entscheidet, ob die Hauptdatei erst beim Checkpoint schrumpft.
     """
     verbindung = sqlite3.connect(pfad)
     try:
         if umgestellt:
             verbindung.execute("PRAGMA auto_vacuum=2")
+        if wal:
+            verbindung.execute("PRAGMA journal_mode=WAL")
         verbindung.execute("CREATE TABLE ballast (inhalt BLOB)")
         verbindung.executemany(
             "INSERT INTO ballast (inhalt) VALUES (?)",
@@ -178,16 +185,36 @@ class TestPlatzZurueckgeben:
     def test_senkt_die_freiliste_und_die_datei_schrumpft(
         self, eigenes_datenverzeichnis: Path
     ) -> None:
-        _aufgeblasene_datei(eigenes_datenverzeichnis, umgestellt=True)
+        """Die Hauptdatei schrumpft **im Betriebsumfeld**: WAL und Vorrat.
+
+        Ohne beides prueft der Test am falschen Objekt vorbei: Ist keine
+        zweite Verbindung offen, checkpointet SQLite beim Schliessen der
+        letzten Verbindung von selbst - die Datei schrumpfte dann auch ohne
+        das ``wal_checkpoint(PASSIVE)`` in ``platz_zurueckgeben``, und die
+        entfernte Zeile blieb gruen (Gegenprobe vom 02.09.2026). Im Betrieb
+        haelt der Verbindungsvorrat der Engine dauerhaft Verbindungen offen;
+        gemessen blieb die Hauptdatei ohne den Checkpoint dann bei 2.060.288
+        Bytes stehen, mit ihm faellt sie auf 12.288.
+        """
+        _aufgeblasene_datei(eigenes_datenverzeichnis, umgestellt=True, wal=True)
         assert _befund(eigenes_datenverzeichnis) == (2, 500)
-        vorher = eigenes_datenverzeichnis.stat().st_size
 
-        freigegeben = db_modul.platz_zurueckgeben(1000)
+        # Der stellvertretende Vorrat: eine zweite Verbindung, die die Datei
+        # wirklich beruehrt hat und waehrend des Abtragens offen bleibt.
+        vorrat = sqlite3.connect(eigenes_datenverzeichnis)
+        try:
+            # fetchall statt fetchone: erst das Abholen bis zum Ende beendet
+            # die Lese-Transaktion, und ein haengender Leser wuerde genau den
+            # Checkpoint aufhalten, den dieser Test festnageln soll.
+            vorrat.execute("SELECT count(*) FROM ballast").fetchall()
 
-        assert freigegeben == 500
-        assert _befund(eigenes_datenverzeichnis) == (2, 0)
-        # Gemessen: von 2.060.288 auf 12.288 Bytes.
-        assert eigenes_datenverzeichnis.stat().st_size < vorher
+            freigegeben = db_modul.platz_zurueckgeben(1000)
+
+            assert freigegeben == 500
+            assert _befund(eigenes_datenverzeichnis) == (2, 0)
+            assert eigenes_datenverzeichnis.stat().st_size < 100_000
+        finally:
+            vorrat.close()
 
     def test_auf_nicht_umgestellter_datei_ein_belegter_leerlauf(
         self, eigenes_datenverzeichnis: Path
@@ -199,3 +226,34 @@ class TestPlatzZurueckgeben:
 
         assert freigegeben == 0
         assert _befund(eigenes_datenverzeichnis) == (0, 500)
+
+
+class TestTaktVerdrahtung:
+    def test_der_takt_traegt_wirklich_platz_ab(
+        self, eigenes_datenverzeichnis: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``_takt`` ruft ``platz_zurueckgeben`` - die Verdrahtung selbst.
+
+        Die Funktion prueft ``TestPlatzZurueckgeben``, den Thread prueft
+        ``test_sicherung.TestRunForever`` - aber dass der laufende Teil der
+        Selbstpflege ueberhaupt am Takt haengt, hielt kein Test: Die Zeile
+        konnte kommentarlos aus ``_takt`` verschwinden, und 71 Tests blieben
+        gruen (Gegenprobe vom 02.09.2026). Hier laeuft die echte Runde gegen
+        eine aufgeblasene Datei, und danach muessen die freien Seiten weg
+        sein.
+        """
+        _aufgeblasene_datei(eigenes_datenverzeichnis, umgestellt=True)
+        assert _befund(eigenes_datenverzeichnis) == (2, 500)
+
+        # Einstellungen ohne Datenbank: ``off`` steht nicht in ``TAKTE``,
+        # ``faellig`` sagt sofort nein - die Runde soll keine Sicherung
+        # anlegen, nur ihren Pflege-Teil laufen lassen.
+        monkeypatch.setattr(
+            settings_service,
+            "load_settings",
+            lambda db: types.SimpleNamespace(backup_schedule="off"),
+        )
+
+        sicherung._takt()
+
+        assert _befund(eigenes_datenverzeichnis) == (2, 0)

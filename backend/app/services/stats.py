@@ -291,9 +291,14 @@ def collect(db: Session) -> dict:
 
     # Kontingent-Auslastung im laufenden Zeitraum - **beide Waehrungen**, weil
     # beide immer gelten. Die Oberflaeche entscheidet, welche sie zeigt.
+    #
+    # Gruppiert gezaehlt statt je Konto einzeln - siehe ``quota.uebersichten``.
+    # ``overview`` in einer Schleife war exakt die Klasse Fehler, die diese
+    # Datei laut ihrem eigenen Kopf vermeiden soll: eine Abfrage je Benutzer.
     einstellungen = load_settings(db)
+    staende = quota.uebersichten(db, list(benutzer.values()), einstellungen)
     for eintrag in pro_benutzer.values():
-        stand = quota.overview(db, benutzer[eintrag.user_id], einstellungen)
+        stand = staende[eintrag.user_id]
         eintrag.quota_movie_used = stand["movie"].used
         eintrag.quota_movie_limit = stand["movie"].limit
         eintrag.quota_series_used = stand["tv"].used

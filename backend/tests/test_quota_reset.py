@@ -5,9 +5,10 @@ from __future__ import annotations
 from datetime import timedelta
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.db import SessionLocal
-from app.models import MediaRequest, User, utcnow
+from app.models import MediaRequest, MediaType, User, utcnow
 from app.services import quota
 from app.services.settings_service import load_settings
 
@@ -97,6 +98,57 @@ def test_alte_ruecksetzung_wirkt_nicht_mehr(arr_client: TestClient) -> None:
         )
 
     stand = arr_client.get("/api/requests/quota", headers=kim).json()
+    assert stand["movie"]["used"] == 1
+
+
+def test_anfrage_exakt_am_zaehlbeginn_zaehlt_mit(arr_client: TestClient) -> None:
+    """Die Grenze des Zaehlbeginns ist **inklusiv** - an beiden Kanten.
+
+    Kein anderer Test pinnt sie fest: Anfragen entstehen ueberall per API mit
+    ``requested_at`` = jetzt, und das liegt immer strikt nach Mitternacht und
+    strikt nach jedem Reset-Moment. Eine Regression auf exklusiv (``>`` statt
+    ``>=``) ueberlebte deshalb 44 Tests - und ein Konto mit einer Anfrage
+    exakt zum Reset-Zeitpunkt bekaeme still einen Platz geschenkt. Hier
+    werden beide Kanten von Hand datiert: exakt auf ``quota_reset_at`` und
+    exakt auf den Periodenbeginn.
+    """
+    kennung, kim = _benutzer_mit_grenze(arr_client, grenze=5)
+    _anfrage(arr_client, kim, 0)
+    assert arr_client.post(f"/api/users/{kennung}/quota/reset").status_code == 200
+
+    with SessionLocal() as session:
+        kim_db = session.get(User, kennung)
+        assert kim_db is not None and kim_db.quota_reset_at is not None
+        anfrage = session.scalar(
+            select(MediaRequest).where(MediaRequest.user_id == kennung)
+        )
+        anfrage.requested_at = kim_db.quota_reset_at
+        session.commit()
+        # Beide Zaehlwege muessen die Kante mitnehmen: ``uebersichten``
+        # bedient die Anzeigen, ``state_for`` die Durchsetzung beim Anlegen.
+        einstellungen = load_settings(session)
+        assert (
+            quota.state_for(session, kim_db, MediaType.movie, einstellungen).used == 1
+        )
+
+    stand = arr_client.get("/api/requests/quota", headers=kim).json()
+    assert stand["movie"]["used"] == 1
+
+    # Zweite Kante: der Periodenbeginn selbst, bei einem Konto ohne
+    # Ruecksetzung.
+    eva = create_user(arr_client, "eva")
+    eva_kopf = auth_headers(arr_client, "eva", "passwort-1234")
+    _anfrage(arr_client, eva_kopf, 1)
+
+    with SessionLocal() as session:
+        einstellungen = load_settings(session)
+        anfrage = session.scalar(
+            select(MediaRequest).where(MediaRequest.user_id == eva["id"])
+        )
+        anfrage.requested_at = quota.period_start(einstellungen.quota_period)
+        session.commit()
+
+    stand = arr_client.get("/api/requests/quota", headers=eva_kopf).json()
     assert stand["movie"]["used"] == 1
 
 

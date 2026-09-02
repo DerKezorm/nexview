@@ -131,7 +131,12 @@ def _jetzt() -> datetime:
 
 
 def _instanzen(db, settings) -> list[InstanzZeile]:
+    # Alle drei Tabellen je einmal, nicht je Instanz - dasselbe Muster wie im
+    # Vorrat von ``befunde.sammeln``. Wer je Instanz fragt, stellt bei drei
+    # Instanzen sechs Abfragen fuer zwei Tabellen mit je drei Zeilen.
     staende = instanz_stand.alle(db)
+    gesundheiten = instanz_gesundheit.alle(db)
+    webhooks = {zeile.kennung: zeile for zeile in db.scalars(select(ArrWebhook))}
     zeilen: list[InstanzZeile] = []
     for instanz in settings.arr_instanzen():
         stand = staende.get(instanz.kennung)
@@ -139,10 +144,8 @@ def _instanzen(db, settings) -> list[InstanzZeile]:
         warteschlange = messwerte.get("warteschlange") or {}
         luecken = messwerte.get("luecken") or {}
         neuer = messwerte.get("aktualisierung") or {}
-        gesundheit = instanz_gesundheit.eintrag(db, instanz.kennung)
-        webhook = db.scalar(
-            select(ArrWebhook).where(ArrWebhook.kennung == instanz.kennung)
-        )
+        gesundheit = gesundheiten.get(instanz.kennung)
+        webhook = webhooks.get(instanz.kennung)
         zeilen.append(
             InstanzZeile(
                 kennung=instanz.kennung,

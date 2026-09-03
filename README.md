@@ -73,6 +73,18 @@ its own page and more screenshots.
 - Three roles: administrator, approver, user. An approver decides on requests without
   ever getting near your API keys
 - Approve automatically or by hand, set separately for movies, shows and 4K
+- **Rules decide before that setting applies**: an ordered list where every rule is a
+  handful of conditions joined by AND and one consequence, approve at once or decline.
+  The first rule that matches wins; if none does, the account setting decides as it
+  always did. Conditions read the type, genre, rating, **number of votes**, year,
+  runtime, original language, age rating, the requested tier, and whether the title is
+  already here in the other tier. Approving may book it to **house stock**, where it
+  counts against nobody's storage quota
+- A decline is not a shrug: the request is created in the declined state, carries the
+  reason you wrote and names the rule that decided. Per rule the requester may send it
+  to an approver anyway, once, and never past a decision a person made. Nothing
+  overrides the age filter, a parent's decision or the requester's own quota, and
+  administrators and approvers are exempt from rules altogether
 - Quotas per day, week or month — or, instead of counting titles, **by disk space in
   gigabytes**, which is the thing that actually runs out
 - Child accounts: a parent creates a login for their child, with an age, a set of

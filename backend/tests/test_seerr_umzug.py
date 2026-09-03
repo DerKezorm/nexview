@@ -151,12 +151,12 @@ def test_serien_grenze_meldet_die_andere_zaehlweise() -> None:
     sonst haelt der Betreiber sie fuer dieselbe Regel.
     """
     _, hinweise = seerr_vorschau.kontingent_aus_seerr(5, None, "serien")
-    assert any("Staffeln" in satz for satz in hinweise)
+    assert any(h.kennung == "kontingent_staffeln" for h in hinweise)
 
 
 def test_zeitraum_wird_als_unterschied_gemeldet() -> None:
     _, hinweise = seerr_vorschau.kontingent_aus_seerr(5, 30, "filme")
-    assert any("Kalender" in satz for satz in hinweise)
+    assert any(h.kennung == "kontingent_zeitraum" for h in hinweise)
 
 
 # --------------------------------------------------------------------------
@@ -378,7 +378,7 @@ def test_jellyfin_treffer_traegt_den_vorbehalt(admin_client: TestClient) -> None
 
     zeile = vorschau.konten[0]
     assert zeile.treffer_user_id == erwartet
-    assert "nicht feststellen" in (zeile.treffer_grund or "")
+    assert zeile.treffer_grund is not None and zeile.treffer_grund.kennung == "treffer_unsicher"
 
 
 def test_plex_treffer_gilt_ohne_vorbehalt(admin_client: TestClient) -> None:
@@ -403,7 +403,7 @@ def test_plex_treffer_gilt_ohne_vorbehalt(admin_client: TestClient) -> None:
 
     zeile = vorschau.konten[0]
     assert zeile.treffer_user_id == erwartet
-    assert "derselben Quelle" in (zeile.treffer_grund or "")
+    assert zeile.treffer_grund is not None and zeile.treffer_grund.kennung == "treffer_plex"
 
 
 # --------------------------------------------------------------------------
@@ -897,7 +897,7 @@ def test_jellyfin_und_emby_kommen_aus_derselben_quelle() -> None:
         )
         server = next(b for b in bereiche if b.kennung == "medienserver")
         assert server.anbieter == erwartet
-        assert ("Server in Seerr", "Keller") in server.zeilen
+        assert any(w.kennung == "l_server_in_seerr" and v == "Keller" for w, v in server.zeilen)
         assert server.verbindung["adresse"] == "http://jellyfin.example.com:8096"
         assert server.verbindung["kennung"] == "0123456789abcdef"
         # Und trotz vorhandenem Schluessel wird nichts geschrieben.
@@ -932,11 +932,11 @@ def test_der_schluessel_von_jellyfin_hilft_nexview_nicht() -> None:
         email={},
     )
     server = next(b for b in bereiche if b.kennung == "medienserver")
-    grund = " ".join(server.luecken)
+    grund = " ".join(l.text for l in server.luecken)
     assert "Benutzername und Passwort" in grund
     assert "Jellyfin" in grund
     for _, anzeige in server.zeilen:
-        assert "y" * 32 not in anzeige
+        assert "y" * 32 not in str(anzeige)
 
 
 def test_ohne_medienserver_bleibt_der_bereich_stumm() -> None:
@@ -977,7 +977,7 @@ def test_die_arr_schluessel_kommen_mit_aber_nicht_nach_aussen() -> None:
     assert posten.werte["radarr_api_key"] == "x" * 32
     assert posten.werte["radarr_url"] == "http://radarr.example.com:7878"
     for _, anzeige in posten.zeilen:
-        assert "x" * 32 not in anzeige, "Ein Schluessel gehoert nicht in die Anzeige."
+        assert "x" * 32 not in str(anzeige), "Ein Schluessel gehoert nicht in die Anzeige."
 
 
 def test_die_haus_null_wird_nicht_zur_sperre() -> None:
@@ -994,7 +994,7 @@ def test_die_haus_null_wird_nicht_zur_sperre() -> None:
     # waere ab sofort wahr, egal was der Code tut.
     alle = {schluessel for posten in allgemein.posten for schluessel in posten.werte}
     assert "quota_default_movies" not in alle
-    assert any("ohne Grenze" in satz for satz in allgemein.luecken)
+    assert any(l.kennung.startswith("vorgabe_null_") for l in allgemein.luecken)
 
 
 def test_region_und_kontingent_haben_getrennte_haken() -> None:
@@ -1051,9 +1051,9 @@ def test_die_kontingent_vorgabe_sagt_fuer_wen_sie_gilt() -> None:
     # ⚠️ Beide Haelften, und beide kurz: Die Wertspalte schneidet ab, und ein
     # Satz, der an "nicht fuer die aus Seerr" abgeschnitten wird, sagt das
     # Gegenteil von dem, was dasteht.
-    beschriftungen = dict(menge.zeilen)
-    assert beschriftungen["Gilt für"] == "neue Konten"
-    assert beschriftungen["Nicht für"] == "die aus Seerr"
+    beschriftungen = {w.kennung: v for w, v in menge.zeilen}
+    assert beschriftungen["l_gilt_fuer"].kennung == "w_neue_konten"
+    assert beschriftungen["l_nicht_fuer"].kennung == "w_die_aus_seerr"
 
 
 # --------------------------------------------------------------------------
@@ -1381,7 +1381,7 @@ def test_doppelte_adresse_bleibt_draussen_mit_grund(client: TestClient, seerr_at
     assert bericht["konten"] == []
     assert len(bericht["abgelehnt"]) == 1
     assert bericht["abgelehnt"][0]["seerr_id"] == 2
-    assert "Adresse" in bericht["abgelehnt"][0]["grund"]
+    assert bericht["abgelehnt"][0]["grund"]["kennung"] == "adresse_vergeben"
     assert set(_konten_in_der_datenbank()["konten"]) == {"chefin"}
 
 

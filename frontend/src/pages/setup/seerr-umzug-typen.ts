@@ -15,6 +15,34 @@
 
 import type { TokenPair } from '../../api/client'
 
+/**
+ * Ein Hinweis des Umzugs, wie das Backend ihn liefert: Kennung und Zahlen.
+ *
+ * ⚠️ **Den Satz baut die Oberfläche, nicht das Backend.** Bis 0.29.0 kamen
+ * fertige deutsche Sätze, und die englische Oberfläche zeigte sie
+ * unverändert. `text` ist der deutsche Rückfall für alles, was die
+ * Schnittstelle ohne diese Oberfläche liest; angezeigt wird er nur, wenn
+ * `setup.seerr.saetze` die Kennung nicht kennt (ein Test im Backend hält
+ * beide Sprachdateien vollständig).
+ */
+export type Satz = { kennung: string; zahlen: Record<string, string | number>; text: string }
+
+/** Der Satz in der eingestellten Sprache. `t` ist die Funktion aus useTranslation. */
+export function satzText(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  satz: Satz,
+): string {
+  return t(`setup.seerr.saetze.${satz.kennung}`, { ...satz.zahlen, defaultValue: satz.text })
+}
+
+/** Ein Zeilenwert: Rohwert (Adresse, Name, Zahl) oder ein Satz ("kommt mit"). */
+export function wertText(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  wert: string | Satz,
+): string {
+  return typeof wert === 'string' ? wert : satzText(t, wert)
+}
+
 export type Kontozeile = {
   seerr_id: number
   anzeigename: string
@@ -22,13 +50,13 @@ export type Kontozeile = {
   herkunft: string
   anbieter_kennung: string | null
   treffer_user_id: number | null
-  treffer_grund: string | null
+  treffer_grund: Satz | null
   rolle_seerr: string
   rolle_neu: string
-  rolle_verlust: string | null
+  rolle_verlust: Satz | null
   kontingent_filme: number | null
   kontingent_serien: number | null
-  kontingent_hinweise: string[]
+  kontingent_hinweise: Satz[]
   anfragen: number
   bild: string | null
 }
@@ -42,7 +70,7 @@ export type Anfragezeile = {
   ziel_status: string
   besteller_seerr_id: number
   uhd: boolean
-  uebersprungen: string | null
+  uebersprungen: Satz | null
 }
 
 export type Instanz = {
@@ -56,24 +84,24 @@ export type Instanz = {
 export type Vorschau = {
   fassung: string
   fassung_geprueft: boolean
-  fassung_hinweis: string | null
+  fassung_hinweis: Satz | null
   medienserver: string | null
   konten: Kontozeile[]
   anfragen: Anfragezeile[]
   sperrliste: number
   meldungen: number
-  kommt_nicht_mit: Record<string, string>
+  kommt_nicht_mit: Record<string, Satz>
   instanzen: Instanz[]
   bereiche?: {
     kennung: string
     anbieter: string
-    zeilen: { was: string; wert: string }[]
-    luecken: string[]
+    zeilen: { was: Satz; wert: string | Satz }[]
+    luecken: Satz[]
     leer: boolean
     posten: {
       kennung: string
-      beschriftung: string
-      zeilen: { was: string; wert: string }[]
+      beschriftung: Satz
+      zeilen: { was: Satz; wert: string | Satz }[]
     }[]
     eintraege: number
     /**
@@ -85,7 +113,7 @@ export type Vorschau = {
      */
     verbindung?: { art: string; name: string; adresse: string; kennung: string }
   }[]
-  nie_dabei?: string[]
+  nie_dabei?: Satz[]
   konten_neu: number
   konten_verknuepft: number
   anfragen_uebernehmbar: number
@@ -257,7 +285,7 @@ export type Berichtskonto = {
 export type Bericht = {
   besitzer: { username: string; email: string | null; zugang: string; bild: string }
   konten: Berichtskonto[]
-  abgelehnt: { seerr_id: number; anzeigename: string; grund: string }[]
+  abgelehnt: { seerr_id: number; anzeigename: string; grund: Satz }[]
   bereiche: string[]
   felder: number
   gesperrt: number
@@ -265,7 +293,7 @@ export type Bericht = {
   bilder: number
   tmdb: boolean
   public_url: boolean
-  nie_dabei: string[]
+  nie_dabei: Satz[]
 }
 
 export type Abschluss = TokenPair & { bericht: Bericht }

@@ -12,6 +12,25 @@ tag exists for it.
 
 ---
 
+## 0.29.1 – 03.09.2026
+
+A maintenance release for the Seerr migration wizard: it now speaks the
+language you chose, all the way through.
+
+### Fixed
+
+- **The migration wizard mixed German into the English interface.** The hints
+  it shows were built as finished German sentences on the server: the quota
+  conversions on each account row, the gaps per area ("Seerr has no mail
+  server configured"), the labels of the preview rows, the reasons a row was
+  left out, and the list of what remains by hand in the final report. The
+  English interface showed them unchanged. The server now sends an identifier
+  and the numbers; the interface builds the sentence in its own language. A
+  test keeps both language files complete and their placeholders identical.
+- The wizard read a wrong field name for a person's own region from Seerr
+  (`region` instead of `discoverRegion`), so nobody's personal region would
+  have carried over. Fixed and measured against Seerr's source.
+
 ## 0.29.0 – 03.09.2026
 
 Whoever runs Seerr and wants to switch used to start from nothing: every

@@ -56,6 +56,7 @@ from typing import Any
 
 from ...models import RequestStatus, Role, User
 from ..quota import UNBEGRENZT
+from .texte import Satz, satz
 
 logger = logging.getLogger("nexview.seerr")
 
@@ -165,7 +166,7 @@ class Kontozeile:
     #: taeuschte Sicherheit vor, und ein falsch zugeordnetes Konto laesst sich
     #: in Nexview nicht mehr trennen - es gibt kein Zusammenfuehren.
     treffer_user_id: int | None
-    treffer_grund: str | None
+    treffer_grund: Satz | None
     #: Was das Konto in Seerr war, ausgedrueckt in Nexviews Rollen.
     #:
     #: ⚠️ **Eine Auskunft ueber die Quelle, keine Ankuendigung.** Was der Umzug
@@ -184,10 +185,10 @@ class Kontozeile:
     #: Administrator-Konto angekuendigt. Das ist genau der Fehler, den die
     #: Hausregel verhindert.
     rolle_neu: str
-    rolle_verlust: str | None
+    rolle_verlust: Satz | None
     kontingent_filme: int | None
     kontingent_serien: int | None
-    kontingent_hinweise: tuple[str, ...]
+    kontingent_hinweise: tuple[Satz, ...]
     anfragen: int
     #: Seerrs Profilbild - **immer eine Adresse**, nie eine Datei.
     #:
@@ -217,7 +218,7 @@ class Anfragezeile:
     uhd: bool
     instanz: int | None
     #: Gesetzt heisst: kommt **nicht** mit, und hier steht warum.
-    uebersprungen: str | None = None
+    uebersprungen: Satz | None = None
 
 
 @dataclass
@@ -226,14 +227,14 @@ class Vorschau:
 
     fassung: str
     fassung_geprueft: bool
-    fassung_hinweis: str | None
+    fassung_hinweis: Satz | None
     medienserver: str | None
     konten: list[Kontozeile] = field(default_factory=list)
     anfragen: list[Anfragezeile] = field(default_factory=list)
     sperrliste: int = 0
     meldungen: int = 0
     #: Was Nexview nicht mitnehmen kann, mit Grund - je Sache ein Satz.
-    kommt_nicht_mit: dict[str, str] = field(default_factory=dict)
+    kommt_nicht_mit: dict[str, Satz] = field(default_factory=dict)
     #: Radarr- und Sonarr-Instanzen, die Seerr kennt.
     instanzen: list[dict[str, Any]] = field(default_factory=list)
     #: Richtet gerade jemand ein, oder laeuft die Anlage schon?
@@ -276,7 +277,7 @@ class Vorschau:
 # --------------------------------------------------------------------------
 
 
-def rolle_aus_rechten(rechte: int) -> tuple[Role, str | None]:
+def rolle_aus_rechten(rechte: int) -> tuple[Role, Satz | None]:
     """Was war dieses Konto in Seerr, in Nexviews Rollen ausgedrueckt?
 
     ⚠️ **Das Ergebnis ist eine Auskunft, keine Zuweisung.** Was der Umzug
@@ -298,54 +299,36 @@ def rolle_aus_rechten(rechte: int) -> tuple[Role, str | None]:
     if rechte & RECHT_ANFRAGEN_VERWALTEN:
         verlust = None
         if rechte & (RECHT_EINSTELLUNGEN | RECHT_KONTEN):
-            verlust = (
-                "Durfte in Seerr auch Einstellungen oder Konten verwalten. "
-                "Dafür gibt es in Nexview nur die Administrator-Rolle, und die "
-                "vergibst du besser selbst."
-            )
+            verlust = satz("rolle_verlust_teilweise")
         return Role.approver, verlust
     verlust = None
     if rechte & (RECHT_EINSTELLUNGEN | RECHT_KONTEN):
-        verlust = (
-            "Durfte in Seerr Einstellungen oder Konten verwalten, aber keine "
-            "Anfragen entscheiden. Diese Kombination kennt Nexview nicht."
-        )
+        verlust = satz("rolle_verlust_kombination")
     return Role.user, verlust
 
 
-def kontingent_aus_seerr(grenze: int | None, tage: int | None, art: str) -> tuple[int | None, list[str]]:
+def kontingent_aus_seerr(grenze: int | None, tage: int | None, art: str) -> tuple[int | None, list[Satz]]:
     """Seerrs Stueckzahl auf Nexviews Grenze - samt der Warnungen dazu.
 
     Rueckgabe ist der **Datenbankwert**: ``None`` heisst Hausvorgabe,
     ``UNBEGRENZT`` heisst ausdruecklich ohne Grenze, eine Zahl genau diese.
     """
-    hinweise: list[str] = []
+    hinweise: list[Satz] = []
     if grenze is None:
         return None, hinweise
     if grenze == 0:
-        hinweise.append(
-            "In Seerr stand 0, und das heißt dort „nicht zählen“, also ohne "
-            "Grenze. Hier hieße die 0 „darf nichts“, deshalb wird daraus "
-            "ausdrücklich „ohne Grenze“."
-        )
+        hinweise.append(satz("kontingent_null"))
         return UNBEGRENZT, hinweise
     if art == "serien":
-        hinweise.append(
-            f"Seerr zählte {grenze} Staffeln, Nexview zählt {grenze} Anfragen. "
-            "Eine Anfrage kann mehrere Staffeln umfassen, die Grenze ist hier "
-            "also lockerer als drüben."
-        )
+        hinweise.append(satz("kontingent_staffeln", grenze=int(grenze)))
     if tage:
-        hinweise.append(
-            f"Seerr rechnete {tage} Tage rückwärts ab jetzt, Nexview rechnet am "
-            "Kalender. Der Zeitraum ist nicht derselbe."
-        )
+        hinweise.append(satz("kontingent_zeitraum", tage=int(tage)))
     return int(grenze), hinweise
 
 
 def zustand_aus_seerr(
     anfrage_status: int, werk_status: int | None
-) -> tuple[RequestStatus | None, str | None]:
+) -> tuple[RequestStatus | None, Satz | None]:
     """Beide Seerr-Quellen zusammen auf einen Nexview-Zustand.
 
     ``werk_status`` ist ``media.status4k`` bei einer 4K-Anfrage und sonst
@@ -365,10 +348,7 @@ def zustand_aus_seerr(
         # daran. Seerrs "fehlgeschlagen" traegt keinen. Das als ``failed``
         # einzuspielen erzeugte eine Anfrage, die einen Grund verspricht und
         # keinen hat.
-        return None, (
-            "In Seerr fehlgeschlagen. Nexview kennt dafür keinen Zustand, der "
-            "dasselbe bedeutet."
-        )
+        return None, satz("zustand_fehlgeschlagen")
     if anfrage_status in (ANFRAGE_FREIGEGEBEN, ANFRAGE_ABGESCHLOSSEN):
         if werk_status in (WERK_VERFUEGBAR, WERK_TEILWEISE_DA):
             return RequestStatus.downloaded, None
@@ -376,7 +356,7 @@ def zustand_aus_seerr(
         # wird, ist die Zurechnung des Speichers richtig - das ist dann eine
         # Anschaffung nach dem Umzug.
         return RequestStatus.approved, None
-    return None, f"Unbekannter Zustand in Seerr: {anfrage_status}"
+    return None, satz("zustand_unbekannt", status=anfrage_status)
 
 
 def _herkunft(konto: dict[str, Any]) -> tuple[str, str | None]:
@@ -391,7 +371,7 @@ def _herkunft(konto: dict[str, Any]) -> tuple[str, str | None]:
 
 def _treffer(
     herkunft: str, kennung: str | None, vorhanden: dict[tuple[str, str], User]
-) -> tuple[int | None, str | None]:
+) -> tuple[int | None, Satz | None]:
     """Gibt es dieses Konto in Nexview schon - sicher, nicht vermutet?
 
     ⚠️ **Nur ueber die Medienserver-Kennung, und nur bei Plex ohne Vorbehalt.**
@@ -414,11 +394,8 @@ def _treffer(
     if konto is None:
         return None, None
     if herkunft == "plex":
-        return konto.id, "Dieselbe Plex-Kennung, aus derselben Quelle."
-    return konto.id, (
-        "Gleiche Kennung. Ob beide Installationen denselben Server meinen, "
-        "kann Nexview nicht feststellen - Seerr schreibt es nicht auf."
-    )
+        return konto.id, satz("treffer_plex")
+    return konto.id, satz("treffer_unsicher")
 
 
 def _werk_status(anfrage: dict[str, Any], staffel: int | None) -> int | None:
@@ -439,26 +416,14 @@ def _werk_status(anfrage: dict[str, Any], staffel: int | None) -> int | None:
 #: Was Nexview nicht aufnehmen kann, und warum. Steht hier und nicht in der
 #: Oberflaeche, damit die Liste an einer Stelle vollstaendig ist.
 KOMMT_NICHT_MIT = {
-    "watchlist": (
-        "Merklisten. Nexview führt keine eigene, es zeigt die deines "
-        "Medienservers live an. Es gibt hier keinen Ort dafür."
-    ),
-    "notification_targets": (
-        "Persönliche Meldeadressen (Discord, Telegram, Pushover). In Seerr "
-        "hängen sie am Konto, in Nexview gehören die Kanäle dem Haus."
-    ),
-    "override_rules": (
-        "Seerrs Zielregeln. Sie steuern Server, Profil und Ordner. Nexviews "
-        "Regeln entscheiden über freigeben oder ablehnen - gleicher Name, "
-        "anderer Zweck."
-    ),
-    "discover_sliders": (
-        "Die Reihen auf Seerrs Startseite. Nexviews Regale stehen fest."
-    ),
-    "passwords": (
-        "Passwörter. Über die Schnittstelle gibt Seerr sie nicht heraus - im "
-        "Konto-Datensatz gibt es kein Passwortfeld."
-    ),
+    name: satz("nicht_dabei_" + name)
+    for name in (
+        "watchlist",
+        "notification_targets",
+        "override_rules",
+        "discover_sliders",
+        "passwords",
+    )
 }
 
 
@@ -493,18 +458,16 @@ def vorschau_bauen(
     roh = str(status.get("version") or "")
     fassung = _fassung(roh)
     geprueft = bool(fassung) and MINDESTFASSUNG <= fassung <= GEPRUEFT_BIS
-    hinweis: str | None = None
+    hinweis: Satz | None = None
     if not fassung:
-        hinweis = "Diese Installation nennt keine brauchbare Fassung."
+        hinweis = satz("fassung_unlesbar")
     elif fassung < MINDESTFASSUNG:
-        hinweis = (
-            f"Seerr {roh} ist älter als die älteste geprüfte Fassung "
-            f"{'.'.join(map(str, MINDESTFASSUNG))}."
+        hinweis = satz(
+            "fassung_zu_alt", fassung=roh, mindestens=".".join(map(str, MINDESTFASSUNG))
         )
     elif fassung > GEPRUEFT_BIS:
-        hinweis = (
-            f"Seerr {roh} ist neuer als alles, wogegen dieser Umzug geprüft "
-            f"wurde ({'.'.join(map(str, GEPRUEFT_BIS))})."
+        hinweis = satz(
+            "fassung_zu_neu", fassung=roh, geprueft=".".join(map(str, GEPRUEFT_BIS))
         )
 
     # Was Nexview schon kennt, einmal nachschlagbar gemacht.
@@ -531,14 +494,11 @@ def vorschau_bauen(
             ziel, warum = zustand_aus_seerr(int(eintrag.get("status") or 0), werkstand)
             uebersprungen = warum
             if uebersprungen is None and besteller not in bekannte_konten:
-                uebersprungen = "Das Konto dazu gibt es in Seerr nicht mehr."
+                uebersprungen = satz("anfrage_konto_weg")
             if uebersprungen is None and art == "tv" and not werk.get("tvdbId"):
-                uebersprungen = (
-                    "Seerr kennt zu dieser Serie keine TVDB-Nummer. Ohne sie "
-                    "findet Nexview sie in Sonarr nicht wieder."
-                )
+                uebersprungen = satz("anfrage_ohne_tvdb")
             if uebersprungen is None and not werk.get("tmdbId"):
-                uebersprungen = "Seerr kennt zu diesem Titel keine TMDB-Nummer."
+                uebersprungen = satz("anfrage_ohne_tmdb")
             anfragezeilen.append(
                 Anfragezeile(
                     seerr_id=int(eintrag["id"]),

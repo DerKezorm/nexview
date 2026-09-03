@@ -41,6 +41,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from .texte import Satz, satz
+
 logger = logging.getLogger("nexview.seerr")
 
 #: Die Bereiche in der Reihenfolge, in der der Assistent sie zeigt.
@@ -87,8 +89,10 @@ class Posten:
     """
 
     kennung: str
-    beschriftung: str
-    zeilen: list[tuple[str, str]] = field(default_factory=list)
+    beschriftung: Satz
+    #: Je Zeile eine Beschriftung (Satz) und ein Wert: ein Rohwert wie eine
+    #: Adresse, oder wieder ein Satz, wo der Wert ein Wort ist ("kommt mit").
+    zeilen: list[tuple[Satz, object]] = field(default_factory=list)
     werte: dict[str, object] = field(default_factory=dict)
     #: Nur bei Meldewegen: was fuer ein ``ChannelTarget`` daraus wird.
     #:
@@ -107,10 +111,12 @@ class Bereich:
     #: Was hier hineinkäme - Schlüssel aus ``settings_service.DEFAULTS``.
     werte: dict[str, object] = field(default_factory=dict)
     #: Was der Betreiber davon lesen soll, ohne die Werte selbst zu sehen.
-    #: Je Zeile ein Paar aus Bezeichnung und einer **ungefährlichen** Anzeige.
-    zeilen: list[tuple[str, str]] = field(default_factory=list)
-    #: Was in diesem Bereich **nicht** mitkommt, mit Grund.
-    luecken: list[str] = field(default_factory=list)
+    #: Je Zeile ein Paar aus Bezeichnung (Satz) und einer **ungefährlichen**
+    #: Anzeige - Rohwert oder Satz, siehe ``Posten.zeilen``.
+    zeilen: list[tuple[Satz, object]] = field(default_factory=list)
+    #: Was in diesem Bereich **nicht** mitkommt, mit Grund - als Satz, damit
+    #: die Oberflaeche ihn in ihrer Sprache baut (``texte.py``).
+    luecken: list[Satz] = field(default_factory=list)
     #: Einzeln anhakbare Unterpunkte. Ist die Liste gefuellt, entscheidet der
     #: Betreiber je Posten statt fuer den ganzen Bereich.
     posten: list[Posten] = field(default_factory=list)
@@ -213,7 +219,7 @@ def _medienserver(plex: dict, jellyfin: dict, main: dict) -> Bereich:
     b = Bereich("medienserver")
     b.anbieter = art or ""
     if art is None:
-        b.luecken.append("Seerr hat gar keinen Medienserver eingetragen.")
+        b.luecken.append(satz("kein_medienserver"))
         return b
 
     # Emby steht mit unter ``settings/jellyfin``; eine eigene Adresse dafuer
@@ -223,14 +229,14 @@ def _medienserver(plex: dict, jellyfin: dict, main: dict) -> Bereich:
     adresse = _server_adresse(quelle)
     name = str(quelle.get("name") or "")
 
-    b.zeilen.append(("Server in Seerr", name or "ohne Namen"))
+    b.zeilen.append((satz("l_server_in_seerr"), name or satz("w_ohne_namen")))
     if adresse:
-        b.zeilen.append(("Adresse in Seerr", adresse))
+        b.zeilen.append((satz("l_adresse_in_seerr"), adresse))
     if kennung:
         # Nur der Anfang: Er genuegt zum Wiedererkennen und verraet weniger
         # als die ganze Kennung.
         b.zeilen.append(
-            ("Maschinenkennung" if art == "plex" else "Server-Kennung", kennung[:8] + "…")
+            (satz("l_maschinenkennung" if art == "plex" else "l_server_kennung"), kennung[:8] + "…")
         )
 
     # Was das spaetere Verbinden vorausfuellen kann. Kein Geheimnis darin:
@@ -238,20 +244,10 @@ def _medienserver(plex: dict, jellyfin: dict, main: dict) -> Bereich:
     b.verbindung = {"art": art, "name": name, "adresse": adresse, "kennung": kennung}
 
     if art == "plex":
-        b.luecken.append(
-            "Das Plex-Token gibt Seerr nicht heraus. Du meldest dich am Ende "
-            "des Assistenten selbst bei Plex an, sobald dein Konto besteht; "
-            "der Server mit dieser Kennung wird dir dort vorgeschlagen."
-        )
+        b.luecken.append(satz("plex_token"))
         return b
 
-    beschriftung = "Jellyfin" if art == "jellyfin" else "Emby"
-    b.luecken.append(
-        f"Den Schlüssel aus Seerr kann Nexview nicht benutzen: Es verbindet "
-        "sich mit Benutzername und Passwort eines Administrators deines "
-        f"{beschriftung}-Servers. Das fragt der Assistent am Ende ab, sobald "
-        "dein Konto besteht; die Adresse oben wird dort vorausgefüllt."
-    )
+    b.luecken.append(satz("jf_schluessel", dienst="Jellyfin" if art == "jellyfin" else "Emby"))
     return b
 
 
@@ -284,9 +280,7 @@ def _dienste(radarr: list[dict], sonarr: list[dict]) -> Bereich:
             if eintrag is None:
                 continue
             schluessel = f"{praefix}_uhd" if uhd else praefix
-            was = "Filme" if praefix == "radarr" else "Serien"
-            platz = f"{was} in 4K" if uhd else was
-            posten = Posten(kennung=schluessel, beschriftung=f"{platz} · {art}")
+            posten = Posten(kennung=schluessel, beschriftung=satz(f"platz_{schluessel}"))
             posten.werte[f"{schluessel}_url"] = _arr_adresse(eintrag)
             posten.werte[f"{schluessel}_api_key"] = str(eintrag.get("apiKey") or "")
             posten.werte[f"{schluessel}_name"] = str(eintrag.get("name") or art)
@@ -294,18 +288,18 @@ def _dienste(radarr: list[dict], sonarr: list[dict]) -> Bereich:
             if ordner:
                 ziel = "movie" if praefix == "radarr" else "series"
                 posten.werte[f"default_{ziel}{'_uhd' if uhd else ''}_root"] = ordner
-            posten.zeilen.append(("In Seerr", str(eintrag.get("name") or art)))
-            posten.zeilen.append(("Adresse", _arr_adresse(eintrag)))
+            posten.zeilen.append((satz("l_in_seerr"), str(eintrag.get("name") or art)))
+            posten.zeilen.append((satz("l_adresse"), _arr_adresse(eintrag)))
             if eintrag.get("activeProfileName"):
-                posten.zeilen.append(("Profil", str(eintrag["activeProfileName"])))
+                posten.zeilen.append((satz("l_profil"), str(eintrag["activeProfileName"])))
             if ordner:
-                posten.zeilen.append(("Ordner", ordner))
+                posten.zeilen.append((satz("l_ordner"), ordner))
             # ⚠️ Nicht "gesetzt (32 Zeichen)". Die Zeichenzahl beantwortet keine
             # Frage, die jemand hat; "inklusive Schluessel" schon.
             posten.zeilen.append(
                 (
-                    "Schlüssel",
-                    "kommt mit" if eintrag.get("apiKey") else "in Seerr nicht hinterlegt",
+                    satz("l_schluessel"),
+                    satz("w_kommt_mit") if eintrag.get("apiKey") else satz("w_nicht_hinterlegt"),
                 )
             )
             b.posten.append(posten)
@@ -313,9 +307,10 @@ def _dienste(radarr: list[dict], sonarr: list[dict]) -> Bereich:
     uebrig = [e for e in (radarr + sonarr) if id(e) not in benutzt]
     for eintrag in uebrig:
         b.luecken.append(
-            f"„{eintrag.get('name') or 'ohne Namen'}“ bleibt draußen: Nexview hat "
-            f"für {'4K-' if eintrag.get('is4k') else ''}Titel dieser Art nur einen "
-            "Platz, und der ist vergeben."
+            satz(
+                "arr_uebrig_uhd" if eintrag.get("is4k") else "arr_uebrig",
+                name=str(eintrag.get("name") or "ohne Namen"),
+            )
         )
     return b
 
@@ -331,7 +326,7 @@ def _mail(email: dict) -> Bereich:
     b = Bereich("mail")
     o = email.get("options") or {}
     if not o.get("smtpHost"):
-        b.luecken.append("In Seerr ist kein Mailserver eingetragen.")
+        b.luecken.append(satz("kein_mailserver"))
         return b
 
     sicherheit = "ssl" if o.get("secure") else ("starttls" if o.get("requireTls") else "none")
@@ -346,19 +341,16 @@ def _mail(email: dict) -> Bereich:
             "smtp_from_name": str(o.get("senderName") or ""),
         }
     )
-    b.zeilen.append(("Server", f"{o.get('smtpHost')}:{o.get('smtpPort')} · {sicherheit}"))
+    b.zeilen.append((satz("l_server"), f"{o.get('smtpHost')}:{o.get('smtpPort')} · {sicherheit}"))
     b.zeilen.append(
         (
-            "Anmeldung",
-            "kommt mit, samt Passwort" if o.get("authPass") else "ohne Passwort",
+            satz("l_anmeldung"),
+            satz("w_kommt_mit_passwort") if o.get("authPass") else satz("w_ohne_passwort"),
         )
     )
-    b.zeilen.append(("Absender", str(o.get("emailFrom") or "nicht gesetzt")))
+    b.zeilen.append((satz("l_absender"), str(o.get("emailFrom") or "") or satz("w_nicht_gesetzt")))
     if not email.get("enabled"):
-        b.luecken.append(
-            "In Seerr ist der Mailversand abgeschaltet. Die Zugangsdaten kommen "
-            "trotzdem mit; ob Nexview verschickt, entscheidest du selbst."
-        )
+        b.luecken.append(satz("mail_aus"))
     return b
 
 
@@ -380,11 +372,11 @@ def _allgemein(main: dict) -> Bereich:
     """
     b = Bereich("allgemein")
 
-    ort = Posten(kennung="vorgabe_region", beschriftung="Region und Sprache")
+    ort = Posten(kennung="vorgabe_region", beschriftung=satz("region_und_sprache"))
     region = str(main.get("discoverRegion") or "").upper()
     if region:
         ort.werte["default_region"] = region
-        ort.zeilen.append(("Region", region))
+        ort.zeilen.append((satz("l_region"), region))
 
     sprache = str(main.get("locale") or "").split("-")[0].lower()
     # ⚠️ Nexview kennt genau zwei Sprachen. Alles andere faellt auf die
@@ -392,12 +384,9 @@ def _allgemein(main: dict) -> Bereich:
     # die man erst Wochen spaeter bemerkt.
     if sprache in ("de", "en"):
         ort.werte["default_language"] = sprache
-        ort.zeilen.append(("Sprache", sprache))
+        ort.zeilen.append((satz("l_sprache"), sprache))
     elif sprache:
-        b.luecken.append(
-            f"Seerr steht auf „{sprache}“. Nexview spricht Deutsch und Englisch; "
-            "es bleibt bei der Hausvorgabe."
-        )
+        b.luecken.append(satz("sprache_unbekannt", sprache=sprache))
     if ort.werte:
         b.posten.append(ort)
 
@@ -407,14 +396,11 @@ def _allgemein(main: dict) -> Bereich:
     # hiesse, jede Einladungsmail auf die alte Anwendung zu verlinken. Nexview
     # fragt seine eigene Adresse deshalb selbst.
 
-    menge = Posten(
-        kennung="vorgabe_kontingent",
-        beschriftung="Kontingent-Vorgabe für neue Konten",
-    )
+    menge = Posten(kennung="vorgabe_kontingent", beschriftung=satz("kontingent_vorgabe"))
     vorgaben = main.get("defaultQuotas") or {}
-    for seerr_art, nexview_schluessel, beschriftung in (
-        ("movie", "quota_default_movies", "Filme je Zeitraum"),
-        ("tv", "quota_default_series", "Serien je Zeitraum"),
+    for seerr_art, nexview_schluessel, was in (
+        ("movie", "quota_default_movies", "filme"),
+        ("tv", "quota_default_series", "serien"),
     ):
         grenze = (vorgaben.get(seerr_art) or {}).get("quotaLimit")
         if grenze is None:
@@ -423,23 +409,20 @@ def _allgemein(main: dict) -> Bereich:
         # 0 "nicht zaehlen", in Nexview "darf nichts". Als Hausvorgabe ist der
         # ehrliche Gegenwert "keine Vorgabe", also leer.
         if int(grenze) == 0:
-            b.luecken.append(
-                f"{beschriftung}: In Seerr stand 0, was dort „ohne Grenze“ heißt. "
-                "Als Hausvorgabe bleibt das Feld deshalb leer."
-            )
+            b.luecken.append(satz(f"vorgabe_null_{was}"))
             continue
         menge.werte[nexview_schluessel] = int(grenze)
-        menge.zeilen.append((beschriftung, str(int(grenze))))
+        menge.zeilen.append((satz(f"l_{was}_je_zeitraum"), str(int(grenze))))
     if menge.werte:
         # ⚠️ **Zwei kurze Zeilen statt eines Satzes.** Die Wertspalte schneidet
-        # ab; ein Satz, der genau an "nicht für die aus Seerr" abgeschnitten
+        # ab; ein Satz, der genau an "nicht fuer die aus Seerr" abgeschnitten
         # wird, sagt dann das Gegenteil.
-        menge.zeilen.append(("Gilt für", "neue Konten"))
-        menge.zeilen.append(("Nicht für", "die aus Seerr"))
+        menge.zeilen.append((satz("l_gilt_fuer"), satz("w_neue_konten")))
+        menge.zeilen.append((satz("l_nicht_fuer"), satz("w_die_aus_seerr")))
         b.posten.append(menge)
 
     if not b.posten:
-        b.luecken.append("In Seerr ist hier nichts eingestellt, was Nexview kennt.")
+        b.luecken.append(satz("allgemein_nichts"))
     return b
 
 
@@ -475,14 +458,14 @@ def _kanaele(agenten: dict[str, dict]) -> Bereich:
         beschriftung: str,
         eltern: dict[str, str],
         kind: dict[str, str] | None,
-        zeilen: list[tuple[str, str]],
+        zeilen: list[tuple[Satz, object]],
         an: bool,
     ) -> None:
-        posten = Posten(kennung=f"kanal_{kennung}", beschriftung=beschriftung)
+        posten = Posten(kennung=f"kanal_{kennung}", beschriftung=satz("kanal", name=beschriftung))
         posten.kanal = {"art": kennung, "eltern": eltern, "kind": kind or {}}
         posten.zeilen = list(zeilen)
         posten.zeilen.append(
-            ("In Seerr", "eingeschaltet" if an else "eingerichtet, aber aus")
+            (satz("l_in_seerr"), satz("w_eingeschaltet") if an else satz("w_eingerichtet_aus"))
         )
         b.posten.append(posten)
 
@@ -493,7 +476,7 @@ def _kanaele(agenten: dict[str, dict]) -> Bereich:
             "Discord",
             {"url": str(d["webhookUrl"]), "username": "Nexview"},
             None,
-            [("Webhook", "kommt mit")],
+            [(satz("l_webhook"), satz("w_kommt_mit"))],
             bool((agenten.get("discord") or {}).get("enabled")),
         )
 
@@ -508,8 +491,8 @@ def _kanaele(agenten: dict[str, dict]) -> Bereich:
                 "thread_id": str(t.get("messageThreadId") or ""),
             },
             [
-                ("Token", "kommt mit"),
-                ("Chat", str(t.get("chatId") or "nicht gesetzt")),
+                (satz("l_token"), satz("w_kommt_mit")),
+                (satz("l_chat"), str(t.get("chatId") or "") or satz("w_nicht_gesetzt")),
             ],
             bool((agenten.get("telegram") or {}).get("enabled")),
         )
@@ -521,7 +504,7 @@ def _kanaele(agenten: dict[str, dict]) -> Bereich:
             "Gotify",
             {"url": str(g["url"]), "token": str(g["token"])},
             None,
-            [("Server", str(g["url"])), ("Token", "kommt mit")],
+            [(satz("l_server"), str(g["url"])), (satz("l_token"), satz("w_kommt_mit"))],
             bool((agenten.get("gotify") or {}).get("enabled")),
         )
 
@@ -532,7 +515,7 @@ def _kanaele(agenten: dict[str, dict]) -> Bereich:
             "ntfy",
             {"url": str(n["url"]), "auth": "keine"},
             {"topic": str(n.get("topic") or "")},
-            [("Server", str(n["url"])), ("Topic", str(n.get("topic") or "nicht gesetzt"))],
+            [(satz("l_server"), str(n["url"])), (satz("l_topic"), str(n.get("topic") or "") or satz("w_nicht_gesetzt"))],
             bool((agenten.get("ntfy") or {}).get("enabled")),
         )
 
@@ -543,19 +526,14 @@ def _kanaele(agenten: dict[str, dict]) -> Bereich:
             "Webhook",
             {"url": str(w["webhookUrl"])},
             None,
-            [("Ziel", str(w["webhookUrl"]))],
+            [(satz("l_ziel"), str(w["webhookUrl"]))],
             bool((agenten.get("webhook") or {}).get("enabled")),
         )
 
     if b.posten:
-        b.luecken.append(
-            "Übernommen wird der Weg, nicht was darüber geht: Nexview kennt "
-            "andere Meldungen als Seerr (Rückmeldungen, Ticketcenter, "
-            "Speicher). Was an welchen Kanal geschickt wird, stellst du danach "
-            "unter Benachrichtigungen selbst ein."
-        )
+        b.luecken.append(satz("kanaele_abos"))
     else:
-        b.luecken.append("In Seerr ist kein Meldeweg für das Haus eingerichtet.")
+        b.luecken.append(satz("kein_meldeweg"))
 
     ohne_gegenstueck = [
         name
@@ -564,9 +542,7 @@ def _kanaele(agenten: dict[str, dict]) -> Bereich:
         and any((agenten.get(name) or {}).get("options", {}).values())
     ]
     if ohne_gegenstueck:
-        b.luecken.append(
-            "Kein Gegenstück in Nexview: " + ", ".join(sorted(ohne_gegenstueck)) + "."
-        )
+        b.luecken.append(satz("kanaele_ohne_gegenstueck", namen=", ".join(sorted(ohne_gegenstueck))))
     return b
 
 
@@ -601,22 +577,18 @@ def _sperrliste(eintraege: list[dict[str, Any]]) -> Bereich:
         )
 
     if b.eintraege:
-        b.zeilen.append(("Gesperrte Titel", str(len(b.eintraege))))
+        b.zeilen.append((satz("l_gesperrte_titel"), str(len(b.eintraege))))
         ohne_titel = sum(1 for e in b.eintraege if not e["title"])
         if ohne_titel:
-            b.zeilen.append(("Davon ohne Namen", str(ohne_titel)))
+            b.zeilen.append((satz("l_davon_ohne_namen"), str(ohne_titel)))
     else:
-        b.luecken.append("In Seerr ist nichts gesperrt.")
+        b.luecken.append(satz("sperrliste_leer"))
 
     if mit_etiketten:
         b.luecken.append(
-            (
-                "Ein Eintrag sperrt"
-                if mit_etiketten == 1
-                else f"{mit_etiketten} Einträge sperren"
-            )
-            + " in Seerr zusätzlich Etiketten. Dafür hat Nexview kein "
-            "Gegenstück; die Titel kommen trotzdem mit."
+            satz("sperrliste_etiketten_eins")
+            if mit_etiketten == 1
+            else satz("sperrliste_etiketten", anzahl=mit_etiketten)
         )
     return b
 
@@ -658,20 +630,7 @@ def bereiche_bauen(
 
 
 #: Was dieser Umzug grundsätzlich nicht abnehmen kann, unabhängig vom Bestand.
-NIE_DABEI = (
-    (
-        "Der TMDB-Schlüssel. Seerr hat gar keinen einstellbaren, er steckt dort "
-        "fest im Programm. Den trägst du selbst ein."
-    ),
-    (
-        "Passwörter der Benutzer. Über die Schnittstelle gibt Seerr sie nicht "
-        "heraus; im Konto-Datensatz gibt es kein Passwortfeld."
-    ),
-    (
-        "Die Anfragehistorie. Was in Radarr liegt, zeigt Nexview ohnehin als "
-        "vorhanden an - verloren geht nur, wer es angefragt hat."
-    ),
-)
+NIE_DABEI = (satz("nie_tmdb"), satz("nie_passwoerter"), satz("nie_historie"))
 
 
 __all__ = [

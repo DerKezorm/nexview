@@ -55,6 +55,7 @@ from ..services import (
 )
 from ..services.mediaserver.base import ExternalAccount
 from ..services.seerr import SeerrClient, SeerrFehler, Zugang, vorschau_bauen
+from ..services.seerr.texte import Satz, satz
 from ..services.seerr.uebernahme import NIE_DABEI, WAEHLBAR, bereiche_bauen
 from ..services.seerr.vorschau import ROLLEN_BEI_FRISCHER_INSTALLATION, Kontozeile
 from ..services.tmdb import TmdbClient, TmdbError
@@ -127,7 +128,7 @@ async def pruefung(eingabe: ZugangEingabe) -> dict[str, object]:
     return {
         "version": probe.fassung,
         "geprueft": probe.fassung_geprueft,
-        "hinweis": probe.fassung_hinweis,
+        "hinweis": probe.fassung_hinweis.als_dict() if probe.fassung_hinweis else None,
         "commit": roh.get("commitTag"),
     }
 
@@ -171,8 +172,11 @@ async def vorlage(eingabe: ZugangEingabe, db) -> dict:
                 status.HTTP_409_CONFLICT,
                 {
                     "code": "seerr_version_unknown",
-                    "message": probe.fassung_hinweis
-                    or "Diese Seerr-Fassung ist nicht geprüft.",
+                    "message": (
+                        probe.fassung_hinweis.text
+                        if probe.fassung_hinweis
+                        else "Diese Seerr-Fassung ist nicht geprüft."
+                    ),
                     "version": probe.fassung,
                 },
             )
@@ -251,14 +255,14 @@ async def vorlage(eingabe: ZugangEingabe, db) -> dict:
             {
                 "kennung": b.kennung,
                 "anbieter": b.anbieter,
-                "zeilen": [{"was": w, "wert": v} for w, v in b.zeilen],
-                "luecken": b.luecken,
+                "zeilen": [_zeile(w, v) for w, v in b.zeilen],
+                "luecken": [l.als_dict() for l in b.luecken],
                 "leer": b.leer,
                 "posten": [
                     {
                         "kennung": p.kennung,
-                        "beschriftung": p.beschriftung,
-                        "zeilen": [{"was": w, "wert": v} for w, v in p.zeilen],
+                        "beschriftung": p.beschriftung.als_dict(),
+                        "zeilen": [_zeile(w, v) for w, v in p.zeilen],
                     }
                     for p in b.posten
                 ],
@@ -271,8 +275,13 @@ async def vorlage(eingabe: ZugangEingabe, db) -> dict:
             }
             for b in bereiche
         ],
-        "nie_dabei": list(NIE_DABEI),
+        "nie_dabei": [n.als_dict() for n in NIE_DABEI],
     }
+
+
+def _zeile(was: Satz, wert: object) -> dict[str, object]:
+    """Eine Anzeigezeile nach aussen: Beschriftung als Satz, Wert roh oder als Satz."""
+    return {"was": was.als_dict(), "wert": wert.als_dict() if isinstance(wert, Satz) else wert}
 
 
 # --------------------------------------------------------------------------
@@ -655,7 +664,7 @@ async def abschliessen(
                     {
                         "seerr_id": nummer,
                         "anzeigename": zeile.anzeigename,
-                        "grund": "Diese Adresse gehört schon einem anderen Konto.",
+                        "grund": satz("adresse_vergeben").als_dict(),
                     }
                 )
                 continue
@@ -763,7 +772,7 @@ async def abschliessen(
         "bilder": len(mit_bild),
         "tmdb": bool(tmdb_schluessel),
         "public_url": bool(adresse_aussen),
-        "nie_dabei": list(NIE_DABEI),
+        "nie_dabei": [n.als_dict() for n in NIE_DABEI],
     }
     # Erst jetzt, nach dem Commit: Die Sitzung gehoert zu einem Konto, das es
     # wirklich gibt.

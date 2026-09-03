@@ -123,7 +123,7 @@ describe('die Zusammenfassung', () => {
   it('zählt Anfragen nicht mit, die ohnehin übersprungen werden', () => {
     const anfragen = [
       anfrage({ seerr_id: 10, besteller_seerr_id: 1 }),
-      anfrage({ seerr_id: 11, besteller_seerr_id: 1, uebersprungen: 'keine TVDB-Nummer' }),
+      anfrage({ seerr_id: 11, besteller_seerr_id: 1, uebersprungen: { kennung: 'test', zahlen: {}, text: 'keine TVDB-Nummer' } }),
     ]
     const stand = zusammenfassen(konten, anfragen, {})
     expect(stand.anfragen).toBe(1)

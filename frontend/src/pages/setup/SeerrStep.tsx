@@ -44,13 +44,13 @@ import { Button, Field, Spinner } from '../../components/ui'
 import { useConfig } from '../../hooks/useConfig'
 import { providerName } from '../../lib/mediaserver'
 import { useMediaServerChallenge } from '../../lib/useMediaServerChallenge'
-import type { Abschluss, Bericht, Rolle, Vorschau, Wahl } from './seerr-umzug-typen'
-import { abschlussKonten, benutzernameAus, vorgabeFuer } from './seerr-umzug-typen'
+import type { Abschluss, Bericht, Rolle, Satz, Vorschau, Wahl } from './seerr-umzug-typen'
+import { abschlussKonten, benutzernameAus, satzText, vorgabeFuer, wertText } from './seerr-umzug-typen'
 
 type Pruefung = {
   version: string
   geprueft: boolean
-  hinweis: string | null
+  hinweis: Satz | null
   commit: string | null
 }
 
@@ -504,7 +504,7 @@ function Verbinden({
         <Hinweis art={pruefen.data.geprueft ? 'gut' : 'warn'}>
           {pruefen.data.geprueft
             ? t('settings.seerr.checkOk', { version: pruefen.data.version })
-            : pruefen.data.hinweis}
+            : pruefen.data.hinweis && satzText(t, pruefen.data.hinweis)}
         </Hinweis>
       )}
       {holenFehler && <Hinweis art="fehler">{holenFehler}</Hinweis>}
@@ -522,9 +522,9 @@ function BereichsSchritt({
   schalten,
 }: {
   kennung: string
-  zeilen: { was: string; wert: string }[]
-  posten: { kennung: string; beschriftung: string; zeilen: { was: string; wert: string }[] }[]
-  luecken: string[]
+  zeilen: { was: Satz; wert: string | Satz }[]
+  posten: { kennung: string; beschriftung: Satz; zeilen: { was: Satz; wert: string | Satz }[] }[]
+  luecken: Satz[]
   leer: boolean
   gewaehlt: Set<string>
   schalten: (kennung: string, an: boolean) => void
@@ -540,9 +540,9 @@ function BereichsSchritt({
           {zeilen.length > 0 && (
             <div className="flex flex-col gap-1 rounded-xl border border-ink-700 bg-ink-900 p-4">
               {zeilen.map((z) => (
-                <div key={z.was} className="flex justify-between gap-4 text-sm">
-                  <span className="text-mist-500">{z.was}</span>
-                  <span className="text-right text-mist-100">{z.wert}</span>
+                <div key={z.was.kennung} className="flex justify-between gap-4 text-sm">
+                  <span className="text-mist-500">{satzText(t, z.was)}</span>
+                  <span className="text-right text-mist-100">{wertText(t, z.wert)}</span>
                 </div>
               ))}
             </div>
@@ -565,12 +565,12 @@ function BereichsSchritt({
               />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-mist-100">
-                  {p.beschriftung}
+                  {satzText(t, p.beschriftung)}
                 </span>
                 {p.zeilen.map((z) => (
-                  <span key={z.was} className="mt-0.5 flex justify-between gap-4 text-xs">
-                    <span className="text-mist-600">{z.was}</span>
-                    <span className="truncate text-right text-mist-400">{z.wert}</span>
+                  <span key={z.was.kennung} className="mt-0.5 flex justify-between gap-4 text-xs">
+                    <span className="text-mist-600">{satzText(t, z.was)}</span>
+                    <span className="truncate text-right text-mist-400">{wertText(t, z.wert)}</span>
                   </span>
                 ))}
               </span>
@@ -594,8 +594,8 @@ function BereichsSchritt({
       )}
 
       {luecken.map((satz) => (
-        <Hinweis key={satz} art="warn">
-          {satz}
+        <Hinweis key={satz.kennung} art="warn">
+          {satzText(t, satz)}
         </Hinweis>
       ))}
     </div>
@@ -779,7 +779,9 @@ function Benutzer({
                     })}
                   </span>
                   {zeile.rolle_verlust && (
-                    <span className="mt-1 block text-xs text-amber-200">{zeile.rolle_verlust}</span>
+                    <span className="mt-1 block text-xs text-amber-200">
+                      {satzText(t, zeile.rolle_verlust)}
+                    </span>
                   )}
                   {offen > 0 && (
                     <span className="mt-1 block text-xs text-amber-200">
@@ -787,8 +789,8 @@ function Benutzer({
                     </span>
                   )}
                   {zeile.kontingent_hinweise.map((satz) => (
-                    <span key={satz} className="mt-1 block text-xs text-amber-200">
-                      {satz}
+                    <span key={satz.kennung} className="mt-1 block text-xs text-amber-200">
+                      {satzText(t, satz)}
                     </span>
                   ))}
                 </span>
@@ -924,7 +926,7 @@ function Schreiben({
   const posten = (vorschau.bereiche ?? []).flatMap((b) => b.posten)
 
   const zeilen: { was: string; an: boolean }[] = [
-    ...posten.map((p) => ({ was: p.beschriftung, an: bereiche.has(p.kennung) })),
+    ...posten.map((p) => ({ was: satzText(t, p.beschriftung), an: bereiche.has(p.kennung) })),
     { was: t('setup.seerr.step.mail.kurz'), an: bereiche.has('mail') },
     { was: t('setup.seerr.step.sperrliste.kurz'), an: bereiche.has('sperrliste') },
     { was: 'TMDB', an: tmdb.trim() !== '' },
@@ -964,7 +966,7 @@ function Schreiben({
         </span>
         <ul className="flex flex-col gap-2 text-sm text-mist-400">
           {(vorschau.nie_dabei ?? []).map((satz) => (
-            <li key={satz}>{satz}</li>
+            <li key={satz.kennung}>{satzText(t, satz)}</li>
           ))}
         </ul>
       </div>
@@ -1000,7 +1002,7 @@ function MedienserverVerbinden({
   onFertig,
 }: {
   verbindung: { art: string; name: string; adresse: string; kennung: string } | null
-  zeilen: { was: string; wert: string }[]
+  zeilen: { was: Satz; wert: string | Satz }[]
   onFertig: (ergebnis: Verbunden | null) => void
 }) {
   const { t } = useTranslation()
@@ -1066,9 +1068,9 @@ function MedienserverVerbinden({
           <span className="text-sm font-semibold text-mist-100">{providerName(art)}</span>
         </div>
         {zeilen.map((z) => (
-          <div key={z.was} className="flex justify-between gap-4 text-sm">
-            <span className="text-mist-500">{z.was}</span>
-            <span className="text-right text-mist-100">{z.wert}</span>
+          <div key={z.was.kennung} className="flex justify-between gap-4 text-sm">
+            <span className="text-mist-500">{satzText(t, z.was)}</span>
+            <span className="text-right text-mist-100">{wertText(t, z.wert)}</span>
           </div>
         ))}
       </div>
@@ -1290,7 +1292,7 @@ function Fertig({
             <ul className="flex flex-col gap-1 text-sm text-amber-200">
               {bericht.abgelehnt.map((a) => (
                 <li key={a.seerr_id}>
-                  {a.anzeigename}: {a.grund}
+                  {a.anzeigename}: {satzText(t, a.grund)}
                 </li>
               ))}
             </ul>
@@ -1306,7 +1308,7 @@ function Fertig({
           {bericht.kanaele > 0 && <li>{t('setup.seerr.doneChannelsByHand')}</li>}
           {!medienserver && <li>{t('setup.seerr.doneMediaserverByHand')}</li>}
           {bericht.nie_dabei.map((satz) => (
-            <li key={satz}>{satz}</li>
+            <li key={satz.kennung}>{satzText(t, satz)}</li>
           ))}
         </ul>
       </div>

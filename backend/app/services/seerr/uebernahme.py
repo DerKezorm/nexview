@@ -515,7 +515,10 @@ def _kanaele(agenten: dict[str, dict]) -> Bereich:
             "ntfy",
             {"url": str(n["url"]), "auth": "keine"},
             {"topic": str(n.get("topic") or "")},
-            [(satz("l_server"), str(n["url"])), (satz("l_topic"), str(n.get("topic") or "") or satz("w_nicht_gesetzt"))],
+            [
+                (satz("l_server"), str(n["url"])),
+                (satz("l_topic"), str(n.get("topic") or "") or satz("w_nicht_gesetzt")),
+            ],
             bool((agenten.get("ntfy") or {}).get("enabled")),
         )
 

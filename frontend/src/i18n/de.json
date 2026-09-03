@@ -113,8 +113,8 @@
         },
         "medienserver": {
           "kurz": "Server",
-          "title": "Medienserver",
-          "text": "Welchen Server Seerr benutzt. Steht vor den Benutzern, weil eine Verknüpfung ohne Server ins Leere zeigt."
+          "title": "Medienserver verbinden",
+          "text": "Jetzt gibt es ein Konto, mit dem Nexview sich verbinden darf. Seerrs Server steht unten; wähle ihn wieder, dann passen die übernommenen Verknüpfungen."
         },
         "dienste": {
           "kurz": "Dienste",
@@ -129,7 +129,7 @@
         "mail": {
           "kurz": "Mail",
           "title": "Mailserver",
-          "text": "Ohne ihn kann Nexview niemanden einladen, und ohne Einladung kommt kein übernommenes Konto herein."
+          "text": "Ohne ihn bekommt niemand eine Bestätigungsmail, und Konten ohne Medienserver-Anmeldung kommen nicht an ein Kennwort."
         },
         "kanaele": {
           "kurz": "Kanäle",
@@ -144,12 +144,12 @@
         "benutzer": {
           "kurz": "Benutzer",
           "title": "Wer mitkommen soll",
-          "text": "Einer wird Besitzer, die anderen werden gewöhnliche Nutzer."
+          "text": "Einer wird Besitzer. Für die anderen wählst du die Rolle je Zeile; vorausgewählt ist Nutzer."
         },
         "fertig": {
           "kurz": "Fertig",
-          "title": "Das würde übernommen",
-          "text": "Sieh die Liste durch, bevor etwas geschrieben wird."
+          "title": "Umgezogen",
+          "text": "Was jetzt dasteht, wie deine Leute hereinkommen, und was von Hand bleibt."
         },
         "adresse": {
           "kurz": "Adresse",
@@ -160,12 +160,16 @@
           "kurz": "Sperrliste",
           "title": "Gesperrte Titel",
           "text": "Der sauberste Fall des ganzen Umzugs: Fünf von sechs Feldern passen eins zu eins."
+        },
+        "schreiben": {
+          "kurz": "Schreiben",
+          "title": "Jetzt schreiben?",
+          "text": "Bis hierher wurde nichts geschrieben. Ein Klick, und alles entsteht in einem Zug; scheitert etwas, bleibt nichts zurück."
         }
       },
       "skipHint": "Ohne Haken wird dieser Bereich übersprungen.",
       "nothingHere": "Seerr hat hier nichts, was Nexview gebrauchen könnte.",
       "take": {
-        "medienserver": "Diesen Medienserver übernehmen",
         "dienste": "Radarr und Sonarr übernehmen",
         "mail": "Mailserver übernehmen, samt Zugangsdaten",
         "allgemein": "Region und Sprache übernehmen",
@@ -178,8 +182,7 @@
       "wasAndBrings": "war {{rolle}} · Anmeldung {{anmeldung}}",
       "openRequests": "{{count}} Anfragen warten dort noch auf eine Entscheidung. Die kommen nicht mit; diese Leute müssen sie hier neu stellen.",
       "owner": "Besitzer",
-      "usersNote": "{{count}} Konten würden angelegt, alle als gewöhnliche Nutzer. Mehr Rechte vergibst du danach unter Benutzer. Der Besitzer ist der, dem die Installation gehört - diesen Haken gibt es in Seerr nicht.",
-      "dryRun": "Das ist eine Vorschau. Bis hierher wurde nichts geschrieben. Der Schritt, der wirklich übernimmt, ist noch nicht angeschlossen.",
+      "usersNote": "{{count}} Konten werden angelegt. Mehr Rechte als Nutzer nur dort, wo du sie an der Zeile wählst. Der Besitzer ist der, dem die Installation gehört; diesen Haken gibt es in Seerr nicht.",
       "willTake": "wird übernommen",
       "willSkip": "übersprungen",
       "addressWhy": "Seerrs eigene Adresse wird bewusst nicht übernommen: Sie zeigt auf Seerr, nicht auf Nexview. Sie zu übernehmen hieße, jede Einladungsmail auf die alte Anwendung zu verlinken.",
@@ -194,10 +197,44 @@
       "takesName": "der Anzeigename, als Benutzername umgeformt, falls nötig",
       "takesQuota": "das Stückzahl-Kontingent, mit den Umrechnungen unten an der Zeile",
       "usersLeavesTitle": "Nicht übernommen wird:",
-      "leavesPassword": "das Passwort - Seerr gibt es nicht heraus; jeder bekommt eine Einladung",
-      "leavesRole": "die Rolle - alle werden gewöhnliche Nutzer, außer dem Besitzer",
+      "leavesPassword": "das Passwort. Seerr gibt es nicht heraus. Plex-Konten melden sich über Plex an, sobald der Server verbunden ist; alle anderen holen sich eines über „Kennwort vergessen“ oder bekommen eines von dir.",
+      "leavesRole": "die Rolle, es sei denn, du wählst sie je Zeile. Vorgabe ist Nutzer; was drüben galt, steht als Hinweis daneben.",
       "leavesRequests": "die Anfragehistorie - was in Radarr liegt, zeigt Nexview ohnehin an",
-      "leavesAvatar": "das Profilbild - es liegt bei Plex oder Gravatar, nicht als Datei"
+      "takesLink": "die Medienserver-Kennung, damit sich Plex-Konten gleich über Plex anmelden können",
+      "roleLabel": "Rolle",
+      "write": "Umzug ausführen",
+      "writeFailed": "Der Umzug konnte nicht geschrieben werden. Es wurde nichts angelegt.",
+      "writeNoWayBack": "Danach ist die Einrichtung abgeschlossen und dieser Assistent lässt sich nicht noch einmal starten. Was nicht angehakt ist, trägst du später in den Einstellungen nach.",
+      "accountsToCreate_one": "{{count}} Konto",
+      "accountsToCreate_other": "{{count}} Konten",
+      "mediaserverNone": "Seerr hatte keinen Medienserver eingetragen. Du kannst später in den Einstellungen einen verbinden.",
+      "mediaserverWithout": "Ohne Medienserver weiter",
+      "mediaserverPlexIntro": "Melde dich bei Plex an und wähle danach den Server. Der, den Seerr benutzt hat, ist markiert.",
+      "plexSignIn": "Bei Plex anmelden",
+      "mediaserverFromSeerr": "Der aus Seerr",
+      "mediaserverPasswordIntro": "Die Adresse stammt aus Seerrs Netz. Prüfe, ob Nexview den Server darunter erreicht, und melde dich mit einem Administratorkonto des Servers an.",
+      "mediaserverLater": "Später in den Einstellungen verbinden",
+      "doneWritten": "Alles in einem Zug geschrieben. Dein Konto steht, du bist angemeldet.",
+      "doneFields": "Einstellungen",
+      "doneBlocked": "Gesperrte Titel",
+      "doneChannels": "Meldewege",
+      "doneMediaserver": "verbunden mit {{name}}",
+      "doneMediaserverSkipped": "noch nicht verbunden",
+      "doneAccountsTitle_one": "{{count}} angelegtes Konto",
+      "doneAccountsTitle_other": "{{count}} angelegte Konten",
+      "doneNoAccounts": "Keines. Deine Leute lädst du später unter Benutzer ein.",
+      "doneRejectedTitle": "Nicht angelegt",
+      "doneByHandTitle": "Was von Hand bleibt",
+      "doneChannelsByHand": "Welche Meldungen über welchen Kanal gehen: Einstellungen, Benachrichtigungen.",
+      "doneMediaserverByHand": "Den Medienserver verbinden: Einstellungen, Medienserver. Bis dahin kommen Plex-Konten nicht herein.",
+      "wayPlex": "meldet sich über Plex an, sobald der Server verbunden ist",
+      "wayServer": "meldet sich über {{name}} an. Die Kennung stammt aus Seerr und passt nur, wenn du denselben Server verbindest.",
+      "wayPassword": "hat noch kein Kennwort: „Kennwort vergessen“ auf der Anmeldeseite, oder du setzt eines unter Benutzer",
+      "wayPasswordNoMail": "hat noch kein Kennwort, und ohne Mailserver kann es sich keines holen: Setz eines unter Benutzer, oder richte den Mailserver ein",
+      "toNexview": "Zu Nexview",
+      "takesAvatar": "das Profilbild: Nexview holt es beim Schreiben einmal bei plex.tv oder Gravatar und legt es als Datei ab",
+      "doneAvatars": "Profilbilder",
+      "noAvatar": "ohne Bild: Es ließ sich nicht laden"
     }
   },
   "login": {
@@ -1230,7 +1267,6 @@
     "tabRegeln": "Regeln",
     "seerr": {
       "progress": "Schritte des Umzugs",
-      "stillleben": "Leg Seerr vorher still. Wer währenddessen dort noch etwas anfragt, dessen Anfrage kommt nicht mit, und es fällt niemandem auf.",
       "url": "Adresse von Seerr",
       "urlHint": "Zum Beispiel https://seerr.example.com",
       "key": "API-Schlüssel",
@@ -1778,7 +1814,11 @@
       "rule_forbids_asking": "Diese Regel lässt kein Nachfragen zu.",
       "already_asked_anyway": "Diese Anfrage wurde bereits weitergereicht und danach entschieden.",
       "already_rule_rejected": "„{{title}}“ wurde bereits von einer Regel abgelehnt.",
-      "wish_rule_rejected": "Eine Regel des Hauses hat „{{title}}“ abgelehnt."
+      "wish_rule_rejected": "Eine Regel des Hauses hat „{{title}}“ abgelehnt.",
+      "seerr_account_unknown": "Dieses Konto gibt es in Seerr nicht mehr. Lies die Vorschau neu ein.",
+      "seerr_owner_in_list": "Der Besitzer steht auch in der Liste der übrigen Konten.",
+      "tmdb_key_rejected": "TMDB hat diesen Schlüssel abgelehnt. Es wurde nichts geschrieben.",
+      "public_url_invalid": "Die Adresse nach außen muss mit http:// oder https:// beginnen."
     }
   },
   "language": {

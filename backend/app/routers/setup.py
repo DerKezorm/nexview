@@ -22,7 +22,8 @@ from ..services import mail, sicherung, sitzung, tokens
 from ..services.mediaserver import PROVIDERS, verbundene_anbieter
 from ..services.settings_service import load_settings
 from . import seerr_umzug
-from .seerr_umzug import UebernahmeEingabe as SeerrUebernahmeEingabe
+from .seerr_umzug import AbschlussAntwort as SeerrAbschlussAntwort
+from .seerr_umzug import AbschlussEingabe as SeerrAbschlussEingabe
 from .seerr_umzug import ZugangEingabe as SeerrZugangEingabe
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
@@ -56,29 +57,15 @@ def setup_status(db: DbSession) -> SetupStatus:
     )
 
 
-@router.post("/admin", response_model=TokenPair, status_code=status.HTTP_201_CREATED)
-def create_first_admin(
-    payload: SetupAdminCreate, request: Request, response: Response, db: DbSession
-) -> TokenPair:
-    if has_any_user(db):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=meldungen.meldung(
-                "setup_already_done",
-                "Die Einrichtung wurde bereits abgeschlossen.",
-            ),
-        )
+def erster_administrator(payload: SetupAdminCreate) -> User:
+    """Das allererste Konto, so wie der Assistent es anlegt.
 
-    if not mail.valid_address(payload.email):
-        raise HTTPException(
-            status_code=422,
-            detail=meldungen.meldung(
-                "email_invalid",
-                "Das ist keine gültige E-Mail-Adresse.",
-            ),
-        )
-
-    admin = User(
+    ⚠️ **Zwei Aufrufer, eine Zeile.** ``create_first_admin`` darunter und der
+    Abschluss des Seerr-Umzugs (``seerr_umzug.abschliessen``) legen beide den
+    Besitzer an. Was hier steht, ist die Definition davon; wer eines der
+    Felder aendert, aendert es fuer beide Wege - und das ist der Zweck.
+    """
+    return User(
         username=payload.username,
         password_hash=hash_password(payload.password),
         email=tokens.normalize_email(payload.email),
@@ -103,6 +90,31 @@ def create_first_admin(
         # zweiter Administrator mit diesem Konto nicht tun darf.
         is_betreiber=True,
     )
+
+
+@router.post("/admin", response_model=TokenPair, status_code=status.HTTP_201_CREATED)
+def create_first_admin(
+    payload: SetupAdminCreate, request: Request, response: Response, db: DbSession
+) -> TokenPair:
+    if has_any_user(db):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=meldungen.meldung(
+                "setup_already_done",
+                "Die Einrichtung wurde bereits abgeschlossen.",
+            ),
+        )
+
+    if not mail.valid_address(payload.email):
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "email_invalid",
+                "Das ist keine gültige E-Mail-Adresse.",
+            ),
+        )
+
+    admin = erster_administrator(payload)
     db.add(admin)
     db.commit()
     db.refresh(admin)
@@ -241,14 +253,27 @@ async def seerr_vorschau(eingabe: SeerrZugangEingabe, db: DbSession) -> dict:
     return await seerr_umzug.vorlage(eingabe, db)
 
 
-@router.post("/seerr/uebernehmen")
-async def seerr_uebernehmen(eingabe: SeerrUebernahmeEingabe, db: DbSession) -> dict:
-    """Die gewaehlten Bereiche aus Seerr in die Einstellungen schreiben.
+@router.post(
+    "/seerr/abschliessen",
+    response_model=SeerrAbschlussAntwort,
+    status_code=status.HTTP_201_CREATED,
+)
+async def seerr_abschliessen(
+    eingabe: SeerrAbschlussEingabe, request: Request, response: Response, db: DbSession
+) -> SeerrAbschlussAntwort:
+    """Die gewaehlten Bereiche, den Besitzer und die Konten in einem Zug anlegen.
 
     ⚠️ **Der einzige Aufruf dieses Features, der wirklich schreibt** - und er
-    schreibt ausschliesslich Einstellungen, keine Konten und keine Anfragen.
+    schreibt alles auf einmal oder gar nichts: Einstellungen, Sperrliste,
+    Meldewege, TMDB-Schluessel, Adresse nach aussen, das Besitzerkonto und die
+    uebrigen Konten. Die Begruendung steht an ``seerr_umzug.abschliessen``.
+
     Der Riegel ist derselbe wie beim Einspielen einer Sicherung: Sobald das
-    erste Konto existiert, antwortet die Adresse dauerhaft mit 409.
+    erste Konto existiert, antwortet die Adresse dauerhaft mit 409 - und das
+    erste Konto entsteht genau hier. Die Antwort traegt die Sitzung des
+    Besitzers; der Medienserver wird damit im naechsten Schritt verbunden.
     """
     _nur_vor_der_einrichtung(db)
-    return await seerr_umzug.uebernehmen(eingabe, db)
+    return await seerr_umzug.abschliessen(
+        eingabe, request, response, db, besitzer_bauen=erster_administrator
+    )

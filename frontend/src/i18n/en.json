@@ -113,8 +113,8 @@
         },
         "medienserver": {
           "kurz": "Server",
-          "title": "Media server",
-          "text": "Which server Seerr uses. It comes before the users, because a link without a server points nowhere."
+          "title": "Connect the media server",
+          "text": "Now there is an account Nexview may connect with. Seerr's server is listed below; pick it again and the migrated links match."
         },
         "dienste": {
           "kurz": "Services",
@@ -129,7 +129,7 @@
         "mail": {
           "kurz": "Mail",
           "title": "Mail server",
-          "text": "Without it Nexview cannot invite anyone, and without an invitation no migrated account gets in."
+          "text": "Without it nobody gets a confirmation mail, and accounts without a media server sign-in cannot get a password."
         },
         "kanaele": {
           "kurz": "Channels",
@@ -144,12 +144,12 @@
         "benutzer": {
           "kurz": "Users",
           "title": "Who should come along",
-          "text": "One becomes the owner, the others become plain users."
+          "text": "One becomes the owner. For the others you pick the role per row; the default is user."
         },
         "fertig": {
           "kurz": "Done",
-          "title": "This would be taken over",
-          "text": "Check the list before anything is written."
+          "title": "Migrated",
+          "text": "What is in place now, how your people get in, and what remains by hand."
         },
         "adresse": {
           "kurz": "Address",
@@ -160,12 +160,16 @@
           "kurz": "Blocklist",
           "title": "Blocked titles",
           "text": "The cleanest case of the whole migration: five of six fields match one to one."
+        },
+        "schreiben": {
+          "kurz": "Write",
+          "title": "Write it now?",
+          "text": "Nothing has been written up to here. One click and everything is created in one go; if anything fails, nothing is left behind."
         }
       },
       "skipHint": "Without the tick this area is skipped.",
       "nothingHere": "Seerr has nothing here that Nexview could use.",
       "take": {
-        "medienserver": "Take over this media server",
         "dienste": "Take over Radarr and Sonarr",
         "mail": "Take over the mail server, credentials included",
         "allgemein": "Take over region and language",
@@ -178,8 +182,7 @@
       "wasAndBrings": "was {{rolle}} · sign-in {{anmeldung}}",
       "openRequests": "{{count}} requests are still waiting for a decision over there. Those do not come along; these people have to ask again here.",
       "owner": "Owner",
-      "usersNote": "{{count}} accounts would be created, all as plain users. Grant more under Users afterwards. The owner is whoever the installation belongs to - Seerr has no such flag.",
-      "dryRun": "This is a preview. Nothing has been written up to here. The step that actually applies it is not wired up yet.",
+      "usersNote": "{{count}} accounts will be created. More than user rights only where you pick them on the row. The owner is whoever the installation belongs to; Seerr has no such flag.",
       "willTake": "will be taken over",
       "willSkip": "skipped",
       "addressWhy": "Seerr's own address is deliberately not taken over: it points at Seerr, not at Nexview. Taking it would link every invitation mail back to the old app.",
@@ -194,10 +197,44 @@
       "takesName": "the display name, reshaped into a username where needed",
       "takesQuota": "the count quota, with the conversions noted on each row",
       "usersLeavesTitle": "What does not:",
-      "leavesPassword": "the password - Seerr does not hand it out; everyone gets an invitation",
-      "leavesRole": "the role - everyone becomes a plain user, except the owner",
+      "leavesPassword": "the password. Seerr does not hand it out. Plex accounts sign in through Plex once the server is connected; everyone else gets one via “Forgot password” or from you.",
+      "leavesRole": "the role, unless you pick it per row. The default is user; what applied over there is shown as a hint next to it.",
       "leavesRequests": "the request history - what sits in Radarr, Nexview shows anyway",
-      "leavesAvatar": "the profile picture - it lives at Plex or Gravatar, not as a file"
+      "takesLink": "the media server identity, so Plex accounts can sign in through Plex right away",
+      "roleLabel": "Role",
+      "write": "Run the migration",
+      "writeFailed": "The migration could not be written. Nothing was created.",
+      "writeNoWayBack": "After this the setup is complete and this wizard cannot be started again. Whatever is not ticked you add later in the settings.",
+      "accountsToCreate_one": "{{count}} account",
+      "accountsToCreate_other": "{{count}} accounts",
+      "mediaserverNone": "Seerr had no media server configured. You can connect one later in the settings.",
+      "mediaserverWithout": "Continue without a media server",
+      "mediaserverPlexIntro": "Sign in to Plex, then pick the server. The one Seerr used is marked.",
+      "plexSignIn": "Sign in to Plex",
+      "mediaserverFromSeerr": "The one from Seerr",
+      "mediaserverPasswordIntro": "The address comes from Seerr's network. Check that Nexview reaches the server there, and sign in with an administrator account of the server.",
+      "mediaserverLater": "Connect later in the settings",
+      "doneWritten": "Everything written in one go. Your account exists and you are signed in.",
+      "doneFields": "Settings",
+      "doneBlocked": "Blocked titles",
+      "doneChannels": "Notification channels",
+      "doneMediaserver": "connected to {{name}}",
+      "doneMediaserverSkipped": "not connected yet",
+      "doneAccountsTitle_one": "{{count}} account created",
+      "doneAccountsTitle_other": "{{count}} accounts created",
+      "doneNoAccounts": "None. Invite your people later under Users.",
+      "doneRejectedTitle": "Not created",
+      "doneByHandTitle": "What remains by hand",
+      "doneChannelsByHand": "Which notifications go through which channel: Settings, Notifications.",
+      "doneMediaserverByHand": "Connect the media server: Settings, Media server. Until then Plex accounts cannot get in.",
+      "wayPlex": "signs in through Plex once the server is connected",
+      "wayServer": "signs in through {{name}}. The identity comes from Seerr and only matches if you connect the same server.",
+      "wayPassword": "has no password yet: “Forgot password” on the sign-in page, or you set one under Users",
+      "wayPasswordNoMail": "has no password yet, and without a mail server cannot request one: set one under Users, or set up the mail server",
+      "toNexview": "Go to Nexview",
+      "takesAvatar": "the profile picture: on writing, Nexview fetches it once from plex.tv or Gravatar and stores it as a file",
+      "doneAvatars": "Profile pictures",
+      "noAvatar": "no picture: it could not be loaded"
     }
   },
   "login": {
@@ -1230,7 +1267,6 @@
     "tabRegeln": "Rules",
     "seerr": {
       "progress": "Migration steps",
-      "stillleben": "Stop Seerr first. Anything requested there while this runs will not come along, and nobody will notice.",
       "url": "Seerr address",
       "urlHint": "For example https://seerr.example.com",
       "key": "API key",
@@ -1778,7 +1814,11 @@
       "rule_forbids_asking": "That rule does not allow asking again.",
       "already_asked_anyway": "That request has already been passed on and decided since.",
       "already_rule_rejected": "“{{title}}” has already been declined by a rule.",
-      "wish_rule_rejected": "A house rule has declined “{{title}}”."
+      "wish_rule_rejected": "A house rule has declined “{{title}}”.",
+      "seerr_account_unknown": "Seerr no longer has this account. Read the preview again.",
+      "seerr_owner_in_list": "The owner also appears in the list of other accounts.",
+      "tmdb_key_rejected": "TMDB rejected this key. Nothing has been written.",
+      "public_url_invalid": "The public address has to start with http:// or https://."
     }
   },
   "language": {

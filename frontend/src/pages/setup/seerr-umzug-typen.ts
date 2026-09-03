@@ -13,6 +13,8 @@
  * werden von keinem Test gehalten. Wer sie beim Umbau verliert, merkt es nicht.
  */
 
+import type { TokenPair } from '../../api/client'
+
 export type Kontozeile = {
   seerr_id: number
   anzeigename: string
@@ -218,8 +220,8 @@ export function zusammenfassen(
  * andere schon geschrieben ist.
  *
  * ⚠️ **Das Ergebnis ist ein Vorschlag, kein Zwang.** Es steht in einem Feld,
- * das der Betreiber überschreiben kann. Aus „Dilara Uygun" wird
- * `Dilara.Uygun`, aus „🎬" wird nichts Brauchbares - dann bleibt das Feld leer
+ * das der Betreiber überschreiben kann. Aus „Kim Beispiel" wird
+ * `Kim.Beispiel`, aus „🎬" wird nichts Brauchbares - dann bleibt das Feld leer
  * und fragt.
  */
 export function benutzernameAus(anzeigename: string): string {
@@ -235,3 +237,67 @@ export function benutzernameAus(anzeigename: string): string {
     .replace(/^[._-]+|[._-]+$/g, '')
   return ohneZeichen.length >= 3 ? ohneZeichen.slice(0, 32) : ''
 }
+
+/** Die Rollen, die ein Umzug in eine frische Installation vergeben darf. */
+export type Rolle = 'user' | 'approver' | 'admin'
+
+export type Berichtskonto = {
+  seerr_id: number
+  anzeigename: string
+  username: string
+  email: string | null
+  rolle: Rolle
+  /** Wie die Person hereinkommt: `plex`, `jellyfin`, `emby` oder `kennwort`. */
+  zugang: string
+  /** `uebernommen`, `nicht_geladen` (Seerr hatte eines) oder `keins`. */
+  bild: string
+}
+
+/** Was der Abschluss zurückmeldet - neben der Sitzung des Besitzers. */
+export type Bericht = {
+  besitzer: { username: string; email: string | null; zugang: string; bild: string }
+  konten: Berichtskonto[]
+  abgelehnt: { seerr_id: number; anzeigename: string; grund: string }[]
+  bereiche: string[]
+  felder: number
+  gesperrt: number
+  kanaele: number
+  bilder: number
+  tmdb: boolean
+  public_url: boolean
+  nie_dabei: string[]
+}
+
+export type Abschluss = TokenPair & { bericht: Bericht }
+
+/**
+ * Welche Konten der Abschluss anlegen soll, und als was.
+ *
+ * ⚠️ **Die sicherheitskritische Aussage des Benutzer-Schritts, in einer
+ * Funktion.** Drei Regeln, und ein Test hält jede:
+ *
+ * 1. Nur, was ausdrücklich angehakt ist (`{ was: 'neu' }`). Die Vorgabe
+ *    einer Zeile ist „überspringen" (`vorgabeFuer`); wer nichts anklickt,
+ *    bekommt kein Konto.
+ * 2. Der Besitzer ist nie dabei. Er entsteht aus seiner eigenen Zeile mit
+ *    Kennwort; noch einmal als gewöhnliches Konto wäre derselbe Mensch
+ *    zweimal - und der Server weist genau das ab.
+ * 3. Ohne gewählte Rolle ist die Rolle Nutzer. Was drüben galt, steht in
+ *    der Zeile als Hinweis; ins Feld kommt es nur durch einen Klick.
+ */
+export function abschlussKonten(
+  konten: Kontozeile[],
+  wahlen: Record<number, Wahl>,
+  rollen: Record<number, Rolle>,
+  besitzer: number | null,
+): { seerr_id: number; rolle: Rolle }[] {
+  const ergebnis: { seerr_id: number; rolle: Rolle }[] = []
+  for (const zeile of konten) {
+    if (zeile.seerr_id === besitzer) continue
+    const wahl = wahlen[zeile.seerr_id] ?? vorgabeFuer(zeile)
+    if (wahl.was !== 'neu') continue
+    ergebnis.push({ seerr_id: zeile.seerr_id, rolle: rollen[zeile.seerr_id] ?? 'user' })
+  }
+  return ergebnis
+}
+

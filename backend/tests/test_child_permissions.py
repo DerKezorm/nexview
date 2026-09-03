@@ -67,7 +67,7 @@ KINDER_ERLAUBT = {
     # machen die Luecke nicht groesser.
     "/api/setup/seerr/pruefen",
     "/api/setup/seerr/vorschau",
-    "/api/setup/seerr/uebernehmen",
+    "/api/setup/seerr/abschliessen",
     "/api/users/avatar/{name}",
     # Bilder aus der Hausordnung - dieselbe Einordnung wie das Profilbild
     # darueber, und aus demselben Grund: Ein ``<img>``-Element schickt keinen

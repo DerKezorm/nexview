@@ -720,6 +720,22 @@ NUR_EIGENES_KONTO: dict[tuple[str, str], str] = {
         "abschalten, ohne die Passwort-vergessen-Funktion abzuschaffen."
     ),
     ("onboarding.py", "verify_email"): "Bestaetigt die Adresse gegen den Token aus der Mail.",
+    ("seerr_umzug.py", "_persoenliches"): (
+        "Setzt Region und Sprache an einem Konto, das noch nicht einmal in der "
+        "Datenbank steht: Der Aufruf kommt direkt nach dem Konstruktor, vor "
+        "dem ersten flush, fuer den Besitzer und die Konten aus Seerr. Dieselbe "
+        "Lage wie bei _bilder_uebernehmen darunter - kein zweiter "
+        "Administrator, kein Ziel aus einer Anfrage."
+    ),
+    ("seerr_umzug.py", "_bilder_uebernehmen"): (
+        "Setzt avatar_path an Konten, die derselbe Aufruf Sekunden vorher "
+        "angelegt hat - der Besitzer und die uebernommenen Konten aus Seerr. "
+        "Erreichbar nur ueber /api/setup/seerr/abschliessen, und die Adresse ist "
+        "zu, sobald ein Konto existiert (has_any_user): Es gibt in diesem "
+        "Moment keinen zweiten Administrator, der den Betreiber treffen koennte, "
+        "denn der Betreiber entsteht in genau diesem Aufruf. Die Ziele kommen "
+        "nicht aus einer Anfrage, sondern aus den eben vergebenen Nummern."
+    ),
     ("settings.py", "update_settings"): (
         "setattr am haus-weiten Einstellungssatz (AppSettings), nicht an einem Konto."
     ),

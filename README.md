@@ -292,6 +292,32 @@ copy `.env.example` to `.env`:
 
 **No TMDB, Radarr or Sonarr keys belong in `.env`** — you enter those in the app.
 
+### Moving in from Seerr
+
+The setup wizard offers a third way on its front page: **from a running Seerr**.
+Paste Seerr's address and API key, and Nexview reads the installation through
+Seerr's API, area by area, and shows what it found. You tick what should come
+along: Radarr and Sonarr with their keys and folders, the mail server including
+its password, region and language, the house quota default, the block list, and
+the notification channels. Nothing is preselected; the key is never stored, and
+Nexview only reads from Seerr.
+
+Accounts come along ready to use. One of Seerr's accounts becomes the owner,
+with a password you set; for everyone else you tick who comes and pick a role
+per row (default: user). Each account arrives with display name, a username
+shaped from it, its count quota, its personal region and language, its profile
+picture and its Plex, Jellyfin or Emby identity. Plex people sign in through
+Plex once the server is connected; everyone else sets a password via "Forgot
+password" or gets one from you.
+
+Everything is written in one go at the last step, or not at all. The media
+server is connected afterwards, with the owner's session: Plex through the code
+at plex.tv, Jellyfin and Emby through address and administrator sign-in. What
+does not come along, the wizard says on the spot: the request history (what sits
+in Radarr and Sonarr, Nexview shows anyway), passwords, watch lists, per-person
+notification addresses and Seerr's override rules. The wizard only runs while
+the installation is empty.
+
 ### The owner account
 
 Exactly one account owns the installation. It carries an **Owner** badge in

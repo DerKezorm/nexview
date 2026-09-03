@@ -12,7 +12,13 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Anfragezeile, Kontozeile, Wahl } from './seerr-umzug-typen'
-import { benutzernameAus, istFolgenlos, vorgabeFuer, zusammenfassen } from './seerr-umzug-typen'
+import {
+  abschlussKonten,
+  benutzernameAus,
+  istFolgenlos,
+  vorgabeFuer,
+  zusammenfassen,
+} from './seerr-umzug-typen'
 
 function konto(teil: Partial<Kontozeile> & { seerr_id: number }): Kontozeile {
   return {
@@ -158,7 +164,7 @@ describe('folgenlose Zeilen', () => {
 describe('benutzernameAus', () => {
   it('macht aus einem Seerr-Namen einen, den Nexview annimmt', () => {
     // Nexview: 3-32 Zeichen, nur A-Za-z0-9._-
-    expect(benutzernameAus('Dilara Uygun')).toBe('Dilara.Uygun')
+    expect(benutzernameAus('Kim Beispiel')).toBe('Kim.Beispiel')
     expect(benutzernameAus('Jörg Müller')).toBe('Jorg.Muller')
     expect(benutzernameAus('Straße')).toBe('Strasse')
   })
@@ -182,3 +188,46 @@ describe('benutzernameAus', () => {
     expect(benutzernameAus('x'.repeat(50))).toHaveLength(32)
   })
 })
+
+describe('abschlussKonten', () => {
+  const zeile = (seerr_id: number): Kontozeile => ({
+    seerr_id,
+    anzeigename: `konto-${seerr_id}`,
+    email: null,
+    herkunft: 'lokal',
+    anbieter_kennung: null,
+    treffer_user_id: null,
+    treffer_grund: null,
+    rolle_seerr: 'admin',
+    rolle_neu: 'admin',
+    rolle_verlust: null,
+    kontingent_filme: null,
+    kontingent_serien: null,
+    kontingent_hinweise: [],
+    anfragen: 0,
+    bild: null,
+  })
+  const konten = [zeile(1), zeile(2), zeile(3)]
+
+  it('nimmt nur, was ausdrücklich angehakt ist', () => {
+    expect(abschlussKonten(konten, {}, {}, null)).toEqual([])
+    expect(abschlussKonten(konten, { 2: { was: 'neu' } }, {}, null)).toEqual([
+      { seerr_id: 2, rolle: 'user' },
+    ])
+  })
+
+  it('lässt den Besitzer aus, auch wenn seine Zeile angehakt ist', () => {
+    const wahlen: Record<number, Wahl> = { 1: { was: 'neu' }, 2: { was: 'neu' } }
+    expect(abschlussKonten(konten, wahlen, {}, 1).map((k) => k.seerr_id)).toEqual([2])
+  })
+
+  it('setzt Nutzer als Rolle, solange niemand etwas anderes wählt', () => {
+    // Die Zeile war drüben Administrator - das darf nicht durchrutschen.
+    const wahlen: Record<number, Wahl> = { 2: { was: 'neu' }, 3: { was: 'neu' } }
+    expect(abschlussKonten(konten, wahlen, { 3: 'admin' }, null)).toEqual([
+      { seerr_id: 2, rolle: 'user' },
+      { seerr_id: 3, rolle: 'admin' },
+    ])
+  })
+})
+

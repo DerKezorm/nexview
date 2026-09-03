@@ -368,6 +368,24 @@ class SeerrClient:
     async def konten(self) -> list[dict[str, Any]]:
         return await self._alle_seiten("/api/v1/user")
 
+    async def konto_einstellungen(self, nummer: int) -> dict[str, Any]:
+        """Die persoenlichen Einstellungen eines Kontos: Region und Sprache.
+
+        Seerr fuehrt beides je Konto (``region``, ``locale``), neben der
+        Hausvorgabe in ``settings/main``. Ohne diesen Abruf bekaeme jedes
+        uebernommene Konto die Hausregion, und Nexview fragte jeden Einzelnen
+        beim ersten Anmelden danach - obwohl er es drueben laengst gesagt hat.
+
+        Ein Konto ohne eigene Einstellungen antwortet mit leeren Feldern; ein
+        Seerr, das den Pfad nicht kennt, mit 404. Beides heisst hier "nichts".
+        """
+        try:
+            return dict(await self._hole("/api/v1/user/{id}/settings/main", id=int(nummer)) or {})
+        except SeerrFehler as fehler:
+            if fehler.code == "seerr_not_found":
+                return {}
+            raise
+
     async def anfragen(self) -> list[dict[str, Any]]:
         """Alle Anfragen, jede mit Besteller, Werk und Staffeln daran.
 

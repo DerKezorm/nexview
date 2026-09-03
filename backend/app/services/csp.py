@@ -63,6 +63,14 @@ BILDQUELLEN = (
     "https://thetvdb.com",
     # Fuer Bibliotheken, die ihre Bilder von fanart.tv beziehen.
     "https://assets.fanart.tv",
+    # Der Seerr-Umzug zeigt vor dem Schreiben die Profilbilder der Konten, so
+    # wie Seerr sie fuehrt: bei plex.tv oder bei Gravatar (gemessen, beide
+    # als volle Adresse). Ohne diese zwei Zeilen stand dort ein leerer Kreis,
+    # und niemand sah warum - die Inhaltsrichtlinie meldet sich nur in der
+    # Browser-Konsole. Beim Schreiben holt der Server die Bilder selbst.
+    "https://plex.tv",
+    "https://gravatar.com",
+    "https://www.gravatar.com",
     # Das Vorschaubild zum Trailer. Die Adresse steht **nirgends** im
     # Quelltext - sie taucht auf, sobald die YouTube-Einbettung geoeffnet
     # wird, und wird dabei gegen *unsere* Regeln geprueft (nachgemessen).

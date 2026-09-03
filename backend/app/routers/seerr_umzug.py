@@ -1,4 +1,4 @@
-"""Der Umzug von Seerr: verbinden, lesen, vorlegen, uebernehmen.
+"""Der Umzug von Seerr: verbinden, lesen, vorlegen, abschliessen.
 
 ⚠️ **Dieses Modul hat keinen eigenen Router mehr.** Es gab einmal einen unter
 ``/api/admin/seerr`` fuer den Umzug in eine **laufende** Anlage; der Weg ist
@@ -29,17 +29,35 @@ kann sich zusaetzlich als jedes Konto ausgeben.
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
+from collections.abc import Callable
 from dataclasses import asdict
 
-from fastapi import HTTPException, status
-from pydantic import BaseModel, Field
+import httpx
+from fastapi import HTTPException, Request, Response, status
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..models import Blocked, ChannelKind, ChannelTarget, MediaType, User
-from ..services import channel_targets, settings_service
+from .. import meldungen
+from ..models import Blocked, ChannelKind, ChannelTarget, MediaType, Role, User
+from ..schemas import SetupAdminCreate, TokenPair
+from ..security import unusable_password
+from ..services import (
+    avatars,
+    channel_targets,
+    mail,
+    mediaserver_accounts,
+    settings_service,
+    sitzung,
+    tokens,
+)
+from ..services.mediaserver.base import ExternalAccount
 from ..services.seerr import SeerrClient, SeerrFehler, Zugang, vorschau_bauen
 from ..services.seerr.uebernahme import NIE_DABEI, WAEHLBAR, bereiche_bauen
+from ..services.seerr.vorschau import ROLLEN_BEI_FRISCHER_INSTALLATION, Kontozeile
+from ..services.tmdb import TmdbClient, TmdbError
 
 logger = logging.getLogger("nexview.seerr")
 
@@ -163,13 +181,12 @@ async def vorlage(eingabe: ZugangEingabe, db) -> dict:
         konten = await client.konten()
         anfragen = await client.anfragen()
         sperrliste = await client.sperrliste()
-        meldungen = await client.meldungen()
+        meldungen_ = await client.meldungen()
         radarr = await client.radarr()
         sonarr = await client.sonarr()
         plex = await client.plex()
         jellyfin = await client.jellyfin()
-        mail = await client.mail()
-        sperrliste = await client.sperrliste()
+        mailserver = await client.mail()
         agenten = await client.meldewege()
     except SeerrFehler as fehler:
         raise _weiterreichen(fehler) from fehler
@@ -200,7 +217,7 @@ async def vorlage(eingabe: ZugangEingabe, db) -> dict:
         konten=konten,
         anfragen=anfragen,
         sperrliste=sperrliste,
-        meldungen=meldungen,
+        meldungen=meldungen_,
         radarr=radarr,
         sonarr=sonarr,
         nexview_konten=nexview_konten,
@@ -216,7 +233,7 @@ async def vorlage(eingabe: ZugangEingabe, db) -> dict:
         jellyfin=jellyfin,
         radarr=radarr,
         sonarr=sonarr,
-        email=mail,
+        email=mailserver,
         sperrliste=sperrliste,
         agenten=agenten,
     )
@@ -258,32 +275,231 @@ async def vorlage(eingabe: ZugangEingabe, db) -> dict:
     }
 
 
-class UebernahmeEingabe(ZugangEingabe):
-    """Welche Bereiche der Betreiber ausgewaehlt hat."""
+# --------------------------------------------------------------------------
+# Abschliessen: alles in einem Zug
+# --------------------------------------------------------------------------
+
+
+class KontoWunsch(BaseModel):
+    """Ein Seerr-Konto, das mitkommen soll - und als was."""
+
+    seerr_id: int
+    #: ⚠️ **Vorgabe Nutzer, und mehr nur auf ausdrueckliche Wahl.** Bei einer
+    #: frischen Installation duerfen Administrator und Entscheider mitkommen
+    #: (``ROLLEN_BEI_FRISCHER_INSTALLATION``); vorausgewaehlt ist trotzdem
+    #: nichts davon. Die Oberflaeche zeigt Seerrs Rolle als Hinweis daneben,
+    #: setzt sie aber nicht ein.
+    rolle: Role = Role.user
+
+    @field_validator("rolle")
+    @classmethod
+    def _nur_erlaubte_rollen(cls, wert: Role) -> Role:
+        if wert not in ROLLEN_BEI_FRISCHER_INSTALLATION:
+            raise ValueError("Diese Rolle kann ein Umzug nicht vergeben.")
+        return wert
+
+
+class BesitzerEingabe(SetupAdminCreate):
+    """Der Besitzer: dieselben Felder wie beim ersten Administrator, plus
+    die Zeile in Seerr, aus der Anzeigename und Medienserver-Kennung kommen."""
+
+    seerr_id: int
+
+
+class AbschlussEingabe(ZugangEingabe):
+    """Alles, was der Assistent am Ende zusammen abgibt.
+
+    ⚠️ **Von aussen kommen Namen, Nummern und die Eingaben des Betreibers -
+    keine Werte aus Seerr.** Die Bereiche sind Namen, die Konten sind Seerrs
+    Nummern; was dahintersteht (SMTP-Passwort, Arr-Schluessel, Adressen,
+    Kontingente) holt der Server ein zweites Mal bei Seerr. Dieselbe Regel
+    wie bei der Vorschau, aus demselben Grund: Nichts davon soll im Browser
+    liegen.
+    """
 
     bereiche: list[str] = Field(default_factory=list)
+    besitzer: BesitzerEingabe
+    konten: list[KontoWunsch] = Field(default_factory=list)
+    #: Die zwei Werte, die Seerr nicht hat und der Betreiber selbst tippt.
+    tmdb_api_key: str = Field(default="", max_length=200)
+    public_url: str = Field(default="", max_length=255)
 
 
-async def uebernehmen(eingabe: UebernahmeEingabe, db) -> dict:
-    """Die gewaehlten Bereiche wirklich in die Einstellungen schreiben.
+class AbschlussAntwort(TokenPair):
+    """Die Sitzung des frisch angelegten Besitzers, dazu der Bericht.
 
-    ⚠️ **Nur Einstellungen, keine Konten und keine Anfragen.** Der Schritt, der
-    Konten anlegt, ist ein anderer und steht noch nicht.
+    ⚠️ **Die Sitzung ist Teil der Antwort, nicht ein zweiter Aufruf.** Nach
+    diesem Aufruf ist die Einrichtung zu (``has_any_user``); die Adressen
+    darunter antworten mit 409. Der Assistent laeuft aber weiter - der
+    Medienserver wird erst jetzt verbunden, mit genau dieser Sitzung.
+    """
+
+    bericht: dict
+
+
+def _benutzername_aus(anzeigename: str) -> str:
+    """Aus einem Seerr-Anzeigenamen einen Benutzernamen, den Nexview annimmt.
+
+    ⚠️ **Der Zwilling von ``benutzernameAus`` in ``seerr-umzug-typen.ts``.**
+    Dort macht die Oberflaeche den Vorschlag fuer den Besitzer, den der
+    Betreiber noch ueberschreiben kann; hier entsteht der Name der uebrigen
+    Konten, ohne dass jemand ihn sieht, bevor er dasteht. Beide muessen aus
+    "Kim Beispiel" dasselbe machen, sonst heisst der Besitzer anders als sein
+    Nachbar mit demselben Muster.
+
+    Aus "Jürgen Müller" wird ``Jurgen.Muller``, aus "🎬" wird nichts - dann
+    greift ``_unique_username`` mit seinem Rueckfall.
+
+    Die Zerlegung (NFKD) macht aus "ü" ein "u" plus Akzentzeichen; den Akzent
+    nimmt der Zeichenfilter darunter mit. Ohne die Zerlegung filtert er das
+    ganze "ü" weg, und aus Juergen wird ``Jrgen``.
+    """
+    text = unicodedata.normalize("NFKD", anzeigename or "")
+    text = text.replace("ß", "ss")
+    text = re.sub(r"\s+", ".", text)
+    text = re.sub(r"[^A-Za-z0-9._-]", "", text)
+    text = re.sub(r"\.{2,}", ".", text)
+    text = re.sub(r"^[._-]+|[._-]+$", "", text)
+    return text[:32] if len(text) >= 3 else ""
+
+
+def _persoenliches(konto: User, einstellungen: dict) -> None:
+    """Region und Sprache, so wie die Person sie drueben selbst gewaehlt hat.
+
+    ⚠️ **Die Feldnamen sind an Seerrs Quelle geprueft** (``server/routes/
+    user/usersettings.ts``, ``GET /main``, 03.09.2026): Die Region heisst
+    ``discoverRegion``, nicht ``region`` - der erste Entwurf hatte das
+    geraten, und die Attrappe im Test hatte denselben Fehler, also fiel es
+    nicht auf. Daneben gibt es ``streamingRegion`` (wo jemand streamt) und
+    ``originalLanguage``; beides hat in Nexview kein eigenes Feld und bleibt
+    draussen.
+
+    ⚠️ **Nur was gesetzt ist, und nur was Nexview kennt.** ``discoverRegion``
+    ist ein Laendercode oder leer (dann gilt drueben die Hausvorgabe, hier
+    auch); ``locale`` kennt 39 Sprachen, Nexview zwei. Alles andere bleibt
+    leer, und Nexview fragt beim ersten Anmelden nach - genau wie bei jedem
+    anderen Konto ohne eigene Region.
+    """
+    region = str(einstellungen.get("discoverRegion") or "").strip().upper()
+    if len(region) == 2 and region.isalpha():
+        konto.discover_region = region
+    sprache = str(einstellungen.get("locale") or "").split("-")[0].lower()
+    if sprache in ("de", "en"):
+        konto.language = sprache
+
+
+def _verknuepfen(konto: User, zeile: Kontozeile, *, mit_adresse: bool) -> str:
+    """Die Medienserver-Kennung aus Seerr an das neue Konto haengen.
+
+    Rueckgabe ist der Weg, auf dem die Person spaeter hereinkommt - fuer den
+    Bericht: ``plex``, ``jellyfin``, ``emby`` oder ``kennwort``.
+
+    ⚠️ **Bei Plex ist die Kennung sicher, bei Jellyfin und Emby nicht.** Seerrs
+    ``plexId`` stammt von plex.tv, genau wie Nexviews Verknuepfung. Die
+    Jellyfin-Kennung ist serverbezogen, und Seerr notiert nicht, welcher
+    Server gemeint war - verbindet der Betreiber danach einen anderen, zeigt
+    die Verknuepfung ins Leere. Der Bericht sagt das.
+
+    ⚠️ **Die Adresse geht nur bei Plex mit in die Verknuepfung.** ``link``
+    setzt ``email_verified``, sobald eine Adresse dabei ist, mit der
+    Begruendung "der Anbieter hat sie geprueft". Das stimmt fuer plex.tv und
+    fuer sonst niemanden: Bei einem lokalen Seerr-Konto hat ein Administrator
+    die Adresse eingetippt, bei Jellyfin und Emby ebenso. Diese Konten bleiben
+    unbestaetigt, und "Kennwort vergessen" bestaetigt sie nebenbei.
+    """
+    if zeile.herkunft == "lokal" or not zeile.anbieter_kennung:
+        return "kennwort"
+    mediaserver_accounts.link(
+        konto,
+        ExternalAccount(
+            provider=zeile.herkunft,
+            account_id=zeile.anbieter_kennung,
+            username=zeile.anzeigename,
+            email=zeile.email if (mit_adresse and zeile.herkunft == "plex") else None,
+            thumb=None,
+        ),
+    )
+    return zeile.herkunft
+
+
+async def abschliessen(
+    eingabe: AbschlussEingabe,
+    request: Request,
+    response: Response,
+    db,
+    *,
+    besitzer_bauen: Callable[[SetupAdminCreate], User],
+) -> AbschlussAntwort:
+    """Einstellungen, Besitzer und Konten in **einer** Transaktion schreiben.
+
+    ⚠️ **Warum ein Aufruf und keine Kette - die Entscheidung, an der dieses
+    Feature haengt.** Drei Adressen mit drei verschiedenen Wachen standen zur
+    Wahl: ``/api/setup/seerr/*`` und ``/api/setup/admin`` sind offen, solange
+    kein Konto existiert, und danach zu; das Verbinden des Medienservers
+    verlangt einen angemeldeten Administrator. Eine Kette "Einstellungen,
+    dann Besitzer" haette ein Fenster, in dem das SMTP-Passwort und die
+    Arr-Schluessel in der Datenbank stehen und niemandem gehoeren - und wenn
+    der zweite Schritt scheitert (Netz weg, Browser zu, Tippfehler, den der
+    Server anders prueft als die Oberflaeche), bleibt es dabei. Der Assistent
+    saesse dann fest: ``uebernehmen`` ginge noch einmal und schriebe doppelte
+    Kanaele, ``admin`` ginge, aber niemand wuesste, was schon geschrieben ist.
+
+    Deshalb: **erst alles pruefen, dann alles holen, dann alles schreiben,
+    dann ein Commit.** Scheitert irgendetwas davor, steht nichts in der
+    Datenbank, und der Betreiber sieht die Meldung im Assistenten, der noch
+    genau dort steht. Scheitert der Commit selbst, ebenso. Erst nach dem
+    Commit beginnt die Sitzung; geht **die** verloren (Antwort kommt nicht
+    an), existiert ein Besitzer mit Kennwort, der sich anmelden kann, und
+    der Rest des Weges (Medienserver) steht in den Einstellungen. Es gibt
+    keinen Zustand, aus dem es weder vor noch zurueck geht.
+
+    ⚠️ **Der Medienserver ist bewusst nicht dabei.** Plex braucht ein
+    Code-Verfahren bei plex.tv, Jellyfin und Emby das Passwort eines
+    Server-Administrators - beides kann nur der Mensch liefern, und beides
+    braucht die Sitzung, die hier erst entsteht. Der Assistent fragt es als
+    naechsten Schritt ab, mit genau dieser Sitzung.
 
     ⚠️ **Die Werte werden hier zum zweiten Mal geholt und nicht vom Browser
     entgegengenommen.** Der naheliegende Entwurf waere gewesen, die Vorschau
-    zurueckschicken zu lassen - dann stuenden das SMTP-Passwort und die
-    Schluessel von Radarr und Sonarr im Browser, im Verlauf und in jedem
-    Zwischenspeicher auf dem Weg. Sie bleiben stattdessen auf dem Server; von
-    aussen kommt nur die Liste der Bereichsnamen.
+    zurueckschicken zu lassen - dann stuenden das SMTP-Passwort, die
+    Arr-Schluessel und die Kontingente aller Leute im Browser, im Verlauf und
+    in jedem Zwischenspeicher auf dem Weg. Von aussen kommen Bereichsnamen,
+    Seerr-Nummern und das, was der Betreiber selbst getippt hat.
     """
+    # ---- 1. Pruefen, was sich ohne Netz pruefen laesst -------------------
     unbekannt = [b for b in eingabe.bereiche if b not in WAEHLBAR]
     if unbekannt:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            {"code": "seerr_area_unknown", "message": f"Unbekannter Bereich: {unbekannt[0]}"},
+            meldungen.meldung("seerr_area_unknown", f"Unbekannter Bereich: {unbekannt[0]}"),
+        )
+    if not mail.valid_address(eingabe.besitzer.email):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            meldungen.meldung("email_invalid", "Das ist keine gültige E-Mail-Adresse."),
+        )
+    gewuenscht = {k.seerr_id: k for k in eingabe.konten}
+    if eingabe.besitzer.seerr_id in gewuenscht:
+        # Der Besitzer entsteht aus seiner Zeile; dieselbe Zeile noch einmal
+        # als gewoehnliches Konto anzulegen gaebe einen Menschen zweimal.
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            meldungen.meldung(
+                "seerr_owner_in_list",
+                "Der Besitzer steht auch in der Liste der übrigen Konten.",
+            ),
+        )
+    adresse_aussen = eingabe.public_url.strip().rstrip("/")
+    if adresse_aussen and not adresse_aussen.startswith(("http://", "https://")):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            meldungen.meldung(
+                "public_url_invalid",
+                "Die Adresse nach außen muss mit http:// oder https:// beginnen.",
+            ),
         )
 
+    # ---- 2. Alles holen, bevor irgendetwas geschrieben wird --------------
     zugang = _zugang(eingabe)
     client = SeerrClient(zugang)
     try:
@@ -301,11 +517,47 @@ async def uebernehmen(eingabe: UebernahmeEingabe, db) -> dict:
         sonarr = await client.sonarr()
         plex = await client.plex()
         jellyfin = await client.jellyfin()
-        mail = await client.mail()
+        mailserver = await client.mail()
         sperrliste = await client.sperrliste()
         agenten = await client.meldewege()
+        seerr_konten = await client.konten()
+        # Region und Sprache je Konto - fuer den Besitzer und jedes gewaehlte.
+        # Ein Aufruf je Konto, vor dem Schreiben wie alles andere auch.
+        persoenlich = {
+            nummer: await client.konto_einstellungen(nummer)
+            for nummer in (eingabe.besitzer.seerr_id, *gewuenscht)
+        }
     except SeerrFehler as fehler:
         raise _weiterreichen(fehler) from fehler
+
+    zeilen = {
+        zeile.seerr_id: zeile
+        for zeile in vorschau_bauen(
+            frische_installation=True,
+            status=roh,
+            einstellungen=einstellungen,
+            konten=seerr_konten,
+            anfragen=[],
+            sperrliste=[],
+            meldungen=[],
+            radarr=[],
+            sonarr=[],
+            nexview_konten=[],
+        ).konten
+    }
+    fehlend = [nummer for nummer in (eingabe.besitzer.seerr_id, *gewuenscht) if nummer not in zeilen]
+    if fehlend:
+        # Zwischen Vorschau und Abschluss hat drueben jemand ein Konto
+        # geloescht - oder die Nummer ist erfunden. Beides bricht ab, bevor
+        # etwas geschrieben ist; der Betreiber liest die Vorschau neu.
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            meldungen.meldung(
+                "seerr_account_unknown",
+                "Dieses Konto gibt es in Seerr nicht (mehr).",
+                seerr_id=fehlend[0],
+            ),
+        )
 
     bereiche = bereiche_bauen(
         main=einstellungen,
@@ -313,18 +565,18 @@ async def uebernehmen(eingabe: UebernahmeEingabe, db) -> dict:
         jellyfin=jellyfin,
         radarr=radarr,
         sonarr=sonarr,
-        email=mail,
+        email=mailserver,
         sperrliste=sperrliste,
         agenten=agenten,
     )
     gewaehlt = set(eingabe.bereiche)
     aenderungen: dict[str, object] = {}
-    gesperrt = 0
-    kanaele = 0
+    sperren: list[dict] = []
+    kanaele_roh: list[dict] = []
     for bereich in bereiche:
         if bereich.kennung in gewaehlt:
             aenderungen.update(bereich.werte)
-            gesperrt += _sperren_anlegen(db, bereich.eintraege)
+            sperren.extend(bereich.eintraege)
         # ⚠️ Posten werden **einzeln** gewaehlt, nicht mit ihrem Bereich. Wer
         # Radarr will und Sonarr nicht, haekt genau einen an; ein Bereichshaken
         # waere hier alles oder nichts.
@@ -333,29 +585,251 @@ async def uebernehmen(eingabe: UebernahmeEingabe, db) -> dict:
                 continue
             aenderungen.update(posten.werte)
             if posten.kanal:
-                kanaele += _kanal_anlegen(db, posten.kanal)
+                kanaele_roh.append(posten.kanal)
 
-    if aenderungen:
-        settings_service.save_settings(db, aenderungen)
+    tmdb_schluessel = eingabe.tmdb_api_key.strip()
+    if tmdb_schluessel:
+        # ⚠️ **Vor dem Schreiben, nicht danach.** Der normale Assistent prueft
+        # den Schluessel mit einem eigenen Knopf; dieser hier hat den Knopf
+        # nicht, also prueft der Abschluss. Ein falscher Schluessel fiele
+        # sonst erst auf, wenn die erste Suche leer bleibt - Wochen spaeter,
+        # ohne Zusammenhang zu diesem Formular.
+        probe = TmdbClient(
+            tmdb_schluessel,
+            str(aenderungen.get("default_language") or "de"),
+            str(aenderungen.get("default_region") or "DE"),
+        )
+        try:
+            await probe.verify()
+        except TmdbError as fehler:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                meldungen.meldung("tmdb_key_rejected", fehler.message),
+            ) from fehler
+        aenderungen["tmdb_api_key"] = tmdb_schluessel
+    if adresse_aussen:
+        aenderungen["public_url"] = adresse_aussen
+
+    # ---- 3. Schreiben, in einer Transaktion ------------------------------
+    besitzer_zeile = zeilen[eingabe.besitzer.seerr_id]
+    sprache = str(aenderungen.get("default_language") or eingabe.besitzer.language or "de")
+    #: (Seerr-Nummer, Zeile, Nexview-Nummer, Rolle, Weg) je angelegtem Konto.
+    angelegt: list[tuple[int, Kontozeile, int, Role, str]] = []
+    abgelehnt: list[dict[str, object]] = []
+    try:
+        if aenderungen:
+            settings_service.save_settings(db, aenderungen, commit=False)
+        gesperrt = _sperren_anlegen(db, sperren)
+        kanaele = 0
+        for nutzlast in kanaele_roh:
+            kanaele += _kanal_anlegen(db, nutzlast)
+
+        # Der Besitzer: dieselbe Zeile wie ``/api/setup/admin`` - mit
+        # Betreiber-Haken, ohne bestaetigte Adresse. Anzeigename aus Seerr,
+        # falls der Betreiber keinen getippt hat.
+        besitzer = besitzer_bauen(
+            SetupAdminCreate(
+                username=eingabe.besitzer.username,
+                password=eingabe.besitzer.password,
+                email=eingabe.besitzer.email,
+                display_name=eingabe.besitzer.display_name or besitzer_zeile.anzeigename,
+                language=eingabe.besitzer.language,
+            )
+        )
+        _persoenliches(besitzer, persoenlich.get(eingabe.besitzer.seerr_id) or {})
+        db.add(besitzer)
+        db.flush()
+        besitzer_weg = _verknuepfen(besitzer, besitzer_zeile, mit_adresse=False)
+
+        vergeben_mail = {tokens.normalize_email(eingabe.besitzer.email)}
+        for nummer, wunsch in gewuenscht.items():
+            zeile = zeilen[nummer]
+            adresse = tokens.normalize_email(zeile.email) if zeile.email else None
+            if adresse and adresse in vergeben_mail:
+                # Zwei Seerr-Konten mit derselben Adresse sind in Seerr
+                # unmoeglich; die Kollision ist der Besitzer selbst, der
+                # seine Adresse in ein anderes Konto getippt hat. Nexview
+                # fuehrt Adressen eindeutig, also bleibt die Zeile draussen -
+                # mit Grund, nicht still.
+                abgelehnt.append(
+                    {
+                        "seerr_id": nummer,
+                        "anzeigename": zeile.anzeigename,
+                        "grund": "Diese Adresse gehört schon einem anderen Konto.",
+                    }
+                )
+                continue
+            konto = User(
+                username=mediaserver_accounts._unique_username(
+                    db, _benutzername_aus(zeile.anzeigename)
+                ),
+                # Kein Kennwort: Seerr gibt keines heraus. Plex-Konten kommen
+                # ueber Plex herein, alle anderen ueber "Kennwort vergessen"
+                # oder ein Kennwort vom Administrator - dieselbe Lage wie bei
+                # einem Konto aus dem Medienserver-Import.
+                password_hash=unusable_password(),
+                email=adresse,
+                email_verified=False,
+                role=wunsch.rolle,
+                display_name=zeile.anzeigename,
+                language=sprache,
+                auto_approve=False,
+                is_active=True,
+                # Die Stueckzahlen aus Seerr, schon umgerechnet: die Null ist
+                # hier bereits UNBEGRENZT (``kontingent_aus_seerr``). Der
+                # Speicher bleibt auf Hausvorgabe - drueben gab es keinen.
+                quota_movies_limit=zeile.kontingent_filme,
+                quota_series_limit=zeile.kontingent_serien,
+            )
+            _persoenliches(konto, persoenlich.get(nummer) or {})
+            db.add(konto)
+            db.flush()
+            if adresse:
+                vergeben_mail.add(adresse)
+            weg = _verknuepfen(konto, zeile, mit_adresse=True)
+            angelegt.append((nummer, zeile, konto.id, wunsch.rolle, weg))
+
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        # ⚠️ Alles oder nichts - auch bei einem Fehler, den niemand
+        # vorhergesehen hat. Ohne diese Zeile bliebe die Sitzung in einem
+        # halb geschriebenen Zustand haengen, bis sie geschlossen wird.
+        db.rollback()
+        raise
+
+    db.refresh(besitzer)
+
+    # ---- 4. Nach dem Commit: die Profilbilder ----------------------------
+    # Bewusst **hinter** der Transaktion. Jedes Bild ist ein Abruf bei einem
+    # fremden Dienst mit eigener Wartezeit; waehrenddessen die Datenbank
+    # offenzuhalten hiesse, dass ein langsames plex.tv den ganzen Umzug
+    # verzoegert - und ein fehlendes Bild darf ihn ohnehin nicht scheitern
+    # lassen. Geht hier etwas schief, fehlt ein Bild, sonst nichts.
+    mit_bild = await _bilder_uebernehmen(
+        db,
+        [(besitzer.id, besitzer_zeile.bild)]
+        + [(konto_id, zeile.bild) for _, zeile, konto_id, _, _ in angelegt],
+    )
 
     # ⚠️ Zaehlungen und Bereichsnamen, keine Werte. Siehe Kopf von uebernahme.py.
     logger.info(
-        "Seerr takeover applied: areas=%s fields=%d blocked=%d channels=%d",
+        "Seerr migration finished: owner=%r areas=%s fields=%d blocked=%d channels=%d "
+        "accounts=%d rejected=%d avatars=%d",
+        besitzer.username,
         ",".join(sorted(gewaehlt)) or "-",
         len(aenderungen),
         gesperrt,
         kanaele,
+        len(angelegt),
+        len(abgelehnt),
+        len(mit_bild),
     )
-    return {
+
+    def bild_stand(konto_id: int, zeile: Kontozeile) -> str:
+        # Drei Antworten, weil "kein Bild" zwei Gruende hat: Seerr hatte
+        # keines, oder es liess sich nicht holen. Nur das zweite ist eine
+        # Nachricht an den Betreiber.
+        if konto_id in mit_bild:
+            return "uebernommen"
+        return "nicht_geladen" if zeile.bild else "keins"
+
+    bericht = {
+        "besitzer": {
+            "username": besitzer.username,
+            "email": besitzer.email,
+            "zugang": besitzer_weg,
+            "bild": bild_stand(besitzer.id, besitzer_zeile),
+        },
+        "konten": [
+            {
+                "seerr_id": nummer,
+                "anzeigename": zeile.anzeigename,
+                "username": db.get(User, konto_id).username,
+                "email": db.get(User, konto_id).email,
+                "rolle": rolle.value,
+                "zugang": weg,
+                "bild": bild_stand(konto_id, zeile),
+            }
+            for nummer, zeile, konto_id, rolle, weg in angelegt
+        ],
+        "abgelehnt": abgelehnt,
         "bereiche": sorted(gewaehlt),
         "felder": len(aenderungen),
         "gesperrt": gesperrt,
         "kanaele": kanaele,
+        "bilder": len(mit_bild),
+        "tmdb": bool(tmdb_schluessel),
+        "public_url": bool(adresse_aussen),
+        "nie_dabei": list(NIE_DABEI),
     }
+    # Erst jetzt, nach dem Commit: Die Sitzung gehoert zu einem Konto, das es
+    # wirklich gibt.
+    paar = sitzung.starten(response, request, besitzer)
+    return AbschlussAntwort(
+        access_token=paar.access_token, expires_in=paar.expires_in, bericht=bericht
+    )
+
+
+#: Kurz: Ein Bild, das nach zehn Sekunden nicht da ist, kommt nicht mehr.
+BILD_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+
+
+async def _bild_laden(adresse: str) -> bytes | None:
+    """Ein Profilbild holen - oder ehrlich ``None``.
+
+    ⚠️ **Das ist der eine Abruf dieses Features bei einem Dritten**, und er
+    ist gewollt: Am 03.09.2026 wurde entschieden, dass die Bilder mitkommen,
+    nachdem der Bauplan sie zunaechst nur anzeigen wollte. Die
+    Adressen stammen aus Seerr und liegen (gemessen) bei plex.tv oder
+    gravatar.com; Nexview holt sie einmal, beim Abschluss, und legt sie als
+    eigene Datei ab. Danach fragt niemand mehr dort nach.
+
+    Kein Fehler dringt nach oben: Ein Bild, das nicht kommt, ist ein
+    fehlendes Bild und kein gescheiterter Umzug.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=BILD_TIMEOUT, follow_redirects=True) as client:
+            antwort = await client.get(adresse)
+    except httpx.HTTPError:
+        return None
+    if antwort.status_code != 200 or len(antwort.content) > avatars.MAX_BYTES:
+        return None
+    return antwort.content
+
+
+async def _bilder_uebernehmen(db, paare: list[tuple[int, str | None]]) -> set[int]:
+    """Bilder holen und als Datei ablegen. Rueckgabe: die Konten, die eines haben.
+
+    Laeuft nach dem Commit des Umzugs und schreibt in einer eigenen, kleinen
+    Transaktion nur ``avatar_path``. Ein Bild, das nicht laedt oder kein Bild
+    ist (``avatars.save`` prueft den Inhalt, nicht die Endung), wird
+    uebersprungen und gezaehlt, nicht gemeldet.
+    """
+    geschafft: set[int] = set()
+    for konto_id, adresse in paare:
+        if not adresse:
+            continue
+        inhalt = await _bild_laden(adresse)
+        if inhalt is None:
+            continue
+        konto = db.get(User, konto_id)
+        if konto is None:
+            continue
+        try:
+            konto.avatar_path = avatars.save(inhalt, konto.avatar_path)
+        except avatars.AvatarError:
+            continue
+        geschafft.add(konto_id)
+    if geschafft:
+        db.commit()
+    return geschafft
 
 
 def _kanal_anlegen(db, nutzlast: dict) -> int:
-    """Einen Meldeweg als ``ChannelTarget`` anlegen.
+    """Einen Meldeweg als ``ChannelTarget`` anlegen - ohne Commit.
 
     ⚠️ **Zwei Ebenen, wo der Dienst sie hat.** Bei Telegram traegt die Instanz
     das Token und das Postfach den Chat, bei ntfy die Instanz die Adresse und
@@ -367,6 +841,10 @@ def _kanal_anlegen(db, nutzlast: dict) -> int:
     welchen Kanal geht, bleibt unbestimmt: Nexview kennt andere Arten als Seerr
     (Rueckmeldungen, Ticketcenter, Speicher), und eine Abbildung waere zur
     Haelfte geraten. Der Betreiber stellt es danach selbst ein.
+
+    ⚠️ **Nur ``flush``, kein ``commit``.** Der Aufrufer schreibt alles in einer
+    Transaktion; ein Commit hier wuerde die Zusage "alles oder nichts" genau
+    an dieser Stelle brechen.
     """
     art = ChannelKind(str(nutzlast["art"]))
     eltern = ChannelTarget(channel=art, name=f"Aus Seerr ({art.value})")
@@ -380,12 +858,12 @@ def _kanal_anlegen(db, nutzlast: dict) -> int:
         channel_targets.anwenden(unten, kind)
         db.add(unten)
         angelegt += 1
-    db.commit()
+    db.flush()
     return angelegt
 
 
 def _sperren_anlegen(db, eintraege: list[dict]) -> int:
-    """Die Sperrliste anlegen, ohne Doppelte.
+    """Die Sperrliste anlegen, ohne Doppelte - und ohne Commit.
 
     ⚠️ ``blocked_by`` bleibt leer. Nexview laesst das ausdruecklich zu: Die
     Sperre ist eine Entscheidung ueber den Titel, nicht ueber eine Person - und
@@ -411,5 +889,5 @@ def _sperren_anlegen(db, eintraege: list[dict]) -> int:
         )
         vorhanden.add(schluessel)
         angelegt += 1
-    db.commit()
+    db.flush()
     return angelegt

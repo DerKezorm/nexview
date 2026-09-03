@@ -32,12 +32,19 @@ type Ergebnis = {
 export function MediaServerPasswordForm({
   provider,
   onVerbunden,
+  initialUrl = '',
 }: {
   provider: string
   onVerbunden: (ergebnis: Ergebnis) => void
+  /**
+   * Ein Vorschlag für die Adresse - der Seerr-Umzug kennt sie aus der alten
+   * Installation. Nur der Startwert: Was Seerr erreichte, erreicht Nexview
+   * nicht zwingend unter demselben Namen.
+   */
+  initialUrl?: string
 }) {
   const { t } = useTranslation()
-  const [url, setUrl] = useState('')
+  const [url, setUrl] = useState(initialUrl)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [fehler, setFehler] = useState<string | null>(null)

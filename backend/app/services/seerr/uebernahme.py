@@ -204,9 +204,10 @@ def _medienserver(plex: dict, jellyfin: dict, main: dict) -> Bereich:
     es nicht.
 
     ⚠️ **Und ein Knopf kann hier bei keinem stehen.** Beide Wege verlangen
-    einen angemeldeten Administrator, dieser Assistent läuft, solange es noch
-    gar kein Konto gibt. Die beiden liegen auf verschiedenen Seiten derselben
-    Schwelle - deshalb Auskunft jetzt, Verbinden später.
+    einen angemeldeten Administrator, und den gibt es erst, wenn der Abschluss
+    den Besitzer angelegt hat. Deshalb Auskunft jetzt, Verbinden als letzter
+    Schritt des Assistenten - mit der Sitzung aus dem Abschluss, und mit den
+    Angaben aus ``verbindung`` vorausgefüllt.
     """
     art = {1: "plex", 2: "jellyfin", 3: "emby"}.get(main.get("mediaServerType"))
     b = Bereich("medienserver")
@@ -238,20 +239,18 @@ def _medienserver(plex: dict, jellyfin: dict, main: dict) -> Bereich:
 
     if art == "plex":
         b.luecken.append(
-            "Plex lässt sich von hier aus nicht übernehmen: Das Token gibt "
-            "Seerr nicht heraus, und das Verbinden verlangt ein angemeldetes "
-            "Konto. Leg zuerst dein eigenes Konto an, verbinde Plex danach in "
-            "den Einstellungen, und wähle dort den Server mit dieser Kennung."
+            "Das Plex-Token gibt Seerr nicht heraus. Du meldest dich am Ende "
+            "des Assistenten selbst bei Plex an, sobald dein Konto besteht; "
+            "der Server mit dieser Kennung wird dir dort vorgeschlagen."
         )
         return b
 
     beschriftung = "Jellyfin" if art == "jellyfin" else "Emby"
     b.luecken.append(
-        f"{beschriftung} lässt sich von hier aus nicht übernehmen: Nexview "
-        "verbindet sich mit Benutzername und Passwort eines Administrators "
-        f"deines {beschriftung}-Servers, nicht mit dem Schlüssel aus Seerr. "
-        "Leg zuerst dein eigenes Konto an und trag den Server danach in den "
-        "Einstellungen ein - Adresse und Kennung stehen oben."
+        f"Den Schlüssel aus Seerr kann Nexview nicht benutzen: Es verbindet "
+        "sich mit Benutzername und Passwort eines Administrators deines "
+        f"{beschriftung}-Servers. Das fragt der Assistent am Ende ab, sobald "
+        "dein Konto besteht; die Adresse oben wird dort vorausgefüllt."
     )
     return b
 

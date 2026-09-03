@@ -790,10 +790,10 @@ def test_sobald_ein_konto_da_ist_ist_der_umzug_zu(admin_client: TestClient) -> N
     ohne Anmeldung Einstellungen schreibt. Deshalb dieser Test, und deshalb
     alle drei.
     """
-    for pfad in ("pruefen", "vorschau", "uebernehmen"):
+    for pfad in ("pruefen", "vorschau", "abschliessen"):
         antwort = admin_client.post(
             f"/api/setup/seerr/{pfad}",
-            json={"url": ADRESSE, "api_key": "egal", "bereiche": []},
+            json={"url": ADRESSE, "api_key": "egal", **_abschluss_rumpf()},
         )
         assert antwort.status_code == 409, f"{pfad}: {antwort.status_code}"
         assert antwort.json()["detail"]["code"] == "setup_already_done"
@@ -1054,3 +1054,501 @@ def test_die_kontingent_vorgabe_sagt_fuer_wen_sie_gilt() -> None:
     beschriftungen = dict(menge.zeilen)
     assert beschriftungen["Gilt für"] == "neue Konten"
     assert beschriftungen["Nicht für"] == "die aus Seerr"
+
+
+# --------------------------------------------------------------------------
+# Der Abschluss: alles in einem Zug
+# --------------------------------------------------------------------------
+
+
+def _abschluss_rumpf(**abweichung) -> dict:
+    """Ein gueltiger Rumpf fuer ``abschliessen`` - der Besitzer ist Konto 1."""
+    rumpf = {
+        "url": ADRESSE,
+        "api_key": "geheim-im-test",
+        "bereiche": [],
+        "besitzer": {
+            "seerr_id": 1,
+            "username": "chefin",
+            "password": "geheim-1234",
+            "email": "chefin@example.com",
+            "language": "de",
+        },
+        "konten": [],
+        "tmdb_api_key": "",
+        "public_url": "",
+    }
+    rumpf.update(abweichung)
+    return rumpf
+
+
+def _volle_attrappe(konten: list[dict] | None = None) -> dict:
+    """Ein Seerr mit allem, was der Abschluss anfasst."""
+    return {
+        "/api/v1/status": {"version": "3.4.1"},
+        "/api/v1/settings/main": {
+            "mediaServerType": 1,
+            "discoverRegion": "DE",
+            "locale": "de",
+            "defaultQuotas": {"movie": {"quotaLimit": 5, "quotaDays": 30}},
+        },
+        "/api/v1/settings/radarr": [
+            {
+                "id": 0,
+                "name": "Radarr",
+                "is4k": False,
+                "hostname": "radarr.example.com",
+                "port": 7878,
+                "apiKey": "a" * 32,
+                "isDefault": True,
+                "activeDirectory": "/data/Filme",
+            }
+        ],
+        "/api/v1/settings/sonarr": [],
+        "/api/v1/settings/plex": {
+            "name": "Wohnzimmer",
+            "ip": "10.0.0.2",
+            "port": 32400,
+            "machineId": "beispiel-maschinenkennung",
+        },
+        "/api/v1/settings/jellyfin": {},
+        "/api/v1/settings/notifications/email": {
+            "enabled": True,
+            "options": {
+                "smtpHost": "mail.example.com",
+                "smtpPort": 465,
+                "secure": True,
+                "authUser": "nexview@example.com",
+                "authPass": "beispielpasswort",
+                "emailFrom": "nexview@example.com",
+            },
+        },
+        "/api/v1/settings/notifications/discord": {
+            "enabled": True,
+            "options": {"webhookUrl": "https://discord.example.com/api/webhooks/1/x"},
+        },
+        "/api/v1/user": {
+            "pageInfo": {"pages": 1},
+            "results": konten
+            if konten is not None
+            else [
+                _konto(1, name="chefin", rechte=2),
+                {
+                    **_konto(2, name="Jürgen Müller", plex_id=777, rechte=16, filme=0),
+                    "email": "juergen@example.com",
+                },
+                _konto(3, name="robin-privat", art=2, plex_id=None, serien=5),
+            ],
+        },
+        "/api/v1/blocklist": {
+            "pageInfo": {"pages": 1},
+            "results": [{"id": 1, "tmdbId": 111, "mediaType": "movie", "title": "Beispiel"}],
+        },
+        "/api/v1/issue": {"pageInfo": {"pages": 1}, "results": []},
+        "/api/v1/request": {"pageInfo": {"pages": 1}, "results": []},
+    }
+
+
+def _konten_in_der_datenbank() -> dict[str, object]:
+    from app.db import SessionLocal
+    from app.models import Blocked, ChannelTarget, Setting, User
+
+    with SessionLocal() as sitzung:
+        return {
+            "konten": {k.username: k for k in sitzung.query(User).all()},
+            "einstellungen": sitzung.query(Setting).count(),
+            "gesperrt": sitzung.query(Blocked).count(),
+            "kanaele": sitzung.query(ChannelTarget).count(),
+        }
+
+
+def test_abschliessen_schreibt_alles_in_einem_zug(client: TestClient, seerr_attrappe) -> None:
+    """Der gute Fall: Einstellungen, Sperrliste, Kanal, Besitzer, Konten, Sitzung."""
+    from app.db import SessionLocal
+    from app.models import Setting, User
+    from app.services.settings_service import load_settings
+
+    seerr_attrappe(_volle_attrappe())
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(
+            bereiche=["radarr", "mail", "sperrliste", "kanal_discord", "vorgabe_region"],
+            konten=[{"seerr_id": 2, "rolle": "approver"}, {"seerr_id": 3}],
+            public_url="https://nexview.example.com/",
+        ),
+    )
+    assert antwort.status_code == 201, antwort.text
+    daten = antwort.json()
+    assert daten["access_token"], "Die Antwort ist die Sitzung des Besitzers."
+    bericht = daten["bericht"]
+    assert bericht["besitzer"]["username"] == "chefin"
+    assert bericht["besitzer"]["zugang"] == "plex"
+    assert [k["username"] for k in bericht["konten"]] == ["Jurgen.Muller", "robin-privat"]
+    assert bericht["abgelehnt"] == []
+    assert {k["bild"] for k in bericht["konten"]} == {"keins"}, "Seerr hatte keine Bilder."
+    assert bericht["gesperrt"] == 1
+    assert bericht["kanaele"] == 1
+    assert bericht["public_url"] is True
+
+    with SessionLocal() as sitzung:
+        einstellungen = load_settings(sitzung)
+        assert einstellungen.radarr_url == "http://radarr.example.com:7878"
+        assert einstellungen.radarr_api_key == "a" * 32
+        assert einstellungen.smtp_password == "beispielpasswort"
+        assert einstellungen.public_url == "https://nexview.example.com"
+        assert einstellungen.default_region == "DE"
+        # Das Geheimnis steht verschluesselt da, nicht im Klartext.
+        roh = sitzung.get(Setting, "smtp_password")
+        assert roh is not None and roh.value != "beispielpasswort"
+
+        chefin = sitzung.query(User).filter_by(username="chefin").one()
+        assert chefin.role is Role.admin
+        assert chefin.is_betreiber, "Der Haken gehoert dem, der einrichtet."
+        assert chefin.email_verified is False, "Wie bei /api/setup/admin: erst bestaetigen."
+        assert chefin.display_name == "chefin"
+        assert [z.provider for z in chefin.mediaserver_accounts] == ["plex"]
+
+        juergen = sitzung.query(User).filter_by(username="Jurgen.Muller").one()
+        assert juergen.role is Role.approver
+        assert juergen.quota_movies_limit == UNBEGRENZT, "Seerrs Null heisst ohne Grenze."
+        assert juergen.quota_series_limit is None
+        assert juergen.display_name == "Jürgen Müller"
+        assert juergen.email == "juergen@example.com"
+        assert [(z.provider, z.account_id) for z in juergen.mediaserver_accounts] == [
+            ("plex", "777")
+        ]
+        assert juergen.email_verified is True, "Die Adresse kommt von plex.tv, wie bei link()."
+
+        robin = sitzung.query(User).filter_by(username="robin-privat").one()
+        assert robin.role is Role.user, "Ohne Angabe: Nutzer."
+        assert robin.quota_series_limit == 5
+        assert robin.mediaserver_accounts == []
+        assert robin.email_verified is False
+        assert robin.password_hash and not robin.password_hash.startswith("$2")
+
+    # Ab jetzt ist die Einrichtung zu.
+    assert client.get("/api/setup/status").json()["needs_setup"] is False
+    zweiter = client.post("/api/setup/seerr/abschliessen", json=_abschluss_rumpf())
+    assert zweiter.status_code == 409
+
+
+def test_abschliessen_schreibt_bei_fehler_nichts(
+    client: TestClient, seerr_attrappe, monkeypatch
+) -> None:
+    """⚠️ **Die Zusage, an der dieses Feature haengt: alles oder nichts.**
+
+    Ein Fehler mitten im Schreiben - hier nachgestellt in der Sperrliste,
+    also **nach** den Einstellungen und **vor** dem Besitzer - darf nichts
+    stehen lassen. Sonst liegen SMTP-Passwort und Arr-Schluessel in der
+    Datenbank, ohne dass es ein Konto gibt, dem sie gehoeren.
+    """
+    from app.routers import seerr_umzug
+
+    seerr_attrappe(_volle_attrappe())
+
+    def kaputt(db, eintraege):
+        raise RuntimeError("nachgestellter Fehler mitten im Schreiben")
+
+    monkeypatch.setattr(seerr_umzug, "_sperren_anlegen", kaputt)
+    with pytest.raises(RuntimeError):
+        client.post(
+            "/api/setup/seerr/abschliessen",
+            json=_abschluss_rumpf(bereiche=["radarr", "mail", "sperrliste"]),
+        )
+
+    stand = _konten_in_der_datenbank()
+    assert stand["konten"] == {}, "Kein Besitzer, kein halbes Konto."
+    assert stand["einstellungen"] == 0, "Die Einstellungen davor sind zurueckgerollt."
+    assert client.get("/api/setup/status").json()["needs_setup"] is True
+
+
+def test_ein_falscher_tmdb_schluessel_bricht_ab_bevor_geschrieben_wird(
+    client: TestClient, seerr_attrappe, monkeypatch
+) -> None:
+    """Der Schluessel wird vor dem Schreiben geprueft - der Assistent hat
+    keinen eigenen Pruefknopf dafuer, und ein falscher fiele sonst Wochen
+    spaeter auf, wenn die erste Suche leer bleibt."""
+    from app.routers import seerr_umzug
+    from app.services.tmdb import TmdbError
+
+    seerr_attrappe(_volle_attrappe())
+
+    async def abgelehnt(self):
+        raise TmdbError("TMDB meldet einen Fehler (HTTP 401).", 401)
+
+    monkeypatch.setattr(seerr_umzug.TmdbClient, "verify", abgelehnt)
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(bereiche=["radarr"], tmdb_api_key="falsch"),
+    )
+    assert antwort.status_code == 422, antwort.text
+    assert antwort.json()["detail"]["code"] == "tmdb_key_rejected"
+    assert _konten_in_der_datenbank()["konten"] == {}
+    assert _konten_in_der_datenbank()["einstellungen"] == 0
+
+
+def test_ein_richtiger_tmdb_schluessel_wird_gespeichert(
+    client: TestClient, seerr_attrappe, monkeypatch
+) -> None:
+    from app.db import SessionLocal
+    from app.routers import seerr_umzug
+    from app.services.settings_service import load_settings
+
+    seerr_attrappe(_volle_attrappe())
+
+    async def geht(self):
+        return None
+
+    monkeypatch.setattr(seerr_umzug.TmdbClient, "verify", geht)
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(tmdb_api_key="richtig-1234"),
+    )
+    assert antwort.status_code == 201, antwort.text
+    assert antwort.json()["bericht"]["tmdb"] is True
+    with SessionLocal() as sitzung:
+        assert load_settings(sitzung).tmdb_api_key == "richtig-1234"
+
+
+def test_der_besitzer_darf_nicht_auch_in_der_liste_stehen(
+    client: TestClient, seerr_attrappe
+) -> None:
+    seerr_attrappe(_volle_attrappe())
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(konten=[{"seerr_id": 1}]),
+    )
+    assert antwort.status_code == 422
+    assert antwort.json()["detail"]["code"] == "seerr_owner_in_list"
+    assert _konten_in_der_datenbank()["konten"] == {}
+
+
+def test_ein_verschwundenes_konto_bricht_ab_bevor_geschrieben_wird(
+    client: TestClient, seerr_attrappe
+) -> None:
+    """Zwischen Vorschau und Abschluss hat drueben jemand geloescht."""
+    seerr_attrappe(_volle_attrappe())
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(konten=[{"seerr_id": 99}]),
+    )
+    assert antwort.status_code == 422
+    assert antwort.json()["detail"]["code"] == "seerr_account_unknown"
+    assert antwort.json()["detail"]["seerr_id"] == 99
+    assert _konten_in_der_datenbank()["konten"] == {}
+
+
+def test_eine_rolle_die_der_umzug_nicht_vergibt_wird_abgewiesen(
+    client: TestClient, seerr_attrappe
+) -> None:
+    """Kinderkonten entstehen nie aus einem Umzug - sie sind Unterprofile."""
+    seerr_attrappe(_volle_attrappe())
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(konten=[{"seerr_id": 2, "rolle": "child"}]),
+    )
+    assert antwort.status_code == 422
+    assert _konten_in_der_datenbank()["konten"] == {}
+
+
+def test_doppelte_adresse_bleibt_draussen_mit_grund(client: TestClient, seerr_attrappe) -> None:
+    """Der Besitzer tippt seine Adresse, die in Seerr an einem anderen Konto
+    haengt. Nexview fuehrt Adressen eindeutig - die Zeile faellt weg, aber
+    sichtbar, nicht still."""
+    seerr_attrappe(
+        _volle_attrappe(
+            konten=[
+                _konto(1, name="chefin", rechte=2),
+                _konto(2, name="zweitkonto", plex_id=None, art=2),
+            ]
+        )
+    )
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(
+            besitzer={
+                "seerr_id": 1,
+                "username": "chefin",
+                "password": "geheim-1234",
+                "email": "zweitkonto@example.com",
+                "language": "de",
+            },
+            konten=[{"seerr_id": 2}],
+        ),
+    )
+    assert antwort.status_code == 201, antwort.text
+    bericht = antwort.json()["bericht"]
+    assert bericht["konten"] == []
+    assert len(bericht["abgelehnt"]) == 1
+    assert bericht["abgelehnt"][0]["seerr_id"] == 2
+    assert "Adresse" in bericht["abgelehnt"][0]["grund"]
+    assert set(_konten_in_der_datenbank()["konten"]) == {"chefin"}
+
+
+def test_jellyfin_konten_bekommen_die_kennung_aber_keine_bestaetigung(
+    client: TestClient, seerr_attrappe
+) -> None:
+    """Die Jellyfin-Kennung kommt mit (sonst kaeme niemand herein), aber die
+    Adresse gilt nicht als bestaetigt: Sie hat in Seerr ein Administrator
+    getippt, kein Anbieter geprueft."""
+    from app.db import SessionLocal
+    from app.models import User
+
+    seerr_attrappe(
+        _volle_attrappe(
+            konten=[
+                _konto(1, name="chefin", rechte=2),
+                _konto(2, name="kellerkind", art=3, plex_id=None, jellyfin="abc123"),
+            ]
+        )
+    )
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen", json=_abschluss_rumpf(konten=[{"seerr_id": 2}])
+    )
+    assert antwort.status_code == 201, antwort.text
+    assert antwort.json()["bericht"]["konten"][0]["zugang"] == "jellyfin"
+    with SessionLocal() as sitzung:
+        konto = sitzung.query(User).filter_by(username="kellerkind").one()
+        assert [(z.provider, z.account_id) for z in konto.mediaserver_accounts] == [
+            ("jellyfin", "abc123")
+        ]
+        assert konto.email_verified is False
+
+
+def test_benutzername_aus_anzeigename() -> None:
+    """Der Zwilling von ``benutzernameAus`` in der Oberflaeche."""
+    from app.routers.seerr_umzug import _benutzername_aus
+
+    assert _benutzername_aus("Kim Beispiel") == "Kim.Beispiel"
+    assert _benutzername_aus("Jürgen Müller") == "Jurgen.Muller"
+    assert _benutzername_aus("Straße") == "Strasse"
+    assert _benutzername_aus("🎬") == ""
+    assert _benutzername_aus("  .robin.  ") == "robin"
+    assert len(_benutzername_aus("x" * 50)) == 32
+
+
+def test_zwei_gleiche_anzeigenamen_ergeben_zwei_benutzernamen(
+    client: TestClient, seerr_attrappe
+) -> None:
+    seerr_attrappe(
+        _volle_attrappe(
+            konten=[
+                _konto(1, name="chefin", rechte=2),
+                {**_konto(2, name="Robin", plex_id=11), "email": "a@example.com"},
+                {**_konto(3, name="Robin", plex_id=12), "email": "b@example.com"},
+            ]
+        )
+    )
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(konten=[{"seerr_id": 2}, {"seerr_id": 3}]),
+    )
+    assert antwort.status_code == 201, antwort.text
+    namen = [k["username"] for k in antwort.json()["bericht"]["konten"]]
+    assert namen == ["Robin", "Robin-2"]
+
+
+def _png() -> bytes:
+    """Ein gueltiges, winziges PNG (1x1), damit ``avatars.save`` es annimmt.
+
+    Aus seinen Teilen gebaut statt als Hex-Zeichenkette: Die sah fuer den
+    Waechter gegen Schluessel im Quelltext genauso aus wie ein Schluessel.
+    """
+    import struct
+    import zlib
+
+    def block(art: bytes, daten: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(daten))
+            + art
+            + daten
+            + struct.pack(">I", zlib.crc32(art + daten) & 0xFFFFFFFF)
+        )
+
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + block(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0))
+        + block(b"IDAT", zlib.compress(b"\x00\x00\x00\x00\x00"))
+        + block(b"IEND", b"")
+    )
+
+
+_PNG = _png()
+
+
+def test_profilbilder_kommen_mit(client: TestClient, seerr_attrappe, monkeypatch) -> None:
+    """Entschieden am 03.09.2026: Die Bilder werden geholt, nicht nur gezeigt."""
+    from app.db import SessionLocal
+    from app.models import User
+    from app.routers import seerr_umzug
+    from app.services import avatars
+
+    geholt: list[str] = []
+
+    async def bild(adresse: str) -> bytes | None:
+        geholt.append(adresse)
+        return _PNG if "plex.tv" in adresse else None
+
+    monkeypatch.setattr(seerr_umzug, "_bild_laden", bild)
+    seerr_attrappe(
+        _volle_attrappe(
+            konten=[
+                {**_konto(1, name="chefin", rechte=2), "avatar": "https://plex.tv/users/1/avatar"},
+                {**_konto(2, name="robin", plex_id=7), "avatar": "https://plex.tv/users/2/avatar"},
+                {
+                    **_konto(3, name="lokal", art=2, plex_id=None),
+                    "avatar": "https://gravatar.com/avatar/abc",
+                },
+            ]
+        )
+    )
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(konten=[{"seerr_id": 2}, {"seerr_id": 3}]),
+    )
+    assert antwort.status_code == 201, antwort.text
+    bericht = antwort.json()["bericht"]
+    assert sorted(geholt) == [
+        "https://gravatar.com/avatar/abc",
+        "https://plex.tv/users/1/avatar",
+        "https://plex.tv/users/2/avatar",
+    ]
+    assert bericht["bilder"] == 2
+    assert bericht["besitzer"]["bild"] == "uebernommen"
+    assert [k["bild"] for k in bericht["konten"]] == ["uebernommen", "nicht_geladen"]
+
+    with SessionLocal() as sitzung:
+        robin = sitzung.query(User).filter_by(username="robin").one()
+        assert robin.avatar_path, "Das Bild haengt am Konto."
+        assert (avatars.avatar_dir() / robin.avatar_path).read_bytes() == _PNG
+        lokal = sitzung.query(User).filter_by(username="lokal").one()
+        assert lokal.avatar_path is None, "Ein Bild, das nicht kommt, ist ein fehlendes Bild."
+
+
+def test_region_und_sprache_kommen_je_konto_mit(client: TestClient, seerr_attrappe) -> None:
+    """Seerr fuehrt Region und Sprache je Konto; ohne diesen Abruf fragte
+    Nexview jeden beim ersten Anmelden, obwohl er es drueben gesagt hat."""
+    from app.db import SessionLocal
+    from app.models import User
+
+    antworten = _volle_attrappe()
+    # Die Feldnamen sind Seerrs eigene (usersettings.ts, GET /main): discoverRegion, locale.
+    antworten["/api/v1/user/1/settings/main"] = {"discoverRegion": "at", "locale": "en-US", "streamingRegion": "US"}
+    antworten["/api/v1/user/2/settings/main"] = {"discoverRegion": "", "locale": "fr"}
+    # Konto 3 hat den Pfad nicht - Seerr antwortet 404, das heisst "nichts".
+    seerr_attrappe(antworten)
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(konten=[{"seerr_id": 2}, {"seerr_id": 3}]),
+    )
+    assert antwort.status_code == 201, antwort.text
+    with SessionLocal() as sitzung:
+        chefin = sitzung.query(User).filter_by(username="chefin").one()
+        assert chefin.discover_region == "AT"
+        assert chefin.language == "en"
+        juergen = sitzung.query(User).filter_by(username="Jurgen.Muller").one()
+        assert juergen.discover_region is None, "Leer heisst Hausvorgabe."
+        assert juergen.language == "de", "Franzoesisch kennt Nexview nicht: Hausvorgabe."
+        robin = sitzung.query(User).filter_by(username="robin-privat").one()
+        assert robin.discover_region is None
+

@@ -1010,11 +1010,16 @@ def public_settings(db: Session) -> dict[str, object]:
     }
 
 
-def save_settings(db: Session, changes: dict[str, object]) -> None:
+def save_settings(db: Session, changes: dict[str, object], *, commit: bool = True) -> None:
     """Geaenderte Werte speichern.
 
     Ein leerer String bei einem Geheimnis bedeutet "unveraendert lassen" -
     sonst wuerde das Zurueckschicken des maskierten Werts den Key loeschen.
+
+    ``commit=False`` laesst die Transaktion offen - fuer einen Aufrufer, der
+    Einstellungen und andere Zeilen in **einem** Zug schreiben muss (der
+    Abschluss des Seerr-Umzugs). Er ruft ``db.commit()`` selbst, oder gar
+    nicht.
     """
     existing = {row.key: row for row in db.scalars(select(Setting))}
 
@@ -1040,7 +1045,8 @@ def save_settings(db: Session, changes: dict[str, object]) -> None:
             row.value = text
             row.is_secret = is_secret
 
-    db.commit()
+    if commit:
+        db.commit()
 
 
 def clear_secret(db: Session, key: str) -> None:

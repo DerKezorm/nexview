@@ -1431,14 +1431,18 @@ TEXTE: dict[str, tuple[str, str]] = {
             'automatic or manual, and whether this version could restore each one.'
         ),
     ),
-    'POST /api/setup/seerr/uebernehmen': (
-        'Apply picked areas from Seerr during first-time setup',
+    'POST /api/setup/seerr/abschliessen': (
+        'Finish the Seerr migration in one go',
         (
-            'The one call in this feature that writes, and it writes settings only - no '
-            'accounts, no requests. Areas are picked by name; the values themselves are '
-            'fetched again server-side rather than sent back by the browser, so the SMTP '
-            'password and the Radarr and Sonarr keys never leave the server. Open only '
-            'while no account exists.'
+            'The one call in this feature that writes, and it writes everything at '
+            'once or nothing at all: the picked settings areas, the blocklist, the '
+            'notification channels, the TMDB key, the public address, the owner '
+            'account and the other accounts. Areas and accounts are picked by name '
+            'and number; the values themselves are fetched again server-side, so the '
+            'SMTP password, the Radarr and Sonarr keys and every quota never pass '
+            'through the browser. Answers with the owner session - the media server '
+            'is connected with it in the next step. Open only while no account '
+            'exists; this call creates the first one and closes the door.'
         ),
     ),
     'POST /api/setup/seerr/pruefen': (

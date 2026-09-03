@@ -12,6 +12,63 @@ tag exists for it.
 
 ---
 
+## 0.29.0 – 03.09.2026
+
+Whoever runs Seerr and wants to switch used to start from nothing: every
+account by hand, every quota a second time, Radarr and Sonarr typed in once
+more. This version reads a running Seerr during first-time setup and takes over
+everything that has a place in Nexview.
+
+### New
+
+- **A third way into the setup wizard: from a running Seerr.** Nexview reads
+  the installation through Seerr's API with the key you paste, shows what it
+  found area by area, and writes only what you tick: Radarr and Sonarr with
+  their keys and folders, the mail server including its password, region and
+  language, the house quota default, the block list, and the notification
+  channels for Discord, Telegram, Gotify, ntfy and webhooks. Nothing is
+  preselected. The key is never stored, and the wizard only ever reads from
+  Seerr.
+
+- **Accounts come along, ready to use.** One of Seerr's accounts becomes the
+  owner, with a password you set in the wizard. For everyone else you tick who
+  comes and pick a role per row; the default is user, and what the person was
+  in Seerr stands next to it as a hint. Each account arrives with its display
+  name, a username shaped from it, its count quota (Seerr's 0 means "no limit"
+  and becomes exactly that), its personal region and language, its profile
+  picture, and its Plex, Jellyfin or Emby identity. Plex people sign in through
+  Plex as soon as the server is connected; everyone else sets a password via
+  "Forgot password" or gets one from you.
+
+- **Everything is written in one go, or not at all.** The wizard writes nothing
+  until its last step. Then settings, block list, channels, owner and accounts
+  land in a single transaction. If anything fails, the database stays empty and
+  the wizard stays where it is; nothing is half done.
+
+- **The media server is connected as the last step**, once the owner exists.
+  Plex through the usual code at plex.tv, with the server Seerr used marked in
+  the list; Jellyfin and Emby through address and administrator sign-in, with
+  the address prefilled from Seerr. The step can be skipped and done later in
+  the settings.
+
+- **A report at the end** says what was written, how each person gets in, which
+  rows were left out and why, and what remains to be done by hand.
+
+### What stays behind, on purpose
+
+- The request history. What sits in Radarr and Sonarr, Nexview shows anyway;
+  only who asked would carry over, and no storage would be booked to anyone
+  retroactively.
+- Passwords, watch lists, per-person notification addresses, Seerr's override
+  rules and its discover sliders. None of them has a place in Nexview, and the
+  wizard says so instead of pretending.
+- Seerr's own public address. It points at Seerr, not at Nexview.
+
+### Changed
+
+- Profile pictures from plex.tv and Gravatar are now allowed as image sources by
+  the content security rules, so the wizard can show them before writing.
+
 ## 0.28.0 – 03.09.2026
 
 ### New

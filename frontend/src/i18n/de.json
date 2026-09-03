@@ -2350,7 +2350,7 @@
     "topicsSection": "Topics",
     "username": "Benutzername",
     "verifyFirst": "Erst die Verbindung mit dem Code bestätigen.",
-    "webhookIntro": "Der Universalanschluss: Nexview schickt jede Meldung als POST mit festem JSON an deine Adresse – für Home Assistant, n8n, Node-RED oder eigene Skripte. Der Bestätigungscode steht im Feld „title“ der Testnachricht; lies ihn dort ab, wo deine Anfragen ankommen.",
+    "webhookIntro": "Der Universalanschluss: Nexview schickt jede Meldung als POST mit festem JSON an deine Adresse – für Home Assistant, n8n, Node-RED oder eigene Skripte. Der Bestätigungscode steht im Feld „title“ der Testnachricht; lies ihn dort ab, wo deine Anfragen ankommen. Eine Anbindung, die sich selbst einrichtet, findet ihn zusätzlich im Feld „code“ und muss ihn nicht aus einem Satz herausklauben.",
     "webhookName": "Bezeichnung",
     "webhookNameHint": "Steht auf der Kachel – etwa „Home Assistant“ oder „n8n“.",
     "webhookTargetUrl": "Ziel-Adresse (URL)",

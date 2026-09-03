@@ -17,10 +17,10 @@ weiter.
 Warum klein
 -----------
 Eine Zusage ueber alle 190 Adressen waere entweder wertlos (weil sie doch
-gebrochen wird) oder teuer (weil sie jede Aufraeumarbeit blockiert). Dreizehn
-sind wenige genug, um sie zu halten, und decken die drei Dinge ab, die man mit
-so einer Schnittstelle wirklich tut: **etwas anfragen, etwas zaehlen, etwas
-zeigen.**
+gebrochen wird) oder teuer (weil sie jede Aufraeumarbeit blockiert). Fuenfzehn
+sind wenige genug, um sie zu halten, und decken die vier Dinge ab, die man mit
+so einer Schnittstelle wirklich tut: **herausfinden was man darf, etwas
+anfragen, etwas zaehlen, etwas zeigen.**
 
 Bewusst **nicht** dabei: die gesamte Verwaltung (Einstellungen, Benutzer,
 Protokoll, Sicherungen). Die zu versprechen hiesse, das Konfigurationsmodell
@@ -49,19 +49,19 @@ deutsche Begruendung stehen, aussen liest ein fremder Entwickler Englisch.
 
 Der Rest der rund 190 Adressen antwortet auf ``/docs`` weiterhin deutsch. Das
 ist bekannt und bewusst so gelassen - es sind 151 Beschreibungen, und keine
-davon ist zugesagt. Wer von aussen anbindet, liest diese dreizehn.
+davon ist zugesagt. Wer von aussen anbindet, liest diese fuenfzehn.
 """
 
 from __future__ import annotations
 
 from datetime import timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from .. import __version__
-from ..deps import AdminUser, DbSession
+from ..deps import AdminUser, CurrentUser, DbSession, schluessel_der_anfrage
 from ..models import MediaRequest, RequestStatus, StorageEntry, TicketStatus, utcnow
 from ..schemas_media import MediaItem, MediaPage
 from ..schemas_requests import QuotaOverview, RequestPublic
@@ -411,6 +411,112 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+# --- Selbstauskunft ---------------------------------------------------------
+#
+# ⚠️ **Die erste Adresse, die eine Anbindung aufruft.** Was Nexview hergibt,
+# haengt am Schluessel: Ein Konto ohne Verwaltungsrechte sieht keine Instanzen
+# und darf nichts entscheiden, und ein Schluessel auf "nur lesen" veraendert
+# gar nichts. Eine Anbindung, die das nicht vorher weiss, hat drei
+# Moeglichkeiten - alles anlegen und die Haelfte tot stehen lassen, reihum
+# probieren und dabei fremde Protokolle mit 403ern fuellen, oder raten.
+#
+# Deshalb steht hier **eine** Antwort, die beides zusammenrechnet: was das
+# Konto darf und was der Schluessel davon uebrig laesst.
+
+
+class MeinKonto(BaseModel):
+    id: int
+    username: str
+    #: Der Anzeigename, sonst der Benutzername. Nie ``null`` - wer einen Namen
+    #: hinschreiben will, soll nicht selbst zurueckfallen muessen.
+    name: str
+    role: str
+    betreiber: bool
+
+
+class MeinSchluessel(BaseModel):
+    name: str
+    nur_lesen: bool
+
+
+class Selbstauskunft(BaseModel):
+    version: str
+    konto: MeinKonto
+    #: ``null``, wenn die Anfrage aus einer angemeldeten Sitzung kam.
+    schluessel: MeinSchluessel | None
+    #: Was **diese Anfrage** darf - Rolle und Schluessel zusammengerechnet.
+    #:
+    #: ⚠️ **Kennungen, keine Saetze** - aus demselben Grund wie bei den
+    #: Befunden der Kachel. Und bewusst grob: fuenf Kennungen, die sich an
+    #: den Wachen in ``deps.py`` orientieren, nicht eine je Adresse. Eine
+    #: feinere Liste waere eine zweite Wahrheit neben den Wachen, und zwei
+    #: Wahrheiten laufen auseinander.
+    darf: list[str]
+
+
+@router.get(
+    "/me",
+    response_model=Selbstauskunft,
+    summary="Who am I and what may I do",
+    description=(
+        "**The first call an integration should make.** What Nexview hands "
+        "out depends on the key: an account without administrative rights sees "
+        "no instances and decides nothing, and a key marked *read only* "
+        "changes nothing at all.\n\n"
+        "`darf` folds both together and lists what **this request** is allowed "
+        "to do, as stable identifiers:\n\n"
+        "- `lesen` - read whatever the account can see\n"
+        "- `anfragen` - create requests\n"
+        "- `entscheiden` - approve, reject or defer other people's requests\n"
+        "- `verwalten` - read operator data: instances, users, the dashboard "
+        "tile\n"
+        "- `einrichten` - change settings and notification targets\n\n"
+        "Build against these, not against `role`. A read-only administrator "
+        "token has `role: admin` and still cannot approve anything.\n\n"
+        "`schluessel` is `null` when the call came from a signed-in browser "
+        "session instead of a personal access key."
+    ),
+)
+def selbstauskunft(request: Request, user: CurrentUser) -> Selbstauskunft:
+    """Wer klopft an, und was darf er.
+
+    ⚠️ **Rolle und Schluessel getrennt gemeldet, aber zusammen gerechnet.**
+    Beides steht in der Antwort, damit man es anzeigen kann - entscheiden soll
+    eine Anbindung aber nach ``darf``. Ein Administrator mit einem Nur-Lese-
+    Schluessel traegt ``role: admin`` und darf trotzdem nichts genehmigen; wer
+    auf die Rolle baut, baut einen Knopf, der immer scheitert.
+    """
+    schluessel = schluessel_der_anfrage(request)
+    schreibt = schluessel is None or not schluessel.nur_lesen
+
+    darf = ["lesen"]
+    if schreibt:
+        darf.append("anfragen")
+    if user.can_approve and schreibt:
+        darf.append("entscheiden")
+    if user.is_admin:
+        darf.append("verwalten")
+        if schreibt:
+            darf.append("einrichten")
+
+    return Selbstauskunft(
+        version=__version__,
+        konto=MeinKonto(
+            id=user.id,
+            username=user.username,
+            name=user.display_name or user.username,
+            role=user.role.value,
+            betreiber=user.is_betreiber,
+        ),
+        schluessel=(
+            MeinSchluessel(name=schluessel.name, nur_lesen=schluessel.nur_lesen)
+            if schluessel is not None
+            else None
+        ),
+        darf=darf,
+    )
+
+
 #: ⚠️ **Die Liste, gegen die geprueft wird.** Sie steht hier und nicht im Test,
 #: damit man an einer Stelle sieht, was zugesagt ist - und damit ein neuer
 #: Eintrag eine bewusste Handlung bleibt und kein Nebeneffekt.
@@ -429,4 +535,5 @@ ZUGESAGT = (
     "/api/v1/storage/me",
     "/api/v1/dashboard",
     "/api/v1/health",
+    "/api/v1/me",
 )

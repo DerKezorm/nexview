@@ -1179,14 +1179,25 @@ def test_webhook_ablauf_testen_bestaetigen_speichern(
     assert admin_client.post(
         "/api/settings/channels/webhook/test", json=WEBHOOK_ENTWURF
     ).json()["ok"]
-    # Der Code steht im title-Feld des JSON - dort liest ihn ab, wer den
-    # Empfaenger eingerichtet hat.
+    # ⚠️ **Zwei Wege zum selben Code, und beide muessen bleiben.**
+    #
+    # Im ``title`` steht er fuer den Menschen, der den Empfaenger eingerichtet
+    # hat und ihn irgendwo ablesen muss. Im Feld ``code`` steht er fuer eine
+    # Maschine, die sich selbst einrichtet - eine Home-Assistant-Integration
+    # etwa, die die Testnachricht abfaengt und den Code zurueckmeldet, ohne
+    # dass jemand abtippt. Ohne das Feld muesste sie ihn aus
+    # ``"Nexview-Code: 4711"`` klauben: einem Satz, den es in zwei Sprachen
+    # gibt und den irgendwann jemand umformuliert.
     import re as _re
 
-    treffer = _re.search(r"\d{4}", gesendet[-1]["title"])
-    assert treffer, f"kein Code im title: {gesendet[-1]!r}"
+    rumpf = gesendet[-1]
+    code = rumpf["code"]
+    assert code and code.isdigit() and len(code) == 4, f"kein Code im Feld: {rumpf!r}"
+    treffer = _re.search(r"\d{4}", rumpf["title"])
+    assert treffer and treffer.group() == code, f"Titel und Feld gehen auseinander: {rumpf!r}"
+
     assert admin_client.post(
-        "/api/settings/channels/webhook/confirm", json={"code": treffer.group()}
+        "/api/settings/channels/webhook/confirm", json={"code": code}
     ).json()["ok"]
 
     antwort = admin_client.post("/api/settings/channels/webhook/targets", json=WEBHOOK_ENTWURF)
@@ -1232,6 +1243,10 @@ async def test_webhook_rumpf_und_kopfzeile(monkeypatch: pytest.MonkeyPatch) -> N
     assert daten["body"] == "Dune wartet"
     assert daten["image"] == "https://bild.test/p.jpg"
     assert daten["url"] == "https://nexview.test/admin/requests"
+    # ⚠️ **Das Feld ist immer da, ausserhalb der Testnachricht aber leer.**
+    # Ein Rumpf, bei dem Felder je nach Anlass auftauchen und verschwinden,
+    # zwingt jeden Empfaenger zu einer Fallunterscheidung.
+    assert daten["code"] is None
 
 
 @pytest.mark.asyncio

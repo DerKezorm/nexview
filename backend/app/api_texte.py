@@ -9,7 +9,7 @@ oeffentlichen Text auf ``/docs`` - und was nach draussen geht, ist englisch.
 
 Beides zusammen geht nur, wenn der aeussere Text woanders steht als der innere.
 Die naheliegende Loesung waere ``summary=``/``description=`` am Dekorator. Bei
-dreizehn Adressen ist das richtig, und in ``routers/v1.py`` steht es auch genau
+fuenfzehn Adressen ist das richtig, und in ``routers/v1.py`` steht es auch genau
 so - dort gehoert der Text neben die Zusage, gegen die geprueft wird.
 
 Bei **214** Adressen ueber 30 Module ist es falsch:

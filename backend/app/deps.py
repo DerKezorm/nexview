@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from . import meldungen
 from .db import get_db
-from .models import User
+from .models import ApiKey, User
 from .security import decode_token
 from .services import api_schluessel, logs, sitzung
 
@@ -84,7 +84,26 @@ def _mit_schluessel(
     # welche Anbindung etwas getan hat - genau der Mangel, den Seerrs einzelner
     # Schluessel hat.
     logs.set_actor(f"{eintrag.user.username} [{eintrag.name}]")
+
+    # ⚠️ **Der Eintrag bleibt an der Anfrage haengen.** Zurueckgegeben wird der
+    # Besitzer - wer wissen will, *womit* angeklopft wurde, findet es hier.
+    # Genau eine Adresse braucht das: ``/api/v1/me`` sagt einer Anbindung, was
+    # ihr Schluessel darf, und "nur lesen" haengt am Schluessel, nicht am
+    # Konto. Ohne diese Zeile muesste sie ihn ein zweites Mal einloesen - und
+    # damit ``last_used_at`` ein zweites Mal anfassen.
+    request.state.api_schluessel = eintrag
     return eintrag.user
+
+
+def schluessel_der_anfrage(request: Request) -> ApiKey | None:
+    """Womit wurde angeklopft - oder ``None``, wenn es eine Sitzung war.
+
+    Ein Sitzungs-Token kennt keine Beschraenkung: Wer im Browser angemeldet
+    ist, darf alles, was sein Konto darf. Ein Schluessel kann zusaetzlich auf
+    "nur lesen" stehen. Der Unterschied ist genau das, was eine Anbindung
+    wissen muss, bevor sie sich einrichtet.
+    """
+    return getattr(request.state, "api_schluessel", None)
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

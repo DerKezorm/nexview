@@ -50,9 +50,21 @@
     "[].tmdb_id",
     "[].vote_average"
   ],
+  "GET /api/v1/me": [
+    "darf[]",
+    "konto.betreiber",
+    "konto.id",
+    "konto.name",
+    "konto.role",
+    "konto.username",
+    "schluessel.name",
+    "schluessel.nur_lesen",
+    "version"
+  ],
   "GET /api/v1/media/{media_type}/{tmdb_id}": [
     "backdrop_url",
     "certification",
+    "genre_ids[]",
     "genres[]",
     "media_type",
     "origin_country[]",
@@ -98,7 +110,9 @@
   "GET /api/v1/requests/mine": [
     "[].approved_at",
     "[].approved_by_name",
+    "[].arr_linked",
     "[].completed_at",
+    "[].darf_trotzdem_fragen",
     "[].episodes[]",
     "[].error_detail{*}",
     "[].error_message",
@@ -115,6 +129,7 @@
     "[].rated_at",
     "[].rating",
     "[].rating_outdated",
+    "[].regel_name",
     "[].rejection_reason",
     "[].release_date",
     "[].replied_at",
@@ -124,7 +139,8 @@
     "[].status",
     "[].tier",
     "[].title",
-    "[].tmdb_id"
+    "[].tmdb_id",
+    "[].trotzdem_gefragt"
   ],
   "GET /api/v1/requests/quota": [
     "auto_approve",
@@ -148,6 +164,7 @@
     "demo",
     "items[].backdrop_url",
     "items[].certification",
+    "items[].genre_ids[]",
     "items[].genres[]",
     "items[].media_type",
     "items[].origin_country[]",
@@ -220,7 +237,9 @@
   "POST /api/v1/requests": [
     "approved_at",
     "approved_by_name",
+    "arr_linked",
     "completed_at",
+    "darf_trotzdem_fragen",
     "episodes[]",
     "error_detail{*}",
     "error_message",
@@ -237,6 +256,7 @@
     "rated_at",
     "rating",
     "rating_outdated",
+    "regel_name",
     "rejection_reason",
     "release_date",
     "replied_at",
@@ -246,12 +266,15 @@
     "status",
     "tier",
     "title",
-    "tmdb_id"
+    "tmdb_id",
+    "trotzdem_gefragt"
   ],
   "POST /api/v1/requests/{request_id}/cancel": [
     "approved_at",
     "approved_by_name",
+    "arr_linked",
     "completed_at",
+    "darf_trotzdem_fragen",
     "episodes[]",
     "error_detail{*}",
     "error_message",
@@ -268,6 +291,7 @@
     "rated_at",
     "rating",
     "rating_outdated",
+    "regel_name",
     "rejection_reason",
     "release_date",
     "replied_at",
@@ -277,6 +301,7 @@
     "status",
     "tier",
     "title",
-    "tmdb_id"
+    "tmdb_id",
+    "trotzdem_gefragt"
   ]
 }

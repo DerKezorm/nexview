@@ -51,6 +51,14 @@ class Notice:
     poster_url: str | None = None
     click_url: str | None = None
     event: str | None = None
+    #: Der vierstellige Bestaetigungscode - nur bei der Testnachricht gesetzt.
+    #:
+    #: ⚠️ **Er steht auch im Titel, und das bleibt so.** Fuer einen Menschen
+    #: ist der Titel der Ort, an dem er ihn findet; kein Kanal soll ihn
+    #: doppelt anzeigen muessen. Hier steht er zusaetzlich als eigener Wert,
+    #: damit ein Kanal, an dem eine Maschine haengt, ihn nicht aus einem Satz
+    #: klauben muss - der ist uebersetzt und laesst sich umformulieren.
+    code: str | None = None
 
 
 def _lesbar(fehler: Exception, ziel: str) -> str:

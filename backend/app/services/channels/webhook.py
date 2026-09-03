@@ -8,6 +8,13 @@ Der Bestaetigungscode gilt auch hier: Er steht im Feld ``title`` der
 Testnachricht und laesst sich dort ablesen, wo die Anfragen ankommen. Nur so
 ist bewiesen, dass unter der Adresse wirklich etwas zuhoert - ein HTTP 200
 allein hiesse nur "angenommen", nicht "angekommen".
+
+⚠️ **Und zusaetzlich als eigenes Feld ``code``.** Bei allen anderen Kanaelen
+sitzt ein Mensch am anderen Ende, der den Titel liest. Hier sitzt eine
+Maschine - und die muesste den Code sonst aus ``"Nexview code: 4711"``
+herausklauben, einem Satz, den es in zwei Sprachen gibt und den irgendwann
+jemand umformuliert. Damit haenge eine Anbindung an einer Textkonvention statt
+an einem Wert. Ausserhalb der Testnachricht ist das Feld ``null``.
 """
 
 from __future__ import annotations
@@ -73,6 +80,7 @@ async def send(config: WebhookConfig, notice: Notice) -> None:
         "body": notice.body.replace("**", ""),
         "image": notice.poster_url,
         "url": notice.click_url,
+        "code": notice.code,
     }
 
     headers = {"Authorization": config.token} if config.token else None

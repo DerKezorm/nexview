@@ -2350,7 +2350,7 @@
     "topicsSection": "Topics",
     "username": "Username",
     "verifyFirst": "Confirm the connection with the code first.",
-    "webhookIntro": "The universal connector: Nexview sends every notification as a POST with a fixed JSON payload to your address – for Home Assistant, n8n, Node-RED or your own scripts. The confirmation code is in the “title” field of the test message; read it wherever your requests arrive.",
+    "webhookIntro": "The universal connector: Nexview sends every notification as a POST with a fixed JSON payload to your address – for Home Assistant, n8n, Node-RED or your own scripts. The confirmation code is in the “title” field of the test message; read it wherever your requests arrive. A setup that runs itself finds it in the “code” field of the same payload, so it never has to pick it out of a sentence.",
     "webhookName": "Label",
     "webhookNameHint": "Shown on the tile – e.g. “Home Assistant” or “n8n”.",
     "webhookTargetUrl": "Target address (URL)",

@@ -291,6 +291,9 @@ async def test_target(
                 title=betreff.format(code=code),
                 body=text,
                 click_url=settings.link("/") if settings.public_url else None,
+                # Fuer Kanaele, an denen eine Maschine haengt. Wer einen
+                # Menschen erreicht, laesst das Feld liegen und nimmt den Titel.
+                code=code or None,
             ),
         )
     except channels.ChannelError as fehler:

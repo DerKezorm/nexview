@@ -11,7 +11,7 @@ Warum das noetig ist, obwohl das Schema doch aus dem Code entsteht:
 - Wo **keines** steht - ``def offene_anzahl(...) -> dict[str, int]`` - sagt
   das Schema ueber die Schluesselnamen **nichts**. Das Dokument behauptet
   "irgendein Objekt", die Antwort hat aber einen konkreten Namen, und den
-  erfaehrt niemand. Vier der dreizehn zugesagten Adressen sind so gebaut.
+  erfaehrt niemand. Vier der fuenfzehn zugesagten Adressen sind so gebaut.
 
 Und genau dort kann eine Zusage stillschweigend brechen: Wird aus
 ``{"count": 3}`` morgen ``{"offen": 3}``, merkt es kein Test - der Abdruck
@@ -46,6 +46,7 @@ OHNE_VORAUSSETZUNG = {
     "/api/v1/notifications/unread/count",
     "/api/v1/storage/me",
     "/api/v1/dashboard",
+    "/api/v1/me",
 }
 
 #: Warum die uebrigen vier nicht aufgerufen werden.
@@ -166,8 +167,8 @@ class TestDieAntwortPasstZurBeschreibung:
         """Jede zugesagte Adresse ist entweder geprueft oder begruendet.
 
         ⚠️ Ohne diesen Test waere die Abdeckung eine Behauptung. Kommt eine
-        vierzehnte Adresse dazu und niemand traegt sie ein, sieht der Test
-        oben weiter gruen aus und prueft sie einfach nicht mit.
+        weitere Adresse dazu und niemand traegt sie ein, sieht der Test oben
+        weiter gruen aus und prueft sie einfach nicht mit.
         """
         offen = set(ZUGESAGT) - OHNE_VORAUSSETZUNG - set(BEGRUENDUNG)
         assert offen == set(), (

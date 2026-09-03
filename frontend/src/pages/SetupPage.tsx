@@ -15,6 +15,7 @@ import { AddressStep } from './setup/AddressStep'
 import { AvatarStep } from './setup/AvatarStep'
 import { DoneStep } from './setup/DoneStep'
 import { MailStep } from './setup/MailStep'
+import { SeerrStep } from './setup/SeerrStep'
 import { ServiceStep } from './setup/ServiceStep'
 import { StepIndicator } from './setup/SetupSteps'
 import type { SetupStep } from './setup/SetupSteps'
@@ -38,7 +39,7 @@ export function SetupPage() {
    * einer Verzweigung mitzählt, verspricht einen Fortschritt, den es dort
    * nicht gibt.
    */
-  const [weg, setWeg] = useState<'wahl' | 'neu' | 'sicherung'>('wahl')
+  const [weg, setWeg] = useState<'wahl' | 'neu' | 'sicherung' | 'seerr'>('wahl')
   const [step, setStep] = useState<SetupStep>('account')
 
   return (
@@ -71,6 +72,22 @@ export function SetupPage() {
                   </span>
                   <span className="mt-0.5 block text-sm leading-relaxed text-mist-500">
                     {t('setup.startFreshText')}
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setWeg('seerr')}
+                className="flex items-start gap-4 rounded-2xl border border-ink-700 bg-ink-900 p-4 text-left transition-colors hover:border-accent-600"
+              >
+                <Symbol name="herunterladen" className="mt-0.5 h-5 w-5 shrink-0 text-accent-400" />
+                <span>
+                  <span className="block font-semibold text-mist-100">
+                    {t('setup.startSeerr')}
+                  </span>
+                  <span className="mt-0.5 block text-sm leading-relaxed text-mist-500">
+                    {t('setup.startSeerrText')}
                   </span>
                 </span>
               </button>
@@ -122,6 +139,8 @@ export function SetupPage() {
               </button>
             </div>
           )}
+
+          {weg === 'seerr' && <SeerrStep onZurueck={() => setWeg('wahl')} />}
 
           {weg === 'neu' && (
           <>

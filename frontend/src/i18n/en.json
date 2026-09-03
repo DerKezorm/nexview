@@ -21,7 +21,8 @@
     "delete": "Delete",
     "close": "Close",
     "done": "Done",
-    "back": "Back"
+    "back": "Back",
+    "next": "Next"
   },
   "nav": {
     "home": "Home",
@@ -95,12 +96,109 @@
     "mailRequired": "You can continue only after a successful test. Without a mail server Nexview cannot send you the confirmation – and without that you would not get back in after the wizard.",
     "mailReady": "Mail server reachable. You can continue.",
     "startTitle": "Welcome to Nexview",
-    "startText": "Two ways from here. Either takes a few minutes.",
+    "startText": "Three ways forward. Each takes only a few minutes.",
     "startFresh": "Start fresh",
     "startFreshText": "The wizard walks you through the administrator account, TMDB and the connection to Radarr and Sonarr.",
     "startRestore": "Restore from a backup",
     "startRestoreText": "Already have a Nexview backup? Then you keep accounts, requests and every connection instead of setting them up again.",
-    "restoreText": "Upload the archive you downloaded from Nexview and enter its password. Nexview first looks at what is inside — nothing is replaced until you say so."
+    "restoreText": "Upload the archive you downloaded from Nexview and enter its password. Nexview first looks at what is inside — nothing is replaced until you say so.",
+    "startSeerr": "From a running Seerr installation",
+    "startSeerrText": "Fetches users, quotas and the connections to Radarr and Sonarr from an existing Seerr. Seerr itself is left untouched.",
+    "seerr": {
+      "step": {
+        "verbinden": {
+          "kurz": "Connect",
+          "title": "Connect to Seerr",
+          "text": "Address and key of your running installation. Nexview only reads."
+        },
+        "medienserver": {
+          "kurz": "Server",
+          "title": "Media server",
+          "text": "Which server Seerr uses. It comes before the users, because a link without a server points nowhere."
+        },
+        "dienste": {
+          "kurz": "Services",
+          "title": "Radarr and Sonarr",
+          "text": "Addresses and keys come over in full, along with the default folders."
+        },
+        "tmdb": {
+          "kurz": "TMDB",
+          "title": "TMDB key",
+          "text": "The one value this migration cannot take off your hands."
+        },
+        "mail": {
+          "kurz": "Mail",
+          "title": "Mail server",
+          "text": "Without it Nexview cannot invite anyone, and without an invitation no migrated account gets in."
+        },
+        "kanaele": {
+          "kurz": "Channels",
+          "title": "Notification channels",
+          "text": "Discord, Telegram and the others come across with their credentials. What gets sent through them you set up afterwards - Nexview knows different notifications than Seerr."
+        },
+        "allgemein": {
+          "kurz": "General",
+          "title": "House defaults",
+          "text": "Region and language, and what applies to accounts created afterwards. Two boxes, because those are two decisions."
+        },
+        "benutzer": {
+          "kurz": "Users",
+          "title": "Who should come along",
+          "text": "One becomes the owner, the others become plain users."
+        },
+        "fertig": {
+          "kurz": "Done",
+          "title": "This would be taken over",
+          "text": "Check the list before anything is written."
+        },
+        "adresse": {
+          "kurz": "Address",
+          "title": "Your address on the outside",
+          "text": "Under which address do your people reach Nexview?"
+        },
+        "sperrliste": {
+          "kurz": "Blocklist",
+          "title": "Blocked titles",
+          "text": "The cleanest case of the whole migration: five of six fields match one to one."
+        }
+      },
+      "skipHint": "Without the tick this area is skipped.",
+      "nothingHere": "Seerr has nothing here that Nexview could use.",
+      "take": {
+        "medienserver": "Take over this media server",
+        "dienste": "Take over Radarr and Sonarr",
+        "mail": "Take over the mail server, credentials included",
+        "allgemein": "Take over region and language",
+        "sperrliste": "Take over the blocklist"
+      },
+      "tmdbWhy": "Seerr has no configurable TMDB key at all; it is baked into the program there. So Nexview asks for it here. You can skip this and add it later in the settings; without it, search finds no titles.",
+      "tmdbLabel": "TMDB key",
+      "tmdbHint": "Free from themoviedb.org under Settings, API.",
+      "usersWarning": "Nothing is preselected. Every tick creates an account, and Nexview cannot merge two accounts later. Anyone who had two ways in over there appears twice here.",
+      "wasAndBrings": "was {{rolle}} · sign-in {{anmeldung}}",
+      "openRequests": "{{count}} requests are still waiting for a decision over there. Those do not come along; these people have to ask again here.",
+      "owner": "Owner",
+      "usersNote": "{{count}} accounts would be created, all as plain users. Grant more under Users afterwards. The owner is whoever the installation belongs to - Seerr has no such flag.",
+      "dryRun": "This is a preview. Nothing has been written up to here. The step that actually applies it is not wired up yet.",
+      "willTake": "will be taken over",
+      "willSkip": "skipped",
+      "addressWhy": "Seerr's own address is deliberately not taken over: it points at Seerr, not at Nexview. Taking it would link every invitation mail back to the old app.",
+      "addressLabel": "Nexview address",
+      "addressHint": "Used later in invitations and notifications. You can skip it and add it later.",
+      "ownerRequired": "Pick an owner before moving on.",
+      "accessTitle": "Your way into Nexview ({{name}})",
+      "accessWhy": "Over there you may have signed in through the media server. Nexview's first account still needs a password of its own: signing in through the media server only works once the connection exists, and that comes after this wizard.",
+      "accessRequired": "Username, address and the same password twice, then you can move on.",
+      "usersTakesTitle": "What comes along:",
+      "takesEmail": "the email address (in Seerr it is mandatory and unique)",
+      "takesName": "the display name, reshaped into a username where needed",
+      "takesQuota": "the count quota, with the conversions noted on each row",
+      "usersLeavesTitle": "What does not:",
+      "leavesPassword": "the password - Seerr does not hand it out; everyone gets an invitation",
+      "leavesRole": "the role - everyone becomes a plain user, except the owner",
+      "leavesRequests": "the request history - what sits in Radarr, Nexview shows anyway",
+      "leavesAvatar": "the profile picture - it lives at Plex or Gravatar, not as a file"
+    }
   },
   "login": {
     "title": "Sign in",
@@ -1129,7 +1227,21 @@
     "tabSystem": "System",
     "tabTokens": "API tokens",
     "namingSection": "Naming",
-    "tabRegeln": "Rules"
+    "tabRegeln": "Rules",
+    "seerr": {
+      "progress": "Migration steps",
+      "stillleben": "Stop Seerr first. Anything requested there while this runs will not come along, and nobody will notice.",
+      "url": "Seerr address",
+      "urlHint": "For example https://seerr.example.com",
+      "key": "API key",
+      "keyHint": "Found in Seerr under Settings, General. It is not stored.",
+      "check": "Check the connection",
+      "preview": "Read it",
+      "checkOk": "Connected. Seerr {{version}}, and this version has been vetted.",
+      "checkFailed": "The connection did not work.",
+      "previewFailed": "The preview could not be built.",
+      "notComingTitle": "What Nexview cannot take in"
+    }
   },
   "qualityProfiles": {
     "title": "Quality profiles",
@@ -1591,6 +1703,14 @@
       "restore_unknown_version": "This backup does not say which version it came from.",
       "restore_wrong_password": "That password does not match this archive.",
       "rule_invalid": "The rule has to be 'user', 'fixed' or 'approver'.",
+      "seerr_error": "Seerr answered with an error.",
+      "seerr_key_rejected": "Seerr rejected the API key.",
+      "seerr_area_unknown": "The migration does not know this area.",
+      "seerr_not_found": "Nothing that looks like Seerr answers at that address.",
+      "seerr_not_json": "Whatever answers at that address is not Seerr.",
+      "seerr_unreachable": "Seerr cannot be reached at that address.",
+      "seerr_url_invalid": "The address has to start with http:// or https://.",
+      "seerr_version_unknown": "This Seerr version has not been vetted.",
       "sender_address_invalid": "The sender address is not valid.",
       "session_expired": "Your session has ended. Please sign in again.",
       "setting_unknown": "Unknown setting.",

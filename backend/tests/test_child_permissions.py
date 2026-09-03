@@ -58,6 +58,16 @@ KINDER_ERLAUBT = {
     "/api/v1/health",
     "/api/setup/sicherung/pruefen",
     "/api/setup/sicherung/einspielen",
+    # Der Umzug aus einer laufenden Seerr-Installation. Dieselbe Einordnung
+    # und derselbe Riegel wie die zwei Zeilen darueber: ``has_any_user``.
+    # Sobald **ein** Konto existiert, antworten sie mit 409 - und ein
+    # Kinderkonto kann es davor nicht geben, weil Kinder Unterprofile ihrer
+    # Eltern sind. Wer hier vor dem Besitzer ankommt, kann ohnehin schon
+    # ``/api/setup/admin`` und uebernimmt die ganze Installation; diese drei
+    # machen die Luecke nicht groesser.
+    "/api/setup/seerr/pruefen",
+    "/api/setup/seerr/vorschau",
+    "/api/setup/seerr/uebernehmen",
     "/api/users/avatar/{name}",
     # Bilder aus der Hausordnung - dieselbe Einordnung wie das Profilbild
     # darueber, und aus demselben Grund: Ein ``<img>``-Element schickt keinen

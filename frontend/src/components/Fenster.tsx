@@ -20,6 +20,7 @@ export function Fenster({
   unterzeile,
   onSchliessen,
   fuss,
+  breit = false,
   children,
 }: {
   offen: boolean
@@ -28,6 +29,15 @@ export function Fenster({
   onSchliessen: () => void
   /** Die Knöpfe unten rechts – dort sucht man Entscheidungen. */
   fuss?: ReactNode
+  /**
+   * Platz für eine Tabelle statt für einen Satz.
+   *
+   * ⚠️ **Ein Schalter und keine freie Breite.** Zwei Maße sind eine
+   * Entscheidung, die man beim Bauen trifft; eine Zahl von außen wäre eine,
+   * die jede Seite anders trifft — und dann steht dasselbe Fenster an fünf
+   * Stellen fünf Finger breit auseinander.
+   */
+  breit?: boolean
   children: ReactNode
 }) {
   const { t } = useTranslation()
@@ -58,7 +68,13 @@ export function Fenster({
         if (event.target === event.currentTarget) onSchliessen()
       }}
     >
-      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-ink-700 bg-ink-850 shadow-2xl shadow-black/60">
+      <div
+        className={
+          'flex max-h-[85vh] w-full flex-col rounded-2xl border border-ink-700 ' +
+          'bg-ink-850 shadow-2xl shadow-black/60 ' +
+          (breit ? 'max-w-5xl' : 'max-w-2xl')
+        }
+      >
         <div className="flex items-start gap-3 border-b border-ink-700 p-5">
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold tracking-tight">{titel}</h2>

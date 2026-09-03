@@ -21,6 +21,9 @@ from ..security import hash_password
 from ..services import mail, sicherung, sitzung, tokens
 from ..services.mediaserver import PROVIDERS, verbundene_anbieter
 from ..services.settings_service import load_settings
+from . import seerr_umzug
+from .seerr_umzug import UebernahmeEingabe as SeerrUebernahmeEingabe
+from .seerr_umzug import ZugangEingabe as SeerrZugangEingabe
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
 
@@ -193,3 +196,59 @@ async def sicherung_einspielen(
         raise HTTPException(
             status_code=400, detail=meldungen.meldung(fehler.code, fehler.text)
         ) from fehler
+
+
+# --------------------------------------------------------------------------
+# Umzug von einer laufenden Seerr-Installation
+#
+# ⚠️ **Die einzigen drei Adressen des Umzugs.** Es gab einmal dieselben unter
+# ``/api/admin/seerr``, fuer den Umzug in eine laufende Anlage; der Weg ist
+# verworfen und ausgebaut worden, weil er mehr kostete, als er einbrachte.
+#
+# ⚠️ **Der Riegel ist keine Rolle, sondern ein Zustand.**
+# ``_nur_vor_der_einrichtung`` schliesst diese Adressen in dem Moment, in dem
+# das erste Konto entsteht, und danach dauerhaft. Das ist enger als eine
+# Administratorpflicht, aber es ist eine **andere** Art Schutz: Wer ihn beim
+# Aufraeumen wegnimmt, hinterlaesst eine Adresse, die ohne jede Anmeldung
+# Einstellungen schreibt. Dieselbe Bauweise wie beim Einspielen einer
+# Sicherung, das dasselbe Problem hat.
+# --------------------------------------------------------------------------
+
+
+@router.post("/seerr/pruefen")
+async def seerr_pruefen(eingabe: SeerrZugangEingabe, db: DbSession) -> dict[str, object]:
+    """Reachable, key accepted, version vetted?
+
+    Wie die Adresse im Admin-Bereich, aber vor der Einrichtung: Hier gibt es
+    noch kein Konto, das sich anmelden koennte.
+    """
+    _nur_vor_der_einrichtung(db)
+    return await seerr_umzug.pruefung(eingabe)
+
+
+@router.post("/seerr/vorschau")
+async def seerr_vorschau(eingabe: SeerrZugangEingabe, db: DbSession) -> dict:
+    """Was aus Seerr uebernommen wuerde - als Entscheidungsvorlage.
+
+    ⚠️ **Es gibt nur noch diesen einen Fall.** Die Adresse im Admin-Bereich
+    fuer den Umzug in eine laufende Anlage ist verworfen und entfernt worden.
+    Daran haengt, dass Rollen mitkommen duerfen: Wer gerade erst einrichtet,
+    muesste sonst von Hand nachbauen, was er drueben ueber Jahre vergeben hat.
+    Der Betreiber-Haken bleibt trotzdem draussen; er gehoert dem, der hier
+    gerade sitzt.
+    """
+    _nur_vor_der_einrichtung(db)
+    return await seerr_umzug.vorlage(eingabe, db)
+
+
+@router.post("/seerr/uebernehmen")
+async def seerr_uebernehmen(eingabe: SeerrUebernahmeEingabe, db: DbSession) -> dict:
+    """Die gewaehlten Bereiche aus Seerr in die Einstellungen schreiben.
+
+    ⚠️ **Der einzige Aufruf dieses Features, der wirklich schreibt** - und er
+    schreibt ausschliesslich Einstellungen, keine Konten und keine Anfragen.
+    Der Riegel ist derselbe wie beim Einspielen einer Sicherung: Sobald das
+    erste Konto existiert, antwortet die Adresse dauerhaft mit 409.
+    """
+    _nur_vor_der_einrichtung(db)
+    return await seerr_umzug.uebernehmen(eingabe, db)

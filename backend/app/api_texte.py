@@ -1431,6 +1431,34 @@ TEXTE: dict[str, tuple[str, str]] = {
             'automatic or manual, and whether this version could restore each one.'
         ),
     ),
+    'POST /api/setup/seerr/uebernehmen': (
+        'Apply picked areas from Seerr during first-time setup',
+        (
+            'The one call in this feature that writes, and it writes settings only - no '
+            'accounts, no requests. Areas are picked by name; the values themselves are '
+            'fetched again server-side rather than sent back by the browser, so the SMTP '
+            'password and the Radarr and Sonarr keys never leave the server. Open only '
+            'while no account exists.'
+        ),
+    ),
+    'POST /api/setup/seerr/pruefen': (
+        'Check a Seerr installation during first-time setup',
+        (
+            'Same answer as the admin endpoint, but before there is anyone to sign in '
+            'as. Open only while no account exists at all; the moment the first one is '
+            'created this closes for good. Reads only.'
+        ),
+    ),
+    'POST /api/setup/seerr/vorschau': (
+        'Preview a Seerr migration during first-time setup',
+        (
+            'The decision sheet, built while the installation is still empty. Roles may '
+            'carry over here, unlike in a running installation: the operator is setting '
+            'up, and rebuilding years of role assignments by hand is exactly the work '
+            'this saves. The owner flag never carries over - it belongs to whoever is '
+            'running the setup. Writes nothing.'
+        ),
+    ),
     'POST /api/admin/sicherungen': (
         'Make a backup now',
         (

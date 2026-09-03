@@ -21,7 +21,8 @@
     "delete": "Löschen",
     "close": "Schließen",
     "done": "Fertig",
-    "back": "Zurück"
+    "back": "Zurück",
+    "next": "Weiter"
   },
   "nav": {
     "home": "Startseite",
@@ -95,12 +96,109 @@
     "mailRequired": "Erst nach einem erfolgreichen Test geht es weiter. Ohne Mailserver kann Nexview dir die Bestätigung nicht schicken – und ohne die kommst du nach dem Assistenten nicht mehr hinein.",
     "mailReady": "Mailserver erreichbar. Du kannst weitermachen.",
     "startTitle": "Willkommen bei Nexview",
-    "startText": "Zwei Wege führen weiter. Beide dauern nur wenige Minuten.",
+    "startText": "Drei Wege führen weiter. Jeder dauert nur wenige Minuten.",
     "startFresh": "Neu anfangen",
     "startFreshText": "Der Assistent führt dich durch Administrator-Konto, TMDB und die Verbindung zu Radarr und Sonarr.",
     "startRestore": "Aus einer Sicherung wiederherstellen",
     "startRestoreText": "Du hast schon eine Nexview-Sicherung? Dann übernimmst du Konten, Anfragen und alle Verbindungen, statt sie neu einzurichten.",
-    "restoreText": "Lade das Archiv hoch, das du in Nexview heruntergeladen hast, und gib sein Passwort ein. Nexview sieht erst nach, was darin steckt — eingespielt wird erst danach, auf deinen Klick."
+    "restoreText": "Lade das Archiv hoch, das du in Nexview heruntergeladen hast, und gib sein Passwort ein. Nexview sieht erst nach, was darin steckt — eingespielt wird erst danach, auf deinen Klick.",
+    "startSeerr": "Von einer laufenden Seerr-Installation",
+    "startSeerrText": "Holt Benutzer, Kontingente und die Verbindungen zu Radarr und Sonarr aus einem bestehenden Seerr. Seerr bleibt dabei unberührt.",
+    "seerr": {
+      "step": {
+        "verbinden": {
+          "kurz": "Verbinden",
+          "title": "Mit Seerr verbinden",
+          "text": "Adresse und Schlüssel deiner laufenden Installation. Nexview liest nur."
+        },
+        "medienserver": {
+          "kurz": "Server",
+          "title": "Medienserver",
+          "text": "Welchen Server Seerr benutzt. Steht vor den Benutzern, weil eine Verknüpfung ohne Server ins Leere zeigt."
+        },
+        "dienste": {
+          "kurz": "Dienste",
+          "title": "Radarr und Sonarr",
+          "text": "Adressen und Schlüssel kommen vollständig mit, samt der Standardordner."
+        },
+        "tmdb": {
+          "kurz": "TMDB",
+          "title": "TMDB-Schlüssel",
+          "text": "Der eine Wert, den dieser Umzug dir nicht abnehmen kann."
+        },
+        "mail": {
+          "kurz": "Mail",
+          "title": "Mailserver",
+          "text": "Ohne ihn kann Nexview niemanden einladen, und ohne Einladung kommt kein übernommenes Konto herein."
+        },
+        "kanaele": {
+          "kurz": "Kanäle",
+          "title": "Meldewege",
+          "text": "Discord, Telegram und die anderen kommen mit ihren Zugangsdaten mit. Was darüber gemeldet wird, stellst du danach selbst ein - Nexview kennt andere Meldungen als Seerr."
+        },
+        "allgemein": {
+          "kurz": "Allgemein",
+          "title": "Hausvorgaben",
+          "text": "Region und Sprache, und was für Konten gilt, die danach entstehen. Zwei Haken, weil das zwei Entscheidungen sind."
+        },
+        "benutzer": {
+          "kurz": "Benutzer",
+          "title": "Wer mitkommen soll",
+          "text": "Einer wird Besitzer, die anderen werden gewöhnliche Nutzer."
+        },
+        "fertig": {
+          "kurz": "Fertig",
+          "title": "Das würde übernommen",
+          "text": "Sieh die Liste durch, bevor etwas geschrieben wird."
+        },
+        "adresse": {
+          "kurz": "Adresse",
+          "title": "Deine Adresse nach außen",
+          "text": "Unter welcher Adresse erreichen deine Leute Nexview?"
+        },
+        "sperrliste": {
+          "kurz": "Sperrliste",
+          "title": "Gesperrte Titel",
+          "text": "Der sauberste Fall des ganzen Umzugs: Fünf von sechs Feldern passen eins zu eins."
+        }
+      },
+      "skipHint": "Ohne Haken wird dieser Bereich übersprungen.",
+      "nothingHere": "Seerr hat hier nichts, was Nexview gebrauchen könnte.",
+      "take": {
+        "medienserver": "Diesen Medienserver übernehmen",
+        "dienste": "Radarr und Sonarr übernehmen",
+        "mail": "Mailserver übernehmen, samt Zugangsdaten",
+        "allgemein": "Region und Sprache übernehmen",
+        "sperrliste": "Sperrliste übernehmen"
+      },
+      "tmdbWhy": "Seerr hat gar keinen einstellbaren TMDB-Schlüssel; er steckt dort fest im Programm. Nexview fragt ihn deshalb hier ab. Du kannst das überspringen und ihn später in den Einstellungen nachtragen; ohne ihn findet die Suche keine Titel.",
+      "tmdbLabel": "TMDB-Schlüssel",
+      "tmdbHint": "Kostenlos bei themoviedb.org unter Einstellungen, API.",
+      "usersWarning": "Nichts ist vorausgewählt. Jedes Häkchen legt ein Konto an, und Nexview kann zwei Konten später nicht zusammenführen. Wer in Seerr zwei Zugänge hatte, steht hier zweimal.",
+      "wasAndBrings": "war {{rolle}} · Anmeldung {{anmeldung}}",
+      "openRequests": "{{count}} Anfragen warten dort noch auf eine Entscheidung. Die kommen nicht mit; diese Leute müssen sie hier neu stellen.",
+      "owner": "Besitzer",
+      "usersNote": "{{count}} Konten würden angelegt, alle als gewöhnliche Nutzer. Mehr Rechte vergibst du danach unter Benutzer. Der Besitzer ist der, dem die Installation gehört - diesen Haken gibt es in Seerr nicht.",
+      "dryRun": "Das ist eine Vorschau. Bis hierher wurde nichts geschrieben. Der Schritt, der wirklich übernimmt, ist noch nicht angeschlossen.",
+      "willTake": "wird übernommen",
+      "willSkip": "übersprungen",
+      "addressWhy": "Seerrs eigene Adresse wird bewusst nicht übernommen: Sie zeigt auf Seerr, nicht auf Nexview. Sie zu übernehmen hieße, jede Einladungsmail auf die alte Anwendung zu verlinken.",
+      "addressLabel": "Adresse von Nexview",
+      "addressHint": "Steht später in Einladungen und Meldungen. Du kannst sie überspringen und später nachtragen.",
+      "ownerRequired": "Wähle einen Besitzer, bevor es weitergeht.",
+      "accessTitle": "Dein Zugang zu Nexview ({{name}})",
+      "accessWhy": "Drüben lief die Anmeldung vielleicht über den Medienserver. Nexviews erstes Konto braucht trotzdem ein eigenes Kennwort: Die Anmeldung über den Medienserver gibt es erst, wenn die Verbindung steht - und die entsteht erst nach diesem Assistenten.",
+      "accessRequired": "Benutzername, Adresse und zweimal dasselbe Kennwort - dann geht es weiter.",
+      "usersTakesTitle": "Übernommen wird:",
+      "takesEmail": "die E-Mail-Adresse (sie ist in Seerr Pflicht und eindeutig)",
+      "takesName": "der Anzeigename, als Benutzername umgeformt, falls nötig",
+      "takesQuota": "das Stückzahl-Kontingent, mit den Umrechnungen unten an der Zeile",
+      "usersLeavesTitle": "Nicht übernommen wird:",
+      "leavesPassword": "das Passwort - Seerr gibt es nicht heraus; jeder bekommt eine Einladung",
+      "leavesRole": "die Rolle - alle werden gewöhnliche Nutzer, außer dem Besitzer",
+      "leavesRequests": "die Anfragehistorie - was in Radarr liegt, zeigt Nexview ohnehin an",
+      "leavesAvatar": "das Profilbild - es liegt bei Plex oder Gravatar, nicht als Datei"
+    }
   },
   "login": {
     "title": "Anmelden",
@@ -1129,7 +1227,21 @@
     "tabSystem": "System",
     "tabTokens": "API-Token",
     "namingSection": "Benennung",
-    "tabRegeln": "Regeln"
+    "tabRegeln": "Regeln",
+    "seerr": {
+      "progress": "Schritte des Umzugs",
+      "stillleben": "Leg Seerr vorher still. Wer währenddessen dort noch etwas anfragt, dessen Anfrage kommt nicht mit, und es fällt niemandem auf.",
+      "url": "Adresse von Seerr",
+      "urlHint": "Zum Beispiel https://seerr.example.com",
+      "key": "API-Schlüssel",
+      "keyHint": "Steht in Seerr unter Einstellungen, Allgemein. Wird nicht gespeichert.",
+      "check": "Verbindung prüfen",
+      "preview": "Auslesen",
+      "checkOk": "Verbunden. Seerr {{version}}, und diese Fassung ist geprüft.",
+      "checkFailed": "Die Verbindung hat nicht geklappt.",
+      "previewFailed": "Die Vorschau konnte nicht erstellt werden.",
+      "notComingTitle": "Was Nexview nicht aufnehmen kann"
+    }
   },
   "qualityProfiles": {
     "title": "Qualitätsprofile",
@@ -1591,6 +1703,14 @@
       "restore_unknown_version": "Bei dieser Sicherung steht nicht dabei, aus welcher Fassung sie stammt.",
       "restore_wrong_password": "Das Passwort passt nicht zu diesem Archiv.",
       "rule_invalid": "Regel muss 'user', 'fixed' oder 'approver' sein.",
+      "seerr_error": "Seerr hat mit einem Fehler geantwortet.",
+      "seerr_key_rejected": "Seerr hat den API-Schlüssel abgelehnt.",
+      "seerr_area_unknown": "Diesen Bereich kennt der Umzug nicht.",
+      "seerr_not_found": "Unter dieser Adresse antwortet kein Seerr.",
+      "seerr_not_json": "Unter dieser Adresse antwortet etwas, das kein Seerr ist.",
+      "seerr_unreachable": "Seerr ist unter dieser Adresse nicht erreichbar.",
+      "seerr_url_invalid": "Die Adresse muss mit http:// oder https:// beginnen.",
+      "seerr_version_unknown": "Diese Seerr-Fassung ist nicht geprüft.",
       "sender_address_invalid": "Die Absenderadresse ist ungültig.",
       "session_expired": "Sitzung abgelaufen. Bitte erneut anmelden.",
       "setting_unknown": "Unbekannte Einstellung.",

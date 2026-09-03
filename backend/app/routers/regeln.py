@@ -74,6 +74,12 @@ class ReihenfolgeIn(BaseModel):
 class Feld(BaseModel):
     kennung: str
     art: Literal["zahl", "menge"]
+    # Nur bei Zahlenfeldern: der erlaubte Bereich und - wo es sinnvoll ist -
+    # die Stufen, aus denen sich waehlen laesst. Die Oberflaeche baut daraus
+    # ihre Auswahlfelder, statt eine eigene Liste zu fuehren.
+    min: float | None = None
+    max: float | None = None
+    stufen: list[float] | None = None
 
 
 def _raus(regel: Regel) -> RegelOut:
@@ -139,10 +145,19 @@ def felder(user: AdminUser) -> list[Feld]:
     neuen Feld falsch, und der Fehler faellt erst auf, wenn eine Regel nicht
     greift.
     """
-    return [
-        Feld(kennung=k, art="zahl" if k in regeln_dienst.ZAHLENFELDER else "menge")
-        for k in sorted(regeln_dienst.FELDER)
-    ]
+    felder = []
+    for kennung in sorted(regeln_dienst.FELDER):
+        bereich = regeln_dienst.BEREICHE.get(kennung, {})
+        felder.append(
+            Feld(
+                kennung=kennung,
+                art="zahl" if kennung in regeln_dienst.ZAHLENFELDER else "menge",
+                min=bereich.get("min"),
+                max=bereich.get("max"),
+                stufen=bereich.get("stufen"),
+            )
+        )
+    return felder
 
 
 @router.get("", response_model=list[RegelOut])

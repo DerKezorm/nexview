@@ -103,6 +103,28 @@ GESCHLOSSENE_WERTE: dict[str, frozenset[str]] = {
 BESTAND_WERTE = GESCHLOSSENE_WERTE["bestand"]
 
 
+#: Der erlaubte Bereich je Zahlenfeld, und - wo sinnvoll - die einzelnen
+#: Stufen, aus denen sich waehlen laesst.
+#:
+#: ⚠️ **Ohne das nahm der Server "Bewertung von 17 bis 14" an.** Die Einheit
+#: daneben sagte "von 10", und die Grenze war trotzdem 17. Wer eine Regel so
+#: baut, merkt nie etwas: Sie trifft auf nichts zu und tut still gar nichts.
+#: Die Oberflaeche baut aus denselben Angaben ihre Auswahlfelder - eine zweite
+#: Liste dort waere die naechste, die veraltet.
+BEREICHE: dict[str, dict] = {
+    # TMDB bewertet von 0 bis 10. Ganze Schritte reichen fuer eine Regel; wer
+    # 7,3 von 7,4 unterscheiden will, misst Rauschen.
+    "bewertung": {"min": 0, "max": 10, "stufen": [float(n) for n in range(11)]},
+    # Die FSK-Stufen, und nur die. Etwas dazwischen gibt es nicht.
+    "altersfreigabe": {"min": 0, "max": 18, "stufen": [0.0, 6.0, 12.0, 16.0, 18.0]},
+    # Kein "stufen": Jahre und Minuten sind zu viele fuer eine Liste, und man
+    # tippt sie ohnehin lieber.
+    "jahr": {"min": 1870, "max": 2100},
+    "laufzeit": {"min": 0, "max": 1000},
+    "stimmen": {"min": 0, "max": 1000000},
+}
+
+
 class RegelFehler(ValueError):
     """Eine Regel ist so nicht speicherbar."""
 
@@ -151,6 +173,12 @@ def bedingungen_pruefen(bedingungen: list | None) -> list[dict]:
                 if not math.isfinite(wert):
                     raise RegelFehler(
                         f"{feld}: {wert!r} ist keine Grenze, mit der sich rechnen lässt."
+                    )
+                bereich = BEREICHE.get(feld)
+                if bereich and not (bereich["min"] <= wert <= bereich["max"]):
+                    raise RegelFehler(
+                        f"{feld}: {wert:g} liegt außerhalb von "
+                        f"{bereich['min']:g} bis {bereich['max']:g}."
                     )
             if von is None and bis is None:
                 raise RegelFehler(f"{feld}: weder Unter- noch Obergrenze.")

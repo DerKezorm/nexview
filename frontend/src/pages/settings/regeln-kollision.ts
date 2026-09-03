@@ -34,6 +34,11 @@ export type Feld = {
   einheit?: string
   hinweis?: string
   werte?: { wert: string; name: string }[]
+  /** Nur bei Zahlenfeldern: der erlaubte Bereich, vom Server. */
+  min?: number | null
+  max?: number | null
+  /** Und die Stufen, wo eine Liste sinnvoller ist als ein Eingabefeld. */
+  stufen?: number[] | null
 }
 
 export type Entscheidung = 'freigeben' | 'ablehnen'

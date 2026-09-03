@@ -19,7 +19,7 @@
  * plötzlich nicht mehr sofort frei. Ein Hinweis von damals wäre heute falsch.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -43,7 +43,13 @@ import {
 
 const ENTSCHEIDUNGEN = ['freigeben', 'ablehnen'] as const
 
-type ServerFeld = { kennung: string; art: FeldArt }
+type ServerFeld = {
+  kennung: string
+  art: FeldArt
+  min?: number | null
+  max?: number | null
+  stufen?: number[] | null
+}
 
 // ---------------------------------------------------------------------------
 
@@ -66,12 +72,18 @@ export function AdminRegeln() {
     queryKey: ['regeln', 'felder'],
     queryFn: () => api.get<ServerFeld[]>('/api/admin/regeln/felder'),
   })
+  // ⚠️ **`/api/genres/…`, nicht `/api/discover/genres/…`.** Der Router trägt
+  // den Präfix `/api`; die falsche Adresse gab 404, react-query schluckte den
+  // Fehler, `data ?? []` machte daraus eine leere Liste — und die Bedingung
+  // „Genre" zeigte einfach nichts zum Anhaken. Ohne Fehlermeldung, ohne
+  // Hinweis. Deshalb steht unten auch ein eigener Satz für den Fall, dass die
+  // Liste wirklich einmal nicht kommt.
   const genresQuery = useQuery({
     queryKey: ['genres', 'alle'],
     queryFn: async () => {
       const [filme, serien] = await Promise.all([
-        api.get<Genre[]>('/api/discover/genres/movie'),
-        api.get<Genre[]>('/api/discover/genres/tv'),
+        api.get<Genre[]>('/api/genres/movie'),
+        api.get<Genre[]>('/api/genres/tv'),
       ])
       const zusammen = new Map<number, string>()
       for (const g of [...filme, ...serien]) zusammen.set(g.id, g.name)
@@ -224,8 +236,16 @@ export function AdminRegeln() {
         <p className="text-sm text-mist-400">{t('regeln.intro')}</p>
         <p className="text-sm text-mist-400">{t('regeln.introUnd')}</p>
 
-        <div className="rounded-2xl border border-ink-700 bg-ink-850/60 px-4 py-3">
-          <div className="text-sm font-semibold text-mist-200">{t('regeln.grenzenTitel')}</div>
+        {/* ⚠️ **Zugeklappt, aber nicht versteckt.** Der Text ist wichtig und wird
+            genau einmal gelesen; offen kostet er auf jedem Aufruf vier Zeilen
+            über der eigentlichen Liste. `<details>` statt eines eigenen
+            Schalters: Es merkt sich nichts, braucht keinen Zustand, und die
+            Tastatur bedient es von selbst. */}
+        <details className="group rounded-2xl border border-ink-700 bg-ink-850/60 px-4 py-3">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-mist-200">
+            <span className="text-mist-600 transition-transform group-open:rotate-90">›</span>
+            {t('regeln.grenzenTitel')}
+          </summary>
           <ul className="mt-2 space-y-1.5 text-sm text-mist-400">
             <li>
               <b className="text-mist-300">{t('regeln.grenzeAlterTitel')}</b>{' '}
@@ -247,7 +267,7 @@ export function AdminRegeln() {
           <p className="mt-3 border-t border-ink-700 pt-3 text-sm text-mist-400">
             {t('regeln.gilt_nicht_fuer_dich')}
           </p>
-        </div>
+        </details>
       </Section>
 
       {regeln.length === 0 && (
@@ -463,6 +483,11 @@ function bauFelder(
       einheit: mitEinheit.has(f.kennung) ? t(`regeln.einheit_${f.kennung}`) : undefined,
       hinweis: mitHinweis.has(f.kennung) ? t(`regeln.hinweis_${f.kennung}`) : undefined,
       werte: werte[f.kennung],
+      // Grenzen und Stufen kommen vom Server - eine zweite Liste hier wäre
+      // die nächste, die veraltet.
+      min: f.min,
+      max: f.max,
+      stufen: f.stufen,
     }))
     .sort((a, b) => ordnung.indexOf(a.kennung) - ordnung.indexOf(b.kennung))
 }
@@ -567,6 +592,7 @@ function RegelFenster({
       (FELD[b.feld]?.art === 'zahl' &&
         (zahlUnbrauchbar(b.von) ||
           zahlUnbrauchbar(b.bis) ||
+          leererBereich(b) ||
           (b.von == null && b.bis == null))),
   )
 
@@ -735,48 +761,34 @@ function BedingungZeile({
   if (!feld) return null
 
   return (
-    <div className="rounded-2xl border border-ink-700 px-4 py-3">
-      <div className="flex items-center gap-2">
-        <span className="w-10 shrink-0 text-xs text-mist-600">{erste ? '' : t('regeln.und')}</span>
-        <b className="text-sm">{feld.name}</b>
-        <div className="flex-1" />
-        <button type="button" className="text-xs text-mist-500 hover:text-mist-200" onClick={onWeg}>
-          {t('regeln.entfernen')}
-        </button>
-      </div>
-
-      <div className="mt-2 pl-12">
+    /* ⚠️ **Flach halten.** Erst standen Name, Eingaben und Hinweis in drei
+       Zeilen übereinander; bei vier Bedingungen scrollte der Editor. Jetzt
+       liegen Name und Eingaben nebeneinander und brechen erst auf schmalen
+       Bildschirmen um. */
+    <div className="rounded-2xl border border-ink-700 px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="w-8 shrink-0 text-xs text-mist-600">{erste ? '' : t('regeln.und')}</span>
+        <b className="w-32 shrink-0 text-sm">{feld.name}</b>
+        <div className="min-w-0 flex-1">
         {feld.art === 'zahl' ? (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-mist-400">{t('regeln.von')}</span>
-            <input
-              className={`${AUSWAHL} w-24`}
-              inputMode="decimal"
-              value={bedingung.von ?? ''}
-              placeholder={t('regeln.egal')}
-              onChange={(e) =>
-                onAendern({
-                  ...bedingung,
-                  von: e.target.value === '' ? null : Number(e.target.value.replace(',', '.')),
-                })
-              }
-            />
-            <span className="text-mist-400">{t('regeln.bis')}</span>
-            <input
-              className={`${AUSWAHL} w-24`}
-              inputMode="decimal"
-              value={bedingung.bis ?? ''}
-              placeholder={t('regeln.egal')}
-              onChange={(e) =>
-                onAendern({
-                  ...bedingung,
-                  bis: e.target.value === '' ? null : Number(e.target.value.replace(',', '.')),
-                })
-              }
-            />
-            {feld.einheit && <span className="text-mist-500">{feld.einheit}</span>}
-            <span className="w-full text-xs text-mist-600">{t('regeln.grenzen')}</span>
-          </div>
+          <Zahlenbereich feld={feld} bedingung={bedingung} onAendern={onAendern} />
+        ) : !feld.werte?.length ? (
+          /* ⚠️ Eine leere Auswahl ist immer ein Fehler, nie ein Zustand: Ein
+             Mengenfeld ohne Werte lässt sich nicht ausfüllen, und der Knopf
+             „Speichern" bliebe für immer gesperrt. Ohne diesen Satz sieht man
+             nur eine leere Fläche. */
+          <p className="text-xs text-warn-500">{t('regeln.werteFehlen')}</p>
+        ) : (feld.werte?.length ?? 0) > 6 ? (
+          /* ⚠️ **Lange Listen kommen ins Aufklappfeld.** Genre hat 28 Werte.
+             Als umbrechende Kästchenreihe sind das rund 250 Pixel; mit einem
+             Rollbalken mitten in der Zeile sieht es aus wie ein Fehler. Erst
+             ab einer Handvoll — bei zwei oder drei Werten wäre ein Aufklappen
+             ein Klick zu viel. */
+          <MengenWahl
+            werte={feld.werte ?? []}
+            gewaehlt={bedingung.werte ?? []}
+            onAendern={(werte) => onAendern({ ...bedingung, werte })}
+          />
         ) : (
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {feld.werte?.map((w) => (
@@ -800,8 +812,248 @@ function BedingungZeile({
           </div>
         )}
 
-        {feld.hinweis && <div className="mt-1 text-xs text-mist-600">{feld.hinweis}</div>}
+        </div>
+        <button
+          type="button"
+          className="shrink-0 text-xs text-mist-500 hover:text-mist-200"
+          onClick={onWeg}
+        >
+          {t('regeln.entfernen')}
+        </button>
       </div>
+
+      {/* Der Hinweis steht unter der ganzen Zeile, eingerückt auf die Höhe
+          der Eingaben - er gehört zum Feld, nicht zwischen die Eingaben. */}
+      {feld.hinweis && <div className="mt-1 pl-[calc(2rem+8rem+1.5rem)] text-xs text-mist-600">{feld.hinweis}</div>}
     </div>
   )
+}
+
+
+/**
+ * Eine Auswahl aus vielen Werten — zugeklappt, mit Kästchen darin.
+ *
+ * ⚠️ **Warum nicht das native `<select multiple>`.** Es zeigt die Auswahl nur
+ * als Hervorhebung, und wer mit der Maus einen zweiten Wert anklickt, verliert
+ * den ersten — das ist die häufigste Fehlbedienung überhaupt bei diesem
+ * Element. Kästchen sagen, was sie tun.
+ *
+ * ⚠️ **Und warum kein `<details>`.** Das klappt nicht zu, wenn man daneben
+ * klickt, und ein offenes Feld über der nächsten Zeile ist schlimmer als
+ * keins.
+ */
+function MengenWahl({
+  werte,
+  gewaehlt,
+  onAendern,
+}: {
+  werte: { wert: string; name: string }[]
+  gewaehlt: string[]
+  onAendern: (werte: string[]) => void
+}) {
+  const { t } = useTranslation()
+  const [offen, setOffen] = useState(false)
+  const rahmen = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!offen) return
+    const daneben = (e: MouseEvent) => {
+      if (!rahmen.current?.contains(e.target as Node)) setOffen(false)
+    }
+    const flucht = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOffen(false)
+    }
+    document.addEventListener('mousedown', daneben)
+    document.addEventListener('keydown', flucht)
+    return () => {
+      document.removeEventListener('mousedown', daneben)
+      document.removeEventListener('keydown', flucht)
+    }
+  }, [offen])
+
+  const namen = gewaehlt
+    .map((w) => werte.find((v) => v.wert === w)?.name)
+    .filter(Boolean) as string[]
+
+  return (
+    <div ref={rahmen} className="relative">
+      <button
+        type="button"
+        className={`${AUSWAHL} flex w-full items-center justify-between gap-2 text-left`}
+        aria-expanded={offen}
+        onClick={() => setOffen((a) => !a)}
+      >
+        {/* Bis zu drei Namen ausschreiben - darüber wird die Zeile unlesbar,
+            und die Zahl sagt dasselbe kürzer. */}
+        <span className={namen.length ? 'truncate' : 'truncate text-mist-600'}>
+          {namen.length === 0
+            ? t('regeln.nichtsGewaehlt')
+            : namen.length <= 3
+              ? namen.join(', ')
+              : t('regeln.anzahlGewaehlt', { anzahl: namen.length })}
+        </span>
+        <span className="shrink-0 text-mist-600">{offen ? '▴' : '▾'}</span>
+      </button>
+
+      {offen && (
+        <div className="absolute z-20 mt-1 max-h-64 w-full min-w-56 overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 p-2 shadow-lg">
+          {werte.map((w) => (
+            <label
+              key={w.wert}
+              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-ink-800"
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 accent-accent-500"
+                checked={gewaehlt.includes(w.wert)}
+                onChange={(e) =>
+                  onAendern(
+                    e.target.checked
+                      ? [...gewaehlt, w.wert]
+                      : gewaehlt.filter((x) => x !== w.wert),
+                  )
+                }
+              />
+              {w.name}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Der Bereich eines Zahlenfelds: von–bis.
+ *
+ * ⚠️ **„von 17 bis 14" war möglich**, und die Einheit daneben sagte „von 10".
+ * Der Server nahm es an, die Regel traf danach auf nichts zu und tat still gar
+ * nichts — die schlimmste Sorte Fehler, weil niemand je etwas merkt. Grenzen
+ * und Stufen kommen deshalb jetzt vom Server, und wo es Stufen gibt, wird
+ * gewählt statt getippt.
+ *
+ * ⚠️ **„bis" bietet nur an, was über „von" liegt** — und umgekehrt. Ein leerer
+ * Bereich lässt sich damit gar nicht erst zusammenklicken, statt ihn hinterher
+ * abzulehnen. Wer die eine Grenze so verschiebt, dass die andere unmöglich
+ * wird, verliert die andere; das ist ehrlicher, als stillschweigend etwas
+ * anderes zu speichern, als dasteht.
+ */
+function Zahlenbereich({
+  feld,
+  bedingung,
+  onAendern,
+}: {
+  feld: Feld
+  bedingung: Bedingung
+  onAendern: (b: Bedingung) => void
+}) {
+  const { t } = useTranslation()
+  const stufen = feld.stufen ?? null
+
+  /**
+   * ⚠️ **Hier wurde einmal die andere Grenze gelöscht, und das war falsch.**
+   *
+   * Der Gedanke war gut gemeint: Wer „von" so verschiebt, dass „bis" unmöglich
+   * wird, soll keinen leeren Bereich hinterlassen. Beim Tippen ist das aber
+   * eine Katastrophe — wer bei „von 40" anfängt, „bis 60" zu tippen, hat nach
+   * der ersten Ziffer eine 6 dastehen, und 6 liegt unter 40. Das „von"
+   * verschwand mitten im Tippen.
+   *
+   * Eine Oberfläche ändert nicht, was der Mensch nicht angefasst hat. Ein
+   * unmöglicher Bereich bleibt jetzt stehen, wird als solcher benannt, und
+   * „Speichern" bleibt gesperrt, bis er stimmt.
+   */
+  const setze = (welche: 'von' | 'bis', roh: string) => {
+    const zahl = roh === '' ? null : Number(roh.replace(',', '.'))
+    onAendern({ ...bedingung, [welche]: zahl })
+  }
+
+  const auswahl = (welche: 'von' | 'bis') => {
+    const andere = welche === 'von' ? bedingung.bis : bedingung.von
+    const moeglich = (stufen ?? []).filter((s) =>
+      andere == null ? true : welche === 'von' ? s < andere : s > andere,
+    )
+    return (
+      <select
+        className={`${AUSWAHL} w-24`}
+        value={bedingung[welche] ?? ''}
+        onChange={(e) => setze(welche, e.target.value)}
+      >
+        {/* ⚠️ **Bleibt „egal", obwohl das mehrdeutig klingt.** „Ohne
+            Untergrenze" / „ohne Obergrenze" wäre genauer, machte die Felder
+            aber so breit, dass die Zeile umbrach — und die flache Zeile war
+            der Punkt der ganzen Runde. Was der Bereich bedeutet, sagt statt
+            dessen das Abzeichen dahinter: „Bewertung ≥ 6". */}
+        <option value="">{t('regeln.egal')}</option>
+        {moeglich.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </select>
+    )
+  }
+
+  const eingabe = (welche: 'von' | 'bis') => (
+    <input
+      className={`${AUSWAHL} w-20`}
+      type="number"
+      min={feld.min ?? undefined}
+      max={feld.max ?? undefined}
+      value={bedingung[welche] ?? ''}
+      placeholder={t('regeln.egal')}
+      onChange={(e) => setze(welche, e.target.value)}
+    />
+  )
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-mist-400">{t('regeln.von')}</span>
+      {stufen ? auswahl('von') : eingabe('von')}
+      <span className="text-mist-400">{t('regeln.bis')}</span>
+      {stufen ? auswahl('bis') : eingabe('bis')}
+      {/* ⚠️ **Einheit oder Lesart, nie beides.** Solange nichts eingestellt
+          ist, hilft „von 10"; sobald etwas dasteht, sagt „Bewertung ≥ 6"
+          dasselbe und mehr. Beides nebeneinander brach die Zeile um — und die
+          flache Zeile war der Punkt der ganzen Runde.
+          Die Lesart beantwortet dabei die Frage, die „egal" offen lässt: Ist
+          „6" und „egal" nun „6 und höher" oder „0 bis 10"? */}
+      {leererBereich(bedingung) ? (
+        <span className="rounded-full border border-bad-500/50 bg-bad-500/10 px-2.5 py-0.5 text-xs whitespace-nowrap text-bad-500">
+          {t('regeln.leererBereich')}
+        </span>
+      ) : bedingung.von == null && bedingung.bis == null ? (
+        feld.einheit && <span className="text-mist-500">{feld.einheit}</span>
+      ) : (
+        <span className="rounded-full border border-ink-700 px-2.5 py-0.5 text-xs whitespace-nowrap text-mist-300">
+          {/* ⚠️ **Ohne den Feldnamen.** In der Liste heißt es „Bewertung ≥ 6",
+              weil dort nichts anderes danebensteht. Hier steht der Name schon
+              in der Zeile — ihn zu wiederholen kostete genau die 19 Pixel, an
+              denen die Zeile umbrach. */}
+          {bereichText(bedingung)}
+        </span>
+      )}
+    </div>
+  )
+}
+
+
+/**
+ * Der eingestellte Bereich, kurz: „≥ 6", „< 5", „5–8".
+ *
+ * Sagt in der Editorzeile, was zwei Auswahlfelder zusammen bedeuten — und
+ * beantwortet damit die Frage, die „egal" offen lässt: „6" und „egal" ist
+ * „6 und höher", nicht „0 bis 10".
+ */
+function bereichText(b: Bedingung): string {
+  if (b.von != null && b.bis != null) return `${b.von}–${b.bis}`
+  if (b.von != null) return `≥ ${b.von}`
+  if (b.bis != null) return `< ${b.bis}`
+  return ''
+}
+
+
+/** „von 60 bis 40" trifft auf nichts zu - das muss dastehen, nicht verschwinden. */
+function leererBereich(b: Bedingung): boolean {
+  return b.von != null && b.bis != null && b.von >= b.bis
 }

@@ -3289,6 +3289,12 @@
     "chipVor": "vor {{wert}}",
     "ladefehler": "Die Regeln konnten nicht geladen werden. Was hier steht, ist deshalb unvollständig — es können sehr wohl Regeln aktiv sein.",
     "gilt_nicht_fuer_dich": "Regeln gelten nicht für Administratoren und Entscheider — wie die Sperrliste. Sie sollen die anderen bremsen, nicht dich.",
-    "verdeckt": "{{name}} fängt dieselben Titel schon ab. Diese Regel wird bei ihnen nie erreicht, auch ihr Begründungstext nicht."
+    "verdeckt": "{{name}} fängt dieselben Titel schon ab. Diese Regel wird bei ihnen nie erreicht, auch ihr Begründungstext nicht.",
+    "werteFehlen": "Zu diesem Feld gibt es gerade keine Auswahl — die Liste konnte nicht geladen werden. Ohne sie lässt sich die Bedingung nicht ausfüllen.",
+    "nichtsGewaehlt": "nichts gewählt",
+    "anzahlGewaehlt": "{{anzahl}} gewählt",
+    "ohneUntergrenze": "ohne Untergrenze",
+    "ohneObergrenze": "ohne Obergrenze",
+    "leererBereich": "leerer Bereich"
   }
 }

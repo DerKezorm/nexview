@@ -430,3 +430,46 @@ def test_jede_geschlossene_menge_wird_auch_geprueft() -> None:
         assert werte, f"{feld} hat keine erlaubten Werte"
         # Und jeder erlaubte Wert geht auch wirklich durch.
         regeln.bedingungen_pruefen([{"feld": feld, "werte": sorted(werte)}])
+
+
+# ---------------------------------------------------------------------------
+# Die Grenzen der Zahlenfelder
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "feld,wert",
+    [
+        ("bewertung", 17),
+        ("bewertung", -1),
+        ("altersfreigabe", 25),
+        ("jahr", 1800),
+        ("jahr", 2200),
+        ("laufzeit", -5),
+    ],
+)
+def test_was_ausserhalb_des_bereichs_liegt_wird_abgelehnt(feld: str, wert: float) -> None:
+    """⚠️ **„Bewertung von 17 bis 14" ging durch.**
+
+    Die Einheit in der Oberflaeche sagte "von 10", und der Server nahm 17
+    trotzdem an. Die Regel traf danach auf nichts zu und tat still gar nichts -
+    die schlimmste Sorte Fehler, weil niemand je etwas merkt.
+    """
+    with pytest.raises(regeln.RegelFehler, match="außerhalb"):
+        regeln.bedingungen_pruefen([{"feld": feld, "von": wert, "bis": None}])
+
+
+def test_die_raender_des_bereichs_gehen_durch() -> None:
+    """Die Gegenprobe: 0 und 10 sind gueltige Bewertungen, keine Ausreisser."""
+    regeln.bedingungen_pruefen([{"feld": "bewertung", "von": 0, "bis": 10}])
+    regeln.bedingungen_pruefen([{"feld": "altersfreigabe", "von": 0, "bis": 18}])
+
+
+def test_jedes_zahlenfeld_hat_einen_bereich() -> None:
+    """Bodenschwelle: Ein neues Zahlenfeld ohne Grenzen nimmt wieder alles an."""
+    ohne = sorted(regeln.ZAHLENFELDER - set(regeln.BEREICHE))
+    assert ohne == [], f"Diese Zahlenfelder haben keinen Bereich: {ohne}"
+    for feld, bereich in regeln.BEREICHE.items():
+        assert bereich["min"] < bereich["max"], feld
+        for stufe in bereich.get("stufen") or []:
+            assert bereich["min"] <= stufe <= bereich["max"], f"{feld}: {stufe}"

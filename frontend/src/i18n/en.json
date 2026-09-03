@@ -3289,6 +3289,12 @@
     "chipVor": "before {{wert}}",
     "ladefehler": "The rules could not be loaded. What you see here is therefore incomplete — rules may well be active.",
     "gilt_nicht_fuer_dich": "Rules do not apply to administrators and approvers — same as the block list. They are meant to slow the others down, not you.",
-    "verdeckt": "{{name}} already catches the same titles. This rule is never reached for them, and neither is its reason text."
+    "verdeckt": "{{name}} already catches the same titles. This rule is never reached for them, and neither is its reason text.",
+    "werteFehlen": "There is nothing to choose for this field right now — the list could not be loaded. Without it the condition cannot be filled in.",
+    "nichtsGewaehlt": "nothing selected",
+    "anzahlGewaehlt": "{{anzahl}} selected",
+    "ohneUntergrenze": "no lower bound",
+    "ohneObergrenze": "no upper bound",
+    "leererBereich": "empty range"
   }
 }

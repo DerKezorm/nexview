@@ -215,7 +215,7 @@ def kontostand(db: Session, user_id: int) -> Kontostand:
     return kontostaende(db, (user_id,))[user_id]
 
 
-#: Ein Gibibyte. Hiess bis 0.31 ``GB``, war aber immer schon 1024³ - die
+#: Ein Gibibyte. Hiess bis 0.30 ``GB``, war aber immer schon 1024³ - die
 #: Beschriftung in der Oberflaeche war die falsche, nicht die Rechnung.
 GIB = 1024**3
 

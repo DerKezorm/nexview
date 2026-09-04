@@ -1018,7 +1018,7 @@ def _gib(bytes_: int) -> str:
     """Bytes als lesbare GiB-Angabe fuer eine Fehlermeldung.
 
     GiB und nicht GB, weil hier durch 1024³ geteilt wird - siehe
-    ``storage.GIB``. Bis 0.31 stand faelschlich "GB" daran.
+    ``storage.GIB``. Bis 0.30 stand faelschlich "GB" daran.
     """
     gib = bytes_ / 1024**3
     return f"{gib:.1f} GiB".replace(".", ",") if gib < 10 else f"{gib:.0f} GiB"

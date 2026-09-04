@@ -12,7 +12,7 @@ tag exists for it.
 
 ---
 
-## 0.30.1 – unreleased
+## 0.30.1 – 04.09.2026
 
 Three fixes for the Jellyfin sync, all from Issue #7.
 

@@ -343,6 +343,30 @@
           "The statistics carry the last sign-in per account, so \"which accounts are asleep\" can be answered without opening the user list, which drags mail addresses and avatars along.",
           "A webhook payload carries its confirmation code in a field of its own. A machine no longer has to pick it out of a translated sentence."
         ]
+      },
+      "0.30.1": {
+        "lead": "A hotfix for the Jellyfin sync, from a report with logs and measurements: seventeen minutes become about half a minute, a slow query no longer takes the library with it, and two syncs no longer run side by side.",
+        "sections": [
+          {
+            "title": "The Jellyfin sync no longer takes seventeen minutes",
+            "where": "Settings, Services, Media server, the Jellyfin tile, “Sync now”",
+            "body": "Nexview asks Jellyfin which titles each account has played. Jellyfin 10.11 answers that at a fixed price per request, no matter how small the page, and on one reporter's server the price was 53 seconds. Nexview asked for 19 pages. It now asks once per account, without the total count and without image data, and waits up to three minutes: about 25 seconds on that server instead of 17 minutes."
+          },
+          {
+            "title": "A slow played-titles query no longer takes the library with it",
+            "where": "Same tile, the card with the title count",
+            "body": "When that one query timed out, the whole library read was discarded and the card said “Not synced yet” for weeks, although movies and series arrived in three seconds. The library is now read regardless. Series keep their watched flag from the previous run instead of losing it, and the log names the query that gave up."
+          },
+          {
+            "title": "“Sync now” waits for a sync that is already running",
+            "where": "Same button",
+            "body": "Pressing it during the hourly sync used to start a second, identical one: the same questions to the same server twice, and two runs writing the same rows. The button now waits for the running sync and shows its result, including the error if that run failed for this server."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Emby shares the adapter and gets the same three changes. It never showed the problem, because it answers the played query in milliseconds. Plex is not affected."
+        ]
       }
     }
   }

@@ -343,6 +343,30 @@
           "Die Statistik führt den letzten Login je Konto. Damit lässt sich „welche Konten schlafen“ beantworten, ohne die Benutzerverwaltung zu öffnen, die Mailadressen und Profilbilder mitschleppt.",
           "Der Rumpf einer Webhook-Nachricht trägt den Bestätigungscode in einem eigenen Feld. Eine Maschine muss ihn nicht mehr aus einem übersetzten Satz klauben."
         ]
+      },
+      "0.30.1": {
+        "lead": "Ein Hotfix für den Jellyfin-Abgleich, aus einer Meldung mit Log und Messungen: Aus siebzehn Minuten wird eine halbe, eine langsame Abfrage reißt die Bibliothek nicht mehr mit, und zwei Abgleiche laufen nicht mehr nebeneinander.",
+        "sections": [
+          {
+            "title": "Der Jellyfin-Abgleich braucht keine siebzehn Minuten mehr",
+            "where": "Einstellungen, Dienste, Medienserver, Kachel Jellyfin, „Jetzt abgleichen“",
+            "body": "Nexview fragt Jellyfin, welche Titel jedes Konto gesehen hat. Jellyfin 10.11 beantwortet das zu einem festen Preis je Abfrage, egal wie klein die Seite, und auf dem Server eines Melders lag der bei 53 Sekunden. Nexview fragte 19 Seiten ab. Jetzt fragt es einmal je Konto, ohne Zählung und ohne Bilddaten, und wartet bis zu drei Minuten: auf jenem Server rund 25 Sekunden statt 17 Minuten."
+          },
+          {
+            "title": "Eine langsame Gesehen-Abfrage reißt die Bibliothek nicht mehr mit",
+            "where": "Dieselbe Kachel, die Karte mit der Titelzahl",
+            "body": "Lief diese eine Abfrage in die Zeitgrenze, wurde die ganze Bibliothek verworfen, und die Karte zeigte wochenlang „Noch nicht abgeglichen“, obwohl Filme und Serien in drei Sekunden da waren. Die Bibliothek wird jetzt in jedem Fall gelesen. Serien behalten ihren Gesehen-Haken vom letzten Durchlauf, statt ihn zu verlieren, und das Protokoll nennt die Abfrage, die aufgegeben hat."
+          },
+          {
+            "title": "„Jetzt abgleichen“ wartet auf einen laufenden Abgleich",
+            "where": "Derselbe Knopf",
+            "body": "Wer ihn während des stündlichen Abgleichs drückte, startete einen zweiten, gleichen: dieselben Fragen an denselben Server zweimal, und zwei Läufe, die dieselben Zeilen schreiben. Der Knopf wartet jetzt auf den laufenden Abgleich und zeigt dessen Ergebnis, auch den Fehler, falls der Lauf für diesen Server gescheitert ist."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Emby teilt sich den Adapter und bekommt dieselben drei Änderungen. Es zeigte das Problem nie, weil es die Gesehen-Abfrage in Millisekunden beantwortet. Plex ist nicht betroffen."
+        ]
       }
     }
   }

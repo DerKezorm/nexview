@@ -14,6 +14,7 @@ Zusage waere es ein Bruch gewesen, den niemand bemerkt haette.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from app.main import app
@@ -171,4 +172,99 @@ def test_die_antwortform_bleibt(request) -> None:
         + "\n\nUnter /api/v1 gilt eine Zusage. Entweder das Feld bleibt (auch wenn es "
         "innen anders heisst), oder es braucht ein /api/v2 daneben. Ist die Aenderung "
         "wirklich in Ordnung, den Abdruck mit --abdruck-neu erneuern."
+    )
+
+
+# --------------------------------------------------------- Die Zusage im README
+#
+# ⚠️ **Die Liste steht an zwei Stellen, und die zweite altert lautlos.**
+# ``ZUGESAGT`` ist die Wahrheit, aber gelesen wird das README. Zweimal ist genau
+# das passiert: Es sagte "Fourteen endpoints" und zaehlte vierzehn auf, waehrend
+# im Code laengst sechzehn standen. Im Browser sieht man davon nichts, und
+# niemand meldet es - wer sich auf die Zusage stuetzt, kennt zwei Adressen
+# einfach nicht.
+#
+# Ein Diff faellt auf, eine fehlende Zeile nicht. Deshalb dieser Waechter.
+
+README = Path(__file__).resolve().parents[2] / "README.md"
+
+#: Das Zahlwort im Satz ueber der Tabelle. Nur so weit, wie die Zusage
+#: realistisch waechst - reicht es nicht mehr, sagt der Test das, statt die
+#: Pruefung stillschweigend zu ueberspringen.
+ZAHLWOERTER = {
+    10: "Ten", 11: "Eleven", 12: "Twelve", 13: "Thirteen", 14: "Fourteen",
+    15: "Fifteen", 16: "Sixteen", 17: "Seventeen", 18: "Eighteen",
+    19: "Nineteen", 20: "Twenty",
+}
+
+
+def _readme_abschnitt() -> str:
+    """Nur der Abschnitt mit der Zusage, nicht das ganze README.
+
+    Sonst faengt die Tabellensuche jede andere Tabelle mit ein, und der Test
+    scheitert an etwas, das er gar nicht bewachen soll.
+    """
+    text = README.read_text(encoding="utf-8")
+    auf = text.index("### What is promised, and what is not")
+    zu = text.index("###", auf + 5)
+    return text[auf:zu]
+
+
+def _readme_pfade() -> set[str]:
+    """Die Pfade aus der Tabelle, ohne die Methoden davor."""
+    abschnitt = _readme_abschnitt()
+    pfade = set()
+    for zelle in re.findall(r"^\| `([^`]+)` \|", abschnitt, re.M):
+        # "GET /api/v1/about" und "GET/PUT/POST/DELETE /api/v1/me/push"
+        pfade.add(zelle.split()[-1])
+    return pfade
+
+
+def test_das_readme_zaehlt_dieselben_adressen_auf() -> None:
+    """⚠️ In beide Richtungen, und mit einer Bodenschwelle.
+
+    Ohne die Schwelle bestuende der Test auch dann, wenn die Tabelle
+    verschwindet oder das Muster nicht mehr greift: leere Menge gegen leere
+    Menge ist gleich. Genau so laeuft ein Waechter jahrelang gruen ins Leere.
+    """
+    im_readme = _readme_pfade()
+    zugesagt = set(ZUGESAGT)
+
+    assert len(im_readme) >= 10, (
+        f"In der Zusage-Tabelle des README stehen nur {len(im_readme)} Adressen. "
+        "Entweder ist die Tabelle weg, oder ihr Aufbau hat sich geaendert und "
+        "dieser Test liest ins Leere."
+    )
+    assert zugesagt - im_readme == set(), (
+        f"Zugesagt, aber im README nicht aufgefuehrt: {sorted(zugesagt - im_readme)}. "
+        "Wer sich auf die Zusage stuetzt, erfaehrt von diesen Adressen nichts."
+    )
+    assert im_readme - zugesagt == set(), (
+        f"Im README versprochen, aber nicht in ZUGESAGT: {sorted(im_readme - zugesagt)}. "
+        "Entweder gehoert die Adresse in die Liste in routers/v1.py, oder die "
+        "Zeile im README ist zu viel."
+    )
+
+
+def test_die_zahl_ueber_der_tabelle_stimmt() -> None:
+    """⚠️ Der Satz nennt die Zahl im Wort, und der wird beim Ergaenzen vergessen.
+
+    Eine Zeile fuegt man in die Tabelle ein; den Satz darueber liest man dabei
+    nicht.
+    """
+    treffer = re.search(r"^(\w+) endpoints live under", _readme_abschnitt(), re.M)
+    assert treffer, (
+        "Der Satz 'N endpoints live under ...' steht nicht mehr im "
+        "Zusage-Abschnitt des README. Dann kann diese Zahl auch nicht gehuetet "
+        "werden - Satz wiederherstellen oder diesen Test anpassen."
+    )
+
+    soll = ZAHLWOERTER.get(len(ZUGESAGT))
+    assert soll, (
+        f"ZUGESAGT hat {len(ZUGESAGT)} Eintraege, und dafuer steht kein Zahlwort "
+        "in ZAHLWOERTER. Eines ergaenzen, damit die Pruefung weiterlaeuft."
+    )
+    assert treffer.group(1) == soll, (
+        f"Das README sagt '{treffer.group(1)} endpoints', ZUGESAGT hat aber "
+        f"{len(ZUGESAGT)} Eintraege - richtig waere '{soll}'."
     )

@@ -726,7 +726,7 @@ Sixteen endpoints live under **`/api/v1`**, and for those there is a promise: as
 | `POST /api/v1/requests` | request it |
 | `GET /api/v1/requests/mine` | how your own requests are doing |
 | `GET /api/v1/requests/quota` | how much you may still request |
-| `POST /api/v1/requests/{id}/cancel` | withdraw one |
+| `POST /api/v1/requests/{request_id}/cancel` | withdraw one |
 | `GET /api/v1/home/recent` | what was recently downloaded |
 | `GET /api/v1/tickets/open-count` | open tickets |
 | `GET /api/v1/admin/requests/pending/count` | requests waiting for approval |

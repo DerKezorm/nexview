@@ -25,10 +25,19 @@ from . import channels
 
 
 def alle(db: Session, kind: ChannelKind | None = None) -> list[ChannelTarget]:
-    """Die Ziele der **oberen** Ebene, in der Reihenfolge des Anlegens."""
+    """Die Ziele der **oberen** Ebene, in der Reihenfolge des Anlegens.
+
+    ⚠️ **Ohne die persoenlichen Rueckkanaele, und das ist keine Kosmetik.**
+    Ein Ziel mit Besitzer entsteht nicht hier, sondern indem eine Anbindung es
+    ueber ``/api/v1/me/push`` anmeldet. Stuende es in dieser Liste, koennte ein
+    Administrator es wie eine Kachel bearbeiten: die Adresse eines Fremden auf
+    seine eigene umbiegen, ohne dass dort je jemand einen Code gelesen haette,
+    oder ihm Haken setzen, die es gar nicht kennt. Ansehen und abschalten kann
+    er sie unter ``/api/settings/channels/rueckkanaele``.
+    """
     abfrage = (
         select(ChannelTarget)
-        .where(ChannelTarget.parent_id.is_(None))
+        .where(ChannelTarget.parent_id.is_(None), ChannelTarget.user_id.is_(None))
         .order_by(ChannelTarget.created_at, ChannelTarget.id)
     )
     if kind is not None:

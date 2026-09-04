@@ -387,6 +387,38 @@ class TestErStirbtMitDemSchluessel:
 
             assert channel_outbox.ziel_von(db, admin.id) is None
 
+    def test_er_steht_in_keiner_kanalliste(
+        self, admin_client: TestClient, versand: list
+    ) -> None:
+        """⚠️ Im Betrieb gefunden, nicht beim Bauen gedacht.
+
+        Ein persoenlicher Rueckkanal in der Webhook-Kachelliste liesse sich vom
+        Administrator bearbeiten wie jedes andere Ziel: Adresse aendern - und
+        damit die eines Fremden auf die eigene umbiegen, ohne dass dort je
+        jemand einen Code gelesen haette. Ansehen und abschalten kann er ihn
+        unter /api/settings/channels/rueckkanaele; anfassen nicht.
+        """
+        token = _angemeldet(admin_client, versand)
+
+        # Wieder als Mensch, nicht als Anbindung.
+        admin_client.headers.pop("Authorization", None)
+        neu = admin_client.post("/api/auth/login", json={"username": "admin", "password": "passwort-123456"})
+        if neu.status_code == 200:
+            _mit(admin_client, neu.json()["access_token"])
+        else:
+            _mit(admin_client, token)
+
+        liste = admin_client.get("/api/settings/channels/webhook/targets")
+        assert liste.status_code == 200, liste.text
+        assert liste.json() == [], (
+            "Der persoenliche Rueckkanal steht in der Kanalverwaltung und "
+            "liesse sich dort bearbeiten."
+        )
+
+        uebersicht = admin_client.get("/api/settings/channels/rueckkanaele")
+        assert uebersicht.status_code == 200, uebersicht.text
+        assert len(uebersicht.json()) == 1, "Dafuer fehlt er in der Uebersicht."
+
     def test_trennen_raeumt_auf(self, admin_client: TestClient, versand: list) -> None:
         _angemeldet(admin_client, versand)
 
@@ -458,4 +490,50 @@ class TestDieNurLeseAusnahme:
         assert geprueft > 30, (
             f"Nur {geprueft} schreibende Adressen geprueft - das ist zu wenig, "
             "um etwas zu beweisen. Hat sich die Wegefindung geaendert?"
+        )
+
+class TestDieTextetafelIstVollstaendig:
+    """⚠️ Eine fehlende Zeile verschluckt eine Meldung, ohne dass etwas bricht.
+
+    ``_notice`` gibt auf, wenn es zu einem Typ keine Bausteine findet, und der
+    Auftrag wird mit "Dieses Ziel meldet diesen Vorgang nicht mehr" abgehakt.
+    Das sieht im Protokoll aus wie eine Einstellung, nicht wie ein Fehler -
+    deshalb steht hier ein Test und nicht nur ein Kommentar.
+    """
+
+    def test_jede_meldungsart_hat_einen_persoenlichen_text(self) -> None:
+        from app.services.channel_outbox import PERSOENLICH
+
+        geprueft = 0
+        for sprache in ("de", "en"):
+            for typ in NotificationType:
+                bausteine = PERSOENLICH[sprache].get(typ)
+                assert bausteine is not None, (
+                    f"{sprache}: {typ.value} hat keinen persoenlichen Text. "
+                    "Ohne ihn verschwindet die Meldung lautlos."
+                )
+                assert bausteine.get("title"), f"{sprache}: {typ.value} ohne Titel"
+                geprueft += 1
+
+        assert geprueft >= 50, (
+            f"Nur {geprueft} Texte geprueft - hat sich NotificationType geaendert?"
+        )
+
+    def test_haus_und_person_sagen_nicht_dasselbe(self) -> None:
+        """Sonst waere die zweite Tabelle eine Kopie und koennte weg.
+
+        Sie ist es nicht: Dieselbe Sache liest sich als Durchsage anders als
+        als persoenliche Nachricht, und bei ``storage_released`` ist es sogar
+        ein anderer Blickwinkel - dem Haus gehoert etwas, mir wird Platz frei.
+        """
+        from app.services.channel_outbox import PERSOENLICH, TEXTS
+
+        anders = [
+            typ.value
+            for typ in TEXTS["de"]
+            if PERSOENLICH["de"][typ]["title"] != TEXTS["de"][typ]["title"]
+        ]
+        assert len(anders) >= 5, (
+            f"Nur {len(anders)} von {len(TEXTS['de'])} Meldungen sind persoenlich "
+            "anders formuliert. Dann waere die zweite Tabelle keine."
         )

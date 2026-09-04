@@ -367,6 +367,37 @@
         "small": [
           "Emby shares the adapter and gets the same three changes. It never showed the problem, because it answers the played query in milliseconds. Plex is not affected."
         ]
+      },
+      "0.31.0": {
+        "lead": "Nexview now reaches you while it is closed: every account can subscribe its own devices for web push, phone, tablet or computer. The same switches as for e-mail decide what arrives there.",
+        "sections": [
+          {
+            "title": "Web push for your own devices",
+            "where": "Profile, Notifications, tab “Web Push”",
+            "body": "One click on “Allow notifications”, and this browser gets notified even while Nexview is not open: the title is ready, the request is decided, a child wishes for something. Every device subscribes once and then appears in a list with its last delivery. A test message tells you right away whether anything arrives. Messages are encrypted end to end and signed with a key Nexview generates once; the browser’s push service only sees that something arrives."
+          },
+          {
+            "title": "The same switches as for e-mail",
+            "where": "Same tab, right column",
+            "body": "What you get notified about belongs to your account, so it is the same on every device. The first device turns all switches on so the subscription does not run into a void; after that you turn off what you do not want. The monthly clean-up report stays an e-mail."
+          },
+          {
+            "title": "On iPhone via the Home Screen",
+            "where": "Safari, share menu, “Add to Home Screen”",
+            "body": "Apple delivers web push only to pages that live on the Home Screen. Nexview now ships a manifest and icons for that and can sit on a Home Screen like an app, on Android and on a computer too. The page says on every device what is still missing: the Home Screen, the permission or https."
+          },
+          {
+            "title": "Operators see where Nexview sends",
+            "where": "Settings, Channels, section “Callbacks”",
+            "body": "Subscribed devices appear next to the Home Assistant callbacks: whose they are, which browser, which push service. The subscription address itself is never shown; it is a key to the device. A row can be disconnected there."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Web push needs https. On a plain http address in the home network the page explains that instead of showing a dead button.",
+          "A device you remove is not silently subscribed again on the next visit, even though the browser would still allow it.",
+          "A subscription the push service no longer knows is dropped by Nexview on its own. A rejected signature is reported, not dropped."
+        ]
       }
     }
   }

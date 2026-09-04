@@ -367,6 +367,37 @@
         "small": [
           "Emby teilt sich den Adapter und bekommt dieselben drei Änderungen. Es zeigte das Problem nie, weil es die Gesehen-Abfrage in Millisekunden beantwortet. Plex ist nicht betroffen."
         ]
+      },
+      "0.31.0": {
+        "lead": "Nexview meldet sich jetzt auch, wenn es gar nicht offen ist: Jedes Konto kann seine Geräte für Web Push anmelden, Handy, Tablet, Rechner. Welche Meldungen dort ankommen, entscheiden dieselben Haken wie bei der Mail.",
+        "sections": [
+          {
+            "title": "Web Push für die eigenen Geräte",
+            "where": "Profil, Benachrichtigungen, Reiter „Web Push“",
+            "body": "Ein Klick auf „Benachrichtigungen erlauben“, und dieser Browser bekommt Meldungen auch bei geschlossenem Nexview: Der Titel ist da, die Anfrage ist entschieden, ein Kind wünscht sich etwas. Jedes Gerät meldet sich einmal an und steht danach in einer Liste mit dem letzten Zustellversuch. Eine Probemeldung zeigt sofort, ob etwas ankommt. Die Meldungen sind Ende-zu-Ende verschlüsselt und mit einem Schlüssel unterschrieben, den Nexview einmal erzeugt; der Push-Dienst des Browsers sieht nur, dass etwas ankommt."
+          },
+          {
+            "title": "Dieselben Haken wie bei der Mail",
+            "where": "Derselbe Reiter, rechte Spalte",
+            "body": "Wobei du eine Meldung bekommst, gilt für dein Konto und damit auf allen Geräten gleich. Beim ersten Gerät setzt Nexview alle Haken, damit die Anmeldung nicht ins Leere läuft; danach schaltest du ab, was du nicht willst. Der monatliche Aufräum-Bericht bleibt eine Mail."
+          },
+          {
+            "title": "Auf dem iPhone über den Home-Bildschirm",
+            "where": "Safari, Teilen-Menü, „Zum Home-Bildschirm“",
+            "body": "Apple liefert Web Push nur an Seiten, die auf dem Home-Bildschirm liegen. Nexview bringt dafür jetzt ein Manifest und Symbole mit und lässt sich wie eine App ablegen, auch auf Android und am Rechner. Die Seite sagt an jedem Gerät, was noch fehlt: Home-Bildschirm, Erlaubnis oder https."
+          },
+          {
+            "title": "Der Betreiber sieht, wohin Nexview funkt",
+            "where": "Einstellungen, Kanäle, Abschnitt „Rückkanäle“",
+            "body": "Angemeldete Geräte stehen neben den Home-Assistant-Anbindungen: wem sie gehören, welcher Browser, welcher Push-Dienst. Die Adresse des Abonnements selbst zeigt Nexview nie; sie ist ein Schlüssel zum Gerät. Eine Zeile lässt sich dort trennen."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Web Push braucht https. Im Heimnetz über http erklärt die Seite das, statt einen toten Knopf zu zeigen.",
+          "Ein Gerät, das du entfernst, wird beim nächsten Öffnen nicht still wieder angemeldet, auch wenn der Browser noch dürfte.",
+          "Ein Abonnement, das der Push-Dienst nicht mehr kennt, räumt Nexview von selbst weg. Eine abgelehnte Unterschrift wird gemeldet, nicht weggeräumt."
+        ]
       }
     }
   }

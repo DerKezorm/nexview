@@ -214,7 +214,7 @@ def _readme_pfade() -> set[str]:
     """Die Pfade aus der Tabelle, ohne die Methoden davor."""
     abschnitt = _readme_abschnitt()
     pfade = set()
-    for zelle in re.findall(r"^\| `([^`]+)` \|", abschnitt, re.M):
+    for zelle in re.findall(r"^\| `([^`]+)` \|", abschnitt, re.MULTILINE):
         # "GET /api/v1/about" und "GET/PUT/POST/DELETE /api/v1/me/push"
         pfade.add(zelle.split()[-1])
     return pfade
@@ -252,7 +252,7 @@ def test_die_zahl_ueber_der_tabelle_stimmt() -> None:
     Eine Zeile fuegt man in die Tabelle ein; den Satz darueber liest man dabei
     nicht.
     """
-    treffer = re.search(r"^(\w+) endpoints live under", _readme_abschnitt(), re.M)
+    treffer = re.search(r"^(\w+) endpoints live under", _readme_abschnitt(), re.MULTILINE)
     assert treffer, (
         "Der Satz 'N endpoints live under ...' steht nicht mehr im "
         "Zusage-Abschnitt des README. Dann kann diese Zahl auch nicht gehuetet "

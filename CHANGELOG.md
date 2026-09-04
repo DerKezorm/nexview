@@ -12,7 +12,7 @@ tag exists for it.
 
 ---
 
-## 0.31.1 – unreleased
+## 0.31.1 – 05.09.2026
 
 A hotfix for web push: in 0.31.0 no device could subscribe, on any
 installation.

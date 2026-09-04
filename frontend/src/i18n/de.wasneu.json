@@ -398,6 +398,20 @@
           "Ein Gerät, das du entfernst, wird beim nächsten Öffnen nicht still wieder angemeldet, auch wenn der Browser noch dürfte.",
           "Ein Abonnement, das der Push-Dienst nicht mehr kennt, räumt Nexview von selbst weg. Eine abgelehnte Unterschrift wird gemeldet, nicht weggeräumt."
         ]
+      },
+      "0.31.1": {
+        "lead": "Ein Hotfix für Web Push: In 0.31.0 ließ sich kein Gerät anmelden, auf keiner Installation. Schuld war eine Zeile in Nexviews eigenen Inhaltsregeln.",
+        "sections": [
+          {
+            "title": "Web Push meldet Geräte wieder an",
+            "where": "Profil, Benachrichtigungen, Web Push, „Benachrichtigungen erlauben“ oder „Anmeldung nachholen“",
+            "body": "Nexviews Inhaltsregeln (Content-Security-Policy) verboten dem Browser, den Service Worker zu starten, und der ist der erste Schritt jeder Anmeldung, noch bevor der Server gefragt wird. Die Seite sagte nur „Etwas ist schiefgelaufen“; den Grund nannte allein die Browser-Konsole. Aufgefallen ist es nicht, weil der Entwicklungsserver die Kopfzeile gar nicht setzt. Die Regel erlaubt jetzt Worker von Nexview selbst, und ein Test wacht über die Zeile. Wer in 0.31.0 schon „Erlauben“ gedrückt hat, muss nichts tun: Beim nächsten Öffnen der Seite holt Nexview die Anmeldung von selbst nach."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Chrome mahnt die Meta-Zeile für den Home-Bildschirm nicht mehr als veraltet an. Die Seite trägt jetzt beide Schreibweisen; die alte bleibt für Safari."
+        ]
       }
     }
   }

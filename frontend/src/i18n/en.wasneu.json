@@ -398,6 +398,20 @@
           "A device you remove is not silently subscribed again on the next visit, even though the browser would still allow it.",
           "A subscription the push service no longer knows is dropped by Nexview on its own. A rejected signature is reported, not dropped."
         ]
+      },
+      "0.31.1": {
+        "lead": "A hotfix for web push: in 0.31.0 no device could subscribe, on any installation. One line in Nexview's own content security policy was to blame.",
+        "sections": [
+          {
+            "title": "Web push subscribes devices again",
+            "where": "Profile, Notifications, Web Push, “Allow notifications” or “Subscribe again”",
+            "body": "Nexview's content security policy forbade the browser to start the service worker, and that is the first step of every subscription, before the server is even asked. The page only said “Something went wrong”; only the browser console named the reason. It went unnoticed because the development server does not send the header at all. The rule now allows workers from Nexview itself, and a test guards the line. If you already pressed “Allow” in 0.31.0, there is nothing to do: the next time you open the page, Nexview completes the subscription by itself."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Chrome no longer flags the Home Screen meta tag as deprecated. The page now carries both spellings; the old one stays for Safari."
+        ]
       }
     }
   }

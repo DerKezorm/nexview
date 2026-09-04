@@ -172,7 +172,15 @@ def regeln(
             f"frame-src {TRAILERQUELLE}",
             # Der Protokoll-Download baut sich eine blob:-Adresse.
             "media-src 'self' blob:",
-            "worker-src 'none'",
+            # ⚠️ **Der Service Worker fuer Web Push haengt an dieser Zeile.**
+            # In 0.31.0 stand hier ``'none'``, und jeder Browser verweigerte
+            # damit ``navigator.serviceWorker.register('/sw.js')`` - den ersten
+            # Schritt jeder Anmeldung, noch vor der ersten Anfrage an den
+            # Server. Web Push war in der veroeffentlichten Fassung ueberall
+            # tot, und die Oberflaeche sagte nur "Etwas ist schiefgelaufen".
+            # Aufgefallen ist es nicht, weil der Entwicklungsserver von Vite
+            # diese Kopfzeile gar nicht setzt; sie kommt nur von FastAPI.
+            "worker-src 'self'",
         ]
     )
 

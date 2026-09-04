@@ -12,6 +12,26 @@ tag exists for it.
 
 ---
 
+## 0.31.1 – unreleased
+
+A hotfix for web push: in 0.31.0 no device could subscribe, on any
+installation.
+
+### Fixed
+
+- **Web push could not subscribe any device.** Nexview's own content security
+  policy said `worker-src 'none'`, so every browser refused to register the
+  service worker, which is the first step of every subscription, before the
+  server was even asked. The page only said "Something went wrong"; the browser
+  console named the rule. It slipped through because the Vite development
+  server does not send the header at all, only the built app does. The policy
+  now allows workers from Nexview's own origin, and a test guards the line. If
+  you already pressed "Allow" in 0.31.0, there is nothing to do: the next time
+  you open the page, Nexview completes the subscription by itself.
+- **Chrome no longer flags the Home Screen meta tag as deprecated.** The page
+  carries the generic `mobile-web-app-capable` tag alongside the Apple one,
+  which stays because Safari still needs it.
+
 ## 0.31.0 – 04.09.2026
 
 ### New

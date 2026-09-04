@@ -99,6 +99,26 @@ def test_die_grundregel_ist_zu(admin_client: TestClient) -> None:
 
 
 # --------------------------------------------------------------------------
+# Der Service Worker - die Zeile, die in 0.31.0 Web Push abgewuergt hat
+# --------------------------------------------------------------------------
+
+
+def test_der_service_worker_darf_starten(admin_client: TestClient) -> None:
+    """⚠️ Web Push haengt an dieser einen Richtlinie.
+
+    ``navigator.serviceWorker.register('/sw.js')`` ist der erste Schritt jeder
+    Anmeldung, noch vor der ersten Anfrage an den Server. In 0.31.0 stand hier
+    ``worker-src 'none'``: Jeder Browser brach mit "Creating a worker violates
+    the following Content Security Policy directive" ab, die Oberflaeche sagte
+    nur "Etwas ist schiefgelaufen", und der Server wurde nie nach seinem
+    Schluessel gefragt. Aufgefallen ist es erst auf einer echten Installation,
+    weil der Entwicklungsserver von Vite die Kopfzeile gar nicht setzt.
+    """
+    regeln = _regeln(admin_client.get("/api/health"))
+    assert regeln["worker-src"] == "'self'"
+
+
+# --------------------------------------------------------------------------
 # Die Bildquellen - die Stelle, an der es beim Bau zweimal geklemmt hat
 # --------------------------------------------------------------------------
 

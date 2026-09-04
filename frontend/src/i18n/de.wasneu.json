@@ -313,22 +313,22 @@
         ]
       },
       "0.30.0": {
-        "lead": "Nexview lässt sich jetzt an Home Assistant anbinden, und zwar von jedem einzeln: Wer dort seinen Zugriffs-Schlüssel einträgt, bekommt seine eigenen Zahlen und wird über seine eigenen Vorgänge benachrichtigt. Dazu eine Korrektur, die schon lange fällig war — Speichergrößen heißen jetzt so, wie sie gerechnet werden.",
+        "lead": "Nexview lässt sich jetzt an Home Assistant anbinden, und zwar von jedem einzeln: Wer dort seinen Zugriffs-Schlüssel einträgt, bekommt seine eigenen Zahlen und wird über seine eigenen Vorgänge benachrichtigt. Dazu eine Korrektur, die schon lange fällig war: Speichergrößen heißen jetzt so, wie sie gerechnet werden.",
         "sections": [
           {
             "title": "Home Assistant, für jeden im Haus",
             "where": "Profil → API-Token",
-            "body": "Bisher waren Benachrichtigungsziele Betreibersache. Eine Anwendung, die sich anbinden wollte, brauchte deshalb einen Schlüssel mit Verwaltungsrechten — und bekam dann alles, was im Haus passiert, statt dem, was ihren Besitzer angeht.\n\nJetzt meldet die Anwendung sich selbst an, mit dem Schlüssel, den sie ohnehin hat. Sie bekommt genau das, was auch in der Glocke ihres Besitzers steht: seine Anfragen, seine Tickets, sein Speicher. Wer im selben Haushalt sein eigenes Home Assistant betreibt, bekommt seines, und keiner sieht das des anderen.\n\nUnter deinen Zugriffs-Schlüsseln steht dann, wohin Nexview meldet, mit einem Knopf zum Trennen. Ein Schlüssel mit „nur lesen“ darf das übrigens auch — sonst müsste man für Benachrichtigungen ausgerechnet den mächtigeren Schlüssel nehmen."
+            "body": "Bisher waren Benachrichtigungsziele Betreibersache. Eine Anwendung, die sich anbinden wollte, brauchte deshalb einen Schlüssel mit Verwaltungsrechten, und bekam dann alles, was im Haus passiert, statt dem, was ihren Besitzer angeht.\n\nJetzt meldet die Anwendung sich selbst an, mit dem Schlüssel, den sie ohnehin hat. Sie bekommt genau das, was auch in der Glocke ihres Besitzers steht: seine Anfragen, seine Tickets, sein Speicher. Wer im selben Haushalt sein eigenes Home Assistant betreibt, bekommt seines, und keiner sieht das des anderen.\n\nUnter deinen Zugriffs-Schlüsseln steht dann, wohin Nexview meldet, mit einem Knopf zum Trennen. Ein Schlüssel mit „nur lesen“ darf das übrigens auch, sonst müsste man für Benachrichtigungen ausgerechnet den mächtigeren Schlüssel nehmen."
           },
           {
             "title": "Wohin Nexview benachrichtigt",
             "where": "Einstellungen → Benachrichtigungen, ganz unten",
-            "body": "Eine Liste aller Anwendungen, die sich angemeldet haben: wer benachrichtigt wird, über welchen Schlüssel, an welche Adresse und ob zuletzt etwas schiefging. Wer einen Server betreibt, soll sehen können, wohin der Daten schickt.\n\nEinrichten lässt sich hier nichts — das macht die Anwendung selbst. Trennen schon."
+            "body": "Eine Liste aller Anwendungen, die sich angemeldet haben: wer benachrichtigt wird, über welchen Schlüssel, an welche Adresse und ob zuletzt etwas schiefging. Wer einen Server betreibt, soll sehen können, wohin der Daten schickt.\n\nEinrichten lässt sich hier nichts, das macht die Anwendung selbst. Trennen schon."
           },
           {
             "title": "GiB heißt jetzt GiB",
             "where": "Überall, wo eine Größe steht",
-            "body": "Nexview hat Speichergrößen immer durch 1024³ geteilt und „GB“ daran geschrieben. Das ist die Einheit, die durch 1000³ teilt, und der Unterschied beträgt sieben Prozent. Aufgefallen ist es beim Vergleich mit Home Assistant: Dieselbe Belegung stand dort als 100,3 GB und hier als 93 GB. Beide Zahlen waren richtig, nur eine der beiden Beschriftungen.\n\nGeändert hat sich der Name, nicht die Rechnung. Wer 300 eingetragen hat, hat weiterhin genau so viel Platz wie vorher — es steht jetzt nur „300 GiB“ da. Der andere Weg hätte jedem sieben Prozent seines Kontingents genommen, ohne dass jemand etwas angefasst hätte."
+            "body": "Nexview hat Speichergrößen immer durch 1024³ geteilt und „GB“ daran geschrieben. Das ist die Einheit, die durch 1000³ teilt, und der Unterschied beträgt sieben Prozent. Aufgefallen ist es beim Vergleich mit Home Assistant: Dieselbe Belegung stand dort als 100,3 GB und hier als 93 GB. Beide Zahlen waren richtig, nur eine der beiden Beschriftungen.\n\nGeändert hat sich der Name, nicht die Rechnung. Wer 300 eingetragen hat, hat weiterhin genau so viel Platz wie vorher, es steht jetzt nur „300 GiB“ da. Der andere Weg hätte jedem sieben Prozent seines Kontingents genommen, ohne dass jemand etwas angefasst hätte."
           },
           {
             "title": "Der Hausbestand wird eigen ausgewiesen",
@@ -338,7 +338,7 @@
         ],
         "smallTitle": "Außerdem",
         "small": [
-          "`GET /api/v1/me` sagt einer Anbindung, wer anklopft und was dieser Schlüssel darf — als feste Kennungen, nicht als Rolle. Ein Administrator mit einem Nur-Lese-Schlüssel darf nichts genehmigen, und wer auf die Rolle baut, baut einen Knopf, der immer scheitert.",
+          "`GET /api/v1/me` sagt einer Anbindung, wer anklopft und was dieser Schlüssel darf, als feste Kennungen, nicht als Rolle. Ein Administrator mit einem Nur-Lese-Schlüssel darf nichts genehmigen, und wer auf die Rolle baut, baut einen Knopf, der immer scheitert.",
           "`GET /api/v1/storage/me` sagt jetzt auch, ob dem Konto überhaupt etwas zugerechnet wird. Bei einem Administrator nicht: Was er holt, gehört dem Haus. Seine Zahlen stehen deshalb auf null, und das ist keine Messung, sondern eine Buchung.",
           "Die Statistik führt den letzten Login je Konto. Damit lässt sich „welche Konten schlafen“ beantworten, ohne die Benutzerverwaltung zu öffnen, die Mailadressen und Profilbilder mitschleppt.",
           "Der Rumpf einer Webhook-Nachricht trägt den Bestätigungscode in einem eigenen Feld. Eine Maschine muss ihn nicht mehr aus einem übersetzten Satz klauben."

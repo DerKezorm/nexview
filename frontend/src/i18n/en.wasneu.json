@@ -313,22 +313,22 @@
         ]
       },
       "0.30.0": {
-        "lead": "Nexview connects to Home Assistant now, and everybody does it for themselves: enter your access key over there and you get your own figures and are notified about your own business. Along with a correction that was overdue — storage sizes are finally called what they are.",
+        "lead": "Nexview connects to Home Assistant now, and everybody does it for themselves: enter your access key over there and you get your own figures and are notified about your own business. Along with a correction that was long overdue: storage sizes are finally called what they are.",
         "sections": [
           {
             "title": "Home Assistant, for everybody in the house",
             "where": "Profile → API tokens",
-            "body": "Notification targets used to be an operator's business. An application that wanted to connect therefore needed an administrative key — and then received everything happening in the house instead of what concerned its owner.\n\nNow the application registers itself, with the key it already has. It receives exactly what its owner also sees in their notification bell: their requests, their tickets, their storage. Anybody in the same household running their own Home Assistant gets their own, and neither sees the other's.\n\nYour access keys then show where Nexview notifies, with a button to disconnect. A key marked *read only* may do this too — otherwise notifications would be the one reason to reach for the more powerful key."
+            "body": "Notification targets used to be an operator's business. An application that wanted to connect therefore needed an administrative key, and then received everything happening in the house instead of what concerned its owner.\n\nNow the application registers itself, with the key it already has. It receives exactly what its owner also sees in their notification bell: their requests, their tickets, their storage. Anybody in the same household running their own Home Assistant gets their own, and neither sees the other's.\n\nYour access keys then show where Nexview notifies, with a button to disconnect. A key marked *read only* may do this too, otherwise notifications would be the one reason to reach for the more powerful key."
           },
           {
             "title": "Where Nexview notifies",
             "where": "Settings → Notifications, at the bottom",
-            "body": "A list of every application that registered: who is being notified, through which key, at which address, and whether anything failed recently. Whoever runs a server should be able to see where it sends data.\n\nNothing is set up here — the application does that itself. Disconnecting works."
+            "body": "A list of every application that registered: who is being notified, through which key, at which address, and whether anything failed recently. Whoever runs a server should be able to see where it sends data.\n\nNothing is set up here, because the application does that itself. Disconnecting works."
           },
           {
             "title": "GiB now says GiB",
             "where": "Everywhere a size appears",
-            "body": "Nexview has always divided storage sizes by 1024³ and written \"GB\" next to them. That is the unit which divides by 1000³, and the difference is seven per cent. It showed up when comparing with Home Assistant: the same usage read as 100.3 GB there and 93 GB here. Both figures were right, only one of the two labels.\n\nThe name changed, not the arithmetic. Anybody who entered 300 still has exactly the same space as before — it now says \"300 GiB\". The other way round would have taken seven per cent off everyone's allowance without anybody touching a setting."
+            "body": "Nexview has always divided storage sizes by 1024³ and written \"GB\" next to them. That is the unit which divides by 1000³, and the difference is seven per cent. It showed up when comparing with Home Assistant: the same usage read as 100.3 GB there and 93 GB here. Both figures were right, only one of the two labels.\n\nThe name changed, not the arithmetic. Anybody who entered 300 still has exactly the same space as before, it now says \"300 GiB\". The other way round would have taken seven per cent off everyone's allowance without anybody touching a setting."
           },
           {
             "title": "House stock is shown separately",
@@ -338,7 +338,7 @@
         ],
         "smallTitle": "Also",
         "small": [
-          "`GET /api/v1/me` tells an integration who is knocking and what this key may do — as stable identifiers, not as a role. An administrator with a read-only token may approve nothing, and building against the role builds a button that always fails.",
+          "`GET /api/v1/me` tells an integration who is knocking and what this key may do, as stable identifiers, not as a role. An administrator with a read-only token may approve nothing, and building against the role builds a button that always fails.",
           "`GET /api/v1/storage/me` now also says whether the account gets anything attributed to it at all. For an administrator it does not: what they fetch belongs to the house. Their figures sit at zero, and that is a booking rather than a measurement.",
           "The statistics carry the last sign-in per account, so \"which accounts are asleep\" can be answered without opening the user list, which drags mail addresses and avatars along.",
           "A webhook payload carries its confirmation code in a field of its own. A machine no longer has to pick it out of a translated sentence."

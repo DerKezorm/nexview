@@ -247,7 +247,13 @@ class LibraryItem:
     # dagegen vollstaendig (gemessen 354 gesehene Filme). Beim Einlesen mit dem
     # hinterlegten Zugang ist das der Eigentuemer; ``watched_index`` liest mit
     # dem persoenlichen Token, dann gilt es fuer dessen Konto.
-    owner_watched: bool = False
+    #
+    # ``None`` heisst **unbekannt**, nicht "nein". Bei Jellyfin kommt die
+    # Antwort fuer Serien aus einer eigenen Abfrage nach gesehenen Folgen, und
+    # die kann scheitern, waehrend die Bibliothek selbst lesbar ist (Issue #7).
+    # Wer dann ``False`` schriebe, naehme dem Eigentuemer fuer eine Stunde jeden
+    # Haken - ``mediaserver_library`` behaelt stattdessen den bisherigen Wert.
+    owner_watched: bool | None = False
     # Wann zuletzt gesehen - aus Sicht desselben Kontos. Fehlt bei Anbietern,
     # die nur den Zaehler kennen.
     watched_at: datetime | None = None

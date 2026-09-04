@@ -12,6 +12,34 @@ tag exists for it.
 
 ---
 
+## 0.30.1 – unreleased
+
+Three fixes for the Jellyfin sync, all from Issue #7.
+
+### Fixed
+
+- **Played titles are fetched in one request per account, not page by page.**
+  Jellyfin 10.11 evaluates the played filter over the whole library for every
+  page, so the price is per request, not per title. Measured on the reporter's
+  server: a page of 25 played episodes took 45 seconds, everything at once 25.
+  Nexview asked for 19 pages, 17 minutes per account and per run, and the
+  smaller pages it fell back to made every page dearer. It now asks once,
+  without the total count and without image data, and waits up to three
+  minutes for the answer. If the answer does not come, that account skips a
+  round; the library is read regardless.
+- **A failing played-episodes query no longer throws the whole library away.**
+  Nexview asks Jellyfin which episodes the stored account has played, and only
+  to mark series as started. When that one query timed out, the entire library
+  read was discarded, and the card said "Not synced yet" for weeks although
+  movies and series themselves arrived in three seconds. The library is now
+  read regardless. Series keep the watched flag from the previous run instead
+  of losing it, and the log names the query that gave up.
+- **"Sync now" no longer runs alongside the hourly sync.** Pressing it during
+  the hourly run started a second, identical sync in parallel: the same
+  questions to the same server twice, and two runs writing the same rows. The
+  button now waits for the running sync and reports its result. If that run
+  failed for the server on that page, the button shows the error.
+
 ## 0.29.1 – 03.09.2026
 
 A maintenance release for the Seerr migration wizard: it now speaks the

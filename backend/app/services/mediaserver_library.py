@@ -13,7 +13,11 @@ beim Oeffnen der Entdecken-Seite abwarten.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import replace
 
 from sqlalchemy import String, delete, func, or_, select
@@ -63,7 +67,7 @@ def _zusammengefasst(werke: list[LibraryItem]) -> list[LibraryItem]:
             # Zusammenfassen kommen beide an einer Zeile zusammen.
             size_standard=max(vorhanden.size_standard, werk.size_standard),
             size_uhd=max(vorhanden.size_uhd, werk.size_uhd),
-            owner_watched=vorhanden.owner_watched or werk.owner_watched,
+            owner_watched=_gesehen_vereint(vorhanden.owner_watched, werk.owner_watched),
             # Fehlende Kennungen aus dem zweiten Eintrag uebernehmen: Welche
             # Plex liefert, haengt am Agenten der jeweiligen Bibliothek.
             tmdb_id=vorhanden.tmdb_id or werk.tmdb_id,
@@ -74,7 +78,120 @@ def _zusammengefasst(werke: list[LibraryItem]) -> list[LibraryItem]:
     return list(nach_guid.values())
 
 
+def _gesehen_vereint(a: bool | None, b: bool | None) -> bool | None:
+    """Verodern mit "unbekannt": Wahr schlaegt alles, Unbekannt schlaegt Falsch."""
+    if a or b:
+        return True
+    if a is None or b is None:
+        return None
+    return False
+
+
+# --------------------------------------------------------------------------
+# Genau ein Abgleich zur Zeit
+# --------------------------------------------------------------------------
+#
+# Das Log zu Issue #7 zeigt zwei Abgleiche, sauber verschraenkt: den
+# Stundenlauf und den Handknopf "Sync now", der waehrenddessen gedrueckt
+# wurde. Beide stellten demselben Jellyfin dieselben neunzehn Fragen zu je
+# 53 Sekunden. Auf einem gesunden Server faellt das nicht auf; auf einem
+# langsamen ist es der Unterschied zwischen 17 und 34 Minuten, jede Stunde.
+#
+# Und es ist nicht nur Last. Beide Laeufe schreiben dieselben Zeilen, und der
+# Gesehen-Abgleich liest den Bestand und schreibt ihn zurueck - zwei Laeufe,
+# die sich dabei ins Wort fallen, ueberschreiben sich gegenseitig die
+# Herkunftsvermerke, an denen haengt, ob ein Auge gruen bleibt.
+#
+# Deshalb eine Sperre ueber den ganzen Durchlauf. Wer den Knopf drueckt,
+# waehrend ein Lauf laeuft, wartet - und liest danach **nicht** noch einmal:
+# Der Bestand ist so frisch, wie seiner wuerde, und der Server hat gerade
+# eben schon einmal alles beantwortet. Nur was dieser Lauf *nicht* gelesen
+# hat (ein anderer Server, etwa der gerade erst verbundene), wird nachgeholt.
+_sperre = asyncio.Lock()
+#: Laufende Nummer des Durchlaufs, hochgezaehlt bei jedem Start. Ein Wartender
+#: merkt sich die Nummer des Laufs, auf den er wartet, und erkennt daran
+#: hinterher, ob der seine Server gelesen hat.
+_lauf = 0
+#: Anbieter -> Nummer des Durchlaufs, der ihn zuletzt gelesen hat (oder es
+#: versucht hat).
+_stand: dict[str, int] = {}
+#: Anbieter -> woran sein letzter Lesevorgang scheiterte. Fuer den Wartenden,
+#: der streng gefragt hat: Er soll den Fehler sehen, nicht einen alten Zaehler.
+_letzter_fehler: dict[str, MediaServerError] = {}
+#: Steht auf wahr, solange die Aufgabe, die die Sperre haelt, arbeitet - damit
+#: ``refresh`` aus dem Stundenlauf heraus nicht ein zweites Mal auf die eigene
+#: Sperre wartet.
+_im_durchlauf: ContextVar[bool] = ContextVar("mediaserver_abgleich", default=False)
+
+
+@asynccontextmanager
+async def _als_durchlauf() -> AsyncIterator[None]:
+    """Einen Durchlauf zaehlen und markieren - die Sperre haelt der Aufrufer."""
+    global _lauf
+    _lauf += 1
+    marke = _im_durchlauf.set(True)
+    try:
+        yield
+    finally:
+        _im_durchlauf.reset(marke)
+
+
+def _anbieter(settings: AppSettings, provider: str | None) -> list[str]:
+    # ``provider`` grenzt auf einen Server ein - das ist der Handknopf auf
+    # dessen Seite. Ohne Angabe laufen alle, das ist der Hintergrunddurchlauf.
+    return [a for a in verbundene_anbieter(settings) if provider is None or a == provider]
+
+
+async def voller_abgleich(db: Session, settings: AppSettings) -> None:
+    """Bibliothek und Gesehen-Stand nacheinander, unter **einer** Sperre.
+
+    Das ist der Stundenlauf. Erst die Bibliothek, dann der Gesehen-Stand: Der
+    verweist auf Titel aus der Bibliothek und laeuft ins Leere, solange die
+    nicht eingelesen ist.
+    """
+    # Erst hier importiert: ``mediaserver_watched`` zieht Modelle und den
+    # Adapter, dieses Modul soll es nicht schon beim Laden brauchen.
+    from . import mediaserver_watched
+
+    async with _sperre, _als_durchlauf():
+        await refresh(db, settings)
+        await mediaserver_watched.refresh(db, settings)
+
+
 async def refresh(
+    db: Session, settings: AppSettings, streng: bool = False, provider: str | None = None
+) -> int:
+    """Die Bibliothek neu einlesen - unter der Sperre, siehe oben.
+
+    Laeuft gerade ein Durchlauf, wartet der Aufruf auf ihn. Hat der die
+    gefragten Server gelesen, ist damit alles getan: Zurueck kommt der frische
+    Zaehler, und ``streng`` bekommt den Fehler jenes Laufs, falls er fuer
+    einen dieser Server gescheitert ist.
+    """
+    if _im_durchlauf.get():
+        # Aus dem Stundenlauf heraus: Die Sperre haelt schon diese Aufgabe.
+        return await _refresh(db, settings, streng, provider)
+
+    anbieter_liste = _anbieter(settings, provider)
+    wartet_auf = _lauf if _sperre.locked() else None
+    async with _sperre:
+        if wartet_auf is not None and all(
+            _stand.get(a, -1) >= wartet_auf for a in anbieter_liste
+        ):
+            if streng:
+                for anbieter in anbieter_liste:
+                    if anbieter in _letzter_fehler:
+                        raise _letzter_fehler[anbieter]
+            logger.info(
+                "Media server sync: joined the run that just finished instead of "
+                "starting another"
+            )
+            return titel_anzahl(db, provider) if anbieter_liste else 0
+        async with _als_durchlauf():
+            return await _refresh(db, settings, streng, provider)
+
+
+async def _refresh(
     db: Session, settings: AppSettings, streng: bool = False, provider: str | None = None
 ) -> int:
     """Die Bibliothek neu einlesen. Gibt die Anzahl der Titel zurueck.
@@ -93,15 +210,12 @@ async def refresh(
     """
     gesamt = 0
     gelesen = False
-    # ``provider`` grenzt auf einen Server ein - das ist der Handknopf auf
-    # dessen Seite. Ohne Angabe laufen alle, das ist der Hintergrunddurchlauf.
-    anbieter_liste = [
-        a
-        for a in verbundene_anbieter(settings)
-        if provider is None or a == provider
-    ]
-    for anbieter in anbieter_liste:
+    for anbieter in _anbieter(settings, provider):
         server = media_server_for_setup(settings, anbieter)
+        # Vor dem Lesen vermerkt, nicht danach: Scheitert es streng, fliegt
+        # die Ausnahme hier durch - und ein Wartender soll trotzdem wissen,
+        # dass dieser Lauf es versucht hat, samt dem Fehler.
+        _stand[anbieter] = _lauf
         anzahl = await _einen_server_lesen(db, server, streng)
         if anzahl is not None:
             gelesen = True
@@ -128,8 +242,10 @@ async def _einen_server_lesen(
         werke = await server.library_index()
     except NotImplementedError:
         # Ein Anbieter, der das noch nicht kann - kein Grund fuer einen Fehler.
+        _letzter_fehler.pop(server.provider, None)
         return None
     except MediaServerError as fehler:
+        _letzter_fehler[server.provider] = fehler
         # ⚠️ **Die Kennung, nicht der Satz.** ``fehler.message`` ist der
         # deutsche Rueckfall fuer die Oberflaeche - im Protokoll hat er nichts
         # zu suchen: Es soll englisch und durchsuchbar bleiben, und ein
@@ -171,6 +287,7 @@ async def _einen_server_lesen(
     # inzwischen weg ist, und der Abgleich schriebe munter weiter. Das ist die
     # einzige Stelle im ganzen Quelltext, die einen Stand braucht, den eine
     # andere Sitzung geschrieben hat.
+    _letzter_fehler.pop(server.provider, None)
     if server.provider not in verbundene_anbieter(load_settings(db, frisch=True)):
         logger.info(
             "Media server %r was disconnected while its library was being read - "
@@ -179,12 +296,38 @@ async def _einen_server_lesen(
         )
         return None
 
+    eindeutig = _zusammengefasst(werke)
+    # ⚠️ **Unbekannt ist nicht "nein".** Konnte der Anbieter nicht sagen, ob
+    # der Eigentuemer eine Serie angefangen hat (``owner_watched is None``,
+    # siehe ``JellyfinServer.library_index``), bleibt der Haken vom letzten
+    # Durchlauf stehen. Sonst verloere er fuer eine Stunde jedes Auge an
+    # seinen Serien - und ``mediaserver_watched`` naehme das fuer bare Muenze
+    # und raeumte seine Marker ab.
+    bisher: dict[str, bool] = {}
+    if any(werk.owner_watched is None for werk in eindeutig):
+        bisher = {
+            zeile.guid: zeile.owner_watched
+            for zeile in db.scalars(
+                select(MediaServerLibraryItem).where(
+                    MediaServerLibraryItem.provider == server.provider
+                )
+            )
+        }
+        uebernommen = sum(
+            1 for werk in eindeutig if werk.owner_watched is None and bisher.get(werk.guid)
+        )
+        logger.info(
+            "Media server %r: watched flag unknown for this read, %d title(s) keep it "
+            "from the previous one",
+            server.provider,
+            uebernommen,
+        )
+
     db.execute(
         delete(MediaServerLibraryItem).where(
             MediaServerLibraryItem.provider == server.provider
         )
     )
-    eindeutig = _zusammengefasst(werke)
     for werk in eindeutig:
         db.add(
             MediaServerLibraryItem(
@@ -192,7 +335,11 @@ async def _einen_server_lesen(
                 media_type=MediaType(werk.media_type),
                 guid=werk.guid[:255],
                 rating_key=werk.rating_key,
-                owner_watched=werk.owner_watched,
+                owner_watched=(
+                    werk.owner_watched
+                    if werk.owner_watched is not None
+                    else bisher.get(werk.guid, False)
+                ),
                 has_standard=werk.has_standard,
                 has_uhd=werk.has_uhd,
                 # ⚠️ Ohne diese beiden Zeilen bleibt jede Groesse auf null -

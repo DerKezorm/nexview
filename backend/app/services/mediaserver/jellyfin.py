@@ -72,6 +72,15 @@ logger = logging.getLogger("nexview.mediaserver")
 # Gesehen-Stand ist gefiltert und klein - beide bleiben bei der Obergrenze.
 SEITE_FILME = 100
 
+# Wie lange die Gesehen-Abfrage antworten darf. Eine feste Zahl, und zwar mit
+# Absicht: Ihr Preis haengt nicht an der Seitengroesse (siehe
+# ``_gesehenes_lesen``), also gibt es hier nichts zu halbieren - nur die Frage,
+# wie lange man auf die eine Antwort wartet. Der Melder von Issue #7 braucht
+# 25 Sekunden; wer nach drei Minuten noch nicht geantwortet hat, hat ein
+# Problem, das Warten nicht loest. Dann fehlt fuer diese Runde der
+# Gesehen-Stand dieses Kontos - die Bibliothek nicht, siehe ``library_index``.
+GESEHEN_ZEITGRENZE = httpx.Timeout(180.0, connect=6.0)
+
 # Ab dieser Breite gilt eine Datei als 4K.
 #
 # Nach der Breite und nicht nach der Hoehe: Ein Film im Kinoformat ist
@@ -166,9 +175,13 @@ def _als_werk(
     # Deshalb wird die Antwort woanders geholt und hier nur eingesetzt: eine
     # einzige Abfrage nach gesehenen *Folgen* nennt genau die Serien, um die es
     # geht. Siehe ``_angesehene_serien``.
-    gesehen = bool(nutzerdaten.get("Played"))
-    if not gesehen and media_type == "tv" and angesehene_serien is not None:
-        gesehen = kennung in angesehene_serien
+    gesehen: bool | None = bool(nutzerdaten.get("Played"))
+    if not gesehen and media_type == "tv":
+        # ``None`` heisst: Die Folgen-Abfrage ist gescheitert (siehe
+        # ``library_index``). Dann ist "angefangen" unbekannt - und das darf
+        # nicht als "nein" in die Tabelle, sonst verloere der Eigentuemer fuer
+        # eine Stunde jeden Haken an seinen Serien.
+        gesehen = None if angesehene_serien is None else kennung in angesehene_serien
 
     # Aufloesung und Groesse je hinterlegter Datei.
     #
@@ -662,28 +675,47 @@ class JellyfinServer(MediaServer):
     async def _gesehenes_lesen(
         self, konto_id: str, token: str | None, art: str, felder: str
     ) -> list[dict[str, Any]]:
-        """Nur das Gesehene - seitenweise, mit ``Filters=IsPlayed``.
+        """Nur das Gesehene - in **einer** Abfrage, mit ``Filters=IsPlayed``.
 
         Der Unterschied zum Einlesen der ganzen Bibliothek ist kein feiner:
         gemessen 17 bis 20 Sekunden fuer 3529 Filme gegen den Bruchteil einer
         Sekunde fuer die zwei, die jemand gesehen hat. Und diese Abfrage faellt
         **je Konto** an - bei zwanzig Leuten waere der Unterschied der zwischen
         einer Minute und einer Viertelstunde.
+
+        ⚠️ **Nicht seitenweise, und das ist kein Feinschliff.** Jellyfin 10.11
+        wertet den Gesehen-Filter fuer jede Seite ueber die ganze Bibliothek
+        aus; der Preis haengt an der Abfrage, nicht an ihrer Groesse. Gemessen
+        beim Melder von Issue #7 an einem Konto, das Jellyfin schwerfaellt:
+
+        * eine Seite zu 25 Folgen: 45,6 s
+        * alles in einer Abfrage: 25,3 s (ohne Zaehlung 24,2 s)
+        * dasselbe fuer das andere Konto derselben Bibliothek: 0,04 s
+
+        Seitenweise waren das 19 Seiten zu je 53 s, siebzehn Minuten - und
+        die Leiter aus ``_seiten`` machte es mit jeder Halbierung schlimmer,
+        bis sie am Boden aufgab. Deshalb eine Abfrage, ohne Zaehlung (die
+        braucht nur, wer blaettert) und ohne Bilddaten (die braucht hier
+        niemand), mit einer eigenen Zeitgrenze: siehe ``GESEHEN_ZEITGRENZE``.
+        Emby nimmt dieselben Parameter an, nachgemessen an 4.9.5.0.
         """
-        treffer: list[dict[str, Any]] = []
-        async for seite in self._seiten(
-            {
+        daten = await self._anfrage(
+            "GET",
+            "/Items",
+            token=token,
+            params={
                 "userId": konto_id,
                 "Recursive": "true",
                 "IncludeItemTypes": art,
                 "Filters": "IsPlayed",
                 "Fields": felder,
                 "EnableUserData": "true",
+                "EnableTotalRecordCount": "false",
+                "EnableImages": "false",
             },
-            token,
-        ):
-            treffer.extend(seite)
-        return treffer
+            timeout=GESEHEN_ZEITGRENZE,
+        ) or {}
+        return list(daten.get("Items") or [])
 
     async def _angesehene_serien(
         self, konto_id: str, token: str | None
@@ -706,9 +738,40 @@ class JellyfinServer(MediaServer):
                 gesehen[serie] = wann
         return gesehen
 
+    async def _angefangene_serien_oder_unbekannt(self, konto: str) -> set[str] | None:
+        """Die angefangenen Serien des hinterlegten Kontos - oder ``None``.
+
+        ⚠️ **Die Bibliothek haengt nicht an dieser Abfrage.** Sie liefert nur
+        den Haken "angefangen" an den Serien; Filme und Serien selbst kommen
+        aus zwei anderen Abfragen, die um Groessenordnungen billiger sind.
+        Bis 0.30.0 stand sie trotzdem als erste in ``library_index``, und ihr
+        Scheitern warf alles weg: Beim Melder von Issue #7 brauchte Jellyfin
+        fuer jede 200er-Seite gesehener Folgen 53 Sekunden, riss damit die
+        Zeitgrenze - und wochenlang stand "Not synced yet" in der Karte,
+        obwohl die 699 Titel in drei Sekunden gelesen waren.
+
+        Scheitert sie, bekommen die Serien ``None``, und ``mediaserver_library``
+        behaelt den Haken vom letzten Mal: Unbekannt ist nicht "nein". Ein
+        abgelehnter Zugang wird durchgereicht - daran scheitern die
+        Bibliotheks-Abfragen genauso, und "Zugang abgelaufen" ist dafuer die
+        richtige Meldung.
+        """
+        try:
+            return set(await self._angesehene_serien(konto, None))
+        except MediaServerError as fehler:
+            if fehler.status_code == 401:
+                raise
+            logger.warning(
+                "Media server %r: played episodes of the stored account not "
+                "readable, series keep their previous watched flag: %s",
+                self.provider,
+                logs.kennung(fehler),
+            )
+            return None
+
     async def library_index(self) -> list[LibraryItem]:
         konto = await self._eigene_konto_id()
-        angesehen = set(await self._angesehene_serien(konto, None))
+        angesehen = await self._angefangene_serien_oder_unbekannt(konto)
         filme = await self._titel_lesen(konto, None, "movie")
         serien = await self._titel_lesen(konto, None, "tv", angesehen)
         return filme + serien

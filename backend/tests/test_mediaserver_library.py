@@ -228,6 +228,57 @@ async def test_ausfall_laesst_den_bestand_stehen(
         assert db.query(MediaServerLibraryItem).count() == 1
 
 
+async def test_unbekannter_gesehen_stand_behaelt_den_alten_haken(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unbekannt ist nicht "nein".
+
+    Kann Jellyfin nicht sagen, welche Serien der Eigentuemer angefangen hat
+    (Issue #7: die Abfrage danach riss jede Zeitgrenze), liefert der Adapter
+    ``owner_watched=None``. Der Haken vom letzten Durchlauf bleibt dann
+    stehen; ``mediaserver_watched`` naehme ein "nein" sonst fuer bare Muenze
+    und raeumte die Marker des Eigentuemers ab.
+    """
+    verbinde(admin_client)
+    server = BibliotheksServer(
+        [
+            LibraryItem(
+                media_type="tv", guid="s1", title="Severance", tvdb_id=371980,
+                year=2022, owner_watched=True,
+            ),
+            LibraryItem(
+                media_type="tv", guid="s2", title="Silo", tvdb_id=403245,
+                year=2023, owner_watched=False,
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        mediaserver_library, "media_server_for_setup", lambda _s, _a: server
+    )
+    with SessionLocal() as db:
+        assert await mediaserver_library.refresh(db, load_settings(db)) == 2
+
+    # Naechster Durchlauf: Gesehen-Abfrage gescheitert, dazu eine neue Serie.
+    server.werke = [
+        LibraryItem(
+            media_type="tv", guid="s1", title="Severance", tvdb_id=371980,
+            year=2022, owner_watched=None,
+        ),
+        LibraryItem(
+            media_type="tv", guid="s2", title="Silo", tvdb_id=403245,
+            year=2023, owner_watched=None,
+        ),
+        LibraryItem(
+            media_type="tv", guid="s3", title="Shrinking", tvdb_id=417234,
+            year=2023, owner_watched=None,
+        ),
+    ]
+    with SessionLocal() as db:
+        assert await mediaserver_library.refresh(db, load_settings(db)) == 3
+        haken = {z.guid: z.owner_watched for z in db.query(MediaServerLibraryItem)}
+    assert haken == {"s1": True, "s2": False, "s3": False}
+
+
 async def test_ohne_verbundenen_server_passiert_nichts(admin_client: TestClient) -> None:
     with SessionLocal() as db:
         assert await mediaserver_library.refresh(db, load_settings(db)) == 0

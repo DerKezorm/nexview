@@ -13,6 +13,11 @@ eine groessere Bibliothek und einen langsameren Server. Der Kern ist, dass die
 Haeppchengroesse vom Server *gelernt* wird: Reisst eine Abfrage die Zeit, wird
 halbiert und dieselbe Stelle erneut gefragt.
 
+⚠️ **Das gilt fuer die Bibliothek, nicht fuer den Gesehen-Stand.** Dessen
+Preis haengt nicht an der Seitengroesse: Beim Melder kostete eine Seite zu 25
+gesehenen Folgen 45 Sekunden, alles auf einmal 25. Der kommt deshalb in einer
+einzigen Abfrage - die Leiter wuerde ihn mit jeder Stufe teurer machen.
+
 Was diese Datei deshalb zusehen muss:
 
 * Ein Server, der grosse Haeppchen nicht schafft, liefert am Ende trotzdem
@@ -25,6 +30,7 @@ Was diese Datei deshalb zusehen muss:
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from typing import Any
 
@@ -37,7 +43,11 @@ from app.services.mediaserver.base import (
     kleineres_haeppchen,
     seiten_timeout,
 )
-from app.services.mediaserver.jellyfin import SEITE_FILME, JellyfinServer
+from app.services.mediaserver.jellyfin import (
+    GESEHEN_ZEITGRENZE,
+    SEITE_FILME,
+    JellyfinServer,
+)
 
 EINSTELLUNGEN = SimpleNamespace(
     mediaserver_url="http://jelly.test",
@@ -92,8 +102,12 @@ class LahmerJellyfin(JellyfinServer):
         self.bestand = bestand
         self.schafft = schafft
         self.fehler = fehler
-        #: Das ``Limit`` jeder Abfrage, in der Reihenfolge des Eintreffens.
+        #: Das ``Limit`` jeder seitenweisen Abfrage, in der Reihenfolge des
+        #: Eintreffens.
         self.abgefragt: list[int] = []
+        #: Die Parameter jeder ungeteilten Abfrage (der Gesehen-Stand), dazu
+        #: die mitgegebene Zeitgrenze unter ``timeout``.
+        self.ungeteilt: list[dict[str, Any]] = []
 
     async def _anfrage(  # type: ignore[override]
         self,
@@ -107,6 +121,14 @@ class LahmerJellyfin(JellyfinServer):
         **kwargs: Any,
     ) -> Any:
         params = kwargs.get("params") or {}
+        if "Limit" not in params:
+            # Der Gesehen-Stand: eine Abfrage, keine Seiten.
+            self.ungeteilt.append({**params, "timeout": timeout})
+            if self.fehler is not None:
+                raise self.fehler
+            alle = self.bestand.get(str(params["IncludeItemTypes"]), [])
+            return {"Items": alle, "TotalRecordCount": len(alle)}
+
         grenze = int(params["Limit"])
         self.abgefragt.append(grenze)
 
@@ -207,9 +229,10 @@ async def test_die_leiter_wird_nur_einmal_hinabgestiegen() -> None:
 
     await server.library_index()
 
-    # Erste Abfrage ist der Gesehen-Stand der Folgen - sie beginnt oben.
-    assert server.abgefragt[:3] == [SEITE_HOECHSTENS, 100, 50]
-    assert set(server.abgefragt[3:]) == {50}, (
+    # Erste seitenweise Abfrage sind die Filme - sie beginnt bei SEITE_FILME.
+    # (Der Gesehen-Stand davor kommt ungeteilt, siehe unten.)
+    assert server.abgefragt[:2] == [SEITE_FILME, 50]
+    assert set(server.abgefragt[2:]) == {50}, (
         f"nach dem Lernen noch andere Groessen gefragt: {server.abgefragt}"
     )
     assert server._seitengroesse == 50
@@ -219,8 +242,8 @@ async def test_die_leiter_wird_nur_einmal_hinabgestiegen() -> None:
 async def test_filme_fangen_kleiner_an_als_der_rest() -> None:
     """Die Film-Abfrage ist die teure - sie liest als einzige Dateiangaben mit.
 
-    Bei einem Server, der alles schafft, muss man das an der ersten Abfrage
-    sehen: Folgen und Serien duerfen gross fragen, Filme nicht.
+    Bei einem Server, der alles schafft, muss man das an den Abfragen
+    sehen: Serien duerfen gross fragen, Filme nicht.
     """
     server = LahmerJellyfin(
         bestand={"Movie": _filme(10), "Series": _serien(5)},
@@ -230,10 +253,10 @@ async def test_filme_fangen_kleiner_an_als_der_rest() -> None:
     await server.library_index()
 
     assert SEITE_FILME < SEITE_HOECHSTENS
-    assert server.abgefragt[0] == SEITE_HOECHSTENS  # Folgen (Gesehen-Stand)
-    assert SEITE_FILME in server.abgefragt, (
+    assert server.abgefragt[0] == SEITE_FILME, (
         f"die Film-Abfrage fragte nicht mit {SEITE_FILME}: {server.abgefragt}"
     )
+    assert SEITE_HOECHSTENS in server.abgefragt  # Serien
 
 
 @pytest.mark.asyncio
@@ -279,7 +302,11 @@ async def test_ein_serverfehler_wird_nicht_kleiner_gefragt() -> None:
         await server.library_index()
 
     assert gefangen.value.status_code == 500
-    assert len(server.abgefragt) == 1, (
+    # Kein Halbieren. Die Gesehen-Abfrage einmal - ihr Fehler kippt die
+    # Bibliothek nicht mehr, siehe unten -, dann die Film-Abfrage einmal, und
+    # deren 500 kommt beim Aufrufer an.
+    assert len(server.ungeteilt) == 1
+    assert server.abgefragt == [SEITE_FILME], (
         f"ein Serverfehler wurde wiederholt: {server.abgefragt}"
     )
 
@@ -300,4 +327,158 @@ async def test_emby_erbt_das_verhalten() -> None:
     werke = await server.library_index()
 
     assert {w.rating_key for w in werke} == {f"film-{n}" for n in range(80)}
-    assert server.abgefragt[:3] == [SEITE_HOECHSTENS, 100, 50]
+    assert server.abgefragt[:3] == [SEITE_FILME, 50, 50]
+
+
+# --------------------------------------------------------------------------
+# Die Bibliothek haengt nicht an der Gesehen-Abfrage
+# --------------------------------------------------------------------------
+
+
+class GesehenKaputt(LahmerJellyfin):
+    """Ein Jellyfin, bei dem nur die Abfrage nach Gesehenem scheitert.
+
+    So sah es beim Melder von Issue #7 aus: Filme und Serien kamen in drei
+    Sekunden, die gesehenen Folgen seines Kontos brauchten 53 Sekunden je
+    Seite - und rissen jede Zeitgrenze.
+    """
+
+    def __init__(self, *, gesehen_fehler: MediaServerError | None = None, **rest: Any) -> None:
+        super().__init__(**rest)
+        self.gesehen_fehler = gesehen_fehler or MediaServerError(
+            "Der Jellyfin-Server antwortet nicht (Zeitüberschreitung).",
+            code="mediaserver_timeout",
+            service="Jellyfin",
+        )
+        self.gesehen_versuche = 0
+
+    async def _anfrage(self, methode: str, pfad: str, **kwargs: Any) -> Any:  # type: ignore[override]
+        params = kwargs.get("params") or {}
+        if params.get("Filters") == "IsPlayed":
+            self.gesehen_versuche += 1
+            raise self.gesehen_fehler
+        return await super()._anfrage(methode, pfad, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_scheiternde_gesehen_abfrage_kippt_die_bibliothek_nicht(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """⚠️ Der zweite Waechter aus Issue #7.
+
+    Die Abfrage nach gesehenen Folgen liefert nur den Haken "angefangen" an
+    den Serien. Scheitert sie, muss die Bibliothek trotzdem vollstaendig
+    ankommen - und der Haken darf nicht "nein" werden, sondern "unbekannt".
+    Vor dieser Aenderung stand wochenlang "Not synced yet" in der Karte,
+    obwohl Filme und Serien laengst lesbar waren.
+    """
+    server = GesehenKaputt(
+        bestand={"Movie": _filme(30), "Series": _serien(5)},
+        schafft=10_000,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="nexview.mediaserver"):
+        werke = await server.library_index()
+
+    assert len(werke) == 35
+    serien = [w for w in werke if w.media_type == "tv"]
+    assert len(serien) == 5
+    assert all(w.owner_watched is None for w in serien), "unbekannt, nicht nein"
+    filme = [w for w in werke if w.media_type == "movie"]
+    assert all(w.owner_watched is False for w in filme)
+    # Einmal gefragt, nicht kleiner wiederholt - kleiner hilft hier nicht ...
+    assert server.gesehen_versuche == 1
+    # ... und das Protokoll nennt die Kennung, nicht den deutschen Satz.
+    assert "played episodes" in caplog.text
+    assert "mediaserver_timeout" in caplog.text
+    assert "Zeitüberschreitung" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_abgelehnter_zugang_wird_nicht_zum_unbekannten_haken() -> None:
+    """Ein 401 ist kein "gerade langsam" - daran scheitert die Bibliothek genauso.
+
+    Wer ihn hier schluckte, laese danach mit demselben abgelaufenen Zugang die
+    Bibliothek - und bekaeme dieselbe Antwort, nur ohne die richtige Meldung.
+    """
+    server = GesehenKaputt(
+        bestand={"Movie": _filme(3), "Series": _serien(2)},
+        schafft=10_000,
+        gesehen_fehler=MediaServerError(
+            "Der Jellyfin-Server hat die Anmeldung nicht akzeptiert.", 401
+        ),
+    )
+
+    with pytest.raises(MediaServerError) as gefangen:
+        await server.library_index()
+
+    assert gefangen.value.status_code == 401
+
+
+# --------------------------------------------------------------------------
+# Der Gesehen-Stand kommt in einer Abfrage
+# --------------------------------------------------------------------------
+
+
+def _folgen(serien: list[str]) -> list[dict[str, Any]]:
+    return [
+        {
+            "Id": f"folge-{n}",
+            "SeriesId": serie,
+            "UserData": {"Played": True, "LastPlayedDate": "2026-09-04T10:00:00Z"},
+        }
+        for n, serie in enumerate(serien)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_gesehen_stand_kommt_in_einer_abfrage() -> None:
+    """⚠️ Der dritte Waechter aus Issue #7: keine Seiten, keine Zaehlung, keine Bilder.
+
+    Gemessen beim Melder: eine Seite zu 25 gesehenen Folgen 45 Sekunden, alles
+    auf einmal 25. Wer hier wieder blaettert, macht aus einer halben Minute
+    siebzehn - und jede Halbierung der Leiter schlimmer.
+    """
+    server = LahmerJellyfin(
+        bestand={
+            "Movie": _filme(3),
+            "Series": _serien(3),
+            "Episode": _folgen(["serie-1", "serie-1"]),
+        },
+        schafft=10_000,
+    )
+
+    werke = await server.library_index()
+
+    gesehen = [p for p in server.ungeteilt if p.get("Filters") == "IsPlayed"]
+    assert [p["IncludeItemTypes"] for p in gesehen] == ["Episode"]
+    abfrage = gesehen[0]
+    assert "Limit" not in abfrage and "StartIndex" not in abfrage
+    assert abfrage["EnableTotalRecordCount"] == "false"
+    assert abfrage["EnableImages"] == "false"
+    # Und die Antwort kommt an: Serie 1 ist angefangen, die anderen nicht.
+    haken = {w.rating_key: w.owner_watched for w in werke if w.media_type == "tv"}
+    assert haken == {"serie-0": False, "serie-1": True, "serie-2": False}
+
+
+@pytest.mark.asyncio
+async def test_gesehen_abfrage_hat_ihre_eigene_zeitgrenze() -> None:
+    """Laenger als jede Stufe der Leiter - und fest, mit Absicht.
+
+    Der Preis dieser Abfrage haengt nicht an der Groesse, also gibt es nichts
+    zu halbieren. Die Frage ist nur, wie lange man auf die eine Antwort wartet:
+    Der Melder braucht 25 Sekunden, die Leiter erlaubte hoechstens 56.
+    """
+    server = LahmerJellyfin(
+        bestand={"Movie": [], "Series": [], "Episode": []}, schafft=10_000
+    )
+
+    await server.watched_index("persoenliches-token", "konto-1")
+
+    assert [p["IncludeItemTypes"] for p in server.ungeteilt] == ["Movie", "Episode"]
+    assert server.abgefragt == [], "der Gesehen-Stand wurde seitenweise gefragt"
+    for abfrage in server.ungeteilt:
+        grenze = abfrage["timeout"]
+        assert grenze is GESEHEN_ZEITGRENZE
+        assert grenze.read > seiten_timeout(SEITE_HOECHSTENS).read
+        assert grenze.read >= 60

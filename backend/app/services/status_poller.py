@@ -35,7 +35,6 @@ from . import (
     logs,
     mail_outbox,
     mediaserver_library,
-    mediaserver_watched,
     notify,
     ratings,
     requests_service,
@@ -553,10 +552,11 @@ async def _bibliothek_vielleicht(db, settings) -> None:
         return
     _bibliothek_zuletzt = jetzt
     try:
-        await mediaserver_library.refresh(db, settings)
-        # Erst danach: Der Verlauf verweist auf Titel aus der Bibliothek und
-        # laeuft ins Leere, solange die nicht eingelesen ist.
-        await mediaserver_watched.refresh(db, settings)
+        # Bibliothek und Gesehen-Stand unter **einer** Sperre - siehe dort.
+        # Wer waehrenddessen "Sync now" drueckt, wartet und nimmt das
+        # Ergebnis, statt denselben Server ein zweites Mal zu fragen
+        # (Issue #7).
+        await mediaserver_library.voller_abgleich(db, settings)
     except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
         logger.exception("Media server sync failed")
         # **Die Sitzung zuruecksetzen, nicht nur den Fehler schlucken.**

@@ -215,7 +215,9 @@ def kontostand(db: Session, user_id: int) -> Kontostand:
     return kontostaende(db, (user_id,))[user_id]
 
 
-GB = 1024**3
+#: Ein Gibibyte. Hiess bis 0.31 ``GB``, war aber immer schon 1024³ - die
+#: Beschriftung in der Oberflaeche war die falsche, nicht die Rechnung.
+GIB = 1024**3
 
 
 @dataclass(frozen=True)
@@ -271,9 +273,9 @@ def grenze_in_bytes(user: User, settings: AppSettings) -> int | None:
         return None
     eigen = user.storage_limit_gb
     if eigen is not None:
-        return None if eigen == quota.UNBEGRENZT else max(0, eigen) * GB
+        return None if eigen == quota.UNBEGRENZT else max(0, eigen) * GIB
     vorgabe = settings.storage_default_limit_gb
-    return vorgabe * GB if vorgabe is not None else None
+    return vorgabe * GIB if vorgabe is not None else None
 
 
 def stand_fuer(db: Session, user: User, settings: AppSettings) -> Grenze:

@@ -58,6 +58,14 @@ class UserStats:
     # Waehrungen nebeneinander, von denen nur eine gilt.
     storage_used_bytes: int | None = None
     storage_limit_bytes: int | None = None
+    #: Wann sich dieses Konto zuletzt angemeldet hat. ``None`` heisst: noch nie.
+    #:
+    #: ⚠️ **Steht schon am Benutzer, aber nicht in dieser Liste.** Wer wissen
+    #: will, welche Konten eingeschlafen sind, musste bisher die
+    #: Benutzerverwaltung aufmachen - und die traegt Mailadressen,
+    #: Medienserver-Verknuepfungen und Profilbilder mit sich, die eine
+    #: Anbindung von aussen nichts angehen. Hier steht nur der Zeitpunkt.
+    last_login_at: datetime | None = None
     quota_movie_used: int = 0
     quota_movie_limit: int | None = None
     quota_series_used: int = 0
@@ -145,6 +153,7 @@ def collect(db: Session) -> dict:
         user.id: UserStats(
             user_id=user.id,
             username=user.username,
+            last_login_at=user.last_login_at,
             display_name=user.display_name,
             avatar_url=user.avatar_url,
             role=user.role.value,

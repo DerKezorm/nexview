@@ -670,7 +670,7 @@ export function AddRequestForm({
 
 /** Freier Speicherplatz lesbar machen: 1234567890 -> "1,1 TB" */
 function formatSpace(bytes: number): string {
-  const terabytes = bytes / 1024 ** 4
-  if (terabytes >= 1) return `${terabytes.toFixed(1)} TB`
-  return `${Math.round(bytes / 1024 ** 3)} GB`
+  const tebibytes = bytes / 1024 ** 4
+  if (tebibytes >= 1) return `${tebibytes.toFixed(1)} TiB`
+  return `${Math.round(bytes / 1024 ** 3)} GiB`
 }

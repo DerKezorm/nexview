@@ -1007,17 +1007,21 @@ def _kontingent_pruefen(
         fehlt = -(stand.remaining_bytes or 0)
         raise RequestError(
             "Dein Speicher-Kontingent ist aufgebraucht. "
-            f"Du belegst {_gb(stand.used_bytes)} von {_gb(stand.limit_bytes or 0)}"
-            + (f" und liegst {_gb(fehlt)} darüber" if fehlt > 0 else "")
+            f"Du belegst {_gib(stand.used_bytes)} von {_gib(stand.limit_bytes or 0)}"
+            + (f" und liegst {_gib(fehlt)} darüber" if fehlt > 0 else "")
             + ". Gib etwas ab, dann geht es weiter.",
             429,
         )
 
 
-def _gb(bytes_: int) -> str:
-    """Bytes als lesbare GB-Angabe fuer eine Fehlermeldung."""
-    gb = bytes_ / 1024**3
-    return f"{gb:.1f} GB".replace(".", ",") if gb < 10 else f"{gb:.0f} GB"
+def _gib(bytes_: int) -> str:
+    """Bytes als lesbare GiB-Angabe fuer eine Fehlermeldung.
+
+    GiB und nicht GB, weil hier durch 1024³ geteilt wird - siehe
+    ``storage.GIB``. Bis 0.31 stand faelschlich "GB" daran.
+    """
+    gib = bytes_ / 1024**3
+    return f"{gib:.1f} GiB".replace(".", ",") if gib < 10 else f"{gib:.0f} GiB"
 
 
 async def _mit_datei_in_standard(settings: AppSettings, item: MediaItem) -> set[int]:

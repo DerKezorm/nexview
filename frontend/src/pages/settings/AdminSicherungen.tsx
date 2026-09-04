@@ -31,8 +31,8 @@ type Liste = {
 }
 
 function groesse(bytes: number): string {
-  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MiB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KiB`
 }
 
 /**

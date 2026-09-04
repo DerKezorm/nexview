@@ -64,7 +64,7 @@ def pruefen(inhalt: bytes, hoechstens: int) -> tuple[str, str]:
         raise BildFehler("Die Datei ist leer.")
     if len(inhalt) > hoechstens:
         raise BildFehler(
-            f"Das Bild ist zu groß ({len(inhalt) // 1024} KB). "
-            f"Erlaubt sind {hoechstens // 1024} KB."
+            f"Das Bild ist zu groß ({len(inhalt) // 1024} KiB). "
+            f"Erlaubt sind {hoechstens // 1024} KiB."
         )
     return erkennen(inhalt)

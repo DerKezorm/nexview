@@ -229,7 +229,7 @@ def test_der_betreff_nennt_den_platz(
     _posten(tmdb_id=813, titel="Großer Brocken", gb=90)
 
     _lauf()
-    assert "90 GB" in postfach[0]["subject"]
+    assert "90 GiB" in postfach[0]["subject"]
 
 
 def test_die_mail_hat_beide_fassungen(

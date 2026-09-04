@@ -77,6 +77,7 @@ from ..schemas_media import MediaItem, MediaPage
 from ..schemas_requests import QuotaOverview, RequestPublic
 from ..services import befunde as befunde_service
 from ..services import channel_outbox, channel_verify, channels, instanz_gesundheit, instanz_stand
+from ..services import storage as storage_service
 from ..services import tickets as tickets_service
 from ..services.settings_service import load_settings
 from . import about as about_router
@@ -273,6 +274,15 @@ class KachelBibliothek(BaseModel):
     serien: int
     belegt_bytes: int
     frei_bytes: int
+    #: Wieviel davon dem Haus gehoert und damit bei niemandem zaehlt.
+    #:
+    #: ⚠️ **Erst mit dieser Zahl laesst sich die Gesamtsumme lesen.** Ohne sie
+    #: steht dort ein Wert, der zwei sehr verschiedene Dinge zusammenwirft: was
+    #: die Bewohner angefragt haben und was schon vor Nexview da war oder
+    #: nachtraeglich uebernommen wurde. Nur die erste Haelfte zaehlt gegen
+    #: Kontingente, und nur sie waechst, wenn jemand etwas anfragt. Was die
+    #: Bewohner zusammen belegen, ist die Differenz.
+    hausbestand_bytes: int = 0
 
 
 class KachelInstanz(BaseModel):
@@ -380,6 +390,7 @@ def kachel(admin: AdminUser, db: DbSession) -> Kachel:
             )
             or 0,
             belegt_bytes=int(db.scalar(select(func.sum(StorageEntry.size_bytes))) or 0),
+            hausbestand_bytes=storage_service.hausbestand(db).used_bytes,
             frei_bytes=sum(
                 int(t.get("frei") or 0) for t in (traeger or []) if isinstance(t, dict)
             ),

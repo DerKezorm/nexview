@@ -73,9 +73,9 @@ def _groesse(bytes_: int, englisch: bool) -> str:
     gb = bytes_ / (1024**3)
     if gb >= 1024:
         wert = f"{gb / 1024:.2f}".rstrip("0").rstrip(".")
-        return f"{wert} TB" if englisch else f"{wert.replace('.', ',')} TB"
+        return f"{wert} TiB" if englisch else f"{wert.replace('.', ',')} TiB"
     wert = f"{gb:.0f}"
-    return f"{wert} GB"
+    return f"{wert} GiB"
 
 
 async def einen_schicken(db: Session, settings: AppSettings, person: User) -> bool:

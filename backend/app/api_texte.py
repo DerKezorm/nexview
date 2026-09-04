@@ -297,7 +297,7 @@ TEXTE: dict[str, tuple[str, str]] = {
             'Titles in the whole library that nobody has watched for a long time, '
             'largest first - **including the house collection**. Two clocks decide, not '
             'one: an item appears only if nobody watched it in the chosen period *and* '
-            'it has been here at least that long. Without the second clock the 60 GB '
+            'it has been here at least that long. Without the second clock the 60 GiB '
             'file that arrived yesterday would top the list before anyone had a chance '
             'to watch it. **Administrators only**, unlike the rest of the statistics: '
             "acting on this list is an administrator's job anyway, and the rows name "
@@ -439,7 +439,7 @@ TEXTE: dict[str, tuple[str, str]] = {
         'Preview: move everything to the house',
         (
             'The numbers behind "move all holdings to the house". The dialogue in front '
-            'of it has to be able to say "X titles totalling Y GB will become house '
+            'of it has to be able to say "X titles totalling Y GiB will become house '
             'holdings" - a general warning gets clicked away, a number gets read.'
         ),
     ),

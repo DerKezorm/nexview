@@ -123,7 +123,7 @@ def test_zu_grosses_bild_wird_abgewiesen() -> None:
         hausordnung_bilder.ablegen(zu_gross)
     # Die Meldung nennt beide Zahlen - sonst raet der Betreiber, wie weit er
     # verkleinern muss.
-    assert "KB" in fehler.value.message
+    assert "KiB" in fehler.value.message
 
 
 def test_die_hoechstzahl_greift(monkeypatch) -> None:

@@ -107,19 +107,29 @@ export function folgenKompakt(nummern: number[]): string {
 }
 
 /**
- * Bytes als lesbare Groesse - „12,4 GB".
+ * Bytes als lesbare Groesse - „12,4 GiB".
  *
- * Bewusst nur GB und TB: Alles darunter ist bei Filmen und Serien nie die
- * Frage, und eine Einheit, die zwischen MB und TB springt, macht Zahlen
- * untereinander unvergleichbar. Erst ab einem Terabyte lohnt der Wechsel.
+ * Bewusst nur GiB und TiB: Alles darunter ist bei Filmen und Serien nie die
+ * Frage, und eine Einheit, die zwischen MiB und TiB springt, macht Zahlen
+ * untereinander unvergleichbar. Erst ab einem Tebibyte lohnt der Wechsel.
+ *
+ * ⚠️ **GiB, nicht GB - und das ist eine Korrektur, keine Umstellung.**
+ * Gerechnet wurde hier immer schon durch 1024³, dranstand aber „GB". Das ist
+ * die Einheit, die durch 1000³ teilt, und der Unterschied betraegt sieben
+ * Prozent. Aufgefallen ist es im Vergleich mit Home Assistant: Dieselbe
+ * Belegung stand dort als „100,3 GB", hier als „93 GB". Beide Zahlen waren
+ * richtig, nur eine der beiden Beschriftungen.
+ *
+ * Der andere Weg waere gewesen, auf 1000³ umzurechnen. Der haette jedem, der
+ * eine Grenze eingetragen hat, stillschweigend sieben Prozent davon genommen.
  */
 export function formatSize(bytes: number, locale: string): string {
-  const gb = bytes / 1024 ** 3
-  if (gb >= 1024) {
-    return `${(gb / 1024).toLocaleString(locale, { maximumFractionDigits: 2 })} TB`
+  const gib = bytes / 1024 ** 3
+  if (gib >= 1024) {
+    return `${(gib / 1024).toLocaleString(locale, { maximumFractionDigits: 2 })} TiB`
   }
-  // Unter 10 GB eine Nachkommastelle, darueber keine: „4,2 GB" ist eine
-  // Aussage, „1.312,5 GB" nur eine lange Zahl.
-  const stellen = gb < 10 ? 1 : 0
-  return `${gb.toLocaleString(locale, { maximumFractionDigits: stellen })} GB`
+  // Unter 10 GiB eine Nachkommastelle, darueber keine: „4,2 GiB" ist eine
+  // Aussage, „1.312,5 GiB" nur eine lange Zahl.
+  const stellen = gib < 10 ? 1 : 0
+  return `${gib.toLocaleString(locale, { maximumFractionDigits: stellen })} GiB`
 }

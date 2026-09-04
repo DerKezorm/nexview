@@ -489,6 +489,10 @@ def test_eigener_speicher_ist_leer_ohne_messung(admin_client) -> None:
         "pending_bytes": 0,
         # Der Admin ist immer unbegrenzt - null steht hier fuer genau das.
         "limit_bytes": None,
+        # Und was er holt, gehoert dem Haus (siehe storage._zuordnung). Ohne
+        # dieses Feld muesste eine Anbindung aus "Rolle ist admin" schliessen,
+        # dass die beiden Nullen oben strukturell sind und nicht zufaellig.
+        "zurechenbar": False,
         "matches": 0,
         # Die Seitengroesse reist mit, damit die Oberflaeche sie nicht
         # spiegeln muss - zwei Konstanten gingen beim Aendern auseinander.
@@ -1287,3 +1291,36 @@ async def test_stumme_instanz_loescht_die_zurechnung_nicht(
     assert ergebnis.entfernt == 0, "Eine stumme Instanz darf nichts entfernen"
     assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
     assert db.scalar(select(StorageEntry).where(StorageEntry.key.like("movie:%"))) is not None
+
+def test_die_einheit_heisst_wie_sie_rechnet() -> None:
+    """⚠️ Im Vergleich mit Home Assistant aufgefallen.
+
+    Dieselbe Belegung stand in Nexview als "93 GB von 300 GB" und in Home
+    Assistant als "100,3 GB belegt, 221,8 GB uebrig" - zusammen 322,1 statt
+    300. Beide Zahlen waren richtig: Nexview teilt durch 1024³ und schrieb
+    "GB" daran, Home Assistant teilt durch 1000³. Das sind zwei Einheiten mit
+    demselben Namen, und der Unterschied betraegt sieben Prozent.
+
+    Korrigiert wurde die **Beschriftung**, nicht die Rechnung. Der andere Weg
+    haette jedem, der eine Grenze eingetragen hat, stillschweigend sieben
+    Prozent davon genommen.
+    """
+    from app.services.aufraeum_bericht import _groesse
+    from app.services.requests_service import _gib
+    from app.services.storage import GIB
+
+    assert GIB == 1024**3
+
+    geprueft = 0
+    for bytes_, erwartet in (
+        (5 * GIB, "GiB"),
+        (2000 * GIB, "TiB"),
+    ):
+        for text in (_groesse(bytes_, englisch=True), _gib(bytes_)):
+            assert "GB" not in text.replace("GiB", ""), (
+                f"{text!r} nennt sich GB, rechnet aber binaer."
+            )
+            geprueft += 1
+        assert erwartet in _groesse(bytes_, englisch=True)
+
+    assert geprueft == 4, f"Nur {geprueft} Ausgaben geprueft."

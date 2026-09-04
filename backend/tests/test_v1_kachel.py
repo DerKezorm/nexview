@@ -34,6 +34,10 @@ def test_die_kachel_liefert_alle_zugesagten_teile(admin_client: TestClient) -> N
         "filme",
         "serien",
         "belegt_bytes",
+        # ⚠️ Erst mit dieser Zahl laesst sich ``belegt_bytes`` lesen: Sie wirft
+        # sonst zusammen, was die Bewohner angefragt haben, und was schon vor
+        # Nexview da war. Nur die erste Haelfte zaehlt gegen Kontingente.
+        "hausbestand_bytes",
         "frei_bytes",
     }
 

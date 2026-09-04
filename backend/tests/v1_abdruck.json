@@ -24,6 +24,7 @@
     "bibliothek.belegt_bytes",
     "bibliothek.filme",
     "bibliothek.frei_bytes",
+    "bibliothek.hausbestand_bytes",
     "bibliothek.serien",
     "instanzen[].erreichbar",
     "instanzen[].name",
@@ -238,7 +239,8 @@
     "pending_bytes",
     "per_page",
     "used_bytes",
-    "watched_available"
+    "watched_available",
+    "zurechenbar"
   ],
   "GET /api/v1/tickets/open-count": [
     "{*}"

@@ -91,6 +91,19 @@ class StorageMine(BaseModel):
     # Abgegeben, aber noch nicht entschieden. Zaehlt weiter mit - deshalb
     # getrennt ausgewiesen und nicht abgezogen.
     pending_bytes: int
+    # Bekommt dieses Konto ueberhaupt etwas zugerechnet?
+    #
+    # ⚠️ **Bei einem Administrator nicht, und zwar strukturell.** Was er holt,
+    # gehoert dem Haus (siehe ``storage._zuordnung``): Er hat keine Grenze,
+    # ihm etwas zuzurechnen erfuellt keinen Zweck und verfaelscht die
+    # Uebersicht. ``used_bytes`` und ``items`` stehen bei ihm deshalb dauerhaft
+    # auf null - nicht, weil er nichts geholt hat, sondern weil es woanders
+    # gebucht wird.
+    #
+    # Ohne dieses Feld muesste eine Anbindung die Regel nachbauen ("ist die
+    # Rolle admin, dann..."), und die naechste Aenderung an der Zuordnung
+    # liefe an ihr vorbei. Hier sagt Nexview es selbst.
+    zurechenbar: bool = True
     # Gibt es fuer dieses Konto Gesehen-Daten? Daran haengt der Filter
     # "Nur Gesehene" - ohne Daten zeigt die Oberflaeche ihn gar nicht.
     watched_available: bool = False
@@ -226,6 +239,9 @@ def eigener_speicher(
         used_bytes=stand.used_bytes,
         items=stand.items,
         limit_bytes=storage.grenze_in_bytes(user, einstellungen),
+        # Dieselbe Regel wie in ``storage._zuordnung``, nur hier gelesen statt
+        # dort gebucht: Was ein Administrator holt, gehoert dem Haus.
+        zurechenbar=not user.is_admin,
         watched_available=gesehen_moeglich,
         pending_bytes=stand.pending_bytes,
         matches=treffer,

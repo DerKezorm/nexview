@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import Role
+from app.models import MediaType, QualityTier, Role, StorageEntry, StorageState
 
 from .conftest import auth_headers, create_user
 
@@ -116,3 +116,86 @@ def test_ein_nur_lese_schluessel_darf(admin_client: TestClient) -> None:
     )
     assert antwort.status_code == 200
     assert "befunde" in antwort.json()
+
+
+# ------------------------------------------------- Was "Filme" und "Serien" zaehlen
+#
+# ⚠️ **Beide Zahlen meinten einmal Verschiedenes.** "Serien" zaehlte Werke,
+# "Filme" zaehlte Posten - derselbe Film in 1080p und in 4K stand also zweimal
+# darin, waehrend eine Serie mit zehn Staffeln einmal zaehlte. Nebeneinander
+# gelesen sahen die beiden Beschriftungen gleich aus und bedeuteten es nicht.
+
+
+def _posten(
+    db,
+    *,
+    art: MediaType,
+    schluessel: str,
+    tmdb: int | None = None,
+    tvdb: int | None = None,
+    season: int | None = None,
+    stufe: QualityTier = QualityTier.standard,
+) -> None:
+    db.add(
+        StorageEntry(
+            key=schluessel,
+            user_id=None,
+            media_type=art,
+            tier=stufe,
+            tmdb_id=tmdb,
+            tvdb_id=tvdb,
+            season=season,
+            title="Ein Titel",
+            size_bytes=1024**3,
+            state=StorageState.owned,
+        )
+    )
+
+
+def test_die_kachel_zaehlt_werke_und_nicht_posten(admin_client: TestClient) -> None:
+    """⚠️ Drei Faelle, und der dritte ist der, den ein ``distinct`` allein bricht.
+
+    Ein Film in zwei Stufen ist ein Film. Eine Serie in drei Staffeln ist eine
+    Serie. Und ein Posten ohne Nummer ist trotzdem einer - ``count(distinct)``
+    laesst NULL weg, ein Hausbestand ohne TMDB-Nummer waere sonst unsichtbar.
+    """
+    with SessionLocal() as db:
+        # Derselbe Film, zwei Qualitaetsstufen: zwei Posten, ein Werk.
+        _posten(db, art=MediaType.movie, schluessel="movie:standard:tmdb:603", tmdb=603)
+        _posten(
+            db,
+            art=MediaType.movie,
+            schluessel="movie:uhd:tmdb:603",
+            tmdb=603,
+            stufe=QualityTier.uhd,
+        )
+        # Ein zweiter Film, nur einmal.
+        _posten(db, art=MediaType.movie, schluessel="movie:standard:tmdb:604", tmdb=604)
+        # Und einer aus dem Hausbestand, dem niemand eine Nummer geben konnte.
+        _posten(db, art=MediaType.movie, schluessel="movie:standard:pfad:alt")
+
+        # Eine Serie mit drei Staffeln: drei Posten, ein Werk.
+        for staffel in (1, 2, 3):
+            _posten(
+                db,
+                art=MediaType.tv,
+                schluessel=f"tv:standard:tvdb:7:s{staffel}",
+                tvdb=7,
+                season=staffel,
+            )
+        # Eine Serie ohne TVDB-Nummer.
+        _posten(db, art=MediaType.tv, schluessel="tv:standard:pfad:alt", season=1)
+        db.commit()
+
+    bibliothek = admin_client.get("/api/v1/dashboard").json()["bibliothek"]
+
+    assert bibliothek["filme"] == 3, (
+        "Zwei Stufen desselben Films sind ein Film, dazu ein zweiter und einer "
+        f"ohne Nummer: drei. Gezaehlt wurden {bibliothek['filme']} - bei vier "
+        "zaehlt die Abfrage Posten statt Werke, bei zwei faellt der Posten "
+        "ohne Nummer heraus."
+    )
+    assert bibliothek["serien"] == 2, (
+        "Drei Staffeln sind eine Serie, dazu eine ohne Nummer: zwei. Gezaehlt "
+        f"wurden {bibliothek['serien']}."
+    )

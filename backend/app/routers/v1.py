@@ -377,16 +377,30 @@ def kachel(admin: AdminUser, db: DbSession) -> Kachel:
             ),
         ),
         bibliothek=KachelBibliothek(
+            # ⚠️ **Werke zaehlen, nicht Posten.** Ein Posten ist "ein Titel,
+            # eine Stufe" - derselbe Film in 1080p und in 4K sind zwei Zeilen,
+            # und als Zahl neben "Serien" gelesen ergab das zwei verschiedene
+            # Bedeutungen unter zwei gleich aussehenden Beschriftungen.
+            #
+            # ⚠️ **Das ``coalesce`` ist nicht schmueckend.** ``tmdb_id`` darf
+            # leer sein, und ``count(distinct ...)`` laesst NULL weg: Ein
+            # Hausbestand ohne Nummer waere unsichtbar geworden - schlimmer als
+            # das Doppelzaehlen, das hier weggeht. Die eigene ``id`` negiert
+            # kollidiert mit keiner echten TMDB-Nummer, also zaehlt jeder
+            # Posten ohne Nummer als eigenes Werk.
             filme=db.scalar(
-                select(func.count(StorageEntry.id)).where(
-                    StorageEntry.media_type == MediaType.movie
-                )
+                select(func.count(func.distinct(
+                    func.coalesce(StorageEntry.tmdb_id, -StorageEntry.id)
+                ))).where(StorageEntry.media_type == MediaType.movie)
             )
             or 0,
+            # Dieselbe Regel, und dieselbe Falle: Eine Serie mit zehn
+            # Staffeln hat zehn Posten, und ohne ``coalesce`` fiele eine Serie
+            # ohne TVDB-Nummer aus der Zahl heraus.
             serien=db.scalar(
-                select(func.count(func.distinct(StorageEntry.tvdb_id))).where(
-                    StorageEntry.media_type == MediaType.tv
-                )
+                select(func.count(func.distinct(
+                    func.coalesce(StorageEntry.tvdb_id, -StorageEntry.id)
+                ))).where(StorageEntry.media_type == MediaType.tv)
             )
             or 0,
             belegt_bytes=int(db.scalar(select(func.sum(StorageEntry.size_bytes))) or 0),

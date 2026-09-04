@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { useAuth } from './auth/useAuth'
+import { PushAnbindung } from './components/PushAnbindung'
 import { AppShell } from './components/AppShell'
 import { KidsShell } from './components/KidsShell'
 import { Logo } from './components/Logo'
@@ -214,7 +215,16 @@ export default function App() {
 
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      {/* Die Push-Anbindung hängt am Rahmen der Erwachsenen: Sie meldet ein
+          Gerät nur nach, solange jemand angemeldet ist, und fragt nie. */}
+      <Route
+        element={
+          <>
+            <PushAnbindung />
+            <AppShell />
+          </>
+        }
+      >
         <Route index element={<HomePage />} />
         {/* Die alten Entdecken-Seiten sind entfernt. Die Adressen bleiben
             als Umleitung stehen: Ein Lesezeichen soll im Katalog landen und

@@ -11,6 +11,10 @@ auf.
 
 Die Liste ist jetzt aus dem Schema abgeleitet. Die Tests hier halten die drei
 Ebenen zusammen: Konto, Schema, gespeicherter Wert.
+
+Seit Web Push gilt dasselbe fuer die ``push_*``-Haken: dieselbe Bauart, ein
+zweiter Weg, derselbe Fehler moeglich. Deshalb laufen beide Vorsilben hier
+durch.
 """
 
 from __future__ import annotations
@@ -23,13 +27,30 @@ from app.schemas import ProfileUpdate
 
 from .conftest import ADMIN
 
+#: Die Haken, die ``update_me`` aus dem Schema ableitet - Mail und Web Push.
+VORSILBEN = ("mail_", "push_")
+
 
 def _schalter_am_konto() -> list[str]:
-    return sorted(c.name for c in User.__table__.columns if c.name.startswith("mail_"))
+    return sorted(c.name for c in User.__table__.columns if c.name.startswith(VORSILBEN))
 
 
 def _schalter_im_schema() -> list[str]:
-    return sorted(f for f in ProfileUpdate.model_fields if f.startswith("mail_"))
+    return sorted(f for f in ProfileUpdate.model_fields if f.startswith(VORSILBEN))
+
+
+def test_beide_wege_fuehren_dieselben_haken() -> None:
+    """Web Push hat jeden Mail-Haken - bis auf den Monatsbericht.
+
+    ⚠️ Der ist eine Tabelle in einer Mail, keine Meldung fuer den
+    Sperrbildschirm. Alles andere, was per Mail zu haben ist, muss auch per
+    Push zu haben sein, sonst fehlt auf der zweiten Seite still ein Haken.
+    """
+    mail = {f.removeprefix("mail_") for f in _schalter_im_schema() if f.startswith("mail_")}
+    push = {f.removeprefix("push_") for f in _schalter_im_schema() if f.startswith("push_")}
+
+    assert mail - push == {"cleanup"}
+    assert push - mail == set()
 
 
 def test_konto_und_schema_fuehren_dieselben_schalter() -> None:

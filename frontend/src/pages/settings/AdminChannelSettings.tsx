@@ -302,6 +302,14 @@ function Rueckkanaele() {
                 {eintrag.schluessel && (
                   <span className="ml-2 text-xs text-mist-600">{eintrag.schluessel}</span>
                 )}
+                {/* Ein Browser hat keinen Schlüssel - er hat einen Namen, und
+                    die Art steht daneben, damit niemand nach dem Home
+                    Assistant sucht, das es nicht gibt. */}
+                {eintrag.kanal === 'webpush' && (
+                  <span className="ml-2 text-xs text-mist-600">
+                    {eintrag.name} · {t('channels.callbackWebPush')}
+                  </span>
+                )}
                 {!eintrag.bestaetigt && (
                   <span className="ml-2 rounded-full bg-ink-800 px-2 py-0.5 text-xs text-mist-500">
                     {t('channels.callbackPending')}

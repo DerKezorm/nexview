@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      ⚠️ Absolut, nicht relativ: Das Backend schreibt beim Start jedes
+      href="/… auf href="{vorbau}/… um. Ein relatives "manifest.webmanifest"
+      löste sich dagegen gegen die gerade offene Adresse auf und zeigte auf
+      /profil/manifest.webmanifest, sobald jemand tief einsteigt. Im Manifest
+      selbst stehen start_url und scope relativ und tragen den Vorbau so von
+      selbst.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!--
+      ⚠️ Für iOS. Erst wenn Nexview auf dem Home-Bildschirm liegt, liefert
+      Apple überhaupt Web Push aus. Ohne diese Zeilen öffnet Safari beim Tippen
+      einen gewöhnlichen Reiter, und der zählt nicht.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Nexview" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#0b0b0f" />
     <title>Nexview</title>
     <!-- Vor dem ersten Zeichnen: sonst blitzt bei "hell" kurz die dunkle

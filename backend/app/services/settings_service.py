@@ -42,11 +42,20 @@ SECRET_KEYS = frozenset(
         "sonarr_uhd_api_key",
         "smtp_password",
         "mediaserver_token",
+        # Der private VAPID-Schluessel fuer Web Push. Das einzige echte
+        # Geheimnis dort: Wer ihn hat, kann jedem angemeldeten Browser
+        # Meldungen unterschieben. Erzeugt ``services/webpush``, einmal.
+        "push_vapid_private",
     }
 )
 
 DEFAULTS: dict[str, str] = {
     "tmdb_api_key": "",
+    # Web Push: das Schluesselpaar der Installation, als PEM des privaten
+    # Teils. Leer heisst "noch nie gebraucht" - der erste Browser, der den
+    # oeffentlichen Teil abholt, laesst es erzeugen. Steht bewusst in keinem
+    # Formular: Ein neues Paar macht jedes angemeldete Geraet still taub.
+    "push_vapid_private": "",
     "radarr_url": "",
     "radarr_api_key": "",
     "sonarr_url": "",
@@ -309,6 +318,9 @@ class AppSettings:
     smtp_from_name: str
     public_url: str
     webhook_basis_url: str
+    # Der private VAPID-Schluessel (PEM) - siehe ``DEFAULTS``. Nur der
+    # Web-Push-Kanal liest ihn, ueber seine ``GLOBAL_FIELDS``.
+    push_vapid_private: str
     update_check: bool
     backup_schedule: str
     backup_keep: int
@@ -835,6 +847,7 @@ def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:
         smtp_from_name=values["smtp_from_name"].strip() or "Nexview",
         public_url=values["public_url"].strip().rstrip("/"),
         webhook_basis_url=values["webhook_basis_url"].strip().rstrip("/"),
+        push_vapid_private=values["push_vapid_private"],
         update_check=_flag(values["update_check"], standard=True),
         backup_schedule=(
             values["backup_schedule"]

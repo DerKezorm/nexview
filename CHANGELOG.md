@@ -12,6 +12,25 @@ tag exists for it.
 
 ---
 
+## 0.31.0 – unreleased
+
+### New
+
+- **Web push notifications.** Every account can subscribe its own devices under
+  *Profile → Notifications → Web Push*: phone, tablet, laptop. Notifications arrive
+  even while Nexview is closed, encrypted end to end and signed with a VAPID key that
+  Nexview generates once and never changes. Which events reach the devices is chosen
+  with the same switches as for e-mail; the first device turns them all on so the
+  subscription does not run into a void. On iPhone and iPad, add Nexview to the Home
+  Screen first; the page explains it. Requires https.
+- **Installable as a web app.** Nexview ships a web app manifest and icons, so it can
+  sit on a Home Screen or in a taskbar like an app. The service worker only handles
+  notifications; it caches nothing.
+- **Operators see subscribed devices** in *Settings → Notifications* next to the
+  Home Assistant callbacks, by push service only, never the subscription address.
+
+---
+
 ## 0.30.1 – 04.09.2026
 
 Three fixes for the Jellyfin sync, all from Issue #7.

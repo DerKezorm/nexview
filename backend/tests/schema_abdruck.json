@@ -2587,6 +2587,56 @@
         "schluessel": false,
         "typ": "VARCHAR(255)"
       },
+      "push_child_wish": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "push_download_complete": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "push_feedback": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "push_mediaserver_reconnect": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "push_request_decided": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "push_request_pending": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "push_storage": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "push_ticket": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "push_user_imported": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "push_watch": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
       "quota_movies_limit": {
         "leer_erlaubt": true,
         "schluessel": false,

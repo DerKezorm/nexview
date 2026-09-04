@@ -32,6 +32,7 @@ import { OidcLinks } from './profile/OidcLinks'
 import { WatchlistPlex } from './profile/WatchlistPlex'
 import { NotificationSettings } from './profile/NotificationSettings'
 import { StorageMine } from './profile/StorageMine'
+import { WebPush } from './profile/WebPush'
 
 /**
  * Reiter des eigenen Profils.
@@ -58,6 +59,16 @@ import { StorageMine } from './profile/StorageMine'
  * und kosten die Hauptreihe keinen Platz.
  */
 type KontoReiter = 'profil' | 'sicherheit' | 'sprache'
+
+/**
+ * Das Untermenü unter „Benachrichtigungen": ein Reiter je Weg.
+ *
+ * Dieselben Haken zweimal, einmal für die Mail und einmal für Web Push, auf
+ * einer Seite untereinander wären zwanzig Zeilen, in denen man den Weg nur
+ * an der Überschrift erkennt. Zwei Reiter, jeder mit seinen Haken und seinem
+ * Drumherum: bei der Mail die Adresse, bei Web Push die Geräte.
+ */
+type BenachrichtigungenReiter = 'mail' | 'push'
 
 type Tab =
   | 'account'
@@ -93,6 +104,9 @@ export function ProfilePage() {
     kinder: 'children',
     konto: 'account',
     benachrichtigungen: 'notifications',
+    // Direkt auf den Web-Push-Reiter - für den Hinweis in der Glocke und die
+    // Anleitung auf der Projektseite.
+    push: 'notifications',
     // „Sprache & Region" und „Sicherheit" sind in „Konto" aufgegangen. Die
     // alten Adressen bleiben gültig, damit Links aus Mails und der Glocke
     // nicht ins Leere zeigen.
@@ -118,6 +132,9 @@ export function ProfilePage() {
   }
   const [kontoReiter, setKontoReiter] = useState<KontoReiter>(
     UNTERREITER_AUS_ADRESSE[suchparameter.get('reiter') ?? ''] ?? 'profil',
+  )
+  const [meldungsReiter, setMeldungsReiter] = useState<BenachrichtigungenReiter>(
+    suchparameter.get('reiter') === 'push' ? 'push' : 'mail',
   )
 
   const fileRef = useRef<HTMLInputElement>(null)
@@ -384,7 +401,9 @@ export function ProfilePage() {
     tab !== 'storage' &&
     tab !== 'children' &&
     tab !== 'streaming' &&
-    tab !== 'account'
+    tab !== 'account' &&
+    // Web Push steht zweispaltig, die Mail-Seite daneben bleibt schmal.
+    !(tab === 'notifications' && meldungsReiter === 'push')
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -425,6 +444,23 @@ export function ProfilePage() {
           aktiv={kontoReiter}
           onWechsel={(wert) => {
             setKontoReiter(wert)
+            if (suchparameter.has('reiter')) setSuchparameter({}, { replace: true })
+            reset()
+          }}
+        />
+      )}
+
+      {tab === 'notifications' && (
+        <Reiterreihe
+          unter
+          label={t('profile.tabNotifications')}
+          eintraege={[
+            { value: 'mail', label: t('profile.tabMail'), symbol: 'mail' },
+            { value: 'push', label: t('profile.tabPush'), symbol: 'handy' },
+          ]}
+          aktiv={meldungsReiter}
+          onWechsel={(wert) => {
+            setMeldungsReiter(wert)
             if (suchparameter.has('reiter')) setSuchparameter({}, { replace: true })
             reset()
           }}
@@ -752,7 +788,8 @@ export function ProfilePage() {
       {tab === 'streaming' && (
         <StreamingDienste aufSpracheUndRegion={() => setTab('account')} />
       )}
-      {tab === 'notifications' && <NotificationSettings />}
+      {tab === 'notifications' &&
+        (meldungsReiter === 'push' ? <WebPush /> : <NotificationSettings />)}
       {tab === 'storage' && <StorageMine />}
       {tab === 'children' && <Kinder />}
 

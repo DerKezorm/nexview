@@ -108,6 +108,10 @@ _TESTNACHRICHT_OHNE_CODE = {
 
 
 def _kind(channel: str) -> ChannelKind:
+    # ⚠️ ``ChannelKind.webpush`` kommt hier nie an: Der Pfadparameter zaehlt
+    # die Arten einzeln auf, und Web Push steht nicht darin. Ein Web-Push-Ziel
+    # richtet der Browser ein, nie der Betreiber - ``test_webpush.py`` haelt
+    # das fest.
     return ChannelKind(channel)
 
 
@@ -188,8 +192,16 @@ class Rueckkanal(BaseModel):
     id: int
     #: Wem er gehoert - Anzeigename, sonst Benutzername.
     person: str
-    #: Der Name des Schluessels, ueber den er angemeldet wurde.
+    #: ``webhook`` fuer eine Anbindung, ``webpush`` fuer einen Browser.
+    kanal: str
+    #: Der Name des Ziels - bei einem Browser "Chrome, Windows".
+    name: str
+    #: Der Name des Schluessels, ueber den er angemeldet wurde. Ein Browser
+    #: hat keinen; er kam aus einer angemeldeten Sitzung.
     schluessel: str | None
+    #: Bei einem Browser nur der Push-Dienst (``fcm.googleapis.com``), nicht
+    #: die ganze Adresse: Die ist ein Schluessel, mit dem man dem Geraet
+    #: Meldungen unterschieben koennte, und sie gehoert dem Besitzer.
     url: str
     language: str
     bestaetigt: bool
@@ -220,6 +232,7 @@ def rueckkanaele(admin: AdminUser, db: DbSession) -> list[Rueckkanal]:
         besitzer = db.get(User, ziel.user_id) if ziel.user_id else None
         schluessel = db.get(ApiKey, ziel.api_key_id) if ziel.api_key_id else None
         gescheitert = channel_outbox.last_failure(db, ziel)
+        browser = ziel.channel is ChannelKind.webpush
         ergebnis.append(
             Rueckkanal(
                 id=ziel.id,
@@ -228,8 +241,10 @@ def rueckkanaele(admin: AdminUser, db: DbSession) -> list[Rueckkanal]:
                     if besitzer is not None
                     else "?"
                 ),
+                kanal=ziel.channel.value,
+                name=ziel.name,
                 schluessel=schluessel.name if schluessel is not None else None,
-                url=ziel.url,
+                url=(ziel.url.split("//", 1)[-1].split("/", 1)[0] if browser else ziel.url),
                 language=ziel.language,
                 bestaetigt=ziel.verified,
                 angelegt=ziel.created_at,

@@ -115,6 +115,9 @@ Plex is optional. Connect one and four things arrive:
 **Staying informed**
 
 - A bell in the app, and per-event e-mail if you want it
+- Web push to your own phone, tablet and laptop, with the same per-event switches as
+  e-mail: encrypted end to end, signed with a key Nexview generates once, arriving even
+  while Nexview is closed. On iPhone and iPad via the Home Screen; needs https
 - Seven notification channels for the installation as a whole: ntfy, Gotify, Telegram,
   Discord, a plain webhook, [Apprise](https://github.com/caronc/apprise) and e-mail.
   Each inbox picks its own events, language and urgency

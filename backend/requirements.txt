@@ -7,6 +7,13 @@ bcrypt==5.0.0
 pyjwt==2.13.0
 httpx==0.28.1
 cryptography==50.0.1
+# Web Push, beides von Mozilla und beides haengt nur an ``cryptography``:
+# ``py-vapid`` unterschreibt jede Meldung fuer den Push-Dienst (RFC 8292),
+# ``http-ece`` verschluesselt sie fuer den Browser (RFC 8291). Bewusst nicht
+# ``pywebpush``: Das zoege ``requests`` und ``aiohttp`` nach, und verschickt
+# wird ohnehin ueber httpx wie bei jedem anderen Kanal.
+py-vapid==1.9.4
+http-ece==1.2.1
 # Verschluesselte Sicherungs-Archive (AES-ZIP). Bewusst ein Standardformat:
 # ein selbstgebautes koennte nur Nexview wieder oeffnen - und ausgerechnet
 # dann, wenn man die Sicherung braucht, laeuft Nexview vielleicht nicht.

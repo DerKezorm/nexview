@@ -36,6 +36,17 @@ class ChannelError(Exception):
         self.message = message
 
 
+class ChannelGone(ChannelError):
+    """Das Ziel gibt es nicht mehr - und das ist kein Fehler, sondern der Weg.
+
+    Ein Browser, der sein Push-Abonnement wegwirft, sagt Nexview nichts; der
+    Push-Dienst antwortet beim naechsten Versuch mit 404 oder 410. Wer das wie
+    einen gewoehnlichen Fehlschlag behandelt, versucht es dreimal und laesst
+    dann eine Zeile mit rotem Text stehen, die nie wieder heilt. Der
+    Postausgang raeumt ein solches Ziel deshalb weg statt es zu wiederholen.
+    """
+
+
 @dataclass(frozen=True)
 class Notice:
     """Was verschickt werden soll - noch ohne Kenntnis des Kanals.
@@ -59,6 +70,11 @@ class Notice:
     #: damit ein Kanal, an dem eine Maschine haengt, ihn nicht aus einem Satz
     #: klauben muss - der ist uebersetzt und laesst sich umformulieren.
     code: str | None = None
+
+
+def lesbar(fehler: Exception, ziel: str) -> str:
+    """Oeffentlicher Name von ``_lesbar`` - fuer Kanaele mit eigenem Versand."""
+    return _lesbar(fehler, ziel)
 
 
 def _lesbar(fehler: Exception, ziel: str) -> str:

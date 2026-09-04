@@ -70,6 +70,34 @@ def wants_mail(user: User, kind: NotificationType) -> bool:
     return bool(schalter and getattr(user, schalter, False))
 
 
+# Welcher Web-Push-Haken steuert welche Meldung?
+#
+# ⚠️ **Abgeleitet, nicht abgeschrieben.** Die Web-Push-Haken sind dieselben wie
+# die Mail-Haken, nur ein zweites Mal - "genau wie bei den Mails" war die
+# Vorgabe. Eine zweite Tabelle von Hand liefe bei der naechsten Meldungsart
+# auseinander, und der Fehler saehe aus wie ein Haken, der nichts tut.
+#
+# Ohne den Monatsbericht: Der ist eine Tabelle in einer Mail, keine Meldung
+# fuer den Sperrbildschirm - und er hat auch keinen ``NotificationType``.
+PUSH_SWITCH: dict[NotificationType, str] = {
+    kind: "push_" + schalter.removeprefix("mail_")
+    for kind, schalter in MAIL_SWITCH.items()
+    if schalter != "mail_cleanup"
+}
+
+
+def wants_push(user: User, kind: NotificationType) -> bool:
+    """Moechte dieser Benutzer zu dieser Meldung eine Push-Nachricht?
+
+    Ob er ueberhaupt ein Geraet angemeldet hat, ist hier keine Frage: Das
+    weiss der Postausgang, der die Geraete kennt. Hier steht nur der Haken.
+    """
+    if not user.is_active:
+        return False
+    schalter = PUSH_SWITCH.get(kind)
+    return bool(schalter and getattr(user, schalter, False))
+
+
 def create(
     db: Session,
     *,
@@ -124,10 +152,19 @@ def create(
     db.add(eintrag)
     if broadcast:
         channel_outbox.enqueue(db, kind=kind, request=request, ticket=ticket, title=title)
-    # Der Rueckkanal dieses Menschen, falls er einen hat. Ohne Filter: Dass die
-    # Meldung ihn angeht, steht schon dadurch fest, dass sie hier entsteht.
+    # Die persoenlichen Ziele dieses Menschen, falls er welche hat. Der
+    # HA-Rueckkanal bekommt alles ohne Filter: Dass die Meldung ihn angeht,
+    # steht schon dadurch fest, dass sie hier entsteht. Seine Browser dagegen
+    # nur, wenn der passende Haken gesetzt ist - ein Handy kann nicht wie eine
+    # Automation filtern, deshalb entscheidet es hier der Haken.
     channel_outbox.enqueue_persoenlich(
-        db, user_id=user.id, kind=kind, request=request, ticket=ticket, title=title
+        db,
+        user_id=user.id,
+        kind=kind,
+        request=request,
+        ticket=ticket,
+        title=title,
+        web_push=wants_push(user, kind),
     )
     return eintrag
 

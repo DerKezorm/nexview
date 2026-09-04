@@ -895,6 +895,13 @@ def liste(db):
 #:   Diese Fehlalarme sind der Preis dafuer, dass ``email``, ``username`` und
 #:   ``parent_id`` ausdruecklich mit ueberwacht werden.
 AUSSERHALB: dict[tuple[str, str], str] = {
+    ("services/webpush.py", "vorbelegen"): (
+        "Setzt die push_*-Haken an dem Konto, das gerade sein erstes Geraet "
+        "anmeldet - dem angemeldeten. Gerufen nur aus webpush.anmelden, und "
+        "das bekommt sein Konto als CurrentUser aus der Sitzung, nie aus einer "
+        "Anfrage. Ein zweiter Administrator kann damit kein fremdes Konto "
+        "treffen, und die Haken sind kein Recht, sondern eine Vorliebe."
+    ),
     ("services/sicherung.py", "_alle_abmelden"): (
         "Setzt nach dem Einspielen einer Sicherung ``sessions_valid_from`` an "
         "**allen** Konten, den Betreiber eingeschlossen - genau das ist der "

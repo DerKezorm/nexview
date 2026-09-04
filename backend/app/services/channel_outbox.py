@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..db import SessionLocal
 from ..models import (
+    ChannelKind,
     ChannelMessage,
     ChannelTarget,
     MediaRequest,
@@ -351,28 +352,42 @@ def enqueue(
     return eintraege
 
 
-def ziel_von(db: Session, user_id: int) -> ChannelTarget | None:
-    """Der Rueckkanal dieses Menschen - oder ``None``.
+def ziele_von(db: Session, user_id: int) -> list[ChannelTarget]:
+    """Die persoenlichen Ziele dieses Menschen - der Rueckkanal und seine Browser.
 
-    Genau einer je Mensch: Angelegt wird er von einer Anbindung ueber
-    ``/api/v1/me/push``, und ein zweiter Aufruf ersetzt den ersten. Damit kann
-    sich an einem Konto keine Liste toter Adressen ansammeln.
+    Der Rueckkanal ist genau einer je Mensch: Angelegt wird er von einer
+    Anbindung ueber ``/api/v1/me/push``, und ein zweiter Aufruf ersetzt den
+    ersten. Browser dagegen gibt es so viele, wie jemand Geraete hat - jedes
+    hat sich selbst angemeldet (``ChannelKind.webpush``), und ein
+    erloschenes raeumt der Postausgang von selbst weg.
 
     ⚠️ **Ein gesperrtes Konto bekommt nichts mehr.** Wer jemanden abschaltet,
-    hat ihm den Zugang genommen; klingelte sein Home Assistant weiter, waere
-    die Sperre nur die halbe. Ueber die Verknuepfung geprueft statt beim
-    Sperren abgeraeumt: Eine Sperre wird auch zurueckgenommen, und dann soll
-    der Rueckkanal wieder da sein, ohne dass jemand neu einrichtet.
+    hat ihm den Zugang genommen; klingelte sein Home Assistant oder sein
+    Handy weiter, waere die Sperre nur die halbe. Ueber die Verknuepfung
+    geprueft statt beim Sperren abgeraeumt: Eine Sperre wird auch
+    zurueckgenommen, und dann sollen die Ziele wieder da sein, ohne dass
+    jemand neu einrichtet.
     """
-    return db.scalars(
-        select(ChannelTarget)
-        .join(User, User.id == ChannelTarget.user_id)
-        .where(
-            ChannelTarget.user_id == user_id,
-            ChannelTarget.verified.is_(True),
-            User.is_active.is_(True),
+    return list(
+        db.scalars(
+            select(ChannelTarget)
+            .join(User, User.id == ChannelTarget.user_id)
+            .where(
+                ChannelTarget.user_id == user_id,
+                ChannelTarget.verified.is_(True),
+                User.is_active.is_(True),
+            )
+            .order_by(ChannelTarget.created_at, ChannelTarget.id)
         )
-    ).first()
+    )
+
+
+def ziel_von(db: Session, user_id: int) -> ChannelTarget | None:
+    """Der Rueckkanal dieses Menschen - oder ``None``. Ohne seine Browser."""
+    return next(
+        (ziel for ziel in ziele_von(db, user_id) if ziel.channel is not ChannelKind.webpush),
+        None,
+    )
 
 
 def enqueue_persoenlich(
@@ -383,37 +398,46 @@ def enqueue_persoenlich(
     request: MediaRequest | None = None,
     ticket: Ticket | None = None,
     title: str | None = None,
-) -> ChannelMessage | None:
-    """Eine Meldung an den Rueckkanal **dieses** Menschen. Kein ``commit``.
+    web_push: bool = True,
+) -> list[ChannelMessage]:
+    """Eine Meldung an die persoenlichen Ziele **dieses** Menschen. Kein ``commit``.
 
-    ⚠️ **Hier wird nicht gefiltert, und das ist der Punkt.** Wer diese Funktion
-    ruft, hat gerade eine Glockenmeldung fuer genau diesen Menschen angelegt -
-    die Frage, ob sie ihn etwas angeht, ist damit schon beantwortet. Eine
-    zweite Pruefung waere eine zweite Wahrheit, und die beiden liefen
-    auseinander.
+    ⚠️ **Fuer den Rueckkanal wird nicht gefiltert, und das ist der Punkt.** Wer
+    diese Funktion ruft, hat gerade eine Glockenmeldung fuer genau diesen
+    Menschen angelegt - die Frage, ob sie ihn etwas angeht, ist damit schon
+    beantwortet. Eine zweite Pruefung waere eine zweite Wahrheit, und die
+    beiden liefen auseinander. Ausgewaehlt wird dort in der Automation.
+
+    ⚠️ **Seine Browser bekommen sie nur mit ``web_push``.** Ein Handy kann
+    nicht wie eine Automation filtern; dort entscheiden die ``push_*``-Haken
+    am Konto, und ob der passende gesetzt ist, sagt der Aufrufer
+    (``notify.wants_push``). Hier steht nur die Konsequenz.
     """
-    target = ziel_von(db, user_id)
-    if target is None or not aktiv(target):
-        return None
-
-    eintrag = ChannelMessage(
-        channel=target.channel,
-        target_id=target.id,
-        type=kind,
-        title=(
-            title
-            if title is not None
-            else (
-                request.title
-                if request is not None
-                else (ticket.subject if ticket is not None else None)
-            )
-        ),
-        request_id=request.id if request is not None else None,
-        ticket_id=ticket.id if ticket is not None else None,
-    )
-    db.add(eintrag)
-    return eintrag
+    eintraege: list[ChannelMessage] = []
+    for target in ziele_von(db, user_id):
+        if not aktiv(target):
+            continue
+        if target.channel is ChannelKind.webpush and not web_push:
+            continue
+        eintrag = ChannelMessage(
+            channel=target.channel,
+            target_id=target.id,
+            type=kind,
+            title=(
+                title
+                if title is not None
+                else (
+                    request.title
+                    if request is not None
+                    else (ticket.subject if ticket is not None else None)
+                )
+            ),
+            request_id=request.id if request is not None else None,
+            ticket_id=ticket.id if ticket is not None else None,
+        )
+        db.add(eintrag)
+        eintraege.append(eintrag)
+    return eintraege
 
 
 def _notice(
@@ -489,7 +513,12 @@ async def process(db: Session, settings: AppSettings) -> int:
         return 0
 
     zugestellt = 0
+    # Ziele, die in diesem Durchgang als erloschen erkannt und weggeraeumt
+    # wurden. Ihre uebrigen Auftraege sind mit ihnen gegangen.
+    erloschen: set[int] = set()
     for eintrag in offen:
+        if eintrag.target_id in erloschen:
+            continue
         target = db.get(ChannelTarget, eintrag.target_id)
         config = channel_targets.config(target, settings) if target is not None else None
         if target is None or config is None:
@@ -505,6 +534,29 @@ async def process(db: Session, settings: AppSettings) -> int:
         eintrag.attempts += 1
         try:
             await channels.send(target.channel, config, nachricht)
+        except channels.ChannelGone as fehler:
+            # ⚠️ **Kein Fehlschlag, sondern der vorgesehene Weg**, auf dem ein
+            # weggeworfenes Browser-Abonnement hier ankommt. Wiederholen
+            # hiesse dreimal ins Leere und dann eine rote Zeile fuer immer.
+            #
+            # Erst die Auftraege, dann das Ziel - in zwei Schritten. Die
+            # Datenbank raeumte die Auftraege zwar von selbst mit ab, aber die
+            # Sitzung wuesste nichts davon und schriebe beim Abschluss den
+            # Versuch in eine Zeile, die es nicht mehr gibt.
+            logger.info(
+                "%s/%s: target is gone (%s); removing it",
+                channels.label(target.channel),
+                target.name,
+                fehler.message,
+            )
+            erloschen.add(target.id)
+            for auftrag in offen:
+                if auftrag.target_id == target.id:
+                    db.delete(auftrag)
+            db.flush()
+            db.delete(target)
+            db.flush()
+            continue
         except channels.ChannelError as fehler:
             eintrag.last_error = fehler.message
             if eintrag.attempts >= MAX_ATTEMPTS:
@@ -551,6 +603,25 @@ def last_failure(db: Session, target: ChannelTarget) -> ChannelMessage | None:
             ChannelMessage.attempts >= MAX_ATTEMPTS,
         )
         .order_by(ChannelMessage.created_at.desc())
+        .limit(1)
+    ).first()
+
+
+def last_success(db: Session, target: ChannelTarget) -> ChannelMessage | None:
+    """Der letzte gelungene Versand an dieses Ziel.
+
+    Steht in der Geraeteliste als "zuletzt erreicht am". Ein Geraet, das seit
+    Wochen nichts bekommen hat, sieht sonst genauso aus wie eines, bei dem
+    gestern etwas ankam - und der Unterschied ist genau die Frage, die jemand
+    hat, der sich wundert, warum sein Handy still bleibt.
+    """
+    return db.scalars(
+        select(ChannelMessage)
+        .where(
+            ChannelMessage.target_id == target.id,
+            ChannelMessage.sent_at.isnot(None),
+        )
+        .order_by(ChannelMessage.sent_at.desc())
         .limit(1)
     ).first()
 

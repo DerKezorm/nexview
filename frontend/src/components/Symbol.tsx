@@ -210,6 +210,11 @@ const SYMBOLE = {
     { d: 'M12 8v5' },
     { d: 'M12 16.2v0', punkt: true },
   ],
+  /** Web Push - das Handy. */
+  handy: [
+    { d: 'M8.5 3h7a1.5 1.5 0 0 1 1.5 1.5v15a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 19.5v-15A1.5 1.5 0 0 1 8.5 3Z' },
+    { d: 'M12 17.5v0', punkt: true },
+  ],
 } satisfies Record<string, Pfad[]>
 
 export type SymbolName = keyof typeof SYMBOLE

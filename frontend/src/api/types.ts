@@ -94,6 +94,20 @@ export type User = {
   mail_cleanup: boolean;
   mail_storage: boolean;
   /**
+   * Web-Push-Benachrichtigungen – dieselben Haken, zweiter Weg. Ob ein Gerät
+   * überhaupt etwas bekommt, entscheidet der Browser dort (`PushGeraet`).
+   */
+  push_download_complete: boolean;
+  push_request_pending: boolean;
+  push_request_decided: boolean;
+  push_feedback: boolean;
+  push_ticket: boolean;
+  push_watch: boolean;
+  push_user_imported: boolean;
+  push_mediaserver_reconnect: boolean;
+  push_storage: boolean;
+  push_child_wish: boolean;
+  /**
    * Liegt ein persönlicher Plex-Zugang vor? Nur diese Auskunft – nie das
    * Token selbst. Ohne ihn lässt sich die eigene Merkliste nicht lesen.
    */
@@ -2297,10 +2311,29 @@ export type HausordnungUebersichtZeile = {
 export type Rueckkanal = {
   id: number
   person: string
+  /** `webhook` für eine Anbindung, `webpush` für einen Browser. */
+  kanal: 'webhook' | 'webpush'
+  /** Der Name des Ziels – bei einem Browser "Chrome, Windows". */
+  name: string
   schluessel: string | null
+  /** Bei einem Browser nur der Push-Dienst, nie die ganze Adresse. */
   url: string
   language: ChannelLanguage
   bestaetigt: boolean
   angelegt: string
   letzter_fehler: string | null
+}
+
+/** Ein Browser, der Web-Push-Meldungen annimmt – eine Zeile unter Profil → Web Push. */
+export type PushGeraet = {
+  id: number
+  name: string
+  /** Ob das die Anmeldung genau dieses Browsers ist. */
+  this: boolean
+  created_at: string
+  last_success: string | null
+  last_error: string | null
+  last_error_at: string | null
+  /** Nur in der Antwort auf das Anmelden: Wurden dabei die Haken gesetzt? */
+  vorbelegt: boolean
 }

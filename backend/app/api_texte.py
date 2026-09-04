@@ -1354,14 +1354,15 @@ TEXTE: dict[str, tuple[str, str]] = {
     'GET /api/settings/channels/rueckkanaele': (
         'See where Nexview notifies its users',
         (
-            'One row per personal callback address that an application '
-            'registered for itself - a Home Assistant, typically. These are not '
-            'set up here and cannot be created through this API; what they '
-            'receive is whatever their owner also sees in their notification '
-            'bell, and never what belongs to somebody else. The row shows who '
-            'it belongs to, '
-            'which key registered it and the last delivery failure, but not the '
-            'messages themselves.'
+            'One row per personal target: a callback address that an application '
+            'registered for itself - a Home Assistant, typically - or a browser '
+            'that subscribed to web push. These are not set up here and cannot be '
+            'created through this API; what they receive is whatever their owner '
+            'also sees in their notification bell, and never what belongs to '
+            'somebody else. The row shows who it belongs to, which key registered '
+            'it and the last delivery failure, but not the messages themselves. '
+            'For a browser only the push service is shown, never the full '
+            'subscription address.'
         ),
     ),
     'DELETE /api/settings/channels/rueckkanaele/{ziel_id}': (
@@ -1370,6 +1371,56 @@ TEXTE: dict[str, tuple[str, str]] = {
             'Nexview stops notifying that address. The key stays valid and the '
             'integration keeps asking on its own; to take an integration away '
             'entirely, revoke its key instead.'
+        ),
+    ),
+    # --- Web Push --------------------------------------------------------
+    'GET /api/push/key': (
+        'The public key for web push',
+        (
+            'What the browser passes as `applicationServerKey` when it subscribes: '
+            'the raw, uncompressed P-256 point in base64url. Generated once per '
+            'installation on first use and never changed afterwards - a new key '
+            'would silently orphan every subscribed device.'
+        ),
+    ),
+    'POST /api/push/devices': (
+        'Subscribe this browser',
+        (
+            'Registers a `PushSubscription` for the signed-in user, flattened to '
+            'endpoint, `p256dh` and `auth`. The same endpoint never creates a second '
+            'row; registering it again updates the row and, on a shared computer, '
+            'moves it to whoever is signed in now. When it is the first device and '
+            'no push switch is set yet, all switches are turned on so the '
+            'subscription does not run into a void; `vorbelegt` says whether that '
+            'happened. Which events reach the device is decided by the `push_*` '
+            'fields on the account, via `PATCH /api/auth/me`.'
+        ),
+    ),
+    'GET /api/push/devices': (
+        'The subscribed devices',
+        (
+            'Every browser that subscribed for this account: a label such as '
+            '"Chrome, Windows", when it subscribed, when it was last reached and '
+            'the last final delivery failure. Pass your own `endpoint` to have '
+            'this browser marked. Subscription addresses are never returned.'
+        ),
+    ),
+    'DELETE /api/push/devices/{ziel_id}': (
+        'Unsubscribe a device',
+        (
+            'Removes one of your own devices; pending messages for it are dropped '
+            'with it. Devices of other accounts are invisible here and answer 404.'
+        ),
+    ),
+    'POST /api/push/test': (
+        'Send a test message',
+        (
+            'Delivers a test notification right away - to the device whose '
+            '`endpoint` is given, or to every subscribed device. Between "the '
+            'browser granted permission" and "something actually shows up" sit a '
+            'service worker, a push service and a system setting that can each '
+            'stay silent; this is how you find out which. A subscription the '
+            'push service no longer knows (404 or 410) is removed on the spot.'
         ),
     ),
     'GET /api/settings/channels/{channel}/targets': (

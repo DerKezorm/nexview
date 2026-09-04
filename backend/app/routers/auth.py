@@ -210,8 +210,11 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, db: DbSession) -> User:
     #
     # Aus ``ProfileUpdate`` abgeleitet kann die Liste nicht mehr auseinander-
     # laufen: Was im Schema steht, wird geschrieben. ``test_mail_schalter.py``
-    # prueft zusaetzlich, dass Schema und Konto dieselben Felder fuehren.
-    for schalter in (feld for feld in ProfileUpdate.model_fields if feld.startswith("mail_")):
+    # prueft zusaetzlich, dass Schema und Konto dieselben Felder fuehren -
+    # fuer die Mail-Haken wie fuer die Web-Push-Haken.
+    for schalter in (
+        feld for feld in ProfileUpdate.model_fields if feld.startswith(("mail_", "push_"))
+    ):
         wert = getattr(payload, schalter, None)
         if wert is not None:
             setattr(user, schalter, wert)

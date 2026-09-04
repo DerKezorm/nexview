@@ -531,6 +531,35 @@ class User(Base):
     # Die Glocke sieht es nur, wer die App gerade offen hat - deshalb dieser
     # Schalter. Standard aus, wie alle Mail-Schalter.
     mail_child_wish: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # --- Benachrichtigungen per Web Push -----------------------------------
+    # Dieselben Haken wie bei der Mail, ein zweites Mal: *Wobei* gemeldet wird,
+    # gehoert dem Konto und gilt damit auf allen Geraeten gleich. *Ob* ein
+    # Geraet ueberhaupt Meldungen bekommt, entscheidet der Browser dort, und
+    # das steht als Zeile in ``channel_targets`` (``ChannelKind.webpush``).
+    #
+    # ⚠️ **Auch hier alles auf "aus", mit einer Ausnahme:** Meldet jemand sein
+    # erstes Geraet an und hat noch keinen Haken, setzt ``webpush.vorbelegen``
+    # alle. Sonst erlaubt jemand Meldungen, und es kommt nie eine - und der
+    # Fehler wird bei Nexview gesucht, nicht bei den Haken.
+    #
+    # Kein Gegenstueck zu ``mail_cleanup``: Der Monatsbericht ist eine Tabelle
+    # in einer Mail, keine Meldung fuer den Sperrbildschirm.
+    push_download_complete: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    push_request_pending: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    push_request_decided: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    push_feedback: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    push_ticket: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    push_watch: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    push_user_imported: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    push_mediaserver_reconnect: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    push_storage: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    push_child_wish: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # Der monatliche Aufraeum-Bericht am 1.: Was liegt herum und belegt Platz?
     #
     # ⚠️ **Anders als alle anderen Mail-Schalter kein Ereignis, sondern ein
@@ -2109,6 +2138,11 @@ class ChannelKind(str, enum.Enum):
     discord = "discord"
     webhook = "webhook"
     apprise = "apprise"
+    # ⚠️ **Die eine Art, die kein Administrator einrichtet.** Ein Web-Push-Ziel
+    # ist ein Browser, der sich selbst angemeldet hat; es gehoert immer einem
+    # Menschen (``user_id``) und bekommt, was ihn angeht, gefiltert ueber die
+    # ``push_*``-Haken an seinem Konto. Die Kanalverwaltung weist die Art ab.
+    webpush = "webpush"
 
 
 class ChannelTarget(Base):

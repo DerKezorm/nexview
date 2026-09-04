@@ -13,7 +13,8 @@
     "konsole": "node tools/konsole-pruefen.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "symbole": "node tools/symbole.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.5",

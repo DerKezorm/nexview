@@ -252,6 +252,18 @@ class UserPublic(BaseModel):
     mail_child_wish: bool
     mail_cleanup: bool
 
+    # Benachrichtigungen per Web Push - dieselben Haken, zweiter Weg.
+    push_download_complete: bool
+    push_request_pending: bool
+    push_request_decided: bool
+    push_feedback: bool
+    push_ticket: bool
+    push_watch: bool
+    push_user_imported: bool
+    push_mediaserver_reconnect: bool
+    push_storage: bool
+    push_child_wish: bool
+
     # *Ob* ein Plex-Zugang hinterlegt ist - das Token selbst verlaesst den
     # Server nie. Ohne ihn laesst sich die Merkliste nicht lesen.
     watchlist_connected: bool
@@ -525,6 +537,18 @@ class ProfileUpdate(BaseModel):
     mail_storage: bool | None = None
     mail_child_wish: bool | None = None
     mail_cleanup: bool | None = None
+
+    # Benachrichtigungen per Web Push - jede einzeln, wie bei der Mail.
+    push_download_complete: bool | None = None
+    push_request_pending: bool | None = None
+    push_request_decided: bool | None = None
+    push_feedback: bool | None = None
+    push_ticket: bool | None = None
+    push_watch: bool | None = None
+    push_user_imported: bool | None = None
+    push_mediaserver_reconnect: bool | None = None
+    push_storage: bool | None = None
+    push_child_wish: bool | None = None
 
     # Vorbelegung der Filterleiste. Der leere String bedeutet "nichts
     # Eigenes" - anders liesse sich eine einmal gesetzte Wahl nie wieder

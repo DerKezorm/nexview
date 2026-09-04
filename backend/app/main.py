@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import mimetypes
 import os
 import re
 from contextlib import asynccontextmanager
@@ -92,6 +93,9 @@ from .routers import (
 )
 from .routers import (
     oidc as oidc_router,
+)
+from .routers import (
+    push as push_router,
 )
 from .routers import (
     qualitaetsprofile as qualitaetsprofile_router,
@@ -316,6 +320,9 @@ app.include_router(analyse_router.router)
 app.include_router(home_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(onboarding.router)
 app.include_router(notifications.router, dependencies=NUR_ERWACHSENE)
+# Web Push: Kinderkonten sind Unterprofile ihrer Eltern und haben kein
+# eigenes Geraet - die Meldungen gehen an die Eltern.
+app.include_router(push_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(logs_router.router)
 app.include_router(sicherungen_router.router)
 # ⚠️ **Die zugesagte Flaeche.** Dieselben Handler, zweite Adresse - siehe
@@ -492,6 +499,19 @@ def _index_mit_basis(index_file: Path) -> str | None:
     return marke + html
 
 
+#: Dateien ohne Hash im Namen, die sich mit jedem Update aendern: der Service
+#: Worker fuer Web Push und das Manifest der Web-App. ``no-cache`` heisst
+#: nicht "nicht speichern", sondern "vor dem Benutzen nachfragen" - der
+#: Browser holt sie nur neu, wenn sie sich geaendert haben.
+_STETS_NACHFRAGEN = frozenset({"sw.js", "manifest.webmanifest"})
+_NACHFRAGE_KOPF = {"Cache-Control": "no-cache"}
+
+# ⚠️ Ohne diese Zeile kaeme das Manifest als ``application/octet-stream``:
+# Pythons Tabelle kennt die Endung nicht, und ein Browser, der ein Manifest
+# mit fremdem Typ bekommt, laesst "Zum Home-Bildschirm" still ohne Symbol.
+mimetypes.add_type("application/manifest+json", ".webmanifest")
+
+
 def _mount_frontend(directory: Path, index_inhalt: str | None) -> None:
     """Gebautes Frontend ausliefern.
 
@@ -528,6 +548,12 @@ def _mount_frontend(directory: Path, index_inhalt: str | None) -> None:
 
         candidate = directory / full_path
         if full_path and candidate.is_file():
+            # ⚠️ Der Service Worker und das Manifest tragen keinen Hash im
+            # Namen und aendern sich mit jedem Update. Ein Browser, der sie
+            # aus seinem Zwischenspeicher nimmt, liefe mit einem Worker von
+            # gestern - und eine Aenderung dort kaeme bei niemandem an.
+            if full_path in _STETS_NACHFRAGEN:
+                return FileResponse(candidate, headers=_NACHFRAGE_KOPF)
             return FileResponse(candidate)
         return index_antwort()
 

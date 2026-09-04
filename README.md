@@ -120,6 +120,10 @@ Plex is optional. Connect one and four things arrive:
   Each inbox picks its own events, language and urgency
 - A ticket centre where people report problems and get an answer, with state and history
 - Statistics and an error log for the administrator
+- A [Home Assistant integration](https://github.com/DerKezorm/nexview-homeassistant):
+  everybody enters their own key and gets their own figures and their own
+  notifications, requests can be decided from a phone, and every Radarr, Sonarr and
+  media server turns up as its own device
 
 **Running it**
 
@@ -711,7 +715,7 @@ switches off their own token. Deactivating an account locks its tokens along wit
 
 ### What is promised, and what is not
 
-Fourteen endpoints live under **`/api/v1`**, and for those there is a promise: as long as
+Sixteen endpoints live under **`/api/v1`**, and for those there is a promise: as long as
 `v1` is in the address, nothing disappears from their answers. If something has to break,
 `/api/v2` will appear beside it and v1 will keep running.
 
@@ -730,6 +734,8 @@ Fourteen endpoints live under **`/api/v1`**, and for those there is a promise: a
 | `GET /api/v1/storage/me` | your own storage use |
 | `GET /api/v1/about` | which version is running |
 | `GET /api/v1/health` | whether it is up |
+| `GET /api/v1/me` | who is asking, and what this request may do |
+| `GET/PUT/POST/DELETE /api/v1/me/push` | where Nexview should notify this key's owner |
 | `GET /api/v1/dashboard` | one tile for your home dashboard |
 
 **Everything else under `/api/…` is an inside part of the application.** You may use it,

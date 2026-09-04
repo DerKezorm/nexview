@@ -97,6 +97,12 @@ def create(
     weiter unten es hier ab und melden das Ereignis selbst genau einmal.
     Stuende es an, meldete eine wartende Anfrage bei drei Administratoren
     dreimal dasselbe im selben Topic.
+
+    ⚠️ **Der persoenliche Rueckkanal haengt nicht an ``broadcast``**, und das
+    ist genau andersherum gewollt als beim Hausfunk: Er hat einen Empfaenger,
+    also soll ihn jeder Betroffene einzeln bekommen. Bei drei Administratoren
+    klingeln drei Home Assistants, jedes bei seinem Menschen - das ist kein
+    Dreifachversand, sondern sind drei verschiedene Nachrichten.
     """
     eintrag = Notification(
         user_id=user.id,
@@ -118,6 +124,11 @@ def create(
     db.add(eintrag)
     if broadcast:
         channel_outbox.enqueue(db, kind=kind, request=request, ticket=ticket, title=title)
+    # Der Rueckkanal dieses Menschen, falls er einen hat. Ohne Filter: Dass die
+    # Meldung ihn angeht, steht schon dadurch fest, dass sie hier entsteht.
+    channel_outbox.enqueue_persoenlich(
+        db, user_id=user.id, kind=kind, request=request, ticket=ticket, title=title
+    )
     return eintrag
 
 

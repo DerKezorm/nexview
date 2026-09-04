@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 
 from .. import meldungen
 from ..deps import AdultUser, CurrentUser, DbSession
-from ..models import User, utcnow
+from ..models import ChannelTarget, User, utcnow
 from ..schemas import (
     LoginRequest,
     PasswordChange,
@@ -375,6 +375,18 @@ class SchluesselPublic(BaseModel):
     created_at: datetime
     expires_at: datetime | None
     last_used_at: datetime | None
+    #: Wohin Nexview diese Anbindung benachrichtigt - ``None``, wenn sie nicht
+    #: danach gefragt hat.
+    #:
+    #: ⚠️ **Steht hier und in keiner Kanalverwaltung.** Ein Rueckkanal wird
+    #: nicht eingerichtet, sondern von einer Anbindung angemeldet; er gehoert
+    #: deshalb neben den Schluessel, mit dem sie sich anmeldet, und stirbt mit
+    #: ihm. Unsichtbar duerfte er trotzdem nicht sein: Was man nicht sieht,
+    #: kann man nicht abschalten, und ein abgeschaltetes Home Assistant fuellt
+    #: sonst still den Postausgang mit Fehlversuchen.
+    rueckkanal: str | None = None
+    #: Ist er bestaetigt, also im Betrieb?
+    rueckkanal_bereit: bool = False
 
 
 class SchluesselNeu(SchluesselPublic):
@@ -394,7 +406,7 @@ class SchluesselAnlegen(BaseModel):
     tage: int | None = Field(default=None, ge=1, le=3650)
 
 
-def _als_public(eintrag) -> SchluesselPublic:
+def _als_public(eintrag, ziel: ChannelTarget | None = None) -> SchluesselPublic:
     return SchluesselPublic(
         id=eintrag.id,
         name=eintrag.name,
@@ -403,13 +415,51 @@ def _als_public(eintrag) -> SchluesselPublic:
         created_at=eintrag.created_at,
         expires_at=eintrag.expires_at,
         last_used_at=eintrag.last_used_at,
+        rueckkanal=ziel.url if ziel is not None else None,
+        rueckkanal_bereit=ziel.verified if ziel is not None else False,
     )
 
 
 @router.get("/me/schluessel", response_model=list[SchluesselPublic])
 def schluessel_liste(user: AdultUser, db: DbSession) -> list[SchluesselPublic]:
-    """Die eigenen Zugriffs-Schluessel."""
-    return [_als_public(e) for e in api_schluessel.liste(db, user)]
+    """Die eigenen Zugriffs-Schluessel, jeder mit seinem Rueckkanal."""
+    eintraege = list(api_schluessel.liste(db, user))
+    # Eine Abfrage fuer alle statt einer je Schluessel: Es sind hoechstens eine
+    # Handvoll, aber die Liste laedt bei jedem Blick ins Profil.
+    ziele = {
+        z.api_key_id: z
+        for z in db.scalars(
+            select(ChannelTarget).where(
+                ChannelTarget.api_key_id.in_([e.id for e in eintraege] or [0])
+            )
+        )
+    }
+    return [_als_public(e, ziele.get(e.id)) for e in eintraege]
+
+
+@router.delete(
+    "/me/schluessel/{schluessel_id}/rueckkanal", status_code=status.HTTP_204_NO_CONTENT
+)
+def rueckkanal_trennen(schluessel_id: int, user: AdultUser, db: DbSession) -> None:
+    """Nexview soll diese Anbindung nicht mehr anrufen. Der Schluessel bleibt.
+
+    ⚠️ **Warum das nicht dasselbe ist wie den Schluessel zu widerrufen.** Ein
+    Home Assistant, das neu aufgesetzt wurde, ist unter seiner alten Adresse
+    nicht mehr zu erreichen - der Schluessel funktioniert aber weiter, und ihn
+    wegzuwerfen hiesse, ihn ueberall neu eintragen zu muessen. Hier geht nur
+    der Weg zurueck weg; die Anbindung fragt weiter ab.
+    """
+    ziel = db.scalars(
+        select(ChannelTarget).where(
+            ChannelTarget.api_key_id == schluessel_id,
+            # ⚠️ Nicht nur nach der Kennung: Sonst raeumte eine geratene Zahl
+            # den Rueckkanal eines Fremden ab.
+            ChannelTarget.user_id == user.id,
+        )
+    ).first()
+    if ziel is not None:
+        db.delete(ziel)
+        db.commit()
 
 
 @router.post("/me/schluessel", response_model=SchluesselNeu, status_code=status.HTTP_201_CREATED)

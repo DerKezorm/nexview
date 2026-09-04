@@ -29,6 +29,17 @@ type Schluessel = {
   created_at: string
   expires_at: string | null
   last_used_at: string | null
+  /**
+   * Wohin Nexview diese Anbindung benachrichtigt — `null`, wenn sie nicht
+   * danach gefragt hat.
+   *
+   * ⚠️ **Warum das hier steht und in keiner Kanalliste.** Ein Rückkanal wird
+   * nicht eingerichtet, sondern von einer Anwendung angemeldet; er gehört
+   * deshalb neben den Schlüssel, mit dem sie sich anmeldet. Unsichtbar dürfte
+   * er trotzdem nicht sein: Was man nicht sieht, kann man nicht abschalten.
+   */
+  rueckkanal: string | null
+  rueckkanal_bereit: boolean
 }
 
 type Neuer = Schluessel & { schluessel: string }
@@ -48,6 +59,16 @@ export function ApiSchluessel() {
   const liste = useQuery({
     queryKey: ['api-schluessel'],
     queryFn: () => api.get<Schluessel[]>('/api/auth/me/schluessel'),
+  })
+
+  const trennen = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/auth/me/schluessel/${id}/rueckkanal`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['api-schluessel'] })
+    },
+    onError: (fehler: unknown) => {
+      setFehler(fehler instanceof ApiError ? fehler.message : t('errors.generic'))
+    },
   })
 
   const anlegen = useMutation({
@@ -95,8 +116,9 @@ export function ApiSchluessel() {
           {liste.data.map((eintrag) => (
             <li
               key={eintrag.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3"
+              className="flex flex-col gap-2 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3"
             >
+              <div className="flex flex-wrap items-center gap-3">
               <span className="flex-1">
                 <span className="block text-sm font-medium text-mist-100">
                   {eintrag.name}
@@ -125,6 +147,33 @@ export function ApiSchluessel() {
               <Button type="button" variant="ghost" onClick={() => setWiderrufen(eintrag)}>
                 {t('apikeys.revoke')}
               </Button>
+              </div>
+
+              {/* ⚠️ Nur da, wenn es einen gibt. Eine leere Zeile „kein
+                  Rückkanal" wäre eine Erklärung für etwas, das die meisten
+                  Schlüssel gar nicht können — und der Ort, an dem jemand
+                  anfinge, einen zu suchen. */}
+              {eintrag.rueckkanal && (
+                <div className="flex flex-wrap items-center gap-3 border-t border-ink-800 pt-2">
+                  <span className="flex-1 text-xs text-mist-600">
+                    <span className="text-mist-500">{t('apikeys.callback')}</span>{' '}
+                    <span className="font-mono">{eintrag.rueckkanal}</span>
+                    {!eintrag.rueckkanal_bereit && (
+                      <span className="ml-2 rounded-full bg-ink-800 px-2 py-0.5 text-mist-500">
+                        {t('apikeys.callbackPending')}
+                      </span>
+                    )}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => trennen.mutate(eintrag.id)}
+                    disabled={trennen.isPending}
+                  >
+                    {t('apikeys.callbackStop')}
+                  </Button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

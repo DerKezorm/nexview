@@ -2286,3 +2286,21 @@ export type HausordnungUebersichtZeile = {
   entschieden_am: string | null;
   fassung: number | null;
 };
+
+/**
+ * Ein persönlicher Rückkanal, wie der Betreiber ihn sieht.
+ *
+ * Angelegt wird so einer nicht in den Einstellungen, sondern von einer
+ * Anwendung über `/api/v1/me/push`. Hier steht er nur zum Ansehen und
+ * Abschalten.
+ */
+export type Rueckkanal = {
+  id: number
+  person: string
+  schluessel: string | null
+  url: string
+  language: ChannelLanguage
+  bestaetigt: boolean
+  angelegt: string
+  letzter_fehler: string | null
+}

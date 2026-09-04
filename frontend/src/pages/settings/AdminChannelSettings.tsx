@@ -12,6 +12,7 @@ import type {
   ChannelLevel,
   ChannelTarget,
   NtfyAuth,
+  Rueckkanal,
   TestResult,
 } from '../../api/types'
 import { Button, Card, ErrorBanner, Field, PlusKachel, RundKnopf, Section, Spinner } from '../../components/ui'
@@ -241,9 +242,102 @@ export function AdminChannelSettings() {
       {/* Bewusst mit `key`: Beim Wechsel des Dienstes soll ein halb
           ausgefülltes Formular nicht stehen bleiben. */}
       <Zielverwaltung key={kanal} kanal={kanal} />
+
+      <Rueckkanaele />
     </div>
   )
 }
+
+
+/**
+ * Wohin Nexview seine Benutzer benachrichtigt.
+ *
+ * ⚠️ **Ansehen und abschalten, nicht einrichten.** Diese Ziele entstehen nicht
+ * hier, sondern indem eine Anwendung sie über `/api/v1/me/push` anmeldet — ein
+ * Home Assistant zum Beispiel, sobald jemand dort seinen Schlüssel einträgt.
+ * Deshalb gibt es kein Formular und keine Plus-Kachel.
+ *
+ * Was es geben muss, ist diese Liste. Wer einen Server betreibt, muss sehen
+ * können, wohin der Daten schickt, und im Zweifel eine Zeile stillstellen. Ein
+ * Ziel, das niemand sieht, kann auch niemand abschalten.
+ *
+ * ⚠️ **Ohne die Meldungen, die dort hingehen.** Das wäre ein Blick in fremde
+ * Post. Hier steht die Adresse, nicht ihr Inhalt.
+ */
+function Rueckkanaele() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [zuTrennen, setZuTrennen] = useState<Rueckkanal | null>(null)
+
+  const liste = useQuery({
+    queryKey: ['rueckkanaele'],
+    queryFn: () => api.get<Rueckkanal[]>('/api/settings/channels/rueckkanaele'),
+  })
+
+  const trennen = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/settings/channels/rueckkanaele/${id}`),
+    onSuccess: () => {
+      setZuTrennen(null)
+      void queryClient.invalidateQueries({ queryKey: ['rueckkanaele'] })
+    },
+  })
+
+  // Solange niemand eine Anwendung angebunden hat, wäre eine leere Sektion
+  // eine Erklärung für etwas, das es nicht gibt.
+  if (!liste.data || liste.data.length === 0) return null
+
+  return (
+    <Section title={t('channels.callbacks')} breit>
+      <p className="text-sm text-mist-500">{t('channels.callbacksIntro')}</p>
+
+      <ul className="flex flex-col gap-2">
+        {liste.data.map((eintrag) => (
+          <li
+            key={eintrag.id}
+            className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3"
+          >
+            <span className="flex-1">
+              <span className="block text-sm font-medium text-mist-100">
+                {eintrag.person}
+                {eintrag.schluessel && (
+                  <span className="ml-2 text-xs text-mist-600">{eintrag.schluessel}</span>
+                )}
+                {!eintrag.bestaetigt && (
+                  <span className="ml-2 rounded-full bg-ink-800 px-2 py-0.5 text-xs text-mist-500">
+                    {t('channels.callbackPending')}
+                  </span>
+                )}
+              </span>
+              <span className="mt-0.5 block break-all font-mono text-xs text-mist-600">
+                {eintrag.url}
+              </span>
+              {eintrag.letzter_fehler && (
+                <span className="mt-1 block text-xs text-rose-400">
+                  {eintrag.letzter_fehler}
+                </span>
+              )}
+            </span>
+
+            <Button type="button" variant="ghost" onClick={() => setZuTrennen(eintrag)}>
+              {t('channels.callbackStop')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+
+      <ConfirmDialog
+        open={zuTrennen !== null}
+        title={t('channels.callbackStopTitle')}
+        description={t('channels.callbackStopText', { person: zuTrennen?.person ?? '' })}
+        confirmLabel={t('channels.callbackStop')}
+        loading={trennen.isPending}
+        onConfirm={() => zuTrennen && trennen.mutate(zuTrennen.id)}
+        onCancel={() => setZuTrennen(null)}
+      />
+    </Section>
+  )
+}
+
 
 function Zielverwaltung({ kanal }: { kanal: ChannelKind }) {
   const { t } = useTranslation()

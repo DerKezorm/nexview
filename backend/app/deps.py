@@ -70,7 +70,7 @@ def _mit_schluessel(
     # Schluessel mit "nur lesen" darf keine veraendernde Anfrage stellen, und
     # das muss an **einer** Stelle gelten - sonst ist die naechste Route, die
     # jemand vergisst, ein Loch.
-    if not api_schluessel.darf(eintrag, request.method):
+    if not api_schluessel.darf(eintrag, request.method, request.url.path):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=meldungen.meldung(

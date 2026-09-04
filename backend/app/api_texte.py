@@ -564,6 +564,15 @@ TEXTE: dict[str, tuple[str, str]] = {
             'can see foreign tokens but not switch them off.'
         ),
     ),
+    'DELETE /api/auth/me/schluessel/{schluessel_id}/rueckkanal': (
+        'Stop Nexview calling that integration back',
+        (
+            'The key stays valid. Only the callback address goes away, so the '
+            'integration keeps working but has to ask for changes instead of '
+            'being told about them. Use this when a Home Assistant moved or was '
+            'reinstalled and its old address no longer answers.'
+        ),
+    ),
     'POST /api/auth/me/ueberall-abmelden': (
         'Sign out everywhere',
         (
@@ -1340,6 +1349,27 @@ TEXTE: dict[str, tuple[str, str]] = {
         (
             'Only after this can the target be saved. Proves that messages actually '
             'arrive where they are supposed to.'
+        ),
+    ),
+    'GET /api/settings/channels/rueckkanaele': (
+        'See where Nexview notifies its users',
+        (
+            'One row per personal callback address that an application '
+            'registered for itself - a Home Assistant, typically. These are not '
+            'set up here and cannot be created through this API; what they '
+            'receive is whatever their owner also sees in their notification '
+            'bell, and never what belongs to somebody else. The row shows who '
+            'it belongs to, '
+            'which key registered it and the last delivery failure, but not the '
+            'messages themselves.'
+        ),
+    ),
+    'DELETE /api/settings/channels/rueckkanaele/{ziel_id}': (
+        'Disconnect a callback',
+        (
+            'Nexview stops notifying that address. The key stays valid and the '
+            'integration keeps asking on its own; to take an integration away '
+            'entirely, revoke its key instead.'
         ),
     ),
     'GET /api/settings/channels/{channel}/targets': (

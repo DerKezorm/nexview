@@ -438,13 +438,21 @@
   "channel_targets": {
     "eindeutig": [],
     "indizes": [
-      "ix_channel_targets_kanal"
+      "ix_channel_targets_api_key_id",
+      "ix_channel_targets_besitzer",
+      "ix_channel_targets_kanal",
+      "ix_channel_targets_user_id"
     ],
     "spalten": {
       "address": {
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "VARCHAR(255)"
+      },
+      "api_key_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
       },
       "auth": {
         "leer_erlaubt": false,
@@ -530,6 +538,11 @@
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "VARCHAR(255)"
+      },
+      "user_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
       },
       "username": {
         "leer_erlaubt": false,

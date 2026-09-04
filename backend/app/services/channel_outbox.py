@@ -145,6 +145,107 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
 }
 
 
+# Dieselbe Nachricht, an einen Menschen gerichtet.
+#
+# ⚠️ **Warum eine zweite Tabelle und nicht ein Platzhalter in der ersten.**
+# ``TEXTS`` oben ist eine Durchsage in ein geteiltes Postfach: "Ein Titel wurde
+# geloescht". Wer mitliest, weiss nicht, wessen Titel das war, und soll es auch
+# nicht erfahren. Ein persoenliches Ziel hat genau einen Empfaenger, und dort
+# ist derselbe Satz falsch herum - dort heisst es "Dein Titel wurde geloescht".
+#
+# Der Unterschied ist keiner, den ein Platzhalter traegt: Bei
+# ``storage_released`` meldet die Durchsage, dass ein Titel dem Haus gehoert,
+# und die persoenliche Fassung, dass wieder Platz frei ist. Das ist dasselbe
+# Ereignis aus zwei Blickwinkeln, nicht derselbe Satz mit einem anderen Wort.
+#
+# ⚠️ **Diese Tabelle ist vollstaendig, und ein Test haelt sie so.** Fehlte ein
+# Typ, verschwaende die Meldung lautlos - siehe ``_notice``, das ohne Bausteine
+# aufgibt. Wer eine ``NotificationType`` ergaenzt, ergaenzt hier zwei Zeilen.
+PERSOENLICH: dict[str, dict[NotificationType, dict[str, str]]] = {
+    "de": {
+        # --- Die eigene Anfrage --------------------------------------------
+        NotificationType.download_complete: {"title": "Dein Titel ist da"},
+        NotificationType.approved: {"title": "Deine Anfrage wurde freigegeben"},
+        NotificationType.rejected: {"title": "Deine Anfrage wurde abgelehnt"},
+        NotificationType.cancelled: {"title": "Deine Anfrage wurde storniert"},
+        NotificationType.request_deferred: {"title": "Deine Anfrage wurde zurückgestellt"},
+        NotificationType.request_fulfilled: {"title": "Dein zurückgestellter Titel ist da"},
+        # --- Als Entscheider ------------------------------------------------
+        #
+        # Hier bleibt die Personenzeile: Wer freigeben soll, muss wissen, für
+        # wen. Bei den eigenen Anfragen oben wäre sie "Angefragt von: du".
+        NotificationType.request_pending: {
+            "title": "Neue Freigabeanfrage",
+            "by": "Angefragt von",
+        },
+        NotificationType.feedback: {"title": "Neue Rückmeldung", "by": "Von"},
+        NotificationType.feedback_poor: {"title": "Schlechte Bewertung", "by": "Von"},
+        # --- Ticket und Rückmeldung -----------------------------------------
+        NotificationType.ticket_new: {"title": "Neues Ticket"},
+        NotificationType.ticket_reply: {"title": "Antwort auf dein Ticket"},
+        NotificationType.feedback_reply: {"title": "Antwort auf deine Rückmeldung"},
+        # --- Media-Server ---------------------------------------------------
+        NotificationType.user_imported: {"title": "Neues Konto über den Media-Server"},
+        NotificationType.mediaserver_reconnect: {
+            "title": "Dein Media-Server-Zugang ist abgelaufen"
+        },
+        # --- Speicher --------------------------------------------------------
+        #
+        # ⚠️ Aus der Sicht des Betroffenen, nicht aus der des Hauses: Die
+        # Durchsage meldet, dass ein Titel dem Haus gehört; hier zählt, dass
+        # wieder Platz frei ist. Wer das gleichsetzt, schreibt eine Meldung,
+        # die niemanden angeht.
+        NotificationType.storage_released: {"title": "Dein Speicher ist wieder frei"},
+        NotificationType.storage_kept: {"title": "Dein Titel bleibt, lädt aber nicht weiter"},
+        NotificationType.storage_deleted: {"title": "Dein Titel wurde gelöscht"},
+        NotificationType.storage_release_requested: {"title": "Ein Titel wurde abgegeben"},
+        NotificationType.storage_grew: {"title": "Ein Titel belegt jetzt mehr Platz"},
+        NotificationType.storage_scheduled: {"title": "Ein Titel wird bald gelöscht"},
+        NotificationType.storage_unscheduled: {"title": "Die Löschung ist zurückgenommen"},
+        # --- Vorgemerkt -------------------------------------------------------
+        NotificationType.watch_ready: {"title": "Ein vorgemerkter Titel ist da"},
+        NotificationType.watch_episodes: {"title": "Neue Folgen sind da"},
+        # --- Sonstiges --------------------------------------------------------
+        NotificationType.child_wish: {"title": "Dein Kind wünscht sich einen Titel"},
+        NotificationType.rating_outdated: {"title": "Ein bewerteter Titel wurde neu geladen"},
+        NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr meldet ein Problem"},
+    },
+    "en": {
+        NotificationType.download_complete: {"title": "Your title is ready"},
+        NotificationType.approved: {"title": "Your request was approved"},
+        NotificationType.rejected: {"title": "Your request was declined"},
+        NotificationType.cancelled: {"title": "Your request was cancelled"},
+        NotificationType.request_deferred: {"title": "Your request was deferred"},
+        NotificationType.request_fulfilled: {"title": "Your deferred title has arrived"},
+        NotificationType.request_pending: {
+            "title": "New request awaiting approval",
+            "by": "Requested by",
+        },
+        NotificationType.feedback: {"title": "New feedback", "by": "From"},
+        NotificationType.feedback_poor: {"title": "Poor rating", "by": "From"},
+        NotificationType.ticket_new: {"title": "New ticket"},
+        NotificationType.ticket_reply: {"title": "Reply to your ticket"},
+        NotificationType.feedback_reply: {"title": "Reply to your feedback"},
+        NotificationType.user_imported: {"title": "New media-server account"},
+        NotificationType.mediaserver_reconnect: {
+            "title": "Your media-server access has expired"
+        },
+        NotificationType.storage_released: {"title": "Your storage is free again"},
+        NotificationType.storage_kept: {"title": "Your title stays but stops downloading"},
+        NotificationType.storage_deleted: {"title": "Your title has been deleted"},
+        NotificationType.storage_release_requested: {"title": "A title was handed back"},
+        NotificationType.storage_grew: {"title": "A title now takes more space"},
+        NotificationType.storage_scheduled: {"title": "A title is scheduled for deletion"},
+        NotificationType.storage_unscheduled: {"title": "The deletion has been called off"},
+        NotificationType.watch_ready: {"title": "A title you were waiting for is ready"},
+        NotificationType.watch_episodes: {"title": "New episodes have arrived"},
+        NotificationType.child_wish: {"title": "Your child wishes for a title"},
+        NotificationType.rating_outdated: {"title": "A title you rated was downloaded again"},
+        NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr reports a problem"},
+    },
+}
+
+
 # Das Wort vor der Staffelnummer, je Sprache des Ziels.
 #
 # ⚠️ Ohne diesen Zusatz sind fuenf freigegebene Staffeln derselben Serie fuenf
@@ -180,9 +281,20 @@ def aktiv(target: ChannelTarget) -> bool:
 
 
 def level_of(target: ChannelTarget, typ: NotificationType) -> str | None:
-    """Wie dringend meldet dieses Ziel diesen Vorgang? ``None`` heisst: gar nicht."""
+    """Wie dringend meldet dieses Ziel diesen Vorgang? ``None`` heisst: gar nicht.
+
+    ⚠️ **Ein persoenliches Ziel hat keine Haken.** Es bekommt alles, was seinen
+    Besitzer auch in der Glocke erreicht - ausgewaehlt wird auf der anderen
+    Seite, in der Automation der Anbindung. Ein Haken hier wuerde eine dort
+    fertig gebaute Regel lautlos totlegen, und die Ursache staende in einer
+    anderen Anwendung.
+    """
+    if not target.verified or not aktiv(target):
+        return None
+    if target.user_id is not None:
+        return channels.DEFAULT_LEVEL
     name = EVENTS.get(typ)
-    if name is None or not target.verified or not aktiv(target):
+    if name is None:
         return None
     stufe = (target.events or {}).get(name)
     return stufe if stufe in channels.LEVELS else None
@@ -196,16 +308,26 @@ def enqueue(
     ticket: Ticket | None = None,
     title: str | None = None,
 ) -> list[ChannelMessage]:
-    """Ein Ereignis fuer alle interessierten Ziele vormerken. Kein ``commit``.
+    """Ein Ereignis fuer alle interessierten **Haus**-Ziele vormerken. Kein ``commit``.
 
     Genau **einmal je Ereignis und Ziel**, nicht je Empfaenger - siehe die
     Begruendung an ``ChannelMessage``.
+
+    ⚠️ **Ziele mit Besitzer bleiben hier aussen vor.** Die haengen an einem
+    Empfaenger und werden deshalb von ``enqueue_persoenlich`` bedient, das
+    ``notify.create`` fuer jede Meldung genau einmal ruft. Stuenden sie hier,
+    bekaeme jeder alles - und das Gegenteil davon ist der ganze Zweck.
     """
     if kind not in EVENTS:
         return []
 
     eintraege = []
-    for target in db.scalars(select(ChannelTarget).where(ChannelTarget.verified.is_(True))):
+    for target in db.scalars(
+        select(ChannelTarget).where(
+            ChannelTarget.verified.is_(True),
+            ChannelTarget.user_id.is_(None),
+        )
+    ):
         if level_of(target, kind) is None:
             continue
         eintrag = ChannelMessage(
@@ -229,6 +351,71 @@ def enqueue(
     return eintraege
 
 
+def ziel_von(db: Session, user_id: int) -> ChannelTarget | None:
+    """Der Rueckkanal dieses Menschen - oder ``None``.
+
+    Genau einer je Mensch: Angelegt wird er von einer Anbindung ueber
+    ``/api/v1/me/push``, und ein zweiter Aufruf ersetzt den ersten. Damit kann
+    sich an einem Konto keine Liste toter Adressen ansammeln.
+
+    ⚠️ **Ein gesperrtes Konto bekommt nichts mehr.** Wer jemanden abschaltet,
+    hat ihm den Zugang genommen; klingelte sein Home Assistant weiter, waere
+    die Sperre nur die halbe. Ueber die Verknuepfung geprueft statt beim
+    Sperren abgeraeumt: Eine Sperre wird auch zurueckgenommen, und dann soll
+    der Rueckkanal wieder da sein, ohne dass jemand neu einrichtet.
+    """
+    return db.scalars(
+        select(ChannelTarget)
+        .join(User, User.id == ChannelTarget.user_id)
+        .where(
+            ChannelTarget.user_id == user_id,
+            ChannelTarget.verified.is_(True),
+            User.is_active.is_(True),
+        )
+    ).first()
+
+
+def enqueue_persoenlich(
+    db: Session,
+    *,
+    user_id: int,
+    kind: NotificationType,
+    request: MediaRequest | None = None,
+    ticket: Ticket | None = None,
+    title: str | None = None,
+) -> ChannelMessage | None:
+    """Eine Meldung an den Rueckkanal **dieses** Menschen. Kein ``commit``.
+
+    ⚠️ **Hier wird nicht gefiltert, und das ist der Punkt.** Wer diese Funktion
+    ruft, hat gerade eine Glockenmeldung fuer genau diesen Menschen angelegt -
+    die Frage, ob sie ihn etwas angeht, ist damit schon beantwortet. Eine
+    zweite Pruefung waere eine zweite Wahrheit, und die beiden liefen
+    auseinander.
+    """
+    target = ziel_von(db, user_id)
+    if target is None or not aktiv(target):
+        return None
+
+    eintrag = ChannelMessage(
+        channel=target.channel,
+        target_id=target.id,
+        type=kind,
+        title=(
+            title
+            if title is not None
+            else (
+                request.title
+                if request is not None
+                else (ticket.subject if ticket is not None else None)
+            )
+        ),
+        request_id=request.id if request is not None else None,
+        ticket_id=ticket.id if ticket is not None else None,
+    )
+    db.add(eintrag)
+    return eintrag
+
+
 def _notice(
     db: Session,
     eintrag: ChannelMessage,
@@ -237,7 +424,10 @@ def _notice(
 ) -> channels.Notice | None:
     """Aus dem Auftrag die fertige Nachricht bauen."""
     sprache = target.language if target.language in TEXTS else "de"
-    bausteine = TEXTS[sprache].get(eintrag.type)
+    # Ein Ziel mit Besitzer bekommt die persoenliche Fassung: "Dein Titel wurde
+    # geloescht" statt "Ein Titel wurde geloescht".
+    tabelle = PERSOENLICH if target.user_id is not None else TEXTS
+    bausteine = tabelle[sprache].get(eintrag.type)
     stufe = level_of(target, eintrag.type)
     if bausteine is None or stufe is None:
         return None

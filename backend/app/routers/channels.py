@@ -17,14 +17,16 @@ Datenbank, von dem jemand *gesehen* hat, dass etwas ankommt.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from .. import meldungen
 from ..deps import AdminUser, DbSession
-from ..models import ChannelKind, ChannelTarget
+from ..models import ApiKey, ChannelKind, ChannelTarget, User
 from ..services import channel_outbox, channel_targets, channel_verify, channels
 from ..services.settings_service import load_settings
 
@@ -178,6 +180,82 @@ def _pruefe_meldungen(events: dict[str, str]) -> None:
                     level=stufe,
                 ),
             )
+
+
+class Rueckkanal(BaseModel):
+    """Ein persoenlicher Rueckkanal, wie der Betreiber ihn sieht."""
+
+    id: int
+    #: Wem er gehoert - Anzeigename, sonst Benutzername.
+    person: str
+    #: Der Name des Schluessels, ueber den er angemeldet wurde.
+    schluessel: str | None
+    url: str
+    language: str
+    bestaetigt: bool
+    angelegt: datetime
+    letzter_fehler: str | None
+
+
+@router.get("/rueckkanaele", response_model=list[Rueckkanal])
+def rueckkanaele(admin: AdminUser, db: DbSession) -> list[Rueckkanal]:
+    """Wohin Nexview seine Benutzer benachrichtigt.
+
+    ⚠️ **Ansehen und abschalten, nicht einrichten.** Diese Ziele entstehen
+    nicht hier, sondern indem eine Anbindung sie ueber ``/api/v1/me/push``
+    anmeldet - deshalb gibt es dazu kein Formular. Was es geben muss, ist
+    diese Liste: Wer einen Server betreibt, muss sehen koennen, wohin der
+    Daten schickt, und im Zweifel eine Zeile stillstellen koennen.
+
+    Bewusst **ohne** die Meldungen, die dort hingehen. Das waere ein Blick in
+    fremde Post; hier steht die Adresse, nicht ihr Inhalt.
+    """
+    ziele = db.scalars(
+        select(ChannelTarget)
+        .where(ChannelTarget.user_id.isnot(None))
+        .order_by(ChannelTarget.created_at)
+    )
+    ergebnis = []
+    for ziel in ziele:
+        besitzer = db.get(User, ziel.user_id) if ziel.user_id else None
+        schluessel = db.get(ApiKey, ziel.api_key_id) if ziel.api_key_id else None
+        gescheitert = channel_outbox.last_failure(db, ziel)
+        ergebnis.append(
+            Rueckkanal(
+                id=ziel.id,
+                person=(
+                    (besitzer.display_name or besitzer.username)
+                    if besitzer is not None
+                    else "?"
+                ),
+                schluessel=schluessel.name if schluessel is not None else None,
+                url=ziel.url,
+                language=ziel.language,
+                bestaetigt=ziel.verified,
+                angelegt=ziel.created_at,
+                letzter_fehler=(
+                    gescheitert.last_error if gescheitert is not None else None
+                ),
+            )
+        )
+    return ergebnis
+
+
+@router.delete("/rueckkanaele/{ziel_id}", status_code=status.HTTP_204_NO_CONTENT)
+def rueckkanal_abschalten(ziel_id: int, admin: AdminUser, db: DbSession) -> None:
+    """Einen fremden Rueckkanal trennen.
+
+    Der Schluessel bleibt: Wer eine Anbindung ganz loswerden will, nimmt dem
+    Besitzer den Schluessel. Hier geht nur der Weg zurueck weg.
+    """
+    ziel = db.get(ChannelTarget, ziel_id)
+    if ziel is None or ziel.user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=meldungen.meldung("channel_target_unknown", "Dieses Ziel gibt es nicht."),
+        )
+    db.delete(ziel)
+    db.commit()
 
 
 @router.get("/{channel}/targets")

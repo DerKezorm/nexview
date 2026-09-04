@@ -17,7 +17,7 @@ weiter.
 Warum klein
 -----------
 Eine Zusage ueber alle 190 Adressen waere entweder wertlos (weil sie doch
-gebrochen wird) oder teuer (weil sie jede Aufraeumarbeit blockiert). Fuenfzehn
+gebrochen wird) oder teuer (weil sie jede Aufraeumarbeit blockiert). Sechzehn
 sind wenige genug, um sie zu halten, und decken die vier Dinge ab, die man mit
 so einer Schnittstelle wirklich tut: **herausfinden was man darf, etwas
 anfragen, etwas zaehlen, etwas zeigen.**
@@ -49,24 +49,34 @@ deutsche Begruendung stehen, aussen liest ein fremder Entwickler Englisch.
 
 Der Rest der rund 190 Adressen antwortet auf ``/docs`` weiterhin deutsch. Das
 ist bekannt und bewusst so gelassen - es sind 151 Beschreibungen, und keine
-davon ist zugesagt. Wer von aussen anbindet, liest diese fuenfzehn.
+davon ist zugesagt. Wer von aussen anbindet, liest diese sechzehn.
 """
 
 from __future__ import annotations
 
 from datetime import timedelta
 
-from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
-from .. import __version__
+from .. import __version__, meldungen
 from ..deps import AdminUser, CurrentUser, DbSession, schluessel_der_anfrage
-from ..models import MediaRequest, RequestStatus, StorageEntry, TicketStatus, utcnow
+from ..models import (
+    ApiKey,
+    ChannelKind,
+    ChannelTarget,
+    MediaRequest,
+    RequestStatus,
+    StorageEntry,
+    TicketStatus,
+    utcnow,
+)
 from ..schemas_media import MediaItem, MediaPage
 from ..schemas_requests import QuotaOverview, RequestPublic
 from ..services import befunde as befunde_service
-from ..services import instanz_gesundheit, instanz_stand
+from ..services import channel_outbox, channel_verify, channels, instanz_gesundheit, instanz_stand
 from ..services import tickets as tickets_service
 from ..services.settings_service import load_settings
 from . import about as about_router
@@ -517,6 +527,300 @@ def selbstauskunft(request: Request, user: CurrentUser) -> Selbstauskunft:
     )
 
 
+class TestErgebnis(BaseModel):
+    """Hat es geklappt, und was sagt Nexview dazu."""
+
+    ok: bool
+    message: str
+
+
+#: Die Testnachricht des Rueckkanals.
+#:
+#: Der Code steht im Titel **und** in seinem eigenen Feld. Fuer einen Menschen,
+#: der zufaellig mitliest, ist der Titel der Ort; die Anbindung nimmt das Feld
+#: und muss ihn nicht aus einem uebersetzten Satz klauben.
+_PUSH_TEST: dict[str, tuple[str, str]] = {
+    "de": (
+        "Nexview: Bestätigungscode {code}",
+        "Diese Nachricht bestätigt, dass Nexview dieses Home Assistant erreicht.",
+    ),
+    "en": (
+        "Nexview: confirmation code {code}",
+        "This message confirms that Nexview can reach this Home Assistant.",
+    ),
+}
+
+
+
+# ---------------------------------------------------------------------------
+# Der eigene Rueckkanal
+# ---------------------------------------------------------------------------
+#
+# ⚠️ **Warum eine Anbindung ihr Ziel selbst anmeldet, statt dass ein Mensch es
+# eintraegt.** Benachrichtigungsziele sind in Nexview Betreibersache, und das
+# soll so bleiben: Wer eine freie Adresse eintragen darf, kann Nexview blind
+# ins Heimnetz schicken. Ein Home Assistant hat aber genau so eine Adresse -
+# es steht auf ``192.168.x.y``, und ohne Rueckkanal fehlen ihm die Ereignisse
+# vollstaendig, nicht nur ihre Geschwindigkeit.
+#
+# Der Ausweg ist diese Adresse: Sie legt **genau ein** Ziel je Schluessel an,
+# und dieses Ziel bekommt ausschliesslich, was seinen Besitzer ohnehin in der
+# Glocke erreicht. Es taucht in keiner Kanalverwaltung auf, laesst sich nicht
+# auf fremde Meldungen umstellen und stirbt mit dem Schluessel.
+#
+# Was **nicht** geprueft wird und warum: Ein Name, der auf eine
+# Metadaten-Adresse zeigt, kaeme durch. Ihn abzufangen hiesse, im Anfragepfad
+# einen DNS-Lookup zu machen - ein neuer Haenger fuer einen Schutz, den ein
+# wechselnder Eintrag ohnehin umgeht. Wer hier ansetzt, braucht bereits ein
+# Konto, und er gewinnt einen POST ohne sichtbare Antwort.
+
+
+#: Adressen, an die Nexview nicht funkt, egal wer fragt.
+#:
+#: Absichtlich kurz. Private Bereiche stehen **nicht** darin: Das Home
+#: Assistant, um das es geht, liegt selbst im Heimnetz. Was hier steht, ist der
+#: Bereich, hinter dem nie ein Empfaenger sitzt, sondern die Selbstauskunft
+#: einer Cloud-Umgebung.
+VERBOTENE_BEREICHE = ("169.254.",)
+
+
+class PushZiel(BaseModel):
+    """Wohin Nexview diese Anbindung benachrichtigen soll."""
+
+    url: str = Field(min_length=8, max_length=255)
+    #: Frei gewaehlt, steht beim Schluessel des Besitzers.
+    name: str = Field(default="Home Assistant", min_length=1, max_length=80)
+    #: In welcher Sprache die Meldungen verfasst werden.
+    language: str = Field(default="en", min_length=2, max_length=5)
+
+
+class PushCode(BaseModel):
+    code: str = Field(min_length=4, max_length=8)
+
+
+class PushStand(BaseModel):
+    """Was Nexview ueber den Rueckkanal dieses Schluessels weiss."""
+
+    #: Gibt es ueberhaupt einen?
+    eingerichtet: bool
+    #: Bestaetigt, also im Betrieb? Ein unbestaetigtes Ziel bekommt nichts.
+    bestaetigt: bool = False
+    url: str | None = None
+    name: str | None = None
+    language: str | None = None
+    #: Der letzte endgueltig gescheiterte Versand, im Klartext.
+    letzter_fehler: str | None = None
+
+
+def _push_pruefe_adresse(url: str) -> None:
+    """Nur ``http``/``https``, und nicht in die Selbstauskunft der Umgebung."""
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=meldungen.meldung(
+                "push_url_scheme",
+                "Die Adresse muss mit http:// oder https:// beginnen.",
+            ),
+        )
+    host = url.split("//", 1)[1].split("/", 1)[0].split("@")[-1]
+    if any(host.startswith(bereich) for bereich in VERBOTENE_BEREICHE):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=meldungen.meldung(
+                "push_url_gesperrt",
+                "An diesen Adressbereich verschickt Nexview nichts.",
+            ),
+        )
+
+
+def _push_ziel(db: Session, schluessel: ApiKey) -> ChannelTarget | None:
+    """Das Ziel dieses Schluessels - nicht das eines anderen desselben Kontos."""
+    return db.scalars(
+        select(ChannelTarget).where(ChannelTarget.api_key_id == schluessel.id)
+    ).first()
+
+
+def _push_schluessel(request: Request) -> ApiKey:
+    """Der Schluessel dieser Anfrage - oder ein Nein.
+
+    ⚠️ **Diese Adresse gibt es nur fuer Schluessel.** Eine angemeldete Sitzung
+    im Browser hat keinen, an dem das Ziel haengen koennte, und ein Ziel ohne
+    Sollbruchstelle waere genau das, was hier vermieden werden soll: Es liesse
+    sich nicht mehr abschalten, indem man einen Schluessel widerruft.
+    """
+    schluessel = schluessel_der_anfrage(request)
+    if schluessel is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=meldungen.meldung(
+                "push_braucht_schluessel",
+                "Diese Adresse gibt es nur für Anbindungen mit eigenem Schlüssel.",
+            ),
+        )
+    return schluessel
+
+
+@router.get(
+    "/me/push",
+    response_model=PushStand,
+    summary="Is Nexview able to notify this integration",
+    description=(
+        "Whether a callback address is registered for **this key**, and "
+        "whether it has been confirmed. An unconfirmed target receives "
+        "nothing."
+    ),
+)
+def push_stand(request: Request, user: CurrentUser, db: DbSession) -> PushStand:
+    """Was ist eingerichtet?"""
+    ziel = _push_ziel(db, _push_schluessel(request))
+    if ziel is None:
+        return PushStand(eingerichtet=False)
+    gescheitert = channel_outbox.last_failure(db, ziel)
+    return PushStand(
+        eingerichtet=True,
+        bestaetigt=ziel.verified,
+        url=ziel.url,
+        name=ziel.name,
+        language=ziel.language,
+        letzter_fehler=gescheitert.last_error if gescheitert is not None else None,
+    )
+
+
+@router.put(
+    "/me/push",
+    response_model=TestErgebnis,
+    summary="Register where Nexview should call back",
+    description=(
+        "Registers a webhook address for **this key** and immediately sends a "
+        "test message to it. That message carries a four-digit `code` in its "
+        "own field; hand it back with `POST /api/v1/me/push` to switch the "
+        "target on.\n\n"
+        "One target per key. Calling this again replaces the previous address "
+        "instead of adding a second one, so an integration can be set up twice "
+        "without leaving a dead address behind.\n\n"
+        "A key marked *read only* may use this address. It is the one "
+        "exception to that rule: what it registers concerns nobody but its own "
+        "owner, and the alternative would be to make people use a more "
+        "powerful key."
+    ),
+)
+async def push_anmelden(
+    payload: PushZiel, request: Request, user: CurrentUser, db: DbSession
+) -> TestErgebnis:
+    """Adresse eintragen und die Testnachricht verschicken."""
+    schluessel = _push_schluessel(request)
+    _push_pruefe_adresse(payload.url)
+
+    sprache = payload.language.lower()[:2]
+    if sprache not in ("de", "en"):
+        sprache = "en"
+
+    ziel = _push_ziel(db, schluessel)
+    if ziel is None:
+        ziel = ChannelTarget(
+            channel=ChannelKind.webhook,
+            name=payload.name,
+            user_id=user.id,
+            api_key_id=schluessel.id,
+        )
+        db.add(ziel)
+    ziel.url = payload.url
+    ziel.name = payload.name
+    ziel.language = sprache
+    ziel.enabled = True
+    # ⚠️ Jede Neuanmeldung faengt unbestaetigt an, auch wenn dieselbe Adresse
+    # schon einmal bestaetigt war. Sonst liesse sich ein bestaetigtes Ziel auf
+    # eine fremde Adresse umbiegen, ohne dass dort jemals jemand einen Code
+    # gelesen haette.
+    ziel.verified = False
+    db.commit()
+    db.refresh(ziel)
+
+    settings = load_settings(db)
+    config = channels.build(ChannelKind.webhook, {"url": ziel.url, "language": sprache})
+    if config is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=meldungen.meldung(
+                "push_url_unbrauchbar", "Mit dieser Adresse ließ sich nichts anfangen."
+            ),
+        )
+
+    code = channel_verify.start(
+        user.id, ChannelKind.webhook, channels.fingerprint(ChannelKind.webhook, config)
+    )
+    betreff, text = _PUSH_TEST.get(sprache, _PUSH_TEST["en"])
+    try:
+        await channels.send(
+            ChannelKind.webhook,
+            config,
+            channels.Notice(
+                title=betreff.format(code=code),
+                body=text,
+                click_url=settings.link("/") if settings.public_url else None,
+                code=code,
+            ),
+        )
+    except channels.ChannelError as fehler:
+        channel_verify.vergessen(user.id, ChannelKind.webhook)
+        return TestErgebnis(ok=False, message=fehler.message)
+
+    return TestErgebnis(ok=True, message="Test message sent. Hand back the code.")
+
+
+@router.post(
+    "/me/push",
+    response_model=TestErgebnis,
+    summary="Confirm the callback address",
+    description=(
+        "Hands back the four-digit code from the test message. Only after "
+        "this does Nexview send anything to the address."
+    ),
+)
+def push_bestaetigen(
+    payload: PushCode, request: Request, user: CurrentUser, db: DbSession
+) -> TestErgebnis:
+    """Den Code aus der Testnachricht pruefen und das Ziel scharf schalten."""
+    schluessel = _push_schluessel(request)
+    ziel = _push_ziel(db, schluessel)
+    if ziel is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=meldungen.meldung(
+                "push_nicht_eingerichtet",
+                "Für diesen Schlüssel ist keine Rückrufadresse eingetragen.",
+            ),
+        )
+
+    geklappt, begruendung = channel_verify.confirm(
+        user.id, ChannelKind.webhook, payload.code
+    )
+    if geklappt:
+        # ⚠️ Erst hier, und nur hier. Ein Ziel, dessen Code niemand gelesen
+        # hat, ist eine Adresse, von der niemand weiss, ob dort jemand sitzt.
+        ziel.verified = True
+        db.commit()
+    return TestErgebnis(ok=geklappt, message=begruendung)
+
+
+@router.delete(
+    "/me/push",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Stop calling back",
+    description=(
+        "Removes the callback address of **this key**. Nexview keeps sending "
+        "the same information, but only when the integration asks for it."
+    ),
+)
+def push_trennen(request: Request, user: CurrentUser, db: DbSession) -> None:
+    """Das Ziel abraeumen. Offene Auftraege gehen mit."""
+    ziel = _push_ziel(db, _push_schluessel(request))
+    if ziel is not None:
+        db.delete(ziel)
+        db.commit()
+
+
+
 #: ⚠️ **Die Liste, gegen die geprueft wird.** Sie steht hier und nicht im Test,
 #: damit man an einer Stelle sieht, was zugesagt ist - und damit ein neuer
 #: Eintrag eine bewusste Handlung bleibt und kein Nebeneffekt.
@@ -536,4 +840,5 @@ ZUGESAGT = (
     "/api/v1/dashboard",
     "/api/v1/health",
     "/api/v1/me",
+    "/api/v1/me/push",
 )

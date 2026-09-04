@@ -1903,7 +1903,13 @@
       "seerr_account_unknown": "Dieses Konto gibt es in Seerr nicht mehr. Lies die Vorschau neu ein.",
       "seerr_owner_in_list": "Der Besitzer steht auch in der Liste der übrigen Konten.",
       "tmdb_key_rejected": "TMDB hat diesen Schlüssel abgelehnt. Es wurde nichts geschrieben.",
-      "public_url_invalid": "Die Adresse nach außen muss mit http:// oder https:// beginnen."
+      "public_url_invalid": "Die Adresse nach außen muss mit http:// oder https:// beginnen.",
+      "push_url_scheme": "Die Adresse muss mit http:// oder https:// beginnen.",
+      "push_url_gesperrt": "An diesen Adressbereich verschickt Nexview nichts.",
+      "push_braucht_schluessel": "Diese Adresse gibt es nur für Anbindungen mit eigenem Schlüssel.",
+      "push_url_unbrauchbar": "Mit dieser Adresse ließ sich nichts anfangen.",
+      "push_nicht_eingerichtet": "Für diesen Schlüssel ist keine Rückrufadresse eingetragen.",
+      "channel_target_unknown": "Dieses Ziel gibt es nicht."
     }
   },
   "language": {
@@ -2365,7 +2371,13 @@
     "onInstanceHealth": "Instanz-Probleme",
     "onInstanceHealthHint": "Meldet, wenn Radarr oder Sonarr selbst ein Problem melden – etwa einen ausgefallenen Download-Client oder Indexer. Dann hängen alle Anfragen, und genau das soll nicht still bleiben.",
     "deleteTitle": "Ziel entfernen",
-    "confirmDeleteWarning": "Es gehen dann keine Meldungen mehr dorthin."
+    "confirmDeleteWarning": "Es gehen dann keine Meldungen mehr dorthin.",
+    "callbacks": "Rückkanäle",
+    "callbacksIntro": "Anwendungen, die sich selbst angemeldet haben, damit Nexview sie benachrichtigt. Jede bekommt nur, was ihren Besitzer angeht. Angelegt werden sie nicht hier, sondern in der jeweiligen Anwendung.",
+    "callbackPending": "noch nicht bestätigt",
+    "callbackStop": "Trennen",
+    "callbackStopTitle": "Rückkanal trennen?",
+    "callbackStopText": "Nexview benachrichtigt {{person}} dann nicht mehr über diese Adresse. Der Schlüssel bleibt gültig, und die Anwendung fragt weiterhin selbst nach."
   },
   "children": {
     "add": "Kinderkonto anlegen",
@@ -3047,7 +3059,10 @@
     "revokeTitle": "Token widerrufen",
     "revokeWarning": "Ab sofort funktioniert er nicht mehr. Alles, was ihn benutzt, bleibt draußen.",
     "lastUsed": "zuletzt {{when}}",
-    "neverUsed": "nie benutzt"
+    "neverUsed": "nie benutzt",
+    "callback": "Nexview benachrichtigt:",
+    "callbackPending": "noch nicht bestätigt",
+    "callbackStop": "Nicht mehr benachrichtigen"
   },
   "adminTokens": {
     "title": "API-Token in dieser Installation",

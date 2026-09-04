@@ -49,12 +49,17 @@ OHNE_VORAUSSETZUNG = {
     "/api/v1/me",
 }
 
-#: Warum die uebrigen vier nicht aufgerufen werden.
+#: Warum die uebrigen fuenf nicht aufgerufen werden.
 BEGRUENDUNG = {
     "/api/v1/search/{media_type}": "braucht TMDB",
     "/api/v1/media/{media_type}/{tmdb_id}": "braucht TMDB",
     "/api/v1/requests": "POST - wuerde etwas anlegen",
     "/api/v1/requests/{request_id}/cancel": "braucht eine bestehende Anfrage",
+    # ⚠️ Nicht "wird nicht geprueft", sondern "hier nicht": Diese Adresse gibt
+    # es nur fuer Schluessel, und der Client hier ist eine Browser-Sitzung.
+    # Der ganze Weg - anmelden, Code, bestaetigen, zustellen - steht in
+    # tests/test_v1_rueckkanal.py.
+    "/api/v1/me/push": "braucht einen Schluessel statt einer Sitzung (test_v1_rueckkanal)",
 }
 
 

@@ -207,7 +207,26 @@ def _nutzung_vermerken(db: Session, eintrag: ApiKey) -> None:
     db.commit()
 
 
-def darf(eintrag: ApiKey, methode: str) -> bool:
+#: Die einzige Adresse, die ein Nur-Lese-Schluessel trotzdem beschreiben darf.
+#:
+#: ⚠️ **Eine Ausnahme von der Methodenregel, und sie ist mit Bedacht genau
+#: eine.** Dahinter steht ausschliesslich der eigene Rueckkanal: Eine Anbindung
+#: meldet an, wohin Nexview *sie* benachrichtigen soll. Sie legt nichts an, was
+#: ein anderer sieht, aendert keine Anfrage, kein Konto, keine Einstellung.
+#:
+#: Warum ueberhaupt eine Ausnahme, wo der Kommentar unten vor Listen warnt:
+#: Ohne sie muesste jeder, der Ereignisse in Echtzeit will, den Haken "nur
+#: lesen" abwaehlen - und haette dann einen Schluessel, der anfragen und
+#: entscheiden darf. Der Ausweg waere also ein *maechtigerer* Schluessel im
+#: Wohnzimmer, und das ist die schlechtere Sicherheit.
+#:
+#: Wer hier etwas hinzufuegt, muss ``test_nur_lesen_ausnahme`` anfassen. Der
+#: Test kennt diese Liste beim Namen und faellt bei jeder Aenderung um -
+#: absichtlich, damit die Abwaegung oben noch einmal jemand liest.
+SCHREIBT_NUR_FUER_SICH: frozenset[str] = frozenset({"/api/v1/me/push"})
+
+
+def darf(eintrag: ApiKey, methode: str, pfad: str = "") -> bool:
     """Darf dieser Schluessel eine Anfrage mit dieser Methode stellen?
 
     ⚠️ Die Regel haengt an der HTTP-Methode, nicht an einer Liste erlaubter
@@ -215,7 +234,13 @@ def darf(eintrag: ApiKey, methode: str) -> bool:
     etwas veraendert - nachgemessen, nicht angenommen. Eine Liste muesste man
     dagegen bei jedem neuen Endpunkt pflegen, und wer das vergisst, macht ein
     Loch statt einer Sperre.
+
+    Die eine Ausnahme steht an ``SCHREIBT_NUR_FUER_SICH`` und ist dort
+    begruendet. Sie ist bewusst ein *Pfad* und keine Musterangabe: Ein
+    Sternchen waere genau die Liste, vor der der Absatz oben warnt.
     """
     if not eintrag.nur_lesen:
         return True
-    return methode.upper() in ("GET", "HEAD", "OPTIONS")
+    if methode.upper() in ("GET", "HEAD", "OPTIONS"):
+        return True
+    return pfad in SCHREIBT_NUR_FUER_SICH

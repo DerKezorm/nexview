@@ -1903,7 +1903,13 @@
       "seerr_account_unknown": "Seerr no longer has this account. Read the preview again.",
       "seerr_owner_in_list": "The owner also appears in the list of other accounts.",
       "tmdb_key_rejected": "TMDB rejected this key. Nothing has been written.",
-      "public_url_invalid": "The public address has to start with http:// or https://."
+      "public_url_invalid": "The public address has to start with http:// or https://.",
+      "push_url_scheme": "The address must start with http:// or https://.",
+      "push_url_gesperrt": "Nexview does not send anything to this address range.",
+      "push_braucht_schluessel": "This address is only for integrations with their own access key.",
+      "push_url_unbrauchbar": "That address could not be used.",
+      "push_nicht_eingerichtet": "No callback address is registered for this key.",
+      "channel_target_unknown": "There is no such target."
     }
   },
   "language": {
@@ -2365,7 +2371,13 @@
     "onInstanceHealth": "Instance problems",
     "onInstanceHealthHint": "Reports when Radarr or Sonarr themselves report a problem – a failed download client or indexer, say. All requests hang then, and that should not stay quiet.",
     "deleteTitle": "Remove target",
-    "confirmDeleteWarning": "No more messages will go there."
+    "confirmDeleteWarning": "No more messages will go there.",
+    "callbacks": "Callbacks",
+    "callbacksIntro": "Applications that registered themselves so Nexview can notify them. Each one receives only what concerns its owner. They are set up in the application, not here.",
+    "callbackPending": "not confirmed yet",
+    "callbackStop": "Disconnect",
+    "callbackStopTitle": "Disconnect this callback?",
+    "callbackStopText": "Nexview will stop notifying {{person}} at this address. The key stays valid and the application keeps asking on its own."
   },
   "children": {
     "add": "Add child account",
@@ -3047,7 +3059,10 @@
     "revokeTitle": "Revoke token",
     "revokeWarning": "It stops working immediately. Anything using it is locked out.",
     "lastUsed": "last used {{when}}",
-    "neverUsed": "never used"
+    "neverUsed": "never used",
+    "callback": "Nexview notifies:",
+    "callbackPending": "not confirmed yet",
+    "callbackStop": "Stop notifying"
   },
   "adminTokens": {
     "title": "API tokens in this installation",

@@ -1,4 +1,5 @@
 {
+  "DELETE /api/v1/me/push": [],
   "GET /api/v1/about": [
     "checked_at",
     "latest_version",
@@ -60,6 +61,14 @@
     "schluessel.name",
     "schluessel.nur_lesen",
     "version"
+  ],
+  "GET /api/v1/me/push": [
+    "bestaetigt",
+    "eingerichtet",
+    "language",
+    "letzter_fehler",
+    "name",
+    "url"
   ],
   "GET /api/v1/media/{media_type}/{tmdb_id}": [
     "backdrop_url",
@@ -234,6 +243,10 @@
   "GET /api/v1/tickets/open-count": [
     "{*}"
   ],
+  "POST /api/v1/me/push": [
+    "message",
+    "ok"
+  ],
   "POST /api/v1/requests": [
     "approved_at",
     "approved_by_name",
@@ -303,5 +316,9 @@
     "title",
     "tmdb_id",
     "trotzdem_gefragt"
+  ],
+  "PUT /api/v1/me/push": [
+    "message",
+    "ok"
   ]
 }

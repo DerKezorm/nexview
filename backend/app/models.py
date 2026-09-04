@@ -2131,7 +2131,13 @@ class ChannelTarget(Base):
     """
 
     __tablename__ = "channel_targets"
-    __table_args__ = (Index("ix_channel_targets_kanal", "channel"),)
+    __table_args__ = (
+        Index("ix_channel_targets_kanal", "channel"),
+        # Der Postausgang fragt bei jeder persoenlichen Meldung: hat dieser
+        # Mensch ein Ziel? Ohne den Index waere das ein Tabellendurchlauf je
+        # Benachrichtigung.
+        Index("ix_channel_targets_besitzer", "user_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     channel: Mapped[ChannelKind] = mapped_column(enum_column(ChannelKind), nullable=False)
@@ -2148,6 +2154,33 @@ class ChannelTarget(Base):
     # der Postausgang verweist so weiterhin auf genau eine Tabelle.
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("channel_targets.id", ondelete="CASCADE")
+    )
+
+    # ⚠️ **Wem gehoert dieses Ziel?** ``None`` heisst: dem Haus.
+    #
+    # Ein Ziel ohne Besitzer ist ein geteiltes Postfach - eine Gotify-Anwendung
+    # fuer die Entscheider, ein ntfy-Topic fuer die Familie. Was dort landet,
+    # sieht jeder, der es abonniert hat, und deshalb sind die Texte dazu als
+    # Durchsage geschrieben: Sie nennen den Titel, nie die Person.
+    #
+    # Ein Ziel **mit** Besitzer ist das Gegenteil: Es bekommt genau das, was
+    # diese eine Person auch in ihrer Glocke sieht, und der Text darf "deine
+    # Anfrage" sagen. Angelegt wird so eines nicht von Hand, sondern von einer
+    # Anbindung ueber ``/api/v1/me/push`` - deshalb steht es auch nicht in der
+    # Kanalverwaltung, sondern bei den Schluesseln des Besitzers.
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+
+    # Mit welchem Schluessel wurde es angemeldet?
+    #
+    # ⚠️ **Der Bezug ist kein Beiwerk, sondern die Sollbruchstelle.** Wer einen
+    # Schluessel widerruft, will damit eine Anbindung abschalten. Bliebe das
+    # Ziel stehen, funkte Nexview weiter an ein Home Assistant, dessen Zugang
+    # gerade gesperrt wurde - und niemand wuesste, warum dort noch etwas
+    # ankommt. ``ondelete=CASCADE`` raeumt es deshalb mit ab.
+    api_key_id: Mapped[int | None] = mapped_column(
+        ForeignKey("api_keys.id", ondelete="CASCADE"), index=True
     )
 
     url: Mapped[str] = mapped_column(String(255), default="", nullable=False)

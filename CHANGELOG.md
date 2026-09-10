@@ -28,6 +28,14 @@ tag exists for it.
   tests for this path ran as an administrator, and the one that ran as an
   approver sent the folder that doubles as the fallback.
 
+- **Approvers did not see the 4K switch when requesting.** The server lets
+  administrators and approvers request in 4K without the per-user checkbox,
+  and already showed approvers a title's 4K state together with a request
+  button. The request form, however, offered the Standard/4K switch only to
+  administrators, so an approver without the checkbox could not pick 4K
+  there, and for a title already in the standard library could not send
+  anything at all. The form now follows the same rule as the server.
+
 ---
 
 ## 0.31.1 – 05.09.2026

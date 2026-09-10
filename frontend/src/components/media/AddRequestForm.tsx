@@ -14,6 +14,7 @@ import { StaffelFolgenWaehler } from './StaffelFolgenWaehler'
 import { staffelBelegt } from './staffelbelegung'
 import { Button, ErrorBanner, Spinner } from '../ui'
 import { darfAnfragen } from '../../lib/status'
+import { darfUhdAnfragen } from '../../lib/uhd'
 
 type AddRequestFormProps = {
   item: MediaItem
@@ -70,17 +71,15 @@ export function AddRequestForm({
   // unten, nach der tier-Entscheidung).
 
   // Gibt es fuer diese Medienart ueberhaupt eine 4K-Instanz, und darf dieser
-  // Benutzer sie nutzen? Nur dann erscheint der Umschalter.
+  // Benutzer sie nutzen? Nur dann erscheint der Umschalter. Das Recht kommt
+  // aus ``darfUhdAnfragen`` - derselben Regel wie im Backend. Hier stand einmal
+  // ``role === 'admin'``, und ein Entscheider sah den 4K-Stand eines Titels,
+  // aber keinen Weg, 4K anzufragen.
   const uhdEingerichtet =
     item.media_type === 'movie'
       ? Boolean(config?.radarr_uhd_configured)
       : Boolean(config?.sonarr_uhd_configured)
-  const darfUhd =
-    user?.role === 'admin' ||
-    (item.media_type === 'movie'
-      ? Boolean(user?.can_request_uhd_movies)
-      : Boolean(user?.can_request_uhd_series))
-  const uhdMoeglich = uhdEingerichtet && darfUhd
+  const uhdMoeglich = uhdEingerichtet && darfUhdAnfragen(user, item.media_type)
 
   // Haus-Schalter: Ohne ihn gibt es keine Aufklapp-Pfeile im Wähler - alles
   // sieht aus wie vor dem Umbau, nur ganze Staffeln.

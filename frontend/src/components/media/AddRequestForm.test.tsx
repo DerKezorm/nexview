@@ -25,7 +25,7 @@ vi.mock('../../api/client', async () => {
   }
 })
 
-import { ApiError, api } from '../../api/client'
+import { ApiError, api, restoreSession } from '../../api/client'
 import type { MediaItem } from '../../api/types'
 import { rendern } from '../../test/rendern'
 import { AddRequestForm } from './AddRequestForm'
@@ -489,5 +489,55 @@ describe('Die Rückfrage, welche Serie gemeint ist', () => {
 
     await waitFor(() => expect(schicken).toHaveBeenCalledTimes(1))
     expect(screen.queryByText(/welche serie meinst du/i)).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * Wer sieht den Umschalter zwischen Standard und 4K?
+ *
+ * Der Server lässt Administratoren **und** Entscheider immer in 4K anfragen
+ * (``User.may_request_uhd``) und liefert ihnen deshalb auch den 4K-Stand der
+ * Titel. Das Formular fragte dagegen nach ``role === 'admin'``: Ein
+ * Entscheider ohne Häkchen sah „4K nicht angefragt" und einen Anfrageknopf,
+ * im Formular aber keinen Umschalter.
+ */
+describe('Der 4K-Umschalter', () => {
+  /** Angemeldet, und das Haus hat eine 4K-Instanz für Filme. */
+  function angemeldetAls(konto: Record<string, unknown>) {
+    // ``Once``: Der AuthProvider fragt beim Erscheinen genau einmal. Ein
+    // dauerhaftes ``true`` bliebe für die Tests danach stehen.
+    vi.mocked(restoreSession).mockResolvedValueOnce(true)
+    holen.mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/setup/status') {
+        return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      }
+      if (pfad === '/api/auth/me') {
+        return { id: 3, username: 'eva', language: 'de', theme: 'dark', ...konto }
+      }
+      if (pfad === '/api/config') {
+        return { radarr_configured: true, sonarr_configured: true, radarr_uhd_configured: true }
+      }
+      if (pfad.startsWith('/api/arr/')) {
+        return ARR_OPTIONEN
+      }
+      throw new Error(`Unerwartet: ${pfad}`)
+    })
+  }
+
+  it('erscheint für einen Entscheider auch ohne Häkchen – und die Anfrage geht in 4K', async () => {
+    angemeldetAls({
+      role: 'approver',
+      can_approve: true,
+      can_request_uhd_movies: false,
+      can_request_uhd_series: false,
+    })
+    rendern(<AddRequestForm item={FILM} onDone={() => {}} />)
+
+    await screen.findByRole('group', { name: 'Qualitätsstufe' })
+    await userEvent.setup().click(screen.getByRole('button', { name: '4K' }))
+    await abschicken()
+
+    await waitFor(() => expect(schicken).toHaveBeenCalledTimes(1))
+    expect(schicken.mock.calls[0][1]).toMatchObject({ tier: 'uhd' })
   })
 })

@@ -775,8 +775,9 @@ async def resolve_profile(
     gilt das vom Administrator gesetzte Profil - egal was mitgeschickt wurde.
     Ein Aufruf am Formular vorbei soll sich keines aussuchen koennen.
 
-    Administratoren waehlen immer frei; sie stellen die Vorgabe hier ein und
-    muessten sonst an die eigene Einstellung nicht mehr heran.
+    Administratoren und Entscheider waehlen immer frei: Administratoren stellen
+    die Vorgabe hier ein und muessten sonst an die eigene Einstellung nicht mehr
+    heran, Entscheider waehlen ohnehin bei jeder Freigabe.
     """
     _, bekannte = await _ziel_auswahl(settings, media_type, tier)
 
@@ -829,11 +830,13 @@ async def resolve_root_folder(
 
     standard = settings.default_root(media_type, tier)
 
-    # ``darf_frei_waehlen`` ist fuer Administratoren gesetzt. Vorher wurde ihre
-    # Wahl hier stillschweigend verworfen, obwohl die Oberflaeche ihnen sehr
-    # wohl eine Auswahl anbot und der Hinweistext "Administratoren waehlen
-    # weiterhin frei" versprach - ein Widerspruch, der niemandem auffiel, weil
-    # am Ende einfach der Standardordner benutzt wurde.
+    # ``darf_frei_waehlen`` ist fuer alle gesetzt, die freigeben duerfen. Vorher
+    # wurde die Wahl von Administratoren hier stillschweigend verworfen, obwohl
+    # die Oberflaeche ihnen sehr wohl eine Auswahl anbot und der Hinweistext
+    # "Administratoren waehlen weiterhin frei" versprach - ein Widerspruch, der
+    # niemandem auffiel, weil am Ende einfach der Standardordner benutzt wurde.
+    # Entscheidern ging es bis 0.31.1 genauso, nur bekamen sie die Auswahl
+    # schon gar nicht erst angeboten.
     if not (settings.root_folder_choice(media_type, tier) or darf_frei_waehlen):
         # Der eingestellte Ordner kann inzwischen aus Radarr/Sonarr verschwunden
         # sein - dann lieber der erste vorhandene als ein Fehlschlag beim
@@ -1550,7 +1553,7 @@ async def create_request(
             item.media_type,
             quality_profile_id,
             tier.value,
-            darf_frei_waehlen=user.is_admin,
+            darf_frei_waehlen=user.can_approve,
         )
         gesperrt = set(user.blocked_profiles(media_type, tier))
         # Sind *alle* Profile gesperrt, bliebe dem Benutzer keines uebrig und
@@ -1577,7 +1580,7 @@ async def create_request(
             item.media_type,
             root_folder_path,
             tier.value,
-            darf_frei_waehlen=user.is_admin,
+            darf_frei_waehlen=user.can_approve,
         )
     else:
         zielordner = None

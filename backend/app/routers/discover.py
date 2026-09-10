@@ -332,13 +332,16 @@ async def arr_options(
     )
 
     # Zielordner: welcher gilt, und darf der Benutzer ihn aendern?
-    # Administratoren stellen den Ordner hier ein und muessen ihn deshalb immer
-    # auswaehlen koennen - sonst kaeme man an die eigene Vorgabe nicht heran.
+    # Wer freigeben darf, waehlt immer frei. Administratoren stellen den Ordner
+    # hier ein und kaemen sonst an die eigene Vorgabe nicht heran. Entscheider
+    # waehlen bei der Freigabe ueber genau diese Listen - bekamen sie nur den
+    # Standard, lief jede Freigabe dorthin, obwohl ``apply_target`` jeden
+    # vorhandenen Ordner annimmt und die Regel "der Entscheider waehlt" hiess.
     pfade = [ordner.path for ordner in options.root_folders]
     vorgabe = settings.default_root(media_type, tier)
     options.default_root_folder = vorgabe if vorgabe in pfade else (pfade[0] if pfade else None)
-    options.root_folder_choice = settings.root_folder_choice(media_type, tier) or user.is_admin
-    options.quality_profile_choice = settings.profile_choice(media_type, tier) or user.is_admin
+    options.root_folder_choice = settings.root_folder_choice(media_type, tier) or user.can_approve
+    options.quality_profile_choice = settings.profile_choice(media_type, tier) or user.can_approve
     if not options.quality_profile_choice:
         # Nur die geltende Vorgabe ausliefern - es gibt ja nichts zu waehlen.
         options.quality_profiles = [

@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest
+from app.models import MediaRequest, Role
 from app.services import requests_service
 from app.services.settings_service import load_settings
 from tests.conftest import auth_headers, create_user
@@ -185,6 +185,38 @@ def test_admin_darf_weiterhin_waehlen(ohne_auswahl: TestClient) -> None:
     optionen = ohne_auswahl.get("/api/arr/movie/options").json()
     assert optionen["root_folder_choice"] is True
     assert len(optionen["root_folders"]) == 2
+
+
+def test_entscheider_darf_ebenfalls_waehlen(ohne_auswahl: TestClient) -> None:
+    """Wer freigeben darf, waehlt frei - nicht nur der Administrator.
+
+    Die Auswahl bei der Freigabe holt ihre Listen hier. Bekam ein Entscheider
+    ohne Admin-Rechte nur den Standard, gab er jede Anfrage dorthin frei,
+    obwohl der Server jeden vorhandenen Ordner angenommen haette.
+    """
+    create_user(ohne_auswahl, "eva", role=Role.approver)
+    entscheider = auth_headers(ohne_auswahl, "eva", "passwort-1234")
+
+    optionen = ohne_auswahl.get("/api/arr/movie/options", headers=entscheider).json()
+    assert optionen["root_folder_choice"] is True
+    assert len(optionen["root_folders"]) == 2
+
+
+def test_entscheider_waehlt_auch_beim_eigenen_anfragen(ohne_auswahl: TestClient) -> None:
+    """Die volle Liste allein genuegt nicht - der Server muss die Wahl auch nehmen.
+
+    Sonst waere es derselbe Widerspruch, den es fuer Administratoren schon
+    einmal gab: Die Oberflaeche bietet alle Ordner an, und am Ende gilt still
+    der Standard.
+    """
+    create_user(ohne_auswahl, "eva", role=Role.approver)
+    entscheider = auth_headers(ohne_auswahl, "eva", "passwort-1234")
+    titel = _erster_titel(ohne_auswahl)
+
+    # Entscheider geben sich selbst frei - also sofort an das (unerreichbare)
+    # Radarr. Angelegt ist die Anfrage trotzdem, und um ihren Ordner geht es.
+    assert _anfragen(ohne_auswahl, titel, FILME, headers=entscheider).status_code == 502
+    assert _gespeicherter_ordner(titel["tmdb_id"]) == FILME
 
 
 def test_verschwundener_standardordner_blockiert_nicht(

@@ -144,15 +144,58 @@ def test_admin_waehlt_direkt_beim_anfragen(arr_client: TestClient) -> None:
 
 
 def test_entscheider_waehlt_ebenfalls_direkt(arr_client: TestClient) -> None:
+    """Und es gilt seine Wahl, nicht bloss der Standard.
+
+    Frueher schickte dieser Test ``/data/Movies`` mit Profil 1 - und das ist
+    zugleich der Rueckfallwert. Er bestand deshalb auch, als der Server die
+    Wahl eines Entscheiders still verwarf. Hier also bewusst der *zweite*
+    Ordner und das *zweite* Profil.
+    """
     _schalter(arr_client, True)
     create_user(arr_client, "eva", role=Role.approver)
     headers = auth_headers(arr_client, "eva", "passwort-1234")
 
-    assert _anfrage(arr_client, _demo(arr_client), headers).status_code == 502
+    antwort = _anfrage(
+        arr_client,
+        _demo(arr_client),
+        headers,
+        root_folder_path="/data/TV-Shows",
+        quality_profile_id=2,
+    )
+    assert antwort.status_code == 502
 
     gespeichert = _einzige_anfrage()
     assert gespeichert.status != RequestStatus.pending_approval
-    assert gespeichert.root_folder_path == "/data/Movies"
+    assert gespeichert.root_folder_path == "/data/TV-Shows"
+    assert gespeichert.quality_profile_id == 2
+
+
+def test_entscheider_bekommt_alle_ziele_zur_auswahl(arr_client: TestClient) -> None:
+    """Die Auswahl bei der Freigabe holt ihre Listen aus ``/api/arr/.../options``.
+
+    Dort bekamen lange nur Administratoren alle Ordner und Profile. Ein
+    Entscheider ohne Admin-Rechte sah allein den Standard - und gab damit jede
+    Anfrage in den Standardordner frei, obwohl die Regel "der Entscheider
+    waehlt" hiess.
+    """
+    _schalter(arr_client, True)
+    create_user(arr_client, "eva", role=Role.approver)
+    create_user(arr_client, "kim")
+
+    fuer_entscheider = arr_client.get(
+        "/api/arr/movie/options", headers=auth_headers(arr_client, "eva", "passwort-1234")
+    ).json()
+    assert fuer_entscheider["root_folder_choice"] is True
+    assert fuer_entscheider["quality_profile_choice"] is True
+    assert len(fuer_entscheider["root_folders"]) == 2
+    assert len(fuer_entscheider["quality_profiles"]) == 2
+
+    # Der Anfragende bleibt, wo er war: fuer ihn gibt es nichts zu waehlen.
+    fuer_anfragende = arr_client.get(
+        "/api/arr/movie/options", headers=auth_headers(arr_client, "kim", "passwort-1234")
+    ).json()
+    assert fuer_anfragende["root_folder_choice"] is False
+    assert len(fuer_anfragende["root_folders"]) == 1
 
 
 # --- Die Freigabe selbst ---------------------------------------------------
@@ -212,6 +255,27 @@ def test_freigabe_setzt_das_gewaehlte_ziel(arr_client: TestClient) -> None:
     gespeichert = _anfrage_aus_db(kennung)
     assert gespeichert.root_folder_path == "/data/TV-Shows"
     assert gespeichert.quality_profile_id == 1
+
+
+def test_entscheider_setzt_das_ziel_ebenso(arr_client: TestClient) -> None:
+    """Nicht nur der Administrator: Auch ein Entscheider ohne Admin-Rechte
+    setzt bei der Freigabe ein Ziel, das nicht der Standard ist.
+
+    Haelt fest, was ``apply_target`` verspricht - wer freigeben darf, waehlt.
+    Alle anderen Freigabe-Tests hier laufen als Administrator.
+    """
+    kennung = _wartende_anfrage(arr_client)
+    create_user(arr_client, "eva", role=Role.approver)
+
+    arr_client.post(
+        f"/api/admin/requests/{kennung}/approve",
+        json={"root_folder_path": "/data/TV-Shows", "quality_profile_id": 2},
+        headers=auth_headers(arr_client, "eva", "passwort-1234"),
+    )
+
+    gespeichert = _anfrage_aus_db(kennung)
+    assert gespeichert.root_folder_path == "/data/TV-Shows"
+    assert gespeichert.quality_profile_id == 2
 
 
 # --- Sammelfreigabe --------------------------------------------------------

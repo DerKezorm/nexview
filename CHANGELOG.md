@@ -12,6 +12,24 @@ tag exists for it.
 
 ---
 
+## 0.31.2 – unreleased
+
+### Fixed
+
+- **An approver who is not an administrator could only approve into the
+  default folder.** With "the approver picks when approving" set, the approval
+  dialog showed a single folder and a single quality profile, the defaults, to
+  anyone but an administrator, so every approval landed there. The server would
+  have taken any valid choice; the list it sent just never offered one. The
+  same happened when an approver requested something themselves: the form
+  offered the default only, and a different pick sent anyway was quietly
+  replaced. Approvers now choose freely, exactly like administrators, also
+  where the operator has set a fixed folder. It slipped through because the
+  tests for this path ran as an administrator, and the one that ran as an
+  approver sent the folder that doubles as the fallback.
+
+---
+
 ## 0.31.1 – 05.09.2026
 
 A hotfix for web push: in 0.31.0 no device could subscribe, on any

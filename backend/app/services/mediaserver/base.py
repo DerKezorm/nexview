@@ -412,6 +412,22 @@ class Wiedergabe:
     tmdb_id: int | None = None
 
 
+@dataclass(frozen=True)
+class Bibliothek:
+    """Eine Bibliothek, die eine Einladung freigeben kann.
+
+    ``kennung`` ist die Nummer, die der Anbieter **beim Freigeben** erwartet,
+    und die ist nicht immer die naheliegende: plex.tv fuehrt andere Nummern als
+    der Plex-Server daheim (gemessen am 12.09.2026). Der Adapter liefert gleich
+    die richtige, damit niemand darueber es wissen muss.
+    """
+
+    kennung: str
+    name: str
+    #: Die Art im Wortlaut des Anbieters ("movies", "tvshows", "movie", "show", ...).
+    art: str = ""
+
+
 class MediaServer(ABC):
     """Was Nexview von einem Media-Server erwartet."""
 
@@ -571,6 +587,57 @@ class MediaServer(ABC):
         einen Haken anzubieten, der nichts tun kann.
         """
         return cls.watchlist is not MediaServer.watchlist
+
+    # --- Zugang aus einer Einladung -----------------------------------------
+    #
+    # Zwei Wege, weil die Anbieter zwei verschiedene Dinge sind: Jellyfin und
+    # Emby fuehren ihre Konten selbst, also legt Nexview dort eines an. Ein
+    # Plex-Konto gehoert plex.tv; dort gibt Nexview dem Konto der Person nur
+    # Bibliotheken frei. Mehr als Bibliotheken vergibt eine Einladung auf
+    # keinem der drei, weil nur das alle gleich koennen.
+
+    async def bibliotheken(self) -> list[Bibliothek]:
+        """Die Bibliotheken, die eine Einladung vergeben kann."""
+        raise NotImplementedError
+
+    async def name_vergeben(self, name: str) -> bool:
+        """Gibt es auf dem Server schon ein Konto mit diesem Namen?"""
+        raise NotImplementedError
+
+    async def konto_anlegen(
+        self, name: str, passwort: str, bibliotheken: list[str], *, konto: str | None = None
+    ) -> str:
+        """Ein Konto anlegen, das genau diese Bibliotheken sieht; liefert seine Kennung.
+
+        ⚠️ **Das Passwort geht nur an den Server** und wird nirgends aufbewahrt.
+        Ein vergebener Name scheitert mit ``mediaserver_name_taken``, bevor
+        etwas entsteht. Scheitert etwas nach dem Anlegen, traegt die Ausnahme das
+        Konto in ``zahlen["konto"]``, und der naechste Versuch gibt es als
+        ``konto`` mit, statt ein zweites anzulegen.
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def legt_konten_an(cls) -> bool:
+        """Legt Nexview bei diesem Anbieter eigene Konten an? (Jellyfin, Emby)"""
+        return cls.konto_anlegen is not MediaServer.konto_anlegen
+
+    async def freigeben(self, eingeladen: str, bibliotheken: list[str]) -> None:
+        """Einem fremden Konto Bibliotheken freigeben. (Plex)"""
+        raise NotImplementedError
+
+    async def hat_freigabe(self, konto: str) -> bool:
+        """Teilt der Server schon mit diesem Konto?"""
+        raise NotImplementedError
+
+    async def einladung_annehmen(self, gast_token: str) -> bool:
+        """Eine offene Freigabe im Namen der Person annehmen, mit ihrem Token."""
+        raise NotImplementedError
+
+    @classmethod
+    def gibt_frei(cls) -> bool:
+        """Gibt Nexview bei diesem Anbieter nur frei, statt anzulegen? (Plex)"""
+        return cls.freigeben is not MediaServer.freigeben
 
     # --- Vorbereitet, noch nicht gebaut ------------------------------------
 

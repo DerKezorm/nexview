@@ -85,6 +85,7 @@ def start_challenge(
     challenge: LoginChallenge,
     *,
     user: User | None = None,
+    einladung: int | None = None,
 ) -> str:
     """Den Vorgang vermerken und den Merkzettel fuer den Browser zurueckgeben.
 
@@ -93,8 +94,16 @@ def start_challenge(
     fuehren.
 
     Beim Verknuepfen haengt der Vorgang zusaetzlich am angemeldeten Konto, damit
-    niemand eine fremde Identitaet an ein anderes Konto haengen kann.
+    niemand eine fremde Identitaet an ein anderes Konto haengen kann. Aus dem
+    Onboarding haengt er genauso an der Einladung (``einladung``).
     """
+    daten: dict[str, object] = {
+        "provider": provider,
+        "ref": challenge.ref,
+        "code": challenge.code,
+    }
+    if einladung is not None:
+        daten["einladung"] = einladung
     roh, _ = tokens.create(
         db,
         TokenPurpose.mediaserver_login,
@@ -102,9 +111,7 @@ def start_challenge(
         # sie sogar irrefuehrend, weil die Identitaet ja erst noch kommt.
         email="",
         user=user,
-        mediaserver_ref=json.dumps(
-            {"provider": provider, "ref": challenge.ref, "code": challenge.code}
-        ),
+        mediaserver_ref=json.dumps(daten),
         # Zwei Personen, die sich gleichzeitig anmelden, duerfen einander nicht
         # gegenseitig hinauswerfen - siehe tokens.create.
         invalidate_previous=False,
@@ -604,6 +611,11 @@ def resolve(db: Session, settings: AppSettings, account: ExternalAccount) -> Use
 def _anlegen(db: Session, settings: AppSettings, account: ExternalAccount) -> User:
     """Ein neues Konto aus einer Media-Server-Anmeldung."""
     einladung = offene_einladung(db, account.email) if account.email else None
+    if einladung is not None and einladungen.nur_ueber_den_link(einladung):
+        raise KontoFehler(
+            "invite_use_link",
+            "Deine Einladung gilt über den Link in der Mail. Öffne ihn, um dein Konto anzulegen.",
+        )
 
     entfallen: list[str] = []
     if einladung is not None:

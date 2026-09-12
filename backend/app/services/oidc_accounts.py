@@ -340,6 +340,12 @@ def _anlegen(db: Session, settings: AppSettings, identitaet: OidcIdentitaet) -> 
     nicht - der Anbieter beglaubigt, *wer* jemand ist, nicht, was er darf.
     """
     einladung = _beglaubigte_einladung(db, identitaet)
+    if einladung is not None and einladungen.nur_ueber_den_link(einladung):
+        _abgewiesen(db, identitaet, "invitation grants media server access, needs the mailed link")
+        raise KontoFehler(
+            "invite_use_link",
+            "Deine Einladung gilt über den Link in der Mail. Öffne ihn, um dein Konto anzulegen.",
+        )
 
     # ⚠️ **Eine Einladung, die keiner beglaubigten Adresse gegenuebersteht,
     # faellt weg - und das war bisher stumm.** Der Betreiber hat Rolle und

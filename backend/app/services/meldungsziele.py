@@ -63,6 +63,8 @@ ZIELE: dict[NotificationType, str] = {
     # Die eingeloeste Einladung steht in der Liste unter Benutzer - samt dem,
     # was dabei nicht mehr ging.
     NotificationType.invitation_redeemed: "/admin/settings",
+    # Ebenso die angehaltene: Dort steht, an welchem Server sie haengt.
+    NotificationType.invitation_on_hold: "/admin/settings",
     # ⚠️ Korrigiert: Ueber die Glocke landete das bisher bei den eigenen
     # Anfragen. Entschieden wird eine Abgabe aber in den Einstellungen.
     NotificationType.storage_release_requested: "/admin/settings",

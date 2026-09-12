@@ -1,5 +1,5 @@
 /**
- * Einladen mit Assistent: wer, was darf die Person, was sieht sie beim Einlösen.
+ * Einladen mit Assistent: wer, wozu Zugang, was darf die Person, was sieht sie beim Einlösen.
  *
  * ⚠️ **Die Regeln stehen nicht hier.** Ob ein Haken frei ist, sagt der Server
  * (`POST /api/users/rechte/bewerten`, `services/kontorechte.py`), und zwar
@@ -7,6 +7,11 @@
  * auseinander, und der Assistent böte etwas an, das beim Anlegen anders
  * ausgeht. Das Anlegen fragt dieselbe Stelle noch einmal, das Einlösen später
  * ein drittes Mal.
+ *
+ * Dasselbe gilt für die Medienserver: Ob einer geht und welche Bibliotheken er
+ * hat, fragt der Assistent den Server (`GET /api/users/invitations/server`).
+ * Ob Nexview dort ein Konto anlegt oder nur freigibt, steht in der Antwort
+ * (`art`) und nicht in einer Liste von Anbietern hier.
  */
 
 import { useState } from 'react'
@@ -14,7 +19,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { ApiError, api } from '../../api/client'
+import { ApiError, api, uebersetzeFehler } from '../../api/client'
 import type {
   AppSettings,
   InvitationCreated,
@@ -22,13 +27,15 @@ import type {
   RechteBewertung,
   RechteWunsch,
   Role,
+  ServerAuswahl,
 } from '../../api/types'
 import { Fenster } from '../../components/Fenster'
+import { MediaServerLogo } from '../../components/MediaServerLogo'
 import { RechteHaken } from '../../components/RechteHaken'
 import { Umschalter } from '../../components/Umschalter'
 import { AUSWAHL, Button, ErrorBanner, Field, Spinner } from '../../components/ui'
 
-const SCHRITTE = ['person', 'rechte', 'onboarding', 'pruefen'] as const
+const SCHRITTE = ['person', 'zugang', 'rechte', 'onboarding', 'pruefen'] as const
 type Schritt = (typeof SCHRITTE)[number]
 
 type Grenzart = 'standard' | 'eigen' | 'unbegrenzt'
@@ -40,6 +47,10 @@ type Entwurf = RechteWunsch & {
   filme: Grenze
   serien: Grenze
   speicher: Grenze
+  /** "Nur Nexview" oder "Nexview und Medienserver". */
+  mitServern: boolean
+  /** Je gewähltem Anbieter die Kennungen der Bibliotheken. Fehlt er, ist er nicht gewählt. */
+  server: Record<string, string[]>
 }
 
 const LEER: Entwurf = {
@@ -56,6 +67,10 @@ const LEER: Entwurf = {
   filme: { art: 'standard', zahl: 0 },
   serien: { art: 'standard', zahl: 0 },
   speicher: { art: 'standard', zahl: 0 },
+  // Nichts vorgewählt, auch keine Bibliothek: Was die Person sehen darf,
+  // entscheidet der Administrator bewusst, nicht eine Vorbelegung.
+  mitServern: false,
+  server: {},
 }
 
 const ROLLEN: readonly Role[] = ['user', 'approver', 'admin']
@@ -111,6 +126,14 @@ function Erklaerung({ children }: { children: ReactNode }) {
   )
 }
 
+function Warnung({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-xs leading-relaxed text-warn-500">
+      {children}
+    </div>
+  )
+}
+
 function GrenzZeile({
   name,
   einheit,
@@ -162,6 +185,97 @@ function GrenzZeile({
   )
 }
 
+/** Ein Medienserver im Schritt „Zugang“: gesperrt mit Grund, sonst mit seinen Bibliotheken. */
+function ServerKarte({
+  eintrag,
+  gewaehlt,
+  onGewaehlt,
+  onBibliotheken,
+}: {
+  eintrag: ServerAuswahl
+  /** Die gewählten Kennungen. `undefined` heißt: Der Server ist nicht gewählt. */
+  gewaehlt: string[] | undefined
+  onGewaehlt: (an: boolean) => void
+  onBibliotheken: (kennungen: string[]) => void
+}) {
+  const { t } = useTranslation()
+  const frei = eintrag.stand.frei
+  const aktiv = frei && gewaehlt !== undefined
+  return (
+    <div
+      className={
+        'rounded-xl border p-3 ' +
+        (aktiv ? 'border-accent-500/60 bg-accent-500/10' : 'border-ink-700 bg-ink-900')
+      }
+    >
+      <label
+        className={'flex flex-wrap items-center gap-3 ' + (frei ? 'cursor-pointer' : 'cursor-not-allowed')}
+      >
+        <input
+          type="checkbox"
+          checked={aktiv}
+          disabled={!frei}
+          onChange={(ev) => onGewaehlt(ev.target.checked)}
+          className="h-4 w-4 accent-accent-500 disabled:opacity-60"
+        />
+        <MediaServerLogo
+          provider={eintrag.provider}
+          className={'h-5 w-5 ' + (frei ? 'text-ok-500' : 'text-mist-600')}
+        />
+        <span className={'text-sm font-medium ' + (frei ? 'text-mist-100' : 'text-mist-600')}>
+          {eintrag.label}
+        </span>
+        {frei && eintrag.name && <span className="text-xs text-mist-500">{eintrag.name}</span>}
+        {!frei && eintrag.stand.grund && (
+          <span className="text-xs text-mist-600">{t(`rechte.grund.${eintrag.stand.grund}`)}</span>
+        )}
+      </label>
+      {aktiv && (
+        <div className="mt-3 flex flex-col gap-2 pl-7">
+          <p className="text-xs text-mist-500">
+            {eintrag.art === 'freigabe'
+              ? t('inviteWizard.serverShareHint', { service: eintrag.label })
+              : t('inviteWizard.serverAccountHint')}
+          </p>
+          {eintrag.fehler ? (
+            <p className="text-xs text-warn-500">{uebersetzeFehler(eintrag.fehler, 502)}</p>
+          ) : eintrag.bibliotheken.length === 0 ? (
+            <p className="text-xs text-mist-600">{t('inviteWizard.serverNoLibraries')}</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {eintrag.bibliotheken.map((bibliothek) => {
+                const an = gewaehlt.includes(bibliothek.kennung)
+                return (
+                  <button
+                    key={bibliothek.kennung}
+                    type="button"
+                    aria-pressed={an}
+                    onClick={() =>
+                      onBibliotheken(
+                        an
+                          ? gewaehlt.filter((kennung) => kennung !== bibliothek.kennung)
+                          : [...gewaehlt, bibliothek.kennung],
+                      )
+                    }
+                    className={
+                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors ' +
+                      (an
+                        ? 'border-accent-500/60 bg-accent-500/15 text-accent-400'
+                        : 'border-ink-700 bg-ink-850 text-mist-500 hover:text-mist-300')
+                    }
+                  >
+                    {bibliothek.name}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Der Assistent
 // ---------------------------------------------------------------------------
@@ -173,7 +287,7 @@ export function EinladungsAssistent({
   offen: boolean
   onSchliessen: () => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [schritt, setSchritt] = useState<Schritt | 'gesendet'>('person')
   const [e, setE] = useState<Entwurf>(LEER)
@@ -210,6 +324,23 @@ export function EinladungsAssistent({
   })
   const haus = settingsQuery.data
 
+  // Welche Medienserver gehen, und welche Bibliotheken haben sie? Fragt die
+  // Server selbst, deshalb erst, wenn der Assistent offen ist.
+  const serverQuery = useQuery({
+    queryKey: ['einladung-server'],
+    queryFn: () => api.get<ServerAuswahl[]>('/api/users/invitations/server'),
+    enabled: offen,
+  })
+  const angebot = serverQuery.data ?? []
+  const gewaehlteServer = e.mitServern
+    ? angebot.filter((eintrag) => eintrag.stand.frei && e.server[eintrag.provider] !== undefined)
+    : []
+  const ohneBibliothek = gewaehlteServer.filter(
+    (eintrag) => (e.server[eintrag.provider] ?? []).length === 0,
+  )
+  const aufzaehlung = (teile: string[]) =>
+    new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(teile)
+
   const senden = useMutation({
     mutationFn: () =>
       api.post<InvitationCreated>('/api/users/invitations', {
@@ -218,6 +349,10 @@ export function EinladungsAssistent({
         quota_movies_limit: alsWert(e.filme),
         quota_series_limit: alsWert(e.serien),
         storage_limit_gb: alsWert(e.speicher),
+        server: gewaehlteServer.map((eintrag) => ({
+          provider: eintrag.provider,
+          bibliotheken: e.server[eintrag.provider] ?? [],
+        })),
       }),
     onMutate: () => setFehler(null),
     onSuccess: (angelegt) => {
@@ -238,16 +373,42 @@ export function EinladungsAssistent({
     onSchliessen()
   }
 
+  function serverWaehlen(provider: string, an: boolean) {
+    const neu = { ...e.server }
+    if (an) neu[provider] = []
+    else delete neu[provider]
+    setze({ server: neu })
+  }
+
   const index = schritt === 'gesendet' ? SCHRITTE.length : SCHRITTE.indexOf(schritt)
   const weiterErlaubt =
-    schritt === 'person' ? EMAIL.test(e.email.trim()) : b !== undefined
+    schritt === 'person'
+      ? EMAIL.test(e.email.trim())
+      : schritt === 'zugang'
+        ? !e.mitServern || (gewaehlteServer.length > 0 && ohneBibliothek.length === 0)
+        : b !== undefined
   const uhdDa = b !== undefined && b.auto_approve_uhd.grund !== 'no_uhd_instance'
   const schritteBeimEinloesen = [
     t('inviteWizard.stepWelcome'),
+    ...gewaehlteServer
+      .filter((eintrag) => eintrag.art === 'freigabe')
+      .map((eintrag) => t('inviteWizard.stepLink', { service: eintrag.label })),
     t('inviteWizard.stepAccount'),
     ...(b?.hausordnung.wirkt ? [t('inviteWizard.stepHouseRules')] : []),
     t('inviteWizard.stepDone'),
   ]
+  const zugangText = [
+    'Nexview',
+    ...gewaehlteServer.map((eintrag) =>
+      t('inviteWizard.sumAccessEntry', {
+        service: eintrag.label,
+        bibliotheken: eintrag.bibliotheken
+          .filter((bibliothek) => (e.server[eintrag.provider] ?? []).includes(bibliothek.kennung))
+          .map((bibliothek) => bibliothek.name)
+          .join(', '),
+      }),
+    ),
+  ].join(', ')
 
   function grenzText(grenze: Grenze, standard: number | null | undefined, einheit = ''): string {
     if (grenze.art === 'unbegrenzt') return t('inviteWizard.limitUnlimited')
@@ -350,7 +511,59 @@ export function EinladungsAssistent({
           </Frage>
         )}
 
-        {schritt !== 'person' && schritt !== 'gesendet' && b === undefined && (
+        {schritt === 'zugang' && (
+          <Frage titel={t('inviteWizard.zugangTitle')} unter={t('inviteWizard.zugangSub')}>
+            <Umschalter
+              wert={e.mitServern ? 'mit' : 'nur'}
+              wahl={['nur', 'mit'] as const}
+              onChange={(wahl) => setze({ mitServern: wahl === 'mit' })}
+              label={(wahl) =>
+                wahl === 'nur' ? t('inviteWizard.onlyNexview') : t('inviteWizard.withServers')
+              }
+            />
+            {e.mitServern &&
+              (serverQuery.isError ? (
+                <ErrorBanner
+                  message={
+                    serverQuery.error instanceof ApiError
+                      ? serverQuery.error.message
+                      : t('errors.generic')
+                  }
+                />
+              ) : serverQuery.data === undefined ? (
+                <p className="flex items-center gap-2 text-sm text-mist-500">
+                  <Spinner /> {t('common.loading')}
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {angebot.map((eintrag) => (
+                    <ServerKarte
+                      key={eintrag.provider}
+                      eintrag={eintrag}
+                      gewaehlt={e.server[eintrag.provider]}
+                      onGewaehlt={(an) => serverWaehlen(eintrag.provider, an)}
+                      onBibliotheken={(kennungen) =>
+                        setze({ server: { ...e.server, [eintrag.provider]: kennungen } })
+                      }
+                    />
+                  ))}
+                  {gewaehlteServer.length === 0 && (
+                    <Warnung>{t('inviteWizard.noServerChosen')}</Warnung>
+                  )}
+                  {ohneBibliothek.length > 0 && (
+                    <Warnung>
+                      {t('inviteWizard.noLibraryChosen', {
+                        services: aufzaehlung(ohneBibliothek.map((eintrag) => eintrag.label)),
+                      })}
+                    </Warnung>
+                  )}
+                  <Erklaerung>{t('inviteWizard.serverNote')}</Erklaerung>
+                </div>
+              ))}
+          </Frage>
+        )}
+
+        {schritt !== 'person' && schritt !== 'zugang' && schritt !== 'gesendet' && b === undefined && (
           <p className="flex items-center gap-2 text-sm text-mist-500">
             <Spinner /> {t('common.loading')}
           </p>
@@ -456,6 +669,8 @@ export function EinladungsAssistent({
               <dd className="break-all text-mist-100">{e.email.trim()}</dd>
               <dt className="text-mist-500">{t('inviteWizard.sumRole')}</dt>
               <dd className="text-mist-100">{t(ROLLENNAME[e.role])}</dd>
+              <dt className="text-mist-500">{t('inviteWizard.sumAccess')}</dt>
+              <dd className="text-mist-100">{zugangText}</dd>
               <dt className="text-mist-500">{t('inviteWizard.sumQuota')}</dt>
               <dd className="text-mist-100">
                 {b.kontingent.frei

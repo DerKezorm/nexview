@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from ..models import Hausordnung, Role
+from .mediaserver import PROVIDERS, verbindung_fuer
 from .settings_service import AppSettings
 
 # Warum ein Recht nicht frei ist. Die Oberflaeche uebersetzt die Kennungen.
@@ -47,6 +48,8 @@ UHD_ERST_ERLAUBEN = "uhd_needs_permission"
 KEIN_KONTINGENT = "admin_no_quota"
 KEINE_HAUSORDNUNG = "no_house_rules"
 ADMIN_NICHT_GEFRAGT = "admin_not_asked"
+# Zugang zu einem Medienserver vergibt eine Einladung nur, wenn er verbunden ist.
+SERVER_NICHT_VERBUNDEN = "server_not_connected"
 
 #: Die Schalter, die am Konto landen - in der Reihenfolge der Oberflaeche.
 SCHALTER = (
@@ -194,6 +197,19 @@ def bewerten(
         auto_approve_uhd=auto_uhd,
         hausordnung=hausordnung,
     )
+
+
+def server_stand(settings: AppSettings, provider: str) -> Stand:
+    """Kann eine Einladung auf diesem Medienserver Zugang verschaffen?
+
+    ``wirkt`` bleibt hier ``False``: Ob die Person Zugang bekommt, entscheidet
+    erst die Auswahl im Assistenten. Hier steht nur, ob es geht, und zwar fuer
+    alle drei Anbieter nach derselben Regel.
+    """
+    verbindung = verbindung_fuer(settings, provider)
+    if provider not in PROVIDERS or verbindung is None or not verbindung.nutzbar:
+        return Stand(frei=False, wirkt=False, grund=SERVER_NICHT_VERBUNDEN)
+    return Stand(frei=True, wirkt=False)
 
 
 def veroeffentlichte_hausordnung(db: Session) -> Hausordnung | None:

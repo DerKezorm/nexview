@@ -13,6 +13,7 @@ import secrets
 from typing import TYPE_CHECKING
 
 from .base import (
+    Bibliothek,
     ExternalAccount,
     LibraryItem,
     LoginChallenge,
@@ -34,6 +35,7 @@ if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
 
 __all__ = [
     "PROVIDERS",
+    "Bibliothek",
     "ExternalAccount",
     "LibraryItem",
     "LoginChallenge",

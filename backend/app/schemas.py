@@ -395,6 +395,14 @@ class RechteBewertung(BaseModel):
     entfallen: list[str]
 
 
+class ServerWunsch(BaseModel):
+    """Ein Medienserver im Einladungsassistenten, samt den gewaehlten Bibliotheken."""
+
+    provider: str = Field(min_length=1, max_length=20)
+    #: Die Kennungen aus ``GET /api/users/invitations/server``.
+    bibliotheken: list[str] = Field(default_factory=list, max_length=200)
+
+
 class InvitationCreate(RechteWunsch):
     """Einladung: der Eingeladene waehlt Benutzername und Namen selbst."""
 
@@ -402,6 +410,50 @@ class InvitationCreate(RechteWunsch):
     quota_movies_limit: Kontingentwert = "standard"
     quota_series_limit: Kontingentwert = "standard"
     storage_limit_gb: Kontingentwert = "standard"
+    #: Leer heisst "Nur Nexview".
+    server: list[ServerWunsch] = Field(default_factory=list, max_length=10)
+
+    @field_validator("server")
+    @classmethod
+    def _jeder_server_einmal(cls, wert: list[ServerWunsch]) -> list[ServerWunsch]:
+        anbieter = [eintrag.provider for eintrag in wert]
+        if len(set(anbieter)) != len(anbieter):
+            raise ValueError("Each media server can only be listed once.")
+        return wert
+
+
+class BibliothekAuswahl(BaseModel):
+    kennung: str
+    name: str
+    art: str = ""
+
+
+class ServerAuswahl(BaseModel):
+    """Ein Medienserver im Schritt "Zugang" des Einladungsassistenten."""
+
+    provider: str
+    label: str
+    #: "konto": Nexview legt dort eines an. "freigabe": Die Person bringt ihr eigenes mit.
+    art: str = "konto"
+    stand: RechteStand
+    #: Der Name des verbundenen Servers. Leer ohne Verbindung.
+    name: str = ""
+    bibliotheken: list[BibliothekAuswahl] = []
+    #: Die Bibliotheken liessen sich gerade nicht lesen.
+    fehler: dict | None = None
+
+
+class ServerZiel(BaseModel):
+    """Ein Medienserver an einer Einladung, wie die Einladungsliste ihn zeigt."""
+
+    provider: str
+    label: str
+    bibliotheken: list[str] = []
+    #: "offen", "angefangen", "fertig", "fehlt" oder "gesehen".
+    zustand: str
+    fehler: dict | None = None
+    #: Laesst sich die Freigabe mit einem Klick nachholen?
+    nachholbar: bool = False
 
 
 class InvitationPublic(BaseModel):
@@ -415,6 +467,8 @@ class InvitationPublic(BaseModel):
     konto: str | None = None
     #: Was beim Einloesen nicht mehr ging. Leer, sobald der Admin es gesehen hat.
     entfallen: list[str] = []
+    #: Die Medienserver der Einladung. Leer heisst "Nur Nexview".
+    server: list[ServerZiel] = []
 
 
 class InvitationCreated(InvitationPublic):

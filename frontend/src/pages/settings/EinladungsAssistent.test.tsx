@@ -4,7 +4,8 @@
  * ⚠️ **Geprüft wird die Anzeige, nicht die Regel.** Ob ein Haken frei ist,
  * entscheidet `services/kontorechte.py`, und das prüft das Backend. Hier geht es
  * darum, dass der Assistent die Antwort ehrlich wiedergibt: gesperrt heißt
- * gesperrt, mit Grund, und jede Änderung wird neu gefragt.
+ * gesperrt, mit Grund, und jede Änderung wird neu gefragt. Dasselbe gilt für die
+ * Medienserver im Schritt „Zugang“.
  */
 
 import { beforeEach, expect, it, vi } from 'vitest'
@@ -19,7 +20,7 @@ vi.mock('../../api/client', async () => {
 })
 
 import { api } from '../../api/client'
-import type { InvitationCreated, RechteBewertung, RechteWunsch } from '../../api/types'
+import type { InvitationCreated, RechteBewertung, RechteWunsch, ServerAuswahl } from '../../api/types'
 import { rendernSchlicht } from '../../test/rendern'
 import { EinladungsAssistent } from './EinladungsAssistent'
 
@@ -41,6 +42,31 @@ function bewertung(wunsch: Partial<RechteWunsch>, abweichend: Partial<RechteBewe
   }
 }
 
+/** Plex ist verbunden, Emby nicht. */
+const SERVER: ServerAuswahl[] = [
+  {
+    provider: 'plex',
+    label: 'Plex',
+    art: 'freigabe',
+    stand: { frei: true, wirkt: false, grund: null },
+    name: 'Wohnzimmer',
+    bibliotheken: [
+      { kennung: '11', name: 'Filme', art: 'movie' },
+      { kennung: '12', name: 'Serien', art: 'show' },
+    ],
+    fehler: null,
+  },
+  {
+    provider: 'emby',
+    label: 'Emby',
+    art: 'konto',
+    stand: { frei: false, wirkt: false, grund: 'server_not_connected' },
+    name: '',
+    bibliotheken: [],
+    fehler: null,
+  },
+]
+
 const ANGELEGT: InvitationCreated = {
   id: 1,
   email: 'neu@example.com',
@@ -50,6 +76,7 @@ const ANGELEGT: InvitationCreated = {
   eingeloest_am: null,
   konto: null,
   entfallen: [],
+  server: [],
   mail_sent: true,
   mail_error: null,
   manual_link: null,
@@ -63,6 +90,7 @@ function einrichten({
     if (pfad.startsWith('/api/settings')) {
       return Promise.resolve({ quota_default_movies: 10, quota_default_series: 5, storage_default_limit_gb: null })
     }
+    if (pfad === '/api/users/invitations/server') return Promise.resolve(SERVER)
     return Promise.resolve({})
   })
   schicken.mockImplementation((pfad: string, body?: unknown) => {
@@ -75,9 +103,17 @@ function einrichten({
   rendernSchlicht(<EinladungsAssistent offen onSchliessen={() => {}} />)
 }
 
-async function bisZuDenRechten() {
+const weiter = () => screen.getByRole('button', { name: 'Weiter' })
+
+async function bisZumZugang() {
   fireEvent.change(screen.getByLabelText('E-Mail-Adresse'), { target: { value: 'neu@example.com' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+  fireEvent.click(weiter())
+  await screen.findByText('Wozu bekommt die Person Zugang?')
+}
+
+async function bisZuDenRechten() {
+  await bisZumZugang()
+  fireEvent.click(weiter())
   await screen.findByText('Was darf die Person?')
 }
 
@@ -143,9 +179,9 @@ it('schickt die Einladung mit Rechten und Grenzen', async () => {
     expect(screen.getByRole('checkbox', { name: /Filme sofort freigeben/ })).toHaveProperty('checked', true)
   })
 
-  fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+  fireEvent.click(weiter())
   await screen.findByText('Was sieht die Person beim Einlösen?')
-  fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+  fireEvent.click(weiter())
   await screen.findByText('Alles richtig?')
   fireEvent.click(screen.getByRole('button', { name: 'Einladung senden' }))
 
@@ -159,10 +195,46 @@ it('schickt die Einladung mit Rechten und Grenzen', async () => {
         hausordnung: true,
         quota_movies_limit: 'standard',
         storage_limit_gb: 'standard',
+        // "Nur Nexview" ist die Vorgabe.
+        server: [],
       }),
     )
   })
   expect(await screen.findByText('Die Einladung an neu@example.com ist unterwegs.')).toBeTruthy()
+})
+
+it('gibt nur verbundene Server frei und schickt die gewählten Bibliotheken mit', async () => {
+  einrichten()
+  await bisZumZugang()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Nexview und Medienserver' }))
+  expect(await screen.findByRole('checkbox', { name: /Emby/ })).toHaveProperty('disabled', true)
+  expect(screen.getByText('Dieser Medienserver ist nicht verbunden.')).toBeTruthy()
+  expect(weiter()).toHaveProperty('disabled', true)
+
+  // Ein Server ohne Bibliothek hält genauso an wie gar keiner.
+  fireEvent.click(screen.getByRole('checkbox', { name: /Plex/ }))
+  expect(screen.getByText('Ohne Bibliothek sieht die Person auf Plex nichts.')).toBeTruthy()
+  expect(weiter()).toHaveProperty('disabled', true)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Serien' }))
+  expect(weiter()).toHaveProperty('disabled', false)
+  fireEvent.click(weiter())
+  await screen.findByText('Was darf die Person?')
+  fireEvent.click(weiter())
+  await screen.findByText('Was sieht die Person beim Einlösen?')
+  expect(screen.getByText('Plex verknüpfen')).toBeTruthy()
+  fireEvent.click(weiter())
+  await screen.findByText('Alles richtig?')
+  expect(screen.getByText('Nexview, Plex (Serien)')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Einladung senden' }))
+
+  await waitFor(() => {
+    expect(schicken).toHaveBeenCalledWith(
+      '/api/users/invitations',
+      expect.objectContaining({ server: [{ provider: 'plex', bibliotheken: ['12'] }] }),
+    )
+  })
 })
 
 it('gibt den Link zum Weitergeben heraus, wenn die Mail nicht rausging', async () => {
@@ -175,9 +247,9 @@ it('gibt den Link zum Weitergeben heraus, wenn die Mail nicht rausging', async (
     },
   })
   await bisZuDenRechten()
-  fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+  fireEvent.click(weiter())
   await screen.findByText('Was sieht die Person beim Einlösen?')
-  fireEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+  fireEvent.click(weiter())
   await screen.findByText('Alles richtig?')
   fireEvent.click(screen.getByRole('button', { name: 'Einladung senden' }))
 

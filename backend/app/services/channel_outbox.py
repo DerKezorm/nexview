@@ -209,6 +209,7 @@ PERSOENLICH: dict[str, dict[NotificationType, dict[str, str]]] = {
         # --- Sonstiges --------------------------------------------------------
         NotificationType.child_wish: {"title": "Dein Kind wünscht sich einen Titel"},
         NotificationType.invitation_redeemed: {"title": "Eine Einladung wurde eingelöst"},
+        NotificationType.invitation_on_hold: {"title": "Eine Einladung wartet auf dich"},
         NotificationType.rating_outdated: {"title": "Ein bewerteter Titel wurde neu geladen"},
         NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr meldet ein Problem"},
     },
@@ -243,6 +244,7 @@ PERSOENLICH: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.watch_episodes: {"title": "New episodes have arrived"},
         NotificationType.child_wish: {"title": "Your child wishes for a title"},
         NotificationType.invitation_redeemed: {"title": "An invitation was redeemed"},
+        NotificationType.invitation_on_hold: {"title": "An invitation is waiting for you"},
         NotificationType.rating_outdated: {"title": "A title you rated was downloaded again"},
         NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr reports a problem"},
     },

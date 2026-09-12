@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 
 from .. import meldungen
 from ..deps import AdminUser, AdultUser, DbSession, betreiberschutz
-from ..models import ApiKey, AuthToken, Role, TokenPurpose, User, utcnow
+from ..models import ApiKey, AuthToken, EinladungsServer, Role, TokenPurpose, User, utcnow
 from ..schemas import (
     InvitationCreate,
     InvitationCreated,
@@ -20,6 +20,7 @@ from ..schemas import (
     PasswordReset,
     RechteBewertung,
     RechteWunsch,
+    ServerAuswahl,
     UserPublic,
     UserUpdate,
     UserWithUsage,
@@ -31,6 +32,7 @@ from ..services import (
     avatars,
     child_wishes,
     children,
+    einladung_server,
     kontoaufloesung,
     kontorechte,
     mail,
@@ -357,6 +359,7 @@ def _einladung_oeffentlich(db: DbSession, token: AuthToken) -> InvitationPublic:
         eingeloest_am=token.used_at if eingeloest else None,
         konto=konto.username if konto is not None else None,
         entfallen=[name for name in token.invite_dropped.split(",") if name],
+        server=einladung_server.fuer_admin(token),
     )
 
 
@@ -392,21 +395,34 @@ def list_invitations(admin: AdminUser, db: DbSession) -> list[InvitationPublic]:
     Verbrauchte und abgelaufene interessieren sonst nicht mehr. Eine eingeloeste
     Einladung mit Hinweis bleibt stehen, bis der Administrator ihn weggenommen
     hat: Er hat etwas zugesagt, das nicht angekommen ist, und soll das nicht
-    nur aus einer Glocke erfahren, die er vielleicht nie oeffnet.
+    nur aus einer Glocke erfahren, die er vielleicht nie oeffnet. Dasselbe gilt
+    fuer einen Medienserver, der fehlt.
     """
     eintraege = db.scalars(
         select(AuthToken)
         .where(
             AuthToken.purpose == TokenPurpose.invitation,
-            AuthToken.used_at.is_(None) | (AuthToken.invite_dropped != ""),
+            AuthToken.used_at.is_(None)
+            | (AuthToken.invite_dropped != "")
+            | AuthToken.server.any(EinladungsServer.zustand == EinladungsServer.FEHLT),
         )
         .order_by(AuthToken.created_at.desc())
     )
     return [
         _einladung_oeffentlich(db, token)
         for token in eintraege
-        if token.open or token.invite_dropped
+        if token.open or token.invite_dropped or einladung_server.hat_hinweis(token)
     ]
+
+
+@router.get("/invitations/server", response_model=list[ServerAuswahl])
+async def einladung_server_auswahl(admin: AdminUser, db: DbSession) -> list[dict[str, object]]:
+    """Die Medienserver fuer den Schritt "Zugang" im Einladungsassistenten.
+
+    Alle Anbieter, auch die nicht verbundenen: Die zeigt der Assistent
+    ausgegraut mit Grund. Die Bibliotheken fragt Nexview beim Server selbst ab.
+    """
+    return await einladung_server.auswahl(load_settings(db))
 
 
 @router.post("/rechte/bewerten", response_model=RechteBewertung)
@@ -478,6 +494,14 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
             ),
         )
 
+    # Vor dem Anlegen: Scheitert ein Server, soll keine halbe Einladung entstehen.
+    try:
+        ziele = await einladung_server.ziele_pruefen(
+            settings, [(wunsch.provider, wunsch.bibliotheken) for wunsch in payload.server]
+        )
+    except einladung_server.EinladungsFehler as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
     eigen, bewertung = _bewertung(db, payload)
     # Administratoren sind nie begrenzt (``quota._limit_for``). Eine Grenze an
     # ihrer Einladung kaeme erst nach einem spaeteren Herabstufen zum Vorschein.
@@ -499,6 +523,9 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
         invite_rechte=bewertung.werte_fuers_konto(eigen),
         invite_hausordnung=bewertung.hausordnung.wirkt,
     )
+    if ziele:
+        token.server.extend(ziele)
+        db.commit()
 
     # Bewusst die Standardsprache der Installation, nicht die des einladenden
     # Admins: der Eingeladene hat noch kein Konto und damit keine eigene
@@ -518,6 +545,7 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
         expires_at=token.expires_at,
         # Wer an der Oberflaeche vorbei schickt, erfaehrt hier, was nicht gespeichert wurde.
         entfallen=bewertung.entfallen(eigen),
+        server=einladung_server.fuer_admin(token),
         mail_sent=zustellung.sent,
         mail_error=zustellung.error,
         manual_link=None if zustellung.sent else zustellung.link,
@@ -547,10 +575,16 @@ def einladungshinweis_gesehen(invitation_id: int, admin: AdminUser, db: DbSessio
 
     Damit verschwindet sie aus der Liste. Am Konto aendert sich nichts: Was
     entfallen ist, bleibt entfallen und laesst sich wie jedes Recht im
-    Kontodialog nachtragen.
+    Kontodialog nachtragen. Eine fehlende Freigabe auf einem Medienserver
+    laesst sich danach nicht mehr mit einem Klick nachholen, sondern nur noch
+    im Server selbst.
     """
     token = db.get(AuthToken, invitation_id)
-    if token is None or token.purpose != TokenPurpose.invitation or not token.invite_dropped:
+    if (
+        token is None
+        or token.purpose != TokenPurpose.invitation
+        or not (token.invite_dropped or einladung_server.hat_hinweis(token))
+    ):
         raise HTTPException(
             status_code=404,
             detail=meldungen.meldung(
@@ -559,8 +593,42 @@ def einladungshinweis_gesehen(invitation_id: int, admin: AdminUser, db: DbSessio
             ),
         )
     token.invite_dropped = ""
+    for ziel in token.server:
+        if ziel.zustand == EinladungsServer.FEHLT:
+            ziel.zustand = EinladungsServer.GESEHEN
     db.commit()
     logger.info("Invitation note for %s dismissed by %r", token.email, admin.username)
+
+
+@router.post(
+    "/invitations/{invitation_id}/server/{provider}/nachholen",
+    response_model=InvitationPublic,
+)
+async def einladung_server_nachholen(
+    invitation_id: int, provider: str, admin: AdminUser, db: DbSession
+) -> InvitationPublic:
+    """Eine gescheiterte Freigabe auf einem Medienserver noch einmal versuchen.
+
+    Nur fuer Freigaben (Plex): Ein Konto auf Jellyfin oder Emby braucht das
+    Passwort der Person, und das bewahrt Nexview nicht auf.
+    """
+    token = db.get(AuthToken, invitation_id)
+    if token is None or token.purpose != TokenPurpose.invitation:
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung("invitation_not_found", "Einladung nicht gefunden."),
+        )
+    try:
+        await einladung_server.nachholen(db, load_settings(db), token, provider)
+    except einladung_server.EinladungsFehler as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    logger.info(
+        "Share on %s for the invitation of %s retried by %r",
+        provider,
+        token.email,
+        admin.username,
+    )
+    return _einladung_oeffentlich(db, token)
 
 
 @router.patch(

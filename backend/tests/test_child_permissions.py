@@ -125,6 +125,11 @@ KINDER_ERLAUBT = {
     # Postfach; ein Kinderkonto hat keines, und eine Einladung an ein Kind
     # gibt es nicht - Kinderkonten legen die Eltern an.
     "/api/onboarding/invitation/{raw}",
+    # Dieselbe Einladung, drei Schritte darin: der Name je Server und das
+    # Verknuepfen des eigenen Kontos beim Anbieter. Ohne den Link geht keiner.
+    "/api/onboarding/invitation/{raw}/namen",
+    "/api/onboarding/invitation/{raw}/server/{provider}/start",
+    "/api/onboarding/invitation/{raw}/server/{provider}/poll",
     "/api/onboarding/password/{raw}",
     "/api/onboarding/verify/{raw}",
 }

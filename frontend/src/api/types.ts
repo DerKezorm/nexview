@@ -274,6 +274,37 @@ export type Invitation = {
   konto: string | null;
   /** Was beim Einlösen nicht mehr ging. Leer, sobald der Admin es gesehen hat. */
   entfallen: string[];
+  /** Die Medienserver der Einladung. Leer heißt „Nur Nexview“. */
+  server: ServerZiel[];
+};
+
+/** Ein Medienserver an einer Einladung, wie die Liste ihn zeigt (`services/einladung_server.py`). */
+export type ServerZiel = {
+  provider: string;
+  label: string;
+  bibliotheken: string[];
+  /** "offen", "angefangen", "fertig", "fehlt" oder "gesehen". */
+  zustand: string;
+  /** Kennung und Werte wie in jeder Fehlerantwort. */
+  fehler: Record<string, unknown> | null;
+  /** Lässt sich die Freigabe mit einem Klick nachholen? */
+  nachholbar: boolean;
+};
+
+export type BibliothekAuswahl = { kennung: string; name: string; art: string };
+
+/** Ein Medienserver im Schritt „Zugang“ des Einladungsassistenten. */
+export type ServerAuswahl = {
+  provider: string;
+  label: string;
+  /** "konto": Nexview legt dort eines an. "freigabe": Die Person bringt ihr eigenes mit. */
+  art: "konto" | "freigabe";
+  stand: RechteStand;
+  /** Der Name des verbundenen Servers. Leer ohne Verbindung. */
+  name: string;
+  bibliotheken: BibliothekAuswahl[];
+  /** Die Bibliotheken ließen sich gerade nicht lesen. */
+  fehler: Record<string, unknown> | null;
 };
 
 /** Antwort nach dem Einladen – mit Auskunft über den Mailversand. */
@@ -1593,7 +1624,8 @@ export type AppNotification = {
     | "user_imported"
     | "mediaserver_reconnect"
     | "child_wish"
-    | "invitation_redeemed";
+    | "invitation_redeemed"
+    | "invitation_on_hold";
   /** Übersetzungsschlüssel – der Text kommt aus der Oberfläche. */
   message_key: string;
   message_title: string | null;

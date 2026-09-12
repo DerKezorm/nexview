@@ -681,6 +681,79 @@
       }
     }
   },
+  "einladungs_server": {
+    "eindeutig": [
+      [
+        "provider",
+        "token_id"
+      ]
+    ],
+    "indizes": [
+      "ix_einladungs_server_token_id"
+    ],
+    "spalten": {
+      "bibliotheken": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "erledigt_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "fehler": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "konto": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "konto_email": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "konto_name": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "machine_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "provider": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "token": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
+      "token_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "zustand": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(10)"
+      }
+    }
+  },
   "favorite_people": {
     "eindeutig": [
       [

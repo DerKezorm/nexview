@@ -25,7 +25,14 @@ vi.mock('../../api/client', async () => {
 })
 
 import { api } from '../../api/client'
-import type { AppConfig, RechteBewertung, RechteStand, RechteWunsch, User } from '../../api/types'
+import type {
+  AppConfig,
+  Invitation,
+  RechteBewertung,
+  RechteStand,
+  RechteWunsch,
+  User,
+} from '../../api/types'
 import { rendern } from '../../test/rendern'
 import { AdminUsersSettings } from './AdminUsersSettings'
 
@@ -119,11 +126,16 @@ function einrichten(
   {
     abweichend = {},
     konfiguration = {},
-  }: { abweichend?: Partial<RechteBewertung>; konfiguration?: Partial<AppConfig> } = {},
+    einladungen = [],
+  }: {
+    abweichend?: Partial<RechteBewertung>
+    konfiguration?: Partial<AppConfig>
+    einladungen?: Invitation[]
+  } = {},
 ) {
   holen.mockImplementation((pfad: string) => {
     if (pfad === '/api/users') return Promise.resolve([benutzer])
-    if (pfad.startsWith('/api/users/invitations')) return Promise.resolve([])
+    if (pfad.startsWith('/api/users/invitations')) return Promise.resolve(einladungen)
     if (pfad.startsWith('/api/config')) return Promise.resolve({ ...KONFIGURATION, ...konfiguration })
     if (pfad.startsWith('/api/settings')) {
       return Promise.resolve({
@@ -152,6 +164,7 @@ function einrichten(
   })
   schicken.mockImplementation((pfad: string, body?: unknown) => {
     if (pfad === BEWERTEN) return Promise.resolve(bewertung(body as RechteWunsch, abweichend))
+    if (pfad.endsWith('/nachholen')) return Promise.resolve(einladungen[0])
     return Promise.reject(new Error(`unerwartete Adresse ${pfad}`))
   })
   rendern(<AdminUsersSettings />)
@@ -166,6 +179,43 @@ const filmeHaken = () => screen.findByRole('checkbox', { name: /Filme automatisc
 beforeEach(() => {
   holen.mockReset()
   schicken.mockReset()
+})
+
+it('holt eine gescheiterte Freigabe aus der Einladungsliste nach', async () => {
+  // Die Liste sagt, was fehlt und warum; der Knopf fragt genau diesen Server nach.
+  const einladung: Invitation = {
+    id: 3,
+    email: 'sam@example.com',
+    role: 'user',
+    created_at: '2026-09-12T10:00:00',
+    expires_at: '2026-09-19T10:00:00',
+    eingeloest_am: '2026-09-12T11:00:00',
+    konto: 'sam',
+    entfallen: [],
+    server: [
+      {
+        provider: 'plex',
+        label: 'Plex',
+        bibliotheken: ['Filme'],
+        zustand: 'fehlt',
+        fehler: { code: 'mediaserver_unreachable', message: 'plex.tv antwortet nicht.' },
+        nachholbar: true,
+      },
+    ],
+  }
+  einrichten(konto(), { einladungen: [einladung] })
+
+  expect(
+    await screen.findByText('Plex fehlt: plex.tv antwortet nicht. Gelöscht wurde nichts.'),
+  ).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Plex nachholen' }))
+
+  await waitFor(() => {
+    expect(schicken).toHaveBeenCalledWith('/api/users/invitations/3/server/plex/nachholen', {})
+  })
+  expect(
+    await screen.findByText('Plex ist nachgeholt, die Bibliotheken sind freigegeben.'),
+  ).toBeTruthy()
 })
 
 it('fragt den Server mit der Rolle aus dem Entwurf, nicht mit der gespeicherten', async () => {

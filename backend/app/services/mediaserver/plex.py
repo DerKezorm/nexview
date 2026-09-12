@@ -16,6 +16,7 @@ import httpx
 from .. import http_log
 from . import plextv
 from .base import (
+    Bibliothek,
     ExternalAccount,
     LibraryItem,
     LoginChallenge,
@@ -274,6 +275,25 @@ class PlexServer(MediaServer):
         return await plextv.has_server_access(
             self.client_identifier, provider_token, self.machine_id
         )
+
+    # --- Zugang aus einer Einladung ------------------------------------------
+    #
+    # Alles laeuft ueber plex.tv, nicht ueber den Server daheim; die Begruendung
+    # steht dort (``plextv.freigeben``).
+
+    async def bibliotheken(self) -> list[Bibliothek]:
+        return await plextv.bibliotheken(self.client_identifier, self.token, self.machine_id)
+
+    async def freigeben(self, eingeladen: str, bibliotheken: list[str]) -> None:
+        await plextv.freigeben(
+            self.client_identifier, self.token, self.machine_id, eingeladen, bibliotheken
+        )
+
+    async def hat_freigabe(self, konto: str) -> bool:
+        return await plextv.hat_freigabe(self.client_identifier, self.token, self.machine_id, konto)
+
+    async def einladung_annehmen(self, gast_token: str) -> bool:
+        return await plextv.einladung_annehmen(self.client_identifier, gast_token, self.machine_id)
 
     # --- Merkliste ----------------------------------------------------------
     #

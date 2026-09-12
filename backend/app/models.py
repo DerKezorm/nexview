@@ -258,6 +258,11 @@ class NotificationType(str, enum.Enum):
     # dabei nicht mehr ging (``AuthToken.invite_dropped``), steht in der
     # Einladungsliste; die Meldung sagt nur, dass es so etwas gibt.
     invitation_redeemed = "invitation_redeemed"
+    # Eine Einladung haengt: Das Konto, das die Person beim Medienserver
+    # verknuepfen wollte, gehoert schon zu einem Nexview-Konto. Eigener Typ, weil
+    # ``invitation_redeemed`` in den Kanaelen "eingeloest" meldet, und das
+    # stimmt hier gerade nicht.
+    invitation_on_hold = "invitation_on_hold"
 
 
 class User(Base):
@@ -1040,6 +1045,12 @@ class AuthToken(Base):
     mediaserver_ref: Mapped[str | None] = mapped_column(Text)
 
     user: Mapped[User | None] = relationship(foreign_keys=[user_id])
+    # Nur bei Einladungen: auf welchen Medienservern die Person Zugang bekommt.
+    server: Mapped[list[EinladungsServer]] = relationship(
+        back_populates="einladung",
+        cascade="all, delete-orphan",
+        order_by="EinladungsServer.id",
+    )
 
     @property
     def expired(self) -> bool:
@@ -1049,6 +1060,58 @@ class AuthToken(Base):
     def open(self) -> bool:
         """Noch einloesbar - weder verbraucht noch abgelaufen."""
         return self.used_at is None and not self.expired
+
+
+class EinladungsServer(Base):
+    """Ein Medienserver, auf dem eine Einladung Zugang verschafft.
+
+    Je Einladung und Anbieter eine Zeile. Auf Jellyfin und Emby legt Nexview
+    beim Einloesen ein Konto an, auf Plex gibt es dem Plex-Konto der Person
+    Bibliotheken frei (``services/einladung_server``).
+
+    ⚠️ **Die Zeile merkt sich, was auf dem Server schon steht.** Scheitert das
+    Einloesen halb, legt der naechste Versuch kein zweites Konto an, und der
+    Administrator sieht in der Einladungsliste, was fehlt. Geloescht wird auf
+    dem Server nie etwas.
+    """
+
+    __tablename__ = "einladungs_server"
+    __table_args__ = (UniqueConstraint("token_id", "provider", name="uq_einladungs_server"),)
+
+    OFFEN = "offen"
+    FERTIG = "fertig"
+    # Entfallen oder gescheitert. Die Einladungsliste zeigt es dem Administrator.
+    FEHLT = "fehlt"
+    # Der Administrator hat den Hinweis weggenommen, ohne nachzuholen.
+    GESEHEN = "gesehen"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_id: Mapped[int] = mapped_column(
+        ForeignKey("auth_tokens.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Der Server beim Einladen. Ist beim Einloesen ein anderer verbunden, gehoeren
+    # die Bibliotheken nicht mehr dazu.
+    machine_id: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    # JSON-Liste aus ``{"kennung": ..., "name": ...}``. Freigegeben wird nach der
+    # Kennung; der Name steht nur zur Anzeige dabei.
+    bibliotheken: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    # "offen", "fertig", "fehlt" oder "gesehen" (``services/einladung_server``).
+    zustand: Mapped[str] = mapped_column(String(10), default="offen", nullable=False)
+    # Das Konto auf dem Server: bei Jellyfin und Emby das angelegte, bei Plex das
+    # der Person bei plex.tv. Steht es bei "offen", ist es angefangen.
+    konto: Mapped[str | None] = mapped_column(String(64))
+    konto_name: Mapped[str | None] = mapped_column(String(120))
+    # Nur bei Plex: die Adresse des Plex-Kontos, an die die Freigabe geht.
+    konto_email: Mapped[str | None] = mapped_column(String(255))
+    # Nur bei Plex und nur bis zum Einloesen: das Token der Person,
+    # verschluesselt. Danach liegt es an ihrer Verknuepfung.
+    token: Mapped[str | None] = mapped_column(Text)
+    # Was zuletzt schiefging, als JSON aus Kennung und Werten.
+    fehler: Mapped[str | None] = mapped_column(Text)
+    erledigt_am: Mapped[datetime | None] = mapped_column(DateTime)
+
+    einladung: Mapped[AuthToken] = relationship(back_populates="server")
 
 
 class MediaServerBlock(Base):

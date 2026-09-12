@@ -18,7 +18,7 @@ from ..deps import DbSession
 from ..models import AuthToken, Role, TokenPurpose, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH, VerificationSent
 from ..security import hash_password, verify_password
-from ..services import accounts, anmeldebremse, einladungen, mail, tokens
+from ..services import accounts, anmeldebremse, einladung_server, einladungen, mail, tokens
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
@@ -62,6 +62,20 @@ class HausordnungSchritt(BaseModel):
     quittierbar: bool
 
 
+class ServerFuerPerson(BaseModel):
+    """Ein Medienserver, wie die eingeladene Person ihn sieht (``services/einladung_server``)."""
+
+    provider: str
+    label: str
+    #: "konto": Nexview legt dort eines an. "freigabe": Die Person verknuepft ihr eigenes.
+    art: str
+    bibliotheken: list[str] = []
+    zustand: str
+    #: Bei "freigabe" das verknuepfte Konto, bei "konto" ein schon angefangenes.
+    konto_name: str | None = None
+    fehler: dict | None = None
+
+
 class InvitationInfo(BaseModel):
     """Was das Einladungsformular anzeigen darf - mehr nicht."""
 
@@ -70,6 +84,38 @@ class InvitationInfo(BaseModel):
     #: Nur, wenn die Einladung sie zeigen soll und ein veroeffentlichter Text
     #: diese Rolle angeht (``services/kontorechte``).
     hausordnung: HausordnungSchritt | None = None
+    #: Die Medienserver, auf denen die Einladung Zugang verschafft.
+    server: list[ServerFuerPerson] = []
+
+
+class Eingeloest(BaseModel):
+    username: str
+    server: list[ServerFuerPerson] = []
+
+
+class VerknuepfenGestartet(BaseModel):
+    """Wie beim Anmelden ueber den Medienserver: PIN und Code bleiben im Backend."""
+
+    poll_token: str
+    code: str
+    auth_url: str
+
+
+class VerknuepfenAbfrage(BaseModel):
+    poll_token: str = Field(min_length=1, max_length=200)
+
+
+class VerknuepfenStand(BaseModel):
+    status: str  # "pending" | "ready"
+    konto_name: str | None = None
+
+
+class NamenStand(BaseModel):
+    """Ob der Name frei ist: bei Nexview und auf jedem Server, der ein Konto bekommt."""
+
+    nexview: bool
+    #: ``None`` heisst: Der Server hat nicht geantwortet.
+    server: dict[str, bool | None] = {}
 
 
 class AcceptInvitation(BaseModel):
@@ -297,14 +343,24 @@ def username_available(username: str, db: DbSession) -> Availability:
     return Availability(available=vergeben is None)
 
 
-@router.get("/invitation/{raw}", response_model=InvitationInfo)
-def read_invitation(raw: str, request: Request, db: DbSession) -> InvitationInfo:
+def _einladung(raw: str, request: Request, db: DbSession) -> AuthToken:
+    """Die offene Einladung zum Link, gebremst wie jede Route mit Geheimnis in der Adresse."""
     bremse = _token_bremse(request)
     token = tokens.find(db, raw, TokenPurpose.invitation)
     if token is None:
         anmeldebremse.gescheitert(bremse)
         raise HTTPException(status_code=404, detail=ABGELAUFEN)
     anmeldebremse.geklappt(bremse)
+    return token
+
+
+def _als_antwort(exc: einladung_server.EinladungsFehler) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+@router.get("/invitation/{raw}", response_model=InvitationInfo)
+def read_invitation(raw: str, request: Request, db: DbSession) -> InvitationInfo:
+    token = _einladung(raw, request, db)
     _, _, ordnung = einladungen.bewerten(db, token)
     return InvitationInfo(
         email=token.email,
@@ -316,20 +372,74 @@ def read_invitation(raw: str, request: Request, db: DbSession) -> InvitationInfo
             if ordnung is not None
             else None
         ),
+        server=einladung_server.fuer_person(token),
     )
 
 
-@router.post("/invitation/{raw}", status_code=status.HTTP_201_CREATED)
-def accept_invitation(
+@router.get("/invitation/{raw}/namen", response_model=NamenStand)
+async def namen_pruefen(raw: str, username: str, request: Request, db: DbSession) -> NamenStand:
+    """Schon waehrend der Eingabe zeigen, wo der Name frei ist.
+
+    Wie ``/username-available``, nur auch fuer die Server, auf denen die
+    Einladung ein Konto anlegt. Verraet dort nicht mehr als das Anlegen selbst.
+    """
+    token = _einladung(raw, request, db)
+    name = username.strip()
+    if len(name) < 3:
+        return NamenStand(nexview=False)
+    vergeben = db.scalar(select(User.id).where(func.lower(User.username) == name.lower()))
+    return NamenStand(
+        nexview=vergeben is None,
+        server=await einladung_server.namen_pruefen(load_settings(db), token, name),
+    )
+
+
+@router.post("/invitation/{raw}/server/{provider}/start", response_model=VerknuepfenGestartet)
+async def verknuepfen_starten(
+    raw: str, provider: str, request: Request, db: DbSession
+) -> VerknuepfenGestartet:
+    """Das eigene Konto beim Anbieter verknuepfen, fuer eine Freigabe (Plex)."""
+    token = _einladung(raw, request, db)
+    try:
+        poll_token, challenge = await einladung_server.verknuepfen_starten(
+            db, load_settings(db), token, provider
+        )
+    except einladung_server.EinladungsFehler as exc:
+        raise _als_antwort(exc) from exc
+    return VerknuepfenGestartet(
+        poll_token=poll_token, code=challenge.code, auth_url=challenge.auth_url
+    )
+
+
+@router.post("/invitation/{raw}/server/{provider}/poll", response_model=VerknuepfenStand)
+async def verknuepfen_abfragen(
+    raw: str, provider: str, payload: VerknuepfenAbfrage, request: Request, db: DbSession
+) -> VerknuepfenStand:
+    token = _einladung(raw, request, db)
+    try:
+        konto_name = await einladung_server.verknuepfen_abfragen(
+            db, load_settings(db), token, provider, payload.poll_token
+        )
+    except einladung_server.EinladungsFehler as exc:
+        raise _als_antwort(exc) from exc
+    return VerknuepfenStand(
+        status="pending" if konto_name is None else "ready", konto_name=konto_name
+    )
+
+
+@router.post("/invitation/{raw}", status_code=status.HTTP_201_CREATED, response_model=Eingeloest)
+async def accept_invitation(
     raw: str, payload: AcceptInvitation, request: Request, db: DbSession
-) -> dict[str, str]:
-    """Einladung einloesen: Konto anlegen, wie der Eingeladene es haben will."""
-    bremse = _token_bremse(request)
-    token = tokens.find(db, raw, TokenPurpose.invitation)
-    if token is None:
-        anmeldebremse.gescheitert(bremse)
-        raise HTTPException(status_code=404, detail=ABGELAUFEN)
-    anmeldebremse.geklappt(bremse)
+) -> Eingeloest:
+    """Einladung einloesen: Konto anlegen, wie der Eingeladene es haben will.
+
+    ⚠️ **Mit Medienservern in drei Schritten, und die Reihenfolge ist Absicht**
+    (``services/einladung_server``): erst die Konten auf Jellyfin und Emby,
+    solange das Passwort noch da ist, dann das Nexview-Konto, dann die
+    Freigaben auf Plex. Scheitert der erste Schritt, entsteht kein
+    Nexview-Konto, und die Einladung bleibt offen.
+    """
+    token = _einladung(raw, request, db)
 
     name = payload.username.strip()
     _pruefe_passwort(payload.password)
@@ -348,6 +458,23 @@ def accept_invitation(
             detail=meldungen.meldung(
                 "account_exists_sign_in",
                 "Zu dieser Adresse gibt es bereits ein Konto. Bitte melde dich einfach an.",
+            ),
+        )
+
+    settings = load_settings(db)
+    try:
+        einladung_server.vor_dem_anlegen(settings, token, name)
+    except einladung_server.EinladungsFehler as exc:
+        db.commit()
+        raise _als_antwort(exc) from exc
+    if not await einladung_server.konten_anlegen(db, settings, token, name, payload.password):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=meldungen.meldung(
+                "invite_server_incomplete",
+                "Nicht jedes Konto ließ sich anlegen. Deine Einladung bleibt offen, "
+                "versuch es gleich noch einmal.",
+                server=einladung_server.fuer_person(token),
             ),
         )
 
@@ -375,7 +502,7 @@ def accept_invitation(
         display_name=(payload.display_name or "").strip() or name,
         # Neue Konten starten in der Standardsprache der Installation. Umstellen
         # kann sie jeder danach jederzeit oben rechts.
-        language=load_settings(db).default_language,
+        language=settings.default_language,
         **einladungen.kontowerte(token, wunsch, bewertung),
         **entscheidung,
     )
@@ -383,8 +510,15 @@ def accept_invitation(
     tokens.consume(db, raw, TokenPurpose.invitation)
     db.flush()
 
+    freigaben = einladung_server.verknuepfen(db, token, user)
     entfallen = bewertung.entfallen(wunsch)
-    einladungen.abschliessen(db, token, user, entfallen)
+    einladungen.festhalten(token, user, entfallen)
+    db.commit()
+
+    # Erst mit festgeschriebenem Konto: Eine Freigabe, die jetzt scheitert, holt
+    # der Administrator nach, ohne dass die Person noch etwas tun muss.
+    await einladung_server.freigeben(db, settings, freigaben, user)
+    einladungen.bescheid_geben(db, token, user)
     db.commit()
 
     logger.info(
@@ -393,7 +527,7 @@ def accept_invitation(
         name,
         ", ".join(entfallen) or "nothing",
     )
-    return {"username": name}
+    return Eingeloest(username=name, server=einladung_server.fuer_person(token))
 
 
 @router.get("/password/{raw}", response_model=PasswordInfo)

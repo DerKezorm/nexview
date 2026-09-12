@@ -607,7 +607,35 @@ TEXTE: dict[str, tuple[str, str]] = {
             'anybody in. Used by the page behind the link to decide between a form and '
             'an explanation. If the invitation asks for it and the installation has '
             'published house rules, they come along, so the page can show them before '
-            'the account exists.'
+            'the account exists. So do the media servers the invitation grants access '
+            'to, with their libraries and, where the person brings an account of their '
+            'own, whether it is linked yet.'
+        ),
+    ),
+    'GET /api/onboarding/invitation/{raw}/namen': (
+        'Check a username for every account the invitation creates',
+        (
+            'Answers for Nexview and for each media server where a new account will be '
+            'created. null means that server did not answer; creating the account checks '
+            'the name again.'
+        ),
+    ),
+    'POST /api/onboarding/invitation/{raw}/server/{provider}/start': (
+        "Start linking the invited person's own media server account",
+        (
+            'Only for servers where the invitation shares libraries with an account the '
+            'person already has, which is Plex. Returns a code and a sign-in address; the '
+            "provider's PIN stays on the server. There is no access check here, because "
+            'granting access is what the invitation is for.'
+        ),
+    ),
+    'POST /api/onboarding/invitation/{raw}/server/{provider}/poll': (
+        'Check whether linking is finished',
+        (
+            'Pending until the person confirms at the provider. If that account already '
+            'belongs to a Nexview account, it stops with a conflict: the administrators '
+            'are told, the invitation stays open and nothing carries over to the existing '
+            'account.'
         ),
     ),
     'POST /api/onboarding/invitation/{raw}': (
@@ -620,7 +648,14 @@ TEXTE: dict[str, tuple[str, str]] = {
             'installation as it is now. Whatever no longer applies is left out, noted on '
             'the invitation and reported to the administrators. A decision on the house '
             'rules is recorded here as well, never through the signed-in route, because an '
-            'administrator may still be signed in within the same browser.'
+            'administrator may still be signed in within the same browser.\n\n'
+            'If the invitation grants access to media servers, accounts on Jellyfin and '
+            'Emby come first, with the same name and password, while the password is still '
+            'at hand. If one fails, no Nexview account is created, the invitation stays open '
+            'and the next attempt continues instead of creating a second account. Shares on '
+            'Plex follow once the Nexview account exists; a share that fails is noted on the '
+            'invitation for the administrator to retry. Nothing is ever deleted on a media '
+            'server.'
         ),
     ),
     'GET /api/onboarding/password/{raw}': (
@@ -738,8 +773,17 @@ TEXTE: dict[str, tuple[str, str]] = {
         'Open invitations',
         (
             'Invitations that have neither been redeemed nor expired, plus redeemed ones '
-            'where something the invitation asked for could not be carried over. Those '
-            'stay listed until the administrator dismisses the note.'
+            'where something the invitation asked for could not be carried over or a media '
+            'server is missing. Those stay listed until the administrator dismisses the note.'
+        ),
+    ),
+    'GET /api/users/invitations/server': (
+        'Media servers an invitation can grant access to',
+        (
+            'Every supported media server, connected or not, with whether an invitation can '
+            'use it right now and the libraries it can share. The libraries are read from '
+            'the server itself. Plex libraries carry the plex.tv section id, which is the '
+            'one sharing needs.'
         ),
     ),
     'POST /api/users/invitations': (
@@ -750,7 +794,10 @@ TEXTE: dict[str, tuple[str, str]] = {
             'link, without a mail server it never goes out.\n\n'
             'Besides role and limits, the invitation carries auto-approval, 4K rights and '
             'whether the house rules are shown on redemption. Only what the installation '
-            'allows at this moment is stored, and redeeming checks the same rules again.'
+            'allows at this moment is stored, and redeeming checks the same rules again.\n\n'
+            'It can also grant access to connected media servers, limited to libraries, '
+            'because that is what all three can do. The chosen libraries are checked '
+            'against the server before anything is stored.'
         ),
     ),
     'POST /api/users/rechte/bewerten': (
@@ -771,6 +818,15 @@ TEXTE: dict[str, tuple[str, str]] = {
         (
             'A redeemed invitation stays in the list while something it asked for could '
             'not be carried over. This clears that note once the administrator has seen it.'
+        ),
+    ),
+    'POST /api/users/invitations/{invitation_id}/server/{provider}/nachholen': (
+        'Retry a failed share on a media server',
+        (
+            'After redemption, a share that failed, for example because plex.tv did not '
+            'answer, stays on the invitation. This tries it again for the account that came '
+            'out of the invitation. Only shares can be retried: an account on Jellyfin or '
+            "Emby needs the person's password, which Nexview never keeps."
         ),
     ),
     'DELETE /api/users/{user_id}': (

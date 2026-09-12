@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from ..models import AuthToken, Hausordnung, NotificationType, Role, User
+from ..models import AuthToken, EinladungsServer, Hausordnung, NotificationType, Role, User
 from . import kontorechte, notify
 from .settings_service import load_settings
 
@@ -60,18 +60,46 @@ def kontowerte(
     }
 
 
+def nur_ueber_den_link(einladung: AuthToken) -> bool:
+    """Laesst sich diese Einladung nur ueber den Link in der Mail einloesen?
+
+    Sobald sie Zugang zu einem Medienserver vergibt, ja. Nur das Formular hinter
+    dem Link fragt ein Passwort fuer die neuen Konten ab und fuehrt durch das
+    Verknuepfen mit Plex. Ueber die Anmeldung mit dem Medienserver oder einem
+    Anmeldedienst entstuende das Nexview-Konto ohne diese Konten, und zwar still.
+    """
+    return bool(einladung.server)
+
+
 def abschliessen(db: Session, token: AuthToken, benutzer: User, entfallen: list[str]) -> None:
     """Festhalten, welches Konto entstand und was nicht mehr ging - und Bescheid geben.
 
     Der Aufrufer hat das Konto schon geschrieben (``flush``, damit es eine
     Nummer hat) und committet danach selbst.
     """
+    festhalten(token, benutzer, entfallen)
+    bescheid_geben(db, token, benutzer)
+
+
+def festhalten(token: AuthToken, benutzer: User, entfallen: list[str]) -> None:
+    """Welches Konto aus der Einladung wurde und welche Rechte nicht mehr gingen."""
     token.redeemed_by = benutzer.id
     token.invite_dropped = ",".join(entfallen)
+
+
+def bescheid_geben(db: Session, token: AuthToken, benutzer: User) -> None:
+    """Den Administratoren sagen, dass die Einladung eingeloest ist, und ob ganz.
+
+    Getrennt von ``festhalten``, weil das Einloesen ueber den Link erst die
+    Freigaben auf den Medienservern abwartet. Ob alles ankam, steht erst danach fest.
+    """
     titel = benutzer.display_name or benutzer.username
+    unvollstaendig = bool(token.invite_dropped) or any(
+        ziel.zustand == EinladungsServer.FEHLT for ziel in token.server
+    )
     # Zwei feste Schluessel statt eines zusammengesetzten: Nur so sieht
     # ``test_nachrichtentexte`` beide und prueft, dass es sie als Text gibt.
-    if entfallen:
+    if unvollstaendig:
         notify.create_for_admins(
             db,
             kind=NotificationType.invitation_redeemed,

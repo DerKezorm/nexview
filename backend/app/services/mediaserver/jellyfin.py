@@ -25,7 +25,9 @@ Gemessen an Jellyfin 10.11.11.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import secrets
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from hashlib import sha1
@@ -37,6 +39,7 @@ from ... import __version__
 from .. import http_log, logs
 from .base import (
     SEITE_HOECHSTENS,
+    Bibliothek,
     ExternalAccount,
     LibraryItem,
     LoginChallenge,
@@ -236,6 +239,10 @@ class JellyfinServer(MediaServer):
     label = "Jellyfin"
     login_kind = "password"
     knows_email = False
+    # Unter welcher Kennung ``Policy.EnabledFolders`` eine Bibliothek fuehrt.
+    # Gemessen an 10.11.11: eine UUID, dieselbe wie ``ItemId`` aus
+    # ``/Library/VirtualFolders`` (die API-Beschreibung nennt das Format "uuid").
+    bibliothek_kennung = "ItemId"
 
     def __init__(
         self, settings: AppSettings, verbindung: Verbindung | None = None
@@ -564,6 +571,169 @@ class JellyfinServer(MediaServer):
             for zeile in daten
             if zeile.get("Id")
         ]
+
+    # --- Zugang aus einer Einladung ------------------------------------------
+
+    async def bibliotheken(self) -> list[Bibliothek]:
+        """Die Bibliotheken des Servers, mit der Kennung fuer ``EnabledFolders``.
+
+        Aus ``/Library/VirtualFolders`` und nicht aus ``/Library/MediaFolders``:
+        Das zweite fuehrt bei Jellyfin auch die Wiedergabelisten, und die lassen
+        sich nicht wie eine Bibliothek freigeben.
+        """
+        daten = await self._anfrage("GET", "/Library/VirtualFolders") or []
+        if isinstance(daten, dict):
+            daten = daten.get("Items") or []
+        return [
+            Bibliothek(
+                kennung=str(zeile[self.bibliothek_kennung]),
+                name=str(zeile.get("Name") or ""),
+                art=str(zeile.get("CollectionType") or ""),
+            )
+            for zeile in daten
+            if isinstance(zeile, dict) and zeile.get(self.bibliothek_kennung)
+        ]
+
+    async def name_vergeben(self, name: str) -> bool:
+        """Gross- und Kleinschreibung zaehlen nicht.
+
+        Bei der Anmeldung ist "Alex" dasselbe Konto wie "alex". Ein zweites
+        Konto, das sich nur darin unterscheidet, liesse sich nie betreten.
+        """
+        gesucht = name.strip().casefold()
+        return any(
+            konto.username.casefold() == gesucht for konto in await self.list_server_users()
+        )
+
+    async def konto_anlegen(
+        self, name: str, passwort: str, bibliotheken: list[str], *, konto: str | None = None
+    ) -> str:
+        """Anlegen, sperren, Passwort setzen, freischalten, nachsehen.
+
+        ⚠️ **Die Reihenfolge ist die Sicherung.** Ein neues Jellyfin-Konto darf
+        nach der Vorgabe alle Bibliotheken sehen (``EnableAllFolders``, so stand
+        es auch am Benutzerkonto des Messservers), ein neues Emby-Konto hat noch
+        kein Passwort. Das echte Passwort kommt deshalb erst an ein gesperrtes
+        Konto und die Bibliotheken erst mit dem Freischalten. Scheitert ein
+        Schritt, bleibt das Konto gesperrt, oder es traegt ein Passwort, das
+        niemand kennt.
+
+        Steht das Konto schon, traegt die Ausnahme es in ``zahlen["konto"]``.
+        Der naechste Versuch gibt es als ``konto`` mit und legt kein zweites an.
+        Geloescht wird nichts.
+        """
+        if konto is None:
+            if await self.name_vergeben(name):
+                raise MediaServerError(
+                    f"Auf {self.label} gibt es schon ein Konto mit diesem Namen.",
+                    409,
+                    code="mediaserver_name_taken",
+                    service=self.label,
+                )
+            konto = await self._konto_erzeugen(name)
+        try:
+            await self._richtlinie_schreiben(konto, [], gesperrt=True)
+            await self._passwort_setzen(konto, passwort)
+            await self._richtlinie_schreiben(konto, bibliotheken, gesperrt=False)
+            await self._bibliotheken_pruefen(konto, bibliotheken)
+        except MediaServerError as fehler:
+            fehler.zahlen.setdefault("konto", konto)
+            raise
+        return konto
+
+    async def _konto_erzeugen(self, name: str) -> str:
+        """Mit einem Passwort, das niemand kennt und nichts aufbewahrt.
+
+        Ohne Passwort liesse sich das Konto bis zum Sperren ohne betreten, mit
+        dem echten stuende es bis dahin mit allen Bibliotheken offen.
+        """
+        daten = (
+            await self._anfrage(
+                "POST", "/Users/New", json={"Name": name, "Password": secrets.token_urlsafe(32)}
+            )
+            or {}
+        )
+        nummer = str(daten.get("Id") or "")
+        if not nummer:
+            raise MediaServerError(f"{self.label} hat beim Anlegen kein Konto genannt.")
+        return nummer
+
+    async def _passwort_setzen(self, konto: str, passwort: str) -> None:
+        """``POST /Users/Password`` aus der API-Beschreibung von 10.11.11.
+
+        ⚠️ Nicht gemessen: Ein Administrator braucht dort fuer ein fremdes Konto
+        kein altes Passwort (so steht es im ``UserController`` von Jellyfin).
+        """
+        await self._anfrage(
+            "POST",
+            "/Users/Password",
+            params={"userId": konto},
+            json={"NewPw": passwort, "ResetPassword": False},
+        )
+
+    async def _richtlinie_schreiben(
+        self, konto: str, bibliotheken: list[str], *, gesperrt: bool
+    ) -> None:
+        """Nur diese Bibliotheken, kein Administrator, sichtbar auf dem Anmeldebildschirm.
+
+        Sichtbar (``IsHidden: false``) ist eine Entscheidung vom 12.09.2026:
+        Konten aus einer Einladung stehen als Kachel auf dem Anmeldebildschirm.
+
+        Geschrieben wird die Policy **ganz**. Jellyfin verlangt dabei unter
+        anderem ``AuthenticationProviderId`` und ``PasswordResetProviderId``
+        (API-Beschreibung 10.11.11). Deshalb erst die vorhandene lesen, dann
+        aendern, dann zurueckschreiben.
+        """
+        daten = await self._anfrage("GET", f"/Users/{konto}") or {}
+        richtlinie = dict(daten.get("Policy") or {})
+        if not richtlinie:
+            raise MediaServerError(f"{self.label} nennt zu dem Konto keine Rechte.")
+        richtlinie.update(
+            {
+                "IsAdministrator": False,
+                "IsHidden": False,
+                "IsDisabled": gesperrt,
+                "EnableAllFolders": False,
+                "EnabledFolders": list(bibliotheken),
+            }
+        )
+        await self._anfrage("POST", f"/Users/{konto}/Policy", json=richtlinie)
+
+    async def _sichtbare_bibliotheken(self, konto: str) -> set[str]:
+        """Was das Konto wirklich sieht. Jellyfin 10.11 fuehrt das unter ``/UserViews``."""
+        daten = await self._anfrage("GET", "/UserViews", params={"userId": konto}) or {}
+        return {
+            str(zeile.get("Name") or "")
+            for zeile in (daten.get("Items") or [])
+            if isinstance(zeile, dict)
+        }
+
+    async def _bibliotheken_pruefen(self, konto: str, bibliotheken: list[str]) -> None:
+        """⚠️ **Nachsehen statt glauben.**
+
+        Emby fuehrt ``EnabledFolders`` als beliebige Zeichenketten. Eine Kennung
+        der falschen Sorte faellt beim Schreiben nicht auf, und das Konto saehe
+        still gar keine Bibliothek. Genauso still saehe es weniger, wenn eine
+        gewaehlte Bibliothek seit dem Einladen geloescht wurde. Verglichen wird
+        ueber den Namen, den die Bibliotheksliste und die Ansichten des Kontos
+        gleich fuehren.
+        """
+        gewuenscht = set(bibliotheken)
+        alle = await self.bibliotheken()
+        bekannt = {b.kennung for b in alle}
+        soll = {b.name for b in alle if b.kennung in gewuenscht}
+        nicht = {b.name for b in alle if b.kennung not in gewuenscht}
+        sichtbar = await self._sichtbare_bibliotheken(konto)
+        if not gewuenscht <= bekannt or not soll <= sichtbar or sichtbar & nicht:
+            # Lieber gesperrt als mit den falschen Bibliotheken offen. Klappt
+            # auch das nicht, zaehlt die erste Meldung.
+            with contextlib.suppress(MediaServerError):
+                await self._richtlinie_schreiben(konto, [], gesperrt=True)
+            raise MediaServerError(
+                f"{self.label} zeigt dem Konto andere Bibliotheken als gewählt.",
+                code="mediaserver_libraries_mismatch",
+                service=self.label,
+            )
 
     async def _seiten(
         self,

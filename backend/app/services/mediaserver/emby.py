@@ -69,6 +69,13 @@ class EmbyServer(JellyfinServer):
     login_kind = "password"
     # Nachgemessen: kein E-Mail-Feld an der Kontenliste. Siehe Kopf der Datei.
     knows_email = False
+    # ``/Library/VirtualFolders`` nennt je Bibliothek ``Guid``, ``Id`` und
+    # ``ItemId``, und die API-Beschreibung sagt zu ``EnabledFolders`` nur
+    # "string". Gemessen am 12.09.2026 an 4.9.5.0: Ein neues Konto mit einer
+    # ``Guid`` darin sieht genau diese eine Bibliothek. Liegt die Sorte in einer
+    # anderen Fassung falsch, sieht das Konto keine, und ``_bibliotheken_pruefen``
+    # meldet es und sperrt das Konto, statt es still so zu lassen.
+    bibliothek_kennung = "Guid"
 
     async def user_has_server_access(self, provider_token: str) -> bool:
         """Ein Emby-Token gilt nur auf dem Server, der es ausgestellt hat.
@@ -110,3 +117,35 @@ class EmbyServer(JellyfinServer):
             "Bitte mit Benutzername und Passwort verbinden.",
             401,
         )
+
+    # --- Zugang aus einer Einladung ------------------------------------------
+
+    async def _konto_erzeugen(self, name: str) -> str:
+        """Emby nimmt beim Anlegen kein Passwort (API-Beschreibung 4.9.5.0).
+
+        ⚠️ **Bis zum Sperren gleich danach ist das Konto ohne Passwort.** Ueber
+        die Schnittstelle geht es nicht anders. Scheitert schon das Sperren,
+        nennt ``konto_anlegen`` das Konto in der Ausnahme, damit es nicht
+        unbemerkt so stehen bleibt.
+        """
+        daten = await self._anfrage("POST", "/Users/New", json={"Name": name}) or {}
+        nummer = str(daten.get("Id") or "")
+        if not nummer:
+            raise MediaServerError(f"{self.label} hat beim Anlegen kein Konto genannt.")
+        return nummer
+
+    async def _passwort_setzen(self, konto: str, passwort: str) -> None:
+        await self._anfrage(
+            "POST",
+            f"/Users/{konto}/Password",
+            json={"Id": konto, "NewPw": passwort, "ResetPassword": False},
+        )
+
+    async def _sichtbare_bibliotheken(self, konto: str) -> set[str]:
+        """Emby fuehrt die Ansichten eines Kontos unter ``/Users/{Id}/Views``."""
+        daten = await self._anfrage("GET", f"/Users/{konto}/Views") or {}
+        return {
+            str(zeile.get("Name") or "")
+            for zeile in (daten.get("Items") or [])
+            if isinstance(zeile, dict)
+        }

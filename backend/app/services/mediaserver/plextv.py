@@ -24,6 +24,7 @@ import httpx
 
 from .base import (
     MAX_PARALLEL_REQUESTS,
+    Bibliothek,
     ExternalAccount,
     LoginChallenge,
     MediaServerError,
@@ -84,6 +85,7 @@ async def _request(
     client_identifier: str,
     token: str | None = None,
     params: dict[str, Any] | None = None,
+    json: Any = None,
     base: str = BASE_URL,
     als_text: bool = False,
 ) -> Any:
@@ -101,6 +103,7 @@ async def _request(
             f"{base}{path}",
             headers=_headers(client_identifier, token),
             params=params,
+            json=json,
         )
     except httpx.TimeoutException as exc:
         raise MediaServerError("plex.tv antwortet nicht (Zeitüberschreitung).") from exc
@@ -269,6 +272,143 @@ async def has_server_access(client_identifier: str, token: str, machine_id: str)
     if not machine_id:
         return False
     return any(kandidat.machine_id == machine_id for kandidat in await list_servers(client_identifier, token))
+
+
+# --------------------------------------------------------------------------
+# Freigaben aus einer Einladung
+#
+# Ein Plex-Konto gehoert plex.tv, nicht dem Server. Nexview legt deshalb keines
+# an, sondern gibt dem Konto der eingeladenen Person Bibliotheken frei, mit dem
+# Zugang des Eigentuemers, und nimmt die Freigabe danach mit dem Zugang der
+# Person an. Die Wege sind nicht offiziell beschrieben; sie folgen
+# python-plexapi (``MyPlexAccount.inviteFriend`` und ``acceptInvite``).
+# --------------------------------------------------------------------------
+
+
+def _xml(roh: str | None, was: str) -> ElementTree.Element | None:
+    if not roh:
+        return None
+    try:
+        return ElementTree.fromstring(roh)
+    except ElementTree.ParseError as exc:
+        raise MediaServerError(f"Die Antwort von plex.tv zu {was} ist unlesbar.") from exc
+
+
+async def bibliotheken(client_identifier: str, token: str, machine_id: str) -> list[Bibliothek]:
+    """Die Bibliotheken des Servers, mit der Nummer, die plex.tv beim Freigeben erwartet.
+
+    ⚠️ **Nicht die Nummer vom Server.** Gemessen am 12.09.2026: plex.tv fuehrt
+    dieselben Bibliotheken unter anderen Nummern (``id``) als der Server daheim
+    (``key``). Mit ``key`` freigegeben, traefe es eine andere Bibliothek oder keine.
+    """
+    roh = await _request(
+        "GET",
+        f"/api/servers/{machine_id}",
+        client_identifier=client_identifier,
+        token=token,
+        base=ACCOUNT_URL,
+        als_text=True,
+    )
+    baum = _xml(roh, "den Bibliotheken")
+    if baum is None:
+        return []
+    return [
+        Bibliothek(
+            kennung=abschnitt.get("id") or "",
+            name=abschnitt.get("title") or "",
+            art=abschnitt.get("type") or "",
+        )
+        for abschnitt in baum.iter("Section")
+        if abschnitt.get("id")
+    ]
+
+
+async def freigeben(
+    client_identifier: str, token: str, machine_id: str, eingeladen: str, bibliotheken: list[str]
+) -> None:
+    """Dem Konto hinter ``eingeladen`` (Adresse oder Name bei plex.tv) Bibliotheken freigeben.
+
+    Mehr als Bibliotheken vergibt die Einladung nicht: kein Sync, keine Kamera,
+    keine Kanaele, keine Filter. Dasselbe, was Jellyfin und Emby auch koennen.
+    """
+    await _request(
+        "POST",
+        f"/api/servers/{machine_id}/shared_servers",
+        client_identifier=client_identifier,
+        token=token,
+        base=ACCOUNT_URL,
+        als_text=True,
+        json={
+            "server_id": machine_id,
+            "shared_server": {
+                "library_section_ids": [int(nummer) for nummer in bibliotheken],
+                "invited_email": eingeladen,
+            },
+            "sharing_settings": {
+                "allowSync": "0",
+                "allowCameraUpload": "0",
+                "allowChannels": "0",
+                "filterMovies": "",
+                "filterTelevision": "",
+                "filterMusic": "",
+            },
+        },
+    )
+
+
+async def hat_freigabe(client_identifier: str, token: str, machine_id: str, konto: str) -> bool:
+    """Teilt der Server schon mit diesem plex.tv-Konto?"""
+    roh = await _request(
+        "GET",
+        f"/api/servers/{machine_id}/shared_servers",
+        client_identifier=client_identifier,
+        token=token,
+        base=ACCOUNT_URL,
+        als_text=True,
+    )
+    baum = _xml(roh, "den Freigaben")
+    if baum is None:
+        return False
+    return any(freigabe.get("userID") == konto for freigabe in baum.iter("SharedServer"))
+
+
+async def einladung_annehmen(client_identifier: str, gast_token: str, machine_id: str) -> bool:
+    """Die offene Freigabe fuer diesen Server im Namen der Person annehmen.
+
+    Mit **ihrem** Token aus dem Verknuepfen im Onboarding. Sonst muesste sie die
+    Einladung erst selbst bei Plex bestaetigen, bevor der Server ihr etwas
+    zeigt. ``False`` heisst: keine offene Einladung fuer diesen Server gefunden,
+    etwa weil sie schon angenommen ist.
+    """
+    roh = await _request(
+        "GET",
+        "/api/invites/requests",
+        client_identifier=client_identifier,
+        token=gast_token,
+        base=ACCOUNT_URL,
+        als_text=True,
+    )
+    baum = _xml(roh, "den Einladungen")
+    if baum is None:
+        return False
+    for einladung in baum.iter("Invite"):
+        if machine_id not in {server.get("machineIdentifier") for server in einladung.iter("Server")}:
+            continue
+        schalter = {
+            art: "1" if einladung.get(art) in ("1", "true") else "0"
+            for art in ("friend", "home", "server")
+        }
+        await _request(
+            "PUT",
+            f"/api/invites/requests/{einladung.get('id')}",
+            client_identifier=client_identifier,
+            token=gast_token,
+            base=ACCOUNT_URL,
+            params=schalter,
+            als_text=True,
+        )
+        return True
+    return False
 
 
 # --------------------------------------------------------------------------

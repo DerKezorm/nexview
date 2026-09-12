@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ApiError, api } from "../../api/client";
+import { ApiError, api, uebersetzeFehler } from "../../api/client";
 import type {
   AppSettings,
   ArrOptions,
@@ -270,6 +270,26 @@ export function AdminUsersSettings() {
     },
     onMutate: resetMessages,
     onError: (caught) => fail(caught, t("errors.generic")),
+  });
+
+  // Eine gescheiterte Freigabe auf einem Medienserver noch einmal versuchen.
+  // Scheitert es wieder, zeigt die neu geladene Liste den neuen Grund.
+  const nachholenMutation = useMutation({
+    mutationFn: ({ id, provider }: { id: number; provider: string; label: string }) =>
+      api.post<Invitation>(
+        `/api/users/invitations/${id}/server/${provider}/nachholen`,
+        {},
+      ),
+    onMutate: resetMessages,
+    onSuccess: (_antwort, { label }) => {
+      setError(null);
+      setMessage(t("inviteWizard.retryDone", { service: label }));
+      refresh();
+    },
+    onError: (caught) => {
+      fail(caught, t("errors.generic"));
+      refresh();
+    },
   });
 
   const withdrawMutation = useMutation({
@@ -662,12 +682,30 @@ export function AdminUsersSettings() {
             const eingeloestAm = eintrag.eingeloest_am
               ? formatDate(eintrag.eingeloest_am.slice(0, 10), i18n.language)
               : null;
+            const ziele = eintrag.server;
+            const zugang = new Intl.ListFormat(i18n.language, {
+              type: "conjunction",
+            }).format([
+              "Nexview",
+              ...ziele
+                .filter(
+                  (ziel) => ziel.zustand !== "fehlt" && ziel.zustand !== "gesehen",
+                )
+                .map((ziel) => ziel.label),
+            ]);
+            // Was an einem Server hängt: fehlt, angefangen, oder wartet mit Grund.
+            const hinweise = ziele.filter(
+              (ziel) =>
+                ziel.zustand === "fehlt" ||
+                ziel.zustand === "angefangen" ||
+                (ziel.zustand === "offen" && ziel.fehler !== null),
+            );
             return (
               <div
                 key={eintrag.id}
                 className={
                   "flex flex-wrap items-center gap-3 rounded-xl border p-3 " +
-                  (eingeloestAm
+                  (eingeloestAm || hinweise.length > 0
                     ? "border-warn-500/40 bg-warn-500/10"
                     : "border-ink-700 bg-ink-900/50")
                 }
@@ -678,6 +716,8 @@ export function AdminUsersSettings() {
                     {t(
                       `adminUsers.role${eintrag.role === "admin" ? "Admin" : eintrag.role === "approver" ? "Approver" : "User"}`,
                     )}
+                    {" · "}
+                    {zugang}
                     {" · "}
                     {eingeloestAm
                       ? eintrag.konto
@@ -702,7 +742,43 @@ export function AdminUsersSettings() {
                       })}
                     </p>
                   )}
+                  {hinweise.map((ziel) => {
+                    const grund = ziel.fehler
+                      ? uebersetzeFehler(ziel.fehler, 502)
+                      : "";
+                    return (
+                      <p key={ziel.provider} className="mt-1 text-xs text-warn-500">
+                        {ziel.zustand === "fehlt"
+                          ? t("inviteWizard.serverMissing", { service: ziel.label, grund })
+                          : ziel.zustand === "angefangen"
+                            ? t("inviteWizard.serverStarted", { service: ziel.label, grund })
+                            : t("inviteWizard.serverWaiting", { service: ziel.label, grund })}
+                      </p>
+                    );
+                  })}
                 </div>
+                {ziele
+                  .filter((ziel) => ziel.nachholbar)
+                  .map((ziel) => (
+                    <Button
+                      key={ziel.provider}
+                      variant="ghost"
+                      onClick={() =>
+                        nachholenMutation.mutate({
+                          id: eintrag.id,
+                          provider: ziel.provider,
+                          label: ziel.label,
+                        })
+                      }
+                      loading={
+                        nachholenMutation.isPending &&
+                        nachholenMutation.variables?.id === eintrag.id &&
+                        nachholenMutation.variables?.provider === ziel.provider
+                      }
+                    >
+                      {t("inviteWizard.retryShare", { service: ziel.label })}
+                    </Button>
+                  ))}
                 {eingeloestAm ? (
                   <Button
                     variant="ghost"

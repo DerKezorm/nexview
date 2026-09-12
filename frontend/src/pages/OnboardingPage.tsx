@@ -1,20 +1,42 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { ApiError, api, logout } from '../api/client'
+import { ApiError, api, logout, uebersetzeFehler } from '../api/client'
 import { mitBasis } from '../lib/basis'
+import { useMediaServerChallenge } from '../lib/useMediaServerChallenge'
 import { Hausordnungstext } from '../components/Hausordnungstext'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
+import { MediaServerLogo } from '../components/MediaServerLogo'
+import { MediaServerPrompt } from '../components/MediaServerPrompt'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 
 /** Die Hausordnung, wie die Einladung sie mitbringt - ohne Stand eines Kontos. */
 type HausordnungSchritt = { titel: string; inhalt: string; quittierbar: boolean }
-type InvitationInfo = { email: string; role: string; hausordnung: HausordnungSchritt | null }
+/** Ein Medienserver der Einladung (`services/einladung_server.py`). */
+type ServerFuerPerson = {
+  provider: string
+  label: string
+  /** "konto": Nexview legt dort eines an. "freigabe": Die Person verknüpft ihr eigenes. */
+  art: 'konto' | 'freigabe'
+  bibliotheken: string[]
+  zustand: string
+  konto_name: string | null
+  fehler: Record<string, unknown> | null
+}
+type InvitationInfo = {
+  email: string
+  role: string
+  hausordnung: HausordnungSchritt | null
+  server?: ServerFuerPerson[]
+}
+type Eingeloest = { username: string; server?: ServerFuerPerson[] }
+type NamenStand = { nexview: boolean; server: Record<string, boolean | null> }
+type VerknuepfenStand = { status: string; konto_name: string | null }
 type PasswordInfo = { username: string }
 
 /** Rahmen für alle Seiten, die man ohne Anmeldung erreicht. */
@@ -124,35 +146,195 @@ function Fortschritt({ namen, aktuell }: { namen: string[]; aktuell: number }) {
   )
 }
 
+/** Wie die Server dastehen: im letzten Schritt und nach einem gescheiterten Versuch. */
+function ServerReihe({
+  server,
+  mitNexview = false,
+}: {
+  server: ServerFuerPerson[]
+  mitNexview?: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <ul className="mt-5 flex flex-col gap-2">
+      {mitNexview && (
+        <li className="flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2.5 text-sm">
+          <Logo className="h-5 w-5" />
+          <span className="flex-1 text-mist-200">{t('onboarding.rowNexview')}</span>
+          <span className="text-xs font-semibold text-ok-500">{t('onboarding.rowDone')}</span>
+        </li>
+      )}
+      {server.map((eintrag) => {
+        const fertig = eintrag.zustand === 'fertig'
+        const fehlt = eintrag.zustand === 'fehlt'
+        return (
+          <li
+            key={eintrag.provider}
+            className="flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2.5 text-sm"
+          >
+            <MediaServerLogo provider={eintrag.provider} className="h-5 w-5 text-mist-400" />
+            <span className="min-w-0 flex-1 text-mist-200">
+              {eintrag.art === 'freigabe'
+                ? t('onboarding.rowShare', { service: eintrag.label })
+                : t('onboarding.rowAccount', { service: eintrag.label })}
+              {!fertig && eintrag.fehler && (
+                <span className="block text-xs text-warn-500">
+                  {uebersetzeFehler(eintrag.fehler, 502)}
+                </span>
+              )}
+            </span>
+            <span
+              className={
+                'text-xs font-semibold ' +
+                (fertig ? 'text-ok-500' : fehlt ? 'text-warn-500' : 'text-mist-500')
+              }
+            >
+              {fertig
+                ? t('onboarding.rowDone')
+                : fehlt
+                  ? eintrag.art === 'freigabe'
+                    ? t('onboarding.rowLater')
+                    : t('onboarding.rowDropped')
+                  : t('onboarding.rowOpen')}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 /**
- * Einladung einlösen: Willkommen, Konto, Hausordnung - falls die Einladung sie
- * mitbringt -, fertig.
+ * Das eigene Konto beim Anbieter verknüpfen, für eine Freigabe (Plex).
+ *
+ * Derselbe Ablauf wie beim Anmelden über den Medienserver, nur an die
+ * Einladung gebunden und ohne Sitzung. Verknüpft ist hier noch nichts mit
+ * Nexview: Das Konto merkt sich die Einladung, freigegeben wird am Ende.
+ */
+function VerknuepfenSchritt({
+  token,
+  eintrag,
+  onWeiter,
+  onZurueck,
+}: {
+  token: string
+  eintrag: ServerFuerPerson
+  onWeiter: () => void
+  onZurueck: () => void
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [verknuepftAls, setVerknuepftAls] = useState<string | null>(eintrag.konto_name)
+
+  const onFertig = useCallback(
+    async (antwort: VerknuepfenStand) => {
+      setVerknuepftAls(antwort.konto_name ?? '')
+      // Damit ein Schritt zurück und wieder vor nicht "nicht verknüpft" zeigt.
+      await queryClient.invalidateQueries({ queryKey: ['invitation', token] })
+    },
+    [queryClient, token],
+  )
+  const vorgang = useMediaServerChallenge<VerknuepfenStand>({
+    startPfad: `/api/onboarding/invitation/${token}/server/${eintrag.provider}/start`,
+    abfragePfad: `/api/onboarding/invitation/${token}/server/${eintrag.provider}/poll`,
+    auth: false,
+    onFertig,
+  })
+
+  return (
+    <>
+      <h1 className="text-2xl font-bold tracking-tight">
+        {t('onboarding.linkTitle', { service: eintrag.label })}
+      </h1>
+      <p className="mt-1.5 text-sm text-mist-500">
+        {t('onboarding.linkIntro', { service: eintrag.label })}
+      </p>
+      {verknuepftAls !== null ? (
+        <p className="mt-5 flex items-center gap-3 rounded-xl border border-ok-500/40 bg-ok-500/10 px-4 py-3 text-sm text-ok-500">
+          <MediaServerLogo provider={eintrag.provider} className="h-5 w-5" />
+          {t('onboarding.linkedAs', { name: verknuepftAls })}
+        </p>
+      ) : vorgang.laeuft && vorgang.start ? (
+        <MediaServerPrompt start={vorgang.start} onAbbrechen={vorgang.abbrechen} />
+      ) : (
+        <Button
+          className="mt-5 w-full"
+          variant="ghost"
+          loading={vorgang.laeuft}
+          onClick={() => void vorgang.starten()}
+        >
+          <MediaServerLogo provider={eintrag.provider} className="h-4 w-4" />
+          {t('onboarding.linkButton', { service: eintrag.label })}
+        </Button>
+      )}
+      {vorgang.fehler && (
+        <div className="mt-4">
+          <ErrorBanner message={vorgang.fehler} />
+        </div>
+      )}
+      <p className="mt-4 rounded-r-xl border-l-2 border-accent-500/60 bg-ink-900/70 px-4 py-3 text-xs leading-relaxed text-mist-400">
+        {t('onboarding.linkNote', { service: eintrag.label })}
+      </p>
+      <div className="mt-6 flex justify-between gap-3">
+        <Button variant="ghost" onClick={onZurueck}>
+          {t('onboarding.back')}
+        </Button>
+        <Button disabled={verknuepftAls === null} onClick={onWeiter}>
+          {t('onboarding.continue')}
+        </Button>
+      </div>
+    </>
+  )
+}
+
+/**
+ * Einladung einlösen: Willkommen, verknüpfen - falls die Person ein eigenes
+ * Konto mitbringt -, Konto, Hausordnung - falls die Einladung sie mitbringt -,
+ * fertig.
  *
  * ⚠️ **Angelegt wird erst nach dem letzten Schritt.** Die Entscheidung zur
  * Hausordnung geht mit dem Anlegen an den Server und nicht über
  * `/api/hausordnung/entscheidung`: Diese Seite hat noch kein Konto, und ist im
  * selben Browser ein Administrator angemeldet, landete die Entscheidung sonst
  * an dessen Konto.
+ *
+ * Mit Medienservern legt der Server dabei zuerst die Konten auf Jellyfin und
+ * Emby an. Scheitert eins, steht die Person wieder beim Konto, Passwort und
+ * Entscheidung sind noch da, und „Nochmal versuchen“ setzt fort.
  */
 export function InvitationPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { token = '' } = useParams()
   const { data: config } = useConfig()
   const minPassword = config?.min_password_length ?? 4
 
-  const [schritt, setSchritt] = useState<'willkommen' | 'konto' | 'hausordnung'>('willkommen')
+  const [schritt, setSchritt] = useState('willkommen')
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [angelegt, setAngelegt] = useState(false)
+  /** Wie die Server nach einem gescheiterten Versuch dastehen. */
+  const [serverStand, setServerStand] = useState<ServerFuerPerson[] | null>(null)
+  const [ergebnis, setErgebnis] = useState<Eingeloest | null>(null)
 
   const infoQuery = useQuery({
     queryKey: ['invitation', token],
     queryFn: () => api.get<InvitationInfo>(`/api/onboarding/invitation/${token}`),
     retry: false,
   })
+
+  const server = infoQuery.data?.server ?? []
+  // Wo Nexview ein Konto anlegt, und wo die Person ihr eigenes mitbringt.
+  const neueKonten = server.filter((eintrag) => eintrag.art === 'konto' && eintrag.zustand !== 'fehlt')
+  const freigaben = server.filter(
+    (eintrag) => eintrag.art === 'freigabe' && eintrag.zustand === 'offen',
+  )
+  // Ein angefangenes Serverkonto trägt schon einen Namen; ein anderer ginge nicht mehr.
+  const festerName = neueKonten.find((eintrag) => eintrag.konto_name)?.konto_name ?? null
+  useEffect(() => {
+    if (festerName) setUsername((alt) => alt || festerName)
+  }, [festerName])
 
   // Schon beim Tippen zeigen, ob der Name noch frei ist - sonst erfährt man
   // es erst nach dem Absenden.
@@ -162,24 +344,25 @@ export function InvitationPage() {
     return () => clearTimeout(timer)
   }, [username])
 
+  // Frei heißt: bei Nexview und auf jedem Server, auf dem ein Konto entsteht.
   const verfuegbar = useQuery({
-    queryKey: ['username-available', geprueft],
+    queryKey: ['invitation-names', token, geprueft],
     queryFn: () =>
-      api.get<{ available: boolean }>(
-        `/api/onboarding/username-available?username=${encodeURIComponent(geprueft)}`,
+      api.get<NamenStand>(
+        `/api/onboarding/invitation/${token}/namen?username=${encodeURIComponent(geprueft)}`,
       ),
     enabled: geprueft.length >= 3,
   })
 
   const annehmen = useMutation({
     mutationFn: (hausordnungAkzeptiert: boolean | null) =>
-      api.post(`/api/onboarding/invitation/${token}`, {
+      api.post<Eingeloest>(`/api/onboarding/invitation/${token}`, {
         username: username.trim(),
         display_name: displayName.trim() || null,
         password,
         hausordnung_akzeptiert: hausordnungAkzeptiert,
       }),
-    onSuccess: () => {
+    onSuccess: (antwort) => {
       // Wichtig: Eine eventuell offene fremde Sitzung beenden. Sonst landet
       // der Eingeladene in dem Konto, das im selben Browser noch angemeldet
       // war - typischerweise beim Administrator, der die Einladung gerade
@@ -191,10 +374,12 @@ export function InvitationPage() {
       // Eingeladenen beim naechsten Seitenaufruf wieder als Administrator
       // hereinlassen.
       void logout()
-      setAngelegt(true)
+      setErgebnis(antwort ?? { username: username.trim() })
     },
     onError: (caught) => {
       setError(caught instanceof ApiError ? caught.message : t('errors.network'))
+      const stand = caught instanceof ApiError ? caught.data?.server : undefined
+      setServerStand(Array.isArray(stand) ? (stand as ServerFuerPerson[]) : null)
       // Scheitert das Anlegen erst nach der Hausordnung - etwa weil der Name
       // inzwischen vergeben ist -, gehört die Meldung dorthin, wo man es beheben kann.
       setSchritt('konto')
@@ -202,6 +387,16 @@ export function InvitationPage() {
   })
 
   const hausordnung = infoQuery.data?.hausordnung ?? null
+  const reihe = [
+    'willkommen',
+    ...freigaben.map((eintrag) => `verknuepfen:${eintrag.provider}`),
+    'konto',
+    ...(hausordnung ? ['hausordnung'] : []),
+  ]
+  const aktuell = Math.max(0, reihe.indexOf(schritt))
+  const weiter = () => setSchritt(reihe[Math.min(aktuell + 1, reihe.length - 1)])
+  const zurueck = () => setSchritt(reihe[Math.max(aktuell - 1, 0)])
+  const verknuepfen = freigaben.find((eintrag) => `verknuepfen:${eintrag.provider}` === schritt)
 
   function kontoWeiter(event: FormEvent) {
     event.preventDefault()
@@ -214,6 +409,11 @@ export function InvitationPage() {
     // über die Regeln und landet dann doch wieder beim Passwort.
     if (password.length < minPassword) {
       setError(t('adminUsers.passwordHint', { count: minPassword }))
+      return
+    }
+    // Nach einem gescheiterten Versuch gilt die Entscheidung von eben weiter.
+    if (hausordnung && annehmen.isError && annehmen.variables !== undefined) {
+      annehmen.mutate(annehmen.variables)
       return
     }
     if (hausordnung) {
@@ -238,21 +438,39 @@ export function InvitationPage() {
     )
   }
 
-  const namen = [
+  const schrittNamen = [
     t('onboarding.stepWelcome'),
+    ...freigaben.map((eintrag) => eintrag.label),
     t('onboarding.stepAccount'),
     ...(hausordnung ? [t('onboarding.stepHouseRules')] : []),
     t('onboarding.stepDone'),
   ]
 
-  if (angelegt) {
+  if (ergebnis) {
+    const serverDanach = ergebnis.server ?? []
+    const teilweise = serverDanach.some((eintrag) => eintrag.zustand === 'fehlt')
     return (
       <Frame>
-        <Fortschritt namen={namen} aktuell={namen.length - 1} />
-        <h1 className="text-2xl font-bold tracking-tight">{t('onboarding.readyTitle')}</h1>
+        <Fortschritt namen={schrittNamen} aktuell={schrittNamen.length - 1} />
+        <h1 className="text-2xl font-bold tracking-tight">
+          {teilweise ? t('onboarding.donePartlyTitle') : t('onboarding.readyTitle')}
+        </h1>
         <p className="mt-2 text-sm text-mist-500">
-          {t('onboarding.readyText', { username: username.trim() })}
+          {teilweise
+            ? t('onboarding.donePartlyText')
+            : t('onboarding.readyText', { username: username.trim() })}
         </p>
+        {serverDanach.length > 0 && <ServerReihe server={serverDanach} mitNexview />}
+        {serverDanach
+          .filter((eintrag) => eintrag.art === 'freigabe' && eintrag.zustand === 'fehlt')
+          .map((eintrag) => (
+            <div
+              key={eintrag.provider}
+              className="mt-4 rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-xs leading-relaxed text-warn-500"
+            >
+              {t('onboarding.shareLater', { service: eintrag.label })}
+            </div>
+          ))}
         <Button
           className="mt-6 w-full"
           onClick={() => {
@@ -266,20 +484,98 @@ export function InvitationPage() {
     )
   }
 
-  const aktuell = schritt === 'willkommen' ? 0 : schritt === 'konto' ? 1 : 2
-  const nameFrei = verfuegbar.data?.available
+  const namen = verfuegbar.data
+  const nameFrei =
+    namen === undefined
+      ? undefined
+      : namen.nexview && Object.values(namen.server).every((frei) => frei !== false)
+
+  function nameHinweis(): React.ReactNode {
+    if (geprueft.length < 3) return t('onboarding.usernameHint')
+    if (namen === undefined) return t('onboarding.usernameChecking')
+    if (neueKonten.length === 0) {
+      return namen.nexview ? t('onboarding.usernameFree') : t('onboarding.usernameTaken')
+    }
+    const stellen = [
+      { key: 'nexview', label: 'Nexview', frei: namen.nexview as boolean | null },
+      ...neueKonten.map((eintrag) => ({
+        key: eintrag.provider,
+        label: eintrag.label,
+        frei: namen.server[eintrag.provider] ?? null,
+      })),
+    ]
+    return (
+      <span className="flex flex-wrap gap-1.5">
+        {stellen.map((stelle) => (
+          <span
+            key={stelle.key}
+            className={
+              'rounded-full border px-2 py-0.5 text-[11px] font-medium ' +
+              (stelle.frei === false
+                ? 'border-accent-600/50 bg-accent-700/15 text-accent-400'
+                : stelle.frei === true
+                  ? 'border-ok-500/40 bg-ok-500/10 text-ok-500'
+                  : 'border-ink-700 bg-ink-850 text-mist-500')
+            }
+          >
+            {stelle.frei === false
+              ? t('onboarding.nameTaken', { service: stelle.label })
+              : stelle.frei === true
+                ? t('onboarding.nameFree', { service: stelle.label })
+                : t('onboarding.nameUnknown', { service: stelle.label })}
+          </span>
+        ))}
+      </span>
+    )
+  }
+
   return (
     <Frame>
-      <Fortschritt namen={namen} aktuell={aktuell} />
+      <Fortschritt namen={schrittNamen} aktuell={aktuell} />
 
       {schritt === 'willkommen' && (
         <>
           <h1 className="text-2xl font-bold tracking-tight">{t('onboarding.inviteTitle')}</h1>
-          <p className="mt-1.5 text-sm text-mist-500">{t('onboarding.welcomeInviteIntro')}</p>
-          <Button className="mt-6 w-full" onClick={() => setSchritt('konto')}>
+          {server.length === 0 ? (
+            <p className="mt-1.5 text-sm text-mist-500">{t('onboarding.welcomeInviteIntro')}</p>
+          ) : (
+            <>
+              <p className="mt-1.5 text-sm text-mist-500">{t('onboarding.welcomeListIntro')}</p>
+              <ul className="mt-4 flex flex-col gap-2">
+                <li className="flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2.5 text-sm text-mist-200">
+                  <Logo className="h-5 w-5" />
+                  {t('onboarding.welcomeNexview')}
+                </li>
+                {server
+                  .filter((eintrag) => eintrag.zustand !== 'fehlt')
+                  .map((eintrag) => (
+                    <li
+                      key={eintrag.provider}
+                      className="flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2.5 text-sm text-mist-200"
+                    >
+                      <MediaServerLogo provider={eintrag.provider} className="h-5 w-5 text-ok-500" />
+                      {eintrag.art === 'freigabe'
+                        ? t('onboarding.welcomeShare', { service: eintrag.label })
+                        : t('onboarding.welcomeAccount', { service: eintrag.label })}
+                    </li>
+                  ))}
+              </ul>
+            </>
+          )}
+          <Button className="mt-6 w-full" onClick={weiter}>
             {t('onboarding.letsGo')}
           </Button>
         </>
+      )}
+
+      {verknuepfen && (
+        <VerknuepfenSchritt
+          key={verknuepfen.provider}
+          token={token}
+          eintrag={verknuepfen}
+          onWeiter={weiter}
+          onZurueck={zurueck}
+        />
       )}
 
       {schritt === 'konto' && (
@@ -287,6 +583,12 @@ export function InvitationPage() {
           <h1 className="text-2xl font-bold tracking-tight">{t('onboarding.stepAccount')}</h1>
           <p className="mt-1.5 text-sm text-mist-500">
             {t('onboarding.inviteIntro', { email: infoQuery.data.email })}
+            {neueKonten.length > 0 &&
+              ` ${t('onboarding.accountIntroServers', {
+                services: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(
+                  neueKonten.map((eintrag) => eintrag.label),
+                ),
+              })}`}
           </p>
 
           <form onSubmit={kontoWeiter} className="mt-6 flex flex-col gap-4">
@@ -294,15 +596,7 @@ export function InvitationPage() {
               label={t('onboarding.username')}
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              hint={
-                geprueft.length < 3
-                  ? t('onboarding.usernameHint')
-                  : verfuegbar.isPending
-                    ? t('onboarding.usernameChecking')
-                    : nameFrei
-                      ? t('onboarding.usernameFree')
-                      : t('onboarding.usernameTaken')
-              }
+              hint={nameHinweis()}
               autoComplete="username"
               required
               autoFocus
@@ -323,9 +617,10 @@ export function InvitationPage() {
             />
 
             {error && <ErrorBanner message={error} />}
+            {serverStand && serverStand.length > 0 && <ServerReihe server={serverStand} />}
 
             <div className="mt-1 flex gap-3">
-              <Button type="button" variant="ghost" onClick={() => setSchritt('willkommen')}>
+              <Button type="button" variant="ghost" onClick={zurueck}>
                 {t('onboarding.back')}
               </Button>
               <Button
@@ -334,7 +629,11 @@ export function InvitationPage() {
                 disabled={nameFrei === false}
                 className="flex-1"
               >
-                {hausordnung ? t('onboarding.continue') : t('onboarding.createAccount')}
+                {serverStand
+                  ? t('onboarding.retry')
+                  : hausordnung
+                    ? t('onboarding.continue')
+                    : t('onboarding.createAccount')}
               </Button>
             </div>
           </form>

@@ -289,11 +289,11 @@ export type RechteStand = {
   frei: boolean;
   /** Was nach dem Einlösen tatsächlich gilt. */
   wirkt: boolean;
-  /** Kennung des Grundes, übersetzt unter `inviteWizard.reason`. */
+  /** Kennung des Grundes, übersetzt unter `rechte.grund`. */
   grund: string | null;
 };
 
-/** Was der Einladungsassistent ankreuzt – noch keine Rechte, nur Wünsche. */
+/** Was Einladungsassistent oder Kontodialog ankreuzen: noch keine Rechte, nur Wünsche. */
 export type RechteWunsch = {
   role: Role;
   auto_approve_movies: boolean;

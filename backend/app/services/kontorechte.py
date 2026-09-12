@@ -1,10 +1,10 @@
 """Welche Rechte ein Konto nach der Einrichtung des Hauses ueberhaupt haben kann.
 
 ⚠️ **Eine Stelle fuer alle, die das wissen muessen.** Der Einladungsassistent
-fragt hier, was er anbieten darf, und das Einloesen einer Einladung fragt hier,
-was davon noch gilt. Stuende die Regel an zwei Stellen, liefe sie auseinander,
-sobald jemand eine davon anfasst - und eine Einladung vergaebe dann mehr, als
-das Haus hergibt.
+fragt hier, was er anbieten darf, das Einloesen einer Einladung, was davon noch
+gilt, und der Kontodialog, welche Haken er frei gibt und warum nicht. Stuende
+die Regel an zwei Stellen, liefe sie auseinander, sobald jemand eine davon
+anfasst, und eine Einladung vergaebe dann mehr, als das Haus hergibt.
 
 Neu sind die Regeln nicht. Sie stehen verstreut im Code und werden dort beim
 Anfragen weiterhin durchgesetzt; das bleibt das zweite Netz:
@@ -36,8 +36,10 @@ from .settings_service import AppSettings
 # Warum ein Recht nicht frei ist. Die Oberflaeche uebersetzt die Kennungen.
 ROLLE_ADMIN = "role_admin"
 ROLLE_ENTSCHEIDER = "role_approver"
-ENTSCHEIDER_WAEHLT_FILME = "approver_picks_target_movie"
-ENTSCHEIDER_WAEHLT_SERIEN = "approver_picks_target_tv"
+# Waehlt der Entscheider, dann Zielordner und Profil zusammen: Die Einstellungen
+# lassen nur beides oder keines zu (``target_and_profile_together``).
+ENTSCHEIDER_WAEHLT = "approver_picks_target"
+ENTSCHEIDER_WAEHLT_4K = "approver_picks_uhd_target"
 KEINE_4K_INSTANZ = "no_uhd_instance"
 KEINE_4K_INSTANZ_FILME = "no_uhd_instance_movie"
 KEINE_4K_INSTANZ_SERIEN = "no_uhd_instance_tv"
@@ -126,13 +128,13 @@ def bewerten(
     else:
         aus_rolle = None
 
-    def sofort(media_type: str, gewuenscht: bool, grund: str) -> Stand:
+    def sofort(media_type: str, gewuenscht: bool) -> Stand:
         # Die Rolle zuerst: Fuer Entscheider gilt "der Entscheider waehlt" nicht,
         # sie waehlen ja selbst (``ziel_erst_bei_freigabe``).
         if aus_rolle is not None:
             return aus_rolle
         if settings.approver_picks_target(media_type):
-            return Stand(frei=False, wirkt=False, grund=grund)
+            return Stand(frei=False, wirkt=False, grund=ENTSCHEIDER_WAEHLT)
         return Stand(frei=True, wirkt=gewuenscht)
 
     def uhd(media_type: str, gewuenscht: bool, grund: str) -> Stand:
@@ -149,16 +151,26 @@ def bewerten(
 
     # Sofort freigeben in 4K lohnt nur, wo 4K erlaubt ist und nicht ohnehin der
     # Entscheider waehlt. Sonst waere es ein Haken, der nichts bewirkt.
+    #
+    # Der Grund nennt, was helfen wuerde: Gibt es eine 4K-Instanz ohne
+    # Entscheider, fehlt dort nur das Recht. Waehlt er bei jeder, hilft kein
+    # Haekchen. Bis zum 12.09.2026 hiess beides "erst 4K erlauben".
+    ohne_entscheider = [
+        stand
+        for media_type, stand in (("movie", uhd_filme), ("tv", uhd_serien))
+        if settings.arr_configured(media_type, "uhd")
+        and not settings.approver_picks_target(media_type, "uhd")
+    ]
     if not settings.uhd_available:
         auto_uhd = Stand(frei=False, wirkt=False, grund=KEINE_4K_INSTANZ)
     elif aus_rolle is not None:
         auto_uhd = aus_rolle
-    elif (uhd_filme.wirkt and not settings.approver_picks_target("movie", "uhd")) or (
-        uhd_serien.wirkt and not settings.approver_picks_target("tv", "uhd")
-    ):
+    elif any(stand.wirkt for stand in ohne_entscheider):
         auto_uhd = Stand(frei=True, wirkt=wunsch.auto_approve_uhd)
-    else:
+    elif ohne_entscheider:
         auto_uhd = Stand(frei=False, wirkt=False, grund=UHD_ERST_ERLAUBEN)
+    else:
+        auto_uhd = Stand(frei=False, wirkt=False, grund=ENTSCHEIDER_WAEHLT_4K)
 
     # Ohne veroeffentlichten Text gibt es nichts zu zeigen; Administratoren
     # schreiben ihn und bekommen ihn deshalb nicht vorgelegt.
@@ -175,10 +187,8 @@ def bewerten(
             if wunsch.rolle == Role.admin
             else Stand(frei=True, wirkt=True)
         ),
-        auto_approve_movies=sofort(
-            "movie", wunsch.auto_approve_movies, ENTSCHEIDER_WAEHLT_FILME
-        ),
-        auto_approve_series=sofort("tv", wunsch.auto_approve_series, ENTSCHEIDER_WAEHLT_SERIEN),
+        auto_approve_movies=sofort("movie", wunsch.auto_approve_movies),
+        auto_approve_series=sofort("tv", wunsch.auto_approve_series),
         can_request_uhd_movies=uhd_filme,
         can_request_uhd_series=uhd_serien,
         auto_approve_uhd=auto_uhd,

@@ -31,7 +31,7 @@ function bewertung(wunsch: Partial<RechteWunsch>, abweichend: Partial<RechteBewe
   return {
     kontingent: { frei: true, wirkt: true, grund: null },
     auto_approve_movies: { frei: true, wirkt: Boolean(wunsch.auto_approve_movies), grund: null },
-    auto_approve_series: { frei: false, wirkt: false, grund: 'approver_picks_target_tv' },
+    auto_approve_series: { frei: false, wirkt: false, grund: 'approver_picks_target' },
     can_request_uhd_movies: { frei: true, wirkt: Boolean(wunsch.can_request_uhd_movies), grund: null },
     can_request_uhd_series: { frei: false, wirkt: false, grund: 'no_uhd_instance_tv' },
     auto_approve_uhd: { frei: false, wirkt: false, grund: 'uhd_needs_permission' },
@@ -66,7 +66,7 @@ function einrichten({
     return Promise.resolve({})
   })
   schicken.mockImplementation((pfad: string, body?: unknown) => {
-    if (pfad === '/api/users/invitations/bewerten') {
+    if (pfad === '/api/users/rechte/bewerten') {
       return Promise.resolve(bewertung(body as Partial<RechteWunsch>, abweichend))
     }
     if (pfad === '/api/users/invitations') return Promise.resolve(angelegt)
@@ -92,10 +92,19 @@ it('zeigt einen gesperrten Haken als gesperrt, samt Grund vom Server', async () 
 
   const serien = screen.getByRole('checkbox', { name: /Serien sofort freigeben/ })
   expect(serien).toHaveProperty('disabled', true)
-  expect(screen.getByText(/Ordner oder Profil wählt bei Serien der Entscheider/)).toBeTruthy()
+  expect(screen.getByText(/Zielordner und Qualitätsprofil wählt der Entscheider/)).toBeTruthy()
 
   const filme = screen.getByRole('checkbox', { name: /Filme sofort freigeben/ })
   expect(filme).toHaveProperty('disabled', false)
+})
+
+it('nennt als Satz, warum sich das Kontingent nicht einstellen lässt', async () => {
+  // Der Grund steht unter `rechte.grund`. Bis zum 12.09.2026 fragte der
+  // Assistent hier einen umgezogenen Schlüssel ab und zeigte ihn roh an.
+  einrichten({ abweichend: { kontingent: { frei: false, wirkt: false, grund: 'admin_no_quota' } } })
+  await bisZuDenRechten()
+
+  expect(screen.getByText('Administratoren haben kein Kontingent.')).toBeTruthy()
 })
 
 it('fragt bei jeder Änderung neu nach', async () => {
@@ -106,7 +115,7 @@ it('fragt bei jeder Änderung neu nach', async () => {
 
   await waitFor(() => {
     expect(schicken).toHaveBeenCalledWith(
-      '/api/users/invitations/bewerten',
+      '/api/users/rechte/bewerten',
       expect.objectContaining({ auto_approve_movies: true }),
     )
   })

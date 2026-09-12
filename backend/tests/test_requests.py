@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest, QuotaPeriod, RequestStatus, User
+from app.models import MediaRequest, QuotaPeriod, RequestStatus, Role, User
 from app.services import quota
 
 from .conftest import auth_headers, create_user
@@ -181,6 +181,50 @@ def test_nicht_gesperrtes_profil_geht_durch(arr_client: TestClient) -> None:
 
     # Angefragt wird mit Profil 1 - das ist nicht gesperrt.
     assert _anfrage(arr_client, _first_demo(arr_client), headers).status_code == 201
+
+
+def test_eine_alte_sperrliste_bremst_keinen_entscheider(arr_client: TestClient) -> None:
+    """⚠️ Wer freigeben darf, hat keine Sperrliste.
+
+    Der Kontodialog blendet sie fuer Administratoren und Entscheider aus. Bis zum
+    12.09.2026 galt eine vor dem Hochstufen gesetzte Liste trotzdem weiter: Der
+    Entscheider las "gesperrt" und sah nirgends, warum.
+    """
+    create_user(arr_client, "eva", role=Role.approver, blocked_movie_profiles="1")
+    headers = auth_headers(arr_client, "eva", "passwort-1234")
+
+    antwort = _anfrage(arr_client, _first_demo(arr_client), headers)
+
+    # Radarr ist im Test nicht erreichbar: Die Uebergabe scheitert (502), aber
+    # eben nicht an der Sperrliste (403).
+    assert antwort.status_code == 502, antwort.text
+    with SessionLocal() as session:
+        assert session.query(MediaRequest).count() == 1
+
+
+def test_die_auswahl_laesst_gesperrte_profile_fuer_benutzer_weg(arr_client: TestClient) -> None:
+    """Die Gegenprobe zum Entscheider: Fuer einen Benutzer fehlt das gesperrte Profil."""
+    created = create_user(arr_client, "kim")
+    arr_client.patch(f"/api/users/{created['id']}", json={"blocked_movie_profiles": [1]})
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+
+    optionen = arr_client.get("/api/arr/movie/options", headers=headers).json()
+    kennungen = [profil["id"] for profil in optionen["quality_profiles"]]
+    assert kennungen, optionen
+    assert 1 not in kennungen
+
+
+def test_der_entscheider_sieht_in_der_auswahl_auch_gesperrte_profile(arr_client: TestClient) -> None:
+    """Dieselbe Regel wie beim Anfragen: Wer freigeben darf, hat keine Sperrliste.
+
+    Die Auswahl nahm bis zum 12.09.2026 nur Administratoren aus. Ein Entscheider
+    mit einer alten Liste sah dort Profile nicht, die er anfragen darf.
+    """
+    create_user(arr_client, "eva", role=Role.approver, blocked_movie_profiles="1")
+    headers = auth_headers(arr_client, "eva", "passwort-1234")
+
+    optionen = arr_client.get("/api/arr/movie/options", headers=headers).json()
+    assert 1 in [profil["id"] for profil in optionen["quality_profiles"]], optionen
 
 
 def test_ohne_sperrliste_sind_alle_profile_erlaubt(arr_client: TestClient) -> None:

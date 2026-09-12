@@ -1,7 +1,7 @@
 """Einladungen mit Rechten und Hausordnung - und was beim Einloesen noch gilt.
 
 Die Regeln selbst prueft ``test_kontorechte.py`` als reine Funktion. Hier geht es
-um die Wege: den Assistenten (``/invitations/bewerten``), das Anlegen, das
+um die Wege: den Assistenten (``/rechte/bewerten``), das Anlegen, das
 Einloesen ueber den Link und das, was der Administrator danach sieht. Den Weg
 ueber den Medienserver prueft ``test_mediaserver_login.py``.
 """
@@ -100,7 +100,7 @@ def test_der_assistent_erfaehrt_warum_ein_haken_gesperrt_ist(admin_client: TestC
     _einrichten(movie_root_folder_mode="approver")
 
     antwort = admin_client.post(
-        "/api/users/invitations/bewerten", json={"role": "user", "auto_approve_movies": True}
+        "/api/users/rechte/bewerten", json={"role": "user", "auto_approve_movies": True}
     )
 
     assert antwort.status_code == 200, antwort.text
@@ -108,7 +108,7 @@ def test_der_assistent_erfaehrt_warum_ein_haken_gesperrt_ist(admin_client: TestC
     assert daten["auto_approve_movies"] == {
         "frei": False,
         "wirkt": False,
-        "grund": "approver_picks_target_movie",
+        "grund": "approver_picks_target",
     }
     assert daten["auto_approve_series"] == {"frei": True, "wirkt": False, "grund": None}
     assert daten["entfallen"] == ["auto_approve_movies"]
@@ -118,13 +118,13 @@ def test_pruefen_duerfen_nur_administratoren(admin_client: TestClient) -> None:
     create_user(admin_client, "leser")
     kopf = auth_headers(admin_client, "leser", "passwort-1234")
 
-    antwort = admin_client.post("/api/users/invitations/bewerten", json={}, headers=kopf)
+    antwort = admin_client.post("/api/users/rechte/bewerten", json={}, headers=kopf)
 
     assert antwort.status_code == 403
 
 
 def test_auch_beim_pruefen_gibt_es_keine_einladung_an_ein_kind(admin_client: TestClient) -> None:
-    antwort = admin_client.post("/api/users/invitations/bewerten", json={"role": "child"})
+    antwort = admin_client.post("/api/users/rechte/bewerten", json={"role": "child"})
 
     assert antwort.status_code == 422
 

@@ -1555,7 +1555,10 @@ async def create_request(
             tier.value,
             darf_frei_waehlen=user.can_approve,
         )
-        gesperrt = set(user.blocked_profiles(media_type, tier))
+        # ⚠️ **Wer freigeben darf, hat keine Sperrliste.** Der Kontodialog blendet
+        # sie fuer Administratoren und Entscheider aus; bis zum 12.09.2026 galt eine
+        # vor dem Hochstufen gesetzte Liste hier trotzdem weiter, unsichtbar.
+        gesperrt = set() if user.can_approve else set(user.blocked_profiles(media_type, tier))
         # Sind *alle* Profile gesperrt, bliebe dem Benutzer keines uebrig und
         # er koennte gar nichts mehr anfragen - eine Sackgasse, aus der er
         # selbst nicht herausfindet. Eine Sperrliste, die alles sperrt, ist

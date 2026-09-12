@@ -363,7 +363,7 @@ def _einladung_oeffentlich(db: DbSession, token: AuthToken) -> InvitationPublic:
 def _bewertung(
     db: DbSession, wunsch: RechteWunsch
 ) -> tuple[kontorechte.Wunsch, kontorechte.Bewertung]:
-    """Den Wunsch aus dem Assistenten gegen die Einrichtung halten.
+    """Den Wunsch aus Einladungsassistent oder Kontodialog gegen die Einrichtung halten.
 
     Pruefen und Anlegen gehen beide hier durch - sonst koennte der Assistent
     etwas anzeigen, das beim Anlegen anders ausgeht.
@@ -409,14 +409,16 @@ def list_invitations(admin: AdminUser, db: DbSession) -> list[InvitationPublic]:
     ]
 
 
-@router.post("/invitations/bewerten", response_model=RechteBewertung)
-def bewerte_einladung(payload: RechteWunsch, admin: AdminUser, db: DbSession) -> RechteBewertung:
-    """Was darf diese Einladung vergeben? Der Assistent fragt bei jeder Aenderung.
+@router.post("/rechte/bewerten", response_model=RechteBewertung)
+def bewerte_rechte(payload: RechteWunsch, admin: AdminUser, db: DbSession) -> RechteBewertung:
+    """Welche Haken sind bei dieser Rolle frei, und warum nicht?
 
-    ⚠️ **Hier wird nur gelesen.** Der Assistent zeigt daraus gesperrte Haken
-    samt Grund. Angelegt wird erst ueber ``POST /invitations``, und das fragt
-    dieselbe Stelle noch einmal - wer an der Oberflaeche vorbei schickt, bekommt
-    trotzdem nicht mehr.
+    Der Einladungsassistent und der Kontodialog fragen bei jeder Aenderung.
+
+    ⚠️ **Hier wird nur gelesen.** Beide zeigen daraus gesperrte Haken samt
+    Grund. Eine Einladung entsteht erst ueber ``POST /invitations``, und das
+    fragt dieselbe Stelle noch einmal: Wer an der Oberflaeche vorbei schickt,
+    bekommt trotzdem nicht mehr.
     """
     eigen, bewertung = _bewertung(db, payload)
     return RechteBewertung(**asdict(bewertung), entfallen=bewertung.entfallen(eigen))

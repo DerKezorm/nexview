@@ -307,12 +307,14 @@ async def arr_options(
             detail=error.message,
         ) from error
 
-    # Administratoren vergeben die Sperren selbst - fuer sie gelten sie nicht.
-    # Sonst koennten sie ein Profil, das sie sich versehentlich gesperrt haben,
-    # auch nicht mehr als Standard auswaehlen.
+    # Wer freigeben darf, hat keine Sperrliste, wie beim Anfragen
+    # (``requests_service``). Administratoren vergeben die Sperren selbst und
+    # koennten ein versehentlich gesperrtes Profil sonst nicht mehr waehlen.
+    # Entscheider nahm diese Stelle bis zum 12.09.2026 nicht aus: Mit einer
+    # alten Liste fehlten ihnen hier Profile, die sie anfragen duerfen.
     gesperrt = (
         []
-        if user.is_admin
+        if user.can_approve
         else user.blocked_profiles(MediaType(media_type), QualityTier(tier))
     )
     if gesperrt:

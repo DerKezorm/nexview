@@ -753,13 +753,13 @@ TEXTE: dict[str, tuple[str, str]] = {
             'allows at this moment is stored, and redeeming checks the same rules again.'
         ),
     ),
-    'POST /api/users/invitations/bewerten': (
-        'Check what an invitation may grant',
+    'POST /api/users/rechte/bewerten': (
+        'Check which permissions a role can have',
         (
             'Holds the ticked permissions against how the installation is set up and '
             'answers per permission: can it be set, will it take effect, and if not, why. '
-            'The reason is a code the interface translates. The invitation wizard asks on '
-            'every change, so it never offers more than the rules allow.'
+            'The reason is a code the interface translates. The invitation wizard and the '
+            'account dialog ask on every change, so neither offers more than the rules allow.'
         ),
     ),
     'DELETE /api/users/invitations/{invitation_id}': (

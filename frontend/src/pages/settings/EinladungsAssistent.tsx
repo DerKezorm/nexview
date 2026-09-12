@@ -2,7 +2,7 @@
  * Einladen mit Assistent: wer, was darf die Person, was sieht sie beim Einlösen.
  *
  * ⚠️ **Die Regeln stehen nicht hier.** Ob ein Haken frei ist, sagt der Server
- * (`POST /api/users/invitations/bewerten`, `services/kontorechte.py`), und zwar
+ * (`POST /api/users/rechte/bewerten`, `services/kontorechte.py`), und zwar
  * bei jeder Änderung neu. Stünde die Logik zusätzlich hier, liefe sie
  * auseinander, und der Assistent böte etwas an, das beim Anlegen anders
  * ausgeht. Das Anlegen fragt dieselbe Stelle noch einmal, das Einlösen später
@@ -20,11 +20,11 @@ import type {
   InvitationCreated,
   Kontingentwert,
   RechteBewertung,
-  RechteStand,
   RechteWunsch,
   Role,
 } from '../../api/types'
 import { Fenster } from '../../components/Fenster'
+import { RechteHaken } from '../../components/RechteHaken'
 import { Umschalter } from '../../components/Umschalter'
 import { AUSWAHL, Button, ErrorBanner, Field, Spinner } from '../../components/ui'
 
@@ -108,42 +108,6 @@ function Erklaerung({ children }: { children: ReactNode }) {
     <p className="rounded-r-xl border-l-2 border-accent-500/60 bg-ink-900/70 px-4 py-3 text-xs leading-relaxed text-mist-400">
       {children}
     </p>
-  )
-}
-
-/** Ein Haken nach den Regeln des Servers: gesperrt zeigt er, was gilt, und sagt warum. */
-function Haken({
-  label,
-  stand,
-  wert,
-  onChange,
-}: {
-  label: string
-  stand: RechteStand
-  wert: boolean
-  onChange: (neu: boolean) => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <label
-      className={'flex items-start gap-2 text-sm ' + (stand.frei ? 'text-mist-300' : 'text-mist-600')}
-    >
-      <input
-        type="checkbox"
-        checked={stand.frei ? wert : stand.wirkt}
-        disabled={!stand.frei}
-        onChange={(ev) => onChange(ev.target.checked)}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500 disabled:opacity-60"
-      />
-      <span>
-        {label}
-        {stand.grund && (
-          <span className="block text-xs text-mist-600">
-            {t(`inviteWizard.reason.${stand.grund}`)}
-          </span>
-        )}
-      </span>
-    </label>
   )
 }
 
@@ -232,7 +196,7 @@ export function EinladungsAssistent({
   // Sonst flackerte bei jedem Haken der ganze Schritt.
   const bewertungQuery = useQuery({
     queryKey: ['einladung-bewerten', wunsch],
-    queryFn: () => api.post<RechteBewertung>('/api/users/invitations/bewerten', wunsch),
+    queryFn: () => api.post<RechteBewertung>('/api/users/rechte/bewerten', wunsch),
     enabled: offen,
     placeholderData: (vorher) => vorher,
   })
@@ -397,7 +361,7 @@ export function EinladungsAssistent({
             <Abschnitt titel={t('inviteWizard.quota')}>
               {b.kontingent.grund && (
                 <p className="text-xs text-mist-600">
-                  {t(`inviteWizard.reason.${b.kontingent.grund}`)}
+                  {t(`rechte.grund.${b.kontingent.grund}`)}
                 </p>
               )}
               <GrenzZeile
@@ -424,13 +388,13 @@ export function EinladungsAssistent({
               />
             </Abschnitt>
             <Abschnitt titel={t('inviteWizard.approval')}>
-              <Haken
+              <RechteHaken
                 label={t('inviteWizard.autoMovies')}
                 stand={b.auto_approve_movies}
                 wert={e.auto_approve_movies}
                 onChange={(v) => setze({ auto_approve_movies: v })}
               />
-              <Haken
+              <RechteHaken
                 label={t('inviteWizard.autoSeries')}
                 stand={b.auto_approve_series}
                 wert={e.auto_approve_series}
@@ -441,19 +405,19 @@ export function EinladungsAssistent({
                 Drei gesperrte Haken mit demselben Grund wären nur Rauschen. */}
             {uhdDa && (
               <Abschnitt titel={t('inviteWizard.uhd')}>
-                <Haken
+                <RechteHaken
                   label={t('inviteWizard.uhdMovies')}
                   stand={b.can_request_uhd_movies}
                   wert={e.can_request_uhd_movies}
                   onChange={(v) => setze({ can_request_uhd_movies: v })}
                 />
-                <Haken
+                <RechteHaken
                   label={t('inviteWizard.uhdSeries')}
                   stand={b.can_request_uhd_series}
                   wert={e.can_request_uhd_series}
                   onChange={(v) => setze({ can_request_uhd_series: v })}
                 />
-                <Haken
+                <RechteHaken
                   label={t('inviteWizard.uhdAuto')}
                   stand={b.auto_approve_uhd}
                   wert={e.auto_approve_uhd}
@@ -467,7 +431,7 @@ export function EinladungsAssistent({
 
         {schritt === 'onboarding' && b !== undefined && (
           <Frage titel={t('inviteWizard.onboardingTitle')} unter={t('inviteWizard.onboardingSub')}>
-            <Haken
+            <RechteHaken
               label={t('inviteWizard.houseRules')}
               stand={b.hausordnung}
               wert={e.hausordnung}

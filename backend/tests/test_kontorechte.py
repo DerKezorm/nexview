@@ -12,7 +12,9 @@ ist das zweite Netz und hat eigene Tests (``test_kontingente_matrix.py``,
 
 from __future__ import annotations
 
+import json
 from dataclasses import fields
+from pathlib import Path
 
 from app.db import SessionLocal
 from app.models import Role, User
@@ -115,7 +117,7 @@ def test_waehlt_der_entscheider_den_ordner_wirkt_die_sofortfreigabe_nicht() -> N
         auto_approve_series=True,
     )
 
-    assert b.auto_approve_movies == Stand(frei=False, wirkt=False, grund=k.ENTSCHEIDER_WAEHLT_FILME)
+    assert b.auto_approve_movies == Stand(frei=False, wirkt=False, grund=k.ENTSCHEIDER_WAEHLT)
     assert b.auto_approve_series == Stand(frei=True, wirkt=True)
 
 
@@ -123,7 +125,7 @@ def test_das_profil_beim_entscheider_sperrt_genauso_wie_der_ordner() -> None:
     """``approver_picks_target`` heisst Ordner **oder** Profil."""
     b, _ = _bewerten({"series_profile_mode": "approver"}, auto_approve_series=True)
 
-    assert b.auto_approve_series == Stand(frei=False, wirkt=False, grund=k.ENTSCHEIDER_WAEHLT_SERIEN)
+    assert b.auto_approve_series == Stand(frei=False, wirkt=False, grund=k.ENTSCHEIDER_WAEHLT)
 
 
 def test_ein_fester_ordner_und_ein_festes_profil_sperren_nichts() -> None:
@@ -168,7 +170,7 @@ def test_4k_sofort_bleibt_gesperrt_wo_der_entscheider_das_4k_ziel_waehlt() -> No
 
     assert b.auto_approve_movies == Stand(frei=True, wirkt=True)
     assert b.can_request_uhd_movies == Stand(frei=True, wirkt=True)
-    assert b.auto_approve_uhd == Stand(frei=False, wirkt=False, grund=k.UHD_ERST_ERLAUBEN)
+    assert b.auto_approve_uhd == Stand(frei=False, wirkt=False, grund=k.ENTSCHEIDER_WAEHLT_4K)
 
 
 def test_die_4k_regel_erbt_vom_standard_solange_sie_nicht_eigens_gesetzt_ist() -> None:
@@ -185,7 +187,7 @@ def test_die_4k_regel_erbt_vom_standard_solange_sie_nicht_eigens_gesetzt_ist() -
     )
 
     assert b.can_request_uhd_series == Stand(frei=True, wirkt=True)
-    assert b.auto_approve_uhd == Stand(frei=False, wirkt=False, grund=k.UHD_ERST_ERLAUBEN)
+    assert b.auto_approve_uhd == Stand(frei=False, wirkt=False, grund=k.ENTSCHEIDER_WAEHLT_4K)
 
 
 def test_fuer_4k_sofort_reicht_eine_medienart_ohne_entscheider() -> None:
@@ -198,6 +200,22 @@ def test_fuer_4k_sofort_reicht_eine_medienart_ohne_entscheider() -> None:
     )
 
     assert b.auto_approve_uhd == Stand(frei=True, wirkt=True)
+
+
+def test_4k_sofort_verlangt_erst_das_recht_wo_das_helfen_wuerde() -> None:
+    """Filme warten in 4K beim Entscheider, Serien waeren frei, sind aber nicht erlaubt.
+
+    Dann heisst der Grund "erst 4K erlauben", denn das Haekchen fuer Serien
+    wuerde helfen. "Der Entscheider waehlt" stimmte nur fuer Filme und schickte
+    den Administrator an die falsche Stelle.
+    """
+    b, _ = _bewerten(
+        {**RADARR_4K, **SONARR_4K, "movie_uhd_root_folder_mode": "approver"},
+        can_request_uhd_movies=True,
+        auto_approve_uhd=True,
+    )
+
+    assert b.auto_approve_uhd == Stand(frei=False, wirkt=False, grund=k.UHD_ERST_ERLAUBEN)
 
 
 # ---------------------------------------------------------------------------
@@ -288,3 +306,23 @@ def test_jeder_schalter_ist_eine_spalte_am_konto_ein_wunsch_und_eine_bewertung()
         assert name in wunsch_felder, name
         assert name in bewertung_felder, name
     assert bewertung_felder == {*k.SCHALTER, "kontingent", "hausordnung"}
+
+
+def test_jeder_grund_hat_einen_text_in_beiden_sprachen() -> None:
+    """⚠️ Der Grund ist eine Kennung; den Satz dazu hat nur die Oberflaeche.
+
+    Fehlt der Text, zeigt ein gesperrter Haken den rohen Schluessel. Das
+    Frontend prueft zusammengesetzte Schluessel wie ``rechte.grund.${grund}``
+    nicht, deshalb steht der Abgleich hier. Beide Richtungen: Ein Text ohne
+    Kennung waere eine Leiche, die beim naechsten Umbenennen stehen bleibt.
+    """
+    kennungen = {
+        wert for name, wert in vars(k).items() if name.isupper() and isinstance(wert, str)
+    }
+    # Bodenschwelle: Eine leere Menge liesse den Vergleich unten gruen durchlaufen.
+    assert len(kennungen) >= 11, kennungen
+
+    sprachen = Path(__file__).resolve().parents[2] / "frontend" / "src" / "i18n"
+    for sprache in ("de", "en"):
+        texte = json.loads((sprachen / f"{sprache}.json").read_text(encoding="utf-8"))
+        assert set(texte["rechte"]["grund"]) == kennungen, sprache

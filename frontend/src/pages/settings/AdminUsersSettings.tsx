@@ -10,6 +10,8 @@ import type {
   Invitation,
   Kontingentwert,
   QuotaPeriod,
+  RechteBewertung,
+  RechteWunsch,
   Role,
   User,
 } from "../../api/types";
@@ -18,6 +20,7 @@ import { MediaServerLogo } from "../../components/MediaServerLogo";
 import { providerName } from "../../lib/mediaserver";
 import { Avatar } from "../../components/Avatar";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { RechteHaken } from "../../components/RechteHaken";
 import { AdminKontoAufloesung } from "./AdminKontoAufloesung";
 import { Button, Card, ErrorBanner, Spinner } from "../../components/ui";
 import { useConfig } from "../../hooks/useConfig";
@@ -62,6 +65,14 @@ type Grenzfeld = (typeof GRENZEN)[number]["feld"];
  * "Standard" und zurueck die eingetippte Zahl nicht verliert.
  */
 type Grenzentwurf = { modus: "standard" | "unlimited" | "zahl"; zahl: string };
+
+/** Die Haken, die der Server bewertet - dieselben wie im Einladungsassistenten. */
+type RechteSchalter =
+  | "auto_approve_movies"
+  | "auto_approve_series"
+  | "can_request_uhd_movies"
+  | "can_request_uhd_series"
+  | "auto_approve_uhd";
 
 /**
  * Die Liste nach Rolle gegliedert - die mit den meisten Rechten zuerst.
@@ -170,34 +181,13 @@ export function AdminUsersSettings() {
     queryFn: () => api.get<Invitation[]>("/api/users/invitations"),
   });
 
-  // Nur wegen der Frage, wer das Qualitätsprofil wählt. Die öffentliche
-  // Konfiguration fasst Ordner und Profil zu einem Kennzeichen zusammen; hier
-  // wird beides getrennt gebraucht.
+  // Wer das Qualitätsprofil wählt (für die Sperrlisten), der Zeitraum und die
+  // Vorgaben des Hauses. Warum ein Freigabe-Haken gesperrt ist, sagt dagegen
+  // der Server (`rechteQuery`).
   const settingsQuery = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.get<AppSettings>("/api/settings"),
   });
-  /**
-   * Warum greift die Auto-Freigabe hier nicht?
-   *
-   * Vorher stand dort immer „Zielordner“ - auch wenn der Ordner frei wählbar
-   * war und nur das Profil beim Entscheider lag. Der Hinweis muss benennen,
-   * was tatsächlich zutrifft, sonst sucht man an der falschen Stelle.
-   */
-  function grundText(media: "movie" | "tv"): string {
-    const daten = settingsQuery.data;
-    const ordner =
-      (media === "movie"
-        ? daten?.movie_root_folder_mode
-        : daten?.series_root_folder_mode) === "approver";
-    const profil =
-      (media === "movie"
-        ? daten?.movie_profile_mode
-        : daten?.series_profile_mode) === "approver";
-    if (ordner && profil) return t("adminUsers.autoApproveTargetLaterBoth");
-    if (profil) return t("adminUsers.autoApproveTargetLaterProfile");
-    return t("adminUsers.autoApproveTargetLaterFolder");
-  }
 
   /** Darf der Benutzer das Profil selbst wählen? Sonst ist eine Sperrliste sinnlos. */
   function profilFreiWaehlbar(media: "movie" | "tv"): boolean {
@@ -379,20 +369,51 @@ export function AdminUsersSettings() {
   }
 
   /**
-   * Wie `feld`, aber für die drei Freigabe-Haken.
+   * Der eigene Haken des Kontos: Entwurf, sonst gespeichert.
    *
-   * Deren Wirkung errechnet der Server (`effective_*`) - ein leeres Feld erbt
-   * von der alten Sammel-Einstellung. Solange nichts geändert wurde, gilt
-   * genau dieser errechnete Wert; danach das, was gerade angeklickt wurde.
+   * ⚠️ **Nicht `effective_*`.** Darin steckt die Rolle, bei einem Entscheider
+   * steht dort immer „an“. Wer ihn im Entwurf zum Benutzer machte, sah bis zum
+   * 12.09.2026 genau diesen Wert als Haken, obwohl am Konto etwas anderes
+   * gespeichert war. Ein leeres Filme- oder Serienfeld erbt wie im Backend
+   * (`User.auto_approve_for`) die alte Sammel-Einstellung.
    */
-  function entwurfOder(
-    user: User,
-    key: "auto_approve_movies" | "auto_approve_series" | "auto_approve_uhd",
-    errechnet: boolean,
-  ): boolean {
+  function eigenerHaken(user: User, key: RechteSchalter): boolean {
     const entwurf = drafts[user.id];
-    return entwurf && key in entwurf ? Boolean(entwurf[key]) : errechnet;
+    if (entwurf && key in entwurf) return Boolean(entwurf[key]);
+    const gespeichert = user[key];
+    return gespeichert === null ? user.auto_approve : gespeichert;
   }
+
+  /**
+   * Was das aufgeklappte Konto darf, bewertet vom Server.
+   *
+   * Dieselbe Stelle wie im Einladungsassistenten (`services/kontorechte.py`).
+   * Gefragt wird mit der Rolle aus dem Entwurf: Wer die Rolle umstellt, sieht
+   * vor dem Speichern, was danach gilt.
+   */
+  const offenesKonto = usersQuery.data?.find((u) => u.id === editing) ?? null;
+  const rechteWunsch: RechteWunsch | null = offenesKonto
+    ? {
+        role: feld(offenesKonto, "role"),
+        auto_approve_movies: eigenerHaken(offenesKonto, "auto_approve_movies"),
+        auto_approve_series: eigenerHaken(offenesKonto, "auto_approve_series"),
+        can_request_uhd_movies: eigenerHaken(offenesKonto, "can_request_uhd_movies"),
+        can_request_uhd_series: eigenerHaken(offenesKonto, "can_request_uhd_series"),
+        auto_approve_uhd: eigenerHaken(offenesKonto, "auto_approve_uhd"),
+        hausordnung: false,
+      }
+    : null;
+  const rechteQuery = useQuery({
+    queryKey: ["rechte-bewerten", editing, rechteWunsch],
+    queryFn: () =>
+      api.post<RechteBewertung>("/api/users/rechte/bewerten", rechteWunsch),
+    enabled: rechteWunsch !== null,
+    // Die letzte Antwort bleibt stehen, bis die neue da ist, aber nur für
+    // dasselbe Konto. Sonst stünden kurz die Haken des vorher offenen da.
+    placeholderData: (vorher, vorherigeAbfrage) =>
+      vorherigeAbfrage?.queryKey[1] === editing ? vorher : undefined,
+  });
+  const rechte = rechteQuery.data;
 
   /** Eine Änderung vormerken - geschrieben wird erst beim Speichern. */
   function setzen<K extends keyof User>(user: User, key: K, wert: User[K]) {
@@ -428,9 +449,10 @@ export function AdminUsersSettings() {
       Object.keys(entwurf).some((key) => {
         const links = entwurf[key as keyof User];
         const rechts = user[key as keyof User];
+        // Sperrlisten als Menge: Ab- und wieder Anhaken ändert die Reihenfolge,
+        // nicht den Inhalt, und soll nicht „ungespeichert“ melden.
         return Array.isArray(links) && Array.isArray(rechts)
-          ? links.length !== rechts.length ||
-              links.some((wert, i) => wert !== rechts[i])
+          ? [...links].sort().join(",") !== [...rechts].sort().join(",")
           : links !== rechts;
       })
     ) {
@@ -489,11 +511,26 @@ export function AdminUsersSettings() {
     };
     const teile = [t(rollen[user.role])];
 
+    // Je Medienart, so wie es beim Anfragen ankommt. Bis zum 12.09.2026 stand
+    // hier das alte Sammelfeld `effective_auto_approve`, und wer nur Filme
+    // sofort bekam, las „Freigabe nötig“. Wählt im Haus der Entscheider das
+    // Ziel, wartet eine Anfrage trotz Haken (`ziel_erst_bei_freigabe`); wer
+    // selbst freigibt, wählt auch selbst.
+    const sofortFilme =
+      user.effective_auto_approve_movies &&
+      (user.can_approve || !config?.approver_picks_target_movie);
+    const sofortSerien =
+      user.effective_auto_approve_series &&
+      (user.can_approve || !config?.approver_picks_target_tv);
     teile.push(
       t(
-        user.effective_auto_approve
+        sofortFilme && sofortSerien
           ? "adminUsers.summaryAuto"
-          : "adminUsers.summaryApproval",
+          : sofortFilme
+            ? "adminUsers.summaryAutoMovies"
+            : sofortSerien
+              ? "adminUsers.summaryAutoSeries"
+              : "adminUsers.summaryApproval",
       ),
     );
 
@@ -963,201 +1000,50 @@ export function AdminUsersSettings() {
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 border-t border-ink-700 pt-4 sm:grid-cols-4">
-                        {/* Auto-Freigabe je Medienart - wie die Kontingente.
-                        Liegt der Zielordner oder das Profil eines Dienstes beim
-                        Entscheider, kann es dort keine Auto-Freigabe geben: Die
-                        Anfrage waere unvollstaendig. Der Haken wird dann
-                        gesperrt und sagt auch, warum. */}
-                        {(() => {
-                          const filmeSpaeter = Boolean(
-                            config?.approver_picks_target_movie,
-                          );
-                          const serienSpaeter = Boolean(
-                            config?.approver_picks_target_tv,
-                          );
-                          const zeilen = [
-                            {
-                              schluessel: "auto_approve_movies" as const,
-                              gilt: entwurfOder(
-                                user,
-                                "auto_approve_movies",
-                                user.effective_auto_approve_movies,
-                              ),
-                              label: "adminUsers.autoApproveMovies",
-                              gesperrt: user.can_approve || filmeSpaeter,
-                              grund: filmeSpaeter,
-                              grundWort: "movie" as const,
-                            },
-                            {
-                              schluessel: "auto_approve_series" as const,
-                              gilt: entwurfOder(
-                                user,
-                                "auto_approve_series",
-                                user.effective_auto_approve_series,
-                              ),
-                              label: "adminUsers.autoApproveSeries",
-                              gesperrt: user.can_approve || serienSpaeter,
-                              grund: serienSpaeter,
-                              grundWort: "tv" as const,
-                            },
-                          ];
-                          return (
-                            <div className="flex flex-wrap gap-x-6 gap-y-2 sm:col-span-4">
-                              {zeilen.map(
-                                ({
-                                  schluessel,
-                                  gilt,
-                                  label,
-                                  gesperrt,
-                                  grund,
-                                  grundWort,
-                                }) => (
-                                  <label
-                                    key={schluessel}
-                                    className={
-                                      "flex items-center gap-2 text-sm " +
-                                      (gesperrt
-                                        ? "text-mist-600"
-                                        : "text-mist-300")
-                                    }
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={
-                                        gilt && (user.can_approve || !grund)
-                                      }
-                                      disabled={gesperrt}
-                                      onChange={(event) =>
-                                        setzen(
-                                          user,
-                                          schluessel,
-                                          event.target.checked,
-                                        )
-                                      }
-                                      className="h-4 w-4 accent-accent-500 disabled:opacity-60"
-                                    />
-                                    {t(label)}
-                                    {user.can_approve && (
-                                      <span className="text-xs text-mist-600">
-                                        ({t("adminUsers.autoApproveAdmin")})
-                                      </span>
-                                    )}
-                                    {!user.can_approve && grund && (
-                                      <span className="text-xs text-mist-600">
-                                        ({grundText(grundWort)})
-                                      </span>
-                                    )}
-                                  </label>
-                                ),
-                              )}
-                            </div>
-                          );
-                        })()}
-
-                        {/* 4K - nur wenn es ueberhaupt eine zweite Instanz gibt.
-                        Ohne sie waeren das drei Haken ohne jede Wirkung. */}
-                        {(config?.radarr_uhd_configured ||
-                          config?.sonarr_uhd_configured) && (
-                          <div className="flex flex-wrap gap-4 sm:col-span-4">
-                            {(
-                              [
+                        {/* Freigabe und 4K, bewertet vom Server: dieselbe
+                        Stelle wie im Einladungsassistenten, gefragt mit der
+                        Rolle aus dem Entwurf. Gesperrte Haken zeigen, was gilt,
+                        und sagen warum. Die 4K-Zeile fehlt nur, wenn es gar
+                        keine 4K-Instanz gibt. */}
+                        {rechte && (
+                          <div className="flex flex-col gap-3 sm:col-span-4">
+                            <div className="flex flex-wrap gap-x-6 gap-y-2">
+                              {(
                                 [
-                                  "can_request_uhd_movies",
-                                  "uhd.canRequestMovies",
-                                  config?.radarr_uhd_configured,
-                                ],
-                                [
-                                  "can_request_uhd_series",
-                                  "uhd.canRequestSeries",
-                                  config?.sonarr_uhd_configured,
-                                ],
-                                ["auto_approve_uhd", "uhd.autoApprove", true],
-                              ] as const
-                            ).map(([schluessel, labelKey, sichtbar]) => {
-                              if (!sichtbar) return null;
-                              // Die 4K-Freigabe ist nur sinnvoll, solange fuer
-                              // mindestens eine Medienart, die dieser Benutzer in
-                              // 4K anfragen darf, nicht ohnehin der Entscheider
-                              // waehlt. Sonst wartet dort jede Anfrage.
-                              const nochSinnvoll =
-                                (Boolean(
-                                  feld(user, "can_request_uhd_movies"),
-                                ) &&
-                                  Boolean(config?.radarr_uhd_configured) &&
-                                  !config?.approver_picks_target_movie_uhd) ||
-                                (Boolean(
-                                  feld(user, "can_request_uhd_series"),
-                                ) &&
-                                  Boolean(config?.sonarr_uhd_configured) &&
-                                  !config?.approver_picks_target_tv_uhd);
-                              const istFreigabe =
-                                schluessel === "auto_approve_uhd";
-                              // Wer freigeben darf, darf 4K anfragen *und* gibt es
-                              // sich selbst frei - beides ist keine Einstellung,
-                              // sondern folgt aus der Rolle. Ein anklickbares
-                              // Kaestchen daneben waere eine Einladung zu einer
-                              // Aenderung, die gar nichts bewirkt.
-                              const gesperrt =
-                                user.can_approve ||
-                                (istFreigabe && !nochSinnvoll);
-                              return (
-                                <label
+                                  ["auto_approve_movies", "adminUsers.autoApproveMovies"],
+                                  ["auto_approve_series", "adminUsers.autoApproveSeries"],
+                                ] as const
+                              ).map(([schluessel, label]) => (
+                                <RechteHaken
                                   key={schluessel}
-                                  className={
-                                    "flex items-center gap-2 text-sm " +
-                                    (gesperrt
-                                      ? "text-mist-600"
-                                      : "text-mist-300")
-                                  }
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={
-                                      user.can_approve
-                                        ? true
-                                        : istFreigabe
-                                          ? entwurfOder(
-                                              user,
-                                              "auto_approve_uhd",
-                                              user.effective_auto_approve_uhd,
-                                            ) && nochSinnvoll
-                                          : Boolean(feld(user, schluessel))
-                                    }
-                                    disabled={gesperrt}
-                                    onChange={(event) =>
-                                      setzen(
-                                        user,
-                                        schluessel,
-                                        event.target.checked,
-                                      )
-                                    }
-                                    className="h-4 w-4 accent-accent-500 disabled:opacity-60"
+                                  label={t(label)}
+                                  stand={rechte[schluessel]}
+                                  wert={eigenerHaken(user, schluessel)}
+                                  onChange={(neu) => setzen(user, schluessel, neu)}
+                                />
+                              ))}
+                            </div>
+                            {rechte.auto_approve_uhd.grund !== "no_uhd_instance" && (
+                              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                                {(
+                                  [
+                                    ["can_request_uhd_movies", "uhd.canRequestMovies"],
+                                    ["can_request_uhd_series", "uhd.canRequestSeries"],
+                                    ["auto_approve_uhd", "uhd.autoApprove"],
+                                  ] as const
+                                ).map(([schluessel, label]) => (
+                                  <RechteHaken
+                                    key={schluessel}
+                                    label={t(label)}
+                                    stand={rechte[schluessel]}
+                                    wert={eigenerHaken(user, schluessel)}
+                                    onChange={(neu) => setzen(user, schluessel, neu)}
                                   />
-                                  {t(labelKey)}
-                                  {user.can_approve && (
-                                    <span className="text-xs text-mist-600">
-                                      ({t("adminUsers.autoApproveAdmin")})
-                                    </span>
-                                  )}
-                                  {istFreigabe &&
-                                    !user.can_approve &&
-                                    !nochSinnvoll && (
-                                      <span className="text-xs text-mist-600">
-                                        (
-                                        {grundText(
-                                          feld(user, "can_request_uhd_movies")
-                                            ? "movie"
-                                            : "tv",
-                                        )}
-                                        )
-                                      </span>
-                                    )}
-                                </label>
-                              );
-                            })}
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
-
                         {/* Eine eigene Überschrift, weil hier ein anderer
                             Gedanke anfängt: Darüber steht, **was** jemand darf
                             (freigeben, 4K), hier **wie viel**. Ohne Trennung
@@ -1326,12 +1212,15 @@ export function AdminUsersSettings() {
                   Für Admins und Entscheider entfällt der Block ganz: Sie geben
                   sich selbst frei, könnten die Sperre also jederzeit aufheben -
                   sie einzustellen sähe nach einer Grenze aus, die keine ist.
+                  Maßgeblich ist die Rolle aus dem Entwurf. Beim Anfragen gilt
+                  die Liste für sie ebenfalls nicht (`requests_service`); bis
+                  zum 12.09.2026 wirkte eine alte Liste dort unsichtbar weiter.
 
                   Wählt der Entscheider das Profil erst bei der Freigabe, sucht
                   der Benutzer gar keines aus. Dann bleibt die Liste sichtbar,
                   aber gesperrt - mit Begründung, statt kommentarlos zu
                   verschwinden. */}
-                      {!user.can_approve &&
+                      {!["admin", "approver"].includes(feld(user, "role")) &&
                         (
                           [
                             [

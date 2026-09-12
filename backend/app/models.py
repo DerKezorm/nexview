@@ -216,13 +216,12 @@ class NotificationType(str, enum.Enum):
     # --- Kinderkonten ------------------------------------------------------
     # Ein Kind wuenscht sich einen Titel - geht an sein Elternteil.
     #
-    # Bewusst **ohne** Mail-Schalter: ``MAIL_SWITCH`` kennt diesen Typ nicht,
-    # also verschickt ``notify.wants_mail`` dazu nie etwas. Das ist kein
-    # vergessener Baustein, sondern Absicht - Eltern und Kind sitzen in
-    # derselben Wohnung, und ein Wunsch ist kein Vorgang, der eine Mail wert
-    # waere. Wer das aendern will, braucht **drei** Teile: Eintrag in
+    # Per Mail und Push nur auf Wunsch (``mail_child_wish``, ``push_child_wish``,
+    # beide Standard aus): Die Glocke sieht nur, wer die App gerade offen hat.
+    # Hier stand bis zum 12.09.2026, der Typ habe bewusst keinen Mail-Schalter;
+    # das war laengst ueberholt. ⚠️ Eine Mail braucht **drei** Teile: Eintrag in
     # ``MAIL_SWITCH``, Vorlage in ``mail_templates`` und einen ``case`` in
-    # ``mail_outbox._nachricht`` - sonst wird der Auftrag lautlos verworfen.
+    # ``mail_outbox._nachricht``. Fehlt einer, wird der Auftrag lautlos verworfen.
     child_wish = "child_wish"
     # --- "Sag mir Bescheid" -------------------------------------------------
     # Ein vorgemerkter **Film** ist da. Bewusst getrennt von

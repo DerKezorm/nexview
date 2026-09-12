@@ -587,7 +587,12 @@ def resolve(db: Session, settings: AppSettings, account: ExternalAccount) -> Use
             "Profil – oder bitte den Administrator um eine Einladung.",
         )
 
-    if not settings.mediaserver_auto_import:
+    # ⚠️ **Die Einladung geht vor die Erlaubnis**, wie Schritt 4 vor Schritt 5
+    # oben. Bis zum 12.09.2026 stand diese Sperre vor der Suche nach der
+    # Einladung, und wer eingeladen war, las bei ausgeschaltetem Auto-Import
+    # ausgerechnet die Bitte um eine Einladung.
+    eingeladen = bool(account.email and offene_einladung(db, account.email))
+    if not settings.mediaserver_auto_import and not eingeladen:
         raise KontoFehler(
             "mediaserver_not_invited",
             "Für diesen Zugang gibt es noch kein Konto. Bitte den Administrator um eine Einladung.",

@@ -365,6 +365,48 @@ def test_unbekannt_ohne_auto_anlage_wird_abgewiesen(client) -> None:
         assert db.query(User).count() == 0
 
 
+def test_eine_einladung_braucht_kein_automatisches_anlegen(client) -> None:
+    """⚠️ Die Einladung geht vor die Erlaubnis, wie beim Medienserver.
+
+    Bis zum 12.09.2026 wies ``resolve`` ohne ``auto_create`` ab, bevor
+    ``_anlegen`` nach der Einladung suchte. Der Eingeladene las dann
+    "Bitte den Administrator um eine Einladung".
+    """
+    from app.services import tokens
+
+    with SessionLocal() as db:
+        tokens.create(db, TokenPurpose.invitation, "oma@example.com", invite_role=Role.approver)
+
+        benutzer = oidc_accounts.resolve(
+            db, load_settings(db), _identitaet(email="oma@example.com"), auto_create=False
+        )
+        db.commit()
+
+        assert benutzer.role == Role.approver
+        assert db.query(AuthToken).one().redeemed_by == benutzer.id
+
+
+def test_ohne_beglaubigte_adresse_oeffnet_eine_einladung_nichts(client) -> None:
+    """Die Einladung zaehlt nur fuer eine beglaubigte Adresse, dieselbe Bedingung
+    wie in ``_anlegen``. Sonst holte sich ein Konto, wer beim Anbieter bloss die
+    Adresse eines Eingeladenen eintraegt."""
+    from app.services import tokens
+
+    with SessionLocal() as db:
+        tokens.create(db, TokenPurpose.invitation, "oma@example.com", invite_role=Role.approver)
+
+        with pytest.raises(KontoFehler) as fehler:
+            oidc_accounts.resolve(
+                db,
+                load_settings(db),
+                _identitaet(email="oma@example.com", email_verified=False),
+                auto_create=False,
+            )
+        assert fehler.value.code == "oidc_not_invited"
+        db.rollback()
+        assert db.query(User).count() == 0
+
+
 def test_auto_anlage_erzeugt_konto(client) -> None:
     with SessionLocal() as db:
         benutzer = oidc_accounts.resolve(

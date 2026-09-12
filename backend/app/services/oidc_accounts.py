@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..models import NotificationType, OidcBlock, OidcLink, Role, User, utcnow
+from ..models import AuthToken, NotificationType, OidcBlock, OidcLink, Role, User, utcnow
 from ..security import unusable_password
 from . import einladungen, logs, notify, tokens
 from .mediaserver_accounts import KontoFehler, _unique_username, offene_einladung
@@ -220,6 +220,20 @@ def _abgewiesen(db: Session, identitaet: OidcIdentitaet, grund: str) -> None:
     )
 
 
+def _beglaubigte_einladung(db: Session, identitaet: OidcIdentitaet) -> AuthToken | None:
+    """Die offene Einladung zu dieser Anmeldung, aber nur fuer eine beglaubigte Adresse.
+
+    Eine Stelle fuer ``resolve`` und ``_anlegen``. Das eine laesst mit der
+    Einladung herein, obwohl niemand automatisch angelegt wird; das andere
+    vergibt ihre Rechte. Liesse ``resolve`` eine unbeglaubigte Adresse gelten,
+    bekaeme ein Konto, wer beim Anbieter bloss die Adresse eines Eingeladenen
+    eintraegt.
+    """
+    if not (identitaet.email and identitaet.email_verified):
+        return None
+    return offene_einladung(db, identitaet.email)
+
+
 def resolve(
     db: Session, settings: AppSettings, identitaet: OidcIdentitaet, *, auto_create: bool
 ) -> User:
@@ -292,7 +306,10 @@ def resolve(
             link(nach_adresse, identitaet)
             return nach_adresse
 
-    if not auto_create:
+    # ⚠️ **Die Einladung geht vor die Erlaubnis**, wie beim Medienserver. Bis
+    # zum 12.09.2026 stand diese Sperre vor der Suche nach der Einladung, und
+    # der Eingeladene las ausgerechnet die Bitte um eine Einladung.
+    if not auto_create and _beglaubigte_einladung(db, identitaet) is None:
         # ⚠️ **Zwei Ursachen, eine Meldung.** Entweder kennt Nexview diese
         # Person wirklich nicht - oder es gaebe ein Konto, aber der Anbieter
         # hat die Adresse nicht beglaubigt und die Bruecke wurde uebersprungen.
@@ -322,11 +339,7 @@ def _anlegen(db: Session, settings: AppSettings, identitaet: OidcIdentitaet) -> 
     **Rollen bleiben lokal**: Was der Anbieter an Gruppen kennt, liest Nexview
     nicht - der Anbieter beglaubigt, *wer* jemand ist, nicht, was er darf.
     """
-    einladung = (
-        offene_einladung(db, identitaet.email)
-        if identitaet.email and identitaet.email_verified
-        else None
-    )
+    einladung = _beglaubigte_einladung(db, identitaet)
 
     # ⚠️ **Eine Einladung, die keiner beglaubigten Adresse gegenuebersteht,
     # faellt weg - und das war bisher stumm.** Der Betreiber hat Rolle und

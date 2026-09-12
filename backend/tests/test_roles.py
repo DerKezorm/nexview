@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest, RequestStatus, User
+from app.models import MediaRequest, RequestStatus, Role, User
 
 from .conftest import ADMIN, auth_headers, create_user
 
@@ -163,3 +163,42 @@ def test_admin_bleibt_admin(arr_client: TestClient) -> None:
     assert arr_client.get("/api/settings").status_code == 200
     assert arr_client.get("/api/admin/requests").status_code == 200
     assert arr_client.post("/api/auth/login", json=ADMIN).status_code == 200
+
+
+# --- Der letzte Administrator ------------------------------------------------
+
+
+def test_der_letzte_admin_wird_auch_nicht_zum_entscheider(admin_client: TestClient) -> None:
+    """⚠️ Herabstufen heisst jede Rolle ausser Administrator.
+
+    Bis zum 12.09.2026 fragte ``update_user`` nur nach ``role == user``. Zum
+    Entscheider liess sich der letzte Administrator herabstufen, auch von sich
+    selbst, und danach kam niemand mehr an die Einstellungen.
+    """
+    me = admin_client.get("/api/auth/me").json()
+
+    antwort = admin_client.patch(f"/api/users/{me['id']}", json={"role": "approver"})
+
+    assert antwort.status_code == 400, antwort.text
+    assert antwort.json()["detail"]["code"] == "last_admin_protected"
+    assert admin_client.get("/api/auth/me").json()["role"] == "admin"
+
+
+def test_niemand_stuft_sich_selbst_zum_entscheider_herab(admin_client: TestClient) -> None:
+    create_user(admin_client, "zweite", role=Role.admin)
+    me = admin_client.get("/api/auth/me").json()
+
+    antwort = admin_client.patch(f"/api/users/{me['id']}", json={"role": "approver"})
+
+    assert antwort.status_code == 400, antwort.text
+    assert antwort.json()["detail"]["code"] == "cannot_demote_self"
+
+
+def test_einen_anderen_admin_zum_entscheider_zu_machen_geht(admin_client: TestClient) -> None:
+    """Die Gegenprobe: Die Sperre gilt dem letzten und dem eigenen Konto, sonst niemandem."""
+    zweite = create_user(admin_client, "zweite", role=Role.admin)
+
+    antwort = admin_client.patch(f"/api/users/{zweite['id']}", json={"role": "approver"})
+
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["role"] == "approver"

@@ -571,7 +571,13 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
     data = payload.model_dump(exclude_unset=True)
 
     # Sich selbst nicht aussperren, und nie den letzten Admin entfernen.
-    losing_admin = (data.get("role") == Role.user) or (data.get("is_active") is False)
+    #
+    # ⚠️ **Herabstufen heisst jede Rolle ausser Administrator.** Hier stand bis
+    # zum 12.09.2026 ``role == user``; zum Entscheider liess sich der letzte
+    # Administrator herabstufen, auch das eigene Konto.
+    losing_admin = (
+        data.get("role") not in (None, Role.admin) or data.get("is_active") is False
+    )
     if user.role == Role.admin and losing_admin and _count_active_admins(db) <= 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

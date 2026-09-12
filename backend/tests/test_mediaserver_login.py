@@ -301,6 +301,31 @@ def test_ohne_auto_import_braucht_es_eine_einladung(
     assert antwort.json()["detail"]["code"] == "mediaserver_not_invited"
 
 
+def test_mit_einladung_geht_es_auch_ohne_auto_import(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """⚠️ Die Einladung geht vor die Erlaubnis.
+
+    Bis zum 12.09.2026 stand die Sperre vor der Suche nach der Einladung: Wer
+    eingeladen war und sich mit Plex anmeldete, las bei ausgeschaltetem
+    Auto-Import "Bitte den Administrator um eine Einladung".
+    """
+    from app.models import TokenPurpose
+    from app.services import tokens
+
+    verbinde(admin_client, mediaserver_auto_import="off")
+    with SessionLocal() as session:
+        tokens.create(session, TokenPurpose.invitation, KONTO.email, invite_role=Role.approver)
+
+    antwort = anmelden(admin_client)
+    assert antwort.status_code == 200, antwort.text
+
+    with SessionLocal() as session:
+        konto = session.query(User).filter(User.email == KONTO.email).one()
+        # Die Rolle aus der Einladung, nicht die Vorgabe fuer importierte Konten.
+        assert konto.role == Role.approver
+
+
 def test_die_einladung_bringt_ihre_rechte_auch_ueber_den_medienserver_mit(
     admin_client: TestClient, fake_server: FakeMediaServer
 ) -> None:
@@ -309,11 +334,6 @@ def test_die_einladung_bringt_ihre_rechte_auch_ueber_den_medienserver_mit(
     Vorher uebernahm dieser Weg nur Rolle, Kontingent und Profilsperren; die
     Rechte aus dem Einladungsassistenten fielen still weg. Und die Meldung an
     die Administratoren sagt "Einladung eingeloest", nicht "importiert".
-
-    Bewusst **mit** Auto-Import: Ist er aus, weist ``resolve`` die Anmeldung
-    ab, bevor ``_anlegen`` ueberhaupt nach einer Einladung sucht - obwohl der
-    Docstring dort die Einladung vor die Erlaubnis stellt. Das ist ein eigener
-    Befund und hier nicht mit entschieden.
     """
     from app.models import AuthToken, Notification, NotificationType, TokenPurpose
     from app.services import settings_service, tokens

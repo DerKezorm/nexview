@@ -428,11 +428,11 @@ class InvitationCreated(InvitationPublic):
 class UserUpdate(BaseModel):
     role: Role | None = None
 
-    # Auch hier keine Kinderrolle - und das ist mehr als Ordnungsliebe:
-    # ``update_user`` prueft "verliert das Haus seinen letzten Administrator"
-    # an ``role == user``. Waere ``child`` erlaubt, liesse sich der letzte
-    # Administrator daran vorbei zum Kind herabstufen, und niemand kaeme mehr
-    # an die Verwaltung.
+    # Auch hier keine Kinderrolle: Kinderkonten entstehen nur unter einem
+    # Elternteil. Bis zum 12.09.2026 war das zugleich der einzige Riegel gegen
+    # ein Herabstufen des letzten Administrators zum Kind, weil ``update_user``
+    # nur ``role == user`` pruefte. Seither zaehlt dort jede Rolle ausser
+    # Administrator.
     _check_role = field_validator("role")(_keine_kinderrolle)
     display_name: str | None = None
     language: str | None = None

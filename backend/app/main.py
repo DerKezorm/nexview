@@ -146,6 +146,7 @@ from .services import (
     logs,
     sicherung,
     status_poller,
+    tokens,
     trash_bezug,
 )
 from .services.arr import close_http_client as close_arr_client
@@ -208,6 +209,9 @@ async def lifespan(app: FastAPI):
         # Radarr/Sonarr. Haengt am Poller-Schalter, weil hier das Netz
         # angesprochen wird und Tests das nicht tun sollen.
         tasks.append(asyncio.create_task(trash_bezug.run_forever(stop)))
+        # Abgelaufene und verbrauchte Links einmal am Tag aufraeumen. Haengt am
+        # Poller-Schalter, weil es Zeilen loescht, die ein Test gerade anlegt.
+        tasks.append(asyncio.create_task(tokens.run_forever(stop)))
 
         # ⚠️ **Abgebrochene Umbenennungslaeufe wieder aufnehmen.** Ein Lauf
         # ueber mehrere tausend Titel dauert lange; faellt der Prozess

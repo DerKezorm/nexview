@@ -11,14 +11,16 @@ Grundregeln, die hier an einer Stelle durchgesetzt werden:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import logging
 import secrets
 from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import AuthToken, Role, TokenPurpose, User, utcnow
+from ..models import AuthToken, EinladungsServer, Role, TokenPurpose, User, utcnow
 
 # Wie lange die jeweilige Art gilt. Kurz genug, dass ein abgefangener Link
 # selten noch nuetzt - lang genug, dass niemand in Zeitnot geraet.
@@ -156,17 +158,60 @@ def purge_expired(db: Session) -> int:
 
     Sie haben keinen Wert mehr; ohne das waechst die Tabelle mit jeder
     Einladung und jedem vergessenen Passwort weiter.
+
+    ⚠️ **Ausser einer Einladung, die noch mit Hinweis in der Liste steht.** Was
+    nicht uebernommen wurde oder auf einem Medienserver fehlt, bleibt dort
+    sichtbar, bis der Administrator den Hinweis wegnimmt. Mit der Einladung
+    verschwaende sonst auch das Nachholen einer Freigabe.
     """
     grenze = utcnow().replace(tzinfo=None) - timedelta(days=30)
-    alte = list(
+    kandidaten = list(
         db.scalars(
             select(AuthToken).where(
                 (AuthToken.expires_at < grenze) | (AuthToken.used_at < grenze)
             )
         )
     )
+    alte = [token for token in kandidaten if not _mit_hinweis(token)]
     for token in alte:
         db.delete(token)
     if alte:
         db.commit()
     return len(alte)
+
+
+def _mit_hinweis(token: AuthToken) -> bool:
+    """Steht die Einladung noch mit Hinweis in der Liste (``routers/users.list_invitations``)?"""
+    return token.purpose == TokenPurpose.invitation and (
+        bool(token.invite_dropped)
+        or any(ziel.zustand == EinladungsServer.FEHLT for ziel in token.server)
+    )
+
+
+#: Einmal am Tag reicht: Aufgeraeumt wird, was seit dreissig Tagen tot ist.
+AUFRAEUMEN_SEKUNDEN = 24 * 60 * 60
+
+
+def _aufraeumen() -> None:
+    from ..db import SessionLocal  # wie in ``logs``: erst beim Aufruf geladen
+
+    with SessionLocal() as db:
+        weg = purge_expired(db)
+    if weg:
+        logging.getLogger("nexview.tokens").info("Removed %d expired or used link(s)", weg)
+
+
+async def run_forever(stop: asyncio.Event) -> None:
+    """Gleich nach dem Start einmal aufraeumen, danach taeglich.
+
+    Bis zum 12.09.2026 gab es ``purge_expired``, aber keine Stelle rief es auf.
+    """
+    while not stop.is_set():
+        try:
+            await asyncio.to_thread(_aufraeumen)
+        except Exception:  # noqa: BLE001 - die Schleife darf nie sterben
+            logging.getLogger("nexview.tokens").exception("Removing expired links failed")
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=AUFRAEUMEN_SEKUNDEN)
+        except TimeoutError:
+            continue

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -17,6 +18,8 @@ from ..schemas import (
     InvitationCreated,
     InvitationPublic,
     PasswordReset,
+    RechteBewertung,
+    RechteWunsch,
     UserPublic,
     UserUpdate,
     UserWithUsage,
@@ -29,6 +32,7 @@ from ..services import (
     child_wishes,
     children,
     kontoaufloesung,
+    kontorechte,
     mail,
     mediaserver_accounts,
     oidc_accounts,
@@ -341,28 +345,81 @@ def _email_taken(db: DbSession, email: str, ausser: int | None = None) -> bool:
 # bevor es ueberhaupt einen Mailserver gibt.
 
 
+def _einladung_oeffentlich(db: DbSession, token: AuthToken) -> InvitationPublic:
+    eingeloest = bool(token.redeemed_by or token.invite_dropped)
+    konto = db.get(User, token.redeemed_by) if token.redeemed_by else None
+    return InvitationPublic(
+        id=token.id,
+        email=token.email,
+        role=token.invite_role or Role.user,
+        created_at=token.created_at,
+        expires_at=token.expires_at,
+        eingeloest_am=token.used_at if eingeloest else None,
+        konto=konto.username if konto is not None else None,
+        entfallen=[name for name in token.invite_dropped.split(",") if name],
+    )
+
+
+def _bewertung(
+    db: DbSession, wunsch: RechteWunsch
+) -> tuple[kontorechte.Wunsch, kontorechte.Bewertung]:
+    """Den Wunsch aus dem Assistenten gegen die Einrichtung halten.
+
+    Pruefen und Anlegen gehen beide hier durch - sonst koennte der Assistent
+    etwas anzeigen, das beim Anlegen anders ausgeht.
+    """
+    eigen = kontorechte.Wunsch(
+        rolle=wunsch.role,
+        auto_approve_movies=wunsch.auto_approve_movies,
+        auto_approve_series=wunsch.auto_approve_series,
+        can_request_uhd_movies=wunsch.can_request_uhd_movies,
+        can_request_uhd_series=wunsch.can_request_uhd_series,
+        auto_approve_uhd=wunsch.auto_approve_uhd,
+        hausordnung=wunsch.hausordnung,
+    )
+    bewertung = kontorechte.bewerten(
+        load_settings(db),
+        eigen,
+        hausordnung_veroeffentlicht=kontorechte.veroeffentlichte_hausordnung(db) is not None,
+    )
+    return eigen, bewertung
+
+
 @router.get("/invitations", response_model=list[InvitationPublic])
 def list_invitations(admin: AdminUser, db: DbSession) -> list[InvitationPublic]:
-    """Offene Einladungen - verbrauchte und abgelaufene interessieren nicht mehr."""
-    offen = db.scalars(
+    """Offene Einladungen - und eingeloeste, bei denen etwas nicht mehr ging.
+
+    Verbrauchte und abgelaufene interessieren sonst nicht mehr. Eine eingeloeste
+    Einladung mit Hinweis bleibt stehen, bis der Administrator ihn weggenommen
+    hat: Er hat etwas zugesagt, das nicht angekommen ist, und soll das nicht
+    nur aus einer Glocke erfahren, die er vielleicht nie oeffnet.
+    """
+    eintraege = db.scalars(
         select(AuthToken)
         .where(
             AuthToken.purpose == TokenPurpose.invitation,
-            AuthToken.used_at.is_(None),
+            AuthToken.used_at.is_(None) | (AuthToken.invite_dropped != ""),
         )
         .order_by(AuthToken.created_at.desc())
     )
     return [
-        InvitationPublic(
-            id=token.id,
-            email=token.email,
-            role=token.invite_role or Role.user,
-            created_at=token.created_at,
-            expires_at=token.expires_at,
-        )
-        for token in offen
-        if token.open
+        _einladung_oeffentlich(db, token)
+        for token in eintraege
+        if token.open or token.invite_dropped
     ]
+
+
+@router.post("/invitations/bewerten", response_model=RechteBewertung)
+def bewerte_einladung(payload: RechteWunsch, admin: AdminUser, db: DbSession) -> RechteBewertung:
+    """Was darf diese Einladung vergeben? Der Assistent fragt bei jeder Aenderung.
+
+    ⚠️ **Hier wird nur gelesen.** Der Assistent zeigt daraus gesperrte Haken
+    samt Grund. Angelegt wird erst ueber ``POST /invitations``, und das fragt
+    dieselbe Stelle noch einmal - wer an der Oberflaeche vorbei schickt, bekommt
+    trotzdem nicht mehr.
+    """
+    eigen, bewertung = _bewertung(db, payload)
+    return RechteBewertung(**asdict(bewertung), entfallen=bewertung.entfallen(eigen))
 
 
 @router.post("/invitations", response_model=InvitationCreated, status_code=201)
@@ -419,6 +476,10 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
             ),
         )
 
+    eigen, bewertung = _bewertung(db, payload)
+    # Administratoren sind nie begrenzt (``quota._limit_for``). Eine Grenze an
+    # ihrer Einladung kaeme erst nach einem spaeteren Herabstufen zum Vorschein.
+    begrenzt = bewertung.kontingent.frei
     roh, token = tokens.create(
         db,
         TokenPurpose.invitation,
@@ -428,8 +489,13 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
         # Die Einladung traegt die Grenzen so, wie sie am Konto landen sollen -
         # "Standard" als ``None``, "unbegrenzt" als ``UNBEGRENZT``. Der
         # Zeitraum steht nicht mehr dabei: er gilt haus-weit.
-        invite_quota_movies=kontingent_aus_wert(payload.quota_movies_limit),
-        invite_quota_series=kontingent_aus_wert(payload.quota_series_limit),
+        invite_quota_movies=kontingent_aus_wert(payload.quota_movies_limit) if begrenzt else None,
+        invite_quota_series=kontingent_aus_wert(payload.quota_series_limit) if begrenzt else None,
+        invite_storage_limit_gb=kontingent_aus_wert(payload.storage_limit_gb) if begrenzt else None,
+        # Nur, was die Einrichtung jetzt hergibt. Beim Einloesen wird dieselbe
+        # Stelle noch einmal gefragt - bis dahin kann sich das Haus geaendert haben.
+        invite_rechte=bewertung.werte_fuers_konto(eigen),
+        invite_hausordnung=bewertung.hausordnung.wirkt,
     )
 
     # Bewusst die Standardsprache der Installation, nicht die des einladenden
@@ -448,6 +514,8 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
         role=payload.role,
         created_at=token.created_at,
         expires_at=token.expires_at,
+        # Wer an der Oberflaeche vorbei schickt, erfaehrt hier, was nicht gespeichert wurde.
+        entfallen=bewertung.entfallen(eigen),
         mail_sent=zustellung.sent,
         mail_error=zustellung.error,
         manual_link=None if zustellung.sent else zustellung.link,
@@ -469,6 +537,28 @@ def withdraw_invitation(invitation_id: int, admin: AdminUser, db: DbSession) -> 
     db.delete(token)
     db.commit()
     logger.info("Invitation for %s withdrawn by %r", token.email, admin.username)
+
+
+@router.post("/invitations/{invitation_id}/gesehen", status_code=status.HTTP_204_NO_CONTENT)
+def einladungshinweis_gesehen(invitation_id: int, admin: AdminUser, db: DbSession) -> None:
+    """Den Hinweis an einer eingeloesten Einladung wegnehmen.
+
+    Damit verschwindet sie aus der Liste. Am Konto aendert sich nichts: Was
+    entfallen ist, bleibt entfallen und laesst sich wie jedes Recht im
+    Kontodialog nachtragen.
+    """
+    token = db.get(AuthToken, invitation_id)
+    if token is None or token.purpose != TokenPurpose.invitation or not token.invite_dropped:
+        raise HTTPException(
+            status_code=404,
+            detail=meldungen.meldung(
+                "invitation_not_found",
+                "Einladung nicht gefunden.",
+            ),
+        )
+    token.invite_dropped = ""
+    db.commit()
+    logger.info("Invitation note for %s dismissed by %r", token.email, admin.username)
 
 
 @router.patch(

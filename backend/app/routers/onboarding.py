@@ -18,7 +18,7 @@ from ..deps import DbSession
 from ..models import AuthToken, Role, TokenPurpose, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH, VerificationSent
 from ..security import hash_password, verify_password
-from ..services import accounts, anmeldebremse, mail, tokens
+from ..services import accounts, anmeldebremse, einladungen, mail, tokens
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
@@ -53,17 +53,32 @@ ABGELAUFEN = meldungen.meldung(
 )
 
 
+class HausordnungSchritt(BaseModel):
+    """Die Hausordnung, wie die Einladungsseite sie zeigt - ohne Stand eines Kontos."""
+
+    titel: str
+    inhalt: str
+    #: Laesst sich darueber entscheiden? Sonst zeigt die Seite nur den Text.
+    quittierbar: bool
+
+
 class InvitationInfo(BaseModel):
     """Was das Einladungsformular anzeigen darf - mehr nicht."""
 
     email: str
     role: Role
+    #: Nur, wenn die Einladung sie zeigen soll und ein veroeffentlichter Text
+    #: diese Rolle angeht (``services/kontorechte``).
+    hausordnung: HausordnungSchritt | None = None
 
 
 class AcceptInvitation(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     display_name: str | None = Field(default=None, max_length=120)
     password: str
+    #: ``True`` angenommen, ``False`` abgelehnt, ``None`` keine Entscheidung.
+    #: Ohne veroeffentlichte, quittierbare Hausordnung wird es nicht verwendet.
+    hausordnung_akzeptiert: bool | None = None
 
 
 class PasswordInfo(BaseModel):
@@ -290,7 +305,18 @@ def read_invitation(raw: str, request: Request, db: DbSession) -> InvitationInfo
         anmeldebremse.gescheitert(bremse)
         raise HTTPException(status_code=404, detail=ABGELAUFEN)
     anmeldebremse.geklappt(bremse)
-    return InvitationInfo(email=token.email, role=token.invite_role or Role.user)
+    _, _, ordnung = einladungen.bewerten(db, token)
+    return InvitationInfo(
+        email=token.email,
+        role=token.invite_role or Role.user,
+        hausordnung=(
+            HausordnungSchritt(
+                titel=ordnung.titel, inhalt=ordnung.inhalt, quittierbar=ordnung.quittierbar
+            )
+            if ordnung is not None
+            else None
+        ),
+    )
 
 
 @router.post("/invitation/{raw}", status_code=status.HTTP_201_CREATED)
@@ -325,27 +351,48 @@ def accept_invitation(
             ),
         )
 
+    wunsch, bewertung, ordnung = einladungen.bewerten(db, token)
+
+    # ⚠️ **Die Entscheidung zur Hausordnung wird hier festgehalten, nicht ueber
+    # ``POST /api/hausordnung/entscheidung``.** Die Seite hinter dem Link hat
+    # noch kein Konto. Ist im selben Browser ein Administrator angemeldet,
+    # landete die Entscheidung sonst an dessen Konto. Festgehalten wird wie
+    # dort: die laufende Fassung, und nur, wenn sich ueberhaupt entscheiden laesst.
+    entscheidung: dict[str, object] = {}
+    if ordnung is not None and ordnung.quittierbar and payload.hausordnung_akzeptiert is not None:
+        entscheidung = {
+            "hausordnung_gelesen": ordnung.fassung,
+            "hausordnung_gelesen_am": utcnow(),
+            "hausordnung_akzeptiert": payload.hausordnung_akzeptiert,
+        }
+
     user = User(
         username=name,
         password_hash=hash_password(payload.password),
         email=token.email,
         # Wer den Link aus der Mail geoeffnet hat, hat die Adresse damit belegt.
         email_verified=True,
-        role=token.invite_role or Role.user,
         display_name=(payload.display_name or "").strip() or name,
         # Neue Konten starten in der Standardsprache der Installation. Umstellen
         # kann sie jeder danach jederzeit oben rechts.
         language=load_settings(db).default_language,
-        quota_movies_limit=token.invite_quota_movies,
-        quota_series_limit=token.invite_quota_series,
-        blocked_movie_profiles=token.invite_blocked_movie_profiles,
-        blocked_series_profiles=token.invite_blocked_series_profiles,
+        **einladungen.kontowerte(token, wunsch, bewertung),
+        **entscheidung,
     )
     db.add(user)
     tokens.consume(db, raw, TokenPurpose.invitation)
+    db.flush()
+
+    entfallen = bewertung.entfallen(wunsch)
+    einladungen.abschliessen(db, token, user, entfallen)
     db.commit()
 
-    logger.info("Invitation for %s accepted as %r", token.email, name)
+    logger.info(
+        "Invitation for %s accepted as %r (dropped: %s)",
+        token.email,
+        name,
+        ", ".join(entfallen) or "nothing",
+    )
     return {"username": name}
 
 

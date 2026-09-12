@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from ..models import NotificationType, OidcBlock, OidcLink, Role, User, utcnow
 from ..security import unusable_password
-from . import logs, notify, tokens
+from . import einladungen, logs, notify, tokens
 from .mediaserver_accounts import KontoFehler, _unique_username, offene_einladung
 from .oidc import OidcIdentitaet
 
@@ -343,19 +343,22 @@ def _anlegen(db: Session, settings: AppSettings, identitaet: OidcIdentitaet) -> 
         else None
     )
 
+    entfallen: list[str] = []
     if einladung is not None:
-        rolle = einladung.invite_role or Role.user
-        quota_movies = einladung.invite_quota_movies
-        quota_series = einladung.invite_quota_series
-        blocked_movies = einladung.invite_blocked_movie_profiles
-        blocked_series = einladung.invite_blocked_series_profiles
+        # Dieselbe Stelle wie das Formular hinter dem Link und die Anmeldung
+        # ueber den Medienserver (``services/einladungen``).
+        wunsch, bewertung, _ = einladungen.bewerten(db, einladung)
+        vorgaben = einladungen.kontowerte(einladung, wunsch, bewertung)
+        entfallen = bewertung.entfallen(wunsch)
         einladung.used_at = utcnow().replace(tzinfo=None)
     else:
-        rolle = Role.user
-        quota_movies = None
-        quota_series = None
-        blocked_movies = ""
-        blocked_series = ""
+        vorgaben = {
+            "role": Role.user,
+            "quota_movies_limit": None,
+            "quota_series_limit": None,
+            "blocked_movie_profiles": "",
+            "blocked_series_profiles": "",
+        }
 
     benutzer = User(
         username=_unique_username(db, identitaet.username or "user"),
@@ -369,17 +372,13 @@ def _anlegen(db: Session, settings: AppSettings, identitaet: OidcIdentitaet) -> 
         # beim Media-Server, wo die Herausgabe genuegt. ``email_verified:
         # false`` heisst ausdruecklich "dafuer buerge ich nicht".
         email_verified=identitaet.email_verified,
-        role=rolle,
         display_name=identitaet.username,
         language=settings.default_language,
         # Neue Konten muessen ihre Anfragen freigeben lassen - ein Konto beim
         # Anmeldedienst zu haben heisst nicht, ungefragt herunterladen zu
-        # duerfen.
+        # duerfen. Eine Einladung darf das je Film und Serie anders sehen.
         auto_approve=False,
-        quota_movies_limit=quota_movies,
-        quota_series_limit=quota_series,
-        blocked_movie_profiles=blocked_movies,
-        blocked_series_profiles=blocked_series,
+        **vorgaben,
     )
     link(benutzer, identitaet)
     db.add(benutzer)
@@ -430,10 +429,14 @@ def _anlegen(db: Session, settings: AppSettings, identitaet: OidcIdentitaet) -> 
     logger.info(
         "OIDC: created account %r from provider %r", benutzer.username, identitaet.issuer
     )
-    notify.create_for_admins(
-        db,
-        kind=NotificationType.user_imported,
-        message_key="notifications.userImported",
-        title=benutzer.display_name or benutzer.username,
-    )
+    if einladung is not None:
+        # Eingeladen heisst nicht "importiert" - siehe ``mediaserver_accounts._anlegen``.
+        einladungen.abschliessen(db, einladung, benutzer, entfallen)
+    else:
+        notify.create_for_admins(
+            db,
+            kind=NotificationType.user_imported,
+            message_key="notifications.userImported",
+            title=benutzer.display_name or benutzer.username,
+        )
     return benutzer

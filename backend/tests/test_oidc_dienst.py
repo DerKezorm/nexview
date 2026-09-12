@@ -497,6 +497,47 @@ def test_einladung_bestimmt_rolle_und_grenzen(client) -> None:
         assert eingeloest.used_at is not None
 
 
+def test_die_einladung_bringt_ihre_rechte_auch_ueber_oidc_mit(client) -> None:
+    """Wie beim Medienserver: Wer sich ueber den Anmeldedienst anmeldet, bekommt
+    die Rechte aus dem Einladungsassistenten - und die Administratoren erfahren
+    "Einladung eingeloest" statt "importiert"."""
+    from app.models import Notification, NotificationType
+    from app.services import tokens
+
+    with SessionLocal() as db:
+        # Ohne Administrator gaebe es niemanden, den die Meldung erreicht.
+        db.add(
+            User(
+                username="chef",
+                email="chef@example.com",
+                email_verified=True,
+                password_hash=hash_password("chef-passwort-123"),
+                role=Role.admin,
+            )
+        )
+        db.commit()
+        tokens.create(
+            db,
+            TokenPurpose.invitation,
+            "oma@example.com",
+            invite_role=Role.user,
+            invite_storage_limit_gb=80,
+            invite_rechte={"auto_approve_movies": True},
+        )
+
+        benutzer = oidc_accounts.resolve(
+            db, load_settings(db), _identitaet(email="oma@example.com"), auto_create=True
+        )
+        db.commit()
+
+        assert benutzer.auto_approve_movies is True
+        assert benutzer.storage_limit_gb == 80
+        assert db.query(AuthToken).one().redeemed_by == benutzer.id
+        arten = {meldung.type for meldung in db.query(Notification)}
+    assert NotificationType.invitation_redeemed in arten
+    assert NotificationType.user_imported not in arten
+
+
 def test_loesen_mit_aussperrschutz(client) -> None:
     with SessionLocal() as db:
         benutzer = oidc_accounts.resolve(

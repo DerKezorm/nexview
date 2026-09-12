@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -9,7 +8,6 @@ import type {
   ArrOptions,
   HausordnungVerwaltung,
   Invitation,
-  InvitationCreated,
   Kontingentwert,
   QuotaPeriod,
   Role,
@@ -21,8 +19,9 @@ import { providerName } from "../../lib/mediaserver";
 import { Avatar } from "../../components/Avatar";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { AdminKontoAufloesung } from "./AdminKontoAufloesung";
-import { Button, Card, ErrorBanner, Field, Spinner } from "../../components/ui";
+import { Button, Card, ErrorBanner, Spinner } from "../../components/ui";
 import { useConfig } from "../../hooks/useConfig";
+import { EinladungsAssistent } from "./EinladungsAssistent";
 import { formatDate } from "../../lib/format";
 
 /**
@@ -158,12 +157,8 @@ export function AdminUsersSettings() {
    */
   const [drafts, setDrafts] = useState<Record<number, Partial<User>>>({});
 
-  const [invite, setInvite] = useState({ email: "", role: "user" as Role });
-  /** Link zum Weitergeben, falls der Mailversand nicht geklappt hat. */
-  const [manualLink, setManualLink] = useState<{
-    link: string;
-    grund: string;
-  } | null>(null);
+  /** Der Einladungsassistent - er sammelt selbst und legt erst am Ende an. */
+  const [assistentOffen, setAssistentOffen] = useState(false);
 
   const usersQuery = useQuery({
     queryKey: ["users"],
@@ -274,31 +269,16 @@ export function AdminUsersSettings() {
     setError(caught instanceof ApiError ? caught.message : fallback);
   }
 
-  const inviteMutation = useMutation({
-    mutationFn: () =>
-      api.post<InvitationCreated>("/api/users/invitations", {
-        email: invite.email.trim(),
-        role: invite.role,
-      }),
-    onSuccess: (angelegt) => {
-      setInvite({ email: "", role: "user" });
+  // Den Hinweis an einer eingelösten Einladung wegnehmen. Sie verschwindet
+  // damit aus der Liste; am Konto ändert sich nichts.
+  const gesehenMutation = useMutation({
+    mutationFn: (id: number) =>
+      api.post<void>(`/api/users/invitations/${id}/gesehen`, {}),
+    onSuccess: () => {
       setError(null);
-      // Klappt der Versand nicht, bekommt der Admin den Link zum Weitergeben -
-      // sonst blockiert ein kaputter Mailserver die ganze Verwaltung.
-      if (angelegt.mail_sent) {
-        setMessage(t("adminUsers.inviteSent", { email: angelegt.email }));
-      } else if (angelegt.manual_link) {
-        setManualLink({
-          link: angelegt.manual_link,
-          grund: angelegt.mail_error ?? t("adminUsers.mailFailed"),
-        });
-      }
       refresh();
     },
-    onMutate: () => {
-      resetMessages();
-      setManualLink(null);
-    },
+    onMutate: resetMessages,
     onError: (caught) => fail(caught, t("errors.generic")),
   });
 
@@ -389,12 +369,6 @@ export function AdminUsersSettings() {
   function resetMessages() {
     setError(null);
     setMessage(null);
-  }
-
-  function handleInvite(event: FormEvent) {
-    event.preventDefault();
-    resetMessages();
-    inviteMutation.mutate();
   }
 
   /** Kontingent-Eingabe: leer = unbegrenzt (null ans Backend). */
@@ -608,7 +582,8 @@ export function AdminUsersSettings() {
 
       {/* Konten entstehen nur über eine Einladung: der Eingeladene wählt
           Benutzername, Namen und Passwort selbst. So kennt niemand sonst sein
-          Passwort - und der Administrator muss keines weitergeben. */}
+          Passwort - und der Administrator muss keines weitergeben. Was die
+          Einladung darüber hinaus mitbringt, legt der Assistent fest. */}
       <Card>
         <h2 className="text-lg font-semibold">{t("adminUsers.inviteTitle")}</h2>
         <p className="mt-1 text-sm text-mist-500">
@@ -621,114 +596,102 @@ export function AdminUsersSettings() {
           </p>
         )}
 
-        <form
-          onSubmit={handleInvite}
-          className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2"
+        <Button
+          type="button"
+          className="mt-4"
+          disabled={!kannEinladen}
+          onClick={() => {
+            resetMessages();
+            setAssistentOffen(true);
+          }}
         >
-          <Field
-            label={t("adminUsers.email")}
-            type="email"
-            value={invite.email}
-            onChange={(event) =>
-              setInvite({ ...invite, email: event.target.value })
-            }
-            placeholder="name@beispiel.de"
-            autoComplete="off"
-            required
-          />
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-mist-300">
-              {t("adminUsers.role")}
-            </span>
-            <select
-              value={invite.role}
-              onChange={(event) =>
-                setInvite({ ...invite, role: event.target.value as Role })
-              }
-              className="rounded-xl border border-ink-700 bg-ink-900 px-4 py-2.5 text-mist-100 focus:border-accent-500 focus:outline-none"
-            >
-              <option value="user">{t("adminUsers.roleUser")}</option>
-              <option value="approver">{t("adminUsers.roleApprover")}</option>
-              <option value="admin">{t("adminUsers.roleAdmin")}</option>
-            </select>
-          </label>
-
-          <div className="sm:col-span-2">
-            <Button
-              type="submit"
-              loading={inviteMutation.isPending}
-              disabled={!kannEinladen}
-            >
-              {t("adminUsers.sendInvite")}
-            </Button>
-            <p className="mt-2 text-xs text-mist-600">
-              {t("adminUsers.inviteHint")}
-            </p>
-          </div>
-
-          {manualLink && (
-            <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 sm:col-span-2">
-              <p className="text-sm font-medium text-warn-500">
-                {t("adminUsers.mailFailedTitle")}
-              </p>
-              <p className="mt-1 text-xs text-mist-400">{manualLink.grund}</p>
-              <p className="mt-2 text-xs text-mist-500">
-                {t("adminUsers.manualLinkHint")}
-              </p>
-              <code className="mt-1 block break-all rounded-lg bg-ink-900 px-3 py-2 text-xs text-mist-300">
-                {manualLink.link}
-              </code>
-              <Button
-                variant="ghost"
-                className="mt-2"
-                onClick={() =>
-                  void navigator.clipboard?.writeText(manualLink.link)
-                }
-              >
-                {t("adminUsers.copyLink")}
-              </Button>
-            </div>
-          )}
-        </form>
+          {t("inviteWizard.open")}
+        </Button>
       </Card>
+
+      <EinladungsAssistent
+        offen={assistentOffen}
+        onSchliessen={() => setAssistentOffen(false)}
+      />
 
       {invitations.length > 0 && (
         <Card className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">
-            {t("adminUsers.openInvites", { count: invitations.length })}
+            {t("inviteWizard.listTitle", { count: invitations.length })}
           </h2>
-          {invitations.map((eintrag) => (
-            <div
-              key={eintrag.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-700 bg-ink-900/50 p-3"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{eintrag.email}</p>
-                <p className="text-xs text-mist-600">
-                  {t(
-                    `adminUsers.role${eintrag.role === "admin" ? "Admin" : eintrag.role === "approver" ? "Approver" : "User"}`,
-                  )}
-                  {" · "}
-                  {t("adminUsers.inviteExpires", {
-                    date: formatDate(
-                      eintrag.expires_at.slice(0, 10),
-                      i18n.language,
-                    ),
-                  })}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                onClick={() => withdrawMutation.mutate(eintrag.id)}
-                loading={
-                  withdrawMutation.isPending &&
-                  withdrawMutation.variables === eintrag.id
+          {invitations.map((eintrag) => {
+            // Eingelöste stehen nur hier, solange etwas nicht übernommen
+            // wurde - bis der Administrator den Hinweis weggenommen hat.
+            const eingeloestAm = eintrag.eingeloest_am
+              ? formatDate(eintrag.eingeloest_am.slice(0, 10), i18n.language)
+              : null;
+            return (
+              <div
+                key={eintrag.id}
+                className={
+                  "flex flex-wrap items-center gap-3 rounded-xl border p-3 " +
+                  (eingeloestAm
+                    ? "border-warn-500/40 bg-warn-500/10"
+                    : "border-ink-700 bg-ink-900/50")
                 }
               >
-                {t("adminUsers.withdrawInvite")}
-              </Button>
-            </div>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{eintrag.email}</p>
+                  <p className="text-xs text-mist-600">
+                    {t(
+                      `adminUsers.role${eintrag.role === "admin" ? "Admin" : eintrag.role === "approver" ? "Approver" : "User"}`,
+                    )}
+                    {" · "}
+                    {eingeloestAm
+                      ? eintrag.konto
+                        ? t("inviteWizard.redeemedAs", {
+                            konto: eintrag.konto,
+                            date: eingeloestAm,
+                          })
+                        : t("inviteWizard.redeemedGone", { date: eingeloestAm })
+                      : t("adminUsers.inviteExpires", {
+                          date: formatDate(
+                            eintrag.expires_at.slice(0, 10),
+                            i18n.language,
+                          ),
+                        })}
+                  </p>
+                  {eintrag.entfallen.length > 0 && (
+                    <p className="mt-1 text-xs text-warn-500">
+                      {t("inviteWizard.droppedList", {
+                        liste: eintrag.entfallen
+                          .map((name) => t(`inviteWizard.field.${name}`))
+                          .join(", "),
+                      })}
+                    </p>
+                  )}
+                </div>
+                {eingeloestAm ? (
+                  <Button
+                    variant="ghost"
+                    onClick={() => gesehenMutation.mutate(eintrag.id)}
+                    loading={
+                      gesehenMutation.isPending &&
+                      gesehenMutation.variables === eintrag.id
+                    }
+                  >
+                    {t("inviteWizard.dismiss")}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    onClick={() => withdrawMutation.mutate(eintrag.id)}
+                    loading={
+                      withdrawMutation.isPending &&
+                      withdrawMutation.variables === eintrag.id
+                    }
+                  >
+                    {t("adminUsers.withdrawInvite")}
+                  </Button>
+                )}
+              </div>
+            );
+          })}
         </Card>
       )}
 

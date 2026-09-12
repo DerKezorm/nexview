@@ -68,8 +68,11 @@ def create(
     invite_role: Role | None = None,
     invite_quota_movies: int | None = None,
     invite_quota_series: int | None = None,
+    invite_storage_limit_gb: int | None = None,
     invite_blocked_movie_profiles: str = "",
     invite_blocked_series_profiles: str = "",
+    invite_rechte: dict[str, bool] | None = None,
+    invite_hausordnung: bool = False,
     lifetime_days: int | None = None,
     mediaserver_ref: str | None = None,
     invalidate_previous: bool = True,
@@ -86,6 +89,11 @@ def create(
     Adresse, ueber die sich Vorgaenge unterscheiden liessen - zwei Personen,
     die sich gleichzeitig anmelden, wuerden einander sonst gegenseitig
     hinauswerfen.
+
+    ``invite_rechte`` sind die Schalter aus ``kontorechte.SCHALTER``, so wie
+    ``Bewertung.werte_fuers_konto`` sie liefert. Jeder Name landet in der
+    Spalte ``invite_<name>``; ein unbekannter Name scheitert laut, statt still
+    nichts zu setzen.
     """
     adresse = normalize_email(email)
     if invalidate_previous:
@@ -103,8 +111,11 @@ def create(
         invite_role=invite_role,
         invite_quota_movies=invite_quota_movies,
         invite_quota_series=invite_quota_series,
+        invite_storage_limit_gb=invite_storage_limit_gb,
         invite_blocked_movie_profiles=invite_blocked_movie_profiles,
         invite_blocked_series_profiles=invite_blocked_series_profiles,
+        invite_hausordnung=invite_hausordnung,
+        **{f"invite_{name}": bool(wert) for name, wert in (invite_rechte or {}).items()},
         mediaserver_ref=mediaserver_ref,
     )
     db.add(token)

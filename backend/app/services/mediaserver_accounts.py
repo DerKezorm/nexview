@@ -33,7 +33,7 @@ from ..models import (
     utcnow,
 )
 from ..security import has_usable_password, unusable_password
-from . import notify, settings_service, tokens
+from . import einladungen, notify, settings_service, tokens
 from .mediaserver import (
     PROVIDERS,
     ExternalAccount,
@@ -600,15 +600,17 @@ def _anlegen(db: Session, settings: AppSettings, account: ExternalAccount) -> Us
     """Ein neues Konto aus einer Media-Server-Anmeldung."""
     einladung = offene_einladung(db, account.email) if account.email else None
 
+    entfallen: list[str] = []
     if einladung is not None:
-        rolle = einladung.invite_role or Role.user
-        quota_movies = einladung.invite_quota_movies
-        quota_series = einladung.invite_quota_series
-        blocked_movies = einladung.invite_blocked_movie_profiles
-        blocked_series = einladung.invite_blocked_series_profiles
+        # Dieselbe Stelle wie das Formular hinter dem Link: Rolle, Grenzen und
+        # die Rechte aus dem Einladungsassistenten, gehalten gegen die
+        # Einrichtung von jetzt. Wer sich mit dem Medienserver anmeldet statt
+        # ueber den Link, bekommt damit nicht still weniger.
+        wunsch, bewertung, _ = einladungen.bewerten(db, einladung)
+        vorgaben = einladungen.kontowerte(einladung, wunsch, bewertung)
+        entfallen = bewertung.entfallen(wunsch)
         einladung.used_at = utcnow().replace(tzinfo=None)
     else:
-        rolle = Role(settings.mediaserver_default_role)
         # **Ohne Grenze.** Frueher gab es dafuer drei eigene Einstellungen -
         # sie sind weggefallen, und zwar aus zwei Gruenden.
         #
@@ -621,10 +623,13 @@ def _anlegen(db: Session, settings: AppSettings, account: ExternalAccount) -> Us
         # Ein neues Konto kann viel *fragen* und nichts holen. Wer einer
         # bestimmten Person Grenzen setzen will, tut das bei der Einladung -
         # die kennt sie weiterhin - oder hinterher in der Benutzerverwaltung.
-        quota_movies = None
-        quota_series = None
-        blocked_movies = ""
-        blocked_series = ""
+        vorgaben = {
+            "role": Role(settings.mediaserver_default_role),
+            "quota_movies_limit": None,
+            "quota_series_limit": None,
+            "blocked_movie_profiles": "",
+            "blocked_series_profiles": "",
+        }
 
     benutzer = User(
         username=_unique_username(db, account.username),
@@ -652,16 +657,14 @@ def _anlegen(db: Session, settings: AppSettings, account: ExternalAccount) -> Us
         # Administrators warnt danach.
         password_hash=unusable_password(),
         email=tokens.normalize_email(account.email) if account.email else None,
-        role=rolle,
         display_name=account.username,
         language=settings.default_language,
         # Neue Konten muessen ihre Anfragen freigeben lassen. Zugriff auf die
         # Bibliothek zu haben heisst nicht, ungefragt herunterladen zu duerfen.
+        # Eine Einladung darf das je Film und Serie anders sehen - diese Haken
+        # stehen dann in ``vorgaben``.
         auto_approve=False,
-        quota_movies_limit=quota_movies,
-        quota_series_limit=quota_series,
-        blocked_movie_profiles=blocked_movies,
-        blocked_series_profiles=blocked_series,
+        **vorgaben,
         # **Kein Alter.** Es gab dafuer einmal eine Vorgabe; sie hat nie
         # gewirkt: ``db._altersgrenzen_aufraeumen`` setzt bei jedem Start das
         # Alter jedes Kontos zurueck, das kein Kinderkonto ist - und per
@@ -686,10 +689,15 @@ def _anlegen(db: Session, settings: AppSettings, account: ExternalAccount) -> Us
             raise
         return bereits_da
 
-    notify.create_for_admins(
-        db,
-        kind=NotificationType.user_imported,
-        message_key="notifications.userImported",
-        title=benutzer.display_name or benutzer.username,
-    )
+    if einladung is not None:
+        # Eingeladen heisst nicht "importiert": Der Administrator hat die
+        # Person selbst gerufen, und die Meldung sagt, ob alles ankam.
+        einladungen.abschliessen(db, einladung, benutzer, entfallen)
+    else:
+        notify.create_for_admins(
+            db,
+            kind=NotificationType.user_imported,
+            message_key="notifications.userImported",
+            title=benutzer.display_name or benutzer.username,
+        )
     return benutzer

@@ -868,3 +868,73 @@ def test_erster_start_legt_keine_sicherung_an(tmp_path: Path) -> None:
         assert db_modul._leere_installation(frisch) is False
     finally:
         frisch.dispose()
+
+
+def test_update_ergaenzt_die_einladungsrechte(alte_installation: Path) -> None:
+    """Die neuen Spalten an ``auth_tokens`` kommen per ALTER TABLE dazu.
+
+    ⚠️ **Die Tabelle wird vorher von Hand angelegt.** Sonst entstuende sie per
+    CREATE TABLE neu, und eine Pflichtspalte ohne Vorgabe fiele erst beim Update
+    einer echten Installation auf - als Start, der abbricht. Die offene
+    Einladung von vorher muss danach noch mit sinnvollen Werten dastehen.
+    """
+    engine = create_engine(f"sqlite:///{alte_installation}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE auth_tokens (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    purpose VARCHAR(18) NOT NULL,
+                    token_hash VARCHAR(64) NOT NULL,
+                    user_id INTEGER,
+                    email VARCHAR(255) NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    used_at DATETIME,
+                    created_at DATETIME NOT NULL,
+                    created_by INTEGER,
+                    invite_role VARCHAR(8),
+                    invite_quota_movies INTEGER,
+                    invite_quota_series INTEGER,
+                    invite_quota_period VARCHAR(5),
+                    invite_blocked_movie_profiles VARCHAR(255) NOT NULL DEFAULT '',
+                    invite_blocked_series_profiles VARCHAR(255) NOT NULL DEFAULT '',
+                    mediaserver_ref TEXT
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO auth_tokens "
+                "(purpose, token_hash, email, expires_at, created_at, invite_role) "
+                "VALUES ('invitation', 'pruefsumme', 'alt@example.com', "
+                "'2099-01-01 00:00:00', '2026-09-01 12:00:00', 'user')"
+            )
+        )
+    engine.dispose()
+
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as connection:
+        spalten = db_modul._existing_columns(connection, "auth_tokens")
+        zeile = connection.execute(
+            text(
+                "SELECT invite_auto_approve_movies, invite_hausordnung, invite_dropped, "
+                "invite_storage_limit_gb, redeemed_by FROM auth_tokens "
+                "WHERE email = 'alt@example.com'"
+            )
+        ).one()
+
+    assert {
+        "invite_auto_approve_movies",
+        "invite_auto_approve_series",
+        "invite_can_request_uhd_movies",
+        "invite_can_request_uhd_series",
+        "invite_auto_approve_uhd",
+        "invite_hausordnung",
+        "invite_storage_limit_gb",
+        "invite_dropped",
+        "redeemed_by",
+    } <= spalten
+    assert tuple(zeile) == (0, 0, "", None, None)

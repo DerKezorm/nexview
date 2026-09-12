@@ -605,7 +605,9 @@ TEXTE: dict[str, tuple[str, str]] = {
         (
             'Says whether the link is still valid and what it offers, without signing '
             'anybody in. Used by the page behind the link to decide between a form and '
-            'an explanation.'
+            'an explanation. If the invitation asks for it and the installation has '
+            'published house rules, they come along, so the page can show them before '
+            'the account exists.'
         ),
     ),
     'POST /api/onboarding/invitation/{raw}': (
@@ -613,7 +615,12 @@ TEXTE: dict[str, tuple[str, str]] = {
         (
             'Creates the account the way the invited person wants it - username, '
             'password, display name. The account does not exist until this call '
-            'succeeds.'
+            'succeeds.\n\n'
+            'The permissions the invitation carries are checked once more against the '
+            'installation as it is now. Whatever no longer applies is left out, noted on '
+            'the invitation and reported to the administrators. A decision on the house '
+            'rules is recorded here as well, never through the signed-in route, because an '
+            'administrator may still be signed in within the same browser.'
         ),
     ),
     'GET /api/onboarding/password/{raw}': (
@@ -730,8 +737,9 @@ TEXTE: dict[str, tuple[str, str]] = {
     'GET /api/users/invitations': (
         'Open invitations',
         (
-            'Invitations that have neither been redeemed nor expired. Used-up ones are '
-            'of no further interest.'
+            'Invitations that have neither been redeemed nor expired, plus redeemed ones '
+            'where something the invitation asked for could not be carried over. Those '
+            'stay listed until the administrator dismisses the note.'
         ),
     ),
     'POST /api/users/invitations': (
@@ -739,12 +747,31 @@ TEXTE: dict[str, tuple[str, str]] = {
         (
             'The account comes into being when the link is redeemed, not now. Needs '
             'both pieces in place: without a public address the mail contains a dead '
-            'link, without a mail server it never goes out.'
+            'link, without a mail server it never goes out.\n\n'
+            'Besides role and limits, the invitation carries auto-approval, 4K rights and '
+            'whether the house rules are shown on redemption. Only what the installation '
+            'allows at this moment is stored, and redeeming checks the same rules again.'
+        ),
+    ),
+    'POST /api/users/invitations/bewerten': (
+        'Check what an invitation may grant',
+        (
+            'Holds the ticked permissions against how the installation is set up and '
+            'answers per permission: can it be set, will it take effect, and if not, why. '
+            'The reason is a code the interface translates. The invitation wizard asks on '
+            'every change, so it never offers more than the rules allow.'
         ),
     ),
     'DELETE /api/users/invitations/{invitation_id}': (
         'Withdraw an invitation',
         'The link stops working immediately.',
+    ),
+    'POST /api/users/invitations/{invitation_id}/gesehen': (
+        'Dismiss the note on a redeemed invitation',
+        (
+            'A redeemed invitation stays in the list while something it asked for could '
+            'not be carried over. This clears that note once the administrator has seen it.'
+        ),
     ),
     'DELETE /api/users/{user_id}': (
         'Delete an account',

@@ -254,6 +254,11 @@ class NotificationType(str, enum.Enum):
     # "Deine Anfrage wurde abgelehnt" ausloesen, und das waere das Gegenteil
     # der Wahrheit.
     request_fulfilled = "request_fulfilled"
+    # --- Einladungen --------------------------------------------------------
+    # Jemand hat seine Einladung eingeloest - geht an die Administratoren. Was
+    # dabei nicht mehr ging (``AuthToken.invite_dropped``), steht in der
+    # Einladungsliste; die Meldung sagt nur, dass es so etwas gibt.
+    invitation_redeemed = "invitation_redeemed"
 
 
 class User(Base):
@@ -1002,6 +1007,32 @@ class AuthToken(Base):
     invite_blocked_series_profiles: Mapped[str] = mapped_column(
         String(255), default="", nullable=False
     )
+    # Was die Einladung darueber hinaus mitbringt (Einladungsassistent). Beim
+    # Anlegen steht hier nur, was nach ``services/kontorechte`` frei war; beim
+    # Einloesen wird noch einmal gegen die dann gueltige Einrichtung geprueft.
+    #
+    # ⚠️ **Jede Spalte hat eine Vorgabe oder darf leer sein.** Bestehende
+    # Installationen bekommen sie per ``ALTER TABLE`` nachgetragen, und eine
+    # Pflichtspalte ohne ``default`` liesse den Start dort abbrechen. Die Tests
+    # merkten davon nichts: Dort entsteht die Tabelle immer frisch.
+    invite_storage_limit_gb: Mapped[int | None] = mapped_column(Integer)
+    invite_auto_approve_movies: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    invite_auto_approve_series: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    invite_can_request_uhd_movies: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    invite_can_request_uhd_series: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    invite_auto_approve_uhd: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    invite_hausordnung: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Welches Konto aus der Einladung wurde. ``used_at`` allein sagt das nicht:
+    # Auch eine Einladung, die von einer neueren ersetzt wurde, gilt als verbraucht.
+    redeemed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # Was beim Einloesen nicht mehr ging, als Komma-Liste der Schalter
+    # (``kontorechte.SCHALTER`` und ``hausordnung``). Leer, sobald der
+    # Administrator es gesehen hat.
+    invite_dropped: Mapped[str] = mapped_column(String(255), default="", nullable=False)
 
     # Nur bei ``mediaserver_login``: Anbieter, PIN-Nummer und Code als JSON -
     # bei der Ersteinrichtung zusaetzlich das bereits geholte Token des

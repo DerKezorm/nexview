@@ -269,6 +269,11 @@ export type Invitation = {
   role: Role;
   created_at: string;
   expires_at: string;
+  /** Eingelöst: wann, und welches Konto daraus wurde. Solange offen, leer. */
+  eingeloest_am: string | null;
+  konto: string | null;
+  /** Was beim Einlösen nicht mehr ging. Leer, sobald der Admin es gesehen hat. */
+  entfallen: string[];
 };
 
 /** Antwort nach dem Einladen – mit Auskunft über den Mailversand. */
@@ -276,6 +281,39 @@ export type InvitationCreated = Invitation & {
   mail_sent: boolean;
   mail_error: string | null;
   manual_link: string | null;
+};
+
+/** Ein Recht nach den Regeln des Hauses (`services/kontorechte.py`). */
+export type RechteStand = {
+  /** Darf der Administrator es umlegen? */
+  frei: boolean;
+  /** Was nach dem Einlösen tatsächlich gilt. */
+  wirkt: boolean;
+  /** Kennung des Grundes, übersetzt unter `inviteWizard.reason`. */
+  grund: string | null;
+};
+
+/** Was der Einladungsassistent ankreuzt – noch keine Rechte, nur Wünsche. */
+export type RechteWunsch = {
+  role: Role;
+  auto_approve_movies: boolean;
+  auto_approve_series: boolean;
+  can_request_uhd_movies: boolean;
+  can_request_uhd_series: boolean;
+  auto_approve_uhd: boolean;
+  hausordnung: boolean;
+};
+
+export type RechteBewertung = {
+  kontingent: RechteStand;
+  auto_approve_movies: RechteStand;
+  auto_approve_series: RechteStand;
+  can_request_uhd_movies: RechteStand;
+  can_request_uhd_series: RechteStand;
+  auto_approve_uhd: RechteStand;
+  hausordnung: RechteStand;
+  /** Angekreuzt, wirkt aber nicht. */
+  entfallen: string[];
 };
 
 export type SetupStatus = {
@@ -1554,7 +1592,8 @@ export type AppNotification = {
     | "ticket_reply"
     | "user_imported"
     | "mediaserver_reconnect"
-    | "child_wish";
+    | "child_wish"
+    | "invitation_redeemed";
   /** Übersetzungsschlüssel – der Text kommt aus der Oberfläche. */
   message_key: string;
   message_title: string | null;

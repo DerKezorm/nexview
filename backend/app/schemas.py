@@ -355,15 +355,53 @@ def _keine_kinderrolle(value: Role | None) -> Role | None:
     return value
 
 
-class InvitationCreate(BaseModel):
+class RechteWunsch(BaseModel):
+    """Was der Einladungsassistent ankreuzt.
+
+    Wuensche, noch keine Rechte: Was davon gilt, entscheidet
+    ``services/kontorechte`` gegen die Einrichtung des Hauses.
+    """
+
+    role: Role = Role.user
+    auto_approve_movies: bool = False
+    auto_approve_series: bool = False
+    can_request_uhd_movies: bool = False
+    can_request_uhd_series: bool = False
+    auto_approve_uhd: bool = False
+    #: Soll die eingeladene Person beim Einloesen die Hausordnung sehen?
+    hausordnung: bool = False
+
+    _check_role = field_validator("role")(_keine_kinderrolle)
+
+
+class RechteStand(BaseModel):
+    """Ein Recht nach den Regeln des Hauses - siehe ``kontorechte.Stand``."""
+
+    frei: bool
+    wirkt: bool
+    #: Kennung, keine Satz: Die Oberflaeche uebersetzt sie.
+    grund: str | None = None
+
+
+class RechteBewertung(BaseModel):
+    kontingent: RechteStand
+    auto_approve_movies: RechteStand
+    auto_approve_series: RechteStand
+    can_request_uhd_movies: RechteStand
+    can_request_uhd_series: RechteStand
+    auto_approve_uhd: RechteStand
+    hausordnung: RechteStand
+    #: Angekreuzt, wirkt aber nicht - fuer die Zusammenfassung im Assistenten.
+    entfallen: list[str]
+
+
+class InvitationCreate(RechteWunsch):
     """Einladung: der Eingeladene waehlt Benutzername und Namen selbst."""
 
     email: str = Field(min_length=3, max_length=255)
-    role: Role = Role.user
     quota_movies_limit: Kontingentwert = "standard"
     quota_series_limit: Kontingentwert = "standard"
-
-    _check_role = field_validator("role")(_keine_kinderrolle)
+    storage_limit_gb: Kontingentwert = "standard"
 
 
 class InvitationPublic(BaseModel):
@@ -372,6 +410,11 @@ class InvitationPublic(BaseModel):
     role: Role
     created_at: datetime
     expires_at: datetime
+    #: Eingeloest: wann, und welches Konto daraus wurde. Solange offen, leer.
+    eingeloest_am: datetime | None = None
+    konto: str | None = None
+    #: Was beim Einloesen nicht mehr ging. Leer, sobald der Admin es gesehen hat.
+    entfallen: list[str] = []
 
 
 class InvitationCreated(InvitationPublic):

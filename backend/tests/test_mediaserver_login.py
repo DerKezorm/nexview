@@ -301,6 +301,54 @@ def test_ohne_auto_import_braucht_es_eine_einladung(
     assert antwort.json()["detail"]["code"] == "mediaserver_not_invited"
 
 
+def test_die_einladung_bringt_ihre_rechte_auch_ueber_den_medienserver_mit(
+    admin_client: TestClient, fake_server: FakeMediaServer
+) -> None:
+    """⚠️ Wer sich mit Plex anmeldet statt ueber den Link, bekommt nicht weniger.
+
+    Vorher uebernahm dieser Weg nur Rolle, Kontingent und Profilsperren; die
+    Rechte aus dem Einladungsassistenten fielen still weg. Und die Meldung an
+    die Administratoren sagt "Einladung eingeloest", nicht "importiert".
+
+    Bewusst **mit** Auto-Import: Ist er aus, weist ``resolve`` die Anmeldung
+    ab, bevor ``_anlegen`` ueberhaupt nach einer Einladung sucht - obwohl der
+    Docstring dort die Einladung vor die Erlaubnis stellt. Das ist ein eigener
+    Befund und hier nicht mit entschieden.
+    """
+    from app.models import AuthToken, Notification, NotificationType, TokenPurpose
+    from app.services import settings_service, tokens
+
+    verbinde(admin_client)
+    with SessionLocal() as session:
+        settings_service.save_settings(
+            session, {"radarr_uhd_url": "http://127.0.0.1:7178", "radarr_uhd_api_key": "r4"}
+        )
+        tokens.create(
+            session,
+            TokenPurpose.invitation,
+            KONTO.email,
+            invite_role=Role.user,
+            invite_storage_limit_gb=250,
+            invite_rechte={"auto_approve_movies": True, "can_request_uhd_movies": True},
+        )
+
+    antwort = anmelden(admin_client)
+    assert antwort.status_code == 200, antwort.text
+
+    with SessionLocal() as session:
+        konto = session.query(User).filter(User.email == KONTO.email).one()
+        assert konto.auto_approve_movies is True
+        assert konto.can_request_uhd_movies is True
+        assert konto.storage_limit_gb == 250
+        einladung = (
+            session.query(AuthToken).filter(AuthToken.purpose == TokenPurpose.invitation).one()
+        )
+        assert einladung.redeemed_by == konto.id
+        arten = {meldung.type for meldung in session.query(Notification)}
+    assert NotificationType.invitation_redeemed in arten
+    assert NotificationType.user_imported not in arten
+
+
 def test_noch_nicht_bestaetigt_meldet_pending(
     admin_client: TestClient, fake_server: FakeMediaServer
 ) -> None:

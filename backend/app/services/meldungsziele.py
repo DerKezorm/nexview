@@ -60,6 +60,9 @@ ZIELE: dict[NotificationType, str] = {
     NotificationType.feedback_poor: "/admin/requests?filter=feedback",
     # --- Was der Betreiber tun soll ----------------------------------------
     NotificationType.user_imported: "/admin/settings",
+    # Die eingeloeste Einladung steht in der Liste unter Benutzer - samt dem,
+    # was dabei nicht mehr ging.
+    NotificationType.invitation_redeemed: "/admin/settings",
     # ⚠️ Korrigiert: Ueber die Glocke landete das bisher bei den eigenen
     # Anfragen. Entschieden wird eine Abgabe aber in den Einstellungen.
     NotificationType.storage_release_requested: "/admin/settings",

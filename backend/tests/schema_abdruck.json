@@ -231,6 +231,21 @@
         "schluessel": true,
         "typ": "INTEGER"
       },
+      "invite_auto_approve_movies": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "invite_auto_approve_series": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "invite_auto_approve_uhd": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
       "invite_blocked_movie_profiles": {
         "leer_erlaubt": false,
         "schluessel": false,
@@ -240,6 +255,26 @@
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "VARCHAR(255)"
+      },
+      "invite_can_request_uhd_movies": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "invite_can_request_uhd_series": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "invite_dropped": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      },
+      "invite_hausordnung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
       },
       "invite_quota_movies": {
         "leer_erlaubt": true,
@@ -261,6 +296,11 @@
         "schluessel": false,
         "typ": "VARCHAR(8)"
       },
+      "invite_storage_limit_gb": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
       "mediaserver_ref": {
         "leer_erlaubt": true,
         "schluessel": false,
@@ -270,6 +310,11 @@
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "VARCHAR(18)"
+      },
+      "redeemed_by": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
       },
       "token_hash": {
         "leer_erlaubt": false,

@@ -6,12 +6,15 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import { ApiError, api, logout } from '../api/client'
 import { mitBasis } from '../lib/basis'
+import { Hausordnungstext } from '../components/Hausordnungstext'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 
-type InvitationInfo = { email: string; role: string }
+/** Die Hausordnung, wie die Einladung sie mitbringt - ohne Stand eines Kontos. */
+type HausordnungSchritt = { titel: string; inhalt: string; quittierbar: boolean }
+type InvitationInfo = { email: string; role: string; hausordnung: HausordnungSchritt | null }
 type PasswordInfo = { username: string }
 
 /** Rahmen für alle Seiten, die man ohne Anmeldung erreicht. */
@@ -93,13 +96,51 @@ function PasswordFields({
   )
 }
 
-/** Einladung einlösen: Benutzername, Name und Passwort selbst wählen. */
+/** Die Balken über den Schritten - wie beim Einrichtungsassistenten. */
+function Fortschritt({ namen, aktuell }: { namen: string[]; aktuell: number }) {
+  const { t } = useTranslation()
+  return (
+    <ol className="mb-6 flex items-center gap-2" aria-label={t('setup.progress')}>
+      {namen.map((name, i) => (
+        <li
+          key={name}
+          className="flex flex-1 flex-col gap-1.5"
+          aria-current={i === aktuell ? 'step' : undefined}
+        >
+          <span
+            className={
+              'h-1 rounded-full transition-colors ' +
+              (i < aktuell ? 'bg-accent-600' : i === aktuell ? 'bg-accent-500' : 'bg-ink-700')
+            }
+          />
+          <span
+            className={'text-[11px] font-medium ' + (i <= aktuell ? 'text-mist-300' : 'text-mist-600')}
+          >
+            {name}
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/**
+ * Einladung einlösen: Willkommen, Konto, Hausordnung - falls die Einladung sie
+ * mitbringt -, fertig.
+ *
+ * ⚠️ **Angelegt wird erst nach dem letzten Schritt.** Die Entscheidung zur
+ * Hausordnung geht mit dem Anlegen an den Server und nicht über
+ * `/api/hausordnung/entscheidung`: Diese Seite hat noch kein Konto, und ist im
+ * selben Browser ein Administrator angemeldet, landete die Entscheidung sonst
+ * an dessen Konto.
+ */
 export function InvitationPage() {
   const { t } = useTranslation()
   const { token = '' } = useParams()
   const { data: config } = useConfig()
   const minPassword = config?.min_password_length ?? 4
 
+  const [schritt, setSchritt] = useState<'willkommen' | 'konto' | 'hausordnung'>('willkommen')
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
@@ -131,11 +172,12 @@ export function InvitationPage() {
   })
 
   const annehmen = useMutation({
-    mutationFn: () =>
+    mutationFn: (hausordnungAkzeptiert: boolean | null) =>
       api.post(`/api/onboarding/invitation/${token}`, {
         username: username.trim(),
         display_name: displayName.trim() || null,
         password,
+        hausordnung_akzeptiert: hausordnungAkzeptiert,
       }),
     onSuccess: () => {
       // Wichtig: Eine eventuell offene fremde Sitzung beenden. Sonst landet
@@ -151,18 +193,34 @@ export function InvitationPage() {
       void logout()
       setAngelegt(true)
     },
-    onError: (caught) =>
-      setError(caught instanceof ApiError ? caught.message : t('errors.network')),
+    onError: (caught) => {
+      setError(caught instanceof ApiError ? caught.message : t('errors.network'))
+      // Scheitert das Anlegen erst nach der Hausordnung - etwa weil der Name
+      // inzwischen vergeben ist -, gehört die Meldung dorthin, wo man es beheben kann.
+      setSchritt('konto')
+    },
   })
 
-  function absenden(event: FormEvent) {
+  const hausordnung = infoQuery.data?.hausordnung ?? null
+
+  function kontoWeiter(event: FormEvent) {
     event.preventDefault()
     setError(null)
     if (password !== repeat) {
       setError(t('onboarding.passwordMismatch'))
       return
     }
-    annehmen.mutate()
+    // Vor der Hausordnung prüfen, nicht erst danach: Sonst entscheidet jemand
+    // über die Regeln und landet dann doch wieder beim Passwort.
+    if (password.length < minPassword) {
+      setError(t('adminUsers.passwordHint', { count: minPassword }))
+      return
+    }
+    if (hausordnung) {
+      setSchritt('hausordnung')
+      return
+    }
+    annehmen.mutate(null)
   }
 
   if (infoQuery.isPending) return <Frame><Laden /></Frame>
@@ -180,9 +238,17 @@ export function InvitationPage() {
     )
   }
 
+  const namen = [
+    t('onboarding.stepWelcome'),
+    t('onboarding.stepAccount'),
+    ...(hausordnung ? [t('onboarding.stepHouseRules')] : []),
+    t('onboarding.stepDone'),
+  ]
+
   if (angelegt) {
     return (
       <Frame>
+        <Fortschritt namen={namen} aktuell={namen.length - 1} />
         <h1 className="text-2xl font-bold tracking-tight">{t('onboarding.readyTitle')}</h1>
         <p className="mt-2 text-sm text-mist-500">
           {t('onboarding.readyText', { username: username.trim() })}
@@ -200,58 +266,132 @@ export function InvitationPage() {
     )
   }
 
+  const aktuell = schritt === 'willkommen' ? 0 : schritt === 'konto' ? 1 : 2
   const nameFrei = verfuegbar.data?.available
   return (
     <Frame>
-      <h1 className="text-2xl font-bold tracking-tight">{t('onboarding.inviteTitle')}</h1>
-      <p className="mt-1.5 text-sm text-mist-500">
-        {t('onboarding.inviteIntro', { email: infoQuery.data.email })}
-      </p>
+      <Fortschritt namen={namen} aktuell={aktuell} />
 
-      <form onSubmit={absenden} className="mt-6 flex flex-col gap-4">
-        <Field
-          label={t('onboarding.username')}
-          value={username}
-          onChange={(event) => setUsername(event.target.value)}
-          hint={
-            geprueft.length < 3
-              ? t('onboarding.usernameHint')
-              : verfuegbar.isPending
-                ? t('onboarding.usernameChecking')
-                : nameFrei
-                  ? t('onboarding.usernameFree')
-                  : t('onboarding.usernameTaken')
-          }
-          autoComplete="username"
-          required
-          autoFocus
-        />
-        <Field
-          label={t('onboarding.displayName')}
-          value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)}
-          hint={t('onboarding.displayNameHint')}
-          autoComplete="name"
-        />
-        <PasswordFields
-          password={password}
-          repeat={repeat}
-          onPassword={setPassword}
-          onRepeat={setRepeat}
-          minLength={minPassword}
-        />
+      {schritt === 'willkommen' && (
+        <>
+          <h1 className="text-2xl font-bold tracking-tight">{t('onboarding.inviteTitle')}</h1>
+          <p className="mt-1.5 text-sm text-mist-500">{t('onboarding.welcomeInviteIntro')}</p>
+          <Button className="mt-6 w-full" onClick={() => setSchritt('konto')}>
+            {t('onboarding.letsGo')}
+          </Button>
+        </>
+      )}
 
-        {error && <ErrorBanner message={error} />}
+      {schritt === 'konto' && (
+        <>
+          <h1 className="text-2xl font-bold tracking-tight">{t('onboarding.stepAccount')}</h1>
+          <p className="mt-1.5 text-sm text-mist-500">
+            {t('onboarding.inviteIntro', { email: infoQuery.data.email })}
+          </p>
 
-        <Button
-          type="submit"
-          loading={annehmen.isPending}
-          disabled={nameFrei === false}
-          className="mt-1 w-full"
-        >
-          {t('onboarding.createAccount')}
-        </Button>
-      </form>
+          <form onSubmit={kontoWeiter} className="mt-6 flex flex-col gap-4">
+            <Field
+              label={t('onboarding.username')}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              hint={
+                geprueft.length < 3
+                  ? t('onboarding.usernameHint')
+                  : verfuegbar.isPending
+                    ? t('onboarding.usernameChecking')
+                    : nameFrei
+                      ? t('onboarding.usernameFree')
+                      : t('onboarding.usernameTaken')
+              }
+              autoComplete="username"
+              required
+              autoFocus
+            />
+            <Field
+              label={t('onboarding.displayName')}
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              hint={t('onboarding.displayNameHint')}
+              autoComplete="name"
+            />
+            <PasswordFields
+              password={password}
+              repeat={repeat}
+              onPassword={setPassword}
+              onRepeat={setRepeat}
+              minLength={minPassword}
+            />
+
+            {error && <ErrorBanner message={error} />}
+
+            <div className="mt-1 flex gap-3">
+              <Button type="button" variant="ghost" onClick={() => setSchritt('willkommen')}>
+                {t('onboarding.back')}
+              </Button>
+              <Button
+                type="submit"
+                loading={annehmen.isPending}
+                disabled={nameFrei === false}
+                className="flex-1"
+              >
+                {hausordnung ? t('onboarding.continue') : t('onboarding.createAccount')}
+              </Button>
+            </div>
+          </form>
+        </>
+      )}
+
+      {schritt === 'hausordnung' && hausordnung && (
+        <>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {hausordnung.titel || t('onboarding.stepHouseRules')}
+          </h1>
+          <p className="mt-1.5 text-sm text-mist-500">{t('onboarding.houseRulesIntro')}</p>
+          <div className="mt-5 max-h-72 overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 p-4 text-sm text-mist-300">
+            <Hausordnungstext text={hausordnung.inhalt} />
+          </div>
+          {hausordnung.quittierbar ? (
+            <>
+              {/* Wie im Hausordnung-Fenster: Ablehnen links und leiser, aber nicht versteckt. */}
+              <div className="mt-5 flex gap-2">
+                <Button
+                  className="flex-1"
+                  variant="ghost"
+                  loading={annehmen.isPending && annehmen.variables === false}
+                  disabled={annehmen.isPending}
+                  onClick={() => annehmen.mutate(false)}
+                >
+                  {t('hausordnung.ablehnen')}
+                </Button>
+                <Button
+                  className="flex-1"
+                  loading={annehmen.isPending && annehmen.variables === true}
+                  disabled={annehmen.isPending}
+                  onClick={() => annehmen.mutate(true)}
+                >
+                  {t('hausordnung.akzeptieren')}
+                </Button>
+              </div>
+              <p className="mt-3 text-xs text-mist-600">{t('onboarding.houseRulesNote')}</p>
+            </>
+          ) : (
+            <Button
+              className="mt-5 w-full"
+              loading={annehmen.isPending}
+              onClick={() => annehmen.mutate(null)}
+            >
+              {t('onboarding.createAccount')}
+            </Button>
+          )}
+          <button
+            type="button"
+            onClick={() => setSchritt('konto')}
+            className="mt-4 text-xs text-mist-500 hover:text-mist-300"
+          >
+            {t('onboarding.back')}
+          </button>
+        </>
+      )}
     </Frame>
   )
 }

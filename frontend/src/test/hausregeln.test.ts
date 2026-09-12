@@ -87,3 +87,65 @@ describe('keine Browser-Popups', () => {
     expect(VERBOTEN[3].muster.test('        onConfirm={() => weg()}')).toBe(false)
   })
 })
+
+/**
+ * Jedes `<input …>` bis zu seinem Ende.
+ *
+ * Mit geschweiften Klammern mitgezählt: `onChange={(e) => …}` enthält ein `>`,
+ * an dem ein einfacher Ausdruck das Element zu früh abschneiden würde.
+ */
+function eingaben(text: string): string[] {
+  const gefunden: string[] = []
+  for (const treffer of text.matchAll(/<input\b/g)) {
+    const anfang = treffer.index ?? 0
+    let tiefe = 0
+    for (let i = anfang + treffer[0].length; i < text.length; i++) {
+      const zeichen = text[i]
+      if (zeichen === '{') tiefe++
+      else if (zeichen === '}') tiefe--
+      else if (zeichen === '>' && tiefe === 0) {
+        gefunden.push(text.slice(anfang, i + 1))
+        break
+      }
+    }
+  }
+  return gefunden
+}
+
+const haekchen = (text: string) => eingaben(text).filter((tag) => /type="checkbox"/.test(tag))
+const ohneFarbe = (text: string) => haekchen(text).filter((tag) => !/accent-/.test(tag))
+
+const OBERFLAECHE = Object.entries(DATEIEN).filter(
+  ([pfad]) => pfad.endsWith('.tsx') && !pfad.includes('.test.'),
+)
+
+/**
+ * ⚠️ **Ohne `accent-…` zeichnet der Browser sein eigenes Häkchen**, im dunklen
+ * Nexview hell und blau statt rot. Am 12.09.2026 standen fünf so da, alle nur
+ * mit `mt-0.5`: drei in den OIDC-Einstellungen, eines bei den API-Schlüsseln und
+ * eines im Dialog „Konto löschen“. Aufgefallen ist es erst beim Durchklicken.
+ */
+describe('Häkchen tragen die Nexview-Farbe', () => {
+  it('sieht die Häkchen überhaupt', () => {
+    const anzahl = OBERFLAECHE.reduce((summe, [, inhalt]) => summe + haekchen(inhalt).length, 0)
+    expect(anzahl).toBeGreaterThan(40)
+  })
+
+  it('jedes Häkchen hat eine accent-Klasse', () => {
+    const treffer = OBERFLAECHE.flatMap(([pfad, inhalt]) => ohneFarbe(inhalt).map(() => pfad))
+
+    expect(
+      treffer,
+      'Ohne accent-Klasse steht ein helles Browser-Häkchen in der dunklen Seite. ' +
+        'Vorlage: className="h-4 w-4 shrink-0 accent-accent-500"',
+    ).toEqual([])
+  })
+
+  it('findet ein Häkchen ohne Farbe, auch hinter einem Pfeil im Handler', () => {
+    expect(ohneFarbe('<input type="checkbox" onChange={(e) => weg(e)} className="mt-0.5" />')).toHaveLength(1)
+    expect(
+      ohneFarbe('<input type="checkbox" onChange={(e) => weg(e)} className="h-4 w-4 accent-accent-500" />'),
+    ).toHaveLength(0)
+    expect(ohneFarbe('<input type="text" className="mt-0.5" />')).toHaveLength(0)
+  })
+})

@@ -373,7 +373,7 @@ function AnbieterKarte({
             type="checkbox"
             checked={eintrag.enabled}
             onChange={(event) => aendern.mutate({ werte: { enabled: event.target.checked } })}
-            className="mt-0.5"
+            className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
           />
           <span>
             <span className="font-medium text-mist-200">{t('adminOidc.enabled')}</span>
@@ -385,7 +385,7 @@ function AnbieterKarte({
             type="checkbox"
             checked={eintrag.auto_create}
             onChange={(event) => aendern.mutate({ werte: { auto_create: event.target.checked } })}
-            className="mt-0.5"
+            className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
           />
           <span>
             <span className="font-medium text-mist-200">{t('adminOidc.autoCreate')}</span>
@@ -748,7 +748,7 @@ function NeuerAnbieter({
               type="checkbox"
               checked={werte.auto_create}
               onChange={(e) => setWerte({ ...werte, auto_create: e.target.checked })}
-              className="mt-0.5"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
             />
             <span>
               <span className="font-medium text-mist-200">{t('adminOidc.autoCreate')}</span>

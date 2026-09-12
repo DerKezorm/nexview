@@ -339,7 +339,7 @@ export function AdminKontoAufloesung({
                     <label className="flex items-start gap-2.5 text-sm">
                       <input
                         type="checkbox"
-                        className="mt-0.5"
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
                         checked={offenBehalten.has(zeile.request_id)}
                         onChange={(e) => {
                           const naechste = new Set(offenBehalten)

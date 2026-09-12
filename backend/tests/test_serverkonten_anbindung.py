@@ -83,6 +83,12 @@ FILME = "f1" * 16
 SERIEN = "a2" * 16
 MUSIK = "c3" * 16
 
+# Kontonummern aus einer Ziffer, so lang wie bei Jellyfin und Emby. Ein Wort an
+# dieser Stelle hielt der Personendaten-Waechter im Adresspfad fuer den Namen in
+# einem Heimatordner (12.09.2026).
+JELLYFIN_KONTO = "1" * 32
+EMBY_KONTO = "2" * 32
+
 JELLYFIN_BIBLIOTHEKEN = [
     {"Name": "Filme", "CollectionType": "movies", "ItemId": FILME},
     {"Name": "Serien", "CollectionType": "tvshows", "ItemId": SERIEN},
@@ -94,9 +100,9 @@ def _jellyfin_konto(wege: dict, *, sichtbar: list[str], vorhanden: tuple[str, ..
     wege[("GET", "/Users")] = _json(
         [{"Id": f"alt-{nummer}", "Name": name} for nummer, name in enumerate(vorhanden)]
     )
-    wege[("POST", "/Users/New")] = _json({"Id": "neu-1", "Name": "alex"})
-    wege[("GET", "/Users/neu-1")] = _json({"Id": "neu-1", "Policy": POLICY})
-    wege[("POST", "/Users/neu-1/Policy")] = _leer()
+    wege[("POST", "/Users/New")] = _json({"Id": JELLYFIN_KONTO, "Name": "alex"})
+    wege[("GET", f"/Users/{JELLYFIN_KONTO}")] = _json({"Id": JELLYFIN_KONTO, "Policy": POLICY})
+    wege[("POST", f"/Users/{JELLYFIN_KONTO}/Policy")] = _leer()
     wege[("POST", "/Users/Password")] = _leer()
     wege[("GET", "/Library/VirtualFolders")] = _json(JELLYFIN_BIBLIOTHEKEN)
     wege[("GET", "/UserViews")] = _json({"Items": [{"Name": name} for name in sichtbar]})
@@ -143,7 +149,7 @@ async def test_jellyfin_legt_an_und_vergibt_nur_die_gewaehlten_bibliotheken(leit
 
     nummer = await JellyfinServer(_Stand()).konto_anlegen("alex", "geheim-123", [FILME, SERIEN])
 
-    assert nummer == "neu-1"
+    assert nummer == JELLYFIN_KONTO
     anlegen = _koerper(next(r for r in gesehen if r.url.path == "/Users/New"))
     assert anlegen["Name"] == "alex"
     # Beim Anlegen ein Passwort, das niemand kennt. Das echte kommt erst ans gesperrte Konto.
@@ -151,15 +157,15 @@ async def test_jellyfin_legt_an_und_vergibt_nur_die_gewaehlten_bibliotheken(leit
 
     schritte = [r for r in gesehen if r.method == "POST" and r.url.path != "/Users/New"]
     assert [r.url.path for r in schritte] == [
-        "/Users/neu-1/Policy",
+        f"/Users/{JELLYFIN_KONTO}/Policy",
         "/Users/Password",
-        "/Users/neu-1/Policy",
+        f"/Users/{JELLYFIN_KONTO}/Policy",
     ]
     gesperrt, passwort, frei = schritte
     assert _koerper(gesperrt)["IsDisabled"] is True
     assert _koerper(gesperrt)["EnableAllFolders"] is False
     assert _koerper(gesperrt)["EnabledFolders"] == []
-    assert passwort.url.params["userId"] == "neu-1"
+    assert passwort.url.params["userId"] == JELLYFIN_KONTO
     assert _koerper(passwort) == {"NewPw": "geheim-123", "ResetPassword": False}
 
     rechte = _koerper(frei)
@@ -175,7 +181,7 @@ async def test_jellyfin_legt_an_und_vergibt_nur_die_gewaehlten_bibliotheken(leit
     assert rechte["EnableRemoteAccess"] is True
 
     ansicht = next(r for r in gesehen if r.url.path == "/UserViews")
-    assert ansicht.url.params["userId"] == "neu-1"
+    assert ansicht.url.params["userId"] == JELLYFIN_KONTO
 
 
 @pytest.mark.parametrize(
@@ -201,9 +207,9 @@ async def test_jellyfin_meldet_wenn_das_konto_andere_bibliotheken_sieht(
 
     assert fehler.value.code == "mediaserver_libraries_mismatch"
     # Das Konto steht schon und darf nicht noch einmal angelegt werden.
-    assert fehler.value.zahlen["konto"] == "neu-1"
+    assert fehler.value.zahlen["konto"] == JELLYFIN_KONTO
     # Lieber gesperrt als mit den falschen Bibliotheken offen.
-    zuletzt = [_koerper(r) for r in gesehen if r.url.path == "/Users/neu-1/Policy"][-1]
+    zuletzt = [_koerper(r) for r in gesehen if r.url.path == f"/Users/{JELLYFIN_KONTO}/Policy"][-1]
     assert zuletzt["IsDisabled"] is True
     assert zuletzt["EnabledFolders"] == []
 
@@ -229,27 +235,27 @@ async def test_jellyfin_setzt_ein_angefangenes_konto_fort_statt_ein_zweites_anzu
     _jellyfin_konto(wege, sichtbar=["Filme"], vorhanden=("alex",))
 
     nummer = await JellyfinServer(_Stand()).konto_anlegen(
-        "alex", "geheim-123", [FILME], konto="neu-1"
+        "alex", "geheim-123", [FILME], konto=JELLYFIN_KONTO
     )
 
-    assert nummer == "neu-1"
+    assert nummer == JELLYFIN_KONTO
     assert not any(r.url.path == "/Users/New" for r in gesehen)
     assert [r.url.path for r in gesehen if r.method == "POST"] == [
-        "/Users/neu-1/Policy",
+        f"/Users/{JELLYFIN_KONTO}/Policy",
         "/Users/Password",
-        "/Users/neu-1/Policy",
+        f"/Users/{JELLYFIN_KONTO}/Policy",
     ]
 
 
 async def test_jellyfin_nennt_das_konto_wenn_die_rechte_scheitern(leitung) -> None:
     gesehen, wege = leitung
     _jellyfin_konto(wege, sichtbar=["Filme"])
-    wege[("POST", "/Users/neu-1/Policy")] = _leer(500)
+    wege[("POST", f"/Users/{JELLYFIN_KONTO}/Policy")] = _leer(500)
 
     with pytest.raises(MediaServerError) as fehler:
         await JellyfinServer(_Stand()).konto_anlegen("alex", "geheim-123", [FILME])
 
-    assert fehler.value.zahlen["konto"] == "neu-1"
+    assert fehler.value.zahlen["konto"] == JELLYFIN_KONTO
     assert sum(1 for r in gesehen if r.url.path == "/Users/New") == 1
 
 
@@ -263,12 +269,12 @@ EMBY_BIBLIOTHEKEN = [
 
 def _emby_konto(wege: dict, *, passwort_status: int = 204) -> None:
     wege[("GET", "/Users")] = _json([])
-    wege[("POST", "/Users/New")] = _json({"Id": "neu-2", "Name": "alex"})
-    wege[("GET", "/Users/neu-2")] = _json({"Id": "neu-2", "Policy": POLICY})
-    wege[("POST", "/Users/neu-2/Policy")] = _leer()
-    wege[("POST", "/Users/neu-2/Password")] = _leer(passwort_status)
+    wege[("POST", "/Users/New")] = _json({"Id": EMBY_KONTO, "Name": "alex"})
+    wege[("GET", f"/Users/{EMBY_KONTO}")] = _json({"Id": EMBY_KONTO, "Policy": POLICY})
+    wege[("POST", f"/Users/{EMBY_KONTO}/Policy")] = _leer()
+    wege[("POST", f"/Users/{EMBY_KONTO}/Password")] = _leer(passwort_status)
     wege[("GET", "/Library/VirtualFolders")] = _json(EMBY_BIBLIOTHEKEN)
-    wege[("GET", "/Users/neu-2/Views")] = _json({"Items": [{"Name": "Filme"}]})
+    wege[("GET", f"/Users/{EMBY_KONTO}/Views")] = _json({"Items": [{"Name": "Filme"}]})
 
 
 async def test_emby_sperrt_das_konto_bis_das_passwort_steht(leitung) -> None:
@@ -278,7 +284,7 @@ async def test_emby_sperrt_das_konto_bis_das_passwort_steht(leitung) -> None:
 
     nummer = await EmbyServer(_Stand()).konto_anlegen("alex", "geheim-123", ["g-filme"])
 
-    assert nummer == "neu-2"
+    assert nummer == EMBY_KONTO
     anlegen = next(r for r in gesehen if r.url.path == "/Users/New")
     assert _koerper(anlegen) == {"Name": "alex"}
 
@@ -286,17 +292,17 @@ async def test_emby_sperrt_das_konto_bis_das_passwort_steht(leitung) -> None:
         (r.url.path, _koerper(r)) for r in gesehen if r.method == "POST" and r.url.path != "/Users/New"
     ]
     assert [pfad for pfad, _ in schritte] == [
-        "/Users/neu-2/Policy",
-        "/Users/neu-2/Password",
-        "/Users/neu-2/Policy",
+        f"/Users/{EMBY_KONTO}/Policy",
+        f"/Users/{EMBY_KONTO}/Password",
+        f"/Users/{EMBY_KONTO}/Policy",
     ]
     gesperrt, passwort, frei = (koerper for _, koerper in schritte)
     assert gesperrt["IsDisabled"] is True
     assert gesperrt["EnabledFolders"] == []
-    assert passwort == {"Id": "neu-2", "NewPw": "geheim-123", "ResetPassword": False}
+    assert passwort == {"Id": EMBY_KONTO, "NewPw": "geheim-123", "ResetPassword": False}
     assert frei["IsDisabled"] is False
     assert frei["EnabledFolders"] == ["g-filme"]
-    assert any(r.url.path == "/Users/neu-2/Views" for r in gesehen)
+    assert any(r.url.path == f"/Users/{EMBY_KONTO}/Views" for r in gesehen)
 
 
 async def test_emby_bleibt_gesperrt_wenn_das_passwort_scheitert(leitung) -> None:
@@ -306,8 +312,8 @@ async def test_emby_bleibt_gesperrt_wenn_das_passwort_scheitert(leitung) -> None
     with pytest.raises(MediaServerError) as fehler:
         await EmbyServer(_Stand()).konto_anlegen("alex", "geheim-123", ["g-filme"])
 
-    assert fehler.value.zahlen["konto"] == "neu-2"
-    rechte = [_koerper(r) for r in gesehen if r.url.path == "/Users/neu-2/Policy"]
+    assert fehler.value.zahlen["konto"] == EMBY_KONTO
+    rechte = [_koerper(r) for r in gesehen if r.url.path == f"/Users/{EMBY_KONTO}/Policy"]
     assert [eintrag["IsDisabled"] for eintrag in rechte] == [True]
 
 

@@ -41,7 +41,8 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from ..models import (
@@ -1177,28 +1178,48 @@ def als_gesehen(db: Session, user_id: int, befunde: list[Befund]) -> int:
     ⚠️ **Was nicht mehr zutrifft, wird vergessen.** Sonst waechst die Tabelle
     mit jedem Befund, den es je gab, und ein Problem, das nach Monaten
     wiederkehrt, kaeme stumm zurueck - vermerkt ist es ja noch.
+
+    ⚠️ **Zwei Aufrufe zugleich sind der Normalfall.** React ruft Effekte im
+    Entwicklungsmodus doppelt auf, zwei offene Tabs tun dasselbe. Frueher
+    lasen beide erst, sahen "fehlt" und legten beide an. Der zweite scheiterte
+    am eindeutigen Index, und der Endpunkt antwortete mit HTTP 500 (beobachtet
+    am 13.09.2026). Deshalb wird vorher nichts gelesen: Ein ``DELETE`` raeumt
+    auf, ein Upsert schreibt, und keiner der beiden Befehle kann an einem
+    zweiten Aufruf scheitern.
     """
     aktuell = {b.schluessel: _anzahl_von(b) for b in befunde}
-    vorhanden = {
-        zeile.schluessel: zeile
-        for zeile in db.scalars(
-            select(BefundGesehen).where(BefundGesehen.user_id == user_id)
+
+    veraltet = delete(BefundGesehen).where(BefundGesehen.user_id == user_id)
+    if aktuell:
+        veraltet = veraltet.where(BefundGesehen.schluessel.not_in(list(aktuell)))
+    db.execute(veraltet)
+
+    if aktuell:
+        # ``onupdate`` am Modell greift bei ON CONFLICT nicht. Der Zeitpunkt
+        # steht deshalb ausdruecklich in beiden Haelften.
+        jetzt = utcnow()
+        eintrag = sqlite_insert(BefundGesehen).values(
+            [
+                {
+                    "user_id": user_id,
+                    "schluessel": schluessel,
+                    "anzahl": anzahl,
+                    "gesehen_am": jetzt,
+                }
+                for schluessel, anzahl in aktuell.items()
+            ]
         )
-    }
-
-    for schluessel, zeile in vorhanden.items():
-        if schluessel not in aktuell:
-            db.delete(zeile)
-
-    for schluessel, anzahl in aktuell.items():
-        zeile = vorhanden.get(schluessel)
-        if zeile is None:
-            db.add(
-                BefundGesehen(user_id=user_id, schluessel=schluessel, anzahl=anzahl)
-            )
-        else:
-            zeile.anzahl = anzahl
-            zeile.gesehen_am = utcnow()
+        eintrag = eintrag.on_conflict_do_update(
+            index_elements=[BefundGesehen.user_id, BefundGesehen.schluessel],
+            set_={"anzahl": eintrag.excluded.anzahl, "gesehen_am": eintrag.excluded.gesehen_am},
+        )
+        # ⚠️ ``populate_existing``: Die Sitzung laeuft mit
+        # ``expire_on_commit=False``. Haelt ein Aufrufer eine dieser Zeilen noch
+        # als Objekt, behielte sie sonst die alte Anzahl. Der alte Ablauf
+        # aenderte genau diese Objekte.
+        db.scalars(
+            eintrag.returning(BefundGesehen), execution_options={"populate_existing": True}
+        ).all()
 
     db.commit()
     return len(aktuell)

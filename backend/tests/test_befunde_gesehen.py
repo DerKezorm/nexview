@@ -11,11 +11,13 @@ geht auf null, sobald das Dashboard geöffnet war.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import event, select
 
-from app.db import SessionLocal
+from app.db import SessionLocal, engine
 from app.models import BefundGesehen, Role, User
 from app.security import hash_password
 from app.services import befunde
@@ -192,6 +194,107 @@ def test_derselbe_befund_je_instanz_zaehlt_getrennt() -> None:
 
         offen = befunde.ungesehen(db, chef.id, [eine, andere])
         assert [b.schluessel for b in offen] == ["arr.stumm|sonarr"]
+
+
+# --- Zwei Aufrufe zugleich ---------------------------------------------------
+
+
+def test_zwei_aufrufe_zugleich_vermerken_ohne_fehler() -> None:
+    """⚠️ Zwei Aufrufe zugleich sind der Normalfall, kein Randfall.
+
+    React ruft Effekte im Entwicklungsmodus doppelt auf, zwei offene Tabs tun
+    dasselbe. Am 13.09.2026 antwortete ``POST /api/admin/dashboard/gesehen``
+    darauf mit HTTP 500: Beide Aufrufe lasen „fehlt", beide legten an, und der
+    zweite scheiterte am eindeutigen Index.
+
+    Der eine Aufruf läuft hier genau vor dem ersten Schreibbefehl des anderen.
+    Das trifft den alten Ablauf (erst lesen, dann anlegen) genauso wie einen,
+    der gar nicht erst liest. Der Zähler beweist, dass es wirklich geschah.
+    """
+    with SessionLocal() as vorbereitung:
+        chef_id = _betreiber(vorbereitung).id
+
+    dazwischen: list[str] = []
+    zweite_verbindung: list[object] = []
+
+    def vor_dem_schreiben(conn, cursor, statement, parameters, context, executemany) -> None:
+        if dazwischen or not zweite_verbindung or conn is not zweite_verbindung[0]:
+            return
+        if statement.lstrip().split(None, 1)[0].upper() not in {"INSERT", "UPDATE", "DELETE"}:
+            return
+        dazwischen.append(statement)
+        with SessionLocal() as erste:
+            befunde.als_gesehen(
+                erste, chef_id, [_befund("nachschub.haengt", 1), _befund("arr.stumm")]
+            )
+
+    # Der Horcher hängt an der ganzen Engine. Der eingeschobene Aufruf läuft
+    # über eine eigene Verbindung und fällt deshalb schon an der ersten
+    # Bedingung im Horcher heraus.
+    event.listen(engine, "before_cursor_execute", vor_dem_schreiben)
+    try:
+        with SessionLocal() as zweite:
+            zweite_verbindung.append(zweite.connection())
+            befunde.als_gesehen(
+                zweite, chef_id, [_befund("nachschub.haengt", 2), _befund("arr.stumm")]
+            )
+    finally:
+        event.remove(engine, "before_cursor_execute", vor_dem_schreiben)
+
+    assert len(dazwischen) == 1, "der erste Aufruf kam gar nicht dazwischen"
+    with SessionLocal() as db:
+        zeilen = {
+            z.schluessel: z.anzahl
+            for z in db.scalars(select(BefundGesehen).where(BefundGesehen.user_id == chef_id))
+        }
+    # Der spätere gewinnt, und keiner fehlt.
+    assert zeilen == {"nachschub.haengt": 2, "arr.stumm": None}
+
+
+def test_erneutes_hinsehen_frischt_anzahl_und_zeitpunkt_auf(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Eine schon vermerkte Zeile bekommt die neue Anzahl und den neuen Zeitpunkt.
+
+    Bliebe die alte Anzahl stehen, meldete sich ein Befund, der von eins auf
+    drei wuchs und dann auf zwei fiel, fälschlich wieder als ungesehen.
+    """
+    frueh = datetime(2026, 9, 1, 8, 0, tzinfo=UTC)
+    spaet = datetime(2026, 9, 13, 9, 30, tzinfo=UTC)
+    with SessionLocal() as db:
+        chef_id = _betreiber(db).id
+        monkeypatch.setattr(befunde, "utcnow", lambda: frueh)
+        befunde.als_gesehen(db, chef_id, [_befund("nachschub.haengt", 1)])
+        monkeypatch.setattr(befunde, "utcnow", lambda: spaet)
+        befunde.als_gesehen(db, chef_id, [_befund("nachschub.haengt", 3)])
+
+    with SessionLocal() as db:
+        (zeile,) = db.scalars(
+            select(BefundGesehen).where(BefundGesehen.user_id == chef_id)
+        ).all()
+    assert zeile.anzahl == 3
+    assert zeile.gesehen_am.replace(tzinfo=None) == spaet.replace(tzinfo=None)
+
+
+def test_eine_festgehaltene_zeile_zeigt_danach_den_neuen_stand() -> None:
+    """Eine Zeile, die jemand aus derselben Sitzung in der Hand hält, zieht mit.
+
+    Die Sitzung läuft mit ``expire_on_commit=False`` und frischt geladene
+    Objekte nicht von selbst auf. Der alte Ablauf änderte genau diese Objekte;
+    ein Upsert, das an ihnen vorbei schreibt, ließe sie mit der alten Anzahl
+    stehen. Hält niemand sie fest, fällt das nicht auf, weil die Sitzung nur
+    schwach auf ihre Objekte verweist. Deshalb hält dieser Test eine fest.
+    """
+    with SessionLocal() as db:
+        chef_id = _betreiber(db).id
+        befunde.als_gesehen(db, chef_id, [_befund("nachschub.haengt", 1)])
+        (zeile,) = db.scalars(
+            select(BefundGesehen).where(BefundGesehen.user_id == chef_id)
+        ).all()
+
+        befunde.als_gesehen(db, chef_id, [_befund("nachschub.haengt", 3)])
+
+        assert zeile.anzahl == 3
 
 
 # --- Über die echte Adresse --------------------------------------------------

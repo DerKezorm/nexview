@@ -31,12 +31,33 @@ SPRACHEN = [
     {"id": 4, "name": "German"},
 ]
 
-# So sieht der Bauplan einer echten Instanz aus - gekuerzt, aber mit der
-# Eigenheit, auf die es ankommt: Radarr buendelt WEB-Stufen bereits selbst.
+# So sieht der Bauplan einer echten Instanz aus - gekuerzt, aber mit den
+# Eigenheiten, auf die es ankommt: Radarr buendelt WEB-Stufen bereits selbst,
+# und die Liste zaehlt von unten nach oben (gemessen 13.09.2026 an Radarr 6.3:
+# vorn "Unknown", hinten "Raw-HD"). Bis dahin stand sie hier umgekehrt.
 SCHEMA = {
     "items": [
         {
-            "quality": {"id": 19, "name": "Bluray-2160p"},
+            "name": "WEB 720p",
+            "id": 1001,
+            "allowed": False,
+            "items": [
+                {"quality": {"id": 5, "name": "WEBDL-720p"}, "items": [], "allowed": False},
+                {"quality": {"id": 14, "name": "WEBRip-720p"}, "items": [], "allowed": False},
+            ],
+        },
+        {"quality": {"id": 6, "name": "Bluray-720p"}, "items": [], "allowed": False},
+        {
+            "name": "WEB 1080p",
+            "id": 1002,
+            "allowed": False,
+            "items": [
+                {"quality": {"id": 3, "name": "WEBDL-1080p"}, "items": [], "allowed": False},
+                {"quality": {"id": 15, "name": "WEBRip-1080p"}, "items": [], "allowed": False},
+            ],
+        },
+        {
+            "quality": {"id": 7, "name": "Bluray-1080p"},
             "items": [],
             "allowed": False,
         },
@@ -50,40 +71,30 @@ SCHEMA = {
             ],
         },
         {
-            "quality": {"id": 7, "name": "Bluray-1080p"},
+            "quality": {"id": 19, "name": "Bluray-2160p"},
             "items": [],
             "allowed": False,
-        },
-        {
-            "name": "WEB 1080p",
-            "id": 1002,
-            "allowed": False,
-            "items": [
-                {"quality": {"id": 3, "name": "WEBDL-1080p"}, "items": [], "allowed": False},
-                {"quality": {"id": 15, "name": "WEBRip-1080p"}, "items": [], "allowed": False},
-            ],
-        },
-        {"quality": {"id": 6, "name": "Bluray-720p"}, "items": [], "allowed": False},
-        {
-            "name": "WEB 720p",
-            "id": 1001,
-            "allowed": False,
-            "items": [
-                {"quality": {"id": 5, "name": "WEBDL-720p"}, "items": [], "allowed": False},
-                {"quality": {"id": 14, "name": "WEBRip-720p"}, "items": [], "allowed": False},
-            ],
         },
         {"quality": {"id": 31, "name": "Remux-2160p"}, "items": [], "allowed": False},
     ]
 }
 
 
-def _attrappe(monkeypatch, mitschrift: dict) -> None:
-    """Radarr nachstellen und mitschreiben, was ankommt."""
+def _attrappe(monkeypatch, mitschrift: dict, vorhanden: list[dict] | None = None) -> None:
+    """Radarr nachstellen und mitschreiben, was ankommt.
+
+    ``vorhanden`` sind Erkennungsmuster, die drueben schon liegen.
+    """
     mitschrift.setdefault("formate", [])
     mitschrift.setdefault("profile", [])
-    bestand: list[dict] = []
+    mitschrift.setdefault("nachgezogen", [])
+    bestand: list[dict] = [dict(f) for f in vorhanden or []]
     zaehler = {"n": 0}
+
+    async def custom_format_nachziehen(self, format_id, payload):
+        mitschrift["nachgezogen"].append((format_id, payload))
+        bestand[:] = [{**payload, "id": format_id} if f["id"] == format_id else f for f in bestand]
+        return {**payload, "id": format_id}
 
     async def custom_formats(self):
         return list(bestand)
@@ -114,6 +125,7 @@ def _attrappe(monkeypatch, mitschrift: dict) -> None:
     for name, funktion in (
         ("custom_formats", custom_formats),
         ("custom_format_anlegen", custom_format_anlegen),
+        ("custom_format_nachziehen", custom_format_nachziehen),
         ("quality_profile_schema", quality_profile_schema),
         ("quality_profile_anlegen", quality_profile_anlegen),
         ("quality_profile_nachziehen", quality_profile_nachziehen),
@@ -168,13 +180,14 @@ def test_jede_antwortkombination_laesst_sich_bauen() -> None:
     from app.services.trash import SPRACHNAMEN
 
     nummern = {code: 100 + i for i, code in enumerate(SPRACHNAMEN)}
-    for dienst, aufloesung, quelle, sofort, hdr, code in product(
+    for dienst, aufloesung, quelle, sofort, hdr, code, schluss in product(
         ("radarr", "sonarr"),
         ("1080p", "2160p"),
         ("encodes", "remux", "web"),
         (True, False),
         ("netz", "frei", "egal"),
         list(SPRACHNAMEN) + [None],
+        ("trash", "frueh"),
     ):
         rezept = {
             **REZEPT,
@@ -185,6 +198,7 @@ def test_jede_antwortkombination_laesst_sich_bauen() -> None:
             "hdr": hdr,
             "sprachen": [code] if code else [],
             "sprachRollen": {code: "pflicht"} if code else {},
+            "schlusspunkt": schluss,
         }
         plan = bauplan(rezept, dienst, nummern)
         assert plan.merge, f"{dienst}/{aufloesung}/{quelle}/{code} ohne Qualitaeten"
@@ -419,6 +433,400 @@ async def test_abgleich_nennt_den_unterschied(monkeypatch) -> None:
     assert "mindestpunkte" in arten
     punkte = [u for u in stand.unterschiede if u.art == "punkte"]
     assert any(u.was == "German DL" and u.ist == "99" for u in punkte)
+
+
+def test_frueh_zufrieden_hoert_bei_der_mindestpunktzahl_auf() -> None:
+    """"Frueh zufrieden" muss den Upgrade-bis-Wert wirklich senken.
+
+    ⚠️ **Aus einem echten Fehler (13.09.2026).** Die Antwort wurde gespeichert,
+    aber nie gelesen. Der Upgrade-bis-Wert kam immer aus dem TRaSH-Profil
+    (deutsch 35 000), und Radarr wertete weiter auf, obwohl Sprache und
+    Aufloesung laengst stimmten.
+
+    Radarr hoert auf, sobald die Datei die Zielqualitaet hat **und** ihre Punkte
+    den Upgrade-bis-Wert erreichen. Liegt der auf der Mindestpunktzahl, genuegt
+    die Pflichtsprache; ohne Pflichtsprache genuegt die Aufloesung.
+    """
+    rezept = {**REZEPT, "aufloesung": "1080p", "quelle": "remux"}
+    echte = {"Remux-1080p", "WEBDL-1080p", "WEBRip-1080p", "WEBDL-720p", "WEBRip-720p"}
+    nummern = {"de": 4, "en": 1}
+    empfehlung = bauplan(rezept, "radarr", nummern, echte)
+    frueh = bauplan({**rezept, "schlusspunkt": "frueh"}, "radarr", nummern, echte)
+
+    assert empfehlung.schluss_punkte == 35_000, "sonst prueft dieser Test nichts"
+    assert frueh.schluss_punkte == frueh.min_punkte == 10_000
+    assert set(frueh.merge) == set(empfehlung.merge), "erlaubt bleibt dasselbe"
+
+    ohne_pflicht = bauplan(
+        {
+            **rezept,
+            "schlusspunkt": "frueh",
+            "sprachRollen": {"de": "bevorzugt", "en": "bevorzugt"},
+        },
+        "radarr",
+        nummern,
+        echte,
+    )
+    assert ohne_pflicht.schluss_punkte == ohne_pflicht.min_punkte == 0
+
+
+@pytest.mark.anyio
+async def test_frueh_zufrieden_stellt_kleinere_aufloesungen_unter_das_ziel(monkeypatch) -> None:
+    """Sonst stimmt "sobald die Aufloesung stimmt" nicht.
+
+    "Erst nehmen, was da ist" legt kleinere Aufloesungen in **dieselbe** Gruppe
+    wie das Ziel. Fuer Radarr ist die Zielqualitaet dann schon mit 720p
+    erreicht, und mit dem gesenkten Upgrade-bis-Wert bliebe es dabei. Also
+    stehen sie in einer eigenen Gruppe **unter** dem Ziel: Von dort wird noch
+    auf das Ziel aufgewertet, dort ist Schluss.
+    """
+    from app.services import qualitaetsprofile as dienst
+
+    mitschrift: dict = {}
+    _attrappe(monkeypatch, mitschrift)
+    client = ArrClient("http://x", "k", "Radarr")
+    plan = bauplan({**REZEPT, "schlusspunkt": "frueh"}, "radarr", {"de": 4, "en": 1})
+    await dienst.schreiben(client, plan)
+
+    profil = mitschrift["profile"][-1]
+    assert profil["cutoffFormatScore"] == plan.min_punkte
+    erlaubt = [i for i in profil["items"] if i.get("allowed")]
+    ziel = next(i for i in erlaubt if i.get("id") == profil["cutoff"])
+    assert {k["quality"]["name"] for k in ziel["items"]} == {
+        "Bluray-2160p", "WEBDL-2160p", "WEBRip-2160p",
+    }
+    unten = [i for i in erlaubt if i is not ziel]
+    assert {k["quality"]["name"] for i in unten for k in i["items"]} == {
+        "Bluray-1080p", "WEBDL-1080p", "WEBRip-1080p",
+        "Bluray-720p", "WEBDL-720p", "WEBRip-720p",
+    }
+    # Weiter vorn heisst in Radarrs Liste: schlechter.
+    assert all(profil["items"].index(i) < profil["items"].index(ziel) for i in unten)
+
+
+@pytest.mark.anyio
+async def test_frueh_zufrieden_zeigt_alte_kopien_als_update(monkeypatch) -> None:
+    """Profile, die mit der wirkungslosen Antwort geschrieben wurden, holen auf.
+
+    ⚠️ Auf den Instanzen stehen sie mit TRaSHs Upgrade-bis-Wert und allen
+    Aufloesungen in einer Gruppe. Das war Nexviews eigener Fehler, drueben hat
+    niemand gedreht: Es muss "Update verfuegbar" heissen, nicht "Konflikt".
+    """
+    from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
+    from app.services import qualitaetsprofile as dienst
+
+    _attrappe(monkeypatch, {})
+    client = ArrClient("http://x", "k", "Radarr")
+    rezept = {**REZEPT, "schlusspunkt": "frueh"}
+    profil = Qualitaetsprofil(id=1, name="P", dienst="radarr", rezept=rezept)
+    plan = bauplan(rezept, "radarr", {"de": 4, "en": 1})
+
+    alt = _live_profil(plan)
+    alt["cutoff"] = alt["items"][0]["id"] = dienst.GRUPPEN_NUMMER
+    alt["cutoffFormatScore"] = 35_000
+    damals = dienst._abdruck(
+        {
+            "merge": sorted(plan.merge),
+            "min": plan.min_punkte,
+            "schluss": 35_000,
+            "formate": sorted((f.name, f.punkte) for f in plan.formate),
+        }
+    )
+    eintrag = QualitaetsprofilInstallation(
+        profil_id=1, kennung="radarr-standard", profil_id_extern=42, fingerabdruck=damals
+    )
+    stand = await dienst.vergleichen(client, profil, eintrag, [alt])
+    assert stand.stand == "update", [(u.art, u.ist, u.soll) for u in stand.unterschiede]
+    assert {u.art for u in stand.unterschiede} == {"schlusspunkte", "rangfolge"}
+
+
+def stufe_von(plan, qualitaet: str) -> int:
+    """In welcher Stufe der Rangfolge eine Qualitaet steht, von unten gezaehlt."""
+    return next(i for i, stufe in enumerate(plan.stufen) if qualitaet in stufe)
+
+
+ENGLISCH = {"sprachen": ["en"], "sprachRollen": {"en": "pflicht"}}
+
+
+def test_nach_empfehlung_gilt_trashs_rangfolge() -> None:
+    """Ohne Deutsch ordnet TRaSH die Quellen, und das gilt auch hier.
+
+    ⚠️ **Bis 13.09.2026 kam alles in eine Gruppe.** Fuer deutsche Profile stimmt
+    das, TRaSH legt dort selbst zusammen. Die Standard-Profile ordnen aber: In
+    "UHD Bluray + WEB" steht Bluray ueber WEB, und dort liegt der Cutoff. In
+    einer Gruppe waeren beide gleich viel wert, und eine WEB-Datei wuerde bei
+    gleichen Punkten nie gegen die Bluray getauscht.
+    """
+    plan = bauplan({**REZEPT, **ENGLISCH, "sofortNehmen": False}, "radarr", {"en": 1})
+    assert plan.basis == "uhd-bluray-web", "sonst prueft dieser Test nichts"
+    assert stufe_von(plan, "Bluray-2160p") > stufe_von(plan, "WEBDL-2160p")
+    assert stufe_von(plan, "WEBDL-2160p") == stufe_von(plan, "WEBRip-2160p")
+    assert plan.ziel == stufe_von(plan, "Bluray-2160p")
+
+
+def test_erst_nehmen_was_da_ist_tauscht_auch_ohne_deutsch() -> None:
+    """Kleinere Aufloesungen stehen unter dem Ziel, die Quellen wie beim Ziel geordnet.
+
+    ⚠️ **Aus einem echten Fehler (13.09.2026).** Sie lagen in derselben Gruppe
+    wie das Ziel. Deutsche Profile ordnen das ueber Aufloesungspunkte (Booster),
+    TRaSHs Standard-Profile haben keine. Eine 1080p-Datei wurde dort nie gegen
+    4K getauscht, solange das Release sonst gleich viele Punkte hatte. TRaSHs
+    eigene Alternative-Profile ohne Deutsch stellen kleinere Aufloesungen
+    ebenfalls darunter.
+    """
+    plan = bauplan({**REZEPT, **ENGLISCH}, "radarr", {"en": 1})
+
+    def spanne(aufloesung: str) -> tuple[int, int]:
+        stufen = [stufe_von(plan, f"{q}-{aufloesung}") for q in ("Bluray", "WEBDL", "WEBRip")]
+        return min(stufen), max(stufen)
+
+    s720, s1080, s2160 = spanne("720p"), spanne("1080p"), spanne("2160p")
+    assert s720[1] < s1080[0] and s1080[1] < s2160[0]
+    assert stufe_von(plan, "Bluray-1080p") > stufe_von(plan, "WEBDL-1080p")
+    assert plan.ziel == stufe_von(plan, "Bluray-2160p")
+
+
+def test_deutsche_profile_legen_kleinere_aufloesungen_zusammen() -> None:
+    """Wie TRaSHs "German UHD Bluray + WEB (Alternative)": eine Gruppe, die Booster ordnen."""
+    plan = bauplan(REZEPT, "radarr", {"de": 4, "en": 1})
+    assert len(plan.stufen) == 1
+    assert {"Bluray-2160p", "Bluray-1080p", "WEBDL-720p"} <= set(plan.stufen[0])
+
+
+def test_frueh_zufrieden_nimmt_die_erste_stufe_mit_zielaufloesung() -> None:
+    """Ohne Deutsch reicht dann WEB in 4K, auf die Bluray wird nicht gewartet."""
+    plan = bauplan({**REZEPT, **ENGLISCH, "schlusspunkt": "frueh"}, "radarr", {"en": 1})
+    assert plan.ziel == stufe_von(plan, "WEBDL-2160p")
+    assert plan.ziel < stufe_von(plan, "Bluray-2160p")
+
+
+def test_sonarr_remux_bleibt_auch_kleiner_ein_remux() -> None:
+    """Sonarr nennt Remux "Bluray-2160p Remux", die kleinere ist "Bluray-1080p Remux".
+
+    ⚠️ Bis 13.09.2026 wurde am letzten Bindestrich abgeschnitten, und aus dem
+    Remux wurde "Bluray-1080p", eine gewoehnliche Kopie.
+    """
+    rezept = {**REZEPT, **ENGLISCH, "typ": "sonarr", "quelle": "remux"}
+    plan = bauplan(rezept, "sonarr", {"en": 1})
+    assert "Bluray-2160p Remux" in plan.merge, "sonst prueft dieser Test nichts"
+    assert "Bluray-1080p Remux" in plan.merge
+    assert "Bluray-1080p" not in plan.merge
+
+
+@pytest.mark.anyio
+async def test_schreiben_haelt_die_rangfolge_ein(monkeypatch) -> None:
+    """Drueben steht dieselbe Rangfolge, der Cutoff an der Bluray in 4K."""
+    from app.services import qualitaetsprofile as dienst
+
+    mitschrift: dict = {}
+    _attrappe(monkeypatch, mitschrift)
+    plan = bauplan({**REZEPT, **ENGLISCH}, "radarr", {"en": 1})
+    await dienst.schreiben(ArrClient("http://x", "k", "Radarr"), plan)
+
+    profil = mitschrift["profile"][-1]
+
+    def namen(eintrag: dict) -> set[str]:
+        if eintrag.get("items"):
+            return {k["quality"]["name"] for k in eintrag["items"]}
+        return {eintrag["quality"]["name"]}
+
+    assert [namen(i) for i in profil["items"] if i.get("allowed")] == [
+        {"WEBDL-720p", "WEBRip-720p"},
+        {"Bluray-720p"},
+        {"WEBDL-1080p", "WEBRip-1080p"},
+        {"Bluray-1080p"},
+        {"WEBDL-2160p", "WEBRip-2160p"},
+        {"Bluray-2160p"},
+    ]
+    assert profil["cutoff"] == 19, "die Nummer von Bluray-2160p"
+    # Jede Qualitaet genau einmal, sonst lehnt Radarr ab.
+    alle = [n for i in profil["items"] for n in namen(i)]
+    assert len(alle) == len(set(alle))
+
+
+@pytest.mark.anyio
+async def test_alte_kopien_ohne_rangfolge_zeigen_update(monkeypatch) -> None:
+    """Drueben steht noch eine Gruppe. Das ist ein Update, kein Eingriff von Hand."""
+    from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
+    from app.services import qualitaetsprofile as dienst
+
+    _attrappe(monkeypatch, {})
+    rezept = {**REZEPT, **ENGLISCH}
+    profil = Qualitaetsprofil(id=1, name="P", dienst="radarr", rezept=rezept)
+    plan = bauplan(rezept, "radarr", {"en": 1})
+    alt = _live_profil(plan)
+    alt["cutoff"] = alt["items"][0]["id"] = dienst.GRUPPEN_NUMMER
+    damals = dienst._abdruck(
+        {
+            "merge": sorted(plan.merge),
+            "min": plan.min_punkte,
+            "schluss": plan.schluss_punkte,
+            "formate": sorted((f.name, f.punkte) for f in plan.formate),
+        }
+    )
+    eintrag = QualitaetsprofilInstallation(
+        profil_id=1, kennung="radarr-standard", profil_id_extern=42, fingerabdruck=damals
+    )
+    client = ArrClient("http://x", "k", "Radarr")
+    stand = await dienst.vergleichen(client, profil, eintrag, [alt])
+    assert stand.stand == "update", [(u.art, u.ist, u.soll) for u in stand.unterschiede]
+    assert [u.art for u in stand.unterschiede] == ["rangfolge"]
+
+
+@pytest.mark.anyio
+async def test_frisch_geschrieben_ist_aktuell_und_ein_verschobener_cutoff_faellt_auf(
+    monkeypatch,
+) -> None:
+    """Was Nexview gerade geschrieben hat, muss beim Abgleich "aktuell" heissen.
+
+    ⚠️ Sonst stuende nach jedem Schreiben "von dir angepasst" da. Und wer den
+    Cutoff drueben von Hand verschiebt, aendert, wann Radarr aufhoert. Das muss
+    auffallen.
+    """
+    from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
+    from app.services import qualitaetsprofile as dienst
+
+    mitschrift: dict = {}
+    _attrappe(monkeypatch, mitschrift)
+    rezept = {**REZEPT, **ENGLISCH}
+    client = ArrClient("http://x", "k", "Radarr")
+    plan = bauplan(rezept, "radarr", {"en": 1})
+    await dienst.schreiben(client, plan)
+    live = {**mitschrift["profile"][-1], "id": 42, "name": "P"}
+    profil = Qualitaetsprofil(id=1, name="P", dienst="radarr", rezept=rezept)
+    eintrag = QualitaetsprofilInstallation(
+        profil_id=1,
+        kennung="radarr-standard",
+        profil_id_extern=42,
+        fingerabdruck=dienst._fingerabdruck(plan),
+    )
+    stand = await dienst.vergleichen(client, profil, eintrag, [live])
+    assert stand.stand == "aktuell", [(u.art, u.ist, u.soll) for u in stand.unterschiede]
+
+    darunter = [i for i in live["items"] if i.get("allowed")][-2]
+    nummer = darunter["id"] if "id" in darunter else darunter["quality"]["id"]
+    stand = await dienst.vergleichen(client, profil, eintrag, [{**live, "cutoff": nummer}])
+    assert stand.stand == "angepasst"
+    assert [u.art for u in stand.unterschiede] == ["rangfolge"]
+
+
+def test_zurueckgelesene_sprachmuster_gelten_als_gleich() -> None:
+    """Radarr haengt beim Lesen ``exceptLanguage: false`` an (gemessen 13.09.2026, Radarr 6.3).
+
+    ⚠️ Ohne diese Ruecksicht hielt Nexview jedes Sprachmuster, das es selbst
+    angelegt hatte, fuer fremd, und meldete nach dem Schreiben "andere Regeln
+    als die Empfehlung" fuer German DL und Co.
+    """
+    from app.services import qualitaetsprofile as dienst
+
+    plan = bauplan(REZEPT, "radarr", {"de": 4, "en": 1})
+    wunsch = next(f for f in plan.formate if f.name == "German DL")
+    zusatz = {"name": "exceptLanguage", "value": False}
+    gelesen = [
+        {**spez, "fields": [*spez["fields"], zusatz]}
+        if spez["implementation"] == "LanguageSpecification"
+        else spez
+        for spez in wunsch.spezifikationen
+    ]
+    assert not dienst._regeln_abweichend({"specifications": gelesen}, wunsch)
+    anders = [{**gelesen[0], "negate": not gelesen[0].get("negate")}, *gelesen[1:]]
+    assert dienst._regeln_abweichend({"specifications": anders}, wunsch), (
+        "eine echte Aenderung muss weiter auffallen"
+    )
+
+
+@pytest.mark.anyio
+async def test_abgleich_meldet_regeln_aus_einem_frueheren_trash_stand(monkeypatch) -> None:
+    """Aendert TRaSH nur Regeln und keine Punkte, ist das trotzdem ein Update.
+
+    ⚠️ **Aus einem echten Fehler (13.09.2026).** Die Aenderungen nach dem 23.08.
+    betrafen nur Regeln (etwa eine Gruppe mehr in "German Web Tier 02").
+    Verglichen wurden aber nur Punkte, Schwellen und Qualitaeten: Nach dem Holen
+    stand ueberall "Aktuell", und die neuen Regeln kamen nie an.
+
+    Gemeldet wird nur, was nachweislich aus einem frueheren TRaSH-Stand stammt.
+    Ein von Hand geaendertes Muster ist kein Update, das fasst Nexview nicht an.
+    """
+    import copy
+
+    from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
+    from app.services import qualitaetsprofile as dienst
+    from app.services import trash, trash_bezug
+
+    plan = bauplan(REZEPT, "radarr", {"de": 4, "en": 1})
+    wunsch = next(f for f in plan.formate if f.name == "German DL")
+    frueher = copy.deepcopy(wunsch.spezifikationen)
+    frueher[0]["negate"] = not frueher[0].get("negate")
+    von_hand = copy.deepcopy(wunsch.spezifikationen)
+    von_hand[0]["required"] = not von_hand[0].get("required")
+    monkeypatch.setattr(
+        trash_bezug, "bekannte_regeln", lambda _dienst: {"German DL": {trash.regelabdruck(frueher)}}
+    )
+    profil = Qualitaetsprofil(id=1, name="P", dienst="radarr", rezept=REZEPT)
+    eintrag = QualitaetsprofilInstallation(
+        profil_id=1,
+        kennung="radarr-standard",
+        profil_id_extern=42,
+        fingerabdruck=dienst._fingerabdruck(plan),
+    )
+    client = ArrClient("http://x", "k", "Radarr")
+
+    _attrappe(monkeypatch, {}, [{"id": 901, "name": "German DL", "specifications": frueher}])
+    stand = await dienst.vergleichen(client, profil, eintrag, [_live_profil(plan)])
+    assert stand.stand == "update"
+    assert [(u.art, u.was) for u in stand.unterschiede] == [("regeln", "German DL")]
+
+    _attrappe(monkeypatch, {}, [{"id": 901, "name": "German DL", "specifications": von_hand}])
+    stand = await dienst.vergleichen(client, profil, eintrag, [_live_profil(plan)])
+    assert stand.stand == "aktuell", "von Hand geaendert ist kein Update"
+
+
+@pytest.mark.anyio
+async def test_schreiben_zieht_nur_unveraenderte_trash_muster_nach(monkeypatch) -> None:
+    """Regeln aus einem frueheren TRaSH-Stand werden ersetzt, fremde bleiben stehen.
+
+    Muster gelten in Radarr fuer alle Profile der Instanz. Nachgezogen wird
+    deshalb nur, was nachweislich unveraendert von TRaSH stammt; alles andere
+    hat jemand mit Absicht so gebaut.
+    """
+    import copy
+    import dataclasses
+
+    from app.services import qualitaetsprofile as dienst
+    from app.services import trash
+
+    plan = bauplan(REZEPT, "radarr", {"de": 4, "en": 1})
+    dl = next(f for f in plan.formate if f.name == "German DL")
+    de = next(f for f in plan.formate if f.name == "German")
+    frueher = copy.deepcopy(dl.spezifikationen)
+    frueher[0]["negate"] = not frueher[0].get("negate")
+    von_hand = copy.deepcopy(de.spezifikationen)
+    von_hand[0]["negate"] = not von_hand[0].get("negate")
+    bekannt = frozenset({trash.regelabdruck(frueher)})
+    plan = dataclasses.replace(
+        plan,
+        formate=tuple(
+            dataclasses.replace(f, bekannte_regeln=bekannt) if f is dl else f
+            for f in plan.formate
+        ),
+    )
+    mitschrift: dict = {}
+    _attrappe(
+        monkeypatch,
+        mitschrift,
+        [
+            {"id": 901, "name": "German DL", "specifications": frueher},
+            {"id": 902, "name": "German", "specifications": von_hand},
+        ],
+    )
+    ergebnis = await dienst.schreiben(ArrClient("http://x", "k", "Radarr"), plan)
+
+    assert [nummer for nummer, _ in mitschrift["nachgezogen"]] == [901]
+    geschrieben = mitschrift["nachgezogen"][0][1]["specifications"]
+    assert trash.regelform(geschrieben) == trash.regelform(dl.spezifikationen)
+    hinweise = dict(h.split(":", 1) for h in ergebnis.hinweise if ":" in h)
+    assert hinweise.get("regeln_nachgezogen", "").split(", ") == ["German DL"]
+    assert "German" in hinweise.get("fremde_regeln", "").split(", ")
 
 
 @pytest.mark.anyio

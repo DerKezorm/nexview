@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from ..models import Qualitaetsprofil, QualitaetsprofilInstallation, utcnow
 from . import logs
 from .arr import ArrClient, ArrError
-from .trash import Bauplan, bauplan
+from .trash import Bauplan, aufloesung_von, bauplan, regelabdruck, regelform
 
 logger = logging.getLogger("nexview.qualitaet")
 
@@ -154,13 +154,23 @@ def installation(
 
 
 def _gestalt(plan: Bauplan) -> dict:
-    """Der Bauplan auf das reduziert, worauf es beim Vergleich ankommt."""
-    return {
+    """Der Bauplan auf das reduziert, worauf es beim Vergleich ankommt.
+
+    ⚠️ Die Rangfolge steht nur drin, wenn es mehr als eine Stufe gibt. Bis
+    13.09.2026 schrieb Nexview immer eine Gruppe; so behalten alle Kopien aus
+    dieser Zeit ihren Abdruck, und eine davon heisst "Update" statt "Konflikt".
+    """
+    gestalt: dict[str, Any] = {
         "merge": sorted(plan.merge),
         "min": plan.min_punkte,
         "schluss": plan.schluss_punkte,
         "formate": sorted((f.name, f.punkte) for f in plan.formate),
     }
+    stufen = [sorted(stufe) for stufe in plan.rangfolge()]
+    if len(stufen) > 1:
+        gestalt["stufen"] = stufen
+        gestalt["ziel"] = plan.ziel
+    return gestalt
 
 
 def _fingerabdruck(plan: Bauplan) -> str:
@@ -229,25 +239,42 @@ def _gestalt_von_instanz(profil_live: dict, plan: Bauplan) -> dict:
         if punkte != 0 and name not in erwartet
     )
 
+    # Die Rangfolge so, wie sie drueben steht: jede erlaubte Zeile eine Stufe,
+    # von unten nach oben. Das Ziel ist die Zeile, auf die der Cutoff zeigt.
+    cutoff = profil_live.get("cutoff")
     merge: list[str] = []
+    stufen: list[list[str]] = []
+    ziel = -1
     for eintrag in profil_live.get("items", []):
         if not eintrag.get("allowed"):
             continue
         kinder = eintrag.get("items") or []
         if kinder:
-            merge.extend(
-                k["quality"]["name"] for k in kinder if k.get("allowed")
-            )
+            namen = [k["quality"]["name"] for k in kinder if k.get("allowed")]
+            ist_ziel = eintrag.get("id") == cutoff
         elif "quality" in eintrag:
-            merge.append(eintrag["quality"]["name"])
+            namen = [eintrag["quality"]["name"]]
+            ist_ziel = eintrag["quality"].get("id") == cutoff
+        else:
+            continue
+        if not namen:
+            continue
+        if ist_ziel:
+            ziel = len(stufen)
+        stufen.append(sorted(namen))
+        merge.extend(namen)
 
-    return {
+    gestalt: dict[str, Any] = {
         "merge": sorted(set(merge)),
         "min": int(profil_live.get("minFormatScore") or 0),
         "schluss": int(profil_live.get("cutoffFormatScore") or 0),
         "formate": sorted(formate),
         "fremd": fremd_mit_punkten,
     }
+    if len(stufen) > 1:
+        gestalt["stufen"] = stufen
+        gestalt["ziel"] = ziel
+    return gestalt
 
 
 @dataclass
@@ -274,6 +301,14 @@ class Abgleich:
     unterschiede: list[Unterschied]
 
 
+def _rangtext(stufen: list[list[str]], ziel: int) -> str:
+    """Die Rangfolge lesbar: von unten nach oben, das Ziel in eckigen Klammern."""
+    return " < ".join(
+        f"[{', '.join(stufe)}]" if i == ziel else ", ".join(stufe)
+        for i, stufe in enumerate(stufen)
+    )
+
+
 def _unterschiede(soll: dict, ist: dict) -> list[Unterschied]:
     """Was zwischen zwei Gestalten abweicht - in der Reihenfolge der Wichtigkeit."""
     liste: list[Unterschied] = []
@@ -285,6 +320,15 @@ def _unterschiede(soll: dict, ist: dict) -> list[Unterschied]:
                 soll=", ".join(soll["merge"]),
             )
         )
+    # Die Rangfolge nur bei denselben erlaubten Qualitaeten. Sonst stuende eine
+    # von Hand erlaubte Qualitaet zweimal in der Liste.
+    if soll["merge"] == ist["merge"]:
+        soll_rang = (soll.get("stufen") or [soll["merge"]], soll.get("ziel", 0))
+        ist_rang = (ist.get("stufen") or [ist["merge"]], ist.get("ziel", 0))
+        if soll_rang != ist_rang:
+            liste.append(
+                Unterschied(art="rangfolge", ist=_rangtext(*ist_rang), soll=_rangtext(*soll_rang))
+            )
     for schluessel, art in (("min", "mindestpunkte"), ("schluss", "schlusspunkte")):
         if soll[schluessel] != ist[schluessel]:
             liste.append(
@@ -387,7 +431,13 @@ async def vergleichen(
     plan = await plan_fuer(client, profil, umgebung)
     soll_neu = _gestalt(plan)
     ist = _gestalt_von_instanz(live, plan)
-    unterschiede = _unterschiede(soll_neu, ist)
+    muster = umgebung.muster if umgebung is not None else None
+    if muster is None:
+        muster = _muster_nach_name(await client.custom_formats())
+    veraltet = veraltete_regeln(plan, muster)
+    unterschiede = _unterschiede(soll_neu, ist) + [
+        Unterschied(art="regeln", was=name, soll=plan.stand) for name in veraltet
+    ]
 
     # ⚠️ **Zuerst die einzige Frage, die den Nutzer angeht: Gibt es ueberhaupt
     # etwas zu tun?** Deckt sich die Kopie mit dem, was Nexview heute will, ist
@@ -401,7 +451,9 @@ async def vergleichen(
     kopie_wie_geschrieben = _abdruck(
         {k: v for k, v in ist.items() if k != "fremd"}
     ) == eintrag_.fingerabdruck and not ist["fremd"]
-    quelle_bewegt = _abdruck(soll_neu) != eintrag_.fingerabdruck
+    # Veraltete Regeln heissen: Die Quelle hat sich bewegt, auch wenn der
+    # Abdruck des Profils gleich blieb.
+    quelle_bewegt = _abdruck(soll_neu) != eintrag_.fingerabdruck or bool(veraltet)
 
     if kopie_wie_geschrieben:
         stand = "update"
@@ -415,43 +467,106 @@ async def vergleichen(
 # -------------------------------------------------------------------- Schreiben
 
 
-def _qualitaeten_bauen(schema: dict, merge: set[str]) -> list[dict]:
+def _qualitaeten_bauen(
+    schema: dict, stufen: Sequence[Sequence[str]], ziel: int
+) -> tuple[list[dict], int | None]:
     """Die Qualitaetsliste des Profils aus dem Bauplan der Instanz.
 
-    ⚠️ Radarr liefert WEB-Stufen bereits gebuendelt ("WEB 2160p"). Wer seine
-    Merge-Gruppe danebenstellt, hat dieselbe Qualitaet zweimal im Profil und
-    Radarr lehnt ab. Die eigene Gruppe **ersetzt** darum jeden Eintrag, der
-    eine der gewuenschten Stufen enthaelt.
-    """
-    einzeln: list[dict] = []
-    for eintrag_ in schema.get("items", []):
-        kinder = [eintrag_] if "quality" in eintrag_ else eintrag_.get("items", [])
-        for kind in kinder:
-            if kind.get("quality", {}).get("name") in merge:
-                einzeln.append(
-                    {"quality": kind["quality"], "items": [], "allowed": True}
-                )
+    ``stufen`` ist die Rangfolge von unten nach oben, ``ziel`` die Stufe, an der
+    Radarr aufhoert. Zurueck kommen die Liste und die Nummer fuer den Cutoff.
 
+    ⚠️ Radarr liefert WEB-Stufen bereits gebuendelt ("WEB 2160p"). Wer seine
+    Gruppe danebenstellt, hat dieselbe Qualitaet zweimal im Profil, und Radarr
+    lehnt ab. Jede Stufe **ersetzt** darum die Eintraege mit ihren Qualitaeten;
+    was dabei von einer Radarr-Gruppe uebrig bleibt, steht einzeln daneben.
+
+    Jede Stufe steht dort, wo ihre erste Qualitaet in Radarrs Liste stand, nie
+    aber vor einer niedrigeren Stufe. Die Liste zaehlt von unten nach oben
+    (gemessen 13.09.2026 an Radarr 6.3), und so bleibt eine vorhandene Datei in
+    einer besseren, nicht erlaubten Qualitaet besser als alles darunter.
+    """
+    eintraege = schema.get("items", [])
+
+    def kinder_von(eintrag_: dict) -> list[dict]:
+        return [eintrag_] if "quality" in eintrag_ else eintrag_.get("items", [])
+
+    stufe_von = {q: i for i, stufe in enumerate(stufen) for q in stufe}
+    gefunden: list[list[dict]] = [[] for _ in stufen]
+    for eintrag_ in eintraege:
+        for kind in kinder_von(eintrag_):
+            name = kind.get("quality", {}).get("name")
+            if name in stufe_von:
+                gefunden[stufe_von[name]].append(kind)
+
+    vergeben: set[str] = set()
+
+    def baustein(i: int) -> dict | None:
+        kinder = gefunden[i]
+        if not kinder:
+            return None
+        if len(kinder) == 1:
+            return {"quality": kinder[0]["quality"], "items": [], "allowed": True}
+        namen = {k["quality"]["name"] for k in kinder}
+        for eintrag_ in eintraege:
+            if "quality" in eintrag_:
+                continue
+            if {k.get("quality", {}).get("name") for k in eintrag_.get("items", [])} == namen:
+                # Radarrs eigene Gruppe passt genau und heisst schon richtig.
+                return {
+                    **eintrag_,
+                    "allowed": True,
+                    "items": [{**k, "allowed": True} for k in eintrag_["items"]],
+                }
+        aufloesungen = {aufloesung_von(n) for n in namen}
+        if i == ziel:
+            name = "Nexview"
+        elif len(aufloesungen) == 1 and "" not in aufloesungen:
+            name = f"Nexview {aufloesungen.pop()}"
+        else:
+            name = f"Nexview {i + 1}"
+        while name in vergeben:
+            name += "+"
+        vergeben.add(name)
+        return {
+            "id": GRUPPEN_NUMMER if i == ziel else GRUPPEN_NUMMER + 1 + i,
+            "name": name,
+            "allowed": True,
+            "items": [{"quality": k["quality"], "items": [], "allowed": True} for k in kinder],
+        }
+
+    bausteine = [baustein(i) for i in range(len(stufen))]
     liste: list[dict] = []
-    eingefuegt = False
-    for eintrag_ in schema.get("items", []):
-        kinder = [eintrag_] if "quality" in eintrag_ else eintrag_.get("items", [])
-        namen = {k.get("quality", {}).get("name") for k in kinder}
-        if namen & merge:
-            if not eingefuegt:
-                liste.append(
-                    {
-                        "id": GRUPPEN_NUMMER,
-                        "name": "Nexview",
-                        "allowed": True,
-                        "items": einzeln,
-                    }
-                )
-                eingefuegt = True
+    naechste = 0
+    for eintrag_ in eintraege:
+        kinder = kinder_von(eintrag_)
+        gewollt = [
+            stufe_von[name]
+            for name in (k.get("quality", {}).get("name") for k in kinder)
+            if name in stufe_von
+        ]
+        if not gewollt:
+            eintrag_["allowed"] = False
+            liste.append(eintrag_)
             continue
-        eintrag_["allowed"] = False
-        liste.append(eintrag_)
-    return liste if eingefuegt else []
+        # ⚠️ Nie eine hoehere Stufe vor einer niedrigeren, auch wenn Radarr
+        # einmal anders sortieren sollte.
+        while naechste <= max(gewollt):
+            if bausteine[naechste] is not None:
+                liste.append(bausteine[naechste])
+            naechste += 1
+        if "quality" not in eintrag_:
+            liste.extend(
+                {"quality": k["quality"], "items": [], "allowed": False}
+                for k in kinder
+                if k.get("quality", {}).get("name") not in stufe_von
+            )
+
+    ziel_baustein = bausteine[ziel] if 0 <= ziel < len(bausteine) else None
+    if ziel_baustein is None:
+        return [], None
+    if "id" in ziel_baustein:
+        return liste, int(ziel_baustein["id"])
+    return liste, int(ziel_baustein["quality"]["id"])
 
 
 async def _alt_umbenennen(
@@ -597,34 +712,6 @@ async def praefix_aufraeumen(client: ArrClient) -> int:
     return geaendert
 
 
-def _regelform(spezifikationen: object) -> str:
-    """Die Regeln eines Musters in eine vergleichbare Form bringen.
-
-    Nummern und Reihenfolge sagen nichts - dieselbe Regel kann in beliebiger
-    Ordnung stehen und traegt drueben eine andere ``id``. Verglichen wird
-    deshalb nur, **was** geprueft wird.
-    """
-    if not isinstance(spezifikationen, list):
-        return ""
-    teile = []
-    for spez in spezifikationen:
-        if not isinstance(spez, dict):
-            continue
-        felder = spez.get("fields")
-        if isinstance(felder, dict):
-            felder = [{"name": k, "value": v} for k, v in felder.items()]
-        werte = sorted(
-            f"{f.get('name')}={f.get('value')}"
-            for f in (felder or [])
-            if isinstance(f, dict)
-        )
-        teile.append(
-            f"{spez.get('implementation')}|{bool(spez.get('negate'))}"
-            f"|{bool(spez.get('required'))}|{','.join(werte)}"
-        )
-    return ";".join(sorted(teile))
-
-
 def _regeln_abweichend(vorhanden: dict | None, wunsch: object) -> bool:
     """Traegt ein vorhandenes Muster andere Regeln als der Bauplan will?"""
     if not vorhanden:
@@ -634,7 +721,31 @@ def _regeln_abweichend(vorhanden: dict | None, wunsch: object) -> bool:
         # Ohne eigene Regeln laesst sich nichts vergleichen - dann lieber
         # schweigen als etwas behaupten.
         return False
-    return _regelform(vorhanden.get("specifications")) != _regelform(soll)
+    return regelform(vorhanden.get("specifications")) != regelform(soll)
+
+
+def veraltete_regeln(plan: Bauplan, muster: dict[str, dict]) -> list[str]:
+    """Muster, die drueben noch Regeln aus einem frueheren TRaSH-Stand tragen.
+
+    ⚠️ **Nur nachweislich unveraenderte.** Passen die Regeln drueben zu keinem
+    bekannten Stand, hat sie jemand geaendert, und das ist kein Update.
+    """
+    veraltet: list[str] = []
+    for wunsch in plan.formate:
+        vorhanden = muster.get(PRAEFIX + wunsch.name) or muster.get(ALTER_PRAEFIX + wunsch.name)
+        if vorhanden is None or not _regeln_abweichend(vorhanden, wunsch):
+            continue
+        if regelabdruck(vorhanden.get("specifications")) in wunsch.bekannte_regeln:
+            veraltet.append(wunsch.name)
+    return veraltet
+
+
+def _namenshinweis(art: str, namen: list[str]) -> tuple[str, ...]:
+    """Ein Hinweis mit hoechstens sechs Namen, keiner ohne Namen."""
+    if not namen:
+        return ()
+    rest = f" (+{len(namen) - 6})" if len(namen) > 6 else ""
+    return (f"{art}:" + ", ".join(sorted(namen)[:6]) + rest,)
 
 
 async def schreiben(
@@ -666,6 +777,7 @@ async def schreiben(
     nach_name = {str(f.get("name") or ""): f for f in await client.custom_formats()}
     nummern: dict[str, int] = {}
     fremde_regeln: list[str] = []
+    nachgezogen: list[str] = []
     neu = wieder = 0
     for wunsch in plan.formate:
         name = PRAEFIX + wunsch.name
@@ -684,8 +796,25 @@ async def schreiben(
             # Das Profil verspricht dann "Deutsch Pflicht" und zeigt auf eine
             # Regel, die etwas anderes tut. Ueberschreiben waere falsch (es ist
             # nicht unseres), also bleibt: es benennen.
-            if _regeln_abweichend(nach_name.get(name), wunsch):
-                fremde_regeln.append(wunsch.name)
+            #
+            # ⚠️ **Ausser es sind nachweislich TRaSHs Regeln von frueher**
+            # (13.09.2026). Dann hat niemand daran gedreht, und der neue Stand
+            # gehoert hinein, sonst kaeme er nie an. Das gilt fuer alle Profile
+            # der Instanz, die das Muster nutzen; die folgen ja ebenfalls TRaSH.
+            vorhanden = nach_name.get(name)
+            if vorhanden is not None and _regeln_abweichend(vorhanden, wunsch):
+                if regelabdruck(vorhanden.get("specifications")) in wunsch.bekannte_regeln:
+                    await client.custom_format_nachziehen(
+                        nummern[name], {**vorhanden, "specifications": wunsch.spezifikationen}
+                    )
+                    nachgezogen.append(wunsch.name)
+                    logger.info(
+                        "Custom format %r brought up to the current TRaSH rules on %s",
+                        name,
+                        client.label,
+                    )
+                else:
+                    fremde_regeln.append(wunsch.name)
         else:
             angelegt = await client.custom_format_anlegen(
                 {
@@ -699,10 +828,19 @@ async def schreiben(
         if melden is not None:
             melden.erledigt = neu + wieder
 
+    # ⚠️ Fremde Regeln zuerst: Sie betreffen, ob das Profil ueberhaupt tut,
+    # was sein Name verspricht - das wiegt schwerer als die Hinweise aus
+    # dem Bauplan.
+    hinweise = (
+        _namenshinweis("fremde_regeln", fremde_regeln)
+        + _namenshinweis("regeln_nachgezogen", nachgezogen)
+        + plan.hinweise
+    )
+
     if melden is not None:
         melden.schritt = "profil"
     schema = await client.quality_profile_schema()
-    items = _qualitaeten_bauen(schema, set(plan.merge))
+    items, cutoff = _qualitaeten_bauen(schema, plan.rangfolge(), plan.ziel)
     if not items:
         raise ArrError(
             f"{client.label} kennt keine der gewuenschten Qualitaetsstufen.",
@@ -720,7 +858,7 @@ async def schreiben(
     payload: dict[str, Any] = {
         "name": plan.profilname,
         "upgradeAllowed": True,
-        "cutoff": GRUPPEN_NUMMER,
+        "cutoff": cutoff,
         "minFormatScore": plan.min_punkte,
         "cutoffFormatScore": plan.schluss_punkte,
         "minUpgradeFormatScore": 1,
@@ -788,7 +926,7 @@ async def schreiben(
                 trash_stand=plan.stand,
                 formate_neu=neu,
                 formate_wiederverwendet=wieder,
-                hinweise=plan.hinweise,
+                hinweise=hinweise,
             )
 
         if plan.profilname in belegt:
@@ -817,19 +955,7 @@ async def schreiben(
         trash_stand=plan.stand,
         formate_neu=neu,
         formate_wiederverwendet=wieder,
-        # ⚠️ Fremde Regeln zuerst: Sie betreffen, ob das Profil ueberhaupt tut,
-        # was sein Name verspricht - das wiegt schwerer als die Hinweise aus
-        # dem Bauplan.
-        hinweise=(
-            (
-                "fremde_regeln:"
-                + ", ".join(sorted(fremde_regeln)[:6])
-                + (f" (+{len(fremde_regeln) - 6})" if len(fremde_regeln) > 6 else ""),
-            )
-            if fremde_regeln
-            else ()
-        )
-        + plan.hinweise,
+        hinweise=hinweise,
     )
 
 
@@ -851,6 +977,12 @@ class Umgebung:
 
     sprachnummern: dict[str, int]
     qualitaeten: set[str]
+    #: Die Erkennungsmuster drueben nach Namen; ``None`` heisst: nicht geholt.
+    muster: dict[str, dict] | None = None
+
+
+def _muster_nach_name(bestand: list[dict]) -> dict[str, dict]:
+    return {str(f.get("name") or ""): f for f in bestand if f.get("name")}
 
 
 async def umgebung_von(client: ArrClient) -> Umgebung:
@@ -875,6 +1007,7 @@ async def umgebung_von(client: ArrClient) -> Umgebung:
             if name in sprachen
         },
         qualitaeten=_qualitaetsnamen(schema),
+        muster=_muster_nach_name(await client.custom_formats()),
     )
 
 

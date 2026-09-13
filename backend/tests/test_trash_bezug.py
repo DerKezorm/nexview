@@ -214,3 +214,102 @@ async def test_ein_unbekannter_dienst_im_rezept_faellt_auf(
     with pytest.raises(trash_bezug.BezugFehler) as fehler:
         await trash_bezug.holen_und_pruefen([("lidarr", REZEPT)])
     assert fehler.value.code == "trash_incomplete"
+
+
+# ---------------------------------------------------------------------------
+# Die Meldung "ein neuerer Stand ist verfuegbar"
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_nach_dem_holen_ist_kein_neuerer_stand_mehr_gemeldet(
+    echte_daten, monkeypatch, tmp_path
+):
+    """⚠️ **Aus einem echten Fehler (13.09.2026).**
+
+    Das taegliche Nachsehen hatte einen neueren Stand gefunden, der Betreiber
+    holte ihn, und ueber dem gerade geholten Stand hiess es weiter "Ein neuerer
+    Stand der Guides ist verfuegbar". Gemerkt war nur das Ergebnis des
+    Nachsehens, und das lief erst am naechsten Tag wieder.
+    """
+    import asyncio
+
+    monkeypatch.setattr(trash_bezug, "ordner", lambda: tmp_path)
+    monkeypatch.setattr(trash_bezug, "_herkunft_datei", lambda: tmp_path / "herkunft.json")
+    monkeypatch.setattr(trash_bezug, "_neues", dict(trash_bezug._neues))
+    halt = asyncio.Event()
+
+    async def _commit():
+        # Ein Durchlauf genuegt, danach soll die Schleife enden.
+        halt.set()
+        return ("f" * 40, "2099-04-04T00:00:00Z")
+
+    async def _holen():
+        return _paket(echte_daten)
+
+    monkeypatch.setattr(trash_bezug, "neuester_commit", _commit)
+    monkeypatch.setattr(trash_bezug, "_paket_holen", _holen)
+
+    await trash_bezug.run_forever(halt)
+    assert trash_bezug.neues_bekannt()["vorhanden"] is True, "sonst prueft dieser Test nichts"
+
+    await trash_bezug.holen_und_pruefen([("radarr", REZEPT)])
+    assert trash_bezug.neues_bekannt()["vorhanden"] is False
+
+
+# ---------------------------------------------------------------------------
+# Regeln frueherer Staende
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_regeln_frueherer_staende_bleiben_bekannt(echte_daten, monkeypatch, tmp_path):
+    """Nexview erkennt Muster wieder, die es aus einem frueheren Stand geschrieben hat.
+
+    Gebraucht, um Regeln nachzuziehen, ohne Handarbeit zu ueberschreiben: Nur
+    was genau den Regeln eines bekannten TRaSH-Stands entspricht, gilt als
+    unveraendert. Dazu gehoeren der mitgelieferte Stand und jeder geholte, auch
+    wenn inzwischen ein neuerer gilt.
+    """
+    import copy
+
+    monkeypatch.setattr(trash_bezug, "ordner", lambda: tmp_path)
+    monkeypatch.setattr(trash_bezug, "_herkunft_datei", lambda: tmp_path / "herkunft.json")
+    monkeypatch.setattr(trash_bezug, "_neues", dict(trash_bezug._neues))
+    kennung = echte_daten["radarr"]["formate_nach_datei"]["web-tier-03"]
+
+    def abdruck(daten: dict) -> str:
+        return trash.regelabdruck(daten["radarr"]["formate"][kennung]["specifications"])
+
+    def stand_mit(schalter: str) -> dict:
+        daten = copy.deepcopy(echte_daten)
+        spez = daten["radarr"]["formate"][kennung]["specifications"][0]
+        spez[schalter] = not spez.get(schalter)
+        return daten
+
+    stand_a, stand_b = stand_mit("negate"), stand_mit("required")
+    for sha, daten in (("a" * 40, stand_a), ("b" * 40, stand_b)):
+
+        async def _commit(sha=sha):
+            return (sha, "2099-05-05T00:00:00Z")
+
+        async def _holen(daten=daten):
+            return _paket(daten)
+
+        monkeypatch.setattr(trash_bezug, "neuester_commit", _commit)
+        monkeypatch.setattr(trash_bezug, "_paket_holen", _holen)
+        await trash_bezug.holen_und_pruefen([("radarr", REZEPT)])
+
+    # Es gilt B. A ist weder mitgeliefert noch geltend und muss trotzdem bekannt sein.
+    monkeypatch.setattr(trash, "schnappschuss", lambda dienst: stand_b[dienst])
+    bekannt = trash_bezug.bekannte_regeln("radarr")["WEB Tier 03"]
+    assert abdruck(stand_a) in bekannt
+    assert abdruck(stand_b) in bekannt
+
+    # ⚠️ Und ohne Gemerktes, wie bei einem Stand, der vor dieser Fassung geholt
+    # wurde: Muster von damals tragen die mitgelieferten Regeln. Die muessen
+    # trotzdem bekannt sein, sonst werden sie nie nachgezogen.
+    ohne_gemerktes = tmp_path / "ohne-gemerktes"
+    ohne_gemerktes.mkdir()
+    monkeypatch.setattr(trash_bezug, "ordner", lambda: ohne_gemerktes)
+    assert abdruck(echte_daten) in trash_bezug.bekannte_regeln("radarr")["WEB Tier 03"]

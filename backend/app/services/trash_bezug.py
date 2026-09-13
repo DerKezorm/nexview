@@ -21,6 +21,7 @@ import logging
 import tarfile
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -85,6 +86,54 @@ def ordner() -> Path:
 
 def _herkunft_datei() -> Path:
     return ordner() / "herkunft.json"
+
+
+def _regeln_datei(dienst: str) -> Path:
+    return ordner() / f"regeln-{dienst}.json"
+
+
+@lru_cache(maxsize=4)
+def _mitgelieferte_regeln(dienst: str) -> dict[str, str]:
+    """Die Regeln des Stands, der mit dieser Nexview-Fassung kam. Er aendert sich nie."""
+    datei = trash.DATEN / f"trash-{dienst}.json"
+    if not datei.is_file():
+        return {}
+    return trash.regeln_je_muster(json.loads(datei.read_text(encoding="utf-8")))
+
+
+def _gemerkte_regeln(dienst: str) -> dict[str, list[str]]:
+    datei = _regeln_datei(dienst)
+    if not datei.is_file():
+        return {}
+    try:
+        roh = json.loads(datei.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logger.warning("Known TRaSH rules for %s are unreadable, starting over", dienst)
+        return {}
+    if not isinstance(roh, dict):
+        return {}
+    return {str(k): [str(a) for a in v] for k, v in roh.items() if isinstance(v, list)}
+
+
+def bekannte_regeln(dienst: str) -> dict[str, set[str]]:
+    """Welche Regeln jedes Muster in einem TRaSH-Stand hatte, den Nexview kennt.
+
+    ⚠️ **Die Grundlage fuer "unveraendert von TRaSH".** Muster gelten in Radarr
+    fuer alle Profile einer Instanz, und manche hat jemand mit Absicht anders
+    gebaut. Nexview zieht deshalb nur Regeln nach, die genau einem bekannten
+    Stand entsprechen: dem mitgelieferten, dem geltenden und jedem, der einmal
+    geholt wurde. Alles andere hat jemand geaendert, und das bleibt.
+    """
+    bekannt: dict[str, set[str]] = {}
+    for quelle in (
+        _mitgelieferte_regeln(dienst),
+        trash.regeln_je_muster(trash.schnappschuss(dienst)),
+    ):
+        for name, abdruck in quelle.items():
+            bekannt.setdefault(name, set()).add(abdruck)
+    for name, abdruecke in _gemerkte_regeln(dienst).items():
+        bekannt.setdefault(name, set()).update(abdruecke)
+    return bekannt
 
 
 def herkunft() -> Herkunft:
@@ -270,6 +319,26 @@ async def holen_und_pruefen(rezepte: list[tuple[str, dict]]) -> Herkunft:
             encoding="utf-8",
         )
         vorlaeufig.append((neben, ziel / f"trash-{dienst}.json"))
+
+        # ⚠️ **Die Regeln des alten und des neuen Stands merken.** Muster, die
+        # Nexview aus einem Stand geschrieben hat, erkennt es nur daran wieder;
+        # ist der Stand ersetzt, waeren sie sonst ab jetzt "fremd" und wuerden
+        # nie mehr nachgezogen.
+        gemerkt = _gemerkte_regeln(dienst)
+        try:
+            bisher = trash.regeln_je_muster(trash.schnappschuss(dienst))
+        except trash.TrashFehler:
+            bisher = {}
+        for quelle in (bisher, trash.regeln_je_muster(daten)):
+            for name, abdruck in quelle.items():
+                if abdruck not in gemerkt.setdefault(name, []):
+                    gemerkt[name].append(abdruck)
+        neben_regeln = ziel / f"regeln-{dienst}.json.neu"
+        neben_regeln.write_text(
+            json.dumps(gemerkt, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
+            encoding="utf-8",
+        )
+        vorlaeufig.append((neben_regeln, _regeln_datei(dienst)))
     for neben, endgueltig in vorlaeufig:
         neben.replace(endgueltig)
     geholt = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -278,6 +347,10 @@ async def holen_und_pruefen(rezepte: list[tuple[str, dict]]) -> Herkunft:
         encoding="utf-8",
     )
     trash.schnappschuss.cache_clear()
+    # ⚠️ **Damit ist auch das Nachsehen erledigt.** Ohne diese Zeile hiess es nach
+    # dem Holen weiter "ein neuerer Stand ist verfuegbar", ueber dem gerade
+    # geholten, bis das Nachsehen am naechsten Tag wieder lief (13.09.2026).
+    _neues.update({"bekannt": True, "vorhanden": False, "datum": datum})
     logger.info("TRaSH state updated to %s (%s)", sha[:12], datum)
     return Herkunft(commit=sha, commit_datum=datum, geholt_am=geholt, mitgeliefert=False)
 

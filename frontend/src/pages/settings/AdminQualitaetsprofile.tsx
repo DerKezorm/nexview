@@ -558,7 +558,9 @@ export function AdminQualitaetsprofile() {
                   <li key={h} className="text-xs leading-relaxed text-mist-400">
                     {art === 'fremde_regeln'
                       ? t('qualityProfiles.foreignRules', { namen: rest })
-                      : h}
+                      : art === 'regeln_nachgezogen'
+                        ? t('qualityProfiles.rulesUpdated', { namen: rest })
+                        : h}
                   </li>
                 )
               })}

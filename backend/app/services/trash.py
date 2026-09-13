@@ -21,8 +21,10 @@ Was die Guides liefern und was hier entschieden wird:
 
 from __future__ import annotations
 
+import hashlib
 import json
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -50,6 +52,12 @@ SPRACHNAMEN = {
 # der drei blind zu waehlen waere geraten. Bis die Frage da ist, bekommt
 # Franzoesisch die einfache Spracherkennung wie jede andere Sprache auch.
 FAMILIENSPRACHEN = {"de": "german"}
+
+#: In diesen Familien kommen kleinere Aufloesungen in dieselbe Gruppe wie das
+#: Ziel, wie in TRaSHs Alternative-Profilen dort. Ihre Profile bringen
+#: Aufloesungspunkte mit (German 2160p Booster 9000, German 1080p Booster 650),
+#: die innerhalb der Gruppe ordnen. Den Standard-Profilen fehlen sie.
+ZUSAMMENLEGEN = frozenset({"german"})
 
 #: Antwort -> TRaSH-Profil. Der Schluessel ist (Dienst, Familie, Aufloesung, Quelle).
 #:
@@ -211,6 +219,9 @@ class Formatwunsch:
     spezifikationen: list[dict]
     punkte: int
     beim_umbenennen: bool = False
+    #: Regelabdruecke, die dieses Muster in bekannten TRaSH-Staenden hatte.
+    #: Traegt ein Muster drueben einen davon, ist es unveraendert von TRaSH.
+    bekannte_regeln: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -225,6 +236,17 @@ class Bauplan:
     min_punkte: int
     schluss_punkte: int
     hinweise: tuple[str, ...] = field(default=())
+    #: Die Rangfolge von unten nach oben, wie Radarr zaehlt: jede Stufe eine
+    #: Qualitaet oder eine Gruppe gleichwertiger. ``merge`` ist dieselbe Menge flach.
+    stufen: tuple[tuple[str, ...], ...] = field(default=())
+    #: Die Stufe, an der Radarr aufhoert (Cutoff), gezaehlt in ``stufen``.
+    ziel: int = 0
+
+    def rangfolge(self) -> tuple[tuple[str, ...], ...]:
+        """Die Stufen; ein Bauplan ohne welche hat alles in einer Gruppe."""
+        if self.stufen:
+            return self.stufen
+        return (self.merge,) if self.merge else ()
 
 
 @lru_cache(maxsize=4)
@@ -259,6 +281,115 @@ def _familie(sprachen: list[str]) -> str:
 def _punkte(format_: dict, satz: str) -> int:
     werte = format_.get("trash_scores") or {}
     return int(werte.get(satz, werte.get("default", 0)))
+
+
+def aufloesung_von(qualitaet: str) -> str:
+    """Die Aufloesung im Namen einer Qualitaetsstufe, leer ohne.
+
+    Nicht ueber den letzten Bindestrich: Sonarr nennt Remux "Bluray-1080p Remux".
+    """
+    treffer = re.search(r"\d{3,4}p", qualitaet)
+    return treffer.group(0) if treffer else ""
+
+
+def _aufloesung_zahl(qualitaet: str) -> int:
+    wert = aufloesung_von(qualitaet)
+    return int(wert[:-1]) if wert else 0
+
+
+def _ohne_leere(stufen: list[list[str]], ziel: int) -> tuple[list[list[str]], int]:
+    """Leere Stufen streichen.
+
+    Faellt die Stufe des Ziels weg, rueckt es auf die naechste darunter, sonst
+    auf die naechste darueber: aufgehoert wird an der besten, die es noch gibt,
+    ohne ueber das gewollte Ziel hinauszugehen.
+    """
+    bleiben = [i for i, stufe in enumerate(stufen) if stufe]
+    if not bleiben:
+        return [], 0
+    darunter = [i for i in bleiben if i <= ziel]
+    neues_ziel = darunter[-1] if darunter else bleiben[0]
+    return [stufen[i] for i in bleiben], bleiben.index(neues_ziel)
+
+
+def _nach_aufloesung_trennen(
+    stufen: list[list[str]], aufloesung: str
+) -> tuple[list[list[str]], int]:
+    """Alles unter der Zielaufloesung unter das Ziel stellen, eine Stufe je Aufloesung.
+
+    Stufen, die nur eine kleinere Aufloesung tragen, bleiben wie sie sind; eine
+    gemischte Gruppe wird aufgeteilt. Zurueck kommt auch das neue Ziel: die
+    unterste Stufe mit der Zielaufloesung.
+    """
+    grenze = int(aufloesung[:-1])
+    unten: dict[int, list[list[str]]] = {}
+    oben: list[list[str]] = []
+    for stufe in stufen:
+        hoch = [q for q in stufe if _aufloesung_zahl(q) >= grenze]
+        if hoch:
+            oben.append(hoch)
+        kleiner: dict[int, list[str]] = {}
+        for q in stufe:
+            if _aufloesung_zahl(q) < grenze:
+                kleiner.setdefault(_aufloesung_zahl(q), []).append(q)
+        for zahl, qualitaeten in kleiner.items():
+            unten.setdefault(zahl, []).append(qualitaeten)
+    ziel = next(
+        (i for i, stufe in enumerate(oben) if any(aufloesung_von(q) == aufloesung for q in stufe)),
+        None,
+    )
+    if ziel is None:
+        raise TrashFehler(f"no quality at {aufloesung} left")
+    geordnet = [stufe for zahl in sorted(unten) for stufe in unten[zahl]]
+    return geordnet + oben, len(geordnet) + ziel
+
+
+def regelform(spezifikationen: object) -> str:
+    """Die Regeln eines Musters in eine vergleichbare Form bringen.
+
+    Nummern und Reihenfolge sagen nichts - dieselbe Regel kann in beliebiger
+    Ordnung stehen und traegt drueben eine andere ``id``. Verglichen wird
+    deshalb nur, **was** geprueft wird.
+
+    ⚠️ **Felder mit ``false`` oder ohne Wert zaehlen nicht.** Radarr haengt beim
+    Lesen Felder an, die beim Anlegen fehlten: Ein Sprachmuster kommt mit
+    ``exceptLanguage: false`` zurueck (gemessen 13.09.2026 an Radarr 6.3). Ohne
+    diese Ruecksicht galt jedes Sprachmuster, das Nexview selbst angelegt hatte,
+    als fremd.
+    """
+    if not isinstance(spezifikationen, list):
+        return ""
+    teile = []
+    for spez in spezifikationen:
+        if not isinstance(spez, dict):
+            continue
+        felder = spez.get("fields")
+        if isinstance(felder, dict):
+            felder = [{"name": k, "value": v} for k, v in felder.items()]
+        werte = sorted(
+            f"{f.get('name')}={f.get('value')}"
+            for f in (felder or [])
+            if isinstance(f, dict) and f.get("value") is not False and f.get("value") is not None
+        )
+        teile.append(
+            f"{spez.get('implementation')}|{bool(spez.get('negate'))}"
+            f"|{bool(spez.get('required'))}|{','.join(werte)}"
+        )
+    return ";".join(sorted(teile))
+
+
+def regelabdruck(spezifikationen: object) -> str:
+    """Ein kurzer Abdruck der Regelform, so wird er gemerkt und verglichen."""
+    return hashlib.sha256(regelform(spezifikationen).encode()).hexdigest()[:16]
+
+
+def regeln_je_muster(daten: dict[str, Any]) -> dict[str, str]:
+    """Der Regelabdruck jedes Musters eines Schnappschusses, nach Namen."""
+    return {
+        str(f["name"]): regelabdruck(f.get("specifications"))
+        for f in (daten.get("formate") or {}).values()
+        if isinstance(f, dict) and f.get("name")
+    }
 
 
 def _felder_als_liste(felder: Any) -> list[dict]:
@@ -322,13 +453,7 @@ def _familiensprache_stummschalten(
     for datei in FAMILIEN_SPRACHMUSTER.get(familie, ()):
         trash_id = nach_datei.get(datei)
         if trash_id and trash_id in wuensche:
-            alt = wuensche[trash_id]
-            wuensche[trash_id] = Formatwunsch(
-                name=alt.name,
-                spezifikationen=alt.spezifikationen,
-                punkte=0,
-                beim_umbenennen=alt.beim_umbenennen,
-            )
+            wuensche[trash_id] = replace(wuensche[trash_id], punkte=0)
 
 
 def bauplan(
@@ -350,7 +475,17 @@ def bauplan(
     wird es dann nicht, der Bauplan behauptet es aber weiter, und der Abgleich
     meldet jedes Mal faelschlich "von dir angepasst".
     """
-    return bauplan_aus(rezept, dienst, schnappschuss(dienst), sprachnummern, qualitaeten)
+    # Erst hier geholt: trash_bezug baut auf diesem Modul auf.
+    from .trash_bezug import bekannte_regeln
+
+    return bauplan_aus(
+        rezept,
+        dienst,
+        schnappschuss(dienst),
+        sprachnummern,
+        qualitaeten,
+        bekannte=bekannte_regeln(dienst),
+    )
 
 
 def bauplan_aus(
@@ -359,6 +494,7 @@ def bauplan_aus(
     daten: dict[str, Any],
     sprachnummern: dict[str, int],
     qualitaeten: set[str] | None = None,
+    bekannte: dict[str, set[str]] | None = None,
 ) -> Bauplan:
     """Wie ``bauplan``, aber mit ausdruecklich uebergebenen Guide-Daten.
 
@@ -366,6 +502,10 @@ def bauplan_aus(
     sich jedes abgelegte Profil damit noch bauen? Erst wenn ja, wird er
     uebernommen - sonst faellt der Schaden erst beim naechsten Verteilen auf,
     und der alte Stand ist dann schon fort.
+
+    ``bekannte`` sind die Regelabdruecke frueherer TRaSH-Staende je Mustername
+    (``trash_bezug.bekannte_regeln``). Ohne sie zieht das Schreiben keine
+    Regeln nach.
     """
     sprachen: list[str] = list(rezept.get("sprachen") or [])
     rollen: dict[str, str] = dict(rezept.get("sprachRollen") or {})
@@ -398,6 +538,7 @@ def bauplan_aus(
             spezifikationen=_spezifikationen(format_),
             punkte=_punkte(format_, satz) if punkte is None else punkte,
             beim_umbenennen=bool(format_.get("includeCustomFormatWhenRenaming")),
+            bekannte_regeln=frozenset((bekannte or {}).get(format_["name"], ())),
         )
 
     for trash_id in profil.get("formatItems", {}).values():
@@ -492,48 +633,88 @@ def bauplan_aus(
         min_punkte = int(profil.get("minFormatScore", 0))
 
     # ---- Qualitaeten -----------------------------------------------------
+    # Die Rangfolge von unten nach oben, so wie Radarr zaehlt. TRaSH listet
+    # umgekehrt, die beste Stufe zuerst. Jede Stufe ist eine Qualitaet oder
+    # eine Gruppe gleichwertiger.
     erlaubt = [e for e in profil.get("items", []) if e.get("allowed")]
     if not erlaubt:
         raise TrashFehler(f"profile {basis} allows no quality")
-    merge: list[str] = []
-    for eintrag in erlaubt:
-        merge.extend(eintrag.get("items") or [eintrag["name"]])
+    von_unten = list(reversed(erlaubt))
+    stufen: list[list[str]] = [list(e.get("items") or [e["name"]]) for e in von_unten]
+    gefunden = [i for i, e in enumerate(von_unten) if e["name"] == profil.get("cutoff")]
+    if not gefunden:
+        raise TrashFehler(f"cutoff of profile {basis} is not an allowed quality")
+    ziel = gefunden[0]
 
     if quelle == "web":
         # Die deutschen Familien haben kein reines WEB-Profil; also fliegt
         # heraus, was von der Scheibe kommt.
-        gefiltert = [q for q in merge if "WEB" in q.upper()]
-        if gefiltert and len(gefiltert) != len(merge):
-            merge = gefiltert
+        gefiltert = [[q for q in stufe if "WEB" in q.upper()] for stufe in stufen]
+        if any(gefiltert) and gefiltert != stufen:
+            stufen, ziel = _ohne_leere(gefiltert, ziel)
 
     if rezept.get("sofortNehmen"):
-        # Das ist der Kniff der "Alternative"-Fassung: kleinere Aufloesungen in
-        # DIESELBE Gruppe. Fuer Radarr sind sie damit gleichwertig, und allein
-        # die Punkte entscheiden - deshalb wird spaeter von selbst getauscht.
-        vorhanden = {q.rsplit("-", 1)[-1] for q in merge}
-        for kleiner in ("1080p", "720p"):
+        # "Erst nehmen, was da ist": dieselben Quellen in kleinerer Aufloesung,
+        # abgeleitet aus dem Ziel. Wohin sie kommen, haengt an der Familie.
+        vorhanden = {aufloesung_von(q) for stufe in stufen for q in stufe}
+        alle = {q for stufe in stufen for q in stufe}
+        kleinere: list[list[str]] = []
+        for kleiner in ("720p", "1080p"):
             if kleiner in vorhanden:
                 continue
-            for vorlage in list(merge):
-                ersatz = vorlage.rsplit("-", 1)[0] + "-" + kleiner
-                if ersatz not in merge:
-                    merge.append(ersatz)
+            for stufe in stufen:
+                neu = [re.sub(r"\d{3,4}p", kleiner, q) for q in stufe]
+                neu = [q for q in dict.fromkeys(neu) if q not in alle]
+                alle.update(neu)
+                if neu:
+                    kleinere.append(neu)
+        if familie in ZUSAMMENLEGEN:
+            # Der Kniff von TRaSHs Alternative-Profilen dieser Familie: alles in
+            # DIESELBE Gruppe wie das Ziel. Fuer Radarr ist es damit gleich viel
+            # wert, die Aufloesungspunkte (Booster) entscheiden, und deshalb
+            # wird spaeter von selbst getauscht.
+            stufen[ziel].extend(q for stufe in kleinere for q in stufe)
+        else:
+            # ⚠️ **Ohne Aufloesungspunkte geht der Kniff nicht** (13.09.2026).
+            # In einer Gruppe waere 1080p so viel wert wie 4K, und bei gleichen
+            # Punkten wuerde nie getauscht. Also darunter, die Quellen wie beim
+            # Ziel geordnet; so machen es auch TRaSHs Alternative-Profile ohne
+            # Deutsch.
+            stufen = kleinere + stufen
+            ziel += len(kleinere)
 
     if qualitaeten is not None:
-        erfunden = [q for q in merge if q not in qualitaeten]
-        merge = [q for q in merge if q in qualitaeten]
+        erfunden = [q for stufe in stufen for q in stufe if q not in qualitaeten]
         if erfunden:
             hinweise.append("qualities not offered by this instance: " + ", ".join(erfunden))
-        if not merge:
+        stufen, ziel = _ohne_leere([[q for q in s if q in qualitaeten] for s in stufen], ziel)
+        if not stufen:
             raise TrashFehler("instance offers none of the requested qualities")
+
+    schluss_punkte = int(profil.get("cutoffFormatScore", 10_000))
+    if rezept.get("schlusspunkt") == "frueh":
+        # "Frueh zufrieden": Schluss, sobald die Aufloesung stimmt und die
+        # Mindestpunktzahl erreicht ist, die Pflichtsprache also da ist. Bis
+        # 13.09.2026 wurde diese Antwort gespeichert, aber nie gelesen.
+        #
+        # ⚠️ **Die Punkte allein reichen nicht.** Radarr hoert auf, wenn die
+        # Datei die Qualitaet des Cutoffs hat UND ihre Punkte den Upgrade-bis-Wert
+        # erreichen. Stuende 720p in der Gruppe des Ziels, waere die Qualitaet
+        # schon damit erreicht, und mit dem gesenkten Wert bliebe es bei 720p.
+        # Alles unter der Zielaufloesung kommt deshalb unter das Ziel, und das
+        # Ziel ist die unterste Stufe mit der Zielaufloesung.
+        schluss_punkte = min_punkte
+        stufen, ziel = _nach_aufloesung_trennen(stufen, aufloesung)
 
     return Bauplan(
         profilname=str(rezept.get("name") or basis).strip(),
         basis=basis,
         stand=daten["stand"],
         formate=tuple(wuensche.values()) + tuple(eigene),
-        merge=tuple(dict.fromkeys(merge)),
+        merge=tuple(dict.fromkeys(q for stufe in stufen for q in stufe)),
         min_punkte=min_punkte,
-        schluss_punkte=int(profil.get("cutoffFormatScore", 10_000)),
+        schluss_punkte=schluss_punkte,
         hinweise=tuple(hinweise),
+        stufen=tuple(tuple(stufe) for stufe in stufen),
+        ziel=ziel,
     )

@@ -1887,7 +1887,7 @@ export interface TrashQuelle {
 
 /** Ein einzelner Unterschied zwischen Ablage und Instanz. */
 export interface QualitaetsprofilUnterschied {
-  /** "qualitaeten" | "mindestpunkte" | "schlusspunkte" | "punkte" | "fremd" | "fehlt" */
+  /** "qualitaeten" | "rangfolge" | "mindestpunkte" | "schlusspunkte" | "punkte" | "regeln" | "fremd" | "fehlt" */
   art: string;
   was: string;
   ist: string;

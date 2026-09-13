@@ -1,0 +1,238 @@
+{
+  "downloads": {
+    "title": "Downloads",
+    "subtitle": "What is stuck in Radarr and Sonarr, why, and what helps.",
+    "reload": "Reload",
+    "standAm": "As of {{zeit}}",
+    "instanceDown": "{{name}} is not answering right now. What is stuck there is shown as it was last seen.",
+    "noInstances": "No Radarr or Sonarr is set up yet.",
+    "stuck": {
+      "title": "Needs you",
+      "none": "Nothing is stuck. Anything that stalls is watched for a while before it shows up here.",
+      "since": "stuck since {{zeit}}",
+      "requestedBy": "Requested by {{namen}}",
+      "original": "Original message from {{instanz}}",
+      "episodes": "Season {{staffel}}, episode {{folgen}}",
+      "more": "More options",
+      "fewer": "Fewer"
+    },
+    "running": {
+      "title": "Running",
+      "none": "Nothing is downloading right now.",
+      "noneElse": "Nothing else is downloading right now.",
+      "remaining": "{{zeit}} left",
+      "watching": "Being watched: {{grund}}"
+    },
+    "aktion": {
+      "manuell_importieren": "Import manually",
+      "entfernen_neu_suchen": "Remove and search again",
+      "entfernen": "Remove only",
+      "erneut_pruefen": "Try again"
+    },
+    "confirm": {
+      "entfernen_neu_suchen": {
+        "title": "Remove and search again?",
+        "text": "“{{release}}” is taken out of the queue and deleted from the download client together with its data. The release is blocklisted so it does not come back, and Nexview starts looking for another one right away.",
+        "warning": "The downloaded data is gone afterwards. For a torrent, seeding stops as well."
+      },
+      "entfernen": {
+        "title": "Remove only?",
+        "text": "“{{release}}” is taken out of the queue and deleted from the download client together with its data. Nothing is blocklisted, and no new search starts.",
+        "warning": "The downloaded data is gone afterwards. For a torrent, seeding stops as well."
+      },
+      "erneut_pruefen": {
+        "title": "Try again?",
+        "text": "Radarr or Sonarr looks at the finished downloads once more and imports them if the cause has been fixed in the meantime. Nothing is deleted."
+      }
+    },
+    "done": {
+      "entfernen_neu_suchen": "Removed. The search for another release is running.",
+      "entfernen_ohne_suche": "Removed. A new search could not be started; you can start it by hand in Radarr or Sonarr.",
+      "entfernen": "Removed.",
+      "erneut_pruefen": "Started. Whether it helped shows in the next round, in about two minutes.",
+      "import_completed": "Imported.",
+      "import_running": "The import is still running. The next round shows the result.",
+      "import_failed": "Radarr or Sonarr reports that the import failed. The message there says more."
+    },
+    "import": {
+      "title": "Import manually",
+      "loading": "Asking for the files …",
+      "empty": "Radarr or Sonarr finds no file to import in this download.",
+      "unmapped": "not matched to a title",
+      "temporary": "temporary",
+      "anyway": "Import anyway, even though {{instanz}} objects",
+      "anywayHint": "During a manual import, {{instanz}} does not check its objections again. Whatever you select ends up in the library as it is, even a sample.",
+      "submit": "Import",
+      "selected_one": "One file selected",
+      "selected_other": "{{count}} files selected",
+      "mapping": "A different match can be set in the manual import of {{instanz}}."
+    },
+    "automation": {
+      "title": "Automation",
+      "intro": "For some reasons Nexview can act by itself. Out of the box it never does, and every rule applies to its reason only.",
+      "on": "On",
+      "off": "Off",
+      "nothing": "Do nothing",
+      "limits": "At most {{obergrenze}} automatic actions per movie or episode within {{stunden}} hours. After that Nexview stops and notifies you. If the same movie or episode gets stuck {{ab}} times within {{tage}} days, you hear about it as well, even without automation.",
+      "never": "The automation never does a manual import.",
+      "save": "Save",
+      "saved": "Saved."
+    },
+    "history": {
+      "title": "History",
+      "none": "Nothing has happened yet.",
+      "automatic": "Automation",
+      "was": {
+        "erkannt": "stuck",
+        "gemeldet": "notification sent",
+        "manuell_importieren": "imported manually",
+        "entfernen_neu_suchen": "removed and searched again",
+        "entfernen": "removed",
+        "erneut_pruefen": "tried again"
+      },
+      "ergebnis": {
+        "search_failed": "the search could not be started",
+        "command_failed": "the command failed"
+      },
+      "failed": "did not work: {{grund}}"
+    },
+    "grund": {
+      "gefaehrliche_datei": {
+        "titel": "The download contains an executable or dangerous file",
+        "hilfe": "Radarr or Sonarr will not touch that, and rightly so. Blocklist the release, then another one comes."
+      },
+      "pfadzuordnung": {
+        "titel": "The download sits at a path Radarr or Sonarr cannot see",
+        "hilfe": "The download client reports a folder that has a different name or does not exist for Radarr or Sonarr. Usually a remote path mapping is missing under Settings, Download Clients. Try again afterwards."
+      },
+      "pfad_ohne_unterordner": {
+        "titel": "The download sits directly in the download folder",
+        "hilfe": "Radarr or Sonarr expects a folder of its own for every download. Set the download client to put each download into its own folder."
+      },
+      "pfad_in_bibliothek": {
+        "titel": "The download already sits in the library folder",
+        "hilfe": "The download folder and the library must not be the same folder. Separate them in the settings of the download client."
+      },
+      "nicht_gegriffen": {
+        "titel": "Radarr or Sonarr did not grab this download itself",
+        "hilfe": "It sits in the category but did not come from a search. Either import it by hand or remove it."
+      },
+      "titel_passt_nicht": {
+        "titel": "The name of the download does not match the title",
+        "hilfe": "Radarr or Sonarr is not sure the file belongs to the requested title, so it does not import it by itself. A manual import confirms it."
+      },
+      "zuordnung_per_kennung": {
+        "titel": "Matched by ID only, not by name",
+        "hilfe": "The search matched the download to a title, but its name does not fit. A person has to confirm that, with a manual import."
+      },
+      "mehrere_treffer": {
+        "titel": "The name fits several titles",
+        "hilfe": "Radarr or Sonarr cannot decide which one is meant. The manual import lets you choose."
+      },
+      "unbekannter_titel": {
+        "titel": "Radarr or Sonarr does not know the title",
+        "hilfe": "The download belongs to no movie and no series in the library. Match it by hand or remove it."
+      },
+      "nicht_lesbar": {
+        "titel": "The name of the download cannot be read",
+        "hilfe": "The name does not say which title or episode is meant. Import manually or look for another release."
+      },
+      "wird_entpackt": {
+        "titel": "The file is still being unpacked",
+        "hilfe": "This usually sorts itself out. If it takes long, unpacking has stopped in the download client."
+      },
+      "datei_gesperrt": {
+        "titel": "The file is locked right now",
+        "hilfe": "Another program keeps it open, the download client while checking, for example. Try again later."
+      },
+      "archiv": {
+        "titel": "The download is an archive and not unpacked yet",
+        "hilfe": "Radarr and Sonarr do not unpack. The download client or a tool like Unpackerr has to, then try again."
+      },
+      "sample_unklar": {
+        "titel": "Whether the file is only a sample cannot be determined",
+        "hilfe": "Radarr or Sonarr cannot read the file. Often it is broken or incomplete. Better look for another release, unless you know the file is fine."
+      },
+      "sample": {
+        "titel": "The file is only a sample",
+        "hilfe": "The release contains a short clip only. Blocklist it, then another one comes."
+      },
+      "falsche_endung": {
+        "titel": "The file is not a video Radarr or Sonarr accepts",
+        "hilfe": "An image, a text file or an unknown extension, for example. Usually the release should be blocklisted."
+      },
+      "keine_tonspur": {
+        "titel": "The file has no audio track",
+        "hilfe": "Such a release is broken. Blocklist it, then another one comes."
+      },
+      "teilweise_importiert": {
+        "titel": "Part is imported, the rest is missing from the download",
+        "hilfe": "What fit is already in the library. The rest is missing or does not belong. The download can go; Sonarr keeps looking for missing episodes afterwards if they are monitored."
+      },
+      "kein_upgrade": {
+        "titel": "The download is not better than the existing file",
+        "hilfe": "An equally good or better version is already there. The download can go."
+      },
+      "schon_importiert": {
+        "titel": "This file has already been imported",
+        "hilfe": "The download is done and only lingers in the queue. It can go."
+      },
+      "falscher_inhalt": {
+        "titel": "The download contains something other than what was searched for",
+        "hilfe": "Radarr or Sonarr does not find the movie or episodes the download was grabbed for. Usually the release should be blocklisted. If the file fits after all, a manual import works."
+      },
+      "teilpaket": {
+        "titel": "An incomplete season pack or extras",
+        "hilfe": "Sonarr does not import such packs by itself. Import what fits manually, or look for a complete release."
+      },
+      "folgenzuordnung": {
+        "titel": "Season or episode do not match",
+        "hilfe": "The numbering in the release differs from how Sonarr counts. The manual import lets you match the episodes."
+      },
+      "unvollstaendig": {
+        "titel": "Not everything expected is in the download",
+        "hilfe": "Part of it is missing or could not be imported. Import what is there manually, or look for another release."
+      },
+      "mehrteilig": {
+        "titel": "The movie comes in several parts",
+        "hilfe": "Radarr does not take movies split across several files. Import manually or look for another release."
+      },
+      "kein_platz": {
+        "titel": "There is not enough space on the target",
+        "hilfe": "Free up space first, then try again."
+      },
+      "keine_datei": {
+        "titel": "The download contains no file to import",
+        "hilfe": "Either the download is empty, still packed or holds extras only, or Radarr or Sonarr cannot see its folder at all. If the path in the message points somewhere that does not exist for Radarr or Sonarr, a remote path mapping is missing. Then do not blocklist; add the mapping and try again."
+      },
+      "programm_haengt": {
+        "titel": "The download is not making progress",
+        "hilfe": "The download client finds no peers. If nothing happens for a quarter of an hour, usually only another release helps."
+      },
+      "magnet": {
+        "titel": "The magnet link cannot be resolved",
+        "hilfe": "The download client does not get the description of the torrent, and DHT is switched off there. With DHT it usually works; otherwise look for another release."
+      },
+      "programm_fehler": {
+        "titel": "The download client reports an error",
+        "hilfe": "The wording below comes from the download client. Often the release is broken, but the client itself can be the cause, such as a full disk. Read the wording first, then decide."
+      },
+      "programm_unerreichbar": {
+        "titel": "Radarr or Sonarr cannot reach the download client",
+        "hilfe": "Is it running, and are address and credentials right in Radarr or Sonarr? Try again afterwards."
+      },
+      "fehlgeschlagen": {
+        "titel": "The download failed",
+        "hilfe": "The download client gave up. Look for another release."
+      },
+      "programm_unbekannt": {
+        "titel": "The download client reports something Nexview does not know",
+        "hilfe": "The wording below comes from the download client. Nexview reads these messages in English only; if Radarr or Sonarr is set to another language, they end up here. If the download has been stuck for a long time, another release usually helps."
+      },
+      "unbekannt": {
+        "titel": "Nexview does not know this reason",
+        "hilfe": "The message below is the original wording of Radarr or Sonarr. Nexview does not guess here."
+      }
+    }
+  }
+}

@@ -28,6 +28,8 @@ from . import (
     abgleich,
     abgleich_kern,
     aufraeum_bericht,
+    download_automatik,
+    download_haenger,
     instanz_gesundheit,
     instanz_stand,
     library,
@@ -47,7 +49,9 @@ from . import (
     zurueckgestellt,
 )
 from .arr import ArrError
+from .radarr import RadarrClient
 from .settings_service import AppSettings, load_settings
+from .sonarr import SonarrClient
 
 logger = logging.getLogger("nexview.poller")
 
@@ -91,8 +95,16 @@ def _open_requests(db: Session) -> list[MediaRequest]:
     )
 
 
-async def check_once(db: Session, settings: AppSettings) -> int:
-    """Einmal nachsehen. Gibt zurueck, wie viele Titel fertig geworden sind."""
+async def check_once(
+    db: Session,
+    settings: AppSettings,
+    vorab_geholt: dict[tuple[str, str], list[dict]] | None = None,
+) -> int:
+    """Einmal nachsehen. Gibt zurueck, wie viele Titel fertig geworden sind.
+
+    ``vorab_geholt`` sind die rohen Warteschlangen je (Art, Stufe), wenn der
+    Rundgang sie fuer die haengenden Downloads schon geholt hat.
+    """
     offen = _open_requests(db)
     # Kein fruehes Ende mehr: Auch ohne offene Anfragen gibt es unten noch die
     # Gegenrichtung zu pruefen - gilt ein fertig geladener Titel noch?
@@ -148,11 +160,19 @@ async def check_once(db: Session, settings: AppSettings) -> int:
         return folgen_befunde[schluessel]
 
     # Die Warteschlangen fuer "laedt gerade" - hoechstens einmal je Instanz
-    # und Durchlauf geholt, und nur, wenn ueberhaupt eine Suche laeuft.
+    # und Durchlauf geholt, und nur, wenn ueberhaupt eine Suche laeuft. Hat
+    # der Rundgang sie fuer die haengenden Downloads schon geholt, wird nur
+    # noch verdichtet.
     warteschlangen: dict[tuple[str, str], list] = {}
 
     async def _warteschlange(art: str, stufe: str) -> list:
         schluessel = (art, stufe)
+        vorab = (vorab_geholt or {}).get(schluessel)
+        if schluessel not in warteschlangen and vorab is not None:
+            verdichten = (
+                RadarrClient.eintraege_aus if art == "movie" else SonarrClient.eintraege_aus
+            )
+            warteschlangen[schluessel] = verdichten(vorab)
         if schluessel not in warteschlangen:
             client = (
                 library.radarr_client(settings, stufe)
@@ -207,6 +227,7 @@ async def check_once(db: Session, settings: AppSettings) -> int:
                 request.completed_at = utcnow()
                 request.laedt_fortschritt = None
                 request.laedt_seit = None
+                request.import_haengt = None
                 verschwunden += 1
                 logger.warning(
                     "Request %s %r (%s/%s) cancelled: no longer present in %s",
@@ -241,6 +262,7 @@ async def check_once(db: Session, settings: AppSettings) -> int:
             # Fertig heisst: nichts laedt mehr - die Anzeige raeumt mit auf.
             request.laedt_fortschritt = None
             request.laedt_seit = None
+            request.import_haengt = None
             # Belegten Platz sofort zurechnen, nicht erst beim stuendlichen
             # Abgleich: Wer gerade etwas angefragt hat und nachsieht, was es
             # ihn kostet, faende dort sonst bis zu eine Stunde lang eine Null
@@ -486,6 +508,12 @@ async def _instanzen_messen(db, settings) -> None:
         wiedergaben.verlauf_aufraeumen(db)
     except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
         logger.exception("Playback history cleanup failed")
+        db.rollback()
+
+    try:
+        download_haenger.verlauf_aufraeumen(db)
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        logger.exception("Download history cleanup failed")
         db.rollback()
 
     try:
@@ -738,7 +766,28 @@ async def run_forever(stop: asyncio.Event) -> None:
                 # Standard-Plaetze. Vorher zaehlten hier nur radarr/sonarr
                 # ohne 4K: Eine reine 4K-Installation wurde nie abgeglichen.
                 if settings.arr_instanzen():
-                    await check_once(db, settings)
+                    # Zuerst die haengenden Downloads: Dieser Abgleich holt die
+                    # Warteschlangen ohnehin, und ``check_once`` nimmt sie fuer
+                    # die Fortschrittsanzeige mit. Mit eigenem Auffangnetz -
+                    # scheitert er, laufen die Anfragen trotzdem.
+                    vorab = None
+                    try:
+                        rundgang = await download_haenger.auffrischen(db, settings)
+                        vorab = rundgang.warteschlangen
+                    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+                        logger.exception("Stuck download check failed")
+                        db.rollback()
+                    await check_once(db, settings, vorab)
+
+                    # Danach die Automatik: Sie handelt nur an Downloads, die
+                    # als haengend gelten, und nur, wo der Betreiber eine Regel
+                    # eingeschaltet hat (ab Werk keine). Meldet ausserdem Titel,
+                    # die immer wieder haengen - das auch ohne Regeln.
+                    try:
+                        await download_automatik.ausfuehren(db, settings)
+                    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+                        logger.exception("Download automation failed")
+                        db.rollback()
 
                     # Vorgemerkte Titel („Sag mir Bescheid"). Bewusst
                     # **neben** ``check_once`` und nicht darin: Das dort

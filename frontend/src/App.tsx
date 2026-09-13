@@ -60,6 +60,9 @@ const AdminRequestsPage = lazy(() =>
 const AdminDashboardPage = lazy(() =>
   import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
 )
+const AdminDownloadsPage = lazy(() =>
+  import('./pages/AdminDownloadsPage').then((m) => ({ default: m.AdminDownloadsPage })),
+)
 const ProfilePage = lazy(() =>
   import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
 )
@@ -264,6 +267,9 @@ export default function App() {
             unveraendert erreichbar, und der Platz laesst sich spaeter ohne
             Umbau aendern. */}
         <Route path="admin/dashboard" element={adminOnly(<AdminDashboardPage />)} />
+        {/* Hängende Downloads: warum, und die Knöpfe dagegen. Nur für
+            Administratoren, weil hier entfernt und importiert wird. */}
+        <Route path="admin/downloads" element={adminOnly(<AdminDownloadsPage />)} />
         {/* Seit 0.25 admin-only: Auf der Seite stehen jetzt Betriebsdaten -
             Instanz-Zustand, Plattenfuellstand, Sicherungen. */}
         <Route path="admin/stats" element={adminOnly(<StatsPage />)} />

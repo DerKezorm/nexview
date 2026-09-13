@@ -1225,6 +1225,114 @@ export type TestResult = {
   values?: Record<string, string> | null;
 };
 
+/* --- Downloads: was in Radarr und Sonarr hängt ---------------------------- */
+
+export type DownloadAktion =
+  | "manuell_importieren"
+  | "entfernen_neu_suchen"
+  | "entfernen"
+  | "erneut_pruefen";
+
+/** Ein Download, der hängt: eine Karte unter „Braucht dich". */
+export type DownloadHaenger = {
+  id: number;
+  kennung: string;
+  instanz: string;
+  media_type: string;
+  titel: string;
+  jahr: number | null;
+  release: string;
+  folgen: number[][];
+  grund: string;
+  /** Die Gründe im Wortlaut der Instanz, englisch. */
+  wortlaut: string[];
+  zustand: string;
+  meldestufe: string;
+  programmstand: string;
+  protokoll: string;
+  programm: string;
+  groesse: number;
+  erstmals_gesehen: string;
+  haengt_seit: string;
+  /** Was der Grund empfiehlt: die Knöpfe vorn. */
+  empfohlen: DownloadAktion[];
+  weitere: DownloadAktion[];
+  besteller: { anfrage_id: number; name: string }[];
+  poster: string | null;
+};
+
+export type DownloadLaufend = {
+  kennung: string;
+  instanz: string;
+  media_type: string;
+  titel: string;
+  jahr: number | null;
+  release: string;
+  folgen: number[][];
+  fortschritt: number | null;
+  groesse: number;
+  rest: number;
+  restzeit: string | null;
+  programm: string;
+  protokoll: string;
+  programmstand: string;
+  zustand: string;
+  /** Gestört, aber noch nicht hängend: der Grund. */
+  beobachtet: string | null;
+};
+
+export type DownloadsStand = {
+  instanzen: {
+    kennung: string;
+    name: string;
+    media_type: string;
+    erreichbar: boolean;
+    fehler: string;
+  }[];
+  haenger: DownloadHaenger[];
+  laufend: DownloadLaufend[];
+  automatik_an: boolean;
+  stand_am: string;
+};
+
+export type DownloadKandidat = {
+  pfad: string;
+  name: string;
+  groesse: number;
+  qualitaet: string;
+  sprachen: string[];
+  zuordnung: string;
+  folgen: number[][];
+  zuordenbar: boolean;
+  ablehnungen: { text: string; dauerhaft: boolean }[];
+};
+
+export type DownloadAktionsAntwort = { gesucht: boolean; befehl: string };
+
+export type DownloadAutomatik = {
+  an: boolean;
+  regeln: { grund: string; aktion: DownloadAktion | null; erlaubt: DownloadAktion[] }[];
+  obergrenze: number;
+  fenster_stunden: number;
+  wiederholt_ab: number;
+  wiederholt_tage: number;
+};
+
+export type DownloadVerlaufZeile = {
+  id: number;
+  am: string;
+  kennung: string;
+  instanz: string;
+  media_type: string;
+  titel: string;
+  release: string;
+  grund: string;
+  was: string;
+  automatisch: boolean;
+  wer: string | null;
+  ergebnis: string;
+};
+
 export type MediaRequest = {
   id: number;
   media_type: MediaType;
@@ -1258,6 +1366,9 @@ export type MediaRequest = {
    * Momentaufnahme für die Pille, kein eigener Status. */
   laedt_fortschritt?: number | null;
   laedt_seit?: string | null;
+  /** „Import hängt": der Grund als Kennung, solange ein Download zu dieser
+   * Anfrage festsitzt. Kommt nur in der Liste der Entscheider mit. */
+  import_haengt?: string | null;
   /** Wer freigegeben hat – leer heißt: automatisch, ohne Entscheider. */
   approved_by_name?: string | null;
   /** Wann Nexview zuletzt bei Radarr/Sonarr nachgesehen hat. */
@@ -1625,7 +1736,8 @@ export type AppNotification = {
     | "mediaserver_reconnect"
     | "child_wish"
     | "invitation_redeemed"
-    | "invitation_on_hold";
+    | "invitation_on_hold"
+    | "download_stuck";
   /** Übersetzungsschlüssel – der Text kommt aus der Oberfläche. */
   message_key: string;
   message_title: string | null;

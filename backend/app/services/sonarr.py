@@ -193,8 +193,17 @@ class SonarrClient(ArrClient):
         nicht mit (lieber keine Anzeige als eine falsche), und hier faellt
         nur weg, was nicht einmal eine Serien-Kennung traegt.
         """
+        return self.eintraege_aus(await self._warteschlange_roh({"includeEpisode": "true"}))
+
+    @staticmethod
+    def eintraege_aus(records: list[dict[str, Any]]) -> list[WarteschlangenEintrag]:
+        """Dieselbe Verdichtung fuer eine Warteschlange, die schon geholt ist.
+
+        Braucht das mitbestellte ``episode``-Objekt - ``warteschlange_voll``
+        bestellt es mit.
+        """
         ergebnis: list[WarteschlangenEintrag] = []
-        for record in await self._warteschlange_roh({"includeEpisode": "true"}):
+        for record in records:
             series_id = record.get("seriesId")
             if not isinstance(series_id, int):
                 continue

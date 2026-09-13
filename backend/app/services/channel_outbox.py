@@ -87,6 +87,10 @@ EVENTS: dict[NotificationType, str] = {
     # Radarr/Sonarr melden ein eigenes Problem - eine Haus-Durchsage im
     # Wortsinn: Sie betrifft jeden, der auf Downloads wartet.
     NotificationType.instanz_gesundheit: "instance_health",
+    # Derselbe Haken: Ein Titel, der immer wieder beim Import haengt, ist ein
+    # Problem an Radarr/Sonarr oder am Download-Programm - dieselbe Sorte
+    # Durchsage, und ein eigener Haken waere einer zu viel.
+    NotificationType.download_stuck: "instance_health",
 }
 
 # Die Haken, die es damit gibt - fuer die Pruefung im Router.
@@ -123,6 +127,7 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.storage_deleted: {"title": "Ein Titel wurde gelöscht"},
         # Der Titel der Nachricht traegt die Aussage der Instanz im Wortlaut.
         NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr meldet ein Problem"},
+        NotificationType.download_stuck: {"title": "Ein Download hängt immer wieder"},
     },
     "en": {
         NotificationType.request_pending: {
@@ -142,6 +147,7 @@ TEXTS: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.storage_kept: {"title": "A title stays, but stops downloading"},
         NotificationType.storage_deleted: {"title": "A title has been deleted"},
         NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr reports a problem"},
+        NotificationType.download_stuck: {"title": "A download keeps getting stuck"},
     },
 }
 
@@ -210,6 +216,7 @@ PERSOENLICH: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.child_wish: {"title": "Dein Kind wünscht sich einen Titel"},
         NotificationType.invitation_redeemed: {"title": "Eine Einladung wurde eingelöst"},
         NotificationType.invitation_on_hold: {"title": "Eine Einladung wartet auf dich"},
+        NotificationType.download_stuck: {"title": "Ein Download hängt immer wieder"},
         NotificationType.rating_outdated: {"title": "Ein bewerteter Titel wurde neu geladen"},
         NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr meldet ein Problem"},
     },
@@ -245,6 +252,7 @@ PERSOENLICH: dict[str, dict[NotificationType, dict[str, str]]] = {
         NotificationType.child_wish: {"title": "Your child wishes for a title"},
         NotificationType.invitation_redeemed: {"title": "An invitation was redeemed"},
         NotificationType.invitation_on_hold: {"title": "An invitation is waiting for you"},
+        NotificationType.download_stuck: {"title": "A download keeps getting stuck"},
         NotificationType.rating_outdated: {"title": "A title you rated was downloaded again"},
         NotificationType.instanz_gesundheit: {"title": "Radarr/Sonarr reports a problem"},
     },

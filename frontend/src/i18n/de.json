@@ -33,6 +33,7 @@
     "profile": "Profil",
     "myRequests": "Meine Anfragen",
     "allRequests": "Alle Anfragen",
+    "downloads": "Downloads",
     "stats": "Statistik & Analyse",
     "users": "Benutzer",
     "settings": "Einstellungen",
@@ -840,6 +841,7 @@
     }
   },
   "adminRequests": {
+    "importHaengtLink": "Warum der Import hängt und was hilft: unter Downloads",
     "intro": "Alle Anfragen aller Benutzer – hier gibst du frei oder lehnst ab.",
     "filterAll": "Alle",
     "noPending": "Aktuell wartet nichts auf deine Freigabe.",
@@ -1251,6 +1253,8 @@
     "requestFulfilled": "Ein zurückgestellter Titel ist jetzt da",
     "storageGrew": "Ein Titel belegt jetzt mehr Platz",
     "instanceHealth": "Radarr/Sonarr meldet ein Problem",
+    "downloadStuck": "Ein Download hängt immer wieder",
+    "downloadAutomationGaveUp": "Die Automatik bekommt einen Download nicht in Gang",
     "storageReleaseRequested": "Jemand hat einen Titel abgegeben",
     "storageDeleted": "Ein Titel wurde gelöscht",
     "storageKept": "Ein Titel bleibt, wird aber nicht mehr geladen",
@@ -1409,6 +1413,7 @@
     "requested": "Angefragt",
     "searching": "Wird gesucht",
     "downloading": "Lädt · {{prozent}} %",
+    "importHaengt": "Import hängt",
     "downloaded": "Bereits geladen",
     "in_library": "In der Bibliothek",
     "rejected": "Abgelehnt",
@@ -1867,6 +1872,15 @@
     "tooManyAttemptsMinutes_one": "Zu viele Fehlversuche. Bitte in einer Minute noch einmal versuchen — danach geht es von selbst wieder.",
     "tooManyAttemptsMinutes_other": "Zu viele Fehlversuche. Bitte in {{count}} Minuten noch einmal versuchen — danach geht es von selbst wieder.",
     "byCode": {
+      "download_not_found": "Diesen hängenden Download gibt es nicht mehr. Die Seite lädt neu.",
+      "download_gone": "„{{titel}}“ steht nicht mehr in der Warteschlange. Vielleicht wurde er in Radarr oder Sonarr schon erledigt.",
+      "download_not_removable": "Radarr bzw. Sonarr nennt für diesen Download nichts, das sich entfernen ließe.",
+      "download_import_not_possible": "Dieser Download ist beim Download-Programm noch nicht angekommen. Ein manueller Import geht erst danach.",
+      "download_import_nothing_selected": "Es ist keine Datei ausgewählt.",
+      "download_import_unknown_file": "„{{datei}}“ gehört nicht mehr zu diesem Download. Die Liste lädt neu.",
+      "download_import_unmapped": "Radarr bzw. Sonarr kann „{{datei}}“ keinem Titel zuordnen. Die Zuordnung lässt sich dort im manuellen Import festlegen.",
+      "download_import_needs_confirmation": "Radarr bzw. Sonarr hat Einwände gegen „{{datei}}“. Importiert wird die Datei nur, wenn du das ausdrücklich bestätigst.",
+      "download_automation_not_allowed": "Diese Aktion darf die Automatik bei diesem Grund nicht ausführen.",
       "account_disabled": "Dieses Konto ist deaktiviert.",
       "calendar_range_too_long": "Der Zeitraum darf höchstens {{days}} Tage umfassen.",
       "channel_event_unknown": "Diese Meldungsart kennt Nexview nicht: {{event}}",
@@ -2567,7 +2581,7 @@
     "onStorageRelease": "Abgaben beim Speicher",
     "onStorageReleaseHint": "Meldet, wenn jemand einen Titel abgibt und wenn darüber entschieden wurde. Genannt wird nur der Titel – wer ihn abgegeben hat, bleibt dem Postfach verborgen.",
     "onInstanceHealth": "Instanz-Probleme",
-    "onInstanceHealthHint": "Meldet, wenn Radarr oder Sonarr selbst ein Problem melden – etwa einen ausgefallenen Download-Client oder Indexer. Dann hängen alle Anfragen, und genau das soll nicht still bleiben.",
+    "onInstanceHealthHint": "Meldet, wenn Radarr oder Sonarr selbst ein Problem melden – etwa einen ausgefallenen Download-Client oder Indexer. Dann hängen alle Anfragen, und genau das soll nicht still bleiben. Dazu kommen Titel, deren Download immer wieder hängen bleibt.",
     "deleteTitle": "Ziel entfernen",
     "confirmDeleteWarning": "Es gehen dann keine Meldungen mehr dorthin.",
     "callbacks": "Rückkanäle",
@@ -3429,8 +3443,8 @@
       "eingriff_noetig": {
         "titel_one": "Ein Download kommt nicht weiter",
         "titel_other": "{{count}} Downloads kommen nicht weiter",
-        "folge_one": "Er ist geladen, aber der Import hängt. Für den Besteller sieht es aus wie „lädt noch“. Meist stimmt ein Pfad oder ein Zugriffsrecht nicht.",
-        "folge_other": "Sie sind geladen, aber der Import hängt. Für die Besteller sieht es aus wie „lädt noch“. Meist stimmt ein Pfad oder ein Zugriffsrecht nicht."
+        "folge_one": "Er geht ohne Handarbeit nicht weiter. Für den Besteller sieht es aus wie „lädt noch“. Unter Downloads steht, woran es liegt und was dagegen hilft.",
+        "folge_other": "Sie gehen ohne Handarbeit nicht weiter. Für die Besteller sieht es aus wie „lädt noch“. Unter Downloads steht je Download, woran es liegt und was dagegen hilft."
       }
     },
     "bibliothek": {

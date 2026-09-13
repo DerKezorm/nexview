@@ -71,6 +71,10 @@ ZIELE: dict[NotificationType, str] = {
     # ⚠️ Ebenfalls korrigiert - und das ist der Fall, in dem es am meisten
     # weh tut: Bei einem Radarr-Ausfall will man am schnellsten irgendwohin.
     NotificationType.instanz_gesundheit: "/admin/settings",
+    # Ein Titel, der immer wieder haengt: Auf der Seite Downloads steht er mit
+    # seinem Grund und den Knoepfen dagegen, im Verlauf darunter, was schon
+    # versucht wurde.
+    NotificationType.download_stuck: "/admin/downloads",
     # --- Was den eigenen Speicher betrifft ---------------------------------
     NotificationType.storage_released: MEIN_SPEICHER,
     NotificationType.storage_kept: MEIN_SPEICHER,

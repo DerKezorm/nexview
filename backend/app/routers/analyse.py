@@ -36,7 +36,14 @@ from ..models import (
     WiedergabeSpitze,
 )
 from ..services import abgleich as abgleich_dienst
-from ..services import instanz_gesundheit, instanz_stand, logs, mail_outbox, sicherung
+from ..services import (
+    download_haenger,
+    instanz_gesundheit,
+    instanz_stand,
+    logs,
+    mail_outbox,
+    sicherung,
+)
 from ..services import updates as updates_dienst
 from ..services import wiedergaben as wiedergaben_dienst
 from ..services.settings_service import load_settings
@@ -137,6 +144,7 @@ def _instanzen(db, settings) -> list[InstanzZeile]:
     staende = instanz_stand.alle(db)
     gesundheiten = instanz_gesundheit.alle(db)
     webhooks = {zeile.kennung: zeile for zeile in db.scalars(select(ArrWebhook))}
+    haenger = download_haenger.zaehlen(db)
     zeilen: list[InstanzZeile] = []
     for instanz in settings.arr_instanzen():
         stand = staende.get(instanz.kennung)
@@ -158,7 +166,9 @@ def _instanzen(db, settings) -> list[InstanzZeile]:
                 version=stand.version if stand else "",
                 neuere_version=(neuer.get("version") if isinstance(neuer, dict) else None),
                 warteschlange=warteschlange.get("gesamt"),
-                warteschlange_haengt=warteschlange.get("eingriff"),
+                # Aus den haengenden Downloads, nicht aus der stuendlichen
+                # Messung: Dort zaehlte bis zum 12.09.2026 jede Warnung mit.
+                warteschlange_haengt=haenger.get(instanz.kennung, 0),
                 luecken=luecken.get("fehlend"),
                 luecken_einheit=luecken.get("einheit"),
                 meldungen=[

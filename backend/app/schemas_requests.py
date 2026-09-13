@@ -207,6 +207,12 @@ class RequestWithUser(RequestPublic):
     # Kontos gehoert nirgends mehr hin.
     for_child_name: str | None = None
 
+    # Haengt ein Download zu dieser Anfrage fest? Dann steht hier der Grund als
+    # Kennung (``services/download_gruende``), sonst ``None``. Siehe
+    # ``MediaRequest.import_haengt`` - und warum das nur hier steht und nicht
+    # in ``RequestPublic``.
+    import_haengt: str | None = None
+
 
 class QuotaInfo(BaseModel):
     limit: int | None

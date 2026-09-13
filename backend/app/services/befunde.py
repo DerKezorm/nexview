@@ -60,6 +60,7 @@ from ..models import (
 )
 from . import (
     abgleich,
+    download_haenger,
     instanz_gesundheit,
     instanz_stand,
     logs,
@@ -252,6 +253,8 @@ class Vorrat:
     webhooks: dict[str, ArrWebhook]
     #: Der zuletzt gemessene Abgleich-Stand.
     abgleich: abgleich.Stand
+    #: Haengende Downloads je Instanz-Kennung (``download_haenger.zaehlen``).
+    haenger: dict[str, int] = field(default_factory=dict)
 
 
 def _vorrat_laden(db: Session) -> Vorrat:
@@ -260,6 +263,7 @@ def _vorrat_laden(db: Session) -> Vorrat:
         gesundheit=instanz_gesundheit.alle(db),
         webhooks={zeile.kennung: zeile for zeile in db.scalars(select(ArrWebhook))},
         abgleich=abgleich.lesen(db),
+        haenger=download_haenger.zaehlen(db),
     )
 
 
@@ -673,14 +677,16 @@ def _nachschub_eingriff_noetig(
     den Besteller sieht es aus wie "laedt noch". Gezaehlt wird je Instanz und
     hier zusammengefasst: Wer drei Instanzen betreibt, will eine Zahl sehen
     und nicht drei Zeilen.
+
+    ⚠️ **Nur eingerichtete Instanzen.** Die Zeilen einer entfernten Instanz
+    raeumt erst der naechste Abgleich ab; bis dahin zaehlten sie sonst weiter.
+    Bis zum 12.09.2026 zaehlte dieser Befund aus einer stuendlichen Messung,
+    die fuer entfernte Instanzen nie verschwand, und fuehrte auf die Liste
+    aller suchenden Anfragen statt dorthin, wo der Grund steht.
     """
-    anzahl = 0
-    for zeile in vorrat.staende.values():
-        warteschlange = (zeile.messwerte or {}).get("warteschlange")
-        if isinstance(warteschlange, dict):
-            wert = warteschlange.get("eingriff")
-            if isinstance(wert, int):
-                anzahl += wert
+    anzahl = sum(
+        vorrat.haenger.get(instanz.kennung, 0) for instanz in settings.arr_instanzen()
+    )
     if not anzahl:
         return []
     return [
@@ -689,7 +695,7 @@ def _nachschub_eingriff_noetig(
             schwere=Schwere.fehler,
             bereich=Bereich.nachschub,
             werte={"anzahl": anzahl},
-            ziel="/admin/requests?filter=searching",
+            ziel="/admin/downloads",
         )
     ]
 

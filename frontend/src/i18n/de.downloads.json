@@ -1,0 +1,238 @@
+{
+  "downloads": {
+    "title": "Downloads",
+    "subtitle": "Was in Radarr und Sonarr nicht weitergeht, warum, und was dagegen hilft.",
+    "reload": "Neu laden",
+    "standAm": "Stand {{zeit}}",
+    "instanceDown": "{{name}} antwortet gerade nicht. Was dort hängt, steht hier mit dem letzten bekannten Stand.",
+    "noInstances": "Es ist noch kein Radarr oder Sonarr eingerichtet.",
+    "stuck": {
+      "title": "Braucht dich",
+      "none": "Nichts hängt. Was gerade stockt, beobachtet Nexview erst eine Weile, bevor es hier landet.",
+      "since": "hängt seit {{zeit}}",
+      "requestedBy": "Angefragt von {{namen}}",
+      "original": "Meldung von {{instanz}} im Wortlaut",
+      "episodes": "Staffel {{staffel}}, Folge {{folgen}}",
+      "more": "Weitere Möglichkeiten",
+      "fewer": "Weniger"
+    },
+    "running": {
+      "title": "Läuft",
+      "none": "Gerade lädt nichts.",
+      "noneElse": "Sonst lädt gerade nichts.",
+      "remaining": "noch {{zeit}}",
+      "watching": "Wird beobachtet: {{grund}}"
+    },
+    "aktion": {
+      "manuell_importieren": "Manuell importieren",
+      "entfernen_neu_suchen": "Entfernen und neu suchen",
+      "entfernen": "Nur entfernen",
+      "erneut_pruefen": "Erneut versuchen"
+    },
+    "confirm": {
+      "entfernen_neu_suchen": {
+        "title": "Entfernen und neu suchen?",
+        "text": "„{{release}}“ wird aus der Warteschlange genommen und im Download-Programm samt Daten gelöscht. Das Release wird gesperrt, damit es nicht wiederkommt, und Nexview sucht gleich nach einem anderen.",
+        "warning": "Die geladenen Daten sind danach weg. Bei einem Torrent endet damit auch das Teilen."
+      },
+      "entfernen": {
+        "title": "Nur entfernen?",
+        "text": "„{{release}}“ wird aus der Warteschlange genommen und im Download-Programm samt Daten gelöscht. Gesperrt wird nichts, und es wird nicht neu gesucht.",
+        "warning": "Die geladenen Daten sind danach weg. Bei einem Torrent endet damit auch das Teilen."
+      },
+      "erneut_pruefen": {
+        "title": "Erneut versuchen?",
+        "text": "Radarr bzw. Sonarr sieht sich die fertigen Downloads noch einmal an und importiert, wenn die Ursache inzwischen behoben ist. Gelöscht wird nichts."
+      }
+    },
+    "done": {
+      "entfernen_neu_suchen": "Entfernt. Die Suche nach einem anderen Release läuft.",
+      "entfernen_ohne_suche": "Entfernt. Eine neue Suche ließ sich nicht anstoßen, die geht in Radarr bzw. Sonarr von Hand.",
+      "entfernen": "Entfernt.",
+      "erneut_pruefen": "Angestoßen. Ob es geholfen hat, zeigt die nächste Runde in etwa zwei Minuten.",
+      "import_completed": "Importiert.",
+      "import_running": "Der Import läuft noch. Das Ergebnis zeigt die nächste Runde.",
+      "import_failed": "Radarr bzw. Sonarr meldet, dass der Import gescheitert ist. Die Meldung dort sagt mehr."
+    },
+    "import": {
+      "title": "Manuell importieren",
+      "loading": "Frage die Dateien ab …",
+      "empty": "Radarr bzw. Sonarr findet in diesem Download keine Datei zum Importieren.",
+      "unmapped": "keinem Titel zugeordnet",
+      "temporary": "vorübergehend",
+      "anyway": "Trotzdem importieren, obwohl {{instanz}} Einwände hat",
+      "anywayHint": "Beim manuellen Import prüft {{instanz}} die Einwände nicht noch einmal. Was du auswählst, landet so in der Bibliothek, auch ein Sample.",
+      "submit": "Importieren",
+      "selected_one": "Eine Datei ausgewählt",
+      "selected_other": "{{count}} Dateien ausgewählt",
+      "mapping": "Eine andere Zuordnung lässt sich in {{instanz}} im manuellen Import festlegen."
+    },
+    "automation": {
+      "title": "Automatik",
+      "intro": "Bei manchen Gründen kann Nexview selbst handeln. Ab Werk tut es das nie, und jede Regel gilt nur für ihren Grund.",
+      "on": "An",
+      "off": "Aus",
+      "nothing": "Nichts tun",
+      "limits": "Höchstens {{obergrenze}} automatische Aktionen je Film oder Folge in {{stunden}} Stunden. Danach hört Nexview auf und benachrichtigt dich. Hängt derselbe Film oder dieselbe Folge {{ab}} Mal in {{tage}} Tagen, bekommst du ebenfalls Bescheid, auch ohne Automatik.",
+      "never": "Einen manuellen Import macht die Automatik nie.",
+      "save": "Speichern",
+      "saved": "Gespeichert."
+    },
+    "history": {
+      "title": "Verlauf",
+      "none": "Noch nichts passiert.",
+      "automatic": "Automatik",
+      "was": {
+        "erkannt": "hängt",
+        "gemeldet": "Benachrichtigung verschickt",
+        "manuell_importieren": "manuell importiert",
+        "entfernen_neu_suchen": "entfernt und neu gesucht",
+        "entfernen": "entfernt",
+        "erneut_pruefen": "erneut versucht"
+      },
+      "ergebnis": {
+        "search_failed": "die Suche ließ sich nicht anstoßen",
+        "command_failed": "der Befehl ist gescheitert"
+      },
+      "failed": "nicht geklappt: {{grund}}"
+    },
+    "grund": {
+      "gefaehrliche_datei": {
+        "titel": "Im Download steckt eine ausführbare oder gefährliche Datei",
+        "hilfe": "Radarr bzw. Sonarr fasst so etwas nicht an, und das ist richtig so. Das Release gehört gesperrt, dann kommt ein anderes."
+      },
+      "pfadzuordnung": {
+        "titel": "Der Download liegt an einem Pfad, den Radarr bzw. Sonarr nicht sieht",
+        "hilfe": "Das Download-Programm meldet einen Ordner, der bei Radarr bzw. Sonarr anders heißt oder fehlt. Meist fehlt eine Pfadzuordnung (Remote Path Mapping) unter Einstellungen, Download-Clients. Danach erneut versuchen."
+      },
+      "pfad_ohne_unterordner": {
+        "titel": "Der Download liegt direkt im Download-Ordner",
+        "hilfe": "Radarr bzw. Sonarr erwartet je Download einen eigenen Unterordner. Im Download-Programm gehört eingestellt, dass jeder Download in einen eigenen Ordner lädt."
+      },
+      "pfad_in_bibliothek": {
+        "titel": "Der Download liegt schon im Ordner der Bibliothek",
+        "hilfe": "Download-Ordner und Bibliothek dürfen nicht derselbe Ordner sein. Das gehört in den Einstellungen des Download-Programms getrennt."
+      },
+      "nicht_gegriffen": {
+        "titel": "Diesen Download hat Radarr bzw. Sonarr nicht selbst geholt",
+        "hilfe": "Er liegt in der Kategorie, stammt aber nicht aus einer Suche. Entweder von Hand importieren oder entfernen."
+      },
+      "titel_passt_nicht": {
+        "titel": "Der Name des Downloads passt nicht zum Titel",
+        "hilfe": "Radarr bzw. Sonarr ist nicht sicher, dass die Datei zum angefragten Titel gehört, und importiert deshalb nicht von selbst. Ein manueller Import bestätigt es."
+      },
+      "zuordnung_per_kennung": {
+        "titel": "Nur über die Kennung zugeordnet, nicht über den Namen",
+        "hilfe": "Die Suche hat den Download einem Titel zugeordnet, sein Name passt aber nicht dazu. Das muss ein Mensch bestätigen, mit einem manuellen Import."
+      },
+      "mehrere_treffer": {
+        "titel": "Der Name passt auf mehrere Titel",
+        "hilfe": "Radarr bzw. Sonarr kann nicht entscheiden, welcher gemeint ist. Beim manuellen Import lässt sich das festlegen."
+      },
+      "unbekannter_titel": {
+        "titel": "Radarr bzw. Sonarr kennt den Titel nicht",
+        "hilfe": "Der Download gehört zu keinem Film und keiner Serie in der Bibliothek. Von Hand zuordnen oder entfernen."
+      },
+      "nicht_lesbar": {
+        "titel": "Der Name des Downloads lässt sich nicht lesen",
+        "hilfe": "Aus dem Namen geht nicht hervor, welcher Titel oder welche Folge gemeint ist. Manuell importieren oder ein anderes Release suchen."
+      },
+      "wird_entpackt": {
+        "titel": "Die Datei wird gerade noch entpackt",
+        "hilfe": "Das erledigt sich meist von selbst. Hängt es lange, hat das Entpacken im Download-Programm aufgehört."
+      },
+      "datei_gesperrt": {
+        "titel": "Die Datei ist gerade gesperrt",
+        "hilfe": "Ein anderes Programm hält sie offen, etwa das Download-Programm beim Prüfen. Später erneut versuchen."
+      },
+      "archiv": {
+        "titel": "Der Download ist ein Archiv und noch nicht entpackt",
+        "hilfe": "Radarr bzw. Sonarr entpackt nicht selbst. Das Download-Programm oder ein Werkzeug wie Unpackerr muss das tun, danach erneut versuchen."
+      },
+      "sample_unklar": {
+        "titel": "Ob die Datei nur ein Sample ist, lässt sich nicht feststellen",
+        "hilfe": "Radarr bzw. Sonarr kann die Datei nicht auslesen. Oft ist sie kaputt oder unvollständig. Lieber ein anderes Release suchen, außer du weißt, dass die Datei in Ordnung ist."
+      },
+      "sample": {
+        "titel": "Die Datei ist nur ein Sample",
+        "hilfe": "Das Release enthält nur einen kurzen Ausschnitt. Es gehört gesperrt, dann kommt ein anderes."
+      },
+      "falsche_endung": {
+        "titel": "Die Datei ist kein Video, das Radarr bzw. Sonarr nimmt",
+        "hilfe": "Etwa ein Abbild, eine Textdatei oder eine unbekannte Endung. Meist gehört das Release gesperrt."
+      },
+      "keine_tonspur": {
+        "titel": "Die Datei hat keine Tonspur",
+        "hilfe": "So ein Release ist kaputt. Es gehört gesperrt, dann kommt ein anderes."
+      },
+      "teilweise_importiert": {
+        "titel": "Ein Teil ist importiert, der Rest fehlt im Download",
+        "hilfe": "Was im Download passte, liegt schon in der Bibliothek. Der Rest fehlt oder gehört nicht dazu. Der Download kann weg; fehlende Folgen sucht Sonarr danach weiter, sofern sie überwacht sind."
+      },
+      "kein_upgrade": {
+        "titel": "Der Download ist nicht besser als die vorhandene Datei",
+        "hilfe": "Es liegt schon eine gleich gute oder bessere Fassung da. Der Download kann weg."
+      },
+      "schon_importiert": {
+        "titel": "Diese Datei wurde schon importiert",
+        "hilfe": "Der Download ist erledigt und steht nur noch in der Warteschlange. Er kann weg."
+      },
+      "falscher_inhalt": {
+        "titel": "Im Download steckt etwas anderes als gesucht",
+        "hilfe": "Radarr bzw. Sonarr findet darin nicht den Film oder die Folgen, für die der Download geholt wurde. Meist gehört das Release gesperrt. Passt die Datei doch, geht ein manueller Import."
+      },
+      "teilpaket": {
+        "titel": "Ein unvollständiges Staffelpaket oder Extras",
+        "hilfe": "Sonarr importiert solche Pakete nicht von selbst. Manuell importieren, was passt, oder ein vollständiges Release suchen."
+      },
+      "folgenzuordnung": {
+        "titel": "Staffel oder Folge passen nicht",
+        "hilfe": "Die Nummerierung im Release weicht von der Zählung in Sonarr ab. Beim manuellen Import lassen sich die Folgen zuordnen."
+      },
+      "unvollstaendig": {
+        "titel": "Nicht alles Erwartete ist im Download",
+        "hilfe": "Ein Teil fehlt oder ließ sich nicht importieren. Manuell importieren, was da ist, oder ein anderes Release suchen."
+      },
+      "mehrteilig": {
+        "titel": "Der Film liegt in mehreren Teilen vor",
+        "hilfe": "Radarr nimmt keine Filme, die auf mehrere Dateien verteilt sind. Manuell importieren oder ein anderes Release suchen."
+      },
+      "kein_platz": {
+        "titel": "Auf dem Ziel ist nicht genug Platz",
+        "hilfe": "Erst Platz schaffen, dann erneut versuchen."
+      },
+      "keine_datei": {
+        "titel": "Im Download findet sich keine Datei zum Importieren",
+        "hilfe": "Entweder ist der Download leer, noch verpackt oder enthält nur Beiwerk, oder Radarr bzw. Sonarr sieht seinen Ordner gar nicht. Zeigt der Pfad in der Meldung auf eine Stelle, die es bei Radarr bzw. Sonarr nicht gibt, fehlt eine Pfadzuordnung (Remote Path Mapping). Dann nicht sperren, sondern die Zuordnung eintragen und erneut versuchen."
+      },
+      "programm_haengt": {
+        "titel": "Der Download kommt nicht voran",
+        "hilfe": "Das Download-Programm findet keine Gegenstelle. Tut sich eine Viertelstunde lang nichts, hilft meist nur ein anderes Release."
+      },
+      "magnet": {
+        "titel": "Der Magnet-Link lässt sich nicht auflösen",
+        "hilfe": "Das Download-Programm bekommt die Beschreibung des Torrents nicht, und DHT ist dort ausgeschaltet. Mit DHT klappt es meist; sonst ein anderes Release suchen."
+      },
+      "programm_fehler": {
+        "titel": "Das Download-Programm meldet einen Fehler",
+        "hilfe": "Der Wortlaut darunter stammt vom Download-Programm. Oft ist das Release kaputt, es kann aber auch am Programm selbst liegen, etwa an vollem Speicher. Erst den Wortlaut lesen, dann entscheiden."
+      },
+      "programm_unerreichbar": {
+        "titel": "Radarr bzw. Sonarr erreicht das Download-Programm nicht",
+        "hilfe": "Läuft es, und stimmen Adresse und Zugang in Radarr bzw. Sonarr? Danach erneut versuchen."
+      },
+      "fehlgeschlagen": {
+        "titel": "Der Download ist fehlgeschlagen",
+        "hilfe": "Das Download-Programm hat aufgegeben. Ein anderes Release suchen."
+      },
+      "programm_unbekannt": {
+        "titel": "Das Download-Programm meldet etwas, das Nexview nicht kennt",
+        "hilfe": "Der Wortlaut darunter stammt vom Download-Programm. Solche Meldungen liest Nexview nur auf Englisch; steht Radarr bzw. Sonarr auf einer anderen Sprache, landen sie hier. Hängt der Download schon lange, hilft meist ein anderes Release."
+      },
+      "unbekannt": {
+        "titel": "Nexview kennt diesen Grund nicht",
+        "hilfe": "Die Meldung darunter steht im Wortlaut von Radarr bzw. Sonarr. Nexview rät hier nicht."
+      }
+    }
+  }
+}

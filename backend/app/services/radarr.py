@@ -122,8 +122,17 @@ class RadarrClient(ArrClient):
         ``sizeleft``. Eintraege ohne Film-Kennung (verwaiste Downloads)
         fallen raus - ihnen laesst sich keine Anfrage zuordnen.
         """
+        return self.eintraege_aus(await self._warteschlange_roh({}))
+
+    @staticmethod
+    def eintraege_aus(records: list[dict[str, Any]]) -> list[WarteschlangenEintrag]:
+        """Dieselbe Verdichtung fuer eine Warteschlange, die schon geholt ist.
+
+        Der Rundgang holt sie fuer die Seite Downloads ohnehin; ein zweites Mal
+        je Runde fuer die Fortschrittsanzeige waere reine Verdopplung.
+        """
         ergebnis: list[WarteschlangenEintrag] = []
-        for record in await self._warteschlange_roh({}):
+        for record in records:
             movie_id = record.get("movieId")
             if not isinstance(movie_id, int):
                 continue

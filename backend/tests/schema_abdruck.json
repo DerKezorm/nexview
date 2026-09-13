@@ -681,6 +681,217 @@
       }
     }
   },
+  "download_haenger": {
+    "eindeutig": [],
+    "indizes": [
+      "ux_download_haenger_download"
+    ],
+    "spalten": {
+      "arr_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "download_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(200)"
+      },
+      "erstmals_gesehen": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "fingerabdruck": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "folgen": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "folgen_ids": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "groesse": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BIGINT"
+      },
+      "grund": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
+      },
+      "haengt_seit": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "jahr": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "kennung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "meldestufe": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "programm": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "programmstand": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
+      },
+      "protokoll": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "release": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "rest": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BIGINT"
+      },
+      "titel": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "veraendert_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "wortlaut": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "zeilen": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "zuletzt_gesehen": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "zustand": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      }
+    }
+  },
+  "download_verlauf": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_download_verlauf_titel"
+    ],
+    "spalten": {
+      "am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "arr_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "automatisch": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "download_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(200)"
+      },
+      "ergebnis": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "folgen_ids": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "grund": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "kennung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "release": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "titel": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "user_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "was": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
+      }
+    }
+  },
   "einladungs_server": {
     "eindeutig": [
       [
@@ -1019,6 +1230,11 @@
         "leer_erlaubt": false,
         "schluessel": true,
         "typ": "INTEGER"
+      },
+      "import_haengt": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
       },
       "laedt_fortschritt": {
         "leer_erlaubt": true,

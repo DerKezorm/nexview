@@ -263,6 +263,12 @@ class NotificationType(str, enum.Enum):
     # ``invitation_redeemed`` in den Kanaelen "eingeloest" meldet, und das
     # stimmt hier gerade nicht.
     invitation_on_hold = "invitation_on_hold"
+    # --- Downloads -----------------------------------------------------------
+    # Ein Titel haengt immer wieder beim Import, oder die Automatik hat bei ihm
+    # aufgegeben - geht an die Administratoren. Nicht fuer jeden einzelnen
+    # haengenden Download: Die stehen im Dashboard und auf der Seite Downloads,
+    # und eine Meldung je Sample waere genau der Laerm, den man wegklickt.
+    download_stuck = "download_stuck"
 
 
 class User(Base):
@@ -1744,6 +1750,104 @@ class InstanzStand(Base):
     gemessen_am: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class DownloadHaenger(Base):
+    """Ein Download, der in Radarr oder Sonarr nicht weitergeht.
+
+    ⚠️ **Einer je Download, nicht je Zeile der Warteschlange.** Sonarr fuehrt
+    ein Staffelpaket als eine Zeile je Folge; zwanzig Befunde fuer eine Datei
+    waeren falsch gezaehlt. Zusammengehalten wird ueber ``downloadId``.
+
+    ⚠️ **Hier steht, was gestoert ist - schon bevor es als haengend gilt.** Ob
+    etwas haengt, entscheidet die Zeit (``haengt_seit``): Ein Import braucht
+    normal Sekunden, ein Torrent findet manchmal nach Minuten doch noch eine
+    Gegenstelle. Wer sofort meldet, meldet vor allem den Normalbetrieb. Dafuer
+    braucht es ein Gedaechtnis ueber die Runden, und das ist diese Tabelle.
+
+    Laeuft ein Download wieder oder ist er weg, verschwindet die Zeile. Was
+    geschah, steht in ``DownloadVerlauf``.
+    """
+
+    __tablename__ = "download_haenger"
+    __table_args__ = (
+        Index("ux_download_haenger_download", "kennung", "download_id", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    #: Die Instanz (``settings_service.arr_instanzen``).
+    kennung: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: ``downloadId`` der Instanz. Fehlt sie, ``zeile-<nummer>``.
+    download_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    #: Die Nummern der Warteschlangenzeilen - die braucht jedes Entfernen.
+    zeilen: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
+    media_type: Mapped[str] = mapped_column(String(8), nullable=False)
+    #: movieId bzw. seriesId. ``None`` bei einem Download ohne Zuordnung.
+    arr_id: Mapped[int | None] = mapped_column(Integer)
+    #: Sonarrs Episoden-Nummern - fuer das gezielte Neusuchen.
+    folgen_ids: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
+    #: ``[[Staffel, Folge], ...]`` fuer die Anzeige und die Zuordnung zur Anfrage.
+    folgen: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
+    #: Der Name des Release, wie das Download-Programm ihn fuehrt.
+    release: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    #: Film- bzw. Serientitel, wie Radarr/Sonarr ihn kennen.
+    titel: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    jahr: Mapped[int | None] = mapped_column(Integer)
+    grund: Mapped[str] = mapped_column(String(40), nullable=False)
+    #: Die Gruende im Wortlaut der Instanz - englisch, und das bleibt so.
+    wortlaut: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
+    zustand: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    meldestufe: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    programmstand: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    protokoll: Mapped[str] = mapped_column(String(16), default="", nullable=False)
+    programm: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    groesse: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    rest: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    #: Woran eine Veraenderung erkannt wird: Zustand, Grund, Wortlaut, Rest.
+    fingerabdruck: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    erstmals_gesehen: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    veraendert_am: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    zuletzt_gesehen: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    #: Seit wann er als haengend gilt. ``None`` heisst: wird noch beobachtet.
+    haengt_seit: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class DownloadVerlauf(Base):
+    """Was mit haengenden Downloads geschah - erkannt, behoben, gemeldet.
+
+    ⚠️ **Die Automatik sieht hier nach, bevor sie handelt.** Ohne Gedaechtnis
+    entfernt sie denselben Film jede Runde, sucht neu, bekommt das naechste
+    Sample und entfernt wieder - eine Schleife, die niemand bemerkt, bis der
+    Indexer sperrt. Die Obergrenze je Film bzw. Folge zaehlt diese Zeilen.
+
+    Bleibt stehen, wenn Anfrage oder Konto geloescht werden: Es ist ein
+    Protokoll des Betriebs, keine Eigenschaft einer Person.
+    """
+
+    __tablename__ = "download_verlauf"
+    __table_args__ = (Index("ix_download_verlauf_titel", "kennung", "arr_id", "am"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kennung: Mapped[str] = mapped_column(String(32), nullable=False)
+    download_id: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    media_type: Mapped[str] = mapped_column(String(8), default="", nullable=False)
+    arr_id: Mapped[int | None] = mapped_column(Integer)
+    #: Sonarrs Episoden-Nummern. Daran erkennt die Automatik dieselbe Folge:
+    #: Drei Folgen einer Serie, die zugleich haengen, sind kein Titel, der
+    #: immer wieder haengt (``download_automatik._dieselbe_folge``).
+    folgen_ids: Mapped[list | None] = mapped_column(JSON(none_as_null=True))
+    titel: Mapped[str] = mapped_column(String(300), default="", nullable=False)
+    release: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    grund: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    #: ``erkannt``, ``gemeldet`` oder eine ``download_gruende.Aktion``.
+    was: Mapped[str] = mapped_column(String(40), nullable=False)
+    automatisch: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    #: Wer es von Hand ausgeloest hat. SET NULL: Der Eintrag bleibt, auch wenn
+    #: das Konto geht.
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    #: Leer heisst: hat geklappt. Sonst die Fehler-Kennung.
+    ergebnis: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    am: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
 class SpeicherVerlauf(Base):
     """Ein Messpunkt je Tag: wieviel belegt, wieviel frei.
 
@@ -2056,6 +2160,13 @@ class MediaRequest(Base):
     # und Meldungen fluten. Das Wort auf der Pille wechselt, der Zustand nicht.
     laedt_fortschritt: Mapped[int | None] = mapped_column(Integer)
     laedt_seit: Mapped[datetime | None] = mapped_column(DateTime)
+    # "Import haengt": der Grund als Kennung (``services/download_gruende``),
+    # solange ein Download zu dieser Anfrage in Radarr/Sonarr festsitzt. Gesetzt
+    # und geloescht vom Rundgang, genau wie ``laedt_fortschritt`` daneben.
+    # ⚠️ Nur in der Liste der Entscheider (``RequestWithUser``), nicht in
+    # ``RequestPublic``: Das ist auch die Antwort von ``/api/v1``, und deren
+    # Form ist zugesagt (``test_v1_zusage``).
+    import_haengt: Mapped[str | None] = mapped_column(String(40))
     error_message: Mapped[str | None] = mapped_column(Text)
     # ⚠️ **Derselbe Inhalt noch einmal - als Kennung statt als Satz.**
     #

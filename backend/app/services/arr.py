@@ -378,32 +378,75 @@ class ArrClient:
         antwort = await self.get("/health")
         return antwort if isinstance(antwort, list) else []
 
-    #: Zustaende, bei denen ein Download ohne Handarbeit nicht weitergeht.
-    #:
-    #: ⚠️ **Diese Werte sind NICHT gemessen.** Beim Bauen (30.08.2026) waren
-    #: alle Warteschlangen der Messanlage leer, es liess sich also nichts
-    #: beobachten; sie stammen aus der API-Beschreibung. Deshalb wird
-    #: nachsichtig gelesen: Was hier nicht steht, gilt als "laeuft" - lieber
-    #: einen haengenden Download uebersehen als jeden laufenden melden.
-    EINGRIFF_NOETIG = frozenset(
-        {"importpending", "importblocked", "importfailed", "failedpending"}
-    )
-
     async def warteschlangen_zustand(self) -> dict[str, int]:
-        """Wieviel liegt in der Warteschlange, und wieviel davon haengt fest?
+        """Wieviel liegt in der Warteschlange?
 
         Steht hier und nicht im Messdienst, weil es Wissen ueber die **Form**
         der Antwort ist - und das lebt im Client, neben ``gesundheit()`` und
         ``aktualisierung()``.
+
+        ⚠️ Bis zum 12.09.2026 zaehlte das hier auch, was davon festhaengt, und
+        zwar ueber eine Liste von Zustaenden, die nie gemessen war (einer davon,
+        ``importfailed``, existiert gar nicht) und die jede Warnung mitzaehlte,
+        auch die eines laufenden Downloads. Was haengt, weiss jetzt
+        ``download_haenger`` - mit Grund, je Download und erst nach einer
+        Wartezeit.
         """
-        roh = await self._warteschlange_roh({})
-        eingriff = 0
-        for satz in roh:
-            zustand = str(satz.get("trackedDownloadState") or "").lower()
-            meldung = str(satz.get("trackedDownloadStatus") or "").lower()
-            if zustand in self.EINGRIFF_NOETIG or meldung in ("warning", "error"):
-                eingriff += 1
-        return {"gesamt": len(roh), "eingriff": eingriff}
+        return {"gesamt": len(await self._warteschlange_roh({}))}
+
+    async def warteschlange_voll(self, filme: bool) -> list[dict[str, Any]]:
+        """Die ganze Warteschlange samt Film bzw. Serie und Folge.
+
+        ⚠️ **``includeUnknown...Items`` steht ab Werk auf false** (gelesen im
+        Quelltext am 12.09.2026). Ohne den Schalter fehlen genau die Downloads,
+        die Radarr oder Sonarr keinem Titel zuordnen koennen - und die haengen
+        am haeufigsten.
+        """
+        if filme:
+            params = {"includeUnknownMovieItems": "true", "includeMovie": "true"}
+        else:
+            params = {
+                "includeUnknownSeriesItems": "true",
+                "includeSeries": "true",
+                "includeEpisode": "true",
+            }
+        return await self._warteschlange_roh(params)
+
+    async def warteschlange_entfernen(self, zeilen: list[int], *, sperren: bool) -> None:
+        """Einen Download aus der Warteschlange nehmen, samt Daten im Download-Programm.
+
+        ``skipRedownload`` steht immer auf true: Neu gesucht wird, wenn
+        ueberhaupt, von Nexview selbst (``download_aktionen``). Radarr und
+        Sonarr suchen nur dann von sich aus, wenn "Redownload failed" an ist -
+        und dann suchten beide.
+
+        Mehrere Zeilen gehen gesammelt an ``/queue/bulk``: Sonarr fuehrt ein
+        Staffelpaket als eine Zeile je Folge, und die Instanz entdoppelt selbst
+        nach ``downloadId``.
+        """
+        params = {
+            "removeFromClient": "true",
+            "blocklist": "true" if sperren else "false",
+            "skipRedownload": "true",
+            "changeCategory": "false",
+        }
+        if len(zeilen) == 1:
+            await self.delete(f"/queue/{zeilen[0]}", params)
+            return
+        await self._request("DELETE", "/queue/bulk", params=params, json={"ids": zeilen})
+
+    async def import_kandidaten(self, download_id: str) -> list[dict[str, Any]]:
+        """Was ein manueller Import mit diesem Download anfangen wuerde - samt Ablehnungen.
+
+        ``filterExistingFiles=false``: Die Frage ist gerade, warum eine Datei
+        nicht importiert wurde; ausgeblendet waere ausgerechnet sie.
+        """
+        antwort = await self.get(
+            "/manualimport", {"downloadId": download_id, "filterExistingFiles": "false"}
+        )
+        if not isinstance(antwort, list):
+            return []
+        return [eintrag for eintrag in antwort if isinstance(eintrag, dict)]
 
     async def aktualisierung(self) -> dict[str, Any] | None:
         """Steht fuer diese Instanz eine neuere Fassung bereit?

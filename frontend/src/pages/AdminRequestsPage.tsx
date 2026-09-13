@@ -872,6 +872,16 @@ export function AdminRequestsPage() {
                         {gespeicherterFehler(request.error_detail, request.error_message)}
                       </p>
                     )}
+                    {/* Wer handeln darf, bekommt den Weg dorthin. Entscheider
+                        sehen die Pille, die Seite Downloads ist den
+                        Administratoren vorbehalten. */}
+                    {istAdmin && request.import_haengt && (
+                      <p className="mt-1 text-xs text-warn-500">
+                        <Link to="/admin/downloads" className="underline hover:text-warn-400">
+                          {t("adminRequests.importHaengtLink")}
+                        </Link>
+                      </p>
+                    )}
                     {request.rejection_reason && (
                       <p className="mt-1 text-xs text-mist-500">
                         {t("adminRequests.reason")}: {request.rejection_reason}
@@ -927,6 +937,7 @@ export function AdminRequestsPage() {
                   <StatusBadge
                     status={request.status}
                     fortschritt={request.laedt_fortschritt}
+                    importHaengt={request.import_haengt}
                   />
 
                   {/* ⚠️ Zurückgestellte gehören dazu.

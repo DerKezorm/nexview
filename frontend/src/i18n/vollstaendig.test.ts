@@ -15,7 +15,9 @@
 
 import { describe, expect, it } from 'vitest'
 
+import deDownloads from './de.downloads.json'
 import de from './de.json'
+import enDownloads from './en.downloads.json'
 import en from './en.json'
 
 /** Alle Blattpfade eines verschachtelten Objekts, z. B. `settings.mail.title`. */
@@ -60,5 +62,25 @@ describe('Sprachdateien', () => {
         .map((pfad) => `${sprache}: ${pfad}`)
 
     expect([...leer(de, 'de'), ...leer(en, 'en')]).toEqual([])
+  })
+})
+
+describe('Nachgelieferte Texte der Seite Downloads', () => {
+  // ⚠️ Sie kommen erst mit der Seite (`i18n/downloads.ts`). Der Vergleich oben
+  // sieht sie deshalb nicht, und ein Loch in einer Sprache fiele erst auf, wenn
+  // jemand die Seite auf Englisch öffnet.
+  const deutschNach = new Set(pfade(deDownloads))
+  const englischNach = new Set(pfade(enDownloads))
+
+  it('kennen beide dieselben Einträge', () => {
+    expect([...deutschNach].filter((p) => !englischNach.has(p)).sort()).toEqual([])
+    expect([...englischNach].filter((p) => !deutschNach.has(p)).sort()).toEqual([])
+    expect(deutschNach.size).toBeGreaterThan(80)
+  })
+
+  it('stehen nicht noch einmal im Grundpaket', () => {
+    // Sonst trüge jeder Besucher sie doch wieder mit.
+    expect(Object.keys(de)).not.toContain('downloads')
+    expect(Object.keys(en)).not.toContain('downloads')
   })
 })

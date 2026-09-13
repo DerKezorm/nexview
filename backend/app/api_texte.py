@@ -42,6 +42,89 @@ from fastapi.routing import APIRoute
 #: verstaendlich sein. Die Beschreibung darf Markdown enthalten und mehrere
 #: Absaetze haben - sie ist das, was jemand liest, bevor er etwas anbindet.
 TEXTE: dict[str, tuple[str, str]] = {
+    # --- Downloads ---------------------------------------------------------
+    'GET /api/admin/downloads': (
+        'List stuck and running downloads',
+        (
+            'Administrators only. Asks every Radarr and Sonarr instance for its '
+            'queue (a result at most 15 seconds old is reused) and returns the '
+            'downloads that are stuck, each with the reason Nexview recognised, '
+            'the original messages of the instance, the actions that make sense '
+            'and the requests it belongs to. A download counts as stuck after it '
+            'has been disturbed for a while without changing. Everything else in '
+            'the queues is listed as running; a disturbed download that is not '
+            'stuck yet carries its reason in "beobachtet". Instances that did '
+            'not answer are listed with an error code.'
+        ),
+    ),
+    'POST /api/admin/downloads/{haenger_id}/entfernen': (
+        'Remove a stuck download',
+        (
+            'Administrators only. Reads the queue again, then removes the download '
+            'from the queue and from the download client, including its data. With '
+            '"neu_suchen" the release is blocklisted and Nexview starts a new '
+            'search itself; the instance is told to skip its own redownload, so '
+            'the search happens once. Answers 409 with download_gone when the '
+            'instance no longer lists the download, and the stored entry is '
+            'dropped.'
+        ),
+    ),
+    'POST /api/admin/downloads/{haenger_id}/erneut': (
+        'Let the instance check a download again',
+        (
+            'Administrators only. Sends RefreshMonitoredDownloads to the instance, '
+            'which looks at finished and blocked downloads again and imports them '
+            'when the cause is gone, for example after an archive was extracted '
+            'or a remote path mapping was added.'
+        ),
+    ),
+    'GET /api/admin/downloads/{haenger_id}/dateien': (
+        'Files of a stuck download',
+        (
+            'Administrators only. What a manual import would do with the files of '
+            'this download, as the instance sees them right now: the matched '
+            'title and episodes, quality, languages and every rejection with its '
+            'original text and whether it is permanent.'
+        ),
+    ),
+    'POST /api/admin/downloads/{haenger_id}/importieren': (
+        'Import files of a stuck download',
+        (
+            'Administrators only. Imports the chosen files with the mapping the '
+            'instance proposes; the request only names paths. A file the instance '
+            'cannot map is refused. A file with a permanent rejection is only '
+            'imported with "trotzdem" set, because the instance does not check '
+            'rejections again during a manual import. Waits up to 20 seconds for '
+            'the command and reports its status.'
+        ),
+    ),
+    'GET /api/admin/downloads/automatik': (
+        'Read the download automation',
+        (
+            'Administrators only. Whether the automation is switched on and, for '
+            'every reason that allows it, the configured action and the allowed '
+            'actions. Also the limits: automatic actions per title within the '
+            'window, and how often a title has to get stuck within a week before '
+            'administrators are notified.'
+        ),
+    ),
+    'PUT /api/admin/downloads/automatik': (
+        'Change the download automation',
+        (
+            'Administrators only. Switches the automation on or off and sets one '
+            'action per reason; a missing or empty action leaves that reason '
+            'alone. An action the reason does not allow is refused with 422. A '
+            'manual import is never allowed as an automatic action.'
+        ),
+    ),
+    'GET /api/admin/downloads/verlauf': (
+        'History of stuck downloads',
+        (
+            'Administrators only. Newest first: when a download was recognised as '
+            'stuck, what was done about it by hand or by the automation, who did '
+            'it, and whether it worked. Entries are kept for 90 days.'
+        ),
+    ),
     # --- Hausordnung -------------------------------------------------------
     'GET /api/hausordnung': (
         'Read the house rules',

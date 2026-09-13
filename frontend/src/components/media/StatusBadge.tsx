@@ -33,10 +33,24 @@ type StatusBadgeProps = {
   status: MediaStatus
   /** „Lädt gerade“-Prozent aus der Warteschlange – nur bei `searching` gezeigt. */
   fortschritt?: number | null
+  /**
+   * „Import hängt“: der Grund, solange ein Download zu dieser Anfrage
+   * festsitzt. Nur bei `searching`, und nur in der Liste der Entscheider
+   * gesetzt.
+   */
+  importHaengt?: string | null
   className?: string
 }
 
-export function StatusBadge({ status, fortschritt = null, className = '' }: StatusBadgeProps) {
+/** Warnfarbe wie „zurückgestellt“: Es wartet auf jemanden. */
+const HAENGT = 'bg-warn-500/20 text-warn-500 ring-warn-500/40'
+
+export function StatusBadge({
+  status,
+  fortschritt = null,
+  importHaengt = null,
+  className = '',
+}: StatusBadgeProps) {
   const { t } = useTranslation()
 
   // Das Wort wechselt, der Zustand nicht: „lädt“ ist „wird gesucht“ mit
@@ -45,20 +59,25 @@ export function StatusBadge({ status, fortschritt = null, className = '' }: Stat
   // gerade ehrlicher.
   const laedt =
     status === 'searching' && fortschritt !== null && fortschritt !== undefined
+  // Ein fertig geladener Download, der nicht importiert wird, stand hier
+  // bisher als „Lädt · 100 %“ da. Das war die bequemste Lüge auf der Seite.
+  const haengt = status === 'searching' && Boolean(importHaengt)
 
   return (
     <span
       className={
         'inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] ' +
         'font-semibold whitespace-nowrap ring-1 backdrop-blur-sm ' +
-        TONES[status] +
+        (haengt ? HAENGT : TONES[status]) +
         ' ' +
         className
       }
     >
-      {laedt
-        ? t('status.downloading', { prozent: fortschritt })
-        : t(`status.${status}`)}
+      {haengt
+        ? t('status.importHaengt')
+        : laedt
+          ? t('status.downloading', { prozent: fortschritt })
+          : t(`status.${status}`)}
     </span>
   )
 }

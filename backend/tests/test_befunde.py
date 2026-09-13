@@ -18,6 +18,7 @@ from app.db import SessionLocal
 from app.models import (
     ArrGesundheit,
     ArrWebhook,
+    DownloadHaenger,
     InstanzStand,
     MediaRequest,
     MediaType,
@@ -524,15 +525,25 @@ def test_zwei_echte_platten_geben_zwei_befunde(arr_client: TestClient) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _haenger(kennung: str, download_id: str = "d1", *, haengt: bool = True) -> None:
+    """Ein gestoerter Download - ``haengt=False`` heisst: wird noch beobachtet."""
+    with SessionLocal() as session:
+        session.add(
+            DownloadHaenger(
+                kennung=kennung,
+                download_id=download_id,
+                media_type="movie" if kennung.startswith("radarr") else "tv",
+                grund="sample",
+                haengt_seit=_jetzt() - timedelta(minutes=3) if haengt else None,
+            )
+        )
+        session.commit()
+
+
 def test_haengender_import_wird_gemeldet(arr_client: TestClient) -> None:
-    _stand(
-        "radarr-standard",
-        messwerte={"warteschlange": {"gesamt": 5, "eingriff": 2}},
-    )
-    _stand(
-        "sonarr-standard",
-        messwerte={"warteschlange": {"gesamt": 3, "eingriff": 1}},
-    )
+    _haenger("radarr-standard", "d1")
+    _haenger("radarr-standard", "d2")
+    _haenger("sonarr-standard", "d3")
 
     treffer = _sammeln("nachschub.eingriff_noetig")
     assert len(treffer) == 1
@@ -540,13 +551,19 @@ def test_haengender_import_wird_gemeldet(arr_client: TestClient) -> None:
     # sehen und nicht drei Zeilen.
     assert treffer[0].werte["anzahl"] == 3
     assert treffer[0].schwere is befunde.Schwere.fehler
+    # Dorthin, wo Grund und Knoepfe stehen - nicht auf alle suchenden Anfragen.
+    assert treffer[0].ziel == "/admin/downloads"
 
 
-def test_laufende_warteschlange_schweigt(arr_client: TestClient) -> None:
-    _stand(
-        "radarr-standard",
-        messwerte={"warteschlange": {"gesamt": 12, "eingriff": 0}},
-    )
+def test_ein_beobachteter_download_schweigt(arr_client: TestClient) -> None:
+    """Gestoert, aber noch nicht lange genug - das erledigt sich meist von selbst."""
+    _haenger("radarr-standard", haengt=False)
+    assert _sammeln("nachschub.eingriff_noetig") == []
+
+
+def test_eine_entfernte_instanz_zaehlt_nicht_mehr(arr_client: TestClient) -> None:
+    """Die Testumgebung richtet keine 4K-Instanz ein - ihre Zeilen sind Reste."""
+    _haenger("radarr-uhd")
     assert _sammeln("nachschub.eingriff_noetig") == []
 
 
@@ -900,6 +917,7 @@ def _alles_ausloesen() -> None:
     _posten(verwaltet=False, zustand=StorageState.owned, schluessel="movie:waechter")
 
     _abgleich_stand()
+    _haenger("radarr-standard")
     _stand("sonarr-standard", erreichbar=False, seit_minuten=120)
     _gesundheit("radarr-standard", [{"typ": "error", "text": "Etwas ging schief"}])
     _rueckkanal("radarr-standard", aktiv=True, fehler="unreachable")
@@ -914,7 +932,7 @@ def _alles_ausloesen() -> None:
             "traeger": [
                 {"gesamt": 100, "frei": 2, "ordner": ["/x"], "belegt_anteil": 0.98}
             ],
-            "warteschlange": {"gesamt": 3, "eingriff": 1},
+            "warteschlange": {"gesamt": 3},
             "aktualisierung": {"version": "9.9.9"},
         },
     )

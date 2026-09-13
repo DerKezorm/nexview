@@ -21,6 +21,7 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
+import { downloadsNachziehen } from './downloads'
 import { wasNeuNachziehen } from './wasneu'
 
 export const SUPPORTED_LANGUAGES = ['de', 'en'] as const
@@ -79,6 +80,7 @@ export async function changeLanguage(language: Language): Promise<void> {
   // Wechsel nicht als rohe Schluessel vorfinden. Der Aufruf ist billig:
   // Er tut nichts, solange sie noch niemand gebraucht hat.
   await wasNeuNachziehen(language)
+  await downloadsNachziehen(language)
   document.documentElement.lang = language
   await i18n.changeLanguage(language)
 }

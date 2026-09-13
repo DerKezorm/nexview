@@ -22,8 +22,10 @@
 
 import { describe, expect, it } from 'vitest'
 
+import deDownloads from './de.downloads.json'
 import de from './de.json'
 import deWasNeu from './de.wasneu.json'
+import enDownloads from './en.downloads.json'
 import en from './en.json'
 import enWasNeu from './en.wasneu.json'
 
@@ -55,9 +57,14 @@ function kennt(menge: Set<string>, schluessel: string): boolean {
    eigenen Datei, die `i18n/wasneu.ts` später tief in denselben Namensraum hängt.
    Wer hier nur `de.json` prüft, hält jeden dieser Schlüssel fälschlich für
    fehlend; wer nur die eine Datei prüft, sieht den Rest nicht. Geprüft wird
-   deshalb, was am Ende im Namensraum steht. */
-const deutsch = new Set(knoten({ ...de, whatsNew: { ...de.whatsNew, ...deWasNeu.whatsNew } }))
-const englisch = new Set(knoten({ ...en, whatsNew: { ...en.whatsNew, ...enWasNeu.whatsNew } }))
+   deshalb, was am Ende im Namensraum steht. Dasselbe gilt für die Texte der
+   Seite Downloads (`i18n/downloads.ts`), die unter `downloads` einhängen. */
+const deutsch = new Set(
+  knoten({ ...de, whatsNew: { ...de.whatsNew, ...deWasNeu.whatsNew }, ...deDownloads }),
+)
+const englisch = new Set(
+  knoten({ ...en, whatsNew: { ...en.whatsNew, ...enWasNeu.whatsNew }, ...enDownloads }),
+)
 
 const DATEIEN = import.meta.glob('../**/*.{ts,tsx}', {
   query: '?raw',

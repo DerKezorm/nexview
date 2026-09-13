@@ -33,6 +33,7 @@
     "profile": "Profile",
     "myRequests": "My requests",
     "allRequests": "All requests",
+    "downloads": "Downloads",
     "stats": "Statistics & analysis",
     "users": "Users",
     "settings": "Settings",
@@ -840,6 +841,7 @@
     }
   },
   "adminRequests": {
+    "importHaengtLink": "Why the import is stuck and what helps: see Downloads",
     "intro": "Every request from every user – approve or reject them here.",
     "filterAll": "All",
     "noPending": "Nothing is waiting for your approval.",
@@ -1251,6 +1253,8 @@
     "requestFulfilled": "A title you were waiting for has arrived",
     "storageGrew": "A title now takes up more space",
     "instanceHealth": "Radarr/Sonarr reports a problem",
+    "downloadStuck": "A download keeps getting stuck",
+    "downloadAutomationGaveUp": "The automation cannot get a download moving",
     "storageReleaseRequested": "Someone handed a title back",
     "storageDeleted": "A title has been deleted",
     "storageKept": "A title stays, but stops downloading",
@@ -1409,6 +1413,7 @@
     "requested": "Requested",
     "searching": "Searching",
     "downloading": "Downloading · {{prozent}} %",
+    "importHaengt": "Import stuck",
     "downloaded": "Already downloaded",
     "in_library": "In library",
     "rejected": "Rejected",
@@ -1867,6 +1872,15 @@
     "tooManyAttemptsMinutes_one": "Too many failed attempts. Please try again in a minute — it opens again by itself.",
     "tooManyAttemptsMinutes_other": "Too many failed attempts. Please try again in {{count}} minutes — it opens again by itself.",
     "byCode": {
+      "download_not_found": "This stuck download no longer exists. The page reloads.",
+      "download_gone": "“{{titel}}” is no longer in the queue. It may already have been dealt with in Radarr or Sonarr.",
+      "download_not_removable": "Radarr or Sonarr lists nothing for this download that could be removed.",
+      "download_import_not_possible": "This download has not reached the download client yet. A manual import is only possible after that.",
+      "download_import_nothing_selected": "No file is selected.",
+      "download_import_unknown_file": "“{{datei}}” no longer belongs to this download. The list reloads.",
+      "download_import_unmapped": "Radarr or Sonarr cannot match “{{datei}}” to a title. You can set the match in its manual import.",
+      "download_import_needs_confirmation": "Radarr or Sonarr objects to “{{datei}}”. It is only imported if you confirm that explicitly.",
+      "download_automation_not_allowed": "The automation may not take this action for this reason.",
       "account_disabled": "This account is switched off.",
       "calendar_range_too_long": "The range may cover at most {{days}} days.",
       "channel_event_unknown": "Nexview does not know this kind of message: {{event}}",
@@ -2567,7 +2581,7 @@
     "onStorageRelease": "Storage hand-backs",
     "onStorageReleaseHint": "Reports when someone hands a title back and when it has been decided. Only the title is named – who handed it back stays out of the postbox.",
     "onInstanceHealth": "Instance problems",
-    "onInstanceHealthHint": "Reports when Radarr or Sonarr themselves report a problem – a failed download client or indexer, say. All requests hang then, and that should not stay quiet.",
+    "onInstanceHealthHint": "Reports when Radarr or Sonarr themselves report a problem – a failed download client or indexer, say. All requests hang then, and that should not stay quiet. Also titles whose download keeps getting stuck.",
     "deleteTitle": "Remove target",
     "confirmDeleteWarning": "No more messages will go there.",
     "callbacks": "Callbacks",
@@ -3429,8 +3443,8 @@
       "eingriff_noetig": {
         "titel_one": "One download is stuck",
         "titel_other": "{{count}} downloads are stuck",
-        "folge_one": "It has finished downloading but the import is stuck. To whoever asked for it, it still looks like “downloading”. Usually a path or a permission is wrong.",
-        "folge_other": "They have finished downloading but the import is stuck. To whoever asked for them, it still looks like “downloading”. Usually a path or a permission is wrong."
+        "folge_one": "It will not move on without a hand. To whoever asked for it, it still looks like “downloading”. Downloads shows what is wrong and what helps.",
+        "folge_other": "They will not move on without a hand. To whoever asked for them, it still looks like “downloading”. Downloads shows for each one what is wrong and what helps."
       }
     },
     "bibliothek": {

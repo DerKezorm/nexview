@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { DashboardStand, QuotaOverview, Role } from '../api/types'
 import { useAuth } from '../auth/useAuth'
+import { useConfig } from '../hooks/useConfig'
 import { useStorageStand } from '../hooks/useStorageStand'
 import { formatSize } from '../lib/format'
 import { Avatar } from './Avatar'
@@ -96,6 +97,16 @@ export function UserMenu() {
 
   const speicher = useStorageStand(open)
 
+  // Die Seite Downloads gibt es nur, wenn es eine Warteschlange gibt: ohne
+  // Radarr oder Sonarr wäre sie ein Menüpunkt ohne Inhalt.
+  const { data: config } = useConfig()
+  const mitWarteschlange = Boolean(
+    config?.radarr_configured ||
+      config?.sonarr_configured ||
+      config?.radarr_uhd_configured ||
+      config?.sonarr_uhd_configured,
+  )
+
   // Nach einem Seitenwechsel schließen.
   useEffect(() => setOpen(false), [location.pathname])
 
@@ -147,12 +158,20 @@ export function UserMenu() {
         adminOnly: true,
         badge: fehler || undefined,
       },
+      {
+        to: '/admin/downloads',
+        labelKey: 'nav.downloads',
+        adminOnly: true,
+        wenn: mitWarteschlange,
+      },
       { to: '/admin/stats', labelKey: 'nav.stats', adminOnly: true },
       { to: '/admin/settings', labelKey: 'nav.settings', adminOnly: true },
     ] as MenuEntry[]
   ).filter((entry) => {
-    if (entry.adminOnly) return isAdmin
-    if (entry.approverOnly) return canApprove
+    // Rolle und Bedingung gelten zusammen: Die Seite Downloads ist für
+    // Administratoren **und** nur mit einer Warteschlange.
+    if (entry.adminOnly && !isAdmin) return false
+    if (entry.approverOnly && !canApprove) return false
     if (entry.wenn !== undefined) return entry.wenn
     return true
   })

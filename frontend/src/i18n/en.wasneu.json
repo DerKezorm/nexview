@@ -457,6 +457,33 @@
           "Opening the dashboard in two tabs at once no longer writes an error to the log.",
           "Five checkboxes show the Nexview accent instead of the browser's blue."
         ]
+      },
+      "0.33.0": {
+        "lead": "Quality profiles now keep the wizard's promises: “Satisfied early” really stops, “As recommended” follows the ranking of the TRaSH Guides, and a new state of the guides reaches Radarr and Sonarr even when only detection rules change.",
+        "sections": [
+          {
+            "title": "New TRaSH rules reach your instances",
+            "where": "Settings, Services, Quality profiles, Profiles",
+            "body": "Until now a new state only arrived where scores changed. Changed detection rules stayed behind, and every profile showed “Up to date”. Nexview now compares the rules of the custom formats too, shows outdated ones as “Update available”, and “Write again” brings them up to date. A custom format applies to every profile on its instance. That is why Nexview only replaces formats whose rules exactly match a TRaSH state it knows; anything changed by hand or by another tool stays and is named."
+          },
+          {
+            "title": "“When is a film good enough?” takes effect",
+            "where": "In the profile wizard, Details",
+            "body": "The answer used to be stored and never read. “Satisfied early” now ends upgrades once the target resolution and the required language are there. Radarr then no longer waits for an even better source, but it still swaps a smaller resolution for the target resolution."
+          },
+          {
+            "title": "“As recommended” follows the ranking of the TRaSH Guides",
+            "where": "Profiles without German, after writing them again",
+            "body": "Profiles without German used to put every quality into one group. To Radarr a WEB release was then worth as much as the Blu-ray the guides rank above it, and nothing was swapped. The guides' ranking and target now apply. “Take what is there now” puts smaller resolutions below the target, as the guides' alternative profiles do, so the swap to the target resolution really happens later. German profiles stay one group, which is how the guides define them."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Profiles written by an earlier version show “Update available” after the update. Nothing changes in Radarr or Sonarr until you write them again.",
+          "Nexview took its own language formats for foreign ones and warned about different rules after writing, because Radarr adds a field when reading them back.",
+          "In Sonarr profiles with remux, the smaller resolution is now a remux as well instead of an ordinary Blu-ray encode.",
+          "The notice about a newer state of the guides disappears on fetching instead of staying until the next daily check."
+        ]
       }
     }
   }

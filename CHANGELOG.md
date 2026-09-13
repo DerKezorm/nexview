@@ -12,6 +12,47 @@ tag exists for it.
 
 ---
 
+## 0.33.0 – 13.09.2026
+
+Quality profiles now do what the wizard says: "Satisfied early" really stops,
+"As recommended" follows the ranking of the TRaSH Guides, and a new state of the
+guides reaches Radarr and Sonarr even when only detection rules change.
+
+### New
+
+- **New TRaSH rules reach your instances.** Until now a new state only arrived
+  where scores changed. Changed detection rules stayed behind, and every
+  profile showed "Up to date". *Settings → Services → Quality profiles* now
+  compares the rules of each custom format too, shows outdated ones as "Update
+  available", and *Write again* brings them up to date. A custom format applies
+  to every profile on its instance, so Nexview only replaces formats whose rules
+  exactly match a TRaSH state it knows. Anything changed by hand or by another
+  tool stays and is named.
+
+### Changed
+
+- **"As recommended" follows the ranking of the TRaSH Guides.** Profiles without
+  German put every quality into one group, so a WEB release was never replaced
+  by the Blu-ray the guides rank above it. They now keep the guides' order and
+  cutoff. German profiles stay one group, as the guides define them.
+- **"Take what is there now" upgrades to the target resolution in every
+  profile.** Without German, smaller resolutions sat in the target's group and,
+  with no resolution scores in those profiles, were never replaced. They now
+  rank below the target, as in the guides' alternative profiles. In Sonarr remux
+  profiles the smaller fallback is a remux as well.
+- Profiles written by an earlier version show "Update available" after the
+  update. Nothing changes in Radarr or Sonarr until you write them again.
+
+### Fixed
+
+- **"When is a film good enough?" had no effect.** "Satisfied early" now stops
+  upgrades once the target resolution and the required language are there.
+- **Nexview took its own language formats for foreign ones** and warned about
+  different rules after writing, because Radarr adds a field when reading them
+  back.
+- **The notice about a newer state of the guides stayed** after fetching it,
+  until the next daily check.
+
 ## 0.32.0 – 13.09.2026
 
 Invitations now bring people all the way in, media server access included, and

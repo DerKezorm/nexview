@@ -457,6 +457,33 @@
           "Wer das Dashboard in zwei Tabs zugleich öffnet, bekommt keinen Fehler mehr ins Protokoll.",
           "Fünf Häkchen zeigen die Nexview-Farbe statt des Browser-Blaus."
         ]
+      },
+      "0.33.0": {
+        "lead": "Die Qualitätsprofile halten jetzt, was der Assistent verspricht: „Früh zufrieden“ hört wirklich auf, „Nach Empfehlung“ folgt der Rangfolge der TRaSH-Guides, und ein neuer Stand der Guides kommt auch dann in Radarr und Sonarr an, wenn sich nur Erkennungsregeln ändern.",
+        "sections": [
+          {
+            "title": "Neue TRaSH-Regeln kommen auf deinen Instanzen an",
+            "where": "Einstellungen, Dienste, Qualitätsprofile, Profile",
+            "body": "Bisher kam ein neuer Stand nur an, wo sich Punkte änderten. Geänderte Erkennungsregeln blieben liegen, und jedes Profil zeigte „Aktuell“. Jetzt vergleicht Nexview auch die Regeln der Erkennungsmuster, zeigt veraltete als „Update verfügbar“, und „Neu schreiben“ bringt sie auf den neuen Stand. Ein Muster gilt in Radarr für alle Profile der Instanz. Deshalb ersetzt Nexview nur Muster, deren Regeln genau einem TRaSH-Stand entsprechen, den es kennt; was jemand von Hand oder mit einem anderen Werkzeug geändert hat, bleibt stehen und wird genannt."
+          },
+          {
+            "title": "„Wann ist ein Film gut genug?“ wirkt",
+            "where": "Im Profil-Assistenten, Feinheiten",
+            "body": "Die Antwort wurde bisher gespeichert, aber nie ausgewertet. „Früh zufrieden“ beendet die Upgrades jetzt, sobald die Zielauflösung und die Pflichtsprache da sind. Auf eine noch bessere Quelle wartet Radarr dann nicht mehr, eine kleinere Auflösung tauscht es aber weiter gegen die Zielauflösung."
+          },
+          {
+            "title": "„Nach Empfehlung“ folgt der Rangfolge der TRaSH-Guides",
+            "where": "Profile ohne Deutsch, nach dem Neuschreiben",
+            "body": "Profile ohne Deutsch legten bisher alle Qualitäten in eine Gruppe. Für Radarr war eine WEB-Fassung damit so viel wert wie die Blu-ray, die die Guides darüber einordnen, und getauscht wurde nicht. Jetzt gelten Rangfolge und Ziel der Guides. „Erst nehmen, was da ist“ stellt kleinere Auflösungen unter das Ziel, wie die Alternative-Profile der Guides, damit später wirklich gegen die Zielauflösung getauscht wird. Deutsche Profile bleiben eine Gruppe, so sehen die Guides sie vor."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Profile, die eine frühere Fassung geschrieben hat, zeigen nach dem Update „Update verfügbar“. In Radarr und Sonarr ändert sich erst etwas, wenn du sie neu schreibst.",
+          "Nexview hielt seine eigenen Sprachmuster für fremd und warnte nach dem Schreiben vor anderen Regeln, weil Radarr beim Zurücklesen ein Feld anhängt.",
+          "In Sonarr-Profilen mit Remux ist die kleinere Auflösung jetzt ebenfalls ein Remux statt einer gewöhnlichen Blu-ray-Kopie.",
+          "Der Hinweis auf einen neueren Stand der Guides verschwindet mit dem Holen, statt bis zum nächsten täglichen Nachsehen stehen zu bleiben."
+        ]
       }
     }
   }

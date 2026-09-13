@@ -12,9 +12,75 @@ tag exists for it.
 
 ---
 
-## 0.31.2 – unreleased
+## 0.32.0 – 13.09.2026
+
+Invitations now bring people all the way in, media server access included, and
+downloads that get stuck in Radarr or Sonarr get a page that says why and what
+helps.
+
+### New
+
+- **Invite someone with a wizard.** *Settings → Users → Invite someone* asks for
+  the e-mail address, what the person gets access to, their role, quotas, 4K
+  and whether they see the house rules. Every switch is checked against the
+  rules of the installation while you set it; a locked one says why. The link
+  goes to that address, is valid for seven days and works once. The wizard also
+  shows it right away, so you can pass it on yourself, by messenger for example.
+- **Invitations create access on Jellyfin and Emby and share Plex libraries.**
+  Pick one or more media servers and their libraries in the wizard. On
+  redemption, Nexview creates the Jellyfin and Emby accounts with the name and
+  password the person chooses and only the libraries you picked, then checks
+  what the new account really sees and locks it if that differs. For Plex, the
+  person signs in with their own Plex account and gets the chosen libraries
+  shared. If a server fails, the invitation stays open and the next attempt
+  picks up where it stopped; a missing Plex share can be sent again with one
+  click in the list of invitations.
+- **A guided onboarding for invited people.** The link opens a few steps: what
+  is included, name and password, the Plex sign-in if Plex was chosen, and the
+  house rules. Whatever no longer applies on redemption, because the setup
+  changed in the meantime, is left out, and the administrator is told.
+- **Stuck downloads get their own page.** *User menu → Downloads*, for
+  administrators, lists every download that Radarr or Sonarr cannot import or
+  that has stalled, with the reason in plain words, from a missing remote path
+  mapping to an archive that still needs unpacking, and the buttons that fit:
+  check again, import manually, remove, or remove, block and search again. What
+  is still downloading is listed below. It all goes through Radarr and Sonarr,
+  so every download client they use is covered without further credentials.
+- **An optional automation for recurring download problems.** Off by default.
+  For reasons where another release helps, Nexview removes the download, blocks
+  the release and searches again, at most twice a day per movie or episode, and
+  notifies you when a title keeps getting stuck. Every automatic step is listed
+  on the page.
+- **Deleting an account can take its media server access along.** The delete
+  dialog lists the person's Jellyfin and Emby accounts and their Plex share.
+  Only what a Nexview invitation created is preselected. On Plex only the share
+  of this server is removed; the friendship stays. An account that manages a
+  server is never deleted, and if a server fails, nothing is deleted at all.
+
+### Changed
+
+- **The account dialog asks the same rules as the invite wizard.** A switch that
+  has no effect for the account's role or the setup is locked and says why,
+  instead of being saved and quietly ignored.
 
 ### Fixed
+
+- **The last administrator could be demoted to approver**, which left the
+  installation without an administrator. That is refused now, as demoting to
+  user already was.
+- **An open invitation lost against automatic account creation.** With accounts
+  created automatically on sign-in through a media server or OIDC, a person
+  with an open invitation who signed in that way got a plain account without
+  the invitation's role and quotas. The invitation now takes precedence; through
+  OIDC only when the provider confirms the address.
+- **Expired links are cleaned up again.** The clean-up for used and expired
+  invitation, verification and password links existed but was never started.
+  It now runs at start and once a day.
+- **Opening the dashboard in two tabs at once logged an error.** Both requests
+  tried to store the same "seen" entry; the second failed with HTTP 500 and a
+  traceback in the log. Marking findings as seen is safe against that now.
+- **Five checkboxes showed the browser's blue** instead of the Nexview accent:
+  delete account, API token and three OIDC options.
 
 - **An approver who is not an administrator could only approve into the
   default folder.** With "the approver picks when approving" set, the approval

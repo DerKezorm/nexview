@@ -412,6 +412,51 @@
         "small": [
           "Chrome mahnt die Meta-Zeile für den Home-Bildschirm nicht mehr als veraltet an. Die Seite trägt jetzt beide Schreibweisen; die alte bleibt für Safari."
         ]
+      },
+      "0.32.0": {
+        "lead": "Einladen heißt jetzt: Die Person bekommt einen Link, und am Ende hat sie ein Nexview-Konto und, wenn du willst, ihren Zugang zu Jellyfin, Emby oder Plex. Dazu bekommen Downloads, die in Radarr oder Sonarr hängen bleiben, eine eigene Seite, die sagt, warum, und was hilft.",
+        "sections": [
+          {
+            "title": "Einladen mit Assistent",
+            "where": "Einstellungen, Benutzer, „Nutzer einladen“",
+            "body": "Der Assistent fragt nacheinander: Mailadresse, wozu die Person Zugang bekommt, Rolle, Kontingente, 4K und ob sie die Hausordnung sieht. Jede Einstellung prüft er beim Setzen gegen die Regeln des Hauses; was nicht geht, ist gesperrt und sagt, warum. Der Link geht an die Adresse, gilt sieben Tage und funktioniert einmal. Er steht außerdem gleich im Assistenten, falls du ihn lieber selbst weitergibst, etwa per Messenger."
+          },
+          {
+            "title": "Der Zugang zu Jellyfin, Emby und Plex kommt gleich mit",
+            "where": "Im Assistenten, „Nexview und Medienserver“",
+            "body": "Wähle einen oder mehrere Medienserver und je Server die Bibliotheken. Beim Einlösen legt Nexview die Konten auf Jellyfin und Emby mit dem Namen und dem Passwort an, die die Person wählt, und nur mit den gewählten Bibliotheken. Danach sieht Nexview nach, was das neue Konto wirklich sieht, und sperrt es, wenn das nicht passt. Bei Plex meldet sich die Person mit ihrem eigenen Plex-Konto an und bekommt die Bibliotheken freigegeben. Scheitert ein Server, bleibt die Einladung offen, und der nächste Versuch macht dort weiter. Eine fehlende Plex-Freigabe holst du in der Liste der Einladungen mit einem Klick nach."
+          },
+          {
+            "title": "Einlösen in wenigen Schritten",
+            "where": "Der Link aus der Einladung",
+            "body": "Die Person sieht zuerst, was sie bekommt, wählt dann Namen und Passwort, verknüpft Plex, falls Plex dabei ist, und liest die Hausordnung. Was beim Einlösen nicht mehr geht, weil sich die Einrichtung inzwischen geändert hat, entfällt, und du erfährst es."
+          },
+          {
+            "title": "Hängende Downloads bekommen eine eigene Seite",
+            "where": "Menü unter deinem Namen, Downloads",
+            "body": "Die Seite zeigt jeden Download, den Radarr oder Sonarr nicht importieren können oder der stehen geblieben ist, mit dem Grund in klaren Worten, von der fehlenden Pfadzuordnung bis zum Archiv, das erst entpackt werden muss. Dazu die Knöpfe, die passen: erneut prüfen, von Hand importieren, entfernen oder entfernen, sperren und neu suchen. Darunter steht, was gerade noch lädt. Alles läuft über Radarr und Sonarr, also sind alle Download-Programme dabei, die die beiden benutzen, ohne weitere Zugangsdaten. Die Seite sehen nur Administratoren."
+          },
+          {
+            "title": "Eine Automatik für wiederkehrende Probleme",
+            "where": "Downloads, Abschnitt „Automatik“",
+            "body": "Ab Werk aus. Eingeschaltet entfernt Nexview bei Gründen, bei denen ein anderes Release hilft, den Download, sperrt das Release und sucht neu, höchstens zweimal am Tag je Film oder Folge. Bleibt ein Titel immer wieder hängen, bekommst du eine Meldung. Jeder automatische Schritt steht auf der Seite."
+          },
+          {
+            "title": "Beim Löschen geht der Zugang auf den Medienservern mit",
+            "where": "Einstellungen, Benutzer, Bearbeiten, Löschen",
+            "body": "Der Löschdialog zeigt die Konten der Person auf Jellyfin und Emby und ihre Plex-Freigabe. Vorausgewählt ist nur, was eine Nexview-Einladung angelegt hat. Bei Plex wird nur die Freigabe dieses Servers entfernt, die Freundschaft bleibt. Ein Konto, das einen Server verwaltet, löscht Nexview nie, und scheitert ein Server, wird gar nichts gelöscht."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Der Kontodialog fragt dieselben Regeln wie der Einladungsassistent. Ein Haken, der für die Rolle oder die Einrichtung nichts bewirkt, ist gesperrt und sagt, warum.",
+          "Entscheider wählen beim Freigeben Zielordner und Qualitätsprofil so frei wie Administratoren und sehen beim Anfragen den 4K-Schalter.",
+          "Der letzte Administrator lässt sich nicht mehr zum Entscheider herabstufen.",
+          "Eine offene Einladung geht vor, wenn sich die Person über einen Medienserver oder OIDC anmeldet, während Konten dabei automatisch entstehen.",
+          "Abgelaufene Links werden wieder aufgeräumt, beim Start und einmal am Tag.",
+          "Wer das Dashboard in zwei Tabs zugleich öffnet, bekommt keinen Fehler mehr ins Protokoll.",
+          "Fünf Häkchen zeigen die Nexview-Farbe statt des Browser-Blaus."
+        ]
       }
     }
   }

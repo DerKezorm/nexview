@@ -412,6 +412,51 @@
         "small": [
           "Chrome no longer flags the Home Screen meta tag as deprecated. The page now carries both spellings; the old one stays for Safari."
         ]
+      },
+      "0.32.0": {
+        "lead": "Inviting someone now means: the person gets a link, and at the end they have a Nexview account and, if you like, their access to Jellyfin, Emby or Plex. On top of that, downloads that get stuck in Radarr or Sonarr get a page of their own that says why and what helps.",
+        "sections": [
+          {
+            "title": "Invite with a wizard",
+            "where": "Settings, Users, “Invite someone”",
+            "body": "The wizard asks one thing after another: the e-mail address, what the person gets access to, their role, quotas, 4K and whether they see the house rules. It checks every setting against the rules of the installation while you set it; whatever is not possible is locked and says why. The link goes to that address, is valid for seven days and works once. The wizard also shows it right away, in case you would rather pass it on yourself, by messenger for example."
+          },
+          {
+            "title": "Access to Jellyfin, Emby and Plex comes along",
+            "where": "In the wizard, “Nexview and media servers”",
+            "body": "Pick one or more media servers and the libraries on each. On redemption, Nexview creates the Jellyfin and Emby accounts with the name and password the person chooses, and with the chosen libraries only. Afterwards Nexview checks what the new account really sees and locks it if that does not match. For Plex, the person signs in with their own Plex account and gets the libraries shared. If a server fails, the invitation stays open and the next attempt continues there. A missing Plex share is sent again with one click in the list of invitations."
+          },
+          {
+            "title": "Redeeming in a few steps",
+            "where": "The link from the invitation",
+            "body": "The person first sees what they get, then chooses a name and password, links Plex if Plex is included, and reads the house rules. Whatever is no longer possible on redemption, because the setup has changed in the meantime, is left out, and you are told."
+          },
+          {
+            "title": "Stuck downloads get a page of their own",
+            "where": "Menu under your name, Downloads",
+            "body": "The page shows every download that Radarr or Sonarr cannot import or that has stalled, with the reason in plain words, from a missing remote path mapping to an archive that still needs unpacking. Next to it the buttons that fit: check again, import manually, remove, or remove, block and search again. Below, what is still downloading. Everything goes through Radarr and Sonarr, so every download client the two use is covered, without further credentials. Only administrators see the page."
+          },
+          {
+            "title": "An automation for recurring problems",
+            "where": "Downloads, section “Automation”",
+            "body": "Off by default. When turned on, for reasons where another release helps, Nexview removes the download, blocks the release and searches again, at most twice a day per movie or episode. If a title keeps getting stuck, you get a notification. Every automatic step is listed on the page."
+          },
+          {
+            "title": "Deleting an account takes its media server access along",
+            "where": "Settings, Users, Edit, Delete",
+            "body": "The delete dialog shows the person's accounts on Jellyfin and Emby and their Plex share. Only what a Nexview invitation created is preselected. On Plex only the share of this server is removed; the friendship stays. Nexview never deletes an account that manages a server, and if a server fails, nothing is deleted at all."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "The account dialog asks the same rules as the invite wizard. A switch that has no effect for the role or the setup is locked and says why.",
+          "Approvers pick the root folder and quality profile as freely as administrators when approving, and they see the 4K switch when requesting.",
+          "The last administrator can no longer be demoted to approver.",
+          "An open invitation takes precedence when the person signs in through a media server or OIDC while accounts are created automatically on sign-in.",
+          "Expired links are cleaned up again, at start and once a day.",
+          "Opening the dashboard in two tabs at once no longer writes an error to the log.",
+          "Five checkboxes show the Nexview accent instead of the browser's blue."
+        ]
       }
     }
   }

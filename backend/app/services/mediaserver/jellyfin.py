@@ -701,8 +701,10 @@ class JellyfinServer(MediaServer):
     async def _passwort_setzen(self, konto: str, passwort: str) -> None:
         """``POST /Users/Password`` aus der API-Beschreibung von 10.11.11.
 
-        ⚠️ Nicht gemessen: Ein Administrator braucht dort fuer ein fremdes Konto
-        kein altes Passwort (so steht es im ``UserController`` von Jellyfin).
+        Ein Administrator braucht dort fuer ein fremdes Konto kein altes Passwort.
+        Gemessen am 13.09.2026 an 10.11.11 mit API-Schluessel: Das Konto meldet
+        sich danach mit genau diesem Passwort an, auch mit Umlaut, Leerzeichen,
+        Anfuehrungszeichen und Backslash darin, und ein falsches wird abgelehnt.
         """
         await self._anfrage(
             "POST",
@@ -723,6 +725,17 @@ class JellyfinServer(MediaServer):
         anderem ``AuthenticationProviderId`` und ``PasswordResetProviderId``
         (API-Beschreibung 10.11.11). Deshalb erst die vorhandene lesen, dann
         aendern, dann zurueckschreiben.
+
+        ⚠️ **Das ist keine Zugangssperre.** Gemessen am 13.09.2026 an
+        Jellyfin 10.11.11 und Emby 4.9.5.0 mit echten Titeln: Ansichten,
+        Durchblaettern, Listen und Suche zeigen nur die gewaehlten Bibliotheken.
+        An einen Titel aus einer anderen kommt trotzdem, wer seine Kennung
+        kennt. Jellyfin liefert ``/Videos/{id}/stream?static=true`` sogar ohne
+        Anmeldung, Emby oeffnet und spielt ihn jedem angemeldeten Konto, und
+        dort sind die Kennungen fortlaufende Zahlen. Beide tun das auch mit
+        Rechten aus ihrer eigenen Oberflaeche, eine andere Kennung in
+        ``EnabledFolders`` aendert daran nichts. Die Texte der Einladung sagen
+        deshalb "freigeben" und "sieht" und versprechen keine Sperre.
         """
         daten = await self._anfrage("GET", f"/Users/{konto}") or {}
         richtlinie = dict(daten.get("Policy") or {})

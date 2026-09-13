@@ -75,6 +75,11 @@ class EmbyServer(JellyfinServer):
     # ``Guid`` darin sieht genau diese eine Bibliothek. Liegt die Sorte in einer
     # anderen Fassung falsch, sieht das Konto keine, und ``_bibliotheken_pruefen``
     # meldet es und sperrt das Konto, statt es still so zu lassen.
+    # Nachgemessen am 13.09.2026: Mit der ``Id`` sieht das Konto keine
+    # Bibliothek, mit ``Guid`` und ``Id`` zusammen dasselbe wie mit der ``Guid``.
+    # Embys eigene Oberflaeche schreibt ebenfalls die Guid (``accesstab.js``:
+    # ``folder.Guid || folder.Id``). Keine der Sorten sperrt den Abruf eines
+    # Titels per Kennung, siehe ``_richtlinie_schreiben`` in ``jellyfin.py``.
     bibliothek_kennung = "Guid"
 
     async def user_has_server_access(self, provider_token: str) -> bool:

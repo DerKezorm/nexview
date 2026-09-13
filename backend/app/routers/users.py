@@ -39,6 +39,7 @@ from ..services import (
     mediaserver_accounts,
     oidc_accounts,
     quota,
+    serverkonten,
     tokens,
 )
 from ..services import (
@@ -751,6 +752,21 @@ class OffeneZeile(BaseModel):
     season: int | None
 
 
+class ServerKontoZeile(BaseModel):
+    """Ein Zugang auf einem Medienserver, den das Loeschen mitnehmen kann."""
+
+    provider: str
+    label: str
+    konto: str
+    name: str
+    #: ``konto`` wird geloescht, ``freigabe`` wird zurueckgenommen.
+    art: str
+    aus_einladung: bool
+    vorausgewaehlt: bool
+    #: Warum es nicht geht (``serverkonten.GRUENDE``); ``None`` heisst: geht.
+    grund: str | None
+
+
 class AufloesungsVorschau(BaseModel):
     """Was das Konto hinterlaesst - Grundlage fuer den Loesch-Dialog."""
 
@@ -759,12 +775,18 @@ class AufloesungsVorschau(BaseModel):
     # ⚠️ Bis 0.22 nur Titel, und ohne Rueckfrage storniert. Jetzt mit Kennung,
     # damit der Administrator auch hier entscheiden kann.
     offen: list[OffeneZeile]
+    serverkonten: list[ServerKontoZeile] = []
 
 
 class Staffelwahl(BaseModel):
     request_id: int
     behalten: bool
     weiter: bool = False
+
+
+class ServerKontoWahl(BaseModel):
+    provider: str
+    konto: str
 
 
 class Aufloesung(BaseModel):
@@ -776,6 +798,9 @@ class Aufloesung(BaseModel):
     #: Offene Bestellungen, die weiterlaufen sollen - alles andere wird
     #: storniert. Leer heisst: alle stornieren, wie bis 0.21.
     offen_behalten: list[int] = []
+    #: Zugang auf den Medienservern, der **vor** allem anderen entfernt wird.
+    #: Leer heisst: Auf den Servern bleibt alles, wie es ist.
+    serverkonten: list[ServerKontoWahl] = []
 
 
 @router.get("/{user_id}/aufloesung", response_model=AufloesungsVorschau)
@@ -791,10 +816,12 @@ async def aufloesung_vorschau(
     vertagte.
     """
     user = _get_user_or_404(db, user_id)
+    settings = load_settings(db)
     try:
-        stand = await kontoaufloesung.vorschau(db, load_settings(db), user)
+        stand = await kontoaufloesung.vorschau(db, settings, user)
     except ArrError as fehler:
         raise HTTPException(502, fehler.message) from fehler
+    konten = await serverkonten.vorschau(db, settings, user)
     return AufloesungsVorschau(
         posten=[
             AufloesungsPosten(
@@ -823,6 +850,19 @@ async def aufloesung_vorschau(
                 request_id=b.request_id, title=b.title, tier=b.tier, season=b.season
             )
             for b in stand.offen
+        ],
+        serverkonten=[
+            ServerKontoZeile(
+                provider=k.provider,
+                label=k.label,
+                konto=k.konto,
+                name=k.name,
+                art=k.art,
+                aus_einladung=k.aus_einladung,
+                vorausgewaehlt=k.vorausgewaehlt,
+                grund=k.grund,
+            )
+            for k in konten
         ],
     )
 
@@ -856,23 +896,54 @@ async def delete_user(
             ),
         )
 
-    # Erst der hinterlassene Bestand, dann das Konto: Jeder Posten braucht
+    wahl = entscheidungen or Aufloesung()
+    settings = load_settings(db)
+    staffeln = [
+        kontoaufloesung.Staffelentscheidung(
+            request_id=z.request_id, behalten=z.behalten, weiter=z.weiter
+        )
+        for z in wahl.staffeln
+    ]
+
+    # ⚠️ **Zuerst der Zugang auf den Medienservern** (Entscheidung vom
+    # 13.09.2026). Scheitert dort etwas, bleibt das Konto samt Bestand stehen,
+    # und der Administrator versucht es erneut. Ein veralteter Bestand soll nicht
+    # erst nach geloeschtem Serverkonto auffallen; deshalb wird er vorher geprueft.
+    if wahl.serverkonten:
+        try:
+            await kontoaufloesung.pruefen(
+                db,
+                settings,
+                user,
+                haus=set(wahl.haus),
+                loeschen=set(wahl.loeschen),
+                staffeln=staffeln,
+            )
+            await serverkonten.entfernen(
+                db,
+                settings,
+                user,
+                [(w.provider, w.konto) for w in wahl.serverkonten],
+                wer=admin.username,
+            )
+        except kontoaufloesung.Aufloesungsfehler as fehler:
+            raise HTTPException(fehler.status_code, fehler.message) from fehler
+        except serverkonten.ServerKontoFehler as fehler:
+            raise HTTPException(fehler.status_code, fehler.detail) from fehler
+        except ArrError as fehler:
+            raise HTTPException(502, fehler.message) from fehler
+
+    # Dann der hinterlassene Bestand, dann das Konto: Jeder Posten braucht
     # eine Entscheidung, laufende Bestellungen werden storniert - sonst laedt
     # eine ueberwachte Staffel herrenlos weiter (siehe kontoaufloesung).
-    wahl = entscheidungen or Aufloesung()
     try:
         await kontoaufloesung.aufloesen(
             db,
-            load_settings(db),
+            settings,
             user,
             haus=set(wahl.haus),
             loeschen=set(wahl.loeschen),
-            staffeln=[
-                kontoaufloesung.Staffelentscheidung(
-                    request_id=z.request_id, behalten=z.behalten, weiter=z.weiter
-                )
-                for z in wahl.staffeln
-            ],
+            staffeln=staffeln,
             offen_behalten=set(wahl.offen_behalten),
             wer=admin.username,
         )

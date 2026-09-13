@@ -228,6 +228,47 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
     )
 
 
+async def pruefen(
+    db: Session,
+    settings: AppSettings,
+    user: User,
+    *,
+    haus: set[int],
+    loeschen: set[int],
+    staffeln: list[Staffelentscheidung],
+) -> Vorschau:
+    """Passen die Entscheidungen zum Bestand? Geprueft, ohne dass etwas passiert.
+
+    ⚠️ **Jeder Posten braucht eine Entscheidung.** Haus- und Loeschmenge
+    muessen zusammen exakt die Posten des Kontos ergeben. Das faengt auch das
+    Wettrennen ab: Wird zwischen Vorschau und Bestaetigung noch etwas fertig,
+    taucht ein unentschiedener Posten auf, und die Aufloesung wird abgelehnt -
+    der Administrator sieht den neuen Stand und entscheidet erneut.
+
+    Eigens aufrufbar, damit das Loeschen das klaert, **bevor** es auf den
+    Medienservern etwas entfernt (``services/serverkonten``). Kaeme der 409
+    erst danach, stuende das Nexview-Konto ohne seine Serverkonten da.
+    """
+    zustand = await vorschau(db, settings, user)
+
+    ist = {p.id for p in zustand.posten}
+    if haus | loeschen != ist or haus & loeschen:
+        raise Aufloesungsfehler(
+            "Der Bestand hat sich geaendert - bitte die Liste neu laden und "
+            "erneut entscheiden.",
+            409,
+        )
+    entschieden = {e.request_id for e in staffeln}
+    fehlend = [l for l in zustand.laufende if l.request_id not in entschieden]
+    if fehlend:
+        raise Aufloesungsfehler(
+            "Der Bestand hat sich geaendert - bitte die Liste neu laden und "
+            "erneut entscheiden.",
+            409,
+        )
+    return zustand
+
+
 async def aufloesen(
     db: Session,
     settings: AppSettings,
@@ -245,33 +286,13 @@ async def aufloesen(
 ) -> None:
     """Die Entscheidungen ausfuehren - **vor** dem Loeschen des Kontos.
 
-    ⚠️ **Jeder Posten braucht eine Entscheidung.** Haus- und Loeschmenge
-    muessen zusammen exakt die Posten des Kontos ergeben. Das faengt auch das
-    Wettrennen ab: Wird zwischen Vorschau und Bestaetigung noch etwas fertig,
-    taucht ein unentschiedener Posten auf, und die Aufloesung wird abgelehnt -
-    der Administrator sieht den neuen Stand und entscheidet erneut.
-
-    Scheitert ein Loeschvorgang an Radarr/Sonarr, bricht die Aufloesung ab.
-    Bereits Erledigtes bleibt erledigt - der zweite Anlauf hat entsprechend
-    weniger vor sich. Das Konto selbst loescht der Aufrufer erst danach.
+    Zuerst wird geprueft, siehe ``pruefen``. Scheitert ein Loeschvorgang an
+    Radarr/Sonarr, bricht die Aufloesung ab. Bereits Erledigtes bleibt
+    erledigt - der zweite Anlauf hat entsprechend weniger vor sich. Das Konto
+    selbst loescht der Aufrufer erst danach.
     """
-    zustand = await vorschau(db, settings, user)
-
-    ist = {p.id for p in zustand.posten}
-    if haus | loeschen != ist or haus & loeschen:
-        raise Aufloesungsfehler(
-            "Der Bestand hat sich geaendert - bitte die Liste neu laden und "
-            "erneut entscheiden.",
-            409,
-        )
+    zustand = await pruefen(db, settings, user, haus=haus, loeschen=loeschen, staffeln=staffeln)
     nach_anfrage = {e.request_id: e for e in staffeln}
-    fehlend = [l for l in zustand.laufende if l.request_id not in nach_anfrage]
-    if fehlend:
-        raise Aufloesungsfehler(
-            "Der Bestand hat sich geaendert - bitte die Liste neu laden und "
-            "erneut entscheiden.",
-            409,
-        )
 
     # 1. Posten: erst die Loeschungen (der riskante Teil), dann das Umbuchen.
     for posten_id in sorted(loeschen):

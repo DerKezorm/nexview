@@ -641,6 +641,46 @@ class JellyfinServer(MediaServer):
             raise
         return konto
 
+    async def ist_administrator(self, konto: str) -> bool | None:
+        try:
+            daten = await self._anfrage("GET", f"/Users/{konto}") or {}
+        except MediaServerError as fehler:
+            if fehler.status_code == 404:
+                return None
+            raise
+        return bool((daten.get("Policy") or {}).get("IsAdministrator"))
+
+    async def konto_loeschen(self, konto: str) -> bool:
+        """Erst nachsehen, dann loeschen.
+
+        ⚠️ **Nie ein Administrator.** Ein verknuepftes Konto kann das sein, mit
+        dem der Server verwaltet wird, und der Server schuetzt es nicht: Gemessen
+        am 13.09.2026 an Jellyfin 10.11.11 und Emby 4.9.5.0 loeschen beide einen
+        Administrator ohne Widerrede, solange ein anderer bleibt. Deshalb fragt
+        Nexview vorher die Rechte ab und bricht mit ``server_account_is_admin`` ab.
+
+        Beide antworten gleich: 204 bei Erfolg, 404 fuer ein schon geloeschtes wie
+        fuer ein nie vorhandenes Konto, nicht zu unterscheiden. Beides heisst
+        hier: nichts mehr zu tun.
+        """
+        administrator = await self.ist_administrator(konto)
+        if administrator is None:
+            return False
+        if administrator:
+            raise MediaServerError(
+                f"Das Konto verwaltet {self.label}. Nexview löscht es nicht.",
+                409,
+                code="server_account_is_admin",
+                service=self.label,
+            )
+        try:
+            await self._anfrage("DELETE", f"/Users/{konto}")
+        except MediaServerError as fehler:
+            if fehler.status_code == 404:
+                return False
+            raise
+        return True
+
     async def _konto_erzeugen(self, name: str) -> str:
         """Mit einem Passwort, das niemand kennt und nichts aufbewahrt.
 

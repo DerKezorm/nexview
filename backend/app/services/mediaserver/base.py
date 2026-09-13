@@ -639,6 +639,33 @@ class MediaServer(ABC):
         """Gibt Nexview bei diesem Anbieter nur frei, statt anzulegen? (Plex)"""
         return cls.freigeben is not MediaServer.freigeben
 
+    # --- Zugang wieder entfernen --------------------------------------------
+    #
+    # Das Gegenstueck zu den beiden Wegen darueber, gebraucht beim Loeschen
+    # eines Nexview-Kontos (``services/serverkonten``): Wo Nexview Konten
+    # anlegt, loescht es das Konto; wo es nur freigibt, nimmt es die Freigabe
+    # dieses einen Servers zurueck. Das Plex-Konto selbst gehoert plex.tv, und
+    # die Freundschaft bleibt (Entscheidung vom 13.09.2026).
+
+    async def ist_administrator(self, konto: str) -> bool | None:
+        """Verwaltet das Konto den Server? ``None``: Das Konto gibt es dort nicht mehr."""
+        raise NotImplementedError
+
+    async def konto_loeschen(self, konto: str) -> bool:
+        """Das Konto auf dem Server loeschen; ``False``, wenn es schon weg war. (Jellyfin, Emby)
+
+        ⚠️ Ein Administrator des Servers wird nie geloescht, auch nicht auf
+        ausdruecklichen Wunsch: Die Ausnahme traegt ``server_account_is_admin``.
+        """
+        raise NotImplementedError
+
+    async def freigabe_entfernen(self, konto: str) -> bool:
+        """Die Freigabe dieses Servers fuer das Konto zuruecknehmen. (Plex)
+
+        ``False``: Es gab keine.
+        """
+        raise NotImplementedError
+
     # --- Vorbereitet, noch nicht gebaut ------------------------------------
 
     async def list_server_users(self) -> list[ServerUser]:

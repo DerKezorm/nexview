@@ -292,6 +292,11 @@ class PlexServer(MediaServer):
     async def hat_freigabe(self, konto: str) -> bool:
         return await plextv.hat_freigabe(self.client_identifier, self.token, self.machine_id, konto)
 
+    async def freigabe_entfernen(self, konto: str) -> bool:
+        return await plextv.freigabe_entfernen(
+            self.client_identifier, self.token, self.machine_id, konto
+        )
+
     async def einladung_annehmen(self, gast_token: str) -> bool:
         return await plextv.einladung_annehmen(self.client_identifier, gast_token, self.machine_id)
 

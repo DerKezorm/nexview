@@ -410,3 +410,102 @@ async def test_plex_ohne_offene_einladung_nimmt_nichts_an(leitung) -> None:
 
     assert await PlexServer(_Stand()).einladung_annehmen("gast-token") is False
     assert not any(r.method == "PUT" for r in gesehen)
+
+
+# --- Zugang wieder entfernen ---------------------------------------------------
+
+
+def test_wer_konten_anlegt_kann_sie_loeschen_wer_freigibt_nimmt_zurueck() -> None:
+    """Sonst stuende im Loeschdialog ein Haken, hinter dem nichts passieren kann."""
+    geprueft = 0
+    for klasse in (JellyfinServer, EmbyServer, PlexServer):
+        if klasse.legt_konten_an():
+            assert klasse.konto_loeschen is not base.MediaServer.konto_loeschen
+            assert klasse.ist_administrator is not base.MediaServer.ist_administrator
+            geprueft += 1
+        if klasse.gibt_frei():
+            assert klasse.freigabe_entfernen is not base.MediaServer.freigabe_entfernen
+            geprueft += 1
+    assert geprueft == 3
+
+
+async def test_jellyfin_sieht_erst_nach_und_loescht_dann(leitung) -> None:
+    gesehen, wege = leitung
+    wege[("GET", f"/Users/{JELLYFIN_KONTO}")] = _json({"Id": JELLYFIN_KONTO, "Policy": POLICY})
+    wege[("DELETE", f"/Users/{JELLYFIN_KONTO}")] = _leer()
+
+    assert await JellyfinServer(_Stand()).konto_loeschen(JELLYFIN_KONTO) is True
+    assert [(r.method, r.url.path) for r in gesehen] == [
+        ("GET", f"/Users/{JELLYFIN_KONTO}"),
+        ("DELETE", f"/Users/{JELLYFIN_KONTO}"),
+    ]
+
+
+async def test_jellyfin_loescht_keinen_administrator(leitung) -> None:
+    """⚠️ Ein verknuepftes Konto kann das sein, mit dem der Server verwaltet wird."""
+    gesehen, wege = leitung
+    wege[("GET", f"/Users/{JELLYFIN_KONTO}")] = _json(
+        {"Id": JELLYFIN_KONTO, "Policy": {**POLICY, "IsAdministrator": True}}
+    )
+    wege[("DELETE", f"/Users/{JELLYFIN_KONTO}")] = _leer()
+
+    with pytest.raises(MediaServerError) as fehler:
+        await JellyfinServer(_Stand()).konto_loeschen(JELLYFIN_KONTO)
+
+    assert fehler.value.code == "server_account_is_admin"
+    assert not any(r.method == "DELETE" for r in gesehen)
+
+
+async def test_jellyfin_ein_schon_geloeschtes_konto_ist_erledigt(leitung) -> None:
+    gesehen, _wege = leitung
+
+    assert await JellyfinServer(_Stand()).ist_administrator(JELLYFIN_KONTO) is None
+    assert await JellyfinServer(_Stand()).konto_loeschen(JELLYFIN_KONTO) is False
+    assert not any(r.method == "DELETE" for r in gesehen)
+
+
+async def test_jellyfin_verschwindet_das_konto_zwischendurch_ist_es_auch_erledigt(leitung) -> None:
+    _gesehen, wege = leitung
+    wege[("GET", f"/Users/{JELLYFIN_KONTO}")] = _json({"Id": JELLYFIN_KONTO, "Policy": POLICY})
+
+    assert await JellyfinServer(_Stand()).konto_loeschen(JELLYFIN_KONTO) is False
+
+
+async def test_emby_loescht_ueber_denselben_weg(leitung) -> None:
+    """Emby erbt den Weg; gemessen am 13.09.2026 an 4.9.5.0 gibt ``DELETE`` 204."""
+    gesehen, wege = leitung
+    wege[("GET", f"/Users/{EMBY_KONTO}")] = _json({"Id": EMBY_KONTO, "Policy": POLICY})
+    wege[("DELETE", f"/Users/{EMBY_KONTO}")] = _leer()
+
+    assert await EmbyServer(_Stand()).konto_loeschen(EMBY_KONTO) is True
+    assert ("DELETE", f"/Users/{EMBY_KONTO}") in [(r.method, r.url.path) for r in gesehen]
+
+
+async def test_plex_nimmt_nur_die_freigabe_dieses_servers_zurueck(leitung) -> None:
+    """Die Freundschaft bleibt: Gestrichen wird der Eintrag des Kontos auf diesem Server."""
+    gesehen, wege = leitung
+    wege[("GET", "/api/servers/maschine-1/shared_servers")] = _xml(
+        "<MediaContainer>"
+        '<SharedServer id="899" userID="1234" machineIdentifier="maschine-1"/>'
+        '<SharedServer id="900" userID="4711" machineIdentifier="maschine-1"/>'
+        "</MediaContainer>"
+    )
+    wege[("DELETE", "/api/servers/maschine-1/shared_servers/900")] = _xml("<MediaContainer/>")
+
+    assert await PlexServer(_Stand()).freigabe_entfernen("4711") is True
+    assert [r.url.path for r in gesehen if r.method == "DELETE"] == [
+        "/api/servers/maschine-1/shared_servers/900"
+    ]
+    assert not any("sharings" in r.url.path or "friends" in r.url.path for r in gesehen)
+
+
+async def test_plex_ohne_freigabe_gibt_es_nichts_zurueckzunehmen(leitung) -> None:
+    gesehen, wege = leitung
+    wege[("GET", "/api/servers/maschine-1/shared_servers")] = _xml(
+        "<MediaContainer>"
+        '<SharedServer id="899" userID="1234" machineIdentifier="maschine-1"/>'
+        "</MediaContainer>"
+    )
+
+    assert await PlexServer(_Stand()).freigabe_entfernen("4711") is False
+    assert not any(r.method == "DELETE" for r in gesehen)

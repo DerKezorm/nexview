@@ -916,8 +916,10 @@ TEXTE: dict[str, tuple[str, str]] = {
         'Delete an account',
         (
             'Approved requests move into the house collection - they stay, just without '
-            'an owner. Only what is still open gets cancelled. Use the preview first to '
-            'see exactly what will happen.'
+            'an owner. Only what is still open gets cancelled. Access on the media '
+            'servers listed in "serverkonten" is removed before anything else; if that '
+            'fails on one server, the account and everything it holds stay. Use the '
+            'preview first to see exactly what will happen.'
         ),
     ),
     'PATCH /api/users/{user_id}': (
@@ -932,7 +934,9 @@ TEXTE: dict[str, tuple[str, str]] = {
         (
             'What this account would leave behind - **without anything happening**. The '
             'administrator decides with this list in front of them: per item house or '
-            'delete, per open request keep or cancel.'
+            'delete, per open request keep or cancel, and per account on a media server '
+            'whether its access goes too ("serverkonten"). Preselected is only what a '
+            'Nexview invitation created; "grund" says why an entry cannot be removed.'
         ),
     ),
     'POST /api/users/{user_id}/password': (

@@ -372,6 +372,45 @@ async def hat_freigabe(client_identifier: str, token: str, machine_id: str, kont
     return any(freigabe.get("userID") == konto for freigabe in baum.iter("SharedServer"))
 
 
+async def freigabe_entfernen(
+    client_identifier: str, token: str, machine_id: str, konto: str
+) -> bool:
+    """Die Freigabe **dieses** Servers fuer das plex.tv-Konto zuruecknehmen.
+
+    Nur die Freigabe, nicht die Freundschaft (Entscheidung vom 13.09.2026):
+    ``DELETE /api/v2/sharings/<Konto>`` beendete den Zugang zu allen Servern des
+    Eigentuemers, auch zu denen, die Nexview gar nicht verwaltet. Der Weg hier
+    folgt python-plexapi (``MyPlexAccount.updateFriend`` mit ``removeSections``).
+
+    ⚠️ Nicht gemessen. Das erste echte Entfernen loest der Betreiber mit einem
+    Test-Konto aus. ``False`` heisst: Es gab keine Freigabe fuer dieses Konto.
+    """
+    roh = await _request(
+        "GET",
+        f"/api/servers/{machine_id}/shared_servers",
+        client_identifier=client_identifier,
+        token=token,
+        base=ACCOUNT_URL,
+        als_text=True,
+    )
+    baum = _xml(roh, "den Freigaben")
+    if baum is None:
+        return False
+    for freigabe in baum.iter("SharedServer"):
+        nummer = freigabe.get("id")
+        if freigabe.get("userID") == konto and nummer:
+            await _request(
+                "DELETE",
+                f"/api/servers/{machine_id}/shared_servers/{nummer}",
+                client_identifier=client_identifier,
+                token=token,
+                base=ACCOUNT_URL,
+                als_text=True,
+            )
+            return True
+    return False
+
+
 async def einladung_annehmen(client_identifier: str, gast_token: str, machine_id: str) -> bool:
     """Die offene Freigabe fuer diesen Server im Namen der Person annehmen.
 

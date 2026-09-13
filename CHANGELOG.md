@@ -12,6 +12,21 @@ tag exists for it.
 
 ---
 
+## 0.33.1 – 13.09.2026
+
+A fix for the update that 0.33.0 announces.
+
+### Fixed
+
+- **"Apply" stayed locked when a profile only needed an update.** In
+  *Settings → Services → Quality profiles → Distribute*, the button only worked
+  when an instance was added or removed, so an "Update available" could not be
+  applied there. It now writes the profile again on every ticked instance that
+  is out of date, and says so first.
+- **Writing again could overwrite changes made by hand without a warning.** When
+  a ticked instance carries such changes, the dialog now says that they will be
+  lost, also when you only add another instance.
+
 ## 0.33.0 – 13.09.2026
 
 Quality profiles now do what the wizard says: "Satisfied early" really stops,

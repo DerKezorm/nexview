@@ -484,6 +484,20 @@
           "In Sonarr profiles with remux, the smaller resolution is now a remux as well instead of an ordinary Blu-ray encode.",
           "The notice about a newer state of the guides disappears on fetching instead of staying until the next daily check."
         ]
+      },
+      "0.33.1": {
+        "lead": "A small repair to 0.33.0: an available update can now also be applied in the “Distribute” dialog.",
+        "sections": [
+          {
+            "title": "“Apply” brings in an update",
+            "where": "Settings, Services, Quality profiles, Distribute",
+            "body": "The button used to work only when an instance was added or removed. If a ticked instance showed “Update available”, it stayed locked. “Apply” now writes the profile again on every ticked instance that is out of date, and says where first."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "If a profile was changed by hand on an instance, the dialog now warns that those changes are lost when it is written again. The warning was also missing when only an instance was added."
+        ]
       }
     }
   }

@@ -484,6 +484,20 @@
           "In Sonarr-Profilen mit Remux ist die kleinere Auflösung jetzt ebenfalls ein Remux statt einer gewöhnlichen Blu-ray-Kopie.",
           "Der Hinweis auf einen neueren Stand der Guides verschwindet mit dem Holen, statt bis zum nächsten täglichen Nachsehen stehen zu bleiben."
         ]
+      },
+      "0.33.1": {
+        "lead": "Eine kleine Reparatur zu 0.33.0: Ein verfügbares Update lässt sich jetzt auch im Dialog „Verteilen“ einspielen.",
+        "sections": [
+          {
+            "title": "„Übernehmen“ spielt ein Update ein",
+            "where": "Einstellungen, Dienste, Qualitätsprofile, Verteilen",
+            "body": "Der Knopf ging bisher nur, wenn eine Instanz dazukam oder wegfiel. Zeigte eine ausgewählte Instanz „Update verfügbar“, blieb er gesperrt. Jetzt schreibt „Übernehmen“ das Profil auf jeder ausgewählten Instanz neu, die nicht mehr aktuell ist, und sagt vorher, wo."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Wurde ein Profil auf einer Instanz von Hand geändert, warnt der Dialog jetzt, dass diese Änderungen beim Neuschreiben verloren gehen. Die Warnung fehlte bisher auch, wenn nur eine Instanz dazukam."
+        ]
       }
     }
   }

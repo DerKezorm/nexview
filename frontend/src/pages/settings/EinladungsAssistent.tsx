@@ -743,21 +743,25 @@ export function EinladungsAssistent({
                 <p className="mt-1 text-xs text-mist-400">
                   {ergebnis.mail_error ?? t('adminUsers.mailFailed')}
                 </p>
-                {ergebnis.manual_link && (
-                  <>
-                    <p className="mt-2 text-xs text-mist-500">{t('adminUsers.manualLinkHint')}</p>
-                    <code className="mt-1 block break-all rounded-lg bg-ink-900 px-3 py-2 text-xs text-mist-300">
-                      {ergebnis.manual_link}
-                    </code>
-                    <Button
-                      variant="ghost"
-                      className="mt-2"
-                      onClick={() => void navigator.clipboard?.writeText(ergebnis.manual_link ?? '')}
-                    >
-                      {t('adminUsers.copyLink')}
-                    </Button>
-                  </>
-                )}
+              </div>
+            )}
+            {/* Der Link steht immer da, nicht nur, wenn die Mail scheiterte: Viele
+                geben ihn lieber selbst weiter, etwa per Messenger (Issue #8). */}
+            {ergebnis.manual_link && (
+              <div className="rounded-xl border border-ink-700 bg-ink-850 px-4 py-3">
+                <p className="text-xs text-mist-500">
+                  {ergebnis.mail_sent ? t('inviteWizard.linkToo') : t('adminUsers.manualLinkHint')}
+                </p>
+                <code className="mt-1 block break-all rounded-lg bg-ink-900 px-3 py-2 text-xs text-mist-300">
+                  {ergebnis.manual_link}
+                </code>
+                <Button
+                  variant="ghost"
+                  className="mt-2"
+                  onClick={() => void navigator.clipboard?.writeText(ergebnis.manual_link ?? '')}
+                >
+                  {t('adminUsers.copyLink')}
+                </Button>
               </div>
             )}
           </div>

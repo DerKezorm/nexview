@@ -474,6 +474,8 @@ class InvitationPublic(BaseModel):
 class InvitationCreated(InvitationPublic):
     mail_sent: bool
     mail_error: str | None = None
+    #: Der Link zum Einloesen, auch wenn die Mail rausging: zum Selbst-Weitergeben.
+    #: Den Klartext gibt es nur in dieser Antwort (``tokens.create``).
     manual_link: str | None = None
 
 

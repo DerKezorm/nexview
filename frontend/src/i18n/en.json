@@ -756,6 +756,7 @@
     "recheck": "On redemption everything is checked again against the setup at that time. Whatever no longer applies is left out, and you will be told.",
     "sent": "The invitation to {{email}} is on its way.",
     "mailFailedTitle": "The mail did not go out",
+    "linkToo": "You can also pass the link on yourself, for example by messenger. It is valid for 7 days and works only once.",
     "field": {
       "auto_approve_movies": "Approve movies right away",
       "auto_approve_series": "Approve series right away",

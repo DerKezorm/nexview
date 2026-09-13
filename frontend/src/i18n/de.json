@@ -756,6 +756,7 @@
     "recheck": "Beim Einlösen wird alles noch einmal gegen die dann gültige Einrichtung geprüft. Was bis dahin nicht mehr geht, entfällt, und du bekommst Bescheid.",
     "sent": "Die Einladung an {{email}} ist unterwegs.",
     "mailFailedTitle": "Die Mail ging nicht raus",
+    "linkToo": "Du kannst den Link auch selbst weitergeben, etwa per Messenger. Er gilt 7 Tage und funktioniert nur einmal.",
     "field": {
       "auto_approve_movies": "Filme sofort freigeben",
       "auto_approve_series": "Serien sofort freigeben",

@@ -256,3 +256,20 @@ it('gibt den Link zum Weitergeben heraus, wenn die Mail nicht rausging', async (
   expect(await screen.findByText('Die Mail ging nicht raus')).toBeTruthy()
   expect(screen.getByText('https://nexview.example.com/einladung/abc')).toBeTruthy()
 })
+
+it('gibt den Link auch heraus, wenn die Mail rausging', async () => {
+  // Wunsch aus Issue #8: Viele geben den Link lieber selbst weiter. Bis zum
+  // 13.09.2026 stand er nur da, wenn die Mail scheiterte.
+  einrichten({ angelegt: { ...ANGELEGT, manual_link: 'https://nexview.example.com/einladung/xyz' } })
+  await bisZuDenRechten()
+  fireEvent.click(weiter())
+  await screen.findByText('Was sieht die Person beim Einlösen?')
+  fireEvent.click(weiter())
+  await screen.findByText('Alles richtig?')
+  fireEvent.click(screen.getByRole('button', { name: 'Einladung senden' }))
+
+  expect(await screen.findByText('Die Einladung an neu@example.com ist unterwegs.')).toBeTruthy()
+  expect(screen.getByText('https://nexview.example.com/einladung/xyz')).toBeTruthy()
+  expect(screen.getByText(/auch selbst weitergeben/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Link kopieren' })).toBeTruthy()
+})

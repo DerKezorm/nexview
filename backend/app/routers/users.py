@@ -549,7 +549,9 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
         server=einladung_server.fuer_admin(token),
         mail_sent=zustellung.sent,
         mail_error=zustellung.error,
-        manual_link=None if zustellung.sent else zustellung.link,
+        # Immer, nicht nur wenn die Mail scheiterte: Viele geben den Link lieber
+        # selbst weiter, etwa per Messenger (Wunsch aus Issue #8, 13.09.2026).
+        manual_link=zustellung.link,
     )
 
 

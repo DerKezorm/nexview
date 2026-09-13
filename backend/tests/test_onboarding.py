@@ -49,6 +49,22 @@ def _token_aus(link: str) -> str:
 # --- Einladung --------------------------------------------------------------
 
 
+def test_der_link_zum_weitergeben_kommt_auch_bei_verschickter_mail(
+    admin_client: TestClient, postfach: list[EmailMessage]
+) -> None:
+    """Viele geben den Link lieber selbst weiter, etwa per Messenger.
+
+    Bis zum 13.09.2026 kam er nur, wenn die Mail scheiterte. Es ist derselbe
+    Link wie in der Mail.
+    """
+    antwort = admin_client.post(
+        "/api/users/invitations", json={"email": "neu@example.com", "role": "user"}
+    ).json()
+
+    assert antwort["mail_sent"] is True
+    assert antwort["manual_link"] == _link_aus(postfach[0], "/einladung/")
+
+
 def test_einladung_verschicken_und_einloesen(
     admin_client: TestClient, postfach: list[EmailMessage]
 ) -> None:

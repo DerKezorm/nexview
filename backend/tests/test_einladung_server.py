@@ -25,7 +25,7 @@ from app.models import (
     User,
     UserMediaServerAccount,
 )
-from app.services import einladung_server, oidc_accounts
+from app.services import einladung_server, mail, oidc_accounts
 from app.services import mediaserver_accounts as konten
 from app.services.mediaserver import Bibliothek, ExternalAccount, LoginChallenge, MediaServerError
 from app.services.mediaserver_accounts import KontoFehler
@@ -33,9 +33,26 @@ from app.services.settings_service import load_settings
 
 from .conftest import create_user
 from .test_oidc_dienst import _identitaet
-from .test_onboarding import _link_aus, _token_aus, postfach  # noqa: F401
+from .test_onboarding import ZUGANG, _link_aus, _token_aus
 
 PASSWORT = "eigenes-pw-123"
+
+
+@pytest.fixture
+def postfach(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> list[EmailMessage]:
+    """Eingerichteter Mailversand, der nur einsammelt - wie in ``test_onboarding``.
+
+    ⚠️ Hier noch einmal statt importiert: Ein importierter Fixture-Name, der als
+    Parameter wiederkehrt, meldet ruff als F811, und die CI prueft auch die Tests.
+    """
+    admin_client.put("/api/settings", json=ZUGANG)
+    gesendet: list[EmailMessage] = []
+
+    def _sende(_config: mail.MailConfig, nachricht: EmailMessage) -> None:
+        gesendet.append(nachricht)
+
+    monkeypatch.setattr(mail, "_sende", _sende)
+    return gesendet
 
 
 class FakeServer:

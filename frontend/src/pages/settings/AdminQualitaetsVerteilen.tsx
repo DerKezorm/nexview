@@ -21,6 +21,18 @@ import { Fenster } from '../../components/Fenster'
 import { Button } from '../../components/ui'
 import type { Profil, Stand, Typ } from './qualitaetsprofile-typen'
 
+/**
+ * Wo das Profil schon liegt, aber nicht dem entspricht, was Nexview heute
+ * schreiben würde. „Übernehmen" schreibt es dort neu.
+ *
+ * ⚠️ Bis 13.09.2026 zählte das nicht als etwas zu tun: Ein Update ließ sich hier
+ * nicht einspielen, der Knopf blieb gesperrt, solange keine Instanz dazukam
+ * oder wegfiel.
+ */
+const AUF_STAND_BRINGEN = new Set<Stand>(['update', 'fehlt'])
+/** Dasselbe, nur geht dabei verloren, was dort jemand von Hand geändert hat. */
+const UEBERSCHREIBT_HANDARBEIT = new Set<Stand>(['angepasst', 'konflikt'])
+
 /** Was hier ausgewählt werden kann - der Zustand entscheidet über die Folgen. */
 type Zeile = {
   kennung: string
@@ -81,7 +93,10 @@ export function AdminQualitaetsVerteilen({
 
   const neu = zeilen.filter((z) => z.gewaehlt && z.stand === 'nicht-installiert')
   const weg = zeilen.filter((z) => !z.gewaehlt && z.stand !== 'nicht-installiert')
-  const etwasZuTun = neu.length > 0 || weg.length > 0
+  const aufStand = zeilen.filter((z) => z.gewaehlt && AUF_STAND_BRINGEN.has(z.stand))
+  const ueberschreibt = zeilen.filter((z) => z.gewaehlt && UEBERSCHREIBT_HANDARBEIT.has(z.stand))
+  const etwasZuTun =
+    neu.length > 0 || weg.length > 0 || aufStand.length > 0 || ueberschreibt.length > 0
 
   const speichern = () =>
     onSpeichern(
@@ -166,6 +181,20 @@ export function AdminQualitaetsVerteilen({
             {t('qualityDistribute.willAdd', {
               anzahl: neu.length,
               instanzen: neu.map((z) => z.name).join(', '),
+            })}
+          </p>
+        )}
+        {aufStand.length > 0 && (
+          <p className="rounded-r-xl border-l-2 border-accent-500/60 bg-ink-900/70 px-4 py-3 text-xs leading-relaxed text-mist-400">
+            {t('qualityDistribute.willUpdate', {
+              instanzen: aufStand.map((z) => z.name).join(', '),
+            })}
+          </p>
+        )}
+        {ueberschreibt.length > 0 && (
+          <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-xs leading-relaxed text-warn-500">
+            {t('qualityDistribute.willOverwrite', {
+              instanzen: ueberschreibt.map((z) => z.name).join(', '),
             })}
           </p>
         )}

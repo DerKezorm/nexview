@@ -1767,6 +1767,8 @@
     "intro": "Setze einen Haken, wo das Profil liegen soll. Du kannst das jederzeit wieder ändern — auch später, wenn eine Instanz dazukommt.",
     "noInstances": "Für diesen Dienst ist keine Instanz eingerichtet. Lege sie zuerst unter „Radarr“ beziehungsweise „Sonarr“ an.",
     "willAdd": "Wird angelegt auf: {{instanzen}}. Dort entstehen das Profil und die zugehörigen Erkennungsmuster; an deinen eigenen Profilen ändert sich nichts.",
+    "willUpdate": "Wird neu geschrieben und damit auf den Stand gebracht, den Nexview heute schreiben würde: {{instanzen}}.",
+    "willOverwrite": "Wird neu geschrieben, dabei gehen die Änderungen von Hand dort verloren: {{instanzen}}.",
     "willRemove": "Nexview verwaltet das Profil auf {{instanzen}} nicht mehr. Dort stehen bleibt es trotzdem — ein Profil zu löschen, das Titeln zugewiesen ist, würde diese Titel beschädigen. Wenn du es wirklich weghaben willst, entferne es dort selbst.",
     "cancel": "Abbrechen",
     "apply": "Übernehmen",

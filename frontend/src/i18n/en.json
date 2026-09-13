@@ -1767,6 +1767,8 @@
     "intro": "Tick where the profile should live. You can change this at any time — including later, when another instance is added.",
     "noInstances": "No instance is set up for this service. Add one under “Radarr” or “Sonarr” first.",
     "willAdd": "Will be created on: {{instanzen}}. The profile and its detection patterns are added there; your own profiles are left alone.",
+    "willUpdate": "Will be written again and brought to the state Nexview would write today: {{instanzen}}.",
+    "willOverwrite": "Will be written again, and changes made there by hand are lost: {{instanzen}}.",
     "willRemove": "Nexview will stop managing the profile on {{instanzen}}. It stays there regardless — deleting a profile that is assigned to titles would damage those titles. If you really want it gone, remove it there yourself.",
     "cancel": "Cancel",
     "apply": "Apply",

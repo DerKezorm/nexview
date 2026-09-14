@@ -498,6 +498,18 @@
         "small": [
           "Wurde ein Profil auf einer Instanz von Hand geändert, warnt der Dialog jetzt, dass diese Änderungen beim Neuschreiben verloren gehen. Die Warnung fehlte bisher auch, wenn nur eine Instanz dazukam."
         ]
+      },
+      "0.34.0": {
+        "lead": "Gehört ein Film zu einer Reihe, zeigt seine Seite jetzt die übrigen Teile gleich mit, und jeder lässt sich von dort anfragen.",
+        "sections": [
+          {
+            "title": "Die Filmreihe unter der Besetzung",
+            "where": "Seite eines Films, unter der Besetzung",
+            "body": "Führt TMDB einen Film als Teil einer Reihe, stehen die übrigen Filme dieser Reihe in einer eigenen Zeile unter der Besetzung, nach Erscheinen sortiert. Jede Kachel zeigt wie überall, ob der Film schon da ist oder angefragt wurde, und der Wagen fragt ihn einzeln an. Profil, Ordner, 4K und Freigabe laufen dabei genau wie bei jedem anderen Film, auch bei Teilen, die erst noch erscheinen. Was die Altersgrenze eines Kontos ausblendet, fehlt auch hier. Serien führt TMDB in keiner Reihe, sie bekommen deshalb keine Zeile."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": []
       }
     }
   }

@@ -498,6 +498,18 @@
         "small": [
           "If a profile was changed by hand on an instance, the dialog now warns that those changes are lost when it is written again. The warning was also missing when only an instance was added."
         ]
+      },
+      "0.34.0": {
+        "lead": "When a movie is part of a collection, its page now shows the rest of the collection, and each movie can be requested from there.",
+        "sections": [
+          {
+            "title": "The collection below the cast",
+            "where": "A movie's page, below the cast",
+            "body": "When TMDB lists a movie as part of a collection, the other movies of that collection appear in their own row below the cast, in release order. As everywhere, each card shows whether the movie is already there or requested, and the cart requests it on its own. Profile, folder, 4K and approval work exactly as for any other movie, also for parts that are still to come. Whatever an account's age limit hides stays hidden here too. TMDB keeps collections for movies only, so shows get no such row."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": []
       }
     }
   }

@@ -12,6 +12,20 @@ tag exists for it.
 
 ---
 
+## 0.34.0 – 14.09.2026
+
+A movie that is part of a collection now shows the rest of it on its page.
+
+### New
+
+- **Movie pages show the other movies of their collection.** When TMDB lists a
+  movie as part of a collection, its page shows the other movies of that
+  collection in a row below the cast, in release order. Each card says whether
+  a movie is already there or requested, and its cart requests it like any other
+  title, with the same choice of quality profile, folder and 4K. Movies an
+  account's age limit hides stay hidden here too. TMDB keeps collections for
+  movies only, so shows get no such row.
+
 ## 0.33.1 – 13.09.2026
 
 A fix for the update that 0.33.0 announces.

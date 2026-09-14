@@ -315,6 +315,20 @@ class MeineRueckmeldung(BaseModel):
     outdated: bool = False
 
 
+class MovieCollection(BaseModel):
+    """Die Filmreihe, zu der ein Film gehoert (Issue #9).
+
+    Nur bei Filmen: TMDB fuehrt Reihen allein fuer Filme
+    (``belongs_to_collection``), fuer Serien gibt es nichts Vergleichbares.
+    """
+
+    id: int
+    name: str
+    # Die uebrigen Filme der Reihe, nach Erscheinen sortiert. Der Film der
+    # Detailseite selbst steht nicht darin, gesperrte Teile ebenso wenig.
+    items: list[MediaItem] = []
+
+
 class MediaDetail(MediaItem):
     """Alles, was die Detailseite zeigt - deutlich mehr als eine Kachel.
 
@@ -370,6 +384,10 @@ class MediaDetail(MediaItem):
     cast: list[CastMember] = []
     crew: list[CrewMember] = []
     recommendations: list[MediaItem] = []
+    # Die uebrigen Filme derselben Reihe. None, wenn der Film zu keiner gehoert,
+    # kein anderer Teil zu sehen ist oder nicht die Titelseite fragt - siehe
+    # ``media.full_detail``.
+    collection: MovieCollection | None = None
 
     # Nur bei Serien
     seasons_total: int | None = None

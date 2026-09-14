@@ -65,12 +65,15 @@ ERLAUBT = 700006
 GESPERRT = 700018
 #: Ein dritter, ebenfalls erlaubt.
 #:
-#: ⚠️ Nur fuer die Empfehlungen, und das hat einen Grund: Eine Detailseite
-#: schlaegt sich nicht selbst vor. Wer die Empfehlungen zu ``ERLAUBT`` abruft,
-#: bekommt nur noch ``GESPERRT`` angeboten - der faellt zu Recht heraus, die
-#: Liste ist leer, und die Probe haette nichts gemessen. Deshalb wird von einem
-#: dritten Titel aus gefragt.
+#: ⚠️ Nur fuer die Empfehlungen und die Filmreihe, und das hat einen Grund:
+#: Eine Detailseite schlaegt sich nicht selbst vor, und ihre Reihe laesst sie
+#: selbst aus. Wer von ``ERLAUBT`` aus fragt, bekommt nur noch ``GESPERRT``
+#: angeboten - der faellt zu Recht heraus, die Liste ist leer, und die Probe
+#: haette nichts gemessen. Deshalb wird von einem dritten Titel aus gefragt.
 NEUTRAL = 700012
+
+#: Die Filmreihe, zu der alle drei Filme gehoeren.
+REIHE = 700100
 
 _STUFEN = {ERLAUBT: "6", GESPERRT: "18", NEUTRAL: "12"}
 
@@ -154,7 +157,17 @@ class _FakeTmdb:
     async def detail(self, media_type: str, tmdb_id: int, **k: Any) -> dict[str, Any]:
         if tmdb_id not in _STUFEN:
             raise media.TmdbError("Nicht vorhanden.", 404)
-        return _roh(tmdb_id, media_type)
+        daten = _roh(tmdb_id, media_type)
+        if media_type == "movie":
+            daten["belongs_to_collection"] = {"id": REIHE, "name": "Eine Reihe"}
+        return daten
+
+    async def collection(self, collection_id: int) -> dict[str, Any]:
+        return {
+            "id": collection_id,
+            "name": "Eine Reihe",
+            "parts": [_roh(i, "movie") for i in _STUFEN],
+        }
 
     async def details(self, media_type: str, tmdb_ids: list[int]) -> dict[int, dict[str, Any]]:
         return {i: _roh(i, media_type) for i in tmdb_ids if i in _STUFEN}
@@ -478,4 +491,30 @@ def test_ohne_altersgrenze_kommen_beide_titel(
     assert {ERLAUBT, GESPERRT} <= kennungen, (
         "Ein Konto ohne Altersgrenze sieht nicht beide Titel - dann misst der "
         f"Wächter darüber nichts. Gefunden: {sorted(kennungen)}"
+    )
+
+
+def test_die_filmreihe_zeigt_keinen_gesperrten_teil(
+    beschraenkt: tuple[TestClient, dict[str, str]],
+) -> None:
+    """Die Reihe unter der Besetzung ist eine Liste wie jede andere (Issue #9).
+
+    ⚠️ **Die Probe oben erreicht sie nicht.** Dort wird die Detailadresse mit
+    dem gesperrten Titel angerufen und muss mit 404 antworten; bis zu seiner
+    Reihe kommt es gar nicht. Hier deshalb von einem erlaubten Film aus, in
+    dessen Reihe beide stehen, und wieder mit beiden Zusicherungen.
+    """
+    client, kopf = beschraenkt
+    antwort = client.get(f"/api/detail/movie/{NEUTRAL}", headers=kopf)
+    assert antwort.status_code == 200, antwort.text
+
+    reihe = antwort.json().get("collection")
+    assert reihe is not None, "keine Filmreihe geliefert - die Probe hätte nichts gemessen"
+    kennungen = _kennungen(reihe)
+    assert GESPERRT not in kennungen, (
+        f"die Filmreihe liefert den gesperrten Titel {GESPERRT} aus"
+    )
+    assert ERLAUBT in kennungen, (
+        f"die Filmreihe liefert den erlaubten Titel {ERLAUBT} nicht - die Probe "
+        "hätte nichts gemessen"
     )

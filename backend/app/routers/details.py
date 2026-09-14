@@ -156,16 +156,20 @@ async def title_detail(
     user: CurrentUser,
     db: DbSession,
 ) -> MediaDetail:
-    """Alles zu einem Titel: Besetzung, Studios, Schlagworte, Empfehlungen."""
+    """Alles zu einem Titel: Besetzung, Studios, Schlagworte, Empfehlungen, Filmreihe."""
     settings = for_user(load_settings(db), user)
 
     try:
-        detail = await media.full_detail(db, settings, media_type, tmdb_id)
+        # Die Filmreihe fragt nur die Titelseite an. ``full_detail`` bedient
+        # auch die Kinderansicht, und die siebt nach eigenen Regeln.
+        detail = await media.full_detail(db, settings, media_type, tmdb_id, mit_reihe=True)
     except TmdbError as error:
         raise _fehler(error) from error
 
     await _mit_status(db, settings, media_type, [detail], user)
     await _mit_status(db, settings, media_type, detail.recommendations, user)
+    if detail.collection is not None:
+        await _mit_status(db, settings, media_type, detail.collection.items, user)
 
     # Laeuft der Titel in einem Abo, das *dieser* Benutzer hat? Hier und nicht
     # in ``full_detail``: Dessen TMDB-Antwort liegt fuer alle gemeinsam im

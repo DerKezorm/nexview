@@ -1900,8 +1900,8 @@ TEXTE: dict[str, tuple[str, str]] = {
     'GET /api/detail/{media_type}/{tmdb_id}': (
         'Everything about one title',
         (
-            'Cast, studios, keywords and recommendations, plus whether it is already in '
-            'the library.'
+            'Cast, studios, keywords, recommendations and the other films of its '
+            'collection, plus whether it is already in the library.'
         ),
     ),
     'GET /api/detail/{media_type}/{tmdb_id}/recommendations': (

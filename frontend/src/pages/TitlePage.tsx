@@ -239,6 +239,9 @@ export function TitlePage() {
   // Die Empfehlungen sind eigene Titel und brauchen ihre eigenen Wertungen -
   // sonst blieben dort die IMDb-Abzeichen leer und jedes Herz ungefuellt.
   const kachelDaten = useCardData(vorschlaege)
+  // Dasselbe fuer die uebrigen Filme der Reihe.
+  const reihe = query.data?.collection?.items ?? []
+  const reihenDaten = useCardData(reihe)
 
   if (query.isPending) {
     return (
@@ -622,6 +625,29 @@ export function TitlePage() {
 
       <CastStrip cast={item.cast} />
 
+      {/* Die übrigen Filme der Reihe (Issue #9). Bewusst dieselben Kacheln wie
+          darunter: Jeder Teil wird einzeln über den Wagen angefragt, Profil,
+          Ordner, 4K und Freigabe entscheidet also dasselbe Fenster wie überall.
+          Den Namen liefert TMDB in der eingestellten Sprache mit. */}
+      {reihe.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">
+            {item.collection?.name || t('detail.collection')}
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+            {reihe.map((teil) => (
+              <MediaItemCard
+                key={teil.tmdb_id}
+                item={teil}
+                onQuickAdd={setSchnellAnfrage}
+                ratings={reihenDaten.ratingsFor(teil)}
+                favorit={reihenDaten.istFavorit(teil)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       {vorschlaege.length > 0 && (
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -662,7 +688,7 @@ export function TitlePage() {
         </section>
       )}
 
-      {/* Das Schnell-Popup aus den Empfehlungen heraus. */}
+      {/* Das Schnell-Popup aus der Filmreihe und den Empfehlungen heraus. */}
       <DetailModal
         item={schnellAnfrage}
         onClose={() => setSchnellAnfrage(null)}

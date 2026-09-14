@@ -788,11 +788,24 @@ export type MediaDetail = MediaItem & {
   cast: CastMember[];
   crew: CrewMember[];
   recommendations: MediaItem[];
+  /**
+   * Die übrigen Filme derselben Reihe. `null`, wenn der Film zu keiner gehört
+   * oder kein anderer Teil zu sehen ist. Serien haben bei TMDB keine Reihen.
+   */
+  collection?: MovieCollection | null;
   /** Nur bei Serien. */
   seasons_total: number | null;
   episodes_total: number | null;
   series_status: string;
   networks: NamedRef[];
+};
+
+/** Eine Filmreihe, wie TMDB sie kennt (Issue #9). */
+export type MovieCollection = {
+  id: number;
+  name: string;
+  /** Nach Erscheinen sortiert, ohne den Film der Detailseite. */
+  items: MediaItem[];
 };
 
 export type MediaPage = {

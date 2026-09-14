@@ -19,6 +19,7 @@ from ..schemas_media import (
     MediaDetail,
     MediaItem,
     MediaPage,
+    MovieCollection,
     NamedRef,
     PersonCredit,
     PersonDetail,
@@ -841,7 +842,12 @@ def _watch_providers(raw: dict[str, Any], region: str) -> WatchProviders | None:
 
 
 async def full_detail(
-    db: Session, settings: AppSettings, media_type: str, tmdb_id: int
+    db: Session,
+    settings: AppSettings,
+    media_type: str,
+    tmdb_id: int,
+    *,
+    mit_reihe: bool = False,
 ) -> MediaDetail:
     """Alles zu einem Titel - fuer die Detailseite.
 
@@ -849,6 +855,11 @@ async def full_detail(
     deutlich mehr als die schlanke, und beide unter demselben Schluessel
     abzulegen hiesse, dass die Listen je nach Zufall mal die eine und mal die
     andere Fassung bekaemen.
+
+    ``mit_reihe`` holt die uebrigen Filme der Filmreihe dazu (Issue #9). Nur
+    die Titelseite fragt danach: Dieselbe Funktion bedient die Kinderansicht,
+    die Anfrageliste der Verwaltung und die Vormerkungen, und fuer die waere
+    das eine TMDB-Abfrage je Teil ohne jeden Nutzen.
     """
     if settings.use_demo_data:
         for item in demo_data.demo_items(media_type):
@@ -891,6 +902,8 @@ async def full_detail(
         region,
     )
 
+    reihe = await _filmreihe(db, settings, raw, tmdb_id, region) if mit_reihe else None
+
     ist_film = media_type == "movie"
     return MediaDetail(
         **basis.model_dump(),
@@ -909,10 +922,57 @@ async def full_detail(
         cast=_cast(raw),
         crew=_crew(raw) + ([] if ist_film else _serien_schoepfer(raw)),
         recommendations=empfehlungen,
+        collection=reihe,
         seasons_total=None if ist_film else raw.get("number_of_seasons"),
         episodes_total=None if ist_film else raw.get("number_of_episodes"),
         series_status="" if ist_film else (raw.get("status") or ""),
         networks=[] if ist_film else _referenzen(raw.get("networks")),
+    )
+
+
+async def _filmreihe(
+    db: Session, settings: AppSettings, raw: dict[str, Any], tmdb_id: int, region: str
+) -> MovieCollection | None:
+    """Die uebrigen Filme der Reihe, zu der dieser Film gehoert (Issue #9).
+
+    Laeuft wie die Empfehlungen durch ``_to_items``: Nur dort greift die
+    Altersbeschraenkung, und die Reihe waere sonst der Weg, auf dem ein
+    gesperrter Teil samt Link auf seine Detailseite wieder auftaucht.
+
+    Die Reihe ist Beiwerk. Faellt TMDB hier aus, fehlt sie, und die
+    Detailseite steht trotzdem. Gemerkt wird der Ausfall nicht.
+
+    Serien gehoeren bei TMDB zu keiner Reihe; ihre Antwort hat das Feld nicht.
+    """
+    zugehoerig = raw.get("belongs_to_collection") or {}
+    kennung = zugehoerig.get("id")
+    if not isinstance(kennung, int):
+        return None
+
+    async def fetch() -> dict[str, Any]:
+        return await _client(settings).collection(kennung)
+
+    try:
+        daten = await cache.cached(
+            db, f"collection:{kennung}:{settings.default_language}", cache.DETAIL_TTL, fetch
+        )
+    except TmdbError:
+        logger.debug("Detail: collection %s could not be loaded", kennung, exc_info=True)
+        return None
+
+    teile = [
+        teil
+        for teil in daten.get("parts") or []
+        if isinstance(teil.get("id"), int) and teil["id"] != tmdb_id
+    ]
+    # Nach Erscheinen. Ein Teil ohne Termin ist meist erst angekuendigt und
+    # steht deshalb am Ende statt vorn.
+    teile.sort(key=lambda teil: (not teil.get("release_date"), teil.get("release_date") or ""))
+    items = await _to_items(db, settings, "movie", teile, region)
+    if not items:
+        return None
+    return MovieCollection(
+        id=kennung, name=daten.get("name") or zugehoerig.get("name") or "", items=items
     )
 
 

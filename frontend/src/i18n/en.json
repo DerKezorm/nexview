@@ -2267,6 +2267,7 @@
     "episodeMissing": "still missing",
     "noEpisodes": "No episodes are known for this season yet.",
     "recommendations": "You might also like",
+    "collection": "Collection",
     "reroll": "Show others",
     "rerollFailed": "New suggestions cannot be loaded right now.",
     "studios": "Studio",

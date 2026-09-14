@@ -334,6 +334,14 @@ class TmdbClient:
             if text is not None
         }
 
+    async def collection(self, collection_id: int) -> dict[str, Any]:
+        """Eine Filmreihe samt ihrer Teile - fuer die Reihe auf der Detailseite.
+
+        Die Teile unter ``parts`` sehen aus wie Listeneintraege: ohne Laufzeit
+        und ohne Altersfreigabe. Beides kommt wie ueberall ueber ``details``.
+        """
+        return await self._get(f"/collection/{collection_id}")
+
     async def keyword(self, keyword_id: int) -> dict[str, Any]:
         """Name eines Schlagworts - fuer die Ueberschrift der Ergebnisseite."""
         return await self._get(f"/keyword/{keyword_id}")

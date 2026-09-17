@@ -12,6 +12,20 @@ tag exists for it.
 
 ---
 
+## 0.35.1 – 17.09.2026
+
+A repair to 0.35.0: a disconnected media server no longer appears in the
+comparison table.
+
+### Fixed
+
+- **A disconnected media server still showed up in *Compare servers*.** Its
+  library stayed in the database after disconnecting, so the table showed it as
+  a column with its old state, and everything that had changed since counted as
+  a difference. The comparison and the reconciliation findings now only count
+  connected servers. Disconnecting removes that server's library, and the next
+  sync clears what earlier versions left behind.
+
 ## 0.35.0 – 17.09.2026
 
 When several media servers disagree, Nexview now shows which titles differ,

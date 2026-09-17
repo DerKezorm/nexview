@@ -542,6 +542,18 @@
           "Sync now failed without a word for Jellyfin and Emby. The error now shows at the button.",
           "Plex movies with two TMDB IDs were read with the second one and could look wrongly matched. The first one counts now."
         ]
+      },
+      "0.35.1": {
+        "lead": "A repair to 0.35.0: a disconnected media server no longer shows up in the comparison table.",
+        "sections": [
+          {
+            "title": "Compare servers only shows connected servers",
+            "where": "Statistics & analysis, Library, Compare servers",
+            "body": "When a media server had once been connected and was disconnected again, its library stayed behind. The comparison table showed it as its own column with the state of back then, and everything that had changed since counted as a difference. Now only connected servers count, in the reconciliation findings too. Disconnecting removes the library that was read, and the next sync clears leftovers."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": []
       }
     }
   }

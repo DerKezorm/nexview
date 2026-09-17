@@ -542,6 +542,18 @@
           "Jetzt abgleichen scheiterte bei Jellyfin und Emby ohne jede Meldung. Der Fehler steht jetzt am Knopf.",
           "Plex-Filme mit zwei TMDB-Nummern wurden mit der zweiten gelesen und sahen so falsch zugeordnet aus. Jetzt zählt die erste."
         ]
+      },
+      "0.35.1": {
+        "lead": "Eine Reparatur zu 0.35.0: Ein getrennter Medienserver taucht nicht mehr in der Vergleichstabelle auf.",
+        "sections": [
+          {
+            "title": "Server vergleichen zeigt nur verbundene Server",
+            "where": "Statistik & Analyse, Bibliothek, Server vergleichen",
+            "body": "War ein Medienserver früher einmal verbunden und wurde wieder getrennt, blieb seine eingelesene Bibliothek liegen. Die Vergleichstabelle zeigte ihn deshalb als eigene Spalte mit dem Stand von damals, und alles, was sich seitdem geändert hatte, zählte als Unterschied. Jetzt zählen nur verbundene Server, auch bei den Abgleich-Befunden. Beim Trennen geht die eingelesene Bibliothek mit, und alte Reste räumt der nächste Abgleich weg."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": []
       }
     }
   }

@@ -510,6 +510,38 @@
         ],
         "smallTitle": "Also",
         "small": []
+      },
+      "0.35.0": {
+        "lead": "Running several media servers, you now see which titles are missing where, where the files are and what a server identified them as. A wrong match can be fixed on the server straight from the list.",
+        "sections": [
+          {
+            "title": "Compare servers, title by title",
+            "where": "Statistics & analysis, Library, Compare servers",
+            "body": "Until now there was only a number: this many titles are missing from at least one server. Which ones, and where, stayed open. Now every title has a row, every server a column, and the cell says present, missing, different ID, or file present but identified as another title. Then the line below the title says as what: Listed in Jellyfin as “The Hateful 8”. At the top, each tile counts the server's movies and series, so you can tell whether a library is really smaller or only matched differently. Click a row for the IDs and file paths on each server; the search finds paths too. Every view, from differences through year conflicts to titles without an ID, comes with short steps to narrow the cause down."
+          },
+          {
+            "title": "Rematch, right on the server",
+            "where": "In the comparison table, Rematch button at the end of the row",
+            "body": "When a server has a title wrong, its row has a Rematch button. The choice is the IDs already in the row, with the one from the file name suggested. Nexview then matches the title again on Plex, Jellyfin or Emby by its TMDB or TVDB ID, never by name: a name search is usually how the wrong match came about. Afterwards Nexview asks the server twice and says so plainly when it did not keep the fix. This is the only place where Nexview writes metadata to a media server, and it only runs when you click."
+          },
+          {
+            "title": "View leads to the titles",
+            "where": "Findings on the dashboard and under Statistics & analysis, Library",
+            "body": "The four findings about differing sources used to open the media server settings, where none of the titles appear. View now opens the comparison table, already set to the matching view."
+          },
+          {
+            "title": "Sign in to a media server again",
+            "where": "Settings, Services, Media server, open a tile, Access",
+            "body": "The tiles now check whether the server still accepts the stored access and show Access denied instead of Connected when it does not. Until now they stayed green while sync and account import failed. Sign in again replaces only the access; the connection, linked accounts and settings stay. The only way used to be disconnecting, with everything that means for linked accounts."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "The number of titles missing from one of several servers compared TMDB IDs only, so a title listed under another ID counted as missing on both sides. It now matches by TMDB, TVDB, IMDb, an ID in the file path, and titles without any ID by title and year.",
+          "The red banner for expired access named no server and always started the Plex sign-in, also when Emby had rejected the access. It now names the server and offers its sign-in. For administrators the server connection is renewed along with it.",
+          "Sync now failed without a word for Jellyfin and Emby. The error now shows at the button.",
+          "Plex movies with two TMDB IDs were read with the second one and could look wrongly matched. The first one counts now."
+        ]
       }
     }
   }

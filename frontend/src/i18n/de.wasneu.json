@@ -510,6 +510,38 @@
         ],
         "smallTitle": "Außerdem",
         "small": []
+      },
+      "0.35.0": {
+        "lead": "Wer mehrere Medienserver betreibt, sieht jetzt, welche Titel wo fehlen, wo die Dateien liegen und als was ein Server sie erkannt hat. Eine falsche Zuordnung lässt sich direkt aus der Liste auf dem Server korrigieren.",
+        "sections": [
+          {
+            "title": "Server vergleichen, Titel für Titel",
+            "where": "Statistik & Analyse, Bibliothek, Server vergleichen",
+            "body": "Bisher stand da nur eine Zahl: so viele Titel fehlen auf mindestens einem Server. Welche, und wo, blieb offen. Jetzt steht jeder Titel in einer Zeile, jeder Server in einer Spalte, und die Zelle sagt vorhanden, fehlt, andere Nummer oder Datei da, aber als anderer Titel erkannt. Dann steht unter dem Titel gleich, als was: Wird in Jellyfin als „The Hateful 8“ geführt. Oben zählt jede Kachel die Filme und Serien des Servers, so sieht man, ob eine Bibliothek wirklich kleiner ist oder nur anders zugeordnet. Ein Klick auf eine Zeile zeigt Nummern und Dateipfade je Server, und die Suche findet auch Pfade. Jede Ansicht, von Unterschieden über Jahreswidersprüche bis zu Titeln ohne Kennung, bringt eine kurze Anleitung mit, wie man die Ursache eingrenzt."
+          },
+          {
+            "title": "Neu zuordnen, direkt auf dem Server",
+            "where": "In der Vergleichstabelle, Knopf Neu zuordnen am Ende der Zeile",
+            "body": "Führt ein Server einen Titel falsch, steht am Eintrag der Knopf Neu zuordnen. Zur Wahl stehen die Nummern, die schon in der Zeile vorkommen, die aus dem Dateinamen ist vorgeschlagen. Nexview ordnet den Titel dann auf Plex, Jellyfin oder Emby neu zu, und zwar über die TMDB- oder TVDB-Nummer, nie über den Namen: Die Suche nach dem Namen ist meist genau der Weg, auf dem die falsche Zuordnung entstanden ist. Danach fragt Nexview zweimal beim Server nach und sagt ehrlich, wenn der die Korrektur nicht behalten hat. Es ist die einzige Stelle, an der Nexview Metadaten in einen Medienserver schreibt, und sie läuft nur auf deinen Klick."
+          },
+          {
+            "title": "Ansehen führt zu den Titeln",
+            "where": "Befunde im Dashboard und unter Statistik & Analyse, Bibliothek",
+            "body": "Die vier Befunde zum Abgleich der Quellen öffneten bisher die Medienserver-Einstellungen, in denen keiner der betroffenen Titel steht. Jetzt führt Ansehen in die Vergleichstabelle, schon auf die passende Ansicht gestellt."
+          },
+          {
+            "title": "Beim Medienserver neu anmelden",
+            "where": "Einstellungen, Dienste, Medienserver, Kachel öffnen, Zugang",
+            "body": "Die Kacheln prüfen jetzt, ob der Server den gespeicherten Zugang noch annimmt, und zeigen Zugang abgelehnt statt Verbunden, wenn nicht. Bisher stand dort weiter grün Verbunden, während Abgleich und Kontenübernahme scheiterten. Neu anmelden ersetzt nur den Zugang, Verbindung, verknüpfte Konten und Einstellungen bleiben. Der einzige Weg war bisher Trennen, mit allen Folgen für verknüpfte Konten."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Die Zahl der Titel, die auf einem von mehreren Servern fehlen, verglich nur TMDB-Nummern. Ein Titel unter einer anderen Nummer zählte dadurch auf beiden Seiten als fehlend. Jetzt zählen TMDB, TVDB, IMDb, eine Nummer im Dateipfad und bei Titeln ganz ohne Nummer Titel und Jahr.",
+          "Der rote Balken bei abgelaufenem Zugang nannte keinen Server und startete immer die Plex-Anmeldung, auch wenn Emby den Zugang abgelehnt hatte. Er nennt jetzt den Server und bietet dessen Anmeldung an. Bei Administratoren wird die Serververbindung gleich mit erneuert.",
+          "Jetzt abgleichen scheiterte bei Jellyfin und Emby ohne jede Meldung. Der Fehler steht jetzt am Knopf.",
+          "Plex-Filme mit zwei TMDB-Nummern wurden mit der zweiten gelesen und sahen so falsch zugeordnet aus. Jetzt zählt die erste."
+        ]
       }
     }
   }

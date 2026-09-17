@@ -12,6 +12,61 @@ tag exists for it.
 
 ---
 
+## 0.35.0 – 17.09.2026
+
+When several media servers disagree, Nexview now shows which titles differ,
+where their files are and what each server identified them as, and fixes a
+wrong match on the server with one click.
+
+### New
+
+- **Compare servers title by title.** *Statistics & analysis → Library →
+  Compare servers* lists every title with one column per media server:
+  present, missing, listed under a different ID, or the file is there but the
+  server identified it as another title ("Listed in Jellyfin as …"). A tile per
+  server counts its movies and series, so a library that is really smaller
+  stands apart from one that is only matched differently. Views for
+  differences, different IDs, year conflicts, titles without an ID and titles
+  only in Radarr/Sonarr each come with steps to narrow the cause down. A row
+  opens the IDs and file paths on each server, and the search finds paths too.
+- **Rematch a title on the server itself.** Rows where a server disagrees carry
+  a *Rematch* button. Pick the right title from the IDs already in the row,
+  with the one from the file name suggested, and Nexview matches the title
+  again on Plex, Jellyfin or Emby by its TMDB or TVDB ID, never by name.
+  Afterwards it asks the server twice and says so when the server did not keep
+  the fix. This is the only place where Nexview writes metadata to a media
+  server, and it only runs on click.
+- **"View" on reconciliation findings leads to the titles.** The four findings
+  about differing sources opened the media server settings, where none of the
+  titles appear. They now open the comparison, set to the matching view.
+- **Sign in to a connected media server again.** *Settings → Services → Media
+  server* checks whether each server still accepts the stored access and shows
+  "Access denied" instead of "Connected" when it does not. *Sign in again* on
+  the server's card replaces only the access; the connection, linked accounts
+  and settings stay. Until now the only way was to disconnect.
+
+### Changed
+
+- **Titles on several servers are matched by every ID.** The count of titles
+  missing from one of several servers compared TMDB IDs only, so a title listed
+  under another ID counted as missing on both sides (#10). Nexview now matches
+  by TMDB, TVDB and IMDb, by an ID in the file path, and titles without any ID
+  by title and year.
+- **Library reads keep the file paths.** Each title keeps the path of its files
+  (movies) or its folder (series). Plex lists series without their folder, so
+  those are looked up when a row is opened.
+
+### Fixed
+
+- **The "access expired" banner always offered the Plex sign-in.** It named no
+  server, also when Emby had rejected the access. It now names the server and
+  offers its sign-in, and for an administrator the server connection is renewed
+  along with it.
+- **"Sync now" failed silently for Jellyfin and Emby.** The error only showed in
+  a section those servers do not have; it now appears at the button.
+- **Plex movies with two TMDB IDs were read with the second one**, which could
+  make a correctly matched movie look wrong. The first one counts now.
+
 ## 0.34.0 – 14.09.2026
 
 A movie that is part of a collection now shows the rest of it on its page.

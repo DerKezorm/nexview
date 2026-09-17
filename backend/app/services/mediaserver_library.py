@@ -211,6 +211,7 @@ async def _refresh(
     herausfinden, warum kein einziger Plex-Titel ein Abzeichen bekam. Genau
     so gemeldet (Issue #2).
     """
+    verwaiste_entfernen(db, settings)
     gesamt = 0
     gelesen = False
     for anbieter in _anbieter(settings, provider):
@@ -230,6 +231,31 @@ async def _refresh(
     # Meldung "N Titel erfasst" - und die soll die Sammlung beschreiben, nicht
     # die Zahl der Datenbankzeilen.
     return titel_anzahl(db, provider)
+
+
+def verwaiste_entfernen(db: Session, settings: AppSettings) -> int:
+    """Bibliothekszeilen von Servern loeschen, die nicht mehr verbunden sind.
+
+    ⚠️ **Bis 0.35.0 blieben sie beim Trennen stehen.** Auf einer Anlage, die
+    Emby einmal verbunden und wieder getrennt hatte, stand Emby deshalb weiter
+    in der Vergleichstabelle, mit dem Stand von damals. Das Trennen raeumt
+    seitdem selbst auf; das hier erledigt, was aeltere Fassungen liegen liessen.
+
+    Gefragt wird nach **irgendeiner** gespeicherten Verbindung, nicht nach einer
+    nutzbaren: Ein Token, das gerade nicht lesbar ist, soll nicht die ganze
+    Bibliothek kosten.
+    """
+    verbunden = sorted({v.provider for v in settings.mediaserver_verbindungen})
+    ergebnis = db.execute(
+        delete(MediaServerLibraryItem).where(MediaServerLibraryItem.provider.not_in(verbunden))
+    )
+    if ergebnis.rowcount:
+        db.commit()
+        logger.info(
+            "Removed %d library row(s) of media servers that are no longer connected",
+            ergebnis.rowcount,
+        )
+    return ergebnis.rowcount or 0
 
 
 async def _einen_server_lesen(

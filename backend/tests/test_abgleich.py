@@ -13,9 +13,19 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaServerLibraryItem, MediaType
-from app.services import abgleich, library
+from app.services import abgleich, library, server_vergleich
 from app.services.radarr import LibraryEntry as FilmEintrag
 from app.services.settings_service import load_settings
+
+
+@pytest.fixture(autouse=True)
+def alle_drei_verbunden(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Die Zeilen hier entstehen ohne echte Verbindung - der Vergleich liest
+    aber nur verbundene Server. Welche das sind, gibt der Test vor."""
+    monkeypatch.setattr(
+        server_vergleich, "verbundene", lambda _s: {"plex", "jellyfin", "emby"}
+    )
+
 
 
 def _server_titel(

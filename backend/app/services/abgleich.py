@@ -131,10 +131,15 @@ def _schreiben(db: Session, stand: Stand) -> None:
     db.commit()
 
 
-def _medienserver_bestand(db: Session) -> dict[str, list[MediaServerLibraryItem]]:
-    """Alle Bibliothekszeilen, nach Anbieter sortiert."""
+def _medienserver_bestand(
+    db: Session, nur: set[str]
+) -> dict[str, list[MediaServerLibraryItem]]:
+    """Die Bibliothekszeilen der verbundenen Server, nach Anbieter sortiert."""
     nach_anbieter: dict[str, list[MediaServerLibraryItem]] = defaultdict(list)
-    for zeile in db.scalars(select(MediaServerLibraryItem)):
+    abfrage = select(MediaServerLibraryItem).where(
+        MediaServerLibraryItem.provider.in_(sorted(nur))
+    )
+    for zeile in db.scalars(abfrage):
         nach_anbieter[zeile.provider].append(zeile)
     return nach_anbieter
 
@@ -227,7 +232,8 @@ def _jahre_uneinig(
 
 async def messen(db: Session, settings: AppSettings) -> Stand:
     """Einen vollstaendigen Abgleich rechnen und ablegen."""
-    nach_anbieter = _medienserver_bestand(db)
+    verbunden = server_vergleich.verbundene(settings)
+    nach_anbieter = _medienserver_bestand(db, verbunden)
     if not nach_anbieter:
         # Kein Medienserver, nichts zu vergleichen. Ein leerer Stand ist die
         # ehrliche Antwort - nicht "alles in Ordnung".
@@ -275,7 +281,7 @@ async def messen(db: Session, settings: AppSettings) -> Stand:
     # Seiten als fehlend. Jetzt zaehlt dieselbe Zuordnung wie in der
     # Vergleichstabelle - die Zahl im Befund und die Zeilen dahinter muessen
     # uebereinstimmen, sonst glaubt man keinem von beiden.
-    luecke = server_vergleich.luecke_zaehlen(db)
+    luecke = server_vergleich.luecke_zaehlen(db, verbunden)
 
     jahr_anzahl, jahr_beispiele = _jahre_uneinig(nach_anbieter)
 

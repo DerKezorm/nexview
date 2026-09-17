@@ -22,11 +22,18 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from ..crypto import decrypt, encrypt
 from ..deps import AdminUser, AdultUser, DbSession
-from ..models import AuthToken, MediaServerBlock, MediaServerConnection, User, utcnow
+from ..models import (
+    AuthToken,
+    MediaServerBlock,
+    MediaServerConnection,
+    MediaServerLibraryItem,
+    User,
+    utcnow,
+)
 from ..schemas import Kontingentwert, TokenPair, UserPublic
 from ..services import anmeldebremse, logs, mediaserver_library, nutzer_import, serverzugang, settings_service, sitzung
 from ..services import betreiber as betreiber_dienst
@@ -1114,6 +1121,13 @@ def connect_delete(
         abfrage = abfrage.where(MediaServerConnection.provider == provider)
     for zeile in db.scalars(abfrage):
         db.delete(zeile)
+    # Die eingelesene Bibliothek geht mit. Bis 0.35.0 blieb sie stehen, und ein
+    # getrennter Server tauchte mit seinem alten Stand in der Vergleichstabelle
+    # auf. Wer neu verbindet, bekommt ohnehin sofort frisch eingelesen.
+    bibliothek = delete(MediaServerLibraryItem)
+    if provider is not None:
+        bibliothek = bibliothek.where(MediaServerLibraryItem.provider == provider)
+    db.execute(bibliothek)
     # ⚠️ Ausdruecklich speichern. Vorher endete diese Funktion immer mit
     # ``save_settings``, und das committet nebenbei mit. Seit das Leeren der
     # Altwerte in einer Bedingung steht, gibt es diesen Nebeneffekt nicht mehr:

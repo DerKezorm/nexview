@@ -133,10 +133,22 @@ def anbieter_sortieren(anbieter: set[str] | list[str]) -> list[str]:
     )
 
 
-def _laden(db: Session) -> list[_Roh]:
+def verbundene(settings) -> set[str]:
+    """Die Anbieter, zu denen eine Verbindung besteht.
+
+    ⚠️ **Die Bibliothekstabelle allein sagt das nicht.** Bis 0.35.0 blieben die
+    eingelesenen Zeilen beim Trennen eines Servers stehen, und der Vergleich
+    las alle. Gemeldet am 17.09.2026: Auf einer Anlage ohne Emby stand Emby als
+    dritte Spalte in der Tabelle, mit dem Stand von damals, und alles, was sich
+    seitdem geaendert hatte, zaehlte als Unterschied. Deshalb wird gefiltert -
+    auch fuer Installationen, in denen alte Zeilen noch liegen.
+    """
+    return {v.provider for v in settings.mediaserver_verbindungen}
+
+
+def _laden(db: Session, nur: set[str] | None = None) -> list[_Roh]:
     t = MediaServerLibraryItem
-    ergebnis = db.execute(
-        select(
+    abfrage = select(
             t.provider,
             t.media_type,
             t.tmdb_id,
@@ -148,7 +160,9 @@ def _laden(db: Session) -> list[_Roh]:
             t.file_paths,
             t.rating_key,
         )
-    )
+    if nur is not None:
+        abfrage = abfrage.where(t.provider.in_(sorted(nur)))
+    ergebnis = db.execute(abfrage)
     zeilen = [
         _Roh(
             provider=p,
@@ -420,9 +434,13 @@ def _anders_erkannte_markieren(roh: list[_Roh], zeilen: list[Zeile]) -> None:
             )
 
 
-def zeilen_bauen(db: Session) -> tuple[list[str], list[Zeile]]:
-    """Alle Titel mit ihren Zellen, nach Titel sortiert."""
-    roh = _laden(db)
+def zeilen_bauen(db: Session, nur: set[str] | None = None) -> tuple[list[str], list[Zeile]]:
+    """Alle Titel mit ihren Zellen, nach Titel sortiert.
+
+    ``nur`` beschraenkt auf diese Anbieter - im Betrieb die verbundenen, siehe
+    ``verbundene``.
+    """
+    roh = _laden(db, nur)
     server = anbieter_sortieren({z.provider for z in roh})
     zeilen = [_zeile_bauen(g, server) for g in gruppieren(roh)]
     _anders_erkannte_markieren(roh, zeilen)
@@ -430,7 +448,7 @@ def zeilen_bauen(db: Session) -> tuple[list[str], list[Zeile]]:
     return server, zeilen
 
 
-def luecke_zaehlen(db: Session) -> int:
+def luecke_zaehlen(db: Session, nur: set[str] | None = None) -> int:
     """Wie viele Titel die Server uneinig sehen - fuer den Abgleich.
 
     ⚠️ **Dieselbe Zahl wie die Ansicht "Unterschiede"**, also samt "andere
@@ -438,7 +456,7 @@ def luecke_zaehlen(db: Session) -> int:
     ohnehin. Zaehlte der Befund anders als der Knopf, auf den "Ansehen" fuehrt,
     stuende dort eine andere Zahl - und man glaubt keiner von beiden.
     """
-    server, zeilen = zeilen_bauen(db)
+    server, zeilen = zeilen_bauen(db, nur)
     if len(server) < 2:
         return 0
     return sum(1 for z in zeilen if passt(z, "unterschiede"))

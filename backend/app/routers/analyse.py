@@ -725,7 +725,9 @@ def server_vergleich(
     An einer Anlage mit drei Servern und 11.000 Zeilen gemessen: 0,3 Sekunden.
     Abgelegt waere die Tabelle nach jeder neuen Einlesung veraltet.
     """
-    server, alle_zeilen = vergleich_dienst.zeilen_bauen(db)
+    server, alle_zeilen = vergleich_dienst.zeilen_bauen(
+        db, vergleich_dienst.verbundene(load_settings(db))
+    )
     if not server:
         return ServerVergleichStand(
             moeglich=False, server=[], anzahl={}, zeilen=[], gesamt=0, seite=1, seiten=1

@@ -7,7 +7,7 @@
  */
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, vi } from 'vitest'
 
 import i18n, { i18nStarten } from '../i18n'
@@ -20,6 +20,16 @@ import i18n, { i18nStarten } from '../i18n'
 // Die Sprache steht hier ausdrücklich dabei und wird nicht vom Browser
 // erfragt: Sonst hinge das Ergebnis daran, auf welche Sprache die Testumgebung
 // gerade eingestellt ist.
+// ⚠️ **Die Wartezeit von `findBy*` gehoert hoeher als die vorgegebene Sekunde.**
+// Gemessen am 17.09.2026: In acht Laeufen der vollen Reihe kippten zwei, und
+// zwar in wechselnden Dateien (`OnboardingPage`, `AdminDownloadsPage`), jedes
+// Mal mit "Unable to find role=button". Einzeln liefen beide zuverlaessig - es
+// war also nie die Oberflaeche, sondern die Last mehrerer Dateien
+// gleichzeitig. Ein Element, das wirklich fehlt, faellt weiterhin auf, nur
+// eine Sekunde spaeter; ein flatternder Test dagegen kostet Vertrauen in jeden
+// roten Lauf.
+configure({ asyncUtilTimeout: 4000 })
+
 beforeAll(async () => {
   await i18nStarten('de')
 })

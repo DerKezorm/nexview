@@ -6,6 +6,7 @@ import { BereichsBefunde } from '../../components/BereichsBefunde'
 import { Card, Kennzahl, Section } from '../../components/ui'
 import { formatSize } from '../../lib/format'
 import { TraegerKacheln } from './AnalyseDienste'
+import { ServerVergleich } from './ServerVergleich'
 
 /**
  * Reiter „Bibliothek" — was liegt da, wie viel Platz kostet es, stimmt die
@@ -125,6 +126,14 @@ export function AnalyseBibliothek({ stand }: { stand: AnalyseStand }) {
               </ul>
             </Card>
           )}
+        </Section>
+      )}
+
+      {/* Die Titel hinter den Zahlen oben. Ohne Medienserver gibt es nichts
+          zu vergleichen, und der Abschnitt fehlt wie der Abgleich selbst. */}
+      {abgleich.moeglich && (
+        <Section title={t('analyse.matrix.title')} breit>
+          <ServerVergleich />
         </Section>
       )}
 

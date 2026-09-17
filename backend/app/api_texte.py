@@ -355,6 +355,45 @@ TEXTE: dict[str, tuple[str, str]] = {
             '**Administrators only.**'
         ),
     ),
+    'GET /api/admin/analyse/server-vergleich': (
+        'Which title is on which media server',
+        (
+            'One row per title, one cell per connected media server: present, '
+            'missing, listed under a different ID, or the file is there but the '
+            'server identified it as another title.\n\n'
+            'Titles are matched by TMDB, TVDB and IMDb, then by an ID in the file '
+            'path, and titles without any ID by title and year. `ansicht` picks a '
+            'view (`unterschiede`, `andere_nummer`, `jahr`, `ohne_kennung`, '
+            '`nur_arr`, `alle`); `fehlt_auf`, `art` and `suche` narrow it, and '
+            '`suche` also matches file paths. Paged.\n\n'
+            'Reads only what the last library sync stored; no server is asked.\n\n'
+            '**Administrators only.**'
+        ),
+    ),
+    'POST /api/admin/analyse/server-vergleich/zuordnen': (
+        'Rematch one title on one media server',
+        (
+            'Changes metadata on the media server: the title is identified again '
+            'by its TMDB or TVDB ID, the way *Identify* (Jellyfin, Emby) or *Fix '
+            'Match* (Plex) does it. Never by name - a name search is how the wrong '
+            'match usually came about.\n\n'
+            'Afterwards Nexview asks the server twice whether the new match is '
+            'there. `ergebnis` is `korrigiert`, `zurueckgesprungen` when the server '
+            'replaced it again by itself, or `nicht_bestaetigt` when it did not show '
+            'up in time. Only runs when an administrator clicks; nothing calls it '
+            'on its own.\n\n'
+            '**Administrators only.**'
+        ),
+    ),
+    'GET /api/admin/analyse/server-vergleich/pfade': (
+        'Look up where one title lies on disk',
+        (
+            'The file or folder paths of one library entry. Plex lists series '
+            'without their folder, so this asks the server for that one title and '
+            'remembers the answer until the next library sync.\n\n'
+            '**Administrators only.**'
+        ),
+    ),
     'GET /api/admin/befunde': (
         'Findings, optionally for one area',
         (
@@ -1187,6 +1226,18 @@ TEXTE: dict[str, tuple[str, str]] = {
             'Who would be affected - **before** the click, not after. Anyone who signs '
             'in through the media server and has no password of their own would be '
             'locked out.'
+        ),
+    ),
+    'GET /api/admin/mediaserver/connection/pruefen': (
+        'Does the server still accept the stored access',
+        (
+            'Asks the connected server for its account list, the thing Nexview '
+            'needs administrator rights for. `zustand` is `ok`, `abgelehnt` when the '
+            'server answers 401 or 403, or `nicht_erreichbar` when it does not answer '
+            'at all.\n\n'
+            'A rejected access is renewed by connecting the same server again: only '
+            'the stored access is replaced, the connection and linked accounts stay.\n\n'
+            '**Administrators only.**'
         ),
     ),
     'GET /api/admin/mediaserver/library': (

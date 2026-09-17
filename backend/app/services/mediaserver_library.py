@@ -74,6 +74,9 @@ def _zusammengefasst(werke: list[LibraryItem]) -> list[LibraryItem]:
             tvdb_id=vorhanden.tvdb_id or werk.tvdb_id,
             imdb_id=vorhanden.imdb_id or werk.imdb_id,
             year=vorhanden.year or werk.year,
+            # 1080p und 4K liegen in verschiedenen Ordnern - beide nennen.
+            paths=tuple(dict.fromkeys(vorhanden.paths + werk.paths)),
+            tmdb_ids=tuple(dict.fromkeys(vorhanden.tmdb_ids + werk.tmdb_ids)),
         )
     return list(nach_guid.values())
 
@@ -356,6 +359,7 @@ async def _einen_server_lesen(
                 title=werk.title[:500],
                 title_key=normalize_title(werk.title)[:500],
                 year=werk.year,
+                file_paths="\n".join(werk.paths)[:4000] or None,
             )
         )
     db.commit()

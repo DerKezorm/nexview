@@ -28,7 +28,7 @@ from ..crypto import decrypt, encrypt
 from ..deps import AdminUser, AdultUser, DbSession
 from ..models import AuthToken, MediaServerBlock, MediaServerConnection, User, utcnow
 from ..schemas import Kontingentwert, TokenPair, UserPublic
-from ..services import anmeldebremse, logs, mediaserver_library, nutzer_import, settings_service, sitzung
+from ..services import anmeldebremse, logs, mediaserver_library, nutzer_import, serverzugang, settings_service, sitzung
 from ..services import betreiber as betreiber_dienst
 from ..services import mediaserver_accounts as konten
 from ..services.mediaserver import (
@@ -428,7 +428,7 @@ async def link_password(
     payload: PasswortAnmeldung, request: Request, db: DbSession, user: AdultUser
 ) -> LinkResult:
     """Ein Medienserver-Konto an das eigene, bereits angemeldete Konto haengen."""
-    _server, anbieter_token, konto = await _passwort_identitaet(db, payload, request)
+    server, anbieter_token, konto = await _passwort_identitaet(db, payload, request)
 
     if konten.is_blocked(db, konto.provider, konto.account_id):
         raise _fehler(
@@ -448,6 +448,27 @@ async def link_password(
 
     konten.link(user, konto, encrypt(anbieter_token))
     db.commit()
+
+    # Beim Administrator gleich den Serverzugang mit - siehe ``serverzugang``.
+    # Das Passwort ist nur jetzt da; eine eigene Anmeldung mit Geraetekennung
+    # "server", damit die persoenliche den Serverzugang nicht wieder ablöst.
+    async def server_token() -> str | None:
+        verbindung = db.scalar(
+            select(MediaServerConnection).where(
+                MediaServerConnection.provider == payload.provider
+            )
+        )
+        token, _konto, ist_admin = await server.login_with_password(
+            payload.username,
+            payload.password,
+            verbindung.url if verbindung else None,
+            zweck="server",
+        )
+        return token if ist_admin else None
+
+    await serverzugang.mit_erneuern(
+        db, settings_service.load_settings(db), user, payload.provider, server_token
+    )
     db.refresh(user)
     return LinkResult(status="ready", user=UserPublic.model_validate(user))
 
@@ -978,6 +999,49 @@ def _betreiber_nicht_aussperren(db: DbSession, admin: User, gefaehrdet: list[int
             ),
         },
     )
+
+
+class ZugangsPruefung(BaseModel):
+    """Nimmt der Server den gespeicherten Zugang noch an?"""
+
+    provider: str
+    #: ``ok``, ``abgelehnt`` (401/403) oder ``nicht_erreichbar``.
+    zustand: str
+    #: Kennung und Rueckfalltext wie bei jedem Anbieterfehler - leer bei ``ok``.
+    meldung: dict[str, object] | None = None
+
+
+@admin_router.get("/connection/pruefen", response_model=ZugangsPruefung)
+async def connection_check(
+    db: DbSession, admin: AdminUser, provider: str
+) -> ZugangsPruefung:
+    """Den Server jetzt fragen, ob der gespeicherte Zugang noch gilt.
+
+    ⚠️ **"Verbunden" hiess bisher nur: Es steht eine Zeile in der Tabelle.**
+    Am 17.09.2026 lehnte ein Emby-Server jede Anfrage mit 401 ab, und die
+    Einstellungsseite zeigte weiter gruen "Verbunden". Abgleich und
+    Kontenuebernahme scheiterten, ohne dass die Karte etwas davon wusste.
+
+    Gefragt wird mit der Kontenliste des Servers - das ist genau das, wofuer
+    Nexview Verwaltungsrechte braucht. Ein Zugang, der nur noch lesen darf,
+    faellt damit ebenfalls auf.
+    """
+    settings = settings_service.load_settings(db)
+    if provider not in verbundene_anbieter(settings):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "mediaserver_none_linked",
+                "message": "Es ist kein Media-Server verbunden.",
+            },
+        )
+    try:
+        await media_server_for_setup(settings, provider).list_server_users()
+    except MediaServerError as exc:
+        zustand = "abgelehnt" if exc.status_code in (401, 403) else "nicht_erreichbar"
+        logger.info("Media server %r access check: %s", provider, zustand)
+        return ZugangsPruefung(provider=provider, zustand=zustand, meldung=exc.als_meldung())
+    return ZugangsPruefung(provider=provider, zustand="ok")
 
 
 @admin_router.get("/connection/folgen", response_model=TrennFolgen)

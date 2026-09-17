@@ -1274,6 +1274,16 @@ class UserMediaServerAccount(Base):
 
     user: Mapped[User] = relationship(back_populates="mediaserver_accounts")
 
+    @property
+    def token_abgelehnt(self) -> bool:
+        """Muss sich die Person bei **diesem** Anbieter neu anmelden?
+
+        Je Verknuepfung, nicht am Benutzer: Der rote Balken sagte bis 0.34.0 nur
+        "dein Zugang ist abgelaufen" und bot immer die Plex-Anmeldung an - auch
+        wenn es Emby war, das den Zugang abgelehnt hatte. Genau so passiert.
+        """
+        return bool(self.token) and self.token_invalid_at is not None
+
 
 class MediaServerLibraryItem(Base):
     """Abbild der Media-Server-Bibliothek.
@@ -1341,6 +1351,10 @@ class MediaServerLibraryItem(Base):
     # Kleingeschrieben und ohne Sonderzeichen - siehe sonarr.normalize_title.
     title_key: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     year: Mapped[int | None] = mapped_column(Integer)
+    # Dateien (Filme) oder Ordner (Serien) auf dem Server, eine je Zeile.
+    # Fuer den Server-Vergleich: Ohne Pfad laesst sich ein Titel wie "2BA"
+    # auf dem Datentraeger nicht wiederfinden.
+    file_paths: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 

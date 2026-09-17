@@ -38,6 +38,13 @@ export type TileState = {
   account?: string | null
   /** Adresse des Servers – stand vorher in einer eigenen Leiste darunter. */
   url?: string | null
+  /**
+   * Was die Prüfung beim Server ergab. Fehlt, solange sie läuft.
+   *
+   * ⚠️ Ohne das hieß „Verbunden" nur: Es steht eine Zeile in der Datenbank.
+   * Ein Emby, das jede Anfrage mit 401 abwies, stand hier trotzdem grün.
+   */
+  zugang?: 'ok' | 'abgelehnt' | 'nicht_erreichbar'
 }
 
 export function MediaServerTile({
@@ -97,15 +104,37 @@ export function MediaServerTile({
         <p className="flex items-center gap-2 text-lg font-semibold text-mist-100">
           <MediaServerLogo
             provider={state.provider}
-            className={'h-5 w-5 ' + (state.connected ? 'text-ok-500' : 'text-mist-700')}
+            className={
+              'h-5 w-5 ' +
+              (!state.connected
+                ? 'text-mist-700'
+                : state.zugang === 'abgelehnt'
+                  ? 'text-bad-500'
+                  : state.zugang === 'nicht_erreichbar'
+                    ? 'text-warn-500'
+                    : 'text-ok-500')
+            }
           />
           {name}
         </p>
 
         {state.connected ? (
           <>
-            <p className="mt-0.5 text-sm text-ok-500">
-              {t('mediaserver.tileConnected')}
+            <p
+              className={
+                'mt-0.5 text-sm ' +
+                (state.zugang === 'abgelehnt'
+                  ? 'text-bad-500'
+                  : state.zugang === 'nicht_erreichbar'
+                    ? 'text-warn-500'
+                    : 'text-ok-500')
+              }
+            >
+              {state.zugang === 'abgelehnt'
+                ? t('mediaserver.tileAccessDenied')
+                : state.zugang === 'nicht_erreichbar'
+                  ? t('mediaserver.tileUnreachable')
+                  : t('mediaserver.tileConnected')}
               {state.serverName ? ` · ${state.serverName}` : ''}
             </p>
             {state.account && (

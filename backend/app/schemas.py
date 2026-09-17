@@ -152,6 +152,9 @@ class VerknuepftesKonto(BaseModel):
 
     provider: str
     username: str | None = None
+    #: Hat der Anbieter das persoenliche Token abgelehnt? Dann braucht es eine
+    #: neue Anmeldung - bei genau diesem Anbieter.
+    token_abgelehnt: bool = False
 
 
 class OidcVerknuepfung(BaseModel):

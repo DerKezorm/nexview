@@ -215,6 +215,13 @@ def _als_werk(
 
     jahr = eintrag.get("ProductionYear")
 
+    # Der Pfad am Titel ist bei Filmen die Datei, bei Serien der Ordner; jede
+    # weitere Fassung nennt ihren eigenen unter ``MediaSources``.
+    pfade: list[str] = []
+    for roh in [eintrag.get("Path")] + [q.get("Path") for q in quellen]:
+        if isinstance(roh, str) and roh.strip() and roh.strip() not in pfade:
+            pfade.append(roh.strip())
+
     return LibraryItem(
         media_type=media_type,
         guid=f"{anbieter}://{kennung}",
@@ -231,6 +238,7 @@ def _als_werk(
         has_uhd=hat_uhd,
         size_standard=groesse_standard,
         size_uhd=groesse_uhd,
+        paths=tuple(pfade),
     )
 
 
@@ -788,6 +796,65 @@ class JellyfinServer(MediaServer):
                 service=self.label,
             )
 
+    async def zuordnung_anwenden(
+        self, schluessel: str, art: str, tmdb: int | None, tvdb: int | None
+    ) -> str:
+        """``/Items/RemoteSearch`` ueber die Nummer, dann ``Apply`` - wie "Identify".
+
+        Emby benutzt dieselben Wege. ⚠️ **Dort wirkt ``Apply`` verzoegert**
+        (gemessen: nach 5 Sekunden, nicht sofort) - und bei einer Serie sprang
+        Emby binnen Sekunden von selbst zurueck, weil es sie ueber IMDb und TVDB
+        neu aufloeste. Ob es gehalten hat, prueft deshalb der Aufrufer nach.
+        """
+        nummern: dict[str, str] = {}
+        if tmdb is not None:
+            nummern["Tmdb"] = str(tmdb)
+        if tvdb is not None and art == "tv":
+            nummern["Tvdb"] = str(tvdb)
+        if not nummern:
+            raise MediaServerError(
+                "Ohne Nummer lässt sich nicht neu zuordnen.", code="mediaserver_rematch_no_id"
+            )
+        treffer = await self._anfrage(
+            "POST",
+            f"/Items/RemoteSearch/{'Series' if art == 'tv' else 'Movie'}",
+            json={"SearchInfo": {"ProviderIds": nummern}, "ItemId": schluessel},
+        ) or []
+        passend = next(
+            (
+                t
+                for t in treffer
+                if (tmdb is not None and _kennung(t.get("ProviderIds") or {}, "tmdb") == tmdb)
+                or (tvdb is not None and _kennung(t.get("ProviderIds") or {}, "tvdb") == tvdb)
+            ),
+            None,
+        )
+        if passend is None:
+            raise MediaServerError(
+                f"{self.label} findet zu dieser Nummer keinen Titel.",
+                code="mediaserver_rematch_no_candidate",
+                service=self.label,
+            )
+        await self._anfrage(
+            "POST",
+            f"/Items/RemoteSearch/Apply/{schluessel}",
+            params={"ReplaceAllImages": "true"},
+            json=passend,
+        )
+        return str(passend.get("Name") or "")
+
+    async def titel_nummern(self, schluessel: str) -> LibraryItem | None:
+        konto = await self._eigene_konto_id()
+        eintrag = await self._anfrage(
+            "GET",
+            f"/Users/{konto}/Items/{schluessel}",
+            params={"Fields": "ProviderIds,ProductionYear,Path"},
+        )
+        if not eintrag:
+            return None
+        art = "tv" if eintrag.get("Type") == "Series" else "movie"
+        return _als_werk(eintrag, art, set(), self.provider)
+
     async def _seiten(
         self,
         params: dict[str, Any],
@@ -873,9 +940,9 @@ class JellyfinServer(MediaServer):
         # nicht vorhanden. Aufgefallen beim Messen gegen Emby 4.9.5.0, wo das
         # Feld ohne ausdrueckliche Anforderung nicht mitkommt.
         felder = (
-            "ProviderIds,ProductionYear,MediaSources,Width"
+            "ProviderIds,ProductionYear,MediaSources,Width,Path"
             if media_type == "movie"
-            else "ProviderIds,ProductionYear"
+            else "ProviderIds,ProductionYear,Path"
         )
         werke: list[LibraryItem] = []
         async for seite in self._seiten(

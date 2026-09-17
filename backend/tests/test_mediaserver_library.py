@@ -454,3 +454,24 @@ def test_eintrag_ohne_kennung_trifft_weiter_ueber_den_titel() -> None:
 
     kachel = Werk(tmdb_id=424242, title="Alter Schinken", release_date="1965-05-01")
     assert suchen([kachel]) == {424242}
+
+
+async def test_einlesen_merkt_sich_die_pfade(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Zwei Bibliotheken, ein Titel: beide Ordner bleiben stehen."""
+    verbinde(admin_client)
+    server = BibliotheksServer(
+        [
+            LibraryItem(media_type="movie", guid="p1", title="Dune", paths=("/filme/Dune.mkv",)),
+            LibraryItem(
+                media_type="movie", guid="p1", title="Dune", paths=("/filme4k/Dune.mkv",)
+            ),
+        ]
+    )
+    monkeypatch.setattr(mediaserver_library, "media_server_for_setup", lambda _s, _a: server)
+
+    with SessionLocal() as db:
+        await mediaserver_library.refresh(db, load_settings(db))
+        zeile = db.query(MediaServerLibraryItem).one()
+        assert zeile.file_paths == "/filme/Dune.mkv\n/filme4k/Dune.mkv"

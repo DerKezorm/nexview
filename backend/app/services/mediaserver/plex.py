@@ -61,11 +61,19 @@ def _als_werk(eintrag: dict[str, Any], media_type: str) -> LibraryItem | None:
     und der Titel als letzter Ausweg gemerkt.
     """
     kennungen: dict[str, str] = {}
+    alle_tmdb: list[int] = []
     for guid in eintrag.get("Guid") or []:
         wert = str(guid.get("id") or "")
         quelle, _, nummer = wert.partition("://")
         if quelle and nummer:
-            kennungen[quelle] = nummer
+            # ⚠️ **Die erste zaehlt, nicht die letzte.** Plex nennt manche
+            # Filme unter zwei TMDB-Nummern, die gueltige zuerst. Mit der
+            # letzten stand "Irenas Geheimnis" in Nexview unter der alten
+            # Nummer, und die Vergleichstabelle meldete Plex als falsch
+            # zugeordnet - obwohl Plex beide kannte.
+            kennungen.setdefault(quelle, nummer)
+            if quelle == "tmdb" and nummer.isdigit() and int(nummer) not in alle_tmdb:
+                alle_tmdb.append(int(nummer))
 
     def zahl(quelle: str) -> int | None:
         roh = kennungen.get(quelle, "")
@@ -108,6 +116,19 @@ def _als_werk(eintrag: dict[str, Any], media_type: str) -> LibraryItem | None:
 
     groesse_standard, groesse_uhd = _dateigroessen(eintrag)
 
+    # Filme: jede Datei unter ``Media`` -> ``Part``. Serien haben dort nichts;
+    # ihren Ordner nennt Plex unter ``Location``, sofern die Antwort ihn
+    # mitbringt.
+    pfade: list[str] = []
+    kandidaten = [
+        teil.get("file")
+        for medium in (eintrag.get("Media") or [])
+        for teil in (medium.get("Part") or [])
+    ] + [ort.get("path") for ort in (eintrag.get("Location") or [])]
+    for roh in kandidaten:
+        if isinstance(roh, str) and roh.strip() and roh.strip() not in pfade:
+            pfade.append(roh.strip())
+
     return LibraryItem(
         has_standard=hat_standard,
         has_uhd=hat_uhd,
@@ -123,6 +144,8 @@ def _als_werk(eintrag: dict[str, Any], media_type: str) -> LibraryItem | None:
         year=int(eintrag["year"]) if str(eintrag.get("year") or "").isdigit() else None,
         size_standard=groesse_standard,
         size_uhd=groesse_uhd,
+        paths=tuple(pfade),
+        tmdb_ids=tuple(alle_tmdb),
     )
 
 
@@ -338,7 +361,11 @@ class PlexServer(MediaServer):
         return plextv._headers(self.client_identifier, token)
 
     async def _server(
-        self, pfad: str, params: dict[str, Any] | None = None, token: str | None = None
+        self,
+        pfad: str,
+        params: dict[str, Any] | None = None,
+        token: str | None = None,
+        methode: str = "GET",
     ) -> dict[str, Any]:
         """Eine Abfrage an den Server selbst (nicht an plex.tv).
 
@@ -351,7 +378,8 @@ class PlexServer(MediaServer):
 
         client = await http_client()
         try:
-            antwort = await client.get(
+            antwort = await client.request(
+                methode,
                 f"{self.base_url}{pfad}",
                 headers=self._kopfzeilen(token or self.token),
                 params=params,
@@ -396,6 +424,9 @@ class PlexServer(MediaServer):
                 f"Der Plex-Server meldet einen Fehler (HTTP {antwort.status_code}).",
                 antwort.status_code,
             )
+        # ``PUT .../match`` antwortet ohne Inhalt.
+        if not antwort.content:
+            return {}
         try:
             return (antwort.json() or {}).get("MediaContainer") or {}
         except ValueError as exc:
@@ -641,6 +672,62 @@ class PlexServer(MediaServer):
                 )
             )
         return gesehen
+
+    async def zuordnung_anwenden(
+        self, schluessel: str, art: str, tmdb: int | None, tvdb: int | None
+    ) -> str:
+        """"Fix Match" ueber die Nummer: ``matches`` mit ``tmdb-<nr>``, dann ``match``.
+
+        ⚠️ **Der Titel ``tmdb-605802`` ist die Suche.** Gemessen am 17.09.2026:
+        Damit liefert ``/library/metadata/<nr>/matches`` genau einen Kandidaten
+        samt Plex-Kennung - auch fuer Serien (``tvdb-`` ebenso) und fuer einen
+        Film, der gar nicht der aktuelle ist. Ueber den Namen kamen zwanzig.
+        """
+        suchen = ([f"tvdb-{tvdb}"] if art == "tv" and tvdb is not None else []) + (
+            [f"tmdb-{tmdb}"] if tmdb is not None else []
+        )
+        kandidat: dict[str, Any] | None = None
+        for suche in suchen:
+            antwort = await self._server(
+                f"/library/metadata/{schluessel}/matches", params={"manual": 1, "title": suche}
+            )
+            ergebnisse = antwort.get("SearchResult") or []
+            if len(ergebnisse) == 1 and ergebnisse[0].get("guid"):
+                kandidat = ergebnisse[0]
+                break
+        if kandidat is None:
+            raise MediaServerError(
+                "Plex findet zu dieser Nummer keinen eindeutigen Titel.",
+                code="mediaserver_rematch_no_candidate",
+                service="Plex",
+            )
+        parameter: dict[str, Any] = {"guid": kandidat["guid"], "name": kandidat.get("name") or ""}
+        if kandidat.get("year"):
+            parameter["year"] = kandidat["year"]
+        await self._server(f"/library/metadata/{schluessel}/match", params=parameter, methode="PUT")
+        return str(kandidat.get("name") or "")
+
+    async def titel_nummern(self, schluessel: str) -> LibraryItem | None:
+        container = await self._server(f"/library/metadata/{schluessel}")
+        eintrag = (container.get("Metadata") or [None])[0]
+        if not eintrag:
+            return None
+        return _als_werk(eintrag, "tv" if eintrag.get("type") == "show" else "movie")
+
+    async def titel_pfade(self, schluessel: str) -> list[str]:
+        """Ordner und Dateien eines Titels aus ``/library/metadata/<nr>``.
+
+        ⚠️ **Nur hier kommt der Serienordner.** Die Bibliotheksliste
+        (``/library/sections/<nr>/all``) nennt bei Serien keinen ``Location``,
+        auch nicht mit ``includeLocations`` (gemessen 17.09.2026). Die
+        Detailabfrage tut es - aber je Serie eine Anfrage bei jedem stuendlichen
+        Einlesen waere bei tausend Serien tausend Anfragen. Deshalb erst, wenn
+        jemand danach fragt.
+        """
+        container = await self._server(f"/library/metadata/{schluessel}")
+        eintrag = (container.get("Metadata") or [{}])[0]
+        werk = _als_werk(eintrag, "tv" if eintrag.get("type") == "show" else "movie")
+        return list(werk.paths) if werk else []
 
     async def _abschnitt_lesen(
         self, schluessel: str, media_type: str, token: str | None = None

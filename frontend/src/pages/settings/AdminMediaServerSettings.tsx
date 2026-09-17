@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
 import type {
@@ -21,6 +21,7 @@ import type {
   MediaServerDisconnectImpact,
   MediaServerLibraryState,
   MediaServerOption,
+  MediaServerZugang,
   User,
 } from '../../api/types'
 import { useAuth } from '../../auth/useAuth'
@@ -58,6 +59,61 @@ const EMPTY_DRAFT: Draft = {
  * Die Linie fehlt beim ersten Abschnitt; ``first:`` erledigt das, ohne dass
  * hier jemand mitzählen muss.
  */
+/**
+ * Oben in der Karte eines verbundenen Servers: gilt der Zugang noch?
+ *
+ * Der Knopf steht **immer** da, nicht nur bei einem Fehler. Auch ein Zugang,
+ * der noch funktioniert, will man manchmal ersetzen - etwa, wenn das Konto auf
+ * dem Server umbenannt oder sein Passwort geändert wurde.
+ */
+function Zugang({
+  name,
+  zustand,
+  onNeuAnmelden,
+}: {
+  name: string
+  zustand: MediaServerZugang['zustand'] | undefined
+  onNeuAnmelden: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <Abschnitt>
+      <h2 className="text-lg font-semibold">{t('mediaserver.accessTitle')}</h2>
+      {zustand === undefined ? (
+        <p className="flex items-center gap-2 text-sm text-mist-500">
+          <Spinner /> {t('mediaserver.accessChecking')}
+        </p>
+      ) : zustand === 'ok' ? (
+        <p className="text-sm text-mist-500">{t('mediaserver.accessOk', { name })}</p>
+      ) : (
+        <p
+          className={
+            'rounded-xl border px-4 py-3 text-sm ' +
+            (zustand === 'abgelehnt'
+              ? 'border-bad-500/40 bg-bad-500/10 text-bad-500'
+              : 'border-warn-500/40 bg-warn-500/10 text-warn-500')
+          }
+        >
+          {zustand === 'abgelehnt'
+            ? t('mediaserver.accessDenied', { name })
+            : t('mediaserver.accessUnreachable', { name })}
+        </p>
+      )}
+      <div className="flex flex-col gap-1.5">
+        <div>
+          <Button
+            variant={zustand === 'abgelehnt' ? 'primary' : 'ghost'}
+            onClick={onNeuAnmelden}
+          >
+            {t('mediaserver.reconnect')}
+          </Button>
+        </div>
+        <p className="text-xs text-mist-600">{t('mediaserver.reconnectHint')}</p>
+      </div>
+    </Abschnitt>
+  )
+}
+
 function Abschnitt({ children }: { children: ReactNode }) {
   return (
     <section className="flex flex-col gap-4 border-t border-ink-700 pt-6 first:border-t-0 first:pt-0">
@@ -88,6 +144,33 @@ export function AdminMediaServerSettings() {
    * sehen, nicht den Stand von vorgestern.
    */
   const [offen, setOffen] = useState<string | null>(null)
+  /**
+   * Für welchen verbundenen Server läuft gerade ein neues Anmelden?
+   *
+   * ⚠️ Bis 0.34.0 gab es dafür keinen Weg: Eine verbundene Kachel bot nur
+   * „Trennen" an. Wer einen abgelaufenen Zugang erneuern wollte, musste
+   * trennen - und bekam die Warnung, dass verknüpfte Konten den Zugang
+   * verlieren. Das Backend ersetzt beim erneuten Verbinden längst nur das
+   * Token; es fehlte bloß der Knopf.
+   */
+  const [neuAnmelden, setNeuAnmelden] = useState<string | null>(null)
+
+  // Beim Öffnen der Seite jeden verbundenen Server fragen, ob er den Zugang
+  // noch annimmt. Eine Anfrage je Server, kurz gemerkt - wer zwischen den
+  // Kacheln hin und her klickt, soll nicht jedes Mal warten.
+  const zugangsAbfragen = useQueries({
+    queries: (config?.mediaserver_providers ?? []).map((anbieter) => ({
+      queryKey: ['mediaserver-zugang', anbieter],
+      queryFn: () =>
+        api.get<MediaServerZugang>(
+          `/api/admin/mediaserver/connection/pruefen?provider=${encodeURIComponent(anbieter)}`,
+        ),
+      staleTime: 60_000,
+      retry: false,
+    })),
+  })
+  const zugangVon = (anbieter: string) =>
+    zugangsAbfragen.find((abfrage) => abfrage.data?.provider === anbieter)?.data?.zustand
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -193,6 +276,8 @@ export function AdminMediaServerSettings() {
       updateUser(ergebnis.user)
       setAuswahl(null)
       setPollToken(null)
+      setNeuAnmelden(null)
+      void queryClient.invalidateQueries({ queryKey: ['mediaserver-zugang'] })
       void queryClient.invalidateQueries({ queryKey: ['settings'] })
       // **Auch die Konfiguration**: An ihr hängt, ob es den Merklisten-Reiter
       // und den Plex-Anmeldeknopf überhaupt gibt. Sie liegt fünf Minuten im
@@ -319,6 +404,7 @@ export function AdminMediaServerSettings() {
     // Stand vorher in einer eigenen Leiste unter der Kachel und wiederholte
     // dabei Name und Zustand. Neu war nur die Adresse selbst.
     url: verbindungen.find((v) => v.provider === anbieter)?.url,
+    zugang: verbundene.includes(anbieter) ? zugangVon(anbieter) : undefined,
   })
 
   return (
@@ -372,7 +458,16 @@ export function AdminMediaServerSettings() {
           darin nichts zu sagen - eine fast leere Karte wäre nur Rauschen. */}
       {offen !== null && (
       <Card className="flex flex-col gap-6">
-        {verbunden ? null : auswahl ? (
+        {verbunden && neuAnmelden !== offen ? (
+          <Zugang
+            name={providerName(offen)}
+            zustand={zugangVon(offen)}
+            onNeuAnmelden={() => {
+              setMeldung(null)
+              setNeuAnmelden(offen)
+            }}
+          />
+        ) : auswahl ? (
           <div className="flex flex-col gap-2">
             {/* ⚠️ Diese Zeilen sind Schaltflächen, sahen aber aus wie eine
                 Aufzählung - "man muss unten noch auf den Server klicken, oder?"
@@ -443,7 +538,12 @@ export function AdminMediaServerSettings() {
              Liste, die davon abweichen könnte. */
           <MediaServerPasswordForm
             provider={offen}
+            // Beim neuen Anmelden steht die Adresse schon fest - nur Name und
+            // Passwort fehlen.
+            initialUrl={neuAnmelden === offen ? (dieseVerbindung?.url ?? '') : ''}
             onVerbunden={(ergebnis) => {
+              setNeuAnmelden(null)
+              void queryClient.invalidateQueries({ queryKey: ['mediaserver-zugang'] })
               // Das eigene Konto wurde dabei verknüpft. Ohne diese Zeile
               // zeigte die Kachel weiter den Namen von *vorher* - der
               // angemeldete Benutzer steht im React-Zustand, nicht im
@@ -471,6 +571,20 @@ export function AdminMediaServerSettings() {
               {t('mediaserver.connectWith', { name: providerName(offen) })}
             </Button>
           </div>
+        )}
+
+        {neuAnmelden === offen && (
+          <button
+            type="button"
+            onClick={() => {
+              setNeuAnmelden(null)
+              setAuswahl(null)
+              verbinden.abbrechen()
+            }}
+            className="self-start text-sm text-mist-500 hover:text-mist-300"
+          >
+            {t('common.cancel')}
+          </button>
         )}
 
         {verbinden.fehler && <ErrorBanner message={verbinden.fehler} />}
@@ -629,6 +743,19 @@ export function AdminMediaServerSettings() {
               {t('mediaserver.syncNow')}
             </Button>
           </div>
+          {/* ⚠️ **Der Fehler gehört an den Knopf.** Er landete vorher in der
+              gemeinsamen Meldung, und die steht im Abschnitt „Vorgaben" - den
+              es bei Jellyfin und Emby gar nicht gibt. Dort scheiterte der
+              Abgleich also ohne ein einziges Wort. */}
+          {abgleichen.isError && (
+            <ErrorBanner
+              message={
+                abgleichen.error instanceof ApiError
+                  ? abgleichen.error.message
+                  : t('errors.generic')
+              }
+            />
+          )}
         </Abschnitt>
         )}
 

@@ -1484,6 +1484,11 @@
         "schluessel": false,
         "typ": "DATETIME"
       },
+      "file_paths": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
       "guid": {
         "leer_erlaubt": false,
         "schluessel": false,

@@ -1325,6 +1325,16 @@
     "tileConnected": "Connected",
     "tileNotConnected": "Not connected",
     "tileAs": "as {{name}}",
+    "tileAccessDenied": "Access denied",
+    "tileUnreachable": "Not reachable",
+    "accessTitle": "Access",
+    "accessChecking": "Checking access …",
+    "accessOk": "{{name}} accepts the stored access.",
+    "accessDenied": "{{name}} rejects the stored access. Sync, account import and live playback only work again after you sign in again.",
+    "accessUnreachable": "{{name}} is not answering right now. Whether the access is still valid can only be told once the server is reachable again.",
+    "reconnect": "Sign in again",
+    "reconnectHint": "Replaces the access only. The connection, linked accounts and settings stay as they are.",
+    "tokenExpired": "Access expired",
     "tileSoon": "Not available yet",
     "tileSoonHint": "Coming in one of the next versions.",
     "back": "All media servers",
@@ -2000,6 +2010,10 @@
       "mediaserver_no_code_login": "No media server with code sign-in is connected.",
       "mediaserver_no_new_account": "This provider cannot create a new account. Sign in with your Nexview account and link it in your profile – or ask the administrator for an invitation.",
       "mediaserver_no_watchlist": "No media server with a watchlist is connected.",
+      "mediaserver_rematch_no_id": "A title can't be rematched without an ID.",
+      "mediaserver_rematch_no_candidate": "{{service}} finds no unique title for this ID.",
+      "mediaserver_rematch_unsupported": "{{service}} can't rematch titles.",
+      "library_item_not_found": "The server's library does not know this title.",
       "mediaserver_none_linked": "No media server is connected.",
       "mediaserver_not_admin": "That account is not an administrator on the server. Connecting requires an administrator account.",
       "mediaserver_not_invited": "There is no account for this sign-in yet. Ask the administrator for an invitation.",
@@ -2855,7 +2869,9 @@
   "watchlistExpired": {
     "text": "Your media server access has expired. Until you sign in again, your watchlist and watched state stay as they are.",
     "action": "Sign in again",
-    "running": "Signing in …"
+    "running": "Signing in …",
+    "textFor": "Your access to {{names}} has expired. Until you sign in again, your watchlist and watched state there stay as they are.",
+    "actionFor": "Sign in to {{name}} again"
   },
   "papierkorb": {
     "title": "Recycle bin",
@@ -3607,6 +3623,114 @@
     "yearConflictsHint": "wrong match, or festival versus cinema release",
     "providerGap": "Servers disagree",
     "providerGapHint": "not known to all {{count}} of your servers",
+    "matrix": {
+      "title": "Compare servers",
+      "intro": "Every title that at least one server knows, and where it is. Titles are matched by TMDB, TVDB and IMDb, and titles without any ID by title and year.",
+      "movies_one": "{{count}} movie",
+      "movies_other": "{{count}} movies",
+      "series_one": "{{count}} series",
+      "series_other": "{{count}} series",
+      "missingHere_one": "{{count}} title missing here",
+      "missingHere_other": "{{count}} titles missing here",
+      "missingNone": "nothing missing",
+      "view": {
+        "unterschiede": "Differences",
+        "andere_nummer": "Different ID",
+        "jahr": "Year conflict",
+        "ohne_kennung": "No ID",
+        "nur_arr": "Only in Radarr/Sonarr",
+        "alle": "All titles"
+      },
+      "search": "Search title or path",
+      "noPath": "Path unknown. It arrives with this server's next sync.",
+      "pathLoading": "Looking up path …",
+      "kind": {
+        "alle": "All",
+        "movie": "Movies",
+        "tv": "Series"
+      },
+      "kindOne": {
+        "movie": "Movie",
+        "tv": "Series"
+      },
+      "missingFilter": "Missing on",
+      "anyServer": "any server",
+      "colTitle": "Title",
+      "colMatch": "Matched by",
+      "match": {
+        "tmdb": "TMDB",
+        "tvdb": "TVDB",
+        "imdb": "IMDb",
+        "titel": "Title and year",
+        "einzeln": "one server only",
+        "arr": "Radarr/Sonarr",
+        "pfad": "ID in path"
+      },
+      "present": "present",
+      "missing": "missing",
+      "otherId": "different ID",
+      "otherTitle": "file present, identified as another title",
+      "recognisedAs": "Listed in {{server}} as “{{titel}}”",
+      "listedAs": "listed as",
+      "yearBadge": "year conflict",
+      "noIdBadge": "no ID",
+      "summary_one": "{{count}} title",
+      "summary_other": "{{count}} titles",
+      "empty": "Every server knows the same titles.",
+      "emptyView": "Nothing in this view.",
+      "emptyFilter": "No title matches this filter.",
+      "details": "IDs per server",
+      "noIds": "no IDs",
+      "failed": "The comparison could not be loaded.",
+      "rematch": {
+        "button": "Rematch",
+        "title": "Which title is right?",
+        "noTitle": "Title from the file name",
+        "onServers": "on {{servers}}",
+        "fromPath": "in the file name",
+        "hint": "Changes the match, metadata and posters directly on the server. The search uses the ID, not the name.",
+        "apply": "Fix on {{servers}}",
+        "nothingToDo": "Every server already uses this ID",
+        "running": "Fixing and checking {{server}} …",
+        "result": {
+          "korrigiert": "{{server}}: fixed, now “{{titel}}”.",
+          "zurueckgesprungen": "{{server}}: accepted, but the server replaced it again shortly after. Its sources probably disagree about this title.",
+          "nicht_bestaetigt": "{{server}}: accepted, but not visible yet. Check again after the next sync."
+        }
+      },
+      "helpTitle": "How to narrow it down",
+      "help": {
+        "unterschiede": [
+          "Nexview reads each server with the account you connected it with. On the server, check Users, that account, Access, and make sure every library is enabled. What the account can't see, Nexview can't see.",
+          "Are the files inside the folder this server's library scans? If the servers run in containers, compare the mounted paths.",
+          "Let the server rescan the library, then sync again in Nexview under Settings, Services, Media servers.",
+          "Click a row to see the IDs per server. A title marked “different ID” is there, just identified differently.",
+          "A ⇄ means the file is on the server, but it thinks the file is a different title. The line below the title says which. That is almost always a wrong match."
+        ],
+        "andere_nummer": [
+          "The title is on several servers, but one lists it under a different TMDB or TVDB ID. Nexview recognises titles by these IDs, so it doesn't see it on that server.",
+          "Click the row to see which server has which ID. The majority is usually right.",
+          "Fix the match on the server that differs: “Fix Match” in Plex, “Identify” in Jellyfin and Emby. Then sync again."
+        ],
+        "jahr": [
+          "The servers share the same ID but list years more than one year apart.",
+          "Either one server identified the wrong title, then “Fix Match” or “Identify” helps. Or the metadata uses different release dates, such as festival and cinema.",
+          "Nexview discards matches whose years don't fit and then reports the title as not available."
+        ],
+        "ohne_kennung": [
+          "The server matched these titles to neither TMDB nor TVDB. For Nexview they don't exist and can be requested again.",
+          "If the folder name contains an ID like {tmdb-1234}, that is the Plex format. Jellyfin expects [tmdbid-1234], Emby [tmdbid=1234]. Otherwise the server may read the number as the year and the release group at the end of the file name as the title. Nexview still matches such titles by the ID in the path, but the server doesn't see it.",
+          "Without an ID in the name, the pattern “Title (Year)” usually helps, plus S01E01 for episodes.",
+          "Match the title by hand on the server with “Fix Match” or “Identify”, or adjust the naming scheme in Radarr and Sonarr. Then sync again."
+        ],
+        "nur_arr": [
+          "Radarr or Sonarr have a file for these titles, but no server knows them. To everyone it looks as if they don't exist.",
+          "Most common cause: the root folder in Radarr or Sonarr is outside the server's library folders, or the paths differ between containers.",
+          "Otherwise the server hasn't scanned yet. Start a scan, then sync again.",
+          "The list is built by the hourly reconciliation and shows at most 500 titles."
+        ]
+      }
+    },
     "perProvider": "Titles per server",
     "examples": "Examples",
     "backups": "Backups",

@@ -20,11 +20,12 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
+from ..crypto import decrypt
 from ..deps import CurrentUser, DbSession
 from ..models import utcnow
 from ..schemas_media import MediaItem
 from ..services import mediaserver_accounts as konten
-from ..services import settings_service, watchlist
+from ..services import serverzugang, settings_service, watchlist
 from ..services.mediaserver import MediaServer, MediaServerError, merklisten_server
 from ..services.mediaserver_accounts import KontoFehler
 from ..services.watchlist import WatchlistFehler
@@ -213,6 +214,21 @@ async def connect_poll(
     konten.merke_token(user, daten.get("token"), konto.provider)
     eintrag.used_at = utcnow().replace(tzinfo=None)
     db.commit()
+
+    # Beim Administrator gleich den Serverzugang mit - siehe ``serverzugang``.
+    # Bei Plex ist das dasselbe Konto-Token; ``nur_eigene``, weil plex.tv auch
+    # Server nennt, auf die nur geteilt wurde.
+    async def server_token() -> str | None:
+        return decrypt(daten.get("token", "")) or None
+
+    await serverzugang.mit_erneuern(
+        db,
+        settings_service.load_settings(db),
+        user,
+        konto.provider,
+        server_token,
+        nur_eigene=True,
+    )
     return VerbindungsStand(
         status="ready", connected=user.watchlist_connected, linked=True
     )

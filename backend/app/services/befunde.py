@@ -745,6 +745,17 @@ def _bibliothek_geisterposten(
 # Abgleich der Quellen
 # ---------------------------------------------------------------------------
 #
+# ⚠️ **Die Ziele fuehren auf die Vergleichstabelle, nicht in die Einstellungen.**
+# Bis 0.34.0 zeigten alle vier auf die Medienserver-Einstellungen - dort steht
+# kein einziger der betroffenen Titel, und "Ansehen" fuehrte ins Leere. Die
+# Tabelle zeigt die Titel, und je Ansicht, wie man die Ursache eingrenzt.
+
+
+def vergleich_ziel(ansicht: str) -> str:
+    """Die Vergleichstabelle, schon auf die passende Ansicht gestellt."""
+    return f"/admin/stats?reiter=bibliothek&vergleich={ansicht}"
+
+#
 # ⚠️ **Alle lesen denselben, stuendlich gemessenen Stand.** Der Vergleich
 # selbst laeuft ueber tausende Zeilen und braucht die Bibliothek aus dem Netz -
 # er gehoert in den Rundgang, nicht in eine Pruefung.
@@ -769,7 +780,7 @@ def _abgleich_arr_ohne_server(
             bereich=Bereich.abgleich,
             werte={"anzahl": stand.arr_ohne_server},
             wortlaut=", ".join(stand.beispiele.get("arr_ohne_server", [])) or None,
-            ziel="/admin/settings?reiter=dienste&unter=medienserver",
+            ziel=vergleich_ziel("nur_arr"),
         )
     ]
 
@@ -791,7 +802,7 @@ def _abgleich_nicht_erkannt(
             schwere=Schwere.hinweis,
             bereich=Bereich.abgleich,
             werte={"anzahl": stand.nicht_erkannt},
-            ziel="/admin/settings?reiter=dienste&unter=medienserver",
+            ziel=vergleich_ziel("ohne_kennung"),
         )
     ]
 
@@ -824,7 +835,7 @@ def _abgleich_jahr_widerspruch(
             bereich=Bereich.abgleich,
             werte={"anzahl": stand.jahr_widerspruch},
             wortlaut=", ".join(stand.beispiele.get("jahr_widerspruch", [])) or None,
-            ziel="/admin/settings?reiter=dienste&unter=medienserver",
+            ziel=vergleich_ziel("jahr"),
         )
     ]
 
@@ -853,7 +864,7 @@ def _abgleich_anbieter_uneinig(
                 "anzahl": stand.anbieter_luecke,
                 "server": len(stand.je_anbieter),
             },
-            ziel="/admin/settings?reiter=dienste&unter=medienserver",
+            ziel=vergleich_ziel("unterschiede"),
         )
     ]
 

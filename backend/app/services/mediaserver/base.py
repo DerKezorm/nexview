@@ -289,6 +289,15 @@ class LibraryItem:
     # nichts sagen - und sagt es beim Nutzer als "wird nachgetragen", was fuer
     # sie nie eintraete.
     added_at: datetime | None = None
+    # Wo der Titel auf dem Datentraeger des Servers liegt: bei Filmen die
+    # Dateien, bei Serien der Ordner. Gebraucht fuer den Server-Vergleich -
+    # "2BA" als Titel sagt nichts, ``/data/movies/2BA (2021)/2BA.mkv`` schon.
+    # Leer heisst unbekannt.
+    paths: tuple[str, ...] = ()
+    # **Alle** TMDB-Nummern, die der Server nennt - ``tmdb_id`` ist nur die
+    # erste davon. Plex fuehrt manche Filme unter zweien (gemessen 17.09.2026:
+    # "Irenas Geheimnis" mit 1026880 und 1291936).
+    tmdb_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -700,6 +709,41 @@ class MediaServer(ABC):
     async def library_index(self) -> list[LibraryItem]:
         """Meilenstein 2 - erkennt Titel, die nicht ueber Radarr/Sonarr kamen."""
         raise NotImplementedError
+
+    async def zuordnung_anwenden(
+        self, schluessel: str, art: str, tmdb: int | None, tvdb: int | None
+    ) -> str:
+        """Einen Titel auf dem Server **neu zuordnen** - ueber seine Nummer.
+
+        ⚠️ **Schreibt in den Medienserver.** Nexview liest dort sonst nur. Diese
+        Methode laeuft ausschliesslich, wenn ein Administrator in der
+        Vergleichstabelle ausdruecklich auf "Neu zuordnen" klickt.
+
+        ⚠️ **Gesucht wird ueber die Nummer, nie ueber den Namen.** Gemessen am
+        17.09.2026: Jellyfin fand ueber den Namen "8" zwanzig Kandidaten, "The
+        Hateful 8" zuerst - genau so war die falsche Zuordnung entstanden. Ueber
+        TMDB 605802 kam genau einer.
+
+        Gibt den Namen zurueck, unter dem der Server den Kandidaten fuehrt.
+        """
+        raise MediaServerError(
+            f"{self.label} kann Titel nicht neu zuordnen.",
+            code="mediaserver_rematch_unsupported",
+            service=self.label,
+        )
+
+    async def titel_nummern(self, schluessel: str) -> LibraryItem | None:
+        """Wie der Server **einen** Titel gerade fuehrt - zum Nachpruefen."""
+        return None
+
+    async def titel_pfade(self, schluessel: str) -> list[str]:
+        """Die Pfade **eines** Titels nachschlagen.
+
+        Nur fuer Anbieter, deren Bibliotheksliste sie nicht mitbringt - das
+        ist Plex bei Serien. Wer sie schon beim Einlesen liefert, braucht das
+        nicht und bleibt bei der leeren Antwort.
+        """
+        return []
 
     async def laufende_wiedergaben(self) -> list[Wiedergabe]:
         """Was gerade laeuft.

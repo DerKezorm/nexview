@@ -126,7 +126,12 @@ export type User = {
    * Die beiden Felder darüber nennen nur das zuletzt hinzugekommene – im
    * Parallelbetrieb also willkürlich eines von zweien.
    */
-  mediaserver_accounts: { provider: string; username: string | null }[];
+  mediaserver_accounts: {
+    provider: string;
+    username: string | null;
+    /** Der Anbieter hat das persönliche Token abgelehnt - neu anmelden. */
+    token_abgelehnt?: boolean;
+  }[];
   /**
    * Die OIDC-Anmeldungen am Konto – je Anbieter eine. Zugeordnet wird über
    * die Anbieter-Adresse, nicht über ein Kürzel: Der Eintrag des
@@ -2334,6 +2339,52 @@ export interface AbgleichZahlen {
   anbieter_luecke: number;
   je_anbieter: Record<string, number>;
   beispiele: Record<string, string[]>;
+}
+
+/** Nimmt der Server den gespeicherten Zugang noch an? */
+export interface MediaServerZugang {
+  provider: string;
+  zustand: 'ok' | 'abgelehnt' | 'nicht_erreichbar';
+}
+
+export type VergleichAnsicht =
+  | 'unterschiede'
+  | 'andere_nummer'
+  | 'jahr'
+  | 'ohne_kennung'
+  | 'nur_arr'
+  | 'alle';
+
+export interface VergleichZelle {
+  zustand: 'da' | 'fehlt' | 'andere_nummer' | 'anders_erkannt';
+  tmdb: number[];
+  tvdb: number[];
+  imdb: string[];
+  jahr: number | null;
+  titel: string | null;
+  pfade: string[];
+  schluessel: string | null;
+}
+
+export interface VergleichZeile {
+  kennung: string;
+  titel: string;
+  jahr: number | null;
+  art: 'movie' | 'tv';
+  zuordnung: 'tmdb' | 'tvdb' | 'imdb' | 'titel' | 'pfad' | 'einzeln' | 'arr';
+  zellen: Record<string, VergleichZelle>;
+  jahr_uneinig: boolean;
+  ohne_kennung: boolean;
+}
+
+export interface ServerVergleichStand {
+  moeglich: boolean;
+  server: { anbieter: string; filme: number; serien: number; fehlen: number }[];
+  anzahl: Partial<Record<VergleichAnsicht, number>>;
+  zeilen: VergleichZeile[];
+  gesamt: number;
+  seite: number;
+  seiten: number;
 }
 
 export interface BetriebZahlen {

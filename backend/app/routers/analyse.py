@@ -16,9 +16,13 @@ Instanz-Zustand, Plattenfuellstand und Sicherungen; das sind Betriebsdaten.
 
 from __future__ import annotations
 
+import asyncio
+import logging
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
+from typing import Annotated, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
@@ -44,11 +48,16 @@ from ..services import (
     mail_outbox,
     sicherung,
 )
+from ..services import server_vergleich as vergleich_dienst
 from ..services import updates as updates_dienst
 from ..services import wiedergaben as wiedergaben_dienst
+from ..services.mediaserver import MediaServerError, media_server_for_setup
 from ..services.settings_service import load_settings
+from ..services.sonarr import normalize_title
 
 router = APIRouter(prefix="/api/admin/analyse", tags=["admin"])
+
+logger = logging.getLogger("nexview.mediaserver")
 
 
 class GesundheitsMeldung(BaseModel):
@@ -646,4 +655,311 @@ def analyse(admin: AdminUser, db: DbSession) -> AnalyseStand:
             beispiele=roh.beispiele,
         ),
         betrieb=_betrieb(db, settings),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Server-Vergleich: welcher Titel liegt wo
+# ---------------------------------------------------------------------------
+
+
+class VergleichZelle(BaseModel):
+    zustand: str
+    tmdb: list[int]
+    tvdb: list[int]
+    imdb: list[str]
+    jahr: int | None
+    titel: str | None
+    pfade: list[str]
+    schluessel: str | None
+
+
+class VergleichZeile(BaseModel):
+    kennung: str
+    titel: str
+    jahr: int | None
+    art: str
+    zuordnung: str
+    zellen: dict[str, VergleichZelle]
+    jahr_uneinig: bool
+    ohne_kennung: bool
+
+
+class VergleichServer(BaseModel):
+    anbieter: str
+    filme: int
+    serien: int
+    #: Titel, die mindestens ein anderer Server kennt, dieser nicht.
+    fehlen: int
+
+
+class ServerVergleichStand(BaseModel):
+    moeglich: bool
+    server: list[VergleichServer]
+    #: Wie viele Titel jede Ansicht zeigt - fuer die Beschriftung der Knoepfe.
+    anzahl: dict[str, int]
+    zeilen: list[VergleichZeile]
+    gesamt: int
+    seite: int
+    seiten: int
+
+
+@router.get("/server-vergleich", response_model=ServerVergleichStand)
+def server_vergleich(
+    admin: AdminUser,
+    db: DbSession,
+    ansicht: Annotated[
+        Literal["unterschiede", "andere_nummer", "jahr", "ohne_kennung", "nur_arr", "alle"],
+        Query(),
+    ] = "unterschiede",
+    art: Annotated[Literal["alle", "movie", "tv"], Query()] = "alle",
+    fehlt_auf: Annotated[str | None, Query(max_length=20)] = None,
+    suche: Annotated[str | None, Query(max_length=200)] = None,
+    seite: Annotated[int, Query(ge=1)] = 1,
+    pro_seite: Annotated[int, Query(ge=10, le=200)] = 50,
+) -> ServerVergleichStand:
+    """Eine Zeile je Titel, eine Spalte je Server - gefiltert und seitenweise.
+
+    ⚠️ **Gerechnet bei jedem Aufruf, nicht abgelegt.** Anders als der Abgleich
+    fragt das keinen Dienst im Netz, es liest nur ``media_server_library``.
+    An einer Anlage mit drei Servern und 11.000 Zeilen gemessen: 0,3 Sekunden.
+    Abgelegt waere die Tabelle nach jeder neuen Einlesung veraltet.
+    """
+    server, alle_zeilen = vergleich_dienst.zeilen_bauen(db)
+    if not server:
+        return ServerVergleichStand(
+            moeglich=False, server=[], anzahl={}, zeilen=[], gesamt=0, seite=1, seiten=1
+        )
+    arr = vergleich_dienst.arr_zeilen(abgleich_dienst.lesen(db), server)
+
+    zusammenfassung = [
+        VergleichServer(
+            anbieter=s,
+            filme=sum(
+                1
+                for z in alle_zeilen
+                if z.art == "movie" and z.zellen[s].zustand not in vergleich_dienst.FEHLT
+            ),
+            serien=sum(
+                1
+                for z in alle_zeilen
+                if z.art == "tv" and z.zellen[s].zustand not in vergleich_dienst.FEHLT
+            ),
+            fehlen=(
+                sum(1 for z in alle_zeilen if z.zellen[s].zustand in vergleich_dienst.FEHLT)
+                if len(server) > 1
+                else 0
+            ),
+        )
+        for s in server
+    ]
+    anzahl = {
+        a: (len(arr) if a == "nur_arr" else sum(1 for z in alle_zeilen if vergleich_dienst.passt(z, a)))
+        for a in vergleich_dienst.ANSICHTEN
+    }
+
+    quelle = arr if ansicht == "nur_arr" else alle_zeilen
+    gesucht = vergleich_dienst.titel_schluessel(suche or "")
+    # Gesucht wird im Titel **und** im Pfad: Wer auf dem Datentraeger einen
+    # Ordner vor sich hat, will ihn in der Tabelle wiederfinden.
+    pfad_gesucht = (suche or "").strip().casefold()
+    treffer = [
+        z
+        for z in quelle
+        if vergleich_dienst.passt(z, ansicht)
+        and (art == "alle" or z.art == art)
+        and (
+            not fehlt_auf
+            or (fehlt_auf in z.zellen and z.zellen[fehlt_auf].zustand in vergleich_dienst.FEHLT)
+        )
+        and (
+            not pfad_gesucht
+            or (gesucht and gesucht in vergleich_dienst.titel_schluessel(z.titel))
+            or any(pfad_gesucht in p.casefold() for c in z.zellen.values() for p in c.pfade)
+        )
+    ]
+    seiten = max(1, -(-len(treffer) // pro_seite))
+    seite = min(seite, seiten)
+    ausschnitt = treffer[(seite - 1) * pro_seite : seite * pro_seite]
+    return ServerVergleichStand(
+        moeglich=True,
+        server=zusammenfassung,
+        anzahl=anzahl,
+        zeilen=[VergleichZeile.model_validate(asdict(z)) for z in ausschnitt],
+        gesamt=len(treffer),
+        seite=seite,
+        seiten=seiten,
+    )
+
+
+class TitelPfade(BaseModel):
+    pfade: list[str]
+
+
+@router.get("/server-vergleich/pfade", response_model=TitelPfade)
+async def server_vergleich_pfade(
+    admin: AdminUser,
+    db: DbSession,
+    anbieter: Annotated[str, Query(max_length=20)],
+    schluessel: Annotated[str, Query(min_length=1, max_length=40)],
+) -> TitelPfade:
+    """Die Pfade eines Titels nachschlagen, den die Bibliotheksliste ohne liefert.
+
+    Beim Aufklappen einer Zeile gefragt, nicht beim Einlesen - siehe
+    ``PlexServer.titel_pfade``. Das Ergebnis wird an die Bibliothekszeile
+    geschrieben, damit der zweite Blick keine Anfrage mehr kostet. Das
+    naechste Einlesen ersetzt die Zeile und vergisst es wieder; dann fragt
+    eben der naechste Blick.
+    """
+    zeilen = db.scalars(
+        select(MediaServerLibraryItem).where(
+            MediaServerLibraryItem.provider == anbieter,
+            MediaServerLibraryItem.rating_key == schluessel,
+        )
+    ).all()
+    if not zeilen:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "library_item_not_found",
+                "message": "Diesen Titel kennt die Bibliothek des Servers nicht.",
+            },
+        )
+    gespeichert = [p for z in zeilen for p in (z.file_paths or "").splitlines() if p.strip()]
+    if gespeichert:
+        return TitelPfade(pfade=list(dict.fromkeys(gespeichert)))
+
+    try:
+        server = media_server_for_setup(load_settings(db), anbieter)
+        pfade = await server.titel_pfade(schluessel)
+    except MediaServerError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=exc.als_meldung()) from exc
+    if pfade:
+        for zeile in zeilen:
+            zeile.file_paths = "\n".join(pfade)[:4000]
+        db.commit()
+    return TitelPfade(pfade=pfade)
+
+
+# ---------------------------------------------------------------------------
+# Neu zuordnen: schreibt in den Medienserver, nur auf Klick
+# ---------------------------------------------------------------------------
+
+
+class NeuZuordnen(BaseModel):
+    anbieter: str
+    schluessel: str
+    art: Literal["movie", "tv"]
+    tmdb: int | None = None
+    tvdb: int | None = None
+
+
+class ZuordnungErgebnis(BaseModel):
+    #: ``korrigiert``, ``zurueckgesprungen`` (der Server hat die Korrektur
+    #: selbst wieder ueberschrieben) oder ``nicht_bestaetigt`` (in der
+    #: Wartezeit nicht sichtbar geworden).
+    ergebnis: str
+    titel: str | None
+    jahr: int | None
+
+
+#: Wie lange nach dem Anwenden gefragt wird, ob es da ist. Emby brauchte in der
+#: Messung knapp fuenf Sekunden.
+NACHFRAGEN = (0.0, 1.0, 2.0, 3.0, 4.0, 5.0)
+#: Und wie lange danach noch einmal - bei einer Serie sprang Emby in dieser
+#: Zeit von selbst zurueck.
+NOCHMAL_NACH = 6.0
+
+#: Austauschbar fuer die Tests, die nicht wirklich warten sollen.
+_warten = asyncio.sleep
+
+
+@router.post("/server-vergleich/zuordnen", response_model=ZuordnungErgebnis)
+async def server_vergleich_zuordnen(
+    payload: NeuZuordnen, admin: AdminUser, db: DbSession
+) -> ZuordnungErgebnis:
+    """Einen Titel auf **einem** Medienserver neu zuordnen und nachpruefen.
+
+    ⚠️ **Das ist der einzige Weg, auf dem Nexview Metadaten in einem
+    Medienserver aendert** - und er laeuft nur auf ausdruecklichen Klick eines
+    Administrators. Kein Hintergrundlauf, keine Automatik.
+
+    ⚠️ **"Angenommen" heisst nicht "erledigt".** Gemessen am 17.09.2026: Emby
+    zeigte die neue Zuordnung erst nach fuenf Sekunden, und bei einer Serie
+    stand sie zwei Sekunden da und war dann weg - Emby hatte sie ueber IMDb und
+    TVDB selbst wieder aufgeloest. Deshalb wird nachgefragt, und zwar zweimal.
+    Wer "korrigiert" meldet, ohne nachzusehen, luegt in genau diesem Fall.
+    """
+    if payload.tmdb is None and payload.tvdb is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "mediaserver_rematch_no_id",
+                "message": "Ohne Nummer lässt sich nicht neu zuordnen.",
+            },
+        )
+    zeilen = db.scalars(
+        select(MediaServerLibraryItem).where(
+            MediaServerLibraryItem.provider == payload.anbieter,
+            MediaServerLibraryItem.rating_key == payload.schluessel,
+        )
+    ).all()
+    if not zeilen:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "library_item_not_found",
+                "message": "Diesen Titel kennt die Bibliothek des Servers nicht.",
+            },
+        )
+
+    def passt(werk) -> bool:
+        if werk is None:
+            return False
+        if payload.tmdb is not None and payload.tmdb not in (werk.tmdb_id, *werk.tmdb_ids):
+            return False
+        return not (payload.art == "tv" and payload.tvdb is not None and werk.tvdb_id != payload.tvdb)
+
+    try:
+        server = media_server_for_setup(load_settings(db), payload.anbieter)
+        await server.zuordnung_anwenden(payload.schluessel, payload.art, payload.tmdb, payload.tvdb)
+        logger.warning(
+            "Media server %r: title %s rematched to tmdb=%s tvdb=%s by %s",
+            payload.anbieter,
+            payload.schluessel,
+            payload.tmdb,
+            payload.tvdb,
+            admin.username,
+        )
+        werk = None
+        for pause in NACHFRAGEN:
+            await _warten(pause)
+            werk = await server.titel_nummern(payload.schluessel)
+            if passt(werk):
+                break
+        if not passt(werk):
+            ergebnis = "nicht_bestaetigt"
+        else:
+            await _warten(NOCHMAL_NACH)
+            werk = await server.titel_nummern(payload.schluessel)
+            ergebnis = "korrigiert" if passt(werk) else "zurueckgesprungen"
+    except MediaServerError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=exc.als_meldung()) from exc
+
+    if ergebnis == "korrigiert" and werk is not None:
+        # Die Tabelle soll es sofort zeigen, nicht erst nach dem naechsten
+        # Einlesen. Nur die Zuordnung - Pfade und Groessen bleiben, wie sie sind.
+        for zeile in zeilen:
+            zeile.tmdb_id = payload.tmdb if payload.tmdb is not None else werk.tmdb_id
+            zeile.tvdb_id = werk.tvdb_id
+            zeile.imdb_id = werk.imdb_id
+            zeile.title = werk.title[:500]
+            zeile.title_key = normalize_title(werk.title)[:500]
+            zeile.year = werk.year
+        db.commit()
+    logger.info("Media server %r: rematch of %s %s", payload.anbieter, payload.schluessel, ergebnis)
+    return ZuordnungErgebnis(
+        ergebnis=ergebnis,
+        titel=werk.title if werk else None,
+        jahr=werk.year if werk else None,
     )

@@ -117,7 +117,12 @@ export function MediaServerLink() {
                     }
                   />
                   <span className="font-medium text-mist-200">{name}</span>
-                  {konto ? (
+                  {konto?.token_abgelehnt ? (
+                    <span className="text-bad-500">
+                      {t('mediaserver.tokenExpired')}{' '}
+                      <span className="text-mist-300">{konto.username}</span>
+                    </span>
+                  ) : konto ? (
                     <span className="text-mist-500">
                       {t('mediaserver.connected')}{' '}
                       <span className="text-mist-300">{konto.username}</span>
@@ -129,7 +134,24 @@ export function MediaServerLink() {
                   )}
                 </span>
 
-                {konto ? (
+                {/* ⚠️ Abgelaufen heißt: neu anmelden, nicht trennen. Vorher
+                    stand hier nur „Trennen", und wer sein letztes Konto
+                    trennte, sperrte sich womöglich aus. */}
+                {konto?.token_abgelehnt ? (
+                  <Button
+                    onClick={() => {
+                      if (mitPasswort.includes(provider)) {
+                        setAktiv(aktiv === provider ? null : provider)
+                      } else {
+                        setAktiv(provider)
+                        void verbinden.starten()
+                      }
+                    }}
+                    loading={verbinden.laeuft && aktiv === provider}
+                  >
+                    {t('mediaserver.reconnect')}
+                  </Button>
+                ) : konto ? (
                   <Button
                     variant="ghost"
                     onClick={() => trennen.mutate(provider)}
@@ -219,7 +241,7 @@ export function MediaServerLink() {
  * ⚠️ Das Passwort geht einmal an Nexview, von dort an den Medienserver – und
  * wird danach verworfen. Gespeichert wird nur das Token, das zurückkommt.
  */
-function PasswortVerknuepfen({
+export function PasswortVerknuepfen({
   provider,
   name,
   onFertig,

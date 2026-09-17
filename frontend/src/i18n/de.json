@@ -1325,6 +1325,16 @@
     "tileConnected": "Verbunden",
     "tileNotConnected": "Nicht verbunden",
     "tileAs": "als {{name}}",
+    "tileAccessDenied": "Zugang abgelehnt",
+    "tileUnreachable": "Nicht erreichbar",
+    "accessTitle": "Zugang",
+    "accessChecking": "Zugang wird geprüft …",
+    "accessOk": "{{name}} nimmt den gespeicherten Zugang an.",
+    "accessDenied": "{{name}} lehnt den gespeicherten Zugang ab. Abgleich, Kontenübernahme und laufende Wiedergaben funktionieren erst wieder nach einer neuen Anmeldung.",
+    "accessUnreachable": "{{name}} antwortet gerade nicht. Ob der Zugang noch gilt, lässt sich erst sagen, wenn der Server wieder erreichbar ist.",
+    "reconnect": "Neu anmelden",
+    "reconnectHint": "Ersetzt nur den Zugang. Die Verbindung, verknüpfte Konten und Einstellungen bleiben, wie sie sind.",
+    "tokenExpired": "Zugang abgelaufen",
     "tileSoon": "Noch nicht verfügbar",
     "tileSoonHint": "Kommt in einer der nächsten Fassungen.",
     "back": "Alle Medienserver",
@@ -2000,6 +2010,10 @@
       "mediaserver_no_code_login": "Es ist kein Medienserver mit Code-Anmeldung verbunden.",
       "mediaserver_no_new_account": "Über diesen Anbieter kann kein neues Konto entstehen. Melde dich mit deinem Nexview-Konto an und verknüpfe ihn in deinem Profil – oder bitte den Administrator um eine Einladung.",
       "mediaserver_no_watchlist": "Es ist kein Medienserver mit Merkliste verbunden.",
+      "mediaserver_rematch_no_id": "Ohne Nummer lässt sich nicht neu zuordnen.",
+      "mediaserver_rematch_no_candidate": "{{service}} findet zu dieser Nummer keinen eindeutigen Titel.",
+      "mediaserver_rematch_unsupported": "{{service}} kann Titel nicht neu zuordnen.",
+      "library_item_not_found": "Diesen Titel kennt die Bibliothek des Servers nicht.",
       "mediaserver_none_linked": "Es ist kein Media-Server verbunden.",
       "mediaserver_not_admin": "Dieses Konto ist auf dem Server kein Administrator. Zum Verbinden wird ein Administratorkonto gebraucht.",
       "mediaserver_not_invited": "Für diesen Zugang gibt es noch kein Konto. Bitte den Administrator um eine Einladung.",
@@ -2855,7 +2869,9 @@
   "watchlistExpired": {
     "text": "Dein Medienserver-Zugang ist abgelaufen. Bis du dich neu anmeldest, bleiben deine Merkliste und der Gesehen-Stand stehen.",
     "action": "Erneut authentifizieren",
-    "running": "Anmeldung läuft …"
+    "running": "Anmeldung läuft …",
+    "textFor": "Dein Zugang bei {{names}} ist abgelaufen. Bis du dich neu anmeldest, bleiben deine Merkliste und der Gesehen-Stand dort stehen.",
+    "actionFor": "Bei {{name}} neu anmelden"
   },
   "papierkorb": {
     "title": "Papierkorb",
@@ -3607,6 +3623,114 @@
     "yearConflictsHint": "falsche Zuordnung oder Festival- gegen Kinostart",
     "providerGap": "Server uneinig",
     "providerGapHint": "kennt nicht jeder deiner {{count}} Server",
+    "matrix": {
+      "title": "Server vergleichen",
+      "intro": "Jeder Titel, den mindestens ein Server kennt, und wo er liegt. Zugeordnet wird über TMDB, TVDB und IMDb, bei Titeln ganz ohne Nummer über Titel und Jahr.",
+      "movies_one": "{{count}} Film",
+      "movies_other": "{{count}} Filme",
+      "series_one": "{{count}} Serie",
+      "series_other": "{{count}} Serien",
+      "missingHere_one": "{{count}} Titel fehlt hier",
+      "missingHere_other": "{{count}} Titel fehlen hier",
+      "missingNone": "fehlt nichts",
+      "view": {
+        "unterschiede": "Unterschiede",
+        "andere_nummer": "Andere Nummer",
+        "jahr": "Jahr uneinig",
+        "ohne_kennung": "Ohne Kennung",
+        "nur_arr": "Nur in Radarr/Sonarr",
+        "alle": "Alle Titel"
+      },
+      "search": "Titel oder Pfad suchen",
+      "noPath": "Pfad unbekannt. Er kommt mit dem nächsten Abgleich dieses Servers.",
+      "pathLoading": "Pfad wird nachgeschlagen …",
+      "kind": {
+        "alle": "Alle",
+        "movie": "Filme",
+        "tv": "Serien"
+      },
+      "kindOne": {
+        "movie": "Film",
+        "tv": "Serie"
+      },
+      "missingFilter": "Fehlt auf",
+      "anyServer": "beliebigem Server",
+      "colTitle": "Titel",
+      "colMatch": "Zugeordnet über",
+      "match": {
+        "tmdb": "TMDB",
+        "tvdb": "TVDB",
+        "imdb": "IMDb",
+        "titel": "Titel und Jahr",
+        "einzeln": "nur ein Server",
+        "arr": "Radarr/Sonarr",
+        "pfad": "Nummer im Pfad"
+      },
+      "present": "vorhanden",
+      "missing": "fehlt",
+      "otherId": "andere Nummer",
+      "otherTitle": "Datei da, als anderer Titel erkannt",
+      "recognisedAs": "Wird in {{server}} als „{{titel}}“ geführt",
+      "listedAs": "geführt als",
+      "yearBadge": "Jahr uneinig",
+      "noIdBadge": "ohne Kennung",
+      "summary_one": "{{count}} Titel",
+      "summary_other": "{{count}} Titel",
+      "empty": "Alle Server kennen dieselben Titel.",
+      "emptyView": "In dieser Ansicht steht nichts.",
+      "emptyFilter": "Kein Titel passt zu diesem Filter.",
+      "details": "Nummern je Server",
+      "noIds": "keine Nummern",
+      "failed": "Der Vergleich ließ sich nicht laden.",
+      "rematch": {
+        "button": "Neu zuordnen",
+        "title": "Welcher Titel ist richtig?",
+        "noTitle": "Titel aus dem Dateinamen",
+        "onServers": "bei {{servers}}",
+        "fromPath": "steht im Dateinamen",
+        "hint": "Ändert Zuordnung, Metadaten und Poster direkt auf dem Server. Gesucht wird über die Nummer, nicht über den Namen.",
+        "apply": "Auf {{servers}} korrigieren",
+        "nothingToDo": "Alle Server führen schon diese Nummer",
+        "running": "{{server}} wird korrigiert und nachgeprüft …",
+        "result": {
+          "korrigiert": "{{server}}: korrigiert, jetzt „{{titel}}“.",
+          "zurueckgesprungen": "{{server}}: angenommen, aber kurz darauf vom Server selbst wieder überschrieben. Die Quellen des Servers sind sich bei diesem Titel wohl uneins.",
+          "nicht_bestaetigt": "{{server}}: angenommen, aber noch nicht sichtbar. Nach dem nächsten Abgleich hier nachsehen."
+        }
+      },
+      "helpTitle": "So grenzt du es ein",
+      "help": {
+        "unterschiede": [
+          "Nexview liest jeden Server mit dem Konto, mit dem du ihn verbunden hast. Prüfe auf dem Server unter Benutzer, dieses Konto, Zugriff, ob alle Bibliotheken freigegeben sind. Was das Konto nicht sieht, sieht Nexview nicht.",
+          "Liegen die Dateien im Ordner, den die Bibliothek dieses Servers einliest? Laufen die Server in Containern, vergleiche die eingehängten Pfade.",
+          "Lass die Bibliothek auf dem Server neu scannen und gleiche danach in Nexview unter Einstellungen, Dienste, Medienserver neu ab.",
+          "Ein Klick auf eine Zeile zeigt die Nummern je Server. Ein Titel mit „andere Nummer“ ist da, nur anders erkannt.",
+          "Ein ⇄ heißt: Die Datei liegt auf dem Server, er hält sie aber für einen anderen Titel. Unter dem Titel steht, wofür. Das ist fast immer eine falsche Zuordnung."
+        ],
+        "andere_nummer": [
+          "Der Titel liegt auf mehreren Servern, einer führt ihn aber unter einer anderen TMDB- oder TVDB-Nummer. Nexview erkennt Titel über diese Nummern und sieht ihn dort deshalb nicht.",
+          "Ein Klick auf die Zeile zeigt, welcher Server welche Nummer führt. Meist liegt die Mehrheit richtig.",
+          "Korrigiere die Zuordnung auf dem abweichenden Server: in Plex mit „Fix Match“, in Jellyfin und Emby mit „Identify“. Danach neu abgleichen."
+        ],
+        "jahr": [
+          "Die Server führen dieselbe Nummer, nennen aber Jahre, die mehr als ein Jahr auseinanderliegen.",
+          "Entweder hat ein Server den falschen Titel erkannt, dann hilft „Fix Match“ oder „Identify“. Oder die Metadaten nennen verschiedene Starts, etwa Festival und Kino.",
+          "Nexview verwirft Treffer, deren Jahre nicht passen, und meldet den Titel dann als nicht vorhanden."
+        ],
+        "ohne_kennung": [
+          "Der Server hat diese Titel weder bei TMDB noch bei TVDB zugeordnet. Für Nexview sind sie damit nicht vorhanden und lassen sich noch einmal anfragen.",
+          "Steht im Ordnernamen eine Nummer wie {tmdb-1234}, ist das die Schreibweise für Plex. Jellyfin erwartet [tmdbid-1234], Emby [tmdbid=1234]. Sonst hält der Server die Zahl leicht für das Jahr und den Gruppennamen am Dateiende für den Titel. Nexview ordnet solche Titel über die Nummer im Pfad trotzdem zu, der Server sieht sie aber nicht.",
+          "Ohne Nummer im Namen hilft meist das Muster „Titel (Jahr)“, bei Folgen zusätzlich S01E01.",
+          "Ordne den Titel auf dem Server von Hand zu, mit „Fix Match“ oder „Identify“, oder passe das Benennungsschema in Radarr und Sonarr an. Danach neu abgleichen."
+        ],
+        "nur_arr": [
+          "Radarr oder Sonarr haben für diese Titel eine Datei, aber kein Server kennt sie. Für alle sieht es so aus, als gäbe es sie nicht.",
+          "Häufigste Ursache: Der Stammordner in Radarr oder Sonarr liegt außerhalb der Bibliotheksordner des Servers, oder die Pfade in den Containern unterscheiden sich.",
+          "Sonst hat der Server noch nicht gescannt. Scan starten und danach neu abgleichen.",
+          "Die Liste entsteht beim stündlichen Abgleich und zeigt höchstens 500 Titel."
+        ]
+      }
+    },
     "perProvider": "Bestand je Server",
     "examples": "Beispiele",
     "backups": "Sicherungen",

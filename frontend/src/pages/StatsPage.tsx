@@ -288,6 +288,18 @@ export function StatsPage() {
     REITER_AUS_ADRESSE[suchparameter.get('reiter') ?? ''] ?? 'anfragen',
   )
 
+  // ⚠️ **Ein Befund-Link auf dieser Seite ändert nur die Adresse.** Ohne
+  // Nachziehen bliebe der Reiter stehen: „Ansehen" in der Bibliothek, das auf
+  // die Bibliothek zeigt, täte scheinbar nichts. Während des Renderns statt in
+  // einem Effekt, damit nicht erst der alte Reiter lädt.
+  const reiterAusAdresse = suchparameter.get('reiter')
+  const [letzterAdressReiter, setLetzterAdressReiter] = useState(reiterAusAdresse)
+  if (reiterAusAdresse !== letzterAdressReiter) {
+    setLetzterAdressReiter(reiterAusAdresse)
+    const neu = REITER_AUS_ADRESSE[reiterAusAdresse ?? '']
+    if (neu) setReiter(neu)
+  }
+
   /** Beim Wechseln von Hand fliegt der Parameter raus — sonst springt ein
    *  Neuladen auf den Reiter aus der Adresse zurück. */
   const wechseln = (wert: Reiter) => {

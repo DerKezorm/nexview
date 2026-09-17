@@ -45,7 +45,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import MediaServerLibraryItem, MediaType, Setting
-from . import library
+from . import library, server_vergleich
 from .arr import ArrError
 from .settings_service import AppSettings
 
@@ -63,6 +63,9 @@ BEISPIELE = 5
 #: Ein Jahr Abweichung ist normal - Festivalstart und Kinostart fallen oft in
 #: verschiedene Jahre. Dieselbe Grenze wie in ``mediaserver_library``.
 JAHR_TOLERANZ = 1
+
+#: So viele Titel "nur in Radarr/Sonarr" werden fuer die Tabelle abgelegt.
+ARR_TITEL_HOECHSTENS = 500
 
 
 @dataclass
@@ -92,6 +95,10 @@ class Stand:
     je_anbieter: dict[str, int] = field(default_factory=dict)
     #: Wie viele Titel mindestens ein Anbieter kennt, aber nicht alle.
     anbieter_luecke: int = 0
+    #: Die Titel hinter ``arr_ohne_server``, fuer die Vergleichstabelle.
+    #: Gedeckelt bei ``ARR_TITEL_HOECHSTENS`` - wer mehr hat, hat ein
+    #: grundsaetzliches Problem, und das zeigen auch die ersten paar hundert.
+    arr_ohne_server_titel: list[dict] = field(default_factory=list)
     #: Beispieltitel je Befund, damit die Zahl greifbar wird.
     beispiele: dict[str, list[str]] = field(default_factory=dict)
     #: Konnte ueberhaupt verglichen werden? Ohne Medienserver: nein.
@@ -237,22 +244,17 @@ async def messen(db: Session, settings: AppSettings) -> Stand:
     doppelt = 0
     doppel_beispiele: list[str] = []
     je_anbieter: dict[str, int] = {}
-    bekannt_je_anbieter: dict[str, set[tuple[str, int]]] = {}
 
     for anbieter, zeilen in nach_anbieter.items():
         je_anbieter[anbieter] = len(zeilen)
-        eigene: set[tuple[str, int]] = set()
         for zeile in zeilen:
             if zeile.tmdb_id is None and zeile.tvdb_id is None:
                 nicht_erkannt += 1
                 continue
-            if zeile.tmdb_id is not None:
-                eigene.add((zeile.media_type.value, zeile.tmdb_id))
-                if zeile.media_type == MediaType.movie:
-                    server_filme.add(zeile.tmdb_id)
+            if zeile.tmdb_id is not None and zeile.media_type == MediaType.movie:
+                server_filme.add(zeile.tmdb_id)
             if zeile.tvdb_id is not None and zeile.media_type == MediaType.tv:
                 server_serien.add(zeile.tvdb_id)
-        bekannt_je_anbieter[anbieter] = eigene
         anzahl, beispiele = _doppelte(zeilen)
         doppelt += anzahl
         doppel_beispiele.extend(beispiele)
@@ -267,11 +269,13 @@ async def messen(db: Session, settings: AppSettings) -> Stand:
     ohne_arr = len(server_filme - filme) + len(server_serien - serien)
 
     # Uneinige Anbieter: was einer kennt und ein anderer nicht.
-    luecke = 0
-    if len(bekannt_je_anbieter) > 1:
-        alle = set().union(*bekannt_je_anbieter.values())
-        gemeinsam = set.intersection(*bekannt_je_anbieter.values())
-        luecke = len(alle - gemeinsam)
+    #
+    # ⚠️ **Nicht mehr ueber die TMDB-Nummer allein** (Issue #10). Fuehrte ein
+    # Server einen Titel unter einer anderen Nummer, zaehlte er auf beiden
+    # Seiten als fehlend. Jetzt zaehlt dieselbe Zuordnung wie in der
+    # Vergleichstabelle - die Zahl im Befund und die Zeilen dahinter muessen
+    # uebereinstimmen, sonst glaubt man keinem von beiden.
+    luecke = server_vergleich.luecke_zaehlen(db)
 
     jahr_anzahl, jahr_beispiele = _jahre_uneinig(nach_anbieter)
 
@@ -283,6 +287,16 @@ async def messen(db: Session, settings: AppSettings) -> Stand:
         jahr_widerspruch=jahr_anzahl,
         je_anbieter=je_anbieter,
         anbieter_luecke=luecke,
+        arr_ohne_server_titel=(
+            [
+                {"art": "movie", "nummer": t, "titel": arr_titel.get(("movie", t), "")}
+                for t in fehlende_filme
+            ]
+            + [
+                {"art": "tv", "nummer": t, "titel": arr_titel.get(("tv", t), "")}
+                for t in fehlende_serien
+            ]
+        )[:ARR_TITEL_HOECHSTENS],
         beispiele={
             "arr_ohne_server": [t for t in beispiele_arr if t][:BEISPIELE],
             "doppelt": doppel_beispiele[:BEISPIELE],

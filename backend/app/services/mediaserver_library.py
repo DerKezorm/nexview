@@ -246,15 +246,20 @@ def verwaiste_entfernen(db: Session, settings: AppSettings) -> int:
     Bibliothek kosten.
     """
     verbunden = sorted({v.provider for v in settings.mediaserver_verbindungen})
-    ergebnis = db.execute(
-        delete(MediaServerLibraryItem).where(MediaServerLibraryItem.provider.not_in(verbunden))
+    verwaist = MediaServerLibraryItem.provider.not_in(verbunden)
+    # ⚠️ **Erst lesen, nur bei Bedarf schreiben - und dann sofort committen.**
+    # Ein DELETE ohne Treffer oeffnet in SQLite trotzdem eine Schreibsperre.
+    # Blieb die Transaktion offen, lief ein gleichzeitiges Trennen in einer
+    # anderen Sitzung in "database is locked" - der Test
+    # ``test_abgleich_schreibt_nichts_wenn_inzwischen_getrennt`` hat es gezeigt.
+    if db.scalar(select(MediaServerLibraryItem.id).where(verwaist).limit(1)) is None:
+        return 0
+    ergebnis = db.execute(delete(MediaServerLibraryItem).where(verwaist))
+    db.commit()
+    logger.info(
+        "Removed %d library row(s) of media servers that are no longer connected",
+        ergebnis.rowcount,
     )
-    if ergebnis.rowcount:
-        db.commit()
-        logger.info(
-            "Removed %d library row(s) of media servers that are no longer connected",
-            ergebnis.rowcount,
-        )
     return ergebnis.rowcount or 0
 
 

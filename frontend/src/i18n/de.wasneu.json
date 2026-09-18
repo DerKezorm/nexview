@@ -554,6 +554,20 @@
         ],
         "smallTitle": "Außerdem",
         "small": []
+      },
+      "0.35.2": {
+        "lead": "Eine Reparatur für Jellyfin: Filme in einer Sammlung werden wieder einzeln gelesen.",
+        "sections": [
+          {
+            "title": "Jellyfin versteckt keine Filme mehr in Sammlungen",
+            "where": "Statistik & Analyse, Bibliothek, Server vergleichen",
+            "body": "Ist in Jellyfin „Filme zu Sammlungen gruppieren“ eingeschaltet, antwortete Jellyfin Nexview mit der Sammlung statt mit den Filmen darin. Nexview zählte dann „Alien Collection“ als einen Film und übersah jeden Film darin, und Jellyfin schien bei derselben Bibliothek weit weniger Filme zu haben als Emby oder Plex. Jetzt fragt Nexview jeden Film einzeln ab, und eine Sammlung wird nie als Film gespeichert. Einmal Jetzt abgleichen für Jellyfin, dann ist die Bibliothek neu gelesen."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Emby war nicht betroffen, es gruppiert nur auf Wunsch. Nexview sagt jetzt ausdrücklich, dass es das auch nicht will."
+        ]
       }
     }
   }

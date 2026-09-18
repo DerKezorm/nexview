@@ -12,6 +12,21 @@ tag exists for it.
 
 ---
 
+## 0.35.2 – 18.09.2026
+
+A repair for Jellyfin: movies inside a collection are read one by one again.
+
+### Fixed
+
+- **Jellyfin hid movies inside collections.** With "Group movies into
+  collections" switched on in Jellyfin, Jellyfin answered Nexview with the
+  collection instead of the movies in it. Nexview stored "Alien Collection" as
+  a movie and missed every movie inside, so Jellyfin seemed to have far fewer
+  movies than Emby or Plex with the same library, and *Compare servers* listed
+  them as missing. Nexview now asks for every movie on its own, and a
+  collection is never stored as a movie. Run *Sync now* once for Jellyfin to
+  read the library again. Emby was not affected, it only groups when asked to.
+
 ## 0.35.1 – 17.09.2026
 
 A repair to 0.35.0: a disconnected media server no longer appears in the

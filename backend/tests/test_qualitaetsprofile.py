@@ -161,6 +161,23 @@ def test_bauplan_zieht_kleinere_aufloesungen_dazu() -> None:
     assert "Bluray-1080p" not in warten.merge
 
 
+@pytest.mark.parametrize("dienst", ["radarr", "sonarr"])
+def test_warten_nimmt_720p_aus_trashs_deutscher_gruppe(dienst: str) -> None:
+    """TRaSHs deutsches HD-Profil hat 720p schon in "Merged QPs".
+
+    Mit "erst nehmen" bleibt die Gruppe wie bei TRaSH, mit "warten" faellt 720p
+    heraus. Aus der Upgrade-Welle vom 14./15.09.2026: 720p mit mehr Punkten
+    ersetzte dort 1080p-Dateien.
+    """
+    rezept = {**REZEPT, "typ": dienst, "aufloesung": "1080p", "quelle": "encodes"}
+    sofort = bauplan({**rezept, "sofortNehmen": True}, dienst, {"de": 4})
+    warten = bauplan({**rezept, "sofortNehmen": False}, dienst, {"de": 4})
+    assert sofort.basis == "german-hd-bluray-web", "sonst prueft dieser Test nichts"
+    assert {"Bluray-720p", "WEBDL-720p", "WEBRip-720p"} <= set(sofort.stufen[sofort.ziel])
+    assert not [q for q in warten.merge if "720p" in q]
+    assert set(warten.stufen[warten.ziel]) == {"Bluray-1080p", "WEBDL-1080p", "WEBRip-1080p"}
+
+
 def test_bauplan_meldet_unbekannte_kombination() -> None:
     with pytest.raises(TrashFehler):
         bauplan({**REZEPT, "aufloesung": "480p"}, "radarr", {"de": 4})

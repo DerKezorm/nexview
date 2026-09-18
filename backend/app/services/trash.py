@@ -653,6 +653,24 @@ def bauplan_aus(
         if any(gefiltert) and gefiltert != stufen:
             stufen, ziel = _ohne_leere(gefiltert, ziel)
 
+    if not rezept.get("sofortNehmen"):
+        # "Warten, bis es sie gibt" verspricht: nichts unter der Zielaufloesung.
+        #
+        # ⚠️ **TRaSHs deutsche HD-Profile haben 720p schon in der Gruppe**
+        # ("Merged QPs" mit 720p und 1080p). Dort entscheiden nur Punkte, und
+        # ein deutsches 720p-Release mit mehr Punkten ersetzt eine 1080p-Datei.
+        # So ersetzte Sonarr am 14. und 15.09.2026 bei einem Besitzer 405
+        # Folgen durch 720p. Mit "erst nehmen" bleibt das TRaSHs Absicht; wer
+        # warten will, bekommt 720p nicht. Entschieden am 16.09.2026 fuer
+        # nexcrate (Entscheidung 10 der Serien), am 18.09.2026 uebernommen.
+        grenze = int(aufloesung[:-1])
+        gefiltert = [
+            [q for q in stufe if not aufloesung_von(q) or _aufloesung_zahl(q) >= grenze]
+            for stufe in stufen
+        ]
+        if gefiltert != stufen:
+            stufen, ziel = _ohne_leere(gefiltert, ziel)
+
     if rezept.get("sofortNehmen"):
         # "Erst nehmen, was da ist": dieselben Quellen in kleinerer Aufloesung,
         # abgeleitet aus dem Ziel. Wohin sie kommen, haengt an der Familie.

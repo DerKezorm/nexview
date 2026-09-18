@@ -1661,7 +1661,7 @@
     "waitFor": "Wait until it exists",
     "waitForHint": "The shelf stays empty until a release in your target resolution appears.",
     "takeNowWarning": "This means downloading the same film a second time — noticeable traffic over weeks with a large library. The old file is replaced in the process.",
-    "waitExplain": "With “take what is there”, smaller resolutions rank below the target. Once a release in the target resolution turns up, Radarr swaps on its own. German profiles put them in one group with the target, as the TRaSH Guides do; there, resolution scores decide.",
+    "waitExplain": "With “take what is there”, smaller resolutions rank below the target. Once a release in the target resolution turns up, Radarr swaps on its own. German profiles put them in one group with the target, as the TRaSH Guides do; there, only the scores decide, even against the resolution: a 720p release with more points can replace a 1080p file. If you don't want that, choose “wait”, and 720p stays out entirely.",
     "sourceTitle": "How good should the source be?",
     "sourceSub": "The biggest lever on disk usage.",
     "srcEncodes": "Best encodes",

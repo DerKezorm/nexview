@@ -1661,7 +1661,7 @@
     "waitFor": "Warten, bis es sie gibt",
     "waitForHint": "Das Regal bleibt leer, bis ein Release in der Wunschauflösung erscheint.",
     "takeNowWarning": "Das bedeutet einen zweiten Download desselben Films — bei einer großen Bibliothek über Wochen spürbar Datenverkehr. Die alte Datei wird dabei ersetzt.",
-    "waitExplain": "Bei „erst nehmen“ stehen kleinere Auflösungen unter dem Ziel. Taucht ein Release in der Zielauflösung auf, tauscht Radarr von selbst. Deutsche Profile legen sie wie die TRaSH-Guides mit dem Ziel in eine Gruppe; dort entscheiden Punkte für die Auflösung.",
+    "waitExplain": "Bei „erst nehmen“ stehen kleinere Auflösungen unter dem Ziel. Taucht ein Release in der Zielauflösung auf, tauscht Radarr von selbst. Deutsche Profile legen sie wie die TRaSH-Guides mit dem Ziel in eine Gruppe; dort entscheiden nur die Punkte, auch gegen die Auflösung: Ein 720p-Release mit mehr Punkten kann eine 1080p-Datei ersetzen. Wer das nicht will, wählt „warten“, dann bleibt 720p ganz draußen.",
     "sourceTitle": "Wie hochwertig soll die Quelle sein?",
     "sourceSub": "Der größte Hebel für den Platzbedarf.",
     "srcEncodes": "Beste Encodes",

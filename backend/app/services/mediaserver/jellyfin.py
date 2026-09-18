@@ -84,6 +84,26 @@ SEITE_FILME = 100
 # Gesehen-Stand dieses Kontos - die Bibliothek nicht, siehe ``library_index``.
 GESEHEN_ZEITGRENZE = httpx.Timeout(180.0, connect=6.0)
 
+# Jeder Film einzeln, nie zu Sammlungen zusammengeklappt.
+#
+# ⚠️ **Ohne diese Angabe liefert Jellyfin Sammlungen statt Filmen.** Ist in
+# Jellyfin "Filme zu Sammlungen gruppieren" eingeschaltet (eine
+# Servereinstellung, ``EnableGroupingMoviesIntoCollections``), klappt
+# ``/Items`` jeden Film einer Sammlung in einen ``BoxSet``-Eintrag ein. Beim
+# Melder von Issue #10 waren das 104 Sammlungen fuer 354 Filme: Jellyfin
+# schien 250 Filme weniger zu haben als Emby, bei derselben Bibliothek.
+#
+# Gemessen am 18.09.2026 an Jellyfin 10.11.11 und Emby 4.9.5.0: Jellyfin
+# klappt nur mit der Servereinstellung ein und hoert auf
+# ``CollapseBoxSetItems=false``; Emby klappt nur auf ausdruecklichen Wunsch
+# ein (``GroupItemsIntoCollections=true``). Jeder ignoriert den Parameter des
+# anderen, deshalb gehen beide mit - Emby erbt diese Abfragen.
+NICHT_GRUPPIERT = {"CollapseBoxSetItems": "false", "GroupItemsIntoCollections": "false"}
+
+# Welcher Eintragstyp zu welcher Art gehoert. Was anders heisst - eine
+# Sammlung, ein Ordner -, ist kein Titel und kommt nicht in die Bibliothek.
+TYP_JE_ART = {"movie": "Movie", "tv": "Series"}
+
 # Ab dieser Breite gilt eine Datei als 4K.
 #
 # Nach der Breite und nicht nach der Hoehe: Ein Film im Kinoformat ist
@@ -161,6 +181,12 @@ def _als_werk(
     titel = (eintrag.get("Name") or "").strip()
     kennung = str(eintrag.get("Id") or "").strip()
     if not titel or not kennung:
+        return None
+    # Das zweite Netz unter ``NICHT_GRUPPIERT``: Eine Sammlung traegt die
+    # TMDB-Nummer der *Sammlung* und passte nie zu einem Film. Ohne Typ
+    # (aeltere Antworten, Testdaten) gilt die angefragte Art.
+    typ = eintrag.get("Type")
+    if typ and typ != TYP_JE_ART.get(media_type):
         return None
 
     anbieter_ids = eintrag.get("ProviderIds") or {}
@@ -952,6 +978,7 @@ class JellyfinServer(MediaServer):
                 "IncludeItemTypes": art,
                 "Fields": felder,
                 "EnableUserData": "true",
+                **NICHT_GRUPPIERT,
             },
             token,
             SEITE_FILME if media_type == "movie" else SEITE_HOECHSTENS,
@@ -1002,6 +1029,7 @@ class JellyfinServer(MediaServer):
                 "EnableUserData": "true",
                 "EnableTotalRecordCount": "false",
                 "EnableImages": "false",
+                **NICHT_GRUPPIERT,
             },
             timeout=GESEHEN_ZEITGRENZE,
         ) or {}

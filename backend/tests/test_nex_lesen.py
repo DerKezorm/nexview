@@ -582,6 +582,24 @@ async def test_eine_stumme_nexcrate_gilt_als_nicht_erreichbar(
     assert messung.erreichbar is False
 
 
+async def test_der_rundgang_laeuft_auch_im_nex_betrieb(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ Der Rundgang fragte „gibt es Arr-Instanzen?" - im NEX-Betrieb: keine.
+
+    Ohne diese Stelle liefe er leer mit: kein Speicher-Abgleich, keine
+    Gesundheit, keine Anfrage, die je fertig wird. Ein Ausfall, den niemand
+    sieht, weil nichts scheitert - es passiert nur nichts.
+    """
+    nexcrate.film(603, versionen=[nexcrate.fassung(FILM_HD, "available", size_bytes=8 * GB)])
+    monkeypatch.setattr(status_poller, "_speicher_zuletzt", 0.0)
+    monkeypatch.setattr(status_poller, "SPEICHER_INTERVALL_SEKUNDEN", 0)
+
+    await status_poller._speicher_vielleicht(db, nex)
+
+    assert storage.hausbestand(db).used_bytes == 8 * GB
+
+
 def test_die_einstellungen_bleiben_im_arr_betrieb_unberuehrt(db: Session) -> None:
     """Die Gegenprobe: Ohne Umschalten aendert Scheibe 5 nichts."""
     einstellungen = load_settings(db)

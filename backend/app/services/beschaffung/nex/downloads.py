@@ -38,6 +38,40 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("nexview.nexcrate")
 
+#: Die Problemcodes, die nexcrate am 22.09.2026 führte (`download_store.PROBLEMS`).
+#:
+#: ⚠️ **Keine Liste, gegen die geprüft wird.** Ein Code, den Nexview nicht
+#: kennt, kommt trotzdem durch und steht dann als Kennung da - nexcrate darf
+#: wachsen, ohne dass hier jemand nachzieht. Sie steht nur, damit der Wächter
+#: über die Texte (`tests/test_download_gruende.py`) weiß, wofür es
+#: Übersetzungen geben soll und wofür nicht.
+PROBLEME: frozenset[str] = frozenset(
+    {
+        "path_not_found",
+        "packed",
+        "no_video",
+        "no_space",
+        "gone_from_client",
+        "client_error",
+        "import_failed",
+        "dangerous_file",
+        "encrypted",
+        "client_unreachable",
+        "stalled",
+        "files_unassigned",
+        "other_series_suspected",
+        "several_videos",
+        "import_stalled",
+        "too_many_files",
+        "multi_part",
+        "no_audio",
+        "album_single_file",
+        "album_not_better",
+        "album_tracks_missing",
+        "download_failed",
+    }
+)
+
 #: nexcrates Aktionen in Nexviews Knöpfe. Was hier fehlt, wird nicht angeboten -
 #: lieber ein Knopf weniger als einer, der nichts tut.
 AKTIONEN: dict[str, Aktion] = {

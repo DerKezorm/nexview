@@ -16,6 +16,7 @@ import pytest
 from app.services.beschaffung import AUTOMATISCH_MOEGLICH
 from app.services.beschaffung.arr import download_gruende as gruende
 from app.services.beschaffung.arr.download_gruende import Aktion
+from app.services.beschaffung.nex import downloads as nex_downloads
 
 
 def _zeile(
@@ -459,6 +460,14 @@ def test_jeder_grund_und_jede_aktion_hat_texte(sprache: str) -> None:
         for was in ["erkannt", "gemeldet", *(aktion.value for aktion in Aktion)]
         if not isinstance(downloads.get("history", {}).get("was", {}).get(was), str)
     ]
+    fehlend += [
+        f"grund.{kennung}.{teil}"
+        for kennung in nex_downloads.PROBLEME
+        for teil in ("titel", "hilfe")
+        if not isinstance(downloads.get("grund", {}).get(kennung, {}).get(teil), str)
+    ]
     assert fehlend == [], f"{sprache}.downloads.json: {fehlend}"
-    # Und keine Texte fuer Gruende, die es nicht mehr gibt.
-    assert set(downloads["grund"]) == set(gruende.GRUENDE)
+    # Und keine Texte fuer Gruende, die es nicht mehr gibt - in **beiden**
+    # Betriebsarten. Radarr und Sonarr melden Saetze, die Nexview zu Kennungen
+    # macht (``GRUENDE``); nexcrate meldet Kennungen selbst (``PROBLEME``).
+    assert set(downloads["grund"]) == set(gruende.GRUENDE) | nex_downloads.PROBLEME

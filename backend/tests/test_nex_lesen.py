@@ -11,7 +11,6 @@ geblieben und muessen es bleiben.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -35,8 +34,8 @@ from app.services.beschaffung import NEX, Aktion, Nachschlag, get_beschaffung
 from app.services.beschaffung.nex import bestand as nex_bestand
 from app.services.beschaffung.nex import client as nex_client
 from app.services.beschaffung.nex import downloads as nex_downloads
-from app.services.beschaffung.nex import ereignisse, fassungen as nex_fassungen
-from app.services.beschaffung.nex import lesen, system
+from app.services.beschaffung.nex import ereignisse, lesen, system
+from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.settings_service import load_settings, save_settings
 
 from .beschaffung.fake_nexcrate import FILM_HD, FILM_UHD, KEY, SERIE_HD, URL, FakeNexcrate

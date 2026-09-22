@@ -34,10 +34,13 @@ from ....meldungen import fehler
 from ....models import utcnow
 from ...settings_service import load_settings
 from . import webhooks
+from .riegel import nur_mit_werkzeugen
 
 logger = logging.getLogger("nexview.webhooks")
 
-router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
+router = APIRouter(
+    prefix="/api/webhooks", tags=["webhooks"], dependencies=[Depends(nur_mit_werkzeugen)]
+)
 
 # ``auto_error=False``: Ohne Anmeldedaten soll unsere eigene 401 mit Kennung
 # kommen, nicht die generische von FastAPI.

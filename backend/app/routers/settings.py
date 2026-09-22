@@ -36,6 +36,9 @@ from ..services.tmdb import TmdbClient, TmdbError
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
+#: Die Betriebsarten der Beschaffung, wie die Grenze sie kennt.
+BESCHAFFUNGSARTEN = frozenset(beschaffung.providers())
+
 logger = logging.getLogger("nexview.settings")
 
 
@@ -56,6 +59,15 @@ class SettingsUpdate(BaseModel):
     default_language: str | None = Field(default=None, min_length=2, max_length=5)
     poll_interval_seconds: int | None = Field(default=None, ge=30, le=3600)
     demo_mode: str | None = None
+    # Die Betriebsart der Beschaffung: ``arr`` oder ``nex`` (Bauplan
+    # Abschnitt 4). Der Umstiegsassistent kommt spaeter; bis dahin stellt sie
+    # ein Administrator hier um.
+    beschaffung: str | None = None
+    nexcrate_url: str | None = None
+    nexcrate_api_key: str | None = None
+    nexcrate_name: str | None = Field(default=None, max_length=60)
+    #: Den Namen des Anfragenden in der Herkunftsmarke mitgeben (N19).
+    nexcrate_anzeigename: bool | None = None
     # Vorausgewaehltes Qualitaetsprofil; leerer String hebt die Vorauswahl auf.
     default_movie_profile_id: str | None = Field(default=None, max_length=12)
     default_series_profile_id: str | None = Field(default=None, max_length=12)
@@ -180,6 +192,10 @@ class AppConfig(BaseModel):
     default_region: str
     default_language: str
     tmdb_configured: bool
+    #: Ueber welchen Weg diese Installation beschafft: ``arr`` oder ``nex``
+    #: (Bauplan NEX-Modus, Abschnitt 4). Die Oberflaeche blendet danach die
+    #: Betreiberwerkzeuge der anderen Betriebsart aus.
+    beschaffung: str
     radarr_configured: bool
     sonarr_configured: bool
     using_demo_data: bool
@@ -329,6 +345,7 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         default_region=settings.default_region,
         default_language=settings.default_language,
         tmdb_configured=settings.tmdb_configured,
+        beschaffung=settings.beschaffung,
         radarr_configured=settings.radarr_configured,
         sonarr_configured=settings.sonarr_configured,
         using_demo_data=settings.use_demo_data,
@@ -452,6 +469,15 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
             detail=meldungen.meldung(
                 "demo_mode_invalid",
                 "Demo-Modus muss 'auto', 'on' oder 'off' sein.",
+            ),
+        )
+    if payload.beschaffung is not None and payload.beschaffung not in BESCHAFFUNGSARTEN:
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "beschaffung_invalid",
+                "Die Betriebsart der Beschaffung ist unbekannt.",
+                arten=sorted(BESCHAFFUNGSARTEN),
             ),
         )
     for feld in (

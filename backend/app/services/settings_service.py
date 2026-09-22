@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..crypto import decrypt, encrypt, mask
 from ..models import MediaServerConnection, QuotaPeriod, Setting
+from .beschaffung import ARR, NEX, betriebsart_merken
 from .fassungen import ARR_FASSUNGEN, FassungInfo, aus_einstellungen
 from .fassungen import abgleichen as fassungen_abgleichen
 
@@ -44,6 +45,9 @@ SECRET_KEYS = frozenset(
         "sonarr_uhd_api_key",
         "smtp_password",
         "mediaserver_token",
+        # Der Maschinenschluessel fuer nexcrate (N1). Er reist nur in der
+        # Kopfzeile und steht nie in einer Antwort im Klartext.
+        "nexcrate_api_key",
         # Der private VAPID-Schluessel fuer Web Push. Das einzige echte
         # Geheimnis dort: Wer ihn hat, kann jedem angemeldeten Browser
         # Meldungen unterschieben. Erzeugt ``services/webpush``, einmal.
@@ -217,6 +221,33 @@ DEFAULTS: dict[str, str] = {
     # drei verschiedenen Zeitraeumen erklaeren aber niemandem mehr, was
     # "3 Filme" bedeutet, und niemand hat es je unterschiedlich gebraucht.
     "quota_period": "week",  # "day" | "week" | "month"
+    # --- Betriebsart der Beschaffung ---------------------------------------
+    # ``arr`` (Radarr und Sonarr) oder ``nex`` (nexcrate). Ein Schalter fuer
+    # Filme und Serien zugleich, kein Mischbetrieb (Bauplan Abschnitt 4).
+    # Eine bestehende Installation bekommt ``arr``; leer gibt es nicht.
+    "beschaffung": "arr",
+    "nexcrate_url": "",
+    "nexcrate_api_key": "",
+    # Die feste Kennung der Installation (N4). Wechselt sie, gehoeren die
+    # gemerkten Marken einer anderen nexcrate und werden verworfen
+    # (nexbeat-Befund 11).
+    "nexcrate_installation_id": "",
+    # nexcrates Adresse nach aussen, fuer die Spruenge "In nexcrate oeffnen"
+    # (N7, N21). Kommt aus ``/system``, nur Anzeige.
+    "nexcrate_web_url": "",
+    # Frei waehlbarer Anzeigename der Instanz, wie ``radarr_name``.
+    "nexcrate_name": "",
+    # Die Marken des Bestands und des Ereignisfeeds, je mit der
+    # ``installation_id``, zu der sie gehoeren.
+    "nexcrate_titles_after": "",
+    "nexcrate_events_after": "",
+    # Den Namen des Anfragenden in der Herkunftsmarke mitgeben (N19). Ab Werk
+    # aus: nexcrate erfaehrt von Nexviews Benutzern nichts, solange der
+    # Betreiber es nicht ausdruecklich einschaltet.
+    "nexcrate_anzeigename": "off",
+    # Wann auf nexcrate umgeschaltet wurde - steuert das einmalige
+    # Nachreichen freigegebener Anfragen (Bauplan 6.10).
+    "beschaffung_gewechselt_am": "",
 }
 
 
@@ -351,6 +382,19 @@ class AppSettings:
     quota_default_series: int | None
     storage_default_limit_gb: int | None
     quota_period: QuotaPeriod
+
+    # --- Betriebsart der Beschaffung (Bauplan Abschnitt 4) -----------------
+    #: ``arr`` oder ``nex``. Leer gibt es nicht; alles Unbekannte gilt als ``arr``.
+    beschaffung: str = ARR
+    nexcrate_url: str = ""
+    nexcrate_api_key: str = ""
+    nexcrate_installation_id: str = ""
+    nexcrate_web_url: str = ""
+    nexcrate_name: str = ""
+    nexcrate_titles_after: str = ""
+    nexcrate_events_after: str = ""
+    nexcrate_anzeigename: bool = False
+    beschaffung_gewechselt_am: str = ""
 
     # --- Nur aus Sicht eines Benutzers gefuellt (siehe ``for_user``) --------
     # Alter des Benutzers; None heisst "nicht altersbeschraenkt".
@@ -495,9 +539,25 @@ class AppSettings:
         )
 
     def arr_configured(self, media_type: str, tier: str = "standard") -> bool:
-        """Ist die Instanz fuer diese Art und Stufe vollstaendig eingetragen?"""
+        """Ist die Instanz fuer diese Art und Stufe vollstaendig eingetragen?
+
+        Im NEX-Betrieb immer ``False``: Dort gibt es keine Arr-Instanzen, auch
+        wenn die Zugaenge noch in der Datenbank stuenden.
+        """
+        if self.beschaffung_ist_nex:
+            return False
         url, key = self.arr_endpoint(media_type, tier)
         return bool(url and key)
+
+    @property
+    def beschaffung_ist_nex(self) -> bool:
+        """Laeuft diese Installation ueber nexcrate?"""
+        return self.beschaffung == NEX
+
+    @property
+    def nexcrate_configured(self) -> bool:
+        """Adresse und Schluessel fuer nexcrate hinterlegt?"""
+        return bool(self.nexcrate_url and self.nexcrate_api_key)
 
     def arr_instanzen(self) -> tuple[ArrInstanz, ...]:
         """Alle **eingerichteten** Instanzen, in Anzeigereihenfolge.
@@ -511,6 +571,12 @@ class AppSettings:
         # gilt der Dienstname. Er schlaegt von hier aus ueberall durch -
         # Papierkoerbe, Webhook-Stand, Gesundheits-Meldungen.
         # Die Kennungen stehen an genau einer Stelle: ``fassungen.ARR_FASSUNGEN``.
+        #
+        # ⚠️ Im NEX-Betrieb ist die Liste **leer**, auch wenn die Zugaenge noch
+        # dastehen. Kein Weg im Code fragt dann Radarr oder Sonarr - das haelt
+        # ``tests/test_nex_ohne_arr.py`` fest.
+        if self.beschaffung_ist_nex:
+            return ()
         alle = (
             (
                 f.kennung,
@@ -900,7 +966,21 @@ def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:
         quota_default_series=profil("quota_default_series"),
         storage_default_limit_gb=profil("storage_default_limit_gb"),
         quota_period=_zeitraum(values["quota_period"]),
+        beschaffung=NEX if values["beschaffung"] == NEX else ARR,
+        nexcrate_url=values["nexcrate_url"].strip().rstrip("/"),
+        nexcrate_api_key=values["nexcrate_api_key"],
+        nexcrate_installation_id=values["nexcrate_installation_id"].strip(),
+        nexcrate_web_url=values["nexcrate_web_url"].strip().rstrip("/"),
+        nexcrate_name=values["nexcrate_name"].strip(),
+        nexcrate_titles_after=values["nexcrate_titles_after"].strip(),
+        nexcrate_events_after=values["nexcrate_events_after"].strip(),
+        nexcrate_anzeigename=_flag(values["nexcrate_anzeigename"], standard=False),
+        beschaffung_gewechselt_am=values["beschaffung_gewechselt_am"].strip(),
     )
+    # Die Grenze braucht die Betriebsart auch dort, wo keine Einstellungen in
+    # der Hand sind (Weckruf, Tabellen je Instanz). Hier ist der eine Ort, an
+    # dem sie immer frisch ist.
+    betriebsart_merken(einstellungen.beschaffung)
     db.info[MERKER] = einstellungen
     return einstellungen
 
@@ -973,6 +1053,16 @@ def public_settings(db: Session) -> dict[str, object]:
         "poll_interval_seconds": settings.poll_interval_seconds,
         "demo_mode": settings.demo_mode,
         "using_demo_data": settings.use_demo_data,
+        # Die Betriebsart und der Zugang zu nexcrate. Der Schluessel reist wie
+        # jedes Geheimnis nur maskiert.
+        "beschaffung": settings.beschaffung,
+        "nexcrate_url": settings.nexcrate_url,
+        "nexcrate_api_key": mask(settings.nexcrate_api_key),
+        "nexcrate_api_key_set": bool(settings.nexcrate_api_key),
+        "nexcrate_name": settings.nexcrate_name,
+        "nexcrate_web_url": settings.nexcrate_web_url,
+        "nexcrate_installation_id": settings.nexcrate_installation_id,
+        "nexcrate_anzeigename": settings.nexcrate_anzeigename,
         "default_movie_profile_id": settings.default_movie_profile_id,
         "default_series_profile_id": settings.default_series_profile_id,
         "movie_root_folder_mode": settings.movie_root_folder_mode,
@@ -1080,7 +1170,10 @@ def save_settings(db: Session, changes: dict[str, object], *, commit: bool = Tru
     # Die Fassungen folgen den Instanzen: eine neue bekommt ihre Zeile, eine
     # ausgetragene wird ``aktiv=False``. Im selben Zug, damit beides zusammen
     # gilt oder gar nicht.
-    if any(str(key).startswith(("radarr_", "sonarr_")) for key in changes):
+    if any(
+        str(key).startswith(("radarr_", "sonarr_", "nexcrate_")) or key == "beschaffung"
+        for key in changes
+    ):
         db.flush()
         fassungen_abgleichen(db, load_settings(db, frisch=True))
 

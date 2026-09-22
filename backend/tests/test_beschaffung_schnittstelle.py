@@ -109,10 +109,23 @@ def _einstellungen():
         return load_settings(db)
 
 
-def test_heute_beschafft_arr() -> None:
+def test_ohne_umstellung_beschafft_arr() -> None:
+    """Eine Installation, die nichts umgestellt hat, laeuft ueber Radarr und Sonarr."""
     weg = get_beschaffung(_einstellungen())
     assert isinstance(weg, ArrBeschaffung)
-    assert list(beschaffung.providers()) == ["arr"]
+    assert sorted(beschaffung.providers()) == ["arr", "nex"]
+
+
+def test_die_betriebsart_waehlt_den_weg() -> None:
+    """Die Einstellung entscheidet, und ein unbekannter Wert faellt auf ARR zurueck."""
+    from dataclasses import replace
+
+    from app.services.beschaffung.nex.weg import NexBeschaffung
+
+    grund = _einstellungen()
+    assert isinstance(get_beschaffung(replace(grund, beschaffung="nex")), NexBeschaffung)
+    assert isinstance(get_beschaffung(replace(grund, beschaffung="arr")), ArrBeschaffung)
+    assert isinstance(get_beschaffung(replace(grund, beschaffung="was-auch-immer")), ArrBeschaffung)
 
 
 def test_der_arr_weg_erfuellt_die_ganze_schnittstelle() -> None:

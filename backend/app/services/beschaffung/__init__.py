@@ -73,6 +73,8 @@ __all__ = [
     "alle_router",
     "beim_start",
     "bestand_verwerfen",
+    "betriebsart",
+    "betriebsart_merken",
     "download_aktionen_moeglich",
     "download_frisch",
     "download_gruende",
@@ -92,14 +94,16 @@ __all__ = [
     "schliessen",
     "treffer_nach_titel",
     "weckruf",
+    "werkzeuge_pruefen",
 ]
 
 
 def providers() -> dict[str, type[Beschaffung]]:
     """Die Wege nach ihrer Kennung in den Einstellungen."""
     from .arr.weg import ArrBeschaffung
+    from .nex.weg import NexBeschaffung
 
-    return {ArrBeschaffung.art: ArrBeschaffung}
+    return {ArrBeschaffung.art: ArrBeschaffung, NexBeschaffung.art: NexBeschaffung}
 
 
 def feste_fassungen() -> tuple[Any, ...]:
@@ -117,10 +121,38 @@ def feste_fassungen() -> tuple[Any, ...]:
 def get_beschaffung(settings: AppSettings) -> Beschaffung:
     """Der Weg, ueber den diese Installation beschafft.
 
-    Heute gibt es nur einen (``arr``); die Wahl in den Einstellungen kommt mit
-    dem zweiten Weg.
+    Die Einstellung ``beschaffung`` entscheidet: ``arr`` (Radarr und Sonarr)
+    oder ``nex`` (nexcrate). Ein Wert, den es nicht gibt, gilt als ``arr`` -
+    eine Installation ohne Beschaffung waere schlimmer als die alte.
     """
-    return providers()["arr"](settings)
+    art = getattr(settings, "beschaffung", ARR)
+    gewaehlt = providers().get(art) or providers()[ARR]
+    return gewaehlt(settings)
+
+
+def werkzeuge_pruefen(settings: AppSettings) -> None:
+    """Gibt es in dieser Betriebsart die Betreiberwerkzeuge? Sonst ``409``.
+
+    Profile, TRaSH, Benennung, Pfade, Webhooks und Kollisionen sind Werkzeuge
+    fuer Radarr und Sonarr. Im NEX-Betrieb gehoeren sie nexcrate und sind
+    **ganz** weg, nicht halb (Bauplan Abschnitt 3.2): Die Oberflaeche blendet
+    die Reiter aus, und wer die Adresse trotzdem aufruft, bekommt eine
+    ehrliche Antwort statt eines Fehlers aus der Tiefe.
+    """
+    from fastapi import HTTPException
+
+    from ...meldungen import meldung
+
+    if get_beschaffung(settings).faehigkeiten().betreiberwerkzeuge:
+        return
+    raise HTTPException(
+        status_code=409,
+        detail=meldung(
+            "not_in_this_mode",
+            "Dieses Werkzeug gehört zur anderen Betriebsart der Beschaffung.",
+            beschaffung=settings.beschaffung,
+        ),
+    )
 
 
 def alle_router() -> list[APIRouter]:
@@ -154,12 +186,28 @@ async def schliessen() -> None:
 # Tabellen je Instanz (Gesundheit, haengende Downloads). Sie gehoeren dem Weg,
 # der sie schreibt; gelesen werden sie ueberall.
 #
-# ⚠️ Heute gibt es genau einen Weg. Mit dem zweiten entscheidet hier die
-# Betriebsart aus den Einstellungen, welcher gefragt wird.
+# ⚠️ Welcher Weg gefragt wird, sagt ``betriebsart()`` - gemerkt beim Laden
+# der Einstellungen. Ohne Einstellungen in der Hand gibt es keinen anderen Weg,
+# und eine Sitzung nur dafuer aufzumachen waere teurer als ein Merker.
+
+
+#: Die zuletzt geladene Betriebsart. ``load_settings`` merkt sie bei jeder
+#: Anfrage; ohne sie wuesste der Weckruf nicht, wen er weckt.
+_betriebsart = ARR
+
+
+def betriebsart_merken(art: str) -> None:
+    """Welcher Weg gilt - gesetzt beim Laden der Einstellungen."""
+    global _betriebsart
+    _betriebsart = art if art in providers() else ARR
+
+
+def betriebsart() -> str:
+    return _betriebsart
 
 
 def _weg() -> type[Beschaffung]:
-    return providers()["arr"]
+    return providers()[_betriebsart]
 
 
 def weckruf() -> asyncio.Event:

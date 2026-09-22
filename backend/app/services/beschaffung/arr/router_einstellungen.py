@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field
 
 from .... import meldungen
@@ -39,9 +39,12 @@ from . import (
 )
 from .client import ArrClient, ArrError
 from .radarr import RadarrClient
+from .riegel import nur_mit_werkzeugen
 from .sonarr import SonarrClient
 
-router = APIRouter(prefix="/api", tags=["settings"])
+router = APIRouter(
+    prefix="/api", tags=["settings"], dependencies=[Depends(nur_mit_werkzeugen)]
+)
 
 logger = logging.getLogger("nexview.settings")
 

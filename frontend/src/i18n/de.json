@@ -2006,7 +2006,7 @@
       "mediaserver_libraries_mismatch": "{{service}} zeigt dem neuen Konto andere Bibliotheken als ausgewählt. Nexview hat es deshalb gesperrt.",
       "mediaserver_link_conflict": "Dieses Konto des Media-Servers ist bereits mit einem anderen Nexview-Konto verbunden.",
       "mediaserver_name_taken": "Auf {{service}} gibt es schon ein Konto mit diesem Namen. Bitte wähle einen anderen.",
-      "mediaserver_no_access":"Dieses Konto hat keinen Zugriff auf die Bibliothek. Bitte den Administrator um Freigabe.",
+      "mediaserver_no_access": "Dieses Konto hat keinen Zugriff auf die Bibliothek. Bitte den Administrator um Freigabe.",
       "mediaserver_no_code_login": "Es ist kein Medienserver mit Code-Anmeldung verbunden.",
       "mediaserver_no_new_account": "Über diesen Anbieter kann kein neues Konto entstehen. Melde dich mit deinem Nexview-Konto an und verknüpfe ihn in deinem Profil – oder bitte den Administrator um eine Einladung.",
       "mediaserver_no_watchlist": "Es ist kein Medienserver mit Merkliste verbunden.",
@@ -2159,7 +2159,29 @@
       "channel_target_unknown": "Dieses Ziel gibt es nicht.",
       "push_endpoint_invalid": "Mit dieser Adresse ließ sich nichts anfangen.",
       "push_device_unknown": "Dieses Gerät ist nicht angemeldet.",
-      "push_no_device": "Es ist kein Gerät angemeldet."
+      "push_no_device": "Es ist kein Gerät angemeldet.",
+      "nexcrate_timeout": "nexcrate hat nicht rechtzeitig geantwortet. Nexview versucht es noch einmal.",
+      "nexcrate_unreachable": "nexcrate ist unter dieser Adresse nicht erreichbar. Stimmen Adresse und Port?",
+      "nexcrate_unexpected_answer": "Die Antwort ist unerwartet. Zeigt die Adresse wirklich auf nexcrate?",
+      "nexcrate_unavailable": "nexcrate ist gerade nicht erreichbar. Nexview versucht es noch einmal.",
+      "nexcrate_busy": "nexcrate ist ausgelastet. Nexview versucht es gleich noch einmal.",
+      "nexcrate_key_rejected": "Der Schlüssel für nexcrate wurde nicht akzeptiert.",
+      "nexcrate_scope_missing": "Dem Schlüssel fehlt ein Recht in nexcrate.",
+      "nexcrate_path_unknown": "Unter dieser Adresse antwortet kein nexcrate mit Schnittstelle.",
+      "nexcrate_title_unknown": "nexcrate kennt diesen Titel nicht.",
+      "nexcrate_season_unknown": "nexcrate kennt diese Staffel nicht.",
+      "nexcrate_download_unknown": "nexcrate kennt diesen Download nicht mehr.",
+      "nexcrate_version_unknown": "Diese Fassung gibt es in nexcrate nicht.",
+      "nexcrate_ref_invalid": "nexcrate kann mit dieser Kennung nichts anfangen.",
+      "nexcrate_kind_unsupported": "Für diese Medienart antwortet nexcrate nicht.",
+      "nexcrate_input_invalid": "nexcrate hat die Anfrage als fehlerhaft zurückgewiesen.",
+      "nexcrate_marker_too_old": "Die Marke ist zu alt; der Bestand wird ganz neu gelesen.",
+      "nexcrate_pairing_gone": "Die Bitte ums Koppeln ist abgelaufen. Starte sie neu.",
+      "nexcrate_refused": "nexcrate hat abgelehnt (Code {{nexcrate_code}}).",
+      "nexcrate_not_configured": "Für nexcrate sind Adresse und Schlüssel noch nicht hinterlegt.",
+      "not_in_this_mode": "Dieses Werkzeug gehört zur anderen Betriebsart der Beschaffung.",
+      "beschaffung_invalid": "Diese Betriebsart der Beschaffung gibt es nicht.",
+      "nex_noch_nicht_gebaut": "Diesen Weg gibt es im NEX-Betrieb noch nicht."
     }
   },
   "language": {
@@ -2384,16 +2406,16 @@
     "childUnlock": "Kinderkonten freischalten",
     "childUnlockHint": "Setzt die Freigabe, schreibt eine kurze Antwort und schließt das Ticket."
   },
-    "fassung": {
-      "section": "Fassungen",
-      "darfAnfragen": "Darf {{name}} anfragen",
-      "ohneFreigabe": "{{name}} ohne Freigabe",
-      "inviteAnfragen": "{{name}} anfragen",
-      "inviteAuto": "{{name}} sofort freigeben",
-      "uhdMovies": "4K-Filme",
-      "uhdSeries": "4K-Serien",
-      "mitArt": "{{name}} · {{art}}"
-    },
+  "fassung": {
+    "section": "Fassungen",
+    "darfAnfragen": "Darf {{name}} anfragen",
+    "ohneFreigabe": "{{name}} ohne Freigabe",
+    "inviteAnfragen": "{{name}} anfragen",
+    "inviteAuto": "{{name}} sofort freigeben",
+    "uhdMovies": "4K-Filme",
+    "uhdSeries": "4K-Serien",
+    "mitArt": "{{name}} · {{art}}"
+  },
   "uhd": {
     "open": "noch nicht angefragt",
     "tier": "Qualitätsstufe",
@@ -3946,5 +3968,54 @@
     "ohneUntergrenze": "ohne Untergrenze",
     "ohneObergrenze": "ohne Obergrenze",
     "leererBereich": "leerer Bereich"
+  },
+  "nexcrate": {
+    "section": "nexcrate",
+    "modeSection": "Betriebsart",
+    "modeHint": "Wer beschafft die Titel? Ein Schalter für Filme und Serien zugleich – gemischt geht nicht.",
+    "mode": {
+      "arr": "Radarr und Sonarr",
+      "nex": "nexcrate"
+    },
+    "modeDetail": {
+      "arr": "Je Instanz eine Fassung. Profile, Benennung und Ordner stellst du in Nexview ein.",
+      "nex": "Eine Verbindung für alles. Profile, Benennung, Ordner und Papierkorb gehören nexcrate."
+    },
+    "connectionSection": "Verbindung zu nexcrate",
+    "url": "Adresse",
+    "key": "Schlüssel",
+    "keyHint": "Leer lassen ändert nichts. Schöner ist Koppeln – dann kopierst du gar nichts.",
+    "pairTitle": "Koppeln",
+    "pairHint": "Nexview bittet nexcrate um einen Schlüssel. Du bestätigst die Bitte dort; den Rest macht Nexview.",
+    "pairStart": "Um einen Schlüssel bitten",
+    "pairWaiting": "Bestätige die Bitte in nexcrate. Dieser Code steht dort:",
+    "pairCancelHint": "Eine Bitte lässt sich in nexcrate nicht zurücknehmen; sie verfällt nach zehn Minuten von selbst.",
+    "pairDone_one": "Verbunden. Eine Fassung gefunden.",
+    "pairDone_other": "Verbunden. {{count}} Fassungen gefunden.",
+    "pairExpired": "Die Bitte ist abgelaufen. Starte sie neu.",
+    "statusSection": "Stand",
+    "version": "nexcrate {{version}} (Vertrag {{stage}})",
+    "updateAvailable": "Für nexcrate gibt es {{version}}.",
+    "unreachable": "nexcrate antwortet gerade nicht.",
+    "open": "In nexcrate öffnen",
+    "noAnime": "Diese nexcrate sucht noch kein Anime. Anfragen werden trotzdem angenommen.",
+    "versionsTitle": "Fassungen",
+    "ready": "bereit",
+    "notReady": "nicht bereit",
+    "healthTitle": "Was nexcrate meldet",
+    "reason": {
+      "no_profile": "kein Profil",
+      "no_indexer": "kein Indexer",
+      "no_download_client": "kein Download-Programm",
+      "no_folder": "kein Ordner",
+      "automatic_off": "Automatik aus (angefragtes sucht nexcrate trotzdem)"
+    },
+    "health": {
+      "indexer_none": "Kein Indexer ist verbunden und eingeschaltet.",
+      "download_client_none": "Kein Download-Programm ist verbunden und eingeschaltet.",
+      "tmdb_token_missing": "In nexcrate ist kein TMDB-Token hinterlegt.",
+      "automatic_off": "Die Automatik ist aus; von selbst lädt nichts.",
+      "version_not_ready": "Eine Fassung ist nicht bereit."
+    }
   }
 }

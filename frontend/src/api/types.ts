@@ -1026,6 +1026,12 @@ export type AppConfig = {
   default_region: string;
   default_language: string;
   tmdb_configured: boolean;
+  /**
+   * Über welchen Weg diese Installation beschafft: `arr` (Radarr und Sonarr)
+   * oder `nex` (nexcrate). Danach richtet sich, welche Betreiberwerkzeuge
+   * überhaupt dastehen – im NEX-Betrieb gehören sie nexcrate.
+   */
+  beschaffung: Beschaffung;
   radarr_configured: boolean;
   sonarr_configured: boolean;
   using_demo_data: boolean;
@@ -1097,8 +1103,63 @@ export type AppConfig = {
 /** Wie oft Nexview von selbst sichert. */
 export type BackupSchedule = 'off' | 'daily' | 'weekly' | 'monthly';
 
+/** Die Betriebsart der Beschaffung. Ein Schalter für Filme und Serien zugleich. */
+export type Beschaffung = "arr" | "nex";
+
+/** Eine Fassung, wie nexcrate sie führt – für die Dienste-Seite. */
+export type NexFassungZeile = {
+  kennung: string;
+  media_type: string;
+  name: string;
+  klasse: string | null;
+  bereit: boolean;
+  gruende: string[];
+};
+
+/** Was nexcrate über sich sagt (`GET /api/settings/nexcrate/status`). */
+export type NexStand = {
+  eingerichtet: boolean;
+  erreichbar: boolean;
+  version: string;
+  vertrag: string;
+  installation_id: string;
+  web_url: string;
+  update_verfuegbar: boolean;
+  update_version: string;
+  anime: boolean;
+  fassungen: NexFassungZeile[];
+  probleme: { code: string; level: string; params: Record<string, unknown> }[];
+  /** Kennung des Fehlers, wenn nexcrate nicht antwortet. */
+  fehler: string;
+};
+
+/** Eine offene Bitte ums Koppeln. Das Geheimnis bleibt im Server. */
+export type NexBitte = {
+  pairing_id: string;
+  code: string;
+  poll_seconds: number;
+  expires_at: string | null;
+};
+
+/** Der Stand einer Bitte beim Nachfragen. */
+export type NexBitteStand = {
+  state: string;
+  gespeichert: boolean;
+  installation_id: string;
+  version: string;
+  fassungen: number;
+};
+
 export type AppSettings = {
   tmdb_api_key: string;
+  beschaffung: Beschaffung;
+  nexcrate_url: string;
+  nexcrate_api_key: string;
+  nexcrate_api_key_set: boolean;
+  nexcrate_name: string;
+  nexcrate_web_url: string;
+  nexcrate_installation_id: string;
+  nexcrate_anzeigename: boolean;
   tmdb_api_key_set: boolean;
   radarr_url: string;
   radarr_api_key: string;

@@ -27,6 +27,7 @@ import {
 } from "../../components/ui";
 import { AdminFolgenSettings } from "./AdminFolgenSettings";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
+import { AdminNexcrateSettings } from "./AdminNexcrateSettings";
 import { AdminQualitaetsBereich } from "./AdminQualitaetsBereich";
 import { InstanzGesundheit } from "./InstanzGesundheit";
 import { DownloadKollision } from "./DownloadKollision";
@@ -43,7 +44,14 @@ type TestService = "tmdb" | "radarr" | "sonarr" | "radarr_uhd" | "sonarr_uhd";
  * durch Scrollen fand. "Allgemein" steht voran: Region, Sprache und
  * Beispieldaten gehören zu keinem einzelnen Dienst.
  */
-type UnterTab = "general" | "tmdb" | "radarr" | "sonarr" | "plex" | "qualitaet";
+type UnterTab =
+  | "general"
+  | "tmdb"
+  | "radarr"
+  | "sonarr"
+  | "nexcrate"
+  | "plex"
+  | "qualitaet";
 
 const UNTER_TABS: {
   value: UnterTab;
@@ -55,17 +63,32 @@ const UNTER_TABS: {
    * Qualitätsprofile brauchen etwas, worauf sie geschoben werden können -
    * ohne eine einzige Instanz wäre der Reiter eine Sackgasse.
    */
-  wenn?: (stand: { arrVorhanden: boolean }) => boolean;
+  wenn?: (stand: { arrVorhanden: boolean; nexBetrieb: boolean }) => boolean;
 }[] = [
   { value: "general", labelKey: "settings.generalSection", symbol: "allgemein" },
   { value: "tmdb", labelKey: "settings.tmdbSection", symbol: "fernseher" },
-  { value: "radarr", labelKey: "settings.radarrSection", symbol: "radarr" },
-  { value: "sonarr", labelKey: "settings.sonarrSection", symbol: "sonarr" },
+  // ⚠️ Radarr, Sonarr und die Qualitätsprofile gibt es im NEX-Betrieb nicht
+  // mehr – dort beschafft nexcrate, und Profile, Benennung und Ordner gehören
+  // ihm. Die Adressen antworten dann `409`; ein Reiter, der ins Leere führt,
+  // wäre schlimmer als keiner.
+  {
+    value: "radarr",
+    labelKey: "settings.radarrSection",
+    symbol: "radarr",
+    wenn: ({ nexBetrieb }) => !nexBetrieb,
+  },
+  {
+    value: "sonarr",
+    labelKey: "settings.sonarrSection",
+    symbol: "sonarr",
+    wenn: ({ nexBetrieb }) => !nexBetrieb,
+  },
+  { value: "nexcrate", labelKey: "nexcrate.section", symbol: "dienste" },
   {
     value: "qualitaet",
     labelKey: "qualityProfiles.title",
     symbol: "qualitaet",
-    wenn: ({ arrVorhanden }) => arrVorhanden,
+    wenn: ({ arrVorhanden, nexBetrieb }) => arrVorhanden && !nexBetrieb,
   },
   { value: "plex", labelKey: "mediaserver.adminTitle", symbol: "medienserver" },
 ];
@@ -1116,8 +1139,9 @@ export function AdminServicesSettings({
       config?.radarr_uhd_configured ||
       config?.sonarr_uhd_configured,
   );
+  const nexBetrieb = config?.beschaffung === "nex";
   const sichtbareTabs = UNTER_TABS.filter(
-    (e) => !e.wenn || e.wenn({ arrVorhanden }),
+    (e) => !e.wenn || e.wenn({ arrVorhanden, nexBetrieb }),
   );
   useEffect(() => {
     // ⚠️ **Erst wenn die Konfiguration wirklich da ist.** Beim allerersten
@@ -1237,11 +1261,17 @@ export function AdminServicesSettings({
           dieses Formulars. */}
       {unterTab === "qualitaet" && <AdminQualitaetsBereich />}
 
+      {/* nexcrate bringt eigenes Speichern und das Koppeln mit – wie der
+          Media-Server steht es außerhalb dieses Formulars. */}
+      {unterTab === "nexcrate" && <AdminNexcrateSettings />}
+
       <form
         onSubmit={handleSubmit}
         className={
           "mt-6 flex-col gap-5 " +
-          (unterTab === "plex" || unterTab === "qualitaet" ? "hidden" : "flex")
+          (unterTab === "plex" || unterTab === "qualitaet" || unterTab === "nexcrate"
+            ? "hidden"
+            : "flex")
         }
       >
         {/* ⚠️ Dieser Satz stand über der Unterreihe und schob sie um eine Zeile

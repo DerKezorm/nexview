@@ -12,6 +12,7 @@ from ..mocks import demo_data
 from ..models import MediaType, Role
 from ..schemas_media import ArrOptions, Genre, MediaItem, MediaPage
 from ..services import (
+    beschaffung,
     blocklist,
     fassungen,
     fassungsachsen,
@@ -282,6 +283,10 @@ async def arr_options(
     die Sperren je Instanz gelesen werden.
     """
     settings = load_settings(db)
+    # Im NEX-Betrieb gibt es hier nichts zu waehlen: Ordner und Profil haengen
+    # an der Fassung in nexcrate. nexdeck fragt diese Adresse (Bauplan
+    # Abschnitt 12) und bekommt ``409`` statt einer leeren Liste.
+    beschaffung.werkzeuge_pruefen(settings)
     kennung = fassungen.gewaehlt(settings, media_type, fassung, tier)
     if fassungen.art_der(settings, kennung) != media_type:
         raise HTTPException(

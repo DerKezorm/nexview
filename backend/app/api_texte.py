@@ -1518,6 +1518,36 @@ TEXTE: dict[str, tuple[str, str]] = {
             'means "unchanged".'
         ),
     ),
+    'GET /api/settings/nexcrate/pairing/{pairing_id}': (
+        'Ask whether pairing was confirmed',
+        (
+            'nexcrate hands out the key exactly once, so it is stored before anything '
+            'else happens. On success the answer also carries the installation and how '
+            'many versions were found.'
+        ),
+    ),
+    'GET /api/settings/nexcrate/status': (
+        'What nexcrate reports about itself',
+        (
+            'Version, contract stage, update hint, the versions it offers with their '
+            'readiness, and its open health findings. A new installation id under the '
+            'same address drops the stored markers.'
+        ),
+    ),
+    'POST /api/settings/nexcrate/pairing': (
+        'Ask nexcrate for a key',
+        (
+            'Starts a pairing request. The operator confirms it in nexcrate; the secret '
+            'of the request stays in this process and never reaches the browser.'
+        ),
+    ),
+    'POST /api/settings/nexcrate/test': (
+        'Test the connection to nexcrate',
+        (
+            'Checks whether a nexcrate answers at that address and accepts the key. '
+            'Uses the values passed in if they have not been saved yet.'
+        ),
+    ),
     'POST /api/settings/test-mail': (
         'Send a test mail',
         (

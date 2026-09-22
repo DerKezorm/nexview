@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Depends, Path, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -25,11 +25,14 @@ from . import medienserver_verbindung as mediaserver_verbindung
 from . import qualitaetsprofile as dienst
 from . import trash_bezug as bezug
 from .client import ArrClient, ArrError
+from .riegel import nur_mit_werkzeugen
 from .trash import TrashFehler, schnappschuss
 
 logger = logging.getLogger("nexview.qualitaet")
 
-router = APIRouter(prefix="/api/settings/qualitaetsprofile", tags=["qualitaetsprofile"])
+router = APIRouter(
+    prefix="/api/settings/qualitaetsprofile", tags=["qualitaetsprofile"], dependencies=[Depends(nur_mit_werkzeugen)]
+)
 
 
 class InstallationOut(BaseModel):

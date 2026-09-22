@@ -25,7 +25,6 @@ from app.models import (
     MediaType,
     Notification,
     NotificationType,
-    QualityTier,
     RequestStatus,
     StorageEntry,
     StorageState,
@@ -48,6 +47,7 @@ def _anfrage(user_id: int, *, tmdb_id: int = 900, status=RequestStatus.deferred)
         zeile = MediaRequest(
             user_id=user_id,
             media_type=MediaType.movie,
+            fassung_kennung="radarr-standard",
             tmdb_id=tmdb_id,
             title="Zurückgestellt",
             status=status,
@@ -82,10 +82,10 @@ def _belegen(user_id: int, gb: int, *, tmdb_id: int = 990) -> None:
     with SessionLocal() as db:
         db.add(
             StorageEntry(
-                key=f"movie:standard:tmdb:{tmdb_id}",
+                key=f"movie:radarr-standard:tmdb:{tmdb_id}",
                 user_id=user_id,
                 media_type=MediaType.movie,
-                tier=QualityTier.standard,
+                fassung_kennung="radarr-standard",
                 tmdb_id=tmdb_id,
                 title="Belegt",
                 size_bytes=gb * GB,

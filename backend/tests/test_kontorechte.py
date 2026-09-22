@@ -305,7 +305,7 @@ def test_jeder_schalter_ist_eine_spalte_am_konto_ein_wunsch_und_eine_bewertung()
         assert hasattr(User, name), name
         assert name in wunsch_felder, name
         assert name in bewertung_felder, name
-    assert bewertung_felder == {*k.SCHALTER, "kontingent", "hausordnung"}
+    assert bewertung_felder == {*k.SCHALTER, "kontingent", "hausordnung", "fassungen"}
 
 
 def test_jeder_grund_hat_einen_text_in_beiden_sprachen() -> None:

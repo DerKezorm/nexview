@@ -16,6 +16,7 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.db import SessionLocal
@@ -26,8 +27,15 @@ from .conftest import ADMIN, auth_headers, create_user
 
 
 def _konto(username: str) -> User:
+    # Die Rechte je Fassung gleich mit: Das Konto verlaesst hier seine Sitzung,
+    # und die 4K-Haken sind seit dem Fassungsmodell Sichten auf diese Zeilen.
     with SessionLocal() as db:
-        return db.query(User).filter(User.username == username).one()
+        return (
+            db.query(User)
+            .options(selectinload(User.fassung_rechte))
+            .filter(User.username == username)
+            .one()
+        )
 
 
 def _ist_betreiber(username: str) -> bool:

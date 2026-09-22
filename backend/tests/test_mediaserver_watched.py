@@ -134,15 +134,15 @@ def verknuepfen(username: str, konto: str, plexname: str, token: str | None = No
 
 def speicher_posten(user_id: int, tmdb_id: int) -> None:
     """Ein Serien-Posten im Speicher - nur dafuer gibt es Staffel-Augen."""
-    from app.models import QualityTier, StorageEntry, StorageState
+    from app.models import StorageEntry, StorageState
 
     with SessionLocal() as db:
         db.add(
             StorageEntry(
-                key=f"tv:standard:tvdb:{tmdb_id}:s1",
+                key=f"tv:sonarr-standard:tvdb:{tmdb_id}:s1",
                 user_id=user_id,
                 media_type=MediaType.tv,
-                tier=QualityTier.standard,
+                fassung_kennung="sonarr-standard",
                 tmdb_id=tmdb_id,
                 tvdb_id=tmdb_id,
                 season=1,

@@ -241,11 +241,6 @@
         "schluessel": false,
         "typ": "BOOLEAN"
       },
-      "invite_auto_approve_uhd": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "BOOLEAN"
-      },
       "invite_blocked_movie_profiles": {
         "leer_erlaubt": false,
         "schluessel": false,
@@ -256,20 +251,15 @@
         "schluessel": false,
         "typ": "VARCHAR(255)"
       },
-      "invite_can_request_uhd_movies": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "BOOLEAN"
-      },
-      "invite_can_request_uhd_series": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "BOOLEAN"
-      },
       "invite_dropped": {
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "VARCHAR(255)"
+      },
+      "invite_fassung_rechte": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
       },
       "invite_hausordnung": {
         "leer_erlaubt": false,
@@ -965,6 +955,105 @@
       }
     }
   },
+  "fassung_rechte": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_fassung_rechte_paar"
+    ],
+    "spalten": {
+      "anfragen": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "auto_freigabe": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "fassung_kennung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
+  "fassungen": {
+    "eindeutig": [],
+    "indizes": [],
+    "spalten": {
+      "aktiv": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "bereit": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "gesehen_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "gruende": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "kennung": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "VARCHAR(32)"
+      },
+      "klasse": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "media_type": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "name": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(120)"
+      },
+      "offen_fuer_alle": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
+      "quelle": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "reihenfolge": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "verschwunden_am": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      }
+    }
+  },
   "favorite_people": {
     "eindeutig": [
       [
@@ -1156,6 +1245,7 @@
   "media_requests": {
     "eindeutig": [],
     "indizes": [
+      "ix_media_requests_fassung_kennung",
       "ix_media_requests_lookup",
       "ix_media_requests_status",
       "ix_media_requests_user"
@@ -1176,6 +1266,11 @@
         "schluessel": false,
         "typ": "INTEGER"
       },
+      "beschaffung": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
       "completed_at": {
         "leer_erlaubt": true,
         "schluessel": false,
@@ -1195,6 +1290,11 @@
         "leer_erlaubt": true,
         "schluessel": false,
         "typ": "TEXT"
+      },
+      "fassung_kennung": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
       },
       "feedback": {
         "leer_erlaubt": true,
@@ -1335,11 +1435,6 @@
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "VARCHAR(16)"
-      },
-      "tier": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "VARCHAR(8)"
       },
       "title": {
         "leer_erlaubt": false,
@@ -2002,6 +2097,11 @@
         "schluessel": false,
         "typ": "DATETIME"
       },
+      "fassung_kennung": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(32)"
+      },
       "id": {
         "leer_erlaubt": false,
         "schluessel": true,
@@ -2056,11 +2156,6 @@
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "VARCHAR(7)"
-      },
-      "tier": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "VARCHAR(8)"
       },
       "title": {
         "leer_erlaubt": false,
@@ -2691,11 +2786,6 @@
         "schluessel": false,
         "typ": "BOOLEAN"
       },
-      "auto_approve_uhd": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "BOOLEAN"
-      },
       "avatar_path": {
         "leer_erlaubt": true,
         "schluessel": false,
@@ -2722,16 +2812,6 @@
         "typ": "VARCHAR(255)"
       },
       "can_manage_children": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "BOOLEAN"
-      },
-      "can_request_uhd_movies": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "BOOLEAN"
-      },
-      "can_request_uhd_series": {
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "BOOLEAN"

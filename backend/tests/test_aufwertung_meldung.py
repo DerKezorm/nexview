@@ -17,7 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest, MediaType, QualityTier, RequestStatus, StorageEntry
+from app.models import MediaRequest, MediaType, RequestStatus, StorageEntry
 from app.services import library, status_poller, storage
 from app.services.radarr import LibraryEntry as MovieEntry
 from app.services.settings_service import load_settings
@@ -30,7 +30,7 @@ GIB = 1024**3
 def _film_anfrage(tmdb_id: int = 603) -> SimpleNamespace:
     return SimpleNamespace(
         media_type=MediaType.movie,
-        tier=QualityTier.standard,
+        fassung_kennung="radarr-standard",
         tmdb_id=tmdb_id,
         tvdb_id=None,
         season=None,
@@ -41,8 +41,9 @@ def _posten(size_bytes: int, tmdb_id: int = 603) -> None:
     with SessionLocal() as db:
         db.add(
             StorageEntry(
-                key=storage.schluessel(MediaType.movie, QualityTier.standard, tmdb_id=tmdb_id),
+                key=storage.schluessel(MediaType.movie, "radarr-standard", tmdb_id=tmdb_id),
                 media_type=MediaType.movie,
+                fassung_kennung="radarr-standard",
                 tmdb_id=tmdb_id,
                 title="Matrix",
                 size_bytes=size_bytes,

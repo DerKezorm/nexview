@@ -23,6 +23,7 @@ from app.models import (
 )
 from app.schemas_requests import RequestPublic, RequestWithUser
 from app.services import download_haenger, status_poller
+from app.services.fassungen import arr_kennung
 from app.services.settings_service import ArrInstanz, load_settings
 
 from .conftest import create_user
@@ -281,7 +282,7 @@ def _anfrage(
         anfrage = MediaRequest(
             user_id=besitzer.id,
             media_type=media_type,
-            tier=QualityTier.standard,
+            fassung_kennung=arr_kennung(media_type, QualityTier.standard),
             tmdb_id=tmdb_id,
             title="Beispiel",
             status=status,

@@ -15,7 +15,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from ..models import AuthToken, EinladungsServer, Hausordnung, NotificationType, Role, User
-from . import kontorechte, notify
+from . import fassungen, kontorechte, notify
 from .settings_service import load_settings
 
 
@@ -40,7 +40,10 @@ def bewerten(
         hausordnung=token.invite_hausordnung,
     )
     bewertung = kontorechte.bewerten(
-        load_settings(db), wunsch, hausordnung_veroeffentlicht=ordnung is not None
+        load_settings(db),
+        wunsch,
+        hausordnung_veroeffentlicht=ordnung is not None,
+        offene=fassungen.offene_kennungen(db),
     )
     return wunsch, bewertung, (ordnung if bewertung.hausordnung.wirkt else None)
 

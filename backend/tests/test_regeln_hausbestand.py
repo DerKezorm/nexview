@@ -66,7 +66,7 @@ def _anfrage(db: SessionLocal, nutzer: User, *, hausbestand: bool) -> MediaReque
     anfrage = MediaRequest(
         user_id=nutzer.id,
         media_type=MediaType.movie,
-        tier=QualityTier.standard,
+        fassung_kennung="radarr-standard",
         tmdb_id=TMDB,
         title="Ein Film",
         status=RequestStatus.downloaded,

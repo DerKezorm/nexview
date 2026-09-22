@@ -19,7 +19,7 @@ from app.services.sonarr import Folge, Staffelstand
 def _serie(
     season: int | None = 2, status: RequestStatus = RequestStatus.searching
 ) -> MediaRequest:
-    return MediaRequest(media_type=MediaType.tv, season=season, status=status)
+    return MediaRequest(media_type=MediaType.tv, fassung_kennung="sonarr-standard", season=season, status=status)
 
 
 def _eintrag(**felder) -> SimpleNamespace:
@@ -113,7 +113,7 @@ def test_frische_freigabe_zaehlt_statt_alter_anfrage() -> None:
 def test_heilung_nur_fuer_laufende_staffelanfragen() -> None:
     abgeraeumt = _eintrag(staffeln={2: Staffelstand(dateien=0, folgen=8, monitored=False)})
 
-    film = MediaRequest(media_type=MediaType.movie, season=None, status=RequestStatus.searching)
+    film = MediaRequest(media_type=MediaType.movie, fassung_kennung="radarr-standard", season=None, status=RequestStatus.searching)
     assert not abgleich_kern.heilung_noetig(film, abgeraeumt)
     assert not abgleich_kern.heilung_noetig(_serie(season=None), abgeraeumt)
     assert not abgleich_kern.heilung_noetig(
@@ -140,9 +140,7 @@ def test_ueberwachte_staffel_braucht_keine_heilung() -> None:
 
 
 def _paket(episodes: list[int]) -> MediaRequest:
-    return MediaRequest(
-        media_type=MediaType.tv,
-        season=2,
+    return MediaRequest(media_type=MediaType.tv, fassung_kennung="sonarr-standard", season=2,
         episodes=episodes,
         status=RequestStatus.searching,
     )

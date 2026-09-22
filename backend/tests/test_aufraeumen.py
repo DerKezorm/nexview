@@ -33,6 +33,7 @@ from app.models import (
     UserWatched,
 )
 from app.services import aufraeumen
+from app.services.fassungen import arr_kennung
 
 from .conftest import create_user
 
@@ -58,7 +59,7 @@ def _posten(
             key=key,
             user_id=user_id,
             media_type=MediaType.tv if season is not None else MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung=arr_kennung(MediaType.tv if season is not None else MediaType.movie, QualityTier.standard),
             tmdb_id=tmdb_id,
             season=season,
             title=title,
@@ -102,12 +103,12 @@ def test_frisch_geladen_ist_kein_ladenhueter(admin_client: TestClient) -> None:
     Ein großer Film, den noch nie jemand gesehen hat - weil er gestern fertig
     wurde. „Nie angesehen" stimmt, und trotzdem gehört er nicht in die Liste.
     """
-    _posten(key="movie:standard:tmdb:1", title="Gestern fertig", size_gb=80, liegt_seit_tagen=1)
+    _posten(key="movie:radarr-standard:tmdb:1", title="Gestern fertig", size_gb=80, liegt_seit_tagen=1)
     assert _liste().gesamt_anzahl == 0
 
 
 def test_lange_da_und_nie_angesehen_ist_ein_kandidat(admin_client: TestClient) -> None:
-    _posten(key="movie:standard:tmdb:2", title="Liegt ewig", size_gb=80, liegt_seit_tagen=900)
+    _posten(key="movie:radarr-standard:tmdb:2", title="Liegt ewig", size_gb=80, liegt_seit_tagen=900)
     ergebnis = _liste()
     assert ergebnis.gesamt_anzahl == 1
     assert ergebnis.kandidaten[0].title == "Liegt ewig"
@@ -120,7 +121,7 @@ def test_ohne_bekanntes_alter_wird_nicht_geraten(admin_client: TestClient) -> No
     Die richtige Antwort darauf ist eine **leere** Liste plus die Angabe, wie
     viele übergangen wurden - nicht eine Liste voller Behauptungen.
     """
-    _posten(key="movie:standard:tmdb:3", title="Alter unbekannt", size_gb=80, liegt_seit_tagen=None)
+    _posten(key="movie:radarr-standard:tmdb:3", title="Alter unbekannt", size_gb=80, liegt_seit_tagen=None)
     ergebnis = _liste()
     assert ergebnis.gesamt_anzahl == 0
     assert ergebnis.ohne_datum == 1
@@ -128,14 +129,14 @@ def test_ohne_bekanntes_alter_wird_nicht_geraten(admin_client: TestClient) -> No
 
 def test_kuerzlich_angesehen_faellt_raus(admin_client: TestClient) -> None:
     kim = create_user(admin_client, "kim")
-    _posten(tmdb_id=4, key="movie:standard:tmdb:4", title="Neulich geschaut", size_gb=80, liegt_seit_tagen=900)
+    _posten(tmdb_id=4, key="movie:radarr-standard:tmdb:4", title="Neulich geschaut", size_gb=80, liegt_seit_tagen=900)
     _gesehen(kim["id"], 4, vor_tagen=10)
     assert _liste().gesamt_anzahl == 0
 
 
 def test_lange_nicht_angesehen_bleibt_drin(admin_client: TestClient) -> None:
     kim = create_user(admin_client, "kim")
-    _posten(tmdb_id=5, key="movie:standard:tmdb:5", title="Lange her", size_gb=80, liegt_seit_tagen=900)
+    _posten(tmdb_id=5, key="movie:radarr-standard:tmdb:5", title="Lange her", size_gb=80, liegt_seit_tagen=900)
     _gesehen(kim["id"], 5, vor_tagen=400)
 
     ergebnis = _liste()
@@ -147,7 +148,7 @@ def test_lange_nicht_angesehen_bleibt_drin(admin_client: TestClient) -> None:
 
 def test_der_zeitraum_laesst_sich_stellen(admin_client: TestClient) -> None:
     kim = create_user(admin_client, "kim")
-    _posten(tmdb_id=6, key="movie:standard:tmdb:6", title="Vor acht Monaten", size_gb=80, liegt_seit_tagen=900)
+    _posten(tmdb_id=6, key="movie:radarr-standard:tmdb:6", title="Vor acht Monaten", size_gb=80, liegt_seit_tagen=900)
     _gesehen(kim["id"], 6, vor_tagen=240)
 
     # Acht Monate her: bei einem Jahr Frist noch kein Kandidat, bei sechs schon.
@@ -162,9 +163,9 @@ def test_der_zeitraum_laesst_sich_stellen(admin_client: TestClient) -> None:
 
 def test_groesster_brocken_zuerst(admin_client: TestClient) -> None:
     """Beim Aufräumen entscheidet der Platz, nicht das Alter."""
-    _posten(key="movie:standard:tmdb:10", title="Klein", size_gb=2, liegt_seit_tagen=1500)
-    _posten(key="movie:standard:tmdb:11", title="Groß", size_gb=200, liegt_seit_tagen=700)
-    _posten(key="movie:standard:tmdb:12", title="Mittel", size_gb=40, liegt_seit_tagen=1000)
+    _posten(key="movie:radarr-standard:tmdb:10", title="Klein", size_gb=2, liegt_seit_tagen=1500)
+    _posten(key="movie:radarr-standard:tmdb:11", title="Groß", size_gb=200, liegt_seit_tagen=700)
+    _posten(key="movie:radarr-standard:tmdb:12", title="Mittel", size_gb=40, liegt_seit_tagen=1000)
 
     assert [k.title for k in _liste().kandidaten] == ["Groß", "Mittel", "Klein"]
 
@@ -176,7 +177,7 @@ def test_hausbestand_gehoert_dazu(admin_client: TestClient) -> None:
     im Hausbestand - ein Eigentümer entsteht nur für das, was danach über
     Nexview bestellt wird. Eine Liste ohne Hausbestand wäre dort fast leer.
     """
-    _posten(key="movie:standard:tmdb:20", title="Gehört niemandem", size_gb=90, liegt_seit_tagen=800)
+    _posten(key="movie:radarr-standard:tmdb:20", title="Gehört niemandem", size_gb=90, liegt_seit_tagen=800)
     ergebnis = _liste()
     assert ergebnis.gesamt_anzahl == 1
     assert ergebnis.kandidaten[0].besitzer is None
@@ -184,9 +185,9 @@ def test_hausbestand_gehoert_dazu(admin_client: TestClient) -> None:
 
 def test_eigene_sicht_zeigt_nur_eigenes(admin_client: TestClient) -> None:
     kim = create_user(admin_client, "kim")
-    _posten(key="movie:standard:tmdb:30", title="Von Kim", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="movie:radarr-standard:tmdb:30", title="Von Kim", size_gb=50, liegt_seit_tagen=800,
             user_id=kim["id"], tmdb_id=30)
-    _posten(key="movie:standard:tmdb:31", title="Vom Haus", size_gb=90, liegt_seit_tagen=800,
+    _posten(key="movie:radarr-standard:tmdb:31", title="Vom Haus", size_gb=90, liegt_seit_tagen=800,
             tmdb_id=31)
 
     with SessionLocal() as db:
@@ -202,7 +203,7 @@ def test_die_bewertung_kommt_mit(admin_client: TestClient) -> None:
     """Zwei Sterne an etwas, das niemand mehr ansieht, ist ein deutlicheres
     Zeichen als jede Zahl daneben."""
     kim = create_user(admin_client, "kim")
-    _posten(key="movie:standard:tmdb:40", title="Schlecht", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="movie:radarr-standard:tmdb:40", title="Schlecht", size_gb=50, liegt_seit_tagen=800,
             tmdb_id=40)
     with SessionLocal() as db:
         db.add(
@@ -253,7 +254,7 @@ def test_kinderkonten_zaehlen_nicht_als_luecke(admin_client: TestClient) -> None
 
 
 def test_admin_sieht_die_ganze_bibliothek(admin_client: TestClient) -> None:
-    _posten(key="movie:standard:tmdb:50", title="Vom Haus", size_gb=90, liegt_seit_tagen=800)
+    _posten(key="movie:radarr-standard:tmdb:50", title="Vom Haus", size_gb=90, liegt_seit_tagen=800)
     antwort = admin_client.get("/api/admin/stats/aufraeumen")
     assert antwort.status_code == 200, antwort.text
     daten = antwort.json()
@@ -301,9 +302,9 @@ def test_alle_zeitraeume_der_oberflaeche_gehen(admin_client: TestClient, monate:
 
 
 def test_die_suche_findet_ohne_ruecksicht_auf_grossschreibung(admin_client: TestClient) -> None:
-    _posten(key="movie:standard:tmdb:60", title="Star Trek", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="movie:radarr-standard:tmdb:60", title="Star Trek", size_gb=50, liegt_seit_tagen=800,
             tmdb_id=60)
-    _posten(key="movie:standard:tmdb:61", title="Findet Nemo", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="movie:radarr-standard:tmdb:61", title="Findet Nemo", size_gb=50, liegt_seit_tagen=800,
             tmdb_id=61)
 
     assert [k.title for k in _liste(suche="trek").kandidaten] == ["Star Trek"]
@@ -313,9 +314,9 @@ def test_die_suche_findet_ohne_ruecksicht_auf_grossschreibung(admin_client: Test
 
 
 def test_nach_medienart_filtern(admin_client: TestClient) -> None:
-    _posten(key="movie:standard:tmdb:62", title="Ein Film", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="movie:radarr-standard:tmdb:62", title="Ein Film", size_gb=50, liegt_seit_tagen=800,
             tmdb_id=62)
-    _posten(key="tv:standard:tvdb:63:s1", title="Eine Serie", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="tv:sonarr-standard:tvdb:63:s1", title="Eine Serie", size_gb=50, liegt_seit_tagen=800,
             tmdb_id=63, season=1)
 
     assert [k.title for k in _liste(art=MediaType.movie).kandidaten] == ["Ein Film"]
@@ -332,7 +333,7 @@ def test_nur_vorgemerkte_zeigt_auch_was_die_uhren_aussortieren(admin_client: Tes
     """
     kim = create_user(admin_client, "kim")
     # Frisch geladen und gerade angesehen - durch beide Uhren gefallen.
-    posten_id = _posten(key="movie:standard:tmdb:64", title="Frisch und gesehen", size_gb=50,
+    posten_id = _posten(key="movie:radarr-standard:tmdb:64", title="Frisch und gesehen", size_gb=50,
                         liegt_seit_tagen=1, tmdb_id=64)
     _gesehen(kim["id"], 64, vor_tagen=0)
     assert _liste().gesamt_anzahl == 0
@@ -350,7 +351,7 @@ def test_nur_vorgemerkte_zeigt_auch_was_die_uhren_aussortieren(admin_client: Tes
 
 def test_ohne_filter_bleiben_vorgemerkte_sichtbar(admin_client: TestClient) -> None:
     """In der normalen Liste stehen sie weiter - markiert, nicht versteckt."""
-    posten_id = _posten(key="movie:standard:tmdb:65", title="Vorgemerkt", size_gb=50,
+    posten_id = _posten(key="movie:radarr-standard:tmdb:65", title="Vorgemerkt", size_gb=50,
                         liegt_seit_tagen=800, tmdb_id=65)
     with SessionLocal() as db:
         zeile = db.get(StorageEntry, posten_id)
@@ -363,9 +364,9 @@ def test_ohne_filter_bleiben_vorgemerkte_sichtbar(admin_client: TestClient) -> N
 
 
 def test_suche_und_medienart_zusammen(admin_client: TestClient) -> None:
-    _posten(key="movie:standard:tmdb:66", title="Alien", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="movie:radarr-standard:tmdb:66", title="Alien", size_gb=50, liegt_seit_tagen=800,
             tmdb_id=66)
-    _posten(key="tv:standard:tvdb:67:s1", title="Alien Serie", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="tv:sonarr-standard:tvdb:67:s1", title="Alien Serie", size_gb=50, liegt_seit_tagen=800,
             tmdb_id=67, season=1)
 
     ergebnis = _liste(suche="alien", art=MediaType.movie)
@@ -373,9 +374,9 @@ def test_suche_und_medienart_zusammen(admin_client: TestClient) -> None:
 
 
 def test_die_filter_gehen_auch_ueber_die_api(admin_client: TestClient) -> None:
-    _posten(key="movie:standard:tmdb:68", title="Gesucht", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="movie:radarr-standard:tmdb:68", title="Gesucht", size_gb=50, liegt_seit_tagen=800,
             tmdb_id=68)
-    _posten(key="movie:standard:tmdb:69", title="Anderer", size_gb=50, liegt_seit_tagen=800,
+    _posten(key="movie:radarr-standard:tmdb:69", title="Anderer", size_gb=50, liegt_seit_tagen=800,
             tmdb_id=69)
 
     antwort = admin_client.get("/api/admin/stats/aufraeumen", params={"suche": "gesucht"})

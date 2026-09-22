@@ -69,7 +69,6 @@ from app.models import (
     MediaType,
     Notification,
     NotificationType,
-    QualityTier,
     RequestStatus,
     Role,
     StorageEntry,
@@ -193,7 +192,7 @@ def _satz_fuer(session, kennung: int, entscheider: int, mit_geladenem: bool) -> 
             MediaRequest(
                 user_id=kennung,
                 media_type=MediaType.movie,
-                tier=QualityTier.standard,
+                fassung_kennung="radarr-standard",
                 tmdb_id=nummer,
                 title=f"Waage-Titel {nummer}",
                 status=status,
@@ -224,10 +223,10 @@ def _satz_fuer(session, kennung: int, entscheider: int, mit_geladenem: bool) -> 
         nummer = next(_TITELNUMMER)
         session.add(
             StorageEntry(
-                key=f"movie:standard:tmdb:{nummer}",
+                key=f"movie:radarr-standard:tmdb:{nummer}",
                 user_id=kennung,
                 media_type=MediaType.movie,
-                tier=QualityTier.standard,
+                fassung_kennung="radarr-standard",
                 tmdb_id=nummer,
                 title=f"Waage-Posten {nummer}",
                 size_bytes=GB,

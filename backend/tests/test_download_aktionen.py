@@ -208,7 +208,7 @@ async def test_nach_dem_entfernen_verschwindet_der_hinweis_an_der_anfrage(
     Ohne ausdrueckliches Wegschreiben saehe das Markieren die gerade entfernte
     Zeile noch, und die Anfrage behielte "Import haengt" bis zur naechsten Runde.
     """
-    from app.models import MediaRequest, MediaType, QualityTier, RequestStatus
+    from app.models import MediaRequest, MediaType, RequestStatus
 
     from .conftest import create_user
 
@@ -217,7 +217,7 @@ async def test_nach_dem_entfernen_verschwindet_der_hinweis_an_der_anfrage(
     zeile_id = _merken("radarr-standard", [film()])
     with SessionLocal() as db:
         anfrage = MediaRequest(
-            user_id=besitzer["id"], media_type=MediaType.movie, tier=QualityTier.standard,
+            user_id=besitzer["id"], media_type=MediaType.movie, fassung_kennung="radarr-standard",
             tmdb_id=4711, title="Beispielfilm", status=RequestStatus.searching, arr_id=5,
         )
         db.add(anfrage)

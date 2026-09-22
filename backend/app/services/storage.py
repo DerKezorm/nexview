@@ -42,6 +42,7 @@ from ..models import (
 )
 from . import library, logs, notify, quota, sonarr
 from .arr import ArrError
+from .fassungen import arr_kennung
 from .radarr import LibraryEntry as MovieEntry
 from .settings_service import AppSettings
 from .sonarr import LibraryEntry as SeriesEntry
@@ -68,7 +69,7 @@ ZURECHENBAR = (
 
 def schluessel(
     media_type: MediaType | str,
-    tier: QualityTier | str,
+    fassung: str,
     *,
     tmdb_id: int | None = None,
     tvdb_id: int | None = None,
@@ -76,6 +77,10 @@ def schluessel(
     request_id: int | None = None,
 ) -> str | None:
     """Die eindeutige Kennung eines Postens.
+
+    ``fassung`` ist die Kennung der Fassung (``radarr-standard``, ...) und
+    steht als zweites Glied im Schluessel: 4K und 1080p sind zwei Dateien,
+    also zwei Posten. Bis zum Fassungsmodell stand dort die Stufe.
 
     Filme ueber die TMDB-Nummer (die kennt Radarr), Serien ueber die
     TVDB-Nummer (die kennt Sonarr). Nicht mischen: Sonst entstuende derselbe
@@ -91,12 +96,11 @@ def schluessel(
     Posten nicht verlaesslich fuehren und wird uebersprungen.
     """
     art = media_type.value if isinstance(media_type, MediaType) else str(media_type)
-    stufe = tier.value if isinstance(tier, QualityTier) else str(tier)
     if art == MediaType.movie.value:
-        return f"movie:{stufe}:tmdb:{tmdb_id}" if tmdb_id else None
+        return f"movie:{fassung}:tmdb:{tmdb_id}" if tmdb_id else None
     if not tvdb_id:
         return None
-    basis = f"tv:{stufe}:tvdb:{tvdb_id}:s{season if season is not None else 0}"
+    basis = f"tv:{fassung}:tvdb:{tvdb_id}:s{season if season is not None else 0}"
     return f"{basis}:r{request_id}" if request_id else basis
 
 
@@ -114,7 +118,7 @@ def spuerbar_zugelegt(db: Session, request, size_bytes: int) -> bool:
         return False
     kennung = schluessel(
         request.media_type,
-        request.tier,
+        request.fassung_kennung,
         tmdb_id=request.tmdb_id,
         tvdb_id=request.tvdb_id,
         season=request.season,
@@ -796,7 +800,10 @@ async def _pakete_aufnehmen(
     for anfrage in anfragen:
         stufe = anfrage.tier or QualityTier.standard
         basis = schluessel(
-            MediaType.tv, stufe, tvdb_id=anfrage.tvdb_id, season=anfrage.season
+            MediaType.tv,
+            arr_kennung(MediaType.tv, stufe),
+            tvdb_id=anfrage.tvdb_id,
+            season=anfrage.season,
         )
         staffelzeile = gemessen.get(basis or "")
         if staffelzeile is None or staffelzeile.arr_id is None:
@@ -849,7 +856,7 @@ async def _pakete_aufnehmen(
         )
         kennung = schluessel(
             MediaType.tv,
-            stufe,
+            arr_kennung(MediaType.tv, stufe),
             tvdb_id=anfrage.tvdb_id,
             season=anfrage.season,
             request_id=anfrage.id,
@@ -948,7 +955,7 @@ def _film_aufnehmen(
 ) -> None:
     if eintrag.size_bytes <= 0:
         return
-    kennung = schluessel(MediaType.movie, stufe, tmdb_id=tmdb_id)
+    kennung = schluessel(MediaType.movie, arr_kennung(MediaType.movie, stufe), tmdb_id=tmdb_id)
     if kennung is None:
         return
     ziel[kennung] = _Gemessen(
@@ -981,7 +988,9 @@ def _serie_aufnehmen(
     for staffel, bytes_ in eintrag.seasons.items():
         if bytes_ <= 0:
             continue
-        kennung = schluessel(MediaType.tv, stufe, tvdb_id=tvdb_id, season=staffel)
+        kennung = schluessel(
+            MediaType.tv, arr_kennung(MediaType.tv, stufe), tvdb_id=tvdb_id, season=staffel
+        )
         if kennung is None:
             continue
         stand = (getattr(eintrag, "staffeln", None) or {}).get(staffel)
@@ -1044,7 +1053,7 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
             # soll keinen Posten auf 0 druecken. Faellt hier von selbst weg.
             if bytes_ <= 0:
                 continue
-            kennung = schluessel(MediaType.movie, stufe, tmdb_id=zeile.tmdb_id)
+            kennung = schluessel(MediaType.movie, arr_kennung(MediaType.movie, stufe), tmdb_id=zeile.tmdb_id)
             if kennung is None:
                 continue
 
@@ -1208,7 +1217,7 @@ def _schreiben(
                     key=kennung,
                     user_id=besitzer,
                     media_type=wert.media_type,
-                    tier=wert.tier,
+                    fassung_kennung=arr_kennung(wert.media_type, wert.tier),
                     tmdb_id=wert.tmdb_id,
                     tvdb_id=wert.tvdb_id,
                     season=wert.season,
@@ -1469,7 +1478,7 @@ def verbuchen(
         # die Groesse nach.
         kennung = schluessel(
             MediaType.tv,
-            stufe,
+            arr_kennung(MediaType.tv, stufe),
             tvdb_id=request.tvdb_id,
             season=request.season,
             request_id=request.id,
@@ -1492,7 +1501,10 @@ def verbuchen(
         # Eine Anfrage auf **eine** Staffel darf auch nur diese eine belasten.
         if request.season is not None:
             nur = schluessel(
-                MediaType.tv, stufe, tvdb_id=request.tvdb_id, season=request.season
+                MediaType.tv,
+                arr_kennung(MediaType.tv, stufe),
+                tvdb_id=request.tvdb_id,
+                season=request.season,
             )
             gemessen = {k: v for k, v in gemessen.items() if k == nur}
 
@@ -1516,7 +1528,7 @@ def verbuchen(
                     key=kennung,
                     user_id=request.user_id,
                     media_type=wert.media_type,
-                    tier=wert.tier,
+                    fassung_kennung=arr_kennung(wert.media_type, wert.tier),
                     tmdb_id=wert.tmdb_id or request.tmdb_id,
                     tvdb_id=wert.tvdb_id or request.tvdb_id,
                     season=wert.season,
@@ -2184,7 +2196,7 @@ def _anfragen_schliessen(db: Session, zeile: StorageEntry) -> int:
     """Alle laufenden Anfragen zum geloeschten Posten auf "geloescht" setzen."""
     bedingungen = [
         MediaRequest.media_type == zeile.media_type,
-        MediaRequest.tier == zeile.tier,
+        MediaRequest.fassung_kennung == zeile.fassung_kennung,
         MediaRequest.status.in_(_ZU_SCHLIESSEN),
     ]
     if zeile.media_type == MediaType.movie:

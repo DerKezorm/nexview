@@ -35,6 +35,7 @@ from . import (
     storage,
 )
 from .arr import ArrError
+from .fassungen import arr_kennung, auto_freigabe, darf_anfragen
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.requests")
@@ -151,7 +152,7 @@ def find_active(
     bedingungen = [
         MediaRequest.media_type == media_type,
         MediaRequest.tmdb_id == tmdb_id,
-        MediaRequest.tier == tier,
+        MediaRequest.fassung_kennung == arr_kennung(media_type, tier),
         MediaRequest.status.in_(ACTIVE_STATUSES),
     ]
 
@@ -194,7 +195,7 @@ def angefragte_folgen(
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.tier == tier,
+            MediaRequest.fassung_kennung == arr_kennung(MediaType.tv, tier),
             MediaRequest.status.in_(ACTIVE_STATUSES),
             (MediaRequest.season == season) | (MediaRequest.season.is_(None)),
         )
@@ -261,7 +262,7 @@ def zurueckgestellte_schliessen(
         MediaRequest.id != anfrage.id,
         MediaRequest.media_type == anfrage.media_type,
         MediaRequest.tmdb_id == anfrage.tmdb_id,
-        MediaRequest.tier == anfrage.tier,
+        MediaRequest.fassung_kennung == anfrage.fassung_kennung,
         MediaRequest.status == RequestStatus.deferred,
     ]
     # Bei Serien zaehlt die Staffel mit - dieselbe Regel wie in ``find_active``.
@@ -311,7 +312,7 @@ def badges_for(
         select(MediaRequest).where(
             MediaRequest.media_type == media_type,
             MediaRequest.tmdb_id.in_(tmdb_ids),
-            MediaRequest.tier == tier,
+            MediaRequest.fassung_kennung == arr_kennung(media_type, tier),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
     )
@@ -464,7 +465,7 @@ def _gewollte_staffeln(db: Session, request: MediaRequest) -> set[int]:
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tvdb_id == request.tvdb_id,
-            MediaRequest.tier == request.tier,
+            MediaRequest.fassung_kennung == request.fassung_kennung,
             MediaRequest.season.is_not(None),
             # ⚠️ Folgen-Pakete bleiben draussen: Ihre Staffel hier mitzunehmen
             # hiesse, die **ganze** Staffel einzuschalten - und Sonarr zoege
@@ -948,7 +949,7 @@ def _jahr_aus(datum: str | None) -> int | None:
 
 def _bestand_stufe(
     db: Session, media_type: MediaType, tmdb_id: int, tier: QualityTier
-) -> str:
+) -> tuple[str, str | None]:
     """In welcher **anderen** Stufe liegt der Titel schon vor?
 
     ⚠️ **Die eigene Stufe kann hier nicht mehr auftauchen.** Dieselbe Stufe
@@ -960,19 +961,23 @@ def _bestand_stufe(
     lag, hat hier keine Anfrage und zaehlt deshalb als "nichts". Das ist kein
     Versehen, sondern die Grenze dieser Auskunft: Der Bibliotheksabgleich
     weiter oben prueft die angefragte Stufe, nicht die andere.
+
+    Zurueck kommt die Klasse (``hd``/``uhd``/``nichts``) und die Kennung der
+    Fassung, in der er vorliegt - eine Regel darf beides nennen.
     """
     andere = QualityTier.standard if tier == QualityTier.uhd else QualityTier.uhd
+    kennung = arr_kennung(media_type, andere)
     vorhanden = db.scalar(
         select(MediaRequest.id).where(
             MediaRequest.media_type == media_type,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.tier == andere,
+            MediaRequest.fassung_kennung == kennung,
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
     )
     if vorhanden is None:
-        return "nichts"
-    return regeln.stufe_von(andere)
+        return "nichts", None
+    return regeln.stufe_von(andere), kennung
 
 
 def _kontingent_pruefen(
@@ -1307,8 +1312,9 @@ async def create_request(
 
     # 4K nur, wenn es dafuer auch eine Instanz gibt - und der Benutzer sie
     # nutzen darf. Beides serverseitig, sonst waere das Recht Dekoration.
+    kennung = arr_kennung(media_type, tier)
     if tier == QualityTier.uhd:
-        if not user.may_request_uhd(media_type):
+        if not darf_anfragen(db, user, kennung):
             raise RequestError(
                 "Für 4K-Anfragen fehlt dir die Berechtigung. "
                 "Der Administrator kann sie freischalten.",
@@ -1389,7 +1395,7 @@ async def create_request(
             MediaRequest.user_id == user.id,
             MediaRequest.media_type == media_type,
             MediaRequest.tmdb_id == item.tmdb_id,
-            MediaRequest.tier == tier,
+            MediaRequest.fassung_kennung == kennung,
             MediaRequest.season == season,
             MediaRequest.status == RequestStatus.deferred,
         )
@@ -1434,7 +1440,7 @@ async def create_request(
             MediaRequest.user_id == user.id,
             MediaRequest.media_type == media_type,
             MediaRequest.tmdb_id == item.tmdb_id,
-            MediaRequest.tier == tier,
+            MediaRequest.fassung_kennung == kennung,
             MediaRequest.status == RequestStatus.rejected,
             MediaRequest.regel_id.is_not(None),
         )
@@ -1611,10 +1617,13 @@ async def create_request(
     # Sie kann nichts durchwinken, was aus einem anderen Grund schon
     # gescheitert ist; siehe den Kopf von ``services/regeln.py``.
     # ------------------------------------------------------------------
+    bestand, bestand_fassung = _bestand_stufe(db, media_type, item.tmdb_id, tier)
     titel_fuer_regeln = regeln.Titel(
         typ=media_type,
         qualitaet=regeln.stufe_von(tier),
-        bestand=_bestand_stufe(db, media_type, item.tmdb_id, tier),
+        fassung=kennung,
+        bestand=bestand,
+        bestand_fassung=bestand_fassung,
         genres=tuple(item.genre_ids),
         # ⚠️ ``vote_average`` ist 0.0, wenn **niemand** bewertet hat - TMDB
         # unterscheidet das nicht von einer echten Null. Eine Regel
@@ -1664,7 +1673,7 @@ async def create_request(
         abgelehnt = MediaRequest(
             user_id=user.id,
             media_type=media_type,
-            tier=tier,
+            fassung_kennung=kennung,
             tmdb_id=item.tmdb_id,
             tvdb_id=tvdb_id,
             title=item.title,
@@ -1711,12 +1720,12 @@ async def create_request(
     sofort = (
         regel_ergebnis.freigeben
         if regel_ergebnis is not None
-        else user.auto_approve_for(media_type, tier)
+        else auto_freigabe(db, user, media_type, kennung)
     ) and not ziel_erst_bei_freigabe
     request = MediaRequest(
         user_id=user.id,
         media_type=media_type,
-        tier=tier,
+        fassung_kennung=kennung,
         tmdb_id=item.tmdb_id,
         tvdb_id=tvdb_id,
         title=item.title,
@@ -1807,7 +1816,7 @@ def _weitere_aktive(db: Session, request: MediaRequest) -> list[MediaRequest]:
             select(MediaRequest).where(
                 MediaRequest.media_type == request.media_type,
                 MediaRequest.tmdb_id == request.tmdb_id,
-                MediaRequest.tier == request.tier,
+                MediaRequest.fassung_kennung == request.fassung_kennung,
                 MediaRequest.status.in_(ACTIVE_STATUSES),
                 MediaRequest.id != request.id,
             )
@@ -2019,7 +2028,7 @@ def angefragte_staffeln(
         select(MediaRequest.season).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.tier == tier,
+            MediaRequest.fassung_kennung == arr_kennung(MediaType.tv, tier),
             MediaRequest.episodes.is_(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
@@ -2042,7 +2051,7 @@ def angefragte_pakete(
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.tier == tier,
+            MediaRequest.fassung_kennung == arr_kennung(MediaType.tv, tier),
             MediaRequest.episodes.is_not(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
@@ -2070,7 +2079,7 @@ def staffel_belegung(
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.tier == tier,
+            MediaRequest.fassung_kennung == arr_kennung(MediaType.tv, tier),
             MediaRequest.episodes.is_(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )

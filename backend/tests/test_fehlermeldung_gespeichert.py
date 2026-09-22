@@ -66,6 +66,7 @@ async def test_fehlende_tvdb_kennung_wird_mit_kennung_gespeichert(
         lambda user_id: MediaRequest(
             user_id=user_id,
             media_type=MediaType.tv,
+            fassung_kennung="sonarr-standard",
             tmdb_id=331616,
             tvdb_id=None,
             title="Death of the Pastor's Wife",
@@ -113,6 +114,7 @@ async def test_werte_zum_einsetzen_liegen_bei(
         lambda user_id: MediaRequest(
             user_id=user_id,
             media_type=MediaType.movie,
+            fassung_kennung="radarr-standard",
             tmdb_id=42,
             title="Irgendein Film",
             status=RequestStatus.approved,
@@ -150,6 +152,7 @@ async def test_geglueckte_uebergabe_raeumt_die_alte_meldung_weg(
         anfrage = MediaRequest(
             user_id=benutzer.id,
             media_type=MediaType.movie,
+            fassung_kennung="radarr-standard",
             tmdb_id=43,
             title="Zweiter Versuch",
             status=RequestStatus.approved,
@@ -208,6 +211,7 @@ async def test_fehlende_tvdb_kennung_wird_frisch_nachgeschlagen(
         anfrage = MediaRequest(
             user_id=benutzer.id,
             media_type=MediaType.tv,
+            fassung_kennung="sonarr-standard",
             tmdb_id=331616,
             tvdb_id=None,
             title="Death of the Pastor's Wife",
@@ -249,6 +253,7 @@ async def test_ohne_kennung_bleibt_es_beim_fehler(
         lambda user_id: MediaRequest(
             user_id=user_id,
             media_type=MediaType.tv,
+            fassung_kennung="sonarr-standard",
             tmdb_id=999999,
             tvdb_id=None,
             title="Ganz neue Serie",

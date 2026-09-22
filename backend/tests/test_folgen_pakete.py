@@ -15,7 +15,6 @@ from app.db import SessionLocal
 from app.models import (
     MediaRequest,
     MediaType,
-    QualityTier,
     RequestStatus,
     StorageEntry,
     StorageState,
@@ -248,11 +247,11 @@ def test_angefragte_folgen_nennen_das_belegte(
 def test_betreff_nennt_die_folgen() -> None:
     from app.services import channel_outbox
 
-    paket = MediaRequest(media_type=MediaType.tv, season=2, episodes=[3, 7])
+    paket = MediaRequest(media_type=MediaType.tv, fassung_kennung="sonarr-standard", season=2, episodes=[3, 7])
     assert channel_outbox.folgen_zusatz(paket, "de") == " · Folge 3, 7"
     assert channel_outbox.folgen_zusatz(paket, "en") == " · Episode 3, 7"
 
-    staffel = MediaRequest(media_type=MediaType.tv, season=2, episodes=None)
+    staffel = MediaRequest(media_type=MediaType.tv, fassung_kennung="sonarr-standard", season=2, episodes=None)
     assert channel_outbox.folgen_zusatz(staffel, "de") == ""
 
 
@@ -321,6 +320,7 @@ def _zurueckgestelltes_paket(
     return MediaRequest(
         user_id=benutzer.id,
         media_type=MediaType.tv,
+        fassung_kennung="sonarr-standard",
         tmdb_id=serie["tmdb_id"],
         title=serie.get("title") or "Testserie",
         season=season,
@@ -386,7 +386,7 @@ def _paketzeile(
     zeile = MediaRequest(
         user_id=user_id,
         media_type=MediaType.tv,
-        tier=QualityTier.standard,
+        fassung_kennung="sonarr-standard",
         tmdb_id=4386,
         tvdb_id=TVDB,
         title="Baywatch",
@@ -769,9 +769,9 @@ async def test_stundenabgleich_spaltet_die_staffelzeile(
         # gehoerte grundsaetzlich alles dem Haus).
         db.add(
             StorageEntry(
-                key="movie:standard:tmdb:1",
+                key="movie:radarr-standard:tmdb:1",
                 media_type=MediaType.movie,
-                tier=QualityTier.standard,
+                fassung_kennung="radarr-standard",
                 tmdb_id=1,
                 title="Altbestand",
                 size_bytes=1,
@@ -791,7 +791,7 @@ async def test_stundenabgleich_spaltet_die_staffelzeile(
         assert paket.user_id == konto["id"]
 
         staffel = db.query(StorageEntry).filter(
-            StorageEntry.key == f"tv:standard:tvdb:{TVDB}:s2"
+            StorageEntry.key == f"tv:sonarr-standard:tvdb:{TVDB}:s2"
         ).one()
         assert staffel.size_bytes == 3000
         assert staffel.user_id is None
@@ -824,9 +824,9 @@ async def test_teilgeladenes_paket_zahlt_nur_das_vorhandene(
         kennung = _paketzeile(db, konto["id"], [3, 7], status=RequestStatus.searching)
         db.add(
             StorageEntry(
-                key="movie:standard:tmdb:1",
+                key="movie:radarr-standard:tmdb:1",
                 media_type=MediaType.movie,
-                tier=QualityTier.standard,
+                fassung_kennung="radarr-standard",
                 tmdb_id=1,
                 title="Altbestand",
                 size_bytes=1,
@@ -873,10 +873,10 @@ async def test_loeschen_eines_paket_postens_trifft_nur_das_paket(
         kims = _paketzeile(db, kim["id"], [3, 7], status=RequestStatus.downloaded)
         bens = _paketzeile(db, ben["id"], [1], status=RequestStatus.downloaded)
         posten = StorageEntry(
-            key=f"tv:standard:tvdb:{TVDB}:s2:r{kims}",
+            key=f"tv:sonarr-standard:tvdb:{TVDB}:s2:r{kims}",
             user_id=kim["id"],
             media_type=MediaType.tv,
-            tier=QualityTier.standard,
+            fassung_kennung="sonarr-standard",
             tvdb_id=TVDB,
             season=2,
             title="Baywatch",

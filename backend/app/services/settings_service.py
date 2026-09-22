@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 
 from ..crypto import decrypt, encrypt, mask
 from ..models import MediaServerConnection, QuotaPeriod, Setting
+from .fassungen import ARR_FASSUNGEN, FassungInfo, aus_einstellungen
+from .fassungen import abgleichen as fassungen_abgleichen
 
 logger = logging.getLogger("nexview.settings")
 
@@ -508,11 +510,15 @@ class AppSettings:
         # Der Anzeigename ist frei waehlbar ("Filme", "Anime", ...); leer
         # gilt der Dienstname. Er schlaegt von hier aus ueberall durch -
         # Papierkoerbe, Webhook-Stand, Gesundheits-Meldungen.
+        # Die Kennungen stehen an genau einer Stelle: ``fassungen.ARR_FASSUNGEN``.
         alle = (
-            ("radarr-standard", "movie", "standard", self.radarr_name or "Radarr"),
-            ("radarr-uhd", "movie", "uhd", self.radarr_uhd_name or "Radarr 4K"),
-            ("sonarr-standard", "tv", "standard", self.sonarr_name or "Sonarr"),
-            ("sonarr-uhd", "tv", "uhd", self.sonarr_uhd_name or "Sonarr 4K"),
+            (
+                f.kennung,
+                f.media_type,
+                f.stufe.value,
+                getattr(self, f.name_schluessel) or f.name_vorgabe,
+            )
+            for f in ARR_FASSUNGEN
         )
         ergebnis = []
         for kennung, art, stufe, name in alle:
@@ -529,6 +535,19 @@ class AppSettings:
                     )
                 )
         return tuple(ergebnis)
+
+    def fassungen_fuer(self, media_type: str) -> tuple[FassungInfo, ...]:
+        """Die eingerichteten Fassungen einer Medienart, in Anzeigereihenfolge.
+
+        Der Nachfolger von ``arr_configured(art, stufe)`` fuer alles, was je
+        Fassung arbeitet (Bauplan NEX-Modus, Abschnitt 2.2).
+        """
+        art = getattr(media_type, "value", media_type)
+        return tuple(f for f in aus_einstellungen(self) if f.media_type == art)
+
+    def fassung(self, kennung: str) -> FassungInfo | None:
+        """Eine eingerichtete Fassung ueber ihre Kennung - oder nichts."""
+        return next((f for f in aus_einstellungen(self) if f.kennung == kennung), None)
 
     @property
     def uhd_available(self) -> bool:
@@ -1057,6 +1076,13 @@ def save_settings(db: Session, changes: dict[str, object], *, commit: bool = Tru
         else:
             row.value = text
             row.is_secret = is_secret
+
+    # Die Fassungen folgen den Instanzen: eine neue bekommt ihre Zeile, eine
+    # ausgetragene wird ``aktiv=False``. Im selben Zug, damit beides zusammen
+    # gilt oder gar nicht.
+    if any(str(key).startswith(("radarr_", "sonarr_")) for key in changes):
+        db.flush()
+        fassungen_abgleichen(db, load_settings(db, frisch=True))
 
     if commit:
         db.commit()

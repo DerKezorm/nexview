@@ -456,6 +456,7 @@ def test_serienabbruch_bei_altbestand_legt_nur_still(
             MediaRequest(
                 user_id=alex.id,
                 media_type=MediaType.tv,
+                fassung_kennung="sonarr-standard",
                 tmdb_id=kim["serie"]["tmdb_id"],
                 title=kim["serie"].get("title") or "Testserie",
                 season=3,

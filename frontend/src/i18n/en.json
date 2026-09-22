@@ -3840,6 +3840,8 @@
       "no_uhd_instance_movie": "There is no 4K instance of Radarr.",
       "no_uhd_instance_tv": "There is no 4K instance of Sonarr.",
       "uhd_needs_permission": "Allow 4K first.",
+      "fassung_needs_permission": "Allow requesting this version first.",
+      "fassung_open_to_all": "Anyone may request this version.",
       "approver_picks_uhd_target": "In 4K the approver picks root folder and quality profile. Every 4K request waits for them anyway.",
       "admin_no_quota": "Administrators have no quota.",
       "no_house_rules": "No house rules are published.",

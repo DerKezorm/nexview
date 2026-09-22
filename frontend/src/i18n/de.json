@@ -3840,6 +3840,8 @@
       "no_uhd_instance_movie": "Es gibt keine 4K-Instanz von Radarr.",
       "no_uhd_instance_tv": "Es gibt keine 4K-Instanz von Sonarr.",
       "uhd_needs_permission": "Erst 4K erlauben.",
+      "fassung_needs_permission": "Erst das Anfragen dieser Fassung erlauben.",
+      "fassung_open_to_all": "Diese Fassung darf jeder anfragen.",
       "approver_picks_uhd_target": "In 4K wählt der Entscheider Zielordner und Qualitätsprofil. Jede 4K-Anfrage wartet ohnehin auf ihn.",
       "admin_no_quota": "Administratoren haben kein Kontingent.",
       "no_house_rules": "Es ist keine Hausordnung veröffentlicht.",

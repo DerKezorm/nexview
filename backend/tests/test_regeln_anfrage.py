@@ -27,7 +27,6 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import (
     MediaRequest,
-    QualityTier,
     Regel,
     RegelEntscheidung,
     RequestStatus,
@@ -302,7 +301,7 @@ def test_eine_regel_kann_die_zweite_stufe_verhindern(
 
     with SessionLocal() as db:
         anfrage = db.query(MediaRequest).one()
-        anfrage.tier = QualityTier.standard
+        anfrage.fassung_kennung = "radarr-standard"
         db.commit()
 
     zweite = _anfragen(arr_client, item, nutzer, tier="uhd")

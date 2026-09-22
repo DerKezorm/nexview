@@ -28,6 +28,7 @@ from app.models import (
 )
 from app.security import hash_password
 from app.services import storage
+from app.services.fassungen import arr_kennung
 from app.services.storage import _Gemessen
 
 TVDB = 479935
@@ -52,7 +53,7 @@ def _anfrage(
     eintrag = MediaRequest(
         user_id=nutzer.id,
         media_type=MediaType.tv,
-        tier=QualityTier.standard,
+        fassung_kennung="sonarr-standard",
         tmdb_id=331370,
         tvdb_id=TVDB,
         title="Eine Serie",
@@ -216,7 +217,7 @@ def test_bereits_zugerechnete_posten_werden_nicht_umverteilt() -> None:
                 key=alt.key,
                 user_id=None,
                 media_type=alt.media_type,
-                tier=alt.tier,
+                fassung_kennung=arr_kennung(alt.media_type, alt.tier),
                 tmdb_id=alt.tmdb_id,
                 tvdb_id=alt.tvdb_id,
                 season=alt.season,
@@ -250,7 +251,7 @@ def test_neu_auftauchende_staffel_bekommt_die_neue_regel() -> None:
                 key=vorhanden.key,
                 user_id=kim.id,
                 media_type=vorhanden.media_type,
-                tier=vorhanden.tier,
+                fassung_kennung=arr_kennung(vorhanden.media_type, vorhanden.tier),
                 tmdb_id=vorhanden.tmdb_id,
                 tvdb_id=vorhanden.tvdb_id,
                 season=1,

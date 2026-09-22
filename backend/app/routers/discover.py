@@ -13,6 +13,7 @@ from ..models import MediaType, QualityTier, Role
 from ..schemas_media import ArrOptions, Genre, MediaItem, MediaPage
 from ..services import (
     blocklist,
+    fassungen,
     library,
     media,
     mediaserver_library,
@@ -283,7 +284,7 @@ async def arr_options(
     if tier == "uhd":
         # Ohne Recht gar nichts ausliefern - die Profilnamen der 4K-Instanz
         # gehen niemanden etwas an, der sie nicht nutzen darf.
-        if not user.may_request_uhd(MediaType(media_type)):
+        if not fassungen.darf_anfragen(db, user, fassungen.arr_kennung(media_type, tier)):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=meldungen.meldung(

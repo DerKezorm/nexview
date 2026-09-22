@@ -38,12 +38,14 @@ nimmt den gewohnten Weg.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import MediaType, QualityTier, Regel, RegelEntscheidung, User
+from . import fassungen as fassungen_dienst
 
 # ---------------------------------------------------------------------------
 # Die Felder, ueber die sich Bedingungen stellen lassen
@@ -99,6 +101,18 @@ GESCHLOSSENE_WERTE: dict[str, frozenset[str]] = {
     "bestand": frozenset({"hd", "uhd", "nichts"}),
 }
 
+#: Felder, die ausser ihren Klassen auch eine bestimmte Fassung nennen
+#: duerfen. ``hd`` und ``uhd`` sind Klassen und treffen jede Fassung dieser
+#: Klasse - auch eine, die es beim Anlegen der Regel noch nicht gab. Eine
+#: Kennung (``radarr-uhd``, spaeter nexcrates ``v_...``) trifft genau diese
+#: eine Fassung.
+#:
+#: ⚠️ **Darum wandern bestehende Regeln nicht.** Der Bauplan sah vor, ``uhd``
+#: in die Liste aller 4K-Kennungen umzuschreiben. Das haette eine Regel
+#: "liegt schon in 4K vor" auf die Fassungen von heute festgenagelt, und
+#: die naechste 4K-Fassung aus nexcrate faende sie nicht.
+FASSUNGSFELDER = frozenset({"qualitaet", "bestand"})
+
 #: Rueckwaertskompatibler Name - einige Stellen nennen ihn noch einzeln.
 BESTAND_WERTE = GESCHLOSSENE_WERTE["bestand"]
 
@@ -129,8 +143,15 @@ class RegelFehler(ValueError):
     """Eine Regel ist so nicht speicherbar."""
 
 
-def bedingungen_pruefen(bedingungen: list | None) -> list[dict]:
+def bedingungen_pruefen(
+    bedingungen: list | None,
+    *,
+    fassungen: Iterable[str] = fassungen_dienst.ARR_KENNUNGEN,
+) -> list[dict]:
     """Die Bedingungen einer Regel auf Form pruefen, bevor sie gespeichert wird.
+
+    ``fassungen`` sind die Kennungen, die ``qualitaet`` und ``bestand``
+    ausser den Klassen nennen duerfen (``fassungen.bekannte_kennungen``).
 
     ⚠️ **Das gehoert in den Dienst und nicht nur ins Schema.** Eine Bedingung
     mit einem unbekannten Feld wuerde bei der Auswertung stillschweigend nie
@@ -194,6 +215,8 @@ def bedingungen_pruefen(bedingungen: list | None) -> list[dict]:
                 raise RegelFehler(f"{feld}: keine Auswahl getroffen.")
             werte = [str(w) for w in werte]
             erlaubt = GESCHLOSSENE_WERTE.get(feld)
+            if feld in FASSUNGSFELDER and erlaubt is not None:
+                erlaubt = erlaubt | frozenset(fassungen)
             if erlaubt is not None and not set(werte) <= erlaubt:
                 falsch = sorted(set(werte) - erlaubt)
                 raise RegelFehler(
@@ -218,7 +241,9 @@ class Titel:
     """
 
     typ: MediaType
+    #: Die Klasse der angefragten Fassung: ``hd`` oder ``uhd``.
     qualitaet: str
+    #: In welcher **anderen** Klasse der Titel schon vorliegt, oder ``nichts``.
     bestand: str = "nichts"
     genres: tuple[int, ...] = ()
     bewertung: float | None = None
@@ -227,6 +252,10 @@ class Titel:
     laufzeit: int | None = None
     sprache: str | None = None
     altersfreigabe: int | None = None
+    #: Die Kennung der angefragten Fassung, zusaetzlich zur Klasse.
+    fassung: str | None = None
+    #: Die Kennung der Fassung, in der er schon vorliegt, zusaetzlich zu ``bestand``.
+    bestand_fassung: str | None = None
 
     def wert(self, feld: str):
         """Was der Titel zu einem Feld sagt. ``None`` heisst: nichts."""
@@ -237,9 +266,9 @@ class Titel:
         if feld == "sprache":
             return [self.sprache] if self.sprache else None
         if feld == "qualitaet":
-            return [self.qualitaet]
+            return [self.qualitaet, *([self.fassung] if self.fassung else [])]
         if feld == "bestand":
-            return [self.bestand]
+            return [self.bestand, *([self.bestand_fassung] if self.bestand_fassung else [])]
         return getattr(self, feld, None)
 
 

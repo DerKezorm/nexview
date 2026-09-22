@@ -146,6 +146,7 @@ from .services import (
     benennung,
     channel_outbox,
     csp,
+    fassungen,
     logs,
     sicherung,
     status_poller,
@@ -168,6 +169,9 @@ POLLER_ENABLED = os.getenv("NEXVIEW_DISABLE_POLLER", "").lower() not in ("1", "t
 async def lifespan(app: FastAPI):
     logs.setup()
     init_db()
+    # Die Fassungen aus den eingerichteten Instanzen - bei jedem Start, damit
+    # die Tabelle auch nach einer eingespielten Sicherung zur Einrichtung passt.
+    fassungen.beim_start()
     # Erst jetzt: Die gewaehlte Protokoll-Stufe steht in der Datenbank, und die
     # gibt es beim allerersten Start noch nicht.
     logs.apply_stored_mode()

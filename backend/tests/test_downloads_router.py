@@ -14,7 +14,6 @@ from app.models import (
     DownloadVerlauf,
     MediaRequest,
     MediaType,
-    QualityTier,
     RequestStatus,
     Role,
     User,
@@ -59,7 +58,7 @@ def test_die_uebersicht_trennt_haengendes_von_laufendem(
     with SessionLocal() as db:
         db.add(
             MediaRequest(
-                user_id=besitzer["id"], media_type=MediaType.movie, tier=QualityTier.standard,
+                user_id=besitzer["id"], media_type=MediaType.movie, fassung_kennung="radarr-standard",
                 tmdb_id=4711, title="Beispielfilm", status=RequestStatus.searching, arr_id=5,
                 poster_path="https://image.example.com/p.jpg",
             )

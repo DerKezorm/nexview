@@ -9,6 +9,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from .. import meldungen
 from ..deps import AdminUser, AdultUser, DbSession, betreiberschutz
@@ -33,6 +34,7 @@ from ..services import (
     child_wishes,
     children,
     einladung_server,
+    fassungen,
     kontoaufloesung,
     kontorechte,
     mail,
@@ -116,7 +118,13 @@ def _mit_verbrauch(db: DbSession, user: User) -> UserWithUsage:
 @router.get("", response_model=list[UserWithUsage])
 def list_users(admin: AdminUser, db: DbSession) -> list[UserWithUsage]:
     # Gruppiert gezaehlt statt zweimal je Konto - siehe ``quota.uebersichten``.
-    konten = list(db.scalars(select(User).order_by(User.created_at)))
+    konten = list(
+        db.scalars(
+            select(User)
+            .options(selectinload(User.fassung_rechte))
+            .order_by(User.created_at)
+        )
+    )
     staende = quota.uebersichten(db, konten, load_settings(db))
     return [
         UserWithUsage(
@@ -385,6 +393,7 @@ def _bewertung(
         load_settings(db),
         eigen,
         hausordnung_veroeffentlicht=kontorechte.veroeffentlichte_hausordnung(db) is not None,
+        offene=fassungen.offene_kennungen(db),
     )
     return eigen, bewertung
 

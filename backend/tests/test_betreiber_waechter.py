@@ -895,6 +895,15 @@ def liste(db):
 #:   Diese Fehlalarme sind der Preis dafuer, dass ``email``, ``username`` und
 #:   ``parent_id`` ausdruecklich mit ueberwacht werden.
 AUSSERHALB: dict[tuple[str, str], str] = {
+    ("models.py", "_recht_setzen"): (
+        "Die Sicht der alten 4K-Haken (``can_request_uhd_movies`` ...) auf "
+        "``fassung_rechte``. Sie schreibt nur am Konto, dessen Eigenschaft "
+        "gesetzt wird, und wird von drei Stellen erreicht: vom Kontodialog "
+        "``PATCH /api/users/{user_id}``, der ``betreiberschutz`` traegt; vom "
+        "Anlegen eines **neuen** Kontos aus einer Einladung; und von Tests. "
+        "Die Entscheidung ueber den Betreiber faellt damit an der Adresse, "
+        "nicht hier - genau wie bei den Spalten, die die Haken vorher waren."
+    ),
     ("services/webpush.py", "vorbelegen"): (
         "Setzt die push_*-Haken an dem Konto, das gerade sein erstes Geraet "
         "anmeldet - dem angemeldeten. Gerufen nur aus webpush.anmelden, und "

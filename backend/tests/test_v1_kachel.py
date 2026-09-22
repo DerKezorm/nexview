@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaType, QualityTier, Role, StorageEntry, StorageState
+from app.services.fassungen import arr_kennung
 
 from .conftest import auth_headers, create_user
 
@@ -141,7 +142,7 @@ def _posten(
             key=schluessel,
             user_id=None,
             media_type=art,
-            tier=stufe,
+            fassung_kennung=arr_kennung(art, stufe),
             tmdb_id=tmdb,
             tvdb_id=tvdb,
             season=season,
@@ -161,16 +162,16 @@ def test_die_kachel_zaehlt_werke_und_nicht_posten(admin_client: TestClient) -> N
     """
     with SessionLocal() as db:
         # Derselbe Film, zwei Qualitaetsstufen: zwei Posten, ein Werk.
-        _posten(db, art=MediaType.movie, schluessel="movie:standard:tmdb:603", tmdb=603)
+        _posten(db, art=MediaType.movie, schluessel="movie:radarr-standard:tmdb:603", tmdb=603)
         _posten(
             db,
             art=MediaType.movie,
-            schluessel="movie:uhd:tmdb:603",
+            schluessel="movie:radarr-uhd:tmdb:603",
             tmdb=603,
             stufe=QualityTier.uhd,
         )
         # Ein zweiter Film, nur einmal.
-        _posten(db, art=MediaType.movie, schluessel="movie:standard:tmdb:604", tmdb=604)
+        _posten(db, art=MediaType.movie, schluessel="movie:radarr-standard:tmdb:604", tmdb=604)
         # Und einer aus dem Hausbestand, dem niemand eine Nummer geben konnte.
         _posten(db, art=MediaType.movie, schluessel="movie:standard:pfad:alt")
 
@@ -179,7 +180,7 @@ def test_die_kachel_zaehlt_werke_und_nicht_posten(admin_client: TestClient) -> N
             _posten(
                 db,
                 art=MediaType.tv,
-                schluessel=f"tv:standard:tvdb:7:s{staffel}",
+                schluessel=f"tv:sonarr-standard:tvdb:7:s{staffel}",
                 tvdb=7,
                 season=staffel,
             )

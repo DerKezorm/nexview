@@ -39,6 +39,7 @@ from app.models import (
     StorageState,
 )
 from app.services import library, storage
+from app.services.fassungen import arr_kennung
 from app.services.radarr import LibraryEntry as MovieEntry
 from app.services.settings_service import load_settings, save_settings
 from app.services.sonarr import LibraryEntry as SeriesEntry
@@ -137,7 +138,7 @@ def _posten(
         key=f"movie:{tier.value}:tmdb:{tmdb}",
         user_id=user_id,
         media_type=MediaType.movie,
-        tier=tier,
+        fassung_kennung=arr_kennung(MediaType.movie, tier),
         tmdb_id=tmdb,
         title=titel,
         size_bytes=8 * GB,
@@ -150,9 +151,9 @@ def _posten(
 
 def _staffelposten(db, staffel: int = 2) -> StorageEntry:
     eintrag = StorageEntry(
-        key=f"tv:standard:tvdb:7:s{staffel}",
+        key=f"tv:sonarr-standard:tvdb:7:s{staffel}",
         media_type=MediaType.tv,
-        tier=QualityTier.standard,
+        fassung_kennung="sonarr-standard",
         tvdb_id=7,
         season=staffel,
         title="Eine Serie",
@@ -462,7 +463,7 @@ def _anfrage(db, *, tmdb=603, tvdb=None, season=None,
     zeile = MediaRequest(
         user_id=benutzer.id,
         media_type=media_type,
-        tier=QualityTier.standard,
+        fassung_kennung=arr_kennung(media_type, QualityTier.standard),
         tmdb_id=tmdb,
         tvdb_id=tvdb,
         title="Eine Serie" if media_type == MediaType.tv else "Ein Film",

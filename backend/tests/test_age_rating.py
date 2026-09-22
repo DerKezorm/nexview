@@ -325,6 +325,7 @@ def test_startseite_verwechselt_gesperrt_nicht_mit_unauffindbar(
             MediaRequest(
                 user_id=benutzer.id,
                 media_type=MediaType.movie,
+                fassung_kennung="radarr-standard",
                 tmdb_id=987654,
                 title="Titel aus der Anfragetabelle",
                 status=RequestStatus.downloaded,

@@ -36,7 +36,6 @@ from app.models import (
     MediaType,
     Notification,
     NotificationType,
-    QualityTier,
     RequestStatus,
 )
 from app.services import library, status_poller
@@ -53,7 +52,7 @@ def _staffelanfrage(db, user_id: int, season: int | None) -> int:
     zeile = MediaRequest(
         user_id=user_id,
         media_type=MediaType.tv,
-        tier=QualityTier.standard,
+        fassung_kennung="sonarr-standard",
         tmdb_id=4386,
         tvdb_id=TVDB,
         title="Baywatch",

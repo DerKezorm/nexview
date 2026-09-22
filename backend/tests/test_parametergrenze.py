@@ -28,7 +28,6 @@ from app.db import SessionLocal
 from app.models import (
     MediaRequest,
     MediaType,
-    QualityTier,
     RequestStatus,
     Role,
     StorageEntry,
@@ -93,10 +92,10 @@ def test_kontostaende_uebersteht_die_parametergrenze() -> None:
         for nummer, zustand in ((1, StorageState.owned), (2, StorageState.pending)):
             db.add(
                 StorageEntry(
-                    key=f"movie:standard:tmdb:{nummer}",
+                    key=f"movie:radarr-standard:tmdb:{nummer}",
                     user_id=kennung,
                     media_type=MediaType.movie,
-                    tier=QualityTier.standard,
+                    fassung_kennung="radarr-standard",
                     tmdb_id=nummer,
                     title=f"Grenzposten {nummer}",
                     size_bytes=GB,
@@ -124,7 +123,7 @@ def test_uebersichten_uebersteht_die_parametergrenze() -> None:
             MediaRequest(
                 user_id=kennung,
                 media_type=MediaType.movie,
-                tier=QualityTier.standard,
+                fassung_kennung="radarr-standard",
                 tmdb_id=7,
                 title="Grenzfall",
                 status=RequestStatus.approved,

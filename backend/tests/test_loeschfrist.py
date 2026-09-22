@@ -18,7 +18,6 @@ from app.models import (
     MediaType,
     Notification,
     NotificationType,
-    QualityTier,
     StorageEntry,
     StorageState,
     TitleRating,
@@ -38,9 +37,9 @@ def _jetzt() -> datetime:
 def _posten(*, tmdb_id: int = 700, title: str = "Ladenhüter", verwaltet: bool = True) -> int:
     with SessionLocal() as db:
         zeile = StorageEntry(
-            key=f"movie:standard:tmdb:{tmdb_id}",
+            key=f"movie:radarr-standard:tmdb:{tmdb_id}",
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=tmdb_id,
             title=title,
             size_bytes=40 * GB,

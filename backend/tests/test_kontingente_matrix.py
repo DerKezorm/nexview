@@ -24,6 +24,7 @@ from app.models import (
     StorageEntry,
     StorageState,
 )
+from app.services.fassungen import arr_kennung
 from app.services.settings_service import save_settings
 
 from .conftest import ADMIN, auth_headers, create_user
@@ -65,7 +66,7 @@ def _belegen(user_id: int, gb: int, *, tier: QualityTier = QualityTier.standard)
                 key=f"movie:{tier.value}:tmdb:{9000 + gb}",
                 user_id=user_id,
                 media_type=MediaType.movie,
-                tier=tier,
+                fassung_kennung=arr_kennung(MediaType.movie, tier),
                 tmdb_id=9000 + gb,
                 title=f"Belegung {gb}",
                 size_bytes=gb * GB,

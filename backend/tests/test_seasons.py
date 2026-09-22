@@ -183,6 +183,7 @@ async def _uebergeben(monkeypatch, serie_in_sonarr: LibraryEntry | None, season:
         anfrage = MediaRequest(
             user_id=benutzer.id,
             media_type=MediaType.tv,
+            fassung_kennung="sonarr-standard",
             tmdb_id=99,
             tvdb_id=555,
             title="Testserie",

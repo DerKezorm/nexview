@@ -30,6 +30,7 @@ prüft die zweite Hälfte dieser Datei.
 from __future__ import annotations
 
 from app.models import MediaType, QualityTier
+from app.services.fassungen import arr_kennung
 from app.services.storage import _Gemessen, schluessel
 
 GB = 1024**3
@@ -37,7 +38,7 @@ GB = 1024**3
 
 def _radarr_posten(tmdb_id: int, stufe: QualityTier, bytes_: int) -> _Gemessen:
     """Was Radarr meldet - mit Pfad und als verwaltet."""
-    kennung = schluessel(MediaType.movie, stufe, tmdb_id=tmdb_id)
+    kennung = schluessel(MediaType.movie, arr_kennung(MediaType.movie, stufe), tmdb_id=tmdb_id)
     return _Gemessen(
         key=kennung,
         media_type=MediaType.movie,
@@ -81,7 +82,7 @@ def _zusammenfuehren(
 
 def _server_posten(tmdb_id: int, stufe: QualityTier, bytes_: int) -> _Gemessen:
     """Was der Medienserver meldet - ohne Pfad, nicht verwaltet."""
-    kennung = schluessel(MediaType.movie, stufe, tmdb_id=tmdb_id)
+    kennung = schluessel(MediaType.movie, arr_kennung(MediaType.movie, stufe), tmdb_id=tmdb_id)
     return _Gemessen(
         key=kennung,
         media_type=MediaType.movie,

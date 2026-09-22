@@ -20,7 +20,6 @@ from app.db import SessionLocal
 from app.models import (
     MediaRequest,
     MediaType,
-    QualityTier,
     RequestStatus,
     StorageEntry,
     StorageState,
@@ -154,9 +153,9 @@ def test_unverwalteter_posten_laesst_sich_abgeben_und_ans_haus_geben(
 
         kim = db.query(User).filter(User.username == "kim").one()
         posten = StorageEntry(
-            key="movie:standard:tmdb:603",
+            key="movie:radarr-standard:tmdb:603",
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=603,
             title="Matrix",
             size_bytes=8 * 1024**3,

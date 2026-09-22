@@ -31,6 +31,7 @@ from app.models import (
 from app.security import hash_password
 from app.services import quota, storage
 from app.services.arr import ArrError
+from app.services.fassungen import arr_kennung
 from app.services.radarr import LibraryEntry as MovieEntry
 from app.services.settings_service import AppSettings, load_settings
 from app.services.sonarr import LibraryEntry as SeriesEntry
@@ -103,7 +104,7 @@ def anfrage(
     eintrag = MediaRequest(
         user_id=nutzer.id,
         media_type=media_type,
-        tier=tier,
+        fassung_kennung=arr_kennung(media_type, tier),
         tmdb_id=tmdb_id,
         tvdb_id=tvdb_id,
         season=season,
@@ -146,23 +147,23 @@ def _erfasst(db, filme, serien):
 
 def test_schluessel_trennt_die_stufen() -> None:
     """4K und 1080p sind zwei Dateien und muessen zwei Posten sein."""
-    standard = storage.schluessel(MediaType.movie, QualityTier.standard, tmdb_id=603)
-    uhd = storage.schluessel(MediaType.movie, QualityTier.uhd, tmdb_id=603)
+    standard = storage.schluessel(MediaType.movie, "radarr-standard", tmdb_id=603)
+    uhd = storage.schluessel(MediaType.movie, "radarr-uhd", tmdb_id=603)
     assert standard != uhd
 
 
 def test_schluessel_ohne_nummer_gibt_nichts() -> None:
     """Lieber keinen Posten als einen, der spaeter nicht wiederzufinden ist."""
-    assert storage.schluessel(MediaType.movie, QualityTier.standard) is None
-    assert storage.schluessel(MediaType.tv, QualityTier.standard) is None
+    assert storage.schluessel(MediaType.movie, "radarr-standard") is None
+    assert storage.schluessel(MediaType.tv, "sonarr-standard") is None
 
 
 def test_serien_schluesseln_ueber_tvdb() -> None:
     """Sonarr kennt keine TMDB-Nummern - der Schluessel darf sie nicht verlangen."""
     kennung = storage.schluessel(
-        MediaType.tv, QualityTier.standard, tvdb_id=81189, season=3
+        MediaType.tv, "sonarr-standard", tvdb_id=81189, season=3
     )
-    assert kennung == "tv:standard:tvdb:81189:s3"
+    assert kennung == "tv:sonarr-standard:tvdb:81189:s3"
 
 
 # ----------------------------------------------------------- Erster Lauf
@@ -509,9 +510,9 @@ def test_uebersicht_weist_den_hausbestand_aus(admin_client, db: Session) -> None
     admin_client.put("/api/settings", json={"storage_enabled": True})
     db.add(
         StorageEntry(
-            key="movie:standard:tmdb:1",
+            key="movie:radarr-standard:tmdb:1",
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=1,
             title="Hausfilm",
             size_bytes=10 * GB,
@@ -556,10 +557,10 @@ def test_verbuchen_nimmt_niemandem_etwas_weg(
 
     db.add(
         StorageEntry(
-            key="movie:standard:tmdb:603",
+            key="movie:radarr-standard:tmdb:603",
             user_id=anderer.id,
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=603,
             title="Ein Film",
             size_bytes=8 * GB,
@@ -580,9 +581,9 @@ def test_verbuchen_uebernimmt_aus_dem_hausbestand(db: Session, nutzer: User) -> 
     """Was niemandem gehoert, darf uebernommen werden - er holt es ja gerade."""
     db.add(
         StorageEntry(
-            key="movie:standard:tmdb:603",
+            key="movie:radarr-standard:tmdb:603",
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=603,
             title="Ein Film",
             size_bytes=8 * GB,
@@ -820,10 +821,10 @@ def test_speichergrenze_bremst_erst_im_minus(db: Session, nutzer: User) -> None:
 
     db.add(
         StorageEntry(
-            key="movie:standard:tmdb:1",
+            key="movie:radarr-standard:tmdb:1",
             user_id=nutzer.id,
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=1,
             title="Gross",
             size_bytes=9 * GB,
@@ -836,10 +837,10 @@ def test_speichergrenze_bremst_erst_im_minus(db: Session, nutzer: User) -> None:
 
     db.add(
         StorageEntry(
-            key="movie:standard:tmdb:2",
+            key="movie:radarr-standard:tmdb:2",
             user_id=nutzer.id,
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=2,
             title="Noch groesser",
             size_bytes=5 * GB,
@@ -914,10 +915,10 @@ def test_ins_haus_nimmt_niemandem_eine_datei(db: Session, nutzer: User) -> None:
     """Der Titel bleibt liegen - es wechselt nur, wem er zugerechnet wird."""
     db.add(
         StorageEntry(
-            key="movie:standard:tmdb:603",
+            key="movie:radarr-standard:tmdb:603",
             user_id=nutzer.id,
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=603,
             title="Ein Klassiker",
             size_bytes=8 * GB,
@@ -939,9 +940,9 @@ def test_ins_haus_nimmt_niemandem_eine_datei(db: Session, nutzer: User) -> None:
 def test_ins_haus_zweimal_aendert_nichts(db: Session, nutzer: User) -> None:
     db.add(
         StorageEntry(
-            key="movie:standard:tmdb:603",
+            key="movie:radarr-standard:tmdb:603",
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=603,
             title="Schon im Haus",
             size_bytes=8 * GB,

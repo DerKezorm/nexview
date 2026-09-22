@@ -20,7 +20,6 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import (
     MediaType,
-    QualityTier,
     StorageEntry,
     StorageState,
     User,
@@ -41,10 +40,10 @@ def _posten(
     bytes_: int = 8 * GB,
 ) -> int:
     zeile = StorageEntry(
-        key=f"movie:standard:tmdb:{tmdb}",
+        key=f"movie:radarr-standard:tmdb:{tmdb}",
         user_id=user_id,
         media_type=MediaType.movie,
-        tier=QualityTier.standard,
+        fassung_kennung="radarr-standard",
         tmdb_id=tmdb,
         title=f"Film {tmdb}",
         size_bytes=bytes_,

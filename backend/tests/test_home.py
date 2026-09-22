@@ -11,6 +11,7 @@ from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus
 from app.routers import home
 from app.services import library, media
+from app.services.fassungen import arr_kennung
 
 from .conftest import auth_headers, create_user
 
@@ -89,6 +90,7 @@ def test_hoechstens_zwoelf_titel(arr_client: TestClient) -> None:
                 MediaRequest(
                     user_id=created["id"],
                     media_type=MediaType.movie,
+                    fassung_kennung="radarr-standard",
                     tmdb_id=900000 + nummer,
                     title=f"Testtitel {nummer}",
                     status=RequestStatus.downloaded,
@@ -421,6 +423,7 @@ def _serie(
                 MediaRequest(
                     user_id=user_id,
                     media_type=MediaType.tv,
+                    fassung_kennung="sonarr-standard",
                     tmdb_id=tmdb_id,
                     tvdb_id=tmdb_id,
                     season=staffel,
@@ -501,6 +504,7 @@ def test_die_neueste_staffel_stellt_die_serie_dar(serien_client: TestClient) -> 
             MediaRequest(
                 user_id=alt["id"],
                 media_type=MediaType.tv,
+                fassung_kennung="sonarr-standard",
                 tmdb_id=770007,
                 tvdb_id=770007,
                 season=1,
@@ -513,6 +517,7 @@ def test_die_neueste_staffel_stellt_die_serie_dar(serien_client: TestClient) -> 
             MediaRequest(
                 user_id=neu["id"],
                 media_type=MediaType.tv,
+                fassung_kennung="sonarr-standard",
                 tmdb_id=770007,
                 tvdb_id=770007,
                 season=2,
@@ -543,7 +548,7 @@ def test_derselbe_film_in_zwei_stufen_ist_eine_kachel(arr_client: TestClient) ->
                     user_id=kim["id"],
                     media_type=MediaType.movie,
                     tmdb_id=770008,
-                    tier=stufe,
+                    fassung_kennung=arr_kennung(MediaType.movie, stufe),
                     title="Doppelt",
                     status=RequestStatus.downloaded,
                     completed_at=jetzt - timedelta(minutes=versatz),

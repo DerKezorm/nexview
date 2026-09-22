@@ -17,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -76,10 +77,11 @@ class MediaType(str, enum.Enum):
 class QualityTier(str, enum.Enum):
     """Welche der beiden Radarr-/Sonarr-Instanzen gemeint ist.
 
-    Bewusst genau zwei feste Stufen statt einer Instanz-Tabelle: „derselbe Film
-    in 1080p *und* in 4K" ist der Fall, den es gibt. Eine Verwaltung fuer
-    beliebig viele Instanzen waere ein zweites Einstellungssystem fuer einen
-    Fall, den niemand hat.
+    ⚠️ **Seit dem Fassungsmodell eine Ableitung.** Anfragen, Speicherposten und
+    Rechte tragen die Kennung ihrer Fassung (``services/fassungen``); die
+    Stufe folgt daraus (``uhd`` genau fuer die Klasse ``uhd``) und wird
+    nirgends mehr geschrieben. Sie bleibt, bis Oberflaeche und Dienste
+    Fassungen sprechen (Bauplan NEX-Modus, Scheibe 3).
 
     ``standard`` ist ueberall der Vorgabewert. Wer keine zweite Instanz
     eintraegt, bekommt davon nichts zu sehen.
@@ -87,6 +89,14 @@ class QualityTier(str, enum.Enum):
 
     standard = "standard"
     uhd = "uhd"
+
+
+#: Die beiden 4K-Fassungen des ARR-Betriebs. Stehen hier und nicht nur in
+#: ``services/fassungen``, weil die alten 4K-Haken an ``User`` und
+#: ``AuthToken`` sie brauchen und das Modell keinen Dienst importiert.
+#: ``tests/test_fassungen.py`` haelt beide Stellen gleich.
+UHD_FILME = "radarr-uhd"
+UHD_SERIEN = "sonarr-uhd"
 
 
 class RequestStatus(str, enum.Enum):
@@ -430,16 +440,10 @@ class User(Base):
     blocked_series_profiles: Mapped[str] = mapped_column(String(255), default="", nullable=False)
 
     # --- 4K ---------------------------------------------------------------
-    # Alles standardmaessig aus: 4K ist immer eine bewusste Einzelentscheidung
-    # des Administrators - eine 4K-Datei ist vier- bis achtmal so gross.
+    # Die Rechte je Fassung stehen seit dem Fassungsmodell in ``fassung_rechte``
+    # (``FassungRecht``); die drei alten Haken sind Sichten darauf, siehe
+    # ``can_request_uhd_movies`` weiter unten.
     #
-    # Getrennt nach Medienart, weil sich beides sehr verschieden anfuehlt: eine
-    # 4K-Serie frisst ein Vielfaches eines 4K-Films.
-    can_request_uhd_movies: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    can_request_uhd_series: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    # Eigene Auto-Freigabe je Stufe: wer 1080p ohne Rueckfrage bekommt, soll
-    # nicht automatisch auch 4K ohne Rueckfrage bekommen.
-    auto_approve_uhd: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Eigene Sperrlisten, weil die Profil-Kennungen der beiden Instanzen
     # kollidieren: Profil 1 in der 1080p-Instanz ist ein voellig anderes als
     # Profil 1 in der 4K-Instanz.
@@ -736,6 +740,67 @@ class User(Base):
             )
         return [int(part) for part in raw.split(",") if part.strip().isdigit()]
 
+    def fassung_recht(self, kennung: str) -> FassungRecht | None:
+        """Das Recht dieses Kontos an einer nicht offenen Fassung, falls es eins gibt."""
+        for recht in self.fassung_rechte:
+            if recht.fassung_kennung == kennung:
+                return recht
+        return None
+
+    def _recht_setzen(self, kennung: str, feld: str, wert: bool) -> None:
+        recht = self.fassung_recht(kennung)
+        if recht is None:
+            if not wert:
+                # Keine Zeile heisst "kein Recht"; eine Zeile voller Nein
+                # waere dieselbe Aussage mit mehr Pflege.
+                return
+            recht = FassungRecht(fassung_kennung=kennung, anfragen=False, auto_freigabe=False)
+            self.fassung_rechte.append(recht)
+        setattr(recht, feld, bool(wert))
+        if not recht.anfragen and not recht.auto_freigabe:
+            self.fassung_rechte.remove(recht)
+
+    # --- Die alten 4K-Haken als Sicht auf die Rechte je Fassung ----------
+    #
+    # ⚠️ **Keine Spalten mehr, sondern Sichten.** Bis zum Fassungsmodell
+    # standen hier drei Spalten; die Wanderung ``_fassungen_einfuehren`` hat
+    # sie nach ``fassung_rechte`` getragen und entfernt. Oberflaeche,
+    # Kontodialog und Einladungen sprechen bis zum Umbau der Oberflaeche noch
+    # die alten Namen - diese Sichten uebersetzen, ohne eine zweite Wahrheit
+    # zu fuehren. ``auto_approve_uhd`` war **ein** Haken fuer beide
+    # Medienarten und schreibt deshalb beide Fassungen.
+
+    @property
+    def can_request_uhd_movies(self) -> bool:
+        recht = self.fassung_recht(UHD_FILME)
+        return recht is not None and recht.anfragen
+
+    @can_request_uhd_movies.setter
+    def can_request_uhd_movies(self, wert: bool) -> None:
+        self._recht_setzen(UHD_FILME, "anfragen", wert)
+
+    @property
+    def can_request_uhd_series(self) -> bool:
+        recht = self.fassung_recht(UHD_SERIEN)
+        return recht is not None and recht.anfragen
+
+    @can_request_uhd_series.setter
+    def can_request_uhd_series(self, wert: bool) -> None:
+        self._recht_setzen(UHD_SERIEN, "anfragen", wert)
+
+    @property
+    def auto_approve_uhd(self) -> bool:
+        return any(
+            recht.auto_freigabe
+            for recht in self.fassung_rechte
+            if recht.fassung_kennung in (UHD_FILME, UHD_SERIEN)
+        )
+
+    @auto_approve_uhd.setter
+    def auto_approve_uhd(self, wert: bool) -> None:
+        for kennung in (UHD_FILME, UHD_SERIEN):
+            self._recht_setzen(kennung, "auto_freigabe", wert)
+
     def may_request_uhd(self, media_type: MediaType) -> bool:
         """Darf dieser Benutzer diese Medienart in 4K anfragen?
 
@@ -743,6 +808,9 @@ class User(Base):
         koennten sich das Haekchen ohnehin selbst setzen bzw. jede Anfrage
         selbst freigeben. Es erst zu verlangen waere ein Umweg, der nichts
         schuetzt. Dasselbe Muster wie bei der Auto-Freigabe.
+
+        Die volle Leiter mit "offen fuer alle" steht in
+        ``services/fassungen.darf_anfragen``; hier nur das Konto.
         """
         if self.can_approve:
             return True
@@ -751,6 +819,15 @@ class User(Base):
             if media_type == MediaType.movie
             else self.can_request_uhd_series
         )
+
+    def auto_approve_offen(self, media_type: MediaType) -> bool:
+        """Die Haken am Konto, die fuer offene Fassungen gelten (bisher: Standard)."""
+        eigen = (
+            self.auto_approve_movies
+            if media_type == MediaType.movie
+            else self.auto_approve_series
+        )
+        return self.auto_approve if eigen is None else eigen
 
     def auto_approve_for(
         self, media_type: MediaType, tier: QualityTier = QualityTier.standard
@@ -767,13 +844,23 @@ class User(Base):
         if self.can_approve:
             return True
         if tier == QualityTier.uhd:
-            return self.auto_approve_uhd
-        eigen = (
-            self.auto_approve_movies
-            if media_type == MediaType.movie
-            else self.auto_approve_series
-        )
-        return self.auto_approve if eigen is None else eigen
+            recht = self.fassung_recht(
+                UHD_FILME if media_type == MediaType.movie else UHD_SERIEN
+            )
+            return recht is not None and recht.auto_freigabe
+        return self.auto_approve_offen(media_type)
+
+    #: Rechte an Fassungen, die nicht offen fuer alle sind.
+    #:
+    #: ⚠️ **Erst beim Lesen geladen, nicht mit jedem Konto.** Das Konto wird bei
+    #: jeder Anfrage fuer die Anmeldung geholt; mitgeladen kostete das jede
+    #: Adresse eine Abfrage mehr (``test_abfragezahl`` schlug an der Kachel an).
+    #: Wer viele Konten mit ihren Rechten ausgibt, laedt sie per
+    #: ``selectinload`` mit - siehe die Benutzerliste.
+    fassung_rechte: Mapped[list[FassungRecht]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     requests: Mapped[list[MediaRequest]] = relationship(
         back_populates="user",
@@ -1028,13 +1115,15 @@ class AuthToken(Base):
     invite_storage_limit_gb: Mapped[int | None] = mapped_column(Integer)
     invite_auto_approve_movies: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     invite_auto_approve_series: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    invite_can_request_uhd_movies: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
-    )
-    invite_can_request_uhd_series: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
-    )
-    invite_auto_approve_uhd: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    #: Rechte je Fassung fuer das neue Konto: ``[{"kennung", "anfragen",
+    #: "auto_freigabe"}]``, nur fuer Fassungen, die nicht offen fuer alle sind.
+    #: Die alten 4K-Haken (``invite_can_request_uhd_movies`` ...) sind Sichten
+    #: darauf, wie am Konto.
+    #:
+    #: ⚠️ **Nur als Ganzes zuweisen.** Eine JSON-Spalte merkt nicht, wenn man
+    #: die Liste an Ort und Stelle aendert; ``_invite_recht_setzen`` baut
+    #: deshalb jedes Mal eine neue.
+    invite_fassung_rechte: Mapped[list | None] = mapped_column(JSON)
     invite_hausordnung: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Welches Konto aus der Einladung wurde. ``used_at`` allein sagt das nicht:
     # Auch eine Einladung, die von einer neueren ersetzt wurde, gilt als verbraucht.
@@ -1049,6 +1138,57 @@ class AuthToken(Base):
     # Anbieters, damit es fuer die Server-Auswahl nicht durch den Browser
     # laufen muss. Es liegt dort verschluesselt und nur fuer wenige Minuten.
     mediaserver_ref: Mapped[str | None] = mapped_column(Text)
+
+    def invite_fassung_recht(self, kennung: str) -> dict | None:
+        for eintrag in self.invite_fassung_rechte or []:
+            if eintrag.get("kennung") == kennung:
+                return eintrag
+        return None
+
+    def _invite_recht_setzen(self, kennung: str, feld: str, wert: bool) -> None:
+        # Eine neue Liste aus neuen Eintraegen - siehe ``invite_fassung_rechte``.
+        rechte = [dict(eintrag) for eintrag in self.invite_fassung_rechte or []]
+        eintrag = next((e for e in rechte if e.get("kennung") == kennung), None)
+        if eintrag is None:
+            if not wert:
+                return
+            eintrag = {"kennung": kennung, "anfragen": False, "auto_freigabe": False}
+            rechte.append(eintrag)
+        eintrag[feld] = bool(wert)
+        self.invite_fassung_rechte = [
+            e for e in rechte if e.get("anfragen") or e.get("auto_freigabe")
+        ]
+
+    # Die alten 4K-Haken der Einladung als Sicht, wie ``User.can_request_uhd_movies``.
+    # ``tokens.create`` schreibt ueber ``invite_<name>`` aus ``kontorechte.SCHALTER``.
+
+    @property
+    def invite_can_request_uhd_movies(self) -> bool:
+        return bool((self.invite_fassung_recht(UHD_FILME) or {}).get("anfragen"))
+
+    @invite_can_request_uhd_movies.setter
+    def invite_can_request_uhd_movies(self, wert: bool) -> None:
+        self._invite_recht_setzen(UHD_FILME, "anfragen", wert)
+
+    @property
+    def invite_can_request_uhd_series(self) -> bool:
+        return bool((self.invite_fassung_recht(UHD_SERIEN) or {}).get("anfragen"))
+
+    @invite_can_request_uhd_series.setter
+    def invite_can_request_uhd_series(self, wert: bool) -> None:
+        self._invite_recht_setzen(UHD_SERIEN, "anfragen", wert)
+
+    @property
+    def invite_auto_approve_uhd(self) -> bool:
+        return any(
+            (self.invite_fassung_recht(kennung) or {}).get("auto_freigabe")
+            for kennung in (UHD_FILME, UHD_SERIEN)
+        )
+
+    @invite_auto_approve_uhd.setter
+    def invite_auto_approve_uhd(self, wert: bool) -> None:
+        for kennung in (UHD_FILME, UHD_SERIEN):
+            self._invite_recht_setzen(kennung, "auto_freigabe", wert)
 
     user: Mapped[User | None] = relationship(foreign_keys=[user_id])
     # Nur bei Einladungen: auf welchen Medienservern die Person Zugang bekommt.
@@ -1422,9 +1562,12 @@ class StorageEntry(Base):
     # verschieden. Die Eindeutigkeit waere damit genau dort wirkungslos, wo sie
     # gebraucht wird.
     #
-    # Aufbau (siehe services/storage.schluessel):
-    #   Film    "movie:standard:tmdb:603"
-    #   Staffel "tv:uhd:tvdb:81189:s3"
+    # Aufbau (siehe services/storage.schluessel), zweites Glied ist die
+    # Kennung der Fassung:
+    #   Film    "movie:radarr-standard:tmdb:603"
+    #   Staffel "tv:sonarr-uhd:tvdb:81189:s3"
+    # Bis zum Fassungsmodell stand dort die Stufe ("movie:standard:..."); die
+    # Wanderung ``_fassungen_einfuehren`` hat die Schluessel umgeschrieben.
     key: Mapped[str] = mapped_column(String(80), nullable=False)
     # NULL = Hausbestand. Wird ein Nutzer geloescht, faellt sein Posten
     # automatisch ans Haus - die Datei bleibt ja liegen.
@@ -1432,10 +1575,10 @@ class StorageEntry(Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
-    # 4K und 1080p sind zwei Dateien und werden getrennt verbucht.
-    tier: Mapped[QualityTier] = mapped_column(
-        enum_column(QualityTier), default=QualityTier.standard, nullable=False
-    )
+    # Je Fassung ein eigener Posten: 4K und 1080p sind zwei Dateien und
+    # werden getrennt verbucht. Leer nur in einer Datenbank, die noch vor der
+    # Wanderung steht.
+    fassung_kennung: Mapped[str | None] = mapped_column(String(32))
     # Beide nur zur Anzeige und zum Verknuepfen mit einer Anfrage - eindeutig
     # macht den Posten allein ``key``. Bei Serien fehlt die TMDB-Nummer oft.
     tmdb_id: Mapped[int | None] = mapped_column(Integer)
@@ -1517,6 +1660,79 @@ class StorageEntry(Base):
     request_id: Mapped[int | None] = mapped_column(
         ForeignKey("media_requests.id", ondelete="SET NULL")
     )
+
+    @property
+    def tier(self) -> QualityTier:
+        """Die Stufe als Ableitung aus der Fassung - geschrieben wird sie nicht."""
+        return _stufe_der_fassung(self.fassung_kennung)
+
+
+def _stufe_der_fassung(kennung: str | None) -> QualityTier:
+    # Spaet importiert: ``services/fassungen`` braucht dieses Modul.
+    from .services.fassungen import stufe
+
+    return stufe(kennung)
+
+
+class Fassung(Base):
+    """Eine Art, in der ein Titel vorliegen kann (Bauplan NEX-Modus, Abschnitt 2).
+
+    Im ARR-Betrieb eine der vier Instanzen, im NEX-Betrieb eine Fassung aus
+    nexcrate. Die Zeilen entstehen aus der Quelle (``fassungen.abgleichen``);
+    verschwindet eine Fassung dort, bleibt ihre Zeile mit ``aktiv=False``,
+    damit Anfragen, Posten und Statistik weiter ihren Namen zeigen.
+
+    ⚠️ **Kein Fremdschluessel zeigt hierher.** Anfragen und Posten tragen die
+    Kennung als Text. Eine Fassung verschwindet an der Quelle, ohne zu fragen;
+    ein Fremdschluessel liesse dann entweder den Abgleich scheitern oder
+    nahme Anfragen mit.
+    """
+
+    __tablename__ = "fassungen"
+
+    #: ``radarr-standard`` ... im ARR-Betrieb, nexcrates ``version_id`` im NEX-Betrieb.
+    kennung: Mapped[str] = mapped_column(String(32), primary_key=True)
+    #: ``movie`` | ``tv`` (spaeter ``album``). Bewusst Text und nicht das Enum
+    #: ``MediaType``: Musik kommt dazu, ohne dass das Enum mitwachsen muss.
+    media_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    #: ``sd`` | ``hd`` | ``uhd`` oder leer. Die Klasse, nicht die Fassung.
+    klasse: Mapped[str | None] = mapped_column(String(8))
+    reihenfolge: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    bereit: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    #: Warum nicht bereit, als Kennungen (``unreachable``, ``no_profile`` ...).
+    gruende: Mapped[list | None] = mapped_column(JSON)
+    #: ``arr`` | ``nex``.
+    quelle: Mapped[str] = mapped_column(String(8), nullable=False)
+    aktiv: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    #: Darf jeder sie anfragen? Standard ja, 4K nein; eine neue Fassung aus
+    #: nexcrate bleibt gesperrt, bis der Betreiber sie freigibt.
+    offen_fuer_alle: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    gesehen_am: Mapped[datetime | None] = mapped_column(DateTime)
+    verschwunden_am: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class FassungRecht(Base):
+    """Was ein Konto an einer Fassung darf, die nicht offen fuer alle ist.
+
+    Keine Zeile heisst: nichts. Fuer offene Fassungen gibt es keine Zeilen,
+    dort gelten die Haken am Konto.
+    """
+
+    __tablename__ = "fassung_rechte"
+    __table_args__ = (
+        Index("ix_fassung_rechte_paar", "user_id", "fassung_kennung", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    fassung_kennung: Mapped[str] = mapped_column(String(32), nullable=False)
+    anfragen: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    auto_freigabe: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="fassung_rechte")
 
 
 class UserWatched(Base):
@@ -2042,11 +2258,14 @@ class MediaRequest(Base):
     )
 
     media_type: Mapped[MediaType] = mapped_column(enum_column(MediaType), nullable=False)
-    # An welche Instanz geht diese Anfrage? Bestandsanfragen bekommen beim
-    # Update "standard" - richtig, denn es gab nur eine.
-    tier: Mapped[QualityTier] = mapped_column(
-        enum_column(QualityTier), default=QualityTier.standard, nullable=False
-    )
+    # In welcher Fassung ist der Titel gewuenscht? Die Kennung aus
+    # ``fassungen`` (``radarr-standard``, spaeter nexcrates ``v_...``). Bis zum
+    # Fassungsmodell stand hier die Stufe; ``tier`` ist jetzt eine Ableitung.
+    # Leer nur in einer Datenbank, die noch vor der Wanderung steht.
+    fassung_kennung: Mapped[str | None] = mapped_column(String(32), index=True)
+    # Unter welchem Betrieb die Anfrage entstand (``arr``/``nex``). Aendert
+    # sich nie, auch nicht beim Umschalten: Es ist ihre Herkunft.
+    beschaffung: Mapped[str] = mapped_column(String(8), default="arr", nullable=False)
     tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False)
     tvdb_id: Mapped[int | None] = mapped_column(Integer)  # nur Serien, fuer Sonarr
 
@@ -2097,6 +2316,15 @@ class MediaRequest(Base):
         ``schemas_requests.RequestPublic.arr_linked``.
         """
         return self.arr_id is not None
+
+    @property
+    def tier(self) -> QualityTier:
+        """Die Stufe als Ableitung aus der Fassung - geschrieben wird sie nicht.
+
+        Bleibt, solange ``/api/v1`` und die Oberflaeche sie lesen
+        (``RequestPublic.tier`` ist zugesagt, Bauplan Abschnitt 12).
+        """
+        return _stufe_der_fassung(self.fassung_kennung)
 
     approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -3343,3 +3571,20 @@ class Wanderung(Base):
     #: sie liesse sich bei einer eingeschickten Datenbank nicht sagen, ab wann
     #: das Buch gefuehrt wurde.
     wanderung_version: Mapped[str] = mapped_column(String(20), default="", nullable=False)
+
+
+def _fassung_pflicht(_mapper, _verbindung, ziel: MediaRequest | StorageEntry) -> None:
+    """Keine Anfrage und kein Posten ohne Fassung.
+
+    Die Spalte darf in der Datenbank leer sein, weil eine bestehende
+    Installation sie per ``ALTER TABLE`` bekommt und die Wanderung sie erst
+    danach fuellt. Neu geschrieben wird aber nie ohne: Eine stille Vorgabe
+    ("standard") waere im NEX-Betrieb falsch, und eine Zeile ohne Kennung
+    faende keine Abfrage je Fassung mehr wieder.
+    """
+    if not ziel.fassung_kennung:
+        raise ValueError(f"{type(ziel).__name__} without fassung_kennung")
+
+
+event.listen(MediaRequest, "before_insert", _fassung_pflicht)
+event.listen(StorageEntry, "before_insert", _fassung_pflicht)

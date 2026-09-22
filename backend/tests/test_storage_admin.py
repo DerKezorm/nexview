@@ -23,7 +23,6 @@ from app.models import (
     MediaType,
     Notification,
     NotificationType,
-    QualityTier,
     Role,
     StorageEntry,
     StorageState,
@@ -39,10 +38,10 @@ def _posten(
     db, *, user_id: int | None, titel: str, gb: int, pfad: str = "", tmdb: int = 603
 ) -> StorageEntry:
     eintrag = StorageEntry(
-        key=f"movie:standard:tmdb:{tmdb}",
+        key=f"movie:radarr-standard:tmdb:{tmdb}",
         user_id=user_id,
         media_type=MediaType.movie,
-        tier=QualityTier.standard,
+        fassung_kennung="radarr-standard",
         tmdb_id=tmdb,
         title=titel,
         path=pfad,

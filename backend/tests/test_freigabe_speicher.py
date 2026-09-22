@@ -22,7 +22,6 @@ from app.db import SessionLocal
 from app.models import (
     MediaRequest,
     MediaType,
-    QualityTier,
     RequestStatus,
     Role,
     StorageEntry,
@@ -39,7 +38,7 @@ def _wartende_anfrage(db, user_id: int, *, tmdb: int = 603, titel: str = "Matrix
     anfrage = MediaRequest(
         user_id=user_id,
         media_type=MediaType.movie,
-        tier=QualityTier.standard,
+        fassung_kennung="radarr-standard",
         tmdb_id=tmdb,
         title=titel,
         status=RequestStatus.pending_approval,
@@ -54,10 +53,10 @@ def _wartende_anfrage(db, user_id: int, *, tmdb: int = 603, titel: str = "Matrix
 def _belegung(db, user_id: int, gb: int, *, tmdb: int = 900) -> None:
     db.add(
         StorageEntry(
-            key=f"movie:standard:tmdb:{tmdb}",
+            key=f"movie:radarr-standard:tmdb:{tmdb}",
             user_id=user_id,
             media_type=MediaType.movie,
-            tier=QualityTier.standard,
+            fassung_kennung="radarr-standard",
             tmdb_id=tmdb,
             title="Was schon liegt",
             size_bytes=gb * GB,

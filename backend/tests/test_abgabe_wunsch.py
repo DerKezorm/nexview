@@ -21,7 +21,6 @@ from app.models import (
     MediaType,
     Notification,
     NotificationType,
-    QualityTier,
     StorageEntry,
     StorageState,
 )
@@ -38,10 +37,10 @@ def _mit_speicher(client) -> None:
 
 def _film(db, user_id: int, tmdb: int = 603) -> int:
     zeile = StorageEntry(
-        key=f"movie:standard:tmdb:{tmdb}",
+        key=f"movie:radarr-standard:tmdb:{tmdb}",
         user_id=user_id,
         media_type=MediaType.movie,
-        tier=QualityTier.standard,
+        fassung_kennung="radarr-standard",
         tmdb_id=tmdb,
         title="Ein Film",
         size_bytes=8 * GB,
@@ -54,10 +53,10 @@ def _film(db, user_id: int, tmdb: int = 603) -> int:
 
 def _staffel(db, user_id: int | None, *, tvdb: int = 7, season: int = 2) -> int:
     zeile = StorageEntry(
-        key=f"tv:standard:tvdb:{tvdb}:s{season}",
+        key=f"tv:sonarr-standard:tvdb:{tvdb}:s{season}",
         user_id=user_id,
         media_type=MediaType.tv,
-        tier=QualityTier.standard,
+        fassung_kennung="sonarr-standard",
         tvdb_id=tvdb,
         season=season,
         title="Eine Serie",

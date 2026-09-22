@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from collections.abc import Callable, Iterator
@@ -185,7 +186,22 @@ EINMAL_SCHRITTE = (
     "_bewertungen_in_die_tabelle",
     "_verknuepfungen_in_die_tabelle",
     "_kontingente_dreiwertig_machen",
+    "_fassungen_einfuehren",
 )
+
+#: Die Stufen-Spalten, die ``_fassungen_einfuehren`` in das Fassungsmodell
+#: traegt und danach entfernt. Solange eine davon in der Datenbank steht, ist
+#: der Schritt nicht gelaufen.
+STUFEN_SPALTEN: dict[str, tuple[str, ...]] = {
+    "media_requests": ("tier",),
+    "storage_entries": ("tier",),
+    "users": ("can_request_uhd_movies", "can_request_uhd_series", "auto_approve_uhd"),
+    "auth_tokens": (
+        "invite_can_request_uhd_movies",
+        "invite_can_request_uhd_series",
+        "invite_auto_approve_uhd",
+    ),
+}
 
 #: Schritte in ``init_db``, die **bei jedem Start** laufen - und laufen muessen.
 #:
@@ -288,6 +304,11 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
     _add_missing_indexes()
+    # Braucht die eben ergaenzten Spalten und entfernt die Stufen-Spalten. Muss
+    # deshalb **vor** der Waisenmeldung laufen: Die hielte die Stufen-Spalten
+    # sonst beim ersten Start fuer verwaist und warnte vor einem Datenverlust,
+    # den es nicht gibt - eine Zeile spaeter sind sie umgezogen.
+    _einmal(_fassungen_einfuehren)
     # Direkt hinter dem Ergaenzen, denn erst danach steht fest, was wirklich
     # uebrig bleibt und nicht bloss noch nicht angelegt war.
     _verwaiste_spalten_melden()
@@ -549,7 +570,27 @@ def _ankunftsbefund() -> tuple[dict[str, bool], dict[str, str]]:
             f"setting storage_enabled={'gone' if schalter_weg else 'still there'}"
         )
 
+        # Das Fassungsmodell. Erledigt ist es genau dann, wenn die Anfragen
+        # schon eine Kennung haben **und** keine Stufen-Spalte mehr steht. Die
+        # zweite Haelfte allein genuegte nicht: Eine Datenbank aus der Zeit
+        # vor 4K hat gar keine Stufen-Spalte, ihre Anfragen brauchen die
+        # Kennung aber genauso.
+        stufen = [
+            f"{tabelle}.{spalte}"
+            for tabelle, alte in STUFEN_SPALTEN.items()
+            if tabelle in tabellen
+            for spalte in alte
+            if spalte in _existing_columns(verbindung, tabelle)
+        ]
+        hat_kennung = "fassung_kennung" in spalten_anfrage
+        befund["_fassungen_einfuehren"] = hat_kennung and not stufen
+        spuren["_fassungen_einfuehren"] = (
+            f"column media_requests.fassung_kennung={da(hat_kennung)}, "
+            f"tier columns still present: {', '.join(stufen) or 'none'}"
+        )
+
     return befund, spuren
+
 
 
 def _wanderungsbuch_nachtragen(befund: dict[str, bool], spuren: dict[str, str]) -> None:
@@ -862,6 +903,178 @@ def _kontingente_dreiwertig_machen() -> None:
             zeile[0],
             zeile[1],
         )
+
+
+def _fassungen_einfuehren() -> None:
+    """Von zwei festen Stufen auf Fassungen umziehen - **einmalig**.
+
+    Bauplan NEX-Modus, Abschnitt 2.2. Was bisher ``standard`` oder ``uhd``
+    hiess, traegt jetzt die Kennung einer Fassung. Im ARR-Betrieb ist das die
+    Instanz: ``movie`` + ``standard`` wird ``radarr-standard``, ``tv`` +
+    ``uhd`` wird ``sonarr-uhd``.
+
+    * **Anfragen:** ``tier`` wird ``fassung_kennung``. ``beschaffung`` steht
+      schon auf ``arr``, das bringt die neue Spalte als Vorgabe mit.
+    * **Speicherposten:** ebenso, und der Schluessel wird umgeschrieben -
+      ``movie:standard:tmdb:603`` wird ``movie:radarr-standard:tmdb:603``.
+      Massgeblich ist das zweite Glied des **Schluessels**, nicht die Spalte:
+      Auf ihm beruht die Eindeutigkeit, und nur so kann das Umschreiben keine
+      zwei Posten auf denselben neuen Schluessel legen.
+    * **Konten:** die drei 4K-Haken werden Zeilen in ``fassung_rechte``, je
+      eine fuer ``radarr-uhd`` und ``sonarr-uhd``, und nur, wo ein Haken
+      gesetzt war. ``auto_approve_uhd`` galt fuer beide Medienarten und geht
+      deshalb an beide Zeilen.
+    * **Einladungen:** dieselbe Abbildung nach ``invite_fassung_rechte``.
+    * **Regeln** bleiben, wie sie sind: ``hd`` und ``uhd`` sind Klassen und
+      behalten ihre Bedeutung auch dann, wenn es mehr als eine Fassung je
+      Klasse gibt (``services/regeln``).
+
+    Danach werden die Stufen-Spalten entfernt (``STUFEN_SPALTEN``). Eine
+    Spalte, die niemand mehr liest, waere eine zweite, veraltete Wahrheit -
+    und die Sicherung vor dem Update (``_backup_database``) haelt den alten
+    Stand fest. Der Rueckweg ist diese Sicherung, nicht ein Schritt in der App.
+
+    ⚠️ **Alles in einer Transaktion, samt Bucheintrag.** SQLite nimmt auch
+    ``DROP COLUMN`` in die Transaktion. Bricht etwas ab, bleibt die Datenbank,
+    wie sie war, und das Buch sagt ``offen``: Der naechste Start versucht es
+    noch einmal an denselben Daten.
+    """
+    from .services.fassungen import arr_kennung
+
+    def kennung(art: str, stufe: str | None) -> str | None:
+        try:
+            return arr_kennung(art, stufe or "standard")
+        except (KeyError, ValueError):
+            return None
+
+    with engine.begin() as verbindung:
+        spalten = {
+            tabelle: _existing_columns(verbindung, tabelle) for tabelle in STUFEN_SPALTEN
+        }
+
+        # --- Anfragen ------------------------------------------------------
+        mit_stufe = "tier" in spalten["media_requests"]
+        stufe_oder_nichts = "tier" if mit_stufe else "NULL"
+        zeilen = verbindung.exec_driver_sql(
+            f"SELECT id, media_type, {stufe_oder_nichts} FROM media_requests "  # noqa: S608 - feste Namen
+            "WHERE fassung_kennung IS NULL"
+        ).all()
+        anfragen = [(kennung(art, stufe), nummer) for nummer, art, stufe in zeilen]
+        gefunden = [paar for paar in anfragen if paar[0] is not None]
+        if gefunden:
+            verbindung.exec_driver_sql(
+                "UPDATE media_requests SET fassung_kennung = ? WHERE id = ?", gefunden
+            )
+        ohne = len(anfragen) - len(gefunden)
+        if ohne:
+            logger.warning(
+                "Versions: %d request(s) have a media type or tier Nexview does not "
+                "know and got no version",
+                ohne,
+            )
+
+        # --- Speicherposten -----------------------------------------------
+        mit_stufe = "tier" in spalten["storage_entries"]
+        stufe_oder_nichts = "tier" if mit_stufe else "NULL"
+        posten = verbindung.exec_driver_sql(
+            f"SELECT id, key, media_type, {stufe_oder_nichts} FROM storage_entries "  # noqa: S608 - feste Namen
+            "WHERE fassung_kennung IS NULL"
+        ).all()
+        umgeschrieben: list[tuple[str | None, str, int]] = []
+        abweichend = 0
+        for nummer, schluessel, art, stufe in posten:
+            teile = (schluessel or "").split(":", 2)
+            if len(teile) == 3 and teile[1] in ("standard", "uhd"):
+                neu = kennung(teile[0], teile[1])
+                if stufe and stufe != teile[1]:
+                    abweichend += 1
+                if neu is not None:
+                    umgeschrieben.append((neu, f"{teile[0]}:{neu}:{teile[2]}", nummer))
+                    continue
+            # Ein Schluessel ohne Stufe an zweiter Stelle kam nie vor; bleibt
+            # er trotzdem, bleibt er unangetastet und bekommt nur die Kennung.
+            umgeschrieben.append((kennung(art, stufe), schluessel, nummer))
+        if umgeschrieben:
+            verbindung.exec_driver_sql(
+                "UPDATE storage_entries SET fassung_kennung = ?, key = ? WHERE id = ?",
+                umgeschrieben,
+            )
+        if abweichend:
+            logger.warning(
+                "Versions: %d storage item(s) had a tier column that disagreed with "
+                "their key; the key decided",
+                abweichend,
+            )
+
+        # --- Konten ---------------------------------------------------------
+        konto = spalten["users"]
+        rechte: list[tuple[int, str, bool, bool]] = []
+        if {"can_request_uhd_movies", "can_request_uhd_series", "auto_approve_uhd"} <= konto:
+            for nummer, filme, serien, auto in verbindung.exec_driver_sql(
+                "SELECT id, can_request_uhd_movies, can_request_uhd_series, "
+                "auto_approve_uhd FROM users"
+            ):
+                for fassung, anfragen_recht in (
+                    (kennung("movie", "uhd"), filme),
+                    (kennung("tv", "uhd"), serien),
+                ):
+                    if anfragen_recht or auto:
+                        rechte.append((nummer, fassung, bool(anfragen_recht), bool(auto)))
+        if rechte:
+            verbindung.exec_driver_sql(
+                "INSERT OR IGNORE INTO fassung_rechte "
+                "(user_id, fassung_kennung, anfragen, auto_freigabe) VALUES (?, ?, ?, ?)",
+                rechte,
+            )
+
+        # --- Einladungen ----------------------------------------------------
+        einladung = spalten["auth_tokens"]
+        vorgaben: list[tuple[str, int]] = []
+        if {
+            "invite_can_request_uhd_movies",
+            "invite_can_request_uhd_series",
+            "invite_auto_approve_uhd",
+        } <= einladung:
+            for nummer, filme, serien, auto in verbindung.exec_driver_sql(
+                "SELECT id, invite_can_request_uhd_movies, invite_can_request_uhd_series, "
+                "invite_auto_approve_uhd FROM auth_tokens WHERE invite_fassung_rechte IS NULL"
+            ):
+                liste = [
+                    {"kennung": fassung, "anfragen": bool(recht), "auto_freigabe": bool(auto)}
+                    for fassung, recht in (
+                        (kennung("movie", "uhd"), filme),
+                        (kennung("tv", "uhd"), serien),
+                    )
+                    if recht or auto
+                ]
+                if liste:
+                    vorgaben.append((json.dumps(liste), nummer))
+        if vorgaben:
+            verbindung.exec_driver_sql(
+                "UPDATE auth_tokens SET invite_fassung_rechte = ? WHERE id = ?", vorgaben
+            )
+
+        # --- Die Stufen-Spalten gehen --------------------------------------
+        entfernt = []
+        for tabelle, alte in STUFEN_SPALTEN.items():
+            for spalte in alte:
+                if spalte in spalten[tabelle]:
+                    verbindung.exec_driver_sql(
+                        f'ALTER TABLE "{tabelle}" DROP COLUMN "{spalte}"'
+                    )
+                    entfernt.append(f"{tabelle}.{spalte}")
+
+        _eintragen(verbindung, "_fassungen_einfuehren", AUSGEFUEHRT)
+
+    logger.info(
+        "Versions introduced: %d request(s), %d storage item(s), %d permission row(s), "
+        "%d invitation(s) moved; removed columns: %s",
+        len(gefunden),
+        len(umgeschrieben),
+        len(rechte),
+        len(vorgaben),
+        ", ".join(entfernt) or "none",
+    )
 
 
 def _verknuepfungen_in_die_tabelle() -> None:

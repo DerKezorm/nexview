@@ -23,7 +23,6 @@ from app.models import (
     ChannelTarget,
     MediaType,
     NotificationType,
-    QualityTier,
     Role,
     User,
 )
@@ -98,7 +97,7 @@ def _anfrage(db, besitzer: User):
     request = MediaRequest(
         user_id=besitzer.id,
         media_type=MediaType.movie,
-        tier=QualityTier.standard,
+        fassung_kennung="radarr-standard",
         tmdb_id=155,
         title="The Dark Knight",
         poster_path="https://image.tmdb.org/t/p/w500/poster.jpg",

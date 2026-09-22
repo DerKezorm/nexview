@@ -345,32 +345,38 @@ def test_alte_sicherungen_werden_aufgeraeumt(tmp_path: Path) -> None:
 
 
 def test_update_ordnet_bestandsanfragen_der_standard_stufe_zu(alte_installation: Path) -> None:
-    """Was vor der 4K-Instanz angefragt wurde, gehoert zur Standard-Stufe.
+    """Was vor der 4K-Instanz angefragt wurde, gehoert zur Standard-Fassung.
 
-    Bliebe die Spalte leer, wuerde der Poller diese Anfragen gegen die falsche
+    Bliebe die Kennung leer, wuerde der Poller diese Anfragen gegen die falsche
     Bibliothek pruefen - und eine 1080p-Datei koennte eine 4K-Anfrage
-    abschliessen. Deshalb ist der Standardwert hier keine Kosmetik.
+    abschliessen. Deshalb ist die Vorgabe hier keine Kosmetik.
+
+    Seit dem Fassungsmodell ist das die Kennung ``radarr-standard``; die
+    4K-Haken am Konto sind in ``fassung_rechte`` aufgegangen, die
+    Profil-Sperren je Stufe bleiben Spalten.
     """
     db_modul.init_db()
 
     engine = create_engine(f"sqlite:///{alte_installation}")
     with engine.begin() as connection:
-        stufen = [
-            zeile[0] for zeile in connection.execute(text("SELECT tier FROM media_requests"))
+        fassungen = [
+            zeile[0]
+            for zeile in connection.execute(text("SELECT fassung_kennung FROM media_requests"))
         ]
         spalten = {
             zeile[1] for zeile in connection.execute(text("PRAGMA table_info(users)"))
         }
+        tabellen = {
+            zeile[0]
+            for zeile in connection.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            )
+        }
     engine.dispose()
 
-    assert stufen == ["standard"]
-    assert {
-        "can_request_uhd_movies",
-        "can_request_uhd_series",
-        "auto_approve_uhd",
-        "blocked_movie_uhd_profiles",
-        "blocked_series_uhd_profiles",
-    } <= spalten
+    assert fassungen == ["radarr-standard"]
+    assert {"blocked_movie_uhd_profiles", "blocked_series_uhd_profiles"} <= spalten
+    assert "fassung_rechte" in tabellen
 
 
 def test_update_behaelt_die_automatische_freigabe(alte_installation: Path) -> None:
@@ -929,9 +935,7 @@ def test_update_ergaenzt_die_einladungsrechte(alte_installation: Path) -> None:
     assert {
         "invite_auto_approve_movies",
         "invite_auto_approve_series",
-        "invite_can_request_uhd_movies",
-        "invite_can_request_uhd_series",
-        "invite_auto_approve_uhd",
+        "invite_fassung_rechte",
         "invite_hausordnung",
         "invite_storage_limit_gb",
         "invite_dropped",

@@ -80,6 +80,7 @@ def _anfrage(db, benutzer: User, titel: str = "Testtitel") -> MediaRequest:
     request = MediaRequest(
         user_id=benutzer.id,
         media_type=MediaType.movie,
+        fassung_kennung="radarr-standard",
         tmdb_id=4242,
         title=titel,
         status=RequestStatus.pending_approval,

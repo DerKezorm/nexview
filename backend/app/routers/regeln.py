@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from .. import meldungen
 from ..deps import AdminUser, DbSession
 from ..models import Regel, RegelEntscheidung
+from ..services import fassungen
 from ..services import regeln as regeln_dienst
 
 router = APIRouter(prefix="/api/admin/regeln", tags=["regeln"])
@@ -97,11 +98,12 @@ def _raus(regel: Regel) -> RegelOut:
     )
 
 
-def _uebernehmen(regel: Regel, daten: RegelIn) -> None:
+def _uebernehmen(db: DbSession, regel: Regel, daten: RegelIn) -> None:
     """Die Eingabe auf die Regel schreiben - nach der Pruefung im Dienst."""
     try:
         bedingungen = regeln_dienst.bedingungen_pruefen(
-            [b.model_dump(exclude_none=False) for b in daten.bedingungen]
+            [b.model_dump(exclude_none=False) for b in daten.bedingungen],
+            fassungen=fassungen.bekannte_kennungen(db),
         )
     except regeln_dienst.RegelFehler as fehler:
         # ⚠️ Der Text der Ausnahme sagt, *welche* Bedingung nicht taugt. Er
@@ -169,7 +171,7 @@ def liste(user: AdminUser, db: DbSession) -> list[RegelOut]:
 def anlegen(daten: RegelIn, user: AdminUser, db: DbSession) -> RegelOut:
     vorhandene = regeln_dienst.geordnet(db)
     regel = Regel(entscheidung=daten.entscheidung, name=daten.name)
-    _uebernehmen(regel, daten)
+    _uebernehmen(db, regel, daten)
     # Ans Ende: Eine neue Regel soll nichts ueberholen, was schon da ist.
     regel.position = (vorhandene[-1].position + 1) if vorhandene else 0
     db.add(regel)
@@ -220,7 +222,7 @@ def aendern(
             status.HTTP_404_NOT_FOUND,
             detail=meldungen.meldung("regel_nicht_gefunden", "Diese Regel gibt es nicht."),
         )
-    _uebernehmen(regel, daten)
+    _uebernehmen(db, regel, daten)
     db.commit()
     db.refresh(regel)
     return _raus(regel)

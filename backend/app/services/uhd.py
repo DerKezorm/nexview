@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..models import MediaType, QualityTier, Role, User
 from ..schemas_media import MediaItem
-from . import library, mediaserver_library, requests_service
+from . import fassungen, library, mediaserver_library, requests_service
 from .settings_service import AppSettings
 
 
@@ -44,7 +44,7 @@ async def anreichern(
         return
     if not settings.arr_configured(media_type, "uhd"):
         return
-    if not user.may_request_uhd(MediaType(media_type)):
+    if not fassungen.darf_anfragen(db, user, fassungen.arr_kennung(media_type, QualityTier.uhd)):
         return
 
     eigene = requests_service.badges_for(

@@ -357,6 +357,7 @@ def test_eigene_anfrage_sticht_die_bibliothek(
             MediaRequest(
                 user_id=admin.id,
                 media_type=MediaType.movie,
+                fassung_kennung="radarr-standard",
                 tmdb_id=erster["tmdb_id"],
                 title=erster["title"],
                 status=RequestStatus.searching,

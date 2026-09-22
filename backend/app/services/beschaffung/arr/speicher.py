@@ -27,7 +27,7 @@ async def _client_und_kennung(settings: AppSettings, zeile: StorageEntry):
     Anfrage entstanden sein (Altbestand), und eine zurueckgezogene Anfrage
     darf das Loeschen nicht unmoeglich machen.
     """
-    stufe = zeile.tier.value
+    stufe = zeile.tier
     if zeile.media_type == MediaType.movie:
         client = library.radarr_client(settings, stufe)
         if client is None or not zeile.tmdb_id:
@@ -44,7 +44,7 @@ async def _client_und_kennung(settings: AppSettings, zeile: StorageEntry):
 
 
 def _client(settings: AppSettings, zeile: StorageEntry):
-    stufe = zeile.tier.value
+    stufe = zeile.tier
     if zeile.media_type == MediaType.movie:
         return library.radarr_client(settings, stufe)
     return library.sonarr_client(settings, stufe)
@@ -86,7 +86,7 @@ async def dateien(
     """
     client = _client(settings, zeile)
     if zeile.media_type == MediaType.movie:
-        filme = await library.movie_library(settings, zeile.tier.value)
+        filme = await library.movie_library(settings, zeile.tier)
         eintrag = filme.get(zeile.tmdb_id or 0)
         if eintrag is None or not eintrag.has_file:
             return []

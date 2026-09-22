@@ -92,11 +92,13 @@ def create(
     die sich gleichzeitig anmelden, wuerden einander sonst gegenseitig
     hinauswerfen.
 
-    ``invite_rechte`` sind die Schalter aus ``kontorechte.SCHALTER``, so wie
-    ``Bewertung.werte_fuers_konto`` sie liefert. Jeder Name landet in der
-    Spalte ``invite_<name>``; ein unbekannter Name scheitert laut, statt still
-    nichts zu setzen.
+    ``invite_rechte`` ist, was ``Bewertung.werte_fuers_konto`` liefert: Jeder
+    Wahrheitswert landet in der Spalte ``invite_<name>``, die Liste unter
+    ``fassung_rechte`` in ``invite_fassung_rechte``. Ein unbekannter Name
+    scheitert laut, statt still nichts zu setzen.
     """
+    rechte = dict(invite_rechte or {})
+    fassung_rechte = rechte.pop("fassung_rechte", None)
     adresse = normalize_email(email)
     if invalidate_previous:
         invalidate(db, purpose, adresse)
@@ -117,7 +119,8 @@ def create(
         invite_blocked_movie_profiles=invite_blocked_movie_profiles,
         invite_blocked_series_profiles=invite_blocked_series_profiles,
         invite_hausordnung=invite_hausordnung,
-        **{f"invite_{name}": bool(wert) for name, wert in (invite_rechte or {}).items()},
+        invite_fassung_rechte=list(fassung_rechte) if fassung_rechte else None,
+        **{f"invite_{name}": bool(wert) for name, wert in rechte.items()},
         mediaserver_ref=mediaserver_ref,
     )
     db.add(token)

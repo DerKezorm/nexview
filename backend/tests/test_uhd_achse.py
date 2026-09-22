@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.models import MediaServerLibraryItem, MediaType, Role, User
 from app.schemas_media import MediaItem
-from app.services import uhd
+from app.services import fassungsachsen
 from app.services.beschaffung.arr import library
 from app.services.beschaffung.arr.radarr import LibraryEntry
 from app.services.settings_service import load_settings, save_settings
@@ -88,7 +88,7 @@ def _admin(db: Session) -> User:
 
 
 async def _achse(db: Session, items: list[MediaItem], benutzer: User) -> None:
-    await uhd.anreichern(db, load_settings(db), "movie", items, benutzer)
+    await fassungsachsen.anreichern(db, load_settings(db), "movie", items, benutzer)
 
 
 # --- Der gemeldete Fehler --------------------------------------------------
@@ -284,7 +284,6 @@ async def test_4k_anfrage_wird_nicht_vom_standard_remux_blockiert(monkeypatch):
     dem, was die Seite anbietet, und dem, was der Server annimmt, ist schlimmer
     als beide Fehler einzeln: Man sieht einen Knopf, der nicht funktioniert.
     """
-    from app.models import QualityTier
     from app.services import requests_service
 
     async def optionen(_settings: object, _media_type: str, _tier: str = "standard") -> dict:
@@ -321,10 +320,10 @@ async def test_4k_anfrage_wird_nicht_vom_standard_remux_blockiert(monkeypatch):
             _kachel(603, "Matrix"),
             quality_profile_id=1,
             root_folder_path="/data/Movies",
-            tier=QualityTier.uhd,
+            fassung="radarr-uhd",
         )
 
-    assert anfrage.tier == QualityTier.uhd
+    assert anfrage.tier == "uhd"
 
 
 @pytest.mark.anyio
@@ -336,7 +335,6 @@ async def test_echte_4k_kopie_blockiert_die_anfrage_weiterhin(monkeypatch):
     diesen Test koennte die Regel oben versehentlich alles durchlassen, und es
     fiele erst auf, wenn die Platte voll ist.
     """
-    from app.models import QualityTier
     from app.services import requests_service
 
     async def optionen(_settings: object, _media_type: str, _tier: str = "standard") -> dict:
@@ -370,7 +368,7 @@ async def test_echte_4k_kopie_blockiert_die_anfrage_weiterhin(monkeypatch):
                 _kachel(603, "Matrix"),
                 quality_profile_id=1,
                 root_folder_path="/data/Movies",
-                tier=QualityTier.uhd,
+                fassung="radarr-uhd",
             )
 
     assert "Media-Server" in str(fehler.value)

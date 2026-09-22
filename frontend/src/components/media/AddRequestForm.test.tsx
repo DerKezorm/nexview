@@ -69,13 +69,37 @@ const ARR_OPTIONEN = {
   root_folder_choice: false,
 }
 
+/**
+ * Die Fassungen, die der Server in `/api/config` mitliefert.
+ *
+ * Ohne sie gäbe es im Formular keine Auswahl - die Liste ist die Quelle für
+ * Namen **und** Rechte (`darf_anfragen` hat der Server schon gerechnet).
+ */
+function fassung(kennung: string, extra: Record<string, unknown> = {}) {
+  return {
+    kennung,
+    media_type: kennung.startsWith('radarr') ? 'movie' : 'tv',
+    name: kennung,
+    klasse: kennung.endsWith('uhd') ? 'uhd' : 'hd',
+    quelle: 'arr',
+    haupt: kennung.endsWith('standard'),
+    bereit: true,
+    offen_fuer_alle: kennung.endsWith('standard'),
+    approver_picks_target: false,
+    darf_anfragen: true,
+    ...extra,
+  }
+}
+
+const FASSUNGEN = [fassung('radarr-standard'), fassung('sonarr-standard')]
+
 function serverAntwortet() {
   holen.mockImplementation(async (pfad: string) => {
     if (pfad === '/api/setup/status') {
       return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
     }
     if (pfad === '/api/config') {
-      return { radarr_configured: true, sonarr_configured: true }
+      return { radarr_configured: true, sonarr_configured: true, fassungen: FASSUNGEN }
     }
     if (pfad.startsWith('/api/arr/')) {
       return ARR_OPTIONEN
@@ -95,6 +119,7 @@ function serverMitFolgen() {
         radarr_configured: true,
         sonarr_configured: true,
         episode_requests_enabled: true,
+        fassungen: FASSUNGEN,
       }
     }
     if (pfad.startsWith('/api/arr/')) {
@@ -515,7 +540,12 @@ describe('Der 4K-Umschalter', () => {
         return { id: 3, username: 'eva', language: 'de', theme: 'dark', ...konto }
       }
       if (pfad === '/api/config') {
-        return { radarr_configured: true, sonarr_configured: true, radarr_uhd_configured: true }
+        return {
+          radarr_configured: true,
+          sonarr_configured: true,
+          radarr_uhd_configured: true,
+          fassungen: [...FASSUNGEN, fassung('radarr-uhd')],
+        }
       }
       if (pfad.startsWith('/api/arr/')) {
         return ARR_OPTIONEN
@@ -538,6 +568,6 @@ describe('Der 4K-Umschalter', () => {
     await abschicken()
 
     await waitFor(() => expect(schicken).toHaveBeenCalledTimes(1))
-    expect(schicken.mock.calls[0][1]).toMatchObject({ tier: 'uhd' })
+    expect(schicken.mock.calls[0][1]).toMatchObject({ fassung: 'radarr-uhd' })
   })
 })

@@ -10,6 +10,11 @@ import { useConfig } from '../../hooks/useConfig'
 import { TitelVerweis } from '../../components/TitelVerweis'
 import { FolgenAuswahl } from '../../components/media/StaffelFolgenWaehler'
 import { belegungsWort, staffelBelegt } from '../../components/media/staffelbelegung'
+import {
+  anfragbareFassungen,
+  fassungName,
+  staffelFassung,
+} from '../../lib/fassungen'
 import { folgenKompakt } from '../../lib/format'
 
 /**
@@ -202,6 +207,8 @@ export function Kinderwuensche() {
 
 /** Was beim Freigeben mitgeschickt wird. */
 type Ziel = {
+  /** In welcher Fassung – die Eltern wählen wie im Anfrageformular. */
+  fassung: string | undefined
   quality_profile_id: number | null
   root_folder_path: string | null
   season: number | null
@@ -220,7 +227,7 @@ type Ziel = {
  */
 function Zielwahl({
   wunsch,
-  zielSpaeter,
+  zielSpaeter: zielSpaeterVorgabe,
   folgenErlaubt,
   laeuft,
   onFreigeben,
@@ -234,6 +241,8 @@ function Zielwahl({
   onAbbrechen: () => void
 }) {
   const { t } = useTranslation()
+  const { data: config } = useConfig()
+  const { user } = useAuth()
   const [profil, setProfil] = useState<number | null>(null)
   const [ordner, setOrdner] = useState('')
   const [staffel, setStaffel] = useState<number | null>(null)
@@ -242,9 +251,28 @@ function Zielwahl({
 
   const istSerie = wunsch.media_type === 'tv'
 
+  // ⚠️ **Eltern wählen die Fassung, aber nur aus dem, was sie selbst dürfen.**
+  // Bis 0.35 ging jede Freigabe fest in die Standard-Instanz; wer 4K durfte,
+  // konnte seinem Kind trotzdem kein 4K freigeben. Die Liste kommt fertig vom
+  // Server - Recht und eingerichtete Quelle stecken schon darin.
+  const fassungen = anfragbareFassungen(config, wunsch.media_type)
+  const [kennung, setKennung] = useState<string>(() => fassungen[0]?.kennung ?? '')
+  const fassung = fassungen.find((f) => f.kennung === kennung) ?? fassungen[0] ?? null
+
+  // Wer wählt Ordner und Profil? Das gilt je Fassung - eine 4K-Freigabe kann
+  // auf den Entscheider warten, während Standard durchläuft.
+  const zielSpaeter = fassung
+    ? fassung.approver_picks_target && !user?.can_approve
+    : zielSpaeterVorgabe
+
   const optionen = useQuery({
-    queryKey: ['arr-options', wunsch.media_type, 'standard'],
-    queryFn: () => api.get<ArrOptions>(`/api/arr/${wunsch.media_type}/options?tier=standard`),
+    queryKey: ['arr-options', wunsch.media_type, fassung?.kennung ?? ''],
+    queryFn: () =>
+      api.get<ArrOptions>(
+        `/api/arr/${wunsch.media_type}/options?fassung=${encodeURIComponent(
+          fassung?.kennung ?? '',
+        )}`,
+      ),
     staleTime: 5 * 60 * 1000,
     retry: false,
     enabled: !zielSpaeter,
@@ -259,7 +287,7 @@ function Zielwahl({
     enabled: istSerie,
   })
   const staffeln = detail.data?.seasons ?? []
-  const waehlbare = staffeln.filter((s) => !staffelBelegt(s, 'standard'))
+  const waehlbare = staffeln.filter((s) => !fassung || !staffelBelegt(s, fassung))
   const gewaehlteStaffel = staffel ?? waehlbare[0]?.season_number ?? null
 
   const daten = optionen.data
@@ -285,6 +313,39 @@ function Zielwahl({
         />
       </h3>
 
+      {/* Erst die Fassung, sobald es mehr als eine gibt - dieselbe Wahl wie
+          im Anfrageformular, begrenzt auf das, was dieses Konto selbst darf. */}
+      {fassungen.length > 1 && (
+        <div
+          className="flex rounded-full border border-ink-700 bg-ink-900 p-0.5"
+          role="group"
+          aria-label={t('uhd.tier')}
+        >
+          {fassungen.map((kandidat) => (
+            <button
+              key={kandidat.kennung}
+              type="button"
+              onClick={() => {
+                setKennung(kandidat.kennung)
+                setProfil(null)
+                setOrdner('')
+                setStaffel(null)
+                setFolgen(new Set())
+              }}
+              aria-pressed={fassung?.kennung === kandidat.kennung}
+              className={
+                'flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ' +
+                (fassung?.kennung === kandidat.kennung
+                  ? 'bg-accent-500 text-white'
+                  : 'text-mist-500 hover:text-mist-100')
+              }
+            >
+              {fassungName(t, kandidat)}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Bei Serien zuerst: Welche Staffel - und auf Wunsch welche Folgen?
           Das bleibt auch dann Pflicht, wenn Profil und Ordner erst der
           Entscheider wählt: Der Umfang der Zusage gehört den Eltern. */}
@@ -307,9 +368,11 @@ function Zielwahl({
                 className="rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100"
               >
                 {staffeln.map((eintrag) => {
-                  const belegt = staffelBelegt(eintrag, 'standard')
-                  const gesamt = eintrag.episodes_total_arr ?? eintrag.episode_count
-                  const vorhanden = gesamt > 0 && eintrag.episodes_available >= gesamt
+                  const stand = fassung ? staffelFassung(eintrag, fassung) : null
+                  const belegt = Boolean(fassung && staffelBelegt(eintrag, fassung))
+                  const gesamt = stand?.episodes_total ?? eintrag.episode_count
+                  const vorhanden =
+                    gesamt > 0 && (stand?.episodes_available ?? 0) >= gesamt
                   return (
                     <option
                       key={eintrag.season_number}
@@ -318,7 +381,7 @@ function Zielwahl({
                     >
                       {eintrag.name}
                       {belegt
-                        ? ` · ${t(belegungsWort(eintrag.requested_status, vorhanden))}`
+                        ? ` · ${t(belegungsWort(stand?.requested_status, vorhanden))}`
                         : ''}
                     </option>
                   )
@@ -340,12 +403,12 @@ function Zielwahl({
                 {folgen.size === 0 && !folgenSicht && (
                   <p className="text-xs text-mist-600">{t('children.wishWholeSeason')}</p>
                 )}
-                {folgenSicht && (
+                {folgenSicht && fassung && (
                   <div className="rounded-xl border border-ink-700 bg-ink-900/60">
                     <FolgenAuswahl
                       tmdbId={wunsch.tmdb_id}
                       season={gewaehlteStaffel}
-                      tier="standard"
+                      fassung={fassung}
                       ganzGewaehlt={false}
                       paket={folgen}
                       restGewuenscht={false}
@@ -413,6 +476,7 @@ function Zielwahl({
           loading={laeuft}
           onClick={() =>
             onFreigeben({
+              fassung: fassung?.kennung || undefined,
               quality_profile_id: zielSpaeter ? null : gewaehltesProfil,
               root_folder_path: zielSpaeter ? null : gewaehlterOrdner || null,
               season: istSerie ? gewaehlteStaffel : null,

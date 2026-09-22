@@ -9,7 +9,7 @@ import { Button } from '../ui'
 import { AddRequestForm } from './AddRequestForm'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
-import { UhdBadge } from './UhdBadge'
+import { FassungBadge } from './FassungBadge'
 import { WatchedBadge } from './WatchedBadge'
 import { useAuth } from '../../auth/useAuth'
 import { darfAnfragen } from '../../lib/status'
@@ -89,10 +89,12 @@ export function DetailModal({
    * die Standard-Fassung längst geladen ist. Genau darum geht es bei zwei
    * Instanzen: derselbe Film einmal in 1080p und einmal in 4K.
    *
-   * `status_uhd` liefert der Server nur, wenn es eine 4K-Instanz gibt **und**
-   * dieser Benutzer sie nutzen darf - die Prüfung steckt also schon darin.
+   * Weitere Fassungen liefert der Server nur, wenn es sie gibt **und**
+   * dieser Benutzer sie anfragen darf - die Prüfung steckt also schon darin.
    */
-  const uhdOffen = item?.status_uhd != null && darfAnfragen(item.status_uhd)
+  const uhdOffen = (item?.fassungen ?? []).some(
+    (f) => !f.haupt && darfAnfragen(f.status),
+  )
   const kannAnfragen =
     (item != null && darfAnfragen(item.status)) ||
     uhdOffen ||
@@ -170,7 +172,11 @@ export function DetailModal({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={item.status} />
-              {item.status_uhd && <UhdBadge status={item.status_uhd} />}
+              {(item.fassungen ?? [])
+                .filter((f) => !f.haupt)
+                .map((f) => (
+                  <FassungBadge key={f.kennung} fassung={f} />
+                ))}
               {item.watched && (
             <WatchedBadge on={item.watched_on} notOn={item.watched_not_on} />
           )}

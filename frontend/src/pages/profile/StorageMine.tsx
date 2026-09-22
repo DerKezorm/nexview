@@ -16,6 +16,7 @@ import { useAuth } from '../../auth/useAuth'
 import { Pagination } from '../../components/Pagination'
 import { Card, ErrorBanner, Spinner } from '../../components/ui'
 import { formatDateTime, formatSize } from '../../lib/format'
+import { FassungKuerzel } from '../../components/media/FassungBadge'
 
 /**
  * Was belege ich – das Größte zuerst.
@@ -554,7 +555,7 @@ function PostenZeile({
           {wartet && (
             <span className="ml-1.5 text-warn-500">{t('storage.waiting')}</span>
           )}
-          {eintrag.tier === 'uhd' && <span className="ml-1.5 text-accent-500">4K</span>}
+          <FassungKuerzel kennung={eintrag.fassung} />
           <span className="ml-1.5">
             ·{' '}
             {t('storage.measuredAt', {

@@ -20,7 +20,6 @@ from app.models import (
     MediaType,
     Notification,
     NotificationType,
-    QualityTier,
     QuotaPeriod,
     RequestStatus,
     Role,
@@ -99,7 +98,7 @@ def anfrage(
     tmdb_id: int = 0,
     tvdb_id: int | None = None,
     media_type: MediaType = MediaType.movie,
-    tier: QualityTier = QualityTier.standard,
+    tier: str = "standard",
     season: int | None = None,
 ) -> MediaRequest:
     eintrag = MediaRequest(
@@ -182,7 +181,7 @@ async def test_erster_lauf_legt_alles_ins_haus(
     anfrage(db, nutzer, tmdb_id=603)
 
     ergebnis = await messen(
-        db, settings, filme={QualityTier.standard: {603: film(8)}}
+        db, settings, filme={"standard": {603: film(8)}}
     )
 
     assert ergebnis.erster_lauf is True
@@ -199,13 +198,13 @@ async def test_nach_dem_ersten_lauf_wird_zugerechnet(
     und die Frage "wer belegt am meisten" waere unbeantwortbar - also genau der
     Zweck der Messung verfehlt.
     """
-    await messen(db, settings, filme={QualityTier.standard: {1: film(2)}})
+    await messen(db, settings, filme={"standard": {1: film(2)}})
     anfrage(db, nutzer, tmdb_id=603)
 
     await messen(
         db,
         settings,
-        filme={QualityTier.standard: {1: film(2), 603: film(8)}},
+        filme={"standard": {1: film(2), 603: film(8)}},
     )
 
     assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
@@ -219,7 +218,7 @@ async def test_nach_dem_ersten_lauf_wird_zugerechnet(
 async def test_hausbestand_zaehlt_bei_niemandem(
     db: Session, settings: AppSettings, nutzer: User
 ) -> None:
-    await messen(db, settings, filme={QualityTier.standard: {1: film(50)}})
+    await messen(db, settings, filme={"standard": {1: film(50)}})
     assert storage.kontostand(db, nutzer.id).used_bytes == 0
 
 
@@ -227,16 +226,16 @@ async def test_vier_k_und_standard_sind_zwei_posten(
     db: Session, settings: AppSettings, nutzer: User
 ) -> None:
     """Wer beide Fassungen haelt, belegt beides - das sind wirklich zwei Dateien."""
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
-    anfrage(db, nutzer, tmdb_id=603, tier=QualityTier.standard)
-    anfrage(db, nutzer, tmdb_id=603, tier=QualityTier.uhd)
+    await messen(db, settings, filme={"standard": {1: film(1)}})
+    anfrage(db, nutzer, tmdb_id=603, tier="standard")
+    anfrage(db, nutzer, tmdb_id=603, tier="uhd")
 
     await messen(
         db,
         settings,
         filme={
-            QualityTier.standard: {1: film(1), 603: film(8)},
-            QualityTier.uhd: {603: film(40)},
+            "standard": {1: film(1), 603: film(8)},
+            "uhd": {603: film(40)},
         },
     )
 
@@ -248,7 +247,7 @@ async def test_serie_zaehlt_staffelweise(
     db: Session, settings: AppSettings, nutzer: User
 ) -> None:
     """Eine Zeile je Staffel, nie je Folge - und Staffel 0 belegt echten Platz."""
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
     anfrage(
         db,
         nutzer,
@@ -260,8 +259,8 @@ async def test_serie_zaehlt_staffelweise(
     await messen(
         db,
         settings,
-        filme={QualityTier.standard: {1: film(1)}},
-        serien={QualityTier.standard: {121361: serie({0: 2, 1: 20, 2: 25})}},
+        filme={"standard": {1: film(1)}},
+        serien={"standard": {121361: serie({0: 2, 1: 20, 2: 25})}},
     )
 
     stand = storage.kontostand(db, nutzer.id)
@@ -276,7 +275,7 @@ async def test_staffel_ohne_dateien_wird_nicht_gefuehrt(
     await messen(
         db,
         settings,
-        serien={QualityTier.standard: {121361: serie({1: 20, 2: 0})}},
+        serien={"standard": {121361: serie({1: 20, 2: 0})}},
     )
     assert db.scalar(select(StorageEntry.season).order_by(StorageEntry.id)) == 1
     assert len(db.scalars(select(StorageEntry)).all()) == 1
@@ -295,12 +294,12 @@ async def test_aus_radarr_entfernt_aber_in_plex_bleibt_belastet(
     verschwinden, gaebe er das Kontingent frei, obwohl der Platz weiter belegt
     ist - eine Umgehung, die jeder versehentlich findet.
     """
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
     anfrage(db, nutzer, tmdb_id=603)
     await messen(
         db,
         settings,
-        filme={QualityTier.standard: {1: film(1), 603: film(8)}},
+        filme={"standard": {1: film(1), 603: film(8)}},
     )
     assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
 
@@ -318,7 +317,7 @@ async def test_aus_radarr_entfernt_aber_in_plex_bleibt_belastet(
     )
     db.commit()
 
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
 
     assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
 
@@ -327,15 +326,15 @@ async def test_aus_radarr_und_plex_verschwunden_gibt_frei(
     db: Session, settings: AppSettings, nutzer: User
 ) -> None:
     """Erst wenn keine Quelle mehr etwas meldet, ist die Datei wirklich weg."""
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
     anfrage(db, nutzer, tmdb_id=603)
     await messen(
         db,
         settings,
-        filme={QualityTier.standard: {1: film(1), 603: film(8)}},
+        filme={"standard": {1: film(1), 603: film(8)}},
     )
 
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
 
     assert storage.kontostand(db, nutzer.id).used_bytes == 0
 
@@ -357,7 +356,7 @@ async def test_radarr_schlaegt_plex_bei_der_groesse(
     )
     db.commit()
 
-    await messen(db, settings, filme={QualityTier.standard: {603: film(8)}})
+    await messen(db, settings, filme={"standard": {603: film(8)}})
 
     assert storage.hausbestand(db).used_bytes == 8 * GB
 
@@ -369,9 +368,9 @@ async def test_aufwertung_wird_neu_berechnet(
     db: Session, settings: AppSettings
 ) -> None:
     """Waechst die Datei, waechst der Posten - sonst driftet die Zahl weg."""
-    await messen(db, settings, filme={QualityTier.standard: {603: film(4)}})
+    await messen(db, settings, filme={"standard": {603: film(4)}})
     ergebnis = await messen(
-        db, settings, filme={QualityTier.standard: {603: film(12)}}
+        db, settings, filme={"standard": {603: film(12)}}
     )
 
     assert ergebnis.gewachsen == 1
@@ -385,12 +384,12 @@ async def test_zuruecksetzen_gibt_alles_ans_haus(
     db: Session, settings: AppSettings, nutzer: User
 ) -> None:
     """Der Notausgang: Konten auf null, Dateien unangetastet."""
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
     anfrage(db, nutzer, tmdb_id=603)
     await messen(
         db,
         settings,
-        filme={QualityTier.standard: {1: film(1), 603: film(8)}},
+        filme={"standard": {1: film(1), 603: film(8)}},
     )
     assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
 
@@ -410,7 +409,7 @@ async def test_posten_kommen_gross_zuerst(
     db: Session, settings: AppSettings, nutzer: User
 ) -> None:
     """Wer Platz schaffen soll, muss zuerst sehen, wo der Platz steckt."""
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
     for tmdb_id in (10, 20, 30):
         anfrage(db, nutzer, tmdb_id=tmdb_id)
 
@@ -418,7 +417,7 @@ async def test_posten_kommen_gross_zuerst(
         db,
         settings,
         filme={
-            QualityTier.standard: {
+            "standard": {
                 1: film(1),
                 10: film(3, titel="Klein"),
                 20: film(40, titel="Gross"),
@@ -436,12 +435,12 @@ async def test_abgegebenes_zaehlt_weiter(
     db: Session, settings: AppSettings, nutzer: User
 ) -> None:
     """Sonst waere Abgeben ein Freifahrtschein, solange niemand entscheidet."""
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
     anfrage(db, nutzer, tmdb_id=603)
     await messen(
         db,
         settings,
-        filme={QualityTier.standard: {1: film(1), 603: film(8)}},
+        filme={"standard": {1: film(1), 603: film(8)}},
     )
 
     posten = db.scalar(
@@ -866,11 +865,11 @@ async def test_admin_bekommt_nichts_zugerechnet(
     db.add(chef)
     db.commit()
 
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
     anfrage(db, chef, tmdb_id=603)
 
     await messen(
-        db, settings, filme={QualityTier.standard: {1: film(1), 603: film(8)}}
+        db, settings, filme={"standard": {1: film(1), 603: film(8)}}
     )
 
     assert storage.kontostand(db, chef.id).used_bytes == 0
@@ -894,10 +893,10 @@ async def test_befoerderung_gibt_die_posten_ans_haus(
     db: Session, settings: AppSettings, nutzer: User
 ) -> None:
     """Die Regel gilt durchgehend, nicht erst ab dem naechsten neuen Titel."""
-    await messen(db, settings, filme={QualityTier.standard: {1: film(1)}})
+    await messen(db, settings, filme={"standard": {1: film(1)}})
     anfrage(db, nutzer, tmdb_id=603)
     await messen(
-        db, settings, filme={QualityTier.standard: {1: film(1), 603: film(8)}}
+        db, settings, filme={"standard": {1: film(1), 603: film(8)}}
     )
     assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
 
@@ -905,7 +904,7 @@ async def test_befoerderung_gibt_die_posten_ans_haus(
     db.commit()
 
     await messen(
-        db, settings, filme={QualityTier.standard: {1: film(1), 603: film(8)}}
+        db, settings, filme={"standard": {1: film(1), 603: film(8)}}
     )
 
     assert storage.kontostand(db, nutzer.id).used_bytes == 0
@@ -964,7 +963,7 @@ def test_pfad_kommt_bei_film_und_staffel_an(db: Session, settings: AppSettings) 
     ziel: dict[str, storage._Gemessen] = {}
     storage._film_aufnehmen(
         ziel,
-        QualityTier.standard,
+        "standard",
         603,
         MovieEntry(
             arr_id=1,
@@ -977,7 +976,7 @@ def test_pfad_kommt_bei_film_und_staffel_an(db: Session, settings: AppSettings) 
     )
     storage._serie_aufnehmen(
         ziel,
-        QualityTier.standard,
+        "standard",
         121361,
         SeriesEntry(
             arr_id=2,
@@ -1050,19 +1049,19 @@ async def test_aufwertung_meldet_sich_beim_betroffenen(
     Ohne Hinweis faende der Betroffene eine still gestiegene Zahl vor und
     suchte den Fehler bei sich.
     """
-    await messen(db, settings, filme={QualityTier.standard: {1: film(2)}})
+    await messen(db, settings, filme={"standard": {1: film(2)}})
     anfrage(db, nutzer, tmdb_id=603)
     await messen(
         db,
         settings,
-        filme={QualityTier.standard: {1: film(2), 603: film(5, titel="Matrix")}},
+        filme={"standard": {1: film(2), 603: film(5, titel="Matrix")}},
     )
     vorher = set(db.scalars(select(Notification.id)).all())
 
     ergebnis = await messen(
         db,
         settings,
-        filme={QualityTier.standard: {1: film(2), 603: film(50, titel="Matrix")}},
+        filme={"standard": {1: film(2), 603: film(50, titel="Matrix")}},
     )
 
     assert ergebnis.gewachsen == 1
@@ -1086,15 +1085,15 @@ async def test_geringfuegiges_wachstum_meldet_sich_nicht(
     Radarr schiebt staendig geringfuegig groessere Releases derselben Stufe
     nach. Meldete sich jede davon, waere die Glocke unbrauchbar.
     """
-    await messen(db, settings, filme={QualityTier.standard: {1: film(2)}})
+    await messen(db, settings, filme={"standard": {1: film(2)}})
     anfrage(db, nutzer, tmdb_id=603)
     await messen(
-        db, settings, filme={QualityTier.standard: {1: film(2), 603: film(5)}}
+        db, settings, filme={"standard": {1: film(2), 603: film(5)}}
     )
     vorher = len(db.scalars(select(Notification)).all())
 
     ergebnis = await messen(
-        db, settings, filme={QualityTier.standard: {1: film(2), 603: film(5.3)}}
+        db, settings, filme={"standard": {1: film(2), 603: film(5.3)}}
     )
 
     assert ergebnis.gewachsen == 1  # gezaehlt wird es sehr wohl
@@ -1105,8 +1104,8 @@ async def test_hausbestand_meldet_kein_wachstum(
     db: Session, settings: AppSettings
 ) -> None:
     """Ohne Besitzer gibt es niemanden, den es betraefe."""
-    await messen(db, settings, filme={QualityTier.standard: {603: film(5)}})
-    await messen(db, settings, filme={QualityTier.standard: {603: film(50)}})
+    await messen(db, settings, filme={"standard": {603: film(5)}})
+    await messen(db, settings, filme={"standard": {603: film(50)}})
 
     assert db.scalars(select(Notification)).all() == []
 
@@ -1120,7 +1119,7 @@ async def test_der_erste_lauf_meldet_nichts(
     anfrage(db, nutzer, tmdb_id=603)
 
     ergebnis = await messen(
-        db, settings, filme={QualityTier.standard: {603: film(50)}}
+        db, settings, filme={"standard": {603: film(50)}}
     )
 
     assert ergebnis.erster_lauf
@@ -1156,7 +1155,7 @@ async def test_bei_zwei_servern_zaehlt_der_groessere_wert(
         )
     db.commit()
 
-    await messen(db, settings, filme={QualityTier.standard: {}})
+    await messen(db, settings, filme={"standard": {}})
 
     assert storage.hausbestand(db).used_bytes == 9 * GB
 
@@ -1184,7 +1183,7 @@ async def test_ein_server_ohne_groesse_drueckt_den_posten_nicht(
         )
     db.commit()
 
-    await messen(db, settings, filme={QualityTier.standard: {}})
+    await messen(db, settings, filme={"standard": {}})
 
     assert storage.hausbestand(db).used_bytes == 7 * GB
 
@@ -1212,7 +1211,7 @@ async def test_radarr_schlaegt_auch_den_groesseren_server(
         )
     db.commit()
 
-    await messen(db, settings, filme={QualityTier.standard: {603: film(8)}})
+    await messen(db, settings, filme={"standard": {603: film(8)}})
 
     assert storage.hausbestand(db).used_bytes == 8 * GB
 
@@ -1247,7 +1246,7 @@ def test_nur_im_media_server_heisst_nicht_mehr_verwaltet(
     db.commit()
 
     # Radarr meldet nichts - der Titel kommt allein vom Media-Server.
-    asyncio.run(messen(db, settings, filme={QualityTier.standard: {}}))
+    asyncio.run(messen(db, settings, filme={"standard": {}}))
 
     zeile = db.scalars(select(StorageEntry)).one()
     assert zeile.arr_managed is False
@@ -1274,8 +1273,8 @@ async def test_stumme_instanz_loescht_die_zurechnung_nicht(
     Status-Abgleich eine Anfrage auf "geloescht" setzt.
     """
     anfrage(db, nutzer, tmdb_id=603)
-    await messen(db, settings, filme={QualityTier.standard: {1: film(2)}})
-    await messen(db, settings, filme={QualityTier.standard: {1: film(2), 603: film(8)}})
+    await messen(db, settings, filme={"standard": {1: film(2)}})
+    await messen(db, settings, filme={"standard": {1: film(2), 603: film(8)}})
     assert storage.kontostand(db, nutzer.id).used_bytes == 8 * GB
 
     # Jetzt schweigt Radarr - genau wie im Betrieb, ueber die echte Grenze.

@@ -62,6 +62,7 @@ function konto(abweichend: Partial<User> = {}): User {
     storage_limit_gb: 'standard',
     blocked_movie_profiles: [],
     blocked_series_profiles: [],
+    fassung_rechte: [],
     can_request_uhd_movies: false,
     can_request_uhd_series: false,
     auto_approve_uhd: false,
@@ -112,9 +113,9 @@ function bewertung(wunsch: RechteWunsch, abweichend: Partial<RechteBewertung>): 
     kontingent: { frei: true, wirkt: true, grund: null },
     auto_approve_movies: haken(wunsch.auto_approve_movies),
     auto_approve_series: haken(wunsch.auto_approve_series),
-    can_request_uhd_movies: { frei: false, wirkt: false, grund: 'no_uhd_instance_movie' },
-    can_request_uhd_series: { frei: false, wirkt: false, grund: 'no_uhd_instance_tv' },
-    auto_approve_uhd: { frei: false, wirkt: false, grund: 'no_uhd_instance' },
+    // Keine Fassung, die erst erlaubt werden müsste: Ohne 4K-Instanz sagt
+    // der Server hier nichts, und die Zeile bleibt weg.
+    fassungen: {},
     hausordnung: { frei: false, wirkt: false, grund: 'no_house_rules' },
     entfallen: [],
     ...abweichend,

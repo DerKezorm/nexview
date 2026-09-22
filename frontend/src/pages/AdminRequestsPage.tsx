@@ -18,6 +18,7 @@ import { StatusBadge } from "../components/media/StatusBadge";
 import { Button, Card, ErrorBanner, Spinner } from "../components/ui";
 import { Pagination } from "../components/Pagination";
 import { useSeiten } from "../hooks/useSeiten";
+import { fassungName, fassungVon } from "../lib/fassungen";
 import { folgenKompakt, formatDate, formatSize } from "../lib/format";
 import { TargetPicker, type Target } from "../components/TargetPicker";
 import { useConfig } from "../hooks/useConfig";
@@ -443,7 +444,8 @@ export function AdminRequestsPage() {
     }) =>
       api.post(
         `/api/admin/requests/approve-all/${userId}`,
-        Object.values(ziele).some(Boolean) ? ziele : undefined,
+        // Je Fassung eine Wahl - der Schlüssel ist ihre Kennung.
+        Object.values(ziele).some(Boolean) ? { ziele } : undefined,
       ),
     onSuccess: () => {
       setSammelZielFuer(null);
@@ -733,37 +735,35 @@ export function AdminRequestsPage() {
               )}
             </div>
 
-            {/* Je Kombination aus Medienart und Stufe eine eigene Wahl: Das
-                sind bis zu vier Instanzen mit vollkommen verschiedenen Ordnern
-                und Profilen. Gezeigt wird nur, was im Stapel vorkommt. */}
+            {/* Je Fassung im Stapel eine eigene Wahl: Das sind bis zu vier
+                Instanzen mit vollkommen verschiedenen Ordnern und Profilen.
+                Gezeigt wird nur, was im Stapel wirklich vorkommt. */}
             {sammelZielFuer === gruppe.userId && (
               <div className="flex flex-col gap-3 rounded-xl border border-ink-700 bg-ink-900/50 p-3">
-                {(
-                  [
-                    ["movie", "standard", "common.movies"],
-                    ["movie", "uhd", "common.movies"],
-                    ["tv", "standard", "common.seriesPlural"],
-                    ["tv", "uhd", "common.seriesPlural"],
-                  ] as const
-                ).map(([art, stufe, labelKey]) => {
-                  const vorhanden = offene.some(
-                    (r) =>
-                      brauchtZiel(r) &&
-                      r.media_type === art &&
-                      r.tier === stufe,
-                  );
-                  if (!vorhanden) return null;
-                  const schluessel = stufe === "uhd" ? `${art}_uhd` : art;
+                {[
+                  ...new Map(
+                    offene
+                      .filter(brauchtZiel)
+                      .map((r) => [r.fassung, r] as const),
+                  ).values(),
+                ].map((beispiel) => {
+                  const fassung = fassungVon(config, beispiel.fassung);
+                  const art = beispiel.media_type;
+                  const name =
+                    fassung && !fassung.haupt ? ` · ${fassungName(t, fassung)}` : "";
                   return (
                     <TargetPicker
-                      key={schluessel}
+                      key={beispiel.fassung}
                       mediaType={art}
-                      tier={stufe}
-                      label={t(labelKey) + (stufe === "uhd" ? " · 4K" : "")}
+                      fassung={beispiel.fassung}
+                      label={
+                        t(art === "movie" ? "common.movies" : "common.seriesPlural") +
+                        name
+                      }
                       onChange={(ziel) =>
                         setStapelZiele((bisher) => ({
                           ...bisher,
-                          [schluessel]: ziel,
+                          [beispiel.fassung]: ziel,
                         }))
                       }
                     />
@@ -829,12 +829,18 @@ export function AdminRequestsPage() {
                       )}
                       {/* Haengt an der Anfrage selbst, nicht an der Einstellung:
                           Nimmt der Admin die 4K-Instanz heraus, waere eine laufende
-                          4K-Anfrage sonst nicht mehr als solche zu erkennen. */}
-                      {request.tier === "uhd" && (
-                        <span className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400">
-                          4K
-                        </span>
-                      )}
+                          4K-Anfrage sonst nicht mehr als solche zu erkennen. Die
+                          Hauptfassung bekommt kein Abzeichen - sonst traegt jede
+                          Zeile eines. */}
+                      {(() => {
+                        const fassung = fassungVon(config, request.fassung);
+                        if (!fassung || fassung.haupt) return null;
+                        return (
+                          <span className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400">
+                            {fassungName(t, fassung)}
+                          </span>
+                        );
+                      })()}
                       {/* Von der Merkliste statt von einem Klick - siehe
                           MyRequestsPage. */}
                       {request.from_watchlist && (
@@ -1011,7 +1017,7 @@ export function AdminRequestsPage() {
                   <div className="mt-3 flex flex-col gap-3 border-t border-ink-700 pt-3">
                     <TargetPicker
                       mediaType={request.media_type}
-                      tier={request.tier}
+                      fassung={request.fassung}
                       onChange={setZiel}
                     />
                     <div className="flex flex-wrap gap-2">

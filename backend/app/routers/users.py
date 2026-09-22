@@ -388,6 +388,10 @@ def _bewertung(
         can_request_uhd_series=wunsch.can_request_uhd_series,
         auto_approve_uhd=wunsch.auto_approve_uhd,
         hausordnung=wunsch.hausordnung,
+        fassungen=tuple(
+            (eintrag.kennung, eintrag.anfragen, eintrag.auto_freigabe)
+            for eintrag in wunsch.fassungen
+        ),
     )
     bewertung = kontorechte.bewerten(
         load_settings(db),
@@ -681,12 +685,23 @@ def update_user(user_id: int, payload: UserUpdate, admin: AdminUser, db: DbSessi
     # hat fuer Administratoren und Entscheider keine Wirkung und laesst sich
     # deshalb auch nicht setzen.
     kuenftige_rolle = data.get("role", user.role)
-    if kuenftige_rolle in (Role.admin, Role.approver):
+    darf_freigeben = kuenftige_rolle in (Role.admin, Role.approver)
+    if darf_freigeben:
         data.pop("auto_approve", None)
         data.pop("auto_approve_movies", None)
         data.pop("auto_approve_series", None)
         # Dasselbe fuer 4K: wer freigeben darf, gibt sich auch dort selbst frei.
         data.pop("auto_approve_uhd", None)
+
+    # Rechte je Fassung sind Zeilen, keine Spalten - und nur die genannten
+    # Fassungen aendern sich. Dieselbe Regel wie oben: Wer freigeben darf,
+    # bekommt keine Sofort-Freigabe gesetzt.
+    for eintrag in data.pop("fassung_rechte", None) or []:
+        user.fassung_recht_setzen(
+            eintrag["kennung"],
+            anfragen=eintrag["anfragen"],
+            auto_freigabe=None if darf_freigeben else eintrag["auto_freigabe"],
+        )
 
     # Die drei Grenzen kommen als Wort oder Zahl herein ("standard",
     # "unlimited", n) und werden hier auf die Datenbank-Schreibweise gebracht:
@@ -737,7 +752,8 @@ def reset_password(user_id: int, payload: PasswordReset, admin: AdminUser, db: D
 class AufloesungsPosten(BaseModel):
     id: int
     title: str
-    tier: str
+    #: Die Kennung der Fassung - die Oberflaeche macht daraus ihren Namen.
+    fassung: str
     season: int | None
     media_type: str
     size_bytes: int
@@ -746,7 +762,7 @@ class AufloesungsPosten(BaseModel):
 class LaufendeZeile(BaseModel):
     request_id: int
     title: str
-    tier: str
+    fassung: str
     # ``None`` heisst: die ganze Serie wurde bestellt.
     season: int | None
     dateien: int
@@ -758,7 +774,7 @@ class OffeneZeile(BaseModel):
 
     request_id: int
     title: str
-    tier: str
+    fassung: str
     # ``None`` heisst: die ganze Serie wurde bestellt.
     season: int | None
 
@@ -838,7 +854,7 @@ async def aufloesung_vorschau(
             AufloesungsPosten(
                 id=z.id,
                 title=z.title,
-                tier=z.tier,
+                fassung=z.fassung,
                 season=z.season,
                 media_type=z.media_type,
                 size_bytes=z.size_bytes,
@@ -849,7 +865,7 @@ async def aufloesung_vorschau(
             LaufendeZeile(
                 request_id=z.request_id,
                 title=z.title,
-                tier=z.tier,
+                fassung=z.fassung,
                 season=z.season,
                 dateien=z.dateien,
                 folgen=z.folgen,
@@ -858,7 +874,7 @@ async def aufloesung_vorschau(
         ],
         offen=[
             OffeneZeile(
-                request_id=b.request_id, title=b.title, tier=b.tier, season=b.season
+                request_id=b.request_id, title=b.title, fassung=b.fassung, season=b.season
             )
             for b in stand.offen
         ],

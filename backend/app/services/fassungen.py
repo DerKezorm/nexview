@@ -6,11 +6,11 @@ im NEX-Betrieb eine ``VersionDefinition`` aus nexcrate. Anfragen, Speicherposten
 und Rechte haengen an ihrer ``kennung``, nicht mehr an einer der zwei festen
 Stufen.
 
-⚠️ **Die Stufe ist ab jetzt eine Ableitung.** ``QualityTier`` gibt es noch, weil
-Oberflaeche, ``/api/v1`` und viele Dienste sie lesen. Geschrieben wird sie
-nirgends mehr: Wer eine Anfrage oder einen Posten anlegt, setzt die Kennung,
-und ``stufe(kennung)`` sagt, welche Stufe das ist (``uhd`` genau dann, wenn die
-Fassung die Klasse ``uhd`` hat).
+⚠️ **Die Stufe ist nur noch eine Ableitung.** Das Aufzaehlungsfeld dafuer ist
+weg (Scheibe 3); ``stufe(kennung)`` sagt als Wort (``standard``/``uhd``), welche
+Instanz des ARR-Wegs eine Fassung ist (``uhd`` genau dann, wenn die Fassung die
+Klasse ``uhd`` hat). Gelesen wird sie nur noch hinter der Grenze, die bis
+Scheibe 5 in Instanzen spricht, und fuer ``tier`` in ``/api/v1``.
 
 ⚠️ **Klasse ist nicht Fassung.** ``hd`` und ``uhd`` sind Klassen: eine grobe
 Aussage ueber die Aufloesung, die auch der Medienserver kennt
@@ -27,8 +27,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Fassung, MediaType, QualityTier
-from .beschaffung import KLASSE_HD, KLASSE_UHD, FassungInfo, feste_fassungen, get_beschaffung
+from ..models import Fassung, MediaType
+from .beschaffung import ARR, KLASSE_HD, KLASSE_UHD, FassungInfo, feste_fassungen, get_beschaffung
 
 if TYPE_CHECKING:
     from ..models import User
@@ -54,21 +54,83 @@ def _art(media_type: MediaType | str) -> str:
     return media_type.value if isinstance(media_type, MediaType) else str(media_type)
 
 
-def _stufe(tier: QualityTier | str) -> QualityTier:
-    return tier if isinstance(tier, QualityTier) else QualityTier(str(tier))
-
-
 def arr_fassung(kennung: str | None) -> Any:
     return _ARR_NACH_KENNUNG.get(kennung or "")
 
 
-def arr_kennung(media_type: MediaType | str, tier: QualityTier | str) -> str:
+def arr_kennung(media_type: MediaType | str, tier: str) -> str:
     """Die Kennung der ARR-Fassung fuer diese Art und Stufe.
 
     Fuer alle Stellen, die heute noch in Stufen denken und an einer Anfrage
     oder einem Posten ankommen: Dort wird aus der Stufe die Kennung.
     """
-    return _ARR_NACH_ART_STUFE[(_art(media_type), _stufe(tier))].kennung
+    return _ARR_NACH_ART_STUFE[(_art(media_type), str(tier))].kennung
+
+
+def hauptkennung(media_type: MediaType | str) -> str:
+    """Die Fassung der Hauptachse, wenn niemand eine nennt.
+
+    Die Hauptachse ist das, was ``status`` an einer Karte meint und was eine
+    Anfrage ohne Angabe bekommt. Im ARR-Betrieb die Standard-Instanz, auch
+    wenn sie (noch) nicht eingerichtet ist: Dann sagt die Anfrage das mit
+    eigenem Satz, statt still eine andere Fassung zu nehmen. Den NEX-Betrieb
+    entscheidet Scheibe 5 (erste offene Fassung, Bauplan Abschnitt 2.2).
+    """
+    return arr_kennung(media_type, "standard")
+
+
+def gewaehlt(
+    settings: AppSettings, media_type: MediaType | str, fassung: str | None, tier: str = "standard"
+) -> str:
+    """Welche Fassung eine Anfrage meint: die genannte, sonst aus der alten Stufe.
+
+    ``tier`` ist zugesagt (``/api/v1``, Bauplan Abschnitt 12): ``uhd`` waehlt
+    die erste eingerichtete Fassung der Klasse ``uhd``, sonst die ARR-Instanz
+    fuer 4K (deren Fehlen die Anfrage dann beim Namen nennt); ``standard``
+    die Hauptfassung. Ob es die genannte Fassung gibt und ob sie zur
+    Medienart passt, prueft ``requests_service.create_request``.
+    """
+    if fassung:
+        return fassung
+    if tier == "uhd":
+        for eintrag in settings.fassungen_fuer(_art(media_type)):
+            if eintrag.klasse == KLASSE_UHD:
+                return eintrag.kennung
+        return arr_kennung(media_type, "uhd")
+    return hauptkennung(media_type)
+
+
+def info(settings: AppSettings, kennung: str) -> FassungInfo:
+    """Die Fassung mit Name und Klasse - auch, wenn sie nicht eingerichtet ist.
+
+    Eine Anfrage oder Karte nennt ihre Fassung weiter beim Namen, wenn die
+    Instanz fehlt; eine unbekannte Kennung steht fuer sich selbst.
+    """
+    eingerichtet = settings.fassung(kennung)
+    if eingerichtet is not None:
+        return eingerichtet
+    fest = arr_fassung(kennung)
+    if fest is not None:
+        return FassungInfo(
+            kennung=kennung,
+            media_type=fest.media_type,
+            name=fest.name_vorgabe,
+            klasse=fest.klasse,
+            reihenfolge=fest.reihenfolge,
+            quelle=ARR,
+        )
+    return FassungInfo(
+        kennung=kennung, media_type="", name=kennung, klasse=None, reihenfolge=99, quelle=""
+    )
+
+
+def art_der(settings: AppSettings, kennung: str) -> str | None:
+    """Zu welcher Medienart gehoert diese Fassung? ``None``: unbekannt."""
+    eingerichtet = settings.fassung(kennung)
+    if eingerichtet is not None:
+        return eingerichtet.media_type
+    fest = arr_fassung(kennung)
+    return fest.media_type if fest is not None else None
 
 
 def klasse(kennung: str | None) -> str | None:
@@ -77,14 +139,14 @@ def klasse(kennung: str | None) -> str | None:
     return fassung.klasse if fassung is not None else None
 
 
-def stufe(kennung: str | None) -> QualityTier:
+def stufe(kennung: str | None) -> str:
     """Die Stufe als Ableitung: ``uhd`` genau fuer Fassungen der Klasse ``uhd``."""
-    return QualityTier.uhd if klasse(kennung) == KLASSE_UHD else QualityTier.standard
+    return "uhd" if klasse(kennung) == KLASSE_UHD else "standard"
 
 
 def stufenwort(kennung: str | None) -> str:
     """Die Klasse so, wie eine Regel sie nennt: ``hd`` oder ``uhd``."""
-    return KLASSE_UHD if stufe(kennung) == QualityTier.uhd else KLASSE_HD
+    return KLASSE_UHD if stufe(kennung) == "uhd" else KLASSE_HD
 
 
 def aus_einstellungen(settings: AppSettings) -> tuple[FassungInfo, ...]:

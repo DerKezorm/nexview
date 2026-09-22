@@ -29,14 +29,14 @@ prüft die zweite Hälfte dieser Datei.
 
 from __future__ import annotations
 
-from app.models import MediaType, QualityTier
+from app.models import MediaType
 from app.services.fassungen import arr_kennung
 from app.services.storage import _Gemessen, schluessel
 
 GB = 1024**3
 
 
-def _radarr_posten(tmdb_id: int, stufe: QualityTier, bytes_: int) -> _Gemessen:
+def _radarr_posten(tmdb_id: int, stufe: str, bytes_: int) -> _Gemessen:
     """Was Radarr meldet - mit Pfad und als verwaltet."""
     kennung = schluessel(MediaType.movie, arr_kennung(MediaType.movie, stufe), tmdb_id=tmdb_id)
     return _Gemessen(
@@ -80,7 +80,7 @@ def _zusammenfuehren(
     return ziel
 
 
-def _server_posten(tmdb_id: int, stufe: QualityTier, bytes_: int) -> _Gemessen:
+def _server_posten(tmdb_id: int, stufe: str, bytes_: int) -> _Gemessen:
     """Was der Medienserver meldet - ohne Pfad, nicht verwaltet."""
     kennung = schluessel(MediaType.movie, arr_kennung(MediaType.movie, stufe), tmdb_id=tmdb_id)
     return _Gemessen(
@@ -108,8 +108,8 @@ def test_2160p_datei_in_der_standard_instanz_zaehlt_einmal() -> None:
     dieselben 49,9 GB als 4K. Das ist **eine** Datei.
     """
     ergebnis = _zusammenfuehren(
-        [_radarr_posten(435011, QualityTier.standard, 50 * GB)],
-        [_server_posten(435011, QualityTier.uhd, 50 * GB)],
+        [_radarr_posten(435011, "standard", 50 * GB)],
+        [_server_posten(435011, "uhd", 50 * GB)],
     )
 
     assert len(ergebnis) == 1
@@ -123,8 +123,8 @@ def test_2160p_datei_in_der_standard_instanz_zaehlt_einmal() -> None:
 def test_auch_andersherum() -> None:
     """Radarr in der 4K-Instanz, der Medienserver meldet es als Standard."""
     ergebnis = _zusammenfuehren(
-        [_radarr_posten(500, QualityTier.uhd, 30 * GB)],
-        [_server_posten(500, QualityTier.standard, 30 * GB)],
+        [_radarr_posten(500, "uhd", 30 * GB)],
+        [_server_posten(500, "standard", 30 * GB)],
     )
     assert len(ergebnis) == 1
 
@@ -142,8 +142,8 @@ def test_ein_echter_doppelbestand_zaehlt_doppelt() -> None:
     Fassungen haben nie byte-genau dieselbe Größe.
     """
     ergebnis = _zusammenfuehren(
-        [_radarr_posten(600, QualityTier.standard, 8 * GB)],
-        [_server_posten(600, QualityTier.uhd, 45 * GB)],
+        [_radarr_posten(600, "standard", 8 * GB)],
+        [_server_posten(600, "uhd", 45 * GB)],
     )
 
     assert len(ergebnis) == 2
@@ -153,7 +153,7 @@ def test_ein_echter_doppelbestand_zaehlt_doppelt() -> None:
 def test_ein_titel_nur_im_medienserver_bleibt() -> None:
     """Der Fall, für den ``_aus_media_server`` überhaupt gebaut wurde: laden,
     Eintrag aus Radarr werfen, Datei behalten."""
-    ergebnis = _zusammenfuehren([], [_server_posten(700, QualityTier.uhd, 20 * GB)])
+    ergebnis = _zusammenfuehren([], [_server_posten(700, "uhd", 20 * GB)])
 
     assert len(ergebnis) == 1
     assert not next(iter(ergebnis.values())).verwaltet
@@ -166,8 +166,8 @@ def test_verschiedene_filme_stoeren_sich_nicht() -> None:
     Grund, einen davon verschwinden zu lassen.
     """
     ergebnis = _zusammenfuehren(
-        [_radarr_posten(800, QualityTier.standard, 20 * GB)],
-        [_server_posten(801, QualityTier.uhd, 20 * GB)],
+        [_radarr_posten(800, "standard", 20 * GB)],
+        [_server_posten(801, "uhd", 20 * GB)],
     )
     assert len(ergebnis) == 2
 
@@ -175,8 +175,8 @@ def test_verschiedene_filme_stoeren_sich_nicht() -> None:
 def test_radarr_gewinnt_bei_gleichem_schluessel() -> None:
     """Die alte Regel gilt weiter: Radarrs Angabe ist die genauere."""
     ergebnis = _zusammenfuehren(
-        [_radarr_posten(900, QualityTier.uhd, 40 * GB)],
-        [_server_posten(900, QualityTier.uhd, 39 * GB)],
+        [_radarr_posten(900, "uhd", 40 * GB)],
+        [_server_posten(900, "uhd", 39 * GB)],
     )
     assert len(ergebnis) == 1
     assert next(iter(ergebnis.values())).size_bytes == 40 * GB

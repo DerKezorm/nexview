@@ -3,28 +3,28 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../../api/client'
-import type { EpisodeInfo, QualityTier, SeasonDetail, SeasonInfo } from '../../api/types'
+import type { EpisodeInfo, Fassung, SeasonDetail, SeasonInfo } from '../../api/types'
+import { folgenFassung, staffelFassung } from '../../lib/fassungen'
 import { folgenKompakt } from '../../lib/format'
 import { Spinner } from '../ui'
 import { belegungsWort, staffelBelegt } from './staffelbelegung'
 
-/** Die von Paketen belegten Folgen dieser Staffel – je Stufe. */
-function belegteFolgen(staffel: SeasonInfo, tier: QualityTier): number[] {
-  return (
-    (tier === 'uhd' ? staffel.requested_episodes_uhd : staffel.requested_episodes) ?? []
-  )
+/** Die von Paketen belegten Folgen dieser Staffel – je Fassung. */
+function belegteFolgen(staffel: SeasonInfo, fassung: Fassung): number[] {
+  return staffelFassung(staffel, fassung)?.requested_episodes ?? []
 }
 
 /** Ist diese eine Folge vergeben – vorhanden oder angefragt? */
-function folgeBelegt(folge: EpisodeInfo, tier: QualityTier): boolean {
-  if (tier === 'uhd') return Boolean(folge.requested_uhd) || Boolean(folge.available_uhd)
-  return Boolean(folge.requested) || folge.available
+function folgeBelegt(folge: EpisodeInfo, fassung: Fassung): boolean {
+  const stand = folgenFassung(folge, fassung)
+  return Boolean(stand?.requested) || Boolean(stand?.available)
 }
 
 type WaehlerProps = {
   tmdbId: number
   seasons: SeasonInfo[]
-  tier: QualityTier
+  /** In welcher Fassung gewählt wird – Belegt-Regeln gelten je Fassung. */
+  fassung: Fassung
   /** Haus-Schalter: Ohne ihn gibt es keine Aufklapp-Pfeile – alles wie früher. */
   folgenErlaubt: boolean
   /** Ganz gewählte Staffeln. */
@@ -52,7 +52,7 @@ type WaehlerProps = {
 export function StaffelFolgenWaehler({
   tmdbId,
   seasons,
-  tier,
+  fassung,
   folgenErlaubt,
   staffeln,
   folgen,
@@ -66,7 +66,7 @@ export function StaffelFolgenWaehler({
   const [restGewuenscht, setRestGewuenscht] = useState<Set<number>>(new Set())
 
   const alleWaehlbaren = seasons
-    .filter((s) => !staffelBelegt(s, tier) && belegteFolgen(s, tier).length === 0)
+    .filter((s) => !staffelBelegt(s, fassung) && belegteFolgen(s, fassung).length === 0)
     .map((s) => s.season_number)
 
   function staffelKlick(staffel: SeasonInfo) {
@@ -75,7 +75,7 @@ export function StaffelFolgenWaehler({
     const neueFolgen = new Map(folgen)
     if (neueStaffeln.has(nummer)) {
       neueStaffeln.delete(nummer)
-    } else if (belegteFolgen(staffel, tier).length > 0 && folgenErlaubt) {
+    } else if (belegteFolgen(staffel, fassung).length > 0 && folgenErlaubt) {
       // Teilbelegt: Das Häkchen heißt „der Rest" – sichtbar, nicht still.
       // Gewählt wird, sobald die Folgenliste geladen ist.
       setAufgeklappt((alt) => new Set(alt).add(nummer))
@@ -129,17 +129,12 @@ export function StaffelFolgenWaehler({
       <ul className="flex flex-col">
         {seasons.map((staffel) => {
           const nummer = staffel.season_number
-          const daZaehler =
-            tier === 'uhd'
-              ? (staffel.episodes_available_uhd ?? 0)
-              : staffel.episodes_available
-          const daGesamt =
-            (tier === 'uhd'
-              ? staffel.episodes_total_arr_uhd
-              : staffel.episodes_total_arr) ?? staffel.episode_count
+          const stand = staffelFassung(staffel, fassung)
+          const daZaehler = stand?.episodes_available ?? 0
+          const daGesamt = stand?.episodes_total ?? staffel.episode_count
           const vorhanden = daGesamt > 0 && daZaehler >= daGesamt
-          const vergeben = staffelBelegt(staffel, tier)
-          const belegte = belegteFolgen(staffel, tier)
+          const vergeben = staffelBelegt(staffel, fassung)
+          const belegte = belegteFolgen(staffel, fassung)
           const paket = folgen.get(nummer)
           const auf = aufgeklappt.has(nummer)
           const aufklappbar = folgenErlaubt && !vergeben
@@ -167,14 +162,7 @@ export function StaffelFolgenWaehler({
                 <span className="min-w-0 flex-1 truncate text-sm">{staffel.name}</span>
                 <span className="shrink-0 text-xs text-mist-600">
                   {vergeben
-                    ? t(
-                        belegungsWort(
-                          tier === 'uhd'
-                            ? staffel.requested_status_uhd
-                            : staffel.requested_status,
-                          vorhanden,
-                        ),
-                      )
+                    ? t(belegungsWort(stand?.requested_status, vorhanden))
                     : paket?.size
                       ? t('request.episodesPicked', {
                           list: folgenKompakt([...paket]),
@@ -212,7 +200,7 @@ export function StaffelFolgenWaehler({
                 <FolgenAuswahl
                   tmdbId={tmdbId}
                   season={nummer}
-                  tier={tier}
+                  fassung={fassung}
                   ganzGewaehlt={staffeln.has(nummer)}
                   paket={paket}
                   restGewuenscht={restGewuenscht.has(nummer)}
@@ -257,7 +245,7 @@ export function StaffelFolgenWaehler({
 type FolgenProps = {
   tmdbId: number
   season: number
-  tier: QualityTier
+  fassung: Fassung
   ganzGewaehlt: boolean
   paket: Set<number> | undefined
   restGewuenscht: boolean
@@ -274,7 +262,7 @@ type FolgenProps = {
 export function FolgenAuswahl({
   tmdbId,
   season,
-  tier,
+  fassung,
   ganzGewaehlt,
   paket,
   restGewuenscht,
@@ -293,7 +281,7 @@ export function FolgenAuswahl({
 
   const folgenListe = query.data?.episodes ?? []
   const waehlbare = folgenListe
-    .filter((folge) => !folgeBelegt(folge, tier))
+    .filter((folge) => !folgeBelegt(folge, fassung))
     .map((folge) => folge.episode_number)
 
   // „Rest der Staffel": angefordert vom Staffel-Häkchen, gewählt sobald die
@@ -331,7 +319,7 @@ export function FolgenAuswahl({
     // Folge angefragt ist – „schon da" allein steht einer ganzen Staffel
     // nicht im Weg, eine fremde Anfrage schon (der Server sagte sonst 409).
     const keineAngefragten = folgenListe.every(
-      (eintrag) => !(tier === 'uhd' ? eintrag.requested_uhd : eintrag.requested),
+      (eintrag) => !folgenFassung(eintrag, fassung)?.requested,
     )
     const ganz =
       keineAngefragten && menge.size === waehlbare.length && waehlbare.length > 0
@@ -341,10 +329,11 @@ export function FolgenAuswahl({
   return (
     <ul className="flex flex-col pb-1">
       {folgenListe.map((folge) => {
-        const belegt = folgeBelegt(folge, tier)
+        const belegt = folgeBelegt(folge, fassung)
         const angehakt =
           !belegt && (ganzGewaehlt || Boolean(paket?.has(folge.episode_number)))
-        const da = tier === 'uhd' ? Boolean(folge.available_uhd) : folge.available
+        const stand = folgenFassung(folge, fassung)
+        const da = Boolean(stand?.available)
         return (
           <li key={folge.episode_number}>
             <label
@@ -366,14 +355,7 @@ export function FolgenAuswahl({
               </span>
               {belegt && (
                 <span className="shrink-0 text-xs text-mist-600">
-                  {t(
-                    belegungsWort(
-                      tier === 'uhd'
-                        ? folge.requested_status_uhd
-                        : folge.requested_status,
-                      da,
-                    ),
-                  )}
+                  {t(belegungsWort(stand?.requested_status, da))}
                 </span>
               )}
             </label>

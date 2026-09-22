@@ -35,6 +35,9 @@ describe('belegungsWort', () => {
   })
 })
 
+/** Die Hauptfassung - an ihr hängen die Felder ohne Suffix. */
+const HAUPT = { kennung: 'sonarr-standard', haupt: true }
+
 describe('staffelBelegt', () => {
   it('rechnet „vollständig" mit Sonarrs Zählung, nicht mit TMDBs', () => {
     // Der Baywatch-S1-Fall: TMDB zählt 22 Folgen, Sonarr kennt und hat 21 -
@@ -45,7 +48,7 @@ describe('staffelBelegt', () => {
       episodes_available: 21,
       episodes_total_arr: 21,
     } as SeasonInfo
-    expect(staffelBelegt(staffel, 'standard')).toBe(true)
+    expect(staffelBelegt(staffel, HAUPT)).toBe(true)
   })
 
   it('ohne Sonarr-Zählung bleibt TMDB der Maßstab', () => {
@@ -54,7 +57,7 @@ describe('staffelBelegt', () => {
       episode_count: 22,
       episodes_available: 21,
     } as SeasonInfo
-    expect(staffelBelegt(staffel, 'standard')).toBe(false)
+    expect(staffelBelegt(staffel, HAUPT)).toBe(false)
   })
 
   it('eine laufende Anfrage belegt die Staffel unabhängig vom Zählstand', () => {
@@ -64,7 +67,7 @@ describe('staffelBelegt', () => {
       episodes_available: 0,
       requested: true,
     } as SeasonInfo
-    expect(staffelBelegt(staffel, 'standard')).toBe(true)
+    expect(staffelBelegt(staffel, HAUPT)).toBe(true)
   })
 })
 

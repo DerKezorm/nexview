@@ -418,7 +418,7 @@ def gehoert_zu(anfrage: MediaRequest, instanz: ArrInstanz, zeile: DownloadHaenge
     Staffel- und Folgenangabe zaehlt bei einer Staffel- oder Paketanfrage nicht
     mit. Lieber kein Hinweis als ein falscher.
     """
-    if anfrage.media_type.value != instanz.media_type or anfrage.tier.value != instanz.tier:
+    if anfrage.media_type.value != instanz.media_type or anfrage.tier != instanz.tier:
         return False
     if anfrage.arr_id is None or zeile.arr_id != anfrage.arr_id:
         return False

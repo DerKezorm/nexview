@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from .models import Role
 from .services.quota import UNBEGRENZT
@@ -173,6 +173,24 @@ class OidcVerknuepfung(BaseModel):
     display: str | None = None
 
 
+class FassungRechtOut(BaseModel):
+    """Ein Recht dieses Kontos an einer Fassung, die nicht offen fuer alle ist."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    kennung: str = Field(validation_alias=AliasChoices("kennung", "fassung_kennung"))
+    anfragen: bool
+    auto_freigabe: bool
+
+
+class FassungRechtWunsch(BaseModel):
+    """Dasselbe als Wunsch - im Kontodialog und im Einladungsassistenten."""
+
+    kennung: str = Field(min_length=1, max_length=32)
+    anfragen: bool = False
+    auto_freigabe: bool = False
+
+
 class UserPublic(BaseModel):
     """Eigenes Profil bzw. Benutzer in Admin-Listen."""
 
@@ -231,7 +249,11 @@ class UserPublic(BaseModel):
     hausordnung_gelesen_am: datetime | None = None
     blocked_movie_profiles: list[int]
     blocked_series_profiles: list[int]
-    # --- 4K -----------------------------------------------------------------
+    # --- Fassungen ----------------------------------------------------------
+    #: Rechte an Fassungen, die nicht offen fuer alle sind - eine Zeile je
+    #: Fassung, an der etwas haengt. Die vier 4K-Felder darunter sind Sichten
+    #: darauf und bleiben, bis die Oberflaeche sie nicht mehr liest.
+    fassung_rechte: list[FassungRechtOut] = []
     can_request_uhd_movies: bool
     can_request_uhd_series: bool
     auto_approve_uhd: bool
@@ -368,6 +390,9 @@ class RechteWunsch(BaseModel):
     role: Role = Role.user
     auto_approve_movies: bool = False
     auto_approve_series: bool = False
+    #: Wuensche je Fassung. Die drei 4K-Felder darunter sind die alte Form
+    #: derselben Frage und gelten nur fuer Fassungen, die hier nicht stehen.
+    fassungen: list[FassungRechtWunsch] = Field(default_factory=list, max_length=20)
     can_request_uhd_movies: bool = False
     can_request_uhd_series: bool = False
     auto_approve_uhd: bool = False
@@ -386,6 +411,13 @@ class RechteStand(BaseModel):
     grund: str | None = None
 
 
+class FassungBewertung(BaseModel):
+    """Die beiden Schalter einer Fassung - siehe ``kontorechte.FassungStand``."""
+
+    anfragen: RechteStand
+    auto: RechteStand
+
+
 class RechteBewertung(BaseModel):
     kontingent: RechteStand
     auto_approve_movies: RechteStand
@@ -394,7 +426,11 @@ class RechteBewertung(BaseModel):
     can_request_uhd_series: RechteStand
     auto_approve_uhd: RechteStand
     hausordnung: RechteStand
+    #: Je Fassung, die nicht offen fuer alle ist. Die drei 4K-Felder darueber
+    #: sind daraus abgeleitet.
+    fassungen: dict[str, FassungBewertung] = {}
     #: Angekreuzt, wirkt aber nicht - fuer die Zusammenfassung im Assistenten.
+    #: Rechte je Fassung stehen hier als ``fassung:<kennung>:anfragen``.
     entfallen: list[str]
 
 
@@ -509,6 +545,9 @@ class UserUpdate(BaseModel):
     blocked_movie_profiles: list[int] | None = None
     blocked_series_profiles: list[int] | None = None
     # --- 4K -----------------------------------------------------------------
+    #: Rechte je Fassung. Nur genannte Fassungen aendern sich; eine Fassung
+    #: ohne ``anfragen`` und ohne ``auto_freigabe`` verliert ihre Zeile.
+    fassung_rechte: list[FassungRechtWunsch] | None = None
     can_request_uhd_movies: bool | None = None
     can_request_uhd_series: bool | None = None
     auto_approve_uhd: bool | None = None

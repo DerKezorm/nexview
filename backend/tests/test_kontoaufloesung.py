@@ -21,7 +21,6 @@ from app.db import SessionLocal
 from app.models import (
     MediaRequest,
     MediaType,
-    QualityTier,
     RequestStatus,
     StorageEntry,
     StorageState,
@@ -170,7 +169,7 @@ def _anfrage(
     zeile = MediaRequest(
         user_id=user_id,
         media_type=media_type,
-        fassung_kennung=arr_kennung(media_type, QualityTier.standard),
+        fassung_kennung=arr_kennung(media_type, "standard"),
         tmdb_id=tmdb,
         tvdb_id=tvdb,
         title=titel,

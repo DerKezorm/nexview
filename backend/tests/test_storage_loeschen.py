@@ -32,7 +32,6 @@ from app.models import (
     MediaType,
     Notification,
     NotificationType,
-    QualityTier,
     RequestStatus,
     Role,
     StorageEntry,
@@ -133,10 +132,10 @@ def _serie(monkeypatch, dateien: dict[int, list[dict]]) -> _Sonarr:
 
 
 def _posten(
-    db, *, user_id: int | None, tier: QualityTier, titel: str = "Ein Film", tmdb: int = 603
+    db, *, user_id: int | None, tier: str, titel: str = "Ein Film", tmdb: int = 603
 ) -> StorageEntry:
     eintrag = StorageEntry(
-        key=f"movie:{tier.value}:tmdb:{tmdb}",
+        key=f"movie:{arr_kennung(MediaType.movie, tier)}:tmdb:{tmdb}",
         user_id=user_id,
         media_type=MediaType.movie,
         fassung_kennung=arr_kennung(MediaType.movie, tier),
@@ -174,7 +173,7 @@ async def test_film_wird_samt_datei_entfernt(monkeypatch) -> None:
     attrappe = _instanz(monkeypatch, film=_ein_film())
     with SessionLocal() as db:
         einstellungen = load_settings(db)
-        posten = _posten(db, user_id=None, tier=QualityTier.uhd)
+        posten = _posten(db, user_id=None, tier="uhd")
 
         bytes_ = await storage.loeschen(db, einstellungen, posten.id)
         db.commit()
@@ -197,11 +196,11 @@ async def test_die_stufensperre_greift_wenn_sie_gesetzt_ist(monkeypatch) -> None
     Sie stand auf „nur 4K", solange nur die Testinstanz drankommen sollte, und
     ist gefallen, als in **allen** Instanzen ein Papierkorb eingerichtet war.
     """
-    monkeypatch.setattr(storage, "LOESCHBARE_STUFEN", (QualityTier.uhd,))
+    monkeypatch.setattr(storage, "LOESCHBARE_FASSUNGEN", ("radarr-uhd",))
     attrappe = _instanz(monkeypatch, film=_ein_film())
     with SessionLocal() as db:
         einstellungen = load_settings(db)
-        posten = _posten(db, user_id=None, tier=QualityTier.standard)
+        posten = _posten(db, user_id=None, tier="standard")
 
         with pytest.raises(storage.Loeschfehler) as fehler:
             await storage.loeschen(db, einstellungen, posten.id)
@@ -218,7 +217,7 @@ async def test_ohne_sperre_darf_jede_stufe(monkeypatch) -> None:
     attrappe = _instanz(monkeypatch, film=_ein_film())
     with SessionLocal() as db:
         einstellungen = load_settings(db)
-        posten = _posten(db, user_id=None, tier=QualityTier.standard)
+        posten = _posten(db, user_id=None, tier="standard")
 
         await storage.loeschen(db, einstellungen, posten.id)
         db.commit()
@@ -303,7 +302,7 @@ async def test_unverwalteter_titel_wird_ehrlich_abgelehnt(monkeypatch) -> None:
     attrappe = _instanz(monkeypatch, film=None)  # Radarr kennt ihn nicht
     with SessionLocal() as db:
         einstellungen = load_settings(db)
-        posten = _posten(db, user_id=None, tier=QualityTier.uhd)
+        posten = _posten(db, user_id=None, tier="uhd")
 
         with pytest.raises(storage.Loeschfehler) as fehler:
             await storage.loeschen(db, einstellungen, posten.id)
@@ -323,7 +322,7 @@ async def test_probelauf_zeigt_die_datei_und_faesst_nichts_an(monkeypatch) -> No
     attrappe = _instanz(monkeypatch, film=_ein_film(12))
     with SessionLocal() as db:
         einstellungen = load_settings(db)
-        posten = _posten(db, user_id=None, tier=QualityTier.uhd)
+        posten = _posten(db, user_id=None, tier="uhd")
 
         dateien = await storage.dateien_fuer(db, einstellungen, posten.id)
 
@@ -362,7 +361,7 @@ async def test_vor_dem_zugriff_steht_es_im_protokoll(monkeypatch, caplog) -> Non
     _instanz(monkeypatch, film=_ein_film())
     with SessionLocal() as db:
         einstellungen = load_settings(db)
-        posten = _posten(db, user_id=None, tier=QualityTier.uhd, titel="Ein Klassiker")
+        posten = _posten(db, user_id=None, tier="uhd", titel="Ein Klassiker")
 
         with caplog.at_level(logging.INFO, logger="nexview.storage"):
             await storage.loeschen(db, einstellungen, posten.id, wer="chefin")
@@ -385,7 +384,7 @@ def test_loeschen_ist_nur_fuer_admins(admin_client, monkeypatch) -> None:
     admin_client.put("/api/settings", json={"storage_enabled": True})
     create_user(admin_client, "entscheider7", "test1234", role=Role.approver)
     with SessionLocal() as db:
-        posten_id = _posten(db, user_id=None, tier=QualityTier.uhd).id
+        posten_id = _posten(db, user_id=None, tier="uhd").id
 
     kopf = auth_headers(admin_client, "entscheider7", "test1234")
     assert (
@@ -415,7 +414,7 @@ def test_der_betroffene_erfaehrt_vom_loeschen(admin_client, monkeypatch) -> None
     _instanz(monkeypatch, film=_ein_film())
 
     with SessionLocal() as db:
-        posten_id = _posten(db, user_id=konto["id"], tier=QualityTier.uhd).id
+        posten_id = _posten(db, user_id=konto["id"], tier="uhd").id
 
     antwort = admin_client.post(f"/api/storage/entries/{posten_id}/loeschen")
     assert antwort.status_code == 204
@@ -438,7 +437,7 @@ def test_vorschau_nennt_den_grund_wenn_nicht_geloescht_werden_kann(
     admin_client.put("/api/settings", json={"storage_enabled": True})
     _instanz(monkeypatch, film=None)  # Radarr kennt den Titel nicht mehr
     with SessionLocal() as db:
-        posten_id = _posten(db, user_id=None, tier=QualityTier.standard).id
+        posten_id = _posten(db, user_id=None, tier="standard").id
 
     daten = admin_client.get(f"/api/storage/entries/{posten_id}/dateien").json()
     assert daten["deletable"] is False
@@ -464,7 +463,7 @@ def _anfrage(db, *, tmdb=603, tvdb=None, season=None,
     zeile = MediaRequest(
         user_id=benutzer.id,
         media_type=media_type,
-        fassung_kennung=arr_kennung(media_type, QualityTier.standard),
+        fassung_kennung=arr_kennung(media_type, "standard"),
         tmdb_id=tmdb,
         tvdb_id=tvdb,
         title="Eine Serie" if media_type == MediaType.tv else "Ein Film",
@@ -508,7 +507,7 @@ async def test_loeschen_schliesst_die_anfrage_der_staffel(monkeypatch) -> None:
 async def test_loeschen_schliesst_die_anfrage_des_films(monkeypatch) -> None:
     _instanz(monkeypatch, film=_ein_film())
     with SessionLocal() as db:
-        posten = _posten(db, user_id=None, tier=QualityTier.standard)
+        posten = _posten(db, user_id=None, tier="standard")
         betroffen = _anfrage(db, tmdb=603)
 
         await storage.loeschen(db, load_settings(db), posten.id)
@@ -524,7 +523,7 @@ async def test_loeschen_laesst_offene_entscheidungen_stehen(monkeypatch) -> None
     ueber eine Datei - die trifft weiterhin ein Mensch."""
     _instanz(monkeypatch, film=_ein_film())
     with SessionLocal() as db:
-        posten = _posten(db, user_id=None, tier=QualityTier.standard)
+        posten = _posten(db, user_id=None, tier="standard")
         wartend = _anfrage(db, tmdb=603, status=RequestStatus.pending_approval)
 
         await storage.loeschen(db, load_settings(db), posten.id)

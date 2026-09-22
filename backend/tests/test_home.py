@@ -538,12 +538,11 @@ def test_die_neueste_staffel_stellt_die_serie_dar(serien_client: TestClient) -> 
 def test_derselbe_film_in_zwei_stufen_ist_eine_kachel(arr_client: TestClient) -> None:
     """Dasselbe Doppelbild wie bei den Staffeln, nur bei Filmen: 1080p und 4K
     sind zwei Dateien, aber ein Titel."""
-    from app.models import QualityTier
 
     kim = create_user(arr_client, "kim")
     with SessionLocal() as session:
         jetzt = datetime.now(UTC).replace(tzinfo=None)
-        for versatz, stufe in enumerate((QualityTier.standard, QualityTier.uhd)):
+        for versatz, stufe in enumerate(("standard", "uhd")):
             session.add(
                 MediaRequest(
                     user_id=kim["id"],

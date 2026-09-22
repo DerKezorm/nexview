@@ -7,6 +7,48 @@ from pydantic import BaseModel, Field
 from .models import MediaType
 
 
+class FassungAchse(BaseModel):
+    """Wie ein Titel in einer Fassung dasteht (Bauplan NEX-Modus, Abschnitt 2.2).
+
+    Eine Karte traegt je Fassung einen Eintrag: zuerst die Hauptfassung, deren
+    Zustand auch in ``status`` steht, dann jede weitere, die der Benutzer
+    anfragen darf. ``status_uhd`` ist eine Ableitung daraus (die Fassung mit
+    Klasse ``uhd``) und bleibt, weil ``/api/v1`` es zusagt.
+    """
+
+    kennung: str
+    name: str
+    #: ``hd``, ``uhd`` oder keine - die Oberflaeche zeigt ``uhd`` als "4K".
+    klasse: str | None = None
+    #: ``arr`` oder ``nex``: woher die Fassung kommt.
+    quelle: str
+    #: Die Hauptachse - ihr Zustand steht auch in ``status``.
+    haupt: bool = False
+    status: str = "not_requested"
+
+
+class StaffelFassung(BaseModel):
+    """Eine Staffel in einer Fassung - die Felder von ``SeasonInfo`` je Fassung."""
+
+    kennung: str
+    episodes_available: int = 0
+    requested: bool = False
+    requested_episodes: list[int] = []
+    requested_status: str | None = None
+    #: Die Folgenzahl, die die Beschaffung fuer diese Staffel kennt. ``None``:
+    #: kennt sie nicht, dann zaehlt TMDB (``episode_count``).
+    episodes_total: int | None = None
+
+
+class FolgenFassung(BaseModel):
+    """Eine Folge in einer Fassung."""
+
+    kennung: str
+    available: bool = False
+    requested: bool = False
+    requested_status: str | None = None
+
+
 class SeasonInfo(BaseModel):
     """Eine Staffel, wie TMDB sie kennt."""
 
@@ -51,6 +93,9 @@ class SeasonInfo(BaseModel):
     # (oder die Staffel) nicht - dann bleibt TMDB der einzige Massstab.
     episodes_total_arr: int | None = None
     episodes_total_arr_uhd: int | None = None
+    #: Dasselbe je Fassung: zuerst die Hauptfassung, dann jede weitere
+    #: eingerichtete. Die Felder oben (auch ``*_uhd``) sind daraus abgeleitet.
+    fassungen: list[StaffelFassung] = []
 
 
 class EpisodeInfo(BaseModel):
@@ -77,6 +122,8 @@ class EpisodeInfo(BaseModel):
     available_uhd: bool | None = None
     requested_uhd: bool | None = None
     requested_status_uhd: str | None = None
+    #: Dasselbe je Fassung, wie ``SeasonInfo.fassungen``.
+    fassungen: list[FolgenFassung] = []
 
 
 class SeasonDetail(BaseModel):
@@ -174,6 +221,7 @@ class PersonCredit(BaseModel):
     # sofort auf, sobald eine 4K-Instanz eingerichtet war - dann scheitert
     # *jede* Personenseite.
     status_uhd: str | None = None
+    fassungen: list[FassungAchse] = Field(default_factory=list)
     # Dritter Fall derselben Sorte, und der Kommentar oben hat ihn vorhergesagt:
     # ``details._mit_status`` setzt seit dem Parallelbetrieb auch die Herkunft
     # des Gesehen-Markers. Ohne diese beiden Zeilen scheiterte die Personenseite
@@ -258,6 +306,9 @@ class MediaItem(BaseModel):
     # ``None`` heisst "diese Achse gibt es hier nicht": kein zweites Radarr, oder
     # der Benutzer darf kein 4K. Das ist der Normalfall.
     status_uhd: str | None = None
+    #: Je Fassung der Zustand (``services/fassungsachsen.py``); ``status_uhd``
+    #: ist daraus abgeleitet. Leer, wo niemand ihn gesetzt hat (Favoriten).
+    fassungen: list[FassungAchse] = Field(default_factory=list)
 
     # Hat *der anfragende* Benutzer das schon gesehen? Bewusst ein eigenes Feld
     # und kein weiterer ``status``-Wert: "gesehen" ist eine andere Achse als
@@ -289,7 +340,7 @@ class MediaItem(BaseModel):
     # Zwei Felder und kein gemeinsames: 1080p und 4K sind zwei Dateien in zwei
     # Instanzen, und wer als Administrator nachsehen will, wo etwas liegt, will
     # beide sehen - nicht die eine, die zufaellig zuerst gefunden wurde.
-    # Gesetzt wird es in ``services/uhd.py``, ebenfalls nur fuer
+    # Gesetzt wird es in ``services/fassungsachsen.py``, ebenfalls nur fuer
     # Administratoren.
     path_uhd: str | None = None
     # Liegt in der **Standard**-Instanz bereits eine 4K-Datei dieses Titels?

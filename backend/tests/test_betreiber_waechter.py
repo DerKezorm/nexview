@@ -895,6 +895,13 @@ def liste(db):
 #:   Diese Fehlalarme sind der Preis dafuer, dass ``email``, ``username`` und
 #:   ``parent_id`` ausdruecklich mit ueberwacht werden.
 AUSSERHALB: dict[tuple[str, str], str] = {
+    ("models.py", "fassung_recht_setzen"): (
+        "Der Weg des Kontodialogs zu den Rechten je Fassung. Er schreibt nur "
+        "am Konto, dessen Methode gerufen wird, und wird von "
+        "``PATCH /api/users/{user_id}`` erreicht - der traegt "
+        "``betreiberschutz``. Die Entscheidung ueber den Betreiber faellt "
+        "damit an der Adresse, nicht hier."
+    ),
     ("models.py", "_recht_setzen"): (
         "Die Sicht der alten 4K-Haken (``can_request_uhd_movies`` ...) auf "
         "``fassung_rechte``. Sie schreibt nur am Konto, dessen Eigenschaft "

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import MediaType, QualityTier, QuotaPeriod, RequestStatus
+from .models import MediaType, QuotaPeriod, RequestStatus
 
 
 class RequestCreate(BaseModel):
@@ -17,9 +18,13 @@ class RequestCreate(BaseModel):
     """
 
     media_type: MediaType
-    # Welche Instanz? Fehlt die Angabe, ist die Standard-Stufe gemeint - so
-    # bleiben aeltere Aufrufe und die Oberflaeche ohne 4K unveraendert gueltig.
-    tier: QualityTier = QualityTier.standard
+    #: In welcher Fassung (Kennung, etwa ``radarr-uhd``)? Geht vor ``tier``.
+    fassung: str | None = Field(default=None, min_length=1, max_length=32)
+    #: Die alte Wahl der Stufe, zugesagt in ``/api/v1`` (Bauplan Abschnitt 12):
+    #: ``uhd`` waehlt die erste eingerichtete Fassung der Klasse ``uhd``,
+    #: ``standard`` die Hauptfassung. Fehlen beide, gilt die Hauptfassung - so
+    #: bleiben aeltere Aufrufe unveraendert gueltig.
+    tier: Literal["standard", "uhd"] = "standard"
     tmdb_id: int = Field(ge=1)
     # Darf nur fehlen, wenn der Entscheider das Ziel erst bei der Freigabe
     # waehlt (``approver_picks_target``). Sonst lehnt der Dienst die Anfrage
@@ -67,14 +72,20 @@ class FeedbackReply(BaseModel):
 
 
 class RequestPublic(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    # ``populate_by_name``: ``fassung`` kommt beim Lesen aus
+    # ``MediaRequest.fassung_kennung``, laesst sich aber auch beim Namen
+    # nennen - etwa in Tests und beim Bauen von Hand.
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: int
     media_type: MediaType
-    # Welche Instanz? Steht an der Anfrage selbst, damit eine laufende
+    # Welche Fassung? Steht an der Anfrage selbst, damit eine laufende
     # 4K-Anfrage auch dann noch als solche erkennbar bleibt, wenn der
     # Administrator die zweite Instanz wieder herausnimmt.
-    tier: QualityTier
+    fassung: str
+    #: Die Stufe als Ableitung aus der Fassung (``uhd`` fuer die Klasse
+    #: ``uhd``), zugesagt in ``/api/v1`` (Bauplan Abschnitt 12).
+    tier: Literal["standard", "uhd"]
     tmdb_id: int
     title: str
     poster_path: str | None

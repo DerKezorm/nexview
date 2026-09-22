@@ -7,11 +7,12 @@ import type { User } from '../../api/types'
 import { Fenster } from '../../components/Fenster'
 import { Button, ErrorBanner, Spinner } from '../../components/ui'
 import { formatSize } from '../../lib/format'
+import { FassungKuerzel } from '../../components/media/FassungBadge'
 
 type Posten = {
   id: number
   title: string
-  tier: string
+  fassung: string
   season: number | null
   media_type: string
   size_bytes: number
@@ -20,7 +21,7 @@ type Posten = {
 type Laufende = {
   request_id: number
   title: string
-  tier: string
+  fassung: string
   season: number | null
   dateien: number
   folgen: number
@@ -29,7 +30,7 @@ type Laufende = {
 type Offene = {
   request_id: number
   title: string
-  tier: string
+  fassung: string
   season: number | null
 }
 
@@ -336,9 +337,7 @@ export function AdminKontoAufloesung({
                             {t('storage.season', { number: posten.season })}
                           </span>
                         )}
-                        {posten.tier === 'uhd' && (
-                          <span className="ml-1.5 text-accent-500">4K</span>
-                        )}
+                        <FassungKuerzel kennung={posten.fassung} />
                       </span>
                       <span className="shrink-0 text-sm tabular-nums text-mist-500">
                         {formatSize(posten.size_bytes, i18n.language)}

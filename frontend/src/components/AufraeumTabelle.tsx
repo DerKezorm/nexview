@@ -24,6 +24,7 @@ import { titlePath } from '../lib/routes'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Umschalter } from './Umschalter'
 import { ErrorBanner, Spinner } from './ui'
+import { FassungKuerzel } from './media/FassungBadge'
 
 export type AufraeumPosten = {
   posten_id: number
@@ -31,7 +32,7 @@ export type AufraeumPosten = {
   tmdb_id: number | null
   tvdb_id: number | null
   season: number | null
-  tier: string
+  fassung: string
   title: string
   size_bytes: number
   state: string
@@ -349,7 +350,9 @@ export function AufraeumTabelle({
                       {eintrag.season !== null
                         ? t('cleanup.season', { number: eintrag.season })
                         : t('common.movies')}
-                      {eintrag.tier === 'uhd' && ' · 4K'}
+                      {eintrag.fassung && (
+                        <FassungKuerzel kennung={eintrag.fassung} className="text-mist-600" />
+                      )}
                     </span>
                     {eintrag.tage_uebrig !== null && (
                       <span className="ml-2 rounded-full bg-warn-500/20 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-warn-500">

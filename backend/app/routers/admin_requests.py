@@ -16,7 +16,6 @@ from ..models import (
     MediaRequest,
     MediaType,
     NotificationType,
-    QualityTier,
     RequestStatus,
     Role,
     TitleRating,
@@ -60,14 +59,20 @@ class ApproveAllPayload(BaseModel):
     davon zwangslaeufig falsch.
     """
 
+    #: Je Fassung (Kennung) eine Wahl. Geht vor den vier Feldern darunter.
+    ziele: dict[str, TargetChoice] = Field(default_factory=dict, max_length=20)
+    #: Die alte Form, je Medienart und Stufe - bleibt fuer Aufrufer ausserhalb
+    #: der Oberflaeche.
     movie: TargetChoice | None = None
     tv: TargetChoice | None = None
     movie_uhd: TargetChoice | None = None
     tv_uhd: TargetChoice | None = None
 
-    def fuer(self, media_type: MediaType, tier: QualityTier) -> TargetChoice | None:
-        art = "movie" if media_type == MediaType.movie else "tv"
-        return getattr(self, f"{art}_uhd" if tier == QualityTier.uhd else art)
+    def fuer(self, request: MediaRequest) -> TargetChoice | None:
+        if request.fassung_kennung in self.ziele:
+            return self.ziele[request.fassung_kennung]
+        art = "movie" if request.media_type == MediaType.movie else "tv"
+        return getattr(self, f"{art}_uhd" if request.tier == "uhd" else art)
 
 
 def _braucht_ziel(request: MediaRequest, wahl: TargetChoice | None) -> bool:
@@ -583,7 +588,7 @@ async def approve_all(
     settings = load_settings(db)
     uebersprungen: list[MediaRequest] = []
     for request in offen:
-        wahl = payload.fuer(request.media_type, request.tier) if payload is not None else None
+        wahl = payload.fuer(request) if payload is not None else None
         if _braucht_ziel(request, wahl):
             try:
                 await requests_service.apply_target(

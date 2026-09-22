@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -6,6 +6,7 @@ import { ApiError, api, uebersetzeFehler } from "../../api/client";
 import type {
   AppSettings,
   ArrOptions,
+  FassungRecht,
   HausordnungVerwaltung,
   Invitation,
   Kontingentwert,
@@ -25,6 +26,7 @@ import { AdminKontoAufloesung } from "./AdminKontoAufloesung";
 import { Button, Card, ErrorBanner, Spinner } from "../../components/ui";
 import { useConfig } from "../../hooks/useConfig";
 import { EinladungsAssistent } from "./EinladungsAssistent";
+import { fassungMitArt, fassungVon } from "../../lib/fassungen";
 import { formatDate } from "../../lib/format";
 
 /**
@@ -66,13 +68,9 @@ type Grenzfeld = (typeof GRENZEN)[number]["feld"];
  */
 type Grenzentwurf = { modus: "standard" | "unlimited" | "zahl"; zahl: string };
 
-/** Die Haken, die der Server bewertet - dieselben wie im Einladungsassistenten. */
-type RechteSchalter =
-  | "auto_approve_movies"
-  | "auto_approve_series"
-  | "can_request_uhd_movies"
-  | "can_request_uhd_series"
-  | "auto_approve_uhd";
+/** Die Haken, die der Server bewertet - dieselben wie im Einladungsassistenten.
+ *  Die Rechte je Fassung stehen daneben (`fassung_rechte`). */
+type RechteSchalter = "auto_approve_movies" | "auto_approve_series";
 
 /**
  * Die Liste nach Rolle gegliedert - die mit den meisten Rechten zuerst.
@@ -397,6 +395,35 @@ export function AdminUsersSettings() {
    * gespeichert war. Ein leeres Filme- oder Serienfeld erbt wie im Backend
    * (`User.auto_approve_for`) die alte Sammel-Einstellung.
    */
+  /**
+   * Das Recht dieses Kontos an einer Fassung: Entwurf, sonst gespeichert.
+   *
+   * Keine Zeile heißt „kein Recht" - dieselbe Aussage wie am Server, wo eine
+   * Zeile ohne beides gar nicht erst entsteht.
+   */
+  function fassungRecht(user: User, kennung: string): FassungRecht {
+    const liste = drafts[user.id]?.fassung_rechte ?? user.fassung_rechte ?? [];
+    return (
+      liste.find((r) => r.kennung === kennung) ?? {
+        kennung,
+        anfragen: false,
+        auto_freigabe: false,
+      }
+    );
+  }
+
+  function setzeFassungRecht(
+    user: User,
+    kennung: string,
+    teil: Partial<FassungRecht>,
+  ) {
+    const liste = drafts[user.id]?.fassung_rechte ?? user.fassung_rechte ?? [];
+    setzen(user, "fassung_rechte", [
+      ...liste.filter((r) => r.kennung !== kennung),
+      { ...fassungRecht(user, kennung), ...teil },
+    ]);
+  }
+
   function eigenerHaken(user: User, key: RechteSchalter): boolean {
     const entwurf = drafts[user.id];
     if (entwurf && key in entwurf) return Boolean(entwurf[key]);
@@ -417,9 +444,12 @@ export function AdminUsersSettings() {
         role: feld(offenesKonto, "role"),
         auto_approve_movies: eigenerHaken(offenesKonto, "auto_approve_movies"),
         auto_approve_series: eigenerHaken(offenesKonto, "auto_approve_series"),
-        can_request_uhd_movies: eigenerHaken(offenesKonto, "can_request_uhd_movies"),
-        can_request_uhd_series: eigenerHaken(offenesKonto, "can_request_uhd_series"),
-        auto_approve_uhd: eigenerHaken(offenesKonto, "auto_approve_uhd"),
+        // Je Fassung, die nicht jeder anfragen darf. Welche das sind, sagt
+        // der Server in seiner Antwort; gefragt wird mit dem, was am Konto
+        // steht oder im Entwurf.
+        fassungen: (config?.fassungen ?? [])
+          .filter((f) => !f.offen_fuer_alle && f.bereit)
+          .map((f) => fassungRecht(offenesKonto, f.kennung)),
         hausordnung: false,
       }
     : null;
@@ -1079,8 +1109,8 @@ export function AdminUsersSettings() {
                         {/* Freigabe und 4K, bewertet vom Server: dieselbe
                         Stelle wie im Einladungsassistenten, gefragt mit der
                         Rolle aus dem Entwurf. Gesperrte Haken zeigen, was gilt,
-                        und sagen warum. Die 4K-Zeile fehlt nur, wenn es gar
-                        keine 4K-Instanz gibt. */}
+                        und sagen warum. Die Zeile je Fassung fehlt, solange
+                        es keine gibt, die erst erlaubt werden muss. */}
                         {rechte && (
                           <div className="flex flex-col gap-3 sm:col-span-4">
                             <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -1099,23 +1129,42 @@ export function AdminUsersSettings() {
                                 />
                               ))}
                             </div>
-                            {rechte.auto_approve_uhd.grund !== "no_uhd_instance" && (
+                            {Object.keys(rechte.fassungen).length > 0 && (
                               <div className="flex flex-wrap gap-x-6 gap-y-2">
-                                {(
-                                  [
-                                    ["can_request_uhd_movies", "uhd.canRequestMovies"],
-                                    ["can_request_uhd_series", "uhd.canRequestSeries"],
-                                    ["auto_approve_uhd", "uhd.autoApprove"],
-                                  ] as const
-                                ).map(([schluessel, label]) => (
-                                  <RechteHaken
-                                    key={schluessel}
-                                    label={t(label)}
-                                    stand={rechte[schluessel]}
-                                    wert={eigenerHaken(user, schluessel)}
-                                    onChange={(neu) => setzen(user, schluessel, neu)}
-                                  />
-                                ))}
+                                {Object.entries(rechte.fassungen).map(
+                                  ([kennung, stand]) => {
+                                    const fassung = fassungVon(config, kennung);
+                                    const name = fassung
+                                      ? fassungMitArt(t, fassung)
+                                      : kennung;
+                                    return (
+                                      <Fragment key={kennung}>
+                                        <RechteHaken
+                                          label={t("fassung.darfAnfragen", { name })}
+                                          stand={stand.anfragen}
+                                          wert={fassungRecht(user, kennung).anfragen}
+                                          onChange={(neu) =>
+                                            setzeFassungRecht(user, kennung, {
+                                              anfragen: neu,
+                                            })
+                                          }
+                                        />
+                                        <RechteHaken
+                                          label={t("fassung.ohneFreigabe", { name })}
+                                          stand={stand.auto}
+                                          wert={
+                                            fassungRecht(user, kennung).auto_freigabe
+                                          }
+                                          onChange={(neu) =>
+                                            setzeFassungRecht(user, kennung, {
+                                              auto_freigabe: neu,
+                                            })
+                                          }
+                                        />
+                                      </Fragment>
+                                    );
+                                  },
+                                )}
                               </div>
                             )}
                           </div>

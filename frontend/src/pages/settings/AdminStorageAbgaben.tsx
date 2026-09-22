@@ -12,6 +12,7 @@ import type {
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Button, Card, ErrorBanner, Spinner } from '../../components/ui'
 import { formatDateTime, formatSize } from '../../lib/format'
+import { FassungKuerzel } from '../../components/media/FassungBadge'
 
 /**
  * Was auf eine Entscheidung wartet.
@@ -114,9 +115,7 @@ export function AdminStorageAbgaben() {
                     {t('storage.season', { number: zeile.entry.season })}
                   </span>
                 )}
-                {zeile.entry.tier === 'uhd' && (
-                  <span className="ml-1.5 text-accent-500">4K</span>
-                )}
+                <FassungKuerzel kennung={zeile.entry.fassung} />
                 {/* Der Wunsch gehört sichtbar an die Zeile: Er ist der halbe
                     Inhalt der Abgabe – ohne ihn entscheidet der Admin an dem
                     vorbei, was sich die Person vorgestellt hat. */}

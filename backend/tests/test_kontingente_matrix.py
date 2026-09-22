@@ -19,7 +19,6 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import (
     MediaType,
-    QualityTier,
     Role,
     StorageEntry,
     StorageState,
@@ -58,12 +57,12 @@ def _kopf(client: TestClient, name: str = "kim") -> dict:
     return auth_headers(client, name, "passwort-1234")
 
 
-def _belegen(user_id: int, gb: int, *, tier: QualityTier = QualityTier.standard) -> None:
+def _belegen(user_id: int, gb: int, *, tier: str = "standard") -> None:
     """Diesem Konto ``gb`` Gigabyte zurechnen."""
     with SessionLocal() as db:
         db.add(
             StorageEntry(
-                key=f"movie:{tier.value}:tmdb:{9000 + gb}",
+                key=f"movie:{arr_kennung(MediaType.movie, tier)}:tmdb:{9000 + gb}",
                 user_id=user_id,
                 media_type=MediaType.movie,
                 fassung_kennung=arr_kennung(MediaType.movie, tier),
@@ -288,7 +287,7 @@ def test_4k_zaehlt_gegen_denselben_speicher(mit_uhd: TestClient) -> None:
     """
     _haus(mit_uhd, quota_default_movies=99, storage_default_limit_gb=10)
     konto = _konto(mit_uhd, can_request_uhd_movies=True)
-    _belegen(konto["id"], 40, tier=QualityTier.uhd)
+    _belegen(konto["id"], 40, tier="uhd")
 
     antwort = _anfragen(mit_uhd, _kopf(mit_uhd), tier="uhd")
     assert antwort.status_code == 429

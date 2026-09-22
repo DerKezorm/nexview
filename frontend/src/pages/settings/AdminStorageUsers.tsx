@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Pagination } from '../../components/Pagination'
 import { Card, ErrorBanner, Spinner } from '../../components/ui'
 import { formatSize } from '../../lib/format'
+import { FassungKuerzel } from '../../components/media/FassungBadge'
 
 /**
  * Belegung nach Konto – und der Weg, ein Konto zu entlasten.
@@ -210,9 +211,7 @@ function Posten({ userId }: { userId: number }) {
                               ? 'common.movie'
                               : 'common.series',
                           )}
-                      {eintrag.tier === 'uhd' && (
-                        <span className="ml-1.5 text-accent-500">4K</span>
-                      )}
+                      <FassungKuerzel kennung={eintrag.fassung} />
                     </p>
                   </div>
                   <span className="shrink-0 tabular-nums">

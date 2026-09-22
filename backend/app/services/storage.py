@@ -29,7 +29,6 @@ from ..models import (
     MediaServerLibraryItem,
     MediaType,
     NotificationType,
-    QualityTier,
     RequestStatus,
     Role,
     StorageEntry,
@@ -146,6 +145,9 @@ class Posten:
 
     id: int
     media_type: str
+    #: Die Kennung der Fassung, zu der dieser Posten gehoert.
+    fassung: str
+    #: Die Stufe als Ableitung daraus - ``/api/v1/storage/me`` sagt sie zu.
     tier: str
     tmdb_id: int | None
     tvdb_id: int | None
@@ -586,7 +588,8 @@ def _als_posten(zeile: StorageEntry) -> Posten:
     return Posten(
         id=zeile.id,
         media_type=zeile.media_type.value,
-        tier=zeile.tier.value,
+        fassung=zeile.fassung_kennung,
+        tier=zeile.tier,
         tmdb_id=zeile.tmdb_id,
         tvdb_id=zeile.tvdb_id,
         season=zeile.season,
@@ -610,7 +613,7 @@ class _Gemessen:
 
     key: str
     media_type: MediaType
-    tier: QualityTier
+    tier: str
     tmdb_id: int | None
     tvdb_id: int | None
     season: int | None
@@ -734,31 +737,31 @@ async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Geme
     gemessen: dict[str, _Gemessen] = {}
     vollstaendig = True
 
-    for stufe in (QualityTier.standard, QualityTier.uhd):
-        if settings.arr_configured("movie", stufe.value):
+    for stufe in ("standard", "uhd"):
+        if settings.arr_configured("movie", stufe):
             try:
                 for tmdb_id, eintrag in (
-                    await get_beschaffung(settings).bestand_filme(stufe.value)
+                    await get_beschaffung(settings).bestand_filme(stufe)
                 ).items():
                     _film_aufnehmen(gemessen, stufe, tmdb_id, eintrag)
             except BeschaffungError as fehler:
                 vollstaendig = False
                 logger.warning(
                     "Radarr (%s) not reachable, sizes left unchanged: %s",
-                    stufe.value,
+                    stufe,
                     logs.kennung(fehler),
                 )
 
-        if settings.arr_configured("tv", stufe.value):
+        if settings.arr_configured("tv", stufe):
             try:
-                nach_tvdb, _ = await get_beschaffung(settings).bestand_serien(stufe.value)
+                nach_tvdb, _ = await get_beschaffung(settings).bestand_serien(stufe)
                 for tvdb_id, eintrag in nach_tvdb.items():
                     _serie_aufnehmen(gemessen, stufe, tvdb_id, eintrag)
             except BeschaffungError as fehler:
                 vollstaendig = False
                 logger.warning(
                     "Sonarr (%s) not reachable, sizes left unchanged: %s",
-                    stufe.value,
+                    stufe,
                     logs.kennung(fehler),
                 )
 
@@ -798,7 +801,7 @@ async def _pakete_aufnehmen(
 
     befunde: dict[tuple[str, int], tuple[dict, dict[int, int]] | None] = {}
     for anfrage in anfragen:
-        stufe = anfrage.tier or QualityTier.standard
+        stufe = anfrage.tier or "standard"
         basis = schluessel(
             MediaType.tv,
             arr_kennung(MediaType.tv, stufe),
@@ -811,16 +814,16 @@ async def _pakete_aufnehmen(
             # aufzuteilen; eine bestehende Paket-Zeile raeumt der Abgleich ab.
             continue
 
-        merkmal = (stufe.value, anfrage.tvdb_id)
+        merkmal = (stufe, anfrage.tvdb_id)
         if merkmal not in befunde:
             beschaffung = get_beschaffung(settings)
-            if not beschaffung.verwaltet("tv", stufe.value):
+            if not beschaffung.verwaltet("tv", stufe):
                 befunde[merkmal] = None
             else:
                 try:
-                    stand = await beschaffung.folgen_stand(stufe.value, staffelzeile.arr_id)
+                    stand = await beschaffung.folgen_stand(stufe, staffelzeile.arr_id)
                     dateien = (
-                        await beschaffung.episodendateien(stufe.value, staffelzeile.arr_id)
+                        await beschaffung.episodendateien(stufe, staffelzeile.arr_id)
                         or []
                     )
                     groessen = {
@@ -833,7 +836,7 @@ async def _pakete_aufnehmen(
                     logger.warning(
                         "Sonarr (%s) gave no episode files for series %s - "
                         "package sizes left unchanged: %s",
-                        stufe.value,
+                        stufe,
                         staffelzeile.arr_id,
                         logs.kennung(fehler),
                     )
@@ -918,19 +921,19 @@ async def _staffeldaten_nachtragen(
     if not offen:
         return
 
-    for stufe in (QualityTier.standard, QualityTier.uhd):
-        if not settings.arr_configured("tv", stufe.value):
+    for stufe in ("standard", "uhd"):
+        if not settings.arr_configured("tv", stufe):
             continue
         beschaffung = get_beschaffung(settings)
-        if not beschaffung.verwaltet("tv", stufe.value):
+        if not beschaffung.verwaltet("tv", stufe):
             continue
         for serie_id, posten in list(offen.items()):
             try:
-                daten = await beschaffung.staffel_daten(stufe.value, serie_id)
+                daten = await beschaffung.staffel_daten(stufe, serie_id)
             except BeschaffungError as fehler:
                 logger.warning(
                     "Sonarr (%s) gave no file dates for series %s: %s",
-                    stufe.value,
+                    stufe,
                     serie_id,
                     logs.kennung(fehler),
                 )
@@ -947,7 +950,7 @@ async def _staffeldaten_nachtragen(
 
 def _film_aufnehmen(
     ziel: dict[str, _Gemessen],
-    stufe: QualityTier,
+    stufe: str,
     tmdb_id: int,
     eintrag: MovieEntry,
 ) -> None:
@@ -972,7 +975,7 @@ def _film_aufnehmen(
 
 def _serie_aufnehmen(
     ziel: dict[str, _Gemessen],
-    stufe: QualityTier,
+    stufe: str,
     tvdb_id: int,
     eintrag: SeriesEntry,
 ) -> None:
@@ -1044,8 +1047,8 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
 
     for zeile in zeilen:
         for stufe, bytes_ in (
-            (QualityTier.standard, zeile.size_standard),
-            (QualityTier.uhd, zeile.size_uhd),
+            ("standard", zeile.size_standard),
+            ("uhd", zeile.size_uhd),
         ):
             # Null heisst "unbekannt", nicht "leer" - ein Server ohne Angabe
             # soll keinen Posten auf 0 druecken. Faellt hier von selbst weg.
@@ -1380,7 +1383,7 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
         # jemand ihn fuer sich wollte, sondern weil das Haus ihn haben wollte.
         if anfrage.hausbestand:
             continue
-        stufe = anfrage.tier.value if anfrage.tier else QualityTier.standard.value
+        stufe = anfrage.tier if anfrage.tier else "standard"
         if anfrage.media_type == MediaType.movie:
             nach_film.setdefault((anfrage.tmdb_id, stufe), anfrage.user_id)
         elif anfrage.episodes:
@@ -1397,7 +1400,7 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
     ergebnis: dict[str, int] = {}
     for wert in werte:
         if wert.media_type == MediaType.movie:
-            besitzer = nach_film.get((wert.tmdb_id, wert.tier.value))
+            besitzer = nach_film.get((wert.tmdb_id, wert.tier))
         elif (paket_nummer := _paket_nummer(wert.key)) is not None:
             besitzer = nach_paket.get(paket_nummer)
         else:
@@ -1422,9 +1425,9 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
             # Staffeln bleiben unueberwacht und laden nie von selbst (bei
             # 11 Staffeln "The X-Files" waren es null).
             besitzer = (
-                nach_serie.get((wert.tvdb_id, wert.tier.value, wert.season))
-                or nach_serie.get((wert.tvdb_id, wert.tier.value, None))
-                or nach_kuenftig.get((wert.tvdb_id, wert.tier.value))
+                nach_serie.get((wert.tvdb_id, wert.tier, wert.season))
+                or nach_serie.get((wert.tvdb_id, wert.tier, None))
+                or nach_kuenftig.get((wert.tvdb_id, wert.tier))
             )
         if besitzer is not None:
             ergebnis[wert.key] = besitzer
@@ -1465,7 +1468,7 @@ def verbuchen(
         return 0
 
     gemessen: dict[str, _Gemessen] = {}
-    stufe = request.tier or QualityTier.standard
+    stufe = request.tier or "standard"
 
     if request.media_type == MediaType.movie:
         _film_aufnehmen(gemessen, stufe, request.tmdb_id, eintrag)  # type: ignore[arg-type]
@@ -1893,16 +1896,16 @@ class Datei:
     size_bytes: int
 
 
-# Welche Stufen geloescht werden duerfen. **Leer heisst: alle.**
+# Welche Fassungen geloescht werden duerfen. **Leer heisst: alle.**
 #
-# Stand hier eine Weile auf ``(QualityTier.uhd,)``, solange nur die
+# Stand hier eine Weile auf ``("radarr-uhd",)``, solange nur die
 # 4K-Testinstanz drankommen sollte. Aufgehoben, nachdem in **allen** drei
 # Instanzen ein Papierkorb eingerichtet war - damit ist eine falsche Loeschung
 # sieben Tage lang umkehrbar, und das Sicherheitsnetz liegt dort, wo es
 # hingehoert: unter der Datei, nicht in einer Konstanten.
 #
 # Wieder einzuschraenken ist eine Zeile, falls es je noetig wird.
-LOESCHBARE_STUFEN: tuple[QualityTier, ...] = ()
+LOESCHBARE_FASSUNGEN: tuple[str, ...] = ()
 
 
 class Loeschfehler(Exception):
@@ -1998,7 +2001,7 @@ async def loeschen(
     if zeile is None:
         raise Loeschfehler("Diesen Posten gibt es nicht.", 404)
 
-    if LOESCHBARE_STUFEN and zeile.tier not in LOESCHBARE_STUFEN:
+    if LOESCHBARE_FASSUNGEN and zeile.fassung_kennung not in LOESCHBARE_FASSUNGEN:
         raise Loeschfehler(
             "Loeschen ist zurzeit nur in der 4K-Instanz freigeschaltet. "
             "Auf der Standard-Instanz wird nichts entfernt.",
@@ -2031,7 +2034,7 @@ async def loeschen(
         posten_id,
         zeile.title,
         zeile.media_type.value,
-        zeile.tier.value,
+        zeile.tier,
         arr_id,
         bytes_,
         len(dateien),

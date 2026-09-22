@@ -16,7 +16,13 @@ from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..models import MediaType
 from ..schemas_calendar import CalendarEntry, CalendarResult
-from ..services import blocklist, mediaserver_library, mediaserver_watched, requests_service, uhd
+from ..services import (
+    blocklist,
+    fassungsachsen,
+    mediaserver_library,
+    mediaserver_watched,
+    requests_service,
+)
 from ..services import calendar as calendar_service
 from ..services.beschaffung import get_beschaffung
 from ..services.settings_service import for_user, load_settings
@@ -126,7 +132,7 @@ async def _zustaende(db, settings, user, eintraege: list[CalendarEntry]) -> None
         # Luecke und keine Entscheidung: Der Kalender zeigte als einzige Liste
         # kein 4K-Abzeichen.
         try:
-            await uhd.anreichern(db, settings, art.value, betroffen, user)
+            await fassungsachsen.anreichern(db, settings, art.value, betroffen, user)
         except Exception:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung
             logger.debug("Calendar: 4K badges could not be filled in", exc_info=True)
 

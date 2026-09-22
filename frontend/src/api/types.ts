@@ -57,6 +57,8 @@ export type User = {
   /** Leere Liste = alle Qualitätsprofile erlaubt. */
   blocked_movie_profiles: number[];
   blocked_series_profiles: number[];
+  /** Rechte je Fassung, die nicht offen für alle ist. */
+  fassung_rechte: FassungRecht[];
   can_request_uhd_movies: boolean;
   can_request_uhd_series: boolean;
   auto_approve_uhd: boolean;
@@ -334,19 +336,23 @@ export type RechteWunsch = {
   role: Role;
   auto_approve_movies: boolean;
   auto_approve_series: boolean;
-  can_request_uhd_movies: boolean;
-  can_request_uhd_series: boolean;
-  auto_approve_uhd: boolean;
+  /** Je Fassung, die nicht offen für alle ist. */
+  fassungen: FassungRecht[];
   hausordnung: boolean;
+};
+
+/** Die beiden Schalter einer Fassung, wie das Haus sie hergibt. */
+export type FassungBewertung = {
+  anfragen: RechteStand;
+  auto: RechteStand;
 };
 
 export type RechteBewertung = {
   kontingent: RechteStand;
   auto_approve_movies: RechteStand;
   auto_approve_series: RechteStand;
-  can_request_uhd_movies: RechteStand;
-  can_request_uhd_series: RechteStand;
-  auto_approve_uhd: RechteStand;
+  /** Je Fassung, die nicht offen für alle ist – Schlüssel ist ihre Kennung. */
+  fassungen: Record<string, FassungBewertung>;
   hausordnung: RechteStand;
   /** Angekreuzt, wirkt aber nicht. */
   entfallen: string[];
@@ -415,8 +421,68 @@ export type OidcPruefErgebnis = {
 
 export type MediaType = "movie" | "tv";
 
-/** Welche der beiden Radarr-/Sonarr-Instanzen gemeint ist. */
-export type QualityTier = "standard" | "uhd";
+/**
+ * Eine Art, in der ein Titel vorliegen kann – je Medienart.
+ *
+ * Im ARR-Betrieb ist das eine Instanz (Radarr, Radarr 4K …), später im
+ * NEX-Betrieb eine Fassung aus nexcrate („Deutsch", „3D" …). Die Liste kommt
+ * vom Server (`AppConfig.fassungen`); die Oberfläche rechnet weder Rechte
+ * noch Namen selbst aus.
+ */
+export type Fassung = {
+  kennung: string;
+  media_type: MediaType;
+  name: string;
+  /** `hd`, `uhd` oder nichts – `uhd` zeigt die Oberfläche als „4K". */
+  klasse: string | null;
+  /** `arr` oder `nex`. */
+  quelle: string;
+  /** Die Hauptachse dieser Medienart – ihr Zustand steht in `status`. */
+  haupt: boolean;
+  /** Ist die Quelle dahinter eingerichtet? Die Hauptfassung steht auch ohne sie da. */
+  bereit: boolean;
+  offen_fuer_alle: boolean;
+  /** Wählt erst der Entscheider Ordner und Profil? */
+  approver_picks_target: boolean;
+  /** Darf **dieses** Konto sie anfragen? Vom Server entschieden. */
+  darf_anfragen: boolean;
+};
+
+/** Wie ein Titel in einer Fassung dasteht – eine Achse je Fassung. */
+export type FassungAchse = {
+  kennung: string;
+  name: string;
+  klasse: string | null;
+  quelle: string;
+  haupt: boolean;
+  status: MediaStatus;
+};
+
+/** Dasselbe für eine Staffel. */
+export type StaffelFassung = {
+  kennung: string;
+  episodes_available: number;
+  requested: boolean;
+  requested_episodes: number[];
+  requested_status: string | null;
+  /** Die Folgenzahl der Beschaffung; `null` heißt „TMDB zählt". */
+  episodes_total: number | null;
+};
+
+/** Und für eine Folge. */
+export type FolgenFassung = {
+  kennung: string;
+  available: boolean;
+  requested: boolean;
+  requested_status: string | null;
+};
+
+/** Ein Recht dieses Kontos an einer Fassung, die nicht offen für alle ist. */
+export type FassungRecht = {
+  kennung: string;
+  anfragen: boolean;
+  auto_freigabe: boolean;
+};
 
 /** Wer wählt den Zielordner – eine Frage je Dienst, drei mögliche Antworten. */
 export type RootFolderMode = "user" | "fixed" | "approver";
@@ -485,6 +551,8 @@ export type CalendarEntry = {
   runtime_minutes: number | null;
   certification: string | null;
   status: MediaStatus;
+  /** Zustand je Fassung – siehe `MediaItem.fassungen`. */
+  fassungen?: FassungAchse[];
   /** Zustand in der 4K-Instanz; `null`/fehlt = keine zweite Instanz. */
   status_uhd?: MediaStatus | null;
   watched: boolean;
@@ -571,6 +639,9 @@ export type SeasonInfo = {
       `null` heißt: Sonarr kennt die Serie nicht – dann gilt TMDB. */
   episodes_total_arr?: number | null;
   episodes_total_arr_uhd?: number | null;
+  /** Dasselbe je Fassung – die Hauptfassung zuerst. Die Felder oben sind
+      daraus abgeleitet. */
+  fassungen?: StaffelFassung[];
 };
 
 export type EpisodeInfo = {
@@ -592,6 +663,8 @@ export type EpisodeInfo = {
   available_uhd?: boolean | null;
   requested_uhd?: boolean | null;
   requested_status_uhd?: string | null;
+  /** Dasselbe je Fassung – wie bei `SeasonInfo`. */
+  fassungen?: FolgenFassung[];
 };
 
 export type SeasonDetail = {
@@ -641,6 +714,8 @@ export type PersonCredit = {
   release_date: string | null;
   vote_average: number;
   status: MediaStatus;
+  /** Zustand je Fassung – siehe `MediaItem.fassungen`. */
+  fassungen?: FassungAchse[];
   /** Wie bei `MediaItem` – der Server reichert die Filmografie mit an. */
   status_uhd?: MediaStatus | null;
   /**
@@ -704,8 +779,17 @@ export type MediaItem = {
   seasons: SeasonInfo[];
   status: MediaStatus;
   /**
+   * Der Zustand je Fassung – die Hauptfassung zuerst, dann jede weitere, die
+   * dieses Konto anfragen darf. Fehlt die Liste, hat niemand sie gesetzt
+   * (Favoriten etwa); dann gilt `status` für die Hauptfassung.
+   */
+  fassungen?: FassungAchse[];
+  /**
    * Derselbe Titel in der 4K-Instanz. `null` heißt „diese Achse gibt es hier
    * nicht" – kein zweites Radarr, oder der Benutzer darf kein 4K. Normalfall.
+   *
+   * ⚠️ Eine Ableitung aus `fassungen` (Klasse `uhd`); die Oberfläche liest
+   * die Liste.
    */
   status_uhd?: MediaStatus | null;
   /**
@@ -960,6 +1044,12 @@ export type AppConfig = {
   approver_picks_target_tv: boolean;
   approver_picks_target_movie_uhd: boolean;
   approver_picks_target_tv_uhd: boolean;
+  /**
+   * Die Fassungen, in denen ein Titel vorliegen kann – je Medienart die
+   * Hauptfassung zuerst. Daraus baut die Oberfläche ihre Auswahl; die vier
+   * Felder darunter sind die alte Form derselben Auskunft.
+   */
+  fassungen: Fassung[];
   /** Gibt es eine zweite Radarr-/Sonarr-Instanz für 4K? */
   radarr_uhd_configured: boolean;
   sonarr_uhd_configured: boolean;
@@ -1354,8 +1444,10 @@ export type DownloadVerlaufZeile = {
 export type MediaRequest = {
   id: number;
   media_type: MediaType;
-  /** Welche Instanz – steht an der Anfrage, nicht an der Einstellung. */
-  tier: QualityTier;
+  /** Welche Fassung – steht an der Anfrage, nicht an der Einstellung. */
+  fassung: string;
+  /** Die Stufe als Ableitung daraus; bleibt für `/api/v1`. */
+  tier: "standard" | "uhd";
   tmdb_id: number;
   title: string;
   poster_path: string | null;
@@ -1429,7 +1521,10 @@ export type QuotaInfo = {
 export type StorageEntry = {
   id: number
   media_type: MediaType
-  tier: QualityTier
+  /** Die Kennung der Fassung – die Oberfläche macht daraus ihren Namen. */
+  fassung: string
+  /** Die Stufe als Ableitung; bleibt für `/api/v1`. */
+  tier: "standard" | "uhd"
   tmdb_id: number | null
   tvdb_id: number | null
   /** null = ein Film. Sonst die Staffel – feiner wird nie gerechnet. */

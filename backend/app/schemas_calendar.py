@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .models import MediaType
+from .schemas_media import FassungAchse
 
 # Woher ein Eintrag stammt - und ob er den Benutzer schon etwas angeht.
 CalendarSource = Literal["meine", "neu"]
@@ -65,6 +66,7 @@ class CalendarEntry(BaseModel):
     # Zustand in der 4K-Instanz. ``None`` heisst "diese Achse gibt es hier
     # nicht" - genau wie bei ``MediaItem``.
     status_uhd: str | None = None
+    fassungen: list[FassungAchse] = Field(default_factory=list)
     watched: bool = False
 
     # --- nur Serien ---

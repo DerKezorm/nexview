@@ -44,7 +44,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import MediaType, QualityTier, Regel, RegelEntscheidung, User
+from ..models import MediaType, Regel, RegelEntscheidung, User
 from . import fassungen as fassungen_dienst
 
 # ---------------------------------------------------------------------------
@@ -347,8 +347,3 @@ def entscheiden(db: Session, user: User, titel: Titel) -> Ergebnis | None:
             trotzdem_fragen=(not frei) and regel.trotzdem_fragen,
         )
     return None
-
-
-def stufe_von(tier: QualityTier) -> str:
-    """Die Qualitaetsstufe so, wie eine Bedingung sie nennt."""
-    return "uhd" if tier == QualityTier.uhd else "hd"

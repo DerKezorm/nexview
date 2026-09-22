@@ -20,7 +20,6 @@ from app.db import SessionLocal
 from app.models import (
     MediaRequest,
     MediaType,
-    QualityTier,
     Regel,
     RegelEntscheidung,
     RequestStatus,
@@ -38,7 +37,7 @@ class _Gemessen:
     def __init__(self) -> None:
         self.key = f"movie:{TMDB}:standard"
         self.media_type = MediaType.movie
-        self.tier = QualityTier.standard
+        self.tier = "standard"
         self.tmdb_id = TMDB
         self.tvdb_id = None
         self.season = None

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { ApiError, api } from '../api/client'
-import type { ArrOptions, MediaType, QualityTier } from '../api/types'
+import type { ArrOptions, MediaType } from '../api/types'
 import { ErrorBanner, Spinner } from './ui'
 
 /** Was der Entscheider bei der Freigabe festlegt. */
@@ -26,19 +26,18 @@ export type Target = {
  */
 export function TargetPicker({
   mediaType,
-  tier = 'standard',
+  fassung,
   label,
   onChange,
 }: {
   mediaType: MediaType
   /**
-   * Welche Instanz? **Zwingend** bei einer 4K-Anfrage: Ordner und Profile der
-   * beiden Instanzen sind vollkommen verschieden. Ohne die Angabe bekam der
-   * Entscheider die Listen des Standard-Radarr zu sehen - und die Freigabe
-   * scheiterte danach an der Pruefung, weil es den gewaehlten Ordner in der
-   * 4K-Instanz gar nicht gibt.
+   * Welche Fassung? **Zwingend**: Ordner und Profile zweier Instanzen sind
+   * vollkommen verschieden. Ohne die Angabe bekam der Entscheider die Listen
+   * des Standard-Radarr zu sehen - und die Freigabe scheiterte danach an der
+   * Pruefung, weil es den gewaehlten Ordner in der 4K-Instanz gar nicht gibt.
    */
-  tier?: QualityTier
+  fassung: string
   /** Überschrift - bei gemischten Stapeln steht hier die Medienart. */
   label?: string
   /** Meldet jede Änderung nach oben; null, solange nichts vollständig ist. */
@@ -49,8 +48,11 @@ export function TargetPicker({
   const [profileId, setProfileId] = useState<number | null>(null)
 
   const optionsQuery = useQuery({
-    queryKey: ['arr-options', mediaType, tier],
-    queryFn: () => api.get<ArrOptions>(`/api/arr/${mediaType}/options?tier=${tier}`),
+    queryKey: ['arr-options', mediaType, fassung],
+    queryFn: () =>
+      api.get<ArrOptions>(
+        `/api/arr/${mediaType}/options?fassung=${encodeURIComponent(fassung)}`,
+      ),
     staleTime: 5 * 60 * 1000,
     retry: false,
   })

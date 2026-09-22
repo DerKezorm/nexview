@@ -74,23 +74,6 @@ class MediaType(str, enum.Enum):
     tv = "tv"
 
 
-class QualityTier(str, enum.Enum):
-    """Welche der beiden Radarr-/Sonarr-Instanzen gemeint ist.
-
-    ⚠️ **Seit dem Fassungsmodell eine Ableitung.** Anfragen, Speicherposten und
-    Rechte tragen die Kennung ihrer Fassung (``services/fassungen``); die
-    Stufe folgt daraus (``uhd`` genau fuer die Klasse ``uhd``) und wird
-    nirgends mehr geschrieben. Sie bleibt, bis Oberflaeche und Dienste
-    Fassungen sprechen (Bauplan NEX-Modus, Scheibe 3).
-
-    ``standard`` ist ueberall der Vorgabewert. Wer keine zweite Instanz
-    eintraegt, bekommt davon nichts zu sehen.
-    """
-
-    standard = "standard"
-    uhd = "uhd"
-
-
 #: Die beiden 4K-Fassungen des ARR-Betriebs. Stehen hier und nicht nur in
 #: ``services/fassungen``, weil die alten 4K-Haken an ``User`` und
 #: ``AuthToken`` sie brauchen und das Modell keinen Dienst importiert.
@@ -713,20 +696,20 @@ class User(Base):
     sessions_valid_from: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    def blocked_profiles(
-        self, media_type: MediaType, tier: QualityTier = QualityTier.standard
-    ) -> list[int]:
+    def blocked_profiles(self, media_type: MediaType, stufe: str = "standard") -> list[int]:
         """Gesperrte Profil-Kennungen; leere Liste = nichts gesperrt.
 
         Bewusst als Sperrliste: so bedeutet jeder Haken genau eine Sperre.
         Als Erlaubnisliste haette der erste Haken alle anderen Profile auf
         einen Schlag verboten - ein ueberraschender Nebeneffekt.
 
-        Je Stufe getrennt, weil die Kennungen der beiden Instanzen kollidieren.
-        Bestandswerte gehoeren zur Standard-Stufe - genau richtig, sie wurden
-        ja fuer die einzige bisher vorhandene Instanz vergeben.
+        Je Instanz getrennt (``stufe`` ist die der ARR-Instanz, ``standard``
+        oder ``uhd``), weil die Kennungen der beiden Instanzen kollidieren.
+        Bestandswerte gehoeren zur Standard-Instanz - genau richtig, sie wurden
+        ja fuer die einzige bisher vorhandene Instanz vergeben. Sperrlisten
+        sind ARR-Sache (Bauplan NEX-Modus, Tabelle 2.2).
         """
-        if tier == QualityTier.uhd:
+        if stufe == "uhd":
             raw = (
                 self.blocked_movie_uhd_profiles
                 if media_type == MediaType.movie
@@ -746,6 +729,20 @@ class User(Base):
             if recht.fassung_kennung == kennung:
                 return recht
         return None
+
+    def fassung_recht_setzen(
+        self, kennung: str, *, anfragen: bool | None = None, auto_freigabe: bool | None = None
+    ) -> None:
+        """Ein Recht an einer Fassung setzen - ``None`` laesst es, wie es ist.
+
+        Der Weg fuer den Kontodialog (``PATCH /api/users/{id}``). Der Schutz
+        des Betreiber-Kontos sitzt dort, nicht hier
+        (``tests/test_betreiber_waechter.py``).
+        """
+        if anfragen is not None:
+            self._recht_setzen(kennung, "anfragen", anfragen)
+        if auto_freigabe is not None:
+            self._recht_setzen(kennung, "auto_freigabe", auto_freigabe)
 
     def _recht_setzen(self, kennung: str, feld: str, wert: bool) -> None:
         recht = self.fassung_recht(kennung)
@@ -801,25 +798,6 @@ class User(Base):
         for kennung in (UHD_FILME, UHD_SERIEN):
             self._recht_setzen(kennung, "auto_freigabe", wert)
 
-    def may_request_uhd(self, media_type: MediaType) -> bool:
-        """Darf dieser Benutzer diese Medienart in 4K anfragen?
-
-        Wer freigeben darf - Administratoren und Entscheider - immer: Sie
-        koennten sich das Haekchen ohnehin selbst setzen bzw. jede Anfrage
-        selbst freigeben. Es erst zu verlangen waere ein Umweg, der nichts
-        schuetzt. Dasselbe Muster wie bei der Auto-Freigabe.
-
-        Die volle Leiter mit "offen fuer alle" steht in
-        ``services/fassungen.darf_anfragen``; hier nur das Konto.
-        """
-        if self.can_approve:
-            return True
-        return (
-            self.can_request_uhd_movies
-            if media_type == MediaType.movie
-            else self.can_request_uhd_series
-        )
-
     def auto_approve_offen(self, media_type: MediaType) -> bool:
         """Die Haken am Konto, die fuer offene Fassungen gelten (bisher: Standard)."""
         eigen = (
@@ -829,25 +807,16 @@ class User(Base):
         )
         return self.auto_approve if eigen is None else eigen
 
-    def auto_approve_for(
-        self, media_type: MediaType, tier: QualityTier = QualityTier.standard
-    ) -> bool:
-        """Gilt eine Anfrage sofort als freigegeben?
+    def auto_approve_for(self, media_type: MediaType) -> bool:
+        """Gilt eine Anfrage auf eine offene Fassung sofort als freigegeben?
 
         Wer selbst freigeben darf, gibt sich nicht erst selbst frei - sonst
-        waere die Trennung eine Zwischenstufe ohne Entscheider.
-
-        Fuer 4K gibt es bewusst **einen** Haken statt zweier: vier Kaestchen
-        (Filme/Serien x Standard/4K) waeren mehr Verwaltung als Nutzen, und 4K
-        ist ohnehin die Ausnahme.
+        waere die Trennung eine Zwischenstufe ohne Entscheider. Fuer Fassungen,
+        die nicht offen sind, gilt das Recht je Fassung
+        (``services/fassungen.auto_freigabe``).
         """
         if self.can_approve:
             return True
-        if tier == QualityTier.uhd:
-            recht = self.fassung_recht(
-                UHD_FILME if media_type == MediaType.movie else UHD_SERIEN
-            )
-            return recht is not None and recht.auto_freigabe
         return self.auto_approve_offen(media_type)
 
     #: Rechte an Fassungen, die nicht offen fuer alle sind.
@@ -926,7 +895,10 @@ class User(Base):
         die Standard-Stufe: es steckt in der Benutzerliste und im Kontingent,
         eine Bedeutungsaenderung dort waere eine stille Verhaltensaenderung.
         """
-        return self.auto_approve_for(MediaType.movie, QualityTier.uhd)
+        if self.can_approve:
+            return True
+        recht = self.fassung_recht(UHD_FILME)
+        return recht is not None and recht.auto_freigabe
 
     @property
     def avatar_url(self) -> str | None:
@@ -1662,12 +1634,16 @@ class StorageEntry(Base):
     )
 
     @property
-    def tier(self) -> QualityTier:
-        """Die Stufe als Ableitung aus der Fassung - geschrieben wird sie nicht."""
+    def tier(self) -> str:
+        """Die Stufe (``standard``/``uhd``) als Ableitung aus der Fassung.
+
+        Nur fuer den ARR-Weg hinter der Grenze, der in Instanzen denkt;
+        geschrieben wird sie nicht.
+        """
         return _stufe_der_fassung(self.fassung_kennung)
 
 
-def _stufe_der_fassung(kennung: str | None) -> QualityTier:
+def _stufe_der_fassung(kennung: str | None) -> str:
     # Spaet importiert: ``services/fassungen`` braucht dieses Modul.
     from .services.fassungen import stufe
 
@@ -2318,11 +2294,21 @@ class MediaRequest(Base):
         return self.arr_id is not None
 
     @property
-    def tier(self) -> QualityTier:
-        """Die Stufe als Ableitung aus der Fassung - geschrieben wird sie nicht.
+    def fassung(self) -> str:
+        """Die Kennung der Fassung unter dem Namen, den die Antwort traegt.
 
-        Bleibt, solange ``/api/v1`` und die Oberflaeche sie lesen
-        (``RequestPublic.tier`` ist zugesagt, Bauplan Abschnitt 12).
+        Gespeichert wird sie als ``fassung_kennung``; ``RequestPublic.fassung``
+        und jede Stelle, die Felder ueber ihren Namen holt, findet sie so.
+        """
+        return self.fassung_kennung
+
+    @property
+    def tier(self) -> str:
+        """Die Stufe (``standard``/``uhd``) als Ableitung aus der Fassung.
+
+        Bleibt fuer ``/api/v1`` (``RequestPublic.tier`` ist zugesagt, Bauplan
+        Abschnitt 12) und den ARR-Weg hinter der Grenze; geschrieben wird sie
+        nicht.
         """
         return _stufe_der_fassung(self.fassung_kennung)
 

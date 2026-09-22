@@ -2145,6 +2145,7 @@
       "rule_forbids_asking": "Diese Regel lässt kein Nachfragen zu.",
       "already_asked_anyway": "Diese Anfrage wurde bereits weitergereicht und danach entschieden.",
       "already_rule_rejected": "„{{title}}“ wurde bereits von einer Regel abgelehnt.",
+      "fassung_unknown": "Diese Fassung gibt es für diese Medienart nicht.",
       "wish_rule_rejected": "Eine Regel des Hauses hat „{{title}}“ abgelehnt.",
       "seerr_account_unknown": "Dieses Konto gibt es in Seerr nicht mehr. Lies die Vorschau neu ein.",
       "seerr_owner_in_list": "Der Besitzer steht auch in der Liste der übrigen Konten.",
@@ -2383,6 +2384,16 @@
     "childUnlock": "Kinderkonten freischalten",
     "childUnlockHint": "Setzt die Freigabe, schreibt eine kurze Antwort und schließt das Ticket."
   },
+    "fassung": {
+      "section": "Fassungen",
+      "darfAnfragen": "Darf {{name}} anfragen",
+      "ohneFreigabe": "{{name}} ohne Freigabe",
+      "inviteAnfragen": "{{name}} anfragen",
+      "inviteAuto": "{{name}} sofort freigeben",
+      "uhdMovies": "4K-Filme",
+      "uhdSeries": "4K-Serien",
+      "mitArt": "{{name}} · {{art}}"
+    },
   "uhd": {
     "open": "noch nicht angefragt",
     "tier": "Qualitätsstufe",

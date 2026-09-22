@@ -81,14 +81,14 @@ async def laufende_aufloesen(
 async def bestellung_zuruecknehmen(settings: AppSettings, anfrage: MediaRequest) -> None:
     """Eine Bestellung ohne Dateien aus der Instanz nehmen. Wirft ``ArrError``."""
     if anfrage.media_type == MediaType.movie:
-        client = library.radarr_client(settings, anfrage.tier.value)
+        client = library.radarr_client(settings, anfrage.tier)
         if client is not None and anfrage.arr_id:
             # ``delete_files=True`` als Schutznetz: Sollte in der
             # letzten Sekunde doch eine Datei angekommen sein, wandert
             # sie in den Papierkorb statt verwaist liegenzubleiben.
             await client.remove(anfrage.arr_id, delete_files=True)
     else:
-        client = library.sonarr_client(settings, anfrage.tier.value)
+        client = library.sonarr_client(settings, anfrage.tier)
         if (
             client is not None
             and anfrage.arr_id

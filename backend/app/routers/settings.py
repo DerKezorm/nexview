@@ -18,7 +18,7 @@ from .. import meldungen
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import Hausordnung, User
 from ..schemas import MIN_PASSWORD_LENGTH
-from ..services import beschaffung, cache, mail, mail_templates
+from ..services import beschaffung, cache, fassungen, mail, mail_templates
 from ..services.mediaserver import (
     PROVIDERS,
     merklisten_anbieter,
@@ -26,6 +26,7 @@ from ..services.mediaserver import (
 )
 from ..services.settings_service import (
     SECRET_KEYS,
+    AppSettings,
     clear_secret,
     load_settings,
     public_settings,
@@ -149,6 +150,30 @@ class TestResult(BaseModel):
     message: str
 
 
+class FassungOeffentlich(BaseModel):
+    """Eine Fassung, so wie die Oberflaeche sie anbietet."""
+
+    kennung: str
+    media_type: str
+    name: str
+    #: ``hd``, ``uhd`` oder keine - die Oberflaeche zeigt ``uhd`` als "4K".
+    klasse: str | None = None
+    #: ``arr`` oder ``nex``.
+    quelle: str
+    #: Die Hauptachse dieser Medienart - ihr Zustand steht in ``status``.
+    haupt: bool = False
+    #: Ist die Quelle dahinter eingerichtet? Die Hauptfassung steht auch ohne
+    #: sie in der Liste.
+    bereit: bool = True
+    #: Darf jeder sie anfragen? Dann gibt es am Konto keinen Haken dafuer.
+    offen_fuer_alle: bool = False
+    #: Waehlt erst der Entscheider Ordner und Profil?
+    approver_picks_target: bool = False
+    #: Darf **dieses** Konto sie anfragen? Die ganze Leiter aus Bauplan 2.3 -
+    #: die Oberflaeche rechnet sie nicht nach.
+    darf_anfragen: bool = False
+
+
 class AppConfig(BaseModel):
     """Was die Oberflaeche ueber die Konfiguration wissen muss."""
 
@@ -173,6 +198,11 @@ class AppConfig(BaseModel):
     approver_picks_target_tv: bool
     approver_picks_target_movie_uhd: bool
     approver_picks_target_tv_uhd: bool
+    #: Die Fassungen, in denen ein Titel vorliegen kann - je Medienart die
+    #: Hauptfassung zuerst, dann jede weitere eingerichtete (Bauplan
+    #: NEX-Modus, Abschnitt 2). Daraus baut die Oberflaeche ihre Auswahl; die
+    #: vier Felder darunter sind die alte Form derselben Auskunft.
+    fassungen: list[FassungOeffentlich]
     # Gibt es eine zweite Instanz fuer 4K? Ohne sie bleibt die ganze Funktion
     # in der Oberflaeche unsichtbar.
     radarr_uhd_configured: bool
@@ -231,6 +261,41 @@ class AppConfig(BaseModel):
     hausordnung_gelesen: int | None = None
 
 
+def _fassungen_oeffentlich(
+    db: DbSession, settings: AppSettings, user: User
+) -> list[FassungOeffentlich]:
+    """Jede Fassung, die die Oberflaeche anbieten kann - je Medienart.
+
+    Die Hauptfassung steht immer dabei, auch ohne eingerichtete Instanz: Sie
+    ist es, die eine Anfrage ohne Angabe bekommt, und das Formular sah auch
+    vor den Fassungen so aus. ``bereit`` sagt, ob ihre Instanz steht.
+    """
+    eintraege: list[FassungOeffentlich] = []
+    for art in ("movie", "tv"):
+        haupt = fassungen.hauptkennung(art)
+        eingerichtet = settings.fassungen_fuer(art)
+        kennungen = [haupt, *(f.kennung for f in eingerichtet if f.kennung != haupt)]
+        for kennung in kennungen:
+            info = fassungen.info(settings, kennung)
+            eintraege.append(
+                FassungOeffentlich(
+                    kennung=kennung,
+                    media_type=art,
+                    name=info.name,
+                    klasse=info.klasse,
+                    quelle=info.quelle,
+                    haupt=kennung == haupt,
+                    bereit=settings.fassung(kennung) is not None,
+                    offen_fuer_alle=fassungen.offen_fuer_alle(db, kennung),
+                    approver_picks_target=settings.approver_picks_target(
+                        art, fassungen.stufe(kennung)
+                    ),
+                    darf_anfragen=fassungen.darf_anfragen(db, user, kennung),
+                )
+            )
+    return eintraege
+
+
 def _hausordnung_stand(db: DbSession, user: User) -> dict:
     """Was die Oberflaeche ueber die Hausordnung wissen muss.
 
@@ -270,6 +335,7 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         min_password_length=MIN_PASSWORD_LENGTH,
         mail_configured=settings.mail_configured,
         public_url_set=bool(settings.public_url),
+        fassungen=_fassungen_oeffentlich(db, settings, user),
         approver_picks_target_movie=settings.approver_picks_target("movie"),
         approver_picks_target_tv=settings.approver_picks_target("tv"),
         approver_picks_target_movie_uhd=settings.approver_picks_target("movie", "uhd"),

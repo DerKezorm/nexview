@@ -7,36 +7,33 @@
  * Dateien tauscht Vite im Entwicklungsbetrieb im laufenden Bild aus.
  */
 
-import type { QualityTier, SeasonInfo } from '../../api/types'
+import type { Fassung, SeasonInfo } from '../../api/types'
+import { staffelFassung } from '../../lib/fassungen'
 
 /**
  * Ist diese Staffel schon **ganz** vergeben, vorhanden oder komplett
  * angefragt?
  *
- * Je Stufe eine eigene Antwort: Staffel 3 in 1080p anzufragen ist etwas
- * anderes als Staffel 3 in 4K, zwei Instanzen, zwei Dateien. Fehlende
- * 4K-Felder heißen „unbekannt“, nicht „belegt“, wie bei `status_uhd`.
+ * Je Fassung eine eigene Antwort: Staffel 3 in 1080p anzufragen ist etwas
+ * anderes als Staffel 3 in 4K, zwei Instanzen, zwei Dateien. Eine fehlende
+ * Fassung heißt „unbekannt“, nicht „belegt“, wie bei den Zuständen der
+ * Karten.
  *
  * Laufende Folgen-Pakete zählen hier **nicht**: Eine Staffel mit zwei
  * vergebenen Folgen bleibt wählbar, der Rest gehört noch niemandem. Was
  * ein Paket belegt, steht in `requested_episodes`.
  */
-export function staffelBelegt(staffel: SeasonInfo, tier: QualityTier): boolean {
-  if (tier === 'uhd') {
-    const gesamt = staffel.episodes_total_arr_uhd ?? staffel.episode_count
-    return (
-      Boolean(staffel.requested_uhd) ||
-      (gesamt > 0 && (staffel.episodes_available_uhd ?? 0) >= gesamt)
-    )
-  }
+export function staffelBelegt(
+  staffel: SeasonInfo,
+  fassung: Pick<Fassung, 'kennung' | 'haupt'>,
+): boolean {
+  const stand = staffelFassung(staffel, fassung)
+  if (!stand) return false
   // ⚠️ Der Nenner kommt von **Sonarr**, nicht von TMDB - die beiden zaehlen
   // Folgen gern verschieden (Baywatch S1: 22 gegen 21), und mit der
   // TMDB-Zahl galt eine komplette Staffel ewig als unvollstaendig.
-  const gesamt = staffel.episodes_total_arr ?? staffel.episode_count
-  return (
-    Boolean(staffel.requested) ||
-    (gesamt > 0 && staffel.episodes_available >= gesamt)
-  )
+  const gesamt = stand.episodes_total ?? staffel.episode_count
+  return stand.requested || (gesamt > 0 && stand.episodes_available >= gesamt)
 }
 
 /**

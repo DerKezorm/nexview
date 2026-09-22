@@ -57,7 +57,13 @@ ADMIN_NICHT_GEFRAGT = "admin_not_asked"
 # Zugang zu einem Medienserver vergibt eine Einladung nur, wenn er verbunden ist.
 SERVER_NICHT_VERBUNDEN = "server_not_connected"
 
-#: Die Schalter, die am Konto landen - in der Reihenfolge der Oberflaeche.
+#: Die Schalter, die als Wahrheitswert am Konto landen. Die Rechte je Fassung
+#: kommen daneben als ``fassung_rechte`` (siehe ``werte_fuers_konto``).
+KONTO_SCHALTER = ("auto_approve_movies", "auto_approve_series")
+
+#: Die Schalter der alten Oberflaeche - in ihrer Reihenfolge. Sie bleiben die
+#: Namen der Bewertung nach aussen; die beiden 4K-Anfrage-Haken und die
+#: 4K-Sofortfreigabe sind Sichten auf die Rechte je Fassung.
 SCHALTER = (
     "auto_approve_movies",
     "auto_approve_series",
@@ -138,24 +144,51 @@ class Bewertung:
         """Gewuenschte Schalter, die nicht wirken - fuer die Meldung an den Admin.
 
         Was aus der Rolle folgt, entfaellt nicht: Es wirkt ja, nur ohne Haken.
+
+        Wuensche je Fassung stehen unter ihrem eigenen Namen
+        (``fassung:<kennung>:anfragen``); die alten 4K-Namen nur, wenn der
+        Wunsch sie selbst nennt.
         """
-        return [
+        offen = [
             name
             for name in (*SCHALTER, "hausordnung")
             if getattr(wunsch, name) and not getattr(self, name).wirkt
         ]
+        for kennung, anfragen, auto in wunsch.fassungen:
+            stand = self.fassungen.get(kennung)
+            if anfragen and not (stand is not None and stand.anfragen.wirkt):
+                offen.append(schalter_name(kennung, "anfragen"))
+            if auto and not (stand is not None and stand.auto.wirkt):
+                offen.append(schalter_name(kennung, "auto"))
+        return offen
 
-    def werte_fuers_konto(self, wunsch: Wunsch) -> dict[str, bool]:
+    def werte_fuers_konto(self, wunsch: Wunsch) -> dict[str, object]:
         """Was am neuen Konto gespeichert wird.
 
         Nur, was frei ist **und** gewuenscht wurde. Was aus der Rolle folgt,
         bleibt ``False``: Die Rolle gibt es ohnehin, und ein gespeicherter Haken
         kaeme nach einem spaeteren Herabstufen als Ueberraschung zum Vorschein.
+
+        Die Rechte an Fassungen stehen unter ``fassung_rechte`` als Liste von
+        ``{kennung, anfragen, auto_freigabe}`` - eine Zeile je Fassung, an der
+        etwas haengt. Nennt der Wunsch nur die alten 4K-Haken, kommt dasselbe
+        heraus (``Wunsch.fassung_wunsch``).
         """
-        return {
+        werte: dict[str, object] = {
             name: bool(getattr(wunsch, name)) and getattr(self, name).frei
-            for name in SCHALTER
+            for name in KONTO_SCHALTER
         }
+        rechte = []
+        for kennung, stand in self.fassungen.items():
+            gew_anfragen, gew_auto = wunsch.fassung_wunsch(kennung)
+            anfragen = bool(gew_anfragen) and stand.anfragen.frei
+            auto = bool(gew_auto) and stand.auto.frei
+            if anfragen or auto:
+                rechte.append(
+                    {"kennung": kennung, "anfragen": anfragen, "auto_freigabe": auto}
+                )
+        werte["fassung_rechte"] = rechte
+        return werte
 
 
 def _fassung_bewerten(
@@ -172,7 +205,7 @@ def _fassung_bewerten(
     if aus_rolle is not None:
         return FassungStand(anfragen=aus_rolle, auto=aus_rolle)
     anfragen = Stand(frei=True, wirkt=gew_anfragen)
-    stufe = fassungen.stufe(fassung.kennung).value
+    stufe = fassungen.stufe(fassung.kennung)
     if settings.approver_picks_target(fassung.media_type, stufe):
         auto = Stand(frei=False, wirkt=False, grund=ENTSCHEIDER_WAEHLT)
     elif anfragen.wirkt:

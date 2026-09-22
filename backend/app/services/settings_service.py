@@ -515,7 +515,7 @@ class AppSettings:
             (
                 f.kennung,
                 f.media_type,
-                f.stufe.value,
+                f.stufe,
                 getattr(self, f.name_schluessel) or f.name_vorgabe,
             )
             for f in ARR_FASSUNGEN

@@ -10,8 +10,10 @@ an der Kennung vorbei. Zur Laufzeit scheitert das ohnehin (die Eigenschaft hat
 keinen Setter) - aber nur auf dem Weg, der gerade laeuft. Der Scan findet auch
 den, den kein Test betritt.
 
-Leser von ``QualityTier`` gibt es noch; die gehen mit der Oberflaeche
-(Scheibe 3). Dann kommt hier die dritte Regel dazu.
+Und die dritte Haelfte, seit Scheibe 3: **Das Aufzaehlungsfeld ``QualityTier``
+ist weg.** Die Stufe ist ein Wort (``standard``/``uhd``), abgeleitet aus der
+Fassung, und nur noch hinter der Grenze und in ``/api/v1`` zu lesen. Wer es
+wieder einfuehrt - im Backend oder in der Oberflaeche -, faellt hier auf.
 """
 
 from __future__ import annotations
@@ -83,6 +85,47 @@ def test_die_wanderung_entfernt_genau_die_umgezogenen_felder() -> None:
     assert entfernt == umgezogen
 
 
+#: Der Ordner der Oberflaeche - auch dort darf die Stufe kein Typ mehr sein.
+FRONTEND = APP.parent.parent / "frontend" / "src"
+
+
+def test_die_stufe_ist_kein_aufzaehlungsfeld_mehr() -> None:
+    assert not hasattr(models, "QualityTier")
+
+
+def test_kein_leser_von_quality_tier_im_backend() -> None:
+    """Der Scan liest den ganzen Quelltext, nicht nur die Wege eines Tests."""
+    dateien = [p for p in APP.rglob("*.py") if "__pycache__" not in p.parts]
+    assert len(dateien) >= 150, "der Scan liest nicht, was er soll"
+    funde = {
+        p.relative_to(APP).as_posix(): [
+            knoten.lineno
+            for knoten in ast.walk(ast.parse(p.read_text(encoding="utf-8")))
+            if (isinstance(knoten, ast.Name) and knoten.id == "QualityTier")
+            or (isinstance(knoten, ast.Attribute) and knoten.attr == "QualityTier")
+            or (isinstance(knoten, ast.alias) and knoten.name == "QualityTier")
+        ]
+        for p in dateien
+    }
+    assert not {k: v for k, v in funde.items() if v}, "QualityTier hat wieder Leser"
+
+
+def test_kein_leser_von_quality_tier_in_der_oberflaeche() -> None:
+    """Die Oberflaeche spricht Fassungen - ``QualityTier`` gibt es dort nicht mehr."""
+    dateien = [
+        p
+        for p in FRONTEND.rglob("*.ts*")
+        if "node_modules" not in p.parts
+    ]
+    assert len(dateien) >= 50, "der Scan liest nicht, was er soll"
+    funde = [
+        p.relative_to(FRONTEND).as_posix()
+        for p in dateien
+        if "QualityTier" in p.read_text(encoding="utf-8")
+    ]
+    assert not funde, f"QualityTier steht noch in der Oberflaeche: {funde}"
+
+
 def test_die_alten_namen_leben_als_sicht_weiter() -> None:
     """Oberflaeche und Kontodialog sprechen sie bis Scheibe 3 - als Eigenschaft, nicht Spalte."""
     for name in ("can_request_uhd_movies", "can_request_uhd_series", "auto_approve_uhd"):
@@ -95,6 +138,8 @@ def test_die_alten_namen_leben_als_sicht_weiter() -> None:
         assert isinstance(getattr(models.AuthToken, name), property), name
     for modell in (models.MediaRequest, models.StorageEntry):
         assert isinstance(modell.__dict__["tier"], property)
+    # Und die Kennung unter dem Namen, den die Antwort traegt.
+    assert isinstance(models.MediaRequest.__dict__["fassung"], property)
 
 
 def schreibt_die_stufe(quelle: str) -> list[int]:
@@ -130,9 +175,9 @@ def test_kein_schreibweg_setzt_die_stufe() -> None:
 
 def test_der_scan_sieht_beide_schreibweisen() -> None:
     quelle = (
-        "a = MediaRequest(user_id=1, tier=QualityTier.uhd)\n"
+        "a = MediaRequest(user_id=1, tier='uhd')\n"
         "b = models.StorageEntry(tier=x)\n"
-        "anfrage.tier = QualityTier.standard\n"
+        "anfrage.tier = 'standard'\n"
         "c = MediaRequest(fassung_kennung='radarr-uhd')\n"
         "d = Titel(tier=1)\n"
     )

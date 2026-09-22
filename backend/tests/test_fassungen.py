@@ -20,7 +20,6 @@ from app.models import (
     FassungRecht,
     MediaRequest,
     MediaType,
-    QualityTier,
     Role,
     StorageEntry,
     TokenPurpose,
@@ -69,7 +68,7 @@ def test_kennung_und_stufe_gehen_ineinander_auf() -> None:
     """Jede Art und Stufe hat genau eine Kennung, und die Stufe folgt aus ihr."""
     gesehen = set()
     for art in ("movie", "tv"):
-        for stufe in QualityTier:
+        for stufe in ("standard", "uhd"):
             kennung = fassungen.arr_kennung(art, stufe)
             assert fassungen.stufe(kennung) == stufe
             assert fassungen.arr_fassung(kennung).media_type == art
@@ -86,7 +85,7 @@ def test_die_kennungen_im_modell_sind_die_der_fassungen() -> None:
 
 def test_eine_unbekannte_kennung_ist_standard_ohne_klasse() -> None:
     assert fassungen.klasse("v_7c1e90ab") is None
-    assert fassungen.stufe(None) == QualityTier.standard
+    assert fassungen.stufe(None) == "standard"
 
 
 def test_die_instanzen_tragen_die_kennungen_der_fassungen(db: Session) -> None:
@@ -260,8 +259,8 @@ def test_ohne_fassung_wird_nichts_geschrieben(db: Session, modell) -> None:
 
 
 def test_die_stufe_folgt_der_fassung() -> None:
-    assert MediaRequest(fassung_kennung="sonarr-uhd").tier == QualityTier.uhd
-    assert StorageEntry(fassung_kennung="radarr-standard").tier == QualityTier.standard
+    assert MediaRequest(fassung_kennung="sonarr-uhd").tier == "uhd"
+    assert StorageEntry(fassung_kennung="radarr-standard").tier == "standard"
 
 
 # -------------------------------------------------------------------- Regeln

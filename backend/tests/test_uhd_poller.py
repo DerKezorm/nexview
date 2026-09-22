@@ -17,7 +17,6 @@ from app.models import (
     MediaRequest,
     Notification,
     NotificationType,
-    QualityTier,
     RequestStatus,
 )
 from app.services import status_poller
@@ -178,5 +177,5 @@ def test_beide_stufen_nebeneinander(mit_uhd: TestClient) -> None:
     uhd = _anfrage(mit_uhd, "uhd")
 
     with SessionLocal() as session:
-        assert session.get(MediaRequest, standard).tier == QualityTier.standard
-        assert session.get(MediaRequest, uhd).tier == QualityTier.uhd
+        assert session.get(MediaRequest, standard).tier == "standard"
+        assert session.get(MediaRequest, uhd).tier == "uhd"

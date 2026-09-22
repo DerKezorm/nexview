@@ -73,7 +73,10 @@ class LaufendeStaffel:
 
     request_id: int
     title: str
+    #: Die Instanz fuer den ARR-Weg (``standard``/``uhd``) ...
     tier: str
+    #: ... und die Kennung der Fassung, die die Oberflaeche zeigt.
+    fassung: str
     season: int | None
     arr_id: int | None
     # Wie weit sie ist - fuer die Anzeige, nicht fuer die Entscheidung.
@@ -97,6 +100,7 @@ class OffeneBestellung:
     request_id: int
     title: str
     tier: str
+    fassung: str
     season: int | None
     arr_id: int | None
 
@@ -153,6 +157,7 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
             request_id=anfrage.id,
             title=anfrage.title,
             tier=stufe,
+            fassung=anfrage.fassung_kennung,
             season=anfrage.season,
             arr_id=arr_id,
         )
@@ -164,9 +169,9 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
         if anfrage.media_type == MediaType.movie:
             # Ein Film mit Datei waere laengst als Posten gebucht - was hier
             # steht, ist eine Bestellung ohne Ergebnis.
-            offen.append(als_offen(anfrage, anfrage.tier.value, anfrage.arr_id))
+            offen.append(als_offen(anfrage, anfrage.tier, anfrage.arr_id))
             continue
-        stufe = anfrage.tier.value
+        stufe = anfrage.tier
         if not settings.arr_configured("tv", stufe):
             # Ohne erreichbare Instanz gibt es nichts zu behalten und nichts
             # stillzulegen - die Bestellung steht nur noch in der Buchhaltung.
@@ -204,6 +209,7 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
                     request_id=anfrage.id,
                     title=anfrage.title,
                     tier=stufe,
+                    fassung=anfrage.fassung_kennung,
                     season=anfrage.season,
                     arr_id=eintrag.arr_id,
                     dateien=dateien,
@@ -216,6 +222,7 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
                     request_id=anfrage.id,
                     title=anfrage.title,
                     tier=stufe,
+                    fassung=anfrage.fassung_kennung,
                     season=anfrage.season,
                     arr_id=eintrag.arr_id,
                 )

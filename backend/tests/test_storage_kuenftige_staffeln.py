@@ -21,7 +21,6 @@ from app.db import SessionLocal
 from app.models import (
     MediaRequest,
     MediaType,
-    QualityTier,
     RequestStatus,
     Role,
     User,
@@ -70,7 +69,7 @@ def _staffel(nummer: int) -> _Gemessen:
     return _Gemessen(
         key=f"tv:{TVDB}:standard:s{nummer}",
         media_type=MediaType.tv,
-        tier=QualityTier.standard,
+        tier="standard",
         tmdb_id=331370,
         tvdb_id=TVDB,
         season=nummer,

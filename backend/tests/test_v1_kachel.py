@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaType, QualityTier, Role, StorageEntry, StorageState
+from app.models import MediaType, Role, StorageEntry, StorageState
 from app.services.fassungen import arr_kennung
 
 from .conftest import auth_headers, create_user
@@ -135,7 +135,7 @@ def _posten(
     tmdb: int | None = None,
     tvdb: int | None = None,
     season: int | None = None,
-    stufe: QualityTier = QualityTier.standard,
+    stufe: str = "standard",
 ) -> None:
     db.add(
         StorageEntry(
@@ -168,7 +168,7 @@ def test_die_kachel_zaehlt_werke_und_nicht_posten(admin_client: TestClient) -> N
             art=MediaType.movie,
             schluessel="movie:radarr-uhd:tmdb:603",
             tmdb=603,
-            stufe=QualityTier.uhd,
+            stufe="uhd",
         )
         # Ein zweiter Film, nur einmal.
         _posten(db, art=MediaType.movie, schluessel="movie:radarr-standard:tmdb:604", tmdb=604)

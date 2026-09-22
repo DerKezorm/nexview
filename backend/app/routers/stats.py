@@ -136,7 +136,7 @@ class AufraeumPosten(BaseModel):
     tmdb_id: int | None
     tvdb_id: int | None
     season: int | None
-    tier: str
+    fassung: str
     title: str
     size_bytes: int
     state: str
@@ -198,7 +198,7 @@ def als_liste(ergebnis: aufraeumen.Liste) -> AufraeumListe:
                 tmdb_id=k.tmdb_id,
                 tvdb_id=k.tvdb_id,
                 season=k.season,
-                tier=k.tier,
+                fassung=k.fassung,
                 title=k.title,
                 size_bytes=k.size_bytes,
                 state=k.state.value,

@@ -18,6 +18,7 @@ import { Anfragebalken, Anfrageverlauf } from '../components/media/Anfrageverlau
 import { Rueckmeldung } from '../components/media/Rueckmeldung'
 import { folgenKompakt, formatDate, formatSize } from '../lib/format'
 import { anfragenStandNeuLaden } from '../lib/refresh'
+import { FassungKuerzel } from '../components/media/FassungBadge'
 
 /**
  * Belegter Platz - noch ohne Grenze.
@@ -448,11 +449,10 @@ export function MyRequestsPage() {
                   {/* Haengt an der Anfrage selbst, nicht an der Einstellung:
                       Nimmt der Admin die 4K-Instanz heraus, waere eine laufende
                       4K-Anfrage sonst nicht mehr als solche zu erkennen. */}
-                  {request.tier === 'uhd' && (
-                    <span className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400">
-                      4K
-                    </span>
-                  )}
+                  <FassungKuerzel
+                    kennung={request.fassung}
+                    className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400"
+                  />
                   {/* Von der Merkliste statt von einem Klick. Fuer den
                       Entscheider ist das der Unterschied zwischen "jemand
                       wollte genau das" und "es stand auf einer Liste". */}

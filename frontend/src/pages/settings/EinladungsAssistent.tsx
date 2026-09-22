@@ -14,7 +14,7 @@
  * (`art`) und nicht in einer Liste von Anbietern hier.
  */
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api, uebersetzeFehler } from '../../api/client'
 import type {
   AppSettings,
+  FassungRecht,
   InvitationCreated,
   Kontingentwert,
   RechteBewertung,
@@ -29,6 +30,8 @@ import type {
   Role,
   ServerAuswahl,
 } from '../../api/types'
+import { useConfig } from '../../hooks/useConfig'
+import { fassungMitArt, fassungVon } from '../../lib/fassungen'
 import { Fenster } from '../../components/Fenster'
 import { MediaServerLogo } from '../../components/MediaServerLogo'
 import { RechteHaken } from '../../components/RechteHaken'
@@ -58,9 +61,7 @@ const LEER: Entwurf = {
   role: 'user',
   auto_approve_movies: false,
   auto_approve_series: false,
-  can_request_uhd_movies: false,
-  can_request_uhd_series: false,
-  auto_approve_uhd: false,
+  fassungen: [],
   // Vorbelegt: Gibt es eine veröffentlichte Hausordnung, soll man sie sehen.
   // Gibt es keine, sperrt der Server den Haken samt Grund.
   hausordnung: true,
@@ -288,6 +289,7 @@ export function EinladungsAssistent({
   onSchliessen: () => void
 }) {
   const { t, i18n } = useTranslation()
+  const { data: config } = useConfig()
   const queryClient = useQueryClient()
   const [schritt, setSchritt] = useState<Schritt | 'gesendet'>('person')
   const [e, setE] = useState<Entwurf>(LEER)
@@ -299,10 +301,26 @@ export function EinladungsAssistent({
     role: e.role,
     auto_approve_movies: e.auto_approve_movies,
     auto_approve_series: e.auto_approve_series,
-    can_request_uhd_movies: e.can_request_uhd_movies,
-    can_request_uhd_series: e.can_request_uhd_series,
-    auto_approve_uhd: e.auto_approve_uhd,
+    fassungen: e.fassungen,
     hausordnung: e.hausordnung,
+  }
+
+  /** Der Wunsch zu einer Fassung – nichts angekreuzt heißt: kein Recht. */
+  const fassungWunsch = (kennung: string): FassungRecht =>
+    e.fassungen.find((f) => f.kennung === kennung) ?? {
+      kennung,
+      anfragen: false,
+      auto_freigabe: false,
+    }
+
+  function setzeFassung(kennung: string, teil: Partial<FassungRecht>) {
+    const vorher = fassungWunsch(kennung)
+    setze({
+      fassungen: [
+        ...e.fassungen.filter((f) => f.kennung !== kennung),
+        { ...vorher, ...teil },
+      ],
+    })
   }
 
   // Liest nur - ein POST, weil der Wunsch im Körper steht und nicht in die
@@ -387,7 +405,10 @@ export function EinladungsAssistent({
       : schritt === 'zugang'
         ? !e.mitServern || (gewaehlteServer.length > 0 && ohneBibliothek.length === 0)
         : b !== undefined
-  const uhdDa = b !== undefined && b.auto_approve_uhd.grund !== 'no_uhd_instance'
+  // Welche Fassungen braucht überhaupt einen Haken? Das entscheidet der
+  // Server: Was jeder anfragen darf, steht hier nicht, und was es nicht gibt,
+  // auch nicht. Im ARR-Betrieb ohne 4K bleibt der Abschnitt wie früher weg.
+  const fassungen = b ? Object.keys(b.fassungen) : []
   const schritteBeimEinloesen = [
     t('inviteWizard.stepWelcome'),
     ...gewaehlteServer
@@ -614,28 +635,31 @@ export function EinladungsAssistent({
                 onChange={(v) => setze({ auto_approve_series: v })}
               />
             </Abschnitt>
-            {/* Ohne jede 4K-Instanz bleibt der Abschnitt weg - wie im Kontodialog.
-                Drei gesperrte Haken mit demselben Grund wären nur Rauschen. */}
-            {uhdDa && (
-              <Abschnitt titel={t('inviteWizard.uhd')}>
-                <RechteHaken
-                  label={t('inviteWizard.uhdMovies')}
-                  stand={b.can_request_uhd_movies}
-                  wert={e.can_request_uhd_movies}
-                  onChange={(v) => setze({ can_request_uhd_movies: v })}
-                />
-                <RechteHaken
-                  label={t('inviteWizard.uhdSeries')}
-                  stand={b.can_request_uhd_series}
-                  wert={e.can_request_uhd_series}
-                  onChange={(v) => setze({ can_request_uhd_series: v })}
-                />
-                <RechteHaken
-                  label={t('inviteWizard.uhdAuto')}
-                  stand={b.auto_approve_uhd}
-                  wert={e.auto_approve_uhd}
-                  onChange={(v) => setze({ auto_approve_uhd: v })}
-                />
+            {/* Gibt es keine Fassung, die erst erlaubt werden muss, bleibt der
+                Abschnitt weg - wie im Kontodialog. Gesperrte Haken mit
+                demselben Grund wären nur Rauschen. */}
+            {fassungen.length > 0 && (
+              <Abschnitt titel={t('fassung.section')}>
+                {fassungen.map((kennung) => {
+                  const fassung = fassungVon(config, kennung)
+                  const name = fassung ? fassungMitArt(t, fassung) : kennung
+                  return (
+                    <Fragment key={kennung}>
+                      <RechteHaken
+                        label={t('fassung.inviteAnfragen', { name })}
+                        stand={b.fassungen[kennung].anfragen}
+                        wert={fassungWunsch(kennung).anfragen}
+                        onChange={(v) => setzeFassung(kennung, { anfragen: v })}
+                      />
+                      <RechteHaken
+                        label={t('fassung.inviteAuto', { name })}
+                        stand={b.fassungen[kennung].auto}
+                        wert={fassungWunsch(kennung).auto_freigabe}
+                        onChange={(v) => setzeFassung(kennung, { auto_freigabe: v })}
+                      />
+                    </Fragment>
+                  )
+                })}
               </Abschnitt>
             )}
             <Erklaerung>{t('inviteWizard.oneRule')}</Erklaerung>
@@ -692,22 +716,22 @@ export function EinladungsAssistent({
                       .filter(Boolean)
                       .join(', ') || t('inviteWizard.sumWaits')}
               </dd>
-              {uhdDa && (
+              {fassungen.length > 0 && (
                 <>
-                  <dt className="text-mist-500">{t('inviteWizard.sumUhd')}</dt>
+                  <dt className="text-mist-500">{t('fassung.section')}</dt>
                   <dd className="text-mist-100">
-                    {b.can_request_uhd_movies.wirkt || b.can_request_uhd_series.wirkt
-                      ? `${[
-                          b.can_request_uhd_movies.wirkt ? t('inviteWizard.sumUhdMovies') : null,
-                          b.can_request_uhd_series.wirkt ? t('inviteWizard.sumUhdSeries') : null,
-                        ]
-                          .filter(Boolean)
-                          .join(', ')}, ${
-                          b.auto_approve_uhd.wirkt
+                    {fassungen
+                      .filter((kennung) => b.fassungen[kennung].anfragen.wirkt)
+                      .map((kennung) => {
+                        const fassung = fassungVon(config, kennung)
+                        const name = fassung ? fassungMitArt(t, fassung) : kennung
+                        return `${name} (${
+                          b.fassungen[kennung].auto.wirkt
                             ? t('inviteWizard.sumUhdAuto')
                             : t('inviteWizard.sumUhdManual')
-                        }`
-                      : t('inviteWizard.sumNo')}
+                        })`
+                      })
+                      .join(', ') || t('inviteWizard.sumNo')}
                   </dd>
                 </>
               )}

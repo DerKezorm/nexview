@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.models import MediaServerLibraryItem, MediaType
 from app.services import mediaserver_library
+from app.services.fassungen import arr_kennung
 from app.services.mediaserver.plex import _als_werk
 
 
@@ -215,7 +216,7 @@ def _film_kachel(tmdb_id: int, titel: str, jahr: int):
     )
 
 
-async def _anfrage_stellen(db, settings, tmdb_id: int, titel: str, jahr: int, tier):
+async def _anfrage_stellen(db, settings, tmdb_id: int, titel: str, jahr: int, stufe: str):
     """Als Benutzer **ohne** Auto-Freigabe anfragen.
 
     Absichtlich kein Administrator: Dessen Anfrage ginge sofort an ein
@@ -243,7 +244,7 @@ async def _anfrage_stellen(db, settings, tmdb_id: int, titel: str, jahr: int, ti
         user,
         _film_kachel(tmdb_id, titel, jahr),
         quality_profile_id=1,
-        tier=tier,
+        fassung=arr_kennung(MediaType.movie, stufe),
     )
 
 
@@ -254,7 +255,6 @@ def test_nur_in_plex_vorhandener_film_ist_gesperrt(arr_client) -> None:
     import pytest as _pytest
 
     from app.db import SessionLocal
-    from app.models import QualityTier
     from app.services import requests_service
     from app.services.settings_service import load_settings
 
@@ -263,7 +263,7 @@ def test_nur_in_plex_vorhandener_film_ist_gesperrt(arr_client) -> None:
         settings = load_settings(db)
         with _pytest.raises(requests_service.RequestError) as fehler:
             asyncio.run(
-                _anfrage_stellen(db, settings, 603, "The Matrix", 1999, QualityTier.standard)
+                _anfrage_stellen(db, settings, 603, "The Matrix", 1999, "standard")
             )
         assert fehler.value.status_code == 409
         assert "Media-Server" in fehler.value.message
@@ -281,7 +281,6 @@ def test_reine_4k_kopie_sperrt_die_standard_anfrage_nicht(arr_client) -> None:
     import pytest as _pytest
 
     from app.db import SessionLocal
-    from app.models import QualityTier
     from app.services import requests_service, settings_service
     from app.services.settings_service import load_settings
 
@@ -296,14 +295,14 @@ def test_reine_4k_kopie_sperrt_die_standard_anfrage_nicht(arr_client) -> None:
         # Standard geht durch (bleibt mangels Auto-Freigabe-Ziel egal - hier
         # zaehlt nur, dass die Sperre NICHT greift).
         anfrage = asyncio.run(
-            _anfrage_stellen(db, settings, 604, "Reloaded", 2003, QualityTier.standard)
+            _anfrage_stellen(db, settings, 604, "Reloaded", 2003, "standard")
         )
         assert anfrage.id is not None
 
         # 4K dagegen ist gesperrt: Genau diese Kopie liegt ja schon da.
         with _pytest.raises(requests_service.RequestError) as fehler:
             asyncio.run(
-                _anfrage_stellen(db, settings, 604, "Reloaded", 2003, QualityTier.uhd)
+                _anfrage_stellen(db, settings, 604, "Reloaded", 2003, "uhd")
             )
         assert fehler.value.status_code == 409
         assert "Media-Server" in fehler.value.message
@@ -316,7 +315,6 @@ def test_ohne_zweite_instanz_zaehlt_jede_kopie(arr_client) -> None:
     import pytest as _pytest
 
     from app.db import SessionLocal
-    from app.models import QualityTier
     from app.services import requests_service
     from app.services.settings_service import load_settings
 
@@ -325,7 +323,7 @@ def test_ohne_zweite_instanz_zaehlt_jede_kopie(arr_client) -> None:
         settings = load_settings(db)
         with _pytest.raises(requests_service.RequestError) as fehler:
             asyncio.run(
-                _anfrage_stellen(db, settings, 606, "John Wick", 2014, QualityTier.standard)
+                _anfrage_stellen(db, settings, 606, "John Wick", 2014, "standard")
             )
         assert fehler.value.status_code == 409
 

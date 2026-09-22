@@ -85,12 +85,11 @@ async def _klaeren(item=None, wahl=None, nutzer=None, auswahl=True):
     ``auswahl=False`` steht für jeden anderen Weg, etwa das Freigeben eines
     Kinderwunsches: dieselbe Prüfung, aber niemand, der antworten könnte.
     """
-    from app.models import QualityTier
 
     with SessionLocal() as db:
         return await _tvdb_klaeren(
             db, _Einstellungen(), nutzer or _Nutzer(), item or _titel(),
-            QualityTier.standard, wahl, None, auswahl_moeglich=auswahl,
+            "standard", wahl, None, auswahl_moeglich=auswahl,
         )
 
 
@@ -203,11 +202,9 @@ async def test_altersgrenze_bekommt_kein_fenster(sonarr) -> None:
     class Beschraenkt(_Einstellungen):
         age_limit = 12
 
-    from app.models import QualityTier
-
     with SessionLocal() as db, pytest.raises(RequestError) as fall:
         await _tvdb_klaeren(
-            db, Beschraenkt(), _Nutzer(), _titel(), QualityTier.standard, None, None,
+            db, Beschraenkt(), _Nutzer(), _titel(), "standard", None, None,
             auswahl_moeglich=True,
         )
 
@@ -653,7 +650,7 @@ async def test_wer_die_vorgabe_nimmt_bekommt_die_auskunft(
     from sqlalchemy import select
 
     from app.db import SessionLocal
-    from app.models import QualityTier, User
+    from app.models import User
     from app.services.settings_service import for_user, load_settings
 
     monkeypatch.setattr(
@@ -681,7 +678,7 @@ async def test_wer_die_vorgabe_nimmt_bekommt_die_auskunft(
                 ),
                 1,
                 "/data/TV-Shows",
-                tier=QualityTier.standard,
+                fassung="sonarr-standard",
             )
 
     assert fall.value.code == "tvdb_id_missing_new"

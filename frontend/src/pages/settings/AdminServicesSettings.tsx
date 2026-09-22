@@ -184,8 +184,8 @@ function InstanzBlock({
  * Eine Instanz als Kachel – dieselbe Optik wie die Benachrichtigungs-Ziele.
  *
  * ⚠️ Nur die Optik ist neu: Dahinter stehen weiterhin genau zwei feste
- * Plätze je Dienst (Standard + 4K, siehe QualityTier) und ein gemeinsamer
- * Speichern-Fluss. Die Kachelreihe ist zugleich die Vorbereitung auf
+ * Plätze je Dienst (Standard und 4K – im Fassungsmodell zwei Fassungen
+ * derselben Medienart) und ein gemeinsamer Speichern-Fluss. Die Kachelreihe ist zugleich die Vorbereitung auf
  * „beliebig viele Instanzen": Sie ist als Liste gebaut, und der spätere
  * Umbau tauscht nur ihre Quelle – nicht diese Bausteine.
  */

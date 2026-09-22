@@ -27,15 +27,23 @@ import { EinladungsAssistent } from './EinladungsAssistent'
 const holen = vi.mocked(api.get)
 const schicken = vi.mocked(api.post)
 
-/** Die Antwort des Servers - Serien wählt der Entscheider, 4K nur für Filme. */
+/** Die Antwort des Servers - Serien wählt der Entscheider, 4K nur für Filme.
+ *  Die 4K-Fassung der Filme ist die eine, die erst erlaubt werden muss. */
 function bewertung(wunsch: Partial<RechteWunsch>, abweichend: Partial<RechteBewertung> = {}): RechteBewertung {
   return {
     kontingent: { frei: true, wirkt: true, grund: null },
     auto_approve_movies: { frei: true, wirkt: Boolean(wunsch.auto_approve_movies), grund: null },
     auto_approve_series: { frei: false, wirkt: false, grund: 'approver_picks_target' },
-    can_request_uhd_movies: { frei: true, wirkt: Boolean(wunsch.can_request_uhd_movies), grund: null },
-    can_request_uhd_series: { frei: false, wirkt: false, grund: 'no_uhd_instance_tv' },
-    auto_approve_uhd: { frei: false, wirkt: false, grund: 'uhd_needs_permission' },
+    fassungen: {
+      'radarr-uhd': {
+        anfragen: {
+          frei: true,
+          wirkt: Boolean(wunsch.fassungen?.find((f) => f.kennung === 'radarr-uhd')?.anfragen),
+          grund: null,
+        },
+        auto: { frei: false, wirkt: false, grund: 'fassung_needs_permission' },
+      },
+    },
     hausordnung: { frei: true, wirkt: Boolean(wunsch.hausordnung), grund: null },
     entfallen: [],
     ...abweichend,
@@ -158,15 +166,12 @@ it('fragt bei jeder Änderung neu nach', async () => {
 })
 
 it('lässt 4K weg, wenn es gar keine 4K-Instanz gibt', async () => {
-  einrichten({
-    abweichend: {
-      can_request_uhd_movies: { frei: false, wirkt: false, grund: 'no_uhd_instance_movie' },
-      auto_approve_uhd: { frei: false, wirkt: false, grund: 'no_uhd_instance' },
-    },
-  })
+  // Ohne 4K-Instanz nennt der Server keine Fassung, die erst erlaubt werden
+  // müsste - dann hat der Abschnitt nichts zu zeigen.
+  einrichten({ abweichend: { fassungen: {} } })
   await bisZuDenRechten()
 
-  expect(screen.queryByRole('checkbox', { name: /4K sofort freigeben/ })).toBeNull()
+  expect(screen.queryByText('Fassungen')).toBeNull()
   // Und nicht einfach alles: Die Freigabe steht weiter da.
   expect(screen.getByRole('checkbox', { name: /Filme sofort freigeben/ })).toBeTruthy()
 })

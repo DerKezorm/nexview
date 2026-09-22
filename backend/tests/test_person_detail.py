@@ -118,7 +118,7 @@ def test_talkshow_bleibt_auftritt(
 #: Schritt ruft und es auf denselben Eintraegen schreibt.
 STATUS_SETZER = (
     ("app/routers/details.py", "_mit_status"),
-    ("app/services/uhd.py", "anreichern"),
+    ("app/services/fassungsachsen.py", "anreichern"),
 )
 
 

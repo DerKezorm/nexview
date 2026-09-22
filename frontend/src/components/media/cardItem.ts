@@ -13,6 +13,7 @@
 
 import type {
   CalendarEntry,
+  FassungAchse,
   Favorite,
   MediaItem,
   MediaStatus,
@@ -35,8 +36,8 @@ export type CardItem = {
    */
   vote_count?: number;
   status: MediaStatus;
-  /** Zustand in der 4K-Instanz; `null`/fehlt = keine zweite Instanz. */
-  status_uhd?: MediaStatus | null;
+  /** Zustand je Fassung; fehlt die Liste, hat niemand sie gesetzt. */
+  fassungen?: FassungAchse[];
   /** Hat der angemeldete Benutzer das schon gesehen? */
   watched: boolean;
   /** Wer sagt „gesehen" – beide leer, solange nur ein Server verbunden ist. */
@@ -60,7 +61,7 @@ export function fromMediaItem(item: MediaItem): CardItem {
     vote_average: item.vote_average,
     vote_count: item.vote_count,
     status: item.status,
-    status_uhd: item.status_uhd,
+    fassungen: item.fassungen,
     watched: item.watched ?? false,
     watched_on: item.watched_on,
     watched_not_on: item.watched_not_on,
@@ -87,10 +88,10 @@ export function fromPersonCredit(credit: PersonCredit): CardItem {
     release_date: credit.release_date,
     vote_average: credit.vote_average,
     status: credit.status,
-    // Wie `watched`: Der Server liefert die zweite Achse auch auf einem
-    // Filmografie-Eintrag. Wird sie hier nicht weitergereicht, steht auf der
+    // Wie `watched`: Der Server liefert die weiteren Fassungen auch auf einem
+    // Filmografie-Eintrag. Werden sie hier nicht weitergereicht, steht auf der
     // Personenseite "Nicht angefragt" an einem Film, den es in 4K gibt.
-    status_uhd: credit.status_uhd,
+    fassungen: credit.fassungen,
     watched: credit.watched ?? false,
     genres: [],
     runtime_minutes: null,
@@ -121,11 +122,11 @@ export function fromCalendarEntry(eintrag: CalendarEntry): CardItem {
     vote_average: eintrag.vote_average,
     vote_count: eintrag.vote_count,
     status: eintrag.status,
-    // Wie bei den Filmografie-Einträgen: Der Server liefert die zweite Achse
+    // Wie bei den Filmografie-Einträgen: Der Server liefert die Fassungen
     // inzwischen auch für Kalender-Einträge. Sie hier nicht weiterzureichen
     // wäre genau die Lücke, die den Kalender vorher als einzige Liste ohne
     // 4K-Abzeichen dastehen ließ.
-    status_uhd: eintrag.status_uhd,
+    fassungen: eintrag.fassungen,
     watched: eintrag.watched,
     genres: eintrag.genres,
     runtime_minutes: eintrag.runtime_minutes,

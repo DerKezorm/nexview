@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ....models import Fassung, QualityTier, utcnow
+from ....models import Fassung, utcnow
 from ..base import ARR, KLASSE_HD, KLASSE_UHD, FassungInfo
 
 if TYPE_CHECKING:
@@ -29,7 +29,8 @@ class ArrFassung:
     #: nie aendern.
     kennung: str
     media_type: str
-    stufe: QualityTier
+    #: Die Instanz: ``standard`` oder ``uhd``.
+    stufe: str
     #: Die Einstellung mit dem frei waehlbaren Anzeigenamen.
     name_schluessel: str
     #: Der Name, wenn die Einstellung leer ist.
@@ -37,24 +38,24 @@ class ArrFassung:
 
     @property
     def klasse(self) -> str:
-        return KLASSE_UHD if self.stufe == QualityTier.uhd else KLASSE_HD
+        return KLASSE_UHD if self.stufe == "uhd" else KLASSE_HD
 
     @property
     def reihenfolge(self) -> int:
-        return 1 if self.stufe == QualityTier.uhd else 0
+        return 1 if self.stufe == "uhd" else 0
 
     @property
     def offen_vorgabe(self) -> bool:
         """Offen fuer alle? Standard ja, 4K nein - wie vor den Fassungen."""
-        return self.stufe == QualityTier.standard
+        return self.stufe == "standard"
 
 
 #: Die vier Fassungen des ARR-Betriebs, in Anzeigereihenfolge.
 ARR_FASSUNGEN: tuple[ArrFassung, ...] = (
-    ArrFassung("radarr-standard", "movie", QualityTier.standard, "radarr_name", "Radarr"),
-    ArrFassung("radarr-uhd", "movie", QualityTier.uhd, "radarr_uhd_name", "Radarr 4K"),
-    ArrFassung("sonarr-standard", "tv", QualityTier.standard, "sonarr_name", "Sonarr"),
-    ArrFassung("sonarr-uhd", "tv", QualityTier.uhd, "sonarr_uhd_name", "Sonarr 4K"),
+    ArrFassung("radarr-standard", "movie", "standard", "radarr_name", "Radarr"),
+    ArrFassung("radarr-uhd", "movie", "uhd", "radarr_uhd_name", "Radarr 4K"),
+    ArrFassung("sonarr-standard", "tv", "standard", "sonarr_name", "Sonarr"),
+    ArrFassung("sonarr-uhd", "tv", "uhd", "sonarr_uhd_name", "Sonarr 4K"),
 )
 
 def aus_einstellungen(settings: AppSettings) -> tuple[FassungInfo, ...]:

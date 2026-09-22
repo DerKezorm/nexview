@@ -18,7 +18,6 @@ from app.models import (
     DownloadVerlauf,
     MediaRequest,
     MediaType,
-    QualityTier,
     RequestStatus,
 )
 from app.schemas_requests import RequestPublic, RequestWithUser
@@ -283,7 +282,7 @@ def _anfrage(
         anfrage = MediaRequest(
             user_id=besitzer.id,
             media_type=media_type,
-            fassung_kennung=arr_kennung(media_type, QualityTier.standard),
+            fassung_kennung=arr_kennung(media_type, "standard"),
             tmdb_id=tmdb_id,
             title="Beispiel",
             status=status,

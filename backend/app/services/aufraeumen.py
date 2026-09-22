@@ -337,7 +337,7 @@ def liste(
                 tmdb_id=eintrag.tmdb_id,
                 tvdb_id=eintrag.tvdb_id,
                 season=eintrag.season,
-                tier=eintrag.tier.value,
+                fassung=eintrag.fassung_kennung,
                 title=eintrag.title,
                 size_bytes=eintrag.size_bytes,
                 state=eintrag.state,

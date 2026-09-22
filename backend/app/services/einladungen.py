@@ -14,7 +14,15 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from ..models import AuthToken, EinladungsServer, Hausordnung, NotificationType, Role, User
+from ..models import (
+    AuthToken,
+    EinladungsServer,
+    FassungRecht,
+    Hausordnung,
+    NotificationType,
+    Role,
+    User,
+)
 from . import fassungen, kontorechte, notify
 from .settings_service import load_settings
 
@@ -34,10 +42,15 @@ def bewerten(
         rolle=token.invite_role or Role.user,
         auto_approve_movies=token.invite_auto_approve_movies,
         auto_approve_series=token.invite_auto_approve_series,
-        can_request_uhd_movies=token.invite_can_request_uhd_movies,
-        can_request_uhd_series=token.invite_can_request_uhd_series,
-        auto_approve_uhd=token.invite_auto_approve_uhd,
         hausordnung=token.invite_hausordnung,
+        fassungen=tuple(
+            (
+                eintrag.get("kennung", ""),
+                bool(eintrag.get("anfragen")),
+                bool(eintrag.get("auto_freigabe")),
+            )
+            for eintrag in token.invite_fassung_rechte or []
+        ),
     )
     bewertung = kontorechte.bewerten(
         load_settings(db),
@@ -51,7 +64,13 @@ def bewerten(
 def kontowerte(
     token: AuthToken, wunsch: kontorechte.Wunsch, bewertung: kontorechte.Bewertung
 ) -> dict[str, object]:
-    """Was die Einladung am neuen Konto einstellt - fertig fuer ``User(...)``."""
+    """Was die Einladung am neuen Konto einstellt - fertig fuer ``User(...)``.
+
+    Die Rechte je Fassung werden dabei zu Zeilen: ``User.fassung_rechte`` ist
+    eine Beziehung, keine Spalte.
+    """
+    werte = dict(bewertung.werte_fuers_konto(wunsch))
+    rechte = werte.pop("fassung_rechte", []) or []
     return {
         "role": wunsch.rolle,
         "quota_movies_limit": token.invite_quota_movies,
@@ -59,7 +78,15 @@ def kontowerte(
         "storage_limit_gb": token.invite_storage_limit_gb,
         "blocked_movie_profiles": token.invite_blocked_movie_profiles,
         "blocked_series_profiles": token.invite_blocked_series_profiles,
-        **bewertung.werte_fuers_konto(wunsch),
+        "fassung_rechte": [
+            FassungRecht(
+                fassung_kennung=eintrag["kennung"],
+                anfragen=eintrag["anfragen"],
+                auto_freigabe=eintrag["auto_freigabe"],
+            )
+            for eintrag in rechte
+        ],
+        **werte,
     }
 
 

@@ -12,7 +12,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ....models import MediaRequest, MediaType, QualityTier
+from ....models import MediaRequest, MediaType
 from ... import logs, media
 from ...settings_service import AppSettings
 from . import library
@@ -34,18 +34,18 @@ def _aktive_zustaende():
     return ACTIVE_STATUSES
 
 
-def _nicht_eingerichtet(dienst: str, tier: QualityTier) -> str:
+def _nicht_eingerichtet(dienst: str, tier: str) -> str:
     """Fehlertext, der die Stufe mitnennt.
 
     Ohne den Zusatz stuende bei einer 4K-Anfrage "Radarr ist nicht
     eingerichtet", obwohl das normale Radarr laeuft - und niemand kaeme darauf,
     dass die *zweite* Instanz gemeint ist.
     """
-    zusatz = " für 4K" if tier == QualityTier.uhd else ""
+    zusatz = " für 4K" if tier == "uhd" else ""
     return f"{dienst}{zusatz} ist nicht eingerichtet."
 
 
-def _nicht_eingerichtet_fehler(dienst: str, tier: QualityTier) -> ArrError:
+def _nicht_eingerichtet_fehler(dienst: str, tier: str) -> ArrError:
     """Dasselbe als ``ArrError`` - mit Kennung, damit es uebersetzbar bleibt.
 
     Zwei Kennungen statt einer mit Platzhalter: "Radarr für 4K" laesst sich
@@ -54,7 +54,7 @@ def _nicht_eingerichtet_fehler(dienst: str, tier: QualityTier) -> ArrError:
     """
     return ArrError(
         _nicht_eingerichtet(dienst, tier),
-        code="arr_uhd_not_configured" if tier == QualityTier.uhd else "arr_not_configured",
+        code="arr_uhd_not_configured" if tier == "uhd" else "arr_not_configured",
         service=dienst,
     )
 
@@ -88,7 +88,7 @@ async def _radarr_eintrag(settings: AppSettings, request: MediaRequest):
     ein paar Minuten alt sein; in diesem Fenster schlaegt weiterhin Radarrs
     400er durch, und dafuer gibt es den Weg aus der Freigabeliste.
     """
-    bestand = await library.movie_library(settings, request.tier.value)
+    bestand = await library.movie_library(settings, request.tier)
     return bestand.get(request.tmdb_id)
 
 
@@ -98,7 +98,7 @@ async def _sonarr_eintrag(settings: AppSettings, request: MediaRequest):
     Erst ueber die TVDB-Kennung, ersatzweise ueber den normalisierten Titel -
     fuer viele neue Serien kennt TMDB noch keine TVDB-Kennung.
     """
-    nach_tvdb, nach_titel = await library.series_library(settings, request.tier.value)
+    nach_tvdb, nach_titel = await library.series_library(settings, request.tier)
     if request.tvdb_id:
         treffer = nach_tvdb.get(request.tvdb_id)
         if treffer is not None:
@@ -233,7 +233,7 @@ async def anfragen(db: Session, settings: AppSettings, request: MediaRequest) ->
     oder ungewiss), entscheidet ``requests_service.push_to_arr``.
     """
     if request.media_type == MediaType.movie:
-        client = library.radarr_client(settings, request.tier.value)
+        client = library.radarr_client(settings, request.tier)
         if client is None:
             raise _nicht_eingerichtet_fehler("Radarr", request.tier)
         # Liegt der Film schon in Radarr, wird er nicht neu angelegt -
@@ -258,7 +258,7 @@ async def anfragen(db: Session, settings: AppSettings, request: MediaRequest) ->
                 tag_ids=[tag_id] if tag_id else None,
             )
     else:
-        client = library.sonarr_client(settings, request.tier.value)
+        client = library.sonarr_client(settings, request.tier)
         if client is None:
             raise _nicht_eingerichtet_fehler("Sonarr", request.tier)
         if not request.tvdb_id:
@@ -454,9 +454,9 @@ async def abbrechen(db: Session, settings: AppSettings, request: MediaRequest) -
     # Die Stufe der Anfrage entscheidet, aus welcher Instanz geloescht wird -
     # sonst bliebe die 4K-Datei liegen, waehrend Nexview "abgebrochen" meldet.
     client = (
-        library.radarr_client(settings, request.tier.value)
+        library.radarr_client(settings, request.tier)
         if request.media_type == MediaType.movie
-        else library.sonarr_client(settings, request.tier.value)
+        else library.sonarr_client(settings, request.tier)
     )
     if client is not None:
         try:
@@ -493,7 +493,7 @@ async def heilen(db: Session, settings: AppSettings, request: MediaRequest, arr_
     Ob es noetig ist, entscheidet ``abgleich_kern.heilung_noetig``; hier steht
     nur, wie. Ein stummes Sonarr kostet eine Protokollzeile, keinen Abbruch.
     """
-    client = library.sonarr_client(settings, request.tier.value)
+    client = library.sonarr_client(settings, request.tier)
     if client is not None:
         try:
             if request.episodes:
@@ -536,5 +536,5 @@ async def heilen(db: Session, settings: AppSettings, request: MediaRequest, arr_
 def nicht_eingerichtet_text(media_type: str, stufe: str) -> str:
     """Der Satz, wenn fuer Art und Stufe keine Instanz eingerichtet ist."""
     return _nicht_eingerichtet(
-        "Radarr" if media_type == MediaType.movie.value else "Sonarr", QualityTier(stufe)
+        "Radarr" if media_type == MediaType.movie.value else "Sonarr", str(stufe)
     )

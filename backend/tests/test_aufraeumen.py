@@ -25,7 +25,6 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import (
     MediaType,
-    QualityTier,
     StorageEntry,
     StorageState,
     TitleRating,
@@ -59,7 +58,7 @@ def _posten(
             key=key,
             user_id=user_id,
             media_type=MediaType.tv if season is not None else MediaType.movie,
-            fassung_kennung=arr_kennung(MediaType.tv if season is not None else MediaType.movie, QualityTier.standard),
+            fassung_kennung=arr_kennung(MediaType.tv if season is not None else MediaType.movie, "standard"),
             tmdb_id=tmdb_id,
             season=season,
             title=title,

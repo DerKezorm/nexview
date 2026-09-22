@@ -272,12 +272,14 @@ def test_am_konto_landet_nur_was_frei_ist_und_gewuenscht_wurde() -> None:
         auto_approve_uhd=True,
     )
 
+    # Die 4K-Haken sind Rechte je Fassung geworden; hier steht nur noch, was
+    # als Wahrheitswert am Konto landet - und daneben die Zeilen.
     assert b.werte_fuers_konto(w) == {
         "auto_approve_movies": True,
         "auto_approve_series": False,
-        "can_request_uhd_movies": True,
-        "can_request_uhd_series": False,
-        "auto_approve_uhd": True,
+        "fassung_rechte": [
+            {"kennung": "radarr-uhd", "anfragen": True, "auto_freigabe": True}
+        ],
     }
 
 
@@ -291,7 +293,9 @@ def test_was_aus_der_rolle_folgt_wird_nicht_als_haken_gespeichert() -> None:
         auto_approve_uhd=True,
     )
 
-    assert set(b.werte_fuers_konto(w).values()) == {False}
+    werte = b.werte_fuers_konto(w)
+    assert werte.pop("fassung_rechte") == []
+    assert set(werte.values()) == {False}
 
 
 def test_jeder_schalter_ist_eine_spalte_am_konto_ein_wunsch_und_eine_bewertung() -> None:

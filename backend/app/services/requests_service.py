@@ -14,16 +14,15 @@ from ..models import (
     MediaType,
     Notification,
     NotificationType,
-    QualityTier,
     RequestStatus,
     Role,
     User,
     utcnow,
 )
 from ..schemas_media import MediaItem
-from . import age_rating, blocklist, logs, media, mediaserver_library, notify, quota, regeln, storage
-from .beschaffung import BeschaffungError, get_beschaffung
-from .fassungen import arr_kennung, auto_freigabe, darf_anfragen
+from . import age_rating, blocklist, fassungen, logs, media, mediaserver_library, notify, quota, regeln, storage
+from .beschaffung import KLASSE_UHD, BeschaffungError, get_beschaffung
+from .fassungen import auto_freigabe, darf_anfragen, hauptkennung
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.requests")
@@ -115,10 +114,12 @@ def find_active(
     media_type: MediaType,
     tmdb_id: int,
     season: int | None = None,
-    tier: QualityTier = QualityTier.standard,
+    fassung: str | None = None,
     episodes: list[int] | None = None,
 ) -> MediaRequest | None:
-    """Laeuft zu diesem Titel schon eine Anfrage *dieser Stufe*, die im Weg steht?
+    """Laeuft zu diesem Titel schon eine Anfrage *dieser Fassung*, die im Weg steht?
+
+    ``fassung`` ist die Kennung; ohne Angabe die Hauptfassung der Medienart.
 
     Bei Serien gilt die Abdeckungs-Leiter: Die **ganze Serie** deckt jede
     Staffel ab, eine **Staffel** jede ihrer Folgen, ein **Folgen-Paket** genau
@@ -132,14 +133,14 @@ def find_active(
     scheitert deshalb ebenfalls - der Aufrufer nennt dann die belegten Folgen,
     und die Oberflaeche bietet den Rest an.
 
-    Die Stufe gehoert zwingend dazu: Derselbe Film in 1080p **und** in 4K ist
+    Die Fassung gehoert zwingend dazu: Derselbe Film in 1080p **und** in 4K ist
     genau der Fall, um den es geht - das sind zwei Dateien in zwei Ordnern,
-    also zwei Anfragen. Zweimal dieselbe Stufe bleibt gesperrt.
+    also zwei Anfragen. Zweimal dieselbe Fassung bleibt gesperrt.
     """
     bedingungen = [
         MediaRequest.media_type == media_type,
         MediaRequest.tmdb_id == tmdb_id,
-        MediaRequest.fassung_kennung == arr_kennung(media_type, tier),
+        MediaRequest.fassung_kennung == (fassung or hauptkennung(media_type)),
         MediaRequest.status.in_(ACTIVE_STATUSES),
     ]
 
@@ -168,7 +169,7 @@ def angefragte_folgen(
     db: Session,
     tmdb_id: int,
     season: int,
-    tier: QualityTier = QualityTier.standard,
+    fassung: str | None = None,
 ) -> set[int] | None:
     """Welche Folgen dieser Staffel sind schon von laufenden Anfragen belegt?
 
@@ -182,7 +183,7 @@ def angefragte_folgen(
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.fassung_kennung == arr_kennung(MediaType.tv, tier),
+            MediaRequest.fassung_kennung == (fassung or hauptkennung(MediaType.tv)),
             MediaRequest.status.in_(ACTIVE_STATUSES),
             (MediaRequest.season == season) | (MediaRequest.season.is_(None)),
         )
@@ -281,14 +282,15 @@ def badges_for(
     db: Session,
     media_type: MediaType,
     tmdb_ids: list[int],
-    tier: QualityTier = QualityTier.standard,
+    fassung: str | None = None,
 ) -> dict[int, str]:
     """Eigene Anfragen zu diesen Titeln - fuer die Badges auf den Kacheln.
 
     Ohne das saehe ein Titel, den jemand angefragt hat und der auf Freigabe
     wartet, fuer alle weiterhin wie "nicht angefragt" aus.
 
-    Je Stufe getrennt abgefragt: Eine laufende 4K-Anfrage darf das Abzeichen
+    Je Fassung getrennt abgefragt (ohne Angabe die Hauptfassung): Eine
+    laufende 4K-Anfrage darf das Abzeichen
     der Standard-Fassung nicht ueberschreiben - sonst saehe ein Film, den nur
     jemand in 4K angefragt hat, in 1080p faelschlich als angefragt aus.
     """
@@ -299,7 +301,7 @@ def badges_for(
         select(MediaRequest).where(
             MediaRequest.media_type == media_type,
             MediaRequest.tmdb_id.in_(tmdb_ids),
-            MediaRequest.fassung_kennung == arr_kennung(media_type, tier),
+            MediaRequest.fassung_kennung == (fassung or hauptkennung(media_type)),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
     )
@@ -460,7 +462,7 @@ async def apply_target(
     deshalb an, sobald der Ordner fehlt, und nicht nur solange die Regel gilt.
     """
     art = request.media_type.value
-    ordner, profile = await _ziel_auswahl(settings, art, request.tier.value)
+    ordner, profile = await _ziel_auswahl(settings, art, request.tier)
 
     gewuenschter_ordner = root_folder_path or request.root_folder_path
     if not gewuenschter_ordner:
@@ -628,7 +630,7 @@ def trotzdem_fragen(db: Session, settings: AppSettings, user: User, request_id: 
     # bei einem selbst in einer zweiten Anfrage.
     laeuft = find_active(
         db, request.media_type, request.tmdb_id, request.season,
-        request.tier, list(request.episodes or []) or None,
+        request.fassung_kennung, list(request.episodes or []) or None,
     )
     if laeuft is not None:
         raise RequestError(
@@ -665,36 +667,37 @@ def _jahr_aus(datum: str | None) -> int | None:
 
 
 def _bestand_stufe(
-    db: Session, media_type: MediaType, tmdb_id: int, tier: QualityTier
+    db: Session, media_type: MediaType, tmdb_id: int, kennung: str
 ) -> tuple[str, str | None]:
-    """In welcher **anderen** Stufe liegt der Titel schon vor?
+    """In welcher **anderen** Fassung liegt der Titel schon vor?
 
-    ⚠️ **Die eigene Stufe kann hier nicht mehr auftauchen.** Dieselbe Stufe
+    ⚠️ **Die eigene Fassung kann hier nicht mehr auftauchen.** Dieselbe Fassung
     zweimal hat ``find_active`` weiter oben schon abgefangen - wer bis hierher
-    kommt, fragt eine Stufe an, die es noch nicht gibt. Uebrig bleibt genau
-    die Frage, um die es geht: Gibt es den Titel schon in der anderen?
+    kommt, fragt eine Fassung an, die es noch nicht gibt. Uebrig bleibt genau
+    die Frage, um die es geht: Gibt es den Titel schon in einer anderen?
 
     ⚠️ **Nur was Nexview kennt.** Ein Film, der vor Nexview in der Mediathek
     lag, hat hier keine Anfrage und zaehlt deshalb als "nichts". Das ist kein
     Versehen, sondern die Grenze dieser Auskunft: Der Bibliotheksabgleich
-    weiter oben prueft die angefragte Stufe, nicht die andere.
+    weiter oben prueft die angefragte Fassung, nicht die anderen.
 
     Zurueck kommt die Klasse (``hd``/``uhd``/``nichts``) und die Kennung der
     Fassung, in der er vorliegt - eine Regel darf beides nennen.
     """
-    andere = QualityTier.standard if tier == QualityTier.uhd else QualityTier.uhd
-    kennung = arr_kennung(media_type, andere)
-    vorhanden = db.scalar(
-        select(MediaRequest.id).where(
+    andere = db.scalar(
+        select(MediaRequest.fassung_kennung)
+        .where(
             MediaRequest.media_type == media_type,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.fassung_kennung == kennung,
+            MediaRequest.fassung_kennung != kennung,
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
+        .order_by(MediaRequest.id)
+        .limit(1)
     )
-    if vorhanden is None:
+    if andere is None:
         return "nichts", None
-    return regeln.stufe_von(andere), kennung
+    return fassungen.stufenwort(andere), andere
 
 
 def _kontingent_pruefen(
@@ -817,7 +820,7 @@ async def _tvdb_klaeren(
     settings: AppSettings,
     user: User,
     item: MediaItem,
-    tier: QualityTier,
+    kennung: str,
     wahl: int | None,
     season: int | None,
     *,
@@ -857,7 +860,8 @@ async def _tvdb_klaeren(
       Warten hilft.
     """
     beschaffung = get_beschaffung(settings)
-    if not beschaffung.verwaltet("tv", tier.value):
+    stufe = fassungen.stufe(kennung)
+    if not beschaffung.verwaltet("tv", stufe):
         # Ohne eingerichtetes Sonarr scheitert die Anfrage weiter unten mit
         # der Meldung, dass nichts eingerichtet ist - die ist hier die
         # bessere, und sie kommt von ``push_to_arr``.
@@ -873,7 +877,7 @@ async def _tvdb_klaeren(
 
     try:
         zuordnung = await beschaffung.serie_zuordnen(
-            item.tmdb_id, tier.value, item.title, item.original_title or "", englisch or ""
+            item.tmdb_id, stufe, item.title, item.original_title or "", englisch or ""
         )
     except BeschaffungError as fehler:
         # ⚠️ **Ein stummes Sonarr darf die Anfrage nicht kippen.** Diese Suche
@@ -965,7 +969,7 @@ async def create_request(
     quality_profile_id: int | None,
     root_folder_path: str | None = None,
     season: int | None = None,
-    tier: QualityTier = QualityTier.standard,
+    fassung: str | None = None,
     from_watchlist: bool = False,
     monitor_future: bool = False,
     episodes: list[int] | None = None,
@@ -992,9 +996,10 @@ async def create_request(
     gewoehnliche Benutzer offen und werden erst bei der Freigabe gesetzt
     (siehe ``apply_target``).
 
-    ``tier`` waehlt die Instanz. Das Recht dafuer wird **hier** geprueft, nicht
-    nur in der Oberflaeche: der fehlende Umschalter ist Bequemlichkeit, das
-    hier ist die Sperre.
+    ``fassung`` (Kennung, ohne Angabe die Hauptfassung) waehlt, in welcher
+    Fassung der Titel kommen soll. Das Recht dafuer wird **hier** geprueft,
+    nicht nur in der Oberflaeche: der fehlende Umschalter ist Bequemlichkeit,
+    das hier ist die Sperre.
     """
     media_type = MediaType(item.media_type)
     # Eine Staffel ergibt nur bei Serien Sinn - bei Filmen wird sie still
@@ -1027,19 +1032,32 @@ async def create_request(
         # Ein Paket ist eine feste Liste - es folgt keinem Nachschub.
         monitor_future = False
 
-    # 4K nur, wenn es dafuer auch eine Instanz gibt - und der Benutzer sie
-    # nutzen darf. Beides serverseitig, sonst waere das Recht Dekoration.
-    kennung = arr_kennung(media_type, tier)
-    if tier == QualityTier.uhd:
+    # Eine Fassung nur, wenn es sie auch gibt - und der Benutzer sie nutzen
+    # darf. Beides serverseitig, sonst waere das Recht Dekoration. Fehlt die
+    # Instanz der Hauptfassung, sagt das weiter unten ein eigener Satz, nach
+    # der Sperrliste.
+    kennung = fassung or hauptkennung(media_type)
+    if fassungen.art_der(settings, kennung) != media_type.value:
+        raise RequestError(
+            "Diese Fassung gibt es für diese Medienart nicht.",
+            422,
+            code="fassung_unknown",
+        )
+    haupt = kennung == hauptkennung(media_type)
+    stufe = fassungen.stufe(kennung)
+    if not haupt:
         if not darf_anfragen(db, user, kennung):
             raise RequestError(
                 "Für 4K-Anfragen fehlt dir die Berechtigung. "
+                "Der Administrator kann sie freischalten."
+                if fassungen.klasse(kennung) == KLASSE_UHD
+                else "Für diese Fassung fehlt dir die Berechtigung. "
                 "Der Administrator kann sie freischalten.",
                 403,
             )
-        if not settings.arr_configured(item.media_type, "uhd"):
+        if settings.fassung(kennung) is None:
             raise RequestError(
-                get_beschaffung(settings).nicht_eingerichtet(media_type.value, "uhd"),
+                get_beschaffung(settings).nicht_eingerichtet(media_type.value, stufe),
                 409,
             )
 
@@ -1056,7 +1074,7 @@ async def create_request(
     # durchlaeuft - und die Sofort-Freigabe des Benutzers (auch die eigene
     # 4K-Sofort-Freigabe) ist hier bewusst uebersteuert.
     ziel_erst_bei_freigabe = (
-        settings.approver_picks_target(item.media_type, tier.value)
+        settings.approver_picks_target(item.media_type, stufe)
         and not user.can_approve
     )
 
@@ -1086,14 +1104,14 @@ async def create_request(
 
     # Ohne Radarr/Sonarr koennte aus der Anfrage nie etwas werden. Lieber
     # gleich sagen als eine Anfrage anlegen, die spaeter ins Leere laeuft.
-    if tier == QualityTier.standard and media_type == MediaType.movie and not settings.radarr_configured:
+    if haupt and media_type == MediaType.movie and not settings.radarr_configured:
         raise RequestError(
             "Radarr ist noch nicht eingerichtet - Filme können deshalb nicht "
             "angefragt werden. Der Administrator trägt die Zugangsdaten unter "
             "Einstellungen ein.",
             409,
         )
-    if tier == QualityTier.standard and media_type == MediaType.tv and not settings.sonarr_configured:
+    if haupt and media_type == MediaType.tv and not settings.sonarr_configured:
         raise RequestError(
             "Sonarr ist noch nicht eingerichtet - Serien können deshalb nicht "
             "angefragt werden. Der Administrator trägt die Zugangsdaten unter "
@@ -1176,7 +1194,7 @@ async def create_request(
             titel=item.title,
         )
 
-    existing = find_active(db, media_type, item.tmdb_id, season, tier, episodes)
+    existing = find_active(db, media_type, item.tmdb_id, season, kennung, episodes)
     if existing is not None:
         if season is not None and existing.season is None:
             raise RequestError(
@@ -1214,7 +1232,7 @@ async def create_request(
     # Bei einer einzelnen Staffel ist das kein Ausschluss: die Serie liegt
     # ja gerade deshalb schon da, weil die vorherigen Staffeln geladen sind.
     if season is None:
-        matched = await get_beschaffung(settings).status_setzen(item.media_type, [item], tier.value)
+        matched = await get_beschaffung(settings).status_setzen(item.media_type, [item], stufe)
         current = matched.items[0]
         if current.status in ("downloaded", "searching"):
             raise RequestError(
@@ -1240,7 +1258,7 @@ async def create_request(
         # **zwingend dieselbe**: Liefen Anzeige und Sperre auseinander, stuende
         # am Titel "4K noch nicht angefragt" und die Anfrage schluege trotzdem
         # fehl. Genau so ist es gemeldet worden.
-        if tier == QualityTier.uhd:
+        if fassungen.klasse(kennung) == KLASSE_UHD:
             belegt = mediaserver_library.echte_uhd_kennungen(
                 db,
                 media_type,
@@ -1273,13 +1291,13 @@ async def create_request(
             settings,
             item.media_type,
             quality_profile_id,
-            tier.value,
+            stufe,
             darf_frei_waehlen=user.can_approve,
         )
         # ⚠️ **Wer freigeben darf, hat keine Sperrliste.** Der Kontodialog blendet
         # sie fuer Administratoren und Entscheider aus; bis zum 12.09.2026 galt eine
         # vor dem Hochstufen gesetzte Liste hier trotzdem weiter, unsichtbar.
-        gesperrt = set() if user.can_approve else set(user.blocked_profiles(media_type, tier))
+        gesperrt = set() if user.can_approve else set(user.blocked_profiles(media_type, stufe))
         # Sind *alle* Profile gesperrt, bliebe dem Benutzer keines uebrig und
         # er koennte gar nichts mehr anfragen - eine Sackgasse, aus der er
         # selbst nicht herausfindet. Eine Sperrliste, die alles sperrt, ist
@@ -1290,10 +1308,10 @@ async def create_request(
         # zusaetzliche Abfrage an Radarr/Sonarr - fuer den Normalfall "nichts
         # gesperrt", in dem die Antwort gar nicht gebraucht wird.
         if gesperrt:
-            _, alle_profile = await _ziel_auswahl(settings, item.media_type, tier.value)
+            _, alle_profile = await _ziel_auswahl(settings, item.media_type, stufe)
             if alle_profile and gesperrt >= set(alle_profile):
                 gesperrt = set()
-        if settings.profile_choice(item.media_type, tier.value) and profil in gesperrt:
+        if settings.profile_choice(item.media_type, stufe) and profil in gesperrt:
             raise RequestError(
                 "Dieses Qualitätsprofil ist für dich gesperrt. Bitte wähle ein anderes.",
                 403,
@@ -1303,7 +1321,7 @@ async def create_request(
             settings,
             item.media_type,
             root_folder_path,
-            tier.value,
+            stufe,
             darf_frei_waehlen=user.can_approve,
         )
     else:
@@ -1319,7 +1337,7 @@ async def create_request(
     tvdb_id = item.tvdb_id
     if media_type == MediaType.tv and not tvdb_id:
         tvdb_id = await _tvdb_klaeren(
-            db, settings, user, item, tier, tvdb_wahl, season,
+            db, settings, user, item, kennung, tvdb_wahl, season,
             auswahl_moeglich=tvdb_auswahl_moeglich,
         )
 
@@ -1332,10 +1350,10 @@ async def create_request(
     # Sie kann nichts durchwinken, was aus einem anderen Grund schon
     # gescheitert ist; siehe den Kopf von ``services/regeln.py``.
     # ------------------------------------------------------------------
-    bestand, bestand_fassung = _bestand_stufe(db, media_type, item.tmdb_id, tier)
+    bestand, bestand_fassung = _bestand_stufe(db, media_type, item.tmdb_id, kennung)
     titel_fuer_regeln = regeln.Titel(
         typ=media_type,
-        qualitaet=regeln.stufe_von(tier),
+        qualitaet=fassungen.stufenwort(kennung),
         fassung=kennung,
         bestand=bestand,
         bestand_fassung=bestand_fassung,
@@ -1360,10 +1378,10 @@ async def create_request(
     # Regel morgen andere haben kann.
     if regel_ergebnis is None:
         logger.info(
-            "No rule matched for %r (%s, tier %s) - the account setting applies",
+            "No rule matched for %r (%s, version %s) - the account setting applies",
             item.title,
             media_type.value,
-            tier.value,
+            kennung,
         )
     else:
         logger.info(
@@ -1560,7 +1578,7 @@ def withdraw(db: Session, user: User, request_id: int) -> None:
 
 
 def angefragte_staffeln(
-    db: Session, tmdb_id: int, tier: QualityTier = QualityTier.standard
+    db: Session, tmdb_id: int, fassung: str | None = None
 ) -> set[int | None]:
     """Zu welchen Staffeln dieser Serie laeuft schon eine Anfrage *dieser Stufe*?
 
@@ -1587,7 +1605,7 @@ def angefragte_staffeln(
         select(MediaRequest.season).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.fassung_kennung == arr_kennung(MediaType.tv, tier),
+            MediaRequest.fassung_kennung == (fassung or hauptkennung(MediaType.tv)),
             MediaRequest.episodes.is_(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
@@ -1596,7 +1614,7 @@ def angefragte_staffeln(
 
 
 def angefragte_pakete(
-    db: Session, tmdb_id: int, tier: QualityTier = QualityTier.standard
+    db: Session, tmdb_id: int, fassung: str | None = None
 ) -> dict[int, dict[int, str]]:
     """Welche Folgen je Staffel sind von laufenden Paketen belegt - und wie?
 
@@ -1610,7 +1628,7 @@ def angefragte_pakete(
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.fassung_kennung == arr_kennung(MediaType.tv, tier),
+            MediaRequest.fassung_kennung == (fassung or hauptkennung(MediaType.tv)),
             MediaRequest.episodes.is_not(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
@@ -1626,7 +1644,7 @@ def angefragte_pakete(
 
 
 def staffel_belegung(
-    db: Session, tmdb_id: int, tier: QualityTier = QualityTier.standard
+    db: Session, tmdb_id: int, fassung: str | None = None
 ) -> dict[int | None, str]:
     """Der Status der deckenden Voll-Anfrage je Staffel (``None`` = ganze Serie).
 
@@ -1638,7 +1656,7 @@ def staffel_belegung(
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.fassung_kennung == arr_kennung(MediaType.tv, tier),
+            MediaRequest.fassung_kennung == (fassung or hauptkennung(MediaType.tv)),
             MediaRequest.episodes.is_(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )

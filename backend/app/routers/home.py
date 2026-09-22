@@ -15,7 +15,7 @@ from sqlalchemy.orm import selectinload
 from ..deps import CurrentUser, DbSession
 from ..models import Favorite, FavoritePerson, MediaRequest, MediaType, RequestStatus
 from ..schemas_media import MediaItem
-from ..services import media, mediaserver_library, requests_service, uhd
+from ..services import fassungsachsen, media, mediaserver_library, requests_service
 from ..services.beschaffung import get_beschaffung
 from ..services.settings_service import for_user, load_settings
 
@@ -86,7 +86,7 @@ async def _noch_vorhanden(
     # Instanz, und die Bibliothek wird dabei nur einmal geholt.
     gruppen: dict[tuple[MediaType, str], list[MediaRequest]] = {}
     for anfrage in anfragen:
-        gruppen.setdefault((anfrage.media_type, anfrage.tier.value), []).append(anfrage)
+        gruppen.setdefault((anfrage.media_type, anfrage.tier), []).append(anfrage)
 
     for (art, stufe), teil in gruppen.items():
         # Ohne eingerichtete Instanz gibt es keine Quelle, die "weg" sagen
@@ -366,7 +366,7 @@ async def trending(user: CurrentUser, db: DbSession) -> list[MediaItem]:
     # Erst ganz am Ende und nur fuer die uebrig gebliebenen Titel: Sonst
     # fragte die Startseite die 4K-Instanz nach Dutzenden Eintraegen, die sie
     # gleich darauf wegwirft.
-    await uhd.anreichern(db, settings, "movie", ergebnis, user)
+    await fassungsachsen.anreichern(db, settings, "movie", ergebnis, user)
     return ergebnis
 
 
@@ -427,7 +427,7 @@ async def _kuratiert_fuer(
     ]
     # Ohne diese Zeile stand auf der Startseite "Nicht angefragt" an einem
     # Film, den es in 4K laengst gibt - die zweite Achse fehlte hier ganz.
-    await uhd.anreichern(db, settings, media_type.value, uebrig, user)
+    await fassungsachsen.anreichern(db, settings, media_type.value, uebrig, user)
     return uebrig
 
 

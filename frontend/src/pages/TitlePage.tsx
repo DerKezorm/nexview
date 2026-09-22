@@ -27,7 +27,7 @@ import { RatingBadges } from '../components/media/RatingBadges'
 import { useMovieRatings } from '../components/media/useMovieRatings'
 import { SeasonList } from '../components/media/SeasonList'
 import { StatusBadge } from '../components/media/StatusBadge'
-import { UhdBadge } from '../components/media/UhdBadge'
+import { FassungBadge } from '../components/media/FassungBadge'
 import { WatchedBadge } from '../components/media/WatchedBadge'
 import { PlayIcon, TrailerModal } from '../components/media/TrailerModal'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
@@ -308,10 +308,12 @@ export function TitlePage() {
    * die Standard-Fassung längst geladen ist. Genau darum geht es bei zwei
    * Instanzen: derselbe Film einmal in 1080p und einmal in 4K.
    *
-   * `status_uhd` liefert der Server nur, wenn es eine 4K-Instanz gibt **und**
-   * dieser Benutzer sie nutzen darf - die Prüfung steckt also schon darin.
+   * Weitere Fassungen liefert der Server nur, wenn es sie gibt **und**
+   * dieser Benutzer sie anfragen darf - die Prüfung steckt also schon darin.
    */
-  const uhdOffen = item.status_uhd === 'not_requested'
+  const uhdOffen = (item.fassungen ?? []).some(
+    (f) => !f.haupt && f.status === 'not_requested',
+  )
   const kannAnfragen =
     darfAnfragen(item.status) || uhdOffen || nurWeitereStaffel || (gesperrt && istAdmin)
 
@@ -350,7 +352,11 @@ export function TitlePage() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={item.status} />
-                {item.status_uhd && <UhdBadge status={item.status_uhd} />}
+                {(item.fassungen ?? [])
+                  .filter((f) => !f.haupt)
+                  .map((f) => (
+                    <FassungBadge key={f.kennung} fassung={f} />
+                  ))}
                 {item.watched && (
                   <WatchedBadge on={item.watched_on} notOn={item.watched_not_on} />
                 )}

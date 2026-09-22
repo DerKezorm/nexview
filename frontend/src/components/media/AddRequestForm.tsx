@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
-import type { ArrOptions, MediaItem, QualityTier } from '../../api/types'
+import type { ArrOptions, Fassung, MediaItem } from '../../api/types'
 import { useAuth } from '../../auth/useAuth'
 import { useConfig } from '../../hooks/useConfig'
 import { anfragenStandNeuLaden } from '../../lib/refresh'
@@ -14,7 +14,7 @@ import { StaffelFolgenWaehler } from './StaffelFolgenWaehler'
 import { staffelBelegt } from './staffelbelegung'
 import { Button, ErrorBanner, Spinner } from '../ui'
 import { darfAnfragen } from '../../lib/status'
-import { darfUhdAnfragen } from '../../lib/uhd'
+import { anfragbareFassungen, fassungName, fassungStatus } from '../../lib/fassungen'
 
 type AddRequestFormProps = {
   item: MediaItem
@@ -66,20 +66,14 @@ export function AddRequestForm({
   //
   // Wer selbst freigeben darf, ist ausgenommen: Er waere es, der spaeter
   // waehlt, also waehlt er gleich jetzt.
-  // Seit dem Kachel-Umbau gilt die Regel je Instanz - der Hinweis und die
-  // Felder folgen deshalb der gerade gewaehlten Stufe (Definition weiter
-  // unten, nach der tier-Entscheidung).
+  // Die Regel gilt je Fassung - der Hinweis und die Felder folgen deshalb der
+  // gerade gewaehlten Fassung (``zielSpaeter``, weiter unten).
 
-  // Gibt es fuer diese Medienart ueberhaupt eine 4K-Instanz, und darf dieser
-  // Benutzer sie nutzen? Nur dann erscheint der Umschalter. Das Recht kommt
-  // aus ``darfUhdAnfragen`` - derselben Regel wie im Backend. Hier stand einmal
-  // ``role === 'admin'``, und ein Entscheider sah den 4K-Stand eines Titels,
-  // aber keinen Weg, 4K anzufragen.
-  const uhdEingerichtet =
-    item.media_type === 'movie'
-      ? Boolean(config?.radarr_uhd_configured)
-      : Boolean(config?.sonarr_uhd_configured)
-  const uhdMoeglich = uhdEingerichtet && darfUhdAnfragen(user, item.media_type)
+  // In welchen Fassungen darf dieser Benutzer diesen Titel anfragen? Die
+  // Liste kommt fertig vom Server (Recht **und** eingerichtete Quelle) -
+  // hier wird nichts nachgerechnet. Erst ab zwei Fassungen gibt es einen
+  // Umschalter; im ARR-Betrieb ohne 4K sieht der Dialog aus wie immer.
+  const fassungen = anfragbareFassungen(config, item.media_type)
 
   // Haus-Schalter: Ohne ihn gibt es keine Aufklapp-Pfeile im Wähler - alles
   // sieht aus wie vor dem Umbau, nur ganze Staffeln.
@@ -99,38 +93,51 @@ export function AddRequestForm({
    * laufende Folgen-Pakete grauen die Staffel dort bewusst nicht aus.
    */
   const belegt = (staffel: (typeof item.seasons)[number]) =>
-    staffelBelegt(staffel, tier)
+    staffelBelegt(staffel, fassung)
 
   // Ueber ``darfAnfragen`` statt ueber einen Vergleich mit
   // ``not_requested``: Welche erledigten Zustaende wieder anfragbar sind,
   // steht an **einer** Stelle - sonst haengt es davon ab, welches Fenster
   // gerade offen ist.
-  const standardOffen = darfAnfragen(item.status)
-  // ⚠️ Ein **fehlendes** `status_uhd` heißt „unbekannt", nicht „belegt". Nicht
-  // jede Kachel trägt die zweite Achse mit – aus dem Kalender und von der
-  // Merkliste kommt sie gar nicht mit. Als „liegt schon in 4K vor" gelesen,
-  // sperrte das eine Anfrage, die es geben darf, und behauptete im
-  // Sprechblasentext obendrein etwas Falsches. Großzügig zu sein ist hier
-  // gefahrlos: Eine echte Doppelanfrage weist der Server ohnehin ab.
-  const uhdOffen =
-    uhdMoeglich && (item.status_uhd == null || darfAnfragen(item.status_uhd))
-  const [tier, setTier] = useState<QualityTier>(
-    standardOffen || !uhdOffen ? 'standard' : 'uhd',
+  /**
+   * Ist in dieser Fassung überhaupt noch etwas zu holen?
+   *
+   * ⚠️ Ein **fehlender** Zustand heißt „unbekannt", nicht „belegt". Nicht
+   * jede Kachel trägt die Fassungen mit – aus dem Kalender und von der
+   * Merkliste kommt die Liste gar nicht mit. Als „liegt schon vor" gelesen,
+   * sperrte das eine Anfrage, die es geben darf, und behauptete im
+   * Sprechblasentext obendrein etwas Falsches. Großzügig zu sein ist hier
+   * gefahrlos: Eine echte Doppelanfrage weist der Server ohnehin ab.
+   */
+  const offenIn = (kandidat: Fassung) => {
+    const stand = fassungStatus(item, kandidat)
+    return stand == null || darfAnfragen(stand)
+  }
+  const [kennung, setKennung] = useState<string>(
+    () => (fassungen.find(offenIn) ?? fassungen[0])?.kennung ?? '',
   )
+  const fassung =
+    fassungen.find((f) => f.kennung === kennung) ??
+    fassungen[0] ?? {
+      // Kein Eintrag: Der Server kennt die Fassungen nicht (alte Antwort im
+      // Zwischenspeicher). Dann bleibt es bei der Hauptfassung ohne Angabe -
+      // genau das, was eine Anfrage ohne ``fassung`` bekommt.
+      kennung: '',
+      media_type: item.media_type,
+      name: '',
+      klasse: null,
+      quelle: 'arr',
+      haupt: true,
+      bereit: true,
+      offen_fuer_alle: true,
+      approver_picks_target: false,
+      darf_anfragen: true,
+    }
 
   const [profileId, setProfileId] = useState<number | null>(null)
   const [folder, setFolder] = useState('')
 
-  const zielSpaeter =
-    Boolean(
-      item.media_type === 'movie'
-        ? tier === 'uhd'
-          ? config?.approver_picks_target_movie_uhd
-          : config?.approver_picks_target_movie
-        : tier === 'uhd'
-          ? config?.approver_picks_target_tv_uhd
-          : config?.approver_picks_target_tv,
-    ) && !user?.can_approve
+  const zielSpaeter = fassung.approver_picks_target && !user?.can_approve
   /**
    * Welche Staffeln angefragt werden – **eine Menge, kein einzelner Wert.**
    *
@@ -179,9 +186,11 @@ export function AddRequestForm({
   const [tvdbWahl, setTvdbWahl] = useState<number | null>(null)
 
   const optionsQuery = useQuery({
-    queryKey: ['arr-options', item.media_type, tier],
+    queryKey: ['arr-options', item.media_type, fassung.kennung],
     queryFn: () =>
-      api.get<ArrOptions>(`/api/arr/${item.media_type}/options?tier=${tier}`),
+      api.get<ArrOptions>(
+        `/api/arr/${item.media_type}/options?fassung=${encodeURIComponent(fassung.kennung)}`,
+      ),
     staleTime: 5 * 60 * 1000,
     retry: false,
     enabled: !zielSpaeter,
@@ -201,14 +210,14 @@ export function AddRequestForm({
     setFolder((current) => current || data.default_root_folder || data.root_folders[0]?.path || '')
   }, [optionsQuery.data])
 
-  // Stufenwechsel setzt die Auswahl zurueck. Die Profil-Kennungen der beiden
+  // Fassungswechsel setzt die Auswahl zurueck. Die Profil-Kennungen der
   // Instanzen kollidieren: Profil 1 der 1080p-Instanz ist ein voellig anderes
   // als Profil 1 der 4K-Instanz. Bliebe die alte Wahl stehen, ginge sie an die
   // falsche Instanz - und Radarr nimmt eine unbekannte Kennung je nach Fassung
   // kommentarlos an.
-  function stufeWechseln(neu: QualityTier) {
-    if (neu === tier) return
-    setTier(neu)
+  function fassungWechseln(neu: Fassung) {
+    if (neu.kennung === fassung.kennung) return
+    setKennung(neu.kennung)
     setProfileId(null)
     setFolder('')
     // Was in der neuen Stufe vergeben ist, darf nicht angehakt bleiben -
@@ -235,7 +244,7 @@ export function AddRequestForm({
       const gemeinsam = {
         media_type: item.media_type,
         tmdb_id: item.tmdb_id,
-        tier,
+        fassung: fassung.kennung || undefined,
         quality_profile_id:
           zielSpaeter || !options?.quality_profile_choice ? null : profileId,
         // Ohne Auswahlrecht bewusst nichts mitschicken: welcher Ordner gilt,
@@ -397,9 +406,7 @@ export function AddRequestForm({
    */
   const stufeOffen = istSerie
     ? item.seasons.some((staffel) => !belegt(staffel))
-    : tier === 'standard'
-      ? standardOffen
-      : uhdOffen
+    : offenIn(fassung)
   // ⚠️ Bei Serien **muss** eine Staffel gewählt sein - ganz oder als Paket.
   //
   // Ohne diese Bedingung fiel das Absenden auf „ganze Serie" zurück – also
@@ -483,34 +490,34 @@ export function AddRequestForm({
         </p>
       )}
 
-      {/* Nur wenn es beide Stufen gibt und der Benutzer beide darf. Sonst
-          bleibt der Dialog genau so, wie er immer war. */}
-      {uhdMoeglich && (
+      {/* Nur wenn es mehr als eine Fassung gibt und der Benutzer sie darf.
+          Sonst bleibt der Dialog genau so, wie er immer war. */}
+      {fassungen.length > 1 && (
         <div
           className="mt-3 flex rounded-full border border-ink-700 bg-ink-900 p-0.5"
           role="group"
           aria-label={t('uhd.tier')}
         >
-          {(['standard', 'uhd'] as const).map((stufe) => {
-            const offen = stufe === 'standard' ? standardOffen : uhdOffen
+          {fassungen.map((kandidat) => {
+            const offen = offenIn(kandidat)
             return (
               <button
-                key={stufe}
+                key={kandidat.kennung}
                 type="button"
-                onClick={() => stufeWechseln(stufe)}
-                aria-pressed={tier === stufe}
+                onClick={() => fassungWechseln(kandidat)}
+                aria-pressed={fassung.kennung === kandidat.kennung}
                 disabled={!offen}
                 title={offen ? undefined : t('uhd.tierBelegt')}
                 className={
                   'flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ' +
-                  (tier === stufe
+                  (fassung.kennung === kandidat.kennung
                     ? 'bg-accent-500 text-white'
                     : offen
                       ? 'text-mist-500 hover:text-mist-100'
                       : 'cursor-not-allowed text-mist-700')
                 }
               >
-                {t(stufe === 'standard' ? 'uhd.tierStandard' : 'uhd.tierUhd')}
+                {fassungName(t, kandidat)}
               </button>
             )
           })}
@@ -522,7 +529,7 @@ export function AddRequestForm({
           zweite 4K-Datei anlegen, ohne von der ersten zu wissen. Steht direkt
           unter dem Umschalter, weil dort die Entscheidung fällt, und in Gelb
           statt Rot: Es ist kein Fehler. */}
-      {tier === 'uhd' && item.uhd_in_standard && (
+      {fassung.klasse === 'uhd' && item.uhd_in_standard && (
         <p className="mt-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
           {t('uhd.alreadyStandardUhd')}
         </p>
@@ -651,7 +658,7 @@ export function AddRequestForm({
         <StaffelFolgenWaehler
           tmdbId={item.tmdb_id}
           seasons={item.seasons}
-          tier={tier}
+          fassung={fassung}
           folgenErlaubt={folgenErlaubt}
           staffeln={staffeln}
           folgen={folgen}

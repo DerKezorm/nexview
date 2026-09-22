@@ -10,7 +10,7 @@ import { FavoriteButton } from './FavoriteButton'
 import { RatingBadges } from './RatingBadges'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
-import { UhdBadge } from './UhdBadge'
+import { FassungBadge } from './FassungBadge'
 import { WatchedBadge } from './WatchedBadge'
 
 type MediaListRowProps = {
@@ -81,7 +81,11 @@ export function MediaListRow({
       <div className="flex shrink-0 flex-col items-end justify-between gap-3">
         <span className="flex flex-wrap items-center justify-end gap-1.5">
           <StatusBadge status={item.status} />
-          {item.status_uhd && <UhdBadge status={item.status_uhd} kompakt />}
+          {(item.fassungen ?? [])
+            .filter((f) => !f.haupt)
+            .map((f) => (
+              <FassungBadge key={f.kennung} fassung={f} kompakt />
+            ))}
         </span>
 
         <div className="flex items-center gap-2">

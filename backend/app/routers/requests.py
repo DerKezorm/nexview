@@ -24,7 +24,7 @@ from ..schemas_requests import (
     RequestCreate,
     RequestPublic,
 )
-from ..services import media, notify, quota, ratings, requests_service
+from ..services import fassungen, media, notify, quota, ratings, requests_service
 from ..services.quota import QuotaState
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
@@ -140,7 +140,7 @@ async def create_request(
             payload.quality_profile_id,
             payload.root_folder_path,
             payload.season,
-            payload.tier,
+            fassungen.gewaehlt(settings, payload.media_type, payload.fassung, payload.tier),
             payload.from_watchlist,
             payload.monitor_future,
             episodes=payload.episodes,

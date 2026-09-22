@@ -63,7 +63,7 @@ async def _paket_groesse(settings, request: MediaRequest, eintrag, folgen: dict)
     """
     arr_id = getattr(eintrag, "arr_id", None)
     beschaffung = get_beschaffung(settings)
-    if not arr_id or not beschaffung.verwaltet("tv", request.tier.value):
+    if not arr_id or not beschaffung.verwaltet("tv", request.tier):
         return None
     staffel = folgen.get(request.season) or {}
     eigene = {
@@ -74,7 +74,7 @@ async def _paket_groesse(settings, request: MediaRequest, eintrag, folgen: dict)
     if not eigene:
         return 0
     try:
-        dateien = await beschaffung.episodendateien(request.tier.value, arr_id, request.season)
+        dateien = await beschaffung.episodendateien(request.tier, arr_id, request.season)
     except BeschaffungError:
         return None
     return sum(
@@ -115,14 +115,14 @@ async def check_once(
     filme: dict[str, dict[int, object]] = {}
     serien: dict[str, tuple[dict[int, object], dict[str, object]]] = {}
 
-    for stufe in {r.tier.value for r in offen}:
+    for stufe in {r.tier for r in offen}:
         # noqa: SIM102 an beiden Stellen - zusammengelegt ergibt die Bedingung
         # ueber 130 Zeichen, und "wird es nachgefragt" ist eine andere Frage als
         # "ist es ueberhaupt eingerichtet".
-        if any(r.media_type == MediaType.movie and r.tier.value == stufe for r in offen):  # noqa: SIM102
+        if any(r.media_type == MediaType.movie and r.tier == stufe for r in offen):  # noqa: SIM102
             if settings.arr_configured("movie", stufe):
                 filme[stufe] = await beschaffung.bestand_filme(stufe)
-        if any(r.media_type == MediaType.tv and r.tier.value == stufe for r in offen):  # noqa: SIM102
+        if any(r.media_type == MediaType.tv and r.tier == stufe for r in offen):  # noqa: SIM102
             if settings.arr_configured("tv", stufe):
                 serien[stufe] = await beschaffung.bestand_serien(stufe)
 
@@ -178,7 +178,7 @@ async def check_once(
                 warteschlangen[schluessel] = []
         return warteschlangen[schluessel]
     for request in offen:
-        stufe = request.tier.value
+        stufe = request.tier
         if request.media_type == MediaType.movie:
             eintrag = filme.get(stufe, {}).get(request.tmdb_id)
         else:
@@ -202,7 +202,7 @@ async def check_once(
             # Media-Server hier **nicht** befragt: Ueber diese Anfrage wurde nie
             # etwas geladen, es gibt also keine Datei, die "doch noch da" sein
             # koennte.
-            geantwortet = (request.media_type.value, request.tier.value) in geladen
+            geantwortet = (request.media_type.value, request.tier) in geladen
             if abgleich_kern.ist_wirklich_weg(request, geantwortet):
                 request.status = RequestStatus.cancelled
                 request.completed_at = utcnow()
@@ -215,7 +215,7 @@ async def check_once(
                     request.id,
                     request.title,
                     request.media_type.value,
-                    request.tier.value,
+                    request.tier,
                     "Radarr" if request.media_type == MediaType.movie else "Sonarr",
                 )
                 anfragender = db.get(User, request.user_id)
@@ -325,7 +325,7 @@ async def check_once(
         )
     )
     for request in fertige:
-        stufe = request.tier.value
+        stufe = request.tier
         if not settings.arr_configured(request.media_type.value, stufe):
             # Ohne Instanz gibt es keine Quelle, die "weg" sagen koennte.
             continue

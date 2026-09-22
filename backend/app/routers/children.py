@@ -7,19 +7,21 @@ welches Kind gehoert. Hier wird sie nur in HTTP uebersetzt.
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from .. import meldungen
 from ..deps import CurrentUser, DbSession
-from ..models import ChildWish, MediaType, QualityTier, User
+from ..models import ChildWish, MediaType, User
 from ..schemas import ChildCreate, ChildPassword, ChildPublic, ChildUpdate
 from ..schemas_media import MediaDetail, MediaItem
 from ..schemas_requests import RequestPublic
 from ..services import (
     child_wishes,
     children,
+    fassungen,
     kids,
     media,
     requests_service,
@@ -89,7 +91,11 @@ class WishRelease(BaseModel):
     # wie bei einer gewoehnlichen Anfrage, geprueft im Dienst.
     episodes: list[int] | None = Field(default=None, max_length=400)
     monitor_future: bool = False
-    tier: QualityTier = QualityTier.standard
+    #: In welcher Fassung (Kennung)? Das Elternteil waehlt wie im
+    #: Anfrageformular (Bauplan Abschnitt 13, Punkt 3); ohne Angabe die
+    #: Hauptfassung. ``tier`` ist die alte Form derselben Wahl.
+    fassung: str | None = Field(default=None, min_length=1, max_length=32)
+    tier: Literal["standard", "uhd"] = "standard"
 
 
 async def _abo_treffer(
@@ -220,7 +226,9 @@ async def release_wish(
             root_folder_path=payload.root_folder_path,
             season=payload.season if wunsch.media_type == MediaType.tv else None,
             episodes=payload.episodes if wunsch.media_type == MediaType.tv else None,
-            tier=payload.tier,
+            fassung=fassungen.gewaehlt(
+                settings, wunsch.media_type, payload.fassung, payload.tier
+            ),
             monitor_future=payload.monitor_future,
         )
     except children.ChildError as error:

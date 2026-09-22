@@ -49,6 +49,10 @@ class StoragePosten(BaseModel):
 
     id: int
     media_type: str
+    #: Die Kennung der Fassung - die Oberflaeche macht daraus ihren Namen.
+    fassung: str
+    #: Die Stufe als Ableitung. Sie steht in der Zusage von ``/api/v1``
+    #: (Bauplan NEX-Modus, Abschnitt 12) und bleibt deshalb.
     tier: str
     tmdb_id: int | None
     tvdb_id: int | None
@@ -729,9 +733,7 @@ async def loeschvorschau(
     # Entscheidung, ein unverwalteter Titel ein Zustand. Beides muss benannt
     # werden - ein grauer Knopf ohne Begruendung laesst nur raten.
     grund = ""
-    if storage.LOESCHBARE_STUFEN and posten.tier not in {
-        stufe.value for stufe in storage.LOESCHBARE_STUFEN
-    }:
+    if storage.LOESCHBARE_FASSUNGEN and posten.fassung not in storage.LOESCHBARE_FASSUNGEN:
         grund = "tier"
     elif not dateien:
         grund = "unmanaged"

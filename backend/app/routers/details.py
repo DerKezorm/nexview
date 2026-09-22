@@ -16,8 +16,9 @@ from sqlalchemy import select
 
 from .. import meldungen
 from ..deps import CurrentUser, DbSession
-from ..models import MediaType, QualityTier, Role, Ticket, TicketStatus
+from ..models import MediaType, Role, Ticket, TicketStatus
 from ..schemas_media import (
+    FolgenFassung,
     MediaDetail,
     MediaItem,
     MediaPage,
@@ -25,19 +26,21 @@ from ..schemas_media import (
     PersonDetail,
     PersonSummary,
     SeasonDetail,
+    StaffelFassung,
 )
 from ..services import (
     blocklist,
+    fassungen,
+    fassungsachsen,
     media,
     mediaserver_library,
     mediaserver_watched,
     ratings,
     requests_service,
     streaming,
-    uhd,
     watch,
 )
-from ..services.beschaffung import get_beschaffung, jahr_aus
+from ..services.beschaffung import KLASSE_UHD, get_beschaffung, jahr_aus
 from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
 from ..services.streaming import eigene_dienste
@@ -46,6 +49,100 @@ from ..services.tmdb import TmdbError
 logger = logging.getLogger("nexview.details")
 
 router = APIRouter(prefix="/api", tags=["details"])
+
+
+def _fassungskennungen(settings, media_type: str) -> list[str]:
+    """Die Hauptfassung zuerst, dann jede weitere eingerichtete.
+
+    Die Hauptfassung steht auch dann in der Liste, wenn ihre Instanz fehlt:
+    Ihre Antworten sind die alten Felder (``episodes_available`` und die
+    anderen ohne Suffix), und die gibt es seit jeher auch ohne Sonarr.
+    """
+    haupt = fassungen.hauptkennung(media_type)
+    return [haupt] + [
+        eintrag.kennung
+        for eintrag in settings.fassungen_fuer(media_type)
+        if eintrag.kennung != haupt
+    ]
+
+
+class _Staffeldaten(BaseModel):
+    """Was eine Fassung ueber die Staffeln einer Serie sagt."""
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    vorhanden: dict[int, set[int]]
+    staffelstaende: dict
+    angefragt: set[int | None]
+    pakete: dict[int, dict[int, str]]
+    belegung: dict[int | None, str]
+
+    def staffel(self, kennung: str, nummer: int) -> StaffelFassung:
+        stand = self.staffelstaende.get(nummer)
+        return StaffelFassung(
+            kennung=kennung,
+            episodes_available=len(self.vorhanden.get(nummer, ())),
+            # ``None`` in der Menge steht fuer eine Anfrage ueber die ganze
+            # Serie - die deckt jede Staffel ab.
+            requested=nummer in self.angefragt or None in self.angefragt,
+            requested_episodes=sorted(self.pakete.get(nummer, {})),
+            requested_status=self.belegung.get(nummer) or self.belegung.get(None),
+            # Sonarrs eigene Staffel-Zaehlung - der Massstab fuer "vollstaendig".
+            episodes_total=stand.folgen if stand is not None and stand.folgen > 0 else None,
+        )
+
+
+class _Folgendaten(BaseModel):
+    """Dasselbe fuer die Folgen einer Staffel."""
+
+    vorhanden: set[int]
+    deck_status: str | None
+    paket_status: dict[int, str]
+
+    def folge(self, kennung: str, nummer: int) -> FolgenFassung:
+        status = self.deck_status or self.paket_status.get(nummer)
+        return FolgenFassung(
+            kennung=kennung,
+            available=nummer in self.vorhanden,
+            requested=status is not None,
+            requested_status=status,
+        )
+
+
+async def _staffeldaten(
+    db: DbSession, settings, detail: MediaDetail, kennung: str, jahr: int | None
+) -> _Staffeldaten:
+    stufe = fassungen.stufe(kennung)
+    beschaffung = get_beschaffung(settings)
+    vorhanden = await beschaffung.folgen_verfuegbarkeit(
+        detail.tvdb_id, detail.title, stufe=stufe, jahr=jahr
+    )
+    eintrag = await beschaffung.serien_eintrag(
+        detail.tvdb_id, detail.title, jahr=jahr, stufe=stufe
+    )
+    return _Staffeldaten(
+        vorhanden=vorhanden,
+        staffelstaende=getattr(eintrag, "staffeln", None) or {},
+        angefragt=requests_service.angefragte_staffeln(db, detail.tmdb_id, kennung),
+        pakete=requests_service.angefragte_pakete(db, detail.tmdb_id, kennung),
+        belegung=requests_service.staffel_belegung(db, detail.tmdb_id, kennung),
+    )
+
+
+async def _folgendaten(
+    db: DbSession, settings, serie: MediaDetail, tmdb_id: int, season_number: int, kennung: str
+) -> _Folgendaten:
+    vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
+        serie.tvdb_id, serie.title, stufe=fassungen.stufe(kennung), jahr=jahr_aus(serie.release_date)
+    )
+    voll = requests_service.staffel_belegung(db, tmdb_id, kennung)
+    return _Folgendaten(
+        vorhanden=vorhanden.get(season_number, set()),
+        deck_status=voll.get(season_number) or voll.get(None),
+        paket_status=requests_service.angefragte_pakete(db, tmdb_id, kennung).get(
+            season_number, {}
+        ),
+    )
 
 MediaTypePath = Annotated[Literal["movie", "tv"], Path()]
 
@@ -145,7 +242,7 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
                 )
 
         # Zweite Achse zuletzt - sie ergaenzt nur, sie ersetzt nichts.
-        await uhd.anreichern(db, settings, media_type, list(eintraege), user)
+        await fassungsachsen.anreichern(db, settings, media_type, list(eintraege), user)
 
 
 @router.get("/detail/{media_type}/{tmdb_id}", response_model=MediaDetail)
@@ -213,73 +310,42 @@ async def title_detail(
     # welchen laeuft bereits eine Anfrage?
     if media_type == "tv" and detail.seasons:
         jahr = jahr_aus(detail.release_date)
-        vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
-            detail.tvdb_id, detail.title, jahr=jahr
-        )
-        # Sonarrs eigene Staffel-Zaehlung - der Massstab fuer "vollstaendig".
-        eintrag = await get_beschaffung(settings).serien_eintrag(
-            detail.tvdb_id, detail.title, jahr=jahr
-        )
-        staffelstaende = getattr(eintrag, "staffeln", None) or {}
-        angefragt = requests_service.angefragte_staffeln(db, detail.tmdb_id)
-        pakete = requests_service.angefragte_pakete(db, detail.tmdb_id)
-        belegung = requests_service.staffel_belegung(db, detail.tmdb_id)
-        # Die zweite Achse nur, wenn es sie gibt - sonst bleiben die Felder
+        # Je Fassung dieselben vier Fragen - zuerst die Hauptfassung, deren
+        # Antworten auch in den alten Feldern stehen. Eine Fassung, die es
+        # nicht gibt, wird nicht gefragt; ihre ``*_uhd``-Felder bleiben
         # ``None`` und heissen "unbekannt", wie bei ``status_uhd``.
-        mit_uhd = settings.arr_configured("tv", "uhd")
-        if mit_uhd:
-            vorhanden_uhd = await get_beschaffung(settings).folgen_verfuegbarkeit(
-                detail.tvdb_id, detail.title, stufe="uhd", jahr=jahr
-            )
-            angefragt_uhd = requests_service.angefragte_staffeln(
-                db, detail.tmdb_id, QualityTier.uhd
-            )
-            pakete_uhd = requests_service.angefragte_pakete(
-                db, detail.tmdb_id, QualityTier.uhd
-            )
-            belegung_uhd = requests_service.staffel_belegung(
-                db, detail.tmdb_id, QualityTier.uhd
-            )
-            eintrag_uhd = await get_beschaffung(settings).serien_eintrag(
-                detail.tvdb_id, detail.title, jahr=jahr, stufe="uhd"
-            )
-            staffelstaende_uhd = getattr(eintrag_uhd, "staffeln", None) or {}
+        je_fassung = {
+            kennung: await _staffeldaten(db, settings, detail, kennung, jahr)
+            for kennung in _fassungskennungen(settings, "tv")
+        }
+        haupt_kennung = fassungen.hauptkennung("tv")
+        haupt = je_fassung[haupt_kennung]
+        vierk = next(
+            (
+                kennung
+                for kennung in je_fassung
+                if kennung != haupt_kennung and fassungen.klasse(kennung) == KLASSE_UHD
+            ),
+            None,
+        )
         for staffel in detail.seasons:
-            staffel.episodes_available = len(vorhanden.get(staffel.season_number, ()))
-            # ``None`` in der Menge steht fuer eine Anfrage ueber die ganze
-            # Serie - die deckt jede Staffel ab.
-            staffel.requested = (
-                staffel.season_number in angefragt or None in angefragt
-            )
-            staffel.requested_episodes = sorted(
-                pakete.get(staffel.season_number, {})
-            )
-            staffel.requested_status = belegung.get(
-                staffel.season_number
-            ) or belegung.get(None)
-            stand = staffelstaende.get(staffel.season_number)
-            staffel.episodes_total_arr = (
-                stand.folgen if stand is not None and stand.folgen > 0 else None
-            )
-            if mit_uhd:
-                staffel.episodes_available_uhd = len(
-                    vorhanden_uhd.get(staffel.season_number, ())
-                )
-                staffel.requested_uhd = (
-                    staffel.season_number in angefragt_uhd or None in angefragt_uhd
-                )
-                staffel.requested_episodes_uhd = sorted(
-                    pakete_uhd.get(staffel.season_number, {})
-                )
-                staffel.requested_status_uhd = belegung_uhd.get(
-                    staffel.season_number
-                ) or belegung_uhd.get(None)
-                stand_uhd = staffelstaende_uhd.get(staffel.season_number)
-                staffel.episodes_total_arr_uhd = (
-                    stand_uhd.folgen
-                    if stand_uhd is not None and stand_uhd.folgen > 0
-                    else None
-                )
+            staffel.fassungen = [
+                daten.staffel(kennung, staffel.season_number)
+                for kennung, daten in je_fassung.items()
+            ]
+            eigene = haupt.staffel(haupt_kennung, staffel.season_number)
+            staffel.episodes_available = eigene.episodes_available
+            staffel.requested = eigene.requested
+            staffel.requested_episodes = eigene.requested_episodes
+            staffel.requested_status = eigene.requested_status
+            staffel.episodes_total_arr = eigene.episodes_total
+            if vierk is not None:
+                vier = je_fassung[vierk].staffel(vierk, staffel.season_number)
+                staffel.episodes_available_uhd = vier.episodes_available
+                staffel.requested_uhd = vier.requested
+                staffel.requested_episodes_uhd = vier.requested_episodes
+                staffel.requested_status_uhd = vier.requested_status
+                staffel.episodes_total_arr_uhd = vier.episodes_total
 
     return detail
 
@@ -363,31 +429,36 @@ async def season(
     paket_status = requests_service.angefragte_pakete(db, tmdb_id).get(
         season_number, {}
     )
-    mit_uhd = settings.arr_configured("tv", "uhd")
-    if mit_uhd:
-        vorhanden_uhd = await get_beschaffung(settings).folgen_verfuegbarkeit(
-            serie.tvdb_id,
-            serie.title,
-            stufe="uhd",
-            jahr=jahr_aus(serie.release_date),
-        )
-        uhd_staffel = vorhanden_uhd.get(season_number, set())
-        voll_uhd = requests_service.staffel_belegung(db, tmdb_id, QualityTier.uhd)
-        deck_status_uhd = voll_uhd.get(season_number) or voll_uhd.get(None)
-        paket_status_uhd = requests_service.angefragte_pakete(
-            db, tmdb_id, QualityTier.uhd
-        ).get(season_number, {})
+    # Dieselben Fragen je weiterer Fassung; die Hauptfassung steht schon oben.
+    haupt_kennung = fassungen.hauptkennung("tv")
+    weitere = [k for k in _fassungskennungen(settings, "tv") if k != haupt_kennung]
+    je_fassung = {
+        kennung: await _folgendaten(db, settings, serie, tmdb_id, season_number, kennung)
+        for kennung in weitere
+    }
+    vierk = next((k for k in weitere if fassungen.klasse(k) == KLASSE_UHD), None)
 
     for folge in staffel.episodes:
         folge.available = folge.episode_number in in_dieser_staffel
         folge.requested_status = deck_status or paket_status.get(folge.episode_number)
         folge.requested = folge.requested_status is not None
-        if mit_uhd:
-            folge.available_uhd = folge.episode_number in uhd_staffel
-            folge.requested_status_uhd = deck_status_uhd or paket_status_uhd.get(
-                folge.episode_number
-            )
-            folge.requested_uhd = folge.requested_status_uhd is not None
+        folge.fassungen = [
+            FolgenFassung(
+                kennung=haupt_kennung,
+                available=folge.available,
+                requested=folge.requested,
+                requested_status=folge.requested_status,
+            ),
+            *(
+                je_fassung[kennung].folge(kennung, folge.episode_number)
+                for kennung in weitere
+            ),
+        ]
+        if vierk is not None:
+            vier = je_fassung[vierk].folge(vierk, folge.episode_number)
+            folge.available_uhd = vier.available
+            folge.requested_status_uhd = vier.requested_status
+            folge.requested_uhd = vier.requested
 
     return staffel
 

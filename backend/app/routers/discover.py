@@ -9,16 +9,16 @@ from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..mocks import demo_data
-from ..models import MediaType, QualityTier, Role
+from ..models import MediaType, Role
 from ..schemas_media import ArrOptions, Genre, MediaItem, MediaPage
 from ..services import (
     blocklist,
     fassungen,
+    fassungsachsen,
     media,
     mediaserver_library,
     mediaserver_watched,
     requests_service,
-    uhd,
 )
 from ..services.beschaffung import BeschaffungError, get_beschaffung
 from ..services.filters import (
@@ -147,7 +147,7 @@ async def _status_for(
 
     # Zweite Achse zuletzt: Sie ergaenzt nur und aendert nichts an ``status``.
     if user is not None:
-        await uhd.anreichern(db, settings, media_type, merged, user)
+        await fassungsachsen.anreichern(db, settings, media_type, merged, user)
     return merged, result.warning
 
 
@@ -267,6 +267,7 @@ async def arr_options(
     user: CurrentUser,
     db: DbSession,
     tier: Annotated[Literal["standard", "uhd"], Query()] = "standard",
+    fassung: Annotated[str | None, Query(min_length=1, max_length=32)] = None,
 ) -> ArrOptions:
     """Qualitaetsprofile und Zielordner - fuer die Auswahl vor dem Hinzufuegen.
 
@@ -275,14 +276,25 @@ async def arr_options(
     die Vorauswahl: das vom Admin gesetzte Standardprofil, oder das erste
     erlaubte, falls der Standard fuer ihn gesperrt ist.
 
-    ``tier`` waehlt die Instanz. Die Profil-Kennungen der beiden Instanzen
-    kollidieren, deshalb muessen auch die Sperren je Stufe gelesen werden.
+    ``fassung`` (Kennung) waehlt die Instanz; ``tier`` ist die alte Form
+    derselben Frage und bleibt, weil nexdeck sie stellt (Bauplan Abschnitt 12).
+    Die Profil-Kennungen der beiden Instanzen kollidieren, deshalb muessen auch
+    die Sperren je Instanz gelesen werden.
     """
     settings = load_settings(db)
-    if tier == "uhd":
+    kennung = fassungen.gewaehlt(settings, media_type, fassung, tier)
+    if fassungen.art_der(settings, kennung) != media_type:
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "fassung_unknown", "Diese Fassung gibt es für diese Medienart nicht."
+            ),
+        )
+    tier = fassungen.stufe(kennung)
+    if kennung != fassungen.hauptkennung(media_type):
         # Ohne Recht gar nichts ausliefern - die Profilnamen der 4K-Instanz
         # gehen niemanden etwas an, der sie nicht nutzen darf.
-        if not fassungen.darf_anfragen(db, user, fassungen.arr_kennung(media_type, tier)):
+        if not fassungen.darf_anfragen(db, user, kennung):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=meldungen.meldung(
@@ -290,7 +302,7 @@ async def arr_options(
                     "Für 4K-Anfragen fehlt dir die Berechtigung.",
                 ),
             )
-        if not settings.arr_configured(media_type, "uhd"):
+        if settings.fassung(kennung) is None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=meldungen.meldung(
@@ -314,7 +326,7 @@ async def arr_options(
     gesperrt = (
         []
         if user.can_approve
-        else user.blocked_profiles(MediaType(media_type), QualityTier(tier))
+        else user.blocked_profiles(MediaType(media_type), tier)
     )
     if gesperrt:
         uebrig = [p for p in options.quality_profiles if p.id not in gesperrt]

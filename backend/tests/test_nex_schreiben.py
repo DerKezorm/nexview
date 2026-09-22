@@ -182,33 +182,84 @@ def test_der_umfang_einer_anfrage(
 
 
 async def test_dieselbe_anfrage_geht_nie_zweimal_gleichzeitig_hinaus(
-    nex: Any, nexcrate: FakeNexcrate, db: Session
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """⚠️ nexbeat-Befund 17: Zwei gleichzeitige Anfragen endeten in nexcrate in `500`."""
+    """⚠️ nexbeat-Befund 17: Zwei gleichzeitige Anfragen endeten in nexcrate in `500`.
+
+    Gemessen an einer echten nexcrate: Beide wollten denselben unbekannten
+    Titel anlegen, die zweite scheiterte an einer eindeutigen Spalte. Nexview
+    hat mehrere Benutzer je Titel und trifft genau das - also geht dieselbe
+    Anfrage nie zweimal gleichzeitig hinaus.
+    """
     import asyncio
+
+    from app.services.beschaffung.nex.client import NexcrateClient
 
     nexcrate.film(603)
     person = _nutzer(db)
     eine = _anfrage(db, person)
     andere = _anfrage(db, _nutzer(db, "zweiter"))
-    laufend: list[str] = []
 
-    echt = nexcrate._route
+    laufend = 0
+    hoechstens = 0
+    echt = NexcrateClient.request
 
-    def langsam(methode: str, rest: str, abfrage: Any, koerper: Any) -> Any:
-        if rest == "/requests":
-            laufend.append("an")
-            assert len(laufend) == 1, "zwei Anfragen zugleich bei nexcrate"
-            antwort = echt(methode, rest, abfrage, koerper)
-            laufend.pop()
-            return antwort
-        return echt(methode, rest, abfrage, koerper)
+    async def langsam(self: NexcrateClient, koerper: dict[str, Any]) -> Any:
+        nonlocal laufend, hoechstens
+        laufend += 1
+        hoechstens = max(hoechstens, laufend)
+        # Genau hier faende der Wettlauf statt: Die Schleife darf wechseln.
+        await asyncio.sleep(0.02)
+        try:
+            return await echt(self, koerper)
+        finally:
+            laufend -= 1
 
-    nexcrate._route = langsam  # type: ignore[method-assign]
+    monkeypatch.setattr(NexcrateClient, "request", langsam)
     weg = get_beschaffung(nex)
     await asyncio.gather(weg.anfragen(db, eine), weg.anfragen(db, andere))
 
+    assert hoechstens == 1, "zwei Anfragen auf denselben Titel waren zugleich unterwegs"
     assert len(_gesendet(nexcrate, "/requests")) == 2
+
+
+async def test_zwei_verschiedene_titel_warten_nicht_aufeinander(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Gegenprobe: Die Sperre gilt je Titel, nicht fuer alles.
+
+    Sonst waere eine Sammelfreigabe von hundert Titeln hundertmal
+    hintereinander - und genau dafuer ist der Stapel gedacht (N24).
+    """
+    import asyncio
+
+    from app.services.beschaffung.nex.client import NexcrateClient
+
+    nexcrate.film(603)
+    nexcrate.film(604, name="Another Example")
+    person = _nutzer(db)
+    eine = _anfrage(db, person)
+    andere = _anfrage(db, person, tmdb_id=604, title="Another Example", arr_id=604)
+
+    laufend = 0
+    hoechstens = 0
+    echt = NexcrateClient.request
+
+    async def langsam(self: NexcrateClient, koerper: dict[str, Any]) -> Any:
+        nonlocal laufend, hoechstens
+        laufend += 1
+        hoechstens = max(hoechstens, laufend)
+        await asyncio.sleep(0.02)
+        try:
+            return await echt(self, koerper)
+        finally:
+            laufend -= 1
+
+    monkeypatch.setattr(NexcrateClient, "request", langsam)
+    weg = get_beschaffung(nex)
+    await asyncio.gather(weg.anfragen(db, eine), weg.anfragen(db, andere))
+
+    assert hoechstens == 2, "verschiedene Titel warteten aufeinander"
 
 
 async def test_ein_500_ist_ungewiss_und_kein_fehlschlag(
@@ -590,6 +641,26 @@ def test_ohne_umschalten_wird_nichts_nachgereicht(db: Session) -> None:
     assert nachreichen.faellig(load_settings(db)) is False
 
 
+def test_das_umschalten_setzt_den_merker(admin_client: Any) -> None:
+    """⚠️ Ohne ihn bliebe jede freigegebene Anfrage nach dem Wechsel stehen."""
+    with SessionLocal() as db:
+        assert load_settings(db).beschaffung_gewechselt_am == ""
+
+    assert admin_client.put("/api/settings", json={"beschaffung": "nex"}).status_code == 200
+
+    with SessionLocal() as db:
+        einstellungen = load_settings(db, frisch=True)
+    assert einstellungen.beschaffung_gewechselt_am != ""
+    assert nachreichen.faellig(einstellungen) is True
+
+
+def test_ein_speichern_ohne_wechsel_setzt_ihn_nicht(admin_client: Any) -> None:
+    """Sonst liefe das Nachreichen bei jedem Speichern der Einstellungen."""
+    admin_client.put("/api/settings", json={"beschaffung": "arr", "default_region": "AT"})
+    with SessionLocal() as db:
+        assert load_settings(db, frisch=True).beschaffung_gewechselt_am == ""
+
+
 # --- Der Papierkorb -----------------------------------------------------------------
 
 
@@ -611,3 +682,14 @@ async def test_der_papierkorb_ist_eine_liste_und_kein_ordner(
 
     await weg.wiederherstellen(3)
     assert any(k[1].endswith("/recycle-bin/3/restore") for k in nexcrate.calls)
+
+    # Und die Gegenrichtung: Radarr und Sonarr fuehren keine Liste, aus der
+    # sich etwas zurueckholen liesse - eine leere Liste waere eine Luege.
+    from dataclasses import replace
+
+    with SessionLocal() as db:
+        arr = get_beschaffung(replace(load_settings(db), beschaffung="arr"))
+    assert arr.faehigkeiten().papierkorb is False
+    with pytest.raises(BeschaffungError) as gefangen:
+        await arr.papierkorb()
+    assert gefangen.value.code == "not_in_this_mode"

@@ -2181,7 +2181,9 @@
       "nexcrate_not_configured": "Address and key for nexcrate are not stored yet.",
       "not_in_this_mode": "This tool belongs to the other procurement mode.",
       "beschaffung_invalid": "There is no such procurement mode.",
-      "nex_noch_nicht_gebaut": "This path does not exist in nexcrate mode yet."
+      "download_action_not_offered": "nexcrate does not offer that for this download.",
+      "download_action_not_automatic": "An automation may not take that action here.",
+      "storage_nothing_to_delete": "nexcrate reports no file for this entry that could be deleted."
     }
   },
   "language": {

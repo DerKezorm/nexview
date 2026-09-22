@@ -4,10 +4,11 @@
 fuehrt sie zu nexcrate statt zu Radarr und Sonarr. Der Weg kennt eine
 Installation (``nexcrate_url``, ``nexcrate_api_key``), nicht vier Instanzen.
 
-⚠️ **Scheibe 4 baut den Client, nicht die Wege.** Was hier ``_spaeter``
-aufruft, kommt mit Scheibe 5 (lesen) und Scheibe 6 (schreiben). Es wirft
-einen ehrlichen Fehler mit Kennung, statt still nichts zu tun - und ruft in
-keinem Fall Radarr oder Sonarr (``tests/test_nex_ohne_arr.py``).
+⚠️ **Was es hier nicht gibt, sagt es beim Namen.** Die Betreiberwerkzeuge
+fuer Arr (Profile, Benennung, Zielordner, Papierkorb-Ordner) gehoeren im
+NEX-Betrieb nexcrate; sie antworten ``409 not_in_this_mode`` statt still eine
+leere Liste zu liefern. Und in keinem Fall ruft dieser Weg Radarr oder Sonarr
+(``tests/test_nex_ohne_arr.py``).
 
 ⚠️ **Nexview legt in nexcrate keinen Webhook an** (N32 ist fuer andere
 Verbraucher). Der Rueckkanal ist der Ereignisstrom, den Nexview selbst
@@ -21,7 +22,7 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, ClassVar, NoReturn
 
-from ....models import utcnow
+from ....models import MediaRequest, utcnow
 from ..base import (
     Aktion,
     Beschaffung,
@@ -37,7 +38,19 @@ from ..base import (
     SerienStand,
     WarteschlangenEintrag,
 )
-from . import bestand, downloads, fassungen, fehler, gesundheit, lesen, mapping, system
+from . import (
+    aktionen,
+    auftraege,
+    bestand,
+    downloads,
+    fassungen,
+    fehler,
+    gesundheit,
+    lesen,
+    mapping,
+    speicher,
+    system,
+)
 from .client import NexcrateClient
 
 if TYPE_CHECKING:
@@ -46,7 +59,7 @@ if TYPE_CHECKING:
     from fastapi import APIRouter
     from sqlalchemy.orm import Session
 
-    from ....models import MediaRequest, StorageEntry, User
+    from ....models import StorageEntry, User
     from ....schemas_media import MediaItem
     from ...settings_service import AppSettings
 
@@ -76,16 +89,6 @@ def client_fuer(settings: AppSettings) -> NexcrateClient:
     if not settings.nexcrate_configured:
         raise fehler.nicht_eingerichtet()
     return NexcrateClient(settings.nexcrate_url, settings.nexcrate_api_key)
-
-
-def _spaeter(was: str) -> NoReturn:
-    """Ein Weg, den erst eine spaetere Scheibe baut."""
-    raise BeschaffungError(
-        f"Im NEX-Betrieb gibt es „{was}“ noch nicht.",
-        code="nex_noch_nicht_gebaut",
-        korb=Korb.abgelehnt,
-        weg=was,
-    )
 
 
 def _gibt_es_nicht(was: str) -> NoReturn:
@@ -161,7 +164,7 @@ class NexBeschaffung(Beschaffung):
     def nicht_eingerichtet(self, media_type: str, stufe: str) -> str:
         if not self.settings.nexcrate_configured:
             return "Für nexcrate sind Adresse und Schlüssel noch nicht hinterlegt."
-        return "In nexcrate ist für diese Medienart keine Fassung eingerichtet."
+        return auftraege.nicht_eingerichtet_text(media_type, stufe)
 
     async def bestand_filme(
         self, stufe: str = "standard", *, fassung: str = ""
@@ -346,10 +349,22 @@ class NexBeschaffung(Beschaffung):
         return lesen.datentraeger(await self.client.storage())
 
     async def papierkoerbe(self) -> list[tuple[str, str, str, Any]]:
-        _spaeter("Papierkorb")
+        """Gibt es nicht: Arrs Papierkorb ist ein **Ordner**, nexcrates eine Liste.
+
+        Den Inhalt liest ``papierkorb()``; die Seite dazu kommt mit Scheibe 8.
+        """
+        _gibt_es_nicht("Papierkorb-Ordner")
 
     async def papierkorb_groesse(self, media_type: str, stufe: str, pfad: str) -> tuple[int, bool]:
-        _spaeter("Größe des Papierkorbs")
+        _gibt_es_nicht("Papierkorb-Ordner")
+
+    async def papierkorb(self) -> list[dict[str, Any]]:
+        """Was in nexcrates Papierkorb liegt (N22)."""
+        return await self.client.recycle_bin()
+
+    async def wiederherstellen(self, eintrag_id: int) -> None:
+        """Einen Eintrag aus nexcrates Papierkorb zurückholen."""
+        await self.client.restore(eintrag_id)
 
     async def kalender(self, media_type: str, von: str, bis: str) -> list[dict[str, Any]]:
         """nexcrates Kalender, in Stuecken zu hoechstens hundert Tagen."""
@@ -375,10 +390,12 @@ class NexBeschaffung(Beschaffung):
     # -- Auftraege ------------------------------------------------------------
 
     async def anfragen(self, db: Session, anfrage: MediaRequest) -> int | None:
-        _spaeter("Anfragen")
+        return await auftraege.anfragen(db, self.settings, anfrage)
 
     async def abbrechen(self, db: Session, anfrage: MediaRequest) -> str:
-        _spaeter("Zurücknehmen")
+        return await auftraege.zuruecknehmen(
+            db, self.settings, anfrage, dateien_loeschen=True
+        )
 
     async def ueberwachung_heilen(self, db: Session, anfrage: MediaRequest, arr_id: int) -> None:
         """Entfaellt: ``monitored`` ist im Vertrag verbindlich (Bauplan 6.1).
@@ -414,25 +431,54 @@ class NexBeschaffung(Beschaffung):
     async def posten_dateien(
         self, zeile: StorageEntry, arr_id: int, paket_folgen: Callable[[], list[int] | None]
     ) -> list[tuple[str, int]]:
-        _spaeter("Dateien eines Postens")
+        return await speicher.dateien(self.settings, zeile, arr_id, paket_folgen)
 
     async def posten_loeschen(
         self, zeile: StorageEntry, arr_id: int, paket_folgen: Callable[[], list[int] | None]
     ) -> None:
-        _spaeter("Löschen eines Postens")
+        await speicher.loeschen(self.settings, zeile, arr_id, paket_folgen)
 
     async def posten_stilllegen(self, zeile: StorageEntry) -> int | None:
-        _spaeter("Stilllegen eines Postens")
+        return await speicher.stilllegen(self.settings, zeile)
 
     # -- Konto aufloesen ------------------------------------------------------
 
     async def laufende_aufloesen(
         self, db: Session, laufend: Any, *, behalten: bool, weiter: bool
     ) -> bool:
-        _spaeter("Konto auflösen")
+        """Eine angefangene Bestellung nach der Wahl des Administrators.
+
+        ``False`` heisst: nichts zu tun. „Behalten und weiter" ist genau das -
+        die Bestellung laeuft zu Ende und faellt ans Haus.
+        """
+        if laufend.arr_id is None or (behalten and weiter):
+            return False
+        anfrage = db.get(MediaRequest, laufend.request_id)
+        if anfrage is None:
+            return False
+        if behalten:
+            # Einfrieren: Ueberwachung aus, Datei bleibt (N43).
+            await auftraege.einfrieren(self.settings, anfrage)
+        else:
+            await auftraege.zuruecknehmen(
+                db, self.settings, anfrage, dateien_loeschen=True
+            )
+        return True
 
     async def bestellung_zuruecknehmen(self, anfrage: MediaRequest) -> None:
-        _spaeter("Offene Bestellung zurücknehmen")
+        """Eine Bestellung ohne Dateien zuruecknehmen.
+
+        ``delete_files`` bleibt an: Sollte in der letzten Sekunde doch eine
+        Datei angekommen sein, wandert sie in nexcrates Papierkorb, statt
+        verwaist liegenzubleiben. Dieselbe Vorsicht wie im ARR-Betrieb.
+        """
+        from ....db import SessionLocal
+
+        with SessionLocal() as db:
+            frisch = db.get(MediaRequest, anfrage.id) or anfrage
+            await auftraege.zuruecknehmen(
+                db, self.settings, frisch, dateien_loeschen=True
+            )
 
     # -- Instanzen: Stand, Gesundheit, Rueckkanal ------------------------------
 
@@ -507,20 +553,26 @@ class NexBeschaffung(Beschaffung):
         wer: User | None,
         automatisch: bool = False,
     ) -> Any:
-        _spaeter("Download entfernen")
+        return await aktionen.entfernen(
+            db, self.settings, zeile_id, neu_suchen=neu_suchen, wer=wer, automatisch=automatisch
+        )
 
     async def download_erneut_pruefen(
         self, db: Session, zeile_id: int, *, wer: User | None, automatisch: bool = False
     ) -> Any:
-        _spaeter("Download erneut prüfen")
+        return await aktionen.erneut_pruefen(
+            db, self.settings, zeile_id, wer=wer, automatisch=automatisch
+        )
 
     async def download_kandidaten(self, db: Session, zeile_id: int) -> list[Any]:
-        _spaeter("Dateien eines Downloads")
+        return await aktionen.kandidaten(db, self.settings, zeile_id)
 
     async def download_importieren(
         self, db: Session, zeile_id: int, pfade: list[str], *, trotzdem: bool, wer: User | None
     ) -> Any:
-        _spaeter("Von Hand zuordnen")
+        return await aktionen.importieren(
+            db, self.settings, zeile_id, pfade, trotzdem=trotzdem, wer=wer
+        )
 
     # -- Betrieb (ohne Einstellungen) -----------------------------------------
 

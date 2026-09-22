@@ -578,6 +578,20 @@ class Beschaffung(ABC):
     async def papierkorb_groesse(self, media_type: str, stufe: str, pfad: str) -> tuple[int, bool]: ...
 
     @abstractmethod
+    async def papierkorb(self) -> list[dict[str, Any]]:
+        """Was im Papierkorb liegt (N22) - Titel, Fassung, Umfang, Groesse, wann.
+
+        ⚠️ **Nicht dasselbe wie ``papierkoerbe``.** Radarr und Sonarr haben
+        einen Papierkorb-**Ordner**, den Nexview durchsucht; nexcrate fuehrt
+        eine Liste und holt daraus zurueck. Wer den hat, sagt
+        ``faehigkeiten().papierkorb``.
+        """
+
+    @abstractmethod
+    async def wiederherstellen(self, eintrag_id: int) -> None:
+        """Einen Eintrag aus dem Papierkorb zurueckholen."""
+
+    @abstractmethod
     async def kalender(self, media_type: str, von: str, bis: str) -> list[dict[str, Any]]: ...
 
     @abstractmethod

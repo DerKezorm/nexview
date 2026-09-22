@@ -370,16 +370,29 @@ def test_der_nex_weg_hat_nichts_ausserhalb_der_schnittstelle() -> None:
 
 
 @pytest.mark.anyio
-async def test_ein_weg_der_erst_spaeter_kommt_sagt_es_mit_kennung(nexcrate: FakeNexcrate) -> None:
-    """Die Schreibwege kommen mit Scheibe 6. Sie werfen - still nichts tun waere schlimmer."""
+async def test_ein_werkzeug_des_anderen_betriebs_sagt_es_mit_kennung(
+    nexcrate: FakeNexcrate,
+) -> None:
+    """Was es hier nicht gibt, antwortet ehrlich statt mit einer leeren Liste.
+
+    ⚠️ **In beide Richtungen.** Zielordner und Profile gehoeren im NEX-Betrieb
+    nexcrate; einen Papierkorb, aus dem sich etwas zurueckholen laesst, haben
+    Radarr und Sonarr nicht.
+    """
     from app.services.beschaffung import BeschaffungError
 
     with SessionLocal() as db:
-        weg = get_beschaffung(_nex_einstellungen(db))
+        nex = get_beschaffung(_nex_einstellungen(db))
+        arr = get_beschaffung(load_settings(db))
+
     with pytest.raises(BeschaffungError) as gefangen:
-        await weg.anfragen(None, None)
-    assert gefangen.value.code == "nex_noch_nicht_gebaut"
+        await nex.optionen("movie")
+    assert gefangen.value.code == "not_in_this_mode"
     assert gefangen.value.korb is Korb.abgelehnt
+
+    with pytest.raises(BeschaffungError) as gefangen:
+        await arr.papierkorb()
+    assert gefangen.value.code == "not_in_this_mode"
 
 
 @pytest.mark.anyio

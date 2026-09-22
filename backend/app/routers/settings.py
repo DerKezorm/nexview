@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .. import meldungen
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
-from ..models import Hausordnung, User
+from ..models import Hausordnung, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH
 from ..services import beschaffung, cache, fassungen, mail, mail_templates
 from ..services.mediaserver import (
@@ -594,7 +594,15 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
             ),
         )
 
-    save_settings(db, payload.model_dump(exclude_unset=True))
+    geaendert = payload.model_dump(exclude_unset=True)
+    if payload.beschaffung is not None and payload.beschaffung != aktuell.beschaffung:
+        # ⚠️ **Der Merker fuers Nachreichen.** Uebergeben wird eine Anfrage
+        # genau einmal, bei der Freigabe. Ohne diese Zeile blieben alle
+        # freigegebenen Anfragen nach dem Umschalten fuer immer stehen: Der
+        # neue Weg hat nie von ihnen gehoert (Bauplan 6.10).
+        geaendert["beschaffung_gewechselt_am"] = utcnow().isoformat()
+        logger.info("Procurement switched to %s", payload.beschaffung)
+    save_settings(db, geaendert)
 
     # Der Rueckkanal haengt an Adressen und Zugaengen von hier: beim naechsten
     # Rundgang pruefen statt erst zur vollen Stunde. Kein direkter Anstoss -

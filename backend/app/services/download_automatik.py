@@ -61,7 +61,19 @@ class Einstellung:
 
 
 def _erlaubt(kennung: str) -> set[str]:
-    grund = beschaffung.download_gruende().get(kennung)
+    """Was eine Regel fuer diesen Grund ueberhaupt vorsehen darf.
+
+    ⚠️ **Nicht jeder Weg fuehrt eine Tabelle.** Bei Radarr und Sonarr raet
+    Nexview aus Textmustern, was los ist, und entscheidet je Grund, was eine
+    Automatik darf. nexcrate sagt beides selbst - aber **je Problem**, nicht je
+    Code (N27, Bauplan 6.6). Eine Regel darf dort deshalb alles vorsehen, was
+    eine Automatik ueberhaupt darf; ob sie im Einzelfall greift, entscheidet
+    der Weg beim Ausfuehren anhand von nexcrates ``automatic``-Liste.
+    """
+    gruende = beschaffung.download_gruende()
+    if not gruende:
+        return {aktion.value for aktion in AUTOMATISCH_MOEGLICH}
+    grund = gruende.get(kennung)
     return {aktion.value for aktion in grund.automatik} if grund is not None else set()
 
 

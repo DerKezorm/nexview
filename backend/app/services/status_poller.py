@@ -522,6 +522,23 @@ async def _fassungen_vielleicht(db, settings) -> None:
         logger.exception("Versions could not be read")
 
 
+async def _nachreichen_vielleicht(db, settings) -> None:
+    """Nach einem Umschalten die freigegebenen Anfragen dem neuen Weg geben.
+
+    ⚠️ **Sonst bleiben sie fuer immer stehen.** Uebergeben wird sonst nur bei
+    der Freigabe; was davor freigegeben wurde, kennt der neue Weg nicht.
+    """
+    from . import nachreichen
+
+    if not nachreichen.faellig(settings):
+        return
+    try:
+        await nachreichen.einmal(db, settings)
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        db.rollback()
+        logger.exception("Handing over requests after the switch failed")
+
+
 async def _bibliothek_vielleicht(db, settings) -> None:
     """Die Bibliothek des Media-Servers einlesen, wenn es an der Zeit ist.
 
@@ -725,6 +742,7 @@ async def run_forever(stop: asyncio.Event) -> None:
                 # Und nicht ``settings.arr_instanzen()``: Im NEX-Betrieb ist
                 # die Liste dort leer, und der ganze Rundgang liefe leer mit.
                 await _fassungen_vielleicht(db, settings)
+                await _nachreichen_vielleicht(db, settings)
                 if get_beschaffung(settings).instanzen():
                     # Zuerst die haengenden Downloads: Dieser Abgleich holt die
                     # Warteschlangen ohnehin, und ``check_once`` nimmt sie fuer

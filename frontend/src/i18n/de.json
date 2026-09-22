@@ -2181,7 +2181,9 @@
       "nexcrate_not_configured": "Für nexcrate sind Adresse und Schlüssel noch nicht hinterlegt.",
       "not_in_this_mode": "Dieses Werkzeug gehört zur anderen Betriebsart der Beschaffung.",
       "beschaffung_invalid": "Diese Betriebsart der Beschaffung gibt es nicht.",
-      "nex_noch_nicht_gebaut": "Diesen Weg gibt es im NEX-Betrieb noch nicht."
+      "download_action_not_offered": "nexcrate bietet das an diesem Download nicht an.",
+      "download_action_not_automatic": "Diese Aktion darf eine Automatik hier nicht auslösen.",
+      "storage_nothing_to_delete": "Für diesen Posten meldet nexcrate keine Datei, die sich löschen ließe."
     }
   },
   "language": {

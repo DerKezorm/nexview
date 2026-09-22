@@ -18,9 +18,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from ..base import (
     Beschaffung,
+    BeschaffungError,
     Faehigkeiten,
     FassungInfo,
     FilmStand,
+    Korb,
     Nachschlag,
     Nachschlagen,
     SerienBestand,
@@ -249,6 +251,22 @@ class ArrBeschaffung(Beschaffung):
 
     async def papierkorb_groesse(self, media_type: str, stufe: str, pfad: str) -> tuple[int, bool]:
         return await library.papierkorb_groesse(self.settings, media_type, stufe, pfad)
+
+    async def papierkorb(self) -> list[dict[str, Any]]:
+        """Gibt es nicht: Radarr und Sonarr fuehren keine Liste, nur einen Ordner.
+
+        ``faehigkeiten().papierkorb`` sagt es vorher; wer trotzdem fragt,
+        bekommt eine ehrliche Antwort statt einer leeren Liste.
+        """
+        raise BeschaffungError(
+            "Radarr und Sonarr führen keinen Papierkorb, aus dem sich etwas zurückholen ließe.",
+            409,
+            code="not_in_this_mode",
+            korb=Korb.abgelehnt,
+        )
+
+    async def wiederherstellen(self, eintrag_id: int) -> None:
+        await self.papierkorb()
 
     async def kalender(self, media_type: str, von: str, bis: str) -> list[dict[str, Any]]:
         if media_type == "movie":

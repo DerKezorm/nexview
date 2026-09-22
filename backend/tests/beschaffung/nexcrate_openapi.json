@@ -1,0 +1,7088 @@
+{
+ "components": {
+  "schemas": {
+   "ActOut": {
+    "properties": {
+     "download": {
+      "$ref": "#/components/schemas/QueueItemOut",
+      "description": "The download as it stands after the action."
+     }
+    },
+    "required": [
+     "download"
+    ],
+    "title": "ActOut",
+    "type": "object"
+   },
+   "AlbumScopeIn": {
+    "properties": {
+     "tracks": {
+      "anyOf": [
+       {
+        "items": {
+         "maxLength": 64,
+         "type": "string"
+        },
+        "maxItems": 500,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "`mbid:<track>` as the album's `media` lists them; without it the whole album.",
+      "title": "Tracks"
+     }
+    },
+    "title": "AlbumScopeIn",
+    "type": "object"
+   },
+   "ApiError": {
+    "description": "The shape of every error answer of ``/api/v1``.",
+    "properties": {
+     "code": {
+      "description": "Stable name of the error. Translate by it, never by the sentence.",
+      "title": "Code",
+      "type": "string"
+     },
+     "message": {
+      "description": "English fallback text.",
+      "title": "Message",
+      "type": "string"
+     },
+     "params": {
+      "additionalProperties": true,
+      "description": "The values that belong to the error; empty when it has none.",
+      "title": "Params",
+      "type": "object"
+     }
+    },
+    "required": [
+     "code",
+     "message",
+     "params"
+    ],
+    "title": "ApiError",
+    "type": "object"
+   },
+   "ArtistMonitoringIn": {
+    "properties": {
+     "new_albums": {
+      "anyOf": [
+       {
+        "enum": [
+         "all",
+         "none"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Whether albums that appear later get watched; without it unchanged.",
+      "title": "New Albums"
+     }
+    },
+    "title": "ArtistMonitoringIn",
+    "type": "object"
+   },
+   "ArtistScopeIn": {
+    "properties": {
+     "albums": {
+      "default": "studio",
+      "description": "Which albums to watch now, as Lidarr's add dialog: every album of `types`, only those that appear from now on, none, those without files, those with files, the first or the latest. New albums are watched afterwards with every choice but none and existing.",
+      "enum": [
+       "studio",
+       "future",
+       "none",
+       "missing",
+       "existing",
+       "first",
+       "latest"
+      ],
+      "title": "Albums",
+      "type": "string"
+     },
+     "types": {
+      "anyOf": [
+       {
+        "items": {
+         "enum": [
+          "studio",
+          "ep",
+          "single",
+          "live",
+          "compilation",
+          "soundtrack",
+          "remix",
+          "spoken",
+          "other"
+         ],
+         "type": "string"
+        },
+        "maxItems": 9,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The groups of the artist page that count, like Lidarr's metadata profile; without it studio albums and EPs.",
+      "title": "Types"
+     }
+    },
+    "title": "ArtistScopeIn",
+    "type": "object"
+   },
+   "AssignAlbumIn": {
+    "properties": {
+     "release": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "`mbid:<release>` the tracks belong to; without it the one shown.",
+      "title": "Release"
+     }
+    },
+    "title": "AssignAlbumIn",
+    "type": "object"
+   },
+   "AssignFileAlbumIn": {
+    "properties": {
+     "track": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "`mbid:<track>` of the release; null: the file is not filed.",
+      "title": "Track"
+     },
+     "without_track": {
+      "default": false,
+      "description": "File it without a track, a hidden track for one.",
+      "title": "Without Track",
+      "type": "boolean"
+     }
+    },
+    "title": "AssignFileAlbumIn",
+    "type": "object"
+   },
+   "AssignFileIn": {
+    "properties": {
+     "album": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AssignFileAlbumIn"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "An album file's track."
+     },
+     "key": {
+      "title": "Key",
+      "type": "integer"
+     },
+     "series": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AssignFileSeriesIn"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "A series file's episodes; leave it out for the video of a movie."
+     }
+    },
+    "required": [
+     "key"
+    ],
+    "title": "AssignFileIn",
+    "type": "object"
+   },
+   "AssignFileSeriesIn": {
+    "properties": {
+     "episodes": {
+      "description": "TMDB's numbers; empty: the file is not filed.",
+      "items": {
+       "$ref": "#/components/schemas/EpisodeRefIn"
+      },
+      "maxItems": 50,
+      "title": "Episodes",
+      "type": "array"
+     }
+    },
+    "required": [
+     "episodes"
+    ],
+    "title": "AssignFileSeriesIn",
+    "type": "object"
+   },
+   "CalendarEntryOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "CalendarOut": {
+    "properties": {
+     "from": {
+      "title": "From",
+      "type": "string"
+     },
+     "items": {
+      "description": "By day.",
+      "items": {
+       "$ref": "#/components/schemas/CalendarEntryOut"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "region": {
+      "description": "The region the movie dates come from; empty is the earliest date anywhere.",
+      "title": "Region",
+      "type": "string"
+     },
+     "to": {
+      "title": "To",
+      "type": "string"
+     },
+     "truncated": {
+      "description": "The span held more entries than one answer carries: ask a shorter one.",
+      "title": "Truncated",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "from",
+     "to",
+     "region",
+     "items",
+     "truncated"
+    ],
+    "title": "CalendarOut",
+    "type": "object"
+   },
+   "Capabilities": {
+    "properties": {
+     "anime": {
+      "description": "Whether nexcrate searches, loads and files anime (a series with `series.type` anime). While false an anime series is requested and watched like any other, but not searched: a request answers `search: not_possible` with the note `anime_not_supported`, and `why` says `anime_not_supported`. Read a missing field as false.",
+      "title": "Anime",
+      "type": "boolean"
+     },
+     "calendar": {
+      "title": "Calendar",
+      "type": "boolean"
+     },
+     "event_types": {
+      "description": "Every event type this nexcrate writes; skip one you do not know.",
+      "items": {
+       "type": "string"
+      },
+      "title": "Event Types",
+      "type": "array"
+     },
+     "events": {
+      "description": "GET /api/v1/events.",
+      "title": "Events",
+      "type": "boolean"
+     },
+     "kinds": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/KindAbilities"
+      },
+      "description": "Per kind what works. A kind that is missing works not at all.",
+      "title": "Kinds",
+      "type": "object"
+     },
+     "movies": {
+      "title": "Movies",
+      "type": "boolean"
+     },
+     "music": {
+      "description": "Albums and artists, by MusicBrainz ids (`mbid:`).",
+      "title": "Music",
+      "type": "boolean"
+     },
+     "series": {
+      "title": "Series",
+      "type": "boolean"
+     },
+     "stream": {
+      "description": "GET /api/v1/events/stream, Server-Sent Events.",
+      "title": "Stream",
+      "type": "boolean"
+     },
+     "wishes_search_at_once": {
+      "description": "True since 22.09.2026: a request with `search_now` and `POST .../search` search at once, for movies, series and albums, also with nexcrate's automatic of that kind off (at most five at a time, the indexers' limits hold). Missing on an older nexcrate: the old way, the wish waited for the automatic's order.",
+      "title": "Wishes Search At Once",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "movies",
+     "series",
+     "music",
+     "calendar",
+     "events",
+     "stream",
+     "event_types",
+     "kinds",
+     "wishes_search_at_once",
+     "anime"
+    ],
+    "title": "Capabilities",
+    "type": "object"
+   },
+   "ChangedTitleOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "Contract": {
+    "properties": {
+     "major": {
+      "description": "As in the address. Changes only with a break.",
+      "examples": [
+       1
+      ],
+      "title": "Major",
+      "type": "integer"
+     },
+     "stage": {
+      "description": "How far this nexcrate carries the contract: V1 is reading, V2 requesting and taking back, V3 the queue, problems, reasons, history and events, V4 the calendar, ratings, previews and pairing, V5 music: albums and artists in every address.",
+      "examples": [
+       "V5"
+      ],
+      "title": "Stage",
+      "type": "string"
+     }
+    },
+    "required": [
+     "major",
+     "stage"
+    ],
+    "title": "Contract",
+    "type": "object"
+   },
+   "DeleteFilesOut": {
+    "properties": {
+     "versions": {
+      "items": {
+       "$ref": "#/components/schemas/DeletedVersionOut"
+      },
+      "title": "Versions",
+      "type": "array"
+     }
+    },
+    "required": [
+     "versions"
+    ],
+    "title": "DeleteFilesOut",
+    "type": "object"
+   },
+   "DeletedVersionOut": {
+    "properties": {
+     "files_recycled": {
+      "title": "Files Recycled",
+      "type": "integer"
+     },
+     "still_monitored": {
+      "description": "As in Radarr and Sonarr, watching stays: a watched version is searched again. Take it back to stop that.",
+      "title": "Still Monitored",
+      "type": "boolean"
+     },
+     "version_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version Id"
+     }
+    },
+    "required": [
+     "version_id",
+     "files_recycled",
+     "still_monitored"
+    ],
+    "title": "DeletedVersionOut",
+    "type": "object"
+   },
+   "EpisodeIn": {
+    "properties": {
+     "episode": {
+      "description": "TMDB's episode number.",
+      "maximum": 100000.0,
+      "minimum": 0.0,
+      "title": "Episode",
+      "type": "integer"
+     },
+     "season": {
+      "description": "TMDB's season number.",
+      "maximum": 10000.0,
+      "minimum": 0.0,
+      "title": "Season",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "season",
+     "episode"
+    ],
+    "title": "EpisodeIn",
+    "type": "object"
+   },
+   "EpisodeRefIn": {
+    "properties": {
+     "episode": {
+      "maximum": 100000.0,
+      "minimum": 0.0,
+      "title": "Episode",
+      "type": "integer"
+     },
+     "season": {
+      "maximum": 10000.0,
+      "minimum": 0.0,
+      "title": "Season",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "season",
+     "episode"
+    ],
+    "title": "EpisodeRefIn",
+    "type": "object"
+   },
+   "ErrorDetail": {
+    "additionalProperties": true,
+    "description": "What went wrong: a code for the interface, an English fallback, and extra values.",
+    "properties": {
+     "code": {
+      "description": "Stable name of the error. The interface translates it.",
+      "examples": [
+       "login_failed"
+      ],
+      "title": "Code",
+      "type": "string"
+     },
+     "message": {
+      "description": "English fallback text.",
+      "examples": [
+       "Username or password is wrong."
+      ],
+      "title": "Message",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code",
+     "message"
+    ],
+    "title": "ErrorDetail",
+    "type": "object"
+   },
+   "ErrorResponse": {
+    "description": "The shape of every error answer.",
+    "properties": {
+     "detail": {
+      "$ref": "#/components/schemas/ErrorDetail"
+     }
+    },
+    "required": [
+     "detail"
+    ],
+    "title": "ErrorResponse",
+    "type": "object"
+   },
+   "EventOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "EventsOut": {
+    "properties": {
+     "items": {
+      "description": "Oldest first.",
+      "items": {
+       "$ref": "#/components/schemas/EventOut"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "latest": {
+      "description": "The highest number given so far.",
+      "title": "Latest",
+      "type": "integer"
+     },
+     "more": {
+      "description": "True: ask again at once.",
+      "title": "More",
+      "type": "boolean"
+     },
+     "next_after": {
+      "description": "Ask with this next.",
+      "title": "Next After",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "items",
+     "next_after",
+     "more",
+     "latest"
+    ],
+    "title": "EventsOut",
+    "type": "object"
+   },
+   "FindingOut": {
+    "properties": {
+     "code": {
+      "description": "indexer_none, indexer_failing, download_client_none, download_client_failing, tmdb_token_missing, automatic_off, folder_missing, folder_not_writable, disk_full or version_not_ready.",
+      "examples": [
+       "automatic_off"
+      ],
+      "title": "Code",
+      "type": "string"
+     },
+     "level": {
+      "description": "error, warning or notice.",
+      "title": "Level",
+      "type": "string"
+     },
+     "message": {
+      "description": "English fallback text.",
+      "title": "Message",
+      "type": "string"
+     },
+     "params": {
+      "additionalProperties": true,
+      "title": "Params",
+      "type": "object"
+     }
+    },
+    "required": [
+     "code",
+     "level",
+     "message",
+     "params"
+    ],
+    "title": "FindingOut",
+    "type": "object"
+   },
+   "ForeignAdoptV1In": {
+    "properties": {
+     "kind": {
+      "enum": [
+       "movie",
+       "series",
+       "album"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "ref": {
+      "description": "The title as everywhere in /api/v1, for example `tmdb:603`.",
+      "maxLength": 100,
+      "title": "Ref",
+      "type": "string"
+     },
+     "version_id": {
+      "description": "The public id of the version definition.",
+      "maxLength": 64,
+      "title": "Version Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "ref",
+     "version_id"
+    ],
+    "title": "ForeignAdoptV1In",
+    "type": "object"
+   },
+   "ForeignAdoptV1Out": {
+    "properties": {
+     "download_id": {
+      "description": "The download the job became; follow it in the queue.",
+      "title": "Download Id",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "download_id"
+    ],
+    "title": "ForeignAdoptV1Out",
+    "type": "object"
+   },
+   "ForeignJobV1Out": {
+    "properties": {
+     "client_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The download client; null when it was deleted since.",
+      "title": "Client Id"
+     },
+     "first_seen_at": {
+      "format": "date-time",
+      "title": "First Seen At",
+      "type": "string"
+     },
+     "job_id": {
+      "description": "nexcrate's number of the foreign job, for `remove`.",
+      "title": "Job Id",
+      "type": "integer"
+     },
+     "name": {
+      "description": "The client's name of the job.",
+      "title": "Name",
+      "type": "string"
+     },
+     "progress": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "0 to 100.",
+      "title": "Progress"
+     },
+     "proposals": {
+      "description": "Movies of the library the name points to.",
+      "items": {
+       "$ref": "#/components/schemas/ForeignProposalOut"
+      },
+      "title": "Proposals",
+      "type": "array"
+     },
+     "size_bytes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Size Bytes"
+     },
+     "state": {
+      "description": "queued, downloading, paused, completed, failed or problem, as the client says.",
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "job_id",
+     "client_id",
+     "name",
+     "state",
+     "progress",
+     "size_bytes",
+     "first_seen_at",
+     "proposals"
+    ],
+    "title": "ForeignJobV1Out",
+    "type": "object"
+   },
+   "ForeignJobsV1Out": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/ForeignJobV1Out"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "ForeignJobsV1Out",
+    "type": "object"
+   },
+   "ForeignProposalOut": {
+    "properties": {
+     "in_library": {
+      "title": "In Library",
+      "type": "boolean"
+     },
+     "kind": {
+      "const": "movie",
+      "default": "movie",
+      "title": "Kind",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "ref": {
+      "description": "The movie as `tmdb:<id>`.",
+      "examples": [
+       "tmdb:603"
+      ],
+      "title": "Ref",
+      "type": "string"
+     },
+     "year": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Year"
+     }
+    },
+    "required": [
+     "ref",
+     "name",
+     "in_library"
+    ],
+    "title": "ForeignProposalOut",
+    "type": "object"
+   },
+   "HealthOut": {
+    "properties": {
+     "items": {
+      "description": "The worst first; empty when nothing is wrong.",
+      "items": {
+       "$ref": "#/components/schemas/FindingOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "HealthOut",
+    "type": "object"
+   },
+   "HistoryItemOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "HistoryOut": {
+    "properties": {
+     "items": {
+      "description": "Newest first. Entries from before V3 carry only kind and time.",
+      "items": {
+       "$ref": "#/components/schemas/HistoryItemOut"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "next_before": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Ask with `before` set to this for older entries; null at the end.",
+      "title": "Next Before"
+     }
+    },
+    "required": [
+     "items",
+     "next_before"
+    ],
+    "title": "HistoryOut",
+    "type": "object"
+   },
+   "ImdbRatingOut": {
+    "properties": {
+     "rating": {
+      "description": "IMDb's weighted average, 1 to 10.",
+      "examples": [
+       8.7
+      ],
+      "title": "Rating",
+      "type": "number"
+     },
+     "votes": {
+      "title": "Votes",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "rating",
+     "votes"
+    ],
+    "title": "ImdbRatingOut",
+    "type": "object"
+   },
+   "KindAbilities": {
+    "properties": {
+     "operate": {
+      "description": "Resolving problems of downloads and assigning their files by hand.",
+      "title": "Operate",
+      "type": "boolean"
+     },
+     "ratings": {
+      "description": "Ratings of IMDb (POST /api/v1/ratings); false while switched off, and always for music.",
+      "title": "Ratings",
+      "type": "boolean"
+     },
+     "read": {
+      "title": "Read",
+      "type": "boolean"
+     },
+     "request": {
+      "description": "Adding, watching, searching, taking back, deleting through the bin.",
+      "title": "Request",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "read",
+     "request",
+     "operate",
+     "ratings"
+    ],
+    "title": "KindAbilities",
+    "type": "object"
+   },
+   "LookupIn": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/LookupItemIn"
+      },
+      "maxItems": 100,
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "LookupIn",
+    "type": "object"
+   },
+   "LookupItemIn": {
+    "properties": {
+     "kind": {
+      "examples": [
+       "movie"
+      ],
+      "maxLength": 16,
+      "title": "Kind",
+      "type": "string"
+     },
+     "ref": {
+      "examples": [
+       "tmdb:603"
+      ],
+      "maxLength": 64,
+      "title": "Ref",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "ref"
+    ],
+    "title": "LookupItemIn",
+    "type": "object"
+   },
+   "LookupItemOut": {
+    "properties": {
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Why this one entry has no answer: kind_unsupported, ref_invalid, ref_source_unknown or ref_ambiguous. The rest of the batch is answered all the same.",
+      "title": "Error"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "known": {
+      "title": "Known",
+      "type": "boolean"
+     },
+     "ref": {
+      "description": "As asked.",
+      "title": "Ref",
+      "type": "string"
+     },
+     "title": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TitleOut"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Null for a title nexcrate does not have."
+     }
+    },
+    "required": [
+     "kind",
+     "ref",
+     "known",
+     "title",
+     "error"
+    ],
+    "title": "LookupItemOut",
+    "type": "object"
+   },
+   "LookupOut": {
+    "properties": {
+     "items": {
+      "description": "In the order asked.",
+      "items": {
+       "$ref": "#/components/schemas/LookupItemOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "LookupOut",
+    "type": "object"
+   },
+   "MonitoredVersionOut": {
+    "properties": {
+     "changed": {
+      "title": "Changed",
+      "type": "boolean"
+     },
+     "version_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version Id"
+     }
+    },
+    "required": [
+     "version_id",
+     "changed"
+    ],
+    "title": "MonitoredVersionOut",
+    "type": "object"
+   },
+   "MonitoringIn": {
+    "properties": {
+     "artist": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ArtistMonitoringIn"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "monitored": {
+      "description": "False freezes: nothing is searched or upgraded, files stay. True thaws. An artist frozen is Lidarr's unmonitored artist: none of its albums is searched on its own, their switches stay.",
+      "title": "Monitored",
+      "type": "boolean"
+     },
+     "series": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SeriesScopeIn"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "versions": {
+      "anyOf": [
+       {
+        "items": {
+         "maxLength": 16,
+         "type": "string"
+        },
+        "maxItems": 20,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Fixed version ids (`v_…`); without it every version of nexcrate's own.",
+      "title": "Versions"
+     }
+    },
+    "required": [
+     "monitored"
+    ],
+    "title": "MonitoringIn",
+    "type": "object"
+   },
+   "MonitoringOut": {
+    "properties": {
+     "title": {
+      "$ref": "#/components/schemas/TitleOut"
+     },
+     "versions": {
+      "items": {
+       "$ref": "#/components/schemas/MonitoredVersionOut"
+      },
+      "title": "Versions",
+      "type": "array"
+     }
+    },
+    "required": [
+     "versions",
+     "title"
+    ],
+    "title": "MonitoringOut",
+    "type": "object"
+   },
+   "PairingIn": {
+    "properties": {
+     "app": {
+      "description": "The program's name, shown to the owner.",
+      "maxLength": 60,
+      "minLength": 1,
+      "title": "App",
+      "type": "string"
+     },
+     "scopes": {
+      "description": "read, request, operate; the owner may choose fewer.",
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 1,
+      "title": "Scopes",
+      "type": "array"
+     }
+    },
+    "required": [
+     "app",
+     "scopes"
+    ],
+    "title": "PairingIn",
+    "type": "object"
+   },
+   "PairingOut": {
+    "properties": {
+     "code": {
+      "description": "Show it to the owner: nexcrate shows the same.",
+      "examples": [
+       "7Q4-K2P"
+      ],
+      "title": "Code",
+      "type": "string"
+     },
+     "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+     },
+     "pairing_id": {
+      "title": "Pairing Id",
+      "type": "string"
+     },
+     "poll_seconds": {
+      "description": "Ask again after this many seconds.",
+      "title": "Poll Seconds",
+      "type": "integer"
+     },
+     "secret": {
+      "description": "Send it as X-Pairing-Secret when asking how the request stands. Shown once.",
+      "title": "Secret",
+      "type": "string"
+     }
+    },
+    "required": [
+     "pairing_id",
+     "secret",
+     "code",
+     "expires_at",
+     "poll_seconds"
+    ],
+    "title": "PairingOut",
+    "type": "object"
+   },
+   "PairingStateOut": {
+    "properties": {
+     "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+     },
+     "key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The key, exactly once: in the first answer after the owner confirmed.",
+      "title": "Key"
+     },
+     "scopes": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "What the owner granted, with the key.",
+      "title": "Scopes"
+     },
+     "state": {
+      "description": "pending, confirmed (this answer carries the key), delivered, denied or expired.",
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "state",
+     "key",
+     "scopes",
+     "expires_at"
+    ],
+    "title": "PairingStateOut",
+    "type": "object"
+   },
+   "PreviewIndexerOut": {
+    "properties": {
+     "error_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error Code"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "state",
+     "error_code"
+    ],
+    "title": "PreviewIndexerOut",
+    "type": "object"
+   },
+   "PreviewResultOut": {
+    "properties": {
+     "indexers": {
+      "items": {
+       "$ref": "#/components/schemas/PreviewIndexerOut"
+      },
+      "title": "Indexers",
+      "type": "array"
+     },
+     "preview_id": {
+      "title": "Preview Id",
+      "type": "string"
+     },
+     "releases": {
+      "description": "Releases of the title found.",
+      "title": "Releases",
+      "type": "integer"
+     },
+     "state": {
+      "description": "running or done.",
+      "title": "State",
+      "type": "string"
+     },
+     "versions": {
+      "items": {
+       "$ref": "#/components/schemas/PreviewResultVersionOut"
+      },
+      "title": "Versions",
+      "type": "array"
+     }
+    },
+    "required": [
+     "preview_id",
+     "state",
+     "releases",
+     "indexers",
+     "versions"
+    ],
+    "title": "PreviewResultOut",
+    "type": "object"
+   },
+   "PreviewResultVersionOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "PreviewSeriesIn": {
+    "properties": {
+     "season": {
+      "anyOf": [
+       {
+        "maximum": 10000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Search one season; left out, the series.",
+      "title": "Season"
+     }
+    },
+    "title": "PreviewSeriesIn",
+    "type": "object"
+   },
+   "QueueItemOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "QueueOut": {
+    "properties": {
+     "items": {
+      "description": "Newest first.",
+      "items": {
+       "$ref": "#/components/schemas/QueueItemOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "QueueOut",
+    "type": "object"
+   },
+   "RatingItemIn": {
+    "properties": {
+     "kind": {
+      "maxLength": 16,
+      "title": "Kind",
+      "type": "string"
+     },
+     "ref": {
+      "description": "imdb:tt…, or another reference of a title in the library.",
+      "maxLength": 64,
+      "title": "Ref",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "ref"
+    ],
+    "title": "RatingItemIn",
+    "type": "object"
+   },
+   "RatingItemOut": {
+    "properties": {
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "kind_unsupported, ref_invalid, ref_source_unknown, ref_ambiguous or imdb_unknown (nexcrate knows no IMDb number for it: ask by imdb:).",
+      "title": "Error"
+     },
+     "imdb": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ImdbRatingOut"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Null when IMDb has none, or see `imdb` of the answer."
+     },
+     "imdb_ref": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The IMDb number the value belongs to.",
+      "title": "Imdb Ref"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "ref": {
+      "description": "As asked.",
+      "title": "Ref",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "ref",
+     "imdb_ref",
+     "imdb",
+     "error"
+    ],
+    "title": "RatingItemOut",
+    "type": "object"
+   },
+   "RatingOut": {
+    "properties": {
+     "attribution": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Attribution",
+      "type": "array"
+     },
+     "imdb": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ImdbRatingOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "imdb_ref": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Imdb Ref"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "metacritic": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The Metascore, 0 to 100.",
+      "title": "Metacritic"
+     },
+     "ref": {
+      "title": "Ref",
+      "type": "string"
+     },
+     "rotten_tomatoes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The Tomatometer in percent.",
+      "title": "Rotten Tomatoes"
+     },
+     "sources": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "description": "imdb: loaded, off or not_loaded. omdb: ok, not_found, no_key, key_invalid, limit (the day's requests are used up), failed, or not_for_kind (OMDb has no such values for series).",
+      "title": "Sources",
+      "type": "object"
+     }
+    },
+    "required": [
+     "kind",
+     "ref",
+     "imdb_ref",
+     "imdb",
+     "rotten_tomatoes",
+     "metacritic",
+     "sources",
+     "attribution"
+    ],
+    "title": "RatingOut",
+    "type": "object"
+   },
+   "RatingsIn": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/RatingItemIn"
+      },
+      "maxItems": 100,
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "RatingsIn",
+    "type": "object"
+   },
+   "RatingsOut": {
+    "properties": {
+     "attribution": {
+      "description": "Show it where the ratings show.",
+      "title": "Attribution",
+      "type": "string"
+     },
+     "imdb": {
+      "description": "loaded, off (the owner switched it off) or not_loaded (not loaded yet).",
+      "title": "Imdb",
+      "type": "string"
+     },
+     "items": {
+      "description": "In the order asked.",
+      "items": {
+       "$ref": "#/components/schemas/RatingItemOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items",
+     "imdb",
+     "attribution"
+    ],
+    "title": "RatingsOut",
+    "type": "object"
+   },
+   "ReasonOut": {
+    "properties": {
+     "code": {
+      "description": "no_profile, no_folder, no_indexer, no_download_client, automatic_off or fed_by_source.",
+      "examples": [
+       "no_folder"
+      ],
+      "title": "Code",
+      "type": "string"
+     },
+     "params": {
+      "additionalProperties": true,
+      "description": "`fed_by_source` names the `app`: radarr or sonarr.",
+      "title": "Params",
+      "type": "object"
+     }
+    },
+    "required": [
+     "code",
+     "params"
+    ],
+    "title": "ReasonOut",
+    "type": "object"
+   },
+   "RecycleBinOut": {
+    "properties": {
+     "items": {
+      "description": "Newest first.",
+      "items": {
+       "$ref": "#/components/schemas/RecycleEntryOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "RecycleBinOut",
+    "type": "object"
+   },
+   "RecycleEntryOut": {
+    "properties": {
+     "deleted_at": {
+      "format": "date-time",
+      "title": "Deleted At",
+      "type": "string"
+     },
+     "deleted_by": {
+      "description": "owner, or key: a program; `deleted_by_name` is then its key's name.",
+      "title": "Deleted By",
+      "type": "string"
+     },
+     "deleted_by_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Deleted By Name"
+     },
+     "entry_id": {
+      "title": "Entry Id",
+      "type": "integer"
+     },
+     "episodes": {
+      "description": "The episodes the file held, TMDB's numbers.",
+      "items": {
+       "type": "integer"
+      },
+      "title": "Episodes",
+      "type": "array"
+     },
+     "file_name": {
+      "description": "The file's name, never its folder.",
+      "title": "File Name",
+      "type": "string"
+     },
+     "in_library": {
+      "description": "False when the title or its version left the library: it cannot come back.",
+      "title": "In Library",
+      "type": "boolean"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "present": {
+      "description": "False when the file is gone or its disk cannot be seen right now.",
+      "title": "Present",
+      "type": "boolean"
+     },
+     "ref": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "`tmdb:<number>` of the title, also when it left the library; `mbid:<release group>` of an album while it is there.",
+      "title": "Ref"
+     },
+     "season": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Of an episode file; null for a movie.",
+      "title": "Season"
+     },
+     "size_bytes": {
+      "title": "Size Bytes",
+      "type": "integer"
+     },
+     "track": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "An album's file: `mbid:<track>` it held, when known.",
+      "title": "Track"
+     },
+     "version_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version Id"
+     },
+     "year": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Year"
+     }
+    },
+    "required": [
+     "entry_id",
+     "kind",
+     "ref",
+     "name",
+     "year",
+     "version_id",
+     "season",
+     "episodes",
+     "file_name",
+     "size_bytes",
+     "deleted_at",
+     "deleted_by",
+     "deleted_by_name",
+     "present",
+     "in_library"
+    ],
+    "title": "RecycleEntryOut",
+    "type": "object"
+   },
+   "RemoveIn": {
+    "properties": {
+     "search_again": {
+      "default": false,
+      "description": "Put the release on the blocklist and ask for a new search (the action remove_and_search).",
+      "title": "Search Again",
+      "type": "boolean"
+     }
+    },
+    "title": "RemoveIn",
+    "type": "object"
+   },
+   "RemovedOut": {
+    "properties": {
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "ref": {
+      "title": "Ref",
+      "type": "string"
+     },
+     "seq": {
+      "title": "Seq",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "kind",
+     "ref",
+     "seq"
+    ],
+    "title": "RemovedOut",
+    "type": "object"
+   },
+   "RequestIn": {
+    "properties": {
+     "artist": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ArtistScopeIn"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only for an artist: which albums to watch."
+     },
+     "kind": {
+      "examples": [
+       "series"
+      ],
+      "maxLength": 16,
+      "title": "Kind",
+      "type": "string"
+     },
+     "origin": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The program's own reference, at most 100 printable characters; listed back with the title and its versions.",
+      "examples": [
+       "nexview:request:123"
+      ],
+      "title": "Origin"
+     },
+     "ref": {
+      "description": "A new title only by `tmdb:`, a new album or artist by `mbid:` (its release group or artist).",
+      "examples": [
+       "tmdb:1399"
+      ],
+      "maxLength": 64,
+      "title": "Ref",
+      "type": "string"
+     },
+     "search_now": {
+      "default": true,
+      "description": "Search as soon as the order of the automatic allows.",
+      "title": "Search Now",
+      "type": "boolean"
+     },
+     "series": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SeriesScopeIn"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only for a series; a movie answers 422."
+     },
+     "versions": {
+      "anyOf": [
+       {
+        "items": {
+         "maxLength": 16,
+         "type": "string"
+        },
+        "maxItems": 20,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Fixed version ids. Needed for a movie or series; an album takes the one music version without it, an artist has none.",
+      "examples": [
+       [
+        "v_7c1e90ab"
+       ]
+      ],
+      "title": "Versions"
+     }
+    },
+    "required": [
+     "kind",
+     "ref"
+    ],
+    "title": "RequestIn",
+    "type": "object"
+   },
+   "RequestOut": {
+    "properties": {
+     "albums_watched": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "An artist: how many of its albums this request watched; null otherwise.",
+      "title": "Albums Watched"
+     },
+     "created": {
+      "description": "True when the title came in with this request.",
+      "title": "Created",
+      "type": "boolean"
+     },
+     "notes": {
+      "items": {
+       "$ref": "#/components/schemas/app__routers__v1_write__NoteOut"
+      },
+      "title": "Notes",
+      "type": "array"
+     },
+     "search": {
+      "description": "queued, not_asked, nothing_wanted, or not_possible (an anime series while `capabilities.anime` is false; the note anime_not_supported says it).",
+      "title": "Search",
+      "type": "string"
+     },
+     "title": {
+      "$ref": "#/components/schemas/TitleOut"
+     },
+     "versions": {
+      "items": {
+       "$ref": "#/components/schemas/RequestedVersionOut"
+      },
+      "title": "Versions",
+      "type": "array"
+     }
+    },
+    "required": [
+     "created",
+     "versions",
+     "search",
+     "notes",
+     "title"
+    ],
+    "title": "RequestOut",
+    "type": "object"
+   },
+   "RequestedVersionOut": {
+    "properties": {
+     "outcome": {
+      "description": "added, extended or unchanged.",
+      "title": "Outcome",
+      "type": "string"
+     },
+     "version_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version Id"
+     }
+    },
+    "required": [
+     "version_id",
+     "outcome"
+    ],
+    "title": "RequestedVersionOut",
+    "type": "object"
+   },
+   "RestoredOut": {
+    "properties": {
+     "title": {
+      "$ref": "#/components/schemas/TitleOut"
+     }
+    },
+    "required": [
+     "title"
+    ],
+    "title": "RestoredOut",
+    "type": "object"
+   },
+   "SeasonDetailOut": {
+    "properties": {
+     "episodes": {
+      "items": {
+       "$ref": "#/components/schemas/app__routers__v1__EpisodeOut"
+      },
+      "title": "Episodes",
+      "type": "array"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "season": {
+      "title": "Season",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "season",
+     "name",
+     "episodes"
+    ],
+    "title": "SeasonDetailOut",
+    "type": "object"
+   },
+   "SeriesScopeIn": {
+    "properties": {
+     "episodes": {
+      "items": {
+       "$ref": "#/components/schemas/EpisodeIn"
+      },
+      "maxItems": 500,
+      "title": "Episodes",
+      "type": "array"
+     },
+     "future_seasons": {
+      "default": true,
+      "description": "Requesting: whether seasons TMDB names later come by themselves. Ignored elsewhere.",
+      "title": "Future Seasons",
+      "type": "boolean"
+     },
+     "seasons": {
+      "anyOf": [
+       {
+        "anyOf": [
+         {
+          "const": "all",
+          "type": "string"
+         },
+         {
+          "items": {
+           "maximum": 10000.0,
+           "minimum": 0.0,
+           "type": "integer"
+          },
+          "type": "array"
+         }
+        ],
+        "maxLength": 500
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "`all`, or TMDB's season numbers; 0 are the specials, which `all` leaves out. Requesting without it means all; taking back, freezing and deleting without it and without `episodes` mean the whole series.",
+      "title": "Seasons"
+     }
+    },
+    "title": "SeriesScopeIn",
+    "type": "object"
+   },
+   "StateOut": {
+    "properties": {
+     "meaning": {
+      "title": "Meaning",
+      "type": "string"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "state",
+     "meaning"
+    ],
+    "title": "StateOut",
+    "type": "object"
+   },
+   "StatesOut": {
+    "properties": {
+     "items": {
+      "description": "In the order of precedence: the first that applies wins.",
+      "items": {
+       "$ref": "#/components/schemas/StateOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "StatesOut",
+    "type": "object"
+   },
+   "StorageListOut": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/StorageOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "StorageListOut",
+    "type": "object"
+   },
+   "StorageOut": {
+    "properties": {
+     "free_bytes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Free Bytes"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "problem": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "folder_missing or folder_not_writable; null when the folder is fine.",
+      "title": "Problem"
+     },
+     "total_bytes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total Bytes"
+     },
+     "version_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version Id"
+     },
+     "volume": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Versions with the same value share a disk: count its free space once. Null without a folder.",
+      "title": "Volume"
+     }
+    },
+    "required": [
+     "version_id",
+     "kind",
+     "volume",
+     "free_bytes",
+     "total_bytes",
+     "problem"
+    ],
+    "title": "StorageOut",
+    "type": "object"
+   },
+   "SystemOut": {
+    "properties": {
+     "app": {
+      "examples": [
+       "nexcrate"
+      ],
+      "title": "App",
+      "type": "string"
+     },
+     "capabilities": {
+      "$ref": "#/components/schemas/Capabilities"
+     },
+     "contract": {
+      "$ref": "#/components/schemas/Contract"
+     },
+     "installation_id": {
+      "description": "Fixed for this installation, whatever address it answers at. Tells a moved nexcrate from another.",
+      "title": "Installation Id",
+      "type": "string"
+     },
+     "links": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "description": "The jumps into nexcrate's pages, to put behind `web_url` (or the address you reach nexcrate at): title, version, profile, download, problems, recycle_bin, calendar. They stay whatever the pages are called.",
+      "title": "Links",
+      "type": "object"
+     },
+     "scopes": {
+      "description": "What the key of this request may do.",
+      "items": {
+       "type": "string"
+      },
+      "title": "Scopes",
+      "type": "array"
+     },
+     "update": {
+      "$ref": "#/components/schemas/app__routers__v1__UpdateOut"
+     },
+     "version": {
+      "description": "The running nexcrate.",
+      "examples": [
+       "0.1.0"
+      ],
+      "title": "Version",
+      "type": "string"
+     },
+     "web_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The address the owner gave for reaching nexcrate, sub path included; null without one.",
+      "examples": [
+       "https://example.com/nexcrate"
+      ],
+      "title": "Web Url"
+     }
+    },
+    "required": [
+     "app",
+     "version",
+     "contract",
+     "installation_id",
+     "scopes",
+     "capabilities",
+     "web_url",
+     "links",
+     "update"
+    ],
+    "title": "SystemOut",
+    "type": "object"
+   },
+   "TitleOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "TitlesOut": {
+    "properties": {
+     "items": {
+      "description": "Titles that are new or changed, the oldest change first.",
+      "items": {
+       "$ref": "#/components/schemas/ChangedTitleOut"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "latest": {
+      "description": "The highest number given so far.",
+      "title": "Latest",
+      "type": "integer"
+     },
+     "more": {
+      "description": "True: ask again at once, there is more.",
+      "title": "More",
+      "type": "boolean"
+     },
+     "next_after": {
+      "description": "Ask with this next.",
+      "title": "Next After",
+      "type": "integer"
+     },
+     "removed": {
+      "description": "Titles that went away. Never part of a fetch from 0.",
+      "items": {
+       "$ref": "#/components/schemas/RemovedOut"
+      },
+      "title": "Removed",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items",
+     "removed",
+     "next_after",
+     "more",
+     "latest"
+    ],
+    "title": "TitlesOut",
+    "type": "object"
+   },
+   "VersionOut": {
+    "properties": {
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "name": {
+      "examples": [
+       "4K"
+      ],
+      "title": "Name",
+      "type": "string"
+     },
+     "order": {
+      "description": "Its place among the versions of its kind, from 1.",
+      "title": "Order",
+      "type": "integer"
+     },
+     "ready": {
+      "description": "Whether nexcrate would search and load for this version by itself.",
+      "title": "Ready",
+      "type": "boolean"
+     },
+     "reasons": {
+      "description": "Why not; empty when ready.",
+      "items": {
+       "$ref": "#/components/schemas/ReasonOut"
+      },
+      "title": "Reasons",
+      "type": "array"
+     },
+     "tier": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The best resolution its profile allows, in coarse: sd, hd or uhd. Null without a profile. Another kind may bring other values.",
+      "examples": [
+       "uhd"
+      ],
+      "title": "Tier"
+     },
+     "version_id": {
+      "description": "Fixed for good: renaming the version does not change it. Rights of a program hang on it.",
+      "examples": [
+       "v_7c1e90ab"
+      ],
+      "title": "Version Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "version_id",
+     "kind",
+     "name",
+     "order",
+     "tier",
+     "ready",
+     "reasons"
+    ],
+    "title": "VersionOut",
+    "type": "object"
+   },
+   "VersionsOut": {
+    "properties": {
+     "items": {
+      "description": "Per kind none, one or several: assume no number.",
+      "items": {
+       "$ref": "#/components/schemas/VersionOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "VersionsOut",
+    "type": "object"
+   },
+   "WhyItemIn": {
+    "properties": {
+     "kind": {
+      "maxLength": 16,
+      "title": "Kind",
+      "type": "string"
+     },
+     "ref": {
+      "maxLength": 64,
+      "title": "Ref",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "ref"
+    ],
+    "title": "WhyItemIn",
+    "type": "object"
+   },
+   "WhyManyIn": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/WhyItemIn"
+      },
+      "maxItems": 50,
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "WhyManyIn",
+    "type": "object"
+   },
+   "WhyManyItemOut": {
+    "properties": {
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "kind_unsupported, ref_invalid, ref_source_unknown or ref_ambiguous.",
+      "title": "Error"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "known": {
+      "title": "Known",
+      "type": "boolean"
+     },
+     "ref": {
+      "title": "Ref",
+      "type": "string"
+     },
+     "why": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/WhyOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "required": [
+     "kind",
+     "ref",
+     "known",
+     "why",
+     "error"
+    ],
+    "title": "WhyManyItemOut",
+    "type": "object"
+   },
+   "WhyManyOut": {
+    "properties": {
+     "items": {
+      "description": "In the order asked.",
+      "items": {
+       "$ref": "#/components/schemas/WhyManyItemOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "WhyManyOut",
+    "type": "object"
+   },
+   "WhyOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "WithdrawIn": {
+    "properties": {
+     "delete_files": {
+      "default": false,
+      "description": "Also move the files of the scope into the recycle bin.",
+      "title": "Delete Files",
+      "type": "boolean"
+     },
+     "series": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SeriesScopeIn"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "versions": {
+      "anyOf": [
+       {
+        "items": {
+         "maxLength": 16,
+         "type": "string"
+        },
+        "maxItems": 20,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Fixed version ids (`v_…`); without it every version of nexcrate's own.",
+      "title": "Versions"
+     }
+    },
+    "title": "WithdrawIn",
+    "type": "object"
+   },
+   "WithdrawOut": {
+    "properties": {
+     "albums": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/WithdrawnAlbumOut"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "An artist: what happened per album.",
+      "title": "Albums"
+     },
+     "title_removed": {
+      "description": "A title a program added goes when nothing of it is watched and no file is left. An album stays in its artist's catalogue; an artist a program added goes when none of its albums is left.",
+      "title": "Title Removed",
+      "type": "boolean"
+     },
+     "versions": {
+      "items": {
+       "$ref": "#/components/schemas/WithdrawnVersionOut"
+      },
+      "title": "Versions",
+      "type": "array"
+     }
+    },
+    "required": [
+     "title_removed",
+     "versions"
+    ],
+    "title": "WithdrawOut",
+    "type": "object"
+   },
+   "WithdrawnAlbumOut": {
+    "properties": {
+     "downloads_cancelled": {
+      "title": "Downloads Cancelled",
+      "type": "integer"
+     },
+     "files_recycled": {
+      "title": "Files Recycled",
+      "type": "integer"
+     },
+     "monitoring_off": {
+      "title": "Monitoring Off",
+      "type": "boolean"
+     },
+     "ref": {
+      "description": "`mbid:<release group>`.",
+      "title": "Ref",
+      "type": "string"
+     },
+     "version_removed": {
+      "title": "Version Removed",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "ref",
+     "monitoring_off",
+     "downloads_cancelled",
+     "files_recycled",
+     "version_removed"
+    ],
+    "title": "WithdrawnAlbumOut",
+    "type": "object"
+   },
+   "WithdrawnVersionOut": {
+    "properties": {
+     "downloads_cancelled": {
+      "title": "Downloads Cancelled",
+      "type": "integer"
+     },
+     "files_recycled": {
+      "title": "Files Recycled",
+      "type": "integer"
+     },
+     "monitoring_off": {
+      "title": "Monitoring Off",
+      "type": "boolean"
+     },
+     "version_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version Id"
+     },
+     "version_removed": {
+      "description": "A version a program added, empty afterwards, goes.",
+      "title": "Version Removed",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "version_id",
+     "monitoring_off",
+     "downloads_cancelled",
+     "files_recycled",
+     "version_removed"
+    ],
+    "title": "WithdrawnVersionOut",
+    "type": "object"
+   },
+   "app__routers__v1__EpisodeOut": {
+    "properties": {
+     "air_date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Air Date"
+     },
+     "aired": {
+      "title": "Aired",
+      "type": "boolean"
+     },
+     "episode": {
+      "description": "TMDB's number, whatever the file on disk is numbered by.",
+      "title": "Episode",
+      "type": "integer"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "versions": {
+      "items": {
+       "$ref": "#/components/schemas/app__routers__v1__EpisodeVersionOut"
+      },
+      "title": "Versions",
+      "type": "array"
+     }
+    },
+    "required": [
+     "episode",
+     "name",
+     "air_date",
+     "aired",
+     "versions"
+    ],
+    "title": "EpisodeOut",
+    "type": "object"
+   },
+   "app__routers__v1__EpisodeVersionOut": {
+    "properties": {
+     "monitored": {
+      "title": "Monitored",
+      "type": "boolean"
+     },
+     "quality": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Quality"
+     },
+     "size_bytes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Size Bytes"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     },
+     "version_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version Id"
+     }
+    },
+    "required": [
+     "version_id",
+     "state",
+     "monitored",
+     "size_bytes",
+     "quality"
+    ],
+    "title": "EpisodeVersionOut",
+    "type": "object"
+   },
+   "app__routers__v1__UpdateOut": {
+    "properties": {
+     "available": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Null while the newest release is unknown.",
+      "title": "Available"
+     },
+     "checked_at": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Checked At"
+     },
+     "current": {
+      "title": "Current",
+      "type": "string"
+     },
+     "latest": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The newest release on GitHub; null while unknown or not asked.",
+      "title": "Latest"
+     }
+    },
+    "required": [
+     "current",
+     "latest",
+     "available",
+     "checked_at"
+    ],
+    "title": "UpdateOut",
+    "type": "object"
+   },
+   "app__routers__v1_back__AssignIn": {
+    "properties": {
+     "album": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AssignAlbumIn"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only for an album download."
+     },
+     "confirm": {
+      "description": "Replace a file that is not worse all the same, as the owner may.",
+      "items": {
+       "const": "not_better",
+       "type": "string"
+      },
+      "maxItems": 1,
+      "title": "Confirm",
+      "type": "array"
+     },
+     "files": {
+      "items": {
+       "$ref": "#/components/schemas/AssignFileIn"
+      },
+      "maxItems": 2000,
+      "minItems": 1,
+      "title": "Files",
+      "type": "array"
+     }
+    },
+    "required": [
+     "files"
+    ],
+    "title": "AssignIn",
+    "type": "object"
+   },
+   "app__routers__v1_back__DownloadFilesOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "app__routers__v1_round__PreviewIn": {
+    "properties": {
+     "kind": {
+      "maxLength": 16,
+      "title": "Kind",
+      "type": "string"
+     },
+     "ref": {
+      "description": "A title nexcrate does not have only by tmdb:.",
+      "maxLength": 64,
+      "title": "Ref",
+      "type": "string"
+     },
+     "search": {
+      "default": false,
+      "description": "Also search the indexers, without loading, within their budget.",
+      "title": "Search",
+      "type": "boolean"
+     },
+     "series": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PreviewSeriesIn"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "versions": {
+      "anyOf": [
+       {
+        "items": {
+         "maxLength": 16,
+         "type": "string"
+        },
+        "maxItems": 20,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Fixed version ids; left out, every version of the kind.",
+      "title": "Versions"
+     }
+    },
+    "required": [
+     "kind",
+     "ref"
+    ],
+    "title": "PreviewIn",
+    "type": "object"
+   },
+   "app__routers__v1_round__PreviewOut": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "app__routers__v1_write__DeleteFilesIn": {
+    "properties": {
+     "album": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AlbumScopeIn"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only for an album: single tracks."
+     },
+     "series": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SeriesScopeIn"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "versions": {
+      "anyOf": [
+       {
+        "items": {
+         "maxLength": 16,
+         "type": "string"
+        },
+        "maxItems": 20,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Fixed version ids (`v_…`); without it every version of nexcrate's own.",
+      "title": "Versions"
+     }
+    },
+    "title": "DeleteFilesIn",
+    "type": "object"
+   },
+   "app__routers__v1_write__NoteOut": {
+    "properties": {
+     "code": {
+      "description": "version_not_ready, with the reasons of GET /api/v1/versions; anime_not_supported, an anime series nexcrate takes but does not search yet (`capabilities.anime` false). Skip a code you do not know.",
+      "title": "Code",
+      "type": "string"
+     },
+     "params": {
+      "additionalProperties": true,
+      "title": "Params",
+      "type": "object"
+     }
+    },
+    "required": [
+     "code",
+     "params"
+    ],
+    "title": "NoteOut",
+    "type": "object"
+   },
+   "app__routers__v1_write__SearchOut": {
+    "properties": {
+     "search": {
+      "description": "queued, running (a search of it runs already), nothing_wanted, or not_possible (an anime series while `capabilities.anime` is false).",
+      "title": "Search",
+      "type": "string"
+     }
+    },
+    "required": [
+     "search"
+    ],
+    "title": "SearchOut",
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "title": "nexcrate /api/v1",
+  "version": "0.1.0",
+  "x-gemessen": "22.09.2026, Wegwerf-nexcrate 0.1.0, Vertrag major 1 stage V5"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/api/v1/calendar": {
+   "get": {
+    "description": "Movies with their cinema, digital and disc dates, episodes on the day they air, at most 100 days at once. A movie's date is the one of the region (the one set in nexcrate, or `region`); without a date there, the earliest anywhere, and `country` names it.",
+    "operationId": "read_calendar_api_v1_calendar_get",
+    "parameters": [
+     {
+      "description": "YYYY-MM-DD.",
+      "in": "query",
+      "name": "from",
+      "required": true,
+      "schema": {
+       "description": "YYYY-MM-DD.",
+       "title": "From",
+       "type": "string"
+      }
+     },
+     {
+      "description": "YYYY-MM-DD.",
+      "in": "query",
+      "name": "to",
+      "required": true,
+      "schema": {
+       "description": "YYYY-MM-DD.",
+       "title": "To",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 16,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     },
+     {
+      "description": "ISO 3166-1; left out, the one set.",
+      "in": "query",
+      "name": "region",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 2,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "ISO 3166-1; left out, the one set.",
+       "title": "Region"
+      }
+     },
+     {
+      "description": "Only what a version watches.",
+      "in": "query",
+      "name": "monitored",
+      "required": false,
+      "schema": {
+       "default": false,
+       "description": "Only what a version watches.",
+       "title": "Monitored",
+       "type": "boolean"
+      }
+     },
+     {
+      "description": "Only what has no file yet.",
+      "in": "query",
+      "name": "missing",
+      "required": false,
+      "schema": {
+       "default": false,
+       "description": "Only what has no file yet.",
+       "title": "Missing",
+       "type": "boolean"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CalendarOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "What comes out in a span of days",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/downloads/{download_id}/assign": {
+   "post": {
+    "description": "A series: each file with its episodes in TMDB's numbers, filed in the background; a file with no episodes is not filed, a file left out keeps its decision. A movie with several videos: exactly one file, the one to file. Replacing a file that is not worse needs `confirm: [\"not_better\"]`.",
+    "operationId": "assign_api_v1_downloads__download_id__assign_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "download_id",
+      "required": true,
+      "schema": {
+       "title": "Download Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/app__routers__v1_back__AssignIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `download_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `action_not_allowed`, `download_not_assignable`, `download_busy`, `assignment_not_better`, `assignment_covers_more`, `download_files_changed`, `download_not_choosable`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `episode_not_found`, `episode_twice`, `scope_not_for_kind`, `invalid_input`, `track_not_found`, `release_not_of_album`, `track_not_in_release`, `track_twice`, `release_fixed`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Assign the files of a download by hand",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/downloads/{download_id}/clear": {
+   "post": {
+    "description": "It stays in the history, and its release stays on the blocklist.",
+    "operationId": "clear_api_v1_downloads__download_id__clear_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "download_id",
+      "required": true,
+      "schema": {
+       "title": "Download Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `download_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `action_not_allowed`, `download_not_failed`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Take a failed download off the problems",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/downloads/{download_id}/confirm-mapping": {
+   "post": {
+    "description": "Stores the proposal of `path_not_found` with the download client and files the download away again.",
+    "operationId": "confirm_mapping_api_v1_downloads__download_id__confirm_mapping_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "download_id",
+      "required": true,
+      "schema": {
+       "title": "Download Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `download_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `action_not_allowed`, `mapping_not_proposed`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Confirm the proposed path of a download",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/downloads/{download_id}/files": {
+   "get": {
+    "description": "Every video with what nexcrate read from its name and decided; for a series every episode in TMDB's numbers with the file the version holds for it. `name` is relative to the download, never a path of the disk.",
+    "operationId": "read_files_api_v1_downloads__download_id__files_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "download_id",
+      "required": true,
+      "schema": {
+       "title": "Download Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/app__routers__v1_back__DownloadFilesOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `download_not_found`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "The files of a stuck download",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/downloads/{download_id}/finish": {
+   "post": {
+    "description": "The download counts as filed with what is filed; the rest is not filed.",
+    "operationId": "finish_api_v1_downloads__download_id__finish_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "download_id",
+      "required": true,
+      "schema": {
+       "title": "Download Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `download_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `action_not_allowed`, `download_not_assignable`, `download_busy`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "File nothing more of a download",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/downloads/{download_id}/remove": {
+   "post": {
+    "description": "The download client drops the job (SABnzbd with its files, a torrent without). With `search_again` the release goes on the title's blocklist and the title into the order of the automatic, even with its switch off. Filed files are never touched.",
+    "operationId": "remove_api_v1_downloads__download_id__remove_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "download_id",
+      "required": true,
+      "schema": {
+       "title": "Download Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/RemoveIn"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Payload"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `download_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `action_not_allowed`, `download_finished`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Remove a download",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/downloads/{download_id}/retry": {
+   "post": {
+    "description": "A problem the client reported goes back to the client, any other to filing away.",
+    "operationId": "retry_api_v1_downloads__download_id__retry_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "download_id",
+      "required": true,
+      "schema": {
+       "title": "Download Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `download_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `action_not_allowed`, `download_not_retryable`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Try a download again",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/downloads/{download_id}/search": {
+   "post": {
+    "description": "The title goes into the order of the automatic, even with its switch off, within the indexers' budget. A failed download is taken off the problems with it.",
+    "operationId": "search_api_v1_downloads__download_id__search_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "download_id",
+      "required": true,
+      "schema": {
+       "title": "Download Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ActOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `download_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `action_not_allowed`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Search the title of a download again",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/events": {
+   "get": {
+    "description": "Events after `after`, oldest first; ask again with `next_after`. Start with the `latest` of a first call. Events stay 90 days; a number older than that answers 410 `marker_too_old`: read the library again. Types: title.added, title.changed, title.removed, version.added, version.removed, download.started, download.state, download.imported, download.failed, download.removed, problem.opened, problem.closed, file.deleted, file.restored, request.made, request.withdrawn, series.season_complete, version_definition.added, version_definition.changed, version_definition.removed, health.changed, source.taken_over, source.takeover_undone.",
+    "operationId": "read_events_api_v1_events_get",
+    "parameters": [
+     {
+      "description": "The `next_after` of the last answer.",
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "description": "The `next_after` of the last answer.",
+       "minimum": 0,
+       "title": "After",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 200,
+       "maximum": 1000,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventsOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "410": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `marker_too_old`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "What happened since a number",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/events/stream": {
+   "get": {
+    "description": "The same events as Server-Sent Events: `id` is the number, `event` the type, `data` the event as JSON; a comment every 15 seconds keeps proxies from closing. One way only: nexcrate never needs to reach the program. After a break reconnect with the header `Last-Event-ID` or `after`. A stream ends after an hour. At most 5 open streams per key (`too_many_streams`).",
+    "operationId": "stream_events_api_v1_events_stream_get",
+    "parameters": [
+     {
+      "description": "The number to follow; the latest when left out.",
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "The number to follow; the latest when left out.",
+       "title": "After"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Last-Event-ID",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 20,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Last-Event-Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       },
+       "text/event-stream": {}
+      },
+      "description": "The stream."
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "410": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `marker_too_old`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "429": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `too_many_streams`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "The events as a stream",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/foreign-jobs": {
+   "get": {
+    "description": "Put there by hand, by another program, or handed over without an answer and never matched; read from the clients once a minute. nexcrate never imports them by itself. The owner assigns one to a movie in the interface; a program can remove one. Since 22.09.2026.",
+    "operationId": "foreign_jobs_api_v1_foreign_jobs_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ForeignJobsV1Out"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Jobs in nexcrate's category that no download follows",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/foreign-jobs/{job_id}/import": {
+   "post": {
+    "description": "As in the interface: the job becomes a download of the version and is filed away when finished. Only titles of the library; a series job is for the episodes its name names. Needs the scope operate. Since 22.09.2026.",
+    "operationId": "import_foreign_job_api_v1_foreign_jobs__job_id__import_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "job_id",
+      "required": true,
+      "schema": {
+       "title": "Job Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ForeignAdoptV1In"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ForeignAdoptV1Out"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `not_found`, `title_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `foreign_job_failed`, `foreign_same_release`, `foreign_no_version`, `foreign_no_episodes`, `version_owned_by_source`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`, `version_unknown`, `version_kind_mismatch`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Assign a foreign job to a title of the library and import it",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/foreign-jobs/{job_id}/remove": {
+   "post": {
+    "description": "The job leaves the download client with its files. Needs the scope operate.",
+    "operationId": "remove_foreign_job_api_v1_foreign_jobs__job_id__remove_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "job_id",
+      "required": true,
+      "schema": {
+       "title": "Job Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `not_found`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `client_unreachable`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Remove a foreign job with its files",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/health": {
+   "get": {
+    "description": "Findings from what nexcrate already knows: asking sends no request anywhere and wakes no disk. Translate by `code`; `params` carry the names.",
+    "operationId": "read_health_api_v1_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HealthOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "What is wrong with this nexcrate",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/pairing": {
+   "post": {
+    "description": "Needs no key. nexcrate shows the request with its code to the owner, who confirms it with the scopes of the owner's choice or denies it. Ask GET /api/v1/pairing/{pairing_id} with the secret until it is decided; a request lives 10 minutes, at most 5 wait at once.",
+    "operationId": "ask_api_v1_pairing_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PairingIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PairingOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Error codes: `csrf_header_missing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "429": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `pairing_limit`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "summary": "Ask to be connected",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/pairing/{pairing_id}": {
+   "get": {
+    "description": "With the header X-Pairing-Secret. Confirmed, the answer carries the key once; from then on the request is delivered. An unknown request and a wrong secret both answer 404.",
+    "operationId": "poll_api_v1_pairing__pairing_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "pairing_id",
+      "required": true,
+      "schema": {
+       "title": "Pairing Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Pairing-Secret",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 100,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Pairing-Secret"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PairingStateOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `pairing_not_found`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "summary": "How a request to be connected stands",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/preview": {
+   "post": {
+    "description": "Whether the title is there, when it comes out, whether each version would search and load by itself, and with `search` a search of the indexers without loading (follow it with GET /api/v1/preview/{preview_id}). A title nexcrate does not have comes from TMDB; a series nexcrate does not have cannot be searched yet.",
+    "operationId": "ask_preview_api_v1_preview_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/app__routers__v1_round__PreviewIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/app__routers__v1_round__PreviewOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`, `search_busy`, `tmdb_not_configured`, `tmdb_token_unreadable`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `ref_not_addable`, `version_unknown`, `scope_not_for_kind`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `tmdb_token_rejected`, `tmdb_rate_limited`, `tmdb_unavailable`, `tmdb_unreachable`, `tmdb_http_error`"
+     },
+     "504": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `tmdb_timeout`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Ask before a request",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/preview/{preview_id}": {
+   "get": {
+    "description": "Per version the release nexcrate would take, or why nothing fits. Kept 30 minutes.",
+    "operationId": "read_preview_api_v1_preview__preview_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "preview_id",
+      "required": true,
+      "schema": {
+       "title": "Preview Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PreviewResultOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `preview_not_found`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "What a preview's search found",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/problems": {
+   "get": {
+    "description": "The downloads of the queue with a problem or a hint, those that need somebody first. Each problem names its allowed actions and which of them an automatic may take without a human.",
+    "operationId": "read_problems_api_v1_problems_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 16,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/QueueOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Downloads with a problem, and what may be done",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/queue": {
+   "get": {
+    "description": "Every download that is not finished, one entry per download with its episodes and one state: running, stuck, and failed ones that wait for the owner. Progress and remaining time are only here, never events.",
+    "operationId": "read_queue_api_v1_queue_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 16,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/QueueOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "What is loading, stuck or failed",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/queue/{download_id}": {
+   "get": {
+    "description": "A download as the queue lists it, also after it finished.",
+    "operationId": "read_download_api_v1_queue__download_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "download_id",
+      "required": true,
+      "schema": {
+       "title": "Download Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/QueueItemOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `download_not_found`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "One download",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/ratings": {
+   "post": {
+    "description": "Up to 100 titles, also titles that are in no library, from nexcrate's own copy of IMDb's daily file: asking sends nothing anywhere. Information courtesy of IMDb (https://www.imdb.com). Used with permission.",
+    "operationId": "ratings_many_api_v1_ratings_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RatingsIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RatingsOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "IMDb ratings of many titles at once",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/ratings/{kind}/{ref}": {
+   "get": {
+    "description": "IMDb from nexcrate's copy; with an OMDb key of the owner also Rotten Tomatoes and Metacritic (movies only), kept 30 days and within OMDb's daily limit. Information courtesy of IMDb (https://www.imdb.com). Used with permission.",
+    "operationId": "rating_one_api_v1_ratings__kind___ref__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RatingOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `imdb_unknown`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "The ratings of one title",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/recycle-bin": {
+   "get": {
+    "description": "What was deleted, by whom, and whether it can come back: movies, series and albums, one entry per file.",
+    "operationId": "read_bin_api_v1_recycle_bin_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 16,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RecycleBinOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Read the recycle bin",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/recycle-bin/{entry_id}/restore": {
+   "post": {
+    "description": "The file goes back where it was and counts again. Refused when something lies there (`recycle_target_taken`), when the version or episode has another file by now (`recycle_slot_taken`), when the title or version left the library (`recycle_title_gone`) or when the file is gone (`recycle_file_gone`); the file then stays in the bin.",
+    "operationId": "restore_api_v1_recycle_bin__entry_id__restore_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "entry_id",
+      "required": true,
+      "schema": {
+       "title": "Entry Id",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RestoredOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `recycle_target_taken`, `recycle_slot_taken`, `recycle_title_gone`, `recycle_file_gone`, `version_fed_by_source`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Take a file back out of the recycle bin",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/requests": {
+   "post": {
+    "description": "One call for both: a title nexcrate lacks is added from TMDB, versions it lacks are added, and the seasons and episodes under `series` are switched on. Asking twice gives the same, never a double. Requesting more never switches anything off, and what the owner switched by hand stays. A version a Radarr or Sonarr connection feeds answers 409. `search_now` puts the title into the order of the automatic, even with its switch off, within the indexers' budget. 200 when the title was there, 201 when it came with this call.",
+    "operationId": "make_request_api_v1_requests_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RequestIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RequestOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`, `version_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`, `version_fed_by_source`, `tmdb_not_configured`, `tmdb_token_unreadable`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `version_unknown`, `version_kind_mismatch`, `scope_not_for_kind`, `season_not_found`, `episode_not_found`, `track_not_found`, `ref_not_addable`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `tmdb_token_rejected`, `tmdb_rate_limited`, `tmdb_unavailable`, `tmdb_unreachable`, `tmdb_http_error`"
+     },
+     "504": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `tmdb_timeout`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Request a title, or request more of it",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/states": {
+   "get": {
+    "description": "The list is part of the contract. A later stage may add a state; a program shows one it does not know as unknown instead of failing.",
+    "operationId": "states_api_v1_states_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StatesOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "The states a version, a season or an episode can have",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/storage": {
+   "get": {
+    "description": "Free and total space of the disk each version's folder lies on. Never a path.",
+    "operationId": "read_storage_api_v1_storage_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StorageListOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Free space behind every version",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/system": {
+   "get": {
+    "description": "The version, the stage of the contract, what works per kind, and the fixed id of the installation. Ask this first: a program that needs more than this nexcrate carries can say so instead of failing.",
+    "operationId": "system_api_v1_system_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SystemOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "What this nexcrate is and can do",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles": {
+   "get": {
+    "description": "With `after=0` the whole library in pages; afterwards ask with the `next_after` of the last answer and get only what changed since, and what went away. A title's number moves whenever anything of what this list says about it changes, some seconds after the change. Seasons and episodes are not in the list: fetch the title when its number moved. `marker_too_old`: the number is older than 90 days of removals, start over at 0.",
+    "operationId": "list_titles_api_v1_titles_get",
+    "parameters": [
+     {
+      "description": "The `next_after` of the last answer; 0 for everything.",
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "description": "The `next_after` of the last answer; 0 for everything.",
+       "minimum": 0,
+       "title": "After",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 16,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 500,
+       "maximum": 2000,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TitlesOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "410": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `marker_too_old`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "The library, whole or what changed since a number",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/lookup": {
+   "post": {
+    "description": "Up to 100 titles in one call, for a page of tiles that each need a badge. Answers in the order asked, straight from the library and without the delay of the change numbers. An entry nexcrate cannot answer carries `error`; the batch never fails for one entry.",
+    "operationId": "lookup_titles_api_v1_titles_lookup_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LookupIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LookupOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Look up many titles at once",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/series/{ref}/seasons/{season}": {
+   "get": {
+    "description": "Every episode TMDB lists for the season, in TMDB's numbers, with every version's state, size and quality. Season 0 holds the specials.",
+    "operationId": "read_season_api_v1_titles_series__ref__seasons__season__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "season",
+      "required": true,
+      "schema": {
+       "title": "Season",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SeasonDetailOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`, `season_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_invalid`, `ref_source_unknown`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "The episodes of one season",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/why": {
+   "post": {
+    "description": "The same for up to 50 titles, in the order asked; an entry nexcrate cannot answer carries `error` and breaks nothing else.",
+    "operationId": "read_why_many_api_v1_titles_why_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WhyManyIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WhyManyOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Why many titles are not there yet",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/{kind}/{ref}": {
+   "delete": {
+    "description": "As the button in nexcrate: nexcrate's own versions go, and the title when none is left. Its running downloads are stopped at their client first. With `delete_files` the files go into the recycle bin before; ⚠️ a title that is gone cannot take them back, so add it again first. Versions a Radarr or Sonarr connection feeds stay, and the answer is 409 `title_has_source_versions`.",
+    "operationId": "remove_title_api_v1_titles__kind___ref__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     },
+     {
+      "description": "Move the files into the recycle bin first.",
+      "in": "query",
+      "name": "delete_files",
+      "required": false,
+      "schema": {
+       "default": false,
+       "description": "Move the files into the recycle bin first.",
+       "title": "Delete Files",
+       "type": "boolean"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`, `download_finished`, `title_has_source_versions`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Remove a title from the library",
+    "tags": [
+     "v1"
+    ]
+   },
+   "get": {
+    "description": "The title as the list shows it; a series also with every season and, per version, its state, numbers and size on disk. `ref` takes every source nexcrate knows for the kind: tmdb and imdb, for a series also tvdb.",
+    "operationId": "read_title_api_v1_titles__kind___ref__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TitleOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "One title, a series with its seasons",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/{kind}/{ref}/delete-files": {
+   "post": {
+    "description": "The files of the scope go into the recycle bin with their subtitles; they come back with POST /api/v1/recycle-bin/{entry_id}/restore until the bin's time is up. A file of a series that holds several episodes goes whole when one of them is named.",
+    "operationId": "delete_files_api_v1_titles__kind___ref__delete_files_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/app__routers__v1_write__DeleteFilesIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DeleteFilesOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`, `version_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`, `version_fed_by_source`, `download_importing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `version_unknown`, `version_kind_mismatch`, `scope_not_for_kind`, `season_not_found`, `episode_not_found`, `track_not_found`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Move files into the recycle bin",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/{kind}/{ref}/history": {
+   "get": {
+    "description": "Loaded, filed (with the replaced file's quality and size), failed, deleted, restored, requested, taken back, and what programs did, newest first in pages.",
+    "operationId": "read_history_api_v1_titles__kind___ref__history_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     },
+     {
+      "description": "The `next_before` of the last page.",
+      "in": "query",
+      "name": "before",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "The `next_before` of the last page.",
+       "title": "Before"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "maximum": 500,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HistoryOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "The history of a title",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/{kind}/{ref}/monitoring": {
+   "put": {
+    "description": "Only the switches: no download stops, no file moves. Freezing a whole series also keeps seasons TMDB names later out; thawing it takes them in again.",
+    "operationId": "set_monitoring_api_v1_titles__kind___ref__monitoring_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MonitoringIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MonitoringOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`, `version_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`, `version_fed_by_source`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `version_unknown`, `version_kind_mismatch`, `scope_not_for_kind`, `season_not_found`, `episode_not_found`, `track_not_found`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Freeze or thaw",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/{kind}/{ref}/search": {
+   "post": {
+    "description": "The title goes into the order of the automatic, right after the replacements, even with its switch off, and within the indexers' budget: a hundred asks at once are searched one after the other.",
+    "operationId": "ask_search_api_v1_titles__kind___ref__search_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "202": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/app__routers__v1_write__SearchOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Ask for a search",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/{kind}/{ref}/why": {
+   "get": {
+    "description": "Per version one reason as a code with params, the weightiest first: loading, stuck, not released yet, the last search found only releases the profile refuses, the next search, waiting out a delay. Build the sentence from the code. Asks no indexer.",
+    "operationId": "read_why_api_v1_titles__kind___ref__why_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WhyOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Why a title is not there yet",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/titles/{kind}/{ref}/withdraw": {
+   "post": {
+    "description": "Watching off for the scope, running downloads that lie wholly in it stopped at their client (never blocklisted), and with `delete_files` the files moved into the recycle bin. A download being filed away cannot be stopped: then 409 `download_finished` and nothing changed. A title or version a program brought and that is empty afterwards goes.",
+    "operationId": "withdraw_api_v1_titles__kind___ref__withdraw_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WithdrawIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WithdrawOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `title_not_found`, `version_not_found`"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `ref_ambiguous`, `version_fed_by_source`, `download_finished`, `download_importing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `ref_invalid`, `ref_source_unknown`, `version_unknown`, `version_kind_mismatch`, `scope_not_for_kind`, `season_not_found`, `episode_not_found`, `track_not_found`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "Take a request back",
+    "tags": [
+     "v1"
+    ]
+   }
+  },
+  "/api/v1/versions": {
+   "get": {
+    "description": "A version is a named slot per kind, such as HD and 4K for movies. A version that is not ready does nothing by itself: offer only ready ones, and tell the owner the reasons of the others.",
+    "operationId": "list_versions_api_v1_versions_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 16,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VersionsOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `api_key_missing`, `api_key_invalid`"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `scope_missing`"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `kind_unsupported`, `invalid_input`"
+     },
+     "500": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ApiError"
+        }
+       }
+      },
+      "description": "Error codes: `internal_error`"
+     }
+    },
+    "security": [
+     {
+      "key": []
+     }
+    ],
+    "summary": "List the versions and whether they are ready",
+    "tags": [
+     "v1"
+    ]
+   }
+  }
+ }
+}

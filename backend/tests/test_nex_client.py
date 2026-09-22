@@ -383,6 +383,15 @@ async def test_ein_weg_der_erst_spaeter_kommt_sagt_es_mit_kennung(nexcrate: Fake
 
 @pytest.mark.anyio
 async def test_ohne_zugang_sagt_der_weg_das_und_fragt_niemanden(nexcrate: FakeNexcrate) -> None:
+    """Auch mit bekannten Fassungen: Ohne Adresse und Schluessel gibt es nichts."""
+    nex_fassungen.merken(
+        (
+            mapping.fassung_info(
+                {"version_id": FILM_HD, "kind": "movie", "name": "Movies", "order": 1, "tier": "hd"},
+                0,
+            ),
+        )
+    )
     with SessionLocal() as db:
         weg = get_beschaffung(replace(load_settings(db), beschaffung=NEX))
     assert weg.verwaltet("movie") is False
@@ -548,6 +557,13 @@ def test_die_betriebsart_laesst_sich_umstellen_und_nur_auf_bekanntes(
     assert falsch.status_code == 422
     assert falsch.json()["detail"]["code"] == "beschaffung_invalid"
     assert admin_client.get("/api/settings").json()["beschaffung"] == "nex"
+
+
+def test_die_betriebsart_steht_in_der_konfiguration(admin_client: TestClient) -> None:
+    """Die Oberflaeche muss sie kennen - sonst blendet sie die falschen Reiter ein."""
+    assert admin_client.get("/api/config").json()["beschaffung"] == "arr"
+    admin_client.put("/api/settings", json={"beschaffung": "nex"})
+    assert admin_client.get("/api/config").json()["beschaffung"] == "nex"
 
 
 def test_im_nex_betrieb_gibt_es_keine_arr_instanzen(admin_client: TestClient) -> None:

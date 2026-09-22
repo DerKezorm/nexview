@@ -51,6 +51,23 @@ FREMDER_TEXT = {
 }
 
 
+def _saetze_kennungen(text: str) -> set[str]:
+    """Die Schluessel von ``SAETZE`` in ``beschaffung/nex/fehler.py``."""
+    gefunden: set[str] = set()
+    drin = False
+    for zeile in text.splitlines():
+        if zeile.startswith("SAETZE"):
+            drin = True
+            continue
+        if drin:
+            if zeile.startswith("}"):
+                break
+            treffer = re.match(r'\s*"([a-z0-9_]+)"\s*:', zeile)
+            if treffer:
+                gefunden.add(treffer.group(1))
+    return gefunden
+
+
 def _kennungen_im_backend() -> set[str]:
     """Alle ``"code": "..."`` aus Fehler-Antworten des Backends.
 
@@ -88,6 +105,9 @@ def _kennungen_im_backend() -> set[str]:
             "KontoFehler",
             "OidcFehler",
             "BetreiberFehler",
+            # nexcrates Fehler tragen ihre Kennung als erstes Argument:
+            # ``NexcrateError("nexcrate_timeout", ungewiss=True)``.
+            "NexcrateError",
         ):
             gefunden.update(re.findall(klasse + r'\(\s*\n?\s*"([a-z0-9_]+)"', text))
         # Kennungen des OIDC-Rueckwegs: Sie erreichen die Oberflaeche nicht als
@@ -100,6 +120,14 @@ def _kennungen_im_backend() -> set[str]:
         # und stehen von dort Wochen spaeter im Verlauf. Ohne diese Zeile bliebe
         # ausgerechnet die Gruppe ungeprueft, die am laengsten sichtbar ist.
         gefunden.update(re.findall(r'\bcode\s*=\s*"([a-z0-9_]+)"', text))
+        # Die Kennungen des NEX-Wegs entstehen zur Laufzeit: ``aus_antwort``
+        # bildet nexcrates Code auf Nexviews ab und gibt das Ergebnis als
+        # Variable weiter. Im Quelltext steht keine davon woertlich an einem
+        # Aufruf - wohl aber in ``SAETZE``, dem einen Ort, an dem jede von
+        # ihnen einen deutschen Rueckfall bekommt. Diese Schluessel sind
+        # deshalb die Liste dessen, was der Weg schicken kann.
+        if datei.name == "fehler.py" and "nex" in datei.parts:
+            gefunden.update(_saetze_kennungen(text))
     return gefunden
 
 

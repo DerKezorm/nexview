@@ -29,29 +29,22 @@ from . import (
     abgleich_kern,
     aufraeum_bericht,
     download_automatik,
-    download_haenger,
-    instanz_gesundheit,
     instanz_stand,
-    library,
     loeschfrist,
     logs,
     mail_outbox,
     mediaserver_library,
     notify,
     ratings,
-    requests_service,
     storage,
     updates,
     watch,
-    webhook_pflege,
-    webhooks,
     wiedergaben,
     zurueckgestellt,
 )
-from .arr import ArrError
-from .radarr import RadarrClient
+from . import beschaffung as beschaffung_grenze
+from .beschaffung import BeschaffungError, get_beschaffung, jahr_aus, treffer_nach_titel
 from .settings_service import AppSettings, load_settings
-from .sonarr import SonarrClient
 
 logger = logging.getLogger("nexview.poller")
 
@@ -69,8 +62,8 @@ async def _paket_groesse(settings, request: MediaRequest, eintrag, folgen: dict)
     ``None`` - der stuendliche Abgleich traegt die Groesse dann nach.
     """
     arr_id = getattr(eintrag, "arr_id", None)
-    client = library.sonarr_client(settings, request.tier.value)
-    if not arr_id or client is None:
+    beschaffung = get_beschaffung(settings)
+    if not arr_id or not beschaffung.verwaltet("tv", request.tier.value):
         return None
     staffel = folgen.get(request.season) or {}
     eigene = {
@@ -81,8 +74,8 @@ async def _paket_groesse(settings, request: MediaRequest, eintrag, folgen: dict)
     if not eigene:
         return 0
     try:
-        dateien = await client.episode_files(arr_id, request.season)
-    except ArrError:
+        dateien = await beschaffung.episodendateien(request.tier.value, arr_id, request.season)
+    except BeschaffungError:
         return None
     return sum(
         int(datei.get("size") or 0) for datei in dateien if datei.get("id") in eigene
@@ -106,6 +99,7 @@ async def check_once(
     Rundgang sie fuer die haengenden Downloads schon geholt hat.
     """
     offen = _open_requests(db)
+    beschaffung = get_beschaffung(settings)
     # Kein fruehes Ende mehr: Auch ohne offene Anfragen gibt es unten noch die
     # Gegenrichtung zu pruefen - gilt ein fertig geladener Titel noch?
 
@@ -127,10 +121,10 @@ async def check_once(
         # "ist es ueberhaupt eingerichtet".
         if any(r.media_type == MediaType.movie and r.tier.value == stufe for r in offen):  # noqa: SIM102
             if settings.arr_configured("movie", stufe):
-                filme[stufe] = await library.movie_library(settings, stufe)
+                filme[stufe] = await beschaffung.bestand_filme(stufe)
         if any(r.media_type == MediaType.tv and r.tier.value == stufe for r in offen):  # noqa: SIM102
             if settings.arr_configured("tv", stufe):
-                serien[stufe] = await library.series_library(settings, stufe)
+                serien[stufe] = await beschaffung.bestand_serien(stufe)
 
     # Welche Bibliotheken wirklich geantwortet haben. **Entscheidend fuer die
     # Frage "weg oder nur nicht gefragt":** Eine nicht eingerichtete oder
@@ -153,10 +147,7 @@ async def check_once(
     async def _folgen_befund(stufe: str, arr_id: int) -> dict:
         schluessel = (stufe, arr_id)
         if schluessel not in folgen_befunde:
-            client = library.sonarr_client(settings, stufe)
-            folgen_befunde[schluessel] = (
-                await client.folgen_stand(arr_id) if client is not None else {}
-            )
+            folgen_befunde[schluessel] = await beschaffung.folgen_stand(stufe, arr_id) or {}
         return folgen_befunde[schluessel]
 
     # Die Warteschlangen fuer "laedt gerade" - hoechstens einmal je Instanz
@@ -169,21 +160,11 @@ async def check_once(
         schluessel = (art, stufe)
         vorab = (vorab_geholt or {}).get(schluessel)
         if schluessel not in warteschlangen and vorab is not None:
-            verdichten = (
-                RadarrClient.eintraege_aus if art == "movie" else SonarrClient.eintraege_aus
-            )
-            warteschlangen[schluessel] = verdichten(vorab)
+            warteschlangen[schluessel] = beschaffung.warteschlange_verdichten(art, vorab)
         if schluessel not in warteschlangen:
-            client = (
-                library.radarr_client(settings, stufe)
-                if art == "movie"
-                else library.sonarr_client(settings, stufe)
-            )
             try:
-                warteschlangen[schluessel] = (
-                    await client.warteschlange() if client is not None else []
-                )
-            except ArrError:
+                warteschlangen[schluessel] = await beschaffung.warteschlange(art, stufe)
+            except BeschaffungError:
                 # Instanz gerade stumm: Ohne Warteschlange fehlt nur die
                 # Fortschritts-Anzeige - still weiter, das Erreichbarkeits-
                 # Problem meldet sich an anderer Stelle ohnehin.
@@ -204,8 +185,8 @@ async def check_once(
             nach_tvdb, nach_titel = serien.get(stufe, ({}, {}))
             eintrag = nach_tvdb.get(request.tvdb_id) if request.tvdb_id else None
             if eintrag is None:
-                eintrag = library.treffer_nach_titel(
-                    nach_titel, request.title, library.jahr_aus(request.release_date)
+                eintrag = treffer_nach_titel(
+                    nach_titel, request.title, jahr_aus(request.release_date)
                 )
 
         request.last_checked_at = utcnow()
@@ -327,44 +308,7 @@ async def check_once(
             arr_id = getattr(eintrag, "arr_id", None)
             if (stufe, arr_id) not in geheilt:
                 geheilt.add((stufe, arr_id))
-                client = library.sonarr_client(settings, stufe)
-                if client is not None:
-                    try:
-                        if request.episodes:
-                            # Paket: Serie an, genau die eigenen Folgen an,
-                            # Suche anstossen - dieselbe Strecke wie bei der
-                            # Uebergabe, dort steht auch das Warum.
-                            geschafft = await requests_service._folgen_einschalten(
-                                client, arr_id, request
-                            )
-                            if geschafft:
-                                logger.warning(
-                                    "Monitoring healed: %r season %s episodes %s "
-                                    "were off or not yet on (arr_id=%s)",
-                                    request.title,
-                                    request.season,
-                                    request.episodes,
-                                    arr_id,
-                                )
-                        else:
-                            await client.monitor_seasons(
-                                arr_id,
-                                requests_service._gewollte_staffeln(db, request),
-                                such_staffel=request.season,
-                            )
-                            logger.warning(
-                                "Monitoring healed: %r season %s was switched off in Sonarr "
-                                "(arr_id=%s)",
-                                request.title,
-                                request.season,
-                                arr_id,
-                            )
-                    except ArrError as fehler:
-                        logger.warning(
-                            "Monitoring of %r could not be healed: %s",
-                            request.title,
-                            logs.kennung(fehler),
-                        )
+                await beschaffung.ueberwachung_heilen(db, request, arr_id)
 
     # Und die Gegenrichtung: Gilt ein fertig geladener Titel noch?
     #
@@ -387,16 +331,16 @@ async def check_once(
             continue
         if request.media_type == MediaType.movie:
             if stufe not in filme:
-                filme[stufe] = await library.movie_library(settings, stufe)
+                filme[stufe] = await beschaffung.bestand_filme(stufe)
             eintrag = filme[stufe].get(request.tmdb_id)
         else:
             if stufe not in serien:
-                serien[stufe] = await library.series_library(settings, stufe)
+                serien[stufe] = await beschaffung.bestand_serien(stufe)
             nach_tvdb, nach_titel = serien[stufe]
             eintrag = nach_tvdb.get(request.tvdb_id) if request.tvdb_id else None
             if eintrag is None:
-                eintrag = library.treffer_nach_titel(
-                    nach_titel, request.title, library.jahr_aus(request.release_date)
+                eintrag = treffer_nach_titel(
+                    nach_titel, request.title, jahr_aus(request.release_date)
                 )
 
         folgen = None
@@ -511,7 +455,7 @@ async def _instanzen_messen(db, settings) -> None:
         db.rollback()
 
     try:
-        download_haenger.verlauf_aufraeumen(db)
+        beschaffung_grenze.download_verlauf_aufraeumen(db)
     except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
         logger.exception("Download history cleanup failed")
         db.rollback()
@@ -713,7 +657,7 @@ async def _bis_zum_naechsten_durchgang(
     Rundgang deckt alles ab, was bis hierher angerufen hat. Was waehrend des
     Rundgangs anruft, setzt es erneut - und fuehrt zu genau einem Nachlauf.
     """
-    weckruf = webhooks.weckruf()
+    weckruf = beschaffung_grenze.weckruf()
     stop_warten = asyncio.create_task(stop.wait())
     weck_warten: asyncio.Task | None = None
     try:
@@ -772,7 +716,7 @@ async def run_forever(stop: asyncio.Event) -> None:
                     # scheitert er, laufen die Anfragen trotzdem.
                     vorab = None
                     try:
-                        rundgang = await download_haenger.auffrischen(db, settings)
+                        rundgang = await get_beschaffung(settings).downloads_auffrischen(db)
                         vorab = rundgang.warteschlangen
                     except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
                         logger.exception("Stuck download check failed")
@@ -818,7 +762,7 @@ async def run_forever(stop: asyncio.Event) -> None:
                 # nachgezogen), sofort faellig nach geaenderten Einstellungen
                 # (webhook_pflege.gleich_wieder) und beim Start.
                 try:
-                    await webhook_pflege.vielleicht_pflegen(db, settings)
+                    await get_beschaffung(settings).rueckkanal_pflegen(db)
                 except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
                     logger.exception("Webhook upkeep failed")
                     db.rollback()
@@ -828,7 +772,7 @@ async def run_forever(stop: asyncio.Event) -> None:
                 # vor, und erst diese Nachfrage hier holt die Wahrheit. Die
                 # Abfrage ist winzig; gemeldet wird einmal je Problem.
                 try:
-                    await instanz_gesundheit.pruefen(db, settings)
+                    await get_beschaffung(settings).gesundheit_pruefen(db)
                 except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
                     logger.exception("Instance health check failed")
                     db.rollback()
@@ -883,7 +827,7 @@ async def run_forever(stop: asyncio.Event) -> None:
                 except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
                     logger.exception("Cleanup report could not be sent")
                     db.rollback()
-        except ArrError as error:
+        except BeschaffungError as error:
             # Radarr/Sonarr gerade nicht erreichbar - kein Grund zur Aufregung.
             logger.warning("Status sync skipped: %s", logs.kennung(error))
             wartezeit = max(wartezeit, ERROR_BACKOFF_SECONDS)

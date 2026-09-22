@@ -17,8 +17,9 @@ from app.models import (
     NotificationType,
     Setting,
 )
-from app.services import download_aktionen, download_automatik, download_haenger
-from app.services.download_aktionen import DownloadFehler
+from app.services import download_automatik
+from app.services.beschaffung.arr import download_aktionen, download_haenger
+from app.services.beschaffung.arr.download_aktionen import DownloadFehler
 from app.services.settings_service import load_settings
 
 from .download_attrappe import RADARR_HOST, SONARR_HOST, ArrAttrappe, einrichten, film, folge

@@ -16,15 +16,9 @@ from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..models import MediaType
 from ..schemas_calendar import CalendarEntry, CalendarResult
-from ..services import (
-    blocklist,
-    library,
-    mediaserver_library,
-    mediaserver_watched,
-    requests_service,
-    uhd,
-)
+from ..services import blocklist, mediaserver_library, mediaserver_watched, requests_service, uhd
 from ..services import calendar as calendar_service
+from ..services.beschaffung import get_beschaffung
 from ..services.settings_service import for_user, load_settings
 
 logger = logging.getLogger("nexview.calendar")
@@ -97,7 +91,7 @@ async def _zustaende(db, settings, user, eintraege: list[CalendarEntry]) -> None
         fremde = [e for e in betroffen if e.source == "neu"]
         if fremde:
             try:
-                abgeglichen = await library.apply_status(settings, art.value, list(fremde))
+                abgeglichen = await get_beschaffung(settings).status_setzen(art.value, list(fremde))
                 for ziel, quelle in zip(fremde, abgeglichen.items, strict=True):
                     ziel.status = quelle.status
             except Exception:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung

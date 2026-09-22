@@ -18,7 +18,8 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app.services import arr, download_haenger
+from app.services.beschaffung.arr import client as arr
+from app.services.beschaffung.arr import download_haenger
 
 RADARR = "http://radarr.example.com"
 SONARR = "http://sonarr.example.com"

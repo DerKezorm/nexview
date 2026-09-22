@@ -34,7 +34,8 @@ from ..models import (
     User,
     utcnow,
 )
-from . import library, logs, media, notify
+from . import logs, media, notify
+from .beschaffung import get_beschaffung, jahr_aus
 from .settings_service import AppSettings
 from .tmdb import TmdbError
 
@@ -206,7 +207,7 @@ async def _filme_pruefen(
 ) -> int:
     """Ein vorgemerkter Film ist da - einmal melden, dann ist es erledigt."""
     try:
-        bestand = await library.movie_library(settings)
+        bestand = await get_beschaffung(settings).bestand_filme()
     except Exception as fehler:  # noqa: BLE001 - der Waechter darf nie sterben
         logger.warning("Movie library not available for watches: %s", fehler)
         return 0
@@ -263,11 +264,10 @@ async def _serie_pruefen(
         return 0
 
     try:
-        vorhanden = await library.episode_availability(
-            settings,
+        vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
             detail.tvdb_id,
             detail.title,
-            jahr=library.jahr_aus(detail.release_date),
+            jahr=jahr_aus(detail.release_date),
         )
     except Exception as fehler:  # noqa: BLE001
         logger.warning("Episode status not available for watch %s: %s", tmdb_id, fehler)

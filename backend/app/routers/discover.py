@@ -14,14 +14,13 @@ from ..schemas_media import ArrOptions, Genre, MediaItem, MediaPage
 from ..services import (
     blocklist,
     fassungen,
-    library,
     media,
     mediaserver_library,
     mediaserver_watched,
     requests_service,
     uhd,
 )
-from ..services.arr import ArrError
+from ..services.beschaffung import BeschaffungError, get_beschaffung
 from ..services.filters import (
     KNOWN_TITLES_MIN_VOTES,
     MIN_FEATURE_RUNTIME,
@@ -80,8 +79,7 @@ async def _status_for(
     # Der Ablageort geht **nur** an Administratoren. Die Entscheidung faellt
     # hier und nicht in der Oberflaeche: Ausblenden hiesse, ihn trotzdem
     # ausgeliefert zu haben.
-    result = await library.apply_status(
-        settings,
+    result = await get_beschaffung(settings).status_setzen(
         media_type,
         items,
         mit_pfad=bool(user is not None and user.role == Role.admin),
@@ -301,8 +299,8 @@ async def arr_options(
                 ),
             )
     try:
-        options = ArrOptions(**await library.options(settings, media_type, tier))
-    except ArrError as error:
+        options = ArrOptions(**await get_beschaffung(settings).optionen(media_type, tier))
+    except BeschaffungError as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST if error.status_code is None else 502,
             detail=error.message,

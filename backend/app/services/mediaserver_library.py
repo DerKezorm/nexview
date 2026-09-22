@@ -24,6 +24,7 @@ from sqlalchemy import String, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models import MediaServerLibraryItem, MediaType
+from .beschaffung import normalize_title
 from .mediaserver import (
     MediaServer,
     MediaServerError,
@@ -32,7 +33,6 @@ from .mediaserver import (
 )
 from .mediaserver.base import LibraryItem
 from .settings_service import AppSettings, load_settings
-from .sonarr import normalize_title
 
 logger = logging.getLogger("nexview.mediaserver")
 

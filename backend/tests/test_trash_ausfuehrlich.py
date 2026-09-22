@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services import trash
+from app.services.beschaffung.arr import trash
 
 SPRACHEN = {code: nummer for nummer, code in enumerate(trash.SPRACHNAMEN, 1)}
 QUALITAETEN_HD = [

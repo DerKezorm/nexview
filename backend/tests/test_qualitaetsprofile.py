@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.arr import ArrClient
-from app.services.trash import TrashFehler, bauplan
+from app.services.beschaffung.arr.client import ArrClient
+from app.services.beschaffung.arr.trash import TrashFehler, bauplan
 
 REZEPT = {
     "name": "Wohnzimmer 4K",
@@ -194,7 +194,7 @@ def test_jede_antwortkombination_laesst_sich_bauen() -> None:
     """
     from itertools import product
 
-    from app.services.trash import SPRACHNAMEN
+    from app.services.beschaffung.arr.trash import SPRACHNAMEN
 
     nummern = {code: 100 + i for i, code in enumerate(SPRACHNAMEN)}
     for dienst, aufloesung, quelle, sofort, hdr, code, schluss in product(
@@ -224,7 +224,7 @@ def test_jede_antwortkombination_laesst_sich_bauen() -> None:
 @pytest.mark.anyio
 async def test_schreiben_ersetzt_die_web_gruppe(monkeypatch) -> None:
     """Falle 2: Radarrs eigene WEB-Gruppe darf nicht danebenstehen."""
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     mitschrift: dict = {}
     _attrappe(monkeypatch, mitschrift)
@@ -246,7 +246,7 @@ async def test_schreiben_ersetzt_die_web_gruppe(monkeypatch) -> None:
 @pytest.mark.anyio
 async def test_schreiben_fuehrt_alle_formate_auf(monkeypatch) -> None:
     """Falle 3: formatItems muss den ganzen Bestand nennen, nicht nur unsere."""
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     mitschrift: dict = {}
     _attrappe(monkeypatch, mitschrift)
@@ -265,7 +265,7 @@ async def test_schreiben_fuehrt_alle_formate_auf(monkeypatch) -> None:
 @pytest.mark.anyio
 async def test_felder_kommen_als_liste_an(monkeypatch) -> None:
     """Falle 1: TRaSH schreibt fields als Objekt, Radarr will eine Liste."""
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     mitschrift: dict = {}
     _attrappe(monkeypatch, mitschrift)
@@ -335,7 +335,7 @@ def test_bauplan_erfindet_keine_qualitaetsstufe() -> None:
 
 def _live_profil(plan, punkte_abweichung: dict | None = None) -> dict:
     """Ein Radarr-Profil so, wie es nach dem Schreiben dort steht."""
-    from app.services.qualitaetsprofile import PRAEFIX
+    from app.services.beschaffung.arr.qualitaetsprofile import PRAEFIX
 
     abweichung = punkte_abweichung or {}
     return {
@@ -368,7 +368,7 @@ def _live_profil(plan, punkte_abweichung: dict | None = None) -> dict:
 async def test_abgleich_erkennt_die_vier_zustaende(monkeypatch) -> None:
     """Die Matrix aus "Quelle bewegt?" und "drueben gedreht?"."""
     from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     _attrappe(monkeypatch, {})
     client = ArrClient("http://x", "k", "Radarr")
@@ -430,7 +430,7 @@ async def test_abgleich_erkennt_die_vier_zustaende(monkeypatch) -> None:
 async def test_abgleich_nennt_den_unterschied(monkeypatch) -> None:
     """Wer "von dir angepasst" liest, will wissen, was anders ist."""
     from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     _attrappe(monkeypatch, {})
     client = ArrClient("http://x", "k", "Radarr")
@@ -497,7 +497,7 @@ async def test_frueh_zufrieden_stellt_kleinere_aufloesungen_unter_das_ziel(monke
     stehen sie in einer eigenen Gruppe **unter** dem Ziel: Von dort wird noch
     auf das Ziel aufgewertet, dort ist Schluss.
     """
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     mitschrift: dict = {}
     _attrappe(monkeypatch, mitschrift)
@@ -530,7 +530,7 @@ async def test_frueh_zufrieden_zeigt_alte_kopien_als_update(monkeypatch) -> None
     niemand gedreht: Es muss "Update verfuegbar" heissen, nicht "Konflikt".
     """
     from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     _attrappe(monkeypatch, {})
     client = ArrClient("http://x", "k", "Radarr")
@@ -633,7 +633,7 @@ def test_sonarr_remux_bleibt_auch_kleiner_ein_remux() -> None:
 @pytest.mark.anyio
 async def test_schreiben_haelt_die_rangfolge_ein(monkeypatch) -> None:
     """Drueben steht dieselbe Rangfolge, der Cutoff an der Bluray in 4K."""
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     mitschrift: dict = {}
     _attrappe(monkeypatch, mitschrift)
@@ -665,7 +665,7 @@ async def test_schreiben_haelt_die_rangfolge_ein(monkeypatch) -> None:
 async def test_alte_kopien_ohne_rangfolge_zeigen_update(monkeypatch) -> None:
     """Drueben steht noch eine Gruppe. Das ist ein Update, kein Eingriff von Hand."""
     from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     _attrappe(monkeypatch, {})
     rezept = {**REZEPT, **ENGLISCH}
@@ -701,7 +701,7 @@ async def test_frisch_geschrieben_ist_aktuell_und_ein_verschobener_cutoff_faellt
     auffallen.
     """
     from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     mitschrift: dict = {}
     _attrappe(monkeypatch, mitschrift)
@@ -734,7 +734,7 @@ def test_zurueckgelesene_sprachmuster_gelten_als_gleich() -> None:
     angelegt hatte, fuer fremd, und meldete nach dem Schreiben "andere Regeln
     als die Empfehlung" fuer German DL und Co.
     """
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     plan = bauplan(REZEPT, "radarr", {"de": 4, "en": 1})
     wunsch = next(f for f in plan.formate if f.name == "German DL")
@@ -767,8 +767,8 @@ async def test_abgleich_meldet_regeln_aus_einem_frueheren_trash_stand(monkeypatc
     import copy
 
     from app.models import Qualitaetsprofil, QualitaetsprofilInstallation
-    from app.services import qualitaetsprofile as dienst
-    from app.services import trash, trash_bezug
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import trash, trash_bezug
 
     plan = bauplan(REZEPT, "radarr", {"de": 4, "en": 1})
     wunsch = next(f for f in plan.formate if f.name == "German DL")
@@ -809,8 +809,8 @@ async def test_schreiben_zieht_nur_unveraenderte_trash_muster_nach(monkeypatch) 
     import copy
     import dataclasses
 
-    from app.services import qualitaetsprofile as dienst
-    from app.services import trash
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import trash
 
     plan = bauplan(REZEPT, "radarr", {"de": 4, "en": 1})
     dl = next(f for f in plan.formate if f.name == "German DL")
@@ -857,7 +857,7 @@ async def test_neuer_stand_wird_vor_dem_uebernehmen_geprueft(monkeypatch, tmp_pa
     """
     import json as _json
 
-    from app.services import trash, trash_bezug
+    from app.services.beschaffung.arr import trash, trash_bezug
 
     echt = trash.schnappschuss("radarr")
     kaputt = _json.loads(_json.dumps(echt))
@@ -908,7 +908,7 @@ async def test_benennung_setzt_nur_das_gewaehlte(monkeypatch) -> None:
     fuehrt dort Felder, die wir nicht kennen (Doppelpunkt-Ersatz etwa). Ein
     selbst gebauter Datensatz loeschte sie still.
     """
-    from app.services import benennung
+    from app.services.beschaffung.arr import benennung
 
     stand = {
         "id": 1,
@@ -951,7 +951,7 @@ async def test_bestand_umbenennen_traegt_tausende(monkeypatch) -> None:
     waere das bei 5000 Titeln eine Viertelstunde. Und Radarr meldet zu einem
     Auftrag **keinen Fortschritt**, also muss Nexview selbst zaehlen.
     """
-    from app.services import benennung
+    from app.services.beschaffung.arr import benennung
 
     ANZAHL = 5000
     # Jeder zwanzigste Titel braucht einen neuen Namen.
@@ -997,7 +997,7 @@ async def test_bestand_umbenennen_traegt_tausende(monkeypatch) -> None:
 @pytest.mark.anyio
 async def test_ohne_aenderung_kein_auftrag(monkeypatch) -> None:
     """Wo nichts umzubenennen ist, geht auch kein Auftrag hinaus."""
-    from app.services import benennung
+    from app.services.beschaffung.arr import benennung
 
     losgeschickt: list[str] = []
 
@@ -1030,8 +1030,8 @@ async def test_verbindung_wird_erst_geprueft_dann_eingetragen(monkeypatch) -> No
     Medienserver erreicht, muss nicht die sein, unter der *Radarr* ihn erreicht.
     Ein Eintrag, der nie funktioniert hat, ist schlimmer als keiner.
     """
-    from app.services import medienserver_verbindung as mv
-    from app.services.arr import ArrError
+    from app.services.beschaffung.arr import medienserver_verbindung as mv
+    from app.services.beschaffung.arr.client import ArrError
 
     angelegt: list[dict] = []
     geprueft: list[dict] = []
@@ -1087,7 +1087,7 @@ async def test_verbindung_wird_erst_geprueft_dann_eingetragen(monkeypatch) -> No
 @pytest.mark.anyio
 async def test_ohne_schluessel_wird_nichts_versucht(monkeypatch) -> None:
     """Ohne API-Schluessel gar nicht erst anfragen."""
-    from app.services import medienserver_verbindung as mv
+    from app.services.beschaffung.arr import medienserver_verbindung as mv
 
     async def darf_nicht(self, *a, **k):
         raise AssertionError("es haette gar nicht gefragt werden duerfen")
@@ -1109,7 +1109,7 @@ def test_benennung_liefert_immer_text() -> None:
     """
     from itertools import product
 
-    from app.services.benennung import empfehlung
+    from app.services.beschaffung.arr.benennung import empfehlung
 
     for dienst, medienserver in product(
         ("radarr", "sonarr"), ("plex", "emby", "jellyfin", "")
@@ -1122,7 +1122,7 @@ def test_benennung_liefert_immer_text() -> None:
 
 def test_benennung_waehlt_die_fassung_zum_medienserver() -> None:
     """Plex schreibt die Kennung in geschweifte, Jellyfin in eckige Klammern."""
-    from app.services import benennung
+    from app.services.beschaffung.arr import benennung
 
     _datei_plex, ordner_plex, fassung_plex = benennung.empfehlung("radarr", "plex")
     _datei_jf, ordner_jf, fassung_jf = benennung.empfehlung("radarr", "jellyfin")
@@ -1139,7 +1139,7 @@ def test_fortschritt_bleibt_nicht_liegen() -> None:
     ⚠️ Ein liegengebliebener Eintrag hiesse fuer die Oberflaeche "laeuft noch" -
     und zwar bis zum Neustart.
     """
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     assert dienst.fortschritt(7) is None
     with dienst.fortschritt_fuehren(7) as stand:
@@ -1230,7 +1230,7 @@ def test_beide_schreibweisen_je_profil_erkannt() -> None:
     Profil lauter Nullen und meldet "von dir angepasst", wo niemand etwas
     angefasst hat. Die Schreibweise gilt **je Profil**.
     """
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     plan = bauplan(REZEPT, "radarr", {"de": 4, "en": 1})
     soll = {w.name: w.punkte for w in plan.formate}
@@ -1262,7 +1262,7 @@ def test_gemischte_schreibweisen_in_einem_profil() -> None:
     alten - die, deren schlichter Name von einem fremden Muster belegt war.
     Die Mehrheit sagte "schlicht", und die vier wurden als entwertet gelesen.
     """
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     plan = bauplan(REZEPT, "radarr", {"de": 4, "en": 1})
     soll = {w.name: w.punkte for w in plan.formate}
@@ -1297,7 +1297,7 @@ async def test_der_profilname_kommt_aus_der_ablage() -> None:
     Profile denselben. Das zweite scheiterte an Radarrs Eindeutigkeit.
     """
     from app.models import Qualitaetsprofil
-    from app.services import qualitaetsprofile as dienst
+    from app.services.beschaffung.arr import qualitaetsprofile as dienst
 
     ohne_namen = {k: v for k, v in REZEPT.items() if k != "name"}
     profil = Qualitaetsprofil(

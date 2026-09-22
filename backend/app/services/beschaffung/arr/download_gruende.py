@@ -30,30 +30,11 @@ Dieses Modul rechnet nur. Wer abfragt, merkt und handelt, steht in
 
 from __future__ import annotations
 
-import enum
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-
-class Aktion(str, enum.Enum):
-    """Was sich an einem haengenden Download tun laesst - die Knoepfe."""
-
-    manuell_importieren = "manuell_importieren"
-    entfernen_neu_suchen = "entfernen_neu_suchen"
-    entfernen = "entfernen"
-    erneut_pruefen = "erneut_pruefen"
-
-
-#: Was die Automatik ueberhaupt darf.
-#:
-#: ⚠️ **Der manuelle Import gehoert nie dazu.** Radarr prueft beim Befehl
-#: ``ManualImport`` die Ablehnungen nicht noch einmal (gelesen in
-#: ``ManualImportService``): Wer ein Sample mitschickt, bekommt es als Film in
-#: die Bibliothek. Das darf nur ein Mensch entscheiden, der die Datei gesehen hat.
-AUTOMATISCH_MOEGLICH = frozenset(
-    {Aktion.entfernen_neu_suchen, Aktion.entfernen, Aktion.erneut_pruefen}
-)
+from ..base import Aktion
 
 
 @dataclass(frozen=True)

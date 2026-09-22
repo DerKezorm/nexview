@@ -47,7 +47,7 @@ def leerer_sicherungsordner():
     Qualitaetsprofilen brechen mit ``KeyError: 'profile'`` an einer Stelle, die
     mit Sicherungen nichts zu tun hat. Genau so ist es passiert.
     """
-    from app.services import trash
+    from app.services.beschaffung.arr import trash
 
     def leeren() -> None:
         ordner = sicherung.ordner()

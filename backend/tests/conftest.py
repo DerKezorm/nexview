@@ -45,7 +45,8 @@ from app.models import (  # noqa: E402
     UserMediaServerAccount,
 )
 from app.security import hash_password  # noqa: E402
-from app.services import anmeldebremse, library  # noqa: E402
+from app.services import anmeldebremse  # noqa: E402
+from app.services.beschaffung.arr import library  # noqa: E402
 
 ADMIN = {
     "username": "admin",
@@ -142,7 +143,7 @@ def arr_client(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> Tes
         Tests ueber ein monkeypatch auf ``library.movie_library``.
         """
         from app.models import MediaType, RequestStatus
-        from app.services.radarr import LibraryEntry
+        from app.services.beschaffung.arr.radarr import LibraryEntry
 
         with SessionLocal() as sitzung:
             kennungen = sitzung.scalars(

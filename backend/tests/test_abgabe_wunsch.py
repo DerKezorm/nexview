@@ -24,7 +24,7 @@ from app.models import (
     StorageEntry,
     StorageState,
 )
-from app.services import library
+from app.services.beschaffung.arr import library
 
 from .conftest import auth_headers, create_user
 
@@ -79,7 +79,7 @@ class _Sonarr:
 
 
 def _sonarr_kennt_die_serie(monkeypatch, *, arr_id: int | None = 99) -> _Sonarr:
-    from app.services.sonarr import LibraryEntry
+    from app.services.beschaffung.arr.sonarr import LibraryEntry
 
     attrappe = _Sonarr()
     monkeypatch.setattr(library, "sonarr_client", lambda *_a, **_k: attrappe)

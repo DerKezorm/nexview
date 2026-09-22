@@ -30,12 +30,13 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from ..models import DownloadHaenger, User
+from ....models import DownloadHaenger, User
+from ...settings_service import AppSettings, ArrInstanz
+from ..base import DownloadFehler
 from . import download_haenger
-from .arr import ArrError
+from .client import ArrError
 from .download_gruende import Aktion
 from .radarr import RadarrClient
-from .settings_service import AppSettings, ArrInstanz
 from .sonarr import SonarrClient
 
 logger = logging.getLogger("nexview.downloads")
@@ -46,26 +47,6 @@ ABWARTEN_TAKT = 1.0
 
 #: Ab so vielen Folgen sucht Nexview die Staffel statt jede Folge einzeln.
 STAFFEL_AB_FOLGEN = 3
-
-
-class DownloadFehler(Exception):
-    """Eine Aktion ging nicht - mit Kennung, deutschem Rueckfall und Werten.
-
-    Dieselbe Form wie ``meldungen.meldung``: Das Backend benennt, die
-    Oberflaeche uebersetzt (``errors.byCode``).
-    """
-
-    def __init__(
-        self, text: str, *, code: str, status_code: int = 409, **zahlen: object
-    ) -> None:
-        super().__init__(text)
-        self.text = text
-        self.code = code
-        self.status_code = status_code
-        self.zahlen = zahlen
-
-    def als_meldung(self) -> dict[str, object]:
-        return {"code": self.code, "message": self.text, **self.zahlen}
 
 
 @dataclass(frozen=True)

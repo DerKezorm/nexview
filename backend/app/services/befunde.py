@@ -59,16 +59,7 @@ from ..models import (
     User,
     utcnow,
 )
-from . import (
-    abgleich,
-    download_haenger,
-    instanz_gesundheit,
-    instanz_stand,
-    logs,
-    mail_outbox,
-    sicherung,
-    updates,
-)
+from . import abgleich, beschaffung, instanz_stand, logs, mail_outbox, sicherung, updates
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.befunde")
@@ -261,10 +252,10 @@ class Vorrat:
 def _vorrat_laden(db: Session) -> Vorrat:
     return Vorrat(
         staende=instanz_stand.alle(db),
-        gesundheit=instanz_gesundheit.alle(db),
+        gesundheit=beschaffung.gesundheit_je_instanz(db),
         webhooks={zeile.kennung: zeile for zeile in db.scalars(select(ArrWebhook))},
         abgleich=abgleich.lesen(db),
-        haenger=download_haenger.zaehlen(db),
+        haenger=beschaffung.haenger_je_instanz(db),
     )
 
 

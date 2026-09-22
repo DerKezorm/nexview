@@ -22,7 +22,8 @@ from sqlalchemy.orm import selectinload
 from .. import meldungen
 from ..deps import AdminUser, ApproverUser, CurrentUser, DbSession
 from ..models import MediaType, NotificationType, TitleRating, User, utcnow
-from ..services import library, notify, ratings
+from ..services import notify, ratings
+from ..services.beschaffung import get_beschaffung
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
@@ -205,7 +206,7 @@ async def bewerten(
     groesse = 0
     if media_type == "movie":
         try:
-            bestand = await library.movie_library(load_settings(db))
+            bestand = await get_beschaffung(load_settings(db)).bestand_filme()
             groesse = int(getattr(bestand.get(tmdb_id), "size_bytes", 0) or 0)
         except Exception:  # noqa: BLE001 - ohne Groesse geht es auch, nur ohne Alterung
             groesse = 0

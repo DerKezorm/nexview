@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import pytest
 
-from app.services import library
-from app.services.sonarr import LibraryEntry as SeriesEntry
-from app.services.sonarr import jahre_passen, normalize_title
+from app.services.beschaffung import jahre_passen, normalize_title
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.sonarr import LibraryEntry as SeriesEntry
 
 
 def _serie(titel: str, jahr: int | None, arr_id: int = 1) -> SeriesEntry:

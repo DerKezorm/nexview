@@ -23,9 +23,8 @@ from sqlalchemy import select
 
 from ..deps import AdminUser, DbSession
 from ..models import DownloadHaenger, DownloadVerlauf, User
-from ..services import download_aktionen, download_automatik, download_gruende, download_haenger
-from ..services.arr import ArrError
-from ..services.download_aktionen import DownloadFehler
+from ..services import beschaffung, download_automatik
+from ..services.beschaffung import BeschaffungError, DownloadFehler, get_beschaffung
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/admin/downloads", tags=["admin"])
@@ -37,7 +36,7 @@ async def _ausfuehren[T](aufruf: Awaitable[T]) -> T:
         return await aufruf
     except DownloadFehler as fehler:
         raise HTTPException(status_code=fehler.status_code, detail=fehler.als_meldung()) from fehler
-    except ArrError as fehler:
+    except BeschaffungError as fehler:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=fehler.als_meldung()
         ) from fehler
@@ -119,8 +118,8 @@ class DownloadsStand(BaseModel):
 
 
 def _knoepfe(zeile: DownloadHaenger) -> tuple[list[str], list[str]]:
-    moeglich = download_aktionen.moegliche_aktionen(zeile)
-    grund = download_gruende.GRUENDE.get(zeile.grund)
+    moeglich = beschaffung.download_aktionen_moeglich(zeile)
+    grund = beschaffung.download_gruende().get(zeile.grund)
     empfohlen = [a for a in (grund.aktionen if grund else ()) if a in moeglich]
     weitere = [a for a in moeglich if a not in empfohlen]
     return [a.value for a in empfohlen], [a.value for a in weitere]
@@ -130,8 +129,8 @@ def _knoepfe(zeile: DownloadHaenger) -> tuple[list[str], list[str]]:
 async def uebersicht(admin: AdminUser, db: DbSession) -> DownloadsStand:
     """Was haengt, was laeuft, und welche Instanz nicht geantwortet hat."""
     settings = load_settings(db)
-    rundgang = await download_haenger.auffrischen(
-        db, settings, frisch_genug=download_haenger.FRISCH
+    rundgang = await get_beschaffung(settings).downloads_auffrischen(
+        db, frisch_genug=beschaffung.download_frisch()
     )
     namen = {instanz.kennung: instanz.name for instanz in settings.arr_instanzen()}
     zeilen = list(
@@ -146,7 +145,7 @@ async def uebersicht(admin: AdminUser, db: DbSession) -> DownloadsStand:
     for zeile in zeilen:
         if zeile.haengt_seit is None:
             continue
-        anfragen = download_haenger.anfragen_zu(db, settings, zeile)
+        anfragen = get_beschaffung(settings).download_anfragen(db, zeile)
         empfohlen, weitere = _knoepfe(zeile)
         haenger.append(
             HaengerZeile(
@@ -248,8 +247,8 @@ async def entfernen(
 ) -> AktionsAntwort:
     """Aus Warteschlange und Download-Programm nehmen - wahlweise mit Sperre und Suche."""
     ergebnis = await _ausfuehren(
-        download_aktionen.entfernen(
-            db, load_settings(db), haenger_id, neu_suchen=wunsch.neu_suchen, wer=admin
+        get_beschaffung(load_settings(db)).download_entfernen(
+            db, haenger_id, neu_suchen=wunsch.neu_suchen, wer=admin
         )
     )
     return AktionsAntwort(gesucht=ergebnis.gesucht, befehl=ergebnis.befehl)
@@ -261,7 +260,7 @@ async def erneut(
 ) -> AktionsAntwort:
     """Radarr bzw. Sonarr den Download noch einmal pruefen lassen."""
     ergebnis = await _ausfuehren(
-        download_aktionen.erneut_pruefen(db, load_settings(db), haenger_id, wer=admin)
+        get_beschaffung(load_settings(db)).download_erneut_pruefen(db, haenger_id, wer=admin)
     )
     return AktionsAntwort(gesucht=ergebnis.gesucht, befehl=ergebnis.befehl)
 
@@ -290,7 +289,7 @@ async def dateien(
 ) -> list[KandidatZeile]:
     """Die Dateien fuer den manuellen Import, samt Zuordnung und Ablehnungen."""
     kandidaten = await _ausfuehren(
-        download_aktionen.import_kandidaten(db, load_settings(db), haenger_id)
+        get_beschaffung(load_settings(db)).download_kandidaten(db, haenger_id)
     )
     return [
         KandidatZeile(
@@ -325,8 +324,8 @@ async def importieren(
 ) -> AktionsAntwort:
     """Die gewaehlten Dateien importieren."""
     ergebnis = await _ausfuehren(
-        download_aktionen.importieren(
-            db, load_settings(db), haenger_id, wunsch.pfade, trotzdem=wunsch.trotzdem, wer=admin
+        get_beschaffung(load_settings(db)).download_importieren(
+            db, haenger_id, wunsch.pfade, trotzdem=wunsch.trotzdem, wer=admin
         )
     )
     return AktionsAntwort(gesucht=ergebnis.gesucht, befehl=ergebnis.befehl)
@@ -357,7 +356,7 @@ def _automatik_stand(einstellung: download_automatik.Einstellung) -> AutomatikSt
                 aktion=einstellung.regeln.get(grund.kennung),
                 erlaubt=[aktion.value for aktion in grund.automatik],
             )
-            for grund in download_gruende.GRUENDE.values()
+            for grund in beschaffung.download_gruende().values()
             if grund.automatik
         ],
         obergrenze=download_automatik.OBERGRENZE,

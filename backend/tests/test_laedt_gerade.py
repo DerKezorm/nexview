@@ -17,11 +17,13 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus
-from app.services import abgleich_kern, library, status_poller
-from app.services.arr import WarteschlangenEintrag
-from app.services.radarr import LibraryEntry as MovieEntry
+from app.services import abgleich_kern, status_poller
+from app.services.beschaffung import WarteschlangenEintrag
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.radarr import LibraryEntry as MovieEntry
 from app.services.settings_service import load_settings
 
+from .beschaffung.fake_arr import FakeArr
 from .conftest import auth_headers, create_user
 
 EINTRAG = SimpleNamespace(arr_id=4242)
@@ -148,14 +150,6 @@ def _laufende_anfrage(client: TestClient) -> MediaRequest:
         return request
 
 
-class _FakeRadarr:
-    def __init__(self, eintraege: list[WarteschlangenEintrag]) -> None:
-        self.eintraege = eintraege
-
-    async def warteschlange(self) -> list[WarteschlangenEintrag]:
-        return self.eintraege
-
-
 @pytest.mark.asyncio
 async def test_rundgang_setzt_und_raeumt_die_anzeige(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -166,7 +160,7 @@ async def test_rundgang_setzt_und_raeumt_die_anzeige(
         return {request.tmdb_id: MovieEntry(arr_id=4242, has_file=False, monitored=True)}
 
     monkeypatch.setattr(library, "movie_library", bibliothek)
-    fake = _FakeRadarr([_zeile(size=200, sizeleft=50)])
+    fake = FakeArr(art="movie", warteschlange=[_zeile(size=200, sizeleft=50)])
     monkeypatch.setattr(library, "radarr_client", lambda _s, _t="standard": fake)
 
     with SessionLocal() as db:

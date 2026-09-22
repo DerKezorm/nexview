@@ -29,16 +29,8 @@ from ..models import (
     User,
     utcnow,
 )
-from ..services import (
-    aufraeumen,
-    library,
-    loeschfrist,
-    media,
-    mediaserver_watched,
-    notify,
-    storage,
-)
-from ..services.arr import ArrError
+from ..services import aufraeumen, loeschfrist, media, mediaserver_watched, notify, storage
+from ..services.beschaffung import BeschaffungError, get_beschaffung
 from ..services.settings_service import for_user, load_settings
 
 # Dieselbe Antwortform wie in der Statistik. Bewusst dort definiert und
@@ -535,11 +527,11 @@ async def papierkorb_belegung(admin: AdminUser, db: DbSession) -> PapierkorbBele
     gesamt = 0
     unvollstaendig = False
 
-    for art, stufe, name, stand in await library.papierkoerbe(einstellungen):
+    for art, stufe, name, stand in await get_beschaffung(einstellungen).papierkoerbe():
         if not stand.geschuetzt:
             continue
-        bytes_, gekuerzt = await library.papierkorb_groesse(
-            einstellungen, art, stufe, stand.path
+        bytes_, gekuerzt = await get_beschaffung(einstellungen).papierkorb_groesse(
+            art, stufe, stand.path
         )
         unvollstaendig = unvollstaendig or gekuerzt
         gesamt += bytes_
@@ -656,7 +648,7 @@ async def entfolgen(posten_id: int, admin: AdminUser, db: DbSession) -> StorageP
         posten = await storage.entfolgen(db, settings, posten_id)
     except storage.Abgabefehler as fehler:
         raise HTTPException(fehler.status_code, fehler.message) from fehler
-    except ArrError as fehler:
+    except BeschaffungError as fehler:
         raise HTTPException(502, fehler.message) from fehler
 
     zeile = db.get(StorageEntry, posten_id)

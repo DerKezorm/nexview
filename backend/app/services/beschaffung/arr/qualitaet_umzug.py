@@ -32,9 +32,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from ..models import Qualitaetsprofil
+from ....models import Qualitaetsprofil
 from . import qualitaetsprofile as dienst
-from .arr import ArrClient
+from .client import ArrClient
 
 logger = logging.getLogger("nexview.qualitaet")
 

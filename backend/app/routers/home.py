@@ -15,7 +15,8 @@ from sqlalchemy.orm import selectinload
 from ..deps import CurrentUser, DbSession
 from ..models import Favorite, FavoritePerson, MediaRequest, MediaType, RequestStatus
 from ..schemas_media import MediaItem
-from ..services import library, media, mediaserver_library, requests_service, uhd
+from ..services import media, mediaserver_library, requests_service, uhd
+from ..services.beschaffung import get_beschaffung
 from ..services.settings_service import for_user, load_settings
 
 router = APIRouter(prefix="/api/home", tags=["home"])
@@ -110,7 +111,7 @@ async def _noch_vorhanden(
             for a in teil
         ]
         try:
-            ergebnis = await library.apply_status(settings, art.value, kacheln, stufe)
+            ergebnis = await get_beschaffung(settings).status_setzen(art.value, kacheln, stufe)
             vorhanden = {
                 eintrag.tmdb_id
                 for eintrag in ergebnis.items
@@ -312,7 +313,7 @@ async def trending(user: CurrentUser, db: DbSession) -> list[MediaItem]:
             break
 
         try:
-            kandidaten = (await library.apply_status(settings, "movie", kandidaten)).items
+            kandidaten = (await get_beschaffung(settings).status_setzen("movie", kandidaten)).items
         except Exception as fehler:  # noqa: BLE001
             logger.warning("Trending without library match: %s", fehler)
 
@@ -402,7 +403,7 @@ async def _kuratiert_fuer(
         return []
 
     try:
-        vorschlaege = (await library.apply_status(settings, media_type.value, vorschlaege)).items
+        vorschlaege = (await get_beschaffung(settings).status_setzen(media_type.value, vorschlaege)).items
     except Exception as fehler:  # noqa: BLE001
         logger.warning("Curated recommendations without library match: %s", fehler)
 

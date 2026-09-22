@@ -14,17 +14,18 @@ from fastapi import APIRouter, Path, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import meldungen
-from ..deps import AdminUser, DbSession
-from ..models import Qualitaetsprofil
-from ..services import arr_bestand, logs, qualitaet_umzug
-from ..services import benennung as benennung_dienst
-from ..services import medienserver_verbindung as mediaserver_verbindung
-from ..services import qualitaetsprofile as dienst
-from ..services import trash_bezug as bezug
-from ..services.arr import ArrClient, ArrError
-from ..services.settings_service import load_settings
-from ..services.trash import TrashFehler, schnappschuss
+from .... import meldungen
+from ....deps import AdminUser, DbSession
+from ....models import Qualitaetsprofil
+from ... import logs
+from ...settings_service import load_settings
+from . import arr_bestand, qualitaet_umzug
+from . import benennung as benennung_dienst
+from . import medienserver_verbindung as mediaserver_verbindung
+from . import qualitaetsprofile as dienst
+from . import trash_bezug as bezug
+from .client import ArrClient, ArrError
+from .trash import TrashFehler, schnappschuss
 
 logger = logging.getLogger("nexview.qualitaet")
 

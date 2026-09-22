@@ -10,7 +10,7 @@ standen, und legte die fehlende nie an.
 
 from __future__ import annotations
 
-from app.services.medienserver_verbindung import Medienserver, _passender_eintrag
+from app.services.beschaffung.arr.medienserver_verbindung import Medienserver, _passender_eintrag
 
 
 def _server(provider: str, url: str) -> Medienserver:

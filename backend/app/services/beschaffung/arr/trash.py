@@ -29,7 +29,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-DATEN = Path(__file__).resolve().parent.parent / "daten"
+DATEN = Path(__file__).resolve().parents[3] / "daten"
 
 # Unsere Sprachkuerzel -> wie die Sprache in Radarr/Sonarr heisst. Die Nummer
 # holen wir uns von der Instanz; sie ist nicht ueber alle Fassungen gleich.
@@ -261,7 +261,7 @@ def schnappschuss(dienst: str) -> dict[str, Any]:
     Nach dem Holen muss ``schnappschuss.cache_clear()`` gerufen werden, sonst
     arbeitet das Programm bis zum Neustart mit dem alten Stand weiter.
     """
-    from ..config import get_settings
+    from ....config import get_settings
 
     geholt = get_settings().data_dir / "trash" / f"trash-{dienst}.json"
     pfad = geholt if geholt.is_file() else DATEN / f"trash-{dienst}.json"

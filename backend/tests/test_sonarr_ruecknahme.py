@@ -15,8 +15,8 @@ from typing import Any
 
 import pytest
 
-from app.services.arr import ArrError
-from app.services.sonarr import SonarrClient
+from app.services.beschaffung.arr.client import ArrError
+from app.services.beschaffung.arr.sonarr import SonarrClient
 
 
 class _Sonarr(SonarrClient):
@@ -158,7 +158,7 @@ def test_das_modul_hat_einen_logger() -> None:
     und sie kommt nur dran, wenn das Einschalten schlafende Folgen weckt. Also
     selten genug, um es niemandem auffallen zu lassen.
     """
-    from app.services import sonarr
+    from app.services.beschaffung.arr import sonarr
 
     assert sonarr.logger.name == "nexview.arr"
 

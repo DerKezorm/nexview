@@ -239,7 +239,7 @@ def _aufraeumen():
     yield
     import shutil
 
-    from app.services import trash
+    from app.services.beschaffung.arr import trash
 
     ordner = sicherung.ordner()
     if ordner.is_dir():

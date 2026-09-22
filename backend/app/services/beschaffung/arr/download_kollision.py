@@ -196,7 +196,7 @@ SCHLUESSEL_IGNORIERT = "download_kollision_ignoriert"
 
 def ignorierte(db) -> set[str]:
     """Welche Kollisionen der Betreiber weggeklickt hat."""
-    from ..models import Setting  # lokal: das Modell haengt sonst am Modulstart
+    from ....models import Setting  # lokal: das Modell haengt sonst am Modulstart
 
     zeile = db.get(Setting, SCHLUESSEL_IGNORIERT)
     if zeile is None or not zeile.value:
@@ -206,7 +206,7 @@ def ignorierte(db) -> set[str]:
 
 def ignorieren(db, schluessel: str) -> None:
     """Eine Kollision wegklicken - dauerhaft, bis sich die Beteiligten aendern."""
-    from ..models import Setting
+    from ....models import Setting
 
     alle = ignorierte(db)
     alle.add(schluessel)

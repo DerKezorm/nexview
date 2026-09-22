@@ -18,7 +18,7 @@ from app.models import (
     Role,
     User,
 )
-from app.services import download_aktionen, download_haenger
+from app.services.beschaffung.arr import download_aktionen, download_haenger
 from app.services.settings_service import load_settings
 
 from .conftest import auth_headers, create_user

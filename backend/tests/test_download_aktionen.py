@@ -10,10 +10,10 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import DownloadHaenger, DownloadVerlauf, User
-from app.services import download_aktionen, download_haenger
-from app.services.arr import ArrError
-from app.services.download_aktionen import DownloadFehler
-from app.services.download_gruende import Aktion
+from app.services.beschaffung.arr import download_aktionen, download_haenger
+from app.services.beschaffung.arr.client import ArrError
+from app.services.beschaffung.arr.download_aktionen import DownloadFehler
+from app.services.beschaffung.arr.download_gruende import Aktion
 from app.services.settings_service import load_settings
 
 from .download_attrappe import RADARR_HOST, SONARR_HOST, ArrAttrappe, einrichten, film, folge

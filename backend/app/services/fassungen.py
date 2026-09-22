@@ -22,13 +22,13 @@ Fassungen koennen dieselbe Klasse haben.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Fassung, MediaType, QualityTier, utcnow
+from ..models import Fassung, MediaType, QualityTier
+from .beschaffung import KLASSE_HD, KLASSE_UHD, FassungInfo, feste_fassungen, get_beschaffung
 
 if TYPE_CHECKING:
     from ..models import User
@@ -36,50 +36,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-#: Unter welchem Betrieb eine Fassung oder Anfrage entstand.
-ARR = "arr"
-NEX = "nex"
-
-KLASSE_HD = "hd"
-KLASSE_UHD = "uhd"
-
-
-@dataclass(frozen=True)
-class ArrFassung:
-    """Eine der vier festen Fassungen des ARR-Betriebs."""
-
-    #: Die Instanz-Kennung, die es schon vor den Fassungen gab. An ihr haengt
-    #: gespeicherter Zustand (Webhooks, Gesundheit, Downloads); sie darf sich
-    #: nie aendern.
-    kennung: str
-    media_type: str
-    stufe: QualityTier
-    #: Die Einstellung mit dem frei waehlbaren Anzeigenamen.
-    name_schluessel: str
-    #: Der Name, wenn die Einstellung leer ist.
-    name_vorgabe: str
-
-    @property
-    def klasse(self) -> str:
-        return KLASSE_UHD if self.stufe == QualityTier.uhd else KLASSE_HD
-
-    @property
-    def reihenfolge(self) -> int:
-        return 1 if self.stufe == QualityTier.uhd else 0
-
-    @property
-    def offen_vorgabe(self) -> bool:
-        """Offen fuer alle? Standard ja, 4K nein - wie vor den Fassungen."""
-        return self.stufe == QualityTier.standard
-
-
-#: Die vier Fassungen des ARR-Betriebs, in Anzeigereihenfolge.
-ARR_FASSUNGEN: tuple[ArrFassung, ...] = (
-    ArrFassung("radarr-standard", "movie", QualityTier.standard, "radarr_name", "Radarr"),
-    ArrFassung("radarr-uhd", "movie", QualityTier.uhd, "radarr_uhd_name", "Radarr 4K"),
-    ArrFassung("sonarr-standard", "tv", QualityTier.standard, "sonarr_name", "Sonarr"),
-    ArrFassung("sonarr-uhd", "tv", QualityTier.uhd, "sonarr_uhd_name", "Sonarr 4K"),
-)
+#: Die festen Fassungen des ARR-Betriebs, in Anzeigereihenfolge. Sie stehen
+#: hinter der Grenze (``beschaffung/arr/fassungen.py``); hier nur gelesen.
+ARR_FASSUNGEN = feste_fassungen()
 
 _ARR_NACH_KENNUNG = {f.kennung: f for f in ARR_FASSUNGEN}
 _ARR_NACH_ART_STUFE = {(f.media_type, f.stufe): f for f in ARR_FASSUNGEN}
@@ -91,18 +50,6 @@ ARR_KENNUNGEN: tuple[str, ...] = tuple(_ARR_NACH_KENNUNG)
 ARR_OFFEN: frozenset[str] = frozenset(f.kennung for f in ARR_FASSUNGEN if f.offen_vorgabe)
 
 
-@dataclass(frozen=True)
-class FassungInfo:
-    """Eine Fassung, wie die Einstellungen sie kennen - ohne Datenbank."""
-
-    kennung: str
-    media_type: str
-    name: str
-    klasse: str | None
-    reihenfolge: int
-    quelle: str
-
-
 def _art(media_type: MediaType | str) -> str:
     return media_type.value if isinstance(media_type, MediaType) else str(media_type)
 
@@ -111,7 +58,7 @@ def _stufe(tier: QualityTier | str) -> QualityTier:
     return tier if isinstance(tier, QualityTier) else QualityTier(str(tier))
 
 
-def arr_fassung(kennung: str | None) -> ArrFassung | None:
+def arr_fassung(kennung: str | None) -> Any:
     return _ARR_NACH_KENNUNG.get(kennung or "")
 
 
@@ -141,61 +88,17 @@ def stufenwort(kennung: str | None) -> str:
 
 
 def aus_einstellungen(settings: AppSettings) -> tuple[FassungInfo, ...]:
-    """Die eingerichteten Fassungen, in Anzeigereihenfolge."""
-    eingerichtet = {instanz.kennung: instanz.name for instanz in settings.arr_instanzen()}
-    return tuple(
-        FassungInfo(
-            kennung=f.kennung,
-            media_type=f.media_type,
-            name=eingerichtet[f.kennung],
-            klasse=f.klasse,
-            reihenfolge=f.reihenfolge,
-            quelle=ARR,
-        )
-        for f in ARR_FASSUNGEN
-        if f.kennung in eingerichtet
-    )
+    """Die eingerichteten Fassungen, in Anzeigereihenfolge (aus dem Weg)."""
+    return get_beschaffung(settings).fassungen()
 
 
 def abgleichen(db: Session, settings: AppSettings) -> None:
-    """Die Tabelle ``fassungen`` auf den Stand der Einstellungen bringen.
+    """Die Tabelle ``fassungen`` auf den Stand der Quelle bringen.
 
-    Im ARR-Betrieb gibt es immer genau die vier Zeilen; ``aktiv`` sagt, ob die
-    Instanz eingerichtet ist. Eine Instanz, die ausgetragen wird, behaelt ihre
-    Zeile mit ``aktiv=False``: Anfragen und Posten zeigen weiter ihren Namen.
-
-    ⚠️ **``offen_fuer_alle`` setzt nur die erste Zeile.** Danach gehoert der
-    Wert dem Betreiber; ein Abgleich, der ihn zuruecksetzte, naehme eine
-    Entscheidung zurueck, die niemand zuruecknehmen wollte.
-
-    Committet nicht; der Aufrufer entscheidet.
+    Wie, entscheidet der Weg (``Beschaffung.fassungen_abgleichen``). Committet
+    nicht; der Aufrufer entscheidet.
     """
-    eingerichtet = {instanz.kennung: instanz.name for instanz in settings.arr_instanzen()}
-    vorhanden = {zeile.kennung: zeile for zeile in db.scalars(select(Fassung))}
-    jetzt = utcnow()
-    for f in ARR_FASSUNGEN:
-        aktiv = f.kennung in eingerichtet
-        name = eingerichtet.get(f.kennung) or getattr(settings, f.name_schluessel, "") or f.name_vorgabe
-        zeile = vorhanden.get(f.kennung)
-        if zeile is None:
-            zeile = Fassung(
-                kennung=f.kennung,
-                media_type=f.media_type,
-                quelle=ARR,
-                offen_fuer_alle=f.offen_vorgabe,
-                gruende=[],
-            )
-            db.add(zeile)
-        elif zeile.aktiv and not aktiv:
-            zeile.verschwunden_am = jetzt
-        zeile.name = name
-        zeile.klasse = f.klasse
-        zeile.reihenfolge = f.reihenfolge
-        zeile.aktiv = aktiv
-        zeile.bereit = aktiv
-        if aktiv:
-            zeile.gesehen_am = jetzt
-            zeile.verschwunden_am = None
+    get_beschaffung(settings).fassungen_abgleichen(db)
 
 
 def offen_fuer_alle(db: Session, kennung: str) -> bool:

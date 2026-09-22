@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import mimetypes
 import os
 import re
@@ -101,9 +100,6 @@ from .routers import (
     push as push_router,
 )
 from .routers import (
-    qualitaetsprofile as qualitaetsprofile_router,
-)
-from .routers import (
     regeln as regeln_router,
 )
 from .routers import (
@@ -139,21 +135,7 @@ from .routers import (
 from .routers import (
     watchlist as watchlist_router,
 )
-from .routers import (
-    webhooks as webhooks_router,
-)
-from .services import (
-    benennung,
-    channel_outbox,
-    csp,
-    fassungen,
-    logs,
-    sicherung,
-    status_poller,
-    tokens,
-    trash_bezug,
-)
-from .services.arr import close_http_client as close_arr_client
+from .services import beschaffung, channel_outbox, csp, fassungen, logs, sicherung, status_poller, tokens
 from .services.mediaserver import close_http_client as close_mediaserver_client
 from .services.oidc import close_http_client as close_oidc_client
 from .services.tmdb import close_http_client
@@ -210,28 +192,18 @@ async def lifespan(app: FastAPI):
     # zaehlte die des Nachbarn mit.
     if POLLER_ENABLED:
         tasks.append(asyncio.create_task(sicherung.run_forever(stop)))
-        # Einmal am Tag nachsehen, ob es einen neueren TRaSH-Stand gibt.
-        # ⚠️ Nur nachsehen - geholt wird nie von selbst. Ein Stand, der sich
-        # ungefragt aendert, verschoebe stillschweigend die Profile in
-        # Radarr/Sonarr. Haengt am Poller-Schalter, weil hier das Netz
-        # angesprochen wird und Tests das nicht tun sollen.
-        tasks.append(asyncio.create_task(trash_bezug.run_forever(stop)))
+        # Die Dauerlaeufer der Beschaffung (heute: einmal am Tag nachsehen, ob
+        # es einen neueren TRaSH-Stand gibt). Haengt am Poller-Schalter, weil
+        # hier das Netz angesprochen wird und Tests das nicht tun sollen.
+        for aufgabe in beschaffung.hintergrundaufgaben(stop):
+            tasks.append(asyncio.create_task(aufgabe))
         # Abgelaufene und verbrauchte Links einmal am Tag aufraeumen. Haengt am
         # Poller-Schalter, weil es Zeilen loescht, die ein Test gerade anlegt.
         tasks.append(asyncio.create_task(tokens.run_forever(stop)))
 
-        # ⚠️ **Abgebrochene Umbenennungslaeufe wieder aufnehmen.** Ein Lauf
-        # ueber mehrere tausend Titel dauert lange; faellt der Prozess
-        # mittendrin aus, bliebe sonst eine halb umbenannte Bibliothek zurueck -
-        # teils altes, teils neues Schema, ohne erkennbare Grenze. Ohne diesen
-        # Aufruf waere der gespeicherte Zwischenstand wertlos.
-        start_log = logging.getLogger("nexview.qualitaet")
-        try:
-            aufgenommen = benennung.abgebrochene_aufnehmen()
-            if aufgenommen:
-                start_log.info("Picked up %d unfinished rename run(s)", aufgenommen)
-        except Exception:  # noqa: BLE001 - der Start darf daran nicht scheitern
-            start_log.exception("Could not pick up unfinished rename runs")
+        # Was die Beschaffung beim Start aufnimmt (heute: abgebrochene
+        # Umbenennungslaeufe, siehe dort).
+        beschaffung.beim_start()
 
     yield
 
@@ -249,7 +221,7 @@ async def lifespan(app: FastAPI):
             pass
 
     await close_http_client()
-    await close_arr_client()
+    await beschaffung.schliessen()
     await close_mediaserver_client()
     await close_oidc_client()
 
@@ -312,9 +284,17 @@ app.include_router(setup.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(settings_router.router)
+# Die eigenen Adressen der Beschaffung: Einstellungen je Instanz, Werkzeuge
+# (Qualitaetsprofile), und ohne Anmeldung, mit Anruf-Geheimnis, die Adresse,
+# die Radarr/Sonarr rufen. Warum die sicher ist, steht in ihrem Router; die
+# bewusste Ausnahme vom Kinderschutz in test_child_permissions.py.
+#
+# ⚠️ Direkt nach ``settings_router``: ``/settings/test/{service}`` darf die
+# festen Pfade dort (``tmdb``, ``smtp``) nicht verdecken.
+for _router in beschaffung.alle_router():
+    app.include_router(_router)
 app.include_router(channels_router.router)
 # Durchgehend admin-only, deshalb ohne NUR_ERWACHSENE.
-app.include_router(qualitaetsprofile_router.router)
 app.include_router(children_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(discover.router, dependencies=NUR_ERWACHSENE)
 app.include_router(stoebern_router.router, dependencies=NUR_ERWACHSENE)
@@ -363,10 +343,6 @@ app.include_router(streaming_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.admin_router)
 app.include_router(watchlist_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(watch_router.router, dependencies=NUR_ERWACHSENE)
-# Ohne Anmeldung, mit Anruf-Geheimnis: die Adresse, die Radarr/Sonarr rufen.
-# Warum das sicher ist, steht im Router selbst; die bewusste Ausnahme vom
-# Kinderschutz in test_child_permissions.py.
-app.include_router(webhooks_router.router)
 
 
 @app.get("/api/health", tags=["system"])

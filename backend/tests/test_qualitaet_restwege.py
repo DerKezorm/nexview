@@ -12,9 +12,9 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import Umbenennlauf
-from app.services import benennung, trash_bezug
-from app.services import qualitaetsprofile as qp
-from app.services.arr import ArrError
+from app.services.beschaffung.arr import benennung, trash_bezug
+from app.services.beschaffung.arr import qualitaetsprofile as qp
+from app.services.beschaffung.arr.client import ArrError
 
 
 class Muster:
@@ -59,7 +59,7 @@ async def test_alt_umbenennen_fasst_nur_muster_des_bauplans_an():
     es trotzdem anfasst, aendert Namen, die der Betreiber gerade gar nicht
     im Blick hat.
     """
-    from app.services.trash import Bauplan, Formatwunsch
+    from app.services.beschaffung.arr.trash import Bauplan, Formatwunsch
 
     plan = Bauplan(
         profilname="P", basis="test", stand="2026-01-01", merge=(),

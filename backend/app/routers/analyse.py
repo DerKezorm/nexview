@@ -40,20 +40,13 @@ from ..models import (
     WiedergabeSpitze,
 )
 from ..services import abgleich as abgleich_dienst
-from ..services import (
-    download_haenger,
-    instanz_gesundheit,
-    instanz_stand,
-    logs,
-    mail_outbox,
-    sicherung,
-)
+from ..services import beschaffung, instanz_stand, logs, mail_outbox, sicherung
 from ..services import server_vergleich as vergleich_dienst
 from ..services import updates as updates_dienst
 from ..services import wiedergaben as wiedergaben_dienst
+from ..services.beschaffung import normalize_title
 from ..services.mediaserver import MediaServerError, media_server_for_setup
 from ..services.settings_service import load_settings
-from ..services.sonarr import normalize_title
 
 router = APIRouter(prefix="/api/admin/analyse", tags=["admin"])
 
@@ -151,9 +144,9 @@ def _instanzen(db, settings) -> list[InstanzZeile]:
     # Vorrat von ``befunde.sammeln``. Wer je Instanz fragt, stellt bei drei
     # Instanzen sechs Abfragen fuer zwei Tabellen mit je drei Zeilen.
     staende = instanz_stand.alle(db)
-    gesundheiten = instanz_gesundheit.alle(db)
+    gesundheiten = beschaffung.gesundheit_je_instanz(db)
     webhooks = {zeile.kennung: zeile for zeile in db.scalars(select(ArrWebhook))}
-    haenger = download_haenger.zaehlen(db)
+    haenger = beschaffung.haenger_je_instanz(db)
     zeilen: list[InstanzZeile] = []
     for instanz in settings.arr_instanzen():
         stand = staende.get(instanz.kennung)

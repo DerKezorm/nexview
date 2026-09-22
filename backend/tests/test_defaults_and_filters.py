@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaRequest, Notification, RequestStatus, User
-from app.services import library, requests_service
+from app.services import requests_service
+from app.services.beschaffung.arr import library
 
 from .conftest import auth_headers, create_user
 

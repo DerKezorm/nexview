@@ -183,6 +183,6 @@ def test_der_scan_sieht_beide_importformen() -> None:
 
     # Und der Fall, der immer schon ging - als Gegenprobe, dass nichts
     # kaputtgegangen ist.
-    fall_paket = ast.parse("from ..services import library\n")
+    fall_paket = ast.parse("from ..services import storage\n")
     module = _module_im_blick(fall_paket, "app.routers")
-    assert "library" in module
+    assert "storage" in module

@@ -24,12 +24,13 @@ from app.models import (
     StorageEntry,
     StorageState,
 )
-from app.services import storage, webhook_pflege, webhooks
-from app.services.arr import ArrError
+from app.services import storage
+from app.services.beschaffung.arr import webhook_pflege, webhooks
+from app.services.beschaffung.arr.client import ArrError
 from app.services.settings_service import load_settings, save_settings
 
+from .beschaffung.fake_arr import FakeArrRueckkanal
 from .conftest import auth_headers, create_user
-from .test_webhook_pflege import FakeArr
 
 
 def _wartende_anfrage(client: TestClient) -> None:
@@ -51,7 +52,7 @@ def _wartende_anfrage(client: TestClient) -> None:
 def test_entfernen_leert_zugang_und_raeumt_den_webhook(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fake = FakeArr()
+    fake = FakeArrRueckkanal()
     fake.eintraege = [
         {
             "id": 7,
@@ -97,7 +98,7 @@ def test_nicht_eingerichtet_ist_404(arr_client: TestClient) -> None:
 def test_4k_regeln_erben_nach_dem_entfernen_wieder(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(webhook_pflege, "_client", lambda _instanz: FakeArr())
+    monkeypatch.setattr(webhook_pflege, "_client", lambda _instanz: FakeArrRueckkanal())
     with SessionLocal() as db:
         save_settings(
             db,

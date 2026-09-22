@@ -7,7 +7,7 @@ nichts. Ein falsches Ergebnis faellt also niemandem auf. Deshalb steht hier
 nicht nur, was herauskommen soll, sondern auch, wo geschwiegen werden muss.
 """
 
-from app.services.pfad_zuordnung import ableiten
+from app.services.beschaffung.arr.pfad_zuordnung import ableiten
 
 
 def test_verschiedene_wurzeln_werden_umgeschrieben():

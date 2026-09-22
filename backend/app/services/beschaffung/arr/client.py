@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
-from . import http_log
+from ... import http_log
+from ..base import BeschaffungError, Korb
 
 logger = logging.getLogger("nexview.arr")
 
@@ -34,49 +34,30 @@ _client: httpx.AsyncClient | None = None
 _client_lock = asyncio.Lock()
 
 
-class ArrError(Exception):
+class ArrError(BeschaffungError):
     """Fehler beim Zugriff auf Radarr/Sonarr - mit lesbarer Meldung.
 
-    ``ungewiss`` trennt "hat nicht geklappt" von "wir wissen es nicht".
-    Eine Zeitueberschreitung heisst **nicht**, dass nichts passiert ist: Der
-    Auftrag kann angekommen und ausgefuehrt worden sein, nur die Antwort kam
-    nicht mehr an. Genau so gesehen - Nexview vermerkte "fehlgeschlagen",
-    waehrend Sonarr die Serie laengst angelegt hatte und suchte.
+    Die Grundlage (``ungewiss``, ``code``, ``zahlen``, ``als_meldung``) steht in
+    ``BeschaffungError``; ausserhalb von ``beschaffung/`` wird nur die
+    gefangen.
 
-    ``code`` und ``zahlen`` sind dasselbe, was ``meldungen.meldung`` fuer
-    HTTP-Antworten liefert: eine **Kennung** und die Werte zum Einsetzen. Das
-    Backend uebersetzt nicht, es benennt - den Satz baut das Frontend in der
-    eingestellten Sprache (siehe ``app/meldungen.py``).
-
-    ⚠️ **Warum das hier ueberhaupt noetig ist.** Diese Meldungen nehmen einen
+    ⚠️ **Warum die Meldungen ueberhaupt Kennungen tragen.** Sie nehmen einen
     anderen Weg als alle anderen: Sie landen als fertiger Satz in
     ``MediaRequest.error_message`` und stehen von dort im Verlauf - Wochen
     spaeter und ohne die Antwort, die sie erzeugt hat. Deshalb stand dort
     Deutsch, auch wenn die Oberflaeche auf Englisch lief.
-
-    ``message`` bleibt der deutsche Rueckfall: fuer alles, was die API ohne
-    die Nexview-Oberflaeche benutzt, und fuer Anfragen, die schon vor dieser
-    Aenderung fehlgeschlagen sind.
     """
 
-    def __init__(
-        self,
-        message: str,
-        status_code: int | None = None,
-        ungewiss: bool = False,
-        code: str | None = None,
-        **zahlen: object,
-    ) -> None:
-        super().__init__(message)
-        self.message = message
-        self.status_code = status_code
-        self.ungewiss = ungewiss
-        self.code = code
-        self.zahlen = zahlen
+    #: Kennungen, die keine Antwort der Instanz sind, sondern ihr Fehlen oder
+    #: eine fremde Antwort (etwa die Anmeldeseite eines Proxys).
+    VORUEBERGEHEND: frozenset[str] = frozenset(
+        {"arr_timeout", "arr_unreachable", "arr_unexpected_answer"}
+    )
 
-    def als_meldung(self) -> dict[str, object]:
-        """Kennung, deutscher Rueckfall und Werte - wie ``meldungen.meldung``."""
-        return {"code": self.code, "message": self.message, **self.zahlen}
+    def _korb_ableiten(self) -> Korb:
+        if self.code in self.VORUEBERGEHEND:
+            return Korb.voruebergehend
+        return super()._korb_ableiten()
 
 
 async def _http() -> httpx.AsyncClient:
@@ -104,22 +85,6 @@ async def close_http_client() -> None:
     if _client is not None and not _client.is_closed:
         await _client.aclose()
     _client = None
-
-
-@dataclass(frozen=True)
-class WarteschlangenEintrag:
-    """Ein laufender Download aus ``/queue`` - aufs Noetigste verdichtet.
-
-    ``arr_id`` ist die movieId bzw. seriesId der Instanz; Staffel und Folge
-    gibt es nur bei Sonarr. ``size``/``sizeleft`` tragen die Fortschritts-
-    Anzeige: geladen ist, was von ``size`` nicht mehr uebrig ist.
-    """
-
-    arr_id: int
-    season: int | None
-    episode: int | None
-    size: int
-    sizeleft: int
 
 
 class ArrClient:

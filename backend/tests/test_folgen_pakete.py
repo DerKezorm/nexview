@@ -21,9 +21,10 @@ from app.models import (
     User,
     utcnow,
 )
-from app.services import library, requests_service, status_poller, storage
+from app.services import requests_service, status_poller, storage
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.sonarr import Folge, LibraryEntry, SonarrClient, Staffelstand
 from app.services.settings_service import load_settings
-from app.services.sonarr import Folge, LibraryEntry, SonarrClient, Staffelstand
 from tests.conftest import auth_headers, create_user
 
 TVDB = 77304

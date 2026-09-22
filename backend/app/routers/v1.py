@@ -76,7 +76,7 @@ from ..models import (
 from ..schemas_media import MediaItem, MediaPage
 from ..schemas_requests import QuotaOverview, RequestPublic
 from ..services import befunde as befunde_service
-from ..services import channel_outbox, channel_verify, channels, instanz_gesundheit, instanz_stand
+from ..services import beschaffung, channel_outbox, channel_verify, channels, instanz_stand
 from ..services import storage as storage_service
 from ..services import tickets as tickets_service
 from ..services.settings_service import load_settings
@@ -341,7 +341,7 @@ def kachel(admin: AdminUser, db: DbSession) -> Kachel:
 
     # Einmal je Tabelle statt einmal je Instanz - die Kachel fragt im
     # Minutentakt, und drei Instanzen sind drei Zeilen, keine drei Abfragen.
-    gesundheit = instanz_gesundheit.alle(db)
+    gesundheit = beschaffung.gesundheit_je_instanz(db)
 
     def probleme(kennung: str) -> int:
         zeile = gesundheit.get(kennung)

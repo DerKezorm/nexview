@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 
 from ..models import MediaType, QualityTier, Role, User
 from ..schemas_media import MediaItem
-from . import fassungen, library, mediaserver_library, requests_service
+from . import fassungen, mediaserver_library, requests_service
+from .beschaffung import get_beschaffung
 from .settings_service import AppSettings
 
 
@@ -60,8 +61,8 @@ async def anreichern(
     # *Standard*-Fassung in der Antwort wieder, und ein Film, der nur in 1080p
     # vorliegt, saehe faelschlich auch in 4K als vorhanden aus.
     kopien = [eintrag.model_copy(update={"status": "not_requested"}) for eintrag in items]
-    ergebnis = await library.apply_status(
-        settings, media_type, kopien, "uhd", mit_pfad=fuer_admin
+    ergebnis = await get_beschaffung(settings).status_setzen(
+        media_type, kopien, "uhd", mit_pfad=fuer_admin
     )
     in_bibliothek = {
         eintrag.tmdb_id: eintrag.status
@@ -146,7 +147,7 @@ async def _in_standard_instanz(
     kopien = [
         eintrag.model_copy(update={"status": "not_requested"}) for eintrag in items
     ]
-    ergebnis = await library.apply_status(settings, media_type, kopien, "standard")
+    ergebnis = await get_beschaffung(settings).status_setzen(media_type, kopien, "standard")
     return {
         eintrag.tmdb_id for eintrag in ergebnis.items if eintrag.status == "downloaded"
     }

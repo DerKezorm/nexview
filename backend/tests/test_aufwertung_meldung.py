@@ -18,8 +18,9 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus, StorageEntry
-from app.services import library, status_poller, storage
-from app.services.radarr import LibraryEntry as MovieEntry
+from app.services import status_poller, storage
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.radarr import LibraryEntry as MovieEntry
 from app.services.settings_service import load_settings
 
 from .conftest import auth_headers, create_user

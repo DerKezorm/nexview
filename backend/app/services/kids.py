@@ -34,7 +34,8 @@ from sqlalchemy.orm import Session
 from ..models import ChildWish, MediaType, User, WishState
 from ..schemas_media import MediaItem
 from ..services.settings_service import AppSettings
-from . import age_rating, blocklist, cache, library, media, mediaserver_library, requests_service
+from . import age_rating, blocklist, cache, media, mediaserver_library, requests_service
+from .beschaffung import get_beschaffung
 from .children import RUBRIKEN, rubriken_von
 from .filters import DiscoverFilters
 
@@ -193,7 +194,7 @@ async def einordnen(
         return Zweiteilung(verfuegbar=[], wuenschbar=[])
 
     art = MediaType(media_type)
-    stand = await library.apply_status(settings, media_type, items)
+    stand = await get_beschaffung(settings).status_setzen(media_type, items)
     kennungen = [item.tmdb_id for item in stand.items]
 
     angefragt = requests_service.badges_for(db, art, kennungen)

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.services import download_kollision as kollision
+from app.services.beschaffung.arr import download_kollision as kollision
 
 
 def programm(art="Sabnzbd", host="10.10.10.109", port=8080, an=True, **felder):

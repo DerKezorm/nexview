@@ -10,7 +10,8 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus
 from app.routers import home
-from app.services import library, media
+from app.services import media
+from app.services.beschaffung.arr import library
 from app.services.fassungen import arr_kennung
 
 from .conftest import auth_headers, create_user
@@ -200,7 +201,7 @@ async def test_serien_verschwinden_nicht_aus_frisch_geladen(
     (TVDB, sonst Titel **und** Jahr): Ohne beides fand der Abgleich keine
     einzige Serie, und der Bereich liess sie alle stillschweigend weg.
     """
-    from app.services.sonarr import LibraryEntry as SeriesEntry
+    from app.services.beschaffung.arr.sonarr import LibraryEntry as SeriesEntry
 
     create_user(arr_client, "kim")
     headers = auth_headers(arr_client, "kim", "passwort-1234")
@@ -266,7 +267,7 @@ async def test_nur_in_plex_vorhandene_titel_werden_nicht_vorgeschlagen(
     """
     from app.models import MediaServerLibraryItem
     from app.schemas_media import MediaItem
-    from app.services.sonarr import normalize_title
+    from app.services.beschaffung.arr.sonarr import normalize_title
 
     plex_nur = MediaItem(
         media_type=MediaType.movie,
@@ -317,7 +318,7 @@ async def test_kuratierte_vorschlaege_kennen_den_media_server(
     """Dieselbe Luecke gab es bei den Empfehlungen aus Favoriten."""
     from app.models import MediaServerLibraryItem
     from app.schemas_media import MediaItem
-    from app.services.sonarr import normalize_title
+    from app.services.beschaffung.arr.sonarr import normalize_title
 
     with SessionLocal() as session:
         session.add(
@@ -380,7 +381,7 @@ def serien_client(arr_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> Te
     """
     from sqlalchemy import select
 
-    from app.services.sonarr import LibraryEntry
+    from app.services.beschaffung.arr.sonarr import LibraryEntry
 
     async def serien(_settings: object, _tier: str = "standard") -> tuple[dict, dict]:
         with SessionLocal() as sitzung:

@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 from app.models import MediaRequest, MediaType, RequestStatus, utcnow
 from app.services import abgleich_kern
-from app.services.sonarr import Folge, Staffelstand
+from app.services.beschaffung.arr.sonarr import Folge, Staffelstand
 
 
 def _serie(

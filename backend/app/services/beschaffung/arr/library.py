@@ -13,14 +13,15 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from ..schemas_media import MediaItem
-from . import logs
-from .arr import ArrError
+from ....schemas_media import MediaItem
+from ... import logs
+from ...settings_service import AppSettings
+from ..base import jahr_aus, treffer_nach_titel
+from .client import ArrError
 from .radarr import LibraryEntry as MovieEntry
 from .radarr import RadarrClient
-from .settings_service import AppSettings
 from .sonarr import LibraryEntry as SeriesEntry
-from .sonarr import SonarrClient, jahre_passen, normalize_title
+from .sonarr import SonarrClient
 
 logger = logging.getLogger("nexview.library")
 
@@ -603,28 +604,6 @@ async def papierkorb_groesse(
             offen.extend(weiter)
 
     return gesamt, unvollstaendig
-
-
-def treffer_nach_titel(
-    nach_titel: dict[str, SeriesEntry], titel: str, jahr: int | None
-) -> SeriesEntry | None:
-    """Serie ueber den Titel finden - aber nur bei passendem Jahr.
-
-    Der einzige erlaubte Weg zum Titel-Index. Frueher griff jede Fundstelle
-    direkt darauf zu, und Namensgleichheit genuegte; gemeldet wurde eine Serie
-    "Countdown" (1982), die dadurch die Folgen einer voellig anderen Serie
-    gleichen Namens erbte. Die Regel steht in ``sonarr.jahre_passen``.
-    """
-    eintrag = nach_titel.get(normalize_title(titel))
-    if eintrag is None:
-        return None
-    return eintrag if jahre_passen(jahr, eintrag.year) else None
-
-
-def jahr_aus(datum: str | None) -> int | None:
-    """Jahr aus einem Datum wie "1982-05-03"."""
-    vorn = (datum or "")[:4]
-    return int(vorn) if vorn.isdigit() else None
 
 
 async def serien_eintrag(

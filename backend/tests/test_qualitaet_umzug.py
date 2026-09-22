@@ -17,9 +17,9 @@ from __future__ import annotations
 import pytest
 
 from app.db import SessionLocal
-from app.services import qualitaet_umzug as umzug
-from app.services import qualitaetsprofile as dienst
-from app.services import trash
+from app.services.beschaffung.arr import qualitaet_umzug as umzug
+from app.services.beschaffung.arr import qualitaetsprofile as dienst
+from app.services.beschaffung.arr import trash
 
 REZEPT = {
     "name": "FHD - Deutsch - MidQ", "typ": "radarr", "aufloesung": "1080p",

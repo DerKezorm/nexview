@@ -24,8 +24,8 @@ from sqlalchemy.orm import Session
 from ..mocks import demo_data
 from ..models import MediaRequest, MediaServerLibraryItem, MediaType
 from ..schemas_calendar import CalendarDay, CalendarEntry, CalendarResult
-from . import cache, library, logs, media
-from .arr import ArrError
+from . import cache, logs, media
+from .beschaffung import BeschaffungError, get_beschaffung
 from .filters import (
     DIGITAL_ARTEN,
     ERZAEHLENDE_SERIEN,
@@ -715,12 +715,12 @@ async def kalender(
         # das es nicht gibt.
         if not will_meine or datumsart == "kino" or not settings.sonarr_configured:
             return []
-        return _falte_folgen(await library.series_calendar(settings, von, bis), stichtag)
+        return _falte_folgen(await get_beschaffung(settings).kalender("tv", von, bis), stichtag)
 
     async def eigene_filme() -> list[CalendarEntry]:
         if not will_meine or not settings.radarr_configured:
             return []
-        rohe = await library.movie_calendar(settings, von, bis)
+        rohe = await get_beschaffung(settings).kalender("movie", von, bis)
         return _meine_filme(rohe, datumsart, von, bis, stichtag)
 
     async def neues() -> list[CalendarEntry]:
@@ -748,7 +748,7 @@ async def kalender(
     tmdb_hinweis: str | None = None
 
     for ergebnis in (serien, filme):
-        if isinstance(ergebnis, ArrError):
+        if isinstance(ergebnis, BeschaffungError):
             arr_hinweis = ergebnis.message
         elif isinstance(ergebnis, BaseException):
             logger.warning("Calendar: own titles not available: %s", ergebnis)

@@ -27,21 +27,16 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import InstanzStand
-from . import library, storage
-from .arr import ArrClient, ArrError
+from . import storage
+from .beschaffung import BeschaffungError, get_beschaffung
 from .settings_service import AppSettings, ArrInstanz
 
 logger = logging.getLogger("nexview.instanzstand")
 
-#: Kurz, wie auf der Diensteseite: Die Frage ist "antwortet sie ueberhaupt",
-#: nicht "wie schnell". Ein langer Timeout wuerde den ganzen Rundgang
-#: aufhalten, sobald eine Instanz haengt.
-ANTWORTFRIST = httpx.Timeout(4.0, connect=3.0)
 
 
 def _jetzt() -> datetime:
@@ -87,7 +82,7 @@ async def _traeger_messen(settings: AppSettings) -> list[dict] | None:
     """
     try:
         gefunden = await storage.traeger(settings)
-    except ArrError:
+    except BeschaffungError:
         return None
     return [
         {
@@ -100,38 +95,6 @@ async def _traeger_messen(settings: AppSettings) -> list[dict] | None:
     ]
 
 
-async def _luecken_messen(
-    settings: AppSettings, instanz: ArrInstanz
-) -> dict | None:
-    """Was ueberwacht wird, aber (noch) nicht daliegt.
-
-    ⚠️ **Kostet keinen zusaetzlichen Aufruf.** Radarr und Sonarr liefern
-    ``monitored`` und ``has_file`` bei jedem Titel gratis mit, und der Rundgang
-    holt die Bibliothek ohnehin - ``library`` haelt sie 60 Sekunden im
-    Speicher. Es wird also nur ausgewertet, was schon da ist.
-
-    Bei Serien zaehlen **Folgen**, nicht Serien: Eine Serie, der drei von
-    sechzig Folgen fehlen, ist etwas anderes als eine, die ganz fehlt - und
-    "eine Serie unvollstaendig" waere in beiden Faellen dieselbe Aussage.
-    """
-    try:
-        if instanz.media_type == "movie":
-            bestand = await library.movie_library(settings, instanz.tier)
-            fehlend = sum(
-                1 for e in bestand.values() if e.monitored and not e.has_file
-            )
-            return {"fehlend": fehlend, "einheit": "titel"}
-        bestand, _ = await library.series_library(settings, instanz.tier)
-        fehlend = sum(
-            max(0, e.episode_count - e.episode_file_count)
-            for e in bestand.values()
-            if e.monitored
-        )
-        return {"fehlend": fehlend, "einheit": "folgen"}
-    except ArrError:
-        return None
-
-
 async def _instanz_messen(
     db: Session,
     settings: AppSettings,
@@ -140,15 +103,8 @@ async def _instanz_messen(
     voll: bool,
     traeger: list[dict] | None,
 ) -> None:
-    client = ArrClient(instanz.url, instanz.api_key, instanz.name)
-
-    erreichbar = True
-    version = ""
-    try:
-        antwort = await client.system_status(timeout=ANTWORTFRIST)
-        version = str((antwort or {}).get("version") or "")
-    except ArrError:
-        erreichbar = False
+    messung = await get_beschaffung(settings).instanz_messen(instanz, voll=voll)
+    erreichbar, version = messung.erreichbar, messung.version
 
     jetzt = _jetzt()
     zeile = eintrag(db, instanz.kennung)
@@ -172,33 +128,10 @@ async def _instanz_messen(
         if traeger is not None:
             messwerte["traeger"] = traeger
         if erreichbar:
-            messwerte.update(await _volle_messung(client))
-            luecken = await _luecken_messen(settings, instanz)
-            if luecken is not None:
-                messwerte["luecken"] = luecken
+            messwerte.update(messung.messwerte)
         # Ein neues Wörterbuch zuweisen, nicht in das alte hineinschreiben:
         # SQLAlchemy bemerkt eine Änderung *im* JSON-Wert nicht und würde
         # nichts speichern.
         zeile.messwerte = messwerte
 
     db.commit()
-
-
-async def _volle_messung(client: ArrClient) -> dict:
-    """Was stuendlich gemessen wird. Jeder Teil einzeln abgesichert."""
-    ergebnis: dict = {}
-
-    try:
-        neuer = await client.aktualisierung()
-        # ``None`` heisst "aktuell **oder** unbekannt" - beides fuehrt zu
-        # keinem Befund, und der Unterschied waere ohnehin nicht anzeigbar.
-        ergebnis["aktualisierung"] = neuer
-    except ArrError:
-        pass
-
-    try:
-        ergebnis["warteschlange"] = await client.warteschlangen_zustand()
-    except ArrError:
-        pass
-
-    return ergebnis

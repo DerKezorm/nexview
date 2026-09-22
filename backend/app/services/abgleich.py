@@ -45,8 +45,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import MediaServerLibraryItem, MediaType, Setting
-from . import library, server_vergleich
-from .arr import ArrError
+from . import server_vergleich
+from .beschaffung import BeschaffungError, get_beschaffung
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.abgleich")
@@ -159,21 +159,21 @@ async def _arr_bestand(settings: AppSettings) -> tuple[set[int], set[int], dict]
         if settings.arr_configured("movie", stufe):
             try:
                 for tmdb, eintrag in (
-                    await library.movie_library(settings, stufe)
+                    await get_beschaffung(settings).bestand_filme(stufe)
                 ).items():
                     if eintrag.has_file:
                         filme.add(tmdb)
                         titel.setdefault(("movie", tmdb), eintrag.title or "")
-            except ArrError:
+            except BeschaffungError:
                 logger.warning("Movie library unavailable for tier %s", stufe)
         if settings.arr_configured("tv", stufe):
             try:
-                nach_tvdb, _ = await library.series_library(settings, stufe)
+                nach_tvdb, _ = await get_beschaffung(settings).bestand_serien(stufe)
                 for tvdb, eintrag in nach_tvdb.items():
                     if eintrag.has_file:
                         serien.add(tvdb)
                         titel.setdefault(("tv", tvdb), getattr(eintrag, "title", ""))
-            except ArrError:
+            except BeschaffungError:
                 logger.warning("Series library unavailable for tier %s", stufe)
 
     return filme, serien, titel

@@ -22,7 +22,8 @@ from app.models import (
     RequestStatus,
 )
 from app.schemas_requests import RequestPublic, RequestWithUser
-from app.services import download_haenger, status_poller
+from app.services import status_poller
+from app.services.beschaffung.arr import download_haenger
 from app.services.fassungen import arr_kennung
 from app.services.settings_service import ArrInstanz, load_settings
 
@@ -232,7 +233,7 @@ async def test_check_once_holt_die_warteschlange_kein_zweites_mal(
     arr: ArrAttrappe, admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Der Rundgang reicht sie weiter; ``warteschlange()`` darf nicht mehr gerufen werden."""
-    from app.services.radarr import RadarrClient
+    from app.services.beschaffung.arr.radarr import RadarrClient
 
     async def verboten(self) -> list:  # noqa: ANN001 - Attrappe
         raise AssertionError("Die Warteschlange wurde ein zweites Mal geholt")
@@ -244,8 +245,8 @@ async def test_check_once_holt_die_warteschlange_kein_zweites_mal(
     vorab = rundgang.warteschlangen
     assert set(vorab) == {("movie", "standard"), ("tv", "standard")}
 
-    from app.services import library
-    from app.services.radarr import LibraryEntry
+    from app.services.beschaffung.arr import library
+    from app.services.beschaffung.arr.radarr import LibraryEntry
 
     async def bibliothek(_settings: object, _tier: str = "standard") -> dict:
         return {4711: LibraryEntry(arr_id=5, has_file=False, monitored=True)}

@@ -48,7 +48,7 @@ from ..services import (
     betreiber as betreiber_dienst,
 )
 from ..services import storage as storage_dienst
-from ..services.arr import ArrError
+from ..services.beschaffung import BeschaffungError
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -830,7 +830,7 @@ async def aufloesung_vorschau(
     settings = load_settings(db)
     try:
         stand = await kontoaufloesung.vorschau(db, settings, user)
-    except ArrError as fehler:
+    except BeschaffungError as fehler:
         raise HTTPException(502, fehler.message) from fehler
     konten = await serverkonten.vorschau(db, settings, user)
     return AufloesungsVorschau(
@@ -941,7 +941,7 @@ async def delete_user(
             raise HTTPException(fehler.status_code, fehler.message) from fehler
         except serverkonten.ServerKontoFehler as fehler:
             raise HTTPException(fehler.status_code, fehler.detail) from fehler
-        except ArrError as fehler:
+        except BeschaffungError as fehler:
             raise HTTPException(502, fehler.message) from fehler
 
     # Dann der hinterlassene Bestand, dann das Konto: Jeder Posten braucht
@@ -962,7 +962,7 @@ async def delete_user(
         raise HTTPException(fehler.status_code, fehler.message) from fehler
     except storage_dienst.Loeschfehler as fehler:
         raise HTTPException(fehler.status_code, fehler.message) from fehler
-    except ArrError as fehler:
+    except BeschaffungError as fehler:
         raise HTTPException(502, fehler.message) from fehler
 
     # Erst die Kinder, dann das Elternteil. Ohne diesen Schritt scheiterte das

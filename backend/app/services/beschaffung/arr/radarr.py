@@ -2,34 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from .arr import ArrClient, ArrError, WarteschlangenEintrag
-
-
-@dataclass(frozen=True)
-class LibraryEntry:
-    """Ein Film, wie ihn Radarr kennt."""
-
-    arr_id: int
-    has_file: bool
-    monitored: bool
-    # Belegter Platz in Bytes. Radarr liefert die Zahl bei jedem Film gratis
-    # mit; gebraucht wird sie fuer die Speicher-Belegung (services/storage.py).
-    size_bytes: int = 0
-    # Fuer die Anzeige eines Postens, auch wenn der Film spaeter aus Radarr
-    # verschwindet - dann steht hier der letzte bekannte Titel.
-    title: str = ""
-    # Wo die Datei liegt, samt Dateiname. Nur fuer den Administrator gedacht -
-    # ein gewoehnlicher Benutzer hat mit Serverpfaden nichts zu schaffen.
-    path: str = ""
-    # Seit wann die Datei da liegt. Radarr fuehrt es an ``movieFile`` und
-    # schickt es in derselben Antwort mit - es kostet also keine Abfrage.
-    # Gebraucht vom Aufraeum-Vorschlag: Ohne dieses Datum stuende ein Film,
-    # der heute Nacht fertig wurde, ganz oben in der Liste der Ladenhueter.
-    added_at: datetime | None = None
+from ..base import FilmStand as LibraryEntry
+from ..base import WarteschlangenEintrag
+from .client import ArrClient, ArrError
 
 
 def _groesse(movie: dict[str, Any]) -> int:

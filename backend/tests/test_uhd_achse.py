@@ -18,8 +18,9 @@ from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.models import MediaServerLibraryItem, MediaType, Role, User
 from app.schemas_media import MediaItem
-from app.services import library, uhd
-from app.services.radarr import LibraryEntry
+from app.services import uhd
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.radarr import LibraryEntry
 from app.services.settings_service import load_settings, save_settings
 
 # **Beide** Instanzen eingetragen. Die Standard-Instanz gehoert dazu, auch wenn

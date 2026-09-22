@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import pytest
 
-from app.services import medienserver_verbindung as mv
-from app.services import pfad_zuordnung as pz
-from app.services.arr import ArrError
+from app.services.beschaffung.arr import medienserver_verbindung as mv
+from app.services.beschaffung.arr import pfad_zuordnung as pz
+from app.services.beschaffung.arr.client import ArrError
 
 SCHEMA_MEDIABROWSER = {
     "implementation": "MediaBrowser",

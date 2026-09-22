@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.services import arr_bestand
-from app.services.arr import ArrError
+from app.services.beschaffung.arr import arr_bestand
+from app.services.beschaffung.arr.client import ArrError
 
 
 class GespieltesArr:
@@ -544,7 +544,7 @@ def test_aufraeumen_vergisst_nur_was_die_instanz_hergegeben_hat(
 
     from app.db import SessionLocal
     from app.models import QualitaetsprofilInstallation
-    from app.routers import qualitaetsprofile as router
+    from app.services.beschaffung.arr import router_werkzeuge as router
 
     stamm = "/api/settings/qualitaetsprofile"
     weg = arr_client.post(stamm, json={"name": "Weg", "dienst": "radarr", "rezept": REZEPT})

@@ -20,9 +20,11 @@ from __future__ import annotations
 import pytest
 
 from app.db import SessionLocal
-from app.services import library
-from app.services.arr import ArrError
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.client import ArrError
 from app.services.settings_service import load_settings, save_settings
+
+from .beschaffung.fake_arr import FakeArr
 
 # Verschiedene Adressen: Beide Stufen duerfen nicht auf derselben liegen.
 RADARR_4K = {"radarr_uhd_url": "http://127.0.0.1:11", "radarr_uhd_api_key": "vier-k"}
@@ -364,21 +366,21 @@ async def test_ordnerauswahl_erzwingt_den_schraegstrich(monkeypatch) -> None:
     echten Instanz - und aus der Antwort allein ist der Unterschied nicht zu
     erkennen, weil beide Male eine plausible Ordnerliste zurueckkommt.
     """
-    gefragt: list[str] = []
-
-    class Attrappe:
-        async def get(self, _pfad, params=None):
-            gefragt.append((params or {}).get("path", ""))
-            return {"directories": [{"path": "/data/Papierkorb"}]}
-
-    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: Attrappe())
+    attrappe = FakeArr(
+        art="movie", lesen=lambda _pfad, _params: {"directories": [{"path": "/data/Papierkorb"}]}
+    )
+    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: attrappe)
     with SessionLocal() as db:
         settings = load_settings(db)
 
     for eingabe in ("/data", "/data/", "/data//"):
         await library.ordner(settings, "movie", "standard", eingabe)
 
-    assert gefragt == ["/data/", "/data/", "/data/"]
+    assert [params.get("path", "") for _, params in attrappe.gelesen] == [
+        "/data/",
+        "/data/",
+        "/data/",
+    ]
 
 
 # --- Groesse ----------------------------------------------------------------
@@ -393,14 +395,10 @@ async def test_groesse_verlangt_includefiles(monkeypatch) -> None:
     und mit ihm eine mit 5,5 GB. Der Fehler faellt nicht auf - eine Null sieht
     aus wie ein leerer Papierkorb.
     """
-    gefragt: list[dict] = []
-
-    class Attrappe:
-        async def get(self, _pfad, params=None):
-            gefragt.append(params or {})
-            return {"directories": [], "files": [{"size": 5 * 1024**3}]}
-
-    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: Attrappe())
+    attrappe = FakeArr(
+        art="movie", lesen=lambda _pfad, _params: {"directories": [], "files": [{"size": 5 * 1024**3}]}
+    )
+    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: attrappe)
     with SessionLocal() as db:
         settings = load_settings(db)
 
@@ -410,7 +408,9 @@ async def test_groesse_verlangt_includefiles(monkeypatch) -> None:
 
     assert bytes_ == 5 * 1024**3
     assert unvollstaendig is False
-    assert gefragt == [{"path": "/data/Papierkorb/", "includeFiles": "true"}]
+    assert [params for _, params in attrappe.gelesen] == [
+        {"path": "/data/Papierkorb/", "includeFiles": "true"}
+    ]
 
 
 @pytest.mark.anyio
@@ -421,12 +421,12 @@ async def test_groesse_zaehlt_unterordner_mit(monkeypatch) -> None:
         "/data/Papierkorb/Ein Film/": ([], [{"size": 3 * 1024**3}]),
     }
 
-    class Attrappe:
-        async def get(self, _pfad, params=None):
-            ordner, dateien = baum.get((params or {}).get("path", ""), ([], []))
-            return {"directories": ordner, "files": dateien}
+    def lesen(_pfad: str, params: dict) -> dict:
+        ordner, dateien = baum.get(params.get("path", ""), ([], []))
+        return {"directories": ordner, "files": dateien}
 
-    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: Attrappe())
+    attrappe = FakeArr(art="movie", lesen=lesen)
+    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: attrappe)
     with SessionLocal() as db:
         settings = load_settings(db)
 
@@ -445,16 +445,16 @@ async def test_groesse_bricht_ab_und_sagt_es(monkeypatch) -> None:
     Ergebnis auszugeben.
     """
 
-    class Attrappe:
-        async def get(self, _pfad, params=None):
-            # Jeder Ordner enthaelt zwei weitere - der Baum endet nie.
-            wurzel = (params or {}).get("path", "")
-            return {
-                "directories": [{"path": wurzel + "a/"}, {"path": wurzel + "b/"}],
-                "files": [{"size": 1024}],
-            }
+    def lesen(_pfad: str, params: dict) -> dict:
+        # Jeder Ordner enthaelt zwei weitere - der Baum endet nie.
+        wurzel = params.get("path", "")
+        return {
+            "directories": [{"path": wurzel + "a/"}, {"path": wurzel + "b/"}],
+            "files": [{"size": 1024}],
+        }
 
-    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: Attrappe())
+    attrappe = FakeArr(art="movie", lesen=lesen)
+    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: attrappe)
     with SessionLocal() as db:
         settings = load_settings(db)
 

@@ -18,8 +18,8 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import Notification, NotificationType
-from app.services import instanz_gesundheit
-from app.services.arr import ArrClient, ArrError
+from app.services.beschaffung.arr import instanz_gesundheit
+from app.services.beschaffung.arr.client import ArrClient, ArrError
 from app.services.settings_service import load_settings, save_settings
 
 RADARR = {"radarr_url": "http://127.0.0.1:7878", "radarr_api_key": "schluessel-r"}

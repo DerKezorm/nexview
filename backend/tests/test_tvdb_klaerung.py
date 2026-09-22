@@ -15,19 +15,10 @@ from app.db import SessionLocal
 from app.models import Role
 from app.schemas_media import MediaItem, MediaType
 from app.services import requests_service
-from app.services.arr import ArrError
+from app.services.beschaffung.arr import library
 from app.services.requests_service import RequestError, _tvdb_klaeren
 
-
-class _FakeSonarr:
-    def __init__(self, treffer: list[dict[str, Any]] | None = None, fehler: bool = False) -> None:
-        self.treffer = treffer or []
-        self.fehler = fehler
-
-    async def suche(self, begriff: str) -> list[dict[str, Any]]:
-        if self.fehler:
-            raise ArrError("Sonarr ist nicht erreichbar.", 502, code="arr_unreachable")
-        return self.treffer
+from .beschaffung.fake_arr import FakeArr
 
 
 class _Nutzer:
@@ -82,7 +73,7 @@ def sonarr(monkeypatch: pytest.MonkeyPatch):
 
     def setzen(client: object) -> None:
         monkeypatch.setattr(
-            requests_service.library, "sonarr_client", lambda settings, tier: client
+            library, "sonarr_client", lambda settings, tier: client
         )
 
     return setzen
@@ -108,7 +99,7 @@ async def _klaeren(item=None, wahl=None, nutzer=None, auswahl=True):
 
 @pytest.mark.anyio
 async def test_eindeutiger_treffer_laeuft_ohne_rueckfrage_durch(sonarr) -> None:
-    sonarr(_FakeSonarr([_serie(334698, "Marc Eliot", 1998, tmdb_id=103594)]))
+    sonarr(FakeArr(suche=[_serie(334698, "Marc Eliot", 1998, tmdb_id=103594)]))
 
     ergebnis = await _klaeren(_titel(103594, "Marc Eliot", "1998-12-17"))
 
@@ -131,7 +122,7 @@ async def test_stummes_sonarr_kippt_die_anfrage_nicht(sonarr) -> None:
     Wer hier abbraeche, liesse den Anfragenden ueber eine fehlende
     TVDB-Kennung raetseln, waehrend in Wahrheit der Server aus war.
     """
-    sonarr(_FakeSonarr(fehler=True))
+    sonarr(FakeArr(such_fehler=True))
 
     assert await _klaeren() is None
 
@@ -141,7 +132,7 @@ async def test_stummes_sonarr_kippt_die_anfrage_nicht(sonarr) -> None:
 
 @pytest.mark.anyio
 async def test_aehnliche_treffer_loesen_das_auswahlfenster_aus(sonarr) -> None:
-    sonarr(_FakeSonarr([
+    sonarr(FakeArr(suche=[
         _serie(1001, "Still Waters", 0, tmdb_id=0),
         _serie(1002, "Stille Waters", 2001, tmdb_id=42728),
     ]))
@@ -169,7 +160,7 @@ async def test_ohne_frageweg_kommt_die_auskunft_statt_des_fensters(sonarr) -> No
     Wunsch bliebe für immer offen. Deshalb ist Fragen ausdrücklich zu
     erlauben, nicht stillschweigend erlaubt.
     """
-    sonarr(_FakeSonarr([
+    sonarr(FakeArr(suche=[
         _serie(1001, "Still Waters", 0, tmdb_id=0),
         _serie(1002, "Stille Waters", 2001, tmdb_id=42728),
     ]))
@@ -184,7 +175,7 @@ async def test_ohne_frageweg_kommt_die_auskunft_statt_des_fensters(sonarr) -> No
 async def test_eindeutiger_treffer_braucht_keinen_frageweg(sonarr) -> None:
     """Wer eindeutig ist, läuft auch beim Kinderwunsch still durch - da gibt
     es ja nichts zu fragen."""
-    sonarr(_FakeSonarr([_serie(334698, "Marc Eliot", 1998, tmdb_id=103594)]))
+    sonarr(FakeArr(suche=[_serie(334698, "Marc Eliot", 1998, tmdb_id=103594)]))
 
     ergebnis = await _klaeren(
         _titel(103594, "Marc Eliot", "1998-12-17"), auswahl=False
@@ -197,7 +188,7 @@ async def test_eindeutiger_treffer_braucht_keinen_frageweg(sonarr) -> None:
 async def test_kinderkonto_bekommt_kein_fenster(sonarr) -> None:
     """⚠️ Die Vorschlaege kommen aus Sonarr und damit an TMDB vorbei - und an
     TMDB haengt die Alterspruefung."""
-    sonarr(_FakeSonarr([_serie(1001, "Still Waters", 1995, tmdb_id=0)]))
+    sonarr(FakeArr(suche=[_serie(1001, "Still Waters", 1995, tmdb_id=0)]))
 
     with pytest.raises(RequestError) as fall:
         await _klaeren(nutzer=_Kind())
@@ -207,7 +198,7 @@ async def test_kinderkonto_bekommt_kein_fenster(sonarr) -> None:
 
 @pytest.mark.anyio
 async def test_altersgrenze_bekommt_kein_fenster(sonarr) -> None:
-    sonarr(_FakeSonarr([_serie(1001, "Still Waters", 1995, tmdb_id=0)]))
+    sonarr(FakeArr(suche=[_serie(1001, "Still Waters", 1995, tmdb_id=0)]))
 
     class Beschraenkt(_Einstellungen):
         age_limit = 12
@@ -228,7 +219,7 @@ async def test_altersgrenze_bekommt_kein_fenster(sonarr) -> None:
 
 @pytest.mark.anyio
 async def test_vorgelegte_auswahl_wird_uebernommen(sonarr) -> None:
-    sonarr(_FakeSonarr([
+    sonarr(FakeArr(suche=[
         _serie(1001, "Still Waters", 0, tmdb_id=0),
         _serie(1002, "Stille Waters", 2001, tmdb_id=42728),
     ]))
@@ -241,7 +232,7 @@ async def test_erfundene_auswahl_wird_abgewiesen(sonarr) -> None:
     """⚠️ Der Kern: Die Zahl kommt aus dem Browser. Ungeprueft waere sie ein
     Weg, an TMDB und damit an der Altersbeschraenkung vorbei eine beliebige
     Serie anlegen zu lassen."""
-    sonarr(_FakeSonarr([_serie(1001, "Still Waters", 1995, tmdb_id=0)]))
+    sonarr(FakeArr(suche=[_serie(1001, "Still Waters", 1995, tmdb_id=0)]))
 
     with pytest.raises(RequestError) as fall:
         await _klaeren(wahl=999999)
@@ -252,7 +243,7 @@ async def test_erfundene_auswahl_wird_abgewiesen(sonarr) -> None:
 @pytest.mark.anyio
 async def test_auswahl_wird_auch_beim_kind_geprueft(sonarr) -> None:
     """Kein Fenster heisst nicht, dass eine mitgeschickte Zahl durchginge."""
-    sonarr(_FakeSonarr([_serie(1001, "Still Waters", 1995, tmdb_id=0)]))
+    sonarr(FakeArr(suche=[_serie(1001, "Still Waters", 1995, tmdb_id=0)]))
 
     with pytest.raises(RequestError) as fall:
         await _klaeren(wahl=999999, nutzer=_Kind())
@@ -265,7 +256,7 @@ async def test_auswahl_wird_auch_beim_kind_geprueft(sonarr) -> None:
 
 @pytest.mark.anyio
 async def test_neue_serie_bekommt_versuchs_spaeter(sonarr) -> None:
-    sonarr(_FakeSonarr([]))
+    sonarr(FakeArr(suche=[]))
 
     with pytest.raises(RequestError) as fall:
         await _klaeren(_titel(erschienen="2026-08-27"))
@@ -277,7 +268,7 @@ async def test_neue_serie_bekommt_versuchs_spaeter(sonarr) -> None:
 async def test_alte_serie_bekommt_die_ehrliche_auskunft(sonarr) -> None:
     """⚠️ "Versuch es spaeter" waere bei einem Titel von 1978 eine
     Vertroestung - es traegt niemand mehr etwas nach."""
-    sonarr(_FakeSonarr([]))
+    sonarr(FakeArr(suche=[]))
 
     with pytest.raises(RequestError) as fall:
         await _klaeren(_titel(328178, "Ciné regards", "1978-01-04"))
@@ -288,7 +279,7 @@ async def test_alte_serie_bekommt_die_ehrliche_auskunft(sonarr) -> None:
 @pytest.mark.anyio
 async def test_ohne_erscheinungsdatum_wird_vertroestet(sonarr) -> None:
     """Ein Titel ohne Erstausstrahlung ist meist einer, der noch nicht lief."""
-    sonarr(_FakeSonarr([]))
+    sonarr(FakeArr(suche=[]))
 
     with pytest.raises(RequestError) as fall:
         await _klaeren(_titel(erschienen=None))
@@ -299,7 +290,7 @@ async def test_ohne_erscheinungsdatum_wird_vertroestet(sonarr) -> None:
 @pytest.mark.anyio
 async def test_beide_auskuenfte_tragen_den_titel(sonarr) -> None:
     """Ohne ihn stuende in der Oberflaeche ein Satz ohne Gegenstand."""
-    sonarr(_FakeSonarr([]))
+    sonarr(FakeArr(suche=[]))
 
     with pytest.raises(RequestError) as fall:
         await _klaeren(_titel(328178, "Ciné regards", "1978-01-04"))
@@ -378,7 +369,7 @@ def _serie_ohne_kennung(monkeypatch: pytest.MonkeyPatch, treffer: list[dict[str,
 
     monkeypatch.setattr(requests_router.media, "detail", detail)
     monkeypatch.setattr(
-        requests_service.library, "sonarr_client", lambda settings, tier: _FakeSonarr(treffer)
+        library, "sonarr_client", lambda settings, tier: FakeArr(suche=treffer)
     )
 
 
@@ -488,14 +479,14 @@ def test_serie_mit_kennung_fragt_sonarr_gar_nicht(
 
     gefragt: list[str] = []
 
-    class _Zaehlend(_FakeSonarr):
+    class _Zaehlend(FakeArr):
         async def suche(self, begriff: str) -> list[dict[str, Any]]:
             gefragt.append(begriff)
             return []
 
     monkeypatch.setattr(requests_router.media, "detail", detail)
     monkeypatch.setattr(
-        requests_service.library, "sonarr_client", lambda settings, tier: _Zaehlend()
+        library, "sonarr_client", lambda settings, tier: _Zaehlend()
     )
     create_user(arr_client, "kim")
     headers = auth_headers(arr_client, "kim", "passwort-1234")
@@ -539,7 +530,7 @@ def test_englischer_titel_geht_mit_in_die_suche(
 
     gefragt: list[str] = []
 
-    class _Merkend(_FakeSonarr):
+    class _Merkend(FakeArr):
         async def suche(self, begriff: str) -> list[dict[str, Any]]:
             gefragt.append(begriff)
             return [_serie(3001, "Still Water", 2026, tmdb_id=331370)]
@@ -550,7 +541,7 @@ def test_englischer_titel_geht_mit_in_die_suche(
     monkeypatch.setattr(requests_router.media, "detail", detail)
     monkeypatch.setattr(requests_service.media, "englischer_titel", englisch)
     monkeypatch.setattr(
-        requests_service.library, "sonarr_client", lambda settings, tier: _Merkend()
+        library, "sonarr_client", lambda settings, tier: _Merkend()
     )
     create_user(arr_client, "kim")
     headers = auth_headers(arr_client, "kim", "passwort-1234")
@@ -612,7 +603,7 @@ def test_volles_kontingent_schlaegt_vor_der_rueckfrage_zu(
     """
     gefragt: list[str] = []
 
-    class _Zaehlend(_FakeSonarr):
+    class _Zaehlend(FakeArr):
         async def suche(self, begriff: str) -> list[dict[str, Any]]:
             gefragt.append(begriff)
             return [_serie(1001, "Still Waters", 0, tmdb_id=0)]
@@ -627,7 +618,7 @@ def test_volles_kontingent_schlaegt_vor_der_rueckfrage_zu(
 
     monkeypatch.setattr(requests_router.media, "detail", detail)
     monkeypatch.setattr(
-        requests_service.library, "sonarr_client", lambda settings, tier: _Zaehlend()
+        library, "sonarr_client", lambda settings, tier: _Zaehlend()
     )
 
     create_user(arr_client, "kim")
@@ -666,9 +657,9 @@ async def test_wer_die_vorgabe_nimmt_bekommt_die_auskunft(
     from app.services.settings_service import for_user, load_settings
 
     monkeypatch.setattr(
-        requests_service.library,
+        library,
         "sonarr_client",
-        lambda settings, tier: _FakeSonarr([
+        lambda settings, tier: FakeArr(suche=[
             _serie(1001, "Still Waters", 0, tmdb_id=0),
             _serie(1002, "Stille Waters", 2001, tmdb_id=42728),
         ]),

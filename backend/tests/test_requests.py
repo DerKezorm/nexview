@@ -431,8 +431,8 @@ async def test_zeitueberschreitung_gilt_nicht_als_fehlschlag(
     """
     from app.db import SessionLocal
     from app.models import MediaRequest, RequestStatus
-    from app.services import library
-    from app.services.arr import ArrError
+    from app.services.beschaffung.arr import library
+    from app.services.beschaffung.arr.client import ArrError
 
     item = _first_demo(arr_client)
 
@@ -461,8 +461,8 @@ async def test_echter_fehler_bleibt_fehlgeschlagen(
     """Die Ausnahme gilt nur fuer Ungewissheit - sonst bleibt es beim Fehlschlag."""
     from app.db import SessionLocal
     from app.models import MediaRequest, RequestStatus
-    from app.services import library
-    from app.services.arr import ArrError
+    from app.services.beschaffung.arr import library
+    from app.services.beschaffung.arr.client import ArrError
 
     item = _first_demo(arr_client, index=1)
 
@@ -495,7 +495,7 @@ def test_titel_liegt_schon_da_meldet_eine_kennung(
     Stand. Gaebe es eine Anfrage dazu, griffe vorher "wurde bereits angefragt",
     und dieser Zweig waere gar nicht erreicht.
     """
-    from app.services import library
+    from app.services.beschaffung.arr import library
 
     create_user(arr_client, "kim")
     headers = auth_headers(arr_client, "kim", "passwort-1234")

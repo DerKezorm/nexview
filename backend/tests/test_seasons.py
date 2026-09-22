@@ -12,10 +12,13 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, QualityTier, RequestStatus, User
-from app.services import library, requests_service
+from app.services import requests_service
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.sonarr import LibraryEntry
 from app.services.settings_service import load_settings
-from app.services.sonarr import LibraryEntry
 from tests.conftest import auth_headers, create_user
+
+from .beschaffung.fake_arr import FakeArr
 
 
 @pytest.fixture
@@ -144,31 +147,9 @@ def test_unsinnige_staffel_wird_abgelehnt(arr_client: TestClient, nutzer: dict[s
 # --- Uebergabe an Sonarr -----------------------------------------------------
 
 
-class SonarrAttrappe:
-    """Merkt sich, was Nexview an Sonarr geschickt haette."""
-
-    def __init__(self) -> None:
-        self.angelegt: list[dict] = []
-        self.aktivierte_staffeln: list[tuple[int, list[int]]] = []
-        self.gesucht: list[int | None] = []
-
-    async def ensure_tag(self, _label: str) -> int:
-        return 1
-
-    async def add(self, tvdb_id, quality_profile_id, root_folder_path, **kwargs):  # noqa: ANN001
-        self.angelegt.append({"tvdb_id": tvdb_id, "season": kwargs.get("season")})
-        return {"id": 4242}
-
-    async def monitor_seasons(
-        self, arr_id: int, seasons: set[int], such_staffel: int | None = None
-    ) -> None:
-        self.aktivierte_staffeln.append((arr_id, sorted(seasons)))
-        self.gesucht.append(such_staffel)
-
-
 async def _uebergeben(monkeypatch, serie_in_sonarr: LibraryEntry | None, season: int | None):
     """Eine Anfrage bis zur Uebergabe an Sonarr durchspielen."""
-    attrappe = SonarrAttrappe()
+    attrappe = FakeArr(art="tv")
     monkeypatch.setattr(library, "sonarr_client", lambda _settings, _tier="standard": attrappe)
 
     async def bibliothek(_settings, _tier: str = "standard"):  # noqa: ANN001

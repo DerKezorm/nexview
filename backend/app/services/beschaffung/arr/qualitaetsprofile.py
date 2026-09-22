@@ -26,9 +26,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Qualitaetsprofil, QualitaetsprofilInstallation, utcnow
-from . import logs
-from .arr import ArrClient, ArrError
+from ....models import Qualitaetsprofil, QualitaetsprofilInstallation, utcnow
+from ... import logs
+from .client import ArrClient, ArrError
 from .trash import Bauplan, aufloesung_von, bauplan, regelabdruck, regelform
 
 logger = logging.getLogger("nexview.qualitaet")

@@ -184,8 +184,8 @@ def test_freigabe_verknuepft_einen_film_der_schon_in_radarr_liegt(
     Bei Serien wurde seit jeher vorher nachgesehen (``_sonarr_eintrag``); bei
     Filmen fehlte genau das.
     """
-    from app.services import library
-    from app.services.radarr import LibraryEntry
+    from app.services.beschaffung.arr import library
+    from app.services.beschaffung.arr.radarr import LibraryEntry
 
     angelegt, _ = _anfrage_von_kim(arr_client)
 

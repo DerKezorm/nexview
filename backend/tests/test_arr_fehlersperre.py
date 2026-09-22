@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.services import library
-from app.services.arr import ArrError
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.client import ArrError
 
 
 class LahmerClient:

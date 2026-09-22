@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import Umbenennlauf
-from app.services import benennung
+from app.services.beschaffung.arr import benennung
 
 
 class GefaelschteInstanz:

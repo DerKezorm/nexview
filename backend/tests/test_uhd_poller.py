@@ -20,8 +20,9 @@ from app.models import (
     QualityTier,
     RequestStatus,
 )
-from app.services import library, status_poller
-from app.services.radarr import LibraryEntry as MovieEntry
+from app.services import status_poller
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.radarr import LibraryEntry as MovieEntry
 from app.services.settings_service import load_settings, save_settings
 
 from .conftest import auth_headers, create_user

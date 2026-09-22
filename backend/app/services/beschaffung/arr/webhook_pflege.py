@@ -29,10 +29,10 @@ import time
 
 from sqlalchemy.orm import Session
 
-from ..models import ArrWebhook, utcnow
+from ....models import ArrWebhook, utcnow
+from ...settings_service import AppSettings, ArrInstanz
 from . import webhooks
-from .arr import ArrClient, ArrError
-from .settings_service import AppSettings, ArrInstanz
+from .client import ArrClient, ArrError
 
 logger = logging.getLogger("nexview.webhooks")
 

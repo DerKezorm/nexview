@@ -13,7 +13,8 @@ import time
 
 import pytest
 
-from app.services import status_poller, webhooks
+from app.services import status_poller
+from app.services.beschaffung.arr import webhooks
 
 
 @pytest.fixture(autouse=True)

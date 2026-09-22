@@ -38,10 +38,11 @@ from app.models import (
     NotificationType,
     RequestStatus,
 )
-from app.services import library, status_poller
+from app.services import status_poller
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.sonarr import LibraryEntry as SeriesEntry
+from app.services.beschaffung.arr.sonarr import Staffelstand
 from app.services.settings_service import load_settings
-from app.services.sonarr import LibraryEntry as SeriesEntry
-from app.services.sonarr import Staffelstand
 
 from .conftest import create_user
 
@@ -245,7 +246,7 @@ def test_abzeichen_teils_geladen() -> None:
     Der gemeldete Fall: Baywatch mit einer geladenen Staffel von elf trug
     "Bereits geladen" - wer draufklickte, fand ein fast leeres Regal.
     """
-    from app.services.library import _status_for
+    from app.services.beschaffung.arr.library import _status_for
 
     halb = SeriesEntry(
         arr_id=1, has_file=True, monitored=True,

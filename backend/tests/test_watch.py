@@ -115,7 +115,8 @@ async def _serie_pruefen(db, vorhanden: dict[int, set[int]], titel: str = "Andor
     und der Folgenstand. Was hier geprueft wird, ist der Vergleich mit dem
     Vorlauf - nicht, ob Sonarr antwortet.
     """
-    from app.services import library, media
+    from app.services import media
+    from app.services.beschaffung.arr import library
     from app.services.settings_service import load_settings
 
     class _Detail:

@@ -7,9 +7,9 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus, User
-from app.services.arr import ArrError
-from app.services.radarr import RadarrClient
-from app.services.sonarr import SonarrClient
+from app.services.beschaffung.arr.client import ArrError
+from app.services.beschaffung.arr.radarr import RadarrClient
+from app.services.beschaffung.arr.sonarr import SonarrClient
 
 from .conftest import auth_headers, create_user
 

@@ -8,11 +8,12 @@ Laden der Details von TMDB mitgeholt.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from .arr import ArrClient, ArrError, WarteschlangenEintrag
+from ..base import Folge, Staffelstand, WarteschlangenEintrag, normalize_title
+from ..base import SerienStand as LibraryEntry
+from .client import ArrClient, ArrError
 
 # ⚠️ **Dieses Modul hatte lange gar keinen.** ``serie_ueberwachen`` rief
 # ``logger.warning`` trotzdem - die Zeile waere mit einem ``NameError``
@@ -23,110 +24,6 @@ from .arr import ArrClient, ArrError, WarteschlangenEintrag
 # Derselbe Name wie in ``arr.py``: Es ist dieselbe Familie, und wer nach dem
 # Verkehr mit Radarr/Sonarr sucht, will beides in einem Filter haben.
 logger = logging.getLogger("nexview.arr")
-
-
-@dataclass(frozen=True)
-class Staffelstand:
-    """Wie weit **eine** Staffel geladen ist.
-
-    ⚠️ Gebraucht, weil ``has_file`` eine Aussage ueber die **ganze Serie** ist:
-    "mindestens eine Folge liegt vor". Solange nur ganze Serien angefragt
-    werden konnten, war das dasselbe. Bei Staffelanfragen ist es das nicht -
-    gemeldet wurde eine Serie mit drei Dateien in Staffel 3, worauf **fuenf**
-    Staffelanfragen gleichzeitig als "bereits geladen" galten und fuenf
-    Fertig-Meldungen in derselben Sekunde hinausgingen.
-    """
-
-    dateien: int
-    folgen: int
-    # Laeuft die Ueberwachung? ``True`` als Vorgabe heisst "kein Anlass zur
-    # Heilung" - wo die Angabe fehlt, wird nicht an Sonarr herumgestellt.
-    monitored: bool = True
-
-    @property
-    def vollstaendig(self) -> bool:
-        """Alle Folgen dieser Staffel liegen vor.
-
-        Strenger als ``has_file`` und mit Absicht: Eine Staffel ist eine
-        abgeschlossene, abzaehlbare Menge - "fertig" laesst sich hier wirklich
-        beantworten. Bei einer ganzen Serie waere dieselbe Frage sinnlos, weil
-        eine laufende Serie nie fertig ist.
-        """
-        return self.folgen > 0 and self.dateien >= self.folgen
-
-
-@dataclass(frozen=True)
-class Folge:
-    """Eine Folge, wie Sonarr sie fuehrt - das Noetigste fuer Folgen-Pakete.
-
-    ``kennung`` ist Sonarrs Episoden-Id (fuers Einschalten und Suchen),
-    ``datei_id`` die Id der Episodendatei (fuers gezielte Loeschen beim
-    Abbruch) - ``None``, solange keine Datei liegt.
-    """
-
-    kennung: int
-    nummer: int
-    monitored: bool
-    has_file: bool
-    datei_id: int | None = None
-
-
-@dataclass(frozen=True)
-class LibraryEntry:
-    """Eine Serie, wie sie Sonarr kennt."""
-
-    arr_id: int
-    has_file: bool  # mindestens eine Folge der **ganzen Serie** liegt vor
-    monitored: bool
-    episode_file_count: int
-    episode_count: int
-    title_key: str  # normalisierter Titel als Rueckfallweg
-    # Nur fuer den Titel-Rueckfall: Ohne Jahr trifft "Countdown" (1982) jede
-    # andere Serie desselben Namens - samt deren Folgen. Siehe jahre_passen.
-    year: int | None = None
-    # Belegter Platz der ganzen Serie in Bytes.
-    size_bytes: int = 0
-    # Belegter Platz **je Staffel**: {Staffelnummer: Bytes}. Sonarr haengt die
-    # Staffel-Statistik an dieselbe Antwort - eine eigene Abfrage waere nur
-    # noetig, wollte man bis auf die einzelne Folge hinunter. Die
-    # Speicher-Belegung rechnet deshalb staffelweise.
-    seasons: dict[int, int] = field(default_factory=dict)
-    # Ladestand **je Staffel** - aus derselben Statistik wie die Groessen.
-    # Ohne diese Aufschluesselung laesst sich eine Staffelanfrage nicht
-    # beantworten; siehe ``Staffelstand``.
-    staffeln: dict[int, Staffelstand] = field(default_factory=dict)
-    # Letzter bekannter Titel, damit ein Posten anzeigbar bleibt, wenn die
-    # Serie spaeter aus Sonarr verschwindet.
-    title: str = ""
-    # Der **Ordner** der Serie - kein Dateiname. Eine Staffel ist keine Datei,
-    # sondern zwanzig; echte Dateinamen braeuchten eine Abfrage je Serie.
-    path: str = ""
-
-
-def normalize_title(title: str) -> str:
-    """Titel auf einen vergleichbaren Kern reduzieren."""
-    return "".join(character for character in title.casefold() if character.isalnum())
-
-
-def jahre_passen(gesucht: int | None, gefunden: int | None) -> bool:
-    """Gehoeren die beiden Jahresangaben plausibel zusammen?
-
-    Gebraucht ueberall dort, wo ueber den **Titel** abgeglichen wird - und das
-    ist bei Serien der Regelfall, weil TMDB fuer viele Serien keine TVDB-Id
-    kennt. Ohne diese Pruefung reicht Namensgleichheit: Gemeldet wurde
-    "Countdown" (1982), das in Sonarr eine voellig andere Serie traf und samt
-    deren Folgenliste als "bereits geladen" erschien.
-
-    Ein Jahr Abweichung ist erlaubt: Erstausstrahlung und Serienstart nach
-    Zaehlweise der jeweiligen Datenbank fallen oft auseinander. Fehlt eine der
-    beiden Angaben, wird der Treffer verworfen - lieber einen vorhandenen Titel
-    uebersehen als einen falschen behaupten. Ein uebersehener kostet einen
-    doppelten Download, ein falscher nimmt einen Titel dauerhaft aus dem
-    Angebot, ohne dass jemand den Grund sieht.
-    """
-    if gesucht is None or gefunden is None:
-        return False
-    return abs(gesucht - gefunden) <= 1
 
 
 def _zahl(wert: Any) -> int:

@@ -33,10 +33,10 @@ from typing import Any
 from sqlalchemy import delete, func, or_, select, true
 from sqlalchemy.orm import Session
 
-from ..models import DownloadHaenger, DownloadVerlauf, MediaRequest, RequestStatus
+from ....models import DownloadHaenger, DownloadVerlauf, MediaRequest, RequestStatus
+from ...settings_service import AppSettings, ArrInstanz
 from . import download_gruende
-from .arr import ArrClient, ArrError
-from .settings_service import AppSettings, ArrInstanz
+from .client import ArrClient, ArrError
 
 logger = logging.getLogger("nexview.downloads")
 

@@ -25,20 +25,11 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaRequest, RequestStatus
-from app.services import library
+from app.services.beschaffung.arr import library
 from app.services.settings_service import load_settings, save_settings
 
+from .beschaffung.fake_arr import FakeArr
 from .conftest import auth_headers, create_user
-
-
-class _FakeRadarr:
-    """Nimmt die Uebergabe entgegen, ohne ein echtes Radarr zu brauchen."""
-
-    async def add(self, *args, **kwargs) -> dict:
-        return {"id": 4242}
-
-    async def ensure_tag(self, label: str) -> int:
-        return 7
 
 VIER_K = {"radarr_uhd_url": "http://127.0.0.1:19", "radarr_uhd_api_key": "test-radarr-4k"}
 
@@ -90,7 +81,7 @@ def test_4k_wartet_auf_den_entscheider_waehrend_standard_frei_laeuft(
     der Stufe, fuer die sie gilt."""
     _regeln(**VIER_K, movie_uhd_profile_mode="approver")
     # Die Sofort-Freigabe uebergibt direkt an Radarr - hier gestubbt.
-    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: _FakeRadarr())
+    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: FakeArr(art="movie", tag_id=7))
     create_user(
         arr_client,
         "kim",
@@ -137,7 +128,7 @@ def test_admin_waehlt_gleich_selbst(
     """Die Ausnahme: Wer freigeben darf, gibt sich nicht selbst eine
     Warteschlange - er waehlt sofort."""
     _regeln(**VIER_K, movie_uhd_profile_mode="approver")
-    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: _FakeRadarr())
+    monkeypatch.setattr(library, "radarr_client", lambda *_a, **_k: FakeArr(art="movie", tag_id=7))
     titel = _titel(arr_client, {})
 
     antwort = arr_client.post(

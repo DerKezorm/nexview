@@ -28,10 +28,8 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from ..models import DownloadHaenger, DownloadVerlauf, NotificationType, Setting
-from . import download_aktionen, download_gruende, download_haenger, notify
-from .arr import ArrError
-from .download_aktionen import DownloadFehler
-from .download_gruende import Aktion
+from . import beschaffung, notify
+from .beschaffung import AUTOMATISCH_MOEGLICH, Aktion, BeschaffungError, DownloadFehler, get_beschaffung
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.downloads")
@@ -48,7 +46,7 @@ WIEDERHOLT_AB = 3
 WIEDERHOLT_FENSTER = timedelta(days=7)
 
 #: Was als automatische Aktion zaehlt.
-AKTIONSARTEN = frozenset(aktion.value for aktion in download_gruende.AUTOMATISCH_MOEGLICH)
+AKTIONSARTEN = frozenset(aktion.value for aktion in AUTOMATISCH_MOEGLICH)
 
 
 def _jetzt() -> datetime:
@@ -63,7 +61,7 @@ class Einstellung:
 
 
 def _erlaubt(kennung: str) -> set[str]:
-    grund = download_gruende.GRUENDE.get(kennung)
+    grund = beschaffung.download_gruende().get(kennung)
     return {aktion.value for aktion in grund.automatik} if grund is not None else set()
 
 
@@ -212,7 +210,7 @@ def _melden(db: Session, zeile: DownloadHaenger, jetzt: datetime, *, aufgegeben:
             message_key="notifications.downloadStuck",
             title=titel,
         )
-    db.add(download_haenger.verlauf(zeile, "gemeldet", automatisch=True))
+    db.add(beschaffung.download_verlauf(zeile, "gemeldet", automatisch=True))
     db.commit()
     logger.warning(
         "Download keeps getting stuck: %r in %s (%s)%s",
@@ -225,15 +223,17 @@ def _melden(db: Session, zeile: DownloadHaenger, jetzt: datetime, *, aufgegeben:
 
 async def _handeln(db: Session, settings: AppSettings, zeile_id: int, aktion: str) -> None:
     if aktion == Aktion.entfernen_neu_suchen.value:
-        await download_aktionen.entfernen(
-            db, settings, zeile_id, neu_suchen=True, wer=None, automatisch=True
+        await get_beschaffung(settings).download_entfernen(
+            db, zeile_id, neu_suchen=True, wer=None, automatisch=True
         )
     elif aktion == Aktion.entfernen.value:
-        await download_aktionen.entfernen(
-            db, settings, zeile_id, neu_suchen=False, wer=None, automatisch=True
+        await get_beschaffung(settings).download_entfernen(
+            db, zeile_id, neu_suchen=False, wer=None, automatisch=True
         )
     elif aktion == Aktion.erneut_pruefen.value:
-        await download_aktionen.erneut_pruefen(db, settings, zeile_id, wer=None, automatisch=True)
+        await get_beschaffung(settings).download_erneut_pruefen(
+            db, zeile_id, wer=None, automatisch=True
+        )
 
 
 async def ausfuehren(db: Session, settings: AppSettings, *, jetzt: datetime | None = None) -> int:
@@ -272,7 +272,7 @@ async def ausfuehren(db: Session, settings: AppSettings, *, jetzt: datetime | No
         except DownloadFehler as fehler:
             logger.info("Automation left download %s alone: %s", zeile_id, fehler.code)
             db.rollback()
-        except ArrError as fehler:
+        except BeschaffungError as fehler:
             # Info statt Warnung: Eine stumme Instanz meldet sich an anderer
             # Stelle ohnehin, und hier kaeme sonst jede Runde eine Zeile dazu.
             logger.info("Automation could not reach the instance for %s: %s", zeile_id, fehler.code)

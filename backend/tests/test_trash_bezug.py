@@ -21,7 +21,7 @@ import tarfile
 
 import pytest
 
-from app.services import trash, trash_bezug
+from app.services.beschaffung.arr import trash, trash_bezug
 
 
 def _paket(schnappschuesse: dict[str, dict], wurzel: str = "Guides-master") -> bytes:

@@ -26,10 +26,10 @@ from urllib.parse import urlparse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import crypto
-from ..models import MediaServerConnection
-from . import logs
-from .arr import ArrClient, ArrError
+from .... import crypto
+from ....models import MediaServerConnection
+from ... import logs
+from .client import ArrClient, ArrError
 from .pfad_zuordnung import Zuordnung, ableiten, server_pfade
 
 logger = logging.getLogger("nexview.qualitaet")

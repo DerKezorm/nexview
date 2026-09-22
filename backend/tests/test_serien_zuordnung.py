@@ -10,20 +10,10 @@ from typing import Any
 
 import pytest
 
-from app.services import serien_zuordnung
-from app.services.serien_zuordnung import erlaubt, zuordnen
+from app.services.beschaffung.arr import serien_zuordnung
+from app.services.beschaffung.arr.serien_zuordnung import erlaubt, zuordnen
 
-
-class _FakeSonarr:
-    """Antwortet je Suchbegriff mit einer festen Trefferliste."""
-
-    def __init__(self, nach_begriff: dict[str, list[dict[str, Any]]]) -> None:
-        self.nach_begriff = nach_begriff
-        self.gefragt: list[str] = []
-
-    async def suche(self, begriff: str) -> list[dict[str, Any]]:
-        self.gefragt.append(begriff)
-        return self.nach_begriff.get(begriff, [])
+from .beschaffung.fake_arr import FakeArr
 
 
 def _serie(
@@ -50,8 +40,8 @@ def _serie(
 @pytest.mark.anyio
 async def test_gleiche_tmdb_kennung_ist_eindeutig() -> None:
     """Der gemessene Fall "Marc Eliot": ein Treffer traegt dieselbe Nummer."""
-    client = _FakeSonarr(
-        {"Marc Eliot": [
+    client = FakeArr(
+        suche={"Marc Eliot": [
             _serie(334698, "Marc Eliot", 1998, tmdb_id=103594),
             _serie(999001, "Marc Elliott Show", 2005, tmdb_id=555),
         ]}
@@ -73,7 +63,7 @@ async def test_null_als_tmdb_kennung_gilt_nicht_als_treffer() -> None:
     Wer eine 0 fuer echt haelt, ordnet jede kennungslose Serie der Anfrage mit
     ``tmdb_id=0`` zu - und die gibt es nicht, aber der Fehler waere still.
     """
-    client = _FakeSonarr({"Irgendwas": [_serie(1, "Irgendwas", 2020, tmdb_id=0)]})
+    client = FakeArr(suche={"Irgendwas": [_serie(1, "Irgendwas", 2020, tmdb_id=0)]})
 
     ergebnis = await zuordnen(client, 0, "Irgendwas")
 
@@ -83,8 +73,8 @@ async def test_null_als_tmdb_kennung_gilt_nicht_als_treffer() -> None:
 @pytest.mark.anyio
 async def test_zwei_treffer_mit_derselben_kennung_entscheidet_niemand() -> None:
     """Dann weiss Sonarr selbst nicht, welche gemeint ist."""
-    client = _FakeSonarr(
-        {"Doppelt": [
+    client = FakeArr(
+        suche={"Doppelt": [
             _serie(1, "Doppelt", 2020, tmdb_id=42),
             _serie(2, "Doppelt", 2021, tmdb_id=42),
         ]}
@@ -107,8 +97,8 @@ async def test_treffer_werden_vorgelegt_statt_genommen() -> None:
     eine voellig andere Serie. Sie darf erscheinen - aber niemals ausgewaehlt
     sein. Entschieden wird ausschliesslich am Fenster, von einem Menschen.
     """
-    client = _FakeSonarr(
-        {"Still Water": [
+    client = FakeArr(
+        suche={"Still Water": [
             _serie(1001, "Still Waters", None, tmdb_id=0),
             _serie(1002, "Stille Waters", 2001, tmdb_id=42728),
             _serie(1003, "Warszawianka", 2023, tmdb_id=218035),
@@ -132,7 +122,7 @@ async def test_gar_kein_treffer_heisst_kein_fenster() -> None:
     Dann gibt es auch nichts vorzulegen - hier ist die Auskunft die einzige
     moegliche Antwort, nicht eine gewaehlte.
     """
-    client = _FakeSonarr({"วารี ๑๐๐ ศพ": []})
+    client = FakeArr(suche={"วารี ๑๐๐ ศพ": []})
 
     ergebnis = await zuordnen(client, 331370, "วารี ๑๐๐ ศพ")
 
@@ -146,8 +136,8 @@ async def test_gar_kein_treffer_heisst_kein_fenster() -> None:
 @pytest.mark.anyio
 async def test_originaltitel_wird_mitgesucht() -> None:
     """TheTVDB kennt eine thailaendische Serie oft nur unter einem Namen."""
-    client = _FakeSonarr(
-        {"วารี ๑๐๐ ศพ": [_serie(3001, "Still Water", 2026, tmdb_id=331370)]}
+    client = FakeArr(
+        suche={"วารี ๑๐๐ ศพ": [_serie(3001, "Still Water", 2026, tmdb_id=331370)]}
     )
 
     ergebnis = await zuordnen(client, 331370, "Still Water", "วารี ๑๐๐ ศพ")
@@ -158,7 +148,7 @@ async def test_originaltitel_wird_mitgesucht() -> None:
 
 @pytest.mark.anyio
 async def test_gleicher_titel_wird_nicht_zweimal_gesucht() -> None:
-    client = _FakeSonarr({"Gleich": []})
+    client = FakeArr(suche={"Gleich": []})
 
     await zuordnen(client, 1, "Gleich", "Gleich")
 
@@ -168,7 +158,7 @@ async def test_gleicher_titel_wird_nicht_zweimal_gesucht() -> None:
 @pytest.mark.anyio
 async def test_derselbe_treffer_aus_zwei_suchen_zaehlt_einmal() -> None:
     treffer = _serie(4001, "Still Waters", 1995, tmdb_id=0)
-    client = _FakeSonarr({"Still Water": [treffer], "Still Wasser": [treffer]})
+    client = FakeArr(suche={"Still Water": [treffer], "Still Wasser": [treffer]})
 
     ergebnis = await zuordnen(client, 331370, "Still Water", "Still Wasser")
 
@@ -179,7 +169,7 @@ async def test_derselbe_treffer_aus_zwei_suchen_zaehlt_einmal() -> None:
 async def test_treffer_ohne_tvdb_kennung_taugt_nicht() -> None:
     """Ohne TVDB-Kennung kann Sonarr die Serie nicht anlegen - sie waere ein
     Vorschlag, den anzuklicken nichts bewirkt."""
-    client = _FakeSonarr({"Ohne": [_serie(0, "Ohne Kennung", 2020, tmdb_id=77)]})
+    client = FakeArr(suche={"Ohne": [_serie(0, "Ohne Kennung", 2020, tmdb_id=77)]})
 
     ergebnis = await zuordnen(client, 77, "Ohne")
 
@@ -189,8 +179,8 @@ async def test_treffer_ohne_tvdb_kennung_taugt_nicht() -> None:
 
 @pytest.mark.anyio
 async def test_hoechstens_sechs_vorschlaege() -> None:
-    client = _FakeSonarr(
-        {"Serie": [_serie(5000 + n, f"Serie {n}", 2020, tmdb_id=n) for n in range(20)]}
+    client = FakeArr(
+        suche={"Serie": [_serie(5000 + n, f"Serie {n}", 2020, tmdb_id=n) for n in range(20)]}
     )
 
     ergebnis = await zuordnen(client, 99999, "Serie")
@@ -205,8 +195,8 @@ async def test_hoechstens_sechs_vorschlaege() -> None:
 async def test_nur_vorgelegte_kennungen_sind_erlaubt() -> None:
     """⚠️ Ohne diese Pruefung koennte die Oberflaeche jede beliebige Serie
     anlegen lassen - an TMDB und damit an der Altersbeschraenkung vorbei."""
-    client = _FakeSonarr(
-        {"Still Water": [
+    client = FakeArr(
+        suche={"Still Water": [
             _serie(1001, "Still Waters", None, tmdb_id=0),
             _serie(1002, "Stille Waters", 2001, tmdb_id=42728),
         ]}
@@ -233,7 +223,7 @@ async def test_ohne_vorlage_ist_nichts_erlaubt() -> None:
 async def test_kandidat_traegt_poster_jahr_und_handlung() -> None:
     """Ohne diese drei ist die Gegenueberstellung wertlos - genau daran
     erkennt jemand, dass "Still Waters" nicht seine Serie ist."""
-    client = _FakeSonarr({"Still Water": [_serie(1001, "Still Waters", 1995, tmdb_id=0)]})
+    client = FakeArr(suche={"Still Water": [_serie(1001, "Still Waters", 1995, tmdb_id=0)]})
 
     kandidat = (await zuordnen(client, 331370, "Still Water")).kandidaten[0]
 
@@ -248,7 +238,7 @@ async def test_kandidat_traegt_poster_jahr_und_handlung() -> None:
 async def test_jahr_null_kommt_als_unbekannt_heraus() -> None:
     """Gemessen: "Still Waters" traegt bei Sonarr das Jahr 0. Als Jahreszahl
     angezeigt waere das schlimmer als eine Leerstelle."""
-    client = _FakeSonarr({"Still Water": [_serie(1001, "Still Waters", 0, tmdb_id=0)]})
+    client = FakeArr(suche={"Still Water": [_serie(1001, "Still Waters", 0, tmdb_id=0)]})
 
     kandidat = (await zuordnen(client, 331370, "Still Water")).kandidaten[0]
 
@@ -272,8 +262,8 @@ async def test_serie_ohne_staffeln_bleibt_in_der_liste() -> None:
     wie warm Sonarrs Zwischenspeicher gerade ist - und niemand hätte den
     Grund gesehen.
     """
-    client = _FakeSonarr(
-        {"Still Water": [_serie(479935, "Still Waters", 0, tmdb_id=0, staffeln=())]}
+    client = FakeArr(
+        suche={"Still Water": [_serie(479935, "Still Waters", 0, tmdb_id=0, staffeln=())]}
     )
 
     ergebnis = await zuordnen(client, 331370, "Still Water")

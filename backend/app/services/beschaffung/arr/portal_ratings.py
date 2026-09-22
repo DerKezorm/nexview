@@ -32,9 +32,9 @@ import logging
 import time
 from dataclasses import dataclass
 
-from .arr import ArrError
+from ...settings_service import AppSettings
+from .client import ArrError
 from .library import radarr_client
-from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.portal_ratings")
 

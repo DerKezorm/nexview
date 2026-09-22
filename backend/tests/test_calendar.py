@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.services import calendar as calendar_service
-from app.services import library
+from app.services.beschaffung.arr import library
 from app.services.filters import (
     HERKUNFTSLAENDER,
     KNOWN_TITLES_MIN_VOTES,

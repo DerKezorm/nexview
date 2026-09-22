@@ -30,11 +30,12 @@ from app.models import (
 )
 from app.security import hash_password
 from app.services import quota, storage
-from app.services.arr import ArrError
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.client import ArrError
+from app.services.beschaffung.arr.radarr import LibraryEntry as MovieEntry
+from app.services.beschaffung.arr.sonarr import LibraryEntry as SeriesEntry
 from app.services.fassungen import arr_kennung
-from app.services.radarr import LibraryEntry as MovieEntry
 from app.services.settings_service import AppSettings, load_settings
-from app.services.sonarr import LibraryEntry as SeriesEntry
 
 GB = 1024**3
 
@@ -1006,7 +1007,7 @@ def test_pfad_geht_nur_an_admins(arr_client, monkeypatch) -> None:
     Netzwerkanzeige des Browsers genuegte.
     """
     from app.schemas_media import MediaItem
-    from app.services import library
+    from app.services.beschaffung.arr import library
 
     async def filme(_settings, _stufe="standard"):
         return {
@@ -1285,7 +1286,7 @@ async def test_stumme_instanz_loescht_die_zurechnung_nicht(
     async def stumm(*_args, **_kwargs):
         raise ArrError("Radarr antwortet nicht", service="radarr")
 
-    monkeypatch.setattr(storage.library, "movie_library", stumm)
+    monkeypatch.setattr(library, "movie_library", stumm)
 
     ergebnis = await storage.abgleichen(db, mit_radarr)
 

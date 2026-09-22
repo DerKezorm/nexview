@@ -28,17 +28,16 @@ from ..schemas_media import (
 )
 from ..services import (
     blocklist,
-    library,
     media,
     mediaserver_library,
     mediaserver_watched,
-    portal_ratings,
     ratings,
     requests_service,
     streaming,
     uhd,
     watch,
 )
+from ..services.beschaffung import get_beschaffung, jahr_aus
 from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
 from ..services.streaming import eigene_dienste
@@ -71,8 +70,8 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
         # und nicht in der Oberflaeche: Ausblenden hiesse, ihn trotzdem
         # ausgeliefert zu haben.
         fuer_admin = bool(user is not None and user.role == Role.admin)
-        abgeglichen = await library.apply_status(
-            settings, media_type, list(eintraege), mit_pfad=fuer_admin
+        abgeglichen = await get_beschaffung(settings).status_setzen(
+            media_type, list(eintraege), mit_pfad=fuer_admin
         )
         for ziel, quelle in zip(eintraege, abgeglichen.items, strict=True):
             ziel.status = quelle.status
@@ -213,13 +212,13 @@ async def title_detail(
     # Bei Serien: wie viele Folgen jeder Staffel liegen schon vor - und zu
     # welchen laeuft bereits eine Anfrage?
     if media_type == "tv" and detail.seasons:
-        jahr = library.jahr_aus(detail.release_date)
-        vorhanden = await library.episode_availability(
-            settings, detail.tvdb_id, detail.title, jahr=jahr
+        jahr = jahr_aus(detail.release_date)
+        vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
+            detail.tvdb_id, detail.title, jahr=jahr
         )
         # Sonarrs eigene Staffel-Zaehlung - der Massstab fuer "vollstaendig".
-        eintrag = await library.serien_eintrag(
-            settings, detail.tvdb_id, detail.title, jahr=jahr
+        eintrag = await get_beschaffung(settings).serien_eintrag(
+            detail.tvdb_id, detail.title, jahr=jahr
         )
         staffelstaende = getattr(eintrag, "staffeln", None) or {}
         angefragt = requests_service.angefragte_staffeln(db, detail.tmdb_id)
@@ -229,8 +228,8 @@ async def title_detail(
         # ``None`` und heissen "unbekannt", wie bei ``status_uhd``.
         mit_uhd = settings.arr_configured("tv", "uhd")
         if mit_uhd:
-            vorhanden_uhd = await library.episode_availability(
-                settings, detail.tvdb_id, detail.title, tier="uhd", jahr=jahr
+            vorhanden_uhd = await get_beschaffung(settings).folgen_verfuegbarkeit(
+                detail.tvdb_id, detail.title, stufe="uhd", jahr=jahr
             )
             angefragt_uhd = requests_service.angefragte_staffeln(
                 db, detail.tmdb_id, QualityTier.uhd
@@ -241,8 +240,8 @@ async def title_detail(
             belegung_uhd = requests_service.staffel_belegung(
                 db, detail.tmdb_id, QualityTier.uhd
             )
-            eintrag_uhd = await library.serien_eintrag(
-                settings, detail.tvdb_id, detail.title, jahr=jahr, tier="uhd"
+            eintrag_uhd = await get_beschaffung(settings).serien_eintrag(
+                detail.tvdb_id, detail.title, jahr=jahr, stufe="uhd"
             )
             staffelstaende_uhd = getattr(eintrag_uhd, "staffeln", None) or {}
         for staffel in detail.seasons:
@@ -351,8 +350,8 @@ async def season(
     except TmdbError:
         return staffel
 
-    vorhanden = await library.episode_availability(
-        settings, serie.tvdb_id, serie.title, jahr=library.jahr_aus(serie.release_date)
+    vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
+        serie.tvdb_id, serie.title, jahr=jahr_aus(serie.release_date)
     )
     in_dieser_staffel = vorhanden.get(season_number, set())
 
@@ -366,12 +365,11 @@ async def season(
     )
     mit_uhd = settings.arr_configured("tv", "uhd")
     if mit_uhd:
-        vorhanden_uhd = await library.episode_availability(
-            settings,
+        vorhanden_uhd = await get_beschaffung(settings).folgen_verfuegbarkeit(
             serie.tvdb_id,
             serie.title,
-            tier="uhd",
-            jahr=library.jahr_aus(serie.release_date),
+            stufe="uhd",
+            jahr=jahr_aus(serie.release_date),
         )
         uhd_staffel = vorhanden_uhd.get(season_number, set())
         voll_uhd = requests_service.staffel_belegung(db, tmdb_id, QualityTier.uhd)
@@ -522,7 +520,7 @@ async def movie_ratings(
         return {}
 
     settings = load_settings(db)
-    gefunden = await portal_ratings.for_movies(settings, kennungen)
+    gefunden = await get_beschaffung(settings).wertungen_filme(kennungen)
     return {
         tmdb_id: MovieRatings(
             imdb_id=wert.imdb_id,

@@ -24,7 +24,9 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app.services import portal_ratings
+from app.services.beschaffung.arr import portal_ratings
+
+from .beschaffung.fake_arr import FakeArr
 
 
 @pytest.fixture(autouse=True)
@@ -65,19 +67,20 @@ def test_mit_radarr_kommen_die_wertungen_durch(
 ) -> None:
     """Der ganze Weg: Radarrs Antwort bis ins JSON der API."""
 
-    class Attrappe:
-        async def get(self, pfad: str, params: dict) -> dict:
-            assert pfad == "/movie/lookup/tmdb"
-            return {
-                "imdbId": "tt0133093",
-                "ratings": {
-                    "imdb": {"value": 8.7, "votes": 1_900_000},
-                    "rottenTomatoes": {"value": 83},
-                    "metacritic": {"value": 73},
-                },
-            }
+    def lesen(pfad: str, _params: dict) -> dict:
+        assert pfad == "/movie/lookup/tmdb"
+        return {
+            "imdbId": "tt0133093",
+            "ratings": {
+                "imdb": {"value": 8.7, "votes": 1_900_000},
+                "rottenTomatoes": {"value": 83},
+                "metacritic": {"value": 73},
+            },
+        }
 
-    monkeypatch.setattr(portal_ratings, "radarr_client", lambda _settings: Attrappe())
+    monkeypatch.setattr(
+        portal_ratings, "radarr_client", lambda _settings: FakeArr(art="movie", lesen=lesen)
+    )
 
     antwort = arr_client.get("/api/ratings/movie", params={"ids": "603"})
     assert antwort.status_code == 200, antwort.text
@@ -100,18 +103,19 @@ def test_eine_null_ist_keine_wertung(
     keine schlechte.
     """
 
-    class Attrappe:
-        async def get(self, _pfad: str, _params: dict) -> dict:
-            return {
-                "imdbId": "tt0000000",
-                "ratings": {
-                    "imdb": {"value": 0, "votes": 0},
-                    "rottenTomatoes": {"value": 0},
-                    "metacritic": {"value": 0},
-                },
-            }
+    def lesen(_pfad: str, _params: dict) -> dict:
+        return {
+            "imdbId": "tt0000000",
+            "ratings": {
+                "imdb": {"value": 0, "votes": 0},
+                "rottenTomatoes": {"value": 0},
+                "metacritic": {"value": 0},
+            },
+        }
 
-    monkeypatch.setattr(portal_ratings, "radarr_client", lambda _settings: Attrappe())
+    monkeypatch.setattr(
+        portal_ratings, "radarr_client", lambda _settings: FakeArr(art="movie", lesen=lesen)
+    )
 
     antwort = arr_client.get("/api/ratings/movie", params={"ids": "603"})
     assert antwort.status_code == 200
@@ -123,13 +127,14 @@ def test_ein_ausfall_bei_radarr_laesst_die_seite_stehen(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Bewertungen sind Beiwerk. Faellt Radarr aus, fehlen sie - mehr nicht."""
-    from app.services.arr import ArrError
+    from app.services.beschaffung.arr.client import ArrError
 
-    class Attrappe:
-        async def get(self, _pfad: str, _params: dict) -> dict:
-            raise ArrError("Radarr ist nicht erreichbar")
+    def lesen(_pfad: str, _params: dict) -> dict:
+        raise ArrError("Radarr ist nicht erreichbar")
 
-    monkeypatch.setattr(portal_ratings, "radarr_client", lambda _settings: Attrappe())
+    monkeypatch.setattr(
+        portal_ratings, "radarr_client", lambda _settings: FakeArr(art="movie", lesen=lesen)
+    )
 
     antwort = arr_client.get("/api/ratings/movie", params={"ids": "603"})
     assert antwort.status_code == 200

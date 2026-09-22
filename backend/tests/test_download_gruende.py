@@ -13,8 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from app.services import download_gruende as gruende
-from app.services.download_gruende import Aktion
+from app.services.beschaffung import AUTOMATISCH_MOEGLICH
+from app.services.beschaffung.arr import download_gruende as gruende
+from app.services.beschaffung.arr.download_gruende import Aktion
 
 
 def _zeile(
@@ -245,7 +246,7 @@ def test_jeder_grund_hat_knoepfe_und_die_automatik_bleibt_darin(kennung: str) ->
     assert grund.aktionen, kennung
     assert len(set(grund.aktionen)) == len(grund.aktionen)
     assert set(grund.automatik) <= set(grund.aktionen)
-    assert set(grund.automatik) <= gruende.AUTOMATISCH_MOEGLICH
+    assert set(grund.automatik) <= AUTOMATISCH_MOEGLICH
     assert Aktion.manuell_importieren not in grund.automatik
 
 

@@ -22,8 +22,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from app.services import medienserver_verbindung as mv
-from app.services import pfad_zuordnung as pz
+from app.services.beschaffung.arr import medienserver_verbindung as mv
+from app.services.beschaffung.arr import pfad_zuordnung as pz
 
 PLEX_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <MediaContainer>

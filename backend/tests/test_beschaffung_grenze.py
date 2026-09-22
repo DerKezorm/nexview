@@ -7,17 +7,21 @@ soll dasselbe gelten (Bauplan NEX-Modus, Abschnitt 3). Zwei Regeln:
 
 1. **Kein Import** von ``services.radarr``, ``services.sonarr``,
    ``services.arr`` oder irgendeinem Modul namens ``nexcrate`` ausserhalb von
-   ``services/beschaffung/``.
+   ``services/beschaffung/`` - und **nichts aus dem Inneren der Grenze**:
+   Draussen gibt es nur das Paket selbst (``get_beschaffung``, die Formen)
+   und ``beschaffung.base``, nie ``beschaffung.arr`` oder ``beschaffung.nex``.
+   Ohne diesen Zusatz waere der Umzug selbst die Luecke gewesen: Wer
+   ``beschaffung.arr.library`` importiert, kennt Radarr genauso wie vorher.
 2. **Kein Router nennt eine Instanz-Kennung woertlich** (``radarr-standard``,
    ``radarr-uhd``, ``sonarr-standard``, ``sonarr-uhd``, ``nexcrate``). Die
    Kennungen entstehen an genau einer Stelle; ein Router, der sie
    ausschreibt, weiss mehr ueber die Beschaffung, als er darf.
 
-⚠️ **Die Ausnahmelisten sind ein Fahrplan, keine Ablage.** Heute (Scheibe 0)
-stehen dort alle Dateien, die die Regeln brechen, jede mit dem Ort, an den
-sie in Scheibe 2 umzieht. Am Ende von Scheibe 2 sind beide Listen leer. Wer
-hier einen Eintrag **nachtraegt**, statt einen zu streichen, verschiebt die
-Grenze zurueck; das ist nie die Antwort auf einen roten Lauf.
+⚠️ **Die Ausnahmelisten sind leer, und so bleiben sie.** In Scheibe 0 standen
+dort 31 Dateien mit ihrem Ziel; Scheibe 2 hat sie abgearbeitet. Wer hier einen
+Eintrag **nachtraegt**, verschiebt die Grenze zurueck; das ist nie die Antwort
+auf einen roten Lauf. Die Listen bleiben als Form stehen, damit der Test
+``test_jede_ausnahme_wird_noch_gebraucht`` weiter greift.
 
 ⚠️ **Und eine Ausnahme, die nicht mehr gebraucht wird, macht den Lauf rot**
 (``test_jede_ausnahme_wird_noch_gebraucht``). Sonst bliebe ein umgezogener
@@ -47,55 +51,29 @@ VERBOTENE_DIENSTE = frozenset({"radarr", "sonarr", "arr"})
 #: Ein Modul dieses Namens ist ueberall verboten, wo es auch liegt.
 VERBOTENER_NAME = "nexcrate"
 
+#: Das Paket der Grenze als Modulname. Von aussen erlaubt: es selbst und
+#: ``base`` darin - alles andere ist das Innere eines Wegs.
+GRENZPAKET = ("app", "services", "beschaffung")
+OEFFENTLICH_IN_DER_GRENZE = frozenset({"base"})
+
+#: Die Wege als Unterpakete der Grenze, auch die, die es noch nicht gibt.
+WEGE = frozenset({"arr", "nex"})
+
 KENNUNG = re.compile(r"^(?:(?:radarr|sonarr)-(?:standard|uhd)|nexcrate)$")
 
 #: Unter so vielen Dateien liest der Scan nicht mehr, was er soll. Heute sind
-#: es 173; faellt die Zahl darunter, hat sich der Pfad verschoben, und
-#: ein gruener Lauf hiesse nur, dass nichts gelesen wurde.
-MINDESTENS_DATEIEN = 150
+#: es 151 (vor dem Umzug in Scheibe 2: 173 - 22 Dateien liegen seitdem hinter
+#: der Grenze und zaehlen nicht mehr mit); faellt die Zahl darunter, hat sich
+#: der Pfad verschoben, und ein gruener Lauf hiesse nur, dass nichts gelesen
+#: wurde.
+MINDESTENS_DATEIEN = 140
 
-#: Dateien, die heute einen verbotenen Dienst importieren, und wohin sie in
-#: Scheibe 2 gehen. Pfade relativ zu ``app/``, mit Schraegstrich.
-AUSNAHMEN_IMPORT: dict[str, str] = {
-    "main.py": "ruft die Grenze (Webhook-Empfang und Hintergrundaufgaben)",
-    "routers/analyse.py": "Instanzstand ueber die Grenze (stand, gesundheit)",
-    "routers/discover.py": "Bestand ueber die Grenze (nachschlagen)",
-    "routers/downloads.py": "Warteschlange und Aktionen ueber die Grenze",
-    "routers/qualitaetsprofile.py": "Betreiberwerkzeug, zieht nach beschaffung/arr/",
-    "routers/settings.py": "Dienste testen ueber die Grenze (stand)",
-    "routers/storage.py": "Loeschen und Groessen ueber die Grenze",
-    "routers/users.py": "Kontoaufloesung und Optionen ueber die Grenze",
-    "services/abgleich.py": "normalisierte Befunde aus der Grenze",
-    "services/arr_bestand.py": "zieht nach beschaffung/arr/",
-    "services/benennung.py": "zieht nach beschaffung/arr/",
-    "services/calendar.py": "kalender() ueber die Grenze",
-    "services/download_aktionen.py": "zieht nach beschaffung/arr/",
-    "services/download_automatik.py": "download_aktion() ueber die Grenze",
-    "services/download_haenger.py": "Arr-Teil zieht nach beschaffung/arr/",
-    "services/instanz_gesundheit.py": "zieht nach beschaffung/arr/",
-    "services/instanz_stand.py": "stand() ueber die Grenze",
-    "services/kontoaufloesung.py": "zuruecknehmen() und einfrieren() ueber die Grenze",
-    "services/library.py": "wird zum ARR-Bestand hinter der Grenze",
-    "services/mediaserver_library.py": "Bestand ueber die Grenze",
-    "services/medienserver_verbindung.py": "zieht nach beschaffung/arr/",
-    "services/portal_ratings.py": "zieht nach beschaffung/arr/ (wertungen)",
-    "services/qualitaet_umzug.py": "zieht nach beschaffung/arr/",
-    "services/qualitaetsprofile.py": "zieht nach beschaffung/arr/",
-    "services/radarr.py": "zieht nach beschaffung/arr/",
-    "services/requests_service.py": "anfragen() und zuruecknehmen() ueber die Grenze",
-    "services/serien_zuordnung.py": "zieht nach beschaffung/arr/ (TVDB-Klaerung)",
-    "services/sonarr.py": "zieht nach beschaffung/arr/",
-    "services/status_poller.py": "nachschlagen() im Stapel ueber die Grenze",
-    "services/storage.py": "bestand(), groessen() und zuruecknehmen() ueber die Grenze",
-    "services/webhook_pflege.py": "zieht nach beschaffung/arr/",
-}
+#: Dateien, die einen verbotenen Dienst importieren duerfen. Leer seit Scheibe 2.
+#: Pfade relativ zu ``app/``, mit Schraegstrich.
+AUSNAHMEN_IMPORT: dict[str, str] = {}
 
-#: Router, die heute eine Instanz-Kennung ausschreiben.
-AUSNAHMEN_KENNUNG: dict[str, str] = {
-    "routers/settings.py": (
-        "Feldgruppen je Instanz fuer das Entfernen; ziehen nach beschaffung/arr/"
-    ),
-}
+#: Router, die eine Instanz-Kennung ausschreiben duerfen. Leer seit Scheibe 2.
+AUSNAHMEN_KENNUNG: dict[str, str] = {}
 
 
 def _modulname(pfad: Path) -> str:
@@ -121,10 +99,21 @@ def _aufloesen(paket: str, knoten: ast.ImportFrom) -> str:
     return ".".join(basis)
 
 
+def _untermodul_der_grenze(name: str) -> bool:
+    """Ist ``name`` in ``from app.services.beschaffung import name`` ein Modul?
+
+    Sonst ist es ein Name aus ``__init__`` (``get_beschaffung``, eine Form),
+    und den darf jeder importieren.
+    """
+    return name in WEGE or (GRENZE / name).is_dir() or (GRENZE / f"{name}.py").is_file()
+
+
 def _verboten(modul: str) -> bool:
     teile = modul.split(".")
     if VERBOTENER_NAME in teile:
         return True
+    if tuple(teile[:3]) == GRENZPAKET and len(teile) > 3:
+        return teile[3] not in OEFFENTLICH_IN_DER_GRENZE
     return len(teile) == 3 and teile[:2] == ["app", "services"] and teile[2] in VERBOTENE_DIENSTE
 
 
@@ -141,6 +130,13 @@ def verbotene_importe(quelle: str, pfad: Path) -> list[str]:
                 treffer.append(modul)
                 continue
             # ``from app.services import radarr``: der Name ist das Modul.
+            if tuple(modul.split(".")) == GRENZPAKET:
+                treffer += [
+                    f"{modul}.{a.name}"
+                    for a in knoten.names
+                    if _untermodul_der_grenze(a.name) and _verboten(f"{modul}.{a.name}")
+                ]
+                continue
             treffer += [
                 f"{modul}.{a.name}" for a in knoten.names if _verboten(f"{modul}.{a.name}")
             ]
@@ -228,9 +224,15 @@ from app.services.arr import arr_get
 from ..services import arr
 from ..services.radarr import radarr_client
 from app.services.beschaffung.nex import nexcrate
-# Keine Treffer: aehnliche Namen, die nicht gemeint sind.
+from ..services.beschaffung.arr import library
+from ..services.beschaffung import arr
+from app.services.beschaffung.arr.weg import ArrBeschaffung
+# Keine Treffer: aehnliche Namen und das, was die Grenze nach aussen zeigt.
 from app.services import arr_bestand, library
 from ..services.mediaserver import get_provider
+from ..services.beschaffung import BeschaffungError, get_beschaffung
+from ..services import beschaffung
+from app.services.beschaffung.base import Korb
 """
     assert verbotene_importe(quelle, pfad) == [
         "app.services.radarr",
@@ -238,7 +240,10 @@ from ..services.mediaserver import get_provider
         "app.services.arr",
         "app.services.arr",
         "app.services.radarr",
-        "app.services.beschaffung.nex.nexcrate",
+        "app.services.beschaffung.nex",
+        "app.services.beschaffung.arr",
+        "app.services.beschaffung.arr",
+        "app.services.beschaffung.arr.weg",
     ]
     dienst = APP / "services" / "beispiel.py"
     assert verbotene_importe("from .sonarr import x\nfrom . import radarr", dienst) == [

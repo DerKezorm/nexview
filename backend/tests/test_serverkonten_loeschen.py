@@ -30,8 +30,8 @@ from app.models import (
     utcnow,
 )
 from app.services import serverkonten
+from app.services.beschaffung.arr.radarr import LibraryEntry as MovieEntry
 from app.services.mediaserver import MediaServerError
-from app.services.radarr import LibraryEntry as MovieEntry
 
 from .conftest import create_user
 from .test_kontoaufloesung import _instanzen, _posten

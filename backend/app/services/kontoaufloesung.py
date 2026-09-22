@@ -40,8 +40,8 @@ from ..models import (
     StorageState,
     User,
 )
-from . import library, storage
-from .arr import ArrError
+from . import storage
+from .beschaffung import BeschaffungError, get_beschaffung, jahr_aus, treffer_nach_titel
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.kontoaufloesung")
@@ -173,12 +173,12 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
             offen.append(als_offen(anfrage, stufe, anfrage.arr_id))
             continue
         if stufe not in serien:
-            serien[stufe] = await library.series_library(settings, stufe)
+            serien[stufe] = await get_beschaffung(settings).bestand_serien(stufe)
         nach_tvdb, nach_titel = serien[stufe]
         eintrag = nach_tvdb.get(anfrage.tvdb_id) if anfrage.tvdb_id else None
         if eintrag is None:
-            eintrag = library.treffer_nach_titel(
-                nach_titel, anfrage.title, library.jahr_aus(anfrage.release_date)
+            eintrag = treffer_nach_titel(
+                nach_titel, anfrage.title, jahr_aus(anfrage.release_date)
             )
         if eintrag is None:
             offen.append(als_offen(anfrage, stufe, anfrage.arr_id))
@@ -308,55 +308,10 @@ async def aufloesen(
     # 2. Angefangene Staffeln bzw. Serien.
     for laufend in zustand.laufende:
         wahl = nach_anfrage[laufend.request_id]
-        client = library.sonarr_client(settings, laufend.tier)
-        if client is None or laufend.arr_id is None:
+        if not await get_beschaffung(settings).laufende_aufloesen(
+            db, laufend, behalten=wahl.behalten, weiter=wahl.weiter
+        ):
             continue
-        if wahl.behalten and wahl.weiter:
-            # Laeuft weiter und faellt fertig ans Haus - dieselbe Regel wie
-            # bei der Haus-Uebernahme.
-            continue
-        if laufend.season is not None:
-            if not wahl.behalten:
-                kennungen = [
-                    int(datei["id"])
-                    for datei in await client.episode_files(
-                        laufend.arr_id, laufend.season
-                    )
-                    if datei.get("id")
-                ]
-                await client.unmonitor_season(laufend.arr_id, laufend.season)
-                if kennungen:
-                    await client.delete_episode_files(kennungen)
-            else:
-                await client.unmonitor_season(laufend.arr_id, laufend.season)
-        else:
-            # Ganze Serie: stilllegen deckt "nicht weiter" wie "loeschen" ab -
-            # geloescht werden dann zusaetzlich die Dateien der Staffeln, die
-            # **nicht** als Posten gebucht waren (die gebuchten haben ihre
-            # eigene Entscheidung schon hinter sich).
-            await client.serie_stilllegen(laufend.arr_id)
-            if not wahl.behalten:
-                gebucht = {
-                    z.season
-                    for z in db.scalars(
-                        select(StorageEntry).where(
-                            StorageEntry.tvdb_id
-                            == db.get(MediaRequest, laufend.request_id).tvdb_id
-                        )
-                    )
-                }
-                dateien = await client.get(
-                    "/episodefile", {"seriesId": laufend.arr_id}
-                ) or []
-                kennungen = [
-                    int(datei["id"])
-                    for datei in dateien
-                    if isinstance(datei, dict)
-                    and datei.get("id")
-                    and datei.get("seasonNumber") not in gebucht
-                ]
-                if kennungen:
-                    await client.delete_episode_files(kennungen)
         logger.warning(
             "Account wind-down %r: %r %s -> %s",
             user.username,
@@ -394,24 +349,8 @@ async def aufloesen(
             )
             continue
         try:
-            if anfrage.media_type == MediaType.movie:
-                client = library.radarr_client(settings, anfrage.tier.value)
-                if client is not None and anfrage.arr_id:
-                    # ``delete_files=True`` als Schutznetz: Sollte in der
-                    # letzten Sekunde doch eine Datei angekommen sein, wandert
-                    # sie in den Papierkorb statt verwaist liegenzubleiben.
-                    await client.remove(anfrage.arr_id, delete_files=True)
-            else:
-                client = library.sonarr_client(settings, anfrage.tier.value)
-                if (
-                    client is not None
-                    and anfrage.arr_id
-                    and anfrage.season is not None
-                ):
-                    await client.unmonitor_season(anfrage.arr_id, anfrage.season)
-                elif client is not None and anfrage.arr_id:
-                    await client.serie_stilllegen(anfrage.arr_id)
-        except ArrError as fehler:
+            await get_beschaffung(settings).bestellung_zuruecknehmen(anfrage)
+        except BeschaffungError as fehler:
             # 404 heisst: dort schon weg - Ziel erreicht. Alles andere bricht
             # ab, ehe das Konto faelschlich als aufgeraeumt gilt.
             if fehler.status_code != 404:

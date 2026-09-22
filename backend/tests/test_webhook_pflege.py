@@ -17,27 +17,15 @@ from __future__ import annotations
 import pytest
 
 from app.db import SessionLocal
-from app.models import utcnow
-from app.services import webhook_pflege, webhooks
-from app.services.arr import ArrError
+from app.services.beschaffung.arr import webhook_pflege, webhooks
 from app.services.settings_service import load_settings, save_settings
+
+from .beschaffung.fake_arr import SCHEMA_MOVIE, FakeArrRueckkanal
 
 RADARR = {
     "radarr_url": "http://127.0.0.1:7878",
     "radarr_api_key": "schluessel-r",
     "public_url": "http://nexview.test",
-}
-
-SCHEMA_MOVIE = {
-    "implementation": "Webhook",
-    "supportsOnDownload": True,
-    "supportsOnUpgrade": True,
-    "supportsOnMovieDelete": True,
-    "supportsOnMovieFileDelete": True,
-    "supportsOnGrab": True,
-    "supportsOnHealthIssue": True,
-    "supportsOnHealthRestored": True,
-    "supportsOnManualInteractionRequired": True,
 }
 
 RUDDARR = {
@@ -48,60 +36,9 @@ RUDDARR = {
 }
 
 
-class FakeArr:
-    """Radarr in klein: merkt sich Eintraege und was mit ihnen geschah."""
-
-    def __init__(self, kennung: str = "radarr-standard") -> None:
-        self.kennung = kennung
-        self.eintraege: list[dict] = []
-        self.schema: dict | None = dict(SCHEMA_MOVIE)
-        # "arrives" | "silent" | eine ArrError-Instanz
-        self.probe = "arrives"
-        # Jede Probe-Payload, wie sie bei der Instanz ankaeme.
-        self.proben: list[dict] = []
-        self.angelegt: list[dict] = []
-        self.nachgezogen: list[tuple[int, dict]] = []
-        self.geloescht: list[int] = []
-        self._naechste_id = 7
-
-    async def notifications(self) -> list[dict]:
-        return [dict(eintrag) for eintrag in self.eintraege]
-
-    async def notification_schema_webhook(self) -> dict | None:
-        return self.schema
-
-    async def notification_probe(self, payload: dict) -> None:
-        self.proben.append(dict(payload))
-        if isinstance(self.probe, ArrError):
-            raise self.probe
-        if self.probe == "arrives":
-            # Was im Betrieb der Empfaenger tut, wenn Sonarrs Test ankommt -
-            # in einer eigenen Sitzung, wie im echten Leben.
-            with SessionLocal() as db:
-                zeile = webhooks.eintrag(db, self.kennung)
-                zeile.bewiesen_am = utcnow()
-                zeile.zuletzt_angerufen_am = utcnow()
-                zeile.letztes_ereignis = "Test"
-                db.commit()
-
-    async def notification_anlegen(self, payload: dict) -> dict:
-        self.angelegt.append(payload)
-        eintrag = {**payload, "id": self._naechste_id}
-        self.eintraege.append(eintrag)
-        return eintrag
-
-    async def notification_nachziehen(self, eintrag_id: int, payload: dict) -> dict:
-        self.nachgezogen.append((eintrag_id, payload))
-        return {**payload, "id": eintrag_id}
-
-    async def notification_loeschen(self, eintrag_id: int) -> None:
-        self.geloescht.append(eintrag_id)
-        self.eintraege = [e for e in self.eintraege if e.get("id") != eintrag_id]
-
-
 @pytest.fixture()
-def fake(monkeypatch) -> FakeArr:
-    fake = FakeArr()
+def fake(monkeypatch) -> FakeArrRueckkanal:
+    fake = FakeArrRueckkanal()
     monkeypatch.setattr(webhook_pflege, "_client", lambda _instanz: fake)
     # Der Fehlerfall soll nicht fuenf echte Sekunden warten.
     monkeypatch.setattr(webhook_pflege, "BEWEIS_WARTEZEIT_SEKUNDEN", 0.6)

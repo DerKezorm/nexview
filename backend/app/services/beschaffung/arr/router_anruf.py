@@ -29,11 +29,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-from ..deps import DbSession
-from ..meldungen import fehler
-from ..models import utcnow
-from ..services import webhooks
-from ..services.settings_service import load_settings
+from ....deps import DbSession
+from ....meldungen import fehler
+from ....models import utcnow
+from ...settings_service import load_settings
+from . import webhooks
 
 logger = logging.getLogger("nexview.webhooks")
 

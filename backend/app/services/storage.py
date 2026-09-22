@@ -40,12 +40,12 @@ from ..models import (
     UserWatchedSeason,
     utcnow,
 )
-from . import library, logs, notify, quota, sonarr
-from .arr import ArrError
+from . import logs, notify, quota
+from .beschaffung import BeschaffungError, NichtsZuLoeschen, get_beschaffung
+from .beschaffung import FilmStand as MovieEntry
+from .beschaffung import SerienStand as SeriesEntry
 from .fassungen import arr_kennung
-from .radarr import LibraryEntry as MovieEntry
 from .settings_service import AppSettings
-from .sonarr import LibraryEntry as SeriesEntry
 
 logger = logging.getLogger("nexview.storage")
 
@@ -520,9 +520,9 @@ async def traeger(settings: AppSettings) -> list[Traeger]:
             if not settings.arr_configured(art, stufe):
                 continue
             try:
-                daten = await library.options(settings, art, stufe)
-                punkte = await library.datentraeger(settings, art, stufe)
-            except ArrError:
+                daten = await get_beschaffung(settings).optionen(art, stufe)
+                punkte = await get_beschaffung(settings).datentraeger(art, stufe)
+            except BeschaffungError:
                 continue
 
             for ordner in daten.get("root_folders") or []:
@@ -738,10 +738,10 @@ async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Geme
         if settings.arr_configured("movie", stufe.value):
             try:
                 for tmdb_id, eintrag in (
-                    await library.movie_library(settings, stufe.value)
+                    await get_beschaffung(settings).bestand_filme(stufe.value)
                 ).items():
                     _film_aufnehmen(gemessen, stufe, tmdb_id, eintrag)
-            except ArrError as fehler:
+            except BeschaffungError as fehler:
                 vollstaendig = False
                 logger.warning(
                     "Radarr (%s) not reachable, sizes left unchanged: %s",
@@ -751,10 +751,10 @@ async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Geme
 
         if settings.arr_configured("tv", stufe.value):
             try:
-                nach_tvdb, _ = await library.series_library(settings, stufe.value)
+                nach_tvdb, _ = await get_beschaffung(settings).bestand_serien(stufe.value)
                 for tvdb_id, eintrag in nach_tvdb.items():
                     _serie_aufnehmen(gemessen, stufe, tvdb_id, eintrag)
-            except ArrError as fehler:
+            except BeschaffungError as fehler:
                 vollstaendig = False
                 logger.warning(
                     "Sonarr (%s) not reachable, sizes left unchanged: %s",
@@ -813,16 +813,14 @@ async def _pakete_aufnehmen(
 
         merkmal = (stufe.value, anfrage.tvdb_id)
         if merkmal not in befunde:
-            client = library.sonarr_client(settings, stufe.value)
-            if client is None:
+            beschaffung = get_beschaffung(settings)
+            if not beschaffung.verwaltet("tv", stufe.value):
                 befunde[merkmal] = None
             else:
                 try:
-                    stand = await client.folgen_stand(staffelzeile.arr_id)
+                    stand = await beschaffung.folgen_stand(stufe.value, staffelzeile.arr_id)
                     dateien = (
-                        await client.get(
-                            "/episodefile", {"seriesId": staffelzeile.arr_id}
-                        )
+                        await beschaffung.episodendateien(stufe.value, staffelzeile.arr_id)
                         or []
                     )
                     groessen = {
@@ -831,7 +829,7 @@ async def _pakete_aufnehmen(
                         if isinstance(datei, dict) and datei.get("id")
                     }
                     befunde[merkmal] = (stand, groessen)
-                except ArrError as fehler:
+                except BeschaffungError as fehler:
                     logger.warning(
                         "Sonarr (%s) gave no episode files for series %s - "
                         "package sizes left unchanged: %s",
@@ -923,13 +921,13 @@ async def _staffeldaten_nachtragen(
     for stufe in (QualityTier.standard, QualityTier.uhd):
         if not settings.arr_configured("tv", stufe.value):
             continue
-        client = library.sonarr_client(settings, stufe.value)
-        if client is None:
+        beschaffung = get_beschaffung(settings)
+        if not beschaffung.verwaltet("tv", stufe.value):
             continue
         for serie_id, posten in list(offen.items()):
             try:
-                daten = await sonarr.staffel_daten(client, serie_id)
-            except ArrError as fehler:
+                daten = await beschaffung.staffel_daten(stufe.value, serie_id)
+            except BeschaffungError as fehler:
                 logger.warning(
                     "Sonarr (%s) gave no file dates for series %s: %s",
                     stufe.value,
@@ -1755,9 +1753,8 @@ async def entfolgen(db: Session, settings: AppSettings, posten_id: int) -> Poste
             409,
         )
 
-    client, arr_id = await _arr_eintrag(settings, zeile)
-    if client is not None and arr_id is not None:
-        await client.unmonitor_season(arr_id, zeile.season)
+    arr_id = await get_beschaffung(settings).posten_stilllegen(zeile)
+    if arr_id is not None:
         logger.info(
             "Handover decided: %r season %s frozen (arr_id=%s) - stays charged, will not grow",
             zeile.title,
@@ -1917,29 +1914,6 @@ class Loeschfehler(Exception):
         self.status_code = status_code
 
 
-async def _arr_eintrag(settings: AppSettings, zeile: StorageEntry):
-    """Wie heisst dieser Posten in Radarr bzw. Sonarr? ``(client, arr_id)``.
-
-    Ueber die Bibliothek und nicht ueber die Anfrage: Ein Posten kann ganz ohne
-    Anfrage entstanden sein (Altbestand), und eine zurueckgezogene Anfrage
-    darf das Loeschen nicht unmoeglich machen.
-    """
-    stufe = zeile.tier.value
-    if zeile.media_type == MediaType.movie:
-        client = library.radarr_client(settings, stufe)
-        if client is None or not zeile.tmdb_id:
-            return None, None
-        eintrag = (await library.movie_library(settings, stufe)).get(zeile.tmdb_id)
-        return client, (eintrag.arr_id if eintrag else None)
-
-    client = library.sonarr_client(settings, stufe)
-    if client is None or not zeile.tvdb_id:
-        return None, None
-    nach_tvdb, _ = await library.series_library(settings, stufe)
-    eintrag = nach_tvdb.get(zeile.tvdb_id)
-    return client, (eintrag.arr_id if eintrag else None)
-
-
 def _paket_folgen(db: Session, zeile: StorageEntry) -> list[int] | None:
     """Die Folgen eines Paket-Postens - ``None``, wenn es keiner ist.
 
@@ -1977,46 +1951,25 @@ async def dateien_fuer(
     if zeile is None:
         raise Loeschfehler("Diesen Posten gibt es nicht.", 404)
 
-    client, arr_id = await _arr_eintrag(settings, zeile)
-    if client is None or arr_id is None:
+    beschaffung = get_beschaffung(settings)
+    arr_id = await beschaffung.posten_kennung(zeile)
+    if arr_id is None:
         return []
 
     try:
-        if zeile.media_type == MediaType.movie:
-            filme = await library.movie_library(settings, zeile.tier.value)
-            eintrag = filme.get(zeile.tmdb_id or 0)
-            if eintrag is None or not eintrag.has_file:
-                return []
-            return [Datei(pfad=eintrag.path, size_bytes=eintrag.size_bytes)]
-
-        if zeile.season is None:
+        if zeile.media_type != MediaType.movie and zeile.season is None:
             raise Loeschfehler(
                 "Fuer eine ganze Serie gibt es hier keinen Loeschweg - "
                 "abgegeben wird staffelweise.",
                 400,
             )
-        dateien = await client.episode_files(arr_id, zeile.season)
-        folgen_nummern = _paket_folgen(db, zeile)
-        if folgen_nummern is not None:
-            # Ein Paket-Posten trifft nur die Dateien seiner eigenen Folgen.
-            stand = await client.folgen_stand(arr_id)
-            staffel = stand.get(zeile.season) or {}
-            eigene_dateien = {
-                folge.datei_id
-                for nummer in folgen_nummern
-                if (folge := staffel.get(nummer)) is not None and folge.datei_id
-            }
-            dateien = [
-                datei for datei in dateien if datei.get("id") in eigene_dateien
-            ]
         return [
-            Datei(
-                pfad=str(datei.get("path") or datei.get("relativePath") or ""),
-                size_bytes=int(datei.get("size") or 0),
+            Datei(pfad=pfad, size_bytes=groesse)
+            for pfad, groesse in await beschaffung.posten_dateien(
+                zeile, arr_id, lambda: _paket_folgen(db, zeile)
             )
-            for datei in dateien
         ]
-    except ArrError as fehler:
+    except BeschaffungError as fehler:
         raise Loeschfehler(fehler.message, 502) from fehler
 
 
@@ -2052,8 +2005,9 @@ async def loeschen(
             403,
         )
 
-    client, arr_id = await _arr_eintrag(settings, zeile)
-    if client is None or arr_id is None:
+    beschaffung = get_beschaffung(settings)
+    arr_id = await beschaffung.posten_kennung(zeile)
+    if arr_id is None:
         raise Loeschfehler(
             f"„{zeile.title}“ wird nicht mehr von Radarr bzw. Sonarr verwaltet. "
             "Nexview loescht ausschliesslich ueber diese Dienste und kann die "
@@ -2085,66 +2039,14 @@ async def loeschen(
     )
 
     try:
-        if zeile.media_type == MediaType.movie:
-            await client.remove(arr_id, delete_files=True)
-        else:
-            # ⚠️ **Erst stilllegen, dann loeschen.** Sonarr sucht fuer jede
-            # ueberwachte Staffel nach fehlenden Folgen; bliebe sie an, waere
-            # die Staffel beim naechsten Durchlauf wieder da - und der Nutzer,
-            # der abgegeben hat, saehe seinen Speicher erneut steigen.
-            #
-            # Die Reihenfolge ist der Punkt: Scheitert das Stilllegen, liegen
-            # die Dateien noch da und nichts ist verloren. Andersherum waeren
-            # sie weg **und** kaemen zurueck.
-            folgen_nummern = _paket_folgen(db, zeile)
-            if folgen_nummern is not None:
-                # Ein Paket-Posten: genau die eigenen Folgen stilllegen und
-                # nur deren Dateien loeschen - die Staffel gehoert anderen mit.
-                stand = await client.folgen_stand(arr_id)
-                staffel = stand.get(zeile.season) or {}
-                eigene = [
-                    folge
-                    for nummer in folgen_nummern
-                    if (folge := staffel.get(nummer)) is not None
-                ]
-                if eigene:
-                    await client.folgen_schalten(
-                        [folge.kennung for folge in eigene], False
-                    )
-                datei_ids = [folge.datei_id for folge in eigene if folge.datei_id]
-                if not datei_ids:
-                    raise Loeschfehler(
-                        "Sonarr meldet fuer dieses Folgen-Paket keine Dateien.",
-                        409,
-                    )
-                entfernt = await client.delete_episode_files(datei_ids)
-                logger.warning(
-                    "DELETE: removed %s of %s episode files of the package in season %s",
-                    entfernt,
-                    len(datei_ids),
-                    zeile.season,
-                )
-            else:
-                await client.unmonitor_season(arr_id, zeile.season)
-                kennungen = [
-                    int(datei["id"])
-                    for datei in await client.episode_files(arr_id, zeile.season)
-                    if datei.get("id")
-                ]
-                if not kennungen:
-                    raise Loeschfehler(
-                        f"Sonarr meldet fuer Staffel {zeile.season} keine Dateien.", 409
-                    )
-                entfernt = await client.delete_episode_files(kennungen)
-                logger.warning(
-                    "DELETE: removed %s of %s files of season %s",
-                    entfernt,
-                    len(kennungen),
-                    zeile.season,
-                )
+        # Film ganz, Staffel erst stilllegen und dann ihre Dateien, Paket nur
+        # die eigenen Folgen - wie, entscheidet der Weg (``posten_loeschen``).
+        await beschaffung.posten_loeschen(zeile, arr_id, lambda: _paket_folgen(db, zeile))
     except Loeschfehler:
         raise
-    except ArrError as fehler:
+    except NichtsZuLoeschen as fehler:
+        raise Loeschfehler(fehler.message, 409) from fehler
+    except BeschaffungError as fehler:
         # 404 heisst: dort schon weg - dann ist das Ziel ja erreicht.
         if fehler.status_code != 404:
             logger.error(
@@ -2171,7 +2073,7 @@ async def loeschen(
     geschlossen = _anfragen_schliessen(db, zeile)
     db.delete(zeile)
     db.flush()
-    library.invalidate()
+    beschaffung.bestand_verwerfen()
     logger.warning(
         "DELETE done: %r removed, %s bytes freed, %s request(s) closed",
         titel,

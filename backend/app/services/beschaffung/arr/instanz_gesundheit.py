@@ -32,10 +32,10 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import ArrGesundheit, NotificationType, utcnow
-from . import notify
-from .arr import ArrClient, ArrError
-from .settings_service import AppSettings, ArrInstanz
+from ....models import ArrGesundheit, NotificationType, utcnow
+from ... import notify
+from ...settings_service import AppSettings, ArrInstanz
+from .client import ArrClient, ArrError
 
 logger = logging.getLogger("nexview.gesundheit")
 

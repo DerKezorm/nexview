@@ -18,8 +18,8 @@ import secrets
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import crypto
-from ..models import ArrWebhook
+from .... import crypto
+from ....models import ArrWebhook
 
 # ⚠️ Ein Signal fuer alle Instanzen, nicht eines je Instanz: Der Rundgang
 # prueft ohnehin alles, was offen ist - zwei Anrufe verschiedener Instanzen

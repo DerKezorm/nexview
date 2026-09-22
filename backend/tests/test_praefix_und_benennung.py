@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.services import benennung
-from app.services import qualitaetsprofile as qp
+from app.services.beschaffung.arr import benennung
+from app.services.beschaffung.arr import qualitaetsprofile as qp
 
 
 class GespielteInstanz:

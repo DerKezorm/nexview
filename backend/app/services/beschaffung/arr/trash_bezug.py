@@ -27,7 +27,7 @@ from typing import Any
 
 import httpx
 
-from ..config import get_settings
+from ....config import get_settings
 from . import trash
 
 logger = logging.getLogger("nexview.qualitaet")

@@ -13,8 +13,9 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaServerLibraryItem, MediaType
-from app.services import abgleich, library, server_vergleich
-from app.services.radarr import LibraryEntry as FilmEintrag
+from app.services import abgleich, server_vergleich
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.radarr import LibraryEntry as FilmEintrag
 from app.services.settings_service import load_settings
 
 

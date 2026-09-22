@@ -25,9 +25,9 @@ from typing import Any
 
 from sqlalchemy import select
 
-from ..db import SessionLocal
-from ..models import Umbenennlauf, utcnow
-from .arr import ArrClient
+from ....db import SessionLocal
+from ....models import Umbenennlauf, utcnow
+from .client import ArrClient
 from .trash import schnappschuss
 
 logger = logging.getLogger("nexview.qualitaet")
@@ -576,7 +576,7 @@ def abgebrochene_aufnehmen() -> int:
     Gibt zurueck, wie viele Laeufe aufgenommen wurden.
     """
     # Erst hier holen: Beim Import waere ``settings_service`` noch nicht bereit.
-    from .settings_service import load_settings
+    from ...settings_service import load_settings
 
     offene = offene_laeufe()
     if not offene:

@@ -24,9 +24,12 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus, User
-from app.services import library, requests_service
-from app.services.arr import ArrError
+from app.services import requests_service
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.client import ArrError
 from app.services.settings_service import load_settings
+
+from .beschaffung.fake_arr import FakeArr
 
 
 async def _uebergeben(anfrage_bauen) -> MediaRequest:
@@ -95,20 +98,16 @@ async def test_werte_zum_einsetzen_liegen_bei(
     wäre schlechter als der deutsche Satz, den sie ersetzt.
     """
 
-    class Attrappe:
-        async def ensure_tag(self, _name: str) -> None:
-            return None
-
-        async def add(self, *_args: object, **_kwargs: object) -> None:
-            raise ArrError(
-                "Radarr antwortet nicht (Zeitüberschreitung).",
-                code="arr_timeout",
-                service="Radarr",
-            )
-
-    monkeypatch.setattr(
-        library, "radarr_client", lambda _settings, _tier="standard": Attrappe()
+    attrappe = FakeArr(
+        art="movie",
+        tag_id=None,
+        anlege_fehler=ArrError(
+            "Radarr antwortet nicht (Zeitüberschreitung).",
+            code="arr_timeout",
+            service="Radarr",
+        ),
     )
+    monkeypatch.setattr(library, "radarr_client", lambda _settings, _tier="standard": attrappe)
 
     anfrage = await _uebergeben(
         lambda user_id: MediaRequest(
@@ -136,16 +135,8 @@ async def test_geglueckte_uebergabe_raeumt_die_alte_meldung_weg(
 ) -> None:
     """Sonst klebt die Begründung von gestern an einer Anfrage, die längst läuft."""
 
-    class Attrappe:
-        async def ensure_tag(self, _name: str) -> None:
-            return None
-
-        async def add(self, *_args: object, **_kwargs: object) -> dict[str, int]:
-            return {"id": 4711}
-
-    monkeypatch.setattr(
-        library, "radarr_client", lambda _settings, _tier="standard": Attrappe()
-    )
+    attrappe = FakeArr(art="movie", arr_id=4711, tag_id=None)
+    monkeypatch.setattr(library, "radarr_client", lambda _settings, _tier="standard": attrappe)
 
     with SessionLocal() as db:
         benutzer = db.query(User).filter(User.username == "admin").one()
@@ -183,15 +174,7 @@ async def test_fehlende_tvdb_kennung_wird_frisch_nachgeschlagen(
     anfangs regelmaessig. Ohne den Nachschlag scheiterte dieselbe Serie eine
     Woche lang mit einer Begruendung, die laengst nicht mehr stimmte.
     """
-    angelegt: list[tuple[int, int | None]] = []
-
-    class SonarrAttrappe:
-        async def ensure_tag(self, _name: str) -> None:
-            return None
-
-        async def add(self, tvdb_id: int, *_args: object, **kwargs: object) -> dict:
-            angelegt.append((tvdb_id, kwargs.get("season")))
-            return {"id": 4711}
+    attrappe = FakeArr(art="tv", arr_id=4711, tag_id=None)
 
     async def bibliothek(_settings: object, _tier: str = "standard"):
         return {}, {}
@@ -200,7 +183,7 @@ async def test_fehlende_tvdb_kennung_wird_frisch_nachgeschlagen(
         assert tmdb_id == 331616
         return 481321
 
-    monkeypatch.setattr(library, "sonarr_client", lambda _s, _t="standard": SonarrAttrappe())
+    monkeypatch.setattr(library, "sonarr_client", lambda _s, _t="standard": attrappe)
     monkeypatch.setattr(library, "series_library", bibliothek)
     monkeypatch.setattr(
         requests_service.media, "tvdb_kennung_nachschlagen", nachschlag
@@ -228,7 +211,7 @@ async def test_fehlende_tvdb_kennung_wird_frisch_nachgeschlagen(
 
         assert anfrage.tvdb_id == 481321
         assert anfrage.status == RequestStatus.searching
-        assert angelegt == [(481321, 1)]
+        assert attrappe.angelegt == [{"tvdb_id": 481321, "season": 1}]
 
 
 @pytest.mark.asyncio
@@ -240,11 +223,9 @@ async def test_ohne_kennung_bleibt_es_beim_fehler(
     async def nachschlag(_db: object, _settings: object, _tmdb_id: int) -> None:
         return None
 
-    class SonarrAttrappe:
-        async def ensure_tag(self, _name: str) -> None:
-            return None
-
-    monkeypatch.setattr(library, "sonarr_client", lambda _s, _t="standard": SonarrAttrappe())
+    monkeypatch.setattr(
+        library, "sonarr_client", lambda _s, _t="standard": FakeArr(art="tv", tag_id=None)
+    )
     monkeypatch.setattr(
         requests_service.media, "tvdb_kennung_nachschlagen", nachschlag
     )

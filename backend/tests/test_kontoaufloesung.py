@@ -29,11 +29,11 @@ from app.models import (
     TicketStatus,
     User,
 )
-from app.services import library
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.radarr import LibraryEntry as MovieEntry
+from app.services.beschaffung.arr.sonarr import LibraryEntry as SeriesEntry
+from app.services.beschaffung.arr.sonarr import Staffelstand
 from app.services.fassungen import arr_kennung
-from app.services.radarr import LibraryEntry as MovieEntry
-from app.services.sonarr import LibraryEntry as SeriesEntry
-from app.services.sonarr import Staffelstand
 
 from .conftest import auth_headers, create_user
 

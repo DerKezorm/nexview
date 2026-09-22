@@ -1008,13 +1008,12 @@ def wiederherstellen(daten: bytes, passwort: str) -> Befund:
         if beilagen:
             logger.info("Restored %d accompanying file(s)", len(beilagen))
 
-        # ⚠️ **Der TRaSH-Stand wird gemerkt.** Ohne das Leeren arbeitet der
-        # laufende Prozess bis zum Neustart mit dem Abzug von vor dem Einspielen
-        # weiter - und misst die gerade eingespielten Qualitaetsprofile gegen einen
-        # Stand, den sie nie gesehen haben.
-        from .trash import schnappschuss
+        # ⚠️ **Gemerkte Staende der Beschaffung vergessen** (etwa den
+        # TRaSH-Stand): Sonst misst der laufende Prozess die gerade eingespielten
+        # Qualitaetsprofile gegen einen Stand, den sie nie gesehen haben.
+        from . import beschaffung
 
-        schnappschuss.cache_clear()
+        beschaffung.nach_wiederherstellung()
 
         # ⚠️ **Und der abgeleitete Verschluesselungsschluessel genauso.** Ein paar
         # Zeilen weiter oben kann gerade ein fremdes ``secret.key`` geschrieben

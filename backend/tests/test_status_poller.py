@@ -7,10 +7,11 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.models import MediaRequest, RequestStatus, User
-from app.services import library, status_poller
-from app.services.radarr import LibraryEntry as MovieEntry
+from app.services import status_poller
+from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.radarr import LibraryEntry as MovieEntry
+from app.services.beschaffung.arr.sonarr import LibraryEntry as SeriesEntry
 from app.services.settings_service import load_settings
-from app.services.sonarr import LibraryEntry as SeriesEntry
 
 from .conftest import auth_headers, create_user
 

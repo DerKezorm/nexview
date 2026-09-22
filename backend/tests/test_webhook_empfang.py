@@ -22,7 +22,7 @@ import asyncio
 import pytest
 
 from app.db import SessionLocal
-from app.services import webhooks
+from app.services.beschaffung.arr import webhooks
 from app.services.settings_service import save_settings
 
 RADARR = {"radarr_url": "http://127.0.0.1:7878", "radarr_api_key": "schluessel-r"}

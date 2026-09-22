@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import InstanzStand
 from app.services import instanz_stand
-from app.services.arr import ArrClient, ArrError
+from app.services.beschaffung.arr.client import ArrClient, ArrError
 from app.services.settings_service import load_settings
 
 

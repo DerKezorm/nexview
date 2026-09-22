@@ -327,6 +327,54 @@ SerienBestand = tuple[dict[int, SerienStand], dict[str, SerienStand]]
 
 
 # --------------------------------------------------------------------------
+# Nachschlagen: die Normalform des Lesens (Bauplan Abschnitt 3.1)
+
+
+@dataclass(frozen=True)
+class Nachschlag:
+    """Wonach gefragt wird: **ein Titel in einer Fassung**.
+
+    Die Normalform des Lesens. Vorher holte jeder Aufrufer die ganze
+    Bibliothek je Stufe und suchte sich seinen Titel heraus - bei Serien ueber
+    die TVDB-Kennung mit dem Titel als Rueckfall. Das ist eine Arr-Eigenheit:
+    nexcrate ankert auf TMDB und beantwortet einen Stapel Kennungen in einem
+    Aufruf (N12).
+
+    ``tvdb_id``, ``titel`` und ``jahr`` stehen nur fuer den ARR-Weg dabei, der
+    seinen Rueckfall braucht; der NEX-Weg sieht sie nie an.
+    """
+
+    media_type: str
+    #: Die Kennung der Fassung - nicht mehr die Stufe (Bauplan Abschnitt 2).
+    fassung: str
+    tmdb_id: int
+    tvdb_id: int | None = None
+    titel: str = ""
+    jahr: int | None = None
+
+
+@dataclass(frozen=True)
+class Nachschlagen:
+    """Was beim Nachschlagen herauskam.
+
+    ⚠️ **``gelesen`` ist der Unterschied zwischen „weg" und „nicht gefragt".**
+    Eine nicht eingerichtete oder stumme Quelle liefert nichts; daraus „der
+    Titel ist verschwunden" zu folgern hiesse, bei einem Ausfall reihenweise
+    Anfragen abzubrechen. Hier steht deshalb, welche Fassungen wirklich
+    geantwortet haben.
+    """
+
+    treffer: dict[Nachschlag, FilmStand | SerienStand]
+    gelesen: frozenset[tuple[str, str]]
+
+    def stand(self, wonach: Nachschlag) -> FilmStand | SerienStand | None:
+        return self.treffer.get(wonach)
+
+    def hat_geantwortet(self, wonach: Nachschlag) -> bool:
+        return (wonach.media_type, wonach.fassung) in self.gelesen
+
+
+# --------------------------------------------------------------------------
 # Titel vergleichen - ohne Anbieter, deshalb hier
 
 
@@ -421,15 +469,34 @@ class Beschaffung(ABC):
     # -- Bestand --------------------------------------------------------------
 
     @abstractmethod
+    def instanzen(self) -> tuple[Any, ...]:
+        """Die Instanzen, die gemessen werden - Kennung, Name, Adresse.
+
+        Im ARR-Betrieb bis zu vier (eine je Stufe und Medienart), im
+        NEX-Betrieb genau eine. Sie sind **nicht** dasselbe wie Fassungen: Eine
+        Instanz ist etwas, das erreichbar sein kann und eine Version hat; eine
+        Fassung ist eine Art, in der ein Titel vorliegt. Bei Arr fallen beide
+        zusammen, bei nexcrate nicht.
+        """
+
+    @abstractmethod
     def verwaltet(self, media_type: str, stufe: str = "standard") -> bool:
         """Gibt es fuer Art und Stufe etwas, das beschafft?"""
 
     @abstractmethod
-    async def bestand_filme(self, stufe: str = "standard") -> dict[int, FilmStand]:
-        """Alle Filme der Fassung, nach TMDB-Kennung."""
+    async def bestand_filme(
+        self, stufe: str = "standard", *, fassung: str = ""
+    ) -> dict[int, FilmStand]:
+        """Alle Filme der Fassung, nach TMDB-Kennung.
+
+        ``fassung`` ist die Kennung und geht vor; ohne sie gilt die Stufe (und
+        im NEX-Betrieb die Hauptfassung). Siehe ``status_setzen``.
+        """
 
     @abstractmethod
-    async def bestand_serien(self, stufe: str = "standard") -> SerienBestand:
+    async def bestand_serien(
+        self, stufe: str = "standard", *, fassung: str = ""
+    ) -> SerienBestand:
         """Alle Serien der Fassung, nach TVDB-Kennung und nach Titel."""
 
     @classmethod
@@ -438,15 +505,31 @@ class Beschaffung(ABC):
         """Zwischengespeicherten Bestand vergessen (nach einem Auftrag)."""
 
     @abstractmethod
+    async def nachschlagen(self, gesucht: list[Nachschlag]) -> Nachschlagen:
+        """Den Stand vieler Titel auf einmal - die Normalform des Lesens.
+
+        Der ARR-Weg holt dafuer die Bibliothek je Fassung (wie bisher, 60 s im
+        Speicher) und loest jeden Eintrag ueber TVDB oder Titel auf; der
+        NEX-Weg fragt ``POST /titles/lookup`` im Stapel zu hundert (N12).
+        """
+
+    @abstractmethod
     async def status_setzen(
         self,
         media_type: str,
         items: list[MediaItem],
         stufe: str = "standard",
         *,
+        fassung: str = "",
         mit_pfad: bool = False,
     ) -> Any:
-        """Kacheln mit dem Stand der Fassung versehen (``.items``, ``.warning``)."""
+        """Kacheln mit dem Stand der Fassung versehen (``.items``, ``.warning``).
+
+        ``fassung`` ist die Kennung und geht vor; ohne sie gilt die Stufe (und
+        im NEX-Betrieb die Hauptfassung der Medienart). Beides steht hier, weil
+        die Grenze bis Scheibe 8 an beiden Enden bedient wird: Der ARR-Weg
+        rechnet in Stufen, nexcrate kennt sie nicht.
+        """
 
     @abstractmethod
     async def folgen_verfuegbarkeit(

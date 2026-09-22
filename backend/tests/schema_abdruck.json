@@ -677,6 +677,11 @@
       "ux_download_haenger_download"
     ],
     "spalten": {
+      "aktionen": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
       "arr_id": {
         "leer_erlaubt": true,
         "schluessel": false,

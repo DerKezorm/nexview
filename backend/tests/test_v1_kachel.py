@@ -28,7 +28,11 @@ def test_die_kachel_liefert_alle_zugesagten_teile(admin_client: TestClient) -> N
         "bibliothek",
         "instanzen",
         "tickets_offen",
+        # Additiv seit Scheibe 5: ueber welchen Weg beschafft wird. Eine
+        # Kachel, die es kennt, nennt nexcrate statt Radarr.
+        "beschaffung",
     }
+    assert kachel["beschaffung"] == "arr"
     assert set(kachel["befunde"]) == {"fehler", "warnung", "hinweis", "dringendste"}
     assert set(kachel["anfragen"]) == {"wartend", "laufend", "fehlgeschlagen_7d"}
     assert set(kachel["bibliothek"]) == {

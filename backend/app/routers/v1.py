@@ -79,6 +79,7 @@ from ..services import befunde as befunde_service
 from ..services import beschaffung, channel_outbox, channel_verify, channels, instanz_stand
 from ..services import storage as storage_service
 from ..services import tickets as tickets_service
+from ..services.beschaffung import ARR, get_beschaffung
 from ..services.settings_service import load_settings
 from . import about as about_router
 from . import admin_requests, discover, home, notifications, requests, storage, tickets
@@ -298,6 +299,10 @@ class Kachel(BaseModel):
     bibliothek: KachelBibliothek
     instanzen: list[KachelInstanz]
     tickets_offen: int
+    #: Ueber welchen Weg diese Installation beschafft: ``arr`` oder ``nex``.
+    #: Additiv zur Zusage - eine Kachel, die sie kennt, kann „Radarr" durch
+    #: „nexcrate" ersetzen, statt einen Namen zu raten.
+    beschaffung: str = ARR
 
 
 @router.get(
@@ -419,11 +424,12 @@ def kachel(admin: AdminUser, db: DbSession) -> Kachel:
                 ),
                 probleme=probleme(instanz.kennung),
             )
-            for instanz in settings.arr_instanzen()
+            for instanz in get_beschaffung(settings).instanzen()
         ],
         tickets_offen=len(
             tickets_service.sichtbare_tickets(db, admin, status=TicketStatus.open)
         ),
+        beschaffung=settings.beschaffung,
     )
 
 

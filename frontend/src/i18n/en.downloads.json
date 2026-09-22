@@ -232,6 +232,94 @@
       "unbekannt": {
         "titel": "Nexview does not know this reason",
         "hilfe": "The message below is the original wording of Radarr or Sonarr. Nexview does not guess here."
+      },
+      "path_not_found": {
+        "titel": "Folder not found",
+        "hilfe": "nexcrate cannot find the target folder. Does it still exist, and may nexcrate write there?"
+      },
+      "packed": {
+        "titel": "Still packed",
+        "hilfe": "The download contains an archive. nexcrate does not unpack - the download client has to."
+      },
+      "no_video": {
+        "titel": "No video",
+        "hilfe": "There is no video file in the download. Usually a sample or a misnamed file."
+      },
+      "no_space": {
+        "titel": "No space",
+        "hilfe": "There is no space left on the target."
+      },
+      "gone_from_client": {
+        "titel": "Gone from the client",
+        "hilfe": "The download client no longer knows this job."
+      },
+      "client_error": {
+        "titel": "Download client error",
+        "hilfe": "The download client reports an error."
+      },
+      "import_failed": {
+        "titel": "Filing failed",
+        "hilfe": "nexcrate could not move the file into place."
+      },
+      "dangerous_file": {
+        "titel": "Suspicious file",
+        "hilfe": "The download contains an executable. nexcrate will not touch it."
+      },
+      "encrypted": {
+        "titel": "Encrypted",
+        "hilfe": "The archive is protected by a password."
+      },
+      "client_unreachable": {
+        "titel": "Download client unreachable",
+        "hilfe": "nexcrate cannot reach the download client right now."
+      },
+      "stalled": {
+        "titel": "Stalled",
+        "hilfe": "No data has arrived for a while."
+      },
+      "files_unassigned": {
+        "titel": "Files unassigned",
+        "hilfe": "nexcrate does not know which episode the files belong to."
+      },
+      "other_series_suspected": {
+        "titel": "Another series suspected",
+        "hilfe": "The files look like they belong to a different series."
+      },
+      "several_videos": {
+        "titel": "Several videos",
+        "hilfe": "There are several video files; someone has to say which one counts."
+      },
+      "import_stalled": {
+        "titel": "Filing stalled",
+        "hilfe": "Filing is not making progress."
+      },
+      "too_many_files": {
+        "titel": "Too many files",
+        "hilfe": "There are more files in the download than expected."
+      },
+      "multi_part": {
+        "titel": "Multi-part",
+        "hilfe": "The download consists of several parts."
+      },
+      "no_audio": {
+        "titel": "No audio",
+        "hilfe": "There is no audio file in the download."
+      },
+      "album_single_file": {
+        "titel": "Album in one file",
+        "hilfe": "The album comes as a single file."
+      },
+      "album_not_better": {
+        "titel": "Not better",
+        "hilfe": "The downloaded edition is not better than the one already there."
+      },
+      "album_tracks_missing": {
+        "titel": "Tracks missing",
+        "hilfe": "The album is missing tracks."
+      },
+      "download_failed": {
+        "titel": "Failed",
+        "hilfe": "The download failed and waits for someone to clear it."
       }
     }
   }

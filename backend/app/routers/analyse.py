@@ -44,7 +44,7 @@ from ..services import beschaffung, instanz_stand, logs, mail_outbox, sicherung
 from ..services import server_vergleich as vergleich_dienst
 from ..services import updates as updates_dienst
 from ..services import wiedergaben as wiedergaben_dienst
-from ..services.beschaffung import normalize_title
+from ..services.beschaffung import get_beschaffung, normalize_title
 from ..services.mediaserver import MediaServerError, media_server_for_setup
 from ..services.settings_service import load_settings
 
@@ -148,7 +148,7 @@ def _instanzen(db, settings) -> list[InstanzZeile]:
     webhooks = {zeile.kennung: zeile for zeile in db.scalars(select(ArrWebhook))}
     haenger = beschaffung.haenger_je_instanz(db)
     zeilen: list[InstanzZeile] = []
-    for instanz in settings.arr_instanzen():
+    for instanz in get_beschaffung(settings).instanzen():
         stand = staende.get(instanz.kennung)
         messwerte = (stand.messwerte or {}) if stand else {}
         warteschlange = messwerte.get("warteschlange") or {}

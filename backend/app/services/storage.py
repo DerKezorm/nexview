@@ -39,8 +39,8 @@ from ..models import (
     UserWatchedSeason,
     utcnow,
 )
-from . import logs, notify, quota
-from .beschaffung import BeschaffungError, NichtsZuLoeschen, get_beschaffung
+from . import fassungen, logs, notify, quota
+from .beschaffung import NEX, BeschaffungError, NichtsZuLoeschen, get_beschaffung
 from .beschaffung import FilmStand as MovieEntry
 from .beschaffung import SerienStand as SeriesEntry
 from .fassungen import arr_kennung
@@ -85,6 +85,12 @@ def schluessel(
     TVDB-Nummer (die kennt Sonarr). Nicht mischen: Sonst entstuende derselbe
     Titel zweimal, je nachdem welche Quelle ihn zuerst gemeldet hat.
 
+    ⚠️ **Im NEX-Betrieb haengen auch Serien an TMDB** (Bauplan 6.5): nexcrate
+    ankert dort, und eine TVDB-Nummer kennt es nur nebenbei. Welcher Anker
+    gilt, sagt die Fassung selbst - nicht die eingestellte Betriebsart: Nach
+    dem Umschalten stehen beide Sorten Posten nebeneinander, und ein Posten
+    aus der Arr-Zeit muss seinen Schluessel behalten.
+
     ``request_id`` macht daraus die Kennung eines **Folgen-Pakets**
     (``...:s2:r17``): Ein Paket belegt nur die Dateien seiner Folgen, und der
     Rest der Staffel wird getrennt gefuehrt - zwei Posten, zwei Kennungen.
@@ -97,9 +103,15 @@ def schluessel(
     art = media_type.value if isinstance(media_type, MediaType) else str(media_type)
     if art == MediaType.movie.value:
         return f"movie:{fassung}:tmdb:{tmdb_id}" if tmdb_id else None
-    if not tvdb_id:
-        return None
-    basis = f"tv:{fassung}:tvdb:{tvdb_id}:s{season if season is not None else 0}"
+    if fassungen.quelle(fassung) == NEX:
+        if not tmdb_id:
+            return None
+        anker = f"tmdb:{tmdb_id}"
+    else:
+        if not tvdb_id:
+            return None
+        anker = f"tvdb:{tvdb_id}"
+    basis = f"tv:{fassung}:{anker}:s{season if season is not None else 0}"
     return f"{basis}:r{request_id}" if request_id else basis
 
 
@@ -517,6 +529,9 @@ async def traeger(settings: AppSettings) -> list[Traeger]:
     # Zweifel.
     gefunden: dict[int, tuple[int, list[str]]] = {}
 
+    if settings.beschaffung_ist_nex:
+        return await _traeger_nex(settings)
+
     for art in ("movie", "tv"):
         for stufe in ("standard", "uhd"):
             if not settings.arr_configured(art, stufe):
@@ -545,6 +560,40 @@ async def traeger(settings: AppSettings) -> list[Traeger]:
                         pfade.append(pfad)
                     gefunden[gesamt] = (min(bisher[0], frei), pfade)
 
+    return [
+        Traeger(gesamt=gesamt, frei=frei, ordner=tuple(sorted(pfade)))
+        for gesamt, (frei, pfade) in sorted(gefunden.items())
+    ]
+
+
+async def _traeger_nex(settings: AppSettings) -> list[Traeger]:
+    """Die Datentraeger, die nexcrate meldet.
+
+    ⚠️ **Keine Zielordner.** Ordner gehoeren im NEX-Betrieb nexcrate; es
+    meldet den Platz je Fassung samt Datentraeger, und die Grenze faltet das
+    schon ueber den Traeger (sonst stuende dieselbe Platte vierfach da). Hier
+    bleibt deshalb nur, die Zahlen zu uebernehmen - der Name des Traegers
+    steht als „Ordner", damit die Anzeige etwas zu nennen hat.
+    """
+    try:
+        punkte = await get_beschaffung(settings).datentraeger("movie")
+    except BeschaffungError:
+        return []
+    gefunden: dict[int, tuple[int, list[str]]] = {}
+    for punkt in punkte:
+        gesamt = punkt.get("totalSpace")
+        frei = punkt.get("freeSpace")
+        name = str(punkt.get("path") or "")
+        if not isinstance(gesamt, int) or not isinstance(frei, int) or frei <= 0:
+            continue
+        bisher = gefunden.get(gesamt)
+        if bisher is None:
+            gefunden[gesamt] = (frei, [name])
+        else:
+            pfade = bisher[1]
+            if name not in pfade:
+                pfade.append(name)
+            gefunden[gesamt] = (min(bisher[0], frei), pfade)
     return [
         Traeger(gesamt=gesamt, frei=frei, ordner=tuple(sorted(pfade)))
         for gesamt, (frei, pfade) in sorted(gefunden.items())
@@ -737,31 +786,37 @@ async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Geme
     gemessen: dict[str, _Gemessen] = {}
     vollstaendig = True
 
-    for stufe in ("standard", "uhd"):
-        if settings.arr_configured("movie", stufe):
+    # ⚠️ **Je Fassung, nicht je Stufe.** Im ARR-Betrieb ist das dasselbe - eine
+    # Fassung ist dort eine Instanz. Im NEX-Betrieb gibt es keine Stufen mehr,
+    # und eine Schleife ueber ("standard", "uhd") haette dort gar nichts
+    # gemessen.
+    beschaffung = get_beschaffung(settings)
+    for eintrag_fassung in beschaffung.fassungen():
+        kennung = eintrag_fassung.kennung
+        stufe = fassungen.stufe(kennung)
+        if eintrag_fassung.media_type == "movie":
             try:
-                for tmdb_id, eintrag in (
-                    await get_beschaffung(settings).bestand_filme(stufe)
-                ).items():
-                    _film_aufnehmen(gemessen, stufe, tmdb_id, eintrag)
+                gefunden = await beschaffung.bestand_filme(stufe, fassung=kennung)
+                for tmdb_id, eintrag in gefunden.items():
+                    _film_aufnehmen(gemessen, kennung, tmdb_id, eintrag)
             except BeschaffungError as fehler:
                 vollstaendig = False
                 logger.warning(
-                    "Radarr (%s) not reachable, sizes left unchanged: %s",
-                    stufe,
+                    "Movies (%s) not reachable, sizes left unchanged: %s",
+                    kennung,
                     logs.kennung(fehler),
                 )
 
-        if settings.arr_configured("tv", stufe):
+        if eintrag_fassung.media_type == "tv":
             try:
-                nach_tvdb, _ = await get_beschaffung(settings).bestand_serien(stufe)
+                nach_tvdb, _ = await beschaffung.bestand_serien(stufe, fassung=kennung)
                 for tvdb_id, eintrag in nach_tvdb.items():
-                    _serie_aufnehmen(gemessen, stufe, tvdb_id, eintrag)
+                    _serie_aufnehmen(gemessen, kennung, tvdb_id, eintrag)
             except BeschaffungError as fehler:
                 vollstaendig = False
                 logger.warning(
-                    "Sonarr (%s) not reachable, sizes left unchanged: %s",
-                    stufe,
+                    "Series (%s) not reachable, sizes left unchanged: %s",
+                    kennung,
                     logs.kennung(fehler),
                 )
 
@@ -921,10 +976,8 @@ async def _staffeldaten_nachtragen(
     if not offen:
         return
 
-    for stufe in ("standard", "uhd"):
-        if not settings.arr_configured("tv", stufe):
-            continue
-        beschaffung = get_beschaffung(settings)
+    beschaffung = get_beschaffung(settings)
+    for stufe in {fassungen.stufe(f.kennung) for f in beschaffung.fassungen() if f.media_type == "tv"}:
         if not beschaffung.verwaltet("tv", stufe):
             continue
         for serie_id, posten in list(offen.items()):
@@ -950,19 +1003,19 @@ async def _staffeldaten_nachtragen(
 
 def _film_aufnehmen(
     ziel: dict[str, _Gemessen],
-    stufe: str,
+    fassung: str,
     tmdb_id: int,
     eintrag: MovieEntry,
 ) -> None:
     if eintrag.size_bytes <= 0:
         return
-    kennung = schluessel(MediaType.movie, arr_kennung(MediaType.movie, stufe), tmdb_id=tmdb_id)
+    kennung = schluessel(MediaType.movie, fassung, tmdb_id=tmdb_id)
     if kennung is None:
         return
     ziel[kennung] = _Gemessen(
         key=kennung,
         media_type=MediaType.movie,
-        tier=stufe,
+        tier=fassungen.stufe(fassung),
         tmdb_id=tmdb_id,
         tvdb_id=None,
         season=None,
@@ -975,7 +1028,7 @@ def _film_aufnehmen(
 
 def _serie_aufnehmen(
     ziel: dict[str, _Gemessen],
-    stufe: str,
+    fassung: str,
     tvdb_id: int,
     eintrag: SeriesEntry,
 ) -> None:
@@ -990,7 +1043,13 @@ def _serie_aufnehmen(
         if bytes_ <= 0:
             continue
         kennung = schluessel(
-            MediaType.tv, arr_kennung(MediaType.tv, stufe), tvdb_id=tvdb_id, season=staffel
+            MediaType.tv,
+            fassung,
+            tvdb_id=tvdb_id if fassungen.quelle(fassung) != NEX else None,
+            # Im NEX-Betrieb ankert die Serie auf TMDB - dort ist ``arr_id``
+            # des Eintrags genau diese Nummer (Bauplan 6.5).
+            tmdb_id=eintrag.arr_id or None,
+            season=staffel,
         )
         if kennung is None:
             continue
@@ -998,8 +1057,8 @@ def _serie_aufnehmen(
         ziel[kennung] = _Gemessen(
             key=kennung,
             media_type=MediaType.tv,
-            tier=stufe,
-            tmdb_id=None,
+            tier=fassungen.stufe(fassung),
+            tmdb_id=eintrag.arr_id or None if fassungen.quelle(fassung) == NEX else None,
             tvdb_id=tvdb_id,
             season=staffel,
             title=eintrag.title,
@@ -1468,10 +1527,13 @@ def verbuchen(
         return 0
 
     gemessen: dict[str, _Gemessen] = {}
+    # Die Fassung der Anfrage, nicht ihre Stufe: Im NEX-Betrieb gibt es keine
+    # Stufen, und im ARR-Betrieb ist die Kennung dieselbe Aussage.
+    fassung = request.fassung_kennung
     stufe = request.tier or "standard"
 
     if request.media_type == MediaType.movie:
-        _film_aufnehmen(gemessen, stufe, request.tmdb_id, eintrag)  # type: ignore[arg-type]
+        _film_aufnehmen(gemessen, fassung, request.tmdb_id, eintrag)  # type: ignore[arg-type]
     elif request.episodes and request.tvdb_id:
         # Ein Folgen-Paket bekommt seine eigene Zeile - mit der Summe der
         # eigenen Episodendateien, die der Aufrufer gerade gemessen hat. Ohne
@@ -1479,8 +1541,9 @@ def verbuchen(
         # die Groesse nach.
         kennung = schluessel(
             MediaType.tv,
-            arr_kennung(MediaType.tv, stufe),
+            fassung,
             tvdb_id=request.tvdb_id,
+            tmdb_id=request.tmdb_id,
             season=request.season,
             request_id=request.id,
         )
@@ -1497,14 +1560,15 @@ def verbuchen(
                 path=str(getattr(eintrag, "path", "") or ""),
                 arr_id=getattr(eintrag, "arr_id", None),
             )
-    elif request.tvdb_id:
-        _serie_aufnehmen(gemessen, stufe, request.tvdb_id, eintrag)  # type: ignore[arg-type]
+    elif request.tvdb_id or fassungen.quelle(fassung) == NEX:
+        _serie_aufnehmen(gemessen, fassung, request.tvdb_id or 0, eintrag)  # type: ignore[arg-type]
         # Eine Anfrage auf **eine** Staffel darf auch nur diese eine belasten.
         if request.season is not None:
             nur = schluessel(
                 MediaType.tv,
-                arr_kennung(MediaType.tv, stufe),
+                fassung,
                 tvdb_id=request.tvdb_id,
+                tmdb_id=request.tmdb_id,
                 season=request.season,
             )
             gemessen = {k: v for k, v in gemessen.items() if k == nur}

@@ -232,6 +232,94 @@
       "unbekannt": {
         "titel": "Nexview kennt diesen Grund nicht",
         "hilfe": "Die Meldung darunter steht im Wortlaut von Radarr bzw. Sonarr. Nexview rät hier nicht."
+      },
+      "path_not_found": {
+        "titel": "Ordner nicht gefunden",
+        "hilfe": "nexcrate findet den Ablageort nicht. Steht der Ordner noch, und darf nexcrate hinein?"
+      },
+      "packed": {
+        "titel": "Noch verpackt",
+        "hilfe": "Im Download liegt ein Archiv. nexcrate packt nichts aus - das Download-Programm muss es tun."
+      },
+      "no_video": {
+        "titel": "Kein Video",
+        "hilfe": "Im Download ist keine Videodatei. Meist ein Sample oder eine falsch benannte Datei."
+      },
+      "no_space": {
+        "titel": "Kein Platz",
+        "hilfe": "Auf dem Ziel ist kein Platz mehr."
+      },
+      "gone_from_client": {
+        "titel": "Im Programm verschwunden",
+        "hilfe": "Das Download-Programm kennt den Auftrag nicht mehr."
+      },
+      "client_error": {
+        "titel": "Fehler im Download-Programm",
+        "hilfe": "Das Download-Programm meldet einen Fehler."
+      },
+      "import_failed": {
+        "titel": "Ablegen fehlgeschlagen",
+        "hilfe": "nexcrate konnte die Datei nicht an ihren Platz legen."
+      },
+      "dangerous_file": {
+        "titel": "Verdächtige Datei",
+        "hilfe": "Im Download steckt eine ausführbare Datei. nexcrate fasst sie nicht an."
+      },
+      "encrypted": {
+        "titel": "Verschlüsselt",
+        "hilfe": "Das Archiv ist mit einem Kennwort geschützt."
+      },
+      "client_unreachable": {
+        "titel": "Download-Programm nicht erreichbar",
+        "hilfe": "nexcrate erreicht das Download-Programm gerade nicht."
+      },
+      "stalled": {
+        "titel": "Steht still",
+        "hilfe": "Seit längerem kommen keine Daten mehr an."
+      },
+      "files_unassigned": {
+        "titel": "Dateien ohne Zuordnung",
+        "hilfe": "nexcrate weiß nicht, zu welcher Folge die Dateien gehören."
+      },
+      "other_series_suspected": {
+        "titel": "Andere Serie vermutet",
+        "hilfe": "Die Dateien sehen nach einer anderen Serie aus."
+      },
+      "several_videos": {
+        "titel": "Mehrere Videos",
+        "hilfe": "Im Download sind mehrere Videodateien; welche gilt, muss jemand sagen."
+      },
+      "import_stalled": {
+        "titel": "Ablegen hängt",
+        "hilfe": "Das Ablegen kommt nicht voran."
+      },
+      "too_many_files": {
+        "titel": "Zu viele Dateien",
+        "hilfe": "Im Download sind mehr Dateien, als zu erwarten waren."
+      },
+      "multi_part": {
+        "titel": "Mehrteilig",
+        "hilfe": "Der Download besteht aus mehreren Teilen."
+      },
+      "no_audio": {
+        "titel": "Kein Ton",
+        "hilfe": "Im Download ist keine Audiodatei."
+      },
+      "album_single_file": {
+        "titel": "Album in einer Datei",
+        "hilfe": "Das Album liegt als eine einzige Datei vor."
+      },
+      "album_not_better": {
+        "titel": "Nicht besser",
+        "hilfe": "Die geladene Ausgabe ist nicht besser als die vorhandene."
+      },
+      "album_tracks_missing": {
+        "titel": "Stücke fehlen",
+        "hilfe": "Dem Album fehlen Stücke."
+      },
+      "download_failed": {
+        "titel": "Fehlgeschlagen",
+        "hilfe": "Der Download ist gescheitert und wartet darauf, dass jemand ihn wegräumt."
       }
     }
   }

@@ -43,7 +43,7 @@ from . import (
     zurueckgestellt,
 )
 from . import beschaffung as beschaffung_grenze
-from .beschaffung import BeschaffungError, get_beschaffung, jahr_aus, treffer_nach_titel
+from .beschaffung import BeschaffungError, Nachschlag, get_beschaffung, jahr_aus
 from .settings_service import AppSettings, load_settings
 
 logger = logging.getLogger("nexview.poller")
@@ -88,6 +88,23 @@ def _open_requests(db: Session) -> list[MediaRequest]:
     )
 
 
+def _wonach(anfrage: MediaRequest) -> Nachschlag:
+    """Wonach eine Anfrage nachgeschlagen wird.
+
+    ``tvdb_id``, Titel und Jahr stehen nur fuer den ARR-Weg dabei, der sie als
+    Rueckfall braucht, wenn TMDB keine TVDB-Kennung kennt; der NEX-Weg sieht
+    sie nie an (N15).
+    """
+    return Nachschlag(
+        media_type=anfrage.media_type.value,
+        fassung=anfrage.fassung_kennung,
+        tmdb_id=anfrage.tmdb_id,
+        tvdb_id=anfrage.tvdb_id,
+        titel=anfrage.title,
+        jahr=jahr_aus(anfrage.release_date),
+    )
+
+
 async def check_once(
     db: Session,
     settings: AppSettings,
@@ -103,35 +120,21 @@ async def check_once(
     # Kein fruehes Ende mehr: Auch ohne offene Anfragen gibt es unten noch die
     # Gegenrichtung zu pruefen - gilt ein fertig geladener Titel noch?
 
-    # Bibliotheken **je Stufe**. Das ist die wichtigste Stelle des ganzen
+    # **Einmal nachschlagen, fuer alle offenen Anfragen.** Vorher holte diese
+    # Stelle die ganze Bibliothek je Stufe und suchte sich jeden Titel heraus -
+    # bei Serien ueber die TVDB-Kennung mit dem Titel als Rueckfall. Das ist
+    # eine Eigenheit von Radarr und Sonarr; nexcrate beantwortet einen Stapel
+    # Kennungen in einem Aufruf (N12). Der ARR-Weg tut hinter der Grenze genau
+    # dasselbe wie bisher, mit denselben Aufrufen.
+    #
+    # ⚠️ **Je Fassung getrennt.** Das ist die wichtigste Stelle des ganzen
     # 4K-Umbaus: Wuerde eine 4K-Anfrage gegen die 1080p-Bibliothek geprueft,
     # setzte die dort liegende Datei sie auf "fertig" und Nexview verschickte
     # "Dein Film ist da" - fuer eine Datei, die es in 4K gar nicht gibt. In der
     # Oberflaeche saehe alles richtig aus; auffallen wuerde es erst beim
     # Abspielen.
-    #
-    # Geladen wird nur, was auch gebraucht wird: Ohne offene 4K-Anfragen gibt
-    # es keine einzige zusaetzliche Abfrage.
-    filme: dict[str, dict[int, object]] = {}
-    serien: dict[str, tuple[dict[int, object], dict[str, object]]] = {}
-
-    for stufe in {r.tier for r in offen}:
-        # noqa: SIM102 an beiden Stellen - zusammengelegt ergibt die Bedingung
-        # ueber 130 Zeichen, und "wird es nachgefragt" ist eine andere Frage als
-        # "ist es ueberhaupt eingerichtet".
-        if any(r.media_type == MediaType.movie and r.tier == stufe for r in offen):  # noqa: SIM102
-            if settings.arr_configured("movie", stufe):
-                filme[stufe] = await beschaffung.bestand_filme(stufe)
-        if any(r.media_type == MediaType.tv and r.tier == stufe for r in offen):  # noqa: SIM102
-            if settings.arr_configured("tv", stufe):
-                serien[stufe] = await beschaffung.bestand_serien(stufe)
-
-    # Welche Bibliotheken wirklich geantwortet haben. **Entscheidend fuer die
-    # Frage "weg oder nur nicht gefragt":** Eine nicht eingerichtete oder
-    # unerreichbare Instanz liefert ein leeres Ergebnis, und daraus "alles
-    # verschwunden" zu folgern hiesse, bei einem Ausfall reihenweise Anfragen
-    # abzubrechen.
-    geladen = {("movie", stufe) for stufe in filme} | {("tv", stufe) for stufe in serien}
+    gefragt = {anfrage.id: _wonach(anfrage) for anfrage in offen}
+    nachschlag = await beschaffung.nachschlagen(list(gefragt.values()))
 
     fertig = 0
     # Je Durchlauf hoechstens eine Heilung je Serie - mehrere Staffelanfragen
@@ -179,15 +182,8 @@ async def check_once(
         return warteschlangen[schluessel]
     for request in offen:
         stufe = request.tier
-        if request.media_type == MediaType.movie:
-            eintrag = filme.get(stufe, {}).get(request.tmdb_id)
-        else:
-            nach_tvdb, nach_titel = serien.get(stufe, ({}, {}))
-            eintrag = nach_tvdb.get(request.tvdb_id) if request.tvdb_id else None
-            if eintrag is None:
-                eintrag = treffer_nach_titel(
-                    nach_titel, request.title, jahr_aus(request.release_date)
-                )
+        wonach = gefragt[request.id]
+        eintrag = nachschlag.stand(wonach)
 
         request.last_checked_at = utcnow()
         if eintrag is None:
@@ -202,7 +198,11 @@ async def check_once(
             # Media-Server hier **nicht** befragt: Ueber diese Anfrage wurde nie
             # etwas geladen, es gibt also keine Datei, die "doch noch da" sein
             # koennte.
-            geantwortet = (request.media_type.value, request.tier) in geladen
+            # **Weg oder nur nicht gefragt?** Eine nicht eingerichtete oder
+            # stumme Quelle liefert nichts, und daraus "alles verschwunden" zu
+            # folgern hiesse, bei einem Ausfall reihenweise Anfragen
+            # abzubrechen.
+            geantwortet = nachschlag.hat_geantwortet(wonach)
             if abgleich_kern.ist_wirklich_weg(request, geantwortet):
                 request.status = RequestStatus.cancelled
                 request.completed_at = utcnow()
@@ -324,24 +324,15 @@ async def check_once(
             select(MediaRequest).where(MediaRequest.status == RequestStatus.downloaded)
         )
     )
+    fertig_gefragt = {anfrage.id: _wonach(anfrage) for anfrage in fertige}
+    fertig_nachschlag = await beschaffung.nachschlagen(list(fertig_gefragt.values()))
     for request in fertige:
         stufe = request.tier
-        if not settings.arr_configured(request.media_type.value, stufe):
-            # Ohne Instanz gibt es keine Quelle, die "weg" sagen koennte.
+        wonach = fertig_gefragt[request.id]
+        if not fertig_nachschlag.hat_geantwortet(wonach):
+            # Ohne Antwort gibt es keine Quelle, die "weg" sagen koennte.
             continue
-        if request.media_type == MediaType.movie:
-            if stufe not in filme:
-                filme[stufe] = await beschaffung.bestand_filme(stufe)
-            eintrag = filme[stufe].get(request.tmdb_id)
-        else:
-            if stufe not in serien:
-                serien[stufe] = await beschaffung.bestand_serien(stufe)
-            nach_tvdb, nach_titel = serien[stufe]
-            eintrag = nach_tvdb.get(request.tvdb_id) if request.tvdb_id else None
-            if eintrag is None:
-                eintrag = treffer_nach_titel(
-                    nach_titel, request.title, jahr_aus(request.release_date)
-                )
+        eintrag = fertig_nachschlag.stand(wonach)
 
         folgen = None
         if request.episodes and eintrag is not None:
@@ -510,6 +501,27 @@ def _verlaufspunkt(db) -> None:
     db.commit()
 
 
+async def _fassungen_vielleicht(db, settings) -> None:
+    """Die Fassungen bei der Quelle nachlesen, wenn es etwas zu holen gibt.
+
+    Im ARR-Betrieb stehen sie in den Einstellungen und aendern sich nur, wenn
+    jemand sie aendert - dann gleicht ``save_settings`` schon ab. Im
+    NEX-Betrieb gehoeren sie nexcrate: Ein Ereignis ``version_definition.*``
+    weckt den Rundgang, und hier wird nachgelesen.
+    """
+    if not settings.beschaffung_ist_nex or not settings.nexcrate_configured:
+        return
+    try:
+        if await beschaffung_grenze.fassungen_auffrischen(db, settings):
+            db.commit()
+    except BeschaffungError as fehler:
+        db.rollback()
+        logger.info("Versions could not be read: %s", fehler.code)
+    except Exception:  # noqa: BLE001 - Beiwerk, kein Grund zum Abbruch
+        db.rollback()
+        logger.exception("Versions could not be read")
+
+
 async def _bibliothek_vielleicht(db, settings) -> None:
     """Die Bibliothek des Media-Servers einlesen, wenn es an der Zeit ist.
 
@@ -569,8 +581,9 @@ async def _speicher_vielleicht(db, settings) -> None:
     also genau dann, wenn er eine Zahl braucht, um eine sinnvolle zu waehlen.
     """
     global _speicher_zuletzt
-    # "Irgendeine Instanz" - nicht nur die Standard-Plaetze (siehe run_forever).
-    if not settings.arr_instanzen():
+    # "Irgendeine Instanz" - nicht nur die Standard-Plaetze (siehe run_forever),
+    # und ueber die Grenze gefragt, damit auch der NEX-Betrieb zaehlt.
+    if not get_beschaffung(settings).instanzen():
         return
     jetzt = time.monotonic()
     if jetzt - _speicher_zuletzt < SPEICHER_INTERVALL_SEKUNDEN:
@@ -709,7 +722,10 @@ async def run_forever(stop: asyncio.Event) -> None:
                 # ⚠️ "Irgendeine Instanz eingerichtet" - nicht nur die
                 # Standard-Plaetze. Vorher zaehlten hier nur radarr/sonarr
                 # ohne 4K: Eine reine 4K-Installation wurde nie abgeglichen.
-                if settings.arr_instanzen():
+                # Und nicht ``settings.arr_instanzen()``: Im NEX-Betrieb ist
+                # die Liste dort leer, und der ganze Rundgang liefe leer mit.
+                await _fassungen_vielleicht(db, settings)
+                if get_beschaffung(settings).instanzen():
                     # Zuerst die haengenden Downloads: Dieser Abgleich holt die
                     # Warteschlangen ohnehin, und ``check_once`` nimmt sie fuer
                     # die Fortschrittsanzeige mit. Mit eigenem Auffangnetz -

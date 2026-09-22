@@ -133,7 +133,11 @@ async def _stand(
     # vorliegt, saehe faelschlich auch in 4K als vorhanden aus.
     kopien = [eintrag.model_copy(update={"status": "not_requested"}) for eintrag in items]
     ergebnis = await get_beschaffung(settings).status_setzen(
-        media_type, kopien, fassungen.stufe(fassung.kennung), mit_pfad=fuer_admin
+        media_type,
+        kopien,
+        fassungen.stufe(fassung.kennung),
+        fassung=fassung.kennung,
+        mit_pfad=fuer_admin,
     )
     in_bibliothek = {
         eintrag.tmdb_id: eintrag.status
@@ -212,6 +216,9 @@ async def _in_hauptfassung(
         return set()
     kopien = [eintrag.model_copy(update={"status": "not_requested"}) for eintrag in items]
     ergebnis = await get_beschaffung(settings).status_setzen(
-        media_type, kopien, fassungen.stufe(fassungen.hauptkennung(media_type))
+        media_type,
+        kopien,
+        fassungen.stufe(fassungen.hauptkennung(media_type)),
+        fassung=fassungen.hauptkennung(media_type),
     )
     return {eintrag.tmdb_id for eintrag in ergebnis.items if eintrag.status == "downloaded"}

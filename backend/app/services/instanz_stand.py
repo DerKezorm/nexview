@@ -62,7 +62,10 @@ async def messen(db: Session, settings: AppSettings, *, voll: bool = False) -> N
     """
     traeger = await _traeger_messen(settings) if voll else None
 
-    for instanz in settings.arr_instanzen():
+    # ⚠️ **Nicht ``settings.arr_instanzen()``.** Im NEX-Betrieb ist die Liste
+    # dort leer, und ohne diese Zeile stuende das Dashboard ohne eine einzige
+    # gemessene Instanz da - bei einem Weg, der sehr wohl eine hat.
+    for instanz in get_beschaffung(settings).instanzen():
         try:
             await _instanz_messen(
                 db, settings, instanz, voll=voll, traeger=traeger

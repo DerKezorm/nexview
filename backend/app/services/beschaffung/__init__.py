@@ -32,6 +32,8 @@ from .base import (
     FilmStand,
     Folge,
     Korb,
+    Nachschlag,
+    Nachschlagen,
     NichtsZuLoeschen,
     SerienBestand,
     SerienStand,
@@ -65,6 +67,8 @@ __all__ = [
     "FilmStand",
     "Folge",
     "Korb",
+    "Nachschlag",
+    "Nachschlagen",
     "NichtsZuLoeschen",
     "SerienBestand",
     "SerienStand",
@@ -80,6 +84,7 @@ __all__ = [
     "download_gruende",
     "download_verlauf",
     "download_verlauf_aufraeumen",
+    "fassungen_auffrischen",
     "feste_fassungen",
     "gesundheit_je_instanz",
     "get_beschaffung",
@@ -128,6 +133,30 @@ def get_beschaffung(settings: AppSettings) -> Beschaffung:
     art = getattr(settings, "beschaffung", ARR)
     gewaehlt = providers().get(art) or providers()[ARR]
     return gewaehlt(settings)
+
+
+async def fassungen_auffrischen(db: Session, settings: AppSettings) -> bool:
+    """Die Fassungen bei der Quelle nachlesen, wenn der Weg das kennt.
+
+    ``True``, wenn etwas geschrieben wurde (der Aufrufer committet). Im
+    ARR-Betrieb gibt es nichts nachzulesen: Die Fassungen stehen in den
+    Einstellungen, und ``save_settings`` gleicht sie beim Speichern ab.
+
+    Nachgelesen wird nur, wenn ein Ereignis es verlangt oder noch nie etwas
+    gelesen wurde - eine Abfrage je Rundgang waere eine je zwei Minuten fuer
+    etwas, das sich im Monat einmal aendert.
+    """
+    if settings.beschaffung != NEX:
+        return False
+    from .nex import ereignisse
+    from .nex import fassungen as nex_fassungen
+
+    wecker = ereignisse.wecker()
+    if not wecker.fassungen and nex_fassungen.aus_einstellungen(settings):
+        return False
+    wecker.fassungen = False
+    await nex_fassungen.auffrischen(db, settings)
+    return True
 
 
 def werkzeuge_pruefen(settings: AppSettings) -> None:

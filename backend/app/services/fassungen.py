@@ -28,7 +28,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Fassung, MediaType
-from .beschaffung import ARR, KLASSE_HD, KLASSE_UHD, FassungInfo, feste_fassungen, get_beschaffung
+from .beschaffung import (
+    ARR,
+    KLASSE_HD,
+    KLASSE_UHD,
+    NEX,
+    FassungInfo,
+    feste_fassungen,
+    get_beschaffung,
+)
 
 if TYPE_CHECKING:
     from ..models import User
@@ -131,6 +139,18 @@ def art_der(settings: AppSettings, kennung: str) -> str | None:
         return eingerichtet.media_type
     fest = arr_fassung(kennung)
     return fest.media_type if fest is not None else None
+
+
+def quelle(kennung: str | None) -> str:
+    """Aus welchem Betrieb eine Fassungskennung stammt: ``arr`` oder ``nex``.
+
+    Die vier ARR-Kennungen stehen fest (``ARR_KENNUNGEN``); alles andere kann
+    nur aus nexcrate stammen. Gebraucht ueberall dort, wo aus einer Kennung
+    allein hervorgehen muss, welche Anker gelten - beim Speicherschluessel
+    etwa haengen Serien im ARR-Betrieb an TVDB und im NEX-Betrieb an TMDB
+    (Bauplan 6.5).
+    """
+    return ARR if str(kennung or "") in _ARR_NACH_KENNUNG else NEX
 
 
 def klasse(kennung: str | None) -> str | None:

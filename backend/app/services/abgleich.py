@@ -45,7 +45,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import MediaServerLibraryItem, MediaType, Setting
-from . import server_vergleich
+from . import fassungen, server_vergleich
 from .beschaffung import BeschaffungError, get_beschaffung
 from .settings_service import AppSettings
 
@@ -155,20 +155,22 @@ async def _arr_bestand(settings: AppSettings) -> tuple[set[int], set[int], dict]
     serien: set[int] = set()
     titel: dict[tuple[str, int], str] = {}
 
-    for stufe in ("standard", "uhd"):
-        if settings.arr_configured("movie", stufe):
+    # ⚠️ Je Fassung, nicht je Stufe: Im NEX-Betrieb gibt es keine Stufen, und
+    # eine Schleife ueber ("standard", "uhd") verglich dort mit nichts.
+    beschaffung = get_beschaffung(settings)
+    stufen = {fassungen.stufe(f.kennung) for f in beschaffung.fassungen()}
+    for stufe in sorted(stufen):
+        if beschaffung.verwaltet("movie", stufe):
             try:
-                for tmdb, eintrag in (
-                    await get_beschaffung(settings).bestand_filme(stufe)
-                ).items():
+                for tmdb, eintrag in (await beschaffung.bestand_filme(stufe)).items():
                     if eintrag.has_file:
                         filme.add(tmdb)
                         titel.setdefault(("movie", tmdb), eintrag.title or "")
             except BeschaffungError:
                 logger.warning("Movie library unavailable for tier %s", stufe)
-        if settings.arr_configured("tv", stufe):
+        if beschaffung.verwaltet("tv", stufe):
             try:
-                nach_tvdb, _ = await get_beschaffung(settings).bestand_serien(stufe)
+                nach_tvdb, _ = await beschaffung.bestand_serien(stufe)
                 for tvdb, eintrag in nach_tvdb.items():
                     if eintrag.has_file:
                         serien.add(tvdb)

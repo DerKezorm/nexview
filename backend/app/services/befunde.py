@@ -60,6 +60,7 @@ from ..models import (
     utcnow,
 )
 from . import abgleich, beschaffung, instanz_stand, logs, mail_outbox, sicherung, updates
+from .beschaffung import get_beschaffung
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.befunde")
@@ -292,7 +293,7 @@ def _dienst_meldet_problem(
     den Einstellungen zu sehen - und in der Glocke, einmal, beim ersten Mal.
     """
     ergebnis: list[Befund] = []
-    for instanz in settings.arr_instanzen():
+    for instanz in get_beschaffung(settings).instanzen():
         # ⚠️ **Eine stumme Instanz meldet hier gar nichts.** Was in
         # ``arr_gesundheit`` steht, ist der zuletzt *gesehene* Stand; ob er noch
         # gilt, weiss in dem Moment niemand - ``instanz_gesundheit`` laesst ihn
@@ -334,7 +335,7 @@ def _dienst_rueckkanal_gestoert(
     nur, wenn sie selbst festgestellt hat, dass es klemmt.
     """
     ergebnis: list[Befund] = []
-    for instanz in settings.arr_instanzen():
+    for instanz in get_beschaffung(settings).instanzen():
         zeile = vorrat.webhooks.get(instanz.kennung)
         if zeile is None or not zeile.aktiv or not zeile.fehler:
             continue
@@ -367,7 +368,7 @@ def _dienst_nicht_erreichbar(
     Poller-Runde, und eine Meldung dafuer waere Laerm.
     """
     ergebnis: list[Befund] = []
-    for instanz in settings.arr_instanzen():
+    for instanz in get_beschaffung(settings).instanzen():
         zeile = vorrat.staende.get(instanz.kennung)
         if zeile is None or zeile.erreichbar:
             continue
@@ -397,7 +398,7 @@ def _dienst_version_alt(
     bewusst auf einer Fassung bleibt, soll dafuer keine Warnung bekommen.
     """
     ergebnis: list[Befund] = []
-    for instanz in settings.arr_instanzen():
+    for instanz in get_beschaffung(settings).instanzen():
         zeile = vorrat.staende.get(instanz.kennung)
         neuer = (zeile.messwerte or {}).get("aktualisierung") if zeile else None
         if not isinstance(neuer, dict) or not neuer.get("version"):
@@ -677,7 +678,8 @@ def _nachschub_eingriff_noetig(
     aller suchenden Anfragen statt dorthin, wo der Grund steht.
     """
     anzahl = sum(
-        vorrat.haenger.get(instanz.kennung, 0) for instanz in settings.arr_instanzen()
+        vorrat.haenger.get(instanz.kennung, 0)
+        for instanz in get_beschaffung(settings).instanzen()
     )
     if not anzahl:
         return []

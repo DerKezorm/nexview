@@ -132,7 +132,10 @@ async def uebersicht(admin: AdminUser, db: DbSession) -> DownloadsStand:
     rundgang = await get_beschaffung(settings).downloads_auffrischen(
         db, frisch_genug=beschaffung.download_frisch()
     )
-    namen = {instanz.kennung: instanz.name for instanz in settings.arr_instanzen()}
+    namen = {
+        instanz.kennung: instanz.name
+        for instanz in get_beschaffung(settings).instanzen()
+    }
     zeilen = list(
         db.scalars(
             select(DownloadHaenger)
@@ -416,7 +419,10 @@ def verlauf(
 ) -> list[VerlaufZeile]:
     """Was mit haengenden Downloads geschah, das Neueste zuerst."""
     settings = load_settings(db)
-    namen = {instanz.kennung: instanz.name for instanz in settings.arr_instanzen()}
+    namen = {
+        instanz.kennung: instanz.name
+        for instanz in get_beschaffung(settings).instanzen()
+    }
     zeilen = db.execute(
         select(DownloadVerlauf, User)
         .outerjoin(User, User.id == DownloadVerlauf.user_id)

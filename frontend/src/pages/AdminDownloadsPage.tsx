@@ -285,10 +285,15 @@ function HaengerKarte({
         {folgen && <p className="text-xs text-mist-400">{folgen}</p>}
 
         <p className="text-sm font-medium text-warn-500">
-          {t(`downloads.grund.${haenger.grund}.titel`)}
+          {t(`downloads.grund.${haenger.grund}.titel`, {
+            defaultValue: haenger.grund,
+          })}
         </p>
         <p className="text-sm leading-relaxed text-mist-300">
-          {t(`downloads.grund.${haenger.grund}.hilfe`)}
+          {/* Ein Grund, den Nexview nicht kennt, steht als Kennung da - das ist
+              ehrlich. nexcrate darf neue Codes bekommen, ohne dass hier ein
+              Schlüsselname erscheint. */}
+          {t(`downloads.grund.${haenger.grund}.hilfe`, { defaultValue: "" })}
         </p>
 
         {haenger.wortlaut.length > 0 && (

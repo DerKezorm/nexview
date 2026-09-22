@@ -131,13 +131,19 @@ async def messen(db: Session, settings: AppSettings, *, filme=None, serien=None)
 
 
 def _erfasst(db, filme, serien):
+    # Die Tests sprechen weiter Stufen, der Abgleich seit Scheibe 5 Fassungen -
+    # hier wird uebersetzt, damit die Faelle unveraendert lesbar bleiben.
     gemessen: dict[str, storage._Gemessen] = {}
     for stufe, eintraege in filme.items():
         for tmdb_id, eintrag in eintraege.items():
-            storage._film_aufnehmen(gemessen, stufe, tmdb_id, eintrag)
+            storage._film_aufnehmen(
+                gemessen, arr_kennung(MediaType.movie, stufe), tmdb_id, eintrag
+            )
     for stufe, eintraege in serien.items():
         for tvdb_id, eintrag in eintraege.items():
-            storage._serie_aufnehmen(gemessen, stufe, tvdb_id, eintrag)
+            storage._serie_aufnehmen(
+                gemessen, arr_kennung(MediaType.tv, stufe), tvdb_id, eintrag
+            )
     storage._aus_media_server(db, gemessen)
     return gemessen
 

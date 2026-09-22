@@ -2007,6 +2007,15 @@ class DownloadHaenger(Base):
     programm: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     groesse: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     rest: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    #: Was sich an diesem Download tun laesst und was davon eine Automatik darf -
+    #: ``{"erlaubt": [...], "automatisch": [...]}``.
+    #:
+    #: ⚠️ **Nur im NEX-Betrieb gefuellt.** nexcrate nennt die erlaubten
+    #: Aktionen je Problem selbst (N27), und sie sind dort die **einzige**
+    #: Erlaubnis (Bauplan 6.6). Im ARR-Betrieb bleibt die Spalte leer; dort
+    #: entscheidet Nexviews eigene Tabelle ``download_gruende``, weil Radarr
+    #: und Sonarr nichts dergleichen sagen.
+    aktionen: Mapped[dict | None] = mapped_column(JSON(none_as_null=True))
     #: Woran eine Veraenderung erkannt wird: Zustand, Grund, Wortlaut, Rest.
     fingerabdruck: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     erstmals_gesehen: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)

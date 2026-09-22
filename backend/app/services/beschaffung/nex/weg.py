@@ -21,6 +21,7 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, ClassVar, NoReturn
 
+from ....models import utcnow
 from ..base import (
     Aktion,
     Beschaffung,
@@ -28,11 +29,15 @@ from ..base import (
     Faehigkeiten,
     FassungInfo,
     FilmStand,
+    Folge,
     Korb,
+    Nachschlag,
+    Nachschlagen,
     SerienBestand,
+    SerienStand,
     WarteschlangenEintrag,
 )
-from . import fassungen, fehler, system
+from . import bestand, downloads, fassungen, fehler, gesundheit, lesen, mapping, system
 from .client import NexcrateClient
 
 if TYPE_CHECKING:
@@ -51,6 +56,12 @@ __all__ = ["NexBeschaffung", "client_fuer"]
 
 #: Der Name, unter dem Nexview sich bei nexcrate koppelt und in Listen steht.
 APP_NAME = "Nexview"
+
+#: Die Kennung der einen Instanz. An ihr haengt gemerkter Zustand
+#: (Erreichbarkeit, Gesundheit, haengende Downloads); sie darf sich nie aendern.
+INSTANZ = "nexcrate"
+#: Ihr Anzeigename, solange der Betreiber keinen eigenen gesetzt hat.
+APP_QUELLE = "nexcrate"
 
 #: Der Wecker des Rundgangs: Ein Ereignis aus nexcrates Strom zieht ihn vor.
 _weckruf: asyncio.Event | None = None
@@ -115,6 +126,27 @@ class NexBeschaffung(Beschaffung):
 
     # -- Bestand --------------------------------------------------------------
 
+    def instanzen(self) -> tuple[Any, ...]:
+        """Genau eine: die nexcrate dieser Installation.
+
+        Sie heisst nach der Einstellung ``nexcrate_name``, sonst nach dem
+        Programm. Die Kennung ist fest - an ihr haengt der gemerkte Stand.
+        """
+        from ...settings_service import ArrInstanz
+
+        if not self.settings.nexcrate_configured:
+            return ()
+        return (
+            ArrInstanz(
+                kennung=INSTANZ,
+                media_type="",
+                tier="",
+                name=self.settings.nexcrate_name or APP_QUELLE,
+                url=self.settings.nexcrate_url,
+                api_key=self.settings.nexcrate_api_key,
+            ),
+        )
+
     def verwaltet(self, media_type: str, stufe: str = "standard") -> bool:
         """Gibt es eine eingerichtete Fassung dieser Art?
 
@@ -131,16 +163,80 @@ class NexBeschaffung(Beschaffung):
             return "Für nexcrate sind Adresse und Schlüssel noch nicht hinterlegt."
         return "In nexcrate ist für diese Medienart keine Fassung eingerichtet."
 
-    async def bestand_filme(self, stufe: str = "standard") -> dict[int, FilmStand]:
-        _spaeter("Bestand der Filme")
+    async def bestand_filme(
+        self, stufe: str = "standard", *, fassung: str = ""
+    ) -> dict[int, FilmStand]:
+        """Alle Filme einer Fassung - ueber die Marke, nicht ganz (N13).
 
-    async def bestand_serien(self, stufe: str = "standard") -> SerienBestand:
-        _spaeter("Bestand der Serien")
+        ⚠️ **Die Stufe wird nicht gelesen.** Es gibt sie im NEX-Betrieb nicht;
+        ohne genannte Fassung gilt die Hauptfassung der Medienart.
+        """
+        kennung = self._gewaehlt("movie", fassung)
+        if kennung is None:
+            return {}
+        await bestand.auffrischen(self.settings, "movie")
+        return lesen.bestand_filme(kennung)
+
+    async def bestand_serien(
+        self, stufe: str = "standard", *, fassung: str = ""
+    ) -> SerienBestand:
+        kennung = self._gewaehlt("tv", fassung)
+        if kennung is None:
+            return ({}, {})
+        await bestand.auffrischen(self.settings, "series")
+        return lesen.bestand_serien(kennung)
+
+    def _gewaehlt(self, media_type: str, fassung: str) -> str | None:
+        """Die genannte Fassung, wenn es sie gibt - sonst die Hauptfassung."""
+        bekannt = {eintrag.kennung for eintrag in self.fassungen()}
+        return fassung if fassung in bekannt else self._hauptfassung(media_type)
+
+    def _hauptfassung(self, media_type: str) -> str | None:
+        """Die erste eingerichtete Fassung einer Medienart, in Anzeigereihenfolge."""
+        for eintrag in self.fassungen():
+            if eintrag.media_type == media_type:
+                return eintrag.kennung
+        return None
+
+    async def nachschlagen(self, gesucht: list[Nachschlag]) -> Nachschlagen:
+        """Den Stand vieler Titel auf einmal - ``POST /titles/lookup`` (N12).
+
+        ⚠️ **Nicht ueber die Marke.** Die hinkt der Anfrage bis zu zehn
+        Sekunden hinterher, ``lookup`` kennt einen frisch entstandenen Titel
+        sofort (nexbeat-Befund 12). Fuer „ist meine Anfrage angekommen" gibt es
+        deshalb nur diesen Weg.
+        """
+        treffer: dict[Nachschlag, FilmStand | SerienStand] = {}
+        if not gesucht:
+            return Nachschlagen(treffer={}, gelesen=frozenset())
+        bekannt = {eintrag.kennung for eintrag in self.fassungen()}
+        offen = [w for w in gesucht if w.fassung in bekannt]
+        if not offen:
+            return Nachschlagen(treffer={}, gelesen=frozenset())
+        gefragt = sorted({(mapping.kind(w.media_type), mapping.ref(w.tmdb_id)) for w in offen})
+        antworten = await self.client.lookup(
+            [{"kind": kind, "ref": ref} for kind, ref in gefragt]
+        )
+        nach_ref = {
+            (str(a.get("kind")), str(a.get("ref"))): a.get("title")
+            for a in antworten
+            if a.get("known") and a.get("title")
+        }
+        for wonach in offen:
+            titel = nach_ref.get((mapping.kind(wonach.media_type), mapping.ref(wonach.tmdb_id)))
+            if titel is None:
+                continue
+            stand = bestand.stand(titel, wonach.fassung)
+            if stand is not None:
+                treffer[wonach] = stand
+        # Geantwortet hat nexcrate fuer jede Fassung, die es gibt - ein Titel,
+        # der fehlt, ist wirklich weg und nicht nur ungefragt.
+        gelesen = frozenset((w.media_type, w.fassung) for w in offen)
+        return Nachschlagen(treffer=treffer, gelesen=gelesen)
 
     @classmethod
     def bestand_verwerfen(cls) -> None:
-        """Nichts zu verwerfen: Der Bestand kommt ueber die Marke (Scheibe 5)."""
-        return
+        bestand.verwerfen()
 
     async def status_setzen(
         self,
@@ -148,31 +244,91 @@ class NexBeschaffung(Beschaffung):
         items: list[MediaItem],
         stufe: str = "standard",
         *,
+        fassung: str = "",
         mit_pfad: bool = False,
     ) -> Any:
-        _spaeter("Zustand an den Kacheln")
+        """Kacheln mit dem Stand einer Fassung versehen.
+
+        ⚠️ **Die Stufe wird nicht gelesen.** Im NEX-Betrieb gibt es sie nicht;
+        wer eine bestimmte Fassung meint, nennt ihre Kennung. Ohne Angabe gilt
+        die Hauptfassung der Medienart.
+
+        ``mit_pfad`` bleibt ohne Wirkung: nexcrate nennt keinen Dateipfad, und
+        die Grenze kennt keinen (Bauplan 6.4).
+        """
+        from ..arr.library import MatchResult
+
+        kennung = self._gewaehlt(media_type, fassung)
+        if kennung is None or not items:
+            return MatchResult(items=items)
+        try:
+            gefaerbt = await lesen.kacheln_faerben(self.client, media_type, items, kennung)
+        except BeschaffungError as error:
+            return MatchResult(items=items, warning=error.message)
+        return MatchResult(items=gefaerbt)
 
     async def folgen_verfuegbarkeit(
         self, tvdb_id: int | None, title: str, stufe: str = "standard", jahr: int | None = None
     ) -> dict[int, set[int]]:
-        _spaeter("Folgen einer Serie")
+        """Welche Folgen je Staffel schon vorliegen.
+
+        ⚠️ **Die TVDB-Kennung ist hier kein Anker.** nexcrate ankert auf TMDB
+        (N15); dieser Weg gibt es nur, weil das Anfrageformular ihn heute so
+        ruft. Ohne TMDB-Nummer gibt es keine Auskunft - geraten wird nicht.
+        """
+        return {}
 
     async def serien_eintrag(
         self, tvdb_id: int | None, titel: str, jahr: int | None = None, stufe: str = "standard"
     ):
-        _spaeter("Eintrag einer Serie")
+        """Wie oben: ohne TMDB-Nummer keine Auskunft."""
+        return
 
     async def folgen_stand(self, stufe: str, arr_id: int):
-        _spaeter("Stand der Folgen")
+        """Die Folgen je Staffel und Nummer - eine Abfrage je Staffel.
+
+        ⚠️ **Teurer als bei Sonarr**, das alle Folgen einer Serie in einem
+        Aufruf liefert. Gefragt wird deshalb nur fuer Serien, zu denen ein
+        Folgen-Paket laeuft - wie im ARR-Betrieb auch.
+        """
+        kennung = self._hauptfassung("tv")
+        if kennung is None:
+            return None
+        ref = mapping.ref(arr_id)
+        titel = await self.client.title("series", ref)
+        if titel is None:
+            return None
+        gefunden: dict[int, dict[int, Folge]] = {}
+        for staffel in ((titel.get("series") or {}).get("seasons") or []):
+            nummer = staffel.get("season")
+            if nummer is None:
+                continue
+            antwort = await self.client.season(ref, int(nummer))
+            if antwort is not None:
+                gefunden[int(nummer)] = bestand.folgen(antwort, kennung)
+        return gefunden
 
     async def episodendateien(self, stufe: str, arr_id: int, season: int | None = None):
-        _spaeter("Dateien der Folgen")
+        """Gibt es nicht: nexcrate nennt keine Dateikennungen (Bauplan 6.4).
+
+        Geloescht wird ueber ``withdraw`` mit Umfang, nicht ueber einzelne
+        Dateien; wer hier eine Liste bekaeme, koennte sie zu nichts benutzen.
+        """
+        return
 
     async def staffel_daten(self, stufe: str, arr_id: int):
-        _spaeter("Termine der Staffeln")
+        """Seit wann eine Staffel daliegt - nexcrate sagt es nicht.
+
+        Der Aufraeum-Vorschlag sortiert deshalb im NEX-Betrieb ohne dieses
+        Datum; er faellt dann auf den Zeitpunkt der Anfrage zurueck.
+        """
+        return
 
     async def warteschlange(self, media_type: str, stufe: str) -> list[WarteschlangenEintrag]:
-        _spaeter("Warteschlange")
+        if not self.settings.nexcrate_configured:
+            return []
+        roh = await self.client.queue(mapping.kind(media_type))
+        return lesen.warteschlange(roh, media_type)
 
     def warteschlange_verdichten(
         self, media_type: str, roh: list[dict[str, Any]]
@@ -187,7 +343,7 @@ class NexBeschaffung(Beschaffung):
         _gibt_es_nicht("Zielordner und Qualitätsprofile")
 
     async def datentraeger(self, media_type: str, stufe: str = "standard") -> list[dict[str, Any]]:
-        _spaeter("Freier Platz")
+        return lesen.datentraeger(await self.client.storage())
 
     async def papierkoerbe(self) -> list[tuple[str, str, str, Any]]:
         _spaeter("Papierkorb")
@@ -196,10 +352,25 @@ class NexBeschaffung(Beschaffung):
         _spaeter("Größe des Papierkorbs")
 
     async def kalender(self, media_type: str, von: str, bis: str) -> list[dict[str, Any]]:
-        _spaeter("Kalender")
+        """nexcrates Kalender, in Stuecken zu hoechstens hundert Tagen."""
+        roh: list[dict[str, Any]] = []
+        for anfang, ende in lesen._spannen(von, bis):
+            roh += await self.client.calendar(anfang, ende, mapping.kind(media_type))
+        return lesen.kalender(roh, media_type)
 
     async def wertungen_filme(self, tmdb_ids: list[int]) -> dict[int, Any]:
-        _spaeter("Wertungen")
+        """Wertungen im Stapel (N39) - anders als bei Arr auch fuer Serien.
+
+        Gefragt wird per TMDB-Nummer; nexcrate uebersetzt selbst nach IMDb und
+        nennt die Kennung in ``imdb_ref`` zurueck.
+        """
+        if not tmdb_ids:
+            return {}
+        nach_tmdb = {mapping.ref(nummer): nummer for nummer in tmdb_ids}
+        antwort = await self.client.ratings(
+            [{"kind": "movie", "ref": ref} for ref in nach_tmdb]
+        )
+        return lesen.wertungen(antwort, nach_tmdb)
 
     # -- Auftraege ------------------------------------------------------------
 
@@ -228,7 +399,17 @@ class NexBeschaffung(Beschaffung):
     # -- Speicherposten -------------------------------------------------------
 
     async def posten_kennung(self, zeile: StorageEntry) -> int | None:
-        _spaeter("Kennung eines Postens")
+        """Die Kennung eines Postens bei der Quelle.
+
+        Im NEX-Betrieb ist das die TMDB-Nummer selbst - jede Adresse von
+        nexcrate nimmt ``tmdb:<n>``. Geprueft wird trotzdem, ob nexcrate den
+        Titel ueberhaupt fuehrt: Ein Posten ohne Gegenstueck bleibt zaehlbar,
+        aber nicht loeschbar (Bauplan 6.4).
+        """
+        if not zeile.tmdb_id:
+            return None
+        titel = await self.client.title(mapping.kind(zeile.media_type.value), mapping.ref(zeile.tmdb_id))
+        return int(zeile.tmdb_id) if titel is not None else None
 
     async def posten_dateien(
         self, zeile: StorageEntry, arr_id: int, paket_folgen: Callable[[], list[int] | None]
@@ -256,10 +437,43 @@ class NexBeschaffung(Beschaffung):
     # -- Instanzen: Stand, Gesundheit, Rueckkanal ------------------------------
 
     async def instanz_messen(self, instanz: Any, *, voll: bool) -> Any:
-        _spaeter("Stand der Instanz")
+        """Erreichbarkeit und Version jede Runde, der Rest stuendlich.
+
+        Gemessen wird ueber ``GET /system``: Es antwortet in Millisekunden und
+        traegt Version und Update-Hinweis in derselben Antwort (N4, N36).
+        """
+        from ..arr.stand import Messung
+
+        messung = Messung(erreichbar=True)
+        try:
+            daten = await system.auffrischen(self.settings)
+        except BeschaffungError:
+            return Messung(erreichbar=False)
+        messung.version = str(daten.get("version") or "")
+        if voll:
+            update = daten.get("update") or {}
+            messung.messwerte["aktualisierung"] = (
+                str(update.get("latest") or "") if update.get("available") else None
+            )
+            try:
+                messung.messwerte["warteschlange"] = await self._warteschlangen_zustand()
+            except BeschaffungError:
+                pass
+        return messung
+
+    async def _warteschlangen_zustand(self) -> dict[str, int]:
+        """Wie viele Downloads laufen, und wie viele davon klemmen."""
+        roh = await self.client.queue()
+        return {
+            "gesamt": len(roh),
+            "gestoert": sum(1 for eintrag in roh if eintrag.get("problem")),
+        }
 
     async def gesundheit_pruefen(self, db: Session) -> None:
-        _spaeter("Gesundheit")
+        eigene = self.instanzen()
+        if not eigene:
+            return
+        await gesundheit.pruefen(db, self.settings, INSTANZ, eigene[0].name)
 
     async def rueckkanal_pflegen(self, db: Session) -> None:
         """Nichts zu tun: Nexview legt in nexcrate keinen Webhook an (N32)."""
@@ -270,10 +484,19 @@ class NexBeschaffung(Beschaffung):
     async def downloads_auffrischen(
         self, db: Session, *, frisch_genug: timedelta | None = None
     ) -> Any:
-        _spaeter("Hängende Downloads")
+        """Warteschlange und Probleme in **einem** Rundgang (Entscheidung 11).
+
+        ``frisch_genug`` waere ein Zwischenspeicher fuer die Seite; nexcrate
+        antwortet in Millisekunden, und ein zu alter Stand waere hier teurer
+        als der Aufruf.
+        """
+        eigene = self.instanzen()
+        if not eigene:
+            return downloads.NexRundgang(am=utcnow(), abfragen=[])
+        return await downloads.auffrischen(db, self.settings, eigene[0])
 
     def download_anfragen(self, db: Session, zeile: Any) -> list[MediaRequest]:
-        _spaeter("Anfragen zu einem Download")
+        return downloads.anfragen_zu(db, zeile)
 
     async def download_entfernen(
         self,
@@ -314,8 +537,15 @@ class NexBeschaffung(Beschaffung):
 
     @classmethod
     def hintergrundaufgaben(cls, stop: asyncio.Event) -> list[Coroutine[Any, Any, None]]:
-        """Der Ereignisstrom kommt mit Scheibe 5."""
-        return []
+        """Der Ereignisstrom - ein Wecker, keine zweite Wahrheit (Bauplan 6.8).
+
+        Er laeuft auch im ARR-Betrieb mit und prueft die Betriebsart je Runde
+        selbst: Eingebundene Aufgaben lassen sich nach dem Start nicht mehr
+        tauschen, die Betriebsart aber sehr wohl umstellen.
+        """
+        from . import ereignisse
+
+        return [ereignisse.run_forever(stop)]
 
     @classmethod
     async def schliessen(cls) -> None:
@@ -343,18 +573,21 @@ class NexBeschaffung(Beschaffung):
 
     @classmethod
     def gesundheit_je_instanz(cls, db: Session) -> dict[str, Any]:
-        """Kommt mit Scheibe 5 aus ``GET /health``."""
-        return {}
+        """Der gemerkte Stand - dieselbe Tabelle wie im ARR-Betrieb."""
+        from ..arr.instanz_gesundheit import alle
+
+        return alle(db)
 
     @classmethod
     def haenger_je_instanz(cls, db: Session) -> dict[str, int]:
-        """Kommt mit Scheibe 5 aus ``GET /problems``."""
-        return {}
+        from ..arr.download_haenger import zaehlen
+
+        return zaehlen(db)
 
     @classmethod
     def download_aktionen_moeglich(cls, zeile: Any) -> list[Aktion]:
-        """Im NEX-Betrieb entscheidet nexcrates ``actions`` je Problem (Scheibe 5)."""
-        return []
+        """Was nexcrate an diesem Problem erlaubt - und nichts sonst (6.6)."""
+        return downloads.erlaubte_aktionen(zeile)
 
     @classmethod
     def download_verlauf_aufraeumen(cls, db: Session) -> int:

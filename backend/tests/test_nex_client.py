@@ -371,14 +371,15 @@ def test_der_nex_weg_hat_nichts_ausserhalb_der_schnittstelle() -> None:
 
 @pytest.mark.anyio
 async def test_ein_weg_der_erst_spaeter_kommt_sagt_es_mit_kennung(nexcrate: FakeNexcrate) -> None:
-    """Scheibe 4 baut den Client. Was fehlt, wirft - still nichts tun waere schlimmer."""
+    """Die Schreibwege kommen mit Scheibe 6. Sie werfen - still nichts tun waere schlimmer."""
     from app.services.beschaffung import BeschaffungError
 
     with SessionLocal() as db:
         weg = get_beschaffung(_nex_einstellungen(db))
     with pytest.raises(BeschaffungError) as gefangen:
-        await weg.bestand_filme()
+        await weg.anfragen(None, None)
     assert gefangen.value.code == "nex_noch_nicht_gebaut"
+    assert gefangen.value.korb is Korb.abgelehnt
 
 
 @pytest.mark.anyio

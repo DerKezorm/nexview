@@ -21,8 +21,12 @@ from ..base import (
     Faehigkeiten,
     FassungInfo,
     FilmStand,
+    Nachschlag,
+    Nachschlagen,
     SerienBestand,
+    SerienStand,
     WarteschlangenEintrag,
+    treffer_nach_titel,
 )
 from . import (
     auftraege,
@@ -95,19 +99,75 @@ class ArrBeschaffung(Beschaffung):
             return library.radarr_client(self.settings, stufe)
         return library.sonarr_client(self.settings, stufe)
 
+    def instanzen(self) -> tuple[ArrInstanz, ...]:
+        """Die eingerichteten Radarr- und Sonarr-Instanzen."""
+        return self.settings.arr_instanzen()
+
     def verwaltet(self, media_type: str, stufe: str = "standard") -> bool:
         """Gibt es fuer diese Art und Stufe eine eingerichtete Instanz?"""
         return self._client(media_type, stufe) is not None
 
-    async def bestand_filme(self, stufe: str = "standard") -> dict[int, FilmStand]:
-        return await library.movie_library(self.settings, stufe)
+    async def bestand_filme(
+        self, stufe: str = "standard", *, fassung: str = ""
+    ) -> dict[int, FilmStand]:
+        return await library.movie_library(self.settings, self._stufe(stufe, fassung))
 
-    async def bestand_serien(self, stufe: str = "standard") -> SerienBestand:
-        return await library.series_library(self.settings, stufe)
+    async def bestand_serien(
+        self, stufe: str = "standard", *, fassung: str = ""
+    ) -> SerienBestand:
+        return await library.series_library(self.settings, self._stufe(stufe, fassung))
+
+    @staticmethod
+    def _stufe(stufe: str, fassung: str) -> str:
+        """Die Fassung geht vor - sie meint dieselbe Instanz wie ihre Stufe."""
+        from ...fassungen import stufe as stufe_der_fassung
+
+        return stufe_der_fassung(fassung) if fassung else stufe
 
     @classmethod
     def bestand_verwerfen(cls) -> None:
         library.invalidate()
+
+    async def nachschlagen(self, gesucht: list[Nachschlag]) -> Nachschlagen:
+        """Den Stand vieler Titel auf einmal - aus den Bibliotheken je Fassung.
+
+        ⚠️ **Dieselben Aufrufe wie bisher, an einer Stelle.** Der Takt-Laeufer
+        holte die Bibliothek je Stufe selbst und suchte sich jeden Titel
+        heraus; hier steht genau das, nur hinter der Grenze. Radarr und Sonarr
+        bewegen sich dadurch nicht - die Bibliothek liegt weiter 60 s im
+        Speicher, und der Rueckfall ueber den Titel gilt unveraendert (er ist
+        noetig, weil TMDB fuer viele Serien keine TVDB-Kennung kennt).
+        """
+        # ⚠️ Der Import steht hier, nicht oben: ``services/fassungen`` fragt
+        # beim Laden die Grenze nach den festen Fassungen, und der Name
+        # ``fassungen`` gehoert in dieser Datei schon dem ARR-Modul.
+        from ...fassungen import stufe as stufe_der_fassung
+
+        treffer: dict[Nachschlag, FilmStand | SerienStand] = {}
+        gelesen: set[tuple[str, str]] = set()
+        filme: dict[str, dict[int, FilmStand]] = {}
+        serien: dict[str, SerienBestand] = {}
+
+        for wonach in gesucht:
+            stufe = stufe_der_fassung(wonach.fassung)
+            if not self.settings.arr_configured(wonach.media_type, stufe):
+                continue
+            if wonach.media_type == "movie":
+                if stufe not in filme:
+                    filme[stufe] = await library.movie_library(self.settings, stufe)
+                gelesen.add((wonach.media_type, wonach.fassung))
+                eintrag: FilmStand | SerienStand | None = filme[stufe].get(wonach.tmdb_id)
+            else:
+                if stufe not in serien:
+                    serien[stufe] = await library.series_library(self.settings, stufe)
+                gelesen.add((wonach.media_type, wonach.fassung))
+                nach_tvdb, nach_titel = serien[stufe]
+                eintrag = nach_tvdb.get(wonach.tvdb_id) if wonach.tvdb_id else None
+                if eintrag is None:
+                    eintrag = treffer_nach_titel(nach_titel, wonach.titel, wonach.jahr)
+            if eintrag is not None:
+                treffer[wonach] = eintrag
+        return Nachschlagen(treffer=treffer, gelesen=frozenset(gelesen))
 
     async def status_setzen(
         self,
@@ -115,10 +175,15 @@ class ArrBeschaffung(Beschaffung):
         items: list[MediaItem],
         stufe: str = "standard",
         *,
+        fassung: str = "",
         mit_pfad: bool = False,
     ) -> library.MatchResult:
+        """Die Fassung geht vor, wo eine genannt ist - sie meint dieselbe Instanz."""
+        from ...fassungen import stufe as stufe_der_fassung
+
+        gewaehlt = stufe_der_fassung(fassung) if fassung else stufe
         return await library.apply_status(
-            self.settings, media_type, items, stufe, mit_pfad=mit_pfad
+            self.settings, media_type, items, gewaehlt, mit_pfad=mit_pfad
         )
 
     async def folgen_verfuegbarkeit(

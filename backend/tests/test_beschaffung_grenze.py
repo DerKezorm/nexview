@@ -59,6 +59,13 @@ OEFFENTLICH_IN_DER_GRENZE = frozenset({"base"})
 #: Die Wege als Unterpakete der Grenze, auch die, die es noch nicht gibt.
 WEGE = frozenset({"arr", "nex"})
 
+#: Was wirklich in der Grenze liegt - Schreibweise genau so wie auf der Platte.
+_INHALT_DER_GRENZE = frozenset(
+    eintrag.stem if eintrag.suffix == ".py" else eintrag.name
+    for eintrag in GRENZE.iterdir()
+    if eintrag.name != "__pycache__"
+)
+
 KENNUNG = re.compile(r"^(?:(?:radarr|sonarr)-(?:standard|uhd)|nexcrate)$")
 
 #: Unter so vielen Dateien liest der Scan nicht mehr, was er soll. Heute sind
@@ -105,7 +112,11 @@ def _untermodul_der_grenze(name: str) -> bool:
     Sonst ist es ein Name aus ``__init__`` (``get_beschaffung``, eine Form),
     und den darf jeder importieren.
     """
-    return name in WEGE or (GRENZE / name).is_dir() or (GRENZE / f"{name}.py").is_file()
+    # ⚠️ **Nicht ueber das Dateisystem fragen.** Windows unterscheidet keine
+    # Gross- und Kleinschreibung: ``(GRENZE / "ARR").is_dir()`` war dort wahr,
+    # und der Name ``ARR`` aus ``__init__`` galt als das Paket ``arr``. Der
+    # Waechter meldete einen Verstoss, den es nicht gab.
+    return name in WEGE or name in _INHALT_DER_GRENZE
 
 
 def _verboten(modul: str) -> bool:

@@ -71,7 +71,8 @@ class Kandidat:
     tmdb_id: int | None
     tvdb_id: int | None
     season: int | None
-    tier: str
+    #: Die Kennung der Fassung, zu der der Posten gehoert.
+    fassung: str
     title: str
     size_bytes: int
     state: StorageState

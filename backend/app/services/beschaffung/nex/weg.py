@@ -404,14 +404,18 @@ class NexBeschaffung(Beschaffung):
         """Wie oben: ohne TMDB-Nummer keine Auskunft."""
         return
 
-    async def folgen_stand(self, stufe: str, arr_id: int):
+    async def folgen_stand(self, stufe: str, arr_id: int, *, fassung: str = ""):
         """Die Folgen je Staffel und Nummer - eine Abfrage je Staffel.
 
         ⚠️ **Teurer als bei Sonarr**, das alle Folgen einer Serie in einem
         Aufruf liefert. Gefragt wird deshalb nur fuer Serien, zu denen ein
         Folgen-Paket laeuft - wie im ARR-Betrieb auch.
+
+        ⚠️ **In der Fassung der Anfrage**, nicht in der Hauptfassung: Sonst
+        galt ein fertiges 4K-Paket als geloescht, und ein suchendes wurde
+        fertig, sobald seine Folgen in HD lagen.
         """
-        kennung = self._hauptfassung("tv")
+        kennung = self._gewaehlt("tv", fassung)
         if kennung is None:
             return None
         ref = mapping.ref(arr_id)

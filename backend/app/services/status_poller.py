@@ -148,12 +148,31 @@ async def check_once(
     # Folgengenaue Befunde, hoechstens einmal je Serie und Durchlauf geholt -
     # und nur fuer Serien, zu denen ein Folgen-Paket laeuft. Alle anderen
     # kosten weiterhin keinen einzigen zusaetzlichen Aufruf.
-    folgen_befunde: dict[tuple[str, int], dict] = {}
+    #
+    # ⚠️ **Je Fassung, nicht je Stufe:** Zwei Fassungen derselben Klasse haben
+    # dieselbe Stufe, aber nicht dieselben Folgen.
+    #
+    # ``None`` heisst "nicht gelesen", ``{}`` dagegen "keine Folgen" - daraus
+    # machte ``ist_noch_da`` ein "geloescht". Eine gescheiterte Folgenansicht
+    # ist deshalb ``None``; sie warf frueher den ganzen Durchlauf ab, jede Runde.
+    folgen_befunde: dict[tuple[str, str, int], dict | None] = {}
 
-    async def _folgen_befund(stufe: str, arr_id: int) -> dict:
-        schluessel = (stufe, arr_id)
+    async def _folgen_befund(request: MediaRequest, arr_id: int) -> dict | None:
+        schluessel = (request.tier, request.fassung_kennung or "", arr_id)
         if schluessel not in folgen_befunde:
-            folgen_befunde[schluessel] = await beschaffung.folgen_stand(stufe, arr_id) or {}
+            try:
+                befund = await beschaffung.folgen_stand(
+                    request.tier, arr_id, fassung=request.fassung_kennung or ""
+                )
+            except BeschaffungError as fehler:
+                logger.warning(
+                    "Episodes of series %s could not be read (%s); its packages stay as they are",
+                    arr_id,
+                    logs.kennung(fehler),
+                )
+                folgen_befunde[schluessel] = None
+            else:
+                folgen_befunde[schluessel] = befund or {}
         return folgen_befunde[schluessel]
 
     # Die Warteschlangen fuer "laedt gerade" - hoechstens einmal je Instanz
@@ -237,7 +256,7 @@ async def check_once(
         if request.episodes:
             arr_id_befund = getattr(eintrag, "arr_id", None)
             if arr_id_befund:
-                folgen = await _folgen_befund(stufe, arr_id_befund)
+                folgen = await _folgen_befund(request, arr_id_befund)
 
         # Ist der Titel inzwischen wirklich heruntergeladen?
         if abgleich_kern.ist_fertig(request, eintrag, folgen):
@@ -341,7 +360,7 @@ async def check_once(
         if request.episodes and eintrag is not None:
             arr_id_befund = getattr(eintrag, "arr_id", None)
             if arr_id_befund:
-                folgen = await _folgen_befund(stufe, arr_id_befund)
+                folgen = await _folgen_befund(request, arr_id_befund)
         if eintrag is not None and abgleich_kern.ist_noch_da(request, eintrag, folgen):
             # ⚠️ Der Titel liegt noch da - aber ist es noch **dieselbe** Datei?
             #

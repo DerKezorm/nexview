@@ -10,6 +10,10 @@ Dazu der Speicher-Abgleich: Eine Serie ohne ``tvdb:`` in ``refs`` fehlte im
 TVDB-Index und wurde nicht gemessen; ihre gewanderte Zeile verschwand samt
 Besitzer. Im NEX-Betrieb ist TMDB der Anker, TVDB nur Beiwerk.
 
+Folgen-Pakete gehen über ``folgen_stand``: gelesen in der Fassung der Anfrage,
+nicht in der Hauptfassung, und eine gescheiterte Folgenansicht hält den Lauf
+nicht an.
+
 Gegen ``tests/beschaffung/fake_nexcrate.py``.
 """
 
@@ -40,7 +44,15 @@ from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.beschaffung.nex import system
 from app.services.settings_service import load_settings, save_settings
 
-from .beschaffung.fake_nexcrate import KEY, SERIE_HD, URL, FakeNexcrate, _fehler
+from .beschaffung.fake_nexcrate import (
+    FILM_HD,
+    KEY,
+    SERIE_HD,
+    SERIE_UHD,
+    URL,
+    FakeNexcrate,
+    _fehler,
+)
 from .test_nex_speicher_serien import (
     GB,
     _einzelansichten,
@@ -290,3 +302,254 @@ async def test_zwei_serien_mit_und_ohne_tvdb_bleiben_ueber_zwei_laeufe(
         assert erste is not None and zweite is not None, (lauf, sorted(zeilen))
         assert (erste.size_bytes, erste.user_id) == (6 * GB, person.id), lauf
         assert (zweite.size_bytes, zweite.user_id) == (7 * GB, person.id), lauf
+
+
+# --- Der Merker gilt nur für den Stand, zu dem er gelesen wurde ------------------
+
+
+async def test_eine_geloeschte_staffel_wird_nach_neuer_marke_erkannt(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Gemerkte Staffeln zu einer alten Marke beschreiben einen Stand, den es nicht mehr gibt."""
+    _serie(nexcrate, 1399, [_staffel(1, 3 * GB), _staffel(2, 4 * GB)])
+    person = _nutzer(db)
+    anfrage = _staffelanfrage(db, person, staffel=1, status=RequestStatus.downloaded)
+
+    await status_poller.check_once(db, nex)
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.downloaded
+
+    # Staffel 1 gelöscht: neue Marke, neue Zahlen.
+    _serie(nexcrate, 1399, [_staffel(2, 4 * GB)])
+    await status_poller.check_once(db, nex)
+
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.deleted
+
+
+async def test_hinkt_die_liste_hinter_lookup_her_wird_neu_gelesen(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Die Liste kennt noch keine neue Marke, ``lookup`` schon andere Fassungszahlen."""
+    titel = _serie(nexcrate, 1399, [_staffel(1, 3 * GB), _staffel(2, 4 * GB)])
+    person = _nutzer(db)
+    anfrage = _staffelanfrage(db, person, staffel=1, status=RequestStatus.downloaded)
+
+    await status_poller.check_once(db, nex)
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.downloaded
+
+    # Ohne neue Marke: Über die Liste ist nichts Neues zu sehen.
+    titel["versions"] = [
+        nexcrate.fassung(
+            SERIE_HD, "available", size_bytes=4 * GB, series={"counts": {"have": 3, "aired": 6}}
+        )
+    ]
+    titel["series"]["seasons"] = [_staffel(2, 4 * GB)]
+    await status_poller.check_once(db, nex)
+
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.deleted
+
+
+async def test_kennt_lookup_die_serie_und_die_einzelansicht_nicht_entscheidet_der_naechste_lookup(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """404 der Einzelansicht, obwohl ``lookup`` die Serie eben noch nannte.
+
+    Das ist kein „keine Staffeln": Die Frage bleibt eine Runde ungelesen, und
+    nichts kippt. Ist die Serie wirklich weg, sagt es der nächste ``lookup``.
+    """
+    _serie(nexcrate, 1399, [_staffel(1, 3 * GB)])
+    person = _nutzer(db)
+    anfrage = _staffelanfrage(db, person, staffel=1, status=RequestStatus.downloaded)
+    echt = nexcrate._titel_weg
+
+    def fehlt(methode: str, teile: list[str], koerper: Any) -> Any:
+        if teile[1:3] == ["series", "tmdb:1399"] and len(teile) == 3:
+            return _fehler(404, "title_not_found", "nexcrate does not have this title.")
+        return echt(methode, teile, koerper)
+
+    monkeypatch.setattr(nexcrate, "_titel_weg", fehlt)
+
+    await status_poller.check_once(db, nex)
+
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.downloaded
+    wonach = Nachschlag("tv", SERIE_HD, 1399, mit_staffeln=True)
+    antwort = await get_beschaffung(nex).nachschlagen([wonach])
+    assert antwort.hat_geantwortet(wonach) is False
+
+    nexcrate.entfernt("series", "tmdb:1399")
+    await status_poller.check_once(db, nex)
+
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.deleted
+
+
+# --- Folgen-Pakete: gelesen in ihrer Fassung --------------------------------------
+
+
+def _folgen(nexcrate: FakeNexcrate, tmdb_id: int, kennung: str, staffel: int = 1) -> None:
+    """Drei Folgen, die nur in dieser Fassung liegen."""
+    nexcrate.staffel(
+        f"tmdb:{tmdb_id}",
+        staffel,
+        [
+            nexcrate.folge(
+                nummer, versionen=[{"version_id": kennung, "state": "available", "monitored": True}]
+            )
+            for nummer in (1, 2, 3)
+        ],
+    )
+
+
+def _paket(
+    db: Session,
+    person: User,
+    *,
+    fassung: str,
+    status: RequestStatus,
+    folgen: list[int] | None = None,
+    tmdb_id: int = 1399,
+) -> MediaRequest:
+    anfrage = MediaRequest(
+        user_id=person.id,
+        media_type=MediaType.tv,
+        tmdb_id=tmdb_id,
+        title="Example Show",
+        fassung_kennung=fassung,
+        season=1,
+        episodes=folgen or [1, 2],
+        status=status,
+        arr_id=tmdb_id,
+    )
+    db.add(anfrage)
+    db.commit()
+    return anfrage
+
+
+async def test_ein_fertiges_paket_in_der_zweitfassung_bleibt_fertig(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Der Befund: gelesen wurde in der Hauptfassung, dort fehlten die Folgen - „gelöscht"."""
+    nexcrate.serie(
+        1399,
+        versionen=[
+            nexcrate.fassung(
+                SERIE_UHD, "available", size_bytes=3 * GB, series={"counts": {"have": 3, "aired": 3}}
+            )
+        ],
+        staffeln=[_staffel(1, 3 * GB, SERIE_UHD)],
+    )
+    _folgen(nexcrate, 1399, SERIE_UHD)
+    person = _nutzer(db)
+    paket = _paket(db, person, fassung=SERIE_UHD, status=RequestStatus.downloaded)
+
+    await status_poller.check_once(db, nex)
+
+    db.refresh(paket)
+    assert paket.status == RequestStatus.downloaded
+
+
+async def test_ein_suchendes_paket_in_der_zweitfassung_wartet_auf_seine_folgen(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Die Folgen liegen nur in HD: Das 4K-Paket ist nicht fertig, und keiner bekommt Bescheid."""
+    nexcrate.serie(
+        1399,
+        versionen=[
+            nexcrate.fassung(
+                SERIE_HD, "available", size_bytes=3 * GB, series={"counts": {"have": 3, "aired": 3}}
+            ),
+            nexcrate.fassung(
+                SERIE_UHD, "wanted", size_bytes=0, series={"counts": {"have": 0, "aired": 3}}
+            ),
+        ],
+        staffeln=[_staffel(1, 3 * GB, SERIE_HD)],
+    )
+    _folgen(nexcrate, 1399, SERIE_HD)
+    person = _nutzer(db)
+    paket = _paket(db, person, fassung=SERIE_UHD, status=RequestStatus.searching)
+
+    fertig = await status_poller.check_once(db, nex)
+
+    db.refresh(paket)
+    assert fertig == 0
+    assert paket.status == RequestStatus.searching
+    assert db.query(Notification).filter_by(user_id=person.id).count() == 0
+
+
+async def test_zwei_pakete_derselben_klasse_werden_je_fassung_gelesen(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Zwei HD-Fassungen haben dieselbe Stufe; der Befund der einen gilt nicht für die andere."""
+    zweite = "v_0000beef"
+    nexcrate.versions.append(nexcrate._version(zweite, "series", "Series Extra", 3, "hd"))
+    nex_fassungen.schreiben(db, nexcrate.versions)
+    db.commit()
+    nexcrate.serie(
+        1399,
+        versionen=[
+            nexcrate.fassung(
+                SERIE_HD, "available", size_bytes=3 * GB, series={"counts": {"have": 3, "aired": 3}}
+            ),
+            nexcrate.fassung(zweite, "wanted", size_bytes=0, series={"counts": {"have": 0, "aired": 3}}),
+        ],
+        staffeln=[_staffel(1, 3 * GB)],
+    )
+    _folgen(nexcrate, 1399, SERIE_HD)
+    person = _nutzer(db)
+    suchend = _paket(db, person, fassung=zweite, status=RequestStatus.searching)
+    fertig = _paket(db, person, fassung=SERIE_HD, status=RequestStatus.downloaded, folgen=[3])
+
+    await status_poller.check_once(db, nex)
+
+    db.refresh(suchend)
+    db.refresh(fertig)
+    assert suchend.status == RequestStatus.searching
+    assert fertig.status == RequestStatus.downloaded
+
+
+async def test_eine_gescheiterte_folgenansicht_haelt_den_lauf_nicht_an(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """500 für die Serie eines Pakets: Das Paket bleibt, wie es ist, alle anderen laufen weiter.
+
+    Vorher warf ``check_once`` die Ausnahme weiter, und der ganze Statuslauf
+    brach ab, jede Runde. Und „nicht gelesen" ist nicht „keine Folgen": Das
+    fertige Paket darf daraus nicht „gelöscht" werden.
+    """
+    _serie(nexcrate, 1399, [_staffel(1, 3 * GB)])
+    _folgen(nexcrate, 1399, SERIE_HD)
+    _serie(nexcrate, 1500, [_staffel(1, 3 * GB)], name="Other Show", tvdb=None)
+    nexcrate.film(603)
+    person = _nutzer(db)
+    suchendes_paket = _paket(db, person, fassung=SERIE_HD, status=RequestStatus.searching)
+    fertiges_paket = _paket(
+        db, person, fassung=SERIE_HD, status=RequestStatus.downloaded, folgen=[3]
+    )
+    film = MediaRequest(
+        user_id=person.id,
+        media_type=MediaType.movie,
+        tmdb_id=603,
+        title="Example Movie",
+        fassung_kennung=FILM_HD,
+        status=RequestStatus.searching,
+        arr_id=603,
+    )
+    db.add(film)
+    db.commit()
+    staffel = _staffelanfrage(
+        db, person, staffel=1, status=RequestStatus.searching, tmdb_id=1500
+    )
+    _stumm_fuer(nexcrate, monkeypatch, "tmdb:1399")
+
+    await status_poller.check_once(db, nex)
+
+    for anfrage in (suchendes_paket, fertiges_paket, film, staffel):
+        db.refresh(anfrage)
+    assert suchendes_paket.status == RequestStatus.searching
+    assert fertiges_paket.status == RequestStatus.downloaded
+    assert film.status == RequestStatus.downloaded
+    assert staffel.status == RequestStatus.downloaded

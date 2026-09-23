@@ -257,9 +257,9 @@ class ArrBeschaffung(Beschaffung):
     ):
         return await library.serien_eintrag(self.settings, tvdb_id, titel, jahr, stufe)
 
-    async def folgen_stand(self, stufe: str, arr_id: int) -> dict | None:
+    async def folgen_stand(self, stufe: str, arr_id: int, *, fassung: str = "") -> dict | None:
         """Folgen je Staffel und Nummer - ``None`` ohne eingerichtetes Sonarr."""
-        client = library.sonarr_client(self.settings, stufe)
+        client = library.sonarr_client(self.settings, self._stufe(stufe, fassung))
         return await client.folgen_stand(arr_id) if client is not None else None
 
     async def episodendateien(

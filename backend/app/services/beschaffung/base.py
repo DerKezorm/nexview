@@ -703,7 +703,11 @@ class Beschaffung(ABC):
     async def folgen_stand(
         self, stufe: str, arr_id: int, *, fassung: str = ""
     ) -> dict[int, dict[int, Folge]] | None:
-        """Folgen einer Serie je Staffel und Nummer; ``None``, wenn nichts eingerichtet ist.
+        """Folgen einer Serie je Staffel und Nummer; ``None`` heisst "nicht gelesen".
+
+        Nicht gelesen ist, wenn nichts eingerichtet ist oder die Antwort nicht
+        zu Ende gelesen werden konnte - nie ``{}``, denn das hiesse "keine
+        Folgen", und daraus wird ein fertiges Paket "geloescht".
 
         ``fassung`` geht vor der Stufe, wie bei ``bestand_serien``: Ein Paket
         in einer Zweitfassung ist an deren Folgen zu messen, nicht an denen

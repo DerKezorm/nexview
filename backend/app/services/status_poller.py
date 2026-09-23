@@ -155,6 +155,9 @@ async def check_once(
     # ``None`` heisst "nicht gelesen", ``{}`` dagegen "keine Folgen" - daraus
     # machte ``ist_noch_da`` ein "geloescht". Eine gescheiterte Folgenansicht
     # ist deshalb ``None``; sie warf frueher den ganzen Durchlauf ab, jede Runde.
+    # Ein ``None`` des Zulieferers bleibt ``None``: Im NEX-Betrieb heisst es
+    # auch "Einzelansicht 404", obwohl ``lookup`` die Serie eben noch nannte.
+    # Ob sie wirklich weg ist, sagt der naechste ``lookup``.
     folgen_befunde: dict[tuple[str, str, int], dict | None] = {}
 
     async def _folgen_befund(request: MediaRequest, arr_id: int) -> dict | None:
@@ -172,7 +175,7 @@ async def check_once(
                 )
                 folgen_befunde[schluessel] = None
             else:
-                folgen_befunde[schluessel] = befund or {}
+                folgen_befunde[schluessel] = befund
         return folgen_befunde[schluessel]
 
     # Die Warteschlangen fuer "laedt gerade" - hoechstens einmal je Instanz

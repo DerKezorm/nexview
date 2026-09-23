@@ -553,3 +553,119 @@ async def test_eine_gescheiterte_folgenansicht_haelt_den_lauf_nicht_an(
     assert fertiges_paket.status == RequestStatus.downloaded
     assert film.status == RequestStatus.downloaded
     assert staffel.status == RequestStatus.downloaded
+
+
+# --- Nicht gelesen ist nicht "keine Folgen" ---------------------------------------
+
+
+def _staffelansicht_fehlt(nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch, ref: str) -> None:
+    """Die Einzelansicht nennt die Staffel, ihre Staffelansicht antwortet 404."""
+    echt = nexcrate._titel_weg
+
+    def fehlt(methode: str, teile: list[str], koerper: Any) -> Any:
+        if teile[1:3] == ["series", ref] and len(teile) == 5:
+            return _fehler(404, "season_not_found", "The series has no such season.")
+        return echt(methode, teile, koerper)
+
+    monkeypatch.setattr(nexcrate, "_titel_weg", fehlt)
+
+
+async def test_ein_fertiges_paket_bleibt_bei_404_der_einzelansicht_bis_lookup_die_serie_verliert(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``lookup`` kennt die Serie, die Einzelansicht sagt 404: nicht gelesen, nicht „gelöscht".
+
+    Vorher wurde aus dem ``None`` ein ``{}``, und ``ist_noch_da`` setzte das
+    fertige Paket auf „gelöscht". Weg ist es erst, wenn ``lookup`` die Serie
+    nicht mehr kennt.
+    """
+    _serie(nexcrate, 1399, [_staffel(1, 3 * GB)])
+    _folgen(nexcrate, 1399, SERIE_HD)
+    person = _nutzer(db)
+    paket = _paket(db, person, fassung=SERIE_HD, status=RequestStatus.downloaded)
+    echt = nexcrate._titel_weg
+
+    def fehlt(methode: str, teile: list[str], koerper: Any) -> Any:
+        if teile[1:3] == ["series", "tmdb:1399"] and len(teile) == 3:
+            return _fehler(404, "title_not_found", "nexcrate does not have this title.")
+        return echt(methode, teile, koerper)
+
+    monkeypatch.setattr(nexcrate, "_titel_weg", fehlt)
+
+    await status_poller.check_once(db, nex)
+
+    db.refresh(paket)
+    assert paket.status == RequestStatus.downloaded
+
+    nexcrate.entfernt("series", "tmdb:1399")
+    await status_poller.check_once(db, nex)
+
+    db.refresh(paket)
+    assert paket.status == RequestStatus.deleted
+
+
+async def test_ein_fertiges_paket_bleibt_bei_404_der_staffelansicht(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Einzelansicht nennt Staffel 1, deren Ansicht sagt 404: Die Serie gilt als ungelesen."""
+    _serie(nexcrate, 1399, [_staffel(1, 3 * GB)])
+    _folgen(nexcrate, 1399, SERIE_HD)
+    person = _nutzer(db)
+    paket = _paket(db, person, fassung=SERIE_HD, status=RequestStatus.downloaded)
+    _staffelansicht_fehlt(nexcrate, monkeypatch, "tmdb:1399")
+
+    await status_poller.check_once(db, nex)
+
+    db.refresh(paket)
+    assert paket.status == RequestStatus.downloaded
+
+
+async def test_zwei_serien_derselben_fassung_werden_je_serie_gelesen(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Der Merker gilt je Serie: Die Folgen der einen machen das Paket der anderen nicht fertig."""
+    _serie(nexcrate, 1399, [_staffel(1, 3 * GB)])
+    _folgen(nexcrate, 1399, SERIE_HD)
+    _serie(nexcrate, 1500, [_staffel(1, 3 * GB)], name="Other Show", tvdb=None)
+    nexcrate.staffel(
+        "tmdb:1500",
+        1,
+        [
+            nexcrate.folge(
+                nummer, versionen=[{"version_id": SERIE_HD, "state": "wanted", "monitored": True}]
+            )
+            for nummer in (1, 2, 3)
+        ],
+    )
+    person = _nutzer(db)
+    liegt = _paket(db, person, fassung=SERIE_HD, status=RequestStatus.searching)
+    wartet = _paket(db, person, fassung=SERIE_HD, status=RequestStatus.searching, tmdb_id=1500)
+
+    await status_poller.check_once(db, nex)
+
+    db.refresh(liegt)
+    db.refresh(wartet)
+    assert liegt.status == RequestStatus.downloaded
+    assert wartet.status == RequestStatus.searching
+
+
+async def test_eine_gescheiterte_einzelansicht_wird_je_runde_einmal_gefragt(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Drei Pakete derselben Serie und Fassung, 500: eine Einzelansicht je Runde, nicht drei.
+
+    Auch der Fehlschlag wird gemerkt; sonst fragt jedes Paket einer
+    ausgefallenen Serie noch einmal nach.
+    """
+    _serie(nexcrate, 1399, [_staffel(1, 3 * GB)])
+    _folgen(nexcrate, 1399, SERIE_HD)
+    person = _nutzer(db)
+    _paket(db, person, fassung=SERIE_HD, status=RequestStatus.searching)
+    _paket(db, person, fassung=SERIE_HD, status=RequestStatus.searching, folgen=[3])
+    _paket(db, person, fassung=SERIE_HD, status=RequestStatus.downloaded, folgen=[2])
+    _stumm_fuer(nexcrate, monkeypatch, "tmdb:1399")
+
+    for runde in range(2):
+        vorher = len(_einzelansichten(nexcrate))
+        await status_poller.check_once(db, nex)
+        assert len(_einzelansichten(nexcrate)) - vorher == 1, runde

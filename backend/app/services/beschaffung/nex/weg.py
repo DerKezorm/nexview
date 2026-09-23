@@ -428,8 +428,12 @@ class NexBeschaffung(Beschaffung):
             if nummer is None:
                 continue
             antwort = await self.client.season(ref, int(nummer))
-            if antwort is not None:
-                gefunden[int(nummer)] = bestand.folgen(antwort, kennung)
+            if antwort is None:
+                # Die Einzelansicht nennt die Staffel, ihre Ansicht kennt sie
+                # nicht: ein Widerspruch, kein "Staffel fehlt". Eine fehlende
+                # Staffel machte ein fertiges Paket zu "geloescht".
+                return None
+            gefunden[int(nummer)] = bestand.folgen(antwort, kennung)
         return gefunden
 
     async def episodendateien(self, stufe: str, arr_id: int, season: int | None = None):

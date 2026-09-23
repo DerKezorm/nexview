@@ -693,3 +693,67 @@ async def test_der_papierkorb_ist_eine_liste_und_kein_ordner(
     with pytest.raises(BeschaffungError) as gefangen:
         await arr.papierkorb()
     assert gefangen.value.code == "not_in_this_mode"
+
+
+# --- Anfragen ohne Radarr und Sonarr ------------------------------------------
+#
+# ⚠️ Eine echte NEX-Installation hat nach dem Umstieg weder Radarr noch Sonarr
+# eingetragen. Die Oberflaeche gibt den Knopf frei, sobald eine Fassung bereit
+# ist (``kannAnfragen``); bis zum 23.09.2026 lehnte der Dienst dieselbe Anfrage
+# dann mit "Radarr ist noch nicht eingerichtet" ab.
+
+
+def _titel(media_type: str, tmdb_id: int) -> Any:
+    from app.schemas_media import MediaItem
+
+    return MediaItem(
+        media_type=media_type,
+        tmdb_id=tmdb_id,
+        title="Example Title",
+        release_date="2020-01-01",
+    )
+
+
+@pytest.mark.parametrize(
+    ("media_type", "hauptfassung"), [("movie", FILM_HD), ("tv", SERIE_HD)]
+)
+async def test_die_anfrage_ohne_fassung_haengt_nicht_an_radarr_oder_sonarr(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, media_type: str, hauptfassung: str
+) -> None:
+    assert not nex.radarr_configured and not nex.sonarr_configured
+    # Ein Titel, den nexcrate noch nicht fuehrt: Sonst ginge es um "schon da".
+    tmdb_id = 9101 if media_type == "movie" else 9102
+
+    # Ein mitgeschicktes Profil zaehlt hier nicht: Es haengt an der Fassung.
+    anfrage = await requests_service.create_request(
+        db, nex, _nutzer(db), _titel(media_type, tmdb_id), quality_profile_id=7
+    )
+
+    assert anfrage.fassung_kennung == hauptfassung
+    assert anfrage.quality_profile_id is None and anfrage.root_folder_path is None
+
+
+@pytest.mark.parametrize(
+    ("zugang", "kennung"),
+    [
+        ({"nexcrate_url": URL, "nexcrate_api_key": KEY}, "nexcrate_no_version_for_kind"),
+        ({}, "nexcrate_not_configured"),
+    ],
+)
+async def test_ohne_fassung_fuer_die_medienart_bleibt_die_sperre(
+    db: Session, nexcrate: FakeNexcrate, zugang: dict[str, str], kennung: str
+) -> None:
+    """Die Sperre faellt nicht weg, sie fragt nur die Fassung statt Radarr."""
+    save_settings(db, {"beschaffung": NEX, **zugang})
+    nex_fassungen.schreiben(db, [v for v in nexcrate.versions if v["kind"] == "series"])
+    db.commit()
+    nur_serien = load_settings(db, frisch=True)
+
+    with pytest.raises(requests_service.RequestError) as gefangen:
+        await requests_service.create_request(
+            db, nur_serien, _nutzer(db), _titel("movie", 9101), quality_profile_id=None
+        )
+
+    assert gefangen.value.status_code == 409
+    assert gefangen.value.code == kennung
+    assert db.query(MediaRequest).count() == 0

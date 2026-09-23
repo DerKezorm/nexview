@@ -2201,6 +2201,7 @@
       "nexcrate_pairing_gone": "The pairing request has expired. Start it again.",
       "nexcrate_refused": "nexcrate refused (code {{nexcrate_code}}).",
       "nexcrate_not_configured": "Address and key for nexcrate are not stored yet.",
+      "nexcrate_no_version_for_kind": "nexcrate has no version set up for this media type. The administrator creates one there.",
       "not_in_this_mode": "This tool belongs to the other procurement mode.",
       "beschaffung_invalid": "There is no such procurement mode.",
       "download_action_not_offered": "nexcrate does not offer that for this download.",

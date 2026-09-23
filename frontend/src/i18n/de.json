@@ -2201,6 +2201,7 @@
       "nexcrate_pairing_gone": "Die Bitte ums Koppeln ist abgelaufen. Starte sie neu.",
       "nexcrate_refused": "nexcrate hat abgelehnt (Code {{nexcrate_code}}).",
       "nexcrate_not_configured": "Für nexcrate sind Adresse und Schlüssel noch nicht hinterlegt.",
+      "nexcrate_no_version_for_kind": "In nexcrate ist für diese Medienart keine Fassung eingerichtet. Der Administrator legt sie dort an.",
       "not_in_this_mode": "Dieses Werkzeug gehört zur anderen Betriebsart der Beschaffung.",
       "beschaffung_invalid": "Diese Betriebsart der Beschaffung gibt es nicht.",
       "download_action_not_offered": "nexcrate bietet das an diesem Download nicht an.",

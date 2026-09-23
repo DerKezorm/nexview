@@ -894,6 +894,12 @@ async def _tvdb_klaeren(
             logs.kennung(fehler),
         )
         return None
+    # ⚠️ **``None`` heisst: dieser Weg braucht keine TVDB-Kennung.** nexcrate
+    # ankert Serien auf TMDB (N15), und ``serie_zuordnen`` sagt das so. Ohne
+    # diese Zeile endete dort jede Serienanfrage ohne TVDB-Kennung in einem
+    # ``AttributeError``.
+    if zuordnung is None:
+        return None
     if zuordnung.eindeutig:
         logger.info(
             "TVDB id for %r (tmdb=%s) came from Sonarr rather than TMDB: %s",
@@ -958,6 +964,35 @@ async def _tvdb_klaeren(
         422,
         code="tvdb_id_missing",
         title=item.title,
+    )
+
+
+def _hauptfassung_fehlt(settings: AppSettings, media_type: MediaType) -> RequestError:
+    """Der Fehler, wenn hinter der Hauptfassung nichts steht.
+
+    Im ARR-Betrieb die Saetze von jeher, im NEX-Betrieb mit Kennung: Dort
+    hilft kein Hinweis auf Zugangsdaten fuer Radarr.
+    """
+    if settings.beschaffung_ist_nex:
+        return RequestError(
+            get_beschaffung(settings).nicht_eingerichtet(media_type.value, "standard"),
+            409,
+            code="nexcrate_no_version_for_kind"
+            if settings.nexcrate_configured
+            else "nexcrate_not_configured",
+        )
+    if media_type == MediaType.movie:
+        return RequestError(
+            "Radarr ist noch nicht eingerichtet - Filme können deshalb nicht "
+            "angefragt werden. Der Administrator trägt die Zugangsdaten unter "
+            "Einstellungen ein.",
+            409,
+        )
+    return RequestError(
+        "Sonarr ist noch nicht eingerichtet - Serien können deshalb nicht "
+        "angefragt werden. Der Administrator trägt die Zugangsdaten unter "
+        "Einstellungen ein.",
+        409,
     )
 
 
@@ -1102,22 +1137,16 @@ async def create_request(
                 403,
             )
 
-    # Ohne Radarr/Sonarr koennte aus der Anfrage nie etwas werden. Lieber
+    # Ohne Fassung dahinter koennte aus der Anfrage nie etwas werden. Lieber
     # gleich sagen als eine Anfrage anlegen, die spaeter ins Leere laeuft.
-    if haupt and media_type == MediaType.movie and not settings.radarr_configured:
-        raise RequestError(
-            "Radarr ist noch nicht eingerichtet - Filme können deshalb nicht "
-            "angefragt werden. Der Administrator trägt die Zugangsdaten unter "
-            "Einstellungen ein.",
-            409,
-        )
-    if haupt and media_type == MediaType.tv and not settings.sonarr_configured:
-        raise RequestError(
-            "Sonarr ist noch nicht eingerichtet - Serien können deshalb nicht "
-            "angefragt werden. Der Administrator trägt die Zugangsdaten unter "
-            "Einstellungen ein.",
-            409,
-        )
+    #
+    # ⚠️ **Gefragt wird die Fassung, nicht Radarr.** Dieselbe Frage stellt
+    # ``bereit`` in ``/api/config``, und daran haengt der Knopf. Hier stand
+    # ``settings.radarr_configured``; im NEX-Betrieb ist Radarr nie
+    # eingetragen, und der freie Knopf endete in "Radarr ist noch nicht
+    # eingerichtet".
+    if haupt and settings.fassung(kennung) is None:
+        raise _hauptfassung_fehlt(settings, media_type)
 
     # Eine eigene zurueckgestellte Anfrage zaehlt zwar nicht als "aktiv" - sie
     # blockiert ja bewusst niemanden -, aber **zweimal dasselbe** soll auch
@@ -1280,10 +1309,17 @@ async def create_request(
                 titel=item.title,
             )
 
+    # ⚠️ **Im NEX-Betrieb gibt es weder Ordner noch Profil** (Bauplan 9):
+    # Beides haengt dort an der Fassung. Gefragt wird die Faehigkeit des
+    # Wegs, denn ``optionen`` antwortet dort ``not_in_this_mode``, und daran
+    # scheiterte jede Anfrage, sobald die Sperre davor nicht mehr Radarr fragte.
+    if not get_beschaffung(settings).faehigkeiten().betreiberwerkzeuge:
+        quality_profile_id = None
+        zielordner = None
     # Beide Pruefungen entfallen, wenn erst der Entscheider waehlt: Es gibt
     # dann noch kein Profil zu sperren und keinen Ordner aufzuloesen. Die
     # Pruefung holt das ``apply_target`` bei der Freigabe nach.
-    if not ziel_erst_bei_freigabe:
+    elif not ziel_erst_bei_freigabe:
         # Das Profil erst aufloesen, dann die Sperrliste pruefen: Waehlt der
         # Benutzer gar nicht, kann ihm die Vorgabe des Administrators auch
         # nicht "gesperrt" sein.

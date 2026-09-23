@@ -4106,11 +4106,12 @@
     "error": {
       "umstieg_fassung_unbekannt": "There is no such current version.",
       "umstieg_ziel_unbekannt": "There is no such nexcrate version.",
-      "umstieg_falsche_medienart": "A series cannot be mapped onto a movie version."
+      "umstieg_falsche_medienart": "A series cannot be mapped onto a movie version.",
+      "umstieg_ziel_doppelt": "Two of your current versions point at the same version in nexcrate. Each needs its own target - otherwise two versions collapse into one, and a title held in both would lose one of them. If nexcrate has no counterpart, pick “None”: everything in that version is then left untouched."
     },
     "mappingNoSuggestion": "Nexview suggests nothing: this nexcrate names no quality tier for its versions – it only does once their profiles set one. Map by hand; nothing is guessed here, because putting a 4K request on a 1080p version would give the requester something other than what they asked for.",
-    "decideCollides": "would overwrite another title",
-    "decideCollidesText": "For the titles marked this way, Sonarr keeps two series that TMDB counts as one, and nexcrate goes by TMDB. These entries stay as they are: Nexview rewrites neither of them rather than letting one disappear. You can merge them in nexcrate later.",
+    "decideCollides": "two entries would land in the same place",
+    "decideCollidesText": "For the titles marked this way, two entries would occupy the same place after the switch. This happens where Sonarr keeps two series that TMDB counts as one, and nexcrate goes by TMDB. These entries stay as they are: Nexview rewrites neither of them rather than letting one disappear. You can merge such titles in nexcrate later.",
     "switchWhatChanges": "What is a version id? Every request and every storage entry records which version of a title it was about - so far “Radarr” or “Sonarr 4K”, from now on the version from nexcrate you mapped above. Only that label is exchanged.",
     "switchNothingLost": "No file is touched, nothing is downloaded or deleted, and no title disappears from Nexview. Whatever is on disk stays exactly where it is.",
     "doneDouble_one": "One entry was left as it was, because another would have taken the same place.",

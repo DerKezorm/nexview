@@ -166,6 +166,20 @@ def pruefe_abbildung(
             # Posten, den nexcrate nie kennt - und keinen Fehler, bis jemand
             # ihn löschen will.
             fehler.append("umstieg_falsche_medienart")
+
+    # ⚠️ **Die Abbildung muss eineindeutig sein.** Zwei Arr-Fassungen auf
+    # dieselbe Fassung zu legen macht aus zwei Fassungen eine - und ein Titel,
+    # der in beiden liegt, hat danach zweimal denselben Speicherschlüssel.
+    # Genau das brach den ersten Umstieg an einer echten Anlage ab
+    # (23.09.2026): 8 Filme lagen in „Radarr FHD" **und** „Radarr-4K".
+    #
+    # Nicht zu verwechseln mit dem Normalfall: Ein Titel **darf** in beliebig
+    # vielen Fassungen liegen. Was er nicht darf, ist zweimal in derselben.
+    # Wer für eine Arr-Fassung kein Gegenstück hat, wählt „Keine" - dann
+    # bleiben ihre Posten unberührt, statt sich mit fremden zu mischen.
+    ziele = [ziel for ziel in abbildung.values() if ziel]
+    if len(ziele) != len(set(ziele)):
+        fehler.append("umstieg_ziel_doppelt")
     return sorted(set(fehler))
 
 

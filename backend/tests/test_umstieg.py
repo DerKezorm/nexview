@@ -211,6 +211,39 @@ def test_eine_erfundene_zielfassung_ist_ein_fehler(vor_dem_umstieg: Any, db: Ses
     assert umstieg.pruefe_abbildung({RADARR: "v_00000000"}, nex) == ["umstieg_ziel_unbekannt"]
 
 
+def test_zwei_fassungen_auf_dasselbe_ziel_sind_ein_fehler(
+    vor_dem_umstieg: Any, db: Session
+) -> None:
+    """⚠️ **Das war die Ursache des ersten Fehlschlags an einer echten Anlage.**
+
+    „Radarr FHD" und „Radarr-4K" zeigten auf dieselbe Fassung. Damit werden aus
+    zwei Fassungen eine, und die acht Filme, die dort in beiden Stufen lagen,
+    bekamen zweimal denselben Speicherschlüssel - `storage_entries.key` ist
+    UNIQUE, und die Wanderung brach mitten im Schreiben ab (23.09.2026).
+
+    Nicht zu verwechseln mit dem Normalfall: Ein Titel darf in beliebig vielen
+    Fassungen liegen. Nur zweimal in derselben darf er nicht.
+    """
+    nex = list(get_beschaffung(umstieg.nex_sicht(db)).fassungen())
+    assert umstieg.pruefe_abbildung({RADARR: FILM_HD, RADARR_UHD: FILM_HD}, nex) == [
+        "umstieg_ziel_doppelt"
+    ]
+
+
+def test_wer_kein_gegenstueck_hat_waehlt_keine_und_das_ist_kein_fehler(
+    vor_dem_umstieg: Any, db: Session
+) -> None:
+    """Der Ausweg, wenn nexcrate nur eine Fassung je Medienart führt.
+
+    ``None`` heißt „unberührt lassen" und darf deshalb mehrfach vorkommen -
+    sonst käme jemand mit einer schlanken nexcrate gar nicht durch.
+    """
+    nex = list(get_beschaffung(umstieg.nex_sicht(db)).fassungen())
+    assert umstieg.pruefe_abbildung(
+        {RADARR: FILM_HD, RADARR_UHD: None, SONARR: SERIE_HD, SONARR_UHD: None}, nex
+    ) == []
+
+
 # --------------------------------------------------------------------------
 # 7.3 Schritt 4: die Probe
 

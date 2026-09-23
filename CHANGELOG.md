@@ -35,13 +35,16 @@ the process. The backup is the way back.
   approved requests. ⚠️ **There is no way back except the backup** – Nexview
   refuses to switch until the file is really written.
 
+  Mapping is one to one: two of your current versions cannot point at the same
+  version in nexcrate, and the assistant says so while you are setting it up.
+  Otherwise two versions would collapse into one, and a title held in both –
+  the same film in 1080p and in 4K – would lose one of them. Where nexcrate has
+  no counterpart, pick "None" and everything in that version is left untouched.
+
   Before the switch it lists every title that needs a decision, with the
   reason: nexcrate does not have it, it has it but without the TMDB id the
-  storage key is built from, or two of your entries would end up on the same
-  new key. That last one happens where Sonarr keeps two series that TMDB counts
-  as one – series hang on their TVDB id under Radarr and Sonarr, and on their
-  TMDB id under nexcrate. Those entries are left exactly as they are; you can
-  merge such titles in nexcrate afterwards.
+  storage key is built from, or two of your entries would end up in the same
+  place anyway. Those entries are left exactly as they are.
 
   The migration itself runs in one transaction and only then are Radarr and
   Sonarr left behind. If anything goes wrong, nothing has changed.

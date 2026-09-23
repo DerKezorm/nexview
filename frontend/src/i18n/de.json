@@ -4106,11 +4106,12 @@
     "error": {
       "umstieg_fassung_unbekannt": "Diese bisherige Fassung gibt es nicht.",
       "umstieg_ziel_unbekannt": "Diese nexcrate-Fassung gibt es nicht.",
-      "umstieg_falsche_medienart": "Eine Serie lässt sich nicht auf eine Filmfassung abbilden."
+      "umstieg_falsche_medienart": "Eine Serie lässt sich nicht auf eine Filmfassung abbilden.",
+      "umstieg_ziel_doppelt": "Zwei bisherige Fassungen zeigen auf dieselbe Fassung in nexcrate. Jede braucht ihr eigenes Ziel — sonst fallen zwei Fassungen zu einer zusammen, und ein Titel, der in beiden liegt, verlöre eine davon. Gibt es in nexcrate kein Gegenstück, wähle „Keine“: Dann bleibt alles in dieser Fassung unberührt."
     },
     "mappingNoSuggestion": "Nexview schlägt nichts vor: Diese nexcrate nennt zu ihren Fassungen keine Auflösungsklasse – das tut sie erst, wenn deren Profile eine festlegen. Ordne von Hand zu; geraten wird hier nicht, denn eine 4K-Anfrage auf einer 1080p-Fassung gäbe dem Anfragenden etwas anderes, als er wollte.",
-    "decideCollides": "würde einen anderen Titel überschreiben",
-    "decideCollidesText": "Bei den so gekennzeichneten Titeln führt Sonarr zwei Serien, die in TMDB eine einzige sind — nexcrate rechnet nach TMDB. Diese Posten bleiben, wie sie sind: Nexview schreibt keinen von beiden um, statt einen davon verschwinden zu lassen. Du kannst sie später in nexcrate zusammenführen.",
+    "decideCollides": "zwei Einträge fielen auf denselben Platz",
+    "decideCollidesText": "Bei den so gekennzeichneten Titeln würden zwei Einträge nach dem Umstieg denselben Platz belegen. Das kommt vor, wenn Sonarr zwei Serien führt, die TMDB als eine zählt — nexcrate rechnet nach TMDB. Diese Einträge bleiben, wie sie sind: Nexview schreibt keinen von beiden um, statt einen verschwinden zu lassen. Du kannst solche Titel später in nexcrate zusammenführen.",
     "switchWhatChanges": "Was ist eine Fassungskennung? An jeder Anfrage und an jedem Speicherposten steht, in welcher Fassung es um den Titel ging — bisher „Radarr“ oder „Sonarr 4K“, künftig die Fassung aus nexcrate, die du oben zugeordnet hast. Nur diese Beschriftung wird ausgetauscht.",
     "switchNothingLost": "Keine Datei wird angefasst, nichts wird heruntergeladen oder gelöscht, und kein Titel verschwindet aus Nexview. Was auf der Platte liegt, liegt danach genauso da.",
     "doneDouble_one": "Ein Posten blieb stehen, weil ein anderer denselben Platz bekommen hätte.",

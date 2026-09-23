@@ -181,8 +181,35 @@ describe('Umstiegsassistent', () => {
     await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
 
     expect(
-      await screen.findByText(/Example Series — würde einen anderen Titel überschreiben/),
+      await screen.findByText(/Example Series — zwei Einträge fielen auf denselben Platz/),
     ).toBeInTheDocument()
-    expect(screen.getByText(/führt Sonarr zwei Serien/)).toBeInTheDocument()
+    expect(screen.getByText(/denselben Platz belegen/)).toBeInTheDocument()
+  })
+
+  it('lässt zwei bisherige Fassungen nicht auf dieselbe nexcrate-Fassung zeigen', async () => {
+    // ⚠️ **Das war die Ursache des ersten Fehlschlags an einer echten Anlage**
+    // (23.09.2026): „Radarr FHD" und „Radarr-4K" zeigten auf dieselbe Fassung,
+    // acht Filme lagen in beiden Stufen, und die Wanderung brach mitten im
+    // Schreiben ab. Hier fällt es auf, während er es einstellt.
+    antworten({
+      ...ABBILDUNG,
+      arr_fassungen: [
+        { kennung: 'radarr-standard', media_type: 'movie', name: 'Radarr', klasse: 'hd' },
+        { kennung: 'radarr-uhd', media_type: 'movie', name: 'Radarr 4K', klasse: 'uhd' },
+      ],
+      vorschlag: { 'radarr-standard': 'v_6a0763e8', 'radarr-uhd': null },
+    })
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    // Noch ist alles in Ordnung: „Keine" darf mehrfach vorkommen.
+    expect(screen.getByRole('button', { name: /prüfen/i })).toBeEnabled()
+
+    await userEvent.selectOptions(screen.getByLabelText('Radarr 4K'), 'v_6a0763e8')
+
+    expect(await screen.findByText(/zeigen auf dieselbe Fassung/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /prüfen/i })).toBeDisabled()
   })
 })

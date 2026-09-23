@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -48,6 +48,14 @@ export function AdminUmstieg() {
 
   const [schritt, setSchritt] = useState<Schritt>("vorab");
   const [abbildung, setAbbildung] = useState<Record<string, string | null>>({});
+  // ⚠️ **Dieselbe Regel wie am Server** (`pruefe_abbildung`), nur früher: Wer
+  // zwei bisherige Fassungen auf dieselbe nexcrate-Fassung legt, soll das
+  // sehen, während er es tut - nicht eine Serverrunde später. Der Server
+  // prüft es trotzdem; er ist der, der es wissen muss.
+  const zielDoppelt = useMemo(() => {
+    const ziele = Object.values(abbildung).filter(Boolean);
+    return ziele.length !== new Set(ziele).size;
+  }, [abbildung]);
   const [ergebnis, setErgebnis] = useState<UmstiegProbe | null>(null);
   const [trotzdem, setTrotzdem] = useState(false);
   const [sicherung, setSicherung] = useState<UmstiegSicherung | null>(null);
@@ -247,16 +255,24 @@ export function AdminUmstieg() {
               </li>
             ))}
           </ul>
-          {ergebnis?.fehler.map((code) => (
-            <p key={code} className="text-sm text-bad-500">
-              {t(`umstieg.error.${code}`, { defaultValue: code })}
+          {zielDoppelt && (
+            <p className="max-w-3xl rounded-xl border border-bad-500/40 bg-bad-500/10 px-4 py-3 text-sm text-bad-500">
+              {t("umstieg.error.umstieg_ziel_doppelt")}
             </p>
-          ))}
+          )}
+          {ergebnis?.fehler
+            .filter((code) => !(zielDoppelt && code === "umstieg_ziel_doppelt"))
+            .map((code) => (
+              <p key={code} className="text-sm text-bad-500">
+                {t(`umstieg.error.${code}`, { defaultValue: code })}
+              </p>
+            ))}
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="button"
               onClick={() => probe.mutate()}
               loading={probe.isPending}
+              disabled={zielDoppelt}
             >
               {t("umstieg.check")}
             </Button>

@@ -65,7 +65,9 @@
       "sonarr": "Sonarr",
       "mail": "E-mail",
       "address": "Address",
-      "avatar": "Picture"
+      "avatar": "Picture",
+      "beschaffung": "Procurement",
+      "nexcrate": "nexcrate"
     },
     "saveAndContinue": "Save and continue",
     "later": "Set up later",
@@ -307,6 +309,7 @@
         "jf_schluessel": "Nexview cannot use the key from Seerr: it connects with the username and password of an administrator of your {{dienst}} server. The wizard asks for that at the end, once your account exists; the address above is prefilled there.",
         "arr_uebrig": "“{{name}}” stays behind: Nexview has only one slot for titles of this kind, and it is taken.",
         "arr_uebrig_uhd": "“{{name}}” stays behind: Nexview has only one slot for 4K titles of this kind, and it is taken.",
+        "arr_nicht_im_nex_betrieb": "“{{name}}” stays behind: this installation procures through nexcrate. Profiles, folders and the key of a Radarr or Sonarr would be settings here that nobody reads any more.",
         "kein_mailserver": "Seerr has no mail server configured.",
         "mail_aus": "Mail sending is switched off in Seerr. The credentials come along anyway; whether Nexview sends is your decision.",
         "sprache_unbekannt": "Seerr is set to “{{sprache}}”. Nexview speaks German and English; the house default stays.",
@@ -321,7 +324,14 @@
         "sperrliste_etiketten": "{{anzahl}} entries additionally block tags in Seerr. Nexview has no counterpart for that; the titles come along anyway.",
         "adresse_vergeben": "This address already belongs to another account."
       }
-    }
+    },
+    "beschaffungTitle": "Who procures the titles?",
+    "beschaffungText": "One switch for movies and series alike – there is no mixed mode. You can change it later; switching then rewrites everything that points at a version.",
+    "beschaffungNote": "Not sure? Radarr and Sonarr are the familiar way. nexcrate replaces both with a single connection and brings profiles, naming, folders and a recycle bin along.",
+    "nexcrateTitle": "Connect nexcrate",
+    "nexcrateText": "Enter the address and pair – then you copy no key at all. Nexview then reads which versions nexcrate keeps.",
+    "nexcrateVersionsTitle": "Who may request which version?",
+    "nexcrateVersionsText": "Ticked means everyone may request it. Without a tick you hand out the right per account later. Suggested: 1080p open, everything else closed."
   },
   "login": {
     "title": "Sign in",
@@ -2145,7 +2155,7 @@
       "rule_forbids_asking": "That rule does not allow asking again.",
       "already_asked_anyway": "That request has already been passed on and decided since.",
       "already_rule_rejected": "“{{title}}” has already been declined by a rule.",
-      "fassung_unknown": "This version does not exist for this media type.",
+      "fassung_unknown": "There is no such version.",
       "wish_rule_rejected": "A house rule has declined “{{title}}”.",
       "seerr_account_unknown": "Seerr no longer has this account. Read the preview again.",
       "seerr_owner_in_list": "The owner also appears in the list of other accounts.",
@@ -2183,7 +2193,9 @@
       "beschaffung_invalid": "There is no such procurement mode.",
       "download_action_not_offered": "nexcrate does not offer that for this download.",
       "download_action_not_automatic": "An automation may not take that action here.",
-      "storage_nothing_to_delete": "nexcrate reports no file for this entry that could be deleted."
+      "storage_nothing_to_delete": "nexcrate reports no file for this entry that could be deleted.",
+      "umstieg_ohne_sicherung": "A backup must exist before switching.",
+      "umstieg_posten_ohne_gegenstueck": "There are {{anzahl}} entries that nexcrate does not keep. Look at them and decide."
     }
   },
   "language": {
@@ -4017,7 +4029,84 @@
       "download_client_none": "No download client is connected and switched on.",
       "tmdb_token_missing": "No TMDB token is stored in nexcrate.",
       "automatic_off": "The automatic is off; nothing loads by itself.",
-      "version_not_ready": "A version is not ready."
+      "version_not_ready": "A version is not ready.",
+      "nexcrate_vertrag_fremd": "This nexcrate speaks contract {{major}}; Nexview is built for {{erwartet}}. Going on would mean guessing.",
+      "nexcrate_zu_alt": "This nexcrate is at {{stage}}; Nexview needs at least {{erwartet}}.",
+      "nexcrate_ohne_medienart": "This nexcrate does not serve titles of kind “{{art}}”.",
+      "nexcrate_recht_fehlt": "The key is missing the “{{recht}}” scope in nexcrate.",
+      "nexcrate_wuensche_warten": "Older nexcrate: a requested title waits for the automation instead of being searched right away.",
+      "nexcrate_ohne_anime": "This nexcrate does not search anime yet."
+    },
+    "pruefungTitle": "What speaks against this nexcrate",
+    "pruefung": {
+      "nexcrate_vertrag_fremd": "This nexcrate speaks contract {{major}}; Nexview is built for {{erwartet}}. Going on would mean guessing.",
+      "nexcrate_zu_alt": "This nexcrate is at {{stage}}; Nexview needs at least {{erwartet}}.",
+      "nexcrate_ohne_medienart": "This nexcrate does not serve titles of kind “{{art}}”.",
+      "nexcrate_recht_fehlt": "The key is missing the “{{recht}}” scope in nexcrate.",
+      "nexcrate_wuensche_warten": "Older nexcrate: a requested title waits for the automation instead of being searched right away.",
+      "nexcrate_ohne_anime": "This nexcrate does not search anime yet."
+    }
+  },
+  "umstieg": {
+    "section": "Switch to nexcrate",
+    "stepOf": "Step {{nummer}} of {{gesamt}}",
+    "vorabTitle": "What changes",
+    "noWayBack": "There is no way back except the backup. After switching, nexcrate procures; Nexview no longer knows Radarr and Sonarr.",
+    "running_one": "One download is running in Radarr or Sonarr. It finishes there – Nexview will not see it afterwards.",
+    "running_other": "{{count}} downloads are running in Radarr or Sonarr. They finish there – Nexview will not see them afterwards.",
+    "openRequests_one": "One open request comes along.",
+    "openRequests_other": "{{count}} open requests come along.",
+    "entries_one": "One storage entry will be rewritten.",
+    "entries_other": "{{count}} storage entries will be rewritten.",
+    "instances": "Affected: {{namen}}",
+    "connectTitle": "Connect to nexcrate",
+    "connectText": "Connect first, then Nexview checks whether this nexcrate will do. A finding marked red stops here – clicking on does not help.",
+    "mappingTitle": "Which version becomes what?",
+    "mappingText": "One nexcrate version per current version. “None” means rights and rules on it lose their target, and open requests need a choice later.",
+    "mappingNone": "None",
+    "check": "Check",
+    "probeTitle": "Does nexcrate know the titles?",
+    "probeKnown_one": "One title is known and has the chosen version.",
+    "probeKnown_other": "{{count}} titles are known and have the chosen version.",
+    "probeWithoutVersion_one": "One title is known, but without this version.",
+    "probeWithoutVersion_other": "{{count}} titles are known, but without this version.",
+    "probeUnknown_one": "nexcrate does not know one title.",
+    "probeUnknown_other": "nexcrate does not know {{count}} titles.",
+    "probeAnime_one": "One anime series has an open request.",
+    "probeAnime_other": "{{count}} anime series have open requests.",
+    "probeOpenRequests": "Open requests for unknown titles are no obstacle: they are placed when you switch.",
+    "decideTitle": "These entries need a decision",
+    "decideText": "Downloaded entries that nexcrate does not keep. Either you keep booking them in the house – they stay in the accounting, but nexcrate knows nothing of them – or you take them over there first and check again.",
+    "decideNoTranslation": "no TMDB id in nexcrate",
+    "decideKeep": "I have seen the list and keep booking them in the house.",
+    "backupTitle": "Backup",
+    "backupText": "It is the only way back. Nexview creates it here; the name appears afterwards, and without it there is no next step.",
+    "backupCreate": "Create backup",
+    "backupDone": "Created: {{name}}",
+    "switchTitle": "Switch",
+    "switchWarning": "Nexview's webhook entries will now be removed from Radarr and Sonarr, the credentials deleted and every version id rewritten. After this there is only the backup.",
+    "switchNow": "Switch now",
+    "doneTitle": "Switched",
+    "doneVersions_one": "One version from nexcrate is in place.",
+    "doneVersions_other": "{{count}} versions from nexcrate are in place.",
+    "doneRequests_one": "One request was rewritten.",
+    "doneRequests_other": "{{count}} requests were rewritten.",
+    "doneEntries_one": "One storage entry was rewritten.",
+    "doneEntries_other": "{{count}} storage entries were rewritten.",
+    "doneRights_one": "One right was rewritten.",
+    "doneRights_other": "{{count}} rights were rewritten.",
+    "doneRules_one": "One rule was rewritten.",
+    "doneRules_other": "{{count}} rules were rewritten.",
+    "doneWithoutTranslation_one": "One entry was left without a translation to TMDB.",
+    "doneWithoutTranslation_other": "{{count}} entries were left without a translation to TMDB.",
+    "handOver": "Hand over approved requests",
+    "handedOver_one": "One request handed over.",
+    "handedOver_other": "{{count}} requests handed over.",
+    "handOverMore": "Something is still open – the next round picks up the rest.",
+    "error": {
+      "umstieg_fassung_unbekannt": "There is no such current version.",
+      "umstieg_ziel_unbekannt": "There is no such nexcrate version.",
+      "umstieg_falsche_medienart": "A series cannot be mapped onto a movie version."
     }
   }
 }

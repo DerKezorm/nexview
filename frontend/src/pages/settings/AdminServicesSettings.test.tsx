@@ -52,6 +52,16 @@ function antworten(config: Record<string, unknown>) {
     // Was die Seite durchlaeuft, muss eine Liste sein - ein leeres Objekt
     // laesst sie mit "map is not a function" abstuerzen.
     if (LISTEN.some((l) => pfad.startsWith(l))) return Promise.resolve([])
+    // Der Umstiegsassistent liest beim Zeichnen seine Zahlen - ohne `instanzen`
+    // stürzt er beim Zusammensetzen der Zeile ab.
+    if (pfad.startsWith('/api/umstieg/vorab')) {
+      return Promise.resolve({
+        downloads_laufend: 0,
+        anfragen_offen: 0,
+        posten: 0,
+        instanzen: [],
+      })
+    }
     return Promise.resolve({})
   })
 }
@@ -90,4 +100,21 @@ it('wechselt trotzdem weg, wenn es den Reiter wirklich nicht gibt', async () => 
   await waitFor(() => {
     expect(aktiverReiter()).not.toContain('Qualitätsprofile')
   })
+})
+
+it('zeigt den Umstieg gar nicht erst, wenn nexcrate schon beschafft', async () => {
+  // ⚠️ Die andere Hälfte der Regel „ein offener Reiter bleibt stehen": Sie
+  // gilt nur für einen Reiter, der einmal erlaubt **war**. Wer die Seite im
+  // NEX-Betrieb mit `?unter=umstieg` öffnet, hat dort nichts verloren - und
+  // der Rückfall bringt ihn zu „Allgemein".
+  antworten({ radarr_configured: true, beschaffung: 'nex' })
+  rendernSchlicht(<AdminServicesSettings startUnter="umstieg" />)
+
+  await waitFor(() => {
+    expect(holen).toHaveBeenCalled()
+  })
+  await waitFor(() => {
+    expect(aktiverReiter()).not.toContain('Umstieg')
+  })
+  expect(screen.queryByRole('tab', { name: /Umstieg auf nexcrate/ })).toBeNull()
 })

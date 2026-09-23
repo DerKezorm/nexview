@@ -354,6 +354,57 @@ class Nachschlag:
 
 
 @dataclass(frozen=True)
+class Kennt:
+    """Wonach der Umstieg fragt: kennst du diesen Titel ueberhaupt?
+
+    Eine andere Frage als ``Nachschlag``: Dort geht es um den **Stand** einer
+    Fassung, hier um „fuehrst du ihn, und unter welchen Kennungen". Der
+    Unterschied traegt den Umstieg: Nexviews Serien haengen an TVDB, nexcrate
+    ankert auf TMDB, und die Uebersetzung steht nur in der Antwort.
+    """
+
+    media_type: str
+    tmdb_id: int
+    tvdb_id: int | None = None
+    titel: str = ""
+    jahr: int | None = None
+
+
+@dataclass(frozen=True)
+class Kenntnis:
+    """Was der Weg ueber einen Titel weiss."""
+
+    bekannt: bool
+    #: Die Fassungen, die der Weg fuer ihn fuehrt.
+    fassungen: tuple[str, ...] = ()
+    #: Was der Weg selbst als Kennung fuehrt - fuer die Uebersetzung.
+    tmdb_id: int | None = None
+    tvdb_id: int | None = None
+    #: Fuehrt der Weg diesen Titel als Anime? ⚠️ **Nur der NEX-Weg beantwortet
+    #: das.** Radarr und Sonarr sagen hier immer ``False``; gefragt wird bisher
+    #: nur im Umstiegsassistenten, und der fragt nexcrate.
+    anime: bool = False
+
+
+@dataclass(frozen=True)
+class Pruefbefund:
+    """Was gegen diesen Weg spricht (Bauplan 7.2).
+
+    ``sperrt`` heisst: So geht es nicht weiter. ``warnt`` heisst: Es geht,
+    aber der Betreiber soll es wissen.
+    """
+
+    code: str
+    #: ``sperrt`` oder ``warnt``.
+    stufe: str
+    werte: dict[str, Any] = field(default_factory=dict)
+
+
+SPERRT = "sperrt"
+WARNT = "warnt"
+
+
+@dataclass(frozen=True)
 class Nachschlagen:
     """Was beim Nachschlagen herauskam.
 
@@ -514,6 +565,23 @@ class Beschaffung(ABC):
         """
 
     @abstractmethod
+    async def kennt(self, gesucht: list[Kennt]) -> list[Kenntnis]:
+        """Fuehrt dieser Weg diese Titel - und unter welchen Kennungen?
+
+        Die Antwort steht in derselben Reihenfolge wie die Frage. Gebraucht
+        vom Umstiegsassistenten: Er prueft das **Ergebnis** (kennt der neue
+        Weg die Titel, an denen etwas haengt), nicht den Weg dorthin.
+        """
+
+    @abstractmethod
+    async def pruefen(self) -> list[Pruefbefund]:
+        """Taugt dieser Weg? Leer heisst ja (Bauplan 7.2).
+
+        Gefragt in der Einrichtung, im Umstiegsassistenten und als Befund im
+        laufenden Betrieb - immer mit derselben Antwort.
+        """
+
+    @abstractmethod
     async def status_setzen(
         self,
         media_type: str,
@@ -663,6 +731,19 @@ class Beschaffung(ABC):
 
     @abstractmethod
     async def rueckkanal_pflegen(self, db: Session) -> None: ...
+
+    @abstractmethod
+    async def verlassen(self, db: Session) -> list[str]:
+        """Diesen Weg aufgeben: aufraeumen, was er anderswo hinterlassen hat.
+
+        Gibt zurueck, was geschehen ist - fuer das Protokoll und fuer den
+        Assistenten, der es dem Betreiber zeigt.
+
+        ⚠️ **Der letzte Schreibzugriff auf den alten Weg.** Danach sind seine
+        Zugaenge geloescht; was drueben weiterlaeuft, laeuft ohne Nexview zu
+        Ende. Ein stummer Dienst haelt das nicht auf: Dann bleibt sein Eintrag
+        eben stehen, und der Bericht sagt es.
+        """
 
     # -- Haengende Downloads --------------------------------------------------
 

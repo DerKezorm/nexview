@@ -1116,6 +1116,19 @@ export type NexFassungZeile = {
   gruende: string[];
 };
 
+/**
+ * Ein Befund der Standprüfung (Bauplan 7.2).
+ *
+ * ⚠️ **Eine Kennung, kein Satz** (N5). Den Satz baut die Oberfläche aus
+ * `nexcrate.pruefung.<code>`; `werte` füllt seine Platzhalter.
+ */
+export type NexPruefbefund = {
+  code: string;
+  /** `sperrt` hält an, `warnt` steht nur da. */
+  stufe: "sperrt" | "warnt";
+  werte: Record<string, unknown>;
+};
+
 /** Was nexcrate über sich sagt (`GET /api/settings/nexcrate/status`). */
 export type NexStand = {
   eingerichtet: boolean;
@@ -1129,6 +1142,7 @@ export type NexStand = {
   anime: boolean;
   fassungen: NexFassungZeile[];
   probleme: { code: string; level: string; params: Record<string, unknown> }[];
+  pruefung: NexPruefbefund[];
   /** Kennung des Fehlers, wenn nexcrate nicht antwortet. */
   fehler: string;
 };
@@ -1148,6 +1162,79 @@ export type NexBitteStand = {
   installation_id: string;
   version: string;
   fassungen: number;
+  pruefung: NexPruefbefund[];
+};
+
+/** Eine Fassung, wie der Umstiegsassistent sie zur Wahl stellt. */
+export type UmstiegFassung = {
+  kennung: string;
+  media_type: string;
+  name: string;
+  klasse: string | null;
+};
+
+/** Schritt 1: die Zahlen vorab. */
+export type UmstiegVorab = {
+  downloads_laufend: number;
+  anfragen_offen: number;
+  posten: number;
+  instanzen: string[];
+};
+
+/** Schritte 2 und 3: Standprüfung, beide Fassungslisten, Vorschlag. */
+export type UmstiegAbbildung = {
+  pruefung: NexPruefbefund[];
+  sperrt: boolean;
+  arr_fassungen: UmstiegFassung[];
+  nex_fassungen: UmstiegFassung[];
+  vorschlag: Record<string, string | null>;
+};
+
+/** Ein Posten, der eine Entscheidung braucht (Schritt 4). */
+export type UmstiegZuEntscheiden = {
+  media_type: string;
+  tmdb_id: number;
+  titel: string;
+  fassung: string;
+  ergebnis: string;
+  ohne_uebersetzung: boolean;
+};
+
+/** Schritt 4: was die Probe ergeben hat. */
+export type UmstiegProbe = {
+  fehler: string[];
+  bekannt: number;
+  ohne_fassung: number;
+  unbekannt: number;
+  anime_offen: number;
+  zu_entscheiden: UmstiegZuEntscheiden[];
+};
+
+/** Schritt 5: die Sicherung, ohne die es nicht weitergeht. */
+export type UmstiegSicherung = {
+  name: string;
+  groesse: number;
+  erstellt: string;
+};
+
+/** Schritt 6: was umgeschrieben wurde. */
+export type UmstiegBericht = {
+  fassungen: number;
+  verlassen: string[];
+  anfragen: number;
+  posten: number;
+  posten_schluessel: number;
+  posten_ohne_uebersetzung: number;
+  rechte: number;
+  einladungen: number;
+  regeln: number;
+  zeilen_entfernt: number;
+};
+
+/** Schritt 7: was nachgereicht wurde. */
+export type UmstiegNachreichen = {
+  gereicht: number;
+  weiter: boolean;
 };
 
 export type AppSettings = {

@@ -31,9 +31,12 @@ from ..base import (
     FassungInfo,
     FilmStand,
     Folge,
+    Kennt,
+    Kenntnis,
     Korb,
     Nachschlag,
     Nachschlagen,
+    Pruefbefund,
     SerienBestand,
     SerienStand,
     WarteschlangenEintrag,
@@ -240,6 +243,68 @@ class NexBeschaffung(Beschaffung):
     @classmethod
     def bestand_verwerfen(cls) -> None:
         bestand.verwerfen()
+
+    async def kennt(self, gesucht: list[Kennt]) -> list[Kenntnis]:
+        """Fuehrt nexcrate diese Titel - und unter welchen Kennungen?
+
+        ⚠️ **Serien werden notfalls ueber ``tvdb:`` gefragt.** nexcrate nimmt
+        beide Quellen und nennt in ``refs``, was es selbst fuehrt; genau daraus
+        entsteht die Uebersetzung der Speicherschluessel beim Umstieg. Wer nur
+        ueber TMDB fragt, findet eine Serie nicht, die aus Sonarr uebernommen
+        wurde und dort keine TMDB-Nummer hatte.
+        """
+        if not gesucht:
+            return []
+        antworten = await self.client.lookup(
+            [
+                {"kind": mapping.kind(wonach.media_type), "ref": mapping.ref(wonach.tmdb_id)}
+                for wonach in gesucht
+            ]
+        )
+        nachfrage = [
+            (nummer, {"kind": "series", "ref": f"tvdb:{wonach.tvdb_id}"})
+            for nummer, (wonach, antwort) in enumerate(zip(gesucht, antworten, strict=False))
+            if not antwort.get("known") and wonach.media_type == "tv" and wonach.tvdb_id
+        ]
+        if nachfrage:
+            zweite = await self.client.lookup([eintrag for _, eintrag in nachfrage])
+            for (nummer, _), antwort in zip(nachfrage, zweite, strict=False):
+                if antwort.get("known"):
+                    antworten[nummer] = antwort
+
+        gefunden: list[Kenntnis] = []
+        for wonach, antwort in zip(gesucht, antworten, strict=False):
+            titel = antwort.get("title") if antwort.get("known") else None
+            if titel is None:
+                gefunden.append(Kenntnis(bekannt=False, tvdb_id=wonach.tvdb_id))
+                continue
+            kennungen = mapping.refs_nach_quelle(titel.get("refs"))
+            tmdb = kennungen.get("tmdb")
+            tvdb = kennungen.get("tvdb")
+            serie = titel.get("series")
+            gefunden.append(
+                Kenntnis(
+                    bekannt=True,
+                    anime=(
+                        str(serie.get("type") or "") == "anime"
+                        if isinstance(serie, dict)
+                        else False
+                    ),
+                    fassungen=tuple(
+                        str(f.get("version_id")) for f in titel.get("versions") or []
+                    ),
+                    tmdb_id=int(tmdb) if tmdb and tmdb.isdigit() else None,
+                    tvdb_id=int(tvdb) if tvdb and tvdb.isdigit() else wonach.tvdb_id,
+                )
+            )
+        return gefunden
+
+    async def pruefen(self) -> list[Pruefbefund]:
+        """Taugt diese nexcrate? Die Antwort kommt frisch, nicht aus dem Merker."""
+        from . import pruefung
+
+        daten = await system.auffrischen(self.settings)
+        return pruefung.pruefen(daten)
 
     async def status_setzen(
         self,
@@ -524,6 +589,35 @@ class NexBeschaffung(Beschaffung):
     async def rueckkanal_pflegen(self, db: Session) -> None:
         """Nichts zu tun: Nexview legt in nexcrate keinen Webhook an (N32)."""
         return
+
+    async def verlassen(self, db: Session) -> list[str]:
+        """Den Zugang zu nexcrate loeschen. Mehr kann Nexview nicht.
+
+        ⚠️ **Der Schluessel bleibt in nexcrate stehen.** Ein Programm kann ihn
+        dort nicht widerrufen (nexbeat-Befund 15: Ein zweites Koppeln legt
+        einen zweiten an, der erste bleibt in der Liste). Der Bericht sagt es,
+        damit der Betreiber ihn von Hand entfernen kann.
+        """
+        from ...settings_service import clear_secret, save_settings
+
+        bericht = []
+        if self.settings.nexcrate_configured:
+            bericht.append("nexcrate key removed from Nexview (revoke it in nexcrate)")
+        clear_secret(db, "nexcrate_api_key")
+        save_settings(
+            db,
+            {
+                "nexcrate_url": "",
+                "nexcrate_installation_id": "",
+                "nexcrate_web_url": "",
+                "nexcrate_titles_after": "",
+                "nexcrate_events_after": "",
+            },
+        )
+        system.vergessen()
+        fassungen.vergessen()
+        bestand.verwerfen()
+        return bericht
 
     # -- Haengende Downloads --------------------------------------------------
 

@@ -1,17 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../api/client";
-import type {
-  AppSettings,
-  Beschaffung,
-  NexBitte,
-  NexBitteStand,
-  NexStand,
-  TestResult,
-} from "../../api/types";
-import { Button, ErrorBanner, Field, Section, Spinner } from "../../components/ui";
+import type { AppSettings, Beschaffung, NexStand } from "../../api/types";
+import { NexcrateVerbinden, Standpruefung } from "../../components/NexcrateVerbinden";
+import { ErrorBanner, Section, Spinner } from "../../components/ui";
 
 /** Die beiden Betriebsarten, in der Reihenfolge der Seite. */
 const MODI: Beschaffung[] = ["arr", "nex"];
@@ -33,27 +27,16 @@ export function AdminNexcrateSettings() {
 
   const settingsQuery = useQuery({
     queryKey: ["settings"],
-    queryFn: () => api.get<AppSettings>("/settings"),
+    queryFn: () => api.get<AppSettings>("/api/settings"),
   });
   const settings = settingsQuery.data;
 
-  const [adresse, setAdresse] = useState("");
-  const [schluessel, setSchluessel] = useState("");
-  const [probe, setProbe] = useState<TestResult | null>(null);
-  const [bitte, setBitte] = useState<NexBitte | null>(null);
-  const [bitteStand, setBitteStand] = useState<NexBitteStand | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-
-  const gespeicherteAdresse = settings?.nexcrate_url;
-  useEffect(() => {
-    if (gespeicherteAdresse !== undefined) setAdresse(gespeicherteAdresse);
-  }, [gespeicherteAdresse]);
-
   const eingerichtet = Boolean(settings?.nexcrate_api_key_set && settings?.nexcrate_url);
 
   const standQuery = useQuery({
     queryKey: ["nexcrate", "status"],
-    queryFn: () => api.get<NexStand>("/settings/nexcrate/status"),
+    queryFn: () => api.get<NexStand>("/api/settings/nexcrate/status"),
     enabled: eingerichtet,
   });
 
@@ -64,59 +47,10 @@ export function AdminNexcrateSettings() {
   }, [queryClient]);
 
   const speichern = useMutation({
-    mutationFn: (patch: Partial<AppSettings>) => api.put<AppSettings>("/settings", patch),
+    mutationFn: (patch: Partial<AppSettings>) => api.put<AppSettings>("/api/settings", patch),
     onSuccess: auffrischen,
     onError: (error: Error) => setFehler(error.message),
   });
-
-  const pruefen = useMutation({
-    mutationFn: () =>
-      api.post<TestResult>("/settings/nexcrate/test", {
-        url: adresse,
-        api_key: schluessel || undefined,
-      }),
-    onSuccess: (ergebnis) => setProbe(ergebnis),
-    onError: (error: Error) => setFehler(error.message),
-  });
-
-  const koppeln = useMutation({
-    mutationFn: () => api.post<NexBitte>("/settings/nexcrate/pairing", { url: adresse }),
-    onSuccess: (offen) => {
-      setBitte(offen);
-      setBitteStand(null);
-      setFehler(null);
-    },
-    onError: (error: Error) => setFehler(error.message),
-  });
-
-  // Nachfragen im Takt, den nexcrate nennt – und nur, solange eine Bitte offen ist.
-  useEffect(() => {
-    if (!bitte) return;
-    let lebt = true;
-    const fragen = async () => {
-      try {
-        const stand = await api.get<NexBitteStand>(
-          `/settings/nexcrate/pairing/${bitte.pairing_id}`,
-        );
-        if (!lebt) return;
-        setBitteStand(stand);
-        if (stand.gespeichert) {
-          setBitte(null);
-          auffrischen();
-        } else if (stand.state === "expired") {
-          setBitte(null);
-        }
-      } catch {
-        // Ein Aussetzer beim Nachfragen ist kein Abbruch – der nächste Takt zählt.
-      }
-    };
-    const takt = window.setInterval(() => void fragen(), Math.max(1, bitte.poll_seconds) * 1000);
-    void fragen();
-    return () => {
-      lebt = false;
-      window.clearInterval(takt);
-    };
-  }, [bitte, auffrischen]);
 
   if (settingsQuery.isLoading) return <Spinner />;
 
@@ -153,83 +87,7 @@ export function AdminNexcrateSettings() {
       </Section>
 
       <Section title={t("nexcrate.connectionSection")}>
-        <Field
-          label={t("nexcrate.url")}
-          value={adresse}
-          onChange={(event) => setAdresse(event.target.value)}
-          placeholder="https://nexcrate.example.com"
-        />
-        <Field
-          label={t("nexcrate.key")}
-          type="password"
-          value={schluessel}
-          onChange={(event) => setSchluessel(event.target.value)}
-          placeholder={settings?.nexcrate_api_key_set ? settings.nexcrate_api_key : ""}
-          hint={t("nexcrate.keyHint")}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => pruefen.mutate()}
-            disabled={pruefen.isPending || !adresse}
-          >
-            {t("settings.test")}
-          </Button>
-          <Button
-            type="button"
-            onClick={() =>
-              speichern.mutate({
-                nexcrate_url: adresse,
-                ...(schluessel ? { nexcrate_api_key: schluessel } : {}),
-              })
-            }
-            disabled={speichern.isPending || !adresse}
-          >
-            {t("common.save")}
-          </Button>
-          {probe && (
-            <span className={probe.ok ? "text-sm text-green-400" : "text-sm text-accent-400"}>
-              {probe.message}
-            </span>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-ink-700 p-4">
-          <p className="font-medium text-mist-100">{t("nexcrate.pairTitle")}</p>
-          <p className="mt-1 max-w-3xl text-sm text-mist-400">{t("nexcrate.pairHint")}</p>
-          {!bitte && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="mt-3"
-              onClick={() => koppeln.mutate()}
-              disabled={koppeln.isPending || !adresse}
-            >
-              {t("nexcrate.pairStart")}
-            </Button>
-          )}
-          {bitte && (
-            <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-sm text-mist-300">{t("nexcrate.pairWaiting")}</p>
-              <p className="font-mono text-2xl tracking-widest text-mist-100">{bitte.code}</p>
-              <Button type="button" variant="ghost" onClick={() => setBitte(null)}>
-                {t("common.cancel")}
-              </Button>
-              {/* nexbeat-Befund 14: Ein Programm kann seine Bitte nicht
-                  zurücknehmen – sie steht in nexcrate, bis sie verfällt. */}
-              <p className="text-xs text-mist-500">{t("nexcrate.pairCancelHint")}</p>
-            </div>
-          )}
-          {bitteStand?.gespeichert && (
-            <p className="mt-3 text-sm text-green-400">
-              {t("nexcrate.pairDone", { count: bitteStand.fassungen })}
-            </p>
-          )}
-          {bitteStand?.state === "expired" && (
-            <p className="mt-3 text-sm text-accent-400">{t("nexcrate.pairExpired")}</p>
-          )}
-        </div>
+        <NexcrateVerbinden onVerbunden={auffrischen} />
       </Section>
 
       {eingerichtet && (
@@ -251,6 +109,10 @@ export function AdminNexcrateSettings() {
                 </p>
               )}
               {!stand.anime && <p className="text-sm text-mist-400">{t("nexcrate.noAnime")}</p>}
+              {/* ⚠️ Die Standprüfung gehört nach oben, nicht ans Ende: Eine
+                  nexcrate, die Nexview nicht bedienen kann, ist keine
+                  Randnotiz unter den Fassungen. */}
+              <Standpruefung befunde={stand.pruefung ?? []} />
               {stand.web_url && (
                 <a
                   className="text-sm text-accent-400 hover:underline"

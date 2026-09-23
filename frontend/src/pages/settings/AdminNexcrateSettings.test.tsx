@@ -58,6 +58,7 @@ const stand = (patch: Partial<NexStand> = {}): NexStand => ({
   anime: true,
   fassungen: [],
   probleme: [],
+  pruefung: [],
   fehler: '',
   ...patch,
 })
@@ -81,14 +82,14 @@ describe('Dienste-Seite für nexcrate', () => {
     await userEvent.click(nex)
 
     await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/settings', { beschaffung: 'nex' }),
+      expect(api.put).toHaveBeenCalledWith('/api/settings', { beschaffung: 'nex' }),
     )
   })
 
   it('fragt beim Koppeln nach, bis nexcrate bestätigt ist', async () => {
     let bestaetigt = false
     vi.mocked(api.get).mockImplementation(async (pfad: string) => {
-      if (pfad.startsWith('/settings/nexcrate/pairing/')) {
+      if (pfad.startsWith('/api/settings/nexcrate/pairing/')) {
         if (!bestaetigt) {
           bestaetigt = true
           return { state: 'pending', gespeichert: false, installation_id: '', version: '', fassungen: 0 }
@@ -110,7 +111,7 @@ describe('Dienste-Seite für nexcrate', () => {
 
     // Der Code steht da, damit der Betreiber die Bitte in nexcrate wiedererkennt.
     expect(await screen.findByText('5Z3-M4G')).toBeInTheDocument()
-    expect(api.post).toHaveBeenCalledWith('/settings/nexcrate/pairing', {
+    expect(api.post).toHaveBeenCalledWith('/api/settings/nexcrate/pairing', {
       url: 'https://nexcrate.example.com',
     })
 
@@ -123,7 +124,7 @@ describe('Dienste-Seite für nexcrate', () => {
 
   it('nennt je Fassung, ob sie bereit ist, und warum nicht', async () => {
     vi.mocked(api.get).mockImplementation(async (pfad: string) => {
-      if (pfad === '/settings/nexcrate/status') {
+      if (pfad === '/api/settings/nexcrate/status') {
         return stand({
           fassungen: [
             { kennung: 'v_1', media_type: 'movie', name: 'Movies', klasse: 'hd', bereit: true, gruende: [] },
@@ -154,7 +155,7 @@ describe('Dienste-Seite für nexcrate', () => {
 
   it('sagt es, wenn diese nexcrate noch kein Anime sucht', async () => {
     vi.mocked(api.get).mockImplementation(async (pfad: string) => {
-      if (pfad === '/settings/nexcrate/status') return stand({ anime: false })
+      if (pfad === '/api/settings/nexcrate/status') return stand({ anime: false })
       return einstellungen({
         nexcrate_url: 'https://nexcrate.example.com',
         nexcrate_api_key_set: true,
@@ -168,7 +169,7 @@ describe('Dienste-Seite für nexcrate', () => {
 
   it('zeigt einen Fehler statt einer leeren Seite, wenn nexcrate nicht antwortet', async () => {
     vi.mocked(api.get).mockImplementation(async (pfad: string) => {
-      if (pfad === '/settings/nexcrate/status') {
+      if (pfad === '/api/settings/nexcrate/status') {
         return stand({ erreichbar: false, fehler: 'nexcrate_unreachable' })
       }
       return einstellungen({
@@ -189,7 +190,7 @@ describe('Dienste-Seite für nexcrate', () => {
 
     await screen.findByRole('button', { name: /Radarr und Sonarr/ })
     expect(vi.mocked(api.get).mock.calls.map(([pfad]) => pfad)).not.toContain(
-      '/settings/nexcrate/status',
+      '/api/settings/nexcrate/status',
     )
   })
 })

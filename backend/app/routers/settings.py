@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .. import meldungen
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
-from ..models import Hausordnung, User, utcnow
+from ..models import Fassung, Hausordnung, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH
 from ..services import beschaffung, cache, fassungen, mail, mail_templates
 from ..services.mediaserver import (
@@ -659,6 +659,38 @@ def delete_secret(
     cache.clear_all(db)
     beschaffung.bestand_verwerfen()
     return public_settings(db)
+
+
+class FassungOffen(BaseModel):
+    """Eine Fassung und die eine Frage, die der Betreiber an ihr entscheidet."""
+
+    kennung: str
+    offen_fuer_alle: bool
+
+
+@router.put("/settings/fassungen", response_model=list[FassungOeffentlich])
+def fassungen_oeffnen(
+    eintraege: list[FassungOffen], admin: AdminUser, db: DbSession, user: CurrentUser
+) -> list[FassungOeffentlich]:
+    """Welche Fassungen jeder anfragen darf - Stufe 1 der Leiter (Bauplan 2.3).
+
+    ⚠️ **Eine Fassung ohne Zeile laesst sich nicht oeffnen.** Im NEX-Betrieb
+    entstehen die Zeilen beim Lesen der Fassungen aus nexcrate, und eine
+    Kennung, die es dort nicht gibt, waere ein Recht auf nichts.
+    """
+    for eintrag in eintraege:
+        zeile = db.get(Fassung, eintrag.kennung)
+        if zeile is None:
+            raise HTTPException(
+                status_code=404,
+                detail=meldungen.meldung(
+                    "fassung_unknown",
+                    "Diese Fassung gibt es nicht.",
+                ),
+            )
+        zeile.offen_fuer_alle = eintrag.offen_fuer_alle
+    db.commit()
+    return _fassungen_oeffentlich(db, load_settings(db, frisch=True), user)
 
 
 @router.post("/settings/test/tmdb", response_model=TestResult)

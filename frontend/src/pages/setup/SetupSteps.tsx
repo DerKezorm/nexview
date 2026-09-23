@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next'
 
-const SETUP_STEPS = ['account', 'avatar', 'tmdb', 'radarr', 'sonarr', 'address', 'mail', 'done'] as const
-export type SetupStep = (typeof SETUP_STEPS)[number]
+import type { Beschaffung } from '../../api/types'
+import { schritteFuer } from './schritte'
+import type { SetupStep } from './schritte'
 
 /** Fortschrittsanzeige über den Schritten des Assistenten. */
-export function StepIndicator({ current }: { current: SetupStep }) {
+export function StepIndicator({ current, modus }: { current: SetupStep; modus: Beschaffung }) {
   const { t } = useTranslation()
-  const steps = SETUP_STEPS.filter((step) => step !== 'done')
+  const steps = schritteFuer(modus).filter((step) => step !== 'done')
   const currentIndex = current === 'done' ? steps.length : steps.indexOf(current)
 
   return (

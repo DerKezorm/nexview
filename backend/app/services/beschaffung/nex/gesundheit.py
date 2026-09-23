@@ -45,7 +45,11 @@ def verdichten(roh: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         werte = eintrag.get("params") or {}
         teile = [code]
-        for name in ("kind", "version_id"):
+        # ⚠️ ``art`` und ``recht`` gehoeren dazu: Die Standpruefung meldet
+        # ``nexcrate_ohne_medienart`` je Medienart und ``nexcrate_recht_fehlt``
+        # je fehlendem Recht. Ohne sie im Schluessel bliebe von zwei Befunden
+        # einer uebrig, und der Betreiber suchte nach dem zweiten.
+        for name in ("kind", "version_id", "art", "recht"):
             if werte.get(name):
                 teile.append(str(werte[name]))
         schluessel = ":".join(teile)
@@ -67,6 +71,7 @@ def verdichten(roh: list[dict[str, Any]]) -> list[dict[str, Any]]:
 async def pruefen(db: Session, settings: AppSettings, kennung: str, name: str) -> None:
     """nexcrate einmal befragen und melden, was neu ist."""
     from ..arr.instanz_gesundheit import eintrag as gemerkt
+    from . import pruefung, system
     from .fehler import NexcrateError
     from .weg import client_fuer
 
@@ -76,7 +81,11 @@ async def pruefen(db: Session, settings: AppSettings, kennung: str, name: str) -
         # Stumm heisst unbekannt, nicht gesund - der gemerkte Stand bleibt.
         return
 
-    jetzt = verdichten(roh)
+    # ⚠️ **Die Standpruefung laeuft hier mit** (Bauplan 7.2). Sie gehoert nicht
+    # nur in die Einrichtung: Eine nexcrate kann zurueckgestuft werden, ein
+    # Schluessel kann ein Recht verlieren. Wer das erst an der naechsten
+    # Anfrage merkt, sucht den Fehler in Nexview.
+    jetzt = verdichten([*pruefung.als_health(pruefung.pruefen(system.stand())), *roh])
     zeile = gemerkt(db, kennung)
     if zeile is None:
         zeile = ArrGesundheit(kennung=kennung)

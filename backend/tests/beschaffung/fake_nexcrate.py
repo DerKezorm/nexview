@@ -465,12 +465,28 @@ class FakeNexcrate:
             gezeigt["series"] = serie
         return gezeigt
 
+    def _finden(self, kind: str, ref: str) -> dict[str, Any] | None:
+        """Ein Titel ueber **irgendeine** seiner Kennungen.
+
+        ⚠️ Serien lassen sich bei nexcrate auch ueber ``tvdb:`` fragen
+        (``SOURCES``); der Anker bleibt TMDB, und ``refs`` nennt beide. Genau
+        das braucht der Umstieg, um Nexviews TVDB-Schluessel zu uebersetzen.
+        """
+        gefunden = self.titles.get((kind, ref))
+        if gefunden is not None:
+            return gefunden
+        for (art, _), titel in self.titles.items():
+            if art == kind and ref in (titel.get("refs") or []):
+                return titel
+        return None
+
     def _lookup(self, eintrag: dict[str, Any]) -> dict[str, Any]:
         kind = str(eintrag.get("kind") or "")
         ref = str(eintrag.get("ref") or "")
-        if not ref.startswith(("tmdb:", "imdb:", "tvdb:")):
+        erlaubt = ("tmdb:", "imdb:") if kind == "movie" else ("tmdb:", "tvdb:", "imdb:")
+        if not ref.startswith(erlaubt):
             return {"kind": kind, "ref": ref, "known": False, "title": None, "error": "ref_source_unknown"}
-        titel = self.titles.get((kind, ref))
+        titel = self._finden(kind, ref)
         return {
             "kind": kind,
             "ref": ref,
@@ -500,7 +516,7 @@ class FakeNexcrate:
             )
         if kind not in ("movie", "series"):
             return _fehler(422, "kind_unsupported", f"This nexcrate does not answer for the kind {kind}.")
-        titel = self.titles.get((kind, ref))
+        titel = self._finden(kind, ref)
         if titel is None:
             return _fehler(404, "title_not_found", "nexcrate does not have this title.", kind=kind, ref=ref)
 

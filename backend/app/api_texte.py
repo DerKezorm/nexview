@@ -1756,6 +1756,68 @@ TEXTE: dict[str, tuple[str, str]] = {
             'expiry so a debugging session cannot quietly fill the disk for weeks.'
         ),
     ),
+    'PUT /api/settings/fassungen': (
+        'Open versions to everyone',
+        (
+            'Decides per version whether anyone may request it, or whether the right '
+            'is handed out per account. A version that has no row yet cannot be '
+            'opened - in nexcrate mode the rows appear when Nexview reads the '
+            'versions.'
+        ),
+    ),
+    'GET /api/umstieg/vorab': (
+        'What switching to nexcrate would change',
+        (
+            'Numbers before anything happens: downloads currently running in Radarr '
+            'or Sonarr (they finish there and become invisible to Nexview), open '
+            'requests, storage entries, and the instances involved. Reads only.'
+        ),
+    ),
+    'GET /api/umstieg/abbildung': (
+        'Vet nexcrate and propose a version mapping',
+        (
+            'Checks whether this nexcrate can serve Nexview at all - contract, stage, '
+            'kinds, scopes - and only then reads its versions and proposes one per '
+            'current version, matched by kind and tier. A blocking finding stops here '
+            'instead of offering a mapping nobody may use.'
+        ),
+    ),
+    'POST /api/umstieg/probe': (
+        'Check whether nexcrate knows the titles',
+        (
+            'For every title with an open request or a storage entry: known with the '
+            'chosen version, known without it, or unknown. Open requests for unknown '
+            'titles are no obstacle - they are placed when you switch. Downloaded '
+            'entries without a counterpart need a decision.'
+        ),
+    ),
+    'POST /api/umstieg/sicherung': (
+        'Make the backup before switching',
+        (
+            'There is no way back except this file, so the switch is refused until it '
+            'exists. Same format as any other manual backup.'
+        ),
+    ),
+    'POST /api/umstieg/umschalten': (
+        'Switch procurement to nexcrate',
+        (
+            '⚠️ The one step that cannot be taken back. Removes Nexview\'s webhook '
+            'entries from Radarr and Sonarr, deletes their credentials, rewrites every '
+            'version id on requests, storage entries, rights, invitations and rules, '
+            'and moves series storage keys from TVDB to TMDB. Requires the backup from '
+            'the previous step; the check of the titles is run again here, because the '
+            'translation of the storage keys comes out of it.'
+        ),
+    ),
+    'POST /api/umstieg/nachreichen': (
+        'Hand over approved requests after the switch',
+        (
+            'A request is handed to procurement exactly once, at approval. After a '
+            'switch the new way has never heard of the approved ones, so they are '
+            'handed over again - at most 25 per call, and only versions the new way '
+            'knows.'
+        ),
+    ),
     'GET /api/admin/sicherungen': (
         'All backups',
         (

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { ApiError, api } from '../api/client'
-import type { SetupStatus } from '../api/types'
+import type { Beschaffung, SetupStatus } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { LanguageSwitcher } from '../components/LanguageSwitcher'
 import { Logo } from '../components/Logo'
@@ -13,12 +13,14 @@ import { Symbol } from '../components/Symbol'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
 import { AddressStep } from './setup/AddressStep'
 import { AvatarStep } from './setup/AvatarStep'
+import { BeschaffungStep } from './setup/BeschaffungStep'
 import { DoneStep } from './setup/DoneStep'
 import { MailStep } from './setup/MailStep'
+import { NexcrateStep } from './setup/NexcrateStep'
 import { SeerrStep } from './setup/SeerrStep'
 import { ServiceStep } from './setup/ServiceStep'
+import type { SetupStep } from './setup/schritte'
 import { StepIndicator } from './setup/SetupSteps'
-import type { SetupStep } from './setup/SetupSteps'
 
 /**
  * Einmaliger Assistent beim allerersten Start.
@@ -41,6 +43,13 @@ export function SetupPage() {
    */
   const [weg, setWeg] = useState<'wahl' | 'neu' | 'sicherung' | 'seerr'>('wahl')
   const [step, setStep] = useState<SetupStep>('account')
+  /**
+   * ⚠️ **Die Betriebsart steuert den Weg, nicht nur einen Schritt.** Nach der
+   * Wahl gibt es entweder Radarr und Sonarr oder nexcrate - nie beides. Der
+   * Server kennt sie schon (``BeschaffungStep`` speichert sofort); hier steht
+   * sie, damit die Fortschrittsanzeige nicht auf eine Abfrage warten muss.
+   */
+  const [modus, setModus] = useState<Beschaffung>('arr')
 
   return (
     <div className="nv-glow flex min-h-dvh items-center justify-center px-4 py-10">
@@ -144,7 +153,7 @@ export function SetupPage() {
 
           {weg === 'neu' && (
           <>
-          <StepIndicator current={step} />
+          <StepIndicator current={step} modus={modus} />
 
           {step === 'account' && (
             <AccountStep
@@ -163,8 +172,24 @@ export function SetupPage() {
               service="tmdb"
               title={t('setup.tmdbTitle')}
               description={t('setup.tmdbText')}
-              onDone={() => setStep('radarr')}
-              onSkip={() => setStep('radarr')}
+              onDone={() => setStep('beschaffung')}
+              onSkip={() => setStep('beschaffung')}
+            />
+          )}
+
+          {step === 'beschaffung' && (
+            <BeschaffungStep
+              onDone={(gewaehlt) => {
+                setModus(gewaehlt)
+                setStep(gewaehlt === 'nex' ? 'nexcrate' : 'radarr')
+              }}
+            />
+          )}
+
+          {step === 'nexcrate' && (
+            <NexcrateStep
+              onDone={() => setStep('address')}
+              onSkip={() => setStep('address')}
             />
           )}
 

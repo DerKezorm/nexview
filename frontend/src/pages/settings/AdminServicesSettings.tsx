@@ -28,6 +28,7 @@ import {
 import { AdminFolgenSettings } from "./AdminFolgenSettings";
 import { AdminMediaServerSettings } from "./AdminMediaServerSettings";
 import { AdminNexcrateSettings } from "./AdminNexcrateSettings";
+import { AdminUmstieg } from "./AdminUmstieg";
 import { AdminQualitaetsBereich } from "./AdminQualitaetsBereich";
 import { InstanzGesundheit } from "./InstanzGesundheit";
 import { DownloadKollision } from "./DownloadKollision";
@@ -50,6 +51,7 @@ type UnterTab =
   | "radarr"
   | "sonarr"
   | "nexcrate"
+  | "umstieg"
   | "plex"
   | "qualitaet";
 
@@ -84,6 +86,15 @@ const UNTER_TABS: {
     wenn: ({ nexBetrieb }) => !nexBetrieb,
   },
   { value: "nexcrate", labelKey: "nexcrate.section", symbol: "dienste" },
+  // ⚠️ Den Umstieg gibt es genau einmal und nur in eine Richtung: von Radarr
+  // und Sonarr zu nexcrate. Im NEX-Betrieb verschwindet der Reiter, und die
+  // Adressen dahinter antworten `409`.
+  {
+    value: "umstieg",
+    labelKey: "umstieg.section",
+    symbol: "herunterladen",
+    wenn: ({ nexBetrieb }) => !nexBetrieb,
+  },
   {
     value: "qualitaet",
     labelKey: "qualityProfiles.title",
@@ -579,6 +590,8 @@ const UNTER_AUS_ADRESSE: Record<string, UnterTab> = {
   sonarr: "sonarr",
   medienserver: "plex",
   qualitaet: "qualitaet",
+  nexcrate: "nexcrate",
+  umstieg: "umstieg",
 };
 
 export function AdminServicesSettings({
@@ -1140,8 +1153,23 @@ export function AdminServicesSettings({
       config?.sonarr_uhd_configured,
   );
   const nexBetrieb = config?.beschaffung === "nex";
-  const sichtbareTabs = UNTER_TABS.filter(
+  const erlaubt = UNTER_TABS.filter(
     (e) => !e.wenn || e.wenn({ arrVorhanden, nexBetrieb }),
+  );
+  // ⚠️ **Ein Reiter, der einmal offen war, zieht sich nicht unter dem
+  // Betreiber weg.** Der Umstieg tut genau das: Sobald er umgeschaltet hat,
+  // gilt `nexBetrieb`, seine Bedingung fällt - und mit ihr verschwänden der
+  // Bericht und der letzte Schritt, während jemand darauf schaut. Beim
+  // nächsten Öffnen der Seite ist er weg, und das ist richtig so.
+  //
+  // ⚠️ **Nicht dasselbe wie „die Bedingung galt noch nie".** Ein Verweis auf
+  // `?unter=qualitaet` ohne eine einzige Instanz führt in einen leeren
+  // Bereich; dafür gibt es weiter den Rückfall unten. Unterschieden wird
+  // daran, ob der Reiter je erlaubt **war**.
+  const warErlaubt = useRef<Set<UnterTab>>(new Set());
+  if (config) for (const e of erlaubt) warErlaubt.current.add(e.value);
+  const sichtbareTabs = UNTER_TABS.filter(
+    (e) => erlaubt.includes(e) || (e.value === unterTab && warErlaubt.current.has(e.value)),
   );
   useEffect(() => {
     // ⚠️ **Erst wenn die Konfiguration wirklich da ist.** Beim allerersten
@@ -1264,12 +1292,16 @@ export function AdminServicesSettings({
       {/* nexcrate bringt eigenes Speichern und das Koppeln mit – wie der
           Media-Server steht es außerhalb dieses Formulars. */}
       {unterTab === "nexcrate" && <AdminNexcrateSettings />}
+      {unterTab === "umstieg" && <AdminUmstieg />}
 
       <form
         onSubmit={handleSubmit}
         className={
           "mt-6 flex-col gap-5 " +
-          (unterTab === "plex" || unterTab === "qualitaet" || unterTab === "nexcrate"
+          (unterTab === "plex" ||
+          unterTab === "qualitaet" ||
+          unterTab === "nexcrate" ||
+          unterTab === "umstieg"
             ? "hidden"
             : "flex")
         }

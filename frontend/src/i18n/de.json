@@ -65,7 +65,9 @@
       "sonarr": "Sonarr",
       "mail": "E-Mail",
       "address": "Adresse",
-      "avatar": "Bild"
+      "avatar": "Bild",
+      "beschaffung": "Beschaffung",
+      "nexcrate": "nexcrate"
     },
     "saveAndContinue": "Speichern und weiter",
     "later": "Später einrichten",
@@ -307,6 +309,7 @@
         "jf_schluessel": "Den Schlüssel aus Seerr kann Nexview nicht benutzen: Es verbindet sich mit Benutzername und Passwort eines Administrators deines {{dienst}}-Servers. Das fragt der Assistent am Ende ab, sobald dein Konto besteht; die Adresse oben wird dort vorausgefüllt.",
         "arr_uebrig": "„{{name}}“ bleibt draußen: Nexview hat für Titel dieser Art nur einen Platz, und der ist vergeben.",
         "arr_uebrig_uhd": "„{{name}}“ bleibt draußen: Nexview hat für 4K-Titel dieser Art nur einen Platz, und der ist vergeben.",
+        "arr_nicht_im_nex_betrieb": "„{{name}}“ bleibt draußen: Diese Installation beschafft über nexcrate. Profile, Ordner und Schlüssel eines Radarr oder Sonarr wären hier Einstellungen, die niemand mehr liest.",
         "kein_mailserver": "In Seerr ist kein Mailserver eingetragen.",
         "mail_aus": "In Seerr ist der Mailversand abgeschaltet. Die Zugangsdaten kommen trotzdem mit; ob Nexview verschickt, entscheidest du selbst.",
         "sprache_unbekannt": "Seerr steht auf „{{sprache}}“. Nexview spricht Deutsch und Englisch; es bleibt bei der Hausvorgabe.",
@@ -321,7 +324,14 @@
         "sperrliste_etiketten": "{{anzahl}} Einträge sperren in Seerr zusätzlich Etiketten. Dafür hat Nexview kein Gegenstück; die Titel kommen trotzdem mit.",
         "adresse_vergeben": "Diese Adresse gehört schon einem anderen Konto."
       }
-    }
+    },
+    "beschaffungTitle": "Wer beschafft die Titel?",
+    "beschaffungText": "Ein Schalter für Filme und Serien zugleich – gemischt geht nicht. Du kannst ihn später ändern; ein Umstieg schreibt dann alles um, was auf eine Fassung zeigt.",
+    "beschaffungNote": "Unsicher? Radarr und Sonarr sind der vertraute Weg. nexcrate ersetzt beide durch eine Verbindung und bringt Profile, Benennung, Ordner und einen Papierkorb mit.",
+    "nexcrateTitle": "nexcrate verbinden",
+    "nexcrateText": "Adresse eintragen und koppeln – dann kopierst du keinen Schlüssel. Danach liest Nexview, welche Fassungen nexcrate führt.",
+    "nexcrateVersionsTitle": "Wer darf welche Fassung anfragen?",
+    "nexcrateVersionsText": "Angehakt heißt: jeder darf sie anfragen. Ohne Haken vergibst du das Recht später je Konto. Vorgeschlagen ist 1080p offen, alles andere zu."
   },
   "login": {
     "title": "Anmelden",
@@ -2145,7 +2155,7 @@
       "rule_forbids_asking": "Diese Regel lässt kein Nachfragen zu.",
       "already_asked_anyway": "Diese Anfrage wurde bereits weitergereicht und danach entschieden.",
       "already_rule_rejected": "„{{title}}“ wurde bereits von einer Regel abgelehnt.",
-      "fassung_unknown": "Diese Fassung gibt es für diese Medienart nicht.",
+      "fassung_unknown": "Diese Fassung gibt es nicht.",
       "wish_rule_rejected": "Eine Regel des Hauses hat „{{title}}“ abgelehnt.",
       "seerr_account_unknown": "Dieses Konto gibt es in Seerr nicht mehr. Lies die Vorschau neu ein.",
       "seerr_owner_in_list": "Der Besitzer steht auch in der Liste der übrigen Konten.",
@@ -2183,7 +2193,9 @@
       "beschaffung_invalid": "Diese Betriebsart der Beschaffung gibt es nicht.",
       "download_action_not_offered": "nexcrate bietet das an diesem Download nicht an.",
       "download_action_not_automatic": "Diese Aktion darf eine Automatik hier nicht auslösen.",
-      "storage_nothing_to_delete": "Für diesen Posten meldet nexcrate keine Datei, die sich löschen ließe."
+      "storage_nothing_to_delete": "Für diesen Posten meldet nexcrate keine Datei, die sich löschen ließe.",
+      "umstieg_ohne_sicherung": "Vor dem Umschalten muss eine Sicherung liegen.",
+      "umstieg_posten_ohne_gegenstueck": "Es gibt {{anzahl}} Posten, die nexcrate nicht führt. Sieh sie dir an und entscheide."
     }
   },
   "language": {
@@ -4017,7 +4029,84 @@
       "download_client_none": "Kein Download-Programm ist verbunden und eingeschaltet.",
       "tmdb_token_missing": "In nexcrate ist kein TMDB-Token hinterlegt.",
       "automatic_off": "Die Automatik ist aus; von selbst lädt nichts.",
-      "version_not_ready": "Eine Fassung ist nicht bereit."
+      "version_not_ready": "Eine Fassung ist nicht bereit.",
+      "nexcrate_vertrag_fremd": "Diese nexcrate spricht Vertrag {{major}}; Nexview ist gegen {{erwartet}} gebaut. Weitermachen hieße raten.",
+      "nexcrate_zu_alt": "Diese nexcrate steht auf {{stage}}; Nexview braucht mindestens {{erwartet}}.",
+      "nexcrate_ohne_medienart": "Diese nexcrate führt keine Titel der Art „{{art}}“.",
+      "nexcrate_recht_fehlt": "Dem Schlüssel fehlt das Recht „{{recht}}“ in nexcrate.",
+      "nexcrate_wuensche_warten": "Ältere nexcrate: Ein angefragter Titel wartet auf die Automatik, statt sofort gesucht zu werden.",
+      "nexcrate_ohne_anime": "Diese nexcrate sucht noch kein Anime."
+    },
+    "pruefungTitle": "Was gegen diese nexcrate spricht",
+    "pruefung": {
+      "nexcrate_vertrag_fremd": "Diese nexcrate spricht Vertrag {{major}}; Nexview ist gegen {{erwartet}} gebaut. Weitermachen hieße raten.",
+      "nexcrate_zu_alt": "Diese nexcrate steht auf {{stage}}; Nexview braucht mindestens {{erwartet}}.",
+      "nexcrate_ohne_medienart": "Diese nexcrate führt keine Titel der Art „{{art}}“.",
+      "nexcrate_recht_fehlt": "Dem Schlüssel fehlt das Recht „{{recht}}“ in nexcrate.",
+      "nexcrate_wuensche_warten": "Ältere nexcrate: Ein angefragter Titel wartet auf die Automatik, statt sofort gesucht zu werden.",
+      "nexcrate_ohne_anime": "Diese nexcrate sucht noch kein Anime."
+    }
+  },
+  "umstieg": {
+    "section": "Umstieg auf nexcrate",
+    "stepOf": "Schritt {{nummer}} von {{gesamt}}",
+    "vorabTitle": "Was sich ändert",
+    "noWayBack": "Es gibt keinen Rückweg außer der Sicherung. Nach dem Umschalten beschafft nexcrate; Radarr und Sonarr kennt Nexview dann nicht mehr.",
+    "running_one": "Ein Download läuft gerade in Radarr oder Sonarr. Er läuft dort zu Ende – Nexview sieht ihn danach nicht mehr.",
+    "running_other": "{{count}} Downloads laufen gerade in Radarr oder Sonarr. Sie laufen dort zu Ende – Nexview sieht sie danach nicht mehr.",
+    "openRequests_one": "Eine offene Anfrage wandert mit.",
+    "openRequests_other": "{{count}} offene Anfragen wandern mit.",
+    "entries_one": "Ein Speicherposten wird umgeschrieben.",
+    "entries_other": "{{count}} Speicherposten werden umgeschrieben.",
+    "instances": "Betroffen: {{namen}}",
+    "connectTitle": "Mit nexcrate verbinden",
+    "connectText": "Erst verbinden, dann prüft Nexview, ob diese nexcrate taugt. Ein rot markierter Befund hält an – weiterklicken hilft dort nicht.",
+    "mappingTitle": "Welche Fassung wird was?",
+    "mappingText": "Je bisheriger Fassung eine aus nexcrate. „Keine“ heißt: Rechte und Regeln darauf verlieren ihr Ziel, offene Anfragen brauchen später eine Wahl.",
+    "mappingNone": "Keine",
+    "check": "Prüfen",
+    "probeTitle": "Kennt nexcrate die Titel?",
+    "probeKnown_one": "Ein Titel ist bekannt und hat die gewählte Fassung.",
+    "probeKnown_other": "{{count}} Titel sind bekannt und haben die gewählte Fassung.",
+    "probeWithoutVersion_one": "Ein Titel ist bekannt, aber ohne diese Fassung.",
+    "probeWithoutVersion_other": "{{count}} Titel sind bekannt, aber ohne diese Fassung.",
+    "probeUnknown_one": "Einen Titel kennt nexcrate nicht.",
+    "probeUnknown_other": "{{count}} Titel kennt nexcrate nicht.",
+    "probeAnime_one": "Eine Anime-Serie hat eine offene Anfrage.",
+    "probeAnime_other": "{{count}} Anime-Serien haben offene Anfragen.",
+    "probeOpenRequests": "Offene Anfragen auf Unbekanntes sind kein Hindernis: Sie werden beim Umschalten gestellt.",
+    "decideTitle": "Diese Posten brauchen eine Entscheidung",
+    "decideText": "Geladene Posten, die nexcrate nicht führt. Entweder du buchst sie weiter im Haus – dann bleiben sie in der Zurechnung, aber nexcrate weiß nichts von ihnen –, oder du übernimmst sie erst drüben und prüfst noch einmal.",
+    "decideNoTranslation": "keine TMDB-Nummer in nexcrate",
+    "decideKeep": "Ich habe die Liste gesehen und buche sie weiter im Haus.",
+    "backupTitle": "Sicherung",
+    "backupText": "Sie ist der einzige Rückweg. Nexview legt sie hier an; der Name steht danach da, und ohne sie geht es nicht weiter.",
+    "backupCreate": "Sicherung anlegen",
+    "backupDone": "Angelegt: {{name}}",
+    "switchTitle": "Umschalten",
+    "switchWarning": "Jetzt werden Nexviews Webhook-Einträge aus Radarr und Sonarr entfernt, die Zugänge gelöscht und alle Fassungskennungen umgeschrieben. Danach gibt es nur noch die Sicherung.",
+    "switchNow": "Jetzt umschalten",
+    "doneTitle": "Umgestellt",
+    "doneVersions_one": "Eine Fassung aus nexcrate steht.",
+    "doneVersions_other": "{{count}} Fassungen aus nexcrate stehen.",
+    "doneRequests_one": "Eine Anfrage wurde umgeschrieben.",
+    "doneRequests_other": "{{count}} Anfragen wurden umgeschrieben.",
+    "doneEntries_one": "Ein Speicherposten wurde umgeschrieben.",
+    "doneEntries_other": "{{count}} Speicherposten wurden umgeschrieben.",
+    "doneRights_one": "Ein Recht wurde umgeschrieben.",
+    "doneRights_other": "{{count}} Rechte wurden umgeschrieben.",
+    "doneRules_one": "Eine Regel wurde umgeschrieben.",
+    "doneRules_other": "{{count}} Regeln wurden umgeschrieben.",
+    "doneWithoutTranslation_one": "Ein Posten blieb ohne Übersetzung nach TMDB.",
+    "doneWithoutTranslation_other": "{{count}} Posten blieben ohne Übersetzung nach TMDB.",
+    "handOver": "Freigegebene Anfragen nachreichen",
+    "handedOver_one": "Eine Anfrage nachgereicht.",
+    "handedOver_other": "{{count}} Anfragen nachgereicht.",
+    "handOverMore": "Es ist noch etwas offen – der nächste Rundgang holt den Rest.",
+    "error": {
+      "umstieg_fassung_unbekannt": "Diese bisherige Fassung gibt es nicht.",
+      "umstieg_ziel_unbekannt": "Diese nexcrate-Fassung gibt es nicht.",
+      "umstieg_falsche_medienart": "Eine Serie lässt sich nicht auf eine Filmfassung abbilden."
     }
   }
 }

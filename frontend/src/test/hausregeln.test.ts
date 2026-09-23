@@ -149,3 +149,36 @@ describe('Häkchen tragen die Nexview-Farbe', () => {
     expect(ohneFarbe('<input type="text" className="mt-0.5" />')).toHaveLength(0)
   })
 })
+
+/**
+ * ⚠️ **Jeder Aufruf an das Backend beginnt mit `/api/`.**
+ *
+ * `api.get('/settings')` sieht richtig aus und ist es nicht: Der Client hängt
+ * nichts davor (nur den Unterpfad aus `NEXVIEW_URL_BASE`). Die Anfrage geht
+ * dann an die Oberfläche selbst, der Entwicklungsserver antwortet mit
+ * `index.html`, und `response.json()` scheitert an einem `<`.
+ *
+ * Das Tückische daran: In einem Test mit ersetzter API-Schicht fällt es nie
+ * auf - der Mock antwortet auf jeden Pfad. Die nexcrate-Seite hat so ein
+ * halbes Jahrhundert Zeilen lang niemandem etwas getan, weil ihre einzige
+ * Prüfung eine Attrappe war. Gefunden hat es erst ein Playwright-Lauf.
+ */
+it('ruft das Backend nur unter /api/', () => {
+  const falsch: string[] = []
+  const muster = /\bapi\.(?:get|post|put|patch|delete|upload)(?:<[^>]*>)?\(\s*(['"`])([^'"`]*)\1/g
+  for (const [pfad, inhalt] of Object.entries(DATEIEN)) {
+    if (pfad.includes('/api/client')) continue
+    for (const treffer of inhalt.matchAll(muster)) {
+      const ziel = treffer[2]
+      // Nur wurzel-absolute Pfade sind Backend-Adressen; alles andere ist eine
+      // Variable oder ein zusammengesetzter Pfad und wird hier nicht geraten.
+      if (ziel.startsWith('/') && !ziel.startsWith('/api/')) {
+        falsch.push(`${pfad}: ${ziel}`)
+      }
+    }
+  }
+  expect(
+    falsch,
+    'Diese Aufrufe gehen an die Oberfläche statt ans Backend - es fehlt /api davor:',
+  ).toEqual([])
+})

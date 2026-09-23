@@ -251,7 +251,7 @@ def _medienserver(plex: dict, jellyfin: dict, main: dict) -> Bereich:
     return b
 
 
-def _dienste(radarr: list[dict], sonarr: list[dict]) -> Bereich:
+def _dienste(radarr: list[dict], sonarr: list[dict], *, arr_betrieb: bool = True) -> Bereich:
     """Radarr und Sonarr auf Nexviews vier Plaetze - je Platz ein Haken.
 
     ⚠️ **Vier Plaetze, beliebig viele Instanzen.** Nexview fuehrt Film und
@@ -259,9 +259,21 @@ def _dienste(radarr: list[dict], sonarr: list[dict]) -> Bereich:
     Standard markierte Instanz, sonst die erste; **alles Weitere wird
     namentlich gemeldet** statt stillschweigend verworfen. Wer drei Radarr
     fuehrt, soll lesen, welches der dritte war.
+
+    ⚠️ **Im NEX-Betrieb gibt es diese Plaetze nicht** (Bauplan 7.4). Seerrs
+    Eintraege werden trotzdem gelesen und namentlich genannt - sonst sieht der
+    Betreiber eine leere Liste und haelt sie fuer einen Fehler. Uebernommen
+    wird nichts davon: Adresse und Schluessel eines Radarr waeren im
+    NEX-Betrieb Einstellungen, die niemand mehr liest.
     """
     b = Bereich("dienste")
     benutzt: set[int] = set()
+    if not arr_betrieb:
+        for eintrag in radarr + sonarr:
+            b.luecken.append(
+                satz("arr_nicht_im_nex_betrieb", name=str(eintrag.get("name") or "ohne Namen"))
+            )
+        return b
 
     def waehlen(liste: list[dict], uhd: bool) -> dict | None:
         passend = [
@@ -606,6 +618,7 @@ def bereiche_bauen(
     email: dict[str, Any],
     sperrliste: list[dict[str, Any]] | None = None,
     agenten: dict[str, dict] | None = None,
+    arr_betrieb: bool = True,
 ) -> list[Bereich]:
     """Alles Gelesene in abwählbare Blöcke schneiden.
 
@@ -616,7 +629,7 @@ def bereiche_bauen(
     """
     gebaut = [
         _medienserver(plex, jellyfin, main),
-        _dienste(radarr, sonarr),
+        _dienste(radarr, sonarr, arr_betrieb=arr_betrieb),
         _mail(email),
         _allgemein(main),
         _sperrliste(sperrliste or []),

@@ -28,7 +28,7 @@ from ....deps import AdminUser, DbSession
 from ....models import utcnow
 from ....routers.settings import TestResult
 from ...settings_service import load_settings, save_settings
-from . import fassungen, system
+from . import fassungen, pruefung, system
 from .client import RECHTE, NexcrateClient
 from .fehler import NexcrateError
 from .weg import APP_NAME
@@ -79,6 +79,10 @@ class BitteStand(BaseModel):
     installation_id: str = ""
     version: str = ""
     fassungen: int = 0
+    #: ⚠️ **Gleich beim Koppeln geprueft** (7.2). Wer erst am Ende der
+    #: Einrichtung erfaehrt, dass diese nexcrate zu alt ist, hat alles
+    #: umsonst eingetragen.
+    pruefung: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class NexStand(BaseModel):
@@ -95,6 +99,9 @@ class NexStand(BaseModel):
     anime: bool = False
     fassungen: list[dict[str, Any]] = Field(default_factory=list)
     probleme: list[dict[str, Any]] = Field(default_factory=list)
+    #: Die Standpruefung (Bauplan 7.2): Was gegen diese nexcrate spricht.
+    #: Leer heisst, sie taugt. ``stufe`` ist ``sperrt`` oder ``warnt``.
+    pruefung: list[dict[str, Any]] = Field(default_factory=list)
     fehler: str = ""
 
 
@@ -217,6 +224,7 @@ async def _nach_dem_koppeln(db: DbSession) -> BitteStand:
     )
     stand.installation_id = str(daten.get("installation_id") or "")
     stand.version = str(daten.get("version") or "")
+    stand.pruefung = _pruefung(daten)
     try:
         gefunden = await fassungen.auffrischen(db, settings)
         db.commit()
@@ -283,6 +291,7 @@ async def stand_lesen(admin: AdminUser, db: DbSession) -> NexStand:
 
     update = daten.get("update") or {}
     return NexStand(
+        pruefung=_pruefung(daten),
         eingerichtet=True,
         erreichbar=True,
         version=str(daten.get("version") or ""),
@@ -311,3 +320,11 @@ async def _befunde(settings: Any) -> list[dict[str, Any]]:
     from .weg import client_fuer
 
     return await client_fuer(settings).health()
+
+
+def _pruefung(daten: dict[str, Any]) -> list[dict[str, Any]]:
+    """Die Standpruefung als Liste fuer die Oberflaeche - Kennungen, keine Saetze."""
+    return [
+        {"code": befund.code, "stufe": befund.stufe, "werte": befund.werte}
+        for befund in pruefung.pruefen(daten)
+    ]

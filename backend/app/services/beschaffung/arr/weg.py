@@ -22,9 +22,12 @@ from ..base import (
     Faehigkeiten,
     FassungInfo,
     FilmStand,
+    Kennt,
+    Kenntnis,
     Korb,
     Nachschlag,
     Nachschlagen,
+    Pruefbefund,
     SerienBestand,
     SerienStand,
     WarteschlangenEintrag,
@@ -170,6 +173,55 @@ class ArrBeschaffung(Beschaffung):
             if eintrag is not None:
                 treffer[wonach] = eintrag
         return Nachschlagen(treffer=treffer, gelesen=frozenset(gelesen))
+
+    async def kennt(self, gesucht: list[Kennt]) -> list[Kenntnis]:
+        """Was Radarr und Sonarr fuehren - aus den Bibliotheken je Instanz.
+
+        Eine Serie wird ueber die TVDB-Kennung gefunden, mit dem Titel als
+        Rueckfall; das ist derselbe Weg wie ueberall im ARR-Betrieb. ``tmdb_id``
+        der Antwort ist die gefragte: Sonarr kennt sie oft gar nicht, und eine
+        zu erfinden waere schlimmer als keine.
+        """
+        gefunden: list[Kenntnis] = []
+        for wonach in gesucht:
+            fassungen_dabei: list[str] = []
+            for instanz in self.settings.arr_instanzen():
+                if instanz.media_type != wonach.media_type:
+                    continue
+                try:
+                    if wonach.media_type == "movie":
+                        bestand = await library.movie_library(self.settings, instanz.tier)
+                        treffer = bestand.get(wonach.tmdb_id)
+                    else:
+                        nach_tvdb, nach_titel = await library.series_library(
+                            self.settings, instanz.tier
+                        )
+                        treffer = nach_tvdb.get(wonach.tvdb_id) if wonach.tvdb_id else None
+                        if treffer is None:
+                            treffer = treffer_nach_titel(
+                                nach_titel, wonach.titel, wonach.jahr
+                            )
+                except BeschaffungError:
+                    continue
+                if treffer is not None:
+                    fassungen_dabei.append(instanz.kennung)
+            gefunden.append(
+                Kenntnis(
+                    bekannt=bool(fassungen_dabei),
+                    fassungen=tuple(fassungen_dabei),
+                    tmdb_id=wonach.tmdb_id if fassungen_dabei else None,
+                    tvdb_id=wonach.tvdb_id,
+                )
+            )
+        return gefunden
+
+    async def pruefen(self) -> list[Pruefbefund]:
+        """Nichts zu pruefen: Radarr und Sonarr haben keinen Vertragsstand.
+
+        Was an einer Instanz haengt, sagt ``GET /health`` im Rundgang - und
+        das ist etwas anderes als „taugt dieser Weg ueberhaupt".
+        """
+        return []
 
     async def status_setzen(
         self,
@@ -338,6 +390,15 @@ class ArrBeschaffung(Beschaffung):
 
     async def gesundheit_pruefen(self, db: Session) -> None:
         await instanz_gesundheit.pruefen(db, self.settings)
+
+    async def verlassen(self, db: Session) -> list[str]:
+        """Nexviews Webhook-Eintraege aus Radarr und Sonarr nehmen, Zugaenge loeschen.
+
+        ⚠️ **Erst der Webhook, dann der Zugang.** Umgekehrt riefen beide
+        Instanzen fuer immer ins Leere und stuenden drueben als krank - und
+        ohne Schluessel liesse sich der Eintrag nicht mehr entfernen.
+        """
+        return await konten.weg_verlassen(db, self.settings)
 
     async def rueckkanal_pflegen(self, db: Session) -> None:
         await webhook_pflege.vielleicht_pflegen(db, self.settings)

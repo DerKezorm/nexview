@@ -174,6 +174,11 @@ VORLAGEN: dict[str, str] = {
         "„{name}“ bleibt draußen: Nexview hat für 4K-Titel dieser Art nur einen Platz, "
         "und der ist vergeben."
     ),
+    "arr_nicht_im_nex_betrieb": (
+        "„{name}“ bleibt draußen: Diese Installation beschafft über nexcrate. Profile, "
+        "Ordner und Schlüssel eines Radarr oder Sonarr wären hier Einstellungen, die "
+        "niemand mehr liest."
+    ),
     "kein_mailserver": "In Seerr ist kein Mailserver eingetragen.",
     "mail_aus": (
         "In Seerr ist der Mailversand abgeschaltet. Die Zugangsdaten kommen trotzdem "

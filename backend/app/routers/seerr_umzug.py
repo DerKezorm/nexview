@@ -53,6 +53,7 @@ from ..services import (
     sitzung,
     tokens,
 )
+from ..services.beschaffung import ARR
 from ..services.mediaserver.base import ExternalAccount
 from ..services.seerr import SeerrClient, SeerrFehler, Zugang, vorschau_bauen
 from ..services.seerr.texte import Satz, satz
@@ -240,6 +241,9 @@ async def vorlage(eingabe: ZugangEingabe, db) -> dict:
         email=mailserver,
         sperrliste=sperrliste,
         agenten=agenten,
+        # Bauplan 7.4: Im NEX-Betrieb werden Seerrs Radarr- und Sonarr-
+        # Eintraege gelesen, aber nicht uebernommen.
+        arr_betrieb=settings_service.load_settings(db).beschaffung == ARR,
     )
 
     # ⚠️ ``asdict`` traegt nur Felder, keine Eigenschaften. Die drei
@@ -577,6 +581,9 @@ async def abschliessen(
         email=mailserver,
         sperrliste=sperrliste,
         agenten=agenten,
+        # Bauplan 7.4: Im NEX-Betrieb werden Seerrs Radarr- und Sonarr-
+        # Eintraege gelesen, aber nicht uebernommen.
+        arr_betrieb=settings_service.load_settings(db).beschaffung == ARR,
     )
     gewaehlt = set(eingabe.bereiche)
     aenderungen: dict[str, object] = {}

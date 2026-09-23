@@ -127,6 +127,9 @@ from .routers import (
     tickets as tickets_router,
 )
 from .routers import (
+    umstieg as umstieg_router,
+)
+from .routers import (
     v1 as v1_router,
 )
 from .routers import (
@@ -317,6 +320,7 @@ app.include_router(notifications.router, dependencies=NUR_ERWACHSENE)
 app.include_router(push_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(logs_router.router)
 app.include_router(sicherungen_router.router)
+app.include_router(umstieg_router.router)
 # ⚠️ **Die zugesagte Flaeche.** Dieselben Handler, zweite Adresse - siehe
 # routers/v1.py. Bewusst zuletzt eingehaengt: Was hier steht, ist ein
 # Versprechen, und das soll man beim Lesen als Letztes sehen, nicht zwischen

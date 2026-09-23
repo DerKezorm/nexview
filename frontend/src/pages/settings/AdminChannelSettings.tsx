@@ -3,6 +3,8 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Reiterreihe } from '../../components/Reiterreihe'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../../hooks/useWegKontext'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
@@ -1960,6 +1962,7 @@ function Meldungen({
   abgetrennt = false,
 }: MeldungenProps) {
   const { t } = useTranslation()
+  const weg = useWegKontext()
 
   return (
     <div className={'flex flex-col gap-4' + (abgetrennt ? ' border-t border-ink-700 pt-6' : '')}>
@@ -1999,7 +2002,7 @@ function Meldungen({
                         {t(ereignis.labelKey)}
                       </span>
                       <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
-                        {t(ereignis.hintKey)}
+                        {t(ereignis.hintKey, weg)}
                       </span>
                     </span>
                   </label>

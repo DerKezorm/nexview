@@ -18,6 +18,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useWegKontext } from '../hooks/useWegKontext'
+
 import { ApiError, api } from '../api/client'
 import { Betont } from './Betont'
 import { Button, ErrorBanner, Field } from './ui'
@@ -64,6 +66,7 @@ export function SicherungEinspielen({
   frischeInstallation?: boolean
 }) {
   const { t } = useTranslation()
+  const weg = useWegKontext()
 
   const [datei, setDatei] = useState<File | null>(null)
   const [passwort, setPasswort] = useState('')
@@ -181,7 +184,7 @@ export function SicherungEinspielen({
               mit neuen Benachrichtigungen. Wer das nicht vorher weiß, hält es
               für einen Fehler. */}
           <p className="rounded-xl border border-ink-700 px-4 py-3 text-sm leading-relaxed text-mist-500">
-            <Betont text={t('restore.outsideWarning')} />
+            <Betont text={t('restore.outsideWarning', weg)} />
           </p>
 
           {/* ⚠️ Die Falle, bei der man nachher lange sucht. */}
@@ -194,7 +197,7 @@ export function SicherungEinspielen({
                   : 'border border-warn-500/40 bg-warn-500/10 text-warn-500')
               }
             >
-              <Betont text={t(schluessel.text)} />
+              <Betont text={t(schluessel.text, weg)} />
             </p>
           )}
 

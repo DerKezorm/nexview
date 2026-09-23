@@ -391,6 +391,7 @@
     "addMovie": "Request",
     "addSeries": "Request",
     "arrMissing": "Your administrator needs to set up Radarr or Sonarr first.",
+    "arrMissing_nex": "Your administrator needs to connect nexcrate and release a version first.",
     "chooseOptions": "Before adding",
     "qualityProfile": "Quality profile",
     "rootFolder": "Root folder",
@@ -416,6 +417,7 @@
     "seasonShort": "S{{number}}",
     "addSeason": "Request a season",
     "moreSeasonsHint": "This series is already tracked. You can request a single season - it is simply enabled in Sonarr on top.",
+    "moreSeasonsHint_nex": "This series is already tracked. You can request a single season - it is simply enabled in nexcrate on top.",
     "chooseSeason": "Choose a season and request",
     "targetLater": "Where the title goes and in which quality is decided by the approver when they approve it.",
     "seasonAll": "All incl. future",
@@ -647,6 +649,7 @@
     "sendReply": "Send reply",
     "outdated": "applied to an older file",
     "outdatedHint": "Radarr replaced this title with a better release. Your rating applied to the earlier file — care to rate it again?",
+    "outdatedHint_nex": "nexcrate replaced this title with a better release. Your rating applied to the earlier file — care to rate it again?",
     "ticketOffer": "That sounds like something somebody should fix. Turn it into a ticket? Then it stays open until it has been dealt with.",
     "ticketButton": "Report as a problem",
     "ticketSubject": "Problem with “{{title}}”",
@@ -891,9 +894,13 @@
     "cancel": "Cancel",
     "cancelTitle": "Cancel this request?",
     "cancelText": "“{{title}}” will be removed from Radarr or Sonarr and no longer searched for. Your quota is freed up in return – you can request something else instead.",
+    "cancelText_nex": "“{{title}}” will be removed from nexcrate and no longer searched for. Your quota is freed up in return – you can request something else instead.",
     "cancelTextAdmin": "“{{title}}” by {{name}} will be removed from Radarr or Sonarr and no longer searched for. {{name}}'s quota is freed up in return.",
+    "cancelTextAdmin_nex": "“{{title}}” by {{name}} will be removed from nexcrate and no longer searched for. {{name}}'s quota is freed up in return.",
     "cancelTextNothing": "“{{title}}” never reached Radarr or Sonarr - the request failed before that. Nothing is removed and no file is deleted; the entry simply moves to the cancelled ones.",
+    "cancelTextNothing_nex": "“{{title}}” never reached nexcrate - the request failed before that. Nothing is removed and no file is deleted; the entry simply moves to the cancelled ones.",
     "cancelTextNothingAdmin": "“{{title}}” by {{name}} never reached Radarr or Sonarr - the request failed before that. Nothing is removed and no file is deleted; the entry simply moves to the cancelled ones.",
+    "cancelTextNothingAdmin_nex": "“{{title}}” by {{name}} never reached nexcrate - the request failed before that. Nothing is removed and no file is deleted; the entry simply moves to the cancelled ones.",
     "cancelWarning": "Any files already downloaded will be deleted as well.",
     "cancelConfirm": "Yes, cancel it"
   },
@@ -929,6 +936,7 @@
       "quiet": "Warnings and errors only.",
       "normal": "What happened, plus warnings and errors.",
       "detailed": "Also the way there: every call to TMDB, Radarr, Sonarr and the media server.",
+      "detailed_nex": "Also the way there: every call to TMDB, nexcrate and the media server.",
       "trace": "Also the raw output of third-party libraries. Very many lines."
     },
     "duration": {
@@ -1193,6 +1201,7 @@
     "dissolveTitle": "Delete {{name}}'s account",
     "dissolveItems": "What the account holds",
     "dissolveItemsHint": "Checked = moves to the house inventory (file stays). Unchecked is deleted via Radarr/Sonarr.",
+    "dissolveItemsHint_nex": "Checked = moves to the house inventory (file stays). Unchecked is deleted via nexcrate.",
     "markAll": "Mark all",
     "markNone": "Mark none",
     "dissolveRunning": "Downloads in progress",
@@ -1206,6 +1215,7 @@
     "dissolveNothing": "The account leaves nothing behind – no titles, no open orders.",
     "dissolveSummary": "{{haus}} to the house · {{del}} deleted ({{size}}) – then the account is removed for good.",
     "dissolveDeleteWarning": "Deleted files go through Radarr/Sonarr and land in their recycle bin, if one is set up. Without one they are gone immediately.",
+    "dissolveDeleteWarning_nex": "Deleted files go through nexcrate and land in its recycle bin if it is switched on there, and Nexview can restore them from it. Without one they are gone immediately.",
     "dissolveConfirm": "Delete account for good",
     "toHouse": "to house",
     "toDelete": "delete",
@@ -1230,6 +1240,7 @@
     "storageResetDone": "Storage reset – everything moved to the household.",
     "dissolveOpenTitle": "Approved orders with no file yet",
     "dissolveOpenIntro": "Nothing has downloaded yet. Ticked, the order keeps running and the title falls to the house; unticked, it is cancelled and taken out of Radarr or Sonarr.",
+    "dissolveOpenIntro_nex": "Nothing has downloaded yet. Ticked, the order keeps running and the title falls to the house; unticked, it is cancelled and taken out of nexcrate.",
     "dissolveOpenKeep": "— keeps running, falls to the house",
     "dissolveOpenCancel": "— will be cancelled",
     "dissolveSeason": "(season {{number}})",
@@ -1278,6 +1289,7 @@
     "requestFulfilled": "A title you were waiting for has arrived",
     "storageGrew": "A title now takes up more space",
     "instanceHealth": "Radarr/Sonarr reports a problem",
+    "instanceHealth_nex": "nexcrate reports a problem",
     "downloadStuck": "A download keeps getting stuck",
     "downloadAutomationGaveUp": "The automation cannot get a download moving",
     "storageReleaseRequested": "Someone handed a title back",
@@ -1316,6 +1328,7 @@
     "defaultRole": "Role",
     "library": "Library sync",
     "libraryIntro": "Nexview reads what sits in your media server libraries — and spots titles that never came through Radarr/Sonarr. They show up as \"In the library\" and cannot be requested twice. Runs hourly in the background.",
+    "libraryIntro_nex": "Nexview reads what sits in your media server libraries — and spots titles that never came through nexcrate. They show up as \"In the library\" and cannot be requested twice. Runs hourly in the background.",
     "libraryNever": "Not synced yet.",
     "syncNow": "Sync now",
     "blocks": "Blocked accounts",
@@ -1855,8 +1868,7 @@
     "prefixBlocked": "{{anzahl}} of them keep the prefix: one of your own formats already holds the plain name ({{namen}}). Nexview does not touch formats it did not create — that one is yours to decide.",
     "renameResumed": "Resumed: this run was interrupted and continues where it left off.",
     "prefixAllBlocked": "All {{anzahl}} keep the prefix because formats of your own already hold the plain names ({{namen}} …). Nexview does not touch formats it did not create. To unblock the run you would have to delete or rename those formats in {{dienst}} yourself — check first whether a profile still uses them.",
-    "folderScope": "— only for titles added from now on",
-    "needsInstance": "Set up a Radarr or Sonarr instance first — without one there is nothing to name."
+    "folderScope": "— only for titles added from now on"
   },
   "mediaLink": {
     "title": "Link back to the media servers",
@@ -2211,6 +2223,7 @@
   "about": {
     "title": "About Nexview",
     "tagline": "Discover new releases, request them, and let Radarr and Sonarr download them automatically.",
+    "tagline_nex": "Discover new releases, request them, and let nexcrate download them automatically.",
     "version": "Installed version",
     "source": "Source code",
     "onGithub": "view on GitHub",
@@ -2235,6 +2248,7 @@
     "youtubeNotice": "Trailers play from there. TMDB only supplies the reference.",
     "builtWith": "Built with",
     "ratingsNotice": "Their scores appear on films. Nexview does not fetch them directly; it takes them from Radarr, which supplies them with every movie. The trademarks belong to their respective owners.",
+    "ratingsNotice_nex": "Their scores appear on films. Nexview does not fetch them directly; it takes them from nexcrate, which supplies them with every movie. The trademarks belong to their respective owners.",
     "inspiration": "Inspiration",
     "seerrNotice": "Seerr, which grew out of Overseerr and Jellyseerr, showed what a request interface for Radarr and Sonarr can look like – from the second 4K instance to matching against the media server. Nexview is an independent implementation and shares no source code, but owes Seerr many of its ideas.",
     "notifyServices": "Notifications",
@@ -2618,6 +2632,7 @@
     "onFeedbackHint": "Ratings for delivered titles – poor ones and good ones.",
     "onRequestCancelled": "Request cancelled",
     "onRequestCancelledHint": "Cancelling also deletes the files in Radarr/Sonarr – worth knowing when it happens.",
+    "onRequestCancelledHint_nex": "Cancelling also deletes the files in nexcrate – worth knowing when it happens.",
     "onRequestDecided": "Request decided",
     "onRequestDecidedHint": "Approved or declined – keeps all approvers on the same page.",
     "onRequestPending": "Notify about new requests awaiting approval",
@@ -2668,6 +2683,7 @@
     "onStorageReleaseHint": "Reports when someone hands a title back and when it has been decided. Only the title is named – who handed it back stays out of the postbox.",
     "onInstanceHealth": "Instance problems",
     "onInstanceHealthHint": "Reports when Radarr or Sonarr themselves report a problem – a failed download client or indexer, say. All requests hang then, and that should not stay quiet. Also titles whose download keeps getting stuck.",
+    "onInstanceHealthHint_nex": "Reports when nexcrate itself reports a problem – a failed download client or indexer, say. All requests hang then, and that should not stay quiet. Also titles whose download keeps getting stuck.",
     "deleteTitle": "Remove target",
     "confirmDeleteWarning": "No more messages will go there.",
     "callbacks": "Callbacks",
@@ -2870,7 +2886,8 @@
     "seenSeason": "All episodes watched",
     "notSeenSeason": "Not all episodes watched yet",
     "seenNoData": "Status unknown – no watched data for this title",
-    "unmanagedHint": "No longer managed by Radarr or Sonarr. The title still counts but can no longer be removed through Nexview – it can only be handed over to the household."
+    "unmanagedHint": "No longer managed by Radarr or Sonarr. The title still counts but can no longer be removed through Nexview – it can only be handed over to the household.",
+    "unmanagedHint_nex": "No longer managed by nexcrate. The title still counts but can no longer be removed through Nexview – it can only be handed over to the household."
   },
   "storageAdmin": {
     "title": "Quotas",
@@ -2888,7 +2905,9 @@
     "usersHint": "Click an account to see its individual titles.",
     "usersEmpty": "Everything is house stock so far – nothing assigned to a person.",
     "mustStayTitle": "Titles have to stay in Radarr and Sonarr",
+    "mustStayTitle_nex": "Titles have to stay in nexcrate",
     "mustStayText": "Nexview only ever deletes through Radarr and Sonarr – it never sees the filesystem itself. Removing a title there while keeping the file creates something Nexview still counts (the media server knows it) but can no longer remove. The requester is then stuck with a charge they cannot shed – they can only hand it to the house stock.",
+    "mustStayText_nex": "Nexview only ever deletes through nexcrate – it never sees the filesystem itself. Removing a title there while keeping the file creates something Nexview still counts (the media server knows it) but can no longer remove. The requester is then stuck with a charge they cannot shed – they can only hand it to the house stock.",
     "recycleBin": "In the recycle bin",
     "resetText_one": "1 title of {{size}} moves to the house inventory. Every account starts at 0; open hand-backs are settled by this.",
     "resetText_zero": "Nothing is attributed to anyone yet – every account is already at 0.",
@@ -2911,7 +2930,8 @@
     "resetTitle": "Reset every account to zero?",
     "resetConfirm": "Move to household",
     "resetDone": "Done – every account is back to zero.",
-    "pointMeasure": "Sizes come from Radarr, Sonarr and the media server – no extra requests.",
+    "pointMeasure": "Sizes come from Radarr and Sonarr, no extra requests. The media server only keeps measuring what was there once; what only it knows does not count.",
+    "pointMeasure_nex": "Sizes come from nexcrate, no extra requests. The media server only keeps measuring what was there once; what only it knows does not count.",
     "ownValue": "own value"
   },
   "watchlistExpired": {
@@ -2966,6 +2986,7 @@
     "deleteReasonTier": "Deleting is currently only enabled for the 4K instance. Nothing is removed on the standard instance.",
     "deleteReasonSeries": "Season-by-season deletion is not armed yet.",
     "deleteReasonUnmanaged": "Radarr or Sonarr no longer knows this title. Nexview only deletes through those services – handing it to the house stock is the only option.",
+    "deleteReasonUnmanaged_nex": "nexcrate no longer knows this title. Nexview only deletes through nexcrate – handing it to the house stock is the only option.",
     "wishDelete": "wants it deleted",
     "wishKeep": "wants to keep it, stop downloading",
     "unfollow": "Stop following"
@@ -3245,6 +3266,7 @@
     "introMine": "What is attributed to you and nobody has watched for a long time. You can hand it back in the list below.",
     "colHere": "Here since",
     "noDateYet": "{{count}} items were skipped because Nexview does not yet know how long they have been there. The date comes from Radarr or Sonarr and is filled in at the next sync - it runs hourly.",
+    "noDateYet_nex": "{{count}} items were skipped because Nexview does not know how long they have been there. nexcrate does not report that date.",
     "emptyUnknown": "No verdict yet: for all items it is still unknown how long they have been there. There will be something here after the next sync.",
     "periodLabel": "Unused for at least:",
     "syncNow": "Sync now",
@@ -3253,6 +3275,7 @@
     "deleteTitle": "Delete?",
     "deleteText": "With a grace period the title only goes in 14 days. Until then it stands on the home page for everyone to see, everyone connected to it is told - and whoever watches it in that time cancels the deletion by doing so.",
     "deleteRecycleHint": "Deletion goes through Radarr/Sonarr. If a recycle bin is set up there, the file lands in it first; without one it is gone immediately and for good.",
+    "deleteRecycleHint_nex": "Deletion goes through nexcrate. If its recycle bin is switched on, the file lands in it first and Nexview can restore it; without one it is gone immediately and for good.",
     "deleteGrace": "14 days' grace",
     "deleteNow": "Delete now",
     "deleteFailed": "The deletion did not work. The item is still there.",
@@ -3297,6 +3320,7 @@
     "download": "Download",
     "downloadTitle": "Download backup",
     "downloadWhat": "You get an **encrypted ZIP** holding the database and the key file `secret.key`. The key has to come along, otherwise the stored credentials for Radarr, Sonarr, TMDB and the mail server cannot be read later. Caches are left out — Nexview fetches those again on its own.",
+    "downloadWhat_nex": "You get an **encrypted ZIP** holding the database and the key file `secret.key`. The key has to come along, otherwise the stored credentials for nexcrate, TMDB and the mail server cannot be read later. Caches are left out — Nexview fetches those again on its own.",
     "passwordWarning": "**Remember this password.** There is no second key and no way back: without it the file is worthless. The archive opens with 7-Zip, WinRAR or your file manager — so you do not depend on Nexview to get at your own data.",
     "passwordLabel": "Password for the archive",
     "passwordRepeat": "Repeat password",
@@ -3332,14 +3356,17 @@
     "tooNew": "This backup comes from version **{{version}}** and is therefore **newer** than the one running. Nexview can only carry data forward, never back — restoring it would damage the installation. Update Nexview first.",
     "unknownVersion": "This backup does not say which version it came from. Without that there is no way to tell whether it fits.",
     "envKeyWarning": "**Careful: `NEXVIEW_SECRET_KEY` is set as an environment variable.** The variable always wins, so the key inside the archive is ignored. If its value differs from the one the backup was made with, **none of the stored credentials can be read afterwards** — Radarr, Sonarr, TMDB, the mail server and every media server would have to be connected again.",
+    "envKeyWarning_nex": "**Careful: `NEXVIEW_SECRET_KEY` is set as an environment variable.** The variable always wins, so the key inside the archive is ignored. If its value differs from the one the backup was made with, **none of the stored credentials can be read afterwards** — nexcrate, TMDB, the mail server and every media server would have to be connected again.",
     "noKeyAtAll": "**This archive contains no key, and this installation has none either.** The backup was made where the key came from `NEXVIEW_SECRET_KEY`. Restoring it here generates a **new** key, and afterwards **none of the stored credentials can be read** — Radarr, Sonarr, TMDB, the mail server, every media server, plus every webhook and OIDC secret. Set `NEXVIEW_SECRET_KEY` to the value that installation used before you restore.",
+    "noKeyAtAll_nex": "**This archive contains no key, and this installation has none either.** The backup was made where the key came from `NEXVIEW_SECRET_KEY`. Restoring it here generates a **new** key, and afterwards **none of the stored credentials can be read** — nexcrate, TMDB, the mail server, every media server, plus every webhook and OIDC secret. Set `NEXVIEW_SECRET_KEY` to the value that installation used before you restore.",
     "keyOnlyFromEnv": "**This archive contains no key.** It was made where the key came from `NEXVIEW_SECRET_KEY`. The variable is set here too — but if it does not hold the same value, **none of the stored credentials can be read afterwards**.",
     "freshNote": "Nexview writes a backup of the current (empty) state first — if something is wrong with the archive, that is the way back.",
     "replaceWarning": "**This replaces the entire database.** Everything that happened since this backup is gone afterwards: accounts, requests, ratings, watchlists. Everyone signed in is signed out, including you. Nexview writes a backup of the current state first — that is the way back.",
     "title": "Restore a backup",
     "open": "Restore …",
     "adminIntro": "Replaces the running installation with the state from a backup. **Everything that happened since is lost.** Nexview writes a backup of the current state first.",
-    "outsideWarning": "**Only Nexview is rolled back.** Whatever happened in Radarr, Sonarr or on the media server in the meantime stays as it is — deleted movies do not come back. The next sync brings Nexview in line with reality and may cancel requests again, notifications included."
+    "outsideWarning": "**Only Nexview is rolled back.** Whatever happened in Radarr, Sonarr or on the media server in the meantime stays as it is — deleted movies do not come back. The next sync brings Nexview in line with reality and may cancel requests again, notifications included.",
+    "outsideWarning_nex": "**Only Nexview is rolled back.** Whatever happened in nexcrate or on the media server in the meantime stays as it is — deleted movies do not come back. The next sync brings Nexview in line with reality and may cancel requests again, notifications included."
   },
   "apikeys": {
     "title": "API tokens",
@@ -3539,8 +3566,12 @@
       "geisterposten": {
         "titel_one": "One item is no longer tracked by Radarr/Sonarr",
         "titel_other": "{{count}} items are no longer tracked by Radarr/Sonarr",
+        "titel_nex_one": "One item is no longer tracked by nexcrate",
+        "titel_nex_other": "{{count}} items are no longer tracked by nexcrate",
         "folge_one": "It takes up {{bytes_lesbar}} and still counts against its owner's allowance — but Nexview can no longer delete it. This happens when a title is removed from Radarr while the file is kept.",
-        "folge_other": "They take up {{bytes_lesbar}} and still count against their owner's allowance — but Nexview can no longer delete them. This happens when a title is removed from Radarr while the file is kept."
+        "folge_other": "They take up {{bytes_lesbar}} and still count against their owner's allowance — but Nexview can no longer delete them. This happens when a title is removed from Radarr while the file is kept.",
+        "folge_nex_one": "It takes up {{bytes_lesbar}} and still counts against its owner's allowance — but Nexview can no longer delete it. This happens when a title is removed from nexcrate while the file is kept.",
+        "folge_nex_other": "They take up {{bytes_lesbar}} and still count against their owner's allowance — but Nexview can no longer delete them. This happens when a title is removed from nexcrate while the file is kept."
       }
     },
     "betrieb": {
@@ -3596,7 +3627,9 @@
         "titel_one": "One file is unknown to the media server",
         "titel_other": "{{count}} files are unknown to the media server",
         "folge_one": "Radarr or Sonarr tracks it, but the media server has never scanned it in. To everybody else the title looks absent — and gets requested a second time. Usually the server has not scanned, or the path mapping is wrong.",
-        "folge_other": "Radarr or Sonarr tracks them, but the media server has never scanned them in. To everybody else these titles look absent — and get requested a second time. Usually the server has not scanned, or the path mapping is wrong."
+        "folge_other": "Radarr or Sonarr tracks them, but the media server has never scanned them in. To everybody else these titles look absent — and get requested a second time. Usually the server has not scanned, or the path mapping is wrong.",
+        "folge_nex_one": "nexcrate tracks it, but the media server has never scanned it in. To everybody else the title looks absent — and gets requested a second time. Usually the server has not scanned, or the path mapping is wrong.",
+        "folge_nex_other": "nexcrate tracks them, but the media server has never scanned them in. To everybody else these titles look absent — and get requested a second time. Usually the server has not scanned, or the path mapping is wrong."
       },
       "nicht_erkannt": {
         "titel_one": "One title in the media server has no identifier at all",
@@ -3634,6 +3667,7 @@
     "tabServices": "Services",
     "tabOperations": "Operations",
     "noInstances": "No Radarr or Sonarr instance has been set up yet.",
+    "noInstances_nex": "nexcrate has not been connected yet.",
     "reachable": "answering",
     "unreachable": "not answering",
     "version": "Version",
@@ -3659,7 +3693,9 @@
     "ghosts": "Orphaned items",
     "reconciliation": "Do the sources agree?",
     "reconciliationHint": "Radarr and Sonarr manage the files, the media server plays them, Nexview bills them to somebody. Where the three disagree, errors appear that nobody looks for — because nothing is red anywhere.",
+    "reconciliationHint_nex": "nexcrate manages the files, the media server plays them, Nexview bills them to somebody. Where the three disagree, errors appear that nobody looks for — because nothing is red anywhere.",
     "arrOnly": "Only in Radarr/Sonarr",
+    "arrOnly_nex": "Only in nexcrate",
     "arrOnlyHint": "file is there, media server does not know it",
     "serverOnly": "Only in the media server",
     "serverOnlyHint": "runs without upgrades or renaming",
@@ -3687,6 +3723,7 @@
         "jahr": "Year conflict",
         "ohne_kennung": "No ID",
         "nur_arr": "Only in Radarr/Sonarr",
+        "nur_arr_nex": "Only in nexcrate",
         "alle": "All titles"
       },
       "search": "Search title or path",
@@ -3712,6 +3749,7 @@
         "titel": "Title and year",
         "einzeln": "one server only",
         "arr": "Radarr/Sonarr",
+        "arr_nex": "nexcrate",
         "pfad": "ID in path"
       },
       "present": "present",
@@ -3771,9 +3809,21 @@
           "Without an ID in the name, the pattern “Title (Year)” usually helps, plus S01E01 for episodes.",
           "Match the title by hand on the server with “Fix Match” or “Identify”, or adjust the naming scheme in Radarr and Sonarr. Then sync again."
         ],
+        "ohne_kennung_nex": [
+          "The server matched these titles to neither TMDB nor TVDB. For Nexview they don't exist and can be requested again.",
+          "If the folder name contains an ID like {tmdb-1234}, that is the Plex format. Jellyfin expects [tmdbid-1234], Emby [tmdbid=1234]. Otherwise the server may read the number as the year and the release group at the end of the file name as the title. Nexview still matches such titles by the ID in the path, but the server doesn't see it.",
+          "Without an ID in the name, the pattern “Title (Year)” usually helps, plus S01E01 for episodes.",
+          "Match the title by hand on the server with “Fix Match” or “Identify”, or adjust the naming scheme in nexcrate. Then sync again."
+        ],
         "nur_arr": [
           "Radarr or Sonarr have a file for these titles, but no server knows them. To everyone it looks as if they don't exist.",
           "Most common cause: the root folder in Radarr or Sonarr is outside the server's library folders, or the paths differ between containers.",
+          "Otherwise the server hasn't scanned yet. Start a scan, then sync again.",
+          "The list is built by the hourly reconciliation and shows at most 500 titles."
+        ],
+        "nur_arr_nex": [
+          "nexcrate has a file for these titles, but no server knows them. To everyone it looks as if they don't exist.",
+          "Most common cause: the folder of the version in nexcrate is outside the server's library folders, or the paths differ between containers.",
           "Otherwise the server hasn't scanned yet. Start a scan, then sync again.",
           "The list is built by the hourly reconciliation and shows at most 500 titles."
         ]

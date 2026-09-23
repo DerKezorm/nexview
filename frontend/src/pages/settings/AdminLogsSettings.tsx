@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../../hooks/useWegKontext'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api, downloadFile } from '../../api/client'
@@ -36,6 +38,7 @@ const FARBEN: Record<string, string> = {
  */
 export function AdminLogsSettings() {
   const { t } = useTranslation()
+  const weg = useWegKontext()
   const queryClient = useQueryClient()
   const [stufe, setStufe] = useState<Stufe>('ALL')
   const [suche, setSuche] = useState('')
@@ -131,7 +134,7 @@ export function AdminLogsSettings() {
               disabled={gesperrt || modusMutation.isPending}
               onClick={() => umschalten(wert)}
               aria-pressed={modus?.mode === wert}
-              title={t(`logs.modeDesc.${wert}`)}
+              title={t(`logs.modeDesc.${wert}`, weg)}
               className={
                 'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ' +
                 'disabled:cursor-not-allowed disabled:opacity-50 ' +
@@ -183,7 +186,7 @@ export function AdminLogsSettings() {
             ? t('logs.modeEnv')
             : modus?.until
               ? t('logs.modeUntil', { time: new Date(modus.until).toLocaleString() })
-              : t(`logs.modeDesc.${modus?.mode ?? 'normal'}`) + ' ' + t('logs.modeNoLimit')}
+              : t(`logs.modeDesc.${modus?.mode ?? 'normal'}`, weg) + ' ' + t('logs.modeNoLimit')}
         </p>
 
         {modus?.mode === 'trace' && !gesperrt && (

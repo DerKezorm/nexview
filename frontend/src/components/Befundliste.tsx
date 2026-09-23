@@ -1,5 +1,7 @@
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../hooks/useWegKontext'
 import { Link } from 'react-router-dom'
 
 import type { Befund, BefundBereich, BefundSchwere } from '../api/types'
@@ -47,6 +49,7 @@ const FARBEN: Record<BefundSchwere, { punkt: string; rahmen: string }> = {
 
 function Zeile({ befund }: { befund: Befund }) {
   const { t, i18n } = useTranslation()
+  const weg = useWegKontext()
   const farbe = FARBEN[befund.schwere]
 
   // Der Server liefert rohe Bytes - eine Zahl mit zehn Stellen liest niemand.
@@ -83,10 +86,10 @@ function Zeile({ befund }: { befund: Befund }) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="font-medium text-mist-100">
-          {t(`befund.${befund.kennung}.titel`, werte)}
+          {t(`befund.${befund.kennung}.titel`, { ...werte, ...weg })}
         </p>
         <p className="mt-0.5 text-sm text-mist-500">
-          {t(`befund.${befund.kennung}.folge`, werte)}
+          {t(`befund.${befund.kennung}.folge`, { ...werte, ...weg })}
         </p>
         {befund.wortlaut && (
           // Der Wortlaut von Radarr/Sonarr, unübersetzt. Als Zitat gesetzt,

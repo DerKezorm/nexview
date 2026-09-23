@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../../hooks/useWegKontext'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useState } from 'react'
@@ -218,6 +220,7 @@ function Loeschdialog({
   onFertig: () => void
 }) {
   const { t, i18n } = useTranslation()
+  const weg = useWegKontext()
 
   const vorschau = useQuery({
     queryKey: ['loeschvorschau', abgabe?.entry.id],
@@ -273,6 +276,7 @@ function Loeschdialog({
                 : daten.reason === 'unmanaged'
                   ? 'storageReleases.deleteReasonUnmanaged'
                   : 'storageReleases.deleteReasonTier',
+              weg,
             )}
           </span>
         ) : (

@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../../hooks/useWegKontext'
 import { useSearchParams } from 'react-router-dom'
 
 import { api } from '../../api/client'
@@ -46,6 +48,7 @@ function istAnsicht(wert: string | null): wert is VergleichAnsicht {
 
 export function ServerVergleich() {
   const { t } = useTranslation()
+  const weg = useWegKontext()
   const [suchparameter] = useSearchParams()
   const ausAdresse = suchparameter.get('vergleich')
   const anker = useRef<HTMLDivElement>(null)
@@ -130,7 +133,7 @@ export function ServerVergleich() {
   const hilfe =
     ansicht === 'alle'
       ? []
-      : (t(`analyse.matrix.help.${ansicht}`, { returnObjects: true }) as string[])
+      : (t(`analyse.matrix.help.${ansicht}`, { returnObjects: true, ...weg }) as string[])
   const gefiltert = art !== 'alle' || fehltAuf !== '' || gesucht !== ''
 
   return (
@@ -194,7 +197,7 @@ export function ServerVergleich() {
         label={(a) =>
           a === 'alle'
             ? t('analyse.matrix.view.alle')
-            : `${t(`analyse.matrix.view.${a}`)} · ${stand.anzahl[a] ?? 0}`
+            : `${t(`analyse.matrix.view.${a}`, weg)} · ${stand.anzahl[a] ?? 0}`
         }
       />
 
@@ -344,7 +347,7 @@ export function ServerVergleich() {
                         </td>
                       ))}
                       <td className="px-3 py-2.5 text-mist-500">
-                        {t(`analyse.matrix.match.${zeile.zuordnung}`)}
+                        {t(`analyse.matrix.match.${zeile.zuordnung}`, weg)}
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         {korrigierbar && (

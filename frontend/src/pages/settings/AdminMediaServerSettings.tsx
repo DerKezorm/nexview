@@ -12,6 +12,8 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { wegKontext } from '../../lib/weg'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
@@ -708,7 +710,7 @@ export function AdminMediaServerSettings() {
         <Abschnitt>
           <div>
             <h2 className="text-lg font-semibold">{t('mediaserver.library')}</h2>
-            <p className="mt-1.5 text-sm text-mist-500">{t('mediaserver.libraryIntro')}</p>
+            <p className="mt-1.5 text-sm text-mist-500">{t('mediaserver.libraryIntro', wegKontext(config))}</p>
           </div>
 
           <p className="rounded-xl border border-ink-700 bg-ink-900 px-4 py-3 text-sm">

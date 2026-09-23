@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../../hooks/useWegKontext'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
@@ -91,6 +93,7 @@ export function AdminKontoAufloesung({
   onGeloescht: () => void
 }) {
   const { t, i18n } = useTranslation()
+  const weg = useWegKontext()
 
   const vorschau = useQuery({
     queryKey: ['aufloesung', benutzer.id],
@@ -311,7 +314,7 @@ export function AdminKontoAufloesung({
                 </button>
               </div>
               <p className="mt-1 text-sm text-mist-500">
-                {t('adminUsers.dissolveItemsHint')}
+                {t('adminUsers.dissolveItemsHint', weg)}
               </p>
               <ul className="mt-2 flex flex-col">
                 {daten.posten.map((posten) => (
@@ -442,7 +445,7 @@ export function AdminKontoAufloesung({
                 {t('adminUsers.dissolveOpenTitle')}
               </h4>
               <p className="mt-1 text-sm text-mist-500">
-                {t('adminUsers.dissolveOpenIntro')}
+                {t('adminUsers.dissolveOpenIntro', weg)}
               </p>
               <ul className="mt-2 flex flex-col gap-1.5">
                 {daten.offen.map((zeile) => (
@@ -498,7 +501,7 @@ export function AdminKontoAufloesung({
           </p>
           {zuLoeschen.length > 0 && (
             <p className="rounded-xl border border-bad-500/40 bg-bad-500/10 px-4 py-3 text-sm text-bad-500">
-              {t('adminUsers.dissolveDeleteWarning')}
+              {t('adminUsers.dissolveDeleteWarning', weg)}
             </p>
           )}
         </div>

@@ -13,6 +13,7 @@ import { FassungBadge } from './FassungBadge'
 import { WatchedBadge } from './WatchedBadge'
 import { useAuth } from '../../auth/useAuth'
 import { darfAnfragen } from '../../lib/status'
+import { useWegKontext } from '../../hooks/useWegKontext'
 
 type DetailModalProps = {
   item: MediaItem | null
@@ -41,6 +42,7 @@ export function DetailModal({
 }: DetailModalProps) {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
+  const weg = useWegKontext()
   const closeRef = useRef<HTMLButtonElement>(null)
   const [adding, setAdding] = useState(false)
 
@@ -219,13 +221,13 @@ export function DetailModal({
                     {/* Bei einer laufenden Serie steht hier zusätzlich, warum
                         der Knopf trotz "bereits geladen" angeboten wird. */}
                     {nurWeitereStaffel && (
-                      <p className="mb-3 text-sm text-mist-500">{t('request.moreSeasonsHint')}</p>
+                      <p className="mb-3 text-sm text-mist-500">{t('request.moreSeasonsHint', weg)}</p>
                     )}
                     <Button
                       type="button"
                       onClick={() => setAdding(true)}
                       disabled={!arrConfigured}
-                      title={arrConfigured ? undefined : t('request.arrMissing')}
+                      title={arrConfigured ? undefined : t('request.arrMissing', weg)}
                     >
                       {nurWeitereStaffel
                         ? t('request.addSeason')

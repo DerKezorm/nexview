@@ -335,6 +335,37 @@ async def test_die_gesundheit_landet_in_der_zeile(nex: Any, nexcrate: FakeNexcra
     assert kennungen == ["indexer_none", "automatic_off:movie"]
 
 
+async def test_die_glocke_nennt_nexcrate_nicht_radarr(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Die Meldung kam mit dem Schluessel des Arr-Wegs: "Radarr/Sonarr meldet ein Problem".
+
+    Ein Platzhalter geht in der Glocke nicht (dort stuenden die Klammern
+    woertlich), also schickt der NEX-Weg einen eigenen Schluessel - und den
+    muss es in beiden Sprachen geben.
+    """
+    import json
+    from pathlib import Path
+
+    from app.models import Notification
+
+    db.add(User(username="chef", password_hash=hash_password("test"), role=Role.admin))
+    db.commit()
+    nexcrate.health = [
+        {"code": "indexer_none", "level": "error", "message": "No indexer.", "params": {}},
+    ]
+
+    await get_beschaffung(nex).gesundheit_pruefen(db)
+
+    schluessel = {meldung.message_key for meldung in db.query(Notification).all()}
+    assert schluessel == {"notifications.instanceHealth_nex"}
+    sprachen = Path(__file__).resolve().parents[2] / "frontend" / "src" / "i18n"
+    for sprache in ("de", "en"):
+        texte = json.loads((sprachen / f"{sprache}.json").read_text(encoding="utf-8"))
+        text = texte["notifications"]["instanceHealth_nex"]
+        assert "nexcrate" in text and "Radarr" not in text, (sprache, text)
+
+
 async def test_nur_was_den_betreiber_braucht_wird_ein_haenger(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:

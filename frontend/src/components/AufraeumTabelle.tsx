@@ -15,6 +15,8 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../hooks/useWegKontext'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -75,6 +77,7 @@ export function AufraeumTabelle({
   eigene?: boolean
 }) {
   const { t, i18n } = useTranslation()
+  const weg = useWegKontext()
   const [monate, setMonate] = useState(6)
   const [frage, setFrage] = useState<AufraeumPosten | null>(null)
   const [suche, setSuche] = useState('')
@@ -266,7 +269,7 @@ export function AufraeumTabelle({
           nicht mehr Platz einnehmen als die Tabelle darunter. */}
       {ohneDatum > 0 && (
         <p className="flex flex-wrap items-center gap-2 text-xs text-mist-600">
-          <span>{t('cleanup.noDateYet', { count: ohneDatum })}</span>
+          <span>{t('cleanup.noDateYet', { count: ohneDatum, ...weg })}</span>
           {!eigene && (
             <button
               type="button"
@@ -449,7 +452,7 @@ export function AufraeumTabelle({
             <p className="mt-2">{t('cleanup.deleteText')}</p>
           </>
         }
-        warning={t('cleanup.deleteRecycleHint')}
+        warning={t('cleanup.deleteRecycleHint', weg)}
         confirmLabel={t('cleanup.deleteGrace')}
         weitere={[
           {

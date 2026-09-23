@@ -391,6 +391,7 @@
     "addMovie": "Anfragen",
     "addSeries": "Anfragen",
     "arrMissing": "Dafür muss der Administrator zuerst Radarr bzw. Sonarr einrichten.",
+    "arrMissing_nex": "Dafür muss der Administrator zuerst nexcrate verbinden und eine Fassung freigeben.",
     "chooseOptions": "Vor dem Hinzufügen",
     "qualityProfile": "Qualitätsprofil",
     "rootFolder": "Zielordner",
@@ -416,6 +417,7 @@
     "seasonShort": "St. {{number}}",
     "addSeason": "Staffel nachfordern",
     "moreSeasonsHint": "Die Serie läuft bereits mit. Du kannst eine einzelne Staffel nachfordern - sie wird in Sonarr nur zusätzlich aktiviert.",
+    "moreSeasonsHint_nex": "Die Serie läuft bereits mit. Du kannst eine einzelne Staffel nachfordern - sie wird in nexcrate nur zusätzlich aktiviert.",
     "chooseSeason": "Staffel wählen und anfragen",
     "targetLater": "Wohin der Titel kommt und in welcher Qualität, legt der Entscheider bei der Freigabe fest.",
     "seasonAll": "Alle inkl. künftige",
@@ -647,6 +649,7 @@
     "sendReply": "Antwort senden",
     "outdated": "galt einer älteren Fassung",
     "outdatedHint": "Radarr hat diesen Titel in besserer Qualität nachgeladen. Deine Bewertung galt der Datei von damals — magst du neu bewerten?",
+    "outdatedHint_nex": "nexcrate hat diesen Titel in besserer Qualität nachgeladen. Deine Bewertung galt der Datei von damals — magst du neu bewerten?",
     "ticketOffer": "Klingt nach einem Problem, das jemand beheben sollte. Soll daraus ein Ticket werden? Dann bleibt es offen, bis sich jemand darum gekümmert hat.",
     "ticketButton": "Als Problem melden",
     "ticketSubject": "Problem mit „{{title}}“",
@@ -891,9 +894,13 @@
     "cancel": "Abbrechen",
     "cancelTitle": "Anfrage abbrechen?",
     "cancelText": "„{{title}}“ wird aus Radarr bzw. Sonarr entfernt und nicht weiter gesucht. Dein Kontingent wird dafür wieder frei – du kannst also stattdessen etwas anderes anfragen.",
+    "cancelText_nex": "„{{title}}“ wird aus nexcrate entfernt und nicht weiter gesucht. Dein Kontingent wird dafür wieder frei – du kannst also stattdessen etwas anderes anfragen.",
     "cancelTextAdmin": "„{{title}}“ von {{name}} wird aus Radarr bzw. Sonarr entfernt und nicht weiter gesucht. Das Kontingent von {{name}} wird dafür wieder frei.",
+    "cancelTextAdmin_nex": "„{{title}}“ von {{name}} wird aus nexcrate entfernt und nicht weiter gesucht. Das Kontingent von {{name}} wird dafür wieder frei.",
     "cancelTextNothing": "„{{title}}“ kam nie bis zu Radarr oder Sonarr - die Anfrage ist ja fehlgeschlagen. Es wird nichts entfernt und keine Datei gelöscht; die Zeile wandert nur zu den abgebrochenen Anfragen.",
+    "cancelTextNothing_nex": "„{{title}}“ kam nie bis zu nexcrate - die Anfrage ist ja fehlgeschlagen. Es wird nichts entfernt und keine Datei gelöscht; die Zeile wandert nur zu den abgebrochenen Anfragen.",
     "cancelTextNothingAdmin": "„{{title}}“ von {{name}} kam nie bis zu Radarr oder Sonarr - die Anfrage ist ja fehlgeschlagen. Es wird nichts entfernt und keine Datei gelöscht; die Zeile wandert nur zu den abgebrochenen Anfragen.",
+    "cancelTextNothingAdmin_nex": "„{{title}}“ von {{name}} kam nie bis zu nexcrate - die Anfrage ist ja fehlgeschlagen. Es wird nichts entfernt und keine Datei gelöscht; die Zeile wandert nur zu den abgebrochenen Anfragen.",
     "cancelWarning": "Bereits heruntergeladene Dateien werden dabei mitgelöscht.",
     "cancelConfirm": "Ja, abbrechen"
   },
@@ -929,6 +936,7 @@
       "quiet": "Nur Warnungen und Fehler.",
       "normal": "Was passiert ist, dazu Warnungen und Fehler.",
       "detailed": "Zusätzlich der Weg dorthin: jeder Aufruf zu TMDB, Radarr, Sonarr und Media-Server.",
+      "detailed_nex": "Zusätzlich der Weg dorthin: jeder Aufruf zu TMDB, nexcrate und Media-Server.",
       "trace": "Zusätzlich die Rohdaten der Fremdbibliotheken. Sehr viele Zeilen."
     },
     "duration": {
@@ -1193,6 +1201,7 @@
     "dissolveTitle": "Konto von {{name}} löschen",
     "dissolveItems": "Was das Konto belegt",
     "dissolveItemsHint": "Häkchen = geht in den Hausbestand (Datei bleibt). Ohne Häkchen wird über Radarr/Sonarr gelöscht.",
+    "dissolveItemsHint_nex": "Häkchen = geht in den Hausbestand (Datei bleibt). Ohne Häkchen wird über nexcrate gelöscht.",
     "markAll": "Alle markieren",
     "markNone": "Keine markieren",
     "dissolveRunning": "Angefangene Downloads",
@@ -1206,6 +1215,7 @@
     "dissolveNothing": "Das Konto hinterlässt nichts – keine Titel, keine offenen Bestellungen.",
     "dissolveSummary": "{{haus}} ins Haus · {{del}} löschen ({{size}}) – danach wird das Konto endgültig entfernt.",
     "dissolveDeleteWarning": "Gelöschte Dateien gehen über Radarr/Sonarr und landen – falls eingerichtet – in deren Papierkorb. Ohne Papierkorb sind sie sofort weg.",
+    "dissolveDeleteWarning_nex": "Gelöschte Dateien gehen über nexcrate und landen, falls dort eingeschaltet, in dessen Papierkorb, aus dem Nexview sie zurückholen kann. Ohne Papierkorb sind sie sofort weg.",
     "dissolveConfirm": "Konto endgültig löschen",
     "toHouse": "ins Haus",
     "toDelete": "löschen",
@@ -1230,6 +1240,7 @@
     "storageResetDone": "Speicher zurückgesetzt – alles ins Haus übernommen.",
     "dissolveOpenTitle": "Genehmigte Bestellungen ohne Datei",
     "dissolveOpenIntro": "Noch ist nichts heruntergeladen. Angehakt läuft die Bestellung weiter und der Titel fällt ans Haus; ohne Haken wird sie storniert und aus Radarr bzw. Sonarr genommen.",
+    "dissolveOpenIntro_nex": "Noch ist nichts heruntergeladen. Angehakt läuft die Bestellung weiter und der Titel fällt ans Haus; ohne Haken wird sie storniert und aus nexcrate genommen.",
     "dissolveOpenKeep": "— läuft weiter, fällt ans Haus",
     "dissolveOpenCancel": "— wird storniert",
     "dissolveSeason": "(Staffel {{number}})",
@@ -1278,6 +1289,7 @@
     "requestFulfilled": "Ein zurückgestellter Titel ist jetzt da",
     "storageGrew": "Ein Titel belegt jetzt mehr Platz",
     "instanceHealth": "Radarr/Sonarr meldet ein Problem",
+    "instanceHealth_nex": "nexcrate meldet ein Problem",
     "downloadStuck": "Ein Download hängt immer wieder",
     "downloadAutomationGaveUp": "Die Automatik bekommt einen Download nicht in Gang",
     "storageReleaseRequested": "Jemand hat einen Titel abgegeben",
@@ -1316,6 +1328,7 @@
     "defaultRole": "Rolle",
     "library": "Bibliotheks-Abgleich",
     "libraryIntro": "Nexview liest, was in deinen Medienserver-Bibliotheken liegt — und erkennt so Titel, die nie über Radarr/Sonarr kamen. Sie erscheinen als „In der Bibliothek\" und lassen sich nicht doppelt anfragen. Läuft stündlich im Hintergrund.",
+    "libraryIntro_nex": "Nexview liest, was in deinen Medienserver-Bibliotheken liegt — und erkennt so Titel, die nie über nexcrate kamen. Sie erscheinen als „In der Bibliothek\" und lassen sich nicht doppelt anfragen. Läuft stündlich im Hintergrund.",
     "libraryNever": "Noch nicht abgeglichen.",
     "syncNow": "Jetzt abgleichen",
     "blocks": "Gesperrte Konten",
@@ -1855,8 +1868,7 @@
     "prefixBlocked": "{{anzahl}} davon behalten den Vorsatz: Ein eigenes Muster von dir hält bereits den schlichten Namen ({{namen}}). Fremde Muster rührt Nexview nicht an — das brauchst du selbst zu entscheiden.",
     "renameResumed": "Fortgesetzt: Dieser Lauf wurde unterbrochen und macht dort weiter, wo er stand.",
     "prefixAllBlocked": "Alle {{anzahl}} halten den Vorsatz, weil eigene Muster von dir bereits die schlichten Namen belegen ({{namen}} …). Nexview rührt fremde Muster nicht an. Damit der Lauf möglich wird, müsstest du diese Muster in {{dienst}} selbst löschen oder umbenennen — prüfe vorher, ob noch ein Profil sie benutzt.",
-    "folderScope": "— nur für neu hinzukommende Titel",
-    "needsInstance": "Richte zuerst eine Radarr- oder Sonarr-Instanz ein — ohne sie gibt es nichts zu benennen."
+    "folderScope": "— nur für neu hinzukommende Titel"
   },
   "mediaLink": {
     "title": "Rückverbindung zu den Medienservern",
@@ -2211,6 +2223,7 @@
   "about": {
     "title": "Über Nexview",
     "tagline": "Neuerscheinungen entdecken, anfragen und automatisch von Radarr und Sonarr laden lassen.",
+    "tagline_nex": "Neuerscheinungen entdecken, anfragen und automatisch von nexcrate laden lassen.",
     "version": "Installierte Version",
     "source": "Quelltext",
     "onGithub": "auf GitHub ansehen",
@@ -2235,6 +2248,7 @@
     "youtubeNotice": "Trailer werden von dort abgespielt. TMDB liefert nur den Verweis.",
     "builtWith": "Gebaut mit",
     "ratingsNotice": "Ihre Wertungen erscheinen bei Filmen. Nexview holt sie nicht selbst dort ab, sondern übernimmt sie aus Radarr, das sie zu jedem Film mitliefert. Die Marken gehören den jeweiligen Anbietern.",
+    "ratingsNotice_nex": "Ihre Wertungen erscheinen bei Filmen. Nexview holt sie nicht selbst dort ab, sondern übernimmt sie aus nexcrate, das sie zu jedem Film mitliefert. Die Marken gehören den jeweiligen Anbietern.",
     "inspiration": "Vorbild",
     "seerrNotice": "Seerr, hervorgegangen aus Overseerr und Jellyseerr, hat gezeigt, wie eine Anfrage-Oberfläche für Radarr und Sonarr aussehen kann – von der zweiten 4K-Instanz bis zum Abgleich mit dem Media-Server. Nexview ist eine eigenständige Neuentwicklung und übernimmt keinen Quelltext, verdankt Seerr aber viele Ideen.",
     "notifyServices": "Benachrichtigungen",
@@ -2618,6 +2632,7 @@
     "onFeedbackHint": "Bewertungen zu gelieferten Titeln – schlechte wie gute.",
     "onRequestCancelled": "Anfrage storniert",
     "onRequestCancelledHint": "Ein Storno löscht auch die Dateien in Radarr/Sonarr – gut zu wissen, wenn es passiert.",
+    "onRequestCancelledHint_nex": "Ein Storno löscht auch die Dateien in nexcrate – gut zu wissen, wenn es passiert.",
     "onRequestDecided": "Anfrage entschieden",
     "onRequestDecidedHint": "Freigegeben oder abgelehnt – hält alle Entscheider auf demselben Stand.",
     "onRequestPending": "Über neue Freigabeanfragen informieren",
@@ -2668,6 +2683,7 @@
     "onStorageReleaseHint": "Meldet, wenn jemand einen Titel abgibt und wenn darüber entschieden wurde. Genannt wird nur der Titel – wer ihn abgegeben hat, bleibt dem Postfach verborgen.",
     "onInstanceHealth": "Instanz-Probleme",
     "onInstanceHealthHint": "Meldet, wenn Radarr oder Sonarr selbst ein Problem melden – etwa einen ausgefallenen Download-Client oder Indexer. Dann hängen alle Anfragen, und genau das soll nicht still bleiben. Dazu kommen Titel, deren Download immer wieder hängen bleibt.",
+    "onInstanceHealthHint_nex": "Meldet, wenn nexcrate selbst ein Problem meldet – etwa einen ausgefallenen Download-Client oder Indexer. Dann hängen alle Anfragen, und genau das soll nicht still bleiben. Dazu kommen Titel, deren Download immer wieder hängen bleibt.",
     "deleteTitle": "Ziel entfernen",
     "confirmDeleteWarning": "Es gehen dann keine Meldungen mehr dorthin.",
     "callbacks": "Rückkanäle",
@@ -2870,7 +2886,8 @@
     "seenSeason": "Alle Folgen gesehen",
     "notSeenSeason": "Noch nicht alle Folgen gesehen",
     "seenNoData": "Status unbekannt – zu diesem Titel liegen keine Gesehen-Daten vor",
-    "unmanagedHint": "Wird nicht mehr von Radarr bzw. Sonarr verwaltet. Der Titel zählt weiter, lässt sich über Nexview aber nicht mehr entfernen – abgeben geht nur noch an den Hausbestand."
+    "unmanagedHint": "Wird nicht mehr von Radarr bzw. Sonarr verwaltet. Der Titel zählt weiter, lässt sich über Nexview aber nicht mehr entfernen – abgeben geht nur noch an den Hausbestand.",
+    "unmanagedHint_nex": "Wird nicht mehr von nexcrate verwaltet. Der Titel zählt weiter, lässt sich über Nexview aber nicht mehr entfernen – abgeben geht nur noch an den Hausbestand."
   },
   "storageAdmin": {
     "title": "Kontingente",
@@ -2888,7 +2905,9 @@
     "usersHint": "Anklicken, um die einzelnen Titel zu sehen.",
     "usersEmpty": "Noch ist alles Hausbestand – niemandem persönlich zugeordnet.",
     "mustStayTitle": "Titel müssen in Radarr und Sonarr bleiben",
+    "mustStayTitle_nex": "Titel müssen in nexcrate bleiben",
     "mustStayText": "Nexview löscht ausschließlich über Radarr und Sonarr – es sieht das Dateisystem selbst nie. Wer einen Titel dort entfernt und die Datei behält, schafft damit etwas, das Nexview zwar weiter mitzählt (der Media-Server führt es ja), aber nicht mehr entfernen kann. Der Anfragende bleibt dann auf einer Belastung sitzen, die er nicht mehr loswird – abgeben kann er sie nur noch an den Hausbestand.",
+    "mustStayText_nex": "Nexview löscht ausschließlich über nexcrate – es sieht das Dateisystem selbst nie. Wer einen Titel dort entfernt und die Datei behält, schafft damit etwas, das Nexview zwar weiter mitzählt (der Media-Server führt es ja), aber nicht mehr entfernen kann. Der Anfragende bleibt dann auf einer Belastung sitzen, die er nicht mehr loswird – abgeben kann er sie nur noch an den Hausbestand.",
     "recycleBin": "Im Papierkorb",
     "resetText_one": "1 Titel mit {{size}} geht in den Hausbestand über. Alle Konten starten bei 0, offene Abgaben sind damit erledigt.",
     "resetText_zero": "Es ist noch niemandem etwas zugerechnet – alle Konten stehen ohnehin bei 0.",
@@ -2911,7 +2930,8 @@
     "resetTitle": "Alle Konten auf null setzen?",
     "resetConfirm": "Ins Haus übernehmen",
     "resetDone": "Erledigt – alle Konten stehen bei null.",
-    "pointMeasure": "Die Größen kommen aus Radarr, Sonarr und dem Media-Server – ohne zusätzliche Abfragen.",
+    "pointMeasure": "Die Größen kommen aus Radarr und Sonarr, ohne zusätzliche Abfragen. Der Media-Server misst nur weiter, was dort einmal stand; was nur er kennt, zählt nicht.",
+    "pointMeasure_nex": "Die Größen kommen aus nexcrate, ohne zusätzliche Abfragen. Der Media-Server misst nur weiter, was dort einmal stand; was nur er kennt, zählt nicht.",
     "ownValue": "eigene Zahl"
   },
   "watchlistExpired": {
@@ -2966,6 +2986,7 @@
     "deleteReasonTier": "Löschen ist zurzeit nur in der 4K-Instanz freigeschaltet. Auf der Standard-Instanz wird nichts entfernt.",
     "deleteReasonSeries": "Staffelweises Löschen ist noch nicht scharf geschaltet.",
     "deleteReasonUnmanaged": "Radarr bzw. Sonarr kennt diesen Titel nicht mehr. Nexview löscht ausschließlich über diese Dienste – abgeben geht nur an den Hausbestand.",
+    "deleteReasonUnmanaged_nex": "nexcrate kennt diesen Titel nicht mehr. Nexview löscht ausschließlich über nexcrate – abgeben geht nur an den Hausbestand.",
     "wishDelete": "möchte löschen lassen",
     "wishKeep": "möchte behalten, nicht mehr laden",
     "unfollow": "Nicht mehr folgen"
@@ -3245,6 +3266,7 @@
     "introMine": "Was dir zugerechnet ist und lange niemand mehr angesehen hat. Abgeben kannst du es in der Liste darunter.",
     "colHere": "Liegt seit",
     "noDateYet": "{{count}} Posten sind übergangen, weil Nexview noch nicht weiß, wie lange sie schon da liegen. Das Datum kommt aus Radarr bzw. Sonarr und wird beim nächsten Abgleich nachgetragen - er läuft stündlich.",
+    "noDateYet_nex": "{{count}} Posten sind übergangen, weil Nexview nicht weiß, wie lange sie schon da liegen. nexcrate nennt dieses Datum nicht.",
     "emptyUnknown": "Noch keine Aussage möglich: Von allen Posten ist bisher nicht bekannt, wie lange sie da liegen. Nach dem nächsten Abgleich steht hier etwas.",
     "periodLabel": "Ungenutzt seit mindestens:",
     "syncNow": "Jetzt abgleichen",
@@ -3253,6 +3275,7 @@
     "deleteTitle": "Löschen?",
     "deleteText": "Mit Schonfrist verschwindet der Titel erst in 14 Tagen. Bis dahin steht er für alle sichtbar auf der Startseite, alle mit Bezug dazu bekommen Bescheid - und wer ihn in der Zeit ansieht, hebt die Vormerkung von selbst auf.",
     "deleteRecycleHint": "Gelöscht wird über Radarr/Sonarr. Ist dort ein Papierkorb eingerichtet, landet die Datei zuerst darin; ohne Papierkorb ist sie sofort und endgültig weg.",
+    "deleteRecycleHint_nex": "Gelöscht wird über nexcrate. Ist dort der Papierkorb eingeschaltet, landet die Datei zuerst darin, und Nexview kann sie zurückholen; ohne Papierkorb ist sie sofort und endgültig weg.",
     "deleteGrace": "14 Tage Schonfrist",
     "deleteNow": "Sofort löschen",
     "deleteFailed": "Das Löschen hat nicht geklappt. Der Posten steht noch.",
@@ -3297,6 +3320,7 @@
     "download": "Herunterladen",
     "downloadTitle": "Sicherung herunterladen",
     "downloadWhat": "Du bekommst ein **verschlüsseltes ZIP** mit der Datenbank und dem Schlüssel `secret.key`. Der Schlüssel muss mit, sonst lassen sich die gespeicherten Zugänge zu Radarr, Sonarr, TMDB und dem Mailserver später nicht mehr lesen. Zwischenspeicher sind nicht enthalten — die holt sich Nexview von selbst wieder.",
+    "downloadWhat_nex": "Du bekommst ein **verschlüsseltes ZIP** mit der Datenbank und dem Schlüssel `secret.key`. Der Schlüssel muss mit, sonst lassen sich die gespeicherten Zugänge zu nexcrate, TMDB und dem Mailserver später nicht mehr lesen. Zwischenspeicher sind nicht enthalten — die holt sich Nexview von selbst wieder.",
     "passwordWarning": "**Merk dir dieses Passwort.** Es gibt keinen Zweitschlüssel und keinen Weg zurück: Ohne das Passwort ist die Datei wertlos. Das Archiv lässt sich mit 7-Zip, WinRAR oder dem Explorer öffnen — du bist also nicht auf Nexview angewiesen, um an deine Daten zu kommen.",
     "passwordLabel": "Passwort für das Archiv",
     "passwordRepeat": "Passwort wiederholen",
@@ -3332,14 +3356,17 @@
     "tooNew": "Diese Sicherung stammt aus Fassung **{{version}}** und ist damit **neuer** als die laufende. Nexview kann Daten nur nach vorn bringen, nicht zurück — einspielen würde die Installation beschädigen. Aktualisiere Nexview zuerst.",
     "unknownVersion": "Dieser Sicherung fehlt die Angabe, aus welcher Fassung sie stammt. Ohne die lässt sich nicht sagen, ob sie passt.",
     "envKeyWarning": "**Achtung: `NEXVIEW_SECRET_KEY` ist als Umgebungsvariable gesetzt.** Dann gewinnt die Variable, und der Schlüssel aus dem Archiv wird ignoriert. Stimmt der Wert nicht mit dem der Sicherung überein, lässt sich danach **kein gespeicherter Zugang mehr lesen** — Radarr, Sonarr, TMDB, Mailserver und alle Medienserver müssten neu verbunden werden.",
+    "envKeyWarning_nex": "**Achtung: `NEXVIEW_SECRET_KEY` ist als Umgebungsvariable gesetzt.** Dann gewinnt die Variable, und der Schlüssel aus dem Archiv wird ignoriert. Stimmt der Wert nicht mit dem der Sicherung überein, lässt sich danach **kein gespeicherter Zugang mehr lesen** — nexcrate, TMDB, Mailserver und alle Medienserver müssten neu verbunden werden.",
     "noKeyAtAll": "**In diesem Archiv liegt kein Schlüssel, und diese Installation hat auch keinen.** Die Sicherung stammt von einer Installation, deren Schlüssel aus `NEXVIEW_SECRET_KEY` kam. Beim Einspielen entsteht hier ein **neuer** Schlüssel, und danach lässt sich **kein gespeicherter Zugang mehr lesen** — Radarr, Sonarr, TMDB, Mailserver, alle Medienserver, dazu jedes Webhook- und OIDC-Geheimnis. Setze `NEXVIEW_SECRET_KEY` vorher auf den Wert, den jene Installation benutzt hat.",
+    "noKeyAtAll_nex": "**In diesem Archiv liegt kein Schlüssel, und diese Installation hat auch keinen.** Die Sicherung stammt von einer Installation, deren Schlüssel aus `NEXVIEW_SECRET_KEY` kam. Beim Einspielen entsteht hier ein **neuer** Schlüssel, und danach lässt sich **kein gespeicherter Zugang mehr lesen** — nexcrate, TMDB, Mailserver, alle Medienserver, dazu jedes Webhook- und OIDC-Geheimnis. Setze `NEXVIEW_SECRET_KEY` vorher auf den Wert, den jene Installation benutzt hat.",
     "keyOnlyFromEnv": "**In diesem Archiv liegt kein Schlüssel.** Es stammt von einer Installation, deren Schlüssel aus `NEXVIEW_SECRET_KEY` kam. Die Variable ist hier zwar gesetzt — stimmt ihr Wert aber nicht mit dem von damals überein, **lässt sich danach kein gespeicherter Zugang mehr lesen**.",
     "freshNote": "Nexview legt vorher noch eine Sicherung des jetzigen (leeren) Standes an — falls mit dem Archiv etwas nicht stimmt, ist das der Weg zurück.",
     "replaceWarning": "**Das ersetzt die gesamte Datenbank.** Alles, was seit dieser Sicherung passiert ist, ist danach weg: Konten, Anfragen, Bewertungen, Merklisten. Alle Angemeldeten fliegen heraus, du selbst auch. Nexview legt vorher eine Sicherung des jetzigen Standes an — das ist der Weg zurück.",
     "title": "Sicherung einspielen",
     "open": "Wiederherstellen …",
     "adminIntro": "Ersetzt die laufende Installation durch den Stand aus einer Sicherung. **Alles, was seither passiert ist, geht dabei verloren.** Nexview legt vorher eine Sicherung des jetzigen Standes an.",
-    "outsideWarning": "**Zurückgeholt wird nur Nexview.** Was inzwischen in Radarr, Sonarr oder auf dem Medienserver passiert ist, bleibt wie es ist — gelöschte Filme kommen nicht zurück. Der nächste Abgleich bringt Nexview mit der Wirklichkeit in Übereinstimmung und kann dabei Anfragen erneut stornieren, samt Benachrichtigungen."
+    "outsideWarning": "**Zurückgeholt wird nur Nexview.** Was inzwischen in Radarr, Sonarr oder auf dem Medienserver passiert ist, bleibt wie es ist — gelöschte Filme kommen nicht zurück. Der nächste Abgleich bringt Nexview mit der Wirklichkeit in Übereinstimmung und kann dabei Anfragen erneut stornieren, samt Benachrichtigungen.",
+    "outsideWarning_nex": "**Zurückgeholt wird nur Nexview.** Was inzwischen in nexcrate oder auf dem Medienserver passiert ist, bleibt wie es ist — gelöschte Filme kommen nicht zurück. Der nächste Abgleich bringt Nexview mit der Wirklichkeit in Übereinstimmung und kann dabei Anfragen erneut stornieren, samt Benachrichtigungen."
   },
   "apikeys": {
     "title": "API-Token",
@@ -3539,8 +3566,12 @@
       "geisterposten": {
         "titel_one": "Ein Posten wird nicht mehr von Radarr/Sonarr geführt",
         "titel_other": "{{count}} Posten werden nicht mehr von Radarr/Sonarr geführt",
+        "titel_nex_one": "Ein Posten wird nicht mehr von nexcrate geführt",
+        "titel_nex_other": "{{count}} Posten werden nicht mehr von nexcrate geführt",
         "folge_one": "Er belegt {{bytes_lesbar}} und zählt weiter gegen das Kontingent seines Besitzers — lässt sich über Nexview aber nicht mehr löschen. Entsteht, wenn ein Titel aus Radarr entfernt, die Datei aber behalten wurde.",
-        "folge_other": "Sie belegen {{bytes_lesbar}} und zählen weiter gegen das Kontingent ihres Besitzers — lassen sich über Nexview aber nicht mehr löschen. Entsteht, wenn ein Titel aus Radarr entfernt, die Datei aber behalten wurde."
+        "folge_other": "Sie belegen {{bytes_lesbar}} und zählen weiter gegen das Kontingent ihres Besitzers — lassen sich über Nexview aber nicht mehr löschen. Entsteht, wenn ein Titel aus Radarr entfernt, die Datei aber behalten wurde.",
+        "folge_nex_one": "Er belegt {{bytes_lesbar}} und zählt weiter gegen das Kontingent seines Besitzers — lässt sich über Nexview aber nicht mehr löschen. Entsteht, wenn ein Titel aus nexcrate entfernt, die Datei aber behalten wurde.",
+        "folge_nex_other": "Sie belegen {{bytes_lesbar}} und zählen weiter gegen das Kontingent ihres Besitzers — lassen sich über Nexview aber nicht mehr löschen. Entsteht, wenn ein Titel aus nexcrate entfernt, die Datei aber behalten wurde."
       }
     },
     "betrieb": {
@@ -3596,7 +3627,9 @@
         "titel_one": "Eine Datei kennt der Medienserver nicht",
         "titel_other": "{{count}} Dateien kennt der Medienserver nicht",
         "folge_one": "Radarr oder Sonarr führt sie, der Medienserver hat sie nie eingelesen. Für alle anderen sieht es aus, als gäbe es den Titel nicht — und er wird ein zweites Mal bestellt. Meist hat der Server nicht eingelesen oder die Pfadzuordnung stimmt nicht.",
-        "folge_other": "Radarr oder Sonarr führt sie, der Medienserver hat sie nie eingelesen. Für alle anderen sieht es aus, als gäbe es diese Titel nicht — und sie werden ein zweites Mal bestellt. Meist hat der Server nicht eingelesen oder die Pfadzuordnung stimmt nicht."
+        "folge_other": "Radarr oder Sonarr führt sie, der Medienserver hat sie nie eingelesen. Für alle anderen sieht es aus, als gäbe es diese Titel nicht — und sie werden ein zweites Mal bestellt. Meist hat der Server nicht eingelesen oder die Pfadzuordnung stimmt nicht.",
+        "folge_nex_one": "nexcrate führt sie, der Medienserver hat sie nie eingelesen. Für alle anderen sieht es aus, als gäbe es den Titel nicht — und er wird ein zweites Mal bestellt. Meist hat der Server nicht eingelesen oder die Pfadzuordnung stimmt nicht.",
+        "folge_nex_other": "nexcrate führt sie, der Medienserver hat sie nie eingelesen. Für alle anderen sieht es aus, als gäbe es diese Titel nicht — und sie werden ein zweites Mal bestellt. Meist hat der Server nicht eingelesen oder die Pfadzuordnung stimmt nicht."
       },
       "nicht_erkannt": {
         "titel_one": "Einem Titel im Medienserver fehlt jede Kennung",
@@ -3634,6 +3667,7 @@
     "tabServices": "Dienste",
     "tabOperations": "Betrieb",
     "noInstances": "Es ist noch keine Radarr- oder Sonarr-Instanz eingerichtet.",
+    "noInstances_nex": "nexcrate ist noch nicht verbunden.",
     "reachable": "antwortet",
     "unreachable": "antwortet nicht",
     "version": "Fassung",
@@ -3659,7 +3693,9 @@
     "ghosts": "Geisterposten",
     "reconciliation": "Stimmen die Quellen überein?",
     "reconciliationHint": "Radarr und Sonarr verwalten die Dateien, der Medienserver spielt sie ab, Nexview rechnet sie jemandem an. Wo die drei auseinandergehen, entstehen Fehler, die niemand sucht — weil nirgends etwas rot ist.",
+    "reconciliationHint_nex": "nexcrate verwaltet die Dateien, der Medienserver spielt sie ab, Nexview rechnet sie jemandem an. Wo die drei auseinandergehen, entstehen Fehler, die niemand sucht — weil nirgends etwas rot ist.",
     "arrOnly": "Nur in Radarr/Sonarr",
+    "arrOnly_nex": "Nur in nexcrate",
     "arrOnlyHint": "Datei da, Medienserver kennt sie nicht",
     "serverOnly": "Nur im Medienserver",
     "serverOnlyHint": "läuft ohne Aufwertung und Umbenennung mit",
@@ -3687,6 +3723,7 @@
         "jahr": "Jahr uneinig",
         "ohne_kennung": "Ohne Kennung",
         "nur_arr": "Nur in Radarr/Sonarr",
+        "nur_arr_nex": "Nur in nexcrate",
         "alle": "Alle Titel"
       },
       "search": "Titel oder Pfad suchen",
@@ -3712,6 +3749,7 @@
         "titel": "Titel und Jahr",
         "einzeln": "nur ein Server",
         "arr": "Radarr/Sonarr",
+        "arr_nex": "nexcrate",
         "pfad": "Nummer im Pfad"
       },
       "present": "vorhanden",
@@ -3771,9 +3809,21 @@
           "Ohne Nummer im Namen hilft meist das Muster „Titel (Jahr)“, bei Folgen zusätzlich S01E01.",
           "Ordne den Titel auf dem Server von Hand zu, mit „Fix Match“ oder „Identify“, oder passe das Benennungsschema in Radarr und Sonarr an. Danach neu abgleichen."
         ],
+        "ohne_kennung_nex": [
+          "Der Server hat diese Titel weder bei TMDB noch bei TVDB zugeordnet. Für Nexview sind sie damit nicht vorhanden und lassen sich noch einmal anfragen.",
+          "Steht im Ordnernamen eine Nummer wie {tmdb-1234}, ist das die Schreibweise für Plex. Jellyfin erwartet [tmdbid-1234], Emby [tmdbid=1234]. Sonst hält der Server die Zahl leicht für das Jahr und den Gruppennamen am Dateiende für den Titel. Nexview ordnet solche Titel über die Nummer im Pfad trotzdem zu, der Server sieht sie aber nicht.",
+          "Ohne Nummer im Namen hilft meist das Muster „Titel (Jahr)“, bei Folgen zusätzlich S01E01.",
+          "Ordne den Titel auf dem Server von Hand zu, mit „Fix Match“ oder „Identify“, oder passe das Benennungsschema in nexcrate an. Danach neu abgleichen."
+        ],
         "nur_arr": [
           "Radarr oder Sonarr haben für diese Titel eine Datei, aber kein Server kennt sie. Für alle sieht es so aus, als gäbe es sie nicht.",
           "Häufigste Ursache: Der Stammordner in Radarr oder Sonarr liegt außerhalb der Bibliotheksordner des Servers, oder die Pfade in den Containern unterscheiden sich.",
+          "Sonst hat der Server noch nicht gescannt. Scan starten und danach neu abgleichen.",
+          "Die Liste entsteht beim stündlichen Abgleich und zeigt höchstens 500 Titel."
+        ],
+        "nur_arr_nex": [
+          "nexcrate hat für diese Titel eine Datei, aber kein Server kennt sie. Für alle sieht es so aus, als gäbe es sie nicht.",
+          "Häufigste Ursache: Der Ordner der Fassung in nexcrate liegt außerhalb der Bibliotheksordner des Servers, oder die Pfade in den Containern unterscheiden sich.",
           "Sonst hat der Server noch nicht gescannt. Scan starten und danach neu abgleichen.",
           "Die Liste entsteht beim stündlichen Abgleich und zeigt höchstens 500 Titel."
         ]

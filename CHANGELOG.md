@@ -92,6 +92,13 @@ the process. The backup is the way back.
   carry the Radarr version whatever the key said, and the media server looked
   for entries under a Radarr version that does not exist in this mode, so it
   never measured one of nexcrate's.
+- **Texts name the way you procure through.** About forty places said Radarr
+  and Sonarr in either mode: cancelling a request "removes it from Radarr or
+  Sonarr", the analysis "has no Radarr or Sonarr instance yet", a health
+  problem arrived as "Radarr/Sonarr reports a problem". In nexcrate mode they
+  now say nexcrate, and where nexcrate differs they say what it does: it keeps
+  a recycle bin Nexview can restore from, and it reports no date a file
+  arrived.
 
 ## 0.35.2 – 18.09.2026
 

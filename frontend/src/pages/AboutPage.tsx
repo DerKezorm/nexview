@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../hooks/useWegKontext'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../api/client'
@@ -144,6 +146,7 @@ function UpdateCheckToggle() {
  */
 function Credits() {
   const { t } = useTranslation()
+  const weg = useWegKontext()
 
   const bausteine = [
     { name: 'FastAPI', url: 'https://fastapi.tiangolo.com', lizenz: 'MIT' },
@@ -227,7 +230,7 @@ function Credits() {
             {' · '}
             <ExternalLink href="https://www.metacritic.com">Metacritic</ExternalLink>
             <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
-              {t('about.ratingsNotice')}
+              {t('about.ratingsNotice', weg)}
             </span>
           </li>
           <li>
@@ -292,6 +295,7 @@ function Credits() {
  */
 export function AboutPage() {
   const { t } = useTranslation()
+  const weg = useWegKontext()
   const { user } = useAuth()
   const [wasNeu, setWasNeu] = useState(false)
 
@@ -330,7 +334,7 @@ export function AboutPage() {
       <div className="flex flex-col items-center gap-3 py-6 text-center">
         <Logo className="h-14 w-14" />
         <h1 className="text-2xl font-bold text-mist-100">Nexview</h1>
-        <p className="max-w-md text-sm leading-relaxed text-mist-500">{t('about.tagline')}</p>
+        <p className="max-w-md text-sm leading-relaxed text-mist-500">{t('about.tagline', weg)}</p>
       </div>
 
       <Card>

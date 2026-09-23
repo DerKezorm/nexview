@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+
+import { wegKontext } from "../../lib/weg";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "../../api/client";
@@ -275,7 +277,7 @@ export function AdminStorageSettings() {
             </div>
 
             <ul className="flex flex-col gap-1.5 border-t border-ink-700 pt-4 text-sm text-mist-500">
-              <li>· {t("storageAdmin.pointMeasure")}</li>
+              <li>· {t("storageAdmin.pointMeasure", wegKontext(config))}</li>
               <li>· {t("storageAdmin.pointHouse")}</li>
               <li>· {t("storageAdmin.pointNoLimit")}</li>
             </ul>
@@ -295,10 +297,10 @@ export function AdminStorageSettings() {
                 und merkt ihn erst Wochen später. */}
             <div className="rounded-xl border border-bad-500/40 bg-bad-500/10 px-4 py-3">
               <p className="text-sm font-semibold text-bad-500">
-                {t("storageAdmin.mustStayTitle")}
+                {t("storageAdmin.mustStayTitle", wegKontext(config))}
               </p>
               <p className="mt-1 text-sm leading-relaxed text-bad-500/90">
-                {t("storageAdmin.mustStayText")}
+                {t("storageAdmin.mustStayText", wegKontext(config))}
               </p>
             </div>
 

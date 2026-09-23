@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
+import { useWegKontext } from '../../hooks/useWegKontext'
+
 import type { AnalyseStand } from '../../api/types'
 import { AufraeumTabelle } from '../../components/AufraeumTabelle'
 import { BereichsBefunde } from '../../components/BereichsBefunde'
@@ -25,6 +27,7 @@ import { ServerVergleich } from './ServerVergleich'
  */
 export function AnalyseBibliothek({ stand }: { stand: AnalyseStand }) {
   const { t, i18n } = useTranslation()
+  const weg = useWegKontext()
   const { bibliothek, abgleich } = stand
 
   return (
@@ -62,10 +65,10 @@ export function AnalyseBibliothek({ stand }: { stand: AnalyseStand }) {
           die nichts zu vergleichen hat, schweigt. */}
       {abgleich.moeglich && (
         <Section title={t('analyse.reconciliation')} breit>
-          <p className="text-sm text-mist-500">{t('analyse.reconciliationHint')}</p>
+          <p className="text-sm text-mist-500">{t('analyse.reconciliationHint', weg)}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Kennzahl
-              label={t('analyse.arrOnly')}
+              label={t('analyse.arrOnly', weg)}
               wert={String(abgleich.arr_ohne_server)}
               hinweis={t('analyse.arrOnlyHint')}
               ton={abgleich.arr_ohne_server > 0 ? 'warn' : 'normal'}

@@ -99,7 +99,9 @@ async def pruefen(db: Session, settings: AppSettings, kennung: str, name: str) -
         notify.create_for_admins(
             db,
             kind=NotificationType.instanz_gesundheit,
-            message_key="notifications.instanceHealth",
+            # Nicht der Schluessel des Arr-Wegs: Dessen Text sagt "Radarr/Sonarr
+            # meldet ein Problem", und einen Platzhalter traegt die Glocke nicht.
+            message_key="notifications.instanceHealth_nex",
             title=f"{name}: {problem['text']}",
         )
 

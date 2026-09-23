@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../../hooks/useWegKontext'
 import { useMutation } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
@@ -55,6 +57,7 @@ export function Rueckmeldung({
   ticketOffen?: boolean
 }) {
   const { t } = useTranslation()
+  const weg = useWegKontext()
   const [offen, setOffen] = useState(false)
   const [sterne, setSterne] = useState(stand?.rating ?? 0)
   const [kommentar, setKommentar] = useState(stand?.comment ?? '')
@@ -161,7 +164,7 @@ export function Rueckmeldung({
         <div className="flex flex-col gap-4">
           {veraltet && (
             <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
-              {t('feedback.outdatedHint')}
+              {t('feedback.outdatedHint', weg)}
             </p>
           )}
 

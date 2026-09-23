@@ -39,6 +39,7 @@ import { formatDate, formatRuntime } from '../lib/format'
 import { browsePath, personPath, stoeberPath } from '../lib/routes'
 import { useAuth } from '../auth/useAuth'
 import { kannAnfragen as wegKannAnfragen } from '../lib/fassungen'
+import { wegKontext } from '../lib/weg'
 
 /** Eine Runde Vorschlaege vom Server. */
 type Auswahl = {
@@ -459,7 +460,7 @@ export function TitlePage() {
                       type="button"
                       onClick={() => setAdding(true)}
                       disabled={!arrConfigured}
-                      title={arrConfigured ? undefined : t('request.arrMissing')}
+                      title={arrConfigured ? undefined : t('request.arrMissing', wegKontext(config))}
                     >
                       {nurWeitereStaffel
                         ? t('request.addSeason')

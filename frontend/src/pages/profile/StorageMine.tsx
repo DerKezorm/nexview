@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../../hooks/useWegKontext'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -395,6 +397,7 @@ function PostenZeile({
   verknuepft?: boolean
 }) {
   const { t, i18n } = useTranslation()
+  const weg = useWegKontext()
   const queryClient = useQueryClient()
   const wartet = eintrag.state === 'pending'
 
@@ -511,8 +514,8 @@ function PostenZeile({
           zwar erst beim Löschversuch. */}
       {eintrag.managed === false && (
         <span
-          title={t('storage.unmanagedHint')}
-          aria-label={t('storage.unmanagedHint')}
+          title={t('storage.unmanagedHint', weg)}
+          aria-label={t('storage.unmanagedHint', weg)}
           className="shrink-0 text-warn-500"
         >
           <svg

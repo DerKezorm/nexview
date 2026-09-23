@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../hooks/useWegKontext'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -181,6 +183,7 @@ function zaehle(alle: MediaRequest[], wert: Filter): number {
 
 export function MyRequestsPage() {
   const { t, i18n } = useTranslation()
+  const weg = useWegKontext()
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const istAdmin = user?.role === 'admin'
@@ -566,7 +569,7 @@ export function MyRequestsPage() {
         title={t('requests.cancelTitle')}
         description={t(
           cancelling?.arr_linked ? 'requests.cancelText' : 'requests.cancelTextNothing',
-          { title: cancelling?.title ?? '' },
+          { title: cancelling?.title ?? '', ...weg },
         )}
         warning={cancelling?.arr_linked ? t('requests.cancelWarning') : undefined}
         fehler={abbruchFehler}

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+
+import { wegKontext } from "../lib/weg";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -1131,6 +1133,7 @@ export function AdminRequestsPage() {
           {
             title: cancelling?.title ?? "",
             name: cancelling?.display_name ?? cancelling?.username ?? "",
+            ...wegKontext(config),
           },
         )}
         warning={cancelling?.arr_linked ? t("requests.cancelWarning") : undefined}

@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
+import { useWegKontext } from '../../hooks/useWegKontext'
+
 import type { AnalyseStand, InstanzZeile } from '../../api/types'
 import { BereichsBefunde } from '../../components/BereichsBefunde'
 import { Card, Kennzahl } from '../../components/ui'
@@ -19,9 +21,10 @@ import { formatDate, formatSize } from '../../lib/format'
  */
 export function AnalyseDienste({ stand }: { stand: AnalyseStand }) {
   const { t } = useTranslation()
+  const weg = useWegKontext()
 
   if (stand.instanzen.length === 0) {
-    return <p className="text-sm text-mist-500">{t('analyse.noInstances')}</p>
+    return <p className="text-sm text-mist-500">{t('analyse.noInstances', weg)}</p>
   }
 
   return (

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useWegKontext } from '../../hooks/useWegKontext'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api, downloadFile } from '../../api/client'
@@ -46,6 +48,7 @@ function groesse(bytes: number): string {
  */
 export function AdminSicherungen() {
   const { t } = useTranslation()
+  const weg = useWegKontext()
   const queryClient = useQueryClient()
 
   const [anlegenOffen, setAnlegenOffen] = useState(false)
@@ -391,7 +394,7 @@ export function AdminSicherungen() {
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm leading-relaxed text-mist-500">
-            <Betont text={t('backups.downloadWhat')} />
+            <Betont text={t('backups.downloadWhat', weg)} />
           </p>
           {/* ⚠️ Der Satz, der hier stehen muss: Ein vergessenes Passwort macht
               die Sicherung wertlos. Es gibt keinen Zweitschlüssel. */}

@@ -109,6 +109,16 @@ class RequestError(Exception):
 SCHON_DA = ("already_in_library", "already_on_media_server")
 
 
+def _gemeint(fassung: str | None, media_type: MediaType) -> str:
+    """Die Fassung, nach der eine Abfrage sucht: die genannte, sonst die Hauptfassung.
+
+    ⚠️ **Ohne Hauptfassung trifft sie nichts.** Im NEX-Betrieb gibt es vor dem
+    ersten Lesen keine; ``None`` hier machte aus dem Vergleich ein
+    ``IS NULL`` und fand Anfragen ohne Fassung.
+    """
+    return fassung or hauptkennung(media_type) or ""
+
+
 def find_active(
     db: Session,
     media_type: MediaType,
@@ -140,7 +150,7 @@ def find_active(
     bedingungen = [
         MediaRequest.media_type == media_type,
         MediaRequest.tmdb_id == tmdb_id,
-        MediaRequest.fassung_kennung == (fassung or hauptkennung(media_type)),
+        MediaRequest.fassung_kennung == _gemeint(fassung, media_type),
         MediaRequest.status.in_(ACTIVE_STATUSES),
     ]
 
@@ -183,7 +193,7 @@ def angefragte_folgen(
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.fassung_kennung == (fassung or hauptkennung(MediaType.tv)),
+            MediaRequest.fassung_kennung == _gemeint(fassung, MediaType.tv),
             MediaRequest.status.in_(ACTIVE_STATUSES),
             (MediaRequest.season == season) | (MediaRequest.season.is_(None)),
         )
@@ -301,7 +311,7 @@ def badges_for(
         select(MediaRequest).where(
             MediaRequest.media_type == media_type,
             MediaRequest.tmdb_id.in_(tmdb_ids),
-            MediaRequest.fassung_kennung == (fassung or hauptkennung(media_type)),
+            MediaRequest.fassung_kennung == _gemeint(fassung, media_type),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
     )
@@ -1072,6 +1082,10 @@ async def create_request(
     # Instanz der Hauptfassung, sagt das weiter unten ein eigener Satz, nach
     # der Sperrliste.
     kennung = fassung or hauptkennung(media_type)
+    if kennung is None:
+        # Im NEX-Betrieb, bevor eine Fassung dieser Art gelesen ist: dieselbe
+        # Absage wie fuer eine Hauptfassung ohne Instanz, nicht ``fassung_unknown``.
+        raise _hauptfassung_fehlt(settings, media_type)
     if fassungen.art_der(settings, kennung) != media_type.value:
         raise RequestError(
             "Diese Fassung gibt es für diese Medienart nicht.",
@@ -1652,7 +1666,7 @@ def angefragte_staffeln(
         select(MediaRequest.season).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.fassung_kennung == (fassung or hauptkennung(MediaType.tv)),
+            MediaRequest.fassung_kennung == _gemeint(fassung, MediaType.tv),
             MediaRequest.episodes.is_(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
@@ -1675,7 +1689,7 @@ def angefragte_pakete(
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.fassung_kennung == (fassung or hauptkennung(MediaType.tv)),
+            MediaRequest.fassung_kennung == _gemeint(fassung, MediaType.tv),
             MediaRequest.episodes.is_not(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )
@@ -1703,7 +1717,7 @@ def staffel_belegung(
         select(MediaRequest).where(
             MediaRequest.media_type == MediaType.tv,
             MediaRequest.tmdb_id == tmdb_id,
-            MediaRequest.fassung_kennung == (fassung or hauptkennung(MediaType.tv)),
+            MediaRequest.fassung_kennung == _gemeint(fassung, MediaType.tv),
             MediaRequest.episodes.is_(None),
             MediaRequest.status.in_(ACTIVE_STATUSES),
         )

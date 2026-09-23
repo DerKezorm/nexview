@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..crypto import decrypt, encrypt, mask
 from ..models import MediaServerConnection, QuotaPeriod, Setting
-from .beschaffung import ARR, NEX, betriebsart_merken
+from .beschaffung import ARR, KLASSE_UHD, NEX, betriebsart_merken
 from .fassungen import ARR_FASSUNGEN, FassungInfo, aus_einstellungen
 from .fassungen import abgleichen as fassungen_abgleichen
 
@@ -630,7 +630,13 @@ class AppSettings:
 
         Ist das False, bleibt die gesamte 4K-Funktion unsichtbar - kein Feld,
         kein Abzeichen, keine zusaetzliche Abfrage.
+
+        ⚠️ **Im NEX-Betrieb: eine Fassung der Klasse ``uhd``.** Eine 4K-Instanz
+        von Radarr oder Sonarr gibt es dort nie, und ``kontorechte`` meldete
+        sonst "keine 4K-Instanz", obwohl nexcrate eine 4K-Fassung fuehrt.
         """
+        if self.beschaffung_ist_nex:
+            return any(f.klasse == KLASSE_UHD for f in aus_einstellungen(self))
         return self.radarr_uhd_configured or self.sonarr_uhd_configured
 
     @property

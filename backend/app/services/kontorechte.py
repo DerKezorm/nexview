@@ -265,10 +265,26 @@ def bewerten(
             return Stand(frei=False, wirkt=True, grund=FASSUNG_OFFEN)
         return Stand(frei=False, wirkt=False, grund=grund)
 
+    def uhd_kennung(art: str, fest: str) -> str:
+        # ⚠️ **Die 4K-Fassung ist die erste der Klasse ``uhd``**, nicht die feste
+        # Arr-Kennung: Eine 4K-Fassung aus nexcrate traegt sie nie, und der
+        # Grund hiess dort sonst "keine 4K-Instanz". Im ARR-Betrieb ist es
+        # dieselbe Kennung; ohne eingerichtete 4K-Instanz bleibt die feste.
+        return next(
+            (
+                f.kennung
+                for f in settings.fassungen_fuer(art)
+                if fassungen.klasse(f.kennung) == fassungen.KLASSE_UHD
+            ),
+            fest,
+        )
+
     # Ueber das Modul, nicht als Namen: Grossgeschriebene Namen hier sind
     # Gruende, und ``test_kontorechte`` sucht jedem einen Text.
-    uhd_filme = uhd(models.UHD_FILME, KEINE_4K_INSTANZ_FILME)
-    uhd_serien = uhd(models.UHD_SERIEN, KEINE_4K_INSTANZ_SERIEN)
+    uhd_film_kennung = uhd_kennung("movie", models.UHD_FILME)
+    uhd_serien_kennung = uhd_kennung("tv", models.UHD_SERIEN)
+    uhd_filme = uhd(uhd_film_kennung, KEINE_4K_INSTANZ_FILME)
+    uhd_serien = uhd(uhd_serien_kennung, KEINE_4K_INSTANZ_SERIEN)
 
     # Sofort freigeben in 4K lohnt nur, wo 4K erlaubt ist und nicht ohnehin der
     # Entscheider waehlt. Sonst waere es ein Haken, der nichts bewirkt.
@@ -277,7 +293,7 @@ def bewerten(
     # Entscheider, fehlt dort nur das Recht. Waehlt er bei jeder, hilft kein
     # Haekchen. Bis zum 12.09.2026 hiess beides "erst 4K erlauben".
     uhd_staende = [
-        je_fassung[k] for k in (models.UHD_FILME, models.UHD_SERIEN) if k in je_fassung
+        je_fassung[k] for k in (uhd_film_kennung, uhd_serien_kennung) if k in je_fassung
     ]
     ohne_entscheider = [s for s in uhd_staende if s.auto.grund != ENTSCHEIDER_WAEHLT]
     if not settings.uhd_available:

@@ -51,10 +51,13 @@ async def anreichern(
     ``not_requested`` - und zwar **ohne** Warnhinweis: Die Hauptfassung ist ja
     in Ordnung, und eine Warnung wegen einer Zusatzfassung waere nur Laerm.
     """
-    if not items:
+    haupt_kennung = fassungen.hauptkennung(media_type)
+    # Ohne Hauptfassung (NEX-Betrieb, nichts gelesen) bekommt keine Karte eine
+    # Achse - schon gar nicht eine Arr-Fassung, die es hier nicht gibt.
+    if not items or haupt_kennung is None:
         return
 
-    haupt = fassungen.info(settings, fassungen.hauptkennung(media_type))
+    haupt = fassungen.info(settings, haupt_kennung)
     weitere = [
         eintrag
         for eintrag in settings.fassungen_fuer(media_type)
@@ -212,13 +215,14 @@ async def _in_hauptfassung(
     Kostet keine zusaetzliche Abfrage - der Bestand liegt zu diesem Zeitpunkt
     bereits zwischengespeichert vor, weil die Hauptachse ihn eben benutzt hat.
     """
-    if not items:
+    haupt = fassungen.hauptkennung(media_type)
+    if not items or haupt is None:
         return set()
     kopien = [eintrag.model_copy(update={"status": "not_requested"}) for eintrag in items]
     ergebnis = await get_beschaffung(settings).status_setzen(
         media_type,
         kopien,
-        fassungen.stufe(fassungen.hauptkennung(media_type)),
-        fassung=fassungen.hauptkennung(media_type),
+        fassungen.stufe(haupt),
+        fassung=haupt,
     )
     return {eintrag.tmdb_id for eintrag in ergebnis.items if eintrag.status == "downloaded"}

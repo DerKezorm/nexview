@@ -297,13 +297,16 @@ def _fassungen_oeffentlich(
     for art in ("movie", "tv"):
         haupt = fassungen.hauptkennung(art)
         eingerichtet = settings.fassungen_fuer(art)
-        kennungen = [haupt, *(f.kennung for f in eingerichtet if f.kennung != haupt)]
-        # ⚠️ **Keine Fassung aus der anderen Betriebsart.** Solange im
-        # NEX-Betrieb noch nichts gelesen ist, faellt ``hauptkennung`` auf die
-        # Arr-Instanz zurueck - und die Oberflaeche boete eine Fassung an, die
-        # es hier gar nicht gibt. Lieber eine leere Liste: Das Formular sagt
-        # dann, dass nichts eingerichtet ist, statt an etwas Falsches zu
-        # fuehren, das erst beim Absenden auffaellt.
+        # Solange im NEX-Betrieb noch nichts gelesen ist, gibt es keine
+        # Hauptfassung (``None``) und die Liste bleibt leer.
+        kennungen = [
+            *([haupt] if haupt else []),
+            *(f.kennung for f in eingerichtet if f.kennung != haupt),
+        ]
+        # ⚠️ **Keine Fassung aus der anderen Betriebsart.** Die Oberflaeche
+        # boete sonst eine Fassung an, die es hier gar nicht gibt. Lieber eine
+        # leere Liste: Das Formular sagt dann, dass nichts eingerichtet ist,
+        # statt an etwas Falsches zu fuehren, das erst beim Absenden auffaellt.
         kennungen = [
             kennung
             for kennung in kennungen

@@ -59,6 +59,9 @@ def _fassungskennungen(settings, media_type: str) -> list[str]:
     anderen ohne Suffix), und die gibt es seit jeher auch ohne Sonarr.
     """
     haupt = fassungen.hauptkennung(media_type)
+    # Ohne Hauptfassung (NEX-Betrieb, nichts gelesen) gibt es auch keine weiteren.
+    if haupt is None:
+        return []
     return [haupt] + [
         eintrag.kennung
         for eintrag in settings.fassungen_fuer(media_type)
@@ -307,8 +310,9 @@ async def title_detail(
     )
 
     # Bei Serien: wie viele Folgen jeder Staffel liegen schon vor - und zu
-    # welchen laeuft bereits eine Anfrage?
-    if media_type == "tv" and detail.seasons:
+    # welchen laeuft bereits eine Anfrage? Ohne Hauptfassung (NEX-Betrieb,
+    # nichts gelesen) gibt es keine Fassung, in der etwas vorliegen koennte.
+    if media_type == "tv" and detail.seasons and fassungen.hauptkennung("tv") is not None:
         jahr = jahr_aus(detail.release_date)
         # Je Fassung dieselben vier Fragen - zuerst die Hauptfassung, deren
         # Antworten auch in den alten Feldern stehen. Eine Fassung, die es
@@ -415,6 +419,10 @@ async def season(
         serie = await media.detail(db, settings, "tv", tmdb_id)
     except TmdbError:
         return staffel
+    # Ohne Hauptfassung (NEX-Betrieb, nichts gelesen) gibt es nichts abzugleichen.
+    haupt_kennung = fassungen.hauptkennung("tv")
+    if haupt_kennung is None:
+        return staffel
 
     vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
         serie.tvdb_id, serie.title, jahr=jahr_aus(serie.release_date)
@@ -430,7 +438,6 @@ async def season(
         season_number, {}
     )
     # Dieselben Fragen je weiterer Fassung; die Hauptfassung steht schon oben.
-    haupt_kennung = fassungen.hauptkennung("tv")
     weitere = [k for k in _fassungskennungen(settings, "tv") if k != haupt_kennung]
     je_fassung = {
         kennung: await _folgendaten(db, settings, serie, tmdb_id, season_number, kennung)

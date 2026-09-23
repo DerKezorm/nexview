@@ -77,7 +77,7 @@ def arr_kennung(media_type: MediaType | str, tier: str) -> str:
     return _ARR_NACH_ART_STUFE[(_art(media_type), str(tier))].kennung
 
 
-def hauptkennung(media_type: MediaType | str) -> str:
+def hauptkennung(media_type: MediaType | str) -> str | None:
     """Die Fassung der Hauptachse, wenn niemand eine nennt.
 
     Die Hauptachse ist das, was ``status`` an einer Karte meint und was eine
@@ -85,10 +85,10 @@ def hauptkennung(media_type: MediaType | str) -> str:
     wenn sie (noch) nicht eingerichtet ist: Dann sagt die Anfrage das mit
     eigenem Satz, statt still eine andere Fassung zu nehmen.
 
-    ⚠️ **Im NEX-Betrieb die erste Fassung dieser Medienart** (Bauplan 2.2).
-    Die Arr-Kennung stehenzulassen hiesse, jeder Karte und jedem Formular eine
-    Fassung anzubieten, die es in dieser Installation gar nicht gibt - und die
-    Anfrage darauf scheiterte erst beim Absenden.
+    ⚠️ **Im NEX-Betrieb die erste Fassung dieser Medienart** (Bauplan 2.2),
+    und ``None``, solange es keine gibt. Die Arr-Kennung stehenzulassen
+    hiesse, jeder Karte und jedem Formular eine Fassung anzubieten, die es in
+    dieser Installation gar nicht gibt; eine Anfrage ohne Angabe bekaeme sie.
 
     Gefragt wird der **Merker**, nicht die Sitzung: Diese Funktion wird an
     Stellen gerufen, die keine Einstellungen zur Hand haben (Karten, Modelle).
@@ -99,6 +99,7 @@ def hauptkennung(media_type: MediaType | str) -> str:
         for eintrag in _betriebsart_fassungen():
             if eintrag.media_type == art:
                 return eintrag.kennung
+        return None
     return arr_kennung(media_type, "standard")
 
 
@@ -109,14 +110,15 @@ def _betriebsart_fassungen() -> tuple[FassungInfo, ...]:
 
 def gewaehlt(
     settings: AppSettings, media_type: MediaType | str, fassung: str | None, tier: str = "standard"
-) -> str:
+) -> str | None:
     """Welche Fassung eine Anfrage meint: die genannte, sonst aus der alten Stufe.
 
     ``tier`` ist zugesagt (``/api/v1``, Bauplan Abschnitt 12): ``uhd`` waehlt
     die erste eingerichtete Fassung der Klasse ``uhd``, sonst die ARR-Instanz
     fuer 4K (deren Fehlen die Anfrage dann beim Namen nennt); ``standard``
-    die Hauptfassung. Ob es die genannte Fassung gibt und ob sie zur
-    Medienart passt, prueft ``requests_service.create_request``.
+    die Hauptfassung (``None``, wenn es im NEX-Betrieb keine gibt). Ob es die
+    genannte Fassung gibt und ob sie zur Medienart passt, prueft
+    ``requests_service.create_request``.
     """
     if fassung:
         return fassung
@@ -174,9 +176,25 @@ def quelle(kennung: str | None) -> str:
 
 
 def klasse(kennung: str | None) -> str | None:
-    """Die Klasse einer Fassung (``hd``, ``uhd``, spaeter auch ``sd`` oder keine)."""
+    """Die Klasse einer Fassung (``hd``, ``uhd``, spaeter auch ``sd`` oder keine).
+
+    ⚠️ **Auch fuer Fassungen aus nexcrate**, ueber den Merker wie bei
+    ``hauptkennung``: Ohne ihn hatte jede nexcrate-Fassung keine Klasse,
+    ``stufe()`` hielt eine 4K-Fassung fuer ``standard``, und der Speicher
+    rechnete HD und 4K desselben Films demselben Anfragenden zu.
+
+    Der Merker fuehrt nur **aktive** Fassungen. Eine, die nexcrate nicht mehr
+    kennt, hat hier keine Klasse mehr; gefuellt wird er beim Start aus der
+    Tabelle und von ``storage.abgleichen`` vor jedem Speicherlauf.
+    """
     fassung = arr_fassung(kennung)
-    return fassung.klasse if fassung is not None else None
+    if fassung is not None:
+        return fassung.klasse
+    if kennung:
+        for eintrag in _betriebsart_fassungen():
+            if eintrag.kennung == kennung:
+                return eintrag.klasse
+    return None
 
 
 def stufe(kennung: str | None) -> str:

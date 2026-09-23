@@ -156,27 +156,31 @@ async def _arr_bestand(settings: AppSettings) -> tuple[set[int], set[int], dict]
     titel: dict[tuple[str, int], str] = {}
 
     # ⚠️ Je Fassung, nicht je Stufe: Im NEX-Betrieb gibt es keine Stufen, und
-    # eine Schleife ueber ("standard", "uhd") verglich dort mit nichts.
+    # eine Schleife ueber ("standard", "uhd") verglich dort mit nichts. Und
+    # **mit ihrer Kennung**: Der NEX-Weg liest die Stufe nicht und nahm ohne
+    # Kennung jedes Mal die Hauptfassung - ein Film nur in 4K fehlte dann.
     beschaffung = get_beschaffung(settings)
-    stufen = {fassungen.stufe(f.kennung) for f in beschaffung.fassungen()}
-    for stufe in sorted(stufen):
-        if beschaffung.verwaltet("movie", stufe):
+    for fassung in beschaffung.fassungen():
+        kennung = fassung.kennung
+        stufe = fassungen.stufe(kennung)
+        if fassung.media_type == "movie" and beschaffung.verwaltet("movie", stufe):
             try:
-                for tmdb, eintrag in (await beschaffung.bestand_filme(stufe)).items():
+                gefunden = await beschaffung.bestand_filme(stufe, fassung=kennung)
+                for tmdb, eintrag in gefunden.items():
                     if eintrag.has_file:
                         filme.add(tmdb)
                         titel.setdefault(("movie", tmdb), eintrag.title or "")
             except BeschaffungError:
-                logger.warning("Movie library unavailable for tier %s", stufe)
-        if beschaffung.verwaltet("tv", stufe):
+                logger.warning("Movie library unavailable for version %s", kennung)
+        if fassung.media_type == "tv" and beschaffung.verwaltet("tv", stufe):
             try:
-                nach_tvdb, _ = await beschaffung.bestand_serien(stufe)
+                nach_tvdb, _ = await beschaffung.bestand_serien(stufe, fassung=kennung)
                 for tvdb, eintrag in nach_tvdb.items():
                     if eintrag.has_file:
                         serien.add(tvdb)
                         titel.setdefault(("tv", tvdb), getattr(eintrag, "title", ""))
             except BeschaffungError:
-                logger.warning("Series library unavailable for tier %s", stufe)
+                logger.warning("Series library unavailable for version %s", kennung)
 
     return filme, serien, titel
 

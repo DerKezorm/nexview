@@ -738,7 +738,16 @@ async def abgleichen(db: Session, settings: AppSettings) -> Ergebnis:
     gewartet wird, wartet jede Anfrage eines Nutzers mit. Deshalb laufen alle
     Abfragen zuerst und die Datenbank wird danach in einem kurzen Zug
     angefasst - dasselbe Vorgehen wie im Status-Abgleich.
+
+    ⚠️ **Im NEX-Betrieb zuerst die Fassungen aus der Tabelle merken.** Ihre
+    Klasse (``fassungen.stufe``) entscheidet, wem ein Posten gehoert: HD und
+    4K desselben Films gehen an verschiedene Anfragende. Nach einer
+    Wiederherstellung ist der Merker leer, bis der Rundgang nexcrate erreicht;
+    ein Lauf davor maesse nichts und hielte jede Fassung fuer ``standard``.
+    Gelesen wird nur die Tabelle, nicht nexcrate.
     """
+    if settings.beschaffung_ist_nex:
+        fassungen.abgleichen(db, settings)
     gemessen, vollstaendig, behalten = await _erfassen(db, settings)
     ergebnis = _schreiben(db, gemessen, vollstaendig, behalten)
     _wachstum_melden(db, ergebnis)

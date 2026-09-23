@@ -817,8 +817,9 @@ async def _erfassen(
 
         if eintrag_fassung.media_type == "tv":
             try:
-                nach_tvdb, _ = await beschaffung.bestand_serien(stufe, fassung=kennung)
-                for tvdb_id, eintrag in nach_tvdb.items():
+                # Jede Serie, nicht der TVDB-Index: Im NEX-Betrieb ankert sie auf
+                # TMDB, und eine ohne ``tvdb:`` verloere sonst ihre Posten.
+                for tvdb_id, eintrag in await beschaffung.alle_serien(stufe, fassung=kennung):
                     if not getattr(eintrag, "staffeln_gelesen", True):
                         praefix = _serien_praefix(kennung, tvdb_id, eintrag)
                         if praefix:
@@ -839,7 +840,7 @@ async def _erfassen(
     return gemessen, vollstaendig, behalten
 
 
-def _serien_praefix(fassung: str, tvdb_id: int, eintrag: SeriesEntry) -> str | None:
+def _serien_praefix(fassung: str, tvdb_id: int | None, eintrag: SeriesEntry) -> str | None:
     """Der gemeinsame Anfang aller Posten einer Serie in einer Fassung (``tv:…:``).
 
     Gebaut ueber ``schluessel``, damit der Anker derselbe ist wie an den
@@ -1109,7 +1110,7 @@ def _film_aufnehmen(
 def _serie_aufnehmen(
     ziel: dict[str, _Gemessen],
     fassung: str,
-    tvdb_id: int,
+    tvdb_id: int | None,
     eintrag: SeriesEntry,
 ) -> None:
     """Eine Zeile **je Staffel** - nie je Folge.

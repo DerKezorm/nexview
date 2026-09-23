@@ -262,6 +262,69 @@ class Bestand:
             )
         return gelesen
 
+    async def staffeln_zu(
+        self, client: NexcrateClient, gefragt: dict[str, dict[str, Any]], installation: str
+    ) -> tuple[dict[str, list[dict[str, Any]]], set[str]]:
+        """Die Staffeln zu Serien aus ``lookup`` - über denselben Merker.
+
+        ``gefragt`` sind Titel nach ``ref``, wie ``lookup`` sie nannte. Zurück
+        kommen die Staffeln je ``ref`` und die ``ref``, zu denen es keine gab.
+
+        Gemerktes gilt nur, wenn die Liste denselben Stand zeigt wie ``lookup``
+        (gleiche Fassungen) und die Marke passt: Die Liste hinkt bis zu zehn
+        Sekunden hinterher, und eine Einzelansicht zu einer alten Marke
+        beschreibt einen Stand, den es nicht mehr gibt. Was so gelesen wird,
+        wird unter der Marke gemerkt; der Speicher-Abgleich liest es dann nicht
+        noch einmal (``staffeln_lesen``) und umgekehrt.
+        """
+        staffeln: dict[str, list[dict[str, Any]]] = {}
+        ungelesen: set[str] = set()
+        # Eine Serie ohne Datei hat nichts zu lesen: Keine Staffeln sind dort
+        # die Wahrheit, und sie kostet keinen Aufruf.
+        gefragt = {ref: titel for ref, titel in gefragt.items() if _hat_dateien(titel)}
+        if not gefragt:
+            return staffeln, ungelesen
+        try:
+            await self.auffrischen(client, "series", installation)
+            liste = self.alle("series")
+        except BeschaffungError:
+            # Ohne frische Liste keine passende Marke: frisch lesen, nichts merken.
+            liste = {}
+        ausfall = False
+        for ref, titel in gefragt.items():
+            eintrag = liste.get(ref)
+            passt = (
+                eintrag is not None
+                and eintrag.get("seq") is not None
+                and eintrag.get("versions") == titel.get("versions")
+            )
+            gemerkt = self.staffeln.get(ref)
+            if passt and gemerkt is not None and gemerkt[0] == eintrag.get("seq"):
+                staffeln[ref] = gemerkt[1]
+                continue
+            if ausfall:
+                ungelesen.add(ref)
+                continue
+            try:
+                einzeln = await client.title("series", ref)
+            except BeschaffungError as fehler:
+                ungelesen.add(ref)
+                ausfall = fehler.code in AUSFALL
+                continue
+            if einzeln is None:
+                # ``lookup`` kannte ihn eben noch: kein "weg", nur ungelesen.
+                ungelesen.add(ref)
+                continue
+            staffeln[ref] = list((einzeln.get("series") or {}).get("seasons") or [])
+            if passt:
+                self.staffeln[ref] = (eintrag.get("seq"), staffeln[ref])
+        if ungelesen:
+            logger.warning(
+                "nexcrate gave no seasons for %d series; their requests stay as they are",
+                len(ungelesen),
+            )
+        return staffeln, ungelesen
+
     async def auffrischen(self, client: NexcrateClient, kind: str, installation: str) -> int:
         """Nur Geändertes holen - oder ganz, wenn die Marke nicht mehr gilt.
 

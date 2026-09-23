@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import replace
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, ClassVar, NoReturn
 
@@ -203,6 +204,22 @@ class NexBeschaffung(Beschaffung):
         await bestand.staffeln_lesen(self.settings)
         return lesen.bestand_serien(kennung)
 
+    async def alle_serien(
+        self, stufe: str = "standard", *, fassung: str = ""
+    ) -> list[tuple[int | None, SerienStand]]:
+        """Jede Serie der Fassung, auch ohne ``tvdb:`` in ``refs``.
+
+        ⚠️ Der Anker ist TMDB (``arr_id`` des Stands); ueber den TVDB-Index
+        fehlte eine solche Serie dem Speicher-Abgleich, und ihre Posten wurden
+        abgeraeumt, samt Besitzer.
+        """
+        kennung = self._gewaehlt("tv", fassung)
+        if kennung is None:
+            return []
+        await bestand.auffrischen(self.settings, "series")
+        await bestand.staffeln_lesen(self.settings)
+        return lesen.alle_serien(kennung)
+
     def _gewaehlt(self, media_type: str, fassung: str) -> str | None:
         """Die genannte Fassung, wenn es sie gibt - sonst die Hauptfassung."""
         bekannt = {eintrag.kennung for eintrag in self.fassungen()}
@@ -222,6 +239,12 @@ class NexBeschaffung(Beschaffung):
         Sekunden hinterher, ``lookup`` kennt einen frisch entstandenen Titel
         sofort (nexbeat-Befund 12). Fuer „ist meine Anfrage angekommen" gibt es
         deshalb nur diesen Weg.
+
+        ⚠️ **``lookup`` nennt keine Staffeln** (``series.seasons`` ist ``null``,
+        gemessen). Wer sie braucht (``mit_staffeln``), bekommt sie aus der
+        Einzelansicht - ein Aufruf je Serie mit Datei, gemerkt je Marke und
+        geteilt mit dem Speicher-Abgleich. Scheitert sie, steht die Frage unter
+        ``ungelesen``: nicht geantwortet, nicht "Staffel weg".
         """
         treffer: dict[Nachschlag, FilmStand | SerienStand] = {}
         if not gesucht:
@@ -239,17 +262,35 @@ class NexBeschaffung(Beschaffung):
             for a in antworten
             if a.get("known") and a.get("title")
         }
+        mit_staffeln: dict[str, dict[str, Any]] = {}
         for wonach in offen:
-            titel = nach_ref.get((mapping.kind(wonach.media_type), mapping.ref(wonach.tmdb_id)))
+            if wonach.mit_staffeln and wonach.media_type == "tv":
+                ref = mapping.ref(wonach.tmdb_id)
+                titel = nach_ref.get(("series", ref))
+                if titel is not None:
+                    mit_staffeln[ref] = titel
+        staffeln, nicht_gelesen = await bestand.gehalten().staffeln_zu(
+            self.client, mit_staffeln, system.installation_id()
+        )
+        ungelesen: set[Nachschlag] = set()
+        for wonach in offen:
+            ref = mapping.ref(wonach.tmdb_id)
+            titel = nach_ref.get((mapping.kind(wonach.media_type), ref))
             if titel is None:
                 continue
+            if wonach.mit_staffeln and ref in staffeln:
+                titel = {**titel, "series": {**(titel.get("series") or {}), "seasons": staffeln[ref]}}
             stand = bestand.stand(titel, wonach.fassung)
+            if wonach.mit_staffeln and ref in nicht_gelesen:
+                ungelesen.add(wonach)
+                if isinstance(stand, SerienStand):
+                    stand = replace(stand, staffeln_gelesen=False)
             if stand is not None:
                 treffer[wonach] = stand
         # Geantwortet hat nexcrate fuer jede Fassung, die es gibt - ein Titel,
         # der fehlt, ist wirklich weg und nicht nur ungefragt.
         gelesen = frozenset((w.media_type, w.fassung) for w in offen)
-        return Nachschlagen(treffer=treffer, gelesen=gelesen)
+        return Nachschlagen(treffer=treffer, gelesen=gelesen, ungelesen=frozenset(ungelesen))
 
     @classmethod
     def bestand_verwerfen(cls) -> None:

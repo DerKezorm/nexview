@@ -15,6 +15,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
+import httpx
 import pytest
 from sqlalchemy.orm import Session
 
@@ -381,3 +382,94 @@ async def test_eine_gewanderte_paketzeile_bleibt_unberuehrt(
     assert (zeile.size_bytes, zeile.user_id) == (1 * GB, person.id)
     staffel = db.query(StorageEntry).filter_by(key=f"tv:{SERIE_HD}:tmdb:1399:s3").one()
     assert staffel.size_bytes == 3 * GB
+
+
+# --- Was der Merker und das Behalten nicht dürfen ---------------------------------
+
+
+def _k(tmdb_id: int, staffel: int) -> str:
+    return f"tv:{SERIE_HD}:tmdb:{tmdb_id}:s{staffel}"
+
+
+async def test_eine_ungelesene_serie_schuetzt_nur_ihre_eigenen_zeilen(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Der Anfang von Serie 12 ist nicht der von Serie 123."""
+    _zeile(db, 12, 1, 4 * GB, None)
+    _zeile(db, 123, 1, 2 * GB, None)  # gibt es bei nexcrate nicht mehr
+    _serie(nexcrate, 12, [_staffel(1, 9 * GB)], tvdb=5012)
+    echt = nexcrate._titel_weg
+
+    def stumm(methode: str, teile: list[str], koerper: Any) -> Any:
+        if teile[1:3] == ["series", "tmdb:12"] and len(teile) == 3:
+            return _fehler(500, "internal_error", "Something broke.")
+        return echt(methode, teile, koerper)
+
+    monkeypatch.setattr(nexcrate, "_titel_weg", stumm)
+
+    await storage.abgleichen(db, nex)
+
+    schluessel = {z.key for z in db.query(StorageEntry).all()}
+    assert _k(12, 1) in schluessel
+    assert _k(123, 1) not in schluessel
+
+
+async def test_ist_nexcrate_ganz_weg_fragt_jede_fassung_nur_einmal(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Kein Zeitablauf je Serie: Nach dem ersten Ausfall hört der Lauf auf."""
+    for nummer in (1399, 1400, 1401):
+        _zeile(db, nummer, 1, 4 * GB, None)
+        _serie(nexcrate, nummer, [_staffel(1, 9 * GB)], name=f"Show {nummer}", tvdb=5000 + nummer)
+    echt = nexcrate._titel_weg
+
+    def weg(methode: str, teile: list[str], koerper: Any) -> Any:
+        if teile[1] == "series" and len(teile) == 3:
+            raise httpx.ConnectTimeout("weg")
+        return echt(methode, teile, koerper)
+
+    monkeypatch.setattr(nexcrate, "_titel_weg", weg)
+
+    await storage.abgleichen(db, nex)
+
+    # Je Fassung (HD und UHD) ein Aufruf, jeweils an die erste Serie.
+    assert _einzelansichten(nexcrate) == ["/api/v1/titles/series/tmdb:1399"] * 2
+    schluessel = {z.key for z in db.query(StorageEntry).all()}
+    assert all(_k(n, 1) in schluessel for n in (1399, 1400, 1401)), sorted(schluessel)
+
+
+async def test_eine_marke_ueber_latest_liest_die_staffeln_neu(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """nexcrate aus einer Sicherung: dieselben Marken, ein anderer Stand."""
+    _serie(nexcrate, 1399, [_staffel(1, 3 * GB)])
+    _serie(nexcrate, 1400, [_staffel(1, 1 * GB)], name="Other Show", tvdb=5400)
+    await storage.abgleichen(db, nex)
+    assert nex_bestand.gehalten().marke["series"] == 2
+
+    nexcrate.titles.clear()
+    nexcrate.seq = 0
+    _serie(nexcrate, 1399, [_staffel(1, 5 * GB)])  # wieder Marke 1
+    await storage.abgleichen(db, nex)
+
+    db.expire_all()
+    assert db.query(StorageEntry).filter_by(key=_k(1399, 1)).one().size_bytes == 5 * GB
+
+
+async def test_eine_serie_ohne_datei_gilt_als_gelesen_und_wird_geraeumt(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Dateien in nexcrate gelöscht: nichts zu lesen, also auch nichts zu behalten."""
+    _zeile(db, 1399, 1, 4 * GB, None)
+    nexcrate.serie(
+        1399,
+        versionen=[
+            nexcrate.fassung(
+                SERIE_HD, "wanted", size_bytes=None, series={"counts": {"have": 0, "aired": 3}}
+            )
+        ],
+    )
+
+    await storage.abgleichen(db, nex)
+
+    assert db.query(StorageEntry).filter_by(key=_k(1399, 1)).one_or_none() is None

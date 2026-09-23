@@ -102,6 +102,9 @@ def _wonach(anfrage: MediaRequest) -> Nachschlag:
         tvdb_id=anfrage.tvdb_id,
         titel=anfrage.title,
         jahr=jahr_aus(anfrage.release_date),
+        # ``ist_fertig`` und ``ist_noch_da`` messen eine Staffelanfrage an
+        # ihrer Staffel; ein Paket geht ueber ``folgen_stand``.
+        mit_staffeln=anfrage.season is not None and not anfrage.episodes,
     )
 
 

@@ -356,6 +356,10 @@ class Nachschlag:
     tvdb_id: int | None = None
     titel: str = ""
     jahr: int | None = None
+    #: Der Aufrufer braucht den Stand **je Staffel** (``SerienStand.staffeln``).
+    #: Nur der NEX-Weg sieht das an: Dort nennt ``lookup`` keine Staffeln, sie
+    #: kosten die Einzelansicht. Der ARR-Weg liefert sie immer mit.
+    mit_staffeln: bool = False
 
 
 @dataclass(frozen=True)
@@ -485,12 +489,17 @@ class Nachschlagen:
 
     treffer: dict[Nachschlag, FilmStand | SerienStand]
     gelesen: frozenset[tuple[str, str]]
+    #: Einzelne Fragen, auf die es trotz antwortender Fassung keine volle
+    #: Antwort gab (NEX: Staffeln gefragt, Einzelansicht gescheitert). Ihr
+    #: Treffer, falls es einen gibt, kennt keine Staffeln - wer daraus "Staffel
+    #: weg" machte, raeumte eine liegende Staffel ab.
+    ungelesen: frozenset[Nachschlag] = frozenset()
 
     def stand(self, wonach: Nachschlag) -> FilmStand | SerienStand | None:
         return self.treffer.get(wonach)
 
     def hat_geantwortet(self, wonach: Nachschlag) -> bool:
-        return (wonach.media_type, wonach.fassung) in self.gelesen
+        return (wonach.media_type, wonach.fassung) in self.gelesen and wonach not in self.ungelesen
 
 
 # --------------------------------------------------------------------------
@@ -617,6 +626,18 @@ class Beschaffung(ABC):
         self, stufe: str = "standard", *, fassung: str = ""
     ) -> SerienBestand:
         """Alle Serien der Fassung, nach TVDB-Kennung und nach Titel."""
+
+    async def alle_serien(
+        self, stufe: str = "standard", *, fassung: str = ""
+    ) -> list[tuple[int | None, SerienStand]]:
+        """Jede Serie der Fassung genau einmal, mit TVDB-Kennung, soweit bekannt.
+
+        Fuer den Speicher-Abgleich, der jede Serie messen muss. Im ARR-Betrieb
+        ist das der TVDB-Index selbst (Sonarr fuehrt keine Serie ohne); der
+        NEX-Weg ankert auf TMDB und nennt auch Serien ohne ``tvdb:``.
+        """
+        nach_tvdb, _ = await self.bestand_serien(stufe, fassung=fassung)
+        return list(nach_tvdb.items())
 
     @classmethod
     @abstractmethod

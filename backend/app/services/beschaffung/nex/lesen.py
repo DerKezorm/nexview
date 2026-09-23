@@ -322,6 +322,22 @@ def bestand_serien(kennung: str) -> tuple[dict[int, Any], dict[str, Any]]:
     """
     nach_tvdb: dict[int, Any] = {}
     nach_titel: dict[str, Any] = {}
+    for tvdb, stand in alle_serien(kennung):
+        if tvdb is not None:
+            nach_tvdb[tvdb] = stand
+        if stand.title_key:
+            nach_titel[stand.title_key] = stand
+    return nach_tvdb, nach_titel
+
+
+def alle_serien(kennung: str) -> list[tuple[int | None, Any]]:
+    """Jede Serie einer Fassung genau einmal, samt TVDB-Kennung, soweit bekannt.
+
+    Der Anker ist TMDB (``arr_id`` des Stands). Eine Serie ohne ``tvdb:`` in
+    ``refs`` gehoert genauso dazu; der Speicher-Abgleich misst ueber diese
+    Form, nicht ueber den TVDB-Index.
+    """
+    gefunden: list[tuple[int | None, Any]] = []
     gehalten = bestand.gehalten()
     for eintrag in gehalten.alle("series").values():
         titel, gelesen = gehalten.mit_staffeln(eintrag)
@@ -332,13 +348,9 @@ def bestand_serien(kennung: str) -> tuple[dict[int, Any], dict[str, Any]]:
             # Dateien da, Staffeln unbekannt: Wer daraus "keine Staffel"
             # machte, raeumte ihre Posten ab (``storage._schreiben``).
             stand = replace(stand, staffeln_gelesen=False)
-        kennungen = mapping.refs_nach_quelle(eintrag.get("refs"))
-        tvdb = kennungen.get("tvdb")
-        if tvdb and tvdb.isdigit():
-            nach_tvdb[int(tvdb)] = stand
-        if stand.title_key:
-            nach_titel[stand.title_key] = stand
-    return nach_tvdb, nach_titel
+        tvdb = mapping.refs_nach_quelle(eintrag.get("refs")).get("tvdb")
+        gefunden.append((int(tvdb) if tvdb and tvdb.isdigit() else None, stand))
+    return gefunden
 
 
 def warum(antwort: dict[str, Any]) -> Warum:

@@ -17,6 +17,8 @@ import { AddRequestForm } from '../components/media/AddRequestForm'
 import { SagMirBescheid } from '../components/media/SagMirBescheid'
 import { Rueckmeldung } from '../components/media/Rueckmeldung'
 import { CastStrip } from '../components/media/CastStrip'
+import { SprungZumWeg } from '../components/media/SprungZumWeg'
+import { WarumNochNicht } from '../components/media/WarumNochNicht'
 import { FavoriteButton } from '../components/media/FavoriteButton'
 import { useFavorites } from '../components/media/useFavorites'
 import { MediaItemCard } from '../components/media/MediaCard'
@@ -387,6 +389,15 @@ export function TitlePage() {
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-mist-300">
                 {item.overview || t('media.noOverview')}
               </p>
+
+              {/* ⚠️ Steht nur da, wenn der Weg es sagen kann. Radarr und Sonarr
+                  können es nicht - dann fehlt der Abschnitt ganz, statt „kein
+                  Grund bekannt" zu behaupten. */}
+              <WarumNochNicht mediaType={istFilm ? 'movie' : 'tv'} tmdbId={item.tmdb_id} />
+              {/* Nur für Entscheider, und nur mit eingetragener Adresse. */}
+              <div className="mt-3">
+                <SprungZumWeg mediaType={istFilm ? 'movie' : 'tv'} tmdbId={item.tmdb_id} />
+              </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 {/* Das Herz steht bei jedem Titel - auch bei einem, der längst

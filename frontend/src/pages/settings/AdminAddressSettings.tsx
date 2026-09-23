@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
 import type { AppSettings, TestResult } from '../../api/types'
+import { useConfig } from '../../hooks/useConfig'
 import { BASIS, adresseOhneBasis } from '../../lib/basis'
 import { Button, Card, Field, Spinner } from '../../components/ui'
 
@@ -15,6 +16,8 @@ import { Button, Card, Field, Spinner } from '../../components/ui'
  * alles andere, was jemals nach außen verweist.
  */
 export function AdminAddressSettings() {
+  const { data: config } = useConfig()
+  const mitWebhooks = (config?.beschaffung ?? 'arr') === 'arr'
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
@@ -168,6 +171,12 @@ export function AdminAddressSettings() {
         )}
       </Card>
 
+      {/* ⚠️ **Webhooks gibt es nur im ARR-Betrieb.** Radarr und Sonarr rufen
+          Nexview an, und dafür brauchen sie eine Adresse. Der andere Weg
+          meldet sich über seinen Ereignisstrom - dort gibt es nichts
+          einzutragen, und ein Feld dafür wäre eine Einladung, eine Adresse zu
+          pflegen, die niemand aufruft. */}
+      {mitWebhooks && (
       <Card className="flex flex-col gap-4">
         <div>
           <h2 className="text-lg font-semibold">{t('mail.webhookBasisSection')}</h2>
@@ -211,6 +220,7 @@ export function AdminAddressSettings() {
           </p>
         )}
       </Card>
+      )}
     </div>
   )
 }

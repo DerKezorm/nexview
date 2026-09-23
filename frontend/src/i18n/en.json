@@ -4108,5 +4108,45 @@
       "umstieg_ziel_unbekannt": "There is no such nexcrate version.",
       "umstieg_falsche_medienart": "A series cannot be mapped onto a movie version."
     }
+  },
+  "warum": {
+    "titel": "What it is waiting for",
+    "automatikAus": "Automation is off. Requested titles are still searched for.",
+    "grund": {
+      "available": "It is here.",
+      "downloading": "Downloading right now.",
+      "upgrade_possible": "It is here ({{quality}}); a better version would still be taken.",
+      "problem": "The download is stuck and waits for the owner.",
+      "wish_searching": "Being searched for since you requested it.",
+      "searching_soon": "The next search is due.",
+      "search_limit": "Enough searches for today; the next round comes later.",
+      "waiting_delay": "A find is still sitting out the configured delay.",
+      "held": "Held back: {{reason}}.",
+      "not_released": "Not released yet ({{date}}).",
+      "no_date": "There is no release date yet.",
+      "no_fitting_release": "Nothing found that fits the profile.",
+      "not_found": "No find at the indexers.",
+      "unmonitored": "Not watched – so nobody is looking for it.",
+      "version_not_ready": "This version is not ready yet.",
+      "anime_not_supported": "This procurement does not search anime yet.",
+      "artist_frozen": "The artist is frozen."
+    }
+  },
+  "papierkorbNex": {
+    "title": "Recycle bin",
+    "intro": "What was deleted and what can come back. Procurement keeps the list; Nexview shows it and restores on request.",
+    "empty": "The recycle bin is empty.",
+    "restore": "Restore",
+    "gone": "The title is no longer in the library.",
+    "fileGone": "The file is gone, or its disk cannot be seen right now.",
+    "season": "Season {{staffel}}, episode {{folgen}}",
+    "open": "Open the procurement's recycle bin",
+    "by": {
+      "owner": "by the owner",
+      "key": "by a program"
+    }
+  },
+  "beschaffung": {
+    "openThere": "Open in procurement"
   }
 }

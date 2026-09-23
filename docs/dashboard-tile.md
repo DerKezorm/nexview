@@ -119,7 +119,11 @@ Nexview also records when a token was last used, but writes that at most every
 the server's language, and it would change the moment somebody improves a
 wording. Under a promise that could never happen again.
 
-The prefix tells you the area: `dienst` (Radarr/Sonarr), `platz` (disk),
+⚠️ **`instanzen[]` follows whatever procures.** With Radarr and Sonarr there is one
+entry per instance, named after it; with nexcrate there is exactly one, named after it.
+The shape does not change, the number of entries does.
+
+The prefix tells you the area: `dienst` (whatever procures), `platz` (disk),
 `nachschub` (requests in flight), `bibliothek` (the collection), `abgleich`
 (where the sources disagree), `betrieb` (Nexview itself).
 

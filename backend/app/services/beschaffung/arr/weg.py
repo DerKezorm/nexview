@@ -30,7 +30,9 @@ from ..base import (
     Pruefbefund,
     SerienBestand,
     SerienStand,
+    Sprung,
     WarteschlangenEintrag,
+    Warum,
     treffer_nach_titel,
 )
 from . import (
@@ -303,6 +305,21 @@ class ArrBeschaffung(Beschaffung):
 
     async def papierkorb_groesse(self, media_type: str, stufe: str, pfad: str) -> tuple[int, bool]:
         return await library.papierkorb_groesse(self.settings, media_type, stufe, pfad)
+
+    async def warum(self, gefragt: list[Kennt]) -> list[Warum]:
+        """Radarr und Sonarr sagen es nicht, also sagt Nexview auch nichts.
+
+        ⚠️ **Nicht dasselbe wie „es gibt keinen Grund".** Die Oberflaeche liest
+        ``faehigkeiten().warum`` und zeigt den Abschnitt gar nicht erst; eine
+        leere Liste von Gruenden waere die Behauptung, alles sei in Ordnung.
+        """
+        return [Warum() for _ in gefragt]
+
+    def spruenge(self) -> Sprung:
+        """Keine. Radarr und Sonarr haben eine Oberflaeche, aber Nexview kennt
+        ihre Adressen nach aussen nicht - nur die, unter der es sie selbst
+        erreicht, und die fuehrt einen Besucher womoeglich ins Leere."""
+        return Sprung()
 
     async def papierkorb(self) -> list[dict[str, Any]]:
         """Gibt es nicht: Radarr und Sonarr fuehren keine Liste, nur einen Ordner.

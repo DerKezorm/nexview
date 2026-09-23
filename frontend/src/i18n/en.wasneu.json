@@ -568,6 +568,38 @@
         "small": [
           "Emby was not affected: it only groups when asked to. Nexview now says explicitly that it does not want that either."
         ]
+      },
+      "1.0.0": {
+        "lead": "Nexview can now procure through nexcrate. Instead of Radarr and Sonarr – up to four connections, each with its own profiles, folders and keys – there is a single one, and profiles, naming, folders and the recycle bin live over there. If you want to stay with Radarr and Sonarr, stay: nothing changes. If you want to switch, you are walked through it, and Nexview writes a backup first – there is no other way back.",
+        "sections": [
+          {
+            "title": "Setup asks who procures",
+            "where": "On the very first start, after the TMDB step",
+            "body": "Radarr and Sonarr, or nexcrate. From then on the assistant only shows what belongs to that choice: for nexcrate an address, the pairing, and the question of which versions everyone may request. No quality wizard, no naming, no webhook address – none of that exists there, and an empty page for it would invite you to fill in something nobody reads."
+          },
+          {
+            "title": "Switching is guided, in seven steps",
+            "where": "Settings, Services, Switch to nexcrate",
+            "body": "First the numbers: how many downloads are running in Radarr right now (they finish there and become invisible to Nexview), how many requests are open, how many storage entries there are. Then connect, and Nexview checks whether this nexcrate will do at all. Then you map each current version onto a new one. Then Nexview checks whether nexcrate knows the titles something is hanging on. Then the backup – without it there is no next step. Then the switch. Finally approved requests are handed over, because the new way has never heard of them.\n\nWhen switching, Nexview removes its own webhook entries from Radarr and Sonarr, deletes the credentials and rewrites every version id – on requests, storage entries, rights, invitations and rules. For series the storage key moves from TVDB to TMDB, because that is what nexcrate anchors on."
+          },
+          {
+            "title": "What a title is waiting for is written on it",
+            "where": "On a title's page, below the description",
+            "body": "One line per version: downloading, nothing found that fits the profile, not released yet, sitting out a delay. The reason comes from procurement, the wording from Nexview – so it reads in your language, not in the English of another application.\n\nRadarr and Sonarr cannot say this. Then nothing is shown, rather than \"no reason known\" – that would claim everything is fine."
+          },
+          {
+            "title": "Deleted files come back",
+            "where": "Settings, Quotas, Recycle bin",
+            "body": "In nexcrate mode procurement keeps a list instead of a folder: file by file, with size, date and who deleted it. One click brings it back.\n\nTwo cases cannot, and both are stated on the row: the file may be gone or its disk out of sight, or the title may have left the library. Then the button is closed, rather than promising something that will not happen."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Rights now hang on the version, not on \"4K or not\" – two switches per version, in Radarr mode too.",
+          "In nexcrate mode nobody picks folder and profile at approval any more: both belong over there.",
+          "\"Open in procurement\" jumps from a title straight across – only for approvers, and only if an outside address is set over there.",
+          "If a nexcrate is downgraded or its key loses a scope, the round says so, not the next request."
+        ]
       }
     }
   }

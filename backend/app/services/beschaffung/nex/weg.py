@@ -39,7 +39,9 @@ from ..base import (
     Pruefbefund,
     SerienBestand,
     SerienStand,
+    Sprung,
     WarteschlangenEintrag,
+    Warum,
 )
 from . import (
     aktionen,
@@ -422,6 +424,50 @@ class NexBeschaffung(Beschaffung):
 
     async def papierkorb_groesse(self, media_type: str, stufe: str, pfad: str) -> tuple[int, bool]:
         _gibt_es_nicht("Papierkorb-Ordner")
+
+    async def warum(self, gefragt: list[Kennt]) -> list[Warum]:
+        """``POST /titles/why`` im Stapel, Antwort in derselben Reihenfolge.
+
+        ⚠️ **Gelesen wird ``versions[].because``, nie ``next_search_reason``**
+        (nexbeat-Befund 7): Der Titelgrund stand auf ``nothing_wanted``,
+        waehrend eine Fassung ``wanted`` war.
+        """
+        if not gefragt:
+            return []
+        antworten = await self.client.why(
+            [
+                {"kind": mapping.kind(wonach.media_type), "ref": mapping.ref(wonach.tmdb_id)}
+                for wonach in gefragt
+            ]
+        )
+        return [lesen.warum(antwort) for antwort in antworten]
+
+    def spruenge(self) -> Sprung:
+        """Die Vorlagen aus ``/system.links``, gefuellt - soweit es sie gibt.
+
+        ⚠️ **Ohne eingetragene Adresse nach aussen gibt es keinen Sprung.**
+        ``web_url`` ist ``null``, solange in nexcrate nichts steht (gemessen);
+        die eigene Adresse aus Nexviews Sicht einzusetzen fuehrte einen
+        Besucher von draussen ins Leere.
+        """
+        aussen = system.web_url().rstrip("/")
+        if not aussen:
+            return Sprung()
+        vorlagen = system.links()
+
+        def fertig(name: str) -> str:
+            roh = vorlagen.get(name, "")
+            # Vorlagen mit Platzhaltern bleiben Vorlagen; die Oberflaeche setzt
+            # Kennung und Fassung selbst ein.
+            return f"{aussen}{roh}" if roh else ""
+
+        return Sprung(
+            titel=fertig("title"),
+            fassung=fertig("version"),
+            probleme=fertig("problems"),
+            papierkorb=fertig("recycle_bin"),
+            kalender=fertig("calendar"),
+        )
 
     async def papierkorb(self) -> list[dict[str, Any]]:
         """Was in nexcrates Papierkorb liegt (N22)."""

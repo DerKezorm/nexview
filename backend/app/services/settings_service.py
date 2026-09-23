@@ -480,7 +480,16 @@ class AppSettings:
         Sie waere sonst unvollstaendig bei Radarr gelandet. Die Auto-Freigabe
         ist damit fuer diesen Dienst hinfaellig - und genau das steht auch in
         der Oberflaeche.
+
+        ⚠️ **Im NEX-Betrieb gibt es weder Ordner noch Profil** (Bauplan 9):
+        Beides gehoert dort dem Beschaffungsweg. Die Einstellung bleibt
+        gespeichert - wer zurueckwechselt, findet sie wieder -, aber sie
+        antwortet nein. Ohne das zeigte die Freigabe zwei Auswahllisten, die
+        ihre Inhalte bei einer Adresse holen, die ``409`` antwortet, und jede
+        Anfrage wartete auf eine Wahl, die niemand treffen kann.
         """
+        if self.beschaffung != ARR:
+            return False
         return "approver" in (
             self.root_folder_mode(media_type, tier),
             self.profile_mode(media_type, tier),

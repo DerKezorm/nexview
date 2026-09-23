@@ -4108,5 +4108,45 @@
       "umstieg_ziel_unbekannt": "Diese nexcrate-Fassung gibt es nicht.",
       "umstieg_falsche_medienart": "Eine Serie lässt sich nicht auf eine Filmfassung abbilden."
     }
+  },
+  "warum": {
+    "titel": "Woran es gerade hängt",
+    "automatikAus": "Die Automatik ist aus. Angefragtes wird trotzdem gesucht.",
+    "grund": {
+      "available": "Liegt vor.",
+      "downloading": "Wird gerade geladen.",
+      "upgrade_possible": "Liegt vor ({{quality}}); es gäbe noch eine bessere Fassung.",
+      "problem": "Der Download hängt und wartet auf den Betreiber.",
+      "wish_searching": "Wird gesucht, seit du es angefragt hast.",
+      "searching_soon": "Die nächste Suche steht an.",
+      "search_limit": "Heute wurde oft genug gesucht; die nächste Runde kommt später.",
+      "waiting_delay": "Ein Fund wartet noch die eingestellte Frist ab.",
+      "held": "Zurückgestellt: {{reason}}.",
+      "not_released": "Noch nicht erschienen ({{date}}).",
+      "no_date": "Es gibt noch kein Erscheinungsdatum.",
+      "no_fitting_release": "Nichts gefunden, das zum Profil passt.",
+      "not_found": "Kein Fund bei den Indexern.",
+      "unmonitored": "Wird nicht überwacht – es sucht also niemand danach.",
+      "version_not_ready": "Diese Fassung ist noch nicht bereit.",
+      "anime_not_supported": "Anime sucht diese Beschaffung noch nicht.",
+      "artist_frozen": "Der Künstler ist eingefroren."
+    }
+  },
+  "papierkorbNex": {
+    "title": "Papierkorb",
+    "intro": "Was gelöscht wurde und was davon zurückkommen kann. Die Liste führt die Beschaffung; Nexview zeigt sie und holt auf Wunsch zurück.",
+    "empty": "Der Papierkorb ist leer.",
+    "restore": "Zurückholen",
+    "gone": "Der Titel ist nicht mehr im Bestand.",
+    "fileGone": "Die Datei ist weg oder ihre Platte gerade nicht sichtbar.",
+    "season": "Staffel {{staffel}}, Folge {{folgen}}",
+    "open": "Papierkorb der Beschaffung öffnen",
+    "by": {
+      "owner": "vom Betreiber",
+      "key": "von einem Programm"
+    }
+  },
+  "beschaffung": {
+    "openThere": "In der Beschaffung öffnen"
   }
 }

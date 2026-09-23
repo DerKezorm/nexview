@@ -187,8 +187,17 @@ export function AdminUsersSettings() {
     queryFn: () => api.get<AppSettings>("/api/settings"),
   });
 
+  /**
+   * ⚠️ **Profile gibt es nur im ARR-Betrieb.** Im NEX-Betrieb gehören sie dem
+   * Beschaffungsweg; `/api/arr/…/options` antwortet dort `409`. Eine
+   * Sperrliste über Profile, die Nexview gar nicht kennt, wäre eine Liste von
+   * Namen ohne Gegenstück - und die Abfragen darunter liefen ins Leere.
+   */
+  const mitProfilen = (config?.beschaffung ?? "arr") === "arr";
+
   /** Darf der Benutzer das Profil selbst wählen? Sonst ist eine Sperrliste sinnlos. */
   function profilFreiWaehlbar(media: "movie" | "tv"): boolean {
+    if (!mitProfilen) return false;
     const modus =
       media === "movie"
         ? settingsQuery.data?.movie_profile_mode
@@ -200,13 +209,13 @@ export function AdminUsersSettings() {
   const movieProfiles = useQuery({
     queryKey: ["arr-options", "movie"],
     queryFn: () => api.get<ArrOptions>("/api/arr/movie/options"),
-    enabled: config?.radarr_configured ?? false,
+    enabled: mitProfilen && (config?.radarr_configured ?? false),
     retry: false,
   });
   const seriesProfiles = useQuery({
     queryKey: ["arr-options", "tv"],
     queryFn: () => api.get<ArrOptions>("/api/arr/tv/options"),
-    enabled: config?.sonarr_configured ?? false,
+    enabled: mitProfilen && (config?.sonarr_configured ?? false),
     retry: false,
   });
 
@@ -214,13 +223,13 @@ export function AdminUsersSettings() {
   const movieUhdProfiles = useQuery({
     queryKey: ["arr-options", "movie", "uhd"],
     queryFn: () => api.get<ArrOptions>("/api/arr/movie/options?tier=uhd"),
-    enabled: config?.radarr_uhd_configured ?? false,
+    enabled: mitProfilen && (config?.radarr_uhd_configured ?? false),
     retry: false,
   });
   const seriesUhdProfiles = useQuery({
     queryKey: ["arr-options", "tv", "uhd"],
     queryFn: () => api.get<ArrOptions>("/api/arr/tv/options?tier=uhd"),
-    enabled: config?.sonarr_uhd_configured ?? false,
+    enabled: mitProfilen && (config?.sonarr_uhd_configured ?? false),
     retry: false,
   });
 

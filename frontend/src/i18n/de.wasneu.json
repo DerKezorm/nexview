@@ -568,6 +568,38 @@
         "small": [
           "Emby war nicht betroffen, es gruppiert nur auf Wunsch. Nexview sagt jetzt ausdrücklich, dass es das auch nicht will."
         ]
+      },
+      "1.0.0": {
+        "lead": "Nexview kann jetzt auch über nexcrate beschaffen. Statt Radarr und Sonarr – bis zu vier Verbindungen, jede mit eigenen Profilen, Ordnern und Schlüsseln – gibt es eine einzige, und Profile, Benennung, Ordner und Papierkorb liegen drüben. Wer bei Radarr und Sonarr bleiben will, bleibt: Es ändert sich nichts. Wer wechseln will, wird geführt, und vorher schreibt Nexview eine Sicherung – einen anderen Rückweg gibt es nicht.",
+        "sections": [
+          {
+            "title": "Bei der Einrichtung fragt Nexview, wer beschafft",
+            "where": "Beim allerersten Start, nach dem TMDB-Schritt",
+            "body": "Radarr und Sonarr, oder nexcrate. Danach zeigt der Assistent nur noch, was zu dieser Wahl gehört: bei nexcrate eine Adresse, das Koppeln und die Frage, welche Fassungen jeder anfragen darf. Kein Qualitäts-Assistent, keine Benennung, keine Webhook-Adresse – das gibt es dort nicht, und eine leere Seite dafür wäre eine Einladung, etwas einzutragen, das niemand liest."
+          },
+          {
+            "title": "Umsteigen geht geführt, in sieben Schritten",
+            "where": "Einstellungen, Dienste, Umstieg auf nexcrate",
+            "body": "Erst die Zahlen: wie viele Downloads gerade in Radarr laufen (die laufen dort zu Ende und sind danach für Nexview unsichtbar), wie viele Anfragen offen sind, wie viele Speicherposten es gibt. Dann verbinden, und Nexview prüft, ob diese nexcrate überhaupt taugt. Dann ordnest du jeder bisherigen Fassung eine neue zu. Dann sieht Nexview nach, ob nexcrate die Titel kennt, an denen etwas hängt. Dann die Sicherung – ohne sie geht es nicht weiter. Dann das Umschalten. Zuletzt werden freigegebene Anfragen nachgereicht, denn der neue Weg hat von ihnen nie gehört.\n\nBeim Umschalten nimmt Nexview seine eigenen Webhook-Einträge aus Radarr und Sonarr, löscht die Zugänge und schreibt jede Fassungskennung um – an Anfragen, Speicherposten, Rechten, Einladungen und Regeln. Bei Serien wandert der Speicherschlüssel von TVDB auf TMDB, weil nexcrate dort ankert."
+          },
+          {
+            "title": "Woran es hängt, steht jetzt am Titel",
+            "where": "Auf der Seite eines Titels, unter der Beschreibung",
+            "body": "Eine Zeile je Fassung: wird geladen, nichts gefunden, das zum Profil passt, noch nicht erschienen, wartet eine Frist ab. Der Grund kommt von der Beschaffung, der Satz von Nexview – so steht er in deiner Sprache da und nicht im Englisch einer fremden Anwendung.\n\nRadarr und Sonarr können das nicht sagen. Dort steht dann nichts, statt „kein Grund bekannt“ – das wäre die Behauptung, alles sei in Ordnung."
+          },
+          {
+            "title": "Gelöschtes kommt zurück",
+            "where": "Einstellungen, Kontingente, Papierkorb",
+            "body": "Im nexcrate-Betrieb führt die Beschaffung eine Liste statt eines Ordners: Datei für Datei, mit Größe, Datum und dem, der sie gelöscht hat. Ein Klick holt sie zurück.\n\nZwei Fälle gehen nicht, und beide stehen an der Zeile: Die Datei kann weg sein oder ihre Platte gerade nicht sichtbar, oder der Titel hat den Bestand verlassen. Dann ist der Knopf zu, statt etwas zu versprechen, das nicht eintritt."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Die Rechte hängen jetzt an der Fassung, nicht mehr an „4K oder nicht“ – zwei Schalter je Fassung, auch im Radarr-Betrieb.",
+          "Im nexcrate-Betrieb wählt bei der Freigabe niemand mehr Ordner und Profil: Beides gehört drüben.",
+          "„In der Beschaffung öffnen“ springt aus einem Titel direkt hinüber – nur für Entscheider, und nur wenn dort eine Adresse nach außen eingetragen ist.",
+          "Wird eine nexcrate zurückgestuft oder verliert ihr Schlüssel ein Recht, sagt das der Rundgang, nicht erst die nächste Anfrage."
+        ]
       }
     }
   }

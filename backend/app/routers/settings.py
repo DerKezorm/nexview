@@ -8,7 +8,7 @@ Papierkorb, Rueckkanal, Instanzen), stehen hinter der Grenze in
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException, Path
@@ -196,6 +196,13 @@ class AppConfig(BaseModel):
     #: (Bauplan NEX-Modus, Abschnitt 4). Die Oberflaeche blendet danach die
     #: Betreiberwerkzeuge der anderen Betriebsart aus.
     beschaffung: str
+    #: Was der eingestellte Weg kann. Die Oberflaeche fragt **das**, nicht den
+    #: Namen des Wegs - so bekommt ein dritter Weg seine Abschnitte, ohne dass
+    #: jemand eine Liste pflegt.
+    beschaffung_kann: dict[str, Any] = Field(default_factory=dict)
+    #: Fertige Adressen in die Oberflaeche des Wegs; leer heisst kein Sprung.
+    #: ``titel`` und ``fassung`` sind Vorlagen mit Platzhaltern.
+    beschaffung_sprung: dict[str, str] = Field(default_factory=dict)
     radarr_configured: bool
     sonarr_configured: bool
     using_demo_data: bool
@@ -338,6 +345,38 @@ def _hausordnung_stand(db: DbSession, user: User) -> dict:
     }
 
 
+def _was_der_weg_kann(settings: AppSettings) -> dict[str, Any]:
+    """Die Faehigkeiten des Wegs als Woerterbuch fuer die Oberflaeche.
+
+    ⚠️ **Ohne ``betreiberwerkzeuge``** - das entscheidet nicht, was eine Seite
+    zeigt, sondern ob es einen ganzen Reiter gibt; das liest die Oberflaeche
+    weiter an ``beschaffung``. Hier steht, was **auf** einer Seite erscheint.
+    """
+    kann = beschaffung.get_beschaffung(settings).faehigkeiten()
+    return {
+        "warum": kann.warum,
+        "papierkorb": kann.papierkorb,
+        "anime": kann.anime,
+        "kalender": kann.kalender,
+        "wertungen": list(kann.wertungen),
+    }
+
+
+def _spruenge(settings: AppSettings) -> dict[str, str]:
+    sprung = beschaffung.get_beschaffung(settings).spruenge()
+    return {
+        name: wert
+        for name, wert in (
+            ("titel", sprung.titel),
+            ("fassung", sprung.fassung),
+            ("probleme", sprung.probleme),
+            ("papierkorb", sprung.papierkorb),
+            ("kalender", sprung.kalender),
+        )
+        if wert
+    }
+
+
 @router.get("/config", response_model=AppConfig)
 def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
     settings = load_settings(db)
@@ -346,6 +385,8 @@ def read_config(user: CurrentUser, db: DbSession) -> AppConfig:
         default_language=settings.default_language,
         tmdb_configured=settings.tmdb_configured,
         beschaffung=settings.beschaffung,
+        beschaffung_kann=_was_der_weg_kann(settings),
+        beschaffung_sprung=_spruenge(settings),
         radarr_configured=settings.radarr_configured,
         sonarr_configured=settings.sonarr_configured,
         using_demo_data=settings.use_demo_data,

@@ -7,7 +7,9 @@ import type { PapierkorbBelegung, StorageOverview } from "../../api/types";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Button, Card, ErrorBanner, Spinner } from "../../components/ui";
 import { formatSize } from "../../lib/format";
+import { useConfig } from "../../hooks/useConfig";
 import { AdminPapierkorb } from "./AdminPapierkorb";
+import { AdminPapierkorbNex } from "./AdminPapierkorbNex";
 import { AdminStorageAbgaben } from "./AdminStorageAbgaben";
 import { AdminStorageUsers } from "./AdminStorageUsers";
 
@@ -70,6 +72,7 @@ const ZEITRAEUME: Zeitraum[] = ["day", "week", "month"];
 export function AdminStorageSettings() {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
+  const { data: config } = useConfig();
 
   const abfrage = useQuery({
     queryKey: ["settings"],
@@ -399,8 +402,14 @@ export function AdminStorageSettings() {
           />
 
           {/* Der Papierkorb steht hier, weil er dieselbe Frage beantwortet wie
-              die Grenzen darüber: was passiert, wenn Nexview später löscht. */}
-          <AdminPapierkorb />
+              die Grenzen darüber: was passiert, wenn Nexview später löscht.
+
+              ⚠️ **Zwei verschiedene Dinge unter einem Namen.** Radarr und
+              Sonarr haben einen Papierkorb-Ordner, den der Betreiber einstellt
+              und den Nexview nur durchsucht; der andere Weg führt eine Liste
+              und nimmt eine Datei zurück. Gefragt wird die Fähigkeit, nicht
+              der Name des Wegs. */}
+          {config?.beschaffung_kann?.papierkorb ? <AdminPapierkorbNex /> : <AdminPapierkorb />}
         </div>
 
         <div className="flex flex-col gap-5">

@@ -4,7 +4,7 @@
 
 # Nexview
 
-**Find something to watch — and request it straight from Radarr and Sonarr.**
+**Find something to watch — and request it straight from Radarr and Sonarr, or from nexcrate.**
 
 [Project site](https://nexview.nexapps.dev) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/DerKezorm/nexview/issues/new)
 
@@ -12,8 +12,12 @@
 
 Nexview is a self-hosted media discovery dashboard for a household — family, flatmates,
 a circle of friends. It shows new releases from [TMDB](https://www.themoviedb.org/),
-marks what is already in your library, and hands requests to **Radarr** (movies) and
-**Sonarr** (shows). Everyone gets their own account, with roles, approvals and quotas.
+marks what is already in your library, and hands requests to whatever procures for you:
+**Radarr** (movies) and **Sonarr** (shows), or **nexcrate**, which does both in one.
+Everyone gets their own account, with roles, approvals and quotas.
+
+You pick one of the two when you set Nexview up, and you can switch later — an assistant
+walks through it and writes a backup first, because there is no other way back.
 
 It downloads nothing itself and stores no media. It is the front door to a setup you
 already run — it does not replace any part of it.
@@ -63,6 +67,9 @@ its own page and more screenshots.
 
 - Pick quality profile and target folder, or let the approver pick them instead
 - Request whole shows or single seasons, optionally following future ones
+- With nexcrate there is one connection instead of four, and quality profiles, naming,
+  folders and the recycle bin live over there. Nexview then shows what it keeps: the
+  versions of a title, why something has not arrived yet, and what can be restored
 - Optionally a second Radarr and Sonarr instance for 4K: the same title once in 1080p
   and once in 4K, with separate folders, profiles and per-user permissions
 - The state sits on the poster — not requested, requested, searching, already
@@ -800,6 +807,7 @@ A one-time wizard appears on first launch:
 | TMDB | no | titles, posters, descriptions. Without a key you get sample data |
 | Radarr | no | movies. Without Radarr, movies cannot be requested |
 | Sonarr | no | shows. Without Sonarr, no show requests |
+| nexcrate | no | movies and shows in one, instead of Radarr and Sonarr |
 | Address | **yes** | the address Nexview is reachable at; it goes into every link |
 | E-mail | **yes** | SMTP server for invitations and password recovery |
 
@@ -881,7 +889,7 @@ Metadata comes from **TMDB**. This project is neither endorsed nor certified by 
 Sign-in, library matching and the watched state run through **Plex**, when a server is
 connected. Nexview is neither endorsed by nor affiliated with Plex.
 
-Downloads are handled by **Radarr** and **Sonarr**; ratings come from **IMDb**,
+Downloads are handled by **Radarr** and **Sonarr**, or by **nexcrate**; ratings come from **IMDb**,
 **Rotten Tomatoes** and **Metacritic**, streaming availability from **JustWatch**.
 Notifications can go through **ntfy**, **Gotify**, **Telegram**, **Discord**, a plain
 webhook or **Apprise**.

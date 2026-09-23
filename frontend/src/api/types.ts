@@ -1032,6 +1032,19 @@ export type AppConfig = {
    * überhaupt dastehen – im NEX-Betrieb gehören sie nexcrate.
    */
   beschaffung: Beschaffung;
+  /**
+   * Was der eingestellte Weg kann.
+   *
+   * ⚠️ **Die Oberfläche fragt das, nicht den Namen des Wegs.** So bekommt ein
+   * dritter Weg seine Abschnitte, ohne dass jemand eine Liste pflegt.
+   */
+  beschaffung_kann: BeschaffungKann;
+  /**
+   * Fertige Adressen in die Oberfläche des Wegs. Ein Name, der fehlt, heißt:
+   * kein Sprung. `titel` und `fassung` sind Vorlagen mit Platzhaltern
+   * (`{kind}`, `{ref}`, `{version_id}`).
+   */
+  beschaffung_sprung: Partial<Record<BeschaffungSprung, string>>;
   radarr_configured: boolean;
   sonarr_configured: boolean;
   using_demo_data: boolean;
@@ -1105,6 +1118,73 @@ export type BackupSchedule = 'off' | 'daily' | 'weekly' | 'monthly';
 
 /** Die Betriebsart der Beschaffung. Ein Schalter für Filme und Serien zugleich. */
 export type Beschaffung = "arr" | "nex";
+
+/** Was ein Beschaffungsweg kann (`/api/config`). */
+export type BeschaffungKann = {
+  /** Kann er sagen, warum ein Titel noch nicht da ist? */
+  warum: boolean;
+  /** Führt er einen Papierkorb, aus dem sich zurückholen lässt? */
+  papierkorb: boolean;
+  anime: boolean;
+  kalender: boolean;
+  /** Für welche Medienarten es Wertungen gibt. */
+  wertungen: string[];
+};
+
+/** Die Sprünge in die Oberfläche des Wegs. */
+export type BeschaffungSprung =
+  | "titel"
+  | "fassung"
+  | "probleme"
+  | "papierkorb"
+  | "kalender";
+
+/**
+ * Warum ein Titel noch nicht da ist (`/api/beschaffung/warum/...`).
+ *
+ * ⚠️ **`beantwortbar: false` heißt „der Weg sagt es nicht"** – nicht „alles in
+ * Ordnung". Radarr und Sonarr können es nicht; dann zeigt die Oberfläche den
+ * Abschnitt gar nicht erst.
+ */
+export type BeschaffungWarum = {
+  beantwortbar: boolean;
+  bekannt: boolean;
+  automatisch: boolean;
+  suchwunsch: boolean;
+  zuletzt_gesucht: string | null;
+  naechste_suche: string | null;
+  gruende: {
+    fassung: string;
+    code: string;
+    werte: Record<string, unknown>;
+    darunter: string[];
+  }[];
+};
+
+/** Eine gelöschte Datei im Papierkorb des Wegs. */
+export type PapierkorbEintrag = {
+  eintrag_id: number;
+  media_type: string;
+  tmdb_id: number | null;
+  name: string | null;
+  jahr: number | null;
+  fassung: string | null;
+  staffel: number | null;
+  folgen: number[];
+  dateiname: string;
+  size_bytes: number;
+  geloescht_am: string;
+  geloescht_von: string;
+  geloescht_von_name: string | null;
+  /** ⚠️ Datei weg und Titel weg sind zwei verschiedene Nein. */
+  datei_da: boolean;
+  im_bestand: boolean;
+};
+
+export type PapierkorbListe = {
+  eintraege: PapierkorbEintrag[];
+  sprung: string;
+};
 
 /** Eine Fassung, wie nexcrate sie führt – für die Dienste-Seite. */
 export type NexFassungZeile = {

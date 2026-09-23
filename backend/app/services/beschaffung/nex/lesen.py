@@ -21,7 +21,7 @@ from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 from ....schemas_media import MediaItem
-from ..base import WarteschlangenEintrag
+from ..base import Grund, WarteschlangenEintrag, Warum
 from . import bestand, mapping
 from .client import KALENDER_TAGE
 
@@ -329,3 +329,48 @@ def bestand_serien(kennung: str) -> tuple[dict[int, Any], dict[str, Any]]:
         if stand.title_key:
             nach_titel[stand.title_key] = stand
     return nach_tvdb, nach_titel
+
+
+def warum(antwort: dict[str, Any]) -> Warum:
+    """Eine Antwort von ``/titles/why`` in die Form der Grenze.
+
+    ⚠️ **Der Grund steht je Fassung in ``because``** (nexbeat-Befund 7), nicht
+    im ``next_search_reason`` des Titels - der stand im Prüfstand auf
+    „nichts gewollt", während eine Fassung sehr wohl gesucht wurde.
+
+    ⚠️ **Der Stapelweg verpackt anders als die Einzelansicht.** Er antwortet je
+    Eintrag ``{kind, ref, known, why, error}``; die Einzelansicht liefert den
+    Inhalt unmittelbar. Beides kommt hier an.
+    """
+    if not antwort.get("known", True):
+        return Warum(bekannt=False)
+    inhalt = antwort["why"] if isinstance(antwort.get("why"), dict) else antwort
+    gruende: list[Grund] = []
+    for fassung in inhalt.get("versions") or []:
+        weil = fassung.get("because")
+        if not isinstance(weil, dict) or not weil.get("code"):
+            continue
+        werte = weil.get("params") if isinstance(weil.get("params"), dict) else {}
+        # ``version_not_ready`` traegt die Gruende der Fassung noch einmal
+        # darunter (kein Indexer, kein Profil, kein Download-Programm).
+        darunter = [
+            str(eintrag.get("code"))
+            for eintrag in (werte.get("reasons") or [])
+            if isinstance(eintrag, dict) and eintrag.get("code")
+        ]
+        gruende.append(
+            Grund(
+                fassung=str(fassung.get("version_id") or ""),
+                code=str(weil["code"]),
+                werte={k: v for k, v in werte.items() if k != "reasons"},
+                darunter=tuple(darunter),
+            )
+        )
+    return Warum(
+        bekannt=True,
+        automatisch=bool(inhalt.get("automatic")),
+        suchwunsch=bool(inhalt.get("search_wish")),
+        zuletzt_gesucht=inhalt.get("last_search_at") or None,
+        naechste_suche=inhalt.get("next_search_at") or None,
+        gruende=tuple(gruende),
+    )

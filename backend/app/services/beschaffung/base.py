@@ -387,6 +387,56 @@ class Kenntnis:
 
 
 @dataclass(frozen=True)
+class Grund:
+    """Warum eine Fassung eines Titels noch nicht da ist (N28).
+
+    ⚠️ **Eine Kennung, kein Satz.** ``code`` ist nexcrates Grund, ``werte``
+    sind seine Platzhalter; den Satz baut die Oberflaeche. Der englische
+    Wortlaut des Wegs steht nirgends in dieser Form - er waere eine zweite
+    Wahrheit neben der Uebersetzung.
+    """
+
+    fassung: str
+    code: str
+    werte: dict[str, Any] = field(default_factory=dict)
+    #: Untergruende, wo der Weg sie nennt (``version_not_ready`` traegt die
+    #: Gruende der Fassung: kein Indexer, kein Profil, kein Download-Programm).
+    darunter: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Warum:
+    """Der Stand eines Titels: sucht der Weg, und was steht je Fassung an?"""
+
+    #: ``True``, wenn der Weg den Titel ueberhaupt kennt.
+    bekannt: bool = False
+    #: Laeuft die Automatik fuer ihn?
+    automatisch: bool = False
+    #: Steht ein Suchwunsch offen?
+    suchwunsch: bool = False
+    zuletzt_gesucht: str | None = None
+    naechste_suche: str | None = None
+    gruende: tuple[Grund, ...] = ()
+
+
+@dataclass(frozen=True)
+class Sprung:
+    """Eine fertige Adresse in die Oberflaeche des Wegs - oder nichts.
+
+    ⚠️ **Leer heisst: kein Sprung.** Ein Weg ohne eigene Oberflaeche (Radarr
+    und Sonarr haben ihre eigene, aber Nexview kennt ihre Adressen nicht) und
+    eine Installation ohne eingetragene Adresse nach aussen liefern dasselbe:
+    nichts. Die Oberflaeche zeigt dann keinen Verweis, statt einen ins Leere.
+    """
+
+    titel: str = ""
+    fassung: str = ""
+    probleme: str = ""
+    papierkorb: str = ""
+    kalender: str = ""
+
+
+@dataclass(frozen=True)
 class Pruefbefund:
     """Was gegen diesen Weg spricht (Bauplan 7.2).
 
@@ -644,6 +694,25 @@ class Beschaffung(ABC):
 
     @abstractmethod
     async def papierkorb_groesse(self, media_type: str, stufe: str, pfad: str) -> tuple[int, bool]: ...
+
+    @abstractmethod
+    async def warum(self, gefragt: list[Kennt]) -> list[Warum]:
+        """Warum diese Titel noch nicht da sind (N28), in derselben Reihenfolge.
+
+        ⚠️ **Der Grund steht je Fassung, nicht am Titel** (nexbeat-Befund 7):
+        ``next_search_reason`` stand auf „nichts gewollt", waehrend eine
+        Fassung sehr wohl gesucht wurde. Wer den Titelgrund allein liest,
+        erzaehlt dem Anfragenden das Falsche.
+        """
+
+    @abstractmethod
+    def spruenge(self) -> Sprung:
+        """Fertige Adressen in die Oberflaeche des Wegs; leer heisst keine.
+
+        Synchron, weil die Oberflaeche sie bei jeder Konfiguration mitliest -
+        eine Abfrage ueber das Netz an dieser Stelle machte jeden Seitenaufbau
+        von einer fremden Anwendung abhaengig.
+        """
 
     @abstractmethod
     async def papierkorb(self) -> list[dict[str, Any]]:

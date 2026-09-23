@@ -1818,6 +1818,36 @@ TEXTE: dict[str, tuple[str, str]] = {
             'knows.'
         ),
     ),
+    'GET /api/beschaffung/warum/{media_type}/{tmdb_id}': (
+        'Why a title has not arrived yet',
+        (
+            'One line per version: downloading, nothing found that fits the profile, not '
+            'released yet, held back by a delay, and so on. Codes, never sentences - the '
+            'interface builds the wording. ⚠️ The reason sits on the version, not on the '
+            'title: a title can say \'nothing wanted\' while one of its versions is being '
+            'searched for. Radarr and Sonarr cannot answer this at all; then '
+            '`beantwortbar` is false, which is not the same as \'nothing is wrong\'.'
+        ),
+    ),
+    'GET /api/beschaffung/papierkorb': (
+        'What was deleted and can come back',
+        (
+            'One entry per file, newest first, with who deleted it and when. Two separate '
+            'kinds of no: the file may be gone (or its disk out of sight), or the title may '
+            'have left the library - either way it cannot be restored, and both are stated. '
+            'Answers 409 where procurement keeps a recycle **folder** instead of a list, '
+            'because nothing comes back out of a folder.'
+        ),
+    ),
+    'POST /api/beschaffung/papierkorb/{eintrag_id}/zurueckholen': (
+        'Restore a deleted file',
+        (
+            'Hands the entry back to procurement, which puts the file where it belongs and '
+            'picks the title up again. Whether that is still possible is decided over there, '
+            'in the same call - a check beforehand would be a second state that ages between '
+            'question and deed.'
+        ),
+    ),
     'GET /api/admin/sicherungen': (
         'All backups',
         (

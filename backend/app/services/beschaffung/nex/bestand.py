@@ -20,7 +20,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from ..base import FilmStand, Folge, SerienStand, Staffelstand, normalize_title
+from ..base import (
+    BeschaffungError,
+    FilmStand,
+    Folge,
+    SerienStand,
+    Staffelstand,
+    normalize_title,
+)
 from . import mapping
 
 if TYPE_CHECKING:
@@ -33,6 +40,8 @@ logger = logging.getLogger("nexview.nexcrate")
 SEITE = 500
 #: Und so viele Seiten höchstens, damit ein Durchgang nicht ewig läuft.
 SEITEN_JE_LAUF = 40
+#: Diese Fehler heißen „nexcrate ist weg“, nicht „diese eine Serie hakt“.
+AUSFALL = frozenset({"nexcrate_timeout", "nexcrate_unreachable", "nexcrate_unavailable"})
 
 
 def film_stand(titel: dict[str, Any], kennung: str) -> FilmStand | None:
@@ -132,6 +141,19 @@ def folgen(staffel: dict[str, Any], kennung: str) -> dict[int, Folge]:
     return gefunden
 
 
+def _hat_dateien(titel: dict[str, Any]) -> bool:
+    """Liegt in irgendeiner Fassung dieser Serie etwas?
+
+    Nicht über ``state``: Eine Serie mit zwei von drei Folgen steht auf
+    ``wanted`` und belegt trotzdem Platz.
+    """
+    for fassung in titel.get("versions") or []:
+        zahlen = ((fassung.get("series") or {}).get("counts")) or {}
+        if int(fassung.get("size_bytes") or 0) > 0 or int(zahlen.get("have") or 0) > 0:
+            return True
+    return False
+
+
 def _fassung(
     traeger: dict[str, Any], kennung: str, schluessel: str = "versions"
 ) -> dict[str, Any] | None:
@@ -160,14 +182,85 @@ class Bestand:
         self.marke: dict[str, int] = {}
         #: Zu welcher Installation die Marken gehören.
         self.installation: str = ""
+        #: Die Staffeln je Serie aus der Einzelansicht, nach ``ref``, samt der
+        #: Marke (``seq``) des Listeneintrags, zu dem sie gelesen wurden.
+        self.staffeln: dict[str, tuple[Any, list[dict[str, Any]]]] = {}
 
     def verwerfen(self) -> None:
         self.titel.clear()
         self.marke.clear()
         self.installation = ""
+        self.staffeln.clear()
 
     def alle(self, kind: str) -> dict[str, dict[str, Any]]:
         return self.titel.get(kind, {})
+
+    def mit_staffeln(self, eintrag: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        """Ein Serieneintrag der Liste samt Staffeln - und ob sie gelesen sind.
+
+        ⚠️ Gelesen heißt: zu **dieser** Marke. Eine ältere Einzelansicht
+        beschreibt einen Stand, den es nicht mehr gibt; eine Serie ohne Datei
+        hat nichts zu lesen und gilt als gelesen.
+        """
+        if not _hat_dateien(eintrag):
+            return eintrag, True
+        gemerkt = self.staffeln.get(str(eintrag.get("ref")))
+        if gemerkt is None or gemerkt[0] != eintrag.get("seq"):
+            return eintrag, False
+        serie = dict(eintrag.get("series") or {})
+        serie["seasons"] = gemerkt[1]
+        return {**eintrag, "series": serie}, True
+
+    async def staffeln_lesen(self, client: NexcrateClient) -> int:
+        """Die Staffeln jeder Serie mit Datei, ein Aufruf je Serie.
+
+        Nur die Einzelansicht nennt sie; in der Liste steht ``series.seasons``
+        immer auf ``null`` (gemessen). Gelesen wird nur, was sich seit dem
+        letzten Mal geändert hat: Die Marke je Titel ist dieselbe, auf die
+        sich die Liste selbst verlässt. Ohne Marke wird immer gelesen.
+
+        Eine Serie, die nicht antwortet, bleibt ungelesen (``mit_staffeln``);
+        der Lauf geht weiter. Ist nexcrate im Ganzen weg, hört er auf, statt
+        jede Serie einzeln in den Zeitablauf laufen zu lassen.
+        """
+        serien = self.alle("series")
+        for ref in [r for r in self.staffeln if r not in serien]:
+            del self.staffeln[ref]
+        offen = [
+            (ref, eintrag)
+            for ref, eintrag in serien.items()
+            if _hat_dateien(eintrag)
+            and (
+                eintrag.get("seq") is None
+                or self.staffeln.get(ref, (None,))[0] != eintrag.get("seq")
+            )
+        ]
+        gelesen = gescheitert = 0
+        for nummer, (ref, eintrag) in enumerate(offen):
+            try:
+                titel = await client.title("series", ref)
+            except BeschaffungError as fehler:
+                gescheitert += 1
+                if fehler.code in AUSFALL:
+                    logger.warning(
+                        "nexcrate stopped answering while reading seasons (%s); "
+                        "%d series keep their entries",
+                        fehler.code,
+                        len(offen) - nummer,
+                    )
+                    return gelesen
+                continue
+            if titel is None:
+                gescheitert += 1
+                continue
+            staffeln = (titel.get("series") or {}).get("seasons") or []
+            self.staffeln[ref] = (eintrag.get("seq"), list(staffeln))
+            gelesen += 1
+        if gescheitert:
+            logger.warning(
+                "nexcrate gave no seasons for %d series; their entries are kept", gescheitert
+            )
+        return gelesen
 
     async def auffrischen(self, client: NexcrateClient, kind: str, installation: str) -> int:
         """Nur Geändertes holen - oder ganz, wenn die Marke nicht mehr gilt.
@@ -189,6 +282,10 @@ class Bestand:
                 # einer nexcrate, die es so nicht mehr gibt.
                 logger.info("The stored marker is beyond nexcrate's latest; reading in full")
                 self.titel.pop(kind, None)
+                if kind == "series":
+                    # Die Marken fangen dann von vorn an; eine gemerkte
+                    # Einzelansicht könnte zufällig dieselbe Zahl tragen.
+                    self.staffeln.clear()
                 after = 0
                 continue
             wohin = self.titel.setdefault(kind, {})
@@ -222,3 +319,9 @@ async def auffrischen(settings: AppSettings, kind: str) -> int:
     from .weg import client_fuer
 
     return await _bestand.auffrischen(client_fuer(settings), kind, system.installation_id())
+
+
+async def staffeln_lesen(settings: AppSettings) -> int:
+    from .weg import client_fuer
+
+    return await _bestand.staffeln_lesen(client_fuer(settings))

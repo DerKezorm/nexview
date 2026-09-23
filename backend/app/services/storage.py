@@ -734,8 +734,8 @@ async def abgleichen(db: Session, settings: AppSettings) -> Ergebnis:
     Abfragen zuerst und die Datenbank wird danach in einem kurzen Zug
     angefasst - dasselbe Vorgehen wie im Status-Abgleich.
     """
-    gemessen, vollstaendig = await _erfassen(db, settings)
-    ergebnis = _schreiben(db, gemessen, vollstaendig)
+    gemessen, vollstaendig, behalten = await _erfassen(db, settings)
+    ergebnis = _schreiben(db, gemessen, vollstaendig, behalten)
     _wachstum_melden(db, ergebnis)
     return ergebnis
 
@@ -776,16 +776,23 @@ def _wachstum_melden(db: Session, ergebnis: Ergebnis) -> None:
 
 
 
-async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Gemessen], bool]:
+async def _erfassen(
+    db: Session, settings: AppSettings
+) -> tuple[dict[str, _Gemessen], bool, set[str]]:
     """Alle Groessen einsammeln - reine Leserei, kein Schreiben.
 
     Zurueck kommt neben dem Gemessenen die Antwort auf die Frage, ob **jede**
     eingerichtete Instanz auch geantwortet hat. Das ist kein Beiwerk: Ohne sie
     ist "Radarr hat den Titel nicht genannt" nicht von "Radarr hat gar nichts
     genannt" zu unterscheiden - siehe ``_schreiben``.
+
+    Dazu, was **einzeln** nicht gemessen wurde, obwohl die Quelle antwortete
+    (siehe ``_bleibt``): Im NEX-Betrieb kostet jede Serie eine eigene Frage,
+    und eine einzelne, die scheitert, darf ihre Posten nicht verlieren.
     """
     gemessen: dict[str, _Gemessen] = {}
     vollstaendig = True
+    behalten: set[str] = set()
 
     # ⚠️ **Je Fassung, nicht je Stufe.** Im ARR-Betrieb ist das dasselbe - eine
     # Fassung ist dort eine Instanz. Im NEX-Betrieb gibt es keine Stufen mehr,
@@ -812,6 +819,11 @@ async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Geme
             try:
                 nach_tvdb, _ = await beschaffung.bestand_serien(stufe, fassung=kennung)
                 for tvdb_id, eintrag in nach_tvdb.items():
+                    if not getattr(eintrag, "staffeln_gelesen", True):
+                        praefix = _serien_praefix(kennung, tvdb_id, eintrag)
+                        if praefix:
+                            behalten.add(praefix)
+                        continue
                     _serie_aufnehmen(gemessen, kennung, tvdb_id, eintrag)
             except BeschaffungError as fehler:
                 vollstaendig = False
@@ -821,15 +833,39 @@ async def _erfassen(db: Session, settings: AppSettings) -> tuple[dict[str, _Geme
                     logs.kennung(fehler),
                 )
 
-    await _pakete_aufnehmen(db, settings, gemessen)
+    behalten |= await _pakete_aufnehmen(db, settings, gemessen)
     _aus_media_server(db, gemessen)
     await _staffeldaten_nachtragen(db, settings, gemessen)
-    return gemessen, vollstaendig
+    return gemessen, vollstaendig, behalten
+
+
+def _serien_praefix(fassung: str, tvdb_id: int, eintrag: SeriesEntry) -> str | None:
+    """Der gemeinsame Anfang aller Posten einer Serie in einer Fassung (``tv:…:``).
+
+    Gebaut ueber ``schluessel``, damit der Anker derselbe ist wie an den
+    Posten: im ARR-Betrieb TVDB, im NEX-Betrieb TMDB.
+    """
+    kennung = schluessel(
+        MediaType.tv,
+        fassung,
+        tvdb_id=tvdb_id if fassungen.quelle(fassung) != NEX else None,
+        tmdb_id=eintrag.arr_id or None,
+        season=0,
+    )
+    return kennung.rsplit(":", 1)[0] + ":" if kennung else None
+
+
+def _bleibt(kennung: str, behalten: frozenset[str] | set[str]) -> bool:
+    """Steht ein Posten unter ``behalten`` - als Schluessel oder unter einem Anfang?"""
+    return any(
+        kennung == eintrag or (eintrag.endswith(":") and kennung.startswith(eintrag))
+        for eintrag in behalten
+    )
 
 
 async def _pakete_aufnehmen(
     db: Session, settings: AppSettings, gemessen: dict[str, _Gemessen]
-) -> None:
+) -> set[str]:
     """Folgen-Pakete aus der Staffel-Zeile herausrechnen.
 
     Ein Paket belegt nur die Dateien **seiner** Folgen. Die Staffelstatistik
@@ -841,7 +877,15 @@ async def _pakete_aufnehmen(
     Serien ohne Paket kosten weiterhin keinen einzigen zusaetzlichen Aufruf.
     Die Klammer bei null faengt Mess-Drift zwischen Staffelstatistik und
     Dateisummen ab - beide stammen aus verschiedenen Sonarr-Antworten.
+
+    ⚠️ **Im NEX-Betrieb wird nicht aufgeteilt.** nexcrate nennt keine
+    Dateikennungen, und eine Doppelfolge meldet ihre Groesse bei jeder ihrer
+    Folgen (gemessen). Wie ein Paket dort zaehlt, ist nicht entschieden; bis
+    dahin zaehlt die Staffel ganz, eine vorhandene Paket-Zeile bleibt
+    unberuehrt (ihr Schluessel kommt zurueck, siehe ``_bleibt``), und das
+    Protokoll sagt es einmal je Lauf.
     """
+    behalten: set[str] = set()
     anfragen = [
         anfrage
         for anfrage in db.scalars(
@@ -850,24 +894,47 @@ async def _pakete_aufnehmen(
                 MediaRequest.episodes.is_not(None),
             )
         )
-        if anfrage.episodes and anfrage.tvdb_id and anfrage.season is not None
+        if anfrage.episodes
+        and (anfrage.tvdb_id or anfrage.tmdb_id)
+        and anfrage.season is not None
     ]
     if not anfragen:
-        return
+        return behalten
 
     befunde: dict[tuple[str, int], tuple[dict, dict[int, int]] | None] = {}
+    nicht_aufgeteilt = 0
     for anfrage in anfragen:
         stufe = anfrage.tier or "standard"
+        # Die Fassung der Anfrage, sobald sie aus nexcrate stammt - dort heisst
+        # die Staffelzeile nach ihr und haengt an TMDB. Im ARR-Betrieb wie bisher.
+        fassung = (
+            anfrage.fassung_kennung
+            if anfrage.fassung_kennung and fassungen.quelle(anfrage.fassung_kennung) == NEX
+            else arr_kennung(MediaType.tv, stufe)
+        )
         basis = schluessel(
             MediaType.tv,
-            arr_kennung(MediaType.tv, stufe),
+            fassung,
             tvdb_id=anfrage.tvdb_id,
+            tmdb_id=anfrage.tmdb_id,
             season=anfrage.season,
         )
         staffelzeile = gemessen.get(basis or "")
         if staffelzeile is None or staffelzeile.arr_id is None:
             # Die Serie meldet keine Quelle (mehr) - dann gibt es auch nichts
             # aufzuteilen; eine bestehende Paket-Zeile raeumt der Abgleich ab.
+            continue
+        if fassungen.quelle(fassung) == NEX:
+            paket = schluessel(
+                MediaType.tv,
+                fassung,
+                tmdb_id=anfrage.tmdb_id,
+                season=anfrage.season,
+                request_id=anfrage.id,
+            )
+            if paket:
+                behalten.add(paket)
+            nicht_aufgeteilt += 1
             continue
 
         merkmal = (stufe, anfrage.tvdb_id)
@@ -913,7 +980,7 @@ async def _pakete_aufnehmen(
         )
         kennung = schluessel(
             MediaType.tv,
-            arr_kennung(MediaType.tv, stufe),
+            fassung,
             tvdb_id=anfrage.tvdb_id,
             season=anfrage.season,
             request_id=anfrage.id,
@@ -942,6 +1009,14 @@ async def _pakete_aufnehmen(
         staffelzeile.size_bytes = max(0, staffelzeile.size_bytes - bytes_)
         if staffelzeile.size_bytes == 0 and basis:
             del gemessen[basis]
+
+    if nicht_aufgeteilt:
+        logger.info(
+            "%d episode packages are not split in this mode: nexcrate names no episode "
+            "files, so their seasons count whole and package entries stay as they are",
+            nicht_aufgeteilt,
+        )
+    return behalten
 
 
 async def _staffeldaten_nachtragen(
@@ -972,6 +1047,10 @@ async def _staffeldaten_nachtragen(
     offen: dict[int, list[_Gemessen]] = {}
     for wert in gemessen.values():
         if wert.season is None or wert.arr_id is None or wert.key in bekannt:
+            continue
+        # nexcrate nennt kein Datum (``staffel_daten`` antwortet dort nichts);
+        # fragen hiesse, bei jedem Lauf jede Staffel umsonst durchzugehen.
+        if fassungen.quelle(_fassung_aus_schluessel(wert.key)) == NEX:
             continue
         offen.setdefault(wert.arr_id, []).append(wert)
     if not offen:
@@ -1298,7 +1377,10 @@ def _tvdb_nach_tmdb(db: Session) -> dict[int, int]:
 
 
 def _schreiben(
-    db: Session, gemessen: dict[str, _Gemessen], vollstaendig: bool = True
+    db: Session,
+    gemessen: dict[str, _Gemessen],
+    vollstaendig: bool = True,
+    behalten: frozenset[str] | set[str] = frozenset(),
 ) -> Ergebnis:
     """Den gemessenen Stand in die Datenbank uebertragen.
 
@@ -1306,6 +1388,10 @@ def _schreiben(
     sie falsch, wird **nichts geloescht** - siehe die Begruendung unten am
     Aufraeumen. Vorgabe ``True`` fuer Aufrufe, die einen fertigen Messwert
     hereinreichen (Tests).
+
+    ``behalten`` ist dieselbe Regel im Kleinen: Posten, die diesmal einzeln
+    nicht gemessen wurden (Schluessel oder Anfang, siehe ``_bleibt``), bleiben
+    unberuehrt stehen.
     """
     vorhanden = {zeile.key: zeile for zeile in db.scalars(select(StorageEntry)).all()}
 
@@ -1442,9 +1528,15 @@ def _schreiben(
     # ``abgleich_kern.ist_wirklich_weg``: Wer nicht antwortet, sagt nicht Nein.
     entfernt = 0
     if vollstaendig:
+        geblieben = 0
         for zeile in vorhanden.values():
+            if behalten and _bleibt(zeile.key, behalten):
+                geblieben += 1
+                continue
             db.delete(zeile)
-        entfernt = len(vorhanden)
+            entfernt += 1
+        if geblieben:
+            logger.info("%d entries were not measured this round and stay unchanged", geblieben)
     elif vorhanden:
         logger.warning(
             "An instance stayed silent - %d entries kept instead of removed", len(vorhanden)

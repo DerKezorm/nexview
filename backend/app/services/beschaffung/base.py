@@ -303,6 +303,11 @@ class SerienStand:
     # Der **Ordner** der Serie - kein Dateiname. Eine Staffel ist keine Datei,
     # sondern zwanzig; echte Dateinamen braeuchten eine Abfrage je Serie.
     path: str = ""
+    # ⚠️ ``False`` heisst: Die Serie hat Dateien, aber ihre Staffeln liessen
+    # sich diesmal nicht lesen (NEX-Betrieb, Einzelansicht gescheitert). Leere
+    # ``seasons`` sind dann **kein** "nichts da" - wer daraus loescht, loescht
+    # Posten samt Besitzer. Der ARR-Weg liefert die Staffeln immer mit.
+    staffeln_gelesen: bool = True
 
 
 @dataclass(frozen=True)

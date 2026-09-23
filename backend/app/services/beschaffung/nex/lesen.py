@@ -17,6 +17,7 @@ Gemessen am 22.09.2026, Protokoll in
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -315,13 +316,22 @@ def bestand_serien(kennung: str) -> tuple[dict[int, Any], dict[str, Any]]:
     ist im NEX-Betrieb **nicht** der Anker; wer einen Titel sucht, nimmt
     `nachschlagen` über TMDB. Diese Form gibt es nur, weil der
     Speicher-Abgleich sie heute so liest.
+
+    Die Staffeln kommen aus den Einzelansichten, die ``bestand.staffeln_lesen``
+    vorher geholt hat; die Liste selbst nennt keine.
     """
     nach_tvdb: dict[int, Any] = {}
     nach_titel: dict[str, Any] = {}
-    for eintrag in bestand.gehalten().alle("series").values():
-        stand = bestand.serien_stand(eintrag, kennung)
+    gehalten = bestand.gehalten()
+    for eintrag in gehalten.alle("series").values():
+        titel, gelesen = gehalten.mit_staffeln(eintrag)
+        stand = bestand.serien_stand(titel, kennung)
         if stand is None:
             continue
+        if not gelesen:
+            # Dateien da, Staffeln unbekannt: Wer daraus "keine Staffel"
+            # machte, raeumte ihre Posten ab (``storage._schreiben``).
+            stand = replace(stand, staffeln_gelesen=False)
         kennungen = mapping.refs_nach_quelle(eintrag.get("refs"))
         tvdb = kennungen.get("tvdb")
         if tvdb and tvdb.isdigit():

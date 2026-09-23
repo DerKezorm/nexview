@@ -189,10 +189,18 @@ class NexBeschaffung(Beschaffung):
     async def bestand_serien(
         self, stufe: str = "standard", *, fassung: str = ""
     ) -> SerienBestand:
+        """Alle Serien einer Fassung, samt Staffeln.
+
+        ⚠️ **Die Staffeln kosten einen Aufruf je Serie mit Datei**: Die Liste
+        ueber die Marke nennt sie nie, nur die Einzelansicht. Gelesen wird nur,
+        was sich seit dem letzten Mal geaendert hat; nach einem Neustart oder
+        einem Wechsel der Installation alles.
+        """
         kennung = self._gewaehlt("tv", fassung)
         if kennung is None:
             return ({}, {})
         await bestand.auffrischen(self.settings, "series")
+        await bestand.staffeln_lesen(self.settings)
         return lesen.bestand_serien(kennung)
 
     def _gewaehlt(self, media_type: str, fassung: str) -> str | None:

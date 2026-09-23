@@ -529,6 +529,40 @@ def datei(name: str) -> Path:
     return kandidat
 
 
+def brauchbar(name: str) -> bool:
+    """Lässt sich diese Sicherung als Datenbank öffnen?
+
+    ⚠️ **Dass eine Datei den Namen trägt, beweist nichts.** Eine leere Datei
+    oder ein abgebrochener Schreibvorgang läge genauso in der Liste - und wer
+    sich auf sie als Rückweg verlässt, merkt es erst, wenn er ihn braucht.
+    Geöffnet wird nur lesend; eine leere Datei wäre für SQLite sonst eine
+    leere Datenbank ohne jede Tabelle.
+    """
+    try:
+        pfad = datei(name)
+    except FileNotFoundError:
+        return False
+    with pfad.open("rb") as roh:
+        if roh.read(16) != b"SQLite format 3\x00":
+            return False
+    try:
+        verbindung = sqlite3.connect(f"{pfad.as_uri()}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return False
+    try:
+        tabellen = verbindung.execute(
+            "SELECT count(*) FROM sqlite_master WHERE type='table'"
+        ).fetchone()[0]
+        pruefung = verbindung.execute("PRAGMA quick_check").fetchone()[0]
+    except sqlite3.Error:
+        return False
+    finally:
+        # ⚠️ Ausdrücklich schließen: ``with sqlite3.connect`` schließt nicht,
+        # und eine offene Verbindung hielte die Datei unter Windows fest.
+        verbindung.close()
+    return tabellen > 0 and pruefung == "ok"
+
+
 def archiv(name: str, passwort: str) -> bytes:
     """Eine Sicherung als verschluesseltes ZIP.
 

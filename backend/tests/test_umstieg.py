@@ -374,7 +374,7 @@ def test_die_wanderung_schreibt_jede_zeile_um(vor_dem_umstieg: Any, db: Session)
         purpose=TokenPurpose.invitation,
         email="eingeladen@example.com",
         expires_at=utcnow(),
-        invite_fassung_rechte=[{"fassung": RADARR, "anfragen": True}],
+        invite_fassung_rechte=[{"kennung": RADARR, "anfragen": True}],
     )
     regel = Regel(
         name="Vierkay",
@@ -398,7 +398,7 @@ def test_die_wanderung_schreibt_jede_zeile_um(vor_dem_umstieg: Any, db: Session)
     assert erledigt.fassung_kennung == RADARR
     assert posten.fassung_kennung == FILM_HD
     assert posten.key == storage.schluessel(MediaType.movie, FILM_HD, tmdb_id=603)
-    assert einladung.invite_fassung_rechte == [{"fassung": FILM_HD, "anfragen": True}]
+    assert einladung.invite_fassung_rechte == [{"kennung": FILM_HD, "anfragen": True}]
     # ⚠️ ``uhd`` bleibt stehen - eine Klasse, keine Fassung.
     assert regel.bedingungen == [{"feld": "fassung", "werte": [FILM_UHD, "uhd"]}]
     assert zahlen.anfragen == 1
@@ -813,3 +813,274 @@ async def test_ein_stummes_arr_haelt_den_umstieg_nicht_mehr_auf(
     assert load_settings(db, frisch=True).beschaffung == NEX
     # ⚠️ Eine Kennung, kein Satz - die Oberfläche macht daraus Deutsch.
     assert [zeile.code for zeile in bericht.verlassen] == ["zugang_blieb"]
+
+
+# --------------------------------------------------------------------------
+# Was die Prüfung des Assistenten am 24.09.2026 fand
+
+
+def _serie_ohne_tmdb(db: Session) -> tuple[MediaRequest, StorageEntry]:
+    """Eine Serie, deren Posten nur die TVDB-Nummer kennt, samt offener Anfrage."""
+    person = _nutzer(db)
+    anfrage = _anfrage(
+        db,
+        person,
+        media_type=MediaType.tv,
+        tmdb_id=555555,
+        tvdb_id=909090,
+        title="Beispielserie ohne Übersetzung",
+        fassung_kennung=SONARR,
+    )
+    posten = _posten(
+        db,
+        key="tv:sonarr-standard:tvdb:909090:s1",
+        media_type=MediaType.tv,
+        tmdb_id=None,
+        tvdb_id=909090,
+        season=1,
+        fassung_kennung=SONARR,
+        title="Beispielserie ohne Übersetzung",
+    )
+    return anfrage, posten
+
+
+def test_eine_anfrage_bleibt_stehen_wenn_ihr_posten_ohne_uebersetzung_bleibt(
+    vor_dem_umstieg: Any, db: Session
+) -> None:
+    """⚠️ Sonst ein halber Umstieg für denselben Titel.
+
+    Der Posten bleibt unter der alten Fassung, weil sich sein Schlüssel nicht
+    übersetzen lässt. Wanderte die Anfrage trotzdem, stünden Anfrage und Posten
+    derselben Serie in zwei verschiedenen Fassungen - die Release-Notizen
+    versprechen, dass solche Einträge bleiben, wie sie sind.
+    """
+    anfrage, posten = _serie_ohne_tmdb(db)
+
+    zahlen = umstieg.wandern(db, _abbildung(), {})
+    db.commit()
+
+    db.refresh(anfrage)
+    db.refresh(posten)
+    assert posten.fassung_kennung == SONARR
+    assert anfrage.fassung_kennung == SONARR
+    assert anfrage.tmdb_id == 555555
+    assert zahlen.anfragen_ohne_uebersetzung == 1
+    assert zahlen.anfragen == 0
+
+
+def test_mit_uebersetzung_wandern_anfrage_und_posten_zusammen(
+    vor_dem_umstieg: Any, db: Session
+) -> None:
+    anfrage, posten = _serie_ohne_tmdb(db)
+
+    zahlen = umstieg.wandern(db, _abbildung(), {909090: 1399})
+    db.commit()
+
+    db.refresh(anfrage)
+    db.refresh(posten)
+    assert posten.fassung_kennung == SERIE_HD
+    assert anfrage.fassung_kennung == SERIE_HD
+    assert zahlen.anfragen_ohne_uebersetzung == 0
+    assert zahlen.anfragen == 1
+
+
+def test_eine_anfrage_auf_eine_serie_die_nexcrate_nicht_kennt_wandert_trotzdem(
+    vor_dem_umstieg: Any, db: Session
+) -> None:
+    """⚠️ Keine Übersetzung heißt nicht: stehen lassen.
+
+    Eine Serie, die nexcrate noch nicht führt, wird nach dem Umschalten
+    gestellt (7.3, Schritt 4). Bliebe ihre Anfrage bei der alten Fassung,
+    käme sie nie dort an. Daneben steht eine andere Serie, deren Posten
+    stehen bleibt: Nur die eigene Serie hält eine Anfrage fest.
+    """
+    _serie_ohne_tmdb(db)
+    person = db.query(User).filter(User.username == "umsteiger").one()
+    anfrage = _anfrage(
+        db,
+        person,
+        media_type=MediaType.tv,
+        tmdb_id=555556,
+        tvdb_id=909091,
+        title="Neue Beispielserie",
+        fassung_kennung=SONARR,
+    )
+
+    zahlen = umstieg.wandern(db, _abbildung(), {})
+    db.commit()
+
+    db.refresh(anfrage)
+    assert anfrage.fassung_kennung == SERIE_HD
+    # Gezählt wird nur die Anfrage der stehenden Serie.
+    assert zahlen.anfragen_ohne_uebersetzung == 1
+
+
+async def test_die_probe_nennt_die_anfrage_die_stehen_bleibt(
+    vor_dem_umstieg: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Der Betreiber sieht vorher, was stehen bleibt - gerechnet wie beim Wandern."""
+    _serie_ohne_tmdb(db)
+
+    ergebnis = await umstieg.probe(db, umstieg.nex_sicht(db), _abbildung())
+
+    assert [(b.tmdb_id, b.anfrage_bleibt) for b in ergebnis.zu_entscheiden] == [
+        (555555, True)
+    ]
+
+
+def test_die_probe_im_assistenten_nennt_anfrage_und_entfallende_rechte(
+    assistent: TestClient,
+) -> None:
+    assistent.get("/api/umstieg/abbildung")
+    with SessionLocal() as sitzung:
+        _serie_ohne_tmdb(sitzung)
+        person = sitzung.query(User).filter(User.username == "umsteiger").one()
+        sitzung.add(FassungRecht(user_id=person.id, fassung_kennung=SONARR_UHD, anfragen=True))
+        sitzung.commit()
+
+    antwort = assistent.post("/api/umstieg/probe", json={"abbildung": _abbildung()})
+
+    assert antwort.status_code == 200, antwort.text
+    daten = antwort.json()
+    assert [
+        (z["tmdb_id"], z["anfrage_bleibt"], z["ohne_uebersetzung"])
+        for z in daten["zu_entscheiden"]
+    ] == [(555555, True, True)]
+    assert daten["rechte_entfallen"] == 1
+
+
+def test_offen_fuer_alle_wandert_so_wie_es_war(vor_dem_umstieg: Any, db: Session) -> None:
+    """Der Betreiber hatte Radarr zu- und Radarr 4K aufgemacht - so bleibt es."""
+    radarr = db.get(Fassung, RADARR)
+    radarr_uhd = db.get(Fassung, RADARR_UHD)
+    assert radarr is not None and radarr_uhd is not None
+    radarr.offen_fuer_alle = False
+    radarr_uhd.offen_fuer_alle = True
+    db.commit()
+
+    umstieg.wandern(db, _abbildung(), {})
+    db.commit()
+
+    film_hd = db.get(Fassung, FILM_HD)
+    film_uhd = db.get(Fassung, FILM_UHD)
+    serie_hd = db.get(Fassung, SERIE_HD)
+    assert film_hd is not None and film_uhd is not None and serie_hd is not None
+    assert film_hd.offen_fuer_alle is False
+    assert film_uhd.offen_fuer_alle is True
+    # Sonarr stand auf seiner Vorgabe: offen.
+    assert serie_hd.offen_fuer_alle is True
+
+
+def test_nach_dem_umstieg_darf_jeder_anfragen_was_vorher_offen_war(
+    assistent: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """⚠️ Sonst bekommt nach dem Umschalten jedes gewöhnliche Konto 403.
+
+    Neue Fassungen aus nexcrate sind zu, bis der Betreiber sie freigibt. Beim
+    Umstieg gilt das nicht: Da werden die alten Rechte übertragen (Bauplan,
+    Entscheidung vom 22.09.2026), und „offen für alle" ist eins davon.
+    """
+    from app.services import sicherung
+
+    from .conftest import auth_headers, create_user
+
+    assistent.get("/api/umstieg/abbildung")
+    name = assistent.post("/api/umstieg/sicherung").json()["name"]
+    try:
+        umgeschaltet = assistent.post(
+            "/api/umstieg/umschalten", json={"abbildung": _abbildung(), "sicherung": name}
+        )
+    finally:
+        sicherung.entfernen(sicherung.datei(name))
+    assert umgeschaltet.status_code == 200, umgeschaltet.text
+
+    item = assistent.get("/api/discover/movie").json()["items"][0]
+    nexcrate.film(item["tmdb_id"], versionen=[])
+    create_user(assistent, "kim")
+    kopf = auth_headers(assistent, "kim", "passwort-1234")
+
+    haupt = assistent.post(
+        "/api/requests", json={"media_type": "movie", "tmdb_id": item["tmdb_id"]}, headers=kopf
+    )
+    vierk = assistent.post(
+        "/api/requests",
+        json={"media_type": "movie", "tmdb_id": item["tmdb_id"], "fassung": FILM_UHD},
+        headers=kopf,
+    )
+
+    assert haupt.status_code == 201, haupt.text
+    # 4K war zu und bleibt zu.
+    assert vierk.status_code == 403, vierk.text
+    assert vierk.json()["detail"]["code"] == "fassung_not_allowed"
+
+
+@pytest.mark.parametrize("inhalt", [b"", b"keine Datenbank, nur ein Satz", None])
+def test_eine_unbrauchbare_sicherung_haelt_das_umschalten_an(
+    assistent: TestClient, inhalt: bytes | None
+) -> None:
+    """⚠️ Der Name allein beweist nichts - der Rückweg muss sich öffnen lassen.
+
+    ``None`` steht für eine SQLite-Datei mit gültigem Kopf, aber ohne eine
+    einzige Tabelle: eine Datenbank, aber keine Sicherung.
+    """
+    import sqlite3
+
+    from app.services import sicherung
+
+    assistent.get("/api/umstieg/abbildung")
+    ordner = sicherung.ordner()
+    ordner.mkdir(parents=True, exist_ok=True)
+    datei = ordner / "nexview-manuell-vorgetaeuscht.db"
+    if inhalt is None:
+        verbindung = sqlite3.connect(datei)
+        verbindung.execute("PRAGMA user_version = 1")
+        verbindung.commit()
+        verbindung.close()
+    else:
+        datei.write_bytes(inhalt)
+    try:
+        antwort = assistent.post(
+            "/api/umstieg/umschalten",
+            json={"abbildung": _abbildung(), "sicherung": datei.name},
+        )
+    finally:
+        sicherung.entfernen(datei)
+
+    assert antwort.status_code == 409, antwort.text
+    assert antwort.json()["detail"]["code"] == "umstieg_sicherung_unbrauchbar"
+    with SessionLocal() as sitzung:
+        assert load_settings(sitzung, frisch=True).beschaffung == ARR
+
+
+def test_rechte_ohne_ziel_werden_vorher_und_nachher_gezaehlt(
+    vor_dem_umstieg: Any, db: Session
+) -> None:
+    """Ein Recht auf eine Fassung, die auf „Keine" zeigt, entfällt - laut, nicht still.
+
+    Die Einladung trägt ihre Rechte in der Form, die ``AuthToken`` selbst
+    schreibt (``kennung``). ⚠️ Die Wanderung las einmal ``fassung`` und ließ
+    damit jede Einladung unberührt.
+    """
+    person = _nutzer(db)
+    db.add(FassungRecht(user_id=person.id, fassung_kennung=SONARR_UHD, anfragen=True))
+    einladung = AuthToken(
+        token_hash="z" * 64,
+        purpose=TokenPurpose.invitation,
+        email="eingeladen@example.com",
+        expires_at=utcnow(),
+    )
+    einladung.invite_can_request_uhd_movies = True
+    einladung.invite_can_request_uhd_series = True
+    db.add(einladung)
+    db.commit()
+
+    assert umstieg.rechte_entfallen(db, _abbildung()) == 2
+
+    zahlen = umstieg.wandern(db, _abbildung(), {})
+    db.commit()
+
+    db.refresh(einladung)
+    assert zahlen.rechte_entfallen == 2
+    assert einladung.invite_fassung_rechte == [
+        {"kennung": FILM_UHD, "anfragen": True, "auto_freigabe": False}
+    ]

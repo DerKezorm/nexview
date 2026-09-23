@@ -54,6 +54,7 @@ const PROBE: UmstiegProbe = {
   ohne_fassung: 0,
   unbekannt: 1,
   anime_offen: 0,
+  rechte_entfallen: 0,
   zu_entscheiden: [],
 }
 
@@ -153,6 +154,36 @@ describe('Umstiegsassistent', () => {
 
     await userEvent.click(screen.getByRole('checkbox'))
     expect(screen.getByRole('button', { name: /^weiter$/i })).toBeEnabled()
+  })
+
+  it('sagt vorher, welche Anfrage stehen bleibt und welche Rechte entfallen', async () => {
+    antworten()
+    vi.mocked(api.post).mockResolvedValue({
+      ...PROBE,
+      rechte_entfallen: 2,
+      zu_entscheiden: [
+        {
+          media_type: 'tv',
+          tmdb_id: 555555,
+          titel: 'Beispielserie',
+          fassung: 'sonarr-standard',
+          ergebnis: 'unbekannt',
+          ohne_uebersetzung: true,
+          kollidiert: false,
+          anfrage_bleibt: true,
+        },
+      ],
+    } as never)
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+
+    expect(
+      await screen.findByText(/Beispielserie — keine TMDB-Nummer in nexcrate, die offene Anfrage bleibt/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/2 Rechte zeigen auf Fassungen ohne Gegenstück/)).toBeInTheDocument()
   })
 
   it('nennt einen Titel, der einen anderen überschreiben würde, und erklärt ihn', async () => {

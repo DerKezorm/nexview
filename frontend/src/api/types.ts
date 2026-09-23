@@ -1280,6 +1280,8 @@ export type UmstiegZuEntscheiden = {
   ohne_uebersetzung: boolean;
   /** Ein anderer Posten bekäme denselben neuen Speicherschlüssel. */
   kollidiert: boolean;
+  /** Die offene Anfrage bleibt mit ihrem Posten bei der bisherigen Fassung. */
+  anfrage_bleibt: boolean;
 };
 
 /** Schritt 4: was die Probe ergeben hat. */
@@ -1289,6 +1291,8 @@ export type UmstiegProbe = {
   ohne_fassung: number;
   unbekannt: number;
   anime_offen: number;
+  /** Rechte an Konten und offenen Einladungen, die ersatzlos entfallen. */
+  rechte_entfallen: number;
   zu_entscheiden: UmstiegZuEntscheiden[];
 };
 
@@ -1308,11 +1312,13 @@ export type UmstiegBericht = {
    */
   verlassen: { code: string; werte?: Record<string, string> }[];
   anfragen: number;
+  anfragen_ohne_uebersetzung: number;
   posten: number;
   posten_schluessel: number;
   posten_ohne_uebersetzung: number;
   posten_doppelt: number;
   rechte: number;
+  rechte_entfallen: number;
   einladungen: number;
   regeln: number;
   zeilen_entfernt: number;

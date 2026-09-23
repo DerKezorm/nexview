@@ -208,6 +208,10 @@ class Titelbefund:
     #: NEX-Betrieb an der TMDB-Nummer - was Sonarr als zwei Serien führt, ist
     #: in TMDB oft ein Titel. Beide bleiben dann stehen.
     kollidiert: bool = False
+    #: ⚠️ **Die offene Anfrage bleibt bei der alten Fassung**, weil ein Posten
+    #: derselben Serie sich nicht nach TMDB übersetzen lässt und stehen bleibt.
+    #: Wanderte sie allein, stünde derselbe Titel in zwei Fassungen.
+    anfrage_bleibt: bool = False
 
     @property
     def mitnehmbar(self) -> bool:
@@ -246,13 +250,24 @@ class Probe:
         nexcrate führt den Titel nicht; es führt ihn, aber ohne die TMDB-Nummer,
         aus der der Speicherschlüssel entsteht; oder sein neuer Schlüssel wäre
         derselbe wie der eines anderen Postens.
+        """
+        return [b for b in self.befunde if b.posten and not b.mitnehmbar]
+
+    @property
+    def zu_entscheiden(self) -> list[Titelbefund]:
+        """Was der Betreiber vor dem Umschalten sehen muss.
+
+        Die Posten ohne Gegenstück und dazu die offenen Anfragen, die mit
+        einem solchen Posten stehen bleiben.
 
         ⚠️ **Diese Eigenschaft ist die einzige Definition davon.** Der Router
         stellt dieselbe Frage vor dem Umschalten noch einmal; zwei Fassungen
         der Bedingung liefen nach dem ersten Feinschliff auseinander, und der
         Betreiber bekäme einen Riegel, den er nie gesehen hat.
         """
-        return [b for b in self.befunde if b.posten and not b.mitnehmbar]
+        return [
+            b for b in self.befunde if (b.posten and not b.mitnehmbar) or b.anfrage_bleibt
+        ]
 
     @property
     def anime_offen(self) -> list[Titelbefund]:
@@ -292,6 +307,26 @@ def _kollisionen_vermerken(
     for befund in ergebnis.befunde:
         if (befund.media_type, befund.tmdb_id, befund.fassung) in betroffen:
             befund.kollidiert = True
+
+
+def _stehende_anfragen_vermerken(
+    db: Session, abbildung: dict[str, str | None], ergebnis: Probe
+) -> None:
+    """An jedem Befund vermerken, ob seine Anfrage beim Umschalten stehen bleibt.
+
+    Mit derselben Rechnung wie die Wanderung, aus demselben Grund wie bei den
+    Kollisionen.
+    """
+    _, anfragen = _ohne_uebersetzung(db, abbildung, ergebnis.tmdb_je_tvdb())
+    if not anfragen:
+        return
+    betroffen = {
+        (anfrage.media_type.value, anfrage.tmdb_id, anfrage.fassung_kennung)
+        for anfrage in db.scalars(select(MediaRequest).where(MediaRequest.id.in_(anfragen)))
+    }
+    for befund in ergebnis.befunde:
+        if (befund.media_type, befund.tmdb_id, befund.fassung) in betroffen:
+            befund.anfrage_bleibt = True
 
 
 def _was_haengt(db: Session) -> list[Titelbefund]:
@@ -387,6 +422,7 @@ async def probe(
     # Umstieg an einer echten Anlage, 23.09.2026).
     ergebnis = Probe(befunde=befunde)
     _kollisionen_vermerken(db, abbildung, ergebnis)
+    _stehende_anfragen_vermerken(db, abbildung, ergebnis)
     return ergebnis
 
 
@@ -399,12 +435,17 @@ class Wanderung:
     """Was umgeschrieben wurde - Zahl für Zahl, fürs Protokoll."""
 
     anfragen: int = 0
+    #: Offene Anfragen, die mit ihrem Posten bei der alten Fassung bleiben.
+    anfragen_ohne_uebersetzung: int = 0
     posten: int = 0
     posten_schluessel: int = 0
     posten_ohne_uebersetzung: int = 0
     #: Posten, die mit einem anderen denselben neuen Schlüssel bekämen.
     posten_doppelt: int = 0
     rechte: int = 0
+    #: Rechte an Konten und offenen Einladungen, deren Fassung auf „Keine"
+    #: zeigt. Sie entfallen ersatzlos - der Betreiber soll das wissen.
+    rechte_entfallen: int = 0
     einladungen: int = 0
     regeln: int = 0
     zeilen_entfernt: int = 0
@@ -454,15 +495,31 @@ def wandern(
     gar keiner.
     """
     zahlen = Wanderung()
+    # Gezählt wird vorher, mit derselben Rechnung wie in der Probe.
+    zahlen.rechte_entfallen = rechte_entfallen(db, abbildung)
+    posten_bleiben, anfragen_bleiben = _ohne_uebersetzung(db, abbildung, tmdb_je_tvdb)
+
+    # ⚠️ **Beim Umstieg werden die alten Rechte übertragen** (Bauplan, Entscheidung
+    # vom 22.09.2026) - „offen für alle" ist eins davon. Eine neue Fassung aus
+    # nexcrate ist zu; blieb sie es hier, bekäme jedes gewöhnliche Konto nach
+    # dem Umschalten 403, bis der Betreiber es Konto für Konto freigibt.
+    for arr_kennung, ziel in abbildung.items():
+        zielzeile = db.get(Fassung, ziel) if ziel else None
+        if zielzeile is not None:
+            zielzeile.offen_fuer_alle = fassungen_dienst.offen_fuer_alle(db, arr_kennung)
 
     # Offene Anfragen. ⚠️ Erledigte behalten ihre Arr-Kennung: Sie sind
     # Geschichte, und die Fassungszeile bleibt mit ``aktiv=False`` stehen,
     # damit die Anzeige ihren Namen weiter kennt (Bauplan 6.10).
     for anfrage in db.scalars(select(MediaRequest).where(MediaRequest.status.in_(OFFEN))):
         ziel = abbildung.get(anfrage.fassung_kennung)
-        if ziel:
-            anfrage.fassung_kennung = ziel
-            zahlen.anfragen += 1
+        if not ziel:
+            continue
+        if anfrage.id in anfragen_bleiben:
+            zahlen.anfragen_ohne_uebersetzung += 1
+            continue
+        anfrage.fassung_kennung = ziel
+        zahlen.anfragen += 1
 
     # ⚠️ **Erst rechnen, dann schreiben.** Zwei Posten können denselben neuen
     # Schlüssel bekommen: Im ARR-Betrieb hängt eine Serie an ihrer TVDB-Nummer,
@@ -486,7 +543,7 @@ def wandern(
             # ⚠️ **Von TVDB auf TMDB.** nexcrate ankert auf TMDB; ohne die
             # Übersetzung passte der Schlüssel zu nichts mehr.
             tmdb = tmdb_je_tvdb.get(posten.tvdb_id or 0) or posten.tmdb_id
-            if not tmdb:
+            if posten.id in posten_bleiben:
                 # ⚠️ **Dann bleibt der Posten ganz, wie er ist** - auch seine
                 # Fassung. Ihm die neue Kennung zu geben und den alten
                 # Schlüssel zu lassen wäre das Schlimmste von beidem: Der
@@ -517,9 +574,9 @@ def wandern(
             recht.fassung_kennung = ziel
             zahlen.rechte += 1
         elif recht.fassung_kennung in abbildung:
-            # Ohne Ziel gibt es nichts mehr zu erlauben.
+            # Ohne Ziel gibt es nichts mehr zu erlauben. Gezählt ist es oben,
+            # unter ``rechte_entfallen``.
             db.delete(recht)
-            zahlen.rechte += 1
 
     for token in db.scalars(select(AuthToken).where(AuthToken.invite_fassung_rechte.is_not(None))):
         roh = token.invite_fassung_rechte or []
@@ -528,11 +585,15 @@ def wandern(
         for eintrag in roh:
             if not isinstance(eintrag, dict):
                 continue
-            ziel = abbildung.get(str(eintrag.get("fassung")))
-            if str(eintrag.get("fassung")) in abbildung:
+            # ⚠️ **Der Schlüssel heißt ``kennung``**, wie ``AuthToken`` ihn
+            # schreibt. Hier stand einmal ``fassung``, und damit blieb jede
+            # Einladung bei ihrer Arr-Kennung stehen.
+            kennung = str(eintrag.get("kennung"))
+            ziel = abbildung.get(kennung)
+            if kennung in abbildung:
                 geaendert = True
                 if ziel:
-                    neue.append({**eintrag, "fassung": ziel})
+                    neue.append({**eintrag, "kennung": ziel})
             else:
                 neue.append(eintrag)
         if geaendert:
@@ -607,6 +668,79 @@ def _doppelte_schluessel(
         if len(nummern) > 1
         for nummer in nummern
     }
+
+
+def _ohne_uebersetzung(
+    db: Session, abbildung: dict[str, str | None], tmdb_je_tvdb: dict[int, int]
+) -> tuple[set[int], set[int]]:
+    """Welche Serien bleiben stehen, weil sich ihr Titel nicht nach TMDB übersetzen lässt?
+
+    Zurück kommen die Nummern der Posten und der offenen Anfragen.
+
+    ⚠️ **Eine Anfrage bleibt mit ihrem Posten stehen**, nicht aus eigenem Grund:
+    Sie trägt immer eine TMDB-Nummer (``media_requests.tmdb_id`` ist NOT NULL)
+    und käme allein ohne Weiteres hinüber. Aber wenn ein Posten derselben
+    Serie in derselben Fassung stehen bleibt, wanderte sonst nur die halbe
+    Serie. Eine Anfrage auf eine Serie ganz ohne Posten wandert dagegen immer:
+    Was nexcrate noch nicht kennt, wird nach dem Umschalten gestellt.
+
+    Die Wanderung und die Probe rechnen beide hiermit - zwei Rechnungen liefen
+    nach dem ersten Feinschliff auseinander.
+    """
+    posten_bleiben: set[int] = set()
+    serien: set[tuple[str, int]] = set()
+    for posten in db.scalars(select(StorageEntry).where(StorageEntry.media_type == MediaType.tv)):
+        if not abbildung.get(posten.fassung_kennung):
+            continue
+        if tmdb_je_tvdb.get(posten.tvdb_id or 0) or posten.tmdb_id:
+            continue
+        posten_bleiben.add(posten.id)
+        if posten.tvdb_id:
+            serien.add((posten.fassung_kennung, posten.tvdb_id))
+
+    anfragen_bleiben: set[int] = set()
+    if serien:
+        for anfrage in db.scalars(
+            select(MediaRequest).where(
+                MediaRequest.status.in_(OFFEN), MediaRequest.media_type == MediaType.tv
+            )
+        ):
+            if (anfrage.fassung_kennung, anfrage.tvdb_id) in serien:
+                anfragen_bleiben.add(anfrage.id)
+    return posten_bleiben, anfragen_bleiben
+
+
+def _entfaellt(kennung: str, abbildung: dict[str, str | None]) -> bool:
+    return kennung in abbildung and not abbildung[kennung]
+
+
+def rechte_entfallen(db: Session, abbildung: dict[str, str | None]) -> int:
+    """Wie viele Rechte ersatzlos entfallen, weil ihre Fassung auf „Keine" zeigt.
+
+    Gezählt werden Rechte an Konten und in Einladungen, die noch niemand
+    eingelöst hat - eine eingelöste Einladung vergibt nichts mehr. Ein
+    Eintrag, der weder Anfragen noch Freigabe erlaubt, ist kein Recht.
+
+    Die Probe fragt es vorher, die Wanderung zählt damit - dieselbe Rechnung.
+    """
+    zahl = sum(
+        1
+        for recht in db.scalars(select(FassungRecht))
+        if _entfaellt(recht.fassung_kennung, abbildung) and (recht.anfragen or recht.auto_freigabe)
+    )
+    for token in db.scalars(
+        select(AuthToken).where(
+            AuthToken.invite_fassung_rechte.is_not(None), AuthToken.used_at.is_(None)
+        )
+    ):
+        zahl += sum(
+            1
+            for eintrag in token.invite_fassung_rechte or []
+            if isinstance(eintrag, dict)
+            and _entfaellt(str(eintrag.get("kennung")), abbildung)
+            and (eintrag.get("anfragen") or eintrag.get("auto_freigabe"))
+        )
+    return zahl
 
 
 def _paket_nummer(schluessel: str) -> int | None:

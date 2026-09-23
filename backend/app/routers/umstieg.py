@@ -186,9 +186,13 @@ class ProbeAntwort(BaseModel):
     ohne_fassung: int = 0
     unbekannt: int = 0
     anime_offen: int = 0
+    #: Rechte an Konten und offenen Einladungen, deren Fassung auf „Keine"
+    #: zeigt. Sie entfallen beim Umschalten ersatzlos.
+    rechte_entfallen: int = 0
     #: Die Titel, die eine Entscheidung brauchen: geladene Posten, die nexcrate
-    #: nicht führt, Serien ohne Übersetzung nach TMDB, und solche, die mit
-    #: einem anderen Posten denselben neuen Speicherschlüssel bekämen.
+    #: nicht führt, Serien ohne Übersetzung nach TMDB, solche, die mit einem
+    #: anderen Posten denselben neuen Speicherschlüssel bekämen, und offene
+    #: Anfragen, die mit so einem Posten stehen bleiben.
     zu_entscheiden: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -214,6 +218,7 @@ async def probe(
         ohne_fassung=len(ergebnis.ohne_fassung),
         unbekannt=len(ergebnis.unbekannt),
         anime_offen=len(ergebnis.anime_offen),
+        rechte_entfallen=umstieg.rechte_entfallen(db, eingabe.abbildung),
         zu_entscheiden=[
             {
                 "media_type": b.media_type,
@@ -225,14 +230,17 @@ async def probe(
                 # nexcrate, ist derselbe Fall: Ihr Speicherschlüssel ließe sich
                 # nicht übersetzen (7.3, Schritt 4, letzter Satz).
                 "ohne_uebersetzung": bool(
-                    b.ergebnis == "bekannt" and not b.tmdb_aus_nexcrate
+                    (b.ergebnis == "bekannt" and not b.tmdb_aus_nexcrate) or b.anfrage_bleibt
                 ),
+                # Die offene Anfrage bleibt mit ihrem Posten bei der alten
+                # Fassung, statt allein hinüberzugehen.
+                "anfrage_bleibt": b.anfrage_bleibt,
                 # ⚠️ **Zwei Posten, ein neuer Schlüssel.** Der dritte Grund,
                 # hier zu stehen - und der einzige, der ohne diese Liste als
                 # Absturz endete (23.09.2026).
                 "kollidiert": b.kollidiert,
             }
-            for b in ergebnis.posten_ohne_gegenstueck
+            for b in ergebnis.zu_entscheiden
         ],
     )
 
@@ -293,11 +301,13 @@ class UmschaltenAntwort(BaseModel):
     #: Kennungen, keine Sätze - die Oberfläche macht daraus einen Satz.
     verlassen: list[dict[str, Any]]
     anfragen: int
+    anfragen_ohne_uebersetzung: int = 0
     posten: int
     posten_schluessel: int
     posten_ohne_uebersetzung: int
     posten_doppelt: int = 0
     rechte: int
+    rechte_entfallen: int = 0
     einladungen: int
     regeln: int
     zeilen_entfernt: int
@@ -323,6 +333,16 @@ async def umschalten(
                 "Vor dem Umschalten muss eine Sicherung liegen.",
             ),
         )
+    # ⚠️ Der Name allein genügt nicht: Eine leere Datei mit passendem Namen
+    # ginge sonst als Rückweg durch.
+    if not sicherung.brauchbar(eingabe.sicherung):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=meldungen.meldung(
+                "umstieg_sicherung_unbrauchbar",
+                "Die genannte Sicherung lässt sich nicht als Datenbank öffnen.",
+            ),
+        )
 
     sicht = umstieg.nex_sicht(db)
     nex = list(get_beschaffung(sicht).fassungen())
@@ -338,7 +358,7 @@ async def umschalten(
     except BeschaffungError as caught:
         raise _als_meldung(caught) from caught
 
-    haengt = ergebnis.posten_ohne_gegenstueck
+    haengt = ergebnis.zu_entscheiden
     if haengt and not eingabe.posten_ohne_gegenstueck_behalten:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -364,11 +384,13 @@ async def umschalten(
             {"code": zeile.code, "werte": zeile.werte} for zeile in bericht.verlassen
         ],
         anfragen=bericht.wanderung.anfragen,
+        anfragen_ohne_uebersetzung=bericht.wanderung.anfragen_ohne_uebersetzung,
         posten=bericht.wanderung.posten,
         posten_schluessel=bericht.wanderung.posten_schluessel,
         posten_ohne_uebersetzung=bericht.wanderung.posten_ohne_uebersetzung,
         posten_doppelt=bericht.wanderung.posten_doppelt,
         rechte=bericht.wanderung.rechte,
+        rechte_entfallen=bericht.wanderung.rechte_entfallen,
         einladungen=bericht.wanderung.einladungen,
         regeln=bericht.wanderung.regeln,
         zeilen_entfernt=bericht.wanderung.zeilen_entfernt,

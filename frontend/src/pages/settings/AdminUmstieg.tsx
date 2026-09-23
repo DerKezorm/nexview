@@ -304,6 +304,15 @@ export function AdminUmstieg() {
                 {t("umstieg.probeAnime", { count: ergebnis.anime_offen })}
               </li>
             )}
+            {/* Vorher sagen, was ersatzlos wegfällt: Danach fragt ein
+                Eingeladener, warum er kein 4K mehr anfragen darf. */}
+            {ergebnis.rechte_entfallen > 0 && (
+              <li className="text-amber-300">
+                {t("umstieg.probeRightsLost", {
+                  count: ergebnis.rechte_entfallen,
+                })}
+              </li>
+            )}
           </ul>
           <p className="max-w-3xl text-sm text-mist-400">
             {t("umstieg.probeOpenRequests")}
@@ -325,6 +334,8 @@ export function AdminUmstieg() {
                       ? ` — ${t("umstieg.decideCollides")}`
                       : zeile.ohne_uebersetzung &&
                         ` — ${t("umstieg.decideNoTranslation")}`}
+                    {zeile.anfrage_bleibt &&
+                      `, ${t("umstieg.decideRequestStays")}`}
                   </li>
                 ))}
               </ul>
@@ -457,6 +468,20 @@ export function AdminUmstieg() {
             {bericht.posten_doppelt > 0 && (
               <li className="text-amber-300">
                 {t("umstieg.doneDouble", { count: bericht.posten_doppelt })}
+              </li>
+            )}
+            {bericht.anfragen_ohne_uebersetzung > 0 && (
+              <li className="text-amber-300">
+                {t("umstieg.doneRequestsWithoutTranslation", {
+                  count: bericht.anfragen_ohne_uebersetzung,
+                })}
+              </li>
+            )}
+            {bericht.rechte_entfallen > 0 && (
+              <li className="text-amber-300">
+                {t("umstieg.doneRightsLost", {
+                  count: bericht.rechte_entfallen,
+                })}
               </li>
             )}
           </ul>

@@ -31,6 +31,7 @@ from app.services.fassungen import arr_kennung
 from app.services.storage import _Gemessen
 
 TVDB = 479935
+FASSUNG = "sonarr-standard"
 
 
 def _nutzer(db, name: str, rolle: Role = Role.user) -> User:
@@ -66,8 +67,11 @@ def _anfrage(
 
 
 def _staffel(nummer: int) -> _Gemessen:
+    # Der Schluessel muss ``storage.schluessel`` folgen, nicht ein
+    # handgestricktes Format - sonst kennt ``_fassung_aus_schluessel`` ihn
+    # nicht wieder, seit er nicht mehr blind am zweiten Doppelpunkt zerlegt.
     return _Gemessen(
-        key=f"tv:{TVDB}:standard:s{nummer}",
+        key=storage.schluessel(MediaType.tv, FASSUNG, tvdb_id=TVDB, season=nummer),
         media_type=MediaType.tv,
         tier="standard",
         tmdb_id=331370,
@@ -90,8 +94,8 @@ def test_kuenftige_staffel_gehoert_dem_der_sie_zugesagt_hat() -> None:
 
         zuordnung = storage._zuordnung(db, [_staffel(1), _staffel(12)])
 
-    assert zuordnung[f"tv:{TVDB}:standard:s1"] == kim.id
-    assert zuordnung[f"tv:{TVDB}:standard:s12"] == kim.id
+    assert zuordnung[f"tv:{FASSUNG}:tvdb:{TVDB}:s1"] == kim.id
+    assert zuordnung[f"tv:{FASSUNG}:tvdb:{TVDB}:s12"] == kim.id
 
 
 def test_ohne_haken_faellt_die_spaetere_staffel_dem_haus_zu() -> None:
@@ -102,8 +106,8 @@ def test_ohne_haken_faellt_die_spaetere_staffel_dem_haus_zu() -> None:
 
         zuordnung = storage._zuordnung(db, [_staffel(1), _staffel(12)])
 
-    assert zuordnung[f"tv:{TVDB}:standard:s1"] == kim.id
-    assert f"tv:{TVDB}:standard:s12" not in zuordnung
+    assert zuordnung[f"tv:{FASSUNG}:tvdb:{TVDB}:s1"] == kim.id
+    assert f"tv:{FASSUNG}:tvdb:{TVDB}:s12" not in zuordnung
 
 
 def test_ganze_serie_traegt_weiterhin_alles() -> None:
@@ -114,8 +118,8 @@ def test_ganze_serie_traegt_weiterhin_alles() -> None:
 
         zuordnung = storage._zuordnung(db, [_staffel(3), _staffel(12)])
 
-    assert zuordnung[f"tv:{TVDB}:standard:s3"] == kim.id
-    assert zuordnung[f"tv:{TVDB}:standard:s12"] == kim.id
+    assert zuordnung[f"tv:{FASSUNG}:tvdb:{TVDB}:s3"] == kim.id
+    assert zuordnung[f"tv:{FASSUNG}:tvdb:{TVDB}:s12"] == kim.id
 
 
 def test_die_genaue_staffel_schlaegt_den_haken() -> None:
@@ -131,8 +135,8 @@ def test_die_genaue_staffel_schlaegt_den_haken() -> None:
 
         zuordnung = storage._zuordnung(db, [_staffel(3), _staffel(12)])
 
-    assert zuordnung[f"tv:{TVDB}:standard:s3"] == alex.id
-    assert zuordnung[f"tv:{TVDB}:standard:s12"] == kim.id
+    assert zuordnung[f"tv:{FASSUNG}:tvdb:{TVDB}:s3"] == alex.id
+    assert zuordnung[f"tv:{FASSUNG}:tvdb:{TVDB}:s12"] == kim.id
 
 
 def test_was_ein_administrator_zusagt_gehoert_dem_haus() -> None:

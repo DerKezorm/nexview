@@ -272,6 +272,41 @@ def test_dieselbe_platte_steht_nur_einmal_da() -> None:
     assert [p["path"] for p in gefunden] == ["volume-1", "volume-2"]
 
 
+async def test_zwei_gleich_grosse_platten_bleiben_zwei_im_nex_betrieb(
+    nex: Any, nexcrate: FakeNexcrate
+) -> None:
+    """``lesen.datentraeger`` faltet schon ueber ``volume`` - ``storage._traeger_nex``
+    darf das nicht wieder aufheben, indem sie ueber die Groesse zusammenwirft. Zwei
+    wirklich verschiedene Platten mit zufaellig derselben Gesamtgroesse duerfen nicht
+    zu einer werden.
+    """
+    nexcrate.storage = [
+        {"version_id": FILM_HD, "volume": "volume-1", "free_bytes": 10 * GB, "total_bytes": 500 * GB},
+        {"version_id": FILM_UHD, "volume": "volume-2", "free_bytes": 20 * GB, "total_bytes": 500 * GB},
+    ]
+
+    gefunden = await storage.traeger(nex)
+    assert len(gefunden) == 2
+
+    frei, anzahl = await storage.freier_platz(nex)
+    assert anzahl == 2
+    assert frei == 30 * GB
+
+
+async def test_vier_fassungen_auf_einer_platte_bleiben_eine_im_nex_betrieb(
+    nex: Any, nexcrate: FakeNexcrate
+) -> None:
+    """Vier Fassungen auf derselben Platte sind eine Zeile, nicht vier."""
+    nexcrate.storage = [
+        {"version_id": v, "volume": "volume-1", "free_bytes": 10 * GB, "total_bytes": 500 * GB}
+        for v in (FILM_HD, FILM_UHD, SERIE_HD, "v_weitere")
+    ]
+
+    gefunden = await storage.traeger(nex)
+    assert len(gefunden) == 1
+    assert gefunden[0].gesamt == 500 * GB
+
+
 async def test_der_kalender_wird_in_stuecke_zerlegt(nex: Any, nexcrate: FakeNexcrate) -> None:
     """⚠️ Gemessen: mehr als hundert Tage am Stueck sind ``invalid_input``."""
     weg = get_beschaffung(nex)

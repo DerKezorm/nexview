@@ -172,6 +172,35 @@ def test_serien_schluesseln_ueber_tvdb() -> None:
     assert kennung == "tv:sonarr-standard:tvdb:81189:s3"
 
 
+def test_fassung_mit_doppelpunkt_bleibt_ganz() -> None:
+    """Eine nexcrate-Fassung wie ``v_beef:0001`` darf nicht am eigenen Doppelpunkt reissen."""
+    assert storage._fassung_aus_schluessel("movie:v_beef:0001:tmdb:603") == "v_beef:0001"
+    assert (
+        storage._fassung_aus_schluessel("tv:v_beef:0001:tmdb:1399:s2")
+        == "v_beef:0001"
+    )
+    assert (
+        storage._fassung_aus_schluessel("tv:v_beef:0001:tvdb:81189:s3:r17")
+        == "v_beef:0001"
+    )
+
+
+def test_fassung_ohne_doppelpunkt_bleibt_wie_bisher() -> None:
+    """Die gewohnten Arr-Kennungen duerfen sich nicht aendern."""
+    assert storage._fassung_aus_schluessel("movie:radarr-standard:tmdb:603") == "radarr-standard"
+    assert (
+        storage._fassung_aus_schluessel("tv:sonarr-standard:tvdb:81189:s3")
+        == "sonarr-standard"
+    )
+
+
+def test_kaputter_schluessel_gibt_nichts_statt_einem_absturz() -> None:
+    """Ein Schluessel ohne bekannten Anker ist kein Grund fuer einen IndexError."""
+    assert storage._fassung_aus_schluessel("ungueltig") is None
+    assert storage._fassung_aus_schluessel("") is None
+    assert storage._fassung_aus_schluessel("movie:nur-eine-fassung") is None
+
+
 # ----------------------------------------------------------- Erster Lauf
 
 

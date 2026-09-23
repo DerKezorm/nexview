@@ -17,6 +17,7 @@ beansprucht**. Alles andere ist Hausbestand und zaehlt bei niemandem.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -575,29 +576,33 @@ async def _traeger_nex(settings: AppSettings) -> list[Traeger]:
     schon ueber den Traeger (sonst stuende dieselbe Platte vierfach da). Hier
     bleibt deshalb nur, die Zahlen zu uebernehmen - der Name des Traegers
     steht als „Ordner", damit die Anzeige etwas zu nennen hat.
+
+    ⚠️ **Gefaltet wird ueber den Namen des Traegers, nicht ueber die
+    Gesamtgroesse.** ``lesen.datentraeger`` liefert schon eine Zeile je
+    ``volume`` - genau die eindeutige Kennung, die es hier braucht. Ueber die
+    Groesse zu falten (wie im ARR-Betrieb, dem mangels Kennung nichts anderes
+    bleibt) wuerfe zwei wirklich verschiedene Platten zusammen, sobald sie
+    zufaellig dieselbe Gesamtgroesse melden.
     """
     try:
         punkte = await get_beschaffung(settings).datentraeger("movie")
     except BeschaffungError:
         return []
-    gefunden: dict[int, tuple[int, list[str]]] = {}
+    gefunden: dict[str, tuple[int, int]] = {}
     for punkt in punkte:
         gesamt = punkt.get("totalSpace")
         frei = punkt.get("freeSpace")
         name = str(punkt.get("path") or "")
-        if not isinstance(gesamt, int) or not isinstance(frei, int) or frei <= 0:
+        if not name or not isinstance(gesamt, int) or not isinstance(frei, int) or frei <= 0:
             continue
-        bisher = gefunden.get(gesamt)
+        bisher = gefunden.get(name)
         if bisher is None:
-            gefunden[gesamt] = (frei, [name])
+            gefunden[name] = (gesamt, frei)
         else:
-            pfade = bisher[1]
-            if name not in pfade:
-                pfade.append(name)
-            gefunden[gesamt] = (min(bisher[0], frei), pfade)
+            gefunden[name] = (max(bisher[0], gesamt), min(bisher[1], frei))
     return [
-        Traeger(gesamt=gesamt, frei=frei, ordner=tuple(sorted(pfade)))
-        for gesamt, (frei, pfade) in sorted(gefunden.items())
+        Traeger(gesamt=gesamt, frei=frei, ordner=(name,))
+        for name, (gesamt, frei) in sorted(gefunden.items())
     ]
 
 
@@ -1335,15 +1340,32 @@ def _uhd_fassungen(db: Session) -> frozenset[str]:
     }
 
 
-def _fassung_aus_schluessel(kennung: str) -> str:
+# Die Formen, die ``schluessel()`` baut: ``movie:<fassung>:tmdb:<id>`` und
+# ``tv:<fassung>:<tmdb|tvdb>:<id>:s<n>[:r<id>]``. Greedy, damit die Fassung so
+# viel wie moeglich bekommt - genau das laesst ihr einen eigenen Doppelpunkt.
+_SCHLUESSEL_MUSTER = re.compile(
+    r"^(?:movie|tv):(?P<fassung>.+):(?:tmdb|tvdb):\d+(?::s\d+)?(?::r\d+)?$"
+)
+
+
+def _fassung_aus_schluessel(kennung: str) -> str | None:
     """Die Fassung eines Postens, so wie sein Schluessel sie nennt.
 
     ``schluessel()`` setzt die Fassung als zweites Glied ein, und an derselben
     Zeile muessen beide dasselbe sagen. Bis zum 23.09.2026 stand an ihrer
     Stelle ``arr_kennung(art, stufe)`` - im NEX-Betrieb trug ein neuer Posten
     ``movie:v_...`` dann die Fassung ``radarr-standard``.
+
+    ⚠️ **Ein einfaches ``split(":", 2)`` reisst an der Fassung selbst, sobald
+    sie einen Doppelpunkt traegt** (``v_beef:0001`` statt ``v_<hex>``). Die
+    OpenAPI schreibt fuer die Fassung nur ``type: string`` vor, also darf sie
+    das. Zerlegt wird deshalb vom Ende her, am bekannten Anker ``:tmdb:``
+    oder ``:tvdb:`` - der steht in ``schluessel()`` fest und kommt in einer
+    Fassung selbst nicht vor. Ein Schluessel, der keine der bekannten Formen
+    hat, bekommt keinen ``IndexError``, sondern ``None``.
     """
-    return kennung.split(":", 2)[1]
+    treffer = _SCHLUESSEL_MUSTER.match(kennung)
+    return treffer.group("fassung") if treffer else None
 
 
 def _tvdb_nach_tmdb(db: Session) -> dict[int, int]:

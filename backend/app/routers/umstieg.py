@@ -419,8 +419,8 @@ async def nachreichen_einmal(admin: AdminUser, db: DbSession) -> NachreichenAntw
     settings = load_settings(db, frisch=True)
     if not nachreichen.faellig(settings):
         return NachreichenAntwort(gereicht=0, weiter=False)
-    gereicht = await nachreichen.einmal(db, settings)
+    ergebnis = await nachreichen.einmal(db, settings)
     return NachreichenAntwort(
-        gereicht=gereicht,
+        gereicht=ergebnis.gereicht,
         weiter=nachreichen.faellig(load_settings(db, frisch=True)),
     )

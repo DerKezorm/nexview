@@ -7,7 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import false, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from .. import meldungen
@@ -23,7 +23,16 @@ from ..models import (
     utcnow,
 )
 from ..schemas_requests import AnfragerSpeicher, FeedbackReply, RequestWithUser
-from ..services import blocklist, media, notify, ratings, requests_service, storage, streaming
+from ..services import (
+    blocklist,
+    media,
+    nachreichen,
+    notify,
+    ratings,
+    requests_service,
+    storage,
+    streaming,
+)
 from ..services.beschaffung import get_beschaffung
 from ..services.settings_service import AppSettings, load_settings
 from ..services.tmdb import TmdbError
@@ -337,6 +346,9 @@ async def list_all(
     # Keine Zustandsfrage, sondern eine Herkunftsfrage - deshalb ein eigener
     # Schalter neben ``status`` und nicht ein weiterer Wert darin.
     from_watchlist: Annotated[bool, Query()] = False,
+    # Das Ziel des Befunds ``nachschub.fremde_fassung``: laufende Anfragen auf
+    # einer Fassung, die der eingestellte Weg nicht kennt.
+    fremde_fassung: Annotated[bool, Query()] = False,
 ) -> list[RequestWithUser]:
     """Alle Anfragen aller Benutzer, optional gefiltert."""
     query = (
@@ -372,6 +384,12 @@ async def list_all(
         )
     elif from_watchlist:
         query = query.where(MediaRequest.from_watchlist.is_(True))
+    elif fremde_fassung:
+        # Dieselbe Bedingung wie der Befund, sonst zeigte der Sprung andere
+        # Anfragen als die gezählten. Kennt der Weg gar keine Fassung, schweigt
+        # der Befund, und die Liste bleibt dann ebenso leer.
+        bedingung = nachreichen.fremde_fassung(load_settings(db))
+        query = query.where(bedingung if bedingung is not None else false())
     elif request_status is not None:
         query = query.where(MediaRequest.status == RequestStatus(request_status))
     if user_id is not None:

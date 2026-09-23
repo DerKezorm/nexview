@@ -31,7 +31,18 @@ import { gespeicherterFehler } from '../api/client'
 // "watchlist" ist kein Zustand, sondern eine Herkunft - deshalb ein eigener
 // Wert neben den Zustaenden. Der Knopf erscheint nur, wenn die Automatik
 // ueberhaupt eingeschaltet ist; sonst gaebe es dort nie etwas zu sehen.
-type Filter = "pending_approval" | "all" | "feedback" | "watchlist" | MediaStatus;
+//
+// "fremde_fassung" ist das Ziel des gleichnamigen Befunds: laufende Anfragen
+// auf einer Fassung, die der eingestellte Weg nicht kennt. Einen Knopf dafür
+// gibt es nur, solange man über den Befund hier ist; sonst stünde fast immer
+// eine leere Ansicht in der Reihe.
+type Filter =
+  | "pending_approval"
+  | "all"
+  | "feedback"
+  | "watchlist"
+  | "fremde_fassung"
+  | MediaStatus;
 
 const FILTERS: Filter[] = [
   "pending_approval",
@@ -49,6 +60,7 @@ const FILTERS: Filter[] = [
   "cancelled",
   "deleted",
   "failed",
+  "fremde_fassung",
 ];
 
 /** Adresse für den gewählten Filter. */
@@ -56,6 +68,7 @@ function urlFuer(filter: Filter): string {
   if (filter === "all") return "/api/admin/requests";
   if (filter === "feedback") return "/api/admin/requests?feedback=true";
   if (filter === "watchlist") return "/api/admin/requests?from_watchlist=true";
+  if (filter === "fremde_fassung") return "/api/admin/requests?fremde_fassung=true";
   return `/api/admin/requests?status=${filter}`;
 }
 
@@ -592,7 +605,9 @@ export function AdminRequestsPage() {
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.filter(
-          (value) => value !== "watchlist" || Boolean(config?.watchlist_enabled),
+          (value) =>
+            (value !== "watchlist" || Boolean(config?.watchlist_enabled)) &&
+            (value !== "fremde_fassung" || filter === "fremde_fassung"),
         ).map((value) => (
           <button
             key={value}
@@ -612,7 +627,9 @@ export function AdminRequestsPage() {
                 ? t("adminRequests.filterFeedback")
                 : value === "watchlist"
                   ? t("myRequests.fromWatchlistTab")
-                  : t(`status.${value}`)}
+                  : value === "fremde_fassung"
+                    ? t("adminRequests.filterFremdeFassung")
+                    : t(`status.${value}`)}
           </button>
         ))}
       </div>
@@ -836,6 +853,22 @@ export function AdminRequestsPage() {
                           Zeile eines. */}
                       {(() => {
                         const fassung = fassungVon(config, request.fassung);
+                        // Eine Kennung, die der Weg nicht kennt, sagt es beim
+                        // Namen, sonst sähe die Anfrage aus wie jede, die
+                        // wartet, und käme doch nie an. Erst wenn Fassungen
+                        // gelesen sind; vorher wäre jede Zeile "fremd".
+                        if (!fassung && (config?.fassungen ?? []).length > 0) {
+                          return (
+                            <span
+                              className="shrink-0 rounded-full border border-warn-500/50 bg-warn-500/10 px-2 py-0.5 text-xs font-semibold text-warn-500"
+                              title={t("adminRequests.fassungUnbekanntHint", {
+                                kennung: request.fassung ?? "",
+                              })}
+                            >
+                              {t("adminRequests.fassungUnbekannt")}
+                            </span>
+                          );
+                        }
                         if (!fassung || fassung.haupt) return null;
                         return (
                           <span className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400">

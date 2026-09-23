@@ -611,10 +611,10 @@ async def test_nach_dem_umschalten_werden_freigegebene_nachgereicht(
     frisch = load_settings(db, frisch=True)
     assert nachreichen.faellig(frisch) is True
 
-    gereicht = await nachreichen.einmal(db, frisch)
+    ergebnis = await nachreichen.einmal(db, frisch)
 
     db.refresh(anfrage)
-    assert gereicht == 1
+    assert ergebnis.gereicht == 1
     assert anfrage.status == RequestStatus.searching
     assert len(_gesendet(nexcrate, "/requests")) == 1
 
@@ -629,10 +629,10 @@ async def test_eine_anfrage_mit_fremder_fassung_bleibt_liegen(
     save_settings(db, {"beschaffung_gewechselt_am": "2026-09-22T20:00:00"})
     frisch = load_settings(db, frisch=True)
 
-    gereicht = await nachreichen.einmal(db, frisch)
+    ergebnis = await nachreichen.einmal(db, frisch)
 
     db.refresh(anfrage)
-    assert gereicht == 0
+    assert ergebnis.gereicht == 0
     assert anfrage.status == RequestStatus.approved
     assert _gesendet(nexcrate, "/requests") == []
 

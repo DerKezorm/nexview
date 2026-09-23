@@ -872,6 +872,9 @@
     "countForUser_other": "{{count}} requests",
     "approveAll": "Approve all {{count}}",
     "filterFeedback": "Feedback",
+    "filterFremdeFassung": "Version does not exist",
+    "fassungUnbekannt": "Version does not exist",
+    "fassungUnbekanntHint": "This request points to the version “{{kennung}}”, which the current mode does not know. It will never be handed over.",
     "emptyFeedback": "There is no unanswered feedback.",
     "alsoBlock": "Add title to the blocklist",
     "alsoBlockHint": "Nobody can request it afterwards. It stays visible, but carries a “Blocked” badge. You can undo this any time under Settings → Blocklist.",
@@ -3552,6 +3555,11 @@
         "titel_one": "One request has been waiting over {{tage}} days for approval",
         "titel_other": "{{count}} requests have been waiting over {{tage}} days for approval",
         "folge": "Wait that long and people start asking. By then it is a complaint, not a note."
+      },
+      "fremde_fassung": {
+        "titel_one": "One open request points to a version that does not exist here: “{{titel}}”",
+        "titel_other": "{{count}} open requests point to a version that does not exist here, the oldest being “{{titel}}”",
+        "folge": "Their version was mapped to “None” during the switch or could not be carried over. A request like this is never handed over, and whoever asked waits in vain. “Cancel” gives them their quota back, and they can ask for the title again in a version that exists."
       },
       "fehlgeschlagen": {
         "titel_one": "One request failed within {{tage}} days",

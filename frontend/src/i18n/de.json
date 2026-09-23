@@ -872,6 +872,9 @@
     "countForUser_other": "{{count}} Anfragen",
     "approveAll": "Alle {{count}} freigeben",
     "filterFeedback": "Rückmeldungen",
+    "filterFremdeFassung": "Fassung gibt es nicht",
+    "fassungUnbekannt": "Fassung gibt es nicht",
+    "fassungUnbekanntHint": "Diese Anfrage hängt an der Fassung „{{kennung}}“, die der eingestellte Weg nicht kennt. Übergeben wird sie nie.",
     "emptyFeedback": "Es liegen keine unbeantworteten Rückmeldungen vor.",
     "alsoBlock": "Titel auf die Sperrliste setzen",
     "alsoBlockHint": "Niemand kann ihn dann mehr anfragen. Sichtbar bleibt er, aber mit dem Abzeichen „Gesperrt“. Zurücknehmen kannst du das jederzeit unter Einstellungen → Sperrliste.",
@@ -3552,6 +3555,11 @@
         "titel_one": "Eine Anfrage wartet seit über {{tage}} Tagen auf Freigabe",
         "titel_other": "{{count}} Anfragen warten seit über {{tage}} Tagen auf Freigabe",
         "folge": "Wer so lange wartet, fragt irgendwann nach. Dann ist es eine Beschwerde und kein Hinweis mehr."
+      },
+      "fremde_fassung": {
+        "titel_one": "Eine laufende Anfrage hängt an einer Fassung, die es hier nicht gibt: „{{titel}}“",
+        "titel_other": "{{count}} laufende Anfragen hängen an einer Fassung, die es hier nicht gibt, die älteste: „{{titel}}“",
+        "folge": "Ihre Fassung wurde beim Umstieg auf „Keine“ abgebildet oder ließ sich nicht übertragen. Übergeben wird so eine Anfrage nie, und wer sie gestellt hat, wartet vergeblich. Mit „Abbrechen“ bekommt er sein Kontingent zurück und kann den Titel in einer vorhandenen Fassung neu anfragen."
       },
       "fehlgeschlagen": {
         "titel_one": "Eine Anfrage ist in {{tage}} Tagen fehlgeschlagen",

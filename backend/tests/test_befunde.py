@@ -31,7 +31,9 @@ from app.models import (
     StorageState,
     User,
 )
-from app.services import befunde, mail_outbox
+from app.services import befunde, mail_outbox, umstieg
+from app.services.beschaffung import NEX, FassungInfo
+from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.settings_service import load_settings
 
 from .conftest import auth_headers, create_user
@@ -57,6 +59,7 @@ def _anfrage(
     freigegeben_vor_tagen: int | None = None,
     tmdb_id: int = 1,
     erschienen_vor_tagen: int | None = None,
+    fassung: str = "radarr-standard",
 ) -> None:
     """Eine Anfrage anlegen.
 
@@ -72,7 +75,7 @@ def _anfrage(
             MediaRequest(
                 user_id=besitzer.id,
                 media_type=MediaType.movie,
-                fassung_kennung="radarr-standard",
+                fassung_kennung=fassung,
                 tmdb_id=tmdb_id,
                 title=f"Titel {tmdb_id}",
                 status=status,
@@ -107,6 +110,19 @@ def test_haengende_anfrage_wird_gemeldet(admin_client: TestClient) -> None:
     # Ein Befund ohne Ausweg waere eine Sorge, keine Hilfe - und ein Ausweg,
     # der auf der Startseite endet, ist nur ein halber.
     assert treffer[0].ziel == "/admin/requests?filter=searching"
+
+
+def test_im_arr_betrieb_kein_befund_zur_fremden_fassung(arr_client: TestClient) -> None:
+    """Der Befund gehört zum Umstieg; im ARR-Betrieb schweigt er.
+
+    Auch bei einer Anfrage auf der nicht eingerichteten 4K-Instanz: Die Prüfung
+    kostete dort jede Kachel eine Abfrage, und die Abfragezahl der Kachel ist
+    fest (``test_abfragezahl.py``).
+    """
+    _anfrage(RequestStatus.approved, tmdb_id=1)
+    _anfrage(RequestStatus.searching, tmdb_id=2)
+    _anfrage(RequestStatus.searching, tmdb_id=3, fassung="radarr-uhd")
+    assert _sammeln("nachschub.fremde_fassung") == []
 
 
 def test_frisch_gesuchte_anfrage_schweigt(admin_client: TestClient) -> None:
@@ -961,6 +977,10 @@ def _alles_ausloesen() -> None:
         session.commit()
 
 
+#: Pruefungen, die im ARR-Betrieb absichtlich schweigen.
+NUR_IM_NEX_BETRIEB = ("_nachschub_fremde_fassung",)
+
+
 def test_jede_pruefung_zeigt_wohin_genau(arr_client: TestClient) -> None:
     """Kein Ziel darf auf einer Startseite enden - und zwar bei **jeder** Pruefung.
 
@@ -994,6 +1014,27 @@ def test_jede_pruefung_zeigt_wohin_genau(arr_client: TestClient) -> None:
                 for b in gefunden
                 if b.ziel in STUMPFE_ZIELE or not b.ziel
             )
+
+        # Was nur im NEX-Betrieb gilt, bekommt dessen Sicht und eine gelesene
+        # nexcrate-Fassung. Dort muss es anschlagen, nicht nur hier schweigen.
+        nex_fassungen.merken(
+            (FassungInfo("v_waechter", "movie", "HD", "standard", 0, NEX),)
+        )
+        try:
+            nex = umstieg.nex_sicht(session)
+            for name in NUR_IM_NEX_BETRIEB:
+                assert name in stumm, f"{name} schlaegt im ARR-Betrieb an"
+                stumm.remove(name)
+                gefunden = getattr(befunde, name)(session, nex, _jetzt(), vorrat)
+                if not gefunden:
+                    stumm.append(name)
+                stumpf.extend(
+                    f"{b.kennung} -> {b.ziel}"
+                    for b in gefunden
+                    if b.ziel in STUMPFE_ZIELE or not b.ziel
+                )
+        finally:
+            nex_fassungen.vergessen()
 
     assert stumm == [], (
         "Diese Pruefungen hat der Waechter nicht ausloesen koennen und damit "

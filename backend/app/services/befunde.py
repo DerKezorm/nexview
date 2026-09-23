@@ -59,7 +59,16 @@ from ..models import (
     User,
     utcnow,
 )
-from . import abgleich, beschaffung, instanz_stand, logs, mail_outbox, sicherung, updates
+from . import (
+    abgleich,
+    beschaffung,
+    instanz_stand,
+    logs,
+    mail_outbox,
+    nachreichen,
+    sicherung,
+    updates,
+)
 from .beschaffung import get_beschaffung
 from .settings_service import AppSettings
 
@@ -661,6 +670,43 @@ def _nachschub_fehlgeschlagen(
     ]
 
 
+def _nachschub_fremde_fassung(
+    db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
+) -> list[Befund]:
+    """Laufende Anfragen auf einer Fassung, die der eingestellte Weg nicht kennt.
+
+    Entsteht beim Umstieg: Eine Arr-Fassung, die im Assistenten auf "Keine"
+    abgebildet wurde, oder ein Posten ohne TMDB-Übersetzung, der mit seiner
+    Anfrage bei der alten Fassung blieb. Übergeben wird so eine Anfrage nie,
+    und in der Liste sieht sie aus wie jede andere, die wartet. Nur im
+    NEX-Betrieb, warum, steht an ``nachreichen.fremde_fassung``.
+
+    ⚠️ **Ein Zustand, kein Versuch.** Wiederholen macht die Fassung nicht
+    bekannt; ``nachreichen`` hört deshalb auf, und dieser Befund steht, bis
+    die Anfragen zurückgenommen sind. Die Bedingung kommt von dort, damit der
+    Sprung in die Liste genau diese Anfragen zeigt.
+    """
+    bedingung = nachreichen.fremde_fassung(settings)
+    if bedingung is None:
+        return []
+    treffer = list(
+        db.scalars(
+            select(MediaRequest.title).where(bedingung).order_by(MediaRequest.requested_at)
+        )
+    )
+    if not treffer:
+        return []
+    return [
+        Befund(
+            kennung="nachschub.fremde_fassung",
+            schwere=Schwere.warnung,
+            bereich=Bereich.nachschub,
+            werte={"anzahl": len(treffer), "titel": treffer[0]},
+            ziel="/admin/requests?filter=fremde_fassung",
+        )
+    ]
+
+
 def _nachschub_eingriff_noetig(
     db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
@@ -1064,6 +1110,7 @@ PRUEFUNGEN = (
     _platz_waechst_schnell,
     _nachschub_haengt,
     _nachschub_eingriff_noetig,
+    _nachschub_fremde_fassung,
     _nachschub_freigabe_wartet,
     _nachschub_fehlgeschlagen,
     _bibliothek_geisterposten,

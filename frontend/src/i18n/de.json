@@ -4107,7 +4107,8 @@
       "umstieg_fassung_unbekannt": "Diese bisherige Fassung gibt es nicht.",
       "umstieg_ziel_unbekannt": "Diese nexcrate-Fassung gibt es nicht.",
       "umstieg_falsche_medienart": "Eine Serie lässt sich nicht auf eine Filmfassung abbilden."
-    }
+    },
+    "mappingNoSuggestion": "Nexview schlägt nichts vor: Diese nexcrate nennt zu ihren Fassungen keine Auflösungsklasse – das tut sie erst, wenn deren Profile eine festlegen. Ordne von Hand zu; geraten wird hier nicht, denn eine 4K-Anfrage auf einer 1080p-Fassung gäbe dem Anfragenden etwas anderes, als er wollte."
   },
   "warum": {
     "titel": "Woran es gerade hängt",

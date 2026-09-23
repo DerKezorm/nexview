@@ -310,3 +310,63 @@ def test_die_konfiguration_sagt_es_der_oberflaeche_weiter(
     nex_client_admin.put("/api/settings", json={"movie_root_folder_mode": "approver"})
     daten = nex_client_admin.get("/api/config").json()
     assert daten["approver_picks_target_movie"] is False
+
+
+# --------------------------------------------------------------------------
+# Was der Durchlauf gegen eine echte nexcrate fand (Scheibe S9)
+
+
+def test_die_hauptfassung_ist_im_nex_betrieb_keine_arr_kennung(
+    nex: Any, db: Session
+) -> None:
+    """⚠️ Sonst bietet jede Karte und jedes Formular eine Fassung an, die es in
+    dieser Installation gar nicht gibt - und die Anfrage darauf scheitert erst
+    beim Absenden.
+
+    Gefunden im Durchlauf gegen eine echte nexcrate, nicht von einem Test.
+    """
+    from app.services import fassungen as fassungen_dienst
+
+    for art in ("movie", "tv"):
+        haupt = fassungen_dienst.hauptkennung(art)
+        assert haupt.startswith("v_"), f"{art}: {haupt}"
+        assert fassungen_dienst.info(load_settings(db, frisch=True), haupt).quelle == NEX
+
+
+def test_im_arr_betrieb_bleibt_die_hauptfassung_die_standard_instanz(db: Session) -> None:
+    """Die Gegenprobe - sonst wäre die Reparatur oben eine Verschiebung."""
+    from app.services import fassungen as fassungen_dienst
+
+    save_settings(db, {"beschaffung": ARR})
+    load_settings(db, frisch=True)
+    assert fassungen_dienst.hauptkennung("movie") == "radarr-standard"
+    assert fassungen_dienst.hauptkennung("tv") == "sonarr-standard"
+
+
+def test_die_konfiguration_bietet_nur_fassungen_an_die_es_gibt(
+    nex_client_admin: TestClient,
+) -> None:
+    daten = nex_client_admin.get("/api/config").json()
+    for fassung in daten["fassungen"]:
+        assert fassung["quelle"] == NEX, fassung
+        assert fassung["kennung"].startswith("v_"), fassung
+
+
+def test_die_instanz_gesundheit_gibt_es_in_beiden_betriebsarten(
+    nex_client_admin: TestClient,
+) -> None:
+    """⚠️ Sie lag einmal hinter dem Riegel der Arr-Werkzeuge und antwortete
+    ``409`` - obwohl die Dienste-Seite sie bei **jedem** Aufbau fragt und es
+    hier sehr wohl eine Instanz gibt (Bauplan 9)."""
+    antwort = nex_client_admin.get("/api/settings/instanzen/gesundheit")
+    assert antwort.status_code == 200, antwort.text
+    namen = [zeile["kennung"] for zeile in antwort.json()["instanzen"]]
+    assert namen == ["nexcrate"]
+
+
+def test_die_verbindungsleuchte_auch(nex_client_admin: TestClient) -> None:
+    antwort = nex_client_admin.get("/api/settings/instanzen/verbindung")
+    assert antwort.status_code == 200, antwort.text
+    zeilen = antwort.json()["instanzen"]
+    assert [z["kennung"] for z in zeilen] == ["nexcrate"]
+    assert zeilen[0]["erreichbar"] is True

@@ -202,6 +202,16 @@ export function AdminUmstieg() {
           <p className="max-w-3xl text-sm text-mist-400">
             {t("umstieg.mappingText")}
           </p>
+          {/* ⚠️ **Ein leerer Vorschlag ist kein Fehler, sieht aber wie einer
+              aus.** Vorgeschlagen wird nach Klasse; eine nexcrate, deren
+              Profile keine Auflösung festlegen, nennt keine (`tier: null`).
+              Dann stünden vier leere Auswahllisten da, und niemand wüsste
+              warum. Gefunden im Durchlauf gegen eine echte nexcrate. */}
+          {Object.values(vorlage.vorschlag).every((ziel) => !ziel) && (
+            <p className="max-w-3xl rounded-xl border border-ink-700 px-4 py-3 text-sm text-mist-300">
+              {t("umstieg.mappingNoSuggestion")}
+            </p>
+          )}
           <ul className="flex flex-col gap-3">
             {vorlage.arr_fassungen.map((arr) => (
               <li

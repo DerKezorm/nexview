@@ -325,6 +325,7 @@ app.include_router(logs_router.router)
 app.include_router(sicherungen_router.router)
 app.include_router(umstieg_router.router)
 app.include_router(beschaffung_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(beschaffung_router.instanzen_router)
 # ⚠️ **Die zugesagte Flaeche.** Dieselben Handler, zweite Adresse - siehe
 # routers/v1.py. Bewusst zuletzt eingehaengt: Was hier steht, ist ein
 # Versprechen, und das soll man beim Lesen als Letztes sehen, nicht zwischen

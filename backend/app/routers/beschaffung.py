@@ -16,6 +16,8 @@ Kennung mit Werten; den Satz baut die Oberfläche.
 
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
@@ -24,10 +26,17 @@ from pydantic import BaseModel, Field
 from .. import meldungen
 from ..deps import AdminUser, AdultUser, DbSession
 from ..models import MediaType
+from ..services import beschaffung
 from ..services.beschaffung import BeschaffungError, Kennt, get_beschaffung
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/beschaffung", tags=["beschaffung"])
+
+#: ⚠️ **Zwei Adressen behalten ihren alten Namen.** Der Stand und die Gesundheit
+#: der Instanzen hiessen immer ``/api/settings/instanzen/...``; sie umzubenennen
+#: haette die Dienste-Seite gebrochen und jedem, der sie kennt, den Verweis
+#: genommen - fuer nichts. Nur der Weg darunter ist jetzt austauschbar.
+instanzen_router = APIRouter(prefix="/api", tags=["settings"])
 
 
 def _weg(db: DbSession) -> Any:
@@ -217,3 +226,95 @@ async def zurueckholen(eintrag_id: int, admin: AdminUser, db: DbSession) -> None
         await weg.wiederherstellen(eintrag_id)
     except BeschaffungError as fehler:
         raise _als_meldung(fehler) from fehler
+
+
+# --------------------------------------------------------------------------
+# Die Instanzen, die hinter der Beschaffung stehen
+#
+# ⚠️ **Beide Adressen lagen einmal hinter dem Riegel der Arr-Werkzeuge** und
+# antworteten im NEX-Betrieb `409` - obwohl die Dienste-Seite sie bei jedem
+# Aufbau fragt und es dort sehr wohl eine Instanz gibt (Bauplan 9: „eine
+# Instanz nexcrate"). Gefunden hat das erst der Durchlauf gegen eine echte
+# nexcrate, kein Test. Sie heißen weiter, wie sie hießen; nur der Weg darunter
+# ist jetzt austauschbar.
+
+
+class VerbindungInstanz(BaseModel):
+    kennung: str
+    name: str
+    erreichbar: bool
+    version: str = ""
+
+
+class VerbindungStand(BaseModel):
+    instanzen: list[VerbindungInstanz]
+
+
+@instanzen_router.get("/settings/instanzen/verbindung", response_model=VerbindungStand)
+async def instanzen_verbindung(admin: AdminUser, db: DbSession) -> VerbindungStand:
+    """Sind die Instanzen gerade erreichbar? Live gefragt, nichts gespeichert.
+
+    Für die Statusleuchte auf den Kacheln - deshalb alle gleichzeitig und mit
+    kurzem Atem: Eine stumme Instanz darf die Antwort der anderen nicht
+    festhalten, und eine Leuchte, die fünfzehn Sekunden nachdenkt, beruhigt
+    niemanden.
+    """
+    weg = _weg(db)
+
+    async def pruefen(instanz: Any) -> VerbindungInstanz:
+        try:
+            messung = await weg.instanz_messen(instanz, voll=False)
+        except BeschaffungError:
+            return VerbindungInstanz(kennung=instanz.kennung, name=instanz.name, erreichbar=False)
+        return VerbindungInstanz(
+            kennung=instanz.kennung,
+            name=instanz.name,
+            erreichbar=messung.erreichbar,
+            version=messung.version,
+        )
+
+    ergebnisse = await asyncio.gather(*(pruefen(instanz) for instanz in weg.instanzen()))
+    return VerbindungStand(instanzen=list(ergebnisse))
+
+
+class GesundheitProblem(BaseModel):
+    typ: str
+    text: str
+
+
+class GesundheitInstanz(BaseModel):
+    kennung: str
+    name: str
+    probleme: list[GesundheitProblem]
+    aktualisiert_am: datetime | None
+
+
+class GesundheitStand(BaseModel):
+    instanzen: list[GesundheitInstanz]
+
+
+@instanzen_router.get("/settings/instanzen/gesundheit", response_model=GesundheitStand)
+def instanzen_gesundheit(admin: AdminUser, db: DbSession) -> GesundheitStand:
+    """Was die Instanzen selbst als Problem melden - je Instanz.
+
+    Gelesen wird der zuletzt gesehene Stand (der Rundgang holt ihn jede Runde
+    frisch); die Texte kommen im Wortlaut der Instanz und werden bewusst nicht
+    übersetzt.
+    """
+    stand = beschaffung.gesundheit_je_instanz(db)
+    return GesundheitStand(
+        instanzen=[
+            GesundheitInstanz(
+                kennung=instanz.kennung,
+                name=instanz.name,
+                probleme=[
+                    GesundheitProblem(
+                        typ=str(p.get("typ") or "warning"), text=str(p.get("text") or "")
+                    )
+                    for p in getattr(stand.get(instanz.kennung), "stand", None) or []
+                ],
+                aktualisiert_am=getattr(stand.get(instanz.kennung), "aktualisiert_am", None),
+            )
+            for instanz in _weg(db).instanzen()
+        ]
+    )

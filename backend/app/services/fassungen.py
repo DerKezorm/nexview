@@ -34,6 +34,8 @@ from .beschaffung import (
     KLASSE_UHD,
     NEX,
     FassungInfo,
+    betriebsart,
+    fassungen_gemerkt,
     feste_fassungen,
     get_beschaffung,
 )
@@ -81,10 +83,28 @@ def hauptkennung(media_type: MediaType | str) -> str:
     Die Hauptachse ist das, was ``status`` an einer Karte meint und was eine
     Anfrage ohne Angabe bekommt. Im ARR-Betrieb die Standard-Instanz, auch
     wenn sie (noch) nicht eingerichtet ist: Dann sagt die Anfrage das mit
-    eigenem Satz, statt still eine andere Fassung zu nehmen. Den NEX-Betrieb
-    entscheidet Scheibe 5 (erste offene Fassung, Bauplan Abschnitt 2.2).
+    eigenem Satz, statt still eine andere Fassung zu nehmen.
+
+    ⚠️ **Im NEX-Betrieb die erste Fassung dieser Medienart** (Bauplan 2.2).
+    Die Arr-Kennung stehenzulassen hiesse, jeder Karte und jedem Formular eine
+    Fassung anzubieten, die es in dieser Installation gar nicht gibt - und die
+    Anfrage darauf scheiterte erst beim Absenden.
+
+    Gefragt wird der **Merker**, nicht die Sitzung: Diese Funktion wird an
+    Stellen gerufen, die keine Einstellungen zur Hand haben (Karten, Modelle).
+    ``load_settings`` setzt ihn bei jeder Anfrage.
     """
+    if betriebsart() != ARR:
+        art = _art(media_type)
+        for eintrag in _betriebsart_fassungen():
+            if eintrag.media_type == art:
+                return eintrag.kennung
     return arr_kennung(media_type, "standard")
+
+
+def _betriebsart_fassungen() -> tuple[FassungInfo, ...]:
+    """Die gemerkten Fassungen des eingestellten Wegs - ohne Sitzung, ohne Netz."""
+    return fassungen_gemerkt()
 
 
 def gewaehlt(

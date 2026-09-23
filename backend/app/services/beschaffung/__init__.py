@@ -101,6 +101,7 @@ __all__ = [
     "download_verlauf",
     "download_verlauf_aufraeumen",
     "fassungen_auffrischen",
+    "fassungen_gemerkt",
     "feste_fassungen",
     "gesundheit_je_instanz",
     "get_beschaffung",
@@ -308,3 +309,19 @@ def nach_wiederherstellung() -> None:
 def download_frisch() -> Any:
     """Wie alt ein Download-Rundgang hoechstens sein darf, damit eine Seite ihn nimmt."""
     return _weg().download_frisch()
+
+
+def fassungen_gemerkt() -> tuple[Any, ...]:
+    """Die zuletzt gelesenen Fassungen des eingestellten Wegs - ohne Sitzung.
+
+    ⚠️ **Fuer Stellen, die keine Einstellungen zur Hand haben** (Karten,
+    Modelle, ``fassungen.hauptkennung``). Der Merker sagt, welcher Weg gilt;
+    seine schlanke Fassungsdatei sagt, was er zuletzt gelesen hat. Ueber eine
+    Sitzung zu gehen hiesse, an diesen Stellen eine Datenbankabfrage je
+    Kachel - die Abfragen-Waage schlaegt dafuer aus gutem Grund an.
+    """
+    if _betriebsart == ARR:
+        return feste_fassungen()
+    from .nex import fassungen as nex_fassungen
+
+    return nex_fassungen.aus_einstellungen(None)  # type: ignore[arg-type]

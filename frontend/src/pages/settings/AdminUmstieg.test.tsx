@@ -112,6 +112,19 @@ describe('Umstiegsassistent', () => {
     expect(screen.getByRole('button', { name: /^weiter$/i })).toBeDisabled()
   })
 
+  it('sagt es, wenn kein Vorschlag möglich ist', async () => {
+    // ⚠️ Gefunden im Durchlauf gegen eine echte nexcrate: Ihre Fassungen
+    // hatten keine Klasse (`tier: null`), also schlug Nexview nichts vor – und
+    // vier leere Auswahllisten sehen aus wie ein Fehler.
+    antworten({ ...ABBILDUNG, vorschlag: { 'radarr-standard': null } })
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    expect(await screen.findByText(/schlägt nichts vor/i)).toBeInTheDocument()
+  })
+
   it('verlangt eine Entscheidung zu Posten ohne Gegenstück', async () => {
     antworten()
     vi.mocked(api.post).mockResolvedValue({

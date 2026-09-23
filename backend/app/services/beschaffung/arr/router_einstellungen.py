@@ -12,12 +12,10 @@ stehen dort und werden deshalb zuerst gefunden.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Annotated, Literal
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field
 
@@ -458,95 +456,6 @@ class WebhookProbe(BaseModel):
     dauer_ms: int | None = None
     fehler: str | None = None
     info: str | None = None
-
-
-class VerbindungInstanz(BaseModel):
-    kennung: str
-    name: str
-    erreichbar: bool
-    version: str = ""
-
-
-class VerbindungStand(BaseModel):
-    instanzen: list[VerbindungInstanz]
-
-
-@router.get("/settings/instanzen/verbindung", response_model=VerbindungStand)
-async def instanzen_verbindung(admin: AdminUser, db: DbSession) -> VerbindungStand:
-    """Sind die Instanzen gerade erreichbar? Live gefragt, nichts gespeichert.
-
-    Fuer die Statusleuchte auf den Kacheln - deshalb alle gleichzeitig und
-    mit kurzem Atem: Eine stumme Instanz darf die Antwort der anderen nicht
-    festhalten, und eine Leuchte, die fuenfzehn Sekunden nachdenkt, beruhigt
-    niemanden.
-    """
-    settings = load_settings(db)
-    kurzer_atem = httpx.Timeout(4.0, connect=3.0)
-
-    async def pruefen(instanz) -> VerbindungInstanz:
-        client = ArrClient(instanz.url, instanz.api_key, instanz.name)
-        try:
-            status = await client.system_status(timeout=kurzer_atem)
-        except ArrError:
-            return VerbindungInstanz(
-                kennung=instanz.kennung, name=instanz.name, erreichbar=False
-            )
-        return VerbindungInstanz(
-            kennung=instanz.kennung,
-            name=instanz.name,
-            erreichbar=True,
-            version=str(status.get("version") or ""),
-        )
-
-    ergebnisse = await asyncio.gather(
-        *(pruefen(instanz) for instanz in settings.arr_instanzen())
-    )
-    return VerbindungStand(instanzen=list(ergebnisse))
-
-
-class GesundheitProblem(BaseModel):
-    typ: str
-    text: str
-
-
-class GesundheitInstanz(BaseModel):
-    kennung: str
-    name: str
-    probleme: list[GesundheitProblem]
-    aktualisiert_am: datetime | None
-
-
-class GesundheitStand(BaseModel):
-    instanzen: list[GesundheitInstanz]
-
-
-@router.get("/settings/instanzen/gesundheit", response_model=GesundheitStand)
-async def instanzen_gesundheit(admin: AdminUser, db: DbSession) -> GesundheitStand:
-    """Was die Instanzen selbst als Problem melden - je Instanz.
-
-    Gelesen wird der zuletzt gesehene Stand (der Rundgang holt ihn jede
-    Runde frisch); die Texte kommen im Wortlaut der Instanz und werden
-    bewusst nicht uebersetzt.
-    """
-    settings = load_settings(db)
-    zeilen = []
-    for instanz in settings.arr_instanzen():
-        zeile = instanz_gesundheit.eintrag(db, instanz.kennung)
-        zeilen.append(
-            GesundheitInstanz(
-                kennung=instanz.kennung,
-                name=instanz.name,
-                probleme=[
-                    GesundheitProblem(
-                        typ=str(p.get("typ") or "warning"),
-                        text=str(p.get("text") or ""),
-                    )
-                    for p in (zeile.stand if zeile else None) or []
-                ],
-                aktualisiert_am=zeile.aktualisiert_am if zeile else None,
-            )
-        )
-    return GesundheitStand(instanzen=zeilen)
 
 
 class KollisionOut(BaseModel):

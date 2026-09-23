@@ -4107,7 +4107,8 @@
       "umstieg_fassung_unbekannt": "There is no such current version.",
       "umstieg_ziel_unbekannt": "There is no such nexcrate version.",
       "umstieg_falsche_medienart": "A series cannot be mapped onto a movie version."
-    }
+    },
+    "mappingNoSuggestion": "Nexview suggests nothing: this nexcrate names no quality tier for its versions – it only does once their profiles set one. Map by hand; nothing is guessed here, because putting a 4K request on a 1080p version would give the requester something other than what they asked for."
   },
   "warum": {
     "titel": "What it is waiting for",

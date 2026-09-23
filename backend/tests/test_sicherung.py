@@ -1092,6 +1092,86 @@ class TestRunForever:
         assert len(aufrufe) == 1
 
 
+class TestEinspielenGegenEinenSchreiber:
+    """Ein fremder Schreiber haelt das Einspielen auf - **vor** dem Tausch.
+
+    ⚠️ **Der Fehler vom 23.09.2026, an einer echten Anlage.** Direkt nach dem
+    Umstieg las Nexview nexcrates ganze Bibliothek ein. Das Einspielen einer
+    Sicherung lief in ``database is locked`` - aber erst in ``init_db``,
+    **nachdem** die Datei schon ersetzt war. ``engine.dispose()`` gibt nur den
+    Vorrat frei; wer gerade mitten in einer Abfrage steckt, haelt seine
+    Verbindung.
+
+    Jetzt wird vorher geprueft, und ein Abbruch ist folgenlos.
+    """
+
+    def test_ein_offener_schreiber_bricht_vor_dem_tausch_ab(
+        self, admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pfad = sicherung.anlegen(art=sicherung.MANUELL, kommentar="busy-probe")
+        daten = sicherung.archiv(pfad.name, PASSWORT)
+        ziel = get_settings().db_path
+
+        # ⚠️ **Eine Marke, die es nur im jetzigen Stand gibt.** Ein Vergleich
+        # der ganzen Datei taugt nicht: Das Anlegen der Sicherung schreibt
+        # selbst ein paar Bytes. Bleibt diese Zeile stehen, wurde nicht
+        # getauscht - und genau das ist die Zusage.
+        with db_modul.SessionLocal() as db:
+            settings_service.save_settings(db, {"radarr_name": "marke-vor-dem-tausch"})
+            db.commit()
+
+        # Schnell aufgeben - der Test soll nicht zehn Sekunden warten.
+        monkeypatch.setattr(
+            sicherung, "_warten_bis_frei", lambda z, versuche=2: _echtes_warten(z, 2)
+        )
+
+        fremd = sqlite3.connect(str(ziel))
+        try:
+            fremd.execute("BEGIN EXCLUSIVE")
+            with pytest.raises(sicherung.SicherungFehler) as fehler:
+                sicherung.wiederherstellen(daten, PASSWORT)
+        finally:
+            fremd.rollback()
+            fremd.close()
+
+        assert fehler.value.code == "restore_database_busy"
+        # ⚠️ Das Eigentliche: Die Datenbank ist **unberuehrt**.
+        with db_modul.SessionLocal() as db:
+            assert settings_service.load_settings(db, frisch=True).radarr_name == (
+                "marke-vor-dem-tausch"
+            )
+
+    def test_ohne_schreiber_laeuft_es_durch(self, admin_client: TestClient) -> None:
+        """Die Gegenprobe - sonst bewiese der Test oben nur, dass es nie geht."""
+        pfad = sicherung.anlegen(art=sicherung.MANUELL, kommentar="frei-probe")
+        daten = sicherung.archiv(pfad.name, PASSWORT)
+        befund = sicherung.wiederherstellen(daten, PASSWORT)
+        assert befund.einspielbar
+        assert befund.brief.version
+
+
+def _echtes_warten(ziel, versuche):
+    """Dieselbe Pruefung wie im Dienst, nur mit wenigen Versuchen."""
+    import sqlite3
+    import time as _time
+
+    for versuch in range(versuche):
+        try:
+            verbindung = sqlite3.connect(str(ziel), timeout=0.2)
+            try:
+                verbindung.execute("BEGIN EXCLUSIVE")
+                verbindung.rollback()
+                return
+            finally:
+                verbindung.close()
+        except sqlite3.OperationalError:
+            if versuch == versuche - 1:
+                raise sicherung.SicherungFehler(
+                    "restore_database_busy", "busy"
+                ) from None
+            _time.sleep(0.1)
+
+
 class TestTaktGegenEinspielen:
     """Takt-Thread und Einspielen teilen sich ``_pflege_schloss``.
 

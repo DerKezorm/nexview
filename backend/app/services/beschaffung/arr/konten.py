@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from ....models import MediaRequest, MediaType, StorageEntry
 from ...settings_service import AppSettings
+from ..base import Abschied
 from . import library
 
 logger = logging.getLogger("nexview.arr")
@@ -118,7 +119,7 @@ async def weg_verlassen(db: Session, settings: AppSettings) -> list[str]:
     from . import instanz_gesundheit, webhook_pflege, webhooks
     from .router_einstellungen import INSTANZ_FELDGRUPPEN
 
-    bericht: list[str] = []
+    bericht: list[Abschied] = []
     for instanz in settings.arr_instanzen():
         zeile = webhooks.eintrag(db, instanz.kennung)
         if zeile is not None:
@@ -126,10 +127,10 @@ async def weg_verlassen(db: Session, settings: AppSettings) -> list[str]:
             db.commit()
             try:
                 await webhook_pflege.instanz_pflegen(db, settings, instanz)
-                bericht.append(f"{instanz.name}: webhook entry removed")
+                bericht.append(Abschied("webhook_entfernt", {"instanz": instanz.name}))
             except Exception:  # noqa: BLE001 - eine stumme Instanz haelt nichts auf
                 logger.warning("Webhook entry in %s could not be removed", instanz.name)
-                bericht.append(f"{instanz.name}: webhook entry left behind (not reachable)")
+                bericht.append(Abschied("webhook_blieb", {"instanz": instanz.name}))
             rest = webhooks.eintrag(db, instanz.kennung)
             if rest is not None:
                 db.delete(rest)
@@ -144,6 +145,6 @@ async def weg_verlassen(db: Session, settings: AppSettings) -> list[str]:
             db,
             {felder["url"]: "", felder["name"]: "", **{f: "" for f in felder["leeren"]}},
         )
-        bericht.append(f"{instanz.name}: access removed from Nexview")
+        bericht.append(Abschied("zugang_entfernt", {"instanz": instanz.name}))
     library.invalidate()
     return bericht

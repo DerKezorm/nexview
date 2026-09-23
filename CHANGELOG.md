@@ -48,6 +48,14 @@ the process. The backup is the way back.
 
   The migration itself runs in one transaction and only then are Radarr and
   Sonarr left behind. If anything goes wrong, nothing has changed.
+- **Whether you can request does not depend on Radarr.** The interface asks
+  whether any version has something behind it, so the request button works in
+  either mode. It used to ask `radarr_configured` in thirteen places, which is
+  false once you procure through nexcrate.
+- **Restoring a backup stops before it touches anything** when the database is
+  still busy - usually a sync. It used to replace the file first and fail
+  afterwards, leaving the installation with a new database and a process that
+  remembered the old one.
 - **What a title is waiting for is written on it.** One line per version:
   downloading, nothing found that fits the profile, not released yet, sitting
   out a delay. Radarr and Sonarr cannot say this; there the section is absent

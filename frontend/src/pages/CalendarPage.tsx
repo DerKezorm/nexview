@@ -19,6 +19,7 @@ import { ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import type { Woche } from '../lib/kalenderwoche'
 import { heutigeWoche, wochenSpanne } from '../lib/kalenderwoche'
+import { kannAnfragen } from '../lib/fassungen'
 
 /**
  * Der heutige Tag in der Zeitzone des Browsers.
@@ -174,11 +175,10 @@ export function CalendarPage() {
       <DetailModal
         item={selected}
         onClose={() => setSelected(null)}
-        arrConfigured={
-          selected?.media_type === 'tv'
-            ? (config?.sonarr_configured ?? false)
-            : (config?.radarr_configured ?? false)
-        }
+        arrConfigured={kannAnfragen(
+          config,
+          selected?.media_type === 'tv' ? 'tv' : 'movie',
+        )}
       />
     </div>
   )

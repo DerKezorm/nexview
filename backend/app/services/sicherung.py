@@ -759,6 +759,44 @@ async def run_forever(stop: asyncio.Event) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _warten_bis_frei(ziel: Path, versuche: int = 40) -> None:
+    """Warten, bis niemand mehr in der Datenbank schreibt - **vor** dem Tausch.
+
+    ⚠️ **``engine.dispose()`` allein genuegt nicht.** Es gibt den Verbindungs-
+    pool frei; eine Hintergrundschleife, die gerade mitten in einer Abfrage
+    steckt, haelt ihre Verbindung weiter. Genau das ist am 23.09.2026 passiert:
+    Direkt nach dem Umstieg las Nexview nexcrates ganze Bibliothek ein, und das
+    Einspielen einer Sicherung lief in ``database is locked`` - **nachdem** die
+    Datei schon ersetzt war, in ``init_db``. Zurueck blieb eine Installation mit
+    der neuen Datenbank und einem Prozess, der die alte im Kopf hatte.
+
+    Deshalb wird hier gewartet, und zwar an der Stelle, an der ein Abbruch noch
+    folgenlos ist. ``BEGIN EXCLUSIVE`` ist die Probe: Sie gelingt nur, wenn
+    sonst niemand schreibt. Zehn Sekunden reichen fuer eine gewoehnliche Runde;
+    laeuft gerade ein grosser Abgleich, sagt die Meldung, dass es gleich noch
+    einmal gehen wird - was stimmt, weil solche Runden enden.
+    """
+    import sqlite3
+
+    for versuch in range(versuche):
+        try:
+            verbindung = sqlite3.connect(str(ziel), timeout=0.2)
+            try:
+                verbindung.execute("BEGIN EXCLUSIVE")
+                verbindung.rollback()
+                return
+            finally:
+                verbindung.close()
+        except sqlite3.OperationalError:
+            if versuch == versuche - 1:
+                raise SicherungFehler(
+                    "restore_database_busy",
+                    "Die Datenbank ist gerade in Benutzung - bitte in einer Minute "
+                    "noch einmal versuchen.",
+                ) from None
+            time.sleep(0.25)
+
+
 def _hartnaeckig_loeschen(pfad: Path, versuche: int = 20) -> None:
     """Eine Datei loeschen, auch wenn sie gerade noch jemand offen hat.
 
@@ -962,6 +1000,10 @@ def wiederherstellen(daten: bytes, passwort: str) -> Befund:
 
         # Verbindungen schliessen, sonst haelt SQLite die Dateien fest.
         engine.dispose()
+
+        # ⚠️ **Und dann warten, bis es wirklich stimmt.** Der Abbruch gehoert
+        # hierher, wo noch nichts ersetzt ist - nicht hinter den Dateitausch.
+        _warten_bis_frei(ziel)
 
         # ⚠️ **Die Begleitdateien muessen mit weg** - und genau daran haengt es.
         # Bleibt ein ``-wal`` der alten Datenbank liegen, spielt SQLite dessen

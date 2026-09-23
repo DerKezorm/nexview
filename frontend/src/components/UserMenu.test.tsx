@@ -4,7 +4,11 @@
  * ⚠️ **Er braucht zweierlei zugleich:** ein Administratorkonto und eine
  * Warteschlange. Der Filter prüfte bisher die Rolle und hörte dann auf; eine
  * Bedingung daneben wäre bei Administratoren nie gefragt worden, und der Punkt
- * stünde auch in einem Haus ohne Radarr und Sonarr da.
+ * stünde auch in einem Haus ohne Beschaffung da.
+ *
+ * ⚠️ **Gefragt wird nach Fassungen, nicht nach Radarr** (23.09.2026): Eine
+ * Warteschlange gibt es in jeder Betriebsart. Wer `radarr_configured` fragt,
+ * blendet den Punkt im NEX-Betrieb aus, obwohl nexcrate gerade lädt.
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -29,6 +33,13 @@ import { rendern } from '../test/rendern'
 import { UserMenu } from './UserMenu'
 
 const OHNE_GRENZE = { unlimited: true, used: 0, limit: 0, exhausted: false }
+
+/** Eine Fassung, hinter der etwas steht - mehr braucht die Warteschlange nicht. */
+function fassung(kennung: string, media_type: string, quelle: string) {
+  return { kennung, media_type, name: kennung, klasse: 'hd', quelle, haupt: true,
+           bereit: true, offen_fuer_alle: true, approver_picks_target: false,
+           darf_anfragen: true }
+}
 
 function angemeldetAls(konto: Record<string, unknown>, config: Record<string, unknown>) {
   // ``Once``: Der AuthProvider fragt beim Erscheinen genau einmal.
@@ -57,7 +68,10 @@ async function oeffnen() {
 
 describe('der Menüpunkt Downloads', () => {
   it('steht bei einem Administrator mit Radarr oder Sonarr', async () => {
-    angemeldetAls({ role: 'admin', can_approve: true }, { radarr_configured: true })
+    angemeldetAls(
+      { role: 'admin', can_approve: true },
+      { radarr_configured: true, fassungen: [fassung('radarr-standard', 'movie', 'arr')] },
+    )
     rendern(<UserMenu />)
     await oeffnen()
     expect(await screen.findByRole('menuitem', { name: 'Downloads' })).toHaveAttribute(
@@ -74,6 +88,7 @@ describe('der Menüpunkt Downloads', () => {
         sonarr_configured: false,
         radarr_uhd_configured: false,
         sonarr_uhd_configured: false,
+        fassungen: [],
       },
     )
     rendern(<UserMenu />)
@@ -82,8 +97,29 @@ describe('der Menüpunkt Downloads', () => {
     expect(screen.queryByRole('menuitem', { name: 'Downloads' })).not.toBeInTheDocument()
   })
 
+  it('steht auch im NEX-Betrieb, wo es kein Radarr gibt', async () => {
+    // ⚠️ Der Fehler, den der Betreiber an seiner Anlage fand: Nach dem
+    // Umstieg war nicht nur dieser Punkt weg, sondern der Anfragen-Knopf
+    // überall gesperrt - alles hing an `radarr_configured`.
+    angemeldetAls(
+      { role: 'admin', can_approve: true },
+      {
+        radarr_configured: false,
+        sonarr_configured: false,
+        beschaffung: 'nex',
+        fassungen: [fassung('v_6a0763e8', 'movie', 'nex')],
+      },
+    )
+    rendern(<UserMenu />)
+    await oeffnen()
+    expect(await screen.findByRole('menuitem', { name: 'Downloads' })).toBeInTheDocument()
+  })
+
   it('ein Entscheider sieht ihn nicht', async () => {
-    angemeldetAls({ role: 'approver', can_approve: true }, { sonarr_configured: true })
+    angemeldetAls(
+      { role: 'approver', can_approve: true },
+      { sonarr_configured: true, fassungen: [fassung('sonarr-standard', 'tv', 'arr')] },
+    )
     rendern(<UserMenu />)
     await oeffnen()
     expect(screen.getByRole('menuitem', { name: 'Alle Anfragen' })).toBeInTheDocument()

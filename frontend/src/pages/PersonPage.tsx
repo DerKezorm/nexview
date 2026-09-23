@@ -15,6 +15,7 @@ import { useCardData } from '../components/media/useCardData'
 import { Card, ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate } from '../lib/format'
+import { kannAnfragen } from '../lib/fassungen'
 
 const CREDIT_KINDS = ['movie', 'series', 'appearance'] as const
 
@@ -198,11 +199,10 @@ export function PersonPage() {
       <DetailModal
         item={schnellAnfrage}
         onClose={() => setSchnellAnfrage(null)}
-        arrConfigured={
-          schnellAnfrage?.media_type === 'movie'
-            ? (config?.radarr_configured ?? false)
-            : (config?.sonarr_configured ?? false)
-        }
+        arrConfigured={kannAnfragen(
+          config,
+          schnellAnfrage?.media_type === 'movie' ? 'movie' : 'tv',
+        )}
       />
     </div>
   )

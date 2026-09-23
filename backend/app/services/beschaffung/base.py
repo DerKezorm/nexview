@@ -437,6 +437,19 @@ class Sprung:
 
 
 @dataclass(frozen=True)
+class Abschied:
+    """Eine Zeile des Berichts, den ``verlassen()`` zurueckgibt.
+
+    ``code`` ist eine Kennung (``webhook_entfernt``, ``zugang_entfernt``,
+    ``webhook_blieb``), ``werte`` traegt, was der Satz einsetzt - heute nur
+    den Namen der Instanz.
+    """
+
+    code: str
+    werte: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class Pruefbefund:
     """Was gegen diesen Weg spricht (Bauplan 7.2).
 
@@ -802,11 +815,17 @@ class Beschaffung(ABC):
     async def rueckkanal_pflegen(self, db: Session) -> None: ...
 
     @abstractmethod
-    async def verlassen(self, db: Session) -> list[str]:
+    async def verlassen(self, db: Session) -> list[Abschied]:
         """Diesen Weg aufgeben: aufraeumen, was er anderswo hinterlassen hat.
 
         Gibt zurueck, was geschehen ist - fuer das Protokoll und fuer den
         Assistenten, der es dem Betreiber zeigt.
+
+        ⚠️ **Kennungen, keine Saetze.** Hier stand einmal fertiges Englisch,
+        und genau so erschien es in der deutschen Oberflaeche ("Radarr FHD:
+        webhook entry removed", gesehen am 23.09.2026). Es gilt dieselbe Regel
+        wie fuer jede Meldung aus einem Beschaffungsweg: Der Weg nennt die
+        Kennung, die Oberflaeche macht daraus einen Satz.
 
         ⚠️ **Der letzte Schreibzugriff auf den alten Weg.** Danach sind seine
         Zugaenge geloescht; was drueben weiterlaeuft, laeuft ohne Nexview zu

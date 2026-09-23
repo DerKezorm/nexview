@@ -290,7 +290,8 @@ class UmschaltenEingabe(BaseModel):
 
 class UmschaltenAntwort(BaseModel):
     fassungen: int
-    verlassen: list[str]
+    #: Kennungen, keine Sätze - die Oberfläche macht daraus einen Satz.
+    verlassen: list[dict[str, Any]]
     anfragen: int
     posten: int
     posten_schluessel: int
@@ -359,7 +360,9 @@ async def umschalten(
 
     return UmschaltenAntwort(
         fassungen=bericht.fassungen,
-        verlassen=bericht.verlassen,
+        verlassen=[
+            {"code": zeile.code, "werte": zeile.werte} for zeile in bericht.verlassen
+        ],
         anfragen=bericht.wanderung.anfragen,
         posten=bericht.wanderung.posten,
         posten_schluessel=bericht.wanderung.posten_schluessel,

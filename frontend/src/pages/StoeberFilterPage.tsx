@@ -15,6 +15,7 @@ import {
 import { Button, ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { stoeberPath } from '../lib/routes'
+import { kannAnfragen } from '../lib/fassungen'
 
 const SEITE_ANZAHL = 24
 
@@ -135,8 +136,7 @@ export function StoeberFilterPage() {
   const failure = query.error ?? query.failureReason
   const etwasGesetzt = [...params.keys()].length > 0
 
-  const arrConfigured =
-    art === 'movie' ? (config?.radarr_configured ?? false) : (config?.sonarr_configured ?? false)
+  const arrConfigured = kannAnfragen(config, art)
 
   /**
    * Welche Einstellungen schränken gerade ein — und wie wird man sie los?

@@ -36,6 +36,26 @@ export function fassungenFuer(
 }
 
 /**
+ * Kann in dieser Medienart überhaupt angefragt werden?
+ *
+ * ⚠️ **Die Frage lautet nicht „ist Radarr eingerichtet".** Genau so stand sie
+ * bis zum 23.09.2026 an dreizehn Stellen, und im NEX-Betrieb war der
+ * Anfragen-Knopf deshalb überall gesperrt – mit dem Hinweis, der
+ * Administrator müsse erst Radarr einrichten. Gefunden hat das erst der
+ * Betreiber an seiner eigenen Anlage.
+ *
+ * `bereit` an einer Fassung sagt dasselbe, ohne den Weg zu kennen: Steht die
+ * Quelle dahinter? Im ARR-Betrieb ist das die Instanz, im NEX-Betrieb
+ * nexcrate. Wer einen dritten Weg baut, muss hier nichts ändern.
+ */
+export function kannAnfragen(
+  config: Pick<AppConfig, 'fassungen'> | undefined | null,
+  mediaType: MediaType,
+): boolean {
+  return fassungenFuer(config, mediaType).some((f) => f.bereit)
+}
+
+/**
  * Welche Fassungen darf dieses Konto anfragen?
  *
  * Die Leiter (Haus, Konto, Rolle) hat der Server schon gerechnet

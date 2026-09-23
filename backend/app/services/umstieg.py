@@ -49,7 +49,7 @@ from ..models import (
 )
 from . import fassungen as fassungen_dienst
 from . import storage
-from .beschaffung import ARR, NEX, BeschaffungError, Kennt, get_beschaffung
+from .beschaffung import ARR, NEX, Abschied, BeschaffungError, Kennt, get_beschaffung
 from .settings_service import load_settings, save_settings
 
 if TYPE_CHECKING:
@@ -622,7 +622,7 @@ def _paket_nummer(schluessel: str) -> int | None:
 @dataclass
 class Bericht:
     wanderung: Wanderung
-    verlassen: list[str] = field(default_factory=list)
+    verlassen: list[Abschied] = field(default_factory=list)
     fassungen: int = 0
 
 
@@ -690,5 +690,5 @@ async def umschalten(
         bericht.verlassen = await alter_weg.verlassen(db)
     except Exception:  # noqa: BLE001 - der Umstieg steht schon
         logger.exception("Switched, but the old way could not be left cleanly")
-        bericht.verlassen = ["the old access could not be removed - do it by hand"]
+        bericht.verlassen = [Abschied("zugang_blieb")]
     return bericht

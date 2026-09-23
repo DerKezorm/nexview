@@ -17,6 +17,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from ..base import (
+    Abschied,
     Beschaffung,
     BeschaffungError,
     Faehigkeiten,
@@ -408,7 +409,7 @@ class ArrBeschaffung(Beschaffung):
     async def gesundheit_pruefen(self, db: Session) -> None:
         await instanz_gesundheit.pruefen(db, self.settings)
 
-    async def verlassen(self, db: Session) -> list[str]:
+    async def verlassen(self, db: Session) -> list[Abschied]:
         """Nexviews Webhook-Eintraege aus Radarr und Sonarr nehmen, Zugaenge loeschen.
 
         ⚠️ **Erst der Webhook, dann der Zugang.** Umgekehrt riefen beide

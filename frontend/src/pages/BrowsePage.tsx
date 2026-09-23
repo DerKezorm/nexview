@@ -10,6 +10,7 @@ import { MediaItemCard } from '../components/media/MediaCard'
 import { useCardData } from '../components/media/useCardData'
 import { Button, ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
+import { kannAnfragen } from '../lib/fassungen'
 
 type BrowseResult = { label: string; page: MediaPage }
 
@@ -51,10 +52,7 @@ export function BrowsePage() {
   // mitgegebene weiter, damit die Überschrift nicht springt.
   const name = query.data?.pages[0]?.label || params.get('name') || ''
 
-  const arrConfigured =
-    mediaType === 'movie'
-      ? (config?.radarr_configured ?? false)
-      : (config?.sonarr_configured ?? false)
+  const arrConfigured = kannAnfragen(config, mediaType ?? 'movie')
 
   return (
     <div className="flex flex-col gap-6">

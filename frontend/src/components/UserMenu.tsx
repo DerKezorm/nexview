@@ -11,6 +11,7 @@ import { useAuth } from '../auth/useAuth'
 import { useConfig } from '../hooks/useConfig'
 import { useStorageStand } from '../hooks/useStorageStand'
 import { formatSize } from '../lib/format'
+import { kannAnfragen } from '../lib/fassungen'
 import { Avatar } from './Avatar'
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -100,12 +101,8 @@ export function UserMenu() {
   // Die Seite Downloads gibt es nur, wenn es eine Warteschlange gibt: ohne
   // Radarr oder Sonarr wäre sie ein Menüpunkt ohne Inhalt.
   const { data: config } = useConfig()
-  const mitWarteschlange = Boolean(
-    config?.radarr_configured ||
-      config?.sonarr_configured ||
-      config?.radarr_uhd_configured ||
-      config?.sonarr_uhd_configured,
-  )
+  const mitWarteschlange =
+    kannAnfragen(config, 'movie') || kannAnfragen(config, 'tv')
 
   // Nach einem Seitenwechsel schließen.
   useEffect(() => setOpen(false), [location.pathname])

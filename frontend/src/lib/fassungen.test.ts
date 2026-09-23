@@ -15,6 +15,7 @@ import {
   fassungMitArt,
   fassungName,
   fassungStatus,
+  kannAnfragen,
   staffelFassung,
 } from './fassungen'
 
@@ -165,5 +166,38 @@ describe('darfFassungAnfragen', () => {
     } as unknown as User
     expect(darfFassungAnfragen(ohne, VIERK)).toBe(false)
     expect(darfFassungAnfragen(mit, VIERK)).toBe(true)
+  })
+})
+
+describe('kann in dieser Medienart angefragt werden?', () => {
+  /**
+   * ⚠️ **Der Fehler, den der Betreiber an seiner Anlage fand** (23.09.2026):
+   * Im NEX-Betrieb war der Anfragen-Knopf überall grau, weil die Oberfläche
+   * `radarr_configured` fragte. Die Frage muss den Weg nicht kennen.
+   */
+  it('sagt ja, sobald hinter einer Fassung etwas steht', () => {
+    const config = {
+      fassungen: [fassung({ kennung: 'v_1', quelle: 'nex', bereit: true })],
+    } as AppConfig
+    expect(kannAnfragen(config, 'movie')).toBe(true)
+  })
+
+  it('sagt nein, solange keine Fassung bereit ist', () => {
+    const config = {
+      fassungen: [fassung({ kennung: 'radarr-standard', haupt: true, bereit: false })],
+    } as AppConfig
+    expect(kannAnfragen(config, 'movie')).toBe(false)
+  })
+
+  it('zählt nur die eigene Medienart', () => {
+    const config = {
+      fassungen: [fassung({ kennung: 'v_1', media_type: 'tv', quelle: 'nex', bereit: true })],
+    } as AppConfig
+    expect(kannAnfragen(config, 'tv')).toBe(true)
+    expect(kannAnfragen(config, 'movie')).toBe(false)
+  })
+
+  it('kommt ohne Konfiguration zurecht', () => {
+    expect(kannAnfragen(undefined, 'movie')).toBe(false)
   })
 })

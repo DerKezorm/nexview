@@ -803,7 +803,7 @@ async def test_ein_stummes_arr_haelt_den_umstieg_nicht_mehr_auf(
     drüben darf das nicht zurücknehmen, er steht nur im Bericht."""
     from app.services.beschaffung.arr.weg import ArrBeschaffung
 
-    async def verlassen(self: Any, sitzung: Session) -> list[str]:
+    async def verlassen(self: Any, sitzung: Session) -> list[Any]:
         raise RuntimeError("Radarr antwortet nicht")
 
     monkeypatch.setattr(ArrBeschaffung, "verlassen", verlassen)
@@ -811,4 +811,5 @@ async def test_ein_stummes_arr_haelt_den_umstieg_nicht_mehr_auf(
     bericht = await umstieg.umschalten(db, vor_dem_umstieg, _abbildung(), {})
 
     assert load_settings(db, frisch=True).beschaffung == NEX
-    assert bericht.verlassen and "by hand" in bericht.verlassen[0]
+    # ⚠️ Eine Kennung, kein Satz - die Oberfläche macht daraus Deutsch.
+    assert [zeile.code for zeile in bericht.verlassen] == ["zugang_blieb"]

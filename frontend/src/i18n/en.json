@@ -2195,7 +2195,8 @@
       "download_action_not_automatic": "An automation may not take that action here.",
       "storage_nothing_to_delete": "nexcrate reports no file for this entry that could be deleted.",
       "umstieg_ohne_sicherung": "A backup must exist before switching.",
-      "umstieg_posten_ohne_gegenstueck": "There are {{anzahl}} entries that nexcrate does not keep. Look at them and decide."
+      "umstieg_posten_ohne_gegenstueck": "There are {{anzahl}} entries that nexcrate does not keep. Look at them and decide.",
+      "restore_database_busy": "The database is busy right now - usually a sync is running. Please try again in a minute; nothing was changed."
     }
   },
   "language": {
@@ -4115,7 +4116,15 @@
     "switchWhatChanges": "What is a version id? Every request and every storage entry records which version of a title it was about - so far “Radarr” or “Sonarr 4K”, from now on the version from nexcrate you mapped above. Only that label is exchanged.",
     "switchNothingLost": "No file is touched, nothing is downloaded or deleted, and no title disappears from Nexview. Whatever is on disk stays exactly where it is.",
     "doneDouble_one": "One entry was left as it was, because another would have taken the same place.",
-    "doneDouble_other": "{{count}} entries were left as they were, because another would have taken the same place each time."
+    "doneDouble_other": "{{count}} entries were left as they were, because another would have taken the same place each time.",
+    "leave": {
+      "webhook_entfernt": "{{instanz}}: webhook entry removed",
+      "webhook_blieb": "{{instanz}}: webhook entry left behind (not reachable) - remove it there by hand",
+      "zugang_entfernt": "{{instanz}}: access removed from Nexview",
+      "zugang_blieb": "The old access could not be removed - remove it by hand",
+      "nexcrate_schluessel_entfernt": "nexcrate key removed from Nexview - revoke it in nexcrate itself"
+    },
+    "doneExit": "Done"
   },
   "warum": {
     "titel": "What it is waiting for",

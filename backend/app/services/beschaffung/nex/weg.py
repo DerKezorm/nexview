@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, NoReturn
 
 from ....models import MediaRequest, utcnow
 from ..base import (
+    Abschied,
     Aktion,
     Beschaffung,
     BeschaffungError,
@@ -636,7 +637,7 @@ class NexBeschaffung(Beschaffung):
         """Nichts zu tun: Nexview legt in nexcrate keinen Webhook an (N32)."""
         return
 
-    async def verlassen(self, db: Session) -> list[str]:
+    async def verlassen(self, db: Session) -> list[Abschied]:
         """Den Zugang zu nexcrate loeschen. Mehr kann Nexview nicht.
 
         ⚠️ **Der Schluessel bleibt in nexcrate stehen.** Ein Programm kann ihn
@@ -646,9 +647,9 @@ class NexBeschaffung(Beschaffung):
         """
         from ...settings_service import clear_secret, save_settings
 
-        bericht = []
+        bericht: list[Abschied] = []
         if self.settings.nexcrate_configured:
-            bericht.append("nexcrate key removed from Nexview (revoke it in nexcrate)")
+            bericht.append(Abschied("nexcrate_schluessel_entfernt"))
         clear_secret(db, "nexcrate_api_key")
         save_settings(
             db,

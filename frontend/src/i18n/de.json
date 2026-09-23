@@ -2195,7 +2195,8 @@
       "download_action_not_automatic": "Diese Aktion darf eine Automatik hier nicht auslösen.",
       "storage_nothing_to_delete": "Für diesen Posten meldet nexcrate keine Datei, die sich löschen ließe.",
       "umstieg_ohne_sicherung": "Vor dem Umschalten muss eine Sicherung liegen.",
-      "umstieg_posten_ohne_gegenstueck": "Es gibt {{anzahl}} Posten, die nexcrate nicht führt. Sieh sie dir an und entscheide."
+      "umstieg_posten_ohne_gegenstueck": "Es gibt {{anzahl}} Posten, die nexcrate nicht führt. Sieh sie dir an und entscheide.",
+      "restore_database_busy": "Die Datenbank ist gerade in Benutzung – meist läuft ein Abgleich. Bitte in einer Minute noch einmal versuchen; es wurde nichts verändert."
     }
   },
   "language": {
@@ -4115,7 +4116,15 @@
     "switchWhatChanges": "Was ist eine Fassungskennung? An jeder Anfrage und an jedem Speicherposten steht, in welcher Fassung es um den Titel ging — bisher „Radarr“ oder „Sonarr 4K“, künftig die Fassung aus nexcrate, die du oben zugeordnet hast. Nur diese Beschriftung wird ausgetauscht.",
     "switchNothingLost": "Keine Datei wird angefasst, nichts wird heruntergeladen oder gelöscht, und kein Titel verschwindet aus Nexview. Was auf der Platte liegt, liegt danach genauso da.",
     "doneDouble_one": "Ein Posten blieb stehen, weil ein anderer denselben Platz bekommen hätte.",
-    "doneDouble_other": "{{count}} Posten blieben stehen, weil je ein anderer denselben Platz bekommen hätte."
+    "doneDouble_other": "{{count}} Posten blieben stehen, weil je ein anderer denselben Platz bekommen hätte.",
+    "leave": {
+      "webhook_entfernt": "{{instanz}}: Webhook-Eintrag entfernt",
+      "webhook_blieb": "{{instanz}}: Webhook-Eintrag blieb stehen (nicht erreichbar) — nimm ihn dort von Hand heraus",
+      "zugang_entfernt": "{{instanz}}: Zugang aus Nexview entfernt",
+      "zugang_blieb": "Der alte Zugang ließ sich nicht entfernen — nimm ihn von Hand heraus",
+      "nexcrate_schluessel_entfernt": "nexcrate-Schlüssel aus Nexview entfernt — widerrufen kannst du ihn nur in nexcrate selbst"
+    },
+    "doneExit": "Fertig"
   },
   "warum": {
     "titel": "Woran es gerade hängt",

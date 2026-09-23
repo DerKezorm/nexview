@@ -16,6 +16,7 @@ import {
 import { Button, ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { stoeberPath } from '../lib/routes'
+import { kannAnfragen } from '../lib/fassungen'
 
 /** So viele Titel lädt die volle Regalseite je Schritt. */
 const SEITE_ANZAHL = 24
@@ -69,8 +70,7 @@ export function StoeberRegalPage() {
   const arrWarning = query.data?.pages[0]?.arr_warning ?? null
   const failure = query.error ?? query.failureReason
 
-  const arrConfigured =
-    art === 'movie' ? (config?.radarr_configured ?? false) : (config?.sonarr_configured ?? false)
+  const arrConfigured = kannAnfragen(config, art)
 
   return (
     <div className="flex flex-col gap-6">

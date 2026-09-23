@@ -12,6 +12,7 @@ import { AnsichtUmschalter, type Ansicht } from '../components/stoebern/Titellis
 import { useConfig } from '../hooks/useConfig'
 import { Umschalter } from '../components/Umschalter'
 import { regalPath, stoeberFilterPath, stoeberPath } from '../lib/routes'
+import { kannAnfragen } from '../lib/fassungen'
 
 type StoeberPageProps = {
   mediaType: MediaType
@@ -74,10 +75,7 @@ export function StoeberPage({ mediaType }: StoeberPageProps) {
   const jahrzehnte = regale.filter((regal) => regal.kategorie === 'jahrzehnt')
   const genres = regale.filter((regal) => regal.kategorie === 'genre')
 
-  const arrConfigured =
-    mediaType === 'movie'
-      ? (config?.radarr_configured ?? false)
-      : (config?.sonarr_configured ?? false)
+  const arrConfigured = kannAnfragen(config, mediaType)
 
   return (
     <div className="flex flex-col gap-8">

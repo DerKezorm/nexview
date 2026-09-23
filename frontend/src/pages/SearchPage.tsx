@@ -5,6 +5,7 @@ import { DemoBanner } from '../components/DemoBanner'
 import { SuchErgebnis } from '../components/media/SuchErgebnis'
 import { SearchInput } from '../components/SearchInput'
 import { useConfig } from '../hooks/useConfig'
+import { kannAnfragen } from '../lib/fassungen'
 
 /**
  * Gezielte Suche nach einem Titel - über Filme und Serien hinweg.
@@ -47,13 +48,13 @@ export function SearchPage() {
             mediaType="movie"
             titleKey="common.movies"
             suche={query}
-            arrConfigured={config?.radarr_configured ?? false}
+            arrConfigured={kannAnfragen(config, 'movie')}
           />
           <SuchErgebnis
             mediaType="tv"
             titleKey="common.seriesPlural"
             suche={query}
-            arrConfigured={config?.sonarr_configured ?? false}
+            arrConfigured={kannAnfragen(config, 'tv')}
           />
         </>
       )}

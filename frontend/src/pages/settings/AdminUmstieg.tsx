@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -47,6 +48,7 @@ export function AdminUmstieg() {
   const queryClient = useQueryClient();
 
   const [schritt, setSchritt] = useState<Schritt>("vorab");
+  const navigate = useNavigate();
   const [abbildung, setAbbildung] = useState<Record<string, string | null>>({});
   // ⚠️ **Dieselbe Regel wie am Server** (`pruefe_abbildung`), nur früher: Wer
   // zwei bisherige Fassungen auf dieselbe nexcrate-Fassung legt, soll das
@@ -460,8 +462,15 @@ export function AdminUmstieg() {
           </ul>
           {bericht.verlassen.length > 0 && (
             <ul className="flex flex-col gap-1 text-sm text-mist-400">
+              {/* ⚠️ Kennungen, keine Sätze: Hier stand einmal fertiges
+                  Englisch mitten in der deutschen Oberfläche. */}
               {bericht.verlassen.map((zeile) => (
-                <li key={zeile}>{zeile}</li>
+                <li key={`${zeile.code}:${zeile.werte?.instanz ?? ""}`}>
+                  {t(`umstieg.leave.${zeile.code}`, {
+                    ...zeile.werte,
+                    defaultValue: zeile.code,
+                  })}
+                </li>
               ))}
             </ul>
           )}
@@ -481,6 +490,15 @@ export function AdminUmstieg() {
           {nachreichen.data?.weiter && (
             <p className="text-sm text-mist-400">{t("umstieg.handOverMore")}</p>
           )}
+          {/* ⚠️ **Ein Fenster braucht einen sichtbaren Ausgang.** „Schritt 7
+              von 7" endete hier im Nichts: kein Knopf, kein Weg zurück. Der
+              Betreiber fragte, warum es nicht weitergeht - es ging schon
+              nicht mehr weiter, das sagte nur niemand. */}
+          <div className="flex flex-wrap items-center gap-3 border-t border-ink-800 pt-4">
+            <Button type="button" onClick={() => navigate("/")}>
+              {t("umstieg.doneExit")}
+            </Button>
+          </div>
         </Section>
       )}
     </div>

@@ -38,6 +38,7 @@ import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
 import { browsePath, personPath, stoeberPath } from '../lib/routes'
 import { useAuth } from '../auth/useAuth'
+import { kannAnfragen as wegKannAnfragen } from '../lib/fassungen'
 
 /** Eine Runde Vorschlaege vom Server. */
 type Auswahl = {
@@ -263,9 +264,7 @@ export function TitlePage() {
 
   const item = query.data
   const istFilm = item.media_type === 'movie'
-  const arrConfigured = istFilm
-    ? (config?.radarr_configured ?? false)
-    : (config?.sonarr_configured ?? false)
+  const arrConfigured = wegKannAnfragen(config, istFilm ? 'movie' : 'tv')
 
   const laufzeit = formatRuntime(item.runtime_minutes, i18n.language)
   const regie = item.crew.filter((person) => person.job === 'Director' || person.job === 'Creator')

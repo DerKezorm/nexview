@@ -182,3 +182,45 @@ it('ruft das Backend nur unter /api/', () => {
     'Diese Aufrufe gehen an die Oberfläche statt ans Backend - es fehlt /api davor:',
   ).toEqual([])
 })
+
+/**
+ * ⚠️ **Der Anfragen-Knopf fragt nicht nach Radarr.**
+ *
+ * Bis zum 23.09.2026 hing er an `config.radarr_configured` – an dreizehn
+ * Stellen. Im NEX-Betrieb ist das `false`, also war der Knopf überall grau,
+ * mit dem Hinweis, der Administrator müsse erst Radarr einrichten. Weder
+ * 3.500 Tests noch ein voller Durchlauf gegen eine echte nexcrate haben das
+ * gezeigt; gefunden hat es der Betreiber an seiner eigenen Anlage, nachdem er
+ * umgestellt hatte.
+ *
+ * Die wegunabhängige Frage lautet `kannAnfragen(config, art)`: Gibt es eine
+ * Fassung, hinter der etwas steht? Wer einen dritten Weg baut, muss dafür
+ * nichts ändern.
+ *
+ * Die Einstellungsseiten dürfen weiter fragen – dort geht es wirklich um
+ * Radarr und Sonarr, nicht um das Anfragen.
+ */
+describe('der Anfragen-Knopf hängt nicht an Radarr', () => {
+  const ERLAUBT = /\/(settings|setup)\/|hausregeln\.test\.ts$|\.test\.tsx?$|api\/types\.ts$/
+  const MUSTER = /(radarr|sonarr)_configured/
+
+  it('sieht die Quelldateien überhaupt', () => {
+    expect(Object.keys(DATEIEN).length).toBeGreaterThan(50)
+  })
+
+  it('keine Seite und keine Kachel fragt danach', () => {
+    const treffer = Object.entries(DATEIEN)
+      .filter(([pfad]) => !ERLAUBT.test(pfad))
+      .filter(([, text]) => MUSTER.test(text))
+      .map(([pfad]) => pfad)
+    expect(treffer, `Nimm kannAnfragen(config, art) statt radarr_configured:\n${treffer.join('\n')}`).toEqual([])
+  })
+
+  it('findet den Verstoß, wenn es einen gäbe', () => {
+    const erfunden = { '../pages/ErfundeneSeite.tsx': 'const x = config?.radarr_configured ?? false' }
+    const treffer = Object.entries(erfunden)
+      .filter(([pfad]) => !ERLAUBT.test(pfad))
+      .filter(([, text]) => MUSTER.test(text))
+    expect(treffer).toHaveLength(1)
+  })
+})

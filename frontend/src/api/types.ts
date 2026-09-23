@@ -1302,7 +1302,11 @@ export type UmstiegSicherung = {
 /** Schritt 6: was umgeschrieben wurde. */
 export type UmstiegBericht = {
   fassungen: number;
-  verlassen: string[];
+  /**
+   * Was beim Verlassen des alten Wegs geschah – als Kennungen, nicht als
+   * Sätze. Die Oberfläche übersetzt sie (`umstieg.leave.<code>`).
+   */
+  verlassen: { code: string; werte?: Record<string, string> }[];
   anfragen: number;
   posten: number;
   posten_schluessel: number;

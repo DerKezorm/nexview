@@ -23,6 +23,7 @@ import { MediaServerPrompt } from '../../components/MediaServerPrompt'
 import { Button, Card, ErrorBanner, Spinner } from '../../components/ui'
 import { useConfig } from '../../hooks/useConfig'
 import { useMediaServerChallenge } from '../../lib/useMediaServerChallenge'
+import { kannAnfragen } from '../../lib/fassungen'
 
 type WatchlistAntwort = {
   movies: MediaItem[]
@@ -242,10 +243,9 @@ export function WatchlistPlex() {
       <DetailModal
         item={gewaehlt}
         onClose={() => setGewaehlt(null)}
-        arrConfigured={Boolean(
-          gewaehlt?.media_type === 'movie'
-            ? config?.radarr_configured
-            : config?.sonarr_configured,
+        arrConfigured={kannAnfragen(
+          config,
+          gewaehlt?.media_type === 'movie' ? 'movie' : 'tv',
         )}
         fromWatchlist
       />

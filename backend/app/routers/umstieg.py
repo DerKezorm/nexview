@@ -187,7 +187,8 @@ class ProbeAntwort(BaseModel):
     unbekannt: int = 0
     anime_offen: int = 0
     #: Die Titel, die eine Entscheidung brauchen: geladene Posten, die nexcrate
-    #: nicht führt, und Serien ohne Übersetzung nach TMDB.
+    #: nicht führt, Serien ohne Übersetzung nach TMDB, und solche, die mit
+    #: einem anderen Posten denselben neuen Speicherschlüssel bekämen.
     zu_entscheiden: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -226,6 +227,10 @@ async def probe(
                 "ohne_uebersetzung": bool(
                     b.ergebnis == "bekannt" and not b.tmdb_aus_nexcrate
                 ),
+                # ⚠️ **Zwei Posten, ein neuer Schlüssel.** Der dritte Grund,
+                # hier zu stehen - und der einzige, der ohne diese Liste als
+                # Absturz endete (23.09.2026).
+                "kollidiert": b.kollidiert,
             }
             for b in ergebnis.posten_ohne_gegenstueck
         ],
@@ -290,6 +295,7 @@ class UmschaltenAntwort(BaseModel):
     posten: int
     posten_schluessel: int
     posten_ohne_uebersetzung: int
+    posten_doppelt: int = 0
     rechte: int
     einladungen: int
     regeln: int
@@ -358,6 +364,7 @@ async def umschalten(
         posten=bericht.wanderung.posten,
         posten_schluessel=bericht.wanderung.posten_schluessel,
         posten_ohne_uebersetzung=bericht.wanderung.posten_ohne_uebersetzung,
+        posten_doppelt=bericht.wanderung.posten_doppelt,
         rechte=bericht.wanderung.rechte,
         einladungen=bericht.wanderung.einladungen,
         regeln=bericht.wanderung.regeln,

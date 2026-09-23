@@ -18,6 +18,16 @@ from ..base import ARR, KLASSE_HD, KLASSE_UHD, NEX, FassungInfo
 ART_NACH_KIND: dict[str, str] = {"movie": "movie", "series": "tv"}
 KIND_NACH_ART: dict[str, str] = {"movie": "movie", "tv": "series"}
 
+#: ⚠️ **Was Nexview anfragen kann - mehr nicht.** nexcrate fuehrt auch Musik
+#: (``kind: "album"``), und ``art()`` reicht jedes unbekannte ``kind``
+#: unveraendert durch. Ohne diese Schranke landete nexcrates Musikfassung in
+#: Nexviews Fassungstabelle und stand danach in jeder Liste - in der
+#: Benutzerverwaltung, im Abgleich des Umsteigers, auf der nexcrate-Seite.
+#: Beim ersten Umstieg an einer echten Anlage ist genau das passiert
+#: (23.09.2026). Musik gehoert nicht zu Nexview; das entscheidet nicht die
+#: Oberflaeche, sondern diese Zeile.
+EIGENE_ARTEN: frozenset[str] = frozenset(ART_NACH_KIND.values())
+
 #: Die groben Klassen, die nexcrate je Fassung liefert (``tier``). ``null``
 #: heisst "kein Profil" - dann hat die Fassung keine Klasse, und Nexview
 #: zeigt kein Abzeichen.
@@ -49,6 +59,11 @@ def kind(media_type: Any) -> str:
 def art(kind_wert: str) -> str:
     """Nexcrates ``kind`` als Nexviews Medienart."""
     return ART_NACH_KIND.get(kind_wert, kind_wert)
+
+
+def fuehrt_nexview(eintrag: dict[str, Any]) -> bool:
+    """Ist diese Zeile aus ``GET /versions`` eine, die Nexview anbieten darf?"""
+    return art(str(eintrag.get("kind") or "")) in EIGENE_ARTEN
 
 
 def ref(tmdb_id: int) -> str:

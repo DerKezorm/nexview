@@ -34,6 +34,17 @@ the process. The backup is the way back.
   the titles something hangs on, the backup, the switch, and handing over the
   approved requests. ⚠️ **There is no way back except the backup** – Nexview
   refuses to switch until the file is really written.
+
+  Before the switch it lists every title that needs a decision, with the
+  reason: nexcrate does not have it, it has it but without the TMDB id the
+  storage key is built from, or two of your entries would end up on the same
+  new key. That last one happens where Sonarr keeps two series that TMDB counts
+  as one – series hang on their TVDB id under Radarr and Sonarr, and on their
+  TMDB id under nexcrate. Those entries are left exactly as they are; you can
+  merge such titles in nexcrate afterwards.
+
+  The migration itself runs in one transaction and only then are Radarr and
+  Sonarr left behind. If anything goes wrong, nothing has changed.
 - **What a title is waiting for is written on it.** One line per version:
   downloading, nothing found that fits the profile, not released yet, sitting
   out a delay. Radarr and Sonarr cannot say this; there the section is absent

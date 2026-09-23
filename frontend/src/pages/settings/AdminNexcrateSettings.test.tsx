@@ -193,4 +193,45 @@ describe('Dienste-Seite für nexcrate', () => {
       '/api/settings/nexcrate/status',
     )
   })
+
+  it('unterscheidet zwei gleichnamige Fassungen an der Medienart', async () => {
+    // ⚠️ Genau so stand es beim ersten Umstieg an einer echten Anlage da:
+    // zweimal „Full-HD" untereinander, und der Betreiber sollte Rechte
+    // freigeben, ohne zu sehen, wofür.
+    vi.mocked(api.get).mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/settings/nexcrate/status') {
+        return stand({
+          fassungen: [
+            {
+              kennung: 'v_11111111',
+              media_type: 'movie',
+              name: 'Full-HD',
+              klasse: 'hd',
+              bereit: true,
+              gruende: [],
+            },
+            {
+              kennung: 'v_22222222',
+              media_type: 'tv',
+              name: 'Full-HD',
+              klasse: 'hd',
+              bereit: true,
+              gruende: [],
+            },
+          ],
+        })
+      }
+      return einstellungen({
+        nexcrate_url: 'https://nexcrate.example.com',
+        nexcrate_api_key_set: true,
+      })
+    })
+
+    rendernSchlicht(<AdminNexcrateSettings />)
+
+    const zeilen = await screen.findAllByText('Full-HD')
+    expect(zeilen).toHaveLength(2)
+    expect(zeilen[0].closest('li')).toHaveTextContent('Filme')
+    expect(zeilen[1].closest('li')).toHaveTextContent('Serien')
+  })
 })

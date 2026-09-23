@@ -1278,6 +1278,8 @@ export type UmstiegZuEntscheiden = {
   fassung: string;
   ergebnis: string;
   ohne_uebersetzung: boolean;
+  /** Ein anderer Posten bekäme denselben neuen Speicherschlüssel. */
+  kollidiert: boolean;
 };
 
 /** Schritt 4: was die Probe ergeben hat. */
@@ -1305,6 +1307,7 @@ export type UmstiegBericht = {
   posten: number;
   posten_schluessel: number;
   posten_ohne_uebersetzung: number;
+  posten_doppelt: number;
   rechte: number;
   einladungen: number;
   regeln: number;

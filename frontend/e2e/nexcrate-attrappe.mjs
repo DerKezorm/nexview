@@ -63,6 +63,12 @@ const VERSIONEN = [
   fassung(FILM_UHD, 'movie', 'Movies 4K', 2, 'uhd'),
   fassung(SERIE_HD, 'series', 'Series', 1, 'hd'),
   fassung(SERIE_UHD, 'series', 'Series 4K', 2, 'uhd'),
+  // ⚠️ **Musik gehört dazu, weil eine echte nexcrate sie mitliefert.** Ohne
+  // sie hier hätte kein Lauf gezeigt, dass Nexview eine Album-Fassung in die
+  // eigene Tabelle schreibt und danach überall anbietet – gefunden erst am
+  // echten Umstieg (23.09.2026). Der Assistent muss weiter „4 versions"
+  // melden, nicht fünf.
+  fassung('v_a1b2c3d4', 'album', 'Lossless', 1, null),
 ]
 
 /**

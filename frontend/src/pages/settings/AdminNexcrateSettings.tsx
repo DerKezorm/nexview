@@ -6,6 +6,7 @@ import { api } from "../../api/client";
 import type { AppSettings, Beschaffung, NexStand } from "../../api/types";
 import { NexcrateVerbinden, Standpruefung } from "../../components/NexcrateVerbinden";
 import { ErrorBanner, Section, Spinner } from "../../components/ui";
+import { FassungsZeile } from "../../components/FassungsZeile";
 
 /** Die beiden Betriebsarten, in der Reihenfolge der Seite. */
 const MODI: Beschaffung[] = ["arr", "nex"];
@@ -128,25 +129,7 @@ export function AdminNexcrateSettings() {
                 <p className="font-medium text-mist-100">{t("nexcrate.versionsTitle")}</p>
                 <ul className="mt-2 flex flex-col gap-2">
                   {stand.fassungen.map((fassung) => (
-                    <li
-                      key={fassung.kennung}
-                      className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-700 px-3 py-2 text-sm"
-                    >
-                      <span className="font-medium text-mist-100">{fassung.name}</span>
-                      {fassung.klasse && (
-                        <span className="rounded bg-ink-800 px-2 py-0.5 text-xs uppercase text-mist-300">
-                          {fassung.klasse}
-                        </span>
-                      )}
-                      <span className={fassung.bereit ? "text-green-400" : "text-amber-300"}>
-                        {fassung.bereit ? t("nexcrate.ready") : t("nexcrate.notReady")}
-                      </span>
-                      {fassung.gruende.map((grund) => (
-                        <span key={grund} className="text-xs text-mist-500">
-                          {t(`nexcrate.reason.${grund}`, { defaultValue: grund })}
-                        </span>
-                      ))}
-                    </li>
+                    <FassungsZeile key={fassung.kennung} fassung={fassung} />
                   ))}
                 </ul>
               </div>

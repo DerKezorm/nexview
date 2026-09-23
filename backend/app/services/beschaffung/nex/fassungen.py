@@ -98,6 +98,13 @@ def schreiben(db: Session, eintraege: list[dict]) -> tuple[FassungInfo, ...]:
     gesehen: set[str] = set()
     versatz = {"movie": 0, "tv": 100}
     for eintrag in eintraege:
+        # ⚠️ **Musik bleibt draussen.** nexcrate fuehrt auch Alben; eine
+        # Fassung dafuer stuende sonst in jeder Liste, die Nexview zeigt, und
+        # liesse sich anfragen, obwohl Nexview mit Musik nichts anfangen kann.
+        # Eine frueher geschriebene Zeile faellt unten von selbst auf
+        # ``aktiv=False``, weil sie nicht mehr unter ``gesehen`` steht.
+        if not mapping.fuehrt_nexview(eintrag):
+            continue
         info = mapping.fassung_info(eintrag, versatz.get(mapping.art(str(eintrag.get("kind"))), 200))
         if not info.kennung or not info.media_type:
             continue

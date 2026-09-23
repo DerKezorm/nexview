@@ -189,6 +189,11 @@ class Titelbefund:
     anime: bool = False
     posten: bool = False
     anfrage: bool = False
+    #: ⚠️ **Ein anderer Posten bekäme denselben neuen Speicherschlüssel.** Bei
+    #: Serien hängt der Schlüssel im ARR-Betrieb an der TVDB-Nummer, im
+    #: NEX-Betrieb an der TMDB-Nummer - was Sonarr als zwei Serien führt, ist
+    #: in TMDB oft ein Titel. Beide bleiben dann stehen.
+    kollidiert: bool = False
 
     @property
     def mitnehmbar(self) -> bool:
@@ -198,7 +203,7 @@ class Titelbefund:
         einer TMDB-Nummer aus nexcrate, denn ohne sie ließe sich der
         Speicherschlüssel nicht übersetzen.
         """
-        if self.ergebnis != "bekannt":
+        if self.ergebnis != "bekannt" or self.kollidiert:
             return False
         return self.media_type != "tv" or bool(self.tmdb_aus_nexcrate)
 
@@ -223,9 +228,10 @@ class Probe:
     def posten_ohne_gegenstueck(self) -> list[Titelbefund]:
         """Geladene Posten, die der Umstieg nicht mitnehmen kann.
 
-        Zwei Fälle, eine Liste - beide enden gleich (Bauplan 7.3, Schritt 4):
-        nexcrate führt den Titel nicht, **oder** es führt ihn, aber ohne die
-        TMDB-Nummer, aus der der Speicherschlüssel entsteht.
+        Drei Fälle, eine Liste - alle enden gleich (Bauplan 7.3, Schritt 4):
+        nexcrate führt den Titel nicht; es führt ihn, aber ohne die TMDB-Nummer,
+        aus der der Speicherschlüssel entsteht; oder sein neuer Schlüssel wäre
+        derselbe wie der eines anderen Postens.
 
         ⚠️ **Diese Eigenschaft ist die einzige Definition davon.** Der Router
         stellt dieselbe Frage vor dem Umschalten noch einmal; zwei Fassungen
@@ -251,6 +257,27 @@ class Probe:
             for b in self.befunde
             if b.tvdb_id and b.tmdb_aus_nexcrate
         }
+
+
+def _kollisionen_vermerken(
+    db: Session, abbildung: dict[str, str | None], ergebnis: Probe
+) -> None:
+    """An jedem Befund vermerken, ob sein Posten mit einem anderen kollidiert.
+
+    Gerechnet wird mit derselben Funktion, die die Wanderung benutzt - eine
+    zweite Rechnung liefe nach dem ersten Feinschliff auseinander, und der
+    Betreiber bekäme wieder einen Absturz, den ihm niemand angekündigt hat.
+    """
+    doppelte = _doppelte_schluessel(db, abbildung, ergebnis.tmdb_je_tvdb())
+    if not doppelte:
+        return
+    betroffen = {
+        (posten.media_type.value, posten.tmdb_id, posten.fassung_kennung)
+        for posten in db.scalars(select(StorageEntry).where(StorageEntry.id.in_(doppelte)))
+    }
+    for befund in ergebnis.befunde:
+        if (befund.media_type, befund.tmdb_id, befund.fassung) in betroffen:
+            befund.kollidiert = True
 
 
 def _was_haengt(db: Session) -> list[Titelbefund]:
@@ -338,7 +365,15 @@ async def probe(
         befund.anime = kenntnis.anime
         ziel = abbildung.get(befund.fassung)
         befund.ergebnis = "bekannt" if ziel and ziel in kenntnis.fassungen else "ohne_fassung"
-    return Probe(befunde=befunde)
+
+    # ⚠️ **Erst jetzt, mit allen Übersetzungen in der Hand.** Ob zwei Posten
+    # kollidieren, lässt sich nicht je Titel entscheiden - es hängt an dem, was
+    # nexcrate für **alle** anderen sagt. Ohne diesen Schritt sah der
+    # Assistent nichts und die Wanderung stürzte mitten im Schreiben ab (erster
+    # Umstieg an einer echten Anlage, 23.09.2026).
+    ergebnis = Probe(befunde=befunde)
+    _kollisionen_vermerken(db, abbildung, ergebnis)
+    return ergebnis
 
 
 # --------------------------------------------------------------------------
@@ -353,6 +388,8 @@ class Wanderung:
     posten: int = 0
     posten_schluessel: int = 0
     posten_ohne_uebersetzung: int = 0
+    #: Posten, die mit einem anderen denselben neuen Schlüssel bekämen.
+    posten_doppelt: int = 0
     rechte: int = 0
     einladungen: int = 0
     regeln: int = 0
@@ -413,10 +450,23 @@ def wandern(
             anfrage.fassung_kennung = ziel
             zahlen.anfragen += 1
 
+    # ⚠️ **Erst rechnen, dann schreiben.** Zwei Posten können denselben neuen
+    # Schlüssel bekommen: Im ARR-Betrieb hängt eine Serie an ihrer TVDB-Nummer,
+    # im NEX-Betrieb an der TMDB-Nummer - und was Sonarr als zwei Serien führt,
+    # ist in TMDB oft ein Titel (Anime, getrennt geführte Staffel-Reihen). Beim
+    # ersten Umstieg an einer echten Anlage hat genau das die ganze Wanderung
+    # zum Absturz gebracht, mitten im Schreiben.
+    doppelte = _doppelte_schluessel(db, abbildung, tmdb_je_tvdb)
+
     # Speicherposten samt Schlüssel.
     for posten in db.scalars(select(StorageEntry)):
         ziel = abbildung.get(posten.fassung_kennung)
         if not ziel:
+            continue
+        if posten.id in doppelte:
+            # Unberührt lassen, wie einen ohne Übersetzung: Lieber ein Posten
+            # unter seiner alten Fassung als zwei, von denen einer verschwindet.
+            zahlen.posten_doppelt += 1
             continue
         if posten.media_type == MediaType.tv:
             # ⚠️ **Von TVDB auf TMDB.** nexcrate ankert auf TMDB; ohne die
@@ -502,6 +552,49 @@ def wandern(
     return zahlen
 
 
+def _doppelte_schluessel(
+    db: Session, abbildung: dict[str, str | None], tmdb_je_tvdb: dict[int, int]
+) -> set[int]:
+    """Welche Posten bekämen einen Schlüssel, den es dann zweimal gäbe?
+
+    Gerechnet wird über **alle** Posten, auch die, die stehen bleiben: Ein
+    wandernder Posten kann auch mit einem kollidieren, der gar nicht wandert.
+
+    ⚠️ **Zurück kommen die Nummern der Posten, die man liegen lässt** - bei
+    einer Kollision alle Beteiligten. Einen davon willkürlich zu nehmen hieße,
+    dem Betreiber die Wahl abzunehmen, welcher seiner beiden Titel künftig
+    gezählt wird.
+    """
+    nach_schluessel: dict[str, list[int]] = {}
+    for posten in db.scalars(select(StorageEntry)):
+        ziel = abbildung.get(posten.fassung_kennung)
+        if not ziel:
+            # Bleibt, wie er ist - sein heutiger Schlüssel zählt trotzdem mit.
+            nach_schluessel.setdefault(posten.key, []).append(posten.id)
+            continue
+        tmdb = posten.tmdb_id
+        if posten.media_type == MediaType.tv:
+            tmdb = tmdb_je_tvdb.get(posten.tvdb_id or 0) or posten.tmdb_id
+            if not tmdb:
+                nach_schluessel.setdefault(posten.key, []).append(posten.id)
+                continue
+        neu = storage.schluessel(
+            posten.media_type,
+            ziel,
+            tmdb_id=tmdb,
+            tvdb_id=posten.tvdb_id,
+            season=posten.season,
+            request_id=_paket_nummer(posten.key),
+        )
+        nach_schluessel.setdefault(neu or posten.key, []).append(posten.id)
+    return {
+        nummer
+        for nummern in nach_schluessel.values()
+        if len(nummern) > 1
+        for nummer in nummern
+    }
+
+
 def _paket_nummer(schluessel: str) -> int | None:
     """Die Anfrage-Nummer aus dem Schlüssel eines Folgen-Pakets (``…:r17``)."""
     letztes = str(schluessel).rsplit(":", 1)[-1]
@@ -527,17 +620,26 @@ async def umschalten(
 ) -> Bericht:
     """Der eine Schritt, der sich nicht zurücknehmen lässt.
 
-    Reihenfolge mit Bedacht: **erst** der letzte Schreibzugriff auf Arr
-    (Webhooks raus, Zugänge löschen), **dann** die Wanderung und das
-    Umschalten in einer Transaktion. Umgekehrt stünde die Installation kurz
-    auf `nex`, während Nexviews Webhook-Eintrag in Radarr noch ins Leere
+    ⚠️ **Zuerst die Wanderung, erst danach Arr verlassen.** Umgekehrt war es
+    bis zum 23.09.2026, mit dieser Begründung: Sonst stünde die Installation
+    kurz auf `nex`, während Nexviews Webhook-Eintrag in Radarr noch ins Leere
     riefe - und ohne Zugang ließe er sich nicht mehr entfernen.
+
+    Beim ersten Umstieg an einer echten Anlage hat sich gezeigt, dass das die
+    falsche Sorge war. Die Wanderung scheiterte (zwei Serien bekamen denselben
+    Speicherschlüssel), und zurück blieb eine Installation **ohne Arr-Zugänge
+    und ohne nexcrate** - sie konnte gar nichts mehr. Ein Webhook, der ein paar
+    Sekunden ins Leere ruft, ist dagegen nichts: Arr meldet ihn als krank und
+    vergisst es wieder.
+
+    Jetzt gilt: Was schiefgehen kann, geschieht in **einer** Transaktion und
+    lässt bei einem Fehler alles, wie es war. Der Schreibzugriff auf Arr kommt
+    danach, und ein Fehler dort hält nichts mehr auf - er steht nur im Bericht.
     """
     from . import beschaffung as grenze
 
     alter_weg = get_beschaffung(settings)
     bericht = Bericht(wanderung=Wanderung())
-    bericht.verlassen = await alter_weg.verlassen(db)
 
     # ⚠️ **Die Fassungen müssen stehen, bevor etwas auf sie zeigt.** Gelesen
     # wird mit einer Sicht, in der schon `nex` gilt - die Einstellung selbst
@@ -564,4 +666,15 @@ async def umschalten(
         bericht.wanderung.posten,
         bericht.wanderung.rechte,
     )
+
+    # ⚠️ **Ab hier ist der Umstieg vollzogen.** Was jetzt noch schiefgeht, darf
+    # ihn nicht mehr zurücknehmen: Die Installation läuft bereits über den
+    # neuen Weg. Ein stummes Radarr bedeutet nur, dass sein Webhook-Eintrag
+    # stehen bleibt - der Bericht sagt es, und der Betreiber nimmt ihn von Hand
+    # heraus.
+    try:
+        bericht.verlassen = await alter_weg.verlassen(db)
+    except Exception:  # noqa: BLE001 - der Umstieg steht schon
+        logger.exception("Switched, but the old way could not be left cleanly")
+        bericht.verlassen = ["the old access could not be removed - do it by hand"]
     return bericht

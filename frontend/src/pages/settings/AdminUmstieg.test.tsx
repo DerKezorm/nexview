@@ -137,6 +137,7 @@ describe('Umstiegsassistent', () => {
           fassung: 'radarr-standard',
           ergebnis: 'unbekannt',
           ohne_uebersetzung: false,
+          kollidiert: false,
         },
       ],
     } as never)
@@ -152,5 +153,36 @@ describe('Umstiegsassistent', () => {
 
     await userEvent.click(screen.getByRole('checkbox'))
     expect(screen.getByRole('button', { name: /^weiter$/i })).toBeEnabled()
+  })
+
+  it('nennt einen Titel, der einen anderen überschreiben würde, und erklärt ihn', async () => {
+    // ⚠️ Der Fall, der beim ersten Umstieg an einer echten Anlage mitten im
+    // Schreiben abbrach: Sonarr führt zwei Serien, die TMDB als eine zählt.
+    // Der Betreiber muss das **vorher** sehen, nicht als Fehlercode danach.
+    antworten()
+    vi.mocked(api.post).mockResolvedValue({
+      ...PROBE,
+      zu_entscheiden: [
+        {
+          media_type: 'tv',
+          tmdb_id: 1399,
+          titel: 'Example Series',
+          fassung: 'sonarr-standard',
+          ergebnis: 'bekannt',
+          ohne_uebersetzung: false,
+          kollidiert: true,
+        },
+      ],
+    } as never)
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+
+    expect(
+      await screen.findByText(/Example Series — würde einen anderen Titel überschreiben/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/führt Sonarr zwei Serien/)).toBeInTheDocument()
   })
 })

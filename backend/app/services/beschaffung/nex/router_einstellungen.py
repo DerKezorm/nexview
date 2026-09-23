@@ -28,7 +28,7 @@ from ....deps import AdminUser, DbSession
 from ....models import utcnow
 from ....routers.settings import TestResult
 from ...settings_service import load_settings, save_settings
-from . import fassungen, pruefung, system
+from . import fassungen, mapping, pruefung, system
 from .client import RECHTE, NexcrateClient
 from .fehler import NexcrateError
 from .weg import APP_NAME
@@ -268,13 +268,16 @@ async def stand_lesen(admin: AdminUser, db: DbSession) -> NexStand:
         liste = [
             {
                 "kennung": eintrag.get("version_id"),
-                "media_type": eintrag.get("kind"),
+                # ⚠️ Nexviews Art (``tv``), nicht nexcrates ``kind``
+                # (``series``) - die Oberflaeche uebersetzt nur die eigene.
+                "media_type": mapping.art(str(eintrag.get("kind") or "")),
                 "name": eintrag.get("name"),
                 "klasse": eintrag.get("tier"),
                 "bereit": bool(eintrag.get("ready")),
                 "gruende": [g.get("code") for g in eintrag.get("reasons") or []],
             }
             for eintrag in eintraege
+            if mapping.fuehrt_nexview(eintrag)
         ]
         probleme = [
             {"code": eintrag.get("code"), "level": eintrag.get("level"), "params": eintrag.get("params")}

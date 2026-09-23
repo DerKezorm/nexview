@@ -594,3 +594,188 @@ async def test_die_zahlen_vorab_zaehlen_offene_anfragen_und_posten(
 
     assert stand.anfragen_offen == 1
     assert stand.posten == 1
+
+
+# --------------------------------------------------------------------------
+# Was der erste Umstieg an einer echten Anlage fand (23.09.2026)
+
+
+def test_zwei_serien_mit_derselben_tmdb_nummer_bleiben_stehen(
+    vor_dem_umstieg: Any, db: Session
+) -> None:
+    """⚠️ **Der Fehler, der den ersten echten Umstieg abbrechen ließ.**
+
+    Im ARR-Betrieb hängt der Schlüssel einer Serie an ihrer TVDB-Nummer, im
+    NEX-Betrieb an der TMDB-Nummer. Was Sonarr als zwei Serien führt, ist in
+    TMDB oft ein Titel - bei Anime und getrennt geführten Staffel-Reihen der
+    Normalfall. Beide bekämen denselben neuen Schlüssel, und SQLite brach die
+    Wanderung mitten im Schreiben ab: `UNIQUE constraint failed`.
+
+    Jetzt bleiben **beide** unberührt. Einen davon willkürlich zu nehmen hieße,
+    dem Betreiber die Wahl abzunehmen, welcher seiner Titel künftig zählt.
+    """
+    eine = _posten(
+        db,
+        key="tv:sonarr-standard:tvdb:111:s1",
+        media_type=MediaType.tv,
+        tmdb_id=None,
+        tvdb_id=111,
+        season=1,
+        fassung_kennung=SONARR,
+        title="Beispielserie, Teil 1",
+    )
+    andere = _posten(
+        db,
+        key="tv:sonarr-standard:tvdb:222:s1",
+        media_type=MediaType.tv,
+        tmdb_id=None,
+        tvdb_id=222,
+        season=1,
+        fassung_kennung=SONARR,
+        title="Beispielserie, Teil 2",
+    )
+
+    # Beide TVDB-Nummern zeigen in nexcrate auf denselben Titel.
+    zahlen = umstieg.wandern(db, _abbildung(), {111: 1399, 222: 1399})
+    db.commit()
+
+    db.refresh(eine)
+    db.refresh(andere)
+    assert zahlen.posten_doppelt == 2
+    assert zahlen.posten == 0
+    assert eine.fassung_kennung == SONARR and eine.key == "tv:sonarr-standard:tvdb:111:s1"
+    assert andere.fassung_kennung == SONARR and andere.key == "tv:sonarr-standard:tvdb:222:s1"
+
+
+def test_eine_kollision_mit_einem_posten_der_gar_nicht_wandert(
+    vor_dem_umstieg: Any, db: Session
+) -> None:
+    """⚠️ Auch ein Posten, der stehen bleibt, belegt seinen Schlüssel weiter.
+
+    Hier trägt der zweite schon die Zielfassung (etwa aus einem abgebrochenen
+    Lauf). Wer nur die wandernden Posten gegeneinander prüft, übersieht ihn -
+    und SQLite bricht wieder ab.
+    """
+    wandernd = _posten(
+        db,
+        key="tv:sonarr-standard:tvdb:111:s1",
+        media_type=MediaType.tv,
+        tmdb_id=None,
+        tvdb_id=111,
+        season=1,
+        fassung_kennung=SONARR,
+        title="Wandert",
+    )
+    _posten(
+        db,
+        key=f"tv:{SERIE_HD}:tmdb:1399:s1",
+        media_type=MediaType.tv,
+        tmdb_id=1399,
+        tvdb_id=999,
+        season=1,
+        fassung_kennung=SERIE_HD,
+        title="Liegt schon da",
+    )
+
+    zahlen = umstieg.wandern(db, _abbildung(), {111: 1399})
+    db.commit()
+
+    db.refresh(wandernd)
+    # ⚠️ Gezählt wird, **wer wandern sollte und nicht durfte** - einer. Der
+    # andere trägt die Zielfassung längst und war nie unterwegs.
+    assert zahlen.posten_doppelt == 1
+    assert zahlen.posten == 0
+    assert wandernd.key == "tv:sonarr-standard:tvdb:111:s1"
+
+
+async def test_die_probe_nennt_die_kollision_vorher(
+    vor_dem_umstieg: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """⚠️ Der Betreiber soll das im Assistenten sehen, nicht als Fehler 500.
+
+    Nachgestellt wie an der echten Anlage: Nexview führt zwei Serien mit
+    **verschiedenen** TMDB-Nummern - nexcrate kennt nur eine davon und nennt
+    für die andere, über ihre TVDB-Nummer gefunden, dieselbe. Erst dadurch
+    fallen beide Speicherschlüssel zusammen.
+    """
+    nexcrate.serie(tmdb_id=1399, tvdb=111)
+    _posten(
+        db,
+        key="tv:sonarr-standard:tvdb:111:s1",
+        media_type=MediaType.tv,
+        tmdb_id=1399,
+        tvdb_id=111,
+        season=1,
+        fassung_kennung=SONARR,
+        title="Beispielserie, Teil 1",
+    )
+    _posten(
+        db,
+        key="tv:sonarr-standard:tvdb:222:s1",
+        media_type=MediaType.tv,
+        # Nexview hat hier eine eigene Nummer; nexcrate führt denselben Titel.
+        tmdb_id=1400,
+        tvdb_id=111,
+        season=1,
+        fassung_kennung=SONARR,
+        title="Beispielserie, Teil 2",
+    )
+
+    ergebnis = await umstieg.probe(db, umstieg.nex_sicht(db), _abbildung())
+
+    assert len(ergebnis.befunde) == 2, [b.titel for b in ergebnis.befunde]
+    assert all(b.kollidiert for b in ergebnis.befunde), [
+        (b.titel, b.kollidiert) for b in ergebnis.befunde
+    ]
+    # ⚠️ Und damit stehen sie in der Liste, die eine Entscheidung verlangt -
+    # der Betreiber sieht sie, bevor er umschaltet.
+    assert len(ergebnis.posten_ohne_gegenstueck) == 2
+
+
+async def test_umschalten_verlaesst_arr_erst_nach_der_wanderung(
+    vor_dem_umstieg: Any, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ **Die teuerste Lehre des ersten echten Umstiegs.**
+
+    Vorher wurde Arr zuerst verlassen. Als die Wanderung scheiterte, blieb eine
+    Installation ohne Arr-Zugänge und ohne nexcrate zurück - sie konnte gar
+    nichts mehr. Jetzt geschieht zuerst alles, was scheitern kann.
+    """
+    reihenfolge: list[str] = []
+
+    from app.services.beschaffung.arr.weg import ArrBeschaffung
+
+    async def verlassen(self: Any, sitzung: Session) -> list[str]:
+        reihenfolge.append("verlassen")
+        return []
+
+    echt = umstieg.wandern
+
+    def wandern(sitzung: Session, abbildung: Any, uebersetzung: Any) -> Any:
+        reihenfolge.append("wandern")
+        return echt(sitzung, abbildung, uebersetzung)
+
+    monkeypatch.setattr(ArrBeschaffung, "verlassen", verlassen)
+    monkeypatch.setattr(umstieg, "wandern", wandern)
+
+    await umstieg.umschalten(db, vor_dem_umstieg, _abbildung(), {})
+
+    assert reihenfolge == ["wandern", "verlassen"]
+
+
+async def test_ein_stummes_arr_haelt_den_umstieg_nicht_mehr_auf(
+    vor_dem_umstieg: Any, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Danach ist die Installation umgestellt - ein Fehler beim Aufräumen
+    drüben darf das nicht zurücknehmen, er steht nur im Bericht."""
+    from app.services.beschaffung.arr.weg import ArrBeschaffung
+
+    async def verlassen(self: Any, sitzung: Session) -> list[str]:
+        raise RuntimeError("Radarr antwortet nicht")
+
+    monkeypatch.setattr(ArrBeschaffung, "verlassen", verlassen)
+
+    bericht = await umstieg.umschalten(db, vor_dem_umstieg, _abbildung(), {})
+
+    assert load_settings(db, frisch=True).beschaffung == NEX
+    assert bericht.verlassen and "by hand" in bericht.verlassen[0]

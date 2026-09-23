@@ -620,3 +620,88 @@ def test_im_arr_betrieb_aendert_sich_nichts() -> None:
         "sonarr-standard",
         "sonarr-uhd",
     )
+
+
+def test_musik_aus_nexcrate_kommt_nicht_in_nexviews_fassungen(nexcrate: FakeNexcrate) -> None:
+    """⚠️ nexcrate fuehrt auch Alben - Nexview darf sie nicht anbieten.
+
+    Beim ersten Umstieg an einer echten Anlage stand nexcrates Musikfassung
+    danach in jeder Liste, die Nexview zeigt: in der Benutzerverwaltung, im
+    Abgleich des Umsteigers, auf der nexcrate-Seite. ``mapping.art`` reicht
+    ein unbekanntes ``kind`` unveraendert durch, und niemand hielt es auf.
+    """
+    musik = {
+        "version_id": "v_beef0001",
+        "kind": "album",
+        "name": "Lossless",
+        "tier": None,
+        "order": 0,
+        "ready": True,
+        "reasons": [],
+    }
+    with SessionLocal() as db:
+        einstellungen = _nex_einstellungen(db)
+        nex_fassungen.schreiben(db, [*nexcrate.versions, musik])
+        db.commit()
+        gefunden = fassungen_dienst.aus_einstellungen(einstellungen)
+    assert "v_beef0001" not in [eintrag.kennung for eintrag in gefunden]
+    assert [eintrag.media_type for eintrag in gefunden] == ["movie", "movie", "tv", "tv"]
+
+
+def test_eine_musikfassung_verschwindet_auch_wieder(nexcrate: FakeNexcrate) -> None:
+    """Wer sie schon in der Tabelle hat, wird sie beim naechsten Abgleich los.
+
+    Das ist der Weg fuer alle, die vor der Reparatur umgestiegen sind: kein
+    Wanderungsskript, sondern der gewoehnliche Abgleich.
+    """
+    musik = {"version_id": "v_beef0001", "kind": "album", "name": "Lossless", "ready": True}
+    with SessionLocal() as db:
+        einstellungen = _nex_einstellungen(db)
+        # So, wie die Zeile vor der Reparatur entstand.
+        db.add(
+            Fassung(
+                kennung="v_beef0001",
+                media_type="album",
+                quelle=NEX,
+                name="Lossless",
+                aktiv=True,
+                offen_fuer_alle=False,
+            )
+        )
+        db.flush()
+        nex_fassungen.schreiben(db, [*nexcrate.versions, musik])
+        db.commit()
+        zeile = db.get(Fassung, "v_beef0001")
+        assert zeile.aktiv is False
+        assert "v_beef0001" not in [
+            eintrag.kennung for eintrag in fassungen_dienst.aus_einstellungen(einstellungen)
+        ]
+
+
+def test_der_stand_zeigt_keine_musikfassung_und_nexviews_medienart(
+    admin_client: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Die Dienste-Seite filtert selbst, statt sich auf die Tabelle zu verlassen.
+
+    ⚠️ Sie liest nexcrates Antwort direkt, nicht die Fassungstabelle - ein
+    Filter nur beim Schreiben hielte hier nichts auf. Und die Medienart kommt
+    als Nexviews ``tv``, nicht als nexcrates ``series``: Die Oberfläche
+    übersetzt nur die eigene.
+    """
+    nexcrate.versions.append(
+        {
+            "version_id": "v_beef0002",
+            "kind": "album",
+            "name": "Lossless",
+            "tier": None,
+            "order": 0,
+            "ready": True,
+            "reasons": [],
+        }
+    )
+    with SessionLocal() as db:
+        save_settings(db, {"nexcrate_url": URL, "nexcrate_api_key": KEY})
+
+    stand = admin_client.get("/api/settings/nexcrate/status").json()
+    assert "v_beef0002" not in [eintrag["kennung"] for eintrag in stand["fassungen"]]
+    assert sorted({eintrag["media_type"] for eintrag in stand["fassungen"]}) == ["movie", "tv"]

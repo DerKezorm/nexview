@@ -303,11 +303,20 @@ export function AdminUmstieg() {
                 {ergebnis.zu_entscheiden.slice(0, 50).map((zeile) => (
                   <li key={`${zeile.media_type}:${zeile.tmdb_id}`}>
                     {zeile.titel || zeile.tmdb_id}
-                    {zeile.ohne_uebersetzung &&
-                      ` — ${t("umstieg.decideNoTranslation")}`}
+                    {zeile.kollidiert
+                      ? ` — ${t("umstieg.decideCollides")}`
+                      : zeile.ohne_uebersetzung &&
+                        ` — ${t("umstieg.decideNoTranslation")}`}
                   </li>
                 ))}
               </ul>
+              {/* ⚠️ Nur wenn es welche gibt: Sonst stünde bei jedem Umstieg
+                  eine Erklärung für einen Fall, den es nicht gibt. */}
+              {ergebnis.zu_entscheiden.some((zeile) => zeile.kollidiert) && (
+                <p className="mt-3 max-w-3xl text-sm leading-relaxed text-mist-400">
+                  {t("umstieg.decideCollidesText")}
+                </p>
+              )}
               <label className="mt-3 flex items-center gap-2 text-sm text-mist-200">
                 <input
                   type="checkbox"
@@ -382,6 +391,17 @@ export function AdminUmstieg() {
           <p className="max-w-3xl rounded-xl border border-bad-500/40 bg-bad-500/10 px-4 py-3 text-sm text-bad-500">
             {t("umstieg.switchWarning")}
           </p>
+          {/* ⚠️ **„Fassungskennungen werden umgeschrieben" sagt niemandem
+              etwas.** Beim ersten Umstieg an einer echten Anlage kam die
+              Frage zurück, ob dabei Filme verloren gehen. Der rote Kasten
+              sagt, was geschieht; diese zwei Absätze sagen, was es bedeutet
+              und was **nicht** passiert. */}
+          <p className="max-w-3xl text-sm leading-relaxed text-mist-300">
+            {t("umstieg.switchWhatChanges")}
+          </p>
+          <p className="max-w-3xl text-sm leading-relaxed text-mist-300">
+            {t("umstieg.switchNothingLost")}
+          </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="button"
@@ -414,6 +434,11 @@ export function AdminUmstieg() {
                 {t("umstieg.doneWithoutTranslation", {
                   count: bericht.posten_ohne_uebersetzung,
                 })}
+              </li>
+            )}
+            {bericht.posten_doppelt > 0 && (
+              <li className="text-amber-300">
+                {t("umstieg.doneDouble", { count: bericht.posten_doppelt })}
               </li>
             )}
           </ul>

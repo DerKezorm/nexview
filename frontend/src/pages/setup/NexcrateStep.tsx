@@ -9,6 +9,7 @@ import {
   Standpruefung,
 } from "../../components/NexcrateVerbinden";
 import { Button, ErrorBanner, Spinner } from "../../components/ui";
+import { FassungsZeile } from "../../components/FassungsZeile";
 
 /**
  * Der nexcrate-Schritt der Einrichtung (Bauplan 7.1).
@@ -118,43 +119,25 @@ export function NexcrateStep({
           </p>
           <ul className="mt-3 flex flex-col gap-2">
             {fassungen.map((fassung) => (
-              <li
+              <FassungsZeile
                 key={fassung.kennung}
-                className="flex items-center gap-3 text-sm"
-              >
-                <input
-                  id={`offen-${fassung.kennung}`}
-                  type="checkbox"
-                  className="h-4 w-4 shrink-0 accent-accent-500"
-                  checked={offen?.[fassung.kennung] ?? false}
-                  onChange={(event) =>
-                    setOffen((alt) => ({
-                      ...(alt ?? {}),
-                      [fassung.kennung]: event.target.checked,
-                    }))
-                  }
-                />
-                <label
-                  htmlFor={`offen-${fassung.kennung}`}
-                  className="text-mist-200"
-                >
-                  {fassung.name}
-                </label>
-                {fassung.klasse && (
-                  <span className="rounded bg-ink-800 px-2 py-0.5 text-xs uppercase text-mist-300">
-                    {fassung.klasse}
-                  </span>
-                )}
-                <span
-                  className={
-                    fassung.bereit ? "text-green-400" : "text-amber-300"
-                  }
-                >
-                  {fassung.bereit
-                    ? t("nexcrate.ready")
-                    : t("nexcrate.notReady")}
-                </span>
-              </li>
+                fassung={fassung}
+                labelFor={`offen-${fassung.kennung}`}
+                haken={
+                  <input
+                    id={`offen-${fassung.kennung}`}
+                    type="checkbox"
+                    className="h-4 w-4 shrink-0 accent-accent-500"
+                    checked={offen?.[fassung.kennung] ?? false}
+                    onChange={(event) =>
+                      setOffen((alt) => ({
+                        ...(alt ?? {}),
+                        [fassung.kennung]: event.target.checked,
+                      }))
+                    }
+                  />
+                }
+              />
             ))}
           </ul>
         </div>

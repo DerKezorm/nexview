@@ -1286,7 +1286,12 @@ async def create_request(
     # Bei einer einzelnen Staffel ist das kein Ausschluss: die Serie liegt
     # ja gerade deshalb schon da, weil die vorherigen Staffeln geladen sind.
     if season is None:
-        matched = await get_beschaffung(settings).status_setzen(item.media_type, [item], stufe)
+        # ⚠️ In der angefragten Fassung: Ohne ``fassung`` fragt der NEX-Weg
+        # die Hauptfassung, und ein Film, der nur in HD liegt, sperrte die
+        # 4K-Anfrage. Im ARR-Betrieb ist die Stufe ohnehin die der Fassung.
+        matched = await get_beschaffung(settings).status_setzen(
+            item.media_type, [item], stufe, fassung=kennung
+        )
         current = matched.items[0]
         if current.status in ("downloaded", "searching"):
             raise RequestError(

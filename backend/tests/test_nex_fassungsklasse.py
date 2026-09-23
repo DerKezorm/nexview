@@ -479,3 +479,62 @@ async def test_der_medienserver_vergleich_liest_jede_nex_fassung(
     filme, _serien, _titel_je = await abgleich._arr_bestand(nex)
 
     assert 4712 in filme
+
+
+# --- Bibliotheksprüfung beim Anfragen: in der angefragten Fassung ----------------
+
+
+async def test_ein_film_in_hd_sperrt_die_4k_anfrage_nicht(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Vorher fragte die Prüfung die Hauptfassung: 409 ``already_in_library`` für 4K."""
+    nexcrate.film(
+        9101,
+        name="Erfundener Film",
+        versionen=[nexcrate.fassung(FILM_HD, "available", size_bytes=9 * GB)],
+    )
+    chefin = _nutzer(db, "chefin", Role.admin)
+
+    anfrage = await requests_service.create_request(
+        db, nex, chefin, _titel(9101), quality_profile_id=None, fassung=FILM_UHD
+    )
+
+    assert anfrage.fassung_kennung == FILM_UHD
+
+
+async def test_ein_film_in_hd_sperrt_die_hd_anfrage_weiter(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Die Gegenprobe: In HD liegt der Film ja wirklich schon."""
+    nexcrate.film(
+        9101,
+        name="Erfundener Film",
+        versionen=[nexcrate.fassung(FILM_HD, "available", size_bytes=9 * GB)],
+    )
+    chefin = _nutzer(db, "chefin", Role.admin)
+
+    with pytest.raises(requests_service.RequestError) as gefangen:
+        await requests_service.create_request(
+            db, nex, chefin, _titel(9101), quality_profile_id=None, fassung=FILM_HD
+        )
+
+    assert (gefangen.value.status_code, gefangen.value.code) == (409, "already_in_library")
+
+
+async def test_ein_film_in_4k_sperrt_die_4k_anfrage(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Vorher sah die Prüfung nur HD, fand nichts und ließ die 4K-Anfrage ein zweites Mal durch."""
+    nexcrate.film(
+        9101,
+        name="Erfundener Film",
+        versionen=[nexcrate.fassung(FILM_UHD, "available", size_bytes=45 * GB)],
+    )
+    chefin = _nutzer(db, "chefin", Role.admin)
+
+    with pytest.raises(requests_service.RequestError) as gefangen:
+        await requests_service.create_request(
+            db, nex, chefin, _titel(9101), quality_profile_id=None, fassung=FILM_UHD
+        )
+
+    assert (gefangen.value.status_code, gefangen.value.code) == (409, "already_in_library")

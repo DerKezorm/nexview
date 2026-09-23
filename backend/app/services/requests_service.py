@@ -1080,21 +1080,32 @@ async def create_request(
         )
     haupt = kennung == hauptkennung(media_type)
     stufe = fassungen.stufe(kennung)
-    if not haupt:
-        if not darf_anfragen(db, user, kennung):
-            raise RequestError(
-                "Für 4K-Anfragen fehlt dir die Berechtigung. "
-                "Der Administrator kann sie freischalten."
-                if fassungen.klasse(kennung) == KLASSE_UHD
-                else "Für diese Fassung fehlt dir die Berechtigung. "
-                "Der Administrator kann sie freischalten.",
-                403,
-            )
-        if settings.fassung(kennung) is None:
-            raise RequestError(
-                get_beschaffung(settings).nicht_eingerichtet(media_type.value, stufe),
-                409,
-            )
+    # ⚠️ **Auch die Hauptfassung.** Das Recht stand nur im Zweig fuer
+    # Nebenfassungen, weil die Standardfassung im ARR-Betrieb immer offen war.
+    # Im NEX-Betrieb ist nach dem Koppeln jede Fassung zu, bis der Betreiber
+    # sie oeffnet; ``/api/config`` meldete das, und ein Aufruf ohne ``fassung``
+    # kam trotzdem durch. Eine alte ARR-Standardfassung ohne Zeile bleibt
+    # offen (``offen_fuer_alle`` faellt auf die Vorgabe zurueck).
+    #
+    # Eine Hauptfassung, die es hier gar nicht gibt, hat kein Recht zu
+    # vergeben: Sie sagt weiter unten ihren eigenen Satz (409), der dem
+    # Betreiber hilft, statt eines 403, das niemand aufheben kann.
+    eingerichtet = settings.fassung(kennung) is not None
+    if (eingerichtet or not haupt) and not darf_anfragen(db, user, kennung):
+        raise RequestError(
+            "Für 4K-Anfragen fehlt dir die Berechtigung. "
+            "Der Administrator kann sie freischalten."
+            if fassungen.klasse(kennung) == KLASSE_UHD
+            else "Für diese Fassung fehlt dir die Berechtigung. "
+            "Der Administrator kann sie freischalten.",
+            403,
+            code="fassung_not_allowed",
+        )
+    if not haupt and not eingerichtet:
+        raise RequestError(
+            get_beschaffung(settings).nicht_eingerichtet(media_type.value, stufe),
+            409,
+        )
 
     # Wer seine Mediathek in mehrere Ordner sortiert - etwa nach Genre - kann
     # die Wahl nicht dem Anfragenden ueberlassen: der kennt die Struktur nicht.

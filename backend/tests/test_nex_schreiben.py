@@ -723,6 +723,11 @@ async def test_die_anfrage_ohne_fassung_haengt_nicht_an_radarr_oder_sonarr(
     assert not nex.radarr_configured and not nex.sonarr_configured
     # Ein Titel, den nexcrate noch nicht fuehrt: Sonst ginge es um "schon da".
     tmdb_id = 9101 if media_type == "movie" else 9102
+    # Nach dem Koppeln ist jede Fassung zu; hier geht es nicht um das Recht.
+    from app.models import Fassung
+
+    db.get(Fassung, hauptfassung).offen_fuer_alle = True
+    db.commit()
 
     # Ein mitgeschicktes Profil zaehlt hier nicht: Es haengt an der Fassung.
     anfrage = await requests_service.create_request(
@@ -757,3 +762,146 @@ async def test_ohne_fassung_fuer_die_medienart_bleibt_die_sperre(
     assert gefangen.value.status_code == 409
     assert gefangen.value.code == kennung
     assert db.query(MediaRequest).count() == 0
+
+
+# --- Freigeben und Rechte ueber den Router --------------------------------------
+#
+# ⚠️ Ende zu Ende, weil beide Luecken zwischen den Schichten lagen: Der Dienst
+# legte die Anfrage an, und erst die Freigabe im Router verlangte Ordner und
+# Profil, die es im NEX-Betrieb nicht gibt. Die Rechte prueften nur
+# Nebenfassungen; eine gesperrte Hauptfassung kam ohne Angabe durch.
+
+
+@pytest.fixture
+def nex_admin(admin_client: Any, nexcrate: FakeNexcrate) -> Any:
+    with SessionLocal() as sitzung:
+        save_settings(
+            sitzung, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY}
+        )
+        nex_fassungen.schreiben(sitzung, nexcrate.versions)
+        sitzung.commit()
+    return admin_client
+
+
+def _oeffnen(client: Any, *kennungen: str) -> None:
+    """So gibt der Betreiber eine Fassung frei (Einrichtung, Fassungsschritt)."""
+    antwort = client.put(
+        "/api/settings/fassungen",
+        json=[{"kennung": kennung, "offen_fuer_alle": True} for kennung in kennungen],
+    )
+    assert antwort.status_code == 200, antwort.text
+
+
+def _kim(client: Any) -> tuple[int, dict[str, str]]:
+    from .conftest import auth_headers, create_user
+
+    kim = create_user(client, "kim")
+    return kim["id"], auth_headers(client, "kim", "passwort-1234")
+
+
+def _demo_titel(client: Any, nexcrate: FakeNexcrate, art: str) -> dict:
+    """Ein Titel aus den Demo-Daten, den nexcrate kennt, aber in keiner Fassung hat."""
+    item = client.get(f"/api/discover/{art}").json()["items"][0]
+    if art == "movie":
+        nexcrate.film(item["tmdb_id"], versionen=[])
+    else:
+        nexcrate.serie(item["tmdb_id"], versionen=[])
+    return item
+
+
+def _an_nexcrate(nexcrate: FakeNexcrate) -> list[Any]:
+    return [k[3] for k in nexcrate.calls if k[0] == "POST" and k[1].endswith("/requests")]
+
+
+@pytest.mark.parametrize(("art", "hauptfassung"), [("movie", FILM_HD), ("tv", SERIE_HD)])
+def test_die_freigabe_von_hand_kommt_bei_nexcrate_an(
+    nex_admin: Any, nexcrate: FakeNexcrate, art: str, hauptfassung: str
+) -> None:
+    """Bis zum 23.09.2026 endete jede Freigabe in 502 ``not_in_this_mode``."""
+    _oeffnen(nex_admin, FILM_HD, SERIE_HD)
+    item = _demo_titel(nex_admin, nexcrate, art)
+    _, kopf = _kim(nex_admin)
+
+    angelegt = nex_admin.post(
+        "/api/requests", json={"media_type": art, "tmdb_id": item["tmdb_id"]}, headers=kopf
+    )
+    assert angelegt.status_code == 201, angelegt.text
+    assert angelegt.json()["status"] == RequestStatus.pending_approval.value
+    assert _an_nexcrate(nexcrate) == []
+
+    freigabe = nex_admin.post(f"/api/admin/requests/{angelegt.json()['id']}/approve")
+
+    assert freigabe.status_code == 200, freigabe.text
+    assert freigabe.json()["status"] != RequestStatus.pending_approval.value
+    gesendet = _an_nexcrate(nexcrate)
+    assert len(gesendet) == 1
+    assert gesendet[0]["versions"] == [hauptfassung]
+
+
+def test_die_sammelfreigabe_kommt_bei_nexcrate_an(
+    nex_admin: Any, nexcrate: FakeNexcrate
+) -> None:
+    """Die Sammelfreigabe verschluckte denselben Fehler: 200, leere Liste, nichts geschah."""
+    _oeffnen(nex_admin, FILM_HD, SERIE_HD)
+    kim_id, kopf = _kim(nex_admin)
+    nummern = []
+    for art in ("movie", "tv"):
+        item = _demo_titel(nex_admin, nexcrate, art)
+        angelegt = nex_admin.post(
+            "/api/requests", json={"media_type": art, "tmdb_id": item["tmdb_id"]}, headers=kopf
+        )
+        assert angelegt.status_code == 201, angelegt.text
+        nummern.append(angelegt.json()["id"])
+
+    sammel = nex_admin.post(f"/api/admin/requests/approve-all/{kim_id}")
+
+    assert sammel.status_code == 200, sammel.text
+    assert sorted(zeile["id"] for zeile in sammel.json()) == sorted(nummern)
+    with SessionLocal() as sitzung:
+        stand = {sitzung.get(MediaRequest, n).status for n in nummern}
+    assert RequestStatus.pending_approval not in stand
+    assert sorted(k["versions"][0] for k in _an_nexcrate(nexcrate)) == sorted(
+        [FILM_HD, SERIE_HD]
+    )
+
+
+def test_eine_gesperrte_hauptfassung_sperrt_auch_ohne_fassungsangabe(
+    nex_admin: Any, nexcrate: FakeNexcrate
+) -> None:
+    """Nach dem Koppeln ist jede Fassung zu, auch die erste (Entscheidung des Betreibers).
+
+    ``/api/config`` sagte schon ``darf_anfragen: False`` und das Formular
+    blendete sie aus; ein Aufruf ohne ``fassung`` bekam trotzdem 201.
+    """
+    from app.models import FassungRecht
+
+    item = _demo_titel(nex_admin, nexcrate, "movie")
+    kim_id, kopf = _kim(nex_admin)
+    fassungen = {f["kennung"]: f for f in nex_admin.get("/api/config", headers=kopf).json()["fassungen"]}
+    assert fassungen[FILM_HD]["haupt"] and not fassungen[FILM_HD]["darf_anfragen"]
+
+    neben = nex_admin.post(
+        "/api/requests",
+        json={"media_type": "movie", "tmdb_id": item["tmdb_id"], "fassung": FILM_UHD},
+        headers=kopf,
+    )
+    haupt = nex_admin.post(
+        "/api/requests", json={"media_type": "movie", "tmdb_id": item["tmdb_id"]}, headers=kopf
+    )
+
+    assert neben.status_code == 403
+    assert haupt.status_code == 403, haupt.text
+    assert haupt.json()["detail"]["code"] == neben.json()["detail"]["code"] == "fassung_not_allowed"
+    with SessionLocal() as sitzung:
+        assert sitzung.query(MediaRequest).count() == 0
+        kim = sitzung.get(User, kim_id)
+        kim.fassung_rechte.append(
+            FassungRecht(fassung_kennung=FILM_HD, anfragen=True, auto_freigabe=False)
+        )
+        sitzung.commit()
+
+    mit_recht = nex_admin.post(
+        "/api/requests", json={"media_type": "movie", "tmdb_id": item["tmdb_id"]}, headers=kopf
+    )
+    assert mit_recht.status_code == 201, mit_recht.text
+    assert mit_recht.json()["fassung"] == FILM_HD

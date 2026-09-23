@@ -24,7 +24,8 @@ from ..models import (
 )
 from ..schemas_requests import AnfragerSpeicher, FeedbackReply, RequestWithUser
 from ..services import blocklist, media, notify, ratings, requests_service, storage, streaming
-from ..services.settings_service import load_settings
+from ..services.beschaffung import get_beschaffung
+from ..services.settings_service import AppSettings, load_settings
 from ..services.tmdb import TmdbError
 
 router = APIRouter(prefix="/api/admin/requests", tags=["admin"])
@@ -75,12 +76,21 @@ class ApproveAllPayload(BaseModel):
         return getattr(self, f"{art}_uhd" if request.tier == "uhd" else art)
 
 
-def _braucht_ziel(request: MediaRequest, wahl: TargetChoice | None) -> bool:
+def _braucht_ziel(
+    settings: AppSettings, request: MediaRequest, wahl: TargetChoice | None
+) -> bool:
     """Muss vor der Freigabe noch ein Ziel gesetzt werden?
 
     Zwei Faelle: Der Anfrage fehlt eines (dann *muss* der Entscheider waehlen),
     oder er hat ausdruecklich etwas mitgeschickt (dann *will* er es aendern).
+
+    ⚠️ **Im NEX-Betrieb nie** (Bauplan 9): Ordner und Profil haengen dort an
+    der Fassung, beide Felder bleiben an jeder Anfrage leer. Gefragt war nur
+    das Fehlen, und so lief jede Freigabe in ``apply_target`` und dort in
+    ``not_in_this_mode``; die Sammelfreigabe liess die Anfragen still liegen.
     """
+    if not get_beschaffung(settings).faehigkeiten().betreiberwerkzeuge:
+        return False
     if request.root_folder_path is None or request.quality_profile_id is None:
         return True
     return bool(wahl and (wahl.root_folder_path or wahl.quality_profile_id))
@@ -415,7 +425,7 @@ async def approve(
     # Ziel nachtragen, solange die Anfrage noch wartet: Schlaegt die Pruefung
     # fehl, bleibt sie unveraendert in der Warteschlange stehen, statt als
     # "freigegeben" mit leerem Ordner liegenzubleiben.
-    if _braucht_ziel(request, payload):
+    if _braucht_ziel(settings, request, payload):
         try:
             await requests_service.apply_target(
                 settings,
@@ -589,7 +599,7 @@ async def approve_all(
     uebersprungen: list[MediaRequest] = []
     for request in offen:
         wahl = payload.fuer(request) if payload is not None else None
-        if _braucht_ziel(request, wahl):
+        if _braucht_ziel(settings, request, wahl):
             try:
                 await requests_service.apply_target(
                     settings,

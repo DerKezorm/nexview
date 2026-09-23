@@ -143,6 +143,85 @@ def test_ohne_sonarr_keine_serienanfrage(admin_client: TestClient) -> None:
     assert "Sonarr" in response.json()["detail"]
 
 
+# --- Rechte an der Standardfassung ----------------------------------------
+#
+# ⚠️ Bis zum 23.09.2026 prueften die Rechte nur Nebenfassungen. Eine
+# geschlossene Standardfassung zeigte ``/api/config`` als gesperrt, eine
+# Anfrage ohne ``fassung`` kam trotzdem durch.
+
+
+def test_die_standardfassung_ohne_zeile_bleibt_offen(arr_client: TestClient) -> None:
+    """Eine Installation von vor den Fassungen hat keine Zeile; offen bleibt sie trotzdem."""
+    from app.models import Fassung
+
+    with SessionLocal() as db:
+        zeile = db.get(Fassung, "radarr-standard")
+        if zeile is not None:
+            db.delete(zeile)
+        db.commit()
+    create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+
+    response = _anfrage(arr_client, _first_demo(arr_client), headers)
+
+    assert response.status_code == 201, response.text
+    assert response.json()["fassung"] == "radarr-standard"
+
+
+def test_eine_geschlossene_standardfassung_sperrt_auch_ohne_fassungsangabe(
+    arr_client: TestClient,
+) -> None:
+    from app.models import Fassung, FassungRecht
+
+    with SessionLocal() as db:
+        zeile = db.get(Fassung, "radarr-standard")
+        if zeile is None:
+            zeile = Fassung(kennung="radarr-standard", media_type="movie", quelle="arr")
+            db.add(zeile)
+        zeile.offen_fuer_alle = False
+        db.commit()
+    kim = create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+    item = _first_demo(arr_client)
+
+    gesperrt = _anfrage(arr_client, item, headers)
+
+    assert gesperrt.status_code == 403, gesperrt.text
+    assert gesperrt.json()["detail"]["code"] == "fassung_not_allowed"
+    with SessionLocal() as db:
+        assert db.query(MediaRequest).count() == 0
+        konto = db.get(User, kim["id"])
+        konto.fassung_rechte.append(
+            FassungRecht(fassung_kennung="radarr-standard", anfragen=True, auto_freigabe=False)
+        )
+        db.commit()
+
+    assert _anfrage(arr_client, item, headers).status_code == 201
+
+
+def test_ohne_radarr_hilft_der_satz_mehr_als_das_recht(admin_client: TestClient) -> None:
+    """Eine geschlossene Standardfassung ohne Radarr dahinter: 409, nicht 403.
+
+    Das Recht aufzuheben hilft niemandem, solange nichts eingerichtet ist.
+    """
+    from app.models import Fassung
+
+    with SessionLocal() as db:
+        zeile = db.get(Fassung, "radarr-standard")
+        if zeile is None:
+            zeile = Fassung(kennung="radarr-standard", media_type="movie", quelle="arr")
+            db.add(zeile)
+        zeile.offen_fuer_alle = False
+        db.commit()
+    create_user(admin_client, "kim")
+    headers = auth_headers(admin_client, "kim", "passwort-1234")
+
+    response = _anfrage(admin_client, _first_demo(admin_client, "movie"), headers)
+
+    assert response.status_code == 409, response.text
+    assert "Radarr" in response.json()["detail"]
+
+
 def test_gesperrtes_qualitaetsprofil_wird_abgelehnt(arr_client: TestClient) -> None:
     created = create_user(arr_client, "kim")
     # Profil 1 sperren - genau damit wird angefragt.

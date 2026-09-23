@@ -15,7 +15,8 @@ tag exists for it.
 ## 1.0.0 – not released yet
 
 Nexview can now procure through **nexcrate** instead of Radarr and Sonarr. If
-you stay with Radarr and Sonarr, nothing changes for you.
+you stay with Radarr and Sonarr, little changes for you; what does is marked
+"in Radarr mode too" below.
 
 ⚠️ **Make a backup before updating.** This update rewrites the database: the
 quality tier ("standard", "4K") becomes a **version** with an id of its own,
@@ -78,6 +79,19 @@ the process. The backup is the way back.
   returning an empty list.
 - `/api/settings/instanzen/gesundheit` and `.../verbindung` answer in both
   modes now; in nexcrate mode they list one instance.
+- **The media server no longer creates storage entries**, in Radarr mode too.
+  It keeps measuring an entry that Radarr, Sonarr or nexcrate reported once, so
+  removing a title there still does not remove it from anyone's quota. But a
+  film only the media server knows is now logged instead of counted. Jellyfin
+  matches films by title and gets some wrong; on a real installation that
+  produced 66 entries for files Radarr already counted, the same file twice.
+  On the first start the entries the media server created are removed once.
+  Films that really sit on disk without being in Radarr or nexcrate no longer
+  count either: a title has to be in the acquisition service to count.
+- **In nexcrate mode a new storage entry carries its own version.** It used to
+  carry the Radarr version whatever the key said, and the media server looked
+  for entries under a Radarr version that does not exist in this mode, so it
+  never measured one of nexcrate's.
 
 ## 0.35.2 – 18.09.2026
 

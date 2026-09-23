@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from ..db import scheiben
 from ..models import (
+    Fassung,
     MediaRequest,
     MediaServerLibraryItem,
     MediaType,
@@ -40,7 +41,7 @@ from ..models import (
     utcnow,
 )
 from . import fassungen, logs, notify, quota
-from .beschaffung import NEX, BeschaffungError, NichtsZuLoeschen, get_beschaffung
+from .beschaffung import KLASSE_UHD, NEX, BeschaffungError, NichtsZuLoeschen, get_beschaffung
 from .beschaffung import FilmStand as MovieEntry
 from .beschaffung import SerienStand as SeriesEntry
 from .fassungen import arr_kennung
@@ -1073,15 +1074,31 @@ def _serie_aufnehmen(
 
 
 def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
-    """Filme, die nur noch im Media-Server liegen.
+    """Posten, die nur noch im Media-Server liegen, **weitermessen**.
 
     Der Fall, um den es geht: laden, bis die Qualitaet stimmt, dann den
-    Eintrag aus Radarr werfen und die Datei behalten. Danach ist der
-    Media-Server die einzige Stelle, die die Groesse ueberhaupt noch kennt.
+    Eintrag aus Radarr oder nexcrate werfen und die Datei behalten. Danach ist
+    der Media-Server die einzige Stelle, die die Groesse ueberhaupt noch kennt
+    - und wer seinen Titel dort loescht, soll seine Belastung dadurch nicht
+    loswerden.
 
-    Was Radarr bereits gemeldet hat, wird **nicht** ueberschrieben - dessen
-    Zahl ist die genauere. Serien bleiben aussen vor: Dort haengen die Dateien
-    an den Folgen, der Serien-Eintrag traegt keine Groesse.
+    ⚠️ **Der Media-Server legt keinen Posten an.** Er misst nur weiter, was
+    ein Beschaffungsweg einmal gemeldet hat. Bis zum 23.09.2026 durfte er auch
+    anlegen, und an einer echten Anlage standen danach 81 Posten, die kein
+    Beschaffungsweg kannte (678 GiB). 66 davon waren byte-gleich mit einer
+    Datei, die Radarr schon meldete: Jellyfin ordnet Filme ueber den Titel zu
+    und liegt dabei daneben - aus dem Ordner ``Blow (2001)`` wird "Blow Out".
+    Dieselbe Datei zaehlte zweimal. Was keinem Posten entspricht, wird deshalb
+    gemeldet statt gebucht; gebaut wird auf keine Zuordnung des Media-Servers.
+    Die Posten von damals raeumt ``db._medienserver_posten_abraeumen`` einmal ab.
+
+    Was der Beschaffungsweg gerade meldet, wird **nicht** ueberschrieben -
+    dessen Zahl ist die genauere. Serien bleiben aussen vor: Dort haengen die
+    Dateien an den Folgen, der Serien-Eintrag traegt keine Groesse.
+
+    **Welche der beiden Groessen gilt, sagt die Klasse der Fassung** des
+    Postens, nicht eine fest verdrahtete Arr-Kennung: Der Media-Server kennt
+    nur "1080p" und "4K", und im NEX-Betrieb heissen die Fassungen anders.
 
     **Melden mehrere Server denselben Titel, zaehlt der groessere Wert.** Bis
     zum Parallelbetrieb gewann schlicht der erste Treffer - was in der Praxis
@@ -1096,12 +1113,12 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
         )
     ).all()
 
-    # Erst den besten Wert je Posten ueber **alle** Server bestimmen, dann
-    # eintragen. Die Reihenfolge ist wichtig: Waere beides in einer Schleife,
-    # entschiede darueber, welcher Server zufaellig zuerst gelesen wird - und
-    # dieselbe Bibliothek ergaebe von Lauf zu Lauf andere Zahlen.
-    bester: dict[str, _Gemessen] = {}
-    quelle: dict[str, str] = {}
+    # Erst den besten Wert je Titel und Klasse ueber **alle** Server bestimmen,
+    # dann eintragen. Die Reihenfolge ist wichtig: Waere beides in einer
+    # Schleife, entschiede darueber, welcher Server zufaellig zuerst gelesen
+    # wird - und dieselbe Bibliothek ergaebe von Lauf zu Lauf andere Zahlen.
+    bester: dict[tuple[int, str], int] = {}
+    quelle: dict[tuple[int, str], str] = {}
     uneinig = 0
 
     for zeile in zeilen:
@@ -1113,13 +1130,10 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
             # soll keinen Posten auf 0 druecken. Faellt hier von selbst weg.
             if bytes_ <= 0:
                 continue
-            kennung = schluessel(MediaType.movie, arr_kennung(MediaType.movie, stufe), tmdb_id=zeile.tmdb_id)
-            if kennung is None:
-                continue
-
-            vorher = bester.get(kennung)
+            merkmal = (zeile.tmdb_id, stufe)
+            vorher = bester.get(merkmal)
             if vorher is not None:
-                if quelle.get(kennung) != zeile.provider:
+                if quelle.get(merkmal) != zeile.provider:
                     uneinig += 1
                 # ⚠️ **Bei Uneinigkeit gewinnt der groessere Wert** - und das
                 # ist keine Vermutung darueber, wer recht hat, sondern eine
@@ -1130,48 +1144,49 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
                 # wurden. Zu viel zu zaehlen heisst: Jemand hoert "aufgebraucht",
                 # obwohl noch Luft ist. Das ist aergerlich, aber sichtbar, und
                 # er kann etwas abgeben.
-                if vorher.size_bytes >= bytes_:
+                if vorher >= bytes_:
                     continue
+            bester[merkmal] = bytes_
+            quelle[merkmal] = zeile.provider
 
-            bester[kennung] = _Gemessen(
-                key=kennung,
-                media_type=MediaType.movie,
-                tier=stufe,
-                tmdb_id=zeile.tmdb_id,
-                tvdb_id=zeile.tvdb_id,
-                season=None,
-                title=zeile.title,
-                size_bytes=bytes_,
-                # ⚠️ Nur der Media-Server kennt ihn noch - also **nicht mehr
-                # loeschbar**. Wer hier landet, hat den Eintrag aus Radarr
-                # geworfen und die Datei behalten.
-                verwaltet=False,
-            )
-            quelle[kennung] = zeile.provider
-
-    # Was Radarr/Sonarr schon gemeldet haben, **je Titel** - nicht je
+    # Was der Beschaffungsweg schon gemeldet hat, **je Titel** - nicht je
     # Schluessel. Genau daran ist die Regel unten frueher gescheitert.
     schon_gemeldet: dict[int, set[int]] = {}
     for wert in ziel.values():
         if wert.media_type == MediaType.movie and wert.tmdb_id is not None:
             schon_gemeldet.setdefault(wert.tmdb_id, set()).add(wert.size_bytes)
 
+    uhd_fassungen = _uhd_fassungen(db)
+    vorhanden = db.scalars(
+        select(StorageEntry).where(
+            StorageEntry.media_type == MediaType.movie,
+            StorageEntry.tmdb_id.is_not(None),
+        )
+    ).all()
+    # Jeder Titel, den ein Posten traegt - ob er gerade weitergemessen wird
+    # oder nicht. Nur was hier fehlt, ist "keinem Posten zuzuordnen".
+    bekannt = set(schon_gemeldet) | {zeile.tmdb_id for zeile in vorhanden}
+
     doppelt = 0
-    for kennung, wert in bester.items():
-        # Was Radarr unter genau diesem Schluessel gemeldet hat, bleibt stehen.
-        if kennung in ziel:
+    for zeile in vorhanden:
+        # Was der Beschaffungsweg unter genau diesem Schluessel gemeldet hat,
+        # bleibt stehen.
+        if zeile.key in ziel:
+            continue
+        stufe = "uhd" if zeile.fassung_kennung in uhd_fassungen else "standard"
+        bytes_ = bester.get((zeile.tmdb_id, stufe))
+        if not bytes_:
             continue
 
-        # ⚠️ **Und was es unter einer anderen Stufe gemeldet hat, ebenfalls.**
+        # ⚠️ **Und was er unter einer anderen Fassung gemeldet hat, ebenfalls.**
         #
         # Hier lag ein Fehler, der Speicher **doppelt zaehlte**. Der Ablauf:
         # Die Standard-Instanz laedt mit einem 1080p-Profil, greift aber eine
         # 2160p-Datei - das passiert oft genug. Nexview verbucht Radarrs
-        # Meldung unter der Stufe der **Instanz** (``standard``); der
-        # Media-Server meldet dieselbe Datei mit ``videoResolution=4k``, und
-        # daraus entstand ein **zweiter** Posten unter ``uhd``. Die Pruefung
-        # oben griff nicht: Sie vergleicht den Schluessel, und der
-        # unterscheidet sich ja gerade in der Stufe.
+        # Meldung unter der Fassung der **Instanz**; der Media-Server meldet
+        # dieselbe Datei mit ``videoResolution=4k``. Steht unter der 4K-Fassung
+        # ein Posten desselben Titels, wuerde er mit genau dieser Datei
+        # weitergemessen.
         #
         # Gemessen an einer echten Anlage: 32 Dateien, 540 GB, die es einmal
         # gibt und die zweimal gezaehlt wurden. Beim Hausbestand faellt das
@@ -1183,18 +1198,39 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
         # verschiedene Fassungen desselben Films - 1080p in der einen, 4K in
         # der anderen Instanz - haben nie dieselbe Byte-Zahl. Ein echter
         # Doppelbestand bleibt also erhalten, und genau darum geht es.
-        if wert.tmdb_id is not None and wert.size_bytes in schon_gemeldet.get(
-            wert.tmdb_id, ()
-        ):
+        if bytes_ in schon_gemeldet.get(zeile.tmdb_id, ()):
             doppelt += 1
             continue
 
-        ziel[kennung] = wert
+        ziel[zeile.key] = _Gemessen(
+            key=zeile.key,
+            media_type=MediaType.movie,
+            tier=stufe,
+            tmdb_id=zeile.tmdb_id,
+            tvdb_id=zeile.tvdb_id,
+            season=None,
+            title=zeile.title,
+            size_bytes=bytes_,
+            # ⚠️ Nur der Media-Server kennt ihn noch - also **nicht mehr
+            # loeschbar**. Wer hier landet, hat den Eintrag aus Radarr oder
+            # nexcrate geworfen und die Datei behalten.
+            verwaltet=False,
+        )
+
+    ungebucht = {tmdb_id for tmdb_id, _ in bester} - bekannt
+    if ungebucht:
+        # Nur die Zahl, keine Titel: Wer nachsehen will, findet die Filme im
+        # Vergleich mit dem Medienserver.
+        logger.info(
+            "Storage: %d movie(s) known only to the media server match no entry - "
+            "reported, not booked",
+            len(ungebucht),
+        )
 
     if doppelt:
         logger.info(
-            "Storage: %d file(s) reported by both the media server and Radarr/Sonarr "
-            "under different tiers - counted once",
+            "Storage: %d file(s) reported by both the media server and the "
+            "acquisition service under different versions - counted once",
             doppelt,
         )
 
@@ -1204,6 +1240,30 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
             "servers - the larger value counts",
             uneinig,
         )
+
+
+def _uhd_fassungen(db: Session) -> frozenset[str]:
+    """Die Fassungen der Klasse ``uhd`` - aus der Tabelle, fuer beide Wege.
+
+    ⚠️ Nicht ``fassungen.stufe``: Das kennt nur die vier Arr-Kennungen und
+    haelt jede Fassung aus nexcrate fuer ``standard``. Ein 4K-Posten wuerde
+    dann mit der 1080p-Datei des Media-Servers gemessen.
+    """
+    aus_tabelle = db.scalars(select(Fassung.kennung).where(Fassung.klasse == KLASSE_UHD)).all()
+    return frozenset(aus_tabelle) | {
+        kennung for kennung in fassungen.ARR_KENNUNGEN if fassungen.stufe(kennung) == "uhd"
+    }
+
+
+def _fassung_aus_schluessel(kennung: str) -> str:
+    """Die Fassung eines Postens, so wie sein Schluessel sie nennt.
+
+    ``schluessel()`` setzt die Fassung als zweites Glied ein, und an derselben
+    Zeile muessen beide dasselbe sagen. Bis zum 23.09.2026 stand an ihrer
+    Stelle ``arr_kennung(art, stufe)`` - im NEX-Betrieb trug ein neuer Posten
+    ``movie:v_...`` dann die Fassung ``radarr-standard``.
+    """
+    return kennung.split(":", 2)[1]
 
 
 def _tvdb_nach_tmdb(db: Session) -> dict[int, int]:
@@ -1277,7 +1337,7 @@ def _schreiben(
                     key=kennung,
                     user_id=besitzer,
                     media_type=wert.media_type,
-                    fassung_kennung=arr_kennung(wert.media_type, wert.tier),
+                    fassung_kennung=_fassung_aus_schluessel(kennung),
                     tmdb_id=wert.tmdb_id,
                     tvdb_id=wert.tvdb_id,
                     season=wert.season,
@@ -1593,7 +1653,7 @@ def verbuchen(
                     key=kennung,
                     user_id=request.user_id,
                     media_type=wert.media_type,
-                    fassung_kennung=arr_kennung(wert.media_type, wert.tier),
+                    fassung_kennung=_fassung_aus_schluessel(kennung),
                     tmdb_id=wert.tmdb_id or request.tmdb_id,
                     tvdb_id=wert.tvdb_id or request.tvdb_id,
                     season=wert.season,

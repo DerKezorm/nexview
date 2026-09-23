@@ -187,6 +187,7 @@ EINMAL_SCHRITTE = (
     "_verknuepfungen_in_die_tabelle",
     "_kontingente_dreiwertig_machen",
     "_fassungen_einfuehren",
+    "_medienserver_posten_abraeumen",
 )
 
 #: Die Stufen-Spalten, die ``_fassungen_einfuehren`` in das Fassungsmodell
@@ -322,6 +323,7 @@ def init_db() -> None:
     _gesehen_herkunft_nachtragen()
     _einmal(_verknuepfungen_in_die_tabelle)
     _einmal(_kontingente_dreiwertig_machen)
+    _einmal(_medienserver_posten_abraeumen)
     _betreiber_bestimmen()
     _speicher_zurueckgeben_umstellen()
 
@@ -587,6 +589,19 @@ def _ankunftsbefund() -> tuple[dict[str, bool], dict[str, str]]:
         spuren["_fassungen_einfuehren"] = (
             f"column media_requests.fassung_kennung={da(hat_kennung)}, "
             f"tier columns still present: {', '.join(stufen) or 'none'}"
+        )
+
+        # Die Posten, die der Medienserver angelegt hat. Erledigt ist der
+        # Schritt, wenn keiner mehr steht. Fehlt ``arr_managed``, stammt die
+        # Datenbank aus der Zeit vor 0.19, und der Schritt laeuft - nach dem
+        # Ergaenzen der Spalte (Vorgabe: verwaltet) trifft er dort nichts.
+        geister = False
+        if "arr_managed" in spalten_speicher:
+            geister = bool(verbindung.exec_driver_sql(_GEISTER_GIBT_ES).scalar())
+        befund["_medienserver_posten_abraeumen"] = "arr_managed" in spalten_speicher and not geister
+        spuren["_medienserver_posten_abraeumen"] = (
+            f"column storage_entries.arr_managed={da('arr_managed' in spalten_speicher)}, "
+            f"movie entries without path and not managed={ja(geister)}"
         )
 
     return befund, spuren
@@ -903,6 +918,55 @@ def _kontingente_dreiwertig_machen() -> None:
             zeile[0],
             zeile[1],
         )
+
+
+#: Die Posten, die nur der Medienserver angelegt haben kann: Film, nicht
+#: verwaltet, kein Pfad. Radarr nennt zu jedem Film einen Pfad, und ein Posten
+#: behaelt ihn, auch wenn er danach nur noch im Medienserver liegt.
+_GEISTER = (
+    "media_type = 'movie' AND arr_managed = 0 AND (path IS NULL OR path = '')"
+)
+_GEISTER_GIBT_ES = f"SELECT EXISTS(SELECT 1 FROM storage_entries WHERE {_GEISTER})"  # noqa: S608 - fester Text
+
+
+def _medienserver_posten_abraeumen() -> None:
+    """Die Speicherposten abraeumen, die der Medienserver angelegt hat - **einmalig**.
+
+    Bis 1.0.0 durfte der Medienserver Posten anlegen, seitdem misst er nur
+    weiter, was ein Beschaffungsweg gemeldet hat (``storage._aus_media_server``).
+    An einer echten Anlage standen 81 solche Posten, alle dem Haus: 66 davon
+    byte-gleich mit einer Datei, die Radarr schon meldete - Jellyfin hatte den
+    Film ueber den Titel falsch zugeordnet -, und 14 echte Dateien, die Radarr
+    nicht fuehrte. Beides zaehlt ab jetzt nicht mehr; ein Titel muss im
+    Beschaffungsweg stehen, damit er zaehlt.
+
+    ⚠️ **Das Merkmal taugt nur fuer den Bestand von heute, deshalb einmalig.**
+    nexcrate nennt keinen Pfad. Ein Posten aus nexcrate, den der Medienserver
+    ab jetzt weitermisst, sieht genauso aus - im Abgleich waere diese Regel
+    falsch. Bis hierher konnte es ihn nicht geben: Der alte Zweig suchte
+    fest unter der Arr-Fassung und liess jeden nexcrate-Posten fallen, sobald
+    nexcrate ihn nicht mehr meldete.
+
+    Auf die Posten zeigt kein Fremdschluessel; eine Anfrage, die einen davon
+    trug, bleibt unberuehrt.
+    """
+    with engine.begin() as verbindung:
+        if "storage_entries" not in {
+            zeile[0]
+            for zeile in verbindung.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }:
+            return
+        ergebnis = verbindung.exec_driver_sql(
+            f"DELETE FROM storage_entries WHERE {_GEISTER}"  # noqa: S608 - fester Text
+        )
+        if ergebnis.rowcount:
+            logger.info(
+                "Storage: %d movie entries that only the media server knew were removed - "
+                "a title now has to be in Radarr or nexcrate to count",
+                ergebnis.rowcount,
+            )
 
 
 def _fassungen_einfuehren() -> None:

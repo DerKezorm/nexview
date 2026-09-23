@@ -1146,7 +1146,11 @@ async def test_bei_zwei_servern_zaehlt_der_groessere_wert(
     der Praxis, weil es nur einen Server gab - aber es war ein Zufall, kein
     Ergebnis, und mit zwei Servern haette dieselbe Bibliothek von Lauf zu Lauf
     andere Zahlen ergeben.
+
+    Seit 1.0.0 legt der Medienserver keinen Posten mehr an; die Regel gilt
+    beim Weitermessen eines Postens, den Radarr einmal gemeldet hat.
     """
+    await messen(db, settings, filme={"standard": {603: film(4)}})
     for anbieter, groesse in (("plex", 5 * GB), ("jellyfin", 9 * GB)):
         db.add(
             MediaServerLibraryItem(
@@ -1175,6 +1179,7 @@ async def test_ein_server_ohne_groesse_drueckt_den_posten_nicht(
     gar nicht kennt -, darf den Posten nicht auf 0 ziehen. Sonst haenge die
     Buchhaltung davon ab, welcher Server zuletzt gelesen wurde.
     """
+    await messen(db, settings, filme={"standard": {603: film(4)}})
     for anbieter, groesse in (("plex", 7 * GB), ("jellyfin", 0)):
         db.add(
             MediaServerLibraryItem(
@@ -1233,10 +1238,16 @@ def test_nur_im_media_server_heisst_nicht_mehr_verwaltet(
     Nexview loescht ausschliesslich ueber Radarr/Sonarr.
 
     Vorher merkte das nur der Administrator, und zwar erst beim Loeschversuch.
+
+    Seit 1.0.0 muss Radarr den Titel dafuer einmal gemeldet haben: Einen neuen
+    Posten legt der Medienserver nicht an (``test_storage_medienserver.py``).
     """
     import asyncio
 
     from app.models import MediaServerLibraryItem
+
+    asyncio.run(messen(db, settings, filme={"standard": {603: film(7)}}))
+    assert db.scalars(select(StorageEntry)).one().arr_managed is True
 
     db.add(
         MediaServerLibraryItem(

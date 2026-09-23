@@ -12,6 +12,51 @@ tag exists for it.
 
 ---
 
+## 1.0.0 – not released yet
+
+Nexview can now procure through **nexcrate** instead of Radarr and Sonarr. If
+you stay with Radarr and Sonarr, nothing changes for you.
+
+⚠️ **Make a backup before updating.** This update rewrites the database: the
+quality tier ("standard", "4K") becomes a **version** with an id of its own,
+and everything that used to name a tier – requests, storage entries, rights,
+invitations, rules – points at it afterwards. The tier columns are dropped in
+the process. The backup is the way back.
+
+### New
+
+- **nexcrate as a way to procure.** One connection instead of up to four, and
+  quality profiles, naming, folders and the recycle bin live over there. Setup
+  asks on the first start which way procures.
+- **A migration assistant** for installations already running on Radarr and
+  Sonarr. Seven steps: the numbers up front, connecting plus a vetting check,
+  mapping each current version onto a new one, checking whether nexcrate knows
+  the titles something hangs on, the backup, the switch, and handing over the
+  approved requests. ⚠️ **There is no way back except the backup** – Nexview
+  refuses to switch until the file is really written.
+- **What a title is waiting for is written on it.** One line per version:
+  downloading, nothing found that fits the profile, not released yet, sitting
+  out a delay. Radarr and Sonarr cannot say this; there the section is absent
+  rather than claiming that nothing is wrong.
+- **Deleted files come back.** Where procurement keeps a list instead of a
+  folder, one click restores a file. Where it cannot – the file is gone, or the
+  title left the library – the row says so and the button stays closed.
+- **Rights hang on the version**, not on "4K or not": two switches per version,
+  in Radarr mode too.
+
+### Changed
+
+- The tier is no longer a column. Outwards (`/api/v1`) `tier` stays and is
+  derived from the version; `fassung`, `fassungen[]` and `beschaffung` are new
+  and additive.
+- In nexcrate mode the tools for Radarr and Sonarr are gone entirely: quality
+  profiles, TRaSH, naming, path mapping, the webhook address, download
+  collisions, the per-account profile blocklists, and picking folder and
+  profile at approval. Their addresses answer `409 not_in_this_mode` instead of
+  returning an empty list.
+- `/api/settings/instanzen/gesundheit` and `.../verbindung` answer in both
+  modes now; in nexcrate mode they list one instance.
+
 ## 0.35.2 – 18.09.2026
 
 A repair for Jellyfin: movies inside a collection are read one by one again.

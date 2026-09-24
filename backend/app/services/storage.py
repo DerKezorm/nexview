@@ -928,6 +928,7 @@ async def _pakete_aufnehmen(
     if not anfragen:
         return behalten
 
+    beschaffung = get_beschaffung(settings)
     befunde: dict[tuple[str, int | None], tuple[dict, dict[Any, int]] | None] = {}
     ohne_dateien = 0
     for anfrage in anfragen:
@@ -973,8 +974,11 @@ async def _pakete_aufnehmen(
         befund = befunde[merkmal]
         if befund is None:
             # Nicht gelesen heisst nicht weg: Die Paketzeile bleibt, wie sie
-            # ist, bis die Staffelansicht oder Sonarr wieder antwortet.
-            behalten.add(kennung)
+            # ist, bis die Staffelansicht oder Sonarr wieder antwortet. Ist
+            # die Stufe gar nicht mehr eingerichtet, antwortet nie wieder
+            # jemand - dann raeumt der Abgleich sie ab.
+            if beschaffung.verwaltet("tv", stufe):
+                behalten.add(kennung)
             continue
         stand, groessen = befund
         staffel = stand.get(anfrage.season) or {}

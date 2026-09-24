@@ -25,6 +25,7 @@ from app.services import requests_service, status_poller, storage
 from app.services.beschaffung.arr import library
 from app.services.beschaffung.arr.client import ArrError
 from app.services.beschaffung.arr.sonarr import Folge, LibraryEntry, SonarrClient, Staffelstand
+from app.services.beschaffung.arr.weg import ArrBeschaffung
 from app.services.settings_service import load_settings
 from tests.conftest import auth_headers, create_user
 
@@ -858,6 +859,16 @@ async def test_ein_sonarr_fehler_laesst_die_paketzeile_stehen(
         assert paket.key.endswith(f":r{kennung}")
         assert paket.size_bytes == 2000
         assert paket.user_id == konto["id"]
+
+    # Ist die Stufe gar nicht mehr eingerichtet, antwortet nie wieder jemand:
+    # Dann bleibt die Zeile nicht fuer immer stehen (Pruefer, 24.09.2026).
+    monkeypatch.setattr(ArrBeschaffung, "verwaltet", lambda _self, _art, _stufe="standard": False)
+
+    with SessionLocal() as db:
+        await storage.abgleichen(db, load_settings(db))
+
+    with SessionLocal() as db:
+        assert db.query(StorageEntry).filter(StorageEntry.key.like("%:r%")).count() == 0
 
 
 @pytest.mark.asyncio

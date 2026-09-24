@@ -38,6 +38,27 @@ function Abzeichen({
 }
 
 /**
+ * Die Namensnennung, die eine Quelle neben ihren Werten verlangt.
+ *
+ * Die Sätze kommen wörtlich von nexcrate und werden nicht übersetzt: OMDb
+ * verlangt genau diesen Wortlaut dort, wo Rotten Tomatoes und Metacritic
+ * stehen. Ohne Sätze (ARR-Betrieb, keine Werte) steht hier nichts.
+ */
+export function RatingCredit({
+  ratings,
+  className = '',
+}: {
+  ratings: MovieRatings | undefined
+  className?: string
+}) {
+  const saetze = ratings?.attribution ?? []
+  if (saetze.length === 0) return null
+  return (
+    <p className={`text-[11px] leading-snug text-mist-600 ${className}`}>{saetze.join(' ')}</p>
+  )
+}
+
+/**
  * Die Wertungen als kleine, anklickbare Abzeichen.
  *
  * Nur was vorhanden ist: bei ganz frischen Filmen fehlt Rotten Tomatoes oft

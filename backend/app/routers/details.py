@@ -570,6 +570,9 @@ class MovieRatings(BaseModel):
     imdb_votes: int | None = None
     rotten_tomatoes: int | None = None
     metacritic: int | None = None
+    #: Die Saetze, die die Quelle neben ihren Werten verlangt (im NEX-Betrieb
+    #: IMDb und OMDb, wortwoertlich von nexcrate). Im ARR-Betrieb leer.
+    attribution: list[str] = []
 
 
 @router.get("/ratings/movie", response_model=dict[int, MovieRatings])
@@ -577,6 +580,7 @@ async def movie_ratings(
     user: CurrentUser,
     db: DbSession,
     ids: Annotated[str, Query(max_length=400)],
+    detail: bool = False,
 ) -> dict[int, MovieRatings]:
     """Bewertungen zu mehreren Filmen auf einmal.
 
@@ -584,6 +588,10 @@ async def movie_ratings(
     Radarr, und zwanzig Abfragen dorthin wuerden den Seitenaufbau spuerbar
     verzoegern. So steht die Seite sofort und die Wertungen erscheinen kurz
     darauf.
+
+    ``detail`` setzt nur die Titelseite: Im NEX-Betrieb kommen Rotten Tomatoes
+    und Metacritic allein aus nexcrates Einzelansicht, und die kostet je Titel
+    eine OMDb-Abfrage.
     """
     kennungen = [
         int(teil) for teil in ids.split(",") if teil.strip().isdigit()
@@ -592,7 +600,7 @@ async def movie_ratings(
         return {}
 
     settings = load_settings(db)
-    gefunden = await get_beschaffung(settings).wertungen_filme(kennungen)
+    gefunden = await get_beschaffung(settings).wertungen_filme(kennungen, einzeln=detail)
     return {
         tmdb_id: MovieRatings(
             imdb_id=wert.imdb_id,
@@ -600,6 +608,7 @@ async def movie_ratings(
             imdb_votes=wert.imdb_votes,
             rotten_tomatoes=wert.rotten_tomatoes,
             metacritic=wert.metacritic,
+            attribution=list(wert.attribution),
         )
         for tmdb_id, wert in gefunden.items()
     }

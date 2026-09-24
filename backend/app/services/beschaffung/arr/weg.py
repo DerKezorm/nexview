@@ -343,7 +343,10 @@ class ArrBeschaffung(Beschaffung):
             return await library.movie_calendar(self.settings, von, bis)
         return await library.series_calendar(self.settings, von, bis)
 
-    async def wertungen_filme(self, tmdb_ids: list[int]) -> dict[int, portal_ratings.Ratings]:
+    async def wertungen_filme(
+        self, tmdb_ids: list[int], *, einzeln: bool = False
+    ) -> dict[int, portal_ratings.Ratings]:
+        # Radarr liefert alle Portale schon je Titel; ``einzeln`` aendert nichts.
         return await portal_ratings.for_movies(self.settings, tmdb_ids)
 
     def nicht_eingerichtet(self, media_type: str, stufe: str) -> str:

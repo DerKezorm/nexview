@@ -266,32 +266,89 @@ def kalender(roh: list[dict[str, Any]], media_type: str) -> list[dict[str, Any]]
 # Wertungen
 
 
+def _imdb(eintrag: dict[str, Any]) -> tuple[float | None, int]:
+    """IMDb-Wert und Stimmen aus ``{"rating", "votes"}``.
+
+    ⚠️ Das Feld heisst ``rating``, nicht ``value`` wie bei Radarr (nexcrates
+    ``ImdbRatingOut``). Bis zum 24.09.2026 las Nexview ``value`` und bekam
+    darum von einer nexcrate mit geladener IMDb-Datei keinen einzigen Wert.
+    """
+    imdb = eintrag.get("imdb")
+    if isinstance(imdb, dict):
+        wert = imdb.get("rating")
+        stimmen = imdb.get("votes") or 0
+    else:
+        wert, stimmen = imdb, 0
+    if not isinstance(wert, (int, float)) or isinstance(wert, bool):
+        return None, 0
+    return float(wert), int(stimmen) if isinstance(stimmen, int) else 0
+
+
+def _prozent(wert: Any) -> int | None:
+    return int(wert) if isinstance(wert, (int, float)) and not isinstance(wert, bool) else None
+
+
+def _imdb_kennung(eintrag: dict[str, Any]) -> str | None:
+    return str(eintrag.get("imdb_ref") or "").partition(":")[2] or None
+
+
 def wertungen(antwort: dict[str, Any], nach_tmdb: dict[str, int]) -> dict[int, Any]:
     """`POST /ratings` in Nexviews Form - eine Zeile je TMDB-Nummer.
 
     ⚠️ Ohne eingerichtete Quelle sind alle Werte `null` und `sources` sagt,
     warum (`{"imdb": "off", "omdb": "no_key"}`). Das ist kein Fehler: Die
     Kachel zeigt dann keine Portal-Wertung, wie im ARR-Betrieb ohne Radarr.
+
+    Der Stapel nennt IMDb in einem Satz fuer alle (``attribution``); er
+    haengt an jeder Zeile, die einen Wert hat.
     """
     from ..arr.portal_ratings import Ratings
 
+    satz = antwort.get("attribution")
+    nennung = (satz,) if isinstance(satz, str) and satz else ()
     gefunden: dict[int, Any] = {}
     for eintrag in antwort.get("items") or []:
         nummer = nach_tmdb.get(str(eintrag.get("ref")))
         if nummer is None:
             continue
-        imdb = eintrag.get("imdb") or {}
-        wert = imdb.get("value") if isinstance(imdb, dict) else imdb
+        wert, stimmen = _imdb(eintrag)
         if wert is None:
             continue
         gefunden[nummer] = Ratings(
-            imdb_id=str(eintrag.get("imdb_ref") or "").partition(":")[2] or None,
-            imdb=float(wert),
-            imdb_votes=int((imdb.get("votes") or 0) if isinstance(imdb, dict) else 0),
+            imdb_id=_imdb_kennung(eintrag),
+            imdb=wert,
+            imdb_votes=stimmen,
             rotten_tomatoes=None,
             metacritic=None,
+            attribution=nennung,
         )
     return gefunden
+
+
+def wertung(antwort: dict[str, Any]) -> Any:
+    """`GET /ratings/{kind}/{ref}` in Nexviews Form; ``None``, wenn nichts da ist.
+
+    Nur hier stehen Rotten Tomatoes und Metacritic (ueber OMDb). Die Nennung
+    kommt als Liste von Saetzen und wird wortwoertlich weitergereicht: OMDb
+    verlangt ihren Wortlaut dort, wo die Werte stehen.
+    """
+    from ..arr.portal_ratings import Ratings
+
+    wert, stimmen = _imdb(antwort)
+    tomaten = _prozent(antwort.get("rotten_tomatoes"))
+    metacritic = _prozent(antwort.get("metacritic"))
+    if wert is None and tomaten is None and metacritic is None:
+        return None
+    return Ratings(
+        imdb_id=_imdb_kennung(antwort),
+        imdb=wert,
+        imdb_votes=stimmen if wert is not None else None,
+        rotten_tomatoes=tomaten,
+        metacritic=metacritic,
+        attribution=tuple(
+            satz for satz in antwort.get("attribution") or [] if isinstance(satz, str) and satz
+        ),
+    )
 
 
 # --------------------------------------------------------------------------

@@ -25,7 +25,7 @@ import { MediaItemCard } from '../components/media/MediaCard'
 import { useCardData } from '../components/media/useCardData'
 import { DetailModal } from '../components/media/DetailModal'
 import { Poster, RatingBadge } from '../components/media/Poster'
-import { RatingBadges } from '../components/media/RatingBadges'
+import { RatingBadges, RatingCredit } from '../components/media/RatingBadges'
 import { useMovieRatings } from '../components/media/useMovieRatings'
 import { SeasonList } from '../components/media/SeasonList'
 import { StatusBadge } from '../components/media/StatusBadge'
@@ -229,7 +229,7 @@ export function TitlePage() {
     staleTime: 30 * 60 * 1000,
   })
 
-  const wertungen = useMovieRatings(query.data ? [query.data] : [])
+  const wertungen = useMovieRatings(query.data ? [query.data] : [], { einzeln: true })
   const { markiert } = useFavorites()
 
   /* Runde 0 steckt schon in der Detailantwort. Solange die neue Auswahl laedt,
@@ -368,6 +368,7 @@ export function TitlePage() {
                     was Radarr auch kennt. */}
                 <RatingBadges ratings={wertungen[item.tmdb_id]} title={item.title} gross />
               </div>
+              <RatingCredit ratings={wertungen[item.tmdb_id]} className="mt-1" />
 
               <h1 className="mt-2 text-3xl leading-tight font-bold tracking-tight sm:text-4xl">
                 {item.title}

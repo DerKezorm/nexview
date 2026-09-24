@@ -20,15 +20,23 @@ import type { MovieRatings } from '../../api/types'
 
 export function useMovieRatings(
   items: { media_type: string; tmdb_id: number }[],
+  /**
+   * Nur für die Titelseite: Im NEX-Betrieb stehen Rotten Tomatoes und
+   * Metacritic allein in nexcrates Einzelansicht, und die kostet je Titel eine
+   * OMDb-Abfrage. Listen setzen das nie.
+   */
+  { einzeln = false }: { einzeln?: boolean } = {},
 ): Record<number, MovieRatings> {
   const ids = items
     .filter((item) => item.media_type === 'movie')
     .map((item) => item.tmdb_id)
     .sort((a, b) => a - b)
+  const zusatz = einzeln ? '&detail=true' : ''
 
   const query = useQuery({
-    queryKey: ['movie-ratings', ids.join(',')],
-    queryFn: () => api.get<Record<number, MovieRatings>>(`/api/ratings/movie?ids=${ids.join(',')}`),
+    queryKey: ['movie-ratings', ids.join(','), einzeln],
+    queryFn: () =>
+      api.get<Record<number, MovieRatings>>(`/api/ratings/movie?ids=${ids.join(',')}${zusatz}`),
     enabled: ids.length > 0,
     // Wertungen ändern sich langsam; der Server hält sie ohnehin einen Tag vor.
     staleTime: 60 * 60 * 1000,

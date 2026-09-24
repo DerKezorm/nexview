@@ -1007,7 +1007,7 @@ export type Favorite = {
   created_at: string;
 };
 
-/** Wertungen der großen Portale - nur bei Filmen, aus Radarr. */
+/** Wertungen der großen Portale - nur bei Filmen, aus Radarr oder nexcrate. */
 export type MovieRatings = {
   /** Für den Link auf die IMDb-Seite. */
   imdb_id: string | null;
@@ -1015,6 +1015,11 @@ export type MovieRatings = {
   imdb_votes: number | null;
   rotten_tomatoes: number | null;
   metacritic: number | null;
+  /**
+   * Die Sätze, die die Quelle neben ihren Werten verlangt (IMDb, OMDb), im
+   * Wortlaut von nexcrate. Im ARR-Betrieb leer.
+   */
+  attribution: string[];
 };
 
 export type Genre = {

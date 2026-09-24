@@ -59,6 +59,9 @@ class Ratings:
     imdb_votes: int | None = None
     rotten_tomatoes: int | None = None
     metacritic: int | None = None
+    # Saetze, die eine Quelle neben ihren Werten verlangt (OMDb, IMDb). Radarr
+    # schickt keine mit, im ARR-Betrieb bleibt das leer.
+    attribution: tuple[str, ...] = ()
 
     @property
     def leer(self) -> bool:

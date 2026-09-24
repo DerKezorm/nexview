@@ -782,7 +782,14 @@ class Beschaffung(ABC):
     async def kalender(self, media_type: str, von: str, bis: str) -> list[dict[str, Any]]: ...
 
     @abstractmethod
-    async def wertungen_filme(self, tmdb_ids: list[int]) -> dict[int, Any]: ...
+    async def wertungen_filme(
+        self, tmdb_ids: list[int], *, einzeln: bool = False
+    ) -> dict[int, Any]:
+        """Portal-Wertungen je TMDB-Nummer; was es nicht gibt, fehlt.
+
+        ``einzeln`` fragt die Titelseite: ein Weg, der ausfuehrlichere Werte nur
+        je Titel liefert, darf sie dann holen - fuer wenige Titel, nie fuer Listen.
+        """
 
     @abstractmethod
     def nicht_eingerichtet(self, media_type: str, stufe: str) -> str:

@@ -33,6 +33,12 @@ FILM_UHD = "v_b4272077"
 SERIE_HD = "v_96e766c4"
 SERIE_UHD = "v_66260bea"
 
+#: Die Saetze, die nexcrate zu den Wertungen mitschickt (``services/ratings.py``).
+IMDB_NENNUNG = "Information courtesy of IMDb (https://www.imdb.com). Used with permission."
+OMDB_NENNUNG = (
+    "Rotten Tomatoes and Metacritic through the OMDb API (https://www.omdbapi.com), CC BY-NC 4.0."
+)
+
 #: Nexcrates Zustaende, wie ``GET /states`` sie fuehrt.
 ZUSTAENDE = [
     ("problem", "A download is stuck or failed and waits for the owner."),
@@ -89,6 +95,9 @@ class FakeNexcrate:
         self.history: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.why: dict[tuple[str, str], dict[str, Any]] = {}
         self.calendar_items: list[dict[str, Any]] = []
+        #: Eingerichtete Wertungen je ``ref``, gesetzt mit ``wertung``. Ohne
+        #: Eintrag antwortet die Attrappe wie gemessen: alles ``null``.
+        self.wertungen: dict[str, dict[str, Any]] = {}
         self.events: list[dict[str, Any]] = []
         self.pairings: dict[str, dict[str, Any]] = {}
         self.update: dict[str, Any] = {
@@ -118,6 +127,28 @@ class FakeNexcrate:
             "tier": tier,
             "ready": ready,
             "reasons": [] if ready else [{"code": "no_profile", "params": {}}],
+        }
+
+    def wertung(
+        self,
+        tmdb_id: int,
+        *,
+        imdb: float | None = None,
+        stimmen: int = 0,
+        tomaten: int | None = None,
+        metacritic: int | None = None,
+    ) -> None:
+        """Wertungen fuer einen Titel, als haette der Betreiber IMDb und OMDb eingerichtet.
+
+        Die Formen stehen so in nexcrates OpenAPI (``ImdbRatingOut`` traegt
+        ``rating`` und ``votes``, ``RatingOut`` zusaetzlich die Portale); gemessen
+        wurde nur der Fall ohne Quelle.
+        """
+        self.wertungen[f"tmdb:{tmdb_id}"] = {
+            "imdb_ref": f"imdb:tt{tmdb_id:07d}",
+            "imdb": {"rating": imdb, "votes": stimmen} if imdb is not None else None,
+            "rotten_tomatoes": tomaten,
+            "metacritic": metacritic,
         }
 
     def nicht_bereit(self, kennung: str, *codes: str) -> None:
@@ -632,31 +663,45 @@ class FakeNexcrate:
         )
 
     def _ratings(self, eintraege: list[dict[str, Any]]) -> dict[str, Any]:
-        return {
-            "items": [
+        items = []
+        for eintrag in eintraege:
+            gesetzt = self.wertungen.get(str(eintrag.get("ref")))
+            items.append(
                 {
                     "kind": eintrag.get("kind"),
                     "ref": eintrag.get("ref"),
-                    "imdb_ref": eintrag.get("ref"),
-                    "imdb": None,
+                    "imdb_ref": gesetzt["imdb_ref"] if gesetzt else eintrag.get("ref"),
+                    "imdb": gesetzt["imdb"] if gesetzt else None,
                     "error": None,
                 }
-                for eintrag in eintraege
-            ],
-            "imdb": "off",
-            "attribution": "Information courtesy of IMDb (https://www.imdb.com). Used with permission.",
+            )
+        return {
+            "items": items,
+            "imdb": "loaded" if self.wertungen else "off",
+            "attribution": IMDB_NENNUNG,
         }
 
     def _rating_einzeln(self, kind: str, ref: str) -> dict[str, Any]:
+        gesetzt = self.wertungen.get(ref)
+        if gesetzt is None:
+            return {
+                "kind": kind,
+                "ref": ref,
+                "imdb_ref": None,
+                "imdb": None,
+                "rotten_tomatoes": None,
+                "metacritic": None,
+                "sources": {"imdb": "off", "omdb": "no_key"},
+                "attribution": [IMDB_NENNUNG],
+            }
+        omdb = gesetzt["rotten_tomatoes"] is not None or gesetzt["metacritic"] is not None
         return {
             "kind": kind,
             "ref": ref,
-            "imdb_ref": None,
-            "imdb": None,
-            "rotten_tomatoes": None,
-            "metacritic": None,
-            "sources": {"imdb": "off", "omdb": "no_key"},
-            "attribution": ["Information courtesy of IMDb (https://www.imdb.com). Used with permission."],
+            **gesetzt,
+            "sources": {"imdb": "loaded", "omdb": "ok" if omdb else "not_found"},
+            # nexcrate nennt OMDb nur, wenn von dort etwas kam (``v1_round.rating_one``).
+            "attribution": [IMDB_NENNUNG] + ([OMDB_NENNUNG] if omdb else []),
         }
 
     def _events(self, abfrage: dict[str, str]) -> dict[str, Any]:

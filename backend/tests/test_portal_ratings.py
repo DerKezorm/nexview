@@ -94,6 +94,28 @@ def test_mit_radarr_kommen_die_wertungen_durch(
     assert wert["imdb_id"] == "tt0133093"
 
 
+def test_im_arr_betrieb_verlangt_niemand_eine_nennung(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Radarrs Antwort traegt keinen Satz zur Namensnennung; das Feld bleibt leer.
+
+    Nur nexcrate schickt die Nennung mit, die OMDb verlangt - erfunden wird
+    hier keine.
+    """
+
+    def lesen(_pfad: str, _params: dict) -> dict:
+        return {"imdbId": "tt0133093", "ratings": {"rottenTomatoes": {"value": 83}}}
+
+    monkeypatch.setattr(
+        portal_ratings, "radarr_client", lambda _settings: FakeArr(art="movie", lesen=lesen)
+    )
+
+    antwort = arr_client.get("/api/ratings/movie", params={"ids": "603", "detail": "true"})
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["603"]["rotten_tomatoes"] == 83
+    assert antwort.json()["603"]["attribution"] == []
+
+
 def test_eine_null_ist_keine_wertung(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

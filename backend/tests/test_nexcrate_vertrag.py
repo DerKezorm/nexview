@@ -160,6 +160,28 @@ def test_jeder_eintrag_in_gerufen_hat_eine_fundstelle_im_client() -> None:
     assert not fehlend, fehlend
 
 
+#: Client-Methoden, die bereitstehen, aber (noch) niemand ruft.
+UNGERUFEN_ERLAUBT = frozenset({"states", "history", "problems"})
+
+
+def test_jede_methode_des_clients_hat_einen_aufrufer() -> None:
+    """Eine Adresse im Client, die der Weg nie ruft, ist ein halber Bau.
+
+    So stand ``rating`` (``GET /ratings/{kind}/{ref}``) seit S4 im Client,
+    und die Titelseite zeigte im NEX-Betrieb weder Rotten Tomatoes noch
+    Metacritic - kein Wächter merkte es, weil die Adresse ja „gerufen" war.
+    """
+    quelle = _client_quelle()
+    methoden = set(re.findall(r"^    async def ([a-z][a-z_]*)\(", quelle, re.MULTILINE))
+    assert len(methoden) >= 25, methoden
+    nex = Path(__file__).parent.parent / "app" / "services" / "beschaffung" / "nex"
+    andere = "\n".join(
+        datei.read_text(encoding="utf-8") for datei in nex.glob("*.py") if datei.name != "client.py"
+    )
+    ungerufen = sorted(m for m in methoden if not re.search(rf"\.{m}\(", andere))
+    assert set(ungerufen) <= UNGERUFEN_ERLAUBT, ungerufen
+
+
 def test_die_attrappe_antwortet_in_den_gemessenen_formen() -> None:
     """Regel 2: Was die Attrappe liefert, trägt die Felder der echten Instanz."""
     attrappe = FakeNexcrate()

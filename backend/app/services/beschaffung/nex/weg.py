@@ -90,6 +90,11 @@ _weckruf: asyncio.Event | None = None
 #: nimmt. Wie im ARR-Betrieb - die Zahl haengt an Nexviews Seiten, nicht am Weg.
 FRISCH = timedelta(seconds=90)
 
+#: Hoechstens so viele Titel fragt ``wertungen_filme(einzeln=True)`` einzeln.
+#: Jeder Aufruf kostet nexcrate eine OMDb-Abfrage aus einem Tageskontingent;
+#: die Titelseite braucht einen, der Rest geht in den Stapel.
+WERTUNGEN_EINZELN = 5
+
 
 def client_fuer(settings: AppSettings) -> NexcrateClient:
     """Der Client dieser Installation; wirft, wenn nichts hinterlegt ist."""
@@ -542,19 +547,48 @@ class NexBeschaffung(Beschaffung):
             roh += await self.client.calendar(anfang, ende, mapping.kind(media_type))
         return lesen.kalender(roh, media_type)
 
-    async def wertungen_filme(self, tmdb_ids: list[int]) -> dict[int, Any]:
-        """Wertungen im Stapel (N39) - anders als bei Arr auch fuer Serien.
+    async def wertungen_filme(
+        self, tmdb_ids: list[int], *, einzeln: bool = False
+    ) -> dict[int, Any]:
+        """Wertungen im Stapel (N39), fuer die Titelseite aus der Einzelansicht.
 
         Gefragt wird per TMDB-Nummer; nexcrate uebersetzt selbst nach IMDb und
         nennt die Kennung in ``imdb_ref`` zurueck.
+
+        ⚠️ **Rotten Tomatoes und Metacritic stehen nur in der Einzelansicht**
+        (``GET /ratings/{kind}/{ref}``), der Stapel traegt nur IMDb. Die
+        Einzelansicht traegt IMDb mit - wer sie fragt, braucht fuer diesen
+        Titel keinen Stapel. Ein Titel, dessen Einzelansicht scheitert, bleibt
+        leer; die anderen nicht.
         """
-        if not tmdb_ids:
+        nummern = list(dict.fromkeys(tmdb_ids))
+        if not nummern:
             return {}
-        nach_tmdb = {mapping.ref(nummer): nummer for nummer in tmdb_ids}
-        antwort = await self.client.ratings(
-            [{"kind": "movie", "ref": ref} for ref in nach_tmdb]
-        )
-        return lesen.wertungen(antwort, nach_tmdb)
+        je_titel = nummern[:WERTUNGEN_EINZELN] if einzeln else []
+        rest = nummern[len(je_titel) :]
+
+        gefunden: dict[int, Any] = {}
+        if rest:
+            nach_tmdb = {mapping.ref(nummer): nummer for nummer in rest}
+            antwort = await self.client.ratings(
+                [{"kind": "movie", "ref": ref} for ref in nach_tmdb]
+            )
+            gefunden.update(lesen.wertungen(antwort, nach_tmdb))
+
+        async def eine(nummer: int) -> tuple[int, Any]:
+            try:
+                return nummer, lesen.wertung(
+                    await self.client.rating("movie", mapping.ref(nummer))
+                )
+            except BeschaffungError as fehler_:
+                # Wertungen sind Beiwerk: ohne sie steht die Seite trotzdem.
+                logger.debug("Ratings for tmdb:%s not read: %s", nummer, fehler_.code)
+                return nummer, None
+
+        for nummer, wert in await asyncio.gather(*(eine(nummer) for nummer in je_titel)):
+            if wert is not None:
+                gefunden[nummer] = wert
+        return gefunden
 
     # -- Auftraege ------------------------------------------------------------
 

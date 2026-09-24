@@ -19,6 +19,7 @@ import { RegionBanner } from './RegionBanner'
 import { UserMenu } from './UserMenu'
 import type { MediaItem, MediaType } from '../api/types'
 import { DetailModal } from './media/DetailModal'
+import { WertungsNennung } from './media/RatingBadges'
 import { Filmabend } from './stoebern/Filmabend'
 import { useConfig } from '../hooks/useConfig'
 import { kannAnfragen, quelleBereit } from '../lib/fassungen'
@@ -67,7 +68,7 @@ const NAV_ITEMS: NavItem[] = [
  * Über-Seite von sich aus aufsuchen, und genau das tut niemand. Den Hinweis
  * bekommt nur, wer auch aktualisieren kann; das entscheidet der Server.
  */
-function Footer({ onHausordnung }: { onHausordnung: () => void }) {
+export function Footer({ onHausordnung }: { onHausordnung: () => void }) {
   const { t } = useTranslation()
   const { vorhanden } = useHausordnung()
 
@@ -117,6 +118,10 @@ function Footer({ onHausordnung }: { onHausordnung: () => void }) {
             {t('about.updateShort')}
           </NavLink>
         )}
+
+        {/* Karten zeigen IMDb-Werte ohne Platz für den Satz, den IMDb dazu
+            verlangt; er steht deshalb einmal hier. */}
+        <WertungsNennung className="basis-full text-center" />
       </div>
     </footer>
   )

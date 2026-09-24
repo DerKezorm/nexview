@@ -14,10 +14,13 @@
  * Entwicklungsbetrieb im laufenden Bild aus.
  */
 
-import { useQuery } from '@tanstack/react-query'
+import { useSyncExternalStore } from 'react'
+import { type QueryCache, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../../api/client'
 import type { MovieRatings } from '../../api/types'
+
+const WERTUNGEN = 'movie-ratings'
 
 export function useMovieRatings(
   items: { media_type: string; tmdb_id: number }[],
@@ -36,7 +39,7 @@ export function useMovieRatings(
   const zusatz = einzeln ? '&detail=true' : ''
 
   const query = useQuery({
-    queryKey: ['movie-ratings', ids.join(','), einzeln],
+    queryKey: [WERTUNGEN, ids.join(','), einzeln],
     queryFn: () =>
       api.get<Record<number, MovieRatings>>(`/api/ratings/movie?ids=${ids.join(',')}${zusatz}`),
     enabled: ids.length > 0,
@@ -46,4 +49,34 @@ export function useMovieRatings(
   })
 
   return query.data ?? {}
+}
+
+/** Alle Sätze der geladenen Wertungen, jeder einmal, als ein Text je Zeile. */
+function nennungen(cache: QueryCache): string {
+  const saetze = new Set<string>()
+  for (const abfrage of cache.findAll({ queryKey: [WERTUNGEN] })) {
+    const daten = abfrage.state.data as Record<number, MovieRatings> | undefined
+    for (const wertung of Object.values(daten ?? {})) {
+      for (const satz of wertung.attribution ?? []) saetze.add(satz)
+    }
+  }
+  return [...saetze].join('\n')
+}
+
+/**
+ * Die Namensnennung für die Fußzeile: was die Quelle zu den Wertungen
+ * verlangt, die gerade geladen sind.
+ *
+ * Karten und Listenzeilen haben keinen Platz für den Satz; IMDb verlangt ihn
+ * trotzdem dort, wo die Werte stehen. Er kommt wörtlich von nexcrate. Im
+ * ARR-Betrieb schickt niemand einen, dann bleibt die Liste leer – gefragt
+ * wird nach den Sätzen, nicht nach dem Namen des Wegs.
+ */
+export function useWertungsNennung(): string[] {
+  const cache = useQueryClient().getQueryCache()
+  const text = useSyncExternalStore(
+    (melden) => cache.subscribe(melden),
+    () => nennungen(cache),
+  )
+  return text ? text.split('\n') : []
 }

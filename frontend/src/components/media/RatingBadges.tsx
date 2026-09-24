@@ -1,4 +1,5 @@
 import type { MovieRatings } from '../../api/types'
+import { useWertungsNennung } from './useMovieRatings'
 
 /** Tomate für frisch, grüner Klecks für verdorben - wie bei Rotten Tomatoes. */
 function Tomate({ frisch }: { frisch: boolean }) {
@@ -56,6 +57,18 @@ export function RatingCredit({
   return (
     <p className={`text-[11px] leading-snug text-mist-600 ${className}`}>{saetze.join(' ')}</p>
   )
+}
+
+/**
+ * Die Namensnennung aller geladenen Wertungen, für die Fußzeile.
+ *
+ * Nichts, solange keine Wertung einen Satz trägt (ARR-Betrieb, eine Seite
+ * ohne Filme).
+ */
+export function WertungsNennung({ className = '' }: { className?: string }) {
+  const saetze = useWertungsNennung()
+  if (saetze.length === 0) return null
+  return <p className={className}>{saetze.join(' ')}</p>
 }
 
 /**

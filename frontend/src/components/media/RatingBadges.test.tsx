@@ -24,7 +24,7 @@ vi.mock('../../api/client', async () => {
 import { api } from '../../api/client'
 import type { MovieRatings } from '../../api/types'
 import { rendernSchlicht } from '../../test/rendern'
-import { RatingCredit } from './RatingBadges'
+import { RatingCredit, WertungsNennung } from './RatingBadges'
 import { useMovieRatings } from './useMovieRatings'
 
 const holen = vi.mocked(api.get)
@@ -86,5 +86,42 @@ describe('useMovieRatings', () => {
     rendernSchlicht(<Frager einzeln />)
     await waitFor(() => expect(holen).toHaveBeenCalled())
     expect(holen).toHaveBeenCalledWith('/api/ratings/movie?ids=603,604&detail=true')
+  })
+})
+
+/**
+ * Die Fußzeile: Karten zeigen IMDb-Werte ohne Platz für den Satz, den IMDb
+ * dazu verlangt. Er steht einmal unten, sobald geladene Wertungen ihn tragen.
+ */
+describe('WertungsNennung', () => {
+  it('nennt jeden Satz der geladenen Wertungen einmal', async () => {
+    holen.mockReset()
+    holen.mockResolvedValue({ 603: wertung([IMDB]), 604: wertung([IMDB, OMDB]) })
+    rendernSchlicht(
+      <>
+        <Frager />
+        <WertungsNennung />
+      </>,
+    )
+    expect(await screen.findByText(`${IMDB} ${OMDB}`)).toBeInTheDocument()
+  })
+
+  it('zeigt nichts, solange keine Wertung einen Satz trägt (ARR-Betrieb)', async () => {
+    holen.mockReset()
+    holen.mockResolvedValue({ 603: wertung([]), 604: wertung([]) })
+    const { container } = rendernSchlicht(
+      <>
+        <Frager />
+        <WertungsNennung />
+      </>,
+    )
+    await waitFor(() => expect(holen).toHaveBeenCalled())
+    await new Promise((fertig) => setTimeout(fertig, 20))
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('zeigt nichts ohne geladene Wertungen', () => {
+    const { container } = rendernSchlicht(<WertungsNennung />)
+    expect(container).toBeEmptyDOMElement()
   })
 })

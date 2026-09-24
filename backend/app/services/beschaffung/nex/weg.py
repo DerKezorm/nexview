@@ -565,7 +565,11 @@ class NexBeschaffung(Beschaffung):
         """Wertungen im Stapel (N39), fuer die Titelseite aus der Einzelansicht.
 
         Gefragt wird per TMDB-Nummer; nexcrate uebersetzt selbst nach IMDb und
-        nennt die Kennung in ``imdb_ref`` zurueck.
+        nennt die Kennung in ``imdb_ref`` zurueck. Seit nexcrate ``39dfc05``
+        auch fuer Filme, die es nicht fuehrt (ueber TMDB); eine aeltere
+        nexcrate oder eine ohne TMDB-Token antwortet dort ``imdb_unknown``,
+        und der Titel bleibt still ohne Wertung. Nexview fragt deshalb jeden
+        Film, nicht nur gefuehrte.
 
         ⚠️ **Nur die Einzelansicht fragt OMDb** (``GET /ratings/{kind}/{ref}``).
         Der Stapel traegt Rotten Tomatoes und Metacritic seit nexcrate

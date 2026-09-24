@@ -294,3 +294,70 @@ def test_die_titelseite_bleibt_bei_der_einzelansicht_auch_wenn_der_stapel_portal
     assert titelseite["603"]["rotten_tomatoes"] == 88
     assert titelseite["603"]["attribution"] == [IMDB_NENNUNG, OMDB_NENNUNG]
     assert _einzeln(nexcrate) == ["/api/v1/ratings/movie/tmdb:603"]
+
+
+# --- Filme, die nexcrate nicht führt (nexcrate 39dfc05) ----------------------------
+
+
+def test_die_titelseite_zeigt_die_wertung_eines_films_den_nexcrate_nicht_fuehrt(
+    nex_admin: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """nexcrate findet die IMDb-Nummer eines ``tmdb:``-Titels außerhalb bei TMDB.
+
+    Nexview fragte schon vorher jeden Film, auch einen nicht geführten; eine
+    ältere nexcrate antwortete dort nur ``imdb_unknown``.
+    """
+    nexcrate.film(604, name="Example Movie In Library")
+    nexcrate.wertung(603, imdb=7.5, stimmen=1200, tomaten=88, metacritic=71)
+    assert ("movie", "tmdb:603") not in nexcrate.titles
+
+    antwort = nex_admin.get("/api/ratings/movie", params={"ids": "603", "detail": "true"})
+
+    assert antwort.status_code == 200, antwort.text
+    wert = antwort.json()["603"]
+    assert wert["imdb"] == 7.5 and wert["imdb_id"] == "tt0000603"
+    assert wert["rotten_tomatoes"] == 88 and wert["metacritic"] == 71
+    assert wert["attribution"] == [IMDB_NENNUNG, OMDB_NENNUNG]
+    assert _einzeln(nexcrate) == ["/api/v1/ratings/movie/tmdb:603"]
+
+
+def test_karten_nicht_gefuehrter_filme_bekommen_die_wertung_aus_dem_stapel(
+    nex_admin: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    nexcrate.film(604, name="Example Movie In Library")
+    nexcrate.wertung(603, imdb=7.5, stimmen=1200)
+    nexcrate.wertung(604, imdb=6.1, stimmen=40)
+
+    daten = nex_admin.get("/api/ratings/movie", params={"ids": "603,604"}).json()
+
+    assert daten["603"]["imdb"] == 7.5
+    assert daten["604"]["imdb"] == 6.1
+    [stapel] = _stapel(nexcrate)
+    assert {"kind": "movie", "ref": "tmdb:603"} in stapel
+
+
+@pytest.mark.parametrize("detail", [True, False], ids=["titelseite", "liste"])
+def test_ohne_imdb_nummer_bleibt_ein_nicht_gefuehrter_film_still_leer(
+    nex_admin: TestClient, nexcrate: FakeNexcrate, detail: bool
+) -> None:
+    """Eine ältere nexcrate oder eine ohne TMDB-Token: ``imdb_unknown``, kein Fehler.
+
+    Der geführte Film daneben behält seine Wertung.
+    """
+    nexcrate.ausserhalb_aufloesen = False
+    nexcrate.film(604, name="Example Movie In Library")
+    nexcrate.wertung(603, imdb=7.5, stimmen=1200, tomaten=88)
+    nexcrate.wertung(604, imdb=6.1, stimmen=40, tomaten=70)
+
+    params = {"ids": "603,604"}
+    if detail:
+        params["detail"] = "true"
+    antwort = nex_admin.get("/api/ratings/movie", params=params)
+
+    assert antwort.status_code == 200, antwort.text
+    daten = antwort.json()
+    assert "603" not in daten
+    assert daten["604"]["imdb"] == 6.1 and daten["604"]["rotten_tomatoes"] == 70
+    if not detail:
+        [stapel] = _stapel(nexcrate)
+        assert len(stapel) == 2

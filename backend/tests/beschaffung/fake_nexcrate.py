@@ -118,6 +118,10 @@ class FakeNexcrate:
         #: Der Stapel wie vor nexcrate 39dfc05: nur IMDb, ohne
         #: ``rotten_tomatoes``, ``metacritic``, ``sources`` und ``omdb_attribution``.
         self.stapel_nur_imdb = False
+        #: Findet nexcrate die IMDb-Nummer eines ``tmdb:``-Titels, den es nicht
+        #: fuehrt, bei TMDB (39dfc05, ``_resolve_outside``)? ``False`` ist eine
+        #: aeltere nexcrate oder eine ohne TMDB-Token: dann ``imdb_unknown``.
+        self.ausserhalb_aufloesen = True
         self.events: list[dict[str, Any]] = []
         self.pairings: dict[str, dict[str, Any]] = {}
         self.update: dict[str, Any] = {
@@ -428,6 +432,13 @@ class FakeNexcrate:
         if teile[:1] == ["recycle-bin"] and len(teile) == 3:
             return ok({"restored": True})
         if teile[:1] == ["ratings"] and len(teile) == 3:
+            if self._ohne_imdb_nummer(teile[1], teile[2]):
+                return _fehler(
+                    404,
+                    "imdb_unknown",
+                    "nexcrate knows no IMDb number for this title; ask by imdb:.",
+                    ref=teile[2],
+                )
             return ok(self._rating_einzeln(teile[1], teile[2]))
         return _fehler(404, "not_found", "This nexcrate does not know that address.")
 
@@ -716,16 +727,29 @@ class FakeNexcrate:
         tomaten, metacritic = gesetzt["rotten_tomatoes"], gesetzt["metacritic"]
         return ("ok" if tomaten is not None or metacritic is not None else "not_found"), tomaten, metacritic
 
+    def _ohne_imdb_nummer(self, kind: Any, ref: Any) -> bool:
+        """Kennt nexcrate fuer diesen Titel keine IMDb-Nummer (``imdb_unknown``)?
+
+        Nur fuer einen ``tmdb:``-Titel, den es nicht fuehrt, und nur, wenn es
+        ausserhalb nicht aufloest.
+        """
+        return (
+            not self.ausserhalb_aufloesen
+            and str(ref).startswith("tmdb:")
+            and (str(kind), str(ref)) not in self.titles
+        )
+
     def _ratings(self, eintraege: list[dict[str, Any]]) -> dict[str, Any]:
         items = []
         for eintrag in eintraege:
-            gesetzt = self.wertungen.get(str(eintrag.get("ref")))
+            unbekannt = self._ohne_imdb_nummer(eintrag.get("kind"), eintrag.get("ref"))
+            gesetzt = None if unbekannt else self.wertungen.get(str(eintrag.get("ref")))
             zeile = {
                 "kind": eintrag.get("kind"),
                 "ref": eintrag.get("ref"),
-                "imdb_ref": gesetzt["imdb_ref"] if gesetzt else eintrag.get("ref"),
+                "imdb_ref": None if unbekannt else gesetzt["imdb_ref"] if gesetzt else eintrag.get("ref"),
                 "imdb": gesetzt["imdb"] if gesetzt else None,
-                "error": None,
+                "error": "imdb_unknown" if unbekannt else None,
             }
             if not self.stapel_nur_imdb:
                 zustand, tomaten, metacritic = self._omdb_im_stapel(eintrag.get("kind"), gesetzt)

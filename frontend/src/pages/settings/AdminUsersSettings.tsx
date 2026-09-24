@@ -26,7 +26,7 @@ import { AdminKontoAufloesung } from "./AdminKontoAufloesung";
 import { Button, Card, ErrorBanner, Spinner } from "../../components/ui";
 import { useConfig } from "../../hooks/useConfig";
 import { EinladungsAssistent } from "./EinladungsAssistent";
-import { fassungMitArt, fassungVon } from "../../lib/fassungen";
+import { fassungMitArt, fassungVon, zielWaehlbar } from "../../lib/fassungen";
 import { formatDate } from "../../lib/format";
 
 /**
@@ -193,7 +193,7 @@ export function AdminUsersSettings() {
    * Sperrliste über Profile, die Nexview gar nicht kennt, wäre eine Liste von
    * Namen ohne Gegenstück - und die Abfragen darunter liefen ins Leere.
    */
-  const mitProfilen = (config?.beschaffung ?? "arr") === "arr";
+  const mitProfilen = zielWaehlbar(config);
 
   /** Darf der Benutzer das Profil selbst wählen? Sonst ist eine Sperrliste sinnlos. */
   function profilFreiWaehlbar(media: "movie" | "tv"): boolean {

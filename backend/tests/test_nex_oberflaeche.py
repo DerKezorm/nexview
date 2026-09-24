@@ -283,6 +283,25 @@ def test_im_arr_betrieb_kann_der_weg_weniger(arr_client: TestClient) -> None:
     assert daten["beschaffung_kann"]["papierkorb"] is False
 
 
+def test_zielwahl_folgt_dem_riegel_der_listen_adresse(
+    nex_client_admin: TestClient,
+) -> None:
+    """Rundgang-Befund 6: ``zielwahl`` sagt der Oberflaeche, ob es Ordner und
+    Profil zu waehlen gibt. Sie muss genau dann nein sagen, wenn
+    ``/api/arr/{art}/options`` mit ``not_in_this_mode`` abweist; sonst holt
+    das Anfrageformular die Listen und zeigt nur das ``409``."""
+    nex = nex_client_admin.get("/api/config").json()
+    assert nex["beschaffung_kann"]["zielwahl"] is False
+    abweisung = nex_client_admin.get("/api/arr/movie/options")
+    assert abweisung.status_code == 409
+    assert abweisung.json()["detail"]["code"] == "not_in_this_mode"
+
+
+def test_im_arr_betrieb_gibt_es_die_zielwahl(arr_client: TestClient) -> None:
+    arr = arr_client.get("/api/config").json()
+    assert arr["beschaffung_kann"]["zielwahl"] is True
+
+
 def test_papierkorb_ist_gesperrt_ohne_operate_recht(nexcrate: FakeNexcrate) -> None:
     """Ohne ``operate`` sperrt schon die Standpruefung jeden schreibenden
     Aufruf (``nexcrate_recht_fehlt``) - dann darf ``faehigkeiten()`` den

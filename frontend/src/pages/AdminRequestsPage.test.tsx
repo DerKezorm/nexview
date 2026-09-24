@@ -151,3 +151,53 @@ describe('AdminRequestsPage: eine wartende Anfrage ohne Fassungskennung', () => 
     }
   })
 })
+
+/**
+ * Im NEX-Betrieb freigeben (Rundgang-Befund 6).
+ *
+ * ⚠️ Dort bleiben Ordner und Profil an jeder Anfrage leer, sie hängen an der
+ * Fassung in nexcrate. Die Seite fragte nur „fehlt der Ordner?“ und öffnete
+ * für jede wartende Anfrage die Zielwahl, deren Listen-Adresse im
+ * NEX-Betrieb `409` antwortet. Der Server gibt ohne Ziel frei
+ * (`admin_requests._braucht_ziel`); die Attrappe antwortet wie er.
+ */
+describe('AdminRequestsPage: Freigabe im NEX-Betrieb', () => {
+  it('gibt frei, ohne nach Ordner und Profil zu fragen', async () => {
+    // Die Tests davor rufen `/api/arr/` selbst; ohne Leeren zählten sie mit.
+    vi.clearAllMocks()
+    const schicken = vi.mocked(api.post)
+    schicken.mockResolvedValue({})
+    holen.mockImplementation((pfad: string) => {
+      if (pfad.startsWith('/api/config')) {
+        return Promise.resolve({
+          beschaffung: 'nex',
+          beschaffung_kann: {
+            warum: true, papierkorb: true, anime: true, kalender: true, wertungen: [],
+            zielwahl: false,
+          },
+          beschaffung_sprung: {},
+          fassungen: [
+            { kennung: 'v_beispiel', media_type: 'movie', name: 'Movies', klasse: 'hd', quelle: 'nex', haupt: true },
+          ],
+        })
+      }
+      if (pfad.startsWith('/api/admin/requests')) {
+        return Promise.resolve([zeile(8, 'pending_approval', 'v_beispiel', 'Erfundener NEX-Film')])
+      }
+      if (pfad.startsWith('/api/arr/')) {
+        return Promise.reject(new Error('409 not_in_this_mode'))
+      }
+      return Promise.resolve({})
+    })
+    rendern(<AdminRequestsPage />, { pfad: '/admin/requests?filter=all' })
+    await screen.findByText('Erfundener NEX-Film')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Freigeben' }))
+
+    await vi.waitFor(() =>
+      expect(schicken).toHaveBeenCalledWith('/api/admin/requests/8/approve', undefined),
+    )
+    expect(screen.queryByText('Zielordner')).toBeNull()
+    expect(holen.mock.calls.some(([p]) => String(p).startsWith('/api/arr/'))).toBe(false)
+  })
+})

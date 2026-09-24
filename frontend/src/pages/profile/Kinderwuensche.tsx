@@ -14,6 +14,7 @@ import {
   anfragbareFassungen,
   fassungName,
   staffelFassung,
+  zielWaehlbar,
 } from '../../lib/fassungen'
 import { folgenKompakt } from '../../lib/format'
 
@@ -264,6 +265,9 @@ function Zielwahl({
   const zielSpaeter = fassung
     ? fassung.approver_picks_target && !user?.can_approve
     : zielSpaeterVorgabe
+  // ⚠️ Im NEX-Betrieb gibt es Ordner und Profil nicht zu wählen, die
+  // Listen-Adresse antwortet `409` (Rundgang-Befund 6).
+  const ohneZiel = zielSpaeter || !zielWaehlbar(config)
 
   const optionen = useQuery({
     queryKey: ['arr-options', wunsch.media_type, fassung?.kennung ?? ''],
@@ -275,7 +279,7 @@ function Zielwahl({
       ),
     staleTime: 5 * 60 * 1000,
     retry: false,
-    enabled: !zielSpaeter,
+    enabled: config !== undefined && !ohneZiel,
   })
 
   // Die Staffelliste samt Belegt-Angaben - dieselbe Quelle wie das
@@ -296,7 +300,7 @@ function Zielwahl({
   const gewaehlterOrdner = ordner || daten?.default_root_folder || ''
 
   const zielBereit =
-    zielSpaeter ||
+    ohneZiel ||
     (daten !== undefined &&
       (!daten.quality_profile_choice || gewaehltesProfil !== null) &&
       (!daten.root_folder_choice || gewaehlterOrdner !== ''))
@@ -424,7 +428,7 @@ function Zielwahl({
 
       {zielSpaeter ? (
         <p className="text-sm text-mist-500">{t('children.wishTargetLater')}</p>
-      ) : optionen.isPending ? (
+      ) : ohneZiel ? null : optionen.isPending ? (
         <p className="flex items-center gap-2 text-sm text-mist-500">
           <Spinner /> {t('common.loading')}
         </p>
@@ -477,8 +481,8 @@ function Zielwahl({
           onClick={() =>
             onFreigeben({
               fassung: fassung?.kennung || undefined,
-              quality_profile_id: zielSpaeter ? null : gewaehltesProfil,
-              root_folder_path: zielSpaeter ? null : gewaehlterOrdner || null,
+              quality_profile_id: ohneZiel ? null : gewaehltesProfil,
+              root_folder_path: ohneZiel ? null : gewaehlterOrdner || null,
               season: istSerie ? gewaehlteStaffel : null,
               episodes:
                 istSerie && folgen.size > 0

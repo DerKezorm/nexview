@@ -66,6 +66,23 @@ export function kannAnfragen(
 }
 
 /**
+ * Gibt es Zielordner und Qualitätsprofil zum Wählen?
+ *
+ * Gefragt wird die Fähigkeit des Wegs, nicht sein Name. Im NEX-Betrieb hängen
+ * Ordner und Profil an der Fassung in nexcrate, und `/api/arr/…/options`
+ * antwortet `409 not_in_this_mode`. Das Anfrageformular holte die Listen dort
+ * trotzdem und zeigte nur diese Meldung: Niemand konnte anfragen
+ * (Rundgang-Befund 6, 24.09.2026).
+ *
+ * Fehlt die Angabe (noch keine Antwort), gilt ja: so war es vor dem Feld.
+ */
+export function zielWaehlbar(
+  config: Pick<AppConfig, 'beschaffung_kann'> | undefined | null,
+): boolean {
+  return config?.beschaffung_kann?.zielwahl ?? true
+}
+
+/**
  * Steht die Quelle für diese Medienart überhaupt bereit - unabhängig davon,
  * ob *dieses* Konto anfragen darf?
  *

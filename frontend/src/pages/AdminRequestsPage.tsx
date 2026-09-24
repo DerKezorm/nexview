@@ -20,7 +20,7 @@ import { StatusBadge } from "../components/media/StatusBadge";
 import { Button, Card, ErrorBanner, Spinner } from "../components/ui";
 import { Pagination } from "../components/Pagination";
 import { useSeiten } from "../hooks/useSeiten";
-import { fassungName, fassungVon } from "../lib/fassungen";
+import { fassungName, fassungVon, zielWaehlbar } from "../lib/fassungen";
 import { folgenKompakt, formatDate, formatSize } from "../lib/format";
 import { TargetPicker, type Target } from "../components/TargetPicker";
 import { useConfig } from "../hooks/useConfig";
@@ -429,6 +429,12 @@ export function AdminRequestsPage() {
     root_folder_path: string | null;
     media_type: MediaType;
   }): boolean {
+    // ⚠️ Im NEX-Betrieb nie: Dort bleibt der Ordner an jeder Anfrage leer, er
+    // hängt an der Fassung in nexcrate. Gefragt war nur das Fehlen, und so
+    // öffnete jede Freigabe eine Zielwahl, deren Listen-Adresse `409`
+    // antwortet (Rundgang-Befund 6). Dieselbe Regel wie
+    // `admin_requests._braucht_ziel` auf dem Server.
+    if (!zielWaehlbar(config)) return false;
     return request.root_folder_path === null;
   }
 

@@ -1126,6 +1126,11 @@ export type Beschaffung = "arr" | "nex";
 
 /** Was ein Beschaffungsweg kann (`/api/config`). */
 export type BeschaffungKann = {
+  /**
+   * Gibt es Zielordner und Qualitätsprofil zum Wählen (`/api/arr/…/options`)?
+   * Im NEX-Betrieb nein: Beides hängt dort an der Fassung in nexcrate.
+   */
+  zielwahl?: boolean;
   /** Kann er sagen, warum ein Titel noch nicht da ist? */
   warum: boolean;
   /** Führt er einen Papierkorb, aus dem sich zurückholen lässt? */

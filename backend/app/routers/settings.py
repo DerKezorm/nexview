@@ -366,9 +366,16 @@ def _was_der_weg_kann(settings: AppSettings) -> dict[str, Any]:
     ⚠️ **Ohne ``betreiberwerkzeuge``** - das entscheidet nicht, was eine Seite
     zeigt, sondern ob es einen ganzen Reiter gibt; das liest die Oberflaeche
     weiter an ``beschaffung``. Hier steht, was **auf** einer Seite erscheint.
+
+    ``zielwahl`` ist die eine Ausnahme: Ordner und Profil vor dem Anfragen und
+    bei der Freigabe kommen aus ``/api/arr/{art}/options``, und die Adresse
+    riegelt ``werkzeuge_pruefen`` ueber genau ``betreiberwerkzeuge`` ab. Das
+    Anfrageformular fragte sie im NEX-Betrieb trotzdem und zeigte nur das
+    ``409`` (Rundgang-Befund 6, 24.09.2026).
     """
     kann = beschaffung.get_beschaffung(settings).faehigkeiten()
     return {
+        "zielwahl": kann.betreiberwerkzeuge,
         "warum": kann.warum,
         "papierkorb": kann.papierkorb,
         "anime": kann.anime,

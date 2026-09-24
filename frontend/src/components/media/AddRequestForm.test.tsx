@@ -640,3 +640,93 @@ describe('Vier Fassungen', () => {
     expect(gruppe.className).toMatch(/flex-wrap/)
   })
 })
+
+/**
+ * Im NEX-Betrieb anfragen (Rundgang-Befund 6).
+ *
+ * ⚠️ Das Formular holte immer `/api/arr/{art}/options`. Im NEX-Betrieb
+ * antwortet der Server dort `409 not_in_this_mode`, und das Formular zeigte
+ * nur diese Meldung: Niemand konnte anfragen, weder Admin noch gewöhnliches
+ * Konto. Die Attrappe hier antwortet wie der echte Server, nicht mit Listen.
+ */
+describe('Im NEX-Betrieb', () => {
+  const NEX_FILM = fassung('v_film', {
+    media_type: 'movie',
+    quelle: 'nex',
+    name: 'Full-HD',
+    haupt: true,
+  })
+  const NEX_SERIE = fassung('v_serie', {
+    media_type: 'tv',
+    quelle: 'nex',
+    name: 'Full-HD',
+    haupt: true,
+  })
+
+  beforeEach(() => {
+    holen.mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/setup/status') {
+        return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      }
+      if (pfad === '/api/config') {
+        return {
+          beschaffung: 'nex',
+          beschaffung_kann: {
+            warum: true,
+            papierkorb: true,
+            anime: true,
+            kalender: true,
+            wertungen: ['movie', 'tv'],
+            zielwahl: false,
+          },
+          radarr_configured: false,
+          sonarr_configured: false,
+          fassungen: [NEX_FILM, NEX_SERIE],
+        }
+      }
+      if (pfad.startsWith('/api/arr/')) {
+        throw new ApiError(
+          409,
+          'Dieses Werkzeug gehört zur anderen Betriebsart der Beschaffung.',
+          'not_in_this_mode',
+        )
+      }
+      throw new Error(`Unerwartet: ${pfad}`)
+    })
+  })
+
+  it('schickt einen Film ab, ohne Ordner und Profil zu fragen', async () => {
+    rendern(<AddRequestForm item={FILM} onDone={() => {}} />)
+    await abschicken()
+
+    await waitFor(() => expect(schicken).toHaveBeenCalledTimes(1))
+    const [pfad, koerper] = schicken.mock.calls[0]
+    expect(pfad).toBe('/api/requests')
+    expect(koerper).toMatchObject({
+      media_type: 'movie',
+      tmdb_id: 603,
+      fassung: 'v_film',
+      season: null,
+      quality_profile_id: null,
+      root_folder_path: null,
+    })
+    expect(holen.mock.calls.some(([p]) => String(p).startsWith('/api/arr/'))).toBe(false)
+    expect(screen.queryByText(/anderen Betriebsart/)).not.toBeInTheDocument()
+  })
+
+  it('schickt eine Staffel ab', async () => {
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+    const nutzer = userEvent.setup()
+    await nutzer.click(await screen.findByRole('button', { name: /auswählen/i }))
+    await nutzer.click(await screen.findByRole('checkbox', { name: 'Staffel 2' }))
+    await nutzer.click(screen.getByRole('button', { name: /^fertig$/i }))
+    await abschicken()
+
+    await waitFor(() => expect(schicken).toHaveBeenCalledTimes(1))
+    expect(schicken.mock.calls[0][1]).toMatchObject({
+      media_type: 'tv',
+      fassung: 'v_serie',
+      season: 2,
+    })
+  })
+})

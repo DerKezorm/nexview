@@ -14,7 +14,12 @@ import { StaffelFolgenWaehler } from './StaffelFolgenWaehler'
 import { staffelBelegt } from './staffelbelegung'
 import { Button, ErrorBanner, Spinner } from '../ui'
 import { darfAnfragen } from '../../lib/status'
-import { anfragbareFassungen, fassungName, fassungStatus } from '../../lib/fassungen'
+import {
+  anfragbareFassungen,
+  fassungName,
+  fassungStatus,
+  zielWaehlbar,
+} from '../../lib/fassungen'
 
 type AddRequestFormProps = {
   item: MediaItem
@@ -47,7 +52,8 @@ type CreatedRequest = {
  * Auswahl von Qualitätsprofil und Zielordner, dann Anfrage abschicken.
  *
  * Die Auswahlmöglichkeiten kommen direkt aus Radarr bzw. Sonarr - es gibt
- * also nichts zu tippen und nichts, was dort nicht existiert.
+ * also nichts zu tippen und nichts, was dort nicht existiert. Im NEX-Betrieb
+ * gibt es beides nicht zu wählen (`zielWaehlbar`), dann bleibt nur die Fassung.
  */
 export function AddRequestForm({
   item,
@@ -143,6 +149,11 @@ export function AddRequestForm({
   const [folder, setFolder] = useState('')
 
   const zielSpaeter = fassung.approver_picks_target && !user?.can_approve
+  // ⚠️ Gibt es Ordner und Profil überhaupt zu wählen? Im NEX-Betrieb nicht:
+  // Beides hängt an der Fassung in nexcrate, und die Listen-Adresse antwortet
+  // `409`. Wer das nicht fragt, zeigt nur diese Meldung, und niemand kann
+  // anfragen (Rundgang-Befund 6).
+  const ohneZiel = zielSpaeter || !zielWaehlbar(config)
   /**
    * Welche Staffeln angefragt werden – **eine Menge, kein einzelner Wert.**
    *
@@ -198,7 +209,8 @@ export function AddRequestForm({
       ),
     staleTime: 5 * 60 * 1000,
     retry: false,
-    enabled: !zielSpaeter,
+    // Erst mit `config`: Vorher steht nicht fest, ob es die Listen gibt.
+    enabled: config !== undefined && !ohneZiel,
   })
 
   // Vorauswahl treffen, sobald die Listen da sind - meist gibt es ohnehin
@@ -251,10 +263,10 @@ export function AddRequestForm({
         tmdb_id: item.tmdb_id,
         fassung: fassung.kennung || undefined,
         quality_profile_id:
-          zielSpaeter || !options?.quality_profile_choice ? null : profileId,
+          ohneZiel || !options?.quality_profile_choice ? null : profileId,
         // Ohne Auswahlrecht bewusst nichts mitschicken: welcher Ordner gilt,
         // entscheidet dann allein der Server.
-        root_folder_path: !zielSpaeter && options?.root_folder_choice ? folder : null,
+        root_folder_path: !ohneZiel && options?.root_folder_choice ? folder : null,
         from_watchlist: fromWatchlist,
         monitor_future: istSerie ? kuenftige : false,
         // Nur gesetzt, nachdem jemand im Auswahlfenster geklickt hat.
@@ -357,7 +369,7 @@ export function AddRequestForm({
 
   // Die Abfrage ist abgeschaltet, wenn spaeter gewaehlt wird - eine
   // abgeschaltete Abfrage bleibt dauerhaft "pending", deshalb hier zuerst.
-  if (!zielSpaeter && optionsQuery.isPending) {
+  if (!ohneZiel && optionsQuery.isPending) {
     return (
       <p className="flex items-center gap-2 text-sm text-mist-500">
         <Spinner /> {t('common.loading')}
@@ -388,7 +400,7 @@ export function AddRequestForm({
     )
   }
 
-  if (!zielSpaeter && optionsQuery.isError) {
+  if (!ohneZiel && optionsQuery.isError) {
     return (
       <ErrorBanner
         message={
@@ -421,7 +433,7 @@ export function AddRequestForm({
   const staffelGewaehlt = !istSerie || staffeln.size > 0 || folgen.size > 0
   const ready = !stufeOffen || !staffelGewaehlt || !fassung.bereit
     ? false
-    : zielSpaeter
+    : ohneZiel
     ? true
     : options !== null &&
       (!options.quality_profile_choice || profileId !== null) &&
@@ -578,7 +590,7 @@ export function AddRequestForm({
 
         {/* Darf der Benutzer das Profil gar nicht waehlen, gibt es hier nichts
             zu entscheiden - dann wird das Feld weggelassen wie beim Ordner. */}
-        {!zielSpaeter && options !== null && options.quality_profile_choice && (
+        {!ohneZiel && options !== null && options.quality_profile_choice && (
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
             {t('request.qualityProfile')}
@@ -600,7 +612,7 @@ export function AddRequestForm({
         {/* Hat der Administrator die Auswahl abgeschaltet, gibt es hier nichts
             zu entscheiden - dann wird das Feld gar nicht erst gezeigt. Welcher
             Ordner gilt, setzt der Server ohnehin selbst. */}
-        {!zielSpaeter && options !== null && options.root_folder_choice && (
+        {!ohneZiel && options !== null && options.root_folder_choice && (
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium tracking-wide text-mist-600 uppercase">
               {t('request.rootFolder')}

@@ -75,7 +75,9 @@ the process. The backup is the way back.
 - **Rights hang on the version**, not on "4K or not": two switches per
   version, in Radarr mode too, and the check now also covers the main version
   (`fassung_not_allowed`). Until this was fixed, an account could still
-  request a main version the operator had closed.
+  request a main version the operator had closed. In nexcrate mode the
+  services page lists every version with its "open to everyone" switch, not
+  only setup, and it stays there while nexcrate cannot be reached.
 
 ### Changed
 
@@ -153,6 +155,17 @@ the process. The backup is the way back.
   address answers correctly in Radarr mode, a request with no version recorded
   no longer breaks the admin request list, and `/api/v1`'s guarantees are now
   checked in nexcrate mode too, not only with Radarr.
+- **Switching to nexcrate on the settings page stranded everything.** The
+  mode buttons switched without the assistant, and requests, storage entries
+  and rights kept pointing at Radarr versions that no longer existed, with no
+  way to repair it afterwards. Once there is anything to carry over, only the
+  assistant switches now. A fresh installation still picks freely, and
+  switching back to Radarr and Sonarr stays open.
+- **The migration assistant lost its place.** A reload or a look at another
+  tab threw it back to step one and forgot the mapping and the backup it had
+  just written. It now keeps both for the browser session, drops only the
+  lines that no longer fit, and asks before you leave the page during the
+  backup and the switch.
 
 ## 0.35.2 – 18.09.2026
 

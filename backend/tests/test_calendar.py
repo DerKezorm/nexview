@@ -719,3 +719,63 @@ def test_der_kalender_traegt_poster_bis_in_die_antwort(
     eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
 
     assert [e["poster_url"] for e in eintraege] == ["https://image.tmdb.org/t/p/w500/p73586.jpg"]
+
+
+async def test_der_kalender_holt_hoechstens_vierzig_poster_je_aufruf(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Der Deckel haelt die Kosten eines Aufrufs fest; der Rest kommt beim
+    naechsten, dann aus dem Zwischenspeicher der ersten."""
+    from app.db import SessionLocal
+    from app.models import MediaType
+    from app.schemas_calendar import CalendarEntry
+    from app.services import media
+    from app.services.settings_service import load_settings, save_settings
+
+    gefragt: list[int] = []
+
+    class TmdbAttrappe:
+        async def detail(self, art: str, kennung: int) -> dict:
+            gefragt.append(kennung)
+            return {"id": kennung, "poster_path": f"/p{kennung}.jpg"}
+
+    monkeypatch.setattr(media, "_client", lambda *_a, **_k: TmdbAttrappe())
+    eintraege = [
+        CalendarEntry(
+            key=f"radarr:{kennung}", date=HEUTE, source="meine", origin="radarr",
+            media_type=MediaType.movie, tmdb_id=kennung, title=f"Titel {kennung}",
+        )
+        for kennung in range(1000, 1045)
+    ]
+    with SessionLocal() as db:
+        save_settings(db, {"tmdb_api_key": "x" * 32, "demo_mode": "off"})
+        db.commit()
+        await calendar_service._poster_nachtragen(db, load_settings(db, frisch=True), eintraege)
+
+    assert len(gefragt) == 40
+    assert sum(1 for e in eintraege if e.poster_url) == 40
+
+
+async def test_im_demo_modus_fragt_der_kalender_tmdb_nicht(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db import SessionLocal
+    from app.models import MediaType
+    from app.schemas_calendar import CalendarEntry
+    from app.services import media
+    from app.services.settings_service import load_settings, save_settings
+
+    def verboten(*_a: object, **_k: object) -> None:
+        raise AssertionError("TMDB haette nicht gefragt werden duerfen")
+
+    monkeypatch.setattr(media, "_client", verboten)
+    eintrag = CalendarEntry(
+        key="radarr:77", date=HEUTE, source="meine", origin="radarr",
+        media_type=MediaType.movie, tmdb_id=77, title="Titel 77",
+    )
+    with SessionLocal() as db:
+        save_settings(db, {"tmdb_api_key": "x" * 32, "demo_mode": "on"})
+        db.commit()
+        await calendar_service._poster_nachtragen(db, load_settings(db, frisch=True), [eintrag])
+
+    assert eintrag.poster_url is None

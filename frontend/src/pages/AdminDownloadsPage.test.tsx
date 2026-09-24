@@ -399,6 +399,14 @@ describe('die übrige Seite', () => {
     ).toBeInTheDocument()
   })
 
+  it('nennt keine gescheiterten, wenn es keine gibt', async () => {
+    antworten({ uebersicht: stand({ laufend: [], haenger: [], gescheitert: 0 }) })
+    rendernSchlicht(<AdminDownloadsPage />)
+
+    expect(await screen.findByText('Gerade lädt nichts.')).toBeInTheDocument()
+    expect(screen.queryByText(/gescheitert/)).toBeNull()
+  })
+
   it('nennt im NEX-Betrieb nexcrate statt Radarr und Sonarr', async () => {
     // Rundgang-Befund 8: Der Untertitel sagte auch im NEX-Betrieb „Was in
     // Radarr und Sonarr nicht weitergeht“.

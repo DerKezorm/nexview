@@ -516,14 +516,18 @@ def test_der_verlauf_nennt_alte_instanzen_beim_namen(nex_client_admin: TestClien
             [
                 DownloadVerlauf(kennung="radarr-standard", titel="Alt", was="entfernen"),
                 DownloadVerlauf(kennung="sonarr-verschwunden", titel="Weg", was="entfernen"),
+                DownloadVerlauf(kennung="nexcrate", titel="Neu", was="entfernen"),
             ]
         )
         db.commit()
+    # Die laufende Instanz heisst, wie der Betreiber sie nennt.
+    nex_client_admin.put("/api/settings", json={"nexcrate_name": "Mein nexcrate"})
 
     zeilen = nex_client_admin.get("/api/admin/downloads/verlauf").json()
 
     assert {z["titel"]: z["instanz"] for z in zeilen} == {
         "Alt": "Radarr FHD",
+        "Neu": "Mein nexcrate",
         # Ohne Zeile in der Tabelle bleibt die Kennung, besser als nichts.
         "Weg": "sonarr-verschwunden",
     }

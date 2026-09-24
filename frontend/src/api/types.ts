@@ -1687,8 +1687,14 @@ export type DownloadVerlaufZeile = {
 export type MediaRequest = {
   id: number;
   media_type: MediaType;
-  /** Welche Fassung – steht an der Anfrage, nicht an der Einstellung. */
-  fassung: string;
+  /**
+   * Welche Fassung – steht an der Anfrage, nicht an der Einstellung.
+   *
+   * ⚠️ **`null` seit ab4af5b:** Eine Zeile aus der Startmigration (`db.py`,
+   * vor S1) kann `fassung_kennung = NULL` tragen; das Backend gibt das seither
+   * unverändert weiter, statt es auf einen erfundenen Wert zu ziehen.
+   */
+  fassung: string | null;
   /** Die Stufe als Ableitung daraus; bleibt für `/api/v1`. */
   tier: "standard" | "uhd";
   tmdb_id: number;

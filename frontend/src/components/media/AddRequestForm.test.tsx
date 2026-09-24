@@ -571,3 +571,72 @@ describe('Der 4K-Umschalter', () => {
     expect(schicken.mock.calls[0][1]).toMatchObject({ fassung: 'radarr-uhd' })
   })
 })
+
+/**
+ * Der Rückfall, wenn der Server keine einzige Fassung nennt (veraltete
+ * Antwort im Zwischenspeicher).
+ *
+ * ⚠️ **Das Rückfallobjekt hieß `bereit: true`** - als stünde eine Quelle
+ * dahinter, obwohl der Server dazu gar nichts gesagt hat. Ein Formular, das
+ * trotzdem erreicht wird, darf keine Arr-Anfrage vortäuschen: Der Knopf muss
+ * gesperrt bleiben.
+ */
+describe('Rückfall ohne eine einzige Fassung', () => {
+  it('bleibt gesperrt, auch wenn sonst alles ausgefüllt ist', async () => {
+    holen.mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/setup/status') {
+        return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      }
+      if (pfad === '/api/config') {
+        return { radarr_configured: true, sonarr_configured: true, fassungen: [] }
+      }
+      if (pfad.startsWith('/api/arr/')) {
+        return ARR_OPTIONEN
+      }
+      throw new Error(`Unerwartet: ${pfad}`)
+    })
+
+    rendern(<AddRequestForm item={FILM} onDone={() => {}} />)
+
+    const knopf = await screen.findByRole('button', { name: /jetzt anfragen/i })
+    await waitFor(() => expect(knopf).toBeDisabled())
+  })
+})
+
+/**
+ * Mehr als drei Fassungen (nexcrate) auf schmalem Bildschirm.
+ *
+ * ⚠️ Die Knöpfe standen in einer einzigen Zeile ohne `flex-wrap` - bei vier
+ * und mehr Fassungen wurden sie auf schmalen Bildschirmen gequetscht statt
+ * umzubrechen.
+ */
+describe('Vier Fassungen', () => {
+  it('bricht die Knopfreihe um, statt sie zu quetschen', async () => {
+    holen.mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/setup/status') {
+        return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      }
+      if (pfad === '/api/config') {
+        return {
+          radarr_configured: true,
+          sonarr_configured: true,
+          fassungen: [
+            fassung('v1', { media_type: 'movie', quelle: 'nex', name: 'Deutsch', haupt: true }),
+            fassung('v2', { media_type: 'movie', quelle: 'nex', name: '3D' }),
+            fassung('v3', { media_type: 'movie', quelle: 'nex', name: 'Extended' }),
+            fassung('v4', { media_type: 'movie', quelle: 'nex', name: 'Director\'s Cut' }),
+          ],
+        }
+      }
+      if (pfad.startsWith('/api/arr/')) {
+        return ARR_OPTIONEN
+      }
+      throw new Error(`Unerwartet: ${pfad}`)
+    })
+
+    rendern(<AddRequestForm item={FILM} onDone={() => {}} />)
+
+    const gruppe = await screen.findByRole('group', { name: 'Qualitätsstufe' })
+    expect(gruppe.className).toMatch(/flex-wrap/)
+  })
+})

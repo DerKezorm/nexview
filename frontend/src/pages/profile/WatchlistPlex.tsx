@@ -23,7 +23,7 @@ import { MediaServerPrompt } from '../../components/MediaServerPrompt'
 import { Button, Card, ErrorBanner, Spinner } from '../../components/ui'
 import { useConfig } from '../../hooks/useConfig'
 import { useMediaServerChallenge } from '../../lib/useMediaServerChallenge'
-import { kannAnfragen } from '../../lib/fassungen'
+import { kannAnfragen, quelleBereit } from '../../lib/fassungen'
 
 type WatchlistAntwort = {
   movies: MediaItem[]
@@ -244,6 +244,10 @@ export function WatchlistPlex() {
         item={gewaehlt}
         onClose={() => setGewaehlt(null)}
         arrConfigured={kannAnfragen(
+          config,
+          gewaehlt?.media_type === 'movie' ? 'movie' : 'tv',
+        )}
+        quelleBereit={quelleBereit(
           config,
           gewaehlt?.media_type === 'movie' ? 'movie' : 'tv',
         )}

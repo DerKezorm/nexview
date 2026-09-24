@@ -21,7 +21,7 @@ import type { MediaItem, MediaType } from '../api/types'
 import { DetailModal } from './media/DetailModal'
 import { Filmabend } from './stoebern/Filmabend'
 import { useConfig } from '../hooks/useConfig'
-import { kannAnfragen } from '../lib/fassungen'
+import { kannAnfragen, quelleBereit } from '../lib/fassungen'
 
 type NavItem = { to: string; labelKey: string }
 
@@ -263,6 +263,10 @@ export function AppShell() {
         item={schnellAnfrage}
         onClose={() => setSchnellAnfrage(null)}
         arrConfigured={kannAnfragen(
+          config,
+          schnellAnfrage?.media_type === 'tv' ? 'tv' : 'movie',
+        )}
+        quelleBereit={quelleBereit(
           config,
           schnellAnfrage?.media_type === 'tv' ? 'tv' : 'movie',
         )}

@@ -19,7 +19,7 @@ import { ErrorBanner, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import type { Woche } from '../lib/kalenderwoche'
 import { heutigeWoche, wochenSpanne } from '../lib/kalenderwoche'
-import { kannAnfragen } from '../lib/fassungen'
+import { kannAnfragen, quelleBereit } from '../lib/fassungen'
 
 /**
  * Der heutige Tag in der Zeitzone des Browsers.
@@ -43,7 +43,7 @@ function heuteLokal(): string {
  * sortiert, beides in der Region des Benutzers.
  */
 export function CalendarPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { data: config } = useConfig()
   const heute = useMemo(() => heuteLokal(), [])
 
@@ -127,7 +127,14 @@ export function CalendarPage() {
         <div className="flex flex-col gap-2">
           {query.data.arr_warning && (
             <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
-              {query.data.arr_warning}
+              {/* ⚠️ `arr_warning` ist seit 24.09.2026 eine Kennung, kein
+                  fertiger Satz - derselbe Topf wie jede andere Fehlermeldung
+                  (`errors.byCode`). Kennt die Oberfläche sie ausnahmsweise
+                  nicht, ist die nackte Kennung immer noch ehrlicher als ein
+                  erfundener Satz. */}
+              {i18n.exists(`errors.byCode.${query.data.arr_warning}`)
+                ? t(`errors.byCode.${query.data.arr_warning}`)
+                : query.data.arr_warning}
             </div>
           )}
           {query.data.tmdb_warning && (
@@ -176,6 +183,10 @@ export function CalendarPage() {
         item={selected}
         onClose={() => setSelected(null)}
         arrConfigured={kannAnfragen(
+          config,
+          selected?.media_type === 'tv' ? 'tv' : 'movie',
+        )}
+        quelleBereit={quelleBereit(
           config,
           selected?.media_type === 'tv' ? 'tv' : 'movie',
         )}

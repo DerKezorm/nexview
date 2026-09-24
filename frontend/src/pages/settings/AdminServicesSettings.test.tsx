@@ -118,3 +118,57 @@ it('zeigt den Umstieg gar nicht erst, wenn nexcrate schon beschafft', async () =
   })
   expect(screen.queryByRole('tab', { name: /Umstieg auf nexcrate/ })).toBeNull()
 })
+
+it('zeigt Radarr/Sonarr/Umstieg nicht, solange unbekannt ist, ob nexcrate beschafft', async () => {
+  // ⚠️ **Das Flackern, das der Rückfall oben nicht behebt:** Beim allerersten
+  // Zeichnen ist `config` noch `undefined`, also gilt
+  // `nexBetrieb = config?.beschaffung === "nex"` als `false` - unabhängig
+  // davon, was die Antwort gleich bringt. `wenn: ({ nexBetrieb }) =>
+  // !nexBetrieb` hielt Radarr/Sonarr/Umstieg deshalb für erlaubt, sobald die
+  // *andere* Ladeanzeige (`/api/settings`) weg war, selbst in einer
+  // Installation im NEX-Betrieb - und ließ sie wieder verschwinden, sobald
+  // die echte Antwort da war. Reparatur: Diese Reiter brauchen zusätzlich
+  // `konfiguriert` (`config != null`), bevor sie überhaupt erscheinen.
+  let loesen: ((wert: unknown) => void) | undefined
+  const config = new Promise((resolve) => {
+    loesen = resolve
+  })
+  holen.mockImplementation((pfad: string) => {
+    if (pfad.startsWith('/api/config/regions')) return Promise.resolve([])
+    if (pfad.startsWith('/api/config')) return config
+    if (pfad.startsWith('/api/settings/instanzen/gesundheit')) {
+      return Promise.resolve({ instanzen: [] })
+    }
+    if (pfad.startsWith('/api/settings/instanzen/verbindung')) {
+      return Promise.resolve({ instanzen: [] })
+    }
+    if (pfad.startsWith('/api/settings/qualitaetsprofile')) return Promise.resolve([])
+    if (pfad.startsWith('/api/umstieg/vorab')) {
+      return Promise.resolve({ downloads_laufend: 0, anfragen_offen: 0, posten: 0, instanzen: [] })
+    }
+    return Promise.resolve({})
+  })
+
+  // NEX-Betrieb: Das ist der Fall, in dem Radarr/Sonarr/Umstieg zu keinem
+  // Zeitpunkt erscheinen dürfen - weder vor noch nach der Antwort.
+  rendernSchlicht(<AdminServicesSettings startUnter="general" />)
+
+  // Die allgemeine Ladeanzeige (für `/api/settings`) muss weg sein, bevor der
+  // eigentliche Fall geprüft wird - sonst zeigt der Test nur, dass noch gar
+  // nichts geladen ist, nicht, dass gerade `config` fehlt.
+  await waitFor(() => {
+    expect(screen.queryByText('Wird geladen …')).toBeNull()
+  })
+
+  // `/api/settings` ist da, `/api/config` noch nicht: Radarr darf trotzdem
+  // nicht auftauchen, nur weil unbekannt ist, welcher Weg gilt.
+  expect(screen.queryByRole('tab', { name: /Radarr/ })).toBeNull()
+
+  loesen?.({ beschaffung: 'nex' })
+
+  await waitFor(() => {
+    expect(screen.queryAllByRole('tab').length).toBeGreaterThan(1)
+  })
+  // Und danach - echter NEX-Betrieb - bleibt Radarr weiterhin weg.
+  expect(screen.queryByRole('tab', { name: /Radarr/ })).toBeNull()
+})

@@ -38,7 +38,7 @@ import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
 import { browsePath, personPath, stoeberPath } from '../lib/routes'
 import { useAuth } from '../auth/useAuth'
-import { kannAnfragen as wegKannAnfragen } from '../lib/fassungen'
+import { kannAnfragen as wegKannAnfragen, quelleBereit as wegQuelleBereit } from '../lib/fassungen'
 import { wegKontext } from '../lib/weg'
 
 /** Eine Runde Vorschlaege vom Server. */
@@ -266,6 +266,7 @@ export function TitlePage() {
   const item = query.data
   const istFilm = item.media_type === 'movie'
   const arrConfigured = wegKannAnfragen(config, istFilm ? 'movie' : 'tv')
+  const quelleBereitFuerArt = wegQuelleBereit(config, istFilm ? 'movie' : 'tv')
 
   const laufzeit = formatRuntime(item.runtime_minutes, i18n.language)
   const regie = item.crew.filter((person) => person.job === 'Director' || person.job === 'Creator')
@@ -460,7 +461,14 @@ export function TitlePage() {
                       type="button"
                       onClick={() => setAdding(true)}
                       disabled={!arrConfigured}
-                      title={arrConfigured ? undefined : t('request.arrMissing', wegKontext(config))}
+                      title={
+                        arrConfigured
+                          ? undefined
+                          : t(
+                              quelleBereitFuerArt ? 'request.noVersionAllowed' : 'request.arrMissing',
+                              wegKontext(config),
+                            )
+                      }
                     >
                       {nurWeitereStaffel
                         ? t('request.addSeason')

@@ -16,6 +16,7 @@ import {
   fassungName,
   fassungStatus,
   kannAnfragen,
+  quelleBereit,
   staffelFassung,
 } from './fassungen'
 
@@ -199,5 +200,38 @@ describe('kann in dieser Medienart angefragt werden?', () => {
 
   it('kommt ohne Konfiguration zurecht', () => {
     expect(kannAnfragen(undefined, 'movie')).toBe(false)
+  })
+
+  /**
+   * ⚠️ **Der zweite Fund am 24.09.2026:** `bereit` allein reichte nicht - ein
+   * Konto, dem der Administrator jede Fassung gesperrt hat (`darf_anfragen:
+   * false`), sah trotzdem den Anfragen-Knopf. Der Klick endete serverseitig
+   * in `403 fassung_not_allowed`.
+   */
+  it('sagt nein, wenn die Quelle steht, aber keine Fassung erlaubt ist', () => {
+    const config = {
+      fassungen: [
+        fassung({ kennung: 'v_1', quelle: 'nex', bereit: true, darf_anfragen: false }),
+      ],
+    } as AppConfig
+    expect(kannAnfragen(config, 'movie')).toBe(false)
+  })
+})
+
+describe('steht die Quelle überhaupt bereit?', () => {
+  it('ja, auch wenn dieses Konto keine Fassung anfragen darf', () => {
+    const config = {
+      fassungen: [
+        fassung({ kennung: 'v_1', quelle: 'nex', bereit: true, darf_anfragen: false }),
+      ],
+    } as AppConfig
+    expect(quelleBereit(config, 'movie')).toBe(true)
+  })
+
+  it('nein, solange keine Fassung bereit ist', () => {
+    const config = {
+      fassungen: [fassung({ kennung: 'radarr-standard', haupt: true, bereit: false })],
+    } as AppConfig
+    expect(quelleBereit(config, 'movie')).toBe(false)
   })
 })

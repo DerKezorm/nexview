@@ -47,8 +47,36 @@ export function fassungenFuer(
  * `bereit` an einer Fassung sagt dasselbe, ohne den Weg zu kennen: Steht die
  * Quelle dahinter? Im ARR-Betrieb ist das die Instanz, im NEX-Betrieb
  * nexcrate. Wer einen dritten Weg baut, muss hier nichts ändern.
+ *
+ * ⚠️ **`bereit` allein genügt nicht.** Bis zum 24.09.2026 fragte diese
+ * Funktion nur danach, ob überhaupt eine Quelle steht - nicht, ob *dieses*
+ * Konto eine der Fassungen anfragen darf. Der Knopf erschien also auch für
+ * ein Konto, dem der Administrator jede Fassung gesperrt hatte, und der
+ * Klick endete serverseitig in `403 fassung_not_allowed`. Deshalb hier
+ * dieselbe Bedingung wie beim eigentlichen Anfragen: `bereit && darf_anfragen`.
+ * Nicht über `anfragbareFassungen`: Die zählt aus Anzeigegründen auch die
+ * Hauptfassung mit, wenn sie noch nicht `bereit` ist (siehe dort) - für die
+ * Frage "gibt es überhaupt etwas zu holen" wäre das zu großzügig.
  */
 export function kannAnfragen(
+  config: Pick<AppConfig, 'fassungen'> | undefined | null,
+  mediaType: MediaType,
+): boolean {
+  return fassungenFuer(config, mediaType).some((f) => f.bereit && f.darf_anfragen)
+}
+
+/**
+ * Steht die Quelle für diese Medienart überhaupt bereit - unabhängig davon,
+ * ob *dieses* Konto anfragen darf?
+ *
+ * Trennt die zwei Gründe, aus denen der Anfragen-Knopf gesperrt sein kann:
+ * Fehlt die Quelle (kein Radarr/Sonarr bzw. nexcrate verbunden), oder ist nur
+ * dieses Konto von den vorhandenen Fassungen ausgeschlossen? Nur der erste
+ * Fall ist ein Administrator-Problem und darf das auch so sagen
+ * (`request.arrMissing`); der zweite braucht einen eigenen Text
+ * (`request.noVersionAllowed`).
+ */
+export function quelleBereit(
   config: Pick<AppConfig, 'fassungen'> | undefined | null,
   mediaType: MediaType,
 ): boolean {

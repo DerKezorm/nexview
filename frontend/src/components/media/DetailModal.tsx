@@ -18,8 +18,17 @@ import { useWegKontext } from '../../hooks/useWegKontext'
 type DetailModalProps = {
   item: MediaItem | null
   onClose: () => void
-  /** Ist Radarr (Filme) bzw. Sonarr (Serien) eingerichtet? */
+  /** Darf angefragt werden - Quelle bereit UND dieses Konto darf? */
   arrConfigured: boolean
+  /**
+   * Steht die Quelle überhaupt bereit, unabhängig vom Konto?
+   *
+   * Trennt den Tooltip: Fehlt sie, ist es ein Administrator-Thema
+   * (`request.arrMissing`). Steht sie, darf aber nur dieses Konto keine
+   * Fassung, sagt der Tooltip das (`request.noVersionAllowed`) statt fälschlich
+   * "Administrator muss verbinden" zu behaupten.
+   */
+  quelleBereit?: boolean
   /** Wurde das Fenster von der Merklisten-Seite geöffnet? */
   fromWatchlist?: boolean
 }
@@ -38,6 +47,7 @@ export function DetailModal({
   item,
   onClose,
   arrConfigured,
+  quelleBereit = false,
   fromWatchlist = false,
 }: DetailModalProps) {
   const { t, i18n } = useTranslation()
@@ -227,7 +237,11 @@ export function DetailModal({
                       type="button"
                       onClick={() => setAdding(true)}
                       disabled={!arrConfigured}
-                      title={arrConfigured ? undefined : t('request.arrMissing', weg)}
+                      title={
+                        arrConfigured
+                          ? undefined
+                          : t(quelleBereit ? 'request.noVersionAllowed' : 'request.arrMissing', weg)
+                      }
                     >
                       {nurWeitereStaffel
                         ? t('request.addSeason')

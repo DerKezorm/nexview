@@ -766,15 +766,20 @@ export function AdminRequestsPage() {
                       .map((r) => [r.fassung, r] as const),
                   ).values(),
                 ].map((beispiel) => {
-                  const fassung = fassungVon(config, beispiel.fassung);
+                  // ⚠️ Eine Zeile aus der Startmigration kann `fassung: null`
+                  // tragen (`fassung_kennung = NULL`) - dieselbe Bedeutung wie
+                  // die leere Kennung, mit der auch das Anfrageformular „keine
+                  // Angabe" ausdrückt.
+                  const beispielFassung = beispiel.fassung ?? "";
+                  const fassung = fassungVon(config, beispielFassung);
                   const art = beispiel.media_type;
                   const name =
                     fassung && !fassung.haupt ? ` · ${fassungName(t, fassung)}` : "";
                   return (
                     <TargetPicker
-                      key={beispiel.fassung}
+                      key={beispielFassung}
                       mediaType={art}
-                      fassung={beispiel.fassung}
+                      fassung={beispielFassung}
                       label={
                         t(art === "movie" ? "common.movies" : "common.seriesPlural") +
                         name
@@ -782,7 +787,7 @@ export function AdminRequestsPage() {
                       onChange={(ziel) =>
                         setStapelZiele((bisher) => ({
                           ...bisher,
-                          [beispiel.fassung]: ziel,
+                          [beispielFassung]: ziel,
                         }))
                       }
                     />
@@ -1063,7 +1068,7 @@ export function AdminRequestsPage() {
                   <div className="mt-3 flex flex-col gap-3 border-t border-ink-700 pt-3">
                     <TargetPicker
                       mediaType={request.media_type}
-                      fassung={request.fassung}
+                      fassung={request.fassung ?? ""}
                       onChange={setZiel}
                     />
                     <div className="flex flex-wrap gap-2">

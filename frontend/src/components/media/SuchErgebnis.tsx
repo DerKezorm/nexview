@@ -14,6 +14,7 @@ type Props = {
   titleKey: string
   suche: string
   arrConfigured: boolean
+  quelleBereit?: boolean
 }
 
 function Platzhalter() {
@@ -43,7 +44,7 @@ function Platzhalter() {
  * Toter Code mit einem bekannten Fehler darin ist eine Falle für den
  * Nächsten, also ist er weg.
  */
-export function SuchErgebnis({ mediaType, titleKey, suche, arrConfigured }: Props) {
+export function SuchErgebnis({ mediaType, titleKey, suche, arrConfigured, quelleBereit }: Props) {
   const { t } = useTranslation()
   const [gewaehlt, setGewaehlt] = useState<MediaItem | null>(null)
 
@@ -132,6 +133,7 @@ export function SuchErgebnis({ mediaType, titleKey, suche, arrConfigured }: Prop
         item={gewaehlt}
         onClose={() => setGewaehlt(null)}
         arrConfigured={arrConfigured}
+        quelleBereit={quelleBereit}
       />
     </section>
   )

@@ -65,7 +65,7 @@ const UNTER_TABS: {
    * Qualitätsprofile brauchen etwas, worauf sie geschoben werden können -
    * ohne eine einzige Instanz wäre der Reiter eine Sackgasse.
    */
-  wenn?: (stand: { arrVorhanden: boolean; nexBetrieb: boolean }) => boolean;
+  wenn?: (stand: { arrVorhanden: boolean; nexBetrieb: boolean; konfiguriert: boolean }) => boolean;
 }[] = [
   { value: "general", labelKey: "settings.generalSection", symbol: "allgemein" },
   { value: "tmdb", labelKey: "settings.tmdbSection", symbol: "fernseher" },
@@ -73,17 +73,25 @@ const UNTER_TABS: {
   // mehr – dort beschafft nexcrate, und Profile, Benennung und Ordner gehören
   // ihm. Die Adressen antworten dann `409`; ein Reiter, der ins Leere führt,
   // wäre schlimmer als keiner.
+  //
+  // ⚠️ **`konfiguriert` zusätzlich zu `!nexBetrieb`:** Solange die
+  // Konfiguration noch nicht da ist, ist `nexBetrieb` immer `false` (siehe
+  // unten) - `!nexBetrieb` allein hielt diese Reiter deshalb beim allerersten
+  // Zeichnen für erlaubt, auch in einer Installation im NEX-Betrieb. Bei
+  // einem Direktaufruf erschienen sie kurz und verschwanden dann wieder,
+  // sobald die echte Antwort da war. Ohne `konfiguriert` fehlen sie einfach,
+  // bis die Antwort feststeht - kein Wechsel, den man sieht.
   {
     value: "radarr",
     labelKey: "settings.radarrSection",
     symbol: "radarr",
-    wenn: ({ nexBetrieb }) => !nexBetrieb,
+    wenn: ({ nexBetrieb, konfiguriert }) => konfiguriert && !nexBetrieb,
   },
   {
     value: "sonarr",
     labelKey: "settings.sonarrSection",
     symbol: "sonarr",
-    wenn: ({ nexBetrieb }) => !nexBetrieb,
+    wenn: ({ nexBetrieb, konfiguriert }) => konfiguriert && !nexBetrieb,
   },
   { value: "nexcrate", labelKey: "nexcrate.section", symbol: "dienste" },
   // ⚠️ Den Umstieg gibt es genau einmal und nur in eine Richtung: von Radarr
@@ -93,7 +101,7 @@ const UNTER_TABS: {
     value: "umstieg",
     labelKey: "umstieg.section",
     symbol: "herunterladen",
-    wenn: ({ nexBetrieb }) => !nexBetrieb,
+    wenn: ({ nexBetrieb, konfiguriert }) => konfiguriert && !nexBetrieb,
   },
   {
     value: "qualitaet",
@@ -1153,8 +1161,9 @@ export function AdminServicesSettings({
       config?.sonarr_uhd_configured,
   );
   const nexBetrieb = config?.beschaffung === "nex";
+  const konfiguriert = config != null;
   const erlaubt = UNTER_TABS.filter(
-    (e) => !e.wenn || e.wenn({ arrVorhanden, nexBetrieb }),
+    (e) => !e.wenn || e.wenn({ arrVorhanden, nexBetrieb, konfiguriert }),
   );
   // ⚠️ **Ein Reiter, der einmal offen war, zieht sich nicht unter dem
   // Betreiber weg.** Der Umstieg tut genau das: Sobald er umgeschaltet hat,

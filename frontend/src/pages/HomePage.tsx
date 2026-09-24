@@ -21,7 +21,7 @@ import { Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
 import { stoeberPath, titlePath } from '../lib/routes'
-import { kannAnfragen } from '../lib/fassungen'
+import { kannAnfragen, quelleBereit } from '../lib/fassungen'
 
 /** Abstand zwischen zwei Kacheln beim Aufblenden. */
 const STAGGER_MS = 90
@@ -478,6 +478,10 @@ export function HomePage() {
           setSchnellAnfrage(null)
         }}
         arrConfigured={kannAnfragen(
+          config,
+          (offen ?? schnellAnfrage)?.media_type === 'movie' ? 'movie' : 'tv',
+        )}
+        quelleBereit={quelleBereit(
           config,
           (offen ?? schnellAnfrage)?.media_type === 'movie' ? 'movie' : 'tv',
         )}

@@ -81,3 +81,20 @@ describe('AdminRequestsPage: Abzeichen für eine fremde Fassung', () => {
     expect(abzeichenIn('Erfundener bekannter Film')).toHaveLength(0)
   })
 })
+
+/**
+ * ⚠️ **`fassung: null` seit ab4af5b (Backend `str | None`).** Eine Zeile aus
+ * der Startmigration kann `fassung_kennung = NULL` tragen. Die Seite darf
+ * daran nicht abstürzen und auch nicht das Wort "null" anzeigen - beides wäre
+ * schlimmer als die leere Kennung, die das Anfrageformular für denselben Fall
+ * benutzt.
+ */
+describe('AdminRequestsPage: eine Anfrage ohne Fassungskennung', () => {
+  it('zeigt sie ohne abzustürzen und ohne das Wort "null"', async () => {
+    nexBetriebMit([zeile(6, 'approved', null, 'Erfundener Film ohne Fassung')])
+    rendern(<AdminRequestsPage />, { pfad: '/admin/requests?filter=all' })
+
+    await screen.findByText('Erfundener Film ohne Fassung')
+    expect(screen.queryByText(/\bnull\b/)).toBeNull()
+  })
+})

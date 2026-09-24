@@ -128,7 +128,12 @@ export function AddRequestForm({
       klasse: null,
       quelle: 'arr',
       haupt: true,
-      bereit: true,
+      // ⚠️ **Nicht `true`.** Dieser Zweig greift nur, wenn der Server keine
+      // einzige Fassung nennt (etwa eine veraltete Antwort im
+      // Zwischenspeicher) - und genau dann steht nicht fest, ob überhaupt
+      // etwas dahinter beschafft. Ein erreichtes Formular soll das nicht
+      // vortäuschen; `ready` weiter unten fragt `fassung.bereit` deshalb mit.
+      bereit: false,
       offen_fuer_alle: true,
       approver_picks_target: false,
       darf_anfragen: true,
@@ -414,7 +419,7 @@ export function AddRequestForm({
   // alle künftigen Staffeln einschließt, ohne dass jemand das gesagt hat. Wer
   // alles will, hat dafür „Alle inkl. künftige".
   const staffelGewaehlt = !istSerie || staffeln.size > 0 || folgen.size > 0
-  const ready = !stufeOffen || !staffelGewaehlt
+  const ready = !stufeOffen || !staffelGewaehlt || !fassung.bereit
     ? false
     : zielSpaeter
     ? true
@@ -494,7 +499,7 @@ export function AddRequestForm({
           Sonst bleibt der Dialog genau so, wie er immer war. */}
       {fassungen.length > 1 && (
         <div
-          className="mt-3 flex rounded-full border border-ink-700 bg-ink-900 p-0.5"
+          className="mt-3 flex flex-wrap gap-0.5 rounded-2xl border border-ink-700 bg-ink-900 p-0.5"
           role="group"
           aria-label={t('uhd.tier')}
         >

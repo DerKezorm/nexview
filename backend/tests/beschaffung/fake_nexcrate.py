@@ -244,7 +244,11 @@ class FakeNexcrate:
         tvdb: int | None = 121361,
         staffeln: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        """Eine Serie anlegen. ``staffeln`` ist die Liste aus der Einzelansicht."""
+        """Eine Serie anlegen. ``staffeln`` ist die Liste aus der Einzelansicht.
+
+        Ohne Staffeln ``[]`` wie nexcrate 39dfc05; ``null`` schreibt nur eine
+        aeltere nexcrate, dafuer gibt es ``liste_staffeln``.
+        """
         refs = [f"tmdb:{tmdb_id}"]
         if tvdb:
             refs.append(f"tvdb:{tvdb}")
@@ -275,7 +279,7 @@ class FakeNexcrate:
                 "next_air_date": "2099-01-01",
                 # Liste und ``lookup`` zeigen sie je nach ``liste_staffeln``;
                 # eine aeltere nexcrate nennt sie nur in der Einzelansicht.
-                "seasons": staffeln,
+                "seasons": staffeln if staffeln is not None else [],
             },
             "seq": self._touch(),
         }

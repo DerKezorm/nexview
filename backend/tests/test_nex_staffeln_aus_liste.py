@@ -267,6 +267,25 @@ async def test_der_rundgang_misst_staffelanfragen_aus_lookup(
 # --- [] ist eine Antwort, None nicht ----------------------------------------------
 
 
+async def test_die_attrappe_nennt_eine_serie_ohne_staffeln_wie_nexcrate(
+    nex: Any, nexcrate: FakeNexcrate
+) -> None:
+    """Eine Serie ohne Staffeln heißt bei nexcrate 39dfc05 ``[]``, in Liste und
+    Einzelansicht; ``null`` schreibt nur eine ältere. Die Attrappe gab bis zum
+    24.09.2026 ``null`` vor und ließ damit jeden Test, der nicht daran dachte,
+    still als ältere nexcrate laufen."""
+    nexcrate.serie(1399)
+    wonach = Nachschlag("tv", SERIE_HD, 1399, mit_staffeln=True)
+
+    stand = (await get_beschaffung(nex).nachschlagen([wonach])).stand(wonach)
+
+    assert isinstance(stand, SerienStand)
+    assert stand.staffeln_gelesen is True
+    assert _einzelansichten(nexcrate) == []
+    einzeln = await nex_client.NexcrateClient(URL, KEY).title("series", "tmdb:1399")
+    assert einzeln["series"]["seasons"] == []
+
+
 async def test_eine_leere_staffelliste_ist_eine_antwort(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:

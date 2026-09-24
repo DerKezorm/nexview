@@ -520,6 +520,18 @@ def _parse(zeile: str) -> LogLine | None:
     return LogLine(**daten, request_id=nummer, user=benutzer)
 
 
+def stempel(zeitpunkt: datetime) -> str:
+    """Ein Zeitpunkt (naive UTC) so, wie das Protokoll ihn schreibt.
+
+    ⚠️ Der Formatter stempelt Ortszeit (``logging.Formatter.converter``, ohne
+    Zeitzone). Wer Zeilen nach Zeit waehlt, muss die Grenze genauso schreiben;
+    in UTC reichte „die letzten 24 Stunden“ in der Sommerzeit 26 zurueck
+    (Rundgang-Befund 1).
+    """
+    sekunden = zeitpunkt.replace(tzinfo=UTC).timestamp()
+    return time.strftime(DATE_FORMAT, logging.Formatter.converter(sekunden))
+
+
 def read(limit: int = 200, level: str | None = None, search: str | None = None) -> list[LogLine]:
     """Die neuesten Zeilen lesen - neueste zuerst.
 

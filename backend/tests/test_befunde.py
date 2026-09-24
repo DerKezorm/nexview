@@ -891,6 +891,32 @@ def test_wenige_frische_fehler_schweigen(admin_client: TestClient) -> None:
     assert _sammeln("betrieb.protokoll_fehler") == []
 
 
+def test_das_fenster_rechnet_in_der_zeit_des_protokolls(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Rundgang-Befund 1: Das Protokoll stempelt Ortszeit, die Grenze war UTC.
+    In der Sommerzeit reichte das Fenster so 26 Stunden zurueck; um 20:05
+    zaehlte der Befund 123 Zeilen vom Vortag 18:26 bis 18:55.
+
+    Die Ortszeit ist hier vorgetaeuscht (zwei Stunden vor UTC), ueber denselben
+    ``converter``, mit dem der Formatter stempelt - sonst waere der Test auf
+    einem Rechner in UTC gruen, egal was der Code tut."""
+    import logging
+    import time as zeit
+
+    from app.services import logs as logs_dienst
+
+    monkeypatch.setattr(logging.Formatter, "converter", lambda s=None: zeit.gmtime((s or zeit.time()) + 7200))
+    logs_dienst.clear()
+    # Vor 25 Stunden geschrieben, mit Ortszeit gestempelt.
+    stempel = (_jetzt() - timedelta(hours=25) + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+    with logs_dienst.log_file().open("a", encoding="utf-8") as handle:
+        for nummer in range(befunde.PROTOKOLL_FEHLER_AB + 5):
+            handle.write(f"{stempel} ERROR    nexview.test [-] | Fehler {nummer}\n")
+
+    assert _sammeln("betrieb.protokoll_fehler") == []
+
+
 def test_alte_protokollfehler_zaehlen_nicht(admin_client: TestClient) -> None:
     """Ohne Zeitfenster stuende hier die Summe seit dem letzten Neustart.
 

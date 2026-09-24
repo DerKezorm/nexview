@@ -1065,7 +1065,8 @@ def _betrieb_protokoll_fehler(
     Neustart, und die waechst nur - ein Zaehler, der nie kleiner wird, ist
     keine Auskunft, sondern eine Anzeigetafel.
     """
-    grenze = (jetzt - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    # In der Zeit des Protokolls, nicht in UTC (Rundgang-Befund 1).
+    grenze = logs.stempel(jetzt - timedelta(hours=24))
     try:
         zeilen = logs.read(limit=2000, level="ERROR")
     except OSError:

@@ -20,8 +20,8 @@ you stay with Radarr and Sonarr, little changes for you; what does is marked
 
 ⚠️ **Make a backup before updating.** This update rewrites the database: the
 quality tier ("standard", "4K") becomes a **version** with an id of its own,
-and everything that used to name a tier – requests, storage entries, rights,
-invitations, rules – points at it afterwards. The tier columns are dropped in
+and everything that used to name a tier, requests, storage entries, rights,
+invitations, rules, points at it afterwards. The tier columns are dropped in
 the process. The backup is the way back.
 
 ### New
@@ -33,26 +33,34 @@ the process. The backup is the way back.
   Sonarr. Seven steps: the numbers up front, connecting plus a vetting check,
   mapping each current version onto a new one, checking whether nexcrate knows
   the titles something hangs on, the backup, the switch, and handing over the
-  approved requests. ⚠️ **There is no way back except the backup** – Nexview
+  approved requests. ⚠️ **There is no way back except the backup**: Nexview
   refuses to switch until the file is really written.
 
   Mapping is one to one: two of your current versions cannot point at the same
   version in nexcrate, and the assistant says so while you are setting it up.
-  Otherwise two versions would collapse into one, and a title held in both –
-  the same film in 1080p and in 4K – would lose one of them. Where nexcrate has
+  Otherwise two versions would collapse into one, and a title held in both,
+  the same film in 1080p and in 4K, would lose one of them. Where nexcrate has
   no counterpart, pick "None" and everything in that version is left untouched.
 
   Before the switch it lists every title that needs a decision, with the
   reason: nexcrate does not have it, it has it but without the TMDB id the
   storage key is built from, or two of your entries would end up in the same
-  place anyway. Those entries are left exactly as they are.
+  place anyway. Only a collision and a title with no TMDB id anywhere are left
+  exactly as they are; a title nexcrate knows but that has no TMDB id of its
+  own is rewritten under the TMDB id the entry already carries, and an open
+  request behind an entry that is left untouched stays with it.
 
   The migration itself runs in one transaction and only then are Radarr and
-  Sonarr left behind. If anything goes wrong, nothing has changed.
+  Sonarr left behind. If anything goes wrong, nothing has changed. Once
+  switched, the admin dashboard carries a finding for requests left behind on
+  a version the new way does not know (filter "Not handed over"), the report
+  names how many rights lapse, and "open to everyone" travels with each
+  version.
 - **Whether you can request does not depend on Radarr.** The interface asks
   whether any version has something behind it, so the request button works in
-  either mode. It used to ask `radarr_configured` in thirteen places, which is
-  false once you procure through nexcrate.
+  either mode, and only for versions the account is actually allowed to use.
+  It used to ask `radarr_configured` in thirteen places, which is false once
+  you procure through nexcrate.
 - **Restoring a backup stops before it touches anything** when the database is
   still busy - usually a sync. It used to replace the file first and fail
   afterwards, leaving the installation with a new database and a process that
@@ -62,10 +70,12 @@ the process. The backup is the way back.
   out a delay. Radarr and Sonarr cannot say this; there the section is absent
   rather than claiming that nothing is wrong.
 - **Deleted files come back.** Where procurement keeps a list instead of a
-  folder, one click restores a file. Where it cannot – the file is gone, or the
-  title left the library – the row says so and the button stays closed.
-- **Rights hang on the version**, not on "4K or not": two switches per version,
-  in Radarr mode too.
+  folder, one click restores a file. Where it cannot, because the file is gone
+  or the title left the library, the row says so and the button stays closed.
+- **Rights hang on the version**, not on "4K or not": two switches per
+  version, in Radarr mode too, and the check now also covers the main version
+  (`fassung_not_allowed`). Until this was fixed, an account could still
+  request a main version the operator had closed.
 
 ### Changed
 
@@ -99,6 +109,50 @@ the process. The backup is the way back.
   now say nexcrate, and where nexcrate differs they say what it does: it keeps
   a recycle bin Nexview can restore from, and it reports no date a file
   arrived.
+
+### Fixed
+
+- **Requesting and approving did not work at all in nexcrate mode.** Creating
+  a request still asked whether Radarr was configured, approving still asked
+  for a target folder and quality profile that do not exist over there, and
+  the library check compared against the main version regardless of which one
+  was requested. All three now follow the requested version, and approving no
+  longer needs a folder or profile in this mode.
+- **Seasons and episode packages were measured wrong.** nexcrate's title list
+  does not name seasons, so a switched installation lost every season entry on
+  its first storage sync, and the status check reported finished seasons and
+  packages as deleted the moment nexcrate briefly did not confirm them. Season
+  and package state now comes from each series' own page and is left as it is
+  when a page fails to answer, instead of being marked deleted.
+- **Every nexcrate version counted as standard.** HD and 4K were not told
+  apart, so a film held in both versions went to the first requester twice in
+  storage, `/api/v1` reported `tier` "standard" for a 4K version, and the 4K
+  badge and the 4K request block each followed their own rule and could
+  disagree. Version class now comes from nexcrate itself, and one rule decides
+  both badge and block.
+- **The switch to nexcrate silently dropped things it should have kept.**
+  "Open to everyone" and invitation rights never migrated at all; the backup
+  check only looked at the file's name, not whether it actually opens as a
+  database; and a series request could end up split from the entry it
+  belonged to. All three are fixed.
+- **Requests left behind after the switch went unnoticed.** An approved
+  request whose version had been mapped to "None" stayed approved forever with
+  only a log line; a request that kept failing to reach nexcrate was retried
+  every two minutes, blocking younger requests behind it; and a temporary
+  outage reaching nexcrate, or a request nexcrate simply had not answered yet,
+  was wrongly cancelled or counted as failed. The hand-over now gives up after
+  24 hours, only requests that truly got no answer count as failed, and the
+  home page keeps a title's entry during an outage instead of showing nothing.
+- **Ratings and a handful of smaller gaps in nexcrate mode.** Rotten Tomatoes
+  and Metacritic now show on the title page with the credit OMDb requires;
+  IMDb's own value had not been read at all, and a failing ratings batch no
+  longer turns into a server error. The calendar's "Mine", children's wishes,
+  the watchlist and ratings now count every version a title is held in, not
+  only the main one. Deleting the stored nexcrate key now works, the recycle
+  bin no longer claims to be available without the right to use it, its
+  address answers correctly in Radarr mode, a request with no version recorded
+  no longer breaks the admin request list, and `/api/v1`'s guarantees are now
+  checked in nexcrate mode too, not only with Radarr.
 
 ## 0.35.2 – 18.09.2026
 

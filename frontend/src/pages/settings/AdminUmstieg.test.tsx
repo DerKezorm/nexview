@@ -217,6 +217,52 @@ describe('Umstiegsassistent', () => {
     expect(screen.getByText(/denselben Platz belegen/)).toBeInTheDocument()
   })
 
+  it('verwendet einen eindeutigen Key, wenn derselbe Titel in zwei Fassungen zu entscheiden ist', async () => {
+    // ⚠️ Der React-Key war `${media_type}:${tmdb_id}` - hängt derselbe Titel
+    // (Standard **und** 4K) in beiden Fassungen ohne Gegenstück, bekommen
+    // beide Zeilen denselben Key. React beschwert sich darüber laut über
+    // `console.error`, und beim Aktualisieren der Liste verwechselt es die
+    // Zeilen.
+    antworten()
+    const fehler = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(api.post).mockResolvedValue({
+      ...PROBE,
+      zu_entscheiden: [
+        {
+          media_type: 'movie',
+          tmdb_id: 604,
+          titel: 'Example Movie',
+          fassung: 'radarr-standard',
+          ergebnis: 'unbekannt',
+          ohne_uebersetzung: false,
+          kollidiert: false,
+        },
+        {
+          media_type: 'movie',
+          tmdb_id: 604,
+          titel: 'Example Movie',
+          fassung: 'radarr-uhd',
+          ergebnis: 'unbekannt',
+          ohne_uebersetzung: false,
+          kollidiert: false,
+        },
+      ],
+    } as never)
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Example Movie')).toHaveLength(2)
+    })
+    const doppelterKey = fehler.mock.calls.some((aufruf) =>
+      String(aufruf[0]).includes('same key'),
+    )
+    expect(doppelterKey).toBe(false)
+  })
+
   it('lässt zwei bisherige Fassungen nicht auf dieselbe nexcrate-Fassung zeigen', async () => {
     // ⚠️ **Das war die Ursache des ersten Fehlschlags an einer echten Anlage**
     // (23.09.2026): „Radarr FHD" und „Radarr-4K" zeigten auf dieselbe Fassung,

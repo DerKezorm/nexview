@@ -459,10 +459,13 @@ class NexBeschaffung(Beschaffung):
         return
 
     async def staffel_daten(self, stufe: str, arr_id: int):
-        """Seit wann eine Staffel daliegt - nexcrate sagt es nicht.
+        """Seit wann eine Staffel daliegt - hier nicht gefragt, sondern mitgelesen.
 
-        Der Aufraeum-Vorschlag sortiert deshalb im NEX-Betrieb ohne dieses
-        Datum; er faellt dann auf den Zeitpunkt der Anfrage zurueck.
+        Seit nexcrate ``39dfc05`` steht es als ``imported_at`` an jeder Staffel
+        je Fassung und kommt mit dem Bestand an (``bestand.serien_stand``);
+        ``storage`` fragt diesen Weg deshalb gar nicht. Wo nexcrate es selbst
+        nicht weiss, bleibt das Alter unbekannt, und der Aufraeum-Vorschlag
+        uebergeht den Posten, statt es zu raten.
         """
         return
 

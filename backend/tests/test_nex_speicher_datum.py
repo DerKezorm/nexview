@@ -12,7 +12,7 @@ nie: ``null`` und ein fehlendes Feld bleiben unbekannt.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -164,6 +164,34 @@ def test_das_datum_wird_naiv_in_utc_abgelegt(nexcrate: FakeNexcrate, roh: str) -
     assert stand is not None
     assert stand.added_at == ALT_NAIV
     assert stand.added_at.tzinfo is None
+
+
+class _UhrAufPlusFuenf(datetime):
+    """Ein ``datetime``, dessen Ortszeit UTC+5 ist, gleich wo der Test läuft.
+
+    Ohne Zone liest ``astimezone`` die Ortszeit des Rechners. Läuft der auf
+    UTC, fiele ein ohne Zone als Ortszeit gelesener Wert nicht auf.
+    """
+
+    def astimezone(self, tz: Any = None) -> datetime:
+        if self.tzinfo is None:
+            ortszeit = timezone(timedelta(hours=5))
+            return datetime.astimezone(self.replace(tzinfo=ortszeit), tz)
+        return datetime.astimezone(self, tz)
+
+
+def test_ein_wert_ohne_zone_ist_utc_auch_wenn_der_rechner_anders_tickt(
+    nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(nex_bestand, "datetime", _UhrAufPlusFuenf)
+    # Die Uhr greift: als Ortszeit gelesen käme ein Wert fünf Stunden früher.
+    assert _UhrAufPlusFuenf.fromisoformat("2023-05-04T06:07:08").astimezone(UTC).hour == 1
+
+    roh = "2023-05-04T06:07:08"
+    stand = nex_bestand.film_stand(_film(nexcrate, 603, imported_at=roh), FILM_HD)
+
+    assert stand is not None
+    assert stand.added_at == ALT_NAIV
 
 
 @pytest.mark.parametrize("roh", ["", "yesterday", 1683180428, {"at": ALT}])

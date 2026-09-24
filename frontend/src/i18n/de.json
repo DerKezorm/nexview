@@ -2210,6 +2210,7 @@
       "nexcrate_no_version_for_kind": "In nexcrate ist für diese Medienart keine Fassung eingerichtet. Der Administrator legt sie dort an.",
       "not_in_this_mode": "Dieses Werkzeug gehört zur anderen Betriebsart der Beschaffung.",
       "beschaffung_invalid": "Diese Betriebsart der Beschaffung gibt es nicht.",
+      "beschaffung_switch_needs_assistant": "An Radarr und Sonarr hängen noch Anfragen, Speicherposten oder Rechte. Zu nexcrate geht es deshalb nur über den Umstiegsassistenten, der sie mitnimmt.",
       "download_action_not_offered": "nexcrate bietet das an diesem Download nicht an.",
       "download_action_not_automatic": "Diese Aktion darf eine Automatik hier nicht auslösen.",
       "storage_nothing_to_delete": "Für diesen Posten meldet nexcrate keine Datei, die sich löschen ließe.",

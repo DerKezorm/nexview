@@ -743,6 +743,90 @@ def rechte_entfallen(db: Session, abbildung: dict[str, str | None]) -> int:
     return zahl
 
 
+@dataclass
+class Mitzunehmen:
+    """Was die Wanderung umschreiben müsste, weil es eine Arr-Kennung trägt.
+
+    ⚠️ **Dieselben Dinge, die ``wandern`` anfasst** - und nur die. Die
+    Einstellungsseite sperrt damit den Wechsel von ``arr`` auf ``nex`` am
+    Assistenten vorbei (``routers/settings.py``): Ohne Wanderung stünden
+    danach alle diese Zeilen bei einer Fassung, die es nicht mehr gibt, und der
+    Assistent antwortete 409, weil schon ``nex`` gilt. Einen Reparaturweg gibt
+    es dann nicht. ``test_die_sperre_zaehlt_was_die_wanderung_umschreibt``
+    hält beide beieinander.
+
+    Nicht gezählt wird, was auch die Wanderung liegen lässt oder nur aufräumt:
+    erledigte Anfragen und eingelöste Einladungen (Geschichte), die Zeilen der
+    Arr-Instanzen (Zwischenstände, keine Daten). Ohne alles hier bleibt der
+    Wechsel frei, sonst käme keine Ersteinrichtung mit nexcrate durch.
+    """
+
+    #: Offene Anfragen.
+    anfragen: int = 0
+    posten: int = 0
+    #: Rechte an Konten.
+    rechte: int = 0
+    #: Offene Einladungen, die ein Recht an einer Arr-Fassung vergeben.
+    einladungen: int = 0
+    regeln: int = 0
+    #: Arr-Fassungen, die der Betreiber über ihre Vorgabe hinaus für alle
+    #: geöffnet hat. Die Wanderung trägt das auf die neue Fassung; ohne sie
+    #: bekäme jedes gewöhnliche Konto dort 403.
+    geoeffnet: int = 0
+
+    def __bool__(self) -> bool:
+        return any(vars(self).values())
+
+
+def _nennt_arr_fassung(regel: Regel, kennungen: frozenset[str]) -> bool:
+    """Nennt eine Bedingung dieser Regel eine Arr-Fassung? Wie ``_regel_werte``."""
+    for bedingung in regel.bedingungen or []:
+        if not isinstance(bedingung, dict):
+            continue
+        werte = bedingung.get("werte")
+        if isinstance(werte, list) and any(str(wert) in kennungen for wert in werte):
+            return True
+    return False
+
+
+def mitzunehmen(db: Session) -> Mitzunehmen:
+    """Zählt, was der Umstieg mitnehmen müsste. Schreibt nichts."""
+    arr = frozenset(fassungen_dienst.ARR_KENNUNGEN)
+    zahlen = Mitzunehmen(
+        anfragen=int(
+            db.scalar(
+                select(func.count(MediaRequest.id)).where(
+                    MediaRequest.status.in_(OFFEN), MediaRequest.fassung_kennung.in_(arr)
+                )
+            )
+            or 0
+        ),
+        posten=int(db.scalar(select(func.count(StorageEntry.id)).where(StorageEntry.fassung_kennung.in_(arr))) or 0),
+        rechte=sum(
+            1
+            for recht in db.scalars(select(FassungRecht).where(FassungRecht.fassung_kennung.in_(arr)))
+            if recht.anfragen or recht.auto_freigabe
+        ),
+        regeln=sum(1 for regel in db.scalars(select(Regel)) if _nennt_arr_fassung(regel, arr)),
+        geoeffnet=sum(
+            1
+            for kennung in arr
+            if kennung not in fassungen_dienst.ARR_OFFEN and fassungen_dienst.offen_fuer_alle(db, kennung)
+        ),
+    )
+    for token in db.scalars(
+        select(AuthToken).where(AuthToken.invite_fassung_rechte.is_not(None), AuthToken.used_at.is_(None))
+    ):
+        if any(
+            isinstance(eintrag, dict)
+            and str(eintrag.get("kennung")) in arr
+            and (eintrag.get("anfragen") or eintrag.get("auto_freigabe"))
+            for eintrag in token.invite_fassung_rechte or []
+        ):
+            zahlen.einladungen += 1
+    return zahlen
+
+
 def _paket_nummer(schluessel: str) -> int | None:
     """Die Anfrage-Nummer aus dem Schlüssel eines Folgen-Pakets (``…:r17``)."""
     letztes = str(schluessel).rsplit(":", 1)[-1]

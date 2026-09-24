@@ -8,6 +8,7 @@ Papierkorb, Rueckkanal, Instanzen), stehen hinter der Grenze in
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
 import httpx
@@ -18,7 +19,7 @@ from .. import meldungen
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import Fassung, Hausordnung, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH
-from ..services import beschaffung, cache, fassungen, mail, mail_templates
+from ..services import beschaffung, cache, fassungen, mail, mail_templates, umstieg
 from ..services.mediaserver import (
     PROVIDERS,
     merklisten_anbieter,
@@ -60,8 +61,8 @@ class SettingsUpdate(BaseModel):
     poll_interval_seconds: int | None = Field(default=None, ge=30, le=3600)
     demo_mode: str | None = None
     # Die Betriebsart der Beschaffung: ``arr`` oder ``nex`` (Bauplan
-    # Abschnitt 4). Der Umstiegsassistent kommt spaeter; bis dahin stellt sie
-    # ein Administrator hier um.
+    # Abschnitt 4). Von ``arr`` auf ``nex`` nur, solange der Umstiegsassistent
+    # nichts mitnehmen muesste (``_wechsel_am_assistenten_vorbei_ablehnen``).
     beschaffung: str | None = None
     nexcrate_url: str | None = None
     nexcrate_api_key: str | None = None
@@ -516,6 +517,37 @@ def _gleiche_adresse_ablehnen(db: DbSession, payload: SettingsUpdate) -> None:
             )
 
 
+def _wechsel_am_assistenten_vorbei_ablehnen(db: DbSession, payload: SettingsUpdate) -> None:
+    """Von ``arr`` auf ``nex`` nur über den Umstiegsassistenten, wenn er etwas mitnehmen müsste.
+
+    ⚠️ **Gemessen an einer Datenbankkopie (24.09.2026):** Hier umgeschaltet,
+    hatte die Installation danach null Fassungen, alle Anfragen, Posten und
+    Rechte hingen an Arr-Kennungen, und der Assistent antwortete 409, weil
+    schon ``nex`` galt. Einen Weg zurück in einen heilen Zustand gab es nicht.
+
+    Frei bleiben: die Ersteinrichtung und jede Installation ohne solche Daten
+    (sie speichern ``nex`` genau hier), gleiche Betriebsart, und ``nex`` nach
+    ``arr`` - das ist die Notbremse. Geprüft wird vor jedem Speichern, damit
+    auch kein anderes Feld derselben Anfrage durchrutscht.
+    """
+    if payload.beschaffung != beschaffung.NEX:
+        return
+    if load_settings(db).beschaffung != beschaffung.ARR:
+        return
+    offen = umstieg.mitzunehmen(db)
+    if not offen:
+        return
+    raise HTTPException(
+        status_code=409,
+        detail=meldungen.meldung(
+            "beschaffung_switch_needs_assistant",
+            "Anfragen, Speicherposten oder Rechte hängen noch an Radarr und Sonarr. "
+            "Der Wechsel zu nexcrate geht nur über den Umstiegsassistenten.",
+            **asdict(offen),
+        ),
+    )
+
+
 @router.put("/settings")
 def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) -> dict[str, object]:
     if payload.demo_mode is not None and payload.demo_mode not in {"auto", "on", "off"}:
@@ -535,6 +567,7 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
                 arten=sorted(BESCHAFFUNGSARTEN),
             ),
         )
+    _wechsel_am_assistenten_vorbei_ablehnen(db, payload)
     for feld in (
         "movie_root_folder_mode",
         "series_root_folder_mode",

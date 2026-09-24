@@ -1476,7 +1476,14 @@ TEXTE: dict[str, tuple[str, str]] = {
         (
             '⚠️ **An empty secret field means "unchanged", not "delete".** Otherwise '
             'the masked value from the interface would be written back over the real '
-            'one. Use the delete endpoint to actually remove a key.'
+            'one. Use the delete endpoint to actually remove a key.\n\n'
+            'Switching `beschaffung` from `arr` to `nex` is refused with 409 '
+            '`beschaffung_switch_needs_assistant` as long as open requests, storage '
+            'entries, rights, open invitations or rules still carry a Radarr or Sonarr '
+            'version, or such a version was opened for everyone beyond its default: '
+            'only the switch assistant under `/api/umstieg` carries them over. '
+            'Nothing from the request is saved then. Switching back from `nex` to `arr` '
+            'is always allowed.'
         ),
     ),
     'GET /api/settings/recyclebin': (

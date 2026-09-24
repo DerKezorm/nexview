@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "../../api/client";
+import { api, ApiError } from "../../api/client";
 import type { AppSettings, Beschaffung, NexStand } from "../../api/types";
 import { NexcrateVerbinden, Standpruefung } from "../../components/NexcrateVerbinden";
 import { ErrorBanner, Section, Spinner } from "../../components/ui";
@@ -21,8 +21,12 @@ const MODI: Beschaffung[] = ["arr", "nex"];
  * ⚠️ **Koppeln fragt im Takt nach, den nexcrate vorgibt** (`poll_seconds`).
  * Das Geheimnis der Bitte bleibt im Server; der Browser kennt nur die
  * Kennung und den Code, den der Betreiber in nexcrate wiedererkennt.
+ *
+ * ⚠️ **Mit Anfragen, Posten oder Rechten schaltet nur der Assistent um.** Der
+ * Server lehnt den Knopf dann ab (`beschaffung_switch_needs_assistant`);
+ * `zumUmstieg` führt zu ihm, wenn sein Reiter da ist.
  */
-export function AdminNexcrateSettings() {
+export function AdminNexcrateSettings({ zumUmstieg }: { zumUmstieg?: () => void } = {}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
@@ -61,6 +65,17 @@ export function AdminNexcrateSettings() {
   return (
     <div className="mt-6 flex flex-col gap-6">
       {fehler && <ErrorBanner message={fehler} />}
+      {zumUmstieg &&
+        speichern.error instanceof ApiError &&
+        speichern.error.code === "beschaffung_switch_needs_assistant" && (
+          <button
+            type="button"
+            onClick={zumUmstieg}
+            className="self-start text-sm text-accent-400 hover:underline"
+          >
+            {t("umstieg.section")}
+          </button>
+        )}
 
       <Section title={t("nexcrate.modeSection")}>
         <p className="max-w-3xl text-sm text-mist-400">{t("nexcrate.modeHint")}</p>

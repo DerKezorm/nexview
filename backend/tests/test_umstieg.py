@@ -44,7 +44,15 @@ from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.beschaffung.nex import gesundheit, pruefung, system
 from app.services.settings_service import load_settings, save_settings
 
-from .beschaffung.fake_nexcrate import FILM_HD, FILM_UHD, KEY, SERIE_HD, URL, FakeNexcrate
+from .beschaffung.fake_nexcrate import (
+    FILM_HD,
+    FILM_UHD,
+    KEY,
+    SERIE_HD,
+    SERIE_UHD,
+    URL,
+    FakeNexcrate,
+)
 
 #: Die vier Fassungen, die der ARR-Betrieb fest mitbringt.
 RADARR = "radarr-standard"
@@ -1177,3 +1185,206 @@ def test_rechte_ohne_ziel_werden_vorher_und_nachher_gezaehlt(
     assert einladung.invite_fassung_rechte == [
         {"kennung": FILM_UHD, "anfragen": True, "auto_freigabe": False}
     ]
+
+
+# --------------------------------------------------------------------------
+# Der Wechsel am Assistenten vorbei (PUT /api/settings)
+#
+# ⚠️ **Gemessen an einer Datenbankkopie (24.09.2026):** Wer `beschaffung` über
+# die Einstellungen von `arr` auf `nex` stellt, hat danach null Fassungen,
+# alle Anfragen, Posten und Rechte tragen weiter ihre Arr-Kennung, und der
+# Assistent antwortet 409, weil schon `nex` gilt. Einen Reparaturweg gibt es
+# nicht. Gesperrt ist deshalb genau dieser Wechsel, und nur, wenn der
+# Assistent etwas mitnehmen müsste: Die Ersteinrichtung speichert `nex`
+# ebenfalls über diese Adresse, dann schon mit einem Admin-Konto.
+
+
+def _offene_anfrage(db: Session) -> None:
+    _anfrage(db, _nutzer(db, "anfragend"), status=RequestStatus.pending_approval)
+
+
+def _geladener_posten(db: Session) -> None:
+    _posten(db)
+
+
+def _recht_am_konto(db: Session) -> None:
+    person = _nutzer(db, "berechtigt")
+    db.add(FassungRecht(user_id=person.id, fassung_kennung=RADARR_UHD, anfragen=True))
+    db.commit()
+
+
+def _offene_einladung(db: Session) -> None:
+    einladung = AuthToken(
+        token_hash="e" * 64,
+        purpose=TokenPurpose.invitation,
+        email="eingeladen@example.com",
+        expires_at=utcnow(),
+    )
+    einladung.invite_can_request_uhd_movies = True
+    db.add(einladung)
+    db.commit()
+
+
+def _regel_auf_eine_fassung(db: Session) -> None:
+    db.add(
+        Regel(
+            name="Nur 4K ablehnen",
+            bedingungen=[{"feld": "fassung", "werte": [RADARR_UHD]}],
+            entscheidung="ablehnen",
+            position=1,
+        )
+    )
+    db.commit()
+
+
+def _vierk_fuer_alle_geoeffnet(db: Session) -> None:
+    zeile = db.get(Fassung, RADARR_UHD)
+    assert zeile is not None
+    zeile.offen_fuer_alle = True
+    db.commit()
+
+
+MITZUNEHMEN = {
+    "offene_anfrage": _offene_anfrage,
+    "posten": _geladener_posten,
+    "recht_am_konto": _recht_am_konto,
+    "offene_einladung": _offene_einladung,
+    "regel": _regel_auf_eine_fassung,
+    "vierk_geoeffnet": _vierk_fuer_alle_geoeffnet,
+}
+
+
+@pytest.mark.parametrize("anlegen", list(MITZUNEHMEN.values()), ids=list(MITZUNEHMEN))
+def test_mit_daten_wechselt_nur_der_assistent_auf_nexcrate(assistent: TestClient, anlegen: Any) -> None:
+    """409, eine Kennung, und **nichts** gespeichert, auch kein anderes Feld."""
+    with SessionLocal() as db:
+        anlegen(db)
+
+    antwort = assistent.put("/api/settings", json={"beschaffung": NEX, "default_region": "AT"})
+
+    assert antwort.status_code == 409, antwort.text
+    assert antwort.json()["detail"]["code"] == "beschaffung_switch_needs_assistant"
+    with SessionLocal() as db:
+        danach = load_settings(db, frisch=True)
+    assert danach.beschaffung == ARR
+    # ⚠️ Ohne diese Zeile liefe das Nachreichen an, obwohl nichts umgeschaltet hat.
+    assert danach.beschaffung_gewechselt_am == ""
+    assert danach.default_region != "AT"
+
+
+def _erledigte_anfrage(db: Session) -> None:
+    _anfrage(db, _nutzer(db, "fertig"), status=RequestStatus.downloaded)
+
+
+def _eingeloeste_einladung(db: Session) -> None:
+    einladung = AuthToken(
+        token_hash="f" * 64,
+        purpose=TokenPurpose.invitation,
+        email="eingeladen@example.com",
+        expires_at=utcnow(),
+        used_at=utcnow(),
+    )
+    einladung.invite_can_request_uhd_movies = True
+    db.add(einladung)
+    db.commit()
+
+
+def _nichts(db: Session) -> None:
+    return None
+
+
+NICHTS_ZU_WANDERN = {
+    # Die Ersteinrichtung: ein Admin-Konto, sonst nichts.
+    "leer": _nichts,
+    # Geschichte wandert auch im Assistenten nicht mit.
+    "erledigte_anfrage": _erledigte_anfrage,
+    "eingeloeste_einladung": _eingeloeste_einladung,
+}
+
+
+@pytest.mark.parametrize("anlegen", list(NICHTS_ZU_WANDERN.values()), ids=list(NICHTS_ZU_WANDERN))
+def test_ohne_etwas_zu_wandern_bleibt_der_wechsel_frei(assistent: TestClient, anlegen: Any) -> None:
+    with SessionLocal() as db:
+        anlegen(db)
+
+    antwort = assistent.put("/api/settings", json={"beschaffung": NEX})
+
+    assert antwort.status_code == 200, antwort.text
+    with SessionLocal() as db:
+        danach = load_settings(db, frisch=True)
+    assert danach.beschaffung == NEX
+    assert danach.beschaffung_gewechselt_am != ""
+
+
+def test_der_rueckweg_nach_arr_bleibt_frei(assistent: TestClient) -> None:
+    """Die Notbremse: `nex` nach `arr` geht immer, auch mit Daten."""
+    with SessionLocal() as db:
+        _offene_anfrage(db)
+        _geladener_posten(db)
+        save_settings(db, {"beschaffung": NEX})
+
+    antwort = assistent.put("/api/settings", json={"beschaffung": ARR})
+
+    assert antwort.status_code == 200, antwort.text
+    with SessionLocal() as db:
+        assert load_settings(db, frisch=True).beschaffung == ARR
+
+
+def test_mit_daten_bleibt_ein_speichern_in_arr_moeglich(assistent: TestClient) -> None:
+    """Die Sperre gilt dem Wechsel, nicht der Seite: `arr` nach `arr` speichert."""
+    with SessionLocal() as db:
+        _offene_anfrage(db)
+
+    antwort = assistent.put("/api/settings", json={"beschaffung": ARR, "default_region": "AT"})
+
+    assert antwort.status_code == 200, antwort.text
+    with SessionLocal() as db:
+        danach = load_settings(db, frisch=True)
+    assert danach.default_region == "AT"
+    assert danach.beschaffung_gewechselt_am == ""
+
+
+def test_nach_der_sperre_schaltet_der_assistent_um(assistent: TestClient) -> None:
+    """Der eine Weg, der bleibt, muss auch gehen."""
+    from app.services import sicherung
+
+    with SessionLocal() as db:
+        _offene_anfrage(db)
+    assert assistent.put("/api/settings", json={"beschaffung": NEX}).status_code == 409
+
+    assistent.get("/api/umstieg/abbildung")
+    name = assistent.post("/api/umstieg/sicherung").json()["name"]
+    try:
+        umgeschaltet = assistent.post("/api/umstieg/umschalten", json={"abbildung": _abbildung(), "sicherung": name})
+    finally:
+        sicherung.entfernen(sicherung.datei(name))
+
+    assert umgeschaltet.status_code == 200, umgeschaltet.text
+    assert umgeschaltet.json()["anfragen"] == 1
+    with SessionLocal() as db:
+        assert load_settings(db, frisch=True).beschaffung == NEX
+
+
+def test_die_sperre_zaehlt_was_die_wanderung_umschreibt(vor_dem_umstieg: Any, db: Session) -> None:
+    """Sperre und Assistent meinen dieselben Dinge.
+
+    Liefen sie auseinander, sperrte die Einstellungsseite etwas, das der
+    Assistent gar nicht mitnimmt, oder ließe durch, was er mitgenommen hätte.
+    """
+    for anlegen in MITZUNEHMEN.values():
+        anlegen(db)
+    abbildung = {**_abbildung(), SONARR_UHD: SERIE_UHD}
+
+    vorher = umstieg.mitzunehmen(db)
+    zahlen = umstieg.wandern(db, abbildung, {})
+    db.commit()
+
+    assert (vorher.anfragen, vorher.posten, vorher.rechte, vorher.einladungen, vorher.regeln) == (
+        zahlen.anfragen,
+        zahlen.posten,
+        zahlen.rechte,
+        zahlen.einladungen,
+        zahlen.regeln,
+    )
+    assert (vorher.anfragen, vorher.posten, vorher.rechte, vorher.einladungen, vorher.regeln) == (1, 1, 1, 1, 1)
+    assert vorher.geoeffnet == 1

@@ -2210,6 +2210,7 @@
       "nexcrate_no_version_for_kind": "nexcrate has no version set up for this media type. The administrator creates one there.",
       "not_in_this_mode": "This tool belongs to the other procurement mode.",
       "beschaffung_invalid": "There is no such procurement mode.",
+      "beschaffung_switch_needs_assistant": "Requests, storage entries or rights still belong to Radarr and Sonarr. Switching to nexcrate therefore only works through the switch assistant, which carries them over.",
       "download_action_not_offered": "nexcrate does not offer that for this download.",
       "download_action_not_automatic": "An automation may not take that action here.",
       "storage_nothing_to_delete": "nexcrate reports no file for this entry that could be deleted.",

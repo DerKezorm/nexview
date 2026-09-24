@@ -1300,7 +1300,15 @@ export function AdminServicesSettings({
 
       {/* nexcrate bringt eigenes Speichern und das Koppeln mit – wie der
           Media-Server steht es außerhalb dieses Formulars. */}
-      {unterTab === "nexcrate" && <AdminNexcrateSettings />}
+      {unterTab === "nexcrate" && (
+        <AdminNexcrateSettings
+          zumUmstieg={
+            sichtbareTabs.some((e) => e.value === "umstieg")
+              ? () => setUnterTab("umstieg")
+              : undefined
+          }
+        />
+      )}
       {unterTab === "umstieg" && <AdminUmstieg />}
 
       <form

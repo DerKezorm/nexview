@@ -28,7 +28,7 @@ vi.mock('../../api/client', async () => {
   }
 })
 
-import { api } from '../../api/client'
+import { api, ApiError } from '../../api/client'
 import type { AppSettings, NexStand } from '../../api/types'
 import { rendernSchlicht } from '../../test/rendern'
 import { AdminNexcrateSettings } from './AdminNexcrateSettings'
@@ -233,5 +233,31 @@ describe('Dienste-Seite für nexcrate', () => {
     expect(zeilen).toHaveLength(2)
     expect(zeilen[0].closest('li')).toHaveTextContent('Filme')
     expect(zeilen[1].closest('li')).toHaveTextContent('Serien')
+  })
+
+  it('führt zum Assistenten, wenn der Server den Wechsel ihm vorbehält', async () => {
+    vi.mocked(api.get).mockResolvedValue(einstellungen())
+    vi.mocked(api.put).mockRejectedValue(
+      new ApiError(409, 'Nur über den Assistenten.', 'beschaffung_switch_needs_assistant'),
+    )
+    const zumUmstieg = vi.fn()
+
+    rendernSchlicht(<AdminNexcrateSettings zumUmstieg={zumUmstieg} />)
+    await userEvent.click(await screen.findByRole('button', { name: /^nexcrate/ }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Nur über den Assistenten.')
+    await userEvent.click(screen.getByRole('button', { name: 'Umstieg auf nexcrate' }))
+    expect(zumUmstieg).toHaveBeenCalledTimes(1)
+  })
+
+  it('bietet den Assistenten bei einem anderen Fehler nicht an', async () => {
+    vi.mocked(api.get).mockResolvedValue(einstellungen())
+    vi.mocked(api.put).mockRejectedValue(new ApiError(422, 'Unbekannt.', 'beschaffung_invalid'))
+
+    rendernSchlicht(<AdminNexcrateSettings zumUmstieg={vi.fn()} />)
+    await userEvent.click(await screen.findByRole('button', { name: /^nexcrate/ }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unbekannt.')
+    expect(screen.queryByRole('button', { name: 'Umstieg auf nexcrate' })).toBeNull()
   })
 })

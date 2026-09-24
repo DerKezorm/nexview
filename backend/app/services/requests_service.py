@@ -772,9 +772,19 @@ async def _mit_datei_in_standard(settings: AppSettings, item: MediaItem) -> set[
     Der Zustand wird vorher zurueckgesetzt: ``apply_status`` laesst ihn bei
     einem Fehlschlag stehen, und ein von anderswoher mitgebrachtes "downloaded"
     wuerde hier sonst als Treffer der Standard-Instanz gelesen.
+
+    ⚠️ **Gefragt wird die erste Fassung, die nicht 4K ist**, nicht die
+    Hauptfassung: Fuehrt nexcrate 4K vorn, fragte die Sperre sonst die
+    4K-Fassung selbst, und eine 4K-Datei in der HD-Fassung galt als eigene
+    4K-Fassung. Gibt es keine, gibt es auch nichts, was die Datei verdeckt.
     """
+    kennung = fassungen.hd_kennung(settings, item.media_type)
+    if kennung is None:
+        return set()
     kopie = item.model_copy(update={"status": "not_requested"})
-    ergebnis = await get_beschaffung(settings).status_setzen(item.media_type, [kopie], "standard")
+    ergebnis = await get_beschaffung(settings).status_setzen(
+        item.media_type, [kopie], "standard", fassung=kennung
+    )
     # "partial" zaehlt mit: Gefragt ist "fuehrt eine Datei", nicht "ist
     # vollstaendig" - eine halbe Serie liegt genauso in der Standard-Instanz.
     return {
@@ -1329,7 +1339,9 @@ async def create_request(
                 db,
                 media_type,
                 [item],
-                "standard" if settings.arr_configured(item.media_type, "uhd") else None,
+                # Nicht ``arr_configured(.., "uhd")``: Das galt im NEX-Betrieb
+                # nie, und eine reine 4K-Kopie sperrte dort die HD-Anfrage.
+                fassungen.serverstufe(settings, item.media_type, kennung),
             )
         if belegt:
             raise RequestError(

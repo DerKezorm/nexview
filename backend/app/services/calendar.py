@@ -708,19 +708,25 @@ async def kalender(
     region = settings.default_region
     will_meine = quellen in ("all", "mine")
     will_neu = quellen in ("all", "new")
+    weg = get_beschaffung(settings)
+
+    def hat_kalender(art: str) -> bool:
+        # ⚠️ Gefragt wird der Weg, nicht ``radarr_configured``: Im NEX-Betrieb
+        # ist Radarr nie eingetragen, und „Meine" blieb dort leer.
+        return weg.faehigkeiten().kalender and weg.verwaltet(art)
 
     async def eigene_serien() -> list[CalendarEntry]:
         # Bei "Kino" bleiben Serien draussen: Sie haben keinen Kinostart, und
         # eine Folge unter dieser Auswahl zu zeigen, hiesse etwas zu behaupten,
         # das es nicht gibt.
-        if not will_meine or datumsart == "kino" or not settings.sonarr_configured:
+        if not will_meine or datumsart == "kino" or not hat_kalender("tv"):
             return []
-        return _falte_folgen(await get_beschaffung(settings).kalender("tv", von, bis), stichtag)
+        return _falte_folgen(await weg.kalender("tv", von, bis), stichtag)
 
     async def eigene_filme() -> list[CalendarEntry]:
-        if not will_meine or not settings.radarr_configured:
+        if not will_meine or not hat_kalender("movie"):
             return []
-        rohe = await get_beschaffung(settings).kalender("movie", von, bis)
+        rohe = await weg.kalender("movie", von, bis)
         return _meine_filme(rohe, datumsart, von, bis, stichtag)
 
     async def neues() -> list[CalendarEntry]:

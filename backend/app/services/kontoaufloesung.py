@@ -40,7 +40,7 @@ from ..models import (
     StorageState,
     User,
 )
-from . import storage
+from . import fassungen, storage
 from .beschaffung import BeschaffungError, get_beschaffung, jahr_aus, treffer_nach_titel
 from .settings_service import AppSettings
 
@@ -164,7 +164,7 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
 
     laufende: list[LaufendeStaffel] = []
     offen: list[OffeneBestellung] = []
-    serien: dict[str, tuple[dict, dict]] = {}
+    serien: dict[str | None, tuple[dict, dict]] = {}
     for anfrage in offene:
         if anfrage.media_type == MediaType.movie:
             # Ein Film mit Datei waere laengst als Posten gebucht - was hier
@@ -172,14 +172,19 @@ async def vorschau(db: Session, settings: AppSettings, user: User) -> Vorschau:
             offen.append(als_offen(anfrage, anfrage.tier, anfrage.arr_id))
             continue
         stufe = anfrage.tier
-        if not settings.arr_configured("tv", stufe):
-            # Ohne erreichbare Instanz gibt es nichts zu behalten und nichts
+        kennung = anfrage.fassung_kennung or fassungen.hauptkennung("tv")
+        # ⚠️ Gefragt wird die Fassung, nicht ``arr_configured``: Das galt im
+        # NEX-Betrieb nie, und jede Serienanfrage stand dort als offen da.
+        if kennung is None or settings.fassung(kennung) is None:
+            # Ohne eingerichtete Fassung gibt es nichts zu behalten und nichts
             # stillzulegen - die Bestellung steht nur noch in der Buchhaltung.
             offen.append(als_offen(anfrage, stufe, anfrage.arr_id))
             continue
-        if stufe not in serien:
-            serien[stufe] = await get_beschaffung(settings).bestand_serien(stufe)
-        nach_tvdb, nach_titel = serien[stufe]
+        if kennung not in serien:
+            serien[kennung] = await get_beschaffung(settings).bestand_serien(
+                stufe, fassung=kennung
+            )
+        nach_tvdb, nach_titel = serien[kennung]
         eintrag = nach_tvdb.get(anfrage.tvdb_id) if anfrage.tvdb_id else None
         if eintrag is None:
             eintrag = treffer_nach_titel(

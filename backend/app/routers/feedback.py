@@ -203,11 +203,18 @@ async def bewerten(
     # Die Groesse der Datei, die gerade dort liegt - sie ist der Massstab,
     # an dem spaeter auffaellt, dass Radarr etwas Besseres nachgeschoben hat.
     # Aus dem Zwischenspeicher, den der Bibliotheksabgleich ohnehin fuellt.
+    # Die erste Fassung, die den Film mit Datei fuehrt: Liegt er nur in 4K,
+    # bekam das Urteil sonst keine Groesse.
     groesse = 0
     if media_type == "movie":
         try:
-            bestand = await get_beschaffung(load_settings(db)).bestand_filme()
-            groesse = int(getattr(bestand.get(tmdb_id), "size_bytes", 0) or 0)
+            settings = load_settings(db)
+            weg = get_beschaffung(settings)
+            for fassung in settings.fassungen_fuer("movie"):
+                bestand = await weg.bestand_filme(fassung=fassung.kennung)
+                groesse = int(getattr(bestand.get(tmdb_id), "size_bytes", 0) or 0)
+                if groesse:
+                    break
         except Exception:  # noqa: BLE001 - ohne Groesse geht es auch, nur ohne Alterung
             groesse = 0
 

@@ -34,7 +34,15 @@ from sqlalchemy.orm import Session
 from ..models import ChildWish, MediaType, User, WishState
 from ..schemas_media import MediaItem
 from ..services.settings_service import AppSettings
-from . import age_rating, blocklist, cache, media, mediaserver_library, requests_service
+from . import (
+    age_rating,
+    blocklist,
+    cache,
+    fassungen,
+    media,
+    mediaserver_library,
+    requests_service,
+)
 from .beschaffung import get_beschaffung
 from .children import RUBRIKEN, rubriken_von
 from .filters import DiscoverFilters
@@ -194,8 +202,24 @@ async def einordnen(
         return Zweiteilung(verfuegbar=[], wuenschbar=[])
 
     art = MediaType(media_type)
-    stand = await get_beschaffung(settings).status_setzen(media_type, items)
+    weg = get_beschaffung(settings)
+    stand = await weg.status_setzen(media_type, items)
     kennungen = [item.tmdb_id for item in stand.items]
+
+    # ⚠️ **Jede Fassung zaehlt**, nicht nur die Hauptfassung: Ein Film, der nur
+    # in 4K liegt, laesst sich genauso schauen. Gefragt wird nur, was die
+    # Hauptfassung nicht schon als vorhanden meldet.
+    in_zweitfassung: set[int] = set()
+    haupt = fassungen.hauptkennung(media_type)
+    for fassung in settings.fassungen_fuer(media_type):
+        offen = [i for i in stand.items if i.status != "downloaded" and i.tmdb_id not in in_zweitfassung]
+        if fassung.kennung == haupt or not offen:
+            continue
+        kopien = [i.model_copy(update={"status": "not_requested"}) for i in offen]
+        zweit = await weg.status_setzen(
+            media_type, kopien, fassungen.stufe(fassung.kennung), fassung=fassung.kennung
+        )
+        in_zweitfassung |= {i.tmdb_id for i in zweit.items if i.status == "downloaded"}
 
     angefragt = requests_service.badges_for(db, art, kennungen)
     gesperrt = blocklist.gesperrte_kennungen(db, art, kennungen)
@@ -203,7 +227,7 @@ async def einordnen(
         db,
         art,
         [i for i in stand.items if i.status == "not_requested"],
-        "standard" if settings.arr_configured(media_type, "uhd") else None,
+        fassungen.serverstufe(settings, media_type),
     )
 
     verfuegbar: list[MediaItem] = []
@@ -214,7 +238,7 @@ async def einordnen(
         # "downloaded" aus der Bibliothek oder ein Treffer im Media-Server:
         # beides heisst, die Datei ist wirklich da. "searching" heisst das
         # ausdruecklich **nicht** - da laeuft sie noch.
-        if item.status == "downloaded" or item.tmdb_id in im_server:
+        if item.status == "downloaded" or item.tmdb_id in im_server or item.tmdb_id in in_zweitfassung:
             verfuegbar.append(item)
         elif item.status == "not_requested" and item.tmdb_id not in angefragt:
             wuenschbar.append(item)

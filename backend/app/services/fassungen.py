@@ -207,6 +207,42 @@ def stufenwort(kennung: str | None) -> str:
     return KLASSE_UHD if stufe(kennung) == "uhd" else KLASSE_HD
 
 
+def serverstufe(
+    settings: AppSettings, media_type: MediaType | str, kennung: str | None = None
+) -> str | None:
+    """Welche Kopien des Medienservers zaehlen fuer diese Fassung?
+
+    Ohne Fassung der Klasse ``uhd`` fuer diese Medienart gibt es nur eine
+    Achse, und jede Kopie zaehlt (``None``). Gibt es eine, sind es zwei
+    Achsen, und es zaehlt nur die Kopie der eigenen Stufe: Eine reine
+    4K-Kopie darf die HD-Anfrage nicht sperren.
+
+    ⚠️ **Der Nachfolger von ``arr_configured(art, "uhd")`` ausserhalb der
+    Grenze.** Das war im NEX-Betrieb immer ``False``; dort zaehlte jede Kopie,
+    und eine reine 4K-Kopie sperrte die HD-Anfrage mit 409. Ohne ``kennung``
+    gilt die Hauptfassung.
+    """
+    kennung = kennung or hauptkennung(media_type)
+    if kennung is None:
+        return None
+    if not any(f.klasse == KLASSE_UHD for f in settings.fassungen_fuer(_art(media_type))):
+        return None
+    return stufe(kennung)
+
+
+def hd_kennung(settings: AppSettings, media_type: MediaType | str) -> str | None:
+    """Die erste eingerichtete Fassung dieser Art, die **nicht** 4K ist.
+
+    Gebraucht, wo gefragt wird, ob eine 4K-Datei in der HD-Fassung liegt
+    (``mediaserver_library.echte_uhd_kennungen``). Die Hauptfassung ist das
+    nur, solange sie HD ist; im NEX-Betrieb kann nexcrate 4K vorn fuehren.
+    """
+    return next(
+        (f.kennung for f in settings.fassungen_fuer(_art(media_type)) if f.klasse != KLASSE_UHD),
+        None,
+    )
+
+
 def aus_einstellungen(settings: AppSettings) -> tuple[FassungInfo, ...]:
     """Die eingerichteten Fassungen, in Anzeigereihenfolge (aus dem Weg)."""
     return get_beschaffung(settings).fassungen()

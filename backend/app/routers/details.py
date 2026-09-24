@@ -202,8 +202,9 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
         # sind es zwei getrennte Achsen: Eine reine 4K-Kopie darf dann nicht
         # als 1080p durchgehen, sonst laesst sich die 1080p-Fassung nie
         # anfragen. Dieselbe Unterscheidung trifft Overseerr ueber
-        # ``enable4kMovie``.
-        "standard" if settings.arr_configured(media_type, "uhd") else None,
+        # ``enable4kMovie``. Die Frage stellt ``fassungen.serverstufe``, in
+        # beiden Betriebsarten.
+        fassungen.serverstufe(settings, media_type),
     )
 
     for eintrag in eintraege:

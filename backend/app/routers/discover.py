@@ -102,8 +102,9 @@ async def _status_for(
         # sind es zwei getrennte Achsen: Eine reine 4K-Kopie darf dann nicht
         # als 1080p durchgehen, sonst laesst sich die 1080p-Fassung nie
         # anfragen. Dieselbe Unterscheidung trifft Overseerr ueber
-        # ``enable4kMovie``.
-        "standard" if settings.arr_configured(media_type, "uhd") else None,
+        # ``enable4kMovie``. Gefragt wird die Klasse der Fassungen, nicht Radarr:
+        # im NEX-Betrieb gibt es keine 4K-Instanz, wohl aber eine 4K-Fassung.
+        fassungen.serverstufe(settings, media_type),
     )
 
     # "Gesehen" ist eine eigene Achse und ueberschreibt deshalb nichts - es

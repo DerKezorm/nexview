@@ -205,17 +205,32 @@ async def _filme_pruefen(
     konten: dict[int, User],
     tmdb_ids: set[int],
 ) -> int:
-    """Ein vorgemerkter Film ist da - einmal melden, dann ist es erledigt."""
+    """Ein vorgemerkter Film ist da - einmal melden, dann ist es erledigt.
+
+    ⚠️ **In irgendeiner Fassung**, nicht nur in der Hauptfassung: Wer auf
+    einen Film wartet, der nur in 4K kommt, wartete sonst fuer immer.
+    """
+    weg = get_beschaffung(settings)
+    bestaende = []
     try:
-        bestand = await get_beschaffung(settings).bestand_filme()
+        for fassung in settings.fassungen_fuer("movie"):
+            bestaende.append(await weg.bestand_filme(fassung=fassung.kennung))
     except Exception as fehler:  # noqa: BLE001 - der Waechter darf nie sterben
         logger.warning("Movie library not available for watches: %s", fehler)
         return 0
 
     gemeldet = 0
     for tmdb_id in tmdb_ids:
-        eintrag = bestand.get(tmdb_id)
-        if eintrag is None or not getattr(eintrag, "has_file", False):
+        eintrag = next(
+            (
+                gefunden
+                for bestand in bestaende
+                if (gefunden := bestand.get(tmdb_id)) is not None
+                and getattr(gefunden, "has_file", False)
+            ),
+            None,
+        )
+        if eintrag is None:
             continue
 
         wartend = [

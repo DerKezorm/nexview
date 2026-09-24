@@ -15,7 +15,7 @@ from sqlalchemy.orm import selectinload
 from ..deps import CurrentUser, DbSession
 from ..models import Favorite, FavoritePerson, MediaRequest, MediaType, RequestStatus
 from ..schemas_media import MediaItem
-from ..services import fassungsachsen, media, mediaserver_library, requests_service
+from ..services import fassungen, fassungsachsen, media, mediaserver_library, requests_service
 from ..services.beschaffung import get_beschaffung
 from ..services.settings_service import for_user, load_settings
 
@@ -73,28 +73,33 @@ async def _noch_vorhanden(
     Anfrage-Zeile bleibt auf "geladen" stehen - sie ist ja tatsaechlich einmal
     erfuellt worden - deshalb muss hier nachgesehen werden.
 
-    Geprueft wird je Stufe gegen Radarr/Sonarr **und** den Media-Server: Wer
-    einen Titel nach Erreichen der Wunschqualitaet aus Radarr entfernt, hat ihn
-    weiterhin in Plex, und dann gehoert er hierher.
+    Geprueft wird je Fassung gegen den Beschaffungsweg **und** den
+    Media-Server: Wer einen Titel nach Erreichen der Wunschqualitaet aus Radarr
+    entfernt, hat ihn weiterhin in Plex, und dann gehoert er hierher.
 
     Faellt eine Abfrage aus, gilt der Titel als vorhanden. Ein leerer Bereich
     waere die schlechtere Antwort auf ein Netzwerkproblem als ein Eintrag zu
     viel.
     """
     behalten: list[MediaRequest] = []
-    # Nach Medienart und Stufe buendeln: Jede Kombination fragt ihre eigene
-    # Instanz, und die Bibliothek wird dabei nur einmal geholt.
-    gruppen: dict[tuple[MediaType, str], list[MediaRequest]] = {}
+    # Nach Medienart und Fassung buendeln: Jede Kombination fragt ihre eigene
+    # Fassung, und die Bibliothek wird dabei nur einmal geholt.
+    gruppen: dict[tuple[MediaType, str | None], list[MediaRequest]] = {}
     for anfrage in anfragen:
-        gruppen.setdefault((anfrage.media_type, anfrage.tier), []).append(anfrage)
+        kennung = anfrage.fassung_kennung or fassungen.hauptkennung(anfrage.media_type)
+        gruppen.setdefault((anfrage.media_type, kennung), []).append(anfrage)
 
-    for (art, stufe), teil in gruppen.items():
-        # Ohne eingerichtete Instanz gibt es keine Quelle, die "weg" sagen
+    for (art, kennung), teil in gruppen.items():
+        # Ohne eingerichtete Fassung gibt es keine Quelle, die "weg" sagen
         # koennte - dann bleibt alles stehen. Ohne diese Zeile verschwaende der
         # ganze Bereich bei jedem, der Nexview ohne Radarr/Sonarr betreibt.
-        if not settings.arr_configured(art.value, stufe):
+        #
+        # ⚠️ Gefragt wird die Fassung, nicht ``arr_configured``: Das galt im
+        # NEX-Betrieb nie, und geloeschte Titel blieben dort fuer immer stehen.
+        if kennung is None or settings.fassung(kennung) is None:
             behalten.extend(teil)
             continue
+        stufe = fassungen.stufe(kennung)
 
         # Kennung **und** Jahr muessen mit: Serien werden ueber die TVDB-Id
         # abgeglichen und sonst ueber Titel und Jahr. Ohne beides faende der
@@ -111,14 +116,16 @@ async def _noch_vorhanden(
             for a in teil
         ]
         try:
-            ergebnis = await get_beschaffung(settings).status_setzen(art.value, kacheln, stufe)
+            ergebnis = await get_beschaffung(settings).status_setzen(
+                art.value, kacheln, stufe, fassung=kennung
+            )
             vorhanden = {
                 eintrag.tmdb_id
                 for eintrag in ergebnis.items
                 if eintrag.status != "not_requested"
             }
         except Exception as fehler:  # noqa: BLE001 - die Startseite darf nie scheitern
-            logger.warning("Library check failed (%s/%s): %s", art.value, stufe, fehler)
+            logger.warning("Library check failed (%s/%s): %s", art.value, kennung, fehler)
             behalten.extend(teil)
             continue
 
@@ -332,7 +339,7 @@ async def trending(user: CurrentUser, db: DbSession) -> list[MediaItem]:
             db,
             MediaType.movie,
             [e for e in kandidaten if e.status == "not_requested"],
-            "standard" if settings.arr_configured("movie", "uhd") else None,
+            fassungen.serverstufe(settings, "movie"),
         )
 
         heute = datetime.now().strftime("%Y-%m-%d")
@@ -416,7 +423,7 @@ async def _kuratiert_fuer(
         db,
         media_type,
         [e for e in vorschlaege if e.status == "not_requested"],
-        "standard" if settings.arr_configured(media_type.value, "uhd") else None,
+        fassungen.serverstufe(settings, media_type.value),
     )
     uebrig = [
         eintrag

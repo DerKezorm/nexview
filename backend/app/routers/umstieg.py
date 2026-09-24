@@ -403,6 +403,9 @@ async def umschalten(
 
 class NachreichenAntwort(BaseModel):
     gereicht: int
+    #: Freigegeben auf einer Fassung, die nexcrate nicht kennt: kommt nie an.
+    #: Der Assistent sagt es hier, das Dashboard als Befund.
+    liegen: int = 0
     #: Ist noch etwas offen? Dann holt der Rundgang den Rest - der Assistent
     #: muss nicht warten.
     weiter: bool
@@ -422,5 +425,6 @@ async def nachreichen_einmal(admin: AdminUser, db: DbSession) -> NachreichenAntw
     ergebnis = await nachreichen.einmal(db, settings)
     return NachreichenAntwort(
         gereicht=ergebnis.gereicht,
+        liegen=ergebnis.liegen,
         weiter=nachreichen.faellig(load_settings(db, frisch=True)),
     )

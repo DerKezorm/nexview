@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, func, or_, select
 
 from ..models import MediaRequest, RequestStatus
-from .beschaffung import NEX, BeschaffungError, get_beschaffung
+from .beschaffung import NEX, get_beschaffung
 from .settings_service import save_settings
 
 if TYPE_CHECKING:
@@ -111,8 +111,18 @@ async def einmal(db: Session, settings: AppSettings) -> Ergebnis:
     fremden mit in der Auswahl; waren die ältesten ``JE_DURCHGANG`` alle
     fremd, ging nichts durch, und das Nachreichen hielt sich für fertig, bevor
     eine jüngere Anfrage auf einer bekannten Fassung dran war.
+
+    ⚠️ **Fertig ist es erst, wenn nichts Bekanntes mehr offen ist**, nicht
+    schon, wenn in einem Durchgang nichts durchging. Bis zum 24.09.2026 hiess
+    ein 503 oder eine Zeitüberschreitung von nexcrate "fertig", und die
+    gültige Anfrage blieb für immer freigegeben, ohne Befund.
     """
     bekannt = _bekannt(settings)
+    if not bekannt:
+        # Noch nichts gelesen: Dann wäre jede Anfrage "fremd", und das wäre
+        # geraten (dieselbe Regel wie ``fremde_fassung``). Der Merker bleibt,
+        # der nächste Durchgang fragt wieder.
+        return Ergebnis(gereicht=0, liegen=0)
     freigegeben = MediaRequest.status == RequestStatus.approved
     liegen = (
         db.scalar(
@@ -138,14 +148,17 @@ async def einmal(db: Session, settings: AppSettings) -> Ergebnis:
         _fertig(db, settings)
         return Ergebnis(gereicht=0, liegen=liegen)
 
+    from . import requests_service
+
     gereicht = 0
     for anfrage in offen:
         try:
-            from . import requests_service
-
             await requests_service.push_to_arr(db, settings, anfrage)
             gereicht += 1
-        except BeschaffungError as fehler:
+        except requests_service.RequestError as fehler:
+            # So kommt ein Fehler des Wegs hier an: ``push_to_arr`` hat den
+            # Stand der Anfrage schon geschrieben. Ein ungewisser Ausgang
+            # lässt sie freigegeben, der nächste Durchgang versucht es wieder.
             logger.warning(
                 "Could not hand over request %s after the switch: %s",
                 anfrage.id,
@@ -158,9 +171,6 @@ async def einmal(db: Session, settings: AppSettings) -> Ergebnis:
 
     if gereicht:
         logger.info("Handed over %d approved request(s) after the switch", gereicht)
-    if gereicht == 0:
-        # Nichts ging mehr durch. Hier ist Schluss.
-        _fertig(db, settings)
     return Ergebnis(gereicht=gereicht, liegen=liegen)
 
 

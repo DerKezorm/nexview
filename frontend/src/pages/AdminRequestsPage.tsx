@@ -857,7 +857,18 @@ export function AdminRequestsPage() {
                         // Namen, sonst sähe die Anfrage aus wie jede, die
                         // wartet, und käme doch nie an. Erst wenn Fassungen
                         // gelesen sind; vorher wäre jede Zeile "fremd".
-                        if (!fassung && (config?.fassungen ?? []).length > 0) {
+                        // Nur laufende, wie ``nachreichen.LAUFEND``: Geladen
+                        // oder abgebrochen erwartet nichts mehr vom Weg, und
+                        // nach dem Umstieg trüge sonst die ganze Arr-Zeit
+                        // die Warnung.
+                        const laufend =
+                          request.status === "approved" ||
+                          request.status === "searching";
+                        if (
+                          laufend &&
+                          !fassung &&
+                          (config?.fassungen ?? []).length > 0
+                        ) {
                           return (
                             <span
                               className="shrink-0 rounded-full border border-warn-500/50 bg-warn-500/10 px-2 py-0.5 text-xs font-semibold text-warn-500"

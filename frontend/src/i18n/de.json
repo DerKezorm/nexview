@@ -4172,6 +4172,8 @@
     "handedOver_one": "Eine Anfrage nachgereicht.",
     "handedOver_other": "{{count}} Anfragen nachgereicht.",
     "handOverMore": "Es ist noch etwas offen – der nächste Rundgang holt den Rest.",
+    "handOverStuck_one": "Eine freigegebene Anfrage liegt auf einer Fassung, die nexcrate nicht kennt. Übergeben wird sie nie; das Dashboard führt sie als Befund, dort lässt sie sich zurücknehmen.",
+    "handOverStuck_other": "{{count}} freigegebene Anfragen liegen auf einer Fassung, die nexcrate nicht kennt. Übergeben werden sie nie; das Dashboard führt sie als Befund, dort lassen sie sich zurücknehmen.",
     "error": {
       "umstieg_fassung_unbekannt": "Diese bisherige Fassung gibt es nicht.",
       "umstieg_ziel_unbekannt": "Diese nexcrate-Fassung gibt es nicht.",

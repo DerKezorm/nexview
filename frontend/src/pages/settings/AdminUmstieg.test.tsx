@@ -243,4 +243,54 @@ describe('Umstiegsassistent', () => {
     expect(await screen.findByText(/zeigen auf dieselbe Fassung/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /prüfen/i })).toBeDisabled()
   })
+
+  async function bisZumNachreichen(liegen: number) {
+    antworten()
+    vi.mocked(api.post).mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/umstieg/probe') return PROBE as never
+      if (pfad === '/api/umstieg/sicherung') {
+        return { name: 'sicherung.db', groesse: 1, erstellt: '2026-09-24T10:00:00' } as never
+      }
+      if (pfad === '/api/umstieg/umschalten') {
+        return {
+          fassungen: 1, verlassen: [], anfragen: 4, anfragen_ohne_uebersetzung: 0,
+          posten: 40, posten_schluessel: 0, posten_ohne_uebersetzung: 0, posten_doppelt: 0,
+          rechte: 0, rechte_entfallen: 0, einladungen: 0, regeln: 0, zeilen_entfernt: 0,
+        } as never
+      }
+      if (pfad === '/api/umstieg/nachreichen') return { gereicht: 1, weiter: false, liegen } as never
+      return {} as never
+    })
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^weiter$/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /sicherung anlegen/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^weiter$/i })).toBeEnabled()
+    })
+    await userEvent.click(screen.getByRole('button', { name: /^weiter$/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /jetzt umschalten/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /nachreichen/i }))
+    expect(await screen.findByText('Eine Anfrage nachgereicht.')).toBeInTheDocument()
+  }
+
+  it('sagt in Schritt 7, wie viele Anfragen auf einer unbekannten Fassung liegen', async () => {
+    // Bis zum 24.09.2026 stand dort nur die Zahl der übergebenen. Die
+    // liegenden kamen nie an, und niemand sagte es an der Stelle, an der man
+    // gerade nachgesehen hatte.
+    await bisZumNachreichen(3)
+
+    expect(
+      screen.getByText(/3 freigegebene Anfragen liegen auf einer Fassung, die nexcrate nicht kennt/),
+    ).toBeInTheDocument()
+  })
+
+  it('schweigt in Schritt 7, wenn nichts liegt', async () => {
+    await bisZumNachreichen(0)
+
+    expect(screen.queryByText(/nexcrate nicht kennt/)).not.toBeInTheDocument()
+  })
 })

@@ -257,15 +257,47 @@ class Vorrat:
     abgleich: abgleich.Stand
     #: Haengende Downloads je Instanz-Kennung (``download_haenger.zaehlen``).
     haenger: dict[str, int] = field(default_factory=dict)
+    #: Freigaben, die laenger als ``FREIGABE_TAGE`` liegen.
+    freigabe_wartet: int = 0
+    #: Fehlschlaege der letzten ``FEHLGESCHLAGEN_TAGE``.
+    fehlgeschlagen: int = 0
 
 
-def _vorrat_laden(db: Session) -> Vorrat:
+def _anfragen_zaehlen(db: Session, jetzt: datetime) -> tuple[int, int]:
+    """Wartende Freigaben und Fehlschlaege in einer Abfrage.
+
+    ⚠️ **Zwei Zaehlungen, ein Satz.** Die Kachel hat eine feste Abfragezahl
+    (``test_abfragezahl.py``), und der Befund ``nachschub.fremde_fassung``
+    brauchte im NEX-Betrieb eine Abfrage mehr. Die Grenze wird nicht
+    hochgesetzt; der Platz kommt von hier.
+    """
+    freigabe_grenze = jetzt - timedelta(days=FREIGABE_TAGE)
+    fehl_grenze = jetzt - timedelta(days=FEHLGESCHLAGEN_TAGE)
+    zeile = db.execute(
+        select(
+            func.count(MediaRequest.id).filter(
+                MediaRequest.status == RequestStatus.pending_approval,
+                MediaRequest.requested_at < freigabe_grenze,
+            ),
+            func.count(MediaRequest.id).filter(
+                MediaRequest.status == RequestStatus.failed,
+                MediaRequest.requested_at >= fehl_grenze,
+            ),
+        )
+    ).one()
+    return zeile[0] or 0, zeile[1] or 0
+
+
+def _vorrat_laden(db: Session, jetzt: datetime | None = None) -> Vorrat:
+    freigabe_wartet, fehlgeschlagen = _anfragen_zaehlen(db, jetzt or _jetzt())
     return Vorrat(
         staende=instanz_stand.alle(db),
         gesundheit=beschaffung.gesundheit_je_instanz(db),
         webhooks={zeile.kennung: zeile for zeile in db.scalars(select(ArrWebhook))},
         abgleich=abgleich.lesen(db),
         haenger=beschaffung.haenger_je_instanz(db),
+        freigabe_wartet=freigabe_wartet,
+        fehlgeschlagen=fehlgeschlagen,
     )
 
 
@@ -620,16 +652,7 @@ def _nachschub_freigabe_wartet(
     liegen bleiben: Dauerhaft ein "Problem" anzuzeigen, das keins ist, stumpft
     gegen die ab, die zaehlen.
     """
-    grenze = jetzt - timedelta(days=FREIGABE_TAGE)
-    anzahl = (
-        db.scalar(
-            select(func.count(MediaRequest.id)).where(
-                MediaRequest.status == RequestStatus.pending_approval,
-                MediaRequest.requested_at < grenze,
-            )
-        )
-        or 0
-    )
+    anzahl = vorrat.freigabe_wartet
     if not anzahl:
         return []
     return [
@@ -647,16 +670,7 @@ def _nachschub_fehlgeschlagen(
     db: Session, settings: AppSettings, jetzt: datetime, vorrat: Vorrat
 ) -> list[Befund]:
     """Haeufen sich die Fehlschlaege?"""
-    grenze = jetzt - timedelta(days=FEHLGESCHLAGEN_TAGE)
-    anzahl = (
-        db.scalar(
-            select(func.count(MediaRequest.id)).where(
-                MediaRequest.status == RequestStatus.failed,
-                MediaRequest.requested_at >= grenze,
-            )
-        )
-        or 0
-    )
+    anzahl = vorrat.fehlgeschlagen
     if anzahl < FEHLGESCHLAGEN_AB:
         return []
     return [
@@ -689,19 +703,25 @@ def _nachschub_fremde_fassung(
     bedingung = nachreichen.fremde_fassung(settings)
     if bedingung is None:
         return []
-    treffer = list(
-        db.scalars(
-            select(MediaRequest.title).where(bedingung).order_by(MediaRequest.requested_at)
-        )
+    # Anzahl und aeltester Titel in einem Satz, ohne alle Titel zu laden.
+    aeltester = (
+        select(MediaRequest.title)
+        .where(bedingung)
+        .order_by(MediaRequest.requested_at)
+        .limit(1)
+        .scalar_subquery()
     )
-    if not treffer:
+    anzahl, titel = db.execute(
+        select(func.count(MediaRequest.id), aeltester).where(bedingung)
+    ).one()
+    if not anzahl:
         return []
     return [
         Befund(
             kennung="nachschub.fremde_fassung",
             schwere=Schwere.warnung,
             bereich=Bereich.nachschub,
-            werte={"anzahl": len(treffer), "titel": treffer[0]},
+            werte={"anzahl": anzahl, "titel": titel},
             ziel="/admin/requests?filter=fremde_fassung",
         )
     ]
@@ -1142,7 +1162,7 @@ def sammeln(
     """
     jetzt = jetzt or _jetzt()
     # Einmal laden, alle lesen mit - siehe ``Vorrat``.
-    vorrat = _vorrat_laden(db)
+    vorrat = _vorrat_laden(db, jetzt)
     gefunden: list[Befund] = []
     for pruefung in PRUEFUNGEN:
         try:

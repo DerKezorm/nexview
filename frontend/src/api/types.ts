@@ -1327,6 +1327,8 @@ export type UmstiegBericht = {
 /** Schritt 7: was nachgereicht wurde. */
 export type UmstiegNachreichen = {
   gereicht: number;
+  /** Freigegeben auf einer Fassung, die nexcrate nicht kennt. */
+  liegen: number;
   weiter: boolean;
 };
 

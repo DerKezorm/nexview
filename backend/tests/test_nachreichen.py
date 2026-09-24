@@ -18,8 +18,10 @@ import logging
 from collections.abc import Iterator
 from typing import Any
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -86,6 +88,18 @@ def _anfrage(db: Session, person: User, **werte: Any) -> MediaRequest:
     db.add(anfrage)
     db.commit()
     return anfrage
+
+
+def _ohne_fassung(db: Session, anfrage: MediaRequest) -> None:
+    """Eine Zeile ohne Fassung, wie sie aus einer alten Datenbank kommt.
+
+    Neu anlegen lässt das Modell so eine Zeile nicht (``_fassung_pflicht``);
+    die Spalte bekam eine bestehende Installation aber per ``ALTER TABLE``.
+    """
+    db.execute(
+        update(MediaRequest).where(MediaRequest.id == anfrage.id).values(fassung_kennung=None)
+    )
+    db.commit()
 
 
 def _umgeschaltet(db: Session) -> Any:
@@ -171,6 +185,106 @@ def _gesendet(nexcrate: FakeNexcrate) -> list[Any]:
     return [k[3] for k in nexcrate.calls if k[1].endswith("/requests")]
 
 
+@pytest.mark.parametrize("art", ["503", "zeitueberschreitung"])
+async def test_ein_ausfall_von_nexcrate_beendet_das_nachreichen_nicht(
+    art: str, nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """⚠️ Nichts ging durch heisst nicht: nichts mehr zu tun.
+
+    Bis zum 24.09.2026 leerte ein Durchgang ohne eine einzige Übergabe den
+    Merker, auch wenn nexcrate nur gerade nicht antwortete. Die gültige
+    Anfrage blieb danach für immer freigegeben, ohne Befund, denn ihre
+    Fassung ist ja bekannt.
+    """
+    nexcrate.film(603)
+    person = _nutzer(db)
+    gueltig = _anfrage(db, person)
+    frisch = _umgeschaltet(db)
+    if art == "503":
+        nexcrate.next_answer["POST /api/v1/requests"] = httpx.Response(
+            503, json={"detail": {"code": "unavailable", "message": "down"}}
+        )
+    else:
+        nexcrate.next_answer["POST /api/v1/requests"] = httpx.ReadTimeout("zu langsam")
+
+    ergebnis = await nachreichen.einmal(db, frisch)
+
+    assert ergebnis.gereicht == 0
+    db.refresh(gueltig)
+    assert gueltig.status == RequestStatus.approved
+    assert nachreichen.faellig(load_settings(db, frisch=True)) is True
+
+    # Der nächste Durchgang übergibt, was beim ersten nicht ankam.
+    ergebnis = await nachreichen.einmal(db, load_settings(db, frisch=True))
+
+    assert ergebnis.gereicht == 1
+    db.refresh(gueltig)
+    assert gueltig.status == RequestStatus.searching
+
+    # Und erst wenn nichts Bekanntes mehr offen ist, ist Schluss.
+    await nachreichen.einmal(db, load_settings(db, frisch=True))
+    assert nachreichen.faellig(load_settings(db, frisch=True)) is False
+
+
+async def test_ein_ausfall_wird_als_warnung_ohne_stapel_protokolliert(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Ein erwarteter Ausfall ist keine Ausnahme mit Stapelauszug.
+
+    ``push_to_arr`` macht aus dem Fehler des Wegs einen ``RequestError``; der
+    Zweig für ``BeschaffungError`` wurde deshalb nie erreicht, und jeder
+    Ausfall landete mit Stapel als Programmfehler im Protokoll.
+    """
+    nexcrate.film(603)
+    person = _nutzer(db)
+    gueltig = _anfrage(db, person)
+    frisch = _umgeschaltet(db)
+    nexcrate.next_answer["POST /api/v1/requests"] = httpx.Response(
+        503, json={"detail": {"code": "unavailable", "message": "down"}}
+    )
+
+    with caplog.at_level(logging.INFO, logger="nexview.requests"):
+        await nachreichen.einmal(db, frisch)
+
+    zeilen = [
+        zeile
+        for zeile in caplog.records
+        if zeile.getMessage().startswith(f"Could not hand over request {gueltig.id} ")
+    ]
+    assert len(zeilen) == 1, [zeile.getMessage() for zeile in caplog.records]
+    assert zeilen[0].levelno == logging.WARNING
+    assert zeilen[0].exc_info is None
+
+
+async def test_ohne_gelesene_fassungen_bleibt_der_merker_und_schweigt(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Direkt nach dem Umschalten ist nexcrate womöglich noch nicht gelesen.
+
+    Dann wäre jede Anfrage "fremd": Das Nachreichen zählte sie alle als
+    liegend, schrieb das ins Protokoll und erklärte sich für fertig. Die
+    gültigen kamen nie an. Dieselbe Regel wie beim Befund: nichts gelesen
+    heisst nicht alles fremd.
+    """
+    nexcrate.film(603)
+    person = _nutzer(db)
+    gueltig = _anfrage(db, person)
+    _anfrage(db, person, tmdb_id=604, fassung_kennung="radarr-standard")
+    frisch = _umgeschaltet(db)
+    nex_fassungen.vergessen()
+
+    with caplog.at_level(logging.INFO, logger="nexview.requests"):
+        ergebnis = await nachreichen.einmal(db, frisch)
+
+    assert ergebnis.gereicht == 0
+    assert ergebnis.liegen == 0
+    assert [zeile.getMessage() for zeile in caplog.records] == []
+    assert nachreichen.faellig(load_settings(db, frisch=True)) is True
+    db.refresh(gueltig)
+    assert gueltig.status == RequestStatus.approved
+    assert _gesendet(nexcrate) == []
+
+
 # --- Der Befund ---------------------------------------------------------------------
 
 
@@ -194,6 +308,19 @@ async def test_der_befund_zaehlt_auch_suchende_und_keine_wartenden(
     treffer = _befund()
     assert len(treffer) == 1
     assert treffer[0].werte["anzahl"] == 2
+
+
+async def test_ohne_fassung_zaehlt_eine_anfrage_als_fremd(nex: Any, db: Session) -> None:
+    """Auch für eine Anfrage ohne Fassung gibt es keinen Weg.
+
+    ``NOT IN`` allein liesse NULL stillschweigend fallen.
+    """
+    person = _nutzer(db)
+    _ohne_fassung(db, _anfrage(db, person, title="Erfundener Film ohne Fassung"))
+
+    treffer = _befund()
+    assert len(treffer) == 1
+    assert treffer[0].werte == {"anzahl": 1, "titel": "Erfundener Film ohne Fassung"}
 
 
 async def test_der_befund_verschwindet_nach_dem_zuruecknehmen(
@@ -250,3 +377,39 @@ async def test_die_anfragenliste_filtert_genau_diese(
 
     assert antwort.status_code == 200, antwort.text
     assert [zeile["id"] for zeile in antwort.json()] == [fremd.id]
+
+
+def test_die_anfragenliste_filtert_im_arr_betrieb_nichts(arr_client: TestClient) -> None:
+    """Im ARR-Betrieb schweigt der Befund, und der Filter liefert dann nichts.
+
+    Ein Filter, der hier alles zeigte, würde jede laufende Anfrage als
+    "Fassung gibt es nicht" ausgeben.
+    """
+    with SessionLocal() as sitzung:
+        person = _nutzer(sitzung)
+        _anfrage(sitzung, person, tmdb_id=1, fassung_kennung="radarr-uhd")
+        _anfrage(sitzung, person, tmdb_id=2, fassung_kennung="radarr-standard")
+
+    alle = arr_client.get("/api/admin/requests")
+    gefiltert = arr_client.get("/api/admin/requests?fremde_fassung=true")
+
+    assert len(alle.json()) == 2
+    assert gefiltert.status_code == 200, gefiltert.text
+    assert gefiltert.json() == []
+
+
+async def test_die_adresse_des_assistenten_nennt_was_liegt(
+    admin_client: TestClient, nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Schritt 7 des Assistenten sah bisher nur, was ankam, nicht was liegt."""
+    nexcrate.film(603)
+    person = _nutzer(db)
+    _anfrage(db, person)
+    _anfrage(db, person, tmdb_id=604, fassung_kennung="radarr-standard")
+    _anfrage(db, person, tmdb_id=605, fassung_kennung="radarr-uhd")
+    _umgeschaltet(db)
+
+    antwort = admin_client.post("/api/umstieg/nachreichen")
+
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json() == {"gereicht": 1, "liegen": 2, "weiter": True}

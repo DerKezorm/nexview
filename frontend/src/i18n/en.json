@@ -4172,6 +4172,8 @@
     "handedOver_one": "One request handed over.",
     "handedOver_other": "{{count}} requests handed over.",
     "handOverMore": "Something is still open – the next round picks up the rest.",
+    "handOverStuck_one": "One approved request sits on a version nexcrate does not know. It will never be handed over; the dashboard lists it as a finding, where it can be cancelled.",
+    "handOverStuck_other": "{{count}} approved requests sit on a version nexcrate does not know. They will never be handed over; the dashboard lists them as a finding, where they can be cancelled.",
     "error": {
       "umstieg_fassung_unbekannt": "There is no such current version.",
       "umstieg_ziel_unbekannt": "There is no such nexcrate version.",

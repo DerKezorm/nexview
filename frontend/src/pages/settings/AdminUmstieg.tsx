@@ -515,6 +515,15 @@ export function AdminUmstieg() {
           {nachreichen.data?.weiter && (
             <p className="text-sm text-mist-400">{t("umstieg.handOverMore")}</p>
           )}
+          {/* Was liegt, kommt nie an. Das sagt der Assistent hier, wo man
+              gerade nachsieht, und nicht erst das Dashboard. */}
+          {(nachreichen.data?.liegen ?? 0) > 0 && (
+            <p className="max-w-3xl text-sm text-amber-300">
+              {t("umstieg.handOverStuck", {
+                count: nachreichen.data?.liegen ?? 0,
+              })}
+            </p>
+          )}
           {/* ⚠️ **Ein Fenster braucht einen sichtbaren Ausgang.** „Schritt 7
               von 7" endete hier im Nichts: kein Knopf, kein Weg zurück. Der
               Betreiber fragte, warum es nicht weitergeht - es ging schon

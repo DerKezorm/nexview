@@ -17,13 +17,19 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 
 from app.db import SessionLocal, engine
-from app.models import MediaRequest, RequestStatus
+from app.models import MediaRequest, MediaType, RequestStatus, Role, User
+from app.security import hash_password
+from app.services import befunde
+from app.services.beschaffung import NEX
+from app.services.settings_service import load_settings
 
 from .conftest import auth_headers, create_user
+from .test_nex_lesen import db, nex, nexcrate  # noqa: F401 - Fixtures des NEX-Betriebs
 
 # Zielzahlen samt Luft. Gemessen nach dem Umbau: 11 fuer die Anfrageliste,
 # 9 fuer die Benutzerliste, 26 fuer die Kachel (an der echten Datenbank mit
@@ -172,4 +178,44 @@ def test_dashboard_kachel_hat_feste_abfragezahl(arr_client: TestClient) -> None:
     assert antwort.status_code == 200
     assert len(saetze) <= DASHBOARD_HOECHSTENS, (
         f"{len(saetze)} Abfragen fuer die Kachel:\n" + "\n".join(saetze)
+    )
+
+
+@pytest.mark.usefixtures("nex")
+def test_dashboard_kachel_hat_im_nex_betrieb_dieselbe_abfragezahl(
+    admin_client: TestClient,
+) -> None:
+    """Dieselbe Grenze im NEX-Betrieb, mit einer Anfrage auf fremder Fassung.
+
+    Bis zum 24.09.2026 wurde die Kachel nur im ARR-Betrieb gezaehlt; der
+    Befund ``nachschub.fremde_fassung`` hob sie im NEX-Betrieb unbemerkt auf
+    29. Die fremde Anfrage steht hier, damit der Befund wirklich anschlaegt:
+    Eine Pruefung, die still ausfaellt, spart Abfragen und saehe gruen aus.
+    """
+    with SessionLocal() as sitzung:
+        person = User(username="zaehler", password_hash=hash_password("test"), role=Role.user)
+        sitzung.add(person)
+        sitzung.commit()
+        sitzung.add(
+            MediaRequest(
+                user_id=person.id,
+                media_type=MediaType.movie,
+                tmdb_id=4711,
+                title="Erfundener Film",
+                fassung_kennung="radarr-standard",
+                status=RequestStatus.approved,
+            )
+        )
+        sitzung.commit()
+
+    with _gezaehlt() as saetze:
+        antwort = admin_client.get("/api/v1/dashboard")
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["beschaffung"] == NEX
+    assert antwort.json()["befunde"]["warnung"] >= 1
+    with SessionLocal() as sitzung:
+        gefunden = befunde.sammeln(sitzung, load_settings(sitzung, frisch=True))
+    assert "nachschub.fremde_fassung" in [b.kennung for b in gefunden]
+    assert len(saetze) <= DASHBOARD_HOECHSTENS, (
+        f"{len(saetze)} Abfragen fuer die Kachel im NEX-Betrieb:\n" + "\n".join(saetze)
     )

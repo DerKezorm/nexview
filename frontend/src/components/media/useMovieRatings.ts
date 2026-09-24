@@ -51,21 +51,32 @@ export function useMovieRatings(
   return query.data ?? {}
 }
 
-/** Alle Sätze der geladenen Wertungen, jeder einmal, als ein Text je Zeile. */
+/**
+ * Die Sätze der Wertungen, die gerade auf der Seite stehen, jeder einmal, als
+ * ein Text je Zeile.
+ *
+ * Nur Abfragen mit Beobachter zählen: Eine verlassene Seite bleibt noch
+ * Minuten im Zwischenspeicher. Was die Titelseite selbst abfragt (`einzeln`),
+ * nennt sie schon unter ihren Werten; diese Sätze fallen hier weg, sonst
+ * stünden sie dort zweimal.
+ */
 function nennungen(cache: QueryCache): string {
-  const saetze = new Set<string>()
+  const unten = new Set<string>()
+  const oben = new Set<string>()
   for (const abfrage of cache.findAll({ queryKey: [WERTUNGEN] })) {
+    if (abfrage.getObserversCount() === 0) continue
+    const ziel = abfrage.queryKey[2] === true ? oben : unten
     const daten = abfrage.state.data as Record<number, MovieRatings> | undefined
     for (const wertung of Object.values(daten ?? {})) {
-      for (const satz of wertung.attribution ?? []) saetze.add(satz)
+      for (const satz of wertung.attribution ?? []) ziel.add(satz)
     }
   }
-  return [...saetze].join('\n')
+  return [...unten].filter((satz) => !oben.has(satz)).join('\n')
 }
 
 /**
  * Die Namensnennung für die Fußzeile: was die Quelle zu den Wertungen
- * verlangt, die gerade geladen sind.
+ * verlangt, die gerade auf der Seite stehen.
  *
  * Karten und Listenzeilen haben keinen Platz für den Satz; IMDb verlangt ihn
  * trotzdem dort, wo die Werte stehen. Er kommt wörtlich von nexcrate. Im

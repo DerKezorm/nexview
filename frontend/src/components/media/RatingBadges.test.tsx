@@ -11,7 +11,8 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('../../api/client', async () => {
   const echt = await vi.importActual<typeof import('../../api/client')>('../../api/client')
@@ -124,4 +125,50 @@ describe('WertungsNennung', () => {
     const { container } = rendernSchlicht(<WertungsNennung />)
     expect(container).toBeEmptyDOMElement()
   })
+
+  it('lässt weg, was die Titelseite schon unter ihren Werten nennt', async () => {
+    // Titelseite eines Films: oben die Einzelansicht mit IMDb, unten Kacheln
+    // mit IMDb und OMDb. Unten bleibt nur, was oben fehlt (Prüfer, 24.09.2026).
+    holen.mockReset()
+    holen.mockImplementation(async (pfad: string) =>
+      pfad.includes('detail=true') ? { 603: wertung([IMDB]) } : { 604: wertung([IMDB, OMDB]) },
+    )
+    rendernSchlicht(
+      <>
+        <Titel />
+        <Kachel />
+        <WertungsNennung />
+      </>,
+    )
+    expect(await screen.findByText(OMDB)).toBeInTheDocument()
+    expect(screen.queryByText(IMDB, { exact: false })).not.toBeInTheDocument()
+  })
+
+  it('vergisst eine verlassene Seite, auch wenn ihre Wertungen noch im Speicher liegen', async () => {
+    holen.mockReset()
+    holen.mockResolvedValue({ 604: wertung([IMDB]) })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const seite = (mitKachel: boolean) => (
+      <QueryClientProvider client={client}>
+        {mitKachel && <Kachel />}
+        <WertungsNennung />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(seite(true))
+    expect(await screen.findByText(IMDB)).toBeInTheDocument()
+
+    rerender(seite(false))
+    await waitFor(() => expect(screen.queryByText(IMDB)).not.toBeInTheDocument())
+    expect(client.getQueryCache().findAll({ queryKey: ['movie-ratings'] })).toHaveLength(1)
+  })
 })
+
+function Titel() {
+  useMovieRatings([{ media_type: 'movie', tmdb_id: 603 }], { einzeln: true })
+  return null
+}
+
+function Kachel() {
+  useMovieRatings([{ media_type: 'movie', tmdb_id: 604 }])
+  return null
+}

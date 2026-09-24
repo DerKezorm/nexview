@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from ....models import ArrGesundheit, NotificationType, utcnow
 from ... import notify
+from . import mapping
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -27,6 +28,36 @@ logger = logging.getLogger("nexview.nexcrate")
 
 #: Welche Stufen überhaupt als Problem gelten. ``info`` ist keins.
 STUFEN = frozenset({"error", "warning"})
+
+#: Kennungen, deren Text unter ``nexcrate.health`` ohne Platzhalter auskommt.
+#: Nur sie taugen als ``message_key`` der Glocke; die zeigt keine Werte.
+#: ``test_die_glocke_hat_jeden_text`` haelt die Liste an den Sprachdateien.
+GLOCKE = frozenset(
+    {
+        "indexer_none",
+        "download_client_none",
+        "tmdb_token_missing",
+        "automatic_off",
+        "automatic_off_movie",
+        "automatic_off_series",
+        "version_not_ready",
+        "nexcrate_wuensche_warten",
+        "nexcrate_ohne_anime",
+    }
+)
+
+
+def glockentext(problem: dict[str, Any]) -> str:
+    """Der ``message_key`` der Glocke: die Kennung, sonst der allgemeine Satz.
+
+    ⚠️ **Nie nexcrates Satz**, auch nicht im Titel (Rundgang-Befund 5).
+    """
+    code = str(problem.get("code") or "")
+    kind = (problem.get("params") or {}).get("kind")
+    for kandidat in (f"{code}_{kind}" if kind else "", code):
+        if kandidat in GLOCKE:
+            return f"nexcrate.health.{kandidat}"
+    return "notifications.instanceHealth_nex"
 
 
 def verdichten(roh: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -44,6 +75,11 @@ def verdichten(roh: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not code or str(eintrag.get("level") or "") not in STUFEN:
             continue
         werte = eintrag.get("params") or {}
+        # Musik fuehrt Nexview nicht. nexcrate meldet ``automatic_off`` je Art,
+        # auch ``album``, und daraus wurde „Die Automatik ist aus“, obwohl
+        # Filme und Serien an waren (Rundgang-Befund 5).
+        if werte.get("kind") and mapping.art(str(werte["kind"])) not in mapping.EIGENE_ARTEN:
+            continue
         teile = [code]
         # ⚠️ ``art`` und ``recht`` gehoeren dazu: Die Standpruefung meldet
         # ``nexcrate_ohne_medienart`` je Medienart und ``nexcrate_recht_fehlt``
@@ -101,8 +137,9 @@ async def pruefen(db: Session, settings: AppSettings, kennung: str, name: str) -
             kind=NotificationType.instanz_gesundheit,
             # Nicht der Schluessel des Arr-Wegs: Dessen Text sagt "Radarr/Sonarr
             # meldet ein Problem", und einen Platzhalter traegt die Glocke nicht.
-            message_key="notifications.instanceHealth_nex",
-            title=f"{name}: {problem['text']}",
+            # Der Titel ist nur der Name: nexcrates Satz ist englisch.
+            message_key=glockentext(problem),
+            title=name,
         )
 
     zeile.stand = jetzt

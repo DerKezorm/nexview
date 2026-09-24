@@ -69,7 +69,7 @@ from . import (
     sicherung,
     updates,
 )
-from .beschaffung import get_beschaffung
+from .beschaffung import gesundheit_nach_aussen, get_beschaffung
 from .settings_service import AppSettings
 
 logger = logging.getLogger("nexview.befunde")
@@ -356,6 +356,7 @@ def _dienst_meldet_problem(
         zeile = vorrat.gesundheit.get(instanz.kennung)
         for problem in (zeile.stand if zeile else None) or []:
             typ = str(problem.get("typ") or "warning").lower()
+            aussen = gesundheit_nach_aussen(problem)
             ergebnis.append(
                 Befund(
                     kennung="dienst.meldet_problem",
@@ -363,8 +364,11 @@ def _dienst_meldet_problem(
                     # nachsichtig als Warnung gelesen statt verworfen.
                     schwere=Schwere.fehler if typ == "error" else Schwere.warnung,
                     bereich=Bereich.dienste,
-                    werte={"instanz": instanz.name},
-                    wortlaut=str(problem.get("text") or ""),
+                    # Mit Kennung uebersetzt die Oberflaeche (``code``, Werte);
+                    # nexcrates Satz geht nicht hinaus (Rundgang-Befund 5).
+                    werte={"instanz": instanz.name}
+                    | ({"code": aussen["code"], **aussen["params"]} if aussen["code"] else {}),
+                    wortlaut=aussen["text"] or None,
                     ziel=_dienst_ziel(instanz),
                     zusatz=f"{instanz.kennung}|{problem.get('schluessel') or ''}",
                 )

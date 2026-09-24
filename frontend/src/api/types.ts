@@ -2190,8 +2190,11 @@ export interface WebhookProbe {
 /** Was eine Instanz selbst als Problem meldet (GET /api/settings/instanzen/gesundheit). */
 export interface GesundheitProblem {
   typ: string;
-  /** Wortlaut der Instanz – bewusst unübersetzt. */
+  /** Wortlaut von Radarr/Sonarr, bewusst unübersetzt. Leer, wenn `code` steht. */
   text: string;
+  /** Kennung eines nexcrate-Befunds; übersetzt mit `gesundheitsText`. */
+  code?: string | null;
+  params?: Record<string, unknown>;
 }
 
 export interface GesundheitInstanz {
@@ -2644,8 +2647,11 @@ export interface DashboardStand {
 
 export interface GesundheitsMeldung {
   typ: string;
-  /** Wortlaut der Instanz — bleibt englisch, es ist ihre Aussage. */
+  /** Wortlaut von Radarr/Sonarr, bleibt englisch. Leer, wenn `code` steht. */
   text: string;
+  /** Kennung eines nexcrate-Befunds; übersetzt mit `gesundheitsText`. */
+  code?: string | null;
+  params?: Record<string, unknown>;
 }
 
 export interface InstanzZeile {

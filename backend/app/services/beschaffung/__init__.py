@@ -278,6 +278,23 @@ def gesundheit_je_instanz(db: Session) -> dict:
     return _weg().gesundheit_je_instanz(db)
 
 
+def gesundheit_nach_aussen(problem: dict[str, Any]) -> dict[str, Any]:
+    """Ein gemerkter Gesundheitsbefund, wie er die Oberflaeche erreicht.
+
+    ⚠️ **Mit Kennung kein Satz.** Radarr und Sonarr liefern nur einen Satz, und
+    der geht im Wortlaut hinaus. nexcrates Befunde tragen eine Kennung samt
+    Werten; die Oberflaeche uebersetzt sie. nexcrates englischer Satz stand
+    sonst wörtlich in der deutschen Oberflaeche (Rundgang-Befund 5).
+    """
+    code = str(problem.get("code") or "")
+    return {
+        "typ": str(problem.get("typ") or "warning"),
+        "text": "" if code else str(problem.get("text") or ""),
+        "code": code or None,
+        "params": dict(problem.get("params") or {}) if code else {},
+    }
+
+
 def haenger_je_instanz(db: Session) -> dict[str, int]:
     """Haengende Downloads je Instanz-Kennung."""
     return _weg().haenger_je_instanz(db)

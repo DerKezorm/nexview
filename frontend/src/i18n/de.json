@@ -4095,6 +4095,8 @@
       "download_client_none": "Kein Download-Programm ist verbunden und eingeschaltet.",
       "tmdb_token_missing": "In nexcrate ist kein TMDB-Token hinterlegt.",
       "automatic_off": "Die Automatik ist aus; von selbst lädt nichts.",
+      "automatic_off_movie": "Die Automatik für Filme ist aus; von selbst lädt nichts.",
+      "automatic_off_series": "Die Automatik für Serien ist aus; von selbst lädt nichts.",
       "version_not_ready": "Eine Fassung ist nicht bereit.",
       "nexcrate_vertrag_fremd": "Diese nexcrate spricht Vertrag {{major}}; Nexview ist gegen {{erwartet}} gebaut. Weitermachen hieße raten.",
       "nexcrate_zu_alt": "Diese nexcrate steht auf {{stage}}; Nexview braucht mindestens {{erwartet}}.",

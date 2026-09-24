@@ -279,7 +279,10 @@ async def instanzen_verbindung(admin: AdminUser, db: DbSession) -> VerbindungSta
 
 class GesundheitProblem(BaseModel):
     typ: str
+    #: Leer, wenn ``code`` steht: dann uebersetzt die Oberflaeche.
     text: str
+    code: str | None = None
+    params: dict[str, Any] = {}
 
 
 class GesundheitInstanz(BaseModel):
@@ -308,9 +311,7 @@ def instanzen_gesundheit(admin: AdminUser, db: DbSession) -> GesundheitStand:
                 kennung=instanz.kennung,
                 name=instanz.name,
                 probleme=[
-                    GesundheitProblem(
-                        typ=str(p.get("typ") or "warning"), text=str(p.get("text") or "")
-                    )
+                    GesundheitProblem(**beschaffung.gesundheit_nach_aussen(p))
                     for p in getattr(stand.get(instanz.kennung), "stand", None) or []
                 ],
                 aktualisiert_am=getattr(stand.get(instanz.kennung), "aktualisiert_am", None),

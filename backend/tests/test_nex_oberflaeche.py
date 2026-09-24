@@ -457,3 +457,40 @@ def test_ein_gescheiterter_download_laeuft_nicht(
     assert [zeile["titel"] for zeile in daten["laufend"]] == ["Example 1"]
     assert [zeile["titel"] for zeile in daten["haenger"]] == ["Example 4"]
     assert daten["gescheitert"] == 2
+
+
+# --------------------------------------------------------------------------
+# Gesundheit ohne nexcrates Satz (Rundgang-Befund 5)
+
+
+def test_gesundheit_geht_als_kennung_hinaus(nex_client_admin: TestClient) -> None:
+    """Dienste-Seite und Analyse bekamen nexcrates englischen Satz. Mit
+    Kennung geht kein Satz hinaus, nur Kennung und Werte."""
+    from app.db import SessionLocal
+    from app.models import ArrGesundheit
+
+    with SessionLocal() as db:
+        db.add(
+            ArrGesundheit(
+                kennung="nexcrate",
+                stand=[
+                    {
+                        "schluessel": "automatic_off:movie",
+                        "typ": "warning",
+                        "text": "The automatic for movie is off; nothing loads by itself.",
+                        "code": "automatic_off",
+                        "params": {"kind": "movie"},
+                    }
+                ],
+            )
+        )
+        db.commit()
+
+    gesundheit = nex_client_admin.get("/api/settings/instanzen/gesundheit").json()
+    analyse = nex_client_admin.get("/api/admin/analyse").json()
+
+    erwartet = {"typ": "warning", "text": "", "code": "automatic_off", "params": {"kind": "movie"}}
+    assert gesundheit["instanzen"][0]["probleme"] == [erwartet]
+    zeilen = [z for z in analyse["instanzen"] if z["kennung"] == "nexcrate"]
+    assert zeilen[0]["meldungen"] == [erwartet]
+    assert "automatic for" not in str(gesundheit) + str(analyse)

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { api } from "../../api/client";
 import type { GesundheitStand } from "../../api/types";
+import { gesundheitsText } from "../../lib/weg";
 
 /**
  * Was die Instanz selbst als Problem meldet – der Warnkasten im Instanz-Block.
@@ -30,8 +31,10 @@ export function InstanzGesundheit({ kennung }: { kennung: string }) {
     <div className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
       <p className="font-semibold">{t("settings.instanceReports")}</p>
       <ul className="mt-1 list-disc pl-4">
-        {zeile.probleme.map((problem) => (
-          <li key={problem.text}>{problem.text}</li>
+        {zeile.probleme.map((problem, index) => (
+          <li key={index}>
+            {problem.code ? gesundheitsText(t, problem.code, problem.params) : problem.text}
+          </li>
         ))}
       </ul>
     </div>

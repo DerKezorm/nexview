@@ -1,4 +1,25 @@
+import type { TFunction } from 'i18next'
+
 import type { AppConfig } from '../api/types'
+
+/**
+ * Ein Gesundheitsbefund aus nexcrate, übersetzt über seine Kennung.
+ *
+ * ⚠️ Nie nexcrates Satz: Der ist englisch und stand wörtlich in der deutschen
+ * Oberfläche (Rundgang-Befund 5). `automatic_off` kommt je Art; die Art wählt
+ * über den Kontext den Text (`automatic_off_movie`), sonst gilt der Grundtext.
+ */
+export function gesundheitsText(
+  t: TFunction,
+  code: string,
+  params: Record<string, unknown> = {},
+): string {
+  return t(`nexcrate.health.${code}`, {
+    ...params,
+    context: typeof params.kind === 'string' ? params.kind : undefined,
+    defaultValue: code,
+  })
+}
 
 /**
  * Texte, die den Beschaffungsweg beim Namen nennen.

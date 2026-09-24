@@ -9,6 +9,7 @@ import { ErrorBanner, Section, Spinner } from "../../components/ui";
 import { FassungsZeile } from "../../components/FassungsZeile";
 import { FassungsRechte } from "../../components/FassungsRechte";
 import { useConfig } from "../../hooks/useConfig";
+import { gesundheitsText } from "../../lib/weg";
 
 /** Die beiden Betriebsarten, in der Reihenfolge der Seite. */
 const MODI: Beschaffung[] = ["arr", "nex"];
@@ -193,10 +194,8 @@ export function AdminNexcrateSettings({ zumUmstieg }: { zumUmstieg?: () => void 
                 <div>
                   <p className="font-medium text-mist-100">{t("nexcrate.healthTitle")}</p>
                   <ul className="mt-2 flex flex-col gap-1 text-sm text-mist-300">
-                    {stand.probleme.map((problem) => (
-                      <li key={problem.code}>
-                        {t(`nexcrate.health.${problem.code}`, { defaultValue: problem.code })}
-                      </li>
+                    {stand.probleme.map((problem, index) => (
+                      <li key={index}>{gesundheitsText(t, problem.code, problem.params)}</li>
                     ))}
                   </ul>
                 </div>

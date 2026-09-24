@@ -6,6 +6,7 @@ import type { AnalyseStand, InstanzZeile } from '../../api/types'
 import { BereichsBefunde } from '../../components/BereichsBefunde'
 import { Card, Kennzahl } from '../../components/ui'
 import { formatDate, formatSize } from '../../lib/format'
+import { gesundheitsText } from '../../lib/weg'
 
 /**
  * Reiter „Dienste" — je Instanz eine Karte.
@@ -120,8 +121,10 @@ function InstanzKarte({ instanz }: { instanz: InstanzZeile }) {
             {t('settings.instanceReports')}
           </p>
           <ul className="mt-1 list-disc pl-4 text-xs leading-relaxed text-mist-500">
-            {instanz.meldungen.map((meldung) => (
-              <li key={meldung.text}>{meldung.text}</li>
+            {instanz.meldungen.map((meldung, index) => (
+              <li key={index}>
+                {meldung.code ? gesundheitsText(t, meldung.code, meldung.params) : meldung.text}
+              </li>
             ))}
           </ul>
         </div>

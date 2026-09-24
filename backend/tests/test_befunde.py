@@ -323,6 +323,31 @@ def test_instanz_meldung_kommt_im_wortlaut(arr_client: TestClient) -> None:
     assert treffer[0].werte["instanz"]
 
 
+def test_eine_meldung_mit_kennung_geht_ohne_satz_hinaus(arr_client: TestClient) -> None:
+    """Rundgang-Befund 5: nexcrates englischer Satz stand im deutschen
+    Dashboard. Eine Meldung mit Kennung geht als Kennung und Werte hinaus; die
+    Oberflaeche uebersetzt."""
+    _gesundheit(
+        "radarr-standard",
+        [
+            {
+                "schluessel": "automatic_off:movie",
+                "typ": "warning",
+                "text": "The automatic for movie is off; nothing loads by itself.",
+                "code": "automatic_off",
+                "params": {"kind": "movie"},
+            }
+        ],
+    )
+
+    treffer = _sammeln("dienst.meldet_problem")
+    assert len(treffer) == 1
+    assert treffer[0].wortlaut is None
+    assert treffer[0].werte["code"] == "automatic_off"
+    assert treffer[0].werte["kind"] == "movie"
+    assert treffer[0].werte["instanz"]
+
+
 def test_unbekannter_typ_gilt_als_warnung(arr_client: TestClient) -> None:
     """Nachsichtig lesen statt verwerfen - die Feldwerte sind fremdes Gebiet."""
     _gesundheit("radarr-standard", [{"typ": "notice", "text": "Etwas"}])

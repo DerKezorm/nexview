@@ -20,7 +20,7 @@ import asyncio
 import logging
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
@@ -55,8 +55,11 @@ logger = logging.getLogger("nexview.mediaserver")
 
 class GesundheitsMeldung(BaseModel):
     typ: str
-    #: Wortlaut der Instanz - bleibt englisch, es ist ihre Aussage.
+    #: Wortlaut von Radarr/Sonarr - bleibt englisch, es ist ihre Aussage.
+    #: Leer, wenn ``code`` steht: dann uebersetzt die Oberflaeche.
     text: str
+    code: str | None = None
+    params: dict[str, Any] = {}
 
 
 class InstanzZeile(BaseModel):
@@ -174,9 +177,7 @@ def _instanzen(db, settings) -> list[InstanzZeile]:
                 luecken=luecken.get("fehlend"),
                 luecken_einheit=luecken.get("einheit"),
                 meldungen=[
-                    GesundheitsMeldung(
-                        typ=str(p.get("typ") or "warning"), text=str(p.get("text") or "")
-                    )
+                    GesundheitsMeldung(**beschaffung.gesundheit_nach_aussen(p))
                     for p in (gesundheit.stand if gesundheit else None) or []
                 ],
                 rueckkanal_aktiv=bool(webhook.aktiv) if webhook else False,

@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 
 import type { Befund, BefundBereich, BefundSchwere } from '../api/types'
 import { formatSize } from '../lib/format'
+import { gesundheitsText } from '../lib/weg'
 import { Symbol } from './Symbol'
 
 /**
@@ -91,6 +92,12 @@ function Zeile({ befund }: { befund: Befund }) {
         <p className="mt-0.5 text-sm text-mist-500">
           {t(`befund.${befund.kennung}.folge`, { ...werte, ...weg })}
         </p>
+        {/* Ein Befund aus nexcrate kommt als Kennung (Rundgang-Befund 5). */}
+        {typeof befund.werte.code === 'string' && (
+          <p className="mt-2 border-l-2 border-ink-700 pl-3 text-xs text-mist-600">
+            {gesundheitsText(t, befund.werte.code, befund.werte)}
+          </p>
+        )}
         {befund.wortlaut && (
           // Der Wortlaut von Radarr/Sonarr, unübersetzt. Als Zitat gesetzt,
           // damit man sieht: Das sagt die Instanz, nicht Nexview.

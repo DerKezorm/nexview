@@ -399,30 +399,67 @@ async def test_die_glocke_nennt_nexcrate_nicht_radarr(
 ) -> None:
     """Die Meldung kam mit dem Schluessel des Arr-Wegs: "Radarr/Sonarr meldet ein Problem".
 
-    Ein Platzhalter geht in der Glocke nicht (dort stuenden die Klammern
-    woertlich), also schickt der NEX-Weg einen eigenen Schluessel - und den
-    muss es in beiden Sprachen geben.
+    ⚠️ **Nie nexcrates Satz, auch nicht im Titel** (Rundgang-Befund 5): Der
+    Titel war ``"nexcrate: <englischer Satz>"``. Jetzt traegt die Glocke die
+    Kennung als Schluessel, wo ihr Text ohne Platzhalter auskommt, sonst den
+    allgemeinen Satz; der Titel ist nur der Name.
     """
-    import json
-    from pathlib import Path
-
     from app.models import Notification
 
     db.add(User(username="chef", password_hash=hash_password("test"), role=Role.admin))
     db.commit()
     nexcrate.health = [
         {"code": "indexer_none", "level": "error", "message": "No indexer.", "params": {}},
+        {"code": "automatic_off", "level": "warning", "message": "The automatic for movie is off.",
+         "params": {"kind": "movie"}},
+        {"code": "brandneu", "level": "warning", "message": "Something new.", "params": {}},
     ]
 
     await get_beschaffung(nex).gesundheit_pruefen(db)
 
-    schluessel = {meldung.message_key for meldung in db.query(Notification).all()}
-    assert schluessel == {"notifications.instanceHealth_nex"}
+    meldungen = db.query(Notification).order_by(Notification.id).all()
+    assert [m.message_key for m in meldungen] == [
+        "nexcrate.health.indexer_none",
+        "nexcrate.health.automatic_off_movie",
+        "notifications.instanceHealth_nex",
+    ]
+    assert {m.message_title for m in meldungen} == {"nexcrate"}
+
+
+def test_die_glocke_hat_jeden_text() -> None:
+    """Jeder Schluessel, den die Glocke bekommen kann, steht in beiden Sprachen
+    und ohne Platzhalter: Die Glocke zeigt keine Werte."""
+    import json
+    from pathlib import Path
+
+    from app.services.beschaffung.nex import gesundheit
+
     sprachen = Path(__file__).resolve().parents[2] / "frontend" / "src" / "i18n"
     for sprache in ("de", "en"):
         texte = json.loads((sprachen / f"{sprache}.json").read_text(encoding="utf-8"))
-        text = texte["notifications"]["instanceHealth_nex"]
-        assert "nexcrate" in text and "Radarr" not in text, (sprache, text)
+        assert len(gesundheit.GLOCKE) >= 8
+        for kennung in gesundheit.GLOCKE:
+            text = texte["nexcrate"]["health"][kennung]
+            assert text and "{{" not in text, (sprache, kennung)
+        allgemein = texte["notifications"]["instanceHealth_nex"]
+        assert "nexcrate" in allgemein and "Radarr" not in allgemein, (sprache, allgemein)
+
+
+async def test_musik_meldet_nexview_nichts(nex: Any, nexcrate: FakeNexcrate, db: Session) -> None:
+    """Rundgang-Befund 5: nexcrate meldet ``automatic_off`` je Art, auch fuer
+    ``album``; Nexview zeigte daraus „Die Automatik ist aus“, obwohl Filme und
+    Serien an waren. Musik fuehrt Nexview nicht."""
+    nexcrate.health = [
+        {"code": "automatic_off", "level": "warning", "message": "music off", "params": {"kind": "album"}},
+        {"code": "automatic_off", "level": "warning", "message": "off", "params": {"kind": "series"}},
+        {"code": "indexer_none", "level": "error", "message": "No indexer.", "params": {}},
+    ]
+
+    await get_beschaffung(nex).gesundheit_pruefen(db)
+
+    zeile = db.get(ArrGesundheit, 1)
+    assert zeile is not None
+    assert [p["schluessel"] for p in zeile.stand] == ["automatic_off:series", "indexer_none"]
 
 
 async def test_nur_was_den_betreiber_braucht_wird_ein_haenger(

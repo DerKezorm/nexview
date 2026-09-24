@@ -4095,6 +4095,8 @@
       "download_client_none": "No download client is connected and switched on.",
       "tmdb_token_missing": "No TMDB token is stored in nexcrate.",
       "automatic_off": "The automatic is off; nothing loads by itself.",
+      "automatic_off_movie": "The automatic for movies is off; nothing loads by itself.",
+      "automatic_off_series": "The automatic for series is off; nothing loads by itself.",
       "version_not_ready": "A version is not ready.",
       "nexcrate_vertrag_fremd": "This nexcrate speaks contract {{major}}; Nexview is built for {{erwartet}}. Going on would mean guessing.",
       "nexcrate_zu_alt": "This nexcrate is at {{stage}}; Nexview needs at least {{erwartet}}.",

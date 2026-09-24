@@ -70,6 +70,10 @@ function antworten(abbildung: UmstiegAbbildung = ABBILDUNG) {
 describe('Umstiegsassistent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // ⚠️ Die Attrappe aus test/globals.ts ist eine einzige Map je Testdatei,
+    // nicht je Test - ohne das liest ein späterer Test die Abbildung eines
+    // früheren.
+    sessionStorage.clear()
   })
 
   it('nennt die Zahlen und sagt vorher, dass es keinen Rückweg gibt', async () => {
@@ -338,5 +342,205 @@ describe('Umstiegsassistent', () => {
     await bisZumNachreichen(0)
 
     expect(screen.queryByText(/nexcrate nicht kennt/)).not.toBeInTheDocument()
+  })
+})
+
+describe('Umstiegsassistent: Reload während des Umstiegs (C6)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+  })
+
+  function beforeUnloadAusloesen(): Event {
+    const ereignis = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(ereignis)
+    return ereignis
+  }
+
+  it('warnt vor dem Verlassen erst ab der Sicherung, nicht davor', async () => {
+    antworten()
+    vi.mocked(api.post).mockResolvedValue(PROBE as never)
+    rendernSchlicht(<AdminUmstieg />)
+
+    // Schritt 1: vorab.
+    expect(beforeUnloadAusloesen().defaultPrevented).toBe(false)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    // Schritt 2: verbinden.
+    expect(beforeUnloadAusloesen().defaultPrevented).toBe(false)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    // Schritt 3: abbildung.
+    expect(beforeUnloadAusloesen().defaultPrevented).toBe(false)
+
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+    // Schritt 4: probe.
+    expect(beforeUnloadAusloesen().defaultPrevented).toBe(false)
+
+    await userEvent.click(await screen.findByRole('button', { name: /^weiter$/i }))
+    // Schritt 5: sicherung - ab hier warnt es.
+    const ereignis = beforeUnloadAusloesen()
+    expect(ereignis.defaultPrevented).toBe(true)
+    expect(ereignis.returnValue).toBeFalsy()
+  })
+
+  it('entfernt den Hinweis wieder, sobald ein anderer Schritt erreicht ist', async () => {
+    antworten()
+    vi.mocked(api.post).mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/umstieg/probe') return PROBE as never
+      if (pfad === '/api/umstieg/sicherung') {
+        return { name: 'sicherung.db', groesse: 1, erstellt: '2026-09-24T10:00:00' } as never
+      }
+      return {} as never
+    })
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^weiter$/i }))
+    expect(beforeUnloadAusloesen().defaultPrevented).toBe(true)
+
+    // Zurück zur Probe: Der Hinweis dieses Schritts ist wieder weg.
+    await userEvent.click(screen.getByRole('button', { name: /zurück/i }))
+    expect(beforeUnloadAusloesen().defaultPrevented).toBe(false)
+  })
+
+  it('übersteht einen Reload: die Abbildung steht vorbelegt, nicht nur zufällig gleich dem Vorschlag', async () => {
+    // ⚠️ Eine andere Wahl als der normale Vorschlag ('v_6a0763e8'), sonst
+    // bewiese der Test nichts: Beide Werte gleich zu wählen, käme auch dann
+    // heraus, wenn die Wiederherstellung gar nicht liefe und nur der
+    // Vorschlag füllte.
+    antworten({
+      ...ABBILDUNG,
+      nex_fassungen: [
+        ...ABBILDUNG.nex_fassungen,
+        { kennung: 'v_andere', media_type: 'movie', name: 'Andere Fassung', klasse: 'hd' },
+      ],
+    })
+    sessionStorage.setItem(
+      'nexview.umstieg.abbildung',
+      JSON.stringify({ 'radarr-standard': 'v_andere' }),
+    )
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    // Die Auswahl steht schon auf dem gespeicherten Wert, nicht auf dem
+    // Vorschlag - sie kam also wirklich aus dem Sitzungsspeicher.
+    expect(await screen.findByLabelText('Radarr')).toHaveValue('v_andere')
+  })
+
+  it('übersteht einen Reload: der Sicherungsname steht vorbelegt, kein erneutes Anlegen nötig', async () => {
+    sessionStorage.setItem('nexview.umstieg.sicherungName', 'sicherung-alt.db')
+    antworten()
+    vi.mocked(api.post).mockResolvedValue(PROBE as never)
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^weiter$/i }))
+
+    // Der alte Name steht schon da; „Weiter" ist offen, ohne dass hier neu
+    // gesichert werden musste - der Server prüft beim Umschalten ohnehin, ob
+    // die Datei wirklich liegt.
+    expect(await screen.findByText(/sicherung-alt\.db/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^weiter$/i })).toBeEnabled()
+    expect(api.post).not.toHaveBeenCalledWith('/api/umstieg/sicherung')
+  })
+
+  it('verwirft eine gespeicherte Abbildung, die eine Fassung nennt, die es nicht mehr gibt', async () => {
+    // Die gespeicherte Abbildung zeigt auf eine Fassung, die nach dem Reload
+    // nicht mehr in der Liste steht - etwa weil sie in nexcrate inzwischen
+    // umbenannt oder entfernt wurde.
+    sessionStorage.setItem(
+      'nexview.umstieg.abbildung',
+      JSON.stringify({ 'radarr-standard': 'v_verschwunden' }),
+    )
+    antworten()
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    // Verworfen, nicht angewendet: Der normale Vorschlag springt stattdessen
+    // ein - stünde die verschwundene Kennung noch in der Auswahl, zeigte das
+    // Feld sie nicht als gültig gewählten Wert.
+    expect(await screen.findByLabelText('Radarr')).toHaveValue('v_6a0763e8')
+  })
+
+  it('räumt den Sitzungsspeicher nach dem Umschalten auf', async () => {
+    antworten()
+    vi.mocked(api.post).mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/umstieg/probe') return PROBE as never
+      if (pfad === '/api/umstieg/sicherung') {
+        return { name: 'sicherung.db', groesse: 1, erstellt: '2026-09-24T10:00:00' } as never
+      }
+      if (pfad === '/api/umstieg/umschalten') {
+        return {
+          fassungen: 1, verlassen: [], anfragen: 0, anfragen_ohne_uebersetzung: 0,
+          posten: 0, posten_schluessel: 0, posten_ohne_uebersetzung: 0, posten_doppelt: 0,
+          rechte: 0, rechte_entfallen: 0, einladungen: 0, regeln: 0, zeilen_entfernt: 0,
+        } as never
+      }
+      return {} as never
+    })
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^weiter$/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /sicherung anlegen/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^weiter$/i })).toBeEnabled()
+    })
+    expect(sessionStorage.getItem('nexview.umstieg.abbildung')).not.toBeNull()
+    expect(sessionStorage.getItem('nexview.umstieg.sicherungName')).not.toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: /^weiter$/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /jetzt umschalten/i }))
+    await screen.findByRole('button', { name: /nachreichen/i })
+
+    expect(sessionStorage.getItem('nexview.umstieg.abbildung')).toBeNull()
+    expect(sessionStorage.getItem('nexview.umstieg.sicherungName')).toBeNull()
+  })
+
+  it('räumt den Sitzungsspeicher auf, wenn der Assistent vor dem Ende verlassen wird (Abbrechen)', async () => {
+    antworten()
+    const wiedergabe = rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    expect(sessionStorage.getItem('nexview.umstieg.abbildung')).not.toBeNull()
+
+    wiedergabe.unmount()
+
+    expect(sessionStorage.getItem('nexview.umstieg.abbildung')).toBeNull()
+    expect(sessionStorage.getItem('nexview.umstieg.sicherungName')).toBeNull()
+  })
+
+  it('läuft weiter, wenn sessionStorage wirft (privates Fenster, gesperrter Speicher)', async () => {
+    antworten()
+    vi.spyOn(window.sessionStorage, 'getItem').mockImplementation(() => {
+      throw new Error('gesperrt')
+    })
+    vi.spyOn(window.sessionStorage, 'setItem').mockImplementation(() => {
+      throw new Error('gesperrt')
+    })
+    vi.spyOn(window.sessionStorage, 'removeItem').mockImplementation(() => {
+      throw new Error('gesperrt')
+    })
+
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    // Ohne Speicher trotzdem nutzbar: der Vorschlag füllt die Auswahl wie eh.
+    expect(await screen.findByLabelText('Radarr')).toHaveValue('v_6a0763e8')
   })
 })

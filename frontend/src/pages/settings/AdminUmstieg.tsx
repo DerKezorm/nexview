@@ -31,6 +31,74 @@ const SCHRITTE = [
 type Schritt = (typeof SCHRITTE)[number];
 
 /**
+ * Sitzungsspeicher für zwei Dinge, die ein Reload sonst wegwirft (C6): die
+ * gewählte Abbildung und der Name der angelegten Sicherung. Nicht der ganze
+ * Assistent - der Schritt selbst und das Ergebnis der Probe bleiben absichtlich
+ * ungespeichert, denn beides ist mit einem Klick neu geholt, während die
+ * Abbildung von Hand eingetragen wurde und die Sicherung eine echte Datei ist,
+ * die auf dem Server schon liegt.
+ *
+ * ⚠️ Jeder Zugriff in try/catch: Ein privates Fenster oder ein gesperrter
+ * Speicher darf den Assistenten nicht lahmlegen, er läuft dann nur ohne den
+ * Schutz gegen einen Reload (Vorbild: `PushAnbindung.tsx`, `RegionBanner.tsx`).
+ */
+const SPEICHER_ABBILDUNG = "nexview.umstieg.abbildung";
+const SPEICHER_SICHERUNG = "nexview.umstieg.sicherungName";
+
+function abbildungGespeichertLesen(): Record<string, string | null> | null {
+  try {
+    const roh = sessionStorage.getItem(SPEICHER_ABBILDUNG);
+    if (!roh) return null;
+    const wert: unknown = JSON.parse(roh);
+    if (!wert || typeof wert !== "object" || Array.isArray(wert)) return null;
+    return wert as Record<string, string | null>;
+  } catch {
+    return null;
+  }
+}
+
+function abbildungSpeichern(wert: Record<string, string | null>): void {
+  try {
+    sessionStorage.setItem(SPEICHER_ABBILDUNG, JSON.stringify(wert));
+  } catch {
+    // Ohne sessionStorage steht die Abbildung nur im Zustand - ein Reload
+    // verliert sie dann wie vor C6.
+  }
+}
+
+function abbildungLoeschen(): void {
+  try {
+    sessionStorage.removeItem(SPEICHER_ABBILDUNG);
+  } catch {
+    // Nichts zu tun: Ohne sessionStorage stand dort ohnehin nichts.
+  }
+}
+
+function sicherungsnameGespeichertLesen(): string | null {
+  try {
+    return sessionStorage.getItem(SPEICHER_SICHERUNG);
+  } catch {
+    return null;
+  }
+}
+
+function sicherungsnameSpeichern(name: string): void {
+  try {
+    sessionStorage.setItem(SPEICHER_SICHERUNG, name);
+  } catch {
+    // s.o.
+  }
+}
+
+function sicherungsnameLoeschen(): void {
+  try {
+    sessionStorage.removeItem(SPEICHER_SICHERUNG);
+  } catch {
+    // s.o.
+  }
+}
+
+/**
  * Der Umstiegsassistent: von Radarr und Sonarr auf nexcrate (Bauplan 7.3).
  *
  * ⚠️ **Es gibt keinen Rückweg außer der Sicherung.** Sie steht deshalb als
@@ -49,7 +117,9 @@ export function AdminUmstieg() {
 
   const [schritt, setSchritt] = useState<Schritt>("vorab");
   const navigate = useNavigate();
-  const [abbildung, setAbbildung] = useState<Record<string, string | null>>({});
+  const [abbildung, setAbbildung] = useState<Record<string, string | null>>(
+    () => abbildungGespeichertLesen() ?? {},
+  );
   // ⚠️ **Dieselbe Regel wie am Server** (`pruefe_abbildung`), nur früher: Wer
   // zwei bisherige Fassungen auf dieselbe nexcrate-Fassung legt, soll das
   // sehen, während er es tut - nicht eine Serverrunde später. Der Server
@@ -60,7 +130,14 @@ export function AdminUmstieg() {
   }, [abbildung]);
   const [ergebnis, setErgebnis] = useState<UmstiegProbe | null>(null);
   const [trotzdem, setTrotzdem] = useState(false);
-  const [sicherung, setSicherung] = useState<UmstiegSicherung | null>(null);
+  // ⚠️ Nur der Name überlebt einen Reload (C6) - er reicht: Der Server prüft
+  // beim Umschalten ohnehin, ob die genannte Datei wirklich liegt, bevor er
+  // etwas tut (siehe Kommentar oben an `umschalten`). Eine veraltete Sicherung
+  // scheitert deshalb dort, nicht hier.
+  const [sicherung, setSicherung] = useState<{ name: string } | null>(() => {
+    const name = sicherungsnameGespeichertLesen();
+    return name ? { name } : null;
+  });
   const [bericht, setBericht] = useState<UmstiegBericht | null>(null);
   const [nachgereicht, setNachgereicht] = useState(0);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -78,11 +155,49 @@ export function AdminUmstieg() {
   });
   const vorlage = abbildungQuery.data;
 
+  // ⚠️ Ein Reload läuft mit derselben nexcrate weiter, aber Zeit ist vergangen:
+  // Eine Fassung aus der gespeicherten Abbildung kann es dort inzwischen nicht
+  // mehr geben (umbenannt, entfernt). Dann gilt derselbe Grundsatz wie am
+  // Server (`pruefe_abbildung`), nur früher und über die ganze Abbildung: eine
+  // Kennung, die es nicht mehr gibt, wird verworfen statt angewendet - der
+  // Vorschlag springt danach normal ein.
+  useEffect(() => {
+    if (!vorlage) return;
+    setAbbildung((bisher) => {
+      if (Object.keys(bisher).length === 0) return bisher;
+      const arrKennungen = new Set(vorlage.arr_fassungen.map((arr) => arr.kennung));
+      const nexKennungen = new Set(vorlage.nex_fassungen.map((nex) => nex.kennung));
+      const gueltig = Object.entries(bisher).every(
+        ([kennung, ziel]) =>
+          arrKennungen.has(kennung) && (ziel === null || nexKennungen.has(ziel)),
+      );
+      if (gueltig) return bisher;
+      abbildungLoeschen();
+      return {};
+    });
+  }, [vorlage]);
+
   // Der Vorschlag füllt die Auswahl einmal; danach gehört sie dem Betreiber.
   useEffect(() => {
     if (!vorlage || Object.keys(abbildung).length > 0) return;
     setAbbildung(vorlage.vorschlag);
   }, [vorlage, abbildung]);
+
+  // Jede Änderung sofort sichern - auch die aus dem Vorschlag oben, sonst
+  // überlebt nur eine von Hand geänderte Abbildung den Reload.
+  useEffect(() => {
+    if (Object.keys(abbildung).length > 0) {
+      abbildungSpeichern(abbildung);
+    }
+  }, [abbildung]);
+
+  // Ebenso für die Sicherung: Sobald ein Name da ist (frisch angelegt oder aus
+  // dem Sitzungsspeicher wiederhergestellt), bleibt er dort stehen.
+  useEffect(() => {
+    if (sicherung) {
+      sicherungsnameSpeichern(sicherung.name);
+    }
+  }, [sicherung]);
 
   const probe = useMutation({
     mutationFn: () => api.post<UmstiegProbe>("/api/umstieg/probe", { abbildung }),
@@ -114,6 +229,10 @@ export function AdminUmstieg() {
       setBericht(antwort);
       setFehler(null);
       setSchritt("danach");
+      // Umgeschaltet ist umgeschaltet: Ein veralteter Stand darf in keinen
+      // neuen Umstieg mehr hineinrutschen.
+      abbildungLoeschen();
+      sicherungsnameLoeschen();
       void queryClient.invalidateQueries({ queryKey: ["settings"] });
       void queryClient.invalidateQueries({ queryKey: ["config"] });
     },
@@ -128,6 +247,35 @@ export function AdminUmstieg() {
     },
     onError: (error: Error) => setFehler(error.message),
   });
+
+  // ⚠️ **Nur solange der Umstieg läuft und der Rückweg noch der einzige ist.**
+  // Vor der Sicherung ist nichts angelegt, das ein Reload gefährden könnte -
+  // die Abbildung liegt ohnehin im Sitzungsspeicher, und die Probe ist ein
+  // Klick entfernt. Ab der Sicherung steht eine echte Datei auf dem Server,
+  // und das Umschalten selbst darf nicht mitten im Aufruf abreißen, ohne dass
+  // der Betreiber gefragt wird. Sobald `danach` erreicht ist, ist bereits
+  // umgeschaltet - dort warnt nichts mehr.
+  useEffect(() => {
+    if (schritt !== "sicherung" && schritt !== "umschalten") return;
+    const hinweis = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", hinweis);
+    return () => window.removeEventListener("beforeunload", hinweis);
+  }, [schritt]);
+
+  // ⚠️ Der einzige „Abbrechen", den es hier gibt: der Betreiber verlässt den
+  // Assistenten (anderer Reiter, anderer Menüpunkt), ohne ihn zu Ende zu
+  // bringen. Ein Reload räumt hier nichts weg - React sieht ihn nie -, genau
+  // deshalb liegt der gespeicherte Stand im Sitzungsspeicher und nicht im
+  // Zustand dieses Bauteils.
+  useEffect(() => {
+    return () => {
+      abbildungLoeschen();
+      sicherungsnameLoeschen();
+    };
+  }, []);
 
   const sperrt = Boolean(vorlage?.sperrt);
   const nummer = SCHRITTE.indexOf(schritt) + 1;

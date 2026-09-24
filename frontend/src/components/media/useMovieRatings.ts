@@ -22,9 +22,10 @@ import type { MovieRatings } from '../../api/types'
 export function useMovieRatings(
   items: { media_type: string; tmdb_id: number }[],
   /**
-   * Nur für die Titelseite: Im NEX-Betrieb stehen Rotten Tomatoes und
-   * Metacritic allein in nexcrates Einzelansicht, und die kostet je Titel eine
-   * OMDb-Abfrage. Listen setzen das nie.
+   * Nur für die Titelseite: Im NEX-Betrieb fragt dann nexcrates Einzelansicht
+   * OMDb nach Rotten Tomatoes und Metacritic, wenn sie noch nicht in seinem
+   * Speicher liegen, und das kostet je Titel eine Abfrage. Listen setzen das
+   * nie; ihr Stapel liest nur den Speicher.
    */
   { einzeln = false }: { einzeln?: boolean } = {},
 ): Record<number, MovieRatings> {

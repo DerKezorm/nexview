@@ -567,11 +567,15 @@ class NexBeschaffung(Beschaffung):
         Gefragt wird per TMDB-Nummer; nexcrate uebersetzt selbst nach IMDb und
         nennt die Kennung in ``imdb_ref`` zurueck.
 
-        ⚠️ **Rotten Tomatoes und Metacritic stehen nur in der Einzelansicht**
-        (``GET /ratings/{kind}/{ref}``), der Stapel traegt nur IMDb. Die
-        Einzelansicht traegt IMDb mit - wer sie fragt, braucht fuer diesen
-        Titel keinen Stapel. Ein Titel, dessen Einzelansicht scheitert, bleibt
-        leer; die anderen nicht.
+        ⚠️ **Nur die Einzelansicht fragt OMDb** (``GET /ratings/{kind}/{ref}``).
+        Der Stapel traegt Rotten Tomatoes und Metacritic seit nexcrate
+        ``39dfc05`` auch, aber nur, was schon in nexcrates 30-Tage-Speicher
+        liegt; ein Titel, den dort noch niemand angesehen hat, bekaeme im
+        Stapel nur IMDb. Die Titelseite bleibt deshalb bei der Einzelansicht:
+        Sie liest denselben Speicher zuerst und fragt OMDb nur, wenn er leer
+        ist - danach hat der Titel die Werte auch im Stapel. Sie traegt IMDb
+        mit, wer sie fragt, braucht fuer diesen Titel keinen Stapel. Ein
+        Titel, dessen Einzelansicht scheitert, bleibt leer; die anderen nicht.
         """
         nummern = list(dict.fromkeys(tmdb_ids))
         if not nummern:

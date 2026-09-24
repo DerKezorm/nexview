@@ -1,11 +1,16 @@
 """Portal-Wertungen im NEX-Betrieb: Stapel für Listen, Einzelansicht für die Titelseite.
 
 Im ARR-Betrieb zeigt die Titelseite Rotten Tomatoes und Metacritic, weil
-Radarrs ``/movie/lookup/tmdb`` sie mitliefert. nexcrates Stapel
-(``POST /ratings``) trägt nur IMDb; die beiden anderen stehen allein in der
-Einzelansicht ``GET /ratings/{kind}/{ref}``, zusammen mit der Namensnennung,
-die OMDb verlangt. Bis zum 24.09.2026 rief Nexview die Einzelansicht nie, und
-die Titelseite zeigte im NEX-Betrieb weniger als im ARR-Betrieb.
+Radarrs ``/movie/lookup/tmdb`` sie mitliefert. Im NEX-Betrieb fragt nur
+nexcrates Einzelansicht ``GET /ratings/{kind}/{ref}`` OMDb danach, zusammen
+mit der Namensnennung, die OMDb verlangt. Bis zum 24.09.2026 rief Nexview die
+Einzelansicht nie, und die Titelseite zeigte im NEX-Betrieb weniger als im
+ARR-Betrieb.
+
+Der Stapel (``POST /ratings``) trug bis nexcrate ``39dfc05`` nur IMDb. Seither
+nennt er Rotten Tomatoes und Metacritic auch, aber nur aus nexcrates
+30-Tage-Speicher (``not_cached`` sonst), und die OMDb-Nennung einmal für alle
+in ``omdb_attribution``.
 
 ⚠️ **Listen dürfen die Einzelansicht nicht je Titel rufen.** Jeder Aufruf
 kostet nexcrate eine OMDb-Abfrage aus einem Tageskontingent.
@@ -103,9 +108,8 @@ def test_listen_fragen_nur_den_stapel(nex_admin: TestClient, nexcrate: FakeNexcr
     assert _einzeln(nexcrate) == []
     assert len(_stapel(nexcrate)) == 1
     assert daten["603"]["imdb"] == 7.5 and daten["603"]["imdb_votes"] == 1200
-    assert daten["603"]["rotten_tomatoes"] is None
     assert daten["604"]["imdb"] == 6.1
-    assert daten["603"]["attribution"] == [IMDB_NENNUNG]
+    assert daten["604"]["attribution"] == [IMDB_NENNUNG]
     # Ohne Wert kein Eintrag, wie im ARR-Betrieb.
     assert "605" not in daten
 
@@ -181,3 +185,112 @@ def test_faellt_der_stapel_aus_steht_die_seite_trotzdem(
         assert daten["801"]["rotten_tomatoes"] == 40
     else:
         assert daten == {}
+
+
+# --- Rotten Tomatoes und Metacritic im Stapel (nexcrate 39dfc05) -------------------
+
+
+def test_der_stapel_bringt_tomaten_und_metacritic_aus_dem_speicher(
+    nex_admin: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Was in nexcrates Speicher liegt, steht auch an Karten und Listen."""
+    nexcrate.wertung(603, imdb=7.5, stimmen=1200, tomaten=88, metacritic=71)
+    nexcrate.wertung(604, imdb=6.1, stimmen=40, metacritic=55)
+
+    antwort = nex_admin.get("/api/ratings/movie", params={"ids": "603,604"})
+
+    assert antwort.status_code == 200, antwort.text
+    daten = antwort.json()
+    assert daten["603"]["rotten_tomatoes"] == 88
+    assert daten["603"]["metacritic"] == 71
+    assert daten["603"]["imdb"] == 7.5
+    assert daten["604"]["rotten_tomatoes"] is None
+    assert daten["604"]["metacritic"] == 55
+    assert daten["603"]["attribution"] == [IMDB_NENNUNG, OMDB_NENNUNG]
+    assert daten["604"]["attribution"] == [IMDB_NENNUNG, OMDB_NENNUNG]
+    # Nie die Einzelansicht: Die fragte OMDb, und das kostet.
+    assert _einzeln(nexcrate) == []
+
+
+def test_die_omdb_nennung_haengt_nur_an_zeilen_mit_einem_wert_von_dort(
+    nex_admin: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """``omdb_attribution`` gilt dem Stapel; gezeigt wird sie je Zeile.
+
+    Eine Zeile nur mit IMDb trägt nur IMDbs Satz, eine nur mit Portalen nur
+    den von OMDb - wie die Einzelansicht, die OMDb nur nennt, wenn von dort
+    etwas kam.
+    """
+    nexcrate.wertung(603, imdb=7.5, stimmen=1200, tomaten=88)
+    nexcrate.wertung(604, imdb=6.1, stimmen=40)
+    nexcrate.wertung(605, tomaten=64, metacritic=58)
+    nexcrate.wertung(606, imdb=5.0, stimmen=9, tomaten=30, im_speicher=False)
+
+    daten = nex_admin.get("/api/ratings/movie", params={"ids": "603,604,605,606"}).json()
+
+    assert daten["603"]["attribution"] == [IMDB_NENNUNG, OMDB_NENNUNG]
+    assert daten["604"]["attribution"] == [IMDB_NENNUNG]
+    assert daten["606"]["attribution"] == [IMDB_NENNUNG]
+    assert daten["606"]["rotten_tomatoes"] is None
+    # Nur Portale, kein IMDb: die Zeile steht trotzdem, ohne IMDbs Satz.
+    assert daten["605"]["imdb"] is None and daten["605"]["imdb_votes"] is None
+    assert daten["605"]["rotten_tomatoes"] == 64 and daten["605"]["metacritic"] == 58
+    assert daten["605"]["attribution"] == [OMDB_NENNUNG]
+
+
+@pytest.mark.parametrize("grund", ["not_cached", "no_key"])
+def test_ohne_portale_im_stapel_bleibt_es_bei_imdb(
+    nex_admin: TestClient, nexcrate: FakeNexcrate, grund: str
+) -> None:
+    """``null`` heißt: nicht im Speicher oder kein Schlüssel. Kein Fehler, keine Nennung."""
+    if grund == "no_key":
+        nexcrate.omdb_schluessel = False
+        nexcrate.wertung(603, imdb=7.5, stimmen=1200, tomaten=88, metacritic=71)
+    else:
+        nexcrate.wertung(603, imdb=7.5, stimmen=1200, tomaten=88, metacritic=71, im_speicher=False)
+    nexcrate.wertung(604, tomaten=50, im_speicher=False)
+    stapel = nexcrate._ratings([{"kind": "movie", "ref": "tmdb:603"}])
+    assert stapel["items"][0]["sources"]["omdb"] == grund
+    assert stapel["omdb_attribution"] is None
+
+    daten = nex_admin.get("/api/ratings/movie", params={"ids": "603,604"}).json()
+
+    assert daten["603"]["imdb"] == 7.5
+    assert daten["603"]["rotten_tomatoes"] is None and daten["603"]["metacritic"] is None
+    assert daten["603"]["attribution"] == [IMDB_NENNUNG]
+    # Ohne IMDb und ohne Portal gibt es nichts zu zeigen.
+    assert "604" not in daten
+
+
+def test_eine_aeltere_nexcrate_ohne_portale_im_stapel_bleibt_bei_imdb(
+    nex_admin: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    nexcrate.stapel_nur_imdb = True
+    nexcrate.wertung(603, imdb=7.5, stimmen=1200, tomaten=88, metacritic=71)
+    nexcrate.wertung(605, tomaten=64)
+    stapel = nexcrate._ratings([{"kind": "movie", "ref": "tmdb:603"}])
+    assert "rotten_tomatoes" not in stapel["items"][0] and "omdb_attribution" not in stapel
+
+    antwort = nex_admin.get("/api/ratings/movie", params={"ids": "603,605"})
+
+    assert antwort.status_code == 200, antwort.text
+    daten = antwort.json()
+    assert daten["603"]["imdb"] == 7.5 and daten["603"]["imdb_votes"] == 1200
+    assert daten["603"]["rotten_tomatoes"] is None and daten["603"]["metacritic"] is None
+    assert daten["603"]["attribution"] == [IMDB_NENNUNG]
+    assert "605" not in daten
+
+
+def test_die_titelseite_bleibt_bei_der_einzelansicht_auch_wenn_der_stapel_portale_kennt(
+    nex_admin: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Der Stapel kennt nur, was schon im Speicher liegt; die Einzelansicht holt den Rest."""
+    nexcrate.wertung(603, imdb=7.5, stimmen=1200, tomaten=88, metacritic=71, im_speicher=False)
+
+    liste = nex_admin.get("/api/ratings/movie", params={"ids": "603"}).json()
+    titelseite = nex_admin.get("/api/ratings/movie", params={"ids": "603", "detail": "true"}).json()
+
+    assert liste["603"]["rotten_tomatoes"] is None
+    assert titelseite["603"]["rotten_tomatoes"] == 88
+    assert titelseite["603"]["attribution"] == [IMDB_NENNUNG, OMDB_NENNUNG]
+    assert _einzeln(nexcrate) == ["/api/v1/ratings/movie/tmdb:603"]

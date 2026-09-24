@@ -589,9 +589,10 @@ async def movie_ratings(
     dorthin wuerden den Seitenaufbau spuerbar verzoegern. So steht die Seite sofort und die Wertungen erscheinen kurz
     darauf.
 
-    ``detail`` setzt nur die Titelseite: Im NEX-Betrieb kommen Rotten Tomatoes
-    und Metacritic allein aus nexcrates Einzelansicht, und die kostet je Titel
-    eine OMDb-Abfrage.
+    ``detail`` setzt nur die Titelseite: Im NEX-Betrieb fragt dann nexcrates
+    Einzelansicht OMDb nach Rotten Tomatoes und Metacritic, wenn sie noch
+    nicht in seinem Speicher liegen, und das kostet je Titel eine Abfrage aus
+    dem Tageskontingent. Der Stapel fuer Listen liest nur diesen Speicher.
     """
     kennungen = [
         int(teil) for teil in ids.split(",") if teil.strip().isdigit()

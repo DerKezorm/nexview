@@ -299,28 +299,42 @@ def wertungen(antwort: dict[str, Any], nach_tmdb: dict[str, int]) -> dict[int, A
     warum (`{"imdb": "off", "omdb": "no_key"}`). Das ist kein Fehler: Die
     Kachel zeigt dann keine Portal-Wertung, wie im ARR-Betrieb ohne Radarr.
 
-    Der Stapel nennt IMDb in einem Satz fuer alle (``attribution``); er
-    haengt an jeder Zeile, die einen Wert hat.
+    Seit nexcrate ``39dfc05`` traegt der Stapel auch Rotten Tomatoes und
+    Metacritic, aber nur aus nexcrates 30-Tage-Speicher: Er fragt OMDb nie,
+    was dort nicht liegt, ist ``null`` (``sources.omdb: not_cached``). Eine
+    aeltere nexcrate nennt die Felder gar nicht; dann bleibt es bei IMDb.
+
+    Die Nennung kommt je Quelle in einem Satz fuer alle: ``attribution`` fuer
+    IMDb, ``omdb_attribution`` fuer OMDb (``null``, wenn keine Zeile einen
+    Wert von dort hat). Jeder Satz haengt nur an Zeilen, die einen Wert
+    seiner Quelle zeigen - wie in der Einzelansicht, die OMDb nur nennt, wenn
+    von dort etwas kam.
     """
     from ..arr.portal_ratings import Ratings
 
-    satz = antwort.get("attribution")
-    nennung = (satz,) if isinstance(satz, str) and satz else ()
+    def _satz(roh: Any) -> tuple[str, ...]:
+        return (roh,) if isinstance(roh, str) and roh else ()
+
+    imdb_satz = _satz(antwort.get("attribution"))
+    omdb_satz = _satz(antwort.get("omdb_attribution"))
     gefunden: dict[int, Any] = {}
     for eintrag in antwort.get("items") or []:
         nummer = nach_tmdb.get(str(eintrag.get("ref")))
         if nummer is None:
             continue
         wert, stimmen = _imdb(eintrag)
-        if wert is None:
+        tomaten = _prozent(eintrag.get("rotten_tomatoes"))
+        metacritic = _prozent(eintrag.get("metacritic"))
+        if wert is None and tomaten is None and metacritic is None:
             continue
         gefunden[nummer] = Ratings(
             imdb_id=_imdb_kennung(eintrag),
             imdb=wert,
-            imdb_votes=stimmen,
-            rotten_tomatoes=None,
-            metacritic=None,
-            attribution=nennung,
+            imdb_votes=stimmen if wert is not None else None,
+            rotten_tomatoes=tomaten,
+            metacritic=metacritic,
+            attribution=(imdb_satz if wert is not None else ())
+            + (omdb_satz if tomaten is not None or metacritic is not None else ()),
         )
     return gefunden
 
@@ -328,9 +342,10 @@ def wertungen(antwort: dict[str, Any], nach_tmdb: dict[str, int]) -> dict[int, A
 def wertung(antwort: dict[str, Any]) -> Any:
     """`GET /ratings/{kind}/{ref}` in Nexviews Form; ``None``, wenn nichts da ist.
 
-    Nur hier stehen Rotten Tomatoes und Metacritic (ueber OMDb). Die Nennung
-    kommt als Liste von Saetzen und wird wortwoertlich weitergereicht: OMDb
-    verlangt ihren Wortlaut dort, wo die Werte stehen.
+    Nur hier fragt nexcrate OMDb, wenn Rotten Tomatoes und Metacritic noch
+    nicht in seinem Speicher liegen; der Stapel liest nur den Speicher. Die
+    Nennung kommt als Liste von Saetzen und wird wortwoertlich weitergereicht:
+    OMDb verlangt ihren Wortlaut dort, wo die Werte stehen.
     """
     from ..arr.portal_ratings import Ratings
 

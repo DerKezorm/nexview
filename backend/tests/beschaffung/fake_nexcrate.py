@@ -112,6 +112,12 @@ class FakeNexcrate:
         #: Eingerichtete Wertungen je ``ref``, gesetzt mit ``wertung``. Ohne
         #: Eintrag antwortet die Attrappe wie gemessen: alles ``null``.
         self.wertungen: dict[str, dict[str, Any]] = {}
+        #: Hat der Betreiber einen OMDb-Schluessel hinterlegt? Ohne ihn nennt
+        #: der Stapel ``omdb: no_key`` und keine Portale.
+        self.omdb_schluessel = True
+        #: Der Stapel wie vor nexcrate 39dfc05: nur IMDb, ohne
+        #: ``rotten_tomatoes``, ``metacritic``, ``sources`` und ``omdb_attribution``.
+        self.stapel_nur_imdb = False
         self.events: list[dict[str, Any]] = []
         self.pairings: dict[str, dict[str, Any]] = {}
         self.update: dict[str, Any] = {
@@ -151,18 +157,24 @@ class FakeNexcrate:
         stimmen: int = 0,
         tomaten: int | None = None,
         metacritic: int | None = None,
+        im_speicher: bool = True,
     ) -> None:
         """Wertungen fuer einen Titel, als haette der Betreiber IMDb und OMDb eingerichtet.
 
         Die Formen stehen so in nexcrates OpenAPI (``ImdbRatingOut`` traegt
         ``rating`` und ``votes``, ``RatingOut`` zusaetzlich die Portale); gemessen
         wurde nur der Fall ohne Quelle.
+
+        ``im_speicher=False``: OMDb wurde fuer den Titel noch nie gefragt. Die
+        Einzelansicht fragt dann OMDb, der Stapel nennt ``not_cached``
+        (nexcrate 39dfc05, ``ratings.omdb_cached_many``).
         """
         self.wertungen[f"tmdb:{tmdb_id}"] = {
             "imdb_ref": f"imdb:tt{tmdb_id:07d}",
             "imdb": {"rating": imdb, "votes": stimmen} if imdb is not None else None,
             "rotten_tomatoes": tomaten,
             "metacritic": metacritic,
+            "im_speicher": im_speicher,
         }
 
     def nicht_bereit(self, kennung: str, *codes: str) -> None:
@@ -688,27 +700,56 @@ class FakeNexcrate:
             },
         )
 
+    def _omdb_im_stapel(self, kind: Any, gesetzt: dict[str, Any] | None) -> tuple[str, Any, Any]:
+        """Was der Stapel zu OMDb sagt: nur aus dem Speicher, nie OMDb selbst.
+
+        Wie ``v1_round.ratings_many`` in nexcrate 39dfc05: Serien haben dort
+        nichts, ohne Schluessel gibt es nichts, und was nie gefragt wurde, ist
+        ``not_cached``.
+        """
+        if kind != "movie":
+            return "not_for_kind", None, None
+        if not self.omdb_schluessel:
+            return "no_key", None, None
+        if gesetzt is None or not gesetzt["im_speicher"]:
+            return "not_cached", None, None
+        tomaten, metacritic = gesetzt["rotten_tomatoes"], gesetzt["metacritic"]
+        return ("ok" if tomaten is not None or metacritic is not None else "not_found"), tomaten, metacritic
+
     def _ratings(self, eintraege: list[dict[str, Any]]) -> dict[str, Any]:
         items = []
         for eintrag in eintraege:
             gesetzt = self.wertungen.get(str(eintrag.get("ref")))
-            items.append(
-                {
-                    "kind": eintrag.get("kind"),
-                    "ref": eintrag.get("ref"),
-                    "imdb_ref": gesetzt["imdb_ref"] if gesetzt else eintrag.get("ref"),
-                    "imdb": gesetzt["imdb"] if gesetzt else None,
-                    "error": None,
-                }
-            )
-        return {
+            zeile = {
+                "kind": eintrag.get("kind"),
+                "ref": eintrag.get("ref"),
+                "imdb_ref": gesetzt["imdb_ref"] if gesetzt else eintrag.get("ref"),
+                "imdb": gesetzt["imdb"] if gesetzt else None,
+                "error": None,
+            }
+            if not self.stapel_nur_imdb:
+                zustand, tomaten, metacritic = self._omdb_im_stapel(eintrag.get("kind"), gesetzt)
+                zeile["rotten_tomatoes"] = tomaten
+                zeile["metacritic"] = metacritic
+                zeile["sources"] = {"imdb": "loaded" if self.wertungen else "off", "omdb": zustand}
+            items.append(zeile)
+        antwort: dict[str, Any] = {
             "items": items,
             "imdb": "loaded" if self.wertungen else "off",
             "attribution": IMDB_NENNUNG,
         }
+        if not self.stapel_nur_imdb:
+            gezeigt = any(
+                zeile["rotten_tomatoes"] is not None or zeile["metacritic"] is not None
+                for zeile in items
+            )
+            antwort["omdb_attribution"] = OMDB_NENNUNG if gezeigt else None
+        return antwort
 
     def _rating_einzeln(self, kind: str, ref: str) -> dict[str, Any]:
         gesetzt = self.wertungen.get(ref)
+        if gesetzt is not None:
+            gesetzt = {k: v for k, v in gesetzt.items() if k != "im_speicher"}
         if gesetzt is None:
             return {
                 "kind": kind,

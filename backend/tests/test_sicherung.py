@@ -1261,3 +1261,27 @@ class TestTaktGegenEinspielen:
         faden.join(5)
         assert not faden.is_alive(), "die Taktrunde haengt"
         assert gepflegt == [1000], "nach dem Einspielen holt der Takt die Runde nach"
+
+
+def test_die_pruefung_einer_sicherung_hinterlaesst_keine_begleitdateien() -> None:
+    """Eine Sicherung im WAL-Modus zu öffnen legt ``-wal`` und ``-shm`` an.
+
+    Eine lesende Verbindung räumt sie beim Schliessen nicht weg; danach lagen
+    neben jeder geprüften Sicherung zwei Dateien, die ``entfernen`` nicht kennt.
+    """
+    ordner = sicherung.ordner()
+    ordner.mkdir(parents=True, exist_ok=True)
+    datei = ordner / "nexview-manuell-wal.db"
+    verbindung = sqlite3.connect(datei)
+    verbindung.execute("PRAGMA journal_mode=wal")
+    verbindung.execute("CREATE TABLE t (a INTEGER)")
+    verbindung.commit()
+    verbindung.close()
+    begleiter = [ordner / (datei.name + "-wal"), ordner / (datei.name + "-shm")]
+    # Vorbedingung: Die Datei steht im WAL-Modus, und noch liegt nichts daneben.
+    assert datei.read_bytes()[18] == 2
+    assert [b for b in begleiter if b.exists()] == []
+
+    assert sicherung.brauchbar(datei.name) is True
+
+    assert [b.name for b in begleiter if b.exists()] == []

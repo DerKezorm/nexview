@@ -620,6 +620,28 @@ async def test_ein_fertiges_paket_bleibt_bei_404_der_staffelansicht(
     assert paket.status == RequestStatus.downloaded
 
 
+async def test_ein_fertiges_paket_bleibt_bei_404_einer_spaeteren_staffelansicht(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Die Einzelansicht nennt Staffel 1 und 2, nur Staffel 2 hat keine Ansicht.
+
+    Der Widerspruch gilt für jede Staffel, nicht nur für die erste: Wer ihn
+    erst ab der zweiten übergeht, liest Staffel 2 als leer, und ein fertiges
+    Paket dort hiesse "gelöscht".
+    """
+    _serie(nexcrate, 1399, [_staffel(1, 3 * GB), _staffel(2, 3 * GB)])
+    _folgen(nexcrate, 1399, SERIE_HD, staffel=1)
+    person = _nutzer(db)
+    paket = _paket(db, person, fassung=SERIE_HD, status=RequestStatus.downloaded, folgen=[1])
+    paket.season = 2
+    db.commit()
+
+    await status_poller.check_once(db, nex)
+
+    db.refresh(paket)
+    assert paket.status == RequestStatus.downloaded
+
+
 async def test_zwei_serien_derselben_fassung_werden_je_serie_gelesen(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:

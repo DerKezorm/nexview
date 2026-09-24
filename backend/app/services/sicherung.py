@@ -546,7 +546,10 @@ def brauchbar(name: str) -> bool:
         if roh.read(16) != b"SQLite format 3\x00":
             return False
     try:
-        verbindung = sqlite3.connect(f"{pfad.as_uri()}?mode=ro", uri=True)
+        # ``immutable=1``: Eine Sicherung im WAL-Modus bekäme sonst ``-wal``
+        # und ``-shm`` daneben, und eine lesende Verbindung räumt sie nicht
+        # weg. Geprüft wird ohnehin nur die Datei, die eingespielt würde.
+        verbindung = sqlite3.connect(f"{pfad.as_uri()}?mode=ro&immutable=1", uri=True)
     except sqlite3.Error:
         return False
     try:

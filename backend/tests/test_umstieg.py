@@ -884,6 +884,44 @@ def test_mit_uebersetzung_wandern_anfrage_und_posten_zusammen(
     assert zahlen.anfragen == 1
 
 
+def test_eine_anfrage_in_der_anderen_fassung_derselben_serie_wandert(
+    vor_dem_umstieg: Any, db: Session
+) -> None:
+    """Stehen bleibt nur die Anfrage in der Fassung des Postens.
+
+    Liegt der unübersetzbare Posten in HD, hat eine 4K-Anfrage derselben
+    Serie mit ihm nichts zu tun; sie bliebe sonst ohne Grund bei Sonarr 4K.
+    """
+    person = _nutzer(db)
+    _posten(
+        db,
+        key="tv:sonarr-standard:tvdb:909090:s1",
+        media_type=MediaType.tv,
+        tmdb_id=None,
+        tvdb_id=909090,
+        season=1,
+        fassung_kennung=SONARR,
+        title="Beispielserie",
+    )
+    vierk = _anfrage(
+        db,
+        person,
+        media_type=MediaType.tv,
+        tmdb_id=555555,
+        tvdb_id=909090,
+        title="Beispielserie",
+        fassung_kennung=SONARR_UHD,
+    )
+    abbildung = {**_abbildung(), SONARR_UHD: "v_serie_uhd"}
+
+    zahlen = umstieg.wandern(db, abbildung, {})
+    db.commit()
+
+    db.refresh(vierk)
+    assert vierk.fassung_kennung == "v_serie_uhd"
+    assert zahlen.anfragen_ohne_uebersetzung == 0
+
+
 def test_eine_anfrage_auf_eine_serie_die_nexcrate_nicht_kennt_wandert_trotzdem(
     vor_dem_umstieg: Any, db: Session
 ) -> None:
@@ -1039,6 +1077,61 @@ def test_eine_unbrauchbare_sicherung_haelt_das_umschalten_an(
     else:
         datei.write_bytes(inhalt)
     try:
+        antwort = assistent.post(
+            "/api/umstieg/umschalten",
+            json={"abbildung": _abbildung(), "sicherung": datei.name},
+        )
+    finally:
+        sicherung.entfernen(datei)
+
+    assert antwort.status_code == 409, antwort.text
+    assert antwort.json()["detail"]["code"] == "umstieg_sicherung_unbrauchbar"
+    with SessionLocal() as sitzung:
+        assert load_settings(sitzung, frisch=True).beschaffung == ARR
+
+
+def test_eine_sicherung_mit_zerstoerter_seite_haelt_das_umschalten_an(
+    assistent: TestClient,
+) -> None:
+    """Kopf heil, Tabellen da, eine Seite mittendrin Unsinn.
+
+    Tabellen zu zählen genügt dafür nicht; erst ``quick_check`` sieht es.
+    """
+    import sqlite3
+
+    from app.services import sicherung
+
+    assistent.get("/api/umstieg/abbildung")
+    ordner = sicherung.ordner()
+    ordner.mkdir(parents=True, exist_ok=True)
+    datei = ordner / "nexview-manuell-beschaedigt.db"
+    verbindung = sqlite3.connect(datei)
+    verbindung.execute("PRAGMA page_size=4096")
+    verbindung.execute("CREATE TABLE t (a INTEGER PRIMARY KEY, b TEXT)")
+    verbindung.execute("CREATE INDEX t_b ON t(b)")
+    verbindung.executemany(
+        "INSERT INTO t (b) VALUES (?)", [(f"wert-{i:05d}",) for i in range(3000)]
+    )
+    verbindung.commit()
+    seiten = verbindung.execute("PRAGMA page_count").fetchone()[0]
+    verbindung.close()
+    inhalt = bytearray(datei.read_bytes())
+    mitte = (seiten // 2) * 4096
+    inhalt[mitte + 8 : mitte + 4096] = b"\xa5" * (4096 - 8)
+    datei.write_bytes(bytes(inhalt))
+    try:
+        # Vorbedingung: wirklich eine Datenbank mit Tabellen, aber nicht heil.
+        lesend = sqlite3.connect(f"{datei.as_uri()}?mode=ro", uri=True)
+        try:
+            tabellen = lesend.execute(
+                "SELECT count(*) FROM sqlite_master WHERE type='table'"
+            ).fetchone()[0]
+            befund = lesend.execute("PRAGMA quick_check").fetchone()[0]
+        finally:
+            lesend.close()
+        assert tabellen > 0
+        assert befund != "ok"
+
         antwort = assistent.post(
             "/api/umstieg/umschalten",
             json={"abbildung": _abbildung(), "sicherung": datei.name},

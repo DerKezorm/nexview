@@ -45,7 +45,15 @@ from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.beschaffung.nex import system
 from app.services.settings_service import load_settings, save_settings
 
-from .beschaffung.fake_nexcrate import FILM_HD, FILM_UHD, KEY, SERIE_HD, URL, FakeNexcrate
+from .beschaffung.fake_nexcrate import (
+    FILM_HD,
+    FILM_UHD,
+    KEY,
+    SERIE_HD,
+    SERIE_UHD,
+    URL,
+    FakeNexcrate,
+)
 from .conftest import auth_headers, create_user
 
 GB = 1024**3
@@ -535,6 +543,55 @@ async def test_ein_film_in_4k_sperrt_die_4k_anfrage(
     with pytest.raises(requests_service.RequestError) as gefangen:
         await requests_service.create_request(
             db, nex, chefin, _titel(9101), quality_profile_id=None, fassung=FILM_UHD
+        )
+
+    assert (gefangen.value.status_code, gefangen.value.code) == (409, "already_in_library")
+
+
+def _serientitel(tmdb_id: int) -> Any:
+    from app.schemas_media import MediaItem
+
+    return MediaItem(
+        media_type="tv", tmdb_id=tmdb_id, title="Erfundene Serie", release_date="2020-01-01"
+    )
+
+
+def _serie_in(nexcrate: FakeNexcrate, fassung: str) -> None:
+    nexcrate.serie(
+        4713,
+        name="Erfundene Serie",
+        versionen=[
+            nexcrate.fassung(
+                fassung, "available", size_bytes=3 * GB, series={"counts": {"have": 3, "aired": 3}}
+            )
+        ],
+    )
+
+
+async def test_eine_serie_in_hd_sperrt_die_4k_anfrage_der_ganzen_serie_nicht(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Dieselbe Regel wie beim Film, für eine Anfrage ohne Staffel."""
+    _serie_in(nexcrate, SERIE_HD)
+    chefin = _nutzer(db, "chefin", Role.admin)
+
+    anfrage = await requests_service.create_request(
+        db, nex, chefin, _serientitel(4713), quality_profile_id=None, fassung=SERIE_UHD
+    )
+
+    assert anfrage.fassung_kennung == SERIE_UHD
+
+
+async def test_eine_serie_in_4k_sperrt_die_4k_anfrage_der_ganzen_serie(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Die Gegenprobe: In 4K liegt die Serie wirklich schon."""
+    _serie_in(nexcrate, SERIE_UHD)
+    chefin = _nutzer(db, "chefin", Role.admin)
+
+    with pytest.raises(requests_service.RequestError) as gefangen:
+        await requests_service.create_request(
+            db, nex, chefin, _serientitel(4713), quality_profile_id=None, fassung=SERIE_UHD
         )
 
     assert (gefangen.value.status_code, gefangen.value.code) == (409, "already_in_library")

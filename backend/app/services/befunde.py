@@ -707,6 +707,12 @@ def _nachschub_fremde_fassung(
     bekannt; ``nachreichen`` hört deshalb auf, und dieser Befund steht, bis
     die Anfragen zurückgenommen sind. Die Bedingung kommt von dort, damit der
     Sprung in die Liste genau diese Anfragen zeigt.
+
+    Seit dem 24.09.2026 zählt auch eine freigegebene Anfrage mit, deren
+    Übergabe gescheitert ist (auf einer bekannten Fassung): Nach der Frist
+    von ``nachreichen.WIEDERHOLEN_BIS`` versucht es niemand mehr, und ohne
+    Befund stand sie still auf „freigegeben". Kennung und Ziel sind
+    geblieben, die Texte sagen „kommt nicht an".
     """
     bedingung = nachreichen.fremde_fassung(settings)
     if bedingung is None:

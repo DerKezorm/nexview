@@ -347,7 +347,8 @@ async def list_all(
     # Schalter neben ``status`` und nicht ein weiterer Wert darin.
     from_watchlist: Annotated[bool, Query()] = False,
     # Das Ziel des Befunds ``nachschub.fremde_fassung``: laufende Anfragen auf
-    # einer Fassung, die der eingestellte Weg nicht kennt.
+    # einer Fassung, die der eingestellte Weg nicht kennt, und freigegebene,
+    # deren Übergabe gescheitert ist (``nachreichen.fremde_fassung``).
     fremde_fassung: Annotated[bool, Query()] = False,
 ) -> list[RequestWithUser]:
     """Alle Anfragen aller Benutzer, optional gefiltert."""

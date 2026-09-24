@@ -872,7 +872,7 @@
     "countForUser_other": "{{count}} requests",
     "approveAll": "Approve all {{count}}",
     "filterFeedback": "Feedback",
-    "filterFremdeFassung": "Version does not exist",
+    "filterFremdeFassung": "Not handed over",
     "fassungUnbekannt": "Version does not exist",
     "fassungUnbekanntHint": "This request points to the version “{{kennung}}”, which the current mode does not know. It will never be handed over.",
     "emptyFeedback": "There is no unanswered feedback.",
@@ -3557,9 +3557,9 @@
         "folge": "Wait that long and people start asking. By then it is a complaint, not a note."
       },
       "fremde_fassung": {
-        "titel_one": "One open request points to a version that does not exist here: “{{titel}}”",
-        "titel_other": "{{count}} open requests point to a version that does not exist here, the oldest being “{{titel}}”",
-        "folge": "Their version was mapped to “None” during the switch or could not be carried over. A request like this is never handed over, and whoever asked waits in vain. “Cancel” gives them their quota back, and they can ask for the title again in a version that exists."
+        "titel_one": "One open request is not reaching nexcrate: “{{titel}}”",
+        "titel_other": "{{count}} open requests are not reaching nexcrate, the oldest being “{{titel}}”",
+        "folge": "Either it points to a version that does not exist here (mapped to “None” during the switch, or it could not be carried over), or nexcrate did not accept the hand-over; the request itself says why. Whoever asked waits in vain. “Cancel” gives them their quota back, and they can ask for the title again."
       },
       "fehlgeschlagen": {
         "titel_one": "One request failed within {{tage}} days",

@@ -14,8 +14,10 @@ wo man sie zurücknehmen kann.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Iterator
+from datetime import timedelta
 from typing import Any
 
 import httpx
@@ -25,9 +27,9 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.models import MediaRequest, MediaType, RequestStatus, Role, User
+from app.models import MediaRequest, MediaType, RequestStatus, Role, User, utcnow
 from app.security import hash_password
-from app.services import befunde, nachreichen
+from app.services import befunde, nachreichen, status_poller
 from app.services.beschaffung import NEX
 from app.services.beschaffung.nex import client as nex_client
 from app.services.beschaffung.nex import fassungen as nex_fassungen
@@ -102,8 +104,13 @@ def _ohne_fassung(db: Session, anfrage: MediaRequest) -> None:
     db.commit()
 
 
-def _umgeschaltet(db: Session) -> Any:
-    save_settings(db, {"beschaffung_gewechselt_am": "2026-09-22T20:00:00"})
+def _umgeschaltet(db: Session, vor: timedelta = timedelta(minutes=5)) -> Any:
+    """Den Merker setzen, wie es das Umschalten tut: mit dem Zeitpunkt.
+
+    Seit es eine Obergrenze gibt (``nachreichen.WIEDERHOLEN_BIS``), zaehlt der
+    Zeitpunkt; ein fester alter Wert lag schon jenseits davon.
+    """
+    save_settings(db, {"beschaffung_gewechselt_am": (utcnow() - vor).isoformat()})
     return load_settings(db, frisch=True)
 
 
@@ -413,3 +420,168 @@ async def test_die_adresse_des_assistenten_nennt_was_liegt(
 
     assert antwort.status_code == 200, antwort.text
     assert antwort.json() == {"gereicht": 1, "liegen": 2, "weiter": True}
+
+
+# --- Dauerhaft scheiternde Übergaben ---------------------------------------------
+
+
+def _scheitert_immer(
+    monkeypatch: pytest.MonkeyPatch, nexcrate: FakeNexcrate, *tmdb_ids: int
+) -> None:
+    """``POST /requests`` für diese Titel antwortet jedes Mal 500."""
+    echt = nexcrate._route
+    kaputt = tuple(f"tmdb:{nummer}" for nummer in tmdb_ids)
+
+    def route(methode: str, rest: str, abfrage: dict[str, str], koerper: Any) -> httpx.Response:
+        if methode == "POST" and rest == "/requests" and any(
+            k in json.dumps(koerper) for k in kaputt
+        ):
+            return httpx.Response(500, json={"detail": {"code": "internal", "message": "kaputt"}})
+        return echt(methode, rest, abfrage, koerper)
+
+    monkeypatch.setattr(nexcrate, "_route", route)
+
+
+async def test_dauerhaft_scheiternde_verdraengen_keine_juengere(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ Wer scheitert, stellt sich hinten an.
+
+    Eine 500 lässt die Anfrage freigegeben, und der nächste Durchgang nahm
+    wieder die ältesten zuerst. Waren das ``JE_DURCHGANG`` dauerhaft
+    scheiternde, kam eine jüngere gültige nie an die Reihe. Gemessen wird mit
+    dem Rundgang selbst: ``check_once`` stempelt ``last_checked_at`` jeder
+    freigegebenen Anfrage neu, danach allein zu sortieren genügt nicht.
+    """
+    monkeypatch.setattr(nachreichen, "JE_DURCHGANG", 2)
+    _scheitert_immer(monkeypatch, nexcrate, 601, 602)
+    # nexcrate kennt die Titel, führt sie aber noch in keiner Fassung: Erst die
+    # Übergabe legt sie an. Alle drei innerhalb der Schonfrist, sonst hielte
+    # ``check_once`` die nie übergebenen für verschwunden und bräche sie ab.
+    for nummer in (601, 602, 603):
+        nexcrate.film(nummer, versionen=[])
+    person = _nutzer(db)
+    jetzt = utcnow()
+    alt_1 = _anfrage(
+        db, person, tmdb_id=601, title="Erfundener Film A", requested_at=jetzt - timedelta(minutes=3)
+    )
+    alt_2 = _anfrage(
+        db, person, tmdb_id=602, title="Erfundener Film B", requested_at=jetzt - timedelta(minutes=2)
+    )
+    gueltig = _anfrage(
+        db, person, tmdb_id=603, title="Erfundener Film C", requested_at=jetzt - timedelta(minutes=1)
+    )
+    _umgeschaltet(db)
+
+    for _runde in range(3):
+        einstellungen = load_settings(db, frisch=True)
+        await nachreichen.einmal(db, einstellungen)
+        await status_poller.check_once(db, einstellungen)
+
+    for anfrage in (alt_1, alt_2, gueltig):
+        db.refresh(anfrage)
+    assert gueltig.status == RequestStatus.searching
+    assert (alt_1.status, alt_2.status) == (RequestStatus.approved, RequestStatus.approved)
+
+
+async def test_nach_einem_tag_wird_ein_gescheiterter_nicht_mehr_versucht(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ Die Obergrenze: Sonst lief das Nachreichen alle zwei Minuten, für immer.
+
+    Nach ``WIEDERHOLEN_BIS`` wird nur noch übergeben, was nie gescheitert ist;
+    ist davon nichts mehr übrig, ist Schluss. Was dann noch freigegeben liegt,
+    zeigt der Befund.
+    """
+    _scheitert_immer(monkeypatch, nexcrate, 601)
+    nexcrate.film(601)
+    nexcrate.film(603)
+    person = _nutzer(db)
+    gescheitert = _anfrage(
+        db, person, tmdb_id=601, title="Erfundener Dauerfehler",
+        error_message="nexcrate hat abgelehnt.",
+    )
+    nie_versucht = _anfrage(db, person, tmdb_id=603, title="Erfundener Nachzügler")
+    _umgeschaltet(db, vor=nachreichen.WIEDERHOLEN_BIS + timedelta(minutes=1))
+
+    await nachreichen.einmal(db, load_settings(db, frisch=True))
+    await nachreichen.einmal(db, load_settings(db, frisch=True))
+
+    gesendet = [k["origin"] for k in _gesendet(nexcrate)]
+    assert gesendet == [f"nexview:request:{nie_versucht.id}"]
+    assert nachreichen.faellig(load_settings(db, frisch=True)) is False
+    db.refresh(gescheitert)
+    assert gescheitert.status == RequestStatus.approved
+
+    treffer = _befund()
+    assert len(treffer) == 1
+    assert treffer[0].werte == {"anzahl": 1, "titel": "Erfundener Dauerfehler"}
+
+
+async def test_vor_der_obergrenze_wird_ein_gescheiterter_wieder_versucht(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Gegenprobe: Innerhalb der Frist ist eine 500 nur ein Grund, es noch einmal zu versuchen."""
+    _scheitert_immer(monkeypatch, nexcrate, 601)
+    nexcrate.film(601)
+    person = _nutzer(db)
+    gescheitert = _anfrage(
+        db, person, tmdb_id=601, title="Erfundener Dauerfehler",
+        error_message="nexcrate hat abgelehnt.",
+    )
+    _umgeschaltet(db, vor=nachreichen.WIEDERHOLEN_BIS - timedelta(hours=1))
+
+    await nachreichen.einmal(db, load_settings(db, frisch=True))
+
+    assert [k["origin"] for k in _gesendet(nexcrate)] == [f"nexview:request:{gescheitert.id}"]
+    assert nachreichen.faellig(load_settings(db, frisch=True)) is True
+
+
+async def test_eine_gescheiterte_uebergabe_protokolliert_die_englische_kennung(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Ins Protokoll gehört die Kennung, nicht der deutsche Satz.
+
+    ``RequestError.code`` ist hier leer; der Satz stand deshalb im Protokoll.
+    Die Kennung steckt im ``BeschaffungError`` dahinter.
+    """
+    nexcrate.film(603)
+    person = _nutzer(db)
+    gueltig = _anfrage(db, person)
+    frisch = _umgeschaltet(db)
+    nexcrate.next_answer["POST /api/v1/requests"] = httpx.Response(
+        500, json={"detail": {"code": "internal", "message": "kaputt"}}
+    )
+
+    with caplog.at_level(logging.INFO, logger="nexview.requests"):
+        await nachreichen.einmal(db, frisch)
+
+    db.refresh(gueltig)
+    zeilen = [
+        zeile.getMessage()
+        for zeile in caplog.records
+        if zeile.getMessage().startswith(f"Could not hand over request {gueltig.id} ")
+    ]
+    assert len(zeilen) == 1, [zeile.getMessage() for zeile in caplog.records]
+    assert "nexcrate_refused" in zeilen[0]
+    assert gueltig.error_message
+    assert gueltig.error_message not in zeilen[0]
+
+
+async def test_der_befund_nennt_die_aelteste_anfrage(nex: Any, db: Session) -> None:
+    """Der Titel in der Kachel ist der des ältesten Falls, nicht der des jüngsten."""
+    person = _nutzer(db)
+    jetzt = utcnow()
+    # Die jüngere zuerst angelegt: Die Reihenfolge der Zeilen ist nicht das Alter.
+    _anfrage(
+        db, person, tmdb_id=1, fassung_kennung="radarr-standard",
+        title="Erfundener junger Film", requested_at=jetzt - timedelta(days=1),
+    )
+    _anfrage(
+        db, person, tmdb_id=2, fassung_kennung="radarr-uhd",
+        title="Erfundener alter Film", requested_at=jetzt - timedelta(days=9),
+    )
+
+    treffer = _befund()
+    assert len(treffer) == 1
+    assert treffer[0].werte == {"anzahl": 2, "titel": "Erfundener alter Film"}

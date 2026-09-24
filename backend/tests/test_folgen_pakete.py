@@ -23,6 +23,7 @@ from app.models import (
 )
 from app.services import requests_service, status_poller, storage
 from app.services.beschaffung.arr import library
+from app.services.beschaffung.arr.client import ArrError
 from app.services.beschaffung.arr.sonarr import Folge, LibraryEntry, SonarrClient, Staffelstand
 from app.services.settings_service import load_settings
 from tests.conftest import auth_headers, create_user
@@ -796,6 +797,67 @@ async def test_stundenabgleich_spaltet_die_staffelzeile(
         ).one()
         assert staffel.size_bytes == 3000
         assert staffel.user_id is None
+
+
+@pytest.mark.asyncio
+async def test_ein_sonarr_fehler_laesst_die_paketzeile_stehen(
+    arr_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Scheitert Sonarrs Dateiliste, bleibt Kims Paketzeile, wie sie war.
+
+    Nicht gelesen heisst nicht weg - wie im NEX-Betrieb seit C2. Bis zum
+    24.09.2026 raeumte der Abgleich die Zeile ab, und das Paket zaehlte bis
+    zum naechsten guten Lauf nicht bei Kim.
+    """
+    konto = create_user(arr_client, "kim", "passwort-1234")
+    _bibliothek(monkeypatch)
+    _folgenstand(
+        monkeypatch,
+        {
+            3: _folge(3, has_file=True, datei_id=91),
+            7: _folge(7, has_file=True, datei_id=92),
+        },
+    )
+    _episodendateien(monkeypatch)
+
+    async def keine_filme(_settings: object, _tier: str = "standard") -> dict:
+        return {}
+
+    monkeypatch.setattr(library, "movie_library", keine_filme)
+
+    with SessionLocal() as db:
+        kennung = _paketzeile(db, konto["id"], [3, 7])
+        db.add(
+            StorageEntry(
+                key="movie:radarr-standard:tmdb:1",
+                media_type=MediaType.movie,
+                fassung_kennung="radarr-standard",
+                tmdb_id=1,
+                title="Altbestand",
+                size_bytes=1,
+                measured_at=utcnow(),
+                state=StorageState.house,
+            )
+        )
+        db.commit()
+
+    with SessionLocal() as db:
+        await storage.abgleichen(db, load_settings(db))
+
+    async def sonarr_faellt_aus(_self: SonarrClient, pfad: str, params: dict | None = None) -> list:
+        raise ArrError("weg", code="arr_unreachable")
+
+    monkeypatch.setattr(SonarrClient, "get", sonarr_faellt_aus)
+
+    with SessionLocal() as db:
+        await storage.abgleichen(db, load_settings(db))
+
+    with SessionLocal() as db:
+        paket = db.query(StorageEntry).filter(StorageEntry.key.like("%:r%")).one()
+        assert paket.key.endswith(f":r{kennung}")
+        assert paket.size_bytes == 2000
+        assert paket.user_id == konto["id"]
 
 
 @pytest.mark.asyncio

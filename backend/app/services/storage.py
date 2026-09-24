@@ -905,9 +905,12 @@ async def _pakete_aufnehmen(
     nennt je Folge und Fassung ``files`` mit ``file_id``; eine Datei an zwei
     Folgen und Teil 2 einer Doppelfolge zaehlen so genau einmal. Eine aeltere
     nexcrate ohne das Feld: Summe der Folgengroessen, gedeckelt auf die
-    Staffel, und das Protokoll sagt es einmal je Lauf. Antwortet die
-    Staffelansicht nicht, bleibt eine vorhandene Paket-Zeile unberuehrt (ihr
-    Schluessel kommt zurueck, siehe ``_bleibt``).
+    Staffel, und das Protokoll sagt es einmal je Lauf.
+
+    Antwortet die Staffelansicht (nexcrate) oder Sonarrs Dateiliste nicht,
+    bleibt eine vorhandene Paket-Zeile unberuehrt (ihr Schluessel kommt
+    zurueck, siehe ``_bleibt``). Im ARR-Betrieb raeumte der Abgleich sie bis
+    zum 24.09.2026 ab.
     """
     behalten: set[str] = set()
     anfragen = [
@@ -969,10 +972,9 @@ async def _pakete_aufnehmen(
             )
         befund = befunde[merkmal]
         if befund is None:
-            if nex:
-                # Nicht gelesen heisst nicht weg: Die Paketzeile bleibt, wie
-                # sie ist, bis die Staffelansicht wieder antwortet.
-                behalten.add(kennung)
+            # Nicht gelesen heisst nicht weg: Die Paketzeile bleibt, wie sie
+            # ist, bis die Staffelansicht oder Sonarr wieder antwortet.
+            behalten.add(kennung)
             continue
         stand, groessen = befund
         staffel = stand.get(anfrage.season) or {}

@@ -281,6 +281,12 @@ async def check_once(
         if abgleich_kern.ist_fertig(request, eintrag, folgen):
             request.status = RequestStatus.downloaded
             request.completed_at = utcnow()
+            if nie_uebergeben:
+                # Dieselbe Kennung wie beim Uebergang nach "searching": Die
+                # Uebergabe kam an, nur ihre Antwort nicht - ohne Kennung
+                # stuende hier sonst uneinheitlich "None", obwohl der Titel
+                # zu dieser Anfrage gehoert.
+                request.arr_id = request.tmdb_id
             # Fertig heisst: nichts laedt mehr - die Anzeige raeumt mit auf.
             request.laedt_fortschritt = None
             request.laedt_seit = None

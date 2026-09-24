@@ -2,18 +2,35 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any
+
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import MediaRequest, RequestStatus, User
-from app.services import status_poller
+from app.models import MediaRequest, RequestStatus, User, utcnow
+from app.services import requests_service, status_poller
+from app.services.beschaffung import NEX
 from app.services.beschaffung.arr import library
 from app.services.beschaffung.arr.radarr import LibraryEntry as MovieEntry
 from app.services.beschaffung.arr.sonarr import LibraryEntry as SeriesEntry
-from app.services.settings_service import load_settings
+from app.services.beschaffung.nex import fassungen as nex_fassungen
+from app.services.settings_service import load_settings, save_settings
 
+from .beschaffung.fake_nexcrate import FILM_HD, KEY, URL, FakeNexcrate
 from .conftest import auth_headers, create_user
+
+# ``nexcrate`` ist eine Fixture aus test_nachreichen.py, kein toter Import -
+# ``db``/``nex`` werden hier bewusst NICHT mitgezogen, weil test_status_poller.py
+# "db" schon vielfach als gewoehnlichen lokalen Namen fuer SessionLocal()
+# benutzt; ein gleichnamiger Fixture-Import wuerde jede dieser Stellen als
+# Verdeckung melden.
+from .test_nachreichen import _anfrage, _nutzer, nexcrate  # noqa: F401
+
+#: Lange genug her, dass die Schonfrist keine Rolle spielt.
+_ALT = datetime(2020, 1, 1)
 
 
 def _laufende_anfrage(client: TestClient, status: RequestStatus) -> MediaRequest:
@@ -458,3 +475,125 @@ async def test_wartende_freigabe_bleibt_unangetastet(
             session.get(MediaRequest, anfrage.id).status
             == RequestStatus.pending_approval
         )
+
+
+# --- Der Stempel gilt nur im NEX-Betrieb geschont, nie im ARR-Betrieb -------------
+
+
+def _arr_anfrage_ohne_kennung(client: TestClient) -> MediaRequest:
+    """Wie ``_laufende_anfrage``, nur freigegeben und ohne ``arr_id``."""
+    create_user(client, "kim")
+    headers = auth_headers(client, "kim", "passwort-1234")
+    item = client.get("/api/discover/movie").json()["items"][0]
+    client.post(
+        "/api/requests",
+        json={
+            "media_type": "movie",
+            "tmdb_id": item["tmdb_id"],
+            "quality_profile_id": 1,
+            "root_folder_path": "/data/Movies",
+        },
+        headers=headers,
+    )
+    with SessionLocal() as session:
+        request = session.query(MediaRequest).one()
+        request.status = RequestStatus.approved
+        request.arr_id = None
+        request.approved_at = utcnow()
+        request.last_checked_at = _ALT
+        session.commit()
+        session.refresh(request)
+        return request
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("in_radarr", [True, False], ids=["gefunden", "nicht_da"])
+async def test_arr_stempelt_auch_nie_uebergebene(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch, in_radarr: bool
+) -> None:
+    """Im ARR-Betrieb stempelt der Rundgang jede Freigabe, auch ohne ``arr_id``.
+
+    ⚠️ Die Schonung einer nie übergebenen Freigabe (``nie_uebergeben``) gilt
+    nur, wenn zugleich der NEX-Betrieb eingestellt ist. Ohne die Prüfung auf
+    ``nex_betrieb`` bliebe im ARR-Betrieb derselbe Stempel stehen, egal ob
+    Radarr den Titel kennt oder nicht - und die ganze Zeile sähe grün aus.
+    """
+    request = _arr_anfrage_ohne_kennung(arr_client)
+
+    async def bibliothek(_settings: object, _tier: str = "standard") -> dict[int, MovieEntry]:
+        if not in_radarr:
+            return {}
+        return {request.tmdb_id: MovieEntry(arr_id=4242, has_file=False, monitored=True)}
+
+    monkeypatch.setattr(library, "movie_library", bibliothek)
+
+    with SessionLocal() as session:
+        await status_poller.check_once(session, load_settings(session))
+
+    with SessionLocal() as session:
+        danach = session.get(MediaRequest, request.id)
+        assert danach.last_checked_at is not None
+        assert danach.last_checked_at > _ALT
+
+
+# --- Die Kennung gilt auch, wenn der Titel schon vor der Antwort fertig liegt ----
+
+
+@pytest.mark.asyncio
+async def test_nex_setzt_die_kennung_auch_wenn_der_titel_schon_fertig_liegt(
+    nexcrate: FakeNexcrate,  # noqa: F811 - Fixture, kein Import hier
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dieselbe Kennung wie beim Übergang nach ``searching`` - auch nach ``downloaded``.
+
+    Die Übergabe kam bei nexcrate an, ihre Antwort ging verloren, und der
+    Titel lag beim nächsten Rundgang schon komplett vor. Bisher blieb
+    ``arr_id`` in diesem Zweig ``None`` - harmlos, aber uneinheitlich zum
+    Übergang nach ``searching``, der die TMDB-Nummer schon seit af752b4 setzt.
+
+    Baut den NEX-Betrieb hier von Hand auf (statt über die ``nex``-Fixture aus
+    test_nachreichen.py): Die brauchte eine Fixture namens ``db``, und die
+    kollidiert in dieser Datei mit den vielen ``with SessionLocal() as db``.
+    """
+    echt = nexcrate._route
+
+    def route(methode: str, rest: str, abfrage: dict[str, str], koerper: Any) -> httpx.Response:
+        antwort = echt(methode, rest, abfrage, koerper)
+        if methode == "POST" and rest == "/requests" and antwort.status_code == 200:
+            nexcrate.film(
+                603,
+                name="Erfundener Film",
+                versionen=[
+                    nexcrate.fassung(
+                        FILM_HD,
+                        "available",
+                        origin=koerper["origin"],
+                        size_bytes=4_000_000_000,
+                    )
+                ],
+            )
+            raise httpx.ReadTimeout("Antwort verloren")
+        return antwort
+
+    monkeypatch.setattr(nexcrate, "_route", route)
+    nexcrate.film(603, name="Erfundener Film", versionen=[])
+
+    with SessionLocal() as session:
+        save_settings(
+            session,
+            {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY},
+        )
+        nex_fassungen.schreiben(session, nexcrate.versions)
+        session.commit()
+        einstellungen = load_settings(session, frisch=True)
+        anfrage = _anfrage(session, _nutzer(session), title="Erfundener Film")
+
+        with pytest.raises(requests_service.RequestError):
+            await requests_service.push_to_arr(session, einstellungen, anfrage)
+
+        await status_poller.check_once(session, load_settings(session, frisch=True))
+        session.commit()
+        session.refresh(anfrage)
+
+        assert anfrage.status == RequestStatus.downloaded
+        assert anfrage.arr_id == anfrage.tmdb_id

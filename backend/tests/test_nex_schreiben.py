@@ -336,6 +336,41 @@ async def test_was_der_betreiber_selbst_ueberwacht_bleibt(
     assert _gesendet(nexcrate, "/withdraw") == []
 
 
+async def test_zuruecknehmen_bei_unbekanntem_titel_nennt_das_beim_namen(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """⚠️ Nicht dasselbe wie „der Betreiber überwacht sie selbst".
+
+    Kennt nexcrate den Titel gar nicht (kein ``nexcrate.film`` aufgerufen),
+    gibt es dort auch nichts, was der Betreiber überwachen könnte - die alte
+    Meldung ("the owner watches this version in nexcrate") würde das
+    behaupten, obwohl es nicht stimmt.
+    """
+    person = _nutzer(db)
+    meine = _anfrage(db, person, status=RequestStatus.searching)
+
+    bericht = await get_beschaffung(nex).abbrechen(db, meine)
+
+    assert "owner watches" not in bericht
+    assert "unknown to nexcrate" in bericht
+    assert _gesendet(nexcrate, "/withdraw") == []
+
+
+async def test_zuruecknehmen_bei_bekanntem_titel_ohne_diese_fassung(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Der Titel steht bei nexcrate, aber nicht in der angefragten Fassung."""
+    nexcrate.film(603, versionen=[nexcrate.fassung(FILM_UHD, "available", origin="nexview:request:9")])
+    person = _nutzer(db)
+    meine = _anfrage(db, person, status=RequestStatus.searching)  # fassung_kennung=FILM_HD
+
+    bericht = await get_beschaffung(nex).abbrechen(db, meine)
+
+    assert "owner watches" not in bericht
+    assert "unknown to nexcrate" in bericht
+    assert _gesendet(nexcrate, "/withdraw") == []
+
+
 async def test_zuruecknehmen_schickt_umfang_und_dateien(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:

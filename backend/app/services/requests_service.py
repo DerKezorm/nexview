@@ -396,7 +396,7 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
             request.tmdb_id,
             request.user.username,
             logs.kennung(error),
-            " - Ausgang ungewiss, der Status-Abgleich prüft nach"
+            " - outcome uncertain, the status sync will check again"
             if error.ungewiss
             else "",
         )

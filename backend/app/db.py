@@ -1009,17 +1009,35 @@ def _fassungen_einfuehren() -> None:
         try:
             return arr_kennung(art, stufe or "standard")
         except (KeyError, ValueError):
-            # Eine Stufe, die weder leer noch ``standard``/``uhd`` ist (eine
-            # Zwischenversion, ein Eingriff von Hand): lieber die Hauptfassung
-            # dieser Medienart als eine Zeile, die auf ``fassung_kennung =
-            # NULL`` stehen bleibt. Erfunden wird nichts - nur dieselbe
-            # Zusage wie fuer eine Zeile ganz ohne Stufe. Ist auch die
-            # Medienart selbst unbekannt, bleibt es bei ``None``: das
-            # toleriert das Schema (``RequestPublic.fassung``).
+            # ⚠️ **Erst normalisieren, dann aufgeben.** ``'UHD'`` oder ``' uhd
+            # '`` sind keine unbekannte Stufe - nur anders geschrieben (eine
+            # Zwischenversion, ein Eingriff von Hand). Ohne diesen zweiten
+            # Versuch zog der Rueckfall darunter auch sie still auf
+            # Standard, obwohl klar gemeint war: 4K.
+            genormt = (stufe or "").strip().lower()
+            if genormt and genormt != "standard":
+                try:
+                    return arr_kennung(art, genormt)
+                except (KeyError, ValueError):
+                    pass
+            # Eine Stufe, die auch genormt weder leer noch ``standard``/``uhd``
+            # ist: lieber die Hauptfassung dieser Medienart als eine Zeile, die
+            # auf ``fassung_kennung = NULL`` stehen bleibt. Erfunden wird
+            # nichts - nur dieselbe Zusage wie fuer eine Zeile ganz ohne
+            # Stufe. Ist auch die Medienart selbst unbekannt, bleibt es bei
+            # ``None``: das toleriert das Schema (``RequestPublic.fassung``).
             try:
-                return arr_kennung(art, "standard")
+                ergebnis = arr_kennung(art, "standard")
             except (KeyError, ValueError):
                 return None
+            if genormt and genormt != "standard":
+                logger.warning(
+                    "Fassungen migration: unknown tier %r for %r fell back to %r",
+                    stufe,
+                    art,
+                    ergebnis,
+                )
+            return ergebnis
 
     with engine.begin() as verbindung:
         spalten = {

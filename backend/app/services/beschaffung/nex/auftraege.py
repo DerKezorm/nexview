@@ -218,17 +218,24 @@ def freier_umfang(db: Session, request: MediaRequest) -> dict[str, Any] | None:
     return umfang(request)
 
 
-async def _gehoert_uns(settings: AppSettings, request: MediaRequest) -> bool:
-    """Hat Nexview diese Fassung angelegt - oder der Betreiber selbst? (6.2)"""
+async def _gehoert_uns(settings: AppSettings, request: MediaRequest) -> bool | None:
+    """Hat Nexview diese Fassung angelegt - oder der Betreiber selbst? (6.2)
+
+    ``None`` heisst: Die angefragte Fassung gibt es bei nexcrate gar nicht
+    (mehr) - weder der Titel noch, falls er steht, ein Eintrag mit dieser
+    ``version_id``. Das ist ein anderer Fall als "der Betreiber ueberwacht sie
+    selbst" (``False``): Dort steht etwas, das Nexview nicht anfassen soll;
+    hier steht nichts, das sich zuruecknehmen liesse.
+    """
     titel = await _client(settings).title(
         mapping.kind(request.media_type), mapping.ref(request.tmdb_id)
     )
     if titel is None:
-        return False
+        return None
     for eintrag in titel.get("versions") or []:
         if str(eintrag.get("version_id")) == request.fassung_kennung:
             return mapping.ist_nexview(eintrag.get("origin"))
-    return False
+    return None
 
 
 async def zuruecknehmen(
@@ -242,7 +249,10 @@ async def zuruecknehmen(
     teil = freier_umfang(db, request)
     if teil is None:
         return "left it in place - another request still covers it"
-    if not await _gehoert_uns(settings, request):
+    gehoert = await _gehoert_uns(settings, request)
+    if gehoert is None:
+        return "left it in place - version unknown to nexcrate, nothing to withdraw"
+    if not gehoert:
         return "left it in place - the owner watches this version in nexcrate"
 
     koerper = {**teil, "versions": [request.fassung_kennung], "delete_files": dateien_loeschen}

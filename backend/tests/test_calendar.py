@@ -524,6 +524,21 @@ def test_ausfall_von_radarr_laesst_die_seite_stehen(arr_client: TestClient) -> N
     assert antwort.json()["arr_warning"]
 
 
+def test_arr_warning_ist_eine_kennung_kein_fertiger_satz(arr_client: TestClient) -> None:
+    """⚠️ `arr_warning` ging als fertiger deutscher Satz aus dem Backend.
+
+    Auf Englisch gestellt bekam der Kalender trotzdem Deutsch zu sehen; die
+    Oberfläche übersetzt Kennungen, keine Sätze. Der Ausfall an Port 9 wirft
+    ``ArrError(code="arr_unreachable", ...)`` - genau diese Kennung muss
+    ankommen, kein Text mit "nicht erreichbar" darin.
+    """
+    antwort = arr_client.get("/api/calendar", params={"sources": "mine"})
+
+    assert antwort.status_code == 200
+    warnung = antwort.json()["arr_warning"]
+    assert warnung == "arr_unreachable"
+
+
 def test_altersgrenze_verbirgt_eigene_titel_ohne_zuordnung(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

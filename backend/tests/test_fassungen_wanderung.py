@@ -203,6 +203,37 @@ def test_eine_unbekannte_stufe_bekommt_die_hauptfassung(alte_datenbank) -> None:
     assert zeile[0] == "radarr-standard"
 
 
+def test_eine_grossgeschriebene_stufe_wird_noch_erkannt(alte_datenbank) -> None:
+    """``'UHD'`` oder ``'4k'`` sind keine leeren/unbekannten Stufen - nur
+    anders geschrieben. Der Rueckfall normalisierte bisher nicht und zog
+    beide still auf die Standard-Fassung, obwohl klar gemeint war: 4K."""
+    motor = alte_datenbank()
+    _bestand(motor)
+    with motor.begin() as v:
+        v.exec_driver_sql("UPDATE media_requests SET tier = 'UHD' WHERE id = 1")
+
+    db_modul.init_db()
+
+    zeile = _abfrage(motor, "SELECT fassung_kennung FROM media_requests WHERE id = 1")[0]
+    assert zeile[0] == "radarr-uhd"
+
+
+def test_eine_unbekannte_stufe_bei_serien_bekommt_die_sonarr_hauptfassung(alte_datenbank) -> None:
+    """Dieselbe Absage wie bei Filmen, aber fuer Serien: ``sonarr-standard``,
+    nicht ``radarr-standard``. Die Hauptfassung folgt der **Medienart der
+    Zeile**, nicht einer festen Instanz."""
+    motor = alte_datenbank()
+    _bestand(motor)
+    with motor.begin() as v:
+        # Zeile 3 ist eine Serie (siehe ``_bestand``).
+        v.exec_driver_sql("UPDATE media_requests SET tier = 'riesengross' WHERE id = 3")
+
+    db_modul.init_db()
+
+    zeile = _abfrage(motor, "SELECT fassung_kennung FROM media_requests WHERE id = 3")[0]
+    assert zeile[0] == "sonarr-standard"
+
+
 def test_die_haken_werden_rechte_je_fassung(alte_datenbank) -> None:
     motor = alte_datenbank()
     _bestand(motor)

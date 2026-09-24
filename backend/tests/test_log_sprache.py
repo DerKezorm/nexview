@@ -101,6 +101,28 @@ def _meldungen() -> list[tuple[Path, int, str]]:
                         ),
                     )
                 )
+            # ⚠️ **Nicht nur das erste Argument.** Ein Formatstring wie
+            # ``"...%s%s"`` mit einer festen Zeichenkette als spaeteres
+            # Argument ist genauso eine Meldung - nur steht sie nicht an
+            # erster Stelle. Genau so blieb ein deutscher Anhang
+            # (``" - Ausgang ungewiss..." if x else ""``) unentdeckt: Das
+            # Formatstring-Argument selbst war englisch, der Anhang kam erst
+            # als zweites bzw. drittes Argument. Geprueft werden feste
+            # Zeichenketten und beide Zweige eines ``... if ... else ...``,
+            # wenn beide feste Zeichenketten sind - keine Namen, keine
+            # Attribute, damit ``fehler.message`` (siehe unten) nicht
+            # doppelt gemeldet wird.
+            for arg in knoten.args[1:]:
+                zweige = (
+                    (arg.body, arg.orelse) if isinstance(arg, ast.IfExp) else (arg,)
+                )
+                for zweig in zweige:
+                    if (
+                        isinstance(zweig, ast.Constant)
+                        and isinstance(zweig.value, str)
+                        and zweig.value.strip()
+                    ):
+                        gefunden.append((datei, knoten.lineno, zweig.value))
     return gefunden
 
 

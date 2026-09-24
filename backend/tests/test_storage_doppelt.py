@@ -25,6 +25,18 @@ Erkannt wird es an der **byte-genauen Größe**. Zwei wirklich verschiedene
 Fassungen desselben Films - 1080p hier, 4K dort - haben nie dieselbe
 Byte-Zahl. Ein echter Doppelbestand bleibt deshalb erhalten, und genau das
 prüft die zweite Hälfte dieser Datei.
+
+⚠️ **Was hier steht, ist die Entscheidung nachgebaut, nicht die echte
+Funktion.** ``_zusammenfuehren`` unten ist eine Kopie ihres Kerns - absichtlich,
+siehe ihr Docstring: Sie prüft die Regel ohne einen halben Bestand in der
+Datenbank aufzubauen. Dieselbe Regel, gegen die **echte** ``_aus_media_server``
+und mit einem vorbestehenden Posten, prüft zusätzlich
+``test_storage_medienserver.py::
+test_ein_vorbestehender_posten_unter_anderer_fassung_wird_nicht_weiter_gezaehlt``
+(gebaut 24.09.2026, Prüfauftrag R6/R13b). Sie deckt nur den einen, im
+Betrieb gefundenen Fall ab - die Randfälle hier (echter Doppelbestand,
+verschiedene Filme, gleicher Schlüssel, beide Richtungen) bleiben ungeprüft
+gegen die echte Funktion; diese Datei bleibt deshalb bestehen.
 """
 
 from __future__ import annotations

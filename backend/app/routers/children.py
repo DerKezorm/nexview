@@ -229,6 +229,11 @@ async def release_wish(
             fassung=fassungen.gewaehlt(
                 settings, wunsch.media_type, payload.fassung, payload.tier
             ),
+            # ⚠️ Ohne ``tier`` weiss ``create_request`` nicht, ob ``fassung
+            # is None`` "keine Angabe" heisst oder "4K ausdruecklich verlangt,
+            # aber keine Fassung dafuer" - und waehlte im zweiten Fall still
+            # die Hauptfassung statt mit 409 abzusagen (Befund R6).
+            tier=payload.tier,
             monitor_future=payload.monitor_future,
         )
     except children.ChildError as error:

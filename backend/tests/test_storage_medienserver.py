@@ -199,6 +199,39 @@ def test_eine_4k_fassung_aus_nexcrate_misst_die_4k_datei(db: Session) -> None:
     assert posten(db)[f"movie:{NEX_UHD}:tmdb:603"].size_bytes == 50 * GB
 
 
+def test_ein_vorbestehender_posten_unter_anderer_fassung_wird_nicht_weiter_gezaehlt(
+    db: Session,
+) -> None:
+    """⚠️ Der schwerste Fund des Speicher-Bereichs, an einer echten Anlage:
+    32 Dateien, 540 GB, einmal vorhanden und zweimal gezählt.
+
+    Die Standard-Instanz von Radarr lädt mit einem 1080p-Profil, greift aber
+    eine 2160p-Datei - das passiert oft genug. Ein früherer Lauf hatte die
+    Datei deshalb schon einmal unter der 4K-Fassung als Posten stehen (der
+    Medienserver meldete sie dort weiter, weil er ``videoResolution=4k``
+    sieht). Meldet Radarr sie jetzt korrekt unter der Standard-Fassung, darf
+    der alte 4K-Posten nicht weiter mitgezählt werden - byte-genau dieselbe
+    Datei zählt nur einmal, egal unter welcher Fassung sie zuerst stand.
+    """
+    radarr_standard = arr_kennung(MediaType.movie, "standard")
+    radarr_uhd = arr_kennung(MediaType.movie, "uhd")
+
+    # Erster Lauf: nur die 4K-Instanz meldet den Titel - der Posten entsteht
+    # dort, ganz regulär.
+    abgleich(db, {radarr_uhd: {435011: film(50, pfad="/data/Ein Film (4K)")}})
+    assert set(posten(db)) == {f"movie:{radarr_uhd}:tmdb:435011"}
+
+    # Zweiter Lauf: Die Standard-Instanz hat dieselbe (4K-)Datei gegriffen und
+    # meldet sie jetzt korrekt unter sich selbst; der Medienserver misst die
+    # alte 4K-Fassung byte-genau weiter.
+    im_server(db, 435011, uhd_gb=50)
+    abgleich(db, {radarr_standard: {435011: film(50, pfad="/data/Ein Film (4K)")}})
+
+    assert set(posten(db)) == {f"movie:{radarr_standard}:tmdb:435011"}
+    einziger = posten(db)[f"movie:{radarr_standard}:tmdb:435011"]
+    assert einziger.size_bytes == 50 * GB
+
+
 # ------------------------------------------------ Fassung am neuen Posten
 
 

@@ -9,12 +9,19 @@ wie bei einem Klick auf "Anfragen".
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import ChildWish, MediaRequest, RequestStatus, User, WishState
+from app.models import ChildWish, MediaRequest, RequestStatus, Role, User, WishState
 from app.services import requests_service
+from app.services.beschaffung import NEX
+from app.services.beschaffung.nex import client as nex_client
+from app.services.beschaffung.nex import fassungen as nex_fassungen
 
+from .beschaffung.fake_nexcrate import KEY, URL, FakeNexcrate
 from .conftest import auth_headers, create_user
 
 
@@ -821,3 +828,76 @@ def test_ohne_kinderwunsch_steht_dort_nichts(arr_client: TestClient) -> None:
     zeilen = arr_client.get("/api/admin/requests").json()
     assert len(zeilen) == 1
     assert zeilen[0]["for_child_name"] is None
+
+
+# --------------------------------------------------------------------------
+# Freigabe in 4K im NEX-Betrieb - `tier` muss den Weg vom Router bis
+# `create_request` durchhalten.
+
+
+@pytest.fixture
+def nexcrate() -> Iterator[FakeNexcrate]:
+    attrappe = FakeNexcrate()
+    nex_client.use_transport(attrappe.transport())
+    nex_fassungen.vergessen()
+    try:
+        yield attrappe
+    finally:
+        nex_client.use_transport(None)
+        nex_fassungen.vergessen()
+
+
+def test_4k_wunsch_ohne_4k_fassung_faellt_nicht_lautlos_auf_standard(
+    admin_client: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """⚠️ Der Fund aus R6: `payload.tier` erreichte `create_request` nie.
+
+    `fassungen.gewaehlt(..., tier="uhd")` liefert im NEX-Betrieb ohne
+    4K-Fassung `None` zurück - dieselbe Kennung wie "keine Angabe". Nur der
+    zusätzliche `tier`-Parameter an `create_request` unterscheidet die
+    ausdrückliche Absage (409 `nexcrate_no_version_for_kind`) vom stillen
+    Rückfall auf die Hauptfassung. `child_wishes.freigeben` reicht `**anfrage_
+    optionen` unverändert durch - es fehlte allein `tier=payload.tier` im
+    Router-Aufruf.
+    """
+    # Keine einzige 4K-Fassung für Filme - nur die Standard-Fassung bleibt.
+    nexcrate.versions = [
+        v for v in nexcrate.versions if not (v["kind"] == "movie" and v["tier"] == "uhd")
+    ]
+    admin_client.put(
+        "/api/settings",
+        json={"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY},
+    )
+    # Die Fassungen kommen nicht mit dem PUT - erst der Stand-Aufruf liest sie
+    # von nexcrate und schreibt sie in die Tabelle (Verbinden tut das in der
+    # echten Oberfläche genauso).
+    status = admin_client.get("/api/settings/nexcrate/status")
+    assert status.status_code == 200, status.text
+
+    eltern, kind_kopf, _ = _familie(admin_client)
+    # ⚠️ Eine frische Fassung aus nexcrate ist zu, bis der Betreiber sie
+    # freigibt - ohne dieses Recht bliebe der Test am falschen Riegel haengen
+    # (403 statt der 409, um die es hier geht).
+    with SessionLocal() as sitzung:
+        eltern_konto = sitzung.query(User).filter(User.username == "elternteil").one()
+        eltern_konto.role = Role.approver
+        sitzung.commit()
+
+    titel = _erster_titel(admin_client, kind_kopf)
+    wunsch = admin_client.post(
+        "/api/kids/wishes",
+        json={"media_type": "movie", "tmdb_id": titel["tmdb_id"]},
+        headers=kind_kopf,
+    ).json()
+
+    antwort = admin_client.post(
+        f"/api/children/wishes/{wunsch['id']}/release",
+        json={"tier": "uhd"},
+        headers=eltern,
+    )
+
+    assert antwort.status_code == 409, antwort.text
+    assert antwort.json()["detail"]["code"] == "nexcrate_no_version_for_kind"
+    # Und ganz sicher keine leise Anfrage in Standard.
+    with SessionLocal() as sitzung:
+        assert sitzung.query(MediaRequest).count() == 0

@@ -755,10 +755,17 @@ async def kalender(
 
     for ergebnis in (serien, filme):
         if isinstance(ergebnis, BeschaffungError):
-            arr_hinweis = ergebnis.message
+            # ⚠️ Die Kennung, kein fertiger Satz - der Server kennt die
+            # eingestellte Sprache nicht (sie liegt im Browser), die
+            # Oberflaeche uebersetzt ueber ``errors.byCode``. Ohne Kennung
+            # (sollte nicht vorkommen, aber ``code`` ist optional) bleibt der
+            # allgemeine Rueckfall stehen, statt gar nichts zu melden.
+            code = "calendar_own_titles_unavailable"
+            arr_hinweis = ergebnis.code or code
         elif isinstance(ergebnis, BaseException):
             logger.warning("Calendar: own titles not available: %s", ergebnis)
-            arr_hinweis = arr_hinweis or "Radarr/Sonarr sind gerade nicht erreichbar."
+            code = "calendar_own_titles_unavailable"
+            arr_hinweis = arr_hinweis or code
         else:
             eintraege.extend(ergebnis)
 

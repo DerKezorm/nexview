@@ -27,6 +27,9 @@ HOST = "nexcrate.test"
 URL = f"http://{HOST}:8391"
 KEY = "nxv_test_key_only_for_tests_aaaaaaaaaaaaaaaaaaaaaaaa"
 
+#: Steht fuer "das Feld fehlt ganz", im Unterschied zu ``None`` (``null``).
+FEHLT: Any = object()
+
 #: Die vier Fassungen des Pruefstands, wie ``GET /versions`` sie nannte.
 FILM_HD = "v_6a0763e8"
 FILM_UHD = "v_b4272077"
@@ -251,6 +254,7 @@ class FakeNexcrate:
         quality: str | None = None,
         origin: str | None = None,
         series: dict[str, Any] | None = None,
+        imported_at: Any = FEHLT,
     ) -> dict[str, Any]:
         eintrag: dict[str, Any] = {
             "version_id": kennung,
@@ -260,6 +264,10 @@ class FakeNexcrate:
             "quality": quality,
             "origin": origin,
         }
+        # Seit nexcrate 39dfc05 an jeder Fassung; ohne Angabe fehlt es wie
+        # bei einer aelteren nexcrate.
+        if imported_at is not FEHLT:
+            eintrag["imported_at"] = imported_at
         if series is not None:
             eintrag["series"] = series
         return eintrag

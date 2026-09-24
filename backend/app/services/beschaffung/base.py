@@ -246,6 +246,10 @@ class Staffelstand:
     # Laeuft die Ueberwachung? ``True`` als Vorgabe heisst "kein Anlass zur
     # Heilung" - wo die Angabe fehlt, wird nicht herumgestellt.
     monitored: bool = True
+    # Seit wann die Staffel Platz belegt: ihre aelteste Datei. Nur der
+    # NEX-Weg nennt es hier; der ARR-Weg traegt es spaeter nach
+    # (``storage._staffeldaten_nachtragen``). ``None`` heisst unbekannt.
+    added_at: datetime | None = None
 
     @property
     def vollstaendig(self) -> bool:

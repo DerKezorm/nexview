@@ -18,6 +18,7 @@ nie wieder eine Änderung (nexbeat-Befund 11, an dieser nexcrate nachgemessen).
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from ..base import (
@@ -62,8 +63,31 @@ def film_stand(titel: dict[str, Any], kennung: str) -> FilmStand | None:
         # nexcrate nennt keinen Dateipfad, und die Grenze kennt keinen
         # (Bauplan 6.4). Der Ordner ist ein Sprung, kein Text.
         path="",
-        added_at=None,
+        added_at=_zeitpunkt(fassung.get("imported_at")),
     )
+
+
+def _zeitpunkt(roh: object) -> datetime | None:
+    """``imported_at`` in einen naiven UTC-Zeitpunkt, wie der ARR-Weg ablegt.
+
+    nexcrate nennt es an jeder Fassung und jeder Staffel je Fassung (seit
+    ``39dfc05``): seit wann die Datei Platz belegt, bei einer Staffel ihre
+    älteste. ``null`` heißt, nexcrate kennt das Alter selbst nicht; eine
+    ältere nexcrate nennt das Feld gar nicht. Beides bleibt ``None`` - der
+    Aufräum-Vorschlag übergeht solche Posten, statt ihr Alter zu raten.
+
+    Ohne Zeitzone gilt UTC: nexcrate schreibt immer UTC, und ``astimezone``
+    auf einem naiven Wert nimmt die Ortszeit des Rechners.
+    """
+    if not isinstance(roh, str) or not roh:
+        return None
+    try:
+        wann = datetime.fromisoformat(roh.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if wann.tzinfo is None:
+        return wann
+    return wann.astimezone(UTC).replace(tzinfo=None)
 
 
 def serien_stand(titel: dict[str, Any], kennung: str) -> SerienStand | None:
@@ -95,6 +119,9 @@ def serien_stand(titel: dict[str, Any], kennung: str) -> SerienStand | None:
             # gälte eine laufende Staffel nie als fertig.
             folgen=int(stand.get("aired") or 0),
             monitored=bool(je_fassung.get("monitored")),
+            # Je Staffel ihr eigenes Datum, nie das der Serie: Die Serie nennt
+            # ihre älteste Datei, und die liegt vielleicht in Staffel 1.
+            added_at=_zeitpunkt(je_fassung.get("imported_at")),
         )
         groessen[int(nummer)] = int(je_fassung.get("size_bytes") or 0)
     return SerienStand(

@@ -3275,7 +3275,7 @@
     "introMine": "Was dir zugerechnet ist und lange niemand mehr angesehen hat. Abgeben kannst du es in der Liste darunter.",
     "colHere": "Liegt seit",
     "noDateYet": "{{count}} Posten sind übergangen, weil Nexview noch nicht weiß, wie lange sie schon da liegen. Das Datum kommt aus Radarr bzw. Sonarr und wird beim nächsten Abgleich nachgetragen - er läuft stündlich.",
-    "noDateYet_nex": "{{count}} Posten sind übergangen, weil Nexview nicht weiß, wie lange sie schon da liegen. nexcrate nennt dieses Datum nicht.",
+    "noDateYet_nex": "{{count}} Posten sind übergangen, weil Nexview nicht weiß, wie lange sie schon da liegen. nexcrate kennt das Alter dieser Dateien selbst nicht; eine ältere nexcrate nennt es gar nicht. Erfährt nexcrate es später, trägt der nächste Abgleich es nach.",
     "emptyUnknown": "Noch keine Aussage möglich: Von allen Posten ist bisher nicht bekannt, wie lange sie da liegen. Nach dem nächsten Abgleich steht hier etwas.",
     "periodLabel": "Ungenutzt seit mindestens:",
     "syncNow": "Jetzt abgleichen",

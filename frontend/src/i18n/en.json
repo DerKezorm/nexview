@@ -3275,7 +3275,7 @@
     "introMine": "What is attributed to you and nobody has watched for a long time. You can hand it back in the list below.",
     "colHere": "Here since",
     "noDateYet": "{{count}} items were skipped because Nexview does not yet know how long they have been there. The date comes from Radarr or Sonarr and is filled in at the next sync - it runs hourly.",
-    "noDateYet_nex": "{{count}} items were skipped because Nexview does not know how long they have been there. nexcrate does not report that date.",
+    "noDateYet_nex": "{{count}} items were skipped because Nexview does not know how long they have been there. nexcrate does not know the age of these files itself; an older nexcrate does not report it at all. If nexcrate learns it later, the next sync fills it in.",
     "emptyUnknown": "No verdict yet: for all items it is still unknown how long they have been there. There will be something here after the next sync.",
     "periodLabel": "Unused for at least:",
     "syncNow": "Sync now",

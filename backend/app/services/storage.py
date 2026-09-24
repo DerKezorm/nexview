@@ -1007,6 +1007,10 @@ async def _pakete_aufnehmen(
                 not folge.has_file for folge in eigene
             )
             or len(eigene) < len(anfrage.episodes),
+            # Das Datum der Staffel, wie es der ARR-Weg dem Paket nachtraegt
+            # (``_staffeldaten_nachtragen``). Im NEX-Betrieb steht es schon an
+            # der Staffelzeile; im ARR-Betrieb ist es hier noch leer.
+            added_at=staffelzeile.added_at,
             arr_id=staffelzeile.arr_id,
         )
         # Der Staffel-Zeile abziehen; die Klammer faengt Mess-Drift ab.
@@ -1105,8 +1109,9 @@ async def _staffeldaten_nachtragen(
     for wert in gemessen.values():
         if wert.season is None or wert.arr_id is None or wert.key in bekannt:
             continue
-        # nexcrate nennt kein Datum (``staffel_daten`` antwortet dort nichts);
-        # fragen hiesse, bei jedem Lauf jede Staffel umsonst durchzugehen.
+        # nexcrate nennt das Datum schon an der Staffel (``Staffelstand``), und
+        # ``staffel_daten`` antwortet dort nichts; wo es fehlt, kennt nexcrate
+        # es selbst nicht. Fragen hiesse, jede Staffel umsonst durchzugehen.
         if fassungen.quelle(_fassung_aus_schluessel(wert.key)) == NEX:
             continue
         offen.setdefault(wert.arr_id, []).append(wert)
@@ -1205,6 +1210,9 @@ def _serie_aufnehmen(
             # je Serie - und die Aussage "wo liegt das" beantwortet der Ordner.
             path=eintrag.path,
             unvollstaendig=stand is not None and not stand.vollstaendig,
+            # Nur der NEX-Weg nennt es hier, je Staffel; im ARR-Betrieb bleibt
+            # es leer und kommt aus ``_staffeldaten_nachtragen``.
+            added_at=stand.added_at if stand is not None else None,
             arr_id=eintrag.arr_id,
         )
 

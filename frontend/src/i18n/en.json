@@ -4079,6 +4079,7 @@
     "open": "Open in nexcrate",
     "noAnime": "This nexcrate does not search for anime yet. Requests are still accepted.",
     "versionsTitle": "Versions",
+    "rightsText": "Ticked means everyone may request this version. Without a tick you hand out the right per account.",
     "ready": "ready",
     "notReady": "not ready",
     "healthTitle": "What nexcrate reports",

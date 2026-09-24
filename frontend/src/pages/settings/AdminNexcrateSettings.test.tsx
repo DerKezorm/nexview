@@ -29,7 +29,7 @@ vi.mock('../../api/client', async () => {
 })
 
 import { api, ApiError } from '../../api/client'
-import type { AppSettings, NexStand } from '../../api/types'
+import type { AppConfig, AppSettings, Fassung, NexStand } from '../../api/types'
 import { rendernSchlicht } from '../../test/rendern'
 import { AdminNexcrateSettings } from './AdminNexcrateSettings'
 
@@ -62,6 +62,27 @@ const stand = (patch: Partial<NexStand> = {}): NexStand => ({
   fehler: '',
   ...patch,
 })
+
+const fassungKonfig = (patch: Partial<Fassung> = {}): Fassung => ({
+  kennung: 'v_1',
+  media_type: 'movie',
+  name: 'Full-HD',
+  klasse: 'hd',
+  quelle: 'nex',
+  haupt: true,
+  bereit: true,
+  offen_fuer_alle: false,
+  approver_picks_target: false,
+  darf_anfragen: true,
+  ...patch,
+})
+
+const konfiguration = (patch: Partial<AppConfig> = {}) =>
+  ({
+    beschaffung: 'arr',
+    fassungen: [],
+    ...patch,
+  }) as AppConfig
 
 describe('Dienste-Seite für nexcrate', () => {
   beforeEach(() => {
@@ -259,5 +280,117 @@ describe('Dienste-Seite für nexcrate', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Unbekannt.')
     expect(screen.queryByRole('button', { name: 'Umstieg auf nexcrate' })).toBeNull()
+  })
+
+  describe('Rechte je Fassung (C8)', () => {
+    it('zeigt im NEX-Betrieb einen Rechte-Kasten und schickt beim Umschalten genau ein Paar', async () => {
+      vi.mocked(api.get).mockImplementation(async (pfad: string) => {
+        if (pfad === '/api/settings/nexcrate/status') {
+          return stand({
+            fassungen: [
+              { kennung: 'v_1', media_type: 'movie', name: 'Full-HD', klasse: 'hd', bereit: true, gruende: [] },
+            ],
+          })
+        }
+        if (pfad === '/api/config') {
+          return konfiguration({
+            beschaffung: 'nex',
+            fassungen: [fassungKonfig({ offen_fuer_alle: false })],
+          })
+        }
+        return einstellungen({
+          beschaffung: 'nex',
+          nexcrate_url: 'https://nexcrate.example.com',
+          nexcrate_api_key_set: true,
+        })
+      })
+      vi.mocked(api.put).mockResolvedValue([])
+
+      rendernSchlicht(<AdminNexcrateSettings />)
+
+      const haken = await screen.findByRole('checkbox', { name: 'Full-HD' })
+      expect(haken).not.toBeChecked()
+      // Die reine Anzeige von vorher (ohne Haken) darf nicht zusätzlich auftauchen.
+      expect(screen.queryByText('Fassungen')).not.toBeInTheDocument()
+
+      await userEvent.click(haken)
+
+      await waitFor(() =>
+        expect(api.put).toHaveBeenCalledWith('/api/settings/fassungen', [
+          { kennung: 'v_1', offen_fuer_alle: true },
+        ]),
+      )
+    })
+
+    it('zeigt keinen Rechte-Kasten im ARR-Betrieb, auch wenn nexcrate verbunden ist', async () => {
+      vi.mocked(api.get).mockImplementation(async (pfad: string) => {
+        if (pfad === '/api/settings/nexcrate/status') {
+          return stand({
+            fassungen: [
+              { kennung: 'v_1', media_type: 'movie', name: 'Full-HD', klasse: 'hd', bereit: true, gruende: [] },
+            ],
+          })
+        }
+        if (pfad === '/api/config') return konfiguration({ beschaffung: 'arr' })
+        return einstellungen({
+          nexcrate_url: 'https://nexcrate.example.com',
+          nexcrate_api_key_set: true,
+        })
+      })
+
+      rendernSchlicht(<AdminNexcrateSettings />)
+
+      await screen.findByText('Full-HD')
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+      // Die alte, reine Anzeige bleibt unverändert stehen.
+      expect(screen.getByText('Fassungen')).toBeInTheDocument()
+    })
+
+    it('zeigt den Rechte-Kasten nicht ohne eingerichtete Verbindung', async () => {
+      vi.mocked(api.get).mockImplementation(async (pfad: string) => {
+        if (pfad === '/api/config') return konfiguration({ beschaffung: 'nex' })
+        return einstellungen({ beschaffung: 'nex' })
+      })
+
+      rendernSchlicht(<AdminNexcrateSettings />)
+
+      await screen.findByRole('button', { name: /^nexcrate/ })
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+      expect(vi.mocked(api.get).mock.calls.map(([pfad]) => pfad)).not.toContain(
+        '/api/settings/nexcrate/status',
+      )
+    })
+
+    it('zeigt einen Fehler, wenn das Umschalten eines Rechts scheitert', async () => {
+      vi.mocked(api.get).mockImplementation(async (pfad: string) => {
+        if (pfad === '/api/settings/nexcrate/status') {
+          return stand({
+            fassungen: [
+              { kennung: 'v_1', media_type: 'movie', name: 'Full-HD', klasse: 'hd', bereit: true, gruende: [] },
+            ],
+          })
+        }
+        if (pfad === '/api/config') {
+          return konfiguration({
+            beschaffung: 'nex',
+            fassungen: [fassungKonfig({ offen_fuer_alle: false })],
+          })
+        }
+        return einstellungen({
+          beschaffung: 'nex',
+          nexcrate_url: 'https://nexcrate.example.com',
+          nexcrate_api_key_set: true,
+        })
+      })
+      vi.mocked(api.put).mockRejectedValue(
+        new ApiError(404, 'Diese Fassung gibt es nicht.', 'fassung_unknown'),
+      )
+
+      rendernSchlicht(<AdminNexcrateSettings />)
+
+      await userEvent.click(await screen.findByRole('checkbox', { name: 'Full-HD' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Diese Fassung gibt es nicht.')
+    })
   })
 })

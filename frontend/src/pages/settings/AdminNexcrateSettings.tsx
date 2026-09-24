@@ -7,6 +7,8 @@ import type { AppSettings, Beschaffung, NexStand } from "../../api/types";
 import { NexcrateVerbinden, Standpruefung } from "../../components/NexcrateVerbinden";
 import { ErrorBanner, Section, Spinner } from "../../components/ui";
 import { FassungsZeile } from "../../components/FassungsZeile";
+import { FassungsRechte } from "../../components/FassungsRechte";
+import { useConfig } from "../../hooks/useConfig";
 
 /** Die beiden Betriebsarten, in der Reihenfolge der Seite. */
 const MODI: Beschaffung[] = ["arr", "nex"];
@@ -35,6 +37,7 @@ export function AdminNexcrateSettings({ zumUmstieg }: { zumUmstieg?: () => void 
     queryFn: () => api.get<AppSettings>("/api/settings"),
   });
   const settings = settingsQuery.data;
+  const { data: config } = useConfig();
 
   const [fehler, setFehler] = useState<string | null>(null);
   const eingerichtet = Boolean(settings?.nexcrate_api_key_set && settings?.nexcrate_url);
@@ -53,6 +56,17 @@ export function AdminNexcrateSettings({ zumUmstieg }: { zumUmstieg?: () => void 
 
   const speichern = useMutation({
     mutationFn: (patch: Partial<AppSettings>) => api.put<AppSettings>("/api/settings", patch),
+    onSuccess: auffrischen,
+    onError: (error: Error) => setFehler(error.message),
+  });
+
+  // ⚠️ Anders als beim Einrichten (`NexcrateStep`) gibt es hier keinen
+  // eigenen "Speichern"-Knopf mehr: Ein Haken speichert sofort, wie der
+  // Betriebsart-Schalter darüber auch. Die Box selbst führt keinen eigenen
+  // Stand - angezeigt wird, was zuletzt aus `/api/config` kam.
+  const rechteMutation = useMutation({
+    mutationFn: (eintrag: { kennung: string; offen_fuer_alle: boolean }) =>
+      api.put("/api/settings/fassungen", [eintrag]),
     onSuccess: auffrischen,
     onError: (error: Error) => setFehler(error.message),
   });
@@ -140,14 +154,37 @@ export function AdminNexcrateSettings({ zumUmstieg }: { zumUmstieg?: () => void 
                 </a>
               )}
 
-              <div>
-                <p className="font-medium text-mist-100">{t("nexcrate.versionsTitle")}</p>
-                <ul className="mt-2 flex flex-col gap-2">
-                  {stand.fassungen.map((fassung) => (
-                    <FassungsZeile key={fassung.kennung} fassung={fassung} />
-                  ))}
-                </ul>
-              </div>
+              {/* ⚠️ Die Rechte gehören nur in den NEX-Betrieb: Vor dem
+                  Umstieg regelt der Assistent sie mit, und ein Haken hier
+                  hätte noch keine Fassung, die er wirklich öffnet. Im
+                  ARR-Betrieb bleibt deshalb die reine Anzeige von vorher. */}
+              {modus === "nex" ? (
+                <FassungsRechte
+                  fassungen={stand.fassungen}
+                  offen={Object.fromEntries(
+                    stand.fassungen.map((fassung) => [
+                      fassung.kennung,
+                      config?.fassungen.find((eintrag) => eintrag.kennung === fassung.kennung)
+                        ?.offen_fuer_alle ?? false,
+                    ]),
+                  )}
+                  onToggle={(kennung, wert) =>
+                    rechteMutation.mutate({ kennung, offen_fuer_alle: wert })
+                  }
+                  titel={t("setup.nexcrateVersionsTitle")}
+                  text={t("nexcrate.rightsText")}
+                  disabled={rechteMutation.isPending}
+                />
+              ) : (
+                <div>
+                  <p className="font-medium text-mist-100">{t("nexcrate.versionsTitle")}</p>
+                  <ul className="mt-2 flex flex-col gap-2">
+                    {stand.fassungen.map((fassung) => (
+                      <FassungsZeile key={fassung.kennung} fassung={fassung} />
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {stand.probleme.length > 0 && (
                 <div>

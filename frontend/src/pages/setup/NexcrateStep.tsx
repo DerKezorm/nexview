@@ -9,7 +9,7 @@ import {
   Standpruefung,
 } from "../../components/NexcrateVerbinden";
 import { Button, ErrorBanner, Spinner } from "../../components/ui";
-import { FassungsZeile } from "../../components/FassungsZeile";
+import { FassungsRechte } from "../../components/FassungsRechte";
 
 /**
  * Der nexcrate-Schritt der Einrichtung (Bauplan 7.1).
@@ -110,37 +110,15 @@ export function NexcrateStep({
       {stand && <Standpruefung befunde={stand.pruefung ?? []} />}
 
       {stand?.erreichbar && !sperrt && fassungen.length > 0 && (
-        <div className="rounded-xl border border-ink-700 p-4">
-          <p className="font-medium text-mist-100">
-            {t("setup.nexcrateVersionsTitle")}
-          </p>
-          <p className="mt-1 text-sm leading-relaxed text-mist-500">
-            {t("setup.nexcrateVersionsText")}
-          </p>
-          <ul className="mt-3 flex flex-col gap-2">
-            {fassungen.map((fassung) => (
-              <FassungsZeile
-                key={fassung.kennung}
-                fassung={fassung}
-                labelFor={`offen-${fassung.kennung}`}
-                haken={
-                  <input
-                    id={`offen-${fassung.kennung}`}
-                    type="checkbox"
-                    className="h-4 w-4 shrink-0 accent-accent-500"
-                    checked={offen?.[fassung.kennung] ?? false}
-                    onChange={(event) =>
-                      setOffen((alt) => ({
-                        ...(alt ?? {}),
-                        [fassung.kennung]: event.target.checked,
-                      }))
-                    }
-                  />
-                }
-              />
-            ))}
-          </ul>
-        </div>
+        <FassungsRechte
+          fassungen={fassungen}
+          offen={offen ?? {}}
+          onToggle={(kennung, wert) =>
+            setOffen((alt) => ({ ...(alt ?? {}), [kennung]: wert }))
+          }
+          titel={t("setup.nexcrateVersionsTitle")}
+          text={t("setup.nexcrateVersionsText")}
+        />
       )}
 
       <div className="flex flex-wrap items-center gap-3">

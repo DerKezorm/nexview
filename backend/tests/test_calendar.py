@@ -598,3 +598,124 @@ def test_sonarr_null_kennung_wird_nicht_zur_null(admin_client: TestClient) -> No
     assert _kennung(-1) is None
     assert _kennung("3863") is None
     assert _kennung(3863) == 3863
+
+
+# --- Poster, wenn der Weg keine liefert (Rundgang-Befund 10) ----------------
+
+
+async def test_eigene_eintraege_ohne_poster_bekommen_es_ueber_tmdb(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gemessen an der Live-Instanz am 24.09.2026: Im NEX-Betrieb stand an
+    jeder Karte unter „Bereits angefragt“ „Kein Poster“. nexcrates Kalender
+    nennt keine Bilder. Eine gespeicherte Anfrage kennt das Poster schon; sonst
+    fragt der Kalender TMDB, ueber denselben Zwischenspeicher wie die
+    Titelseite."""
+    from app.db import SessionLocal
+    from app.models import MediaRequest, MediaType, RequestStatus, User
+    from app.schemas_calendar import CalendarEntry
+    from app.services import media
+    from app.services.settings_service import load_settings, save_settings
+
+    gefragt: list[tuple[str, int]] = []
+
+    class TmdbAttrappe:
+        async def detail(self, art: str, kennung: int) -> dict:
+            gefragt.append((art, kennung))
+            return {"id": kennung, "poster_path": f"/p{kennung}.jpg"}
+
+    monkeypatch.setattr(media, "_client", lambda *_a, **_k: TmdbAttrappe())
+
+    def eintrag(kennung: int, art: str = "movie", poster: str | None = None, herkunft: str = "radarr"):
+        return CalendarEntry(
+            key=f"{herkunft}:{kennung}",
+            date=HEUTE,
+            source="meine",
+            origin=herkunft,
+            media_type=MediaType(art),
+            tmdb_id=kennung,
+            title=f"Titel {kennung}",
+            poster_url=poster,
+        )
+
+    with SessionLocal() as db:
+        save_settings(db, {"tmdb_api_key": "x" * 32, "demo_mode": "off"})
+        nutzer = db.query(User).first()
+        assert nutzer is not None
+        db.add(
+            MediaRequest(
+                user_id=nutzer.id,
+                media_type=MediaType.movie,
+                tmdb_id=11,
+                title="Titel 11",
+                poster_path="https://image.tmdb.org/t/p/w500/gespeichert.jpg",
+                status=RequestStatus.searching,
+                fassung_kennung="radarr-standard",
+            )
+        )
+        # Dieselbe Nummer bei TMDB ist bei Film und Serie ein anderer Titel.
+        db.add(
+            MediaRequest(
+                user_id=nutzer.id,
+                media_type=MediaType.tv,
+                tmdb_id=12,
+                title="Serie 12",
+                poster_path="https://image.tmdb.org/t/p/w500/falsche-art.jpg",
+                status=RequestStatus.searching,
+                fassung_kennung="sonarr-standard",
+            )
+        )
+        db.commit()
+        eintraege = [
+            eintrag(11),
+            eintrag(12),
+            eintrag(13, "tv"),
+            eintrag(14, poster="https://example.com/schon-da.jpg"),
+        ]
+
+        await calendar_service._poster_nachtragen(db, load_settings(db, frisch=True), eintraege)
+
+    assert [e.poster_url for e in eintraege] == [
+        "https://image.tmdb.org/t/p/w500/gespeichert.jpg",
+        "https://image.tmdb.org/t/p/w500/p12.jpg",
+        "https://image.tmdb.org/t/p/w500/p13.jpg",
+        "https://example.com/schon-da.jpg",
+    ]
+    # Die gespeicherte Anfrage spart die Abfrage; wer ein Poster hat, auch.
+    assert sorted(gefragt) == [("movie", 12), ("tv", 13)]
+
+
+def test_der_kalender_traegt_poster_bis_in_die_antwort(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Vom Rohdatensatz ohne Bild bis zur Karte mit Poster."""
+    from app.db import SessionLocal
+    from app.services import media
+    from app.services.settings_service import save_settings
+
+    class TmdbAttrappe:
+        async def detail(self, art: str, kennung: int) -> dict:
+            return {"id": kennung, "poster_path": f"/p{kennung}.jpg"}
+
+    async def kalender(_settings: object, _von: str, _bis: str) -> list[dict]:
+        return [
+            folge(
+                nummer=5,
+                serie={"id": 7, "title": "Yellowstone", "tmdbId": 73586, "images": [], "monitored": True},
+            )
+        ]
+
+    async def keine_filme(_settings: object, _von: str, _bis: str) -> list[dict]:
+        return []
+
+    with SessionLocal() as db:
+        save_settings(db, {"tmdb_api_key": "x" * 32, "demo_mode": "off"})
+        db.commit()
+    monkeypatch.setattr(media, "_client", lambda *_a, **_k: TmdbAttrappe())
+    monkeypatch.setattr(library, "series_calendar", kalender)
+    monkeypatch.setattr(library, "movie_calendar", keine_filme)
+
+    daten = arr_client.get("/api/calendar", params={"sources": "mine"}).json()
+    eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
+
+    assert [e["poster_url"] for e in eintraege] == ["https://image.tmdb.org/t/p/w500/p73586.jpg"]

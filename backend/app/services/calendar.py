@@ -38,7 +38,7 @@ from .filters import (
     DiscoverFilters,
 )
 from .settings_service import AppSettings
-from .tmdb import TmdbError
+from .tmdb import TmdbError, image_url
 
 logger = logging.getLogger("nexview.calendar")
 
@@ -60,6 +60,9 @@ MAX_SEITEN = 3
 
 # Obergrenze fuer die teuerste Art der Zuordnung (ein TMDB-Aufruf je Serie).
 MAX_TVDB_ABFRAGEN = 20
+#: Wie viele Poster ein Aufruf hoechstens bei TMDB nachholt. Danach liegen sie
+#: im Zwischenspeicher der Titelseiten, der naechste Aufruf holt den Rest.
+MAX_POSTER_ABFRAGEN = 40
 TVDB_TTL = 30 * 24 * 3600
 
 
@@ -619,6 +622,71 @@ async def _tvdb_nach_tmdb(
             eintrag.tmdb_id = zuordnung[eintrag.tvdb_id]
 
 
+# --- Poster nachtragen -----------------------------------------------------
+
+
+async def _poster_nachtragen(
+    db: Session, settings: AppSettings, eintraege: list[CalendarEntry]
+) -> None:
+    """Eigenen Eintraegen ohne Poster eines geben, billigste Quelle zuerst.
+
+    ⚠️ Gefragt wird, ob das Poster fehlt, nicht welcher Weg beschafft:
+    nexcrates Kalender nennt keine Bilder, und im NEX-Betrieb stand an jeder
+    Karte „Kein Poster“ (Rundgang-Befund 10). Radarr und Sonarr liefern ihre
+    Poster mit; fehlt dort eines, hilft dasselbe.
+
+    1. Gespeicherte Anfragen kennen das Poster schon (``poster_path`` ist die
+       fertige Adresse).
+    2. Sonst TMDB, ueber den Zwischenspeicher der Titelseite
+       (``media._schlanker_schluessel``), gedeckelt je Aufruf.
+    """
+    # Ein Eintrag aus TMDBs Listen ohne Poster hat auch dort keines.
+    offen = [e for e in eintraege if e.poster_url is None and e.tmdb_id and e.origin != "tmdb"]
+    if not offen:
+        return
+
+    gesucht = {(e.media_type, e.tmdb_id) for e in offen}
+    poster: dict[tuple[MediaType, int], str] = {}
+    for art, kennung, adresse in db.execute(
+        select(MediaRequest.media_type, MediaRequest.tmdb_id, MediaRequest.poster_path).where(
+            MediaRequest.tmdb_id.in_({kennung for _, kennung in gesucht}),
+            MediaRequest.poster_path.is_not(None),
+        )
+    ):
+        if (art, kennung) in gesucht and adresse:
+            poster.setdefault((art, kennung), adresse)
+
+    fehlt = sorted(gesucht - poster.keys(), key=lambda paar: (paar[0].value, paar[1]))
+    if fehlt and not settings.use_demo_data and settings.tmdb_configured:
+        client = media._client(settings)
+        region = settings.default_region
+
+        async def hole(art: MediaType, kennung: int) -> tuple[MediaType, int, str | None]:
+            async def fetch() -> dict[str, Any]:
+                return await client.detail(art.value, kennung)
+
+            try:
+                roh = await cache.cached(
+                    db,
+                    media._schlanker_schluessel(settings, art.value, kennung, region),
+                    cache.DETAIL_TTL,
+                    fetch,
+                )
+            except TmdbError as fehler:
+                logger.debug("Calendar poster not found: %s", logs.kennung(fehler))
+                return art, kennung, None
+            return art, kennung, image_url(roh.get("poster_path"))
+
+        for art, kennung, adresse in await asyncio.gather(
+            *(hole(art, kennung) for art, kennung in fehlt[:MAX_POSTER_ABFRAGEN])
+        ):
+            if adresse:
+                poster[(art, kennung)] = adresse
+
+    for eintrag in offen:
+        eintrag.poster_url = poster.get((eintrag.media_type, eintrag.tmdb_id))
+
+
 # --- Zusammenfuehren -------------------------------------------------------
 
 
@@ -784,6 +852,10 @@ async def kalender(
             logger.warning("Calendar: TVDB mapping skipped: %s", fehler)
 
     eintraege = await _altersfilter(db, settings, eintraege)
+    try:
+        await _poster_nachtragen(db, settings, eintraege)
+    except Exception as fehler:  # noqa: BLE001 - ein Bild ist Beiwerk
+        logger.warning("Calendar: posters skipped: %s", fehler)
     # Erst nach der Zuordnung der Kennungen - vorher waere der eigene Eintrag
     # noch gar nicht als derselbe Titel zu erkennen.
     eintraege = _entdoppeln(eintraege)

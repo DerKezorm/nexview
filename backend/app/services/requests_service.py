@@ -987,15 +987,22 @@ async def _tvdb_klaeren(
     )
 
 
-def _hauptfassung_fehlt(settings: AppSettings, media_type: MediaType) -> RequestError:
+def _hauptfassung_fehlt(
+    settings: AppSettings, media_type: MediaType, stufe: str = "standard"
+) -> RequestError:
     """Der Fehler, wenn hinter der Hauptfassung nichts steht.
 
     Im ARR-Betrieb die Saetze von jeher, im NEX-Betrieb mit Kennung: Dort
     hilft kein Hinweis auf Zugangsdaten fuer Radarr.
+
+    ``stufe`` gilt fuer denselben Fall bei ``tier="uhd"``: Ohne 4K-Fassung
+    darf ``gewaehlt()`` im NEX-Betrieb nicht mehr auf eine Arr-Kennung
+    zurueckfallen, die es dort gar nicht gibt (das fuehrte zu einer 409 ohne
+    Kennung) - dieselbe Absage, nur fuer die andere Stufe.
     """
     if settings.beschaffung_ist_nex:
         return RequestError(
-            get_beschaffung(settings).nicht_eingerichtet(media_type.value, "standard"),
+            get_beschaffung(settings).nicht_eingerichtet(media_type.value, stufe),
             409,
             code="nexcrate_no_version_for_kind"
             if settings.nexcrate_configured
@@ -1030,8 +1037,16 @@ async def create_request(
     episodes: list[int] | None = None,
     tvdb_wahl: int | None = None,
     tvdb_auswahl_moeglich: bool = False,
+    tier: str = "standard",
 ) -> MediaRequest:
     """Neue Anfrage anlegen - inklusive aller Vorpruefungen.
+
+    ``tier`` ist nur fuer die Absage wichtig: ``fassung`` kommt bereits
+    aufgeloest von ``fassungen.gewaehlt()`` herein, und ``None`` heisst dort
+    fuer ``tier="uhd"`` im NEX-Betrieb "es gibt keine 4K-Fassung" - nicht
+    "keine Angabe". Ohne die Unterscheidung wuerde ``kennung = fassung or
+    hauptkennung(media_type)`` das still gegen die Hauptfassung tauschen,
+    und aus einer 4K-Anfrage wuerde lautlos eine in Standard.
 
     ``episodes`` macht aus der Staffel-Anfrage ein **Folgen-Paket**: Statt der
     ganzen Staffel kommen genau diese Folgen. Ein Paket kostet einen Platz wie
@@ -1091,6 +1106,12 @@ async def create_request(
     # darf. Beides serverseitig, sonst waere das Recht Dekoration. Fehlt die
     # Instanz der Hauptfassung, sagt das weiter unten ein eigener Satz, nach
     # der Sperrliste.
+    if fassung is None and tier == "uhd":
+        # ``gewaehlt(tier="uhd")`` gibt im NEX-Betrieb ohne 4K-Fassung ``None``
+        # zurueck (nicht mehr eine Arr-Kennung, die es dort nicht gibt). Das
+        # ist eine ausdrueckliche Absage, keine "keine Angabe" - sonst wuerde
+        # der naechste Schritt still die Hauptfassung waehlen.
+        raise _hauptfassung_fehlt(settings, media_type, stufe="uhd")
     kennung = fassung or hauptkennung(media_type)
     if kennung is None:
         # Im NEX-Betrieb, bevor eine Fassung dieser Art gelesen ist: dieselbe

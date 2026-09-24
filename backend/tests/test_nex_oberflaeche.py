@@ -283,6 +283,23 @@ def test_im_arr_betrieb_kann_der_weg_weniger(arr_client: TestClient) -> None:
     assert daten["beschaffung_kann"]["papierkorb"] is False
 
 
+def test_papierkorb_ist_gesperrt_ohne_operate_recht(nexcrate: FakeNexcrate) -> None:
+    """Ohne ``operate`` sperrt schon die Standpruefung jeden schreibenden
+    Aufruf (``nexcrate_recht_fehlt``) - dann darf ``faehigkeiten()`` den
+    Papierkorb nicht mehr zusagen."""
+    nexcrate.scopes = ["read", "request"]
+    system.merken(nexcrate._system())
+
+    assert system.faehigkeiten().papierkorb is False
+
+
+def test_papierkorb_bleibt_zugesagt_ohne_gelesenen_stand() -> None:
+    """Ohne gelesenen Stand gilt weiter die Zusage des Vertrags."""
+    system.vergessen()
+
+    assert system.faehigkeiten().papierkorb is True
+
+
 # --------------------------------------------------------------------------
 # Was es im NEX-Betrieb nicht mehr zu wählen gibt
 

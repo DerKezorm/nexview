@@ -317,11 +317,19 @@ def _dienst_ziel(instanz) -> str:
     Welcher Unterreiter, entscheidet die Art der Instanz und nicht ihr Name:
     Ein Haus kann seine Instanzen nennen, wie es will ("Filme", "Anime"), und
     ein Ziel, das auf einen Namen baut, waere anderswo falsch.
+
+    ⚠️ **Die NEX-Instanz hat keine Medienart** (``media_type == ""``,
+    ``nex/weg.py``): Im NEX-Betrieb gibt es keine Radarr-/Sonarr-Reiter, und
+    ohne diese Abfrage fiele sie auf ``sonarr`` - einen Reiter, den es dort
+    gar nicht gibt.
     """
-    return (
-        "/admin/settings?reiter=dienste&unter="
-        + ("radarr" if instanz.media_type == "movie" else "sonarr")
-    )
+    if instanz.media_type == "":
+        unter = "nexcrate"
+    elif instanz.media_type == "movie":
+        unter = "radarr"
+    else:
+        unter = "sonarr"
+    return "/admin/settings?reiter=dienste&unter=" + unter
 
 
 def _dienst_meldet_problem(

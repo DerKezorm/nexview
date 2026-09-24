@@ -1009,7 +1009,17 @@ def _fassungen_einfuehren() -> None:
         try:
             return arr_kennung(art, stufe or "standard")
         except (KeyError, ValueError):
-            return None
+            # Eine Stufe, die weder leer noch ``standard``/``uhd`` ist (eine
+            # Zwischenversion, ein Eingriff von Hand): lieber die Hauptfassung
+            # dieser Medienart als eine Zeile, die auf ``fassung_kennung =
+            # NULL`` stehen bleibt. Erfunden wird nichts - nur dieselbe
+            # Zusage wie fuer eine Zeile ganz ohne Stufe. Ist auch die
+            # Medienart selbst unbekannt, bleibt es bei ``None``: das
+            # toleriert das Schema (``RequestPublic.fassung``).
+            try:
+                return arr_kennung(art, "standard")
+            except (KeyError, ValueError):
+                return None
 
     with engine.begin() as verbindung:
         spalten = {

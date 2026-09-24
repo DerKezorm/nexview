@@ -223,6 +223,30 @@ async def test_dieselbe_anfrage_geht_nie_zweimal_gleichzeitig_hinaus(
     assert len(_gesendet(nexcrate, "/requests")) == 2
 
 
+def test_die_sperre_ueberlebt_einen_neuen_event_loop() -> None:
+    """``_sperren`` ist ein Modul-Merker (``nex/auftraege.py``) und ueberlebt
+    zwischen Tests - pytest-asyncio gibt jedem Test aber einen eigenen, neuen
+    Event-Loop. Eine Sperre mit echten Wartenden aus dem alten Loop liess sich
+    im neuen nicht mehr benutzen (``Lock ... is bound to a different event
+    loop``) und liess genau diese Testdatei zusammen mit test_requests.py und
+    test_nex_lesen.py flackern. Gemessen mit echter Nebenlaeufigkeit in zwei
+    ``asyncio.run``-Laeufen hintereinander - wie zwei Testfunktionen es auch
+    taeten."""
+    import asyncio
+
+    from app.services.beschaffung.nex import auftraege
+
+    async def _halten(dauer: float) -> None:
+        async with auftraege._sperre("movie", "tmdb:sperrenprobe"):
+            await asyncio.sleep(dauer)
+
+    async def _wettlauf() -> None:
+        await asyncio.gather(_halten(0.01), _halten(0.01))
+
+    asyncio.run(_wettlauf())
+    asyncio.run(_wettlauf())  # neuer Event-Loop, dieselbe Sperre wie eben
+
+
 async def test_zwei_verschiedene_titel_warten_nicht_aufeinander(
     nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:

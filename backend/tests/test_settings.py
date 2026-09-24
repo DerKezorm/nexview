@@ -89,6 +89,17 @@ def test_unbekanntes_geheimnis_kann_nicht_geloescht_werden(admin_client: TestCli
     assert admin_client.delete("/api/settings/secret/passwort").status_code == 422
 
 
+def test_jeder_eintrag_aus_secret_keys_laesst_sich_loeschen(admin_client: TestClient) -> None:
+    """Die Route prueft gegen SECRET_KEYS - jeder dortige Name muss also
+    tatsaechlich funktionieren, nicht nur eine handgepflegte Teilmenge davon
+    (Befund: ``nexcrate_api_key`` fehlte im Literal der Route)."""
+    from app.services.settings_service import SECRET_KEYS
+
+    for name in SECRET_KEYS:
+        response = admin_client.delete(f"/api/settings/secret/{name}")
+        assert response.status_code == 200, name
+
+
 def test_verbindungstest_ohne_key(admin_client: TestClient) -> None:
     result = admin_client.post("/api/settings/test/tmdb", json={}).json()
     assert result["ok"] is False

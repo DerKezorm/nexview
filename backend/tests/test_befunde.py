@@ -445,6 +445,19 @@ def test_erreichbare_instanz_schweigt(arr_client: TestClient) -> None:
     assert _sammeln("dienst.nicht_erreichbar") == []
 
 
+def test_dienst_ziel_zeigt_im_nex_betrieb_auf_nexcrate() -> None:
+    """Die NEX-Instanz hat ``media_type=""`` (``nex/weg.py``, ``instanzen()``) -
+    das darf nicht auf den Sonarr-Unterreiter fallen, den es im NEX-Betrieb gar
+    nicht gibt. Die Dienste-Seite kennt den Unterreiter ``nexcrate``
+    (``AdminServicesSettings.UNTER_AUS_ADRESSE``)."""
+    from app.services.settings_service import ArrInstanz
+
+    instanz = ArrInstanz(
+        kennung="nexcrate", media_type="", tier="", name="nexcrate", url="", api_key=""
+    )
+    assert befunde._dienst_ziel(instanz) == "/admin/settings?reiter=dienste&unter=nexcrate"
+
+
 def test_neue_fassung_ist_nur_ein_hinweis(arr_client: TestClient) -> None:
     """Ein ausstehendes Update ist keine Stoerung."""
     _stand(

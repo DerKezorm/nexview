@@ -82,7 +82,16 @@ class RequestPublic(BaseModel):
     # Welche Fassung? Steht an der Anfrage selbst, damit eine laufende
     # 4K-Anfrage auch dann noch als solche erkennbar bleibt, wenn der
     # Administrator die zweite Instanz wieder herausnimmt.
-    fassung: str
+    #
+    # ⚠️ **Optional, nicht aus Bequemlichkeit.** Eine aeltere Zeile kann nach
+    # der Startmigration (``db.py``, um 1019) mit ``fassung_kennung = NULL``
+    # dastehen - unbekannte Medienart oder eine Stufe, die weder leer noch
+    # ``standard``/``uhd`` ist. Ein striktes ``str`` liess ``model_validate``
+    # dort mit einer 500 abbrechen, auf allen vier Lesewegen zugleich
+    # (``/admin/requests`` samt ``?fremde_fassung=true``, ``/requests/mine``,
+    # ``/v1/requests/mine``). Erfunden wird hier nichts: die Zeile bleibt
+    # sichtbar, nur ohne Fassung.
+    fassung: str | None
     #: Die Stufe als Ableitung aus der Fassung (``uhd`` fuer die Klasse
     #: ``uhd``), zugesagt in ``/api/v1`` (Bauplan Abschnitt 12).
     tier: Literal["standard", "uhd"]

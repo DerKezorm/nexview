@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import weakref
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
@@ -57,11 +58,27 @@ AKTIV = (
 
 #: Eine Sperre je ``kind + ref``, damit zwei Freigaben desselben Titels nicht
 #: gleichzeitig bei nexcrate ankommen (nexbeat-Befund 17).
-_sperren: dict[tuple[str, str], asyncio.Lock] = {}
+#:
+#: ⚠️ **Je Event-Loop, nicht global.** Ein ``asyncio.Lock`` bindet sich beim
+#: ersten Gebrauch an den gerade laufenden Loop; ein zweiter Aufruf unter
+#: einem anderen Loop wirft dann "is bound to a different event loop". Der
+#: Server hat nur einen Loop fuer sein ganzes Leben, aber die Testreihe
+#: startet je Testfunktion einen neuen - ein reiner ``dict[(kind, ref)]``
+#: liess die Sperren dabei stehen und die Reihe flackern. Der
+#: ``WeakKeyDictionary`` haengt die innere Tabelle an den Loop selbst; stirbt
+#: der Loop, verschwindet auch seine Tabelle.
+_sperren: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, dict[tuple[str, str], asyncio.Lock]
+] = weakref.WeakKeyDictionary()
 
 
 def _sperre(kind: str, ref: str) -> asyncio.Lock:
-    return _sperren.setdefault((kind, ref), asyncio.Lock())
+    loop = asyncio.get_running_loop()
+    je_loop = _sperren.get(loop)
+    if je_loop is None:
+        je_loop = {}
+        _sperren[loop] = je_loop
+    return je_loop.setdefault((kind, ref), asyncio.Lock())
 
 
 def umfang(request: MediaRequest) -> dict[str, Any]:

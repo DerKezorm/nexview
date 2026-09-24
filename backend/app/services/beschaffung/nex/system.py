@@ -74,7 +74,14 @@ def faehigkeiten() -> Faehigkeiten:
     Ohne gelesenen Stand gelten die Zusagen des Vertrags (V1 bis V4): lesen,
     Gruende, Vorschau, Strom, Papierkorb, Kalender und Wertungen fuer beide
     Medienarten. ``anime`` ist die Ausnahme - fehlt es, gilt nein.
+
+    ⚠️ **Papierkorb braucht das Recht ``operate``.** Ohne gelesenen Stand
+    bleibt die Zusage des Vertrags stehen; ein gelesener Stand ohne
+    ``operate`` nimmt sie weg - sonst zeigt die Oberflaeche einen Knopf, den
+    die Standpruefung (``nexcrate_recht_fehlt``) im selben Atemzug sperrt.
     """
+    rechte = set(_stand.get("scopes") or [])
+    papierkorb = True if not _stand else "operate" in rechte
     return Faehigkeiten(
         # Profile, TRaSH, Benennung, Pfade, Webhooks gehoeren im NEX-Betrieb
         # nexcrate. Sie sind hier nicht halb da, sondern ganz weg.
@@ -83,7 +90,7 @@ def faehigkeiten() -> Faehigkeiten:
         vorschau=True,
         ereignisstrom=_kann("stream", True),
         anime=_kann("anime", False),
-        papierkorb=True,
+        papierkorb=papierkorb,
         kalender=_kann("calendar", True),
         wertungen=("movie", "tv"),
     )

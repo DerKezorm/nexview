@@ -50,12 +50,10 @@ GERUFEN: tuple[tuple[str, str], ...] = (
     ("get", "/api/v1/titles/{kind}/{ref}"),
     ("get", "/api/v1/titles/series/{ref}/seasons/{season}"),
     ("post", "/api/v1/titles/why"),
-    ("get", "/api/v1/titles/{kind}/{ref}/why"),
     ("get", "/api/v1/titles/{kind}/{ref}/history"),
     ("post", "/api/v1/titles/{kind}/{ref}/search"),
     ("post", "/api/v1/titles/{kind}/{ref}/withdraw"),
     ("put", "/api/v1/titles/{kind}/{ref}/monitoring"),
-    ("post", "/api/v1/titles/{kind}/{ref}/delete-files"),
     ("get", "/api/v1/calendar"),
     ("post", "/api/v1/ratings"),
     ("get", "/api/v1/ratings/{kind}/{ref}"),
@@ -102,12 +100,8 @@ def test_jede_gerufene_adresse_gibt_es_in_nexcrate(methode: str, pfad: str) -> N
     assert methode in pfade[pfad], f"{methode.upper()} {pfad} gibt es dort nicht"
 
 
-def test_der_client_ruft_nichts_ausserhalb_der_liste() -> None:
-    """Die andere Richtung: eine neue Adresse im Client ohne Eintrag hier.
-
-    Sonst wüchse der Client, und der Wächter prüfte weiter die alte Liste.
-    """
-    quelle = (
+def _client_quelle() -> str:
+    return (
         Path(__file__).parent.parent
         / "app"
         / "services"
@@ -115,19 +109,55 @@ def test_der_client_ruft_nichts_ausserhalb_der_liste() -> None:
         / "nex"
         / "client.py"
     ).read_text(encoding="utf-8")
-    # ``self._request("GET", "/system")`` und die f-Strings daneben.
+
+
+def _client_adressen() -> set[tuple[str, str]]:
+    """Was ``client.py`` tatsächlich ruft, an der Form von ``_request(...)``."""
     gefunden = set()
     for methode, pfad in re.findall(
-        r'_request\(\s*"([A-Z]+)",\s*f?"([^"]+)"', quelle
+        r'_request\(\s*"([A-Z]+)",\s*f?"([^"]+)"', _client_quelle()
     ):
         gefunden.add((methode.lower(), "/api/v1" + re.sub(r"\{[^}]+\}", "{}", pfad)))
+    # ⚠️ Der Ereignisstrom geht nicht ueber ``_request`` (der Aufruf haelt die
+    # Verbindung offen), sondern direkt ueber ``client.stream("GET", ...)``.
+    # Der Scan sieht das Muster nicht; die Adresse gibt es trotzdem wirklich.
+    gefunden.add(("get", "/api/v1/events/stream"))
+    return gefunden
+
+
+def test_der_client_ruft_nichts_ausserhalb_der_liste() -> None:
+    """Die eine Richtung: eine neue Adresse im Client ohne Eintrag hier.
+
+    Sonst wüchse der Client, und der Wächter prüfte weiter die alte Liste.
+    """
     bekannt = {(m, re.sub(r"\{[^}]+\}", "{}", p)) for m, p in GERUFEN}
-    # ⚠️ Eine Adresse baut der Client zur Laufzeit zusammen: die Aktion an
-    # einem Download steht in ``actions`` und ist keine Konstante. Der Scan
-    # sieht deshalb nur die Form; die sieben Aktionen selbst stehen einzeln
-    # in ``GERUFEN`` und werden oben gegen den Abzug geprueft.
+    # Die sieben Download-Aktionen stehen einzeln in ``GERUFEN``, der Client
+    # ruft sie aber ueber eine einzige, zur Laufzeit zusammengesetzte Adresse.
     bekannt.add(("post", "/api/v1/downloads/{}/{}"))
-    assert gefunden <= bekannt, sorted(gefunden - bekannt)
+    assert _client_adressen() <= bekannt, sorted(_client_adressen() - bekannt)
+
+
+def test_jeder_eintrag_in_gerufen_hat_eine_fundstelle_im_client() -> None:
+    """Die Gegenrichtung: ein Eintrag in ``GERUFEN``, den der Client gar nicht
+    mehr ruft, prüft eine Adresse, die es im Code nicht mehr gibt - so stand
+    lange ``GET .../why`` hier, das der Client nie ruft (nur ``POST .../why``)."""
+    gefunden = _client_adressen()
+    generische_downloadaktion = ("post", "/api/v1/downloads/{}/{}") in gefunden
+
+    def _gerufen(eintrag: tuple[str, str]) -> bool:
+        if eintrag in gefunden:
+            return True
+        # Die sieben Download-Aktionen ruft der Client ueber eine einzige,
+        # zusammengesetzte Adresse (``_client_adressen`` sieht davon nur die
+        # generische Form) - siehe die Anmerkung dort.
+        methode, pfad = eintrag
+        if methode == "post" and re.fullmatch(r"/api/v1/downloads/\{\}/[a-z-]+", pfad):
+            return generische_downloadaktion
+        return False
+
+    bekannt = {(m, re.sub(r"\{[^}]+\}", "{}", p)) for m, p in GERUFEN}
+    fehlend = sorted(eintrag for eintrag in bekannt if not _gerufen(eintrag))
+    assert not fehlend, fehlend
 
 
 def test_die_attrappe_antwortet_in_den_gemessenen_formen() -> None:

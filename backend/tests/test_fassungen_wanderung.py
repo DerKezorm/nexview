@@ -183,6 +183,26 @@ def test_die_stufe_wird_zur_kennung(alte_datenbank) -> None:
     ]
 
 
+def test_eine_unbekannte_stufe_bekommt_die_hauptfassung(alte_datenbank) -> None:
+    """Eine Stufe, die weder leer noch ``standard``/``uhd`` ist, blieb bisher
+    auf ``fassung_kennung = NULL`` stehen - genau die Zeile, an der
+    ``RequestPublic.fassung`` (ohne ``None``) jeden Leseweg mit 500 abbrechen
+    liess (Befund des Pruefers von R13b). Jetzt bekommt sie dieselbe
+    Hauptfassung ihrer Medienart wie eine Zeile ganz ohne Stufe (Zeile 4 in
+    ``_bestand``, Anfrage von vor 4K)."""
+    motor = alte_datenbank()
+    _bestand(motor)
+    with motor.begin() as v:
+        # Eine krumme Stufe, wie sie eine Zwischenversion oder ein Eingriff von
+        # Hand hinterlassen haben koennte - nicht ``standard``/``uhd``.
+        v.exec_driver_sql("UPDATE media_requests SET tier = 'riesengross' WHERE id = 1")
+
+    db_modul.init_db()
+
+    zeile = _abfrage(motor, "SELECT fassung_kennung FROM media_requests WHERE id = 1")[0]
+    assert zeile[0] == "radarr-standard"
+
+
 def test_die_haken_werden_rechte_je_fassung(alte_datenbank) -> None:
     motor = alte_datenbank()
     _bestand(motor)

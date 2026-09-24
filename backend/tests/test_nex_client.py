@@ -60,6 +60,14 @@ def _nex_einstellungen(db: Any) -> Any:
 # --- Der Client --------------------------------------------------------------
 
 
+def test_geloescht_wird_nur_ueber_withdraw() -> None:
+    """Regel 4 (Bauplan, ``nex/auftraege.py``): Loeschen geht ueber
+    ``withdraw`` mit ``delete_files`` im Koerper, nie ueber die eigene
+    Adresse ``delete-files``. Eine tote ``delete_files``-Methode auf dem
+    Client hatte keinen Aufrufer und widersprach genau dieser Regel."""
+    assert not hasattr(NexcrateClient, "delete_files")
+
+
 @pytest.mark.anyio
 async def test_der_schluessel_reist_nur_in_der_kopfzeile(nexcrate: FakeNexcrate) -> None:
     """N1: nie in der Adresse. Ein Aufruf ohne Schluessel wird abgelehnt."""

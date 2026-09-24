@@ -126,6 +126,12 @@ def gewaehlt(
         for eintrag in settings.fassungen_fuer(_art(media_type)):
             if eintrag.klasse == KLASSE_UHD:
                 return eintrag.kennung
+        # ⚠️ Im NEX-Betrieb gibt es die Arr-Instanz nicht, auf die das hier
+        # sonst zurueckfiele - ``create_request`` bekaeme eine Kennung, die
+        # in dieser Installation nicht existiert, und sagte mit einer 409
+        # ohne Kennung ab statt mit ``nexcrate_no_version_for_kind``.
+        if betriebsart() != ARR:
+            return None
         return arr_kennung(media_type, "uhd")
     return hauptkennung(media_type)
 

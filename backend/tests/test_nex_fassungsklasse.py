@@ -311,6 +311,36 @@ def test_die_hauptkennung_ist_im_nex_betrieb_ohne_fassung_keine_arr_kennung(
         assert sitzung.query(MediaRequest).count() == 0
 
 
+def test_tier_uhd_ohne_4k_fassung_sagt_mit_kennung_ab(
+    admin_client: TestClient, db: Session, nexcrate: FakeNexcrate
+) -> None:
+    """``gewaehlt(tier="uhd")`` fiel im NEX-Betrieb ohne 4K-Fassung auf
+    ``radarr-uhd`` zurueck - eine Kennung, die es dort nicht gibt. Die Anfrage
+    scheiterte danach mit 409 ohne Kennung (die Hauptfassung war ja da, nur
+    keine 4K-Fassung). Jetzt sagt ``create_request`` mit Kennung ab, statt
+    lautlos auf die Hauptfassung umzuschwenken."""
+    save_settings(db, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY})
+    nex_fassungen.schreiben(db, [v for v in nexcrate.versions if v["tier"] != "uhd"])
+    db.commit()
+    load_settings(db, frisch=True)
+
+    assert fassungen.hauptkennung("movie") is not None
+
+    # Als Administrator, nicht als gewoehnlicher Benutzer: ``can_approve``
+    # darf jede Fassung anfragen (``darf_anfragen``) - hier geht es um die
+    # Absage, weil es die Fassung nicht gibt, nicht um das Recht daran.
+    tmdb_id = admin_client.get("/api/discover/movie").json()["items"][0]["tmdb_id"]
+    antwort = admin_client.post(
+        "/api/v1/requests",
+        json={"media_type": "movie", "tmdb_id": tmdb_id, "tier": "uhd"},
+    )
+
+    assert antwort.status_code == 409, antwort.text
+    assert antwort.json()["detail"]["code"] == "nexcrate_no_version_for_kind"
+    with SessionLocal() as sitzung:
+        assert sitzung.query(MediaRequest).count() == 0
+
+
 def _serie_mit_staffeln(monkeypatch: pytest.MonkeyPatch, tmdb_id: int) -> None:
     """Eine erfundene Serie mit zwei Staffeln zu drei Folgen - die Demo-Daten haben keine."""
     from app.routers import details as details_router

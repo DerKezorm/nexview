@@ -531,7 +531,17 @@ async def papierkorb_belegung(admin: AdminUser, db: DbSession) -> PapierkorbBele
     gesamt = 0
     unvollstaendig = False
 
-    for art, stufe, name, stand in await get_beschaffung(einstellungen).papierkoerbe():
+    try:
+        korbliste = await get_beschaffung(einstellungen).papierkoerbe()
+    except BeschaffungError as fehler:
+        # Arrs Papierkorb ist ein Ordner - den gibt es im NEX-Betrieb nicht
+        # (nexcrates Papierkorb ist eine Liste, siehe ``nex/weg.py``). Wie die
+        # anderen Arr-Werkzeuge meldet das die Betriebsart, statt abzustuerzen.
+        raise HTTPException(
+            status_code=fehler.status_code or 409, detail=fehler.als_meldung()
+        ) from fehler
+
+    for art, stufe, name, stand in korbliste:
         if not stand.geschuetzt:
             continue
         bytes_, gekuerzt = await get_beschaffung(einstellungen).papierkorb_groesse(

@@ -685,6 +685,22 @@ def test_die_endpunkte_stehen_immer_offen(admin_client) -> None:
     assert admin_client.get("/api/storage/overview").status_code == 200
 
 
+def test_papierkorb_im_nex_betrieb_meldet_die_betriebsart_statt_abzustuerzen(
+    admin_client,
+) -> None:
+    """``GET /api/storage/recyclebin`` fragt Arrs Papierkorb-Ordner ab
+    (``papierkoerbe()``) - den gibt es im NEX-Betrieb nicht, nexcrates
+    Papierkorb ist eine Liste (``nex/weg.py``, ``_gibt_es_nicht``). Die
+    ``BeschaffungError`` dort muss der Router fangen, wie die anderen
+    Arr-Werkzeuge (409 ``not_in_this_mode``), statt sie als 500 durchfallen
+    zu lassen."""
+    assert admin_client.put("/api/settings", json={"beschaffung": "nex"}).status_code == 200
+
+    antwort = admin_client.get("/api/storage/recyclebin")
+    assert antwort.status_code == 409
+    assert antwort.json()["detail"]["code"] == "not_in_this_mode"
+
+
 def test_die_konfiguration_kennt_den_schalter_nicht_mehr(admin_client) -> None:
     """Die Oberflaeche soll nichts mehr daran aufhaengen koennen.
 

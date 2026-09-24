@@ -680,18 +680,7 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
 
 @router.delete("/settings/secret/{name}")
 def delete_secret(
-    name: Annotated[
-        Literal[
-            "tmdb_api_key",
-            "radarr_api_key",
-            "radarr_uhd_api_key",
-            "sonarr_api_key",
-            "sonarr_uhd_api_key",
-            "smtp_password",
-            "mediaserver_token",
-        ],
-        Path(),
-    ],
+    name: Annotated[str, Path()],
     admin: AdminUser,
     db: DbSession,
 ) -> dict[str, object]:
@@ -700,10 +689,14 @@ def delete_secret(
     Beim Speichern bedeutet ein leeres Feld "unveraendert" - sonst wuerde der
     maskierte Wert aus der Oberflaeche den Key ueberschreiben. Zum bewussten
     Loeschen braucht es deshalb diesen eigenen Weg.
+
+    Geprueft wird gegen ``SECRET_KEYS`` selbst, nicht gegen eine zweite,
+    handgepflegte Liste im Typ - sonst veraltet die Route lautlos, sobald
+    ein neues Geheimnis dazukommt (so geschehen mit ``nexcrate_api_key``).
     """
-    if name not in SECRET_KEYS:  # pragma: no cover - durch Literal abgesichert
+    if name not in SECRET_KEYS:
         raise HTTPException(
-            status_code=404,
+            status_code=422,
             detail=meldungen.meldung(
                 "setting_unknown",
                 "Unbekannte Einstellung.",

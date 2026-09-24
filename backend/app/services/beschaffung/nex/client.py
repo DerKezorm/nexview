@@ -279,11 +279,6 @@ class NexcrateClient:
     async def monitoring(self, kind: str, ref: str, body: dict[str, Any]) -> dict[str, Any]:
         return await self._request("PUT", f"/titles/{kind}/{ref}/monitoring", json_body=body) or {}
 
-    async def delete_files(self, kind: str, ref: str, body: dict[str, Any]) -> dict[str, Any]:
-        return await self._request(
-            "POST", f"/titles/{kind}/{ref}/delete-files", json_body=body, timeout=LANGSAM
-        ) or {}
-
     async def search(self, kind: str, ref: str) -> dict[str, Any]:
         return await self._request("POST", f"/titles/{kind}/{ref}/search", json_body={}) or {}
 

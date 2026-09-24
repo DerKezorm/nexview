@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.models import MediaRequest, RequestStatus, User
+from app.models import MediaRequest, MediaType, RequestStatus, User
+from app.services.beschaffung import NEX
+from app.services.beschaffung.nex import client as nex_client
+from app.services.beschaffung.nex import fassungen as nex_fassungen
+from app.services.beschaffung.nex import system
+from app.services.settings_service import save_settings
 
+from .beschaffung.fake_nexcrate import KEY, URL, FakeNexcrate
 from .conftest import auth_headers, create_user
 
 
@@ -208,3 +218,75 @@ def test_freigabe_verknuepft_einen_film_der_schon_in_radarr_liegt(
         # Die vorhandene Radarr-Nummer, nicht eine neu angelegte.
         assert request.arr_id == 815
         assert request.error_message is None
+
+
+# --------------------------------------------------------------------------
+# fassung_kennung = NULL darf keinen Leseweg mit 500 abbrechen (R13b)
+
+
+@pytest.fixture
+def nexcrate() -> Iterator[FakeNexcrate]:
+    attrappe = FakeNexcrate()
+    nex_client.use_transport(attrappe.transport())
+    system.merken(attrappe._system())
+    nex_fassungen.vergessen()
+    try:
+        yield attrappe
+    finally:
+        nex_client.use_transport(None)
+        system.vergessen()
+        nex_fassungen.vergessen()
+
+
+@pytest.fixture
+def db() -> Iterator[Session]:
+    with SessionLocal() as sitzung:
+        yield sitzung
+
+
+def test_fassung_kennung_null_bleibt_auf_allen_vier_wegen_lesbar(
+    admin_client: TestClient, db: Session, nexcrate: FakeNexcrate
+) -> None:
+    """``RequestWithUser``/``RequestPublic.fassung`` war ``str`` ohne
+    ``None`` - eine Zeile mit ``fassung_kennung = NULL`` (aeltere Migration,
+    unbekannte Medienart oder Stufe) liess ``model_validate`` deshalb mit
+    einem ``ValidationError`` scheitern: 500 auf ``GET /api/admin/requests``,
+    genauso auf ``?fremde_fassung=true`` (das den Fall extra mitzaehlt, siehe
+    ``nachreichen._fremd``), ``GET /api/requests/mine`` und
+    ``GET /api/v1/requests/mine``. Gemessen vom Pruefer von R13b."""
+    save_settings(db, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY})
+    nex_fassungen.schreiben(db, nexcrate.versions)
+    db.commit()
+
+    admin = db.query(User).filter_by(username="admin").one()
+    # ⚠️ Nicht ueber die ORM: ``_fassung_pflicht`` (``before_insert``) lehnt
+    # eine neu geschriebene Zeile ohne Fassung ausdruecklich ab - eine
+    # ``fassung_kennung = NULL`` entsteht nur so, wie eine aeltere Migration
+    # sie hinterlaesst. Der Kern-Insert geht am ORM-Ereignis vorbei, genau wie
+    # das ``UPDATE`` der Wanderung.
+    # ``searching``, nicht ``pending_approval``: ``?fremde_fassung=true``
+    # zaehlt nur laufende Anfragen (``nachreichen.LAUFEND``) - dieselbe
+    # Bedingung wie der Befund, den der Sprung zeigen soll.
+    db.execute(
+        MediaRequest.__table__.insert().values(
+            user_id=admin.id,
+            media_type=MediaType.movie,
+            fassung_kennung=None,
+            tmdb_id=999999,
+            title="Erfundener Titel ohne Fassung",
+            status=RequestStatus.searching,
+        )
+    )
+    db.commit()
+
+    for pfad in (
+        "/api/admin/requests",
+        "/api/admin/requests?fremde_fassung=true",
+        "/api/requests/mine",
+        "/api/v1/requests/mine",
+    ):
+        antwort = admin_client.get(pfad)
+        assert antwort.status_code == 200, f"{pfad}: {antwort.text}"
+        gefunden = [zeile for zeile in antwort.json() if zeile.get("tmdb_id") == 999999]
+        assert gefunden, f"{pfad}: die Zeile mit NULL fehlt in der Antwort"
+        assert gefunden[0]["fassung"] is None

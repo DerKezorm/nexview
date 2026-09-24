@@ -147,6 +147,7 @@ async def create_request(
             tvdb_wahl=payload.tvdb_id,
             # Diese Oberflaeche kann nachfragen - siehe ``SerienZuordnung``.
             tvdb_auswahl_moeglich=True,
+            tier=payload.tier,
         )
     except requests_service.RequestError as error:
         raise HTTPException(status_code=error.status_code, detail=error.als_meldung()) from error

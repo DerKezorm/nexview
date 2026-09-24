@@ -40,7 +40,6 @@ from . import (
     cache,
     fassungen,
     media,
-    mediaserver_library,
     requests_service,
 )
 from .beschaffung import get_beschaffung
@@ -223,11 +222,12 @@ async def einordnen(
 
     angefragt = requests_service.badges_for(db, art, kennungen)
     gesperrt = blocklist.gesperrte_kennungen(db, art, kennungen)
-    im_server = mediaserver_library.vorhandene_kennungen(
+    # Dieselbe Frage wie Abzeichen und Sperre (``requests_service.im_medienserver``).
+    im_server = await requests_service.im_medienserver(
         db,
+        settings,
         art,
         [i for i in stand.items if i.status == "not_requested"],
-        fassungen.serverstufe(settings, media_type),
     )
 
     verfuegbar: list[MediaItem] = []

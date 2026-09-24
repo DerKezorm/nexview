@@ -762,8 +762,10 @@ def _gib(bytes_: int) -> str:
     return f"{gib:.1f} GiB".replace(".", ",") if gib < 10 else f"{gib:.0f} GiB"
 
 
-async def _mit_datei_in_standard(settings: AppSettings, item: MediaItem) -> set[int]:
-    """Fuehrt die **Standard**-Instanz diesen Titel mit Datei?
+async def _mit_datei_in_hd(
+    settings: AppSettings, media_type: MediaType | str, items: list[MediaItem]
+) -> set[int]:
+    """Welche dieser Titel fuehrt die **HD**-Fassung mit Datei?
 
     Die eine Angabe, die ``mediaserver_library.echte_uhd_kennungen`` von aussen
     braucht - dort steht auch, wozu. Kurz: Nur so laesst sich eine 4K-Datei, die
@@ -777,14 +779,22 @@ async def _mit_datei_in_standard(settings: AppSettings, item: MediaItem) -> set[
     Hauptfassung: Fuehrt nexcrate 4K vorn, fragte die Sperre sonst die
     4K-Fassung selbst, und eine 4K-Datei in der HD-Fassung galt als eigene
     4K-Fassung. Gibt es keine, gibt es auch nichts, was die Datei verdeckt.
+
+    Faellt die Abfrage aus, ist die Menge leer - das Ergebnis ist dann
+    grosszuegig, wie ``echte_uhd_kennungen`` es fuer diesen Fall vorsieht.
     """
-    kennung = fassungen.hd_kennung(settings, item.media_type)
-    if kennung is None:
+    art = MediaType(media_type)
+    kennung = fassungen.hd_kennung(settings, art)
+    if kennung is None or not items:
         return set()
-    kopie = item.model_copy(update={"status": "not_requested"})
-    ergebnis = await get_beschaffung(settings).status_setzen(
-        item.media_type, [kopie], "standard", fassung=kennung
-    )
+    kopien = [item.model_copy(update={"status": "not_requested"}) for item in items]
+    try:
+        ergebnis = await get_beschaffung(settings).status_setzen(
+            art.value, kopien, "standard", fassung=kennung
+        )
+    except Exception:  # noqa: BLE001 - ohne Antwort bleibt die Regel grosszuegig
+        logger.debug("HD version could not be read for the 4K rule", exc_info=True)
+        return set()
     # "partial" zaehlt mit: Gefragt ist "fuehrt eine Datei", nicht "ist
     # vollstaendig" - eine halbe Serie liegt genauso in der Standard-Instanz.
     return {
@@ -792,6 +802,60 @@ async def _mit_datei_in_standard(settings: AppSettings, item: MediaItem) -> set[
         for eintrag in ergebnis.items
         if eintrag.status in ("downloaded", "partial")
     }
+
+
+async def uhd_im_medienserver(
+    db: Session, settings: AppSettings, media_type: MediaType | str, items: list[MediaItem]
+) -> tuple[set[int], set[int]]:
+    """4K-Kopien des Medienservers: ``(eigene Fassung, alle gemeldeten)``.
+
+    Die Differenz sind die Titel, deren 4K-Datei in der HD-Fassung liegt
+    (``uhd_in_standard`` an der Karte). Die Regel steht in
+    ``mediaserver_library.echte_uhd_kennungen``.
+    """
+    art = MediaType(media_type)
+    gemeldet = mediaserver_library.vorhandene_kennungen(db, art, items, tier="uhd")
+    if not gemeldet:
+        return set(), set()
+    betroffen = [item for item in items if item.tmdb_id in gemeldet]
+    echte = mediaserver_library.echte_uhd_kennungen(
+        db,
+        art,
+        betroffen,
+        in_standard_instanz=await _mit_datei_in_hd(settings, art, betroffen),
+    )
+    return echte, gemeldet
+
+
+async def im_medienserver(
+    db: Session,
+    settings: AppSettings,
+    media_type: MediaType | str,
+    items: list[MediaItem],
+    kennung: str | None = None,
+) -> set[int]:
+    """Welche dieser Titel liegen fuer diese Fassung schon auf dem Medienserver?
+
+    ⚠️ **Die eine Frage fuer Abzeichen und Sperre**, auf jeder Achse. Liefen
+    sie auseinander, stuende am Titel "in der Bibliothek" und die Anfrage
+    ginge trotzdem durch, oder umgekehrt. Genau so ist es zweimal aufgefallen:
+    im ARR-Betrieb an der 4K-Achse (gemeldet), und am 24.09.2026 im
+    NEX-Betrieb (gemessen), als nexcrate 4K vorn fuehrte und das Abzeichen
+    der Hauptachse die Regel aus ``echte_uhd_kennungen`` nicht kannte.
+
+    Auf einer 4K-Fassung zaehlt nur eine 4K-Kopie, die eine eigene Fassung ist.
+    Sonst entscheidet ``fassungen.serverstufe``: Ohne 4K-Fassung zaehlt jede
+    Kopie, mit ihr nur die HD-Kopie. Ohne ``kennung`` gilt die Hauptfassung.
+    """
+    kennung = kennung or fassungen.hauptkennung(media_type)
+    if not items:
+        return set()
+    if fassungen.klasse(kennung) == KLASSE_UHD:
+        echte, _gemeldet = await uhd_im_medienserver(db, settings, media_type, items)
+        return echte
+    return mediaserver_library.vorhandene_kennungen(
+        db, MediaType(media_type), items, fassungen.serverstufe(settings, media_type, kennung)
+    )
 
 
 #: Bis zu welchem Alter ein Titel als "gerade erst erschienen" gilt.
@@ -1348,22 +1412,10 @@ async def create_request(
         # **zwingend dieselbe**: Liefen Anzeige und Sperre auseinander, stuende
         # am Titel "4K noch nicht angefragt" und die Anfrage schluege trotzdem
         # fehl. Genau so ist es gemeldet worden.
-        if fassungen.klasse(kennung) == KLASSE_UHD:
-            belegt = mediaserver_library.echte_uhd_kennungen(
-                db,
-                media_type,
-                [item],
-                in_standard_instanz=await _mit_datei_in_standard(settings, item),
-            )
-        else:
-            belegt = mediaserver_library.vorhandene_kennungen(
-                db,
-                media_type,
-                [item],
-                # Nicht ``arr_configured(.., "uhd")``: Das galt im NEX-Betrieb
-                # nie, und eine reine 4K-Kopie sperrte dort die HD-Anfrage.
-                fassungen.serverstufe(settings, item.media_type, kennung),
-            )
+        #
+        # Nicht ``arr_configured(.., "uhd")``: Das galt im NEX-Betrieb nie, und
+        # eine reine 4K-Kopie sperrte dort die HD-Anfrage.
+        belegt = await im_medienserver(db, settings, media_type, [item], kennung)
         if belegt:
             raise RequestError(
                 f"„{item.title}“ liegt bereits auf dem Media-Server.",

@@ -33,7 +33,6 @@ from ..services import (
     fassungen,
     fassungsachsen,
     media,
-    mediaserver_library,
     mediaserver_watched,
     ratings,
     requests_service,
@@ -191,20 +190,14 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
     gesperrt = blocklist.gesperrte_kennungen(db, MediaType(media_type), kennungen)
     # Nur fuer Titel ohne genaueren Zustand: was im Media-Server liegt, aber
     # Radarr/Sonarr nicht kennt.
-    im_server = mediaserver_library.vorhandene_kennungen(
+    #
+    # Welche Kopie zaehlt, entscheidet dieselbe Funktion wie bei der Sperre
+    # (``requests_service.im_medienserver``) - Begruendung in discover.py.
+    im_server = await requests_service.im_medienserver(
         db,
-        MediaType(media_type),
+        settings,
+        media_type,
         [e for e in eintraege if e.status == "not_requested"],
-        # Welche Stufe zaehlt hier?
-        #
-        # Ohne zweite Instanz gibt es nur eine Achse, und die Frage lautet
-        # schlicht "habe ich den Titel?" - dann zaehlt jede Kopie. Gibt es sie,
-        # sind es zwei getrennte Achsen: Eine reine 4K-Kopie darf dann nicht
-        # als 1080p durchgehen, sonst laesst sich die 1080p-Fassung nie
-        # anfragen. Dieselbe Unterscheidung trifft Overseerr ueber
-        # ``enable4kMovie``. Die Frage stellt ``fassungen.serverstufe``, in
-        # beiden Betriebsarten.
-        fassungen.serverstufe(settings, media_type),
     )
 
     for eintrag in eintraege:

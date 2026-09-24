@@ -23,6 +23,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -246,6 +247,77 @@ def test_ein_vorhandener_titel_bleibt_auf_der_startseite(
     assert [e["tmdb_id"] for e in antwort.json()] == [9302]
 
 
+def test_ohne_nexcrate_bleiben_alle_titel_auf_der_startseite(
+    admin_client: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Ein Ausfall ist kein Loeschen.
+
+    ⚠️ Der NEX-Weg faengt den Fehler in ``status_setzen`` selbst und meldet
+    nur eine Warnung. ``_noch_vorhanden`` las daraus "nichts vorhanden", und
+    bei nicht erreichbarer nexcrate stand „Frisch geladen" leer da.
+    """
+    _einrichten(nexcrate)
+    kim = create_user(admin_client, "kim")
+    with SessionLocal() as sitzung:
+        for nummer in range(3):
+            sitzung.add(
+                MediaRequest(
+                    user_id=kim["id"],
+                    media_type=MediaType.movie,
+                    fassung_kennung=FILM_HD,
+                    tmdb_id=9310 + nummer,
+                    title=f"Erfundener Film {nummer}",
+                    status=RequestStatus.downloaded,
+                )
+            )
+        sitzung.commit()
+
+    def abgelehnt(_anfrage: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("Verbindung abgelehnt")
+
+    nex_client.use_transport(httpx.MockTransport(abgelehnt))
+    nex_bestand.verwerfen()
+
+    antwort = admin_client.get("/api/home/recent")
+
+    assert antwort.status_code == 200, antwort.text
+    assert sorted(e["tmdb_id"] for e in antwort.json()) == [9310, 9311, 9312]
+
+
+def test_eine_fertige_4k_anfrage_bleibt_auf_der_startseite(
+    admin_client: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Gefragt wird die Fassung der Anfrage, nicht die Hauptfassung.
+
+    Ohne ``fassung=`` fragte der NEX-Weg die HD-Fassung, fand den Film dort
+    nicht, und eine erledigte 4K-Anfrage verschwand von der Startseite.
+    """
+    _einrichten(nexcrate)
+    kim = create_user(admin_client, "kim")
+    with SessionLocal() as sitzung:
+        sitzung.add(
+            MediaRequest(
+                user_id=kim["id"],
+                media_type=MediaType.movie,
+                fassung_kennung=FILM_UHD,
+                tmdb_id=9321,
+                title="Erfundener Film",
+                status=RequestStatus.downloaded,
+            )
+        )
+        sitzung.commit()
+    nexcrate.film(
+        9321,
+        name="Erfundener Film",
+        versionen=[nexcrate.fassung(FILM_UHD, "available", size_bytes=40 * GB)],
+    )
+
+    antwort = admin_client.get("/api/home/recent")
+
+    assert antwort.status_code == 200, antwort.text
+    assert [e["tmdb_id"] for e in antwort.json()] == [9321]
+
+
 # --- 3. Kontoaufloesung: eine laufende Serie ist nicht offen ---------------------
 
 
@@ -347,6 +419,43 @@ async def test_meine_im_kalender_liefert_folgen_und_filme(
     assert arten == {MediaType.tv, MediaType.movie}
 
 
+def _meine_im_kalender(client: TestClient) -> dict:
+    antwort = client.get(
+        "/api/calendar",
+        params={"date_from": "2026-02-01", "date_to": "2026-02-28", "sources": "mine"},
+    )
+    assert antwort.status_code == 200, antwort.text
+    return antwort.json()
+
+
+def test_ohne_serienfassung_fragt_meine_keinen_serienkalender(
+    admin_client: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Gefragt wird, ob der Weg die Medienart fuehrt, nicht nur, ob er einen Kalender hat."""
+    _einrichten(nexcrate, [v for v in nexcrate.versions if v["kind"] == "movie"])
+    nexcrate.calls.clear()
+
+    _meine_im_kalender(admin_client)
+
+    kalender = [abfrage for _m, pfad, abfrage, _k in nexcrate.calls if pfad.endswith("/calendar")]
+    assert kalender, "der Filmkalender sollte gefragt werden"
+    assert all(abfrage.get("kind") != "series" for abfrage in kalender), kalender
+
+
+def test_ohne_schluessel_warnt_meine_nicht(
+    admin_client: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Ohne Schluessel ist nexcrate nicht eingerichtet: keine Warnung „nicht erreichbar"."""
+    with SessionLocal() as sitzung:
+        save_settings(sitzung, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": ""})
+        nex_fassungen.schreiben(sitzung, nexcrate.versions)
+        sitzung.commit()
+
+    daten = _meine_im_kalender(admin_client)
+
+    assert daten.get("arr_warning") is None
+
+
 # --- 5. Kinder, Vormerkungen, Bewertungen: jede Fassung zaehlt --------------------
 
 
@@ -435,3 +544,78 @@ async def test_die_4k_sperre_fragt_die_hd_fassung_auch_wenn_4k_die_hauptfassung_
     )
 
     assert anfrage.fassung_kennung == FILM_UHD
+
+
+# --- 7. 4K vorn: Abzeichen und Sperre sagen dasselbe -------------------------------
+
+
+def _4k_vorn(nexcrate: FakeNexcrate, *, zweite_4k: bool) -> list[dict[str, Any]]:
+    versionen = [dict(v) for v in nexcrate.versions]
+    for eintrag in versionen:
+        if eintrag["version_id"] == FILM_UHD:
+            eintrag["order"] = 1
+        elif eintrag["version_id"] == FILM_HD:
+            eintrag["order"] = 2
+    if zweite_4k:
+        versionen.append(nexcrate._version("v_uhd_zwei", "movie", "Movies 4K HDR", 3, "uhd"))
+    return versionen
+
+
+@pytest.mark.parametrize("zweite_4k", [False, True])
+@pytest.mark.parametrize("aufbau", ["datei_in_hd", "nur_im_medienserver"])
+def test_4k_vorn_abzeichen_und_sperre_sagen_dasselbe(
+    admin_client: TestClient, nexcrate: FakeNexcrate, db: Session, zweite_4k: bool, aufbau: str
+) -> None:
+    """⚠️ Auf jeder 4K-Achse gilt ``in_library`` genau dann, wenn die Anfrage 409 bekommt.
+
+    Fuehrt nexcrate 4K vorn, fragte das Abzeichen der Hauptachse den
+    Medienserver nur nach einer 4K-Kopie, die Sperre dagegen mit der Regel aus
+    ``echte_uhd_kennungen``: Liegt die 4K-Datei in der HD-Fassung, ist sie
+    keine eigene 4K-Fassung. Entdecken zeigte „in der Bibliothek", die
+    Anfrage ging trotzdem durch. Eine zweite 4K-Fassung fragte fuer dieselbe
+    Regel die Hauptfassung statt der HD-Fassung.
+    """
+    import asyncio
+
+    nex = _einrichten(nexcrate, _4k_vorn(nexcrate, zweite_4k=zweite_4k))
+    karte = admin_client.get("/api/discover/movie").json()["items"][0]
+    tmdb_id = karte["tmdb_id"]
+    jahr = int(karte["release_date"][:4])
+    if aufbau == "datei_in_hd":
+        # Die 4K-Datei liegt in der HD-Fassung; der Medienserver meldet nur 4K.
+        versionen = [nexcrate.fassung(FILM_HD, "available", size_bytes=40 * GB)]
+    else:
+        # Keine Fassung fuehrt ihn, nur der Medienserver hat eine 4K-Kopie.
+        versionen = []
+    nexcrate.film(tmdb_id, name=karte["title"], year=jahr, versionen=versionen)
+    nex_bestand.verwerfen()
+    _im_medienserver(db, tmdb_id, hd=False, uhd=True, jahr=jahr)
+
+    karten = admin_client.get("/api/discover/movie").json()["items"]
+    achsen = {
+        achse["kennung"]: achse["status"]
+        for achse in next(k for k in karten if k["tmdb_id"] == tmdb_id)["fassungen"]
+        if achse["klasse"] == "uhd"
+    }
+    assert set(achsen) == ({FILM_UHD, "v_uhd_zwei"} if zweite_4k else {FILM_UHD})
+
+    chefin = _nutzer(db, "chefin", Role.admin)
+    titel = MediaItem(
+        media_type="movie", tmdb_id=tmdb_id, title=karte["title"], release_date=karte["release_date"]
+    )
+    gesperrt: dict[str, bool] = {}
+    for kennung in achsen:
+        try:
+            asyncio.run(
+                requests_service.create_request(
+                    db, nex, chefin, titel, quality_profile_id=None, fassung=kennung
+                )
+            )
+            gesperrt[kennung] = False
+        except requests_service.RequestError as fehler:
+            assert fehler.status_code == 409, fehler
+            gesperrt[kennung] = True
+
+    assert {k: s == "in_library" for k, s in achsen.items()} == gesperrt
+    # Und die Richtung: Eine 4K-Datei in der HD-Fassung ist keine eigene 4K-Fassung.
+    assert set(gesperrt.values()) == {aufbau == "nur_im_medienserver"}

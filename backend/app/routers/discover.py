@@ -17,7 +17,6 @@ from ..services import (
     fassungen,
     fassungsachsen,
     media,
-    mediaserver_library,
     mediaserver_watched,
     requests_service,
 )
@@ -91,20 +90,19 @@ async def _status_for(
     gesperrt = blocklist.gesperrte_kennungen(db, MediaType(media_type), kennungen)
     # Nur fuer Titel, die Radarr/Sonarr *nicht* kennt - alles andere hat schon
     # einen genaueren Zustand als "liegt irgendwo herum".
-    im_server = mediaserver_library.vorhandene_kennungen(
+    #
+    # Welche Kopie zaehlt hier? Ohne zweite Instanz gibt es nur eine Achse, und
+    # die Frage lautet schlicht "habe ich den Titel?" - dann zaehlt jede Kopie.
+    # Gibt es sie, sind es zwei getrennte Achsen: Eine reine 4K-Kopie darf dann
+    # nicht als 1080p durchgehen, sonst laesst sich die 1080p-Fassung nie
+    # anfragen. Dieselbe Unterscheidung trifft Overseerr ueber
+    # ``enable4kMovie``. ⚠️ Gefragt wird dieselbe Funktion wie bei der Sperre:
+    # Fuehrt nexcrate 4K vorn, gilt auf der Hauptachse die 4K-Regel.
+    im_server = await requests_service.im_medienserver(
         db,
-        MediaType(media_type),
+        settings,
+        media_type,
         [i for i in result.items if i.status == "not_requested"],
-        # Welche Stufe zaehlt hier?
-        #
-        # Ohne zweite Instanz gibt es nur eine Achse, und die Frage lautet
-        # schlicht "habe ich den Titel?" - dann zaehlt jede Kopie. Gibt es sie,
-        # sind es zwei getrennte Achsen: Eine reine 4K-Kopie darf dann nicht
-        # als 1080p durchgehen, sonst laesst sich die 1080p-Fassung nie
-        # anfragen. Dieselbe Unterscheidung trifft Overseerr ueber
-        # ``enable4kMovie``. Gefragt wird die Klasse der Fassungen, nicht Radarr:
-        # im NEX-Betrieb gibt es keine 4K-Instanz, wohl aber eine 4K-Fassung.
-        fassungen.serverstufe(settings, media_type),
     )
 
     # "Gesehen" ist eine eigene Achse und ueberschreibt deshalb nichts - es

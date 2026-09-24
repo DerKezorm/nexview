@@ -138,6 +138,33 @@ def test_startseite_bleibt_stehen_wenn_tmdb_streikt(
     assert eintraege[0]["backdrop_url"] is None
 
 
+def test_startseite_bleibt_stehen_wenn_radarr_nicht_antwortet(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ein Ausfall der Beschaffung leert „Frisch geladen" nicht.
+
+    ⚠️ ``status_setzen`` faengt den Fehler selbst und meldet ihn nur als
+    ``warning``; das ``except`` in ``_noch_vorhanden`` griff nie. Jeder Titel
+    galt dann als geloescht, und der Bereich stand leer da.
+    """
+    from app.services.beschaffung.arr.client import ArrError
+
+    create_user(arr_client, "kim")
+    kim = auth_headers(arr_client, "kim", "passwort-1234")
+    _fertig(_anfrage(arr_client, kim, 0))
+    _fertig(_anfrage(arr_client, kim, 1))
+
+    async def kaputt(*_args: object, **_kwargs: object) -> dict:
+        raise ArrError("Radarr nicht erreichbar")
+
+    monkeypatch.setattr(library, "movie_library", kaputt)
+
+    antwort = arr_client.get("/api/home/recent")
+
+    assert antwort.status_code == 200
+    assert len(antwort.json()) == 2
+
+
 def test_ohne_anmeldung_keine_startseite(client: TestClient) -> None:
     assert client.get("/api/home/recent").status_code == 401
 

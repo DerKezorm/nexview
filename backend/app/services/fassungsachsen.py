@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from ..models import MediaType, Role, User
 from ..schemas_media import FassungAchse, MediaItem
-from . import fassungen, mediaserver_library, requests_service
+from . import fassungen, requests_service
 from .beschaffung import KLASSE_UHD, FassungInfo, get_beschaffung
 from .settings_service import AppSettings
 
@@ -173,20 +173,19 @@ async def _stand(
             for eintrag in items
             if eintrag.tmdb_id not in in_bibliothek and eintrag.tmdb_id not in eigene
         ]
-        gemeldet = mediaserver_library.vorhandene_kennungen(
-            db, MediaType(media_type), offen, tier="uhd"
+        #
+        # ⚠️ Dieselbe Frage wie die Sperre (``requests_service.im_medienserver``):
+        # Hier stand eine eigene Fassung davon, die "liegt die Datei in HD"
+        # die Hauptfassung fragte. Fuehrt nexcrate 4K vorn, fragte sie damit
+        # 4K selbst, und eine zweite 4K-Fassung stand als vorhanden da, waehrend
+        # die Anfrage durchging.
+        im_server, gemeldet = await requests_service.uhd_im_medienserver(
+            db, settings, media_type, offen
         )
-        if gemeldet:
-            im_server = mediaserver_library.echte_uhd_kennungen(
-                db,
-                MediaType(media_type),
-                offen,
-                in_standard_instanz=await _in_hauptfassung(settings, media_type, offen),
-            )
-            # Titel, deren 4K-Datei in der **Standard**-Instanz liegt. Sie
-            # zaehlen nicht als eigene Fassung - aber die Anfragemaske soll
-            # darauf hinweisen, bevor jemand eine zweite anlegt.
-            verdeckt = gemeldet - im_server
+        # Titel, deren 4K-Datei in der **Standard**-Instanz liegt. Sie
+        # zaehlen nicht als eigene Fassung - aber die Anfragemaske soll
+        # darauf hinweisen, bevor jemand eine zweite anlegt.
+        verdeckt = gemeldet - im_server
 
     stand = _Stand(pfade=pfade, verdeckt=verdeckt)
     for eintrag in items:
@@ -202,27 +201,3 @@ async def _stand(
         stand.status[eintrag.tmdb_id] = eigen or vorhanden or "not_requested"
     return stand
 
-
-async def _in_hauptfassung(
-    settings: AppSettings, media_type: str, items: list[MediaItem]
-) -> set[int]:
-    """Was fuehrt die **Hauptfassung** mit Datei?
-
-    Die eine Angabe, die ``mediaserver_library.echte_uhd_kennungen`` von aussen
-    braucht: Nur damit laesst sich eine 4K-Datei, die im normalen Radarr liegt,
-    von einer echten Zweitfassung unterscheiden.
-
-    Kostet keine zusaetzliche Abfrage - der Bestand liegt zu diesem Zeitpunkt
-    bereits zwischengespeichert vor, weil die Hauptachse ihn eben benutzt hat.
-    """
-    haupt = fassungen.hauptkennung(media_type)
-    if not items or haupt is None:
-        return set()
-    kopien = [eintrag.model_copy(update={"status": "not_requested"}) for eintrag in items]
-    ergebnis = await get_beschaffung(settings).status_setzen(
-        media_type,
-        kopien,
-        fassungen.stufe(haupt),
-        fassung=haupt,
-    )
-    return {eintrag.tmdb_id for eintrag in ergebnis.items if eintrag.status == "downloaded"}

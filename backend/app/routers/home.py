@@ -79,7 +79,9 @@ async def _noch_vorhanden(
 
     Faellt eine Abfrage aus, gilt der Titel als vorhanden. Ein leerer Bereich
     waere die schlechtere Antwort auf ein Netzwerkproblem als ein Eintrag zu
-    viel.
+    viel. Ein Ausfall kommt dabei meist als ``warning`` im Ergebnis an, nicht
+    als Ausnahme; bis zum 24.09.2026 galt nur die Ausnahme, und in beiden
+    Betriebsarten leerte sich der Bereich.
     """
     behalten: list[MediaRequest] = []
     # Nach Medienart und Fassung buendeln: Jede Kombination fragt ihre eigene
@@ -119,6 +121,17 @@ async def _noch_vorhanden(
             ergebnis = await get_beschaffung(settings).status_setzen(
                 art.value, kacheln, stufe, fassung=kennung
             )
+            if ergebnis.warning:
+                # ⚠️ So meldet sich ein Ausfall hier: Beide Wege fangen den
+                # Fehler in ``status_setzen`` selbst und geben die Kacheln
+                # unveraendert zurueck. Ohne diese Zeile las sich das als
+                # "nichts mehr vorhanden", und der Bereich stand leer da.
+                # Der Satz der Warnung ist deutsch und bleibt draussen.
+                logger.warning(
+                    "Library check failed (%s/%s), keeping the titles", art.value, kennung
+                )
+                behalten.extend(teil)
+                continue
             vorhanden = {
                 eintrag.tmdb_id
                 for eintrag in ergebnis.items
@@ -335,11 +348,11 @@ async def trending(user: CurrentUser, db: DbSession) -> list[MediaItem]:
         # vorhanden zeigte. Zwei Seiten, zwei Wahrheiten; gemeldet an
         # "Backrooms". Dieselbe Stufen-Regel wie ueberall: Mit 4K-Instanz
         # zaehlt nur die Standard-Kopie, die 4K-Achse haengt am Ende dran.
-        im_server = mediaserver_library.vorhandene_kennungen(
+        im_server = await requests_service.im_medienserver(
             db,
+            settings,
             MediaType.movie,
             [e for e in kandidaten if e.status == "not_requested"],
-            fassungen.serverstufe(settings, "movie"),
         )
 
         heute = datetime.now().strftime("%Y-%m-%d")
@@ -419,11 +432,11 @@ async def _kuratiert_fuer(
     )
     # Dritte Quelle Media-Server - siehe die Begruendung bei den Trending-
     # Vorschlaegen; hier fehlte sie genauso.
-    im_server = mediaserver_library.vorhandene_kennungen(
+    im_server = await requests_service.im_medienserver(
         db,
+        settings,
         media_type,
         [e for e in vorschlaege if e.status == "not_requested"],
-        fassungen.serverstufe(settings, media_type.value),
     )
     uebrig = [
         eintrag

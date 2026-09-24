@@ -241,3 +241,19 @@ describe('AdminRequestsPage: Freigabe im NEX-Betrieb', () => {
     expect(holen.mock.calls.some(([p]) => String(p).startsWith('/api/arr/'))).toBe(false)
   })
 })
+
+describe('AdminRequestsPage: Filter Freigegeben', () => {
+  it('fragt genau die freigegebenen Anfragen (Rundgang-Befund 4)', async () => {
+    vi.clearAllMocks()
+    nexBetriebMit([])
+    rendern(<AdminRequestsPage />, { pfad: '/admin/requests?filter=all' })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Freigegeben' }))
+
+    await vi.waitFor(() =>
+      expect(holen.mock.calls.map(([pfad]) => String(pfad))).toContain(
+        '/api/admin/requests?status=approved',
+      ),
+    )
+  })
+})

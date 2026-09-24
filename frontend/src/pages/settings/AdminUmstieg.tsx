@@ -678,9 +678,13 @@ export function AdminUmstieg() {
             >
               {t("umstieg.handOver")}
             </Button>
-            <span className="text-sm text-mist-300">
-              {t("umstieg.handedOver", { count: nachgereicht })}
-            </span>
+            {/* Erst nach dem ersten Lauf: „0 nachgereicht“ vor jedem Klick las
+                sich wie „schon gelaufen“ (Rundgang-Befund 4). */}
+            {nachreichen.data && (
+              <span className="text-sm text-mist-300">
+                {t("umstieg.handedOver", { count: nachgereicht })}
+              </span>
+            )}
           </div>
           {nachreichen.data?.weiter && (
             <p className="text-sm text-mist-400">{t("umstieg.handOverMore")}</p>

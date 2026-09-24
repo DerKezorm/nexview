@@ -315,7 +315,7 @@ describe('Umstiegsassistent', () => {
     expect(screen.getByRole('button', { name: /prüfen/i })).toBeDisabled()
   })
 
-  async function bisZumNachreichen(liegen: number) {
+  async function bisZumNachreichen(liegen: number, klicken = true) {
     antworten()
     vi.mocked(api.post).mockImplementation(async (pfad: string) => {
       if (pfad === '/api/umstieg/probe') return PROBE as never
@@ -344,6 +344,7 @@ describe('Umstiegsassistent', () => {
     })
     await userEvent.click(screen.getByRole('button', { name: /^weiter$/i }))
     await userEvent.click(await screen.findByRole('button', { name: /jetzt umschalten/i }))
+    if (!klicken) return
     await userEvent.click(await screen.findByRole('button', { name: /nachreichen/i }))
     expect(await screen.findByText('Eine Anfrage nachgereicht.')).toBeInTheDocument()
   }
@@ -357,6 +358,15 @@ describe('Umstiegsassistent', () => {
     expect(
       screen.getByText(/3 freigegebene Anfragen liegen auf einer Fassung, die nexcrate nicht kennt/),
     ).toBeInTheDocument()
+  })
+
+  it('nennt vor dem ersten Nachreichen keine Zahl', async () => {
+    // Rundgang-Befund 4: „0 Anfragen nachgereicht.“ stand schon vor dem ersten
+    // Klick da und las sich wie „schon gelaufen, nichts gefunden“.
+    await bisZumNachreichen(0, false)
+
+    expect(await screen.findByRole('button', { name: /nachreichen/i })).toBeInTheDocument()
+    expect(screen.queryByText(/nachgereicht\./)).not.toBeInTheDocument()
   })
 
   it('schweigt in Schritt 7, wenn nichts liegt', async () => {

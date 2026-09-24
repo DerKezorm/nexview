@@ -54,6 +54,10 @@ const FILTERS: Filter[] = [
   "feedback",
   "watchlist",
   "all",
+  // Freigegeben, aber noch nicht bei der Beschaffung: Nach dem Umstieg reicht
+  // der Assistent genau diese nach, und ohne eigenen Filter fand man sie nur
+  // unter „Alle“ (Rundgang-Befund 4).
+  "approved",
   "searching",
   "downloaded",
   "rejected",

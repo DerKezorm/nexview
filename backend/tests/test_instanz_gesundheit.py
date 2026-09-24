@@ -173,5 +173,11 @@ def test_diensteseite_zeigt_die_probleme(admin_client, monkeypatch) -> None:
         z for z in antwort.json()["instanzen"] if z["kennung"] == "radarr-standard"
     )
     assert zeile["probleme"] == [
-        {"typ": "error", "text": "All download clients are unavailable due to failures"}
+        # Radarrs Wortlaut bleibt; ohne Kennung gibt es nichts zu uebersetzen.
+        {
+            "typ": "error",
+            "text": "All download clients are unavailable due to failures",
+            "code": None,
+            "params": {},
+        }
     ]

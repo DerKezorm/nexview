@@ -139,6 +139,10 @@ the process. The backup is the way back.
   double episode count exactly once, and the rest of the season is counted
   separately. An older nexcrate without these file names falls back to the
   episode sizes, capped at the season.
+- **An episode package stopped counting when Sonarr failed to answer.** If the
+  hourly count could not read Sonarr's episode files, the package's own
+  storage entry was dropped and counted against nobody until the next good
+  run. It now stays as it was.
 - **Every nexcrate version counted as standard.** HD and 4K were not told
   apart, so a film held in both versions went to the first requester twice in
   storage, `/api/v1` reported `tier` "standard" for a 4K version, and the 4K
@@ -162,7 +166,9 @@ the process. The backup is the way back.
   and Metacritic now show on the title page with the credit OMDb requires,
   also for a film nexcrate does not hold, as long as nexcrate has a TMDB key;
   IMDb's own value had not been read at all, and a failing ratings batch no
-  longer turns into a server error. The calendar's "Mine", children's wishes,
+  longer turns into a server error. The credit IMDb requires for its ratings,
+  which cards and list rows have no room for, now stands once in the page
+  footer. The calendar's "Mine", children's wishes,
   the watchlist and ratings now count every version a title is held in, not
   only the main one. Deleting the stored nexcrate key now works, the recycle
   bin no longer claims to be available without the right to use it, its

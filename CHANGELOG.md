@@ -126,6 +126,14 @@ the process. The backup is the way back.
   packages as deleted the moment nexcrate briefly did not confirm them. Season
   and package state now comes from each series' own page and is left as it is
   when a page fails to answer, instead of being marked deleted.
+- **Episode packages count their own files in nexcrate mode.** A package
+  ("season 2, episodes 3 to 5") charged its requester nothing of its own while
+  its season counted whole, and a finished package without a TVDB number was
+  charged the entire season. Its size now comes from the files nexcrate names
+  for each episode, so a file shared by two episodes and both halves of a
+  double episode count exactly once, and the rest of the season is counted
+  separately. An older nexcrate without these file names falls back to the
+  episode sizes, capped at the season.
 - **Every nexcrate version counted as standard.** HD and 4K were not told
   apart, so a film held in both versions went to the first requester twice in
   storage, `/api/v1` reported `tier` "standard" for a 4K version, and the 4K

@@ -252,3 +252,23 @@ def test_der_verlauf_neueste_zuerst(admin_client: TestClient) -> None:
     # Ohne eingerichtete Instanz kommt der Name aus der Fassungstabelle
     # (Rundgang-Befund 7); die Kennung steht nur, wo auch dort nichts steht.
     assert zeilen[0]["instanz"] == "Radarr"
+
+
+def test_der_verlauf_nimmt_den_namen_der_laufenden_instanz(arr_client: TestClient) -> None:
+    """Pruefer zu Befund 7: Steht eine Kennung in der Fassungstabelle und bei den
+    laufenden Instanzen, gilt der Name der Instanz."""
+    from app.models import Fassung
+    from app.services.beschaffung import get_beschaffung
+    from app.services.settings_service import load_settings
+
+    with SessionLocal() as db:
+        zeile = db.get(Fassung, "radarr-standard")
+        assert zeile is not None
+        zeile.name = "Veralteter Name"
+        db.add(DownloadVerlauf(kennung="radarr-standard", titel="Film", was="entfernen"))
+        db.commit()
+        live = {i.kennung: i.name for i in get_beschaffung(load_settings(db)).instanzen()}
+
+    assert live.get("radarr-standard") not in (None, "Veralteter Name")
+    zeilen = arr_client.get("/api/admin/downloads/verlauf").json()
+    assert zeilen[0]["instanz"] == live["radarr-standard"]

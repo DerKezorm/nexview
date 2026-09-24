@@ -60,7 +60,9 @@ def glockentext(problem: dict[str, Any]) -> str:
     return "notifications.instanceHealth_nex"
 
 
-def verdichten(roh: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def verdichten(
+    roh: list[dict[str, Any]], eigene: frozenset[str] | None = None
+) -> list[dict[str, Any]]:
     """nexcrates Befunde in die Form der Tabelle.
 
     ⚠️ **Der Schlüssel ist Kennung plus Werte**, nicht der Satz: ``automatic_off``
@@ -79,6 +81,13 @@ def verdichten(roh: list[dict[str, Any]]) -> list[dict[str, Any]]:
         # auch ``album``, und daraus wurde „Die Automatik ist aus“, obwohl
         # Filme und Serien an waren (Rundgang-Befund 5).
         if werte.get("kind") and mapping.art(str(werte["kind"])) not in mapping.EIGENE_ARTEN:
+            continue
+        # Dasselbe fuer Befunde einer Fassung (``version_id``, ohne ``kind``):
+        # nur die, die Nexview fuehrt (``eigene``). ⚠️ Ausser ``disk_full``:
+        # nexcrate meldet einen vollen Datentraeger einmal je Geraet, und die
+        # genannte Fassung kann die Musik sein, obwohl Filme daneben liegen.
+        fassung = werte.get("version_id")
+        if eigene and fassung and code != "disk_full" and str(fassung) not in eigene:
             continue
         teile = [code]
         # ⚠️ ``art`` und ``recht`` gehoeren dazu: Die Standpruefung meldet
@@ -107,7 +116,7 @@ def verdichten(roh: list[dict[str, Any]]) -> list[dict[str, Any]]:
 async def pruefen(db: Session, settings: AppSettings, kennung: str, name: str) -> None:
     """nexcrate einmal befragen und melden, was neu ist."""
     from ..arr.instanz_gesundheit import eintrag as gemerkt
-    from . import pruefung, system
+    from . import fassungen, pruefung, system
     from .fehler import NexcrateError
     from .weg import client_fuer
 
@@ -121,7 +130,8 @@ async def pruefen(db: Session, settings: AppSettings, kennung: str, name: str) -
     # nur in die Einrichtung: Eine nexcrate kann zurueckgestuft werden, ein
     # Schluessel kann ein Recht verlieren. Wer das erst an der naechsten
     # Anfrage merkt, sucht den Fehler in Nexview.
-    jetzt = verdichten([*pruefung.als_health(pruefung.pruefen(system.stand())), *roh])
+    eigene = frozenset(f.kennung for f in fassungen.aus_tabelle(db)) or None
+    jetzt = verdichten([*pruefung.als_health(pruefung.pruefen(system.stand())), *roh], eigene)
     zeile = gemerkt(db, kennung)
     if zeile is None:
         zeile = ArrGesundheit(kennung=kennung)

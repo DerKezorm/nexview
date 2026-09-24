@@ -10,6 +10,7 @@ geblieben und muessen es bleiben.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
@@ -754,3 +755,52 @@ def test_die_einstellungen_bleiben_im_arr_betrieb_unberuehrt(db: Session) -> Non
     einstellungen = load_settings(db)
     assert einstellungen.beschaffung == "arr"
     assert get_beschaffung(einstellungen).instanzen() == einstellungen.arr_instanzen()
+
+
+async def test_musikfassungen_melden_nexview_nichts(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Pruefer zu Befund 5: ``version_not_ready`` und ``folder_*`` nennen nur
+    die ``version_id``, kein ``kind``; fuer eine Musikfassung kamen sie durch.
+    ``disk_full`` bleibt: nexcrate meldet einen vollen Datentraeger nur einmal
+    je Geraet, und die genannte Fassung kann die Musik sein, obwohl die Filme
+    auf derselben Platte liegen."""
+    nexcrate.health = [
+        {"code": "version_not_ready", "level": "warning", "message": "x",
+         "params": {"version_id": "v_musik", "name": "Music", "reasons": ["folder_missing"]}},
+        {"code": "folder_missing", "level": "error", "message": "x",
+         "params": {"version_id": "v_musik", "name": "Music"}},
+        {"code": "disk_full", "level": "error", "message": "x",
+         "params": {"version_id": "v_musik", "name": "Music", "free_bytes": 1}},
+        {"code": "folder_missing", "level": "error", "message": "x",
+         "params": {"version_id": FILM_HD, "name": "Full-HD"}},
+    ]
+
+    await get_beschaffung(nex).gesundheit_pruefen(db)
+
+    zeile = db.get(ArrGesundheit, 1)
+    assert zeile is not None
+    assert [p["schluessel"] for p in zeile.stand] == [
+        "disk_full:v_musik",
+        f"folder_missing:{FILM_HD}",
+    ]
+
+
+def test_jede_kennung_aus_nexcrate_hat_einen_text() -> None:
+    """Pruefer zu Befund 5: Fuenf Kennungen, die nexcrate liefert, hatten keinen
+    Text; die Oberflaeche zeigte dann die rohe Kennung. Die Liste steht in
+    nexcrates eigener Beschreibung von ``FindingOut.code``."""
+    import re
+    from pathlib import Path
+
+    abzug = json.loads(
+        (Path(__file__).parent / "beschaffung" / "nexcrate_openapi.json").read_text(encoding="utf-8")
+    )
+    beschreibung = abzug["components"]["schemas"]["FindingOut"]["properties"]["code"]["description"]
+    kennungen = re.findall(r"[a-z]+(?:_[a-z]+)+", beschreibung)
+    assert len(kennungen) >= 10, kennungen
+    sprachen = Path(__file__).resolve().parents[2] / "frontend" / "src" / "i18n"
+    for sprache in ("de", "en"):
+        texte = json.loads((sprachen / f"{sprache}.json").read_text(encoding="utf-8"))
+        fehlend = [k for k in kennungen if k not in texte["nexcrate"]["health"]]
+        assert fehlend == [], (sprache, fehlend)

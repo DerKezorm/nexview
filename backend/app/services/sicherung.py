@@ -317,7 +317,9 @@ def _sicherer_name(kommentar: str) -> str:
     if len(knapp) > 40:
         # An einer Wortgrenze kuerzen: Der Umstieg hiess sonst „...-to-n“
         # (Rundgang-Befund 2). Ein einziges langes Wort bleibt gekuerzt stehen.
-        knapp = knapp[:41].rsplit("-", 1)[0] if "-" in knapp[:41] else knapp[:40]
+        vorn = knapp[:41].rsplit("-", 1)[0] if "-" in knapp[:41] else ""
+        # Nur wenn davon genug bleibt; sonst hart bei 40 (Pruefer zu Befund 2).
+        knapp = vorn if len(vorn) >= 20 else knapp[:40]
     return knapp.strip("-").lower()
 
 

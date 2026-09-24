@@ -1296,3 +1296,10 @@ def test_ein_langer_kommentar_endet_an_einer_wortgrenze() -> None:
     assert len(name) <= 40
     # Ein einziges langes Wort wird trotzdem gekuerzt, nicht ganz verworfen.
     assert sicherung._sicherer_name("x" * 50) == "x" * 40
+
+
+def test_ein_kurzes_erstes_wort_verschluckt_den_kommentar_nicht() -> None:
+    """Pruefer zu Befund 2: „ab“ plus ein langes Wort wurde zu „ab“."""
+    from app.services import sicherung
+
+    assert sicherung._sicherer_name("ab " + "x" * 50) == "ab-" + "x" * 37

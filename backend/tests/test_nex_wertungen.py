@@ -361,3 +361,43 @@ def test_ohne_imdb_nummer_bleibt_ein_nicht_gefuehrter_film_still_leer(
     if not detail:
         [stapel] = _stapel(nexcrate)
         assert len(stapel) == 2
+
+
+# --- Null ist ein Wert ------------------------------------------------------------
+
+
+@pytest.mark.parametrize("detail", [True, False], ids=["titelseite", "liste"])
+def test_null_prozent_ist_ein_wert_und_kein_fehlender(
+    nex_admin: TestClient, nexcrate: FakeNexcrate, detail: bool
+) -> None:
+    """Ein Verriss mit 0 bei Rotten Tomatoes oder Metacritic ist eine Auskunft.
+
+    Wer ``0`` als fehlend liest, zeigt den Titel ohne Portale und ohne die
+    OMDb-Nennung; ein Titel nur mit Portalen fiele ganz heraus.
+    """
+    nexcrate.wertung(603, imdb=2.1, stimmen=300, tomaten=0, metacritic=0)
+    nexcrate.wertung(604, tomaten=0, metacritic=0)
+
+    params = {"ids": "603,604"}
+    if detail:
+        params["detail"] = "true"
+    antwort = nex_admin.get("/api/ratings/movie", params=params)
+
+    assert antwort.status_code == 200, antwort.text
+    daten = antwort.json()
+    assert daten["603"]["rotten_tomatoes"] == 0
+    assert daten["603"]["metacritic"] == 0
+    assert daten["603"]["imdb"] == 2.1
+    assert daten["603"]["attribution"] == [IMDB_NENNUNG, OMDB_NENNUNG]
+    assert daten["604"]["rotten_tomatoes"] == 0
+    assert daten["604"]["metacritic"] == 0
+    assert daten["604"]["imdb"] is None
+    assert OMDB_NENNUNG in daten["604"]["attribution"]
+    if detail:
+        assert sorted(_einzeln(nexcrate)) == [
+            "/api/v1/ratings/movie/tmdb:603",
+            "/api/v1/ratings/movie/tmdb:604",
+        ]
+        assert _stapel(nexcrate) == []
+    else:
+        assert _einzeln(nexcrate) == []

@@ -107,6 +107,10 @@ class FakeNexcrate:
         #: Angabe wie nexcrate 39dfc05; ``STAFFELN_NULL`` ist die aeltere
         #: nexcrate, bei der nur die Einzelansicht sie nennt.
         self.liste_staffeln = STAFFELN_WIE_EINZELANSICHT
+        #: Serien (``ref``), fuer die Liste und ``lookup`` ``series.seasons``
+        #: als ``null`` zeigen, gleich was ``liste_staffeln`` sagt: ein Titel mit
+        #: Staffeln neben einem ohne in derselben Antwort.
+        self.staffeln_null_fuer: set[str] = set()
         self.removed: list[dict[str, Any]] = []
         self.seq = 0
         self.health: list[dict[str, Any]] = []
@@ -628,6 +632,8 @@ class FakeNexcrate:
             else:
                 serie["seasons"] = None
             gezeigt["series"] = serie
+        elif gezeigt.get("kind") == "series" and gezeigt.get("ref") in self.staffeln_null_fuer:
+            gezeigt["series"] = {**gezeigt["series"], "seasons": None}
         return gezeigt
 
     def _finden(self, kind: str, ref: str) -> dict[str, Any] | None:

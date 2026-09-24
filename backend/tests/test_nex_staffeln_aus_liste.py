@@ -211,6 +211,31 @@ async def test_nachschlagen_mit_staffeln_holt_die_einzelansicht_nur_bei_aelterer
         assert [pfad for _, pfad, _, _ in nexcrate.calls] == ["/api/v1/titles/lookup"]
 
 
+async def test_nachschlagen_fragt_nur_die_serie_einzeln_die_ohne_staffeln_kommt(
+    nex: Any, nexcrate: FakeNexcrate
+) -> None:
+    """Entschieden wird je Titel, auch in ``lookup``.
+
+    Eine Serie mit ``series.seasons`` und eine mit ``null`` in derselben
+    Antwort: Die erste gilt so, nur die zweite kostet eine Einzelansicht.
+    """
+    nummern = _serien(nexcrate)
+    ohne = f"tmdb:{nummern[1]}"
+    nexcrate.staffeln_null_fuer = {ohne}
+    gefragt = [Nachschlag("tv", SERIE_HD, tmdb_id, mit_staffeln=True) for tmdb_id in nummern[:2]]
+    nexcrate.calls.clear()
+
+    antwort = await get_beschaffung(nex).nachschlagen(gefragt)
+
+    for i, wonach in enumerate(gefragt):
+        stand = antwort.stand(wonach)
+        assert isinstance(stand, SerienStand), wonach
+        assert antwort.hat_geantwortet(wonach) is True
+        assert stand.staffeln_gelesen is True
+        assert stand.seasons == {1: (i + 1) * GB, 2: (i + 4) * GB}
+    assert _einzelansichten(nexcrate) == [f"/api/v1/titles/series/{ohne}"]
+
+
 @pytest.mark.parametrize(("modus", "einzeln"), MODI)
 async def test_der_rundgang_misst_staffelanfragen_aus_lookup(
     nex: Any, nexcrate: FakeNexcrate, db: Session, modus: str, einzeln: int

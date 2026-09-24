@@ -38,6 +38,17 @@ type Schritt = (typeof SCHRITTE)[number];
  * Abbildung von Hand eingetragen wurde und die Sicherung eine echte Datei ist,
  * die auf dem Server schon liegt.
  *
+ * ⚠️ **Das Aushängen dieses Bauteils löscht hier nichts.** `AdminUmstieg`
+ * steckt in einem Unterreiter der Dienste-Seite (`unterTab === "umstieg" &&
+ * <AdminUmstieg />`); ein Klick auf einen anderen Unterreiter und zurück
+ * hängt es aus und wieder ein, ganz ohne Reload und ohne dass der Betreiber
+ * irgendetwas abgebrochen hätte. Ein Aushängen, das kein bewusstes Verlassen
+ * ist, darf keinen Stand kosten - gelöscht wird deshalb ausschließlich nach
+ * einem erfolgreichen Umschalten. Ein veralteter Stand (eine Zeile nennt eine
+ * Arr-Instanz oder eine Fassung, die es nicht mehr gibt) wird beim Einlesen
+ * zeilenweise geprüft, nicht als Ganzes verworfen - siehe der Kommentar an
+ * der Prüfung unten.
+ *
  * ⚠️ Jeder Zugriff in try/catch: Ein privates Fenster oder ein gesperrter
  * Speicher darf den Assistenten nicht lahmlegen, er läuft dann nur ohne den
  * Schutz gegen einen Reload (Vorbild: `PushAnbindung.tsx`, `RegionBanner.tsx`).
@@ -155,25 +166,44 @@ export function AdminUmstieg() {
   });
   const vorlage = abbildungQuery.data;
 
-  // ⚠️ Ein Reload läuft mit derselben nexcrate weiter, aber Zeit ist vergangen:
-  // Eine Fassung aus der gespeicherten Abbildung kann es dort inzwischen nicht
-  // mehr geben (umbenannt, entfernt). Dann gilt derselbe Grundsatz wie am
-  // Server (`pruefe_abbildung`), nur früher und über die ganze Abbildung: eine
-  // Kennung, die es nicht mehr gibt, wird verworfen statt angewendet - der
-  // Vorschlag springt danach normal ein.
+  // ⚠️ Ein Aushängen (Reiterwechsel) oder ein Reload läuft mit derselben
+  // nexcrate weiter, aber Zeit ist vergangen: Eine einzelne Fassung aus der
+  // gespeicherten Abbildung kann es dort inzwischen nicht mehr geben
+  // (umbenannt, entfernt) - das gilt genauso, wenn ein bisheriger
+  // Radarr/Sonarr-Zugang selbst verschwunden ist. Dann gilt derselbe
+  // Grundsatz wie am Server (`pruefe_abbildung`), nur früher und **zeilenweise**:
+  // Nur die betroffene Zeile wird verworfen, jede andere gültige Zeile bleibt
+  // stehen - eine von Hand auf „Keine" gestellte Zuordnung darf nicht mit
+  // verschwinden, nur weil eine andere Zeile veraltet ist. Fehlt danach eine
+  // Zeile ganz (verworfen, oder nie gespeichert), ergänzt sie der Vorschlag.
   useEffect(() => {
     if (!vorlage) return;
     setAbbildung((bisher) => {
       if (Object.keys(bisher).length === 0) return bisher;
       const arrKennungen = new Set(vorlage.arr_fassungen.map((arr) => arr.kennung));
       const nexKennungen = new Set(vorlage.nex_fassungen.map((nex) => nex.kennung));
-      const gueltig = Object.entries(bisher).every(
-        ([kennung, ziel]) =>
-          arrKennungen.has(kennung) && (ziel === null || nexKennungen.has(ziel)),
-      );
-      if (gueltig) return bisher;
-      abbildungLoeschen();
-      return {};
+      let veraendert = false;
+      const repariert: Record<string, string | null> = {};
+      for (const [kennung, ziel] of Object.entries(bisher)) {
+        if (arrKennungen.has(kennung) && (ziel === null || nexKennungen.has(ziel))) {
+          repariert[kennung] = ziel;
+        } else {
+          // Arr-Fassung oder Ziel-Fassung gibt es nicht mehr - nur diese
+          // Zeile fällt weg, nicht die ganze Abbildung.
+          veraendert = true;
+        }
+      }
+      for (const arr of vorlage.arr_fassungen) {
+        if (!(arr.kennung in repariert)) {
+          repariert[arr.kennung] = vorlage.vorschlag[arr.kennung] ?? null;
+          veraendert = true;
+        }
+      }
+      if (!veraendert) return bisher;
+      if (Object.keys(repariert).length === 0) {
+        abbildungLoeschen();
+      }
+      return repariert;
     });
   }, [vorlage]);
 
@@ -264,18 +294,6 @@ export function AdminUmstieg() {
     window.addEventListener("beforeunload", hinweis);
     return () => window.removeEventListener("beforeunload", hinweis);
   }, [schritt]);
-
-  // ⚠️ Der einzige „Abbrechen", den es hier gibt: der Betreiber verlässt den
-  // Assistenten (anderer Reiter, anderer Menüpunkt), ohne ihn zu Ende zu
-  // bringen. Ein Reload räumt hier nichts weg - React sieht ihn nie -, genau
-  // deshalb liegt der gespeicherte Stand im Sitzungsspeicher und nicht im
-  // Zustand dieses Bauteils.
-  useEffect(() => {
-    return () => {
-      abbildungLoeschen();
-      sicherungsnameLoeschen();
-    };
-  }, []);
 
   const sperrt = Boolean(vorlage?.sperrt);
   const nummer = SCHRITTE.indexOf(schritt) + 1;

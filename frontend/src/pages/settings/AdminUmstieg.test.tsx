@@ -7,6 +7,7 @@
  * an eine Entscheidung heran, die er gar nicht getroffen hat.
  */
 
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -65,6 +66,26 @@ function antworten(abbildung: UmstiegAbbildung = ABBILDUNG) {
     if (pfad === '/api/settings') return { nexcrate_url: '', nexcrate_api_key_set: false } as never
     return {} as never
   })
+}
+
+/**
+ * Steht für die Dienste-Seite: Dort hängt `<AdminUmstieg />` nur, solange der
+ * Unterreiter „Umstieg" gewählt ist (`unterTab === "umstieg" && ...`). Ein
+ * Klick auf einen anderen Unterreiter und zurück hängt die Komponente aus
+ * und wieder ein, ohne Reload und ohne dass jemand „Abbrechen" gedrückt
+ * hätte - genau das reproduziert dieser Knopf, mit demselben QueryClient wie
+ * bei einem echten Reiterwechsel.
+ */
+function ReiterHuelle() {
+  const [zeigen, setZeigen] = useState(true)
+  return (
+    <div>
+      <button type="button" onClick={() => setZeigen((v) => !v)}>
+        Reiter wechseln
+      </button>
+      {zeigen ? <AdminUmstieg /> : <div>Anderer Reiter</div>}
+    </div>
+  )
 }
 
 describe('Umstiegsassistent', () => {
@@ -406,6 +427,34 @@ describe('Umstiegsassistent: Reload während des Umstiegs (C6)', () => {
     expect(beforeUnloadAusloesen().defaultPrevented).toBe(false)
   })
 
+  it('bleibt bestehen, wenn vom Sicherungs- in den Umschalten-Schritt gewechselt wird', async () => {
+    // ⚠️ Eine auf „sicherung" verengte Bedingung bliebe grün, ohne dass ein
+    // Test je den Schritt „umschalten" selbst auslöst - genau dort darf der
+    // Hinweis erst recht nicht fehlen, denn dort läuft der eigentliche Aufruf.
+    antworten()
+    vi.mocked(api.post).mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/umstieg/probe') return PROBE as never
+      if (pfad === '/api/umstieg/sicherung') {
+        return { name: 'sicherung.db', groesse: 1, erstellt: '2026-09-24T10:00:00' } as never
+      }
+      return {} as never
+    })
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^weiter$/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /sicherung anlegen/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^weiter$/i })).toBeEnabled()
+    })
+    await userEvent.click(screen.getByRole('button', { name: /^weiter$/i }))
+
+    // Schritt 6: umschalten.
+    expect(beforeUnloadAusloesen().defaultPrevented).toBe(true)
+  })
+
   it('übersteht einen Reload: die Abbildung steht vorbelegt, nicht nur zufällig gleich dem Vorschlag', async () => {
     // ⚠️ Eine andere Wahl als der normale Vorschlag ('v_6a0763e8'), sonst
     // bewiese der Test nichts: Beide Werte gleich zu wählen, käme auch dann
@@ -471,6 +520,56 @@ describe('Umstiegsassistent: Reload während des Umstiegs (C6)', () => {
     expect(await screen.findByLabelText('Radarr')).toHaveValue('v_6a0763e8')
   })
 
+  it('verwirft nur die veraltete Zeile, nicht die ganze gespeicherte Abbildung', async () => {
+    // ⚠️ Vorher warf eine einzige ungültige Zeile die GANZE Abbildung weg -
+    // auch eine andere Zeile, die von Hand richtig gesetzt war. Zwei
+    // bisherige Fassungen, nur eine davon zeigt auf eine verschwundene
+    // nexcrate-Fassung.
+    const ABBILDUNG_ZWEI_ARR: UmstiegAbbildung = {
+      ...ABBILDUNG,
+      arr_fassungen: [
+        ...ABBILDUNG.arr_fassungen,
+        { kennung: 'radarr-uhd', media_type: 'movie', name: 'Radarr 4K', klasse: 'uhd' },
+      ],
+      vorschlag: { ...ABBILDUNG.vorschlag, 'radarr-uhd': null },
+    }
+    antworten(ABBILDUNG_ZWEI_ARR)
+    sessionStorage.setItem(
+      'nexview.umstieg.abbildung',
+      JSON.stringify({ 'radarr-standard': 'v_verschwunden', 'radarr-uhd': 'v_6a0763e8' }),
+    )
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    // Nur „Radarr" fällt auf den Vorschlag zurück; „Radarr 4K" bleibt bei der
+    // von Hand gewählten, weiterhin gültigen Fassung stehen (sie weicht
+    // bewusst vom eigenen Vorschlag „Keine" ab).
+    expect(await screen.findByLabelText('Radarr')).toHaveValue('v_6a0763e8')
+    expect(await screen.findByLabelText('Radarr 4K')).toHaveValue('v_6a0763e8')
+  })
+
+  it('verwirft eine gespeicherte Zeile, deren Arr-Instanz es nicht mehr gibt', async () => {
+    // ⚠️ Ohne die Prüfung auf die Arr-Kennung selbst bliebe eine Zeile für
+    // eine längst entfernte Radarr/Sonarr-Instanz stehen - unsichtbar, denn
+    // dafür gibt es gar keine Auswahlliste mehr, aber ihr Ziel zählt bei der
+    // Dopplungsprüfung weiter mit und blockiert „Prüfen" grundlos.
+    antworten()
+    sessionStorage.setItem(
+      'nexview.umstieg.abbildung',
+      JSON.stringify({ 'radarr-standard': 'v_6a0763e8', 'radarr-entfernt': 'v_6a0763e8' }),
+    )
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    expect(await screen.findByLabelText('Radarr')).toHaveValue('v_6a0763e8')
+    expect(screen.queryByText(/zeigen auf dieselbe Fassung/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /prüfen/i })).toBeEnabled()
+  })
+
   it('räumt den Sitzungsspeicher nach dem Umschalten auf', async () => {
     antworten()
     vi.mocked(api.post).mockImplementation(async (pfad: string) => {
@@ -508,19 +607,69 @@ describe('Umstiegsassistent: Reload während des Umstiegs (C6)', () => {
     expect(sessionStorage.getItem('nexview.umstieg.sicherungName')).toBeNull()
   })
 
-  it('räumt den Sitzungsspeicher auf, wenn der Assistent vor dem Ende verlassen wird (Abbrechen)', async () => {
+  it('übersteht ein Aushängen, das kein Abbrechen ist (Reiterwechsel weg und zurück, kein Reload)', async () => {
+    // ⚠️ Befund des unabhängigen Prüfers: `AdminUmstieg` hängt nur, solange
+    // der Unterreiter „Umstieg" gewählt ist. Ein Klick auf einen anderen
+    // Unterreiter und zurück hängt die Komponente aus und wieder ein - das
+    // ist kein „Abbrechen", und darf deshalb nichts löschen.
     antworten()
-    const wiedergabe = rendernSchlicht(<AdminUmstieg />)
+    rendernSchlicht(<ReiterHuelle />)
 
     await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
     await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
 
     expect(sessionStorage.getItem('nexview.umstieg.abbildung')).not.toBeNull()
 
-    wiedergabe.unmount()
+    await userEvent.click(screen.getByRole('button', { name: /reiter wechseln/i }))
+    await userEvent.click(screen.getByRole('button', { name: /reiter wechseln/i }))
 
-    expect(sessionStorage.getItem('nexview.umstieg.abbildung')).toBeNull()
-    expect(sessionStorage.getItem('nexview.umstieg.sicherungName')).toBeNull()
+    expect(sessionStorage.getItem('nexview.umstieg.abbildung')).not.toBeNull()
+  })
+
+  it('behält eine bewusst auf „Keine" gestellte Abbildung über einen Reiterwechsel', async () => {
+    // ⚠️ Der eigentliche Kern des Befunds: Eine mit Absicht abweichend vom
+    // Vorschlag getroffene Wahl darf nicht still durch den Vorschlag ersetzt
+    // werden, nur weil die Komponente kurz aus- und wieder eingehängt wurde.
+    antworten()
+    rendernSchlicht(<ReiterHuelle />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    await userEvent.selectOptions(await screen.findByLabelText('Radarr'), '')
+    expect(await screen.findByLabelText('Radarr')).toHaveValue('')
+
+    await userEvent.click(screen.getByRole('button', { name: /reiter wechseln/i }))
+    await userEvent.click(screen.getByRole('button', { name: /reiter wechseln/i }))
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+
+    expect(await screen.findByLabelText('Radarr')).toHaveValue('')
+  })
+
+  it('behält einen angelegten Sicherungsnamen über einen Reiterwechsel', async () => {
+    antworten()
+    vi.mocked(api.post).mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/umstieg/probe') return PROBE as never
+      if (pfad === '/api/umstieg/sicherung') {
+        return { name: 'sicherung-echt.db', groesse: 1, erstellt: '2026-09-24T10:00:00' } as never
+      }
+      return {} as never
+    })
+    rendernSchlicht(<ReiterHuelle />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^weiter$/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /sicherung anlegen/i }))
+    await screen.findByText(/sicherung-echt\.db/)
+
+    await userEvent.click(screen.getByRole('button', { name: /reiter wechseln/i }))
+    await userEvent.click(screen.getByRole('button', { name: /reiter wechseln/i }))
+
+    expect(sessionStorage.getItem('nexview.umstieg.sicherungName')).toBe('sicherung-echt.db')
   })
 
   it('läuft weiter, wenn sessionStorage wirft (privates Fenster, gesperrter Speicher)', async () => {

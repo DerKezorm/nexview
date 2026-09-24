@@ -331,9 +331,9 @@ export function AdminUmstieg() {
                   <li key={`${zeile.media_type}:${zeile.tmdb_id}:${zeile.fassung}`}>
                     {zeile.titel || zeile.tmdb_id}
                     {zeile.kollidiert
-                      ? ` — ${t("umstieg.decideCollides")}`
+                      ? `: ${t("umstieg.decideCollides")}`
                       : zeile.ohne_uebersetzung &&
-                        ` — ${t("umstieg.decideNoTranslation")}`}
+                        `: ${t("umstieg.decideNoTranslation")}`}
                     {zeile.anfrage_bleibt &&
                       `, ${t("umstieg.decideRequestStays")}`}
                   </li>

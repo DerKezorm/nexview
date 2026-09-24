@@ -1,12 +1,13 @@
 /**
  * Bewertungen zu einer Liste von Filmen nachladen.
  *
- * Bewusst getrennt vom Laden der Titel selbst: die Werte kommen aus Radarr,
- * und zwanzig Abfragen dorthin würden den Seitenaufbau bremsen. So steht die
- * Liste sofort da und die Zahlen erscheinen kurz darauf.
+ * Bewusst getrennt vom Laden der Titel selbst: die Werte kommen aus dem
+ * eingestellten Weg (Radarr im ARR-Betrieb, OMDb über nexcrate im
+ * NEX-Betrieb), und zwanzig Abfragen dorthin würden den Seitenaufbau bremsen.
+ * So steht die Liste sofort da und die Zahlen erscheinen kurz darauf.
  *
- * Serien bleiben außen vor, Sonarr liefert keine Aufschlüsselung nach
- * Portalen, sondern nur eine Sammelwertung.
+ * Serien bleiben außen vor: Keiner der beiden Wege liefert für sie eine
+ * Aufschlüsselung nach Portalen, sondern nur eine Sammelwertung.
  *
  * Der Haken wohnt neben den Abzeichen, nicht in ihnen: `RatingBadges.tsx`
  * liefert damit nur noch Bauteile aus, und nur solche Dateien tauscht Vite im

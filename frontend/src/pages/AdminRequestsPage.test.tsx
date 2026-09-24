@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 vi.mock('../api/client', async () => {
   const echt = await vi.importActual<typeof import('../api/client')>('../api/client')
@@ -96,5 +97,57 @@ describe('AdminRequestsPage: eine Anfrage ohne Fassungskennung', () => {
 
     await screen.findByText('Erfundener Film ohne Fassung')
     expect(screen.queryByText(/\bnull\b/)).toBeNull()
+  })
+})
+
+/**
+ * ⚠️ Dieselbe `fassung: null`-Zeile, aber wartend: Erst hier öffnet sich
+ * der `TargetPicker` (Knopf „Freigeben" ohne Zielordner), und erst hier
+ * würde `encodeURIComponent(null)` als `?fassung=null` in einer echten
+ * Anfrage landen, wenn die Absicherung in `AdminRequestsPage.tsx`
+ * (`beispielFassung`/`request.fassung ?? ""`) fehlte. Der Test oben prüft
+ * nur das Abzeichen, nicht diesen Pfad.
+ */
+describe('AdminRequestsPage: eine wartende Anfrage ohne Fassungskennung', () => {
+  it('öffnet den TargetPicker und schickt kein fassung=null', async () => {
+    holen.mockImplementation((pfad: string) => {
+      if (pfad.startsWith('/api/config')) {
+        return Promise.resolve({
+          beschaffung: 'nex',
+          beschaffung_kann: { warum: true, papierkorb: true, anime: true, kalender: true, wertungen: [] },
+          beschaffung_sprung: {},
+          fassungen: [],
+        })
+      }
+      if (pfad.startsWith('/api/admin/requests')) {
+        return Promise.resolve([
+          zeile(7, 'pending_approval', null, 'Erfundener wartender Film ohne Fassung'),
+        ])
+      }
+      if (pfad.startsWith('/api/arr/')) {
+        return Promise.resolve({
+          quality_profiles: [{ id: 1, name: 'Standard' }],
+          root_folders: [{ path: '/filme', free_space: null }],
+          default_root_folder: '/filme',
+          root_folder_choice: true,
+          quality_profile_choice: true,
+          default_quality_profile_id: 1,
+        })
+      }
+      return Promise.resolve({})
+    })
+    rendern(<AdminRequestsPage />, { pfad: '/admin/requests?filter=all' })
+    await screen.findByText('Erfundener wartender Film ohne Fassung')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Freigeben' }))
+    await screen.findByText('Zielordner')
+
+    const angefragteOptionen = holen.mock.calls
+      .map(([pfad]) => pfad as string)
+      .filter((pfad) => pfad.startsWith('/api/arr/'))
+    expect(angefragteOptionen.length).toBeGreaterThan(0)
+    for (const pfad of angefragteOptionen) {
+      expect(pfad).not.toContain('null')
+    }
   })
 })

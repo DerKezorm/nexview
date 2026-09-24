@@ -204,13 +204,32 @@ def test_eine_unbekannte_stufe_bekommt_die_hauptfassung(alte_datenbank) -> None:
 
 
 def test_eine_grossgeschriebene_stufe_wird_noch_erkannt(alte_datenbank) -> None:
-    """``'UHD'`` oder ``'4k'`` sind keine leeren/unbekannten Stufen - nur
-    anders geschrieben. Der Rueckfall normalisierte bisher nicht und zog
-    beide still auf die Standard-Fassung, obwohl klar gemeint war: 4K."""
+    """``'UHD'`` ist keine leere/unbekannte Stufe - nur anders geschrieben.
+    Der Rueckfall normalisierte bisher nicht und zog sie still auf die
+    Standard-Fassung, obwohl klar gemeint war: 4K. ``'4k'`` dagegen wird
+    NICHT erkannt (kein Alias fuer ``uhd``) und faellt mit Log-Eintrag auf
+    die Hauptfassung; erkannt werden nur Gross-/Kleinschreibung und
+    Leerraum von ``uhd``/``standard`` selbst."""
     motor = alte_datenbank()
     _bestand(motor)
     with motor.begin() as v:
         v.exec_driver_sql("UPDATE media_requests SET tier = 'UHD' WHERE id = 1")
+
+    db_modul.init_db()
+
+    zeile = _abfrage(motor, "SELECT fassung_kennung FROM media_requests WHERE id = 1")[0]
+    assert zeile[0] == "radarr-uhd"
+
+
+def test_eine_stufe_mit_leerraum_wird_noch_erkannt(alte_datenbank) -> None:
+    """``' uhd '`` ist derselbe Fall wie ``'UHD'``: eine Zwischenversion oder
+    ein Eingriff von Hand kann Leerraum hinterlassen. Ohne das ``.strip()``
+    beim Normalisieren bliebe die Zeile auf der Standard-Fassung stehen,
+    obwohl klar gemeint war: 4K."""
+    motor = alte_datenbank()
+    _bestand(motor)
+    with motor.begin() as v:
+        v.exec_driver_sql("UPDATE media_requests SET tier = ' uhd ' WHERE id = 1")
 
     db_modul.init_db()
 

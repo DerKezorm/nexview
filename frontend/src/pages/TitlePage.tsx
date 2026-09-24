@@ -365,7 +365,8 @@ export function TitlePage() {
                 )}
                 <RatingBadge vote={item.vote_average} count={item.vote_count} />
                 {/* IMDb, Rotten Tomatoes, Metacritic - nur bei Filmen, und nur
-                    was Radarr auch kennt. */}
+                    was der eingestellte Weg auch kennt (Radarr im
+                    ARR-Betrieb, OMDb über nexcrate im NEX-Betrieb). */}
                 <RatingBadges ratings={wertungen[item.tmdb_id]} title={item.title} gross />
               </div>
               <RatingCredit ratings={wertungen[item.tmdb_id]} className="mt-1" />

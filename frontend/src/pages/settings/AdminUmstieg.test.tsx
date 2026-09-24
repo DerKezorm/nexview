@@ -181,7 +181,7 @@ describe('Umstiegsassistent', () => {
     await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
 
     expect(
-      await screen.findByText(/Beispielserie — keine TMDB-Nummer in nexcrate, die offene Anfrage bleibt/),
+      await screen.findByText(/Beispielserie: keine TMDB-Nummer in nexcrate, die offene Anfrage bleibt/),
     ).toBeInTheDocument()
     expect(screen.getByText(/2 Rechte zeigen auf Fassungen ohne Gegenstück/)).toBeInTheDocument()
   })
@@ -212,7 +212,7 @@ describe('Umstiegsassistent', () => {
     await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
 
     expect(
-      await screen.findByText(/Example Series — zwei Einträge fielen auf denselben Platz/),
+      await screen.findByText(/Example Series: zwei Einträge fielen auf denselben Platz/),
     ).toBeInTheDocument()
     expect(screen.getByText(/denselben Platz belegen/)).toBeInTheDocument()
   })

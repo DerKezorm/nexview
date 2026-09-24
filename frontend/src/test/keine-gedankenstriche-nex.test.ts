@@ -6,8 +6,9 @@
  * durch beide Sprachdateien fand 384 (de) bzw. 365 (en) Stellen mit „–" oder
  * „—" - zu viele für einen Lauf. Geprüft (und repariert) wird hier deshalb
  * nur, was zu diesem Auftrag gehört: `umstieg.*`, `nexcrate.*`, Schlüssel auf
- * `_nex`, und `befunde.*fremde*`. Der Rest ist gezählt, nicht angefasst -
- * siehe Bericht.
+ * `_nex`, `befunde.*fremde*`, `request.noVersionAllowed` und
+ * `errors.byCode.calendar_*`. Der Rest ist gezählt, nicht angefasst - siehe
+ * Bericht.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -26,7 +27,9 @@ function gehoertZumLauf(pfad: string[]): boolean {
     pfad[0] === 'umstieg' ||
     pfad[0] === 'nexcrate' ||
     letztes.endsWith('_nex') ||
-    (pfad[0] === 'befunde' && voll.includes('fremde'))
+    (pfad[0] === 'befunde' && voll.includes('fremde')) ||
+    voll === 'request.noVersionAllowed' ||
+    (pfad[0] === 'errors' && pfad[1] === 'byCode' && letztes.startsWith('calendar_'))
   )
 }
 
@@ -46,9 +49,34 @@ describe('Keine Gedankenstriche im Bereich dieses Laufs', () => {
   it.each([
     ['de', de],
     ['en', en],
-  ])('%s: umstieg.*, nexcrate.*, *_nex und befunde.*fremde* sind sauber', (_sprache, baum) => {
+  ])(
+    '%s: umstieg.*, nexcrate.*, *_nex, befunde.*fremde*, noVersionAllowed und calendar_* sind sauber',
+    (_sprache, baum) => {
+      const treffer: string[] = []
+      sammleTreffer(baum, [], treffer)
+      expect(treffer, `Gedankenstrich gefunden in:\n${treffer.join('\n')}`).toEqual([])
+    },
+  )
+
+  it('gehoertZumLauf erkennt die neuen Schlüssel', () => {
+    expect(gehoertZumLauf(['request', 'noVersionAllowed'])).toBe(true)
+    expect(gehoertZumLauf(['errors', 'byCode', 'calendar_range_too_long'])).toBe(true)
+    expect(gehoertZumLauf(['errors', 'byCode', 'calendar_own_titles_unavailable'])).toBe(true)
+    // Ein anderer Schlüssel unter demselben Ast gehört weiter nicht dazu.
+    expect(gehoertZumLauf(['errors', 'byCode', 'sonstwas'])).toBe(false)
+    expect(gehoertZumLauf(['request', 'irgendwas'])).toBe(false)
+  })
+
+  it('findet den Verstoß, wenn es einen gäbe', () => {
+    // ⚠️ Wie in hausregeln.test.ts: Beweis, dass sammleTreffer wirklich
+    // etwas findet - sonst wäre ein leeres Ergebnis nicht von einem
+    // kaputten Wächter zu unterscheiden.
     const treffer: string[] = []
-    sammleTreffer(baum, [], treffer)
-    expect(treffer, `Gedankenstrich gefunden in:\n${treffer.join('\n')}`).toEqual([])
+    sammleTreffer(
+      { request: { noVersionAllowed: 'Ein Satz – mit Gedankenstrich.' } },
+      [],
+      treffer,
+    )
+    expect(treffer).toEqual(['request.noVersionAllowed'])
   })
 })

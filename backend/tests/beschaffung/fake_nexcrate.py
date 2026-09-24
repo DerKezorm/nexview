@@ -562,7 +562,7 @@ class FakeNexcrate:
             return httpx.Response(200, json=self._why(kind, ref))
         if rest == "search":
             return httpx.Response(202, json={"search": "queued"})
-        if rest in ("withdraw", "delete-files", "monitoring"):
+        if rest in ("withdraw", "monitoring"):
             return httpx.Response(200, json={"title_removed": False, "versions": []})
         return _fehler(404, "not_found", "This nexcrate does not know that address.")
 

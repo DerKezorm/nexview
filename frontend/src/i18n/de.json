@@ -4189,7 +4189,7 @@
     "mappingNoSuggestion": "Nexview schlägt nichts vor: Diese nexcrate nennt zu ihren Fassungen keine Auflösungsklasse; das tut sie erst, wenn deren Profile eine festlegen. Ordne von Hand zu; geraten wird hier nicht, denn eine 4K-Anfrage auf einer 1080p-Fassung gäbe dem Anfragenden etwas anderes, als er wollte.",
     "decideCollides": "zwei Einträge fielen auf denselben Platz",
     "decideCollidesText": "Bei den so gekennzeichneten Titeln würden zwei Einträge nach dem Umstieg denselben Platz belegen. Das kommt vor, wenn Sonarr zwei Serien führt, die TMDB als eine zählt; nexcrate rechnet nach TMDB. Diese Einträge bleiben, wie sie sind: Nexview schreibt keinen von beiden um, statt einen verschwinden zu lassen.",
-    "switchWhatChanges": "Was ist eine Fassungskennung? An jeder Anfrage und an jedem Speicherposten steht, in welcher Fassung es um den Titel ging: bisher „Radarr“ oder „Sonarr 4K“, künftig die Fassung aus nexcrate, die du oben zugeordnet hast. Nur diese Beschriftung wird ausgetauscht.",
+    "switchWhatChanges": "Was ist eine Fassungskennung? An jeder Anfrage und an jedem Speicherposten steht, in welcher Fassung es um den Titel ging: bisher „Radarr“ oder „Sonarr 4K“, künftig die Fassung aus nexcrate, die du in Schritt {{schritt}} zugeordnet hast. Nur diese Beschriftung wird ausgetauscht.",
     "switchNothingLost": "Keine Datei wird angefasst, nichts wird heruntergeladen oder gelöscht, und kein Titel verschwindet aus Nexview. Was auf der Platte liegt, liegt danach genauso da.",
     "doneDouble_one": "Ein Posten blieb stehen, weil ein anderer denselben Platz bekommen hätte.",
     "doneDouble_other": "{{count}} Posten blieben stehen, weil je ein anderer denselben Platz bekommen hätte.",

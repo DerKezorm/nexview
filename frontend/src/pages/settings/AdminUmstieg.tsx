@@ -592,7 +592,11 @@ export function AdminUmstieg() {
               sagt, was geschieht; diese zwei Absätze sagen, was es bedeutet
               und was **nicht** passiert. */}
           <p className="max-w-3xl text-sm leading-relaxed text-mist-300">
-            {t("umstieg.switchWhatChanges")}
+            {/* Rundgang-Befund 3: Hier stand „oben“, aber der Assistent zeigt
+                je Schritt nur einen Abschnitt. */}
+            {t("umstieg.switchWhatChanges", {
+              schritt: SCHRITTE.indexOf("abbildung") + 1,
+            })}
           </p>
           <p className="max-w-3xl text-sm leading-relaxed text-mist-300">
             {t("umstieg.switchNothingLost")}

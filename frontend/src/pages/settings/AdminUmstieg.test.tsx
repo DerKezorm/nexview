@@ -427,6 +427,35 @@ describe('Umstiegsassistent: Reload während des Umstiegs (C6)', () => {
     expect(beforeUnloadAusloesen().defaultPrevented).toBe(false)
   })
 
+  it('verweist beim Umschalten auf den Schritt, in dem die Abbildung steht', async () => {
+    // Rundgang-Befund 3: „die du oben zugeordnet hast" zeigte ins Leere. Der
+    // Assistent zeigt je Schritt nur einen Abschnitt; oben steht nichts.
+    antworten()
+    vi.mocked(api.post).mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/umstieg/probe') return PROBE as never
+      if (pfad === '/api/umstieg/sicherung') {
+        return { name: 'sicherung.db', groesse: 1, erstellt: '2026-09-24T10:00:00' } as never
+      }
+      return {} as never
+    })
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    const nummer = (await screen.findByText(/^Schritt \d+ von \d+$/)).textContent?.match(/\d+/)?.[0]
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^weiter$/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /sicherung anlegen/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^weiter$/i })).toBeEnabled()
+    })
+    await userEvent.click(screen.getByRole('button', { name: /^weiter$/i }))
+
+    const text = await screen.findByText(/Was ist eine Fassungskennung\?/)
+    expect(text.textContent).toContain(`in Schritt ${nummer} zugeordnet`)
+    expect(text.textContent).not.toMatch(/oben/)
+  })
+
   it('bleibt bestehen, wenn vom Sicherungs- in den Umschalten-Schritt gewechselt wird', async () => {
     // ⚠️ Eine auf „sicherung" verengte Bedingung bliebe grün, ohne dass ein
     // Test je den Schritt „umschalten" selbst auslöst - genau dort darf der

@@ -2,10 +2,12 @@
   "downloads": {
     "title": "Downloads",
     "subtitle": "Was in Radarr und Sonarr nicht weitergeht, warum, und was dagegen hilft.",
+    "subtitle_nex": "Was in nexcrate nicht weitergeht, warum, und was dagegen hilft.",
     "reload": "Neu laden",
     "standAm": "Stand {{zeit}}",
     "instanceDown": "{{name}} antwortet gerade nicht. Was dort hängt, steht hier mit dem letzten bekannten Stand.",
     "noInstances": "Es ist noch kein Radarr oder Sonarr eingerichtet.",
+    "noInstances_nex": "Es ist noch keine nexcrate verbunden.",
     "stuck": {
       "title": "Braucht dich",
       "none": "Nichts hängt. Was gerade stockt, beobachtet Nexview erst eine Weile, bevor es hier landet.",

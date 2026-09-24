@@ -2,10 +2,12 @@
   "downloads": {
     "title": "Downloads",
     "subtitle": "What is stuck in Radarr and Sonarr, why, and what helps.",
+    "subtitle_nex": "What is stuck in nexcrate, why, and what helps.",
     "reload": "Reload",
     "standAm": "As of {{zeit}}",
     "instanceDown": "{{name}} is not answering right now. What is stuck there is shown as it was last seen.",
     "noInstances": "No Radarr or Sonarr is set up yet.",
+    "noInstances_nex": "No nexcrate is connected yet.",
     "stuck": {
       "title": "Needs you",
       "none": "Nothing is stuck. Anything that stalls is watched for a while before it shows up here.",

@@ -399,6 +399,25 @@ describe('die übrige Seite', () => {
     ).toBeInTheDocument()
   })
 
+  it('nennt im NEX-Betrieb nexcrate statt Radarr und Sonarr', async () => {
+    // Rundgang-Befund 8: Der Untertitel sagte auch im NEX-Betrieb „Was in
+    // Radarr und Sonarr nicht weitergeht“.
+    holen.mockImplementation(((pfad: string) => {
+      if (pfad === '/api/config') return Promise.resolve({ beschaffung: 'nex' })
+      if (pfad === '/api/admin/downloads') return Promise.resolve(stand({ instanzen: [] }))
+      if (pfad === '/api/admin/downloads/automatik') return Promise.resolve(AUTOMATIK)
+      if (pfad.startsWith('/api/admin/downloads/verlauf')) return Promise.resolve([])
+      return Promise.reject(new Error(`unerwartet: ${pfad}`))
+    }) as never)
+    rendernSchlicht(<AdminDownloadsPage />)
+
+    expect(
+      await screen.findByText('Was in nexcrate nicht weitergeht, warum, und was dagegen hilft.'),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('Es ist noch keine nexcrate verbunden.')).toBeInTheDocument()
+    expect(screen.queryByText(/Radarr|Sonarr/)).toBeNull()
+  })
+
   it('sagt ohne Hänger schlicht, dass nichts lädt', async () => {
     antworten({ uebersicht: stand({ laufend: [], haenger: [] }) })
     rendernSchlicht(<AdminDownloadsPage />)

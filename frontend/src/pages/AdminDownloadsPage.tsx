@@ -17,6 +17,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Fenster } from '../components/Fenster'
 import { Umschalter } from '../components/Umschalter'
 import { AUSWAHL, Button, ErrorBanner, Section, SeiteLaedt, Spinner } from '../components/ui'
+import { useWegKontext } from '../hooks/useWegKontext'
 import { useDownloadsTexte } from '../i18n/downloads'
 import { folgenKompakt, formatDateTime } from '../lib/format'
 
@@ -73,6 +74,8 @@ function groesseText(bytes: number, sprache: string): string {
 
 export function AdminDownloadsPage() {
   const { t, i18n } = useTranslation()
+  // Rundgang-Befund 8: Im NEX-Betrieb nannte die Seite Radarr und Sonarr.
+  const weg = useWegKontext()
   const bereit = useDownloadsTexte()
   const queryClient = useQueryClient()
   const [meldung, setMeldung] = useState<string | null>(null)
@@ -97,7 +100,7 @@ export function AdminDownloadsPage() {
             {t('downloads.title')}
             <span className="text-accent-500">.</span>
           </h1>
-          <p className="text-sm text-mist-500">{t('downloads.subtitle')}</p>
+          <p className="text-sm text-mist-500">{t('downloads.subtitle', weg)}</p>
         </div>
         <div className="flex items-center gap-3">
           {daten && (
@@ -135,7 +138,7 @@ export function AdminDownloadsPage() {
       )}
 
       {daten && daten.instanzen.length === 0 && (
-        <p className="text-sm text-mist-500">{t('downloads.noInstances')}</p>
+        <p className="text-sm text-mist-500">{t('downloads.noInstances', weg)}</p>
       )}
 
       {daten && daten.instanzen.length > 0 && (

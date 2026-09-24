@@ -186,6 +186,31 @@ the process. The backup is the way back.
   just written. It now keeps both for the browser session, drops only the
   lines that no longer fit, and asks before you leave the page during the
   backup and the switch.
+- **Nobody could request anything in nexcrate mode.** The request form, the
+  approval page and the approval of a child's wish still fetched Radarr's
+  folders and profiles, which nexcrate mode refuses, and showed only that
+  refusal. They now ask whether there is a target to pick at all.
+- **Failed nexcrate downloads showed as running.** nexcrate's queue also lists
+  failed downloads that were not cleared away. They stood under "Running" with
+  a progress bar, and a request for the same title showed 100 percent. They
+  are left out now, and the page says how many there are; a failed download
+  that waits for you stays under "Needs you".
+- **The calendar showed no posters in nexcrate mode.** nexcrate's calendar
+  carries no images. Entries now take the poster from a stored request or
+  from TMDB.
+- **nexcrate's health findings came in English, and music counted.** The
+  dashboard, the services page, the analysis and the notification quoted
+  nexcrate's English sentence. They now translate the finding by its code and
+  name the media type. A finding about music, which Nexview does not carry, no
+  longer shows up as "the automatic is off".
+- **Smaller things around the switch.** The switch step pointed to a mapping
+  "above" that it does not show; the hand-over said "0 requests handed over"
+  before it had run; approved requests had no filter of their own; the
+  downloads page named Radarr and Sonarr; the download history showed raw ids
+  like `radarr-standard` for entries from before the switch; and the backup
+  made before switching was named "...-to-n.db".
+- **The log finding counted 26 hours in summer time.** "Error lines in the last
+  24 hours" drew its line in UTC while the log is written in local time.
 
 ## 0.35.2 – 18.09.2026
 

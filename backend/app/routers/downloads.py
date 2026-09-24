@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from ..deps import AdminUser, DbSession
-from ..models import DownloadHaenger, DownloadVerlauf, User
+from ..models import DownloadHaenger, DownloadVerlauf, Fassung, User
 from ..services import beschaffung, download_automatik
 from ..services.beschaffung import BeschaffungError, DownloadFehler, get_beschaffung
 from ..services.settings_service import load_settings
@@ -428,10 +428,17 @@ def verlauf(
 ) -> list[VerlaufZeile]:
     """Was mit haengenden Downloads geschah, das Neueste zuerst."""
     settings = load_settings(db)
+    # ⚠️ Auch stillgelegte Fassungen: Nach dem Umstieg stehen die Eintraege aus
+    # der Arr-Zeit sonst mit ``radarr-standard`` statt „Radarr FHD“ da
+    # (Rundgang-Befund 7). Die Arr-Fassungen bleiben samt Namen in der Tabelle.
     namen = {
-        instanz.kennung: instanz.name
-        for instanz in get_beschaffung(settings).instanzen()
+        kennung: name
+        for kennung, name in db.execute(select(Fassung.kennung, Fassung.name))
+        if name
     }
+    namen.update(
+        (instanz.kennung, instanz.name) for instanz in get_beschaffung(settings).instanzen()
+    )
     zeilen = db.execute(
         select(DownloadVerlauf, User)
         .outerjoin(User, User.id == DownloadVerlauf.user_id)

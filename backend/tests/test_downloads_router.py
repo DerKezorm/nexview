@@ -249,5 +249,6 @@ def test_der_verlauf_neueste_zuerst(admin_client: TestClient) -> None:
     assert [z["was"] for z in zeilen] == ["entfernen", "erkannt"]
     assert zeilen[0]["wer"] == name
     assert zeilen[1]["wer"] is None
-    # Ohne eingerichtete Instanz steht die Kennung da - besser als nichts.
-    assert zeilen[0]["instanz"] == "radarr-standard"
+    # Ohne eingerichtete Instanz kommt der Name aus der Fassungstabelle
+    # (Rundgang-Befund 7); die Kennung steht nur, wo auch dort nichts steht.
+    assert zeilen[0]["instanz"] == "Radarr"

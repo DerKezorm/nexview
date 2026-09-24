@@ -494,3 +494,36 @@ def test_gesundheit_geht_als_kennung_hinaus(nex_client_admin: TestClient) -> Non
     zeilen = [z for z in analyse["instanzen"] if z["kennung"] == "nexcrate"]
     assert zeilen[0]["meldungen"] == [erwartet]
     assert "automatic for" not in str(gesundheit) + str(analyse)
+
+
+# --------------------------------------------------------------------------
+# Download-Verlauf nach dem Umstieg (Rundgang-Befund 7)
+
+
+def test_der_verlauf_nennt_alte_instanzen_beim_namen(nex_client_admin: TestClient) -> None:
+    """Nach dem Umstieg standen Eintraege aus der Arr-Zeit mit ``radarr-standard``
+    statt „Radarr FHD“ da. Die Arr-Fassungen bleiben stillgelegt in der
+    Tabelle stehen, samt Namen."""
+    from app.db import SessionLocal
+    from app.models import DownloadVerlauf, Fassung
+
+    with SessionLocal() as db:
+        zeile = db.get(Fassung, "radarr-standard")
+        assert zeile is not None and zeile.quelle == ARR
+        zeile.name = "Radarr FHD"
+        zeile.aktiv = False
+        db.add_all(
+            [
+                DownloadVerlauf(kennung="radarr-standard", titel="Alt", was="entfernen"),
+                DownloadVerlauf(kennung="sonarr-verschwunden", titel="Weg", was="entfernen"),
+            ]
+        )
+        db.commit()
+
+    zeilen = nex_client_admin.get("/api/admin/downloads/verlauf").json()
+
+    assert {z["titel"]: z["instanz"] for z in zeilen} == {
+        "Alt": "Radarr FHD",
+        # Ohne Zeile in der Tabelle bleibt die Kennung, besser als nichts.
+        "Weg": "sonarr-verschwunden",
+    }

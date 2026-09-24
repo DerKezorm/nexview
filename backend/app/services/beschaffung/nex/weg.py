@@ -197,10 +197,13 @@ class NexBeschaffung(Beschaffung):
     ) -> SerienBestand:
         """Alle Serien einer Fassung, samt Staffeln.
 
-        ⚠️ **Die Staffeln kosten einen Aufruf je Serie mit Datei**: Die Liste
-        ueber die Marke nennt sie nie, nur die Einzelansicht. Gelesen wird nur,
-        was sich seit dem letzten Mal geaendert hat; nach einem Neustart oder
-        einem Wechsel der Installation alles.
+        Seit nexcrate ``39dfc05`` nennt die Liste ueber die Marke die Staffeln
+        selbst, und keine Serie kostet einen eigenen Aufruf.
+
+        ⚠️ **Bei einer aelteren nexcrate kosten sie einen Aufruf je Serie mit
+        Datei**: Dort nennt nur die Einzelansicht sie. Gelesen wird nur, was
+        sich seit dem letzten Mal geaendert hat; nach einem Neustart oder einem
+        Wechsel der Installation alles.
         """
         kennung = self._gewaehlt("tv", fassung)
         if kennung is None:
@@ -245,8 +248,11 @@ class NexBeschaffung(Beschaffung):
         sofort (nexbeat-Befund 12). Fuer „ist meine Anfrage angekommen" gibt es
         deshalb nur diesen Weg.
 
-        ⚠️ **``lookup`` nennt keine Staffeln** (``series.seasons`` ist ``null``,
-        gemessen). Wer sie braucht (``mit_staffeln``), bekommt sie aus der
+        Wer Staffeln braucht (``mit_staffeln``), bekommt sie seit nexcrate
+        ``39dfc05`` aus ``lookup`` selbst, ohne weiteren Aufruf.
+
+        ⚠️ **Eine aeltere nexcrate nennt dort keine Staffeln**
+        (``series.seasons`` ist ``null``, gemessen). Dann kommen sie aus der
         Einzelansicht - ein Aufruf je Serie mit Datei, gemerkt je Marke und
         geteilt mit dem Speicher-Abgleich. Scheitert sie, steht die Frage unter
         ``ungelesen``: nicht geantwortet, nicht "Staffel weg".

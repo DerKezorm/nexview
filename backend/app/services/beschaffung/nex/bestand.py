@@ -93,10 +93,12 @@ def _zeitpunkt(roh: object) -> datetime | None:
 def serien_stand(titel: dict[str, Any], kennung: str) -> SerienStand | None:
     """Eine Serie in einer Fassung, samt Staffeln - soweit sie dabeistehen.
 
-    Die Staffeln stehen nur in der Einzelansicht; in der Liste ist
-    ``series.seasons`` immer ``null`` (gemessen). Ohne sie bleiben
-    ``seasons`` und ``staffeln`` leer, und wer eine Staffelfrage hat, holt
-    die Einzelansicht.
+    Seit nexcrate ``39dfc05`` stehen sie in Liste, ``lookup`` und
+    Einzelansicht in derselben Form (``staffeln_dabei``). Bei einer älteren
+    nexcrate nur in der Einzelansicht; in Liste und ``lookup`` ist
+    ``series.seasons`` dort ``null`` (gemessen). Ohne sie bleiben ``seasons``
+    und ``staffeln`` leer, und wer eine Staffelfrage hat, holt die
+    Einzelansicht.
     """
     fassung = _fassung(titel, kennung)
     if fassung is None:
@@ -188,6 +190,22 @@ def _dateien(je_fassung: dict[str, Any]) -> tuple[tuple[str, int], ...] | None:
     )
 
 
+def staffeln_dabei(titel: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Die Staffeln, die ein Eintrag aus Liste oder ``lookup`` selbst trägt.
+
+    Seit nexcrate ``39dfc05`` stehen sie dort in derselben Form wie in der
+    Einzelansicht: jede Staffel mit jeder Fassung, die Größe zählt jede Datei
+    einmal, und ``seq`` bewegt sich auch, wenn sich nur eine Staffel ändert.
+
+    ⚠️ ``None`` heißt „nicht dabei“: Eine ältere nexcrate schreibt ``null``
+    oder lässt das Feld weg, dann bleibt nur die Einzelansicht. ``[]`` ist
+    dagegen eine Antwort: nexcrate kennt zu der Serie keine Staffel, und ihre
+    Einzelansicht sagte genau dasselbe (beide kommen aus ``titles.items``).
+    """
+    staffeln = (titel.get("series") or {}).get("seasons")
+    return staffeln if isinstance(staffeln, list) else None
+
+
 def _hat_dateien(titel: dict[str, Any]) -> bool:
     """Liegt in irgendeiner Fassung dieser Serie etwas?
 
@@ -230,7 +248,8 @@ class Bestand:
         #: Zu welcher Installation die Marken gehören.
         self.installation: str = ""
         #: Die Staffeln je Serie aus der Einzelansicht, nach ``ref``, samt der
-        #: Marke (``seq``) des Listeneintrags, zu dem sie gelesen wurden.
+        #: Marke (``seq``) des Listeneintrags, zu dem sie gelesen wurden. Nur
+        #: für Einträge ohne eigene Staffeln (ältere nexcrate).
         self.staffeln: dict[str, tuple[Any, list[dict[str, Any]]]] = {}
 
     def verwerfen(self) -> None:
@@ -245,11 +264,15 @@ class Bestand:
     def mit_staffeln(self, eintrag: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         """Ein Serieneintrag der Liste samt Staffeln - und ob sie gelesen sind.
 
+        Trägt der Eintrag seine Staffeln selbst (``staffeln_dabei``), gelten
+        sie; sie gehören zu genau dieser Marke. Sonst kommen sie aus der
+        gemerkten Einzelansicht.
+
         ⚠️ Gelesen heißt: zu **dieser** Marke. Eine ältere Einzelansicht
         beschreibt einen Stand, den es nicht mehr gibt; eine Serie ohne Datei
         hat nichts zu lesen und gilt als gelesen.
         """
-        if not _hat_dateien(eintrag):
+        if not _hat_dateien(eintrag) or staffeln_dabei(eintrag) is not None:
             return eintrag, True
         gemerkt = self.staffeln.get(str(eintrag.get("ref")))
         if gemerkt is None or gemerkt[0] != eintrag.get("seq"):
@@ -259,24 +282,32 @@ class Bestand:
         return {**eintrag, "series": serie}, True
 
     async def staffeln_lesen(self, client: NexcrateClient) -> int:
-        """Die Staffeln jeder Serie mit Datei, ein Aufruf je Serie.
+        """Die Staffeln jeder Serie mit Datei, die die Liste nicht selbst nennt.
 
-        Nur die Einzelansicht nennt sie; in der Liste steht ``series.seasons``
-        immer auf ``null`` (gemessen). Gelesen wird nur, was sich seit dem
-        letzten Mal geändert hat: Die Marke je Titel ist dieselbe, auf die
-        sich die Liste selbst verlässt. Ohne Marke wird immer gelesen.
+        Seit nexcrate ``39dfc05`` trägt jeder Serieneintrag der Liste seine
+        Staffeln (``staffeln_dabei``); dann kostet keine Serie einen Aufruf.
+        Bei einer älteren nexcrate steht ``series.seasons`` dort auf ``null``
+        (gemessen), und nur die Einzelansicht nennt sie, ein Aufruf je Serie.
+        Gelesen wird nur, was sich seit dem letzten Mal geändert hat: Die
+        Marke je Titel ist dieselbe, auf die sich die Liste selbst verlässt.
+        Ohne Marke wird immer gelesen.
 
         Eine Serie, die nicht antwortet, bleibt ungelesen (``mit_staffeln``);
         der Lauf geht weiter. Ist nexcrate im Ganzen weg, hört er auf, statt
         jede Serie einzeln in den Zeitablauf laufen zu lassen.
         """
         serien = self.alle("series")
-        for ref in [r for r in self.staffeln if r not in serien]:
+        # Gemerkt bleibt nur, was noch gebraucht wird: Nennt die Liste die
+        # Staffeln selbst, ist die gemerkte Einzelansicht überholt.
+        for ref in [
+            r for r in self.staffeln if r not in serien or staffeln_dabei(serien[r]) is not None
+        ]:
             del self.staffeln[ref]
         offen = [
             (ref, eintrag)
             for ref, eintrag in serien.items()
             if _hat_dateien(eintrag)
+            and staffeln_dabei(eintrag) is None
             and (
                 eintrag.get("seq") is None
                 or self.staffeln.get(ref, (None,))[0] != eintrag.get("seq")
@@ -312,10 +343,14 @@ class Bestand:
     async def staffeln_zu(
         self, client: NexcrateClient, gefragt: dict[str, dict[str, Any]], installation: str
     ) -> tuple[dict[str, list[dict[str, Any]]], set[str]]:
-        """Die Staffeln zu Serien aus ``lookup`` - über denselben Merker.
+        """Die Staffeln zu Serien aus ``lookup`` - aus ``lookup`` selbst oder über den Merker.
 
         ``gefragt`` sind Titel nach ``ref``, wie ``lookup`` sie nannte. Zurück
         kommen die Staffeln je ``ref`` und die ``ref``, zu denen es keine gab.
+
+        Seit nexcrate ``39dfc05`` nennt ``lookup`` die Staffeln selbst
+        (``staffeln_dabei``): Sie gelten, ohne Liste und ohne Einzelansicht.
+        Nur ein Titel ohne sie (ältere nexcrate) geht den Weg darunter.
 
         Gemerktes gilt nur, wenn die Liste denselben Stand zeigt wie ``lookup``
         (gleiche Fassungen) und die Marke passt: Die Liste hinkt bis zu zehn
@@ -329,6 +364,11 @@ class Bestand:
         # Eine Serie ohne Datei hat nichts zu lesen: Keine Staffeln sind dort
         # die Wahrheit, und sie kostet keinen Aufruf.
         gefragt = {ref: titel for ref, titel in gefragt.items() if _hat_dateien(titel)}
+        for ref in list(gefragt):
+            dabei = staffeln_dabei(gefragt[ref])
+            if dabei is not None:
+                staffeln[ref] = list(dabei)
+                del gefragt[ref]
         if not gefragt:
             return staffeln, ungelesen
         try:

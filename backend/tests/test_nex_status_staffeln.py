@@ -1,7 +1,7 @@
 """Der Status-Abgleich misst im NEX-Betrieb Staffeln, nicht nur Serien.
 
-nexcrates ``lookup`` nennt für Serien nie Staffeln (``series.seasons`` ist
-``null``, wie in der Liste; gemessen). Der Takt-Läufer nahm seine Staffeldaten
+nexcrates ``lookup`` nannte für Serien bis 39dfc05 nie Staffeln
+(``series.seasons`` war ``null``, wie in der Liste; gemessen). Der Takt-Läufer nahm seine Staffeldaten
 bisher genau daraus: Eine fertige Staffelanfrage mit NEX-Fassung galt beim
 ersten Lauf als gelöscht, obwohl die Staffel vollständig dalag, und eine
 suchende Staffelanfrage wurde nie fertig.
@@ -14,7 +14,10 @@ Folgen-Pakete gehen über ``folgen_stand``: gelesen in der Fassung der Anfrage,
 nicht in der Hauptfassung, und eine gescheiterte Folgenansicht hält den Lauf
 nicht an.
 
-Gegen ``tests/beschaffung/fake_nexcrate.py``.
+Gegen ``tests/beschaffung/fake_nexcrate.py``, hier als **ältere** nexcrate
+(``liste_staffeln = STAFFELN_NULL``): Die Tests zählen und stören die
+Einzelansicht, und mit Staffeln in ``lookup`` würde sie nie gefragt. Die
+Staffeln aus ``lookup`` prüft ``test_nex_staffeln_aus_liste.py``.
 """
 
 from __future__ import annotations
@@ -49,6 +52,7 @@ from .beschaffung.fake_nexcrate import (
     KEY,
     SERIE_HD,
     SERIE_UHD,
+    STAFFELN_NULL,
     URL,
     FakeNexcrate,
     _fehler,
@@ -66,6 +70,8 @@ from .test_nex_speicher_serien import (
 @pytest.fixture
 def nexcrate() -> Iterator[FakeNexcrate]:
     attrappe = FakeNexcrate()
+    # Eine ältere nexcrate: Staffeln nur in der Einzelansicht (siehe oben).
+    attrappe.liste_staffeln = STAFFELN_NULL
     nex_client.use_transport(attrappe.transport())
     system.merken(attrappe._system())
     nex_bestand.verwerfen()

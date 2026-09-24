@@ -315,9 +315,10 @@ class SerienStand:
     # sondern zwanzig; echte Dateinamen braeuchten eine Abfrage je Serie.
     path: str = ""
     # ⚠️ ``False`` heisst: Die Serie hat Dateien, aber ihre Staffeln liessen
-    # sich diesmal nicht lesen (NEX-Betrieb, Einzelansicht gescheitert). Leere
-    # ``seasons`` sind dann **kein** "nichts da" - wer daraus loescht, loescht
-    # Posten samt Besitzer. Der ARR-Weg liefert die Staffeln immer mit.
+    # sich diesmal nicht lesen (NEX-Betrieb mit einer nexcrate vor ``39dfc05``,
+    # Einzelansicht gescheitert). Leere ``seasons`` sind dann **kein** "nichts
+    # da" - wer daraus loescht, loescht Posten samt Besitzer. Der ARR-Weg und
+    # eine neuere nexcrate liefern die Staffeln immer mit.
     staffeln_gelesen: bool = True
 
 
@@ -368,8 +369,9 @@ class Nachschlag:
     titel: str = ""
     jahr: int | None = None
     #: Der Aufrufer braucht den Stand **je Staffel** (``SerienStand.staffeln``).
-    #: Nur der NEX-Weg sieht das an: Dort nennt ``lookup`` keine Staffeln, sie
-    #: kosten die Einzelansicht. Der ARR-Weg liefert sie immer mit.
+    #: Nur der NEX-Weg sieht das an: Bei einer nexcrate vor ``39dfc05`` nennt
+    #: ``lookup`` keine Staffeln, sie kosten dort die Einzelansicht. Der
+    #: ARR-Weg liefert sie immer mit.
     mit_staffeln: bool = False
 
 

@@ -30,6 +30,13 @@ KEY = "nxv_test_key_only_for_tests_aaaaaaaaaaaaaaaaaaaaaaaa"
 #: Steht fuer "das Feld fehlt ganz", im Unterschied zu ``None`` (``null``).
 FEHLT: Any = object()
 
+#: Was Liste und ``lookup`` unter ``series.seasons`` zeigen (``liste_staffeln``).
+#: Seit nexcrate 39dfc05 dieselben Staffeln wie die Einzelansicht; davor stand
+#: dort ``null`` (gemessen). ``fehlt`` laesst das Feld ganz weg.
+STAFFELN_WIE_EINZELANSICHT = "wie_einzelansicht"
+STAFFELN_NULL = "null"
+STAFFELN_FEHLT = "fehlt"
+
 #: Die vier Fassungen des Pruefstands, wie ``GET /versions`` sie nannte.
 FILM_HD = "v_6a0763e8"
 FILM_UHD = "v_b4272077"
@@ -89,6 +96,10 @@ class FakeNexcrate:
         self.titles: dict[tuple[str, str], dict[str, Any]] = {}
         #: Die Staffeln je Serie: ``(ref, nummer) -> Antwort von /seasons/{n}``.
         self.seasons: dict[tuple[str, int], dict[str, Any]] = {}
+        #: Wie Liste und ``lookup`` die Staffeln einer Serie zeigen. Ohne
+        #: Angabe wie nexcrate 39dfc05; ``STAFFELN_NULL`` ist die aeltere
+        #: nexcrate, bei der nur die Einzelansicht sie nennt.
+        self.liste_staffeln = STAFFELN_WIE_EINZELANSICHT
         self.removed: list[dict[str, Any]] = []
         self.seq = 0
         self.health: list[dict[str, Any]] = []
@@ -235,8 +246,8 @@ class FakeNexcrate:
                 "type": typ,
                 "status": "Returning Series",
                 "next_air_date": "2099-01-01",
-                # ⚠️ In der Liste ist ``seasons`` immer ``null``; die Staffeln
-                # stehen nur in der Einzelansicht (gemessen).
+                # Liste und ``lookup`` zeigen sie je nach ``liste_staffeln``;
+                # eine aeltere nexcrate nennt sie nur in der Einzelansicht.
                 "seasons": staffeln,
             },
             "seq": self._touch(),
@@ -495,12 +506,19 @@ class FakeNexcrate:
             "latest": self.seq,
         }
 
-    @staticmethod
-    def _ohne_seq(titel: dict[str, Any]) -> dict[str, Any]:
+    def _ohne_seq(self, titel: dict[str, Any]) -> dict[str, Any]:
+        """Ein Titel, wie Liste und ``lookup`` ihn zeigen.
+
+        Seit nexcrate 39dfc05 mit denselben Staffeln wie die Einzelansicht;
+        mit ``liste_staffeln`` auch wie eine aeltere nexcrate.
+        """
         gezeigt = {k: v for k, v in titel.items() if k != "seq"}
-        if gezeigt.get("kind") == "series":
+        if gezeigt.get("kind") == "series" and self.liste_staffeln != STAFFELN_WIE_EINZELANSICHT:
             serie = dict(gezeigt["series"])
-            serie["seasons"] = None
+            if self.liste_staffeln == STAFFELN_FEHLT:
+                serie.pop("seasons", None)
+            else:
+                serie["seasons"] = None
             gezeigt["series"] = serie
         return gezeigt
 

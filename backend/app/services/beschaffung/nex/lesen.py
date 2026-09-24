@@ -374,8 +374,9 @@ def bestand_serien(kennung: str) -> tuple[dict[int, Any], dict[str, Any]]:
     `nachschlagen` über TMDB. Diese Form gibt es nur, weil der
     Speicher-Abgleich sie heute so liest.
 
-    Die Staffeln kommen aus den Einzelansichten, die ``bestand.staffeln_lesen``
-    vorher geholt hat; die Liste selbst nennt keine.
+    Die Staffeln nennt die Liste selbst (seit nexcrate ``39dfc05``); bei einer
+    aelteren nexcrate kommen sie aus den Einzelansichten, die
+    ``bestand.staffeln_lesen`` vorher geholt hat.
     """
     nach_tvdb: dict[int, Any] = {}
     nach_titel: dict[str, Any] = {}

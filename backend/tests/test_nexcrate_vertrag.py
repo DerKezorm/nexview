@@ -34,8 +34,8 @@ import pytest
 from app.services.beschaffung.base import ZUSTAENDE
 from app.services.beschaffung.nex import mapping
 
+from .beschaffung.fake_nexcrate import STAFFELN_FEHLT, STAFFELN_NULL, FakeNexcrate
 from .beschaffung.fake_nexcrate import ZUSTAENDE as NEXCRATE_ZUSTAENDE
-from .beschaffung.fake_nexcrate import FakeNexcrate
 
 ABZUG = Path(__file__).parent / "beschaffung" / "nexcrate_openapi.json"
 
@@ -209,8 +209,15 @@ def test_die_attrappe_antwortet_in_den_gemessenen_formen() -> None:
     serie = attrappe.serie(1399)
     assert set(serie["series"]) == {"type", "status", "next_air_date", "seasons"}
     assert set(serie["versions"][0]["series"]["counts"]) == {"have", "aired", "expected"}
-    # ⚠️ In der Liste stehen die Staffeln nicht - nur in der Einzelansicht.
-    assert serie["series"]["seasons"] is None
+    # Seit nexcrate 39dfc05 zeigen Liste und ``lookup`` dieselben Staffeln
+    # wie die Einzelansicht; eine aeltere nexcrate schreibt dort ``null``.
+    staffeln = [{"season": 1, "name": "Season 1", "versions": []}]
+    mit = attrappe.serie(1400, staffeln=staffeln, tvdb=None)
+    assert attrappe._ohne_seq(mit)["series"]["seasons"] == staffeln
+    attrappe.liste_staffeln = STAFFELN_NULL
+    assert attrappe._ohne_seq(mit)["series"]["seasons"] is None
+    attrappe.liste_staffeln = STAFFELN_FEHLT
+    assert "seasons" not in attrappe._ohne_seq(mit)["series"]
 
 
 def test_jeder_zustand_von_nexcrate_hat_eine_entsprechung() -> None:

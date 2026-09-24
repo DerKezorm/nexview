@@ -1,13 +1,16 @@
 """Der Speicher-Abgleich misst im NEX-Betrieb Staffeln, nicht nur Filme.
 
-Die Liste über die Änderungsmarke trägt ``series.seasons`` immer als ``null``
-(gemessen); die Staffelgrößen stehen nur in der Einzelansicht. Ohne sie legte
-der Abgleich keine Staffelzeile an und räumte nach dem Umstieg jede gewanderte
-Staffelzeile ab, samt Besitzer - nexcrate hatte ja geantwortet, der Lauf galt
-als vollständig.
+Bis nexcrate 39dfc05 trug die Liste über die Änderungsmarke ``series.seasons``
+immer als ``null`` (gemessen); die Staffelgrößen standen nur in der
+Einzelansicht. Ohne sie legte der Abgleich keine Staffelzeile an und räumte
+nach dem Umstieg jede gewanderte Staffelzeile ab, samt Besitzer - nexcrate
+hatte ja geantwortet, der Lauf galt als vollständig.
 
-Gegen ``tests/beschaffung/fake_nexcrate.py``; dort ist die Liste ebenfalls
-ohne Staffeln, genau wie an der echten nexcrate gemessen.
+Gegen ``tests/beschaffung/fake_nexcrate.py``, hier als **ältere** nexcrate
+(``liste_staffeln = STAFFELN_NULL``): Diese Tests prüfen den Weg über die
+Einzelansicht samt Merker, und mit Staffeln in der Liste würde er nie
+begangen. Die Staffeln aus Liste und ``lookup`` prüft
+``test_nex_staffeln_aus_liste.py``.
 """
 
 from __future__ import annotations
@@ -38,7 +41,15 @@ from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.beschaffung.nex import system
 from app.services.settings_service import load_settings, save_settings
 
-from .beschaffung.fake_nexcrate import KEY, SERIE_HD, SERIE_UHD, URL, FakeNexcrate, _fehler
+from .beschaffung.fake_nexcrate import (
+    KEY,
+    SERIE_HD,
+    SERIE_UHD,
+    STAFFELN_NULL,
+    URL,
+    FakeNexcrate,
+    _fehler,
+)
 
 GB = 1024**3
 
@@ -46,6 +57,8 @@ GB = 1024**3
 @pytest.fixture
 def nexcrate() -> Iterator[FakeNexcrate]:
     attrappe = FakeNexcrate()
+    # Eine ältere nexcrate: Staffeln nur in der Einzelansicht (siehe oben).
+    attrappe.liste_staffeln = STAFFELN_NULL
     nex_client.use_transport(attrappe.transport())
     system.merken(attrappe._system())
     nex_bestand.verwerfen()

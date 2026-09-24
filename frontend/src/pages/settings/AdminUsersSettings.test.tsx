@@ -329,3 +329,25 @@ it('zeigt die Sperrlisten nach der Rolle im Entwurf', async () => {
 
   expect(await screen.findByRole('checkbox', { name: 'HD-1080p' })).toBeTruthy()
 })
+
+it('zeigt im NEX-Betrieb keine Profil-Sperrlisten und fragt keine Arr-Liste (Rundgang-Befund 6)', async () => {
+  // Profile gehören dort nexcrate; `/api/arr/…/options` antwortet `409`.
+  einrichten(konto({ blocked_movie_profiles: [1] }), {
+    konfiguration: {
+      beschaffung: 'nex',
+      beschaffung_kann: {
+        warum: true,
+        papierkorb: true,
+        anime: true,
+        kalender: true,
+        wertungen: [],
+        zielwahl: false,
+      },
+    },
+  })
+  await oeffnen()
+  await screen.findByDisplayValue('Benutzer')
+
+  expect(screen.queryByRole('checkbox', { name: 'HD-1080p' })).toBeNull()
+  expect(holen.mock.calls.some(([pfad]) => String(pfad).startsWith('/api/arr/'))).toBe(false)
+})

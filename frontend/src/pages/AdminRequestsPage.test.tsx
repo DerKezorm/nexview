@@ -200,4 +200,44 @@ describe('AdminRequestsPage: Freigabe im NEX-Betrieb', () => {
     expect(screen.queryByText('Zielordner')).toBeNull()
     expect(holen.mock.calls.some(([p]) => String(p).startsWith('/api/arr/'))).toBe(false)
   })
+
+  it('gibt auch alle einer Person auf einmal frei', async () => {
+    vi.clearAllMocks()
+    const schicken = vi.mocked(api.post)
+    schicken.mockResolvedValue({})
+    holen.mockImplementation((pfad: string) => {
+      if (pfad.startsWith('/api/config')) {
+        return Promise.resolve({
+          beschaffung: 'nex',
+          beschaffung_kann: {
+            warum: true, papierkorb: true, anime: true, kalender: true, wertungen: [],
+            zielwahl: false,
+          },
+          beschaffung_sprung: {},
+          fassungen: [
+            { kennung: 'v_beispiel', media_type: 'movie', name: 'Movies', klasse: 'hd', quelle: 'nex', haupt: true },
+          ],
+        })
+      }
+      if (pfad.startsWith('/api/admin/requests')) {
+        return Promise.resolve([
+          zeile(9, 'pending_approval', 'v_beispiel', 'Erfundener erster NEX-Film'),
+          zeile(10, 'pending_approval', 'v_beispiel', 'Erfundener zweiter NEX-Film'),
+        ])
+      }
+      if (pfad.startsWith('/api/arr/')) {
+        return Promise.reject(new Error('409 not_in_this_mode'))
+      }
+      return Promise.resolve({})
+    })
+    rendern(<AdminRequestsPage />, { pfad: '/admin/requests?filter=all' })
+    await screen.findByText('Erfundener erster NEX-Film')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Alle 2 freigeben' }))
+
+    await vi.waitFor(() => expect(schicken).toHaveBeenCalledTimes(1))
+    expect(String(schicken.mock.calls[0][0])).toContain('/api/admin/requests/')
+    expect(screen.queryByText('Zielordner')).toBeNull()
+    expect(holen.mock.calls.some(([p]) => String(p).startsWith('/api/arr/'))).toBe(false)
+  })
 })

@@ -21,7 +21,7 @@ from ..models import (
 )
 from ..schemas_media import MediaItem
 from . import age_rating, blocklist, fassungen, logs, media, mediaserver_library, notify, quota, regeln, storage
-from .beschaffung import KLASSE_UHD, BeschaffungError, get_beschaffung
+from .beschaffung import KLASSE_UHD, BeschaffungError, Korb, get_beschaffung
 from .fassungen import auto_freigabe, darf_anfragen, hauptkennung
 from .settings_service import AppSettings
 
@@ -368,8 +368,18 @@ def clear_pending_notice(db: Session, request: MediaRequest) -> None:
     ).delete(synchronize_session=False)
 
 
-async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest) -> MediaRequest:
-    """Freigegebene Anfrage tatsaechlich an Radarr bzw. Sonarr uebergeben."""
+async def push_to_arr(
+    db: Session, settings: AppSettings, request: MediaRequest, *, nachgereicht: bool = False
+) -> MediaRequest:
+    """Freigegebene Anfrage tatsaechlich an Radarr bzw. Sonarr uebergeben.
+
+    ``nachgereicht``: Die Uebergabe kommt aus ``nachreichen``, nicht von einem
+    Klick. Dann bleibt auch ein voruebergehender Fehler (nicht erreichbar,
+    ausgelastet) eine Freigabe, und der naechste Durchgang versucht es wieder.
+    Bis zum 24.09.2026 machte eine abgelehnte Verbindung jede nachgereichte
+    Anfrage zu "fehlgeschlagen", und niemand versuchte es wieder. Beim Klick
+    bleibt es dabei: Wer freigibt, sieht den Fehler und kann es neu versuchen.
+    """
     try:
         arr_id = await get_beschaffung(settings).anfragen(db, request)
     except BeschaffungError as error:
@@ -383,9 +393,8 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
         # Der Status-Abgleich sieht ohnehin alle 2 Minuten in der Bibliothek
         # nach und setzt sie auf "wird gesucht" bzw. "geladen", sobald der
         # Titel dort auftaucht - er klaert die Ungewissheit von selbst.
-        request.status = (
-            RequestStatus.approved if error.ungewiss else RequestStatus.failed
-        )
+        bleibt = error.ungewiss or (nachgereicht and error.korb == Korb.voruebergehend)
+        request.status = RequestStatus.approved if bleibt else RequestStatus.failed
         request.error_message = error.message
         request.error_detail = error.als_meldung() if error.code else None
         request.last_checked_at = utcnow()
@@ -398,6 +407,8 @@ async def push_to_arr(db: Session, settings: AppSettings, request: MediaRequest)
             logs.kennung(error),
             " - outcome uncertain, the status sync will check again"
             if error.ungewiss
+            else " - stays approved, the next pass tries again"
+            if bleibt
             else "",
         )
         raise RequestError(error.message, 502) from error
@@ -846,11 +857,21 @@ async def im_medienserver(
     Auf einer 4K-Fassung zaehlt nur eine 4K-Kopie, die eine eigene Fassung ist.
     Sonst entscheidet ``fassungen.serverstufe``: Ohne 4K-Fassung zaehlt jede
     Kopie, mit ihr nur die HD-Kopie. Ohne ``kennung`` gilt die Hauptfassung.
+
+    ⚠️ **Eine Zusatzfassung ohne Klasse** (etwa eine Sprachfassung) laesst
+    sich im Medienserver nicht wiedererkennen: Er kennt Aufloesungen, keine
+    Fassungen. Fuer sie liegt dort nichts, weder als Abzeichen noch als
+    Sperre; sonst sperrte die HD-Kopie jede weitere Fassung. Die Hauptfassung
+    ohne Klasse fragt dagegen weiter jede Kopie, wie bisher.
     """
-    kennung = kennung or fassungen.hauptkennung(media_type)
+    haupt = fassungen.hauptkennung(media_type)
+    kennung = kennung or haupt
     if not items:
         return set()
-    if fassungen.klasse(kennung) == KLASSE_UHD:
+    klasse = fassungen.klasse(kennung)
+    if klasse is None and kennung != haupt:
+        return set()
+    if klasse == KLASSE_UHD:
         echte, _gemeldet = await uhd_im_medienserver(db, settings, media_type, items)
         return echte
     return mediaserver_library.vorhandene_kennungen(

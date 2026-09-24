@@ -107,6 +107,30 @@ def test_frische_freigabe_zaehlt_statt_alter_anfrage() -> None:
     assert not abgleich_kern.ist_wirklich_weg(anfrage, instanz_hat_geantwortet=True)
 
 
+def test_nie_uebergebene_freigabe_verschwindet_nur_im_arr_betrieb() -> None:
+    """Ohne ``arr_id`` hat der Weg die Freigabe nie angenommen.
+
+    Im NEX-Betrieb kann dort nichts verschwunden sein; übergeben ist
+    übergeben und bleibt abbrechbar.
+    """
+    freigabe = _alte_anfrage(60 * 48, status=RequestStatus.approved)
+    freigabe.arr_id = None
+    assert not abgleich_kern.ist_wirklich_weg(
+        freigabe, instanz_hat_geantwortet=True, nie_uebergebene_bleiben=True
+    )
+    assert abgleich_kern.ist_wirklich_weg(freigabe, instanz_hat_geantwortet=True)
+
+    freigabe.arr_id = 4242
+    assert abgleich_kern.ist_wirklich_weg(
+        freigabe, instanz_hat_geantwortet=True, nie_uebergebene_bleiben=True
+    )
+    suchend = _alte_anfrage(60 * 48)
+    suchend.arr_id = None
+    assert abgleich_kern.ist_wirklich_weg(
+        suchend, instanz_hat_geantwortet=True, nie_uebergebene_bleiben=True
+    )
+
+
 # --- heilung_noetig -----------------------------------------------------------
 
 

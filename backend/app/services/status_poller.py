@@ -228,7 +228,11 @@ async def check_once(
             # folgern hiesse, bei einem Ausfall reihenweise Anfragen
             # abzubrechen.
             geantwortet = nachschlag.hat_geantwortet(wonach)
-            if abgleich_kern.ist_wirklich_weg(request, geantwortet):
+            if abgleich_kern.ist_wirklich_weg(
+                request,
+                geantwortet,
+                nie_uebergebene_bleiben=settings.beschaffung == beschaffung_grenze.NEX,
+            ):
                 request.status = RequestStatus.cancelled
                 request.completed_at = utcnow()
                 request.laedt_fortschritt = None

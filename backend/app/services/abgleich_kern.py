@@ -89,7 +89,12 @@ def ist_noch_da(request: MediaRequest, eintrag: Any, folgen: dict | None = None)
 SCHONFRIST_MINUTEN = 15
 
 
-def ist_wirklich_weg(request: MediaRequest, instanz_hat_geantwortet: bool) -> bool:
+def ist_wirklich_weg(
+    request: MediaRequest,
+    instanz_hat_geantwortet: bool,
+    *,
+    nie_uebergebene_bleiben: bool = False,
+) -> bool:
     """Ist der Titel wirklich aus der Instanz verschwunden?
 
     Drei Bedingungen, und alle drei sind noetig:
@@ -101,10 +106,25 @@ def ist_wirklich_weg(request: MediaRequest, instanz_hat_geantwortet: bool) -> bo
       ``searching``). Eine wartende Freigabe steht naturgemaess in keiner
       Bibliothek.
     * Sie liegt laenger als die Schonfrist zurueck - siehe dort.
+
+    ⚠️ ``nie_uebergebene_bleiben`` (NEX-Betrieb): Eine Freigabe ohne
+    ``arr_id`` hat der Weg nie angenommen, ``push_to_arr`` setzt die Kennung
+    erst beim Erfolg. Dort kann nichts verschwunden sein. Bis zum 24.09.2026
+    zaehlte sie als uebergeben, mit der Schonfrist ab der Freigabe: Nach dem
+    Umschalten brach der Rundgang jede Freigabe aus der Arr-Zeit ab, die das
+    Nachreichen (25 je Durchgang) noch nicht erreicht hatte, und meldete "no
+    longer present in Radarr". Was so liegen bleibt, zeigt der Befund
+    ``nachschub.fremde_fassung``. Im ARR-Betrieb bleibt es beim Abbruch.
     """
     if not instanz_hat_geantwortet:
         return False
     if request.status not in (RequestStatus.approved, RequestStatus.searching):
+        return False
+    if (
+        nie_uebergebene_bleiben
+        and request.status == RequestStatus.approved
+        and request.arr_id is None
+    ):
         return False
     seit = request.approved_at or request.requested_at
     if seit is None:

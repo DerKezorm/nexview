@@ -65,7 +65,12 @@ LAUFEND = (RequestStatus.approved, RequestStatus.searching)
 #: Eine Zeitspanne und keine Zahl von Versuchen: Dafür bräuchte jede Anfrage
 #: einen Zähler in der Datenbank, und der Rundgang ist nicht der einzige, der
 #: sie anfasst. Den Zeitpunkt des Umschaltens gibt es schon, er übersteht
-#: jeden Neustart, und ein Tag deckt einen Ausfall über Nacht ab.
+#: jeden Neustart, und ein Tag deckt einen Ausfall über Nacht direkt nach
+#: dem Umschalten ab. Das gilt erst, seit der Rundgang keine nie übergebene
+#: Freigabe mehr abbricht (``abgleich_kern.ist_wirklich_weg``) und eine
+#: abgelehnte Verbindung sie nicht mehr scheitern lässt (``push_to_arr`` mit
+#: ``nachgereicht``). Was nach der Frist noch liegt, bleibt freigegeben und
+#: steht im Befund.
 WIEDERHOLEN_BIS = timedelta(hours=24)
 
 
@@ -213,7 +218,7 @@ async def einmal(db: Session, settings: AppSettings) -> Ergebnis:
     gereicht = 0
     for anfrage in offen:
         try:
-            await requests_service.push_to_arr(db, settings, anfrage)
+            await requests_service.push_to_arr(db, settings, anfrage, nachgereicht=True)
             gereicht += 1
         except requests_service.RequestError as fehler:
             # So kommt ein Fehler des Wegs hier an: ``push_to_arr`` hat den

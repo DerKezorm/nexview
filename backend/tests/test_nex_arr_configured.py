@@ -619,3 +619,102 @@ def test_4k_vorn_abzeichen_und_sperre_sagen_dasselbe(
     assert {k: s == "in_library" for k, s in achsen.items()} == gesperrt
     # Und die Richtung: Eine 4K-Datei in der HD-Fassung ist keine eigene 4K-Fassung.
     assert set(gesperrt.values()) == {aufbau == "nur_im_medienserver"}
+
+
+# --- Abzeichen gegen Sperre, auf jeder Achse -------------------------------------
+
+#: Aufbauten der Fassungen und wie viele Achsen eine Filmkarte dann trägt.
+MATRIX_AUFBAUTEN = {
+    "hd_vorn": 2,
+    "4k_vorn": 2,
+    "nur_4k": 1,
+    "hd_vorn_ohne_klasse": 3,
+    "hd_vorn_zweite_hd": 3,
+}
+#: Was der Medienserver meldet: (HD-Kopie, 4K-Kopie).
+MATRIX_SERVER = {"nur_uhd": (False, True), "nur_hd": (True, False), "beide": (True, True)}
+MATRIX_FAELLE = [
+    (aufbau, server, bestand, achse)
+    for aufbau, achsen in MATRIX_AUFBAUTEN.items()
+    for server in MATRIX_SERVER
+    for bestand in ("leer", "datei_hd", "datei_uhd")
+    # Ohne HD-Fassung gibt es keine HD-Datei in nexcrate.
+    if not (aufbau == "nur_4k" and bestand == "datei_hd")
+    for achse in range(achsen)
+]
+
+
+def _matrix_versionen(nexcrate: FakeNexcrate, aufbau: str) -> list[dict[str, Any]]:
+    versionen = [dict(v) for v in nexcrate.versions]
+    if aufbau == "4k_vorn":
+        for eintrag in versionen:
+            if eintrag["version_id"] == FILM_UHD:
+                eintrag["order"] = 1
+            elif eintrag["version_id"] == FILM_HD:
+                eintrag["order"] = 2
+    elif aufbau == "nur_4k":
+        versionen = [v for v in versionen if v["version_id"] != FILM_HD]
+    elif aufbau == "hd_vorn_ohne_klasse":
+        versionen.append(nexcrate._version("v_ohne", "movie", "Movies Sprache", 3, None))
+    elif aufbau == "hd_vorn_zweite_hd":
+        versionen.append(nexcrate._version("v_hd_zwei", "movie", "Movies Zwei", 3, "hd"))
+    return versionen
+
+
+@pytest.mark.parametrize(("aufbau", "server", "bestand", "achse"), MATRIX_FAELLE)
+def test_auf_jeder_achse_sagen_abzeichen_und_sperre_dasselbe(
+    admin_client: TestClient,
+    nexcrate: FakeNexcrate,
+    db: Session,
+    aufbau: str,
+    server: str,
+    bestand: str,
+    achse: int,
+) -> None:
+    """⚠️ ``in_library`` genau dann, wenn die Anfrage ``already_on_media_server`` bekommt.
+
+    Die Zusatzachsen fragten den Medienserver nur bei Klasse ``uhd``, die
+    Sperre fragte jede Achse. Eine HD-Zusatzachse (4K vorn), eine zweite
+    HD-Fassung und eine Fassung ohne Klasse standen als „nicht angefragt" da,
+    und die Anfrage bekam 409 (16 Fälle gemessen, 24.09.2026).
+
+    Eine Fassung ohne Klasse lässt sich im Medienserver nicht wiedererkennen:
+    Für sie gibt es weder Abzeichen noch Sperre aus dem Medienserver.
+    """
+    _einrichten(nexcrate, _matrix_versionen(nexcrate, aufbau))
+    karte = admin_client.get("/api/discover/movie").json()["items"][0]
+    tmdb_id = karte["tmdb_id"]
+    jahr = int(karte["release_date"][:4])
+    if bestand == "leer":
+        versionen: list[dict[str, Any]] = []
+    elif bestand == "datei_hd":
+        versionen = [nexcrate.fassung(FILM_HD, "available", size_bytes=40 * GB)]
+    else:
+        versionen = [nexcrate.fassung(FILM_UHD, "available", size_bytes=40 * GB)]
+    nexcrate.film(tmdb_id, name=karte["title"], year=jahr, versionen=versionen)
+    nex_bestand.verwerfen()
+    hd, uhd = MATRIX_SERVER[server]
+    _im_medienserver(db, tmdb_id, hd=hd, uhd=uhd, jahr=jahr)
+
+    karten = admin_client.get("/api/discover/movie").json()["items"]
+    eintrag = next(k for k in karten if k["tmdb_id"] == tmdb_id)
+    achsen = eintrag["fassungen"]
+    assert len(achsen) == MATRIX_AUFBAUTEN[aufbau], achsen
+    ziel = achsen[achse]
+    if achse == 0:
+        assert ziel["status"] == eintrag["status"]
+
+    antwort = admin_client.post(
+        "/api/requests",
+        json={"media_type": "movie", "tmdb_id": tmdb_id, "fassung": ziel["kennung"]},
+    )
+    fall = (ziel["kennung"], ziel["klasse"], ziel["status"], antwort.status_code, antwort.text)
+    gesperrt = (
+        antwort.status_code == 409
+        and antwort.json()["detail"].get("code") == "already_on_media_server"
+    )
+    assert (ziel["status"] == "in_library") == gesperrt, fall
+    if ziel["status"] == "not_requested":
+        assert antwort.status_code == 201, fall
+    if ziel["klasse"] is None:
+        assert ziel["status"] == "not_requested", fall

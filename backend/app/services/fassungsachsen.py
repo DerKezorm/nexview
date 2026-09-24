@@ -116,11 +116,11 @@ async def _stand(
 ) -> _Stand:
     """Drei Quellen, in dieser Reihenfolge: eigene Anfrage, Beschaffung, Media-Server.
 
-    Der dritte Schritt ist der heikelste und gilt nur fuer die Klasse ``uhd``:
-    Wer einen Film aus Radarr entfernt, sobald die Wunschqualitaet erreicht
-    ist, hat ihn weiterhin in Plex. Ohne diesen Rueckfall stand er dann als
-    "4K nicht angefragt" da, obwohl er in 4K vorliegt. Was der Rueckfall dabei
-    **nicht** darf, steht in ``mediaserver_library.echte_uhd_kennungen``.
+    Der dritte Schritt ist der heikelste: Wer einen Film aus Radarr entfernt,
+    sobald die Wunschqualitaet erreicht ist, hat ihn weiterhin in Plex. Ohne
+    diesen Rueckfall stand er dann als "4K nicht angefragt" da, obwohl er in 4K
+    vorliegt. Was der Rueckfall bei 4K **nicht** darf, steht in
+    ``mediaserver_library.echte_uhd_kennungen``.
     """
     eigene = requests_service.badges_for(
         db, MediaType(media_type), [eintrag.tmdb_id for eintrag in items], fassung.kennung
@@ -161,19 +161,24 @@ async def _stand(
         else {}
     )
 
-    im_server: set[int] = set()
     verdeckt: set[int] = set()
-    if fassung.klasse == KLASSE_UHD:
-        # Was Radarr/Sonarr nicht (mehr) kennt, kann trotzdem im Media-Server
-        # liegen - und nur dort steht, in welcher Aufloesung. Eine Fassung
-        # ohne Klasse (etwa eine Sprachfassung) laesst sich dort nicht
-        # wiedererkennen; fuer die gibt es diesen Rueckfall nicht.
-        offen = [
-            eintrag
-            for eintrag in items
-            if eintrag.tmdb_id not in in_bibliothek and eintrag.tmdb_id not in eigene
-        ]
-        #
+    # Was Radarr/Sonarr nicht (mehr) kennt, kann trotzdem im Media-Server
+    # liegen - und nur dort steht, in welcher Aufloesung.
+    offen = [
+        eintrag
+        for eintrag in items
+        if eintrag.tmdb_id not in in_bibliothek and eintrag.tmdb_id not in eigene
+    ]
+    if fassung.klasse != KLASSE_UHD:
+        # ⚠️ **Auf jeder Achse dieselbe Frage wie die Sperre**, nicht nur bei
+        # 4K. Bis zum 24.09.2026 fragte nur die 4K-Achse den Medienserver: Eine
+        # HD-Zusatzachse (4K vorn) oder eine zweite HD-Fassung stand als "nicht
+        # angefragt" da, und die Anfrage bekam 409. Was fuer eine Fassung ohne
+        # Klasse gilt, entscheidet ``im_medienserver`` fuer beide.
+        im_server = await requests_service.im_medienserver(
+            db, settings, media_type, offen, fassung.kennung
+        )
+    else:
         # ⚠️ Dieselbe Frage wie die Sperre (``requests_service.im_medienserver``):
         # Hier stand eine eigene Fassung davon, die "liegt die Datei in HD"
         # die Hauptfassung fragte. Fuehrt nexcrate 4K vorn, fragte sie damit

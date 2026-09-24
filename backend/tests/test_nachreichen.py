@@ -29,8 +29,8 @@ from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus, Role, User, utcnow
 from app.security import hash_password
-from app.services import befunde, nachreichen, status_poller
-from app.services.beschaffung import NEX
+from app.services import abgleich_kern, befunde, nachreichen, requests_service, status_poller
+from app.services.beschaffung import NEX, BeschaffungError
 from app.services.beschaffung.nex import client as nex_client
 from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.beschaffung.nex import system
@@ -192,7 +192,7 @@ def _gesendet(nexcrate: FakeNexcrate) -> list[Any]:
     return [k[3] for k in nexcrate.calls if k[1].endswith("/requests")]
 
 
-@pytest.mark.parametrize("art", ["503", "zeitueberschreitung"])
+@pytest.mark.parametrize("art", ["503", "zeitueberschreitung", "verbindung_abgelehnt"])
 async def test_ein_ausfall_von_nexcrate_beendet_das_nachreichen_nicht(
     art: str, nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:
@@ -202,6 +202,10 @@ async def test_ein_ausfall_von_nexcrate_beendet_das_nachreichen_nicht(
     Merker, auch wenn nexcrate nur gerade nicht antwortete. Die gültige
     Anfrage blieb danach für immer freigegeben, ohne Befund, denn ihre
     Fassung ist ja bekannt.
+
+    ⚠️ Eine abgelehnte Verbindung (nexcrate aus) machte die Anfrage bis zum
+    24.09.2026 zu „fehlgeschlagen": ``nexcrate_unreachable`` ist nicht
+    ungewiss, und niemand versuchte es wieder.
     """
     nexcrate.film(603)
     person = _nutzer(db)
@@ -211,6 +215,8 @@ async def test_ein_ausfall_von_nexcrate_beendet_das_nachreichen_nicht(
         nexcrate.next_answer["POST /api/v1/requests"] = httpx.Response(
             503, json={"detail": {"code": "unavailable", "message": "down"}}
         )
+    elif art == "verbindung_abgelehnt":
+        nexcrate.next_answer["POST /api/v1/requests"] = httpx.ConnectError("abgelehnt")
     else:
         nexcrate.next_answer["POST /api/v1/requests"] = httpx.ReadTimeout("zu langsam")
 
@@ -231,6 +237,26 @@ async def test_ein_ausfall_von_nexcrate_beendet_das_nachreichen_nicht(
     # Und erst wenn nichts Bekanntes mehr offen ist, ist Schluss.
     await nachreichen.einmal(db, load_settings(db, frisch=True))
     assert nachreichen.faellig(load_settings(db, frisch=True)) is False
+
+
+async def test_beim_klick_scheitert_eine_abgelehnte_verbindung_weiter(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Nur das Nachreichen hält eine abgelehnte Verbindung für vorübergehend.
+
+    Wer freigibt, sieht den Fehler und kann es neu versuchen; stünde die
+    Anfrage still auf „freigegeben", versuchte es ausserhalb des Nachreichens
+    niemand wieder.
+    """
+    nexcrate.film(603)
+    anfrage = _anfrage(db, _nutzer(db))
+    nexcrate.next_answer["POST /api/v1/requests"] = httpx.ConnectError("abgelehnt")
+
+    with pytest.raises(requests_service.RequestError):
+        await requests_service.push_to_arr(db, nex, anfrage)
+
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.failed
 
 
 async def test_ein_ausfall_wird_als_warnung_ohne_stapel_protokolliert(
@@ -585,3 +611,164 @@ async def test_der_befund_nennt_die_aelteste_anfrage(nex: Any, db: Session) -> N
     treffer = _befund()
     assert len(treffer) == 1
     assert treffer[0].werte == {"anzahl": 2, "titel": "Erfundener alter Film"}
+
+
+async def test_eine_abgebrochene_anfrage_mit_fehler_zaehlt_nicht_im_befund(
+    nex: Any, db: Session
+) -> None:
+    """Der Befund zählt nur, was noch freigegeben liegt.
+
+    Eine abgebrochene Anfrage behält ihren Fehlertext; zählte sie mit, stünde
+    der Befund für immer, und zurücknehmen ginge nicht mehr.
+    """
+    person = _nutzer(db)
+    _anfrage(
+        db, person, status=RequestStatus.cancelled, title="Erfundener Abbruch",
+        error_message="nexcrate hat abgelehnt.",
+    )
+    _anfrage(
+        db, person, tmdb_id=604, status=RequestStatus.failed, title="Erfundener Fehlschlag",
+        error_message="nexcrate hat abgelehnt.",
+    )
+
+    assert _befund() == []
+
+
+# --- Nie übergeben heisst nie verschwunden -----------------------------------------
+
+
+class _Uhr:
+    """Eine vorstellbare Uhr für Nachreichen, Rundgang und Übergabe."""
+
+    def __init__(self) -> None:
+        self.jetzt = utcnow()
+
+    def __call__(self) -> Any:
+        # Jeder Aufruf eine Millisekunde später, wie eine echte Uhr im Durchgang.
+        self.jetzt += timedelta(milliseconds=1)
+        return self.jetzt
+
+
+@pytest.fixture
+def uhr(monkeypatch: pytest.MonkeyPatch) -> _Uhr:
+    gestellt = _Uhr()
+    for modul in (nachreichen, abgleich_kern, status_poller, requests_service):
+        monkeypatch.setattr(modul, "utcnow", gestellt)
+    return gestellt
+
+
+def _nexcrate_legt_an(
+    monkeypatch: pytest.MonkeyPatch, nexcrate: FakeNexcrate, stoerung: dict[str, Any]
+) -> None:
+    """Wie nexcrate: Ein angenommener Titel steht danach in der Fassung.
+
+    ``stoerung["alles"] = True`` lässt jede Adresse mit 503 antworten, auch
+    das Nachschlagen des Rundgangs.
+    """
+    echt = nexcrate._route
+
+    def route(methode: str, rest: str, abfrage: dict[str, str], koerper: Any) -> httpx.Response:
+        if stoerung.get("alles"):
+            return httpx.Response(503, json={"detail": {"code": "unavailable", "message": "down"}})
+        antwort = echt(methode, rest, abfrage, koerper)
+        if methode == "POST" and rest == "/requests" and antwort.status_code == 200:
+            nummer = int(str(koerper["ref"]).split(":")[1])
+            nexcrate.film(
+                nummer, name=f"Erfundener Film {nummer}",
+                versionen=[nexcrate.fassung(FILM_HD, "wanted")],
+            )
+        return antwort
+
+    monkeypatch.setattr(nexcrate, "_route", route)
+
+
+async def _runde(db: Session) -> None:
+    """Ein Rundgang, wie ``status_poller`` ihn macht: erst nachreichen, dann abgleichen."""
+    einstellungen = load_settings(db, frisch=True)
+    if nachreichen.faellig(einstellungen):
+        await nachreichen.einmal(db, einstellungen)
+    try:
+        await status_poller.check_once(db, load_settings(db, frisch=True))
+    except BeschaffungError:
+        # Wie ``run_forever``: Antwortet nexcrate nicht, endet der Durchgang.
+        db.rollback()
+    db.commit()
+
+
+def _staende(db: Session, ids: list[int]) -> dict[str, int]:
+    db.expire_all()
+    zahl: dict[str, int] = {}
+    for anfrage_id in ids:
+        stand = db.get(MediaRequest, anfrage_id).status.value
+        zahl[stand] = zahl.get(stand, 0) + 1
+    return zahl
+
+
+async def test_freigaben_aus_der_arr_zeit_bricht_der_rundgang_nicht_ab(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, uhr: _Uhr, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ 60 Freigaben von vor zwei Tagen: Alle kommen an, keine wird abgebrochen.
+
+    Der Rundgang hielt eine freigegebene Anfrage für übergeben und rechnete
+    die Schonfrist ab der Freigabe. Nach dem Umschalten fand er in nexcrate
+    nichts von den 35, die das Nachreichen (25 je Durchgang) noch nicht
+    erreicht hatte, und brach sie ab: „no longer present in Radarr".
+    """
+    _nexcrate_legt_an(monkeypatch, nexcrate, {})
+    person = _nutzer(db)
+    freigabe = uhr.jetzt - timedelta(days=2)
+    ids = []
+    for i in range(60):
+        nummer = 1000 + i
+        nexcrate.film(nummer, name=f"Erfundener Film {nummer}", versionen=[])
+        ids.append(
+            _anfrage(
+                db, person, tmdb_id=nummer, title=f"Erfundener Film {nummer}",
+                requested_at=freigabe - timedelta(minutes=60 - i), approved_at=freigabe,
+            ).id
+        )
+    save_settings(db, {"beschaffung_gewechselt_am": uhr.jetzt.isoformat()})
+
+    for _runde_nr in range(4):
+        await _runde(db)
+        uhr.jetzt += timedelta(seconds=120)
+
+    assert _staende(db, ids) == {"searching": 60}
+
+
+async def test_nach_acht_stunden_ausfall_kommen_alle_freigaben_an(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, uhr: _Uhr, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ Ein Ausfall über Nacht, gleich nach dem Umschalten: danach 60 übergeben.
+
+    Während des Ausfalls antwortet nexcrate nirgends, der Rundgang bricht
+    nichts ab. Danach reichte das Nachreichen 25 nach, und der Rundgang brach
+    die übrigen 35 ab, weil ihre Freigabe länger als die Schonfrist zurücklag.
+    """
+    stoerung: dict[str, Any] = {}
+    _nexcrate_legt_an(monkeypatch, nexcrate, stoerung)
+    person = _nutzer(db)
+    ids = []
+    for i in range(60):
+        nummer = 4000 + i
+        nexcrate.film(nummer, name=f"Erfundener Film {nummer}", versionen=[])
+        ids.append(
+            _anfrage(
+                db, person, tmdb_id=nummer, title=f"Erfundener Film {nummer}",
+                requested_at=uhr.jetzt - timedelta(minutes=60 - i), approved_at=uhr.jetzt,
+            ).id
+        )
+    save_settings(db, {"beschaffung_gewechselt_am": uhr.jetzt.isoformat()})
+    stoerung["alles"] = True
+    ende = uhr.jetzt + timedelta(hours=8)
+    while uhr.jetzt < ende:
+        await _runde(db)
+        uhr.jetzt += timedelta(minutes=30)
+    assert _staende(db, ids) == {"approved": 60}
+
+    stoerung.clear()
+    for _runde_nr in range(4):
+        await _runde(db)
+        uhr.jetzt += timedelta(seconds=120)
+
+    assert _staende(db, ids) == {"searching": 60}

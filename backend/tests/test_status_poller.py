@@ -367,6 +367,33 @@ async def test_aus_radarr_entfernt_bricht_die_anfrage_ab(
 
 
 @pytest.mark.asyncio
+async def test_im_arr_betrieb_endet_eine_nie_uebergebene_freigabe_wie_bisher(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Schonung nie übergebener Freigaben gilt nur im NEX-Betrieb.
+
+    Im ARR-Betrieb klärt der Abbruch eine Übergabe mit ungewissem Ausgang,
+    die nie in Radarr ankam; daran ändert der NEX-Betrieb nichts.
+    """
+    anfrage = _laufende_anfrage(arr_client, RequestStatus.approved)
+    with SessionLocal() as session:
+        session.get(MediaRequest, anfrage.id).arr_id = None
+        session.commit()
+    _alt_genug(anfrage.id)
+
+    async def leer(_settings, _tier="standard"):
+        return {}
+
+    monkeypatch.setattr(library, "movie_library", leer)
+
+    with SessionLocal() as session:
+        await status_poller.check_once(session, load_settings(session))
+
+    with SessionLocal() as session:
+        assert session.get(MediaRequest, anfrage.id).status == RequestStatus.cancelled
+
+
+@pytest.mark.asyncio
 async def test_frisch_uebergebenes_wird_geschont(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

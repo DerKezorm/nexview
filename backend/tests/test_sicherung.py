@@ -1285,3 +1285,14 @@ def test_die_pruefung_einer_sicherung_hinterlaesst_keine_begleitdateien() -> Non
     assert sicherung.brauchbar(datei.name) is True
 
     assert [b.name for b in begleiter if b.exists()] == []
+
+
+def test_ein_langer_kommentar_endet_an_einer_wortgrenze() -> None:
+    """Rundgang-Befund 2: Gekuerzt wurde mitten im Wort („...-to-n“)."""
+    from app.services import sicherung
+
+    name = sicherung._sicherer_name("Before switching from Radarr/Sonarr to nexcrate")
+    assert name == "before-switching-from-radarr-sonarr-to"
+    assert len(name) <= 40
+    # Ein einziges langes Wort wird trotzdem gekuerzt, nicht ganz verworfen.
+    assert sicherung._sicherer_name("x" * 50) == "x" * 40

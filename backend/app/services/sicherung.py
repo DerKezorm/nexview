@@ -314,7 +314,11 @@ def _sicherer_name(kommentar: str) -> str:
     Schraegstriche wuerden sonst aus dem Ordner herausfuehren.
     """
     knapp = re.sub(r"[^\w-]+", "-", kommentar.strip(), flags=re.UNICODE).strip("-")
-    return knapp[:40].lower()
+    if len(knapp) > 40:
+        # An einer Wortgrenze kuerzen: Der Umstieg hiess sonst „...-to-n“
+        # (Rundgang-Befund 2). Ein einziges langes Wort bleibt gekuerzt stehen.
+        knapp = knapp[:41].rsplit("-", 1)[0] if "-" in knapp[:41] else knapp[:40]
+    return knapp.strip("-").lower()
 
 
 def anlegen(*, art: str = MANUELL, kommentar: str = "") -> Path:

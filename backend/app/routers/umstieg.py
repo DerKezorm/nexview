@@ -46,7 +46,8 @@ logger = logging.getLogger("nexview.umstieg")
 
 #: Der Kommentar, den die Sicherung des Assistenten trägt. Er steht in der
 #: Liste der Sicherungen und sagt einem späteren Leser, warum sie entstand.
-SICHERUNG_KOMMENTAR = "Before switching from Radarr/Sonarr to nexcrate"
+#: Kurz genug fuer den Dateinamen (40 Zeichen, ``sicherung._sicherer_name``).
+SICHERUNG_KOMMENTAR = "Before switching to nexcrate"
 
 
 def _nur_vom_arr_betrieb(db: DbSession) -> Any:

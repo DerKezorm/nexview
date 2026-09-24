@@ -528,6 +528,18 @@ def test_im_nex_betrieb_gibt_es_den_umstieg_nicht(assistent: TestClient) -> None
     assert antwort.json()["detail"]["code"] == "not_in_this_mode"
 
 
+def test_der_name_der_sicherung_ist_ganz(assistent: TestClient) -> None:
+    """Rundgang-Befund 2: Der Name endete auf „...-to-n.db“. Der Kommentar
+    wurde auf 40 Zeichen gekuerzt, mitten im Wort."""
+    from app.services import sicherung
+
+    name = assistent.post("/api/umstieg/sicherung").json()["name"]
+    try:
+        assert name.endswith("-before-switching-to-nexcrate.db"), name
+    finally:
+        sicherung.entfernen(sicherung.datei(name))
+
+
 def test_ohne_sicherung_wird_nicht_umgeschaltet(assistent: TestClient) -> None:
     """Es gibt keinen Rückweg außer ihr - also prüft der Server, dass sie liegt."""
     antwort = assistent.post(

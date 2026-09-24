@@ -72,6 +72,11 @@ the process. The backup is the way back.
 - **Deleted files come back.** Where procurement keeps a list instead of a
   folder, one click restores a file. Where it cannot, because the file is gone
   or the title left the library, the row says so and the button stays closed.
+- **The cleanup suggestion knows a file's age in nexcrate mode too.** nexcrate
+  says since when each film and season takes space, and Nexview dates its
+  storage entries from that, so titles nobody has watched for a long time show
+  up there as they do with Radarr and Sonarr. Where nexcrate does not know the
+  age, it stays unknown; Nexview never guesses one.
 - **Rights hang on the version**, not on "4K or not": two switches per
   version, in Radarr mode too, and the check now also covers the main version
   (`fassung_not_allowed`). Until this was fixed, an account could still
@@ -109,8 +114,7 @@ the process. The backup is the way back.
   Sonarr", the analysis "has no Radarr or Sonarr instance yet", a health
   problem arrived as "Radarr/Sonarr reports a problem". In nexcrate mode they
   now say nexcrate, and where nexcrate differs they say what it does: it keeps
-  a recycle bin Nexview can restore from, and it reports no date a file
-  arrived.
+  a recycle bin Nexview can restore from.
 
 ### Fixed
 
@@ -121,11 +125,12 @@ the process. The backup is the way back.
   was requested. All three now follow the requested version, and approving no
   longer needs a folder or profile in this mode.
 - **Seasons and episode packages were measured wrong.** nexcrate's title list
-  does not name seasons, so a switched installation lost every season entry on
+  did not name seasons, so a switched installation lost every season entry on
   its first storage sync, and the status check reported finished seasons and
   packages as deleted the moment nexcrate briefly did not confirm them. Season
-  and package state now comes from each series' own page and is left as it is
-  when a page fails to answer, instead of being marked deleted.
+  and package state now comes from the title list itself, with an older
+  nexcrate from each series' own page, and is left as it is when nexcrate
+  does not answer, instead of being marked deleted.
 - **Episode packages count their own files in nexcrate mode.** A package
   ("season 2, episodes 3 to 5") charged its requester nothing of its own while
   its season counted whole, and a finished package without a TVDB number was
@@ -154,7 +159,8 @@ the process. The backup is the way back.
   24 hours, only requests that truly got no answer count as failed, and the
   home page keeps a title's entry during an outage instead of showing nothing.
 - **Ratings and a handful of smaller gaps in nexcrate mode.** Rotten Tomatoes
-  and Metacritic now show on the title page with the credit OMDb requires;
+  and Metacritic now show on the title page with the credit OMDb requires,
+  also for a film nexcrate does not hold, as long as nexcrate has a TMDB key;
   IMDb's own value had not been read at all, and a failing ratings batch no
   longer turns into a server error. The calendar's "Mine", children's wishes,
   the watchlist and ratings now count every version a title is held in, not

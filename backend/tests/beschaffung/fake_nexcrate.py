@@ -507,7 +507,12 @@ class FakeNexcrate:
         if rest == "/titles/why":
             return ok({"items": [self._why_stapel(item) for item in (koerper or {}).get("items", [])]})
         if rest == "/ratings":
-            return ok(self._ratings((koerper or {}).get("items", [])))
+            eintraege = (koerper or {}).get("items", [])
+            # nexcrate 39dfc05: ``RatingsIn.items`` hat ``max_length`` 100
+            # (``ratings.LOOKUP_MAX``), mehr ist die Pruefung von FastAPI.
+            if len(eintraege) > 100:
+                return _fehler(422, "invalid_input", "The input is not valid.", fields=["items"])
+            return ok(self._ratings(eintraege))
         if rest == "/pairing" and methode == "POST":
             return self._pairing_ask(koerper or {})
         if teile[:1] == ["pairing"] and len(teile) == 2:

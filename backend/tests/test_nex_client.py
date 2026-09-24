@@ -29,7 +29,16 @@ from app.services.beschaffung.nex.fehler import NexcrateError
 from app.services.beschaffung.nex.weg import NexBeschaffung
 from app.services.settings_service import load_settings, save_settings
 
-from .beschaffung.fake_nexcrate import FILM_HD, FILM_UHD, KEY, SERIE_HD, URL, FakeNexcrate
+from .beschaffung.fake_nexcrate import (
+    FILM_HD,
+    FILM_UHD,
+    IMDB_NENNUNG,
+    KEY,
+    OMDB_NENNUNG,
+    SERIE_HD,
+    URL,
+    FakeNexcrate,
+)
 
 
 @pytest.fixture
@@ -128,6 +137,29 @@ async def test_lookup_geht_in_stapeln_von_hundert(nexcrate: FakeNexcrate) -> Non
     assert gefunden[0]["known"] is True and gefunden[1]["known"] is False
     stapel = [k for k in nexcrate.calls if k[1].endswith("/titles/lookup")]
     assert [len(k[3]["items"]) for k in stapel] == [100, 50]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mit_tomaten", [50, 120], ids=["erstes-stueck", "zweites-stueck"])
+async def test_wertungen_gehen_in_stapeln_von_hundert(
+    nexcrate: FakeNexcrate, mit_tomaten: int
+) -> None:
+    """nexcrate nimmt hoechstens hundert je ``POST /ratings`` (``invalid_input``
+    darueber). Die Stuecke kommen als eine Antwort zurueck, in derselben
+    Reihenfolge; die OMDb-Nennung aus dem Stueck, das einen OMDb-Wert hat,
+    gleich ob es das erste oder das zweite ist (das andere nennt ``null``)."""
+    nexcrate.wertung(1, imdb=7.1, stimmen=10)
+    nexcrate.wertung(mit_tomaten, imdb=6.4, stimmen=5, tomaten=88)
+    wunsch = [{"kind": "movie", "ref": f"tmdb:{nummer}"} for nummer in range(1, 151)]
+    antwort = await _client().ratings(wunsch)
+
+    stapel = [k for k in nexcrate.calls if k[1].endswith("/ratings")]
+    assert [len(k[3]["items"]) for k in stapel] == [100, 50]
+    assert [zeile["ref"] for zeile in antwort["items"]] == [k["ref"] for k in wunsch]
+    assert antwort["items"][0]["imdb"] == {"rating": 7.1, "votes": 10}
+    assert antwort["items"][mit_tomaten - 1]["rotten_tomatoes"] == 88
+    assert antwort["attribution"] == IMDB_NENNUNG
+    assert antwort["omdb_attribution"] == OMDB_NENNUNG
 
 
 @pytest.mark.anyio

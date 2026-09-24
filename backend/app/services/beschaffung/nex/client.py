@@ -39,6 +39,8 @@ MAX_PARALLEL_REQUESTS = 6
 
 #: Hoechstens so viele Eintraege nimmt ``titles/lookup`` je Aufruf (gemessen).
 LOOKUP_STAPEL = 100
+#: ``ratings`` nimmt hoechstens 100 (nexcrate ``ratings.LOOKUP_MAX``).
+WERTUNGEN_STAPEL = 100
 #: ``titles/why`` nimmt hoechstens 50 (Bauplan Abschnitt 3.1).
 WARUM_STAPEL = 50
 #: Der Kalender antwortet fuer hoechstens 100 Tage am Stueck (gemessen:
@@ -226,7 +228,24 @@ class NexcrateClient:
         return list(data.get("items") or [])
 
     async def ratings(self, items: list[dict[str, str]]) -> dict[str, Any]:
-        return await self._request("POST", "/ratings", json_body={"items": items}) or {}
+        """Wertungen im Stapel, in Stuecken zu hundert, als eine Antwort.
+
+        Die Saetze gelten fuer alle Stuecke gleich; ``omdb_attribution`` ist
+        je Stueck ``null``, wenn darin keine Zeile einen OMDb-Wert hat, deshalb
+        zaehlt der erste, der einen nennt.
+        """
+        antwort: dict[str, Any] = {}
+        zeilen: list[dict[str, Any]] = []
+        for start in range(0, len(items), WERTUNGEN_STAPEL):
+            teil = items[start : start + WERTUNGEN_STAPEL]
+            data = await self._request("POST", "/ratings", json_body={"items": teil}) or {}
+            zeilen.extend(data.get("items") or [])
+            for schluessel, wert in data.items():
+                if schluessel != "items" and antwort.get(schluessel) is None:
+                    antwort[schluessel] = wert
+        if antwort or zeilen:
+            antwort["items"] = zeilen
+        return antwort
 
     async def rating(self, kind: str, ref: str) -> dict[str, Any]:
         return await self._request("GET", f"/ratings/{kind}/{ref}") or {}

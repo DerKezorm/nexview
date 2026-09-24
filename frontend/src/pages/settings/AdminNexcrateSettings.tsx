@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, ApiError } from "../../api/client";
-import type { AppSettings, Beschaffung, NexStand } from "../../api/types";
+import type { AppSettings, Beschaffung, NexFassungZeile, NexStand } from "../../api/types";
 import { NexcrateVerbinden, Standpruefung } from "../../components/NexcrateVerbinden";
 import { ErrorBanner, Section, Spinner } from "../../components/ui";
 import { FassungsZeile } from "../../components/FassungsZeile";
@@ -75,6 +75,27 @@ export function AdminNexcrateSettings({ zumUmstieg }: { zumUmstieg?: () => void 
 
   const modus: Beschaffung = settings?.beschaffung ?? "arr";
   const stand = standQuery.data;
+
+  // ⚠️ Die Rechte sind eine reine Nexview-Einstellung (`PUT
+  // /api/settings/fassungen` fragt nie nexcrate) und kommen deshalb aus
+  // `/api/config`, nicht aus dem nexcrate-Stand. `bereit` und `gruende`
+  // ergänzt der Stand nur, wenn er da ist - fehlt er (Störung, noch nicht
+  // geladen), zeigt die Zeile trotzdem den gespeicherten Rechte-Stand.
+  const nexFassungen = (config?.fassungen ?? []).filter((fassung) => fassung.quelle === "nex");
+  const rechteFassungen: NexFassungZeile[] = nexFassungen.map((fassung) => {
+    const ausStand = stand?.fassungen.find((eintrag) => eintrag.kennung === fassung.kennung);
+    return {
+      kennung: fassung.kennung,
+      media_type: fassung.media_type,
+      name: fassung.name,
+      klasse: fassung.klasse,
+      bereit: ausStand?.bereit ?? fassung.bereit,
+      gruende: ausStand?.gruende ?? [],
+    };
+  });
+  const rechteOffen = Object.fromEntries(
+    nexFassungen.map((fassung) => [fassung.kennung, fassung.offen_fuer_alle]),
+  );
 
   return (
     <div className="mt-6 flex flex-col gap-6">
@@ -154,28 +175,10 @@ export function AdminNexcrateSettings({ zumUmstieg }: { zumUmstieg?: () => void 
                 </a>
               )}
 
-              {/* ⚠️ Die Rechte gehören nur in den NEX-Betrieb: Vor dem
-                  Umstieg regelt der Assistent sie mit, und ein Haken hier
-                  hätte noch keine Fassung, die er wirklich öffnet. Im
-                  ARR-Betrieb bleibt deshalb die reine Anzeige von vorher. */}
-              {modus === "nex" ? (
-                <FassungsRechte
-                  fassungen={stand.fassungen}
-                  offen={Object.fromEntries(
-                    stand.fassungen.map((fassung) => [
-                      fassung.kennung,
-                      config?.fassungen.find((eintrag) => eintrag.kennung === fassung.kennung)
-                        ?.offen_fuer_alle ?? false,
-                    ]),
-                  )}
-                  onToggle={(kennung, wert) =>
-                    rechteMutation.mutate({ kennung, offen_fuer_alle: wert })
-                  }
-                  titel={t("setup.nexcrateVersionsTitle")}
-                  text={t("nexcrate.rightsText")}
-                  disabled={rechteMutation.isPending}
-                />
-              ) : (
+              {/* ⚠️ Die reine Anzeige (ohne Haken) gehört nur zum ARR-Betrieb:
+                  Der Rechte-Kasten für den NEX-Betrieb steht unten, eigens
+                  losgelöst von "erreichbar" - siehe dort. */}
+              {modus !== "nex" && (
                 <div>
                   <p className="font-medium text-mist-100">{t("nexcrate.versionsTitle")}</p>
                   <ul className="mt-2 flex flex-col gap-2">
@@ -199,6 +202,24 @@ export function AdminNexcrateSettings({ zumUmstieg }: { zumUmstieg?: () => void 
                 </div>
               )}
             </>
+          )}
+
+          {/* ⚠️ Eigene Zeile, unabhängig von "erreichbar": Das Recht ist eine
+              reine Nexview-Einstellung, `PUT /api/settings/fassungen` fragt
+              nexcrate nie. Ein unabhängiger Prüfer fand den Kasten vorher im
+              Erreichbar-Zweig - genau bei einer Störung hätte der Betreiber
+              eine offene Fassung dann nicht mehr schließen können. */}
+          {modus === "nex" && rechteFassungen.length > 0 && (
+            <FassungsRechte
+              fassungen={rechteFassungen}
+              offen={rechteOffen}
+              onToggle={(kennung, wert) =>
+                rechteMutation.mutate({ kennung, offen_fuer_alle: wert })
+              }
+              titel={t("setup.nexcrateVersionsTitle")}
+              text={t("nexcrate.rightsText")}
+              disabled={rechteMutation.isPending}
+            />
           )}
         </Section>
       )}

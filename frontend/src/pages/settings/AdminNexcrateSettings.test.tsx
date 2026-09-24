@@ -361,6 +361,131 @@ describe('Dienste-Seite für nexcrate', () => {
       )
     })
 
+    it('bleibt sichtbar, wenn nexcrate gerade nicht erreichbar ist - das Recht ist eine reine Nexview-Einstellung', async () => {
+      // ⚠️ Befund eines unabhängigen Prüfers: Der Kasten steckte vorher im
+      // "erreichbar"-Zweig und verschwand mit der Verbindung, obwohl
+      // `PUT /api/settings/fassungen` nexcrate nie fragt. Gerade bei einer
+      // Störung soll der Betreiber eine offene Fassung noch schließen können.
+      vi.mocked(api.get).mockImplementation(async (pfad: string) => {
+        if (pfad === '/api/settings/nexcrate/status') {
+          return stand({ erreichbar: false, fehler: 'nexcrate_unreachable' })
+        }
+        if (pfad === '/api/config') {
+          return konfiguration({
+            beschaffung: 'nex',
+            fassungen: [fassungKonfig({ offen_fuer_alle: true })],
+          })
+        }
+        return einstellungen({
+          beschaffung: 'nex',
+          nexcrate_url: 'https://nexcrate.example.com',
+          nexcrate_api_key_set: true,
+        })
+      })
+
+      rendernSchlicht(<AdminNexcrateSettings />)
+
+      await screen.findByText(/antwortet gerade nicht|nicht erreichbar/)
+      const haken = await screen.findByRole('checkbox', { name: 'Full-HD' })
+      expect(haken).toBeChecked()
+    })
+
+    it('zeigt je Fassung ihren eigenen Rechte- und Bereit-Stand, nicht den einer anderen mit gleicher Medienart', async () => {
+      // ⚠️ Mit nur einer Fassung im Test wäre eine Zuordnung über die
+      // Medienart statt über die Kennung nicht aufgefallen - deshalb hier
+      // zwei Fassungen, beide "movie", mit unterschiedlichem Stand.
+      vi.mocked(api.get).mockImplementation(async (pfad: string) => {
+        if (pfad === '/api/settings/nexcrate/status') {
+          return stand({
+            fassungen: [
+              { kennung: 'v_hd', media_type: 'movie', name: 'Full-HD', klasse: 'hd', bereit: true, gruende: [] },
+              {
+                kennung: 'v_uhd',
+                media_type: 'movie',
+                name: '4K',
+                klasse: 'uhd',
+                bereit: false,
+                gruende: ['no_profile'],
+              },
+            ],
+          })
+        }
+        if (pfad === '/api/config') {
+          return konfiguration({
+            beschaffung: 'nex',
+            fassungen: [
+              fassungKonfig({ kennung: 'v_hd', name: 'Full-HD', klasse: 'hd', offen_fuer_alle: true }),
+              fassungKonfig({ kennung: 'v_uhd', name: '4K', klasse: 'uhd', offen_fuer_alle: false }),
+            ],
+          })
+        }
+        return einstellungen({
+          beschaffung: 'nex',
+          nexcrate_url: 'https://nexcrate.example.com',
+          nexcrate_api_key_set: true,
+        })
+      })
+
+      rendernSchlicht(<AdminNexcrateSettings />)
+
+      const hd = await screen.findByRole('checkbox', { name: 'Full-HD' })
+      const uhd = await screen.findByRole('checkbox', { name: '4K' })
+      expect(hd).toBeChecked() // offen_fuer_alle: true
+      expect(uhd).not.toBeChecked() // offen_fuer_alle: false - nicht von v_hd übernommen
+
+      const hdZeile = hd.closest('li')
+      const uhdZeile = uhd.closest('li')
+      expect(hdZeile).toHaveTextContent('bereit')
+      expect(hdZeile).not.toHaveTextContent('kein Profil')
+      expect(uhdZeile).toHaveTextContent('nicht bereit')
+      expect(uhdZeile).toHaveTextContent('kein Profil')
+    })
+
+    it('sperrt den Haken, während das Umschalten läuft', async () => {
+      vi.mocked(api.get).mockImplementation(async (pfad: string) => {
+        if (pfad === '/api/settings/nexcrate/status') {
+          return stand({
+            fassungen: [
+              { kennung: 'v_1', media_type: 'movie', name: 'Full-HD', klasse: 'hd', bereit: true, gruende: [] },
+            ],
+          })
+        }
+        if (pfad === '/api/config') {
+          return konfiguration({
+            beschaffung: 'nex',
+            fassungen: [fassungKonfig({ offen_fuer_alle: false })],
+          })
+        }
+        return einstellungen({
+          beschaffung: 'nex',
+          nexcrate_url: 'https://nexcrate.example.com',
+          nexcrate_api_key_set: true,
+        })
+      })
+      let freigeben: (() => void) | null = null
+      vi.mocked(api.put).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            freigeben = () => resolve([])
+          }),
+      )
+
+      rendernSchlicht(<AdminNexcrateSettings />)
+
+      const haken = await screen.findByRole('checkbox', { name: 'Full-HD' })
+      expect(haken).not.toBeDisabled()
+
+      await userEvent.click(haken)
+
+      await waitFor(() => expect(haken).toBeDisabled())
+
+      // ⚠️ TypeScript engt `freigeben` sonst auf `null` ein - es wird ja nur
+      // innerhalb des Promise-Executors zugewiesen, nie in diesem Ablauf hier.
+      if (freigeben) (freigeben as () => void)()
+
+      await waitFor(() => expect(haken).not.toBeDisabled())
+    })
+
     it('zeigt einen Fehler, wenn das Umschalten eines Rechts scheitert', async () => {
       vi.mocked(api.get).mockImplementation(async (pfad: string) => {
         if (pfad === '/api/settings/nexcrate/status') {

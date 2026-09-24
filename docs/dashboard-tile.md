@@ -27,7 +27,8 @@ Authorization: Bearer nxv_…
     { "name": "Radarr", "erreichbar": true, "probleme": 0 },
     { "name": "Sonarr", "erreichbar": false, "probleme": 1 }
   ],
-  "tickets_offen": 0
+  "tickets_offen": 0,
+  "beschaffung": "arr"
 }
 ```
 
@@ -121,7 +122,8 @@ wording. Under a promise that could never happen again.
 
 ⚠️ **`instanzen[]` follows whatever procures.** With Radarr and Sonarr there is one
 entry per instance, named after it; with nexcrate there is exactly one, named after it.
-The shape does not change, the number of entries does.
+The shape does not change, the number of entries does. The `beschaffung` field names
+which one is in use: `arr` or `nex`.
 
 The prefix tells you the area: `dienst` (whatever procures), `platz` (disk),
 `nachschub` (requests in flight), `bibliothek` (the collection), `abgleich`

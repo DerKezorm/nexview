@@ -176,6 +176,14 @@ export function AdminDownloadsPage() {
                 ))}
               </ul>
             )}
+            {/* Rundgang-Befund 9: nexcrate liefert gescheiterte Downloads in
+                der Warteschlange mit. Mit Fortschrittsbalken unter „Läuft“
+                logen sie; was den Betreiber braucht, steht oben. */}
+            {(daten.gescheitert ?? 0) > 0 && (
+              <p className="mt-3 text-xs text-mist-500">
+                {t('downloads.running.failed', { count: daten.gescheitert })}
+              </p>
+            )}
           </Section>
 
           <AutomatikBereich />

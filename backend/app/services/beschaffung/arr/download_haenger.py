@@ -84,6 +84,12 @@ class Download:
     einordnung: download_gruende.Einordnung | None = None
 
     @property
+    def laeuft(self) -> bool:
+        """Immer ja: Arr fuehrt nur Laufendes in der Warteschlange, und was dort
+        klemmt, faengt die Haenger-Erkennung."""
+        return True
+
+    @property
     def erster(self) -> dict:
         """Die Zeile, die am meisten sagt: eine gestoerte, wenn es eine gibt."""
         for satz in self.saetze:

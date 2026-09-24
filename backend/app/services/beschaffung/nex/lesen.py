@@ -107,6 +107,10 @@ def warteschlange(roh: list[dict[str, Any]], media_type: str) -> list[Warteschla
         titel = eintrag.get("title") or {}
         if mapping.art(str(titel.get("kind") or "")) != media_type:
             continue
+        # Ein gescheiterter Download hat keinen Rest mehr (``null``) und
+        # stand damit bei 100 Prozent (Rundgang-Befund 9).
+        if not mapping.download_laeuft(eintrag):
+            continue
         nummer = mapping.tmdb_aus(titel.get("ref"))
         if nummer is None:
             continue

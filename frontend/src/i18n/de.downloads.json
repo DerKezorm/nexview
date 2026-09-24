@@ -21,7 +21,9 @@
       "none": "Gerade lädt nichts.",
       "noneElse": "Sonst lädt gerade nichts.",
       "remaining": "noch {{zeit}}",
-      "watching": "Wird beobachtet: {{grund}}"
+      "watching": "Wird beobachtet: {{grund}}",
+      "failed_one": "Ein gescheiterter Download läuft nicht mehr und steht deshalb nicht hier.",
+      "failed_other": "{{count}} gescheiterte Downloads laufen nicht mehr und stehen deshalb nicht hier."
     },
     "aktion": {
       "manuell_importieren": "Manuell importieren",

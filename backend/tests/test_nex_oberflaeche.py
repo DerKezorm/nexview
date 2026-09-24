@@ -406,3 +406,54 @@ def test_die_verbindungsleuchte_auch(nex_client_admin: TestClient) -> None:
     zeilen = antwort.json()["instanzen"]
     assert [z["kennung"] for z in zeilen] == ["nexcrate"]
     assert zeilen[0]["erreichbar"] is True
+
+
+# --------------------------------------------------------------------------
+# Gescheiterte Downloads (Rundgang-Befund 9)
+
+
+def _download(kennung: int, zustand: str, problem: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "download_id": kennung,
+        "title": {"kind": "movie", "ref": f"tmdb:{600 + kennung}", "name": f"Example {kennung}"},
+        "state": zustand,
+        "progress": 40.0 if zustand == "downloading" else 0.0,
+        "size_bytes": 1000,
+        # nexcrate nennt den Rest nur, solange der Download laeuft.
+        "remaining_bytes": 600 if zustand == "downloading" else None,
+        "remaining_seconds": 90 if zustand == "downloading" else None,
+        "protocol": "usenet",
+        "problem": problem,
+    }
+
+
+def test_ein_gescheiterter_download_laeuft_nicht(
+    nex_client_admin: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Gemessen an der Live-Instanz am 24.09.2026: 42 Eintraege mit
+    ``state: failed`` und ohne ``problem`` standen unter „Läuft“ mit
+    Fortschrittsbalken. Wartet ein gescheiterter auf den Betreiber, bringt
+    nexcrate ``problem.needs_owner`` mit, und er gehoert nach oben."""
+    nexcrate.queue = [
+        _download(1, "downloading"),
+        _download(2, "failed"),
+        _download(3, "failed"),
+        _download(
+            4,
+            "failed",
+            {
+                "code": "download_failed",
+                "needs_owner": True,
+                "message": "The download failed.",
+                "params": {},
+                "actions": ["remove_and_search", "remove"],
+                "automatic": [],
+            },
+        ),
+    ]
+
+    daten = nex_client_admin.get("/api/admin/downloads").json()
+
+    assert [zeile["titel"] for zeile in daten["laufend"]] == ["Example 1"]
+    assert [zeile["titel"] for zeile in daten["haenger"]] == ["Example 4"]
+    assert daten["gescheitert"] == 2

@@ -113,6 +113,9 @@ class DownloadsStand(BaseModel):
     instanzen: list[InstanzAntwort]
     haenger: list[HaengerZeile]
     laufend: list[LaufZeile]
+    #: Gescheitert und nicht oben unter den Haengern: laeuft nicht mehr, wartet
+    #: aber noch in der Warteschlange des Wegs (nur nexcrate liefert solche).
+    gescheitert: int = 0
     automatik_an: bool
     stand_am: datetime
 
@@ -186,10 +189,15 @@ async def uebersicht(admin: AdminUser, db: DbSession) -> DownloadsStand:
     haengend = {(z.kennung, z.download_id) for z in zeilen if z.haengt_seit is not None}
     beobachtet = {(z.kennung, z.download_id): z.grund for z in zeilen if z.haengt_seit is None}
     laufend: list[LaufZeile] = []
+    gescheitert = 0
     for abfrage in rundgang.abfragen:
         for download in abfrage.downloads:
             schluessel = (abfrage.instanz.kennung, download.download_id)
             if schluessel in haengend:
+                continue
+            # ⚠️ Nicht unter „Läuft“ mit Fortschrittsbalken (Rundgang-Befund 9).
+            if not download.laeuft:
+                gescheitert += 1
                 continue
             restzeit = download.erster.get("timeleft")
             laufend.append(
@@ -226,6 +234,7 @@ async def uebersicht(admin: AdminUser, db: DbSession) -> DownloadsStand:
         ],
         haenger=haenger,
         laufend=laufend,
+        gescheitert=gescheitert,
         automatik_an=download_automatik.lesen(db).an,
         stand_am=rundgang.am,
     )

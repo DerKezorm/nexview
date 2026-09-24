@@ -261,6 +261,30 @@ def test_die_warteschlange_zaehlt_einen_download_einmal() -> None:
     assert gefunden[0].size == 1000 and gefunden[0].sizeleft == 400
 
 
+def test_ein_gescheiterter_download_zaehlt_nicht_als_ladend() -> None:
+    """Rundgang-Befund 9: nexcrate nennt ``remaining_bytes`` nur, solange ein
+    Download laeuft. Ein gescheiterter hatte damit „0 Bytes uebrig“, und eine
+    Anfrage auf denselben Titel stand bei 100 Prozent."""
+    roh = [
+        {
+            "download_id": 8,
+            "title": {"kind": "movie", "ref": "tmdb:603", "name": "Example Movie"},
+            "state": "failed",
+            "size_bytes": 1000,
+            "remaining_bytes": None,
+        },
+        {
+            "download_id": 9,
+            "title": {"kind": "movie", "ref": "tmdb:604", "name": "Other Movie"},
+            "state": "downloading",
+            "size_bytes": 1000,
+            "remaining_bytes": 250,
+        },
+    ]
+    gefunden = lesen.warteschlange(roh, "movie")
+    assert [(eintrag.arr_id, eintrag.sizeleft) for eintrag in gefunden] == [(604, 250)]
+
+
 def test_dieselbe_platte_steht_nur_einmal_da() -> None:
     """Gemessen: nexcrate meldet den Platz je Fassung, nicht je Datentraeger."""
     roh = [
@@ -632,6 +656,29 @@ async def test_die_messung_nennt_version_und_update(nex: Any, nexcrate: FakeNexc
     assert messung.erreichbar and messung.version == "0.1.0"
     assert messung.messwerte["aktualisierung"] == "0.2.0"
     assert messung.messwerte["warteschlange"] == {"gesamt": 0, "gestoert": 0}
+
+
+async def test_die_messung_zaehlt_gescheiterte_nicht_als_laufend(
+    nex: Any, nexcrate: FakeNexcrate
+) -> None:
+    """Rundgang-Befund 9: „wie viele Downloads laufen“ zaehlt keinen
+    gescheiterten ohne Problem; einer, der auf den Betreiber wartet, bleibt
+    gestoert."""
+    nexcrate.queue = [
+        {"download_id": 1, "title": {"kind": "movie", "ref": "tmdb:603"}, "state": "downloading"},
+        {"download_id": 2, "title": {"kind": "movie", "ref": "tmdb:604"}, "state": "failed"},
+        {
+            "download_id": 3,
+            "title": {"kind": "movie", "ref": "tmdb:605"},
+            "state": "failed",
+            "problem": {"code": "download_failed", "needs_owner": True},
+        },
+    ]
+    weg = get_beschaffung(nex)
+
+    messung = await weg.instanz_messen(weg.instanzen()[0], voll=True)
+
+    assert messung.messwerte["warteschlange"] == {"gesamt": 2, "gestoert": 1}
 
 
 async def test_eine_stumme_nexcrate_gilt_als_nicht_erreichbar(

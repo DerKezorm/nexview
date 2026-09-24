@@ -740,9 +740,12 @@ class NexBeschaffung(Beschaffung):
     async def _warteschlangen_zustand(self) -> dict[str, int]:
         """Wie viele Downloads laufen, und wie viele davon klemmen."""
         roh = await self.client.queue()
+        # Ein gescheiterter zaehlt nur, solange er ein Problem meldet (auf den
+        # Betreiber wartet); sonst ist er Verlauf (Rundgang-Befund 9).
+        offen = [e for e in roh if mapping.download_laeuft(e) or e.get("problem")]
         return {
-            "gesamt": len(roh),
-            "gestoert": sum(1 for eintrag in roh if eintrag.get("problem")),
+            "gesamt": len(offen),
+            "gestoert": sum(1 for eintrag in offen if eintrag.get("problem")),
         }
 
     async def gesundheit_pruefen(self, db: Session) -> None:

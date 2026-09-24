@@ -118,6 +118,9 @@ class NexDownload:
     erster: dict[str, Any]
     problem: dict[str, Any] | None = None
     zeilen: list[int] = field(default_factory=list)
+    #: Nein, wenn nexcrate ihn beendet meldet (``failed``): Dann gehoert er
+    #: nicht unter „Läuft“ (Rundgang-Befund 9).
+    laeuft: bool = True
     folgen_ids: list[int] = field(default_factory=list)
 
 
@@ -182,6 +185,7 @@ def aus_antwort(eintrag: dict[str, Any]) -> NexDownload | None:
         },
         problem=eintrag.get("problem"),
         zeilen=[int(kennung)] if str(kennung).isdigit() else [],
+        laeuft=mapping.download_laeuft(eintrag),
     )
 
 

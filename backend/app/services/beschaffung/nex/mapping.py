@@ -107,6 +107,20 @@ def zustand(state: str | None, monitored: bool | None = True) -> str:
     return treffer
 
 
+#: Zustaende eines Downloads, in denen er nicht mehr laeuft (nexcrates
+#: ``FINISHED_STATES``). ``GET /queue`` liefert gescheiterte mit, und zwar
+#: gemessen auch solche ohne ``problem``: 42 an der Live-Instanz am 24.09.2026.
+DOWNLOAD_BEENDET = ("imported", "failed", "removed")
+
+
+def download_laeuft(eintrag: dict[str, Any]) -> bool:
+    """Laeuft dieser Eintrag aus ``GET /queue`` noch?
+
+    Ein unbekannter oder fehlender Zustand gilt als laufend, so wie vorher.
+    """
+    return str(eintrag.get("state") or "") not in DOWNLOAD_BEENDET
+
+
 def hat_datei(state: str | None) -> bool:
     """Liegt fuer diese Fassung eine Datei? (``available`` und ``upgrade``.)"""
     return str(state or "") in ("available", "upgrade")

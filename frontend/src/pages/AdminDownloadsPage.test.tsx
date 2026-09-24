@@ -386,6 +386,19 @@ describe('die übrige Seite', () => {
     expect(await screen.findByText('Sonst lädt gerade nichts.')).toBeInTheDocument()
   })
 
+  it('nennt gescheiterte Downloads, ohne sie unter Läuft zu zeigen', async () => {
+    // Rundgang-Befund 9: nexcrate lieferte 42 gescheiterte Downloads mit, und
+    // sie standen unter „Läuft“ mit Fortschrittsbalken. Der Server lässt sie
+    // dort weg und zählt sie.
+    antworten({ uebersicht: stand({ laufend: [], haenger: [], gescheitert: 42 }) })
+    rendernSchlicht(<AdminDownloadsPage />)
+
+    expect(await screen.findByText('Gerade lädt nichts.')).toBeInTheDocument()
+    expect(
+      screen.getByText('42 gescheiterte Downloads laufen nicht mehr und stehen deshalb nicht hier.'),
+    ).toBeInTheDocument()
+  })
+
   it('sagt ohne Hänger schlicht, dass nichts lädt', async () => {
     antworten({ uebersicht: stand({ laufend: [], haenger: [] }) })
     rendernSchlicht(<AdminDownloadsPage />)

@@ -21,7 +21,9 @@
       "none": "Nothing is downloading right now.",
       "noneElse": "Nothing else is downloading right now.",
       "remaining": "{{zeit}} left",
-      "watching": "Being watched: {{grund}}"
+      "watching": "Being watched: {{grund}}",
+      "failed_one": "One failed download is no longer running and is left out here.",
+      "failed_other": "{{count}} failed downloads are no longer running and are left out here."
     },
     "aktion": {
       "manuell_importieren": "Import manually",

@@ -1652,6 +1652,8 @@ export type DownloadsStand = {
   }[];
   haenger: DownloadHaenger[];
   laufend: DownloadLaufend[];
+  /** Gescheitert, aber nicht oben: läuft nicht mehr, steht nur noch in der Warteschlange. */
+  gescheitert?: number;
   automatik_an: boolean;
   stand_am: string;
 };

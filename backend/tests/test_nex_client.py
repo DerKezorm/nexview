@@ -158,8 +158,8 @@ async def test_titel_und_staffel_in_tmdb_zaehlung(nexcrate: FakeNexcrate) -> Non
         "tmdb:1399",
         1,
         [
-            nexcrate.folge(1, versionen=[nexcrate.fassung(SERIE_HD, "available", size_bytes=3_000_000_000, quality="WEBDL-1080p")]),
-            nexcrate.folge(3, air_date="2020-01-15", versionen=[nexcrate.fassung(SERIE_HD, "wanted")]),
+            nexcrate.folge(1, versionen=[nexcrate.folgen_fassung(SERIE_HD, "available", size_bytes=3_000_000_000, quality="WEBDL-1080p")]),
+            nexcrate.folge(3, air_date="2020-01-15", versionen=[nexcrate.folgen_fassung(SERIE_HD, "wanted")]),
         ],
     )
     staffel = await _client().season("tmdb:1399", 1)

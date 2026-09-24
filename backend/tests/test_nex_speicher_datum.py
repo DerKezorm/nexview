@@ -29,7 +29,7 @@ from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.beschaffung.nex import system
 from app.services.settings_service import load_settings, save_settings
 
-from .beschaffung.fake_nexcrate import FILM_HD, KEY, SERIE_HD, URL, FakeNexcrate
+from .beschaffung.fake_nexcrate import FEHLT, FILM_HD, KEY, SERIE_HD, URL, FakeNexcrate
 
 GB = 1024**3
 
@@ -74,7 +74,10 @@ def _vor_tagen(tage: int) -> str:
 
 
 def _film(nexcrate: FakeNexcrate, tmdb_id: int, **datum: Any) -> dict[str, Any]:
-    """Ein Film mit Datei; ``datum`` ist ``imported_at=...`` oder leer (Feld fehlt)."""
+    """Ein Film mit Datei; ``datum`` ist ``imported_at=...``, ohne Angabe ``null``.
+
+    ``imported_at=FEHLT`` ist eine aeltere nexcrate, die das Feld nicht kennt.
+    """
     return nexcrate.film(
         tmdb_id,
         name=f"Example Movie {tmdb_id}",
@@ -84,15 +87,14 @@ def _film(nexcrate: FakeNexcrate, tmdb_id: int, **datum: Any) -> dict[str, Any]:
 
 def _staffel(nummer: int, groesse: int, **datum: Any) -> dict[str, Any]:
     """Eine Staffel der Einzelansicht; ``datum`` wie bei ``_film``."""
-    je_fassung: dict[str, Any] = {
-        "version_id": SERIE_HD,
-        "state": "available",
-        "monitored": True,
-        "counts": {"have": 3, "aired": 3, "expected": 3},
-        "size_bytes": groesse,
-    }
-    je_fassung.update(datum)
-    return {"season": nummer, "name": f"Season {nummer}", "versions": [je_fassung]}
+    je_fassung = FakeNexcrate.staffel_fassung(
+        SERIE_HD,
+        "available",
+        counts={"have": 3, "aired": 3, "expected": 3},
+        size_bytes=groesse,
+        **datum,
+    )
+    return FakeNexcrate.staffel_eintrag(nummer, [je_fassung], folgen=3, gesendet=3)
 
 
 def _serie(
@@ -138,7 +140,7 @@ def test_ein_film_unbekannten_alters_bleibt_ohne_datum(nexcrate: FakeNexcrate) -
 
 
 def test_eine_aeltere_nexcrate_ohne_das_feld_geht_weiter(nexcrate: FakeNexcrate) -> None:
-    titel = _film(nexcrate, 603)
+    titel = _film(nexcrate, 603, imported_at=FEHLT)
     assert "imported_at" not in titel["versions"][0]
 
     stand = nex_bestand.film_stand(titel, FILM_HD)
@@ -206,7 +208,11 @@ def test_jede_staffel_traegt_ihr_eigenes_datum(nexcrate: FakeNexcrate) -> None:
     titel = _serie(
         nexcrate,
         1399,
-        [_staffel(1, 3 * GB, imported_at=ALT), _staffel(2, 5 * GB, imported_at=None), _staffel(3, 2 * GB)],
+        [
+            _staffel(1, 3 * GB, imported_at=ALT),
+            _staffel(2, 5 * GB, imported_at=None),
+            _staffel(3, 2 * GB, imported_at=FEHLT),
+        ],
         imported_at=ALT,
     )
 

@@ -1372,10 +1372,42 @@
       "title": "Kind",
       "type": "string"
      },
+     "metacritic": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The Metascore, 0 to 100, from the same store.",
+      "title": "Metacritic"
+     },
      "ref": {
       "description": "As asked.",
       "title": "Ref",
       "type": "string"
+     },
+     "rotten_tomatoes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The Tomatometer in percent, from nexcrate's 30-day store of OMDb answers; a batch never asks OMDb.",
+      "title": "Rotten Tomatoes"
+     },
+     "sources": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "description": "imdb: loaded, off or not_loaded. omdb: ok, not_found, no_key, not_for_kind (series), or not_cached: not in the store yet; GET /api/v1/ratings/{kind}/{ref} asks OMDb for one title.",
+      "title": "Sources",
+      "type": "object"
      }
     },
     "required": [
@@ -1383,6 +1415,9 @@
      "ref",
      "imdb_ref",
      "imdb",
+     "rotten_tomatoes",
+     "metacritic",
+     "sources",
      "error"
     ],
     "title": "RatingItemOut",
@@ -1508,12 +1543,25 @@
       },
       "title": "Items",
       "type": "array"
+     },
+     "omdb_attribution": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Show it too when any Rotten Tomatoes or Metacritic value shows; null when none does.",
+      "title": "Omdb Attribution"
      }
     },
     "required": [
      "items",
      "imdb",
-     "attribution"
+     "attribution",
+     "omdb_attribution"
     ],
     "title": "RatingsOut",
     "type": "object"
@@ -2595,6 +2643,33 @@
     "title": "WithdrawnVersionOut",
     "type": "object"
    },
+   "app__routers__v1__EpisodeFileOut": {
+    "properties": {
+     "file_id": {
+      "description": "Opaque and stable while the file lies there. A file that holds several episodes carries the same id at each of them.",
+      "title": "File Id",
+      "type": "string"
+     },
+     "size_bytes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Size of this one file.",
+      "title": "Size Bytes"
+     }
+    },
+    "required": [
+     "file_id",
+     "size_bytes"
+    ],
+    "title": "EpisodeFileOut",
+    "type": "object"
+   },
    "app__routers__v1__EpisodeOut": {
     "properties": {
      "air_date": {
@@ -2648,6 +2723,14 @@
    },
    "app__routers__v1__EpisodeVersionOut": {
     "properties": {
+     "files": {
+      "description": "Every file of the episode in this version: the linked one and, for a double episode TMDB lists as one, its second part. Empty without a file, never null. To add up several episodes, count each file_id once.",
+      "items": {
+       "$ref": "#/components/schemas/app__routers__v1__EpisodeFileOut"
+      },
+      "title": "Files",
+      "type": "array"
+     },
      "monitored": {
       "title": "Monitored",
       "type": "boolean"
@@ -2672,6 +2755,7 @@
         "type": "null"
        }
       ],
+      "description": "Size of the file linked to the episode; a second part is not counted.",
       "title": "Size Bytes"
      },
      "state": {
@@ -2695,7 +2779,8 @@
      "state",
      "monitored",
      "size_bytes",
-     "quality"
+     "quality",
+     "files"
     ],
     "title": "EpisodeVersionOut",
     "type": "object"
@@ -2935,8 +3020,8 @@
  },
  "info": {
   "title": "nexcrate /api/v1",
-  "version": "0.1.0",
-  "x-gemessen": "22.09.2026, Wegwerf-nexcrate 0.1.0, Vertrag major 1 stage V5"
+  "version": "0.2.0",
+  "x-gemessen": "24.09.2026, nexcrate 0.2.0 (39dfc05) aus app.openapi(), Vertrag major 1 stage V5"
  },
  "openapi": "3.1.0",
  "paths": {
@@ -5042,7 +5127,7 @@
   },
   "/api/v1/ratings": {
    "post": {
-    "description": "Up to 100 titles, also titles that are in no library, from nexcrate's own copy of IMDb's daily file: asking sends nothing anywhere. Information courtesy of IMDb (https://www.imdb.com). Used with permission.",
+    "description": "Up to 100 titles, also titles that are in no library, from nexcrate's own copy of IMDb's daily file; Rotten Tomatoes and Metacritic from the 30-day store of OMDb answers. A `tmdb:` title nexcrate does not have is looked up at TMDB once for its IMDb number (kept 30 days); nothing else leaves. Information courtesy of IMDb (https://www.imdb.com). Used with permission.",
     "operationId": "ratings_many_api_v1_ratings_post",
     "requestBody": {
      "content": {

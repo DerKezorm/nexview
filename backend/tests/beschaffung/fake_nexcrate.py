@@ -14,6 +14,13 @@ nachgestellt ist, weil es sich ohne Indexer und Download-Programm nicht
 erzeugen liess (Warteschlange, Probleme, Papierkorb), steht es dabei; die
 Felder stammen dann aus nexcrates eigenen Vertragstests
 (``nexcrate/backend/tests/test_api_v3.py``).
+
+Am 24.09.2026 Feld fuer Feld gegen nexcrates Modelle in ``39dfc05``
+abgeglichen (``routers/v1.py``, ``v1_round.py``, ``v1_write.py``,
+``v1_back.py``, ``v1_pairing.py``): Jede Antwort traegt dieselben Schluessel
+wie das Modell dort, ``null`` eingeschlossen. Was aelter ist, steht als
+Schalter daneben (``imported_at=FEHLT``, ``files=FEHLT``, ``liste_staffeln``,
+``stapel_nur_imdb``, ``ausserhalb_aufloesen``).
 """
 
 from __future__ import annotations
@@ -281,8 +288,9 @@ class FakeNexcrate:
         quality: str | None = None,
         origin: str | None = None,
         series: dict[str, Any] | None = None,
-        imported_at: Any = FEHLT,
+        imported_at: Any = None,
     ) -> dict[str, Any]:
+        """Eine Fassung an einem Titel (``TitleVersionOut``)."""
         eintrag: dict[str, Any] = {
             "version_id": kennung,
             "state": state,
@@ -291,13 +299,63 @@ class FakeNexcrate:
             "quality": quality,
             "origin": origin,
         }
-        # Seit nexcrate 39dfc05 an jeder Fassung; ohne Angabe fehlt es wie
-        # bei einer aelteren nexcrate.
+        # Seit nexcrate 39dfc05 an jeder Fassung, auch als ``null``: pydantic
+        # schreibt das Feld immer. ``FEHLT`` ist eine aeltere nexcrate.
         if imported_at is not FEHLT:
             eintrag["imported_at"] = imported_at
         if series is not None:
             eintrag["series"] = series
         return eintrag
+
+    @staticmethod
+    def staffel_fassung(
+        kennung: str,
+        state: str = "wanted",
+        *,
+        monitored: bool = True,
+        counts: dict[str, int] | None = None,
+        size_bytes: int | None = None,
+        imported_at: Any = None,
+    ) -> dict[str, Any]:
+        """Eine Fassung an einer Staffel unter ``series.seasons`` (``SeasonVersionOut``).
+
+        ``imported_at`` wie bei ``fassung``: die aelteste Datei der Staffel,
+        ``null`` ohne Wissen, ``FEHLT`` fuer eine aeltere nexcrate.
+        """
+        eintrag: dict[str, Any] = {
+            "version_id": kennung,
+            "state": state,
+            "monitored": monitored,
+            "counts": counts if counts is not None else {"have": 0, "aired": 0, "expected": 0},
+            "size_bytes": size_bytes,
+        }
+        if imported_at is not FEHLT:
+            eintrag["imported_at"] = imported_at
+        return eintrag
+
+    @staticmethod
+    def staffel_eintrag(
+        nummer: int,
+        versionen: list[dict[str, Any]] | None = None,
+        *,
+        name: str | None = None,
+        air_date: str | None = "2020-01-01",
+        folgen: int = 0,
+        gesendet: int = 0,
+    ) -> dict[str, Any]:
+        """Eine Staffel unter ``series.seasons`` (``SeasonOut``).
+
+        ``folgen`` und ``gesendet`` sind nexcrates ``episodes`` und ``aired``:
+        Zahlen, keine Listen (die Folgen selbst nennt ``/seasons/{n}``).
+        """
+        return {
+            "season": nummer,
+            "name": name if name is not None else f"Season {nummer}",
+            "air_date": air_date,
+            "episodes": folgen,
+            "aired": gesendet,
+            "versions": versionen or [],
+        }
 
     def staffel(self, ref: str, nummer: int, folgen: list[dict[str, Any]]) -> None:
         self.seasons[(ref, nummer)] = {
@@ -322,6 +380,33 @@ class FakeNexcrate:
             "aired": aired,
             "versions": versionen or [],
         }
+
+    @staticmethod
+    def folgen_fassung(
+        kennung: str,
+        state: str = "wanted",
+        *,
+        monitored: bool = True,
+        size_bytes: int | None = None,
+        quality: str | None = None,
+        files: Any = None,
+    ) -> dict[str, Any]:
+        """Eine Fassung an einer Folge (``EpisodeVersionOut``).
+
+        Ohne ``origin`` und ohne ``imported_at``: beides nennt nexcrate nur am
+        Titel und an der Staffel. ``files`` ist ohne Datei ``[]``, nie ``null``
+        (nexcrate 5427612); ``FEHLT`` ist eine aeltere nexcrate.
+        """
+        eintrag: dict[str, Any] = {
+            "version_id": kennung,
+            "state": state,
+            "monitored": monitored,
+            "size_bytes": size_bytes,
+            "quality": quality,
+        }
+        if files is not FEHLT:
+            eintrag["files"] = list(files) if files is not None else []
+        return eintrag
 
     def entfernt(self, kind: str, ref: str) -> None:
         """Einen Titel entfernen - er steht danach unter ``removed``."""
@@ -430,7 +515,7 @@ class FakeNexcrate:
         if teile[:1] == ["requests"] and methode == "POST":
             return self._request(koerper or {})
         if teile[:1] == ["recycle-bin"] and len(teile) == 3:
-            return ok({"restored": True})
+            return ok(self._zurueckgeholt(teile[1]))
         if teile[:1] == ["ratings"] and len(teile) == 3:
             if self._ohne_imdb_nummer(teile[1], teile[2]):
                 return _fehler(
@@ -611,8 +696,21 @@ class FakeNexcrate:
             return httpx.Response(200, json=self._why(kind, ref))
         if rest == "search":
             return httpx.Response(202, json={"search": "queued"})
-        if rest in ("withdraw", "monitoring"):
-            return httpx.Response(200, json={"title_removed": False, "versions": []})
+        if rest == "withdraw":
+            # ``albums`` nennt nexcrate nur bei einem Kuenstler, sonst ``null``.
+            return httpx.Response(200, json={"title_removed": False, "versions": [], "albums": None})
+        if rest == "monitoring":
+            # Nur die Schalter, und der Titel danach (``MonitoringOut``).
+            return httpx.Response(
+                200,
+                json={
+                    "versions": [
+                        {"version_id": kennung, "changed": True}
+                        for kennung in (koerper or {}).get("versions") or []
+                    ],
+                    "title": {k: v for k, v in titel.items() if k != "seq"},
+                },
+            )
         return _fehler(404, "not_found", "This nexcrate does not know that address.")
 
     def _why(self, kind: str, ref: str) -> dict[str, Any]:
@@ -668,7 +766,8 @@ class FakeNexcrate:
         aktion = teile[2].replace("-", "_")
         if aktion not in erlaubt and teile[2] not in erlaubt:
             return _fehler(409, "action_not_allowed", "This action is not offered here.")
-        return httpx.Response(202, json={"done": True})
+        # ``ActOut``: der Download, wie er nach der Aktion steht.
+        return httpx.Response(200, json={"download": vorhanden})
 
     def _request(self, koerper: dict[str, Any]) -> httpx.Response:
         kind = str(koerper.get("kind") or "")
@@ -692,6 +791,22 @@ class FakeNexcrate:
                 "title": {k: v for k, v in titel.items() if k != "seq"},
             },
         )
+
+    def _zurueckgeholt(self, eintrag_id: str) -> dict[str, Any]:
+        """``RestoredOut``: der Titel, zu dem die Datei zurueckkam.
+
+        Steht er nicht in der Attrappe, bleiben nur ``kind`` und ``ref`` des
+        Eintrags - eine echte nexcrate sagte dann ``recycle_title_gone``.
+        """
+        eintrag = next(
+            (e for e in self.recycle if str(e.get("entry_id")) == eintrag_id), {}
+        )
+        quelle = eintrag.get("title") if isinstance(eintrag.get("title"), dict) else eintrag
+        kind, ref = str(quelle.get("kind") or ""), str(quelle.get("ref") or "")
+        titel = self._finden(kind, ref)
+        if titel is None:
+            return {"title": {"kind": kind, "ref": ref}}
+        return {"title": {k: v for k, v in titel.items() if k != "seq"}}
 
     def _calendar(self, abfrage: dict[str, str]) -> httpx.Response:
         von, bis = abfrage.get("from", ""), abfrage.get("to", "")
@@ -834,8 +949,9 @@ class FakeNexcrate:
             "scopes": koerper.get("scopes"),
             "key": f"{KEY}",
         }
+        # ``201 Created`` wie nexcrate (``v1_pairing.py``).
         return httpx.Response(
-            200,
+            201,
             json={
                 "pairing_id": kennung,
                 "code": "5Z3-M4G",
@@ -856,11 +972,23 @@ class FakeNexcrate:
         if offen is None or self.kopfzeilen.get("x-pairing-secret") != offen["secret"]:
             return _fehler(404, "pairing_not_found", "There is no such pairing request.")
         zustand = offen["state"]
+        # ``PairingStateOut``: ``scopes`` nur mit dem Schluessel, sonst ``null``.
+        ablauf = "2026-09-22T19:00:00Z"
         if zustand != "confirmed":
-            return httpx.Response(200, json={"state": zustand, "key": None})
+            return httpx.Response(
+                200, json={"state": zustand, "key": None, "scopes": None, "expires_at": ablauf}
+            )
         # ⚠️ Der Schluessel kommt genau einmal; danach ``delivered`` ohne ihn.
         offen["state"] = "delivered"
-        return httpx.Response(200, json={"state": "confirmed", "key": offen["key"]})
+        return httpx.Response(
+            200,
+            json={
+                "state": "confirmed",
+                "key": offen["key"],
+                "scopes": offen["scopes"],
+                "expires_at": ablauf,
+            },
+        )
 
 
 def _tage(datum: str) -> int:

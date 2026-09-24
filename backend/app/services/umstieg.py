@@ -769,10 +769,11 @@ class Mitzunehmen:
     #: Offene Einladungen, die ein Recht an einer Arr-Fassung vergeben.
     einladungen: int = 0
     regeln: int = 0
-    #: Arr-Fassungen, die der Betreiber über ihre Vorgabe hinaus für alle
-    #: geöffnet hat. Die Wanderung trägt das auf die neue Fassung; ohne sie
-    #: bekäme jedes gewöhnliche Konto dort 403.
-    geoeffnet: int = 0
+    #: Arr-Fassungen, deren „offen für alle" der Betreiber von der Vorgabe
+    #: weggestellt hat, **in beide Richtungen**: 4K geöffnet oder HD
+    #: geschlossen. Die Wanderung trägt den Wert auf die neue Fassung; ohne sie
+    #: ginge die Entscheidung des Betreibers lautlos verloren.
+    abweichend: int = 0
 
     def __bool__(self) -> bool:
         return any(vars(self).values())
@@ -808,10 +809,10 @@ def mitzunehmen(db: Session) -> Mitzunehmen:
             if recht.anfragen or recht.auto_freigabe
         ),
         regeln=sum(1 for regel in db.scalars(select(Regel)) if _nennt_arr_fassung(regel, arr)),
-        geoeffnet=sum(
+        abweichend=sum(
             1
             for kennung in arr
-            if kennung not in fassungen_dienst.ARR_OFFEN and fassungen_dienst.offen_fuer_alle(db, kennung)
+            if fassungen_dienst.offen_fuer_alle(db, kennung) != (kennung in fassungen_dienst.ARR_OFFEN)
         ),
     )
     for token in db.scalars(

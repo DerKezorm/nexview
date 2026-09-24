@@ -1480,7 +1480,7 @@ TEXTE: dict[str, tuple[str, str]] = {
             'Switching `beschaffung` from `arr` to `nex` is refused with 409 '
             '`beschaffung_switch_needs_assistant` as long as open requests, storage '
             'entries, rights, open invitations or rules still carry a Radarr or Sonarr '
-            'version, or such a version was opened for everyone beyond its default: '
+            'version, or such a version was opened or closed for everyone against its default: '
             'only the switch assistant under `/api/umstieg` carries them over. '
             'Nothing from the request is saved then. Switching back from `nex` to `arr` '
             'is always allowed.'

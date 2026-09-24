@@ -1244,6 +1244,14 @@ def _vierk_fuer_alle_geoeffnet(db: Session) -> None:
     db.commit()
 
 
+def _hd_fuer_alle_geschlossen(db: Session) -> None:
+    """Die Gegenrichtung: ab Werk offen, vom Betreiber zugemacht."""
+    zeile = db.get(Fassung, RADARR)
+    assert zeile is not None
+    zeile.offen_fuer_alle = False
+    db.commit()
+
+
 MITZUNEHMEN = {
     "offene_anfrage": _offene_anfrage,
     "posten": _geladener_posten,
@@ -1251,6 +1259,7 @@ MITZUNEHMEN = {
     "offene_einladung": _offene_einladung,
     "regel": _regel_auf_eine_fassung,
     "vierk_geoeffnet": _vierk_fuer_alle_geoeffnet,
+    "hd_geschlossen": _hd_fuer_alle_geschlossen,
 }
 
 
@@ -1387,4 +1396,10 @@ def test_die_sperre_zaehlt_was_die_wanderung_umschreibt(vor_dem_umstieg: Any, db
         zahlen.regeln,
     )
     assert (vorher.anfragen, vorher.posten, vorher.rechte, vorher.einladungen, vorher.regeln) == (1, 1, 1, 1, 1)
-    assert vorher.geoeffnet == 1
+    # Beide Richtungen zählen, und beide trägt die Wanderung auf das Ziel: 4K
+    # war zu und ist offen, HD war offen und ist zu.
+    assert vorher.abweichend == 2
+    film_hd = db.get(Fassung, FILM_HD)
+    film_uhd = db.get(Fassung, FILM_UHD)
+    assert film_hd is not None and film_uhd is not None
+    assert (film_hd.offen_fuer_alle, film_uhd.offen_fuer_alle) == (False, True)

@@ -585,8 +585,8 @@ async def movie_ratings(
     """Bewertungen zu mehreren Filmen auf einmal.
 
     Bewusst ein eigener Aufruf und nicht Teil der Listen: die Werte kommen aus
-    Radarr, und zwanzig Abfragen dorthin wuerden den Seitenaufbau spuerbar
-    verzoegern. So steht die Seite sofort und die Wertungen erscheinen kurz
+    Radarr (ARR-Betrieb) bzw. von nexcrate (NEX-Betrieb), und zwanzig Abfragen
+    dorthin wuerden den Seitenaufbau spuerbar verzoegern. So steht die Seite sofort und die Wertungen erscheinen kurz
     darauf.
 
     ``detail`` setzt nur die Titelseite: Im NEX-Betrieb kommen Rotten Tomatoes

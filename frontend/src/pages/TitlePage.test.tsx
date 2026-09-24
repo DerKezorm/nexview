@@ -153,3 +153,18 @@ describe('die Filmreihe', () => {
     expect(screen.queryByText('Zweiter Teil')).not.toBeInTheDocument()
   })
 })
+
+describe('die Wertungen', () => {
+  it('fragt für den Titel die Einzelansicht an', async () => {
+    // Im NEX-Betrieb stehen Rotten Tomatoes und Metacritic nur in nexcrates
+    // Einzelansicht; ohne `detail=true` fehlten sie auf der Titelseite still.
+    antworten(detail({ collection: null }))
+    seiteOeffnen()
+
+    await screen.findByRole('heading', { name: i18n.t('detail.cast') })
+    const wertungen = holen.mock.calls
+      .map(([pfad]) => String(pfad))
+      .filter((pfad) => pfad.startsWith('/api/ratings/movie'))
+    expect(wertungen).toContain('/api/ratings/movie?ids=901&detail=true')
+  })
+})

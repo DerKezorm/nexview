@@ -192,7 +192,10 @@ def _gesendet(nexcrate: FakeNexcrate) -> list[Any]:
     return [k[3] for k in nexcrate.calls if k[1].endswith("/requests")]
 
 
-@pytest.mark.parametrize("art", ["503", "zeitueberschreitung", "verbindung_abgelehnt"])
+@pytest.mark.parametrize(
+    "art",
+    ["503", "zeitueberschreitung", "verbindung_abgelehnt", "fremde_seite", "ausgelastet"],
+)
 async def test_ein_ausfall_von_nexcrate_beendet_das_nachreichen_nicht(
     art: str, nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:
@@ -206,6 +209,10 @@ async def test_ein_ausfall_von_nexcrate_beendet_das_nachreichen_nicht(
     ⚠️ Eine abgelehnte Verbindung (nexcrate aus) machte die Anfrage bis zum
     24.09.2026 zu „fehlgeschlagen": ``nexcrate_unreachable`` ist nicht
     ungewiss, und niemand versuchte es wieder.
+
+    Eine fremde Seite mit 200 (die Anmeldeseite eines Proxys davor) und ein
+    429 sind ebenso vorübergehend (``nexcrate_unexpected_answer``,
+    ``nexcrate_busy``); sie hält nur der Korb, nicht die Ungewissheit.
     """
     nexcrate.film(603)
     person = _nutzer(db)
@@ -217,6 +224,18 @@ async def test_ein_ausfall_von_nexcrate_beendet_das_nachreichen_nicht(
         )
     elif art == "verbindung_abgelehnt":
         nexcrate.next_answer["POST /api/v1/requests"] = httpx.ConnectError("abgelehnt")
+    elif art == "fremde_seite":
+        nexcrate.next_answer["POST /api/v1/requests"] = httpx.Response(
+            200,
+            text="<html><head><title>Anmelden</title></head><body>Beispiel</body></html>",
+            headers={"content-type": "text/html"},
+        )
+    elif art == "ausgelastet":
+        nexcrate.next_answer["POST /api/v1/requests"] = httpx.Response(
+            429,
+            json={"code": "rate_limited", "message": "slow down", "params": {}},
+            headers={"Retry-After": "1"},
+        )
     else:
         nexcrate.next_answer["POST /api/v1/requests"] = httpx.ReadTimeout("zu langsam")
 
@@ -772,3 +791,93 @@ async def test_nach_acht_stunden_ausfall_kommen_alle_freigaben_an(
         uhr.jetzt += timedelta(seconds=120)
 
     assert _staende(db, ids) == {"searching": 60}
+
+
+async def test_eine_alte_freigabe_mit_fehlertext_kommt_hinter_scheiternden_dran(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, uhr: _Uhr, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ Der Rundgang stempelte die nie übergebene Freigabe jede Runde neu.
+
+    Eine Freigabe aus der Arr-Zeit trägt noch ihren alten Fehlertext. Beim
+    Nachreichen steht sie damit hinter jeder, die noch nie scheiterte, und
+    unter den gescheiterten entscheidet ``last_checked_at``. Das setzte
+    ``check_once`` an jeder freigegebenen Anfrage, in der Reihenfolge der
+    Zeilen, also immer an ihr zuletzt. Scheiterten ``JE_DURCHGANG`` andere
+    dauerhaft (500), kam sie nie dran, obwohl sie im NEX-Betrieb nie
+    versucht wurde (gemessen, 156 Runden).
+    """
+    monkeypatch.setattr(nachreichen, "JE_DURCHGANG", 2)
+    _scheitert_immer(monkeypatch, nexcrate, 601, 602, 603)
+    for nummer in (601, 602, 603, 609):
+        nexcrate.film(nummer, name=f"Erfundener Film {nummer}", versionen=[])
+    person = _nutzer(db)
+    for nummer in (601, 602, 603):
+        _anfrage(
+            db, person, tmdb_id=nummer, title=f"Erfundener Film {nummer}",
+            requested_at=uhr.jetzt - timedelta(minutes=700 - nummer), approved_at=uhr.jetzt,
+        )
+    altfall = _anfrage(
+        db, person, tmdb_id=609, title="Erfundener Altfall",
+        requested_at=uhr.jetzt - timedelta(days=1), approved_at=uhr.jetzt,
+        error_message="Radarr ist nicht erreichbar.",
+    )
+    save_settings(db, {"beschaffung_gewechselt_am": uhr.jetzt.isoformat()})
+
+    for _runde_nr in range(6):
+        await _runde(db)
+        uhr.jetzt += timedelta(seconds=120)
+
+    gesendet = [k["origin"] for k in _gesendet(nexcrate)]
+    assert f"nexview:request:{altfall.id}" in gesendet, gesendet
+    db.refresh(altfall)
+    assert altfall.status == RequestStatus.searching
+
+
+async def test_abbrechen_erreicht_nexcrate_auch_nach_verlorener_antwort(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ Die Übergabe kam an, ihre Antwort nicht: Abbrechen muss trotzdem hin.
+
+    Die Anfrage blieb ohne ``arr_id`` freigegeben; der Rundgang fand den
+    Titel bei nexcrate und setzte „wird gesucht", die Kennung aber nicht.
+    ``cancel`` schickte ohne Kennung nichts, nexcrate suchte weiter, und
+    Nexview zeigte „abgebrochen".
+    """
+    echt = nexcrate._route
+
+    def route(methode: str, rest: str, abfrage: dict[str, str], koerper: Any) -> httpx.Response:
+        antwort = echt(methode, rest, abfrage, koerper)
+        if methode == "POST" and rest == "/requests" and antwort.status_code == 200:
+            # nexcrate legt die Fassung mit Nexviews Herkunft an, die Antwort geht verloren.
+            nexcrate.film(
+                603, name="Erfundener Film",
+                versionen=[nexcrate.fassung(FILM_HD, "wanted", origin=koerper["origin"])],
+            )
+            raise httpx.ReadTimeout("Antwort verloren")
+        return antwort
+
+    monkeypatch.setattr(nexcrate, "_route", route)
+    nexcrate.film(603, name="Erfundener Film", versionen=[])
+    anfrage = _anfrage(db, _nutzer(db), title="Erfundener Film")
+
+    with pytest.raises(requests_service.RequestError):
+        await requests_service.push_to_arr(db, nex, anfrage)
+    db.refresh(anfrage)
+    assert (anfrage.status, anfrage.arr_id) == (RequestStatus.approved, None)
+
+    await status_poller.check_once(db, load_settings(db, frisch=True))
+    db.commit()
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.searching
+    # Dieselbe Kennung, die ``push_to_arr`` im NEX-Betrieb setzt.
+    assert anfrage.arr_id == 603
+
+    vorher = len(nexcrate.calls)
+    await requests_service.cancel(db, nex, anfrage)
+
+    zurueck = [
+        pfad for methode, pfad, _, _ in nexcrate.calls[vorher:]
+        if methode == "POST" and pfad.endswith("/withdraw")
+    ]
+    assert zurueck == ["/api/v1/titles/movie/tmdb:603/withdraw"], nexcrate.calls[vorher:]
+    assert anfrage.status == RequestStatus.cancelled

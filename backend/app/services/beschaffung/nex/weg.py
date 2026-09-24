@@ -570,10 +570,17 @@ class NexBeschaffung(Beschaffung):
         gefunden: dict[int, Any] = {}
         if rest:
             nach_tmdb = {mapping.ref(nummer): nummer for nummer in rest}
-            antwort = await self.client.ratings(
-                [{"kind": "movie", "ref": ref} for ref in nach_tmdb]
-            )
-            gefunden.update(lesen.wertungen(antwort, nach_tmdb))
+            try:
+                antwort = await self.client.ratings(
+                    [{"kind": "movie", "ref": ref} for ref in nach_tmdb]
+                )
+            except BeschaffungError as fehler_:
+                # Wie ``portal_ratings`` im ARR-Betrieb: Ein gescheiterter
+                # Stapel ist leer, kein 500. Bis zum 24.09.2026 flog er bis in
+                # den Router und nahm die Einzelwerte der Titelseite mit.
+                logger.debug("Ratings batch not read: %s", fehler_.code)
+            else:
+                gefunden.update(lesen.wertungen(antwort, nach_tmdb))
 
         async def eine(nummer: int) -> tuple[int, Any]:
             try:

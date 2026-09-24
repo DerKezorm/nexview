@@ -205,12 +205,24 @@ async def check_once(
                 logger.exception("Queue for %s/%s could not be read", art, stufe)
                 warteschlangen[schluessel] = []
         return warteschlangen[schluessel]
+    nex_betrieb = settings.beschaffung == beschaffung_grenze.NEX
     for request in offen:
         stufe = request.tier
         wonach = gefragt[request.id]
         eintrag = nachschlag.stand(wonach)
 
-        request.last_checked_at = utcnow()
+        # ⚠️ **Eine nie uebergebene Freigabe stempelt der Rundgang im
+        # NEX-Betrieb nicht.** An ihr ist ``last_checked_at`` der letzte
+        # Versuch der Uebergabe (``push_to_arr``), und danach sortiert das
+        # Nachreichen die gescheiterten. Bis zum 24.09.2026 stempelte der
+        # Rundgang jede freigegebene Anfrage, in der Reihenfolge der Zeilen:
+        # Eine Freigabe aus der Arr-Zeit mit altem Fehlertext stand so jede
+        # Runde hinten und kam hinter dauerhaft scheiternden nie dran.
+        nie_uebergeben = (
+            nex_betrieb and request.status == RequestStatus.approved and request.arr_id is None
+        )
+        if not nie_uebergeben:
+            request.last_checked_at = utcnow()
         if eintrag is None:
             # ⚠️ **Der Titel ist aus Radarr/Sonarr verschwunden.**
             #
@@ -231,7 +243,7 @@ async def check_once(
             if abgleich_kern.ist_wirklich_weg(
                 request,
                 geantwortet,
-                nie_uebergebene_bleiben=settings.beschaffung == beschaffung_grenze.NEX,
+                nie_uebergebene_bleiben=nex_betrieb,
             ):
                 request.status = RequestStatus.cancelled
                 request.completed_at = utcnow()
@@ -311,6 +323,15 @@ async def check_once(
         elif request.status == RequestStatus.approved:
             # In Radarr/Sonarr angelegt, Datei fehlt noch.
             request.status = RequestStatus.searching
+            if nie_uebergeben:
+                # ⚠️ Die Uebergabe kam an, nur ihre Antwort nicht. Ohne
+                # Kennung schickte ``cancel`` nexcrate nichts: Der Titel lief
+                # dort weiter, Nexview zeigte "abgebrochen". Es ist dieselbe
+                # Kennung, die ``push_to_arr`` im NEX-Betrieb setzt, die
+                # TMDB-Nummer; ob die Fassung Nexview gehoert, prueft
+                # ``zuruecknehmen`` erst beim Abbrechen.
+                request.arr_id = request.tmdb_id
+                request.last_checked_at = utcnow()
 
         # "Laedt gerade": die Momentaufnahme aus der Warteschlange - gesetzt,
         # solange etwas vom Angefragten dort liegt, sonst wieder geloescht.

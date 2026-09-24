@@ -170,9 +170,11 @@ async def einmal(db: Session, settings: AppSettings) -> Ergebnis:
     ⚠️ **Wer gescheitert ist, stellt sich hinten an.** Vorher kamen immer die
     ältesten zuerst; scheiterten ``JE_DURCHGANG`` davon dauerhaft, kam eine
     jüngere gültige nie dran. Gescheitert heisst hier: mit Fehler
-    freigegeben. ``last_checked_at`` allein reicht dafür nicht, denn
-    ``status_poller.check_once`` stempelt es jede Runde an jeder
-    freigegebenen Anfrage neu.
+    freigegeben. Danach entscheidet ``last_checked_at``, der letzte Versuch
+    der Übergabe: ``status_poller.check_once`` stempelt eine nie übergebene
+    Freigabe im NEX-Betrieb nicht. Bis zum 24.09.2026 tat er es jede Runde,
+    in der Reihenfolge der Zeilen, und eine Freigabe aus der Arr-Zeit mit
+    altem Fehlertext kam hinter dauerhaft scheiternden nie dran.
     """
     bekannt = _bekannt(settings)
     if not bekannt:

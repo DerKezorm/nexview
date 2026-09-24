@@ -152,3 +152,32 @@ def test_faellt_die_einzelansicht_fuer_einen_titel_aus_bleiben_die_anderen(
     assert daten["603"]["rotten_tomatoes"] == 60
     assert daten["605"]["metacritic"] == 55
     assert "604" not in daten
+
+
+@pytest.mark.parametrize("detail", [True, False], ids=["titelseite", "liste"])
+def test_faellt_der_stapel_aus_steht_die_seite_trotzdem(
+    nex_admin: TestClient, nexcrate: FakeNexcrate, detail: bool
+) -> None:
+    """⚠️ Ein 500 aus ``POST /ratings`` wurde bis zum 24.09.2026 selbst ein 500.
+
+    Im ARR-Betrieb faengt ``portal_ratings`` einen Ausfall ab, im NEX-Betrieb
+    flog er bis in den Router. Wertungen sind Beiwerk; die Einzelwerte der
+    Titelseite bleiben, der Stapel faellt leer aus.
+    """
+    ids = list(range(801, 809))
+    for nummer in ids:
+        nexcrate.wertung(nummer, imdb=6.0, stimmen=10, tomaten=40)
+    nexcrate.next_answer["POST /api/v1/ratings"] = httpx.Response(500, text="boom")
+
+    params = {"ids": ",".join(map(str, ids))}
+    if detail:
+        params["detail"] = "true"
+    antwort = nex_admin.get("/api/ratings/movie", params=params)
+
+    assert antwort.status_code == 200, antwort.text
+    daten = antwort.json()
+    if detail:
+        assert sorted(daten) == [str(nummer) for nummer in ids[:5]]
+        assert daten["801"]["rotten_tomatoes"] == 40
+    else:
+        assert daten == {}

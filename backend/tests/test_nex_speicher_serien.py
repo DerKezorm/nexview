@@ -297,7 +297,7 @@ async def test_nach_dem_verwerfen_wird_wieder_ganz_gelesen(
     assert len(_einzelansichten(nexcrate)) == 2
 
 
-# --- Folgen-Pakete werden im NEX-Betrieb nicht aufgeteilt ------------------------
+# --- Folgen-Pakete: gezählt über nexcrates Dateien je Folge ----------------------
 
 
 def _paket(db: Session, person: User, *, tvdb_id: int | None = None) -> MediaRequest:
@@ -318,14 +318,32 @@ def _paket(db: Session, person: User, *, tvdb_id: int | None = None) -> MediaReq
     return anfrage
 
 
-async def test_ein_paket_wird_im_nex_betrieb_uebersprungen_und_genannt(
-    nex: Any, nexcrate: FakeNexcrate, db: Session, caplog: pytest.LogCaptureFixture
-) -> None:
-    person = _nutzer(db)
-    _paket(db, person)
-    _paket(db, person, tvdb_id=121361)
+def _folge(
+    nexcrate: FakeNexcrate,
+    nummer: int,
+    dateien: list[tuple[str, int]] | None,
+    *,
+    groesse: int | None = None,
+    state: str = "available",
+) -> dict[str, Any]:
+    """Eine Folge der Staffelansicht; ``dateien=None`` ist eine nexcrate ohne ``files``."""
+    fassung: dict[str, Any] = {
+        "version_id": SERIE_HD,
+        "state": state,
+        "monitored": True,
+        "size_bytes": groesse,
+    }
+    if dateien is not None:
+        fassung["files"] = [
+            {"file_id": kennung, "size_bytes": bytes_} for kennung, bytes_ in dateien
+        ]
+    return nexcrate.folge(nummer, versionen=[fassung])
+
+
+def _staffelzeile(groesse: int) -> tuple[str, dict[str, storage._Gemessen]]:
     basis = storage.schluessel(MediaType.tv, SERIE_HD, tmdb_id=1399, season=3)
-    gemessen = {
+    assert basis is not None
+    return basis, {
         basis: storage._Gemessen(
             key=basis,
             media_type=MediaType.tv,
@@ -334,30 +352,198 @@ async def test_ein_paket_wird_im_nex_betrieb_uebersprungen_und_genannt(
             tvdb_id=None,
             season=3,
             title="Example Show",
-            size_bytes=3 * GB,
+            size_bytes=groesse,
             arr_id=1399,
         )
     }
 
+
+def _paketschluessel(anfrage: MediaRequest) -> str:
+    kennung = storage.schluessel(
+        MediaType.tv, SERIE_HD, tmdb_id=1399, season=3, request_id=anfrage.id
+    )
+    assert kennung is not None
+    return kennung
+
+
+async def test_eine_datei_an_zwei_folgen_zaehlt_einmal(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Folge 1 und 2 liegen in einer Datei; nexcrate nennt sie an beiden mit voller Größe."""
+    _serie(nexcrate, 1399, [_staffel(3, 5 * GB)])
+    nexcrate.staffel(
+        "tmdb:1399",
+        3,
+        [
+            _folge(nexcrate, 1, [("1", 3 * GB)], groesse=3 * GB),
+            _folge(nexcrate, 2, [("1", 3 * GB)], groesse=3 * GB),
+            _folge(nexcrate, 3, [("2", 2 * GB)], groesse=2 * GB),
+        ],
+    )
+    anfrage = _paket(db, _nutzer(db))
+    basis, gemessen = _staffelzeile(5 * GB)
+
+    behalten = await storage._pakete_aufnehmen(db, nex, gemessen)
+
+    paket = _paketschluessel(anfrage)
+    assert gemessen[paket].size_bytes == 3 * GB
+    assert gemessen[paket].unvollstaendig is False
+    assert gemessen[basis].size_bytes == 2 * GB
+    assert paket not in behalten
+
+
+async def test_eine_doppelfolge_zaehlt_teil_eins_und_zwei(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """``size_bytes`` der Folge nennt nur Teil 1; ``files`` nennt beide Dateien."""
+    _serie(nexcrate, 1399, [_staffel(3, 5000)])
+    nexcrate.staffel(
+        "tmdb:1399",
+        3,
+        [
+            _folge(nexcrate, 1, [("2", 900), ("3", 800)], groesse=900),
+            _folge(nexcrate, 2, [("4", 1000)], groesse=1000),
+            _folge(nexcrate, 3, [("5", 2300)], groesse=2300),
+        ],
+    )
+    anfrage = _paket(db, _nutzer(db))
+    basis, gemessen = _staffelzeile(5000)
+
+    await storage._pakete_aufnehmen(db, nex, gemessen)
+
+    assert gemessen[_paketschluessel(anfrage)].size_bytes == 2700
+    assert gemessen[basis].size_bytes == 2300
+
+
+async def test_eine_fassung_ohne_groesse_zaehlt_ihre_dateien(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """``wanted`` mit ``size_bytes: null`` und trotzdem einer Datei auf der Platte (gemessen)."""
+    _serie(nexcrate, 1399, [_staffel(3, 5000)])
+    nexcrate.staffel(
+        "tmdb:1399",
+        3,
+        [
+            _folge(nexcrate, 1, [("1", 1000)], groesse=1000),
+            _folge(nexcrate, 2, [("9", 2500)], groesse=None, state="wanted"),
+        ],
+    )
+    anfrage = _paket(db, _nutzer(db))
+    basis, gemessen = _staffelzeile(5000)
+
+    await storage._pakete_aufnehmen(db, nex, gemessen)
+
+    paket = gemessen[_paketschluessel(anfrage)]
+    assert paket.size_bytes == 3500
+    # Folge 2 steht auf "wanted": das Paket wächst noch.
+    assert paket.unvollstaendig is True
+    assert gemessen[basis].size_bytes == 1500
+
+
+async def test_ein_paket_in_der_zweitfassung_zaehlt_deren_dateien(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Dieselben Folgen liegen in HD und 4K; das 4K-Paket zählt die 4K-Dateien."""
+    _serie(nexcrate, 1399, [_staffel(3, 9 * GB, SERIE_UHD)])
+
+    def beide(nummer: int) -> dict[str, Any]:
+        return nexcrate.folge(
+            nummer,
+            versionen=[
+                {
+                    "version_id": kennung,
+                    "state": "available",
+                    "monitored": True,
+                    "size_bytes": groesse,
+                    "files": [{"file_id": f"{kennung}-{nummer}", "size_bytes": groesse}],
+                }
+                for kennung, groesse in ((SERIE_HD, 1 * GB), (SERIE_UHD, 4 * GB))
+            ],
+        )
+
+    nexcrate.staffel("tmdb:1399", 3, [beide(1), beide(2)])
+    anfrage = _paket(db, _nutzer(db))
+    anfrage.fassung_kennung = SERIE_UHD
+    db.commit()
+    basis = storage.schluessel(MediaType.tv, SERIE_UHD, tmdb_id=1399, season=3)
+    assert basis is not None
+    gemessen = {
+        basis: storage._Gemessen(
+            key=basis,
+            media_type=MediaType.tv,
+            tier="uhd",
+            tmdb_id=1399,
+            tvdb_id=None,
+            season=3,
+            title="Example Show",
+            size_bytes=9 * GB,
+            arr_id=1399,
+        )
+    }
+
+    await storage._pakete_aufnehmen(db, nex, gemessen)
+
+    paket = storage.schluessel(
+        MediaType.tv, SERIE_UHD, tmdb_id=1399, season=3, request_id=anfrage.id
+    )
+    assert gemessen[paket].size_bytes == 8 * GB
+    assert gemessen[basis].size_bytes == 1 * GB
+
+
+async def test_ohne_files_zaehlen_die_folgengroessen_gedeckelt(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Eine nexcrate vor 5427612 nennt keine Dateien: Folgen summieren, nie über die Staffel."""
+    _serie(nexcrate, 1399, [_staffel(3, 4 * GB)])
+    nexcrate.staffel(
+        "tmdb:1399",
+        3,
+        [
+            _folge(nexcrate, 1, None, groesse=3 * GB),
+            _folge(nexcrate, 2, None, groesse=3 * GB),
+        ],
+    )
+    anfrage = _paket(db, _nutzer(db))
+    basis, gemessen = _staffelzeile(4 * GB)
+
     with caplog.at_level("INFO", logger="nexview"):
         await storage._pakete_aufnehmen(db, nex, gemessen)
 
-    assert set(gemessen) == {basis}
-    assert gemessen[basis].size_bytes == 3 * GB
-    meldungen = [m for m in caplog.messages if "packages are not split in this mode" in m]
+    assert gemessen[_paketschluessel(anfrage)].size_bytes == 4 * GB
+    assert basis not in gemessen
+    meldungen = [m for m in caplog.messages if "names no episode files" in m]
     assert len(meldungen) == 1, caplog.messages
-    assert not any("/seasons/" in pfad for _, pfad, _, _ in nexcrate.calls)
 
 
-async def test_eine_gewanderte_paketzeile_bleibt_unberuehrt(
+async def test_ohne_files_zaehlt_eine_kleine_summe_voll(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:
-    """Nicht gemessen heißt nicht weg: Die Zeile samt Besitzer bleibt, wie sie ist."""
+    """Der Deckel greift nur, wo die Summe über die Staffel ginge."""
+    _serie(nexcrate, 1399, [_staffel(3, 9 * GB)])
+    nexcrate.staffel(
+        "tmdb:1399",
+        3,
+        [
+            _folge(nexcrate, 1, None, groesse=3 * GB),
+            _folge(nexcrate, 2, None, groesse=2 * GB),
+        ],
+    )
+    anfrage = _paket(db, _nutzer(db))
+    basis, gemessen = _staffelzeile(9 * GB)
+
+    await storage._pakete_aufnehmen(db, nex, gemessen)
+
+    assert gemessen[_paketschluessel(anfrage)].size_bytes == 5 * GB
+    assert gemessen[basis].size_bytes == 4 * GB
+
+
+async def test_eine_gewanderte_paketzeile_wird_neu_gemessen(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Die Zeile aus dem Umstieg trägt schon den NEX-Schlüssel; der Abgleich misst sie neu."""
     person = _nutzer(db)
     anfrage = _paket(db, person)
-    paket = storage.schluessel(
-        MediaType.tv, SERIE_HD, tmdb_id=1399, season=3, request_id=anfrage.id
-    )
+    paket = _paketschluessel(anfrage)
     db.add(
         StorageEntry(
             key=paket,
@@ -370,10 +556,62 @@ async def test_eine_gewanderte_paketzeile_bleibt_unberuehrt(
             size_bytes=1 * GB,
             path="",
             state=StorageState.owned,
+            request_id=anfrage.id,
+        )
+    )
+    db.commit()
+    _serie(nexcrate, 1399, [_staffel(3, 5 * GB)])
+    nexcrate.staffel(
+        "tmdb:1399",
+        3,
+        [
+            _folge(nexcrate, 1, [("1", 3 * GB)], groesse=3 * GB),
+            _folge(nexcrate, 2, [("1", 3 * GB)], groesse=3 * GB),
+            _folge(nexcrate, 3, [("2", 2 * GB)], groesse=2 * GB),
+        ],
+    )
+
+    await storage.abgleichen(db, nex)
+
+    zeile = db.query(StorageEntry).filter_by(key=paket).one_or_none()
+    assert zeile is not None, "die Paketzeile wurde gelöscht"
+    assert (zeile.size_bytes, zeile.user_id) == (3 * GB, person.id)
+    staffel = db.query(StorageEntry).filter_by(key=f"tv:{SERIE_HD}:tmdb:1399:s3").one()
+    assert staffel.size_bytes == 2 * GB
+
+
+async def test_eine_gescheiterte_staffelansicht_laesst_die_paketzeile_stehen(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nicht gelesen heißt nicht weg: Zeile und Staffel bleiben, wie sie waren."""
+    person = _nutzer(db)
+    anfrage = _paket(db, person)
+    paket = _paketschluessel(anfrage)
+    db.add(
+        StorageEntry(
+            key=paket,
+            user_id=person.id,
+            media_type=MediaType.tv,
+            fassung_kennung=SERIE_HD,
+            tmdb_id=1399,
+            season=3,
+            title="Example Show",
+            size_bytes=1 * GB,
+            path="",
+            state=StorageState.owned,
+            request_id=anfrage.id,
         )
     )
     db.commit()
     _serie(nexcrate, 1399, [_staffel(3, 3 * GB)])
+    echt = nexcrate._titel_weg
+
+    def stumm(methode: str, teile: list[str], koerper: Any) -> Any:
+        if len(teile) == 5 and teile[3] == "seasons":
+            return _fehler(500, "internal_error", "Something broke.")
+        return echt(methode, teile, koerper)
+
+    monkeypatch.setattr(nexcrate, "_titel_weg", stumm)
 
     await storage.abgleichen(db, nex)
 

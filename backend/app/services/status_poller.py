@@ -66,20 +66,31 @@ async def _paket_groesse(settings, request: MediaRequest, eintrag, folgen: dict)
     if not arr_id or not beschaffung.verwaltet("tv", request.tier):
         return None
     staffel = folgen.get(request.season) or {}
-    eigene = {
-        folge.datei_id
+    eigene = [
+        folge
         for nummer in (request.episodes or [])
-        if (folge := staffel.get(nummer)) is not None and folge.datei_id
-    }
-    if not eigene:
-        return 0
+        if (folge := staffel.get(nummer)) is not None
+    ]
+    if eigene and all(folge.dateien is not None for folge in eigene):
+        # Der Weg nennt die Dateien an den Folgen (nexcrate): kein Aufruf mehr.
+        return sum(storage.paketdateien(eigene, {}).values())
+    if not any(folge.datei_id for folge in eigene):
+        # Eine nexcrate ohne ``files``: die Folgengroessen, gedeckelt auf die
+        # Staffel, wo sie bekannt ist - wie im stuendlichen Abgleich, der die
+        # Deckelung spaetestens dann nachholt. Im ARR-Betrieb ist das null.
+        summe = sum(folge.groesse or 0 for folge in eigene)
+        staffelgroesse = (getattr(eintrag, "seasons", None) or {}).get(request.season)
+        return min(summe, staffelgroesse) if staffelgroesse else summe
     try:
         dateien = await beschaffung.episodendateien(request.tier, arr_id, request.season)
     except BeschaffungError:
         return None
-    return sum(
-        int(datei.get("size") or 0) for datei in dateien if datei.get("id") in eigene
-    )
+    groessen = {
+        datei.get("id"): int(datei.get("size") or 0)
+        for datei in dateien or []
+        if isinstance(datei, dict)
+    }
+    return sum(storage.paketdateien(eigene, groessen).values())
 
 
 def _open_requests(db: Session) -> list[MediaRequest]:

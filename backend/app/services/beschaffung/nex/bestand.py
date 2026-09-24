@@ -124,21 +124,41 @@ def folgen(staffel: dict[str, Any], kennung: str) -> dict[int, Folge]:
 
     ``kennung`` ist die Folgennummer selbst: nexcrate kennt keine eigene
     Folgen-Id, und die Adressen sprechen ohnehin in TMDB-Zählung (N15).
+
+    ``dateien`` kommt aus ``files`` (nexcrate 5427612): dieselbe Datei trägt
+    an jeder ihrer Folgen dieselbe ``file_id``, Teil 2 einer Doppelfolge steht
+    mit dabei. ⚠️ ``size_bytes`` der Folge zählt Teil 2 nicht mit, und eine
+    Fassung auf ``wanted`` kann trotzdem eine Datei haben (gemessen). Fehlt
+    das Feld, ist die nexcrate älter: ``None``, nicht ``()``.
     """
     gefunden: dict[int, Folge] = {}
     for eintrag in staffel.get("episodes") or []:
         nummer = eintrag.get("episode")
         if nummer is None:
             continue
-        je_fassung = _fassung(eintrag, kennung, schluessel="versions")
+        je_fassung = _fassung(eintrag, kennung, schluessel="versions") or {}
         gefunden[int(nummer)] = Folge(
             kennung=int(nummer),
             nummer=int(nummer),
-            monitored=bool((je_fassung or {}).get("monitored")),
-            has_file=mapping.hat_datei((je_fassung or {}).get("state")),
+            monitored=bool(je_fassung.get("monitored")),
+            has_file=mapping.hat_datei(je_fassung.get("state")),
             datei_id=None,
+            dateien=_dateien(je_fassung) if je_fassung else (),
+            groesse=int(je_fassung.get("size_bytes") or 0),
         )
     return gefunden
+
+
+def _dateien(je_fassung: dict[str, Any]) -> tuple[tuple[str, int], ...] | None:
+    """``files`` einer Folge als ``(file_id, Größe)``; ``None`` ohne das Feld."""
+    roh = je_fassung.get("files")
+    if not isinstance(roh, list):
+        return None
+    return tuple(
+        (str(datei["file_id"]), int(datei.get("size_bytes") or 0))
+        for datei in roh
+        if isinstance(datei, dict) and datei.get("file_id") is not None
+    )
 
 
 def _hat_dateien(titel: dict[str, Any]) -> bool:

@@ -266,6 +266,11 @@ class Folge:
     ``kennung`` ist die Episoden-Id der Quelle (fuers Einschalten und Suchen),
     ``datei_id`` die Id der Episodendatei (fuers gezielte Loeschen beim
     Abbruch) - ``None``, solange keine Datei liegt.
+
+    ``dateien`` nennt jede Datei der Folge mit Groesse, wo der Weg das in
+    derselben Antwort sagt (nexcrate: ``files``, Teil 2 einer Doppelfolge
+    eingeschlossen). ``None`` heisst "nicht genannt", ``()`` "keine Datei".
+    ``groesse`` ist die Groesse, die der Weg an der Folge selbst nennt.
     """
 
     kennung: int
@@ -273,6 +278,8 @@ class Folge:
     monitored: bool
     has_file: bool
     datei_id: int | None = None
+    dateien: tuple[tuple[str, int], ...] | None = None
+    groesse: int | None = None
 
 
 @dataclass(frozen=True)

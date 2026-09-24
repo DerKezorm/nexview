@@ -442,10 +442,13 @@ class NexBeschaffung(Beschaffung):
         return gefunden
 
     async def episodendateien(self, stufe: str, arr_id: int, season: int | None = None):
-        """Gibt es nicht: nexcrate nennt keine Dateikennungen (Bauplan 6.4).
+        """Gibt es hier nicht als eigenen Aufruf.
 
-        Geloescht wird ueber ``withdraw`` mit Umfang, nicht ueber einzelne
-        Dateien; wer hier eine Liste bekaeme, koennte sie zu nichts benutzen.
+        Die Dateien je Folge stehen schon in der Staffelansicht, die
+        ``folgen_stand`` ohnehin liest, und zwar in der Fassung der Anfrage
+        (``Folge.dateien``); ein zweiter Aufruf je Staffel waere doppelt und
+        kennte die Fassung nicht. Geloescht wird ueber ``withdraw`` mit
+        Umfang, nicht ueber einzelne Dateien.
         """
         return
 

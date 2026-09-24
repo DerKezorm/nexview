@@ -20,6 +20,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
@@ -42,7 +43,14 @@ from ..models import (
     utcnow,
 )
 from . import fassungen, logs, notify, quota
-from .beschaffung import KLASSE_UHD, NEX, BeschaffungError, NichtsZuLoeschen, get_beschaffung
+from .beschaffung import (
+    KLASSE_UHD,
+    NEX,
+    BeschaffungError,
+    Folge,
+    NichtsZuLoeschen,
+    get_beschaffung,
+)
 from .beschaffung import FilmStand as MovieEntry
 from .beschaffung import SerienStand as SeriesEntry
 from .fassungen import arr_kennung
@@ -893,12 +901,13 @@ async def _pakete_aufnehmen(
     Die Klammer bei null faengt Mess-Drift zwischen Staffelstatistik und
     Dateisummen ab - beide stammen aus verschiedenen Sonarr-Antworten.
 
-    ⚠️ **Im NEX-Betrieb wird nicht aufgeteilt.** nexcrate nennt keine
-    Dateikennungen, und eine Doppelfolge meldet ihre Groesse bei jeder ihrer
-    Folgen (gemessen). Wie ein Paket dort zaehlt, ist nicht entschieden; bis
-    dahin zaehlt die Staffel ganz, eine vorhandene Paket-Zeile bleibt
-    unberuehrt (ihr Schluessel kommt zurueck, siehe ``_bleibt``), und das
-    Protokoll sagt es einmal je Lauf.
+    ⚠️ **Im NEX-Betrieb zaehlen die Dateien, nicht die Folgen.** nexcrate
+    nennt je Folge und Fassung ``files`` mit ``file_id``; eine Datei an zwei
+    Folgen und Teil 2 einer Doppelfolge zaehlen so genau einmal. Eine aeltere
+    nexcrate ohne das Feld: Summe der Folgengroessen, gedeckelt auf die
+    Staffel, und das Protokoll sagt es einmal je Lauf. Antwortet die
+    Staffelansicht nicht, bleibt eine vorhandene Paket-Zeile unberuehrt (ihr
+    Schluessel kommt zurueck, siehe ``_bleibt``).
     """
     behalten: set[str] = set()
     anfragen = [
@@ -916,8 +925,8 @@ async def _pakete_aufnehmen(
     if not anfragen:
         return behalten
 
-    befunde: dict[tuple[str, int], tuple[dict, dict[int, int]] | None] = {}
-    nicht_aufgeteilt = 0
+    befunde: dict[tuple[str, int | None], tuple[dict, dict[Any, int]] | None] = {}
+    ohne_dateien = 0
     for anfrage in anfragen:
         stufe = anfrage.tier or "standard"
         # Die Fassung der Anfrage, sobald sie aus nexcrate stammt - dort heisst
@@ -939,48 +948,31 @@ async def _pakete_aufnehmen(
             # Die Serie meldet keine Quelle (mehr) - dann gibt es auch nichts
             # aufzuteilen; eine bestehende Paket-Zeile raeumt der Abgleich ab.
             continue
-        if fassungen.quelle(fassung) == NEX:
-            paket = schluessel(
-                MediaType.tv,
-                fassung,
-                tmdb_id=anfrage.tmdb_id,
-                season=anfrage.season,
-                request_id=anfrage.id,
-            )
-            if paket:
-                behalten.add(paket)
-            nicht_aufgeteilt += 1
+        nex = fassungen.quelle(fassung) == NEX
+        kennung = schluessel(
+            MediaType.tv,
+            fassung,
+            tvdb_id=anfrage.tvdb_id,
+            tmdb_id=anfrage.tmdb_id,
+            season=anfrage.season,
+            request_id=anfrage.id,
+        )
+        if kennung is None:
             continue
 
-        merkmal = (stufe, anfrage.tvdb_id)
+        # Im NEX-Betrieb haengt die Serie an TMDB und die Folgen an der Fassung
+        # der Anfrage; im ARR-Betrieb wie bisher an Stufe und TVDB.
+        merkmal = (fassung, anfrage.tmdb_id) if nex else (stufe, anfrage.tvdb_id)
         if merkmal not in befunde:
-            beschaffung = get_beschaffung(settings)
-            if not beschaffung.verwaltet("tv", stufe):
-                befunde[merkmal] = None
-            else:
-                try:
-                    stand = await beschaffung.folgen_stand(stufe, staffelzeile.arr_id)
-                    dateien = (
-                        await beschaffung.episodendateien(stufe, staffelzeile.arr_id)
-                        or []
-                    )
-                    groessen = {
-                        int(datei["id"]): int(datei.get("size") or 0)
-                        for datei in dateien
-                        if isinstance(datei, dict) and datei.get("id")
-                    }
-                    befunde[merkmal] = (stand, groessen)
-                except BeschaffungError as fehler:
-                    logger.warning(
-                        "Sonarr (%s) gave no episode files for series %s - "
-                        "package sizes left unchanged: %s",
-                        stufe,
-                        staffelzeile.arr_id,
-                        logs.kennung(fehler),
-                    )
-                    befunde[merkmal] = None
+            befunde[merkmal] = await _folgen_und_dateien(
+                settings, stufe, fassung, staffelzeile.arr_id, nex=nex
+            )
         befund = befunde[merkmal]
         if befund is None:
+            if nex:
+                # Nicht gelesen heisst nicht weg: Die Paketzeile bleibt, wie
+                # sie ist, bis die Staffelansicht wieder antwortet.
+                behalten.add(kennung)
             continue
         stand, groessen = befund
         staffel = stand.get(anfrage.season) or {}
@@ -990,18 +982,15 @@ async def _pakete_aufnehmen(
             for nummer in anfrage.episodes
             if (folge := staffel.get(nummer)) is not None
         ]
-        bytes_ = sum(
-            groessen.get(folge.datei_id, 0) for folge in eigene if folge.datei_id
-        )
-        kennung = schluessel(
-            MediaType.tv,
-            fassung,
-            tvdb_id=anfrage.tvdb_id,
-            season=anfrage.season,
-            request_id=anfrage.id,
-        )
-        if kennung is None:
-            continue
+        if nex and any(folge.dateien is None for folge in eigene):
+            # Eine nexcrate ohne ``files``: Folgengroessen summieren. Eine Datei
+            # an zwei Folgen staende dabei zweimal drin, deshalb gedeckelt.
+            bytes_ = min(
+                sum(folge.groesse or 0 for folge in eigene), staffelzeile.size_bytes
+            )
+            ohne_dateien += 1
+        else:
+            bytes_ = sum(paketdateien(eigene, groessen).values())
         gemessen[kennung] = _Gemessen(
             key=kennung,
             media_type=MediaType.tv,
@@ -1025,13 +1014,66 @@ async def _pakete_aufnehmen(
         if staffelzeile.size_bytes == 0 and basis:
             del gemessen[basis]
 
-    if nicht_aufgeteilt:
+    if ohne_dateien:
         logger.info(
-            "%d episode packages are not split in this mode: nexcrate names no episode "
-            "files, so their seasons count whole and package entries stay as they are",
-            nicht_aufgeteilt,
+            "%d episode packages counted from episode sizes: this nexcrate names no episode "
+            "files, so each package is capped at its season",
+            ohne_dateien,
         )
     return behalten
+
+
+async def _folgen_und_dateien(
+    settings: AppSettings, stufe: str, fassung: str, arr_id: int, *, nex: bool
+) -> tuple[dict[int, dict[int, Folge]], dict[Any, int]] | None:
+    """Folgen einer Serie samt Dateigroessen - ``None`` heisst "nicht gelesen".
+
+    Im NEX-Betrieb stehen die Dateien schon an den Folgen (``Folge.dateien``),
+    gelesen in der Fassung der Anfrage; die Groessen-Abbildung bleibt leer.
+    Im ARR-Betrieb kommen sie aus Sonarrs Dateiliste, nach ``datei_id``.
+    """
+    beschaffung = get_beschaffung(settings)
+    if not beschaffung.verwaltet("tv", stufe):
+        return None
+    try:
+        if nex:
+            stand = await beschaffung.folgen_stand(stufe, arr_id, fassung=fassung)
+            return (stand, {}) if stand is not None else None
+        stand = await beschaffung.folgen_stand(stufe, arr_id)
+        if stand is None:
+            return None
+        dateien = await beschaffung.episodendateien(stufe, arr_id) or []
+    except BeschaffungError as fehler:
+        logger.warning(
+            "No episode files for series %s (%s) - package sizes left unchanged: %s",
+            arr_id,
+            fassung,
+            logs.kennung(fehler),
+        )
+        return None
+    return stand, {
+        datei["id"]: int(datei.get("size") or 0)
+        for datei in dateien
+        if isinstance(datei, dict) and datei.get("id")
+    }
+
+
+def paketdateien(eigene: list[Folge], groessen: dict[Any, int]) -> dict[Any, int]:
+    """Die Dateien der Folgen eines Pakets, **jede einmal**, mit Groesse.
+
+    Eine Datei kann an zwei Folgen haengen (``S01E01E02``), und eine
+    Doppelfolge kann aus zwei Dateien bestehen. Gezaehlt wird deshalb ueber
+    die Datei, nicht ueber die Folge. ``Folge.dateien`` geht vor, wo der Weg
+    sie nennt; sonst die ``datei_id`` mit ihrer Groesse aus ``groessen``.
+    """
+    gefunden: dict[Any, int] = {}
+    for folge in eigene:
+        if folge.dateien is not None:
+            for datei_id, groesse in folge.dateien:
+                gefunden[datei_id] = groesse
+        elif folge.datei_id:
+            gefunden[folge.datei_id] = groessen.get(folge.datei_id, 0)
+    return gefunden
 
 
 async def _staffeldaten_nachtragen(
@@ -1718,11 +1760,12 @@ def verbuchen(
 
     if request.media_type == MediaType.movie:
         _film_aufnehmen(gemessen, fassung, request.tmdb_id, eintrag)  # type: ignore[arg-type]
-    elif request.episodes and request.tvdb_id:
+    elif request.episodes and (request.tvdb_id or fassungen.quelle(fassung) == NEX):
         # Ein Folgen-Paket bekommt seine eigene Zeile - mit der Summe der
         # eigenen Episodendateien, die der Aufrufer gerade gemessen hat. Ohne
         # Messung startet die Zeile bei null; der stuendliche Abgleich traegt
-        # die Groesse nach.
+        # die Groesse nach. Im NEX-Betrieb haengt es an TMDB: Ohne TVDB-Nummer
+        # fiel ein Paket sonst unten durch und bekam die ganze Staffel.
         kennung = schluessel(
             MediaType.tv,
             fassung,

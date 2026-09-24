@@ -691,3 +691,82 @@ async def test_eine_gescheiterte_einzelansicht_wird_je_runde_einmal_gefragt(
         vorher = len(_einzelansichten(nexcrate))
         await status_poller.check_once(db, nex)
         assert len(_einzelansichten(nexcrate)) - vorher == 1, runde
+
+
+async def test_ein_fertiges_paket_wird_mit_seinen_dateien_verbucht(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Das Paket bekommt seine eigene Zeile mit seinen Dateien, nicht die ganze Staffel.
+
+    Ohne TVDB-Nummer fiel ein NEX-Paket in ``verbuchen`` in den Serienzweig und
+    bekam die ganze Staffel; mit ihr bekam es null, weil nexcrate keine
+    Dateikennungen nannte. Folge 1 und 2 teilen sich hier eine Datei.
+    """
+    _serie(nexcrate, 1399, [_staffel(1, 5 * GB)])
+    datei = [{"file_id": "7", "size_bytes": 3 * GB}]
+    nexcrate.staffel(
+        "tmdb:1399",
+        1,
+        [
+            nexcrate.folge(
+                nummer,
+                versionen=[
+                    {
+                        "version_id": SERIE_HD,
+                        "state": "available",
+                        "monitored": True,
+                        "size_bytes": 3 * GB if nummer < 3 else 2 * GB,
+                        "files": datei if nummer < 3 else [{"file_id": "8", "size_bytes": 2 * GB}],
+                    }
+                ],
+            )
+            for nummer in (1, 2, 3)
+        ],
+    )
+    person = _nutzer(db)
+    paket = _paket(db, person, fassung=SERIE_HD, status=RequestStatus.searching)
+
+    await status_poller.check_once(db, nex)
+
+    db.refresh(paket)
+    assert paket.status == RequestStatus.downloaded
+    zeilen = {z.key: z for z in db.query(StorageEntry).filter_by(user_id=person.id).all()}
+    schluessel = storage.schluessel(
+        MediaType.tv, SERIE_HD, tmdb_id=1399, season=1, request_id=paket.id
+    )
+    assert set(zeilen) == {schluessel}
+    assert zeilen[schluessel].size_bytes == 3 * GB
+
+
+async def test_ohne_files_wird_ein_fertiges_paket_mit_den_folgengroessen_verbucht(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Eine nexcrate ohne ``files``: nicht null, sondern die Folgengrößen (Prüferbefund)."""
+    _serie(nexcrate, 1399, [_staffel(1, 6 * GB)])
+    nexcrate.staffel(
+        "tmdb:1399",
+        1,
+        [
+            nexcrate.folge(
+                nummer,
+                versionen=[
+                    {
+                        "version_id": SERIE_HD,
+                        "state": "available",
+                        "monitored": True,
+                        "size_bytes": 2 * GB,
+                    }
+                ],
+            )
+            for nummer in (1, 2, 3)
+        ],
+    )
+    person = _nutzer(db)
+    paket = _paket(db, person, fassung=SERIE_HD, status=RequestStatus.searching)
+
+    await status_poller.check_once(db, nex)
+
+    db.refresh(paket)
+    assert paket.status == RequestStatus.downloaded
+    zeile = db.query(StorageEntry).filter_by(user_id=person.id).one()
+    assert zeile.size_bytes == 4 * GB

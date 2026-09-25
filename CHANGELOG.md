@@ -211,6 +211,14 @@ the process. The backup is the way back.
   made before switching was named "...-to-n.db".
 - **The log finding counted 26 hours in summer time.** "Error lines in the last
   24 hours" drew its line in UTC while the log is written in local time.
+- **Findings from the second run in nexcrate mode.** The nexcrate settings
+  page still showed "the automatic is off" for music; a film with its digital
+  and physical release on the same day stood twice in the calendar; "why it is
+  not there yet" appeared on a title page only after a reload once you had
+  requested it; and the German interface called a program version "Fassung",
+  Nexview's word for a version of a title. All four are fixed. Requests taking
+  three seconds or more are now logged as a warning, so a slow page can be
+  traced afterwards.
 
 ## 0.35.2 – 18.09.2026
 

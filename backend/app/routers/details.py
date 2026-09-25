@@ -117,10 +117,10 @@ async def _staffeldaten(
     stufe = fassungen.stufe(kennung)
     beschaffung = get_beschaffung(settings)
     vorhanden = await beschaffung.folgen_verfuegbarkeit(
-        detail.tvdb_id, detail.title, stufe=stufe, jahr=jahr
+        detail.tvdb_id, detail.title, stufe=stufe, jahr=jahr, tmdb_id=detail.tmdb_id, fassung=kennung
     )
     eintrag = await beschaffung.serien_eintrag(
-        detail.tvdb_id, detail.title, jahr=jahr, stufe=stufe
+        detail.tvdb_id, detail.title, jahr=jahr, stufe=stufe, tmdb_id=detail.tmdb_id, fassung=kennung
     )
     return _Staffeldaten(
         vorhanden=vorhanden,
@@ -135,7 +135,13 @@ async def _folgendaten(
     db: DbSession, settings, serie: MediaDetail, tmdb_id: int, season_number: int, kennung: str
 ) -> _Folgendaten:
     vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
-        serie.tvdb_id, serie.title, stufe=fassungen.stufe(kennung), jahr=jahr_aus(serie.release_date)
+        serie.tvdb_id,
+        serie.title,
+        stufe=fassungen.stufe(kennung),
+        jahr=jahr_aus(serie.release_date),
+        tmdb_id=tmdb_id,
+        fassung=kennung,
+        staffel=season_number,
     )
     voll = requests_service.staffel_belegung(db, tmdb_id, kennung)
     return _Folgendaten(
@@ -419,7 +425,12 @@ async def season(
         return staffel
 
     vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
-        serie.tvdb_id, serie.title, jahr=jahr_aus(serie.release_date)
+        serie.tvdb_id,
+        serie.title,
+        jahr=jahr_aus(serie.release_date),
+        tmdb_id=tmdb_id,
+        fassung=haupt_kennung,
+        staffel=season_number,
     )
     in_dieser_staffel = vorhanden.get(season_number, set())
 

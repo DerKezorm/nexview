@@ -203,3 +203,37 @@ async def test_serie_bleibt_vorgemerkt(
             .count()
             == 1
         )
+
+
+@pytest.mark.anyio
+async def test_die_folgenfrage_nennt_die_tmdb_nummer(
+    admin_client: TestClient, nutzer: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Rundgang 2, R2-7: Der NEX-Weg ankert auf TMDB und antwortete ohne diese
+    Nummer immer leer; „Sag mir Bescheid“ haette im NEX-Betrieb nie eine
+    vorhandene Folge gesehen."""
+    from app.services import media
+    from app.services.settings_service import load_settings
+
+    admin_client.put("/api/watch/tv/200", json={"title": "Andor"}, headers=nutzer)
+    gefragt: list[dict] = []
+
+    class _Detail:
+        tvdb_id = 1
+        title = "Andor"
+        release_date = "2022-09-21"
+
+    class _Weg:
+        async def folgen_verfuegbarkeit(self, *_args, **kwargs):
+            gefragt.append(kwargs)
+            return {}
+
+    async def falsches_detail(*_args, **_kwargs):
+        return _Detail()
+
+    monkeypatch.setattr(media, "full_detail", falsches_detail)
+    monkeypatch.setattr(watch, "get_beschaffung", lambda _settings: _Weg())
+    with SessionLocal() as db:
+        await watch.pruefen(db, load_settings(db))
+
+    assert gefragt and gefragt[0].get("tmdb_id") == 200

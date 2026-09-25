@@ -249,11 +249,24 @@ class ArrBeschaffung(Beschaffung):
         title: str,
         stufe: str = "standard",
         jahr: int | None = None,
+        *,
+        tmdb_id: int | None = None,
+        fassung: str = "",
+        staffel: int | None = None,
     ) -> dict[int, set[int]]:
+        # Sonarr ankert auf TVDB und kennt die Stufe; die TMDB-Angaben sind
+        # fuer den NEX-Weg.
         return await library.episode_availability(self.settings, tvdb_id, title, stufe, jahr=jahr)
 
     async def serien_eintrag(
-        self, tvdb_id: int | None, titel: str, jahr: int | None = None, stufe: str = "standard"
+        self,
+        tvdb_id: int | None,
+        titel: str,
+        jahr: int | None = None,
+        stufe: str = "standard",
+        *,
+        tmdb_id: int | None = None,
+        fassung: str = "",
     ):
         return await library.serien_eintrag(self.settings, tvdb_id, titel, jahr, stufe)
 

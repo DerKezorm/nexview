@@ -703,13 +703,35 @@ class Beschaffung(ABC):
 
     @abstractmethod
     async def folgen_verfuegbarkeit(
-        self, tvdb_id: int | None, title: str, stufe: str = "standard", jahr: int | None = None
+        self,
+        tvdb_id: int | None,
+        title: str,
+        stufe: str = "standard",
+        jahr: int | None = None,
+        *,
+        tmdb_id: int | None = None,
+        fassung: str = "",
+        staffel: int | None = None,
     ) -> dict[int, set[int]]:
-        """Welche Folgen je Staffel schon vorliegen."""
+        """Welche Folgen je Staffel schon vorliegen.
+
+        ``tmdb_id`` und ``fassung`` braucht der NEX-Weg: nexcrate ankert auf
+        TMDB und fuehrt Dateien je Fassung. Ohne sie antwortete er immer leer,
+        und im NEX-Betrieb stand an jeder Folge „fehlt noch“ (Rundgang 2,
+        R2-7). ``staffel`` begrenzt die Frage auf eine Staffel. Der ARR-Weg
+        fragt Sonarr mit der TVDB-Nummer und liest die drei nicht.
+        """
 
     @abstractmethod
     async def serien_eintrag(
-        self, tvdb_id: int | None, titel: str, jahr: int | None = None, stufe: str = "standard"
+        self,
+        tvdb_id: int | None,
+        titel: str,
+        jahr: int | None = None,
+        stufe: str = "standard",
+        *,
+        tmdb_id: int | None = None,
+        fassung: str = "",
     ) -> SerienStand | None: ...
 
     @abstractmethod

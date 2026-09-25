@@ -283,6 +283,7 @@ async def _serie_pruefen(
             detail.tvdb_id,
             detail.title,
             jahr=jahr_aus(detail.release_date),
+            tmdb_id=tmdb_id,
         )
     except Exception as fehler:  # noqa: BLE001
         logger.warning("Episode status not available for watch %s: %s", tmdb_id, fehler)

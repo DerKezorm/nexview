@@ -399,21 +399,74 @@ class NexBeschaffung(Beschaffung):
         return MatchResult(items=gefaerbt)
 
     async def folgen_verfuegbarkeit(
-        self, tvdb_id: int | None, title: str, stufe: str = "standard", jahr: int | None = None
+        self,
+        tvdb_id: int | None,
+        title: str,
+        stufe: str = "standard",
+        jahr: int | None = None,
+        *,
+        tmdb_id: int | None = None,
+        fassung: str = "",
+        staffel: int | None = None,
     ) -> dict[int, set[int]]:
-        """Welche Folgen je Staffel schon vorliegen.
+        """Welche Folgen je Staffel schon vorliegen, in der genannten Fassung.
 
         ⚠️ **Die TVDB-Kennung ist hier kein Anker.** nexcrate ankert auf TMDB
-        (N15); dieser Weg gibt es nur, weil das Anfrageformular ihn heute so
-        ruft. Ohne TMDB-Nummer gibt es keine Auskunft - geraten wird nicht.
+        (N15). Hier stand bis 25.09.2026 immer ``{}``, und im NEX-Betrieb
+        galt jede Folge als fehlend (Rundgang 2, R2-7). Ohne TMDB-Nummer gibt
+        es weiter keine Auskunft - geraten wird nicht; ein Fehler von nexcrate
+        ebenso nicht.
+
+        ``staffel`` fragt nur diese eine Staffelansicht, sonst alle
+        (``folgen_stand``: die Serie plus eine Abfrage je Staffel).
         """
-        return {}
+        if tmdb_id is None or not self.settings.nexcrate_configured:
+            return {}
+        kennung = self._gewaehlt("tv", fassung)
+        if kennung is None:
+            return {}
+        try:
+            if staffel is not None:
+                antwort = await self.client.season(mapping.ref(tmdb_id), staffel)
+                staende = {staffel: bestand.folgen(antwort, kennung)} if antwort is not None else {}
+            else:
+                staende = await self.folgen_stand(stufe, tmdb_id, fassung=kennung) or {}
+        except fehler.NexcrateError as problem:
+            logger.info("Episode availability not read from nexcrate: %s", problem.code)
+            return {}
+        return {
+            nummer: {folge for folge, stand in folgen.items() if stand.has_file}
+            for nummer, folgen in staende.items()
+        }
 
     async def serien_eintrag(
-        self, tvdb_id: int | None, titel: str, jahr: int | None = None, stufe: str = "standard"
+        self,
+        tvdb_id: int | None,
+        titel: str,
+        jahr: int | None = None,
+        stufe: str = "standard",
+        *,
+        tmdb_id: int | None = None,
+        fassung: str = "",
     ):
-        """Wie oben: ohne TMDB-Nummer keine Auskunft."""
-        return
+        """Der Stand der Serie mit ihren Staffeln, in der genannten Fassung.
+
+        Aus der Einzelansicht des Titels: eine Abfrage, die Staffeln samt
+        Folgen- und Dateizahl stehen darin. Ohne TMDB-Nummer keine Auskunft.
+        """
+        if tmdb_id is None or not self.settings.nexcrate_configured:
+            return None
+        kennung = self._gewaehlt("tv", fassung)
+        if kennung is None:
+            return None
+        try:
+            titel_daten = await self.client.title("series", mapping.ref(tmdb_id))
+        except fehler.NexcrateError as problem:
+            logger.info("Series state not read from nexcrate: %s", problem.code)
+            return None
+        if titel_daten is None:
+            return None
+        return bestand.serien_stand(titel_daten, kennung)
 
     async def folgen_stand(self, stufe: str, arr_id: int, *, fassung: str = ""):
         """Die Folgen je Staffel und Nummer - eine Abfrage je Staffel.
@@ -433,18 +486,29 @@ class NexBeschaffung(Beschaffung):
         titel = await self.client.title("series", ref)
         if titel is None:
             return None
+        nummern = [
+            int(staffel["season"])
+            for staffel in ((titel.get("series") or {}).get("seasons") or [])
+            if staffel.get("season") is not None
+        ]
+        # Die Staffeln gleichzeitig, hoechstens vier auf einmal: Seit R2-7
+        # fragt auch die Titelseite hier, je Fassung, und nacheinander kostete
+        # eine Serie mit zwanzig Staffeln zwanzig Wartezeiten.
+        grenze = asyncio.Semaphore(4)
+
+        async def eine(nummer: int) -> dict[str, Any] | None:
+            async with grenze:
+                return await self.client.season(ref, nummer)
+
+        antworten = await asyncio.gather(*(eine(nummer) for nummer in nummern))
         gefunden: dict[int, dict[int, Folge]] = {}
-        for staffel in ((titel.get("series") or {}).get("seasons") or []):
-            nummer = staffel.get("season")
-            if nummer is None:
-                continue
-            antwort = await self.client.season(ref, int(nummer))
+        for nummer, antwort in zip(nummern, antworten, strict=True):
             if antwort is None:
                 # Die Einzelansicht nennt die Staffel, ihre Ansicht kennt sie
                 # nicht: ein Widerspruch, kein "Staffel fehlt". Eine fehlende
                 # Staffel machte ein fertiges Paket zu "geloescht".
                 return None
-            gefunden[int(nummer)] = bestand.folgen(antwort, kennung)
+            gefunden[nummer] = bestand.folgen(antwort, kennung)
         return gefunden
 
     async def episodendateien(self, stufe: str, arr_id: int, season: int | None = None):

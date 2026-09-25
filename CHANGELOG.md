@@ -225,6 +225,17 @@ the process. The backup is the way back.
   Nexview's word for a version of a title. All four are fixed. Requests taking
   three seconds or more are now logged as a warning, so a slow page can be
   traced afterwards.
+- **Every episode showed as missing on a title page in nexcrate mode.** The
+  page asked nexcrate by the TVDB number, which nexcrate does not go by, and
+  got no answer. It now asks by the TMDB number and for the version shown, so
+  episodes that are there are marked as available again.
+- **More small things in nexcrate mode.** A download whose video is cut off
+  (`file_truncated`) had no text, and an unknown reason in the download history
+  now shows its code instead of a raw text key; the prompts and messages behind
+  the buttons on the downloads page still named Radarr and Sonarr; the log line
+  for a handed-over request named Radarr or Sonarr instead of nexcrate; and
+  retiring or deleting the files of single episodes now names no whole season,
+  as a request does.
 
 ## 0.35.2 – 18.09.2026
 

@@ -559,3 +559,84 @@ def test_die_nexcrate_seite_zeigt_keine_befunde_zu_musik(
         ("automatic_off", {"kind": "movie"}),
         ("disk_full", {"version_id": "v_musik", "name": "Music", "free_bytes": 1}),
     ]
+
+
+# --------------------------------------------------------------------------
+# Rundgang 2, R2-7: welche Folgen vorliegen
+
+
+def _serie_mit_dateien(nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch, tmdb_id: int) -> str:
+    """Eine erfundene Serie: Staffel 1 mit drei Folgen, Folge 1 und 2 liegen vor."""
+    from app.routers import details as details_router
+    from app.schemas_media import EpisodeInfo, MediaDetail, SeasonDetail, SeasonInfo
+
+    from .beschaffung.fake_nexcrate import SERIE_HD
+
+    ref = f"tmdb:{tmdb_id}"
+    nexcrate.serie(
+        tmdb_id,
+        versionen=[nexcrate.fassung(SERIE_HD, "available")],
+        staffeln=[
+            nexcrate.staffel_eintrag(
+                1,
+                [nexcrate.staffel_fassung(SERIE_HD, "available", counts={"have": 2, "aired": 3, "expected": 3})],
+                folgen=3,
+                gesendet=3,
+            )
+        ],
+    )
+    datei = {"file_id": 1, "size_bytes": 100}
+    nexcrate.staffel(
+        ref,
+        1,
+        [
+            nexcrate.folge(1, versionen=[nexcrate.folgen_fassung(SERIE_HD, "available", files=[datei])]),
+            nexcrate.folge(2, versionen=[nexcrate.folgen_fassung(SERIE_HD, "available", files=[{**datei, "file_id": 2}])]),
+            nexcrate.folge(3, versionen=[nexcrate.folgen_fassung(SERIE_HD, "wanted")]),
+        ],
+    )
+    detail = MediaDetail(
+        tmdb_id=tmdb_id,
+        media_type="tv",
+        title="Erfundene Serie",
+        seasons=[SeasonInfo(season_number=1, name="Staffel 1", episode_count=3)],
+    )
+
+    async def _detail(_db, _settings, _art, _tmdb_id, **_rest):
+        return detail.model_copy(deep=True)
+
+    async def _staffel(_db, _settings, _tmdb_id, nummer, **_rest):
+        return SeasonDetail(
+            season_number=nummer,
+            name=f"Staffel {nummer}",
+            episodes=[EpisodeInfo(episode_number=n, name=f"Folge {n}") for n in (1, 2, 3)],
+        )
+
+    monkeypatch.setattr(details_router.media, "full_detail", _detail)
+    monkeypatch.setattr(details_router.media, "detail", _detail)
+    monkeypatch.setattr(details_router.media, "season_detail", _staffel)
+    # Wie die Vorrichtung ``nex``: nexcrates Fassungen in die Tabelle, sonst
+    # kennt Nexview keine Hauptfassung fuer Serien.
+    with SessionLocal() as db:
+        nex_fassungen.schreiben(db, nexcrate.versions)
+        db.commit()
+    return SERIE_HD
+
+
+def test_die_titelseite_nennt_vorhandene_folgen(
+    nex_client_admin: TestClient, nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gemessen an der Live-Instanz am 25.09.2026: Bei einer geladenen Serie
+    stand an jeder Folge „fehlt noch“. Der NEX-Weg antwortete auf die Frage
+    nach vorhandenen Folgen immer leer, weil sie mit der TVDB-Nummer kam."""
+    kennung = _serie_mit_dateien(nexcrate, monkeypatch, 777001)
+
+    folgen = nex_client_admin.get("/api/detail/tv/777001/season/1").json()["episodes"]
+    assert [f["available"] for f in folgen] == [True, True, False]
+    je_fassung = [next(x for x in f["fassungen"] if x["kennung"] == kennung)["available"] for f in folgen]
+    assert je_fassung == [True, True, False]
+
+    staffeln = nex_client_admin.get("/api/detail/tv/777001").json()["seasons"]
+    fassung = next(x for x in staffeln[0]["fassungen"] if x["kennung"] == kennung)
+    assert fassung["episodes_available"] == 2
+    assert fassung["episodes_total"] == 3

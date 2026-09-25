@@ -598,6 +598,9 @@ def test_4k_vorn_abzeichen_und_sperre_sagen_dasselbe(
         if achse["klasse"] == "uhd"
     }
     assert set(achsen) == ({FILM_UHD, "v_uhd_zwei"} if zweite_4k else {FILM_UHD})
+    # Die 4K-Kopie gehört der ersten 4K-Fassung, nie der zweiten.
+    if zweite_4k:
+        assert achsen["v_uhd_zwei"] == "not_requested", achsen
 
     chefin = _nutzer(db, "chefin", Role.admin)
     titel = MediaItem(
@@ -618,7 +621,10 @@ def test_4k_vorn_abzeichen_und_sperre_sagen_dasselbe(
 
     assert {k: s == "in_library" for k, s in achsen.items()} == gesperrt
     # Und die Richtung: Eine 4K-Datei in der HD-Fassung ist keine eigene 4K-Fassung.
-    assert set(gesperrt.values()) == {aufbau == "nur_im_medienserver"}
+    # Die zweite 4K-Fassung sperrt der Medienserver nie (siehe oben).
+    assert gesperrt[FILM_UHD] is (aufbau == "nur_im_medienserver")
+    if zweite_4k:
+        assert gesperrt["v_uhd_zwei"] is False
 
 
 # --- Abzeichen gegen Sperre, auf jeder Achse -------------------------------------
@@ -718,3 +724,54 @@ def test_auf_jeder_achse_sagen_abzeichen_und_sperre_dasselbe(
         assert antwort.status_code == 201, fall
     if ziel["klasse"] is None:
         assert ziel["status"] == "not_requested", fall
+    if ziel["kennung"] == "v_hd_zwei":
+        # ⚠️ Eine zweite Fassung derselben Klasse (etwa 3D neben Full-HD)
+        # lässt sich im Medienserver ebenso wenig wiedererkennen: Die HD-Kopie
+        # gehört der ersten HD-Fassung. Gemessen am 25.09.2026: 3D stand an
+        # jedem Film „in der Bibliothek", den der Medienserver in HD hatte,
+        # und eine 3D-Anfrage wäre abgewiesen worden.
+        assert ziel["status"] == "not_requested", fall
+
+
+# --- Zweite Fassung derselben Klasse: Startseite und Rundgang ----------------------
+
+
+@pytest.mark.parametrize(("kennung", "bleibt"), [(FILM_HD, True), ("v_hd_zwei", False)])
+async def test_die_hd_kopie_haelt_nur_die_erste_hd_fassung_fest(
+    nexcrate: FakeNexcrate, db: Session, kennung: str, bleibt: bool
+) -> None:
+    """⚠️ Eine fertige Anfrage in der zweiten HD-Fassung (etwa 3D) hält der
+    Medienserver nicht auf „geladen": Seine HD-Kopie gehört der ersten.
+
+    Nexcrate führt den Film ohne Datei, der Medienserver hat ihn in HD. Die
+    Anfrage in Full-HD bleibt geladen und steht auf der Startseite; die in der
+    zweiten HD-Fassung ist weg, auf der Startseite wie im Rundgang (gemessen
+    25.09.2026 an 3D neben Full-HD).
+    """
+    from app.routers import home
+    from app.services import status_poller
+
+    nex = _einrichten(nexcrate, _matrix_versionen(nexcrate, "hd_vorn_zweite_hd"))
+    nexcrate.film(9801, name="Erfundener Film", year=2020, versionen=[])
+    nex_bestand.verwerfen()
+    _im_medienserver(db, 9801, hd=True, uhd=False)
+    person = _nutzer(db, "person")
+    anfrage = MediaRequest(
+        user_id=person.id,
+        media_type=MediaType.movie,
+        tmdb_id=9801,
+        title="Erfundener Film",
+        release_date="2020-01-01",
+        fassung_kennung=kennung,
+        arr_id=9801,
+        status=RequestStatus.downloaded,
+    )
+    db.add(anfrage)
+    db.commit()
+
+    auf_der_startseite = await home._noch_vorhanden(db, nex, [anfrage])
+    assert bool(auf_der_startseite) is bleibt
+
+    await status_poller.check_once(db, nex)
+    db.refresh(anfrage)
+    assert (anfrage.status == RequestStatus.downloaded) is bleibt, anfrage.status

@@ -385,6 +385,8 @@ async def check_once(
     # anfragen. Overseerr loest das mit einem eigenen Abgleichdienst
     # (availabilitySync); hier reicht derselbe Durchgang, der auch das
     # Fertigwerden erkennt.
+    from .requests_service import medienserver_erkennt
+
     geloescht = 0
     fertige = list(
         db.scalars(
@@ -446,9 +448,15 @@ async def check_once(
         # und meldet dort null Dateien fuer diese Staffel, ist das die
         # Autoritaet ueber die Platte. Nur wenn die Serie ganz aus Sonarr
         # verschwunden ist, bleibt der Titel-Treffer das Beste, was es gibt.
+        #
+        # ⚠️ **Nur fuer die erste Fassung ihrer Klasse.** Der Medienserver
+        # kennt Aufloesungen, keine Fassungen; seine HD-Kopie hielt sonst auch
+        # eine geloeschte 3D-Anfrage auf "geladen" (``medienserver_erkennt``).
         if request.season is not None and eintrag is not None:
             pass  # Sonarr hat gesprochen: Staffel leer.
-        elif mediaserver_library.vorhandene_kennungen(
+        elif medienserver_erkennt(
+            settings, request.media_type, request.fassung_kennung
+        ) and mediaserver_library.vorhandene_kennungen(
             db, request.media_type, [request], stufe
         ):
             continue

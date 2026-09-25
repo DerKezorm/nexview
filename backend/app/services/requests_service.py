@@ -854,6 +854,29 @@ async def uhd_im_medienserver(
     return echte, gemeldet
 
 
+def medienserver_erkennt(
+    settings: AppSettings, media_type: MediaType | str, kennung: str | None
+) -> bool:
+    """Laesst sich eine Kopie im Medienserver dieser Fassung zuordnen?
+
+    Der Medienserver kennt Aufloesungen, keine Fassungen. Eine Kopie gehoert
+    deshalb der **ersten** Fassung ihrer Klasse, die Hauptfassung zuerst.
+    Eine Fassung ohne Klasse oder eine zweite derselben Klasse (3D neben
+    Full-HD, 4K HDR neben 4K) erkennt er nicht wieder. Bis zum 25.09.2026
+    zaehlte dort jede HD-Kopie: 3D stand an jedem Film „in der Bibliothek",
+    den der Medienserver in HD hatte, und die 3D-Anfrage bekam 409.
+    """
+    haupt = fassungen.hauptkennung(media_type)
+    if kennung is None or kennung == haupt:
+        return True
+    klasse = fassungen.klasse(kennung)
+    if klasse is None:
+        return False
+    reihe = [haupt, *(f.kennung for f in settings.fassungen_fuer(MediaType(media_type).value))]
+    erste = next((k for k in reihe if k is not None and fassungen.klasse(k) == klasse), None)
+    return erste == kennung
+
+
 async def im_medienserver(
     db: Session,
     settings: AppSettings,
@@ -874,19 +897,17 @@ async def im_medienserver(
     Sonst entscheidet ``fassungen.serverstufe``: Ohne 4K-Fassung zaehlt jede
     Kopie, mit ihr nur die HD-Kopie. Ohne ``kennung`` gilt die Hauptfassung.
 
-    ⚠️ **Eine Zusatzfassung ohne Klasse** (etwa eine Sprachfassung) laesst
-    sich im Medienserver nicht wiedererkennen: Er kennt Aufloesungen, keine
-    Fassungen. Fuer sie liegt dort nichts, weder als Abzeichen noch als
-    Sperre; sonst sperrte die HD-Kopie jede weitere Fassung. Die Hauptfassung
-    ohne Klasse fragt dagegen weiter jede Kopie, wie bisher.
+    ⚠️ **Eine Zusatzfassung ohne Klasse** (etwa eine Sprachfassung) **oder
+    eine zweite derselben Klasse** laesst sich im Medienserver nicht
+    wiedererkennen (``medienserver_erkennt``). Fuer sie liegt dort nichts,
+    weder als Abzeichen noch als Sperre; sonst sperrte die HD-Kopie jede
+    weitere Fassung. Die Hauptfassung ohne Klasse fragt dagegen weiter jede
+    Kopie, wie bisher.
     """
-    haupt = fassungen.hauptkennung(media_type)
-    kennung = kennung or haupt
-    if not items:
+    kennung = kennung or fassungen.hauptkennung(media_type)
+    if not items or not medienserver_erkennt(settings, media_type, kennung):
         return set()
     klasse = fassungen.klasse(kennung)
-    if klasse is None and kennung != haupt:
-        return set()
     if klasse == KLASSE_UHD:
         echte, _gemeldet = await uhd_im_medienserver(db, settings, media_type, items)
         return echte

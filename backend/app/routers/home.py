@@ -143,9 +143,10 @@ async def _noch_vorhanden(
             continue
 
         # Zweite Quelle: Was Radarr/Sonarr nicht mehr kennt, kann im
-        # Media-Server liegen.
+        # Media-Server liegen. Nur fuer die erste Fassung ihrer Klasse: Er kennt
+        # Aufloesungen, keine Fassungen (``requests_service.medienserver_erkennt``).
         offen = [k for k in kacheln if k.tmdb_id not in vorhanden]
-        if offen:
+        if offen and requests_service.medienserver_erkennt(settings, art, kennung):
             vorhanden |= mediaserver_library.vorhandene_kennungen(db, art, offen, stufe)
 
         behalten.extend(a for a in teil if a.tmdb_id in vorhanden)

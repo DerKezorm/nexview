@@ -236,6 +236,11 @@ the process. The backup is the way back.
   for a handed-over request named Radarr or Sonarr instead of nexcrate; and
   retiring or deleting the files of single episodes now names no whole season,
   as a request does.
+- **A second version of the same class showed what the media server had.**
+  With a 3D version next to Full-HD, 3D showed "in library" on every film
+  the media server had in HD, and a 3D request would have been refused. The
+  media server knows resolutions, not versions: a copy now counts for the
+  first version of its class only, and the same goes for a second 4K version.
 
 ## 0.35.2 – 18.09.2026
 

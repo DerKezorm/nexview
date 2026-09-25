@@ -169,7 +169,12 @@ async def _stand(
         for eintrag in items
         if eintrag.tmdb_id not in in_bibliothek and eintrag.tmdb_id not in eigene
     ]
-    if fassung.klasse != KLASSE_UHD:
+    if not requests_service.medienserver_erkennt(settings, media_type, fassung.kennung):
+        # Eine zweite Fassung derselben Klasse oder eine ohne Klasse: Der
+        # Medienserver kennt nur Aufloesungen, seine Kopie gehoert der ersten
+        # Fassung ihrer Klasse. Dieselbe Regel wie die Sperre.
+        im_server: set[int] = set()
+    elif fassung.klasse != KLASSE_UHD:
         # ⚠️ **Auf jeder Achse dieselbe Frage wie die Sperre**, nicht nur bei
         # 4K. Bis zum 24.09.2026 fragte nur die 4K-Achse den Medienserver: Eine
         # HD-Zusatzachse (4K vorn) oder eine zweite HD-Fassung stand als "nicht

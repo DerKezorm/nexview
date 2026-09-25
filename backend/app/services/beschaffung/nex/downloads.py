@@ -266,6 +266,7 @@ def abgleichen(
         gestoert.add(download.download_id)
         abdruck = _fingerabdruck(download)
         zeile = bekannt.get(download.download_id)
+        neu_haengend = zeile is None or zeile.haengt_seit is None
         if zeile is None:
             zeile = DownloadHaenger(
                 kennung=kennung,
@@ -305,6 +306,15 @@ def abgleichen(
         zeile.rest = download.rest
         zeile.fingerabdruck = abdruck
         zeile.zuletzt_gesehen = jetzt
+        if neu_haengend:
+            # ⚠️ Wie im ARR-Weg (``arr/download_haenger.py``): Ohne diesen
+            # Eintrag zaehlt ``download_automatik`` nichts, und ein Download,
+            # der immer wieder haengt, meldete sich im NEX-Betrieb nie
+            # (gefunden 25.09.2026). Nach dem Fuellen der Zeile, damit der
+            # Eintrag Titel und Grund traegt.
+            from ..arr.download_haenger import verlauf
+
+            db.add(verlauf(zeile, "erkannt", automatisch=True))
 
     # Was nicht mehr klemmt, verschwindet - was geschah, steht im Verlauf.
     for download_id, zeile in bekannt.items():

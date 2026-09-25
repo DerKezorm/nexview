@@ -38,6 +38,16 @@ QUIET_PATHS = ("/api/health", "/api/logs")
 #: mehr messen, woran es lag (Rundgang 2, R2-5).
 LANGSAM_MS = 3000
 
+#: Was von Natur aus dauert und deshalb nicht warnt: Sicherungen (anlegen,
+#: packen, pruefen, einspielen wachsen mit der Datenbank), die Zuordnung im
+#: Server-Vergleich (wartet bewusst bis zu elf Sekunden auf den Medienserver)
+#: und der Umstieg. Sonst stuende dort bei jedem Aufruf eine Warnung.
+LANGSAM_GEWOLLT = (
+    "/api/admin/sicherungen",
+    "/api/admin/analyse/server-vergleich/zuordnen",
+    "/api/umstieg/",
+)
+
 
 class RequestContextMiddleware:
     """Reines ASGI-Zwischenstueck - kein ``BaseHTTPMiddleware``.
@@ -91,7 +101,7 @@ class RequestContextMiddleware:
                 logger.error(
                     "%s %s -> %s in %dms", methode, self._pfad(scope), status, dauer
                 )
-            elif dauer >= LANGSAM_MS and not pfad.startswith(QUIET_PATHS):
+            elif dauer >= LANGSAM_MS and not pfad.startswith(QUIET_PATHS + LANGSAM_GEWOLLT):
                 logger.warning(
                     "Slow request: %s %s -> %s in %dms",
                     methode,

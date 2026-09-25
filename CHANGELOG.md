@@ -211,6 +211,11 @@ the process. The backup is the way back.
   made before switching was named "...-to-n.db".
 - **The log finding counted 26 hours in summer time.** "Error lines in the last
   24 hours" drew its line in UTC while the log is written in local time.
+- **A season or a few episodes loaded the whole series in nexcrate mode.**
+  nexcrate treats a request without word on future seasons as a request for
+  all of them, and the first request for a series then wanted every episode:
+  five episodes of season 1 turned into eight seasons. Season and episode
+  requests now say explicitly that future seasons are not wanted.
 - **Findings from the second run in nexcrate mode.** The nexcrate settings
   page still showed "the automatic is off" for music; a film with its digital
   and physical release on the same day stood twice in the calendar; "why it is

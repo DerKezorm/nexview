@@ -1014,3 +1014,52 @@ def test_eine_gesperrte_hauptfassung_sperrt_auch_ohne_fassungsangabe(
     )
     assert mit_recht.status_code == 201, mit_recht.text
     assert mit_recht.json()["fassung"] == FILM_HD
+
+
+# --- #idea-53, #idea-54 --------------------------------------------------------
+
+
+def test_ein_speicherposten_nennt_bei_folgen_keine_ganze_staffel() -> None:
+    """#idea-53: Wie beim Anfragen steht beim Stilllegen und Loeschen eines
+    Folgen-Postens ``seasons: []`` ausdruecklich da. nexcrate las ein fehlendes
+    ``seasons`` einmal als alle Staffeln (Rundgang 2, R2-6)."""
+    from app.services.beschaffung.nex import speicher
+
+    zeile = StorageEntry(
+        key=f"tv:{SERIE_HD}:tmdb:1399:s2:r1",
+        media_type=MediaType.tv,
+        fassung_kennung=SERIE_HD,
+        tmdb_id=1399,
+        season=2,
+        title="Example Show",
+        state=StorageState.owned,
+    )
+    assert speicher._umfang(zeile, [3, 1]) == {
+        "series": {
+            "episodes": [{"season": 2, "episode": 1}, {"season": 2, "episode": 3}],
+            "seasons": [],
+        }
+    }
+    assert speicher._umfang(zeile, None) == {"series": {"seasons": [2]}}
+
+
+async def test_die_uebergabe_nennt_nexcrate_nicht_sonarr(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, caplog: pytest.LogCaptureFixture
+) -> None:
+    """#idea-54, gemessen live 25.09.2026: Im NEX-Betrieb stand im Protokoll
+    „Added tv 'Dr. House' (tmdb=1408) to Sonarr“."""
+    import logging
+
+    nexcrate.serie(1399, versionen=[])
+    person = _nutzer(db)
+    anfrage = _anfrage(
+        db, person, media_type=MediaType.tv, tmdb_id=1399, fassung_kennung=SERIE_HD, season=1
+    )
+
+    with caplog.at_level(logging.INFO, logger="nexview.requests"):
+        await requests_service.push_to_arr(db, nex, anfrage)
+
+    zeilen = [r.getMessage() for r in caplog.records if r.getMessage().startswith("Added ")]
+    assert len(zeilen) == 1, zeilen
+    assert " to nexcrate for user " in zeilen[0], zeilen[0]
+    assert "Sonarr" not in zeilen[0] and "Radarr" not in zeilen[0]

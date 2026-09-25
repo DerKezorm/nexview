@@ -36,7 +36,12 @@ def _client(settings: AppSettings):
 
 
 def _umfang(zeile: StorageEntry, folgen: list[int] | None) -> dict:
-    """Der Umfang eines Postens in nexcrates Worten."""
+    """Der Umfang eines Postens in nexcrates Worten.
+
+    Bei Folgen steht ``seasons: []`` ausdruecklich da, wie beim Anfragen
+    (``auftraege.umfang``): nexcrate las ein fehlendes ``seasons`` einmal als
+    alle Staffeln (Rundgang 2, R2-6).
+    """
     if zeile.media_type != MediaType.tv:
         return {}
     if folgen is not None:
@@ -44,7 +49,8 @@ def _umfang(zeile: StorageEntry, folgen: list[int] | None) -> dict:
             "series": {
                 "episodes": [
                     {"season": zeile.season, "episode": nummer} for nummer in sorted(folgen)
-                ]
+                ],
+                "seasons": [],
             }
         }
     if zeile.season is not None:

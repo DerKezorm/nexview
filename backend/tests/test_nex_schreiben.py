@@ -1063,3 +1063,30 @@ async def test_die_uebergabe_nennt_nexcrate_nicht_sonarr(
     assert len(zeilen) == 1, zeilen
     assert " to nexcrate for user " in zeilen[0], zeilen[0]
     assert "Sonarr" not in zeilen[0] and "Radarr" not in zeilen[0]
+
+
+async def test_im_nex_betrieb_handelt_nexviews_automatik_nicht(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Entscheidung des Betreibers, 25.09.2026: nexcrate entscheidet selbst,
+    was bei hängenden Downloads automatisch geschieht; zwei Automatiken
+    nebeneinander soll es nicht geben. Selbst mit eingeschalteter Automatik
+    und einer Regel, die nexcrate erlauben würde, geht nichts hinaus."""
+    from app.services import download_automatik
+
+    _haenger(db)
+    download_automatik.schreiben(db, an=True, regeln={"no_video": "entfernen_neu_suchen"})
+
+    getan = await download_automatik.ausfuehren(db, nex)
+
+    assert getan == 0
+    assert not [k for k in nexcrate.calls if "/downloads/7/" in k[1]]
+
+
+def test_die_automatik_box_sagt_im_nex_betrieb_dass_nexcrate_entscheidet(
+    admin_client: Any, nex: Any
+) -> None:
+    antwort = admin_client.get("/api/admin/downloads/automatik")
+
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["beim_weg"] is True

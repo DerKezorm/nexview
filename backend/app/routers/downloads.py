@@ -352,6 +352,8 @@ class AutomatikRegel(BaseModel):
 
 class AutomatikStand(BaseModel):
     an: bool
+    #: Entscheidet der Weg selbst (nexcrate)? Dann gibt es hier keine Regeln.
+    beim_weg: bool = False
     regeln: list[AutomatikRegel]
     obergrenze: int
     fenster_stunden: int
@@ -359,9 +361,10 @@ class AutomatikStand(BaseModel):
     wiederholt_tage: int
 
 
-def _automatik_stand(einstellung: download_automatik.Einstellung) -> AutomatikStand:
+def _automatik_stand(einstellung: download_automatik.Einstellung, db) -> AutomatikStand:
     return AutomatikStand(
         an=einstellung.an,
+        beim_weg=get_beschaffung(load_settings(db)).faehigkeiten().downloads_selbst,
         regeln=[
             AutomatikRegel(
                 grund=grund.kennung,
@@ -381,7 +384,7 @@ def _automatik_stand(einstellung: download_automatik.Einstellung) -> AutomatikSt
 @router.get("/automatik", response_model=AutomatikStand)
 def automatik(admin: AdminUser, db: DbSession) -> AutomatikStand:
     """Ist die Automatik an, und was tut sie bei welchem Grund?"""
-    return _automatik_stand(download_automatik.lesen(db))
+    return _automatik_stand(download_automatik.lesen(db), db)
 
 
 class AutomatikWunsch(BaseModel):
@@ -398,7 +401,7 @@ def automatik_setzen(wunsch: AutomatikWunsch, admin: AdminUser, db: DbSession) -
         einstellung = download_automatik.schreiben(db, an=wunsch.an, regeln=wunsch.regeln)
     except DownloadFehler as fehler:
         raise HTTPException(status_code=fehler.status_code, detail=fehler.als_meldung()) from fehler
-    return _automatik_stand(einstellung)
+    return _automatik_stand(einstellung, db)
 
 
 class VerlaufZeile(BaseModel):

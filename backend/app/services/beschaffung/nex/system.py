@@ -93,6 +93,9 @@ def faehigkeiten() -> Faehigkeiten:
         papierkorb=papierkorb,
         kalender=_kann("calendar", True),
         wertungen=("movie", "tv"),
+        # nexcrate ersetzt gescheiterte Downloads selbst, auch mit
+        # ausgeschalteter Automatik (nexcrate, Fehlschlaege).
+        downloads_selbst=True,
     )
 
 

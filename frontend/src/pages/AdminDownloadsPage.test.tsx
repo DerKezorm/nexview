@@ -426,6 +426,38 @@ describe('die übrige Seite', () => {
     expect(screen.queryByText(/Radarr|Sonarr/)).toBeNull()
   })
 
+  it('zeigt im NEX-Betrieb keine Automatik zum Schein, sondern sagt, wer entscheidet (#58)', async () => {
+    // Gemessen 25.09.2026: Schalter und Regeltext standen da, aber keine
+    // einzige Regel, weil die Liste aus Nexviews Arr-Tabelle kommt. nexcrate
+    // entscheidet selbst; Nexview meldet nur Wiederholungen.
+    holen.mockImplementation(((pfad: string) => {
+      if (pfad === '/api/config') {
+        return Promise.resolve({
+          beschaffung: 'nex',
+          beschaffung_sprung: { probleme: 'https://nexcrate.example.com/probleme' },
+        })
+      }
+      if (pfad === '/api/admin/downloads') return Promise.resolve(stand())
+      if (pfad === '/api/admin/downloads/automatik') {
+        return Promise.resolve({ ...AUTOMATIK, regeln: [], beim_weg: true })
+      }
+      if (pfad.startsWith('/api/admin/downloads/verlauf')) return Promise.resolve([])
+      return Promise.reject(new Error(`unerwartet: ${pfad}`))
+    }) as never)
+    rendernSchlicht(<AdminDownloadsPage />)
+
+    expect(
+      await screen.findByText(/entscheidet nexcrate selbst\. Nexview handelt hier nicht\./),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/3 Mal in 7 Tagen, bekommst du trotzdem Bescheid/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'In nexcrate öffnen' })).toHaveAttribute(
+      'href',
+      'https://nexcrate.example.com/probleme',
+    )
+    expect(screen.queryByRole('button', { name: 'Speichern' })).toBeNull()
+    expect(screen.queryByText(/Ab Werk tut es das nie/)).toBeNull()
+  })
+
   it('zeigt im Verlauf einen unbekannten Grund als Kennung, nicht als Schlüssel', async () => {
     // nexcrate bekam am 24.09.2026 die Kennung file_truncated, Nexview kannte
     // sie nicht: Im Verlauf hätte „downloads.grund.file_truncated.titel“ gestanden.

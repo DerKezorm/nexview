@@ -255,6 +255,8 @@ async def ausfuehren(db: Session, settings: AppSettings, *, jetzt: datetime | No
     """
     jetzt = jetzt or _jetzt()
     einstellung = lesen(db)
+    # Handelt der Weg selbst (nexcrate), tut Nexview nichts - melden schon.
+    handeln = einstellung.an and not get_beschaffung(settings).faehigkeiten().downloads_selbst
     getan = 0
     kennungen = list(
         db.scalars(
@@ -268,7 +270,7 @@ async def ausfuehren(db: Session, settings: AppSettings, *, jetzt: datetime | No
         if zeile is None:
             continue
         try:
-            aktion = einstellung.regeln.get(zeile.grund) if einstellung.an else None
+            aktion = einstellung.regeln.get(zeile.grund) if handeln else None
             if aktion is not None:
                 if (
                     _anzahl(db, zeile, AKTIONSARTEN, jetzt - FENSTER, nur_automatisch=True)

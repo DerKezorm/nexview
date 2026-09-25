@@ -1674,6 +1674,8 @@ export type DownloadAktionsAntwort = { gesucht: boolean; befehl: string };
 
 export type DownloadAutomatik = {
   an: boolean;
+  /** Entscheidet der Weg selbst (nexcrate)? Dann gibt es hier keine Regeln. */
+  beim_weg?: boolean;
   regeln: { grund: string; aktion: DownloadAktion | null; erlaubt: DownloadAktion[] }[];
   obergrenze: number;
   fenster_stunden: number;

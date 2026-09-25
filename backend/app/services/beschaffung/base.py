@@ -202,6 +202,11 @@ class Faehigkeiten:
     kalender: bool
     #: Fuer welche Medienarten es Wertungen gibt (``"movie"``, ``"tv"``).
     wertungen: tuple[str, ...]
+    #: Entscheidet der Weg selbst, was bei haengenden Downloads automatisch
+    #: geschieht? Dann handelt Nexviews Automatik dort nicht (Entscheidung
+    #: des Betreibers, 25.09.2026: keine zwei Automatiken nebeneinander); sie
+    #: meldet nur, wenn derselbe Download wiederholt haengt.
+    downloads_selbst: bool = False
 
 
 # --------------------------------------------------------------------------

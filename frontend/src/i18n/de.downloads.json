@@ -84,7 +84,10 @@
       "limits": "Höchstens {{obergrenze}} automatische Aktionen je Film oder Folge in {{stunden}} Stunden. Danach hört Nexview auf und benachrichtigt dich. Hängt derselbe Film oder dieselbe Folge {{ab}} Mal in {{tage}} Tagen, bekommst du ebenfalls Bescheid, auch ohne Automatik.",
       "never": "Einen manuellen Import macht die Automatik nie.",
       "save": "Speichern",
-      "saved": "Gespeichert."
+      "saved": "Gespeichert.",
+      "beimWeg": "Was bei hängenden Downloads automatisch geschieht, entscheidet der Beschaffungsweg selbst. Nexview handelt hier nicht.",
+      "beimWeg_nex": "Was bei hängenden Downloads automatisch geschieht, entscheidet nexcrate selbst. Nexview handelt hier nicht.",
+      "beimWegMeldet": "Hängt derselbe Film oder dieselbe Folge {{ab}} Mal in {{tage}} Tagen, bekommst du trotzdem Bescheid."
     },
     "history": {
       "title": "Verlauf",

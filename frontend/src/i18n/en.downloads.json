@@ -84,7 +84,10 @@
       "limits": "At most {{obergrenze}} automatic actions per movie or episode within {{stunden}} hours. After that Nexview stops and notifies you. If the same movie or episode gets stuck {{ab}} times within {{tage}} days, you hear about it as well, even without automation.",
       "never": "The automation never does a manual import.",
       "save": "Save",
-      "saved": "Saved."
+      "saved": "Saved.",
+      "beimWeg": "What happens automatically with stuck downloads is up to the procurement itself. Nexview does not act here.",
+      "beimWeg_nex": "What happens automatically with stuck downloads is up to nexcrate itself. Nexview does not act here.",
+      "beimWegMeldet": "If the same movie or episode gets stuck {{ab}} times in {{tage}} days, you still get notified."
     },
     "history": {
       "title": "History",

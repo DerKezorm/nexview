@@ -17,6 +17,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Fenster } from '../components/Fenster'
 import { Umschalter } from '../components/Umschalter'
 import { AUSWAHL, Button, ErrorBanner, Section, SeiteLaedt, Spinner } from '../components/ui'
+import { useConfig } from '../hooks/useConfig'
 import { useWegKontext } from '../hooks/useWegKontext'
 import { useDownloadsTexte } from '../i18n/downloads'
 import { folgenKompakt, formatDateTime } from '../lib/format'
@@ -603,6 +604,8 @@ function LaufZeile({ zeile }: { zeile: DownloadLaufend }) {
 
 function AutomatikBereich() {
   const { t } = useTranslation()
+  const weg = useWegKontext()
+  const { data: config } = useConfig()
   const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: AUTOMATIK,
@@ -623,6 +626,36 @@ function AutomatikBereich() {
 
   const daten = query.data
   if (!daten) return query.error ? <ErrorBanner message={query.error.message} /> : null
+
+  // #58: Im NEX-Betrieb entscheidet nexcrate selbst, was bei hängenden
+  // Downloads automatisch geschieht (Entscheidung des Betreibers,
+  // 25.09.2026: keine zwei Automatiken nebeneinander). Schalter und Regeln
+  // gäbe es hier nur zum Schein; gemeldet wird trotzdem, wenn derselbe
+  // Download wiederholt hängt.
+  if (daten.beim_weg) {
+    const sprung = config?.beschaffung_sprung?.probleme
+    return (
+      <Section title={t('downloads.automation.title')}>
+        <p className="text-sm text-mist-400">{t('downloads.automation.beimWeg', weg)}</p>
+        <p className="text-xs leading-relaxed text-mist-500">
+          {t('downloads.automation.beimWegMeldet', {
+            ab: daten.wiederholt_ab,
+            tage: daten.wiederholt_tage,
+          })}
+        </p>
+        {sprung && (
+          <a
+            className="text-sm text-accent-400 hover:underline"
+            href={sprung}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t('beschaffung.openThere', weg)}
+          </a>
+        )}
+      </Section>
+    )
+  }
 
   const aktuell: Entwurf = entwurf ?? {
     an: daten.an,

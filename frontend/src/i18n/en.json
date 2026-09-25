@@ -4245,6 +4245,7 @@
     }
   },
   "beschaffung": {
-    "openThere": "Open in procurement"
+    "openThere": "Open in procurement",
+    "openThere_nex": "Open in nexcrate"
   }
 }

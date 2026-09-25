@@ -368,6 +368,22 @@ def clear_pending_notice(db: Session, request: MediaRequest) -> None:
     ).delete(synchronize_session=False)
 
 
+def wegname(settings: AppSettings, request: MediaRequest) -> str:
+    """Der Name der Instanz, die diese Anfrage beschafft - fuers Protokoll.
+
+    Im ARR-Betrieb die Instanz der Fassung („Radarr FHD“), im NEX-Betrieb
+    nexcrate. Hier stand fest „Radarr“ oder „Sonarr“, auch wenn nexcrate
+    beschaffte (#idea-54, gemessen 25.09.2026).
+    """
+    instanzen = get_beschaffung(settings).instanzen()
+    for instanz in instanzen:
+        if instanz.kennung == request.fassung_kennung:
+            return instanz.name
+    if len(instanzen) == 1:
+        return instanzen[0].name
+    return "Radarr" if request.media_type == MediaType.movie else "Sonarr"
+
+
 async def push_to_arr(
     db: Session, settings: AppSettings, request: MediaRequest, *, nachgereicht: bool = False
 ) -> MediaRequest:
@@ -425,7 +441,7 @@ async def push_to_arr(
         request.media_type.value,
         request.title,
         request.tmdb_id,
-        "Radarr" if request.media_type == MediaType.movie else "Sonarr",
+        wegname(settings, request),
         request.user.username,
     )
 

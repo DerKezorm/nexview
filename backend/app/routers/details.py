@@ -68,6 +68,14 @@ def _fassungskennungen(settings, media_type: str) -> list[str]:
     ]
 
 
+def _gesamt(stand) -> int | None:
+    """Gegen wie viele Folgen eine Staffel als "vollstaendig" gilt, oder ``None``."""
+    if stand is None:
+        return None
+    zahl = max(stand.folgen, stand.gesendet or 0)
+    return zahl if zahl > 0 else None
+
+
 class _Staffeldaten(BaseModel):
     """Was eine Fassung ueber die Staffeln einer Serie sagt."""
 
@@ -89,8 +97,10 @@ class _Staffeldaten(BaseModel):
             requested=nummer in self.angefragt or None in self.angefragt,
             requested_episodes=sorted(self.pakete.get(nummer, {})),
             requested_status=self.belegung.get(nummer) or self.belegung.get(None),
-            # Sonarrs eigene Staffel-Zaehlung - der Massstab fuer "vollstaendig".
-            episodes_total=stand.folgen if stand is not None and stand.folgen > 0 else None,
+            # Die Staffel-Zaehlung des Wegs - der Massstab fuer "vollstaendig".
+            # Alle gesendeten Folgen, nicht nur die ueberwachten: Bei einem
+            # Folgen-Paket stand sonst "vollstaendig" an 2 von 22 (25.09.2026).
+            episodes_total=_gesamt(stand),
         )
 
 

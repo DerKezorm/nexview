@@ -71,6 +71,18 @@ def _staffel_stand(show: dict[str, Any]) -> dict[int, Staffelstand]:
             dateien=int(zahlen.get("episodeFileCount") or 0),
             folgen=int(zahlen.get("episodeCount") or 0),
             monitored=bool(staffel.get("monitored")),
+            # ``totalEpisodeCount`` zaehlt auch Angekuendigtes, samt Platzhaltern
+            # ohne Datum (TheTVDB). Genommen wird es deshalb nur bei einer
+            # Staffel, die nicht ganz ueberwacht ist (ein Folgen-Paket): Nur dort
+            # weicht ``episodeCount`` ab, und "X von Y" stimmt dort ohnehin. Eine
+            # ganz ueberwachte Staffel misst weiter an ``episodeCount``.
+            gesendet=(
+                int(zahlen["totalEpisodeCount"])
+                if "totalEpisodeCount" in zahlen
+                and not staffel.get("monitored")
+                and not zahlen.get("nextAiring")
+                else None
+            ),
         )
     return stand
 

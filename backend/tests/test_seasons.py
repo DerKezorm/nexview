@@ -217,3 +217,58 @@ async def test_ganze_serie_wird_normal_angelegt(
     """Ohne Staffelangabe bleibt alles wie bisher."""
     attrappe = await _uebergeben(monkeypatch, serie_in_sonarr=None, season=None)
     assert attrappe.angelegt == [{"tvdb_id": 555, "season": None}]
+
+
+def test_sonarr_nennt_die_gesendeten_folgen_nur_ohne_ausstehende() -> None:
+    """Folgen-Paket in Sonarr: überwacht sind 2, gesendet 22. Die Titelseite
+    misst gegen 22 (25.09.2026). Solange noch Folgen angekündigt sind, zählt
+    ``totalEpisodeCount`` sie mit; dann bleibt es bei den überwachten."""
+    from app.routers.details import _gesamt
+    from app.services.beschaffung.arr.sonarr import _staffel_stand
+
+    stand = _staffel_stand(
+        {
+            "seasons": [
+                {
+                    "seasonNumber": 1,
+                    "monitored": False,
+                    "statistics": {"episodeFileCount": 2, "episodeCount": 2, "totalEpisodeCount": 22},
+                },
+                {
+                    "seasonNumber": 2,
+                    "monitored": False,
+                    "statistics": {
+                        "episodeFileCount": 3,
+                        "episodeCount": 3,
+                        "totalEpisodeCount": 10,
+                        "nextAiring": "2099-01-01T00:00:00Z",
+                    },
+                },
+            ]
+        }
+    )
+
+    assert _gesamt(stand[1]) == 22
+    assert _gesamt(stand[2]) == 3
+
+
+def test_eine_ganz_ueberwachte_staffel_misst_an_sonarrs_zaehlung() -> None:
+    """TheTVDB legt gern eine Platzhalter-Folge ohne Datum an; ``nextAiring``
+    fehlt dann, ``totalEpisodeCount`` zählt sie mit. Eine ganz geladene,
+    ganz überwachte Staffel stünde sonst für immer auf „20 von 21“."""
+    from app.routers.details import _gesamt
+    from app.services.beschaffung.arr.sonarr import _staffel_stand
+
+    stand = _staffel_stand(
+        {
+            "seasons": [
+                {
+                    "seasonNumber": 1,
+                    "monitored": True,
+                    "statistics": {"episodeFileCount": 20, "episodeCount": 20, "totalEpisodeCount": 21},
+                }
+            ]
+        }
+    )
+
+    assert _gesamt(stand[1]) == 20

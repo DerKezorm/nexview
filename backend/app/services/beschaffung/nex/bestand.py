@@ -124,6 +124,9 @@ def serien_stand(titel: dict[str, Any], kennung: str) -> SerienStand | None:
             # Je Staffel ihr eigenes Datum, nie das der Serie: Die Serie nennt
             # ihre älteste Datei, und die liegt vielleicht in Staffel 1.
             added_at=_zeitpunkt(je_fassung.get("imported_at")),
+            # Auf Staffelebene zaehlt nexcrate jede gesendete Folge, je
+            # Fassung nur die ueberwachten.
+            gesendet=int(staffel["aired"]) if isinstance(staffel.get("aired"), int) else None,
         )
         groessen[int(nummer)] = int(je_fassung.get("size_bytes") or 0)
     return SerienStand(

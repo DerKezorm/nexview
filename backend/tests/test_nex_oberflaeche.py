@@ -640,3 +640,33 @@ def test_die_titelseite_nennt_vorhandene_folgen(
     fassung = next(x for x in staffeln[0]["fassungen"] if x["kennung"] == kennung)
     assert fassung["episodes_available"] == 2
     assert fassung["episodes_total"] == 3
+
+
+def test_ein_folgen_paket_macht_die_staffel_nicht_vollstaendig(
+    nex_client_admin: TestClient, nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gemessen an der Live-Instanz am 25.09.2026: Staffel 1 einer Serie hieß
+    „vollständig“, obwohl nur die zwei angefragten von 22 Folgen dalagen.
+    nexcrates Zählung je Fassung kennt nur überwachte Folgen (``aired`` 2);
+    gemessen wird gegen alle gesendeten der Staffel."""
+    from .beschaffung.fake_nexcrate import SERIE_HD
+
+    kennung = _serie_mit_dateien(nexcrate, monkeypatch, 777002)
+    nexcrate.serie(
+        777002,
+        versionen=[nexcrate.fassung(SERIE_HD, "available")],
+        staffeln=[
+            nexcrate.staffel_eintrag(
+                1,
+                [nexcrate.staffel_fassung(SERIE_HD, "available", counts={"have": 2, "aired": 2, "expected": 2})],
+                folgen=22,
+                gesendet=22,
+            )
+        ],
+    )
+
+    staffeln = nex_client_admin.get("/api/detail/tv/777002").json()["seasons"]
+    fassung = next(x for x in staffeln[0]["fassungen"] if x["kennung"] == kennung)
+    assert fassung["episodes_available"] == 2
+    assert fassung["episodes_total"] == 22
+    assert staffeln[0]["episodes_total_arr"] == 22

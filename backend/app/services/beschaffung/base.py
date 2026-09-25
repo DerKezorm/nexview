@@ -250,6 +250,11 @@ class Staffelstand:
     # NEX-Weg nennt es hier; der ARR-Weg traegt es spaeter nach
     # (``storage._staffeldaten_nachtragen``). ``None`` heisst unbekannt.
     added_at: datetime | None = None
+    # Alle schon gesendeten Folgen der Staffel, ueberwacht oder nicht. ``folgen``
+    # zaehlt nur die ueberwachten; bei einem Folgen-Paket sind das die zwei
+    # angefragten, und die Titelseite nannte die Staffel "vollstaendig"
+    # (25.09.2026). ``None`` heisst: der Weg sagt es nicht sicher.
+    gesendet: int | None = None
 
     @property
     def vollstaendig(self) -> bool:

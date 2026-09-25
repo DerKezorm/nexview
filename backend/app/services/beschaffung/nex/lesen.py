@@ -268,7 +268,9 @@ def kalender(roh: list[dict[str, Any]], media_type: str) -> list[dict[str, Any]]
         # demselben Schluessel (Rundgang 2, R2-2).
         schon = filme.get(nummer)
         if schon is not None:
-            schon[feld] = schon[feld] or eintrag.get("date")
+            # Zwei Termine derselben Art: der fruehere, wie Radarr ihn fuehrt.
+            termine = [t for t in (schon[feld], eintrag.get("date")) if t]
+            schon[feld] = min(termine) if termine else None
             schon["hasFile"] = schon["hasFile"] or hat_datei
             continue
         film[feld] = eintrag.get("date")

@@ -389,6 +389,24 @@ def test_ein_film_mit_zwei_terminen_ist_ein_datensatz() -> None:
     assert [(e.date, e.date_type) for e in eintraege] == [("2026-09-22", "digital")]
 
 
+def test_beim_zusammenlegen_gilt_der_fruehere_termin_und_jede_datei() -> None:
+    """Pruefer zu R2-2: Zwei Termine derselben Art behielten den zuerst
+    genannten, nicht den frueheren; ob ein Eintrag eine Datei kennt, pruefte
+    kein Test."""
+    def termin(tag: str, versionen: list[dict[str, Any]]) -> dict[str, Any]:
+        return {"kind": "movie", "ref": "tmdb:1607127", "name": "One Last Shot", "year": 2026,
+                "date": tag, "date_kind": "digital", "monitored": True, "versions": versionen}
+
+    filme = lesen.kalender(
+        [termin("2026-09-20", []), termin("2026-09-01", [{"version_id": FILM_HD, "state": "available"}])],
+        "movie",
+    )
+
+    assert len(filme) == 1
+    assert filme[0]["digitalRelease"] == "2026-09-01"
+    assert filme[0]["hasFile"] is True
+
+
 async def test_wertungen_kommen_im_stapel(nex: Any, nexcrate: FakeNexcrate) -> None:
     gefunden = await get_beschaffung(nex).wertungen_filme([603, 604])
 

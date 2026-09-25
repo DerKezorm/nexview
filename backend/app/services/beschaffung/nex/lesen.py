@@ -218,6 +218,7 @@ FILMTERMIN = {
 def kalender(roh: list[dict[str, Any]], media_type: str) -> list[dict[str, Any]]:
     """nexcrates Kalender in der Form, die `services/calendar.py` liest."""
     gefunden: list[dict[str, Any]] = []
+    filme: dict[int, dict[str, Any]] = {}
     for eintrag in roh:
         art = mapping.art(str(eintrag.get("kind") or ""))
         if art != media_type:
@@ -261,7 +262,17 @@ def kalender(roh: list[dict[str, Any]], media_type: str) -> list[dict[str, Any]]
             "digitalRelease": None,
             "physicalRelease": None,
         }
+        # ⚠️ nexcrate nennt je Termin einen Eintrag, Radarr je Film einen
+        # Datensatz mit allen Terminen. Ohne Zusammenlegen stand ein Film mit
+        # digitalem und physischem Termin am selben Tag zweimal im Kalender, mit
+        # demselben Schluessel (Rundgang 2, R2-2).
+        schon = filme.get(nummer)
+        if schon is not None:
+            schon[feld] = schon[feld] or eintrag.get("date")
+            schon["hasFile"] = schon["hasFile"] or hat_datei
+            continue
         film[feld] = eintrag.get("date")
+        filme[nummer] = film
         gefunden.append(film)
     return gefunden
 

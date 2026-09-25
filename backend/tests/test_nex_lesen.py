@@ -367,6 +367,28 @@ async def test_eine_folge_im_kalender_traegt_staffel_und_nummer(
     assert gefunden[0]["hasFile"] is False
 
 
+def test_ein_film_mit_zwei_terminen_ist_ein_datensatz() -> None:
+    """Rundgang 2, R2-2 (gemessen 25.09.2026): nexcrate nennt je Termin einen
+    Eintrag, Radarr je Film einen Datensatz mit allen Terminen. „One Last Shot“
+    hatte digital und physisch am selben Tag und stand zweimal im Kalender, mit
+    demselben Schluessel."""
+    from app.services import calendar as kalender_dienst
+
+    def termin(art: str, tag: str) -> dict[str, Any]:
+        return {"kind": "movie", "ref": "tmdb:1607127", "name": "One Last Shot", "year": 2026,
+                "date": tag, "date_kind": art, "monitored": True, "versions": []}
+
+    roh = [termin("digital", "2026-09-22"), termin("physical", "2026-09-22"), termin("cinema", "2026-05-01")]
+    filme = lesen.kalender(roh, "movie")
+
+    assert len(filme) == 1
+    assert filme[0]["digitalRelease"] == "2026-09-22"
+    assert filme[0]["physicalRelease"] == "2026-09-22"
+    assert filme[0]["inCinemas"] == "2026-05-01"
+    eintraege = kalender_dienst._meine_filme(filme, "digital", "2026-09-21", "2026-09-27", "2026-09-25")
+    assert [(e.date, e.date_type) for e in eintraege] == [("2026-09-22", "digital")]
+
+
 async def test_wertungen_kommen_im_stapel(nex: Any, nexcrate: FakeNexcrate) -> None:
     gefunden = await get_beschaffung(nex).wertungen_filme([603, 604])
 

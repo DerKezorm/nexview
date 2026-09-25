@@ -129,6 +129,7 @@ async def test_eine_anfrage_nennt_fassung_herkunft_und_suchwunsch(
         # jede vorhandene Folge.
         ({"season": 2, "monitor_future": True}, "none"),
         ({"season": None, "monitor_future": True}, "all"),
+        ({"season": None, "monitor_future": False}, "none"),
     ],
 )
 async def test_eine_staffel_holt_nicht_die_ganze_serie(
@@ -171,8 +172,17 @@ async def test_der_name_des_anfragenden_geht_nur_mit_schalter_hinaus(
     [
         ({"media_type": MediaType.movie}, {}),
         (
-            {"media_type": MediaType.tv, "tmdb_id": 1399, "fassung_kennung": SERIE_HD},
+            {"media_type": MediaType.tv, "tmdb_id": 1399, "fassung_kennung": SERIE_HD,
+             "monitor_future": True},
             {"series": {"seasons": "all", "future_seasons": True}},
+        ),
+        (
+            # Pruefer zu R2-6: Die ganze Serie ohne „kuenftige Staffeln“ (ueber
+            # die API oder einen Kinderwunsch) schickte trotzdem ``true``. Im
+            # ARR-Betrieb folgt Nexview dem Haken (``arr/sonarr.py``).
+            {"media_type": MediaType.tv, "tmdb_id": 1399, "fassung_kennung": SERIE_HD,
+             "monitor_future": False},
+            {"series": {"seasons": "all", "future_seasons": False}},
         ),
         (
             {

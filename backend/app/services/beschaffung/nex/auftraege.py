@@ -92,7 +92,8 @@ def umfang(request: MediaRequest) -> dict[str, Any]:
     Werk auf ``true`` und legt eine neue Serienfassung dann mit der Regel
     ``all`` an: jede vorhandene Folge gewollt. Nexview ließ das Feld weg, und
     aus „Staffel 1, Folgen 1 bis 5“ wurden acht Staffeln (Rundgang 2, R2-6,
-    gemessen 25.09.2026). ``true`` gibt es deshalb nur für die ganze Serie; den
+    gemessen 25.09.2026). ``true`` gibt es deshalb nur für die ganze Serie mit
+    dem Haken „künftige Staffeln“; den
     Haken „künftige Staffeln“ neben einzelnen Staffeln kann nexcrates Vertrag
     beim Anlegen nicht ausdrücken, ohne alles zu wollen.
     """
@@ -110,9 +111,10 @@ def umfang(request: MediaRequest) -> dict[str, Any]:
         }
     if request.season is not None:
         return {"series": {"seasons": [request.season], "future_seasons": False}}
-    # Die ganze Serie, samt allem, was noch kommt - wie „alle Staffeln" bei
-    # Sonarr und wie die Anfrage es meint.
-    return {"series": {"seasons": "all", "future_seasons": True}}
+    # Die ganze Serie; künftige Staffeln nur mit dem Haken, wie im ARR-Betrieb
+    # (``arr/sonarr.py``). Ohne ihn will nexcrate alle vorhandenen Staffeln
+    # und keine neue.
+    return {"series": {"seasons": "all", "future_seasons": bool(request.monitor_future)}}
 
 
 def _client(settings: AppSettings):

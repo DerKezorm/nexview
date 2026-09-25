@@ -43,6 +43,10 @@ def test_die_schwelle_liegt_bei_drei_sekunden() -> None:
         "/api/admin/sicherungen",
         "/api/admin/analyse/server-vergleich/zuordnen",
         "/api/umstieg/vorab",
+        # Pruefer: zwoelf Aufrufe an eine fremde Seerr-Instanz, Abgleiche von Hand.
+        "/api/setup/seerr/vorschau",
+        "/api/admin/mediaserver/library/refresh",
+        "/api/storage/abgleich",
     ],
 )
 def test_absichtlich_langsame_adressen_warnen_nicht(

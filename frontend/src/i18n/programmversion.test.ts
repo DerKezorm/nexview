@@ -27,11 +27,12 @@ const PROGRAMMVERSION: string[] = [
   de.setup.seerr.saetze.fassung_zu_alt,
   de.settings.seerr.checkOk,
   de.befund.dienst.version_alt.titel,
+  de.backups.tooNew,
 ]
 
 describe('Programmversion', () => {
   it('heißt überall Version', () => {
-    expect(PROGRAMMVERSION.length).toBeGreaterThanOrEqual(14)
+    expect(PROGRAMMVERSION.length).toBeGreaterThanOrEqual(15)
     for (const text of PROGRAMMVERSION) {
       expect(text).toMatch(/Version/)
       expect(text).not.toMatch(/Fassung/)

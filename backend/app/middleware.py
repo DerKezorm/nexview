@@ -46,6 +46,10 @@ LANGSAM_GEWOLLT = (
     "/api/admin/sicherungen",
     "/api/admin/analyse/server-vergleich/zuordnen",
     "/api/umstieg/",
+    # Zwoelf Aufrufe an eine fremde Seerr-Instanz; Abgleiche von Hand.
+    "/api/setup/seerr/vorschau",
+    "/api/admin/mediaserver/library/refresh",
+    "/api/storage/abgleich",
 )
 
 

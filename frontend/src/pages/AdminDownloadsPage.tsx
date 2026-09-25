@@ -205,6 +205,8 @@ function HaengerKarte({
   onErledigt: (text: string) => void
 }) {
   const { t, i18n } = useTranslation()
+  // #job-17: Rückfragen und Meldungen nennen im NEX-Betrieb nexcrate.
+  const weg = useWegKontext()
   const queryClient = useQueryClient()
   const [frage, setFrage] = useState<Rueckfrage | null>(null)
   const [importOffen, setImportOffen] = useState(false)
@@ -228,7 +230,7 @@ function HaengerKarte({
         onErledigt(
           antwort.gesucht
             ? t('downloads.done.entfernen_neu_suchen')
-            : t('downloads.done.entfernen_ohne_suche'),
+            : t('downloads.done.entfernen_ohne_suche', weg),
         )
       } else if (was === 'entfernen') {
         onErledigt(t('downloads.done.entfernen'))
@@ -351,7 +353,7 @@ function HaengerKarte({
       <ConfirmDialog
         open={frage !== null}
         title={frage ? t(`downloads.confirm.${frage}.title`) : ''}
-        description={frage ? t(`downloads.confirm.${frage}.text`, { release: haenger.release }) : ''}
+        description={frage ? t(`downloads.confirm.${frage}.text`, { release: haenger.release, ...weg }) : ''}
         warning={frage && frage !== 'erneut_pruefen' ? t(`downloads.confirm.${frage}.warning`) : undefined}
         fehler={aktion.error ? aktion.error.message : undefined}
         confirmLabel={frage ? t(`downloads.aktion.${frage}`) : ''}
@@ -390,6 +392,8 @@ function ImportFenster({
   onErledigt: (text: string) => void
 }) {
   const { t, i18n } = useTranslation()
+  // #job-17: Rückfragen und Meldungen nennen im NEX-Betrieb nexcrate.
+  const weg = useWegKontext()
   const kandidaten = useQuery({
     queryKey: ['admin-downloads-dateien', haenger.id],
     queryFn: () => api.get<DownloadKandidat[]>(`/api/admin/downloads/${haenger.id}/dateien`),
@@ -416,7 +420,7 @@ function ImportFenster({
       }),
     onSuccess: (antwort) => {
       if (antwort.befehl === 'completed') onErledigt(t('downloads.done.import_completed'))
-      else if (antwort.befehl === 'failed') onErledigt(t('downloads.done.import_failed'))
+      else if (antwort.befehl === 'failed') onErledigt(t('downloads.done.import_failed', weg))
       else onErledigt(t('downloads.done.import_running'))
     },
   })
@@ -458,7 +462,7 @@ function ImportFenster({
       )}
       {kandidaten.error && <ErrorBanner message={kandidaten.error.message} />}
       {kandidaten.data && liste.length === 0 && (
-        <p className="text-sm text-mist-500">{t('downloads.import.empty')}</p>
+        <p className="text-sm text-mist-500">{t('downloads.import.empty', weg)}</p>
       )}
 
       {liste.length > 0 && (

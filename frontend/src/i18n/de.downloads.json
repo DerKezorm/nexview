@@ -46,22 +46,26 @@
       },
       "erneut_pruefen": {
         "title": "Erneut versuchen?",
-        "text": "Radarr bzw. Sonarr sieht sich die fertigen Downloads noch einmal an und importiert, wenn die Ursache inzwischen behoben ist. Gelöscht wird nichts."
+        "text": "Radarr bzw. Sonarr sieht sich die fertigen Downloads noch einmal an und importiert, wenn die Ursache inzwischen behoben ist. Gelöscht wird nichts.",
+        "text_nex": "nexcrate versucht es noch einmal: Es prüft den Download erneut oder sucht neu, je nachdem, was es anbietet. Gelöscht wird nichts."
       }
     },
     "done": {
       "entfernen_neu_suchen": "Entfernt. Die Suche nach einem anderen Release läuft.",
       "entfernen_ohne_suche": "Entfernt. Eine neue Suche ließ sich nicht anstoßen, die geht in Radarr bzw. Sonarr von Hand.",
+      "entfernen_ohne_suche_nex": "Entfernt. Eine neue Suche ließ sich nicht anstoßen, die geht in nexcrate von Hand.",
       "entfernen": "Entfernt.",
       "erneut_pruefen": "Angestoßen. Ob es geholfen hat, zeigt die nächste Runde in etwa zwei Minuten.",
       "import_completed": "Importiert.",
       "import_running": "Der Import läuft noch. Das Ergebnis zeigt die nächste Runde.",
-      "import_failed": "Radarr bzw. Sonarr meldet, dass der Import gescheitert ist. Die Meldung dort sagt mehr."
+      "import_failed": "Radarr bzw. Sonarr meldet, dass der Import gescheitert ist. Die Meldung dort sagt mehr.",
+      "import_failed_nex": "nexcrate meldet, dass der Import gescheitert ist. Die Meldung dort sagt mehr."
     },
     "import": {
       "title": "Manuell importieren",
       "loading": "Frage die Dateien ab …",
       "empty": "Radarr bzw. Sonarr findet in diesem Download keine Datei zum Importieren.",
+      "empty_nex": "nexcrate findet in diesem Download keine Datei zum Importieren.",
       "unmapped": "keinem Titel zugeordnet",
       "temporary": "vorübergehend",
       "anyway": "Trotzdem importieren, obwohl {{instanz}} Einwände hat",

@@ -46,22 +46,26 @@
       },
       "erneut_pruefen": {
         "title": "Try again?",
-        "text": "Radarr or Sonarr looks at the finished downloads once more and imports them if the cause has been fixed in the meantime. Nothing is deleted."
+        "text": "Radarr or Sonarr looks at the finished downloads once more and imports them if the cause has been fixed in the meantime. Nothing is deleted.",
+        "text_nex": "nexcrate tries again: it checks the download once more or searches anew, whichever it offers. Nothing is deleted."
       }
     },
     "done": {
       "entfernen_neu_suchen": "Removed. The search for another release is running.",
       "entfernen_ohne_suche": "Removed. A new search could not be started; you can start it by hand in Radarr or Sonarr.",
+      "entfernen_ohne_suche_nex": "Removed. A new search could not be started; you can start it by hand in nexcrate.",
       "entfernen": "Removed.",
       "erneut_pruefen": "Started. Whether it helped shows in the next round, in about two minutes.",
       "import_completed": "Imported.",
       "import_running": "The import is still running. The next round shows the result.",
-      "import_failed": "Radarr or Sonarr reports that the import failed. The message there says more."
+      "import_failed": "Radarr or Sonarr reports that the import failed. The message there says more.",
+      "import_failed_nex": "nexcrate reports that the import failed. The message there says more."
     },
     "import": {
       "title": "Import manually",
       "loading": "Asking for the files …",
       "empty": "Radarr or Sonarr finds no file to import in this download.",
+      "empty_nex": "nexcrate finds no file to import in this download.",
       "unmapped": "not matched to a title",
       "temporary": "temporary",
       "anyway": "Import anyway, even though {{instanz}} objects",

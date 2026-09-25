@@ -33,6 +33,11 @@ logger = logging.getLogger("nexview.api")
 #: Pfade, deren Aufrufe nichts erklaeren, aber das Protokoll fuellen.
 QUIET_PATHS = ("/api/health", "/api/logs")
 
+#: Ab dieser Dauer steht ein Aufruf als Warnung im Protokoll, auch ohne DEBUG.
+#: Das Dashboard brauchte einmal 16 Sekunden, und hinterher liess sich nicht
+#: mehr messen, woran es lag (Rundgang 2, R2-5).
+LANGSAM_MS = 3000
+
 
 class RequestContextMiddleware:
     """Reines ASGI-Zwischenstueck - kein ``BaseHTTPMiddleware``.
@@ -85,6 +90,14 @@ class RequestContextMiddleware:
             if status >= 500:
                 logger.error(
                     "%s %s -> %s in %dms", methode, self._pfad(scope), status, dauer
+                )
+            elif dauer >= LANGSAM_MS and not pfad.startswith(QUIET_PATHS):
+                logger.warning(
+                    "Slow request: %s %s -> %s in %dms",
+                    methode,
+                    self._pfad(scope),
+                    status,
+                    dauer,
                 )
             elif not pfad.startswith(QUIET_PATHS):
                 logger.debug(

@@ -531,3 +531,31 @@ def test_der_verlauf_nennt_alte_instanzen_beim_namen(nex_client_admin: TestClien
         # Ohne Zeile in der Tabelle bleibt die Kennung, besser als nichts.
         "Weg": "sonarr-verschwunden",
     }
+
+
+# --------------------------------------------------------------------------
+# Rundgang 2, R2-1: die nexcrate-Seite zeigt keine Musikbefunde
+
+
+def test_die_nexcrate_seite_zeigt_keine_befunde_zu_musik(
+    nex_client_admin: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Gemessen an der Live-Instanz am 25.09.2026: „Was nexcrate meldet“ zeigte
+    „Die Automatik ist aus“, und ``/api/settings/nexcrate/status`` lieferte
+    ``automatic_off`` mit ``kind: album``. Die Seite holte nexcrates ``/health``
+    selbst, am Filter der Gesundheitspruefung vorbei."""
+    nexcrate.health = [
+        {"code": "automatic_off", "level": "warning", "message": "music off", "params": {"kind": "album"}},
+        {"code": "automatic_off", "level": "warning", "message": "off", "params": {"kind": "movie"}},
+        {"code": "folder_missing", "level": "error", "message": "x",
+         "params": {"version_id": "v_musik", "name": "Music"}},
+        {"code": "disk_full", "level": "error", "message": "x",
+         "params": {"version_id": "v_musik", "name": "Music", "free_bytes": 1}},
+    ]
+
+    probleme = nex_client_admin.get("/api/settings/nexcrate/status").json()["probleme"]
+
+    assert [(p["code"], p["params"]) for p in probleme] == [
+        ("automatic_off", {"kind": "movie"}),
+        ("disk_full", {"version_id": "v_musik", "name": "Music", "free_bytes": 1}),
+    ]

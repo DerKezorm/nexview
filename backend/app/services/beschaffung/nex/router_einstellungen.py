@@ -28,7 +28,7 @@ from ....deps import AdminUser, DbSession
 from ....models import utcnow
 from ....routers.settings import TestResult
 from ...settings_service import load_settings, save_settings
-from . import fassungen, mapping, pruefung, system
+from . import fassungen, gesundheit, mapping, pruefung, system
 from .client import RECHTE, NexcrateClient
 from .fehler import NexcrateError
 from .weg import APP_NAME
@@ -279,9 +279,13 @@ async def stand_lesen(admin: AdminUser, db: DbSession) -> NexStand:
             for eintrag in eintraege
             if mapping.fuehrt_nexview(eintrag)
         ]
+        # Derselbe Filter wie in der Gesundheitspruefung: Musik und Fassungen,
+        # die Nexview nicht fuehrt, bleiben draussen (Rundgang 2, R2-1).
+        eigene = frozenset(str(f["kennung"]) for f in liste if f.get("kennung")) or None
         probleme = [
             {"code": eintrag.get("code"), "level": eintrag.get("level"), "params": eintrag.get("params")}
             for eintrag in await _befunde(settings)
+            if gesundheit.fuer_nexview(eintrag, eigene)
         ]
     except NexcrateError as fehler:
         db.rollback()

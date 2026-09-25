@@ -60,6 +60,28 @@ def glockentext(problem: dict[str, Any]) -> str:
     return "notifications.instanceHealth_nex"
 
 
+def fuer_nexview(eintrag: dict[str, Any], eigene: frozenset[str] | None = None) -> bool:
+    """Betrifft dieser Befund aus ``/health`` etwas, das Nexview fuehrt?
+
+    Musik fuehrt Nexview nicht. nexcrate meldet ``automatic_off`` je Art, auch
+    ``album``, und daraus wurde „Die Automatik ist aus“, obwohl Filme und Serien
+    an waren (Rundgang-Befund 5). Befunde einer Fassung (``version_id``, ohne
+    ``kind``) gelten nur fuer Fassungen, die Nexview fuehrt (``eigene``).
+    ⚠️ Ausser ``disk_full``: nexcrate meldet einen vollen Datentraeger einmal je
+    Geraet, und die genannte Fassung kann die Musik sein, obwohl Filme daneben
+    liegen.
+
+    Eine Funktion fuer alle Stellen, die ``/health`` lesen: Die nexcrate-Seite
+    holte es einmal selbst und zeigte den Musikbefund weiter (Rundgang 2, R2-1).
+    """
+    werte = eintrag.get("params") or {}
+    if werte.get("kind") and mapping.art(str(werte["kind"])) not in mapping.EIGENE_ARTEN:
+        return False
+    fassung = werte.get("version_id")
+    code = str(eintrag.get("code") or "")
+    return not (eigene and fassung and code != "disk_full" and str(fassung) not in eigene)
+
+
 def verdichten(
     roh: list[dict[str, Any]], eigene: frozenset[str] | None = None
 ) -> list[dict[str, Any]]:
@@ -77,17 +99,7 @@ def verdichten(
         if not code or str(eintrag.get("level") or "") not in STUFEN:
             continue
         werte = eintrag.get("params") or {}
-        # Musik fuehrt Nexview nicht. nexcrate meldet ``automatic_off`` je Art,
-        # auch ``album``, und daraus wurde „Die Automatik ist aus“, obwohl
-        # Filme und Serien an waren (Rundgang-Befund 5).
-        if werte.get("kind") and mapping.art(str(werte["kind"])) not in mapping.EIGENE_ARTEN:
-            continue
-        # Dasselbe fuer Befunde einer Fassung (``version_id``, ohne ``kind``):
-        # nur die, die Nexview fuehrt (``eigene``). ⚠️ Ausser ``disk_full``:
-        # nexcrate meldet einen vollen Datentraeger einmal je Geraet, und die
-        # genannte Fassung kann die Musik sein, obwohl Filme daneben liegen.
-        fassung = werte.get("version_id")
-        if eigene and fassung and code != "disk_full" and str(fassung) not in eigene:
+        if not fuer_nexview(eintrag, eigene):
             continue
         teile = [code]
         # ⚠️ ``art`` und ``recht`` gehoeren dazu: Die Standpruefung meldet

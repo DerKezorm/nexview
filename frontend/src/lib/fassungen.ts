@@ -154,6 +154,23 @@ export function fassungName(t: TFunction, fassung: Fassung | FassungAchse): stri
  * Derselbe Name mit der Medienart darin – für Schalter, die beide Arten
  * nebeneinander zeigen („4K-Filme", „4K-Serien").
  */
+/**
+ * Der Haken „ohne Freigabe" der Hauptfassung, beim Namen genannt wie die
+ * Zusatzfassungen daneben („Full-HD · Filme ohne Freigabe" neben
+ * „4K · Filme ohne Freigabe"). Dort stand „Filme automatisch freigeben", als
+ * gälte es für jede Fassung; es gilt nur für die Hauptfassung (25.09.2026).
+ * Ohne Hauptfassung bleibt der alte Satz.
+ */
+export function hauptFreigabeLabel(
+  t: TFunction,
+  config: Pick<AppConfig, 'fassungen'> | undefined | null,
+  mediaType: MediaType,
+  ersatz: string,
+): string {
+  const haupt = hauptfassung(config, mediaType)
+  return haupt ? t('fassung.ohneFreigabe', { name: fassungMitArt(t, haupt) }) : ersatz
+}
+
 export function fassungMitArt(t: TFunction, fassung: Fassung): string {
   if (fassung.quelle === 'arr' && fassung.klasse === 'uhd') {
     return t(fassung.media_type === 'movie' ? 'fassung.uhdMovies' : 'fassung.uhdSeries')

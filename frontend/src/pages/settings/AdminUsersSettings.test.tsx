@@ -351,3 +351,32 @@ it('zeigt im NEX-Betrieb keine Profil-Sperrlisten und fragt keine Arr-Liste (Run
   expect(screen.queryByRole('checkbox', { name: 'HD-1080p' })).toBeNull()
   expect(holen.mock.calls.some(([pfad]) => String(pfad).startsWith('/api/arr/'))).toBe(false)
 })
+
+it('nennt beim Freigabe-Haken die Hauptfassung beim Namen', async () => {
+  // Gemessen 25.09.2026: „Filme automatisch freigeben" stand neben
+  // „4K · Filme ohne Freigabe", als gälte es für jede Fassung. Es gilt nur
+  // für die Hauptfassung, und die heißt hier Full-HD.
+  const fassung = (kennung: string, media_type: 'movie' | 'tv', name: string, haupt: boolean) => ({
+    kennung,
+    media_type,
+    name,
+    klasse: 'hd',
+    quelle: 'nex',
+    haupt,
+    bereit: true,
+    offen_fuer_alle: true,
+    approver_picks_target: false,
+    darf_anfragen: true,
+  })
+  einrichten(konto(), {
+    konfiguration: {
+      beschaffung: 'nex',
+      fassungen: [fassung('v_film', 'movie', 'Full-HD', true), fassung('v_serie', 'tv', 'Full-HD', true)],
+    },
+  })
+  await oeffnen()
+
+  expect(await screen.findByRole('checkbox', { name: /Full-HD · Filme ohne Freigabe/ })).toBeTruthy()
+  expect(screen.getByRole('checkbox', { name: /Full-HD · Serien ohne Freigabe/ })).toBeTruthy()
+  expect(screen.queryByRole('checkbox', { name: /Filme automatisch freigeben/ })).toBeNull()
+})

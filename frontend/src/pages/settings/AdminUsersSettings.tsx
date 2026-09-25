@@ -26,7 +26,7 @@ import { AdminKontoAufloesung } from "./AdminKontoAufloesung";
 import { Button, Card, ErrorBanner, Spinner } from "../../components/ui";
 import { useConfig } from "../../hooks/useConfig";
 import { EinladungsAssistent } from "./EinladungsAssistent";
-import { fassungMitArt, fassungVon, zielWaehlbar } from "../../lib/fassungen";
+import { fassungMitArt, fassungVon, hauptFreigabeLabel, zielWaehlbar } from "../../lib/fassungen";
 import { formatDate } from "../../lib/format";
 
 /**
@@ -1125,13 +1125,13 @@ export function AdminUsersSettings() {
                             <div className="flex flex-wrap gap-x-6 gap-y-2">
                               {(
                                 [
-                                  ["auto_approve_movies", "adminUsers.autoApproveMovies"],
-                                  ["auto_approve_series", "adminUsers.autoApproveSeries"],
+                                  ["auto_approve_movies", "movie", "adminUsers.autoApproveMovies"],
+                                  ["auto_approve_series", "tv", "adminUsers.autoApproveSeries"],
                                 ] as const
-                              ).map(([schluessel, label]) => (
+                              ).map(([schluessel, art, label]) => (
                                 <RechteHaken
                                   key={schluessel}
-                                  label={t(label)}
+                                  label={hauptFreigabeLabel(t, config, art, t(label))}
                                   stand={rechte[schluessel]}
                                   wert={eigenerHaken(user, schluessel)}
                                   onChange={(neu) => setzen(user, schluessel, neu)}

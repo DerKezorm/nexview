@@ -31,7 +31,7 @@ import type {
   ServerAuswahl,
 } from '../../api/types'
 import { useConfig } from '../../hooks/useConfig'
-import { fassungMitArt, fassungVon } from '../../lib/fassungen'
+import { fassungMitArt, fassungVon, hauptFreigabeLabel } from '../../lib/fassungen'
 import { Fenster } from '../../components/Fenster'
 import { MediaServerLogo } from '../../components/MediaServerLogo'
 import { RechteHaken } from '../../components/RechteHaken'
@@ -623,13 +623,13 @@ export function EinladungsAssistent({
             </Abschnitt>
             <Abschnitt titel={t('inviteWizard.approval')}>
               <RechteHaken
-                label={t('inviteWizard.autoMovies')}
+                label={hauptFreigabeLabel(t, config, 'movie', t('inviteWizard.autoMovies'))}
                 stand={b.auto_approve_movies}
                 wert={e.auto_approve_movies}
                 onChange={(v) => setze({ auto_approve_movies: v })}
               />
               <RechteHaken
-                label={t('inviteWizard.autoSeries')}
+                label={hauptFreigabeLabel(t, config, 'tv', t('inviteWizard.autoSeries'))}
                 stand={b.auto_approve_series}
                 wert={e.auto_approve_series}
                 onChange={(v) => setze({ auto_approve_series: v })}

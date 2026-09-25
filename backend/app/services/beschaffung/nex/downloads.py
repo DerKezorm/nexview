@@ -69,6 +69,8 @@ PROBLEME: frozenset[str] = frozenset(
         "album_not_better",
         "album_tracks_missing",
         "download_failed",
+        # Seit nexcrate 46c42cd (24.09.2026): ein Video laut MediaInfo abgeschnitten.
+        "file_truncated",
     }
 )
 

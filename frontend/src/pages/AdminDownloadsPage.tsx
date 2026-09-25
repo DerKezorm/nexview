@@ -744,7 +744,7 @@ function VerlaufBereich() {
                   <span className="font-medium">{zeile.titel || zeile.release}</span>
                   <span className="text-mist-500"> · {t(`downloads.history.was.${zeile.was}`)}</span>
                   {zeile.grund && (
-                    <span className="text-mist-600"> · {t(`downloads.grund.${zeile.grund}.titel`)}</span>
+                    <span className="text-mist-600"> · {t(`downloads.grund.${zeile.grund}.titel`, { defaultValue: zeile.grund })}</span>
                   )}
                   {zeile.ergebnis && (
                     <span className="text-bad-500">

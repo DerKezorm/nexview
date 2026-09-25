@@ -426,6 +426,29 @@ describe('die übrige Seite', () => {
     expect(screen.queryByText(/Radarr|Sonarr/)).toBeNull()
   })
 
+  it('zeigt im Verlauf einen unbekannten Grund als Kennung, nicht als Schlüssel', async () => {
+    // nexcrate bekam am 24.09.2026 die Kennung file_truncated, Nexview kannte
+    // sie nicht: Im Verlauf hätte „downloads.grund.file_truncated.titel“ gestanden.
+    holen.mockImplementation(((pfad: string) => {
+      if (pfad === '/api/admin/downloads') return Promise.resolve(stand({ haenger: [], laufend: [] }))
+      if (pfad === '/api/admin/downloads/automatik') return Promise.resolve(AUTOMATIK)
+      if (pfad.startsWith('/api/admin/downloads/verlauf')) {
+        return Promise.resolve([
+          {
+            id: 1, am: '2026-09-25T10:00:00', kennung: 'nexcrate', instanz: 'nexcrate',
+            media_type: 'movie', titel: 'Erfundener Film', release: 'Erfundener.Film.2026',
+            grund: 'ganz_neue_kennung', was: 'erkannt', automatisch: true, wer: null, ergebnis: '',
+          },
+        ])
+      }
+      return Promise.reject(new Error(`unerwartet: ${pfad}`))
+    }) as never)
+    rendernSchlicht(<AdminDownloadsPage />)
+
+    expect(await screen.findByText(/ganz_neue_kennung/)).toBeInTheDocument()
+    expect(screen.queryByText(/downloads\.grund\./)).toBeNull()
+  })
+
   it('sagt ohne Hänger schlicht, dass nichts lädt', async () => {
     antworten({ uebersicht: stand({ laufend: [], haenger: [] }) })
     rendernSchlicht(<AdminDownloadsPage />)

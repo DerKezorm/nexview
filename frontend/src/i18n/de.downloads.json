@@ -249,6 +249,10 @@
         "titel": "Noch verpackt",
         "hilfe": "Im Download liegt ein Archiv. nexcrate packt nichts aus - das Download-Programm muss es tun."
       },
+      "file_truncated": {
+        "titel": "Ein Video ist abgeschnitten",
+        "hilfe": "Eine Videodatei im Download ist kürzer, als sie sein sollte. nexcrate hat sie nicht abgelegt und nichts ersetzt. Entfernen und neu suchen holt ein anderes Release."
+      },
       "no_video": {
         "titel": "Kein Video",
         "hilfe": "Im Download ist keine Videodatei. Meist ein Sample oder eine falsch benannte Datei."

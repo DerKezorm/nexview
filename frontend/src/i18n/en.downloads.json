@@ -249,6 +249,10 @@
         "titel": "Still packed",
         "hilfe": "The download contains an archive. nexcrate does not unpack - the download client has to."
       },
+      "file_truncated": {
+        "titel": "A video is cut off",
+        "hilfe": "A video file in the download is shorter than it should be. nexcrate did not file it and replaced nothing. Remove and search again fetches another release."
+      },
       "no_video": {
         "titel": "No video",
         "hilfe": "There is no video file in the download. Usually a sample or a misnamed file."

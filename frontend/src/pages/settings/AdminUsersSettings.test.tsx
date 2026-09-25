@@ -380,3 +380,30 @@ it('nennt beim Freigabe-Haken die Hauptfassung beim Namen', async () => {
   expect(screen.getByRole('checkbox', { name: /Full-HD · Serien ohne Freigabe/ })).toBeTruthy()
   expect(screen.queryByRole('checkbox', { name: /Filme automatisch freigeben/ })).toBeNull()
 })
+
+it('behält im ARR-Betrieb den alten Satz beim Freigabe-Haken', async () => {
+  // Dort gibt es nur die Stufen; „Standard · Filme ohne Freigabe" sagte nichts
+  // Neues (Entscheidung des Betreibers, 25.09.2026).
+  const fassung = (kennung: string, media_type: 'movie' | 'tv') => ({
+    kennung,
+    media_type,
+    name: kennung,
+    klasse: 'hd',
+    quelle: 'arr',
+    haupt: true,
+    bereit: true,
+    offen_fuer_alle: true,
+    approver_picks_target: false,
+    darf_anfragen: true,
+  })
+  einrichten(konto(), {
+    konfiguration: {
+      fassungen: [fassung('radarr-standard', 'movie'), fassung('sonarr-standard', 'tv')],
+    },
+  })
+  await oeffnen()
+
+  expect(await filmeHaken()).toBeTruthy()
+  expect(screen.getByRole('checkbox', { name: /Serien automatisch freigeben/ })).toBeTruthy()
+  expect(screen.queryByRole('checkbox', { name: /Standard · Filme ohne Freigabe/ })).toBeNull()
+})

@@ -253,8 +253,9 @@ the process. The backup is the way back.
   download gets stuck again and again.
 - **The approval switch named no version.** "Approve movies automatically"
   stood next to "4K · Movies without approval" as if it applied to every
-  version; it applies to the main one. It now reads "Full-HD · Movies without
-  approval", in the account dialog and in the invitation wizard.
+  version; it applies to the main one. With nexcrate's named versions it now
+  reads "Full-HD · Movies without approval", in the account dialog and in the
+  invitation wizard; with Radarr and Sonarr it stays as it was.
 - **Storage could land with the wrong person.** A new storage entry went to
   whoever had requested the title in the same tier, so with 3D next to Full-HD
   a 3D request carried the Full-HD file. It now goes by version; requests from

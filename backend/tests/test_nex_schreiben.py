@@ -119,6 +119,36 @@ async def test_eine_anfrage_nennt_fassung_herkunft_und_suchwunsch(
     assert kennung == 603
 
 
+@pytest.mark.parametrize(
+    ("werte", "regel"),
+    [
+        ({"season": 2}, "none"),
+        ({"season": 2, "episodes": [1, 2, 3]}, "none"),
+        # Auch mit dem Haken „künftige Staffeln“: nexcrate kann „diese Staffel
+        # und alles Künftige“ beim Anlegen nicht ausdrücken, ``true`` hieße dort
+        # jede vorhandene Folge.
+        ({"season": 2, "monitor_future": True}, "none"),
+        ({"season": None, "monitor_future": True}, "all"),
+    ],
+)
+async def test_eine_staffel_holt_nicht_die_ganze_serie(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, werte: dict[str, Any], regel: str
+) -> None:
+    """Rundgang 2, R2-6 (gemessen 25.09.2026): Ein Konto fragte von einer Serie
+    Staffel 1, Folgen 1 bis 5 an, und nexcrate griff die Staffeln 1 bis 8.
+    nexcrate setzt ``future_seasons`` ab Werk auf ``true`` und will dann jede
+    Folge; Nexview liess das Feld weg."""
+    nexcrate.serie(1399, versionen=[])
+    person = _nutzer(db)
+    anfrage = _anfrage(
+        db, person, media_type=MediaType.tv, tmdb_id=1399, fassung_kennung=SERIE_HD, arr_id=1399, **werte
+    )
+
+    await get_beschaffung(nex).anfragen(db, anfrage)
+
+    assert nexcrate.watch_rules[("series", "tmdb:1399")] == regel
+
+
 async def test_der_name_des_anfragenden_geht_nur_mit_schalter_hinaus(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:
@@ -151,7 +181,7 @@ async def test_der_name_des_anfragenden_geht_nur_mit_schalter_hinaus(
                 "fassung_kennung": SERIE_HD,
                 "season": 2,
             },
-            {"series": {"seasons": [2]}},
+            {"series": {"seasons": [2], "future_seasons": False}},
         ),
         (
             {
@@ -166,7 +196,8 @@ async def test_der_name_des_anfragenden_geht_nur_mit_schalter_hinaus(
                     "episodes": [
                         {"season": 2, "episode": 1},
                         {"season": 2, "episode": 3},
-                    ]
+                    ],
+                    "future_seasons": False,
                 }
             },
         ),
@@ -391,7 +422,8 @@ async def test_zuruecknehmen_schickt_umfang_und_dateien(
 
     koerper = _gesendet(nexcrate, "/withdraw")[0]
     assert koerper["versions"] == [SERIE_HD]
-    assert koerper["series"] == {"seasons": [2]}
+    # ``future_seasons`` beachtet nexcrate nur beim Anfragen (``v1_write.py``).
+    assert koerper["series"] == {"seasons": [2], "future_seasons": False}
     # ⚠️ Gelöscht wird über ``withdraw`` mit ``delete_files`` - nicht über
     # ``delete-files``, das ließe die Überwachung an (Bauplan 6.4).
     assert koerper["delete_files"] is True

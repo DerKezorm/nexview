@@ -116,6 +116,11 @@ class FakeNexcrate:
         self.health: list[dict[str, Any]] = []
         self.storage: list[dict[str, Any]] = []
         self.queue: list[dict[str, Any]] = []
+        #: Die Regel, mit der eine Serienfassung angelegt wurde, je (kind, ref).
+        #: ⚠️ Wie nexcrate: Fehlt ``series.future_seasons``, gilt ``true``
+        #: (``routers/v1_write.py``), und die Fassung will **jede** Folge
+        #: (Rundgang 2, R2-6).
+        self.watch_rules: dict[tuple[str, str], str] = {}
         self.recycle: list[dict[str, Any]] = []
         self.history: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.why: dict[tuple[str, str], dict[str, Any]] = {}
@@ -792,6 +797,11 @@ class FakeNexcrate:
             return _fehler(404, "title_not_found", "nexcrate does not have this title.")
         gewuenscht = list(koerper.get("versions") or [])
         bekannt = {v["version_id"] for v in titel["versions"]}
+        if kind == "series" and any(k not in bekannt for k in gewuenscht):
+            umfang = koerper.get("series") or {}
+            self.watch_rules[(kind, ref)] = (
+                "all" if umfang.get("future_seasons", True) else "none"
+            )
         return httpx.Response(
             200,
             json={

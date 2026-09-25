@@ -87,6 +87,14 @@ def umfang(request: MediaRequest) -> dict[str, Any]:
     Ein Film hat keinen; eine Serie entweder Folgen, eine Staffel oder alles.
     ⚠️ Der Schlüssel heißt nach der Medienart (`series: {...}`), nie oben -
     so trägt dieselbe Form später auch Musik.
+
+    ⚠️ **``future_seasons`` steht immer ausdrücklich da.** nexcrate setzt es ab
+    Werk auf ``true`` und legt eine neue Serienfassung dann mit der Regel
+    ``all`` an: jede vorhandene Folge gewollt. Nexview ließ das Feld weg, und
+    aus „Staffel 1, Folgen 1 bis 5“ wurden acht Staffeln (Rundgang 2, R2-6,
+    gemessen 25.09.2026). ``true`` gibt es deshalb nur für die ganze Serie; den
+    Haken „künftige Staffeln“ neben einzelnen Staffeln kann nexcrates Vertrag
+    beim Anlegen nicht ausdrücken, ohne alles zu wollen.
     """
     if request.media_type != MediaType.tv:
         return {}
@@ -96,11 +104,12 @@ def umfang(request: MediaRequest) -> dict[str, Any]:
                 "episodes": [
                     {"season": request.season, "episode": nummer}
                     for nummer in sorted(request.episodes)
-                ]
+                ],
+                "future_seasons": False,
             }
         }
     if request.season is not None:
-        return {"series": {"seasons": [request.season]}}
+        return {"series": {"seasons": [request.season], "future_seasons": False}}
     # Die ganze Serie, samt allem, was noch kommt - wie „alle Staffeln" bei
     # Sonarr und wie die Anfrage es meint.
     return {"series": {"seasons": "all", "future_seasons": True}}

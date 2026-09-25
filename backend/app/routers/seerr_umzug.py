@@ -176,7 +176,7 @@ async def vorlage(eingabe: ZugangEingabe, db) -> dict:
                     "message": (
                         probe.fassung_hinweis.text
                         if probe.fassung_hinweis
-                        else "Diese Seerr-Fassung ist nicht geprüft."
+                        else "Diese Seerr-Version ist nicht geprüft."
                     ),
                     "version": probe.fassung,
                 },
@@ -522,7 +522,7 @@ async def abschliessen(
                 status.HTTP_409_CONFLICT,
                 {
                     "code": "seerr_version_unknown",
-                    "message": "Diese Seerr-Fassung ist nicht geprüft.",
+                    "message": "Diese Seerr-Version ist nicht geprüft.",
                 },
             )
         einstellungen = await client.einstellungen()

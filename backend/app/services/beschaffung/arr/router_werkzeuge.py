@@ -1200,7 +1200,7 @@ def _umzug_lesen(payload: UmzugIn) -> list[qualitaet_umzug.Ausfuhr]:
     if grund == "zu_neu":
         raise meldungen.fehler(
             "quality_import_zu_neu",
-            "Die Datei stammt aus einer neueren Nexview-Fassung. Aktualisiere "
+            "Die Datei stammt aus einer neueren Nexview-Version. Aktualisiere "
             "zuerst diese Installation.",
             400,
         )

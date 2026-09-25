@@ -120,20 +120,26 @@ async def test_eine_anfrage_nennt_fassung_herkunft_und_suchwunsch(
 
 
 @pytest.mark.parametrize(
-    ("werte", "regel"),
+    ("werte", "regel", "staffeln"),
     [
-        ({"season": 2}, "none"),
-        ({"season": 2, "episodes": [1, 2, 3]}, "none"),
-        # Auch mit dem Haken „künftige Staffeln“: nexcrate kann „diese Staffel
-        # und alles Künftige“ beim Anlegen nicht ausdrücken, ``true`` hieße dort
-        # jede vorhandene Folge.
-        ({"season": 2, "monitor_future": True}, "none"),
-        ({"season": None, "monitor_future": True}, "all"),
-        ({"season": None, "monitor_future": False}, "none"),
+        ({"season": 2}, "none", [2]),
+        # ⚠️ Die eigentliche Ursache: ohne ``seasons`` schaltet nexcrate jede
+        # Staffel ein, auch wenn ``episodes`` dabei ist.
+        ({"season": 2, "episodes": [1, 2, 3]}, "none", []),
+        # „Staffel 2 und künftige“: nexcrate schaltet nur Staffel 2 ein und
+        # holt spätere von selbst (zugesagt von nexcrate, 25.09.2026).
+        ({"season": 2, "monitor_future": True}, "all", [2]),
+        ({"season": None, "monitor_future": True}, "all", "alle"),
+        ({"season": None, "monitor_future": False}, "none", "alle"),
     ],
 )
 async def test_eine_staffel_holt_nicht_die_ganze_serie(
-    nex: Any, nexcrate: FakeNexcrate, db: Session, werte: dict[str, Any], regel: str
+    nex: Any,
+    nexcrate: FakeNexcrate,
+    db: Session,
+    werte: dict[str, Any],
+    regel: str,
+    staffeln: Any,
 ) -> None:
     """Rundgang 2, R2-6 (gemessen 25.09.2026): Ein Konto fragte von einer Serie
     Staffel 1, Folgen 1 bis 5 an, und nexcrate griff die Staffeln 1 bis 8.
@@ -148,6 +154,7 @@ async def test_eine_staffel_holt_nicht_die_ganze_serie(
     await get_beschaffung(nex).anfragen(db, anfrage)
 
     assert nexcrate.watch_rules[("series", "tmdb:1399")] == regel
+    assert nexcrate.eingeschaltet[("series", "tmdb:1399")] == staffeln
 
 
 async def test_der_name_des_anfragenden_geht_nur_mit_schalter_hinaus(
@@ -207,6 +214,7 @@ async def test_der_name_des_anfragenden_geht_nur_mit_schalter_hinaus(
                         {"season": 2, "episode": 1},
                         {"season": 2, "episode": 3},
                     ],
+                    "seasons": [],
                     "future_seasons": False,
                 }
             },

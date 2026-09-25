@@ -88,14 +88,15 @@ def umfang(request: MediaRequest) -> dict[str, Any]:
     ⚠️ Der Schlüssel heißt nach der Medienart (`series: {...}`), nie oben -
     so trägt dieselbe Form später auch Musik.
 
-    ⚠️ **``future_seasons`` steht immer ausdrücklich da.** nexcrate setzt es ab
-    Werk auf ``true`` und legt eine neue Serienfassung dann mit der Regel
-    ``all`` an: jede vorhandene Folge gewollt. Nexview ließ das Feld weg, und
-    aus „Staffel 1, Folgen 1 bis 5“ wurden acht Staffeln (Rundgang 2, R2-6,
-    gemessen 25.09.2026). ``true`` gibt es deshalb nur für die ganze Serie mit
-    dem Haken „künftige Staffeln“; den
-    Haken „künftige Staffeln“ neben einzelnen Staffeln kann nexcrates Vertrag
-    beim Anlegen nicht ausdrücken, ohne alles zu wollen.
+    ⚠️ **``seasons`` und ``future_seasons`` stehen immer ausdrücklich da.**
+    Fehlt ``seasons``, schaltet nexcrate jede Staffel ein, auch wenn
+    ``episodes`` dabei ist (``_checked_seasons``); fehlt ``future_seasons``,
+    gilt ``true``. Nexview schickte bei einem Folgen-Paket nur ``episodes``,
+    und aus „Staffel 1, Folgen 1 bis 5“ wurden acht Staffeln (Rundgang 2,
+    R2-6, gemessen 25.09.2026). Ein Paket schickt deshalb ``seasons: []``: keine
+    ganze Staffel, nur die genannten Folgen (von nexcrate zugesagt). Eine
+    Staffel mit dem Haken „künftige Staffeln“ schickt ``true``: nexcrate
+    schaltet dann nur diese Staffel ein und holt spätere von selbst.
     """
     if request.media_type != MediaType.tv:
         return {}
@@ -106,11 +107,17 @@ def umfang(request: MediaRequest) -> dict[str, Any]:
                     {"season": request.season, "episode": nummer}
                     for nummer in sorted(request.episodes)
                 ],
+                "seasons": [],
                 "future_seasons": False,
             }
         }
     if request.season is not None:
-        return {"series": {"seasons": [request.season], "future_seasons": False}}
+        return {
+            "series": {
+                "seasons": [request.season],
+                "future_seasons": bool(request.monitor_future),
+            }
+        }
     # Die ganze Serie; künftige Staffeln nur mit dem Haken, wie im ARR-Betrieb
     # (``arr/sonarr.py``). Ohne ihn will nexcrate alle vorhandenen Staffeln
     # und keine neue.

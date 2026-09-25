@@ -121,6 +121,11 @@ class FakeNexcrate:
         #: (``routers/v1_write.py``), und die Fassung will **jede** Folge
         #: (Rundgang 2, R2-6).
         self.watch_rules: dict[tuple[str, str], str] = {}
+        #: Welche ganzen Staffeln eine Anfrage einschaltet, je (kind, ref).
+        #: ⚠️ Wie nexcrates ``_checked_seasons``: Fehlt ``seasons``, sind es
+        #: **alle** Staffeln, auch wenn ``episodes`` dabei ist ("alle").
+        #: Ein Folgen-Paket lud so die ganze Serie (Rundgang 2, R2-6).
+        self.eingeschaltet: dict[tuple[str, str], Any] = {}
         self.recycle: list[dict[str, Any]] = []
         self.history: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.why: dict[tuple[str, str], dict[str, Any]] = {}
@@ -801,6 +806,11 @@ class FakeNexcrate:
             umfang = koerper.get("series") or {}
             self.watch_rules[(kind, ref)] = (
                 "all" if umfang.get("future_seasons", True) else "none"
+            )
+        if kind == "series":
+            staffeln = (koerper.get("series") or {}).get("seasons")
+            self.eingeschaltet[(kind, ref)] = (
+                "alle" if staffeln in (None, "all") else list(staffeln)
             )
         return httpx.Response(
             200,

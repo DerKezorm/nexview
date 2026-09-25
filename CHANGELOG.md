@@ -241,6 +241,26 @@ the process. The backup is the way back.
   the media server had in HD, and a 3D request would have been refused. The
   media server knows resolutions, not versions: a copy now counts for the
   first version of its class only, and the same goes for a second 4K version.
+- **A season with a few requested episodes counted as complete.** The count a
+  season was measured against held only the episodes being watched for, so two
+  requested episodes of 22 read "complete". It now counts every episode that
+  has aired, in both modes, and the season shows "2 of 22".
+- **The automation box offered nothing in nexcrate mode.** It showed a switch
+  and a text about rules, but no rule could be set, because the list came from
+  Nexview's table for Radarr and Sonarr. nexcrate decides itself what happens
+  with stuck downloads; the box now says so and links there, and Nexview no
+  longer acts on its own in that mode. It still tells you when the same
+  download gets stuck again and again.
+- **The approval switch named no version.** "Approve movies automatically"
+  stood next to "4K · Movies without approval" as if it applied to every
+  version; it applies to the main one. It now reads "Full-HD · Movies without
+  approval", in the account dialog and in the invitation wizard.
+- **Storage could land with the wrong person.** A new storage entry went to
+  whoever had requested the title in the same tier, so with 3D next to Full-HD
+  a 3D request carried the Full-HD file. It now goes by version; requests from
+  before the switch to nexcrate, which keep their old version, still count by
+  tier. A series without a TVDB number is now found by its TMDB number, where
+  its entry used to fall to the house.
 
 ## 0.35.2 – 18.09.2026
 

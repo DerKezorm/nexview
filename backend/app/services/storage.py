@@ -1668,12 +1668,27 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
     admins = set(
         db.scalars(select(User.id).where(User.role == Role.admin)).all()
     )
+    # ⚠️ **Verglichen wird die Fassung, nicht die Stufe.** Bis zum 25.09.2026
+    # stand hier die Stufe: Mit 3D neben Full-HD (beide ``standard``) trug eine
+    # 3D-Anfrage jede Full-HD-Datei des Titels. Nur eine Anfrage, deren
+    # Fassung es nicht mehr gibt, faellt auf die Stufe zurueck: Erledigte
+    # Anfragen behalten beim Umstieg ihre Arr-Kennung (``umstieg``), und ohne
+    # den Rueckfall fiele ihr Posten ans Haus.
+    aktiv = set(db.scalars(select(Fassung.kennung).where(Fassung.aktiv.is_(True))).all())
 
-    nach_film: dict[tuple[int, str], int] = {}
-    nach_serie: dict[tuple[int, str, int | None], int] = {}
+    def achse(anfrage: MediaRequest) -> tuple[str, str]:
+        kennung = anfrage.fassung_kennung
+        if kennung and kennung in aktiv:
+            return ("fassung", kennung)
+        return ("stufe", anfrage.tier if anfrage.tier else "standard")
+
+    nach_film: dict[tuple[int, tuple[str, str]], int] = {}
+    # Serien unter beiden Nummern: nexcrate ankert auf TMDB, Sonarr auf TVDB,
+    # und eine Anfrage traegt keine TVDB-Nummer, wenn TMDB keine kennt.
+    nach_serie: dict[tuple[tuple[str, int], tuple[str, str], int | None], int] = {}
     nach_paket: dict[int, int] = {}
     # Wer bei dieser Serie "auch kuenftige Staffeln" angehakt hat.
-    nach_kuenftig: dict[tuple[int, str], int] = {}
+    nach_kuenftig: dict[tuple[tuple[str, int], tuple[str, str]], int] = {}
     for anfrage in anfragen:
         if anfrage.user_id in admins:
             continue
@@ -1682,24 +1697,31 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
         # jemand ihn fuer sich wollte, sondern weil das Haus ihn haben wollte.
         if anfrage.hausbestand:
             continue
-        stufe = anfrage.tier if anfrage.tier else "standard"
+        stufe = achse(anfrage)
         if anfrage.media_type == MediaType.movie:
             nach_film.setdefault((anfrage.tmdb_id, stufe), anfrage.user_id)
         elif anfrage.episodes:
             # Folgen-Pakete beanspruchen nie die Staffel-Zeile - nur ihre
             # eigene ``:r``-Zeile, ueber die Anfrage-Nummer im Schluessel.
             nach_paket[anfrage.id] = anfrage.user_id
-        elif anfrage.tvdb_id:
-            nach_serie.setdefault(
-                (anfrage.tvdb_id, stufe, anfrage.season), anfrage.user_id
-            )
-            if anfrage.monitor_future:
-                nach_kuenftig.setdefault((anfrage.tvdb_id, stufe), anfrage.user_id)
+        else:
+            for nummer in (("tmdb", anfrage.tmdb_id), ("tvdb", anfrage.tvdb_id)):
+                if not nummer[1]:
+                    continue
+                nach_serie.setdefault((nummer, stufe, anfrage.season), anfrage.user_id)
+                if anfrage.monitor_future:
+                    nach_kuenftig.setdefault((nummer, stufe), anfrage.user_id)
 
     ergebnis: dict[str, int] = {}
     for wert in werte:
+        # Erst die eigene Fassung, dann eine Anfrage ohne gueltige Fassung
+        # auf derselben Stufe.
+        achsen = (("fassung", _fassung_aus_schluessel(wert.key) or ""), ("stufe", wert.tier))
         if wert.media_type == MediaType.movie:
-            besitzer = nach_film.get((wert.tmdb_id, wert.tier))
+            besitzer = next(
+                (nach_film[(wert.tmdb_id, a)] for a in achsen if (wert.tmdb_id, a) in nach_film),
+                None,
+            )
         elif (paket_nummer := _paket_nummer(wert.key)) is not None:
             besitzer = nach_paket.get(paket_nummer)
         else:
@@ -1723,10 +1745,20 @@ def _zuordnung(db: Session, werte) -> dict[str, int]:
             # echten Bibliothek ist der zweite Fall selten: Nicht angefragte
             # Staffeln bleiben unueberwacht und laden nie von selbst (bei
             # 11 Staffeln "The X-Files" waren es null).
-            besitzer = (
-                nach_serie.get((wert.tvdb_id, wert.tier, wert.season))
-                or nach_serie.get((wert.tvdb_id, wert.tier, None))
-                or nach_kuenftig.get((wert.tvdb_id, wert.tier))
+            nummern = [n for n in (("tmdb", wert.tmdb_id), ("tvdb", wert.tvdb_id)) if n[1]]
+            besitzer = next(
+                (
+                    gefunden
+                    for a in achsen
+                    for n in nummern
+                    if (
+                        gefunden := nach_serie.get((n, a, wert.season))
+                        or nach_serie.get((n, a, None))
+                        or nach_kuenftig.get((n, a))
+                    )
+                    is not None
+                ),
+                None,
             )
         if besitzer is not None:
             ergebnis[wert.key] = besitzer

@@ -353,7 +353,9 @@ def anlegen(*, art: str = MANUELL, kommentar: str = "", version: str | None = No
 
     stempel = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     zusatz = _sicherer_name(kommentar)
-    grund = f"nexview-{art}-{stand}-{stempel}" + (f"-{zusatz}" if zusatz else "")
+    # "0.35.2 or later" (``db._datenstand``) wird im Namen zu "0.35.2-or-later".
+    im_namen = re.sub(r"[^\w.]+", "-", stand).strip("-")
+    grund = f"nexview-{art}-{im_namen}-{stempel}" + (f"-{zusatz}" if zusatz else "")
 
     ziel = ziel_ordner / f"{grund}.db"
     # VACUUM INTO weigert sich, eine vorhandene Datei zu ueberschreiben.

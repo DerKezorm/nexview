@@ -256,61 +256,149 @@ def test_update_legt_sicherung_an(alte_installation: Path) -> None:
     assert namen == ["altbenutzer"]
 
 
-def test_die_sicherung_vor_dem_update_laesst_sich_in_die_alte_fassung_einspielen(
-    alte_installation: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """#note-22: Die Kopie traegt die Fassung ihrer Daten, nicht die laufende.
+def _datenbank_von_0_35_2(pfad: Path, *, quittiert: str | None) -> None:
+    """Der echte Fall: Buch nur mit aelterer Fassung, Daten von 0.35.2.
 
-    Bis 1.0.0 hiess die Sicherung einer 0.35.2-Datenbank
-    ``nexview-automatisch-1.0.0-...`` und trug 1.0.0 im Steckbrief. 0.35.2
-    lehnte sie deshalb als "neuer" ab (``backup_newer``, gemessen) - der
-    Rueckweg, fuer den sie angelegt wird, ging ueber die Oberflaeche nicht.
+    Das Wanderungsbuch gibt es seit 0.26.2, und bis 0.35.2 kam kein
+    Einmal-Schritt dazu - eine Installation, die ueber 0.30.0 kam, traegt dort
+    nur 0.30.0. ``quittiert`` ist das "Was ist neu", das ein Administrator unter
+    0.35.2 weggeklickt hat (``users.changelog_gesehen``).
     """
-    import json
-
-    from app import __version__
     from app.models import Wanderung
-    from app.services import sicherung
 
-    # Eine Datenbank, die schon Fassungen mit Wanderungsbuch gesehen hat.
-    alt = create_engine(f"sqlite:///{alte_installation}")
+    alt = create_engine(f"sqlite:///{pfad}")
     Wanderung.__table__.create(bind=alt)
     with alt.begin() as verbindung:
-        for name, fassung in (("_alter_schritt", "0.33.0"), ("_juengerer_schritt", "0.35.2")):
+        for name in ("_verbindung_in_die_tabelle", "_bewertungen_in_die_tabelle"):
             verbindung.exec_driver_sql(
                 "INSERT INTO wanderungen (wanderung_name, wanderung_am, wanderung_herkunft, "
-                "wanderung_version) VALUES (?, '2026-09-01 00:00:00', 'ausgefuehrt', ?)",
-                (name, fassung),
+                "wanderung_version) VALUES (?, '2026-08-01 00:00:00', 'vorgefunden', '0.30.0')",
+                (name,),
             )
+        verbindung.exec_driver_sql("ALTER TABLE users ADD COLUMN changelog_gesehen VARCHAR(20)")
+        verbindung.exec_driver_sql("UPDATE users SET changelog_gesehen = ?", (quittiert,))
     alt.dispose()
+
+
+def _sicherung_vor_dem_update(pfad: Path) -> tuple[Path, dict]:
+    import json
+
+    sicherungen = list((pfad.parent / "sicherungen").glob("nexview-automatisch-*.db"))
+    assert len(sicherungen) == 1
+    return sicherungen[0], json.loads(sicherungen[0].with_suffix(".json").read_text(encoding="utf-8"))
+
+
+def test_die_sicherung_vor_dem_update_behauptet_keine_fassung_die_sie_nicht_kennt(
+    alte_installation: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Pruefer zu #note-22: Aus dem Buch allein wurde "0.30.0" - die Daten waren von 0.35.2.
+
+    Vor 1.0.0 schrieb keine Fassung sich selbst in die Datenbank. Genau ist die
+    Angabe deshalb nie; sie sagt "oder spaeter" und nennt die hoechste Spur.
+    """
+    from app import __version__
+    from app.services import sicherung
+
+    _datenbank_von_0_35_2(alte_installation, quittiert=None)
 
     with caplog.at_level("INFO", logger="nexview.db"):
         db_modul.init_db()
 
-    sicherungen = list((alte_installation.parent / "sicherungen").glob("nexview-automatisch-*.db"))
-    assert len(sicherungen) == 1
-    assert sicherungen[0].name.startswith("nexview-automatisch-0.35.2-")
-    brief = json.loads(sicherungen[0].with_suffix(".json").read_text(encoding="utf-8"))
-    assert brief["version"] == "0.35.2"
-    assert __version__ in brief["kommentar"]
+    datei, brief = _sicherung_vor_dem_update(alte_installation)
+    assert datei.name.startswith("nexview-automatisch-0.30.0-or-later-")
+    assert brief["version"] == "0.30.0 or later"
+    assert brief["kommentar"] == f"{sicherung.VOR_UPDATE}{__version__}"
     # So prueft 0.35.2 selbst, ob es einspielen darf: nicht neuer als es.
     assert sicherung._als_zahlen(brief["version"]) <= (0, 35, 2)
 
-    # Und das Protokoll nennt den Rueckweg samt Datei.
+    # Das Protokoll nennt den Rueckweg samt Datei, ohne eine Fassung zu behaupten.
     nennung = [
         eintrag.getMessage()
         for eintrag in caplog.records
         if eintrag.getMessage().startswith("Database updated from")
     ]
     assert len(nennung) == 1, nennung
-    assert "Nexview 0.35.2" in nennung[0]
-    assert sicherungen[0].name in nennung[0]
+    assert "Nexview 0.30.0 or later" in nennung[0]
+    assert datei.name in nennung[0]
+    assert "nexview.db-wal" in nennung[0]
 
     # Ein zweiter Start ohne Schemaaenderung sagt nichts mehr.
     caplog.clear()
     with caplog.at_level("INFO", logger="nexview.db"):
         db_modul.init_db()
     assert not [e for e in caplog.records if e.getMessage().startswith("Database updated from")]
+
+
+def test_das_quittierte_was_ist_neu_kommt_naeher_an_die_fassung(alte_installation: Path) -> None:
+    from app.services import sicherung
+
+    _datenbank_von_0_35_2(alte_installation, quittiert="0.35.2")
+
+    db_modul.init_db()
+
+    datei, brief = _sicherung_vor_dem_update(alte_installation)
+    assert brief["version"] == "0.35.2 or later"
+    assert datei.name.startswith("nexview-automatisch-0.35.2-or-later-")
+    assert sicherung._als_zahlen(brief["version"]) <= (0, 35, 2)
+
+
+def test_ab_1_0_0_ist_die_fassung_der_daten_genau(alte_installation: Path) -> None:
+    """Der Merker haelt sie fest; eine Sicherung vor dem naechsten Update heisst danach."""
+    db_modul.init_db()
+    merker = create_engine(f"sqlite:///{alte_installation}")
+    with merker.begin() as verbindung:
+        verbindung.exec_driver_sql(f"PRAGMA user_version = {db_modul._fassungszahl('0.99.1')}")
+    merker.dispose()
+
+    assert db_modul._datenstand() == "0.99.1"
+
+
+def _sicherung_scheitert(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import sicherung
+
+    def voll(**_: object) -> Path:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(sicherung, "anlegen", voll)
+
+
+def test_ohne_sicherung_wandert_nichts_ohne_rueckweg(
+    alte_installation: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Scheitert die Sicherung vor einer Wanderung, die Daten umdeutet, haelt der Start an.
+
+    Sie ist der einzige Rueckweg (#note-22). Frueher lief der Start weiter und
+    entfernte die Stufen-Spalten ohne Kopie.
+    """
+    _sicherung_scheitert(monkeypatch)
+
+    with caplog.at_level("CRITICAL", logger="nexview.db"), pytest.raises(db_modul.SicherungFehlt):
+        db_modul.init_db()
+
+    kritisch = [e.getMessage() for e in caplog.records if e.levelname == "CRITICAL"]
+    assert len(kritisch) == 1
+    assert "_fassungen_einfuehren" in kritisch[0]
+    assert "sicherungen/" in kritisch[0]
+    pruefen = create_engine(f"sqlite:///{alte_installation}")
+    with pruefen.connect() as verbindung:
+        spalten = db_modul._existing_columns(verbindung, "media_requests")
+    pruefen.dispose()
+    assert "fassung_kennung" not in spalten, "die Wanderung lief trotzdem"
+
+
+def test_ohne_sicherung_laeuft_eine_reine_ergaenzung_weiter(
+    alte_installation: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nur eine fehlende Spalte: Da ist nichts umzudeuten, der Start geht weiter."""
+    db_modul.init_db()
+    with db_modul.engine.begin() as verbindung:
+        verbindung.exec_driver_sql("ALTER TABLE download_haenger DROP COLUMN aktionen")
+    _sicherung_scheitert(monkeypatch)
+
+    db_modul.init_db()
+
+    with db_modul.engine.connect() as verbindung:
+        assert "aktionen" in db_modul._existing_columns(verbindung, "download_haenger")
 
 
 def test_zweiter_start_aendert_nichts_mehr(alte_installation: Path) -> None:

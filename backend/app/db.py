@@ -223,6 +223,9 @@ PFLEGE_SCHRITTE = (
     # Lesen den Stand vor der Sicherung und nennen danach den Rueckweg; beide
     # aendern nichts an den Daten.
     "_datenstand",
+    # Haelt den Start an, wenn die Sicherung vor einer Wanderung ohne
+    # Rueckweg scheitert; aendert selbst nichts.
+    "_ohne_sicherung_anhalten",
     # Merker und Riegel gegen aeltere Fassungen: pruefen, setzen und anlegen
     # muessen bei jedem Start laufen, auch auf laengst gewanderten Datenbanken.
     "_merker_pruefen",
@@ -318,6 +321,8 @@ def init_db() -> None:
         # schreibt - danach stuende dort schon die laufende Fassung.
         stand = _datenstand()
         vorher = (stand, _backup_database(stand))
+        if vorher[1] is None:
+            _ohne_sicherung_anhalten(befund)
     # Sofort, vor ``create_all`` und ``_add_missing_columns`` - siehe oben.
     # Hinter der Sicherung, damit die Kopie die Datenbank zeigt, wie sie
     # angekommen ist.
@@ -358,6 +363,50 @@ def init_db() -> None:
         _rueckweg_nennen(*vorher)
 
 
+class SicherungFehlt(RuntimeError):
+    """Die Sicherung vor einer Wanderung ohne Rueckweg ist gescheitert - Start verweigert."""
+
+
+def _ohne_sicherung_anhalten(befund: dict[str, bool]) -> None:
+    """Ohne Sicherung nicht wandern, wenn die Wanderung Daten umdeutet.
+
+    Frueher lief der Start nach einer gescheiterten Sicherung einfach weiter:
+    Ein Container, der wegen einer nicht schreibbaren Sicherung nicht
+    hochkommt, schien schlimmer als eine fehlende Sicherung. Fuer eine
+    Wanderung, die nur Spalten ergaenzt, stimmt das weiter. Fuer eine, die
+    Bestandsdaten umdeutet oder Spalten entfernt (die Einmal-Schritte, etwa
+    ``_fassungen_einfuehren``), nicht: Die Sicherung ist dort der einzige
+    Rueckweg (#note-22), und ohne sie waere er still verloren. Dann haelt der
+    Start an, bevor irgendetwas geschrieben ist, und sagt, was zu tun ist.
+
+    Offen ist ein Schritt, wenn das Buch ihn als ``offen`` fuehrt, oder wenn er
+    dort fehlt und der Ankunftsbefund ihn nicht wiedererkannt hat - genau die
+    Schritte, die ``_einmal`` gleich ausfuehren wuerde.
+    """
+    with engine.connect() as verbindung:
+        buch = dict(
+            verbindung.exec_driver_sql(
+                f"SELECT wanderung_name, wanderung_herkunft FROM {WANDERUNGSBUCH}"  # noqa: S608 - fester Name
+            ).all()
+        )
+    offen = [
+        name
+        for name in EINMAL_SCHRITTE
+        if buch.get(name) == OFFEN or (name not in buch and not befund.get(name))
+    ]
+    if not offen:
+        return
+    meldung = (
+        "Nexview does not start: the backup before the database update failed (see the line "
+        "above), and this update changes existing data in a way that cannot be undone "
+        f"({', '.join(offen)}). Without that backup there would be no way back. Make room in the "
+        "data directory or check that its backups folder (sicherungen/) is writable, then start "
+        "again. The data has not been changed"
+    )
+    logger.critical(meldung)
+    raise SicherungFehlt(meldung)
+
+
 def _rueckweg_nennen(stand: str, sicherung: Path | None) -> None:
     """Nach einer Wanderung sagen, wo der Weg zurueck liegt - und wo nicht.
 
@@ -365,27 +414,34 @@ def _rueckweg_nennen(stand: str, sicherung: Path | None) -> None:
     lautlos.** Gemessen an 0.35.2 nach 1.0.0 (#note-22): Sie legt ihre alten
     Spalten leer wieder an, bricht eine laufende 4K-Anfrage ab ("no longer
     present in Radarr"), nimmt jedem Konto das 4K-Recht und erkennt keinen
-    Speicherposten wieder - bei gruenem Gesundheitszustand. Aufhalten kann
-    diese Fassung das nicht, sie laeuft dann ja nicht. Sagen kann sie es, und
-    zwar hier: im Protokoll des Starts, das nach einem Update als erstes
+    Speicherposten wieder - bei gruenem Gesundheitszustand. Sagen laesst es
+    sich hier: im Protokoll des Starts, das nach einem Update als erstes
     gelesen wird, mit dem Namen der Sicherung, die den Rueckweg traegt.
+
+    Der Satz nennt diese Folgen bewusst **nicht**: Er erscheint bei jeder
+    kuenftigen Wanderung, und was eine aeltere Fassung dann falsch macht, weiss
+    heute niemand. Er nennt, was immer gilt: nur per Dateitausch zurueck, und
+    nicht mit der Sicherung, die eine aeltere Fassung beim Start auf dieser
+    Datenbank selbst anlegt - die enthaelt schon die neuen Daten (0.35.2 nennt
+    sie ``nexview-automatisch-0.35.2-...``).
     """
     von = f"Nexview {stand}" if stand != "0" else "an older Nexview"
     if sicherung is None:
         logger.warning(
             "Database updated from %s to %s without a backup (it failed, see above). "
-            "An older Nexview cannot read this database correctly any more; starting one on "
-            "it changes data silently (open requests cancelled, 4K rights lost, storage entries "
-            "rebuilt)",
+            "An older Nexview cannot read this database correctly any more, so there is no "
+            "way back to it",
             von,
             __version__,
         )
         return
     logger.info(
-        "Database updated from %s to %s. The backup taken before the update is %s. "
-        "Do not start an older Nexview on this database: it cannot read it correctly and "
-        "changes data silently (open requests cancelled, 4K rights lost, storage entries "
-        "rebuilt). To go back, stop Nexview, restore this backup, then start the older version",
+        "Database updated from %s to %s. The backup taken before the update is %s in the "
+        "backups folder (sicherungen/ in the data directory). Do not start an older Nexview "
+        "on this database: it cannot read the newer data correctly. To go back, stop the "
+        "container, copy this backup over nexview.db, delete nexview.db-wal and "
+        "nexview.db-shm, then start the older version. Do not use a backup that an older "
+        "version creates when it is started on this database: it already holds the new data",
         von,
         __version__,
         sicherung.name,
@@ -395,26 +451,57 @@ def _rueckweg_nennen(stand: str, sicherung: Path | None) -> None:
 def _datenstand() -> str:
     """Welche Fassung die Daten dieser Datenbank geschrieben hat - so genau es geht.
 
-    Gelesen wird die hoechste Fassung, die je etwas ins Wanderungsbuch
-    eingetragen hat. Das ist eine **untere Grenze**, denn eine Fassung ohne
-    neuen Schritt traegt sich nicht ein - und genau diese Richtung ist die
-    sichere: Die Sicherung vor der Wanderung soll sich in die alte Fassung
-    einspielen lassen, und die prueft nur, dass sie nicht neuer ist als sie
-    selbst.
+    **Genau** nur mit dem Merker (``PRAGMA user_version``), den es seit 1.0.0
+    gibt: Er haelt die Fassung, die zuletzt vollstaendig gestartet ist, und
+    eine aeltere startet auf der Datenbank nicht mehr.
 
-    Ohne Buch (Datenbanken von vor seiner Einfuehrung) bleibt ``"0"``.
+    Davor schrieb keine Fassung sich selbst in die Datenbank. Es bleibt eine
+    **untere Grenze**, und die Antwort sagt das auch: ``"0.35.2 or later"``.
+    ⚠️ Das Wanderungsbuch allein reichte nicht - es gibt es seit 0.26.2, und bis
+    0.35.2 kam kein Einmal-Schritt dazu. Eine Installation, die ueber 0.30.0 auf
+    0.35.2 kam, hiess damit "0.30.0" (Pruefer, gemessen). Deshalb zaehlen drei
+    Spuren, jede von einer Fassung hinterlassen, die hier gelaufen ist:
+
+    * das Wanderungsbuch,
+    * ``users.changelog_gesehen``: die Fassung, deren "Was ist neu" ein
+      Administrator quittiert hat,
+    * die Steckbriefe der Sicherungen im Ordner, auch der regelmaessigen.
+
+    Die Richtung ist die sichere: Die Sicherung vor der Wanderung soll sich in
+    die alte Fassung einspielen lassen, und die prueft nur, dass sie nicht
+    neuer ist als sie selbst. Ohne jede Spur bleibt ``"0"``.
     """
-    from .services.sicherung import _als_zahlen
+    from .services import sicherung
 
     with engine.connect() as verbindung:
-        versionen = [
+        merker = verbindung.exec_driver_sql("PRAGMA user_version").scalar() or 0
+        if merker:
+            return _fassung_aus_zahl(merker)
+        spuren = [
             zeile[0]
             for zeile in verbindung.exec_driver_sql(
                 f"SELECT wanderung_version FROM {WANDERUNGSBUCH}"  # noqa: S608 - fester Name
             )
-            if zeile[0]
         ]
-    return max(versionen, key=_als_zahlen) if versionen else "0"
+        if "changelog_gesehen" in _existing_columns(verbindung, "users"):
+            spuren += [
+                zeile[0]
+                for zeile in verbindung.exec_driver_sql("SELECT DISTINCT changelog_gesehen FROM users")
+            ]
+    ordner = sicherung.ordner()
+    if ordner.is_dir():
+        spuren += [sicherung._steckbrief_lesen(datei).version for datei in ordner.glob("*.db")]
+
+    laufend = sicherung._als_zahlen(__version__)
+    stufen = [
+        zahlen
+        for zahlen in (sicherung._als_zahlen(spur) for spur in spuren if spur)
+        if zahlen != (0,) and zahlen <= laufend
+    ]
+    if not stufen:
+        return "0"
+    hoechste = max(stufen)
+    return f"{'.'.join(str(teil) for teil in hoechste[:3])} or later"
 
 
 # ---------------------------------------------------------------------------
@@ -1639,9 +1726,11 @@ def _backup_database(stand: str | None = None) -> Path | None:
     Auflisten und das Ausliefern als verschluesseltes Archiv, und beides muss
     denselben Ordner und dieselben Namen sehen wie das hier.
 
-    Scheitert die Sicherung, laeuft der Start trotzdem weiter: Ein Container,
-    der wegen einer nicht schreibbaren Sicherung gar nicht erst hochkommt,
-    waere schlimmer als eine fehlende Sicherung.
+    Scheitert die Sicherung, kommt ``None`` zurueck, und ``init_db``
+    entscheidet: Ergaenzt die Wanderung nur Spalten, laeuft der Start weiter
+    (ein Container, der daran nicht hochkommt, waere schlimmer als eine
+    fehlende Sicherung). Deutet sie Bestandsdaten um, haelt er an - siehe
+    ``_ohne_sicherung_anhalten``.
     """
     # Erst hier importiert - ``sicherung`` greift auf ``engine`` aus diesem
     # Modul zu, ein Import oben waere ein Ring.

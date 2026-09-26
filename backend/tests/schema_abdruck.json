@@ -1430,6 +1430,11 @@
         "schluessel": false,
         "typ": "VARCHAR(120)"
       },
+      "quality_profile_uhd": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
       "rated_at": {
         "leer_erlaubt": true,
         "schluessel": false,

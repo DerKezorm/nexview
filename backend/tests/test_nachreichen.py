@@ -27,7 +27,18 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.models import MediaRequest, MediaType, RequestStatus, Role, User, utcnow
+from app.models import (
+    ChannelKind,
+    ChannelMessage,
+    ChannelTarget,
+    MediaRequest,
+    MediaType,
+    NotificationType,
+    RequestStatus,
+    Role,
+    User,
+    utcnow,
+)
 from app.security import hash_password
 from app.services import abgleich_kern, befunde, nachreichen, requests_service, status_poller
 from app.services.beschaffung import NEX, BeschaffungError
@@ -150,6 +161,98 @@ async def test_was_liegen_bleibt_wird_gemeldet_und_der_merker_geleert(
     assert treffer[0].werte["anzahl"] == 1
     assert treffer[0].werte["titel"] == "Beispielfilm"
     assert treffer[0].ziel == "/admin/requests?filter=fremde_fassung"
+
+
+async def test_nachgereichte_freigabe_meldet_sich_wie_im_sofortweg(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Befund: Eine Anfrage, deren erste Übergabe vorübergehend scheiterte und
+    die erst über das Nachreichen doch noch durchgeht, bekam nie die
+    'freigegeben'-Meldung - ``nachreichen.einmal`` ruft ``push_to_arr`` direkt
+    auf, ohne je zu benachrichtigen. Das Arr-Gegenstück (Umschalten in die
+    andere Richtung) ist ``test_nachgereichte_arr_uebergabe_meldet_sich``
+    gleich im Anschluss.
+    """
+    nexcrate.film(603)
+    person = _nutzer(db)
+    anfrage = _anfrage(
+        db, person, fassung_kennung=FILM_HD, error_message="vorher gescheitert"
+    )
+    db.add(
+        ChannelTarget(
+            channel=ChannelKind.webhook,
+            name="Haus",
+            url="http://example.com/hook",
+            verified=True,
+            events={"request_pending": "normal", "request_decided": "normal"},
+        )
+    )
+    db.commit()
+    frisch = _umgeschaltet(db)
+
+    ergebnis = await nachreichen.einmal(db, frisch)
+
+    assert ergebnis.gereicht == 1
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.searching
+
+    # Genau eine Mitteilung - keine zusaetzliche fuer den fehlgeschlagenen
+    # ersten Versuch, der nie eine ausgeloest hat.
+    arten = [zeile.type for zeile in db.query(ChannelMessage).all()]
+    assert arten == [NotificationType.approved]
+
+
+async def test_nachgereichte_arr_uebergabe_meldet_sich(
+    arr_client: TestClient, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arr-Gegenstück zu ``test_nachgereichte_freigabe_meldet_sich_wie_im_sofortweg``:
+    dasselbe Nachreichen läuft nach einem Umschalten in jede Richtung, nicht
+    nur nach Arr auf NEX.
+    """
+    from app.services.beschaffung.arr import library
+    from app.services.beschaffung.arr.radarr import LibraryEntry
+
+    person = _nutzer(db)
+    anfrage = _anfrage(
+        db, person, fassung_kennung="radarr-standard", tmdb_id=9501,
+        title="Erfundener Film", error_message="vorher gescheitert",
+    )
+    db.add(
+        ChannelTarget(
+            channel=ChannelKind.webhook,
+            name="Haus",
+            url="http://example.com/hook",
+            verified=True,
+            events={"request_pending": "normal", "request_decided": "normal"},
+        )
+    )
+    db.commit()
+    frisch = _umgeschaltet(db)
+
+    async def bestand(*_args, **_kwargs):
+        return {9501: LibraryEntry(arr_id=920, has_file=False, monitored=False)}
+
+    class UnueberwachterRadarr:
+        async def ensure_tag(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            return None
+
+        async def film_ueberwachen(self, arr_id: int) -> None:
+            return None
+
+        async def film_suchen(self, arr_id: int) -> None:
+            return None
+
+    monkeypatch.setattr(library, "movie_library", bestand)
+    monkeypatch.setattr(library, "radarr_client", lambda *a, **k: UnueberwachterRadarr())
+
+    ergebnis = await nachreichen.einmal(db, frisch)
+
+    assert ergebnis.gereicht == 1
+    db.refresh(anfrage)
+    assert anfrage.status == RequestStatus.searching
+
+    arten = [zeile.type for zeile in db.query(ChannelMessage).all()]
+    assert arten == [NotificationType.approved]
 
 
 async def test_fremde_fassungen_verdraengen_keine_bekannte(

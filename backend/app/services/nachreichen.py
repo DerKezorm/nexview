@@ -38,8 +38,8 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, func, or_, select
 
-from ..models import MediaRequest, RequestStatus, utcnow
-from . import logs
+from ..models import MediaRequest, NotificationType, RequestStatus, utcnow
+from . import logs, notify
 from .beschaffung import NEX, get_beschaffung
 from .settings_service import save_settings
 
@@ -222,6 +222,23 @@ async def einmal(db: Session, settings: AppSettings) -> Ergebnis:
         try:
             await requests_service.push_to_arr(db, settings, anfrage, nachgereicht=True)
             gereicht += 1
+            # ⚠️ **Der Besteller hat nie „freigegeben" gehoert.** Weder der
+            # Sofortweg noch das Freigeben von Hand meldet vorher etwas -
+            # beide tun das erst nach einer *erfolgreichen* Uebergabe, und
+            # genau die ist hier zum ersten Mal gelungen (die Auswahl oben
+            # nimmt nur, was noch auf ``approved`` steht; eine gelungene
+            # Uebergabe setzt immer auf "sucht" um und faellt danach aus
+            # dieser Auswahl heraus). Keine Doppelung moeglich, auch nicht
+            # nach einer von Hand gescheiterten Freigabe.
+            if anfrage.user is not None:
+                notify.create(
+                    db,
+                    user=anfrage.user,
+                    kind=NotificationType.approved,
+                    message_key="notifications.approved",
+                    request=anfrage,
+                )
+                db.commit()
         except requests_service.RequestError as fehler:
             # So kommt ein Fehler des Wegs hier an: ``push_to_arr`` hat den
             # Stand der Anfrage schon geschrieben. Ein ungewisser Ausgang

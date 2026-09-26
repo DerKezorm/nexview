@@ -34,8 +34,11 @@ then start the old version. Do not take the backup an older version writes when
 it is started on the updated database (`nexview-automatisch-0.35.2-…` without
 that comment): it already holds the new data. The README has the steps under
 *Going back to an older version*.
-An older version that is started anyway can no longer write to the database,
-and from now on an older 1.x refuses to start on a newer one.
+A version older than 1.0.0 that is started anyway can no longer write to
+accounts, rights, requests or storage entries; other data, such as favourites,
+settings or tickets, can still change, so after such a start always go back
+with that backup. From now on an older 1.x refuses to start on a newer
+database.
 
 ### New
 

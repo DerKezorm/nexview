@@ -271,9 +271,17 @@ out: it is the way back to the version you came from.
 **Do not simply start the older image on the updated data directory.** An older Nexview
 cannot read what a newer one has written, and it changes data without saying so: it
 cancels open requests, drops 4K rights and rebuilds storage entries. From 1.0.0 on,
-Nexview guards against this. A version older than 1.0.0 is stopped from writing (sign-in
-fails, and its log says why), and an older 1.x refuses to start. Either way nothing is
-changed, and the message names the backup to go back with.
+Nexview guards against the worst of it:
+
+- An older 1.x refuses to start, before it changes anything.
+- A version older than 1.0.0 starts, but cannot write to **accounts and their rights,
+  requests and storage entries**. Signing in fails, and its log says why.
+
+That guard is deliberately narrow. Everything else can still change under a version older
+than 1.0.0: favourites, settings, invitations, tickets, the blocklist, children's wishes.
+A session that was already open keeps working there too. **So if a version older than
+1.0.0 was started on the updated database, even briefly, always go back with the backup
+below** instead of carrying on with that database.
 
 The way back is the backup taken before the update. It sits in `sicherungen/` inside the
 data directory and carries the comment *Before update to …* in its name, for example

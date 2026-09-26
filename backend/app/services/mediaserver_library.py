@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -594,29 +595,67 @@ def vorhandene_kennungen(
     return treffer
 
 
+#: Merkmale im Ordner- oder Dateinamen, die nicht vom Medienserver stammen,
+#: sondern von dem, der die Datei abgelegt hat: eine TMDB-Nummer als Zusatz
+#: (``{tmdb-603}``, ``[tmdbid-603]``) und das Jahr in Klammern.
+_TMDB_IM_PFAD = re.compile(r"tmdb(?:id)?[-=](\d+)", re.IGNORECASE)
+_JAHR_IM_PFAD = re.compile(r"\((\d{4})\)")
+
+
+def _pfad_widerspricht(zeile: MediaServerLibraryItem, kennung: int, jahr: int | None) -> bool:
+    """Nennt der Ordner der Zeile einen anderen Titel als den, den der Server meint?
+
+    Gelesen werden die letzten zwei Glieder jedes Pfads: bei Serien der
+    Ordner, bei Filmen Datei und Ordner. Eine TMDB-Nummer entscheidet allein;
+    sonst widerspricht ein Jahr, das nicht zum Titel passt. Ohne beides
+    widerspricht nichts.
+    """
+    for pfad in (zeile.file_paths or "").splitlines():
+        glieder = [glied for glied in re.split(r"[\/]", pfad) if glied][-2:]
+        for glied in reversed(glieder):
+            nummer = _TMDB_IM_PFAD.search(glied)
+            if nummer:
+                return int(nummer.group(1)) != kennung
+        jahre = [int(j) for glied in glieder for j in _JAHR_IM_PFAD.findall(glied)]
+        if jahre and jahr is not None and not any(_jahre_passen(jahr, j) for j in jahre):
+            return True
+    return False
+
+
 def verwechselte_kennungen(
     db: Session, media_type: MediaType, items: list, treffer: set[int]
 ) -> set[int]:
-    """Treffer, hinter denen vermutlich ein **anderer** Titel der Quelle liegt.
+    """Treffer, hinter denen nachweislich ein **anderer** Titel der Quelle liegt.
 
     Der Medienserver erkennt einen Ordner selbst - und manchmal falsch. Am
     25.09.2026 hielt ein Jellyfin den Ordner der Anime-Serie "One Piece"
-    (TMDB 37854) fuer die gleichnamige Realserie (TMDB 111110). Nexview
-    uebernahm die Kennung ungeprueft: Die Realserie, von der keine einzige
-    Datei existierte, stand als "In der Bibliothek" da und liess sich nicht
-    anfragen.
+    (TMDB 37854, bei nexcrate mit Dateien) fuer die gleichnamige Realserie
+    (TMDB 111110). Nexview uebernahm die Kennung ungeprueft: Die Realserie,
+    von der keine einzige Datei existierte, stand als "In der Bibliothek" da
+    und liess sich nicht anfragen.
 
-    Verwechselt heisst hier: Die Quelle fuehrt Dateien eines Titels mit
-    demselben Namen unter einer anderen Nummer, und diesen Titel kennt der
-    Medienserver unter seiner eigenen Nummer gar nicht. Dann sind es dessen
-    Dateien, nur falsch benannt. Fuehrt der Server beide, ist nichts
-    verwechselt, und der Treffer bleibt.
+    Drei Bedingungen, alle zugleich:
 
-    Wie in ``vorhandene_kennungen``: Lieber einen echten Treffer uebersehen
-    (dann laesst sich der Titel anfragen) als einen falschen behaupten.
+    1. Die Quelle fuehrt Dateien eines Titels mit demselben Namen unter einer
+       anderen Nummer,
+    2. den der Medienserver unter seiner eigenen Nummer nicht kennt,
+    3. und die Zeile des Servers traegt einen Beleg, der nicht vom Namen
+       abhaengt: Ihr Ordner nennt eine andere TMDB-Nummer oder ein Jahr, das
+       nicht zum Treffer passt, oder (Filme) ihre Datei ist auf das Byte so
+       gross wie die der Quelle.
+
+    ⚠️ **Der Name allein genuegt nicht.** Original und Remake, Realserie und
+    Anime heissen oft gleich; ohne Punkt 3 verschwand ein echtes "The Grudge"
+    aus der Bibliothek, sobald nexcrate das gleichnamige Remake fuehrte. Die
+    Metadaten des Servers helfen dabei nicht: Bei einer Verwechslung sind sie
+    in sich stimmig, nur eben die des falschen Titels. Ordner und Groesse
+    stammen dagegen von dem, der die Datei abgelegt hat.
+
+    Im Zweifel bleibt der Treffer, wie in ``vorhandene_kennungen``.
     """
     if not treffer:
         return set()
+    jahr_je_titel = {item.tmdb_id: _jahr(item) for item in items if item.tmdb_id in treffer}
     tvdb_je_titel = {
         item.tmdb_id: item.tvdb_id
         for item in items
@@ -630,25 +669,26 @@ def verwechselte_kennungen(
             MediaServerLibraryItem.media_type == media_type, or_(*bedingungen)
         )
     ).all()
-    namen_je_treffer: dict[int, set[str]] = {}
-    for kennung in treffer:
-        namen_je_treffer[kennung] = {
-            zeile.title_key
+    zeilen_je_treffer: dict[int, list[MediaServerLibraryItem]] = {
+        kennung: [
+            zeile
             for zeile in zeilen
             if zeile.title_key
             and (
                 zeile.tmdb_id == kennung
                 or (zeile.tvdb_id is not None and zeile.tvdb_id == tvdb_je_titel.get(kennung))
             )
-        }
-    namen = set().union(*namen_je_treffer.values())
+        ]
+        for kennung in treffer
+    }
+    namen = {zeile.title_key for liste in zeilen_je_treffer.values() for zeile in liste}
     if not namen:
         return set()
 
-    # Was die Quelle an Dateien fuehrt, nach Namen.
-    quelle: dict[str, set[int]] = {}
-    for kennung, titel in db.execute(
-        select(StorageEntry.tmdb_id, StorageEntry.title).where(
+    # Was die Quelle an Dateien fuehrt, nach Namen: Nummer und Groessen.
+    quelle: dict[str, dict[int, set[int]]] = {}
+    for kennung, titel, groesse in db.execute(
+        select(StorageEntry.tmdb_id, StorageEntry.title, StorageEntry.size_bytes).where(
             StorageEntry.media_type == media_type,
             StorageEntry.arr_managed.is_(True),
             StorageEntry.tmdb_id.is_not(None),
@@ -656,10 +696,10 @@ def verwechselte_kennungen(
     ).tuples():
         name = normalize_title(titel or "")
         if name in namen:
-            quelle.setdefault(name, set()).add(kennung)
+            quelle.setdefault(name, {}).setdefault(kennung, set()).add(groesse or 0)
     if not quelle:
         return set()
-    andere = set().union(*quelle.values())
+    andere = {kennung for je_name in quelle.values() for kennung in je_name}
     beim_server = set(
         db.scalars(
             select(MediaServerLibraryItem.tmdb_id).where(
@@ -668,15 +708,24 @@ def verwechselte_kennungen(
             )
         )
     )
-    return {
-        kennung
-        for kennung, eigene_namen in namen_je_treffer.items()
-        if any(
-            andere_kennung != kennung and andere_kennung not in beim_server
-            for name in eigene_namen
-            for andere_kennung in quelle.get(name, ())
-        )
-    }
+
+    def belegt(zeile: MediaServerLibraryItem, kennung: int, groessen: set[int]) -> bool:
+        if _pfad_widerspricht(zeile, kennung, jahr_je_titel.get(kennung)):
+            return True
+        server = {zeile.size_standard, zeile.size_uhd} - {0}
+        return media_type == MediaType.movie and bool(server & (groessen - {0}))
+
+    verwechselt: set[int] = set()
+    for kennung, eigene in zeilen_je_treffer.items():
+        for zeile in eigene:
+            fremde = {
+                andere_kennung: groessen
+                for andere_kennung, groessen in quelle.get(zeile.title_key, {}).items()
+                if andere_kennung != kennung and andere_kennung not in beim_server
+            }
+            if any(belegt(zeile, kennung, groessen) for groessen in fremde.values()):
+                verwechselt.add(kennung)
+    return verwechselt
 
 
 def echte_uhd_kennungen(

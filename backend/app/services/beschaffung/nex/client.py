@@ -65,10 +65,6 @@ _client_lock = asyncio.Lock()
 _transport: httpx.AsyncBaseTransport | None = None
 
 
-#: Diese Fehler heissen "nexcrate antwortet nicht", nicht "nexcrate sagt nein".
-STUMM = frozenset({"nexcrate_timeout", "nexcrate_unreachable", "nexcrate_unavailable"})
-
-
 @dataclass
 class _Frist:
     """Die kurze Frist einer Seite - und ob nexcrate darin schon geschwiegen hat."""
@@ -178,7 +174,7 @@ class NexcrateClient:
         try:
             return await self._senden(method, pfad, params, json_body, timeout, headers)
         except NexcrateError as problem:
-            if frist is not None and problem.code in STUMM:
+            if frist is not None and problem.code in fehler.AUSFALL:
                 frist.ausfall = problem
             raise
 

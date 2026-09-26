@@ -30,6 +30,7 @@ from ..base import (
     normalize_title,
 )
 from . import mapping
+from .fehler import AUSFALL
 
 if TYPE_CHECKING:
     from ...settings_service import AppSettings
@@ -41,8 +42,6 @@ logger = logging.getLogger("nexview.nexcrate")
 SEITE = 500
 #: Und so viele Seiten höchstens, damit ein Durchgang nicht ewig läuft.
 SEITEN_JE_LAUF = 40
-#: Diese Fehler heißen „nexcrate ist weg“, nicht „diese eine Serie hakt“.
-AUSFALL = frozenset({"nexcrate_timeout", "nexcrate_unreachable", "nexcrate_unavailable"})
 
 
 def film_stand(titel: dict[str, Any], kennung: str) -> FilmStand | None:

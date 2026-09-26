@@ -444,7 +444,7 @@ class NexBeschaffung(Beschaffung):
             # Schweigt nexcrate, gilt der zuletzt gelesene Stand - mit dem
             # Hinweis, dass er nicht bestaetigt ist. Ein Nein von nexcrate
             # dagegen ist kein Stand.
-            if error.code in bestand.AUSFALL:
+            if error.code in fehler.AUSFALL:
                 items = lesen.kacheln_aus_bestand(media_type, items, kennung)
             return MatchResult(items=items, warning=error.message)
         return MatchResult(items=gefaerbt)

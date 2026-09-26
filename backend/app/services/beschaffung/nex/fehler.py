@@ -117,6 +117,12 @@ VORUEBERGEHEND: frozenset[str] = frozenset(
     }
 )
 
+#: Davon die, die heissen "nexcrate ist weg", nicht "nexcrate hakt an einer
+#: Stelle": Lesewege hoeren dann auf zu fragen, und was gehalten ist, gilt.
+AUSFALL: frozenset[str] = frozenset(
+    {"nexcrate_timeout", "nexcrate_unreachable", "nexcrate_unavailable"}
+)
+
 #: Begruendete Absagen: nexcrate hat verstanden und aus einem Grund nein
 #: gesagt, den der Anfragende oder der Betreiber lesen soll. Nexview
 #: antwortet darauf mit diesem Status statt mit ``502`` - ein 502 sagt

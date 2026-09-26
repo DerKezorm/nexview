@@ -426,10 +426,43 @@ class FakeNexcrate:
             eintrag["files"] = list(files) if files is not None else []
         return eintrag
 
-    def entfernt(self, kind: str, ref: str) -> None:
-        """Einen Titel entfernen - er steht danach unter ``removed``."""
-        self.titles.pop((kind, ref), None)
+    def entfernt(self, kind: str, ref: str, *, delete_files: bool = False) -> None:
+        """Einen Titel entfernen - wie ``DELETE /api/v1/titles/{kind}/{ref}``.
+
+        Er steht danach unter ``removed``. Ohne ``delete_files`` bleibt der
+        Papierkorb unberuehrt - genau wie in nexcrates eigenem Code
+        (``recycle_bin.delete`` laeuft dort nur mit ``delete_files=True``,
+        siehe ``routers/v1_write.py::remove_title``): Wer nur den
+        Bibliothekseintrag wirft, hinterlaesst keine Papierkorb-Zeile, die
+        Datei bleibt am alten Ort liegen. Mit ``delete_files`` entsteht eine
+        Zeile mit ``in_library=False`` und ``present=True`` - die Datei liegt
+        im Papierkorb-Ordner, bis ein Aufraeumen sie wirklich entfernt
+        (nexcrates ``forget_missing``, hier nicht nachgebildet: dafuer die
+        Zeile per Hand aus ``self.recycle`` nehmen).
+        """
+        titel = self.titles.pop((kind, ref), None)
         self.removed.append({"kind": kind, "ref": ref, "seq": self._touch()})
+        if delete_files:
+            self._papierkorb_zaehler = getattr(self, "_papierkorb_zaehler", 0) + 1
+            self.recycle.append(
+                {
+                    "entry_id": self._papierkorb_zaehler,
+                    "kind": kind,
+                    "ref": ref,
+                    "name": (titel or {}).get("name"),
+                    "year": (titel or {}).get("year"),
+                    "version_id": None,
+                    "season": None,
+                    "episodes": [],
+                    "file_name": "",
+                    "size_bytes": 0,
+                    "deleted_at": "2026-09-25T23:56:00Z",
+                    "deleted_by": "key",
+                    "deleted_by_name": "Nexview",
+                    "present": True,
+                    "in_library": False,
+                }
+            )
 
     def ereignis(self, typ: str, **felder: Any) -> dict[str, Any]:
         eintrag = {

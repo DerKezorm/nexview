@@ -883,7 +883,7 @@ async def _erfassen(
                 )
 
     behalten |= await _pakete_aufnehmen(db, settings, gemessen)
-    _aus_media_server(db, gemessen)
+    _aus_media_server(db, gemessen, await beschaffung.sicher_entfernte_filme())
     await _staffeldaten_nachtragen(db, settings, gemessen)
     return gemessen, vollstaendig, behalten
 
@@ -1249,7 +1249,9 @@ def _serie_aufnehmen(
         )
 
 
-def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
+def _aus_media_server(
+    db: Session, ziel: dict[str, _Gemessen], sicher_entfernt: frozenset[int] = frozenset()
+) -> None:
     """Posten, die nur noch im Media-Server liegen, **weitermessen**.
 
     Der Fall, um den es geht: laden, bis die Qualitaet stimmt, dann den
@@ -1257,6 +1259,16 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
     der Media-Server die einzige Stelle, die die Groesse ueberhaupt noch kennt
     - und wer seinen Titel dort loescht, soll seine Belastung dadurch nicht
     loswerden.
+
+    ⚠️ **Ausser bei ``sicher_entfernt`` (Befund #note-63).** Der NEX-Weg kann
+    sagen, ob der Nutzer die Dateien eines Titels aufgegeben hat: Nur ein
+    Entfernen **mit** Dateien legt in nexcrates Papierkorb eine Zeile an; ein
+    Titel, der ohne Dateien aus der Bibliothek geworfen wird, hinterlaesst
+    keine, seine Datei liegt unveraendert an ihrem Ort. Erst eine solche Zeile
+    darf einen Posten fallen lassen, obwohl der Medienserver ihn noch fuehrt;
+    sonst zaehlte ein Geist-Posten dauerhaft gegen ein Speicher-Kontingent. Ein
+    bewusst behaltener Titel (keine Papierkorb-Zeile, Datei liegt noch am alten
+    Ort) faellt nicht unter diese Menge und bleibt der bekannte Geisterposten.
 
     ⚠️ **Der Media-Server legt keinen Posten an.** Er misst nur weiter, was
     ein Beschaffungsweg einmal gemeldet hat. Bis zum 23.09.2026 durfte er auch
@@ -1344,10 +1356,14 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
     bekannt = set(schon_gemeldet) | {zeile.tmdb_id for zeile in vorhanden}
 
     doppelt = 0
+    fuer_immer_weg = 0
     for zeile in vorhanden:
         # Was der Beschaffungsweg unter genau diesem Schluessel gemeldet hat,
         # bleibt stehen.
         if zeile.key in ziel:
+            continue
+        if zeile.tmdb_id in sicher_entfernt:
+            fuer_immer_weg += 1
             continue
         stufe = "uhd" if zeile.fassung_kennung in uhd_fassungen else "standard"
         bytes_ = bester.get((zeile.tmdb_id, stufe))
@@ -1408,6 +1424,13 @@ def _aus_media_server(db: Session, ziel: dict[str, _Gemessen]) -> None:
             "Storage: %d file(s) reported by both the media server and the "
             "acquisition service under different versions - counted once",
             doppelt,
+        )
+
+    if fuer_immer_weg:
+        logger.info(
+            "Storage: %d entrie(s) confirmed gone (title and file) are not kept alive "
+            "by a media server that has not caught up yet",
+            fuer_immer_weg,
         )
 
     if uneinig:

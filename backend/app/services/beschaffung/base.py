@@ -677,6 +677,24 @@ class Beschaffung(ABC):
         nach_tvdb, _ = await self.bestand_serien(stufe, fassung=fassung)
         return list(nach_tvdb.items())
 
+    async def sicher_entfernte_filme(self) -> frozenset[int]:
+        """TMDB-Kennungen von Filmen, deren Dateien der Nutzer aufgegeben hat.
+
+        Das ist mehr, als "nicht mehr gemessen" sagen kann: Ein Titel, den der
+        Betreiber absichtlich **ohne** Dateien aus der Bibliothek wirft, ist
+        auch "nicht mehr gemessen" - und genau dafuer gibt es den
+        Geisterposten-Schutz (``storage._aus_media_server``), der ihn ueber den
+        Medienserver weiterzaehlt statt ihn abzuraeumen (Befund #note-63,
+        bewusstes Verhalten, siehe ``services/befunde.py``). Nur ein Weg, der
+        diesen Unterschied kennt, darf hier "ja, sicher" sagen.
+
+        Nur der NEX-Weg kann das: nexcrates Papierkorb bekommt eine Zeile nur,
+        wenn Dateien mitgeloescht wurden - ein Titel ohne Dateien entfernt
+        hinterlaesst keine. Der ARR-Weg hat keinen Papierkorb in diesem Sinn
+        und bleibt bei der leeren Menge.
+        """
+        return frozenset()
+
     @classmethod
     @abstractmethod
     def bestand_verwerfen(cls) -> None:

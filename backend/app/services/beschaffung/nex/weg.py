@@ -228,6 +228,40 @@ class NexBeschaffung(Beschaffung):
         await bestand.staffeln_lesen(self.settings)
         return lesen.alle_serien(kennung)
 
+    async def sicher_entfernte_filme(self) -> frozenset[int]:
+        """TMDB-Kennungen, fuer die nexcrates Papierkorb eine Zeile mit ``in_library=False`` fuehrt.
+
+        Eine einzige Anfrage deckt jeden Posten ab (Befund #note-63) - keine
+        weitere je Titel.
+
+        ⚠️ **``present`` zaehlt hier nicht mit.** Es sagt nur, ob die Datei
+        noch im Papierkorb-Ordner liegt, nicht ob der Nutzer sie aufgegeben
+        hat - eine wirklich verschwundene Zeile raeumt nexcrate selbst ab
+        (``forget_missing``), sie stuende dann gar nicht mehr hier. Die
+        eigentliche Unterscheidung faellt schon beim Loeschen: Wirft jemand
+        einen Titel **ohne** Dateien aus der Bibliothek, legt nexcrate gar
+        keine Papierkorb-Zeile an (die Datei liegt unveraendert an ihrem
+        Ort) - das bleibt der bestehende Geisterposten-Schutz. Erst eine
+        Zeile mit ``in_library=False`` heisst: der Nutzer hat die Dateien
+        aufgegeben.
+        """
+        try:
+            roh = await self.papierkorb()
+        except BeschaffungError:
+            # Kein Papierkorb, keine Verbindung: nichts, worauf sich "sicher
+            # weg" stuetzen liesse - der bestehende Schutz bleibt die Antwort.
+            return frozenset()
+        gefunden: set[int] = set()
+        for eintrag in roh:
+            if str(eintrag.get("kind")) != "movie":
+                continue
+            if eintrag.get("in_library", True):
+                continue
+            nummer = mapping.tmdb_aus(eintrag.get("ref"))
+            if nummer is not None:
+                gefunden.add(nummer)
+        return frozenset(gefunden)
+
     def _gewaehlt(self, media_type: str, fassung: str) -> str | None:
         """Die genannte Fassung, wenn es sie gibt - sonst die Hauptfassung."""
         bekannt = {eintrag.kennung for eintrag in self.fassungen()}

@@ -161,3 +161,30 @@ def test_ein_ausfall_bei_radarr_laesst_die_seite_stehen(
     antwort = arr_client.get("/api/ratings/movie", params={"ids": "603"})
     assert antwort.status_code == 200
     assert antwort.json() == {}
+
+
+def test_ein_gescheiterter_nachschlag_wird_nicht_bei_jeder_seite_wiederholt(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Radarr meldet zu einer unechten tmdb_id oft einen eigenen 500 statt 404
+    ("was not found ... it may have been removed from TMDb"). Ohne das zu
+    merken, fragt jede Seite in Minutenabstand erneut nach demselben Film, der
+    nie eine Antwort bekommen wird."""
+    from app.services.beschaffung.arr.client import ArrError
+
+    def lesen(_pfad: str, _params: dict) -> dict:
+        raise ArrError(
+            "Movie with tmdbId 909524 was not found, it may have been removed from TMDb.",
+            500,
+        )
+
+    fake = FakeArr(art="movie", lesen=lesen)
+    monkeypatch.setattr(portal_ratings, "radarr_client", lambda _settings: fake)
+
+    erste = arr_client.get("/api/ratings/movie", params={"ids": "909524"})
+    zweite = arr_client.get("/api/ratings/movie", params={"ids": "909524"})
+
+    assert erste.status_code == 200
+    assert zweite.status_code == 200
+    # Der zweite Aufruf haette Radarr gar nicht mehr fragen duerfen.
+    assert len(fake.gelesen) == 1

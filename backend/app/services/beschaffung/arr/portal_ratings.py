@@ -141,6 +141,16 @@ async def for_movies(settings: AppSettings, tmdb_ids: list[int]) -> dict[int, Ra
             try:
                 treffer = await client.get("/movie/lookup/tmdb", {"tmdbId": tmdb_id})
             except ArrError:
+                # ⚠️ Auch das gemerkt, mit derselben Frist wie ein leeres
+                # Ergebnis. Radarr antwortet auf eine tmdb_id, die es nicht
+                # kennt, mit einem eigenen 500 statt einem 404 ("was not
+                # found ... it may have been removed from TMDb.") - ohne
+                # diese Zeile fragte jede Seite in Minutenabstand erneut nach
+                # demselben Film, der nie eine Antwort bekommen wird. Ein
+                # bloss voruebergehender Ausfall haette dieselbe Folge wie ein
+                # echtes "kennt Radarr nicht" - beides ist hier gleich billig,
+                # denn Bewertungen sind Beiwerk.
+                _cache[tmdb_id] = (time.monotonic(), Ratings())
                 return
             if isinstance(treffer, list):
                 treffer = treffer[0] if treffer else None

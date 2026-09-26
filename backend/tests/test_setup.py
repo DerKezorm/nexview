@@ -110,6 +110,14 @@ def test_ein_update_bestaetigt_keine_adresse_des_betreibers(client: TestClient) 
     """
     assert client.post("/api/setup/admin", json=ADMIN).status_code == 201
     _betreiber_unbestaetigt()
+    # Das Buch, wie eine Datenbank von vor 1.0.0 ankommt: ohne Zeile fuer den
+    # Schritt. Der ``client`` hat ihn beim Hochfahren sonst schon als
+    # vorgefunden eingetragen, und ein zurueckgekehrter Schritt fiele nicht auf.
+    with db_modul.engine.begin() as verbindung:
+        verbindung.exec_driver_sql(
+            "DELETE FROM wanderungen WHERE wanderung_name = ?",
+            ("_ersten_administrator_bestaetigen",),
+        )
 
     db_modul.init_db()
 

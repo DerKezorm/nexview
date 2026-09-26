@@ -126,8 +126,15 @@ async def weg_verlassen(db: Session, settings: AppSettings) -> list[str]:
             zeile.aktiv = False
             db.commit()
             try:
-                await webhook_pflege.instanz_pflegen(db, settings, instanz)
-                bericht.append(Abschied("webhook_entfernt", {"instanz": instanz.name}))
+                stand = await webhook_pflege.instanz_pflegen(db, settings, instanz)
+                # Die Pflege faengt eine stumme Instanz selbst ab und vermerkt
+                # es nur; "entfernt" stuende dann ueber einem Eintrag, der blieb.
+                bericht.append(
+                    Abschied(
+                        "webhook_blieb" if stand.fehler else "webhook_entfernt",
+                        {"instanz": instanz.name},
+                    )
+                )
             except Exception:  # noqa: BLE001 - eine stumme Instanz haelt nichts auf
                 logger.warning("Webhook entry in %s could not be removed", instanz.name)
                 bericht.append(Abschied("webhook_blieb", {"instanz": instanz.name}))

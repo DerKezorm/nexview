@@ -152,6 +152,11 @@
         "schluessel": false,
         "typ": "INTEGER"
       },
+      "eintrag_url": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
       "erzeugt_am": {
         "leer_erlaubt": false,
         "schluessel": false,

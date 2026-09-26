@@ -1912,10 +1912,16 @@ class ArrWebhook(Base):
     # Wer ihn abwaehlt, dessen Nexview-Eintrag wird in Radarr/Sonarr
     # rueckstandsfrei entfernt (webhook_pflege).
     aktiv: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    # Die Nummer unseres Eintrags in Radarr/Sonarr - das sicherste Erkennen
-    # beim Nachziehen. Faellt sie weg (Eintrag von Hand geloescht), findet die
-    # Pflege ihn ersatzweise an Name "Nexview" + Ziel-Adresse.
+    # Die Nummer unseres Eintrags in Radarr/Sonarr. ⚠️ Allein beweist sie
+    # nichts: Eine andere Nexview an derselben Instanz kann den Eintrag unter
+    # dieser Nummer beschrieben haben (#note-38). Unser ist er nur, solange er
+    # die Adresse traegt, die wir selbst hineingeschrieben haben
+    # (``eintrag_url``), oder unsere heutige (``webhook_pflege.unser_eintrag``).
     eintrag_id: Mapped[int | None] = mapped_column(Integer)
+    # Die Anruf-Adresse, die wir zuletzt in den Eintrag geschrieben haben. Nur
+    # daran erkennt die Pflege ihn wieder, nachdem sich die eigene Adresse
+    # geaendert hat.
+    eintrag_url: Mapped[str | None] = mapped_column(Text)
     eingetragen_am: Mapped[datetime | None] = mapped_column(DateTime)
     # Wann die Pflege zuletzt nach dem Eintrag gesehen hat.
     geprueft_am: Mapped[datetime | None] = mapped_column(DateTime)

@@ -143,8 +143,24 @@ class FakeArrRueckkanal:
     async def notification_schema_webhook(self) -> dict | None:
         return self.schema
 
+    def _name_frei(self, payload: dict) -> None:
+        """Wie Radarr und Sonarr: Ein Name gilt je Instanz nur einmal.
+
+        Beide pruefen Probe, Anlegen und Nachziehen wie ein Speichern und
+        antworten auf einen schon vergebenen Namen mit 400 ("Should be
+        unique"). Daran scheiterte die zweite Nexview an derselben Instanz.
+        """
+        name = str(payload.get("name") or "").casefold()
+        if any(
+            str(eintrag.get("name") or "").casefold() == name
+            and eintrag.get("id") != payload.get("id")
+            for eintrag in self.eintraege
+        ):
+            raise ArrError("Radarr: Name: Should be unique", 400)
+
     async def notification_probe(self, payload: dict) -> None:
         self.proben.append(dict(payload))
+        self._name_frei(payload)
         if isinstance(self.probe, ArrError):
             raise self.probe
         if self.probe == "arrives":
@@ -158,13 +174,20 @@ class FakeArrRueckkanal:
                 db.commit()
 
     async def notification_anlegen(self, payload: dict) -> dict:
+        self._name_frei(payload)
         self.angelegt.append(payload)
         eintrag = {**payload, "id": self._naechste_id}
+        self._naechste_id += 1
         self.eintraege.append(eintrag)
         return eintrag
 
     async def notification_nachziehen(self, eintrag_id: int, payload: dict) -> dict:
+        self._name_frei({**payload, "id": eintrag_id})
         self.nachgezogen.append((eintrag_id, payload))
+        self.eintraege = [
+            {**payload, "id": eintrag_id} if e.get("id") == eintrag_id else e
+            for e in self.eintraege
+        ]
         return {**payload, "id": eintrag_id}
 
     async def notification_loeschen(self, eintrag_id: int) -> None:

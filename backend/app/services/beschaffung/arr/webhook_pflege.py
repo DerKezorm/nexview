@@ -11,9 +11,10 @@ loescht. Vier Grundsaetze, alle im Bauplan "Draht statt Takt" entschieden:
   fehlschlaegt und dort als Gesundheitsproblem auffaellt - in einem System,
   das uns nur einen API-Schluessel gegeben hat.
 * **Fremde Eintraege sind tabu.** In echten Installationen haengen dort
-  andere Anwendungen (live gesehen: "Ruddarr"). Unser Eintrag wird an der
-  Nummer erkannt, ersatzweise an Name **und** unserer Anruf-Adresse - Name
-  allein reicht nicht, den kann jeder vergeben.
+  andere Anwendungen (live gesehen: "Ruddarr") - und womoeglich eine zweite
+  Nexview. Unser ist nur ein Eintrag, der **uns** anruft; welcher das ist,
+  beantwortet ``unser_eintrag`` und sonst nichts. Name und Nummer allein
+  reichen nicht (#note-38).
 * **Abwaehlen raeumt auf.** Der Haken je Instanz entfernt unseren Eintrag
   rueckstandsfrei, statt ihn nur zu ignorieren.
 * **Faehigkeiten werden gemessen, nicht geraten.** Welche Ereignisse eine
@@ -26,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from urllib.parse import urlsplit
 
 from sqlalchemy.orm import Session
 
@@ -36,7 +38,10 @@ from .client import ArrClient, ArrError
 
 logger = logging.getLogger("nexview.webhooks")
 
-EINTRAG_NAME = "Nexview"
+#: Der Name, unter dem bis 1.0.0 **jede** Nexview in Radarr/Sonarr stand.
+#: Er wird nicht mehr vergeben, nur noch an einem Eintrag uebernommen, der
+#: nachweislich uns anruft (dann bekommt er den eindeutigen Namen).
+ALTER_NAME = "Nexview"
 
 # Wie lange auf die Probe gewartet wird. Sonarr schickt sie sofort; laenger
 # als ein paar Sekunden heisst praktisch immer "kommt nie an".
@@ -76,8 +81,25 @@ def _client(instanz: ArrInstanz) -> ArrClient:
     return ArrClient(instanz.url, instanz.api_key, instanz.name)
 
 
+def eintrag_name(basis: str) -> str:
+    """Der Name unseres Eintrags: "Nexview" und die Adresse, unter der wir angerufen werden.
+
+    ⚠️ **Eindeutig je Installation, nicht fest.** Radarr und Sonarr verlangen
+    je Instanz verschiedene Namen und weisen einen vergebenen mit 400 ab -
+    auch schon bei der Probe. Mit dem festen Namen "Nexview" konnte deshalb
+    keine zweite Nexview an derselben Instanz einen eigenen Eintrag anlegen
+    (#note-31). Die Anruf-Adresse unterscheidet zwei Installationen ohnehin:
+    Zwei mit derselben waeren derselbe Empfaenger. Sie steht ohne Schema im
+    Namen, damit der Betreiber in Radarr sieht, welcher Eintrag wohin ruft.
+    """
+    gekuerzt = basis.strip().rstrip("/")
+    teile = urlsplit(gekuerzt)
+    ort = f"{teile.netloc}{teile.path}" if teile.netloc else gekuerzt
+    return f"{ALTER_NAME} ({ort})" if ort else ALTER_NAME
+
+
 def _bauen(
-    schema: dict, ziel: str, geheimnis: str, media_type: str
+    schema: dict, ziel: str, geheimnis: str, media_type: str, name: str
 ) -> tuple[dict, list[str]]:
     """Den gewuenschten Eintrag bauen - und sagen, welche Pflicht fehlt.
 
@@ -101,7 +123,7 @@ def _bauen(
             flaggen[flagge] = True
 
     payload = {
-        "name": EINTRAG_NAME,
+        "name": name,
         "implementation": "Webhook",
         "configContract": "WebhookSettings",
         "tags": [],
@@ -116,18 +138,12 @@ def _bauen(
     return payload, fehlend
 
 
-def _gehoert_uns(eintrag: dict, kennung: str) -> bool:
-    """Nur was zweifelsfrei unseres ist.
+def _glatt(url: str) -> str:
+    return url.strip().rstrip("/").casefold()
 
-    Der Name allein reicht nicht - "Nexview" kann jeder vergeben. Erst Name
-    **und** unsere Anruf-Adresse (der Pfad traegt die Kennung) machen einen
-    Eintrag unser; alles andere bleibt unangetastet, komme es von Ruddarr
-    oder von Hand.
-    """
-    if eintrag.get("implementation") != "Webhook":
-        return False
-    if str(eintrag.get("name") or "") != EINTRAG_NAME:
-        return False
+
+def _adresse(eintrag: dict) -> str:
+    """Die Anruf-Adresse eines Eintrags, zum Vergleichen geglaettet."""
     url = next(
         (
             feld.get("value")
@@ -136,7 +152,51 @@ def _gehoert_uns(eintrag: dict, kennung: str) -> bool:
         ),
         "",
     )
-    return isinstance(url, str) and url.rstrip("/").endswith(anruf_pfad(kennung))
+    return _glatt(url) if isinstance(url, str) else ""
+
+
+def unser_eintrag(
+    vorhandene: list[dict], zeile: ArrWebhook, ziel: str, name: str
+) -> dict | None:
+    """Welcher Eintrag in Radarr/Sonarr ist unserer? ``None``, wenn keiner.
+
+    ⚠️ **Die eine Stelle fuer diese Frage** - Pflege, Abwaehlen, Umstieg und
+    Testen-Knopf fragen alle hier. Unser ist ein Webhook-Eintrag nur, wenn er
+    **uns** anruft:
+
+    * er traegt unsere heutige Anruf-Adresse ``ziel`` - und dazu unseren
+      Namen, den alten Namen "Nexview" oder unsere gemerkte Nummer; oder
+    * er traegt unsere gemerkte Nummer **und** noch die Adresse, die wir
+      selbst zuletzt hineingeschrieben haben (``eintrag_url``). So bleibt er
+      erkennbar, nachdem sich die eigene Adresse geaendert hat.
+
+    Was hier fehlt, fehlt mit Absicht: Der Pfad
+    (``/api/webhooks/arr/radarr-standard``) ist bei jeder Nexview derselbe,
+    der alte Name war es auch, und die gemerkte Nummer zeigt womoeglich auf
+    einen Eintrag, den inzwischen eine andere Nexview beschrieben hat. Mit
+    genau diesen drei Merkmalen hat der Umstieg einer Installation den
+    Eintrag einer anderen geloescht (#note-38).
+    """
+    soll = _glatt(ziel)
+    gemerkt = _glatt(zeile.eintrag_url or "")
+    namen = {ALTER_NAME.casefold(), name.casefold()}
+    passend: list[dict] = []
+    for eintrag in vorhandene:
+        if eintrag.get("implementation") != "Webhook":
+            continue
+        adresse = _adresse(eintrag)
+        if not adresse:
+            continue
+        nummer_stimmt = zeile.eintrag_id is not None and eintrag.get("id") == zeile.eintrag_id
+        name_stimmt = str(eintrag.get("name") or "").casefold() in namen
+        if (soll and adresse == soll and (nummer_stimmt or name_stimmt)) or (
+            nummer_stimmt and gemerkt and adresse == gemerkt
+        ):
+            passend.append(eintrag)
+    # Die gemerkte Nummer zuerst: Stehen zwei Eintraege auf unserer Adresse,
+    # bleibt der, den wir schon kennen.
+    passend.sort(key=lambda eintrag: eintrag.get("id") != zeile.eintrag_id)
+    return passend[0] if passend else None
 
 
 def _weicht_ab(eigener: dict, gewuenscht: dict) -> bool:
@@ -147,6 +207,10 @@ def _weicht_ab(eigener: dict, gewuenscht: dict) -> bool:
     Schreibzugriff ausloesen. Ein wirklich verstelltes Passwort faellt ueber
     die fehlgeschlagene Probe auf - und wird dort geheilt.
     """
+    # Der Name zaehlt mit: Ein Eintrag aus der Zeit vor 1.0.0 heisst noch
+    # "Nexview" und bekaeme sonst nie seinen eindeutigen Namen.
+    if eigener.get("name") != gewuenscht["name"]:
+        return True
     ist_felder = {
         feld.get("name"): feld.get("value") for feld in eigener.get("fields") or []
     }
@@ -201,26 +265,9 @@ async def instanz_pflegen(
         _stand(db, zeile, "unreachable", fehler.message)
         return zeile
 
-    eigener = None
-    if zeile.eintrag_id is not None:
-        eigener = next(
-            (
-                eintrag
-                for eintrag in vorhandene
-                if eintrag.get("id") == zeile.eintrag_id
-                and eintrag.get("implementation") == "Webhook"
-            ),
-            None,
-        )
-    if eigener is None:
-        eigener = next(
-            (
-                eintrag
-                for eintrag in vorhandene
-                if _gehoert_uns(eintrag, instanz.kennung)
-            ),
-            None,
-        )
+    ziel = _ziel(settings, instanz.kennung)
+    name = eintrag_name(settings.webhook_basis)
+    eigener = unser_eintrag(vorhandene, zeile, ziel, name)
 
     if not zeile.aktiv:
         # Abgewaehlt: rueckstandsfrei aufraeumen - der Eintrag verschwindet
@@ -235,11 +282,11 @@ async def instanz_pflegen(
                 "Webhook entry removed from %s (switched off)", instanz.name
             )
         zeile.eintrag_id = None
+        zeile.eintrag_url = None
         zeile.eingetragen_am = None
         _stand(db, zeile, "")
         return zeile
 
-    ziel = _ziel(settings, instanz.kennung)
     if not ziel:
         _stand(db, zeile, "no_address")
         return zeile
@@ -254,7 +301,7 @@ async def instanz_pflegen(
         return zeile
 
     payload, fehlend = _bauen(
-        schema, ziel, webhooks.geheimnis_klartext(zeile), instanz.media_type
+        schema, ziel, webhooks.geheimnis_klartext(zeile), instanz.media_type, name
     )
     if fehlend:
         _stand(db, zeile, "too_old", "missing: " + ", ".join(fehlend))
@@ -283,6 +330,7 @@ async def instanz_pflegen(
             _stand(db, zeile, "create_failed", fehler.message)
             return zeile
         zeile.eintrag_id = angelegt.get("id") if isinstance(angelegt, dict) else None
+        zeile.eintrag_url = ziel
         zeile.eingetragen_am = utcnow()
         _stand(db, zeile, "")
         logger.info("Webhook registered in %s -> %s", instanz.name, ziel)
@@ -299,6 +347,7 @@ async def instanz_pflegen(
             _stand(db, zeile, "create_failed", fehler.message)
             return zeile
         logger.info("Webhook entry in %s brought up to date", instanz.name)
+    zeile.eintrag_url = ziel
     _stand(db, zeile, "")
     return zeile
 
@@ -333,8 +382,9 @@ async def testen(db: Session, settings: AppSettings, instanz: ArrInstanz) -> dic
         return {"angekommen": False, "fehler": "unreachable", "info": fehler.message}
     if schema is None:
         return {"angekommen": False, "fehler": "too_old"}
+    name = eintrag_name(settings.webhook_basis)
     payload, fehlend = _bauen(
-        schema, ziel, webhooks.geheimnis_klartext(zeile), instanz.media_type
+        schema, ziel, webhooks.geheimnis_klartext(zeile), instanz.media_type, name
     )
     if fehlend:
         return {"angekommen": False, "fehler": "too_old", "info": ", ".join(fehlend)}
@@ -343,26 +393,12 @@ async def testen(db: Session, settings: AppSettings, instanz: ArrInstanz) -> dic
     # Sonarr prueft die Probe wie ein Speichern - ohne Nummer hielte es den
     # gleichnamigen Bestand fuer ein Duplikat und antwortete mit 400, statt
     # anzurufen. Live so gesehen, nachdem der erste Beweis laengst stand.
+    # Nur **unsere** Nummer, nie die eines fremden Eintrags (#note-31).
     try:
         vorhandene = await client.notifications()
     except ArrError as fehler:
         return {"angekommen": False, "fehler": "unreachable", "info": fehler.message}
-    eigener = None
-    if zeile.eintrag_id is not None:
-        eigener = next(
-            (
-                eintrag
-                for eintrag in vorhandene
-                if eintrag.get("id") == zeile.eintrag_id
-                and eintrag.get("implementation") == "Webhook"
-            ),
-            None,
-        )
-    if eigener is None:
-        eigener = next(
-            (eintrag for eintrag in vorhandene if _gehoert_uns(eintrag, instanz.kennung)),
-            None,
-        )
+    eigener = unser_eintrag(vorhandene, zeile, ziel, name)
     if eigener is not None:
         payload = {**payload, "id": int(eigener["id"])}
 

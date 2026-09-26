@@ -132,6 +132,181 @@ async def test_der_name_allein_macht_keinen_eintrag_zu_unserem(fake) -> None:
     assert len(fake.eintraege) == 2
 
 
+#: Der Eintrag einer **anderen** Nexview an derselben Instanz: Bis 1.0.0 hiess
+#: jede Nexview dort "Nexview", und der Pfad traegt dieselbe Instanz-Kennung.
+#: Nur die Adresse unterscheidet ihn von unserem (#note-38, #note-66).
+ANDERE_NEXVIEW = {
+    "id": 1,
+    "name": "Nexview",
+    "implementation": "Webhook",
+    "fields": [
+        {
+            "name": "url",
+            "value": "http://andere-nexview.test/api/webhooks/arr/radarr-standard",
+        }
+    ],
+}
+
+
+def _url(eintrag: dict) -> str:
+    return next(f["value"] for f in eintrag["fields"] if f["name"] == "url")
+
+
+@pytest.mark.anyio
+async def test_der_eintrag_einer_anderen_nexview_bleibt_unangetastet(fake) -> None:
+    """Zwei Nexview an einem Radarr: Die zweite legt ihren eigenen Eintrag an,
+    statt den der ersten auf sich umzubiegen - und scheitert dabei nicht am
+    gleichen Namen (Radarr verlangt eindeutige Namen, #note-31)."""
+    fake.eintraege = [dict(ANDERE_NEXVIEW)]
+    settings, instanz = _radarr()
+
+    with SessionLocal() as db:
+        await webhook_pflege.instanz_pflegen(db, settings, instanz)
+
+    assert fake.nachgezogen == [] and fake.geloescht == []
+    fremd = next(e for e in fake.eintraege if e["id"] == 1)
+    assert _url(fremd) == _url(ANDERE_NEXVIEW)
+    assert len(fake.angelegt) == 1
+    assert fake.angelegt[0]["name"] == "Nexview (nexview.test)"
+    assert _zeile().fehler == ""
+
+
+@pytest.mark.anyio
+async def test_abwaehlen_loescht_keinen_eintrag_einer_anderen_nexview(fake) -> None:
+    """Die gemerkte Nummer zeigt auf einen Eintrag, den inzwischen eine andere
+    Nexview beschrieben hat. Abwaehlen (und damit der Umstieg) darf ihn nicht
+    loeschen: Die andere Nexview verloere still ihren Rueckkanal (#note-38)."""
+    fake.eintraege = [dict(ANDERE_NEXVIEW)]
+    settings, instanz = _radarr()
+    with SessionLocal() as db:
+        zeile = webhooks.eintrag_sicherstellen(db, "radarr-standard")
+        zeile.aktiv = False
+        zeile.eintrag_id = 1
+        db.commit()
+
+    with SessionLocal() as db:
+        await webhook_pflege.instanz_pflegen(db, settings, instanz)
+
+    assert fake.geloescht == []
+    assert fake.eintraege == [ANDERE_NEXVIEW]
+    assert _zeile().eintrag_id is None
+
+
+@pytest.mark.anyio
+async def test_umstieg_nimmt_nur_den_eigenen_eintrag_heraus(fake) -> None:
+    """Der Umstieg verlaesst Radarr ueber dieselbe Pflege: Heraus geht unser
+    Eintrag, der der anderen Nexview bleibt - auch wenn unsere gemerkte
+    Nummer auf ihn zeigt."""
+    from app.services.beschaffung.arr import konten
+
+    eigener = {
+        "id": 7,
+        "name": "Nexview (nexview.test)",
+        "implementation": "Webhook",
+        "fields": [
+            {"name": "url", "value": "http://nexview.test/api/webhooks/arr/radarr-standard"}
+        ],
+    }
+    fake.eintraege = [dict(ANDERE_NEXVIEW), dict(eigener)]
+    settings, _instanz = _radarr()
+    with SessionLocal() as db:
+        zeile = webhooks.eintrag_sicherstellen(db, "radarr-standard")
+        zeile.eintrag_id = 1
+        db.commit()
+
+    with SessionLocal() as db:
+        bericht = await konten.weg_verlassen(db, settings)
+
+    assert fake.geloescht == [7]
+    assert fake.eintraege == [ANDERE_NEXVIEW]
+    assert any(a.code == "webhook_entfernt" for a in bericht)
+
+
+@pytest.mark.anyio
+async def test_umstieg_sagt_ehrlich_wenn_der_eintrag_blieb(fake, monkeypatch) -> None:
+    """Die Pflege faengt eine stumme Instanz selbst ab. Der Bericht des
+    Umstiegs darf dann nicht "entfernt" sagen."""
+    from app.services.beschaffung.arr import konten
+    from app.services.beschaffung.arr.client import ArrError
+
+    async def stumm() -> list[dict]:
+        raise ArrError("Radarr ist nicht erreichbar", code="arr_unreachable")
+
+    monkeypatch.setattr(fake, "notifications", stumm)
+    settings, _instanz = _radarr()
+    with SessionLocal() as db:
+        webhooks.eintrag_sicherstellen(db, "radarr-standard")
+
+    with SessionLocal() as db:
+        bericht = await konten.weg_verlassen(db, settings)
+
+    codes = [a.code for a in bericht]
+    assert "webhook_blieb" in codes
+    assert "webhook_entfernt" not in codes
+
+
+@pytest.mark.anyio
+async def test_unser_alter_eintrag_wird_uebernommen_und_umbenannt(fake) -> None:
+    """Bestehende Installationen: Ihr Eintrag heisst noch "Nexview". Ruft er
+    unsere Adresse an, ist er unserer - er bekommt den eindeutigen Namen,
+    statt dass ein zweiter daneben entsteht."""
+    fake.eintraege = [
+        {
+            "id": 4,
+            "name": "Nexview",
+            "implementation": "Webhook",
+            "fields": [
+                {"name": "url", "value": "http://nexview.test/api/webhooks/arr/radarr-standard"}
+            ],
+        }
+    ]
+    settings, instanz = _radarr()
+
+    with SessionLocal() as db:
+        await webhook_pflege.instanz_pflegen(db, settings, instanz)
+
+    assert fake.angelegt == []
+    assert [nummer for nummer, _ in fake.nachgezogen] == [4]
+    assert fake.eintraege[0]["name"] == "Nexview (nexview.test)"
+    zeile = _zeile()
+    assert zeile.eintrag_id == 4
+    assert zeile.eintrag_url == "http://nexview.test/api/webhooks/arr/radarr-standard"
+
+
+@pytest.mark.anyio
+async def test_testen_faehrt_nicht_mit_der_nummer_eines_fremden_eintrags(fake) -> None:
+    """Ohne eigenen Eintrag geht die Probe unter unserem Namen und ohne Nummer
+    hinaus. Mit der Nummer der anderen Nexview gaebe Radarr ihr Ergebnis als
+    unseres aus."""
+    fake.eintraege = [dict(ANDERE_NEXVIEW)]
+    settings, instanz = _radarr()
+    with SessionLocal() as db:
+        zeile = webhooks.eintrag_sicherstellen(db, "radarr-standard")
+        zeile.eintrag_id = 1
+        db.commit()
+
+    with SessionLocal() as db:
+        ergebnis = await webhook_pflege.testen(db, settings, instanz)
+
+    assert ergebnis["angekommen"] is True
+    assert "id" not in fake.proben[-1]
+    assert fake.proben[-1]["name"] == "Nexview (nexview.test)"
+
+
+def test_zwei_nexview_heissen_verschieden() -> None:
+    """Der Name traegt die Adresse, unter der die Installation angerufen wird."""
+    namen = {
+        webhook_pflege.eintrag_name("https://nexview.example.com/"),
+        webhook_pflege.eintrag_name("http://192.0.2.5:8000"),
+        webhook_pflege.eintrag_name("https://example.com/nexview"),
+    }
+    assert namen == {
+        "Nexview (nexview.example.com)",
+        "Nexview (192.0.2.5:8000)",
+        "Nexview (example.com/nexview)",
+    }
+
+
 @pytest.mark.anyio
 async def test_abwaehlen_raeumt_rueckstandsfrei_auf(fake) -> None:
     fake.eintraege = [
@@ -167,11 +342,12 @@ async def test_abwaehlen_raeumt_rueckstandsfrei_auf(fake) -> None:
 @pytest.mark.anyio
 async def test_abweichender_eintrag_wird_nachgezogen(fake) -> None:
     """Alte Adresse im Eintrag (public_url hat sich geaendert): Die Pflege
-    erkennt unseren Eintrag an der gemerkten Nummer und zieht ihn nach."""
+    erkennt unseren Eintrag an der gemerkten Nummer samt der Adresse, die sie
+    selbst hineingeschrieben hat, und zieht ihn nach."""
     fake.eintraege = [
         {
             "id": 7,
-            "name": "Nexview",
+            "name": "Nexview (alt.test)",
             "implementation": "Webhook",
             "fields": [
                 {"name": "url", "value": "http://alt.test/api/webhooks/arr/radarr-standard"},
@@ -192,6 +368,7 @@ async def test_abweichender_eintrag_wird_nachgezogen(fake) -> None:
     with SessionLocal() as db:
         zeile = webhooks.eintrag_sicherstellen(db, "radarr-standard")
         zeile.eintrag_id = 7
+        zeile.eintrag_url = "http://alt.test/api/webhooks/arr/radarr-standard"
         db.commit()
 
     with SessionLocal() as db:
@@ -202,8 +379,11 @@ async def test_abweichender_eintrag_wird_nachgezogen(fake) -> None:
     assert nummer == 7
     url = next(f["value"] for f in payload["fields"] if f["name"] == "url")
     assert url == "http://nexview.test/api/webhooks/arr/radarr-standard"
+    assert payload["name"] == "Nexview (nexview.test)"
     assert fake.angelegt == []
-    assert _zeile().fehler == ""
+    zeile = _zeile()
+    assert zeile.fehler == ""
+    assert zeile.eintrag_url == url
 
 
 @pytest.mark.anyio

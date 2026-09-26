@@ -127,6 +127,11 @@ class FakeNexcrate:
         #: Ein Folgen-Paket lud so die ganze Serie (Rundgang 2, R2-6).
         self.eingeschaltet: dict[tuple[str, str], Any] = {}
         self.recycle: list[dict[str, Any]] = []
+        #: Der Titel, wie er stand, als ein Posten mit Dateien in den
+        #: Papierkorb ging - je ``entry_id``. Zurückholen legt ihn daraus neu
+        #: an, wenn er die Bibliothek inzwischen verlassen hat (#job-43,
+        #: ``recycle_again`` in nexcrate). Nur intern, nicht Teil einer Antwort.
+        self._papierkorb_titel: dict[int, dict[str, Any]] = {}
         self.history: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.why: dict[tuple[str, str], dict[str, Any]] = {}
         self.calendar_items: list[dict[str, Any]] = []
@@ -426,7 +431,9 @@ class FakeNexcrate:
             eintrag["files"] = list(files) if files is not None else []
         return eintrag
 
-    def entfernt(self, kind: str, ref: str, *, delete_files: bool = False) -> None:
+    def entfernt(
+        self, kind: str, ref: str, *, delete_files: bool = False, restorable: bool = True
+    ) -> None:
         """Einen Titel entfernen - wie ``DELETE /api/v1/titles/{kind}/{ref}``.
 
         Er steht danach unter ``removed``. Ohne ``delete_files`` bleibt der
@@ -439,6 +446,12 @@ class FakeNexcrate:
         im Papierkorb-Ordner, bis ein Aufraeumen sie wirklich entfernt
         (nexcrates ``forget_missing``, hier nicht nachgebildet: dafuer die
         Zeile per Hand aus ``self.recycle`` nehmen).
+
+        ``restorable`` steht seit #job-43 an der Zeile selbst: Die Datei
+        liegt zwar da, aber ohne einen bekannten Titel (``ref`` unbekannt, die
+        Fassung ganz verschwunden) legt ``restore`` nichts mehr neu an - dann
+        ``restorable=False`` setzen. Mit dem Vorgabewert stashen wir den
+        Titel, aus dem ``restore`` ihn wieder aufbaut (``_papierkorb_titel``).
         """
         titel = self.titles.pop((kind, ref), None)
         self.removed.append({"kind": kind, "ref": ref, "seq": self._touch()})
@@ -461,8 +474,11 @@ class FakeNexcrate:
                     "deleted_by_name": "Nexview",
                     "present": True,
                     "in_library": False,
+                    "restorable": restorable,
                 }
             )
+            if restorable and titel is not None:
+                self._papierkorb_titel[self._papierkorb_zaehler] = titel
 
     def ereignis(self, typ: str, **felder: Any) -> dict[str, Any]:
         eintrag = {
@@ -861,10 +877,15 @@ class FakeNexcrate:
         )
 
     def _zurueckgeholt(self, eintrag_id: str) -> dict[str, Any]:
-        """``RestoredOut``: der Titel, zu dem die Datei zurueckkam.
+        """``RestoredOut``: ob der Titel dabei neu angelegt wurde, und sein Stand.
 
-        Steht er nicht in der Attrappe, bleiben nur ``kind`` und ``ref`` des
-        Eintrags - eine echte nexcrate sagte dann ``recycle_title_gone``.
+        Steht er noch in der Bibliothek, kommt nur die Datei zurueck
+        (``created=False``). Hat er sie verlassen, legt ``restore`` ihn aus
+        dem gestashten Stand neu an - unueberwacht, mit Datei
+        (``created=True``, #job-43). Kennt weder ``self.titles`` noch der
+        Stash den Titel, bleibt nur ``kind``/``ref`` uebrig - eine echte
+        nexcrate sagte dann ``recycle_title_gone`` (fuer diesen Fall
+        ``next_answer`` benutzen, nicht diese Attrappe).
         """
         eintrag = next(
             (e for e in self.recycle if str(e.get("entry_id")) == eintrag_id), {}
@@ -872,9 +893,24 @@ class FakeNexcrate:
         quelle = eintrag.get("title") if isinstance(eintrag.get("title"), dict) else eintrag
         kind, ref = str(quelle.get("kind") or ""), str(quelle.get("ref") or "")
         titel = self._finden(kind, ref)
+        erstellt = False
         if titel is None:
-            return {"title": {"kind": kind, "ref": ref}}
-        return {"title": {k: v for k, v in titel.items() if k != "seq"}}
+            vorlage = self._papierkorb_titel.pop(int(eintrag.get("entry_id") or 0), None)
+            if vorlage is None:
+                return {"created": False, "title": {"kind": kind, "ref": ref}}
+            titel = dict(vorlage)
+            titel["seq"] = self._touch()
+            # nexcrate legt die Fassung unueberwacht wieder an - die Datei
+            # liegt ja, der Zustand bleibt "available"/"upgrade"
+            # (recycle_bin._restore_movie/_restore_episode).
+            titel["versions"] = [
+                {**fassung, "monitored": False} for fassung in titel.get("versions") or []
+            ]
+            self.titles[(kind, ref)] = titel
+            erstellt = True
+        if eintrag:
+            self.recycle = [e for e in self.recycle if e is not eintrag]
+        return {"created": erstellt, "title": {k: v for k, v in titel.items() if k != "seq"}}
 
     def _calendar(self, abfrage: dict[str, str]) -> httpx.Response:
         von, bis = abfrage.get("from", ""), abfrage.get("to", "")

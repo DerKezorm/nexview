@@ -495,14 +495,15 @@ def _notice(
         # Zwischenzeit, traegt der Auftrag trotzdem seine NEX-Kennung, und die
         # muss erkannt werden - ``settings.beschaffung_ist_nex`` fragt nur den
         # Stand von *jetzt* und liesse die rohe Kennung roh im Kanal landen.
-        from .beschaffung.nex import gesundheit as nex_gesundheit
+        from .beschaffung import gesundheit_kanaltext
 
-        if nex_gesundheit.hat_kanaltext(eintrag.title):
+        hinweis = gesundheit_kanaltext(eintrag.title, sprache)
+        if hinweis is not None:
             bausteine = {
                 **bausteine,
                 "title": NEX_GESUNDHEIT_TITEL.get(sprache, NEX_GESUNDHEIT_TITEL["de"]),
             }
-            titel = nex_gesundheit.kanaltext(eintrag.title, sprache)
+            titel = hinweis
     if request is not None and request.season is not None:
         titel = f"{titel} · {STAFFEL.get(sprache, STAFFEL['de'])} {request.season}"
         titel += folgen_zusatz(request, sprache)

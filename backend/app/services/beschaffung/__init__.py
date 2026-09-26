@@ -106,6 +106,7 @@ __all__ = [
     "fassungen_gemerkt",
     "feste_fassungen",
     "gesundheit_je_instanz",
+    "gesundheit_kanaltext",
     "get_beschaffung",
     "haenger_je_instanz",
     "hintergrundaufgaben",
@@ -293,6 +294,15 @@ def gesundheit_nach_aussen(problem: dict[str, Any]) -> dict[str, Any]:
         "code": code or None,
         "params": dict(problem.get("params") or {}) if code else {},
     }
+
+
+def gesundheit_kanaltext(titel: str, sprache: str) -> str | None:
+    """Der Hinweis eines Gesundheitsbefunds fuer einen Kanal, fertig
+    uebersetzt - oder ``None``, wenn ``titel`` keine Kennung ist, sondern ein
+    freier Satz wie der Arr-Titel ("Radarr: ...")."""
+    from .nex import gesundheit
+
+    return gesundheit.kanaltext(titel, sprache) if gesundheit.hat_kanaltext(titel) else None
 
 
 def haenger_je_instanz(db: Session) -> dict[str, int]:

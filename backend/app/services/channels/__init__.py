@@ -25,6 +25,7 @@ __all__ = [
     "chats",
     "check",
     "child_fields",
+    "child_required",
     "fields",
     "fingerprint",
     "global_fields",
@@ -76,6 +77,17 @@ def parent_required(kind: ChannelKind) -> tuple[str, ...]:
     eine Annahme, die beim naechsten Dienst umfaellt.
     """
     return getattr(_MODULES[kind], "PARENT_REQUIRED", ())
+
+
+def child_required(kind: ChannelKind) -> tuple[str, ...]:
+    """Welche Felder der unteren Ebene ausgefuellt sein muessen, damit dort ein
+    Postfach entsteht.
+
+    Bei ntfy das Topic. Eine Wurzel ohne eigenes Kind, die dieses Feld schon
+    selbst traegt, ist damit bereits ihr eigenes Postfach - der naheliegende
+    Weg mit nur einem Topic braucht dann keine zweite Ebene.
+    """
+    return getattr(_MODULES[kind], "CHILD_REQUIRED", ())
 
 
 def has_children(kind: ChannelKind) -> bool:

@@ -24,6 +24,10 @@ PARENT_FIELDS = ("url", "auth", "username", "password", "token")
 # Ohne dieses Feld ist die obere Ebene unvollstaendig.
 PARENT_REQUIRED = ("url",)
 CHILD_FIELDS = ("topic", "language")
+# Ohne dieses Feld ist noch kein Postfach da - eine Wurzel ohne eigenes Kind,
+# die das Thema selbst schon traegt (Adresse und Thema in einem Schritt),
+# zaehlt dank diesem Feld trotzdem schon als Postfach.
+CHILD_REQUIRED = ("topic",)
 FIELDS = PARENT_FIELDS + CHILD_FIELDS
 SECRETS = ("password", "token")
 

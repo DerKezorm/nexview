@@ -789,6 +789,32 @@ def test_ntfy_topic_braucht_den_code(
     assert [kind["name"] for kind in ziele[0]["children"]] == ["Familie"]
 
 
+def test_ntfy_flaches_ziel_mit_adresse_und_thema_wird_bestaetigt(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Adresse und Thema in einem Zug - der naheliegende Weg mit nur einem Topic.
+
+    Befund: Testnachricht und Code stimmten dabei zuverlaessig, das Ziel blieb
+    aber trotzdem fuer immer 'verified': false, weil die Pruefung ein flach
+    angelegtes Ziel (ohne ``parent_id``) allein deswegen fuer eine Instanz ohne
+    Postfach hielt - unabhaengig davon, ob es selbst schon ein Thema trug.
+    """
+    gesendet = _mitschnitt(monkeypatch)
+    entwurf = {"name": "Zuhause", "url": "http://ntfy.test", "auth": "none", "topic": "wohnen"}
+
+    assert admin_client.post("/api/settings/channels/ntfy/test", json=entwurf).json()["ok"]
+    assert admin_client.post(
+        "/api/settings/channels/ntfy/confirm", json={"code": _code_aus(gesendet)}
+    ).json()["ok"]
+
+    antwort = admin_client.post("/api/settings/channels/ntfy/targets", json=entwurf)
+    assert antwort.status_code == 201, antwort.text
+    ziel = antwort.json()
+    assert ziel["verified"] is True
+    assert ziel["topic"] == "wohnen"
+    assert ziel["children"] == []
+
+
 def test_gotify_kennt_keine_zweite_ebene(admin_client: TestClient) -> None:
     ziel_id = _ziel()
     antwort = admin_client.post(

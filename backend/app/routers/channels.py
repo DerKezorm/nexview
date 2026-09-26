@@ -128,13 +128,29 @@ def _holen(db: DbSession, channel: str, target_id: int) -> ChannelTarget:
     return target
 
 
-def _ist_postfach(kind: ChannelKind, parent_id: int | None) -> bool:
+def _ist_postfach(kind: ChannelKind, target: ChannelTarget) -> bool:
     """Kann an dieser Stelle ueberhaupt eine Nachricht ankommen?
 
     Bei Gotify ja - die Application ist das Postfach. Bei ntfy erst beim Topic;
     die Instanz darueber ist nur Adresse und Anmeldung.
+
+    ⚠️ **Eine Wurzel ohne eigenes Kind darf das Topic selbst tragen.** Adresse
+    und Thema in einem Schritt ist der naheliegende Weg fuer einen Betreiber
+    mit nur einem Topic - dieselbe Verbindung als Instanz und dann noch einmal
+    als Kind anzulegen, waere Umstand ohne Nutzen. Erst sobald ein Kind
+    dazukommt (mehrere Topics), zieht das Thema dorthin um, und die Wurzel
+    bleibt reine Instanz, an der es nichts zu bestaetigen gibt. Befund: ein so
+    flach angelegtes Ziel wurde bisher nie 'verified', obwohl Testnachricht
+    und Code stimmten - die Pruefung sah nur den fehlenden ``parent_id``.
     """
-    return not channels.has_children(kind) or parent_id is not None
+    if not channels.has_children(kind):
+        return True
+    if target.parent_id is not None:
+        return True
+    if target.children:
+        return False
+    pflicht = channels.child_required(kind)
+    return bool(pflicht) and all(getattr(target, feld, "") for feld in pflicht)
 
 
 def _pruefe_entwurf(payload: TargetDraft) -> None:
@@ -428,7 +444,8 @@ def _speichern(
 
     Eine **Instanz** ohne Postfach-Eigenschaft (die ntfy-Ebene darueber) wird
     ohne Code gespeichert: Dorthin geht nie eine Nachricht, es gibt also nichts
-    zu bestaetigen.
+    zu bestaetigen. Traegt eine Wurzel ohne eigenes Kind das Thema aber schon
+    selbst, ist sie ihr eigenes Postfach - siehe ``_ist_postfach``.
     """
     settings = load_settings(db)
     vorher = channel_targets.config(target, settings) if target.verified else None
@@ -441,7 +458,7 @@ def _speichern(
         _pruefe_meldungen(payload.events)
         target.events = dict(payload.events)
 
-    if not _ist_postfach(kind, target.parent_id):
+    if not _ist_postfach(kind, target):
         # Was die obere Ebene braucht, weiss der Dienst - bei ntfy die
         # Adresse, bei Telegram das Token.
         if any(not getattr(target, feld, "") for feld in channels.parent_required(kind)):

@@ -4171,6 +4171,7 @@
     "backupText": "It is the only way back. Nexview creates it here; the name appears afterwards, and without it there is no next step.",
     "backupCreate": "Create backup",
     "backupDone": "Created: {{name}}",
+    "backupFound": "Already there: {{name}}. If anything changed since, create a new one.",
     "switchTitle": "Switch",
     "switchWarning": "Nexview will now rewrite every request, every storage entry and every permission onto the versions from nexcrate. If that succeeds, it then removes its webhook entries from Radarr and Sonarr and deletes the credentials.",
     "switchNow": "Switch now",

@@ -11,6 +11,7 @@ import type {
   UmstiegProbe,
   UmstiegSicherung,
   UmstiegVorab,
+  UmstiegVorhandeneSicherung,
 } from "../../api/types";
 import {
   NexcrateVerbinden,
@@ -145,7 +146,11 @@ export function AdminUmstieg() {
   // beim Umschalten ohnehin, ob die genannte Datei wirklich liegt, bevor er
   // etwas tut (siehe Kommentar oben an `umschalten`). Eine veraltete Sicherung
   // scheitert deshalb dort, nicht hier.
-  const [sicherung, setSicherung] = useState<{ name: string } | null>(() => {
+  const [sicherung, setSicherung] = useState<{
+    name: string;
+    /** Vom Server wiedererkannt statt hier angelegt (#note-37). */
+    vorhanden?: boolean;
+  } | null>(() => {
     const name = sicherungsnameGespeichertLesen();
     return name ? { name } : null;
   });
@@ -228,6 +233,24 @@ export function AdminUmstieg() {
       sicherungsnameSpeichern(sicherung.name);
     }
   }, [sicherung]);
+
+  // ⚠️ **Der Sitzungsspeicher gilt nur für diesen Reiter** (#note-37). Wer den
+  // Assistenten in einem neuen Fenster wieder öffnet, stand vor einem grauen
+  // „Weiter", obwohl die Sicherung von eben auf dem Server lag - und legte
+  // eine zweite an. Der Server nennt eine frische Sicherung des Assistenten;
+  // welche als frisch gilt, entscheidet er.
+  const vorhandeneSicherung = useQuery({
+    queryKey: ["umstieg", "sicherung"],
+    queryFn: () =>
+      api.get<UmstiegVorhandeneSicherung>("/api/umstieg/sicherung"),
+    enabled: schritt === "sicherung" && !sicherung,
+  });
+  useEffect(() => {
+    const gefunden = vorhandeneSicherung.data?.sicherung;
+    if (gefunden) {
+      setSicherung((bisher) => bisher ?? { name: gefunden.name, vorhanden: true });
+    }
+  }, [vorhandeneSicherung.data]);
 
   const probe = useMutation({
     mutationFn: () => api.post<UmstiegProbe>("/api/umstieg/probe", { abbildung }),
@@ -560,7 +583,9 @@ export function AdminUmstieg() {
             </Button>
             {sicherung && (
               <span className="text-sm text-green-400">
-                {t("umstieg.backupDone", { name: sicherung.name })}
+                {sicherung.vorhanden
+                  ? t("umstieg.backupFound", { name: sicherung.name })
+                  : t("umstieg.backupDone", { name: sicherung.name })}
               </span>
             )}
           </div>

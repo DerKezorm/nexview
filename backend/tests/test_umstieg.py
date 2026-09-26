@@ -550,6 +550,48 @@ def test_der_name_der_sicherung_ist_ganz(assistent: TestClient) -> None:
         sicherung.entfernen(sicherung.datei(name))
 
 
+def test_eine_eben_angelegte_sicherung_wird_nach_dem_neuladen_erkannt(
+    assistent: TestClient,
+) -> None:
+    """#note-37: Die Oberflaeche merkte sich die Sicherung nur im Reiter. In
+    einem neuen Fenster stand "Weiter" grau da, und der einzige Ausweg legte
+    eine zweite Sicherung an. Jetzt nennt der Server die von eben."""
+    from app.services import sicherung
+
+    assert assistent.get("/api/umstieg/sicherung").json() == {"sicherung": None}
+    name = assistent.post("/api/umstieg/sicherung").json()["name"]
+    try:
+        antwort = assistent.get("/api/umstieg/sicherung")
+        assert antwort.status_code == 200, antwort.text
+        assert antwort.json()["sicherung"]["name"] == name
+    finally:
+        sicherung.entfernen(sicherung.datei(name))
+
+
+def test_eine_alte_oder_fremde_sicherung_zaehlt_nicht(
+    assistent: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Wiedererkannt wird nur eine frische Sicherung **des Assistenten**: Eine
+    von gestern waere als Rueckweg einen Tag Arbeit zu kurz."""
+    from datetime import timedelta
+
+    from app.routers import umstieg as umstieg_router
+    from app.services import sicherung
+
+    fremd = sicherung.anlegen(art=sicherung.MANUELL, kommentar="Something else")
+    name = assistent.post("/api/umstieg/sicherung").json()["name"]
+    try:
+        monkeypatch.setattr(umstieg_router, "SICHERUNG_FRISCH", timedelta(seconds=-60))
+        assert assistent.get("/api/umstieg/sicherung").json() == {"sicherung": None}
+        monkeypatch.undo()
+        sicherung.entfernen(sicherung.ordner() / name)
+        # Die fremde, ebenso frische Sicherung zaehlt nicht.
+        assert assistent.get("/api/umstieg/sicherung").json() == {"sicherung": None}
+    finally:
+        sicherung.entfernen(fremd)
+        sicherung.entfernen(sicherung.ordner() / name)
+
+
 def test_ohne_sicherung_wird_nicht_umgeschaltet(assistent: TestClient) -> None:
     """Es gibt keinen Rückweg außer ihr - also prüft der Server, dass sie liegt."""
     antwort = assistent.post(

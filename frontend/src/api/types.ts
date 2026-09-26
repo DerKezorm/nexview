@@ -1315,6 +1315,11 @@ export type UmstiegSicherung = {
   erstellt: string;
 };
 
+/** Schritt 5 nach einem Neuladen: eine frische Sicherung des Assistenten, falls es eine gibt. */
+export type UmstiegVorhandeneSicherung = {
+  sicherung: UmstiegSicherung | null;
+};
+
 /** Schritt 6: was umgeschrieben wurde. */
 export type UmstiegBericht = {
   fassungen: number;

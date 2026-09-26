@@ -22,6 +22,7 @@ Die Riegel, jeder aus einem anderen Grund:
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
@@ -260,6 +261,49 @@ class SicherungAntwort(BaseModel):
     name: str
     groesse: int
     erstellt: str
+
+
+class VorhandeneSicherung(BaseModel):
+    sicherung: SicherungAntwort | None = None
+
+
+#: Wie alt eine Sicherung des Assistenten sein darf, damit er sie nach einem
+#: Neuladen als die von eben wiedererkennt. Eine ältere wäre als Rückweg um
+#: alles zu kurz, was seither geschah - dann legt der Betreiber eine neue an.
+SICHERUNG_FRISCH = timedelta(hours=1)
+
+
+@router.get("/sicherung", response_model=VorhandeneSicherung)
+def sicherung_vorhanden(admin: AdminUser, db: DbSession) -> VorhandeneSicherung:
+    """Liegt schon eine frische Sicherung des Assistenten? (7.3, Schritt 5.)
+
+    ⚠️ **Die Oberfläche merkte sich die Sicherung nur im Reiter** (#note-37).
+    In einem neuen Fenster stand „Weiter" grau da, und der einzige Ausweg legte
+    eine zweite Sicherung an. Gezählt wird nur, was dieser Assistent angelegt
+    hat (sein Kommentar), was jünger ist als ``SICHERUNG_FRISCH`` und was sich
+    als Datenbank öffnen lässt - dieselbe Prüfung wie vor dem Umschalten.
+    """
+    _nur_vom_arr_betrieb(db)
+    grenze = datetime.now(UTC) - SICHERUNG_FRISCH
+    for eintrag in sicherung.liste():
+        if eintrag.kommentar != SICHERUNG_KOMMENTAR:
+            continue
+        try:
+            erstellt = datetime.fromisoformat(eintrag.erstellt)
+        except ValueError:
+            continue
+        if erstellt.tzinfo is None:
+            erstellt = erstellt.replace(tzinfo=UTC)
+        if erstellt < grenze:
+            # Die Liste ist nach Alter sortiert: Alles Weitere ist älter.
+            break
+        if sicherung.brauchbar(eintrag.name):
+            return VorhandeneSicherung(
+                sicherung=SicherungAntwort(
+                    name=eintrag.name, groesse=eintrag.groesse, erstellt=eintrag.erstellt
+                )
+            )
+    return VorhandeneSicherung()
 
 
 @router.post(

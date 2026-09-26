@@ -539,6 +539,33 @@ describe('Umstiegsassistent: Reload während des Umstiegs (C6)', () => {
     expect(api.post).not.toHaveBeenCalledWith('/api/umstieg/sicherung')
   })
 
+  it('erkennt eine eben angelegte Sicherung auch ohne Sitzungsspeicher (neuer Reiter, neues Fenster)', async () => {
+    // #note-37: Der Sitzungsspeicher gilt nur für diesen einen Reiter. Wer den
+    // Assistenten in einem neuen Fenster wieder öffnete, stand vor einem
+    // grauen „Weiter", obwohl die Sicherung von eben auf dem Server lag.
+    vi.mocked(api.get).mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/umstieg/vorab') return VORAB as never
+      if (pfad === '/api/umstieg/abbildung') return ABBILDUNG as never
+      if (pfad === '/api/umstieg/sicherung') {
+        return {
+          sicherung: { name: 'sicherung-vorhin.db', groesse: 1, erstellt: '2026-09-26T08:00:00+00:00' },
+        } as never
+      }
+      return {} as never
+    })
+    vi.mocked(api.post).mockResolvedValue(PROBE as never)
+    rendernSchlicht(<AdminUmstieg />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /weiter/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /prüfen/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^weiter$/i }))
+
+    expect(await screen.findByText(/sicherung-vorhin\.db/)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: /^weiter$/i })).toBeEnabled())
+    expect(api.post).not.toHaveBeenCalledWith('/api/umstieg/sicherung')
+  })
+
   it('verwirft eine gespeicherte Abbildung, die eine Fassung nennt, die es nicht mehr gibt', async () => {
     // Die gespeicherte Abbildung zeigt auf eine Fassung, die nach dem Reload
     // nicht mehr in der Liste steht - etwa weil sie in nexcrate inzwischen

@@ -4171,6 +4171,7 @@
     "backupText": "Sie ist der einzige Rückweg. Nexview legt sie hier an; der Name steht danach da, und ohne sie geht es nicht weiter.",
     "backupCreate": "Sicherung anlegen",
     "backupDone": "Angelegt: {{name}}",
+    "backupFound": "Liegt schon vor: {{name}}. Wer seither etwas geändert hat, legt eine neue an.",
     "switchTitle": "Umschalten",
     "switchWarning": "Jetzt schreibt Nexview jede Anfrage, jeden Speicherposten und jedes Recht auf die Fassungen aus nexcrate um. Gelingt das, entfernt es danach seine Webhook-Einträge aus Radarr und Sonarr und löscht die Zugänge.",
     "switchNow": "Jetzt umschalten",

@@ -2079,6 +2079,7 @@
       "oidc_would_lock_out_others": "Einige Konten kämen ohne diesen Anbieter nicht mehr herein.",
       "person_not_marked": "Diese Person war nicht markiert.",
       "public_url_needs_scheme": "Die öffentliche Adresse muss mit http:// oder https:// beginnen.",
+      "radarr_movie_missing": "Radarr liefert diesen Film nicht.",
       "radarr_movie_unknown": "Radarr kennt diesen Film nicht.",
       "rating_needs_download": "Bewerten kannst du erst, wenn der Titel heruntergeladen ist.",
       "request_not_found": "Anfrage nicht gefunden.",

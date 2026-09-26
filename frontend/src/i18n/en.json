@@ -2079,6 +2079,7 @@
       "oidc_would_lock_out_others": "Some accounts could not get back in without this provider.",
       "person_not_marked": "That person was not marked.",
       "public_url_needs_scheme": "The public address has to start with http:// or https://.",
+      "radarr_movie_missing": "Radarr is not returning this movie.",
       "radarr_movie_unknown": "Radarr does not know this movie.",
       "rating_needs_download": "You can rate a title once it has arrived.",
       "request_not_found": "No such request.",

@@ -264,6 +264,20 @@ def test_nexcrate_zeile_angehalten_laedt_nicht() -> None:
     assert [zeile.laeuft for zeile in zeilen] == [False]
 
 
+def test_nexcrate_zeile_mit_problem_laedt_nicht() -> None:
+    """nexcrate fuehrt einen haengenden Download (kein Platz, Fehler im
+    Download-Programm, Pfad fehlt) mit ``state: problem`` weiter in ``/queue``,
+    ``remaining_bytes`` ist dann ``null``. Als laufend gezaehlt ergab das
+    wieder „laedt · 100 %“."""
+    zeilen = nex_lesen.warteschlange(
+        [{"title": {"kind": "movie", "ref": "tmdb:603"}, "state": "problem",
+          "size_bytes": 1000, "remaining_bytes": None}],
+        "movie",
+    )
+    assert [zeile.laeuft for zeile in zeilen] == [False]
+    assert abgleich_kern.laedt_fortschritt(_film(), SimpleNamespace(arr_id=603), zeilen) is None
+
+
 def test_abbrechen_raeumt_die_anzeige_ab(arr_client: TestClient) -> None:
     """Abgebrochen und trotzdem „laedt_fortschritt: 100“ - so stand es nach dem
     Abbrechen weiter in ``/api/requests/mine``."""

@@ -199,17 +199,29 @@ def anlegen(payload: TicketCreate, user: CurrentUser, db: DbSession) -> TicketDe
     return _detail(ticket)
 
 
+class AufloesungAntrag(BaseModel):
+    #: Muss ``true`` sein - siehe ``tickets.aufloesung_beantragen``.
+    bestaetigt: bool = False
+
+
 @router.post("/kontoaufloesung", response_model=TicketDetail, status_code=201)
-def kontoaufloesung(user: CurrentUser, db: DbSession) -> TicketDetail:
+def kontoaufloesung(
+    user: CurrentUser, db: DbSession, payload: AufloesungAntrag | None = None
+) -> TicketDetail:
     """Den Antrag "Konto löschen" stellen - fuer Benutzer und Entscheider.
 
     Landet als gewoehnliches Ticket bei den Administratoren (Entscheider
     sehen fremde Tickets ohnehin nicht). Geloescht wird spaeter von Hand in
     der Benutzerverwaltung - samt der Entscheidung ueber den Bestand. Das
     Ticket selbst stirbt mit dem Konto; der bleibende Beleg ist das Protokoll.
+
+    Der Koerper ist optional, damit ein Administrator auch ohne ihn sein 403
+    bekommt statt eines 422. Ohne ``bestaetigt: true`` entsteht trotzdem nichts.
     """
     try:
-        ticket = tickets.aufloesung_beantragen(db, user)
+        ticket = tickets.aufloesung_beantragen(
+            db, user, bestaetigt=payload is not None and payload.bestaetigt
+        )
     except tickets.TicketError as error:
         raise _fehler(error) from error
     db.commit()

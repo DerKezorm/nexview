@@ -22,7 +22,9 @@ export function KontoLoeschen() {
   const [gestellt, setGestellt] = useState(false)
 
   const antrag = useMutation({
-    mutationFn: () => api.post('/api/tickets/kontoaufloesung', {}),
+    // Die Rückfrage unten ist die Bestätigung. Ohne das Feld legt der Server
+    // keinen Antrag an.
+    mutationFn: () => api.post('/api/tickets/kontoaufloesung', { bestaetigt: true }),
     onSuccess: () => {
       setFrage(false)
       setGestellt(true)

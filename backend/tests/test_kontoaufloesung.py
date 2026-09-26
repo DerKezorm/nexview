@@ -38,6 +38,9 @@ from .conftest import auth_headers, create_user
 
 GB = 1024**3
 
+#: Der Antrag gilt nur ausdruecklich bestaetigt - siehe ``tickets.aufloesung_beantragen``.
+JA = {"bestaetigt": True}
+
 
 # --- Der Antrag --------------------------------------------------------------
 
@@ -46,7 +49,7 @@ def test_antrag_landet_als_ticket_bei_den_admins(admin_client: TestClient) -> No
     create_user(admin_client, "kim", "passwort-1234")
     kopf = auth_headers(admin_client, "kim", "passwort-1234")
 
-    antwort = admin_client.post("/api/tickets/kontoaufloesung", headers=kopf)
+    antwort = admin_client.post("/api/tickets/kontoaufloesung", headers=kopf, json=JA)
     assert antwort.status_code == 201
 
     with SessionLocal() as db:
@@ -59,14 +62,40 @@ def test_zweiter_antrag_wird_abgewiesen(admin_client: TestClient) -> None:
     """Ein zweiter Antrag waere nur Laerm in der Warteschlange."""
     create_user(admin_client, "kim", "passwort-1234")
     kopf = auth_headers(admin_client, "kim", "passwort-1234")
-    admin_client.post("/api/tickets/kontoaufloesung", headers=kopf)
+    admin_client.post("/api/tickets/kontoaufloesung", headers=kopf, json=JA)
 
-    assert admin_client.post("/api/tickets/kontoaufloesung", headers=kopf).status_code == 409
+    antwort = admin_client.post("/api/tickets/kontoaufloesung", headers=kopf, json=JA)
+    assert antwort.status_code == 409
 
 
-def test_admins_stellen_keinen_antrag(admin_client: TestClient) -> None:
-    """Sie loeschen direkt - ein Antrag an sich selbst waere Theater."""
-    assert admin_client.post("/api/tickets/kontoaufloesung").status_code == 403
+@pytest.mark.parametrize("koerper", [None, {}, {"bestaetigt": False}])
+def test_ohne_bestaetigung_entsteht_kein_antrag(
+    admin_client: TestClient, koerper: dict | None
+) -> None:
+    """Ein leerer POST legte frueher ein echtes, offenes Ticket an.
+
+    Befund aus dem grossen Pruefgang: Ein automatisierter Rechtetest hinterliess
+    so beim Administrator Antraege ohne jeden Inhalt. Die Rueckfrage in der
+    Oberflaeche schuetzt nur den Weg, der durch sie hindurchfuehrt.
+    """
+    create_user(admin_client, "kim", "passwort-1234")
+    kopf = auth_headers(admin_client, "kim", "passwort-1234")
+
+    antwort = admin_client.post("/api/tickets/kontoaufloesung", headers=kopf, json=koerper)
+
+    assert antwort.status_code == 422
+    with SessionLocal() as db:
+        assert db.scalars(select(Ticket)).all() == []
+
+
+@pytest.mark.parametrize("koerper", [None, JA])
+def test_admins_stellen_keinen_antrag(admin_client: TestClient, koerper: dict | None) -> None:
+    """Sie loeschen direkt - ein Antrag an sich selbst waere Theater.
+
+    Auch ohne Koerper ein 403 und kein 422: Die Rolle entscheidet vor der Form.
+    """
+    antwort = admin_client.post("/api/tickets/kontoaufloesung", json=koerper)
+    assert antwort.status_code == 403
 
 
 # --- Attrappen ---------------------------------------------------------------

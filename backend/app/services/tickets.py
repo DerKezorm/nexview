@@ -116,7 +116,7 @@ AUFLOESUNG_BETREFF = "Konto löschen"
 KINDERKONTEN_BETREFF = "Freigabe für Kinderkonten"
 
 
-def aufloesung_beantragen(db: Session, user: User) -> Ticket:
+def aufloesung_beantragen(db: Session, user: User, *, bestaetigt: bool = False) -> Ticket:
     """"Ich moechte mein Konto loeschen" - als Ticket an die Administratoren.
 
     Ein Antrag, keine Selbstbedienung: Loeschen kann nur ein Administrator,
@@ -132,10 +132,20 @@ def aufloesung_beantragen(db: Session, user: User) -> Ticket:
     Administratoren stellen keinen Antrag - sie loeschen direkt in der
     Benutzerverwaltung. Und ein zweiter Antrag waere nur Laerm in der
     Warteschlange, solange der erste offen ist.
+
+    ⚠️ **Ohne ``bestaetigt`` entsteht nichts.** Frueher genuegte ein leerer
+    POST: Ein automatisierter Rechtetest legte so auf zwei Pruefanlagen je
+    zwei echte Antraege an, die danach beim Administrator lagen. Die
+    Rueckfrage in der Oberflaeche schuetzt nur den Weg, der durch sie
+    hindurchfuehrt; die Sperre gehoert deshalb hierher.
     """
     if darf_alles_sehen(user):
         raise TicketError(
             "Administratoren löschen Konten direkt in der Benutzerverwaltung.", 403
+        )
+    if not bestaetigt:
+        raise TicketError(
+            "Der Antrag muss ausdrücklich bestätigt werden (bestaetigt: true).", 422
         )
     offen = db.scalar(
         select(Ticket).where(

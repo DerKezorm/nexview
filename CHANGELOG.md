@@ -275,6 +275,10 @@ the process. The backup is the way back.
   refused and the confirmation mail could not be sent. The address now is
   confirmed right away, and on the first start an operator account already
   caught this way is confirmed once.
+- **An empty request created an account deletion ticket.** A bare POST to
+  `/api/tickets/kontoaufloesung` filed a real request with the administrators.
+  It now has to carry `{"bestaetigt": true}`, which the confirmation dialog
+  sends.
 
 ## 0.35.2 – 18.09.2026
 

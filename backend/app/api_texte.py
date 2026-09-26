@@ -2381,7 +2381,8 @@ TEXTE: dict[str, tuple[str, str]] = {
         'Apply to have your account deleted',
         (
             'For users and approvers. Arrives as an ordinary ticket with the '
-            'administrators, who see the consequences before they decide.'
+            'administrators, who see the consequences before they decide. The body '
+            'has to carry `{"bestaetigt": true}`; without it nothing is filed (422).'
         ),
     ),
     'PATCH /api/tickets/messages/{message_id}': (

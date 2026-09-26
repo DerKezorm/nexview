@@ -27,10 +27,13 @@ the process. The backup is the way back.
 **Going back** means restoring that backup, not starting the old image on the
 updated data: 0.35.2 would cancel open requests and drop 4K rights without a
 word. Nexview writes the backup to `sicherungen/` in the data directory before
-the update, names it after the old version with the comment *Before update to
-1.0.0*, and says the file name in the start log. Stop the container, copy it
-over `nexview.db`, delete `nexview.db-wal` and `nexview.db-shm`, then start the
-old version; the README has the steps under *Going back to an older version*.
+the update, with *Before update to 1.0.0* in its name, and says the file name in
+the start log. Going back is a file swap while the container is stopped: copy
+that backup over `nexview.db`, delete `nexview.db-wal` and `nexview.db-shm`,
+then start the old version. Do not take the backup an older version writes when
+it is started on the updated database (`nexview-automatisch-0.35.2-…` without
+that comment): it already holds the new data. The README has the steps under
+*Going back to an older version*.
 An older version that is started anyway can no longer write to the database,
 and from now on an older 1.x refuses to start on a newer one.
 

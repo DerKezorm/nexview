@@ -276,10 +276,18 @@ fails, and its log says why), and an older 1.x refuses to start. Either way noth
 changed, and the message names the backup to go back with.
 
 The way back is the backup taken before the update. It sits in `sicherungen/` inside the
-data directory, is named after the version its data came from, and carries the comment
-*Before update to …*, for example
-`nexview-automatisch-0.35.2-2026-09-26_091050-before-update-to-1-0-0.db`. The start log
-of the update names the exact file.
+data directory and carries the comment *Before update to …* in its name, for example
+`nexview-automatisch-0.35.2-or-later-2026-09-26_091050-before-update-to-1-0-0.db`. The
+version in the name is the one the data came from; before 1.0.0 no version wrote itself
+into the database, so for those it is the oldest it can be ("or later"). The start log of
+the update names the exact file.
+
+⚠️ **Take that file, not a newer one.** An older version started on the updated database
+writes a backup of its own first, for example `nexview-automatisch-0.35.2-….db` without
+the comment. It already holds the new data and does not take you back.
+
+Going back works by swapping the file while Nexview is stopped, not through *Restore* in
+the settings:
 
 1. Stop the container: `docker compose down`.
 2. In the data directory, copy that backup over `nexview.db`.

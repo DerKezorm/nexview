@@ -137,6 +137,68 @@ async def test_stumme_instanz_laesst_den_stand_stehen(admin_client, monkeypatch)
     assert _meldungen() == 1
 
 
+@pytest.mark.anyio
+async def test_kanal_behaelt_den_alten_text_im_arr_betrieb(monkeypatch) -> None:
+    """Gegenprobe zum NEX-Betrieb: hier bleibt der Kanaltext wie bisher -
+    Instanzname und nexcrate-fremder Wortlaut stehen weiterhin im Klartext."""
+    import json
+
+    import httpx
+
+    from app.crypto import encrypt
+    from app.models import ChannelKind, ChannelTarget, Role, User
+    from app.security import hash_password
+    from app.services import channel_outbox
+    from app.services.channels import base
+    from app.services.settings_service import load_settings
+
+    settings = _radarr()
+    _antworten(monkeypatch, [DOWNLOAD_CLIENT_TOT])
+
+    with SessionLocal() as db:
+        db.add(
+            User(
+                username="chef",
+                password_hash=hash_password("passwort-123456"),
+                role=Role.admin,
+                is_active=True,
+            )
+        )
+        db.add(
+            ChannelTarget(
+                channel=ChannelKind.gotify,
+                name="Handy",
+                url="http://gotify.test",
+                token=encrypt("geheim"),
+                language="de",
+                verified=True,
+                events={"instance_health": "high"},
+            )
+        )
+        db.commit()
+        await instanz_gesundheit.pruefen(db, settings)
+
+    gesehen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append(request)
+        return httpx.Response(200)
+
+    class Attrappe(httpx.AsyncClient):
+        def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+            kwargs.pop("transport", None)
+            super().__init__(*args, transport=httpx.MockTransport(handler), **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(base.httpx, "AsyncClient", Attrappe)
+
+    with SessionLocal() as db:
+        assert await channel_outbox.process(db, load_settings(db)) == 1
+
+    daten = json.loads(gesehen[0].content)
+    assert daten["title"] == "Radarr/Sonarr meldet ein Problem"
+    assert "Radarr: All download clients are unavailable" in daten["message"]
+
+
 def test_verbindungsleuchte_meldet_erreichbar(arr_client, monkeypatch) -> None:
     """Die Statusleuchte der Kacheln: live gefragt, mit Version."""
 

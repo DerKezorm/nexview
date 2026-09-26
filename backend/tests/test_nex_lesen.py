@@ -521,6 +521,87 @@ async def test_die_glocke_nennt_nexcrate_nicht_radarr(
     assert {m.message_title for m in meldungen} == {"nexcrate"}
 
 
+async def test_kanal_nennt_nexcrate_und_den_hinweis_im_nex_betrieb(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ein Ziel (Telegram, ntfy, ...) bekam auch im NEX-Betrieb den festen
+    Titel "Radarr/Sonarr meldet ein Problem", ohne den eigentlichen Hinweis
+    (Rundgang-Befund, der Betreiber meldete es an seiner Live-Instanz).
+
+    Jetzt nennt der Kanal nexcrate und den Hinweis, uebersetzt nach Kennung
+    wie die Glocke - je Ziel in dessen eigener Sprache, nie nexcrates
+    englischer Satz.
+    """
+    import httpx
+
+    from app.crypto import encrypt
+    from app.models import ChannelKind, ChannelTarget
+    from app.services import channel_outbox
+    from app.services.channels import base
+
+    db.add(User(username="chef", password_hash=hash_password("test"), role=Role.admin))
+    db.add(
+        ChannelTarget(
+            channel=ChannelKind.gotify,
+            name="Deutsch",
+            url="http://gotify-de.test",
+            token=encrypt("geheim"),
+            language="de",
+            verified=True,
+            events={"instance_health": "high"},
+        )
+    )
+    db.add(
+        ChannelTarget(
+            channel=ChannelKind.gotify,
+            name="Englisch",
+            url="http://gotify-en.test",
+            token=encrypt("geheim"),
+            language="en",
+            verified=True,
+            events={"instance_health": "high"},
+        )
+    )
+    db.commit()
+
+    nexcrate.health = [
+        {
+            "code": "automatic_off",
+            "level": "warning",
+            "message": "The automatic for movie is off.",
+            "params": {"kind": "movie"},
+        },
+    ]
+    await get_beschaffung(nex).gesundheit_pruefen(db)
+
+    gesehen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append(request)
+        return httpx.Response(200)
+
+    class Attrappe(httpx.AsyncClient):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            kwargs.pop("transport", None)
+            super().__init__(*args, transport=httpx.MockTransport(handler), **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(base.httpx, "AsyncClient", Attrappe)
+
+    settings = load_settings(db)
+    assert await channel_outbox.process(db, settings) == 2
+
+    nachrichten = [json.loads(r.content) for r in gesehen]
+    by_titel = {n["title"]: n for n in nachrichten}
+    assert set(by_titel) == {"nexcrate meldet ein Problem", "nexcrate reports a problem"}
+    assert "Automatik für Filme" in by_titel["nexcrate meldet ein Problem"]["message"]
+    assert "automatic for movies" in by_titel["nexcrate reports a problem"]["message"].lower()
+    for nachricht in nachrichten:
+        gesamt = f"{nachricht['title']} {nachricht['message']}"
+        assert "Radarr" not in gesamt and "Sonarr" not in gesamt
+        # Nie nexcrates eigener englischer Satz, auch nicht in der deutschen Nachricht.
+        assert "automatic for movie is off" not in gesamt
+
+
 def test_die_glocke_hat_jeden_text() -> None:
     """Jeder Schluessel, den die Glocke bekommen kann, steht in beiden Sprachen
     und ohne Platzhalter: Die Glocke zeigt keine Werte."""

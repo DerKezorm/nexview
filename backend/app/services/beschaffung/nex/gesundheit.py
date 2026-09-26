@@ -60,6 +60,64 @@ def glockentext(problem: dict[str, Any]) -> str:
     return "notifications.instanceHealth_nex"
 
 
+#: Derselbe Hinweis wie die Glocke, aber fuer einen serverseitigen Kanal
+#: (Telegram, ntfy, Discord, Webhook, Mail) uebersetzt. Die Glocke laesst den
+#: Browser mit i18next uebersetzen; ein Kanal hat keinen und bekommt deshalb
+#: hier einen fertigen Satz je Sprache - siehe ``channel_outbox._notice``.
+#: Dieselben Kennungen wie ``GLOCKE`` plus der allgemeine Fall; mehr kennt
+#: auch die Glocke nicht.
+KANALTEXT: dict[str, dict[str, str]] = {
+    "de": {
+        "nexcrate.health.indexer_none": "Kein Indexer ist verbunden und eingeschaltet.",
+        "nexcrate.health.download_client_none": (
+            "Kein Download-Programm ist verbunden und eingeschaltet."
+        ),
+        "nexcrate.health.tmdb_token_missing": "In nexcrate ist kein TMDB-Token hinterlegt.",
+        "nexcrate.health.automatic_off": "Die Automatik ist aus; von selbst lädt nichts.",
+        "nexcrate.health.automatic_off_movie": (
+            "Die Automatik für Filme ist aus; von selbst lädt nichts."
+        ),
+        "nexcrate.health.automatic_off_series": (
+            "Die Automatik für Serien ist aus; von selbst lädt nichts."
+        ),
+        "nexcrate.health.version_not_ready": "Eine Fassung ist nicht bereit.",
+        "nexcrate.health.nexcrate_wuensche_warten": (
+            "Ältere nexcrate: Ein angefragter Titel wartet auf die Automatik, "
+            "statt sofort gesucht zu werden."
+        ),
+        "nexcrate.health.nexcrate_ohne_anime": "Diese nexcrate sucht noch kein Anime.",
+        "notifications.instanceHealth_nex": "nexcrate meldet ein Problem.",
+    },
+    "en": {
+        "nexcrate.health.indexer_none": "No indexer is connected and switched on.",
+        "nexcrate.health.download_client_none": (
+            "No download client is connected and switched on."
+        ),
+        "nexcrate.health.tmdb_token_missing": "No TMDB token is stored in nexcrate.",
+        "nexcrate.health.automatic_off": "The automatic is off; nothing loads by itself.",
+        "nexcrate.health.automatic_off_movie": (
+            "The automatic for movies is off; nothing loads by itself."
+        ),
+        "nexcrate.health.automatic_off_series": (
+            "The automatic for series is off; nothing loads by itself."
+        ),
+        "nexcrate.health.version_not_ready": "A version is not ready.",
+        "nexcrate.health.nexcrate_wuensche_warten": (
+            "Older nexcrate: a requested title waits for the automation instead "
+            "of being searched right away."
+        ),
+        "nexcrate.health.nexcrate_ohne_anime": "This nexcrate does not search anime yet.",
+        "notifications.instanceHealth_nex": "nexcrate reports a problem.",
+    },
+}
+
+
+def kanaltext(code: str, sprache: str) -> str:
+    """Derselbe Hinweis wie ``glockentext``, fertig uebersetzt fuer einen Kanal."""
+    tabelle = KANALTEXT.get(sprache) or KANALTEXT["de"]
+    return tabelle.get(code) or tabelle["notifications.instanceHealth_nex"]
+
+
 def fuer_nexview(eintrag: dict[str, Any], eigene: frozenset[str] | None = None) -> bool:
     """Betrifft dieser Befund aus ``/health`` etwas, das Nexview fuehrt?
 
@@ -154,14 +212,20 @@ async def pruefen(db: Session, settings: AppSettings, kennung: str, name: str) -
         if problem["schluessel"] in bekannt:
             continue
         logger.warning("Health issue reported by nexcrate: %s", problem["text"])
+        schluesselwort = glockentext(problem)
         notify.create_for_admins(
             db,
             kind=NotificationType.instanz_gesundheit,
             # Nicht der Schluessel des Arr-Wegs: Dessen Text sagt "Radarr/Sonarr
             # meldet ein Problem", und einen Platzhalter traegt die Glocke nicht.
             # Der Titel ist nur der Name: nexcrates Satz ist englisch.
-            message_key=glockentext(problem),
+            message_key=schluesselwort,
             title=name,
+            # Die Kanaele (Telegram, ntfy, ...) bekommen dieselbe Kennung statt
+            # des Namens - sie uebersetzen sie selbst, in channel_outbox._notice
+            # (Rundgang-Befund: sonst blieb dort "Radarr/Sonarr meldet ein
+            # Problem" stehen, ohne jeden Hinweis).
+            channel_title=schluesselwort,
         )
 
     zeile.stand = jetzt

@@ -107,6 +107,7 @@ def create(
     request: MediaRequest | None = None,
     ticket: Ticket | None = None,
     title: str | None = None,
+    channel_title: str | None = None,
     broadcast: bool = True,
 ) -> Notification:
     """Eine Benachrichtigung anlegen. Kein ``commit`` - das macht der Aufrufer.
@@ -119,6 +120,12 @@ def create(
     Media-Server haengt an nichts, was einen Titel mitbraechte - der Name muss
     trotzdem in der Glocke stehen, weil die Textbausteine bewusst keine
     Platzhalter enthalten.
+
+    ``channel_title`` ersetzt ``title`` nur fuer die Kanaele (Telegram, ntfy,
+    ...), wenn beide auseinanderlaufen sollen. Die Glocke uebersetzt ueber
+    ``message_key`` im Browser; ein Kanal hat kein i18next dafuer und braucht
+    stattdessen einen fertigen Text je Sprache des Ziels - siehe
+    ``channel_outbox._notice`` fuer den Fall der nexcrate-Gesundheit.
 
     ``broadcast`` steuert die serverseitigen Kanaele. Die haengen an einem
     *Ereignis*, nicht an einem Empfaenger - deshalb schalten die Sammelrufe
@@ -150,8 +157,9 @@ def create(
         mail_pending=wants_mail(user, kind),
     )
     db.add(eintrag)
+    kanal_titel = channel_title if channel_title is not None else title
     if broadcast:
-        channel_outbox.enqueue(db, kind=kind, request=request, ticket=ticket, title=title)
+        channel_outbox.enqueue(db, kind=kind, request=request, ticket=ticket, title=kanal_titel)
     # Die persoenlichen Ziele dieses Menschen, falls er welche hat. Der
     # HA-Rueckkanal bekommt alles ohne Filter: Dass die Meldung ihn angeht,
     # steht schon dadurch fest, dass sie hier entsteht. Seine Browser dagegen
@@ -163,7 +171,7 @@ def create(
         kind=kind,
         request=request,
         ticket=ticket,
-        title=title,
+        title=kanal_titel,
         web_push=wants_push(user, kind),
     )
     return eintrag
@@ -220,8 +228,13 @@ def create_for_admins(
     ticket: Ticket | None = None,
     ausser: int | None = None,
     title: str | None = None,
+    channel_title: str | None = None,
 ) -> list[Notification]:
-    """Nur Administratoren - fuer alles, was auch nur sie beantworten koennen."""
+    """Nur Administratoren - fuer alles, was auch nur sie beantworten koennen.
+
+    ``channel_title`` siehe ``create()`` - fuer Meldungen, deren Kanaltext
+    vom Glockentitel abweicht.
+    """
     empfaenger = db.scalars(
         select(User).where(User.role == Role.admin, User.is_active.is_(True))
     )
@@ -234,10 +247,17 @@ def create_for_admins(
             request=request,
             ticket=ticket,
             title=title,
+            channel_title=channel_title,
             broadcast=False,
         )
         for user in empfaenger
         if user.id != ausser
     ]
-    channel_outbox.enqueue(db, kind=kind, request=request, ticket=ticket, title=title)
+    channel_outbox.enqueue(
+        db,
+        kind=kind,
+        request=request,
+        ticket=ticket,
+        title=channel_title if channel_title is not None else title,
+    )
     return meldungen

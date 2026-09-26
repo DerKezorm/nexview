@@ -271,6 +271,13 @@ STAFFEL = {"de": "Staffel", "en": "Season"}
 # derselben Staffel sind sonst zwei identische Nachrichten.
 FOLGE = {"de": "Folge", "en": "Episode"}
 
+# Der Titel fuer ``instanz_gesundheit`` im NEX-Betrieb - ersetzt in ``_notice``
+# den aus TEXTS/PERSOENLICH, der "Radarr/Sonarr" nennt (Rundgang-Befund: eine
+# nexcrate-Meldung kam mit diesem Titel an, obwohl kein Arr-Weg eingerichtet
+# war). Nur die Titelzeile unterscheidet sich, der Rest der Bausteine
+# (Dringlichkeit, Ziel) bleibt gleich.
+NEX_GESUNDHEIT_TITEL = {"de": "nexcrate meldet ein Problem", "en": "nexcrate reports a problem"}
+
 
 def folgen_zusatz(request, sprache: str) -> str:
     """" · Folge 3, 7" - fuer Betreffzeilen zu einem Folgen-Paket, sonst leer."""
@@ -470,6 +477,19 @@ def _notice(
 
     request = db.get(MediaRequest, eintrag.request_id) if eintrag.request_id else None
     titel = eintrag.title or (request.title if request else "")
+    if eintrag.type is NotificationType.instanz_gesundheit and settings.beschaffung_ist_nex:
+        # Im NEX-Betrieb nennt die Nachricht nexcrate statt Radarr/Sonarr, und
+        # der Hinweis kommt uebersetzt nach Kennung wie die Glocke - nie
+        # nexcrates englischer Satz (Rundgang-Befund). ``eintrag.title`` traegt
+        # hier die Kennung (``notify.create`` mit ``channel_title``), nicht
+        # den Namen der Instanz wie im ARR-Betrieb.
+        from .beschaffung.nex import gesundheit as nex_gesundheit
+
+        bausteine = {
+            **bausteine,
+            "title": NEX_GESUNDHEIT_TITEL.get(sprache, NEX_GESUNDHEIT_TITEL["de"]),
+        }
+        titel = nex_gesundheit.kanaltext(eintrag.title or "", sprache)
     if request is not None and request.season is not None:
         titel = f"{titel} · {STAFFEL.get(sprache, STAFFEL['de'])} {request.season}"
         titel += folgen_zusatz(request, sprache)

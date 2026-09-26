@@ -55,6 +55,15 @@ def _passt_wieder(db: Session, settings: AppSettings, anfrage: MediaRequest) -> 
     return not storage.stand_fuer(db, person, eigene).exhausted
 
 
+def passt_jetzt(db: Session, settings: AppSettings, anfrage: MediaRequest) -> bool:
+    """Ginge die Anfrage jetzt durch? Dieselbe Frage, die der Rundgang stellt.
+
+    Das Zurueckstellen fragt sie vorher: Passt sie schon, holte der Rundgang sie
+    sofort wieder zurück.
+    """
+    return _passt_wieder(db, settings, anfrage)
+
+
 def zurueckholen(db: Session, settings: AppSettings) -> int:
     """Alle zurueckgestellten Anfragen pruefen, die wieder passen.
 

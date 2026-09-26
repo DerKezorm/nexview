@@ -2097,6 +2097,7 @@
       "radarr_movie_unknown": "Radarr does not know this movie.",
       "rating_needs_download": "You can rate a title once it has arrived.",
       "request_not_found": "No such request.",
+      "defer_nothing_to_wait_for": "This account is not over any limit. A deferred request would be back among the pending ones at the next check. Approve or reject it instead.",
       "request_not_pending": "This request is not waiting for approval.",
       "restore_backup_newer": "This backup is newer than the running version. Update Nexview first.",
       "restore_files_busy": "The database is still in use right now. Please try again in a moment.",

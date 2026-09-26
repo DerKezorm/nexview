@@ -32,6 +32,7 @@ from ..services import (
     requests_service,
     storage,
     streaming,
+    zurueckgestellt,
 )
 from ..services.beschaffung import get_beschaffung
 from ..services.settings_service import AppSettings, load_settings
@@ -685,6 +686,21 @@ def zuruecksetzen(
             detail=meldungen.meldung(
                 "request_not_pending",
                 "Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
+            ),
+        )
+    # ⚠️ **Nur mit ueberzogener Grenze.** Zurueckstellen heisst "sobald wieder
+    # Platz ist", und genau dann holt der Rundgang sie zurueck. Ohne ueberzogene
+    # Grenze passte sie die ganze Zeit: Die Antwort sagte ``deferred``, und
+    # zwei Minuten spaeter stand sie wieder unter den offenen Freigaben. Die
+    # Oberflaeche bietet es ohnehin nur im Dialog zum vollen Konto an.
+    if zurueckgestellt.passt_jetzt(db, load_settings(db), request):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=meldungen.meldung(
+                "defer_nothing_to_wait_for",
+                "Das Konto hat keine Grenze überzogen; zurückgestellt käme die "
+                "Anfrage beim nächsten Rundgang wieder zu den offenen Freigaben. "
+                "Freigeben oder ablehnen.",
             ),
         )
 

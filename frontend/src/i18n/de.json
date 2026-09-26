@@ -2097,6 +2097,7 @@
       "radarr_movie_unknown": "Radarr kennt diesen Film nicht.",
       "rating_needs_download": "Bewerten kannst du erst, wenn der Titel heruntergeladen ist.",
       "request_not_found": "Anfrage nicht gefunden.",
+      "defer_nothing_to_wait_for": "Das Konto hat keine Grenze überzogen. Zurückgestellt käme die Anfrage beim nächsten Rundgang wieder zu den offenen Freigaben. Gib sie frei oder lehne sie ab.",
       "request_not_pending": "Diese Anfrage wartet nicht (mehr) auf eine Freigabe.",
       "restore_backup_newer": "Diese Sicherung ist neuer als die laufende Version. Aktualisiere Nexview zuerst.",
       "restore_files_busy": "Die Datenbank ist gerade noch in Benutzung. Bitte gleich noch einmal versuchen.",

@@ -246,3 +246,45 @@ def test_zweimal_laufen_meldet_nicht_zweimal(admin_client: TestClient) -> None:
             .count()
         )
         assert anzahl == 1
+
+
+# --------------------------------------------------------------------------
+# Zurückstellen nur, wenn es etwas zu warten gibt
+# --------------------------------------------------------------------------
+
+
+def test_ohne_ueberzogene_grenze_laesst_sich_nichts_zurueckstellen(
+    admin_client: TestClient,
+) -> None:
+    """⚠️ Befund: Zurückstellen hielt nicht.
+
+    Ein Entscheider stellte über die Schnittstelle eine Anfrage zurück, deren
+    Konto keine Grenze überzogen hatte. Die Antwort sagte ``deferred``, und
+    zwei Minuten später stand sie wieder unter den offenen Freigaben: Der
+    Rundgang holt zurück, was wieder passt, und diese passte die ganze Zeit.
+    Zurückstellen heißt „sobald wieder Platz ist“ (so bietet es auch nur der
+    Dialog zum vollen Konto an); ohne überzogene Grenze gibt es darauf nichts
+    zu warten, und die Schnittstelle sagt das, statt still zu kippen.
+    """
+    kim = create_user(admin_client, "kim")
+    anfrage_id = _anfrage(kim["id"], status=RequestStatus.pending_approval)
+
+    antwort = admin_client.post(f"/api/admin/requests/{anfrage_id}/defer")
+    assert antwort.status_code == 409
+    assert antwort.json()["detail"]["code"] == "defer_nothing_to_wait_for"
+    assert _status(anfrage_id) == RequestStatus.pending_approval
+
+
+def test_zurueckgestellt_bei_vollem_konto_haelt(admin_client: TestClient) -> None:
+    """Der Weg, für den es Zurückstellen gibt: Das Konto ist voll, die Anfrage
+    bleibt zurück, bis wieder Platz ist - auch über mehrere Rundgänge."""
+    kim = create_user(admin_client, "kim")
+    _grenze(kim["id"], gb=10)
+    _belegen(kim["id"], 50)
+    anfrage_id = _anfrage(kim["id"], status=RequestStatus.pending_approval)
+
+    antwort = admin_client.post(f"/api/admin/requests/{anfrage_id}/defer")
+    assert antwort.status_code == 200, antwort.text
+    assert _lauf() == 0
+    assert _lauf() == 0
+    assert _status(anfrage_id) == RequestStatus.deferred

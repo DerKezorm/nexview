@@ -74,6 +74,10 @@ FREMDE_CODES: dict[str, str] = {
     "pairing_limit": "nexcrate_busy",
     "rate_limited": "nexcrate_busy",
     "too_many_streams": "nexcrate_busy",
+    # Unter Last antwortet nexcrate mit 503 und ``Retry-After``: Seine
+    # Datenbank ist gerade gesperrt. Das ist ein "gleich noch einmal", keine
+    # Absage - sonst reichte das Nachreichen die Anfrage nie wieder ein.
+    "database_busy": "nexcrate_busy",
 }
 
 #: ``not_found`` sagt je nach Adresse Verschiedenes: Unter einer unbekannten
@@ -112,6 +116,10 @@ ABLEHNUNGEN: dict[str, int] = {
     "nexcrate_recycle_slot_taken": 409,
     "nexcrate_recycle_target_taken": 409,
     "nexcrate_recycle_entry_gone": 404,
+    # Keine Antwort von nexcrate, sondern Nexviews eigene Einstellung: Adresse
+    # und Schlüssel fehlen noch - der Ausgangszustand jeder Installation, die
+    # den Umstieg zum ersten Mal öffnet (#note-55).
+    "nexcrate_not_configured": 409,
 }
 
 #: Deutscher Rueckfall je Kennung - er landet in ``MediaRequest.error_message``

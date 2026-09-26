@@ -528,6 +528,16 @@ def test_im_nex_betrieb_gibt_es_den_umstieg_nicht(assistent: TestClient) -> None
     assert antwort.json()["detail"]["code"] == "not_in_this_mode"
 
 
+def test_ohne_nexcrate_ist_es_eine_absage_und_kein_502(admin_client: TestClient) -> None:
+    """#note-55: Der Ausgangszustand jeder Installation, die den Assistenten
+    zum ersten Mal oeffnet. Ein 502 sagte "die Gegenseite ist kaputt" - dabei
+    fehlt nur die Einstellung."""
+    antwort = admin_client.get("/api/umstieg/abbildung")
+
+    assert antwort.status_code == 409, antwort.text
+    assert antwort.json()["detail"]["code"] == "nexcrate_not_configured"
+
+
 def test_der_name_der_sicherung_ist_ganz(assistent: TestClient) -> None:
     """Rundgang-Befund 2: Der Name endete auf „...-to-n.db“. Der Kommentar
     wurde auf 40 Zeichen gekuerzt, mitten im Wort."""

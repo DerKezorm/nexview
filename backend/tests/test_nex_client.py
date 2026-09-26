@@ -233,6 +233,9 @@ async def test_eine_marke_ueber_latest_bleibt_still_leer(nexcrate: FakeNexcrate)
     ("antwort", "code", "korb", "ungewiss"),
     [
         (httpx.Response(429, json={"code": "rate_limited", "message": "slow down", "params": {}}, headers={"Retry-After": "1"}), "nexcrate_busy", Korb.voruebergehend, False),
+        # nexcrate unter Last: Die Datenbank ist gerade gesperrt. Sonst hiesse
+        # es "nexcrate hat abgelehnt", und nichts reichte die Anfrage nach.
+        (httpx.Response(503, json={"code": "database_busy", "message": "database is locked", "params": {}}, headers={"Retry-After": "2"}), "nexcrate_busy", Korb.voruebergehend, True),
         (httpx.Response(502, text="<html><title>502 Bad Gateway</title></html>"), "nexcrate_unavailable", Korb.voruebergehend, True),
         (httpx.Response(500, json={"code": "internal_error", "message": "e5458f08", "params": {}}), "nexcrate_refused", Korb.voruebergehend, True),
         (httpx.Response(403, json={"code": "scope_missing", "message": "no", "params": {}}), "nexcrate_scope_missing", Korb.abgelehnt, False),

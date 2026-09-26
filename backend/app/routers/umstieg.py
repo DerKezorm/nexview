@@ -66,7 +66,10 @@ def _nur_vom_arr_betrieb(db: DbSession) -> Any:
 
 
 def _als_meldung(fehler: BeschaffungError) -> HTTPException:
-    return HTTPException(status_code=502, detail=fehler.als_meldung())
+    """``502`` nur, wenn die Gegenseite versagt hat; eine Absage behält ihren
+    Status (``antwort_status``). Ohne eingerichtete nexcrate antwortete der
+    Assistent sonst mit 502 - ausgerechnet im Ausgangszustand (#note-55)."""
+    return HTTPException(status_code=fehler.antwort_status, detail=fehler.als_meldung())
 
 
 # --------------------------------------------------------------------------

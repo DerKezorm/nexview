@@ -342,6 +342,54 @@ def test_das_quittierte_was_ist_neu_kommt_naeher_an_die_fassung(alte_installatio
     assert sicherung._als_zahlen(brief["version"]) <= (0, 35, 2)
 
 
+def _fremde_sicherung(pfad: Path, name: str, version: str) -> None:
+    """Eine Sicherung im Ordner, wie eine fruehere Fassung sie hinterlassen hat."""
+    import json
+
+    ordner = pfad.parent / "sicherungen"
+    ordner.mkdir(exist_ok=True)
+    (ordner / f"{name}.db").write_text("x", encoding="utf-8")
+    (ordner / f"{name}.json").write_text(
+        json.dumps({"version": version, "schema": "", "erstellt": "", "art": "manuell",
+                    "kommentar": ""}),
+        encoding="utf-8",
+    )
+
+
+def test_die_steckbriefe_im_ordner_zaehlen_als_spur(alte_installation: Path) -> None:
+    """Die regelmaessige Sicherung von 0.35.2 sagt mehr als das Buch mit 0.30.0."""
+    _datenbank_von_0_35_2(alte_installation, quittiert=None)
+    _fremde_sicherung(alte_installation, "takt-von-0.35.2", "0.35.2")
+
+    db_modul.init_db()
+
+    datei, brief = _sicherung_vor_dem_update(alte_installation)
+    assert brief["version"] == "0.35.2 or later"
+    assert datei.name.startswith("nexview-automatisch-0.35.2-or-later-")
+
+
+def test_nach_dem_rueckweg_zaehlen_spuren_ab_1_0_0_nicht(alte_installation: Path) -> None:
+    """Pruefer: Update, Sicherung unter 1.0.0, Dateitausch auf 0.35.2, erneutes Update.
+
+    Die Datenbank ist dann wieder die von 0.35.2 (Merker 0), aber im Ordner liegt
+    der Steckbrief einer Sicherung von 1.0.0. Er zaehlte mit, und die neue
+    Sicherung hiess "1.0.0 or later" - 0.35.2 haette sie nicht mehr eingespielt.
+    Jede Fassung ab 1.0.0 haette den Merker gesetzt; steht er auf 0, zaehlt
+    nur, was darunter liegt.
+    """
+    from app.services import sicherung
+
+    _datenbank_von_0_35_2(alte_installation, quittiert="0.35.2")
+    _fremde_sicherung(alte_installation, "von-hand-unter-1.0.0", "1.0.0")
+    _fremde_sicherung(alte_installation, "von-hand-unter-1.2.0", "1.2.0 or later")
+
+    db_modul.init_db()
+
+    _, brief = _sicherung_vor_dem_update(alte_installation)
+    assert brief["version"] == "0.35.2 or later"
+    assert sicherung._als_zahlen(brief["version"]) <= (0, 35, 2)
+
+
 def test_ab_1_0_0_ist_die_fassung_der_daten_genau(alte_installation: Path) -> None:
     """Der Merker haelt sie fest; eine Sicherung vor dem naechsten Update heisst danach."""
     db_modul.init_db()

@@ -467,6 +467,13 @@ def _datenstand() -> str:
       Administrator quittiert hat,
     * die Steckbriefe der Sicherungen im Ordner, auch der regelmaessigen.
 
+    ⚠️ **Ohne Merker zaehlen nur Spuren unter 1.0.0.** Jede Fassung ab 1.0.0
+    haette ihn gesetzt; steht er auf 0, stammen die Daten von davor. Spuren von
+    1.0.0 und spaeter gibt es trotzdem - etwa die Steckbriefe von Sicherungen,
+    die 1.0.0 angelegt hat, bevor jemand per Dateitausch auf 0.35.2 zurueckging.
+    Beim naechsten Update hiess die Sicherung sonst "1.0.0 or later" (Pruefer,
+    gemessen), und 0.35.2 haette sie nicht mehr eingespielt.
+
     Die Richtung ist die sichere: Die Sicherung vor der Wanderung soll sich in
     die alte Fassung einspielen lassen, und die prueft nur, dass sie nicht
     neuer ist als sie selbst. Ohne jede Spur bleibt ``"0"``.
@@ -492,11 +499,11 @@ def _datenstand() -> str:
     if ordner.is_dir():
         spuren += [sicherung._steckbrief_lesen(datei).version for datei in ordner.glob("*.db")]
 
-    laufend = sicherung._als_zahlen(__version__)
+    vor_dem_merker = sicherung._als_zahlen(MERKER_SEIT)
     stufen = [
         zahlen
         for zahlen in (sicherung._als_zahlen(spur) for spur in spuren if spur)
-        if zahlen != (0,) and zahlen <= laufend
+        if zahlen != (0,) and zahlen < vor_dem_merker
     ]
     if not stufen:
         return "0"
@@ -507,6 +514,11 @@ def _datenstand() -> str:
 # ---------------------------------------------------------------------------
 # Aeltere Fassungen fernhalten
 # ---------------------------------------------------------------------------
+
+
+#: Ab dieser Fassung steht der Merker (``PRAGMA user_version``) in jeder
+#: Datenbank, auf der sie einmal vollstaendig gestartet ist.
+MERKER_SEIT = "1.0.0"
 
 
 class NeuereDatenbank(RuntimeError):
@@ -614,10 +626,42 @@ def riegel_meldung() -> str:
     """
     return (
         f"This database belongs to Nexview {__version__} or newer. An older version must not "
-        "write to it, it would silently cancel requests and drop rights. To go back, stop "
-        "Nexview, restore the backup taken before the update (sicherungen folder, comment "
-        "Before update to ...) over nexview.db, then start the older version. "
-        "See Going back to an older version in the README."
+        "write to it, it would silently cancel requests and drop rights. Accounts, requests "
+        "and storage entries are protected, other data may already have changed. To go back, "
+        "stop Nexview, copy the backup taken before the update (sicherungen folder, name "
+        "contains before-update-to) over nexview.db, delete nexview.db-wal and nexview.db-shm, "
+        "then start the older version. See Going back to an older version in the README."
+    )
+
+
+def _spalte_im_schema(tabelle: str, spalte: str) -> str:
+    """SQL-Bedingung: Steht ``spalte`` als Spalte im CREATE-Text von ``tabelle``?
+
+    ⚠️ **Nicht ueber ``pragma_table_info``.** Das ist eine virtuelle Tabelle,
+    und unter ``PRAGMA trusted_schema=OFF`` (SQLite, das mit
+    ``SQLITE_TRUSTED_SCHEMA=0`` gebaut ist) darf ein Trigger keine benutzen:
+    Jedes Schreiben an den drei Tabellen scheiterte dann mit "unsafe use of
+    virtual table" - auch das dieser Fassung (Pruefer, gemessen).
+
+    Stattdessen der Tabellentext aus ``sqlite_master``, eine gewoehnliche
+    Tabelle. Er fuehrt jede Spalte, auch eine per ``ALTER TABLE`` angehaengte
+    und keine per ``DROP COLUMN`` entfernte. Gezaehlt wird der Name nur als
+    Anfang einer Spaltendefinition: in Anfuehrungszeichen (so haengt 0.35.2 sie
+    an) oder nach Komma, Tab, Zeilenumbruch oder Klammer (so schreibt
+    ``create_all`` sie). ``invite_can_request_uhd_movies`` oder ein ``x_tier``
+    zaehlen damit nicht.
+    """
+    muster = (
+        f"'\"{spalte}\" '",
+        f"', {spalte} '",
+        f"'({spalte} '",
+        f"char(9) || '{spalte} '",
+        f"char(10) || '{spalte} '",
+    )
+    treffer = " OR ".join(f"instr(sql, {teil}) > 0" for teil in muster)
+    return (
+        f"(SELECT {treffer} FROM sqlite_master "  # noqa: S608 - feste Namen
+        f"WHERE type = 'table' AND name = '{tabelle}')"
     )
 
 
@@ -628,7 +672,7 @@ def _riegel_sql() -> dict[str, str]:
         f"nexview_riegel_{tabelle}_{vorgang.lower()}": (
             f"CREATE TRIGGER nexview_riegel_{tabelle}_{vorgang.lower()} "  # noqa: S608 - feste Namen
             f"BEFORE {vorgang} ON {tabelle} "
-            f"WHEN EXISTS (SELECT 1 FROM pragma_table_info('{tabelle}') WHERE name = '{spalte}') "
+            f"WHEN {_spalte_im_schema(tabelle, spalte)} "
             f"BEGIN SELECT RAISE(ABORT, '{meldung}'); END"
         )
         for tabelle, spalte in RIEGEL_SPALTEN.items()
@@ -654,14 +698,17 @@ def _riegel_anlegen() -> None:
     Start per ``ALTER TABLE`` an - das feuert keinen Trigger -, und ab da
     bricht jedes Schreiben an Konten, Anfragen und Speicherposten mit dem Satz
     aus ``riegel_meldung`` ab: Anmelden, Abbrechen, Neuaufbau. Laut statt
-    still, und die Daten bleiben, wie sie waren.
+    still, und diese drei Tabellen bleiben, wie sie waren.
+
+    ⚠️ **Was er nicht schuetzt, und das ist Absicht.** Alles ausserhalb der drei
+    Tabellen: Herzen, Einstellungen, Einladungen, Tickets, Sperrliste,
+    Kinderwuensche. Eine schon offene Sitzung laeuft in 0.35.2 weiter, denn
+    Erneuern schreibt nicht in ``users``. Ausgeweitet wird der Riegel nicht;
+    die Anleitung sagt stattdessen, nach einem versehentlichen Start der alten
+    Fassung immer die Sicherung "Before update to ..." einzuspielen.
 
     **Was er kostet.** Die Bedingung wird je geaenderter Zeile ausgewertet,
-    gemessen gut 20 Mikrosekunden je Zeile; der Speicherabgleich, der jede
-    Zeile anfasst, braucht fuer 5.000 Posten 0,23 statt 0,15 s (Zahlen im
-    Kopf von ``test_riegel_gegen_alte_fassungen.py``). Billiger ginge es mit
-    einer Textsuche im Tabellenschema, aber ``pragma_table_info`` fragt genau
-    das, worum es geht.
+    Zahlen im Kopf von ``test_riegel_gegen_alte_fassungen.py``.
 
     Angelegt wird bei jedem Start, damit auch eine schon vorher gewanderte
     Datenbank ihn bekommt; neu geschrieben nur, wenn sich der Text geaendert
@@ -739,15 +786,46 @@ def _alte_spalten_abraeumen() -> None:
     if not wieder:
         return
     with engine.begin() as verbindung:
+        # Was vom Wert abweicht, den die alte Fassung beim Anlegen eintraegt,
+        # hat sie selbst geschrieben (ohne Riegel, oder an ihm vorbei). Das
+        # geht mit der Spalte verloren und wird deshalb gezaehlt.
+        abweichend = {
+            (tabelle, spalte): _vom_vorgabewert_abweichend(verbindung, tabelle, spalte)
+            for tabelle, spalte in wieder
+        }
         for tabelle, spalte in wieder:
             verbindung.exec_driver_sql(f'ALTER TABLE "{tabelle}" DROP COLUMN "{spalte}"')
     logger.warning(
-        "An older Nexview was started on this database and added its old columns again: %s. "
-        "They have been removed. If that version ran without the guard against older "
-        "versions, it may have cancelled open requests or rebuilt storage entries; check "
-        "requests cancelled while it was running",
-        ", ".join(f"{tabelle}.{spalte}" for tabelle, spalte in wieder),
+        "An older Nexview was started on this database and added its old columns again. "
+        "They have been removed, with the number of rows holding a value other than the "
+        "default, which is discarded: %s. Other data may have been changed by that version; "
+        "if in doubt, restore the backup taken before the update",
+        ", ".join(
+            f"{tabelle}.{spalte} ({abweichend[(tabelle, spalte)]} row(s))"
+            for tabelle, spalte in wieder
+        ),
     )
+
+
+def _vom_vorgabewert_abweichend(verbindung, tabelle: str, spalte: str) -> int:
+    """Wie viele Zeilen einen anderen Wert haben als die Vorgabe der Spalte."""
+    vorgabe = next(
+        (
+            zeile[4]
+            for zeile in verbindung.exec_driver_sql(f'PRAGMA table_info("{tabelle}")')
+            if zeile[1] == spalte
+        ),
+        None,
+    )
+    if vorgabe is None:
+        bedingung = f'"{spalte}" IS NOT NULL'
+    else:
+        # Die Vorgabe steht hier als SQL-Text, genau so, wie die alte Fassung
+        # sie in ihr ALTER TABLE geschrieben hat (etwa 'standard' oder 0).
+        bedingung = f'"{spalte}" IS NOT {vorgabe}'
+    return verbindung.exec_driver_sql(
+        f'SELECT COUNT(*) FROM "{tabelle}" WHERE {bedingung}'  # noqa: S608 - feste Namen
+    ).scalar()
 
 
 def _buchtabelle_anlegen() -> None:

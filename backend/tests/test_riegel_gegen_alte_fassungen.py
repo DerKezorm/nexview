@@ -10,13 +10,16 @@ da sind. Diese Fassung hat sie nie und schreibt ungehindert.
 Die simulierte alte Fassung legt die Spalten so an wie 0.35.2 selbst:
 ``ALTER TABLE ... ADD COLUMN`` mit Vorgabewert.
 
-Leistung, gemessen am 26.09.2026 (Windows, SQLite 3.50, Datei auf der Platte):
+Leistung, gemessen am 26.09.2026 (Windows, SQLite 3.50, Datei auf der Platte), mit
+der Bedingung ueber ``sqlite_master`` (vorher ``pragma_table_info``, das unter
+``trusted_schema=OFF`` scheiterte und doppelt so viel kostete):
 
-* 20.000 Speicherposten mit einem UPDATE ganz geaendert: ohne Riegel 0,02 s,
-  mit Riegel 0,46 bis 0,50 s, also gut 20 Mikrosekunden je Zeile
+* 20.000 Speicherposten mit einem UPDATE ganz geaendert: ohne Riegel 0,04 s,
+  mit Riegel 0,27 bis 0,30 s, also gut 11 Mikrosekunden je Zeile
   (``test_der_riegel_kostet_je_zeile_wenig``, dreimal gelaufen).
 * So wie der Speicherabgleich schreibt (ORM, ``measured_at`` und Groesse je
-  Zeile, 5.000 Posten): ohne Riegel 0,15 s, mit Riegel 0,23 s.
+  Zeile, 5.000 Posten, dreimal): ohne Riegel 0,12 bis 0,13 s, mit Riegel
+  0,20 bis 0,21 s.
 """
 
 from __future__ import annotations
@@ -190,6 +193,70 @@ def test_eine_alte_fassung_scheitert_beim_schreiben_und_aendert_nichts(
     assert len(_riegel()) == 9
     kopf = auth_headers(arr_client, "kim", "passwort-1234")
     assert arr_client.delete(f"/api/requests/{nummer}", headers=kopf).status_code in (200, 204)
+
+
+def test_der_riegel_haelt_auch_unter_trusted_schema_off(arr_client: TestClient) -> None:
+    """Pruefer: Mit ``pragma_table_info`` im Trigger scheiterte hier jedes Schreiben.
+
+    SQLite, das mit ``SQLITE_TRUSTED_SCHEMA=0`` gebaut ist, verbietet Triggern
+    virtuelle Tabellen ("unsafe use of virtual table") - auch dieser Fassung.
+    Der Riegel liest deshalb den Tabellentext aus ``sqlite_master``.
+    """
+    create_user(arr_client, "kim", "passwort-1234")
+    with engine.connect() as verbindung:
+        verbindung.exec_driver_sql("PRAGMA trusted_schema=OFF")
+        try:
+            # Diese Fassung schreibt ungehindert.
+            verbindung.exec_driver_sql("UPDATE users SET last_login_at = CURRENT_TIMESTAMP")
+            verbindung.exec_driver_sql(
+                "INSERT INTO storage_entries (key, media_type, fassung_kennung, title, "
+                "size_bytes, path, arr_managed, measured_at, state) VALUES "
+                "('movie:radarr-standard:tmdb:9', 'movie', 'radarr-standard', 'x', 1, '', 1, "
+                "CURRENT_TIMESTAMP, 'house')"
+            )
+            verbindung.exec_driver_sql("DELETE FROM storage_entries")
+            verbindung.commit()
+
+            # Die alte Fassung nicht.
+            for tabelle, spalte, art in ALTE_SPALTEN:
+                verbindung.exec_driver_sql(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {art}")
+            verbindung.commit()
+            with pytest.raises(DatabaseError, match="belongs to Nexview"):
+                verbindung.exec_driver_sql("UPDATE users SET last_login_at = CURRENT_TIMESTAMP")
+            verbindung.rollback()
+        finally:
+            verbindung.exec_driver_sql("PRAGMA trusted_schema=ON")
+    db_modul.init_db()
+
+
+def test_die_warnung_nennt_verworfene_werte(
+    arr_client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Hat die alte Fassung doch geschrieben (etwa ohne Riegel), geht das mit der Spalte.
+
+    Die Warnung zaehlt je Spalte die Zeilen, die nicht die Vorgabe tragen, damit
+    ein Betreiber merkt, dass dort etwas stand.
+    """
+    create_user(arr_client, "kim", "passwort-1234")
+    create_user(arr_client, "alex", "passwort-1234")
+    with engine.begin() as verbindung:
+        for name in _riegel():
+            verbindung.exec_driver_sql(f'DROP TRIGGER "{name}"')
+    _alte_fassung_startet()
+    with engine.begin() as verbindung:
+        verbindung.exec_driver_sql(
+            "UPDATE users SET can_request_uhd_movies = 1 WHERE username IN ('kim', 'alex')"
+        )
+
+    with caplog.at_level("WARNING", logger="nexview.db"):
+        db_modul.init_db()
+
+    warnung = [e.getMessage() for e in caplog.records if "old columns again" in e.getMessage()]
+    assert len(warnung) == 1, warnung
+    assert "users.can_request_uhd_movies (2 row(s))" in warnung[0]
+    assert "users.auto_approve_uhd (0 row(s))" in warnung[0]
+    assert "media_requests.tier (0 row(s))" in warnung[0]
+    assert len(_riegel()) == 9
 
 
 def test_der_riegel_kostet_je_zeile_wenig() -> None:

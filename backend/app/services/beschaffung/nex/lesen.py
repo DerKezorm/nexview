@@ -61,7 +61,14 @@ def zustand_der_kachel(eintrag: dict[str, Any], kennung: str) -> str | None:
     gesendet = int(zahlen.get("aired") or 0)
     vorhanden = int(zahlen.get("have") or 0)
     hat_datei = mapping.hat_datei(fassung.get("state"))
-    if not hat_datei and vorhanden <= 0:
+    # ⚠️ ``have`` zählt nur **überwachte** gesendete Folgen mit Datei. Liegen
+    # Dateien nur an nicht überwachten Folgen (nach dem Umstieg häufig), ist
+    # ``have`` 0 und der Zustand ``wanted`` - und die Titelseite sagte „wird
+    # gesucht“ über einer Serie mit vorhandenen Folgen. ``size_bytes`` summiert
+    # alle Dateien der Fassung, wie ``bestand._hat_dateien``. Nur bei Serien:
+    # Den Mittelweg „teilweise“ gibt es bei Filmen nicht.
+    belegt = bool(fassung.get("series")) and int(fassung.get("size_bytes") or 0) > 0
+    if not hat_datei and vorhanden <= 0 and not belegt:
         return "searching"
     if gesendet and vorhanden < gesendet:
         return "partial"

@@ -1067,3 +1067,24 @@ def test_jede_kennung_aus_nexcrate_hat_einen_text() -> None:
         texte = json.loads((sprachen / f"{sprache}.json").read_text(encoding="utf-8"))
         fehlend = [k for k in kennungen if k not in texte["nexcrate"]["health"]]
         assert fehlend == [], (sprache, fehlend)
+
+
+def test_eine_serie_mit_dateien_nur_an_unueberwachten_folgen_ist_teilweise_da() -> None:
+    """``have`` zaehlt bei nexcrate nur **ueberwachte**, gesendete Folgen mit
+    Datei. Nach dem Umstieg lagen bei einer langen Serie vier Folgen, alle an
+    nicht ueberwachten Folgen: ``have`` 0, Zustand ``wanted``. Die Titelseite
+    zeigte oben „Wird gesucht“, der ARR-Betrieb „Teils geladen“, die
+    Staffelliste darunter in beiden dieselben vier Folgen. Dass etwas liegt,
+    sagt ``size_bytes`` - es summiert alle Dateien der Fassung."""
+    eintrag = {
+        "versions": [
+            {
+                "version_id": SERIE_HD,
+                "state": "wanted",
+                "monitored": True,
+                "size_bytes": 4_000_000_000,
+                "series": {"counts": {"have": 0, "aired": 12, "expected": 12}},
+            }
+        ]
+    }
+    assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == "partial"

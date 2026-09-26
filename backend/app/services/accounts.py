@@ -93,7 +93,9 @@ async def send_verification(db: Session, settings: AppSettings, user: User) -> D
         db, TokenPurpose.email_verification, user.email or "", user=user
     )
     link = link_for(settings, TokenPurpose.email_verification, roh)
-    nachricht = mail_templates.verification_mail(link, user.language)
+    nachricht = mail_templates.verification_mail(
+        link, user.language, sperrt_anmeldung=not user.is_betreiber
+    )
     return await _deliver(settings, user.email or "", nachricht, link)
 
 

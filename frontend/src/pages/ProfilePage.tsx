@@ -567,6 +567,18 @@ export function ProfilePage() {
               )}
             </div>
 
+            {/* Was die unbestätigte Adresse kostet, ehrlich gesagt. Den Betreiber
+                sperrt sie nicht aus (die Anmeldung nimmt ihn aus, sonst stünde er
+                ohne Mailserver vor der eigenen Installation); alle anderen kommen
+                ohne Bestätigung mit Passwort nicht mehr herein. */}
+            {!user.email_verified && user.email && (
+              <p className="-mt-2 text-sm leading-relaxed text-mist-500">
+                {user.is_betreiber
+                  ? t('profile.emailUnverifiedOwnerHint')
+                  : t('profile.emailUnverifiedHint')}
+              </p>
+            )}
+
             <Field
               label={t('adminUsers.email')}
               type="email"

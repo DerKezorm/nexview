@@ -122,11 +122,17 @@ def _datenbank_von_vorher() -> None:
 def test_ein_schon_ausgesperrter_betreiber_kommt_nach_dem_update_wieder_herein(
     client: TestClient,
 ) -> None:
-    """Bestehende Installation: der Betreiber von damals, unbestaetigt."""
+    """Bestehende Installation: der Betreiber von damals, unbestaetigt.
+
+    Hereinlassen wuerde ihn seit 1.0.0 schon die Anmeldung, die den Betreiber
+    von der Sperre ausnimmt (``test_onboarding.py``). Der Schritt holt die
+    Bestaetigung trotzdem nach: Der Assistent hatte sie versprochen, und ohne
+    sie gehen keine Benachrichtigungen an die Adresse.
+    """
     assert client.post("/api/setup/admin", json=ADMIN).status_code == 201
     _betreiber_unbestaetigt()
     _datenbank_von_vorher()
-    assert _anmelden(client) == 403, "Vorbedingung: so sah der Befund aus"
+    assert _bestaetigt() is False, "Vorbedingung: so sah der Befund aus"
 
     db_modul.init_db()
 

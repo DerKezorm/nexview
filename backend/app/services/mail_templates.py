@@ -183,23 +183,43 @@ def invitation_mail(link: str, sprache: str = "de") -> Mail:
     return Mail(betreff, html, text)
 
 
-def verification_mail(link: str, sprache: str = "de") -> Mail:
-    """Adresse bestaetigen."""
+def verification_mail(link: str, sprache: str = "de", *, sperrt_anmeldung: bool = True) -> Mail:
+    """Adresse bestaetigen.
+
+    ⚠️ **Die Folge muss die echte sein.** Bis 1.0.0 stand hier, man koenne
+    nichts anfragen; tatsaechlich lehnt ``/api/auth/login`` jede Anmeldung mit
+    Passwort ab (``email_unverified``). Den Betreiber sperrt das nicht
+    (``sperrt_anmeldung=False``), ihm faellt nur die Zustellung an diese
+    Adresse weg.
+    """
     englisch = _ist_englisch(sprache)
     if englisch:
         betreff = "Nexview: please confirm your address"
         kopf, unter = "One click to go.", "Confirm this address to use Nexview fully."
+        folge = (
+            "Until you confirm it, you cannot sign in with your username and password."
+            if sperrt_anmeldung
+            else "Your sign-in does not depend on it, as the owner you can always get in. "
+            "Until you confirm it, though, Nexview sends no notifications to this address."
+        )
         rumpf = (
-            "Until you confirm, you cannot request any titles. The link is valid for 24 hours. "
+            f"{folge} The link is valid for 24 hours. "
             "If you did not expect this message, simply ignore it."
         )
         knopf = "Confirm address"
     else:
         betreff = "Nexview: Bitte bestätige deine Adresse"
         kopf, unter = "Nur noch ein Klick.", "Bestätige diese Adresse, um Nexview voll zu nutzen."
+        folge = (
+            "Solange sie nicht bestätigt ist, kannst du dich nicht mit Benutzername und "
+            "Passwort anmelden."
+            if sperrt_anmeldung
+            else "Deine Anmeldung hängt nicht daran, als Betreiber kommst du immer herein. "
+            "Bis du sie bestätigst, schickt Nexview aber keine Benachrichtigungen an diese Adresse."
+        )
         rumpf = (
-            "Solange sie nicht bestätigt ist, kannst du keine Titel anfragen. Der Link gilt "
-            "24 Stunden. Falls du diese Nachricht nicht erwartet hast, ignoriere sie einfach."
+            f"{folge} Der Link gilt 24 Stunden. Falls du diese Nachricht nicht erwartet hast, "
+            "ignoriere sie einfach."
         )
         knopf = "Adresse bestätigen"
 

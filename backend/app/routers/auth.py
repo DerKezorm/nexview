@@ -94,7 +94,18 @@ def login(
     # Einrichtungsassistent blockiert, der ja gerade erst dabei ist, den
     # Mailserver einzurichten. Der Code hilft der Oberflaeche, den richtigen
     # Ausweg anzubieten, statt nur "verboten" zu melden.
-    if not user.email_verified:
+    #
+    # ⚠️ **Der Betreiber ist ausgenommen.** Ohne Mailserver kommt kein
+    # Bestaetigungslink an; aendert er dann seine Adresse, stuende er nach dem
+    # Abmelden vor der eigenen Installation, und niemand koennte ihm helfen,
+    # denn sein Konto darf kein anderer Administrator anfassen. Bestaetigen
+    # soll er die Adresse trotzdem (das Profil zeigt sie als unbestaetigt, und
+    # Benachrichtigungen gehen erst danach an sie); nur sperrt es ihn nicht.
+    # Weitere Administratoren bleiben gesperrt: Fuer sie gibt es den Betreiber.
+    #
+    # Es ist die einzige Stelle mit dieser Sperre. Erneuern, OIDC und die
+    # Medienserver-Anmeldung fragen die Adresse nicht ab.
+    if not user.email_verified and not user.is_betreiber:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={

@@ -8,10 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import AuthToken, TokenPurpose, User
-from app.services import mail
+from app.models import AuthToken, Role, TokenPurpose, User
+from app.services import mail, mail_templates
 
-from .conftest import auth_headers
+from .conftest import ADMIN, auth_headers, create_user
 
 ZUGANG = {
     "smtp_host": "smtp.beispiel.de",
@@ -335,6 +335,87 @@ def test_ohne_bestaetigung_keine_anmeldung(admin_client: TestClient) -> None:
     detail = antwort.json()["detail"]
     assert detail["code"] == "email_unverified"
     assert detail["email"] == "kim@beispiel.de"
+
+
+# --- Der Betreiber sperrt sich nicht mit seiner eigenen Adresse aus ----------
+#
+# Entscheidung vor 1.0.0: Ohne Mailserver kommt der Bestaetigungslink nie an.
+# Aendert der Betreiber dann seine Adresse im Profil, stuende er nach dem
+# Abmelden vor der eigenen Installation und kaeme ohne Datenbank nicht mehr
+# hinein. Fuer alle anderen Konten bleibt die Sperre.
+
+
+def test_der_betreiber_kommt_mit_unbestaetigter_adresse_wieder_herein(
+    admin_client: TestClient,
+) -> None:
+    assert admin_client.get("/api/config").json()["mail_configured"] is False
+    antwort = admin_client.put("/api/auth/me/email", json={"email": "neu@example.com"})
+    assert antwort.status_code == 200
+    assert antwort.json()["email_verified"] is False
+
+    admin_client.post("/api/auth/logout")
+    admin_client.cookies.clear()
+
+    assert auth_headers(admin_client, ADMIN["username"], ADMIN["password"])
+
+
+def test_ein_zweiter_administrator_bleibt_ohne_bestaetigung_draussen(
+    admin_client: TestClient,
+) -> None:
+    create_user(admin_client, "zweiter", role=Role.admin, email_verified=False)
+
+    antwort = admin_client.post(
+        "/api/auth/login",
+        json={"username": "zweiter", "password": "passwort-1234"},
+        headers={"Authorization": ""},
+    )
+
+    assert antwort.status_code == 403
+    assert antwort.json()["detail"]["code"] == "email_unverified"
+
+
+def _rumpf(nachricht: EmailMessage) -> str:
+    return nachricht.get_body(preferencelist=("plain",)).get_content()
+
+
+def test_die_bestaetigungsmail_nennt_die_gesperrte_anmeldung(
+    admin_client: TestClient, postfach: list[EmailMessage]
+) -> None:
+    """Frueher stand dort nur, man koenne nichts anfragen - gesperrt ist die Anmeldung."""
+    _unbestaetigt(admin_client)
+    admin_client.post(
+        "/api/onboarding/pending/resend",
+        json={"username": "kim", "password": "passwort-1234"},
+    )
+
+    text = _rumpf(postfach[-1])
+    assert "kannst du dich nicht mit Benutzername und Passwort anmelden" in text
+    assert "Titel anfragen" not in text
+
+
+def test_die_bestaetigungsmail_des_betreibers_droht_keine_sperre_an(
+    admin_client: TestClient, postfach: list[EmailMessage]
+) -> None:
+    admin_client.put("/api/auth/me/email", json={"email": "neu@example.com"})
+
+    # Die alte Adresse bekommt danach noch ihre Warnung; gemeint ist die neue.
+    (nachricht,) = [n for n in postfach if n["To"] == "neu@example.com"]
+    text = _rumpf(nachricht)
+    assert "Deine Anmeldung hängt nicht daran" in text
+    assert "nicht mit Benutzername und Passwort anmelden" not in text
+
+
+@pytest.mark.parametrize("betreiber", [False, True])
+def test_die_bestaetigungsmail_sagt_es_auch_auf_englisch(betreiber: bool) -> None:
+    text = mail_templates.verification_mail(
+        "https://nexview.example.com/bestaetigen/x", "en", sperrt_anmeldung=not betreiber
+    ).text
+    if betreiber:
+        assert "Your sign-in does not depend on it" in text
+        assert "cannot sign in" not in text
+    else:
+        assert "you cannot sign in with your username and password" in text
+    assert "request" not in text
 
 
 def test_nach_bestaetigung_geht_die_anmeldung(

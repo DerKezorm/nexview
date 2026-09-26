@@ -977,6 +977,8 @@
     "emailHint": "Für Einladungen, Benachrichtigungen und das Zurücksetzen deines Passworts.",
     "emailVerified": "bestätigt",
     "emailUnverified": "noch nicht bestätigt",
+    "emailUnverifiedHint": "Solange die Adresse nicht bestätigt ist, kannst du dich nicht mit Benutzername und Passwort anmelden. Den Link dazu bringt die Bestätigungsmail.",
+    "emailUnverifiedOwnerHint": "Deine Anmeldung hängt als Betreiber nicht daran. Bestätige die Adresse trotzdem, sobald ein Mailserver eingerichtet ist: Vorher gehen keine Benachrichtigungen an sie.",
     "emailChanged": "Adresse geändert. Bitte bestätige sie über den Link, den wir dir gerade geschickt haben.",
     "resendVerification": "Bestätigungsmail erneut senden",
     "verificationSent": "Bestätigungsmail ist unterwegs.",

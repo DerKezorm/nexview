@@ -1000,6 +1000,25 @@ def test_falsches_passwort_ist_kein_serverausfall(
     assert antwort.json()["detail"]["code"] == "mediaserver_bad_credentials"
 
 
+def test_verbinden_mit_falschem_passwort_ist_auch_kein_serverausfall(
+    admin_client: TestClient, jelly_server: FakeJellyfin
+) -> None:
+    """Dasselbe beim Verbinden: Ein abgelehntes Konto beim Anlegen der
+    Verbindung ist ebenso wenig ein Serverausfall wie beim persoenlichen
+    Login - der Jellyfin-Server hat nur geantwortet und Nein gesagt."""
+    antwort = admin_client.post(
+        "/api/admin/mediaserver/connect/password",
+        json={
+            "provider": "jellyfin",
+            "url": "http://jellyfin.example.com:8096",
+            "username": "Jonas",
+            "password": "daneben",
+        },
+    )
+    assert antwort.status_code == 401
+    assert antwort.json()["detail"]["code"] == "mediaserver_bad_credentials"
+
+
 def test_ohne_verknuepfung_entsteht_kein_konto(
     admin_client: TestClient, jelly_server: FakeJellyfin
 ) -> None:

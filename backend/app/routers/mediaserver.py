@@ -881,6 +881,18 @@ async def connect_password(
         gewaehlt = auswahl[0]
         erreichbar = adresse if await server.probe(adresse, anbieter_token) else ""
     except MediaServerError as exc:
+        # ⚠️ Wie beim persoenlichen Login (siehe oben): Ein abgelehntes Konto
+        # ist kein Aussetzer des Servers. Ohne diese Unterscheidung meldete
+        # ein einfach vertipptes Passwort 502 "nicht erreichbar", obwohl
+        # Jellyfin die ganze Zeit geantwortet hat.
+        if exc.status_code in (400, 401, 403):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "code": "mediaserver_bad_credentials",
+                    "message": "Benutzername oder Passwort stimmt nicht.",
+                },
+            ) from exc
         raise _anbieter_fehler(exc) from exc
     except KontoFehler as exc:
         raise _fehler(exc) from exc

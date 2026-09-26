@@ -2336,7 +2336,15 @@ class MediaRequest(Base):
     # Standard-Instanz - die Fassung (``fassung_kennung``, ``tier``) sagt das
     # nicht. Ohne dieses eigene Feld saehe eine solche Anfrage in jeder Liste
     # wie eine gewoehnliche Standard-Anfrage aus.
-    quality_profile_uhd: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    #
+    # ⚠️ **``server_default`` ist hier Pflicht, nicht Geschmack** (wie bei
+    # ``MediaServerConnection.arr_api_key``). ``default=False`` kennt nur
+    # SQLAlchemy; ein rohes ``INSERT``, das diese Spalte nicht nennt - etwa
+    # ein alter Wanderungsschritt, der eine Zeile im Stil einer aelteren
+    # Nexview-Version schreibt -, liefe sonst gegen ``NOT NULL``.
+    quality_profile_uhd: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("0"), nullable=False
+    )
     root_folder_path: Mapped[str | None] = mapped_column(String(500))
     arr_id: Mapped[int | None] = mapped_column(Integer)  # ID in Radarr/Sonarr
 

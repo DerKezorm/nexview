@@ -361,6 +361,7 @@
     "results_one": "{{count}} Titel",
     "results_other": "{{count}} Titel",
     "demoBanner": "Du siehst Beispieldaten. Sobald ein TMDB API-Key hinterlegt ist, erscheinen hier echte Neuerscheinungen.",
+    "demoBannerForced": "Du siehst Beispieldaten, weil sie in den Einstellungen fest eingeschaltet sind (Dienste › Allgemein › Beispieldaten).",
     "demoBannerAdmin": "Zu den Einstellungen"
   },
   "filters": {
@@ -1997,6 +1998,10 @@
       "current_password_wrong": "Das aktuelle Passwort ist falsch.",
       "date_range_reversed": "Das Startdatum liegt hinter dem Enddatum.",
       "demo_mode_invalid": "Demo-Modus muss 'auto', 'on' oder 'off' sein.",
+      "sample_title_unknown": "Diesen Beispieltitel gibt es nicht.",
+      "sample_title_gone": "Das war ein Beispieltitel. Es gab ihn nur, solange Nexview Beispieldaten zeigte.",
+      "title_needs_tmdb": "Ohne TMDB-Schlüssel kennt Nexview nur seine Beispieltitel. Die Angaben zu diesem Titel kommen von TMDB; ein Administrator kann den Schlüssel in den Einstellungen eintragen.",
+      "title_hidden_by_sample_data": "Nexview zeigt gerade nur Beispieldaten, weil sie in den Einstellungen fest eingeschaltet sind. Echte Titel erscheinen, sobald dort „Automatisch“ gewählt ist.",
       "duration_not_allowed": "Diese Dauer ist nicht vorgesehen.",
       "email_already_verified": "Deine Adresse ist bereits bestätigt.",
       "email_gone": "Diese Adresse ist nicht mehr hinterlegt.",

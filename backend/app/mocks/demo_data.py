@@ -283,10 +283,70 @@ _SERIES: list[dict[str, Any]] = [
 ]
 
 
+#: ⚠️ **Die Beispieltitel haben einen eigenen Nummernraum.** Bis 1.0.0 lagen
+#: sie zwischen 900.000 und 990.000 - mitten in TMDBs Kennungen. Trug jemand
+#: danach einen TMDB-Schluessel ein, zeigte eine alte Beispielanfrage auf einen
+#: echten, fremden Titel (#note-30: aus "Pixelherz" wurde ein Kurzfilm mit
+#: expliziter Beschreibung, weiterhin "wartet auf Freigabe"). TMDB zaehlt heute
+#: bei rund 1,6 Millionen; bis hier hinauf kommt es nicht. Nach oben bleibt
+#: Luft bis zur Grenze der 32-Bit-Zahlen, mit denen Radarr und Sonarr rechnen.
+BEISPIEL_ANFANG = 1_900_000_000
+BEISPIEL_ENDE = 2_000_000_000
+#: Die TVDB-Kennung einer Beispielserie liegt im selben Raum, nur versetzt.
+_TVDB_VERSATZ = 50_000_000
+
+#: So wurden die Kennungen bis 1.0.0 gebildet. Nur noch fuer den Umzug alter
+#: Installationen (``db._beispieltitel_umziehen``).
+_ALT_ANFANG = 900_000
+_ALT_TVDB_VERSATZ = 500_000
+
+
+def ist_beispiel(kennung: int | None) -> bool:
+    """Gehoert diese TMDB- oder TVDB-Kennung einem Beispieltitel?"""
+    return kennung is not None and BEISPIEL_ANFANG <= kennung < BEISPIEL_ENDE
+
+
+def _stellung(title: str, media_type: str) -> int:
+    """Immer dieselbe Stelle fuer denselben Demo-Titel."""
+    digest = hashlib.sha256(f"{media_type}:{title}".encode()).hexdigest()
+    return int(digest[:6], 16) % 90_000
+
+
 def _stable_id(title: str, media_type: str) -> int:
     """Immer dieselbe Kennung fuer denselben Demo-Titel."""
-    digest = hashlib.sha256(f"{media_type}:{title}".encode()).hexdigest()
-    return 900_000 + int(digest[:6], 16) % 90_000
+    return BEISPIEL_ANFANG + _stellung(title, media_type)
+
+
+def alte_kennungen_bereich() -> tuple[int, int]:
+    """Von wo bis wo (ausschliesslich) die alten TMDB-Kennungen lagen."""
+    return _ALT_ANFANG, _ALT_ANFANG + 90_000
+
+
+def alte_kennungen() -> list[tuple[str, str, int, int, int | None, int | None]]:
+    """Je Beispieltitel: Art, Titel, alte und neue TMDB-, alte und neue TVDB-Kennung.
+
+    Fuer den Umzug der Beispieldaten, die eine Installation vor 1.0.0
+    gespeichert hat. Der Titel gehoert dazu: Unter derselben alten Nummer kann
+    inzwischen ein echter Titel stehen, den jemand mit TMDB-Schluessel
+    angefragt hat - und der muss bleiben, wo er ist.
+    """
+    zeilen = []
+    for media_type, quelle in (("movie", _MOVIES), ("tv", _SERIES)):
+        for entry in quelle:
+            stelle = _stellung(entry["title"], media_type)
+            alt, neu = _ALT_ANFANG + stelle, BEISPIEL_ANFANG + stelle
+            serie = media_type == "tv"
+            zeilen.append(
+                (
+                    media_type,
+                    entry["title"],
+                    alt,
+                    neu,
+                    alt + _ALT_TVDB_VERSATZ if serie else None,
+                    neu + _TVDB_VERSATZ if serie else None,
+                )
+            )
+    return zeilen
 
 
 def _build(entry: dict[str, Any], media_type: str, offset_days: int) -> MediaItem:
@@ -296,7 +356,7 @@ def _build(entry: dict[str, Any], media_type: str, offset_days: int) -> MediaIte
     return MediaItem(
         media_type=media_type,  # type: ignore[arg-type]
         tmdb_id=tmdb_id,
-        tvdb_id=tmdb_id + 500_000 if media_type == "tv" else None,
+        tvdb_id=tmdb_id + _TVDB_VERSATZ if media_type == "tv" else None,
         title=entry["title"],
         original_title=entry["title"],
         overview=entry["overview"],

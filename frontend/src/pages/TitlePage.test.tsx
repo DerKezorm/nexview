@@ -25,7 +25,7 @@ vi.mock('../api/client', async () => {
   }
 })
 
-import { api } from '../api/client'
+import { ApiError, api, restoreSession } from '../api/client'
 import type { MediaDetail, MediaItem } from '../api/types'
 import i18n from '../i18n'
 import { rendern } from '../test/rendern'
@@ -166,5 +166,63 @@ describe('die Wertungen', () => {
       .map(([pfad]) => String(pfad))
       .filter((pfad) => pfad.startsWith('/api/ratings/movie'))
     expect(wertungen).toContain('/api/ratings/movie?ids=901&detail=true')
+  })
+})
+
+describe('ohne TMDB', () => {
+  /* #note-12: Ohne TMDB-Schlüssel hieß die Titelseite eines echten Films
+     "Dieser Demo-Titel ist nicht vorhanden". Jetzt nennt der Server den Grund,
+     und wer ihn beheben kann, bekommt den Weg in die Einstellungen. */
+  function ohneQuelle(rolle: string, code: string) {
+    vi.mocked(restoreSession).mockResolvedValueOnce(true)
+    holen.mockImplementation((async (pfad: string) => {
+      if (pfad === '/api/setup/status') {
+        return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      }
+      if (pfad === '/api/auth/me') {
+        return { id: 1, username: 'chef', role: rolle, language: 'de', theme: 'dark' }
+      }
+      if (pfad === '/api/config') return { radarr_configured: true, sonarr_configured: true }
+      if (pfad === '/api/detail/movie/901') {
+        throw new ApiError(404, i18n.t(`errors.byCode.${code}`), code)
+      }
+      return []
+    }) as never)
+  }
+
+  it('sagt, was fehlt, und zeigt dem Administrator den Weg', async () => {
+    ohneQuelle('admin', 'title_needs_tmdb')
+    seiteOeffnen()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      i18n.t('errors.byCode.title_needs_tmdb'),
+    )
+    expect(
+      await screen.findByRole('link', { name: i18n.t('discover.demoBannerAdmin') }),
+    ).toHaveAttribute('href', '/admin/settings')
+  })
+
+  it('zeigt den Weg nur dem, der ihn gehen kann', async () => {
+    ohneQuelle('user', 'title_hidden_by_sample_data')
+    seiteOeffnen()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      i18n.t('errors.byCode.title_hidden_by_sample_data'),
+    )
+    expect(
+      screen.queryByRole('link', { name: i18n.t('discover.demoBannerAdmin') }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('bietet bei einem gewöhnlichen Fehler keinen Weg in die Einstellungen an', async () => {
+    ohneQuelle('admin', 'sample_title_gone')
+    seiteOeffnen()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      i18n.t('errors.byCode.sample_title_gone'),
+    )
+    expect(
+      screen.queryByRole('link', { name: i18n.t('discover.demoBannerAdmin') }),
+    ).not.toBeInTheDocument()
   })
 })

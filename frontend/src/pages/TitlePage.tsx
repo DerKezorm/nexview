@@ -217,6 +217,10 @@ export function TitlePage() {
     queryFn: () => api.get<MediaDetail>(`/api/detail/${mediaType}/${tmdbId}`),
     enabled: Boolean(mediaType && tmdbId),
     staleTime: 30 * 60 * 1000,
+    // "Gibt es nicht" wird beim zweiten Mal nicht wahrer; die Wiederholung hielt
+    // die Seite nur laenger bei "Wird geladen" fest (#note-12).
+    retry: (versuche, fehler) =>
+      !(fehler instanceof ApiError && fehler.status === 404) && versuche < 1,
   })
 
   /* Erst beim Druck auf "Neue Auswahl" geholt: der Vorrat kostet vier
@@ -256,10 +260,27 @@ export function TitlePage() {
   }
 
   if (query.error) {
+    /* Ohne TMDB (oder mit fest eingeschalteten Beispieldaten) fehlt der Seite
+       nicht der Titel, sondern die Quelle. Wer sie einrichten kann, bekommt den
+       Weg dorthin gleich dazu - wie beim Hinweis auf die Beispieldaten. */
+    const quelleFehlt =
+      query.error instanceof ApiError &&
+      (query.error.code === 'title_needs_tmdb' ||
+        query.error.code === 'title_hidden_by_sample_data')
     return (
-      <ErrorBanner
-        message={query.error instanceof ApiError ? query.error.message : t('errors.generic')}
-      />
+      <div className="space-y-3">
+        <ErrorBanner
+          message={query.error instanceof ApiError ? query.error.message : t('errors.generic')}
+        />
+        {quelleFehlt && user?.role === 'admin' && (
+          <Link
+            to="/admin/settings"
+            className="inline-block rounded-full border border-ink-600 px-3 py-1 text-xs font-semibold text-mist-300 transition-colors hover:bg-ink-800"
+          >
+            {t('discover.demoBannerAdmin')}
+          </Link>
+        )}
+      </div>
     )
   }
 

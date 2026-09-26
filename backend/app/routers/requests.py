@@ -129,7 +129,7 @@ async def create_request(
     except TmdbError as error:
         # "Gibt es nicht" bleibt 404; nur echte Stoerungen sind ein 502.
         code = 404 if error.status_code == 404 else 502
-        raise HTTPException(status_code=code, detail=error.message) from error
+        raise HTTPException(status_code=code, detail=error.als_detail()) from error
 
     try:
         return await requests_service.create_request(

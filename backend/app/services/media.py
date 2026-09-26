@@ -637,14 +637,58 @@ async def regionale_daten(
     return ergebnis
 
 
-async def detail(
-    db: Session, settings: AppSettings, media_type: str, tmdb_id: int
-) -> MediaItem:
+def _beispiel_oder_absage(settings: AppSettings, media_type: str, tmdb_id: int) -> MediaItem | None:
+    """Der Beispieltitel zu dieser Kennung - oder eine Absage, die sagt, warum.
+
+    ``None`` heisst: Die Frage geht an TMDB.
+
+    Ohne TMDB kennt Nexview nur seine Beispieltitel. Frueher hiess jede andere
+    Kennung "Dieser Demo-Titel ist nicht vorhanden" - auch ein Film, der in
+    Radarr mit Datei liegt (#note-12). Jetzt sagt die Absage, was fehlt: der
+    Schluessel, oder dass die Beispieldaten fest eingeschaltet sind.
+
+    Umgekehrt fragt eine Kennung aus dem Beispielbereich nie bei TMDB nach,
+    auch wenn inzwischen ein Schluessel da ist: Sie gehoert TMDB nicht, und
+    eine Antwort waere ein fremder Titel (#note-30).
+    """
     if settings.use_demo_data:
         for item in demo_data.demo_items(media_type):
             if item.tmdb_id == tmdb_id:
                 return item
-        raise TmdbError("Dieser Demo-Titel ist nicht vorhanden.", 404)
+        if demo_data.ist_beispiel(tmdb_id):
+            raise TmdbError(
+                "Diesen Beispieltitel gibt es nicht.", 404, code="sample_title_unknown"
+            )
+        if settings.tmdb_configured:
+            raise TmdbError(
+                "Nexview zeigt gerade nur Beispieldaten, weil sie in den Einstellungen fest "
+                "eingeschaltet sind. Echte Titel erscheinen, sobald dort "
+                "„Automatisch“ gewählt ist.",
+                404,
+                code="title_hidden_by_sample_data",
+            )
+        raise TmdbError(
+            "Ohne TMDB-Schlüssel kennt Nexview nur seine Beispieltitel. Die Angaben zu "
+            "diesem Titel kommen von TMDB; ein Administrator kann den Schlüssel in den "
+            "Einstellungen eintragen.",
+            404,
+            code="title_needs_tmdb",
+        )
+    if demo_data.ist_beispiel(tmdb_id):
+        raise TmdbError(
+            "Das war ein Beispieltitel. Es gab ihn nur, solange Nexview Beispieldaten zeigte.",
+            404,
+            code="sample_title_gone",
+        )
+    return None
+
+
+async def detail(
+    db: Session, settings: AppSettings, media_type: str, tmdb_id: int
+) -> MediaItem:
+    beispiel = _beispiel_oder_absage(settings, media_type, tmdb_id)
+    if beispiel is not None:
+        return beispiel
 
     region = settings.default_region
 
@@ -861,11 +905,9 @@ async def full_detail(
     die Anfrageliste der Verwaltung und die Vormerkungen, und fuer die waere
     das eine TMDB-Abfrage je Teil ohne jeden Nutzen.
     """
-    if settings.use_demo_data:
-        for item in demo_data.demo_items(media_type):
-            if item.tmdb_id == tmdb_id:
-                return MediaDetail(**item.model_dump())
-        raise TmdbError("Dieser Demo-Titel ist nicht vorhanden.", 404)
+    beispiel = _beispiel_oder_absage(settings, media_type, tmdb_id)
+    if beispiel is not None:
+        return MediaDetail(**beispiel.model_dump())
 
     region = settings.default_region
 

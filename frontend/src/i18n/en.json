@@ -361,6 +361,7 @@
     "results_one": "{{count}} title",
     "results_other": "{{count}} titles",
     "demoBanner": "You are seeing sample data. Once a TMDB API key is set, real new releases will appear here.",
+    "demoBannerForced": "You are seeing sample data because it is switched on permanently in the settings (Services › General › Sample data).",
     "demoBannerAdmin": "Go to settings"
   },
   "filters": {
@@ -1997,6 +1998,10 @@
       "current_password_wrong": "That is not your current password.",
       "date_range_reversed": "The start date is after the end date.",
       "demo_mode_invalid": "The demo mode has to be 'auto', 'on' or 'off'.",
+      "sample_title_unknown": "This sample title does not exist.",
+      "sample_title_gone": "This was a sample title. It only existed while Nexview was showing sample data.",
+      "title_needs_tmdb": "Without a TMDB key, Nexview only knows its sample titles. The details of this title come from TMDB; an administrator can add the key in the settings.",
+      "title_hidden_by_sample_data": "Nexview is showing sample data only, because it is switched on permanently in the settings. Real titles appear once it is set to “Automatic”.",
       "duration_not_allowed": "That length of time is not one of the choices.",
       "email_already_verified": "Your address is already confirmed.",
       "email_gone": "That address is no longer on file.",

@@ -79,10 +79,21 @@ async def close_http_client() -> None:
 class TmdbError(Exception):
     """Fehler beim Zugriff auf TMDB - mit einer fuer Menschen lesbaren Meldung."""
 
-    def __init__(self, message: str, status_code: int | None = None) -> None:
+    def __init__(
+        self, message: str, status_code: int | None = None, *, code: str | None = None
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+        # Eine Kennung fuer die Oberflaeche, wo sie mehr tun soll als den Satz
+        # zeigen (siehe ``meldungen``). Ohne sie bleibt es beim deutschen Satz.
+        self.code = code
+
+    def als_detail(self) -> str | dict[str, Any]:
+        """Der Inhalt der Fehlerantwort: mit Kennung, wenn es eine gibt."""
+        if self.code:
+            return {"code": self.code, "message": self.message}
+        return self.message
 
 
 def image_url(path: str | None, size: str = POSTER_SIZE) -> str | None:

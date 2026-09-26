@@ -14,7 +14,11 @@ export function DemoBanner() {
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
-      <span>{t('discover.demoBanner')}</span>
+      {/* Mit Schlüssel und trotzdem Beispieldaten heißt: fest eingeschaltet.
+          "Sobald ein Key hinterlegt ist" wäre dann schlicht falsch (#note-30). */}
+      <span>
+        {t(config.tmdb_configured ? 'discover.demoBannerForced' : 'discover.demoBanner')}
+      </span>
       {user?.role === 'admin' && (
         <Link
           to="/admin/settings"

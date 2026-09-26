@@ -233,6 +233,10 @@ PFLEGE_SCHRITTE = (
     "_altersgrenzen_aufraeumen",
     "_verwaiste_meldungsarten_aufraeumen",
     "_verwaiste_kinderwuensche_aufraeumen",
+    # Pflege, obwohl es nach einer einmaligen Wanderung aussieht: Wer auf eine
+    # Fassung vor 1.0.0 zurueckgeht, bekommt dort neue Beispielanfragen unter
+    # den alten Nummern, und der naechste Start hier muss sie wieder umziehen.
+    "_beispieltitel_umziehen",
     "_gesehen_herkunft_nachtragen",
     "_betreiber_bestimmen",
     "_speicher_zurueckgeben_umstellen",
@@ -316,6 +320,7 @@ def init_db() -> None:
     _altersgrenzen_aufraeumen()
     _verwaiste_meldungsarten_aufraeumen()
     _verwaiste_kinderwuensche_aufraeumen()
+    _beispieltitel_umziehen()
     # Muss **vor** dem Nachtragen der Herkunft laufen - das liest den
     # Anbieternamen bevorzugt aus dieser Tabelle.
     _einmal(_verbindung_in_die_tabelle)
@@ -1762,6 +1767,110 @@ def _verwaiste_kinderwuensche_aufraeumen() -> None:
             "Removed %d child wish(es) whose child or parent account no longer exists. "
             "They could not be shown or decided any more.",
             offen,
+        )
+
+
+#: Wo Beispieltitel mit ihrem Namen gespeichert sein koennen: Tabelle,
+#: Spalte des Titels, Spalte der TVDB-Kennung (nur wo es sie gibt).
+#:
+#: Nicht dabei sind die Tabellen, die nur aus echten Quellen gefuellt werden
+#: (Medienserver, Radarr/Sonarr, nexcrate): Dort kann kein Beispieltitel stehen.
+_BEISPIEL_TABELLEN: tuple[tuple[str, str, str | None], ...] = (
+    ("media_requests", "title", "tvdb_id"),
+    ("child_wishes", "title", "tvdb_id"),
+    ("favorites", "title", None),
+    ("title_ratings", "title", None),
+    ("title_watches", "title", None),
+    ("blocked_titles", "title", None),
+    ("tickets", "media_title", None),
+)
+#: Die davon, die je Konto und Titel nur eine Zeile erlauben.
+_BEISPIEL_EINDEUTIG = frozenset({"favorites", "title_ratings", "title_watches", "blocked_titles"})
+
+
+def _beispieltitel_umziehen() -> None:
+    """Gespeicherte Beispieltitel aus TMDBs Nummernraum in ihren eigenen holen.
+
+    Bis 1.0.0 trugen die Beispieltitel Kennungen zwischen 900.000 und 990.000,
+    und das sind echte TMDB-Kennungen. Trug jemand nach dem Beispielbetrieb
+    einen TMDB-Schluessel ein, zeigte jede alte Beispielanfrage auf einen
+    fremden, echten Titel - weiter als "wartet auf Freigabe" (#note-30). Seit
+    1.0.0 haben sie einen eigenen Bereich (``demo_data.BEISPIEL_ANFANG``); was
+    eine aeltere Fassung gespeichert hat, zieht hier nach.
+
+    ⚠️ **Umgezogen wird nur, wo Nummer *und* Titel passen.** Unter derselben
+    alten Nummer kann inzwischen ein echter Titel stehen, den jemand mit
+    TMDB-Schluessel angefragt oder markiert hat. Der bleibt, wo er ist. Wo
+    kein Titel gespeichert ist, laesst sich das nicht unterscheiden, und dann
+    bleibt die Zeile ebenfalls stehen.
+
+    Eine Zeile, die unter der neuen Nummer schon ein Gegenstueck hat (dasselbe
+    Konto, derselbe Beispieltitel, etwa nach einem Rueckweg auf eine alte
+    Fassung und zurueck), ist ein Doppel und geht; dort verbietet die
+    Tabelle ohnehin zwei Zeilen.
+
+    Laeuft bei jedem Start. Die Frage vorab ist eine Leseabfrage je Tabelle;
+    geschrieben wird nur, wenn im alten Bereich ueberhaupt etwas steht.
+    """
+    from .mocks import demo_data
+
+    unten, oben = demo_data.alte_kennungen_bereich()
+    with engine.connect() as verbindung:
+        tabellen = {
+            zeile[0]
+            for zeile in verbindung.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        betroffen = []
+        for tabelle, titelspalte, tvdb_spalte in _BEISPIEL_TABELLEN:
+            if tabelle not in tabellen:
+                continue
+            spalten = _existing_columns(verbindung, tabelle)
+            if not {"media_type", "tmdb_id", titelspalte} <= spalten:
+                continue
+            if verbindung.exec_driver_sql(
+                f"SELECT EXISTS(SELECT 1 FROM {tabelle} "  # noqa: S608 - feste Namen
+                "WHERE tmdb_id >= ? AND tmdb_id < ?)",
+                (unten, oben),
+            ).scalar():
+                betroffen.append(
+                    (tabelle, titelspalte, tvdb_spalte if tvdb_spalte in spalten else None)
+                )
+    if not betroffen:
+        return
+
+    umgezogen: dict[str, int] = {}
+    with engine.begin() as verbindung:
+        for tabelle, titelspalte, tvdb_spalte in betroffen:
+            zahl = 0
+            for art, titel, alt, neu, alt_tvdb, neu_tvdb in demo_data.alte_kennungen():
+                wo = f"WHERE media_type = ? AND tmdb_id = ? AND {titelspalte} = ?"
+                zahl += verbindung.exec_driver_sql(
+                    f"UPDATE OR IGNORE {tabelle} SET tmdb_id = ? {wo}",  # noqa: S608 - feste Namen
+                    (neu, art, alt, titel),
+                ).rowcount
+                # Was stehen blieb, hat unter der neuen Nummer schon ein Doppel.
+                # Nur wo die Tabelle Doppel verbietet; eine Anfrage wird nie
+                # geloescht.
+                if tabelle in _BEISPIEL_EINDEUTIG:
+                    zahl += verbindung.exec_driver_sql(
+                        f"DELETE FROM {tabelle} {wo}",  # noqa: S608 - feste Namen
+                        (art, alt, titel),
+                    ).rowcount
+                if tvdb_spalte and alt_tvdb is not None:
+                    verbindung.exec_driver_sql(
+                        f"UPDATE {tabelle} SET {tvdb_spalte} = ? "  # noqa: S608 - feste Namen
+                        f"WHERE media_type = ? AND tmdb_id = ? AND {tvdb_spalte} = ?",
+                        (neu_tvdb, art, neu, alt_tvdb),
+                    )
+            if zahl:
+                umgezogen[tabelle] = zahl
+    if umgezogen:
+        logger.info(
+            "Sample titles moved out of TMDB's number range, so they can never point "
+            "at a real title: %s",
+            ", ".join(f"{tabelle}={zahl}" for tabelle, zahl in umgezogen.items()),
         )
 
 

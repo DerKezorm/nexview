@@ -167,7 +167,7 @@ MediaTypePath = Annotated[Literal["movie", "tv"], Path()]
 
 def _fehler(error: TmdbError) -> HTTPException:
     return HTTPException(
-        status_code=error.status_code or status.HTTP_502_BAD_GATEWAY, detail=error.message
+        status_code=error.status_code or status.HTTP_502_BAD_GATEWAY, detail=error.als_detail()
     )
 
 

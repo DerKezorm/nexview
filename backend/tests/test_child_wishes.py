@@ -102,6 +102,34 @@ def test_angefragte_titel_fallen_ganz_weg(arr_client: TestClient) -> None:
         assert all(t["tmdb_id"] != titel["tmdb_id"] for t in alle), eintrag["rubrik"]
 
 
+def test_bestandstitel_ohne_datei_bleibt_fuer_kinder_wuenschbar(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#note-64 im Kinderbereich: 'searching' ohne Anfrage ist kein 'weder noch'.
+
+    Ohne die Reparatur fiel ein Titel, den Radarr schon kennt, aber ohne
+    Datei und ohne jede Anfrage, aus beiden Koerben - "wuenschbar" und
+    "verfuegbar" - heraus, obwohl niemand ihn je bestellt hat.
+    """
+    from app.services.beschaffung.arr import library
+
+    _, kind_kopf, _ = _familie(arr_client)
+    kategorien = arr_client.get("/api/kids/categories?media_type=movie", headers=kind_kopf).json()
+    assert kategorien, "Keine Rubrik - dann testet hier nichts."
+    rubrik = kategorien[0]["rubrik"]
+
+    async def wird_gesucht(_einstellungen, _art, items, _stufe="standard", **_rest):
+        for eintrag in items:
+            eintrag.status = "searching"
+        return library.MatchResult(items=items)
+
+    monkeypatch.setattr(library, "apply_status", wird_gesucht)
+
+    seite = arr_client.get(f"/api/kids/rubrik/{rubrik}?media_type=movie", headers=kind_kopf).json()
+    assert seite["wuenschbar"], "Bestandstitel ohne Datei muessen wuenschbar bleiben"
+    assert not seite["verfuegbar"]
+
+
 def test_vorhandene_titel_stehen_im_eigenen_bereich(arr_client: TestClient) -> None:
     """Was schon da ist, wird **gezeigt** - nur eben getrennt.
 

@@ -392,6 +392,75 @@ async def test_kuratierte_vorschlaege_kennen_den_media_server(
     assert 777001 in kennungen
 
 
+async def _wird_gesucht(_einstellungen, _art, items, _stufe="standard", **_rest):
+    """Attrappe fuer ``library.apply_status``: jeder Titel "bekannt, keine Datei"."""
+    for eintrag in items:
+        eintrag.status = "searching"
+    return library.MatchResult(items=items)
+
+
+async def test_bekannter_titel_ohne_datei_bleibt_ein_trending_vorschlag(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#note-64: Radarr kennt den Vorschlag schon, ohne Datei, ohne Anfrage.
+
+    Bisher zaehlte "searching" wie "schon erledigt" (siehe Docstring von
+    ``trending``), und der Vorschlag fiel lautlos aus der Liste - dabei war
+    er noch nie angefragt.
+    """
+    from app.schemas_media import MediaItem
+
+    bekannt_ohne_datei = MediaItem(
+        media_type=MediaType.movie,
+        tmdb_id=777002,
+        title="Kennt Radarr schon",
+        release_date="2026-01-01",
+        vote_average=7.0,
+        vote_count=500,
+    )
+
+    async def vorschlaege(_db, _settings, _art, page=1):  # noqa: ANN001
+        return [bekannt_ohne_datei] if page == 1 else []
+
+    monkeypatch.setattr(media, "suggestions", vorschlaege)
+    monkeypatch.setattr(library, "apply_status", _wird_gesucht)
+
+    daten = arr_client.get("/api/home/trending").json()
+    kennungen = [eintrag["tmdb_id"] for eintrag in daten]
+    assert 777002 in kennungen
+
+
+async def test_bekannter_titel_ohne_datei_bleibt_eine_kuratierte_empfehlung(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dieselbe Luecke wie bei den Trending-Vorschlaegen, fuer die Empfehlungen."""
+    from app.schemas_media import MediaItem
+
+    async def kuratiert(_db, _settings, _art, _favoriten, _personen):  # noqa: ANN001
+        return [
+            MediaItem(
+                media_type=MediaType.movie,
+                tmdb_id=777003,
+                title="Kennt Radarr schon",
+                release_date="2026-01-01",
+            ),
+        ]
+
+    monkeypatch.setattr(media, "curated", kuratiert)
+    monkeypatch.setattr(library, "apply_status", _wird_gesucht)
+
+    item = arr_client.get("/api/discover/movie").json()["items"][0]
+    antwort = arr_client.post(
+        "/api/favorites",
+        json={"media_type": "movie", "tmdb_id": item["tmdb_id"]},
+    )
+    assert antwort.status_code == 201, antwort.text
+
+    daten = arr_client.get("/api/home/curated").json()
+    kennungen = [eintrag["tmdb_id"] for eintrag in daten["items"]]
+    assert 777003 in kennungen
+
+
 # --------------------------------------------------------------------------
 # Issue #3: eine Serie ist ein Titel, nicht eine Staffel
 # --------------------------------------------------------------------------

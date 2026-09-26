@@ -115,9 +115,18 @@ async def _zustaende(db, settings, user, eintraege: list[CalendarEntry]) -> None
         )
 
         for eintrag in betroffen:
+            eigen = eigene.get(eintrag.tmdb_id)
+            # #note-64: nur fuer Neuerscheinungen - die kamen gerade eben
+            # durch ``status_setzen`` und koennen "searching" tragen, obwohl
+            # niemand sie angefragt hat. Eigene Titel laufen da nicht durch
+            # (siehe Docstring oben) und bleiben unberuehrt.
+            if eintrag.source == "neu" and requests_service.nur_katalog_ohne_anfrage(
+                eintrag.status, eigen
+            ):
+                eintrag.status = "not_requested"
             # Eine vorhandene Datei gewinnt gegen den eigenen Anfragezustand.
-            if eintrag.status == "not_requested" and eintrag.tmdb_id in eigene:
-                eintrag.status = eigene[eintrag.tmdb_id]
+            if eintrag.status == "not_requested" and eigen:
+                eintrag.status = eigen
             elif eintrag.status == "not_requested" and eintrag.tmdb_id in im_server:
                 eintrag.status = "in_library"
             # Die Sperre gewinnt gegen alles - wie in allen anderen Listen.

@@ -235,12 +235,18 @@ async def einordnen(
     for item in stand.items:
         if item.tmdb_id in gesperrt:
             continue
+        status = item.status
+        # #note-64: bekannt, keine Datei, keine laufende Anfrage - wuenschbar
+        # wie ein Titel, den der Weg noch nie gesehen hat. Sonst landete ein
+        # Bestandstitel ohne Datei in keinem der beiden Koerbe.
+        if requests_service.nur_katalog_ohne_anfrage(status, angefragt.get(item.tmdb_id)):
+            status = "not_requested"
         # "downloaded" aus der Bibliothek oder ein Treffer im Media-Server:
         # beides heisst, die Datei ist wirklich da. "searching" heisst das
         # ausdruecklich **nicht** - da laeuft sie noch.
-        if item.status == "downloaded" or item.tmdb_id in im_server or item.tmdb_id in in_zweitfassung:
+        if status == "downloaded" or item.tmdb_id in im_server or item.tmdb_id in in_zweitfassung:
             verfuegbar.append(item)
-        elif item.status == "not_requested" and item.tmdb_id not in angefragt:
+        elif status == "not_requested" and item.tmdb_id not in angefragt:
             wuenschbar.append(item)
     return Zweiteilung(verfuegbar=verfuegbar, wuenschbar=wuenschbar)
 

@@ -102,7 +102,12 @@ async def _status_for(
         db,
         settings,
         media_type,
-        [i for i in result.items if i.status == "not_requested"],
+        [
+            i
+            for i in result.items
+            if i.status == "not_requested"
+            or requests_service.nur_katalog_ohne_anfrage(i.status, own.get(i.tmdb_id))
+        ],
     )
 
     # "Gesehen" ist eine eigene Achse und ueberschreibt deshalb nichts - es
@@ -126,12 +131,19 @@ async def _status_for(
         # kommt gleich danach als zweite Quelle zum Zug.
         if eigen == "downloaded" and item.status == "not_requested":
             eigen = None
+        # #note-64: bekannt, keine Datei, keine eigene Anfrage - anfragbar
+        # wie ein Titel, den der Weg noch nie gesehen hat.
+        status = item.status
+        if requests_service.nur_katalog_ohne_anfrage(status, eigen):
+            status = "not_requested"
         if item.tmdb_id in gesperrt:
             neu["status"] = blocklist.BADGE
-        elif eigen and item.status not in ("downloaded", "partial"):
+        elif eigen and status not in ("downloaded", "partial"):
             neu["status"] = eigen
-        elif item.tmdb_id in im_server and item.status == "not_requested":
+        elif status == "not_requested" and item.tmdb_id in im_server:
             neu["status"] = "in_library"
+        elif status != item.status:
+            neu["status"] = status
         if item.tmdb_id in gesehen:
             neu["watched"] = True
             # Woher das "gesehen" kommt - aber nur, wenn sich zwei verbundene

@@ -213,7 +213,12 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
         db,
         settings,
         media_type,
-        [e for e in eintraege if e.status == "not_requested"],
+        [
+            e
+            for e in eintraege
+            if e.status == "not_requested"
+            or requests_service.nur_katalog_ohne_anfrage(e.status, eigene.get(e.tmdb_id))
+        ],
     )
 
     for eintrag in eintraege:
@@ -224,6 +229,10 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
         # nicht mehr - sonst laesst sich der Titel nie wieder anfragen.
         if eigen == "downloaded" and eintrag.status == "not_requested":
             eigen = None
+        # #note-64: bekannt, keine Datei, keine eigene Anfrage - anfragbar
+        # wie ein Titel, den der Weg noch nie gesehen hat.
+        if requests_service.nur_katalog_ohne_anfrage(eintrag.status, eigen):
+            eintrag.status = "not_requested"
         if eintrag.status == "not_requested" and eigen:
             eintrag.status = eigen
         elif eintrag.status == "not_requested" and eintrag.tmdb_id in im_server:

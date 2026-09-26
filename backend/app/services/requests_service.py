@@ -332,6 +332,28 @@ def badges_for(
     return {row.tmdb_id: BADGE_FOR_STATUS.get(row.status, "requested") for row in rows}
 
 
+def nur_katalog_ohne_anfrage(status: str | None, eigen: str | None) -> bool:
+    """"searching", aber niemand hat es bestellt - anfragbar wie ein neuer Titel.
+
+    ⚠️ **#note-64.** ``status == "searching"`` heisst nur "Radarr/Sonarr bzw.
+    nexcrate fuehrt den Titel, ohne Datei" (``library._status_for``,
+    ``nex/lesen.zustand_der_kachel``) - das sagt nichts darueber, ob dahinter
+    eine Anfrage steckt. Ohne ``eigen`` (kein aktiver Eintrag aus
+    ``badges_for``) ist das aus Nexviews Sicht kein Unterschied zu einem
+    Titel, den noch niemand kennt: Beide lassen sich anfragen. Bis zum
+    26.09.2026 stand hier ueberall "wird gesucht", der Anfrage-Knopf blieb
+    weg, und nach einem Umstieg liess sich kein fehlender Altbestand-Titel
+    mehr anfragen.
+
+    Bewusst **kein** neues Wort in der Anzeige: Ein Titel, den nur der Weg
+    kennt, verhaelt sich fuer den Anfragenden genauso wie ein unbekannter -
+    er bekommt denselben Knopf, dieselbe Sperrpruefung, denselben Text. Die
+    Aufrufer setzen den Zustand deshalb auf ``"not_requested"`` zurueck, statt
+    eine weitere Kachel-Farbe zu erfinden.
+    """
+    return status == "searching" and not eigen
+
+
 def eigene_laeuft(db: Session, user: User, media_type: MediaType, tmdb_id: int) -> bool:
     """Habe **ich** zu diesem Titel eine laufende Anfrage?
 

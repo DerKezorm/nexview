@@ -16,7 +16,7 @@ from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.beschaffung.nex import system
 from app.services.settings_service import save_settings
 
-from .beschaffung.fake_nexcrate import FILM_HD, KEY, URL, FakeNexcrate
+from .beschaffung.fake_nexcrate import FILM_HD, FILM_UHD, KEY, URL, FakeNexcrate
 from .conftest import auth_headers, create_user
 
 
@@ -291,6 +291,70 @@ def test_bestandstitel_ohne_datei_bleibt_im_nex_betrieb_anfragbar(
         json={"media_type": "movie", "tmdb_id": item["tmdb_id"]},
     )
     assert antwort.status_code == 201, antwort.text
+
+
+def test_bestandstitel_ohne_datei_zeigt_sich_im_nex_katalog_als_anfragbar(
+    admin_client: TestClient, db: Session, nexcrate: FakeNexcrate
+) -> None:
+    """#note-64 im NEX-Betrieb: die Anzeige muss zur Anfrage passen.
+
+    Die Programmierschnittstelle nahm die Anfrage schon an - aber Katalog
+    und Titelseite zeigten "wird gesucht" weiter, und der Anfrage-Knopf blieb
+    weg, solange niemand den Zustand extra zurueckstellte.
+    """
+    item = admin_client.get("/api/discover/movie").json()["items"][0]
+    nexcrate.film(
+        item["tmdb_id"],
+        name=item["title"],
+        versionen=[nexcrate.fassung(FILM_HD, "wanted")],
+    )
+    save_settings(db, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY})
+    nex_fassungen.schreiben(db, nexcrate.versions)
+    db.commit()
+
+    katalog = admin_client.get("/api/discover/movie").json()["items"]
+    gefunden = next(i for i in katalog if i["tmdb_id"] == item["tmdb_id"])
+    assert gefunden["status"] == "not_requested"
+
+    detail = admin_client.get(f"/api/detail/movie/{item['tmdb_id']}")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["status"] == "not_requested"
+
+
+async def test_bestandstitel_ohne_datei_bleibt_in_nex_4k_anfragbar(
+    admin_client: TestClient, db: Session, nexcrate: FakeNexcrate
+) -> None:
+    """#note-64 im NEX-Betrieb, je Fassung: dieselbe Reparatur fuer die 4K-Achse.
+
+    Die 4K-Fassung fuehrt den Titel schon (Zustand "wanted"), aber ohne Datei
+    und ohne eigene Anfrage - das darf die Standard-Fassung genauso wenig
+    sperren wie es sich selbst sperrt.
+    """
+    from app.schemas_media import MediaItem
+    from app.services import fassungsachsen
+    from app.services.settings_service import load_settings
+
+    tmdb_id = 950765
+    nexcrate.film(
+        tmdb_id,
+        name="Nordlicht",
+        versionen=[
+            nexcrate.fassung(FILM_HD, "available"),
+            nexcrate.fassung(FILM_UHD, "wanted"),
+        ],
+    )
+    save_settings(db, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY})
+    nex_fassungen.schreiben(db, nexcrate.versions)
+    db.commit()
+
+    admin = db.query(User).filter(User.username == "admin").one()
+    settings = load_settings(db, frisch=True)
+    kachel = MediaItem(media_type=MediaType.movie, tmdb_id=tmdb_id, title="Nordlicht")
+
+    await fassungsachsen.anreichern(db, settings, "movie", [kachel], admin)
+
+    zusatz = next(f for f in kachel.fassungen if not f.haupt)
+    assert zusatz.status == "not_requested"
 
 
 # --------------------------------------------------------------------------

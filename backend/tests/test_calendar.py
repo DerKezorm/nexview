@@ -938,6 +938,34 @@ def test_arr_warning_ist_eine_kennung_kein_fertiger_satz(arr_client: TestClient)
     assert warnung == "arr_unreachable"
 
 
+def test_bestandstitel_ohne_datei_bleibt_im_kalender_anfragbar(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#note-64 im Kalender: nur die Neuerscheinungen laufen durch ``status_setzen``.
+
+    Radarr kennt so eine Neuerscheinung manchmal schon (Listen-Sync, zweite
+    Instanz), ohne dass jemand sie angefragt hat - "searching" darf dann
+    nicht wie eine laufende Suche behandelt werden.
+    """
+
+    async def wird_gesucht(_einstellungen, _art, items, _stufe="standard", **_rest):
+        for eintrag in items:
+            eintrag.status = "searching"
+        return library.MatchResult(items=items)
+
+    monkeypatch.setattr(library, "apply_status", wird_gesucht)
+
+    daten = arr_client.get("/api/calendar").json()
+    neuerscheinungen = [
+        eintrag
+        for tag in daten["days"]
+        for eintrag in tag["entries"]
+        if eintrag["source"] == "neu"
+    ]
+    assert neuerscheinungen, "keine Neuerscheinung im Demo-Kalender gefunden"
+    assert all(eintrag["status"] == "not_requested" for eintrag in neuerscheinungen)
+
+
 def test_altersgrenze_verbirgt_eigene_titel_ohne_zuordnung(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

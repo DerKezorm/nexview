@@ -137,6 +137,30 @@ async def test_nur_im_media_server_bleibt_als_4k_erkannt(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_bestandstitel_ohne_datei_bleibt_in_4k_anfragbar(monkeypatch):
+    """#note-64 auf der 4K-Achse: bekannt, aber ohne Datei und ohne Anfrage.
+
+    Dieselbe Reparatur wie auf der Hauptachse - nur hier fuer die zweite
+    Fassung: Die 4K-Instanz fuehrt den Film schon (etwa von Hand angelegt),
+    aber niemand hat die 4K-Fassung angefragt. "searching" hiesse sonst
+    faelschlich "wird schon gesucht" und ``uhdOffen`` bliebe zu.
+    """
+    with SessionLocal() as db:
+        save_settings(db, UHD_INSTANZ)
+        benutzer = _admin(db)
+        _instanzen(
+            monkeypatch,
+            standard={},
+            vierk={603: LibraryEntry(arr_id=9, has_file=False, monitored=False)},
+        )
+
+        kacheln = [_kachel(603, "Matrix")]
+        await _achse(db, kacheln, benutzer)
+
+    assert kacheln[0].status_uhd == "not_requested"
+
+
+@pytest.mark.anyio
 async def test_zwei_dateien_in_plex_zaehlen_als_zweitfassung(monkeypatch):
     """1080p **und** 4K im Media-Server sind wirklich zwei Dateien.
 

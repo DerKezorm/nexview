@@ -220,7 +220,11 @@ PFLEGE_SCHRITTE = (
     "_wanderungsbuch_nachtragen",
     "_pending_changes",
     "_leere_installation",
+    # Lesen den Stand vor der Sicherung und nennen danach den Rueckweg; beide
+    # aendern nichts an den Daten.
+    "_datenstand",
     "_backup_database",
+    "_rueckweg_nennen",
     "create_all",
     "_add_missing_columns",
     "_add_missing_indexes",
@@ -298,9 +302,13 @@ def init_db() -> None:
     # legte gehorsam eine Kopie einer leeren Datenbank an: Sie schuetzt nichts,
     # verbraucht aber einen der fuenf Plaetze - und wer nach dem ersten Start
     # in die Liste sieht, fragt sich zu Recht, wovor die schuetzen soll.
+    vorher: tuple[str, Path | None] | None = None
     if ausstehend and not _leere_installation():
         logger.info("Database schema update: %s", ", ".join(ausstehend))
-        _backup_database()
+        # Der Datenstand wird gelesen, bevor dieser Start etwas ins Buch
+        # schreibt - danach stuende dort schon die laufende Fassung.
+        stand = _datenstand()
+        vorher = (stand, _backup_database(stand))
     # Sofort, vor ``create_all`` und ``_add_missing_columns`` - siehe oben.
     # Hinter der Sicherung, damit die Kopie die Datenbank zeigt, wie sie
     # angekommen ist.
@@ -331,6 +339,67 @@ def init_db() -> None:
     _einmal(_medienserver_posten_abraeumen)
     _betreiber_bestimmen()
     _speicher_zurueckgeben_umstellen()
+    if vorher is not None:
+        _rueckweg_nennen(*vorher)
+
+
+def _rueckweg_nennen(stand: str, sicherung: Path | None) -> None:
+    """Nach einer Wanderung sagen, wo der Weg zurueck liegt - und wo nicht.
+
+    ⚠️ **Eine aeltere Fassung auf dieser Datenbank zu starten, beschaedigt sie
+    lautlos.** Gemessen an 0.35.2 nach 1.0.0 (#note-22): Sie legt ihre alten
+    Spalten leer wieder an, bricht eine laufende 4K-Anfrage ab ("no longer
+    present in Radarr"), nimmt jedem Konto das 4K-Recht und erkennt keinen
+    Speicherposten wieder - bei gruenem Gesundheitszustand. Aufhalten kann
+    diese Fassung das nicht, sie laeuft dann ja nicht. Sagen kann sie es, und
+    zwar hier: im Protokoll des Starts, das nach einem Update als erstes
+    gelesen wird, mit dem Namen der Sicherung, die den Rueckweg traegt.
+    """
+    von = f"Nexview {stand}" if stand != "0" else "an older Nexview"
+    if sicherung is None:
+        logger.warning(
+            "Database updated from %s to %s without a backup (it failed, see above). "
+            "An older Nexview cannot read this database correctly any more; starting one on "
+            "it changes data silently (open requests cancelled, 4K rights lost, storage entries "
+            "rebuilt)",
+            von,
+            __version__,
+        )
+        return
+    logger.info(
+        "Database updated from %s to %s. The backup taken before the update is %s. "
+        "Do not start an older Nexview on this database: it cannot read it correctly and "
+        "changes data silently (open requests cancelled, 4K rights lost, storage entries "
+        "rebuilt). To go back, stop Nexview, restore this backup, then start the older version",
+        von,
+        __version__,
+        sicherung.name,
+    )
+
+
+def _datenstand() -> str:
+    """Welche Fassung die Daten dieser Datenbank geschrieben hat - so genau es geht.
+
+    Gelesen wird die hoechste Fassung, die je etwas ins Wanderungsbuch
+    eingetragen hat. Das ist eine **untere Grenze**, denn eine Fassung ohne
+    neuen Schritt traegt sich nicht ein - und genau diese Richtung ist die
+    sichere: Die Sicherung vor der Wanderung soll sich in die alte Fassung
+    einspielen lassen, und die prueft nur, dass sie nicht neuer ist als sie
+    selbst.
+
+    Ohne Buch (Datenbanken von vor seiner Einfuehrung) bleibt ``"0"``.
+    """
+    from .services.sicherung import _als_zahlen
+
+    with engine.connect() as verbindung:
+        versionen = [
+            zeile[0]
+            for zeile in verbindung.exec_driver_sql(
+                f"SELECT wanderung_version FROM {WANDERUNGSBUCH}"  # noqa: S608 - fester Name
+            )
+            if zeile[0]
+        ]
+    return max(versionen, key=_als_zahlen) if versionen else "0"
 
 
 def _buchtabelle_anlegen() -> None:
@@ -1297,8 +1366,13 @@ def _pending_changes() -> list[str]:
     return offen
 
 
-def _backup_database() -> None:
+def _backup_database(stand: str | None = None) -> Path | None:
     """Kopie der Datenbank anlegen, bevor sie veraendert wird.
+
+    ``stand`` ist die Fassung, deren Daten die Kopie enthaelt (``_datenstand``).
+    Sie steht im Namen und im Steckbrief, damit die alte Fassung die Kopie als
+    ihre eigene erkennt und einspielen laesst; der Kommentar nennt das Update.
+    Zurueck kommt der Pfad der Kopie, oder ``None``, wenn sie nicht entstand.
 
     Die eigentliche Arbeit macht ``services.sicherung`` - dort liegt auch das
     Auflisten und das Ausliefern als verschluesseltes Archiv, und beides muss
@@ -1313,9 +1387,12 @@ def _backup_database() -> None:
     from .services import sicherung
 
     try:
-        sicherung.anlegen(art=sicherung.AUTOMATISCH)
+        return sicherung.anlegen(
+            art=sicherung.AUTOMATISCH, kommentar=f"Before update to {__version__}", version=stand
+        )
     except Exception as fehler:  # noqa: BLE001 - Start darf daran nicht scheitern
         logger.warning("Database backup failed: %s", fehler)
+        return None
 
 
 def _prune_backups(ordner: Path, behalten: int = BACKUPS_TO_KEEP) -> None:

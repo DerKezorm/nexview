@@ -323,13 +323,21 @@ def _sicherer_name(kommentar: str) -> str:
     return knapp.strip("-").lower()
 
 
-def anlegen(*, art: str = MANUELL, kommentar: str = "") -> Path:
+def anlegen(*, art: str = MANUELL, kommentar: str = "", version: str | None = None) -> Path:
     """Eine Sicherung schreiben und ihren Steckbrief daneben legen.
 
     ``VACUUM INTO`` erzeugt eine in sich stimmige Kopie, auch waehrend
     geschrieben wird - ein blosses Kopieren der Datei wuerde im WAL-Betrieb die
     zuletzt gespeicherten Aenderungen verlieren.
+
+    ``version`` ist die Fassung, deren Daten in der Kopie stecken. Ohne Angabe
+    die laufende - das stimmt fuer jede Sicherung ausser der einen vor der
+    Wanderung. ⚠️ Die trug bis 1.0.0 ebenfalls die laufende Fassung, obwohl sie
+    die Datenbank der **alten** enthaelt: Die alte Fassung hielt sie deshalb
+    fuer neuer und weigerte sich, sie einzuspielen (``backup_newer``, gemessen
+    an 0.35.2, #note-22) - ausgerechnet auf dem Rueckweg, fuer den sie da ist.
     """
+    stand = version or __version__
     # Erst hier importiert: ``db`` legt beim Start selbst Sicherungen an, ein
     # Import auf Modulebene waere ein Ring.
     from ..db import engine
@@ -339,7 +347,7 @@ def anlegen(*, art: str = MANUELL, kommentar: str = "") -> Path:
 
     stempel = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     zusatz = _sicherer_name(kommentar)
-    grund = f"nexview-{art}-{__version__}-{stempel}" + (f"-{zusatz}" if zusatz else "")
+    grund = f"nexview-{art}-{stand}-{stempel}" + (f"-{zusatz}" if zusatz else "")
 
     ziel = ziel_ordner / f"{grund}.db"
     # VACUUM INTO weigert sich, eine vorhandene Datei zu ueberschreiben.
@@ -364,7 +372,7 @@ def anlegen(*, art: str = MANUELL, kommentar: str = "") -> Path:
         roh.close()
 
     brief = Steckbrief(
-        version=__version__,
+        version=stand,
         schema=abdruck,
         erstellt=datetime.now(UTC).isoformat(timespec="seconds"),
         art=art,

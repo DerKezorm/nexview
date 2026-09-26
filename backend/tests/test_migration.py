@@ -256,6 +256,63 @@ def test_update_legt_sicherung_an(alte_installation: Path) -> None:
     assert namen == ["altbenutzer"]
 
 
+def test_die_sicherung_vor_dem_update_laesst_sich_in_die_alte_fassung_einspielen(
+    alte_installation: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """#note-22: Die Kopie traegt die Fassung ihrer Daten, nicht die laufende.
+
+    Bis 1.0.0 hiess die Sicherung einer 0.35.2-Datenbank
+    ``nexview-automatisch-1.0.0-...`` und trug 1.0.0 im Steckbrief. 0.35.2
+    lehnte sie deshalb als "neuer" ab (``backup_newer``, gemessen) - der
+    Rueckweg, fuer den sie angelegt wird, ging ueber die Oberflaeche nicht.
+    """
+    import json
+
+    from app import __version__
+    from app.models import Wanderung
+    from app.services import sicherung
+
+    # Eine Datenbank, die schon Fassungen mit Wanderungsbuch gesehen hat.
+    alt = create_engine(f"sqlite:///{alte_installation}")
+    Wanderung.__table__.create(bind=alt)
+    with alt.begin() as verbindung:
+        for name, fassung in (("_alter_schritt", "0.33.0"), ("_juengerer_schritt", "0.35.2")):
+            verbindung.exec_driver_sql(
+                "INSERT INTO wanderungen (wanderung_name, wanderung_am, wanderung_herkunft, "
+                "wanderung_version) VALUES (?, '2026-09-01 00:00:00', 'ausgefuehrt', ?)",
+                (name, fassung),
+            )
+    alt.dispose()
+
+    with caplog.at_level("INFO", logger="nexview.db"):
+        db_modul.init_db()
+
+    sicherungen = list((alte_installation.parent / "sicherungen").glob("nexview-automatisch-*.db"))
+    assert len(sicherungen) == 1
+    assert sicherungen[0].name.startswith("nexview-automatisch-0.35.2-")
+    brief = json.loads(sicherungen[0].with_suffix(".json").read_text(encoding="utf-8"))
+    assert brief["version"] == "0.35.2"
+    assert __version__ in brief["kommentar"]
+    # So prueft 0.35.2 selbst, ob es einspielen darf: nicht neuer als es.
+    assert sicherung._als_zahlen(brief["version"]) <= (0, 35, 2)
+
+    # Und das Protokoll nennt den Rueckweg samt Datei.
+    nennung = [
+        eintrag.getMessage()
+        for eintrag in caplog.records
+        if eintrag.getMessage().startswith("Database updated from")
+    ]
+    assert len(nennung) == 1, nennung
+    assert "Nexview 0.35.2" in nennung[0]
+    assert sicherungen[0].name in nennung[0]
+
+    # Ein zweiter Start ohne Schemaaenderung sagt nichts mehr.
+    caplog.clear()
+    with caplog.at_level("INFO", logger="nexview.db"):
+        db_modul.init_db()
+    assert not [e for e in caplog.records if e.getMessage().startswith("Database updated from")]
+
+
 def test_zweiter_start_aendert_nichts_mehr(alte_installation: Path) -> None:
     """Ohne Schemaaenderung darf keine weitere Sicherung entstehen.
 

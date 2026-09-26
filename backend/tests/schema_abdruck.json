@@ -137,6 +137,11 @@
         "schluessel": false,
         "typ": "BOOLEAN"
       },
+      "alte_adresse_tot_seit": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
       "alter_eintrag_id": {
         "leer_erlaubt": true,
         "schluessel": false,

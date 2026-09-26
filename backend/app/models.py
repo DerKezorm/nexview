@@ -1925,6 +1925,10 @@ class ArrWebhook(Base):
     # Nexview mehr antwortet; bis dahin nennt ihn die Diensteseite.
     alter_eintrag_id: Mapped[int | None] = mapped_column(Integer)
     alter_eintrag_url: Mapped[str | None] = mapped_column(Text)
+    # Seit wann die Adresse des frueheren Eintrags als tot gilt (erster Befund).
+    # Geloescht wird erst beim zweiten mit genug Abstand; jede andere Antwort
+    # setzt das zurueck.
+    alte_adresse_tot_seit: Mapped[datetime | None] = mapped_column(DateTime)
     eingetragen_am: Mapped[datetime | None] = mapped_column(DateTime)
     # Wann die Pflege zuletzt nach dem Eintrag gesehen hat.
     geprueft_am: Mapped[datetime | None] = mapped_column(DateTime)

@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import timedelta
 from urllib.parse import urlsplit
 
 import httpx
@@ -52,6 +53,13 @@ BEWEIS_SCHRITT_SEKUNDEN = 0.25
 # Wie lange die Frage an eine fruehere eigene Adresse dauern darf. Knapp: Sie
 # laeuft im Rundgang, und eine Antwort, die so lange braucht, gilt als unklar.
 ALTE_ADRESSE_ZEITGRENZE_SEKUNDEN = 3.0
+
+# ⚠️ Eine abgewiesene Verbindung allein beweist keinen Tod: Genauso sieht eine
+# gesunde fremde Nexview aus, die gerade neu startet (Docker-Update,
+# Host-Neustart). Geloescht wird erst, wenn die alte Adresse in zwei
+# Pflegelaeufen mit mindestens diesem Abstand tot war - ohne dass dazwischen
+# eine Nexview geantwortet hat oder das Ergebnis unklar war.
+ALTE_ADRESSE_TOT_ABSTAND = timedelta(minutes=30)
 
 # Ereignis-Flaggen je Dienst. PFLICHT: Ohne sie kann der Rueckkanal seinen
 # Zweck nicht erfuellen (fertig, aufgewertet, geloescht) - fehlt eine im
@@ -285,6 +293,7 @@ def _frueheren_merken(vorhandene: list[dict], zeile: ArrWebhook, eigener: dict |
     if frueher is not None:
         zeile.alter_eintrag_id = int(frueher["id"])
         zeile.alter_eintrag_url = zeile.eintrag_url
+        zeile.alte_adresse_tot_seit = None
     zeile.eintrag_id = None
     zeile.eintrag_url = None
     zeile.eingetragen_am = None
@@ -304,7 +313,9 @@ async def _frueheren_eintrag_pflegen(
     kann einer Installation gehoeren, die aus einer Kopie unserer Datenbank
     entstanden ist oder aus der wir entstanden sind. Antwortet unter seiner
     Adresse eine Nexview, oder laesst sich das nicht klaeren, bleibt er
-    stehen, und die Diensteseite nennt ihn dem Betreiber.
+    stehen, und die Diensteseite nennt ihn dem Betreiber. Tot heisst: zweimal,
+    mit mindestens ``ALTE_ADRESSE_TOT_ABSTAND`` dazwischen, und jede andere
+    Antwort dazwischen faengt die Zaehlung von vorn an.
     """
     if zeile.alter_eintrag_id is None:
         return
@@ -324,10 +335,21 @@ async def _frueheren_eintrag_pflegen(
         # Weg, von jemandem umgeschrieben oder wieder unserer: nichts mehr zu merken.
         zeile.alter_eintrag_id = None
         zeile.alter_eintrag_url = None
+        zeile.alte_adresse_tot_seit = None
         return
     basis = _basis_aus(zeile.alter_eintrag_url or "", kennung)
     if not basis or await nexview_unter(basis) is not False:
+        zeile.alte_adresse_tot_seit = None
         return
+    jetzt = utcnow().replace(tzinfo=None)
+    zuerst = zeile.alte_adresse_tot_seit
+    if zuerst is not None and zuerst.tzinfo is not None:
+        zuerst = zuerst.replace(tzinfo=None)
+    if zuerst is None:
+        zeile.alte_adresse_tot_seit = jetzt
+        return
+    if jetzt - zuerst < ALTE_ADRESSE_TOT_ABSTAND:
+        return  # Noch derselbe Befund, kein zweiter.
     try:
         await client.notification_loeschen(int(alt["id"]))
     except ArrError:
@@ -335,6 +357,7 @@ async def _frueheren_eintrag_pflegen(
     logger.info("Webhook entry for a former address removed, nothing answers at %s", basis)
     zeile.alter_eintrag_id = None
     zeile.alter_eintrag_url = None
+    zeile.alte_adresse_tot_seit = None
 
 
 def _weicht_ab(eigener: dict, gewuenscht: dict) -> bool:

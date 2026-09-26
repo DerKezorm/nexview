@@ -14,10 +14,13 @@ Die vier Grundsaetze aus dem Bauplan, hier festgenagelt:
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import httpx
 import pytest
 
 from app.db import SessionLocal
+from app.models import utcnow
 from app.services.beschaffung.arr import webhook_pflege, webhooks
 from app.services.settings_service import load_settings, save_settings
 
@@ -450,6 +453,8 @@ def _abgewiesen() -> httpx.ConnectError:
 async def _nach_adresswechsel(fake) -> None:
     """Unser Eintrag von frueher traegt die alte Adresse, public_url ist neu."""
     fake.eintraege = [_frueherer_eintrag()]
+    # Radarr vergibt eine Nummer nur einmal; die Attrappe zaehlt sonst ab 7.
+    fake._naechste_id = 20
     settings, instanz = _radarr()
     with SessionLocal() as db:
         zeile = webhooks.eintrag_sicherstellen(db, "radarr-standard")
@@ -458,6 +463,24 @@ async def _nach_adresswechsel(fake) -> None:
         db.commit()
     with SessionLocal() as db:
         await webhook_pflege.instanz_pflegen(db, settings, instanz)
+
+
+async def _noch_ein_lauf(*, vor_minuten: int | None = None) -> None:
+    """Ein weiterer Pflegelauf. ``vor_minuten`` schiebt den ersten Befund
+    "tot" so weit zurueck, als laege der erste Lauf so lange zurueck."""
+    if vor_minuten is not None:
+        with SessionLocal() as db:
+            zeile = webhooks.eintrag(db, "radarr-standard")
+            zeile.alte_adresse_tot_seit = utcnow().replace(tzinfo=None) - timedelta(
+                minutes=vor_minuten
+            )
+            db.commit()
+    settings, instanz = _radarr()
+    with SessionLocal() as db:
+        await webhook_pflege.instanz_pflegen(db, settings, instanz)
+
+
+LEBT = httpx.Response(200, json={"status": "ok", "version": "1.0.0"})
 
 
 @pytest.mark.anyio
@@ -470,13 +493,18 @@ async def test_nach_adresswechsel_mit_toter_alter_adresse_ist_der_alte_eintrag_w
     fake, monkeypatch, antwort
 ) -> None:
     """Unter der alten Adresse lauscht nichts mehr (Verbindung abgewiesen), oder
-    dort gibt es kein ``/api/health``: Der alte Eintrag geht, ein neuer mit
-    unserer Adresse kommt. Umgeschrieben wird der alte nicht."""
+    dort gibt es kein ``/api/health`` - und zwar in zwei Laeufen mit mehr als
+    einer halben Stunde Abstand: Der alte Eintrag geht, ein neuer mit unserer
+    Adresse ist da. Umgeschrieben wird der alte nicht."""
     gefragt = _alte_adresse(monkeypatch, antwort)
 
     await _nach_adresswechsel(fake)
+    assert fake.geloescht == [], "ein einziger Befund loescht noch nichts"
+    assert _zeile().alte_adresse_tot_seit is not None
 
-    assert gefragt == ["http://alt.test/api/health"]
+    await _noch_ein_lauf(vor_minuten=31)
+
+    assert gefragt == ["http://alt.test/api/health"] * 2
     assert fake.nachgezogen == []
     assert fake.geloescht == [7]
     assert [(e["name"], _url(e)) for e in fake.eintraege] == [
@@ -484,6 +512,44 @@ async def test_nach_adresswechsel_mit_toter_alter_adresse_ist_der_alte_eintrag_w
     ]
     zeile = _zeile()
     assert zeile.alter_eintrag_id is None and zeile.eintrag_id == fake.eintraege[0]["id"]
+    assert zeile.alte_adresse_tot_seit is None
+
+
+@pytest.mark.anyio
+async def test_zweimal_tot_ohne_abstand_bleibt_der_alte_eintrag(fake, monkeypatch) -> None:
+    """Zwei Laeufe kurz hintereinander (der Haken, dann gleich der Rundgang)
+    sind ein Befund, nicht zwei: Ein Neustart dauert laenger als das."""
+    _alte_adresse(monkeypatch, _abgewiesen())
+
+    await _nach_adresswechsel(fake)
+    erster = _zeile().alte_adresse_tot_seit
+    await _noch_ein_lauf(vor_minuten=5)
+
+    assert fake.geloescht == []
+    assert _frueherer_eintrag() in fake.eintraege
+    assert _zeile().alter_eintrag_id == 7
+    assert erster is not None
+
+
+@pytest.mark.anyio
+async def test_einmal_tot_dann_lebt_bleibt_der_alte_eintrag(fake, monkeypatch) -> None:
+    """Die fremde Nexview startete nur neu (Docker-Update): Ihre Antwort
+    dazwischen setzt die Zaehlung zurueck. Der naechste Befund "tot" ist
+    wieder ein erster."""
+    _alte_adresse(monkeypatch, _abgewiesen())
+    await _nach_adresswechsel(fake)
+
+    _alte_adresse(monkeypatch, LEBT)
+    await _noch_ein_lauf(vor_minuten=31)
+    assert _zeile().alte_adresse_tot_seit is None
+
+    _alte_adresse(monkeypatch, _abgewiesen())
+    await _noch_ein_lauf()
+
+    assert fake.geloescht == []
+    assert _frueherer_eintrag() in fake.eintraege
+    zeile = _zeile()
+    assert zeile.alter_eintrag_id == 7 and zeile.alte_adresse_tot_seit is not None
 
 
 @pytest.mark.anyio

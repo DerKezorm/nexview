@@ -2170,6 +2170,7 @@
       "already_rule_rejected": "„{{title}}“ wurde bereits von einer Regel abgelehnt.",
       "fassung_unknown": "Diese Fassung gibt es nicht.",
       "fassung_not_allowed": "Für diese Fassung fehlt dir die Berechtigung. Der Administrator kann sie freischalten.",
+      "fassung_not_ready": "Diese Fassung ist noch nicht fertig eingerichtet; eine Anfrage darin würde nie geladen. Der Administrator richtet sie ein.",
       "wish_rule_rejected": "Eine Regel des Hauses hat „{{title}}“ abgelehnt.",
       "seerr_account_unknown": "Dieses Konto gibt es in Seerr nicht mehr. Lies die Vorschau neu ein.",
       "seerr_owner_in_list": "Der Besitzer steht auch in der Liste der übrigen Konten.",
@@ -4097,7 +4098,8 @@
       "no_indexer": "kein Indexer",
       "no_download_client": "kein Download-Programm",
       "no_folder": "kein Ordner",
-      "automatic_off": "Automatik aus (angefragtes sucht nexcrate trotzdem)"
+      "automatic_off": "Automatik aus (angefragtes sucht nexcrate trotzdem)",
+      "fed_by_source": "noch an Radarr oder Sonarr gebunden (was von dort kam, lässt sich hier nicht anfragen)"
     },
     "health": {
       "indexer_none": "Kein Indexer ist verbunden und eingeschaltet.",

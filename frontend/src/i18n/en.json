@@ -2170,6 +2170,7 @@
       "already_rule_rejected": "“{{title}}” has already been declined by a rule.",
       "fassung_unknown": "There is no such version.",
       "fassung_not_allowed": "You are not allowed to request this version. The administrator can allow it.",
+      "fassung_not_ready": "This version is not fully set up yet; a request in it would never be downloaded. The administrator sets it up.",
       "wish_rule_rejected": "A house rule has declined “{{title}}”.",
       "seerr_account_unknown": "Seerr no longer has this account. Read the preview again.",
       "seerr_owner_in_list": "The owner also appears in the list of other accounts.",
@@ -4097,7 +4098,8 @@
       "no_indexer": "no indexer",
       "no_download_client": "no download client",
       "no_folder": "no folder",
-      "automatic_off": "automatic off (requested titles are searched anyway)"
+      "automatic_off": "automatic off (requested titles are searched anyway)",
+      "fed_by_source": "still tied to Radarr or Sonarr (titles from there cannot be requested here)"
     },
     "health": {
       "indexer_none": "No indexer is connected and switched on.",

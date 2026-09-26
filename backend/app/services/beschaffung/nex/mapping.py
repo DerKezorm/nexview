@@ -150,14 +150,37 @@ def gruende(eintrag: dict[str, Any]) -> list[str]:
     ⚠️ ``automatic_off`` steht unter den Gruenden, haelt mit
     ``wishes_search_at_once`` aber nichts auf (nexbeat-Befund 13): Ein
     Suchwunsch wird auch bei ausgeschalteter Automatik abgearbeitet. Es bleibt
-    deshalb in der Liste, macht eine Fassung aber nicht unbrauchbar - was
-    ``bereit`` heisst, entscheidet nexcrate mit ``ready``.
+    deshalb in der Liste, macht eine Fassung aber nicht unbrauchbar - siehe
+    ``anfragbar``.
     """
     return [
         str(grund.get("code"))
         for grund in eintrag.get("reasons") or []
         if isinstance(grund, dict) and grund.get("code")
     ]
+
+
+#: Gruende, mit denen eine Anfrage trotzdem zu etwas fuehrt. ``automatic_off``
+#: siehe ``gruende``; ``fed_by_source`` sperrt nur die Titel, die aus Radarr
+#: oder Sonarr kamen (nexcrate sagt dann ``version_fed_by_source``), ein neuer
+#: Titel wird geladen. Alles andere - auch ein Grund, den Nexview noch nicht
+#: kennt - haelt die Fassung auf.
+HARMLOSE_GRUENDE = frozenset({"automatic_off", "fed_by_source"})
+
+
+def anfragbar(eintrag: dict[str, Any]) -> bool:
+    """Fuehrt eine Anfrage in dieser Fassung zu einem Download?
+
+    Das ist Nexviews ``bereit``, und es ist nicht nexcrates ``ready``: Das ist
+    schon bei ausgeschalteter Automatik falsch. Bis zum grossen Pruefgang
+    (26.09.2026) fragte ``/api/config`` gar nicht nach - eine Fassung ohne
+    Profil und Ordner hiess "bereit", und jede Anfrage darin stand fuer immer
+    auf "wird gesucht".
+    """
+    if eintrag.get("ready"):
+        return True
+    gefunden = set(gruende(eintrag))
+    return bool(gefunden) and gefunden <= HARMLOSE_GRUENDE
 
 
 def herkunft(anfrage_id: int) -> str:

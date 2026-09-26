@@ -126,7 +126,8 @@ def schreiben(db: Session, eintraege: list[dict]) -> tuple[FassungInfo, ...]:
         zeile.reihenfolge = info.reihenfolge
         zeile.quelle = NEX
         zeile.aktiv = True
-        zeile.bereit = bool(eintrag.get("ready"))
+        # Nexviews "bereit", nicht nexcrates ``ready`` (``mapping.anfragbar``).
+        zeile.bereit = mapping.anfragbar(eintrag)
         zeile.gruende = mapping.gruende(eintrag)
         zeile.gesehen_am = jetzt
         zeile.verschwunden_am = None

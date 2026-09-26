@@ -292,7 +292,8 @@ def _fassungen_oeffentlich(
 
     Die Hauptfassung steht immer dabei, auch ohne eingerichtete Instanz: Sie
     ist es, die eine Anfrage ohne Angabe bekommt, und das Formular sah auch
-    vor den Fassungen so aus. ``bereit`` sagt, ob ihre Instanz steht.
+    vor den Fassungen so aus. ``bereit`` sagt, ob eine Anfrage dort zu etwas
+    fuehrt (``fassungen.bereit``).
     """
     eintraege: list[FassungOeffentlich] = []
     for art in ("movie", "tv"):
@@ -323,7 +324,7 @@ def _fassungen_oeffentlich(
                     klasse=info.klasse,
                     quelle=info.quelle,
                     haupt=kennung == haupt,
-                    bereit=settings.fassung(kennung) is not None,
+                    bereit=fassungen.bereit(db, settings, kennung),
                     offen_fuer_alle=fassungen.offen_fuer_alle(db, kennung),
                     approver_picks_target=settings.approver_picks_target(
                         art, fassungen.stufe(kennung)

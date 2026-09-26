@@ -276,6 +276,22 @@ def offen_fuer_alle(db: Session, kennung: str) -> bool:
     return fassung.offen_vorgabe if fassung is not None else False
 
 
+def bereit(db: Session, settings: AppSettings, kennung: str) -> bool:
+    """Fuehrt eine Anfrage in dieser Fassung zu etwas?
+
+    Im ARR-Betrieb heisst das wie von jeher: Die Instanz ist eingerichtet. Im
+    NEX-Betrieb zusaetzlich: nexcrate kann in der Fassung laden (die Zeile
+    traegt es, geschrieben vom Weg). Bis zum grossen Pruefgang (26.09.2026)
+    galt eine Fassung ohne Profil und Ordner als bereit.
+    """
+    if settings.fassung(kennung) is None:
+        return False
+    zeile = db.get(Fassung, kennung)
+    if zeile is None or zeile.quelle != NEX:
+        return True
+    return zeile.bereit
+
+
 def bekannte_kennungen(db: Session) -> frozenset[str]:
     """Jede Kennung, die eine Regel nennen darf: die ARR-Fassungen und jede Zeile."""
     return frozenset(ARR_KENNUNGEN) | frozenset(db.scalars(select(Fassung.kennung)))

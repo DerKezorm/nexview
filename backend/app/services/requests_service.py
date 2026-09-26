@@ -1339,6 +1339,17 @@ async def create_request(
     # eingerichtet".
     if haupt and settings.fassung(kennung) is None:
         raise _hauptfassung_fehlt(settings, media_type)
+    # Und dieselbe Frage zu Ende: Im NEX-Betrieb kann eine Fassung da sein und
+    # trotzdem nichts laden (kein Profil, kein Ordner). Eine Anfrage darin
+    # stand bis zum grossen Pruefgang (26.09.2026) fuer immer auf "wird
+    # gesucht", ohne dass nexcrate je suchte.
+    if settings.fassung(kennung) is not None and not fassungen.bereit(db, settings, kennung):
+        raise RequestError(
+            "Diese Fassung ist noch nicht fertig eingerichtet; eine Anfrage darin "
+            "würde nie geladen. Der Administrator richtet sie ein.",
+            409,
+            code="fassung_not_ready",
+        )
 
     # Eine eigene zurueckgestellte Anfrage zaehlt zwar nicht als "aktiv" - sie
     # blockiert ja bewusst niemanden -, aber **zweimal dasselbe** soll auch

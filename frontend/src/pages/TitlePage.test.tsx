@@ -226,3 +226,42 @@ describe('ohne TMDB', () => {
     ).not.toBeInTheDocument()
   })
 })
+
+describe('Wiederholen', () => {
+  /* "Gibt es nicht" wird beim zweiten Mal nicht wahrer: ein 404 wird genau
+     einmal geholt. Eine Störung (502) bekommt weiter ihren einen zweiten
+     Versuch. */
+  function detailAntwortet(status: number) {
+    holen.mockImplementation((async (pfad: string) => {
+      if (pfad === '/api/setup/status') {
+        return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      }
+      if (pfad === '/api/config') return { radarr_configured: true, sonarr_configured: true }
+      if (pfad === '/api/detail/movie/901') {
+        throw new ApiError(status, `Fehler ${status}`, status === 404 ? 'title_needs_tmdb' : null)
+      }
+      return []
+    }) as never)
+  }
+
+  function detailAufrufe(): number {
+    return holen.mock.calls.filter(([pfad]) => pfad === '/api/detail/movie/901').length
+  }
+
+  it('holt einen 404 nur einmal', async () => {
+    detailAntwortet(404)
+    seiteOeffnen()
+
+    await screen.findByRole('alert')
+    expect(detailAufrufe()).toBe(1)
+  })
+
+  it('versucht eine Störung ein zweites Mal', async () => {
+    detailAntwortet(502)
+    seiteOeffnen()
+
+    // Die Wiederholung wartet rund eine Sekunde; länger als findBy von sich aus.
+    await screen.findByRole('alert', {}, { timeout: 5000 })
+    expect(detailAufrufe()).toBe(2)
+  })
+})

@@ -90,6 +90,11 @@ EVENTS: dict[NotificationType, str] = {
     # Derselbe Haken: Ein Titel, der immer wieder beim Import haengt, ist ein
     # Problem an Radarr/Sonarr oder am Download-Programm - dieselbe Sorte
     # Durchsage, und ein eigener Haken waere einer zu viel.
+    #
+    # ⚠️ **Braucht keine NEX-Sonderbehandlung wie ``instanz_gesundheit``.** Der
+    # Titel ist in beiden Betriebsarten der Medientitel (``download_automatik``)
+    # und nennt nirgends Radarr oder Sonarr - siehe
+    # ``test_download_stuck_nennt_nirgends_radarr_sonarr``.
     NotificationType.download_stuck: "instance_health",
 }
 
@@ -477,19 +482,27 @@ def _notice(
 
     request = db.get(MediaRequest, eintrag.request_id) if eintrag.request_id else None
     titel = eintrag.title or (request.title if request else "")
-    if eintrag.type is NotificationType.instanz_gesundheit and settings.beschaffung_ist_nex:
+    if eintrag.type is NotificationType.instanz_gesundheit and eintrag.title:
         # Im NEX-Betrieb nennt die Nachricht nexcrate statt Radarr/Sonarr, und
         # der Hinweis kommt uebersetzt nach Kennung wie die Glocke - nie
         # nexcrates englischer Satz (Rundgang-Befund). ``eintrag.title`` traegt
-        # hier die Kennung (``notify.create`` mit ``channel_title``), nicht
-        # den Namen der Instanz wie im ARR-Betrieb.
+        # dann die Kennung (``notify.create`` mit ``channel_title``), nicht den
+        # Namen der Instanz wie im ARR-Betrieb.
+        #
+        # ⚠️ **Entschieden wird am Titel, nicht am *aktuellen* Betrieb**
+        # (Nachtrag zum Rundgang-Befund): Der Postausgang wartet bis zu zehn
+        # Sekunden zwischen Anlegen und Zustellen. Wechselte der Betrieb in der
+        # Zwischenzeit, traegt der Auftrag trotzdem seine NEX-Kennung, und die
+        # muss erkannt werden - ``settings.beschaffung_ist_nex`` fragt nur den
+        # Stand von *jetzt* und liesse die rohe Kennung roh im Kanal landen.
         from .beschaffung.nex import gesundheit as nex_gesundheit
 
-        bausteine = {
-            **bausteine,
-            "title": NEX_GESUNDHEIT_TITEL.get(sprache, NEX_GESUNDHEIT_TITEL["de"]),
-        }
-        titel = nex_gesundheit.kanaltext(eintrag.title or "", sprache)
+        if nex_gesundheit.hat_kanaltext(eintrag.title):
+            bausteine = {
+                **bausteine,
+                "title": NEX_GESUNDHEIT_TITEL.get(sprache, NEX_GESUNDHEIT_TITEL["de"]),
+            }
+            titel = nex_gesundheit.kanaltext(eintrag.title, sprache)
     if request is not None and request.season is not None:
         titel = f"{titel} · {STAFFEL.get(sprache, STAFFEL['de'])} {request.season}"
         titel += folgen_zusatz(request, sprache)

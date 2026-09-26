@@ -602,6 +602,94 @@ async def test_kanal_nennt_nexcrate_und_den_hinweis_im_nex_betrieb(
         assert "automatic for movie is off" not in gesamt
 
 
+def test_der_kanaltext_hat_jede_kennung_der_glocke() -> None:
+    """Gegenstueck zu ``test_die_glocke_hat_jeden_text``: dieselben Kennungen,
+    diesmal fuer den Kanal (Telegram, ntfy, ...) statt fuer die Glocke - in
+    beiden Sprachen, sonst faellt eine neue Kennung dort lautlos auf den
+    allgemeinen Satz zurueck."""
+    from app.services.beschaffung.nex import gesundheit
+
+    for sprache in ("de", "en"):
+        tabelle = gesundheit.KANALTEXT[sprache]
+        assert len(gesundheit.GLOCKE) >= 8
+        for kennung in gesundheit.GLOCKE:
+            schluessel = f"nexcrate.health.{kennung}"
+            assert schluessel in tabelle, (sprache, schluessel)
+            assert tabelle[schluessel], (sprache, schluessel)
+        assert "notifications.instanceHealth_nex" in tabelle
+        assert tabelle["notifications.instanceHealth_nex"]
+
+
+async def test_kanal_nennt_nie_die_rohe_kennung_nach_betriebswechsel(
+    nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``_notice`` entschied bisher nach dem *aktuellen* Betrieb
+    (``settings.beschaffung_ist_nex``). Der Postausgang wartet aber bis zu
+    zehn Sekunden zwischen Anlegen und Zustellen - wechselt der Betrieb in der
+    Zwischenzeit auf ARR, waere die rohe NEX-Kennung roh im Kanal gelandet,
+    nie ein Satz. Jetzt entscheidet der Titel selbst (``hat_kanaltext``),
+    unabhaengig vom Betrieb zur Zustellzeit."""
+    import httpx
+
+    from app.crypto import encrypt
+    from app.models import ChannelKind, ChannelTarget
+    from app.services import channel_outbox
+    from app.services.channels import base
+    from app.services.settings_service import save_settings
+
+    db.add(User(username="chef", password_hash=hash_password("test"), role=Role.admin))
+    db.add(
+        ChannelTarget(
+            channel=ChannelKind.gotify,
+            name="Handy",
+            url="http://gotify.test",
+            token=encrypt("geheim"),
+            language="de",
+            verified=True,
+            events={"instance_health": "high"},
+        )
+    )
+    db.commit()
+
+    nexcrate.health = [
+        {
+            "code": "automatic_off",
+            "level": "warning",
+            "message": "The automatic for movie is off.",
+            "params": {"kind": "movie"},
+        },
+    ]
+    await get_beschaffung(nex).gesundheit_pruefen(db)
+
+    # Der Auftrag liegt jetzt mit der NEX-Kennung in der Warteschlange - erst
+    # danach wechselt der Betrieb.
+    save_settings(db, {"beschaffung": "arr"})
+    db.commit()
+
+    gesehen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen.append(request)
+        return httpx.Response(200)
+
+    class Attrappe(httpx.AsyncClient):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            kwargs.pop("transport", None)
+            super().__init__(*args, transport=httpx.MockTransport(handler), **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(base.httpx, "AsyncClient", Attrappe)
+
+    settings = load_settings(db, frisch=True)
+    assert await channel_outbox.process(db, settings) == 1
+
+    daten = json.loads(gesehen[0].content)
+    assert daten["title"] == "nexcrate meldet ein Problem"
+    assert "Automatik für Filme" in daten["message"]
+    gesamt = daten["title"] + daten["message"]
+    assert "nexcrate.health" not in gesamt
+    assert "Radarr" not in gesamt and "Sonarr" not in gesamt
+
+
 def test_die_glocke_hat_jeden_text() -> None:
     """Jeder Schluessel, den die Glocke bekommen kann, steht in beiden Sprachen
     und ohne Platzhalter: Die Glocke zeigt keine Werte."""

@@ -1004,6 +1004,18 @@ def test_stillgelegte_instanz_legt_ihre_topics_mit_still(admin_client: TestClien
 # --- Meldungsgruppen --------------------------------------------------------
 
 
+def test_download_stuck_nennt_nirgends_radarr_sonarr() -> None:
+    """``download_stuck`` haengt am selben Haken wie ``instanz_gesundheit``
+    (``instance_health``), braucht aber keine NEX-Sonderbehandlung: sein Titel
+    ist in beiden Betriebsarten nur der Medientitel und nennt in keiner
+    Sprache und keinem Betrieb Radarr oder Sonarr."""
+    for sprache in ("de", "en"):
+        for tabelle in (channel_outbox.TEXTS, channel_outbox.PERSOENLICH):
+            titel = tabelle[sprache][NotificationType.download_stuck]["title"]
+            assert "Radarr" not in titel
+            assert "Sonarr" not in titel
+
+
 def test_entschieden_deckt_freigabe_und_ablehnung_ab() -> None:
     """Ein Haken fuer beides - fuer den Kanal ist es dieselbe Auskunft."""
     _ziel(events={"request_decided": "low"})

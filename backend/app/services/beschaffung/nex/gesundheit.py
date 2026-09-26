@@ -118,6 +118,20 @@ def kanaltext(code: str, sprache: str) -> str:
     return tabelle.get(code) or tabelle["notifications.instanceHealth_nex"]
 
 
+def hat_kanaltext(code: str) -> bool:
+    """Ist ``code`` eine Kennung, die ``kanaltext`` uebersetzen kann - keine
+    freie Zeichenkette wie der Arr-Titel ("Radarr: ...")?
+
+    ⚠️ **Damit entscheidet ``channel_outbox._notice`` nach dem Titel selbst,
+    nicht nach dem *aktuellen* Betrieb.** Der Postausgang wartet bis zu zehn
+    Sekunden; wechselt der Betrieb in der Zwischenzeit, traegt ein Auftrag aus
+    der NEX-Zeit trotzdem seine Kennung - die muss unabhaengig vom dann
+    geltenden Betrieb erkannt und uebersetzt werden, sonst laesst sie sich
+    roh in den Kanal.
+    """
+    return code in KANALTEXT["de"]
+
+
 def fuer_nexview(eintrag: dict[str, Any], eigene: frozenset[str] | None = None) -> bool:
     """Betrifft dieser Befund aus ``/health`` etwas, das Nexview fuehrt?
 

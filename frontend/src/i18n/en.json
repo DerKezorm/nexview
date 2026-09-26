@@ -2735,6 +2735,7 @@
     "age": "Age",
     "ageHint": "From 0 to 16. Only titles rated up to this age are shown. Titles without any age rating always stay hidden for children.",
     "ageInvalid": "Please enter an age between 0 and 16.",
+    "ageRequired": "Please enter an age.",
     "ageLine": "{{age}} years old",
     "create": "Create",
     "deleteText": "“{{name}}” will no longer be able to sign in. Requested titles are unaffected – they belong to your account.",

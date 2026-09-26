@@ -2735,6 +2735,7 @@
     "age": "Alter",
     "ageHint": "Von 0 bis 16. Gezeigt wird nur, was bis zu diesem Alter freigegeben ist. Titel ohne Altersfreigabe bleiben bei Kindern immer verborgen.",
     "ageInvalid": "Bitte gib ein Alter zwischen 0 und 16 an.",
+    "ageRequired": "Bitte gib ein Alter an.",
     "ageLine": "{{age}} Jahre",
     "create": "Anlegen",
     "deleteText": "„{{name}}“ kann sich danach nicht mehr anmelden. Angefragte Titel bleiben davon unberührt – sie laufen über dein Konto.",

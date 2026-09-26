@@ -411,6 +411,14 @@ function KindFeld({
     setFehler(null)
     setMeldung(null)
 
+    // ⚠️ `Number('')` ist `0`, kein `NaN` - ein leeres Feld wäre sonst ein
+    // stillschweigend gültiges "Alter 0". Deshalb eigens geprüft, mit einer
+    // eigenen Meldung statt der von `ageInvalid` (die nennt eine Spanne, die
+    // hier nicht die Ursache ist).
+    if (age.trim() === '') {
+      setFehler(t('children.ageRequired'))
+      return
+    }
     const alter = Number(age)
     if (!Number.isInteger(alter) || alter < 0 || alter > MAX_ALTER) {
       setFehler(t('children.ageInvalid'))
@@ -490,7 +498,10 @@ function KindFeld({
             max={MAX_ALTER}
             value={age}
             onChange={(event) => setAge(event.target.value)}
-            required
+            /* ⚠️ Kein natives `required`: Der Browser blockte das Absenden
+               dann still mit seinem eigenen, unübersetzten Hinweis - ohne
+               jede Reaktion von Nexview. Die Pflicht prüft `absenden()`
+               selbst und zeigt eine eigene, übersetzte Meldung. */
           />
 
           {/* Ein Kind stellt seine Sprache nicht selbst um - in der

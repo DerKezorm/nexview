@@ -1802,7 +1802,22 @@ async def create_request(
     db.refresh(request)
 
     if sofort:
-        return await push_to_arr(db, settings, request)
+        request = await push_to_arr(db, settings, request)
+        # ⚠️ **Sonst bleibt der Betreiber blind.** Ohne Entscheider gibt es kein
+        # "wartet auf Freigabe" - Anfrage und Freigabe fallen in denselben
+        # Augenblick. Bis zum 25.09.2026 fehlte deshalb jede Mitteilung auf
+        # Webhook und ntfy: ``_notify_admins`` (unten) laeuft nur im
+        # Warte-Zweig, und dieser Zweig rief nie etwas Vergleichbares auf.
+        # Eine einzelne "freigegeben" statt zusaetzlich einer "angefragt"
+        # vermeidet die doppelte Mitteilung fuer dasselbe Ereignis - genau wie
+        # bei einer Anfrage, die ein Mensch von Hand freigibt, meldet auch hier
+        # nur die tatsaechliche Entscheidung.
+        notify.create(
+            db, user=request.user, kind=NotificationType.approved,
+            message_key="notifications.approved", request=request,
+        )
+        db.commit()
+        return request
 
     _notify_admins(db, request)
     db.commit()

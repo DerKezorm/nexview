@@ -21,9 +21,13 @@ from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
 from app.models import (
+    ChannelKind,
+    ChannelMessage,
+    ChannelTarget,
     DownloadHaenger,
     MediaRequest,
     MediaType,
+    NotificationType,
     RequestStatus,
     Role,
     StorageEntry,
@@ -172,6 +176,43 @@ async def test_der_name_des_anfragenden_geht_nur_mit_schalter_hinaus(
     mit_namen = load_settings(db, frisch=True)
     await get_beschaffung(mit_namen).anfragen(db, anfrage)
     assert _gesendet(nexcrate, "/requests")[1]["origin_label"] == "schreiber"
+
+
+async def test_automatische_freigabe_meldet_sich_im_haus_kanal(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Befund: Anfragen von Konten mit automatischer Freigabe blieben auf
+    Webhook und ntfy stumm - weder "angefragt" noch "freigegeben" kam an, erst
+    viel spaeter "verfuegbar". ``_notify_admins`` (das "angefragt") lief nur im
+    Warte-Zweig; der Sofort-Zweig rief nie etwas Vergleichbares auf - im
+    NEX-Betrieb genauso wie im Arr-Betrieb.
+    """
+    db.add(
+        ChannelTarget(
+            channel=ChannelKind.webhook,
+            name="Haus",
+            url="http://example.com/hook",
+            verified=True,
+            events={"request_pending": "normal", "request_decided": "normal"},
+        )
+    )
+    db.commit()
+
+    nexcrate.film(9401, name="Frisch", versionen=[])
+    chefin = _nutzer(db, "chefin")
+    chefin.role = Role.admin
+    db.commit()
+
+    anfrage = await requests_service.create_request(
+        db, nex, chefin, _titel("movie", 9401), quality_profile_id=None
+    )
+
+    assert anfrage.status == RequestStatus.searching
+    # Genau eine Mitteilung ("freigegeben") - keine zusaetzliche "angefragt"
+    # fuer denselben Augenblick, wie es bei einer freigegebenen Anfrage sonst
+    # waere.
+    arten = [zeile.type for zeile in db.query(ChannelMessage).all()]
+    assert arten == [NotificationType.approved]
 
 
 @pytest.mark.parametrize(

@@ -1056,6 +1056,66 @@ def test_entschieden_deckt_freigabe_und_ablehnung_ab() -> None:
         assert db.query(ChannelMessage).count() == 2
 
 
+def test_auto_freigabe_meldet_sich_im_haus_kanal(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Befund: Anfragen von Konten mit automatischer Freigabe (hier: der Admin
+    selbst, ``auto_approve`` seit der Einrichtung) blieben auf Webhook und
+    ntfy stumm - weder "angefragt" noch "freigegeben" kam an, erst viel
+    spaeter "verfuegbar". Gegenstueck fuer den NEX-Betrieb:
+    ``test_automatische_freigabe_meldet_sich_im_haus_kanal`` in
+    ``test_nex_schreiben.py``.
+
+    Radarr ist bei ``arr_client`` absichtlich nicht erreichbar; der Titel
+    steht deshalb schon (ohne Datei) in der von ``library.movie_library``
+    gemeldeten Bibliothek, damit die Freigabe ohne Netzwerk gelingt - wie in
+    ``test_freigabe_sucht_einen_film_der_in_radarr_ohne_datei_liegt``.
+    """
+    from app.services.beschaffung.arr import library
+    from app.services.beschaffung.arr.radarr import LibraryEntry
+
+    _ziel(
+        kanal=ChannelKind.webhook,
+        events={"request_pending": "normal", "request_decided": "normal"},
+    )
+
+    item = arr_client.get("/api/discover/movie").json()["items"][0]
+
+    async def bestand(*_args, **_kwargs):
+        return {item["tmdb_id"]: LibraryEntry(arr_id=815, has_file=False, monitored=False)}
+
+    class UnueberwachterRadarr:
+        async def ensure_tag(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            return None
+
+        async def film_ueberwachen(self, arr_id: int) -> None:
+            return None
+
+        async def film_suchen(self, arr_id: int) -> None:
+            return None
+
+    monkeypatch.setattr(library, "movie_library", bestand)
+    monkeypatch.setattr(library, "radarr_client", lambda *a, **k: UnueberwachterRadarr())
+
+    antwort = arr_client.post(
+        "/api/requests",
+        json={
+            "media_type": "movie",
+            "tmdb_id": item["tmdb_id"],
+            "quality_profile_id": 1,
+            "root_folder_path": "/data/Movies",
+        },
+    )
+    assert antwort.status_code == 201, antwort.text
+    assert antwort.json()["status"] == "searching"
+
+    # Genau eine Mitteilung ("freigegeben") - keine zusaetzliche "angefragt"
+    # fuer denselben Augenblick, wie es bei einer wartenden Anfrage sonst waere.
+    with SessionLocal() as db:
+        arten = [zeile.type for zeile in db.query(ChannelMessage).all()]
+        assert arten == [NotificationType.approved]
+
+
 @pytest.mark.asyncio
 async def test_neu_verfuegbar_mit_eigenem_titel(monkeypatch: pytest.MonkeyPatch) -> None:
     gesehen: list[httpx.Request] = []

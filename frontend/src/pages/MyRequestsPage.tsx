@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { ApiError, api, gespeicherterFehler } from '../api/client'
-import type { MediaRequest, QuotaInfo, QuotaOverview } from '../api/types'
+import type { MediaRequest, QuotaInfo, QuotaOverview, User } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { TitelVerweis } from '../components/TitelVerweis'
 import { useStorageStand, type SpeicherStand } from '../hooks/useStorageStand'
@@ -181,6 +181,18 @@ function zaehle(alle: MediaRequest[], wert: Filter): number {
   return alle.filter((e) => e.status === wert).length
 }
 
+/** Der Satz unter den Kontingenten: Wird sofort freigegeben, und was? */
+function freigabeHinweis(
+  user: Pick<User, 'effective_auto_approve_movies' | 'effective_auto_approve_series'> | null,
+): string {
+  const filme = user?.effective_auto_approve_movies ?? false
+  const serien = user?.effective_auto_approve_series ?? false
+  if (filme && serien) return 'myRequests.autoApprove'
+  if (filme) return 'myRequests.autoApproveMoviesOnly'
+  if (serien) return 'myRequests.autoApproveSeriesOnly'
+  return 'myRequests.needsApproval'
+}
+
 export function MyRequestsPage() {
   const { t, i18n } = useTranslation()
   const weg = useWegKontext()
@@ -297,12 +309,11 @@ export function MyRequestsPage() {
           {/* Kommt vom angemeldeten Konto und nicht aus der Kontingent-
               Abfrage: Ob eine Anfrage freigegeben werden muss, hat mit der
               Währung nichts zu tun - und im Speicher-Betrieb wird die Abfrage
-              gar nicht mehr geladen. */}
-          <p className="mt-2 text-xs text-mist-600">
-            {user?.effective_auto_approve
-              ? t('myRequests.autoApprove')
-              : t('myRequests.needsApproval')}
-          </p>
+              gar nicht mehr geladen. ⚠️ Die Haken je Medienart, nicht der
+              alte Sammelhaken ``effective_auto_approve``: Der steht bei neuen
+              Konten auf aus, und dann stand hier „muss freigegeben werden“
+              über einer Anfrage, die längst gesucht wurde. */}
+          <p className="mt-2 text-xs text-mist-600">{t(freigabeHinweis(user))}</p>
         </section>
       )}
 

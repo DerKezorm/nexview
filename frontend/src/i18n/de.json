@@ -668,6 +668,8 @@
     "quotaUsed": "{{used}} von {{limit}} verbraucht",
     "quotaResets": "wird zurückgesetzt am {{date}}",
     "autoApprove": "Deine Anfragen werden sofort freigegeben.",
+    "autoApproveMoviesOnly": "Filme werden sofort freigegeben, Serien müssen vom Administrator freigegeben werden.",
+    "autoApproveSeriesOnly": "Serien werden sofort freigegeben, Filme müssen vom Administrator freigegeben werden.",
     "needsApproval": "Deine Anfragen müssen vom Administrator freigegeben werden.",
     "fromWatchlist": "Merkliste",
     "fromWatchlistTab": "Über Merkliste angefragt",

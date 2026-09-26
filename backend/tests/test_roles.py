@@ -122,6 +122,25 @@ def test_entscheider_gibt_sich_selbst_frei(arr_client: TestClient) -> None:
     assert danach["auto_approve"] is True
 
 
+def test_kontingent_nennt_die_freigabe_je_medienart(arr_client: TestClient) -> None:
+    """``auto_approve`` im Kontingent folgt den Haken je Medienart.
+
+    Seit es die getrennten Haken fuer Filme und Serien gibt, steht der alte
+    Sammelhaken bei neuen Konten auf aus. Das Kontingent las nur ihn und
+    meldete "muss freigegeben werden", waehrend die Anfrage im selben Moment
+    sofort freigegeben wurde. Wahr ist es nur, wenn beide Medienarten sofort
+    durchgehen.
+    """
+    create_user(
+        arr_client, "kim", auto_approve=False, auto_approve_movies=True, auto_approve_series=True
+    )
+    kim = auth_headers(arr_client, "kim", "passwort-1234")
+    assert arr_client.get("/api/requests/quota", headers=kim).json()["auto_approve"] is True
+
+    create_user(arr_client, "kim", auto_approve=True, auto_approve_series=False)
+    assert arr_client.get("/api/requests/quota", headers=kim).json()["auto_approve"] is False
+
+
 def test_entscheider_wird_ueber_neue_anfragen_benachrichtigt(arr_client: TestClient) -> None:
     _entscheider(arr_client)
     create_user(arr_client, "kim")

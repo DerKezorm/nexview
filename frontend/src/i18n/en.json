@@ -668,6 +668,8 @@
     "quotaUsed": "{{used}} of {{limit}} used",
     "quotaResets": "resets on {{date}}",
     "autoApprove": "Your requests are approved automatically.",
+    "autoApproveMoviesOnly": "Movies are approved automatically, series need administrator approval.",
+    "autoApproveSeriesOnly": "Series are approved automatically, movies need administrator approval.",
     "needsApproval": "Your requests need administrator approval.",
     "fromWatchlist": "Watchlist",
     "fromWatchlistTab": "Requested from watchlist",

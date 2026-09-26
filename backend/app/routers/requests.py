@@ -13,6 +13,7 @@ from .. import meldungen
 from ..deps import CurrentUser, DbSession
 from ..models import (
     MediaRequest,
+    MediaType,
     NotificationType,
     RequestStatus,
     TitleRating,
@@ -55,7 +56,11 @@ def read_quota(user: CurrentUser, db: DbSession) -> QuotaOverview:
     return QuotaOverview(
         movie=_quota_info(states["movie"]),
         tv=_quota_info(states["tv"]),
-        auto_approve=user.effective_auto_approve,
+        # Die Haken je Medienart, nicht der alte Sammelhaken: Der steht bei
+        # neuen Konten auf aus, auch wenn beide Medienarten sofort durchgehen.
+        auto_approve=(
+            user.auto_approve_for(MediaType.movie) and user.auto_approve_for(MediaType.tv)
+        ),
     )
 
 

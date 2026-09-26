@@ -263,7 +263,34 @@ docker compose up -d
 The database is kept. Nexview brings it up to date itself on start: missing tables,
 columns and indexes are added. **Before** anything is changed it writes a copy to
 `/data/sicherungen/`, keeping the five most recent — so if something does go wrong, the
-previous state is still there.
+previous state is still there. The latest copy taken before an update is never rotated
+out: it is the way back to the version you came from.
+
+### Going back to an older version
+
+**Do not simply start the older image on the updated data directory.** An older Nexview
+cannot read what a newer one has written, and it changes data without saying so: it
+cancels open requests, drops 4K rights and rebuilds storage entries. From 1.0.0 on,
+Nexview guards against this. A version older than 1.0.0 is stopped from writing (sign-in
+fails, and its log says why), and an older 1.x refuses to start. Either way nothing is
+changed, and the message names the backup to go back with.
+
+The way back is the backup taken before the update. It sits in `sicherungen/` inside the
+data directory, is named after the version its data came from, and carries the comment
+*Before update to …*, for example
+`nexview-automatisch-0.35.2-2026-09-26_091050-before-update-to-1-0-0.db`. The start log
+of the update names the exact file.
+
+1. Stop the container: `docker compose down`.
+2. In the data directory, copy that backup over `nexview.db`.
+3. Delete `nexview.db-wal` and `nexview.db-shm` if they exist. They belong to the newer
+   database and would be replayed onto the old one.
+4. Set the image to the older version (for example `ghcr.io/derkezorm/nexview:0.35.2`)
+   and start it: `docker compose up -d`.
+
+Everything done since the update (new requests, changed settings, new accounts) is not in
+that backup and is gone on the old version. Updating again later starts from the restored
+state and runs the update once more.
 
 ### Image tags
 

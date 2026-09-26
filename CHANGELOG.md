@@ -24,6 +24,16 @@ and everything that used to name a tier, requests, storage entries, rights,
 invitations, rules, points at it afterwards. The tier columns are dropped in
 the process. The backup is the way back.
 
+**Going back** means restoring that backup, not starting the old image on the
+updated data: 0.35.2 would cancel open requests and drop 4K rights without a
+word. Nexview writes the backup to `sicherungen/` in the data directory before
+the update, names it after the old version with the comment *Before update to
+1.0.0*, and says the file name in the start log. Stop the container, copy it
+over `nexview.db`, delete `nexview.db-wal` and `nexview.db-shm`, then start the
+old version; the README has the steps under *Going back to an older version*.
+An older version that is started anyway can no longer write to the database,
+and from now on an older 1.x refuses to start on a newer one.
+
 ### New
 
 - **nexcrate as a way to procure.** One connection instead of up to four, and

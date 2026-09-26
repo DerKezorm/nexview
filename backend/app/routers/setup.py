@@ -78,8 +78,9 @@ def erster_administrator(payload: SetupAdminCreate) -> User:
         # die eigene Installation (Befund aus dem grossen Pruefgang). Der
         # Tippfehler, gegen den die Bestaetigung schuetzen sollte, ist das
         # kleinere Uebel: Er trifft nur Mails an diese Adresse, und das Profil
-        # zeigt sie jederzeit an. Bestehende Installationen holt
-        # ``db._ersten_administrator_bestaetigen`` einmalig nach.
+        # zeigt sie jederzeit an. Einen Betreiber, der schon mit unbestaetigter
+        # Adresse dasteht (bestehende Installation, spaeter geaenderte Adresse),
+        # laesst die Anmeldung trotzdem herein; siehe ``auth.login``.
         email_verified=True,
         role=Role.admin,
         display_name=payload.display_name or payload.username,

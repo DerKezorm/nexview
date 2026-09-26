@@ -151,24 +151,15 @@ def test_update_ergaenzt_fehlende_spalten_und_tabellen(alte_installation: Path) 
 
 
 def test_update_ergaenzt_die_merkliste_beendeter_sitzungen(alte_installation: Path) -> None:
-    """Die Tabelle fuers Abmelden (1.0.0) entsteht auf einer alten Datenbank mit.
-
-    Und der Einmal-Schritt fuer den ersten Administrator laeuft dort sauber
-    durch, obwohl die Datenbank noch keinen Betreiber-Haken kennt.
-    """
+    """Die Tabelle fuers Abmelden (1.0.0) entsteht auf einer alten Datenbank mit."""
     db_modul.init_db()
 
     with db_modul.engine.connect() as connection:
         spalten = db_modul._existing_columns(connection, "beendete_sitzungen")
         indizes = db_modul._existing_indexes(connection, "beendete_sitzungen")
-        herkunft = connection.exec_driver_sql(
-            "SELECT wanderung_herkunft FROM wanderungen WHERE wanderung_name = ?",
-            ("_ersten_administrator_bestaetigen",),
-        ).scalar()
 
     assert spalten == {"sitzung", "user_id", "beendet_am", "bis"}
     assert {"ix_beendete_sitzungen_user_id", "ix_beendete_sitzungen_bis"} <= indizes
-    assert herkunft == db_modul.AUSGEFUEHRT
 
 
 def test_update_ergaenzt_die_media_server_verknuepfung(alte_installation: Path) -> None:

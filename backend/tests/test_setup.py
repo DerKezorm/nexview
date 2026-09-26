@@ -6,9 +6,9 @@ from fastapi.testclient import TestClient
 
 from app import db as db_modul
 from app.db import SessionLocal
-from app.models import Role, User
+from app.models import User
 
-from .conftest import ADMIN, create_user
+from .conftest import ADMIN
 
 
 def test_status_meldet_einrichtung_noetig(client: TestClient) -> None:
@@ -98,90 +98,41 @@ def _bestaetigt() -> bool:
         return db.query(User).filter(User.username == ADMIN["username"]).one().email_verified
 
 
-def _herkunft() -> str | None:
-    with db_modul.engine.connect() as verbindung:
-        return verbindung.exec_driver_sql(
-            "SELECT wanderung_herkunft FROM wanderungen WHERE wanderung_name = ?",
-            ("_ersten_administrator_bestaetigen",),
-        ).scalar()
+def test_ein_update_bestaetigt_keine_adresse_des_betreibers(client: TestClient) -> None:
+    """Eine unbestaetigte Adresse des Betreibers bleibt es auch nach dem Update.
 
-
-def _datenbank_von_vorher() -> None:
-    """Das Buch ohne den neuen Schritt - so kommt eine Datenbank vor 1.0.0 an.
-
-    Der ``client`` hat beim Hochfahren schon ``init_db`` laufen lassen, auf
-    leeren Tabellen; der Schritt steht dadurch als vorgefunden im Buch.
-    """
-    with db_modul.engine.begin() as verbindung:
-        verbindung.exec_driver_sql(
-            "DELETE FROM wanderungen WHERE wanderung_name = ?",
-            ("_ersten_administrator_bestaetigen",),
-        )
-
-
-def test_ein_schon_ausgesperrter_betreiber_kommt_nach_dem_update_wieder_herein(
-    client: TestClient,
-) -> None:
-    """Bestehende Installation: der Betreiber von damals, unbestaetigt.
-
-    Hereinlassen wuerde ihn seit 1.0.0 schon die Anmeldung, die den Betreiber
-    von der Sperre ausnimmt (``test_onboarding.py``). Der Schritt holt die
-    Bestaetigung trotzdem nach: Der Assistent hatte sie versprochen, und ohne
-    sie gehen keine Benachrichtigungen an die Adresse.
+    Bis zur Abnahme von 1.0.0 stand hier ein Einmal-Schritt
+    (``_ersten_administrator_bestaetigen``), der sie beim Update bestaetigte,
+    damit ein schon ausgesperrter Betreiber wieder hereinkam. Das erledigt
+    jetzt die Anmeldung, die den Betreiber von der Sperre ausnimmt. Der
+    Schritt haette dazu jede spaeter geaenderte, nie gepruefte Adresse des
+    Betreibers bestaetigt, und Benachrichtigungen gingen an sie.
     """
     assert client.post("/api/setup/admin", json=ADMIN).status_code == 201
     _betreiber_unbestaetigt()
-    _datenbank_von_vorher()
-    assert _bestaetigt() is False, "Vorbedingung: so sah der Befund aus"
 
-    db_modul.init_db()
-
-    assert _bestaetigt() is True
-    assert _herkunft() == db_modul.AUSGEFUEHRT
-    assert _anmelden(client) == 200
-
-
-def test_der_schritt_laeuft_nur_einmal(client: TestClient) -> None:
-    """Eine spaeter geaenderte Adresse gilt erst mit dem Link als bestaetigt.
-
-    Liefe der Schritt bei jedem Start, bestaetigte ein Neustart sie ungefragt.
-    """
-    assert client.post("/api/setup/admin", json=ADMIN).status_code == 201
-    _betreiber_unbestaetigt()
-    _datenbank_von_vorher()
-    db_modul.init_db()
-    assert _bestaetigt() is True
-
-    _betreiber_unbestaetigt()
     db_modul.init_db()
 
     assert _bestaetigt() is False
+    assert _anmelden(client) == 200
 
 
-def test_der_schritt_fasst_nur_den_betreiber_an(admin_client: TestClient) -> None:
-    """Ein anderes unbestaetigtes Konto bleibt, wie es ist - auch ein Administrator."""
-    create_user(admin_client, "zweiter", "zweites-passwort", role=Role.admin)
-    with SessionLocal() as db:
-        zweiter = db.query(User).filter(User.username == "zweiter").one()
-        zweiter.email_verified = False
-        db.commit()
-    _betreiber_unbestaetigt()
-    _datenbank_von_vorher()
-
-    db_modul.init_db()
-
-    with SessionLocal() as db:
-        assert db.query(User).filter(User.username == "zweiter").one().email_verified is False
-    assert _bestaetigt() is True
-
-
-def test_ohne_unbestaetigten_betreiber_gilt_der_schritt_als_erledigt(
+def test_ein_alter_bucheintrag_des_entfernten_schritts_stoert_nicht(
     client: TestClient,
 ) -> None:
-    """Nichts nachzuholen: vorgefunden, nicht ausgefuehrt."""
+    """Eine Datenbank, auf der der Schritt vor seiner Entfernung schon lief.
+
+    Die Zeile im Wanderungsbuch bleibt liegen; das Buch fragt nur nach den
+    Schritten, die es gibt.
+    """
     assert client.post("/api/setup/admin", json=ADMIN).status_code == 201
-    _datenbank_von_vorher()
+    with db_modul.engine.begin() as verbindung:
+        db_modul._eintragen(
+            verbindung, "_ersten_administrator_bestaetigen", db_modul.AUSGEFUEHRT
+        )
+    _betreiber_unbestaetigt()
 
     db_modul.init_db()
 
-    assert _herkunft() == db_modul.VORGEFUNDEN
+    assert _bestaetigt() is False
+    assert _anmelden(client) == 200

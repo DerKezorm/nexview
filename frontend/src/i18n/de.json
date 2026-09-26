@@ -1885,6 +1885,7 @@
     "saveKey": "Speichern",
     "whereKey": "Den API-Schlüssel legst du im Medienserver selbst an: Jellyfin unter Verwaltung → API-Schlüssel, Emby unter Erweitert → API-Schlüssel. Das ist ein anderer Zugang als der, mit dem Nexview spricht — der entsteht aus Benutzer und Passwort und endet mit der Sitzung.",
     "unreachable": "Nicht erreichbar",
+    "noServer": "Kein Medienserver eingerichtet",
     "allLinked": "Alle verbunden",
     "missing": "{{name}} fehlt",
     "connectAll": "Fehlende Verbindungen herstellen",

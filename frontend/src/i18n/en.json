@@ -1885,6 +1885,7 @@
     "saveKey": "Save",
     "whereKey": "You create the API key in the media server itself: Jellyfin under Dashboard → API Keys, Emby under Advanced → API Keys. It is a different access from the one Nexview uses — that one comes from a username and password and ends with the session.",
     "unreachable": "Not reachable",
+    "noServer": "No media server set up",
     "allLinked": "All linked",
     "missing": "{{name}} missing",
     "connectAll": "Create the missing connections",

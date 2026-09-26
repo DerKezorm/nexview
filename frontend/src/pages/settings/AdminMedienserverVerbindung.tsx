@@ -301,6 +301,14 @@ export function AdminMedienserverVerbindung() {
                 <span className="text-xs text-mist-600">
                   {t('mediaLink.unreachable')}
                 </span>
+              ) : server.length === 0 ? (
+                // ⚠️ Ohne einen einzigen eingerichteten Medienserver ist die
+                // Lücken-Liste jeder Instanz trivial leer (0 von 0) - das ist
+                // kein Beweis für eine bestehende Verbindung, sondern der
+                // Grund, warum es überhaupt nichts zu verbinden gibt.
+                <span className="text-xs text-mist-600">
+                  {t('mediaLink.noServer')}
+                </span>
               ) : i.fehlend.length === 0 ? (
                 <span className="rounded-full border border-ok-500/50 bg-ok-500/10 px-2.5 py-0.5 text-xs text-ok-500">
                   {t('mediaLink.allLinked')}

@@ -323,6 +323,29 @@ describe('der Schlüssel', () => {
   })
 })
 
+describe('"Alle verbunden" ohne Medienserver', () => {
+  it('behauptet keine Verbindung, wo gar kein Medienserver eingerichtet ist', async () => {
+    // ⚠️ Ohne eingerichteten Medienserver ist die Lücken-Liste einer Instanz
+    // trivial leer (0 von 0) - das allein ist kein Beweis für eine
+    // bestehende Rückverbindung.
+    lage({ server: [], instanzen: [instanz({ fehlend: [], verbunden: [] })] })
+    rendernSchlicht(<AdminMedienserverVerbindung />)
+
+    await screen.findByText('Radarr FHD')
+    expect(screen.queryByText('Alle verbunden')).not.toBeInTheDocument()
+  })
+
+  it('zeigt "Alle verbunden", wenn wirklich eine Verbindung besteht', async () => {
+    lage({
+      server: [zugang()],
+      instanzen: [instanz({ fehlend: [], verbunden: ['jellyfin'] })],
+    })
+    rendernSchlicht(<AdminMedienserverVerbindung />)
+
+    expect(await screen.findByText('Alle verbunden')).toBeInTheDocument()
+  })
+})
+
 describe('der Anzeigename', () => {
   // ⚠️ Der Name eines Medienservers kommt aus dem Server selbst und ist oft
   // unbrauchbar: mal der Anbietername doppelt, mal eine Gerätekennung.

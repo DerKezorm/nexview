@@ -1039,6 +1039,38 @@ class ApiKey(Base):
     user: Mapped[User] = relationship("User")
 
 
+class BeendeteSitzung(Base):
+    """Eine Sitzung, die mit "Abmelden" beendet wurde - die Merkliste dazu.
+
+    ⚠️ **Warum es diese Tabelle gibt.** Zugangs- und Erneuerungs-Token sind
+    reine JWT ohne Eintrag in der Datenbank. Abmelden nahm deshalb nur das
+    Cookie aus *diesem* Browser; eine vorher gezogene Kopie davon holte sich
+    ueber ``/api/auth/refresh`` weiter frische Zugangs-Token, bis zu dreissig
+    Tage lang (Befund aus dem grossen Pruefgang). Jedes Token traegt seitdem
+    die Kennung seiner Sitzung (``sid``), die beim Erneuern mitwandert; steht
+    sie hier, gilt keines der Token dieser Sitzung mehr - weder die Kopie des
+    Cookies noch das laufende Zugangs-Token. Die anderen Geraete desselben
+    Kontos bleiben angemeldet, dafuer gibt es "ueberall abmelden".
+
+    Die Kennung ist kein Geheimnis: Sie steht lesbar in jedem Token und nuetzt
+    ohne dessen Unterschrift nichts. Sie liegt deshalb im Klartext hier.
+
+    Eine Zeile wird nach ``bis`` nicht mehr gebraucht - danach ist jedes Token
+    dieser Sitzung ohnehin abgelaufen. ``sitzung.beenden`` raeumt sie beim
+    naechsten Abmelden mit ab.
+    """
+
+    __tablename__ = "beendete_sitzungen"
+
+    sitzung: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    beendet_am: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    #: Ab hier kann kein Token dieser Sitzung mehr gelten.
+    bis: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+
+
 class AuthToken(Base):
     """Einmal-Links fuer Einladung, Adressbestaetigung und Passwort-Reset.
 

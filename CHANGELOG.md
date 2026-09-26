@@ -262,6 +262,13 @@ the process. The backup is the way back.
   before the switch to nexcrate, which keep their old version, still count by
   tier. A series without a TVDB number is now found by its TMDB number, where
   its entry used to fall to the house.
+- **Signing out did not end the session on the server**, in Radarr mode too.
+  It only removed the cookie from the browser; a copy of that cookie taken
+  earlier kept fetching fresh access for up to 30 days. Signing out now ends
+  the session itself: every copy of its cookie and the access token still in
+  use stop working at once, while your other devices stay signed in.
+  ⚠️ **Everyone signs in once after this update**, because sessions from
+  before it carry nothing that signing out could end.
 - **The first administrator was locked out without a mail server.** Setup
   said the address "counts as confirmed right away", but the account was
   created unconfirmed, so after the first session ended, signing in was

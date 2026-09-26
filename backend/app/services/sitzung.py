@@ -35,23 +35,37 @@ umsonst - deshalb haelt ``test_sitzung.py`` fest, dass
 
 Einladung einloesen und Passwort zuruecksetzen geben uebrigens **gar keine**
 Token aus; beide schicken danach auf die normale Anmeldung.
+
+⚠️ **Abmelden beendet die Sitzung auf dem Server, nicht nur im Browser.**
+Bis 1.0.0 nahm es nur das Cookie weg; wer vorher eine Kopie davon gezogen
+hatte, kam damit dreissig Tage lang weiter herein (Befund aus dem grossen
+Pruefgang). Jedes Token traegt seitdem die Kennung seiner Sitzung, die beim
+Erneuern mitwandert, und ``beenden`` traegt sie in ``beendete_sitzungen``
+ein. Danach gilt kein Token dieser Sitzung mehr: nicht die Kopie des
+Cookies und auch nicht das Zugangs-Token, das gerade noch laeuft
+(``beendet``, gefragt von ``deps.get_current_user`` und ``/refresh``). Andere
+Geraete desselben Kontos bleiben angemeldet.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import UTC
+from datetime import UTC, timedelta
 
 from fastapi import Request, Response
+from sqlalchemy import delete
+from sqlalchemy.orm import Session
 
 from ..config import get_settings
-from ..models import User
+from ..models import BeendeteSitzung, User, utcnow
 from ..schemas import TokenPair
 from ..security import (
     TokenInhalt,
     access_token_expires_in,
     create_access_token,
     create_refresh_token,
+    decode_token,
+    neue_sitzung,
 )
 
 logger = logging.getLogger("nexview.sitzung")
@@ -112,14 +126,23 @@ def _secure(request: Request) -> bool:
 cookie_secure = _secure
 
 
-def starten(response: Response, request: Request, user: User) -> TokenPair:
+def starten(
+    response: Response, request: Request, user: User, *, fortsetzen: str | None = None
+) -> TokenPair:
     """Eine Sitzung beginnen: Cookie setzen, Zugangs-Token zurueckgeben.
 
     Der einzige Ort, an dem ein Erneuerungs-Token entsteht.
+
+    ``fortsetzen`` ist die Kennung der Sitzung, die gerade erneuert wird - nur
+    ``/refresh`` gibt sie mit. ⚠️ **Sie muss mitwandern.** Bekaeme jede
+    Erneuerung eine neue, beendete das Abmelden nur das letzte Glied der
+    Kette: Eine Kopie des Cookies von gestern truege eine andere Kennung und
+    kaeme weiter herein - genau der Befund, fuer den es die Kennung gibt.
     """
+    kennung = fortsetzen or neue_sitzung()
     response.set_cookie(
         COOKIE_NAME,
-        create_refresh_token(user.id),
+        create_refresh_token(user.id, kennung),
         max_age=get_settings().refresh_token_days * 24 * 60 * 60,
         path=cookie_pfad(),
         httponly=True,
@@ -127,18 +150,53 @@ def starten(response: Response, request: Request, user: User) -> TokenPair:
         secure=_secure(request),
     )
     return TokenPair(
-        access_token=create_access_token(user.id),
+        access_token=create_access_token(user.id, kennung),
         expires_in=access_token_expires_in(),
     )
 
 
-def beenden(response: Response, request: Request) -> None:
-    """Cookie loeschen.
+def beenden(response: Response, request: Request, db: Session) -> None:
+    """Die Sitzung dieses Browsers beenden - auf dem Server und im Browser.
 
-    Pfad und ``Secure`` muessen dieselben sein wie beim Setzen, sonst loescht
-    der Browser ein anderes (nicht vorhandenes) Cookie und das echte bleibt
-    liegen.
+    Beendet wird, was das Cookie nennt, und zusaetzlich, was ein mitgeschicktes
+    Zugangs-Token nennt (fuer ein Programm, das ohne Cookie arbeitet). Ein
+    abgelaufenes, gefaelschtes oder fehlendes Token beendet nichts; das Cookie
+    geht trotzdem weg. Ein abgelaufenes Erneuerungs-Token muss auch nichts
+    beenden: Jedes Zugangs-Token seiner Sitzung ist frueher abgelaufen.
+
+    Pfad und ``Secure`` muessen beim Loeschen dieselben sein wie beim Setzen,
+    sonst loescht der Browser ein anderes (nicht vorhandenes) Cookie und das
+    echte bleibt liegen.
     """
+    kandidaten = []
+    roh = gelesen(request)
+    if roh:
+        kandidaten.append(decode_token(roh, "refresh"))
+    kopf = request.headers.get("authorization", "")
+    if kopf[:7].lower() == "bearer ":
+        kandidaten.append(decode_token(kopf[7:].strip(), "access"))
+
+    jetzt = utcnow().replace(tzinfo=None)
+    # Aufgeraeumt wird hier und nur hier: Neue Zeilen entstehen nur beim
+    # Abmelden, und was nach ``bis`` noch steht, schuetzt vor nichts mehr.
+    db.execute(delete(BeendeteSitzung).where(BeendeteSitzung.bis < jetzt))
+    # Laenger kann kein Token leben, das vor diesem Moment ausgestellt wurde.
+    bis = jetzt + timedelta(days=get_settings().refresh_token_days)
+    for inhalt in kandidaten:
+        if inhalt is None or db.get(BeendeteSitzung, inhalt.sitzung) is not None:
+            continue
+        if db.get(User, inhalt.benutzer_id) is None:
+            continue
+        db.add(
+            BeendeteSitzung(
+                sitzung=inhalt.sitzung, user_id=inhalt.benutzer_id, beendet_am=jetzt, bis=bis
+            )
+        )
+        # Sofort, damit ein zweites Token derselben Sitzung (Cookie und Kopf
+        # zugleich) oben schon als beendet gefunden wird.
+        db.flush()
+    db.commit()
+
     response.delete_cookie(
         COOKIE_NAME,
         path=cookie_pfad(),
@@ -151,6 +209,16 @@ def beenden(response: Response, request: Request) -> None:
 def gelesen(request: Request) -> str | None:
     """Das Erneuerungs-Token aus dem Cookie - oder ``None``."""
     return request.cookies.get(COOKIE_NAME)
+
+
+def beendet(db: Session, inhalt: TokenInhalt) -> bool:
+    """Wurde die Sitzung dieses Tokens mit "Abmelden" beendet?
+
+    Eine Abfrage ueber den Primaerschluessel je Anfrage - der Preis dafuer,
+    dass Abmelden auch das laufende Zugangs-Token beendet und nicht erst das
+    naechste Erneuern.
+    """
+    return db.get(BeendeteSitzung, inhalt.sitzung) is not None
 
 
 def gilt_noch(inhalt: TokenInhalt, user: User) -> bool:

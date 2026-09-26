@@ -604,10 +604,13 @@ TEXTE: dict[str, tuple[str, str]] = {
     'POST /api/auth/logout': (
         'Sign out of this browser',
         (
-            'Clears the cookie. **Without an authentication check, on purpose:** anyone '
-            'who wants to sign out should be able to, even if their access token '
-            'expired long ago. Note this ends the session in *this* browser only - to '
-            'end them everywhere, see the sign-out-everywhere endpoint.'
+            'Ends the session of this browser on the server and clears the cookie. '
+            'Afterwards no token of that session works any more - neither a copy of '
+            'the cookie taken earlier nor the access token still in use. **Without '
+            'an authentication check, on purpose:** anyone who wants to sign out '
+            'should be able to, even if their access token expired long ago; only '
+            'the session whose token comes with the request is ended. Other devices '
+            'stay signed in - to end them all, see the sign-out-everywhere endpoint.'
         ),
     ),
     'GET /api/auth/me': (
@@ -700,17 +703,18 @@ TEXTE: dict[str, tuple[str, str]] = {
         (
             'Ends every session of this account on every device, including the one '
             'making the call, without changing the password. ⚠️ **The way out that did '
-            'not exist before 0.22.** Ordinary sign-out only removes the cookie from '
-            '*this* browser; a copy taken elsewhere kept working until it expired, up '
-            'to 30 days.'
+            'not exist before 0.22.** Ordinary sign-out only ends the session of '
+            '*this* browser; a session on another device, one you no longer have in '
+            'hand, is only reached from here.'
         ),
     ),
     'POST /api/auth/refresh': (
         'Renew the access token',
         (
             'The refresh token is read from the HttpOnly cookie, not from the request '
-            'body. Clients still holding a token in `localStorage` from an older '
-            'version have to sign in once.'
+            'body. The new pair belongs to the same session, so signing out later '
+            'ends it together with every earlier copy. Tokens from before 1.0.0 '
+            'carry no session and are refused; those clients sign in once.'
         ),
     ),
     'POST /api/onboarding/forgot-password': (

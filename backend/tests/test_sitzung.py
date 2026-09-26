@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.main import app
-from app.models import User, utcnow
+from app.models import BeendeteSitzung, User, utcnow
 from app.security import create_access_token, decode_token
 
 from .conftest import ADMIN, auth_headers, create_user
@@ -292,17 +292,17 @@ def test_altes_token_gilt_nicht_mehr(admin_client: TestClient) -> None:
         person.password_changed_at = utcnow() + timedelta(days=1)
         session.commit()
 
-    kopf = {"Authorization": f"Bearer {create_access_token(erstellt['id'])}"}
+    kopf = {"Authorization": f"Bearer {create_access_token(erstellt['id'], 'handgebaut')}"}
     assert admin_client.get("/api/auth/me", headers=kopf).status_code == 401
 
 
 class TestUeberallAbmelden:
     """⚠️ Der Ausweg, den es bis 0.22 nicht gab.
 
-    Gewoehnliches Abmelden nimmt nur das Cookie aus **diesem** Browser. Wer
-    eine Kopie hat, kommt damit weiter herein - der einzige Riegel war ein
-    Passwortwechsel. Also musste man sein Passwort aendern, obwohl mit dem
-    Passwort nichts war.
+    Gewoehnliches Abmelden beendet nur die Sitzung **dieses** Browsers. An
+    ein anderes Geraet kommt man damit nicht heran - der einzige Riegel dafuer
+    war ein Passwortwechsel. Also musste man sein Passwort aendern, obwohl mit
+    dem Passwort nichts war.
     """
 
     def test_setzt_die_grenze(self, admin_client: TestClient) -> None:
@@ -356,3 +356,234 @@ class TestUeberallAbmelden:
 
     def test_nicht_ohne_anmeldung(self, client: TestClient) -> None:
         assert client.post("/api/auth/me/ueberall-abmelden").status_code in (401, 403)
+
+
+# --------------------------------------------------------------------------
+# Abmelden beendet die Sitzung auf dem Server
+# --------------------------------------------------------------------------
+#
+# Befund aus dem grossen Pruefgang: Abmelden nahm nur das Cookie aus dem
+# Browser. Eine vorher gezogene Kopie holte sich ueber ``/refresh`` weiter
+# frische Zugangs-Token, bis zu dreissig Tage lang, in beiden Betriebsarten
+# gleich (der Weg ist gemeinsamer Code).
+
+
+def _anmelden(
+    name: str = "wanderer", passwort: str = "passwort-1234"
+) -> tuple[TestClient, str, dict[str, str]]:
+    """Ein eigener Browser: er selbst, sein Cookie-Wert und sein Zugangs-Kopf."""
+    browser = TestClient(app)
+    antwort = browser.post("/api/auth/login", json={"username": name, "password": passwort})
+    assert antwort.status_code == 200, antwort.text
+    return (
+        browser,
+        antwort.cookies["nexview_refresh"],
+        {"Authorization": f"Bearer {antwort.json()['access_token']}"},
+    )
+
+
+def _mit_kopie(cookie: str) -> int:
+    """Ein ganz neuer, leerer Browser, der nur diesen einen Cookie-Wert kennt."""
+    fremd = TestClient(app)
+    return fremd.post(
+        "/api/auth/refresh", headers={"Cookie": f"nexview_refresh={cookie}"}
+    ).status_code
+
+
+def test_abmelden_entwertet_eine_kopie_des_cookies(admin_client: TestClient) -> None:
+    """Genau die Schritte aus dem Befund."""
+    create_user(admin_client, "wanderer")
+    browser, cookie, _ = _anmelden()
+    assert _mit_kopie(cookie) == 200, "Vorbedingung: die Kopie gilt vor dem Abmelden"
+
+    assert browser.post("/api/auth/logout").status_code == 204
+
+    assert _mit_kopie(cookie) == 401
+
+
+def test_abmelden_beendet_auch_das_laufende_zugangs_token(admin_client: TestClient) -> None:
+    """Sonst liefe es nach dem Abmelden noch bis zu dreissig Minuten weiter."""
+    create_user(admin_client, "wanderer")
+    browser, _, kopf = _anmelden()
+    assert admin_client.get("/api/auth/me", headers=kopf).status_code == 200
+
+    assert browser.post("/api/auth/logout").status_code == 204
+
+    assert admin_client.get("/api/auth/me", headers=kopf).status_code == 401
+
+
+def test_eine_kopie_von_vor_dem_erneuern_faellt_mit(admin_client: TestClient) -> None:
+    """⚠️ Die Kennung der Sitzung wandert beim Erneuern mit.
+
+    Bekaeme jede Erneuerung eine neue, beendete das Abmelden nur das letzte
+    Glied der Kette - die Kopie von gestern kaeme weiter herein.
+    """
+    create_user(admin_client, "wanderer")
+    browser, gestern, _ = _anmelden()
+    erneuert = browser.post("/api/auth/refresh")
+    assert erneuert.status_code == 200
+    assert erneuert.cookies["nexview_refresh"] != gestern
+
+    assert browser.post("/api/auth/logout").status_code == 204
+
+    assert _mit_kopie(gestern) == 401
+
+
+def test_eine_kopie_kann_die_sitzung_nicht_verlaengern(admin_client: TestClient) -> None:
+    """Auch was die Kopie selbst erneuert hat, gehoert zur beendeten Sitzung."""
+    create_user(admin_client, "wanderer")
+    browser, cookie, _ = _anmelden()
+    fremd = TestClient(app)
+    verlaengert = fremd.post(
+        "/api/auth/refresh", headers={"Cookie": f"nexview_refresh={cookie}"}
+    )
+    assert verlaengert.status_code == 200
+    fremder_kopf = {"Authorization": f"Bearer {verlaengert.json()['access_token']}"}
+
+    assert browser.post("/api/auth/logout").status_code == 204
+
+    assert _mit_kopie(verlaengert.cookies["nexview_refresh"]) == 401
+    assert admin_client.get("/api/auth/me", headers=fremder_kopf).status_code == 401
+
+
+def test_andere_geraete_bleiben_angemeldet(admin_client: TestClient) -> None:
+    """Abmelden auf dem Handy wirft nicht vom Fernseher."""
+    create_user(admin_client, "wanderer")
+    handy, _, _ = _anmelden()
+    fernseher, cookie, kopf = _anmelden()
+
+    assert handy.post("/api/auth/logout").status_code == 204
+
+    assert admin_client.get("/api/auth/me", headers=kopf).status_code == 200
+    assert _mit_kopie(cookie) == 200
+    assert fernseher.post("/api/auth/refresh").status_code == 200
+
+
+def test_abmelden_mit_dem_zugangs_token_allein(admin_client: TestClient) -> None:
+    """Ein Programm ohne Cookie beendet seine Sitzung ueber den Kopf."""
+    create_user(admin_client, "wanderer")
+    _, cookie, kopf = _anmelden()
+    ohne_cookie = TestClient(app)
+
+    assert ohne_cookie.post("/api/auth/logout", headers=kopf).status_code == 204
+
+    assert admin_client.get("/api/auth/me", headers=kopf).status_code == 401
+    assert _mit_kopie(cookie) == 401
+
+
+def test_zweimal_abmelden_schadet_nicht(admin_client: TestClient) -> None:
+    create_user(admin_client, "wanderer")
+    _, cookie, kopf = _anmelden()
+    fremd = TestClient(app)
+    beides = {**kopf, "Cookie": f"nexview_refresh={cookie}"}
+
+    assert fremd.post("/api/auth/logout", headers=beides).status_code == 204
+    assert fremd.post("/api/auth/logout", headers=beides).status_code == 204
+
+    with SessionLocal() as session:
+        assert session.query(BeendeteSitzung).count() == 1
+
+
+def test_ein_gefaelschtes_cookie_beendet_nichts(admin_client: TestClient) -> None:
+    fremd = TestClient(app)
+    antwort = fremd.post(
+        "/api/auth/logout",
+        headers={"Cookie": "nexview_refresh=kein.echtes.token", "Authorization": "Bearer x"},
+    )
+    assert antwort.status_code == 204
+    with SessionLocal() as session:
+        assert session.query(BeendeteSitzung).count() == 0
+
+
+def test_abgelaufene_eintraege_werden_beim_abmelden_aufgeraeumt(
+    admin_client: TestClient,
+) -> None:
+    """Nach ``bis`` kann kein Token der Sitzung mehr gelten - die Zeile geht."""
+    erstellt = create_user(admin_client, "wanderer")
+    jetzt = utcnow().replace(tzinfo=None)
+    with SessionLocal() as session:
+        session.add_all(
+            [
+                BeendeteSitzung(
+                    sitzung="alt", user_id=erstellt["id"], bis=jetzt - timedelta(minutes=1)
+                ),
+                BeendeteSitzung(
+                    sitzung="frisch", user_id=erstellt["id"], bis=jetzt + timedelta(days=1)
+                ),
+            ]
+        )
+        session.commit()
+
+    assert TestClient(app).post("/api/auth/logout").status_code == 204
+
+    with SessionLocal() as session:
+        assert {z.sitzung for z in session.query(BeendeteSitzung)} == {"frisch"}
+
+
+def test_die_sperre_reicht_bis_zum_letzten_moeglichen_ablauf(
+    admin_client: TestClient,
+) -> None:
+    """Kein Token dieser Sitzung darf seine Zeile ueberleben."""
+    create_user(admin_client, "wanderer")
+    browser, _, _ = _anmelden()
+    vorher = utcnow().replace(tzinfo=None)
+
+    assert browser.post("/api/auth/logout").status_code == 204
+
+    with SessionLocal() as session:
+        zeile = session.query(BeendeteSitzung).one()
+    assert zeile.bis >= vorher + timedelta(days=30)
+
+
+def test_ein_token_ohne_sitzungskennung_gilt_nicht(admin_client: TestClient) -> None:
+    """So sieht ein Token von vor 1.0.0 aus: Abmelden koennte es nie beenden.
+
+    Kosten: Nach dem Update meldet sich jeder einmal neu an.
+    """
+    import jwt
+
+    from app.security import ALGORITHM, _signing_key
+
+    erstellt = create_user(admin_client, "wanderer")
+    jetzt = datetime.now(UTC)
+    inhalt = {
+        "sub": str(erstellt["id"]),
+        "iat": int(jetzt.timestamp()),
+        "ms": int(jetzt.timestamp() * 1000),
+        "exp": int((jetzt + timedelta(minutes=5)).timestamp()),
+    }
+    zugang = jwt.encode({**inhalt, "type": "access"}, _signing_key(), algorithm=ALGORITHM)
+    erneuerung = jwt.encode({**inhalt, "type": "refresh"}, _signing_key(), algorithm=ALGORITHM)
+
+    kopf = {"Authorization": f"Bearer {zugang}"}
+    assert admin_client.get("/api/auth/me", headers=kopf).status_code == 401
+    assert _mit_kopie(erneuerung) == 401
+
+
+def test_ueberall_abmelden_entwertet_eine_kopie_des_cookies(admin_client: TestClient) -> None:
+    """Der andere Weg: Die Kopie auf einem fremden Geraet faellt auch hier."""
+    create_user(admin_client, "wanderer")
+    _, cookie, kopf_fremd = _anmelden()
+    _, _, kopf = _anmelden()
+
+    assert admin_client.post("/api/auth/me/ueberall-abmelden", headers=kopf).status_code == 200
+
+    assert _mit_kopie(cookie) == 401
+    assert admin_client.get("/api/auth/me", headers=kopf_fremd).status_code == 401
+
+
+def test_passwortwechsel_entwertet_eine_kopie_des_cookies(admin_client: TestClient) -> None:
+    """Und der dritte, ueber den echten Endpunkt statt ueber einen Zeitstempel."""
+    create_user(admin_client, "wanderer")
+    _, cookie, kopf_fremd = _anmelden()
+    _, _, kopf = _anmelden()
+
+    antwort = admin_client.post(
+        "/api/auth/me/password",
+        json={"current_password": "passwort-1234", "new_password": "neues-passwort-123"},
+        headers=kopf,
+    )
+    assert antwort.status_code == 200, antwort.text
+
+    assert _mit_kopie(cookie) == 401
+    assert admin_client.get("/api/auth/me", headers=kopf_fremd).status_code == 401

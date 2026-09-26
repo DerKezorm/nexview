@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -74,7 +75,9 @@ def has_usable_password(password_hash: str) -> bool:
     return password_hash != UNUSABLE_PASSWORD
 
 
-def _create_token(subject: int, token_type: TokenType, expires_in: timedelta) -> str:
+def _create_token(
+    subject: int, token_type: TokenType, expires_in: timedelta, sitzung: str
+) -> str:
     """Ein Token bauen.
 
     ⚠️ **Neben ``iat`` steht ``ms`` - derselbe Zeitpunkt, aber in
@@ -91,6 +94,11 @@ def _create_token(subject: int, token_type: TokenType, expires_in: timedelta) ->
 
     Mit Millisekunden gibt es die Zwickmuehle nicht mehr: Der Vergleich ist
     genau, ohne Rundung und ohne Sonderfaelle.
+
+    ⚠️ **``sid`` ist die Kennung der Sitzung**, dieselbe im Zugangs- und im
+    Erneuerungs-Token und ueber jede Erneuerung hinweg. Daran haengt das
+    Abmelden: ``sitzung.beenden`` merkt sie sich, und danach gilt kein Token
+    dieser Sitzung mehr, auch keine Kopie (``models.BeendeteSitzung``).
     """
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
@@ -99,18 +107,28 @@ def _create_token(subject: int, token_type: TokenType, expires_in: timedelta) ->
         "iat": int(now.timestamp()),
         "ms": int(now.timestamp() * 1000),
         "exp": int((now + expires_in).timestamp()),
+        "sid": sitzung,
     }
     return jwt.encode(payload, _signing_key(), algorithm=ALGORITHM)
 
 
-def create_access_token(user_id: int) -> str:
-    settings = get_settings()
-    return _create_token(user_id, "access", timedelta(minutes=settings.access_token_minutes))
+def neue_sitzung() -> str:
+    """Kennung fuer eine neue Sitzung - 16 Byte Zufall, nicht zu erraten."""
+    return secrets.token_urlsafe(16)
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_access_token(user_id: int, sitzung: str) -> str:
     settings = get_settings()
-    return _create_token(user_id, "refresh", timedelta(days=settings.refresh_token_days))
+    return _create_token(
+        user_id, "access", timedelta(minutes=settings.access_token_minutes), sitzung
+    )
+
+
+def create_refresh_token(user_id: int, sitzung: str) -> str:
+    settings = get_settings()
+    return _create_token(
+        user_id, "refresh", timedelta(days=settings.refresh_token_days), sitzung
+    )
 
 
 @dataclass(frozen=True)
@@ -121,10 +139,15 @@ class TokenInhalt:
     1970. Damit laesst sich ein Token gegen ``password_changed_at`` halten
     (``services/sitzung.py``) - warum es nicht das gerundete ``iat`` tut,
     steht bei ``_create_token``.
+
+    ``sitzung`` ist die Kennung der Sitzung (``sid``), an der das Abmelden
+    haengt. Leer nur bei einem von Hand gebauten Inhalt; ``decode_token``
+    liefert ein Token ohne sie gar nicht erst aus.
     """
 
     benutzer_id: int
     ausgestellt: int
+    sitzung: str = ""
 
 
 def decode_token(token: str, expected_type: TokenType) -> TokenInhalt | None:
@@ -149,9 +172,15 @@ def decode_token(token: str, expected_type: TokenType) -> TokenInhalt | None:
         # ``ms`` gibt - also gilt es nicht. Kosten: keine. Beim Umstieg auf
         # 0.21 faellt ohnehin jede bestehende Sitzung einmal heraus.
         ausgestellt = int(payload["ms"])
+        # Dasselbe fuer ``sid``: Ein Token ohne Sitzungskennung liesse sich
+        # durch Abmelden nicht beenden. Beim Umstieg auf 1.0.0 meldet sich
+        # darum jeder einmal neu an.
+        sitzung = payload["sid"]
     except (KeyError, TypeError, ValueError):
         return None
-    return TokenInhalt(benutzer_id=benutzer_id, ausgestellt=ausgestellt)
+    if not isinstance(sitzung, str) or not sitzung:
+        return None
+    return TokenInhalt(benutzer_id=benutzer_id, ausgestellt=ausgestellt, sitzung=sitzung)
 
 
 def access_token_expires_in() -> int:

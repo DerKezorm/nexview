@@ -48,9 +48,13 @@ def get_current_user(
         raise unauthorized
 
     # Ein Token, das aelter ist als der letzte Passwortwechsel, gilt nicht
-    # mehr. Das ist der einzige Ausweg, den ein Bestohlener hat - siehe
-    # ``sitzung.gilt_noch``. Kostet nichts: Der Benutzer ist gerade geladen.
+    # mehr - siehe ``sitzung.gilt_noch``. Kostet nichts: Der Benutzer ist
+    # gerade geladen.
     if not sitzung.gilt_noch(inhalt, user):
+        raise unauthorized
+    # Und eines, dessen Sitzung abgemeldet wurde, auch nicht. Sonst liefe das
+    # Zugangs-Token nach dem Abmelden noch bis zu dreissig Minuten weiter.
+    if sitzung.beendet(db, inhalt):
         raise unauthorized
 
     # Ab hier steht in jeder Protokollzeile dieser Anfrage, wer sie gestellt hat.

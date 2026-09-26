@@ -323,6 +323,35 @@
       }
     }
   },
+  "beendete_sitzungen": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_beendete_sitzungen_bis",
+      "ix_beendete_sitzungen_user_id"
+    ],
+    "spalten": {
+      "beendet_am": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "bis": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "sitzung": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "VARCHAR(64)"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
   "befund_gesehen": {
     "eindeutig": [],
     "indizes": [

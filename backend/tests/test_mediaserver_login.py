@@ -540,7 +540,7 @@ def test_trennen_wuerde_aussperren(
 
     antwort = admin_client.delete(
         "/api/auth/mediaserver/link",
-        headers={"Authorization": f"Bearer {create_access_token(kennung)}"},
+        headers={"Authorization": f"Bearer {create_access_token(kennung, 'handgebaut')}"},
     )
     assert antwort.status_code == 409
     assert antwort.json()["detail"]["code"] == "mediaserver_would_lock_out"

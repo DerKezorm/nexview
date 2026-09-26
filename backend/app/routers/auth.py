@@ -145,33 +145,35 @@ def refresh(request: Request, response: Response, db: DbSession) -> TokenPair:
     user = db.get(User, inhalt.benutzer_id)
     if user is None or not user.is_active or not sitzung.gilt_noch(inhalt, user):
         raise _ABGELAUFEN
+    if sitzung.beendet(db, inhalt):
+        raise _ABGELAUFEN
 
-    return sitzung.starten(response, request, user)
+    # Dieselbe Sitzung geht weiter - ihre Kennung wandert mit, sonst beendete
+    # ein spaeteres Abmelden eine vorher gezogene Kopie des Cookies nicht.
+    return sitzung.starten(response, request, user, fortsetzen=inhalt.sitzung)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(request: Request, response: Response) -> None:
-    """Abmelden - das Cookie loeschen.
+def logout(request: Request, response: Response, db: DbSession) -> None:
+    """Abmelden - die Sitzung dieses Browsers beenden, auf dem Server.
 
     Ohne Anmeldepruefung, mit Absicht: Wer sich abmelden will, soll das auch
-    koennen, wenn sein Zugangs-Token laengst abgelaufen ist. Der Endpunkt tut
-    nichts weiter, als ein Cookie dieses Browsers wegzunehmen - schaden kann
-    das niemandem ausser dem, der ihn aufruft.
+    koennen, wenn sein Zugangs-Token laengst abgelaufen ist. Beendet wird nur
+    die Sitzung, deren Token die Anfrage mitbringt - schaden kann das
+    niemandem ausser dem, der sie hat.
 
-    ⚠️ Das Erneuerungs-Token selbst wird damit **nicht** ungueltig; es ist ein
-    reines JWT ohne Eintrag in der Datenbank. Wer es vorher kopiert hat, kaeme
-    damit weiter herein, bis es von selbst ablaeuft.
+    ⚠️ **Bis 1.0.0 nahm dieser Endpunkt nur das Cookie weg.** Das
+    Erneuerungs-Token war ein reines JWT ohne Eintrag in der Datenbank; wer es
+    vorher kopiert hatte, kam damit bis zu dreissig Tage weiter herein (Befund
+    aus dem grossen Pruefgang). Jetzt steht die Sitzung danach in
+    ``beendete_sitzungen``, und kein Token von ihr gilt mehr - auch das
+    laufende Zugangs-Token nicht. Einzelheiten in ``services/sitzung.py``.
 
-    **Das ist so gewollt.** Wuerde jedes Abmelden alle Sitzungen beenden, floege
-    man beim Abmelden auf dem Handy auch vom Fernseher.
-
-    Wer wirklich alle beenden will, hat seit 0.22 ``/me/ueberall-abmelden`` -
-    das schliesst die Luecke, fuer die es vorher nur den Passwortwechsel gab.
-    **Offen bleibt die feine Variante:** genau *diese eine* Sitzung entwerten,
-    ohne die anderen anzufassen. Dafuer braeuchte es eine Merkliste beendeter
-    Token.
+    **Die anderen Geraete bleiben angemeldet.** Wuerde jedes Abmelden alle
+    Sitzungen beenden, floege man beim Abmelden auf dem Handy auch vom
+    Fernseher. Wer alle beenden will, hat ``/me/ueberall-abmelden``.
     """
-    sitzung.beenden(response, request)
+    sitzung.beenden(response, request, db)
 
 
 @router.get("/me", response_model=UserPublic)
@@ -508,9 +510,10 @@ def abmelden_ueberall(
 ) -> TokenPair:
     """Alle anderen Geraete abmelden - ohne das Passwort zu aendern.
 
-    ⚠️ **Der Ausweg, den es bis 0.22 nicht gab.** Gewoehnliches Abmelden nimmt
-    nur das Cookie aus *diesem* Browser; wer eine Kopie davon hat, kommt damit
-    weiter herein, bis es ablaeuft. Der einzige Riegel war bis dahin ein
+    ⚠️ **Der Ausweg, den es bis 0.22 nicht gab.** Gewoehnliches Abmelden
+    beendet nur die Sitzung *dieses* Browsers (seit 1.0.0 immerhin auf dem
+    Server). Eine Sitzung auf einem anderen Geraet, das man nicht mehr in der
+    Hand hat, erreicht es nicht. Der einzige Riegel dafuer war bis dahin ein
     Passwortwechsel - was heisst, dass man sein Passwort aendern musste, obwohl
     mit dem Passwort nichts war.
 

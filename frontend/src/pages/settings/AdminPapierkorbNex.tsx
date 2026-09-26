@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -19,14 +20,19 @@ function groesse(bytes: number): string {
  * durchsucht; daraus holt niemand etwas zurück. Hier führt der Weg eine Liste
  * und nimmt eine Datei auf Wunsch wieder an.
  *
- * ⚠️ **Zwei verschiedene Nein.** Eine Datei kann weg sein (oder ihre Platte
- * gerade nicht sichtbar), oder ihr Titel hat den Bestand verlassen – dann
- * führt Zurückholen zu nichts. Beide Fälle stehen an der Zeile, und der Knopf
- * ist zu. Ein Knopf, der das verschweigt, verspricht etwas, das nicht eintritt.
+ * ⚠️ **Der Knopf hängt an `restorable`, nicht an `datei_da`/`im_bestand`**
+ * (#job-43). Eine Datei kann weg sein (oder ihre Platte gerade nicht
+ * sichtbar) – dann geht nichts. Ihr Titel kann den Bestand verlassen haben
+ * und sich trotzdem wieder anlegen lassen – dann bleibt der Knopf an, nur ein
+ * Hinweis sagt es vorher. Erst wenn der Weg selbst „nein“ sagt (`restorable:
+ * false`), ist wirklich nichts mehr zu holen, und der Knopf ist zu. Ein
+ * Knopf, der das verschweigt, verspricht etwas, das nicht eintritt.
  */
 export function AdminPapierkorbNex() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  /** Kurze Erfolgsmeldung nach einem Zurückholen, das den Titel neu angelegt hat. */
+  const [meldung, setMeldung] = useState<string | null>(null);
 
   const liste = useQuery({
     queryKey: ["beschaffung", "papierkorb"],
@@ -35,12 +41,17 @@ export function AdminPapierkorbNex() {
 
   const zurueck = useMutation({
     mutationFn: (eintrag: number) =>
-      api.post(`/api/beschaffung/papierkorb/${eintrag}/zurueckholen`),
-    onSuccess: () => {
+      api.post<{ created: boolean }>(`/api/beschaffung/papierkorb/${eintrag}/zurueckholen`),
+    onSuccess: (antwort) => {
+      // ⚠️ Mit `created: true` hat nexcrate den Titel neu angelegt - unüberwacht
+      // (#job-43). Das ist kein gewöhnliches Zurückholen, und die Meldung sagt
+      // es, statt stillschweigend so zu tun, als wäre nichts dabei passiert.
+      setMeldung(antwort.created ? t("papierkorbNex.restoredUnmonitored") : null);
       void queryClient.invalidateQueries({ queryKey: ["beschaffung", "papierkorb"] });
       // Der Bestand hat sich geändert – die Kontingente darüber rechnen neu.
       void queryClient.invalidateQueries({ queryKey: ["storage"] });
     },
+    onError: () => setMeldung(null),
   });
 
   const eintraege = liste.data?.eintraege ?? [];
@@ -52,6 +63,11 @@ export function AdminPapierkorbNex() {
       {liste.isLoading && <Spinner />}
       {liste.error && <ErrorBanner message={liste.error.message} />}
       {zurueck.error && <ErrorBanner message={zurueck.error.message} />}
+      {meldung && (
+        <p className="rounded-xl border border-ok-500/40 bg-ok-500/10 px-4 py-3 text-sm text-ok-500">
+          {meldung}
+        </p>
+      )}
 
       {liste.isSuccess && eintraege.length === 0 && (
         <p className="text-sm text-mist-500">{t("papierkorbNex.empty")}</p>
@@ -94,13 +110,16 @@ function Zeile({
   onZurueck: () => void;
 }) {
   const { t } = useTranslation();
-  // Die Reihenfolge ist Absicht: „Titel weg" wiegt schwerer als „Datei weg",
-  // denn daran kann auch ein Betreiber nichts ändern, ohne ihn neu anzulegen.
-  const grund = !eintrag.im_bestand
-    ? t("papierkorbNex.gone")
-    : !eintrag.datei_da
-      ? t("papierkorbNex.fileGone")
+  // ⚠️ Drei Fälle, nicht mehr zwei (#job-43). „Datei weg" und „lässt sich
+  // nicht wieder anlegen" sperren den Knopf; „wird wieder angelegt" ist nur
+  // ein Hinweis - der Knopf bleibt an, denn genau dafür legt nexcrate den
+  // Titel beim Zurückholen neu an.
+  const grund = !eintrag.datei_da
+    ? t("papierkorbNex.fileGone")
+    : !eintrag.restorable
+      ? t("papierkorbNex.gone")
       : null;
+  const hinweis = eintrag.restorable && !eintrag.im_bestand ? t("papierkorbNex.willReappear") : null;
 
   return (
     <li className="flex flex-wrap items-center gap-3 rounded-lg border border-ink-700 px-3 py-2 text-sm">
@@ -127,12 +146,13 @@ function Zeile({
       </span>
       <span className="ml-auto flex items-center gap-2">
         {grund && <span className="text-amber-300">{grund}</span>}
+        {!grund && hinweis && <span className="text-mist-400">{hinweis}</span>}
         <Button
           type="button"
           variant="ghost"
           onClick={onZurueck}
           loading={laeuft}
-          disabled={!eintrag.datei_da || !eintrag.im_bestand}
+          disabled={!eintrag.restorable}
         >
           {t("papierkorbNex.restore")}
         </Button>

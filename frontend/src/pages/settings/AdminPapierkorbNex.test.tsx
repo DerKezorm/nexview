@@ -43,6 +43,7 @@ const EINTRAG: PapierkorbEintrag = {
   geloescht_von_name: 'Nexview',
   datei_da: true,
   im_bestand: true,
+  restorable: true,
 }
 
 function liste(eintraege: PapierkorbEintrag[], sprung = '') {
@@ -56,7 +57,7 @@ describe('Papierkorb der Beschaffung', () => {
 
   it('zeigt einen Eintrag und holt ihn auf Klick zurück', async () => {
     liste([EINTRAG])
-    senden.mockResolvedValue(undefined as never)
+    senden.mockResolvedValue({ created: false } as never)
     rendernSchlicht(<AdminPapierkorbNex />)
 
     expect(await screen.findByText('Example Movie (1999)')).toBeInTheDocument()
@@ -65,22 +66,47 @@ describe('Papierkorb der Beschaffung', () => {
     await waitFor(() => {
       expect(senden).toHaveBeenCalledWith('/api/beschaffung/papierkorb/7/zurueckholen')
     })
+    // Ein gewöhnliches Zurückholen (der Titel war die ganze Zeit im Bestand)
+    // braucht keine besondere Meldung.
+    expect(screen.queryByText(/nicht überwacht/)).not.toBeInTheDocument()
   })
 
   it('sperrt den Knopf, wenn die Datei weg ist', async () => {
-    liste([{ ...EINTRAG, datei_da: false }])
+    liste([{ ...EINTRAG, datei_da: false, restorable: false }])
     rendernSchlicht(<AdminPapierkorbNex />)
 
     expect(await screen.findByText(/Datei ist weg/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Zurückholen/ })).toBeDisabled()
   })
 
-  it('sperrt ihn auch, wenn der Titel den Bestand verlassen hat', async () => {
-    liste([{ ...EINTRAG, im_bestand: false }])
+  it('sperrt den Knopf, wenn der Titel sich nicht wieder anlegen lässt', async () => {
+    // ⚠️ #job-43: `im_bestand: false` allein sperrt nicht mehr - erst wenn
+    // der Weg selbst sagt, dass er den Titel nicht wieder anlegen kann.
+    liste([{ ...EINTRAG, im_bestand: false, restorable: false }])
     rendernSchlicht(<AdminPapierkorbNex />)
 
-    expect(await screen.findByText(/nicht mehr im Bestand/)).toBeInTheDocument()
+    expect(await screen.findByText(/lässt sich nicht wieder anlegen/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Zurückholen/ })).toBeDisabled()
+  })
+
+  it('zeigt nur einen Hinweis, wenn der Titel beim Zurückholen wieder angelegt wird', async () => {
+    // Der Kern von #job-43: Der Titel hat den Bestand verlassen, lässt sich
+    // aber wieder anlegen - der Knopf bleibt an.
+    liste([{ ...EINTRAG, im_bestand: false, restorable: true }])
+    rendernSchlicht(<AdminPapierkorbNex />)
+
+    expect(await screen.findByText(/wird beim Zurückholen/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Zurückholen/ })).not.toBeDisabled()
+  })
+
+  it('meldet, wenn das Zurückholen den Titel neu angelegt hat', async () => {
+    liste([{ ...EINTRAG, im_bestand: false, restorable: true }])
+    senden.mockResolvedValue({ created: true } as never)
+    rendernSchlicht(<AdminPapierkorbNex />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /Zurückholen/ }))
+
+    expect(await screen.findByText(/nicht überwacht/)).toBeInTheDocument()
   })
 
   it('sagt es, wenn nichts drin ist', async () => {

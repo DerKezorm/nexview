@@ -932,6 +932,27 @@ def test_telegram_bot_laesst_sich_ohne_code_anlegen(admin_client: TestClient) ->
     assert antwort.json()["verified"] is False
 
 
+def test_telegram_bot_ohne_kind_behaelt_nur_seine_eigenen_felder(
+    admin_client: TestClient,
+) -> None:
+    """Anders als bei ntfy: Bot und Chat gehoeren bei Telegram immer auf
+    getrennte Zeilen - eine kinderlose Wurzel darf nicht ploetzlich auch die
+    Felder der Chat-Ebene annehmen, nur weil ``has_children`` fuer beide gilt.
+    """
+    antwort = admin_client.post(
+        "/api/settings/channels/telegram/targets",
+        json={"name": "Bot", "token": "123:AA", "chat_id": "555555"},
+    )
+    assert antwort.status_code == 201, antwort.text
+    ziel = antwort.json()
+    assert ziel["verified"] is False
+    assert "chat_id" not in ziel
+
+    with SessionLocal() as db:
+        gespeichert = db.get(ChannelTarget, ziel["id"])
+        assert gespeichert.chat_id == ""
+
+
 @pytest.mark.asyncio
 async def test_telegram_entschaerft_html_und_stellt_leise_zu(
     monkeypatch: pytest.MonkeyPatch,

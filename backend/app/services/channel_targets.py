@@ -48,17 +48,23 @@ def alle(db: Session, kind: ChannelKind | None = None) -> list[ChannelTarget]:
 def _felder(target: ChannelTarget) -> tuple[str, ...]:
     """Welche Felder gehoeren zu **dieser** Ebene?
 
-    Eine Wurzel ohne eigenes Kind darf alle Felder tragen, nicht nur die der
-    oberen Ebene: Bei nur einem Topic braucht es keine zweite Ebene, Adresse
-    und Thema stehen dann zusammen an der Wurzel. Erst sobald ein Kind
+    Eine Wurzel ohne eigenes Kind darf bei ntfy alle Felder tragen, nicht nur
+    die der oberen Ebene: Bei nur einem Topic braucht es keine zweite Ebene,
+    Adresse und Thema stehen dann zusammen an der Wurzel. Erst sobald ein Kind
     dazukommt, zieht das Thema dorthin um, und die Wurzel bleibt reine
     Instanz - genau wie bisher.
+
+    ⚠️ **Nur ein Dienst mit ``channels.child_required`` darf das.** Ohne diese
+    Schranke bekaeme auch eine kinderlose Telegram-Wurzel die Felder der
+    unteren Ebene (``chat_id``, ``thread_id``, ``silent``) - dort gehoeren Bot
+    und Chat aber immer auf getrennte Zeilen, der Assistent legt sie nie in
+    einem Schritt an.
     """
     if target.parent_id is not None:
         return channels.child_fields(target.channel)
-    if target.children:
-        return channels.parent_fields(target.channel)
-    return channels.fields(target.channel)
+    if channels.child_required(target.channel) and not target.children:
+        return channels.fields(target.channel)
+    return channels.parent_fields(target.channel)
 
 
 def werte(target: ChannelTarget, settings=None) -> dict[str, str]:

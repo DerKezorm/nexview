@@ -929,3 +929,30 @@ def test_4k_wunsch_ohne_4k_fassung_faellt_nicht_lautlos_auf_standard(
     # Und ganz sicher keine leise Anfrage in Standard.
     with SessionLocal() as sitzung:
         assert sitzung.query(MediaRequest).count() == 0
+
+
+def test_ein_wunsch_nach_einem_beispieltitel_sagt_bei_der_freigabe_warum(
+    arr_client: TestClient,
+) -> None:
+    """Gewuenscht im Beispielbetrieb, freigegeben nach dem TMDB-Schluessel.
+
+    Die Freigabe fragt den Titel ab, und der gehoert TMDB nicht (#note-30). Die
+    Antwort traegt die Kennung, damit die Oberflaeche den Satz in der
+    eingestellten Sprache zeigt - vorher kam nur der deutsche Satz.
+    """
+    eltern, kind_kopf, _ = _familie(arr_client)
+    titel = _erster_titel(arr_client, kind_kopf)
+    wunsch = arr_client.post(
+        "/api/kids/wishes",
+        json={"media_type": "movie", "tmdb_id": titel["tmdb_id"]},
+        headers=kind_kopf,
+    ).json()
+    assert arr_client.put("/api/settings", json={"tmdb_api_key": "test-key"}).status_code == 200
+
+    antwort = arr_client.post(
+        f"/api/children/wishes/{wunsch['id']}/release",
+        json={"quality_profile_id": 1, "root_folder_path": "/data/Movies"},
+        headers=eltern,
+    )
+    assert antwort.status_code == 404, antwort.text
+    assert antwort.json()["detail"]["code"] == "sample_title_gone"

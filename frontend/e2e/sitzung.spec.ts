@@ -13,11 +13,9 @@
  * hier, mit echtem Chromium und echtem Server.
  */
 
-import { execFileSync } from 'node:child_process'
-import path from 'node:path'
 import { expect, test } from '@playwright/test'
 
-import { KONTO, PYTHON, WURZEL } from './konto'
+import { KONTO } from './konto'
 
 test.beforeAll(async ({ request }) => {
   const status = await request.get('/api/setup/status')
@@ -27,23 +25,10 @@ test.beforeAll(async ({ request }) => {
   const angelegt = await request.post('/api/setup/admin', { data: KONTO })
   expect(angelegt.ok(), await angelegt.text()).toBeTruthy()
 
-  // ⚠️ **Auch der erste Administrator bestätigt seine Adresse.** Das ist
-  // Absicht: Ein Tippfehler in der Adresse fiele sonst erst auf, wenn er
-  // jemanden aussperrt. Der Assistent lässt sich deshalb ohne funktionierenden
-  // Mailserver gar nicht abschließen.
-  //
-  // Ein echter SMTP-Server wäre für einen Test aber die falsche Abhängigkeit.
-  // Ersetzt wird darum nur das Postfach - den Link holt ein kurzes Skript aus
-  // derselben Stelle, aus der ihn auch die Mail bekäme. Bestätigt wird danach
-  // über die reguläre Route.
-  const link = execFileSync(PYTHON, [path.join(WURZEL, 'frontend', 'e2e', 'bestaetigungslink.py'), KONTO.email], {
-    encoding: 'utf8',
-    cwd: path.join(WURZEL, 'backend'),
-    env: { ...process.env, NEXVIEW_DATA_DIR: path.join(WURZEL, 'frontend', '.e2e-data') },
-  }).trim()
-
-  const bestaetigt = await request.post(`/api/onboarding/verify/${link}`)
-  expect(bestaetigt.ok(), await bestaetigt.text()).toBeTruthy()
+  // Der erste Administrator gilt sofort als bestätigt, wie der Assistent es
+  // sagt; einen Bestätigungslink braucht er nicht. Bis 1.0.0 stand hier ein
+  // Schritt, der ihn holte, und verdeckte damit, dass der Betreiber ohne
+  // Mailserver nach dem Abmelden nicht mehr hereinkam.
 })
 
 test('⚠️ die Anmeldung übersteht ein Neuladen - das Abmelden nimmt sie wieder weg', async ({

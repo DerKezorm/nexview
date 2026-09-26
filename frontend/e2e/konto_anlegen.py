@@ -16,8 +16,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Das Backend liegt zwei Ebenen hoeher neben der Oberflaeche - dieselbe Zeile
-# wie in ``bestaetigungslink.py`` daneben.
+# Das Backend liegt zwei Ebenen hoeher neben der Oberflaeche.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
 from app.db import SessionLocal  # noqa: E402

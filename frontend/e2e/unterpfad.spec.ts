@@ -13,16 +13,14 @@
  * fällt es sonst erst beim Fremden auf.
  */
 
-import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 
-import { KONTO, PYTHON, WURZEL } from './konto'
+import { KONTO } from './konto'
 import {
   UNTERPFAD_BACKEND_PORT,
-  UNTERPFAD_DATEN,
   PROXY_ABSCHNEIDEN_PORT,
   PROXY_DURCHREICHEN_PORT,
 } from './unterpfad-ports'
@@ -47,23 +45,10 @@ test.beforeAll(async ({ request }) => {
   expect(status.ok(), 'Das Unterpfad-Backend antwortet nicht.').toBeTruthy()
   if (!(await status.json()).needs_setup) return
 
-  // Konto anlegen und die Adresse bestätigen - derselbe Weg wie in
-  // sitzung.spec.ts, nur gegen die eigene, frische Datenbank dieses Backends.
+  // Konto anlegen - derselbe Weg wie in sitzung.spec.ts, nur gegen die
+  // eigene, frische Datenbank dieses Backends. Bestätigt ist es damit schon.
   const angelegt = await request.post(`${DIREKT}/api/setup/admin`, { data: KONTO })
   expect(angelegt.ok(), await angelegt.text()).toBeTruthy()
-
-  const link = execFileSync(
-    PYTHON,
-    [path.join(WURZEL, 'frontend', 'e2e', 'bestaetigungslink.py'), KONTO.email],
-    {
-      encoding: 'utf8',
-      cwd: path.join(WURZEL, 'backend'),
-      env: { ...process.env, NEXVIEW_DATA_DIR: UNTERPFAD_DATEN },
-    },
-  ).trim()
-
-  const bestaetigt = await request.post(`${DIREKT}/api/onboarding/verify/${link}`)
-  expect(bestaetigt.ok(), await bestaetigt.text()).toBeTruthy()
 })
 
 /** Anmelden über den angegebenen Pförtner - bis die Navigation da ist. */

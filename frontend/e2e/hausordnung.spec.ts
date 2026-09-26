@@ -23,18 +23,6 @@ test.beforeAll(async ({ request }) => {
 
   const angelegt = await request.post('/api/setup/admin', { data: KONTO })
   expect(angelegt.ok(), await angelegt.text()).toBeTruthy()
-
-  const link = execFileSync(
-    PYTHON,
-    [path.join(WURZEL, 'frontend', 'e2e', 'bestaetigungslink.py'), KONTO.email],
-    {
-      encoding: 'utf8',
-      cwd: path.join(WURZEL, 'backend'),
-      env: { ...process.env, NEXVIEW_DATA_DIR: path.join(WURZEL, 'frontend', '.e2e-data') },
-    },
-  ).trim()
-  const bestaetigt = await request.post(`/api/onboarding/verify/${link}`)
-  expect(bestaetigt.ok(), await bestaetigt.text()).toBeTruthy()
 })
 
 const TEXT = '## The rules\n\nPlease read this before you request anything.'

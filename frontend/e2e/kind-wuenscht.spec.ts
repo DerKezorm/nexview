@@ -94,13 +94,6 @@ test.beforeAll(async ({ request }) => {
   if ((await status.json()).needs_setup) {
     const angelegt = await request.post('/api/setup/admin', { data: KONTO })
     expect(angelegt.ok(), await angelegt.text()).toBeTruthy()
-    const link = execFileSync(
-      PYTHON,
-      [path.join(WURZEL, 'frontend', 'e2e', 'bestaetigungslink.py'), KONTO.email],
-      { encoding: 'utf8', cwd: path.join(WURZEL, 'backend'), env: { ...process.env, ...DATEN } },
-    ).trim()
-    const bestaetigt = await request.post(`/api/onboarding/verify/${link}`)
-    expect(bestaetigt.ok(), await bestaetigt.text()).toBeTruthy()
   }
 
   const verwalter = { Authorization: `Bearer ${await token(request, KONTO)}` }

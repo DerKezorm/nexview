@@ -21,14 +21,10 @@
  * als Fehlschlag zu erleben.
  */
 
-import { execFileSync } from 'node:child_process'
-import path from 'node:path'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { KONTO, PYTHON, WURZEL } from './konto'
+import { KONTO } from './konto'
 import { attrappeStarten, SCHLUESSEL } from './nexcrate-attrappe.mjs'
-
-const DATEN = { NEXVIEW_DATA_DIR: path.join(WURZEL, 'frontend', '.e2e-data') }
 
 /** Port 9 lehnt Verbindungen sofort ab — ein Radarr, das nie antwortet. */
 const RADARR_INS_LEERE = 'http://127.0.0.1:9'
@@ -59,13 +55,6 @@ test.beforeAll(async ({ request }) => {
   if ((await status.json()).needs_setup) {
     const angelegt = await request.post('/api/setup/admin', { data: KONTO })
     expect(angelegt.ok(), await angelegt.text()).toBeTruthy()
-    const link = execFileSync(
-      PYTHON,
-      [path.join(WURZEL, 'frontend', 'e2e', 'bestaetigungslink.py'), KONTO.email],
-      { encoding: 'utf8', cwd: path.join(WURZEL, 'backend'), env: { ...process.env, ...DATEN } },
-    ).trim()
-    const bestaetigt = await request.post(`/api/onboarding/verify/${link}`)
-    expect(bestaetigt.ok(), await bestaetigt.text()).toBeTruthy()
   }
 
   const kopf = { Authorization: `Bearer ${await verwalterToken(request)}` }

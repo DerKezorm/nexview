@@ -104,17 +104,7 @@ test.beforeAll(async ({ request }) => {
   if ((await status.json()).needs_setup) {
     const angelegt = await request.post('/api/setup/admin', { data: KONTO })
     expect(angelegt.ok(), await angelegt.text()).toBeTruthy()
-
-    // Ohne bestätigte Adresse kommt auch der erste Administrator nicht hinein.
-    // Den Link holt dasselbe Skript wie in den übrigen Läufen aus der Stelle,
-    // aus der ihn sonst die Mail bekäme.
-    const link = execFileSync(
-      PYTHON,
-      [path.join(WURZEL, 'frontend', 'e2e', 'bestaetigungslink.py'), KONTO.email],
-      { encoding: 'utf8', cwd: path.join(WURZEL, 'backend'), env: { ...process.env, ...DATEN } },
-    ).trim()
-    const bestaetigt = await request.post(`/api/onboarding/verify/${link}`)
-    expect(bestaetigt.ok(), await bestaetigt.text()).toBeTruthy()
+    // Bestätigt ist er damit schon; siehe sitzung.spec.ts.
   }
 
   const token = await verwalterToken(request)

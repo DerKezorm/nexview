@@ -14,6 +14,13 @@ export function gesundheitsText(
   code: string,
   params: Record<string, unknown> = {},
 ): string {
+  // Mit Namen, wo nexcrate einen nennt und es einen Satz dafür gibt: Drei
+  // Karten „Eine Fassung ist nicht bereit.“ sagten nicht, welche. Der Satz
+  // ohne Namen bleibt für die Glocke, die keine Werte zeigt.
+  if (typeof params.name === 'string' && params.name) {
+    const benannt = t(`nexcrate.health.${code}_benannt`, { ...params, defaultValue: '' })
+    if (benannt) return benannt
+  }
   return t(`nexcrate.health.${code}`, {
     ...params,
     context: typeof params.kind === 'string' ? params.kind : undefined,

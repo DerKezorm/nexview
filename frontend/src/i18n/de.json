@@ -4137,6 +4137,7 @@
       "folder_not_writable": "In den Ordner der Fassung {{name}} lässt sich nicht schreiben.",
       "disk_full": "Der Datenträger hinter der Fassung {{name}} ist voll.",
       "version_not_ready": "Eine Fassung ist nicht bereit.",
+      "version_not_ready_benannt": "Die Fassung „{{name}}“ ist nicht bereit.",
       "nexcrate_vertrag_fremd": "Diese nexcrate spricht Vertrag {{major}}; Nexview ist gegen {{erwartet}} gebaut. Weitermachen hieße raten.",
       "nexcrate_zu_alt": "Diese nexcrate steht auf {{stage}}; Nexview braucht mindestens {{erwartet}}.",
       "nexcrate_ohne_medienart": "Diese nexcrate führt keine Titel der Art „{{art}}“.",

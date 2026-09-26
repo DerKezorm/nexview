@@ -49,6 +49,19 @@ describe('ein Befund mit Kennung', () => {
     ).toBeInTheDocument()
   })
 
+  it('nennt die Fassung, die nicht bereit ist', async () => {
+    // Befund am Prüfstand: drei Karten mit demselben Satz „Eine Fassung ist
+    // nicht bereit.“, keine sagte welche. nexcrate nennt sie in `name`.
+    rendernSchlicht(
+      <Befundliste
+        befunde={[
+          befund({ instanz: 'nexcrate', code: 'version_not_ready', name: 'Filme 4K', version_id: 'v_1' }),
+        ]}
+      />,
+    )
+    expect(await screen.findByText('Die Fassung „Filme 4K“ ist nicht bereit.')).toBeInTheDocument()
+  })
+
   it('ohne eigenen Text der Art steht der Grundtext', async () => {
     rendernSchlicht(<Befundliste befunde={[befund({ instanz: 'nexcrate', code: 'indexer_none' })]} />)
     expect(

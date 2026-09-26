@@ -4137,6 +4137,7 @@
       "folder_not_writable": "The folder of the version {{name}} cannot be written to.",
       "disk_full": "The disk behind the version {{name}} is full.",
       "version_not_ready": "A version is not ready.",
+      "version_not_ready_benannt": "The version “{{name}}” is not ready.",
       "nexcrate_vertrag_fremd": "This nexcrate speaks contract {{major}}; Nexview is built for {{erwartet}}. Going on would mean guessing.",
       "nexcrate_zu_alt": "This nexcrate is at {{stage}}; Nexview needs at least {{erwartet}}.",
       "nexcrate_ohne_medienart": "This nexcrate does not serve titles of kind “{{art}}”.",

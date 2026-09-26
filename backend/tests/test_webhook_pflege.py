@@ -222,6 +222,65 @@ async def test_umstieg_nimmt_nur_den_eigenen_eintrag_heraus(fake) -> None:
     assert any(a.code == "webhook_entfernt" for a in bericht)
 
 
+def _als_installation(adresse: str, stand: dict | None) -> tuple:
+    """Diese Testdatenbank spielt eine von zwei Nexview: eigene Adresse, eigener
+    Webhook-Stand. Radarr (die Attrappe) teilen sich beide."""
+    with SessionLocal() as db:
+        save_settings(db, {**RADARR, "public_url": adresse})
+        zeile = webhooks.eintrag_sicherstellen(db, "radarr-standard")
+        zeile.aktiv = True
+        zeile.eintrag_id = stand["eintrag_id"] if stand else None
+        zeile.eintrag_url = stand["eintrag_url"] if stand else None
+        db.commit()
+        settings = load_settings(db)
+    return settings, settings.arr_instanzen()[0]
+
+
+def _stand_merken() -> dict:
+    zeile = _zeile()
+    return {"eintrag_id": zeile.eintrag_id, "eintrag_url": zeile.eintrag_url}
+
+
+@pytest.mark.anyio
+async def test_zwei_nexview_an_einem_radarr_bis_zum_umstieg_der_einen(fake) -> None:
+    """Der Ablauf aus #note-38 mit beiden Seiten: A traegt sich ein, B traegt
+    sich ein, beide pflegen im Wechsel (hier wurde frueher der Eintrag hin und
+    her gebogen), dann steigt A um. Danach steht B's Eintrag unveraendert da."""
+    from app.services.beschaffung.arr import konten
+
+    settings_a, instanz_a = _als_installation("http://nexview-a.test", None)
+    with SessionLocal() as db:
+        await webhook_pflege.instanz_pflegen(db, settings_a, instanz_a)
+    stand_a = _stand_merken()
+
+    settings_b, instanz_b = _als_installation("http://nexview-b.test", None)
+    with SessionLocal() as db:
+        await webhook_pflege.instanz_pflegen(db, settings_b, instanz_b)
+    stand_b = _stand_merken()
+
+    assert sorted(e["name"] for e in fake.eintraege) == [
+        "Nexview (nexview-a.test)",
+        "Nexview (nexview-b.test)",
+    ]
+    assert stand_a["eintrag_id"] != stand_b["eintrag_id"]
+
+    # Stuendliche Pflege auf beiden Seiten: Niemand zieht am Eintrag des anderen.
+    for adresse, stand in (("http://nexview-a.test", stand_a), ("http://nexview-b.test", stand_b)):
+        settings, instanz = _als_installation(adresse, stand)
+        with SessionLocal() as db:
+            await webhook_pflege.instanz_pflegen(db, settings, instanz)
+    assert fake.nachgezogen == []
+
+    settings_a, _ = _als_installation("http://nexview-a.test", stand_a)
+    with SessionLocal() as db:
+        await konten.weg_verlassen(db, settings_a)
+
+    assert fake.geloescht == [stand_a["eintrag_id"]]
+    assert [(_url(e), e["id"]) for e in fake.eintraege] == [
+        ("http://nexview-b.test/api/webhooks/arr/radarr-standard", stand_b["eintrag_id"])
+    ]
+
+
 @pytest.mark.anyio
 async def test_umstieg_sagt_ehrlich_wenn_der_eintrag_blieb(fake, monkeypatch) -> None:
     """Die Pflege faengt eine stumme Instanz selbst ab. Der Bericht des

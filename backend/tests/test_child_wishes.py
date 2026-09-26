@@ -315,6 +315,50 @@ def test_freigabe_wird_anfrage_des_elternteils(arr_client: TestClient) -> None:
     assert liste[0]["state"] == "coming"
 
 
+def test_freigabe_eines_bestandstitels_ohne_datei_erzeugt_eine_anfrage(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#note-64 gilt auch hier: ein Katalogtitel ohne Datei ist nicht "schon da".
+
+    Kennt Radarr den Titel bereits (etwa aus der Zeit vor Nexview), aber ohne
+    Datei, darf die Freigabe eines Kinderwunsches ihn nicht fälschlich als
+    "bereits da" verwerfen - siehe
+    ``test_bestandstitel_ohne_datei_bleibt_fuer_kinder_wuenschbar`` fürs
+    Wünschen selbst; hier geht es um dieselbe Unterscheidung beim Freigeben.
+    """
+    from app.services.beschaffung.arr import library
+
+    eltern, kind_kopf, kind_id = _familie(arr_client)
+    titel = _erster_titel(arr_client, kind_kopf)
+    wunsch = arr_client.post(
+        "/api/kids/wishes",
+        json={"media_type": "movie", "tmdb_id": titel["tmdb_id"]},
+        headers=kind_kopf,
+    ).json()
+
+    async def wird_gesucht(_einstellungen, _art, items, _stufe="standard", **_rest):
+        for eintrag in items:
+            eintrag.status = "searching"
+        return library.MatchResult(items=items)
+
+    monkeypatch.setattr(library, "apply_status", wird_gesucht)
+
+    antwort = arr_client.post(
+        f"/api/children/wishes/{wunsch['id']}/release",
+        json={"quality_profile_id": 1, "root_folder_path": "/data/Movies"},
+        headers=eltern,
+    )
+
+    assert antwort.status_code == 200, antwort.text
+    with SessionLocal() as sitzung:
+        anfrage = sitzung.query(MediaRequest).one()
+        assert anfrage.for_child_id == kind_id
+
+        gespeichert = sitzung.query(ChildWish).one()
+        assert gespeichert.state == WishState.released
+        assert gespeichert.request_id == anfrage.id
+
+
 def test_kontingent_des_elternteils_greift(arr_client: TestClient) -> None:
     """Kein zweiter Regelsatz - es ist dieselbe Pruefung wie sonst auch."""
     eltern, kind_kopf, _ = _familie(arr_client)

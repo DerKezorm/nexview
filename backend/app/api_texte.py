@@ -1802,6 +1802,14 @@ TEXTE: dict[str, tuple[str, str]] = {
             'entries without a counterpart need a decision.'
         ),
     ),
+    'GET /api/umstieg/sicherung': (
+        'Find the backup made a moment ago',
+        (
+            'The newest backup this assistant made in the last hour that still opens '
+            'as a database, or null. Lets the assistant carry on after a reload or in '
+            'a new window instead of making a second backup. Reads only.'
+        ),
+    ),
     'POST /api/umstieg/sicherung': (
         'Make the backup before switching',
         (

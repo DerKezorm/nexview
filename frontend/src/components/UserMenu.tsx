@@ -194,9 +194,12 @@ export function UserMenu() {
           )}
         </span>
         <span className="hidden max-w-32 truncate text-sm text-mist-300 sm:inline">{name}</span>
+        {/* Der Pfeil erst ab Tablet-Breite: Bei 320 Pixeln war die Kopfzeile
+            mit Glocke, beiden Schaltern und diesem Knopf 8 Pixel zu breit,
+            und die ganze Seite liess sich seitlich schieben. */}
         <svg
           viewBox="0 0 20 20"
-          className="h-3.5 w-3.5 text-mist-500"
+          className="hidden h-3.5 w-3.5 text-mist-500 sm:block"
           fill="none"
           stroke="currentColor"
           strokeWidth="2"

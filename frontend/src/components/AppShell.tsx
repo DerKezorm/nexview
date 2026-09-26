@@ -156,7 +156,7 @@ export function AppShell() {
     <div className="nv-glow flex min-h-dvh flex-col">
       <header className="sticky top-0 z-20 border-b border-ink-700/80 bg-ink-950/80 backdrop-blur-xl">
         <LoadingBar />
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-3 sm:gap-4 sm:px-6">
           {/* Ein Klick aufs Logo führt zurück zur Startseite. */}
           <NavLink to="/" className="shrink-0" aria-label={t('nav.home')}>
             <Logo withWordmark />

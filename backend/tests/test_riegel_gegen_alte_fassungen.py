@@ -40,14 +40,39 @@ from app.services.settings_service import load_settings
 
 from .conftest import auth_headers, create_user
 
-#: Was 0.35.2 beim Start per ALTER TABLE wieder anlegt.
+#: Was 0.35.2 beim Start per ALTER TABLE wieder anlegt: Tabelle, Spalte, Typ
+#: (``column.type.compile``) und Vorgabe (``_sql_literal``), ausgelesen aus v0.35.2.
 ALTE_SPALTEN = (
-    ("users", "can_request_uhd_movies", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("users", "can_request_uhd_series", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("users", "auto_approve_uhd", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("media_requests", "tier", "VARCHAR(8) NOT NULL DEFAULT 'standard'"),
-    ("storage_entries", "tier", "VARCHAR(8) NOT NULL DEFAULT 'standard'"),
+    ("users", "can_request_uhd_movies", "BOOLEAN", "0"),
+    ("users", "can_request_uhd_series", "BOOLEAN", "0"),
+    ("users", "auto_approve_uhd", "BOOLEAN", "0"),
+    ("media_requests", "tier", "VARCHAR(8)", "'standard'"),
+    ("storage_entries", "tier", "VARCHAR(8)", "'standard'"),
 )
+
+
+def _alter_sql(form: str) -> list[str]:
+    """Die ALTER-Anweisungen einer alten Fassung.
+
+    ``0.35.2``: genau wie ``_add_missing_columns`` dort, Namen in
+    Anfuehrungszeichen - so stehen sie danach auch im Tabellentext, und daran
+    haengt der Riegel. ``ohne Anfuehrungszeichen``: wie eine Hand oder eine
+    andere Fassung sie schreiben koennte. Beide muessen den Riegel ausloesen.
+    """
+    if form == "0.35.2":
+        return [
+            f'ALTER TABLE "{tabelle}" ADD COLUMN "{spalte}" {typ} DEFAULT {vorgabe}'
+            for tabelle, spalte, typ, vorgabe in ALTE_SPALTEN
+        ]
+    return [
+        f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {typ} NOT NULL DEFAULT {vorgabe}"
+        for tabelle, spalte, typ, vorgabe in ALTE_SPALTEN
+    ]
+
+
+@pytest.fixture(params=["0.35.2", "ohne Anfuehrungszeichen"])
+def form(request: pytest.FixtureRequest) -> str:
+    return request.param
 
 
 def _riegel() -> dict[str, str]:
@@ -60,10 +85,10 @@ def _riegel() -> dict[str, str]:
         )
 
 
-def _alte_fassung_startet() -> None:
+def _alte_fassung_startet(form: str) -> None:
     with engine.begin() as verbindung:
-        for tabelle, spalte, art in ALTE_SPALTEN:
-            verbindung.exec_driver_sql(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {art}")
+        for sql in _alter_sql(form):
+            verbindung.exec_driver_sql(sql)
 
 
 def _spalten(tabelle: str) -> set[str]:
@@ -135,7 +160,7 @@ def test_diese_fassung_schreibt_ungehindert(
 
 
 def test_eine_alte_fassung_scheitert_beim_schreiben_und_aendert_nichts(
-    arr_client: TestClient,
+    arr_client: TestClient, form: str
 ) -> None:
     create_user(arr_client, "kim", "passwort-1234")
     kopf = auth_headers(arr_client, "kim", "passwort-1234")
@@ -158,7 +183,7 @@ def test_eine_alte_fassung_scheitert_beim_schreiben_und_aendert_nichts(
         )
         sitzung.commit()
 
-    _alte_fassung_startet()
+    _alte_fassung_startet(form)
     try:
         # Was 0.35.2 als Erstes schreibt: den Abbruch der Anfrage, die
         # Anmeldung (last_login_at), den Neuaufbau der Speicherposten.
@@ -188,14 +213,14 @@ def test_eine_alte_fassung_scheitert_beim_schreiben_und_aendert_nichts(
         # danach schreibt sie wie vorher.
         db_modul.init_db()
 
-    for tabelle, spalte, _ in ALTE_SPALTEN:
+    for tabelle, spalte, _, _ in ALTE_SPALTEN:
         assert spalte not in _spalten(tabelle), f"{tabelle}.{spalte} steht noch"
     assert len(_riegel()) == 9
     kopf = auth_headers(arr_client, "kim", "passwort-1234")
     assert arr_client.delete(f"/api/requests/{nummer}", headers=kopf).status_code in (200, 204)
 
 
-def test_der_riegel_haelt_auch_unter_trusted_schema_off(arr_client: TestClient) -> None:
+def test_der_riegel_haelt_auch_unter_trusted_schema_off(arr_client: TestClient, form: str) -> None:
     """Pruefer: Mit ``pragma_table_info`` im Trigger scheiterte hier jedes Schreiben.
 
     SQLite, das mit ``SQLITE_TRUSTED_SCHEMA=0`` gebaut ist, verbietet Triggern
@@ -218,8 +243,8 @@ def test_der_riegel_haelt_auch_unter_trusted_schema_off(arr_client: TestClient) 
             verbindung.commit()
 
             # Die alte Fassung nicht.
-            for tabelle, spalte, art in ALTE_SPALTEN:
-                verbindung.exec_driver_sql(f"ALTER TABLE {tabelle} ADD COLUMN {spalte} {art}")
+            for sql in _alter_sql(form):
+                verbindung.exec_driver_sql(sql)
             verbindung.commit()
             with pytest.raises(DatabaseError, match="belongs to Nexview"):
                 verbindung.exec_driver_sql("UPDATE users SET last_login_at = CURRENT_TIMESTAMP")
@@ -230,7 +255,7 @@ def test_der_riegel_haelt_auch_unter_trusted_schema_off(arr_client: TestClient) 
 
 
 def test_die_warnung_nennt_verworfene_werte(
-    arr_client: TestClient, caplog: pytest.LogCaptureFixture
+    arr_client: TestClient, caplog: pytest.LogCaptureFixture, form: str
 ) -> None:
     """Hat die alte Fassung doch geschrieben (etwa ohne Riegel), geht das mit der Spalte.
 
@@ -242,7 +267,7 @@ def test_die_warnung_nennt_verworfene_werte(
     with engine.begin() as verbindung:
         for name in _riegel():
             verbindung.exec_driver_sql(f'DROP TRIGGER "{name}"')
-    _alte_fassung_startet()
+    _alte_fassung_startet(form)
     with engine.begin() as verbindung:
         verbindung.exec_driver_sql(
             "UPDATE users SET can_request_uhd_movies = 1 WHERE username IN ('kim', 'alex')"

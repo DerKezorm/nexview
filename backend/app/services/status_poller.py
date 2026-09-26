@@ -664,6 +664,17 @@ def _speicher_vorziehen() -> None:
     _speicher_zuletzt = 0.0
 
 
+def speicher_bald_faellig() -> None:
+    """Dasselbe Vorziehen, aber fuer Aufrufer ausserhalb dieses Moduls.
+
+    Gerufen von der Einstellungsseite, wenn eine Beschaffungs-Instanz neu
+    eingetragen oder geaendert wird (Befund #note-10): Ohne das zaehlte eine
+    gerade erst eingerichtete Instanz bis zu eine Stunde lang nicht mit, ohne
+    dass die Uebersicht das sagt.
+    """
+    _speicher_vorziehen()
+
+
 async def _speicher_vielleicht(db, settings) -> None:
     """Die Speicher-Belegung erfassen, wenn es an der Zeit ist.
 

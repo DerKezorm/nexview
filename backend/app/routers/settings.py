@@ -19,7 +19,7 @@ from .. import meldungen
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import Fassung, Hausordnung, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH
-from ..services import beschaffung, cache, fassungen, mail, mail_templates, umstieg
+from ..services import beschaffung, cache, fassungen, mail, mail_templates, status_poller, umstieg
 from ..services.mediaserver import (
     PROVIDERS,
     merklisten_anbieter,
@@ -39,6 +39,27 @@ router = APIRouter(prefix="/api", tags=["settings"])
 
 #: Die Betriebsarten der Beschaffung, wie die Grenze sie kennt.
 BESCHAFFUNGSARTEN = frozenset(beschaffung.providers())
+
+#: Felder, an denen eine Beschaffungs-Instanz haengt. Aendert sich eines davon,
+#: muss der stuendliche Speicher-Abgleich sofort dran, statt bis zu eine Stunde
+#: zu warten - sonst zaehlt eine gerade erst eingerichtete Instanz (etwa Sonarr
+#: nach Radarr) so lange gar nicht mit, ohne dass die Uebersicht das sagt
+#: (Befund #note-10).
+INSTANZ_FELDER = frozenset(
+    {
+        "radarr_url",
+        "radarr_api_key",
+        "radarr_uhd_url",
+        "radarr_uhd_api_key",
+        "sonarr_url",
+        "sonarr_api_key",
+        "sonarr_uhd_url",
+        "sonarr_uhd_api_key",
+        "nexcrate_url",
+        "nexcrate_api_key",
+        "beschaffung",
+    }
+)
 
 logger = logging.getLogger("nexview.settings")
 
@@ -704,6 +725,13 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
     # Rundgang pruefen statt erst zur vollen Stunde. Kein direkter Anstoss -
     # dieser Endpunkt ist synchron, siehe webhook_pflege.gleich_wieder.
     beschaffung.rueckkanal_bald_pflegen()
+
+    # Dieselbe Vorziehung wie bei einer erkannten Aufwertung
+    # (``status_poller._speicher_vorziehen``): Eine Instanz, die gerade erst
+    # eingetragen wurde, soll nicht bis zu eine Stunde auf ihre erste Messung
+    # warten muessen.
+    if INSTANZ_FELDER & set(geaendert):
+        status_poller.speicher_bald_faellig()
 
     # ⚠️ Hier stand bis 0.19 der **Umschalt-Generalpardon**: Beim Wechsel der
     # Betriebsart starteten alle Konten bei null. Die Betriebsart gibt es nicht

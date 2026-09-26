@@ -57,7 +57,10 @@ function Folgen({ tmdbId, season }: { tmdbId: number; season: number }) {
           role="status"
           className="mx-4 mt-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs text-warn-500"
         >
-          {t('detail.statusUnconfirmed', weg)}
+          {t(
+            query.data.status_refused ? 'detail.statusRefused' : 'detail.statusUnconfirmed',
+            weg,
+          )}
         </p>
       )}
       <ul className="divide-y divide-ink-700/60">

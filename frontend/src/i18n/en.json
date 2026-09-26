@@ -2382,6 +2382,8 @@
     "status": "Status",
     "statusUnconfirmed": "Radarr or Sonarr is not answering right now, so this shows the last known state. It may have changed since.",
     "statusUnconfirmed_nex": "nexcrate is not answering right now, so this shows the last known state. It may have changed since.",
+    "statusRefused": "Radarr or Sonarr is refusing Nexview's requests right now, so this shows the last known state. Your administrator can fix this.",
+    "statusRefused_nex": "nexcrate is refusing Nexview's requests right now, so this shows the last known state. Your administrator can fix this.",
     "director": "Director",
     "creator": "Created by",
     "writing": "Writing",

@@ -675,6 +675,8 @@ export type SeasonDetail = {
   episodes: EpisodeInfo[];
   /** Hat der Beschaffungsweg nicht geantwortet? Dann ist „liegt vor“ der letzte bekannte Stand. */
   status_unconfirmed?: boolean;
+  /** Dazu: Der Weg hat abgelehnt statt geschwiegen (falscher Schlüssel usw.). */
+  status_refused?: boolean;
 };
 
 /** Etwas mit Kennung und Namen - Schlagwort oder Studio. */
@@ -869,6 +871,8 @@ export type MediaDetail = MediaItem & {
   requested_by_me?: boolean;
   /** Hat der Beschaffungsweg nicht geantwortet? Dann ist `status` der letzte bekannte Stand. */
   status_unconfirmed?: boolean;
+  /** Dazu: Der Weg hat abgelehnt statt geschwiegen (falscher Schlüssel usw.). */
+  status_refused?: boolean;
   /** Meine eigene Rückmeldung zur Qualität – am Titel, nicht an der Anfrage. */
   my_feedback?: {
     rating: number;

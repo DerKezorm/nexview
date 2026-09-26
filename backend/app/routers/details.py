@@ -350,6 +350,7 @@ async def title_detail(
             await _mit_status(db, settings, media_type, [detail], user)
             await _staffeln(db, settings, detail, media_type)
         detail.status_unconfirmed = not stand.gelesen
+        detail.status_refused = stand.abgelehnt
         await _mit_status(db, settings, media_type, detail.recommendations, user)
         if detail.collection is not None:
             await _mit_status(db, settings, media_type, detail.collection.items, user)
@@ -497,6 +498,7 @@ async def season(
     vierk = next((k for k in weitere if fassungen.klasse(k) == KLASSE_UHD), None)
 
     staffel.status_unconfirmed = not stand.gelesen
+    staffel.status_refused = stand.abgelehnt
 
     for folge in staffel.episodes:
         folge.available = folge.episode_number in in_dieser_staffel

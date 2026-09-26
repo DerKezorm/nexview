@@ -182,6 +182,26 @@ describe('wenn der Weg nicht antwortet', () => {
     expect(await screen.findByText(satz)).toBeInTheDocument()
   })
 
+  it('sagt es anders, wenn der Weg ablehnt statt zu schweigen', async () => {
+    antworten(
+      detail({
+        collection: null,
+        status: 'downloaded',
+        status_unconfirmed: true,
+        status_refused: true,
+      }),
+      { beschaffung: 'nex' },
+    )
+    seiteOeffnen()
+
+    expect(
+      await screen.findByText(i18n.t('detail.statusRefused', { context: 'nex' })),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(i18n.t('detail.statusUnconfirmed', { context: 'nex' })),
+    ).not.toBeInTheDocument()
+  })
+
   it('schweigt, solange der Weg geantwortet hat', async () => {
     antworten(detail({ collection: null, status: 'downloaded', status_unconfirmed: false }))
     seiteOeffnen()

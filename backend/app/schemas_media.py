@@ -137,6 +137,8 @@ class SeasonDetail(BaseModel):
     # Wie ``MediaDetail.status_unconfirmed``: Der Weg hat nicht geantwortet,
     # und "liegt vor" ist der letzte bekannte Stand, nicht der bestaetigte.
     status_unconfirmed: bool = False
+    # Wie ``MediaDetail.status_refused``.
+    status_refused: bool = False
 
 
 class NamedRef(BaseModel):
@@ -429,6 +431,10 @@ class MediaDetail(MediaItem):
     # geantwortet? Dann ist ``status`` der letzte bekannte Stand - aus den
     # Anfragen und dem zuletzt gelesenen Bestand -, und die Seite sagt das dazu.
     status_unconfirmed: bool = False
+    # Dazu: Der Weg hat nicht geschwiegen, sondern abgelehnt (falscher
+    # Schluessel, fehlendes Recht). Das geht nicht von selbst vorbei, und die
+    # Seite sagt es mit einem eigenen Satz.
+    status_refused: bool = False
 
     # Meine eigene Rueckmeldung zur Qualitaet, falls ich eine abgegeben habe.
     # Am Titel, nicht an der Anfrage - bewerten darf jeder, der einen

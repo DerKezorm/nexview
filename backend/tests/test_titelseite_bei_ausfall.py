@@ -126,6 +126,24 @@ def test_eine_fertige_anfrage_bleibt_fertig_waehrend_nexcrate_schweigt(
     assert _fassung(daten, FILM_UHD) == "downloaded"
     # Und die Seite sagt dazu, dass es der letzte bekannte Stand ist.
     assert daten["status_unconfirmed"] is True
+    assert daten["status_refused"] is False
+
+
+def test_lehnt_nexcrate_ab_sagt_die_titelseite_das_statt_schweigen(
+    admin_client: TestClient, nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ein falscher Schlüssel geht nicht von selbst vorbei - „antwortet gerade
+    nicht" wäre dort die falsche Auskunft."""
+    _einrichten(nexcrate)
+    _titelseite_ohne_tmdb(monkeypatch)
+    _anfrage(admin_client, 9513, FILM_HD, RequestStatus.downloaded)
+    nexcrate.key = "ein-anderer-schluessel"
+
+    daten = admin_client.get("/api/detail/movie/9513").json()
+
+    assert daten["status"] == "downloaded"
+    assert daten["status_unconfirmed"] is True
+    assert daten["status_refused"] is True
 
 
 def test_eine_laufende_anfrage_bleibt_laufend_waehrend_nexcrate_schweigt(
@@ -284,6 +302,20 @@ def test_die_staffelansicht_sagt_dazu_wenn_nexcrate_schweigt(
 
     assert antwort.status_code == 200, antwort.text
     assert antwort.json()["status_unconfirmed"] is True
+    assert antwort.json()["status_refused"] is False
+
+
+def test_die_staffelansicht_sagt_es_wenn_nexcrate_ablehnt(
+    admin_client: TestClient, nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _einrichten(nexcrate)
+    _staffel_ohne_tmdb(monkeypatch)
+    nexcrate.key = "ein-anderer-schluessel"
+
+    daten = admin_client.get("/api/detail/tv/9514/season/1").json()
+
+    assert daten["status_unconfirmed"] is True
+    assert daten["status_refused"] is True
 
 
 def test_die_staffelansicht_ist_bestaetigt_wenn_nexcrate_antwortet(

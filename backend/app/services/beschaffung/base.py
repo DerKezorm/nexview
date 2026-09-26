@@ -174,16 +174,25 @@ class Lesestand:
     stummen nexcrate jede Folge als "fehlt noch", ohne jeden Hinweis
     (Pruefgang, 26.09.2026). Wo ein Weg einen Lesefehler schluckt, vermerkt er
     ihn hier (``nicht_gelesen``); die Seite fragt danach.
+
+    Zwei Arten, nach dem Korb des Fehlers: ``stumm`` (keine Antwort, Zeit,
+    5xx) geht von selbst vorbei; ``abgelehnt`` (falscher Schluessel, fehlendes
+    Recht) bleibt, bis der Betreiber etwas aendert. Die Seite sagt es
+    verschieden.
     """
 
     stumm: bool = False
+    abgelehnt: bool = False
 
     def vermerken(self, fehler: BeschaffungError) -> None:
-        self.stumm = True
+        if fehler.korb == Korb.voruebergehend:
+            self.stumm = True
+        else:
+            self.abgelehnt = True
 
     @property
     def gelesen(self) -> bool:
-        return not self.stumm
+        return not (self.stumm or self.abgelehnt)
 
 
 _lesestand: ContextVar[Lesestand | None] = ContextVar("beschaffung_lesestand", default=None)

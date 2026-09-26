@@ -399,7 +399,10 @@ export function TitlePage() {
                   role="status"
                   className="mt-3 max-w-2xl rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs text-warn-500"
                 >
-                  {t('detail.statusUnconfirmed', wegKontext(config))}
+                  {t(
+                    item.status_refused ? 'detail.statusRefused' : 'detail.statusUnconfirmed',
+                    wegKontext(config),
+                  )}
                 </p>
               )}
 

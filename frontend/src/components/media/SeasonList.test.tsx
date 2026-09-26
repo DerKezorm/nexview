@@ -41,7 +41,11 @@ const STAFFEL = {
   episodes_available: 0,
 } as SeasonInfo
 
-function antworten(unbestaetigt: boolean, config: Record<string, unknown> = {}) {
+function antworten(
+  unbestaetigt: boolean,
+  config: Record<string, unknown> = {},
+  abgelehnt = false,
+) {
   const staffel: SeasonDetail = {
     season_number: 1,
     name: 'Staffel 1',
@@ -52,6 +56,7 @@ function antworten(unbestaetigt: boolean, config: Record<string, unknown> = {}) 
       { episode_number: 2, name: 'Folge zwei', available: false },
     ] as SeasonDetail['episodes'],
     status_unconfirmed: unbestaetigt,
+    status_refused: abgelehnt,
   }
   holen.mockImplementation((async (pfad: string) => {
     if (pfad === '/api/setup/status') {
@@ -89,6 +94,13 @@ describe('die aufgeklappte Staffel', () => {
     expect(
       await screen.findByText(i18n.t('detail.statusUnconfirmed', { context: 'nex' })),
     ).toBeInTheDocument()
+  })
+
+  it('sagt es anders, wenn der Weg ablehnt', async () => {
+    antworten(true, {}, true)
+    await aufklappen()
+
+    expect(screen.getByRole('status')).toHaveTextContent(i18n.t('detail.statusRefused'))
   })
 
   it('schweigt, solange der Weg geantwortet hat', async () => {

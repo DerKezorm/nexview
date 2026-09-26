@@ -182,7 +182,7 @@ async def test_ein_entfernter_titel_faellt_aus_dem_bestand(
 async def test_eine_andere_installation_laesst_ganz_neu_lesen(
     nex: Any, nexcrate: FakeNexcrate
 ) -> None:
-    """nexbeat-Befund 11: Eine gemerkte Marke gehoert **einer** Installation."""
+    """Befund: Eine gemerkte Marke gehoert **einer** Installation."""
     nexcrate.film(603)
     weg = get_beschaffung(nex)
     await weg.bestand_filme()
@@ -237,7 +237,7 @@ def test_eine_serie_mit_luecke_ist_nur_teilweise_da() -> None:
 def test_eine_gesuchte_serie_mit_dateien_ist_teilweise_da(
     state: str, have: int, erwartet: str
 ) -> None:
-    """⚠️ #note-40: nexcrate nennt eine Serie ``wanted``, solange **eine**
+    """⚠️ nexcrate nennt eine Serie ``wanted``, solange **eine**
     gesendete, ueberwachte Folge fehlt (``watching.state_from``) - auch wenn
     hunderte daliegen. Nexview machte daraus "wird gesucht", und eine alte
     Serie aus Sonarr stand nach dem Umstieg als nicht vorhanden da. Wie im
@@ -317,7 +317,7 @@ def test_die_warteschlange_zaehlt_einen_download_einmal() -> None:
 
 
 def test_ein_gescheiterter_download_zaehlt_nicht_als_ladend() -> None:
-    """Rundgang-Befund 9: nexcrate nennt ``remaining_bytes`` nur, solange ein
+    """Rundgang-Befund: nexcrate nennt ``remaining_bytes`` nur, solange ein
     Download laeuft. Ein gescheiterter hatte damit „0 Bytes uebrig“, und eine
     Anfrage auf denselben Titel stand bei 100 Prozent."""
     roh = [
@@ -422,7 +422,7 @@ async def test_eine_folge_im_kalender_traegt_staffel_und_nummer(
 
 
 def test_ein_film_mit_zwei_terminen_ist_ein_datensatz() -> None:
-    """Rundgang 2, R2-2 (gemessen 25.09.2026): nexcrate nennt je Termin einen
+    """Rundgang 2 (gemessen 25.09.2026): nexcrate nennt je Termin einen
     Eintrag, Radarr je Film einen Datensatz mit allen Terminen. „One Last Shot“
     hatte digital und physisch am selben Tag und stand zweimal im Kalender, mit
     demselben Schluessel."""
@@ -444,7 +444,7 @@ def test_ein_film_mit_zwei_terminen_ist_ein_datensatz() -> None:
 
 
 def test_beim_zusammenlegen_gilt_der_fruehere_termin_und_jede_datei() -> None:
-    """Pruefer zu R2-2: Zwei Termine derselben Art behielten den zuerst
+    """Zwei Termine derselben Art behielten den zuerst
     genannten, nicht den frueheren; ob ein Eintrag eine Datei kennt, pruefte
     kein Test."""
     def termin(tag: str, versionen: list[dict[str, Any]]) -> dict[str, Any]:
@@ -494,7 +494,7 @@ async def test_die_glocke_nennt_nexcrate_nicht_radarr(
 ) -> None:
     """Die Meldung kam mit dem Schluessel des Arr-Wegs: "Radarr/Sonarr meldet ein Problem".
 
-    ⚠️ **Nie nexcrates Satz, auch nicht im Titel** (Rundgang-Befund 5): Der
+    ⚠️ **Nie nexcrates Satz, auch nicht im Titel** (Rundgang-Befund): Der
     Titel war ``"nexcrate: <englischer Satz>"``. Jetzt traegt die Glocke die
     Kennung als Schluessel, wo ihr Text ohne Platzhalter auskommt, sonst den
     allgemeinen Satz; der Titel ist nur der Name.
@@ -541,7 +541,7 @@ def test_die_glocke_hat_jeden_text() -> None:
 
 
 async def test_musik_meldet_nexview_nichts(nex: Any, nexcrate: FakeNexcrate, db: Session) -> None:
-    """Rundgang-Befund 5: nexcrate meldet ``automatic_off`` je Art, auch fuer
+    """Rundgang-Befund: nexcrate meldet ``automatic_off`` je Art, auch fuer
     ``album``; Nexview zeigte daraus „Die Automatik ist aus“, obwohl Filme und
     Serien an waren. Musik fuehrt Nexview nicht."""
     nexcrate.health = [
@@ -793,7 +793,7 @@ async def test_die_messung_nennt_version_und_update(nex: Any, nexcrate: FakeNexc
 async def test_die_messung_zaehlt_gescheiterte_nicht_als_laufend(
     nex: Any, nexcrate: FakeNexcrate
 ) -> None:
-    """Rundgang-Befund 9: „wie viele Downloads laufen“ zaehlt keinen
+    """Rundgang-Befund: „wie viele Downloads laufen“ zaehlt keinen
     gescheiterten ohne Problem; einer, der auf den Betreiber wartet, bleibt
     gestoert."""
     nexcrate.queue = [
@@ -854,7 +854,7 @@ def test_die_einstellungen_bleiben_im_arr_betrieb_unberuehrt(db: Session) -> Non
 async def test_musikfassungen_melden_nexview_nichts(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:
-    """Pruefer zu Befund 5: ``version_not_ready`` und ``folder_*`` nennen nur
+    """``version_not_ready`` und ``folder_*`` nennen nur
     die ``version_id``, kein ``kind``; fuer eine Musikfassung kamen sie durch.
     ``disk_full`` bleibt: nexcrate meldet einen vollen Datentraeger nur einmal
     je Geraet, und die genannte Fassung kann die Musik sein, obwohl die Filme
@@ -881,7 +881,7 @@ async def test_musikfassungen_melden_nexview_nichts(
 
 
 def test_jede_kennung_aus_nexcrate_hat_einen_text() -> None:
-    """Pruefer zu Befund 5: Fuenf Kennungen, die nexcrate liefert, hatten keinen
+    """Fuenf Kennungen, die nexcrate liefert, hatten keinen
     Text; die Oberflaeche zeigte dann die rohe Kennung. Die Liste steht in
     nexcrates eigener Beschreibung von ``FindingOut.code``."""
     import re

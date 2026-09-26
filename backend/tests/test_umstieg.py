@@ -529,7 +529,7 @@ def test_im_nex_betrieb_gibt_es_den_umstieg_nicht(assistent: TestClient) -> None
 
 
 def test_ohne_nexcrate_ist_es_eine_absage_und_kein_502(admin_client: TestClient) -> None:
-    """#note-55: Der Ausgangszustand jeder Installation, die den Assistenten
+    """Der Ausgangszustand jeder Installation, die den Assistenten
     zum ersten Mal oeffnet. Ein 502 sagte "die Gegenseite ist kaputt" - dabei
     fehlt nur die Einstellung."""
     antwort = admin_client.get("/api/umstieg/abbildung")
@@ -539,7 +539,7 @@ def test_ohne_nexcrate_ist_es_eine_absage_und_kein_502(admin_client: TestClient)
 
 
 def test_der_name_der_sicherung_ist_ganz(assistent: TestClient) -> None:
-    """Rundgang-Befund 2: Der Name endete auf „...-to-n.db“. Der Kommentar
+    """Rundgang-Befund: Der Name endete auf „...-to-n.db“. Der Kommentar
     wurde auf 40 Zeichen gekuerzt, mitten im Wort."""
     from app.services import sicherung
 
@@ -553,7 +553,7 @@ def test_der_name_der_sicherung_ist_ganz(assistent: TestClient) -> None:
 def test_eine_eben_angelegte_sicherung_wird_nach_dem_neuladen_erkannt(
     assistent: TestClient,
 ) -> None:
-    """#note-37: Die Oberflaeche merkte sich die Sicherung nur im Reiter. In
+    """Die Oberflaeche merkte sich die Sicherung nur im Reiter. In
     einem neuen Fenster stand "Weiter" grau da, und der einzige Ausweg legte
     eine zweite Sicherung an. Jetzt nennt der Server die von eben."""
     from app.services import sicherung
@@ -1055,7 +1055,7 @@ def _posten_nur_mit_tvdb(db: Session, tvdb: int = 909091, staffel: int = 1) -> S
 async def test_die_probe_fragt_auch_nach_posten_ohne_tmdb_nummer(
     vor_dem_umstieg: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:
-    """⚠️ #note-40: Ein Posten ohne TMDB-Nummer kam in der Probe gar nicht vor.
+    """⚠️ Ein Posten ohne TMDB-Nummer kam in der Probe gar nicht vor.
 
     Ohne Frage keine Uebersetzung - er blieb beim Umschalten unter der
     stillgelegten Sonarr-Fassung stehen, obwohl nexcrate die Serie ueber ihre

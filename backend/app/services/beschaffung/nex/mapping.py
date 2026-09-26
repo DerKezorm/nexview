@@ -69,7 +69,7 @@ def fuehrt_nexview(eintrag: dict[str, Any]) -> bool:
 def ref(tmdb_id: int) -> str:
     """Die Kennung eines Titels, wie nexcrate sie erwartet.
 
-    ⚠️ Nur klein: ``TMDB:603`` ist ``ref_source_unknown`` (nexbeat-Befund 8,
+    ⚠️ Nur klein: ``TMDB:603`` ist ``ref_source_unknown`` (Befund,
     an dieser nexcrate nachgemessen).
     """
     return f"tmdb:{int(tmdb_id)}"
@@ -148,7 +148,7 @@ def gruende(eintrag: dict[str, Any]) -> list[str]:
     """Warum eine Fassung nicht bereit ist, als Kennungen.
 
     ⚠️ ``automatic_off`` steht unter den Gruenden, haelt mit
-    ``wishes_search_at_once`` aber nichts auf (nexbeat-Befund 13): Ein
+    ``wishes_search_at_once`` aber nichts auf (Befund): Ein
     Suchwunsch wird auch bei ausgeschalteter Automatik abgearbeitet. Es bleibt
     deshalb in der Liste, macht eine Fassung aber nicht unbrauchbar - siehe
     ``anfragbar``.
@@ -187,7 +187,7 @@ def herkunft(anfrage_id: int) -> str:
     """Nexviews Herkunftsmarke an einer Anfrage (N19).
 
     ⚠️ Sie bleibt beim **ersten**, der einen Titel angefragt hat
-    (nexbeat-Befund 4). Wer wissen will, ob seine Anfrage angekommen ist,
+    (Befund). Wer wissen will, ob seine Anfrage angekommen ist,
     liest den Zustand, nie die Marke.
     """
     return f"nexview:request:{int(anfrage_id)}"

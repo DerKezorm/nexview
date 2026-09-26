@@ -1,5 +1,5 @@
 /**
- * Nach einer Anfrage lädt auch „Woran es hängt“ neu (Rundgang 2, R2-4).
+ * Nach einer Anfrage lädt auch „Woran es hängt“ neu (Rundgang 2).
  *
  * Gemessen an der Live-Instanz am 25.09.2026: Nach dem Anfragen fehlte der
  * Abschnitt auf der Titelseite, bis man neu lud; zwischen Anfrage und Neuladen

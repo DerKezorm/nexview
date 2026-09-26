@@ -35,7 +35,7 @@ QUIET_PATHS = ("/api/health", "/api/logs")
 
 #: Ab dieser Dauer steht ein Aufruf als Warnung im Protokoll, auch ohne DEBUG.
 #: Das Dashboard brauchte einmal 16 Sekunden, und hinterher liess sich nicht
-#: mehr messen, woran es lag (Rundgang 2, R2-5).
+#: mehr messen, woran es lag (Rundgang 2).
 LANGSAM_MS = 3000
 
 #: Was von Natur aus dauert und deshalb nicht warnt: Sicherungen (anlegen,
@@ -51,7 +51,7 @@ LANGSAM_GEWOLLT = (
     "/api/admin/mediaserver/library/refresh",
     "/api/storage/abgleich",
     # Zurueckholen fragt nexcrate, das dabei TMDB oder MusicBrainz fragt
-    # (#job-43) - dasselbe lange Zeitlimit wie beim Anfragen.
+    # - dasselbe lange Zeitlimit wie beim Anfragen.
     "/api/beschaffung/papierkorb/",
 )
 

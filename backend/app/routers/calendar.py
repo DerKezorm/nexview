@@ -116,7 +116,7 @@ async def _zustaende(db, settings, user, eintraege: list[CalendarEntry]) -> None
 
         for eintrag in betroffen:
             eigen = eigene.get(eintrag.tmdb_id)
-            # #note-64: nur fuer Neuerscheinungen - die kamen gerade eben
+            # nur fuer Neuerscheinungen - die kamen gerade eben
             # durch ``status_setzen`` und koennen "searching" tragen, obwohl
             # niemand sie angefragt hat. Eigene Titel laufen da nicht durch
             # (siehe Docstring oben) und bleiben unberuehrt.

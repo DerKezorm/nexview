@@ -80,7 +80,7 @@ describe('Papierkorb der Beschaffung', () => {
   })
 
   it('sperrt den Knopf, wenn der Titel sich nicht wieder anlegen lässt', async () => {
-    // ⚠️ #job-43: `im_bestand: false` allein sperrt nicht mehr - erst wenn
+    // ⚠️ `im_bestand: false` allein sperrt nicht mehr - erst wenn
     // der Weg selbst sagt, dass er den Titel nicht wieder anlegen kann.
     liste([{ ...EINTRAG, im_bestand: false, restorable: false }])
     rendernSchlicht(<AdminPapierkorbNex />)
@@ -90,7 +90,7 @@ describe('Papierkorb der Beschaffung', () => {
   })
 
   it('zeigt nur einen Hinweis, wenn der Titel beim Zurückholen wieder angelegt wird', async () => {
-    // Der Kern von #job-43: Der Titel hat den Bestand verlassen, lässt sich
+    // Der Kern der Sache: Der Titel hat den Bestand verlassen, lässt sich
     // aber wieder anlegen - der Knopf bleibt an.
     liste([{ ...EINTRAG, im_bestand: false, restorable: true }])
     rendernSchlicht(<AdminPapierkorbNex />)

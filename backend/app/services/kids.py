@@ -236,7 +236,7 @@ async def einordnen(
         if item.tmdb_id in gesperrt:
             continue
         status = item.status
-        # #note-64: bekannt, keine Datei, keine laufende Anfrage - wuenschbar
+        # bekannt, keine Datei, keine laufende Anfrage - wuenschbar
         # wie ein Titel, den der Weg noch nie gesehen hat. Sonst landete ein
         # Bestandstitel ohne Datei in keinem der beiden Koerbe.
         if requests_service.nur_katalog_ohne_anfrage(status, angefragt.get(item.tmdb_id)):

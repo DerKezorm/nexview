@@ -376,7 +376,7 @@ def _ohne_sicherung_anhalten(befund: dict[str, bool]) -> None:
     Wanderung, die nur Spalten ergaenzt, stimmt das weiter. Fuer eine, die
     Bestandsdaten umdeutet oder Spalten entfernt (die Einmal-Schritte, etwa
     ``_fassungen_einfuehren``), nicht: Die Sicherung ist dort der einzige
-    Rueckweg (#note-22), und ohne sie waere er still verloren. Dann haelt der
+    Rueckweg, und ohne sie waere er still verloren. Dann haelt der
     Start an, bevor irgendetwas geschrieben ist, und sagt, was zu tun ist.
 
     Offen ist ein Schritt, wenn das Buch ihn als ``offen`` fuehrt, oder wenn er
@@ -411,7 +411,7 @@ def _rueckweg_nennen(stand: str, datei: Path | None) -> None:
     """Nach einer Wanderung sagen, wo der Weg zurueck liegt - und wo nicht.
 
     ⚠️ **Eine aeltere Fassung auf dieser Datenbank zu starten, beschaedigt sie
-    lautlos.** Gemessen an 0.35.2 nach 1.0.0 (#note-22): Sie legt ihre alten
+    lautlos.** Gemessen an 0.35.2 nach 1.0.0: Sie legt ihre alten
     Spalten leer wieder an, bricht eine laufende 4K-Anfrage ab ("no longer
     present in Radarr"), nimmt jedem Konto das 4K-Recht und erkennt keinen
     Speicherposten wieder - bei gruenem Gesundheitszustand. Sagen laesst es
@@ -459,7 +459,7 @@ def _datenstand() -> str:
     **untere Grenze**, und die Antwort sagt das auch: ``"0.35.2 or later"``.
     ⚠️ Das Wanderungsbuch allein reichte nicht - es gibt es seit 0.26.2, und bis
     0.35.2 kam kein Einmal-Schritt dazu. Eine Installation, die ueber 0.30.0 auf
-    0.35.2 kam, hiess damit "0.30.0" (Pruefer, gemessen). Deshalb zaehlen drei
+    0.35.2 kam, hiess damit "0.30.0" (gemessen). Deshalb zaehlen drei
     Spuren, jede von einer Fassung hinterlassen, die hier gelaufen ist:
 
     * das Wanderungsbuch,
@@ -471,8 +471,8 @@ def _datenstand() -> str:
     haette ihn gesetzt; steht er auf 0, stammen die Daten von davor. Spuren von
     1.0.0 und spaeter gibt es trotzdem - etwa die Steckbriefe von Sicherungen,
     die 1.0.0 angelegt hat, bevor jemand per Dateitausch auf 0.35.2 zurueckging.
-    Beim naechsten Update hiess die Sicherung sonst "1.0.0 or later" (Pruefer,
-    gemessen), und 0.35.2 haette sie nicht mehr eingespielt.
+    Beim naechsten Update hiess die Sicherung sonst "1.0.0 or later" (gemessen),
+    und 0.35.2 haette sie nicht mehr eingespielt.
 
     Die Richtung ist die sichere: Die Sicherung vor der Wanderung soll sich in
     die alte Fassung einspielen lassen, und die prueft nur, dass sie nicht
@@ -543,7 +543,7 @@ def _merker_pruefen() -> None:
     """Den Start verweigern, wenn schon eine neuere Fassung hier gearbeitet hat.
 
     ⚠️ **Eine aeltere Fassung auf einer gewanderten Datenbank beschaedigt sie
-    lautlos** - gemessen am Rueckweg von 1.0.0 auf 0.35.2 (#note-22): offene
+    lautlos** - gemessen am Rueckweg von 1.0.0 auf 0.35.2: offene
     Anfragen abgebrochen, 4K-Rechte weg, Speicherposten neu aufgebaut, bei
     gruenem Gesundheitszustand. 0.35.2 laesst sich nicht mehr aendern, dagegen
     steht der Riegel (``_riegel_anlegen``). Ab 1.0.0 merkt sich jede Fassung
@@ -641,7 +641,7 @@ def _spalte_im_schema(tabelle: str, spalte: str) -> str:
     und unter ``PRAGMA trusted_schema=OFF`` (SQLite, das mit
     ``SQLITE_TRUSTED_SCHEMA=0`` gebaut ist) darf ein Trigger keine benutzen:
     Jedes Schreiben an den drei Tabellen scheiterte dann mit "unsafe use of
-    virtual table" - auch das dieser Fassung (Pruefer, gemessen).
+    virtual table" - auch das dieser Fassung (gemessen).
 
     Stattdessen der Tabellentext aus ``sqlite_master``, eine gewoehnliche
     Tabelle. Er fuehrt jede Spalte, auch eine per ``ALTER TABLE`` angehaengte
@@ -685,7 +685,7 @@ def _riegel_anlegen() -> None:
 
     ⚠️ **Warum es sie gibt.** Wer nach dem Update auf 1.0.0 einfach das alte
     Abbild wieder startet - der naheliegendste Rueckweg -, beschaedigte bis
-    hierher seine Daten lautlos (#note-22, gemessen an 0.35.2): Die alte
+    hierher seine Daten lautlos (gemessen an 0.35.2): Die alte
     Fassung legt ihre Stufen-Spalten leer wieder an, liest daraus "kein
     4K-Recht" und "Stufe standard", bricht deshalb laufende 4K-Anfragen ab und
     baut jeden Speicherposten neu auf. Gesundheitszustand gruen, keine Meldung
@@ -2299,7 +2299,7 @@ def _beispieltitel_umziehen() -> None:
     Bis 1.0.0 trugen die Beispieltitel Kennungen zwischen 900.000 und 990.000,
     und das sind echte TMDB-Kennungen. Trug jemand nach dem Beispielbetrieb
     einen TMDB-Schluessel ein, zeigte jede alte Beispielanfrage auf einen
-    fremden, echten Titel - weiter als "wartet auf Freigabe" (#note-30). Seit
+    fremden, echten Titel - weiter als "wartet auf Freigabe". Seit
     1.0.0 haben sie einen eigenen Bereich (``demo_data.BEISPIEL_ANFANG``); was
     eine aeltere Fassung gespeichert hat, zieht hier nach.
 

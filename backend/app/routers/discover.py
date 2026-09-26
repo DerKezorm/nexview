@@ -131,7 +131,7 @@ async def _status_for(
         # kommt gleich danach als zweite Quelle zum Zug.
         if eigen == "downloaded" and item.status == "not_requested":
             eigen = None
-        # #note-64: bekannt, keine Datei, keine eigene Anfrage - anfragbar
+        # bekannt, keine Datei, keine eigene Anfrage - anfragbar
         # wie ein Titel, den der Weg noch nie gesehen hat.
         status = item.status
         if requests_service.nur_katalog_ohne_anfrage(status, eigen):

@@ -291,7 +291,7 @@ def _sicherung_vor_dem_update(pfad: Path) -> tuple[Path, dict]:
 def test_die_sicherung_vor_dem_update_behauptet_keine_fassung_die_sie_nicht_kennt(
     alte_installation: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Pruefer zu #note-22: Aus dem Buch allein wurde "0.30.0" - die Daten waren von 0.35.2.
+    """Aus dem Buch allein wurde "0.30.0" - die Daten waren von 0.35.2.
 
     Vor 1.0.0 schrieb keine Fassung sich selbst in die Datenbank. Genau ist die
     Angabe deshalb nie; sie sagt "oder spaeter" und nennt die hoechste Spur.
@@ -369,7 +369,7 @@ def test_die_steckbriefe_im_ordner_zaehlen_als_spur(alte_installation: Path) -> 
 
 
 def test_nach_dem_rueckweg_zaehlen_spuren_ab_1_0_0_nicht(alte_installation: Path) -> None:
-    """Pruefer: Update, Sicherung unter 1.0.0, Dateitausch auf 0.35.2, erneutes Update.
+    """Update, Sicherung unter 1.0.0, Dateitausch auf 0.35.2, erneutes Update.
 
     Die Datenbank ist dann wieder die von 0.35.2 (Merker 0), aber im Ordner liegt
     der Steckbrief einer Sicherung von 1.0.0. Er zaehlte mit, und die neue
@@ -415,7 +415,7 @@ def test_ohne_sicherung_wandert_nichts_ohne_rueckweg(
 ) -> None:
     """Scheitert die Sicherung vor einer Wanderung, die Daten umdeutet, haelt der Start an.
 
-    Sie ist der einzige Rueckweg (#note-22). Frueher lief der Start weiter und
+    Sie ist der einzige Rueckweg. Frueher lief der Start weiter und
     entfernte die Stufen-Spalten ohne Kopie.
     """
     _sicherung_scheitert(monkeypatch)
@@ -591,7 +591,7 @@ def test_eine_aeltere_fassung_verweigert_den_start(alte_installation: Path) -> N
     """Hat eine neuere Fassung schon hier gearbeitet, startet eine aeltere nicht.
 
     Sie wuerde die Daten lautlos veraendern, wie 0.35.2 auf einer Datenbank von
-    1.0.0 (#note-22). Die Meldung nennt den Rueckweg samt Sicherung.
+    1.0.0. Die Meldung nennt den Rueckweg samt Sicherung.
     """
     from app import __version__
 

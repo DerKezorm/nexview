@@ -764,7 +764,7 @@ def test_titel_liegt_schon_da_meldet_eine_kennung(
 def test_bestandstitel_ohne_datei_bleibt_anfragbar(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#note-64: "searching" heisst "noch keine Datei", nicht "schon da".
+    """"searching" heisst "noch keine Datei", nicht "schon da".
 
     Ein Titel, den Radarr bereits fuehrt - von Hand hinzugefuegt, ueber eine
     zweite Instanz geholt, aus einem eingespielten Stand -, aber ohne Datei,

@@ -1,9 +1,9 @@
 /**
- * Die Programmversion heißt „Version“, nicht „Fassung“ (Rundgang 2, R2-3).
+ * Die Programmversion heißt „Version“, nicht „Fassung“ (Rundgang 2).
  *
  * „Fassung“ ist in Nexview ein eigener Begriff: Full-HD, 4K, 3D. Die Analyse
- * nannte nexcrates Programmversion „Fassung 0.2.0“; der Prüfer fand dasselbe
- * Wort noch in zwölf Texten über Programmversionen (Seerr, Sicherungen,
+ * nannte nexcrates Programmversion „Fassung 0.2.0“; dasselbe
+ * Wort fand sich noch in zwölf Texten über Programmversionen (Seerr, Sicherungen,
  * Update-Befund, Absturzhinweis).
  */
 

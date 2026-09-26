@@ -152,7 +152,7 @@ export function AddRequestForm({
   // ⚠️ Gibt es Ordner und Profil überhaupt zu wählen? Im NEX-Betrieb nicht:
   // Beides hängt an der Fassung in nexcrate, und die Listen-Adresse antwortet
   // `409`. Wer das nicht fragt, zeigt nur diese Meldung, und niemand kann
-  // anfragen (Rundgang-Befund 6).
+  // anfragen (Rundgang-Befund).
   const ohneZiel = zielSpaeter || !zielWaehlbar(config)
   /**
    * Welche Staffeln angefragt werden – **eine Menge, kein einzelner Wert.**

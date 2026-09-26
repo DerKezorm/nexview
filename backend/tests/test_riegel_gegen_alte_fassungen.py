@@ -1,4 +1,4 @@
-"""Der Riegel gegen Fassungen vor 1.0.0 (#note-22).
+"""Der Riegel gegen Fassungen vor 1.0.0.
 
 Wer nach dem Update das alte Abbild wieder startet, beschaedigte seine Daten
 lautlos: 0.35.2 legt seine Stufen-Spalten leer wieder an, bricht laufende
@@ -221,7 +221,7 @@ def test_eine_alte_fassung_scheitert_beim_schreiben_und_aendert_nichts(
 
 
 def test_der_riegel_haelt_auch_unter_trusted_schema_off(arr_client: TestClient, form: str) -> None:
-    """Pruefer: Mit ``pragma_table_info`` im Trigger scheiterte hier jedes Schreiben.
+    """Mit ``pragma_table_info`` im Trigger scheiterte hier jedes Schreiben.
 
     SQLite, das mit ``SQLITE_TRUSTED_SCHEMA=0`` gebaut ist, verbietet Triggern
     virtuelle Tabellen ("unsafe use of virtual table") - auch dieser Fassung.

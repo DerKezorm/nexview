@@ -223,7 +223,7 @@ def test_freigabe_verknuepft_einen_film_der_schon_in_radarr_liegt(
 def test_freigabe_sucht_einen_film_der_in_radarr_ohne_datei_liegt(
     arr_client: TestClient, monkeypatch
 ) -> None:
-    """#note-64: Verknuepfen allein reicht nicht, wenn die Datei fehlt.
+    """Verknuepfen allein reicht nicht, wenn die Datei fehlt.
 
     Fuer einen Film, den Radarr schon fuehrt, aber unueberwacht und ohne
     Datei, hat das Verknuepfen aus dem vorigen Test seine Nummer uebernommen -
@@ -269,7 +269,7 @@ def test_freigabe_sucht_einen_film_der_in_radarr_ohne_datei_liegt(
 def test_bestandstitel_ohne_datei_bleibt_im_nex_betrieb_anfragbar(
     admin_client: TestClient, db: Session, nexcrate: FakeNexcrate
 ) -> None:
-    """#note-64 im NEX-Betrieb: traf dort *jeden* Bestandstitel ohne Datei.
+    """Im NEX-Betrieb traf das *jeden* Bestandstitel ohne Datei.
 
     Nach einem Umstieg fuehrt nexcrate den ganzen alten Bestand - ein Titel
     im Zustand "wanted" (bekannt, ohne Datei) wurde bis zum 26.09.2026
@@ -296,7 +296,7 @@ def test_bestandstitel_ohne_datei_bleibt_im_nex_betrieb_anfragbar(
 def test_bestandstitel_ohne_datei_zeigt_sich_im_nex_katalog_als_anfragbar(
     admin_client: TestClient, db: Session, nexcrate: FakeNexcrate
 ) -> None:
-    """#note-64 im NEX-Betrieb: die Anzeige muss zur Anfrage passen.
+    """Im NEX-Betrieb muss die Anzeige zur Anfrage passen.
 
     Die Programmierschnittstelle nahm die Anfrage schon an - aber Katalog
     und Titelseite zeigten "wird gesucht" weiter, und der Anfrage-Knopf blieb
@@ -324,7 +324,7 @@ def test_bestandstitel_ohne_datei_zeigt_sich_im_nex_katalog_als_anfragbar(
 async def test_bestandstitel_ohne_datei_bleibt_in_nex_4k_anfragbar(
     admin_client: TestClient, db: Session, nexcrate: FakeNexcrate
 ) -> None:
-    """#note-64 im NEX-Betrieb, je Fassung: dieselbe Reparatur fuer die 4K-Achse.
+    """Im NEX-Betrieb, je Fassung: dieselbe Reparatur fuer die 4K-Achse.
 
     Die 4K-Fassung fuehrt den Titel schon (Zustand "wanted"), aber ohne Datei
     und ohne eigene Anfrage - das darf die Standard-Fassung genauso wenig
@@ -358,7 +358,7 @@ async def test_bestandstitel_ohne_datei_bleibt_in_nex_4k_anfragbar(
 
 
 # --------------------------------------------------------------------------
-# fassung_kennung = NULL darf keinen Leseweg mit 500 abbrechen (R13b)
+# fassung_kennung = NULL darf keinen Leseweg mit 500 abbrechen
 
 
 @pytest.fixture
@@ -390,7 +390,7 @@ def test_fassung_kennung_null_bleibt_auf_allen_vier_wegen_lesbar(
     einem ``ValidationError`` scheitern: 500 auf ``GET /api/admin/requests``,
     genauso auf ``?fremde_fassung=true`` (das den Fall extra mitzaehlt, siehe
     ``nachreichen._fremd``), ``GET /api/requests/mine`` und
-    ``GET /api/v1/requests/mine``. Gemessen vom Pruefer von R13b."""
+    ``GET /api/v1/requests/mine``. Gemessen am echten Fall."""
     save_settings(db, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY})
     nex_fassungen.schreiben(db, nexcrate.versions)
     db.commit()

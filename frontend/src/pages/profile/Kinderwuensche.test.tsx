@@ -1,5 +1,5 @@
 /**
- * Kinderwünsche freigeben im NEX-Betrieb (Rundgang-Befund 6).
+ * Kinderwünsche freigeben im NEX-Betrieb (Rundgang-Befund).
  *
  * ⚠️ Die Zielwahl holte immer `/api/arr/{art}/options`. Im NEX-Betrieb
  * antwortet der Server dort `409 not_in_this_mode`; die Freigabe zeigte nur

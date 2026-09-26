@@ -191,7 +191,7 @@ def pruefe_abbildung(
 class Titelbefund:
     media_type: str
     #: ``0``, solange nur die TVDB-Nummer bekannt ist: Ein Posten aus Sonarr
-    #: trägt oft keine TMDB-Nummer (#note-40). Die Probe setzt dann die aus
+    #: trägt oft keine TMDB-Nummer. Die Probe setzt dann die aus
     #: nexcrate ein, wenn es eine gibt.
     tmdb_id: int
     tvdb_id: int | None
@@ -359,7 +359,7 @@ def _was_haengt(db: Session) -> list[Titelbefund]:
     verschweigt genau den Fall, der eine Entscheidung braucht - und das an
     beiden Enden, denn ein Speicherposten hängt ohnehin an einer Fassung.
 
-    ⚠️ **Auch ein Posten ohne TMDB-Nummer gehört dazu** (#note-40). Sonarr
+    ⚠️ **Auch ein Posten ohne TMDB-Nummer gehört dazu.** Sonarr
     führt Serien an der TVDB-Nummer, und so steht mancher Posten im
     ARR-Betrieb: ``tv:sonarr-standard:tvdb:71663:s1`` ohne ``tmdb_id``. Hier
     fiel er früher heraus, wurde nie gefragt, bekam deshalb keine Übersetzung

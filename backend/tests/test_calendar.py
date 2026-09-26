@@ -438,7 +438,7 @@ def test_kino_zeigt_keine_serien(
                 "date_type": datumsart,
                 # Das Standardfenster liegt bei "heute" - die Folge traegt den
                 # festen Testtag HEUTE, der seit dem Zuschnitt aufs Fenster
-                # (Notiz #35) sonst herausfiele.
+                # sonst herausfiele.
                 "date_from": HEUTE,
                 "date_to": HEUTE,
             },
@@ -498,7 +498,7 @@ def test_sonarr_folgen_kommen_bis_in_die_antwort(
     monkeypatch.setattr(library, "movie_calendar", keine_filme)
 
     # Das Standardfenster liegt bei "heute" - die Folge traegt den festen
-    # Testtag HEUTE, der seit dem Zuschnitt aufs Fenster (Notiz #35) sonst
+    # Testtag HEUTE, der seit dem Zuschnitt aufs Fenster sonst
     # herausfiele.
     daten = arr_client.get(
         "/api/calendar",
@@ -516,7 +516,7 @@ def test_sonarr_folgen_kommen_bis_in_die_antwort(
 def test_sonarr_kalender_ueber_echten_http_aufruf_zeigt_laufende_serie(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Nachstellung Notiz #35 (Rundgang 25./26.09.2026): eine laufende, schon
+    """Nachgestellter Fall aus dem Prüfgang (25./26.09.2026): eine laufende, schon
     im Bestand befindliche Serie ohne neue Staffel muss trotzdem mit
     Staffel und Folgennummer im Kalender ankommen.
 
@@ -586,9 +586,8 @@ def test_sonarr_kalender_ueber_echten_http_aufruf_zeigt_laufende_serie(
     assert treffer[0]["season"] == 23
 
 
-#: Nachstellung Notiz #35 mit der echten Sonarr-Antwort des Rundgangs
-#: (25.09.2026, ``pruefgang/arr-b/messungen/sonarr_calendar_weit.json``,
-#: gekuerzt auf die Felder, die ``_falte_folgen`` liest). "One Piece" S23E25
+#: Nachgestellt mit der echten Sonarr-Antwort vom 25.09.2026, gekuerzt auf
+#: die Felder, die ``_falte_folgen`` liest. "One Piece" S23E25
 #: laeuft am 27.09.2026 um 14:15 UTC, "The Simpsons" S38E01 um 00:00 UTC am
 #: 28.09.2026 - beide echt, beide unveraendert aus dem Mitschnitt.
 ECHTE_SONARR_ANTWORT = [
@@ -658,7 +657,7 @@ def _sonarr_kalender_attrappe(request: httpx.Request) -> httpx.Response:
     direkt gegen ``airDateUtc`` - **einschliesslich** beider Grenzen. Ein
     ``end`` ohne Uhrzeit deckt damit nur die Mitternacht des letzten Tages ab,
     nicht den ganzen Tag. Genau das zeigte der Rundgang an einer echten
-    Instanz (Notiz #35): eine spaeter am letzten Tag laufende Folge fehlte.
+    Instanz: eine spaeter am letzten Tag laufende Folge fehlte.
     """
     if request.url.path != "/api/v3/calendar":
         return httpx.Response(404)
@@ -676,8 +675,8 @@ def _sonarr_kalender_attrappe(request: httpx.Request) -> httpx.Response:
 def test_folge_am_letzten_tag_des_fensters_fehlt_nicht(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Nachstellung Notiz #35 (Rundgang 25./26.09.2026, Arr-Betrieb, unabhaengig
-    von zwei Pruefern gesehen): Fuer die Woche 21.-27.09.2026 fehlte "One
+    """Nachgestellter Fall aus dem Prüfgang (25./26.09.2026, Arr-Betrieb, unabhaengig
+    zweimal gesehen): Fuer die Woche 21.-27.09.2026 fehlte "One
     Piece" S23E25 (27.09., 14:15 UTC) im Kalender, obwohl Sonarrs eigener
     Kalender die Folge fuer genau diesen Zeitraum nennt. Ursache:
     ``SonarrClient.calendar`` schickte ``end`` als blosses Datum; Sonarr las
@@ -774,7 +773,7 @@ def test_folge_spaet_am_letzten_tag_des_fensters_erscheint(
 ) -> None:
     """Der Schnitt darf nicht zu eng werden: Eine Folge, die spaet am letzten
     Tag des Fensters laeuft (derselbe Tag, den die Kachel zeigen wird), muss
-    trotzdem erscheinen - genau das war Notiz #35."""
+    trotzdem erscheinen - genau das war der urspruengliche Befund."""
     bis = "2026-09-27"
     von = "2026-09-21"
 
@@ -804,7 +803,7 @@ def test_folge_spaet_am_letzten_tag_des_fensters_erscheint(
 async def test_sonarr_client_polstert_das_ende_um_einen_tag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Unmittelbarer Beleg fuer den Aufschlag aus Notiz #35, ohne den ganzen
+    """Unmittelbarer Beleg fuer den Aufschlag von oben, ohne den ganzen
     Router: ``SonarrClient.calendar`` muss Sonarr einen Tag mehr auf ``end``
     schicken, als der Aufrufer uebergibt."""
     from app.services.beschaffung.arr.sonarr import SonarrClient
@@ -828,7 +827,7 @@ async def test_sonarr_client_polstert_das_ende_um_einen_tag(
 async def test_radarr_client_polstert_das_ende_um_einen_tag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Dieselbe Uhrzeiten-Grenze wie bei Sonarr (Notiz #35): Radarr vergleicht
+    """Dieselbe Uhrzeiten-Grenze wie bei Sonarr: Radarr vergleicht
     seine Termine ebenso direkt gegen den rohen Zeitstempel von ``end``."""
     from app.services.beschaffung.arr.radarr import RadarrClient
 
@@ -851,7 +850,7 @@ async def test_radarr_client_polstert_das_ende_um_einen_tag(
 def test_fremder_bibliotheksbestand_zeigt_ehrlich_in_der_bibliothek(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Nachstellung Notiz #7 (Rundgang 25.09.2026): Eine Serie, die schon in
+    """Nachgestellter Fall aus dem Prüfgang (25.09.2026): Eine Serie, die schon in
     Sonarr liegt, aber ueber Nexview nie angefragt wurde (kein Datensatz in
     ``requests_service.badges_for``), darf nicht wie eine eigene Anfrage
     aussehen. Zuvor setzte der Kalender ``status="downloaded"`` allein aus
@@ -881,7 +880,7 @@ def test_fremder_bibliotheksbestand_zeigt_ehrlich_in_der_bibliothek(
     monkeypatch.setattr(library, "movie_calendar", keine_filme)
 
     # Das Standardfenster liegt bei "heute" - die Folge traegt den festen
-    # Testtag HEUTE, der seit dem Zuschnitt aufs Fenster (Notiz #35) sonst
+    # Testtag HEUTE, der seit dem Zuschnitt aufs Fenster sonst
     # herausfiele.
     daten = arr_client.get(
         "/api/calendar",
@@ -941,7 +940,7 @@ def test_arr_warning_ist_eine_kennung_kein_fertiger_satz(arr_client: TestClient)
 def test_bestandstitel_ohne_datei_bleibt_im_kalender_anfragbar(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#note-64 im Kalender: nur die Neuerscheinungen laufen durch ``status_setzen``.
+    """Im Kalender laufen nur die Neuerscheinungen durch ``status_setzen``.
 
     Radarr kennt so eine Neuerscheinung manchmal schon (Listen-Sync, zweite
     Instanz), ohne dass jemand sie angefragt hat - "searching" darf dann
@@ -1027,7 +1026,7 @@ def test_sonarr_null_kennung_wird_nicht_zur_null(admin_client: TestClient) -> No
     assert _kennung(3863) == 3863
 
 
-# --- Poster, wenn der Weg keine liefert (Rundgang-Befund 10) ----------------
+# --- Poster, wenn der Weg keine liefert (Rundgang-Befund) ----------------
 
 
 async def test_eigene_eintraege_ohne_poster_bekommen_es_ueber_tmdb(
@@ -1143,7 +1142,7 @@ def test_der_kalender_traegt_poster_bis_in_die_antwort(
     monkeypatch.setattr(library, "movie_calendar", keine_filme)
 
     # Das Standardfenster liegt bei "heute" - die Folge traegt den festen
-    # Testtag HEUTE, der seit dem Zuschnitt aufs Fenster (Notiz #35) sonst
+    # Testtag HEUTE, der seit dem Zuschnitt aufs Fenster sonst
     # herausfiele.
     daten = arr_client.get(
         "/api/calendar",

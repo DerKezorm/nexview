@@ -861,7 +861,7 @@ async def test_ein_sonarr_fehler_laesst_die_paketzeile_stehen(
         assert paket.user_id == konto["id"]
 
     # Ist die Stufe gar nicht mehr eingerichtet, antwortet nie wieder jemand:
-    # Dann bleibt die Zeile nicht fuer immer stehen (Pruefer, 24.09.2026).
+    # Dann bleibt die Zeile nicht fuer immer stehen (gemessen 24.09.2026).
     monkeypatch.setattr(ArrBeschaffung, "verwaltet", lambda _self, _art, _stufe="standard": False)
 
     with SessionLocal() as db:

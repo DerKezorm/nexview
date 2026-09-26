@@ -230,7 +230,7 @@ DEFAULTS: dict[str, str] = {
     "nexcrate_api_key": "",
     # Die feste Kennung der Installation (N4). Wechselt sie, gehoeren die
     # gemerkten Marken einer anderen nexcrate und werden verworfen
-    # (nexbeat-Befund 11).
+    # (Befund).
     "nexcrate_installation_id": "",
     # nexcrates Adresse nach aussen, fuer die Spruenge "In nexcrate oeffnen"
     # (N7, N21). Kommt aus ``/system``, nur Anzeige.

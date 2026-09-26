@@ -218,7 +218,7 @@ export function TitlePage() {
     enabled: Boolean(mediaType && tmdbId),
     staleTime: 30 * 60 * 1000,
     // "Gibt es nicht" wird beim zweiten Mal nicht wahrer; die Wiederholung hielt
-    // die Seite nur laenger bei "Wird geladen" fest (#note-12).
+    // die Seite nur laenger bei "Wird geladen" fest.
     retry: (versuche, fehler) =>
       !(fehler instanceof ApiError && fehler.status === 404) && versuche < 1,
   })

@@ -1260,7 +1260,7 @@ def _aus_media_server(
     - und wer seinen Titel dort loescht, soll seine Belastung dadurch nicht
     loswerden.
 
-    ⚠️ **Ausser bei ``sicher_entfernt`` (Befund #note-63).** Der NEX-Weg kann
+    ⚠️ **Ausser bei ``sicher_entfernt``.** Der NEX-Weg kann
     sagen, ob der Nutzer die Dateien eines Titels aufgegeben hat: Nur ein
     Entfernen **mit** Dateien legt in nexcrates Papierkorb eine Zeile an; ein
     Titel, der ohne Dateien aus der Bibliothek geworfen wird, hinterlaesst

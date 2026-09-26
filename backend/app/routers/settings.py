@@ -43,8 +43,7 @@ BESCHAFFUNGSARTEN = frozenset(beschaffung.providers())
 #: Felder, an denen eine Beschaffungs-Instanz haengt. Aendert sich eines davon,
 #: muss der stuendliche Speicher-Abgleich sofort dran, statt bis zu eine Stunde
 #: zu warten - sonst zaehlt eine gerade erst eingerichtete Instanz (etwa Sonarr
-#: nach Radarr) so lange gar nicht mit, ohne dass die Uebersicht das sagt
-#: (Befund #note-10).
+#: nach Radarr) so lange gar nicht mit, ohne dass die Uebersicht das sagt.
 INSTANZ_FELDER = frozenset(
     {
         "radarr_url",
@@ -393,7 +392,7 @@ def _was_der_weg_kann(settings: AppSettings) -> dict[str, Any]:
     bei der Freigabe kommen aus ``/api/arr/{art}/options``, und die Adresse
     riegelt ``werkzeuge_pruefen`` ueber genau ``betreiberwerkzeuge`` ab. Das
     Anfrageformular fragte sie im NEX-Betrieb trotzdem und zeigte nur das
-    ``409`` (Rundgang-Befund 6, 24.09.2026).
+    ``409`` (Rundgang-Befund, 24.09.2026).
     """
     kann = beschaffung.get_beschaffung(settings).faehigkeiten()
     return {

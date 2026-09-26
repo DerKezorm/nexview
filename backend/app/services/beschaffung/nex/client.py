@@ -168,7 +168,7 @@ class NexcrateClient:
         """Der Bestand über die Änderungsmarke (N13).
 
         ⚠️ ``after`` über ``latest`` antwortet still leer, nicht ``410``
-        (nexbeat-Befund 11). Wer die Marke hält, vergleicht selbst mit
+        (Befund). Wer die Marke hält, vergleicht selbst mit
         ``latest`` und liest sonst ganz.
         """
         return await self._request(
@@ -284,7 +284,7 @@ class NexcrateClient:
 
     async def restore(self, entry_id: int) -> Any:
         # Ein entfernter Titel wird dabei aus TMDB oder MusicBrainz neu
-        # angelegt (#job-43) - dieselbe Wartezeit wie bei ``request``.
+        # angelegt - dieselbe Wartezeit wie bei ``request``.
         return await self._request(
             "POST", f"/recycle-bin/{entry_id}/restore", json_body={}, timeout=LANGSAM
         )

@@ -3,8 +3,8 @@
  *
  * ⚠️ Der Wächter `weg-texte.test.tsx` liest nur `de.json` und `en.json`. Die
  * Downloads-Texte liegen in eigenen Dateien, und so sagte der Untertitel im
- * NEX-Betrieb „Was in Radarr und Sonarr nicht weitergeht“ (Rundgang-Befund 8),
- * dazu vier Rückfragen und Meldungen der Knöpfe (nexbase #job-17).
+ * NEX-Betrieb „Was in Radarr und Sonarr nicht weitergeht“ (Rundgang-Befund),
+ * dazu vier Rückfragen und Meldungen der Knöpfe.
  *
  * Ohne Liste: Jeder Text mit Radarr oder Sonarr braucht eine `_nex`-Fassung.
  * Ausgenommen sind nur die Gründe unter `downloads.grund`: Das sind Nexviews

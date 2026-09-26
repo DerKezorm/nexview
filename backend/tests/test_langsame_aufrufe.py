@@ -1,4 +1,4 @@
-"""Langsame Aufrufe stehen im Protokoll (Rundgang 2, R2-5).
+"""Langsame Aufrufe stehen im Protokoll (Rundgang 2).
 
 Gemessen an der Live-Instanz am 25.09.2026: ``/api/admin/dashboard`` brauchte
 16,9 und 16,4 Sekunden, spaeter 0,3 bis 1,4. Die Dauer stand nur auf DEBUG im
@@ -43,11 +43,11 @@ def test_die_schwelle_liegt_bei_drei_sekunden() -> None:
         "/api/admin/sicherungen",
         "/api/admin/analyse/server-vergleich/zuordnen",
         "/api/umstieg/vorab",
-        # Pruefer: zwoelf Aufrufe an eine fremde Seerr-Instanz, Abgleiche von Hand.
+        # Zwoelf Aufrufe an eine fremde Seerr-Instanz, Abgleiche von Hand.
         "/api/setup/seerr/vorschau",
         "/api/admin/mediaserver/library/refresh",
         "/api/storage/abgleich",
-        # #job-43: Zurueckholen fragt nexcrate, das dabei TMDB oder
+        # Zurueckholen fragt nexcrate, das dabei TMDB oder
         # MusicBrainz fragt - kann ebenso lange dauern wie eine Anfrage.
         "/api/beschaffung/papierkorb/1/zurueckholen",
     ],
@@ -58,7 +58,7 @@ def test_absichtlich_langsame_adressen_warnen_nicht(
     caplog: pytest.LogCaptureFixture,
     pfad: str,
 ) -> None:
-    """Pruefer zu R2-5: Sicherungen, die Zuordnung im Server-Vergleich (wartet
+    """Sicherungen, die Zuordnung im Server-Vergleich (wartet
     bewusst bis zu elf Sekunden) und der Umstieg dauern von Natur aus; eine
     Warnung dort waere bei jedem Aufruf Rauschen."""
     monkeypatch.setattr(middleware, "LANGSAM_MS", 0)

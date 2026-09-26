@@ -284,7 +284,7 @@ def gesundheit_nach_aussen(problem: dict[str, Any]) -> dict[str, Any]:
     ⚠️ **Mit Kennung kein Satz.** Radarr und Sonarr liefern nur einen Satz, und
     der geht im Wortlaut hinaus. nexcrates Befunde tragen eine Kennung samt
     Werten; die Oberflaeche uebersetzt sie. nexcrates englischer Satz stand
-    sonst wörtlich in der deutschen Oberflaeche (Rundgang-Befund 5).
+    sonst wörtlich in der deutschen Oberflaeche (Rundgang-Befund).
     """
     code = str(problem.get("code") or "")
     return {

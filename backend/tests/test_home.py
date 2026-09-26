@@ -402,7 +402,7 @@ async def _wird_gesucht(_einstellungen, _art, items, _stufe="standard", **_rest)
 async def test_bekannter_titel_ohne_datei_bleibt_ein_trending_vorschlag(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#note-64: Radarr kennt den Vorschlag schon, ohne Datei, ohne Anfrage.
+    """Radarr kennt den Vorschlag schon, ohne Datei, ohne Anfrage.
 
     Bisher zaehlte "searching" wie "schon erledigt" (siehe Docstring von
     ``trending``), und der Vorschlag fiel lautlos aus der Liste - dabei war

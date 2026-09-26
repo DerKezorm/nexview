@@ -148,7 +148,7 @@ export function AdminUmstieg() {
   // scheitert deshalb dort, nicht hier.
   const [sicherung, setSicherung] = useState<{
     name: string;
-    /** Vom Server wiedererkannt statt hier angelegt (#note-37). */
+    /** Vom Server wiedererkannt statt hier angelegt. */
     vorhanden?: boolean;
   } | null>(() => {
     const name = sicherungsnameGespeichertLesen();
@@ -234,7 +234,7 @@ export function AdminUmstieg() {
     }
   }, [sicherung]);
 
-  // ⚠️ **Der Sitzungsspeicher gilt nur für diesen Reiter** (#note-37). Wer den
+  // ⚠️ **Der Sitzungsspeicher gilt nur für diesen Reiter.** Wer den
   // Assistenten in einem neuen Fenster wieder öffnet, stand vor einem grauen
   // „Weiter", obwohl die Sicherung von eben auf dem Server lag - und legte
   // eine zweite an. Der Server nennt eine frische Sicherung des Assistenten;
@@ -619,7 +619,7 @@ export function AdminUmstieg() {
               sagt, was geschieht; diese zwei Absätze sagen, was es bedeutet
               und was **nicht** passiert. */}
           <p className="max-w-3xl text-sm leading-relaxed text-mist-300">
-            {/* Rundgang-Befund 3: Hier stand „oben“, aber der Assistent zeigt
+            {/* Rundgang-Befund: Hier stand „oben“, aber der Assistent zeigt
                 je Schritt nur einen Abschnitt. */}
             {t("umstieg.switchWhatChanges", {
               schritt: SCHRITTE.indexOf("abbildung") + 1,
@@ -706,7 +706,7 @@ export function AdminUmstieg() {
               {t("umstieg.handOver")}
             </Button>
             {/* Erst nach dem ersten Lauf: „0 nachgereicht“ vor jedem Klick las
-                sich wie „schon gelaufen“ (Rundgang-Befund 4). */}
+                sich wie „schon gelaufen“ (Rundgang-Befund). */}
             {nachreichen.data && (
               <span className="text-sm text-mist-300">
                 {t("umstieg.handedOver", { count: nachgereicht })}

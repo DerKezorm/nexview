@@ -145,8 +145,8 @@ class PapierkorbZeile(BaseModel):
     geloescht_von_name: str | None = None
     datei_da: bool = True
     im_bestand: bool = True
-    #: ⚠️ **Der Knopf hängt hieran, nicht mehr an ``datei_da``/``im_bestand``**
-    #: (#job-43). Ein Titel, der die Bibliothek verlassen hat, lässt sich oft
+    #: ⚠️ **Der Knopf hängt hieran, nicht mehr an ``datei_da``/``im_bestand``.**
+    #: Ein Titel, der die Bibliothek verlassen hat, lässt sich oft
     #: trotzdem zurückholen - der Weg legt ihn dabei neu an. Nur wenn selbst
     #: das nicht geht (Datei weg, oder der Weg kennt den Titel gar nicht mehr),
     #: ist ``restorable`` falsch.
@@ -225,7 +225,7 @@ async def papierkorb(admin: AdminUser, db: DbSession) -> PapierkorbAntwort:
 
 
 class ZurueckgeholtAntwort(BaseModel):
-    #: ⚠️ **Der Titel wurde dabei neu angelegt** (#job-43): Er hatte die
+    #: ⚠️ **Der Titel wurde dabei neu angelegt:** Er hatte die
     #: Bibliothek verlassen, und der Weg legt ihn aus seiner Quelle neu an -
     #: unüberwacht. Die Oberfläche meldet das anders als ein gewöhnliches
     #: Zurückholen: „Datei zurück, nicht überwacht" statt „angefragt".

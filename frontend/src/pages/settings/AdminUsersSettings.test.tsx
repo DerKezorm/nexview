@@ -330,7 +330,7 @@ it('zeigt die Sperrlisten nach der Rolle im Entwurf', async () => {
   expect(await screen.findByRole('checkbox', { name: 'HD-1080p' })).toBeTruthy()
 })
 
-it('zeigt im NEX-Betrieb keine Profil-Sperrlisten und fragt keine Arr-Liste (Rundgang-Befund 6)', async () => {
+it('zeigt im NEX-Betrieb keine Profil-Sperrlisten und fragt keine Arr-Liste (Rundgang-Befund)', async () => {
   // Profile gehören dort nexcrate; `/api/arr/…/options` antwortet `409`.
   einrichten(konto({ blocked_movie_profiles: [1] }), {
     konfiguration: {

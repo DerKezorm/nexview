@@ -7,11 +7,11 @@ gemessen oder steht im Vertrag:
    `unchanged`; die ganze Warterei, die nexbeat für Lidarr brauchte
    („zehn Minuten schauen, ob der Künstler angekommen ist"), entfällt. Eine
    Übergabe mit offenem Ausgang wird einfach noch einmal gesendet.
-2. **Die Herkunftsmarke bleibt beim Ersten** (nexbeat-Befund 4). Fragt ein
+2. **Die Herkunftsmarke bleibt beim Ersten** (Befund). Fragt ein
    zweiter Benutzer denselben Titel an, steht dort weiter die Nummer der
    ersten Anfrage. ⚠️ **Der Stand kommt nie aus `origin`**, immer aus
    `lookup`.
-3. **Nie dieselbe Anfrage parallel** (nexbeat-Befund 17): Zwei gleichzeitige
+3. **Nie dieselbe Anfrage parallel** (Befund): Zwei gleichzeitige
    Anfragen auf denselben unbekannten Titel endeten in nexcrate in einem
    `500` aus einem Wettlauf. Eine Sperre je `kind + ref` hält sie
    auseinander, und `500` heißt „noch einmal", nicht „gescheitert".
@@ -57,7 +57,7 @@ AKTIV = (
 )
 
 #: Eine Sperre je ``kind + ref``, damit zwei Freigaben desselben Titels nicht
-#: gleichzeitig bei nexcrate ankommen (nexbeat-Befund 17).
+#: gleichzeitig bei nexcrate ankommen (Befund).
 #:
 #: ⚠️ **Je Event-Loop, nicht global.** Ein ``asyncio.Lock`` bindet sich beim
 #: ersten Gebrauch an den gerade laufenden Loop; ein zweiter Aufruf unter
@@ -93,7 +93,7 @@ def umfang(request: MediaRequest) -> dict[str, Any]:
     ``episodes`` dabei ist (``_checked_seasons``); fehlt ``future_seasons``,
     gilt ``true``. Nexview schickte bei einem Folgen-Paket nur ``episodes``,
     und aus „Staffel 1, Folgen 1 bis 5“ wurden acht Staffeln (Rundgang 2,
-    R2-6, gemessen 25.09.2026). Ein Paket schickt deshalb ``seasons: []``: keine
+    gemessen 25.09.2026). Ein Paket schickt deshalb ``seasons: []``: keine
     ganze Staffel, nur die genannten Folgen (von nexcrate zugesagt). Eine
     Staffel mit dem Haken „künftige Staffeln“ schickt ``true``: nexcrate
     schaltet dann nur diese Staffel ein und holt spätere von selbst.

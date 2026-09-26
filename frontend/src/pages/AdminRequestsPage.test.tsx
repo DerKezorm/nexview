@@ -186,7 +186,7 @@ describe('AdminRequestsPage: eine wartende Anfrage ohne Fassungskennung', () => 
 })
 
 /**
- * Im NEX-Betrieb freigeben (Rundgang-Befund 6).
+ * Im NEX-Betrieb freigeben (Rundgang-Befund).
  *
  * ⚠️ Dort bleiben Ordner und Profil an jeder Anfrage leer, sie hängen an der
  * Fassung in nexcrate. Die Seite fragte nur „fehlt der Ordner?“ und öffnete
@@ -276,7 +276,7 @@ describe('AdminRequestsPage: Freigabe im NEX-Betrieb', () => {
 })
 
 describe('AdminRequestsPage: Filter Freigegeben', () => {
-  it('fragt genau die freigegebenen Anfragen (Rundgang-Befund 4)', async () => {
+  it('fragt genau die freigegebenen Anfragen (Rundgang-Befund)', async () => {
     vi.clearAllMocks()
     nexBetriebMit([])
     rendern(<AdminRequestsPage />, { pfad: '/admin/requests?filter=all' })

@@ -14,7 +14,7 @@ Drei Koerbe (Bauplan Abschnitt 3.1, Erfahrung aus nexbeat):
 (``errors.byCode``); die englische ``message`` geht nur ins Protokoll. Gelesen
 werden beide Fehlerformen: flach (``{code, message, params}``) unter
 ``/api/v1`` und die der Oberflaeche (``{"detail": {...}}``) daneben - eine
-vertippte Adresse antwortet in der zweiten (nexbeat-Befund 9).
+vertippte Adresse antwortet in der zweiten (Befund).
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ FREMDE_CODES: dict[str, str] = {
     "download_importing": "nexcrate_download_importing",
     "download_finished": "nexcrate_download_importing",
     "recycle_title_gone": "nexcrate_recycle_title_gone",
-    # 26.09.2026, #job-43: nexcrate legt einen Titel beim Zurueckholen neu an,
+    # 26.09.2026: nexcrate legt einen Titel beim Zurueckholen neu an,
     # wenn er die Bibliothek verlassen hat. ``recycle_version_gone`` heisst
     # seither: die Fassung selbst (nicht nur der Titel) gibt es nicht mehr -
     # ein anderer Fall als "der Titel laesst sich nicht wieder anlegen".
@@ -69,7 +69,7 @@ FREMDE_CODES: dict[str, str] = {
     "tmdb_timeout": "nexcrate_tmdb_unavailable",
     "tmdb_rate_limited": "nexcrate_tmdb_unavailable",
     "tmdb_http_error": "nexcrate_tmdb_unavailable",
-    # 26.09.2026, #job-43: Ein zurueckgeholter Titel kann auch ein Album sein
+    # 26.09.2026: Ein zurueckgeholter Titel kann auch ein Album sein
     # (Musik fuehrt Nexview zwar nicht, aber die Adresse ist dieselbe) - seine
     # Kennungen stehen im Vertrag und muessten sonst als "nexcrate_refused"
     # durchfallen.
@@ -137,7 +137,7 @@ ABLEHNUNGEN: dict[str, int] = {
     "nexcrate_recycle_entry_gone": 404,
     # Keine Antwort von nexcrate, sondern Nexviews eigene Einstellung: Adresse
     # und Schlüssel fehlen noch - der Ausgangszustand jeder Installation, die
-    # den Umstieg zum ersten Mal öffnet (#note-55).
+    # den Umstieg zum ersten Mal öffnet.
     "nexcrate_not_configured": 409,
 }
 
@@ -166,7 +166,7 @@ SAETZE: dict[str, str] = {
     "nexcrate_download_importing": (
         "nexcrate legt einen Download dieses Titels gerade ab oder hat ihn schon abgelegt."
     ),
-    # 26.09.2026, #job-43: Seit nexcrate einen entfernten Titel beim
+    # 26.09.2026: Seit nexcrate einen entfernten Titel beim
     # Zurückholen neu anlegt, heißt "gone" hier "lässt sich nicht wieder
     # anlegen" - nicht mehr "ist für immer weg".
     "nexcrate_recycle_title_gone": (
@@ -293,7 +293,7 @@ def aus_antwort(antwort: httpx.Response, pfad: str) -> NexcrateError:
     if wartezeit:
         zahlen["retry_after"] = wartezeit
     # 5xx heisst "noch einmal", und ob der Auftrag ankam, weiss niemand
-    # (nexbeat-Befund 17: eine 500 aus einem Wettlauf, der Titel war angelegt).
+    # (Befund: eine 500 aus einem Wettlauf, der Titel war angelegt).
     return NexcrateError(code, status_code=status, fremd=fremd, ungewiss=status >= 500, **zahlen)
 
 

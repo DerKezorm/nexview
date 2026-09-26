@@ -286,7 +286,7 @@ _SERIES: list[dict[str, Any]] = [
 #: ⚠️ **Die Beispieltitel haben einen eigenen Nummernraum.** Bis 1.0.0 lagen
 #: sie zwischen 900.000 und 990.000 - mitten in TMDBs Kennungen. Trug jemand
 #: danach einen TMDB-Schluessel ein, zeigte eine alte Beispielanfrage auf einen
-#: echten, fremden Titel (#note-30: aus "Pixelherz" wurde ein Kurzfilm mit
+#: echten, fremden Titel (aus "Pixelherz" wurde ein Kurzfilm mit
 #: expliziter Beschreibung, weiterhin "wartet auf Freigabe"). TMDB zaehlt heute
 #: bei rund 1,6 Millionen; bis hier hinauf kommt es nicht. Nach oben bleibt
 #: Luft bis zur Grenze der 32-Bit-Zahlen, mit denen Radarr und Sonarr rechnen.

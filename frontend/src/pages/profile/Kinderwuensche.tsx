@@ -266,7 +266,7 @@ function Zielwahl({
     ? fassung.approver_picks_target && !user?.can_approve
     : zielSpaeterVorgabe
   // ⚠️ Im NEX-Betrieb gibt es Ordner und Profil nicht zu wählen, die
-  // Listen-Adresse antwortet `409` (Rundgang-Befund 6).
+  // Listen-Adresse antwortet `409` (Rundgang-Befund).
   const ohneZiel = zielSpaeter || !zielWaehlbar(config)
 
   const optionen = useQuery({

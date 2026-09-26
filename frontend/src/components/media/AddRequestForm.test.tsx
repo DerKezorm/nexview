@@ -642,7 +642,7 @@ describe('Vier Fassungen', () => {
 })
 
 /**
- * Im NEX-Betrieb anfragen (Rundgang-Befund 6).
+ * Im NEX-Betrieb anfragen (Rundgang-Befund).
  *
  * ⚠️ Das Formular holte immer `/api/arr/{art}/options`. Im NEX-Betrieb
  * antwortet der Server dort `409 not_in_this_mode`, und das Formular zeigte

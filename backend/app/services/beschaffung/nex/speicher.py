@@ -40,7 +40,7 @@ def _umfang(zeile: StorageEntry, folgen: list[int] | None) -> dict:
 
     Bei Folgen steht ``seasons: []`` ausdruecklich da, wie beim Anfragen
     (``auftraege.umfang``): nexcrate las ein fehlendes ``seasons`` einmal als
-    alle Staffeln (Rundgang 2, R2-6).
+    alle Staffeln (Rundgang 2).
     """
     if zeile.media_type != MediaType.tv:
         return {}

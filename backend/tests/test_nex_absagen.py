@@ -119,7 +119,7 @@ def test_ein_ausfall_bleibt_ein_502_mit_kennung(nex_admin: Any, nexcrate: FakeNe
     ("status", "fremd", "erwartet_status", "erwartet_code"),
     [
         (409, "recycle_title_gone", 409, "nexcrate_recycle_title_gone"),
-        # #job-43: die Fassung, zu der die Datei gehoerte, gibt es nicht mehr.
+        # die Fassung, zu der die Datei gehoerte, gibt es nicht mehr.
         (409, "recycle_version_gone", 409, "nexcrate_recycle_version_gone"),
         (409, "recycle_file_gone", 409, "nexcrate_recycle_file_gone"),
         (409, "version_fed_by_source", 409, "nexcrate_version_fed_by_source"),

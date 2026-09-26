@@ -170,7 +170,7 @@ def _film(tmdb_id: int, jahr: int) -> MediaItem:
 async def test_original_und_remake_gleichen_namens_bleiben_zwei_titel(
     nex: Any, db: Session, pfad: str | None
 ) -> None:
-    """Pruefer, 26.09.2026: Der Server fuehrt das Original (500) richtig, nexcrate
+    """Gemessen 26.09.2026: Der Server fuehrt das Original (500) richtig, nexcrate
     davon unabhaengig das gleichnamige Remake (600), das der Server nicht kennt.
     Der Name allein durfte das Original nicht aus der Bibliothek nehmen."""
     _im_server(db, 500, "The Grudge", jahr=2004, pfad=pfad, art=MediaType.movie, groesse=5 * GB)

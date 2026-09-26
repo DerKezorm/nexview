@@ -640,7 +640,7 @@ def test_erledigte_anfrage_bleibt_unantastbar(
     assert geloescht_in_radarr == []
 
 
-# --- Der laufende Download selbst (#note-34, #note-36) -----------------------
+# --- Der laufende Download selbst -----------------------
 #
 # Abbrechen/Zurückziehen entfernte den Titel bislang nur aus Radarr/Sonarr;
 # der zugehörige Auftrag blieb unangetastet in der Warteschlange stehen und

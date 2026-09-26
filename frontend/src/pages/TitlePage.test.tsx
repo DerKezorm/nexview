@@ -170,7 +170,7 @@ describe('die Wertungen', () => {
 })
 
 describe('ohne TMDB', () => {
-  /* #note-12: Ohne TMDB-Schlüssel hieß die Titelseite eines echten Films
+  /* Ohne TMDB-Schlüssel hieß die Titelseite eines echten Films
      "Dieser Demo-Titel ist nicht vorhanden". Jetzt nennt der Server den Grund,
      und wer ihn beheben kann, bekommt den Weg in die Einstellungen. */
   function ohneQuelle(rolle: string, code: string) {

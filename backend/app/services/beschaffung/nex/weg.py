@@ -231,7 +231,7 @@ class NexBeschaffung(Beschaffung):
     async def sicher_entfernte_filme(self) -> frozenset[int]:
         """TMDB-Kennungen, fuer die nexcrates Papierkorb eine Zeile mit ``in_library=False`` fuehrt.
 
-        Eine einzige Anfrage deckt jeden Posten ab (Befund #note-63) - keine
+        Eine einzige Anfrage deckt jeden Posten ab - keine
         weitere je Titel.
 
         ⚠️ **``present`` zaehlt hier nicht mit.** Es sagt nur, ob die Datei
@@ -279,7 +279,7 @@ class NexBeschaffung(Beschaffung):
 
         ⚠️ **Nicht ueber die Marke.** Die hinkt der Anfrage bis zu zehn
         Sekunden hinterher, ``lookup`` kennt einen frisch entstandenen Titel
-        sofort (nexbeat-Befund 12). Fuer „ist meine Anfrage angekommen" gibt es
+        sofort (Befund). Fuer „ist meine Anfrage angekommen" gibt es
         deshalb nur diesen Weg.
 
         Wer Staffeln braucht (``mit_staffeln``), bekommt sie seit nexcrate
@@ -455,7 +455,7 @@ class NexBeschaffung(Beschaffung):
 
         ⚠️ **Die TVDB-Kennung ist hier kein Anker.** nexcrate ankert auf TMDB
         (N15). Hier stand bis 25.09.2026 immer ``{}``, und im NEX-Betrieb
-        galt jede Folge als fehlend (Rundgang 2, R2-7). Ohne TMDB-Nummer gibt
+        galt jede Folge als fehlend (Rundgang 2). Ohne TMDB-Nummer gibt
         es weiter keine Auskunft - geraten wird nicht; ein Fehler von nexcrate
         ebenso nicht.
 
@@ -533,8 +533,8 @@ class NexBeschaffung(Beschaffung):
             for staffel in ((titel.get("series") or {}).get("seasons") or [])
             if staffel.get("season") is not None
         ]
-        # Die Staffeln gleichzeitig, hoechstens vier auf einmal: Seit R2-7
-        # fragt auch die Titelseite hier, je Fassung, und nacheinander kostete
+        # Die Staffeln gleichzeitig, hoechstens vier auf einmal: Auch
+        # die Titelseite fragt hier, je Fassung, und nacheinander kostete
         # eine Serie mit zwanzig Staffeln zwanzig Wartezeiten.
         grenze = asyncio.Semaphore(4)
 
@@ -614,7 +614,7 @@ class NexBeschaffung(Beschaffung):
         """``POST /titles/why`` im Stapel, Antwort in derselben Reihenfolge.
 
         ⚠️ **Gelesen wird ``versions[].because``, nie ``next_search_reason``**
-        (nexbeat-Befund 7): Der Titelgrund stand auf ``nothing_wanted``,
+        (Befund): Der Titelgrund stand auf ``nothing_wanted``,
         waehrend eine Fassung ``wanted`` war.
         """
         if not gefragt:
@@ -655,13 +655,13 @@ class NexBeschaffung(Beschaffung):
         )
 
     async def papierkorb(self) -> list[dict[str, Any]]:
-        """Was in nexcrates Papierkorb liegt (N22)."""
+        """Was in nexcrates Papierkorb liegt."""
         return await self.client.recycle_bin()
 
     async def wiederherstellen(self, eintrag_id: int) -> bool:
         """Einen Eintrag aus nexcrates Papierkorb zurückholen.
 
-        ⚠️ **Gibt zurück, ob der Titel dabei neu angelegt wurde** (#job-43).
+        ⚠️ **Gibt zurück, ob der Titel dabei neu angelegt wurde.**
         Hatte der Titel die Bibliothek verlassen, legt nexcrate ihn aus TMDB
         oder MusicBrainz neu an - unüberwacht, mit der `nexview:`-Marke, wenn
         Nexview sie selbst gesetzt hatte. Die Oberfläche meldet das anders als
@@ -860,7 +860,7 @@ class NexBeschaffung(Beschaffung):
         """Wie viele Downloads laufen, und wie viele davon klemmen."""
         roh = await self.client.queue()
         # Ein gescheiterter zaehlt nur, solange er ein Problem meldet (auf den
-        # Betreiber wartet); sonst ist er Verlauf (Rundgang-Befund 9).
+        # Betreiber wartet); sonst ist er Verlauf (Rundgang-Befund).
         offen = [e for e in roh if mapping.download_laeuft(e) or e.get("problem")]
         return {
             "gesamt": len(offen),
@@ -881,7 +881,7 @@ class NexBeschaffung(Beschaffung):
         """Den Zugang zu nexcrate loeschen. Mehr kann Nexview nicht.
 
         ⚠️ **Der Schluessel bleibt in nexcrate stehen.** Ein Programm kann ihn
-        dort nicht widerrufen (nexbeat-Befund 15: Ein zweites Koppeln legt
+        dort nicht widerrufen (Befund: Ein zweites Koppeln legt
         einen zweiten an, der erste bleibt in der Liste). Der Bericht sagt es,
         damit der Betreiber ihn von Hand entfernen kann.
         """

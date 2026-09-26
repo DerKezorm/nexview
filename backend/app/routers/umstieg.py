@@ -69,7 +69,7 @@ def _nur_vom_arr_betrieb(db: DbSession) -> Any:
 def _als_meldung(fehler: BeschaffungError) -> HTTPException:
     """``502`` nur, wenn die Gegenseite versagt hat; eine Absage behält ihren
     Status (``antwort_status``). Ohne eingerichtete nexcrate antwortete der
-    Assistent sonst mit 502 - ausgerechnet im Ausgangszustand (#note-55)."""
+    Assistent sonst mit 502 - ausgerechnet im Ausgangszustand."""
     return HTTPException(status_code=fehler.antwort_status, detail=fehler.als_meldung())
 
 
@@ -277,7 +277,7 @@ SICHERUNG_FRISCH = timedelta(hours=1)
 def sicherung_vorhanden(admin: AdminUser, db: DbSession) -> VorhandeneSicherung:
     """Liegt schon eine frische Sicherung des Assistenten? (7.3, Schritt 5.)
 
-    ⚠️ **Die Oberfläche merkte sich die Sicherung nur im Reiter** (#note-37).
+    ⚠️ **Die Oberfläche merkte sich die Sicherung nur im Reiter.**
     In einem neuen Fenster stand „Weiter" grau da, und der einzige Ausweg legte
     eine zweite Sicherung an. Gezählt wird nur, was dieser Assistent angelegt
     hat (sein Kommentar), was jünger ist als ``SICHERUNG_FRISCH`` und was sich

@@ -195,7 +195,7 @@ async def uebersicht(admin: AdminUser, db: DbSession) -> DownloadsStand:
             schluessel = (abfrage.instanz.kennung, download.download_id)
             if schluessel in haengend:
                 continue
-            # ⚠️ Nicht unter „Läuft“ mit Fortschrittsbalken (Rundgang-Befund 9).
+            # ⚠️ Nicht unter „Läuft“ mit Fortschrittsbalken (Rundgang-Befund).
             if not download.laeuft:
                 gescheitert += 1
                 continue
@@ -433,7 +433,7 @@ def verlauf(
     settings = load_settings(db)
     # ⚠️ Auch stillgelegte Fassungen: Nach dem Umstieg stehen die Eintraege aus
     # der Arr-Zeit sonst mit ``radarr-standard`` statt „Radarr FHD“ da
-    # (Rundgang-Befund 7). Die Arr-Fassungen bleiben samt Namen in der Tabelle.
+    # (Rundgang-Befund). Die Arr-Fassungen bleiben samt Namen in der Tabelle.
     namen = {
         kennung: name
         for kennung, name in db.execute(select(Fassung.kennung, Fassung.name))

@@ -141,7 +141,7 @@ async def test_eine_staffel_holt_nicht_die_ganze_serie(
     regel: str,
     staffeln: Any,
 ) -> None:
-    """Rundgang 2, R2-6 (gemessen 25.09.2026): Ein Konto fragte von einer Serie
+    """Rundgang 2 (gemessen 25.09.2026): Ein Konto fragte von einer Serie
     Staffel 1, Folgen 1 bis 5 an, und nexcrate griff die Staffeln 1 bis 8.
     nexcrate setzt ``future_seasons`` ab Werk auf ``true`` und will dann jede
     Folge; Nexview liess das Feld weg."""
@@ -184,7 +184,7 @@ async def test_der_name_des_anfragenden_geht_nur_mit_schalter_hinaus(
             {"series": {"seasons": "all", "future_seasons": True}},
         ),
         (
-            # Pruefer zu R2-6: Die ganze Serie ohne „kuenftige Staffeln“ (ueber
+            # Die ganze Serie ohne „kuenftige Staffeln“ (ueber
             # die API oder einen Kinderwunsch) schickte trotzdem ``true``. Im
             # ARR-Betrieb folgt Nexview dem Haken (``arr/sonarr.py``).
             {"media_type": MediaType.tv, "tmdb_id": 1399, "fassung_kennung": SERIE_HD,
@@ -233,7 +233,7 @@ def test_der_umfang_einer_anfrage(
 async def test_dieselbe_anfrage_geht_nie_zweimal_gleichzeitig_hinaus(
     nex: Any, nexcrate: FakeNexcrate, db: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """⚠️ nexbeat-Befund 17: Zwei gleichzeitige Anfragen endeten in nexcrate in `500`.
+    """⚠️ Befund: Zwei gleichzeitige Anfragen endeten in nexcrate in `500`.
 
     Gemessen an einer echten nexcrate: Beide wollten denselben unbekannten
     Titel anlegen, die zweite scheiterte an einer eindeutigen Spalte. Nexview
@@ -338,7 +338,7 @@ async def test_zwei_verschiedene_titel_warten_nicht_aufeinander(
 async def test_ein_500_ist_ungewiss_und_kein_fehlschlag(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:
-    """nexbeat-Befund 17: Der Auftrag kann angekommen sein - noch einmal senden."""
+    """Befund: Der Auftrag kann angekommen sein - noch einmal senden."""
     nexcrate.film(603)
     person = _nutzer(db)
     anfrage = _anfrage(db, person)
@@ -1016,13 +1016,13 @@ def test_eine_gesperrte_hauptfassung_sperrt_auch_ohne_fassungsangabe(
     assert mit_recht.json()["fassung"] == FILM_HD
 
 
-# --- #idea-53, #idea-54 --------------------------------------------------------
+# --- Umfang und Herkunft bei Serien-Postens im NEX-Betrieb ----------------------
 
 
 def test_ein_speicherposten_nennt_bei_folgen_keine_ganze_staffel() -> None:
-    """#idea-53: Wie beim Anfragen steht beim Stilllegen und Loeschen eines
+    """Wie beim Anfragen steht beim Stilllegen und Loeschen eines
     Folgen-Postens ``seasons: []`` ausdruecklich da. nexcrate las ein fehlendes
-    ``seasons`` einmal als alle Staffeln (Rundgang 2, R2-6)."""
+    ``seasons`` einmal als alle Staffeln."""
     from app.services.beschaffung.nex import speicher
 
     zeile = StorageEntry(
@@ -1046,7 +1046,7 @@ def test_ein_speicherposten_nennt_bei_folgen_keine_ganze_staffel() -> None:
 async def test_die_uebergabe_nennt_nexcrate_nicht_sonarr(
     nex: Any, nexcrate: FakeNexcrate, db: Session, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """#idea-54, gemessen live 25.09.2026: Im NEX-Betrieb stand im Protokoll
+    """Gemessen live 25.09.2026: Im NEX-Betrieb stand im Protokoll
     „Added tv 'Dr. House' (tmdb=1408) to Sonarr“."""
     import logging
 

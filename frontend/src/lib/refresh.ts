@@ -40,7 +40,7 @@ export function anfragenStandNeuLaden(queryClient: QueryClient): void {
     void queryClient.invalidateQueries({ queryKey: [schluessel] })
   }
   // „Woran es hängt“ auf der Titelseite: Nach dem Anfragen fehlte der
-  // Abschnitt, bis man neu lud (Rundgang 2, R2-4). Nur dieser Teil von
+  // Abschnitt, bis man neu lud (Rundgang 2). Nur dieser Teil von
   // ``beschaffung``; der Papierkorb hat mit einer Anfrage nichts zu tun.
   void queryClient.invalidateQueries({ queryKey: ['beschaffung', 'warum'] })
 }

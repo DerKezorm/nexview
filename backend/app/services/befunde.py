@@ -365,7 +365,7 @@ def _dienst_meldet_problem(
                     schwere=Schwere.fehler if typ == "error" else Schwere.warnung,
                     bereich=Bereich.dienste,
                     # Mit Kennung uebersetzt die Oberflaeche (``code``, Werte);
-                    # nexcrates Satz geht nicht hinaus (Rundgang-Befund 5).
+                    # nexcrates Satz geht nicht hinaus (Rundgang-Befund).
                     werte={"instanz": instanz.name}
                     | ({"code": aussen["code"], **aussen["params"]} if aussen["code"] else {}),
                     wortlaut=aussen["text"] or None,
@@ -1065,7 +1065,7 @@ def _betrieb_protokoll_fehler(
     Neustart, und die waechst nur - ein Zaehler, der nie kleiner wird, ist
     keine Auskunft, sondern eine Anzeigetafel.
     """
-    # In der Zeit des Protokolls, nicht in UTC (Rundgang-Befund 1).
+    # In der Zeit des Protokolls, nicht in UTC (Rundgang-Befund).
     grenze = logs.stempel(jetzt - timedelta(hours=24))
     try:
         zeilen = logs.read(limit=2000, level="ERROR")

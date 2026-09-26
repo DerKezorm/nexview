@@ -29,7 +29,7 @@ type Props = {
  * Das Geheimnis der Bitte bleibt im Server; der Browser kennt nur die Kennung
  * und den Code, den der Betreiber in nexcrate wiedererkennt.
  *
- * ⚠️ **Eine Bitte lässt sich nicht zurücknehmen** (nexbeat-Befund 14). Der
+ * ⚠️ **Eine Bitte lässt sich nicht zurücknehmen** (Befund). Der
  * Knopf „Abbrechen" hört nur auf zu fragen; drüben verfällt sie von selbst.
  */
 export function NexcrateVerbinden({ onVerbunden }: Props) {

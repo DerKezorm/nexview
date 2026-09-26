@@ -51,7 +51,7 @@ def test_karte_enthaelt_alle_angaben_fuer_das_frontend(admin_client: TestClient)
 def test_bestandstitel_ohne_datei_bleibt_im_katalog_anfragbar(
     arr_client: TestClient, monkeypatch
 ) -> None:
-    """#note-64: Radarr kennt den Titel, aber ohne Datei und ohne Anfrage.
+    """Radarr kennt den Titel, aber ohne Datei und ohne Anfrage.
 
     Ohne die Reparatur blieb "searching" stehen - derselbe Zustand wie bei
     einer wirklich laufenden Suche - und der Anfrage-Knopf verschwand,
@@ -73,9 +73,9 @@ def test_bestandstitel_ohne_datei_bleibt_im_katalog_anfragbar(
 def test_titelseite_zeigt_bestandstitel_ohne_datei_als_anfragbar(
     arr_client: TestClient, monkeypatch
 ) -> None:
-    """#note-64 auf der Titelseite: derselbe Fall wie im Katalog.
+    """Auf der Titelseite derselbe Fall wie im Katalog.
 
-    Die Notiz stammte ursprünglich von hier - der Kopf zeigte "Wird gesucht",
+    Entdeckt wurde er ursprünglich hier - der Kopf zeigte "Wird gesucht",
     aber keinen Anfrage-Knopf, obwohl der Titel nie angefragt wurde.
     """
     from app.services.beschaffung.arr import library

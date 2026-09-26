@@ -644,12 +644,12 @@ def _beispiel_oder_absage(settings: AppSettings, media_type: str, tmdb_id: int) 
 
     Ohne TMDB kennt Nexview nur seine Beispieltitel. Frueher hiess jede andere
     Kennung "Dieser Demo-Titel ist nicht vorhanden" - auch ein Film, der in
-    Radarr mit Datei liegt (#note-12). Jetzt sagt die Absage, was fehlt: der
+    Radarr mit Datei liegt. Jetzt sagt die Absage, was fehlt: der
     Schluessel, oder dass die Beispieldaten fest eingeschaltet sind.
 
     Umgekehrt fragt eine Kennung aus dem Beispielbereich nie bei TMDB nach,
     auch wenn inzwischen ein Schluessel da ist: Sie gehoert TMDB nicht, und
-    eine Antwort waere ein fremder Titel (#note-30).
+    eine Antwort waere ein fremder Titel.
     """
     if settings.use_demo_data:
         for item in demo_data.demo_items(media_type):

@@ -86,7 +86,7 @@ async def _radarr_eintrag(settings: AppSettings, request: MediaRequest):
     Datei, setzt der naechste Rundgang sie auf "geladen" - dafuer braucht es
     hier keinen Sonderfall. Hat er noch keine, muss der Aufrufer ihn erst
     ueberwachen und suchen lassen (``RadarrClient.film_ueberwachen`` /
-    ``film_suchen``) - sonst bliebe die Anfrage folgenlos (#note-64).
+    ``film_suchen``) - sonst bliebe die Anfrage folgenlos.
 
     Der Bestand kommt aus demselben Zwischenspeicher wie bei Serien. Er kann
     ein paar Minuten alt sein; in diesem Fenster schlaegt weiterhin Radarrs
@@ -257,7 +257,7 @@ async def anfragen(db: Session, settings: AppSettings, request: MediaRequest) ->
                 # ⚠️ Ohne Datei reicht die Verknuepfung allein nicht: Ein Film,
                 # den Radarr ohne Nexview fuehrt, ist oft unueberwacht und
                 # sucht dann nie von selbst. Sonst waere die Anfrage "wird
-                # gesucht", ohne dass irgendwo gesucht wird (#note-64).
+                # gesucht", ohne dass irgendwo gesucht wird.
                 await client.film_ueberwachen(vorhanden.arr_id)
                 await client.film_suchen(vorhanden.arr_id)
         else:
@@ -318,7 +318,7 @@ async def anfragen(db: Session, settings: AppSettings, request: MediaRequest) ->
             # ⚠️ Ohne Staffel gemeint ist die ganze Serie - und liegt die
             # schon in Sonarr, wuerde ``add`` sie ein zweites Mal anlegen und
             # mit einem gewoehnlichen 400er scheitern, genau wie einst bei
-            # Radarr-Filmen (#note-64). Ohne Datei reicht Verknuepfen allein
+            # Radarr-Filmen. Ohne Datei reicht Verknuepfen allein
             # nicht: unueberwacht sucht Sonarr nie von selbst.
             logger.info(
                 "Sonarr already holds %r (tmdb=%s) as #%s - linking the request "
@@ -421,7 +421,7 @@ async def _warteschlange_raeumen(
 ) -> str:
     """Die Warteschlangen-Zeilen dieses Titels entfernen - samt Datei im Download-Programm.
 
-    ⚠️ **Der eigentliche Befund (#note-34, #note-36).** Abbrechen und
+    ⚠️ **Der eigentliche Befund.** Abbrechen und
     Zurueckziehen loeschten den Titel bislang nur aus Radarr/Sonarr - das
     Download-Programm lief unbeeindruckt weiter und legte Dateien ab, obwohl
     der Bestaetigungsdialog ausdruecklich deren Loeschung zusagt.

@@ -632,7 +632,7 @@ async def _poster_nachtragen(
 
     ⚠️ Gefragt wird, ob das Poster fehlt, nicht welcher Weg beschafft:
     nexcrates Kalender nennt keine Bilder, und im NEX-Betrieb stand an jeder
-    Karte „Kein Poster“ (Rundgang-Befund 10). Radarr und Sonarr liefern ihre
+    Karte „Kein Poster“ (Rundgang-Befund). Radarr und Sonarr liefern ihre
     Poster mit; fehlt dort eines, hilft dasselbe.
 
     1. Gespeicherte Anfragen kennen das Poster schon (``poster_path`` ist die
@@ -736,7 +736,7 @@ def _ohne_echte_anfrage_ehrlich(db: Session, eintraege: list[CalendarEntry]) -> 
     Arr-Nutzern, nicht die Ausnahme), sah bisher jeden vorhandenen Titel mit
     ``status="downloaded"``/``"searching"`` - und damit als eigene, laengst
     erledigte Anfrage -, waehrend "Meine Anfragen" im selben Moment "nichts
-    angefragt" zeigte (Rundgang-Befund #note-7). Eine echte Anfrage gewinnt
+    angefragt" zeigte (Rundgang-Befund). Eine echte Anfrage gewinnt
     weiterhin: Nur wer keine hat, wird auf den ehrlichen Wert zurueckgestuft.
     """
     betroffen = [e for e in eintraege if e.source == "meine"]
@@ -820,7 +820,7 @@ async def kalender(
         eintraege = _falte_folgen(await weg.kalender("tv", von, bis), stichtag)
         # ⚠️ Auf das gewaehlte Fenster zuschneiden, nach demselben Tag, den
         # die Kachel zeigt (``.date``, schon durch ``_lokaler_tag`` gerechnet).
-        # Sonarr bekommt seit Notiz #35 einen Tag mehr auf ``end`` mit, damit
+        # Sonarr bekommt seither einen Tag mehr auf ``end`` mit, damit
         # eine Folge am Rand nicht mehr verschwindet - ohne diesen Schnitt
         # haette sie dafuer eine Folge vom Tag danach eingetauscht. Eine
         # Stelle fuer beide Betriebsarten: ``weg.kalender`` liefert hierher,

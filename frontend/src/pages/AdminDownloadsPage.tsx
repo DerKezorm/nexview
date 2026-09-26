@@ -75,7 +75,7 @@ function groesseText(bytes: number, sprache: string): string {
 
 export function AdminDownloadsPage() {
   const { t, i18n } = useTranslation()
-  // Rundgang-Befund 8: Im NEX-Betrieb nannte die Seite Radarr und Sonarr.
+  // Rundgang-Befund: Im NEX-Betrieb nannte die Seite Radarr und Sonarr.
   const weg = useWegKontext()
   const bereit = useDownloadsTexte()
   const queryClient = useQueryClient()
@@ -180,7 +180,7 @@ export function AdminDownloadsPage() {
                 ))}
               </ul>
             )}
-            {/* Rundgang-Befund 9: nexcrate liefert gescheiterte Downloads in
+            {/* Rundgang-Befund: nexcrate liefert gescheiterte Downloads in
                 der Warteschlange mit. Mit Fortschrittsbalken unter „Läuft“
                 logen sie; was den Betreiber braucht, steht oben. */}
             {(daten.gescheitert ?? 0) > 0 && (
@@ -206,7 +206,7 @@ function HaengerKarte({
   onErledigt: (text: string) => void
 }) {
   const { t, i18n } = useTranslation()
-  // #job-17: Rückfragen und Meldungen nennen im NEX-Betrieb nexcrate.
+  // Rückfragen und Meldungen nennen im NEX-Betrieb nexcrate.
   const weg = useWegKontext()
   const queryClient = useQueryClient()
   const [frage, setFrage] = useState<Rueckfrage | null>(null)
@@ -393,7 +393,7 @@ function ImportFenster({
   onErledigt: (text: string) => void
 }) {
   const { t, i18n } = useTranslation()
-  // #job-17: Rückfragen und Meldungen nennen im NEX-Betrieb nexcrate.
+  // Rückfragen und Meldungen nennen im NEX-Betrieb nexcrate.
   const weg = useWegKontext()
   const kandidaten = useQuery({
     queryKey: ['admin-downloads-dateien', haenger.id],

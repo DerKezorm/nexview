@@ -2,13 +2,13 @@
 
 Zwei Befunde aus dem grossen Pruefgang (25./26.09.2026):
 
-* **#note-30**: Die Beispieltitel trugen Kennungen zwischen 900.000 und
+* **Eigener Nummernraum fehlte**: Die Beispieltitel trugen Kennungen zwischen 900.000 und
   990.000 - mitten in TMDBs Nummernraum. Trug jemand danach einen TMDB-
   Schluessel ein, zeigte die alte Beispielanfrage "Pixelherz" (900678) auf
   einen echten ungarischen Kurzfilm mit expliziter Beschreibung, weiterhin
   als "Wartet auf Freigabe". Wer aus der Liste heraus freigab, gab einen
   fremden Titel frei.
-* **#note-12**: Ohne TMDB-Schluessel antwortete die Titelseite eines echten
+* **Meldung ohne TMDB war unehrlich**: Ohne TMDB-Schluessel antwortete die Titelseite eines echten
   Bibliothekstitels mit "Dieser Demo-Titel ist nicht vorhanden." Der Titel
   war kein Demo-Titel, und die Meldung sagte nicht, was fehlt.
 """
@@ -80,7 +80,7 @@ def echtes_tmdb(monkeypatch: pytest.MonkeyPatch) -> _EchtesTmdb:
 
 
 # ---------------------------------------------------------------------------
-# #note-30: eigener Nummernraum
+# Eigener Nummernraum
 # ---------------------------------------------------------------------------
 
 
@@ -209,7 +209,7 @@ def test_alte_beispieldaten_ziehen_beim_start_in_den_eigenen_bereich(
 
 
 # ---------------------------------------------------------------------------
-# #note-12: ohne TMDB ehrlich
+# Ohne TMDB ehrlich
 # ---------------------------------------------------------------------------
 
 
@@ -256,7 +256,7 @@ def test_auch_die_schlanke_titelabfrage_nennt_den_grund(admin_client: TestClient
     """``GET /api/media/...`` (Detailfenster, Startseite) lief ueber einen eigenen Weg.
 
     Er reichte nur den deutschen Satz durch, ohne Kennung - die englische
-    Oberflaeche zeigte ihn deutsch (Pruefer zu #note-12).
+    Oberflaeche zeigte ihn deutsch (gemessen).
     """
     antwort = admin_client.get("/api/media/movie/435011")
     assert antwort.status_code == 404

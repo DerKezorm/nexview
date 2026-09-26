@@ -343,7 +343,7 @@ async def trending(user: CurrentUser, db: DbSession) -> list[MediaItem]:
             db, MediaType.movie, [eintrag.tmdb_id for eintrag in kandidaten]
         )
 
-        # #note-64: ein Film, den Radarr schon kennt, aber ohne Datei und
+        # ein Film, den Radarr schon kennt, aber ohne Datei und
         # ohne eigene Anfrage, ist noch kein erledigter Vorschlag - sonst
         # verschwand er von der Startseite, obwohl niemand ihn bestellt hat.
         for eintrag in kandidaten:
@@ -440,7 +440,7 @@ async def _kuratiert_fuer(
     eigene = requests_service.badges_for(
         db, media_type, [eintrag.tmdb_id for eintrag in vorschlaege]
     )
-    # #note-64: siehe die Begruendung bei den Trending-Vorschlaegen - dieselbe
+    # siehe die Begruendung bei den Trending-Vorschlaegen - dieselbe
     # Ausnahme gilt hier genauso.
     for eintrag in vorschlaege:
         if requests_service.nur_katalog_ohne_anfrage(eintrag.status, eigene.get(eintrag.tmdb_id)):

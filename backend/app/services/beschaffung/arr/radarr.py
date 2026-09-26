@@ -134,7 +134,7 @@ class RadarrClient(ArrClient):
         Kalender zeigt schliesslich, was erscheint, nicht was gesucht wird.
 
         ⚠️ **Ein Tag Aufschlag auf ``end``**, aus demselben Grund wie bei
-        Sonarr (``SonarrClient.calendar``, Rundgang-Befund #note-35): Radarr
+        Sonarr (``SonarrClient.calendar``, Rundgang-Befund): Radarr
         vergleicht seine Termine direkt gegen den rohen Zeitstempel von
         ``end``, und ein blosses Datum liest es als Mitternacht. Ein Termin
         spaeter am letzten Tag des Fensters faellt sonst heraus. Harmlos, weil
@@ -193,7 +193,7 @@ class RadarrClient(ArrClient):
         Das Gegenstueck zu ``SonarrClient.serie_ueberwachen``, fuer den Film,
         den Radarr schon fuehrt, aber ohne Nexview angelegt hat. Unueberwacht
         sucht Radarr nie von selbst - eine Anfrage, die sich nur mit der
-        vorhandenen Kennung verknuepft, haette dann keine Wirkung (#note-64).
+        vorhandenen Kennung verknuepft, haette dann keine Wirkung.
         """
         film = await self.get(f"/movie/{arr_id}")
         if not isinstance(film, dict):

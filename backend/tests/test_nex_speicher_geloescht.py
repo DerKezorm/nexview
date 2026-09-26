@@ -1,6 +1,6 @@
 """Der Speicher-Abgleich im NEX-Betrieb raeumt einen wirklich aufgegebenen Titel ab.
 
-Befund #note-63: Wurde ein Titel in nexcrate vollstaendig entfernt (Datei und
+Wurde ein Titel in nexcrate vollstaendig entfernt (Datei und
 Bibliothekseintrag), blieb sein Speicherposten stehen, solange ein Medienserver
 (Plex/Jellyfin) ihn noch aus einer eigenen, noch nicht nachgezogenen Bibliothek
 weitermass - der bestehende Geisterposten-Schutz kann "Titel absichtlich

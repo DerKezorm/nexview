@@ -1190,7 +1190,7 @@ export type PapierkorbEintrag = {
   datei_da: boolean;
   im_bestand: boolean;
   /**
-   * ⚠️ Der Knopf hängt hieran, nicht mehr an `datei_da`/`im_bestand` (#job-43).
+   * ⚠️ Der Knopf hängt hieran, nicht mehr an `datei_da`/`im_bestand`.
    * `im_bestand: false` heißt seither nur noch "wird beim Zurückholen wieder
    * angelegt" - erst `restorable: false` heißt wirklich "geht nicht".
    */

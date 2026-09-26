@@ -20,8 +20,8 @@ function groesse(bytes: number): string {
  * durchsucht; daraus holt niemand etwas zurück. Hier führt der Weg eine Liste
  * und nimmt eine Datei auf Wunsch wieder an.
  *
- * ⚠️ **Der Knopf hängt an `restorable`, nicht an `datei_da`/`im_bestand`**
- * (#job-43). Eine Datei kann weg sein (oder ihre Platte gerade nicht
+ * ⚠️ **Der Knopf hängt an `restorable`, nicht an `datei_da`/`im_bestand`.**
+ * Eine Datei kann weg sein (oder ihre Platte gerade nicht
  * sichtbar) – dann geht nichts. Ihr Titel kann den Bestand verlassen haben
  * und sich trotzdem wieder anlegen lassen – dann bleibt der Knopf an, nur ein
  * Hinweis sagt es vorher. Erst wenn der Weg selbst „nein“ sagt (`restorable:
@@ -43,8 +43,8 @@ export function AdminPapierkorbNex() {
     mutationFn: (eintrag: number) =>
       api.post<{ created: boolean }>(`/api/beschaffung/papierkorb/${eintrag}/zurueckholen`),
     onSuccess: (antwort) => {
-      // ⚠️ Mit `created: true` hat nexcrate den Titel neu angelegt - unüberwacht
-      // (#job-43). Das ist kein gewöhnliches Zurückholen, und die Meldung sagt
+      // ⚠️ Mit `created: true` hat nexcrate den Titel neu angelegt - unüberwacht.
+      // Das ist kein gewöhnliches Zurückholen, und die Meldung sagt
       // es, statt stillschweigend so zu tun, als wäre nichts dabei passiert.
       setMeldung(antwort.created ? t("papierkorbNex.restoredUnmonitored") : null);
       void queryClient.invalidateQueries({ queryKey: ["beschaffung", "papierkorb"] });
@@ -110,7 +110,7 @@ function Zeile({
   onZurueck: () => void;
 }) {
   const { t } = useTranslation();
-  // ⚠️ Drei Fälle, nicht mehr zwei (#job-43). „Datei weg" und „lässt sich
+  // ⚠️ Drei Fälle, nicht mehr zwei. „Datei weg" und „lässt sich
   // nicht wieder anlegen" sperren den Knopf; „wird wieder angelegt" ist nur
   // ein Hinweis - der Knopf bleibt an, denn genau dafür legt nexcrate den
   // Titel beim Zurückholen neu an.

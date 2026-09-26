@@ -668,7 +668,7 @@ def speicher_bald_faellig() -> None:
     """Dasselbe Vorziehen, aber fuer Aufrufer ausserhalb dieses Moduls.
 
     Gerufen von der Einstellungsseite, wenn eine Beschaffungs-Instanz neu
-    eingetragen oder geaendert wird (Befund #note-10): Ohne das zaehlte eine
+    eingetragen oder geaendert wird: Ohne das zaehlte eine
     gerade erst eingerichtete Instanz bis zu eine Stunde lang nicht mit, ohne
     dass die Uebersicht das sagt.
     """

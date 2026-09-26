@@ -14,7 +14,7 @@ loescht. Vier Grundsaetze, alle im Bauplan "Draht statt Takt" entschieden:
   andere Anwendungen (live gesehen: "Ruddarr") - und womoeglich eine zweite
   Nexview. Unser ist nur ein Eintrag, der **uns** anruft; welcher das ist,
   beantwortet ``unser_eintrag`` und sonst nichts. Name und Nummer allein
-  reichen nicht (#note-38).
+  reichen nicht.
 * **Abwaehlen raeumt auf.** Der Haken je Instanz entfernt unseren Eintrag
   rueckstandsfrei, statt ihn nur zu ignorieren.
 * **Faehigkeiten werden gemessen, nicht geraten.** Welche Ereignisse eine
@@ -100,8 +100,8 @@ def eintrag_name(basis: str) -> str:
     ⚠️ **Eindeutig je Installation, nicht fest.** Radarr und Sonarr verlangen
     je Instanz verschiedene Namen und weisen einen vergebenen mit 400 ab -
     auch schon bei der Probe. Mit dem festen Namen "Nexview" konnte deshalb
-    keine zweite Nexview an derselben Instanz einen eigenen Eintrag anlegen
-    (#note-31). Die Anruf-Adresse unterscheidet zwei Installationen ohnehin:
+    keine zweite Nexview an derselben Instanz einen eigenen Eintrag anlegen.
+    Die Anruf-Adresse unterscheidet zwei Installationen ohnehin:
     Zwei mit derselben waeren derselbe Empfaenger. Sie steht ohne Schema im
     Namen, damit der Betreiber in Radarr sieht, welcher Eintrag wohin ruft.
     """
@@ -183,7 +183,7 @@ def unser_eintrag(
     der alte Name war es auch, und die gemerkte Nummer zeigt womoeglich auf
     einen Eintrag, den inzwischen eine andere Nexview beschrieben hat. Mit
     genau diesen drei Merkmalen hat der Umstieg einer Installation den
-    Eintrag einer anderen geloescht (#note-38).
+    Eintrag einer anderen geloescht.
 
     ⚠️ **Auch die Adresse, die wir selbst zuletzt hineingeschrieben haben,
     macht einen Eintrag nicht zu unserem.** Wer das Datenverzeichnis einer
@@ -556,7 +556,7 @@ async def testen(db: Session, settings: AppSettings, instanz: ArrInstanz) -> dic
     # Sonarr prueft die Probe wie ein Speichern - ohne Nummer hielte es den
     # gleichnamigen Bestand fuer ein Duplikat und antwortete mit 400, statt
     # anzurufen. Live so gesehen, nachdem der erste Beweis laengst stand.
-    # Nur **unsere** Nummer, nie die eines fremden Eintrags (#note-31).
+    # Nur **unsere** Nummer, nie die eines fremden Eintrags.
     try:
         vorhandene = await client.notifications()
     except ArrError as fehler:

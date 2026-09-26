@@ -56,7 +56,7 @@ const FILTERS: Filter[] = [
   "all",
   // Freigegeben, aber noch nicht bei der Beschaffung: Nach dem Umstieg reicht
   // der Assistent genau diese nach, und ohne eigenen Filter fand man sie nur
-  // unter „Alle“ (Rundgang-Befund 4).
+  // unter „Alle“ (Rundgang-Befund).
   "approved",
   "searching",
   "downloaded",
@@ -436,7 +436,7 @@ export function AdminRequestsPage() {
     // ⚠️ Im NEX-Betrieb nie: Dort bleibt der Ordner an jeder Anfrage leer, er
     // hängt an der Fassung in nexcrate. Gefragt war nur das Fehlen, und so
     // öffnete jede Freigabe eine Zielwahl, deren Listen-Adresse `409`
-    // antwortet (Rundgang-Befund 6). Dieselbe Regel wie
+    // antwortet (Rundgang-Befund). Dieselbe Regel wie
     // `admin_requests._braucht_ziel` auf dem Server.
     if (!zielWaehlbar(config)) return false;
     return request.root_folder_path === null;

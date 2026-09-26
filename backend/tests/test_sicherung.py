@@ -1288,7 +1288,7 @@ def test_die_pruefung_einer_sicherung_hinterlaesst_keine_begleitdateien() -> Non
 
 
 def test_ein_langer_kommentar_endet_an_einer_wortgrenze() -> None:
-    """Rundgang-Befund 2: Gekuerzt wurde mitten im Wort („...-to-n“)."""
+    """Rundgang-Befund: Gekuerzt wurde mitten im Wort („...-to-n“)."""
     from app.services import sicherung
 
     name = sicherung._sicherer_name("Before switching from Radarr/Sonarr to nexcrate")
@@ -1299,7 +1299,7 @@ def test_ein_langer_kommentar_endet_an_einer_wortgrenze() -> None:
 
 
 def test_ein_kurzes_erstes_wort_verschluckt_den_kommentar_nicht() -> None:
-    """Pruefer zu Befund 2: „ab“ plus ein langes Wort wurde zu „ab“."""
+    """„ab“ plus ein langes Wort wurde zu „ab“."""
     from app.services import sicherung
 
     assert sicherung._sicherer_name("ab " + "x" * 50) == "ab-" + "x" * 37

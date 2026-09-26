@@ -1,6 +1,6 @@
 """Was nexcrate führt, in Nexviews Formen.
 
-Zwei Wege hinein, und sie sind nicht dasselbe (nexbeat-Befund 12):
+Zwei Wege hinein, und sie sind nicht dasselbe (Befund):
 
 * **Nachschlagen** (``POST /titles/lookup``) kennt einen Titel **sofort**, auch
   wenn er gerade erst entstanden ist. Das ist der Weg für „ist meine Anfrage
@@ -12,7 +12,7 @@ Zwei Wege hinein, und sie sind nicht dasselbe (nexbeat-Befund 12):
 ⚠️ **Die Marke gehört zu einer Installation.** Wechselt ``installation_id``
 oder steht die Marke über ``latest``, wird ganz gelesen: nexcrate antwortet in
 beiden Fällen still leer, und ein Verbraucher mit gemerkter Marke sähe sonst
-nie wieder eine Änderung (nexbeat-Befund 11, an dieser nexcrate nachgemessen).
+nie wieder eine Änderung (Befund, an dieser nexcrate nachgemessen).
 """
 
 from __future__ import annotations
@@ -431,7 +431,7 @@ class Bestand:
             antwort = await client.titles(after=after, kind=kind, limit=SEITE)
             letzte = int(antwort.get("latest") or 0)
             if after > letzte:
-                # Still leer statt 410 (nexbeat-Befund 11): Die Marke gehört
+                # Still leer statt 410 (Befund): Die Marke gehört
                 # einer nexcrate, die es so nicht mehr gibt.
                 logger.info("The stored marker is beyond nexcrate's latest; reading in full")
                 self.titel.pop(kind, None)

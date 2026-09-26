@@ -72,7 +72,7 @@ export function kannAnfragen(
  * Ordner und Profil an der Fassung in nexcrate, und `/api/arr/…/options`
  * antwortet `409 not_in_this_mode`. Das Anfrageformular holte die Listen dort
  * trotzdem und zeigte nur diese Meldung: Niemand konnte anfragen
- * (Rundgang-Befund 6, 24.09.2026).
+ * (Rundgang-Befund, 24.09.2026).
  *
  * Fehlt die Angabe (noch keine Antwort), gilt ja: so war es vor dem Feld.
  */

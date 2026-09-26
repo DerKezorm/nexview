@@ -361,7 +361,7 @@ describe('Umstiegsassistent', () => {
   })
 
   it('nennt vor dem ersten Nachreichen keine Zahl', async () => {
-    // Rundgang-Befund 4: „0 Anfragen nachgereicht.“ stand schon vor dem ersten
+    // Rundgang-Befund: „0 Anfragen nachgereicht.“ stand schon vor dem ersten
     // Klick da und las sich wie „schon gelaufen, nichts gefunden“.
     await bisZumNachreichen(0, false)
 
@@ -438,7 +438,7 @@ describe('Umstiegsassistent: Reload während des Umstiegs (C6)', () => {
   })
 
   it('verweist beim Umschalten auf den Schritt, in dem die Abbildung steht', async () => {
-    // Rundgang-Befund 3: „die du oben zugeordnet hast" zeigte ins Leere. Der
+    // Rundgang-Befund: „die du oben zugeordnet hast" zeigte ins Leere. Der
     // Assistent zeigt je Schritt nur einen Abschnitt; oben steht nichts.
     antworten()
     vi.mocked(api.post).mockImplementation(async (pfad: string) => {
@@ -540,7 +540,7 @@ describe('Umstiegsassistent: Reload während des Umstiegs (C6)', () => {
   })
 
   it('erkennt eine eben angelegte Sicherung auch ohne Sitzungsspeicher (neuer Reiter, neues Fenster)', async () => {
-    // #note-37: Der Sitzungsspeicher gilt nur für diesen einen Reiter. Wer den
+    // Der Sitzungsspeicher gilt nur für diesen einen Reiter. Wer den
     // Assistenten in einem neuen Fenster wieder öffnete, stand vor einem
     // grauen „Weiter", obwohl die Sicherung von eben auf dem Server lag.
     vi.mocked(api.get).mockImplementation(async (pfad: string) => {

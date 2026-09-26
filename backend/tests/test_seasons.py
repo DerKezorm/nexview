@@ -222,7 +222,7 @@ async def test_ganze_serie_wird_normal_angelegt(
 async def test_ganze_bekannte_serie_wird_ueberwacht_und_gesucht(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#note-64 bei Serien: keine Staffel angefragt, Sonarr fuehrt sie schon, ohne Datei.
+    """Bei Serien: keine Staffel angefragt, Sonarr fuehrt sie schon, ohne Datei.
 
     Bisher landete das im "sonst"-Zweig und haette die Serie ein zweites Mal
     angelegt - genau der Befund, der bei Radarr-Filmen einen gewoehnlichen

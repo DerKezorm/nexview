@@ -11,7 +11,7 @@ import { fassungName, fassungVon } from "../../lib/fassungen";
  *
  * ⚠️ **Der Grund steht je Fassung, nicht am Titel.** Im Prüfstand sagte der
  * Titelgrund „nichts gewollt", während eine Fassung sehr wohl gesucht wurde
- * (nexbeat-Befund 7). Gezeigt wird deshalb eine Zeile je Fassung.
+ * (Befund). Gezeigt wird deshalb eine Zeile je Fassung.
  *
  * ⚠️ **Kein Satz vom Weg wird gezeigt.** Der Weg schickt eine Kennung mit
  * Werten; den Satz baut diese Datei aus `warum.grund.<code>`. Ein Grund, für

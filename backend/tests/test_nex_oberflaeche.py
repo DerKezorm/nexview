@@ -71,7 +71,7 @@ def nex_client_admin(admin_client: TestClient, nexcrate: FakeNexcrate) -> TestCl
 async def test_der_grund_steht_je_fassung_nicht_am_titel(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:
-    """⚠️ nexbeat-Befund 7: ``next_search_reason`` sagte „nichts gewollt",
+    """⚠️ Befund: ``next_search_reason`` sagte „nichts gewollt",
     während eine Fassung sehr wohl gesucht wurde."""
     nexcrate.film(603)
     nexcrate.why[("movie", "tmdb:603")] = {
@@ -218,7 +218,7 @@ def test_eine_serie_heisst_nach_aussen_tv(
 def test_zurueckholen_geht_an_den_weg(
     nex_client_admin: TestClient, nexcrate: FakeNexcrate
 ) -> None:
-    """⚠️ #job-43: Die Antwort trägt seither ``created`` - die Oberfläche
+    """⚠️ Die Antwort trägt ``created`` - die Oberfläche
     braucht es, um ein gewöhnliches Zurückholen von einer Neuanlage zu
     unterscheiden ("Datei zurück, nicht überwacht" statt "angefragt")."""
     antwort = nex_client_admin.post("/api/beschaffung/papierkorb/7/zurueckholen")
@@ -290,7 +290,7 @@ def test_im_arr_betrieb_kann_der_weg_weniger(arr_client: TestClient) -> None:
 def test_zielwahl_folgt_dem_riegel_der_listen_adresse(
     nex_client_admin: TestClient,
 ) -> None:
-    """Rundgang-Befund 6: ``zielwahl`` sagt der Oberflaeche, ob es Ordner und
+    """Rundgang-Befund: ``zielwahl`` sagt der Oberflaeche, ob es Ordner und
     Profil zu waehlen gibt. Sie muss genau dann nein sagen, wenn
     ``/api/arr/{art}/options`` mit ``not_in_this_mode`` abweist; sonst holt
     das Anfrageformular die Listen und zeigt nur das ``409``."""
@@ -413,7 +413,7 @@ def test_die_verbindungsleuchte_auch(nex_client_admin: TestClient) -> None:
 
 
 # --------------------------------------------------------------------------
-# Gescheiterte Downloads (Rundgang-Befund 9)
+# Gescheiterte Downloads (Rundgang-Befund)
 
 
 def _download(kennung: int, zustand: str, problem: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -464,7 +464,7 @@ def test_ein_gescheiterter_download_laeuft_nicht(
 
 
 # --------------------------------------------------------------------------
-# Gesundheit ohne nexcrates Satz (Rundgang-Befund 5)
+# Gesundheit ohne nexcrates Satz (Rundgang-Befund)
 
 
 def test_gesundheit_geht_als_kennung_hinaus(nex_client_admin: TestClient) -> None:
@@ -501,7 +501,7 @@ def test_gesundheit_geht_als_kennung_hinaus(nex_client_admin: TestClient) -> Non
 
 
 # --------------------------------------------------------------------------
-# Download-Verlauf nach dem Umstieg (Rundgang-Befund 7)
+# Download-Verlauf nach dem Umstieg (Rundgang-Befund)
 
 
 def test_der_verlauf_nennt_alte_instanzen_beim_namen(nex_client_admin: TestClient) -> None:
@@ -538,7 +538,7 @@ def test_der_verlauf_nennt_alte_instanzen_beim_namen(nex_client_admin: TestClien
 
 
 # --------------------------------------------------------------------------
-# Rundgang 2, R2-1: die nexcrate-Seite zeigt keine Musikbefunde
+# Rundgang 2: die nexcrate-Seite zeigt keine Musikbefunde
 
 
 def test_die_nexcrate_seite_zeigt_keine_befunde_zu_musik(
@@ -566,7 +566,7 @@ def test_die_nexcrate_seite_zeigt_keine_befunde_zu_musik(
 
 
 # --------------------------------------------------------------------------
-# Rundgang 2, R2-7: welche Folgen vorliegen
+# Rundgang 2: welche Folgen vorliegen
 
 
 def _serie_mit_dateien(nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch, tmdb_id: int) -> str:

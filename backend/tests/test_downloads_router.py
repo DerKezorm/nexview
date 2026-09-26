@@ -250,12 +250,12 @@ def test_der_verlauf_neueste_zuerst(admin_client: TestClient) -> None:
     assert zeilen[0]["wer"] == name
     assert zeilen[1]["wer"] is None
     # Ohne eingerichtete Instanz kommt der Name aus der Fassungstabelle
-    # (Rundgang-Befund 7); die Kennung steht nur, wo auch dort nichts steht.
+    # (Rundgang-Befund); die Kennung steht nur, wo auch dort nichts steht.
     assert zeilen[0]["instanz"] == "Radarr"
 
 
 def test_der_verlauf_nimmt_den_namen_der_laufenden_instanz(arr_client: TestClient) -> None:
-    """Pruefer zu Befund 7: Steht eine Kennung in der Fassungstabelle und bei den
+    """Steht eine Kennung in der Fassungstabelle und bei den
     laufenden Instanzen, gilt der Name der Instanz."""
     from app.models import Fassung
     from app.services.beschaffung import get_beschaffung

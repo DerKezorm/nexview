@@ -335,7 +335,7 @@ def badges_for(
 def nur_katalog_ohne_anfrage(status: str | None, eigen: str | None) -> bool:
     """"searching", aber niemand hat es bestellt - anfragbar wie ein neuer Titel.
 
-    ⚠️ **#note-64.** ``status == "searching"`` heisst nur "Radarr/Sonarr bzw.
+    ⚠️ **"searching" heisst nicht "angefragt".** ``status == "searching"`` heisst nur "Radarr/Sonarr bzw.
     nexcrate fuehrt den Titel, ohne Datei" (``library._status_for``,
     ``nex/lesen.zustand_der_kachel``) - das sagt nichts darueber, ob dahinter
     eine Anfrage steckt. Ohne ``eigen`` (kein aktiver Eintrag aus
@@ -409,7 +409,7 @@ def wegname(settings: AppSettings, request: MediaRequest) -> str:
 
     Im ARR-Betrieb die Instanz der Fassung („Radarr FHD“), im NEX-Betrieb
     nexcrate. Hier stand fest „Radarr“ oder „Sonarr“, auch wenn nexcrate
-    beschaffte (#idea-54, gemessen 25.09.2026).
+    beschaffte (gemessen 25.09.2026).
     """
     instanzen = get_beschaffung(settings).instanzen()
     for instanz in instanzen:
@@ -1512,7 +1512,7 @@ async def create_request(
         # ``nex/lesen.zustand_der_kachel``) - das Gegenteil von "schon da". Bis
         # zum 26.09.2026 stand hier auch "searching", und jeder Titel, den
         # Radarr/Sonarr bzw. nexcrate nur kannte, liess sich nie wieder
-        # anfragen (#note-64). Nach einem Umstieg trifft das im NEX-Betrieb
+        # anfragen. Nach einem Umstieg trifft das im NEX-Betrieb
         # jeden fehlenden Altbestand-Titel.
         if current.status == "downloaded":
             raise RequestError(

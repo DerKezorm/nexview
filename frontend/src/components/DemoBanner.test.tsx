@@ -1,7 +1,7 @@
 /**
  * Der Hinweis auf die Beispieldaten sagt, warum sie zu sehen sind.
  *
- * #note-30: Nach dem Eintragen eines TMDB-Schlüssels stand weiter "Sobald ein
+ * Nach dem Eintragen eines TMDB-Schlüssels stand weiter "Sobald ein
  * TMDB API-Key hinterlegt ist, erscheinen hier echte Neuerscheinungen" da -
  * der Schlüssel war längst hinterlegt, die Beispieldaten aber fest
  * eingeschaltet.

@@ -50,7 +50,7 @@ GLOCKE = frozenset(
 def glockentext(problem: dict[str, Any]) -> str:
     """Der ``message_key`` der Glocke: die Kennung, sonst der allgemeine Satz.
 
-    ⚠️ **Nie nexcrates Satz**, auch nicht im Titel (Rundgang-Befund 5).
+    ⚠️ **Nie nexcrates Satz**, auch nicht im Titel (Rundgang-Befund).
     """
     code = str(problem.get("code") or "")
     kind = (problem.get("params") or {}).get("kind")
@@ -65,14 +65,14 @@ def fuer_nexview(eintrag: dict[str, Any], eigene: frozenset[str] | None = None) 
 
     Musik fuehrt Nexview nicht. nexcrate meldet ``automatic_off`` je Art, auch
     ``album``, und daraus wurde „Die Automatik ist aus“, obwohl Filme und Serien
-    an waren (Rundgang-Befund 5). Befunde einer Fassung (``version_id``, ohne
+    an waren (Rundgang-Befund). Befunde einer Fassung (``version_id``, ohne
     ``kind``) gelten nur fuer Fassungen, die Nexview fuehrt (``eigene``).
     ⚠️ Ausser ``disk_full``: nexcrate meldet einen vollen Datentraeger einmal je
     Geraet, und die genannte Fassung kann die Musik sein, obwohl Filme daneben
     liegen.
 
     Eine Funktion fuer alle Stellen, die ``/health`` lesen: Die nexcrate-Seite
-    holte es einmal selbst und zeigte den Musikbefund weiter (Rundgang 2, R2-1).
+    holte es einmal selbst und zeigte den Musikbefund weiter (Rundgang 2).
     """
     werte = eintrag.get("params") or {}
     if werte.get("kind") and mapping.art(str(werte["kind"])) not in mapping.EIGENE_ARTEN:

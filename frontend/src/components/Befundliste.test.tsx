@@ -1,5 +1,5 @@
 /**
- * Befunde aus nexcrate kommen als Kennung (Rundgang-Befund 5).
+ * Befunde aus nexcrate kommen als Kennung (Rundgang-Befund).
  *
  * ⚠️ Das Dashboard zeigte unter „Dienste“ nexcrates englischen Satz
  * („The automatic for album is off; nothing loads by itself.“) wörtlich in

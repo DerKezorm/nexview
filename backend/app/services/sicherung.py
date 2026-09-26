@@ -322,9 +322,9 @@ def _sicherer_name(kommentar: str) -> str:
     knapp = re.sub(r"[^\w-]+", "-", kommentar.strip(), flags=re.UNICODE).strip("-")
     if len(knapp) > 40:
         # An einer Wortgrenze kuerzen: Der Umstieg hiess sonst „...-to-n“
-        # (Rundgang-Befund 2). Ein einziges langes Wort bleibt gekuerzt stehen.
+        # (Rundgang-Befund). Ein einziges langes Wort bleibt gekuerzt stehen.
         vorn = knapp[:41].rsplit("-", 1)[0] if "-" in knapp[:41] else ""
-        # Nur wenn davon genug bleibt; sonst hart bei 40 (Pruefer zu Befund 2).
+        # Nur wenn davon genug bleibt; sonst hart bei 40.
         knapp = vorn if len(vorn) >= 20 else knapp[:40]
     return knapp.strip("-").lower()
 
@@ -341,7 +341,7 @@ def anlegen(*, art: str = MANUELL, kommentar: str = "", version: str | None = No
     Wanderung. ⚠️ Die trug bis 1.0.0 ebenfalls die laufende Fassung, obwohl sie
     die Datenbank der **alten** enthaelt: Die alte Fassung hielt sie deshalb
     fuer neuer und weigerte sich, sie einzuspielen (``backup_newer``, gemessen
-    an 0.35.2, #note-22) - ausgerechnet auf dem Rueckweg, fuer den sie da ist.
+    an 0.35.2) - ausgerechnet auf dem Rueckweg, fuer den sie da ist.
     """
     stand = version or __version__
     # Erst hier importiert: ``db`` legt beim Start selbst Sicherungen an, ein
@@ -518,8 +518,8 @@ def aufraeumen(behalten: int = AUTOMATISCH_BEHALTEN, ordner_: Path | None = None
 
     ⚠️ **Die juengste Sicherung vor einem Update bleibt ebenfalls liegen** und
     zaehlt nicht mit. Sie ist der einzige Rueckweg auf die alte Fassung (eine
-    aeltere Fassung auf der gewanderten Datenbank zu starten, beschaedigt sie,
-    #note-22). Mit dem woechentlichen Takt und fuenf Plaetzen war sie nach
+    aeltere Fassung auf der gewanderten Datenbank zu starten, beschaedigt sie).
+    Mit dem woechentlichen Takt und fuenf Plaetzen war sie nach
     rund fuenf Wochen weg. Aeltere Sicherungen vor Updates laufen normal mit.
     """
     ziel_ordner = ordner_ or ordner()

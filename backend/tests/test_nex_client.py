@@ -81,7 +81,7 @@ def test_geloescht_wird_nur_ueber_withdraw() -> None:
 async def test_restore_bekommt_das_lange_zeitlimit(
     nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#job-43: Zurueckholen kann nexcrate TMDB oder MusicBrainz fragen
+    """Zurueckholen kann nexcrate TMDB oder MusicBrainz fragen
     lassen, wenn der Titel die Bibliothek verlassen hat - dasselbe lange
     Zeitlimit wie beim Anfragen (``request``, ``withdraw``)."""
     from app.services.beschaffung.nex.client import LANGSAM
@@ -237,7 +237,7 @@ async def test_die_marke_liest_nur_geaendertes_und_nennt_entferntes(nexcrate: Fa
 
 @pytest.mark.anyio
 async def test_eine_marke_ueber_latest_bleibt_still_leer(nexcrate: FakeNexcrate) -> None:
-    """⚠️ nexbeat-Befund 11, hier nachgemessen: kein ``410``, nur leer.
+    """⚠️ Befund, hier nachgemessen: kein ``410``, nur leer.
 
     Wer die Marke haelt, muss selbst mit ``latest`` vergleichen - sonst sieht
     eine neu aufgesetzte nexcrate nie wieder eine Aenderung.
@@ -273,7 +273,7 @@ async def test_jede_antwort_faellt_in_ihren_korb(
     """Drei Koerbe: noch einmal, abgelehnt, unbekannt.
 
     ⚠️ ``ungewiss`` trennt "hat nicht geklappt" von "wir wissen es nicht": Bei
-    5xx kann der Auftrag angekommen sein (nexbeat-Befund 17).
+    5xx kann der Auftrag angekommen sein (Befund).
     """
     nexcrate.next_answer["GET /api/v1/system"] = antwort
     with pytest.raises(NexcrateError) as gefangen:
@@ -565,7 +565,7 @@ def test_die_verbindungsprobe_sagt_was_dort_antwortet(
 def test_eine_andere_installation_verwirft_die_marken(
     admin_client: TestClient, nexcrate: FakeNexcrate
 ) -> None:
-    """nexbeat-Befund 11: Dieselbe Adresse, andere nexcrate - die Marken gehoeren ihr nicht."""
+    """Befund: Dieselbe Adresse, andere nexcrate - die Marken gehoeren ihr nicht."""
     with SessionLocal() as db:
         save_settings(
             db,

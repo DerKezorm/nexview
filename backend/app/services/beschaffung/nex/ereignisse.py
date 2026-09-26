@@ -18,7 +18,7 @@ Zwei Wege, und sie ergänzen sich:
 gleiche Fehler wie bei Arr.
 
 ⚠️ **Die Marke gehört zu einer Installation.** Wechselt sie, sind alle
-gemerkten Nummern wertlos (nexbeat-Befund 11).
+gemerkten Nummern wertlos (Befund).
 """
 
 from __future__ import annotations
@@ -111,7 +111,7 @@ def marke_lesen(settings: AppSettings) -> int:
 
 
 def marke_schreiben(settings: AppSettings, nummer: int) -> None:
-    """Die Marke **mit** der Installation merken (nexbeat-Befund 11)."""
+    """Die Marke **mit** der Installation merken (Befund)."""
     from ....db import SessionLocal
     from . import system
 

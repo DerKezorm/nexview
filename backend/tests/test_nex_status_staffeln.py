@@ -747,7 +747,7 @@ async def test_ein_fertiges_paket_wird_mit_seinen_dateien_verbucht(
 async def test_ohne_files_wird_ein_fertiges_paket_mit_den_folgengroessen_verbucht(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:
-    """Eine nexcrate ohne ``files``: nicht null, sondern die Folgengrößen (Prüferbefund)."""
+    """Eine nexcrate ohne ``files``: nicht null, sondern die Folgengrößen."""
     _serie(nexcrate, 1399, [_staffel(1, 6 * GB)])
     nexcrate.staffel(
         "tmdb:1399",

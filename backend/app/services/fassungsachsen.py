@@ -206,7 +206,7 @@ async def _stand(
         # noch, wenn der Media-Server die Datei bestaetigt.
         if eigen == "downloaded" and vorhanden is None:
             eigen = None
-        # #note-64: die Fassung kennt den Titel, aber ohne Datei und ohne
+        # die Fassung kennt den Titel, aber ohne Datei und ohne
         # eigene Anfrage - anfragbar wie eine Fassung, die noch nichts weiss.
         if requests_service.nur_katalog_ohne_anfrage(vorhanden, eigen):
             vorhanden = None

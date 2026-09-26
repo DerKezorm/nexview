@@ -324,7 +324,7 @@ def test_instanz_meldung_kommt_im_wortlaut(arr_client: TestClient) -> None:
 
 
 def test_eine_meldung_mit_kennung_geht_ohne_satz_hinaus(arr_client: TestClient) -> None:
-    """Rundgang-Befund 5: nexcrates englischer Satz stand im deutschen
+    """Rundgang-Befund: nexcrates englischer Satz stand im deutschen
     Dashboard. Eine Meldung mit Kennung geht als Kennung und Werte hinaus; die
     Oberflaeche uebersetzt."""
     _gesundheit(
@@ -894,7 +894,7 @@ def test_wenige_frische_fehler_schweigen(admin_client: TestClient) -> None:
 def test_das_fenster_rechnet_in_der_zeit_des_protokolls(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Rundgang-Befund 1: Das Protokoll stempelt Ortszeit, die Grenze war UTC.
+    """Rundgang-Befund: Das Protokoll stempelt Ortszeit, die Grenze war UTC.
     In der Sommerzeit reichte das Fenster so 26 Stunden zurueck; um 20:05
     zaehlte der Befund 123 Zeilen vom Vortag 18:26 bis 18:55.
 

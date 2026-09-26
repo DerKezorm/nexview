@@ -87,7 +87,7 @@ def pruefen(daten: dict[str, Any]) -> list[Befund]:
             gefunden.append(Befund("nexcrate_recht_fehlt", SPERRT, {"recht": recht}))
 
     if not koennen.get("wishes_search_at_once"):
-        # nexbeat-Befund 21: Ein Suchwunsch, den niemand abarbeitet, sieht aus
+        # Befund: Ein Suchwunsch, den niemand abarbeitet, sieht aus
         # wie eine laufende Suche. Kein Grund zu sperren, aber einer zu sagen.
         gefunden.append(Befund("nexcrate_wuensche_warten", WARNT))
 

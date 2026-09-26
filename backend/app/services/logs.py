@@ -526,7 +526,7 @@ def stempel(zeitpunkt: datetime) -> str:
     ⚠️ Der Formatter stempelt Ortszeit (``logging.Formatter.converter``, ohne
     Zeitzone). Wer Zeilen nach Zeit waehlt, muss die Grenze genauso schreiben;
     in UTC reichte „die letzten 24 Stunden“ in der Sommerzeit 26 zurueck
-    (Rundgang-Befund 1).
+    (Rundgang-Befund).
     """
     sekunden = zeitpunkt.replace(tzinfo=UTC).timestamp()
     return time.strftime(DATE_FORMAT, logging.Formatter.converter(sekunden))

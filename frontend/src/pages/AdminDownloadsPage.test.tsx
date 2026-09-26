@@ -387,7 +387,7 @@ describe('die übrige Seite', () => {
   })
 
   it('nennt gescheiterte Downloads, ohne sie unter Läuft zu zeigen', async () => {
-    // Rundgang-Befund 9: nexcrate lieferte 42 gescheiterte Downloads mit, und
+    // Rundgang-Befund: nexcrate lieferte 42 gescheiterte Downloads mit, und
     // sie standen unter „Läuft“ mit Fortschrittsbalken. Der Server lässt sie
     // dort weg und zählt sie.
     antworten({ uebersicht: stand({ laufend: [], haenger: [], gescheitert: 42 }) })
@@ -408,7 +408,7 @@ describe('die übrige Seite', () => {
   })
 
   it('nennt im NEX-Betrieb nexcrate statt Radarr und Sonarr', async () => {
-    // Rundgang-Befund 8: Der Untertitel sagte auch im NEX-Betrieb „Was in
+    // Rundgang-Befund: Der Untertitel sagte auch im NEX-Betrieb „Was in
     // Radarr und Sonarr nicht weitergeht“.
     holen.mockImplementation(((pfad: string) => {
       if (pfad === '/api/config') return Promise.resolve({ beschaffung: 'nex' })

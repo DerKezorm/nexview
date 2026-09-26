@@ -1,4 +1,4 @@
-"""Welche Instanz eine Anfrage beschafft, steht im Protokoll beim Namen (#idea-54).
+"""Welche Instanz eine Anfrage beschafft, steht im Protokoll beim Namen.
 
 Dort stand fest „Radarr“ oder „Sonarr“, auch im NEX-Betrieb (gemessen live am
 25.09.2026: „Added tv 'Dr. House' … to Sonarr“). Den NEX-Fall prueft

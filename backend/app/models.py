@@ -1914,7 +1914,7 @@ class ArrWebhook(Base):
     aktiv: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # Die Nummer unseres Eintrags in Radarr/Sonarr. ⚠️ Allein beweist sie
     # nichts: Eine andere Nexview an derselben Instanz kann den Eintrag unter
-    # dieser Nummer beschrieben haben (#note-38). Unser ist er nur, solange er
+    # dieser Nummer beschrieben haben. Unser ist er nur, solange er
     # unsere heutige Adresse traegt (``webhook_pflege.unser_eintrag``).
     eintrag_id: Mapped[int | None] = mapped_column(Integer)
     # Die Anruf-Adresse, die wir zuletzt in den Eintrag geschrieben haben.

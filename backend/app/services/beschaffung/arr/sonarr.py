@@ -180,7 +180,7 @@ class SonarrClient(ArrClient):
         (in UTC) laeuft, faellt damit aus der Antwort - und liegt ihr
         Sendetermin in einer Zeitzone hinter UTC, kann daraus sogar erst der
         naechste UTC-Tag werden. Gemessen an einer echten Instanz
-        (Rundgang-Befund #note-35, 25.09.2026): Fuer die Woche bis 27.09.2026
+        (Rundgang-Befund, 25.09.2026): Fuer die Woche bis 27.09.2026
         fehlten "One Piece" S23E25 (27.09., 14:15 UTC) **und** "The Simpsons"
         S38E01 (28.09., 00:00 UTC) vollstaendig - beide echten Serien mit
         Folge in genau diesem Zeitraum. Ein Tag mehr auf ``end`` deckt beide

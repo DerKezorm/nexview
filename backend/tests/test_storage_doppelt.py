@@ -33,7 +33,7 @@ Datenbank aufzubauen. Dieselbe Regel, gegen die **echte** ``_aus_media_server``
 und mit einem vorbestehenden Posten, prüft zusätzlich
 ``test_storage_medienserver.py::
 test_ein_vorbestehender_posten_unter_anderer_fassung_wird_nicht_weiter_gezaehlt``
-(gebaut 24.09.2026, Prüfauftrag R6/R13b). Sie deckt nur den einen, im
+(gebaut 24.09.2026). Sie deckt nur den einen, im
 Betrieb gefundenen Fall ab - die Randfälle hier (echter Doppelbestand,
 verschiedene Filme, gleicher Schlüssel, beide Richtungen) bleiben ungeprüft
 gegen die echte Funktion; diese Datei bleibt deshalb bestehen.

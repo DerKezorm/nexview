@@ -119,18 +119,18 @@ class FakeNexcrate:
         #: Die Regel, mit der eine Serienfassung angelegt wurde, je (kind, ref).
         #: ⚠️ Wie nexcrate: Fehlt ``series.future_seasons``, gilt ``true``
         #: (``routers/v1_write.py``), und die Fassung will **jede** Folge
-        #: (Rundgang 2, R2-6).
+        #: (Rundgang 2).
         self.watch_rules: dict[tuple[str, str], str] = {}
         #: Welche ganzen Staffeln eine Anfrage einschaltet, je (kind, ref).
         #: ⚠️ Wie nexcrates ``_checked_seasons``: Fehlt ``seasons``, sind es
         #: **alle** Staffeln, auch wenn ``episodes`` dabei ist ("alle").
-        #: Ein Folgen-Paket lud so die ganze Serie (Rundgang 2, R2-6).
+        #: Ein Folgen-Paket lud so die ganze Serie (Rundgang 2).
         self.eingeschaltet: dict[tuple[str, str], Any] = {}
         self.recycle: list[dict[str, Any]] = []
         #: Der Titel, wie er stand, als ein Posten mit Dateien in den
         #: Papierkorb ging - je ``entry_id``. Zurückholen legt ihn daraus neu
-        #: an, wenn er die Bibliothek inzwischen verlassen hat (#job-43,
-        #: ``recycle_again`` in nexcrate). Nur intern, nicht Teil einer Antwort.
+        #: an, wenn er die Bibliothek inzwischen verlassen hat
+        #: (``recycle_again`` in nexcrate). Nur intern, nicht Teil einer Antwort.
         self._papierkorb_titel: dict[int, dict[str, Any]] = {}
         self.history: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.why: dict[tuple[str, str], dict[str, Any]] = {}
@@ -447,7 +447,7 @@ class FakeNexcrate:
         (nexcrates ``forget_missing``, hier nicht nachgebildet: dafuer die
         Zeile per Hand aus ``self.recycle`` nehmen).
 
-        ``restorable`` steht seit #job-43 an der Zeile selbst: Die Datei
+        ``restorable`` steht an der Zeile selbst: Die Datei
         liegt zwar da, aber ohne einen bekannten Titel (``ref`` unbekannt, die
         Fassung ganz verschwunden) legt ``restore`` nichts mehr neu an - dann
         ``restorable=False`` setzen. Mit dem Vorgabewert stashen wir den
@@ -682,7 +682,7 @@ class FakeNexcrate:
             "next_after": letzte,
             "more": len(gefunden) > len(gezeigt),
             # ⚠️ ``after`` ueber ``latest`` antwortet still leer, nicht 410
-            # (nexbeat-Befund 11, hier nachgemessen).
+            # (Befund, hier nachgemessen).
             "latest": self.seq,
         }
 
@@ -882,7 +882,7 @@ class FakeNexcrate:
         Steht er noch in der Bibliothek, kommt nur die Datei zurueck
         (``created=False``). Hat er sie verlassen, legt ``restore`` ihn aus
         dem gestashten Stand neu an - unueberwacht, mit Datei
-        (``created=True``, #job-43). Kennt weder ``self.titles`` noch der
+        (``created=True``). Kennt weder ``self.titles`` noch der
         Stash den Titel, bleibt nur ``kind``/``ref`` uebrig - eine echte
         nexcrate sagte dann ``recycle_title_gone`` (fuer diesen Fall
         ``next_answer`` benutzen, nicht diese Attrappe).

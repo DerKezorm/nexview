@@ -1,11 +1,11 @@
-"""#job-43: nexcrate legt einen entfernten Titel beim Zurückholen neu an.
+"""nexcrate legt einen entfernten Titel beim Zurückholen neu an.
 
-Nachgestellt aus #note-49: Ein ganz gewöhnlicher Film wird geladen, sein
+Nachgestellter Fall aus dem Prüfgang: Ein ganz gewöhnlicher Film wird geladen, sein
 Speicherposten gelöscht - nexcrate entfernt dabei den Titel vollständig, nicht
 nur aus der Bibliothek (``title_id: null`` im Papierkorb) - und binnen
 Sekunden zurückgeholt. Vorher scheiterte das mit 502/``recycle_title_gone``,
 obwohl Datei und Papierkorb-Eintrag unverändert dastanden. Seit nexcrate den
-Titel dabei neu anlegt (#job-42), muss Nexview das richtig zeigen (der Knopf
+Titel dabei neu anlegt, muss Nexview das richtig zeigen (der Knopf
 hängt an ``restorable``, nicht an ``im_bestand``) und richtig melden
 (``created``).
 """
@@ -133,7 +133,7 @@ def test_zurueckholen_ohne_neuanlage_meldet_created_false(
 def test_ein_neu_angelegter_titel_steht_nicht_als_gesucht_da(
     nex_admin: Any, nexcrate: FakeNexcrate
 ) -> None:
-    """⚠️ Kernanforderung #job-43: keine falsche "wird gesucht"-Anzeige.
+    """⚠️ Kernanforderung: keine falsche "wird gesucht"-Anzeige.
 
     ``status_setzen``/``kacheln_faerben`` liest nexcrates ``state`` je
     Fassung - nicht ``monitored`` - fuer die Kachel. Eine unueberwachte, aber

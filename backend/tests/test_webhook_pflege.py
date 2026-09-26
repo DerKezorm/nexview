@@ -138,7 +138,7 @@ async def test_der_name_allein_macht_keinen_eintrag_zu_unserem(fake) -> None:
 
 #: Der Eintrag einer **anderen** Nexview an derselben Instanz: Bis 1.0.0 hiess
 #: jede Nexview dort "Nexview", und der Pfad traegt dieselbe Instanz-Kennung.
-#: Nur die Adresse unterscheidet ihn von unserem (#note-38, #note-66).
+#: Nur die Adresse unterscheidet ihn von unserem.
 ANDERE_NEXVIEW = {
     "id": 1,
     "name": "Nexview",
@@ -160,7 +160,7 @@ def _url(eintrag: dict) -> str:
 async def test_der_eintrag_einer_anderen_nexview_bleibt_unangetastet(fake) -> None:
     """Zwei Nexview an einem Radarr: Die zweite legt ihren eigenen Eintrag an,
     statt den der ersten auf sich umzubiegen - und scheitert dabei nicht am
-    gleichen Namen (Radarr verlangt eindeutige Namen, #note-31)."""
+    gleichen Namen (Radarr verlangt eindeutige Namen)."""
     fake.eintraege = [dict(ANDERE_NEXVIEW)]
     settings, instanz = _radarr()
 
@@ -179,7 +179,7 @@ async def test_der_eintrag_einer_anderen_nexview_bleibt_unangetastet(fake) -> No
 async def test_abwaehlen_loescht_keinen_eintrag_einer_anderen_nexview(fake) -> None:
     """Die gemerkte Nummer zeigt auf einen Eintrag, den inzwischen eine andere
     Nexview beschrieben hat. Abwaehlen (und damit der Umstieg) darf ihn nicht
-    loeschen: Die andere Nexview verloere still ihren Rueckkanal (#note-38)."""
+    loeschen: Die andere Nexview verloere still ihren Rueckkanal."""
     fake.eintraege = [dict(ANDERE_NEXVIEW)]
     settings, instanz = _radarr()
     with SessionLocal() as db:
@@ -247,7 +247,7 @@ def _stand_merken() -> dict:
 
 @pytest.mark.anyio
 async def test_zwei_nexview_an_einem_radarr_bis_zum_umstieg_der_einen(fake) -> None:
-    """Der Ablauf aus #note-38 mit beiden Seiten: A traegt sich ein, B traegt
+    """Der Ablauf von oben mit beiden Seiten: A traegt sich ein, B traegt
     sich ein, beide pflegen im Wechsel (hier wurde frueher der Eintrag hin und
     her gebogen), dann steigt A um. Danach steht B's Eintrag unveraendert da."""
     from app.services.beschaffung.arr import konten
@@ -585,7 +585,7 @@ async def test_lebt_oder_ist_unklar_bleibt_der_alte_eintrag_stehen(
 async def test_eine_kopie_des_datenverzeichnisses_biegt_den_eintrag_des_originals_nicht_um(
     fake, monkeypatch
 ) -> None:
-    """Befund des Pruefers: B entsteht aus einer Kopie von A's Datenverzeichnis
+    """B entsteht aus einer Kopie von A's Datenverzeichnis
     und bekommt eine eigene Adresse. B erbt Nummer und Adresse von A's Eintrag
     und schrieb ihn beim ersten Rundgang auf sich um; A verlor still den
     Rueckkanal. Jetzt bekommt B einen eigenen, und A's bleibt, wie er war."""

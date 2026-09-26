@@ -105,7 +105,7 @@ def test_angefragte_titel_fallen_ganz_weg(arr_client: TestClient) -> None:
 def test_bestandstitel_ohne_datei_bleibt_fuer_kinder_wuenschbar(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#note-64 im Kinderbereich: 'searching' ohne Anfrage ist kein 'weder noch'.
+    """Im Kinderbereich ist 'searching' ohne Anfrage kein 'weder noch'.
 
     Ohne die Reparatur fiel ein Titel, den Radarr schon kennt, aber ohne
     Datei und ohne jede Anfrage, aus beiden Koerben - "wuenschbar" und
@@ -318,7 +318,7 @@ def test_freigabe_wird_anfrage_des_elternteils(arr_client: TestClient) -> None:
 def test_freigabe_eines_bestandstitels_ohne_datei_erzeugt_eine_anfrage(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#note-64 gilt auch hier: ein Katalogtitel ohne Datei ist nicht "schon da".
+    """Auch hier gilt: ein Katalogtitel ohne Datei ist nicht "schon da".
 
     Kennt Radarr den Titel bereits (etwa aus der Zeit vor Nexview), aber ohne
     Datei, darf die Freigabe eines Kinderwunsches ihn nicht fälschlich als
@@ -980,7 +980,7 @@ def test_ein_wunsch_nach_einem_beispieltitel_sagt_bei_der_freigabe_warum(
 ) -> None:
     """Gewuenscht im Beispielbetrieb, freigegeben nach dem TMDB-Schluessel.
 
-    Die Freigabe fragt den Titel ab, und der gehoert TMDB nicht (#note-30). Die
+    Die Freigabe fragt den Titel ab, und der gehoert TMDB nicht. Die
     Antwort traegt die Kennung, damit die Oberflaeche den Satz in der
     eingestellten Sprache zeigt - vorher kam nur der deutsche Satz.
     """

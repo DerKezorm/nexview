@@ -128,7 +128,7 @@ describe('WertungsNennung', () => {
 
   it('lässt weg, was die Titelseite schon unter ihren Werten nennt', async () => {
     // Titelseite eines Films: oben die Einzelansicht mit IMDb, unten Kacheln
-    // mit IMDb und OMDb. Unten bleibt nur, was oben fehlt (Prüfer, 24.09.2026).
+    // mit IMDb und OMDb. Unten bleibt nur, was oben fehlt (gemessen 24.09.2026).
     holen.mockReset()
     holen.mockImplementation(async (pfad: string) =>
       pfad.includes('detail=true') ? { 603: wertung([IMDB]) } : { 604: wertung([IMDB, OMDB]) },

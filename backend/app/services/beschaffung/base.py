@@ -684,8 +684,8 @@ class Beschaffung(ABC):
         Betreiber absichtlich **ohne** Dateien aus der Bibliothek wirft, ist
         auch "nicht mehr gemessen" - und genau dafuer gibt es den
         Geisterposten-Schutz (``storage._aus_media_server``), der ihn ueber den
-        Medienserver weiterzaehlt statt ihn abzuraeumen (Befund #note-63,
-        bewusstes Verhalten, siehe ``services/befunde.py``). Nur ein Weg, der
+        Medienserver weiterzaehlt statt ihn abzuraeumen (bewusstes Verhalten,
+        siehe ``services/befunde.py``). Nur ein Weg, der
         diesen Unterschied kennt, darf hier "ja, sicher" sagen.
 
         Nur der NEX-Weg kann das: nexcrates Papierkorb bekommt eine Zeile nur,
@@ -760,8 +760,8 @@ class Beschaffung(ABC):
 
         ``tmdb_id`` und ``fassung`` braucht der NEX-Weg: nexcrate ankert auf
         TMDB und fuehrt Dateien je Fassung. Ohne sie antwortete er immer leer,
-        und im NEX-Betrieb stand an jeder Folge „fehlt noch“ (Rundgang 2,
-        R2-7). ``staffel`` begrenzt die Frage auf eine Staffel. Der ARR-Weg
+        und im NEX-Betrieb stand an jeder Folge „fehlt noch“ (Rundgang 2).
+        ``staffel`` begrenzt die Frage auf eine Staffel. Der ARR-Weg
         fragt Sonarr mit der TVDB-Nummer und liest die drei nicht.
         """
 
@@ -839,7 +839,7 @@ class Beschaffung(ABC):
     async def warum(self, gefragt: list[Kennt]) -> list[Warum]:
         """Warum diese Titel noch nicht da sind (N28), in derselben Reihenfolge.
 
-        ⚠️ **Der Grund steht je Fassung, nicht am Titel** (nexbeat-Befund 7):
+        ⚠️ **Der Grund steht je Fassung, nicht am Titel** (Befund):
         ``next_search_reason`` stand auf „nichts gewollt", waehrend eine
         Fassung sehr wohl gesucht wurde. Wer den Titelgrund allein liest,
         erzaehlt dem Anfragenden das Falsche.
@@ -868,7 +868,7 @@ class Beschaffung(ABC):
     async def wiederherstellen(self, eintrag_id: int) -> bool:
         """Einen Eintrag aus dem Papierkorb zurueckholen.
 
-        Gibt zurueck, ob der Titel dabei neu angelegt wurde (N43/#job-43): Er
+        Gibt zurueck, ob der Titel dabei neu angelegt wurde: Er
         hatte die Bibliothek verlassen, und der Weg legt ihn beim
         Zurueckholen aus seiner Quelle neu an, unueberwacht.
         """

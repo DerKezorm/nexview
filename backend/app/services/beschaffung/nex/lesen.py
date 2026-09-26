@@ -44,7 +44,7 @@ def zustand_der_kachel(eintrag: dict[str, Any], kennung: str) -> str | None:
     `status`. Der Mittelweg gibt es nur bei Serien - eine Serie mit einer von
     elf Staffeln ist nicht „bereits geladen".
 
-    ⚠️ **Bei Serien entscheiden die Folgen, nicht der Zustand** (#note-40).
+    ⚠️ **Bei Serien entscheiden die Folgen, nicht der Zustand.**
     nexcrate nennt eine Serie ``wanted``, solange eine gesendete, überwachte
     Folge fehlt (``watching.state_from``) - auch wenn hunderte daliegen. Aus
     „gesucht" wurde hier „wird gesucht", und eine alte Serie aus Sonarr stand
@@ -120,7 +120,7 @@ def warteschlange(roh: list[dict[str, Any]], media_type: str) -> list[Warteschla
         if mapping.art(str(titel.get("kind") or "")) != media_type:
             continue
         # Ein gescheiterter Download hat keinen Rest mehr (``null``) und
-        # stand damit bei 100 Prozent (Rundgang-Befund 9).
+        # stand damit bei 100 Prozent (Rundgang-Befund).
         if not mapping.download_laeuft(eintrag):
             continue
         nummer = mapping.tmdb_aus(titel.get("ref"))
@@ -277,7 +277,7 @@ def kalender(roh: list[dict[str, Any]], media_type: str) -> list[dict[str, Any]]
         # ⚠️ nexcrate nennt je Termin einen Eintrag, Radarr je Film einen
         # Datensatz mit allen Terminen. Ohne Zusammenlegen stand ein Film mit
         # digitalem und physischem Termin am selben Tag zweimal im Kalender, mit
-        # demselben Schluessel (Rundgang 2, R2-2).
+        # demselben Schluessel (Rundgang 2).
         schon = filme.get(nummer)
         if schon is not None:
             # Zwei Termine derselben Art: der fruehere, wie Radarr ihn fuehrt.
@@ -458,7 +458,7 @@ def alle_serien(kennung: str) -> list[tuple[int | None, Any]]:
 def warum(antwort: dict[str, Any]) -> Warum:
     """Eine Antwort von ``/titles/why`` in die Form der Grenze.
 
-    ⚠️ **Der Grund steht je Fassung in ``because``** (nexbeat-Befund 7), nicht
+    ⚠️ **Der Grund steht je Fassung in ``because``** (Befund), nicht
     im ``next_search_reason`` des Titels - der stand im Prüfstand auf
     „nichts gewollt", während eine Fassung sehr wohl gesucht wurde.
 

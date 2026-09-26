@@ -121,7 +121,7 @@ class NexDownload:
     problem: dict[str, Any] | None = None
     zeilen: list[int] = field(default_factory=list)
     #: Nein, wenn nexcrate ihn beendet meldet (``failed``): Dann gehoert er
-    #: nicht unter „Läuft“ (Rundgang-Befund 9).
+    #: nicht unter „Läuft“ (Rundgang-Befund).
     laeuft: bool = True
     folgen_ids: list[int] = field(default_factory=list)
 

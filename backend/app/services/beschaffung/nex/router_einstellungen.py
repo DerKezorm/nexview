@@ -11,7 +11,7 @@ bestaetigt in nexcrate, Nexview bekommt ihn **genau einmal**.
 gueltig und gehoert weder in die Datenbank noch in eine Antwort; wer die
 Bitte startet, fragt mit derselben Sitzung nach. Faellt Nexview dazwischen
 aus, koppelt man neu - und in nexcrate steht eine Bitte, die von selbst
-verfaellt (nexbeat-Befund 14).
+verfaellt (Befund).
 """
 
 from __future__ import annotations
@@ -252,7 +252,7 @@ async def stand_lesen(admin: AdminUser, db: DbSession) -> NexStand:
     aenderungen: dict[str, object] = {"nexcrate_web_url": str(daten.get("web_url") or "")}
     if neu and neu != gemerkt:
         # Eine andere Installation unter derselben Adresse: Die gemerkten
-        # Marken gehoeren ihr nicht (nexbeat-Befund 11).
+        # Marken gehoeren ihr nicht (Befund).
         aenderungen |= {
             "nexcrate_installation_id": neu,
             "nexcrate_titles_after": "",
@@ -280,7 +280,7 @@ async def stand_lesen(admin: AdminUser, db: DbSession) -> NexStand:
             if mapping.fuehrt_nexview(eintrag)
         ]
         # Derselbe Filter wie in der Gesundheitspruefung: Musik und Fassungen,
-        # die Nexview nicht fuehrt, bleiben draussen (Rundgang 2, R2-1).
+        # die Nexview nicht fuehrt, bleiben draussen (Rundgang 2).
         eigene = frozenset(str(f["kennung"]) for f in liste if f.get("kennung")) or None
         probleme = [
             {"code": eintrag.get("code"), "level": eintrag.get("level"), "params": eintrag.get("params")}

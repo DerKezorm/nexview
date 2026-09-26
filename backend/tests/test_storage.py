@@ -316,7 +316,7 @@ async def test_staffel_ohne_dateien_wird_nicht_gefuehrt(
     assert len(db.scalars(select(StorageEntry)).all()) == 1
 
 
-# ------------------------------------------ Serie ohne Staffelgroessen (#note-10)
+# ------------------------------------------ Serie ohne Staffelgroessen
 
 
 def _mit_sonarr(db: Session, *, radarr: bool = True) -> AppSettings:
@@ -339,7 +339,7 @@ async def test_serie_ohne_staffelgroessen_wird_nicht_still_uebergangen(
 ) -> None:
     """Sonarr fuehrt die Serie mit Dateien, nennt aber zu keiner Staffel eine Groesse.
 
-    Befund #note-10: Eine solche Serie verschwand kommentarlos, ohne jeden
+    Eine solche Serie verschwand kommentarlos, ohne jeden
     Hinweis im Protokoll - genau wie eine Serie, die es wirklich nicht gibt.
     """
     settings = _mit_sonarr(db)

@@ -1,6 +1,6 @@
 """Die Wächter über ``/api/v1`` - auch im NEX-Betrieb.
 
-⚠️ **Befund von Prüfer P6.** ``/api/v1`` ist die Zusage nach außen (nexdeck-
+⚠️ **Wichtiger Befund.** ``/api/v1`` ist die Zusage nach außen (nexdeck-
 Kachel, Home-Assistant-Integration), aber ``test_v1_zusage.py``,
 ``test_v1_wirklichkeit.py``, ``test_v1_kachel.py``, ``test_v1_selbstauskunft.py``
 und ``test_v1_rueckkanal.py`` laufen ausschließlich im ARR-Betrieb - kein Test

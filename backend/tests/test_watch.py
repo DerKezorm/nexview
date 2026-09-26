@@ -209,7 +209,7 @@ async def test_serie_bleibt_vorgemerkt(
 async def test_die_folgenfrage_nennt_die_tmdb_nummer(
     admin_client: TestClient, nutzer: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Rundgang 2, R2-7: Der NEX-Weg ankert auf TMDB und antwortete ohne diese
+    """Rundgang 2: Der NEX-Weg ankert auf TMDB und antwortete ohne diese
     Nummer immer leer; „Sag mir Bescheid“ haette im NEX-Betrieb nie eine
     vorhandene Folge gesehen."""
     from app.services import media

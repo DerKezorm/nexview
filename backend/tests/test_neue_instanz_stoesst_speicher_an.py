@@ -1,6 +1,6 @@
 """Eine neu eingetragene Instanz wartet nicht auf die volle Stunde.
 
-Befund #note-10, zweiter Blickwinkel: An pv-live wurden Radarr, Radarr 4K und
+Zweiter Blickwinkel auf denselben Fall: An einer echten Installation wurden Radarr, Radarr 4K und
 erst danach Sonarr eingerichtet. Der Speicher-Abgleich lief einmal, sofort
 nachdem Radarr stand (3586 Posten, nur Filme) - und dann sechs Minuten lang
 nicht wieder, weil er stuendlich gilt und das Eintragen von Sonarr daran

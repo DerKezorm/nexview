@@ -92,7 +92,7 @@ function Zeile({ befund }: { befund: Befund }) {
         <p className="mt-0.5 text-sm text-mist-500">
           {t(`befund.${befund.kennung}.folge`, { ...werte, ...weg })}
         </p>
-        {/* Ein Befund aus nexcrate kommt als Kennung (Rundgang-Befund 5). */}
+        {/* Ein Befund aus nexcrate kommt als Kennung (Rundgang-Befund). */}
         {typeof befund.werte.code === 'string' && (
           <p className="mt-2 border-l-2 border-ink-700 pl-3 text-xs text-mist-600">
             {gesundheitsText(t, befund.werte.code, befund.werte)}

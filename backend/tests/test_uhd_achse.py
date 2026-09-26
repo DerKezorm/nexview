@@ -138,7 +138,7 @@ async def test_nur_im_media_server_bleibt_als_4k_erkannt(monkeypatch):
 
 @pytest.mark.anyio
 async def test_bestandstitel_ohne_datei_bleibt_in_4k_anfragbar(monkeypatch):
-    """#note-64 auf der 4K-Achse: bekannt, aber ohne Datei und ohne Anfrage.
+    """Auf der 4K-Achse: bekannt, aber ohne Datei und ohne Anfrage.
 
     Dieselbe Reparatur wie auf der Hauptachse - nur hier fuer die zweite
     Fassung: Die 4K-Instanz fuehrt den Film schon (etwa von Hand angelegt),

@@ -187,7 +187,7 @@ def test_eine_unbekannte_stufe_bekommt_die_hauptfassung(alte_datenbank) -> None:
     """Eine Stufe, die weder leer noch ``standard``/``uhd`` ist, blieb bisher
     auf ``fassung_kennung = NULL`` stehen - genau die Zeile, an der
     ``RequestPublic.fassung`` (ohne ``None``) jeden Leseweg mit 500 abbrechen
-    liess (Befund des Pruefers von R13b). Jetzt bekommt sie dieselbe
+    liess. Jetzt bekommt sie dieselbe
     Hauptfassung ihrer Medienart wie eine Zeile ganz ohne Stufe (Zeile 4 in
     ``_bestand``, Anfrage von vor 4K)."""
     motor = alte_datenbank()

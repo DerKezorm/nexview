@@ -407,7 +407,7 @@ def _ohne_sicherung_anhalten(befund: dict[str, bool]) -> None:
     raise SicherungFehlt(meldung)
 
 
-def _rueckweg_nennen(stand: str, sicherung: Path | None) -> None:
+def _rueckweg_nennen(stand: str, datei: Path | None) -> None:
     """Nach einer Wanderung sagen, wo der Weg zurueck liegt - und wo nicht.
 
     ⚠️ **Eine aeltere Fassung auf dieser Datenbank zu starten, beschaedigt sie
@@ -426,7 +426,7 @@ def _rueckweg_nennen(stand: str, sicherung: Path | None) -> None:
     sie ``nexview-automatisch-0.35.2-...``).
     """
     von = f"Nexview {stand}" if stand != "0" else "an older Nexview"
-    if sicherung is None:
+    if datei is None:
         logger.warning(
             "Database updated from %s to %s without a backup (it failed, see above). "
             "An older Nexview cannot read this database correctly any more, so there is no "
@@ -444,7 +444,7 @@ def _rueckweg_nennen(stand: str, sicherung: Path | None) -> None:
         "version creates when it is started on this database: it already holds the new data",
         von,
         __version__,
-        sicherung.name,
+        datei.name,
     )
 
 

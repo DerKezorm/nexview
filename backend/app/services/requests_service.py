@@ -716,6 +716,9 @@ def trotzdem_fragen(db: Session, settings: AppSettings, user: User, request_id: 
             f"„{request.title}“ wurde inzwischen angefragt.",
             409,
             code="already_requested",
+            # Der Satz der Oberflaeche setzt ``{{title}}`` ein; ohne stand dort
+            # der Platzhalter statt des Titels.
+            title=request.title,
         )
 
     _kontingent_pruefen(db, settings, user, request.media_type)
@@ -1490,11 +1493,23 @@ async def create_request(
                 "angefragt - deine Folgen sind damit abgedeckt.",
                 409,
             )
+        # Mit Kennung und Titel, in derselben Form wie ``already_in_library``
+        # weiter unten: Beides heisst „hast du schon“, und wer auf
+        # ``detail.code`` sieht, fand hier bis zum grossen Pruefgang nur einen
+        # nackten Satz.
+        if season is None:
+            raise RequestError(
+                f"„{item.title}“ wurde bereits angefragt.",
+                409,
+                code="request_already_exists",
+                titel=item.title,
+            )
         raise RequestError(
-            f"„{item.title}“ wurde bereits angefragt."
-            if season is None
-            else f"Staffel {season} von „{item.title}“ wurde bereits angefragt.",
+            f"Staffel {season} von „{item.title}“ wurde bereits angefragt.",
             409,
+            code="request_already_exists_season",
+            titel=item.title,
+            staffel=season,
         )
 
     # Schon in der Bibliothek? Dann waere die Anfrage sinnlos.

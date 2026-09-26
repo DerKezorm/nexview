@@ -1975,6 +1975,8 @@
       "hausordnung_empty": "Empty house rules cannot be published.",
       "hausordnung_image_missing": "That image does not exist.",
       "hausordnung_image_rejected": "The image was rejected.",
+      "request_already_exists": "“{{titel}}” has already been requested.",
+      "request_already_exists_season": "Season {{staffel}} of “{{titel}}” has already been requested.",
       "already_in_library": "“{{titel}}” is already in your library.",
       "wish_already_available": "“{{titel}}” is already here – the wish is settled.",
       "already_on_media_server": "“{{titel}}” is already on the media server.",

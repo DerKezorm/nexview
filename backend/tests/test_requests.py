@@ -101,7 +101,14 @@ def test_gleicher_titel_nicht_zweimal(arr_client: TestClient) -> None:
     assert _anfrage(arr_client, item, headers).status_code == 201
     zweite = _anfrage(arr_client, item, headers)
     assert zweite.status_code == 409
-    assert item["title"] in zweite.json()["detail"]
+    # ⚠️ **Dieselbe Form wie „schon in der Bibliothek“**: Kennung, Satz, Titel.
+    # Bis zum grossen Pruefgang kam hier ein nackter Satz, dort ein Objekt -
+    # fuer dieselbe Aussage „hast du schon“ zwei Formen, und wer auf
+    # ``detail.code`` sah, fand bei der einen nichts.
+    detail = zweite.json()["detail"]
+    assert detail["code"] == "request_already_exists"
+    assert detail["titel"] == item["title"]
+    assert item["title"] in detail["message"]
 
 
 def test_auch_ein_anderer_benutzer_kann_nicht_doppelt_anfragen(arr_client: TestClient) -> None:

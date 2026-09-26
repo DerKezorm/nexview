@@ -1975,6 +1975,8 @@
       "hausordnung_empty": "Eine leere Hausordnung lässt sich nicht veröffentlichen.",
       "hausordnung_image_missing": "Dieses Bild gibt es nicht.",
       "hausordnung_image_rejected": "Das Bild wurde abgelehnt.",
+      "request_already_exists": "„{{titel}}“ wurde bereits angefragt.",
+      "request_already_exists_season": "Staffel {{staffel}} von „{{titel}}“ wurde bereits angefragt.",
       "already_in_library": "„{{titel}}“ ist bereits in deiner Bibliothek.",
       "wish_already_available": "„{{titel}}“ ist bereits da – der Wunsch ist damit erledigt.",
       "already_on_media_server": "„{{titel}}“ liegt bereits auf dem Media-Server.",

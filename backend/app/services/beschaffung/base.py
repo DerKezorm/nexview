@@ -134,6 +134,21 @@ class BeschaffungError(Exception):
         """Kennung, deutscher Rueckfall und Werte - wie ``meldungen.meldung``."""
         return {"code": self.code, "message": self.message, **self.zahlen}
 
+    #: Geht die Kennung mit nach draussen, wenn eine Anfrage daran scheitert?
+    #: Im ARR-Betrieb nicht: Dort stand von jeher nur der Satz in der Antwort.
+    #: Der NEX-Weg uebersetzt nach Kennung, nie nach nexcrates Satz.
+    kennung_nach_aussen: ClassVar[bool] = False
+
+    @property
+    def antwort_status(self) -> int:
+        """Womit Nexview antwortet, wenn dieser Fehler bis nach draussen reicht.
+
+        ``502`` heisst: Die Gegenseite hat versagt. Ein Weg, der eine
+        begruendete Absage kennt ("diese Fassung fuettert noch Sonarr"),
+        antwortet dafuer mit einem 4xx.
+        """
+        return 502
+
 
 class NichtsZuLoeschen(BeschaffungError):
     """Die Quelle meldet fuer einen Posten keine Dateien - Loeschen geht nicht.

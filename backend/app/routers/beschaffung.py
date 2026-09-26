@@ -44,7 +44,12 @@ def _weg(db: DbSession) -> Any:
 
 
 def _als_meldung(fehler: BeschaffungError) -> HTTPException:
-    return HTTPException(status_code=502, detail=fehler.als_meldung())
+    """502, wenn der Weg versagt hat; seine begruendete Absage als 4xx.
+
+    Bis zum grossen Pruefgang (26.09.2026) war hier alles 502 - auch "diese
+    Datei kann nicht zurueck, ihr Titel ist nicht mehr im Bestand".
+    """
+    return HTTPException(status_code=fehler.antwort_status, detail=fehler.als_meldung())
 
 
 # --------------------------------------------------------------------------

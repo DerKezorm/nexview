@@ -42,6 +42,28 @@ FREMDE_CODES: dict[str, str] = {
     "download_not_found": "nexcrate_download_unknown",
     "version_not_found": "nexcrate_version_unknown",
     "version_not_available": "nexcrate_version_unknown",
+    "version_unknown": "nexcrate_version_unknown",
+    "version_kind_mismatch": "nexcrate_version_wrong_kind",
+    # 26.09.2026 im grossen Pruefgang: Jede Anfrage an einen Titel, den
+    # nexcrate aus einem noch verbundenen Radarr oder Sonarr uebernommen hat,
+    # endete als nackter 502 - gleich ob Anime oder gewoehnliche Serie.
+    "version_fed_by_source": "nexcrate_version_fed_by_source",
+    "episode_not_found": "nexcrate_episode_unknown",
+    "ref_ambiguous": "nexcrate_ref_ambiguous",
+    "download_importing": "nexcrate_download_importing",
+    "download_finished": "nexcrate_download_importing",
+    "recycle_title_gone": "nexcrate_recycle_title_gone",
+    "recycle_file_gone": "nexcrate_recycle_file_gone",
+    "recycle_slot_taken": "nexcrate_recycle_slot_taken",
+    "recycle_target_taken": "nexcrate_recycle_target_taken",
+    "tmdb_not_configured": "nexcrate_tmdb_missing",
+    "tmdb_token_unreadable": "nexcrate_tmdb_missing",
+    "tmdb_token_rejected": "nexcrate_tmdb_missing",
+    "tmdb_unreachable": "nexcrate_tmdb_unavailable",
+    "tmdb_unavailable": "nexcrate_tmdb_unavailable",
+    "tmdb_timeout": "nexcrate_tmdb_unavailable",
+    "tmdb_rate_limited": "nexcrate_tmdb_unavailable",
+    "tmdb_http_error": "nexcrate_tmdb_unavailable",
     "ref_invalid": "nexcrate_ref_invalid",
     "ref_source_unknown": "nexcrate_ref_invalid",
     "kind_unsupported": "nexcrate_kind_unsupported",
@@ -54,6 +76,13 @@ FREMDE_CODES: dict[str, str] = {
     "too_many_streams": "nexcrate_busy",
 }
 
+#: ``not_found`` sagt je nach Adresse Verschiedenes: Unter einer unbekannten
+#: Adresse heisst es "hier antwortet keine Schnittstelle", unter einer
+#: bekannten "diesen Eintrag gibt es nicht (mehr)". Die bekannten stehen hier.
+NICHT_DA_JE_ADRESSE: tuple[tuple[str, str], ...] = (
+    ("/recycle-bin/", "nexcrate_recycle_entry_gone"),
+)
+
 #: Kennungen ohne Antwort der Gegenseite - immer vorübergehend.
 VORUEBERGEHEND: frozenset[str] = frozenset(
     {
@@ -62,8 +91,28 @@ VORUEBERGEHEND: frozenset[str] = frozenset(
         "nexcrate_unexpected_answer",
         "nexcrate_unavailable",
         "nexcrate_busy",
+        "nexcrate_tmdb_unavailable",
     }
 )
+
+#: Begruendete Absagen: nexcrate hat verstanden und aus einem Grund nein
+#: gesagt, den der Anfragende oder der Betreiber lesen soll. Nexview
+#: antwortet darauf mit diesem Status statt mit ``502`` - ein 502 sagt
+#: "die Gegenseite ist kaputt", und das war sie nicht.
+ABLEHNUNGEN: dict[str, int] = {
+    "nexcrate_version_fed_by_source": 409,
+    "nexcrate_version_unknown": 409,
+    "nexcrate_version_wrong_kind": 409,
+    "nexcrate_season_unknown": 409,
+    "nexcrate_episode_unknown": 409,
+    "nexcrate_ref_ambiguous": 409,
+    "nexcrate_download_importing": 409,
+    "nexcrate_recycle_title_gone": 409,
+    "nexcrate_recycle_file_gone": 409,
+    "nexcrate_recycle_slot_taken": 409,
+    "nexcrate_recycle_target_taken": 409,
+    "nexcrate_recycle_entry_gone": 404,
+}
 
 #: Deutscher Rueckfall je Kennung - er landet in ``MediaRequest.error_message``
 #: und steht dort Wochen spaeter ohne die Antwort, die ihn erzeugt hat.
@@ -80,6 +129,25 @@ SAETZE: dict[str, str] = {
     "nexcrate_season_unknown": "nexcrate kennt diese Staffel nicht.",
     "nexcrate_download_unknown": "nexcrate kennt diesen Download nicht mehr.",
     "nexcrate_version_unknown": "Diese Fassung gibt es in nexcrate nicht.",
+    "nexcrate_version_wrong_kind": "Diese Fassung gehört in nexcrate zu einer anderen Medienart.",
+    "nexcrate_version_fed_by_source": (
+        "Diesen Titel führt in dieser Fassung noch Radarr oder Sonarr; "
+        "anfragen und ändern lässt er sich erst nach der Übernahme in nexcrate."
+    ),
+    "nexcrate_episode_unknown": "nexcrate kennt diese Folge nicht.",
+    "nexcrate_ref_ambiguous": "nexcrate führt unter dieser Kennung mehr als einen Titel.",
+    "nexcrate_download_importing": (
+        "nexcrate legt einen Download dieses Titels gerade ab oder hat ihn schon abgelegt."
+    ),
+    "nexcrate_recycle_title_gone": (
+        "Der Titel ist nicht mehr im Bestand; die Datei lässt sich nicht zurückholen."
+    ),
+    "nexcrate_recycle_file_gone": "Die Datei liegt nicht mehr im Papierkorb.",
+    "nexcrate_recycle_slot_taken": "Für diese Stelle gibt es inzwischen eine andere Datei.",
+    "nexcrate_recycle_target_taken": "Dort, wo die Datei lag, liegt inzwischen etwas anderes.",
+    "nexcrate_recycle_entry_gone": "Diesen Eintrag gibt es im Papierkorb nicht mehr.",
+    "nexcrate_tmdb_missing": "In nexcrate fehlt ein gültiger TMDB-Zugang.",
+    "nexcrate_tmdb_unavailable": "nexcrate erreicht TMDB gerade nicht.",
     "nexcrate_ref_invalid": "nexcrate kann mit dieser Kennung nichts anfangen.",
     "nexcrate_kind_unsupported": "Für diese Medienart antwortet nexcrate nicht.",
     "nexcrate_input_invalid": "nexcrate hat die Anfrage als fehlerhaft zurückgewiesen.",
@@ -120,10 +188,16 @@ class NexcrateError(BeschaffungError):
         )
         self.fremd = fremd
 
+    kennung_nach_aussen = True
+
     def _korb_ableiten(self) -> Korb:
         if self.code in VORUEBERGEHEND:
             return Korb.voruebergehend
         return super()._korb_ableiten()
+
+    @property
+    def antwort_status(self) -> int:
+        return ABLEHNUNGEN.get(self.code or "", 502)
 
 
 def seitentext(text: str) -> str:
@@ -154,7 +228,12 @@ def aus_antwort(antwort: httpx.Response, pfad: str) -> NexcrateError:
     fremd = str(body.get("code") or "")
     status = antwort.status_code
     params = body.get("params") if isinstance(body.get("params"), dict) else {}
-    if fremd in FREMDE_CODES:
+    eintrag_weg = next(
+        (code for anfang, code in NICHT_DA_JE_ADRESSE if pfad.startswith(anfang)), None
+    )
+    if fremd == "not_found" and eintrag_weg:
+        code = eintrag_weg
+    elif fremd in FREMDE_CODES:
         code = FREMDE_CODES[fremd]
     elif status in (401, 403):
         code = "nexcrate_key_rejected"
@@ -169,7 +248,7 @@ def aus_antwort(antwort: httpx.Response, pfad: str) -> NexcrateError:
         code = "nexcrate_unavailable"
     else:
         code = "nexcrate_refused"
-    if code == "nexcrate_refused":
+    if code == "nexcrate_refused" or code in ABLEHNUNGEN:
         grund = f"{fremd}: {body.get('message')}" if fremd else seitentext(antwort.text)
         logger.info("nexcrate answered %s to %s: %s", status, pfad, grund)
     zahlen: dict[str, object] = {"status": status}

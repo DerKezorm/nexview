@@ -99,6 +99,20 @@ class RequestError(Exception):
         return meldungen.meldung(self.code, self.message, **self.zahlen)
 
 
+def _weg_fehler(error: BeschaffungError) -> RequestError:
+    """Ein Fehler des Beschaffungswegs als Antwort auf Anfragen und Abbrueche.
+
+    Im ARR-Betrieb wie von jeher: der Satz, mit 502. Der NEX-Weg gibt seine
+    Kennung mit, und eine begruendete Absage kommt als 4xx. Bis zum grossen
+    Pruefgang (26.09.2026) wurde aus nexcrates 409 ``version_fed_by_source``
+    hier ein 502 "nexcrate hat abgelehnt." - ohne Grund, ohne Kennung und fuer
+    einen englischen Nutzer auf Deutsch.
+    """
+    if not (error.kennung_nach_aussen and error.code):
+        return RequestError(error.message, 502)
+    return RequestError(error.message, error.antwort_status, code=error.code, **error.zahlen)
+
+
 #: Kennungen, die **"der Titel liegt bereits vor"** bedeuten - nicht "das war
 #: falsch". Ein Wunsch, der daran scheitert, ist erfuellt und nicht abzulehnen.
 #:
@@ -427,7 +441,7 @@ async def push_to_arr(
             if bleibt
             else "",
         )
-        raise RequestError(error.message, 502) from error
+        raise _weg_fehler(error) from error
 
     request.arr_id = arr_id
     request.status = RequestStatus.searching
@@ -1754,7 +1768,7 @@ async def cancel(
         try:
             umfang = await get_beschaffung(settings).abbrechen(db, request)
         except BeschaffungError as error:
-            raise RequestError(error.message, 502) from error
+            raise _weg_fehler(error) from error
 
     request.status = RequestStatus.cancelled
     request.completed_at = utcnow()

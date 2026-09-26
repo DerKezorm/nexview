@@ -183,6 +183,20 @@ def test_bauplan_meldet_unbekannte_kombination() -> None:
         bauplan({**REZEPT, "aufloesung": "480p"}, "radarr", {"de": 4})
 
 
+def test_bauplan_meldet_ein_fehlendes_pflichtfeld_statt_abzustuerzen() -> None:
+    """Ein Rezept, das vor der Pruefung beim Anlegen entstand (oder ueber den
+    Umzug direkt in die Ablage kam), darf beim Verteilen nicht mit einer
+    rohen KeyError abbrechen - der Aufrufer uebersetzt TrashFehler in eine
+    benannte Absage statt eines 500."""
+    ohne_aufloesung = {k: v for k, v in REZEPT.items() if k != "aufloesung"}
+    with pytest.raises(TrashFehler):
+        bauplan(ohne_aufloesung, "radarr", {"de": 4})
+
+    ohne_quelle = {k: v for k, v in REZEPT.items() if k != "quelle"}
+    with pytest.raises(TrashFehler):
+        bauplan(ohne_quelle, "radarr", {"de": 4})
+
+
 def test_jede_antwortkombination_laesst_sich_bauen() -> None:
     """Jede Kombination, die der Assistent zulaesst, muss durchgehen.
 
@@ -1213,6 +1227,35 @@ def test_verteilen_lehnt_fremde_instanz_ab(arr_client) -> None:
     )
     assert antwort.status_code == 400, antwort.text
     assert antwort.json()["detail"]["code"] == "quality_instance_unknown"
+
+
+def test_verteilen_eines_gespeicherten_unvollstaendigen_rezepts_gibt_409(
+    arr_client, monkeypatch
+) -> None:
+    """Ein Rezept ohne 'aufloesung', wie es vor der Pruefung beim Anlegen
+    entstehen konnte (etwa ueber den Umzug), darf beim Verteilen nicht mit
+    einer rohen KeyError und einem 500 abbrechen - direkt in die Datenbank
+    geschrieben, denn ``anlegen`` selbst weist so ein Rezept inzwischen ab."""
+    from app.db import SessionLocal
+    from app.models import Qualitaetsprofil
+
+    _attrappe(monkeypatch, {})
+    with SessionLocal() as db:
+        profil = Qualitaetsprofil(
+            name="Altbestand",
+            dienst="radarr",
+            rezept={k: v for k, v in REZEPT.items() if k != "aufloesung"},
+        )
+        db.add(profil)
+        db.commit()
+        profil_id = profil.id
+
+    antwort = arr_client.put(
+        f"/api/settings/qualitaetsprofile/{profil_id}/instanzen",
+        json={"kennungen": ["radarr-standard"]},
+    )
+    assert antwort.status_code == 409, antwort.text
+    assert antwort.json()["detail"]["code"] == "quality_recipe_unsupported"
 
 
 def test_verteilen_schreibt_und_merkt_sich(arr_client, monkeypatch) -> None:

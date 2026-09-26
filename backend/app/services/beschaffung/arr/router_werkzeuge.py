@@ -175,25 +175,20 @@ def alle(admin: AdminUser, db: DbSession) -> list[ProfilOut]:
     return [_hinaus(p) for p in dienst.alle(db)]
 
 
-#: Ohne diese beiden bricht ``trash.bauplan_aus`` mit einer rohen ``KeyError``
-#: ab - nicht beim Anlegen, sondern erst beim naechsten Verteilen, mit einer
-#: allgemeinen Fehlernummer statt einer verstaendlichen Meldung.
-#: Die anderen Felder von ``bauplan_aus`` (``sprachen``, ``sprachRollen``, ...)
-#: vertragen ein Fehlen, diese beiden nicht.
-PFLICHTFELDER_REZEPT = ("aufloesung", "quelle")
-
-
 @router.post("", response_model=ProfilOut, status_code=status.HTTP_201_CREATED)
 def anlegen(payload: ProfilIn, admin: AdminUser, db: DbSession) -> ProfilOut:
-    fehlend = [feld for feld in PFLICHTFELDER_REZEPT if not payload.rezept.get(feld)]
-    if fehlend:
+    # ⚠️ Die Pruefung selbst sitzt in ``dienst.anlegen`` - der Umzug
+    # (``qualitaet_umzug.uebernehmen``) legt Profile ueber dieselbe Stelle an
+    # und muss denselben Schutz bekommen, ohne diesen Router zu durchlaufen.
+    try:
+        profil = dienst.anlegen(db, payload.name, payload.dienst, payload.rezept)
+    except dienst.RezeptUnvollstaendig as fehler:
         raise meldungen.fehler(
             "quality_recipe_incomplete",
-            "Dem Rezept fehlt mindestens ein Pflichtfeld: " + ", ".join(fehlend) + ".",
+            "Dem Rezept fehlt mindestens ein Pflichtfeld: " + ", ".join(fehler.felder) + ".",
             422,
-            felder=fehlend,
-        )
-    profil = dienst.anlegen(db, payload.name, payload.dienst, payload.rezept)
+            felder=fehler.felder,
+        ) from fehler
     db.commit()
     db.refresh(profil)
     return _hinaus(profil)

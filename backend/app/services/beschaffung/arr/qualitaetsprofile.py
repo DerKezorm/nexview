@@ -116,6 +116,26 @@ def fortschritt_fuehren(profil_id: int) -> Iterator[Fortschritt]:
 
 # --------------------------------------------------------------------- Ablage
 
+#: Ohne diese beiden bricht ``trash.bauplan_aus`` ab - nicht beim Anlegen,
+#: sondern erst beim naechsten Verteilen. Die anderen Felder eines Rezepts
+#: (``sprachen``, ``sprachRollen``, ...) vertragen ein Fehlen, diese beiden
+#: nicht. Hier statt nur im Router geprueft, weil der Umzug (``qualitaet_umzug.
+#: uebernehmen``) ebenfalls hierueber in die Ablage schreibt und den Router
+#: dabei nie durchlaeuft.
+PFLICHTFELDER_REZEPT = ("aufloesung", "quelle")
+
+
+class RezeptUnvollstaendig(ValueError):
+    """Dem Rezept fehlt mindestens eines der Pflichtfelder."""
+
+    def __init__(self, felder: list[str]) -> None:
+        super().__init__(f"recipe is missing: {', '.join(felder)}")
+        self.felder = felder
+
+
+def fehlende_pflichtfelder(rezept: dict) -> list[str]:
+    return [feld for feld in PFLICHTFELDER_REZEPT if not rezept.get(feld)]
+
 
 def alle(db: Session) -> list[Qualitaetsprofil]:
     return list(db.scalars(select(Qualitaetsprofil).order_by(Qualitaetsprofil.id)))
@@ -126,6 +146,9 @@ def eintrag(db: Session, profil_id: int) -> Qualitaetsprofil | None:
 
 
 def anlegen(db: Session, name: str, dienst: str, rezept: dict) -> Qualitaetsprofil:
+    fehlend = fehlende_pflichtfelder(rezept)
+    if fehlend:
+        raise RezeptUnvollstaendig(fehlend)
     profil = Qualitaetsprofil(name=name.strip(), dienst=dienst, rezept=rezept)
     db.add(profil)
     db.flush()

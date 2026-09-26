@@ -510,8 +510,16 @@ def bauplan_aus(
     sprachen: list[str] = list(rezept.get("sprachen") or [])
     rollen: dict[str, str] = dict(rezept.get("sprachRollen") or {})
     familie = _familie(sprachen)
-    aufloesung = rezept["aufloesung"]
-    quelle = rezept["quelle"]
+    # ⚠️ Anders als die Sprachfelder oben duldet keiner der beiden ein Fehlen:
+    # ein Rezept ohne Auflösung oder Quelle ist kein gültiger Bauplan. Die
+    # Ablage prueft das schon beim Anlegen - trotzdem kann hier ein aelteres,
+    # davor entstandenes Rezept liegen. Eine rohe ``KeyError`` braeche mit
+    # einem 500 ab; ``TrashFehler`` wird vom Aufrufer bereits in eine benannte
+    # Absage uebersetzt.
+    aufloesung = rezept.get("aufloesung")
+    quelle = rezept.get("quelle")
+    if not aufloesung or not quelle:
+        raise TrashFehler("recipe is missing 'aufloesung' or 'quelle'")
 
     schluessel = (dienst, familie, aufloesung, quelle)
     if schluessel not in PROFILDATEI:

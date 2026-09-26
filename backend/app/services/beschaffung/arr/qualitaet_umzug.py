@@ -271,7 +271,18 @@ async def uebernehmen(
             schau.schon_da.append(eintrag.name)
             continue
 
-        profil = dienst.anlegen(db, eintrag.name, eintrag.dienst, eintrag.rezept)
+        try:
+            profil = dienst.anlegen(db, eintrag.name, eintrag.dienst, eintrag.rezept)
+        except dienst.RezeptUnvollstaendig as fehler:
+            # ⚠️ Ein Rezept ohne Auflösung oder Quelle liesse sich nie
+            # verteilen (rohe ``KeyError`` in ``trash.bauplan_aus``) - so ein
+            # Eintrag wird uebersprungen statt kaputt in die Ablage zu wandern.
+            logger.info(
+                "Skipping import of %r: recipe is missing %s",
+                eintrag.name,
+                ", ".join(fehler.felder),
+            )
+            continue
         schau.neu.append(eintrag.name)
 
         for kennung, instanzname, art, client in instanzen:

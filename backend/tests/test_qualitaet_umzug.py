@@ -277,6 +277,31 @@ async def test_bekannter_name_wird_uebersprungen(db_session, ohne_echten_plan):
 
 
 @pytest.mark.anyio
+async def test_ein_unvollstaendiges_rezept_wird_beim_einfuehren_abgewiesen(
+    db_session, ohne_echten_plan
+):
+    """Ein Rezept ohne 'aufloesung' darf nicht in die Ablage kommen - es
+    breche sonst erst beim naechsten Verteilen mit einer rohen KeyError ab.
+    Der Umzug ruft ``dienst.anlegen`` direkt auf und durchlaeuft dabei nie den
+    Router, der dasselbe Rezept sonst schon beim Anlegen abweisen wuerde."""
+    unvollstaendig = [
+        umzug.Ausfuhr(
+            name="A", dienst="radarr",
+            rezept={k: v for k, v in REZEPT.items() if k != "aufloesung"},
+        )
+    ]
+    instanz = GespielteInstanz([{"id": 42, "name": "A"}])
+
+    schau = await umzug.uebernehmen(
+        db_session, unvollstaendig,
+        [("radarr-standard", "Radarr FHD", "radarr", instanz)],
+    )
+
+    assert schau.neu == [] and schau.schon_da == [] and schau.befunde == []
+    assert dienst.alle(db_session) == []
+
+
+@pytest.mark.anyio
 async def test_nicht_gefundenes_profil_landet_trotzdem_in_der_ablage(
     db_session, ohne_echten_plan
 ):

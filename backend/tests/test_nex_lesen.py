@@ -1088,3 +1088,59 @@ def test_eine_serie_mit_dateien_nur_an_unueberwachten_folgen_ist_teilweise_da() 
         ]
     }
     assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == "partial"
+
+
+@pytest.mark.parametrize("state", ["wanted", "problem", "downloading"])
+def test_ein_film_kennt_keinen_mittelweg(state: str) -> None:
+    """Den Zustand „teilweise“ gibt es nur bei Serien. Ein Film mit Groesse,
+    aber ohne ``available``, ist nie „partial“ - die Groesse zaehlt nur dort,
+    wo ``series.counts`` sie begleitet."""
+    eintrag = {
+        "versions": [
+            {"version_id": FILM_HD, "state": state, "monitored": True, "size_bytes": 8_000_000_000}
+        ]
+    }
+    assert lesen.zustand_der_kachel(eintrag, FILM_HD) != "partial"
+
+
+@pytest.mark.parametrize("state", ["downloading", "problem"])
+def test_ein_film_mit_datei_bleibt_da_waehrend_ein_upgrade_laedt(state: str) -> None:
+    """Ein Film mit Datei, zu dem gerade ein besseres Release laedt (oder
+    dabei haengt), steht bei nexcrate auf ``downloading`` bzw. ``problem``.
+    ``hat_datei`` kennt nur ``available`` und ``upgrade``, und die Titelseite
+    sagte „wird gesucht“ ueber einem Film, der im Regal steht. ``size_bytes``
+    ist bei Filmen nur mit Datei gesetzt (nexcrate: ``has_file``)."""
+    eintrag = {
+        "versions": [
+            {"version_id": FILM_HD, "state": state, "monitored": True, "size_bytes": 8_000_000_000}
+        ]
+    }
+    assert lesen.zustand_der_kachel(eintrag, FILM_HD) == "downloaded"
+
+
+def test_ein_film_ohne_datei_waehrend_des_ladens_wird_gesucht() -> None:
+    """Die Gegenprobe: Erstes Laden, keine Datei - ``size_bytes`` ist ``null``."""
+    eintrag = {
+        "versions": [
+            {"version_id": FILM_HD, "state": "downloading", "monitored": True, "size_bytes": None}
+        ]
+    }
+    assert lesen.zustand_der_kachel(eintrag, FILM_HD) == "searching"
+
+
+def test_bei_einer_serie_macht_die_groesse_allein_nichts_fertig() -> None:
+    """Die Groesse gilt nur beim Film als „Datei liegt“. Eine Serie mit
+    Dateien, aber ``wanted`` und ohne gesendete ueberwachte Folgen, bleibt
+    „teilweise“ - sonst stuende sie als komplett geladen da."""
+    eintrag = {
+        "versions": [
+            {
+                "version_id": SERIE_HD,
+                "state": "wanted",
+                "monitored": True,
+                "size_bytes": 4_000_000_000,
+                "series": {"counts": {"have": 0, "aired": 0, "expected": 0}},
+            }
+        ]
+    }
+    assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == "partial"

@@ -39,7 +39,13 @@ from ..services import (
     streaming,
     watch,
 )
-from ..services.beschaffung import KLASSE_UHD, get_beschaffung, jahr_aus, lesestand
+from ..services.beschaffung import (
+    KLASSE_UHD,
+    get_beschaffung,
+    jahr_aus,
+    lesestand,
+    nicht_gelesen,
+)
 from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
 from ..services.streaming import eigene_dienste
@@ -202,10 +208,13 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
             # schon einmal mit 500 gescheitert.
             if fuer_admin and quelle.path and hasattr(ziel, "path"):
                 ziel.path = quelle.path
-    except Exception:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung
+    except Exception as fehler:  # noqa: BLE001 - Badges sind Beiwerk, keine Bedingung
         # Diagnose-Stufe, siehe calendar.py: haeufiger Weg, harmlose Folge, aber der
         # Grund soll auffindbar sein, wenn jemand fehlende Abzeichen meldet.
         logger.debug("Details: status badges could not be filled in", exc_info=True)
+        # Nicht gelesen, auch wenn es kein Fehler des Wegs war: Sonst stuende
+        # der Stand als bestaetigt da.
+        nicht_gelesen(fehler)
 
     kennungen = [eintrag.tmdb_id for eintrag in eintraege]
     eigene = requests_service.badges_for(db, MediaType(media_type), kennungen)

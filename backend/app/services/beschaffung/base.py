@@ -184,11 +184,13 @@ class Lesestand:
     stumm: bool = False
     abgelehnt: bool = False
 
-    def vermerken(self, fehler: BeschaffungError) -> None:
-        if fehler.korb == Korb.voruebergehend:
-            self.stumm = True
-        else:
+    def vermerken(self, fehler: Exception) -> None:
+        # Ein Fehler ohne Korb (etwas Unerwartetes auf dem Weg) sagt nichts
+        # ueber eine Ablehnung; er zaehlt wie Schweigen.
+        if isinstance(fehler, BeschaffungError) and fehler.korb != Korb.voruebergehend:
             self.abgelehnt = True
+        else:
+            self.stumm = True
 
     @property
     def gelesen(self) -> bool:
@@ -209,7 +211,7 @@ def lesestand() -> Iterator[Lesestand]:
         _lesestand.reset(marke)
 
 
-def nicht_gelesen(fehler: BeschaffungError) -> None:
+def nicht_gelesen(fehler: Exception) -> None:
     """Von den Wegen gerufen, wo sie einen Lesefehler schlucken. Ohne Seite wirkungslos."""
     stand = _lesestand.get()
     if stand is not None:

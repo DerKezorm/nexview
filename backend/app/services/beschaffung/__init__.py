@@ -52,6 +52,7 @@ from .base import (
     jahr_aus,
     jahre_passen,
     lesestand,
+    nicht_gelesen,
     normalize_title,
     treffer_nach_titel,
 )
@@ -117,6 +118,7 @@ __all__ = [
     "jahre_passen",
     "lesestand",
     "nach_wiederherstellung",
+    "nicht_gelesen",
     "normalize_title",
     "providers",
     "rueckkanal_bald_pflegen",

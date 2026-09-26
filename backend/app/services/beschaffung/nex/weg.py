@@ -316,7 +316,7 @@ class NexBeschaffung(Beschaffung):
                 titel = nach_ref.get(("series", ref))
                 if titel is not None:
                     mit_staffeln[ref] = titel
-        staffeln, nicht_gelesen = await bestand.gehalten().staffeln_zu(
+        staffeln, staffeln_ungelesen = await bestand.gehalten().staffeln_zu(
             self.client, mit_staffeln, system.installation_id()
         )
         ungelesen: set[Nachschlag] = set()
@@ -328,7 +328,7 @@ class NexBeschaffung(Beschaffung):
             if wonach.mit_staffeln and ref in staffeln:
                 titel = {**titel, "series": {**(titel.get("series") or {}), "seasons": staffeln[ref]}}
             stand = bestand.stand(titel, wonach.fassung)
-            if wonach.mit_staffeln and ref in nicht_gelesen:
+            if wonach.mit_staffeln and ref in staffeln_ungelesen:
                 ungelesen.add(wonach)
                 if isinstance(stand, SerienStand):
                     stand = replace(stand, staffeln_gelesen=False)

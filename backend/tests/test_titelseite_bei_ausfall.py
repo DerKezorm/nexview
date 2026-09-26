@@ -27,7 +27,7 @@ from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus
 from app.routers import details as details_router
 from app.schemas_media import EpisodeInfo, MediaDetail, SeasonDetail
-from app.services.beschaffung import NEX
+from app.services.beschaffung import NEX, lesestand
 from app.services.beschaffung.arr import library
 from app.services.beschaffung.arr.client import ArrError
 from app.services.beschaffung.nex import bestand as nex_bestand
@@ -35,6 +35,7 @@ from app.services.beschaffung.nex import client as nex_client
 from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.beschaffung.nex import system
 from app.services.beschaffung.nex.fehler import NexcrateError
+from app.services.beschaffung.nex.weg import NexBeschaffung
 from app.services.fassungen import arr_kennung
 from app.services.settings_service import load_settings, save_settings
 
@@ -269,6 +270,62 @@ def test_schweigt_nur_die_4k_instanz_sagt_die_titelseite_es_dazu(
     assert _fassung(daten, uhd) == "downloaded"
     assert daten["status"] == "not_requested"
     assert daten["status_unconfirmed"] is True
+
+
+def test_ein_unerwarteter_fehler_beim_abgleich_gilt_nicht_als_bestaetigt(
+    admin_client: TestClient, nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Titelseite faengt jeden Fehler des Abgleichs; auch dann ist der Stand
+    nur der letzte bekannte - und keine Ablehnung."""
+    _einrichten(nexcrate)
+    _titelseite_ohne_tmdb(monkeypatch)
+    _anfrage(admin_client, 9515, FILM_HD, RequestStatus.searching)
+
+    echt = NexBeschaffung.status_setzen
+
+    async def kaputt(self: NexBeschaffung, *args: Any, **kwargs: Any) -> Any:
+        # Nur die Hauptachse; die Zusatzfassung fragt mit ``fassung=``.
+        if kwargs.get("fassung"):
+            return await echt(self, *args, **kwargs)
+        raise RuntimeError("unerwartet")
+
+    monkeypatch.setattr(NexBeschaffung, "status_setzen", kaputt)
+
+    daten = admin_client.get("/api/detail/movie/9515").json()
+
+    assert daten["status"] == "searching"
+    assert daten["status_unconfirmed"] is True
+    assert daten["status_refused"] is False
+
+
+async def test_der_serienstand_vermerkt_im_nex_betrieb_was_nicht_gelesen_wurde(
+    nexcrate: FakeNexcrate,
+) -> None:
+    settings = _einrichten(nexcrate)
+    _nexcrate_weg()
+
+    with lesestand() as stand:
+        eintrag = await NexBeschaffung(settings).serien_eintrag(None, "Erfundene Serie", tmdb_id=9516)
+
+    assert eintrag is None
+    assert stand.stumm is True
+
+
+async def test_der_serienstand_vermerkt_im_arr_betrieb_was_nicht_gelesen_wurde(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def schweigt(_settings: object, _tier: str = "standard") -> tuple[dict, dict]:
+        raise ArrError("Sonarr antwortet nicht.", code="arr_unreachable", service="Sonarr")
+
+    monkeypatch.setattr(library, "series_library", schweigt)
+    with SessionLocal() as sitzung:
+        settings = load_settings(sitzung, frisch=True)
+
+    with lesestand() as stand:
+        eintrag = await library.serien_eintrag(settings, 95170, "Erfundene Serie", None)
+
+    assert eintrag is None
+    assert stand.stumm is True
 
 
 # --------------------------------------------------------------------------

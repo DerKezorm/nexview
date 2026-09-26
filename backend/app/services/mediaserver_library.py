@@ -23,7 +23,7 @@ from dataclasses import replace
 from sqlalchemy import String, delete, func, or_, select
 from sqlalchemy.orm import Session
 
-from ..models import MediaServerLibraryItem, MediaType
+from ..models import MediaServerLibraryItem, MediaType, StorageEntry
 from .beschaffung import normalize_title
 from .mediaserver import (
     MediaServer,
@@ -592,6 +592,91 @@ def vorhandene_kennungen(
         elif jahr and item.title and (normalize_title(item.title), jahr) in nach_titel:
             treffer.add(item.tmdb_id)
     return treffer
+
+
+def verwechselte_kennungen(
+    db: Session, media_type: MediaType, items: list, treffer: set[int]
+) -> set[int]:
+    """Treffer, hinter denen vermutlich ein **anderer** Titel der Quelle liegt.
+
+    Der Medienserver erkennt einen Ordner selbst - und manchmal falsch. Am
+    25.09.2026 hielt ein Jellyfin den Ordner der Anime-Serie "One Piece"
+    (TMDB 37854) fuer die gleichnamige Realserie (TMDB 111110). Nexview
+    uebernahm die Kennung ungeprueft: Die Realserie, von der keine einzige
+    Datei existierte, stand als "In der Bibliothek" da und liess sich nicht
+    anfragen.
+
+    Verwechselt heisst hier: Die Quelle fuehrt Dateien eines Titels mit
+    demselben Namen unter einer anderen Nummer, und diesen Titel kennt der
+    Medienserver unter seiner eigenen Nummer gar nicht. Dann sind es dessen
+    Dateien, nur falsch benannt. Fuehrt der Server beide, ist nichts
+    verwechselt, und der Treffer bleibt.
+
+    Wie in ``vorhandene_kennungen``: Lieber einen echten Treffer uebersehen
+    (dann laesst sich der Titel anfragen) als einen falschen behaupten.
+    """
+    if not treffer:
+        return set()
+    tvdb_je_titel = {
+        item.tmdb_id: item.tvdb_id
+        for item in items
+        if item.tmdb_id in treffer and getattr(item, "tvdb_id", None)
+    }
+    bedingungen = [MediaServerLibraryItem.tmdb_id.in_(treffer)]
+    if tvdb_je_titel:
+        bedingungen.append(MediaServerLibraryItem.tvdb_id.in_(set(tvdb_je_titel.values())))
+    zeilen = db.scalars(
+        select(MediaServerLibraryItem).where(
+            MediaServerLibraryItem.media_type == media_type, or_(*bedingungen)
+        )
+    ).all()
+    namen_je_treffer: dict[int, set[str]] = {}
+    for kennung in treffer:
+        namen_je_treffer[kennung] = {
+            zeile.title_key
+            for zeile in zeilen
+            if zeile.title_key
+            and (
+                zeile.tmdb_id == kennung
+                or (zeile.tvdb_id is not None and zeile.tvdb_id == tvdb_je_titel.get(kennung))
+            )
+        }
+    namen = set().union(*namen_je_treffer.values())
+    if not namen:
+        return set()
+
+    # Was die Quelle an Dateien fuehrt, nach Namen.
+    quelle: dict[str, set[int]] = {}
+    for kennung, titel in db.execute(
+        select(StorageEntry.tmdb_id, StorageEntry.title).where(
+            StorageEntry.media_type == media_type,
+            StorageEntry.arr_managed.is_(True),
+            StorageEntry.tmdb_id.is_not(None),
+        )
+    ).tuples():
+        name = normalize_title(titel or "")
+        if name in namen:
+            quelle.setdefault(name, set()).add(kennung)
+    if not quelle:
+        return set()
+    andere = set().union(*quelle.values())
+    beim_server = set(
+        db.scalars(
+            select(MediaServerLibraryItem.tmdb_id).where(
+                MediaServerLibraryItem.media_type == media_type,
+                MediaServerLibraryItem.tmdb_id.in_(andere),
+            )
+        )
+    )
+    return {
+        kennung
+        for kennung, eigene_namen in namen_je_treffer.items()
+        if any(
+            andere_kennung != kennung and andere_kennung not in beim_server
+            for name in eigene_namen
+            for andere_kennung in quelle.get(name, ())
+        )
+    }
 
 
 def echte_uhd_kennungen(

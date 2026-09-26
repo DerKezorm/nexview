@@ -923,11 +923,20 @@ async def im_medienserver(
         return set()
     klasse = fassungen.klasse(kennung)
     if klasse == KLASSE_UHD:
-        echte, _gemeldet = await uhd_im_medienserver(db, settings, media_type, items)
-        return echte
-    return mediaserver_library.vorhandene_kennungen(
-        db, MediaType(media_type), items, fassungen.serverstufe(settings, media_type, kennung)
-    )
+        treffer, _gemeldet = await uhd_im_medienserver(db, settings, media_type, items)
+    else:
+        treffer = mediaserver_library.vorhandene_kennungen(
+            db, MediaType(media_type), items, fassungen.serverstufe(settings, media_type, kennung)
+        )
+    # ⚠️ **Im NEX-Betrieb zaehlt, was nexcrate fuehrt**, nicht der Name, den
+    # der Medienserver einem Ordner gegeben hat (grosser Pruefgang, 25.09.2026:
+    # die Anime-Serie als gleichnamige Realserie erkannt). Im ARR-Betrieb bleibt
+    # es beim Treffer wie bisher.
+    if settings.beschaffung_ist_nex:
+        treffer -= mediaserver_library.verwechselte_kennungen(
+            db, MediaType(media_type), items, treffer
+        )
+    return treffer
 
 
 #: Bis zu welchem Alter ein Titel als "gerade erst erschienen" gilt.

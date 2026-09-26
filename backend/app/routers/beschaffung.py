@@ -145,6 +145,12 @@ class PapierkorbZeile(BaseModel):
     geloescht_von_name: str | None = None
     datei_da: bool = True
     im_bestand: bool = True
+    #: ⚠️ **Der Knopf hängt hieran, nicht mehr an ``datei_da``/``im_bestand``**
+    #: (#job-43). Ein Titel, der die Bibliothek verlassen hat, lässt sich oft
+    #: trotzdem zurückholen - der Weg legt ihn dabei neu an. Nur wenn selbst
+    #: das nicht geht (Datei weg, oder der Weg kennt den Titel gar nicht mehr),
+    #: ist ``restorable`` falsch.
+    restorable: bool = True
 
 
 class PapierkorbAntwort(BaseModel):
@@ -191,6 +197,7 @@ def _zeile(roh: dict[str, Any]) -> PapierkorbZeile:
         geloescht_von_name=roh.get("deleted_by_name"),
         datei_da=bool(roh.get("present", True)),
         im_bestand=bool(roh.get("in_library", True)),
+        restorable=bool(roh.get("restorable", True)),
     )
 
 
@@ -217,8 +224,16 @@ async def papierkorb(admin: AdminUser, db: DbSession) -> PapierkorbAntwort:
     )
 
 
-@router.post("/papierkorb/{eintrag_id}/zurueckholen", status_code=status.HTTP_204_NO_CONTENT)
-async def zurueckholen(eintrag_id: int, admin: AdminUser, db: DbSession) -> None:
+class ZurueckgeholtAntwort(BaseModel):
+    #: ⚠️ **Der Titel wurde dabei neu angelegt** (#job-43): Er hatte die
+    #: Bibliothek verlassen, und der Weg legt ihn aus seiner Quelle neu an -
+    #: unüberwacht. Die Oberfläche meldet das anders als ein gewöhnliches
+    #: Zurückholen: „Datei zurück, nicht überwacht" statt „angefragt".
+    created: bool = False
+
+
+@router.post("/papierkorb/{eintrag_id}/zurueckholen", response_model=ZurueckgeholtAntwort)
+async def zurueckholen(eintrag_id: int, admin: AdminUser, db: DbSession) -> ZurueckgeholtAntwort:
     """Eine gelöschte Datei zurückholen.
 
     ⚠️ **Nexview prüft nicht, ob es geht.** Ob die Datei noch liegt und ob ihr
@@ -228,9 +243,10 @@ async def zurueckholen(eintrag_id: int, admin: AdminUser, db: DbSession) -> None
     """
     weg = _nur_mit_papierkorb(db)
     try:
-        await weg.wiederherstellen(eintrag_id)
+        neu_angelegt = await weg.wiederherstellen(eintrag_id)
     except BeschaffungError as fehler:
         raise _als_meldung(fehler) from fehler
+    return ZurueckgeholtAntwort(created=neu_angelegt)
 
 
 # --------------------------------------------------------------------------

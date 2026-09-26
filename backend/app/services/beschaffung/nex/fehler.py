@@ -53,6 +53,11 @@ FREMDE_CODES: dict[str, str] = {
     "download_importing": "nexcrate_download_importing",
     "download_finished": "nexcrate_download_importing",
     "recycle_title_gone": "nexcrate_recycle_title_gone",
+    # 26.09.2026, #job-43: nexcrate legt einen Titel beim Zurueckholen neu an,
+    # wenn er die Bibliothek verlassen hat. ``recycle_version_gone`` heisst
+    # seither: die Fassung selbst (nicht nur der Titel) gibt es nicht mehr -
+    # ein anderer Fall als "der Titel laesst sich nicht wieder anlegen".
+    "recycle_version_gone": "nexcrate_recycle_version_gone",
     "recycle_file_gone": "nexcrate_recycle_file_gone",
     "recycle_slot_taken": "nexcrate_recycle_slot_taken",
     "recycle_target_taken": "nexcrate_recycle_target_taken",
@@ -64,6 +69,18 @@ FREMDE_CODES: dict[str, str] = {
     "tmdb_timeout": "nexcrate_tmdb_unavailable",
     "tmdb_rate_limited": "nexcrate_tmdb_unavailable",
     "tmdb_http_error": "nexcrate_tmdb_unavailable",
+    # 26.09.2026, #job-43: Ein zurueckgeholter Titel kann auch ein Album sein
+    # (Musik fuehrt Nexview zwar nicht, aber die Adresse ist dieselbe) - seine
+    # Kennungen stehen im Vertrag und muessten sonst als "nexcrate_refused"
+    # durchfallen.
+    "musicbrainz_not_found": "nexcrate_title_unknown",
+    "musicbrainz_disabled": "nexcrate_musicbrainz_missing",
+    "musicbrainz_busy": "nexcrate_musicbrainz_unavailable",
+    "musicbrainz_unavailable": "nexcrate_musicbrainz_unavailable",
+    "musicbrainz_unreachable": "nexcrate_musicbrainz_unavailable",
+    "musicbrainz_http_error": "nexcrate_musicbrainz_unavailable",
+    "musicbrainz_bad_answer": "nexcrate_musicbrainz_unavailable",
+    "musicbrainz_timeout": "nexcrate_musicbrainz_unavailable",
     "ref_invalid": "nexcrate_ref_invalid",
     "ref_source_unknown": "nexcrate_ref_invalid",
     "kind_unsupported": "nexcrate_kind_unsupported",
@@ -96,6 +113,7 @@ VORUEBERGEHEND: frozenset[str] = frozenset(
         "nexcrate_unavailable",
         "nexcrate_busy",
         "nexcrate_tmdb_unavailable",
+        "nexcrate_musicbrainz_unavailable",
     }
 )
 
@@ -112,6 +130,7 @@ ABLEHNUNGEN: dict[str, int] = {
     "nexcrate_ref_ambiguous": 409,
     "nexcrate_download_importing": 409,
     "nexcrate_recycle_title_gone": 409,
+    "nexcrate_recycle_version_gone": 409,
     "nexcrate_recycle_file_gone": 409,
     "nexcrate_recycle_slot_taken": 409,
     "nexcrate_recycle_target_taken": 409,
@@ -147,8 +166,14 @@ SAETZE: dict[str, str] = {
     "nexcrate_download_importing": (
         "nexcrate legt einen Download dieses Titels gerade ab oder hat ihn schon abgelegt."
     ),
+    # 26.09.2026, #job-43: Seit nexcrate einen entfernten Titel beim
+    # Zurückholen neu anlegt, heißt "gone" hier "lässt sich nicht wieder
+    # anlegen" - nicht mehr "ist für immer weg".
     "nexcrate_recycle_title_gone": (
-        "Der Titel ist nicht mehr im Bestand; die Datei lässt sich nicht zurückholen."
+        "Der Titel lässt sich nicht wieder anlegen; die Datei bleibt im Papierkorb."
+    ),
+    "nexcrate_recycle_version_gone": (
+        "Die Fassung, zu der die Datei gehörte, gibt es in nexcrate nicht mehr."
     ),
     "nexcrate_recycle_file_gone": "Die Datei liegt nicht mehr im Papierkorb.",
     "nexcrate_recycle_slot_taken": "Für diese Stelle gibt es inzwischen eine andere Datei.",
@@ -156,6 +181,8 @@ SAETZE: dict[str, str] = {
     "nexcrate_recycle_entry_gone": "Diesen Eintrag gibt es im Papierkorb nicht mehr.",
     "nexcrate_tmdb_missing": "In nexcrate fehlt ein gültiger TMDB-Zugang.",
     "nexcrate_tmdb_unavailable": "nexcrate erreicht TMDB gerade nicht.",
+    "nexcrate_musicbrainz_missing": "In nexcrate ist MusicBrainz nicht eingerichtet.",
+    "nexcrate_musicbrainz_unavailable": "nexcrate erreicht MusicBrainz gerade nicht.",
     "nexcrate_ref_invalid": "nexcrate kann mit dieser Kennung nichts anfangen.",
     "nexcrate_kind_unsupported": "Für diese Medienart antwortet nexcrate nicht.",
     "nexcrate_input_invalid": "nexcrate hat die Anfrage als fehlerhaft zurückgewiesen.",

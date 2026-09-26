@@ -283,7 +283,11 @@ class NexcrateClient:
         return list(data.get("items") or [])
 
     async def restore(self, entry_id: int) -> Any:
-        return await self._request("POST", f"/recycle-bin/{entry_id}/restore", json_body={})
+        # Ein entfernter Titel wird dabei aus TMDB oder MusicBrainz neu
+        # angelegt (#job-43) - dieselbe Wartezeit wie bei ``request``.
+        return await self._request(
+            "POST", f"/recycle-bin/{entry_id}/restore", json_body={}, timeout=LANGSAM
+        )
 
     # -- Schreiben (Scheibe 6) ---------------------------------------------
 

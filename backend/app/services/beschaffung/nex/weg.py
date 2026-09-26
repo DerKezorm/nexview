@@ -654,9 +654,18 @@ class NexBeschaffung(Beschaffung):
         """Was in nexcrates Papierkorb liegt (N22)."""
         return await self.client.recycle_bin()
 
-    async def wiederherstellen(self, eintrag_id: int) -> None:
-        """Einen Eintrag aus nexcrates Papierkorb zurückholen."""
-        await self.client.restore(eintrag_id)
+    async def wiederherstellen(self, eintrag_id: int) -> bool:
+        """Einen Eintrag aus nexcrates Papierkorb zurückholen.
+
+        ⚠️ **Gibt zurück, ob der Titel dabei neu angelegt wurde** (#job-43).
+        Hatte der Titel die Bibliothek verlassen, legt nexcrate ihn aus TMDB
+        oder MusicBrainz neu an - unüberwacht, mit der `nexview:`-Marke, wenn
+        Nexview sie selbst gesetzt hatte. Die Oberfläche meldet das anders als
+        ein gewöhnliches Zurückholen: „Datei zurück, nicht überwacht" statt
+        „angefragt".
+        """
+        antwort = await self.client.restore(eintrag_id)
+        return bool((antwort or {}).get("created"))
 
     async def kalender(self, media_type: str, von: str, bis: str) -> list[dict[str, Any]]:
         """nexcrates Kalender, in Stuecken zu hoechstens hundert Tagen."""

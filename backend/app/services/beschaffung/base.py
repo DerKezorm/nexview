@@ -853,8 +853,13 @@ class Beschaffung(ABC):
         """
 
     @abstractmethod
-    async def wiederherstellen(self, eintrag_id: int) -> None:
-        """Einen Eintrag aus dem Papierkorb zurueckholen."""
+    async def wiederherstellen(self, eintrag_id: int) -> bool:
+        """Einen Eintrag aus dem Papierkorb zurueckholen.
+
+        Gibt zurueck, ob der Titel dabei neu angelegt wurde (N43/#job-43): Er
+        hatte die Bibliothek verlassen, und der Weg legt ihn beim
+        Zurueckholen aus seiner Quelle neu an, unueberwacht.
+        """
 
     @abstractmethod
     async def kalender(self, media_type: str, von: str, bis: str) -> list[dict[str, Any]]: ...

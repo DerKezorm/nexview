@@ -348,8 +348,9 @@ class ArrBeschaffung(Beschaffung):
             korb=Korb.abgelehnt,
         )
 
-    async def wiederherstellen(self, eintrag_id: int) -> None:
+    async def wiederherstellen(self, eintrag_id: int) -> bool:
         await self.papierkorb()
+        return False
 
     async def kalender(self, media_type: str, von: str, bis: str) -> list[dict[str, Any]]:
         if media_type == "movie":

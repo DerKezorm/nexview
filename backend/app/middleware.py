@@ -50,6 +50,9 @@ LANGSAM_GEWOLLT = (
     "/api/setup/seerr/vorschau",
     "/api/admin/mediaserver/library/refresh",
     "/api/storage/abgleich",
+    # Zurueckholen fragt nexcrate, das dabei TMDB oder MusicBrainz fragt
+    # (#job-43) - dasselbe lange Zeitlimit wie beim Anfragen.
+    "/api/beschaffung/papierkorb/",
 )
 
 

@@ -101,14 +101,9 @@ def admin_client(client: TestClient) -> TestClient:
     """Angemeldeter Administrator (ueber die Erst-Einrichtung angelegt)."""
     response = client.post("/api/setup/admin", json=ADMIN)
     assert response.status_code == 201, response.text
-
-    # Der Assistent laesst die Adresse unbestaetigt - im Betrieb hat der Admin
-    # den Link laengst geklickt. Tests, die genau diesen Zwischenzustand
-    # pruefen, nehmen den rohen ``client``.
-    with SessionLocal() as session:
-        admin = session.query(User).filter(User.username == ADMIN["username"]).one()
-        admin.email_verified = True
-        session.commit()
+    # Die Adresse gilt sofort als bestaetigt, wie der Assistent es sagt - hier
+    # stand frueher eine Zeile, die das von Hand nachholte, und verdeckte so,
+    # dass der echte Betreiber sich nicht wieder anmelden konnte.
 
     token = response.json()["access_token"]
     client.headers["Authorization"] = f"Bearer {token}"

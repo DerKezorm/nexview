@@ -188,6 +188,7 @@ EINMAL_SCHRITTE = (
     "_kontingente_dreiwertig_machen",
     "_fassungen_einfuehren",
     "_medienserver_posten_abraeumen",
+    "_ersten_administrator_bestaetigen",
 )
 
 #: Die Stufen-Spalten, die ``_fassungen_einfuehren`` in das Fassungsmodell
@@ -325,6 +326,9 @@ def init_db() -> None:
     _einmal(_kontingente_dreiwertig_machen)
     _einmal(_medienserver_posten_abraeumen)
     _betreiber_bestimmen()
+    # Hinter ``_betreiber_bestimmen``: Eine Installation von vor dem
+    # Betreiber-Haken bekommt ihn erst dort, und genau an ihm haengt der Schritt.
+    _einmal(_ersten_administrator_bestaetigen)
     _speicher_zurueckgeben_umstellen()
 
 
@@ -602,6 +606,23 @@ def _ankunftsbefund() -> tuple[dict[str, bool], dict[str, str]]:
         spuren["_medienserver_posten_abraeumen"] = (
             f"column storage_entries.arr_managed={da('arr_managed' in spalten_speicher)}, "
             f"movie entries without path and not managed={ja(geister)}"
+        )
+
+        # Der erste Administrator mit unbestaetigter Adresse. Erledigt ist der
+        # Schritt, wenn es keinen solchen Betreiber gibt - dann gibt es auch
+        # nichts nachzuholen. Fehlt die Spalte ``is_betreiber``, stammt die
+        # Datenbank aus der Zeit davor, und der Schritt laeuft hinter
+        # ``_betreiber_bestimmen``.
+        hat_betreiber_spalte = "is_betreiber" in spalten_konto
+        unbestaetigt = False
+        if hat_betreiber_spalte and "email_verified" in spalten_konto:
+            unbestaetigt = bool(
+                verbindung.exec_driver_sql(_UNBESTAETIGTER_BETREIBER_GIBT_ES).scalar()
+            )
+        befund["_ersten_administrator_bestaetigen"] = hat_betreiber_spalte and not unbestaetigt
+        spuren["_ersten_administrator_bestaetigen"] = (
+            f"column users.is_betreiber={da(hat_betreiber_spalte)}, "
+            f"operator with unconfirmed address={ja(unbestaetigt)}"
         )
 
     return befund, spuren
@@ -967,6 +988,57 @@ def _medienserver_posten_abraeumen() -> None:
                 "a title now has to be in Radarr or nexcrate to count",
                 ergebnis.rowcount,
             )
+
+
+#: Der Betreiber, dessen Adresse als unbestaetigt gilt - Merkmal fuer
+#: ``_ersten_administrator_bestaetigen`` und seinen Ankunftsbefund.
+_UNBESTAETIGTER_BETREIBER = (
+    "is_betreiber = 1 AND email_verified = 0 AND email IS NOT NULL AND email != ''"
+)
+_UNBESTAETIGTER_BETREIBER_GIBT_ES = (
+    f"SELECT EXISTS(SELECT 1 FROM users WHERE {_UNBESTAETIGTER_BETREIBER})"  # noqa: S608 - fester Text
+)
+
+
+def _ersten_administrator_bestaetigen() -> None:
+    """Die Adresse des Betreibers als bestaetigt eintragen - **einmalig**.
+
+    Bis 1.0.0 legte der Assistent den ersten Administrator unbestaetigt an,
+    obwohl er ueber dem Feld "gilt sofort als bestaetigt" schrieb. Ohne
+    Mailserver endete das nach der ersten abgelaufenen Sitzung in einem 403
+    ``email_unverified`` ohne Ausweg: Die Bestaetigungsmail liess sich nicht
+    verschicken, und den Link zeigte nirgends etwas an. Seitdem entsteht das
+    Konto bestaetigt (``setup.erster_administrator``); hier holen bestehende
+    Installationen das nach, auch eine, deren Betreiber heute schon
+    ausgesperrt ist.
+
+    ⚠️ **Einmalig und nicht bei jedem Start.** Aendert der Betreiber spaeter
+    seine Adresse, gilt die neue zu Recht erst mit dem Link als bestaetigt.
+    Ein Pflegeschritt wuerde sie beim naechsten Neustart ungefragt
+    bestaetigen. Wer genau zum Update eine Adressaenderung offen hat, bekommt
+    sie hier mit bestaetigt; das trifft nur den Betreiber selbst, dem der
+    Server ohnehin gehoert.
+    """
+    with engine.begin() as verbindung:
+        spalten = _existing_columns(verbindung, "users")
+        if not {"is_betreiber", "email_verified", "email"} <= spalten:
+            return
+        namen = [
+            zeile[0]
+            for zeile in verbindung.exec_driver_sql(
+                f"SELECT username FROM users WHERE {_UNBESTAETIGTER_BETREIBER}"  # noqa: S608 - fester Text
+            )
+        ]
+        if not namen:
+            return
+        verbindung.exec_driver_sql(
+            f"UPDATE users SET email_verified = 1 WHERE {_UNBESTAETIGTER_BETREIBER}"  # noqa: S608 - fester Text
+        )
+    logger.info(
+        "The address of the operator account %s now counts as confirmed, as the setup "
+        "wizard promised; until now it could not sign in again without a mail server",
+        ", ".join(repr(name) for name in namen),
+    )
 
 
 def _fassungen_einfuehren() -> None:

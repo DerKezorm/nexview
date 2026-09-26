@@ -40,7 +40,7 @@ import { useAuth } from '../../auth/useAuth'
 import { MediaServerPasswordForm } from '../../components/MediaServerPasswordForm'
 import { MediaServerPrompt } from '../../components/MediaServerPrompt'
 import { Symbol } from '../../components/Symbol'
-import { Button, Field, Spinner } from '../../components/ui'
+import { Button, Field } from '../../components/ui'
 import { useConfig } from '../../hooks/useConfig'
 import { providerName } from '../../lib/mediaserver'
 import { useMediaServerChallenge } from '../../lib/useMediaServerChallenge'
@@ -1157,8 +1157,6 @@ function MedienserverVerbinden({
   )
 }
 
-type Versand = { sent: boolean; error: string | null }
-
 /**
  * Der Bericht am Ende - zum Lesen, bevor man weiterklickt.
  *
@@ -1167,9 +1165,8 @@ type Versand = { sent: boolean; error: string | null }
  * findet: Plex-Konten melden sich über Plex an, alle anderen haben kein
  * Kennwort und brauchen eines - über „Kennwort vergessen" oder von ihm.
  *
- * Die Bestätigungsmail für den Besitzer wird hier nachgeholt, wie im
- * normalen Assistenten (`DoneStep`): Beim Anlegen gab es noch keinen
- * Mailserver, jetzt vielleicht schon.
+ * Eine Bestätigungsmail für den Besitzer gibt es hier nicht mehr: Sein Konto
+ * gilt wie im normalen Assistenten sofort als bestätigt (`DoneStep`).
  */
 function Fertig({
   bericht,
@@ -1181,20 +1178,8 @@ function Fertig({
   onFertig: () => void
 }) {
   const { t } = useTranslation()
-  const { user } = useAuth()
   const { data: config } = useConfig()
-
-  const offen = user !== null && !user.email_verified
   const kannSenden = config?.mail_configured ?? false
-
-  const senden = useMutation({
-    mutationFn: () => api.post<Versand>('/api/auth/me/resend-verification'),
-  })
-
-  useEffect(() => {
-    if (offen && kannSenden && senden.isIdle) senden.mutate()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offen, kannSenden])
 
   function weg(zugang: string, mailBekannt: boolean): string {
     if (zugang === 'plex') return t('setup.seerr.wayPlex')
@@ -1312,22 +1297,6 @@ function Fertig({
           ))}
         </ul>
       </div>
-
-      {offen && (
-        <div className="rounded-xl border border-ink-700 bg-ink-900/60 px-4 py-3 text-sm">
-          {!kannSenden ? (
-            <p className="text-warn-500">{t('setup.verifyImpossible')}</p>
-          ) : senden.isPending ? (
-            <p className="flex items-center gap-2 text-mist-500">
-              <Spinner /> {t('common.loading')}
-            </p>
-          ) : senden.data?.sent ? (
-            <p className="text-ok-500">{t('setup.verifySent', { email: user?.email ?? '' })}</p>
-          ) : (
-            <p className="text-warn-500">{senden.data?.error ?? t('setup.verifyFailed')}</p>
-          )}
-        </div>
-      )}
 
       <div>
         <Button onClick={onFertig}>{t('setup.seerr.toNexview')}</Button>

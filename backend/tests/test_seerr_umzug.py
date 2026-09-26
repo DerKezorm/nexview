@@ -1204,7 +1204,7 @@ def test_abschliessen_schreibt_alles_in_einem_zug(client: TestClient, seerr_attr
         chefin = sitzung.query(User).filter_by(username="chefin").one()
         assert chefin.role is Role.admin
         assert chefin.is_betreiber, "Der Haken gehoert dem, der einrichtet."
-        assert chefin.email_verified is False, "Wie bei /api/setup/admin: erst bestaetigen."
+        assert chefin.email_verified is True, "Wie bei /api/setup/admin: sofort bestaetigt."
         assert chefin.display_name == "chefin"
         assert [z.provider for z in chefin.mediaserver_accounts] == ["plex"]
 

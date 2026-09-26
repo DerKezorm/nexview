@@ -69,12 +69,18 @@ def erster_administrator(payload: SetupAdminCreate) -> User:
         username=payload.username,
         password_hash=hash_password(payload.password),
         email=tokens.normalize_email(payload.email),
-        # Auch der erste Administrator bestaetigt seine Adresse richtig.
-        # Einen Mailserver gibt es hier noch nicht - die Bestaetigung holt der
-        # Assistent am Ende nach, sobald einer eingerichtet ist. Sie einfach
-        # als geprueft auszugeben waere eine Behauptung ins Blaue: ein
-        # Tippfehler fiele erst auf, wenn er sich aussperrt.
-        email_verified=False,
+        # ⚠️ **Sofort bestaetigt, wie der Assistent es ueber dem Feld sagt.**
+        # Hier stand ``False`` mit dem Plan, die Bestaetigung am Ende des
+        # Assistenten nachzuholen, sobald ein Mailserver da ist. Der Mailschritt
+        # ist aber freiwillig und kommt spaet; wer ihn uebersprang oder den
+        # Reiter vorher schloss, bekam bei der naechsten Anmeldung ein 403
+        # ``email_unverified`` und hatte ohne Mailserver keinen Weg zurueck in
+        # die eigene Installation (Befund aus dem grossen Pruefgang). Der
+        # Tippfehler, gegen den die Bestaetigung schuetzen sollte, ist das
+        # kleinere Uebel: Er trifft nur Mails an diese Adresse, und das Profil
+        # zeigt sie jederzeit an. Bestehende Installationen holt
+        # ``db._ersten_administrator_bestaetigen`` einmalig nach.
+        email_verified=True,
         role=Role.admin,
         display_name=payload.display_name or payload.username,
         language=payload.language,

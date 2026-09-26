@@ -413,13 +413,6 @@ def test_korrektur_auf_eine_vergebene_adresse(admin_client: TestClient) -> None:
     assert antwort.status_code == 409
 
 
-def test_erster_admin_ist_noch_nicht_bestaetigt(client: TestClient) -> None:
-    """Ohne Mailserver kann im Assistenten niemand etwas bestätigen - also
-    wird es auch nicht behauptet."""
-    from .conftest import ADMIN
-
-    antwort = client.post("/api/setup/admin", json=ADMIN)
-    assert antwort.status_code == 201
-
-    kopf = {"Authorization": f"Bearer {antwort.json()['access_token']}"}
-    assert client.get("/api/auth/me", headers=kopf).json()["email_verified"] is False
+# Der erste Administrator gilt seit 1.0.0 sofort als bestaetigt, wie der
+# Assistent es sagt; dazu ``test_setup.py``. Hier stand der Test fuer das
+# Gegenteil, das den Betreiber ohne Mailserver aussperrte.

@@ -262,6 +262,12 @@ the process. The backup is the way back.
   before the switch to nexcrate, which keep their old version, still count by
   tier. A series without a TVDB number is now found by its TMDB number, where
   its entry used to fall to the house.
+- **The first administrator was locked out without a mail server.** Setup
+  said the address "counts as confirmed right away", but the account was
+  created unconfirmed, so after the first session ended, signing in was
+  refused and the confirmation mail could not be sent. The address now is
+  confirmed right away, and on the first start an operator account already
+  caught this way is confirmed once.
 
 ## 0.35.2 – 18.09.2026
 

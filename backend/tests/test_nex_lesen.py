@@ -255,6 +255,29 @@ def test_eine_gesuchte_serie_mit_dateien_ist_teilweise_da(
     assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == erwartet
 
 
+@pytest.mark.parametrize(
+    ("state", "erwartet"),
+    [("wanted", "partial"), ("problem", "partial"), ("available", "downloaded")],
+)
+def test_ohne_zahl_gesendeter_folgen_entscheidet_nexcrates_zustand(
+    state: str, erwartet: str
+) -> None:
+    """Nennt nexcrate keine gesendeten Folgen, laesst sich keine Luecke zaehlen.
+    Dann sagt der Zustand, ob etwas fehlt: ``wanted`` mit Dateien ist nicht
+    "bereits geladen", ``available`` schon."""
+    eintrag = {
+        "versions": [
+            {
+                "version_id": SERIE_HD,
+                "state": state,
+                "monitored": True,
+                "series": {"counts": {"have": 4, "aired": 0, "expected": 4}},
+            }
+        ]
+    }
+    assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == erwartet
+
+
 async def test_die_kacheln_bekommen_den_stand_ihrer_fassung(
     nex: Any, nexcrate: FakeNexcrate
 ) -> None:

@@ -60,9 +60,14 @@ def zustand_der_kachel(eintrag: dict[str, Any], kennung: str) -> str | None:
     zahlen = ((fassung.get("series") or {}).get("counts")) or {}
     gesendet = int(zahlen.get("aired") or 0)
     vorhanden = int(zahlen.get("have") or 0)
-    if not mapping.hat_datei(fassung.get("state")) and vorhanden <= 0:
+    hat_datei = mapping.hat_datei(fassung.get("state"))
+    if not hat_datei and vorhanden <= 0:
         return "searching"
     if gesendet and vorhanden < gesendet:
+        return "partial"
+    if not hat_datei and not gesendet:
+        # Ohne Zahl gesendeter Folgen laesst sich keine Luecke zaehlen. Dann
+        # sagt nexcrates Zustand, dass etwas fehlt oder aussteht.
         return "partial"
     return "downloaded"
 

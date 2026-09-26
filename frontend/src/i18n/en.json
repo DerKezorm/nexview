@@ -2380,6 +2380,8 @@
     "studios": "Studio",
     "keywords": "Keywords",
     "status": "Status",
+    "statusUnconfirmed": "Radarr or Sonarr is not answering right now, so this shows the last known state. It may have changed since.",
+    "statusUnconfirmed_nex": "nexcrate is not answering right now, so this shows the last known state. It may have changed since.",
     "director": "Director",
     "creator": "Created by",
     "writing": "Writing",

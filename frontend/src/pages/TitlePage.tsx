@@ -391,6 +391,17 @@ export function TitlePage() {
                 <RatingBadges ratings={wertungen[item.tmdb_id]} title={item.title} gross />
               </div>
               <RatingCredit ratings={wertungen[item.tmdb_id]} className="mt-1" />
+              {/* Der Weg hat nicht geantwortet: Die Abzeichen zeigen den letzten
+                  bekannten Stand. Ohne den Satz sähen sie aus wie ein bestätigter,
+                  und während eines Neustarts stand hier einmal „Nicht angefragt“. */}
+              {item.status_unconfirmed && (
+                <p
+                  role="status"
+                  className="mt-3 max-w-2xl rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs text-warn-500"
+                >
+                  {t('detail.statusUnconfirmed', wegKontext(config))}
+                </p>
+              )}
 
               <h1 className="mt-2 text-3xl leading-tight font-bold tracking-tight sm:text-4xl">
                 {item.title}

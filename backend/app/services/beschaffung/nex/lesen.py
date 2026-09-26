@@ -112,6 +112,28 @@ async def kacheln_faerben(
     return gefaerbt
 
 
+def kacheln_aus_bestand(
+    media_type: str, items: list[MediaItem], kennung: str
+) -> list[MediaItem]:
+    """Dieselbe Faerbung aus dem gehaltenen Bestand, wenn nexcrate gerade schweigt.
+
+    Der Bestand ist der zuletzt gelesene Stand (``bestand.Bestand``). Er
+    ersetzt keine Antwort - wer ihn nimmt, sagt dazu, dass nicht gelesen
+    wurde. Ohne ihn stand ein Titel, den der Betreiber selbst in nexcrate
+    geholt hat, waehrend eines Neustarts als "nicht angefragt" da. Was der
+    Bestand nicht kennt, bleibt, wie es ist.
+    """
+    gehalten = bestand.gehalten().alle(mapping.kind(media_type))
+    if not gehalten:
+        return items
+    gefaerbt: list[MediaItem] = []
+    for item in items:
+        titel = gehalten.get(mapping.ref(item.tmdb_id)) if item.tmdb_id else None
+        zustand = zustand_der_kachel(titel, kennung) if titel else None
+        gefaerbt.append(item.model_copy(update={"status": zustand}) if zustand else item)
+    return gefaerbt
+
+
 # --------------------------------------------------------------------------
 # Warteschlange
 

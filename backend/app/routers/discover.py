@@ -129,7 +129,10 @@ async def _status_for(
         # aus Radarr flog), behauptete das Abzeichen weiterhin "schon da" und
         # verhinderte obendrein, dass ihn jemand neu anfragt. Der Media-Server
         # kommt gleich danach als zweite Quelle zum Zug.
-        if eigen == "downloaded" and item.status == "not_requested":
+        # ⚠️ Nur, wenn die Bibliothek geantwortet hat (``result.warning`` leer):
+        # Schweigen ist kein "geloescht", und waehrend eines Neustarts stand
+        # sonst jeder fertige Titel als "nicht angefragt" da.
+        if eigen == "downloaded" and item.status == "not_requested" and not result.warning:
             eigen = None
         # bekannt, keine Datei, keine eigene Anfrage - anfragbar
         # wie ein Titel, den der Weg noch nie gesehen hat.

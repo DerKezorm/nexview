@@ -132,9 +132,13 @@ def _knoepfe(zeile: DownloadHaenger) -> tuple[list[str], list[str]]:
 async def uebersicht(admin: AdminUser, db: DbSession) -> DownloadsStand:
     """Was haengt, was laeuft, und welche Instanz nicht geantwortet hat."""
     settings = load_settings(db)
-    rundgang = await get_beschaffung(settings).downloads_auffrischen(
-        db, frisch_genug=beschaffung.download_frisch()
-    )
+    # Kurze Frist: Hier wartet jemand. Bei einer stummen nexcrate stand die
+    # Seite sonst sechs Sekunden und laenger bei "Wird geladen", bevor sie
+    # sagte, dass nexcrate nicht antwortet (Pruefgang, 26.09.2026).
+    with get_beschaffung(settings).kurze_frist():
+        rundgang = await get_beschaffung(settings).downloads_auffrischen(
+            db, frisch_genug=beschaffung.download_frisch()
+        )
     namen = {
         instanz.kennung: instanz.name
         for instanz in get_beschaffung(settings).instanzen()

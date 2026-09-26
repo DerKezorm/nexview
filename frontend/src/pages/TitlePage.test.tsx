@@ -85,12 +85,15 @@ function detail(teil: Partial<MediaDetail> = {}): MediaDetail {
   } as MediaDetail
 }
 
-function antworten(daten: MediaDetail) {
+function antworten(
+  daten: MediaDetail,
+  config: Record<string, unknown> = { radarr_configured: true, sonarr_configured: true },
+) {
   holen.mockImplementation((async (pfad: string) => {
     if (pfad === '/api/setup/status') {
       return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
     }
-    if (pfad === '/api/config') return { radarr_configured: true, sonarr_configured: true }
+    if (pfad === '/api/config') return config
     if (pfad === '/api/detail/movie/901') return daten
     if (pfad === '/api/favorites') return []
     if (pfad.startsWith('/api/ratings/movie')) return {}
@@ -151,6 +154,40 @@ describe('die Filmreihe', () => {
     expect(await screen.findByRole('heading', { name: i18n.t('detail.cast') })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Beispielreihe' })).not.toBeInTheDocument()
     expect(screen.queryByText('Zweiter Teil')).not.toBeInTheDocument()
+  })
+})
+
+describe('wenn der Weg nicht antwortet', () => {
+  /* Prüfgang 26.09.2026: Während nexcrate neu startete, stand ein fertig
+     geladener Film als „Nicht angefragt“ da. Jetzt zeigt die Seite den letzten
+     bekannten Stand und sagt dazu, dass er nicht bestätigt ist. */
+  it('sagt dazu, dass der Stand der zuletzt bekannte ist', async () => {
+    antworten(detail({ collection: null, status: 'downloaded', status_unconfirmed: true }))
+    seiteOeffnen()
+
+    expect(await screen.findByText(i18n.t('detail.statusUnconfirmed'))).toHaveAttribute(
+      'role',
+      'status',
+    )
+  })
+
+  it('nennt im NEX-Betrieb nexcrate', async () => {
+    antworten(detail({ collection: null, status: 'downloaded', status_unconfirmed: true }), {
+      beschaffung: 'nex',
+    })
+    seiteOeffnen()
+
+    const satz = i18n.t('detail.statusUnconfirmed', { context: 'nex' })
+    expect(satz).toContain('nexcrate')
+    expect(await screen.findByText(satz)).toBeInTheDocument()
+  })
+
+  it('schweigt, solange der Weg geantwortet hat', async () => {
+    antworten(detail({ collection: null, status: 'downloaded', status_unconfirmed: false }))
+    seiteOeffnen()
+
+    await screen.findByRole('heading', { name: i18n.t('detail.cast') })
+    expect(screen.queryByText(i18n.t('detail.statusUnconfirmed'))).not.toBeInTheDocument()
   })
 })
 

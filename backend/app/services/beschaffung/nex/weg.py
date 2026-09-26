@@ -58,10 +58,11 @@ from . import (
     speicher,
     system,
 )
-from .client import NexcrateClient
+from .client import NexcrateClient, kurze_frist
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
+    from contextlib import AbstractContextManager
 
     from fastapi import APIRouter
     from sqlalchemy.orm import Session
@@ -411,6 +412,9 @@ class NexBeschaffung(Beschaffung):
         daten = await system.auffrischen(self.settings)
         return pruefung.pruefen(daten)
 
+    def kurze_frist(self) -> AbstractContextManager[None]:
+        return kurze_frist()
+
     async def status_setzen(
         self,
         media_type: str,
@@ -437,6 +441,11 @@ class NexBeschaffung(Beschaffung):
         try:
             gefaerbt = await lesen.kacheln_faerben(self.client, media_type, items, kennung)
         except BeschaffungError as error:
+            # Schweigt nexcrate, gilt der zuletzt gelesene Stand - mit dem
+            # Hinweis, dass er nicht bestaetigt ist. Ein Nein von nexcrate
+            # dagegen ist kein Stand.
+            if error.code in bestand.AUSFALL:
+                items = lesen.kacheln_aus_bestand(media_type, items, kennung)
             return MatchResult(items=items, warning=error.message)
         return MatchResult(items=gefaerbt)
 

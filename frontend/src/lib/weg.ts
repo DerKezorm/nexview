@@ -61,6 +61,7 @@ export const WEG_TEXTE = [
   'request.arrMissing',
   'request.moreSeasonsHint',
   'feedback.outdatedHint',
+  'detail.statusUnconfirmed',
   'requests.cancelText',
   'requests.cancelTextAdmin',
   'requests.cancelTextNothing',

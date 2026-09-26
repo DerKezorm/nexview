@@ -18,7 +18,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -35,6 +38,9 @@ TIMEOUT = httpx.Timeout(20.0, connect=6.0)
 LANGSAM = httpx.Timeout(90.0, connect=6.0)
 #: Der Strom schickt alle 15 s ein Lebenszeichen. Kommt eine Minute nichts, ist er tot.
 STROM_TIMEOUT = httpx.Timeout(connect=6.0, read=60.0, write=10.0, pool=10.0)
+#: Fuer Seiten, auf die jemand wartet (``kurze_frist``). nexcrate antwortet
+#: sonst in Millisekunden; wer hier nicht fertig wird, antwortet gerade nicht.
+KURZ = httpx.Timeout(4.0, connect=2.0)
 MAX_PARALLEL_REQUESTS = 6
 
 #: Hoechstens so viele Eintraege nimmt ``titles/lookup`` je Aufruf (gemessen).
@@ -57,6 +63,43 @@ _client_lock = asyncio.Lock()
 #: der echte Client - Kopfzeilen, Fehlerform, Stapel, Stromformat - gegen die
 #: gemessenen Antworten (``tests/beschaffung/fake_nexcrate.py``).
 _transport: httpx.AsyncBaseTransport | None = None
+
+
+#: Diese Fehler heissen "nexcrate antwortet nicht", nicht "nexcrate sagt nein".
+STUMM = frozenset({"nexcrate_timeout", "nexcrate_unreachable", "nexcrate_unavailable"})
+
+
+@dataclass
+class _Frist:
+    """Die kurze Frist einer Seite - und ob nexcrate darin schon geschwiegen hat."""
+
+    ausfall: NexcrateError | None = None
+
+
+_frist: ContextVar[_Frist | None] = ContextVar("nexcrate_frist", default=None)
+
+
+@contextmanager
+def kurze_frist() -> Iterator[None]:
+    """Kurze Zeitgrenze fuer eine Seite, auf die jemand wartet.
+
+    ⚠️ **Ohne sie lief jede Abfrage einzeln in die volle Zeitgrenze.** Die
+    Titelseite fragt nexcrate je Fassung, fuer die Empfehlungen und die
+    Filmreihe; war nexcrate weg, wartete sie 6 bis 24 Sekunden, bei einer
+    eingefrorenen nexcrate laenger als 45, und zeigte so lange nur "Wird
+    geladen" (Pruefgang, 26.09.2026).
+
+    Darin gilt ``KURZ`` statt ``TIMEOUT``, und nach dem ersten Schweigen geht
+    keine weitere Frage mehr hinaus: Die Seite bekommt denselben Fehler sofort
+    und zeigt, was sie ohne nexcrate weiss. Ausdrueckliche Fristen (Anfragen,
+    Vorschau, Strom) bleiben, wie sie sind. Ausserhalb - Rundgang, Abgleich,
+    alles im Hintergrund - aendert sich nichts.
+    """
+    marke = _frist.set(_Frist())
+    try:
+        yield
+    finally:
+        _frist.reset(marke)
 
 
 def use_transport(transport: httpx.AsyncBaseTransport | None) -> None:
@@ -122,15 +165,39 @@ class NexcrateClient:
         timeout: httpx.Timeout | None = None,
         headers: dict[str, str] | None = None,
     ) -> Any:
+        frist = _frist.get()
+        if frist is not None and frist.ausfall is not None:
+            # Hat eben schon geschwiegen: nicht noch einmal warten.
+            raise NexcrateError(
+                frist.ausfall.code or "nexcrate_unreachable",
+                ungewiss=frist.ausfall.ungewiss,
+                **frist.ausfall.zahlen,
+            )
+        if timeout is None:
+            timeout = KURZ if frist is not None else TIMEOUT
+        try:
+            return await self._senden(method, pfad, params, json_body, timeout, headers)
+        except NexcrateError as problem:
+            if frist is not None and problem.code in STUMM:
+                frist.ausfall = problem
+            raise
+
+    async def _senden(
+        self,
+        method: str,
+        pfad: str,
+        params: Any,
+        json_body: Any,
+        timeout: httpx.Timeout,
+        headers: dict[str, str] | None,
+    ) -> Any:
         client = await _http()
         url = self._url(pfad)
         optionen: dict[str, Any] = {"params": params, "headers": self.kopfzeilen(headers)}
         if json_body is not None:
             optionen["json"] = json_body
         try:
-            antwort = await client.request(
-                method, url, timeout=timeout if timeout is not None else TIMEOUT, **optionen
-            )
+            antwort = await client.request(method, url, timeout=timeout, **optionen)
         except httpx.TimeoutException as exc:
             http_log.unreachable("nexcrate", method, url, exc)
             raise NexcrateError("nexcrate_timeout", ungewiss=True) from exc

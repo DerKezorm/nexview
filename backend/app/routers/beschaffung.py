@@ -92,7 +92,9 @@ async def warum(
     if not weg.faehigkeiten().warum:
         return WarumAntwort(beantwortbar=False)
     try:
-        gefunden = await weg.warum([Kennt(media_type=media_type.value, tmdb_id=tmdb_id)])
+        # Auf der Titelseite: dieselbe kurze Frist wie der Rest der Seite.
+        with weg.kurze_frist():
+            gefunden = await weg.warum([Kennt(media_type=media_type.value, tmdb_id=tmdb_id)])
     except BeschaffungError as fehler:
         raise _als_meldung(fehler) from fehler
     if not gefunden:

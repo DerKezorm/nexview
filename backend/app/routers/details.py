@@ -171,15 +171,20 @@ def _fehler(error: TmdbError) -> HTTPException:
     )
 
 
-async def _mit_status(db, settings, media_type: str, eintraege: list, user=None) -> None:
+async def _mit_status(db, settings, media_type: str, eintraege: list, user=None) -> bool:
     """Badges fuer eine Liste von Titeln setzen - an Ort und Stelle.
 
     Dieselbe Logik wie in den Listen: was in Radarr/Sonarr liegt, ueberlagert
-    den Zustand aus den eigenen Anfragen. Faellt der Abgleich aus, bleiben die
-    Badges neutral statt die ganze Seite scheitern zu lassen.
+    den Zustand aus den eigenen Anfragen. Faellt der Abgleich aus, gilt der
+    letzte bekannte Stand (die eigenen Anfragen) statt die ganze Seite
+    scheitern zu lassen.
+
+    Gibt zurueck, ob der Weg geantwortet hat - fuer jede Fassung. ``False``
+    heisst: Was dasteht, ist der letzte bekannte Stand, nicht der bestaetigte.
     """
     if not eintraege:
-        return
+        return True
+    gelesen = False
     try:
         # Der Ablageort geht **nur** an Administratoren - hier entschieden
         # und nicht in der Oberflaeche: Ausblenden hiesse, ihn trotzdem
@@ -188,6 +193,9 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
         abgeglichen = await get_beschaffung(settings).status_setzen(
             media_type, list(eintraege), mit_pfad=fuer_admin
         )
+        # Ein Hinweis heisst: nicht gelesen (Radarr, Sonarr oder nexcrate
+        # antworteten nicht). Die Titel stehen dann so da, wie sie kamen.
+        gelesen = abgeglichen.warning is None
         for ziel, quelle in zip(eintraege, abgeglichen.items, strict=True):
             ziel.status = quelle.status
             # Nur setzen, wo das Ziel das Feld ueberhaupt kennt: Durch diese
@@ -227,7 +235,10 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
         # Siehe discover.py: "geladen" behauptet etwas ueber die Bibliothek.
         # Sagt die Bibliothek inzwischen etwas anderes, gilt die Behauptung
         # nicht mehr - sonst laesst sich der Titel nie wieder anfragen.
-        if eigen == "downloaded" and eintrag.status == "not_requested":
+        # ⚠️ Nur, wenn sie ueberhaupt etwas gesagt hat: Waehrend nexcrate neu
+        # startete, stand hier ein fertig geladener Film als "nicht
+        # angefragt" samt Anfrage-Knopf (Pruefgang, 26.09.2026).
+        if gelesen and eigen == "downloaded" and eintrag.status == "not_requested":
             eigen = None
         # bekannt, keine Datei, keine eigene Anfrage - anfragbar
         # wie ein Titel, den der Weg noch nie gesehen hat.
@@ -264,7 +275,57 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
                 )
 
         # Zweite Achse zuletzt - sie ergaenzt nur, sie ersetzt nichts.
-        await fassungsachsen.anreichern(db, settings, media_type, list(eintraege), user)
+        achsen_gelesen = await fassungsachsen.anreichern(
+            db, settings, media_type, list(eintraege), user
+        )
+        gelesen = gelesen and achsen_gelesen
+    return gelesen
+
+
+async def _staffeln(db: DbSession, settings, detail: MediaDetail, media_type: str) -> None:
+    """Bei Serien: wie viele Folgen jeder Staffel liegen schon vor - und zu
+    welchen laeuft bereits eine Anfrage? Ohne Hauptfassung (NEX-Betrieb,
+    nichts gelesen) gibt es keine Fassung, in der etwas vorliegen koennte.
+    """
+    if media_type != "tv" or not detail.seasons or fassungen.hauptkennung("tv") is None:
+        return
+    jahr = jahr_aus(detail.release_date)
+    # Je Fassung dieselben vier Fragen - zuerst die Hauptfassung, deren
+    # Antworten auch in den alten Feldern stehen. Eine Fassung, die es
+    # nicht gibt, wird nicht gefragt; ihre ``*_uhd``-Felder bleiben
+    # ``None`` und heissen "unbekannt", wie bei ``status_uhd``.
+    je_fassung = {
+        kennung: await _staffeldaten(db, settings, detail, kennung, jahr)
+        for kennung in _fassungskennungen(settings, "tv")
+    }
+    haupt_kennung = fassungen.hauptkennung("tv")
+    haupt = je_fassung[haupt_kennung]
+    vierk = next(
+        (
+            kennung
+            for kennung in je_fassung
+            if kennung != haupt_kennung and fassungen.klasse(kennung) == KLASSE_UHD
+        ),
+        None,
+    )
+    for staffel in detail.seasons:
+        staffel.fassungen = [
+            daten.staffel(kennung, staffel.season_number)
+            for kennung, daten in je_fassung.items()
+        ]
+        eigene = haupt.staffel(haupt_kennung, staffel.season_number)
+        staffel.episodes_available = eigene.episodes_available
+        staffel.requested = eigene.requested
+        staffel.requested_episodes = eigene.requested_episodes
+        staffel.requested_status = eigene.requested_status
+        staffel.episodes_total_arr = eigene.episodes_total
+        if vierk is not None:
+            vier = je_fassung[vierk].staffel(vierk, staffel.season_number)
+            staffel.episodes_available_uhd = vier.episodes_available
+            staffel.requested_uhd = vier.requested
+            staffel.requested_episodes_uhd = vier.requested_episodes
+            staffel.requested_status_uhd = vier.requested_status
+            staffel.episodes_total_arr_uhd = vier.episodes_total
 
 
 @router.get("/detail/{media_type}/{tmdb_id}", response_model=MediaDetail)
@@ -284,10 +345,17 @@ async def title_detail(
     except TmdbError as error:
         raise _fehler(error) from error
 
-    await _mit_status(db, settings, media_type, [detail], user)
-    await _mit_status(db, settings, media_type, detail.recommendations, user)
-    if detail.collection is not None:
-        await _mit_status(db, settings, media_type, detail.collection.items, user)
+    # Eine kurze Frist fuer alles, was diese Seite beim Weg fragt: Ohne sie
+    # lief bei einer stummen nexcrate jede Abfrage einzeln in die volle
+    # Zeitgrenze, und die Seite stand bis zu einer halben Minute bei "Wird
+    # geladen" (Pruefgang, 26.09.2026).
+    with get_beschaffung(settings).kurze_frist():
+        gelesen = await _mit_status(db, settings, media_type, [detail], user)
+        detail.status_unconfirmed = not gelesen
+        await _mit_status(db, settings, media_type, detail.recommendations, user)
+        if detail.collection is not None:
+            await _mit_status(db, settings, media_type, detail.collection.items, user)
+        await _staffeln(db, settings, detail, media_type)
 
     # Laeuft der Titel in einem Abo, das *dieser* Benutzer hat? Hier und nicht
     # in ``full_detail``: Dessen TMDB-Antwort liegt fuer alle gemeinsam im
@@ -327,48 +395,6 @@ async def title_detail(
         eigene_dienste(db, user),
         [anbieter.id for anbieter in (detail.watch.flatrate if detail.watch else [])],
     )
-
-    # Bei Serien: wie viele Folgen jeder Staffel liegen schon vor - und zu
-    # welchen laeuft bereits eine Anfrage? Ohne Hauptfassung (NEX-Betrieb,
-    # nichts gelesen) gibt es keine Fassung, in der etwas vorliegen koennte.
-    if media_type == "tv" and detail.seasons and fassungen.hauptkennung("tv") is not None:
-        jahr = jahr_aus(detail.release_date)
-        # Je Fassung dieselben vier Fragen - zuerst die Hauptfassung, deren
-        # Antworten auch in den alten Feldern stehen. Eine Fassung, die es
-        # nicht gibt, wird nicht gefragt; ihre ``*_uhd``-Felder bleiben
-        # ``None`` und heissen "unbekannt", wie bei ``status_uhd``.
-        je_fassung = {
-            kennung: await _staffeldaten(db, settings, detail, kennung, jahr)
-            for kennung in _fassungskennungen(settings, "tv")
-        }
-        haupt_kennung = fassungen.hauptkennung("tv")
-        haupt = je_fassung[haupt_kennung]
-        vierk = next(
-            (
-                kennung
-                for kennung in je_fassung
-                if kennung != haupt_kennung and fassungen.klasse(kennung) == KLASSE_UHD
-            ),
-            None,
-        )
-        for staffel in detail.seasons:
-            staffel.fassungen = [
-                daten.staffel(kennung, staffel.season_number)
-                for kennung, daten in je_fassung.items()
-            ]
-            eigene = haupt.staffel(haupt_kennung, staffel.season_number)
-            staffel.episodes_available = eigene.episodes_available
-            staffel.requested = eigene.requested
-            staffel.requested_episodes = eigene.requested_episodes
-            staffel.requested_status = eigene.requested_status
-            staffel.episodes_total_arr = eigene.episodes_total
-            if vierk is not None:
-                vier = je_fassung[vierk].staffel(vierk, staffel.season_number)
-                staffel.episodes_available_uhd = vier.episodes_available
-                staffel.requested_uhd = vier.requested
-                staffel.requested_episodes_uhd = vier.requested_episodes
-                staffel.requested_status_uhd = vier.requested_status
-                staffel.episodes_total_arr_uhd = vier.episodes_total
 
     return detail
 
@@ -443,30 +469,32 @@ async def season(
     if haupt_kennung is None:
         return staffel
 
-    vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
-        serie.tvdb_id,
-        serie.title,
-        jahr=jahr_aus(serie.release_date),
-        tmdb_id=tmdb_id,
-        fassung=haupt_kennung,
-        staffel=season_number,
-    )
-    in_dieser_staffel = vorhanden.get(season_number, set())
+    # Kurze Frist wie auf der Titelseite: Die Staffel klappt dort auf.
+    with get_beschaffung(settings).kurze_frist():
+        vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
+            serie.tvdb_id,
+            serie.title,
+            jahr=jahr_aus(serie.release_date),
+            tmdb_id=tmdb_id,
+            fassung=haupt_kennung,
+            staffel=season_number,
+        )
+        in_dieser_staffel = vorhanden.get(season_number, set())
 
-    # Und die zweite Frage je Folge: Laeuft schon eine Anfrage - und in
-    # welchem Zustand? Eine deckende Voll-Anfrage gibt allen Folgen ihren
-    # Status; sonst zaehlt das Paket, das die einzelne Folge besitzt.
-    voll = requests_service.staffel_belegung(db, tmdb_id)
-    deck_status = voll.get(season_number) or voll.get(None)
-    paket_status = requests_service.angefragte_pakete(db, tmdb_id).get(
-        season_number, {}
-    )
-    # Dieselben Fragen je weiterer Fassung; die Hauptfassung steht schon oben.
-    weitere = [k for k in _fassungskennungen(settings, "tv") if k != haupt_kennung]
-    je_fassung = {
-        kennung: await _folgendaten(db, settings, serie, tmdb_id, season_number, kennung)
-        for kennung in weitere
-    }
+        # Und die zweite Frage je Folge: Laeuft schon eine Anfrage - und in
+        # welchem Zustand? Eine deckende Voll-Anfrage gibt allen Folgen ihren
+        # Status; sonst zaehlt das Paket, das die einzelne Folge besitzt.
+        voll = requests_service.staffel_belegung(db, tmdb_id)
+        deck_status = voll.get(season_number) or voll.get(None)
+        paket_status = requests_service.angefragte_pakete(db, tmdb_id).get(
+            season_number, {}
+        )
+        # Dieselben Fragen je weiterer Fassung; die Hauptfassung steht schon oben.
+        weitere = [k for k in _fassungskennungen(settings, "tv") if k != haupt_kennung]
+        je_fassung = {
+            kennung: await _folgendaten(db, settings, serie, tmdb_id, season_number, kennung)
+            for kennung in weitere
+        }
     vierk = next((k for k in weitere if fassungen.klasse(k) == KLASSE_UHD), None)
 
     for folge in staffel.episodes:

@@ -865,6 +865,8 @@ export type MediaDetail = MediaItem & {
   watching?: boolean;
   /** Läuft zu diesem Titel eine Anfrage **von mir**? Dann kein Warten-Knopf. */
   requested_by_me?: boolean;
+  /** Hat der Beschaffungsweg nicht geantwortet? Dann ist `status` der letzte bekannte Stand. */
+  status_unconfirmed?: boolean;
   /** Meine eigene Rückmeldung zur Qualität – am Titel, nicht an der Anfrage. */
   my_feedback?: {
     rating: number;

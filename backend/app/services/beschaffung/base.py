@@ -24,6 +24,7 @@ from __future__ import annotations
 import enum
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -749,6 +750,17 @@ class Beschaffung(ABC):
         die Grenze bis Scheibe 8 an beiden Enden bedient wird: Der ARR-Weg
         rechnet in Stufen, nexcrate kennt sie nicht.
         """
+
+    def kurze_frist(self) -> AbstractContextManager[None]:
+        """Fuer Seiten, auf die jemand wartet: kurz fragen, nach Schweigen gar nicht mehr.
+
+        Um den ganzen Aufbau einer Seite gelegt (Titelseite, Downloads). Ein Weg,
+        der das nicht braucht, laesst alles, wie es ist. ⚠️ Der ARR-Weg gehoert
+        dazu: Radarr liefert die ganze Bibliothek in einer Antwort, und die
+        braucht bei grossen Sammlungen selbst ein paar Sekunden. Gegen eine
+        Instanz, die haengt, schuetzt dort die Fehlersperre (``library``).
+        """
+        return nullcontext()
 
     @abstractmethod
     async def folgen_verfuegbarkeit(

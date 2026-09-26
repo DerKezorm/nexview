@@ -2380,6 +2380,8 @@
     "studios": "Studio",
     "keywords": "Schlagworte",
     "status": "Status",
+    "statusUnconfirmed": "Radarr oder Sonarr antwortet gerade nicht, deshalb steht hier der zuletzt bekannte Stand. Er kann sich inzwischen geändert haben.",
+    "statusUnconfirmed_nex": "nexcrate antwortet gerade nicht, deshalb steht hier der zuletzt bekannte Stand. Er kann sich inzwischen geändert haben.",
     "director": "Regie",
     "creator": "Erfunden von",
     "writing": "Drehbuch",

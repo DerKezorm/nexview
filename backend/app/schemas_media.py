@@ -422,6 +422,11 @@ class MediaDetail(MediaItem):
     # "Sag mir Bescheid" gegenstandslos - die Fertig-Meldung kommt ohnehin.
     requested_by_me: bool = False
 
+    # Hat der Beschaffungsweg (Radarr, Sonarr, nexcrate) beim Aufbau nicht
+    # geantwortet? Dann ist ``status`` der letzte bekannte Stand - aus den
+    # Anfragen und dem zuletzt gelesenen Bestand -, und die Seite sagt das dazu.
+    status_unconfirmed: bool = False
+
     # Meine eigene Rueckmeldung zur Qualitaet, falls ich eine abgegeben habe.
     # Am Titel, nicht an der Anfrage - bewerten darf jeder, der einen
     # vorhandenen Titel gesehen hat.

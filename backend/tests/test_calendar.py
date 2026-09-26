@@ -7,7 +7,7 @@ Zwischenspeicher-Schluessel der Entdecken-Filter.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
@@ -432,7 +432,16 @@ def test_kino_zeigt_keine_serien(
 
     def eintraege(datumsart: str) -> list[dict]:
         antwort = arr_client.get(
-            "/api/calendar", params={"sources": "mine", "date_type": datumsart}
+            "/api/calendar",
+            params={
+                "sources": "mine",
+                "date_type": datumsart,
+                # Das Standardfenster liegt bei "heute" - die Folge traegt den
+                # festen Testtag HEUTE, der seit dem Zuschnitt aufs Fenster
+                # (Notiz #35) sonst herausfiele.
+                "date_from": HEUTE,
+                "date_to": HEUTE,
+            },
         ).json()
         return [e for tag in antwort["days"] for e in tag["entries"]]
 
@@ -488,7 +497,13 @@ def test_sonarr_folgen_kommen_bis_in_die_antwort(
     monkeypatch.setattr(library, "series_calendar", kalender)
     monkeypatch.setattr(library, "movie_calendar", keine_filme)
 
-    daten = arr_client.get("/api/calendar", params={"sources": "mine"}).json()
+    # Das Standardfenster liegt bei "heute" - die Folge traegt den festen
+    # Testtag HEUTE, der seit dem Zuschnitt aufs Fenster (Notiz #35) sonst
+    # herausfiele.
+    daten = arr_client.get(
+        "/api/calendar",
+        params={"sources": "mine", "date_from": HEUTE, "date_to": HEUTE},
+    ).json()
     eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
 
     assert len(eintraege) == 1
@@ -663,12 +678,17 @@ def test_folge_am_letzten_tag_des_fensters_fehlt_nicht(
 ) -> None:
     """Nachstellung Notiz #35 (Rundgang 25./26.09.2026, Arr-Betrieb, unabhaengig
     von zwei Pruefern gesehen): Fuer die Woche 21.-27.09.2026 fehlte "One
-    Piece" S23E25 (27.09., 14:15 UTC) und "The Simpsons" S38E01 (28.09., 00:00
-    UTC) im Kalender, obwohl Sonarrs eigener Kalender beide fuer denselben
-    Zeitraum nennt. Ursache: ``SonarrClient.calendar`` schickte ``end`` als
-    blosses Datum; Sonarr las das als Mitternacht und liess beide Folgen aus,
-    weil sie spaeter am - bzw. schon einen UTC-Tag nach dem - letzten Tag des
-    Fensters laufen.
+    Piece" S23E25 (27.09., 14:15 UTC) im Kalender, obwohl Sonarrs eigener
+    Kalender die Folge fuer genau diesen Zeitraum nennt. Ursache:
+    ``SonarrClient.calendar`` schickte ``end`` als blosses Datum; Sonarr las
+    das als Mitternacht und liess die Folge aus, weil sie spaeter am letzten
+    Tag des Fensters laeuft.
+
+    "The Simpsons" S38E01 (airDateUtc 28.09., 00:00 UTC) gehoert bei dieser
+    Zeitzone (UTC+2) nach ``_lokaler_tag`` zum 28.09. - also wirklich zum Tag
+    **nach** diesem Fenster, nicht mehr hinein. Seit dem Zuschnitt aufs
+    Fenster erscheint sie hier folgerichtig nicht mehr; sie war nie Teil
+    dieser Woche, nur des Aufschlags auf ``end``.
     """
     library.invalidate()
     admin_client.put(
@@ -696,7 +716,89 @@ def test_folge_am_letzten_tag_des_fensters_fehlt_nicht(
     assert daten["arr_warning"] is None
     titel = {eintrag["title"] for eintrag in eintraege if eintrag["source"] == "meine"}
     assert "One Piece" in titel
-    assert "The Simpsons" in titel
+    # Siehe Docstring: gehoert lokal zum 28.09., liegt also wirklich ausserhalb
+    # dieses Fensters (21.-27.09.) - bleibt hier bewusst aussen vor.
+    assert "The Simpsons" not in titel
+
+
+def _lokale_uhrzeit_als_utc(tag: str, stunde: int, minute: int = 0) -> str:
+    """Wandelt eine Uhrzeit **in der Zeitzone dieses Rechners** in den
+    ``airDateUtc``-Zeitstempel um, den ``_lokaler_tag`` wieder auf ``tag``
+    zurueckrechnen wuerde. So bleiben die beiden Tests unten unabhaengig davon,
+    in welcher Zeitzone sie laufen - ``datetime.astimezone()`` auf einem naiven
+    Wert nimmt die Systemzeitzone an, genau wie ``_lokaler_tag`` es beim
+    Zurueckrechnen tut.
+    """
+    lokal = datetime.fromisoformat(f"{tag}T{stunde:02d}:{minute:02d}:00").astimezone()
+    return lokal.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def test_folge_am_tag_nach_dem_fenster_erscheint_nicht(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Kehrseite der Notiz-#35-Reparatur: Der Tag Aufschlag auf ``end`` darf
+    keine Folge eintauschen, die es vorher nicht gab. Eine Folge, deren
+    lokaler Tag (derselbe, den die Kachel zeigt) erst nach ``date_to`` liegt,
+    darf im Ergebnis nicht auftauchen - auch wenn Sonarr sie wegen des
+    Aufschlags mitschickt.
+    """
+    bis = "2026-09-27"
+    von = "2026-09-21"
+    tag_danach = (date.fromisoformat(bis) + timedelta(days=1)).isoformat()
+
+    async def kalender(_settings: object, _von: str, _bis: str) -> list[dict]:
+        return [
+            folge(
+                nummer=1,
+                datum=_lokale_uhrzeit_als_utc(tag_danach, 12),
+                serie={"id": 7, "title": "Zu spaet", "tvdbId": 12345, "monitored": True},
+            )
+        ]
+
+    async def keine_filme(_settings: object, _von: str, _bis: str) -> list[dict]:
+        return []
+
+    monkeypatch.setattr(library, "series_calendar", kalender)
+    monkeypatch.setattr(library, "movie_calendar", keine_filme)
+
+    daten = arr_client.get(
+        "/api/calendar", params={"date_from": von, "date_to": bis, "sources": "mine"}
+    ).json()
+    eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
+
+    assert eintraege == []
+
+
+def test_folge_spaet_am_letzten_tag_des_fensters_erscheint(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Der Schnitt darf nicht zu eng werden: Eine Folge, die spaet am letzten
+    Tag des Fensters laeuft (derselbe Tag, den die Kachel zeigen wird), muss
+    trotzdem erscheinen - genau das war Notiz #35."""
+    bis = "2026-09-27"
+    von = "2026-09-21"
+
+    async def kalender(_settings: object, _von: str, _bis: str) -> list[dict]:
+        return [
+            folge(
+                nummer=1,
+                datum=_lokale_uhrzeit_als_utc(bis, 23, 30),
+                serie={"id": 7, "title": "Spaet dran", "tvdbId": 54321, "monitored": True},
+            )
+        ]
+
+    async def keine_filme(_settings: object, _von: str, _bis: str) -> list[dict]:
+        return []
+
+    monkeypatch.setattr(library, "series_calendar", kalender)
+    monkeypatch.setattr(library, "movie_calendar", keine_filme)
+
+    daten = arr_client.get(
+        "/api/calendar", params={"date_from": von, "date_to": bis, "sources": "mine"}
+    ).json()
+    eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
+
+    assert [e["title"] for e in eintraege] == ["Spaet dran"]
 
 
 async def test_sonarr_client_polstert_das_ende_um_einen_tag(
@@ -778,7 +880,13 @@ def test_fremder_bibliotheksbestand_zeigt_ehrlich_in_der_bibliothek(
     monkeypatch.setattr(library, "series_calendar", kalender)
     monkeypatch.setattr(library, "movie_calendar", keine_filme)
 
-    daten = arr_client.get("/api/calendar", params={"sources": "mine"}).json()
+    # Das Standardfenster liegt bei "heute" - die Folge traegt den festen
+    # Testtag HEUTE, der seit dem Zuschnitt aufs Fenster (Notiz #35) sonst
+    # herausfiele.
+    daten = arr_client.get(
+        "/api/calendar",
+        params={"sources": "mine", "date_from": HEUTE, "date_to": HEUTE},
+    ).json()
     eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
 
     assert len(eintraege) == 1
@@ -1006,7 +1114,13 @@ def test_der_kalender_traegt_poster_bis_in_die_antwort(
     monkeypatch.setattr(library, "series_calendar", kalender)
     monkeypatch.setattr(library, "movie_calendar", keine_filme)
 
-    daten = arr_client.get("/api/calendar", params={"sources": "mine"}).json()
+    # Das Standardfenster liegt bei "heute" - die Folge traegt den festen
+    # Testtag HEUTE, der seit dem Zuschnitt aufs Fenster (Notiz #35) sonst
+    # herausfiele.
+    daten = arr_client.get(
+        "/api/calendar",
+        params={"sources": "mine", "date_from": HEUTE, "date_to": HEUTE},
+    ).json()
     eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
 
     assert [e["poster_url"] for e in eintraege] == ["https://image.tmdb.org/t/p/w500/p73586.jpg"]

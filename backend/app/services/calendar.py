@@ -817,7 +817,15 @@ async def kalender(
         # das es nicht gibt.
         if not will_meine or datumsart == "kino" or not hat_kalender("tv"):
             return []
-        return _falte_folgen(await weg.kalender("tv", von, bis), stichtag)
+        eintraege = _falte_folgen(await weg.kalender("tv", von, bis), stichtag)
+        # ⚠️ Auf das gewaehlte Fenster zuschneiden, nach demselben Tag, den
+        # die Kachel zeigt (``.date``, schon durch ``_lokaler_tag`` gerechnet).
+        # Sonarr bekommt seit Notiz #35 einen Tag mehr auf ``end`` mit, damit
+        # eine Folge am Rand nicht mehr verschwindet - ohne diesen Schnitt
+        # haette sie dafuer eine Folge vom Tag danach eingetauscht. Eine
+        # Stelle fuer beide Betriebsarten: ``weg.kalender`` liefert hierher,
+        # ob die Rohdaten von Sonarr oder von nexcrate kommen.
+        return [eintrag for eintrag in eintraege if von <= eintrag.date <= bis]
 
     async def eigene_filme() -> list[CalendarEntry]:
         if not will_meine or not hat_kalender("movie"):

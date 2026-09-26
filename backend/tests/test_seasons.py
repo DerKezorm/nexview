@@ -105,7 +105,10 @@ def test_dieselbe_staffel_nicht_zweimal(arr_client: TestClient, nutzer: dict[str
 
     zweite = _anfragen(arr_client, serie, 2, headers=nutzer)
     assert zweite.status_code == 409
-    assert "Staffel 2" in zweite.json()["detail"]
+    detail = zweite.json()["detail"]
+    assert detail["code"] == "request_already_exists_season"
+    assert detail["staffel"] == 2
+    assert "Staffel 2" in detail["message"]
 
 
 def test_ganze_serie_deckt_einzelne_staffeln_ab(

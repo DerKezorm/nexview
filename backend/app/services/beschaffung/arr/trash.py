@@ -211,6 +211,19 @@ class TrashFehler(Exception):
     """Der Schnappschuss gibt nicht her, was der Bauplan braucht."""
 
 
+class RezeptUnvollstaendig(TrashFehler):
+    """Dem Rezept fehlt ein Pflichtfeld, das jeder Bauplan braucht.
+
+    ⚠️ **Eigene Unterklasse statt einer gewöhnlichen ``TrashFehler``.** Das
+    hier ist kein TRaSH-Versionsproblem ("diese Kombination lässt sich mit
+    dem vorliegenden Stand nicht bauen") - das Rezept selbst ist unvollständig
+    und war es schon vor jedem Guide-Stand. Der Aufrufer übersetzt diese Klasse
+    deshalb eigens in ``quality_recipe_incomplete`` statt der allgemeinen
+    Absage ``quality_recipe_unsupported``, die sonst nach einem veralteten
+    TRaSH-Stand klingt.
+    """
+
+
 @dataclass(frozen=True)
 class Formatwunsch:
     """Ein Erkennungsmuster mit seinem Punktwert - noch ohne Namenspraefix."""
@@ -514,12 +527,12 @@ def bauplan_aus(
     # ein Rezept ohne Auflösung oder Quelle ist kein gültiger Bauplan. Die
     # Ablage prueft das schon beim Anlegen - trotzdem kann hier ein aelteres,
     # davor entstandenes Rezept liegen. Eine rohe ``KeyError`` braeche mit
-    # einem 500 ab; ``TrashFehler`` wird vom Aufrufer bereits in eine benannte
-    # Absage uebersetzt.
+    # einem 500 ab; die eigene Unterklasse sagt dem Aufrufer, dass es am
+    # Rezept liegt, nicht am TRaSH-Stand.
     aufloesung = rezept.get("aufloesung")
     quelle = rezept.get("quelle")
     if not aufloesung or not quelle:
-        raise TrashFehler("recipe is missing 'aufloesung' or 'quelle'")
+        raise RezeptUnvollstaendig("recipe is missing 'aufloesung' or 'quelle'")
 
     schluessel = (dienst, familie, aufloesung, quelle)
     if schluessel not in PROFILDATEI:

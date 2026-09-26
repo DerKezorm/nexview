@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from app.services.beschaffung.arr.client import ArrClient
-from app.services.beschaffung.arr.trash import TrashFehler, bauplan
+from app.services.beschaffung.arr.trash import RezeptUnvollstaendig, TrashFehler, bauplan
 
 REZEPT = {
     "name": "Wohnzimmer 4K",
@@ -186,14 +186,15 @@ def test_bauplan_meldet_unbekannte_kombination() -> None:
 def test_bauplan_meldet_ein_fehlendes_pflichtfeld_statt_abzustuerzen() -> None:
     """Ein Rezept, das vor der Pruefung beim Anlegen entstand (oder ueber den
     Umzug direkt in die Ablage kam), darf beim Verteilen nicht mit einer
-    rohen KeyError abbrechen - der Aufrufer uebersetzt TrashFehler in eine
-    benannte Absage statt eines 500."""
+    rohen KeyError abbrechen. Die eigene Unterklasse ``RezeptUnvollstaendig``
+    sagt dem Aufrufer, dass es am Rezept liegt und nicht am TRaSH-Stand - eine
+    gewoehnliche ``TrashFehler`` klaenge nach einem Versionsproblem."""
     ohne_aufloesung = {k: v for k, v in REZEPT.items() if k != "aufloesung"}
-    with pytest.raises(TrashFehler):
+    with pytest.raises(RezeptUnvollstaendig):
         bauplan(ohne_aufloesung, "radarr", {"de": 4})
 
     ohne_quelle = {k: v for k, v in REZEPT.items() if k != "quelle"}
-    with pytest.raises(TrashFehler):
+    with pytest.raises(RezeptUnvollstaendig):
         bauplan(ohne_quelle, "radarr", {"de": 4})
 
 
@@ -1255,7 +1256,9 @@ def test_verteilen_eines_gespeicherten_unvollstaendigen_rezepts_gibt_409(
         json={"kennungen": ["radarr-standard"]},
     )
     assert antwort.status_code == 409, antwort.text
-    assert antwort.json()["detail"]["code"] == "quality_recipe_unsupported"
+    # ⚠️ Nicht "quality_recipe_unsupported" - das klaenge nach einem
+    # TRaSH-Versionsproblem, dabei ist das Rezept selbst unvollstaendig.
+    assert antwort.json()["detail"]["code"] == "quality_recipe_incomplete"
 
 
 def test_verteilen_schreibt_und_merkt_sich(arr_client, monkeypatch) -> None:

@@ -26,7 +26,7 @@ from . import qualitaetsprofile as dienst
 from . import trash_bezug as bezug
 from .client import ArrClient, ArrError
 from .riegel import nur_mit_werkzeugen
-from .trash import TrashFehler, schnappschuss
+from .trash import RezeptUnvollstaendig, TrashFehler, schnappschuss
 
 logger = logging.getLogger("nexview.qualitaet")
 
@@ -1124,6 +1124,16 @@ async def _eine_instanz(
         return await dienst.schreiben(
             client, plan, vorher.profil_id_extern if vorher else None, melden=stand
         )
+    except RezeptUnvollstaendig as fehler:
+        # ⚠️ Eigens vor der allgemeinen TrashFehler abgefangen: Das hier ist
+        # kein TRaSH-Versionsproblem, sondern dasselbe unvollstaendige Rezept,
+        # das ``anlegen`` heute schon abweist - nur eben aelterer Bestand.
+        logger.warning("Recipe for profile %s is incomplete: %s", profil.id, fehler)
+        raise meldungen.fehler(
+            "quality_recipe_incomplete",
+            "Dem Rezept fehlt mindestens ein Pflichtfeld (Auflösung oder Quelle).",
+            409,
+        ) from fehler
     except TrashFehler as fehler:
         logger.warning("Recipe for profile %s cannot be built: %s", profil.id, fehler)
         raise meldungen.fehler(

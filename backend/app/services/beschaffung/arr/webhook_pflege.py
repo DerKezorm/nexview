@@ -29,6 +29,7 @@ import logging
 import time
 from urllib.parse import urlsplit
 
+import httpx
 from sqlalchemy.orm import Session
 
 from ....models import ArrWebhook, utcnow
@@ -47,6 +48,10 @@ ALTER_NAME = "Nexview"
 # als ein paar Sekunden heisst praktisch immer "kommt nie an".
 BEWEIS_WARTEZEIT_SEKUNDEN = 5.0
 BEWEIS_SCHRITT_SEKUNDEN = 0.25
+
+# Wie lange die Frage an eine fruehere eigene Adresse dauern darf. Knapp: Sie
+# laeuft im Rundgang, und eine Antwort, die so lange braucht, gilt als unklar.
+ALTE_ADRESSE_ZEITGRENZE_SEKUNDEN = 3.0
 
 # Ereignis-Flaggen je Dienst. PFLICHT: Ohne sie kann der Rueckkanal seinen
 # Zweck nicht erfuellen (fertig, aufgewertet, geloescht) - fehlt eine im
@@ -162,13 +167,8 @@ def unser_eintrag(
 
     ⚠️ **Die eine Stelle fuer diese Frage** - Pflege, Abwaehlen, Umstieg und
     Testen-Knopf fragen alle hier. Unser ist ein Webhook-Eintrag nur, wenn er
-    **uns** anruft:
-
-    * er traegt unsere heutige Anruf-Adresse ``ziel`` - und dazu unseren
-      Namen, den alten Namen "Nexview" oder unsere gemerkte Nummer; oder
-    * er traegt unsere gemerkte Nummer **und** noch die Adresse, die wir
-      selbst zuletzt hineingeschrieben haben (``eintrag_url``). So bleibt er
-      erkennbar, nachdem sich die eigene Adresse geaendert hat.
+    **uns** anruft: Er traegt unsere heutige Anruf-Adresse ``ziel`` und dazu
+    unseren Namen, den alten Namen "Nexview" oder unsere gemerkte Nummer.
 
     Was hier fehlt, fehlt mit Absicht: Der Pfad
     (``/api/webhooks/arr/radarr-standard``) ist bei jeder Nexview derselbe,
@@ -176,9 +176,16 @@ def unser_eintrag(
     einen Eintrag, den inzwischen eine andere Nexview beschrieben hat. Mit
     genau diesen drei Merkmalen hat der Umstieg einer Installation den
     Eintrag einer anderen geloescht (#note-38).
+
+    ⚠️ **Auch die Adresse, die wir selbst zuletzt hineingeschrieben haben,
+    macht einen Eintrag nicht zu unserem.** Wer das Datenverzeichnis einer
+    Nexview kopiert, um eine zweite aufzusetzen, gibt ihr Nummer und Adresse
+    der ersten mit - und die zweite schriebe deren lebenden Eintrag auf sich
+    um. Ein Eintrag mit einer anderen Adresse als unserer heutigen wird
+    deshalb nie umgeschrieben; ``_frueheren_eintrag_pflegen`` entscheidet,
+    ob er weg darf.
     """
     soll = _glatt(ziel)
-    gemerkt = _glatt(zeile.eintrag_url or "")
     namen = {ALTER_NAME.casefold(), name.casefold()}
     passend: list[dict] = []
     for eintrag in vorhandene:
@@ -189,14 +196,145 @@ def unser_eintrag(
             continue
         nummer_stimmt = zeile.eintrag_id is not None and eintrag.get("id") == zeile.eintrag_id
         name_stimmt = str(eintrag.get("name") or "").casefold() in namen
-        if (soll and adresse == soll and (nummer_stimmt or name_stimmt)) or (
-            nummer_stimmt and gemerkt and adresse == gemerkt
-        ):
+        if soll and adresse == soll and (nummer_stimmt or name_stimmt):
             passend.append(eintrag)
     # Die gemerkte Nummer zuerst: Stehen zwei Eintraege auf unserer Adresse,
     # bleibt der, den wir schon kennen.
     passend.sort(key=lambda eintrag: eintrag.get("id") != zeile.eintrag_id)
     return passend[0] if passend else None
+
+
+def _basis_aus(url: str, kennung: str) -> str:
+    """Die Basis einer Anruf-Adresse, ``""``, wenn sie nicht unsere Form hat."""
+    gekuerzt = url.strip().rstrip("/")
+    pfad = anruf_pfad(kennung)
+    return gekuerzt[: -len(pfad)] if gekuerzt.endswith(pfad) else ""
+
+
+async def _gesundheit_holen(url: str) -> httpx.Response:
+    """Eine einzelne Frage mit eigenem, kurzlebigem Client (wie
+    ``routers/settings.test_public_url``). Umleitungen werden nicht verfolgt:
+    Eine Anmeldeseite davor waere keine Antwort auf die Frage."""
+    async with httpx.AsyncClient(timeout=ALTE_ADRESSE_ZEITGRENZE_SEKUNDEN) as client:
+        return await client.get(url)
+
+
+def _abgewiesen(fehler: BaseException) -> bool:
+    """Hat die Gegenstelle die Verbindung abgewiesen (dort lauscht nichts)?
+
+    Nur das ist ein Beweis. Ein unbekannter Name, eine fremde Route oder ein
+    Zertifikatsfehler sagt nur, dass **wir** die Adresse nicht erreichen -
+    Radarr womoeglich schon.
+    """
+    gesehen: set[int] = set()
+    kette: BaseException | None = fehler
+    while kette is not None and id(kette) not in gesehen:
+        if isinstance(kette, ConnectionRefusedError):
+            return True
+        gesehen.add(id(kette))
+        kette = kette.__cause__ or kette.__context__
+    return False
+
+
+async def nexview_unter(basis: str) -> bool | None:
+    """Antwortet unter dieser Adresse eine Nexview?
+
+    ``True`` ja, ``False`` nachweislich nicht (Verbindung abgewiesen, oder
+    ``/api/health`` gibt es dort nicht), ``None`` unklar: Zeitueberschreitung,
+    Name nicht aufloesbar, 5xx eines Proxys, eine Anmeldeseite. Unklar heisst
+    fuer den Aufrufer immer: stehen lassen.
+    """
+    try:
+        antwort = await _gesundheit_holen(f"{basis.rstrip('/')}/api/health")
+    except httpx.HTTPError as fehler:
+        return False if _abgewiesen(fehler) else None
+    if antwort.status_code in (404, 410):
+        return False
+    if antwort.status_code != 200:
+        return None
+    try:
+        daten = antwort.json()
+    except ValueError:
+        return None
+    return True if isinstance(daten, dict) and daten.get("status") == "ok" else None
+
+
+def _frueheren_merken(vorhandene: list[dict], zeile: ArrWebhook, eigener: dict | None) -> None:
+    """Steht unter unserer gemerkten Nummer noch ein Eintrag mit der Adresse,
+    die wir zuletzt hineingeschrieben haben, aber nicht unserer heutigen?
+
+    Dann hat sich unsere Adresse geaendert - oder diese Datenbank ist die
+    Kopie einer anderen Installation, die unter der alten Adresse weiterlebt.
+    Von hier aus ist beides gleich; der Eintrag wird als frueherer gemerkt,
+    und die gemerkte Nummer gilt nicht mehr als unsere.
+    """
+    if zeile.eintrag_id is None or (eigener is not None and eigener.get("id") == zeile.eintrag_id):
+        return
+    gemerkt = _glatt(zeile.eintrag_url or "")
+    frueher = next(
+        (
+            eintrag
+            for eintrag in vorhandene
+            if eintrag.get("implementation") == "Webhook"
+            and eintrag.get("id") == zeile.eintrag_id
+            and gemerkt
+            and _adresse(eintrag) == gemerkt
+        ),
+        None,
+    )
+    if frueher is not None:
+        zeile.alter_eintrag_id = int(frueher["id"])
+        zeile.alter_eintrag_url = zeile.eintrag_url
+    zeile.eintrag_id = None
+    zeile.eintrag_url = None
+    zeile.eingetragen_am = None
+
+
+async def _frueheren_eintrag_pflegen(
+    client: ArrClient,
+    zeile: ArrWebhook,
+    vorhandene: list[dict],
+    eigener: dict | None,
+    kennung: str,
+) -> None:
+    """Einen frueheren eigenen Eintrag entfernen - nur, wenn dort nachweislich
+    keine Nexview mehr antwortet.
+
+    ⚠️ **Umgeschrieben wird er nie**, auch nicht auf unsere neue Adresse: Er
+    kann einer Installation gehoeren, die aus einer Kopie unserer Datenbank
+    entstanden ist oder aus der wir entstanden sind. Antwortet unter seiner
+    Adresse eine Nexview, oder laesst sich das nicht klaeren, bleibt er
+    stehen, und die Diensteseite nennt ihn dem Betreiber.
+    """
+    if zeile.alter_eintrag_id is None:
+        return
+    gemerkt = _glatt(zeile.alter_eintrag_url or "")
+    alt = next(
+        (
+            eintrag
+            for eintrag in vorhandene
+            if eintrag.get("implementation") == "Webhook"
+            and eintrag.get("id") == zeile.alter_eintrag_id
+            and gemerkt
+            and _adresse(eintrag) == gemerkt
+        ),
+        None,
+    )
+    if alt is None or (eigener is not None and eigener.get("id") == alt.get("id")):
+        # Weg, von jemandem umgeschrieben oder wieder unserer: nichts mehr zu merken.
+        zeile.alter_eintrag_id = None
+        zeile.alter_eintrag_url = None
+        return
+    basis = _basis_aus(zeile.alter_eintrag_url or "", kennung)
+    if not basis or await nexview_unter(basis) is not False:
+        return
+    try:
+        await client.notification_loeschen(int(alt["id"]))
+    except ArrError:
+        return  # Beim naechsten Rundgang noch einmal.
+    logger.info("Webhook entry for a former address removed, nothing answers at %s", basis)
+    zeile.alter_eintrag_id = None
+    zeile.alter_eintrag_url = None
 
 
 def _weicht_ab(eigener: dict, gewuenscht: dict) -> bool:
@@ -268,6 +406,8 @@ async def instanz_pflegen(
     ziel = _ziel(settings, instanz.kennung)
     name = eintrag_name(settings.webhook_basis)
     eigener = unser_eintrag(vorhandene, zeile, ziel, name)
+    _frueheren_merken(vorhandene, zeile, eigener)
+    await _frueheren_eintrag_pflegen(client, zeile, vorhandene, eigener, instanz.kennung)
 
     if not zeile.aktiv:
         # Abgewaehlt: rueckstandsfrei aufraeumen - der Eintrag verschwindet

@@ -14,6 +14,7 @@ Die vier Grundsaetze aus dem Bauplan, hier festgenagelt:
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from app.db import SessionLocal
@@ -398,51 +399,171 @@ async def test_abwaehlen_raeumt_rueckstandsfrei_auf(fake) -> None:
     assert zeile.eintrag_id is None and zeile.fehler == ""
 
 
-@pytest.mark.anyio
-async def test_abweichender_eintrag_wird_nachgezogen(fake) -> None:
-    """Alte Adresse im Eintrag (public_url hat sich geaendert): Die Pflege
-    erkennt unseren Eintrag an der gemerkten Nummer samt der Adresse, die sie
-    selbst hineingeschrieben hat, und zieht ihn nach."""
-    fake.eintraege = [
-        {
-            "id": 7,
-            "name": "Nexview (alt.test)",
-            "implementation": "Webhook",
-            "fields": [
-                {"name": "url", "value": "http://alt.test/api/webhooks/arr/radarr-standard"},
-                {"name": "method", "value": 1},
-                {"name": "username", "value": "nexview"},
-            ],
-            "onDownload": True,
-            "onUpgrade": True,
-            "onMovieDelete": True,
-            "onMovieFileDelete": True,
-            "onGrab": True,
-            "onHealthIssue": True,
-            "onHealthRestored": True,
-            "onManualInteractionRequired": True,
-        }
-    ]
+ALT_URL = "http://alt.test/api/webhooks/arr/radarr-standard"
+
+
+def _frueherer_eintrag() -> dict:
+    return {
+        "id": 7,
+        "name": "Nexview (alt.test)",
+        "implementation": "Webhook",
+        "fields": [
+            {"name": "url", "value": ALT_URL},
+            {"name": "method", "value": 1},
+            {"name": "username", "value": "nexview"},
+        ],
+        "onDownload": True,
+        "onUpgrade": True,
+        "onMovieDelete": True,
+        "onMovieFileDelete": True,
+        "onGrab": True,
+        "onHealthIssue": True,
+        "onHealthRestored": True,
+        "onManualInteractionRequired": True,
+    }
+
+
+def _alte_adresse(monkeypatch, antwort) -> list[str]:
+    """Was unter der frueheren Adresse antwortet: eine Antwort oder ein Fehler."""
+    gefragt: list[str] = []
+
+    async def holen(url: str) -> httpx.Response:
+        gefragt.append(url)
+        if isinstance(antwort, BaseException):
+            raise antwort
+        return antwort
+
+    monkeypatch.setattr(webhook_pflege, "_gesundheit_holen", holen)
+    return gefragt
+
+
+def _abgewiesen() -> httpx.ConnectError:
+    try:
+        try:
+            raise ConnectionRefusedError(111, "Connection refused")
+        except ConnectionRefusedError as grund:
+            raise httpx.ConnectError("All connection attempts failed") from grund
+    except httpx.ConnectError as fehler:
+        return fehler
+
+
+async def _nach_adresswechsel(fake) -> None:
+    """Unser Eintrag von frueher traegt die alte Adresse, public_url ist neu."""
+    fake.eintraege = [_frueherer_eintrag()]
     settings, instanz = _radarr()
     with SessionLocal() as db:
         zeile = webhooks.eintrag_sicherstellen(db, "radarr-standard")
         zeile.eintrag_id = 7
-        zeile.eintrag_url = "http://alt.test/api/webhooks/arr/radarr-standard"
+        zeile.eintrag_url = ALT_URL
         db.commit()
-
     with SessionLocal() as db:
         await webhook_pflege.instanz_pflegen(db, settings, instanz)
 
-    assert len(fake.nachgezogen) == 1
-    nummer, payload = fake.nachgezogen[0]
-    assert nummer == 7
-    url = next(f["value"] for f in payload["fields"] if f["name"] == "url")
-    assert url == "http://nexview.test/api/webhooks/arr/radarr-standard"
-    assert payload["name"] == "Nexview (nexview.test)"
-    assert fake.angelegt == []
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "antwort",
+    [_abgewiesen(), httpx.Response(404, text="Not Found")],
+    ids=["abgewiesen", "keine-nexview"],
+)
+async def test_nach_adresswechsel_mit_toter_alter_adresse_ist_der_alte_eintrag_weg(
+    fake, monkeypatch, antwort
+) -> None:
+    """Unter der alten Adresse lauscht nichts mehr (Verbindung abgewiesen), oder
+    dort gibt es kein ``/api/health``: Der alte Eintrag geht, ein neuer mit
+    unserer Adresse kommt. Umgeschrieben wird der alte nicht."""
+    gefragt = _alte_adresse(monkeypatch, antwort)
+
+    await _nach_adresswechsel(fake)
+
+    assert gefragt == ["http://alt.test/api/health"]
+    assert fake.nachgezogen == []
+    assert fake.geloescht == [7]
+    assert [(e["name"], _url(e)) for e in fake.eintraege] == [
+        ("Nexview (nexview.test)", "http://nexview.test/api/webhooks/arr/radarr-standard")
+    ]
     zeile = _zeile()
-    assert zeile.fehler == ""
-    assert zeile.eintrag_url == url
+    assert zeile.alter_eintrag_id is None and zeile.eintrag_id == fake.eintraege[0]["id"]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "antwort",
+    [
+        httpx.Response(200, json={"status": "ok", "version": "1.0.0"}),
+        httpx.ReadTimeout("timed out"),
+        httpx.ConnectError("[Errno 11001] getaddrinfo failed"),
+        httpx.Response(502, text="<html><title>502 Bad Gateway</title></html>"),
+        httpx.Response(302, headers={"location": "https://login.example.com/"}),
+    ],
+    ids=["nexview", "zeitueberschreitung", "name-unbekannt", "proxy-502", "anmeldung"],
+)
+async def test_lebt_oder_ist_unklar_bleibt_der_alte_eintrag_stehen(
+    fake, monkeypatch, antwort
+) -> None:
+    """Antwortet unter der alten Adresse eine Nexview, oder laesst es sich nicht
+    klaeren: Der alte Eintrag bleibt unveraendert, wir bekommen einen eigenen,
+    und die Diensteseite nennt den alten."""
+    _alte_adresse(monkeypatch, antwort)
+
+    await _nach_adresswechsel(fake)
+
+    assert fake.nachgezogen == [] and fake.geloescht == []
+    assert _frueherer_eintrag() in fake.eintraege
+    assert len(fake.angelegt) == 1
+    zeile = _zeile()
+    assert zeile.alter_eintrag_id == 7 and zeile.alter_eintrag_url == ALT_URL
+
+
+@pytest.mark.anyio
+async def test_eine_kopie_des_datenverzeichnisses_biegt_den_eintrag_des_originals_nicht_um(
+    fake, monkeypatch
+) -> None:
+    """Befund des Pruefers: B entsteht aus einer Kopie von A's Datenverzeichnis
+    und bekommt eine eigene Adresse. B erbt Nummer und Adresse von A's Eintrag
+    und schrieb ihn beim ersten Rundgang auf sich um; A verlor still den
+    Rueckkanal. Jetzt bekommt B einen eigenen, und A's bleibt, wie er war."""
+    _alte_adresse(monkeypatch, httpx.Response(200, json={"status": "ok", "version": "1.0.0"}))
+
+    settings_a, instanz_a = _als_installation("http://nexview-a.test", None)
+    with SessionLocal() as db:
+        await webhook_pflege.instanz_pflegen(db, settings_a, instanz_a)
+    stand_a = _stand_merken()
+    eintrag_a = dict(fake.eintraege[0])
+
+    # B: dieselbe Datenbank, andere Adresse.
+    settings_b, instanz_b = _als_installation("http://nexview-b.test", stand_a)
+    with SessionLocal() as db:
+        await webhook_pflege.instanz_pflegen(db, settings_b, instanz_b)
+    stand_b = _stand_merken()
+
+    assert fake.nachgezogen == [] and fake.geloescht == []
+    assert eintrag_a in fake.eintraege
+    assert stand_b["eintrag_id"] != stand_a["eintrag_id"]
+    assert sorted(e["name"] for e in fake.eintraege) == [
+        "Nexview (nexview-a.test)",
+        "Nexview (nexview-b.test)",
+    ]
+
+    # Auch B's Umstieg laesst A's Eintrag stehen.
+    from app.services.beschaffung.arr import konten
+
+    with SessionLocal() as db:
+        await konten.weg_verlassen(db, settings_b)
+    assert fake.eintraege == [eintrag_a]
+
+
+def test_die_diensteseite_nennt_den_stehen_gelassenen_eintrag(arr_client) -> None:
+    with SessionLocal() as db:
+        zeile = webhooks.eintrag_sicherstellen(db, "radarr-standard")
+        zeile.alter_eintrag_id = 7
+        zeile.alter_eintrag_url = ALT_URL
+        db.commit()
+
+    antwort = arr_client.get("/api/settings/webhooks")
+
+    zeile = next(z for z in antwort.json()["instanzen"] if z["kennung"] == "radarr-standard")
+    assert zeile["alter_eintrag"] == ALT_URL
 
 
 @pytest.mark.anyio

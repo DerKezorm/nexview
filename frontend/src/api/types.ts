@@ -2180,6 +2180,11 @@ export interface WebhookInstanzStand {
   fehler: string;
   /** Roher Zusatz (Version, fehlende Fähigkeiten) – wird nicht übersetzt. */
   fehler_info: string;
+  /**
+   * Anruf-Adresse eines früheren eigenen Eintrags, den die Pflege stehen lässt,
+   * weil dort noch eine Nexview antworten könnte; sonst "".
+   */
+  alter_eintrag: string;
 }
 
 export interface WebhookStand {

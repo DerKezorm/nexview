@@ -1515,6 +1515,7 @@
     "webhookProven": "Erreichbarkeit bewiesen am {{wann}}",
     "webhookNeverProven": "Noch nie ein Anruf angekommen – der Beweis steht aus.",
     "webhookLastCall": "zuletzt angerufen am {{wann}} ({{ereignis}})",
+    "webhookOldEntry": "In {{dienst}} ruft ein älterer Nexview-Eintrag noch {{adresse}} an; Nexview lässt ihn stehen, falls dort eine andere Installation läuft.",
     "webhookTest": "Testen",
     "webhookArrived": "Anruf kam an ({{ms}} ms).",
     "webhookReason": {

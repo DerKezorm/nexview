@@ -137,6 +137,16 @@
         "schluessel": false,
         "typ": "BOOLEAN"
       },
+      "alter_eintrag_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "alter_eintrag_url": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "TEXT"
+      },
       "bewiesen_am": {
         "leer_erlaubt": true,
         "schluessel": false,

@@ -369,6 +369,10 @@ class WebhookInstanzStand(BaseModel):
     # Zusatz (Version, fehlende Faehigkeiten), der nicht uebersetzt wird.
     fehler: str
     fehler_info: str
+    # Ein frueherer eigener Eintrag, den die Pflege stehen laesst, weil unter
+    # seiner Adresse noch eine Nexview antworten koennte - dessen Anruf-Adresse,
+    # sonst "". Der Betreiber entscheidet, nicht die Pflege.
+    alter_eintrag: str = ""
 
 
 class WebhookStand(BaseModel):
@@ -398,6 +402,7 @@ def _webhook_stand(db, settings) -> WebhookStand:
                 geprueft_am=zeile.geprueft_am if zeile else None,
                 fehler=zeile.fehler if zeile else "",
                 fehler_info=zeile.fehler_info if zeile else "",
+                alter_eintrag=(zeile.alter_eintrag_url or "") if zeile else "",
             )
         )
     return WebhookStand(basis=settings.webhook_basis, instanzen=zeilen)

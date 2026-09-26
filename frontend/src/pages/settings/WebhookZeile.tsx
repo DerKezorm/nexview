@@ -116,6 +116,18 @@ export function WebhookZeile({
         </p>
       )}
 
+      {/* Nexview schreibt einen Eintrag mit fremder Adresse nie um und
+          löscht ihn nur, wenn dort nachweislich keine Nexview mehr antwortet.
+          Ob er noch gebraucht wird, weiß nur der Betreiber. */}
+      {zeile.alter_eintrag && (
+        <p className="text-xs leading-relaxed text-mist-500">
+          {t("settings.webhookOldEntry", {
+            dienst: zeile.name,
+            adresse: zeile.alter_eintrag,
+          })}
+        </p>
+      )}
+
       {zeile.aktiv && zeile.fehler && (
         <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs leading-relaxed text-warn-500">
           {grund(zeile.fehler, zeile.fehler_info)}

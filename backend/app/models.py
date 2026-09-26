@@ -1915,13 +1915,16 @@ class ArrWebhook(Base):
     # Die Nummer unseres Eintrags in Radarr/Sonarr. ⚠️ Allein beweist sie
     # nichts: Eine andere Nexview an derselben Instanz kann den Eintrag unter
     # dieser Nummer beschrieben haben (#note-38). Unser ist er nur, solange er
-    # die Adresse traegt, die wir selbst hineingeschrieben haben
-    # (``eintrag_url``), oder unsere heutige (``webhook_pflege.unser_eintrag``).
+    # unsere heutige Adresse traegt (``webhook_pflege.unser_eintrag``).
     eintrag_id: Mapped[int | None] = mapped_column(Integer)
-    # Die Anruf-Adresse, die wir zuletzt in den Eintrag geschrieben haben. Nur
-    # daran erkennt die Pflege ihn wieder, nachdem sich die eigene Adresse
-    # geaendert hat.
+    # Die Anruf-Adresse, die wir zuletzt in den Eintrag geschrieben haben.
     eintrag_url: Mapped[str | None] = mapped_column(Text)
+    # Ein frueherer eigener Eintrag mit einer anderen Adresse (unsere hat sich
+    # geaendert, oder diese Datenbank ist die Kopie einer anderen Nexview). Er
+    # wird nie umgeschrieben und nur entfernt, wenn dort nachweislich keine
+    # Nexview mehr antwortet; bis dahin nennt ihn die Diensteseite.
+    alter_eintrag_id: Mapped[int | None] = mapped_column(Integer)
+    alter_eintrag_url: Mapped[str | None] = mapped_column(Text)
     eingetragen_am: Mapped[datetime | None] = mapped_column(DateTime)
     # Wann die Pflege zuletzt nach dem Eintrag gesehen hat.
     geprueft_am: Mapped[datetime | None] = mapped_column(DateTime)

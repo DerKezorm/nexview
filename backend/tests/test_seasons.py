@@ -219,6 +219,67 @@ async def test_ganze_serie_wird_normal_angelegt(
     assert attrappe.angelegt == [{"tvdb_id": 555, "season": None}]
 
 
+async def test_ganze_bekannte_serie_wird_ueberwacht_und_gesucht(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#note-64 bei Serien: keine Staffel angefragt, Sonarr fuehrt sie schon, ohne Datei.
+
+    Bisher landete das im "sonst"-Zweig und haette die Serie ein zweites Mal
+    angelegt - genau der Befund, der bei Radarr-Filmen einen gewoehnlichen
+    400er ausloeste. Jetzt wird nur verknuepft, ueberwacht und gesucht.
+    """
+    aufrufe: dict[str, list[int]] = {"ueberwacht": [], "gesucht": []}
+
+    class UnueberwachterSonarr:
+        async def ensure_tag(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            return None
+
+        async def add(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            raise AssertionError("Serie waere ein zweites Mal angelegt worden")
+
+        async def serie_ueberwachen(self, arr_id: int) -> None:
+            aufrufe["ueberwacht"].append(arr_id)
+
+        async def serie_suchen(self, arr_id: int) -> None:
+            aufrufe["gesucht"].append(arr_id)
+
+    monkeypatch.setattr(library, "sonarr_client", lambda *a, **k: UnueberwachterSonarr())
+
+    vorhanden = LibraryEntry(
+        arr_id=77,
+        has_file=False,
+        monitored=False,
+        episode_file_count=0,
+        episode_count=10,
+        title_key="testserie",
+    )
+
+    async def bibliothek(_settings: object, _tier: str = "standard") -> tuple[dict, dict]:
+        return {555: vorhanden}, {}
+
+    monkeypatch.setattr(library, "series_library", bibliothek)
+
+    with SessionLocal() as db:
+        benutzer = db.query(User).filter(User.username == "admin").one()
+        anfrage = MediaRequest(
+            user_id=benutzer.id,
+            media_type=MediaType.tv,
+            fassung_kennung="sonarr-standard",
+            tmdb_id=99,
+            tvdb_id=555,
+            title="Testserie",
+            season=None,
+            status=RequestStatus.approved,
+            quality_profile_id=1,
+            root_folder_path="/data/TV-Shows",
+        )
+        db.add(anfrage)
+        db.commit()
+        await requests_service.push_to_arr(db, load_settings(db), anfrage)
+
+    assert aufrufe == {"ueberwacht": [77], "gesucht": [77]}
+
+
 def test_sonarr_nennt_die_gesendeten_folgen_nur_ohne_ausstehende() -> None:
     """Folgen-Paket in Sonarr: überwacht sind 2, gesendet 22. Die Titelseite
     misst gegen 22 (25.09.2026). Solange noch Folgen angekündigt sind, zählt

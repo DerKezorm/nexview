@@ -582,6 +582,19 @@ class SonarrClient(ArrClient):
         serie["monitored"] = True
         await self.put(f"/series/{arr_id}", serie)
 
+    async def serie_suchen(self, arr_id: int) -> None:
+        """Sonarr anweisen, die ganze Serie zu suchen (alles Fehlende).
+
+        Fuer eine Anfrage ohne Staffel, auf eine Serie, die Sonarr schon
+        fuehrt - das Gegenstueck zu ``RadarrClient.film_suchen``. Schlaegt es
+        fehl, ist das kein Beinbruch: Die Serie ist ueberwacht, Sonarr findet
+        sie beim naechsten regulaeren Durchlauf von selbst.
+        """
+        try:
+            await self.post("/command", {"name": "SeriesSearch", "seriesId": arr_id})
+        except ArrError:
+            pass
+
     async def remove(self, arr_id: int, delete_files: bool = True) -> None:
         """Serie aus Sonarr entfernen - samt bereits geladener Folgen."""
         await self.delete(

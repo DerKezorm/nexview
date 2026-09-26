@@ -300,8 +300,10 @@ async def anfragen(db: Session, settings: AppSettings, request: MediaRequest) ->
             )
 
         # Liegt die Serie schon in Sonarr, wird sie nicht neu angelegt -
-        # das brächte die vorhandenen Folgen durcheinander. Stattdessen
-        # wird nur die gewünschte Staffel aktiviert und gesucht.
+        # das brächte die vorhandenen Folgen durcheinander. Stattdessen wird
+        # nur die gewünschte Staffel aktiviert und gesucht, oder - ohne
+        # Staffel, also fuer die ganze Serie - nur verknuepft, ueberwacht
+        # und gesucht.
         vorhanden = await _sonarr_eintrag(settings, request)
         if request.episodes:
             created = await _paket_uebergeben(client, request, vorhanden)
@@ -312,6 +314,23 @@ async def anfragen(db: Session, settings: AppSettings, request: MediaRequest) ->
                 such_staffel=request.season,
             )
             created = {"id": vorhanden.arr_id}
+        elif vorhanden is not None:
+            # ⚠️ Ohne Staffel gemeint ist die ganze Serie - und liegt die
+            # schon in Sonarr, wuerde ``add`` sie ein zweites Mal anlegen und
+            # mit einem gewoehnlichen 400er scheitern, genau wie einst bei
+            # Radarr-Filmen (#note-64). Ohne Datei reicht Verknuepfen allein
+            # nicht: unueberwacht sucht Sonarr nie von selbst.
+            logger.info(
+                "Sonarr already holds %r (tmdb=%s) as #%s - linking the request "
+                "to it instead of adding it again",
+                request.title,
+                request.tmdb_id,
+                vorhanden.arr_id,
+            )
+            created = {"id": vorhanden.arr_id}
+            if not vorhanden.has_file:
+                await client.serie_ueberwachen(vorhanden.arr_id)
+                await client.serie_suchen(vorhanden.arr_id)
         else:
             tag_id = await client.ensure_tag(requester_tag(request.user.username))
             created = await client.add(

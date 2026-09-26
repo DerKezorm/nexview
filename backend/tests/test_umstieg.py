@@ -986,6 +986,79 @@ async def test_die_probe_nennt_die_anfrage_die_stehen_bleibt(
     ]
 
 
+def _posten_nur_mit_tvdb(db: Session, tvdb: int = 909091, staffel: int = 1) -> StorageEntry:
+    """Ein Posten aus Sonarr, wie ihn der ARR-Betrieb oft fuehrt: ohne TMDB-Nummer."""
+    return _posten(
+        db,
+        key=f"tv:sonarr-standard:tvdb:{tvdb}:s{staffel}",
+        media_type=MediaType.tv,
+        tmdb_id=None,
+        tvdb_id=tvdb,
+        season=staffel,
+        fassung_kennung=SONARR,
+        title="Beispielserie nur mit TVDB",
+    )
+
+
+async def test_die_probe_fragt_auch_nach_posten_ohne_tmdb_nummer(
+    vor_dem_umstieg: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """⚠️ #note-40: Ein Posten ohne TMDB-Nummer kam in der Probe gar nicht vor.
+
+    Ohne Frage keine Uebersetzung - er blieb beim Umschalten unter der
+    stillgelegten Sonarr-Fassung stehen, obwohl nexcrate die Serie ueber ihre
+    TVDB-Nummer kennt. Schritt 4 nannte ihn nicht einmal.
+    """
+    nexcrate.serie(tmdb_id=4560, tvdb=909091)
+    _posten_nur_mit_tvdb(db)
+
+    ergebnis = await umstieg.probe(db, umstieg.nex_sicht(db), _abbildung())
+
+    assert [(b.tvdb_id, b.ergebnis) for b in ergebnis.befunde] == [(909091, "bekannt")]
+    assert ergebnis.tmdb_je_tvdb() == {909091: 4560}
+    assert ergebnis.zu_entscheiden == []
+
+
+async def test_ein_posten_ohne_tmdb_nummer_wandert_mit_der_uebersetzung(
+    vor_dem_umstieg: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Der ganze Weg: Probe, Umschalten - danach steht der Posten unter der
+    nexcrate-Fassung und unter seiner TMDB-Nummer, wie jeder andere."""
+    nexcrate.serie(tmdb_id=4560, tvdb=909091)
+    posten = _posten_nur_mit_tvdb(db)
+
+    ergebnis = await umstieg.probe(db, umstieg.nex_sicht(db), _abbildung())
+    bericht = await umstieg.umschalten(
+        db, vor_dem_umstieg, _abbildung(), ergebnis.tmdb_je_tvdb()
+    )
+
+    db.refresh(posten)
+    assert bericht.wanderung.posten_ohne_uebersetzung == 0
+    assert posten.fassung_kennung == SERIE_HD
+    assert posten.tmdb_id == 4560
+    assert posten.key == storage.schluessel(MediaType.tv, SERIE_HD, tmdb_id=4560, season=1)
+
+
+async def test_ein_unbekannter_posten_ohne_tmdb_nummer_steht_zur_entscheidung(
+    vor_dem_umstieg: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Kennt nexcrate die Serie auch ueber TVDB nicht, sieht der Betreiber sie
+    in Schritt 4 - vorher fiel sie dort still heraus."""
+    _posten_nur_mit_tvdb(db)
+
+    ergebnis = await umstieg.probe(db, umstieg.nex_sicht(db), _abbildung())
+
+    assert [(b.tvdb_id, b.ergebnis) for b in ergebnis.zu_entscheiden] == [(909091, "unbekannt")]
+    # Gefragt wird nur ueber TVDB: "tmdb:0" waere eine erfundene Kennung.
+    gefragt = [
+        eintrag["ref"]
+        for aufruf in nexcrate.calls
+        if aufruf[1].endswith("/lookup")
+        for eintrag in (aufruf[3] or {}).get("items", [])
+    ]
+    assert gefragt == ["tvdb:909091"]
+
+
 def test_die_probe_im_assistenten_nennt_anfrage_und_entfallende_rechte(
     assistent: TestClient,
 ) -> None:

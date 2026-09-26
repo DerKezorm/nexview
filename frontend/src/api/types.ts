@@ -1283,7 +1283,9 @@ export type UmstiegAbbildung = {
 /** Ein Posten, der eine Entscheidung braucht (Schritt 4). */
 export type UmstiegZuEntscheiden = {
   media_type: string;
+  /** 0 bei einer Serie, die Nexview nur unter ihrer TVDB-Nummer führt. */
   tmdb_id: number;
+  tvdb_id: number | null;
   titel: string;
   fassung: string;
   ergebnis: string;

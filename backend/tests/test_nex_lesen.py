@@ -224,6 +224,37 @@ def test_eine_serie_mit_luecke_ist_nur_teilweise_da() -> None:
     assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == "partial"
 
 
+@pytest.mark.parametrize(
+    ("state", "have", "erwartet"),
+    [
+        ("wanted", 2, "partial"),
+        ("problem", 2, "partial"),
+        ("downloading", 2, "partial"),
+        ("wanted", 0, "searching"),
+        ("unmonitored", 0, "searching"),
+    ],
+)
+def test_eine_gesuchte_serie_mit_dateien_ist_teilweise_da(
+    state: str, have: int, erwartet: str
+) -> None:
+    """⚠️ #note-40: nexcrate nennt eine Serie ``wanted``, solange **eine**
+    gesendete, ueberwachte Folge fehlt (``watching.state_from``) - auch wenn
+    hunderte daliegen. Nexview machte daraus "wird gesucht", und eine alte
+    Serie aus Sonarr stand nach dem Umstieg als nicht vorhanden da. Wie im
+    ARR-Betrieb (``library._status_for``) entscheidet, ob Dateien liegen."""
+    eintrag = {
+        "versions": [
+            {
+                "version_id": SERIE_HD,
+                "state": state,
+                "monitored": True,
+                "series": {"counts": {"have": have, "aired": 700, "expected": 700}},
+            }
+        ]
+    }
+    assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == erwartet
+
+
 async def test_die_kacheln_bekommen_den_stand_ihrer_fassung(
     nex: Any, nexcrate: FakeNexcrate
 ) -> None:

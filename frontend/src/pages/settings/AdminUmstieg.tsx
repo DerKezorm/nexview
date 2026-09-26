@@ -494,7 +494,9 @@ export function AdminUmstieg() {
               </p>
               <ul className="mt-3 flex flex-col gap-1 text-sm text-mist-300">
                 {ergebnis.zu_entscheiden.slice(0, 50).map((zeile) => (
-                  <li key={`${zeile.media_type}:${zeile.tmdb_id}:${zeile.fassung}`}>
+                  <li
+                    key={`${zeile.media_type}:${zeile.tmdb_id || `tvdb${zeile.tvdb_id}`}:${zeile.fassung}`}
+                  >
                     {zeile.titel || zeile.tmdb_id}
                     {zeile.kollidiert
                       ? `: ${t("umstieg.decideCollides")}`

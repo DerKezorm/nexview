@@ -224,6 +224,9 @@ async def probe(
             {
                 "media_type": b.media_type,
                 "tmdb_id": b.tmdb_id,
+                # Eine Serie, die Nexview nur unter ihrer TVDB-Nummer führt,
+                # hat keine TMDB-Nummer (0) - sie bleibt an dieser erkennbar.
+                "tvdb_id": b.tvdb_id,
                 "titel": b.titel,
                 "fassung": b.fassung,
                 "ergebnis": b.ergebnis,

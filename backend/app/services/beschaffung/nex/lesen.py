@@ -43,6 +43,13 @@ def zustand_der_kachel(eintrag: dict[str, Any], kennung: str) -> str | None:
     Oberfläche kennt sie, und die Hauptachse einer Karte heißt weiter
     `status`. Der Mittelweg gibt es nur bei Serien - eine Serie mit einer von
     elf Staffeln ist nicht „bereits geladen".
+
+    ⚠️ **Bei Serien entscheiden die Folgen, nicht der Zustand** (#note-40).
+    nexcrate nennt eine Serie ``wanted``, solange eine gesendete, überwachte
+    Folge fehlt (``watching.state_from``) - auch wenn hunderte daliegen. Aus
+    „gesucht" wurde hier „wird gesucht", und eine alte Serie aus Sonarr stand
+    nach dem Umstieg als nicht vorhanden da. Wie im ARR-Betrieb zählt, ob
+    Dateien liegen.
     """
     fassung = next(
         (f for f in eintrag.get("versions") or [] if str(f.get("version_id")) == kennung),
@@ -50,11 +57,11 @@ def zustand_der_kachel(eintrag: dict[str, Any], kennung: str) -> str | None:
     )
     if fassung is None:
         return None
-    if not mapping.hat_datei(fassung.get("state")):
-        return "searching"
     zahlen = ((fassung.get("series") or {}).get("counts")) or {}
     gesendet = int(zahlen.get("aired") or 0)
     vorhanden = int(zahlen.get("have") or 0)
+    if not mapping.hat_datei(fassung.get("state")) and vorhanden <= 0:
+        return "searching"
     if gesendet and vorhanden < gesendet:
         return "partial"
     return "downloaded"

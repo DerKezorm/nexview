@@ -190,6 +190,9 @@ def pruefe_abbildung(
 @dataclass
 class Titelbefund:
     media_type: str
+    #: ``0``, solange nur die TVDB-Nummer bekannt ist: Ein Posten aus Sonarr
+    #: trägt oft keine TMDB-Nummer (#note-40). Die Probe setzt dann die aus
+    #: nexcrate ein, wenn es eine gibt.
     tmdb_id: int
     tvdb_id: int | None
     titel: str
@@ -300,12 +303,11 @@ def _kollisionen_vermerken(
     doppelte = _doppelte_schluessel(db, abbildung, ergebnis.tmdb_je_tvdb())
     if not doppelte:
         return
-    betroffen = {
-        (posten.media_type.value, posten.tmdb_id, posten.fassung_kennung)
-        for posten in db.scalars(select(StorageEntry).where(StorageEntry.id.in_(doppelte)))
-    }
+    betroffen = _merkmale(
+        db.scalars(select(StorageEntry).where(StorageEntry.id.in_(doppelte)))
+    )
     for befund in ergebnis.befunde:
-        if (befund.media_type, befund.tmdb_id, befund.fassung) in betroffen:
+        if _merkmale_von(befund) & betroffen:
             befund.kollidiert = True
 
 
@@ -320,13 +322,32 @@ def _stehende_anfragen_vermerken(
     _, anfragen = _ohne_uebersetzung(db, abbildung, ergebnis.tmdb_je_tvdb())
     if not anfragen:
         return
-    betroffen = {
-        (anfrage.media_type.value, anfrage.tmdb_id, anfrage.fassung_kennung)
-        for anfrage in db.scalars(select(MediaRequest).where(MediaRequest.id.in_(anfragen)))
-    }
+    betroffen = _merkmale(
+        db.scalars(select(MediaRequest).where(MediaRequest.id.in_(anfragen)))
+    )
     for befund in ergebnis.befunde:
-        if (befund.media_type, befund.tmdb_id, befund.fassung) in betroffen:
+        if _merkmale_von(befund) & betroffen:
             befund.anfrage_bleibt = True
+
+
+def _merkmale_von(zeile: Any) -> set[tuple[str, str, int, str]]:
+    """Woran sich ein Titel je Fassung wiedererkennen lässt: TMDB, bei Serien auch TVDB.
+
+    ⚠️ **Beide Nummern, nicht nur TMDB.** Ein Posten aus Sonarr kennt oft nur
+    die TVDB-Nummer; über TMDB allein fiele er aus jedem Abgleich heraus.
+    """
+    art = getattr(zeile.media_type, "value", zeile.media_type)
+    fassung = getattr(zeile, "fassung_kennung", None) or getattr(zeile, "fassung", "")
+    gefunden: set[tuple[str, str, int, str]] = set()
+    if zeile.tmdb_id:
+        gefunden.add((art, "tmdb", zeile.tmdb_id, fassung))
+    if art == MediaType.tv.value and zeile.tvdb_id:
+        gefunden.add((art, "tvdb", zeile.tvdb_id, fassung))
+    return gefunden
+
+
+def _merkmale(zeilen: Any) -> set[tuple[str, str, int, str]]:
+    return {merkmal for zeile in zeilen for merkmal in _merkmale_von(zeile)}
 
 
 def _was_haengt(db: Session) -> list[Titelbefund]:
@@ -337,44 +358,62 @@ def _was_haengt(db: Session) -> list[Titelbefund]:
     ihre Fassung, die andere vielleicht nicht. Wer nach Titel gruppiert,
     verschweigt genau den Fall, der eine Entscheidung braucht - und das an
     beiden Enden, denn ein Speicherposten hängt ohnehin an einer Fassung.
+
+    ⚠️ **Auch ein Posten ohne TMDB-Nummer gehört dazu** (#note-40). Sonarr
+    führt Serien an der TVDB-Nummer, und so steht mancher Posten im
+    ARR-Betrieb: ``tv:sonarr-standard:tvdb:71663:s1`` ohne ``tmdb_id``. Hier
+    fiel er früher heraus, wurde nie gefragt, bekam deshalb keine Übersetzung
+    und blieb beim Umschalten unter der stillgelegten Arr-Fassung stehen -
+    ohne dass Schritt 4 ihn je genannt hätte. Erkannt wird ein Titel deshalb
+    an der TMDB- **oder** der TVDB-Nummer, je Fassung.
     """
-    gefunden: dict[tuple[str, int, str], Titelbefund] = {}
-    for anfrage in db.scalars(select(MediaRequest).where(MediaRequest.status.in_(OFFEN))):
-        if not anfrage.tmdb_id:
-            continue
-        schluessel = (anfrage.media_type.value, anfrage.tmdb_id, anfrage.fassung_kennung)
-        eintrag = gefunden.get(schluessel)
+    befunde: list[Titelbefund] = []
+    nach_merkmal: dict[tuple[str, str, int, str], Titelbefund] = {}
+
+    def einordnen(zeile: Any, *, anfrage: bool) -> None:
+        merkmale = _merkmale_von(zeile)
+        if not merkmale:
+            return
+        eintrag = next(
+            (
+                nach_merkmal[m]
+                for m in merkmale
+                if m in nach_merkmal
+                # Zwei verschiedene TMDB-Nummern sind zwei Titel, auch wenn
+                # Sonarr sie unter einer TVDB-Nummer führt - das ist eine
+                # Kollision, die die Probe gleich darauf zeigt.
+                and not (
+                    zeile.tmdb_id
+                    and nach_merkmal[m].tmdb_id
+                    and zeile.tmdb_id != nach_merkmal[m].tmdb_id
+                )
+            ),
+            None,
+        )
         if eintrag is None:
-            gefunden[schluessel] = Titelbefund(
-                media_type=anfrage.media_type.value,
-                tmdb_id=anfrage.tmdb_id,
-                tvdb_id=anfrage.tvdb_id,
-                titel=anfrage.title or "",
-                fassung=anfrage.fassung_kennung,
+            eintrag = Titelbefund(
+                media_type=zeile.media_type.value,
+                tmdb_id=zeile.tmdb_id or 0,
+                tvdb_id=zeile.tvdb_id,
+                titel=zeile.title or "",
+                fassung=zeile.fassung_kennung,
                 ergebnis="unbekannt",
-                anfrage=True,
             )
-        else:
+            befunde.append(eintrag)
+        eintrag.tmdb_id = eintrag.tmdb_id or zeile.tmdb_id or 0
+        eintrag.tvdb_id = eintrag.tvdb_id or zeile.tvdb_id
+        if anfrage:
             eintrag.anfrage = True
-    for posten in db.scalars(select(StorageEntry)):
-        if not posten.tmdb_id:
-            continue
-        schluessel = (posten.media_type.value, posten.tmdb_id, posten.fassung_kennung)
-        eintrag = gefunden.get(schluessel)
-        if eintrag is None:
-            gefunden[schluessel] = Titelbefund(
-                media_type=posten.media_type.value,
-                tmdb_id=posten.tmdb_id,
-                tvdb_id=posten.tvdb_id,
-                titel=posten.title or "",
-                fassung=posten.fassung_kennung,
-                ergebnis="unbekannt",
-                posten=True,
-            )
         else:
             eintrag.posten = True
-            eintrag.tvdb_id = eintrag.tvdb_id or posten.tvdb_id
-    return list(gefunden.values())
+        for merkmal in merkmale | _merkmale_von(eintrag):
+            nach_merkmal.setdefault(merkmal, eintrag)
+
+    for anfrage in db.scalars(select(MediaRequest).where(MediaRequest.status.in_(OFFEN))):
+        einordnen(anfrage, anfrage=True)
+    for posten in db.scalars(select(StorageEntry)):
+        einordnen(posten, anfrage=False)
+    return befunde
 
 
 async def probe(
@@ -411,6 +450,9 @@ async def probe(
             befund.ergebnis = "unbekannt"
             continue
         befund.tmdb_aus_nexcrate = kenntnis.tmdb_id
+        # Ein Posten, der nur seine TVDB-Nummer kannte, heißt ab hier so, wie
+        # nexcrate ihn führt - in der Liste und bei den Kollisionen.
+        befund.tmdb_id = befund.tmdb_id or kenntnis.tmdb_id or 0
         befund.anime = kenntnis.anime
         ziel = abbildung.get(befund.fassung)
         befund.ergebnis = "bekannt" if ziel and ziel in kenntnis.fassungen else "ohne_fassung"

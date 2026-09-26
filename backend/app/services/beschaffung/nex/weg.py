@@ -349,15 +349,23 @@ class NexBeschaffung(Beschaffung):
         entsteht die Uebersetzung der Speicherschluessel beim Umstieg. Wer nur
         ueber TMDB fragt, findet eine Serie nicht, die aus Sonarr uebernommen
         wurde und dort keine TMDB-Nummer hatte.
+
+        Ohne TMDB-Nummer (``tmdb_id`` 0, ein Posten, den Sonarr nur an der
+        TVDB-Nummer fuehrt) wird gleich ueber ``tvdb:`` gefragt - ``tmdb:0``
+        waere eine erfundene Kennung.
         """
         if not gesucht:
             return []
-        antworten = await self.client.lookup(
-            [
-                {"kind": mapping.kind(wonach.media_type), "ref": mapping.ref(wonach.tmdb_id)}
-                for wonach in gesucht
-            ]
-        )
+        erste = [
+            (nummer, {"kind": mapping.kind(wonach.media_type), "ref": mapping.ref(wonach.tmdb_id)})
+            for nummer, wonach in enumerate(gesucht)
+            if wonach.tmdb_id
+        ]
+        antworten: list[dict[str, Any]] = [{} for _ in gesucht]
+        if erste:
+            gelesen = await self.client.lookup([eintrag for _, eintrag in erste])
+            for (nummer, _), antwort in zip(erste, gelesen, strict=False):
+                antworten[nummer] = antwort
         nachfrage = [
             (nummer, {"kind": "series", "ref": f"tvdb:{wonach.tvdb_id}"})
             for nummer, (wonach, antwort) in enumerate(zip(gesucht, antworten, strict=False))

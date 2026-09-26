@@ -413,6 +413,107 @@ def test_alte_sicherungen_werden_aufgeraeumt(tmp_path: Path) -> None:
     assert all("0.5.0" in n or "0.6.0" in n or "0.7.0" in n for n in uebrig), uebrig
 
 
+def test_die_letzte_sicherung_vor_einem_update_bleibt_liegen(tmp_path: Path) -> None:
+    """Sie ist der Rueckweg auf die alte Fassung und faellt nicht der Rotation zum Opfer.
+
+    Mit dem woechentlichen Takt und fuenf Plaetzen war sie nach rund fuenf
+    Wochen weg. Aeltere Sicherungen vor Updates laufen dagegen normal mit.
+    """
+    import json
+    import os
+
+    from app.services import sicherung
+
+    ordner = tmp_path / "sicherungen"
+    ordner.mkdir()
+
+    def anlegen(name: str, minute: int, kommentar: str = "") -> None:
+        datei = ordner / f"{name}.db"
+        datei.write_text("x", encoding="utf-8")
+        (ordner / f"{name}.json").write_text(
+            json.dumps(
+                {"version": "1.0.0", "schema": "", "erstellt": "", "art": "automatisch",
+                 "kommentar": kommentar}
+            ),
+            encoding="utf-8",
+        )
+        os.utime(datei, (1_700_000_000 + minute * 60,) * 2)
+
+    anlegen("vor-update-alt", 0, f"{sicherung.VOR_UPDATE}0.35.0")
+    anlegen("vor-update-neu", 1, f"{sicherung.VOR_UPDATE}1.0.0")
+    for nummer in range(6):
+        anlegen(f"takt-{nummer}", 10 + nummer)
+
+    sicherung.aufraeumen(behalten=3, ordner_=ordner)
+
+    uebrig = sorted(p.stem for p in ordner.glob("*.db"))
+    assert uebrig == ["takt-3", "takt-4", "takt-5", "vor-update-neu"]
+    assert sicherung.vor_update(ordner).stem == "vor-update-neu"
+
+
+def test_eine_aeltere_fassung_verweigert_den_start(alte_installation: Path) -> None:
+    """Hat eine neuere Fassung schon hier gearbeitet, startet eine aeltere nicht.
+
+    Sie wuerde die Daten lautlos veraendern, wie 0.35.2 auf einer Datenbank von
+    1.0.0 (#note-22). Die Meldung nennt den Rueckweg samt Sicherung.
+    """
+    from app import __version__
+
+    db_modul.init_db()
+    assert _merker(alte_installation) == db_modul._fassungszahl(__version__)
+    rueckweg = next((alte_installation.parent / "sicherungen").glob("*.db"))
+
+    # Eine spaetere Fassung ist hier gelaufen.
+    neuer = create_engine(f"sqlite:///{alte_installation}")
+    with neuer.begin() as verbindung:
+        verbindung.exec_driver_sql(f"PRAGMA user_version = {db_modul._fassungszahl('1.2.0')}")
+    neuer.dispose()
+    buch_vorher = _buch(alte_installation)
+
+    with pytest.raises(db_modul.NeuereDatenbank) as abbruch:
+        db_modul.init_db()
+
+    meldung = str(abbruch.value)
+    assert "1.2.0" in meldung
+    assert __version__ in meldung
+    assert rueckweg.name in meldung
+    # Nichts angefasst: weder Buch noch Merker noch eine neue Sicherung.
+    assert _buch(alte_installation) == buch_vorher
+    assert _merker(alte_installation) == db_modul._fassungszahl("1.2.0")
+    assert len(list((alte_installation.parent / "sicherungen").glob("*.db"))) == 1
+
+
+def test_der_merker_steigt_nur(alte_installation: Path) -> None:
+    from app import __version__
+
+    db_modul.init_db()
+    aelter = create_engine(f"sqlite:///{alte_installation}")
+    with aelter.begin() as verbindung:
+        verbindung.exec_driver_sql(f"PRAGMA user_version = {db_modul._fassungszahl('0.35.2')}")
+    aelter.dispose()
+
+    db_modul.init_db()
+
+    assert _merker(alte_installation) == db_modul._fassungszahl(__version__)
+    assert db_modul._fassung_aus_zahl(db_modul._fassungszahl("1.2.3")) == "1.2.3"
+
+
+def _merker(pfad: Path) -> int:
+    lesen = create_engine(f"sqlite:///{pfad}")
+    with lesen.connect() as verbindung:
+        zahl = verbindung.exec_driver_sql("PRAGMA user_version").scalar()
+    lesen.dispose()
+    return zahl
+
+
+def _buch(pfad: Path) -> list:
+    lesen = create_engine(f"sqlite:///{pfad}")
+    with lesen.connect() as verbindung:
+        zeilen = verbindung.exec_driver_sql("SELECT * FROM wanderungen ORDER BY 1").all()
+    lesen.dispose()
+    return [tuple(zeile) for zeile in zeilen]
+
+
 def test_update_ordnet_bestandsanfragen_der_standard_stufe_zu(alte_installation: Path) -> None:
     """Was vor der 4K-Instanz angefragt wurde, gehoert zur Standard-Fassung.
 

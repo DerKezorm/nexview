@@ -223,6 +223,12 @@ PFLEGE_SCHRITTE = (
     # Lesen den Stand vor der Sicherung und nennen danach den Rueckweg; beide
     # aendern nichts an den Daten.
     "_datenstand",
+    # Merker und Riegel gegen aeltere Fassungen: pruefen, setzen und anlegen
+    # muessen bei jedem Start laufen, auch auf laengst gewanderten Datenbanken.
+    "_merker_pruefen",
+    "_merker_setzen",
+    "_alte_spalten_abraeumen",
+    "_riegel_anlegen",
     "_backup_database",
     "_rueckweg_nennen",
     "create_all",
@@ -294,6 +300,9 @@ def init_db() -> None:
     der Schema-Pruefung ihren Kurzweg "die Datei gibt es noch gar nicht".
     Lesen aendert am Schema nichts, die Reihenfolge der beiden ist also frei.
     """
+    # Vor allem anderen: Hat schon eine neuere Fassung auf dieser Datenbank
+    # gearbeitet, wird hier nichts angefasst, auch nicht das Buch.
+    _merker_pruefen()
     ausstehend = _pending_changes()
     _buchtabelle_anlegen()
     befund, spuren = _ankunftsbefund()
@@ -322,6 +331,10 @@ def init_db() -> None:
     # sonst beim ersten Start fuer verwaist und warnte vor einem Datenverlust,
     # den es nicht gibt - eine Zeile spaeter sind sie umgezogen.
     _einmal(_fassungen_einfuehren)
+    # Erst wenn die Stufen-Spalten sicher weg sind: Der Riegel feuert, sobald
+    # sie wieder da sind, und haette sonst schon die Wanderung selbst gestoppt.
+    _alte_spalten_abraeumen()
+    _riegel_anlegen()
     # Direkt hinter dem Ergaenzen, denn erst danach steht fest, was wirklich
     # uebrig bleibt und nicht bloss noch nicht angelegt war.
     _verwaiste_spalten_melden()
@@ -339,6 +352,8 @@ def init_db() -> None:
     _einmal(_medienserver_posten_abraeumen)
     _betreiber_bestimmen()
     _speicher_zurueckgeben_umstellen()
+    # Zuletzt: Erst ein vollstaendiger Start zaehlt als "diese Fassung lief hier".
+    _merker_setzen()
     if vorher is not None:
         _rueckweg_nennen(*vorher)
 
@@ -400,6 +415,252 @@ def _datenstand() -> str:
             if zeile[0]
         ]
     return max(versionen, key=_als_zahlen) if versionen else "0"
+
+
+# ---------------------------------------------------------------------------
+# Aeltere Fassungen fernhalten
+# ---------------------------------------------------------------------------
+
+
+class NeuereDatenbank(RuntimeError):
+    """Auf dieser Datenbank lief schon eine neuere Fassung - der Start wird verweigert."""
+
+
+def _fassungszahl(version: str) -> int:
+    """``1.2.3`` als eine Zahl, wie ``PRAGMA user_version`` sie haelt (1002003)."""
+    from .services.sicherung import _als_zahlen
+
+    zahl = 0
+    for teil in (list(_als_zahlen(version)) + [0, 0, 0])[:3]:
+        zahl = zahl * 1000 + min(teil, 999)
+    return zahl
+
+
+def _fassung_aus_zahl(zahl: int) -> str:
+    return f"{zahl // 1_000_000}.{zahl // 1000 % 1000}.{zahl % 1000}"
+
+
+def _merker_pruefen() -> None:
+    """Den Start verweigern, wenn schon eine neuere Fassung hier gearbeitet hat.
+
+    ⚠️ **Eine aeltere Fassung auf einer gewanderten Datenbank beschaedigt sie
+    lautlos** - gemessen am Rueckweg von 1.0.0 auf 0.35.2 (#note-22): offene
+    Anfragen abgebrochen, 4K-Rechte weg, Speicherposten neu aufgebaut, bei
+    gruenem Gesundheitszustand. 0.35.2 laesst sich nicht mehr aendern, dagegen
+    steht der Riegel (``_riegel_anlegen``). Ab 1.0.0 merkt sich jede Fassung
+    in ``PRAGMA user_version`` die hoechste, die je hier gestartet ist; eine
+    aeltere haelt hier an, bevor sie irgendetwas schreibt.
+
+    Verweigern und nicht bloss warnen: Eine Warnung im Protokoll liest man nach
+    dem Schaden, und der Container stuende gruen da. Ein Container, der nicht
+    hochkommt, faellt sofort auf - und die Meldung nennt den Rueckweg.
+
+    ``user_version`` und keine Tabelle: Es steht im Kopf der Datei, braucht
+    kein Schema und wird von keiner Fassung vor 1.0.0 angefasst.
+    """
+    if not _settings.db_path.exists():
+        return
+    with engine.connect() as verbindung:
+        gesehen = verbindung.exec_driver_sql("PRAGMA user_version").scalar() or 0
+    if gesehen <= _fassungszahl(__version__):
+        return
+
+    from .services import sicherung
+
+    neuer = _fassung_aus_zahl(gesehen)
+    rueckweg = sicherung.vor_update(hoechstens=__version__)
+    if rueckweg is not None:
+        weg = (
+            f"To go back, restore the backup {rueckweg.name} from the backups folder "
+            f"(sicherungen/ in the data directory) over nexview.db, delete nexview.db-wal and "
+            f"nexview.db-shm, then start this version again. Or start Nexview {neuer} again"
+        )
+    else:
+        weg = (
+            f"No backup from before the update to {neuer} was found for this version. "
+            f"Start Nexview {neuer} again, or restore an older copy of nexview.db made "
+            f"before the update"
+        )
+    meldung = (
+        f"This database has already been used by Nexview {neuer}, which is newer than this "
+        f"version ({__version__}). Nexview does not start: an older version cannot read the "
+        f"newer data correctly and would change it silently. {weg}."
+    )
+    logger.critical(meldung)
+    raise NeuereDatenbank(meldung)
+
+
+def _merker_setzen() -> None:
+    """Festhalten, dass diese Fassung hier gelaufen ist - nur nach oben.
+
+    Gelesen wird zuerst: Ab dem zweiten Start steht die Zahl schon da, und ein
+    Schreibvorgang nur fuers Nachsehen kostet die Testreihe einen Commit je
+    Test.
+    """
+    eigene = _fassungszahl(__version__)
+    with engine.connect() as verbindung:
+        gesehen = verbindung.exec_driver_sql("PRAGMA user_version").scalar() or 0
+    if gesehen >= eigene:
+        return
+    with engine.begin() as verbindung:
+        # Eine Zahl aus der eigenen Fassung, kein Wert von aussen.
+        verbindung.exec_driver_sql(f"PRAGMA user_version = {eigene:d}")
+
+
+#: Je Tabelle die Spalte, an der eine Fassung vor 1.0.0 zu erkennen ist. Sie
+#: legt sie beim Start wieder an (``_add_missing_columns`` dort), denn 1.0.0
+#: hat sie beim Einfuehren der Fassungen entfernt.
+RIEGEL_SPALTEN: dict[str, str] = {
+    "users": "can_request_uhd_movies",
+    "media_requests": "tier",
+    "storage_entries": "tier",
+}
+
+_RIEGEL_VORGAENGE = ("INSERT", "UPDATE", "DELETE")
+
+
+def riegel_meldung() -> str:
+    """Der Satz, mit dem der Riegel ein Schreiben abbricht.
+
+    Ohne Hochkomma und ohne Anfuehrungszeichen: Er steht als SQL-Zeichenkette
+    im Trigger.
+    """
+    return (
+        f"This database belongs to Nexview {__version__} or newer. An older version must not "
+        "write to it, it would silently cancel requests and drop rights. To go back, stop "
+        "Nexview, restore the backup taken before the update (sicherungen folder, comment "
+        "Before update to ...) over nexview.db, then start the older version. "
+        "See Going back to an older version in the README."
+    )
+
+
+def _riegel_sql() -> dict[str, str]:
+    """Die Trigger des Riegels: Name und vollstaendiger Text."""
+    meldung = riegel_meldung().replace("'", "")
+    return {
+        f"nexview_riegel_{tabelle}_{vorgang.lower()}": (
+            f"CREATE TRIGGER nexview_riegel_{tabelle}_{vorgang.lower()} "  # noqa: S608 - feste Namen
+            f"BEFORE {vorgang} ON {tabelle} "
+            f"WHEN EXISTS (SELECT 1 FROM pragma_table_info('{tabelle}') WHERE name = '{spalte}') "
+            f"BEGIN SELECT RAISE(ABORT, '{meldung}'); END"
+        )
+        for tabelle, spalte in RIEGEL_SPALTEN.items()
+        for vorgang in _RIEGEL_VORGAENGE
+    }
+
+
+def _riegel_anlegen() -> None:
+    """Trigger, die eine Fassung vor 1.0.0 am Schreiben hindern.
+
+    ⚠️ **Warum es sie gibt.** Wer nach dem Update auf 1.0.0 einfach das alte
+    Abbild wieder startet - der naheliegendste Rueckweg -, beschaedigte bis
+    hierher seine Daten lautlos (#note-22, gemessen an 0.35.2): Die alte
+    Fassung legt ihre Stufen-Spalten leer wieder an, liest daraus "kein
+    4K-Recht" und "Stufe standard", bricht deshalb laufende 4K-Anfragen ab und
+    baut jeden Speicherposten neu auf. Gesundheitszustand gruen, keine Meldung
+    in der Oberflaeche. Aendern laesst sich 0.35.2 nicht mehr; die Datenbank
+    schon.
+
+    **Wie.** Je Tabelle und Vorgang ein ``BEFORE``-Trigger, der nur feuert,
+    wenn die alte Spalte wieder da ist (``RIEGEL_SPALTEN``). Diese Fassung hat
+    sie nie, fuer sie bleibt der Riegel folgenlos. Die alte legt sie beim
+    Start per ``ALTER TABLE`` an - das feuert keinen Trigger -, und ab da
+    bricht jedes Schreiben an Konten, Anfragen und Speicherposten mit dem Satz
+    aus ``riegel_meldung`` ab: Anmelden, Abbrechen, Neuaufbau. Laut statt
+    still, und die Daten bleiben, wie sie waren.
+
+    **Was er kostet.** Die Bedingung wird je geaenderter Zeile ausgewertet,
+    gemessen gut 20 Mikrosekunden je Zeile; der Speicherabgleich, der jede
+    Zeile anfasst, braucht fuer 5.000 Posten 0,23 statt 0,15 s (Zahlen im
+    Kopf von ``test_riegel_gegen_alte_fassungen.py``). Billiger ginge es mit
+    einer Textsuche im Tabellenschema, aber ``pragma_table_info`` fragt genau
+    das, worum es geht.
+
+    Angelegt wird bei jedem Start, damit auch eine schon vorher gewanderte
+    Datenbank ihn bekommt; neu geschrieben nur, wenn sich der Text geaendert
+    hat (etwa die Fassung im Satz).
+    """
+    soll = _riegel_sql()
+    with engine.connect() as verbindung:
+        ist = dict(
+            verbindung.exec_driver_sql(
+                "SELECT name, sql FROM sqlite_master "
+                "WHERE type = 'trigger' AND name LIKE 'nexview_riegel_%'"
+            ).all()
+        )
+        tabellen = {
+            zeile[0]
+            for zeile in verbindung.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        # Steht die alte Spalte noch da, wuerde der Riegel diese Fassung selbst
+        # aussperren. ``_alte_spalten_abraeumen`` laeuft davor; bleibt trotzdem
+        # eine stehen, lieber ohne Riegel weiter als gar nicht.
+        noch_da = [
+            f"{tabelle}.{spalte}"
+            for tabelle, spalte in RIEGEL_SPALTEN.items()
+            if tabelle in tabellen and spalte in _existing_columns(verbindung, tabelle)
+        ]
+    if noch_da:
+        logger.warning(
+            "Guard against older versions not installed: old columns still present (%s)",
+            ", ".join(noch_da),
+        )
+        return
+    if ist == soll or not set(RIEGEL_SPALTEN) <= tabellen:
+        return
+    with engine.begin() as verbindung:
+        for name in ist:
+            verbindung.exec_driver_sql(f'DROP TRIGGER IF EXISTS "{name}"')
+        for text in soll.values():
+            verbindung.exec_driver_sql(text)
+
+
+def _alte_spalten_abraeumen() -> None:
+    """Stufen-Spalten, die eine aeltere Fassung wieder angelegt hat, entfernen.
+
+    Das geschieht, wenn nach 1.0.0 eine Fassung davor gestartet wurde: Sie
+    legt ihre Spalten leer wieder an. Der Riegel haelt sie danach vom
+    Schreiben ab, aber die Spalten bleiben - und solange sie stehen, sperrte
+    der Riegel auch diese Fassung aus. Ihr Inhalt ist nur die Vorgabe der
+    alten Fassung, diese liest ihn nicht.
+
+    Nur wenn die Fassungen laengst eingefuehrt sind (Buch). Davor sind es die
+    echten alten Spalten, und die traegt ``_fassungen_einfuehren`` um.
+    """
+    with engine.connect() as verbindung:
+        herkunft = verbindung.exec_driver_sql(
+            f"SELECT wanderung_herkunft FROM {WANDERUNGSBUCH} "  # noqa: S608 - fester Name
+            "WHERE wanderung_name = '_fassungen_einfuehren'"
+        ).scalar()
+        if herkunft is None or herkunft == OFFEN:
+            return
+        tabellen = {
+            zeile[0]
+            for zeile in verbindung.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        wieder = [
+            (tabelle, spalte)
+            for tabelle, alte in STUFEN_SPALTEN.items()
+            if tabelle in tabellen
+            for spalte in alte
+            if spalte in _existing_columns(verbindung, tabelle)
+        ]
+    if not wieder:
+        return
+    with engine.begin() as verbindung:
+        for tabelle, spalte in wieder:
+            verbindung.exec_driver_sql(f'ALTER TABLE "{tabelle}" DROP COLUMN "{spalte}"')
+    logger.warning(
+        "An older Nexview was started on this database and added its old columns again: %s. "
+        "They have been removed. If that version ran without the guard against older "
+        "versions, it may have cancelled open requests or rebuilt storage entries; check "
+        "requests cancelled while it was running",
+        ", ".join(f"{tabelle}.{spalte}" for tabelle, spalte in wieder),
+    )
 
 
 def _buchtabelle_anlegen() -> None:
@@ -1388,7 +1649,7 @@ def _backup_database(stand: str | None = None) -> Path | None:
 
     try:
         return sicherung.anlegen(
-            art=sicherung.AUTOMATISCH, kommentar=f"Before update to {__version__}", version=stand
+            art=sicherung.AUTOMATISCH, kommentar=f"{sicherung.VOR_UPDATE}{__version__}", version=stand
         )
     except Exception as fehler:  # noqa: BLE001 - Start darf daran nicht scheitern
         logger.warning("Database backup failed: %s", fehler)

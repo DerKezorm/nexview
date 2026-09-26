@@ -66,6 +66,12 @@ MANUELL = "manuell"
 #: naechsten Versionssprung verlieren.
 AUTOMATISCH_BEHALTEN = 5
 
+#: So beginnt der Kommentar der Sicherung, die ``db.init_db`` vor einer
+#: Wanderung anlegt; dahinter steht die Fassung, auf die gewandert wird. Daran
+#: erkennen die Rotation und die Startsperre fuer aeltere Fassungen genau diese
+#: Sicherung wieder.
+VOR_UPDATE = "Before update to "
+
 #: Tabellen, die beim Sichern geleert werden.
 #:
 #: ⚠️ Das ist kein Detail, sondern der Unterschied zwischen 180 MB und 3 MB:
@@ -507,15 +513,22 @@ def aufraeumen(behalten: int = AUTOMATISCH_BEHALTEN, ordner_: Path | None = None
     ⚠️ Von Hand angelegte Sicherungen bleiben, egal wie viele es sind. Wer
     bewusst eine anlegt, bevor er etwas Riskantes tut, darf sie nicht dadurch
     verlieren, dass Nexview zwischendurch fuenfmal startet.
+
+    ⚠️ **Die juengste Sicherung vor einem Update bleibt ebenfalls liegen** und
+    zaehlt nicht mit. Sie ist der einzige Rueckweg auf die alte Fassung (eine
+    aeltere Fassung auf der gewanderten Datenbank zu starten, beschaedigt sie,
+    #note-22). Mit dem woechentlichen Takt und fuenf Plaetzen war sie nach
+    rund fuenf Wochen weg. Aeltere Sicherungen vor Updates laufen normal mit.
     """
     ziel_ordner = ordner_ or ordner()
     if not ziel_ordner.is_dir():
         return 0
 
+    geschont = vor_update(ziel_ordner)
     automatisch = [
         datei
         for datei in ziel_ordner.glob("*.db")
-        if _steckbrief_lesen(datei).art == AUTOMATISCH
+        if _steckbrief_lesen(datei).art == AUTOMATISCH and datei != geschont
     ]
     automatisch.sort(key=lambda p: p.stat().st_mtime, reverse=True)
 
@@ -527,6 +540,27 @@ def aufraeumen(behalten: int = AUTOMATISCH_BEHALTEN, ordner_: Path | None = None
         except OSError as fehler:
             logger.warning("Could not delete old backup %s: %s", alt.name, fehler)
     return entfernt
+
+
+def vor_update(ordner_: Path | None = None, *, hoechstens: str | None = None) -> Path | None:
+    """Die juengste Sicherung, die vor einem Update angelegt wurde - oder ``None``.
+
+    ``hoechstens``: nur eine, deren Daten nicht neuer sind als diese Fassung.
+    So findet eine aeltere Fassung, die den Start verweigert, die Sicherung,
+    die sie selbst wieder einspielen koennte.
+    """
+    ziel_ordner = ordner_ or ordner()
+    if not ziel_ordner.is_dir():
+        return None
+    kandidaten = []
+    for sicherung in ziel_ordner.glob("*.db"):
+        brief = _steckbrief_lesen(sicherung)
+        if brief.art != AUTOMATISCH or not brief.kommentar.startswith(VOR_UPDATE):
+            continue
+        if hoechstens is not None and _als_zahlen(brief.version) > _als_zahlen(hoechstens):
+            continue
+        kandidaten.append(sicherung)
+    return max(kandidaten, key=lambda p: p.stat().st_mtime, default=None)
 
 
 def datei(name: str) -> Path:

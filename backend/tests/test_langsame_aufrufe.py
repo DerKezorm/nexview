@@ -47,6 +47,9 @@ def test_die_schwelle_liegt_bei_drei_sekunden() -> None:
         "/api/setup/seerr/vorschau",
         "/api/admin/mediaserver/library/refresh",
         "/api/storage/abgleich",
+        # #job-43: Zurueckholen fragt nexcrate, das dabei TMDB oder
+        # MusicBrainz fragt - kann ebenso lange dauern wie eine Anfrage.
+        "/api/beschaffung/papierkorb/1/zurueckholen",
     ],
 )
 def test_absichtlich_langsame_adressen_warnen_nicht(

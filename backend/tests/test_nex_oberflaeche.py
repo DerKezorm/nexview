@@ -218,8 +218,12 @@ def test_eine_serie_heisst_nach_aussen_tv(
 def test_zurueckholen_geht_an_den_weg(
     nex_client_admin: TestClient, nexcrate: FakeNexcrate
 ) -> None:
+    """⚠️ #job-43: Die Antwort trägt seither ``created`` - die Oberfläche
+    braucht es, um ein gewöhnliches Zurückholen von einer Neuanlage zu
+    unterscheiden ("Datei zurück, nicht überwacht" statt "angefragt")."""
     antwort = nex_client_admin.post("/api/beschaffung/papierkorb/7/zurueckholen")
-    assert antwort.status_code == 204
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json() == {"created": False}
     assert any(ruf[1].endswith("/recycle-bin/7/restore") for ruf in nexcrate.calls)
 
 

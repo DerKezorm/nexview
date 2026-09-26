@@ -163,6 +163,19 @@ def test_ein_ausfall_bei_radarr_laesst_die_seite_stehen(
     assert antwort.json() == {}
 
 
+def _unbekannte_tmdb_id(_pfad: str, _params: dict) -> dict:
+    """Wie Radarr auf eine tmdb_id antwortet, die es nicht kennt: 500 statt
+    404, mit genau diesem Wortlaut (belegt im Befund)."""
+    from app.services.beschaffung.arr.client import ArrError
+
+    raise ArrError(
+        "Radarr meldet einen Fehler (HTTP 500).",
+        500,
+        code="arr_http_error",
+        grund="Movie with tmdbId 909524 was not found, it may have been removed from TMDb.",
+    )
+
+
 def test_ein_gescheiterter_nachschlag_wird_nicht_bei_jeder_seite_wiederholt(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -170,15 +183,7 @@ def test_ein_gescheiterter_nachschlag_wird_nicht_bei_jeder_seite_wiederholt(
     ("was not found ... it may have been removed from TMDb"). Ohne das zu
     merken, fragt jede Seite in Minutenabstand erneut nach demselben Film, der
     nie eine Antwort bekommen wird."""
-    from app.services.beschaffung.arr.client import ArrError
-
-    def lesen(_pfad: str, _params: dict) -> dict:
-        raise ArrError(
-            "Movie with tmdbId 909524 was not found, it may have been removed from TMDb.",
-            500,
-        )
-
-    fake = FakeArr(art="movie", lesen=lesen)
+    fake = FakeArr(art="movie", lesen=_unbekannte_tmdb_id)
     monkeypatch.setattr(portal_ratings, "radarr_client", lambda _settings: fake)
 
     erste = arr_client.get("/api/ratings/movie", params={"ids": "909524"})
@@ -188,3 +193,44 @@ def test_ein_gescheiterter_nachschlag_wird_nicht_bei_jeder_seite_wiederholt(
     assert zweite.status_code == 200
     # Der zweite Aufruf haette Radarr gar nicht mehr fragen duerfen.
     assert len(fake.gelesen) == 1
+
+
+def test_ein_bestaetigt_unbekannter_titel_bleibt_einen_tag_gemerkt(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Genau der im Befund belegte Fall (Status und Wortlaut von Radarr) darf
+    einen ganzen Tag lang nicht erneut gefragt werden - er aendert sich nie
+    von selbst, die tmdb_id bleibt unbekannt."""
+    uhr = [1_000.0]
+    monkeypatch.setattr("time.monotonic", lambda: uhr[0])
+    fake = FakeArr(art="movie", lesen=_unbekannte_tmdb_id)
+    monkeypatch.setattr(portal_ratings, "radarr_client", lambda _settings: fake)
+
+    arr_client.get("/api/ratings/movie", params={"ids": "909524"})
+    uhr[0] += 6 * 60 * 60  # sechs Stunden spaeter
+    arr_client.get("/api/ratings/movie", params={"ids": "909524"})
+
+    assert len(fake.gelesen) == 1
+
+
+def test_ein_voruebergehender_fehler_wird_nur_kurz_gemerkt(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Eine Zeitueberschreitung oder ein anderer Aussetzer ist keine bestaetigt
+    unbekannte tmdb_id - sie darf sich nicht einen ganzen Tag lang wie eine
+    solche verhalten, sonst verdeckt ein kurzer Ausfall eine echte Bewertung."""
+    from app.services.beschaffung.arr.client import ArrError
+
+    def wirft(_pfad: str, _params: dict) -> dict:
+        raise ArrError("Radarr antwortet nicht (Zeitüberschreitung).", ungewiss=True, code="arr_timeout")
+
+    uhr = [1_000.0]
+    monkeypatch.setattr("time.monotonic", lambda: uhr[0])
+    fake = FakeArr(art="movie", lesen=wirft)
+    monkeypatch.setattr(portal_ratings, "radarr_client", lambda _settings: fake)
+
+    arr_client.get("/api/ratings/movie", params={"ids": "603"})
+    uhr[0] += 6 * 60  # sechs Minuten spaeter - laenger als die kurze Frist
+    arr_client.get("/api/ratings/movie", params={"ids": "603"})
+
+    assert len(fake.gelesen) == 2

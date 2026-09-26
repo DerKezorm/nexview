@@ -38,8 +38,16 @@ from .library import radarr_client
 
 logger = logging.getLogger("nexview.portal_ratings")
 
-# Wertungen aendern sich langsam - einmal am Tag reicht voellig.
+# Wertungen aendern sich langsam - einmal am Tag reicht voellig. Gilt auch
+# fuer eine tmdb_id, die Radarr bestaetigt nicht kennt: Das aendert sich nie
+# von selbst.
 TTL_SECONDS = 24 * 60 * 60
+
+# Ein bloss voruebergehender Aussetzer (Zeitueberschreitung, Instanz gerade
+# nicht erreichbar, eine unerwartete Antwort) ist keine bestaetigt unbekannte
+# tmdb_id - er darf sich nicht wie eine solche einen ganzen Tag lang verhalten,
+# sonst verdeckt ein kurzer Ausfall eine echte Bewertung ebenso lang.
+TTL_VORUEBERGEHEND_SECONDS = 5 * 60
 
 # Wie viele Abfragen gleichzeitig an Radarr gehen. Jede loest dort eine
 # Abfrage beim Metadatendienst aus; mehr als eine Handvoll auf einmal bringt
@@ -70,6 +78,10 @@ class Ratings:
         )
 
 
+#: tmdb_id -> (Ablaufzeitpunkt, Bewertung). Der Ablauf steht schon fest, statt
+#: bei jedem Lesen aus Eintragszeit plus einer festen Frist ausgerechnet zu
+#: werden - so kann ein Eintrag je nachdem, was ihn hineingelegt hat, eine
+#: eigene Frist tragen (siehe ``TTL_VORUEBERGEHEND_SECONDS``).
 _cache: dict[int, tuple[float, Ratings]] = {}
 
 
@@ -77,11 +89,27 @@ def _lesen(tmdb_id: int) -> Ratings | None:
     eintrag = _cache.get(tmdb_id)
     if eintrag is None:
         return None
-    zeit, wert = eintrag
-    if time.monotonic() - zeit > TTL_SECONDS:
+    ablauf, wert = eintrag
+    if time.monotonic() > ablauf:
         del _cache[tmdb_id]
         return None
     return wert
+
+
+def _merken(tmdb_id: int, wert: Ratings, sekunden: float) -> None:
+    _cache[tmdb_id] = (time.monotonic() + sekunden, wert)
+
+
+def _bestaetigt_unbekannt(fehler: ArrError) -> bool:
+    """Genau der im Befund belegte Fall: Radarr antwortet auf eine tmdb_id,
+    die es nicht kennt, mit einem eigenen 500 statt einem 404 ("Movie with
+    tmdbId ... was not found, it may have been removed from TMDb."). Nur das
+    aendert sich nie von selbst - jeder andere Fehler (Zeitueberschreitung,
+    Instanz gerade nicht erreichbar, ein anderer 5xx) kann sich schon beim
+    naechsten Versuch erledigt haben.
+    """
+    wortlaut = fehler.grund.casefold()
+    return fehler.status_code == 500 and "was not found" in wortlaut and "tmdb" in wortlaut
 
 
 def _auswerten(roh: dict) -> Ratings:
@@ -140,17 +168,12 @@ async def for_movies(settings: AppSettings, tmdb_ids: list[int]) -> dict[int, Ra
         async with plaetze:
             try:
                 treffer = await client.get("/movie/lookup/tmdb", {"tmdbId": tmdb_id})
-            except ArrError:
-                # ⚠️ Auch das gemerkt, mit derselben Frist wie ein leeres
-                # Ergebnis. Radarr antwortet auf eine tmdb_id, die es nicht
-                # kennt, mit einem eigenen 500 statt einem 404 ("was not
-                # found ... it may have been removed from TMDb.") - ohne
-                # diese Zeile fragte jede Seite in Minutenabstand erneut nach
-                # demselben Film, der nie eine Antwort bekommen wird. Ein
-                # bloss voruebergehender Ausfall haette dieselbe Folge wie ein
-                # echtes "kennt Radarr nicht" - beides ist hier gleich billig,
-                # denn Bewertungen sind Beiwerk.
-                _cache[tmdb_id] = (time.monotonic(), Ratings())
+            except ArrError as fehler:
+                # ⚠️ Auch ein Fehlschlag wird gemerkt, sonst fragt jede Seite
+                # erneut nach demselben Film. Wie lange, haengt aber daran, ob
+                # sich das von selbst aendern kann - siehe ``_bestaetigt_unbekannt``.
+                sekunden = TTL_SECONDS if _bestaetigt_unbekannt(fehler) else TTL_VORUEBERGEHEND_SECONDS
+                _merken(tmdb_id, Ratings(), sekunden)
                 return
             if isinstance(treffer, list):
                 treffer = treffer[0] if treffer else None
@@ -160,7 +183,7 @@ async def for_movies(settings: AppSettings, tmdb_ids: list[int]) -> dict[int, Ra
             bewertung = _auswerten(treffer)
             # Auch ein leeres Ergebnis merken: sonst fragt jede Seite erneut
             # nach einem Film, zu dem es nun einmal nichts gibt.
-            _cache[tmdb_id] = (time.monotonic(), bewertung)
+            _merken(tmdb_id, bewertung, TTL_SECONDS)
             if not bewertung.leer:
                 ergebnis[tmdb_id] = bewertung
 

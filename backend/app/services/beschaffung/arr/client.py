@@ -54,6 +54,24 @@ class ArrError(BeschaffungError):
         {"arr_timeout", "arr_unreachable", "arr_unexpected_answer"}
     )
 
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        ungewiss: bool = False,
+        code: str | None = None,
+        korb: Korb | None = None,
+        grund: str = "",
+        **zahlen: object,
+    ) -> None:
+        super().__init__(message, status_code, ungewiss, code, korb, **zahlen)
+        #: Der rohe Antworttext der Instanz, bewusst getrennt von ``zahlen``:
+        #: Er ist englisch, technisch, kann Feldnamen der Instanz nennen und
+        #: landet deshalb nie in ``als_meldung()``. Gedacht fuer Aufrufer, die
+        #: am Wortlaut selbst erkennen muessen, ob ein Fehlschlag dauerhaft
+        #: ist (ein unbekannter Titel bleibt unbekannt) oder nur vorbeigeht.
+        self.grund = grund
+
     def _korb_ableiten(self) -> Korb:
         if self.code in self.VORUEBERGEHEND:
             return Korb.voruebergehend
@@ -174,6 +192,7 @@ class ArrClient:
                 code="arr_http_error",
                 service=self.label,
                 status=response.status_code,
+                grund=grund,
             )
 
         if not response.content:

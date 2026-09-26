@@ -57,7 +57,7 @@ def _http_error(error: TmdbError) -> HTTPException:
         code = status.HTTP_429_TOO_MANY_REQUESTS
     else:
         code = status.HTTP_502_BAD_GATEWAY
-    return HTTPException(status_code=code, detail=error.message)
+    return HTTPException(status_code=code, detail=error.als_detail())
 
 
 async def _status_for(

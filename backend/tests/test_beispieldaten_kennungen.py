@@ -250,3 +250,14 @@ def test_die_beispieltitel_selbst_oeffnen_sich_weiter(admin_client: TestClient) 
         seite = admin_client.get(f"/api/detail/{art}/{item.tmdb_id}")
         assert seite.status_code == 200, seite.text
         assert seite.json()["title"] == item.title
+
+
+def test_auch_die_schlanke_titelabfrage_nennt_den_grund(admin_client: TestClient) -> None:
+    """``GET /api/media/...`` (Detailfenster, Startseite) lief ueber einen eigenen Weg.
+
+    Er reichte nur den deutschen Satz durch, ohne Kennung - die englische
+    Oberflaeche zeigte ihn deutsch (Pruefer zu #note-12).
+    """
+    antwort = admin_client.get("/api/media/movie/435011")
+    assert antwort.status_code == 404
+    assert antwort.json()["detail"]["code"] == "title_needs_tmdb"

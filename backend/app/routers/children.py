@@ -213,7 +213,7 @@ async def release_wish(
         item = await media.detail(db, settings, wunsch.media_type.value, wunsch.tmdb_id)
     except TmdbError as error:
         code = 404 if error.status_code == 404 else 502
-        raise HTTPException(status_code=code, detail=error.message) from error
+        raise HTTPException(status_code=code, detail=error.als_detail()) from error
 
     try:
         return await child_wishes.freigeben(
@@ -342,7 +342,7 @@ async def preview_categories(
     try:
         eintraege = await kids.kategorien(db, settings, kind, media_type)
     except TmdbError as error:
-        raise HTTPException(status_code=502, detail=error.message) from error
+        raise HTTPException(status_code=502, detail=error.als_detail()) from error
     return [VorschauKategorie(rubrik=e.rubrik, bilder=e.bilder) for e in eintraege]
 
 
@@ -386,7 +386,7 @@ async def preview_rubrik(
     try:
         stand = await kids.rubrik_seite(db, settings, kind, media_type, rubrik, page)
     except TmdbError as error:
-        raise HTTPException(status_code=502, detail=error.message) from error
+        raise HTTPException(status_code=502, detail=error.als_detail()) from error
     return VorschauListe(verfuegbar=stand.verfuegbar, wuenschbar=stand.wuenschbar)
 
 
@@ -406,7 +406,7 @@ async def preview_search(
     try:
         stand = await kids.suche(db, settings, kind, media_type, q, page)
     except TmdbError as error:
-        raise HTTPException(status_code=502, detail=error.message) from error
+        raise HTTPException(status_code=502, detail=error.als_detail()) from error
     return VorschauListe(verfuegbar=stand.verfuegbar, wuenschbar=stand.wuenschbar)
 
 
@@ -422,7 +422,7 @@ async def preview_title(
         genre_namen = await media._genre_map(db, settings, media_type)
     except TmdbError as error:
         code = 404 if error.status_code == 404 else 502
-        raise HTTPException(status_code=code, detail=error.message) from error
+        raise HTTPException(status_code=code, detail=error.als_detail()) from error
 
     if not kids.passt_in_rubrik(kind, detail, genre_namen):
         raise HTTPException(

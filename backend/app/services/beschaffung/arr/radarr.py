@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from ..base import FilmStand as LibraryEntry
@@ -132,9 +132,18 @@ class RadarrClient(ArrClient):
         ``physicalRelease``; welches davon zaehlt, entscheidet der Kalender.
         ``unmonitored=true``, damit auch stillgelegte Filme auftauchen - der
         Kalender zeigt schliesslich, was erscheint, nicht was gesucht wird.
+
+        ⚠️ **Ein Tag Aufschlag auf ``end``**, aus demselben Grund wie bei
+        Sonarr (``SonarrClient.calendar``, Rundgang-Befund #note-35): Radarr
+        vergleicht seine Termine direkt gegen den rohen Zeitstempel von
+        ``end``, und ein blosses Datum liest es als Mitternacht. Ein Termin
+        spaeter am letzten Tag des Fensters faellt sonst heraus. Harmlos, weil
+        ``calendar.py`` (``_meine_filme``) sein eigenes ``von``/``bis`` ohnehin
+        noch einmal prueft - ein zu weiter Rand hier aendert am Ergebnis nichts.
         """
+        gepolstert = (date.fromisoformat(end) + timedelta(days=1)).isoformat()
         entries = await self.get(
-            "/calendar", {"start": start, "end": end, "unmonitored": "true"}
+            "/calendar", {"start": start, "end": gepolstert, "unmonitored": "true"}
         )
         return entries if isinstance(entries, list) else []
 

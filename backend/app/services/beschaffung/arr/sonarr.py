@@ -8,7 +8,7 @@ Laden der Details von TMDB mitgeholt.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from ..base import Folge, Staffelstand, WarteschlangenEintrag, normalize_title
@@ -172,10 +172,26 @@ class SonarrClient(ArrClient):
         ``includeSeries=true`` haengt an jede Folge die zugehoerige Serie an -
         das spart einen zweiten Aufruf je Serie und liefert Titel, TVDB-Id und
         (ab Sonarr 4) sogar die TMDB-Id gleich mit.
+
+        ⚠️ **Ein Tag Aufschlag auf ``end``.** Sonarr vergleicht ``airDateUtc``
+        direkt gegen den rohen Zeitstempel von ``end`` - ein blosses Datum wie
+        ``"2026-09-27"`` liest es als Mitternacht, nicht als Tagesende. Eine
+        Folge, die an genau diesem letzten Tag erst nachmittags oder abends
+        (in UTC) laeuft, faellt damit aus der Antwort - und liegt ihr
+        Sendetermin in einer Zeitzone hinter UTC, kann daraus sogar erst der
+        naechste UTC-Tag werden. Gemessen an einer echten Instanz
+        (Rundgang-Befund #note-35, 25.09.2026): Fuer die Woche bis 27.09.2026
+        fehlten "One Piece" S23E25 (27.09., 14:15 UTC) **und** "The Simpsons"
+        S38E01 (28.09., 00:00 UTC) vollstaendig - beide echten Serien mit
+        Folge in genau diesem Zeitraum. Ein Tag mehr auf ``end`` deckt beide
+        Faelle ab; ``_falte_folgen`` kennt ohnehin kein eigenes Fenster und
+        ordnet nach dem lokalen Tag ein, ein zu weiter Rand ist also
+        folgenlos.
         """
+        gepolstert = (date.fromisoformat(end) + timedelta(days=1)).isoformat()
         entries = await self.get(
             "/calendar",
-            {"start": start, "end": end, "unmonitored": "true", "includeSeries": "true"},
+            {"start": start, "end": gepolstert, "unmonitored": "true", "includeSeries": "true"},
         )
         return entries if isinstance(entries, list) else []
 

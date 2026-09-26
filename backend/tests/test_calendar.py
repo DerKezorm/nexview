@@ -7,6 +7,8 @@ Zwischenspeicher-Schluessel der Entdecken-Filter.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -567,6 +569,181 @@ def test_sonarr_kalender_ueber_echten_http_aufruf_zeigt_laufende_serie(
     assert len(treffer) == 1
     assert treffer[0]["episode_label"] == "S23E1180"
     assert treffer[0]["season"] == 23
+
+
+#: Nachstellung Notiz #35 mit der echten Sonarr-Antwort des Rundgangs
+#: (25.09.2026, ``pruefgang/arr-b/messungen/sonarr_calendar_weit.json``,
+#: gekuerzt auf die Felder, die ``_falte_folgen`` liest). "One Piece" S23E25
+#: laeuft am 27.09.2026 um 14:15 UTC, "The Simpsons" S38E01 um 00:00 UTC am
+#: 28.09.2026 - beide echt, beide unveraendert aus dem Mitschnitt.
+ECHTE_SONARR_ANTWORT = [
+    {
+        "seriesId": 1,
+        "seasonNumber": 23,
+        "episodeNumber": 22,
+        "airDate": "2026-09-06",
+        "airDateUtc": "2026-09-06T14:15:00Z",
+        "hasFile": False,
+        "monitored": True,
+        "series": {
+            "id": 1,
+            "title": "One Piece",
+            "tvdbId": 81797,
+            "tmdbId": 37854,
+            "monitored": True,
+            "images": [],
+            "ratings": {"votes": 367896, "value": 9.0},
+            "genres": ["Action", "Adventure"],
+        },
+    },
+    {
+        "seriesId": 1,
+        "seasonNumber": 23,
+        "episodeNumber": 25,
+        "airDate": "2026-09-27",
+        "airDateUtc": "2026-09-27T14:15:00Z",
+        "hasFile": False,
+        "monitored": True,
+        "series": {
+            "id": 1,
+            "title": "One Piece",
+            "tvdbId": 81797,
+            "tmdbId": 37854,
+            "monitored": True,
+            "images": [],
+            "ratings": {"votes": 367896, "value": 9.0},
+            "genres": ["Action", "Adventure"],
+        },
+    },
+    {
+        "seriesId": 3,
+        "seasonNumber": 38,
+        "episodeNumber": 1,
+        "airDate": "2026-09-27",
+        "airDateUtc": "2026-09-28T00:00:00Z",
+        "hasFile": False,
+        "monitored": True,
+        "series": {
+            "id": 3,
+            "title": "The Simpsons",
+            "tvdbId": 71663,
+            "tmdbId": 456,
+            "monitored": True,
+            "images": [],
+            "ratings": {"votes": 473305, "value": 8.6},
+            "genres": ["Animation", "Comedy"],
+        },
+    },
+]
+
+
+def _sonarr_kalender_attrappe(request: httpx.Request) -> httpx.Response:
+    """Sonarrs eigene Auswahl nachgebaut: ``start``/``end`` sind blosse Daten
+    und werden als Mitternacht gelesen, verglichen wird ohne Zeitzonen-Umrechnung
+    direkt gegen ``airDateUtc`` - **einschliesslich** beider Grenzen. Ein
+    ``end`` ohne Uhrzeit deckt damit nur die Mitternacht des letzten Tages ab,
+    nicht den ganzen Tag. Genau das zeigte der Rundgang an einer echten
+    Instanz (Notiz #35): eine spaeter am letzten Tag laufende Folge fehlte.
+    """
+    if request.url.path != "/api/v3/calendar":
+        return httpx.Response(404)
+    parameter = dict(request.url.params)
+    start = datetime.fromisoformat(parameter["start"])
+    ende = datetime.fromisoformat(parameter["end"])
+    treffer = [
+        folge
+        for folge in ECHTE_SONARR_ANTWORT
+        if start <= datetime.fromisoformat(folge["airDateUtc"].replace("Z", "")) <= ende
+    ]
+    return httpx.Response(200, json=treffer)
+
+
+def test_folge_am_letzten_tag_des_fensters_fehlt_nicht(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nachstellung Notiz #35 (Rundgang 25./26.09.2026, Arr-Betrieb, unabhaengig
+    von zwei Pruefern gesehen): Fuer die Woche 21.-27.09.2026 fehlte "One
+    Piece" S23E25 (27.09., 14:15 UTC) und "The Simpsons" S38E01 (28.09., 00:00
+    UTC) im Kalender, obwohl Sonarrs eigener Kalender beide fuer denselben
+    Zeitraum nennt. Ursache: ``SonarrClient.calendar`` schickte ``end`` als
+    blosses Datum; Sonarr las das als Mitternacht und liess beide Folgen aus,
+    weil sie spaeter am - bzw. schon einen UTC-Tag nach dem - letzten Tag des
+    Fensters laufen.
+    """
+    library.invalidate()
+    admin_client.put(
+        "/api/settings",
+        json={"sonarr_url": "http://sonarr.example.com", "sonarr_api_key": "test-sonarr-key"},
+    )
+    monkeypatch.setattr(
+        arr_client_module,
+        "_client",
+        httpx.AsyncClient(transport=httpx.MockTransport(_sonarr_kalender_attrappe)),
+    )
+
+    daten = admin_client.get(
+        "/api/calendar",
+        params={
+            "date_from": "2026-09-21",
+            "date_to": "2026-09-27",
+            "sources": "all",
+            "date_type": "digital",
+            "noise": "none",
+        },
+    ).json()
+    eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
+
+    assert daten["arr_warning"] is None
+    titel = {eintrag["title"] for eintrag in eintraege if eintrag["source"] == "meine"}
+    assert "One Piece" in titel
+    assert "The Simpsons" in titel
+
+
+async def test_sonarr_client_polstert_das_ende_um_einen_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unmittelbarer Beleg fuer den Aufschlag aus Notiz #35, ohne den ganzen
+    Router: ``SonarrClient.calendar`` muss Sonarr einen Tag mehr auf ``end``
+    schicken, als der Aufrufer uebergibt."""
+    from app.services.beschaffung.arr.sonarr import SonarrClient
+
+    gesehen: dict[str, str] = {}
+
+    def antwort(request: httpx.Request) -> httpx.Response:
+        gesehen.update(dict(request.url.params))
+        return httpx.Response(200, json=[])
+
+    monkeypatch.setattr(
+        arr_client_module, "_client", httpx.AsyncClient(transport=httpx.MockTransport(antwort))
+    )
+
+    await SonarrClient("http://sonarr.example.com", "key").calendar("2026-09-21", "2026-09-27")
+
+    assert gesehen["start"] == "2026-09-21"
+    assert gesehen["end"] == "2026-09-28"
+
+
+async def test_radarr_client_polstert_das_ende_um_einen_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dieselbe Uhrzeiten-Grenze wie bei Sonarr (Notiz #35): Radarr vergleicht
+    seine Termine ebenso direkt gegen den rohen Zeitstempel von ``end``."""
+    from app.services.beschaffung.arr.radarr import RadarrClient
+
+    gesehen: dict[str, str] = {}
+
+    def antwort(request: httpx.Request) -> httpx.Response:
+        gesehen.update(dict(request.url.params))
+        return httpx.Response(200, json=[])
+
+    monkeypatch.setattr(
+        arr_client_module, "_client", httpx.AsyncClient(transport=httpx.MockTransport(antwort))
+    )
+
+    await RadarrClient("http://radarr.example.com", "key").calendar("2026-09-21", "2026-09-27")
+
+    assert gesehen["start"] == "2026-09-21"
+    assert gesehen["end"] == "2026-09-28"
 
 
 def test_fremder_bibliotheksbestand_zeigt_ehrlich_in_der_bibliothek(

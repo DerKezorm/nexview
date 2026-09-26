@@ -50,7 +50,7 @@ Andere Geraete desselben Kontos bleiben angemeldet.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import Request, Response
 from sqlalchemy import delete, exists, select
@@ -164,38 +164,58 @@ def beenden(response: Response, request: Request, db: Session) -> None:
     geht trotzdem weg. Ein abgelaufenes Erneuerungs-Token muss auch nichts
     beenden: Jedes Zugangs-Token seiner Sitzung ist frueher abgelaufen.
 
+    ⚠️ **Ohne gueltige Sitzung wird nichts geschrieben**, auch nicht
+    aufgeraeumt. Der Endpunkt ist ohne Anmeldung erreichbar; jeder beliebige
+    Aufruf loeste sonst einen Schreibvorgang in der Datenbank aus.
+
     Pfad und ``Secure`` muessen beim Loeschen dieselben sein wie beim Setzen,
     sonst loescht der Browser ein anderes (nicht vorhandenes) Cookie und das
     echte bleibt liegen.
     """
-    kandidaten = []
+    # Das Cookie zuerst: Bringt eine Anfrage beides fuer dieselbe Sitzung mit,
+    # zaehlt der Ablauf des Erneuerungs-Tokens.
+    kandidaten: list[tuple[TokenInhalt | None, bool]] = []
     roh = gelesen(request)
     if roh:
-        kandidaten.append(decode_token(roh, "refresh"))
+        kandidaten.append((decode_token(roh, "refresh"), True))
     kopf = request.headers.get("authorization", "")
     if kopf[:7].lower() == "bearer ":
-        kandidaten.append(decode_token(kopf[7:].strip(), "access"))
+        kandidaten.append((decode_token(kopf[7:].strip(), "access"), False))
 
     jetzt = utcnow().replace(tzinfo=None)
-    # Aufgeraeumt wird hier und nur hier: Neue Zeilen entstehen nur beim
-    # Abmelden, und was nach ``bis`` noch steht, schuetzt vor nichts mehr.
-    db.execute(delete(BeendeteSitzung).where(BeendeteSitzung.bis < jetzt))
-    # Laenger kann kein Token leben, das vor diesem Moment ausgestellt wurde.
-    bis = jetzt + timedelta(days=get_settings().refresh_token_days)
-    for inhalt in kandidaten:
-        if inhalt is None or db.get(BeendeteSitzung, inhalt.sitzung) is not None:
+    # So lange kann ein Erneuerungs-Token dieser Sitzung hoechstens leben, das
+    # gerade eben erst ausgestellt wurde - etwa von einer Kopie, die sich
+    # zuletzt selbst erneuert hat.
+    laengstens = jetzt + timedelta(days=get_settings().refresh_token_days)
+    neu: dict[str, BeendeteSitzung] = {}
+    for inhalt, erneuerung in kandidaten:
+        if inhalt is None or inhalt.sitzung in neu:
+            continue
+        if db.get(BeendeteSitzung, inhalt.sitzung) is not None:
             continue
         if db.get(User, inhalt.benutzer_id) is None:
             continue
-        db.add(
-            BeendeteSitzung(
-                sitzung=inhalt.sitzung, user_id=inhalt.benutzer_id, beendet_am=jetzt, bis=bis
-            )
+        # ⚠️ **Das spaetere von beiden.** ``exp`` des abgemeldeten
+        # Erneuerungs-Tokens haengt an der Laufzeit bei seiner Ausstellung:
+        # Hat der Betreiber ``refresh_token_days`` seitdem gesenkt, lebt das
+        # Token laenger als die heutige Einstellung sagt, und eine Kopie
+        # ueberlebte sonst ihre Zeile. ``laengstens`` deckt die Gegenrichtung
+        # und das blosse Zugangs-Token ab, das kein ``exp`` eines
+        # Erneuerungs-Tokens mitbringt.
+        bis = laengstens
+        if erneuerung and inhalt.ablauf:
+            bis = max(bis, datetime.fromtimestamp(inhalt.ablauf, UTC).replace(tzinfo=None))
+        neu[inhalt.sitzung] = BeendeteSitzung(
+            sitzung=inhalt.sitzung, user_id=inhalt.benutzer_id, beendet_am=jetzt, bis=bis
         )
-        # Sofort, damit ein zweites Token derselben Sitzung (Cookie und Kopf
-        # zugleich) oben schon als beendet gefunden wird.
-        db.flush()
-    db.commit()
+
+    if neu:
+        # Aufgeraeumt wird nur hier, und nur wenn ohnehin geschrieben wird:
+        # Neue Zeilen entstehen nur beim Abmelden, und was nach ``bis`` noch
+        # steht, schuetzt vor nichts mehr.
+        db.execute(delete(BeendeteSitzung).where(BeendeteSitzung.bis < jetzt))
+        db.add_all(neu.values())
+        db.commit()
 
     response.delete_cookie(
         COOKIE_NAME,

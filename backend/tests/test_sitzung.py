@@ -495,29 +495,103 @@ def test_ein_gefaelschtes_cookie_beendet_nichts(admin_client: TestClient) -> Non
         assert session.query(BeendeteSitzung).count() == 0
 
 
-def test_abgelaufene_eintraege_werden_beim_abmelden_aufgeraeumt(
-    admin_client: TestClient,
-) -> None:
-    """Nach ``bis`` kann kein Token der Sitzung mehr gelten - die Zeile geht."""
-    erstellt = create_user(admin_client, "wanderer")
+def _zwei_alte_zeilen(benutzer_id: int) -> None:
+    """Eine abgelaufene und eine noch gueltige Sperre."""
     jetzt = utcnow().replace(tzinfo=None)
     with SessionLocal() as session:
         session.add_all(
             [
                 BeendeteSitzung(
-                    sitzung="alt", user_id=erstellt["id"], bis=jetzt - timedelta(minutes=1)
+                    sitzung="alt", user_id=benutzer_id, bis=jetzt - timedelta(minutes=1)
                 ),
                 BeendeteSitzung(
-                    sitzung="frisch", user_id=erstellt["id"], bis=jetzt + timedelta(days=1)
+                    sitzung="frisch", user_id=benutzer_id, bis=jetzt + timedelta(days=1)
                 ),
             ]
         )
         session.commit()
 
-    assert TestClient(app).post("/api/auth/logout").status_code == 204
+
+def _sitzungen() -> set[str]:
+    with SessionLocal() as session:
+        return {z.sitzung for z in session.query(BeendeteSitzung)}
+
+
+def test_abgelaufene_eintraege_werden_beim_abmelden_aufgeraeumt(
+    admin_client: TestClient,
+) -> None:
+    """Nach ``bis`` kann kein Token der Sitzung mehr gelten - die Zeile geht."""
+    erstellt = create_user(admin_client, "wanderer")
+    _zwei_alte_zeilen(erstellt["id"])
+    browser, _, _ = _anmelden()
+
+    assert browser.post("/api/auth/logout").status_code == 204
+
+    uebrig = _sitzungen()
+    assert "alt" not in uebrig
+    assert "frisch" in uebrig
+    assert len(uebrig) == 2, "die eben beendete Sitzung steht dabei"
+
+
+@pytest.mark.parametrize(
+    "kopf",
+    [
+        {},
+        {"Cookie": "nexview_refresh=kein.echtes.token", "Authorization": "Bearer x"},
+    ],
+    ids=["ohne_alles", "gefaelscht"],
+)
+def test_abmelden_ohne_sitzung_schreibt_nichts(
+    admin_client: TestClient, kopf: dict[str, str]
+) -> None:
+    """Der Endpunkt ist ohne Anmeldung erreichbar - ein beliebiger Aufruf darf
+    keinen Schreibvorgang ausloesen, auch kein Aufraeumen."""
+    from sqlalchemy import event
+
+    from app.db import engine
+
+    erstellt = create_user(admin_client, "wanderer")
+    _zwei_alte_zeilen(erstellt["id"])
+    geschrieben: list[str] = []
+
+    def horcher(conn, cursor, statement, parameters, context, executemany) -> None:
+        if statement.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")):
+            geschrieben.append(statement)
+
+    event.listen(engine, "before_cursor_execute", horcher)
+    try:
+        assert TestClient(app).post("/api/auth/logout", headers=kopf).status_code == 204
+    finally:
+        event.remove(engine, "before_cursor_execute", horcher)
+
+    assert geschrieben == []
+    assert _sitzungen() == {"alt", "frisch"}
+
+
+def test_ein_gesenkter_wert_verkuerzt_die_sperre_nicht(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Sperre haelt, solange das abgemeldete Erneuerungs-Token gilt.
+
+    Senkt der Betreiber ``refresh_token_days`` nach der Anmeldung, lebt das
+    Token trotzdem so lange, wie es bei seiner Ausstellung bekam. Eine Sperre
+    nach der heutigen Einstellung liefe vorher ab, und die Kopie kaeme danach
+    wieder herein.
+    """
+    import jwt
+
+    from app.config import get_settings
+
+    create_user(admin_client, "wanderer")
+    browser, cookie, _ = _anmelden()
+    ablauf = jwt.decode(cookie, options={"verify_signature": False})["exp"]
+    monkeypatch.setattr(get_settings(), "refresh_token_days", 1)
+
+    assert browser.post("/api/auth/logout").status_code == 204
 
     with SessionLocal() as session:
-        assert {z.sitzung for z in session.query(BeendeteSitzung)} == {"frisch"}
+        zeile = session.query(BeendeteSitzung).one()
+    assert zeile.bis >= datetime.fromtimestamp(ablauf, UTC).replace(tzinfo=None)
 
 
 def test_die_sperre_reicht_bis_zum_letzten_moeglichen_ablauf(

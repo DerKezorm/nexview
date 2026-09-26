@@ -143,11 +143,17 @@ class TokenInhalt:
     ``sitzung`` ist die Kennung der Sitzung (``sid``), an der das Abmelden
     haengt. Leer nur bei einem von Hand gebauten Inhalt; ``decode_token``
     liefert ein Token ohne sie gar nicht erst aus.
+
+    ``ablauf`` ist ``exp`` in Sekunden seit 1970. Das Abmelden braucht ihn:
+    Die Sperre einer Sitzung muss so lange stehen, wie ihr Erneuerungs-Token
+    gilt, und das haengt an der Laufzeit bei seiner Ausstellung, nicht an der
+    heutigen Einstellung.
     """
 
     benutzer_id: int
     ausgestellt: int
     sitzung: str = ""
+    ablauf: int = 0
 
 
 def decode_token(token: str, expected_type: TokenType) -> TokenInhalt | None:
@@ -176,11 +182,14 @@ def decode_token(token: str, expected_type: TokenType) -> TokenInhalt | None:
         # durch Abmelden nicht beenden. Beim Umstieg auf 1.0.0 meldet sich
         # darum jeder einmal neu an.
         sitzung = payload["sid"]
+        ablauf = int(payload.get("exp") or 0)
     except (KeyError, TypeError, ValueError):
         return None
     if not isinstance(sitzung, str) or not sitzung:
         return None
-    return TokenInhalt(benutzer_id=benutzer_id, ausgestellt=ausgestellt, sitzung=sitzung)
+    return TokenInhalt(
+        benutzer_id=benutzer_id, ausgestellt=ausgestellt, sitzung=sitzung, ablauf=ablauf
+    )
 
 
 def access_token_expires_in() -> int:

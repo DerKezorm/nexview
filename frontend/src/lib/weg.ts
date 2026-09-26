@@ -53,6 +53,35 @@ export function wegKontext(
   return config?.beschaffung === 'nex' ? { context: 'nex' } : {}
 }
 
+/** So oft fragt eine Seite nach, solange ihr Stand nicht bestätigt ist. */
+export const NACHFRAGEN_MS = 20_000
+
+type Bestaetigbar = { status_unconfirmed?: boolean; status_refused?: boolean }
+
+/** Hat der Weg diesen Stand nicht bestätigt (geschwiegen oder abgelehnt)? */
+export function unbestaetigt(daten: Bestaetigbar | undefined | null): boolean {
+  return Boolean(daten?.status_unconfirmed || daten?.status_refused)
+}
+
+/**
+ * `staleTime` und `refetchInterval` für eine Antwort, die unbestätigt sein kann.
+ *
+ * ⚠️ Ein unbestätigter Stand hielt sich im Browser so lange wie ein
+ * bestätigter (Titelseite 30 Minuten, Staffel eine Stunde), und der Hinweis
+ * kam nach einem Seitenwechsel aus dem Zwischenspeicher zurück, obwohl der
+ * Weg längst wieder antwortete. Solange unbestätigt, gilt die Antwort als
+ * sofort veraltet, und die Seite fragt alle `NACHFRAGEN_MS` nach. Danach
+ * gilt wieder `frisch`.
+ */
+export function nachfragenSolangeUnbestaetigt<T extends Bestaetigbar>(frisch: number) {
+  return {
+    staleTime: (query: { state: { data: T | undefined } }) =>
+      unbestaetigt(query.state.data) ? 0 : frisch,
+    refetchInterval: (query: { state: { data: T | undefined } }) =>
+      unbestaetigt(query.state.data) ? NACHFRAGEN_MS : false,
+  }
+}
+
 /**
  * Die Schlüssel mit NEX-Fassung – gelesen vom Wächter in
  * `src/test/weg-texte.test.ts`. Mehrzahl ohne `_one`/`_other`.

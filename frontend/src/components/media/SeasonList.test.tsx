@@ -7,7 +7,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 vi.mock('../../api/client', async () => {
@@ -26,6 +26,7 @@ vi.mock('../../api/client', async () => {
 import { api } from '../../api/client'
 import type { SeasonDetail, SeasonInfo } from '../../api/types'
 import i18n from '../../i18n'
+import { NACHFRAGEN_MS } from '../../lib/weg'
 import { rendern } from '../../test/rendern'
 import { SeasonList } from './SeasonList'
 
@@ -42,7 +43,7 @@ const STAFFEL = {
 } as SeasonInfo
 
 function antworten(
-  unbestaetigt: boolean,
+  unbestaetigt: boolean | (() => boolean),
   config: Record<string, unknown> = {},
   abgelehnt = false,
 ) {
@@ -55,7 +56,7 @@ function antworten(
       { episode_number: 1, name: 'Folge eins', available: false },
       { episode_number: 2, name: 'Folge zwei', available: false },
     ] as SeasonDetail['episodes'],
-    status_unconfirmed: unbestaetigt,
+    status_unconfirmed: false,
     status_refused: abgelehnt,
   }
   holen.mockImplementation((async (pfad: string) => {
@@ -63,7 +64,12 @@ function antworten(
       return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
     }
     if (pfad === '/api/config') return config
-    if (pfad === '/api/detail/tv/77/season/1') return staffel
+    if (pfad === '/api/detail/tv/77/season/1') {
+      return {
+        ...staffel,
+        status_unconfirmed: typeof unbestaetigt === 'function' ? unbestaetigt() : unbestaetigt,
+      }
+    }
     throw new Error(`Unerwarteter Aufruf: ${pfad}`)
   }) as never)
 }
@@ -101,6 +107,28 @@ describe('die aufgeklappte Staffel', () => {
     await aufklappen()
 
     expect(screen.getByRole('status')).toHaveTextContent(i18n.t('detail.statusRefused'))
+  })
+
+  it('fragt nach, bis der Stand bestätigt ist, und nimmt den Hinweis dann weg', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      let aufrufe = 0
+      antworten(() => {
+        aufrufe += 1
+        return aufrufe === 1
+      })
+      await aufklappen()
+      expect(screen.getByRole('status')).toBeInTheDocument()
+
+      await vi.advanceTimersByTimeAsync(NACHFRAGEN_MS)
+
+      await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+      expect(aufrufe).toBe(2)
+      await vi.advanceTimersByTimeAsync(3 * NACHFRAGEN_MS)
+      expect(aufrufe).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('schweigt, solange der Weg geantwortet hat', async () => {

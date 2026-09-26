@@ -8,7 +8,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 
@@ -28,6 +28,7 @@ vi.mock('../api/client', async () => {
 import { ApiError, api, restoreSession } from '../api/client'
 import type { MediaDetail, MediaItem } from '../api/types'
 import i18n from '../i18n'
+import { NACHFRAGEN_MS } from '../lib/weg'
 import { rendern } from '../test/rendern'
 import { TitlePage } from './TitlePage'
 
@@ -86,7 +87,7 @@ function detail(teil: Partial<MediaDetail> = {}): MediaDetail {
 }
 
 function antworten(
-  daten: MediaDetail,
+  daten: MediaDetail | (() => MediaDetail),
   config: Record<string, unknown> = { radarr_configured: true, sonarr_configured: true },
 ) {
   holen.mockImplementation((async (pfad: string) => {
@@ -94,7 +95,7 @@ function antworten(
       return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
     }
     if (pfad === '/api/config') return config
-    if (pfad === '/api/detail/movie/901') return daten
+    if (pfad === '/api/detail/movie/901') return typeof daten === 'function' ? daten() : daten
     if (pfad === '/api/favorites') return []
     if (pfad.startsWith('/api/ratings/movie')) return {}
     throw new Error(`Unerwarteter Aufruf: ${pfad}`)
@@ -200,6 +201,33 @@ describe('wenn der Weg nicht antwortet', () => {
     expect(
       screen.queryByText(i18n.t('detail.statusUnconfirmed', { context: 'nex' })),
     ).not.toBeInTheDocument()
+  })
+
+  it('fragt nach, bis der Stand bestätigt ist, und nimmt den Hinweis dann weg', async () => {
+    // Zweite Prüfrunde: Der Hinweis blieb 30 Minuten stehen, auch als nexcrate
+    // längst wieder antwortete, und kam nach einem Seitenwechsel zurück.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      let aufrufe = 0
+      antworten(() => {
+        aufrufe += 1
+        return detail({ collection: null, status: 'downloaded', status_unconfirmed: aufrufe === 1 })
+      })
+      seiteOeffnen()
+      await screen.findByText(i18n.t('detail.statusUnconfirmed'))
+
+      await vi.advanceTimersByTimeAsync(NACHFRAGEN_MS)
+
+      await waitFor(() =>
+        expect(screen.queryByText(i18n.t('detail.statusUnconfirmed'))).not.toBeInTheDocument(),
+      )
+      expect(aufrufe).toBe(2)
+      // Bestätigt: ab jetzt keine weitere Nachfrage.
+      await vi.advanceTimersByTimeAsync(3 * NACHFRAGEN_MS)
+      expect(aufrufe).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('schweigt, solange der Weg geantwortet hat', async () => {

@@ -6,6 +6,7 @@ import { api } from '../../api/client'
 import type { EpisodeInfo, Fassung, SeasonDetail, SeasonInfo } from '../../api/types'
 import { folgenFassung, staffelFassung } from '../../lib/fassungen'
 import { folgenKompakt } from '../../lib/format'
+import { nachfragenSolangeUnbestaetigt } from '../../lib/weg'
 import { Spinner } from '../ui'
 import { belegungsWort, staffelBelegt } from './staffelbelegung'
 
@@ -276,7 +277,8 @@ export function FolgenAuswahl({
   const query = useQuery({
     queryKey: ['season', tmdbId, season],
     queryFn: () => api.get<SeasonDetail>(`/api/detail/tv/${tmdbId}/season/${season}`),
-    staleTime: 60 * 1000,
+    // Derselbe Schlüssel, dieselbe Regel: Unbestätigtes gilt sofort als veraltet.
+    ...nachfragenSolangeUnbestaetigt<SeasonDetail>(60 * 1000),
   })
 
   const folgenListe = query.data?.episodes ?? []

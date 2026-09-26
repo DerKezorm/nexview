@@ -39,7 +39,7 @@ import { formatDate, formatRuntime } from '../lib/format'
 import { browsePath, personPath, stoeberPath } from '../lib/routes'
 import { useAuth } from '../auth/useAuth'
 import { kannAnfragen as wegKannAnfragen, quelleBereit as wegQuelleBereit } from '../lib/fassungen'
-import { wegKontext } from '../lib/weg'
+import { nachfragenSolangeUnbestaetigt, wegKontext } from '../lib/weg'
 
 /** Eine Runde Vorschlaege vom Server. */
 type Auswahl = {
@@ -216,7 +216,7 @@ export function TitlePage() {
     queryKey: ['title-detail', mediaType, tmdbId],
     queryFn: () => api.get<MediaDetail>(`/api/detail/${mediaType}/${tmdbId}`),
     enabled: Boolean(mediaType && tmdbId),
-    staleTime: 30 * 60 * 1000,
+    ...nachfragenSolangeUnbestaetigt<MediaDetail>(30 * 60 * 1000),
     // "Gibt es nicht" wird beim zweiten Mal nicht wahrer; die Wiederholung hielt
     // die Seite nur laenger bei "Wird geladen" fest.
     retry: (versuche, fehler) =>

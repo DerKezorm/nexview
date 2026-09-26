@@ -6,6 +6,7 @@ import { api } from '../../api/client'
 import type { SeasonDetail, SeasonInfo } from '../../api/types'
 import { formatDate } from '../../lib/format'
 import { useWegKontext } from '../../hooks/useWegKontext'
+import { nachfragenSolangeUnbestaetigt } from '../../lib/weg'
 import { Spinner } from '../ui'
 
 /** Häkchen für "liegt vor", Strich für "fehlt noch". */
@@ -32,7 +33,7 @@ function Folgen({ tmdbId, season }: { tmdbId: number; season: number }) {
   const query = useQuery({
     queryKey: ['season', tmdbId, season],
     queryFn: () => api.get<SeasonDetail>(`/api/detail/tv/${tmdbId}/season/${season}`),
-    staleTime: 60 * 60 * 1000,
+    ...nachfragenSolangeUnbestaetigt<SeasonDetail>(60 * 60 * 1000),
   })
 
   if (query.isPending) {

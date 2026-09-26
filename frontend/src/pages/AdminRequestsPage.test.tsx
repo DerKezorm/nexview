@@ -18,10 +18,17 @@ import { AdminRequestsPage } from './AdminRequestsPage'
 
 const holen = vi.mocked(api.get)
 
-function zeile(id: number, status: string, fassung: string | null, title: string) {
+function zeile(
+  id: number,
+  status: string,
+  fassung: string | null,
+  title: string,
+  qualityProfileUhd = false,
+) {
   return {
     id, media_type: 'movie', fassung, tier: 'standard', tmdb_id: 600 + id, title,
     poster_path: null, release_date: null, status, quality_profile_id: null,
+    quality_profile_uhd: qualityProfileUhd,
     root_folder_path: null, season: null, episodes: null, from_watchlist: false,
     arr_linked: false, requested_at: '2026-09-20T10:00:00', approved_at: null,
     completed_at: null, approved_by_name: null, last_checked_at: null,
@@ -92,7 +99,7 @@ describe('AdminRequestsPage: Abzeichen für eine fremde Fassung', () => {
 describe('AdminRequestsPage: Abzeichen für ein 2160p-Profil trotz Standardfassung', () => {
   it('zeigt "4K" nur an der Zeile mit quality_profile_uhd', async () => {
     nexBetriebMit([
-      { ...zeile(7, 'approved', 'v_beispiel', 'Erfundener 4K-Profil-Film'), quality_profile_uhd: true },
+      zeile(7, 'approved', 'v_beispiel', 'Erfundener 4K-Profil-Film', true),
       zeile(8, 'approved', 'v_beispiel', 'Erfundener gewöhnlicher Film'),
     ])
     rendern(<AdminRequestsPage />, { pfad: '/admin/requests?filter=all' })

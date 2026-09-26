@@ -43,8 +43,8 @@ Pruefgang). Jedes Token traegt seitdem die Kennung seiner Sitzung, die beim
 Erneuern mitwandert, und ``beenden`` traegt sie in ``beendete_sitzungen``
 ein. Danach gilt kein Token dieser Sitzung mehr: nicht die Kopie des
 Cookies und auch nicht das Zugangs-Token, das gerade noch laeuft
-(``beendet``, gefragt von ``deps.get_current_user`` und ``/refresh``). Andere
-Geraete desselben Kontos bleiben angemeldet.
+(``beendet_spalte`` in ``deps.get_current_user``, ``beendet`` in ``/refresh``).
+Andere Geraete desselben Kontos bleiben angemeldet.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ import logging
 from datetime import UTC, timedelta
 
 from fastapi import Request, Response
-from sqlalchemy import delete
+from sqlalchemy import delete, exists, select
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
@@ -211,14 +211,22 @@ def gelesen(request: Request) -> str | None:
     return request.cookies.get(COOKIE_NAME)
 
 
+def beendet_spalte(inhalt: TokenInhalt):
+    """Die Frage "wurde diese Sitzung abgemeldet?" als Spalte einer Abfrage.
+
+    ``deps.get_current_user`` haengt sie an das Laden des Kontos, damit die
+    Pruefung bei jeder Anfrage keine eigene Abfrage kostet. Eine Suche ueber
+    den Primaerschluessel.
+    """
+    return exists().where(BeendeteSitzung.sitzung == inhalt.sitzung).label("abgemeldet")
+
+
 def beendet(db: Session, inhalt: TokenInhalt) -> bool:
     """Wurde die Sitzung dieses Tokens mit "Abmelden" beendet?
 
-    Eine Abfrage ueber den Primaerschluessel je Anfrage - der Preis dafuer,
-    dass Abmelden auch das laufende Zugangs-Token beendet und nicht erst das
-    naechste Erneuern.
+    Fuer ``/refresh``; dieselbe Frage wie ``beendet_spalte``.
     """
-    return db.get(BeendeteSitzung, inhalt.sitzung) is not None
+    return bool(db.scalar(select(beendet_spalte(inhalt))))
 
 
 def gilt_noch(inhalt: TokenInhalt, user: User) -> bool:

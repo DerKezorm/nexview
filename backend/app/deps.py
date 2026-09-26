@@ -43,8 +43,16 @@ def get_current_user(
     if inhalt is None:
         raise unauthorized
 
-    user = db.get(User, inhalt.benutzer_id)
-    if user is None or not user.is_active:
+    # ⚠️ **Konto und Abmelde-Sperre in einer Abfrage.** Diese Stelle laeuft
+    # bei jeder Anfrage; eine eigene Abfrage fuer die Sperre hob die Kachel
+    # auf dem Dashboard ueber ihre Waage (``test_abfragezahl.py``).
+    zeile = db.execute(
+        select(User, sitzung.beendet_spalte(inhalt)).where(User.id == inhalt.benutzer_id)
+    ).one_or_none()
+    if zeile is None:
+        raise unauthorized
+    user, abgemeldet = zeile
+    if not user.is_active:
         raise unauthorized
 
     # Ein Token, das aelter ist als der letzte Passwortwechsel, gilt nicht
@@ -54,7 +62,7 @@ def get_current_user(
         raise unauthorized
     # Und eines, dessen Sitzung abgemeldet wurde, auch nicht. Sonst liefe das
     # Zugangs-Token nach dem Abmelden noch bis zu dreissig Minuten weiter.
-    if sitzung.beendet(db, inhalt):
+    if abgemeldet:
         raise unauthorized
 
     # Ab hier steht in jeder Protokollzeile dieser Anfrage, wer sie gestellt hat.

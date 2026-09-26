@@ -11,7 +11,7 @@ from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus, User
 from app.services.beschaffung.arr.client import ArrError
 from app.services.beschaffung.arr.radarr import RadarrClient
-from app.services.beschaffung.arr.sonarr import SonarrClient
+from app.services.beschaffung.arr.sonarr import Folge, SonarrClient
 
 from .conftest import auth_headers, create_user
 
@@ -766,6 +766,79 @@ def test_abbruch_entfernt_nur_die_eigene_staffel_aus_der_warteschlange(
 
     # Nur Kims Staffel 2 fällt - Alex' Staffel 3 bleibt unangetastet stehen.
     assert sonarr_warteschlange["entfernt"] == [([601], False)]
+
+
+def test_abbruch_eines_folgen_pakets_entfernt_nur_die_eigenen_folgen_aus_der_warteschlange(
+    arr_client: TestClient,
+    sonarr_protokoll: dict,
+    sonarr_warteschlange: dict[str, list],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ein Folgen-Paket (Kims Folgen 1 und 2 von Staffel 2) darf beim Abbruch nur
+    seine eigenen Zeilen mitreißen - nicht eine fremde Folge derselben Staffel,
+    nicht eine Zeile ohne Folgenangabe und nicht eine andere Staffel."""
+    kim = create_user(arr_client, "kim", "passwort-1234")
+    kim_headers = auth_headers(arr_client, "kim", "passwort-1234")
+    ben = create_user(arr_client, "ben", "passwort-1234")
+
+    async def folgen_stand(_self: SonarrClient, _arr_id: int) -> dict:
+        return {
+            2: {
+                1: Folge(kennung=901, nummer=1, monitored=True, has_file=False),
+                2: Folge(kennung=902, nummer=2, monitored=True, has_file=False),
+            }
+        }
+
+    async def folgen_schalten(_self: SonarrClient, kennungen: list[int], ueberwachen: bool) -> None:
+        pass
+
+    monkeypatch.setattr(SonarrClient, "folgen_stand", folgen_stand)
+    monkeypatch.setattr(SonarrClient, "folgen_schalten", folgen_schalten)
+
+    with SessionLocal() as session:
+        paket = MediaRequest(
+            user_id=kim["id"],
+            media_type=MediaType.tv,
+            fassung_kennung="sonarr-standard",
+            tmdb_id=1399,
+            title="Testserie",
+            season=2,
+            episodes=[1, 2],
+            status=RequestStatus.searching,
+            arr_id=4711,
+        )
+        # Eine andere, weiterhin laufende Anfrage derselben Staffel - sonst
+        # zählte Kims Paket als letzte Anfrage, und die ganze Serie fiele.
+        session.add(
+            MediaRequest(
+                user_id=ben["id"],
+                media_type=MediaType.tv,
+                fassung_kennung="sonarr-standard",
+                tmdb_id=1399,
+                title="Testserie",
+                season=2,
+                episodes=[5],
+                status=RequestStatus.searching,
+                arr_id=4711,
+            )
+        )
+        session.add(paket)
+        session.commit()
+        kennung = paket.id
+
+    sonarr_warteschlange["zeilen"] = [
+        {"id": 901, "seriesId": 4711, "episode": {"seasonNumber": 2, "episodeNumber": 1}},
+        {"id": 905, "seriesId": 4711, "episode": {"seasonNumber": 2, "episodeNumber": 5}},
+        {"id": 900, "seriesId": 4711},
+        {"id": 903, "seriesId": 4711, "episode": {"seasonNumber": 3, "episodeNumber": 1}},
+    ]
+
+    antwort = arr_client.post(f"/api/requests/{kennung}/cancel", headers=kim_headers)
+    assert antwort.status_code == 200, antwort.text
+
+    # Nur die Zeile der eigenen Folge 1 fällt - Folge 5 (fremd, gleiche
+    # Staffel), die Zeile ohne Folgenangabe und Staffel 3 bleiben stehen.
+    assert sonarr_warteschlange["entfernt"] == [([901], False)]
 
 
 def test_ganze_serie_gewollt_schuetzt_auch_die_warteschlange(

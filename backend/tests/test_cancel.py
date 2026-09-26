@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -22,8 +24,33 @@ def geloescht_in_radarr(monkeypatch: pytest.MonkeyPatch) -> list[tuple[int, bool
     async def remove(_self: RadarrClient, arr_id: int, delete_files: bool = True) -> None:
         aufrufe.append((arr_id, delete_files))
 
+    async def leere_warteschlange(_self: RadarrClient, filme: bool) -> list[dict]:
+        return []
+
     monkeypatch.setattr(RadarrClient, "remove", remove)
+    # Ohne diese Attrappe griffe ``abbrechen`` auf ``/queue`` durch - Port 9
+    # lehnt zwar sofort ab, aber die Tests hier wollen nichts davon wissen.
+    # Wer die Warteschlange selbst prüfen will, nimmt ``radarr_warteschlange``.
+    monkeypatch.setattr(RadarrClient, "warteschlange_voll", leere_warteschlange)
     return aufrufe
+
+
+@pytest.fixture
+def radarr_warteschlange(monkeypatch: pytest.MonkeyPatch) -> dict[str, list]:
+    """Eine Radarr-Warteschlange, die sich befragen und leeren lässt."""
+    stand: dict[str, list] = {"zeilen": [], "entfernt": []}
+
+    async def warteschlange_voll(_self: RadarrClient, filme: bool) -> list[dict]:
+        return stand["zeilen"]
+
+    async def warteschlange_entfernen(
+        _self: RadarrClient, zeilen: list[int], *, sperren: bool
+    ) -> None:
+        stand["entfernt"].append((zeilen, sperren))
+
+    monkeypatch.setattr(RadarrClient, "warteschlange_voll", warteschlange_voll)
+    monkeypatch.setattr(RadarrClient, "warteschlange_entfernen", warteschlange_entfernen)
+    return stand
 
 
 def _laufende_anfrage(client: TestClient, benutzer: str = "kim") -> dict:
@@ -218,8 +245,12 @@ def test_abbrechen_gelingt_wenn_der_titel_dort_schon_weg_ist(
         assert pfad == "/movie/4711"
         raise ArrError("Radarr kennt diesen Film nicht.", 404)
 
+    async def leere_warteschlange(_self: RadarrClient, filme: bool) -> list[dict]:
+        return []
+
     monkeypatch.setattr(RadarrClient, "remove", remove)
     monkeypatch.setattr(RadarrClient, "get", get)
+    monkeypatch.setattr(RadarrClient, "warteschlange_voll", leere_warteschlange)
 
     antwort = arr_client.post(
         f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
@@ -244,8 +275,12 @@ def test_abbrechen_scheitert_weiter_wenn_der_titel_noch_dort_liegt(
     async def get(_self: RadarrClient, _pfad: str, params: dict | None = None) -> dict:
         return {"id": 4711, "title": "Liegt noch da"}
 
+    async def leere_warteschlange(_self: RadarrClient, filme: bool) -> list[dict]:
+        return []
+
     monkeypatch.setattr(RadarrClient, "remove", remove)
     monkeypatch.setattr(RadarrClient, "get", get)
+    monkeypatch.setattr(RadarrClient, "warteschlange_voll", leere_warteschlange)
 
     antwort = arr_client.post(
         f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
@@ -291,12 +326,37 @@ def sonarr_protokoll(monkeypatch: pytest.MonkeyPatch) -> dict[str, list]:
     async def serie_stilllegen(_self: SonarrClient, arr_id: int) -> None:
         aufrufe["stillgelegte_serien"].append(arr_id)
 
+    async def leere_warteschlange(_self: SonarrClient, filme: bool) -> list[dict]:
+        return []
+
     monkeypatch.setattr(SonarrClient, "remove", remove)
     monkeypatch.setattr(SonarrClient, "episode_files", episode_files)
     monkeypatch.setattr(SonarrClient, "unmonitor_season", unmonitor_season)
     monkeypatch.setattr(SonarrClient, "delete_episode_files", delete_episode_files)
     monkeypatch.setattr(SonarrClient, "serie_stilllegen", serie_stilllegen)
+    # Siehe ``geloescht_in_radarr``: ohne diese Attrappe griffe ``abbrechen``
+    # auf ``/queue`` durch. ``sonarr_warteschlange`` prüft die Warteschlange
+    # gezielt.
+    monkeypatch.setattr(SonarrClient, "warteschlange_voll", leere_warteschlange)
     return aufrufe
+
+
+@pytest.fixture
+def sonarr_warteschlange(monkeypatch: pytest.MonkeyPatch) -> dict[str, list]:
+    """Eine Sonarr-Warteschlange, die sich befragen und leeren lässt."""
+    stand: dict[str, list] = {"zeilen": [], "entfernt": []}
+
+    async def warteschlange_voll(_self: SonarrClient, filme: bool) -> list[dict]:
+        return stand["zeilen"]
+
+    async def warteschlange_entfernen(
+        _self: SonarrClient, zeilen: list[int], *, sperren: bool
+    ) -> None:
+        stand["entfernt"].append((zeilen, sperren))
+
+    monkeypatch.setattr(SonarrClient, "warteschlange_voll", warteschlange_voll)
+    monkeypatch.setattr(SonarrClient, "warteschlange_entfernen", warteschlange_entfernen)
+    return stand
 
 
 def _laufende_serienanfrage(
@@ -578,3 +638,173 @@ def test_erledigte_anfrage_bleibt_unantastbar(
     )
     assert antwort.status_code == 409, antwort.text
     assert geloescht_in_radarr == []
+
+
+# --- Der laufende Download selbst (#note-34, #note-36) -----------------------
+#
+# Abbrechen/Zurückziehen entfernte den Titel bislang nur aus Radarr/Sonarr;
+# der zugehörige Auftrag blieb unangetastet in der Warteschlange stehen und
+# lud in SABnzbd unbeeindruckt weiter, obwohl der Bestätigungsdialog
+# ausdrücklich zusagt, bereits geladene Dateien mitzulöschen.
+
+
+def test_abbrechen_entfernt_den_download_aus_radarrs_warteschlange(
+    arr_client: TestClient,
+    geloescht_in_radarr: list,
+    radarr_warteschlange: dict[str, list],
+) -> None:
+    """Der Warteschlangen-Eintrag fällt - vor dem Titel selbst, ohne Sperre."""
+    radarr_warteschlange["zeilen"] = [
+        {"id": 88, "movieId": 4711, "size": 1000, "sizeleft": 500}
+    ]
+    anfrage = _laufende_anfrage(arr_client)
+
+    antwort = arr_client.post(
+        f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
+    )
+    assert antwort.status_code == 200, antwort.text
+
+    assert radarr_warteschlange["entfernt"] == [([88], False)]
+    assert geloescht_in_radarr == [(4711, True)]
+
+
+def test_abbrechen_laesst_eine_fremde_warteschlangenzeile_stehen(
+    arr_client: TestClient,
+    geloescht_in_radarr: list,
+    radarr_warteschlange: dict[str, list],
+) -> None:
+    """Nur die Zeile des eigenen Films fällt - eine fremde ``movieId`` bleibt."""
+    radarr_warteschlange["zeilen"] = [
+        {"id": 88, "movieId": 4711, "size": 1000, "sizeleft": 500},
+        {"id": 99, "movieId": 9999, "size": 1000, "sizeleft": 500},
+    ]
+    anfrage = _laufende_anfrage(arr_client)
+
+    antwort = arr_client.post(
+        f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
+    )
+    assert antwort.status_code == 200, antwort.text
+    assert radarr_warteschlange["entfernt"] == [([88], False)]
+
+
+def test_abbrechen_meldet_gescheitertes_warteschlangen_entfernen(
+    arr_client: TestClient,
+    geloescht_in_radarr: list,
+    radarr_warteschlange: dict[str, list],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Ein Fehler beim Entfernen aus der Warteschlange darf nicht stillschweigend
+    verschwinden - er landet im Protokoll, auch wenn der Titel selbst trotzdem
+    aus Radarr entfernt wird (Regel des Leiters: kein stilles Verschlucken)."""
+    radarr_warteschlange["zeilen"] = [
+        {"id": 88, "movieId": 4711, "size": 1000, "sizeleft": 500}
+    ]
+
+    async def streikt(_self: RadarrClient, zeilen: list[int], *, sperren: bool) -> None:
+        raise ArrError("Radarr meldet einen Fehler (HTTP 500).", 500)
+
+    monkeypatch.setattr(RadarrClient, "warteschlange_entfernen", streikt)
+
+    anfrage = _laufende_anfrage(arr_client)
+
+    with caplog.at_level(logging.WARNING, logger="nexview.requests"):
+        antwort = arr_client.post(
+            f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
+        )
+    assert antwort.status_code == 200, antwort.text
+    # Der Titel selbst wurde trotzdem entfernt ...
+    assert geloescht_in_radarr == [(4711, True)]
+    # ... aber das Scheitern steht im Protokoll, nicht nur eine stille
+    # Behauptung, alles sei erledigt.
+    meldungen = " ".join(zeile.getMessage() for zeile in caplog.records)
+    assert "could not be removed" in meldungen
+
+
+def test_letzte_serienanfrage_entfernt_die_ganze_warteschlange(
+    arr_client: TestClient,
+    sonarr_protokoll: dict,
+    sonarr_warteschlange: dict[str, list],
+) -> None:
+    """Wie ``test_letzte_serienanfrage_loescht_die_serie``, für die Warteschlange:
+    Will niemand mehr etwas von der Serie, fallen auch alle ihre Zeilen dort."""
+    sonarr_warteschlange["zeilen"] = [
+        {"id": 501, "seriesId": 4711, "episode": {"seasonNumber": 2, "episodeNumber": 1}},
+        {"id": 502, "seriesId": 4711, "episode": {"seasonNumber": 2, "episodeNumber": 2}},
+    ]
+    anfrage = _laufende_serienanfrage(arr_client)
+
+    antwort = arr_client.post(
+        f"/api/requests/{anfrage['id']}/cancel", headers=anfrage["headers"]
+    )
+    assert antwort.status_code == 200, antwort.text
+
+    assert sonarr_protokoll["entfernt"] == [(4711, True)]
+    entfernte_zeilen = {zeile for aufruf in sonarr_warteschlange["entfernt"] for zeile in aufruf[0]}
+    assert entfernte_zeilen == {501, 502}
+
+
+def test_abbruch_entfernt_nur_die_eigene_staffel_aus_der_warteschlange(
+    arr_client: TestClient,
+    sonarr_protokoll: dict,
+    sonarr_warteschlange: dict[str, list],
+) -> None:
+    """Wie ``test_abbruch_verschont_fremde_staffeln``, für die Warteschlange:
+    Kims Staffel 2 fällt, Alex' Staffel 3 bleibt in der Warteschlange stehen."""
+    kim = _laufende_serienanfrage(arr_client, "kim", season=2)
+    _laufende_serienanfrage(arr_client, "alex", season=3, serie=kim["serie"])
+
+    sonarr_warteschlange["zeilen"] = [
+        {"id": 601, "seriesId": 4711, "episode": {"seasonNumber": 2, "episodeNumber": 1}},
+        {"id": 602, "seriesId": 4711, "episode": {"seasonNumber": 3, "episodeNumber": 1}},
+    ]
+
+    antwort = arr_client.post(
+        f"/api/requests/{kim['id']}/cancel", headers=kim["headers"]
+    )
+    assert antwort.status_code == 200, antwort.text
+
+    # Nur Kims Staffel 2 fällt - Alex' Staffel 3 bleibt unangetastet stehen.
+    assert sonarr_warteschlange["entfernt"] == [([601], False)]
+
+
+def test_ganze_serie_gewollt_schuetzt_auch_die_warteschlange(
+    arr_client: TestClient,
+    sonarr_protokoll: dict,
+    sonarr_warteschlange: dict[str, list],
+) -> None:
+    """Deckt eine andere, laufende Anfrage die ganze Serie ab (``season=None``),
+    bleibt auch die Warteschlange unangetastet - jede Datei ist ja noch gedeckt
+    (dieselbe Regel wie ``sonarr_protokoll["entfernt"] == []`` in diesem Fall).
+    """
+    kim = _laufende_serienanfrage(arr_client, "kim", season=2)
+
+    create_user(arr_client, "alex")
+    with SessionLocal() as session:
+        alex = session.query(User).filter(User.username == "alex").one()
+        session.add(
+            MediaRequest(
+                user_id=alex.id,
+                media_type=MediaType.tv,
+                fassung_kennung="sonarr-standard",
+                tmdb_id=kim["serie"]["tmdb_id"],
+                title=kim["serie"].get("title") or "Testserie",
+                season=None,
+                status=RequestStatus.searching,
+                arr_id=4711,
+            )
+        )
+        session.commit()
+
+    sonarr_warteschlange["zeilen"] = [
+        {"id": 701, "seriesId": 4711, "episode": {"seasonNumber": 2, "episodeNumber": 1}},
+    ]
+
+    antwort = arr_client.post(
+        f"/api/requests/{kim['id']}/cancel", headers=kim["headers"]
+    )
+    assert antwort.status_code == 200, antwort.text
+
+    assert sonarr_protokoll["entfernt"] == []
+    assert sonarr_protokoll["stillgelegte_staffeln"] == []
+    assert sonarr_warteschlange["entfernt"] == []

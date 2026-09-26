@@ -8,6 +8,8 @@ Meldungen, Protokoll. Hier steht, was nur Radarr und Sonarr brauchen.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -362,6 +364,101 @@ def _weitere_aktive(db: Session, request: MediaRequest) -> list[MediaRequest]:
     )
 
 
+def _staffel_aus_zeile(satz: dict[str, Any]) -> int | None:
+    """Die Staffelnummer einer Warteschlangen-Zeile - Folgen-Objekt zuerst.
+
+    Dieselbe Ableitung wie ``SonarrClient.eintraege_aus``: Bei einer Folge
+    haengt Sonarr (mit ``includeEpisode``) ein ``episode``-Objekt an, das die
+    Staffel schon nennt; sonst bleibt nur das Feld an der Zeile selbst, falls
+    vorhanden.
+    """
+    episode = satz.get("episode") if isinstance(satz.get("episode"), dict) else {}
+    staffel = episode.get("seasonNumber", satz.get("seasonNumber"))
+    return staffel if isinstance(staffel, int) else None
+
+
+def _folge_aus_zeile(satz: dict[str, Any]) -> int | None:
+    """Die Folgennummer einer Warteschlangen-Zeile - nur aus dem Folgen-Objekt."""
+    episode = satz.get("episode") if isinstance(satz.get("episode"), dict) else {}
+    nummer = episode.get("episodeNumber")
+    return nummer if isinstance(nummer, int) else None
+
+
+async def _warteschlange_raeumen(
+    client,
+    arr_id: int,
+    *,
+    filme: bool,
+    passt: Callable[[dict[str, Any]], bool] | None = None,
+) -> str:
+    """Die Warteschlangen-Zeilen dieses Titels entfernen - samt Datei im Download-Programm.
+
+    ⚠️ **Der eigentliche Befund (#note-34, #note-36).** Abbrechen und
+    Zurueckziehen loeschten den Titel bislang nur aus Radarr/Sonarr - das
+    Download-Programm lief unbeeindruckt weiter und legte Dateien ab, obwohl
+    der Bestaetigungsdialog ausdruecklich deren Loeschung zusagt.
+    ``client.warteschlange_entfernen`` setzt ``removeFromClient=true`` an
+    ``/queue`` und nimmt den Auftrag damit auch dort mit (bei SABnzbd
+    eingeschlossen).
+
+    Wird **vor** dem eigentlichen Entfernen des Titels gerufen: erst die
+    Warteschlange, dann der Titel - sonst koennte Radarr/Sonarr eine bereits
+    entfernte Zeile keinem Titel mehr zuordnen.
+
+    ``passt`` grenzt bei Serien auf den zurueckgezogenen Umfang ein (nur die
+    eigene Staffel bzw. die eigenen Folgen, siehe ``_serie_abbrechen``); ohne
+    den Filter gilt jede Zeile dieses Titels - der Fall, in dem der ganze
+    Titel faellt.
+
+    Ein Fehler wird nie verschluckt, aber auch nicht weitergeworfen: Er kommt
+    als Zusatz in den Bericht, den ``abbrechen`` zurueckgibt, genau wie jedes
+    andere Teilergebnis - das Entfernen des Titels selbst soll daran nicht
+    scheitern.
+    """
+    try:
+        saetze = await client.warteschlange_voll(filme)
+    except ArrError as fehler:
+        logger.warning(
+            "%s queue could not be read before removing a title from it: %s",
+            client.label,
+            logs.kennung(fehler),
+        )
+        return f" - the {client.label} queue could not be checked"
+
+    feld = "movieId" if filme else "seriesId"
+    zeilen = [
+        satz["id"]
+        for satz in saetze
+        if isinstance(satz, dict)
+        and satz.get(feld) == arr_id
+        and isinstance(satz.get("id"), int)
+        and (passt is None or passt(satz))
+    ]
+    if not zeilen:
+        return ""
+
+    mehrzahl = "y" if len(zeilen) == 1 else "ies"
+    try:
+        # Nicht sperren: Wie beim gewoehnlichen "nur entfernen"
+        # (``download_aktionen.entfernen``) soll das Release nicht auf
+        # Nimmerwiedersehen verschwinden - abbrechen heisst nicht, dass es
+        # niemand je wieder anfordern soll.
+        await client.warteschlange_entfernen(zeilen, sperren=False)
+    except ArrError as fehler:
+        logger.warning(
+            "Queue entr%s %s of %s could not be removed: %s",
+            mehrzahl,
+            zeilen,
+            client.label,
+            logs.kennung(fehler),
+        )
+        return (
+            f" - {len(zeilen)} queue entr{mehrzahl} in {client.label} "
+            "could not be removed and may keep downloading"
+        )
+    return f" and removed {len(zeilen)} queue entr{mehrzahl} from {client.label}"
+
+
 async def _serie_abbrechen(db: Session, client, request: MediaRequest) -> str:
     """Beim Abbruch einer Serien-Anfrage nur das selbst Bestellte entfernen.
 
@@ -376,8 +473,9 @@ async def _serie_abbrechen(db: Session, client, request: MediaRequest) -> str:
     """
     andere = _weitere_aktive(db, request)
     if not andere:
+        zusatz = await _warteschlange_raeumen(client, request.arr_id, filme=False)
         await client.remove(request.arr_id, delete_files=True)
-        return "removed the series including files"
+        return f"removed the series including files{zusatz}"
 
     gewollte_staffeln = {anfrage.season for anfrage in andere}
     if None in gewollte_staffeln:
@@ -396,6 +494,16 @@ async def _serie_abbrechen(db: Session, client, request: MediaRequest) -> str:
             for nummer in request.episodes
             if (folge := staffel.get(nummer)) is not None
         ]
+        eigene_nummern = set(request.episodes)
+        zusatz = await _warteschlange_raeumen(
+            client,
+            request.arr_id,
+            filme=False,
+            passt=lambda satz: (
+                _staffel_aus_zeile(satz) == request.season
+                and _folge_aus_zeile(satz) in eigene_nummern
+            ),
+        )
         if eigene:
             await client.folgen_schalten([folge.kennung for folge in eigene], False)
         datei_ids = [folge.datei_id for folge in eigene if folge.datei_id]
@@ -404,7 +512,7 @@ async def _serie_abbrechen(db: Session, client, request: MediaRequest) -> str:
         return (
             f"removed only episodes {', '.join(str(n) for n in request.episodes)} "
             f"of season {request.season} ({len(datei_ids)} files) - "
-            "the series remains for other requests"
+            f"the series remains for other requests{zusatz}"
         )
 
     if request.season is not None:
@@ -413,12 +521,18 @@ async def _serie_abbrechen(db: Session, client, request: MediaRequest) -> str:
             for datei in await client.episode_files(request.arr_id, request.season)
             if datei.get("id")
         ]
+        zusatz = await _warteschlange_raeumen(
+            client,
+            request.arr_id,
+            filme=False,
+            passt=lambda satz: _staffel_aus_zeile(satz) == request.season,
+        )
         await client.unmonitor_season(request.arr_id, request.season)
         if kennungen:
             await client.delete_episode_files(kennungen)
         return (
             f"removed only season {request.season} ({len(kennungen)} files) - "
-            "the series remains for other requests"
+            f"the series remains for other requests{zusatz}"
         )
 
     # Bestand: eine Anfrage ueber die ganze Serie neben Staffeln anderer.
@@ -427,6 +541,15 @@ async def _serie_abbrechen(db: Session, client, request: MediaRequest) -> str:
     # Konto-Aufloesung: stilllegen und nur die Staffeln loeschen, die
     # niemand will - die Ueberwachung der laufenden fremden Staffeln heilt
     # der Status-Abgleich im naechsten Durchgang.
+    zusatz = await _warteschlange_raeumen(
+        client,
+        request.arr_id,
+        filme=False,
+        passt=lambda satz: (
+            (staffel := _staffel_aus_zeile(satz)) is not None
+            and staffel not in gewollte_staffeln
+        ),
+    )
     await client.serie_stilllegen(request.arr_id)
     dateien = await client.get("/episodefile", {"seriesId": request.arr_id}) or []
     kennungen = [
@@ -440,7 +563,7 @@ async def _serie_abbrechen(db: Session, client, request: MediaRequest) -> str:
         await client.delete_episode_files(kennungen)
     return (
         f"froze the series and removed {len(kennungen)} files "
-        "of seasons nobody else wants"
+        f"of seasons nobody else wants{zusatz}"
     )
 
 
@@ -461,7 +584,9 @@ async def abbrechen(db: Session, settings: AppSettings, request: MediaRequest) -
     if client is not None:
         try:
             if request.media_type == MediaType.movie:
+                zusatz = await _warteschlange_raeumen(client, request.arr_id, filme=True)
                 await client.remove(request.arr_id, delete_files=True)
+                umfang += zusatz
             else:
                 umfang = await _serie_abbrechen(db, client, request)
         except ArrError as error:

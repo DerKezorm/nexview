@@ -1170,6 +1170,31 @@ def test_ablage_und_loeschen(arr_client) -> None:
     assert arr_client.get("/api/settings/qualitaetsprofile").json() == []
 
 
+def test_anlegen_lehnt_ein_rezept_ohne_aufloesung_ab(arr_client) -> None:
+    """Ohne 'aufloesung' bricht ``bauplan_aus`` erst beim Verteilen mit einer
+    rohen ``KeyError`` ab - das Rezept ist laut eigener OpenAPI-Beschreibung
+    ein freies Objekt, das die Ablage klaglos annimmt, wenn niemand vorher
+    hinsieht. Richtig ist ein 422 gleich beim Anlegen."""
+    ohne_aufloesung = {k: v for k, v in REZEPT.items() if k != "aufloesung"}
+    antwort = arr_client.post(
+        "/api/settings/qualitaetsprofile",
+        json={"name": "P", "dienst": "radarr", "rezept": ohne_aufloesung},
+    )
+    assert antwort.status_code == 422, antwort.text
+    assert antwort.json()["detail"]["code"] == "quality_recipe_incomplete"
+    assert arr_client.get("/api/settings/qualitaetsprofile").json() == []
+
+
+def test_anlegen_lehnt_ein_rezept_ohne_quelle_ab(arr_client) -> None:
+    ohne_quelle = {k: v for k, v in REZEPT.items() if k != "quelle"}
+    antwort = arr_client.post(
+        "/api/settings/qualitaetsprofile",
+        json={"name": "P", "dienst": "radarr", "rezept": ohne_quelle},
+    )
+    assert antwort.status_code == 422, antwort.text
+    assert antwort.json()["detail"]["code"] == "quality_recipe_incomplete"
+
+
 def test_loeschen_meldet_unbekanntes_profil(arr_client) -> None:
     antwort = arr_client.delete("/api/settings/qualitaetsprofile/999")
     assert antwort.status_code == 404

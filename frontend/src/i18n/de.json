@@ -2147,6 +2147,7 @@
       "webhook_unknown_instance": "Zu dieser Kennung ist keine Instanz eingerichtet.",
       "quality_profile_unknown": "Dieses Profil gibt es nicht (mehr).",
       "quality_instance_unknown": "Diese Instanz ist nicht eingerichtet.",
+      "quality_recipe_incomplete": "Dem Rezept fehlt mindestens ein Pflichtfeld (Auflösung oder Quelle).",
       "quality_recipe_unsupported": "Diese Kombination lässt sich mit dem vorliegenden TRaSH-Stand nicht bauen.",
       "arr_quality_unknown": "Diese Instanz kennt keine der gewünschten Qualitätsstufen.",
       "trash_rate_limit": "GitHub bremst gerade weitere Anfragen. Versuch es in einer Stunde noch einmal.",

@@ -2147,6 +2147,7 @@
       "webhook_unknown_instance": "No instance is set up for this identifier.",
       "quality_profile_unknown": "This profile no longer exists.",
       "quality_instance_unknown": "That instance is not set up.",
+      "quality_recipe_incomplete": "The recipe is missing at least one required field (resolution or source).",
       "quality_recipe_unsupported": "This combination cannot be built from the TRaSH snapshot in use.",
       "arr_quality_unknown": "This instance knows none of the requested quality tiers.",
       "trash_rate_limit": "GitHub is throttling further requests. Try again in an hour.",

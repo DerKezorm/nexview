@@ -175,8 +175,24 @@ def alle(admin: AdminUser, db: DbSession) -> list[ProfilOut]:
     return [_hinaus(p) for p in dienst.alle(db)]
 
 
+#: Ohne diese beiden bricht ``trash.bauplan_aus`` mit einer rohen ``KeyError``
+#: ab - nicht beim Anlegen, sondern erst beim naechsten Verteilen, mit einer
+#: allgemeinen Fehlernummer statt einer verstaendlichen Meldung.
+#: Die anderen Felder von ``bauplan_aus`` (``sprachen``, ``sprachRollen``, ...)
+#: vertragen ein Fehlen, diese beiden nicht.
+PFLICHTFELDER_REZEPT = ("aufloesung", "quelle")
+
+
 @router.post("", response_model=ProfilOut, status_code=status.HTTP_201_CREATED)
 def anlegen(payload: ProfilIn, admin: AdminUser, db: DbSession) -> ProfilOut:
+    fehlend = [feld for feld in PFLICHTFELDER_REZEPT if not payload.rezept.get(feld)]
+    if fehlend:
+        raise meldungen.fehler(
+            "quality_recipe_incomplete",
+            "Dem Rezept fehlt mindestens ein Pflichtfeld: " + ", ".join(fehlend) + ".",
+            422,
+            felder=fehlend,
+        )
     profil = dienst.anlegen(db, payload.name, payload.dienst, payload.rezept)
     db.commit()
     db.refresh(profil)

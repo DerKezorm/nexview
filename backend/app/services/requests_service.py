@@ -553,6 +553,12 @@ async def apply_target(
 
     request.root_folder_path = gewuenschter_ordner
     request.quality_profile_id = gewuenschtes_profil
+    # ⚠️ **Auch hier, nicht nur beim Anfragen selbst.** Der Entscheider waehlt
+    # frei (er darf ja immer) - aber die Anfrageliste soll trotzdem zeigen,
+    # dass daraus eine 2160p-Datei wird, auch wenn die Fassung Standard bleibt.
+    request.quality_profile_uhd = request.tier != "uhd" and await get_beschaffung(
+        settings
+    ).profil_ist_uhd(art, request.tier, gewuenschtes_profil)
 
 
 async def resolve_profile(
@@ -1544,6 +1550,10 @@ async def create_request(
                 titel=item.title,
             )
 
+    # Wird unten nur im ARR-Betrieb gesetzt (siehe naechster Block) - im
+    # NEX-Betrieb gibt es kein Profil, das 2160p zulassen koennte.
+    profil_uhd = False
+
     # ⚠️ **Im NEX-Betrieb gibt es weder Ordner noch Profil** (Bauplan 9):
     # Beides haengt dort an der Fassung. Gefragt wird die Faehigkeit des
     # Wegs, denn ``optionen`` antwortet dort ``not_in_this_mode``, und daran
@@ -1565,6 +1575,28 @@ async def create_request(
             stufe,
             darf_frei_waehlen=user.can_approve,
         )
+
+        # ⚠️ **Ein Qualitaetsprofil ist kein Weg an der Fassung vorbei.** Zwei
+        # Instanzen (Standard, 4K) sind der eine Weg, das 4K-Recht
+        # umzusetzen - aber ein Administrator kann genauso gut *innerhalb*
+        # der Standard-Instanz ein Profil fuehren, das 2160p zulaesst. Ohne
+        # diese Pruefung reichte die Wahl eines solchen Profils, um das
+        # Fassungsrecht zu umgehen: Die Anfrage traegt danach weiterhin die
+        # Standardfassung, und weder die Oberflaeche (kein Umschalter) noch
+        # der Administrator (keine Kennzeichnung) sehen den Unterschied.
+        #
+        # Genau wie bei der Fassung selbst: Wer freigeben darf, darf alles.
+        profil_uhd = stufe != "uhd" and await get_beschaffung(settings).profil_ist_uhd(
+            item.media_type, stufe, profil
+        )
+        if profil_uhd and not darf_anfragen(db, user, fassungen.arr_kennung(media_type, "uhd")):
+            raise RequestError(
+                "Für 4K-Anfragen fehlt dir die Berechtigung. "
+                "Der Administrator kann sie freischalten.",
+                403,
+                code="fassung_not_allowed",
+            )
+
         # ⚠️ **Wer freigeben darf, hat keine Sperrliste.** Der Kontodialog blendet
         # sie fuer Administratoren und Entscheider aus; bis zum 12.09.2026 galt eine
         # vor dem Hochstufen gesetzte Liste hier trotzdem weiter, unsichtbar.
@@ -1736,6 +1768,7 @@ async def create_request(
         poster_path=item.poster_url,
         release_date=item.release_date,
         quality_profile_id=None if ziel_erst_bei_freigabe else quality_profile_id,
+        quality_profile_uhd=False if ziel_erst_bei_freigabe else profil_uhd,
         root_folder_path=zielordner,
         season=season,
         episodes=episodes,

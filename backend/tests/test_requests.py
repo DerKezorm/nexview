@@ -313,6 +313,169 @@ def test_ohne_sperrliste_sind_alle_profile_erlaubt(arr_client: TestClient) -> No
     assert _anfrage(arr_client, _first_demo(arr_client), headers).status_code == 201
 
 
+# --- Ein Qualitaetsprofil ist kein Weg an der Fassung vorbei ---------------
+#
+# ⚠️ Bis zum 26.09.2026 pruefte das 4K-Recht nur die Fassung (Instanz). Ein
+# Administrator kann aber auch *innerhalb* einer einzigen Instanz ein Profil
+# fuehren, das 2160p zulaesst - dann kam eine Anfrage ohne 4K-Recht
+# ungehindert durch und trug danach weiter die Standardfassung, ohne dass
+# Oberflaeche oder Administrator den Unterschied sahen.
+
+
+def test_ein_2160p_profil_in_der_standardinstanz_braucht_das_4k_recht(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.models import UHD_FILME, FassungRecht
+    from app.services.beschaffung.arr import library
+
+    async def profil_2_ist_uhd(
+        _settings: object,
+        _media_type: str,
+        _tier: str = "standard",
+        quality_profile_id: int = 0,
+    ) -> bool:
+        # Profil 2 spielt hier ein Profil, das der Administrator "Ultra-HD"
+        # genannt und in der Standard-Instanz belassen hat - keine eigene
+        # 4K-Instanz, aber trotzdem 2160p.
+        return quality_profile_id == 2
+
+    monkeypatch.setattr(library, "profil_ist_uhd", profil_2_ist_uhd)
+    created = create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+    item = _first_demo(arr_client)
+
+    def anfrage_mit_profil_2():
+        return arr_client.post(
+            "/api/requests",
+            json={
+                "media_type": item["media_type"],
+                "tmdb_id": item["tmdb_id"],
+                "quality_profile_id": 2,
+                "root_folder_path": "/data/Movies",
+            },
+            headers=headers,
+        )
+
+    gesperrt = anfrage_mit_profil_2()
+    assert gesperrt.status_code == 403, gesperrt.text
+    assert gesperrt.json()["detail"]["code"] == "fassung_not_allowed"
+    with SessionLocal() as db:
+        assert db.query(MediaRequest).count() == 0
+        konto = db.get(User, created["id"])
+        konto.fassung_rechte.append(
+            FassungRecht(fassung_kennung=UHD_FILME, anfragen=True, auto_freigabe=False)
+        )
+        db.commit()
+
+    erlaubt = anfrage_mit_profil_2()
+    assert erlaubt.status_code == 201, erlaubt.text
+    # ⚠️ Die Fassung bleibt Standard - die 4K-Instanz ist ja gar nicht
+    # betroffen. Die Kennzeichnung fuer den Administrator steht deshalb an
+    # einem eigenen Feld, nicht an ``tier``.
+    gebaut = erlaubt.json()
+    assert gebaut["tier"] == "standard"
+    assert gebaut["fassung"] == "radarr-standard"
+    assert gebaut["quality_profile_uhd"] is True
+
+
+def test_ein_gewoehnliches_profil_braucht_kein_4k_recht(arr_client: TestClient) -> None:
+    """Gegenprobe: Ein Profil ohne 2160p loest die Pruefung gar nicht erst aus."""
+    create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+
+    antwort = _anfrage(arr_client, _first_demo(arr_client), headers)
+
+    assert antwort.status_code == 201, antwort.text
+    assert antwort.json()["quality_profile_uhd"] is False
+
+
+def test_ein_entscheider_darf_das_2160p_profil_ohne_eigenes_4k_recht(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dieselbe Ausnahme wie bei der Fassung selbst: Wer freigeben darf, darf alles."""
+    from app.services.beschaffung.arr import library
+
+    async def profil_2_ist_uhd(
+        _settings: object,
+        _media_type: str,
+        _tier: str = "standard",
+        quality_profile_id: int = 0,
+    ) -> bool:
+        return quality_profile_id == 2
+
+    monkeypatch.setattr(library, "profil_ist_uhd", profil_2_ist_uhd)
+    create_user(arr_client, "eva", role=Role.approver)
+    headers = auth_headers(arr_client, "eva", "passwort-1234")
+    item = _first_demo(arr_client)
+
+    antwort = arr_client.post(
+        "/api/requests",
+        json={
+            "media_type": item["media_type"],
+            "tmdb_id": item["tmdb_id"],
+            "quality_profile_id": 2,
+            "root_folder_path": "/data/Movies",
+        },
+        headers=headers,
+    )
+
+    # Radarr ist im Test nicht erreichbar: Die Uebergabe scheitert (502), aber
+    # eben nicht an der 4K-Rechtepruefung (403) - siehe die Sperrlisten-Probe
+    # oben im selben Muster.
+    assert antwort.status_code == 502, antwort.text
+    with SessionLocal() as db:
+        zeile = db.query(MediaRequest).one()
+        assert zeile.quality_profile_uhd is True
+
+
+def test_ein_2160p_profil_wird_ohne_4k_recht_nicht_angeboten(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Gegenprobe zur Rechtepruefung: Die Auswahl bietet das Profil erst gar nicht an."""
+    from app.services.beschaffung.arr import library
+
+    async def profil_2_ist_uhd(
+        _settings: object,
+        _media_type: str,
+        _tier: str = "standard",
+        quality_profile_id: int = 0,
+    ) -> bool:
+        return quality_profile_id == 2
+
+    monkeypatch.setattr(library, "profil_ist_uhd", profil_2_ist_uhd)
+    create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+
+    optionen = arr_client.get("/api/arr/movie/options", headers=headers).json()
+
+    kennungen = [profil["id"] for profil in optionen["quality_profiles"]]
+    assert kennungen, optionen
+    assert 2 not in kennungen
+
+
+def test_ein_entscheider_sieht_das_2160p_profil_trotzdem(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dieselbe Ausnahme wie beim Anfragen: Wer freigeben darf, darf alles."""
+    from app.services.beschaffung.arr import library
+
+    async def profil_2_ist_uhd(
+        _settings: object,
+        _media_type: str,
+        _tier: str = "standard",
+        quality_profile_id: int = 0,
+    ) -> bool:
+        return quality_profile_id == 2
+
+    monkeypatch.setattr(library, "profil_ist_uhd", profil_2_ist_uhd)
+    create_user(arr_client, "eva", role=Role.approver)
+    headers = auth_headers(arr_client, "eva", "passwort-1234")
+
+    optionen = arr_client.get("/api/arr/movie/options", headers=headers).json()
+
+    assert 2 in [profil["id"] for profil in optionen["quality_profiles"]], optionen
+
+
 def test_sperrliste_wird_gespeichert_und_zurueckgegeben(arr_client: TestClient) -> None:
     created = create_user(arr_client, "kim")
     assert created["blocked_movie_profiles"] == []

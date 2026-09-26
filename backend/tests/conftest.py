@@ -176,9 +176,22 @@ def arr_client(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> Tes
             ],
         }
 
+    async def kein_uhd_profil(
+        _settings: object, _media_type: str, _tier: str = "standard", _quality_profile_id: int = 0
+    ) -> bool:
+        """Keines der beiden Test-Profile laesst 2160p zu, ohne Weiteres.
+
+        Ein echtes Radarr/Sonarr wuerde hier gefragt (``library.profil_ist_uhd``) -
+        das lehnt Port 9 sofort ab. Tests, die genau diese Frage pruefen wollen
+        (ein Profil, das trotz Standard-Instanz 2160p zulaesst), ersetzen die
+        Funktion selbst noch einmal.
+        """
+        return False
+
     monkeypatch.setattr(library, "movie_library", bibliothek)
     monkeypatch.setattr(library, "series_library", keine_serien)
     monkeypatch.setattr(library, "options", optionen)
+    monkeypatch.setattr(library, "profil_ist_uhd", kein_uhd_profil)
     return admin_client
 
 

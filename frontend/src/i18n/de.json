@@ -874,6 +874,8 @@
     "filterFremdeFassung": "Nicht übergeben",
     "fassungUnbekannt": "Fassung gibt es nicht",
     "fassungUnbekanntHint": "Diese Anfrage hängt an der Fassung „{{kennung}}“, die der eingestellte Weg nicht kennt. Übergeben wird sie nie.",
+    "qualityProfileUhd": "4K",
+    "qualityProfileUhdHint": "Das gewählte Qualitätsprofil lässt 2160p zu, auch wenn die Fassung Standard bleibt.",
     "emptyFeedback": "Es liegen keine unbeantworteten Rückmeldungen vor.",
     "alsoBlock": "Titel auf die Sperrliste setzen",
     "alsoBlockHint": "Niemand kann ihn dann mehr anfragen. Sichtbar bleibt er, aber mit dem Abzeichen „Gesperrt“. Zurücknehmen kannst du das jederzeit unter Einstellungen → Sperrliste.",

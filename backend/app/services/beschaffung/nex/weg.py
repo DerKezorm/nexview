@@ -593,6 +593,10 @@ class NexBeschaffung(Beschaffung):
         """Es gibt keine Wahl: Ordner und Profil haengen in nexcrate an der Fassung."""
         _gibt_es_nicht("Zielordner und Qualitätsprofile")
 
+    async def profil_ist_uhd(self, media_type: str, stufe: str, quality_profile_id: int) -> bool:
+        """Es gibt kein Qualitaetsprofil: Die Aufloesung haengt an der Fassung."""
+        _gibt_es_nicht("Zielordner und Qualitätsprofile")
+
     async def datentraeger(self, media_type: str, stufe: str = "standard") -> list[dict[str, Any]]:
         return lesen.datentraeger(await self.client.storage())
 

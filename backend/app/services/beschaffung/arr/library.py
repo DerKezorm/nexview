@@ -22,6 +22,7 @@ from .radarr import LibraryEntry as MovieEntry
 from .radarr import RadarrClient
 from .sonarr import LibraryEntry as SeriesEntry
 from .sonarr import SonarrClient
+from .trash import aufloesung_von
 
 logger = logging.getLogger("nexview.library")
 
@@ -317,6 +318,80 @@ async def options(
     }
     _write(key, result)
     return result
+
+
+def _erlaubt_2160p(eintraege: list[dict[str, Any]]) -> bool:
+    """Steckt in dieser Liste (rekursiv) eine erlaubte 2160p-Qualitaet?
+
+    Radarr und Sonarr buendeln manche Aufloesungen zu Gruppen (``WEB 2160p``
+    mit eigenen ``items`` darunter) - deshalb rekursiv, nicht nur die oberste
+    Ebene. Verwendet dieselbe Namenserkennung wie der Qualitaets-Assistent
+    (``aufloesung_von``): Was zaehlt, ist die Qualitaetsstufe selbst
+    (``Bluray-2160p`` etc.), nicht der vom Administrator frei gewaehlte Name
+    des Profils.
+    """
+    for eintrag in eintraege:
+        if not eintrag.get("allowed", True):
+            continue
+        qualitaet = eintrag.get("quality")
+        if isinstance(qualitaet, dict):
+            wert = aufloesung_von(str(qualitaet.get("name") or ""))
+            if wert and int(wert[:-1]) >= 2160:
+                return True
+        if _erlaubt_2160p(eintrag.get("items") or []):
+            return True
+    return False
+
+
+async def uhd_profil_kennungen(
+    settings: AppSettings, media_type: str, tier: str = "standard"
+) -> frozenset[int]:
+    """Welche Qualitaetsprofile dieser Instanz lassen mindestens 2160p durch?
+
+    ⚠️ **Ein Qualitaetsprofil ist keine Fassung.** Zwei Instanzen (eine
+    "Standard-", eine "4K"-Instanz) sind der eine Weg, das 4K-Recht
+    umzusetzen - aber ein Administrator kann in **einer** Instanz genauso gut
+    mehrere Profile fuehren, von denen eines 2160p zulaesst. Diese Anfrage
+    kommt bei Radarr/Sonarr genauso an wie jede andere, und ohne diese
+    Unterscheidung wuerde das 4K-Recht am Konto durch die blosse Wahl eines
+    Profils umgangen - unbemerkt, denn die Anfrage traegt danach weiterhin
+    die Standardfassung.
+
+    Einmal je Instanz geholt, nicht je Profil: Die Auswahl-Seite muss jedes
+    Profil der Liste einordnen, das Anfragen jeweils nur eines - eine
+    gemeinsame, zwischengespeicherte Menge erspart beiden unnoetige
+    Radarr/Sonarr-Abfragen. Gefragt wird die Instanz direkt, nicht die
+    zwischengespeicherte Kurzliste aus ``options()`` - die traegt nur Kennung
+    und Name, keine Qualitaetsstufen.
+    """
+    key = f"profil_uhd:{media_type}{_stufen_suffix(tier)}"
+    cached = _read(key, OPTIONS_TTL_SECONDS)
+    if cached is not None:
+        return frozenset(cached)
+
+    client = (
+        radarr_client(settings, tier) if media_type == "movie" else sonarr_client(settings, tier)
+    )
+    if client is None:
+        return frozenset()
+    ergebnis = frozenset(
+        int(profil["id"])
+        for profil in await client.quality_profiles()
+        if profil.get("id") is not None and _erlaubt_2160p(profil.get("items") or [])
+    )
+    _write(key, ergebnis)
+    return ergebnis
+
+
+async def profil_ist_uhd(
+    settings: AppSettings, media_type: str, tier: str, quality_profile_id: int
+) -> bool:
+    """Laesst dieses eine Qualitaetsprofil mindestens eine 2160p-Qualitaet durch?
+
+    Ein unbekanntes Profil gilt als nicht UHD: Eine falsche Kennung scheitert
+    ohnehin gleich an Radarr/Sonarr selbst.
+    """
+    return quality_profile_id in await uhd_profil_kennungen(settings, media_type, tier)
 
 
 async def datentraeger(

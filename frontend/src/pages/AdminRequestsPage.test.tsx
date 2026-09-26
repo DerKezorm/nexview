@@ -84,6 +84,32 @@ describe('AdminRequestsPage: Abzeichen für eine fremde Fassung', () => {
 })
 
 /**
+ * ⚠️ Ein Qualitätsprofil kann 2160p zulassen, auch wenn die Fassung
+ * (`tier`/`fassung`) Standard bleibt - etwa eine Standard-Instanz mit einem
+ * eigenen 4K-Profil. Ohne ein eigenes Abzeichen dafür sah eine solche Zeile
+ * aus wie jede gewöhnliche Standard-Anfrage.
+ */
+describe('AdminRequestsPage: Abzeichen für ein 2160p-Profil trotz Standardfassung', () => {
+  it('zeigt "4K" nur an der Zeile mit quality_profile_uhd', async () => {
+    nexBetriebMit([
+      { ...zeile(7, 'approved', 'v_beispiel', 'Erfundener 4K-Profil-Film'), quality_profile_uhd: true },
+      zeile(8, 'approved', 'v_beispiel', 'Erfundener gewöhnlicher Film'),
+    ])
+    rendern(<AdminRequestsPage />, { pfad: '/admin/requests?filter=all' })
+    await screen.findByText('Erfundener 4K-Profil-Film')
+
+    const mit4k = screen.getByText('Erfundener 4K-Profil-Film').closest('p') as HTMLElement
+    const ohne4k = screen.getByText('Erfundener gewöhnlicher Film').closest('p') as HTMLElement
+    expect(Array.from(mit4k.querySelectorAll('span')).some((e) => e.textContent === '4K')).toBe(
+      true,
+    )
+    expect(Array.from(ohne4k.querySelectorAll('span')).some((e) => e.textContent === '4K')).toBe(
+      false,
+    )
+  })
+})
+
+/**
  * ⚠️ **`fassung: null` seit ab4af5b (Backend `str | None`).** Eine Zeile aus
  * der Startmigration kann `fassung_kennung = NULL` tragen. Die Seite darf
  * daran nicht abstürzen und auch nicht das Wort "null" anzeigen - beides wäre

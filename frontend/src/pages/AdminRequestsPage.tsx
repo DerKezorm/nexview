@@ -902,6 +902,19 @@ export function AdminRequestsPage() {
                           </span>
                         );
                       })()}
+                      {/* Ein Qualitätsprofil kann 2160p zulassen, auch wenn
+                          die Fassung (oben) Standard bleibt - etwa eine
+                          Standard-Instanz mit einem eigenen 4K-Profil. Ohne
+                          dieses Abzeichen sähe eine solche Zeile aus wie jede
+                          gewöhnliche Standard-Anfrage. */}
+                      {request.quality_profile_uhd && (
+                        <span
+                          className="shrink-0 rounded-full border border-accent-500/50 bg-accent-500/10 px-2 py-0.5 text-xs font-semibold text-accent-400"
+                          title={t("adminRequests.qualityProfileUhdHint")}
+                        >
+                          {t("adminRequests.qualityProfileUhd")}
+                        </span>
+                      )}
                       {/* Von der Merkliste statt von einem Klick - siehe
                           MyRequestsPage. */}
                       {request.from_watchlist && (

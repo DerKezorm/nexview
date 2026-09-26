@@ -874,6 +874,8 @@
     "filterFremdeFassung": "Not handed over",
     "fassungUnbekannt": "Version does not exist",
     "fassungUnbekanntHint": "This request points to the version “{{kennung}}”, which the current mode does not know. It will never be handed over.",
+    "qualityProfileUhd": "4K",
+    "qualityProfileUhdHint": "The chosen quality profile allows 2160p, even though the version stays standard.",
     "emptyFeedback": "There is no unanswered feedback.",
     "alsoBlock": "Add title to the blocklist",
     "alsoBlockHint": "Nobody can request it afterwards. It stays visible, but carries a “Blocked” badge. You can undo this any time under Settings → Blocklist.",

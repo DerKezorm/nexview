@@ -2332,6 +2332,11 @@ class MediaRequest(Base):
 
     quality_profile_id: Mapped[int | None] = mapped_column(Integer)
     quality_profile_name: Mapped[str | None] = mapped_column(String(120))
+    # Ein Qualitaetsprofil kann 2160p zulassen, auch innerhalb einer
+    # Standard-Instanz - die Fassung (``fassung_kennung``, ``tier``) sagt das
+    # nicht. Ohne dieses eigene Feld saehe eine solche Anfrage in jeder Liste
+    # wie eine gewoehnliche Standard-Anfrage aus.
+    quality_profile_uhd: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     root_folder_path: Mapped[str | None] = mapped_column(String(500))
     arr_id: Mapped[int | None] = mapped_column(Integer)  # ID in Radarr/Sonarr
 

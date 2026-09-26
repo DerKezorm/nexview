@@ -101,6 +101,11 @@ class RequestPublic(BaseModel):
     release_date: str | None
     status: RequestStatus
     quality_profile_id: int | None
+    # Laesst das gewaehlte Profil 2160p zu, obwohl ``tier`` (die Fassung)
+    # "standard" bleibt? Ein Administrator kann innerhalb einer Instanz
+    # Profile bis 2160p fuehren - dann soll die Anfrageliste es trotzdem
+    # zeigen, nicht nur bei einer eigenen 4K-Instanz.
+    quality_profile_uhd: bool = False
     root_folder_path: str | None
     season: int | None
     # Das Folgen-Paket, falls die Anfrage einzelne Folgen meint - fuer die

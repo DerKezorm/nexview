@@ -1736,6 +1736,13 @@ export type MediaRequest = {
    */
   watched?: boolean;
   quality_profile_id: number | null;
+  /**
+   * Lässt das gewählte Profil 2160p zu, obwohl `tier` (die Fassung) "standard"
+   * bleibt? Ein Administrator kann innerhalb einer Instanz Profile bis 2160p
+   * führen - dann soll die Liste es trotzdem zeigen, nicht nur bei einer
+   * eigenen 4K-Instanz.
+   */
+  quality_profile_uhd?: boolean;
   root_folder_path: string | null;
   /** Nur bei Serien; null = ganze Serie. */
   season: number | null;

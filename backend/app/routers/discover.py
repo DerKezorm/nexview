@@ -352,6 +352,24 @@ async def arr_options(
         if uebrig:
             options.quality_profiles = uebrig
 
+    # ⚠️ **Ein Qualitaetsprofil kann 2160p zulassen, auch innerhalb dieser
+    # Standard-Instanz.** Ohne 4K-Recht darf so ein Profil hier gar nicht erst
+    # zur Wahl stehen - sonst waere der fehlende Standard/4K-Umschalter reine
+    # Kosmetik, waehrend das Profil-Feld daneben denselben Weg trotzdem
+    # anbietet. ``create_request`` prueft dieselbe Frage noch einmal
+    # serverseitig; hier geht es nur darum, das Profil erst gar nicht
+    # anzubieten.
+    if tier != "uhd" and not user.can_approve and not fassungen.darf_anfragen(
+        db, user, fassungen.arr_kennung(media_type, "uhd")
+    ):
+        ohne_uhd = [
+            profil
+            for profil in options.quality_profiles
+            if not await get_beschaffung(settings).profil_ist_uhd(media_type, tier, profil.id)
+        ]
+        if ohne_uhd:
+            options.quality_profiles = ohne_uhd
+
     erlaubt = {profil.id for profil in options.quality_profiles}
     standard = settings.default_profile_id(media_type, tier)
     options.default_quality_profile_id = (

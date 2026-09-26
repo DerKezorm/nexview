@@ -311,6 +311,11 @@ class ArrBeschaffung(Beschaffung):
     async def optionen(self, media_type: str, stufe: str = "standard") -> dict[str, Any]:
         return await library.options(self.settings, media_type, stufe)
 
+    async def profil_ist_uhd(
+        self, media_type: str, stufe: str, quality_profile_id: int
+    ) -> bool:
+        return await library.profil_ist_uhd(self.settings, media_type, stufe, quality_profile_id)
+
     async def datentraeger(self, media_type: str, stufe: str = "standard") -> list[dict[str, Any]]:
         return await library.datentraeger(self.settings, media_type, stufe)
 

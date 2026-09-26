@@ -815,6 +815,18 @@ class Beschaffung(ABC):
         """Zielordner und Qualitaetsprofile zur Auswahl."""
 
     @abstractmethod
+    async def profil_ist_uhd(self, media_type: str, stufe: str, quality_profile_id: int) -> bool:
+        """Laesst dieses Qualitaetsprofil 2160p durch, unabhaengig von der Fassung?
+
+        Eine Fassung (Instanz) traegt eine feste Klasse, ein Qualitaetsprofil
+        kann trotzdem eigenmaechtig 2160p erlauben, auch innerhalb der
+        Standard-Instanz - ein Konto ohne 4K-Recht koennte das Recht sonst
+        allein ueber die Profilwahl umgehen. Die Rechtepruefung beim Anfragen
+        fragt deshalb **zusaetzlich** hier nach, nicht nur nach der Klasse der
+        Fassung.
+        """
+
+    @abstractmethod
     async def datentraeger(self, media_type: str, stufe: str = "standard") -> list[dict[str, Any]]: ...
 
     @abstractmethod

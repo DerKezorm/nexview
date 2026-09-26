@@ -56,7 +56,10 @@ def film_stand(titel: dict[str, Any], kennung: str) -> FilmStand | None:
         # ``arr_id`` an Anfrage und Posten eine wahre Aussage - „so heißt der
         # Titel dort" - ohne dass eine Spalte dazukommt.
         arr_id=int(mapping.tmdb_aus(titel.get("ref")) or 0),
-        has_file=mapping.hat_datei(fassung.get("state")),
+        # ⚠️ Auch waehrend eines Upgrades (``downloading``, ``problem``): Die
+        # Datei liegt, und ``size_bytes`` nennt nexcrate bei Filmen nur mit Datei.
+        has_file=mapping.hat_datei(fassung.get("state"))
+        or int(fassung.get("size_bytes") or 0) > 0,
         monitored=bool(fassung.get("monitored")),
         size_bytes=int(fassung.get("size_bytes") or 0),
         title=str(titel.get("name") or ""),
@@ -131,7 +134,9 @@ def serien_stand(titel: dict[str, Any], kennung: str) -> SerienStand | None:
         groessen[int(nummer)] = int(je_fassung.get("size_bytes") or 0)
     return SerienStand(
         arr_id=int(mapping.tmdb_aus(titel.get("ref")) or 0),
-        has_file=int(zahlen.get("have") or 0) > 0,
+        # ⚠️ ``have`` zaehlt nur ueberwachte Folgen. Wie im ARR-Betrieb heisst
+        # ``has_file``: irgendeine Folge liegt vor - wie ``_hat_dateien``.
+        has_file=int(zahlen.get("have") or 0) > 0 or int(fassung.get("size_bytes") or 0) > 0,
         monitored=bool(fassung.get("monitored")),
         episode_file_count=int(zahlen.get("have") or 0),
         episode_count=int(zahlen.get("aired") or 0),

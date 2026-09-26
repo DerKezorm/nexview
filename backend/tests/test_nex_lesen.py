@@ -1144,3 +1144,45 @@ def test_bei_einer_serie_macht_die_groesse_allein_nichts_fertig() -> None:
         ]
     }
     assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == "partial"
+
+
+def test_eine_serie_mit_dateien_nur_an_unueberwachten_folgen_hat_dateien() -> None:
+    """Dieselbe Ursache wie beim Kopfzeichen: ``has_file`` hing nur an
+    ``have``, und der Medienserver-Vergleich uebersah eine Serie, deren Dateien
+    alle an nicht ueberwachten Folgen liegen. Wie im ARR-Betrieb (Sonarr zaehlt
+    jede Datei) heisst ``has_file``: irgendeine Folge liegt vor."""
+    titel = {
+        "kind": "series",
+        "ref": "tmdb:456",
+        "name": "Beispielserie",
+        "versions": [
+            {
+                "version_id": SERIE_HD,
+                "state": "wanted",
+                "monitored": True,
+                "size_bytes": 4_000_000_000,
+                "series": {"counts": {"have": 0, "aired": 12, "expected": 12}},
+            }
+        ],
+        "series": {"seasons": []},
+    }
+    stand = nex_bestand.serien_stand(titel, SERIE_HD)
+    assert stand is not None and stand.has_file
+
+
+@pytest.mark.parametrize("state", ["downloading", "problem"])
+def test_ein_film_waehrend_des_upgrades_hat_seine_datei(state: str) -> None:
+    """Laedt nexcrate ein Upgrade, steht der Film auf ``downloading`` bzw.
+    ``problem``; seine Datei liegt trotzdem (``size_bytes`` nennt nexcrate bei
+    Filmen nur mit Datei). Ohne das fiel er aus dem Medienserver-Vergleich und
+    aus der Speicherzaehlung, solange das Upgrade lief."""
+    titel = {
+        "kind": "movie",
+        "ref": "tmdb:603",
+        "name": "Beispielfilm",
+        "versions": [
+            {"version_id": FILM_HD, "state": state, "monitored": True, "size_bytes": 8_000_000_000}
+        ],
+    }
+    stand = nex_bestand.film_stand(titel, FILM_HD)
+    assert stand is not None and stand.has_file

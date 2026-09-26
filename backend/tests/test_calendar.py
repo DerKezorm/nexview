@@ -7,10 +7,12 @@ Zwischenspeicher-Schluessel der Entdecken-Filter.
 
 from __future__ import annotations
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from app.services import calendar as calendar_service
+from app.services.beschaffung.arr import client as arr_client_module
 from app.services.beschaffung.arr import library
 from app.services.filters import (
     HERKUNFTSLAENDER,
@@ -492,6 +494,118 @@ def test_sonarr_folgen_kommen_bis_in_die_antwort(
     assert eintraege[0]["missing"] is True
     assert eintraege[0]["missing_episodes"] == [6]
     assert eintraege[0]["source"] == "meine"
+
+
+def test_sonarr_kalender_ueber_echten_http_aufruf_zeigt_laufende_serie(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nachstellung Notiz #35 (Rundgang 25./26.09.2026): eine laufende, schon
+    im Bestand befindliche Serie ohne neue Staffel muss trotzdem mit
+    Staffel und Folgennummer im Kalender ankommen.
+
+    Anders als ``test_sonarr_folgen_kommen_bis_in_die_antwort`` wird hier nicht
+    ``library.series_calendar`` ersetzt, sondern Sonarrs dokumentierte Antwort
+    auf ``GET /api/v3/calendar?start=&end=&includeSeries=true`` ueber
+    ``httpx.MockTransport`` bedient - derselbe Weg, den ``SonarrClient.calendar``
+    im Betrieb wirklich geht.
+    """
+    library.invalidate()
+    admin_client.put(
+        "/api/settings",
+        json={
+            "sonarr_url": "http://sonarr.example.com",
+            "sonarr_api_key": "test-sonarr-key",
+        },
+    )
+
+    def antwort(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v3/calendar":
+            parameter = dict(request.url.params)
+            assert parameter["includeSeries"] == "true"
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "seriesId": 208,
+                        "episodeFileId": 0,
+                        "seasonNumber": 23,
+                        "episodeNumber": 1180,
+                        "title": "Episode 1180",
+                        "airDate": "2026-09-27",
+                        "airDateUtc": "2026-09-27T15:00:00Z",
+                        "overview": "",
+                        "hasFile": False,
+                        "monitored": True,
+                        "series": {
+                            "id": 208,
+                            "title": "One Piece",
+                            "tvdbId": 81797,
+                            "monitored": True,
+                            "images": [],
+                            "ratings": {"votes": 10, "value": 8.7},
+                            "genres": ["Animation"],
+                        },
+                    }
+                ],
+            )
+        return httpx.Response(404)
+
+    monkeypatch.setattr(
+        arr_client_module,
+        "_client",
+        httpx.AsyncClient(transport=httpx.MockTransport(antwort)),
+    )
+
+    daten = admin_client.get(
+        "/api/calendar",
+        params={"date_from": "2026-09-21", "date_to": "2026-09-27", "sources": "mine"},
+    ).json()
+    eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
+
+    assert daten["arr_warning"] is None
+    treffer = [e for e in eintraege if e["title"] == "One Piece"]
+    assert len(treffer) == 1
+    assert treffer[0]["episode_label"] == "S23E1180"
+    assert treffer[0]["season"] == 23
+
+
+def test_fremder_bibliotheksbestand_zeigt_ehrlich_in_der_bibliothek(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nachstellung Notiz #7 (Rundgang 25.09.2026): Eine Serie, die schon in
+    Sonarr liegt, aber ueber Nexview nie angefragt wurde (kein Datensatz in
+    ``requests_service.badges_for``), darf nicht wie eine eigene Anfrage
+    aussehen. Zuvor setzte der Kalender ``status="downloaded"`` allein aus
+    Sonarrs ``hasFile`` - unabhaengig davon, ob ueberhaupt jemand angefragt
+    hatte. ``GET /api/requests/mine`` blieb fuer dasselbe Konto leer.
+    """
+
+    async def kalender(_settings: object, _von: str, _bis: str) -> list[dict]:
+        return [
+            folge(
+                nummer=6,
+                serien_id=99,
+                serie={
+                    "id": 99,
+                    "title": "Fremde Serie",
+                    "tvdbId": 341199,
+                    "tmdbId": 4242,
+                    "monitored": True,
+                },
+            )
+        ]
+
+    async def keine_filme(_settings: object, _von: str, _bis: str) -> list[dict]:
+        return []
+
+    monkeypatch.setattr(library, "series_calendar", kalender)
+    monkeypatch.setattr(library, "movie_calendar", keine_filme)
+
+    daten = arr_client.get("/api/calendar", params={"sources": "mine"}).json()
+    eintraege = [eintrag for tag in daten["days"] for eintrag in tag["entries"]]
+
+    assert len(eintraege) == 1
+    assert eintraege[0]["status"] == "in_library"
 
 
 def test_nur_meine_fragt_tmdb_gar_nicht(

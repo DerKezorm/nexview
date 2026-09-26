@@ -68,8 +68,11 @@ function Block({
       <div className="flex flex-wrap items-baseline gap-3 border-b border-ink-700 pb-2">
         <h3 className="text-xs font-medium tracking-wide text-mist-500 uppercase">{titel}</h3>
         <span className="text-xs text-mist-600">{eintraege.length}</span>
-        {/* Ohne diesen Halbsatz war unklar, was die beiden Blöcke unterscheidet
-            – „meine“ klingt nach Anfragen, gemeint ist der eigene Bestand. */}
+        {/* Ohne diesen Halbsatz war unklar, was die beiden Blöcke unterscheidet.
+            „Meine Bibliothek“ heißt bewusst nicht „Bereits angefragt“, denn ein
+            Radarr/Sonarr-Bestand von vor Nexview ist noch keine eigene Anfrage
+            (Rundgang-Befund #note-7). Was davon wirklich angefragt wurde,
+            zeigt die einzelne Kachel über ihr Abzeichen. */}
         <span className="text-xs text-mist-700">{hinweis}</span>
       </div>
 

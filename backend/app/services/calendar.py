@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from ..mocks import demo_data
 from ..models import MediaRequest, MediaServerLibraryItem, MediaType
 from ..schemas_calendar import CalendarDay, CalendarEntry, CalendarResult
-from . import cache, logs, media
+from . import cache, logs, media, requests_service
 from .beschaffung import BeschaffungError, get_beschaffung
 from .filters import (
     DIGITAL_ARTEN,
@@ -727,6 +727,34 @@ def _gruppiere(eintraege: list[CalendarEntry]) -> list[CalendarDay]:
     return tage
 
 
+def _ohne_echte_anfrage_ehrlich(db: Session, eintraege: list[CalendarEntry]) -> None:
+    """Bibliotheksbestand, den niemand ueber Nexview angefragt hat, ehrlich zeigen.
+
+    ``source="meine"`` heisst nur "die angebundene Instanz kennt den Titel
+    schon" - nicht "ich habe ihn angefragt". Wer Radarr oder Sonarr mit einer
+    schon gefuellten Bibliothek anbindet (der Regelfall bei bisherigen
+    Arr-Nutzern, nicht die Ausnahme), sah bisher jeden vorhandenen Titel mit
+    ``status="downloaded"``/``"searching"`` - und damit als eigene, laengst
+    erledigte Anfrage -, waehrend "Meine Anfragen" im selben Moment "nichts
+    angefragt" zeigte (Rundgang-Befund #note-7). Eine echte Anfrage gewinnt
+    weiterhin: Nur wer keine hat, wird auf den ehrlichen Wert zurueckgestuft.
+    """
+    betroffen = [e for e in eintraege if e.source == "meine"]
+    if not betroffen:
+        return
+
+    for art in (MediaType.movie, MediaType.tv):
+        je_art = [e for e in betroffen if e.media_type == art]
+        if not je_art:
+            continue
+        kennungen = [e.tmdb_id for e in je_art if e.tmdb_id is not None]
+        echte_anfragen = requests_service.badges_for(db, art, kennungen)
+        for eintrag in je_art:
+            if eintrag.tmdb_id is not None and eintrag.tmdb_id in echte_anfragen:
+                continue
+            eintrag.status = "in_library" if eintrag.status == "downloaded" else "not_requested"
+
+
 async def _altersfilter(
     db: Session, settings: AppSettings, eintraege: list[CalendarEntry]
 ) -> list[CalendarEntry]:
@@ -850,6 +878,11 @@ async def kalender(
             await _tvdb_nach_tmdb(db, settings, eintraege)
         except Exception as fehler:  # noqa: BLE001 - Zuordnung ist Beiwerk
             logger.warning("Calendar: TVDB mapping skipped: %s", fehler)
+
+    # Nach der TVDB-Zuordnung, damit moeglichst viele Serien schon ihre
+    # TMDB-Kennung tragen - vorher liesse sich fuer sie keine echte Anfrage
+    # nachschlagen.
+    _ohne_echte_anfrage_ehrlich(db, eintraege)
 
     eintraege = await _altersfilter(db, settings, eintraege)
     try:

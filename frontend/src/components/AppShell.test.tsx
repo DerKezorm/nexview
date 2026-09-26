@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 
 vi.mock('../api/client', async () => {
   const echt = await vi.importActual<typeof import('../api/client')>('../api/client')
@@ -19,8 +19,8 @@ vi.mock('../api/client', async () => {
 
 import { api } from '../api/client'
 import type { MovieRatings } from '../api/types'
-import { rendernSchlicht } from '../test/rendern'
-import { Footer } from './AppShell'
+import { rendern, rendernSchlicht } from '../test/rendern'
+import { AppShell, Footer } from './AppShell'
 import { useMovieRatings } from './media/useMovieRatings'
 
 const holen = vi.mocked(api.get)
@@ -78,5 +78,28 @@ describe('Footer', () => {
       expect(holen).toHaveBeenCalledWith('/api/ratings/movie?ids=603'),
     )
     expect(screen.queryByText(/Information courtesy of IMDb/)).not.toBeInTheDocument()
+  })
+})
+
+describe('die Navigation auf dem Handy', () => {
+  it('zeigt alle Einträge, statt die letzten hinter einem Wischen zu verstecken', async () => {
+    // Befund bei 390 Pixel Breite: Die Zeile war 502 bis 537 Pixel breit und
+    // nur seitlich wischbar, ohne jeden Hinweis darauf. „Kalender“ und
+    // „Suchen“ lagen abgeschnitten rechts außerhalb. Sie bricht jetzt um.
+    holen.mockReset()
+    // Listen als Listen, alles andere leer: Glocke und Menü wollen `map`.
+    holen.mockImplementation(async (pfad: string) =>
+      pfad.startsWith('/api/notifications') || pfad.startsWith('/api/favorites') ? [] : {},
+    )
+    rendern(<AppShell />)
+
+    const leisten = await screen.findAllByRole('navigation', { name: 'Entdecken' })
+    const handy = leisten.find((leiste) => leiste.className.includes('md:hidden'))
+    expect(handy).toBeDefined()
+    expect(handy!.className).not.toMatch(/overflow-x-(auto|scroll)/)
+    expect(handy!.className.split(' ')).toContain('flex-wrap')
+    for (const name of ['Stöbern', 'Personen entdecken', 'Kalender', 'Suchen']) {
+      expect(within(handy!).getByRole('link', { name })).toBeInTheDocument()
+    }
   })
 })

@@ -200,9 +200,14 @@ export function AppShell() {
           </div>
         </div>
 
-        {/* Auf schmalen Bildschirmen wandert die Navigation in eine scrollbare Zeile. */}
+        {/* Auf schmalen Bildschirmen wandert die Navigation in eine eigene
+            Zeile. ⚠️ **Sie bricht um, statt seitlich zu scrollen.** Als
+            wischbare Zeile war sie bei 390 Pixel Breite rund 530 Pixel breit,
+            ohne jeden Hinweis darauf: „Kalender“ und „Suchen“ lagen
+            abgeschnitten rechts außerhalb, und wer nicht zufällig in der
+            Leiste wischte, hielt das Menü für dreiteilig. */}
         <nav
-          className="flex gap-1 overflow-x-auto border-t border-ink-700/60 px-4 py-2 md:hidden"
+          className="flex flex-wrap gap-1 border-t border-ink-700/60 px-4 py-2 md:hidden"
           aria-label={t('nav.discover')}
         >
           <button

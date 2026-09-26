@@ -186,3 +186,33 @@ class RadarrClient(ArrClient):
             f"/movie/{arr_id}",
             {"deleteFiles": str(delete_files).lower(), "addImportExclusion": "false"},
         )
+
+    async def film_ueberwachen(self, arr_id: int) -> None:
+        """Nur die Ueberwachung-Flagge einschalten, wenn sie noch aus ist.
+
+        Das Gegenstueck zu ``SonarrClient.serie_ueberwachen``, fuer den Film,
+        den Radarr schon fuehrt, aber ohne Nexview angelegt hat. Unueberwacht
+        sucht Radarr nie von selbst - eine Anfrage, die sich nur mit der
+        vorhandenen Kennung verknuepft, haette dann keine Wirkung (#note-64).
+        """
+        film = await self.get(f"/movie/{arr_id}")
+        if not isinstance(film, dict):
+            raise ArrError(
+                "Radarr liefert diesen Film nicht.", 404, code="radarr_movie_missing"
+            )
+        if film.get("monitored"):
+            return
+        film["monitored"] = True
+        await self.put(f"/movie/{arr_id}", film)
+
+    async def film_suchen(self, arr_id: int) -> None:
+        """Radarr anweisen, genau diesen Film zu suchen.
+
+        Schlaegt das fehl, ist das kein Beinbruch: Der Film ist ueberwacht,
+        Radarr findet ihn beim naechsten regulaeren Durchlauf von selbst
+        (dieselbe Haltung wie ``SonarrClient.folgen_suchen``).
+        """
+        try:
+            await self.post("/command", {"name": "MoviesSearch", "movieIds": [arr_id]})
+        except ArrError:
+            pass

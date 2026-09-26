@@ -16,7 +16,7 @@ from app.services.beschaffung.nex import fassungen as nex_fassungen
 from app.services.beschaffung.nex import system
 from app.services.settings_service import save_settings
 
-from .beschaffung.fake_nexcrate import KEY, URL, FakeNexcrate
+from .beschaffung.fake_nexcrate import FILM_HD, KEY, URL, FakeNexcrate
 from .conftest import auth_headers, create_user
 
 
@@ -218,6 +218,79 @@ def test_freigabe_verknuepft_einen_film_der_schon_in_radarr_liegt(
         # Die vorhandene Radarr-Nummer, nicht eine neu angelegte.
         assert request.arr_id == 815
         assert request.error_message is None
+
+
+def test_freigabe_sucht_einen_film_der_in_radarr_ohne_datei_liegt(
+    arr_client: TestClient, monkeypatch
+) -> None:
+    """#note-64: Verknuepfen allein reicht nicht, wenn die Datei fehlt.
+
+    Fuer einen Film, den Radarr schon fuehrt, aber unueberwacht und ohne
+    Datei, hat das Verknuepfen aus dem vorigen Test seine Nummer uebernommen -
+    und sonst nichts getan. Ohne Einschalten und Suche waere die Anfrage fuer
+    immer "wird gesucht" geblieben, ohne dass Radarr je etwas sucht.
+    """
+    from app.services.beschaffung.arr import library
+    from app.services.beschaffung.arr.radarr import LibraryEntry
+
+    angelegt, _ = _anfrage_von_kim(arr_client)
+
+    async def bestand(*_args, **_kwargs):
+        return {
+            angelegt["tmdb_id"]: LibraryEntry(arr_id=815, has_file=False, monitored=False)
+        }
+
+    monkeypatch.setattr(library, "movie_library", bestand)
+
+    aufgerufen: list[str] = []
+
+    class UnueberwachterRadarr:
+        async def ensure_tag(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            return None
+
+        async def film_ueberwachen(self, arr_id: int) -> None:
+            aufgerufen.append(f"ueberwachen:{arr_id}")
+
+        async def film_suchen(self, arr_id: int) -> None:
+            aufgerufen.append(f"suchen:{arr_id}")
+
+    monkeypatch.setattr(library, "radarr_client", lambda *a, **k: UnueberwachterRadarr())
+
+    antwort = arr_client.post(f"/api/admin/requests/{angelegt['id']}/approve")
+    assert antwort.status_code == 200, antwort.text
+    assert aufgerufen == ["ueberwachen:815", "suchen:815"]
+
+    with SessionLocal() as session:
+        request = session.query(MediaRequest).one()
+        assert request.status == RequestStatus.searching
+        assert request.arr_id == 815
+
+
+def test_bestandstitel_ohne_datei_bleibt_im_nex_betrieb_anfragbar(
+    admin_client: TestClient, db: Session, nexcrate: FakeNexcrate
+) -> None:
+    """#note-64 im NEX-Betrieb: traf dort *jeden* Bestandstitel ohne Datei.
+
+    Nach einem Umstieg fuehrt nexcrate den ganzen alten Bestand - ein Titel
+    im Zustand "wanted" (bekannt, ohne Datei) wurde bis zum 26.09.2026
+    genauso abgelehnt wie ein wirklich geladener. Praktisch liess sich damit
+    kein fehlender Altbestand-Titel mehr anfragen.
+    """
+    item = admin_client.get("/api/discover/movie").json()["items"][0]
+    nexcrate.film(
+        item["tmdb_id"],
+        name=item["title"],
+        versionen=[nexcrate.fassung(FILM_HD, "wanted")],
+    )
+    save_settings(db, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY})
+    nex_fassungen.schreiben(db, nexcrate.versions)
+    db.commit()
+
+    antwort = admin_client.post(
+        "/api/requests",
+        json={"media_type": "movie", "tmdb_id": item["tmdb_id"]},
+    )
+    assert antwort.status_code == 201, antwort.text
 
 
 # --------------------------------------------------------------------------

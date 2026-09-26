@@ -1480,7 +1480,13 @@ async def create_request(
             item.media_type, [item], stufe, fassung=kennung
         )
         current = matched.items[0]
-        if current.status in ("downloaded", "searching"):
+        # ⚠️ **"searching" heisst "noch keine Datei"** (``library._status_for``,
+        # ``nex/lesen.zustand_der_kachel``) - das Gegenteil von "schon da". Bis
+        # zum 26.09.2026 stand hier auch "searching", und jeder Titel, den
+        # Radarr/Sonarr bzw. nexcrate nur kannte, liess sich nie wieder
+        # anfragen (#note-64). Nach einem Umstieg trifft das im NEX-Betrieb
+        # jeden fehlenden Altbestand-Titel.
+        if current.status == "downloaded":
             raise RequestError(
                 f"„{item.title}“ ist bereits in deiner Bibliothek.",
                 409,

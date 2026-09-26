@@ -84,7 +84,9 @@ async def _radarr_eintrag(settings: AppSettings, request: MediaRequest):
     Liegt er schon da, wird nichts neu angelegt: Die Anfrage uebernimmt seine
     Radarr-Nummer und laeuft ganz gewoehnlich weiter. Hat er bereits eine
     Datei, setzt der naechste Rundgang sie auf "geladen" - dafuer braucht es
-    hier keinen Sonderfall.
+    hier keinen Sonderfall. Hat er noch keine, muss der Aufrufer ihn erst
+    ueberwachen und suchen lassen (``RadarrClient.film_ueberwachen`` /
+    ``film_suchen``) - sonst bliebe die Anfrage folgenlos (#note-64).
 
     Der Bestand kommt aus demselben Zwischenspeicher wie bei Serien. Er kann
     ein paar Minuten alt sein; in diesem Fenster schlaegt weiterhin Radarrs
@@ -251,6 +253,13 @@ async def anfragen(db: Session, settings: AppSettings, request: MediaRequest) ->
                 vorhanden.arr_id,
             )
             created = {"id": vorhanden.arr_id}
+            if not vorhanden.has_file:
+                # ⚠️ Ohne Datei reicht die Verknuepfung allein nicht: Ein Film,
+                # den Radarr ohne Nexview fuehrt, ist oft unueberwacht und
+                # sucht dann nie von selbst. Sonst waere die Anfrage "wird
+                # gesucht", ohne dass irgendwo gesucht wird (#note-64).
+                await client.film_ueberwachen(vorhanden.arr_id)
+                await client.film_suchen(vorhanden.arr_id)
         else:
             tag_id = await client.ensure_tag(requester_tag(request.user.username))
             created = await client.add(

@@ -596,3 +596,32 @@ def test_titel_liegt_schon_da_meldet_eine_kennung(
     assert detail["titel"] == item["title"]
     # Der deutsche Rueckfall bleibt dabei.
     assert "Bibliothek" in detail["message"]
+
+
+def test_bestandstitel_ohne_datei_bleibt_anfragbar(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#note-64: "searching" heisst "noch keine Datei", nicht "schon da".
+
+    Ein Titel, den Radarr bereits fuehrt - von Hand hinzugefuegt, ueber eine
+    zweite Instanz geholt, aus einem eingespielten Stand -, aber ohne Datei,
+    bekam bis zum 26.09.2026 dieselbe Ablehnung wie ein wirklich vorhandener:
+    "already_in_library". Die eigene Titelseite zeigte dabei "Wird gesucht",
+    nicht "Liegt vor" - die Ablehnung behauptete das Gegenteil.
+    """
+    from app.services.beschaffung.arr import library
+
+    create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+    item = _first_demo(arr_client)
+
+    async def wird_gesucht(_einstellungen, _art, items, _stufe="standard", **_rest):
+        for eintrag in items:
+            eintrag.status = "searching"
+        return library.MatchResult(items=items)
+
+    monkeypatch.setattr(library, "apply_status", wird_gesucht)
+
+    antwort = _anfrage(arr_client, item, headers)
+
+    assert antwort.status_code == 201, antwort.text

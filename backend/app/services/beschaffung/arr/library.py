@@ -16,7 +16,7 @@ from typing import Any
 from ....schemas_media import MediaItem
 from ... import logs
 from ...settings_service import AppSettings
-from ..base import jahr_aus, treffer_nach_titel
+from ..base import jahr_aus, nicht_gelesen, treffer_nach_titel
 from .client import ArrError
 from .radarr import LibraryEntry as MovieEntry
 from .radarr import RadarrClient
@@ -273,6 +273,7 @@ async def apply_status(
                     item.model_copy(update=_aenderung(entry, mit_pfad)) if entry else item
                 )
     except ArrError as error:
+        nicht_gelesen(error)
         return MatchResult(items=items, warning=error.message)
 
     return MatchResult(items=updated)
@@ -700,7 +701,8 @@ async def serien_eintrag(
         return None
     try:
         nach_tvdb, nach_titel = await series_library(settings, tier)
-    except ArrError:
+    except ArrError as fehler:
+        nicht_gelesen(fehler)
         return None
     if tvdb_id and (treffer := nach_tvdb.get(tvdb_id)) is not None:
         return treffer
@@ -742,6 +744,7 @@ async def episode_availability(
         vorhanden = await client.episode_status(eintrag.arr_id)
     except ArrError as fehler:
         logger.warning("Episode status not available: %s", logs.kennung(fehler))
+        nicht_gelesen(fehler)
         return {}
 
     # Mengen lassen sich nicht als JSON ablegen - fuer den Zwischenspeicher

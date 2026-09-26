@@ -32,9 +32,6 @@ class _Stand:
     pfade: dict[int, str] = field(default_factory=dict)
     #: Titel, deren 4K-Datei in der **Standard**-Instanz liegt (nur Klasse ``uhd``).
     verdeckt: set[int] = field(default_factory=set)
-    #: ``False``, wenn der Weg nicht geantwortet hat: Dann ist ``status`` der
-    #: letzte bekannte Stand, nicht der bestaetigte.
-    gelesen: bool = True
 
 
 async def anreichern(
@@ -43,7 +40,7 @@ async def anreichern(
     media_type: str,
     items: list[MediaItem],
     user: User,
-) -> bool:
+) -> None:
     """``fassungen`` auf den Karten setzen - an Ort und Stelle.
 
     Der erste Eintrag ist die Hauptfassung; ihr Zustand ist der, der schon in
@@ -51,16 +48,15 @@ async def anreichern(
     Benutzer anfragen darf.
 
     Ist eine dieser Fassungen gerade nicht erreichbar, bleibt ihr Zustand der
-    letzte bekannte: eine eigene Anfrage, sonst ``not_requested``. Ob alle
-    Zusatzfassungen geantwortet haben, gibt die Funktion zurueck; die Listen
-    ueberhoeren es (eine Warnung wegen einer Zusatzfassung waere dort nur
-    Laerm), die Titelseite sagt es dazu.
+    letzte bekannte: eine eigene Anfrage, sonst ``not_requested``. Die Listen
+    sagen dazu nichts (eine Warnung wegen einer Zusatzfassung waere dort nur
+    Laerm); die Titelseite erfaehrt es ueber ``beschaffung.lesestand``.
     """
     haupt_kennung = fassungen.hauptkennung(media_type)
     # Ohne Hauptfassung (NEX-Betrieb, nichts gelesen) bekommt keine Karte eine
     # Achse - schon gar nicht eine Arr-Fassung, die es hier nicht gibt.
     if not items or haupt_kennung is None:
-        return True
+        return
 
     haupt = fassungen.info(settings, haupt_kennung)
     weitere = [
@@ -98,7 +94,6 @@ async def anreichern(
             eintrag.path_uhd = stand.pfade.get(eintrag.tmdb_id)
         if eintrag.tmdb_id in stand.verdeckt and hasattr(eintrag, "uhd_in_standard"):
             eintrag.uhd_in_standard = True
-    return all(stand.gelesen for stand in staende.values())
 
 
 def _achse(fassung: FassungInfo, status: str, *, haupt: bool = False) -> FassungAchse:
@@ -206,7 +201,7 @@ async def _stand(
         # darauf hinweisen, bevor jemand eine zweite anlegt.
         verdeckt = gemeldet - im_server
 
-    stand = _Stand(pfade=pfade, verdeckt=verdeckt, gelesen=gelesen)
+    stand = _Stand(pfade=pfade, verdeckt=verdeckt)
     for eintrag in items:
         eigen = eigene.get(eintrag.tmdb_id)
         vorhanden = in_bibliothek.get(eintrag.tmdb_id)

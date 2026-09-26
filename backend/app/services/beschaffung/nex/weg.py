@@ -44,6 +44,7 @@ from ..base import (
     Sprung,
     WarteschlangenEintrag,
     Warum,
+    nicht_gelesen,
 )
 from . import (
     aktionen,
@@ -446,6 +447,7 @@ class NexBeschaffung(Beschaffung):
             # dagegen ist kein Stand.
             if error.code in fehler.AUSFALL:
                 items = lesen.kacheln_aus_bestand(media_type, items, kennung)
+            nicht_gelesen(error)
             return MatchResult(items=items, warning=error.message)
         return MatchResult(items=gefaerbt)
 
@@ -484,6 +486,7 @@ class NexBeschaffung(Beschaffung):
                 staende = await self.folgen_stand(stufe, tmdb_id, fassung=kennung) or {}
         except fehler.NexcrateError as problem:
             logger.info("Episode availability not read from nexcrate: %s", problem.code)
+            nicht_gelesen(problem)
             return {}
         return {
             nummer: {folge for folge, stand in folgen.items() if stand.has_file}
@@ -514,6 +517,7 @@ class NexBeschaffung(Beschaffung):
             titel_daten = await self.client.title("series", mapping.ref(tmdb_id))
         except fehler.NexcrateError as problem:
             logger.info("Series state not read from nexcrate: %s", problem.code)
+            nicht_gelesen(problem)
             return None
         if titel_daten is None:
             return None

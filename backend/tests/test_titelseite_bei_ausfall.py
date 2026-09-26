@@ -26,7 +26,7 @@ from fastapi.testclient import TestClient
 from app.db import SessionLocal
 from app.models import MediaRequest, MediaType, RequestStatus
 from app.routers import details as details_router
-from app.schemas_media import MediaDetail
+from app.schemas_media import EpisodeInfo, MediaDetail, SeasonDetail
 from app.services.beschaffung import NEX
 from app.services.beschaffung.arr import library
 from app.services.beschaffung.arr.client import ArrError
@@ -38,7 +38,7 @@ from app.services.beschaffung.nex.fehler import NexcrateError
 from app.services.fassungen import arr_kennung
 from app.services.settings_service import load_settings, save_settings
 
-from .beschaffung.fake_nexcrate import FILM_HD, FILM_UHD, KEY, URL, FakeNexcrate
+from .beschaffung.fake_nexcrate import FILM_HD, FILM_UHD, KEY, SERIE_HD, URL, FakeNexcrate
 from .conftest import create_user
 
 
@@ -221,6 +221,112 @@ def test_im_arr_betrieb_bleibt_eine_fertige_anfrage_fertig_waehrend_radarr_schwe
     daten = arr_client.get("/api/detail/movie/9506").json()
 
     assert daten["status"] == "downloaded"
+    assert daten["status_unconfirmed"] is True
+
+
+def test_schweigt_nur_die_4k_instanz_sagt_die_titelseite_es_dazu(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Radarr antwortet, Radarr-4K nicht: Die Hauptachse ist bestätigt, die
+    4K-Achse nicht. Die 4K-Achse behält ihren letzten Stand, und die Seite
+    sagt, dass nicht alles bestätigt ist."""
+    antwort = arr_client.put(
+        "/api/settings",
+        json={"radarr_uhd_url": "http://127.0.0.1:11", "radarr_uhd_api_key": "test-radarr-4k-key"},
+    )
+    assert antwort.status_code == 200, antwort.text
+    _titelseite_ohne_tmdb(monkeypatch)
+    uhd = arr_kennung("movie", "uhd")
+    _anfrage(arr_client, 9509, uhd, RequestStatus.downloaded)
+
+    async def nur_4k_schweigt(_settings: object, tier: str = "standard") -> dict:
+        if tier == "uhd":
+            raise ArrError("Radarr antwortet nicht.", code="arr_unreachable", service="Radarr")
+        return {}
+
+    monkeypatch.setattr(library, "movie_library", nur_4k_schweigt)
+
+    daten = arr_client.get("/api/detail/movie/9509").json()
+
+    assert _fassung(daten, uhd) == "downloaded"
+    assert daten["status"] == "not_requested"
+    assert daten["status_unconfirmed"] is True
+
+
+# --------------------------------------------------------------------------
+# Die Staffelansicht
+
+
+def _staffel_ohne_tmdb(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _serie(_db, _settings, _art, tmdb_id, **_rest):
+        return MediaDetail(tmdb_id=tmdb_id, media_type="tv", title="Erfundene Serie", tvdb_id=95100)
+
+    async def _staffel(_db, _settings, _tmdb_id, nummer, **_rest):
+        return SeasonDetail(
+            season_number=nummer,
+            name=f"Staffel {nummer}",
+            episodes=[EpisodeInfo(episode_number=n, name=f"Folge {n}") for n in (1, 2)],
+        )
+
+    monkeypatch.setattr(details_router.media, "detail", _serie)
+    monkeypatch.setattr(details_router.media, "season_detail", _staffel)
+
+
+def test_die_staffelansicht_sagt_dazu_wenn_nexcrate_schweigt(
+    admin_client: TestClient, nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sonst stand jede Folge als „fehlt noch" da, ohne jeden Hinweis."""
+    _einrichten(nexcrate)
+    _staffel_ohne_tmdb(monkeypatch)
+    _nexcrate_weg()
+
+    antwort = admin_client.get("/api/detail/tv/9510/season/1")
+
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["status_unconfirmed"] is True
+
+
+def test_die_staffelansicht_ist_bestaetigt_wenn_nexcrate_antwortet(
+    admin_client: TestClient, nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _einrichten(nexcrate)
+    _staffel_ohne_tmdb(monkeypatch)
+    ref = "tmdb:9511"
+    nexcrate.serie(9511, versionen=[nexcrate.fassung(SERIE_HD, "available")])
+    nexcrate.staffel(
+        ref,
+        1,
+        [
+            nexcrate.folge(
+                1,
+                versionen=[
+                    nexcrate.folgen_fassung(
+                        SERIE_HD, "available", files=[{"file_id": 1, "size_bytes": 100}]
+                    )
+                ],
+            ),
+            nexcrate.folge(2, versionen=[nexcrate.folgen_fassung(SERIE_HD, "wanted")]),
+        ],
+    )
+
+    daten = admin_client.get("/api/detail/tv/9511/season/1").json()
+
+    assert [f["available"] for f in daten["episodes"]] == [True, False]
+    assert daten["status_unconfirmed"] is False
+
+
+def test_die_staffelansicht_sagt_es_auch_wenn_sonarr_schweigt(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _staffel_ohne_tmdb(monkeypatch)
+
+    async def schweigt(_settings: object, _tier: str = "standard") -> tuple[dict, dict]:
+        raise ArrError("Sonarr antwortet nicht.", code="arr_unreachable", service="Sonarr")
+
+    monkeypatch.setattr(library, "series_library", schweigt)
+
+    daten = arr_client.get("/api/detail/tv/9512/season/1").json()
+
     assert daten["status_unconfirmed"] is True
 
 

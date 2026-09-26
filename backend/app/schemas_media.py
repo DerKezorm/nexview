@@ -134,6 +134,9 @@ class SeasonDetail(BaseModel):
     overview: str = ""
     air_date: str | None = None
     episodes: list[EpisodeInfo] = []
+    # Wie ``MediaDetail.status_unconfirmed``: Der Weg hat nicht geantwortet,
+    # und "liegt vor" ist der letzte bekannte Stand, nicht der bestaetigte.
+    status_unconfirmed: bool = False
 
 
 class NamedRef(BaseModel):

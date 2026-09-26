@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import type { SeasonDetail, SeasonInfo } from '../../api/types'
 import { formatDate } from '../../lib/format'
+import { useWegKontext } from '../../hooks/useWegKontext'
 import { Spinner } from '../ui'
 
 /** Häkchen für "liegt vor", Strich für "fehlt noch". */
@@ -26,6 +27,7 @@ function Zustand({ vorhanden }: { vorhanden: boolean }) {
 /** Die Folgen einer Staffel - erst geladen, wenn sie aufgeklappt wird. */
 function Folgen({ tmdbId, season }: { tmdbId: number; season: number }) {
   const { t, i18n } = useTranslation()
+  const weg = useWegKontext()
 
   const query = useQuery({
     queryKey: ['season', tmdbId, season],
@@ -46,44 +48,57 @@ function Folgen({ tmdbId, season }: { tmdbId: number; season: number }) {
   }
 
   return (
-    <ul className="divide-y divide-ink-700/60">
-      {query.data.episodes.map((folge) => (
-        <li key={folge.episode_number} className="flex gap-3 px-4 py-3">
-          <Zustand vorhanden={folge.available} />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-mist-100">
-              <span className="text-mist-600">{folge.episode_number}.</span> {folge.name}
-              {/* Läuft schon eine Anfrage auf genau diese Folge? Dann steht
-                  es hier - dieselbe Auskunft wie an der Staffel, mit dem
-                  ehrlichen Wort: Warten ist kein Laufen. Bei einer laengst
-                  geladenen Deckungs-Anfrage steht nichts - der fehlende
-                  Haken sagt dann alles (etwa TMDBs Phantomfolge, die es bei
-                  Sonarr gar nicht gibt). */}
-              {folge.requested &&
-                !folge.available &&
-                folge.requested_status !== 'downloaded' && (
-                  <span className="ml-2 rounded-full bg-warn-500/15 px-2 py-0.5 text-[11px] font-normal text-warn-500">
-                    {t(
-                      folge.requested_status === 'pending_approval'
-                        ? 'request.seasonPending'
-                        : 'request.seasonRunning',
-                    )}
-                  </span>
-                )}
-            </p>
-            {folge.overview && (
-              <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-mist-500">
-                {folge.overview}
+    <>
+      {/* Schweigt der Weg, stünde sonst jede Folge als „fehlt noch“ da, ohne
+          zu sagen, dass das niemand bestätigt hat. Derselbe Satz wie oben
+          auf der Titelseite. */}
+      {query.data.status_unconfirmed && (
+        <p
+          role="status"
+          className="mx-4 mt-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2 text-xs text-warn-500"
+        >
+          {t('detail.statusUnconfirmed', weg)}
+        </p>
+      )}
+      <ul className="divide-y divide-ink-700/60">
+        {query.data.episodes.map((folge) => (
+          <li key={folge.episode_number} className="flex gap-3 px-4 py-3">
+            <Zustand vorhanden={folge.available} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-mist-100">
+                <span className="text-mist-600">{folge.episode_number}.</span> {folge.name}
+                {/* Läuft schon eine Anfrage auf genau diese Folge? Dann steht
+                    es hier - dieselbe Auskunft wie an der Staffel, mit dem
+                    ehrlichen Wort: Warten ist kein Laufen. Bei einer laengst
+                    geladenen Deckungs-Anfrage steht nichts - der fehlende
+                    Haken sagt dann alles (etwa TMDBs Phantomfolge, die es bei
+                    Sonarr gar nicht gibt). */}
+                {folge.requested &&
+                  !folge.available &&
+                  folge.requested_status !== 'downloaded' && (
+                    <span className="ml-2 rounded-full bg-warn-500/15 px-2 py-0.5 text-[11px] font-normal text-warn-500">
+                      {t(
+                        folge.requested_status === 'pending_approval'
+                          ? 'request.seasonPending'
+                          : 'request.seasonRunning',
+                      )}
+                    </span>
+                  )}
               </p>
-            )}
-            <p className="mt-1 text-[11px] text-mist-600">
-              {folge.air_date ? formatDate(folge.air_date, i18n.language) : '—'}
-              {folge.runtime_minutes ? ` · ${folge.runtime_minutes} Min.` : ''}
-            </p>
-          </div>
-        </li>
-      ))}
-    </ul>
+              {folge.overview && (
+                <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-mist-500">
+                  {folge.overview}
+                </p>
+              )}
+              <p className="mt-1 text-[11px] text-mist-600">
+                {folge.air_date ? formatDate(folge.air_date, i18n.language) : '—'}
+                {folge.runtime_minutes ? ` · ${folge.runtime_minutes} Min.` : ''}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
 

@@ -39,7 +39,7 @@ from ..services import (
     streaming,
     watch,
 )
-from ..services.beschaffung import KLASSE_UHD, get_beschaffung, jahr_aus
+from ..services.beschaffung import KLASSE_UHD, get_beschaffung, jahr_aus, lesestand
 from ..services.mediaserver import verbundene_anbieter
 from ..services.settings_service import for_user, load_settings
 from ..services.streaming import eigene_dienste
@@ -171,19 +171,17 @@ def _fehler(error: TmdbError) -> HTTPException:
     )
 
 
-async def _mit_status(db, settings, media_type: str, eintraege: list, user=None) -> bool:
+async def _mit_status(db, settings, media_type: str, eintraege: list, user=None) -> None:
     """Badges fuer eine Liste von Titeln setzen - an Ort und Stelle.
 
     Dieselbe Logik wie in den Listen: was in Radarr/Sonarr liegt, ueberlagert
     den Zustand aus den eigenen Anfragen. Faellt der Abgleich aus, gilt der
     letzte bekannte Stand (die eigenen Anfragen) statt die ganze Seite
-    scheitern zu lassen.
-
-    Gibt zurueck, ob der Weg geantwortet hat - fuer jede Fassung. ``False``
-    heisst: Was dasteht, ist der letzte bekannte Stand, nicht der bestaetigte.
+    scheitern zu lassen. Ob das so war, vermerkt der Weg im Lesestand der
+    Seite (``beschaffung.lesestand``).
     """
     if not eintraege:
-        return True
+        return
     gelesen = False
     try:
         # Der Ablageort geht **nur** an Administratoren - hier entschieden
@@ -275,11 +273,7 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
                 )
 
         # Zweite Achse zuletzt - sie ergaenzt nur, sie ersetzt nichts.
-        achsen_gelesen = await fassungsachsen.anreichern(
-            db, settings, media_type, list(eintraege), user
-        )
-        gelesen = gelesen and achsen_gelesen
-    return gelesen
+        await fassungsachsen.anreichern(db, settings, media_type, list(eintraege), user)
 
 
 async def _staffeln(db: DbSession, settings, detail: MediaDetail, media_type: str) -> None:
@@ -350,12 +344,15 @@ async def title_detail(
     # Zeitgrenze, und die Seite stand bis zu einer halben Minute bei "Wird
     # geladen" (Pruefgang, 26.09.2026).
     with get_beschaffung(settings).kurze_frist():
-        gelesen = await _mit_status(db, settings, media_type, [detail], user)
-        detail.status_unconfirmed = not gelesen
+        # Was der Weg zum Titel selbst nicht beantwortet hat - jede Fassung,
+        # jede Staffel. Die Empfehlungen zaehlen nicht dazu.
+        with lesestand() as stand:
+            await _mit_status(db, settings, media_type, [detail], user)
+            await _staffeln(db, settings, detail, media_type)
+        detail.status_unconfirmed = not stand.gelesen
         await _mit_status(db, settings, media_type, detail.recommendations, user)
         if detail.collection is not None:
             await _mit_status(db, settings, media_type, detail.collection.items, user)
-        await _staffeln(db, settings, detail, media_type)
 
     # Laeuft der Titel in einem Abo, das *dieser* Benutzer hat? Hier und nicht
     # in ``full_detail``: Dessen TMDB-Antwort liegt fuer alle gemeinsam im
@@ -469,8 +466,10 @@ async def season(
     if haupt_kennung is None:
         return staffel
 
-    # Kurze Frist wie auf der Titelseite: Die Staffel klappt dort auf.
-    with get_beschaffung(settings).kurze_frist():
+    # Kurze Frist wie auf der Titelseite: Die Staffel klappt dort auf. Und
+    # derselbe Hinweis, wenn der Weg schweigt: Sonst stuende jede Folge als
+    # "fehlt noch" da.
+    with get_beschaffung(settings).kurze_frist(), lesestand() as stand:
         vorhanden = await get_beschaffung(settings).folgen_verfuegbarkeit(
             serie.tvdb_id,
             serie.title,
@@ -496,6 +495,8 @@ async def season(
             for kennung in weitere
         }
     vierk = next((k for k in weitere if fassungen.klasse(k) == KLASSE_UHD), None)
+
+    staffel.status_unconfirmed = not stand.gelesen
 
     for folge in staffel.episodes:
         folge.available = folge.episode_number in in_dieser_staffel

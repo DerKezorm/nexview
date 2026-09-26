@@ -673,6 +673,8 @@ export type SeasonDetail = {
   overview: string;
   air_date: string | null;
   episodes: EpisodeInfo[];
+  /** Hat der Beschaffungsweg nicht geantwortet? Dann ist „liegt vor“ der letzte bekannte Stand. */
+  status_unconfirmed?: boolean;
 };
 
 /** Etwas mit Kennung und Namen - Schlagwort oder Studio. */

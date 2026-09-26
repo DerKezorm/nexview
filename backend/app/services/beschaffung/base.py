@@ -23,8 +23,9 @@ from __future__ import annotations
 
 import enum
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Coroutine
-from contextlib import AbstractContextManager, nullcontext
+from collections.abc import Callable, Coroutine, Iterator
+from contextlib import AbstractContextManager, contextmanager, nullcontext
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -157,6 +158,53 @@ class NichtsZuLoeschen(BeschaffungError):
     Kein Fehler der Gegenseite, sondern eine Auskunft: Wer loeschen wollte,
     bekommt ``409`` und den Satz, nicht ``502``.
     """
+
+
+# --------------------------------------------------------------------------
+# Was eine Seite nicht lesen konnte
+
+
+@dataclass
+class Lesestand:
+    """Ob ein Weg beim Aufbau einer Seite alles beantwortet hat.
+
+    ⚠️ **Die Lesewege schlucken ihre Fehler** und antworten leer: keine Folge
+    vorhanden, kein Stand bekannt. Das ist fuer die Anzeige richtig, sagt aber
+    nicht, dass nicht gelesen wurde. Die Staffelansicht zeigte so bei einer
+    stummen nexcrate jede Folge als "fehlt noch", ohne jeden Hinweis
+    (Pruefgang, 26.09.2026). Wo ein Weg einen Lesefehler schluckt, vermerkt er
+    ihn hier (``nicht_gelesen``); die Seite fragt danach.
+    """
+
+    stumm: bool = False
+
+    def vermerken(self, fehler: BeschaffungError) -> None:
+        self.stumm = True
+
+    @property
+    def gelesen(self) -> bool:
+        return not self.stumm
+
+
+_lesestand: ContextVar[Lesestand | None] = ContextVar("beschaffung_lesestand", default=None)
+
+
+@contextmanager
+def lesestand() -> Iterator[Lesestand]:
+    """Um den Aufbau einer Seite: was darin nicht gelesen wurde."""
+    stand = Lesestand()
+    marke = _lesestand.set(stand)
+    try:
+        yield stand
+    finally:
+        _lesestand.reset(marke)
+
+
+def nicht_gelesen(fehler: BeschaffungError) -> None:
+    """Von den Wegen gerufen, wo sie einen Lesefehler schlucken. Ohne Seite wirkungslos."""
+    stand = _lesestand.get()
+    if stand is not None:
+        stand.vermerken(fehler)
 
 
 # --------------------------------------------------------------------------

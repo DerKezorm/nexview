@@ -170,13 +170,20 @@ export function kurzfassung(a: Antworten, t: (s: string) => string): string {
     a.aufloesung === '2160p' ? '4K' : '1080p',
     t(`qualityWizard.src${a.quelle === 'remux' ? 'Remux' : a.quelle === 'web' ? 'Web' : 'Encodes'}`),
   ]
-  const pflicht = a.sprachen.filter((c) => a.sprachRollen[c] === 'pflicht')
+  // ⚠️ Das Rezept ist laut API ein freies Objekt ohne Formvorgabe - ein
+  // Profil, das direkt über die Schnittstelle statt über den Assistenten
+  // entstand, muss die Form von `Antworten` nicht erfüllen. Ohne diesen
+  // Rückfall stürzte die ganze Qualitätsprofile-Seite an genau so einem
+  // Profil ab.
+  const sprachen = a.sprachen ?? []
+  const sprachRollen = a.sprachRollen ?? {}
+  const pflicht = sprachen.filter((c) => sprachRollen[c] === 'pflicht')
   const namen = (codes: string[]) =>
     codes.map((c) => t(SPRACHEN.find((s) => s.code === c)?.labelKey ?? c)).join(' + ')
   if (pflicht.length) {
     teile.push(`${namen(pflicht)} ${t('qualityProfiles.shortRequired')}`)
-  } else if (a.sprachen.length) {
-    teile.push(`${namen(a.sprachen)} ${t('qualityProfiles.shortPreferred')}`)
+  } else if (sprachen.length) {
+    teile.push(`${namen(sprachen)} ${t('qualityProfiles.shortPreferred')}`)
   }
   if (a.sofortNehmen) teile.push(t('qualityProfiles.shortUpgrade'))
   return teile.join(' · ')
@@ -191,15 +198,19 @@ export function kurzfassung(a: Antworten, t: (s: string) => string): string {
  * Anklickens nichts bedeutet.
  */
 export function fingerabdruck(a: Antworten): string {
+  // ⚠️ Dieselbe Rücksicht wie in `kurzfassung`: Ein Rezept ohne Assistent
+  // muss `sprachen`/`sprachRollen` nicht mitbringen.
+  const sprachen = a.sprachen ?? []
+  const sprachRollen = a.sprachRollen ?? {}
   return JSON.stringify({
     typ: a.typ,
     aufloesung: a.aufloesung,
     sofortNehmen: a.sofortNehmen,
     quelle: a.quelle,
     // Rollen sortiert, damit die Reihenfolge des Anklickens nichts bedeutet.
-    sprachRollen: [...a.sprachen].sort().map((c) => `${c}:${a.sprachRollen[c] ?? 'bevorzugt'}`),
+    sprachRollen: [...sprachen].sort().map((c) => `${c}:${sprachRollen[c] ?? 'bevorzugt'}`),
     mehrerePflicht:
-      a.sprachen.filter((c) => a.sprachRollen[c] === 'pflicht').length > 1
+      sprachen.filter((c) => sprachRollen[c] === 'pflicht').length > 1
         ? a.mehrerePflicht
         : null,
     hdr: a.hdr,

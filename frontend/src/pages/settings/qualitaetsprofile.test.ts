@@ -92,6 +92,18 @@ describe('Fingerabdruck eines Rezepts', () => {
       fingerabdruck({ ...zwei, mehrerePflicht: 'eine' }),
     )
   })
+
+  it('stürzt nicht ab an einem Rezept, das nicht vom Assistenten stammt', () => {
+    // ⚠️ Dieselbe Falle wie bei `kurzfassung`: Der Assistent prüft beim
+    // Anlegen per Fingerabdruck auf Dubletten - auch gegen ein bereits
+    // vorhandenes Profil mit einem fremden Rezept.
+    const fremdesRezept = {
+      upgrade_allowed: false,
+      cutoff: 'Bluray-1080p',
+      qualities: ['Bluray-1080p'],
+    } as unknown as Antworten
+    expect(() => fingerabdruck(fremdesRezept)).not.toThrow()
+  })
 })
 
 describe('Kurzfassung eines Profils', () => {
@@ -139,5 +151,20 @@ describe('Kurzfassung eines Profils', () => {
     expect(text).toContain('1080p')
     expect(text).not.toContain('shortRequired')
     expect(text).not.toContain('shortPreferred')
+  })
+
+  it('stürzt nicht ab an einem Rezept, das nicht vom Assistenten stammt', () => {
+    // ⚠️ Das Rezept ist laut API ein freies Objekt ohne Formvorgabe - ein
+    // Profil, das direkt über die Schnittstelle statt über den Assistenten
+    // angelegt wurde, muss nicht die Form von `Antworten` haben. Genau so ein
+    // Profil ("Pruefgang Standard") liess die ganze Qualitätsprofile-Seite
+    // abstürzen: `TypeError: Cannot read properties of undefined (reading
+    // 'filter')`, weil `sprachen` fehlte.
+    const fremdesRezept = {
+      upgrade_allowed: false,
+      cutoff: 'Bluray-1080p',
+      qualities: ['Bluray-1080p'],
+    } as unknown as Antworten
+    expect(() => kurzfassung(fremdesRezept, t)).not.toThrow()
   })
 })

@@ -847,6 +847,32 @@ async def _erfassen(
                         if praefix:
                             behalten.add(praefix)
                         continue
+                    if (
+                        fassungen.quelle(kennung) != NEX
+                        and eintrag.has_file
+                        and not any(groesse > 0 for groesse in eintrag.seasons.values())
+                    ):
+                        # Sonarr fuehrt die Serie mit Dateien, nennt aber zu
+                        # keiner Staffel eine Groesse ueber null - anders als
+                        # eine wirklich leere Serie (dort waere das die
+                        # Wahrheit). Ein vorhandener Posten bleibt stehen statt
+                        # zu verschwinden, und wieso, steht im Protokoll statt
+                        # nirgends.
+                        #
+                        # ⚠️ **Nur im ARR-Betrieb.** Im NEX-Betrieb ist ``[]``
+                        # eine echte Antwort (nexview/CLAUDE.md, "Staffeln
+                        # kommen aus der Liste"); dort gilt bereits
+                        # ``staffeln_gelesen`` fuer die Unterscheidung.
+                        praefix = _serien_praefix(kennung, tvdb_id, eintrag)
+                        if praefix:
+                            behalten.add(praefix)
+                        logger.warning(
+                            "Series %r (%s) has files but no season sizes from Sonarr - "
+                            "kept as is instead of being counted as empty",
+                            eintrag.title,
+                            kennung,
+                        )
+                        continue
                     _serie_aufnehmen(gemessen, kennung, tvdb_id, eintrag)
             except BeschaffungError as fehler:
                 vollstaendig = False

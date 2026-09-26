@@ -316,6 +316,93 @@ async def test_staffel_ohne_dateien_wird_nicht_gefuehrt(
     assert len(db.scalars(select(StorageEntry)).all()) == 1
 
 
+# ------------------------------------------ Serie ohne Staffelgroessen (#note-10)
+
+
+def _mit_sonarr(db: Session, *, radarr: bool = True) -> AppSettings:
+    """Radarr (optional) und Sonarr eintragen, frisch geladene Einstellungen zurueck."""
+    from app.services.settings_service import save_settings
+
+    aenderungen: dict[str, object] = {
+        "sonarr_url": "http://127.0.0.1:9",
+        "sonarr_api_key": "test-sonarr-key",
+    }
+    if radarr:
+        aenderungen["radarr_url"] = "http://127.0.0.1:9"
+        aenderungen["radarr_api_key"] = "test-radarr-key"
+    save_settings(db, aenderungen)
+    return load_settings(db)
+
+
+async def test_serie_ohne_staffelgroessen_wird_nicht_still_uebergangen(
+    db: Session, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sonarr fuehrt die Serie mit Dateien, nennt aber zu keiner Staffel eine Groesse.
+
+    Befund #note-10: Eine solche Serie verschwand kommentarlos, ohne jeden
+    Hinweis im Protokoll - genau wie eine Serie, die es wirklich nicht gibt.
+    """
+    settings = _mit_sonarr(db)
+
+    async def keine_filme(_settings, _tier="standard"):
+        return {}
+
+    async def serie_ohne_groessen(_settings, _tier="standard"):
+        # Sonarr nennt Dateien (``has_file``, ``episode_file_count``), aber
+        # zu keiner Staffel eine Groesse.
+        return {121361: serie({})}, {}
+
+    monkeypatch.setattr(library, "movie_library", keine_filme)
+    monkeypatch.setattr(library, "series_library", serie_ohne_groessen)
+
+    with caplog.at_level("WARNING", logger=storage.logger.name):
+        ergebnis = await storage.abgleichen(db, settings)
+
+    assert not any(
+        zeile.media_type == MediaType.tv for zeile in db.scalars(select(StorageEntry)).all()
+    )
+    assert any(
+        "no season sizes" in eintrag.getMessage() for eintrag in caplog.records
+    ), [eintrag.getMessage() for eintrag in caplog.records]
+    assert ergebnis.entfernt == 0
+
+
+async def test_serie_ohne_staffelgroessen_verliert_ihren_posten_nicht(
+    db: Session, nutzer: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ein schon gemessener Posten bleibt stehen, wenn Sonarr diesmal keine Groesse nennt.
+
+    Ohne die Absicherung raeumte der Abgleich ihn ab: ``vollstaendig`` blieb
+    ``True`` (Sonarr hat ja geantwortet), also fiel die Zeile unter "meldet
+    keine Quelle mehr" und wurde geloescht - samt Besitzer.
+    """
+    settings = _mit_sonarr(db, radarr=False)
+    anfrage(db, nutzer, tmdb_id=1399, tvdb_id=121361, media_type=MediaType.tv)
+
+    async def keine_filme(_settings, _tier="standard"):
+        return {}
+
+    async def serie_mit_groesse(_settings, _tier="standard"):
+        return {121361: serie({1: 20})}, {}
+
+    monkeypatch.setattr(library, "movie_library", keine_filme)
+    monkeypatch.setattr(library, "series_library", serie_mit_groesse)
+    await storage.abgleichen(db, settings)
+
+    async def serie_ohne_groessen(_settings, _tier="standard"):
+        return {121361: serie({})}, {}
+
+    monkeypatch.setattr(library, "series_library", serie_ohne_groessen)
+    ergebnis = await storage.abgleichen(db, settings)
+
+    zeile = db.scalar(
+        select(StorageEntry).where(StorageEntry.key == "tv:sonarr-standard:tvdb:121361:s1")
+    )
+    assert zeile is not None, "der bestehende Posten wurde geloescht"
+    assert zeile.size_bytes == 20 * GB
+    assert ergebnis.entfernt == 0
+
+
 # ----------------------------------------------------- Nur noch in Plex
 
 

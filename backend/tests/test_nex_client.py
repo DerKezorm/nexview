@@ -78,6 +78,28 @@ def test_geloescht_wird_nur_ueber_withdraw() -> None:
 
 
 @pytest.mark.anyio
+async def test_restore_bekommt_das_lange_zeitlimit(
+    nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#job-43: Zurueckholen kann nexcrate TMDB oder MusicBrainz fragen
+    lassen, wenn der Titel die Bibliothek verlassen hat - dasselbe lange
+    Zeitlimit wie beim Anfragen (``request``, ``withdraw``)."""
+    from app.services.beschaffung.nex.client import LANGSAM
+
+    client = _client()
+    gesehen: dict[str, Any] = {}
+    echt = client._request
+
+    async def erfasst(method: str, pfad: str, **kwargs: Any) -> Any:
+        gesehen["timeout"] = kwargs.get("timeout")
+        return await echt(method, pfad, **kwargs)
+
+    monkeypatch.setattr(client, "_request", erfasst)
+    await client.restore(1)
+    assert gesehen["timeout"] is LANGSAM
+
+
+@pytest.mark.anyio
 async def test_der_schluessel_reist_nur_in_der_kopfzeile(nexcrate: FakeNexcrate) -> None:
     """N1: nie in der Adresse. Ein Aufruf ohne Schluessel wird abgelehnt."""
     await _client().system()

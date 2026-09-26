@@ -812,12 +812,17 @@ A one-time wizard appears on first launch:
 | E-mail | **yes** | SMTP server for invitations and password recovery |
 
 The last two cannot be skipped, and *Continue* only unlocks after a successful
-connection test. The reason: straight afterwards Nexview sends you a confirmation
-mail — and **without a confirmed address you cannot get back in**. A mail server that
-does not work would leave a fresh installation unusable.
+connection test: every invitation and every password reset goes out through them.
+
+The address of the account you create here **counts as confirmed right away**, and the
+owner can always sign in, even with an address that is not confirmed yet (after
+changing it without a mail server, say). Every other account, further administrators
+included, **cannot sign in with its password until its address is confirmed**. The
+confirmation mail says so.
 
 If the confirmation never arrives, the sign-in page helps: with the right password it
-offers **Resend confirmation** and **Correct address**, so a typo is not fatal.
+offers **Resend confirmation** and **Correct address**, so a typo is not fatal. The
+link needs a working mail server.
 
 **Further accounts come from invitations** — or through the media server. The
 administrator sets only the address and the role; the invitee picks their own username,

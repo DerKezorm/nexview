@@ -273,8 +273,11 @@ the process. The backup is the way back.
   said the address "counts as confirmed right away", but the account was
   created unconfirmed, so after the first session ended, signing in was
   refused and the confirmation mail could not be sent. The address now is
-  confirmed right away, and on the first start an operator account already
-  caught this way is confirmed once.
+  confirmed right away, and the owner signs in even with an unconfirmed
+  address, for instance after changing it without a mail server. Every other
+  account, further administrators included, still needs a confirmed address to
+  sign in with a password, and the confirmation mail now says so instead of
+  claiming only that requests are blocked.
 - **An empty request created an account deletion ticket.** A bare POST to
   `/api/tickets/kontoaufloesung` filed a real request with the administrators.
   It now has to carry `{"bestaetigt": true}`, which the confirmation dialog

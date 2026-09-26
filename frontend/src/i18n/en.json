@@ -978,7 +978,7 @@
     "emailVerified": "confirmed",
     "emailUnverified": "not confirmed yet",
     "emailUnverifiedHint": "Until the address is confirmed, you cannot sign in with your username and password. The confirmation mail has the link.",
-    "emailUnverifiedOwnerHint": "As the owner, your sign-in does not depend on it. Confirm the address anyway once a mail server is set up: until then no notifications go to it.",
+    "emailUnverifiedOwnerHint": "As the owner, your sign-in does not depend on it. Confirm the address anyway: until then no notifications go to it. Without a mail server, the link only arrives once one is set up.",
     "emailChanged": "Address changed. Please confirm it via the link we just sent you.",
     "resendVerification": "Resend confirmation mail",
     "verificationSent": "Confirmation mail is on its way.",
@@ -1111,7 +1111,8 @@
     "fromEnvironment": "The owner is fixed at startup (NEXVIEW_BETREIBER) and cannot be changed here. Remove the line from your docker-compose.yml and restart – otherwise the next start would undo any handover again.",
     "confirmTitle": "Really hand over ownership?",
     "confirmText": "{{name}} becomes the owner of this installation.",
-    "confirmWarning": "This cannot be undone. Afterwards you are an ordinary administrator: the new owner – and every other administrator – can switch off, demote and delete your account and set your password. Only the new owner can hand the flag back to you."
+    "confirmWarning": "This cannot be undone. Afterwards you are an ordinary administrator: the new owner – and every other administrator – can switch off, demote and delete your account and set your password. Only the new owner can hand the flag back to you.",
+    "confirmWarningUnverified": "Your address is not confirmed yet. As the owner you can still get in, as an ordinary administrator you cannot: without confirmation, signing in with your password is refused, and without a mail server the link never arrives. Best confirm it first."
   },
   "adminUsers": {
     "intro": "Create accounts, set approvals and quotas.",

@@ -101,7 +101,14 @@ def login(
     # denn sein Konto darf kein anderer Administrator anfassen. Bestaetigen
     # soll er die Adresse trotzdem (das Profil zeigt sie als unbestaetigt, und
     # Benachrichtigungen gehen erst danach an sie); nur sperrt es ihn nicht.
-    # Weitere Administratoren bleiben gesperrt: Fuer sie gibt es den Betreiber.
+    # Alle anderen Konten bleiben gesperrt, weitere Administratoren
+    # eingeschlossen. Von Hand freischalten kann sie niemand, auch der
+    # Betreiber nicht; ihr Ausweg ist die Bestaetigungsmail, die sie vor der
+    # Anmeldung neu anfordern oder an eine korrigierte Adresse schicken
+    # (``/api/onboarding/pending/...``). Dafuer braucht es einen Mailserver,
+    # und den kann der Betreiber einrichten, weil er selbst hereinkommt. Wer
+    # den Haken mit unbestaetigter Adresse abgibt, faellt ab da ebenfalls
+    # unter die Sperre; davor warnt die Uebergabe in der Oberflaeche.
     #
     # Es ist die einzige Stelle mit dieser Sperre. Erneuern, OIDC und die
     # Medienserver-Anmeldung fragen die Adresse nicht ab.

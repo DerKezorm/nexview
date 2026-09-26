@@ -978,7 +978,7 @@
     "emailVerified": "bestätigt",
     "emailUnverified": "noch nicht bestätigt",
     "emailUnverifiedHint": "Solange die Adresse nicht bestätigt ist, kannst du dich nicht mit Benutzername und Passwort anmelden. Den Link dazu bringt die Bestätigungsmail.",
-    "emailUnverifiedOwnerHint": "Deine Anmeldung hängt als Betreiber nicht daran. Bestätige die Adresse trotzdem, sobald ein Mailserver eingerichtet ist: Vorher gehen keine Benachrichtigungen an sie.",
+    "emailUnverifiedOwnerHint": "Deine Anmeldung hängt als Betreiber nicht daran. Bestätige die Adresse trotzdem: Bis dahin gehen keine Benachrichtigungen an sie. Ohne Mailserver kommt der Link erst an, wenn einer eingerichtet ist.",
     "emailChanged": "Adresse geändert. Bitte bestätige sie über den Link, den wir dir gerade geschickt haben.",
     "resendVerification": "Bestätigungsmail erneut senden",
     "verificationSent": "Bestätigungsmail ist unterwegs.",
@@ -1111,7 +1111,8 @@
     "fromEnvironment": "Der Betreiber ist beim Start festgelegt (NEXVIEW_BETREIBER) und lässt sich hier nicht ändern. Nimm die Zeile aus deiner docker-compose.yml und starte neu – sonst würde der nächste Start jede Übergabe wieder zurückdrehen.",
     "confirmTitle": "Betreiber wirklich übergeben?",
     "confirmText": "{{name}} wird der Betreiber dieser Installation.",
-    "confirmWarning": "Das lässt sich nicht rückgängig machen. Danach bist du ein gewöhnlicher Administrator: Der neue Betreiber – und jeder andere Administrator – kann dein Konto deaktivieren, herabstufen, löschen und dein Passwort setzen. Zurückholen kann den Haken nur der neue Träger, indem er ihn dir wieder übergibt."
+    "confirmWarning": "Das lässt sich nicht rückgängig machen. Danach bist du ein gewöhnlicher Administrator: Der neue Betreiber – und jeder andere Administrator – kann dein Konto deaktivieren, herabstufen, löschen und dein Passwort setzen. Zurückholen kann den Haken nur der neue Träger, indem er ihn dir wieder übergibt.",
+    "confirmWarningUnverified": "Deine Adresse ist noch nicht bestätigt. Als Betreiber kommst du trotzdem herein, als gewöhnlicher Administrator nicht mehr: Ohne Bestätigung lehnt die Anmeldung mit Passwort dich ab, und ohne Mailserver kommt der Link nie an. Bestätige sie am besten vorher."
   },
   "adminUsers": {
     "intro": "Konten anlegen, Freigaben und Kontingente festlegen.",

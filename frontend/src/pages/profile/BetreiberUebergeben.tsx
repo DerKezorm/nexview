@@ -131,7 +131,14 @@ export function BetreiberUebergeben({ me }: { me: User }) {
         description={t('betreiber.confirmText', {
           name: gewaehlt?.display_name ?? gewaehlt?.username ?? '',
         })}
-        warning={t('betreiber.confirmWarning')}
+        warning={
+          // Der Betreiber kommt auch mit unbestätigter Adresse herein, ein
+          // gewöhnlicher Administrator nicht. Wer den Haken so abgibt, steht
+          // nach dem Abmelden ohne Mailserver vor der Tür.
+          me.email_verified
+            ? t('betreiber.confirmWarning')
+            : `${t('betreiber.confirmWarning')} ${t('betreiber.confirmWarningUnverified')}`
+        }
         confirmLabel={t('betreiber.handOver')}
         loading={uebergeben.isPending}
         onCancel={() => setFrage(false)}

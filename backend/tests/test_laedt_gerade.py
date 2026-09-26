@@ -21,6 +21,9 @@ from app.services import abgleich_kern, status_poller
 from app.services.beschaffung import WarteschlangenEintrag
 from app.services.beschaffung.arr import library
 from app.services.beschaffung.arr.radarr import LibraryEntry as MovieEntry
+from app.services.beschaffung.arr.radarr import RadarrClient as Radarr
+from app.services.beschaffung.arr.sonarr import SonarrClient as Sonarr
+from app.services.beschaffung.nex import lesen as nex_lesen
 from app.services.settings_service import load_settings
 
 from .beschaffung.fake_arr import FakeArr
@@ -204,5 +207,79 @@ async def test_fertig_raeumt_die_anzeige_mit_auf(
     with SessionLocal() as session:
         stand = session.query(MediaRequest).one()
         assert stand.status == RequestStatus.downloaded
+        assert stand.laedt_fortschritt is None
+        assert stand.laedt_seit is None
+
+
+# --- Was nicht mehr laedt, zeigt keinen Fortschritt -------------------------
+
+
+def test_angehaltener_download_zaehlt_nicht_als_ladend() -> None:
+    """Pausiert im Download-Programm: Das Wort „laedt“ waere gelogen."""
+    angehalten = WarteschlangenEintrag(
+        arr_id=4242, season=None, episode=None, size=100, sizeleft=99, laeuft=False
+    )
+    assert abgleich_kern.laedt_fortschritt(_film(), EINTRAG, [angehalten]) is None
+
+
+def test_radarr_zeile_mit_haengendem_import_laedt_nicht_mehr() -> None:
+    """Gemessen an einer Scheinveroeffentlichung, die SABnzbd als zu gross
+    angehalten hatte: Radarr meldete den Auftrag als fertig, Import blockiert,
+    mit der winzigen tatsaechlich geholten Groesse und ``sizeleft`` 0. Daraus
+    wurde „Laedt · 100 %“ - fuer einen Download, der nie geladen wurde."""
+    zeilen = Radarr.eintraege_aus(
+        [
+            {
+                "movieId": 13,
+                "status": "completed",
+                "trackedDownloadState": "importBlocked",
+                "size": 2717598,
+                "sizeleft": 0,
+            },
+            {"movieId": 14, "status": "paused", "trackedDownloadState": "downloading",
+             "size": 1000, "sizeleft": 990},
+            {"movieId": 15, "status": "downloading", "trackedDownloadState": "downloading",
+             "size": 1000, "sizeleft": 500},
+        ]
+    )
+    assert [zeile.laeuft for zeile in zeilen] == [False, False, True]
+    assert abgleich_kern.laedt_fortschritt(_film(), SimpleNamespace(arr_id=13), zeilen) is None
+    assert abgleich_kern.laedt_fortschritt(_film(), SimpleNamespace(arr_id=15), zeilen) == 50
+
+
+def test_sonarr_zeile_angehalten_laedt_nicht() -> None:
+    zeilen = Sonarr.eintraege_aus(
+        [{"seriesId": 3, "status": "Paused", "episode": {"seasonNumber": 1, "episodeNumber": 2},
+          "size": 1000, "sizeleft": 1000}]
+    )
+    assert zeilen[0].laeuft is False
+
+
+def test_nexcrate_zeile_angehalten_laedt_nicht() -> None:
+    zeilen = nex_lesen.warteschlange(
+        [{"title": {"kind": "movie", "ref": "tmdb:603"}, "state": "paused",
+          "size_bytes": 1000, "remaining_bytes": 1000}],
+        "movie",
+    )
+    assert [zeile.laeuft for zeile in zeilen] == [False]
+
+
+def test_abbrechen_raeumt_die_anzeige_ab(arr_client: TestClient) -> None:
+    """Abgebrochen und trotzdem „laedt_fortschritt: 100“ - so stand es nach dem
+    Abbrechen weiter in ``/api/requests/mine``."""
+    _laufende_anfrage(arr_client)
+    with SessionLocal() as session:
+        zeile = session.query(MediaRequest).one()
+        zeile.laedt_fortschritt = 100
+        zeile.laedt_seit = zeile.requested_at
+        kennung = zeile.id
+        session.commit()
+
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+    antwort = arr_client.post(f"/api/requests/{kennung}/cancel", headers=headers)
+    assert antwort.status_code == 200, antwort.text
+    with SessionLocal() as session:
+        stand = session.get(MediaRequest, kennung)
+        assert stand.status == RequestStatus.cancelled
         assert stand.laedt_fortschritt is None
         assert stand.laedt_seit is None

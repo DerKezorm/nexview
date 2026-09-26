@@ -162,6 +162,9 @@ def laedt_fortschritt(
         for zeile in warteschlange
         if zeile.arr_id == arr_id and _in_der_anfrage(request, zeile)
     ]
+    # Was angehalten ist oder im Import haengt, laedt nicht - ohne laufende
+    # Zeile heisst es „wird gesucht“, nicht „laedt · 100 %“.
+    passend = [zeile for zeile in passend if getattr(zeile, "laeuft", True)]
     if not passend:
         return None
     gesamt = sum(zeile.size for zeile in passend)

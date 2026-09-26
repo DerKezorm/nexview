@@ -354,6 +354,11 @@ class WarteschlangenEintrag:
     ``arr_id`` ist die Kennung des Titels bei der Quelle; Staffel und Folge
     gibt es nur bei Serien. ``size``/``sizeleft`` tragen die Fortschritts-
     Anzeige: geladen ist, was von ``size`` nicht mehr uebrig ist.
+
+    ``laeuft`` ist falsch, wenn der Download steht: im Download-Programm
+    angehalten, oder fertig und der Import haengt. Dann zeigt die Anfrage
+    kein „laedt“ - auch nicht „laedt · 100 %“ fuer eine Scheinveroeffentlichung,
+    von der nur ein paar Kilobyte kamen.
     """
 
     arr_id: int
@@ -361,6 +366,7 @@ class WarteschlangenEintrag:
     episode: int | None
     size: int
     sizeleft: int
+    laeuft: bool = True
 
 
 #: Serien-Bestand: nach TVDB-Kennung und nach normalisiertem Titel (der

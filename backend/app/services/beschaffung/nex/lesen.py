@@ -137,6 +137,8 @@ def warteschlange(roh: list[dict[str, Any]], media_type: str) -> list[Warteschla
                 episode=folgen[0].get("episode") if len(folgen) == 1 else None,
                 size=int(eintrag.get("size_bytes") or 0),
                 sizeleft=int(eintrag.get("remaining_bytes") or 0),
+                # Angehalten lädt nichts, auch wenn nexcrate ihn weiterführt.
+                laeuft=str(eintrag.get("state") or "") != "paused",
             )
         )
     return gefunden

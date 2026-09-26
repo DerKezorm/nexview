@@ -1869,6 +1869,10 @@ async def cancel(
     request.status = RequestStatus.cancelled
     request.completed_at = utcnow()
     request.arr_id = None
+    # Die Anzeige „laedt gerade“ raeumt sonst niemand mehr ab: Der Rundgang
+    # sieht nur offene Anfragen, und abgebrochen stand weiter „100“ in der API.
+    request.laedt_fortschritt = None
+    request.laedt_seit = None
     db.commit()
 
     logger.warning(

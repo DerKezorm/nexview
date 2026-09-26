@@ -7,6 +7,7 @@ from typing import Any
 
 from ..base import FilmStand as LibraryEntry
 from ..base import WarteschlangenEintrag
+from . import download_gruende
 from .client import ArrClient, ArrError
 
 
@@ -121,6 +122,7 @@ class RadarrClient(ArrClient):
                     episode=None,
                     size=int(record.get("size") or 0),
                     sizeleft=int(record.get("sizeleft") or 0),
+                    laeuft=download_gruende.laedt_noch(record),
                 )
             )
         return ergebnis

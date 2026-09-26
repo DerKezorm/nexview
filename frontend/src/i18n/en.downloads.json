@@ -24,6 +24,7 @@
       "noneElse": "Nothing else is downloading right now.",
       "remaining": "{{zeit}} left",
       "watching": "Being watched: {{grund}}",
+      "paused": "Paused: the download client is not loading this one.",
       "failed_one": "One failed download is no longer running and is left out here.",
       "failed_other": "{{count}} failed downloads are no longer running and are left out here."
     },

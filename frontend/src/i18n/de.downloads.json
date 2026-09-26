@@ -24,6 +24,7 @@
       "noneElse": "Sonst lädt gerade nichts.",
       "remaining": "noch {{zeit}}",
       "watching": "Wird beobachtet: {{grund}}",
+      "paused": "Angehalten: Das Download-Programm lädt hier nicht weiter.",
       "failed_one": "Ein gescheiterter Download läuft nicht mehr und steht deshalb nicht hier.",
       "failed_other": "{{count}} gescheiterte Downloads laufen nicht mehr und stehen deshalb nicht hier."
     },

@@ -362,6 +362,29 @@ describe('die übrige Seite', () => {
     )
   })
 
+  it('zeigt einen angehaltenen Download als angehalten, nicht als laufend', async () => {
+    // Befund am Prüfstand: SABnzbd hatte zwei Aufträge angehalten, die Seite
+    // zeigte sie unter „Läuft“ mit „1 %“ und rotem Balken, genau wie einen
+    // langsamen. Radarr schreibt ``paused``, nexcrate ebenso.
+    antworten({
+      uebersicht: stand({
+        haenger: [],
+        laufend: [
+          laufend({ titel: 'Angehaltener Film', fortschritt: 1, programmstand: 'paused' }),
+          laufend(),
+        ],
+      }),
+    })
+    rendernSchlicht(<AdminDownloadsPage />)
+
+    const hinweise = await screen.findAllByText(
+      'Angehalten: Das Download-Programm lädt hier nicht weiter.',
+    )
+    expect(hinweise).toHaveLength(1)
+    const zeile = hinweise[0].closest('li') as HTMLElement
+    expect(within(zeile).getByText(/Angehaltener Film/)).toBeInTheDocument()
+  })
+
   it('sagt, wenn nichts hängt, und nennt eine stumme Instanz', async () => {
     antworten({
       uebersicht: stand({

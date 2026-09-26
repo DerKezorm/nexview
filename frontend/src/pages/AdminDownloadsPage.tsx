@@ -553,6 +553,9 @@ function LaufZeile({ zeile }: { zeile: DownloadLaufend }) {
   const { t } = useTranslation()
   const folgen = folgenText(zeile.folgen, t)
   const name = zeile.titel || zeile.release
+  // Angehalten sah genauso aus wie langsam: dieselbe Zeile, derselbe rote
+  // Balken. Radarr, Sonarr und nexcrate schreiben es gleich.
+  const angehalten = zeile.programmstand.toLowerCase() === 'paused'
 
   return (
     <li className="flex flex-col gap-1.5 py-3">
@@ -583,7 +586,9 @@ function LaufZeile({ zeile }: { zeile: DownloadLaufend }) {
           className="h-1.5 overflow-hidden rounded-full bg-ink-800"
         >
           <div
-            className="h-full rounded-full bg-accent-500"
+            className={
+              'h-full rounded-full ' + (angehalten ? 'bg-mist-600' : 'bg-accent-500')
+            }
             style={{ width: `${zeile.fortschritt}%` }}
           />
         </div>
@@ -591,6 +596,9 @@ function LaufZeile({ zeile }: { zeile: DownloadLaufend }) {
       <p className="truncate font-mono text-xs text-mist-600" title={zeile.release}>
         {zeile.release}
       </p>
+      {angehalten && (
+        <p className="text-xs text-warn-500">{t('downloads.running.paused')}</p>
+      )}
       {zeile.beobachtet && (
         <p className="text-xs text-warn-500">
           {t('downloads.running.watching', {

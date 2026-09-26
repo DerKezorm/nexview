@@ -13,6 +13,7 @@ from typing import Any
 
 from ..base import Folge, Staffelstand, WarteschlangenEintrag, normalize_title
 from ..base import SerienStand as LibraryEntry
+from . import download_gruende
 from .client import ArrClient, ArrError
 
 # ⚠️ **Dieses Modul hatte lange gar keinen.** ``serie_ueberwachen`` rief
@@ -126,6 +127,7 @@ class SonarrClient(ArrClient):
                     episode=nummer if isinstance(nummer, int) else None,
                     size=int(record.get("size") or 0),
                     sizeleft=int(record.get("sizeleft") or 0),
+                    laeuft=download_gruende.laedt_noch(record),
                 )
             )
         return ergebnis

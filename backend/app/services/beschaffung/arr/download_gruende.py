@@ -336,6 +336,20 @@ def ist_gestoert(satz: dict) -> bool:
     )
 
 
+def laedt_noch(satz: dict) -> bool:
+    """Laedt diese Zeile der Warteschlange noch - fuer „laedt · x %“?
+
+    Nein, wenn das Download-Programm sie angehalten hat oder der Import
+    haengt. Gemessen an einer Scheinveroeffentlichung, die SABnzbd als zu
+    gross angehalten hatte: Radarr meldete ``completed``/``importBlocked`` mit
+    ``sizeleft`` 0, und Nexview zeigte „laedt · 100 %“.
+    """
+    return (
+        _klein(satz.get("status")) != "paused"
+        and _klein(satz.get("trackedDownloadState")) not in _ZUSTAND_HAENGT
+    )
+
+
 def wortlaut(saetze: Iterable[dict]) -> list[str]:
     """Die Gruende aller Zeilen eines Downloads, in ihrer Reihenfolge, ohne Dopplung."""
     texte: list[str] = []

@@ -788,3 +788,16 @@ def test_bestandstitel_ohne_datei_bleibt_anfragbar(
     antwort = _anfrage(arr_client, item, headers)
 
     assert antwort.status_code == 201, antwort.text
+
+
+def test_eine_anfrage_im_arr_betrieb_traegt_arr_als_herkunft(arr_client: TestClient) -> None:
+    """Das Gegenstueck zum NEX-Betrieb (``test_nex_nachweise``): Die Herkunft
+    wird jetzt gesetzt statt vom Vorgabewert der Spalte geerbt, und im
+    ARR-Betrieb muss dabei weiter ``arr`` herauskommen."""
+    create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+    antwort = _anfrage(arr_client, _first_demo(arr_client), headers)
+    assert antwort.status_code == 201, antwort.text
+
+    with SessionLocal() as sitzung:
+        assert sitzung.get(MediaRequest, antwort.json()["id"]).beschaffung == "arr"

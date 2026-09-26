@@ -21,7 +21,7 @@ from ..models import (
 )
 from ..schemas_media import MediaItem
 from . import age_rating, blocklist, fassungen, logs, media, mediaserver_library, notify, quota, regeln, storage
-from .beschaffung import KLASSE_UHD, BeschaffungError, Korb, get_beschaffung
+from .beschaffung import ARR, KLASSE_UHD, NEX, BeschaffungError, Korb, get_beschaffung
 from .fassungen import auto_freigabe, darf_anfragen, hauptkennung
 from .settings_service import AppSettings
 
@@ -1697,6 +1697,10 @@ async def create_request(
             " (house stock)" if regel_ergebnis.hausbestand else "",
         )
 
+    # Unter welchem Betrieb die Anfrage entsteht - ihre Herkunft, die sich nie
+    # mehr aendert. Ohne diese Zeile griff der Vorgabewert der Spalte, und
+    # jede Anfrage trug ``arr``, auch nach dem Umstieg auf nexcrate.
+    herkunft = NEX if settings.beschaffung_ist_nex else ARR
     if regel_ergebnis is not None and not regel_ergebnis.freigeben:
         # ⚠️ **Die Anfrage entsteht trotzdem, als abgelehnt.** Sonst waere die
         # Absage ein Satz auf dem Bildschirm und danach spurlos: Der
@@ -1710,6 +1714,7 @@ async def create_request(
             user_id=user.id,
             media_type=media_type,
             fassung_kennung=kennung,
+            beschaffung=herkunft,
             tmdb_id=item.tmdb_id,
             tvdb_id=tvdb_id,
             title=item.title,
@@ -1762,6 +1767,7 @@ async def create_request(
         user_id=user.id,
         media_type=media_type,
         fassung_kennung=kennung,
+        beschaffung=herkunft,
         tmdb_id=item.tmdb_id,
         tvdb_id=tvdb_id,
         title=item.title,

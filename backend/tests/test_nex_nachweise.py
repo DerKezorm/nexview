@@ -464,3 +464,20 @@ def test_im_nex_betrieb_gibt_zurueckziehen_das_kontingent_zurueck(
     stand = _stand(admin_client, headers)
     assert (stand["used"], stand["exhausted"]) == (0, False)
     assert _anfragen(admin_client, filme[1], headers).status_code == 201
+
+
+def test_eine_anfrage_im_nex_betrieb_traegt_nex_als_herkunft(
+    admin_client: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """``beschaffung`` an der Anfrage ist ihre Herkunft und soll sich nie
+    aendern. Gesetzt wurde sie aber nie: Jede Anfrage bekam den Vorgabewert
+    ``arr``, auch im NEX-Betrieb. Gemessen an einer umgestellten Anlage: alle
+    84 Anfragen ``arr``, 25 davon nach dem Umstieg entstanden."""
+    headers, filme = _kontingent_einrichten(admin_client, nexcrate, limit=5, sofort=False)
+    angelegt = _anfragen(admin_client, filme[0], headers)
+    assert angelegt.status_code == 201, angelegt.text
+
+    with SessionLocal() as sitzung:
+        zeile = sitzung.get(MediaRequest, angelegt.json()["id"])
+        assert zeile is not None
+        assert zeile.beschaffung == NEX

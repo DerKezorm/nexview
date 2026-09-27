@@ -126,7 +126,9 @@ def test_freigeben_bei_nicht_erreichbarem_radarr(arr_client: TestClient) -> None
 
     response = arr_client.post(f"/api/admin/requests/{angelegt['id']}/approve")
     assert response.status_code == 502
-    assert "Radarr" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert detail["service"] == "Radarr"
+    assert detail["code"]
 
     with SessionLocal() as session:
         request = session.query(MediaRequest).one()

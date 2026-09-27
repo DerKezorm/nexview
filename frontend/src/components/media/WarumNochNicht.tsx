@@ -29,7 +29,7 @@ export function WarumNochNicht({
   mediaType: "movie" | "tv";
   tmdbId: number;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: config } = useConfig();
   const kann = config?.beschaffung_kann?.warum ?? false;
 
@@ -48,6 +48,21 @@ export function WarumNochNicht({
     return fassung ? fassungName(t, fassung) : kennung;
   };
 
+  /**
+   * Der Textschlüssel eines Grundes. Fehlt ein Wert, den der Satz einsetzt
+   * (nexcrate nennt bei Serien keine Qualität), gilt die Fassung `_ohne`,
+   * sofern es sie gibt: Sonst stand dort „Liegt vor ();“ mit leeren Klammern.
+   */
+  const schluessel = (code: string, werte: Record<string, unknown>) => {
+    const grundschluessel = `warum.grund.${code}`;
+    const leer = Object.values(werte).some(
+      (wert) => wert === null || wert === undefined || wert === "",
+    );
+    return leer && i18n.exists(`${grundschluessel}_ohne`)
+      ? `${grundschluessel}_ohne`
+      : grundschluessel;
+  };
+
   const stand = warum.data;
   if (!kann || !stand?.beantwortbar || !stand.bekannt || stand.gruende.length === 0) {
     return null;
@@ -60,7 +75,10 @@ export function WarumNochNicht({
         {stand.gruende.map((grund) => (
           <li key={`${grund.fassung}:${grund.code}`} className="text-sm text-mist-300">
             <span className="text-mist-500">{namen(grund.fassung)}: </span>
-            {t(`warum.grund.${grund.code}`, { defaultValue: grund.code, ...grund.werte })}
+            {t(schluessel(grund.code, grund.werte), {
+              defaultValue: grund.code,
+              ...grund.werte,
+            })}
             {grund.darunter.length > 0 && (
               <span className="text-mist-500">
                 {" – "}

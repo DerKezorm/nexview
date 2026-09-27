@@ -4254,6 +4254,7 @@
       "available": "It is here.",
       "downloading": "Downloading right now.",
       "upgrade_possible": "It is here ({{quality}}); a better version would still be taken.",
+      "upgrade_possible_ohne": "It is here; a better version would still be taken.",
       "problem": "The download is stuck and waits for the owner.",
       "wish_searching": "Being searched for since you requested it.",
       "searching_soon": "The next search is due.",

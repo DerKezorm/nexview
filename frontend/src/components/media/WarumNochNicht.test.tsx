@@ -95,6 +95,38 @@ describe('Woran es hängt', () => {
     expect(screen.queryByRole('heading')).not.toBeInTheDocument()
   })
 
+  it('lässt die Klammer weg, wenn der Weg keine Qualität nennt', async () => {
+    // Befund: nexcrate nennt bei Serien keine Qualität (`quality: null`), und
+    // dort stand „Liegt vor ();“ mit leeren Klammern.
+    antworten(true, {
+      gruende: [
+        { fassung: 'v_6a0763e8', code: 'upgrade_possible', werte: { quality: null }, darunter: [] },
+      ],
+    })
+    rendernSchlicht(<WarumNochNicht mediaType="movie" tmdbId={603} />)
+
+    expect(
+      await screen.findByText(/Liegt vor; es gäbe noch eine bessere Fassung\./),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/\(\)/)).not.toBeInTheDocument()
+  })
+
+  it('nennt die Qualität, wo es eine gibt', async () => {
+    antworten(true, {
+      gruende: [
+        {
+          fassung: 'v_6a0763e8',
+          code: 'upgrade_possible',
+          werte: { quality: 'Bluray-1080p' },
+          darunter: [],
+        },
+      ],
+    })
+    rendernSchlicht(<WarumNochNicht mediaType="movie" tmdbId={603} />)
+
+    expect(await screen.findByText(/Liegt vor \(Bluray-1080p\);/)).toBeInTheDocument()
+  })
+
   it('sagt es, wenn die Automatik aus ist', async () => {
     antworten(true, { automatisch: false })
     rendernSchlicht(<WarumNochNicht mediaType="movie" tmdbId={603} />)

@@ -4254,6 +4254,7 @@
       "available": "Liegt vor.",
       "downloading": "Wird gerade geladen.",
       "upgrade_possible": "Liegt vor ({{quality}}); es gäbe noch eine bessere Fassung.",
+      "upgrade_possible_ohne": "Liegt vor; es gäbe noch eine bessere Fassung.",
       "problem": "Der Download hängt und wartet auf den Betreiber.",
       "wish_searching": "Wird gesucht, seit du es angefragt hast.",
       "searching_soon": "Die nächste Suche steht an.",

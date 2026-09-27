@@ -54,14 +54,6 @@ class ArrError(BeschaffungError):
         {"arr_timeout", "arr_unreachable", "arr_unexpected_answer"}
     )
 
-    #: Seit dem Pruefgang (26.09.2026) wie beim NEX-Weg: Eine Anfrage, die an
-    #: Radarr/Sonarr scheitert, gibt ihre Kennung mit nach draussen. Vorher
-    #: kam nur der deutsche Satz an - ein englisches Konto las "Radarr
-    #: antwortet nicht", egal welche Sprache es eingestellt hatte. Jede
-    #: ``arr_*``-Kennung hat laengst ihren Text in beiden Sprachdateien
-    #: (``test_fehlermeldungen.py``), es fehlte nur dieser Schalter.
-    kennung_nach_aussen = True
-
     def __init__(
         self,
         message: str,

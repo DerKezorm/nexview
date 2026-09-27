@@ -102,13 +102,22 @@ class RequestError(Exception):
 def _weg_fehler(error: BeschaffungError) -> RequestError:
     """Ein Fehler des Beschaffungswegs als Antwort auf Anfragen und Abbrueche.
 
-    Im ARR-Betrieb wie von jeher: der Satz, mit 502. Der NEX-Weg gibt seine
-    Kennung mit, und eine begruendete Absage kommt als 4xx. Bis zum grossen
+    Beide Wege geben ihre Kennung mit, wenn sie eine haben - eine begruendete
+    Absage kommt dann als 4xx, sonst bleibt es beim 502. Bis zum grossen
     Pruefgang (26.09.2026) wurde aus nexcrates 409 ``version_fed_by_source``
     hier ein 502 "nexcrate hat abgelehnt." - ohne Grund, ohne Kennung und fuer
-    einen englischen Nutzer auf Deutsch.
+    einen englischen Nutzer auf Deutsch; derselbe Fehlschlag traf danach den
+    Arr-Weg, dessen Fehler bis dahin nie eine Kennung nach draussen gaben.
+
+    ⚠️ **Die Entscheidung faellt hier, nicht an einem Klassenattribut je
+    Fehlerklasse.** Ein ``ArrError`` oder ``NexcrateError`` mit Kennung zeigt
+    sie unabhaengig vom Weg, sobald er hier ankommt. Ein Schalter an der
+    Fehlerklasse selbst (``kennung_nach_aussen``, bis zum Pruefgang nur bei
+    ``NexcrateError`` gesetzt) saehe dagegen wie eine dauerhafte Eigenschaft
+    dieser Klasse aus, obwohl er nur diese eine Stelle betraf, die beide Wege
+    sieht.
     """
-    if not (error.kennung_nach_aussen and error.code):
+    if not error.code:
         return RequestError(error.message, 502)
     return RequestError(error.message, error.antwort_status, code=error.code, **error.zahlen)
 

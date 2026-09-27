@@ -229,8 +229,6 @@ class NexcrateError(BeschaffungError):
         )
         self.fremd = fremd
 
-    kennung_nach_aussen = True
-
     def _korb_ableiten(self) -> Korb:
         if self.code in VORUEBERGEHEND:
             return Korb.voruebergehend

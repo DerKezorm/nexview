@@ -1122,6 +1122,74 @@ def test_eine_serie_mit_dateien_nur_an_unueberwachten_folgen_ist_teilweise_da() 
     assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == "partial"
 
 
+def _serie_mit_staffeln(
+    staffeln: list[dict[str, Any]], *, have: int, aired: int, state: str = "available"
+) -> dict[str, Any]:
+    """Eine Serie, wie ``lookup`` sie seit nexcrate 39dfc05 nennt: mit Staffeln."""
+    return {
+        "versions": [
+            {
+                "version_id": SERIE_HD,
+                "state": state,
+                "monitored": True,
+                "size_bytes": 2_000_000_000,
+                "series": {"counts": {"have": have, "aired": aired, "expected": aired}},
+            }
+        ],
+        "series": {"seasons": staffeln},
+    }
+
+
+def _staffel(nummer: int, gesendet: int, have: int, ueberwacht: int, groesse: int | None):
+    return FakeNexcrate.staffel_eintrag(
+        nummer,
+        [
+            FakeNexcrate.staffel_fassung(
+                SERIE_HD,
+                "available" if groesse else "unmonitored",
+                monitored=ueberwacht > 0,
+                counts={"have": have, "aired": ueberwacht, "expected": ueberwacht},
+                size_bytes=groesse,
+            )
+        ],
+        gesendet=gesendet,
+    )
+
+
+@pytest.mark.parametrize(
+    "staffeln",
+    [
+        # Folge 1 und 2 angefragt, Staffel 2 nie: nexcrate zaehlt je Fassung
+        # nur ueberwachte Folgen, also 2 von 2.
+        [_staffel(1, 6, 2, 2, 700_000_000), _staffel(2, 6, 0, 0, None)],
+        # Dieselbe Anfrage bei einer Serie mit nur einer Staffel.
+        [_staffel(1, 6, 2, 2, 700_000_000)],
+    ],
+)
+def test_nur_einige_ueberwachte_folgen_sind_teilweise_da(staffeln: list) -> None:
+    """⚠️ Befund: Eine Serie mit 2 von 12 Folgen trug im NEX-Betrieb „Bereits
+    geladen“. ``counts`` am Titel zaehlt nur ueberwachte Folgen (2 von 2); dass
+    mehr gesendet ist, sagt erst ``aired`` an der Staffel."""
+    eintrag = _serie_mit_staffeln(staffeln, have=2, aired=2)
+    assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == "partial"
+
+
+@pytest.mark.parametrize(
+    ("staffeln", "ueberwacht"),
+    [
+        # Alles Gesendete liegt da.
+        ([_staffel(1, 6, 6, 6, 2_000_000_000)], 6),
+        # Dateien liegen, aber keine Folge ist ueberwacht (etwa „behalten, nicht
+        # mehr laden“): Wie viele Folgen eine Datei haben, sagt nexcrate dann
+        # nicht. Lieber kein „Teils“ als ein falsches.
+        ([_staffel(1, 6, 0, 0, 2_000_000_000)], 0),
+    ],
+)
+def test_vollstaendig_oder_unbekannt_bleibt_geladen(staffeln: list, ueberwacht: int) -> None:
+    eintrag = _serie_mit_staffeln(staffeln, have=ueberwacht, aired=ueberwacht)
+    assert lesen.zustand_der_kachel(eintrag, SERIE_HD) == "downloaded"
+
+
 @pytest.mark.parametrize("state", ["wanted", "problem", "downloading"])
 def test_ein_film_kennt_keinen_mittelweg(state: str) -> None:
     """Den Zustand „teilweise“ gibt es nur bei Serien. Ein Film mit Groesse,

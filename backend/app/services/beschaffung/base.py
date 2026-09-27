@@ -337,6 +337,17 @@ class Staffelstand:
     gesendet: int | None = None
 
     @property
+    def gesamt(self) -> int:
+        """Gegen wie viele Folgen die Staffel als vollstaendig gilt.
+
+        Die ueberwachten oder, wo der Weg sie sicher nennt, alle gesendeten -
+        die groessere Zahl. Dieselbe Rechnung fuer die Staffelliste und das
+        Kopfzeichen der Serie; zaehlte das Kopfzeichen nur die ueberwachten,
+        stand ueber 2 von 12 Folgen „Bereits geladen“.
+        """
+        return max(self.folgen, self.gesendet or 0)
+
+    @property
     def vollstaendig(self) -> bool:
         """Alle Folgen dieser Staffel liegen vor.
 

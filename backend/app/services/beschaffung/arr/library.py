@@ -215,11 +215,16 @@ def _liegt_nur_teilweise_vor(entry: MovieEntry | SeriesEntry) -> bool:
     Folgen fehlen in ``folgen`` von vornherein; eine laufende Serie auf
     aktuellem Stand gilt damit als vollstaendig.
 
+    ⚠️ **Gemessen wird gegen ``gesamt``, nicht gegen ``folgen``.** Sonarr
+    zaehlt in ``episodeCount`` nur ueberwachte Folgen. Nach einer Anfrage auf
+    zwei Folgen oder eine Staffel sind die uebrigen nicht ueberwacht, und die
+    Serie mit 2 von 12 Folgen stand als „Bereits geladen“ da.
+
     Filme haben keine Staffeln - fuer sie ist die Antwort immer nein.
     """
     staffeln = getattr(entry, "staffeln", None) or {}
     return any(
-        stand.folgen > 0 and stand.dateien < stand.folgen
+        stand.gesamt > 0 and stand.dateien < stand.gesamt
         for nummer, stand in staffeln.items()
         if nummer != 0
     )

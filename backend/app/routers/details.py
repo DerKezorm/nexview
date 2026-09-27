@@ -78,7 +78,7 @@ def _gesamt(stand) -> int | None:
     """Gegen wie viele Folgen eine Staffel als "vollstaendig" gilt, oder ``None``."""
     if stand is None:
         return None
-    zahl = max(stand.folgen, stand.gesendet or 0)
+    zahl = stand.gesamt
     return zahl if zahl > 0 else None
 
 

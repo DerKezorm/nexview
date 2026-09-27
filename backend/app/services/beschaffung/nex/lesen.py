@@ -77,11 +77,53 @@ def zustand_der_kachel(eintrag: dict[str, Any], kennung: str) -> str | None:
         return "searching"
     if gesendet and vorhanden < gesendet:
         return "partial"
+    if serie and _staffel_mit_luecke(eintrag, kennung):
+        return "partial"
     if not hat_datei and not gesendet:
         # Ohne Zahl gesendeter Folgen laesst sich keine Luecke zaehlen. Dann
         # sagt nexcrates Zustand, dass etwas fehlt oder aussteht.
         return "partial"
     return "downloaded"
+
+
+def _staffel_mit_luecke(eintrag: dict[str, Any], kennung: str) -> bool:
+    """Fehlen einer Staffel gesendete Folgen, auch nicht überwachte?
+
+    ⚠️ ``counts`` am Titel und an der Staffelfassung zählt nur **überwachte**
+    Folgen. Nach einer Anfrage auf zwei Folgen sind die übrigen nicht
+    überwacht, und eine Serie mit 2 von 12 Folgen stand als „Bereits geladen“
+    da. Alle gesendeten Folgen nennt nur ``aired`` an der Staffel selbst
+    (seit nexcrate ``39dfc05`` in Liste und ``lookup``; eine ältere nexcrate
+    nennt keine Staffeln, dann bleibt es bei ``counts``).
+
+    Eine Lücke ist sicher, wenn eine gesendete Staffel gar keine Datei hat,
+    oder wenn Folgen überwacht sind und weniger Dateien haben als gesendet
+    ist. Liegen Dateien, ohne dass eine Folge überwacht ist, sagt nexcrate
+    nicht, wie viele Folgen sie tragen; dann keine Lücke statt einer
+    geratenen. Staffel 0 (Extras) zählt wie im ARR-Betrieb nicht.
+    """
+    for staffel in (eintrag.get("series") or {}).get("seasons") or []:
+        if not isinstance(staffel, dict) or staffel.get("season") in (None, 0):
+            continue
+        gesendet = staffel.get("aired")
+        if not isinstance(gesendet, int) or gesendet <= 0:
+            continue
+        fassung = next(
+            (
+                f
+                for f in staffel.get("versions") or []
+                if str(f.get("version_id")) == kennung
+            ),
+            None,
+        )
+        if fassung is None:
+            continue
+        zahlen = fassung.get("counts") or {}
+        if not int(fassung.get("size_bytes") or 0):
+            return True
+        if int(zahlen.get("expected") or 0) > 0 and int(zahlen.get("have") or 0) < gesendet:
+            return True
+    return False
 
 
 async def kacheln_faerben(

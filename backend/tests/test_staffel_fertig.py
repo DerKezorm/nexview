@@ -279,6 +279,76 @@ def test_abzeichen_teils_geladen() -> None:
     assert _status_for(leer) == "searching"
 
 
+def _sonarr_staffel(nummer: int, dateien: int, ueberwacht: int, alle: int, *, an: bool):
+    """Eine Staffel so, wie Sonarr sie in ``/series`` nennt."""
+    return {
+        "seasonNumber": nummer,
+        "monitored": an,
+        "statistics": {
+            "episodeFileCount": dateien,
+            "episodeCount": ueberwacht,
+            "totalEpisodeCount": alle,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "staffeln",
+    [
+        # Folge 1 und 2 von Staffel 1 angefragt, Staffel 2 nie: Sonarr zaehlt
+        # in ``episodeCount`` nur die ueberwachten Folgen, also 2 von 2.
+        [
+            _sonarr_staffel(1, 2, 2, 6, an=False),
+            _sonarr_staffel(2, 0, 0, 6, an=False),
+        ],
+        # Dieselbe Anfrage bei einer Serie mit nur einer Staffel.
+        [_sonarr_staffel(1, 2, 2, 6, an=False)],
+        # Staffel 1 eingeschaltet mit drei Folgen, 2 und 3 nie angefragt.
+        [
+            _sonarr_staffel(1, 3, 3, 10, an=True),
+            _sonarr_staffel(2, 0, 0, 8, an=False),
+            _sonarr_staffel(3, 0, 0, 8, an=False),
+        ],
+    ],
+)
+def test_nur_einige_ueberwachte_folgen_sind_teils_geladen(staffeln) -> None:
+    """⚠️ Befund: Eine Serie mit 2 von 12 Folgen trug „Bereits geladen“, weil
+    die fehlenden Folgen nicht ueberwacht waren - genau der Normalfall nach
+    einer Anfrage auf einzelne Folgen oder eine Staffel. Die Staffelliste
+    darunter zaehlte schon gegen alle gesendeten Folgen."""
+    from app.services.beschaffung.arr import sonarr
+    from app.services.beschaffung.arr.library import _status_for
+
+    eintrag = SeriesEntry(
+        arr_id=1, has_file=True, monitored=True,
+        episode_file_count=2, episode_count=2, title_key="x",
+        staffeln=sonarr._staffel_stand({"seasons": staffeln}),
+    )
+    assert _status_for(eintrag) == "partial"
+
+
+def test_vollstaendige_serie_bleibt_geladen_auch_mit_laufender_staffel() -> None:
+    """Gegenprobe: Alles Gesendete liegt da. Eine laufende, eingeschaltete
+    Staffel misst weiter an den gesendeten Folgen (``episodeCount``), nicht an
+    den angekuendigten (``totalEpisodeCount``)."""
+    from app.services.beschaffung.arr import sonarr
+    from app.services.beschaffung.arr.library import _status_for
+
+    eintrag = SeriesEntry(
+        arr_id=1, has_file=True, monitored=True,
+        episode_file_count=10, episode_count=10, title_key="x",
+        staffeln=sonarr._staffel_stand(
+            {
+                "seasons": [
+                    _sonarr_staffel(1, 6, 6, 6, an=True),
+                    _sonarr_staffel(2, 4, 4, 8, an=True),
+                ]
+            }
+        ),
+    )
+    assert _status_for(eintrag) == "downloaded"
+
+
 # --- Der Media-Server-Rueckfall bei Staffelanfragen ------------------------
 
 

@@ -28,10 +28,6 @@ import { FavoritesPage } from './pages/FavoritesPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { MyRequestsPage } from './pages/MyRequestsPage'
-import { PeoplePage } from './pages/PeoplePage'
-import { PersonPage } from './pages/PersonPage'
-import { TicketPage } from './pages/TicketPage'
-import { TicketsPage } from './pages/TicketsPage'
 import { TitlePage } from './pages/TitlePage'
 import { SearchPage } from './pages/SearchPage'
 
@@ -53,6 +49,10 @@ import { SearchPage } from './pages/SearchPage'
  * unter `/nexview`, muss der Nachschub von dort kommen und nicht von der
  * Wurzel der Domain. Wie das zusammenhängt, steht in `vite.config.ts`.
  * ------------------------------------------------------------------------ */
+const PeoplePage = lazy(() => import('./pages/PeoplePage').then((m) => ({ default: m.PeoplePage })))
+const PersonPage = lazy(() => import('./pages/PersonPage').then((m) => ({ default: m.PersonPage })))
+const TicketPage = lazy(() => import('./pages/TicketPage').then((m) => ({ default: m.TicketPage })))
+const TicketsPage = lazy(() => import('./pages/TicketsPage').then((m) => ({ default: m.TicketsPage })))
 const AboutPage = lazy(() => import('./pages/AboutPage').then((m) => ({ default: m.AboutPage })))
 const AdminRequestsPage = lazy(() =>
   import('./pages/AdminRequestsPage').then((m) => ({ default: m.AdminRequestsPage })),

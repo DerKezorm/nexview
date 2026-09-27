@@ -143,12 +143,18 @@ export function AddRequestForm({
       offen_fuer_alle: true,
       approver_picks_target: false,
       darf_anfragen: true,
+      auto_freigabe: false,
     }
 
   const [profileId, setProfileId] = useState<number | null>(null)
   const [folder, setFolder] = useState('')
 
   const zielSpaeter = fassung.approver_picks_target && !user?.can_approve
+  // Wird die Anfrage sofort freigegeben? Dieselbe Rechnung wie beim Anfragen
+  // selbst: die Freigabe je Fassung (vom Server) und kein Ziel, das erst der
+  // Entscheider wählt. Vorher versprach der Satz unter dem Knopf immer die
+  // sofortige Suche, auch wenn die Anfrage danach auf eine Freigabe wartete.
+  const sofortFrei = fassung.auto_freigabe === true && !zielSpaeter
   // ⚠️ Gibt es Ordner und Profil überhaupt zu wählen? Im NEX-Betrieb nicht:
   // Beides hängt an der Fassung in nexcrate, und die Listen-Adresse antwortet
   // `409`. Wer das nicht fragt, zeigt nur diese Meldung, und niemand kann
@@ -662,7 +668,7 @@ export function AddRequestForm({
         <p className="text-xs text-mist-600">
           {stufeOffen && !staffelGewaehlt
             ? t('request.seasonRequired')
-            : t('request.hint')}
+            : t(sofortFrei ? 'request.hint' : 'request.hintApproval')}
         </p>
       </div>
 

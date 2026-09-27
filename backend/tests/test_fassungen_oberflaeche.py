@@ -122,6 +122,35 @@ def test_darf_anfragen_traegt_die_ganze_leiter(arr_client) -> None:
     assert nachher["radarr-uhd"] is True
 
 
+def test_auto_freigabe_folgt_dem_konto_je_medienart(arr_client) -> None:
+    """⚠️ Befund: Unter „Jetzt anfragen“ stand immer „Die Suche startet danach
+    automatisch.“ - auch fuer ein Konto, dessen Serien auf eine Freigabe
+    warten. Ob eine Anfrage sofort freigegeben wird, rechnet der Server je
+    Fassung, dieselbe Leiter wie beim Anfragen selbst."""
+    arr_client.put("/api/settings", json=UHD)
+    create_user(arr_client, "kim")
+
+    assert all(f["auto_freigabe"] for f in _fassungen(arr_client))
+
+    with SessionLocal() as db:
+        kim = db.query(User).filter(User.username == "kim").one()
+        kim.auto_approve_movies = True
+        kim.auto_approve_series = False
+        kim.fassung_rechte.append(
+            FassungRecht(fassung_kennung="radarr-uhd", anfragen=True, auto_freigabe=False)
+        )
+        db.commit()
+
+    kim_kopf = auth_headers(arr_client, "kim", "passwort-1234")
+    als_kim = {f["kennung"]: f["auto_freigabe"] for f in _fassungen(arr_client, kim_kopf)}
+    assert als_kim == {
+        "radarr-standard": True,
+        "radarr-uhd": False,
+        "sonarr-standard": False,
+        "sonarr-uhd": False,
+    }
+
+
 # --- Karten -----------------------------------------------------------------
 
 

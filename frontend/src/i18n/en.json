@@ -396,6 +396,7 @@
     "rootFolder": "Root folder",
     "submit": "Request now",
     "hint": "The search starts automatically afterwards.",
+    "hintApproval": "Afterwards the request waits for approval; the search starts only then.",
     "state": {
       "pending_approval": "This request is waiting for administrator approval.",
       "requested": "Already requested.",

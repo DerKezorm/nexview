@@ -396,6 +396,7 @@
     "rootFolder": "Zielordner",
     "submit": "Jetzt anfragen",
     "hint": "Die Suche startet danach automatisch.",
+    "hintApproval": "Danach wartet die Anfrage auf eine Freigabe; gesucht wird erst dann.",
     "state": {
       "pending_approval": "Diese Anfrage wartet auf die Freigabe durch den Administrator.",
       "requested": "Bereits angefragt.",

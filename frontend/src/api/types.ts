@@ -446,6 +446,12 @@ export type Fassung = {
   approver_picks_target: boolean;
   /** Darf **dieses** Konto sie anfragen? Vom Server entschieden. */
   darf_anfragen: boolean;
+  /**
+   * Wird eine Anfrage **dieses** Kontos dort sofort freigegeben? Vom Server
+   * entschieden; fehlt bei einer älteren Antwort. Eine Regel kann im
+   * Einzelfall anders entscheiden.
+   */
+  auto_freigabe?: boolean;
 };
 
 /** Wie ein Titel in einer Fassung dasteht – eine Achse je Fassung. */

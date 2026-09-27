@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .. import meldungen
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
-from ..models import Fassung, Hausordnung, User, utcnow
+from ..models import Fassung, Hausordnung, MediaType, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH
 from ..services import beschaffung, cache, fassungen, mail, mail_templates, status_poller, umstieg
 from ..services.mediaserver import (
@@ -205,6 +205,11 @@ class FassungOeffentlich(BaseModel):
     #: Darf **dieses** Konto sie anfragen? Die ganze Leiter aus Bauplan 2.3 -
     #: die Oberflaeche rechnet sie nicht nach.
     darf_anfragen: bool = False
+    #: Wird eine Anfrage **dieses** Kontos dort sofort freigegeben? Fuer den
+    #: Satz unter „Jetzt anfragen“: Dort stand immer „Die Suche startet danach
+    #: automatisch“, auch wenn die Anfrage danach auf eine Freigabe wartete.
+    #: Eine Regel kann im Einzelfall anders entscheiden.
+    auto_freigabe: bool = False
 
 
 class AppConfig(BaseModel):
@@ -350,6 +355,7 @@ def _fassungen_oeffentlich(
                         art, fassungen.stufe(kennung)
                     ),
                     darf_anfragen=fassungen.darf_anfragen(db, user, kennung),
+                    auto_freigabe=fassungen.auto_freigabe(db, user, MediaType(art), kennung),
                 )
             )
     return eintraege

@@ -236,6 +236,74 @@ describe('Einen Film anfragen', () => {
   })
 })
 
+describe('Der Satz unter „Jetzt anfragen“', () => {
+  /* Befund: Dort stand immer „Die Suche startet danach automatisch.“, auch
+     für ein Konto ohne automatische Freigabe; die Anfrage landete danach auf
+     „Wartet auf Freigabe“. Ob sofort freigegeben wird, sagt der Server je
+     Fassung (`auto_freigabe`). */
+  function mitFreigabe(film: boolean, serie: boolean) {
+    const fassungen = [
+      fassung('radarr-standard', { auto_freigabe: film }),
+      fassung('sonarr-standard', { auto_freigabe: serie }),
+    ]
+    holen.mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/setup/status') {
+        return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      }
+      if (pfad === '/api/config') {
+        return { radarr_configured: true, sonarr_configured: true, fassungen }
+      }
+      if (pfad.startsWith('/api/arr/')) return ARR_OPTIONEN
+      throw new Error(`Unerwartet: ${pfad}`)
+    })
+  }
+
+  it('verspricht keine Suche, wenn die Anfrage auf eine Freigabe wartet', async () => {
+    mitFreigabe(false, true)
+    rendern(<AddRequestForm item={FILM} onDone={() => {}} />)
+
+    expect(await screen.findByText(/wartet die Anfrage auf eine Freigabe/)).toBeInTheDocument()
+    expect(screen.queryByText(/Die Suche startet danach automatisch/)).not.toBeInTheDocument()
+  })
+
+  it('sagt die sofortige Suche zu, wenn freigegeben wird', async () => {
+    mitFreigabe(true, false)
+    rendern(<AddRequestForm item={FILM} onDone={() => {}} />)
+
+    expect(await screen.findByText(/Die Suche startet danach automatisch/)).toBeInTheDocument()
+  })
+
+  it('folgt der Medienart: Film frei, Serie wartet', async () => {
+    mitFreigabe(true, false)
+    rendern(<AddRequestForm item={SERIE} onDone={() => {}} />)
+
+    const nutzer = userEvent.setup()
+    await nutzer.click(await screen.findByRole('button', { name: /auswählen/i }))
+    await nutzer.click(await screen.findByRole('checkbox', { name: 'Staffel 1' }))
+    await nutzer.click(screen.getByRole('button', { name: /^fertig$/i }))
+    expect(await screen.findByText(/wartet die Anfrage auf eine Freigabe/)).toBeInTheDocument()
+  })
+
+  it('wartet auch, wenn erst der Entscheider das Ziel wählt', async () => {
+    const fassungen = [
+      fassung('radarr-standard', { auto_freigabe: true, approver_picks_target: true }),
+    ]
+    holen.mockImplementation(async (pfad: string) => {
+      if (pfad === '/api/setup/status') {
+        return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      }
+      if (pfad === '/api/config') {
+        return { radarr_configured: true, sonarr_configured: true, fassungen }
+      }
+      if (pfad.startsWith('/api/arr/')) return ARR_OPTIONEN
+      throw new Error(`Unerwartet: ${pfad}`)
+    })
+    rendern(<AddRequestForm item={FILM} onDone={() => {}} />)
+
+    expect(await screen.findByText(/wartet die Anfrage auf eine Freigabe/)).toBeInTheDocument()
+  })
+})
+
 describe('Eine Serie anfragen', () => {
   async function staffelnWaehlen(nummern: number[]) {
     const nutzer = userEvent.setup()

@@ -937,6 +937,27 @@ def test_arr_warning_ist_eine_kennung_kein_fertiger_satz(arr_client: TestClient)
     assert warnung == "arr_unreachable"
 
 
+def test_fallen_radarr_und_sonarr_zusammen_aus_nennt_die_warnung_beide(
+    arr_client: TestClient,
+) -> None:
+    """⚠️ Bis zum 27.09.2026 ueberschrieb der zweite Ausfall den ersten.
+
+    Der ``arr_client`` traegt Radarr und Sonarr auf denselben unerreichbaren
+    Port 9 ein - fallen beide gleichzeitig aus (wie hier), meldete der
+    Kalender bis dahin nur noch "Radarr" (die Serien-Warnung war schon
+    ueberschrieben, bevor sie irgendwo ankam). Der Betreiber sah so nur den
+    halben Ausfall.
+    """
+    antwort = arr_client.get("/api/calendar", params={"sources": "mine"})
+
+    assert antwort.status_code == 200
+    daten = antwort.json()
+    assert daten["arr_warning"] == "arr_unreachable"
+    dienst = daten["arr_warning_service"]
+    assert "Radarr" in dienst
+    assert "Sonarr" in dienst
+
+
 def test_bestandstitel_ohne_datei_bleibt_im_kalender_anfragbar(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

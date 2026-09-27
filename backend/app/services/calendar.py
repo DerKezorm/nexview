@@ -861,6 +861,17 @@ async def kalender(
     arr_dienst: str | None = None
     tmdb_hinweis: str | None = None
 
+    # ⚠️ **Beide Quellen sammeln, nicht die eine von der anderen ueberschreiben
+    # lassen.** Bis zum 27.09.2026 ersetzte ein zweiter Fehlschlag den ersten
+    # restlos: Fielen Radarr und Sonarr gleichzeitig aus, nannte der Kalender
+    # nur noch Radarr (die Serien-Warnung war ueberschrieben, bevor sie
+    # irgendwo ankam). Jetzt behaelt die Kennung des ersten Fehlschlags die
+    # Fuehrung (dieselbe wie zuvor bei nur einem Ausfall), der Dienstname
+    # nennt aber beide, kommagetrennt.
+    arr_kennungen: list[str] = []
+    arr_dienste: list[str] = []
+    arr_unbekannt = False
+
     for ergebnis in (serien, filme):
         if isinstance(ergebnis, BeschaffungError):
             # ⚠️ Die Kennung, kein fertiger Satz - der Server kennt die
@@ -869,15 +880,24 @@ async def kalender(
             # (sollte nicht vorkommen, aber ``code`` ist optional) bleibt der
             # allgemeine Rueckfall stehen, statt gar nichts zu melden.
             code = "calendar_own_titles_unavailable"
-            arr_hinweis = ergebnis.code or code
+            arr_kennungen.append(ergebnis.code or code)
             dienst = ergebnis.zahlen.get("service")
-            arr_dienst = str(dienst) if dienst else None
+            if dienst:
+                arr_dienste.append(str(dienst))
         elif isinstance(ergebnis, BaseException):
             logger.warning("Calendar: own titles not available: %s", ergebnis)
-            code = "calendar_own_titles_unavailable"
-            arr_hinweis = arr_hinweis or code
+            arr_unbekannt = True
         else:
             eintraege.extend(ergebnis)
+
+    if arr_kennungen:
+        arr_hinweis = arr_kennungen[0]
+    elif arr_unbekannt:
+        code = "calendar_own_titles_unavailable"
+        arr_hinweis = code
+    # Reihenfolge wie eingesammelt (Sonarr vor Radarr), doppelte Namen nur
+    # einmal - zwei Instanzen derselben Art melden sich nicht getrennt.
+    arr_dienst = ", ".join(dict.fromkeys(arr_dienste)) or None
 
     if isinstance(tmdb_neu, TmdbError):
         tmdb_hinweis = tmdb_neu.message

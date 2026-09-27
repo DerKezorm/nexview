@@ -154,6 +154,11 @@ async def movie_calendar(settings: AppSettings, start: str, end: str) -> list[di
     von ``hasFile``, und genau das kippt im Minutentakt, sobald ein Download
     fertig wird. Ein laengerer Zwischenspeicher wuerde "fehlt noch" anzeigen,
     obwohl die Datei laengst da ist.
+
+    ⚠️ **Mit derselben Fehlersperre wie die Bibliothek.** Bis zum 26.09.2026
+    fehlte sie hier: Eine haengende Instanz liess jeden Kalenderaufruf erneut
+    das volle Zeitlimit abwarten (Pruefgang, 15 bis 38 Sekunden Ladeanzeige),
+    obwohl derselbe Schutz fuer die Bibliothek schon bestand.
     """
     schluessel = f"radarr:calendar:{start}:{end}"
     zwischengespeichert = _read(schluessel, LIBRARY_TTL_SECONDS)
@@ -164,13 +169,13 @@ async def movie_calendar(settings: AppSettings, start: str, end: str) -> list[di
     if client is None:
         return []
 
-    entries = await client.calendar(start, end)
+    entries = await _mit_fehlersperre(schluessel, lambda: client.calendar(start, end))
     _write(schluessel, entries)
     return entries
 
 
 async def series_calendar(settings: AppSettings, start: str, end: str) -> list[dict[str, Any]]:
-    """Sonarr-Kalender fuer einen Zeitraum (siehe movie_calendar zur Haltezeit)."""
+    """Sonarr-Kalender fuer einen Zeitraum (siehe movie_calendar zur Haltezeit und Fehlersperre)."""
     schluessel = f"sonarr:calendar:{start}:{end}"
     zwischengespeichert = _read(schluessel, LIBRARY_TTL_SECONDS)
     if zwischengespeichert is not None:
@@ -180,7 +185,7 @@ async def series_calendar(settings: AppSettings, start: str, end: str) -> list[d
     if client is None:
         return []
 
-    entries = await client.calendar(start, end)
+    entries = await _mit_fehlersperre(schluessel, lambda: client.calendar(start, end))
     _write(schluessel, entries)
     return entries
 

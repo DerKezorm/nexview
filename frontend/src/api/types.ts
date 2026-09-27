@@ -584,6 +584,7 @@ export type CalendarResult = {
   date_to: string;
   days: CalendarDay[];
   arr_warning: string | null;
+  arr_warning_service: string | null;
   tmdb_warning: string | null;
   demo: boolean;
 };

@@ -855,6 +855,10 @@ async def kalender(
 
     eintraege: list[CalendarEntry] = []
     arr_hinweis: str | None = None
+    # Der Dienstname zum Platzhalter in ``arr_hinweis`` - ``ArrError`` traegt
+    # ihn als Zahl mit (``service=self.label``). Ohne sie stand
+    # "{{service}}" woertlich im Warnkasten (Befund, Pruefgang 26.09.2026).
+    arr_dienst: str | None = None
     tmdb_hinweis: str | None = None
 
     for ergebnis in (serien, filme):
@@ -866,6 +870,8 @@ async def kalender(
             # allgemeine Rueckfall stehen, statt gar nichts zu melden.
             code = "calendar_own_titles_unavailable"
             arr_hinweis = ergebnis.code or code
+            dienst = ergebnis.zahlen.get("service")
+            arr_dienst = str(dienst) if dienst else None
         elif isinstance(ergebnis, BaseException):
             logger.warning("Calendar: own titles not available: %s", ergebnis)
             code = "calendar_own_titles_unavailable"
@@ -906,6 +912,7 @@ async def kalender(
         date_to=bis,
         days=_gruppiere(eintraege),
         arr_warning=arr_hinweis,
+        arr_warning_service=arr_dienst,
         tmdb_warning=tmdb_hinweis,
         demo=settings.use_demo_data,
     )

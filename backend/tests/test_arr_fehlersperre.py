@@ -47,6 +47,53 @@ async def test_haengende_instanz_wird_nur_einmal_gefragt(monkeypatch) -> None:
     )
 
 
+class LahmerKalenderClient:
+    """Wie ``LahmerClient``, nur fuer ``calendar`` statt ``library``."""
+
+    def __init__(self) -> None:
+        self.versuche = 0
+
+    async def calendar(self, start, end):
+        self.versuche += 1
+        raise ArrError("Radarr antwortet nicht (Zeitüberschreitung).")
+
+
+@pytest.mark.asyncio
+async def test_haengende_instanz_bremst_auch_den_kalender_nur_einmal(monkeypatch) -> None:
+    """Derselbe Befund wie oben, nur fuer den Kalender.
+
+    Bis zum Pruefgang (26.09.2026) fehlte hier die Fehlersperre: Jeder
+    Kalenderaufruf einer haengenden Instanz wartete erneut das volle
+    Zeitlimit ab (15 bis 38 Sekunden Ladeanzeige), obwohl derselbe Schutz
+    fuer die Bibliothek schon bestand.
+    """
+    client = LahmerKalenderClient()
+    monkeypatch.setattr(library, "radarr_client", lambda settings, tier="standard": client)
+
+    for _ in range(5):
+        with pytest.raises(ArrError):
+            await library.movie_calendar(object(), "2026-09-21", "2026-09-27")
+
+    assert client.versuche == 1, (
+        f"Es wurde {client.versuche}-mal gefragt - die Fehlersperre greift beim Kalender nicht."
+    )
+
+
+@pytest.mark.asyncio
+async def test_haengende_sonarr_instanz_bremst_den_kalender_nur_einmal(monkeypatch) -> None:
+    """Dieselbe Sperre gilt fuer Sonarr, nicht nur fuer Radarr."""
+    client = LahmerKalenderClient()
+    monkeypatch.setattr(library, "sonarr_client", lambda settings, tier="standard": client)
+
+    for _ in range(5):
+        with pytest.raises(ArrError):
+            await library.series_calendar(object(), "2026-09-21", "2026-09-27")
+
+    assert client.versuche == 1, (
+        f"Es wurde {client.versuche}-mal gefragt - die Fehlersperre greift beim Kalender nicht."
+    )
+
+
 @pytest.mark.asyncio
 async def test_beide_stufen_sperren_getrennt(monkeypatch) -> None:
     """Faellt die 4K-Instanz aus, darf die Standard-Instanz weiterlaufen."""

@@ -131,9 +131,14 @@ export function CalendarPage() {
                   fertiger Satz - derselbe Topf wie jede andere Fehlermeldung
                   (`errors.byCode`). Kennt die Oberfläche sie ausnahmsweise
                   nicht, ist die nackte Kennung immer noch ehrlicher als ein
-                  erfundener Satz. */}
+                  erfundener Satz.
+                  `service` mit übergeben: Ohne ihn blieb `{{service}}` in
+                  Sätzen wie `arr_timeout` wörtlich stehen, statt „Radarr“
+                  oder „Sonarr“ zu zeigen (Befund, Prüfgang 26.09.2026). */}
               {i18n.exists(`errors.byCode.${query.data.arr_warning}`)
-                ? t(`errors.byCode.${query.data.arr_warning}`)
+                ? t(`errors.byCode.${query.data.arr_warning}`, {
+                    service: query.data.arr_warning_service,
+                  })
                 : query.data.arr_warning}
             </div>
           )}

@@ -676,6 +676,39 @@ def test_ein_folgen_paket_macht_die_staffel_nicht_vollstaendig(
     assert staffeln[0]["episodes_total_arr"] == 22
 
 
+def test_das_kopfzeichen_folgt_den_dateien_der_staffelliste(
+    nex_client_admin: TestClient, nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Zwei von 22 gesendeten Folgen liegen, ueberwacht sind genau diese zwei.
+    Die Kachel kann das nicht von „alle 22 liegen, zwei ueberwacht“
+    unterscheiden; die Titelseite zaehlt die Dateien je Folge und sagt
+    „teilweise“."""
+    from .beschaffung.fake_nexcrate import SERIE_HD
+
+    _serie_mit_dateien(nexcrate, monkeypatch, 777003)
+    nexcrate.serie(
+        777003,
+        versionen=[nexcrate.fassung(SERIE_HD, "available")],
+        staffeln=[
+            nexcrate.staffel_eintrag(
+                1,
+                [
+                    nexcrate.staffel_fassung(
+                        SERIE_HD,
+                        "available",
+                        counts={"have": 2, "aired": 2, "expected": 2},
+                        size_bytes=200,
+                    )
+                ],
+                folgen=22,
+                gesendet=22,
+            )
+        ],
+    )
+
+    assert nex_client_admin.get("/api/detail/tv/777003").json()["status"] == "partial"
+
+
 def test_die_konfiguration_nennt_die_sofortige_freigabe_je_fassung(
     admin_client: TestClient, nexcrate: FakeNexcrate
 ) -> None:

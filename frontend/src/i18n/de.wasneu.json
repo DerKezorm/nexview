@@ -570,35 +570,51 @@
         ]
       },
       "1.0.0": {
-        "lead": "Nexview kann jetzt auch über nexcrate beschaffen. Statt Radarr und Sonarr – bis zu vier Verbindungen, jede mit eigenen Profilen, Ordnern und Schlüsseln – gibt es eine einzige, und Profile, Benennung, Ordner und Papierkorb liegen drüben. Wer bei Radarr und Sonarr bleiben will, bleibt: Es ändert sich nichts. Wer wechseln will, wird geführt, und vorher schreibt Nexview eine Sicherung – einen anderen Rückweg gibt es nicht.",
+        "lead": "Nexview kann jetzt auch über nexcrate beschaffen. Statt Radarr und Sonarr, mit bis zu vier Verbindungen, jede mit eigenen Profilen, Ordnern und Schlüsseln, gibt es eine einzige, und Profile, Benennung, Ordner und Papierkorb liegen drüben. Wer bei Radarr und Sonarr bleiben will, bleibt: Für ihn ändert sich wenig. Wer wechseln will, wird geführt, und vorher schreibt Nexview eine Sicherung. Einen anderen Rückweg gibt es nicht.",
         "sections": [
           {
             "title": "Bei der Einrichtung fragt Nexview, wer beschafft",
             "where": "Beim allerersten Start, nach dem TMDB-Schritt",
-            "body": "Radarr und Sonarr, oder nexcrate. Danach zeigt der Assistent nur noch, was zu dieser Wahl gehört: bei nexcrate eine Adresse, das Koppeln und die Frage, welche Fassungen jeder anfragen darf. Kein Qualitäts-Assistent, keine Benennung, keine Webhook-Adresse – das gibt es dort nicht, und eine leere Seite dafür wäre eine Einladung, etwas einzutragen, das niemand liest."
+            "body": "Radarr und Sonarr, oder nexcrate. Danach zeigt der Assistent nur noch, was zu dieser Wahl gehört: bei nexcrate eine Adresse, das Koppeln und die Frage, welche Fassungen jeder anfragen darf. Kein Qualitäts-Assistent, keine Benennung, keine Webhook-Adresse. Das gibt es dort nicht, und eine leere Seite dafür wäre eine Einladung, etwas einzutragen, das niemand liest."
           },
           {
             "title": "Umsteigen geht geführt, in sieben Schritten",
             "where": "Einstellungen, Dienste, Umstieg auf nexcrate",
-            "body": "Erst die Zahlen: wie viele Downloads gerade in Radarr laufen (die laufen dort zu Ende und sind danach für Nexview unsichtbar), wie viele Anfragen offen sind, wie viele Speicherposten es gibt. Dann verbinden, und Nexview prüft, ob diese nexcrate überhaupt taugt. Dann ordnest du jeder bisherigen Fassung eine neue zu. Dann sieht Nexview nach, ob nexcrate die Titel kennt, an denen etwas hängt. Dann die Sicherung – ohne sie geht es nicht weiter. Dann das Umschalten. Zuletzt werden freigegebene Anfragen nachgereicht, denn der neue Weg hat von ihnen nie gehört.\n\nBeim Umschalten nimmt Nexview seine eigenen Webhook-Einträge aus Radarr und Sonarr, löscht die Zugänge und schreibt jede Fassungskennung um – an Anfragen, Speicherposten, Rechten, Einladungen und Regeln. Bei Serien wandert der Speicherschlüssel von TVDB auf TMDB, weil nexcrate dort ankert."
+            "body": "Erst die Zahlen: wie viele Downloads gerade in Radarr laufen (die laufen dort zu Ende und sind danach für Nexview unsichtbar), wie viele Anfragen offen sind, wie viele Speicherposten es gibt. Dann verbinden, und Nexview prüft, ob diese nexcrate überhaupt taugt. Dann ordnest du jeder bisherigen Fassung eine neue zu. Dann sieht Nexview nach, ob nexcrate die Titel kennt, an denen etwas hängt. Dann die Sicherung, ohne sie geht es nicht weiter. Dann das Umschalten. Zuletzt werden freigegebene Anfragen nachgereicht, denn der neue Weg hat von ihnen nie gehört.\n\nBeim Umschalten nimmt Nexview seine eigenen Webhook-Einträge aus Radarr und Sonarr und lässt die eines anderen Nexview stehen, löscht die Zugänge und schreibt jede Fassungskennung um: an Anfragen, Speicherposten, Rechten, Einladungen und Regeln. Bei Serien wandert der Speicherschlüssel von TVDB auf TMDB, weil nexcrate dort ankert."
           },
           {
             "title": "Woran es hängt, steht jetzt am Titel",
             "where": "Auf der Seite eines Titels, unter der Beschreibung",
-            "body": "Eine Zeile je Fassung: wird geladen, nichts gefunden, das zum Profil passt, noch nicht erschienen, wartet eine Frist ab. Der Grund kommt von der Beschaffung, der Satz von Nexview – so steht er in deiner Sprache da und nicht im Englisch einer fremden Anwendung.\n\nRadarr und Sonarr können das nicht sagen. Dort steht dann nichts, statt „kein Grund bekannt“ – das wäre die Behauptung, alles sei in Ordnung."
+            "body": "Eine Zeile je Fassung: wird geladen, nichts gefunden, das zum Profil passt, noch nicht erschienen, wartet eine Frist ab. Der Grund kommt von der Beschaffung, der Satz von Nexview, so steht er in deiner Sprache da und nicht im Englisch einer fremden Anwendung.\n\nRadarr und Sonarr können das nicht sagen. Dort steht dann nichts, statt „kein Grund bekannt“, denn das wäre die Behauptung, alles sei in Ordnung."
           },
           {
             "title": "Gelöschtes kommt zurück",
             "where": "Einstellungen, Kontingente, Papierkorb",
-            "body": "Im nexcrate-Betrieb führt die Beschaffung eine Liste statt eines Ordners: Datei für Datei, mit Größe, Datum und dem, der sie gelöscht hat. Ein Klick holt sie zurück.\n\nZwei Fälle gehen nicht, und beide stehen an der Zeile: Die Datei kann weg sein oder ihre Platte gerade nicht sichtbar, oder der Titel hat den Bestand verlassen. Dann ist der Knopf zu, statt etwas zu versprechen, das nicht eintritt."
+            "body": "Im nexcrate-Betrieb führt die Beschaffung eine Liste statt eines Ordners: Datei für Datei, mit Größe, Datum und dem, der sie gelöscht hat. Ein Klick holt sie zurück. Hat der Titel den Bestand inzwischen verlassen, legt nexcrate ihn wieder an, und die Datei kommt unüberwacht zurück; das steht dann an der Zeile.\n\nWo es nicht geht, weil die Datei weg ist oder ihre Platte gerade nicht sichtbar, steht auch das an der Zeile, und der Knopf bleibt zu, statt etwas zu versprechen, das nicht eintritt."
+          },
+          {
+            "title": "Alle melden sich einmal neu an",
+            "where": "Auf der Anmeldeseite, gleich nach dem Update",
+            "body": "Abmelden beendet die Sitzung jetzt auf dem Server. Eine früher gezogene Kopie ihres Cookies gilt sofort nicht mehr, und deine anderen Geräte bleiben angemeldet. Sitzungen von vor diesem Update tragen nichts, das sich beenden ließe, darum meldet sich danach jeder einmal neu an.\n\nDer Besitzer des Servers kommt immer hinein, auch mit unbestätigter Adresse, etwa nachdem er sie ohne Mailserver geändert hat. Jedes andere Konto braucht weiter eine bestätigte Adresse, um sich mit Passwort anzumelden."
+          },
+          {
+            "title": "Zurück geht es über die Sicherung",
+            "where": "Im Datenverzeichnis, Ordner sicherungen",
+            "body": "Bevor Nexview die Datenbank umschreibt, legt es eine Sicherung mit „Before update to 1.0.0“ im Namen an und nennt die Datei im Startprotokoll. Zum Zurückgehen den Container anhalten, diese Sicherung über nexview.db kopieren, nexview.db-wal und nexview.db-shm löschen und die alte Version starten. Die Schritte stehen im README.\n\nDas alte Abbild einfach auf den umgeschriebenen Daten zu starten, würde offene Anfragen abbrechen und 4K-Rechte wortlos verwerfen. Eine ältere Version kann dort darum Konten, Rechte, Anfragen und Speicherposten nicht mehr schreiben."
           }
         ],
         "smallTitle": "Außerdem",
         "small": [
-          "Die Rechte hängen jetzt an der Fassung, nicht mehr an „4K oder nicht“ – zwei Schalter je Fassung, auch im Radarr-Betrieb.",
+          "Die Rechte hängen jetzt an der Fassung, nicht mehr an „4K oder nicht“: zwei Schalter je Fassung, auch im Radarr-Betrieb.",
           "Im nexcrate-Betrieb wählt bei der Freigabe niemand mehr Ordner und Profil: Beides gehört drüben.",
-          "„In der Beschaffung öffnen“ springt aus einem Titel direkt hinüber – nur für Entscheider, und nur wenn dort eine Adresse nach außen eingetragen ist.",
-          "Wird eine nexcrate zurückgestuft oder verliert ihr Schlüssel ein Recht, sagt das der Rundgang, nicht erst die nächste Anfrage."
+          "„In der Beschaffung öffnen“ springt aus einem Titel direkt hinüber, nur für Entscheider und nur, wenn dort eine Adresse nach außen eingetragen ist.",
+          "Wird eine nexcrate zurückgestuft oder verliert ihr Schlüssel ein Recht, sagt das der Rundgang, nicht erst die nächste Anfrage.",
+          "Eine Anfrage abzubrechen stoppt im Radarr-Betrieb jetzt auch ihren Download.",
+          "Ein Titel, den die Bibliothek kennt, aber ohne Datei führt, lässt sich wieder anfragen, in beiden Betriebsarten.",
+          "Der Kalender zeigt wieder die nächste Folge laufender Serien, und Titel, die Radarr oder Sonarr schon vorher hatten, gelten nicht mehr als von dir angefragt.",
+          "Startet nexcrate, Radarr oder Sonarr neu, behält die Titelseite den letzten bekannten Stand, statt „Nicht angefragt“ zu zeigen.",
+          "Eine zurückgestellte Anfrage bleibt zurückgestellt, bis das Konto wieder Platz hat.",
+          "Automatisch freigegebene Anfragen melden sich jetzt auf deinen Kanälen."
         ]
       }
     }

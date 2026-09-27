@@ -12,7 +12,7 @@ tag exists for it.
 
 ---
 
-## 1.0.0 – not released yet
+## 1.0.0 – 27.09.2026
 
 Nexview can now procure through **nexcrate** instead of Radarr and Sonarr. If
 you stay with Radarr and Sonarr, little changes for you; what does is marked
@@ -86,8 +86,10 @@ database.
   out a delay. Radarr and Sonarr cannot say this; there the section is absent
   rather than claiming that nothing is wrong.
 - **Deleted files come back.** Where procurement keeps a list instead of a
-  folder, one click restores a file. Where it cannot, because the file is gone
-  or the title left the library, the row says so and the button stays closed.
+  folder, one click restores a file. If the title has left the library since,
+  nexcrate adds it again and the file comes back unmonitored, which the row
+  then says. Where it cannot, because the file is gone or the title cannot be
+  added again, the row says so and the button stays closed.
 - **The cleanup suggestion knows a file's age in nexcrate mode too.** nexcrate
   says since when each film and season takes space, and Nexview dates its
   storage entries from that, so titles nobody has watched for a long time show
@@ -131,6 +133,22 @@ database.
   problem arrived as "Radarr/Sonarr reports a problem". In nexcrate mode they
   now say nexcrate, and where nexcrate differs they say what it does: it keeps
   a recycle bin Nexview can restore from.
+- **Refusals carry a code, in both modes.** A second request for the same
+  title or season answers `409` with an object (`request_already_exists`,
+  `request_already_exists_season`, with the title), the same shape as
+  `already_in_library`, instead of a bare sentence. Deferring a request whose
+  account is within its limits answers `409 defer_nothing_to_wait_for`, since
+  it would come straight back. Requesting and cancelling that fail at Radarr or
+  Sonarr answer with an object naming the code (`arr_timeout`,
+  `arr_unreachable`, ...) and the service, instead of a sentence in German.
+  This applies to `/api/v1` too.
+- **The title and season details say how sure they are.** `status_unconfirmed`
+  is set when Radarr, Sonarr or nexcrate did not answer and the state shown is
+  the last one known; `status_refused` when the service answered with a
+  refusal. `/api/config` names `auto_freigabe` for each version.
+- **Requests made in nexcrate mode record `nex` as their origin**, not `arr`.
+- **Restoring a title nexcrate has removed needs nexcrate 0.3.0**, which adds
+  the title again. An older nexcrate refuses it, and Nexview says why.
 
 ### Fixed
 
@@ -298,6 +316,100 @@ database.
   `/api/tickets/kontoaufloesung` filed a real request with the administrators.
   It now has to carry `{"bestaetigt": true}`, which the confirmation dialog
   sends.
+- **Cancelling a request left its download running**, in Radarr mode. The
+  title left Radarr or Sonarr, but the download went on in the download client
+  and put its files on disk, although the dialog promised they would go.
+  Cancelling and withdrawing now remove the entry from Radarr's or Sonarr's
+  queue as well, and the download client drops it.
+- **A title the library knew without a file could not be requested.** Every
+  title Radarr or nexcrate listed was refused as "already in your library",
+  file or not; after a switch to nexcrate that was every title still missing
+  from the old library. Only a downloaded title counts as there now. Catalog,
+  search, calendar, recommendations and a child's wish list offer the request
+  button again, a parent approving such a wish gets a request instead of
+  "already there", and in Radarr mode a request for such a movie switches its
+  monitoring on and starts a search.
+- **Titles Radarr or Sonarr already held showed as requested.** The calendar
+  and the title pages said "already requested, on your list" for titles the
+  account had never asked for. Only an active request counts as requested now.
+- **The calendar dropped episodes on the last day of its window**, and with
+  them the next episode of a running series. Radarr and Sonarr read a bare end
+  date as midnight; the window now reaches to the end of its last day.
+- **A 4K request could slip past the 4K right**, in Radarr mode. A quality
+  profile in the standard instance that allows 2160p let an account without
+  the right request in 4K, and the admin list showed a normal request.
+  Requesting now checks the profile itself, the picker hides such a profile,
+  and the admin list marks a request made with one.
+- **Sample titles turned into real ones.** Once a TMDB key was set up, the
+  sample requests every installation starts with pointed at real, unrelated
+  titles. They have a number range of their own now. Without a TMDB key, the
+  page of a real library title says what is missing instead of "sample title
+  not found".
+- **Switching to nexcrate removed another Nexview's webhook** in Radarr and
+  Sonarr, because every entry had the same name. Nexview now goes by the
+  address an entry calls: it never touches an entry calling another address,
+  removes a former one of its own only once that address was dead twice, half
+  an hour apart, and the webhook test no longer turns green on another
+  Nexview's entry.
+- **The migration assistant, once more.** A series Nexview knew only by its
+  TVDB number showed "searching" instead of available after the switch; it is
+  carried across now. The assistant recognises the backup it just wrote after
+  a reload or in a new window, and without a nexcrate set up it answers `409`
+  instead of `502`.
+- **nexcrate's refusals arrived as a bare 502.** Requesting single episodes
+  often failed with "bad gateway" although nexcrate had said why, for instance
+  that the version still feeds Sonarr. Nexview now passes a refusal on as a
+  refusal, translated by its code. A version counts as ready only when a
+  request in it leads to a download, and the reason `fed_by_source` has a text.
+- **The media server's copy of another title counted.** A series of a similar
+  name showed "in library" where nexcrate held a different one. A media server
+  copy now counts for a title only with evidence beyond the name, and never
+  when it is plainly another title nexcrate holds.
+- **Storage.** In Radarr mode a series Sonarr listed with files but without
+  season sizes dropped out of the count without a word; its entry now stays
+  and the log says why. A newly saved instance counts right away instead of
+  after the next hourly sync. In nexcrate mode a title removed together with
+  its files stops counting against anyone's quota, even before the media
+  server has noticed.
+- **Operator tools in Radarr mode.** The quality profile page crashed on a
+  profile created through the API; a profile missing its resolution or source
+  is refused with `422` when it is saved, instead of a `500` when it is
+  distributed; a movie rating lookup Radarr rejected is no longer retried every
+  few minutes; "all linked" is no longer claimed with no media server set up;
+  a rejected Jellyfin password answers `401` instead of `502`; and the child
+  account form says in your language when the age is missing.
+- **Notifications.** A request approved automatically was announced on no
+  channel until it became available; it is now announced once as approved, in
+  both modes, also when it is handed over later. An ntfy target with its own
+  topic is marked verified after a successful test. In nexcrate mode a channel
+  message names nexcrate and the actual finding instead of "Radarr/Sonarr
+  reports a problem".
+- **Display.** The hint about approval follows the account's automatic
+  approval for each media type; a paused or stuck download no longer shows as
+  loading and stands as paused on the downloads page; the phone navigation
+  wraps instead of hiding calendar and search, and the header fits 320 pixels;
+  the trending badge says "Trending"; dashboard findings about a version name
+  it; and in nexcrate mode the title header tells "partly there" from
+  "missing", and a movie keeps counting as there while an upgrade loads.
+- **During an outage the title page forgot what it knew.** When nexcrate,
+  Radarr or Sonarr restarted, a requested title showed "Not requested" with a
+  request button, and with nexcrate gone entirely pages waited up to 24
+  seconds. The title page, the extra versions, lists and the season view now
+  keep the last known state with a note and ask again every 20 seconds until
+  it is confirmed; a page someone waits on gives up after 4 seconds in
+  nexcrate mode. In Radarr mode the calendar shares the library's outage lock
+  and names the service that is down, both of them if both are.
+- **Deferring did not hold.** A request deferred because the account was full
+  came back after half a minute to a minute and a half, with a second "new
+  approval request" on every channel. It now stays deferred until there is
+  room, and deferred requests come back one at a time, each exactly once.
+- **Smaller things from the last run.** A stuck import no longer shows the
+  requester "Loading 100 %"; "Partly loaded" also shows when only some aired
+  episodes are there, monitored or not, in both modes, and a season that has
+  not aired yet no longer counts as missing; the line under "Request now" says
+  that the request waits for approval when it will; a series nobody has asked
+  for offers "Request" instead of "Request a season"; and a waiting reason
+  that names no quality no longer shows empty brackets.
 
 ## 0.35.2 – 18.09.2026
 

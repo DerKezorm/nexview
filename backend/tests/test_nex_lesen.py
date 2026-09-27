@@ -866,6 +866,38 @@ async def test_eine_anfrage_wird_im_nex_betrieb_fertig(
     assert anfrage.status == RequestStatus.downloaded
 
 
+async def test_ein_bekannter_haenger_zeigt_im_nex_betrieb_kein_laedt_100(
+    nex: Any, nexcrate: FakeNexcrate, db: Session
+) -> None:
+    """Derselbe Befund wie im Arr-Betrieb: Steht der Haenger an der Anfrage
+    fest, laedt fuer den Anfragenden nichts mehr - auch wenn die Zeile in der
+    Warteschlange noch voll geladen aussieht."""
+    nexcrate.film(603, versionen=[nexcrate.fassung(FILM_HD, "wanted")])
+    nexcrate.queue = [
+        {
+            "download_id": 1,
+            "title": {"kind": "movie", "ref": "tmdb:603"},
+            "version_id": FILM_HD,
+            "state": "downloading",
+            "size_bytes": 1000,
+            "remaining_bytes": 0,
+        }
+    ]
+    person = _nutzer(db)
+    anfrage = _anfrage(db, person, arr_id=603)
+
+    await status_poller.check_once(db, nex)
+    db.refresh(anfrage)
+    assert anfrage.laedt_fortschritt == 100
+
+    anfrage.import_haengt = "unbekannt"
+    db.commit()
+    await status_poller.check_once(db, nex)
+    db.refresh(anfrage)
+    assert anfrage.laedt_fortschritt is None
+    assert anfrage.status == RequestStatus.searching
+
+
 async def test_ein_titel_der_aus_nexcrate_verschwindet_beendet_die_anfrage(
     nex: Any, nexcrate: FakeNexcrate, db: Session
 ) -> None:

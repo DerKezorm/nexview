@@ -211,6 +211,60 @@ async def test_fertig_raeumt_die_anzeige_mit_auf(
         assert stand.laedt_seit is None
 
 
+@pytest.mark.asyncio
+async def test_bekannter_import_haenger_zeigt_kein_laedt_100(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """⚠️ Befund: Sonarr konnte ein fertiges Staffelpaket nicht importieren
+    (``completed``/``importPending`` mit Warnung). Die Seite Downloads fuehrte
+    es unter „Braucht dich“, die Anfrage trug den Haenger - und der Anfragende
+    sah eine halbe Stunde lang „Laedt · 100 %“.
+
+    ``importPending`` mit Warnung zaehlt fuer sich weiter als ladend, weil es
+    auch der kurze normale Schritt vor dem Import sein kann. Steht der Haenger
+    aber fest, laedt nichts mehr.
+    """
+    request = _laufende_anfrage(arr_client)
+
+    async def bibliothek(_settings: object, _tier: str = "standard") -> dict[int, MovieEntry]:
+        return {request.tmdb_id: MovieEntry(arr_id=4242, has_file=False, monitored=True)}
+
+    monkeypatch.setattr(library, "movie_library", bibliothek)
+    fertig = Radarr.eintraege_aus(
+        [
+            {
+                "movieId": 4242,
+                "status": "completed",
+                "trackedDownloadState": "importPending",
+                "trackedDownloadStatus": "warning",
+                "size": 200,
+                "sizeleft": 0,
+            }
+        ]
+    )
+    assert [zeile.laeuft for zeile in fertig] == [True]
+    fake = FakeArr(art="movie", warteschlange=fertig)
+    monkeypatch.setattr(library, "radarr_client", lambda _s, _t="standard": fake)
+
+    # Noch kein Haenger bekannt: der normale kurze Schritt, 100 % stimmt.
+    with SessionLocal() as db:
+        await status_poller.check_once(db, load_settings(db))
+    with SessionLocal() as session:
+        assert session.query(MediaRequest).one().laedt_fortschritt == 100
+
+    # Der Abgleich der Downloads hat ihn als haengend erkannt.
+    with SessionLocal() as session:
+        session.query(MediaRequest).one().import_haengt = "unbekannt"
+        session.commit()
+    with SessionLocal() as db:
+        await status_poller.check_once(db, load_settings(db))
+    with SessionLocal() as session:
+        stand = session.query(MediaRequest).one()
+        assert stand.laedt_fortschritt is None
+        assert stand.laedt_seit is None
+        assert stand.status == RequestStatus.searching
+
+
 # --- Was nicht mehr laedt, zeigt keinen Fortschritt -------------------------
 
 

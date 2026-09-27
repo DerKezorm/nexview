@@ -360,6 +360,15 @@ async def check_once(
                 eintrag,
                 await _warteschlange(request.media_type.value, stufe),
             )
+            # ⚠️ **Ein bekannter Haenger laedt nicht.** ``importPending`` mit
+            # Warnung zaehlt in der Warteschlange weiter als laufend, weil es
+            # auch der kurze normale Schritt vor dem Import sein kann. Hat der
+            # Abgleich der Downloads (vor diesem Durchgang) den Download aber
+            # als haengend erkannt, sah der Anfragende sonst eine halbe Stunde
+            # lang „Laedt · 100 %“, waehrend die Seite Downloads ihn unter
+            # „Braucht dich“ fuehrte.
+            if request.import_haengt:
+                fortschritt = None
             if fortschritt is None:
                 request.laedt_fortschritt = None
                 request.laedt_seit = None

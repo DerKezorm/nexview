@@ -14,8 +14,10 @@ Anfrage blieb liegen, bis ein Administrator zufällig in den elften Reiter sah.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -31,8 +33,13 @@ from app.models import (
     User,
 )
 from app.services import zurueckgestellt
-from app.services.settings_service import load_settings
+from app.services.beschaffung import NEX
+from app.services.beschaffung.nex import client as nex_client
+from app.services.beschaffung.nex import fassungen as nex_fassungen
+from app.services.beschaffung.nex import system
+from app.services.settings_service import load_settings, save_settings
 
+from .beschaffung.fake_nexcrate import KEY, URL, FakeNexcrate
 from .conftest import create_user
 
 GB = 1024**3
@@ -288,3 +295,89 @@ def test_zurueckgestellt_bei_vollem_konto_haelt(admin_client: TestClient) -> Non
     assert _lauf() == 0
     assert _lauf() == 0
     assert _status(anfrage_id) == RequestStatus.deferred
+
+
+# --------------------------------------------------------------------------
+# Volle Stückzahl: Die zurückgestellte Anfrage zählt für sich selbst mit
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def nexcrate() -> Iterator[FakeNexcrate]:
+    attrappe = FakeNexcrate()
+    nex_client.use_transport(attrappe.transport())
+    system.merken(attrappe._system())
+    nex_fassungen.vergessen()
+    try:
+        yield attrappe
+    finally:
+        nex_client.use_transport(None)
+        system.vergessen()
+        nex_fassungen.vergessen()
+
+
+@pytest.fixture(params=["arr", "nex"])
+def betrieb(request: pytest.FixtureRequest, admin_client: TestClient) -> TestClient:
+    """Beide Betriebsarten; das Kontingent kennt keine, der Rundgang schon."""
+    if request.param == "nex":
+        attrappe = request.getfixturevalue("nexcrate")
+        with SessionLocal() as sitzung:
+            save_settings(
+                sitzung, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY}
+            )
+            nex_fassungen.schreiben(sitzung, attrappe.versions)
+            sitzung.commit()
+    return admin_client
+
+
+def test_volle_stueckzahl_haelt_ueber_mehrere_rundgaenge(betrieb: TestClient) -> None:
+    """⚠️ Befund: Zurückstellen bei vollem Kontingent hielt nur eine Minute.
+
+    Zwei Filme je Woche, zwei Filme warten: Das Konto ist voll, der
+    Entscheider stellt einen zurück. Beim Zurückstellen zählte die Anfrage
+    selbst noch mit (2 von 2, voll), beim nächsten Rundgang nicht mehr (1 von
+    2, Platz) - und sie stand wieder offen, mit einer zweiten „Neue
+    Freigabeanfrage“ auf allen Kanälen. Geändert hatte sich nichts.
+    """
+    kim = create_user(betrieb, "kim")
+    _grenze(kim["id"], filme=2)
+    zurueck = _anfrage(kim["id"], tmdb_id=289, status=RequestStatus.pending_approval)
+    andere = _anfrage(kim["id"], tmdb_id=15121, status=RequestStatus.pending_approval)
+
+    antwort = betrieb.post(f"/api/admin/requests/{zurueck}/defer")
+    assert antwort.status_code == 200, antwort.text
+
+    for _ in range(3):
+        assert _lauf() == 0
+    assert _status(zurueck) == RequestStatus.deferred
+
+    # Erst wenn wirklich Platz frei wird - hier eine Ablehnung -, kommt sie
+    # zurück, und zwar genau einmal.
+    with SessionLocal() as db:
+        db.get(MediaRequest, andere).status = RequestStatus.rejected
+        db.commit()
+    assert _lauf() == 1
+    assert _lauf() == 0
+    assert _status(zurueck) == RequestStatus.pending_approval
+    with SessionLocal() as db:
+        anzahl = (
+            db.query(Notification)
+            .filter(Notification.message_key == "notifications.deferredBack")
+            .count()
+        )
+    assert anzahl == 1
+
+
+def test_neuer_zeitraum_holt_sie_zurueck(admin_client: TestClient) -> None:
+    """Der andere Weg zu neuem Platz: Die Woche ist vorbei. Eine Anfrage aus
+    dem alten Zeitraum zählt nicht mehr, auch nicht für sich selbst."""
+    kim = create_user(admin_client, "kim")
+    _grenze(kim["id"], filme=1)
+    anfrage_id = _anfrage(kim["id"])
+    assert _lauf() == 0
+
+    with SessionLocal() as db:
+        db.get(MediaRequest, anfrage_id).requested_at = _jetzt() - timedelta(days=40)
+        db.commit()
+    assert _lauf() == 1
+    assert _status(anfrage_id) == RequestStatus.pending_approval

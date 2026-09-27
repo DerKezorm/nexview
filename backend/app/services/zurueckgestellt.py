@@ -26,6 +26,7 @@ werden *darf*.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -40,6 +41,10 @@ logger = logging.getLogger("nexview.zurueckgestellt")
 def _passt_wieder(db: Session, settings: AppSettings, anfrage: MediaRequest) -> bool:
     """Ginge diese Anfrage jetzt durch - Stueckzahl **und** Platz?
 
+    Gezaehlt wird mit ihr selbst, gleich ob sie noch wartet (beim
+    Zurueckstellen) oder schon zurueckgestellt ist (beim Rundgang): Sonst
+    beantworten beide dieselbe Frage mit verschiedenen Zahlen.
+
     Dieselben zwei Grenzen wie beim Anfragen (``requests_service`` prueft sie
     in derselben Reihenfolge). Bewusst nicht deren Funktion aufgerufen: Die
     wirft Ausnahmen mit fertigen Meldungen fuer den Besteller, und hier wird
@@ -50,7 +55,21 @@ def _passt_wieder(db: Session, settings: AppSettings, anfrage: MediaRequest) -> 
         return False
 
     eigene = for_user(settings, person)
-    if quota.state_for(db, person, anfrage.media_type, eigene).exhausted:
+    stand = quota.state_for(db, person, anfrage.media_type, eigene)
+    # ⚠️ **Die Anfrage zaehlt fuer sich selbst mit, auch zurueckgestellt.**
+    # Beim Zurueckstellen wartet sie noch und steht in der Zaehlung; danach
+    # nicht mehr. Zwei Filme je Woche, zwei warten, einer wird zurueckgestellt:
+    # Das Zurueckstellen sah 2 von 2 (voll), der naechste Rundgang 1 von 2
+    # (Platz), und eine Minute spaeter stand sie wieder offen - mit einer
+    # zweiten „Neue Freigabeanfrage“ auf allen Kanaelen, ohne dass sich
+    # irgendetwas geaendert hatte. Beide Fragen muessen dieselbe Zahl sehen;
+    # eine Anfrage aus einem vergangenen Zeitraum zaehlt dabei wie jede andere
+    # nicht mehr.
+    if anfrage.status not in quota.COUNTED_STATUSES and (
+        anfrage.requested_at >= quota.counting_start(person, eigene)
+    ):
+        stand = replace(stand, used=stand.used + 1)
+    if stand.exhausted:
         return False
     return not storage.stand_fuer(db, person, eigene).exhausted
 

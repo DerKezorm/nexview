@@ -674,3 +674,40 @@ def test_ein_folgen_paket_macht_die_staffel_nicht_vollstaendig(
     assert fassung["episodes_available"] == 2
     assert fassung["episodes_total"] == 22
     assert staffeln[0]["episodes_total_arr"] == 22
+
+
+def test_die_konfiguration_nennt_die_sofortige_freigabe_je_fassung(
+    admin_client: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Der Satz unter „Jetzt anfragen“ folgt der Freigabe je Fassung, im
+    NEX-Betrieb wie im ARR-Betrieb: Filme frei, Serien warten."""
+    from app.models import User
+
+    from .beschaffung.fake_nexcrate import SERIE_HD
+    from .conftest import auth_headers, create_user
+
+    with SessionLocal() as sitzung:
+        save_settings(
+            sitzung, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY}
+        )
+        nex_fassungen.schreiben(sitzung, nexcrate.versions)
+        sitzung.commit()
+    antwort = admin_client.put(
+        "/api/settings/fassungen",
+        json=[{"kennung": k, "offen_fuer_alle": True} for k in (FILM_HD, SERIE_HD)],
+    )
+    assert antwort.status_code == 200, antwort.text
+    create_user(admin_client, "kim")
+    with SessionLocal() as sitzung:
+        kim = sitzung.query(User).filter(User.username == "kim").one()
+        kim.auto_approve_movies = True
+        kim.auto_approve_series = False
+        sitzung.commit()
+
+    kopf = auth_headers(admin_client, "kim", "passwort-1234")
+    fassungen = {
+        f["kennung"]: f["auto_freigabe"]
+        for f in admin_client.get("/api/config", headers=kopf).json()["fassungen"]
+    }
+    assert fassungen[FILM_HD] is True
+    assert fassungen[SERIE_HD] is False

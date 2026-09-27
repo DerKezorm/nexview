@@ -303,9 +303,11 @@ def _sonarr_staffel(nummer: int, dateien: int, ueberwacht: int, alle: int, *, an
         ],
         # Dieselbe Anfrage bei einer Serie mit nur einer Staffel.
         [_sonarr_staffel(1, 2, 2, 6, an=False)],
-        # Staffel 1 eingeschaltet mit drei Folgen, 2 und 3 nie angefragt.
+        # Drei Folgen von Staffel 1 angefragt, 2 und 3 nie. Dass 2 und 3
+        # gesendet sind, belegt Sonarr nicht (siehe unten); die Luecke in
+        # Staffel 1 reicht.
         [
-            _sonarr_staffel(1, 3, 3, 10, an=True),
+            _sonarr_staffel(1, 3, 3, 10, an=False),
             _sonarr_staffel(2, 0, 0, 8, an=False),
             _sonarr_staffel(3, 0, 0, 8, an=False),
         ],
@@ -347,6 +349,85 @@ def test_vollstaendige_serie_bleibt_geladen_auch_mit_laufender_staffel() -> None
         ),
     )
     assert _status_for(eintrag) == "downloaded"
+
+
+def test_angekuendigte_unueberwachte_staffel_macht_nichts_teils_geladen() -> None:
+    """⚠️ Nexview legt Serien ohne kuenftige Staffeln an (``monitorNewItems:
+    none``). Eine angekuendigte, noch nicht gesendete Staffel ist in Sonarr
+    deshalb nicht ueberwacht, ``nextAiring`` bleibt leer, und
+    ``totalEpisodeCount`` zaehlt ihre Folgen mit. Als Luecke gezaehlt, stand
+    jede vollstaendige Serie mit angekuendigter Staffel auf „Teils geladen“."""
+    from app.services.beschaffung.arr import sonarr
+    from app.services.beschaffung.arr.library import _status_for
+
+    eintrag = SeriesEntry(
+        arr_id=1, has_file=True, monitored=True,
+        episode_file_count=16, episode_count=16, title_key="x",
+        staffeln=sonarr._staffel_stand(
+            {
+                "seasons": [
+                    _sonarr_staffel(1, 8, 8, 8, an=True),
+                    _sonarr_staffel(2, 8, 8, 8, an=True),
+                    _sonarr_staffel(3, 0, 0, 8, an=False),
+                ]
+            }
+        ),
+    )
+    assert _status_for(eintrag) == "downloaded"
+    # Sagt TMDB, dass Staffel 3 schon lief, fehlt sie wirklich.
+    assert _status_for(eintrag, gesendete_staffeln=frozenset({1, 2, 3})) == "partial"
+    assert _status_for(eintrag, gesendete_staffeln=frozenset({1, 2})) == "downloaded"
+
+
+@pytest.mark.anyio
+async def test_die_titelseite_nimmt_die_sendedaten_von_tmdb_mit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Auf der Titelseite kennt Nexview die Staffeln samt TMDB-Datum; in
+    Entdecken, Stoebern und Merkliste nicht. Dort bleibt eine Staffel ohne
+    Datei und ohne Beleg fuer eine Ausstrahlung keine Luecke."""
+    from types import SimpleNamespace
+
+    from app.schemas_media import MediaItem, SeasonInfo
+    from app.services.beschaffung.arr import sonarr
+
+    eintrag = SeriesEntry(
+        arr_id=1, has_file=True, monitored=True,
+        episode_file_count=8, episode_count=8, title_key="beispiel",
+        staffeln=sonarr._staffel_stand(
+            {
+                "seasons": [
+                    _sonarr_staffel(1, 8, 8, 8, an=True),
+                    _sonarr_staffel(2, 0, 0, 8, an=False),
+                ]
+            }
+        ),
+    )
+
+    async def bibliothek(_settings, _tier="standard"):
+        return {TVDB: eintrag}, {}
+
+    monkeypatch.setattr(library, "series_library", bibliothek)
+    einstellungen = SimpleNamespace(arr_configured=lambda *_a, **_k: True)
+
+    def serie(staffeln: list[SeasonInfo]) -> MediaItem:
+        return MediaItem(
+            media_type="tv", tmdb_id=77, tvdb_id=TVDB, title="Beispiel",
+            seasons=staffeln,
+        )
+
+    gelaufen = [
+        SeasonInfo(season_number=1, name="S1", air_date="2019-01-01"),
+        SeasonInfo(season_number=2, name="S2", air_date="2020-01-01"),
+    ]
+    angekuendigt = [
+        SeasonInfo(season_number=1, name="S1", air_date="2019-01-01"),
+        SeasonInfo(season_number=2, name="S2", air_date="2999-01-01"),
+    ]
+    ergebnis = await library.apply_status(
+        einstellungen, "tv", [serie(gelaufen), serie(angekuendigt), serie([])]
+    )
+    assert [item.status for item in ergebnis.items] == ["partial", "downloaded", "downloaded"]
 
 
 # --- Der Media-Server-Rueckfall bei Staffelanfragen ------------------------

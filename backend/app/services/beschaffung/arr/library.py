@@ -11,6 +11,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from ....schemas_media import MediaItem
@@ -184,15 +185,35 @@ async def series_calendar(settings: AppSettings, start: str, end: str) -> list[d
     return entries
 
 
-def _aenderung(entry: MovieEntry | SeriesEntry, mit_pfad: bool) -> dict[str, object]:
+def _gesendete_staffeln(item: MediaItem) -> frozenset[int]:
+    """Welche Staffeln laut TMDB schon gesendet wurden - soweit die Kachel sie nennt.
+
+    Nur die Titelseite traegt die Staffeln mit Datum; Entdecken, Stoebern und
+    Merkliste nicht. Dort bleibt die Menge leer, und eine Staffel ganz ohne
+    Datei zaehlt nur mit Sonarrs eigenem Beleg als Luecke.
+    """
+    heute = date.today().isoformat()
+    return frozenset(
+        staffel.season_number
+        for staffel in item.seasons or []
+        if staffel.air_date and staffel.air_date <= heute
+    )
+
+
+def _aenderung(
+    entry: MovieEntry | SeriesEntry, mit_pfad: bool, item: MediaItem | None = None
+) -> dict[str, object]:
     """Was an einem Titel geaendert wird - Zustand, und auf Wunsch der Pfad."""
-    aenderung: dict[str, object] = {"status": _status_for(entry)}
+    gesendet = _gesendete_staffeln(item) if item is not None else frozenset()
+    aenderung: dict[str, object] = {"status": _status_for(entry, gesendete_staffeln=gesendet)}
     if mit_pfad and getattr(entry, "path", ""):
         aenderung["path"] = entry.path
     return aenderung
 
 
-def _status_for(entry: MovieEntry | SeriesEntry) -> str:
+def _status_for(
+    entry: MovieEntry | SeriesEntry, *, gesendete_staffeln: frozenset[int] = frozenset()
+) -> str:
     """"Liegt schon da", "liegt teilweise da" oder "noch nicht geladen".
 
     Der Mittelweg existiert nur bei Serien. "Bereits geladen" auf einer Serie,
@@ -202,10 +223,14 @@ def _status_for(entry: MovieEntry | SeriesEntry) -> str:
     """
     if not entry.has_file:
         return "searching"
-    return "partial" if _liegt_nur_teilweise_vor(entry) else "downloaded"
+    if _liegt_nur_teilweise_vor(entry, gesendete_staffeln):
+        return "partial"
+    return "downloaded"
 
 
-def _liegt_nur_teilweise_vor(entry: MovieEntry | SeriesEntry) -> bool:
+def _liegt_nur_teilweise_vor(
+    entry: MovieEntry | SeriesEntry, gesendete_staffeln: frozenset[int] = frozenset()
+) -> bool:
     """Fehlen einer Serie ausgestrahlte Folgen, obwohl sie Dateien hat?
 
     Gerechnet ueber die Staffel-Statistik, die ohnehin mitreist: Eine Staffel
@@ -215,19 +240,31 @@ def _liegt_nur_teilweise_vor(entry: MovieEntry | SeriesEntry) -> bool:
     Folgen fehlen in ``folgen`` von vornherein; eine laufende Serie auf
     aktuellem Stand gilt damit als vollstaendig.
 
-    ⚠️ **Gemessen wird gegen ``gesamt``, nicht gegen ``folgen``.** Sonarr
-    zaehlt in ``episodeCount`` nur ueberwachte Folgen. Nach einer Anfrage auf
-    zwei Folgen oder eine Staffel sind die uebrigen nicht ueberwacht, und die
-    Serie mit 2 von 12 Folgen stand als „Bereits geladen“ da.
+    ⚠️ **Eine Staffel mit Dateien misst gegen ``gesamt``, nicht gegen
+    ``folgen``.** Sonarr zaehlt in ``episodeCount`` nur ueberwachte Folgen.
+    Nach einer Anfrage auf zwei Folgen sind die uebrigen nicht ueberwacht, und
+    die Serie mit 2 von 12 Folgen stand als „Bereits geladen“ da.
+
+    ⚠️ **Eine Staffel ganz ohne Datei zaehlt nur mit Beleg.** Nexview legt
+    Serien ohne kuenftige Staffeln an; eine angekuendigte Staffel ist deshalb
+    nicht ueberwacht, ``nextAiring`` bleibt leer, und ``totalEpisodeCount``
+    zaehlt ihre noch nicht gesendeten Folgen mit. Als Luecke gilt sie nur,
+    wenn Sonarr gesendete, ueberwachte Folgen zaehlt (``folgen``) oder TMDB
+    ihr Datum in der Vergangenheit nennt (``gesendete_staffeln``).
 
     Filme haben keine Staffeln - fuer sie ist die Antwort immer nein.
     """
     staffeln = getattr(entry, "staffeln", None) or {}
-    return any(
-        stand.gesamt > 0 and stand.dateien < stand.gesamt
-        for nummer, stand in staffeln.items()
-        if nummer != 0
-    )
+    for nummer, stand in staffeln.items():
+        if nummer == 0:
+            continue
+        if stand.dateien == 0:
+            if stand.folgen > 0 or nummer in gesendete_staffeln:
+                return True
+            continue
+        if stand.dateien < stand.gesamt:
+            return True
+    return False
 
 
 async def apply_status(
@@ -259,7 +296,7 @@ async def apply_status(
         if media_type == "movie":
             library = await movie_library(settings, tier)
             updated = [
-                item.model_copy(update=_aenderung(library[item.tmdb_id], mit_pfad))
+                item.model_copy(update=_aenderung(library[item.tmdb_id], mit_pfad, item))
                 if item.tmdb_id in library
                 else item
                 for item in items
@@ -275,7 +312,7 @@ async def apply_status(
                         by_title, item.title, jahr_aus(item.release_date)
                     )
                 updated.append(
-                    item.model_copy(update=_aenderung(entry, mit_pfad)) if entry else item
+                    item.model_copy(update=_aenderung(entry, mit_pfad, item)) if entry else item
                 )
     except ArrError as error:
         nicht_gelesen(error)

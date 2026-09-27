@@ -704,6 +704,46 @@ async def test_zeitueberschreitung_gilt_nicht_als_fehlschlag(
         assert "Zeitüberschreitung" in (anfrage.error_message or "")
 
 
+async def test_ausfall_bei_der_anfrage_bekommt_kennung_und_dienst(
+    arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Wie ``test_zeitueberschreitung_gilt_nicht_als_fehlschlag``, aber fuer die Antwort.
+
+    Der gemeldete Fall: Ein englisches Konto fragt waehrend eines
+    Radarr-Ausfalls an und bekommt nach 22,7 Sekunden eine deutsche Absage
+    ohne Kennung - "Radarr antwortet nicht (Zeitüberschreitung)." als
+    blosser Text, den die Oberflaeche nicht uebersetzen kann (Pruefgang,
+    26.09.2026). Radarr selbst liefert die Kennung laengst
+    (``code="arr_timeout", service="Radarr"`` in ``client.py``); sie muss nur
+    noch nach draussen durchgereicht werden, wie es der NEX-Weg schon tut.
+    """
+    from app.services.beschaffung.arr import library
+    from app.services.beschaffung.arr.client import ArrError
+
+    item = _first_demo(arr_client)
+
+    class Ausfall:
+        async def ensure_tag(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            return None
+
+        async def add(self, *a, **k):  # noqa: ANN001, ANN002, ANN003
+            raise ArrError(
+                "Radarr antwortet nicht (Zeitüberschreitung).",
+                ungewiss=True,
+                code="arr_timeout",
+                service="Radarr",
+            )
+
+    monkeypatch.setattr(library, "radarr_client", lambda *a, **k: Ausfall())
+
+    antwort = _anfrage(arr_client, item)
+
+    assert antwort.status_code == 502
+    detail = antwort.json()["detail"]
+    assert detail["code"] == "arr_timeout"
+    assert detail["service"] == "Radarr"
+
+
 async def test_echter_fehler_bleibt_fehlgeschlagen(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

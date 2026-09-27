@@ -1162,8 +1162,6 @@ def _staffel(nummer: int, gesendet: int, have: int, ueberwacht: int, groesse: in
         # Folge 1 und 2 angefragt, Staffel 2 nie: nexcrate zaehlt je Fassung
         # nur ueberwachte Folgen, also 2 von 2.
         [_staffel(1, 6, 2, 2, 700_000_000), _staffel(2, 6, 0, 0, None)],
-        # Dieselbe Anfrage bei einer Serie mit nur einer Staffel.
-        [_staffel(1, 6, 2, 2, 700_000_000)],
     ],
 )
 def test_nur_einige_ueberwachte_folgen_sind_teilweise_da(staffeln: list) -> None:
@@ -1183,6 +1181,12 @@ def test_nur_einige_ueberwachte_folgen_sind_teilweise_da(staffeln: list) -> None
         # mehr laden“): Wie viele Folgen eine Datei haben, sagt nexcrate dann
         # nicht. Lieber kein „Teils“ als ein falsches.
         ([_staffel(1, 6, 0, 0, 2_000_000_000)], 0),
+        # Alle sechs Folgen haben eine Datei, ueberwacht sind nur zwei: Von
+        # aussen sieht das aus wie zwei von sechs, denn ``have`` zaehlt nur
+        # ueberwachte Folgen mit Datei. Die Kachel entscheidet deshalb nicht;
+        # die Titelseite zaehlt die Dateien je Folge
+        # (``details._teils_nach_staffeln``).
+        ([_staffel(1, 6, 2, 2, 2_000_000_000)], 2),
     ],
 )
 def test_vollstaendig_oder_unbekannt_bleibt_geladen(staffeln: list, ueberwacht: int) -> None:

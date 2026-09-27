@@ -96,11 +96,13 @@ def _staffel_mit_luecke(eintrag: dict[str, Any], kennung: str) -> bool:
     (seit nexcrate ``39dfc05`` in Liste und ``lookup``; eine ältere nexcrate
     nennt keine Staffeln, dann bleibt es bei ``counts``).
 
-    Eine Lücke ist sicher, wenn eine gesendete Staffel gar keine Datei hat,
-    oder wenn Folgen überwacht sind und weniger Dateien haben als gesendet
-    ist. Liegen Dateien, ohne dass eine Folge überwacht ist, sagt nexcrate
-    nicht, wie viele Folgen sie tragen; dann keine Lücke statt einer
-    geratenen. Staffel 0 (Extras) zählt wie im ARR-Betrieb nicht.
+    Sicher ist die Lücke nur, wenn eine gesendete Staffel gar keine Datei
+    hat. Liegen Dateien, sagt ``have`` nur, wie viele **überwachte** Folgen
+    eine haben: Zwei von sechs überwacht und alle sechs mit Datei sieht
+    genauso aus wie zwei von sechs geladen. Dann entscheidet die Kachel
+    nicht; die Titelseite zählt die Dateien je Folge
+    (``details._teils_nach_staffeln``). Staffel 0 (Extras) zählt wie im
+    ARR-Betrieb nicht.
     """
     for staffel in (eintrag.get("series") or {}).get("seasons") or []:
         if not isinstance(staffel, dict) or staffel.get("season") in (None, 0):
@@ -118,10 +120,7 @@ def _staffel_mit_luecke(eintrag: dict[str, Any], kennung: str) -> bool:
         )
         if fassung is None:
             continue
-        zahlen = fassung.get("counts") or {}
         if not int(fassung.get("size_bytes") or 0):
-            return True
-        if int(zahlen.get("expected") or 0) > 0 and int(zahlen.get("have") or 0) < gesendet:
             return True
     return False
 

@@ -331,6 +331,31 @@ async def _staffeln(db: DbSession, settings, detail: MediaDetail, media_type: st
             staffel.episodes_total_arr_uhd = vier.episodes_total
 
 
+def _teils_nach_staffeln(detail) -> None:
+    """Das Kopfzeichen der Staffelliste folgen lassen: „Teils“, wo sie Luecken zeigt.
+
+    Die Staffelliste kennt die Dateien je Folge. Die Kachel kennt im
+    NEX-Betrieb nur ``have``, und das zaehlt allein ueberwachte Folgen:
+    „zwei von sechs ueberwacht“ sieht dort aus wie „zwei von sechs geladen“,
+    auch wenn alle sechs eine Datei haben. Die Kachel entscheidet deshalb
+    nicht; hier, wo die Dateien gezaehlt sind, schon.
+
+    Nur Staffeln, von denen schon etwas liegt: Eine Staffel ganz ohne Datei
+    kann angekuendigt sein (``totalEpisodeCount`` zaehlt dann Platzhalter),
+    und ob sie gesendet ist, hat ``_mit_status`` schon beantwortet. Nur
+    aufwaerts, von „geladen“ zu „teilweise“.
+    """
+    if detail.status != "downloaded":
+        return
+    for staffel in detail.seasons or []:
+        if staffel.season_number == 0:
+            continue
+        gesamt = staffel.episodes_total_arr
+        if gesamt and 0 < staffel.episodes_available < gesamt:
+            detail.status = "partial"
+            return
+
+
 @router.get("/detail/{media_type}/{tmdb_id}", response_model=MediaDetail)
 async def title_detail(
     media_type: MediaTypePath,
@@ -358,6 +383,7 @@ async def title_detail(
         with lesestand() as stand:
             await _mit_status(db, settings, media_type, [detail], user)
             await _staffeln(db, settings, detail, media_type)
+            _teils_nach_staffeln(detail)
         detail.status_unconfirmed = not stand.gelesen
         detail.status_refused = stand.abgelehnt
         await _mit_status(db, settings, media_type, detail.recommendations, user)

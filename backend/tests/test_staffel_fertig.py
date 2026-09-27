@@ -430,6 +430,41 @@ async def test_die_titelseite_nimmt_die_sendedaten_von_tmdb_mit(
     assert [item.status for item in ergebnis.items] == ["partial", "downloaded", "downloaded"]
 
 
+@pytest.mark.parametrize(
+    ("staffeln", "erwartet"),
+    [
+        # Zwei von sechs gesendeten Folgen haben eine Datei (Folgen-Paket).
+        ([(1, 2, 6)], "partial"),
+        # Alle sechs haben eine, gleich wie viele ueberwacht sind.
+        ([(1, 6, 6)], "downloaded"),
+        # Eine angekuendigte Staffel ohne Datei aendert nichts.
+        ([(1, 6, 6), (2, 0, 8)], "downloaded"),
+        # Extras zaehlen nicht.
+        ([(0, 1, 5), (1, 6, 6)], "downloaded"),
+    ],
+)
+def test_die_titelseite_zaehlt_die_dateien_je_folge(staffeln, erwartet) -> None:
+    """Auf der Titelseite liegen die Dateien je Folge vor (Staffelliste).
+    Im NEX-Betrieb sagt die Kachel bei „zwei von sechs ueberwacht“ nicht, ob
+    die uebrigen vier eine Datei haben; die Staffelliste weiss es. Das
+    Kopfzeichen folgt ihr, damit beide dasselbe sagen."""
+    from types import SimpleNamespace
+
+    from app.routers.details import _teils_nach_staffeln
+
+    titel = SimpleNamespace(
+        status="downloaded",
+        seasons=[
+            SimpleNamespace(
+                season_number=nummer, episodes_available=da, episodes_total_arr=gesamt
+            )
+            for nummer, da, gesamt in staffeln
+        ],
+    )
+    _teils_nach_staffeln(titel)
+    assert titel.status == erwartet
+
+
 # --- Der Media-Server-Rueckfall bei Staffelanfragen ------------------------
 
 

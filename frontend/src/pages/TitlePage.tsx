@@ -33,7 +33,7 @@ import { FassungBadge } from '../components/media/FassungBadge'
 import { WatchedBadge } from '../components/media/WatchedBadge'
 import { PlayIcon, TrailerModal } from '../components/media/TrailerModal'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
-import { darfAnfragen, istUnterwegs } from '../lib/status'
+import { darfAnfragen, istUnterwegs, serieSchonDabei } from '../lib/status'
 import { useConfig } from '../hooks/useConfig'
 import { formatDate, formatRuntime } from '../lib/format'
 import { browsePath, personPath, stoeberPath } from '../lib/routes'
@@ -507,7 +507,7 @@ export function TitlePage() {
                             )
                       }
                     >
-                      {nurWeitereStaffel
+                      {nurWeitereStaffel && serieSchonDabei(item.status, item.seasons)
                         ? t('request.addSeason')
                         : !istFilm && item.seasons.length > 1
                           ? t('request.chooseSeason')

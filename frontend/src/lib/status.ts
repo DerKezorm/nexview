@@ -28,6 +28,32 @@ export function darfAnfragen(status: MediaStatus | string): boolean {
 }
 
 /**
+ * Ist von dieser Serie schon etwas angefragt oder da?
+ *
+ * Erst dann heißt der Knopf „Staffel nachfordern“ und steht der Hinweis, die
+ * Serie laufe bereits mit. Auf einer Serie, die noch niemand angefragt hatte,
+ * war „nachfordern“ der einzige Knopf, und es klang, als läge schon etwas vor.
+ */
+export function serieSchonDabei(
+  status: MediaStatus | string,
+  staffeln: {
+    episodes_available: number
+    requested?: boolean
+    requested_episodes?: number[]
+  }[],
+): boolean {
+  return (
+    !darfAnfragen(status) ||
+    staffeln.some(
+      (staffel) =>
+        staffel.episodes_available > 0 ||
+        Boolean(staffel.requested) ||
+        (staffel.requested_episodes?.length ?? 0) > 0,
+    )
+  )
+}
+
+/**
  * Zustände, in denen etwas **unterwegs** ist - darauf lässt sich warten.
  *
  * Bewusst nicht das Gegenteil von `darfAnfragen`: Ein Titel kann gleichzeitig

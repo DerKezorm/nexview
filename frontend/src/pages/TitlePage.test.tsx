@@ -350,3 +350,82 @@ describe('Wiederholen', () => {
     expect(detailAufrufe()).toBe(2)
   })
 })
+
+describe('der Anfrageknopf einer Serie', () => {
+  /* Befund: Auf einer Serie, die noch niemand angefragt hatte, hieß der
+     einzige Knopf „Staffel nachfordern“. Das klingt, als läge schon etwas
+     vor. Nachfordern gibt es erst, wenn von der Serie etwas angefragt oder da
+     ist. */
+  function staffel(nummer: number, da = 0, angefragt = false) {
+    return {
+      season_number: nummer,
+      name: `Staffel ${nummer}`,
+      episode_count: 6,
+      air_date: '2019-05-06',
+      overview: '',
+      poster_url: null,
+      episodes_available: da,
+      requested: angefragt,
+    }
+  }
+
+  function serieOeffnen(teil: Partial<MediaDetail>) {
+    const daten = detail({
+      media_type: 'tv',
+      collection: null,
+      recommendations: [],
+      ...teil,
+    } as Partial<MediaDetail>)
+    holen.mockImplementation((async (pfad: string) => {
+      if (pfad === '/api/setup/status') {
+        return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      }
+      if (pfad === '/api/config') return { radarr_configured: true, sonarr_configured: true }
+      if (pfad === '/api/detail/tv/901') return daten
+      if (pfad === '/api/favorites') return []
+      if (pfad.startsWith('/api/ratings/tv')) return {}
+      throw new Error(`Unerwarteter Aufruf: ${pfad}`)
+    }) as never)
+    return rendern(
+      <Routes>
+        <Route path="/titel/:mediaType/:tmdbId" element={<TitlePage />} />
+      </Routes>,
+      { pfad: '/titel/tv/901' },
+    )
+  }
+
+  it('heißt bei einer nie angefragten Serie nicht „nachfordern“', async () => {
+    serieOeffnen({ status: 'not_requested', seasons: [staffel(1), staffel(2)] })
+
+    expect(
+      await screen.findByRole('button', { name: i18n.t('request.chooseSeason') }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: i18n.t('request.addSeason') }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('heißt bei einer nie angefragten Serie mit einer Staffel „Anfragen“', async () => {
+    serieOeffnen({ status: 'not_requested', seasons: [staffel(1)] })
+
+    expect(
+      await screen.findByRole('button', { name: i18n.t('request.addSeries') }),
+    ).toBeInTheDocument()
+  })
+
+  it('heißt „nachfordern“, sobald von der Serie etwas da ist', async () => {
+    serieOeffnen({ status: 'partial', seasons: [staffel(1, 6), staffel(2)] })
+
+    expect(
+      await screen.findByRole('button', { name: i18n.t('request.addSeason') }),
+    ).toBeInTheDocument()
+  })
+
+  it('heißt „nachfordern“, sobald eine Staffel angefragt ist', async () => {
+    serieOeffnen({ status: 'not_requested', seasons: [staffel(1, 0, true), staffel(2)] })
+
+    expect(
+      await screen.findByRole('button', { name: i18n.t('request.addSeason') }),
+    ).toBeInTheDocument()
+  })
+})

@@ -12,7 +12,7 @@ import { StatusBadge } from './StatusBadge'
 import { FassungBadge } from './FassungBadge'
 import { WatchedBadge } from './WatchedBadge'
 import { useAuth } from '../../auth/useAuth'
-import { darfAnfragen } from '../../lib/status'
+import { darfAnfragen, serieSchonDabei } from '../../lib/status'
 import { useWegKontext } from '../../hooks/useWegKontext'
 
 type DetailModalProps = {
@@ -92,6 +92,9 @@ export function DetailModal({
    */
   const nurWeitereStaffel =
     item?.media_type === 'tv' && seasons.length > 0 && item.status !== 'blocked'
+  // „Nachfordern“ und „läuft bereits mit“ erst, wenn von der Serie schon
+  // etwas angefragt oder da ist; der Knopf selbst steht trotzdem.
+  const nachfordern = nurWeitereStaffel && serieSchonDabei(item.status, seasons)
 
   // Siehe TitlePage: die Sperrliste bremst alle außer den Administrator.
   const istAdmin = user?.role === 'admin'
@@ -230,7 +233,7 @@ export function DetailModal({
                   <>
                     {/* Bei einer laufenden Serie steht hier zusätzlich, warum
                         der Knopf trotz "bereits geladen" angeboten wird. */}
-                    {nurWeitereStaffel && (
+                    {nachfordern && (
                       <p className="mb-3 text-sm text-mist-500">{t('request.moreSeasonsHint', weg)}</p>
                     )}
                     <Button
@@ -243,7 +246,7 @@ export function DetailModal({
                           : t(quelleBereit ? 'request.noVersionAllowed' : 'request.arrMissing', weg)
                       }
                     >
-                      {nurWeitereStaffel
+                      {nachfordern
                         ? t('request.addSeason')
                         : mitStaffelwahl
                           ? t('request.chooseSeason')

@@ -103,6 +103,11 @@ def zurueckholen(db: Session, settings: AppSettings) -> int:
             continue
 
         anfrage.status = RequestStatus.pending_approval
+        # ⚠️ **Sofort schreiben.** Die Sitzung schreibt nicht von selbst vor
+        # jeder Abfrage (``autoflush`` aus). Ohne diese Zeile sah die Zaehlung
+        # fuer die naechste zurueckgestellte Anfrage desselben Kontos diese
+        # Rueckholung nicht, und bei Platz fuer eine kamen beide zurueck.
+        db.flush()
         # ⚠️ Der Besteller muss es erfahren. Sonst wechselt seine Anfrage
         # stillschweigend den Zustand - und das sieht von aussen aus wie ein
         # Fehler, genau wie beim Zuruecksetzen selbst.

@@ -381,3 +381,45 @@ def test_neuer_zeitraum_holt_sie_zurueck(admin_client: TestClient) -> None:
         db.commit()
     assert _lauf() == 1
     assert _status(anfrage_id) == RequestStatus.pending_approval
+
+
+def test_bei_platz_fuer_eine_kommt_nur_eine_zurueck(admin_client: TestClient) -> None:
+    """⚠️ Befund aus der Prüfung: Zwei zurückgestellte Anfragen kamen zusammen
+    zurück, obwohl nur Platz für eine war. Die Sitzung schreibt nicht von
+    selbst vor jeder Abfrage (``autoflush`` aus); die Zählung für die zweite
+    sah die erste Rückholung nicht."""
+    kim = create_user(admin_client, "kim")
+    _grenze(kim["id"], filme=2, gb=10)
+    _belegen(kim["id"], 50)
+    erste = _anfrage(kim["id"], tmdb_id=901)
+    zweite = _anfrage(kim["id"], tmdb_id=902)
+    assert _lauf() == 0
+
+    # Der Speicher wird frei, die Stückzahl hat Platz für genau eine.
+    with SessionLocal() as db:
+        posten = db.scalar(select(StorageEntry).where(StorageEntry.user_id == kim["id"]))
+        posten.user_id = None
+        posten.state = StorageState.house
+        db.commit()
+    assert _lauf() == 1
+    assert _lauf() == 0
+    assert sorted([_status(erste), _status(zweite)]) == sorted(
+        [RequestStatus.pending_approval, RequestStatus.deferred]
+    )
+
+
+def test_gesenkte_grenze_holt_nur_so_viele_zurueck_wie_passen(
+    admin_client: TestClient,
+) -> None:
+    """Grenze von 3 auf 2 gesenkt, zwei zurückgestellt, die dritte abgelehnt:
+    Platz ist für eine, nicht für beide."""
+    kim = create_user(admin_client, "kim")
+    _grenze(kim["id"], filme=2)
+    erste = _anfrage(kim["id"], tmdb_id=901)
+    zweite = _anfrage(kim["id"], tmdb_id=902)
+    _anfrage(kim["id"], tmdb_id=903, status=RequestStatus.rejected)
+
+    assert _lauf() == 1
+    assert sorted([_status(erste), _status(zweite)]) == sorted(
+        [RequestStatus.pending_approval, RequestStatus.deferred]
+    )

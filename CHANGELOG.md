@@ -22,6 +22,15 @@ tag exists for it.
   request over already did, instead of a bare German sentence. Cancelling a
   request that is neither running nor failed answers `409`
   `request_not_cancellable`, through `/api/v1` too.
+- **A successful webhook test clears the warning it disproves.** After setting
+  the address and testing the callback, the settings page showed "There is no
+  address Radarr/Sonarr could reach Nexview at" right above "The call arrived"
+  until the next upkeep round. The test now
+  takes back a stale missing address, unreachable instance or failed proof.
+- **A large Radarr or Sonarr library gets time to answer.** Fetching the whole
+  movie or series list now waits up to 90 seconds instead of 15, and a storage
+  measurement that missed an instance is tried again after five minutes instead
+  of an hour.
 
 ## 1.0.0 – 27.09.2026
 

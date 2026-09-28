@@ -573,11 +573,31 @@ async def testen(db: Session, settings: AppSettings, instanz: ArrInstanz) -> dic
     except ArrError as fehler:
         return {"angekommen": False, "fehler": "proof_failed", "info": fehler.message}
     if await _beweis_abwarten(db, instanz.kennung, seit):
-        return {
-            "angekommen": True,
-            "dauer_ms": int((time.monotonic() - start) * 1000),
-        }
+        dauer_ms = int((time.monotonic() - start) * 1000)
+        _widerlegtes_loeschen(db, instanz.kennung)
+        return {"angekommen": True, "dauer_ms": dauer_ms}
     return {"angekommen": False, "fehler": "proof_failed"}
+
+
+# Gruende, die ein angekommener Anruf widerlegt: Die Adresse steht, die
+# Instanz antwortet, der Anruf kam an. "too_old" und "create_failed" bleiben -
+# die Probe legt keinen Eintrag an und sagt nichts ueber dessen Pflichtfelder.
+WIDERLEGT = frozenset({"no_address", "unreachable", "proof_failed"})
+
+
+def _widerlegtes_loeschen(db: Session, kennung: str) -> None:
+    """Nach einem angekommenen Anruf den veralteten Grund wegnehmen.
+
+    ⚠️ Bis 28.09.2026 blieb er stehen, bis die Pflege das naechste Mal lief
+    (nach dem Speichern binnen zwei Minuten, sonst stuendlich): Die Seite
+    zeigte "Es fehlt eine Adresse" direkt ueber "Anruf kam an". Die Pflege
+    kommt trotzdem bald, damit der Eintrag in der Instanz nachzieht.
+    """
+    db.expire_all()
+    zeile = webhooks.eintrag(db, kennung)
+    if zeile is not None and zeile.fehler in WIDERLEGT:
+        _stand(db, zeile, "")
+    gleich_wieder()
 
 
 PFLEGE_INTERVALL_SEKUNDEN = 3600.0

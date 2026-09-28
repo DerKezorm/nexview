@@ -8,7 +8,7 @@ from typing import Any
 from ..base import FilmStand as LibraryEntry
 from ..base import WarteschlangenEintrag
 from . import download_gruende
-from .client import ArrClient, ArrError
+from .client import LISTE_TIMEOUT, ArrClient, ArrError
 
 
 def _groesse(movie: dict[str, Any]) -> int:
@@ -77,7 +77,7 @@ class RadarrClient(ArrClient):
         ``hasFile`` unterscheidet "liegt bereits auf der Platte" von
         "ist eingetragen, wird aber noch gesucht".
         """
-        movies = await self.get("/movie") or []
+        movies = await self.get("/movie", timeout=LISTE_TIMEOUT) or []
         result: dict[int, LibraryEntry] = {}
         for movie in movies:
             tmdb_id = movie.get("tmdbId")

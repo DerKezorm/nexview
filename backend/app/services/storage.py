@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any
 
@@ -733,6 +733,9 @@ class Ergebnis:
     entfernt: int = 0
     gewachsen: int = 0
     erster_lauf: bool = False
+    # Hat jede Instanz geantwortet? Sonst holt der Rundgang den Abgleich bald
+    # nach (``status_poller.SPEICHER_NACHHOLEN_SEKUNDEN``).
+    vollstaendig: bool = True
     # Posten, die einem Nutzer gehoeren und **spuerbar** gewachsen sind. Der
     # Aufrufer benachrichtigt; dieses Modul kennt keine Benachrichtigungen.
     zugelegt: list[Zuwachs] = field(default_factory=list)
@@ -757,7 +760,7 @@ async def abgleichen(db: Session, settings: AppSettings) -> Ergebnis:
     if settings.beschaffung_ist_nex:
         fassungen.abgleichen(db, settings)
     gemessen, vollstaendig, behalten = await _erfassen(db, settings)
-    ergebnis = _schreiben(db, gemessen, vollstaendig, behalten)
+    ergebnis = replace(_schreiben(db, gemessen, vollstaendig, behalten), vollstaendig=vollstaendig)
     _wachstum_melden(db, ergebnis)
     return ergebnis
 

@@ -30,6 +30,13 @@ MAX_PARALLEL_REQUESTS = 6
 # Validierung). Mit laengerer Frist kommt stattdessen ihre ehrliche Antwort.
 NOTIFICATION_TIMEOUT = httpx.Timeout(60.0, connect=6.0)
 
+# Fuer die ganze Bibliothek auf einmal (``/movie``, ``/series``). Gemessen am
+# 25.09.2026 an einer echten Radarr-Bibliothek mit rund 4.000 Filmen: 23 MB,
+# in Ruhe 3 Sekunden, unter Last auf der NAS einmal ueber 15 - dann brach der
+# erste Speicher-Abgleich ab und die Statistik zeigte eine Stunde lang nur die
+# kleine 4K-Instanz. Die Frist fuer alles andere bleibt kurz.
+LISTE_TIMEOUT = httpx.Timeout(90.0, connect=6.0)
+
 _client: httpx.AsyncClient | None = None
 _client_lock = asyncio.Lock()
 
@@ -208,8 +215,13 @@ class ArrClient:
                 service=self.label,
             ) from exc
 
-    async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        return await self._request("GET", path, params=params)
+    async def get(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        timeout: httpx.Timeout | None = None,
+    ) -> Any:
+        return await self._request("GET", path, timeout=timeout, params=params)
 
     async def post(self, path: str, payload: dict[str, Any]) -> Any:
         return await self._request("POST", path, json=payload)

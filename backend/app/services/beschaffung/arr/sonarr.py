@@ -14,7 +14,7 @@ from typing import Any
 from ..base import Folge, Staffelstand, WarteschlangenEintrag, normalize_title
 from ..base import SerienStand as LibraryEntry
 from . import download_gruende
-from .client import ArrClient, ArrError
+from .client import LISTE_TIMEOUT, ArrClient, ArrError
 
 # ⚠️ **Dieses Modul hatte lange gar keinen.** ``serie_ueberwachen`` rief
 # ``logger.warning`` trotzdem - die Zeile waere mit einem ``NameError``
@@ -138,7 +138,7 @@ class SonarrClient(ArrClient):
         Der Titel-Index ist der Rueckfallweg: TMDB kennt fuer viele neue
         Serien noch keine TVDB-Id, dann waere sonst kein Abgleich moeglich.
         """
-        series = await self.get("/series") or []
+        series = await self.get("/series", timeout=LISTE_TIMEOUT) or []
         by_tvdb: dict[int, LibraryEntry] = {}
         by_title: dict[str, LibraryEntry] = {}
 

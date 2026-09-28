@@ -659,6 +659,10 @@ async def _bibliothek_vielleicht(db, settings) -> None:
 # langsam: Ein Film waechst nur bei einer Aufwertung, eine Serie um eine Folge
 # je Woche. Stuendlich ist reichlich.
 SPEICHER_INTERVALL_SEKUNDEN = 3600
+# Antwortete eine Instanz nicht, kommt der naechste Versuch nach fuenf Minuten
+# statt nach einer Stunde (28.09.2026): Beim ersten Abgleich einer grossen
+# Bibliothek stand die Statistik sonst eine Stunde auf dem kleinen Rest.
+SPEICHER_NACHHOLEN_SEKUNDEN = 300
 _speicher_zuletzt: float = 0.0
 
 
@@ -703,6 +707,12 @@ async def _speicher_vielleicht(db, settings) -> None:
     _speicher_zuletzt = jetzt
     try:
         ergebnis = await storage.abgleichen(db, settings)
+        if not ergebnis.vollstaendig:
+            _speicher_zuletzt = jetzt - SPEICHER_INTERVALL_SEKUNDEN + SPEICHER_NACHHOLEN_SEKUNDEN
+            logger.warning(
+                "Storage usage measured incompletely, trying again in %d minutes",
+                SPEICHER_NACHHOLEN_SEKUNDEN // 60,
+            )
         if ergebnis.erster_lauf:
             logger.info(
                 "Storage usage measured for the first time: %s item(s), all owned by the "

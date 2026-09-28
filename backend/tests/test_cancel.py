@@ -148,8 +148,34 @@ def test_wartende_anfrage_wird_nicht_abgebrochen_sondern_zurueckgezogen(
         headers=headers,
     ).json()
 
-    assert arr_client.post(f"/api/requests/{angelegt['id']}/cancel", headers=headers).status_code == 409
+    antwort = arr_client.post(f"/api/requests/{angelegt['id']}/cancel", headers=headers)
+    assert antwort.status_code == 409
+    # Mit Kennung, damit Oberflaeche und Home Assistant es uebersetzen koennen
+    # statt einen deutschen Satz durchzureichen.
+    assert antwort.json()["detail"]["code"] == "request_not_cancellable"
     assert geloescht_in_radarr == []
+
+
+def test_admin_bekommt_beim_abbruch_einer_wartenden_anfrage_die_kennung(
+    arr_client: TestClient,
+) -> None:
+    create_user(arr_client, "kim")
+    headers = auth_headers(arr_client, "kim", "passwort-1234")
+    item = arr_client.get("/api/discover/movie").json()["items"][0]
+    angelegt = arr_client.post(
+        "/api/requests",
+        json={
+            "media_type": "movie",
+            "tmdb_id": item["tmdb_id"],
+            "quality_profile_id": 1,
+            "root_folder_path": "/data/Movies",
+        },
+        headers=headers,
+    ).json()
+
+    antwort = arr_client.post(f"/api/admin/requests/{angelegt['id']}/cancel")
+    assert antwort.status_code == 409
+    assert antwort.json()["detail"]["code"] == "request_not_cancellable"
 
 
 def test_admin_bricht_fremde_anfrage_ab(

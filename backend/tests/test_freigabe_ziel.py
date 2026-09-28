@@ -239,6 +239,41 @@ def test_freigabe_mit_unbekanntem_profil_wird_abgelehnt(arr_client: TestClient) 
     assert antwort.status_code == 422
 
 
+def test_radarr_ausfall_bei_der_zielwahl_nennt_seine_kennung(
+    arr_client: TestClient, monkeypatch
+) -> None:
+    """Scheitert schon die Liste der Ordner und Profile, kommt die Kennung mit.
+
+    Bis 1.0.0 wurde hier aus dem ``ArrError`` ein 502 mit dem deutschen Satz
+    allein: kein ``code``, kein ``service``. Die Oberflaeche konnte ihn nicht
+    uebersetzen, und die Home-Assistant-Integration nur "HTTP 502" melden.
+    """
+    from app.services.beschaffung.arr import library
+    from app.services.beschaffung.arr.client import ArrError
+
+    kennung = _wartende_anfrage(arr_client)
+
+    async def weg(*_args: object, **_kwargs: object) -> dict:
+        raise ArrError(
+            "Radarr ist unter http://127.0.0.1:9 nicht erreichbar.",
+            code="arr_unreachable",
+            service="Radarr",
+            url="http://127.0.0.1:9",
+        )
+
+    monkeypatch.setattr(library, "options", weg)
+
+    antwort = arr_client.post(
+        f"/api/admin/requests/{kennung}/approve",
+        json={"root_folder_path": "/data/Movies", "quality_profile_id": 1},
+    )
+    assert antwort.status_code == 502
+    detail = antwort.json()["detail"]
+    assert detail["code"] == "arr_unreachable"
+    assert detail["service"] == "Radarr"
+    assert _anfrage_aus_db(kennung).status == RequestStatus.pending_approval
+
+
 def test_freigabe_setzt_das_gewaehlte_ziel(arr_client: TestClient) -> None:
     """Radarr ist nicht erreichbar - die Übergabe scheitert also mit 502.
 

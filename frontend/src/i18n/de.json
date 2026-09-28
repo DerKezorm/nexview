@@ -1978,6 +1978,7 @@
       "hausordnung_image_rejected": "Das Bild wurde abgelehnt.",
       "request_already_exists": "„{{titel}}“ wurde bereits angefragt.",
       "request_already_exists_season": "Staffel {{staffel}} von „{{titel}}“ wurde bereits angefragt.",
+      "request_not_cancellable": "Nur laufende oder fehlgeschlagene Anfragen können abgebrochen werden.",
       "already_in_library": "„{{titel}}“ ist bereits in deiner Bibliothek.",
       "wish_already_available": "„{{titel}}“ ist bereits da – der Wunsch ist damit erledigt.",
       "already_on_media_server": "„{{titel}}“ liegt bereits auf dem Media-Server.",

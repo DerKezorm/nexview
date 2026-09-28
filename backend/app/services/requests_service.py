@@ -506,7 +506,10 @@ async def _ziel_auswahl(
     try:
         optionen = await get_beschaffung(settings).optionen(media_type, tier)
     except BeschaffungError as fehler:
-        raise RequestError(fehler.message, 502) from fehler
+        # Mit Kennung und Dienst, wie bei der Uebergabe selbst. Bis 1.0.0 stand
+        # hier ``RequestError(fehler.message, 502)``: Freigeben bei nicht
+        # erreichbarem Radarr antwortete mit dem deutschen Satz allein.
+        raise _weg_fehler(fehler) from fehler
 
     ordner = [
         eintrag["path"] for eintrag in optionen.get("root_folders", []) if eintrag.get("path")
@@ -1884,6 +1887,7 @@ async def cancel(
         raise RequestError(
             "Nur laufende oder fehlgeschlagene Anfragen können abgebrochen werden.",
             409,
+            code="request_not_cancellable",
         )
 
     umfang = "removed it including files"

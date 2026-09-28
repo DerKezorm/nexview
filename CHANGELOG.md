@@ -12,6 +12,17 @@ tag exists for it.
 
 ---
 
+## 1.0.1
+
+### Fixed
+
+- **Two more refusals carry a code.** Approving while Radarr or Sonarr does not
+  answer the question for folders and profiles now answers with the code of that
+  failure (`arr_unreachable`, `arr_timeout`, ...) and the service, as handing the
+  request over already did, instead of a bare German sentence. Cancelling a
+  request that is neither running nor failed answers `409`
+  `request_not_cancellable`, through `/api/v1` too.
+
 ## 1.0.0 – 27.09.2026
 
 Nexview can now procure through **nexcrate** instead of Radarr and Sonarr. If

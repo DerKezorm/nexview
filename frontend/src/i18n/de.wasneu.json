@@ -616,6 +616,22 @@
           "Eine zurückgestellte Anfrage bleibt zurückgestellt, bis das Konto wieder Platz hat.",
           "Automatisch freigegebene Anfragen melden sich jetzt auf deinen Kanälen."
         ]
+      },
+      "1.0.1": {
+        "lead": "Eine Reparaturfassung. Am sichtbarsten: Ein in nexcrate entfernter Film steht nicht mehr bis zu einer Stunde als „In der Bibliothek“ da.",
+        "sections": [
+          {
+            "title": "In nexcrate entfernt, in Nexview binnen Minuten weg",
+            "where": "Die Seite eines Titels und jede Liste mit dem Abzeichen „In der Bibliothek“",
+            "body": "Das Abzeichen kommt aus Nexviews Kopie deiner Medienserver-Bibliothek, und die wurde einmal pro Stunde gelesen. Meldet nexcrate jetzt, dass Dateien in seinen Papierkorb gingen oder ein Titel entfernt wurde, liest Nexview die Bibliothek von Plex, Jellyfin oder Emby zwei Minuten später neu, einmal für alle Meldungen in dieser Zeit. nexcrate stößt den Medienserver selbst an; die zwei Minuten geben ihm Zeit zum Einlesen."
+          }
+        ],
+        "smallTitle": "Außerdem behoben",
+        "small": [
+          "Eine Freigabe, während Radarr oder Sonarr Ordner und Profile nicht liefern, nennt jetzt Fehler und Dienst, und das Abbrechen einer Anfrage, die weder läuft noch gescheitert ist, sagt klar, warum es nicht geht.",
+          "Ein gelungener Webhook-Test nimmt die Warnung, die er widerlegt, sofort weg statt erst beim nächsten Wartungslauf.",
+          "Eine große Radarr- oder Sonarr-Bibliothek bekommt 90 Sekunden zum Antworten, und eine Speichermessung, der eine Instanz fehlte, wird nach fünf Minuten wiederholt."
+        ]
       }
     }
   }

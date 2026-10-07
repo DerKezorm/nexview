@@ -616,6 +616,22 @@
           "A deferred request stays deferred until the account has room again.",
           "Requests approved automatically are announced on your channels now."
         ]
+      },
+      "1.0.1": {
+        "lead": "A repair release. The most visible part: a movie removed in nexcrate no longer stays \"In library\" for up to an hour.",
+        "sections": [
+          {
+            "title": "Removed in nexcrate, gone in Nexview within minutes",
+            "where": "A title's page and every list with the \"In library\" badge",
+            "body": "The badge comes from Nexview's copy of your media server library, which it read once an hour. When nexcrate now reports that files went into its recycle bin or a title was removed, Nexview reads the library of Plex, Jellyfin or Emby again two minutes later, once for every report in that time. nexcrate tells the media server itself; the two minutes give it time to rescan."
+          }
+        ],
+        "smallTitle": "Also fixed",
+        "small": [
+          "Approving while Radarr or Sonarr cannot list folders and profiles now names the failure and the service, and cancelling a request that is neither running nor failed answers with a clear reason.",
+          "A successful webhook test clears the warning it disproves right away instead of at the next upkeep round.",
+          "A large Radarr or Sonarr library gets 90 seconds to answer, and a storage measurement that missed an instance is tried again after five minutes."
+        ]
       }
     }
   }

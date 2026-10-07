@@ -31,6 +31,12 @@ tag exists for it.
   movie or series list now waits up to 90 seconds instead of 15, and a storage
   measurement that missed an instance is tried again after five minutes instead
   of an hour.
+- **A movie removed in nexcrate no longer shows "In library" for up to an
+  hour.** When nexcrate reports that files went into its recycle bin or a title
+  was removed, Nexview now reads the media server library (Plex, Jellyfin or
+  Emby) again two minutes later, once for all reports in that time, instead of
+  waiting for the hourly sync. nexcrate tells the media server itself; the two
+  minutes give it time to rescan.
 
 ## 1.0.0 – 27.09.2026
 

@@ -44,6 +44,9 @@ TITEL = ("title.", "version.", "request.", "file.", "series.")
 FASSUNGEN = ("version_definition.",)
 GESUNDHEIT = ("health.",)
 UEBERNAHME = ("source.",)
+#: Was die Kopie der Medienserver-Bibliothek veralten laesst: Dateien gingen in
+#: nexcrates Papierkorb, oder ein Titel ist weg (nexcrate Issue #10).
+LOESCHUNGEN = ("file.deleted", "title.removed")
 
 
 class Wecker:
@@ -62,6 +65,8 @@ class Wecker:
 
     def merken(self, art: str) -> bool:
         """Ein Ereignis einordnen. ``True``, wenn es den Rundgang vorzieht."""
+        if art in LOESCHUNGEN:
+            _bibliothek_bald()
         if art.startswith(DOWNLOADS):
             self.downloads = True
         elif art.startswith(FASSUNGEN):
@@ -154,6 +159,13 @@ async def _strom_einmal(settings: AppSettings) -> None:
             _weckruf_setzen()
     if letzte != after:
         marke_schreiben(settings, letzte)
+
+
+def _bibliothek_bald() -> None:
+    # Erst hier importiert: Der Rundgang zieht fast die ganze Anwendung nach.
+    from ...status_poller import bibliothek_bald
+
+    bibliothek_bald()
 
 
 def _weckruf_setzen() -> None:

@@ -491,6 +491,26 @@ async def check_once(
 BIBLIOTHEK_INTERVALL_SEKUNDEN = 3600
 _bibliothek_zuletzt: float = 0.0
 
+#: Meldet nexcrate, dass Dateien in den Papierkorb gingen oder ein Titel weg
+#: ist, liest der Rundgang die Bibliothek nach dieser Frist neu, statt bis zu
+#: einer Stunde ein "In der Bibliothek" zu zeigen, das nicht mehr stimmt
+#: (nexcrate Issue #10). nexcrate stoesst den Medienserver selbst an; die
+#: Frist laesst ihm Zeit zum Einlesen. Mehrere Meldungen darin ergeben einen
+#: Lauf.
+BIBLIOTHEK_NACH_LOESCHEN_SEKUNDEN = 120
+_bibliothek_vorgezogen: float | None = None
+
+
+def bibliothek_bald(jetzt: float | None = None) -> None:
+    """Die Bibliothek nach ``BIBLIOTHEK_NACH_LOESCHEN_SEKUNDEN`` neu lesen.
+
+    Ein schon vorgemerkter Zeitpunkt bleibt: Wer weiter loescht, schiebt den
+    Lauf nicht immer weiter hinaus.
+    """
+    global _bibliothek_vorgezogen
+    if _bibliothek_vorgezogen is None:
+        _bibliothek_vorgezogen = (time.monotonic() if jetzt is None else jetzt) + BIBLIOTHEK_NACH_LOESCHEN_SEKUNDEN
+
 #: Wie oft die "grosse" Messung laeuft: Datentraeger, Warteschlange,
 #: Aktualisierung. Erreichbarkeit und Fassung werden dagegen **jede** Runde
 #: gemessen - das ist eine winzige Antwort, und sie veraltet schnell.
@@ -629,13 +649,15 @@ async def _bibliothek_vielleicht(db, settings) -> None:
     Faellt der Server aus, ist das kein Grund, den ganzen Durchgang scheitern
     zu lassen - der Rest des Abgleichs haengt nicht daran.
     """
-    global _bibliothek_zuletzt
+    global _bibliothek_zuletzt, _bibliothek_vorgezogen
     if not settings.mediaserver_configured:
         return
     jetzt = time.monotonic()
-    if jetzt - _bibliothek_zuletzt < BIBLIOTHEK_INTERVALL_SEKUNDEN:
+    vorgezogen = _bibliothek_vorgezogen is not None and jetzt >= _bibliothek_vorgezogen
+    if jetzt - _bibliothek_zuletzt < BIBLIOTHEK_INTERVALL_SEKUNDEN and not vorgezogen:
         return
     _bibliothek_zuletzt = jetzt
+    _bibliothek_vorgezogen = None
     try:
         # Bibliothek und Gesehen-Stand unter **einer** Sperre - siehe dort.
         # Wer waehrenddessen "Sync now" drueckt, wartet und nimmt das

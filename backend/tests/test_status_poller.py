@@ -339,6 +339,65 @@ async def test_gescheiterter_abgleich_vergiftet_die_sitzung_nicht(
         # Entscheidend: Die Sitzung ist danach wieder benutzbar.
         assert db.query(Setting).count() >= 0
 
+# --- Loeschmeldung von nexcrate (nexcrate Issue #10) -------------------------
+
+
+async def test_eine_loeschmeldung_von_nexcrate_zieht_den_bibliotheksabgleich_vor(
+    arr_client, monkeypatch
+) -> None:
+    """Hat nexcrate Dateien in den Papierkorb gelegt, stand der Titel bis zu
+    einer Stunde weiter als "In der Bibliothek" da. Jetzt liest der Rundgang
+    die Bibliothek nach der Frist neu, einmal fuer alle Meldungen darin."""
+    from app.db import SessionLocal
+    from app.models import Setting
+    from app.services import mediaserver_library
+    from app.services.beschaffung.nex import ereignisse
+
+    laeufe: list[float] = []
+    jetzt = [1000.0]
+
+    async def abgleich(db, settings):  # noqa: ANN001
+        laeufe.append(jetzt[0])
+
+    monkeypatch.setattr(mediaserver_library, "voller_abgleich", abgleich)
+    monkeypatch.setattr(status_poller.time, "monotonic", lambda: jetzt[0])
+    # Gerade erst abgeglichen: Der Stundentakt allein laesst nichts laufen.
+    monkeypatch.setattr(status_poller, "_bibliothek_zuletzt", 1000.0)
+    monkeypatch.setattr(status_poller, "_bibliothek_vorgezogen", None)
+
+    with SessionLocal() as db:
+        db.add(Setting(key="mediaserver_provider", value="emby"))
+        db.add(Setting(key="mediaserver_machine_id", value="m1"))
+        db.add(Setting(key="mediaserver_token", value="t"))
+        db.commit()
+        settings = load_settings(db)
+        assert settings.mediaserver_configured
+
+        wecker = ereignisse.Wecker()
+        wecker.merken("download.failed")
+        assert status_poller._bibliothek_vorgezogen is None, "nur Loeschungen ziehen vor"
+        wecker.merken("file.deleted")
+        jetzt[0] = 1060.0
+        wecker.merken("title.removed")
+        assert status_poller._bibliothek_vorgezogen == 1000.0 + status_poller.BIBLIOTHEK_NACH_LOESCHEN_SEKUNDEN
+
+        await status_poller._bibliothek_vielleicht(db, settings)
+        assert laeufe == [], "vor der Frist bleibt es beim alten Stand"
+
+        jetzt[0] = 1000.0 + status_poller.BIBLIOTHEK_NACH_LOESCHEN_SEKUNDEN
+        await status_poller._bibliothek_vielleicht(db, settings)
+        await status_poller._bibliothek_vielleicht(db, settings)
+        assert laeufe == [jetzt[0]], "zwei Meldungen, ein Lauf"
+        assert status_poller._bibliothek_vorgezogen is None
+        # Auch ein entfernter Titel allein zieht vor.
+        wecker.merken("title.removed")
+        assert status_poller._bibliothek_vorgezogen is not None
+
+        for key in ("mediaserver_provider", "mediaserver_machine_id", "mediaserver_token"):
+            db.query(Setting).filter(Setting.key == key).delete()
+        db.commit()
+
+
 # --- Verschwundene Titel ----------------------------------------------------
 
 

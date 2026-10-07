@@ -37,6 +37,9 @@ tag exists for it.
   Emby) again two minutes later, once for all reports in that time, instead of
   waiting for the hourly sync. nexcrate tells the media server itself; the two
   minutes give it time to rescan.
+- **PyJWT updated to 2.15.1.** The library behind sign-in tokens had 14
+  published security advisories for the pinned 2.13.0, one rated critical;
+  2.15.1 has none.
 
 ## 1.0.0 – 27.09.2026
 

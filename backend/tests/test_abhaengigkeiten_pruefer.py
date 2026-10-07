@@ -431,9 +431,11 @@ def test_der_waechter_wuerde_einen_luecken_eintrag_finden() -> None:
     geschrieben, der Befehl, der ihn belegt, kostet Arbeit. Genau der fehlt dann.
     """
     gepinnt = dict(pruefer.pins_lesen(REQUIREMENTS.read_text(encoding="utf-8")))
+    # Die gepinnte Fassung selbst, nicht abgeschrieben: Sonst kippt der Test bei
+    # jedem Update des Pakets (pyjwt 2.13.0 auf 2.15.1, 07.10.2026).
     luecke = {
         "paket": "pyjwt",
-        "gilt_fuer": "2.13.0",
+        "gilt_fuer": gepinnt["pyjwt"],
         "grund": "Trifft uns nicht.",
         "beleg": "",
         "geprueft_am": "2026-09-01",
@@ -444,7 +446,7 @@ def test_der_waechter_wuerde_einen_luecken_eintrag_finden() -> None:
 
     veraltet = dict(luecke, beleg="grep -rn nichts backend/app", gilt_fuer="2.11.0")
     assert _maengel("CVE-2026-11111", veraltet, gepinnt) == [
-        "CVE-2026-11111: gilt_fuer '2.11.0', gepinnt ist '2.13.0'"
+        f"CVE-2026-11111: gilt_fuer '2.11.0', gepinnt ist '{gepinnt['pyjwt']}'"
     ]
 
 

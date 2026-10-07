@@ -628,6 +628,7 @@
         ],
         "smallTitle": "Außerdem behoben",
         "small": [
+          "Die Bibliothek hinter den Anmelde-Token (PyJWT) ist auf 2.15.1 gehoben; das schließt 14 veröffentlichte Sicherheitsmeldungen, eine davon kritisch.",
           "Eine Freigabe, während Radarr oder Sonarr Ordner und Profile nicht liefern, nennt jetzt Fehler und Dienst, und das Abbrechen einer Anfrage, die weder läuft noch gescheitert ist, sagt klar, warum es nicht geht.",
           "Ein gelungener Webhook-Test nimmt die Warnung, die er widerlegt, sofort weg statt erst beim nächsten Wartungslauf.",
           "Eine große Radarr- oder Sonarr-Bibliothek bekommt 90 Sekunden zum Antworten, und eine Speichermessung, der eine Instanz fehlte, wird nach fünf Minuten wiederholt."

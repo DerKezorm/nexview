@@ -628,6 +628,7 @@
         ],
         "smallTitle": "Also fixed",
         "small": [
+          "The library behind sign-in tokens (PyJWT) is updated to 2.15.1, which closes 14 published security advisories, one of them critical.",
           "Approving while Radarr or Sonarr cannot list folders and profiles now names the failure and the service, and cancelling a request that is neither running nor failed answers with a clear reason.",
           "A successful webhook test clears the warning it disproves right away instead of at the next upkeep round.",
           "A large Radarr or Sonarr library gets 90 seconds to answer, and a storage measurement that missed an instance is tried again after five minutes."

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import smtplib
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
+from email.utils import parsedate_to_datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -241,6 +243,18 @@ def test_testmail_hat_text_und_html(admin_client: TestClient, versand: list[Emai
     typen = {teil.get_content_type() for teil in versand[0].walk()}
     assert "text/plain" in typen
     assert "text/html" in typen
+
+
+def test_mail_hat_genau_ein_gueltiges_date(admin_client: TestClient, versand: list[EmailMessage]) -> None:
+    """Ohne Date verwerfen grosse Anbieter die Mail still, smtplib ergaenzt es nicht."""
+    admin_client.put("/api/settings", json=ZUGANG)
+    vorher = datetime.now(UTC) - timedelta(seconds=5)
+    admin_client.post("/api/settings/test-mail", json={"recipient": "kim@example.com"})
+
+    felder = versand[0].get_all("Date")
+    assert felder is not None and len(felder) == 1
+    gesendet = parsedate_to_datetime(felder[0])
+    assert vorher <= gesendet <= datetime.now(UTC) + timedelta(seconds=5)
 
 
 def test_testmail_ohne_einstellungen(admin_client: TestClient, versand: list) -> None:

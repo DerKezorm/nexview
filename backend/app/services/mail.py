@@ -15,7 +15,7 @@ import smtplib
 import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
-from email.utils import formataddr, make_msgid
+from email.utils import formataddr, formatdate, make_msgid
 
 logger = logging.getLogger("nexview.mail")
 
@@ -156,6 +156,9 @@ async def send(config: MailConfig, to: str, subject: str, html: str, text: str) 
     # Eigene Message-ID mit der Absender-Domain: ohne die vergeben manche
     # Server eine eigene, was Spamfilter misstrauisch macht.
     nachricht["Message-ID"] = make_msgid(domain=config.from_address.split("@")[-1])
+    # Pflichtfeld nach RFC 5322. smtplib ergaenzt es nicht, und ohne Date
+    # verwerfen iCloud, Outlook und Gmail die Mail still.
+    nachricht["Date"] = formatdate(localtime=True)
     nachricht["Auto-Submitted"] = "auto-generated"
     nachricht.set_content(text)
     nachricht.add_alternative(html, subtype="html")
